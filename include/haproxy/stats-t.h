@@ -253,9 +253,9 @@ enum field_scope {
 };
 
 /* Show info columns for CLI output. For any column added here, please add the
- * text representation in the metrics_info array. Please only append at the end,
- * before the ST_I_INF_MAX entry, and never insert anything in the middle
- * nor at the beginning.
+ * text representation in the stat_cols_info[] array in stats.c. Please only
+ * append at the end, before the ST_I_INF_MAX entry, and never insert anything
+ * in the middle nor at the beginning.
  */
 enum stat_idx_info {
 	ST_I_INF_NAME,
