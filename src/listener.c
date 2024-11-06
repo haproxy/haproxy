@@ -1034,7 +1034,7 @@ void listener_accept(struct listener *l)
 	int ret;
 
 	p = l->bind_conf->frontend;
-	bind_tid_commit = l->rx.proto ? l->rx.proto->bind_tid_commit : NULL;
+	bind_tid_commit = l->rx.proto->bind_tid_commit;
 
 	/* if l->bind_conf->maxaccept is -1, then max_accept is UINT_MAX. It is
 	 * not really illimited, but it is probably enough.
@@ -1473,7 +1473,7 @@ void listener_accept(struct listener *l)
 			 * reservation in the target ring.
 			 */
 
-			if (l->rx.proto && l->rx.proto->bind_tid_prep) {
+			if (l->rx.proto->bind_tid_prep) {
 				if (l->rx.proto->bind_tid_prep(cli_conn, t)) {
 					/* Failed migration, stay on the same thread. */
 					goto local_accept;
@@ -1498,7 +1498,7 @@ void listener_accept(struct listener *l)
 			 */
 			_HA_ATOMIC_INC(&activity[t].accq_full);
 
-			if (l->rx.proto && l->rx.proto->bind_tid_reset)
+			if (l->rx.proto->bind_tid_reset)
 				l->rx.proto->bind_tid_reset(cli_conn);
 		}
 #endif // USE_THREAD
@@ -1573,7 +1573,7 @@ void listener_accept(struct listener *l)
 	/* This may be a shared socket that was paused by another process.
 	 * Let's put it to pause in this case.
 	 */
-	if (l->rx.proto && l->rx.proto->rx_listening(&l->rx) == 0) {
+	if (l->rx.proto->rx_listening(&l->rx) == 0) {
 		suspend_listener(l, 0, 0);
 		goto end;
 	}
