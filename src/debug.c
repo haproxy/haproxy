@@ -973,11 +973,13 @@ static int debug_parse_cli_loop(char **args, char *payload, struct appctx *appct
 	struct timeval deadline, curr;
 	int loop = atoi(args[3]);
 	int isolate;
+	int warn;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
 	isolate = strcmp(args[4], "isolated") == 0;
+	warn    = strcmp(args[4], "warn") == 0;
 
 	_HA_ATOMIC_INC(&debug_commands_issued);
 	gettimeofday(&curr, NULL);
@@ -986,8 +988,11 @@ static int debug_parse_cli_loop(char **args, char *payload, struct appctx *appct
 	if (isolate)
 		thread_isolate();
 
-	while (tv_ms_cmp(&curr, &deadline) < 0)
+	while (tv_ms_cmp(&curr, &deadline) < 0) {
+		if (warn)
+			_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_STUCK);
 		gettimeofday(&curr, NULL);
+	}
 
 	if (isolate)
 		thread_release();
@@ -2748,7 +2753,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "hash", NULL },     "debug dev hash   [msg]                  : return msg hashed if anon is set",        debug_parse_cli_hash,  NULL, NULL, NULL, 0 },
 	{{ "debug", "dev", "hex",   NULL },    "debug dev hex    <addr> [len]           : dump a memory area",                      debug_parse_cli_hex,   NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "log",   NULL },    "debug dev log    [msg] ...              : send this msg to global logs",            debug_parse_cli_log,   NULL, NULL, NULL, ACCESS_EXPERT },
-	{{ "debug", "dev", "loop",  NULL },    "debug dev loop   <ms> [isolated]        : loop this long, possibly isolated",       debug_parse_cli_loop,  NULL, NULL, NULL, ACCESS_EXPERT },
+	{{ "debug", "dev", "loop",  NULL },    "debug dev loop   <ms> [isolated|warn]   : loop this long, possibly isolated",       debug_parse_cli_loop,  NULL, NULL, NULL, ACCESS_EXPERT },
 #if defined(DEBUG_MEM_STATS)
 	{{ "debug", "dev", "memstats", NULL }, "debug dev memstats [reset|all|match ...]: dump/reset memory statistics",            debug_parse_cli_memstats, debug_iohandler_memstats, debug_release_memstats, NULL, 0 },
 #endif
