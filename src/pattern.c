@@ -1830,6 +1830,14 @@ static struct pat_ref *_pat_ref_new(const char *display, unsigned int flags)
 	return ref;
 }
 
+/* helper func to properly de-initialize and free pat_ref struct */
+static void pat_ref_free(struct pat_ref *ref)
+{
+	ha_free(&ref->reference);
+	ha_free(&ref->display);
+	free(ref);
+}
+
 /* This function creates a new reference. <ref> is the reference name.
  * <flags> are PAT_REF_*. /!\ The reference is not checked, and must
  * be unique. The user must check the reference with "pat_ref_lookup()"
@@ -1861,8 +1869,7 @@ struct pat_ref *pat_ref_new(const char *reference, const char *display, unsigned
 
 	ref->reference = strdup(reference);
 	if (!ref->reference) {
-		free(ref->display);
-		free(ref);
+		pat_ref_free(ref);
 		return NULL;
 	}
 
