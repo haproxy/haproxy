@@ -60,6 +60,7 @@
 #include <haproxy/stats-proxy.h>
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
+#include <haproxy/stress.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
@@ -231,7 +232,8 @@ int stats_putchk(struct appctx *appctx, struct buffer *buf, struct htx *htx)
 	struct buffer *chk = &ctx->chunk;
 
 	if (htx) {
-		if (b_data(chk) > htx_free_data_space(htx)) {
+		if (STRESS_RUN1(!htx_is_empty(htx),
+		                b_data(chk) > htx_free_data_space(htx))) {
 			applet_fl_set(appctx, APPCTX_FL_OUTBLK_FULL);
 			return 0;
 		}
@@ -242,7 +244,7 @@ int stats_putchk(struct appctx *appctx, struct buffer *buf, struct htx *htx)
 		chunk_reset(chk);
 	}
 	else if (buf) {
-		if (b_data(chk) > b_room(buf)) {
+		if (STRESS_RUN1(b_data(buf), b_data(chk) > b_room(buf))) {
 			se_fl_set(appctx->sedesc, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 			return 0;
 		}
@@ -250,29 +252,31 @@ int stats_putchk(struct appctx *appctx, struct buffer *buf, struct htx *htx)
 		chunk_reset(chk);
 	}
 	else {
-		if (applet_putchk(appctx, chk) == -1)
+		if (STRESS_RUN1(applet_putchk_stress(appctx, chk) == -1,
+		                applet_putchk(appctx, chk) == -1)) {
 			return 0;
+		}
 	}
 	return 1;
 }
 
-
 int stats_is_full(struct appctx *appctx, struct buffer *buf, struct htx *htx)
 {
 	if (htx) {
-		if (htx_almost_full(htx)) {
+		if (STRESS_RUN1(!htx_is_empty(htx), htx_almost_full(htx))) {
 			applet_fl_set(appctx, APPCTX_FL_OUTBLK_FULL);
 			goto full;
 		}
 	}
 	else if (buf) {
-		if (buffer_almost_full(buf)) {
+		if (STRESS_RUN1(b_data(buf), buffer_almost_full(buf))) {
 			se_fl_set(appctx->sedesc, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 			goto full;
 		}
 	}
 	else {
-		if (buffer_almost_full(&appctx->outbuf))  {
+		if (STRESS_RUN1(b_data(&appctx->outbuf),
+		                buffer_almost_full(&appctx->outbuf))) {
 			applet_fl_set(appctx, APPCTX_FL_OUTBLK_FULL);
 			goto full;
 		}
