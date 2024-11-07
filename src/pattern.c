@@ -1792,6 +1792,46 @@ int pat_ref_set(struct pat_ref *ref, const char *key, const char *value, char **
 	return 1;
 }
 
+/* helper function to create and initialize a generic pat_ref struct
+ *
+ * Returns the new struct on success and NULL on failure (memory allocation
+ * error)
+ */
+static struct pat_ref *_pat_ref_new(const char *display, unsigned int flags)
+{
+	struct pat_ref *ref;
+
+	ref = calloc(1, sizeof(*ref));
+	if (!ref)
+		return NULL;
+
+	/* For now is assumed <ref> was allocated with calloc() thus we don't
+	 * have to explicitly set all members to 0.
+	 */
+
+	if (display) {
+		ref->display = strdup(display);
+		if (!ref->display) {
+			free(ref);
+			return NULL;
+		}
+	}
+
+	ref->reference = NULL;
+	ref->flags = flags;
+	ref->curr_gen = 0;
+        ref->next_gen = 0;
+	ref->unique_id = -1;
+	ref->revision = 0;
+	ref->entry_cnt = 0;
+	LIST_INIT(&ref->head);
+	ref->ebmb_root = EB_ROOT;
+	LIST_INIT(&ref->pat);
+	HA_RWLOCK_INIT(&ref->lock);
+
+	return ref;
+}
+
 /* This function creates a new reference. <ref> is the reference name.
  * <flags> are PAT_REF_*. /!\ The reference is not checked, and must
  * be unique. The user must check the reference with "pat_ref_lookup()"
@@ -1802,28 +1842,19 @@ struct pat_ref *pat_ref_new(const char *reference, const char *display, unsigned
 {
 	struct pat_ref *ref;
 
-	ref = calloc(1, sizeof(*ref));
+	ref = _pat_ref_new(display, flags);
 	if (!ref)
 		return NULL;
 
-	if (display) {
-		ref->display = strdup(display);
-		if (!ref->display) {
-			free(ref);
-			return NULL;
-		}
-	}
-
-
 	if (strlen(reference) > 5 && strncmp(reference, "virt@", 5) == 0)
-		flags |= PAT_REF_ID;
+		ref->flags |= PAT_REF_ID;
 	else if (strlen(reference) > 4 && strncmp(reference, "opt@", 4) == 0) {
-		flags |= (PAT_REF_ID|PAT_REF_FILE); // Will be decided later
+		ref->flags |= (PAT_REF_ID|PAT_REF_FILE); // Will be decided later
 		reference += 4;
 	}
 	else {
 		/* A file by default */
-		flags |= PAT_REF_FILE;
+		ref->flags |= PAT_REF_FILE;
 		/* Skip file@ prefix to be mixed with ref omitting the prefix */
 		if (strlen(reference) > 5 && strncmp(reference, "file@", 5) == 0)
 			reference += 5;
@@ -1837,17 +1868,7 @@ struct pat_ref *pat_ref_new(const char *reference, const char *display, unsigned
 		return NULL;
 	}
 
-	ref->flags = flags;
-	ref->unique_id = -1;
-	ref->revision = 0;
-	ref->entry_cnt = 0;
-
-	LIST_INIT(&ref->head);
-	ref->ebmb_root = EB_ROOT;
-	LIST_INIT(&ref->pat);
-	HA_RWLOCK_INIT(&ref->lock);
 	LIST_APPEND(&pattern_reference, &ref->list);
-
 	return ref;
 }
 
@@ -1862,29 +1883,13 @@ struct pat_ref *pat_ref_newid(int unique_id, const char *display, unsigned int f
 {
 	struct pat_ref *ref;
 
-	ref = calloc(1, sizeof(*ref));
+	ref = _pat_ref_new(display, flags);
 	if (!ref)
 		return NULL;
 
-	if (display) {
-		ref->display = strdup(display);
-		if (!ref->display) {
-			free(ref);
-			return NULL;
-		}
-	}
-
-	ref->reference = NULL;
-	ref->flags = flags;
-	ref->curr_gen = 0;
-	ref->next_gen = 0;
 	ref->unique_id = unique_id;
-	LIST_INIT(&ref->head);
-	ref->ebmb_root = EB_ROOT;
-	LIST_INIT(&ref->pat);
-	HA_RWLOCK_INIT(&ref->lock);
-	LIST_APPEND(&pattern_reference, &ref->list);
 
+	LIST_APPEND(&pattern_reference, &ref->list);
 	return ref;
 }
 
