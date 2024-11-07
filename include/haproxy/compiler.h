@@ -212,6 +212,21 @@
 #endif
 #endif
 
+/* By using an unreachable statement, we can tell the compiler that certain
+ * conditions are not expected to be met and let it arrange as it wants to
+ * optimize some checks away. The principle is to place a test on the condition
+ * and call unreachable upon a match. It may also help static code analyzers
+ * know that some conditions are not supposed to happen. This can only be used
+ * with compilers that support it, and we do not want to emit any static code
+ * for other ones, so we use a construct that the compiler should easily be
+ * able to optimize away.
+ */
+#if __has_builtin(__builtin_unreachable)
+# define ASSUME(expr) do { if (!(expr)) __builtin_unreachable(); } while (0)
+#else
+# define ASSUME(expr) do { if (!(expr)) break; } while (0)
+#endif
+
 /* This prevents the compiler from folding multiple identical code paths into a
  * single one, by adding a dependency on the line number in the path. This may
  * typically happen on function tails, or purposely placed abort() before an
