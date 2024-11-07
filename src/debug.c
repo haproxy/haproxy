@@ -780,9 +780,6 @@ void ha_stuck_warning(int thr)
 		ha_thread_dump_done(NULL, thr);
 	}
 
-	chunk_printf(&buf, " => Trying to gracefully recover now.\n");
-	DISGUISE(write(2, buf.area, buf.data));
-
 #ifdef USE_LUA
 	if (get_tainted() & TAINTED_LUA_STUCK_SHARED && global.nbthread > 1) {
 		chunk_printf(&buf,
@@ -809,6 +806,9 @@ void ha_stuck_warning(int thr)
 			     "          'global' section of your configuration to avoid this in the future.\n");
 		DISGUISE(write(2, buf.area, buf.data));
 	}
+
+	chunk_printf(&buf, " => Trying to gracefully recover now.\n");
+	DISGUISE(write(2, buf.area, buf.data));
 }
 
 /* Complain with message <msg> on stderr. If <counter> is not NULL, it is
