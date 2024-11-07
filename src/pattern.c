@@ -1801,13 +1801,11 @@ static struct pat_ref *_pat_ref_new(const char *display, unsigned int flags)
 {
 	struct pat_ref *ref;
 
-	ref = calloc(1, sizeof(*ref));
+	ref = malloc(sizeof(*ref));
 	if (!ref)
 		return NULL;
 
-	/* For now is assumed <ref> was allocated with calloc() thus we don't
-	 * have to explicitly set all members to 0.
-	 */
+	/* don't forget to explicitly initialize all pat_ref struct members */
 
 	if (display) {
 		ref->display = strdup(display);
