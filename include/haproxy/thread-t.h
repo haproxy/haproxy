@@ -205,6 +205,7 @@ enum lock_label {
 	OCSP_LOCK,
 	QC_CID_LOCK,
 	CACHE_LOCK,
+	GUID_LOCK,
 	OTHER_LOCK,
 	/* WT: make sure never to use these ones outside of development,
 	 * we need them for lock profiling!

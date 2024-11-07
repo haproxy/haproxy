@@ -6,9 +6,11 @@
 #include <haproxy/proxy.h>
 #include <haproxy/server-t.h>
 #include <haproxy/tools.h>
+#include <haproxy/thread.h>
 
 /* GUID global tree */
 struct eb_root guid_tree = EB_ROOT_UNIQUE;
+__decl_thread(HA_RWLOCK_T guid_lock);
 
 /* Initialize <guid> members. */
 void guid_init(struct guid_node *guid)
@@ -60,13 +62,17 @@ int guid_insert(enum obj_type *objt, const char *uid, char **errmsg)
 	}
 
 	guid->node.key = key;
+
+	HA_RWLOCK_WRLOCK(GUID_LOCK, &guid_lock);
 	node = ebis_insert(&guid_tree, &guid->node);
 	if (node != &guid->node) {
 		dup = ebpt_entry(node, struct guid_node, node);
+		HA_RWLOCK_WRUNLOCK(GUID_LOCK, &guid_lock);
 		dup_name = guid_name(dup);
 		memprintf(errmsg, "duplicate entry with %s", dup_name);
 		goto err;
 	}
+	HA_RWLOCK_WRUNLOCK(GUID_LOCK, &guid_lock);
 
 	guid->obj_type = objt;
 	return 0;
@@ -82,8 +88,10 @@ int guid_insert(enum obj_type *objt, const char *uid, char **errmsg)
  */
 void guid_remove(struct guid_node *guid)
 {
+	HA_RWLOCK_WRLOCK(GUID_LOCK, &guid_lock);
 	ebpt_delete(&guid->node);
 	ha_free(&guid->node.key);
+	HA_RWLOCK_WRUNLOCK(GUID_LOCK, &guid_lock);
 }
 
 /* Retrieve an instance from GUID global tree with key <uid>.
@@ -94,6 +102,12 @@ struct guid_node *guid_lookup(const char *uid)
 {
 	struct ebpt_node *node = NULL;
 	struct guid_node *guid = NULL;
+
+	/* For now, guid_lookup() is only used during startup in single-thread
+	 * mode. If this is not the case anymore, GUID tree access must be
+	 * protected with the read-write lock.
+	 */
+	BUG_ON(!(global.mode & MODE_STARTING));
 
 	node = ebis_lookup(&guid_tree, uid);
 	if (node)

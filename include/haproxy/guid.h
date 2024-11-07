@@ -1,7 +1,11 @@
 #ifndef _HAPROXY_GUID_H
 #define _HAPROXY_GUID_H
 
+#include <haproxy/api-t.h>
 #include <haproxy/guid-t.h>
+#include <haproxy/thread-t.h>
+
+__decl_thread(extern HA_RWLOCK_T guid_lock);
 
 void guid_init(struct guid_node *node);
 int guid_insert(enum obj_type *obj_type, const char *uid, char **errmsg);
