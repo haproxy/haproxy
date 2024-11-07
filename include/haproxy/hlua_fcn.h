@@ -37,5 +37,6 @@ int hlua_dump_object(lua_State *L);
 int hlua_fcn_new_proxy(lua_State *L, struct proxy *px);
 int hlua_fcn_new_server(lua_State *L, struct server *srv);
 int hlua_fcn_new_event_sub(lua_State *L, struct event_hdl_sub *sub);
+void hlua_fcn_new_patref(lua_State *L, struct pat_ref *ref);
 
 #endif /* _HAPROXY_HLUA_FCN_H */

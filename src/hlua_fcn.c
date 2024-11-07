@@ -49,6 +49,7 @@ static int class_proxy_ref;
 static int class_server_ref;
 static int class_listener_ref;
 static int class_event_sub_ref;
+static int class_patref_ref;
 static int class_regex_ref;
 static int class_stktable_ref;
 static int class_proxy_list_ref;
@@ -2617,6 +2618,36 @@ static int hlua_regex_free(struct lua_State *L)
 	return 0;
 }
 
+int hlua_patref_get_name(lua_State *L)
+{
+	struct pat_ref *ref;
+
+	ref = hlua_checkudata(L, 1, class_patref_ref);
+	BUG_ON(!ref);
+
+	lua_pushstring(L, ref->reference);
+	return 1;
+}
+
+void hlua_fcn_new_patref(lua_State *L, struct pat_ref *ref)
+{
+	lua_newtable(L);
+
+	/* Pop a class patref metatable and affect it to the userdata
+	 * (if provided)
+	 */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_patref_ref);
+	lua_setmetatable(L, -2);
+
+	if (ref) {
+		lua_pushlightuserdata(L, ref);
+		lua_rawseti(L, -2, 0);
+	}
+
+	/* set public methods */
+	hlua_class_function(L, "get_name", hlua_patref_get_name);
+}
+
 void hlua_fcn_reg_core_fcn(lua_State *L)
 {
 	hlua_concat_init(L);
@@ -2674,6 +2705,10 @@ void hlua_fcn_reg_core_fcn(lua_State *L)
 	lua_newtable(L);
 	hlua_class_function(L, "__gc", hlua_event_sub_gc);
 	class_event_sub_ref = hlua_register_metatable(L, CLASS_EVENT_SUB);
+
+	/* Create patref object. */
+	lua_newtable(L);
+	class_patref_ref = hlua_register_metatable(L, CLASS_PATREF);
 
 	/* Create server object. */
 	lua_newtable(L);

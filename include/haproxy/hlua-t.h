@@ -36,6 +36,7 @@
 #include <haproxy/stick_table-t.h>
 #include <haproxy/xref-t.h>
 #include <haproxy/event_hdl-t.h>
+#include <haproxy/pattern-t.h>
 
 #define CLASS_CORE         "Core"
 #define CLASS_TXN          "TXN"
@@ -53,6 +54,7 @@
 #define CLASS_SERVER       "Server"
 #define CLASS_LISTENER     "Listener"
 #define CLASS_EVENT_SUB    "EventSub"
+#define CLASS_PATREF       "Patref"
 #define CLASS_REGEX        "Regex"
 #define CLASS_STKTABLE     "StickTable"
 #define CLASS_CERTCACHE    "CertCache"
