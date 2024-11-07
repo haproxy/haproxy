@@ -24,6 +24,7 @@
 #include <haproxy/log.h>
 #include <haproxy/peers.h>
 #include <haproxy/protocol.h>
+#include <haproxy/stress.h>
 #include <haproxy/tools.h>
 
 int cluster_secret_isset;
@@ -1642,6 +1643,32 @@ static int cfg_parse_global_localpeer(char **args, int section_type, struct prox
 	return 0;
 }
 
+static int cfg_parse_global_stress_level(char **args, int section_type, struct proxy *curpx,
+                                         const struct proxy *defpx, const char *file, int line,
+                                         char **err)
+{
+	char *stop;
+	int level;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "'%s' expects a level as an argument.", args[0]);
+		return -1;
+	}
+
+	level = strtol(args[1], &stop, 10);
+	if ((*stop != '\0') || level < 0 || level > 9) {
+		memprintf(err, "'%s' level must be between 0 and 9 inclusive.", args[0]);
+		return -1;
+	}
+
+	mode_stress_level = level;
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "prealloc-fd", cfg_parse_prealloc_fd },
 	{ CFG_GLOBAL, "force-cfg-parser-pause", cfg_parse_global_parser_pause, KWF_EXPERIMENTAL },
@@ -1687,6 +1714,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "presetenv", cfg_parse_global_env_opts, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "chroot", cfg_parse_global_chroot },
 	{ CFG_GLOBAL, "localpeer", cfg_parse_global_localpeer, KWF_DISCOVERY },
+	{ CFG_GLOBAL, "stress-level", cfg_parse_global_stress_level },
 	{ 0, NULL, NULL },
 }};
 

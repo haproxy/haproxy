@@ -3035,6 +3035,13 @@ stats-file <path>
   values to its internal counters. Use the CLI command "dump stats-file" to
   produce such stats-file. See the management manual for more details.
 
+stress-level <level>
+  Activate alternative code to stress haproxy binary. Level is an integer from
+  0 to 9. The default value 0 disable any stressing execution. Levels from 1 to
+  9 will increase the stress pressure on the haproxy binary. Note that using
+  any positive level can significantly hurt performance. As such it should
+  never be activated unless for debugging purpose and on a developer request.
+
 strict-limits
   Makes process fail at startup when a setrlimit fails. HAProxy tries to set the
   best setrlimit according to what has been calculated. If it fails, it will
