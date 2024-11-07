@@ -279,16 +279,16 @@ static inline void applet_expect_data(struct appctx *appctx)
 	se_fl_clr(appctx->sedesc, SE_FL_EXP_NO_DATA);
 }
 
-/* writes chunk <chunk> into the input channel of the stream attached to this
- * appctx's endpoint, and marks the SC_FL_NEED_ROOM on a channel full error.
- * See ci_putchk() for the list of return codes.
- */
-static inline int applet_putchk(struct appctx *appctx, struct buffer *chunk)
+/* Should only be used via wrappers applet_putchk() / applet_putchk_stress(). */
+static inline int _applet_putchk(struct appctx *appctx, struct buffer *chunk,
+                                 int stress)
 {
 	int ret;
 
 	if (appctx->flags & APPCTX_FL_INOUT_BUFS) {
-		if (b_data(chunk) > b_room(&appctx->outbuf)) {
+		if (unlikely(stress) ?
+		    b_data(&appctx->outbuf) :
+		    b_data(chunk) > b_room(&appctx->outbuf)) {
 			applet_fl_set(appctx, APPCTX_FL_OUTBLK_FULL);
 			ret = -1;
 		}
@@ -300,8 +300,8 @@ static inline int applet_putchk(struct appctx *appctx, struct buffer *chunk)
 	else {
 		struct sedesc *se = appctx->sedesc;
 
-		ret = ci_putchk(sc_ic(se->sc), chunk);
-		if (ret < 0) {
+		if ((unlikely(stress) && ci_data(sc_ic(se->sc))) ||
+		    (ret = ci_putchk(sc_ic(se->sc), chunk)) < 0) {
 			/* XXX: Handle all errors as a lack of space because callers
 			 * don't handles other cases for now. So applets must be
 			 * careful to handles shutdown (-2) and invalid calls (-3) by
@@ -311,7 +311,23 @@ static inline int applet_putchk(struct appctx *appctx, struct buffer *chunk)
 			ret = -1;
 		}
 	}
+
 	return ret;
+}
+
+/* writes chunk <chunk> into the input channel of the stream attached to this
+ * appctx's endpoint, and marks the SC_FL_NEED_ROOM on a channel full error.
+ * See ci_putchk() for the list of return codes.
+ */
+static inline int applet_putchk(struct appctx *appctx, struct buffer *chunk)
+{
+	return _applet_putchk(appctx, chunk, 0);
+}
+
+/* Equivalent of applet_putchk() but with stress condition alternatives activated. */
+static inline int applet_putchk_stress(struct appctx *appctx, struct buffer *chunk)
+{
+	return _applet_putchk(appctx, chunk, 1);
 }
 
 /* writes <len> chars from <blk> into the input channel of the stream attached
