@@ -348,7 +348,13 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #  define COUNT_IF(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
 # endif
 #else
-#  define BUG_ON(cond, ...)   do { (void)sizeof(cond); } while (0)
+/* We want BUG_ON() to evaluate the expression sufficiently for next lines
+ * of codes not to complain about suspicious dereferences for example.
+ * GCC-11 tends to fail to validate that in combined expressions such as
+ * "BUG_ON(!a || !b)", but it works fine when using a temporary assignment
+ * like below, without hurting the generated code.
+ */
+#  define BUG_ON(cond, ...)   ({ typeof(cond) __cond = (cond); ASSUME(!__cond); })
 #  define WARN_ON(cond, ...)  do { (void)sizeof(cond); } while (0)
 #  define CHECK_IF(cond, ...) do { (void)sizeof(cond); } while (0)
 #  define COUNT_IF(cond, ...) DISGUISE(cond)
@@ -376,6 +382,10 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #  define COUNT_IF_HOT(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
 # endif
 #else
+/* Contrary to BUG_ON(), we do *NOT* want BUG_ON_HOT() to evaluate the
+ * expression unless explicitly enabled, since it is located in hot code paths.
+ * We just validate that the expression results in a valid type.
+ */
 #  define BUG_ON_HOT(cond, ...)   do { (void)sizeof(cond) ; } while (0)
 #  define CHECK_IF_HOT(cond, ...) do { (void)sizeof(cond) ; } while (0)
 #  define COUNT_IF_HOT(cond, ...) DISGUISE(cond)
