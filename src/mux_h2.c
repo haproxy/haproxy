@@ -847,7 +847,14 @@ static void h2c_update_timeout(struct h2c *h2c)
 			h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
 		} else {
 			/* no stream, no output data */
-			if (!(h2c->flags & H2_CF_IS_BACK)) {
+			if (h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED)) {
+				/* GOAWAY sent (or failed), closing in progress */
+				int exp = tick_add_ifset(now_ms, h2c->shut_timeout);
+
+				h2c->task->expire = tick_first(h2c->task->expire, exp);
+				is_idle_conn = 1;
+			}
+			else if (!(h2c->flags & H2_CF_IS_BACK)) {
 				int to;
 
 				if (h2c->max_id > 0 && !b_data(&h2c->dbuf) &&
@@ -862,14 +869,6 @@ static void h2c_update_timeout(struct h2c *h2c)
 				}
 
 				h2c->task->expire = tick_add_ifset(h2c->idle_start, to);
-				is_idle_conn = 1;
-			}
-
-			if (h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED)) {
-				/* GOAWAY sent (or failed), closing in progress */
-				int exp = tick_add_ifset(now_ms, h2c->shut_timeout);
-
-				h2c->task->expire = tick_first(h2c->task->expire, exp);
 				is_idle_conn = 1;
 			}
 
@@ -5036,6 +5035,20 @@ struct task *h2_timeout_task(struct task *t, void *context, unsigned int state)
 			conn_delete_from_tree(h2c->conn);
 
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+
+		/* Try to gracefully close idle connections by sending a GOAWAY first,
+		 * and then waiting for the fin timeout.
+		 */
+		if (!br_data(h2c->mbuf) && h2c_may_expire(h2c) &&
+		    !(h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED))) {
+			h2c_error(h2c, H2_ERR_NO_ERROR);
+			if (h2_send(h2c))
+				tasklet_wakeup(h2c->wait_event.tasklet);
+			t->expire = tick_add_ifset(now_ms, h2c->shut_timeout);
+			if (!tick_isset(t->expire))
+				t->expire = tick_add_ifset(now_ms, h2c->timeout);
+			return t;
+		}
 	}
 
 do_leave:
