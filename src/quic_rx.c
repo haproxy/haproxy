@@ -1079,6 +1079,12 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				break;
 			}
 		}
+
+		/* Always reset <frm> as it may be dangling after
+		 * list_for_each_entry_safe() usage. Especially necessary to
+		 * prevent a crash if loop is interrupted on max iteration.
+		 */
+		frm = NULL;
 	}
 
 	/* Error should be returned if some frames cannot be parsed. */
