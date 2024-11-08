@@ -4769,6 +4769,12 @@ In master-worker mode, it is possible to launch external binaries with the
 master, these processes are called programs. These programs are launched and
 managed the same way as the workers.
 
+Since version 3.1, the program section has a slightly different behavior, the
+section is parsed and the program is started from the master, but the rest of
+the configuration is loaded in the worker. This mean the program configuration
+is completely separated from the worker configuration, and a program could be
+reexecuted even if the worker configuration is wrong upon a reload.
+
 During a reload of HAProxy, those processes are dealing with the same
 sequence as a worker:
 
