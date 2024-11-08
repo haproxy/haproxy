@@ -194,6 +194,10 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 			goto error;
 		}
 
+		ha_warning("parsing [%s:%d]: The '%s' section is deprecated and will eventually be removed, please consider "
+		           "using a process manager instead, such as sysvinit, systemd, supervisord or s6\n",
+		           file, linenum, args[0]);
+
 		LIST_APPEND(&proc_list, &ext_child->list);
 
 	} else if (strcmp(args[0], "command") == 0) {
