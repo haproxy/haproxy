@@ -1,6 +1,49 @@
 ChangeLog :
 ===========
 
+2024/11/08 : 3.1-dev12
+    - MINOR: startup: tune.renice.{startup,runtime} allow to change priorities
+    - BUG/MEDIUM: promex: Fix dump of extra counters
+    - BUILD: import/mt_list: support building with TCC
+    - BUILD: compiler: define __builtin_prefetch() for tcc
+    - CLEANUP: quic: Remove the useless directive "tune.quic.backend.max-idle-timeou"
+    - DOC: config: document connection error 44 (reverse connect failure)
+    - CLEANUP: connection: properly name the CO_ER_SSL_FATAL enum entry
+    - DEBUG: cli: support closing "hard" using close() in addition to fd_delete()
+    - MINOR: connection: add more connection error codes to cover common errno
+    - MINOR: rawsock: set connection error codes when returning from recv/send/splice
+    - MINOR: connection: add new sample fetch functions fc_err_name and bc_err_name
+    - MINOR: quic: Help diagnosing malformed probing packets
+    - BUG/MINOR: quic: fix malformed probing packet building
+    - MINOR: listener: Remove useless checks on the receiver protocol existence
+    - MINOR: http-conv: Remove unreachable goto statement in sample_conv_q_preferred
+    - MINOR: http: don't %-encode the payload when not relevant
+    - MINOR: quic: simplify qc_parse_pkt_frms() return path
+    - MINOR: quic: use dynamically allocated frame on parsing
+    - MINOR: quic: extend return value of CRYPTO parsing
+    - BUG/MINOR: quic: repeat packet parsing to deal with fragmented CRYPTO
+    - BUG/MINOR: mworker: do 'program' postparser checks in read_cfg_in_discovery_mode
+    - EXAMPLES: add "traces.cfg" with traces examples
+    - BUG/MEDIUM: quic: do not consider ACK on released stream as error
+    - CLEANUP: stats: fix misleading comment on top of stat_idx_info
+    - MINOR: wdt: move the local timers to a struct
+    - MINOR: debug: add a function to dump a stuck thread
+    - DEBUG: wdt: better detect apparently locked up threads and warn about them
+    - DEBUG: cli: make it possible for "debug dev loop" to trigger warnings
+    - DEBUG: wdt: make the blocked traffic warning delay configurable
+    - DEBUG: wdt: add a stats counter "BlockedTrafficWarnings" in show info
+    - DEBUG: wdt: set the default blocked task delay to 100 ms
+    - MINOR: debug: move the "recover now" warn message after the optional notes
+    - MINOR: event_hdl: add event_hdl_sub_list_empty() helper func
+    - MINOR: pattern: add _pat_ref_new() helper func
+    - OPTIM: pattern: use malloc() to initialize new pat_ref struct
+    - MINOR: pattern: add pat_ref_free() helper func
+    - CLEANUP: guid: remove global tree export
+    - BUG/MINOR: guid/server: ensure thread-safety on GUID insert/delete
+    - DOC: management: explain the change of behavior of the program section
+    - BUG/MEDIUM: mux-h2: try to wait for the peer to read the GOAWAY
+    - BUG/MEDIUM: quic: prevent crash due to CRYPTO parsing error
+
 2024/11/01 : 3.1-dev11
     - BUG/MINOR: httpclient: return NULL when no proxy available during httpclient_new()
     - BUG/MEDIUM: mworker/httpclient: initialization skipped by accident in mworker mode
