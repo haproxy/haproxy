@@ -936,7 +936,7 @@ void on_new_child_failure()
 	sock_drop_unused_old_sockets();
 
 	usermsgs_clr(NULL);
-	setenv("HAPROXY_LOAD_SUCCESS", "0", 1);
+	load_status = 0;
 	ha_warning("Failed to load worker!\n");
 #if defined(USE_SYSTEMD)
 	/* the sd_notify API is not able to send a reload failure signal. So
@@ -3048,10 +3048,10 @@ static void run_master_in_recovery_mode(int argc, char **argv)
 	struct mworker_proc *proc;
 	char *errmsg = NULL;
 
-	/* HAPROXY_LOAD_SUCCESS is checked in cli_io_handler_show_cli_sock() to
+	/* load_status is global and checked in cli_io_handler_show_cli_sock() to
 	 * dump master startup logs with its alerts/warnings via master CLI sock.
 	 */
-	setenv("HAPROXY_LOAD_SUCCESS", "0", 1);
+	load_status = 0;
 
 	/* increment the number failed reloads */
 	list_for_each_entry(proc, &proc_list, list) {

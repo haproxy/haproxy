@@ -18,6 +18,7 @@
 #include <haproxy/signal-t.h>
 
 extern int max_reloads;
+extern int load_status;
 extern struct mworker_proc *proc_self;
 /* master CLI configuration (-S flag) */
 extern struct list mworker_cli_conf;

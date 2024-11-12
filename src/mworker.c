@@ -47,6 +47,7 @@
 
 static int exitcode = -1;
 int max_reloads = INT_MAX; /* max number of reloads a worker can have until they are killed */
+int load_status; /* worker process startup status: 1 - loaded successfully; 0 - load failed */
 struct mworker_proc *proc_self = NULL; /* process structure of current process */
 struct list mworker_cli_conf = LIST_HEAD_INIT(mworker_cli_conf); /* master CLI configuration (-S flag) */
 
@@ -795,7 +796,6 @@ static int cli_parse_reload(char **args, char *payload, struct appctx *appctx, v
 static int cli_io_handler_show_loadstatus(struct appctx *appctx)
 {
 	struct mworker_proc *proc;
-	char *env;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
@@ -810,15 +810,11 @@ static int cli_io_handler_show_loadstatus(struct appctx *appctx)
 		}
 	}
 
-	env = getenv("HAPROXY_LOAD_SUCCESS");
-	if (!env)
-		return 1;
-
-	if (strcmp(env, "0") == 0) {
+	if (load_status == 0)
 		chunk_printf(&trash, "Success=0\n");
-	} else if (strcmp(env, "1") == 0) {
+	else
 		chunk_printf(&trash, "Success=1\n");
-	}
+
 #ifdef USE_SHM_OPEN
 	if (startup_logs && ring_data(startup_logs) > 1)
 		chunk_appendf(&trash, "--\n");
