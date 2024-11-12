@@ -651,10 +651,6 @@ int listeners_setenv(struct proxy *frontend, const char *varname)
 				char addr[46];
 				char port[6];
 
-				/* separate listener by semicolons */
-				if (trash->data)
-					chunk_appendf(trash, ";");
-
 				if (l->rx.addr.ss_family == AF_UNIX ||
 				    l->rx.addr.ss_family == AF_CUST_ABNS ||
 				    l->rx.addr.ss_family == AF_CUST_ABNSZ) {
@@ -663,21 +659,22 @@ int listeners_setenv(struct proxy *frontend, const char *varname)
 					un = (struct sockaddr_un *)&l->rx.addr;
 					if (l->rx.addr.ss_family == AF_CUST_ABNS ||
 					    l->rx.addr.ss_family == AF_CUST_ABNSZ) {
-						chunk_appendf(trash, "abns@%s", un->sun_path+1);
+						chunk_appendf(trash, "%sabns@%s", (trash->data ? ";" : ""), un->sun_path+1);
 					} else {
-						chunk_appendf(trash, "unix@%s", un->sun_path);
+						chunk_appendf(trash, "%sunix@%s", (trash->data ? ";" : ""), un->sun_path);
 					}
 				} else if (l->rx.addr.ss_family == AF_INET) {
 					addr_to_str(&l->rx.addr, addr, sizeof(addr));
 					port_to_str(&l->rx.addr, port, sizeof(port));
-					chunk_appendf(trash, "ipv4@%s:%s", addr, port);
+					chunk_appendf(trash, "%sipv4@%s:%s", (trash->data ? ";" : ""), addr, port);
 				} else if (l->rx.addr.ss_family == AF_INET6) {
 					addr_to_str(&l->rx.addr, addr, sizeof(addr));
 					port_to_str(&l->rx.addr, port, sizeof(port));
-					chunk_appendf(trash, "ipv6@[%s]:%s", addr, port);
-				} else if (l->rx.addr.ss_family == AF_CUST_SOCKPAIR) {
-					chunk_appendf(trash, "sockpair@%d", ((struct sockaddr_in *)&l->rx.addr)->sin_addr.s_addr);
+					chunk_appendf(trash, "%sipv6@[%s]:%s", (trash->data ? ";" : ""), addr, port);
 				}
+				/* AF_CUST_SOCKPAIR is explicitly skipped, we don't want to show reload and shared
+				 * master CLI sockpairs in HAPROXY_CLI and HAPROXY_MASTER_CLI
+				 */
 			}
 		}
 		trash->area[trash->data++] = '\0';
