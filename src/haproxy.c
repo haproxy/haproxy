@@ -1180,7 +1180,6 @@ next_dir_entry:
 static int load_cfg(char *progname)
 {
 	struct cfgfile *cfg, *cfg_tmp;
-	char *env_cfgfiles = NULL;
 
 	/* handle cfgfiles that are actually directories */
 	cfgfiles_expand_directories();
@@ -1192,24 +1191,11 @@ static int load_cfg(char *progname)
 
 		cfg->size = load_cfg_in_mem(cfg->filename, &cfg->content);
 		if (cfg->size < 0)
-			goto err;
+			return -1;
 
-		if (!memprintf(&env_cfgfiles, "%s%s%s",
-			       (env_cfgfiles ? env_cfgfiles : ""),
-			       (env_cfgfiles ? ";" : ""), cfg->filename)) {
-			/* free what we've already allocated and free cfglist */
-			ha_alert("Could not allocate memory for HAPROXY_CFGFILES env variable\n");
-			goto err;
-		}
 	}
 
-	setenv("HAPROXY_CFGFILES", env_cfgfiles, 1);
-	free(env_cfgfiles);
-
 	return 0;
-err:
-	free(env_cfgfiles);
-	return -1;
 
 }
 
@@ -1221,6 +1207,7 @@ err:
  */
 static int read_cfg(char *progname)
 {
+	char *env_cfgfiles = NULL;
 	struct cfgfile *cfg;
 	int err_code = 0;
 
@@ -1237,15 +1224,28 @@ static int read_cfg(char *progname)
 	list_for_each_entry(cfg, &cfg_cfgfiles, list) {
 		int ret;
 
+		/* save all successfully loaded conf files in HAPROXY_CFGFILES
+		 * env var
+		 */
+		if (!memprintf(&env_cfgfiles, "%s%s%s",
+			       (env_cfgfiles ? env_cfgfiles : ""),
+			       (env_cfgfiles ? ";" : ""), cfg->filename)) {
+			/* free what we've already allocated and free cfglist */
+			ha_alert("Could not allocate memory for HAPROXY_CFGFILES env variable\n");
+			goto err;
+		}
+
 		ret = parse_cfg(cfg);
 		if (ret == -1)
-			return -1;
+			goto err;
 
 		if (ret & (ERR_ABORT|ERR_FATAL))
 			ha_alert("Error(s) found in configuration file : %s\n", cfg->filename);
 		err_code |= ret;
 		if (err_code & ERR_ABORT)
-			return -1;
+			goto err;
+
+
 	}
 	/* remove temporary environment variables. */
 	unsetenv("HAPROXY_BRANCH");
@@ -1260,10 +1260,17 @@ static int read_cfg(char *progname)
 	 */
 	if (err_code & (ERR_ABORT|ERR_FATAL)) {
 		ha_alert("Fatal errors found in configuration.\n");
-		return -1;
+		goto err;
 	}
 
+	setenv("HAPROXY_CFGFILES", env_cfgfiles, 1);
+	free(env_cfgfiles);
+
 	return err_code;
+
+err:
+	free(env_cfgfiles);
+	return -1;
 }
 
 /*
