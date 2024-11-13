@@ -13,7 +13,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <haproxy/acl.h>
+#include <haproxy/action.h>
 #include <haproxy/api.h>
+#include <haproxy/auth.h>
 #include <haproxy/base64.h>
 #include <haproxy/errors.h>
 #include <haproxy/list.h>
@@ -308,6 +311,35 @@ struct uri_auth *stats_add_scope(struct uri_auth **root, char *scope)
 	free(u);
  out:
 	return NULL;
+}
+
+void stats_uri_auth_free(struct uri_auth *uri_auth)
+{
+	struct stat_scope *scope, *scopep;
+	struct stats_admin_rule *rule, *ruleb;
+
+	free(uri_auth->uri_prefix);
+	free(uri_auth->auth_realm);
+	free(uri_auth->node);
+	free(uri_auth->desc);
+
+	userlist_free(uri_auth->userlist);
+	free_act_rules(&uri_auth->http_req_rules);
+	list_for_each_entry_safe(rule, ruleb, &uri_auth->admin_rules, list) {
+		LIST_DELETE(&rule->list);
+		free_acl_cond(rule->cond);
+		free(rule);
+	}
+
+	scope = uri_auth->scope;
+	while (scope) {
+		scopep = scope;
+		scope = scope->next;
+		free(scopep->px_id);
+		free(scopep);
+	}
+
+	free(uri_auth);
 }
 
 /*

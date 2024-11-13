@@ -3283,35 +3283,9 @@ void deinit(void)
 	proxy_destroy_all_unref_defaults();
 
 	while (ua) {
-		struct stat_scope *scope, *scopep;
-		struct stats_admin_rule *rule, *ruleb;
-
 		uap = ua;
 		ua = ua->next;
-
-		free(uap->uri_prefix);
-		free(uap->auth_realm);
-		free(uap->node);
-		free(uap->desc);
-
-		userlist_free(uap->userlist);
-		free_act_rules(&uap->http_req_rules);
-		list_for_each_entry_safe(rule, ruleb, &uap->admin_rules, list) {
-			LIST_DELETE(&rule->list);
-			free_acl_cond(rule->cond);
-			free(rule);
-		}
-
-		scope = uap->scope;
-		while (scope) {
-			scopep = scope;
-			scope = scope->next;
-
-			free(scopep->px_id);
-			free(scopep);
-		}
-
-		free(uap);
+		stats_uri_auth_free(uap);
 	}
 
 	userlist_free(userlist);
