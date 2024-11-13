@@ -3284,6 +3284,7 @@ void deinit(void)
 
 	while (ua) {
 		struct stat_scope *scope, *scopep;
+		struct stats_admin_rule *rule, *ruleb;
 
 		uap = ua;
 		ua = ua->next;
@@ -3295,6 +3296,11 @@ void deinit(void)
 
 		userlist_free(uap->userlist);
 		free_act_rules(&uap->http_req_rules);
+		list_for_each_entry_safe(rule, ruleb, &uap->admin_rules, list) {
+			LIST_DELETE(&rule->list);
+			free_acl_cond(rule->cond);
+			free(rule);
+		}
 
 		scope = uap->scope;
 		while (scope) {
