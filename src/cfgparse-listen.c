@@ -1761,8 +1761,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			LIST_APPEND(&curproxy->sticking_rules, &rule->list);
 	}
 	else if (strcmp(args[0], "stats") == 0) {
-		if (!(curproxy->cap & PR_CAP_DEF) && curproxy->uri_auth == curr_defproxy->uri_auth)
-			curproxy->uri_auth = NULL; /* we must detach from the default config */
+		if (!(curproxy->cap & PR_CAP_DEF) && curproxy->uri_auth == curr_defproxy->uri_auth) {
+			/* we must detach from the default config */
+			stats_uri_auth_drop(curproxy->uri_auth);
+			curproxy->uri_auth = NULL;
+		}
 
 		if (!*args[1]) {
 			goto stats_error_parsing;

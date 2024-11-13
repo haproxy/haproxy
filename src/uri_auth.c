@@ -38,6 +38,7 @@ struct uri_auth *stats_check_init_uri_auth(struct uri_auth **root)
 
 		LIST_INIT(&u->http_req_rules);
 		LIST_INIT(&u->admin_rules);
+		stats_uri_auth_take(u);
 	} else
 		u = *root;
 
@@ -340,6 +341,21 @@ void stats_uri_auth_free(struct uri_auth *uri_auth)
 	}
 
 	free(uri_auth);
+}
+
+void stats_uri_auth_drop(struct uri_auth *uri_auth)
+{
+	if (!uri_auth)
+		return;
+	if (HA_ATOMIC_SUB_FETCH(&uri_auth->refcount, 1) == 0)
+		stats_uri_auth_free(uri_auth);
+}
+
+void stats_uri_auth_take(struct uri_auth *uri_auth)
+{
+	if (!uri_auth)
+		return;
+	HA_ATOMIC_INC(&uri_auth->refcount);
 }
 
 /*

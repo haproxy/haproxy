@@ -34,6 +34,8 @@ struct uri_auth *stats_add_scope(struct uri_auth **root, char *scope);
 struct uri_auth *stats_set_node(struct uri_auth **root, char *name);
 struct uri_auth *stats_set_desc(struct uri_auth **root, char *desc);
 void stats_uri_auth_free(struct uri_auth *uri_auth);
+void stats_uri_auth_take(struct uri_auth *uri_auth);
+void stats_uri_auth_drop(struct uri_auth *uri_auth);
 
 #endif /* _HAPROXY_URI_AUTH_H */
 

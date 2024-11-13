@@ -29,6 +29,7 @@ struct stat_scope {
 /* later we may link them to support multiple URI matching */
 struct uri_auth {
 	int uri_len;			/* the prefix length */
+	uint refcount;                  /* to free when unused */
 	char *uri_prefix;		/* the prefix we want to match */
 	char *auth_realm;		/* the realm reported to the client */
 	char *node, *desc;		/* node name & description reported in this stats */

@@ -3200,7 +3200,6 @@ void deinit(void)
 {
 	struct proxy *p = proxies_list, *p0;
 	struct cfgfile *cfg, *cfg_tmp;
-	struct uri_auth *uap, *ua = NULL;
 	struct logger *log, *logb;
 	struct build_opts_str *bol, *bolb;
 	struct post_deinit_fct *pdf, *pdfb;
@@ -3254,22 +3253,6 @@ void deinit(void)
 
 	deinit_signals();
 	while (p) {
-		/* build a list of unique uri_auths */
-		if (!ua)
-			ua = p->uri_auth;
-		else {
-			/* check if p->uri_auth is unique */
-			for (uap = ua; uap; uap=uap->next)
-				if (uap == p->uri_auth)
-					break;
-
-			if (!uap && p->uri_auth) {
-				/* add it, if it is */
-				p->uri_auth->next = ua;
-				ua = p->uri_auth;
-			}
-		}
-
 		p0 = p;
 		p = p->next;
 		free_proxy(p0);
@@ -3281,12 +3264,6 @@ void deinit(void)
 
 	/* destroy all referenced defaults proxies  */
 	proxy_destroy_all_unref_defaults();
-
-	while (ua) {
-		uap = ua;
-		ua = ua->next;
-		stats_uri_auth_free(uap);
-	}
 
 	userlist_free(userlist);
 

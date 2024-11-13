@@ -90,7 +90,7 @@
 #include <haproxy/tcpcheck.h>
 #include <haproxy/thread.h>
 #include <haproxy/tools.h>
-#include <haproxy/uri_auth-t.h>
+#include <haproxy/uri_auth.h>
 
 
 /* Used to chain configuration sections definitions. This list
@@ -3936,6 +3936,7 @@ out_uri_auth_compat:
 				ha_warning("'stats' statement ignored for %s '%s' as it requires HTTP mode.\n",
 					   proxy_type_str(curproxy), curproxy->id);
 				err_code |= ERR_WARN;
+				stats_uri_auth_drop(curproxy->uri_auth);
 				curproxy->uri_auth = NULL;
 			}
 

@@ -54,6 +54,7 @@
 #include <haproxy/tcpcheck.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
+#include <haproxy/uri_auth.h>
 
 
 int listeners;	/* # of proxy listeners, set by cfgparse */
@@ -271,6 +272,8 @@ static inline void proxy_free_common(struct proxy *px)
 	}
 
 	free_email_alert(px);
+	stats_uri_auth_drop(px->uri_auth);
+	px->uri_auth = NULL;
 }
 
 void free_proxy(struct proxy *p)
@@ -1513,10 +1516,6 @@ void proxy_free_defaults(struct proxy *defproxy)
 
 	proxy_release_conf_errors(defproxy);
 	deinit_proxy_tcpcheck(defproxy);
-
-	/* FIXME: we cannot free uri_auth because it might already be used by
-	 * another proxy (legacy code for stats URI ...). Refcount anyone ?
-	 */
 }
 
 /* delete a defproxy from the tree if still in it, frees its content and its
@@ -1803,7 +1802,11 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 	}
 
 	curproxy->mode = defproxy->mode;
-	curproxy->uri_auth = defproxy->uri_auth; /* for stats */
+
+	/* for stats */
+	stats_uri_auth_drop(curproxy->uri_auth);
+	stats_uri_auth_take(defproxy->uri_auth);
+	curproxy->uri_auth = defproxy->uri_auth;
 
 	/* copy default loggers to curproxy */
 	list_for_each_entry(tmplogger, &defproxy->loggers, list) {
