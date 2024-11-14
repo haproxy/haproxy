@@ -172,6 +172,7 @@ enum debug_counter_type {
 	DBG_BUG,
 	DBG_BUG_ONCE,
 	DBG_COUNT_IF,
+	DBG_GLITCH,
 	DBG_COUNTER_TYPES // must be last
 };
 
@@ -230,11 +231,26 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 		1; /* let's return the true condition */			\
 	}) : 0); } while (0)
 
+/* DEBUG_GLITCHES enables counting the number of glitches per line of code. The
+ * condition is empty (nothing to write there), except maybe __VA_ARGS at the
+ * end.
+ */
+# if !defined(DEBUG_GLITCHES)
+#  define _COUNT_GLITCH(file, line, ...) do { } while (0)
+# else
+#  define _COUNT_GLITCH(file, line, ...) do {						\
+		__DBG_COUNT(, file, line, DBG_GLITCH, __VA_ARGS__); 	\
+	} while (0)
+#  endif
 
 #else /* USE_OBSOLETE_LINKER not defined below  */
 # define __DBG_COUNT(cond, file, line, type, ...) do { } while (0)
 # define _COUNT_IF(cond, file, line, ...) do { } while (0)
+# define _COUNT_GLITCH(file, line, ...) do { } while (0)
 #endif
+
+/* reports a glitch for current file and line, optionally with an explanation */
+#define COUNT_GLITCH(...) _COUNT_GLITCH(__FILE__, __LINE__, __VA_ARGS__)
 
 /* This is the generic low-level macro dealing with conditional warnings and
  * bugs. The caller decides whether to crash or not and what prefix and suffix
