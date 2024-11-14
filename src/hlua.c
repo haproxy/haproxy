@@ -2302,6 +2302,28 @@ static int hlua_set_map(lua_State *L)
 }
 
 /* This function is an LUA binding. It provides a function
+ * for retrieving a patref object from a reference name
+ */
+static int hlua_get_patref(lua_State *L)
+{
+	const char *name;
+	struct pat_ref *ref;
+
+	MAY_LJMP(check_args(L, 1, "get_patref"));
+
+	name = MAY_LJMP(luaL_checkstring(L, 1));
+
+	ref = pat_ref_lookup(name);
+	if (!ref)
+		WILL_LJMP(luaL_error(L, "'get_patref': unknown pattern reference '%s'", name));
+
+	/* push the existing patref object on the stack */
+	MAY_LJMP(hlua_fcn_new_patref(L, ref));
+
+	return 1;
+}
+
+/* This function is an LUA binding. It provides a function
  * for retrieving a var from the proc scope in core.
  */
 __LJMP static int hlua_core_get_var(lua_State *L)
@@ -13782,6 +13804,7 @@ lua_State *hlua_init_state(int thread_num)
 	hlua_class_function(L, "del_acl", hlua_del_acl);
 	hlua_class_function(L, "set_map", hlua_set_map);
 	hlua_class_function(L, "del_map", hlua_del_map);
+	hlua_class_function(L, "get_patref", hlua_get_patref);
 	hlua_class_function(L, "get_var", hlua_core_get_var);
 	hlua_class_function(L, "tcp", hlua_socket_new);
 	hlua_class_function(L, "httpclient", hlua_httpclient_new);

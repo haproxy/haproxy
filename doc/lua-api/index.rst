@@ -348,6 +348,16 @@ Core class
   end
 ..
 
+.. js:function:: core.get_patref(name)
+
+  **context**: init, task, action, sample-fetch, converter
+
+  Find the pattern object *name* used by HAProxy. It corresponds to the
+  generic pattern reference used to handle both ACL ands Maps.
+
+  :param string name: reference name
+  :returns: A :ref:`patref_class` object.
+
 .. js:function:: core.add_acl(name, key)
 
   **context**: init, task, action, sample-fetch, converter
@@ -3411,6 +3421,27 @@ Map class
   :param class_map map: Is the class Map object.
   :param string str: Is the string used as key.
   :returns: a string containing the result or empty string if no match.
+
+.. _patref_class:
+
+Patref class
+=================
+
+.. js:class:: Patref
+
+  Patref object corresponds to the internal HAProxy pat_ref element which
+  is used to store ACL and MAP elements. It is identified by its name
+  (reference) which often is a filename, unless it is prefixed by 'virt@'
+  for virtual references or 'opt@' for references that don't necessarily
+  point to real file. From Lua, :ref:`patref_class` object may be used to
+  directly manipulate existing pattern reference storage.
+
+  Patref object is obtained using the :js:func:`core.get_patref()`
+  function
+
+.. js:function:: Patref.get_name(ref)
+
+  :returns: the name of the pattern reference object.
 
 .. _applethttp_class:
 
