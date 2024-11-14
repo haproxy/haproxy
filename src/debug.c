@@ -2312,9 +2312,10 @@ static int debug_iohandler_counters(struct appctx *appctx)
 		}
 
 		if (ptr->type < DBG_COUNTER_TYPES)
-			chunk_appendf(&trash, "%-10u %3s %s:%d %s(): %s\n",
+			chunk_appendf(&trash, "%-10u %3s %s:%d %s()%s%s\n",
 				      ptr->count, bug_type[ptr->type],
-				      name, ptr->line, ptr->func, ptr->desc);
+				      name, ptr->line, ptr->func,
+				      *ptr->desc ? ": " : "", ptr->desc);
 
 		if (applet_putchk(appctx, &trash) == -1) {
 			ctx->start = ptr;

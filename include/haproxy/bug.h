@@ -209,9 +209,11 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 			.func = __func__,					\
 			.line = _line,						\
 			.type = _type,						\
-			.desc = (sizeof("" __VA_ARGS__) > 1) ?			\
-				"\"" #_cond "\" [" __VA_ARGS__ "]" :		\
-				"\"" #_cond "\"",				\
+			.desc = (sizeof("" #_cond) > 1) ?			\
+				  (sizeof("" __VA_ARGS__) > 1) ?		\
+				  "\"" #_cond "\" [" __VA_ARGS__ "]" :		\
+				  "\"" #_cond "\"" :				\
+				"" __VA_ARGS__,					\
 			.count = 0,						\
 		};								\
 		HA_WEAK(__start_dbg_cnt);					\
