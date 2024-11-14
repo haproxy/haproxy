@@ -1586,7 +1586,12 @@ static void __maybe_unused h2s_alert(struct h2s *h2s)
  * glitch limit was reached, in which case an error is also reported on the
  * connection.
  */
-static inline int h2c_report_glitch(struct h2c *h2c, int increment)
+#define h2c_report_glitch(h2c, inc, ...) ({		\
+		COUNT_GLITCH(__VA_ARGS__);		\
+		_h2c_report_glitch(h2c, inc); 		\
+	})
+
+static inline int _h2c_report_glitch(struct h2c *h2c, int increment)
 {
 	int thres = (h2c->flags & H2_CF_IS_BACK) ?
 		h2_be_glitches_threshold : h2_fe_glitches_threshold;
