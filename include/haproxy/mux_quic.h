@@ -12,8 +12,13 @@
 #include <haproxy/mux_quic-t.h>
 #include <haproxy/stconn.h>
 
+#define qcc_report_glitch(qcc, inc, ...) ({		\
+		COUNT_GLITCH(__VA_ARGS__);		\
+		_qcc_report_glitch(qcc, inc); 		\
+	})
+
 void qcc_set_error(struct qcc *qcc, int err, int app);
-int qcc_report_glitch(struct qcc *qcc, int inc);
+int _qcc_report_glitch(struct qcc *qcc, int inc);
 struct qcs *qcc_init_stream_local(struct qcc *qcc, int bidi);
 void qcs_send_metadata(struct qcs *qcs);
 struct stconn *qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin);

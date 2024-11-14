@@ -718,7 +718,7 @@ void qcc_set_error(struct qcc *qcc, int err, int app)
 /* Increment glitch counter for <qcc> connection by <inc> steps. If configured
  * threshold reached, close the connection with an error code.
  */
-int qcc_report_glitch(struct qcc *qcc, int inc)
+int _qcc_report_glitch(struct qcc *qcc, int inc)
 {
 	const int max = global.tune.quic_frontend_glitches_threshold;
 
