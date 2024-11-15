@@ -366,7 +366,7 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 					/* We are past the soft close window end, wake the timeout
 					 * task up immediately.
 					 */
-					qcc->task->expire = now_ms;
+					qcc->task->expire = tick_add(now_ms, 0);
 					task_wakeup(qcc->task, TASK_WOKEN_TIMER);
 				}
 			}
