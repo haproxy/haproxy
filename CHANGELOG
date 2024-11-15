@@ -1,6 +1,36 @@
 ChangeLog :
 ===========
 
+2024/11/15 : 3.1-dev13
+    - MEDIUM: mworker: depreciate the 'program' section
+    - BUILD: ot: use a cebtree instead of a list for variable names
+    - MINOR: startup: replace HAPROXY_LOAD_SUCCESS with global load_status
+    - BUG/MINOR: startup: set HAPROXY_CFGFILES in read_cfg
+    - BUG/MINOR: cli: don't show sockpairs in HAPROXY_CLI and HAPROXY_MASTER_CLI
+    - BUG/MEDIUM: stconn: Don't forward shut for SC in connecting state
+    - BUG/MEDIUM: resolvers: Insert a non-executed resulution in front of the wait list
+    - MINOR: debug: explicitly permit the counter condition to be empty
+    - MINOR: debug: add a new counter type for glitches
+    - MINOR: mux-h2: count glitches when they're reported
+    - BUG/MINOR: deinit: release uri_auth admin rules
+    - MINOR: uri_auth: add stats_uri_auth_free helper
+    - MEDIUM: uri_auth: implement clean uri_auth cleaning
+    - MINOR: mux-quic/h3: count glitches when they're reported
+    - BUG/MEDIUM: mux-h2: Don't send RST_STREAM frame for streams with no ID
+    - BUG/MINOR: Don't report early srv aborts on request forwarding in DONE state
+    - MINOR: promex: Expose the global node and description in process metrics
+    - MINOR: promex: Add global and proxies description as labels to all metrics
+    - OPTIM: pattern: only apply LRU cache for large enough lists
+    - BUG/MEDIUM: checks: make sure to always apply offsets to now_ms in expiration
+    - BUG/MINOR: debug: do not set task expiration to TICK_ETERNITY
+    - BUG/MEDIUM: mailers: make sure to always apply offsets to now_ms in expiration
+    - BUG/MINOR: mux_quic: make sure to always apply offsets to now_ms in expiration
+    - BUG/MINOR: peers: make sure to always apply offsets to now_ms in expiration
+    - BUG/MEDIUM: clock: make sure now_ms cannot be TICK_ETERNITY
+    - MINOR: debug/cli: replace "debug dev counters" with "debug counters"
+    - DOC: config: add tune.h2.{be,fe}.rxbuf to the global keywords index
+    - MINOR: chunk: add a BUG_ON upon the next init_trash_buffer()
+
 2024/11/08 : 3.1-dev12
     - MINOR: startup: tune.renice.{startup,runtime} allow to change priorities
     - BUG/MEDIUM: promex: Fix dump of extra counters
