@@ -1279,7 +1279,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		 * was erased during the bounce.
 		 */
 		if (!tick_isset(t->expire)) {
-			t->expire = now_ms;
+			t->expire = tick_add(now_ms, 0);
 			expired = 0;
 		}
 	}

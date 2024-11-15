@@ -162,7 +162,7 @@ static void pid_list_expire(pid_t pid, int status)
 	HA_SPIN_LOCK(PID_LIST_LOCK, &pid_list_lock);
 	list_for_each_entry(elem, &pid_list, list) {
 		if (elem->pid == pid) {
-			elem->t->expire = now_ms;
+			elem->t->expire = tick_add(now_ms, 0);
 			elem->status = status;
 			elem->exited = 1;
 			task_wakeup(elem->t, TASK_WOKEN_IO);
