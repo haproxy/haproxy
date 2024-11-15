@@ -153,8 +153,8 @@ const struct promex_metric promex_global_metrics[ST_I_INF_MAX] = {
 	[ST_I_INF_TASKS]                          = { .n = IST("current_tasks"),                 .type = PROMEX_MT_GAUGE,   .flags = PROMEX_FL_INFO_METRIC },
 	[ST_I_INF_RUN_QUEUE]                      = { .n = IST("current_run_queue"),             .type = PROMEX_MT_GAUGE,   .flags = PROMEX_FL_INFO_METRIC },
 	[ST_I_INF_IDLE_PCT]                       = { .n = IST("idle_time_percent"),             .type = PROMEX_MT_GAUGE,   .flags = PROMEX_FL_INFO_METRIC },
-	//[ST_I_INF_NODE]                           ignored
-	//[ST_I_INF_DESCRIPTION]                    ignored
+	[ST_I_INF_NODE]                           = { .n = IST("node"),                          .type = PROMEX_MT_GAUGE,   .flags = PROMEX_FL_INFO_METRIC },
+	[ST_I_INF_DESCRIPTION]                    = { .n = IST("description"),                   .type = PROMEX_MT_GAUGE,   .flags = PROMEX_FL_INFO_METRIC },
 	[ST_I_INF_STOPPING]                       = { .n = IST("stopping"),                      .type = PROMEX_MT_GAUGE,   .flags = PROMEX_FL_INFO_METRIC },
 	[ST_I_INF_JOBS]                           = { .n = IST("jobs"),                          .type = PROMEX_MT_GAUGE,   .flags = PROMEX_FL_INFO_METRIC },
 	[ST_I_INF_UNSTOPPABLE_JOBS]               = { .n = IST("unstoppable_jobs"),              .type = PROMEX_MT_GAUGE,   .flags = PROMEX_FL_INFO_METRIC },
@@ -580,6 +580,20 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 			continue;
 
 		switch (ctx->field_num) {
+			case ST_I_INF_NODE:
+				labels[0].name  = ist("node");
+				labels[0].value = ist(global.node);
+				val = mkf_u32(FN_GAUGE, 1);
+				break;
+
+			case ST_I_INF_DESCRIPTION:
+				if (!global.desc)
+					continue;
+				labels[0].name  = ist("desc");
+				labels[0].value = ist(global.desc);
+				val = mkf_u32(FN_GAUGE, 1);
+				break;
+
 			case ST_I_INF_BUILD_INFO:
 				labels[0].name  = ist("version");
 				labels[0].value = ist(HAPROXY_VERSION);

@@ -193,6 +193,8 @@ listed below. Metrics from extra counters are not listed.
 | haproxy_process_current_tasks                  |
 | haproxy_process_current_run_queue              |
 | haproxy_process_idle_time_percent              |
+| haproxy_process_node                           |
+| haproxy_process_description                    |
 | haproxy_process_stopping                       |
 | haproxy_process_jobs                           |
 | haproxy_process_unstoppable_jobs               |
