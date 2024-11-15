@@ -1481,10 +1481,12 @@ The following keywords are supported in the "global" section :
    - tune.h2.be.glitches-threshold
    - tune.h2.be.initial-window-size
    - tune.h2.be.max-concurrent-streams
+   - tune.h2.be.rxbuf
    - tune.h2.fe.glitches-threshold
    - tune.h2.fe.initial-window-size
    - tune.h2.fe.max-concurrent-streams
    - tune.h2.fe.max-total-streams
+   - tune.h2.fe.rxbuf
    - tune.h2.header-table-size
    - tune.h2.initial-window-size
    - tune.h2.max-concurrent-streams
