@@ -1420,7 +1420,7 @@ static int debug_parse_cli_task(char **args, char *payload, struct appctx *appct
 			else if (task_ok) {
 				/* unlink task and wake with timer flag */
 				__task_unlink_wq(t);
-				t->expire = now_ms;
+				t->expire = tick_add(now_ms, 0);
 				task_wakeup(t, TASK_WOKEN_TIMER);
 			}
 		} else if (strcmp(args[arg], "wake") == 0) {
