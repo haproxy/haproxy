@@ -91,6 +91,18 @@ name must be preceded by a minus character ('-'). Here are examples:
   # Only dump frontends, backends and servers status
   /metrics?metrics=haproxy_frontend_status,haproxy_backend_status,haproxy_server_status
 
+* Add section description as label for all metrics
+
+It is possible to set a description in global and proxy sections, via the
+"description" directive. The global descrption is exposed if it is define via
+the "haproxy_process_description" metric. But the descriptions provided in proxy
+sections are not dumped. However, it is possible to add it as a label for all
+metrics of the corresponding section, including the global one. To do so,
+"desc-labels" parameter must be set:
+
+  /metrics?desc-labels
+
+  / metrics?scope=frontend&desc-labels
 
 * Dump extra counters
 
