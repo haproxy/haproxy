@@ -254,6 +254,10 @@ void clock_update_local_date(int max_wait, int interrupted)
 		now_ns = date_ns + ofs;
 	}
 	now_ms = ns_to_ms(now_ns);
+
+	/* correct for TICK_ETNERITY (0) */
+	if (unlikely(now_ms == TICK_ETERNITY))
+		now_ms++;
 }
 
 void clock_update_global_date()
@@ -285,6 +289,9 @@ void clock_update_global_date()
 		 * what we're doing here.
 		 */
 		now_ms = ns_to_ms(now_ns);
+		/* correct for TICK_ETNERITY (0) */
+		if (unlikely(now_ms == TICK_ETERNITY))
+			now_ms++;
 
 		if (!((now_ns ^ old_now_ns) & ~0x7FFFULL))
 			return;
@@ -330,7 +337,11 @@ void clock_init_process_date(void)
 	now_offset = sec_to_ns((uint)((uint)(-global_now_ms) / 1000U - BOOT_TIME_WRAP_SEC));
 	global_now_ns += now_offset;
 	now_ns = global_now_ns;
-	now_ms = global_now_ms = ns_to_ms(now_ns);
+	now_ms = ns_to_ms(now_ns);
+	/* correct for TICK_ETNERITY (0) */
+	if (now_ms == TICK_ETERNITY)
+		now_ms++;
+	global_now_ms = now_ms;
 
 	th_ctx->idle_pct = 100;
 	clock_update_date(0, 1);
