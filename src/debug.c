@@ -2210,17 +2210,17 @@ static void debug_release_memstats(struct appctx *appctx)
 
 #if !defined(USE_OBSOLETE_LINKER)
 
-/* CLI state for "debug dev counters" */
-struct dev_cnt_ctx {
+/* CLI state for "debug counters" */
+struct deb_cnt_ctx {
 	struct debug_count *start, *stop; /* begin/end of dump */
 	int types;                        /* OR mask of 1<<type */
 	int show_all;                     /* show all entries if non-null */
 };
 
-/* CLI parser for the "debug dev counters" command. Sets a dev_cnt_ctx shown above. */
+/* CLI parser for the "debug counters" command. Sets a deb_cnt_ctx shown above. */
 static int debug_parse_cli_counters(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	struct dev_cnt_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+	struct deb_cnt_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	int action;
 	int arg;
 
@@ -2228,7 +2228,7 @@ static int debug_parse_cli_counters(char **args, char *payload, struct appctx *a
 		return 1;
 
 	action = 0; // 0=show, 1=reset
-	for (arg = 3; *args[arg]; arg++) {
+	for (arg = 2; *args[arg]; arg++) {
 		if (strcmp(args[arg], "reset") == 0) {
 			action = 1;
 			continue;
@@ -2281,7 +2281,7 @@ static int debug_parse_cli_counters(char **args, char *payload, struct appctx *a
 	return 0;
 }
 
-/* CLI I/O handler for the "debug dev counters" command using a dev_cnt_ctx
+/* CLI I/O handler for the "debug counters" command using a deb_cnt_ctx
  * found in appctx->svcctx. Dumps all mem_stats structs referenced by pointers
  * located between ->start and ->stop. Dumps all entries if ->show_all != 0,
  * otherwise only non-zero calls.
@@ -2294,7 +2294,7 @@ static int debug_iohandler_counters(struct appctx *appctx)
 		[DBG_COUNT_IF] = "CNT",
 		[DBG_GLITCH]   = "GLT",
 	};
-	struct dev_cnt_ctx *ctx = appctx->svcctx;
+	struct deb_cnt_ctx *ctx = appctx->svcctx;
 	struct debug_count *ptr;
 	int ret = 1;
 
@@ -2746,12 +2746,12 @@ REGISTER_PER_THREAD_INIT(feed_post_mortem_late);
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
+#if !defined(USE_OBSOLETE_LINKER)
+	{{ "debug", "counters", NULL },        "debug counters [?|all|bug|cnt|chk|glt]* : dump/reset rare event counters",          debug_parse_cli_counters, debug_iohandler_counters, NULL, NULL, 0 },
+#endif
 	{{ "debug", "dev", "bug", NULL },      "debug dev bug                           : call BUG_ON() and crash",                 debug_parse_cli_bug,   NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "check", NULL },    "debug dev check                         : call CHECK_IF() and possibly crash",      debug_parse_cli_check, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "close", NULL },    "debug dev close  <fd> [hard]            : close this file descriptor",              debug_parse_cli_close, NULL, NULL, NULL, ACCESS_EXPERT },
-#if !defined(USE_OBSOLETE_LINKER)
-	{{ "debug", "dev", "counters", NULL }, "debug dev counters [all|bug|cnt|chk|?]* : dump/reset rare event counters",          debug_parse_cli_counters, debug_iohandler_counters, NULL, NULL, 0 },
-#endif
 	{{ "debug", "dev", "deadlock", NULL }, "debug dev deadlock [nbtask]             : deadlock between this number of tasks",   debug_parse_cli_deadlock, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "delay", NULL },    "debug dev delay  [ms]                   : sleep this long",                         debug_parse_cli_delay, NULL, NULL, NULL, ACCESS_EXPERT },
 #if defined(DEBUG_DEV)

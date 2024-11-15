@@ -1990,6 +1990,38 @@ commit ssl crl-file <crlfile>
   See also "new ssl crl-file", "set ssl crl-file", "abort ssl crl-file" and
   "add ssl crt-list".
 
+debug counters [reset|show|all|bug|chk|cnt|glt|?]*
+  List internal counters placed in the code, which may vary depending on some
+  build options. Some of them depend on DEBUG_STRICT, others on DEBUG_GLITCHES.
+  The command takes a combination of multiple arguments, some defining actions
+  and others defining filters:
+    - bug     enables listing the counters for BUG_ON() statements
+    - cnt     enables listing the counters for COUNT_IF() statements
+    - chk     enables listing the counters for CHECK_IF() statements
+    - glt     enables listing the counters for COUNT_GLITCH() statements
+    - all     enables showing counters that never triggered (value 0)
+    - reset   action: resets all specified counters
+    - show    action: shows all specified counters
+
+  By default, the action is "show" to show counters, and the listed counters
+  are all types with a non-zero value. The "show" command is implicit when no
+  other action is specified, and is only present to ease the production of
+  commands from scripts.
+
+  The output starts with an integer counter, followed by the type of the
+  counter in upper case, then its location in the code (file:line), the
+  function name, and optionally ": " followed by a description. Please note
+  that the output format might change between major versions, and new types
+  and entries might be backported to stable versions for the purpose of
+  improved debugging capabilities. Any monitoring performed on them should
+  only be done in a very lenient and permissive way, and preferably not.
+
+  Normally, end users will not use this command, but they may be invited to do
+  so by a developer trying to figure the cause of an issue, looking for CNT or
+  GLT entries. By the way, non-zero "CHK" entries are not expected to happen
+  and should be reported to developers as they might indicate some incorrect
+  assumptions in the code.
+
 debug dev <command> [args]*
   Call a developer-specific command. Only supported on a CLI connection running
   in expert mode (see "expert-mode on"). Such commands are extremely dangerous
