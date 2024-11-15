@@ -2366,8 +2366,10 @@ static int h2s_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 
 	/* RFC7540#5.4.2: To avoid looping, an endpoint MUST NOT send a
 	 * RST_STREAM in response to a RST_STREAM frame.
+	 *
+	 * if h2s is not assigned yet (id == 0), don't send a RST_STREAM frame.
 	 */
-	if (h2c->dsi == h2s->id && h2c->dft == H2_FT_RST_STREAM) {
+	if ((h2s->id == 0) || (h2c->dsi == h2s->id && h2c->dft == H2_FT_RST_STREAM)) {
 		ret = 1;
 		goto ignore;
 	}
