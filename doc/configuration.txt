@@ -25201,7 +25201,7 @@ http_first_req                                     boolean
 method                                             integer
 path                                               string
 pathq                                              string
-query                                              string
+query([<options>])                                 string
 req.hdr_names([<delim>])                           string
 req.ver                                            string
 req_ver                                            string
@@ -25661,13 +25661,20 @@ pathq : string
   accept-unsafe-violations-in-http-request", then this fragment part will be
   accepted and will also appear in the path.
 
-query : string
+query([<options>]) : string
   This extracts the request's query string, which starts after the first
   question mark. If no question mark is present, this fetch returns nothing. If
   a question mark is present but nothing follows, it returns an empty string.
   This means it's possible to easily know whether a query string is present
   using the "found" matching method. This fetch is the complement of "path"
-  which stops before the question mark.
+  which stops before the question mark and of "query_string", which include the
+  question mark.
+
+  An optional parameter may be used to customize the return value. Following
+  options are supported:
+
+    - with_qm : Include the question mark at the beginning ot the query string,
+                if not empty.
 
 req.hdr_names([<delim>]) : string
   This builds a string made from the concatenation of all header names as they

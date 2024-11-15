@@ -1284,6 +1284,9 @@ static int smp_fetch_query(const struct arg *args, struct sample *smp, const cha
 			return 0;
 	} while (*ptr++ != '?');
 
+	if (ptr != end && args[0].type == ARGT_SINT && args[0].data.sint == 1)
+		ptr--;
+
 	smp->data.type = SMP_T_STR;
 	smp->data.u.str.area = ptr;
 	smp->data.u.str.data = end - ptr;
@@ -2224,6 +2227,27 @@ int val_hdr(struct arg *arg, char **err_msg)
 	return 1;
 }
 
+int val_query(struct arg *args, char **err_msg)
+{
+	if (args[0].type == ARGT_STOP)
+		return 1;
+
+	if (args[0].type != ARGT_STR) {
+		memprintf(err_msg, "first argument must be a string");
+		return 0;
+	}
+
+	if (chunk_strcmp(&args[0].data.str, "with_qm") != 0) {
+		memprintf(err_msg, "supported options are: 'with_qm'");
+		return 0;
+	}
+
+	chunk_destroy(&args[0].data.str);
+	args[0].type = ARGT_SINT;
+	args[0].data.sint = 1;
+	return 1;
+
+}
 /************************************************************************/
 /*      All supported sample fetch keywords must be declared here.      */
 /************************************************************************/
@@ -2274,7 +2298,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "method",             smp_fetch_meth,               0,                NULL,    SMP_T_METH, SMP_USE_HRQHP },
 	{ "path",               smp_fetch_path,               0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "pathq",              smp_fetch_path,               0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
-	{ "query",              smp_fetch_query,              0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
+	{ "query",              smp_fetch_query,              ARG1(0,STR), val_query,    SMP_T_STR,  SMP_USE_HRQHV },
 
 	/* HTTP protocol on the request path */
 	{ "req.proto_http",     smp_fetch_proto_http,         0,                NULL,    SMP_T_BOOL, SMP_USE_HRQHP },
