@@ -89,6 +89,7 @@ static void free_trash_buffers_per_thread()
 /* Initialize the trash buffers. It returns 0 if an error occurred. */
 int init_trash_buffers(int first)
 {
+	BUG_ON(!first && pool_used(pool_head_trash) > 0); /* we tried to keep a trash buffer after reinit the pool */
 	pool_destroy(pool_head_trash);
 	pool_head_trash = create_pool("trash",
 				      sizeof(struct buffer) + global.tune.bufsize,
