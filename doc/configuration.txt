@@ -11461,6 +11461,14 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
         cookie set with "NAME=value". You have to clear the cookie "NAME=" for
         that, because the browser makes the difference.
 
+      - "keep-query"
+        When this keyword is used in a location-based redirection, then the
+        query-string of the original URI, if any, will be appended to the
+        location. If no query-string is found, nothing is added. If the
+        location already contains a query-string, the original one will be
+        appended with the '&' delimiter.
+
+
   Example: move the login URL only to HTTPS.
         acl clear      dst_port  80
         acl secure     dst_port  8080

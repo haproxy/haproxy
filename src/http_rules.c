@@ -402,6 +402,9 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 		else if (strcmp(args[cur_arg], "drop-query") == 0) {
 			flags |= REDIRECT_FLAG_DROP_QS;
 		}
+		else if (strcmp(args[cur_arg], "keep-query") == 0) {
+			flags |= REDIRECT_FLAG_KEEP_QS;
+		}
 		else if (strcmp(args[cur_arg], "append-slash") == 0) {
 			flags |= REDIRECT_FLAG_APPEND_SLASH;
 		}
@@ -419,7 +422,7 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 		}
 		else {
 			memprintf(errmsg,
-			          "expects 'code', 'prefix', 'location', 'scheme', 'set-cookie', 'clear-cookie', 'drop-query', 'ignore-empty' or 'append-slash' (was '%s')",
+			          "expects 'code', 'prefix', 'location', 'scheme', 'set-cookie', 'clear-cookie', 'drop-query', 'keep-query', 'ignore-empty' or 'append-slash' (was '%s')",
 			          args[cur_arg]);
 			goto err;
 		}
