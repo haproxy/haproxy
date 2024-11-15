@@ -80,7 +80,7 @@ static struct task *process_email_alert(struct task *t, void *context, unsigned 
 
 			alert = LIST_NEXT(&q->email_alerts, typeof(alert), list);
 			LIST_DELETE(&alert->list);
-			t->expire             = now_ms;
+			t->expire             = tick_add(now_ms, 0);
 			check->tcpcheck_rules = &alert->rules;
 			check->status         = HCHK_STATUS_INI;
 			check->state         |= CHK_ST_ENABLED;
