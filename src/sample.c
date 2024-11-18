@@ -19,11 +19,13 @@
 #include <import/mjson.h>
 #include <import/sha1.h>
 
+#include <haproxy/acl.h>
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
 #include <haproxy/auth.h>
 #include <haproxy/base64.h>
 #include <haproxy/buf.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/chunk.h>
 #include <haproxy/clock.h>
 #include <haproxy/errors.h>
@@ -3825,6 +3827,7 @@ enum {
 	WHEN_COND_FORWARDED,
 	WHEN_COND_TOAPPLET,
 	WHEN_COND_PROCESSED,
+	WHEN_COND_ACL,
 	WHEN_COND_CONDITIONS
 };
 
@@ -3835,6 +3838,7 @@ const char *when_cond_kw[WHEN_COND_CONDITIONS] = {
 	[WHEN_COND_FORWARDED]	= "forwarded",
 	[WHEN_COND_TOAPPLET]	= "toapplet",
 	[WHEN_COND_PROCESSED]	= "processed",
+	[WHEN_COND_ACL]         = "acl",
 };
 
 /* Evaluates a condition and decides whether or not to pass the input sample
@@ -3850,6 +3854,7 @@ static int sample_conv_when(const struct arg *arg_p, struct sample *smp, void *p
 	struct stream *strm = smp->strm;
 	int neg  = arg_p[0].data.sint;
 	int cond = arg_p[1].data.sint;
+	struct acl_sample *acl_sample;
 	int ret = 0;
 
 	switch (cond) {
@@ -3881,6 +3886,11 @@ static int sample_conv_when(const struct arg *arg_p, struct sample *smp, void *p
 	case WHEN_COND_PROCESSED: // true if forwarded or appctx
 		ret = sc_conn(smp->strm->scb) || sc_appctx(smp->strm->scb);
 		break;
+
+	case WHEN_COND_ACL: // true if the ACL pointed to by args[2] evaluates to true
+		acl_sample = arg_p[2].data.ptr;
+		ret = acl_exec_cond(&acl_sample->cond, smp->px, smp->sess, smp->strm, smp->opt) == ACL_TEST_PASS;
+		break;
 	}
 
 	ret = !!ret ^ !!neg;
@@ -3895,11 +3905,13 @@ static int sample_conv_when(const struct arg *arg_p, struct sample *smp, void *p
 
 /* checks and resolves the type of the argument passed to when().
  * It supports an optional '!' to negate the condition, followed by
- * a keyword among the list above.
+ * a keyword among the list above. Note that we're purposely declaring
+ * one extra arg because the first one will be split into two.
  */
 static int check_when_cond(struct arg *args, struct sample_conv *conv,
                              const char *file, int line, char **err)
 {
+	struct acl_sample *acl_sample;
 	const char *kw;
 	int neg = 0;
 	int i;
@@ -3923,7 +3935,52 @@ static int check_when_cond(struct arg *args, struct sample_conv *conv,
 		return 0;
 	}
 
+	if (i == WHEN_COND_ACL) {
+		if (args[1].type != ARGT_STR || !*args[1].data.str.area) {
+			memprintf(err, "'acl' selector requires an extra argument with the ACL name");
+			return 0;
+		}
+
+		if (!curproxy) {
+			memprintf(err, "'acl' selector may only be used in the context of a proxy");
+			return 0;
+		}
+
+		acl_sample = calloc(1, sizeof(struct acl_sample) + sizeof(struct acl_term));
+		if (!acl_sample) {
+			memprintf(err, "not enough memory for 'acl' selector");
+			return 0;
+		}
+
+		LIST_INIT(&acl_sample->suite.terms);
+		LIST_INIT(&acl_sample->cond.suites);
+		LIST_APPEND(&acl_sample->cond.suites, &acl_sample->suite.list);
+		LIST_APPEND(&acl_sample->suite.terms, &acl_sample->terms[0].list);
+		acl_sample->cond.val = ~0U; // the keyword is valid everywhere for now.
+
+		/* build one term based on the ACL kw */
+		if (!(acl_sample->terms[0].acl = find_acl_by_name(args[1].data.str.area, &curproxy->acl)) &&
+		    !(acl_sample->terms[0].acl = find_acl_default(args[1].data.str.area, &curproxy->acl, err, NULL, NULL, 0))) {
+			memprintf(err, "ACL '%s' not found", args[1].data.str.area);
+			return 0;
+		}
+
+		acl_sample->cond.use |= acl_sample->terms[0].acl->use;
+		acl_sample->cond.val &= acl_sample->terms[0].acl->val;
+
+		args[2].type = ARGT_PTR;
+		args[2].unresolved = 0;
+		args[2].resolve_ptr = NULL;
+		args[2].data.ptr = acl_sample;
+	}
+
 	chunk_destroy(&args[0].data.str);
+	if (args[1].type == ARGT_STR)
+		chunk_destroy(&args[1].data.str);
+
+	if (args[2].type == ARGT_STR)
+		chunk_destroy(&args[2].data.str);
+
 	// store condition
 	args[0].type = ARGT_SINT;
 	args[0].data.sint = neg; // '!' present
@@ -5386,7 +5443,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "jwt_payload_query", sample_conv_jwt_payload_query, ARG2(0,STR,STR), sample_conv_jwt_query_check,   SMP_T_BIN, SMP_T_ANY },
 	{ "jwt_verify",        sample_conv_jwt_verify,        ARG2(2,STR,STR), sample_conv_jwt_verify_check,  SMP_T_BIN, SMP_T_SINT },
 #endif
-	{ "when",              sample_conv_when,              ARG1(1,STR),     check_when_cond,               SMP_T_ANY, SMP_T_ANY  },
+	{ "when",              sample_conv_when,              ARG3(1,STR,STR,STR), check_when_cond,               SMP_T_ANY, SMP_T_ANY  },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

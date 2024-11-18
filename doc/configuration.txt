@@ -21485,14 +21485,15 @@ utime(<format>[,<offset>])
       # e.g.  20140710162350 127.0.0.1:57325
       log-format %[date,utime(%Y%m%d%H%M%S)]\ %ci:%cp
 
-when(<condition>)
+when(<condition>[,<args>...])
   Evaluates the condition and when true, passes the input sample as-is to the
   output, otherwise return nothing. This is designed specifically to produce
   some rarely needed data that should only be emitted under certain conditions,
   such as debugging information when an error is met.
 
   The condition is made of a keyword among the list below, optionally preceeded
-  by an exclamation mark ('!') to negate it:
+  by an exclamation mark ('!') to negate it, and optionally suffixed by some
+  arguments specific to that condition:
 
     - "error" returns true when an error was encountered during the processing
       of the request or stream. It uses the same rules as "dontlog-normal"
@@ -21512,6 +21513,12 @@ when(<condition>)
 
     - "toapplet" returns true when the request was processed by an applet.
 
+    - "acl" returns true when the ACL designated by the next argument evaluates
+      to true. Note that the ACL is evaluated inline by the converter, so that
+      what it refers to must be valid in that context. A particular use case
+      consists in evaluating if the total transfer time is too long or not
+      before deciding to log detauls from abnormally long transfers.
+
   Note that the content is evaluated in any case, so doing this does not avoid
   the generation of that information. It's only meant to avoid producing that
   information.
@@ -21527,6 +21534,13 @@ when(<condition>)
     Here, the "dbg" field in the log will only contain an dash ('-') to
     indicate a missing content when the rule is not validated, and will emit a
     whole debugging block when it is.
+
+  Example
+    # log "dbg={-}" when fine, or "dbg={... debug info ...}" on slow transfers
+    acl slow_xfer res.timer.data ge 10000   # more than 10s is slow
+    log-format "$HAPROXY_HTTP_LOG_FMT                                         \
+                fsdbg={%[fs.debug_str,when(acl,slow_xfer)]}                   \
+                bsdbg={%[bs.debug_str,when(acl,slow_xfer)]}"
 
   Example
     # only emit the backend src/port when a real connection was issued:
