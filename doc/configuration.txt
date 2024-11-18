@@ -3320,7 +3320,7 @@ tune.buffers.reserve <number>
   a user would want to change this value, unless a core developer suggests to
   change it for a very specific reason.
 
-tune.bufsize <number>
+tune.bufsize <size>
   Sets the buffer size to this size (in bytes). Lower values allow more
   streams to coexist in the same amount of RAM, and higher values allow some
   applications with very large cookies to work. The default value is 16384 and

@@ -165,7 +165,7 @@ struct global {
 		int options;       /* various tuning options */
 		int runqueue_depth;/* max number of tasks to run at once */
 		uint recv_enough;  /* how many input bytes at once are "enough" */
-		int bufsize;       /* buffer size in bytes, defaults to BUFSIZE */
+		uint bufsize;      /* buffer size in bytes, defaults to BUFSIZE */
 		int bufsize_small; /* small buffer size in bytes */
 		int maxrewrite;    /* buffer max rewrite size in bytes, defaults to MAXREWRITE */
 		int reserved_bufs; /* how many buffers can only be allocated for response */

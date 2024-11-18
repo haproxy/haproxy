@@ -1195,7 +1195,16 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 			memprintf(err, "'%s' expects an integer argument", args[0]);
 			return -1;
 		}
-		global.tune.bufsize = atol(args[1]);
+		res = parse_size_err(args[1], &global.tune.bufsize);
+		if (res != NULL)
+			goto size_err;
+
+		if (global.tune.bufsize > INT_MAX - (int)(2 * sizeof(void *))) {
+			memprintf(err, "'%s' expects a size in bytes from 0 to %d.",
+				  args[0], INT_MAX - (int)(2 * sizeof(void *)));
+			return -1;
+		}
+
 		/* round it up to support a two-pointer alignment at the end */
 		global.tune.bufsize = (global.tune.bufsize + 2 * sizeof(void *) - 1) & -(2 * sizeof(void *));
 		if (global.tune.bufsize <= 0) {
