@@ -1248,7 +1248,6 @@ static int read_cfg(char *progname)
 
 	}
 	/* remove temporary environment variables. */
-	unsetenv("HAPROXY_BRANCH");
 	unsetenv("HAPROXY_HTTP_LOG_FMT");
 	unsetenv("HAPROXY_HTTP_CLF_LOG_FMT");
 	unsetenv("HAPROXY_HTTPS_LOG_FMT");
