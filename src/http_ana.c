@@ -1991,6 +1991,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	goto return_prx_err;
 
  return_bad_res:
+	s->logs.t_data = -1; /* was not a valid response */
 	txn->status = 502;
 	stream_inc_http_fail_ctr(s);
 	_HA_ATOMIC_INC(&s->be->be_counters.failed_resp);
@@ -2006,7 +2007,6 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	/* fall through */
 
  return_prx_cond:
-	s->logs.t_data = -1; /* was not a valid response */
 	s->scb->flags |= SC_FL_NOLINGER;
 
 	http_set_term_flags(s);
