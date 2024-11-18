@@ -167,10 +167,12 @@ const int http_err_codes[HTTP_ERR_SIZE] = {
 	[HTTP_ERR_408] = 408,
 	[HTTP_ERR_410] = 410,
 	[HTTP_ERR_413] = 413,
+	[HTTP_ERR_414] = 414,
 	[HTTP_ERR_421] = 421,
 	[HTTP_ERR_422] = 422,
 	[HTTP_ERR_425] = 425,
 	[HTTP_ERR_429] = 429,
+	[HTTP_ERR_431] = 431,
 	[HTTP_ERR_500] = 500,
 	[HTTP_ERR_501] = 501,
 	[HTTP_ERR_502] = 502,
@@ -261,6 +263,14 @@ const char *http_err_msgs[HTTP_ERR_SIZE] = {
 	"\r\n"
 	"<html><body><h1>413 Payload Too Large</h1>\nThe request entity exceeds the maximum allowed.\n</body></html>\n",
 
+	[HTTP_ERR_414] =
+	"HTTP/1.1 414 URI Too Long\r\n"
+	"Content-length: 110\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>414 URI Too Long</h1>\nThe URI provided was too long for the server to process.\n</body></html>\n",
+
 	[HTTP_ERR_421] =
 	"HTTP/1.1 421 Misdirected Request\r\n"
 	"Content-length: 104\r\n"
@@ -292,6 +302,14 @@ const char *http_err_msgs[HTTP_ERR_SIZE] = {
 	"Content-Type: text/html\r\n"
 	"\r\n"
 	"<html><body><h1>429 Too Many Requests</h1>\nYou have sent too many requests in a given amount of time.\n</body></html>\n",
+
+	[HTTP_ERR_431] =
+	"HTTP/1.1 431 Request Header Fields Too Large\r\n"
+	"Content-length: 106\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>431 Request Header Fields Too Large</h1>\n>Request Header Fields Too Large.\n</body></html>\n",
 
 	[HTTP_ERR_500] =
 	"HTTP/1.1 500 Internal Server Error\r\n"
@@ -379,20 +397,20 @@ int http_get_status_idx(unsigned int status)
 {
 	/* This table was built using dev/phash and easily finds solutions up
 	 * to 21 different entries and produces much better code with 32
-	 * (padded with err 500 below as it's the default, though only [19] is
+	 * (padded with err 500 below as it's the default, though only [7] is
 	 * the real one).
 	 */
 	const uchar codes[32] = {
-		HTTP_ERR_408, HTTP_ERR_200, HTTP_ERR_504, HTTP_ERR_400,
-		HTTP_ERR_500, HTTP_ERR_500, HTTP_ERR_401, HTTP_ERR_410,
-		HTTP_ERR_500, HTTP_ERR_500, HTTP_ERR_500, HTTP_ERR_500,
-		HTTP_ERR_500, HTTP_ERR_429, HTTP_ERR_403, HTTP_ERR_500,
-		HTTP_ERR_421, HTTP_ERR_404, HTTP_ERR_413, HTTP_ERR_500,
-		HTTP_ERR_422, HTTP_ERR_405, HTTP_ERR_500, HTTP_ERR_501,
-		HTTP_ERR_500, HTTP_ERR_500, HTTP_ERR_500, HTTP_ERR_502,
-		HTTP_ERR_407, HTTP_ERR_500, HTTP_ERR_503, HTTP_ERR_425,
+		HTTP_ERR_500, HTTP_ERR_502, HTTP_ERR_429, HTTP_ERR_500,
+		HTTP_ERR_414, HTTP_ERR_404, HTTP_ERR_500, HTTP_ERR_500,
+		HTTP_ERR_500, HTTP_ERR_200, HTTP_ERR_422, HTTP_ERR_407,
+		HTTP_ERR_500, HTTP_ERR_503, HTTP_ERR_500, HTTP_ERR_500,
+		HTTP_ERR_425, HTTP_ERR_410, HTTP_ERR_405, HTTP_ERR_400,
+		HTTP_ERR_501, HTTP_ERR_500, HTTP_ERR_500, HTTP_ERR_413,
+		HTTP_ERR_408, HTTP_ERR_403, HTTP_ERR_504, HTTP_ERR_500,
+		HTTP_ERR_431, HTTP_ERR_421, HTTP_ERR_500, HTTP_ERR_401,
 	};
-	uint hash = ((status * 118) >> 5) % 32;
+	uint hash = ((status * 406) >> 5) % 32;
 	uint ret  = codes[hash];
 
 	if (http_err_codes[ret] == status)

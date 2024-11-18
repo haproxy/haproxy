@@ -6912,7 +6912,7 @@ errorfile <code> <file>
   Arguments :
     <code>    is the HTTP status code. Currently, HAProxy is capable of
               generating codes 200, 400, 401, 403, 404, 405, 407, 408, 410,
-              413, 425, 429, 500, 501, 502, 503, and 504.
+              413, 414, 425, 429, 431, 500, 501, 502, 503, and 504.
 
     <file>    designates a file containing the full HTTP response. It is
               recommended to follow the common practice of appending ".http" to
@@ -6965,8 +6965,8 @@ errorfiles <name> [<code> ...]
 
     <code>  is a HTTP status code. Several status code may be listed.
             Currently, HAProxy is capable of generating codes 200, 400, 401,
-            403, 404, 405, 407, 408, 410, 413, 425, 429, 500, 501, 502, 503,
-            and 504.
+            403, 404, 405, 407, 408, 410, 413, 414, 425, 429, 431, 500, 501,
+            502, 503, and 504.
 
   Errors defined in the http-errors section with the name <name> are imported
   in the current proxy. If no status code is specified, all error files of the
@@ -6996,7 +6996,7 @@ errorloc302 <code> <url>
   Arguments :
     <code>    is the HTTP status code. Currently, HAProxy is capable of
               generating codes 200, 400, 401, 403, 404, 405, 407, 408, 410,
-              413, 425, 429, 500, 501, 502, 503, and 504.
+              413, 414, 425, 429, 431, 500, 501, 502, 503, and 504.
 
     <url>     it is the exact contents of the "Location" header. It may contain
               either a relative URI to an error page hosted on the same site,
@@ -7032,7 +7032,7 @@ errorloc303 <code> <url>
   Arguments :
     <code>    is the HTTP status code. Currently, HAProxy is capable of
               generating codes 200, 400, 401, 403, 404, 405, 407, 408, 410,
-              413, 425, 429, 500, 501, 502, 503, and 504.
+              413, 414, 425, 429, 431, 500, 501, 502, 503, and 504.
 
     <url>     it is the exact contents of the "Location" header. It may contain
               either a relative URI to an error page hosted on the same site,
@@ -8002,8 +8002,8 @@ http-error status <code> [content-type <type>]
   Arguments :
     status <code>        is the HTTP status code. It must be specified.
                          Currently, HAProxy is capable of generating codes
-                         200, 400, 401, 403, 404, 405, 407, 408, 410, 413, 425,
-                         429, 500, 501, 502, 503, and 504.
+                         200, 400, 401, 403, 404, 405, 407, 408, 410, 413,
+                         414, 425, 429, 431, 500, 501, 502, 503, and 504.
 
     content-type <type>  is the response content type, for instance
                          "text/plain". This parameter is ignored and should be
@@ -15530,21 +15530,22 @@ return [ status <code> ] [ content-type <type> ]
   * If "default-errorfiles" argument is set, the proxy's errorfiles are
     considered.  If the "status" argument is defined, it must be one of the
     status code handled by HAProxy (200, 400, 403, 404, 405, 408, 410, 413,
-    425, 429, 500, 501, 502, 503, and 504). The "content-type" argument, if
-    any, is ignored.
+    414, 425, 429, 431, 500, 501, 502, 503, and 504). The "content-type"
+    argument, if any, is ignored.
 
   * If a specific errorfile is defined, with an "errorfile" argument, the
     corresponding file, containing a full HTTP response, is returned. Only the
     "status" argument is considered. It must be one of the status code handled
-    by HAProxy (200, 400, 403, 404, 405, 408, 410, 413, 425, 429, 500, 501,
-    502, 503, and 504). The "content-type" argument, if any, is ignored.
+    by HAProxy (200, 400, 403, 404, 405, 408, 410, 413, 414, 425, 429, 431,
+    500, 501, 502, 503, and 504). The "content-type" argument, if any, is
+    ignored.
 
   * If an http-errors section is defined, with an "errorfiles" argument, the
     corresponding file in the specified http-errors section, containing a full
     HTTP response, is returned. Only the "status" argument is considered. It
     must be one of the status code handled by HAProxy (200, 400, 403, 404, 405,
-    408, 410, 413, 425, 429, 500, 501, 502, 503, and 504). The "content-type"
-    argument, if any, is ignored.
+    408, 410, 413, 414, 425, 429, 431, 500, 501, 502, 503, and 504).
+    The "content-type" argument, if any, is ignored.
 
   * If a "file" or a "lf-file" argument is specified, the file's content is
     used as the response payload. If the file is not empty, its content-type
