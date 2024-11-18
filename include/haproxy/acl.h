@@ -50,6 +50,9 @@ static inline int acl_pass(enum acl_test_res res)
  * NULL if not found.
  */
 struct acl *find_acl_by_name(const char *name, struct list *head);
+struct acl *find_acl_default(const char *acl_name, struct list *known_acl,
+                             char **err, struct arg_list *al,
+                             const char *file, int line);
 
 /* Return a pointer to the ACL keyword <kw> within the list starting at <head>,
  * or NULL if not found. Note that if <kw> contains an opening parenthesis,

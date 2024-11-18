@@ -757,9 +757,9 @@ const struct {
  * to report missing dependencies. It may be NULL if such dependencies are not
  * allowed.
  */
-static struct acl *find_acl_default(const char *acl_name, struct list *known_acl,
-                                    char **err, struct arg_list *al,
-                                    const char *file, int line)
+struct acl *find_acl_default(const char *acl_name, struct list *known_acl,
+                             char **err, struct arg_list *al,
+                             const char *file, int line)
 {
 	__label__ out_return, out_free_acl_expr, out_free_name;
 	struct acl *cur_acl;
