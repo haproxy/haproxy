@@ -1179,7 +1179,14 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 			memprintf(err, "'%s' expects an integer argument.", args[0]);
 			return -1;
 		}
-		global.tune.recv_enough = atol(args[1]);
+		res = parse_size_err(args[1], &global.tune.recv_enough);
+		if (res != NULL)
+			goto size_err;
+
+		if (global.tune.recv_enough > INT_MAX) {
+			memprintf(err, "'%s' expects a size in bytes from 0 to %d.", args[0], INT_MAX);
+			return -1;
+		}
 
 		return 0;
 	}

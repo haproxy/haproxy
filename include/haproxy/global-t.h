@@ -164,7 +164,7 @@ struct global {
 		int maxaccept;     /* max number of consecutive accept() */
 		int options;       /* various tuning options */
 		int runqueue_depth;/* max number of tasks to run at once */
-		int recv_enough;   /* how many input bytes at once are "enough" */
+		uint recv_enough;  /* how many input bytes at once are "enough" */
 		int bufsize;       /* buffer size in bytes, defaults to BUFSIZE */
 		int bufsize_small; /* small buffer size in bytes */
 		int maxrewrite;    /* buffer max rewrite size in bytes, defaults to MAXREWRITE */

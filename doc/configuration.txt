@@ -4111,7 +4111,7 @@ tune.rcvbuf.server <size>
   order to save kernel memory by preventing it from buffering too large amounts
   of received data. Lower values will significantly increase CPU usage though.
 
-tune.recv_enough <number>
+tune.recv_enough <size>
   HAProxy uses some hints to detect that a short read indicates the end of the
   socket buffers. One of them is that a read returns more than <recv_enough>
   bytes, which defaults to 10136 (7 segments of 1448 each). This default value
