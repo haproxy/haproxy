@@ -3733,6 +3733,12 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+		if (warn_if_lower(args[2], 100)) {
+			ha_alert("parsing [%s:%d] : '%s %s %u' looks suspiciously small for a value in milliseconds."
+				 " Please use an explicit unit ('%ums') if that was the intent.\n",
+				 file, linenum, args[0], args[1], time, time);
+			err_code |= ERR_WARN;
+		}
 	}
 	else if (strcmp(args[0], "accepted_payload_size") == 0) {
 		int i = 0;
@@ -3813,6 +3819,12 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 				curr_resolvers->px->timeout.connect = tout;
 			}
 
+			if (warn_if_lower(args[2], 100)) {
+				ha_alert("parsing [%s:%d] : '%s %s %u' looks suspiciously small for a value in milliseconds."
+					 " Please use an explicit unit ('%ums') if that was the intent.\n",
+					 file, linenum, args[0], args[1], tout, tout);
+				err_code |= ERR_WARN;
+			}
 		}
 		else {
 			ha_alert("parsing [%s:%d] : '%s' expects 'retry' or 'resolve' and <time> as arguments got '%s'.\n",

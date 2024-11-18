@@ -2190,6 +2190,12 @@ static int srv_parse_agent_inter(char **args, int *cur_arg, struct proxy *curpx,
 	}
 	srv->agent.inter = delay;
 
+	if (warn_if_lower(args[*cur_arg+1], 100)) {
+		memprintf(errmsg, "'%s %u' in server '%s' is suspiciously small for a value in milliseconds. Please use an explicit unit ('%ums') if that was the intent",
+		          args[*cur_arg], delay, srv->id, delay);
+		err_code |= ERR_WARN;
+	}
+
   out:
 	return err_code;
 
@@ -2459,6 +2465,12 @@ static int srv_parse_check_inter(char **args, int *cur_arg, struct proxy *curpx,
 	}
 	srv->check.inter = delay;
 
+	if (warn_if_lower(args[*cur_arg+1], 100)) {
+		memprintf(errmsg, "'%s %u' in server '%s' is suspiciously small for a value in milliseconds. Please use an explicit unit ('%ums') if that was the intent",
+		          args[*cur_arg], delay, srv->id, delay);
+		err_code |= ERR_WARN;
+	}
+
   out:
 	return err_code;
 
@@ -2504,6 +2516,12 @@ static int srv_parse_check_fastinter(char **args, int *cur_arg, struct proxy *cu
 	}
 	srv->check.fastinter = delay;
 
+	if (warn_if_lower(args[*cur_arg+1], 100)) {
+		memprintf(errmsg, "'%s %u' in server '%s' is suspiciously small for a value in milliseconds. Please use an explicit unit ('%ums') if that was the intent",
+		          args[*cur_arg], delay, srv->id, delay);
+		err_code |= ERR_WARN;
+	}
+
   out:
 	return err_code;
 
@@ -2548,6 +2566,12 @@ static int srv_parse_check_downinter(char **args, int *cur_arg, struct proxy *cu
 		goto error;
 	}
 	srv->check.downinter = delay;
+
+	if (warn_if_lower(args[*cur_arg+1], 100)) {
+		memprintf(errmsg, "'%s %u' in server '%s' is suspiciously small for a value in milliseconds. Please use an explicit unit ('%ums') if that was the intent",
+		          args[*cur_arg], delay, srv->id, delay);
+		err_code |= ERR_WARN;
+	}
 
   out:
 	return err_code;

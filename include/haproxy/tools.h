@@ -1256,6 +1256,23 @@ static inline void update_char_fingerprint(uint8_t *fp, char prev, char curr)
 	fp[32 * from + to]++;
 }
 
+/* checks that the numerical argument, if passed without units and is non-zero,
+ * is at least as large as value <min>. It returns 1 if the value is too small,
+ * otherwise zero. This is used to warn about the use of small values without
+ * units.
+ */
+static inline int warn_if_lower(const char *text, long min)
+{
+	int digits;
+	long value;
+
+	digits = strspn(text, "0123456789");
+	if (digits < strlen(text))
+		return 0; // there are non-digits here.
+
+	value = atol(text);
+	return value && value < min;
+}
 
 /* compare the current OpenSSL version to a string */
 int openssl_compare_current_version(const char *version);

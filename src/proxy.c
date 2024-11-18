@@ -620,6 +620,12 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
 		return -1;
 	}
 
+	if (warn_if_lower(args[1], 100)) {
+		memprintf(err, "'timeout %s %u' in %s '%s' is suspiciously small for a value in milliseconds. Please use an explicit unit ('%ums') if that was the intent.",
+		          name, timeout, proxy_type_str(proxy), proxy->id, timeout);
+		retval = 1;
+	}
+
 	if (!(proxy->cap & cap)) {
 		memprintf(err, "'timeout %s' will be ignored because %s '%s' has no %s capability",
 		          name, proxy_type_str(proxy), proxy->id,
