@@ -3336,7 +3336,7 @@ tune.bufsize <size>
   value set using this parameter will automatically be rounded up to the next
   multiple of 8 on 32-bit machines and 16 on 64-bit machines.
 
-tune.bufsize.small <number>
+tune.bufsize.small <size>
   Sets the size in bytes for small buffers. The defaults value is 1024.
 
   These buffers are designed to be used in some specific contexts where memory

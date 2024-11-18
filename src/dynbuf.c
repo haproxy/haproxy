@@ -193,7 +193,8 @@ static int cfg_parse_tune_bufsize_small(char **args, int section_type,
                                         struct proxy *curpx, const struct proxy *defpx,
                                         const char *file, int line, char **err)
 {
-	int size;
+	const char *res;
+	uint size;
 
 	if (too_many_args(1, args, err, NULL))
 		goto err;
@@ -203,7 +204,12 @@ static int cfg_parse_tune_bufsize_small(char **args, int section_type,
 		goto err;
 	}
 
-	size = atol(args[1]);
+	res = parse_size_err(args[1], &size);
+	if (res != NULL) {
+		memprintf(err, "unexpected '%s' after size passed to '%s'", res, args[0]);
+		goto err;
+	}
+
 	if (size <= 0) {
 		memprintf(err, "'%s' expects a positive integer argument.\n", args[0]);
 		goto err;
