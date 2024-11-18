@@ -1121,6 +1121,7 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 				      struct proxy *curpx, const struct proxy *defpx,
 				      const char *file, int line, char **err)
 {
+	const char *res;
 
 	if (too_many_args(1, args, err, NULL))
 		return -1;
@@ -1212,8 +1213,6 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 	}
 	else if (strcmp(args[0], "tune.idletimer") == 0) {
 		unsigned int idle;
-		const char *res;
-
 
 		if (*(args[1]) == 0) {
 			memprintf(err, "'%s' expects a timer value between 0 and 65535 ms.", args[0]);
@@ -1253,7 +1252,9 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 			memprintf(err, "'%s' expects an integer argument.", args[0]);
 			return -1;
 		}
-		global.tune.client_rcvbuf = atol(args[1]);
+		res = parse_size_err(args[1], &global.tune.client_rcvbuf);
+		if (res != NULL)
+			goto size_err;
 
 		return 0;
 	}
@@ -1266,7 +1267,9 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 			memprintf(err, "'%s' expects an integer argument.", args[0]);
 			return -1;
 		}
-		global.tune.server_rcvbuf = atol(args[1]);
+		res = parse_size_err(args[1], &global.tune.server_rcvbuf);
+		if (res != NULL)
+			goto size_err;
 
 		return 0;
 	}
@@ -1279,7 +1282,9 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 			memprintf(err, "'%s' expects an integer argument.", args[0]);
 			return -1;
 		}
-		global.tune.client_sndbuf = atol(args[1]);
+		res = parse_size_err(args[1], &global.tune.client_sndbuf);
+		if (res != NULL)
+			goto size_err;
 
 		return 0;
 	}
@@ -1292,7 +1297,9 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 			memprintf(err, "'%s' expects an integer argument.", args[0]);
 			return -1;
 		}
-		global.tune.server_sndbuf = atol(args[1]);
+		res = parse_size_err(args[1], &global.tune.server_sndbuf);
+		if (res != NULL)
+			goto size_err;
 
 		return 0;
 	}
@@ -1366,6 +1373,11 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 	}
 
 	return 0;
+
+ size_err:
+	memprintf(err, "unexpected '%s' after size passed to '%s'", res, args[0]);
+	return -1;
+
 }
 
 static int cfg_parse_global_tune_forward_opts(char **args, int section_type,

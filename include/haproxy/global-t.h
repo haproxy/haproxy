@@ -170,10 +170,10 @@ struct global {
 		int maxrewrite;    /* buffer max rewrite size in bytes, defaults to MAXREWRITE */
 		int reserved_bufs; /* how many buffers can only be allocated for response */
 		int buf_limit;     /* if not null, how many total buffers may only be allocated */
-		int client_sndbuf; /* set client sndbuf to this value if not null */
-		int client_rcvbuf; /* set client rcvbuf to this value if not null */
-		int server_sndbuf; /* set server sndbuf to this value if not null */
-		int server_rcvbuf; /* set server rcvbuf to this value if not null */
+		uint client_sndbuf;   /* set client sndbuf to this value if not null */
+		uint client_rcvbuf;   /* set client rcvbuf to this value if not null */
+		uint server_sndbuf;   /* set server sndbuf to this value if not null */
+		uint server_rcvbuf;   /* set server rcvbuf to this value if not null */
 		int frontend_sndbuf; /* set frontend dgram sndbuf to this value if not null */
 		int frontend_rcvbuf; /* set frontend dgram rcvbuf to this value if not null */
 		int backend_sndbuf;  /* set backend dgram sndbuf to this value if not null */

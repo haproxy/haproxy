@@ -4101,8 +4101,8 @@ tune.rcvbuf.frontend <number>
   counter parts, as well as "tune.sndbuf.backend" and "tune.sndbuf.frontend"
   for the send setting.
 
-tune.rcvbuf.client <number>
-tune.rcvbuf.server <number>
+tune.rcvbuf.client <size>
+tune.rcvbuf.server <size>
   Forces the kernel socket receive buffer size on the client or the server side
   to the specified value in bytes. This value applies to all TCP/HTTP frontends
   and backends. It should normally never be set, and the default size (0) lets
@@ -4164,8 +4164,8 @@ tune.sndbuf.frontend <number>
   "tune.sndbuf.server" for their connected socket counter parts, as well as
   "tune.rcvbuf.backend" and "tune.rcvbuf.frontend" for the receive setting.
 
-tune.sndbuf.client <number>
-tune.sndbuf.server <number>
+tune.sndbuf.client <size>
+tune.sndbuf.server <size>
   Forces the kernel socket send buffer size on the client or the server side to
   the specified value in bytes. This value applies to all TCP/HTTP frontends
   and backends. It should normally never be set, and the default size (0) lets
