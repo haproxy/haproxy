@@ -15,6 +15,7 @@
 #include <haproxy/ncbuf-t.h>
 #include <haproxy/quic_fctl-t.h>
 #include <haproxy/quic_frame-t.h>
+#include <haproxy/quic_pacing-t.h>
 #include <haproxy/quic_stream-t.h>
 #include <haproxy/stconn-t.h>
 #include <haproxy/time-t.h>
@@ -69,6 +70,7 @@ struct qcc {
 		struct quic_fctl fc; /* stream flow control applied on sending */
 		uint64_t buf_in_flight; /* sum of currently allocated Tx buffer sizes */
 		struct list frms; /* list of STREAM frames ready for sent */
+		struct quic_pacer pacer; /* engine used to pace emission */
 	} tx;
 
 	uint64_t largest_bidi_r; /* largest remote bidi stream ID opened. */
