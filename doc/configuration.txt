@@ -423,7 +423,7 @@ on the server. The part after the question mark is called the "query string".
 It is mostly used with GET requests sent to dynamic scripts and is very
 specific to the language, framework or application in use.
 
-HTTP/3 and HTTP/3 do not convey a version information with the request, so the
+HTTP/2 and HTTP/3 do not convey a version information with the request, so the
 version is assumed to be the same as the one of the underlying protocol (i.e.
 "HTTP/2"). In addition, these protocols do not send a request line as one part,
 but split it into individual fields called "pseudo-headers", whose name start
