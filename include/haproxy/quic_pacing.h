@@ -15,8 +15,7 @@ static inline void quic_pacing_init(struct quic_pacer *pacer,
 
 int quic_pacing_expired(const struct quic_pacer *pacer);
 
-
-void quic_pacing_sent_done(struct quic_pacer *pacer);
+void quic_pacing_sent_done(struct quic_pacer *pacer, int sent);
 
 enum quic_tx_err quic_pacing_send(struct quic_pacer *pacer, struct quic_conn *qc);
 

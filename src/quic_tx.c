@@ -494,8 +494,10 @@ enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms,
 		qc_send(qc, 0, &send_list, 0);
 	}
 
-	if (pacer)
-		max_dgram = 1;
+	if (pacer) {
+		max_dgram = qc->path->cc.algo->pacing_burst(&qc->path->cc);
+		BUG_ON(max_dgram <= 0); /* pacer must specify a positive burst value. */
+	}
 
 	TRACE_STATE("preparing data (from MUX)", QUIC_EV_CONN_TXPKT, qc);
 	qel_register_send(&send_list, qc->ael, frms);
@@ -504,10 +506,10 @@ enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms,
 		ret = QUIC_TX_ERR_FATAL;
 	}
 	else if (pacer) {
-		BUG_ON(sent > 1); /* burst not yet supported for pacing */
-		if (!LIST_ISEMPTY(frms))
+		BUG_ON(sent > max_dgram); /* Must not exceed pacing limit. */
+		if (max_dgram == sent && !LIST_ISEMPTY(frms))
 			ret = QUIC_TX_ERR_PACING;
-		quic_pacing_sent_done(pacer);
+		quic_pacing_sent_done(pacer, sent);
 	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
