@@ -3321,7 +3321,7 @@ show servers state [<backend>]
      srv_agent_addr:              Server health agent address.
      srv_agent_port:              Server health agent port.
 
-show sess
+show sess [<options>*]
   Dump all known active streams (formerly called "sessions"). Avoid doing this
   on slow connections as this can be huge. This command is restricted and can
   only be issued on sockets configured for levels "operator" or "admin". Note
@@ -3329,8 +3329,9 @@ show sess
   output reports less entries than really exist because it will dump all
   existing streams up to the last one that was created before the command was
   entered; those which die in the mean time will not appear.
+  For supported opitons, see below.
 
-show sess <id> | older <age> | susp | all
+show sess [<id> | older <age> | susp | all] [<options>*]
   Display a lot of internal information about the matching streams. In the
   first form, only the stream matching the specified stream identifier will
   be shown. This identifier is the first field at the beginning of the lines in
@@ -3346,6 +3347,12 @@ show sess <id> | older <age> | susp | all
   documented so that it can freely evolve depending on demands. This output
   is meant to be interpreted while checking function strm_dump_to_buffer() in
   src/stream.c to figure the exact meaning of certain fields.
+
+  It is possible to set some options to customize the dump. Here are the
+  supported options:
+
+    - show-uri: Dump the transaction URI, as captured during the request
+      analysis. It is only displayed if it was captured.
 
 show stat [domain <resolvers|proxy>] [{<iid>|<proxy>} <type> <sid>] \
           [typed|json] [desc] [up|no-maint]

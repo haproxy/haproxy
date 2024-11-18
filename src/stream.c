@@ -3249,7 +3249,8 @@ void list_services(FILE *out)
 
 /* appctx context used by the "show sess" command */
 /* flags used for show_sess_ctx.flags */
-#define CLI_SHOWSESS_F_SUSP  0x00000001   /* show only suspicious streams */
+#define CLI_SHOWSESS_F_SUSP     0x00000001   /* show only suspicious streams */
+#define CLI_SHOWSESS_F_DUMP_URI 0x00000002   /* Dump TXN's uri if available in dump */
 
 struct show_sess_ctx {
 	struct bref bref;	/* back-reference from the session being dumped */
@@ -3264,11 +3265,13 @@ struct show_sess_ctx {
 
 /* This function appends a complete dump of a stream state onto the buffer,
  * possibly anonymizing using the specified anon_key. The caller is responsible
- * for ensuring that enough room remains in the buffer to dump a complete
- * stream at once. Each new output line will be prefixed with <pfx> if non-null,
- * which is used to preserve indenting.
+ * for ensuring that enough room remains in the buffer to dump a complete stream
+ * at once. Each new output line will be prefixed with <pfx> if non-null, which
+ * is used to preserve indenting. The context <ctx>, if non-null, will be used
+ * to customize the dump.
  */
-void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const char *pfx, uint32_t anon_key)
+static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx *ctx,
+				  const struct stream *strm, const char *pfx, uint32_t anon_key)
 {
 	struct stconn *scf, *scb;
 	struct tm tm;
@@ -3411,12 +3414,16 @@ void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const ch
 		     " age=%s)\n",
 		     human_time(ns_to_sec(now_ns) - ns_to_sec(strm->logs.request_ts), 1));
 
-	if (strm->txn)
+	if (strm->txn) {
 		chunk_appendf(buf,
-		      "%s  txn=%p flags=0x%x meth=%d status=%d req.st=%s rsp.st=%s req.f=0x%02x rsp.f=0x%02x\n", pfx,
+		      "%s  txn=%p flags=0x%x meth=%d status=%d req.st=%s rsp.st=%s req.f=0x%02x rsp.f=0x%02x", pfx,
 		      strm->txn, strm->txn->flags, strm->txn->meth, strm->txn->status,
 		      h1_msg_state_str(strm->txn->req.msg_state), h1_msg_state_str(strm->txn->rsp.msg_state),
 		      strm->txn->req.flags, strm->txn->rsp.flags);
+		if (ctx && (ctx->flags & CLI_SHOWSESS_F_DUMP_URI) && strm->txn->uri)
+			chunk_appendf(buf, " uri=\"%s\"", HA_ANON_STR(anon_key, strm->txn->uri));
+		chunk_memcat(buf, "\n", 1);
+	}
 
 	scf = strm->scf;
 	chunk_appendf(buf, "%s  scf=%p flags=0x%08x ioto=%s state=%s endp=%s,%p,0x%08x sub=%d", pfx,
@@ -3623,6 +3630,14 @@ void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const ch
 	}
 }
 
+/* Context-less function to append a complet dump of a stream state onto the
+ * buffer. It relies on __strm_dump_to_buffer.
+ */
+void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const char *pfx, uint32_t anon_key)
+{
+	__strm_dump_to_buffer(buf, NULL, strm, pfx, anon_key);
+}
+
 /* This function dumps a complete stream state onto the stream connector's
  * read buffer. The stream has to be set in strm. It returns 0 if the output
  * buffer is full and it needs to be called again, otherwise non-zero. It is
@@ -3649,7 +3664,7 @@ static int stats_dump_full_strm_to_buffer(struct appctx *appctx, struct stream *
 		__fallthrough;
 
 	case 1:
-		strm_dump_to_buffer(&trash, strm, "", appctx->cli_anon_key);
+		__strm_dump_to_buffer(&trash, ctx, strm, "", appctx->cli_anon_key);
 		if (applet_putchk(appctx, &trash) == -1)
 			goto full;
 
@@ -3667,6 +3682,7 @@ static int stats_dump_full_strm_to_buffer(struct appctx *appctx, struct stream *
 static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct show_sess_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+	int cur_arg = 2;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
@@ -3678,28 +3694,47 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 	ctx->pos = 0;
 	ctx->thr = 0;
 
-	if (*args[2] && strcmp(args[2], "older") == 0) {
+	if (*args[cur_arg] && strcmp(args[cur_arg], "older") == 0) {
 		unsigned timeout;
 		const char *res;
 
-		if (!*args[3])
+		if (!*args[cur_arg+1])
 			return cli_err(appctx, "Expects a minimum age (in seconds by default).\n");
 
-		res = parse_time_err(args[3], &timeout, TIME_UNIT_S);
+		res = parse_time_err(args[cur_arg+1], &timeout, TIME_UNIT_S);
 		if (res != 0)
 			return cli_err(appctx, "Invalid age.\n");
 
 		ctx->min_age = timeout;
 		ctx->target = (void *)-1; /* show all matching entries */
+		cur_arg +=2;
 	}
-	else if (*args[2] && strcmp(args[2], "susp") == 0) {
+	else if (*args[cur_arg] && strcmp(args[cur_arg], "susp") == 0) {
 		ctx->flags |= CLI_SHOWSESS_F_SUSP;
 		ctx->target = (void *)-1; /* show all matching entries */
+		cur_arg++;
 	}
-	else if (*args[2] && strcmp(args[2], "all") == 0)
+	else if (*args[cur_arg] && strcmp(args[cur_arg], "all") == 0) {
 		ctx->target = (void *)-1;
-	else if (*args[2])
-		ctx->target = (void *)strtoul(args[2], NULL, 0);
+		cur_arg++;
+	}
+	else if (*args[cur_arg]) {
+		ctx->target = (void *)strtoul(args[cur_arg], NULL, 0);
+		if (ctx->target)
+			cur_arg++;
+	}
+
+	/* show-sess options parsing */
+	while (*args[cur_arg]) {
+		if (*args[cur_arg] && strcmp(args[cur_arg], "show-uri") == 0) {
+			ctx->flags |= CLI_SHOWSESS_F_DUMP_URI;
+		}
+		else {
+			chunk_printf(&trash, "Unsupported option '%s'.\n", args[cur_arg]);
+			return cli_err(appctx, trash.area);
+		}
+		cur_arg++;
+	}
 
 	/* The back-ref must be reset, it will be detected and set by
 	 * the dump code upon first invocation.
@@ -3896,6 +3931,9 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 					TICKS_TO_MS(1000)) : "");
 		if (task_in_rq(curr_strm->task))
 			chunk_appendf(&trash, " run(nice=%d)", curr_strm->task->nice);
+
+		if ((ctx->flags & CLI_SHOWSESS_F_DUMP_URI) && curr_strm->txn && curr_strm->txn->uri)
+			chunk_appendf(&trash, " uri=\"%s\"", HA_ANON_CLI(curr_strm->txn->uri));
 
 		chunk_appendf(&trash, "\n");
 
