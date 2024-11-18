@@ -6,6 +6,7 @@
 
 struct quic_pacer {
 	const struct quic_cc *cc; /* Congestion controler algo used for this connection */
+	ullong next; /* Nanosecond timestamp at which the next emission should be conducted */
 };
 
 #endif /* _HAPROXY_QUIC_PACING_T_H */

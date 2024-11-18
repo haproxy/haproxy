@@ -123,6 +123,9 @@ struct quic_cc_algo {
 	void (*state_trace)(struct buffer *buf, const struct quic_cc *cc);
 	void (*state_cli)(struct buffer *buf, const struct quic_cc_path *path);
 	void (*hystart_start_round)(struct quic_cc *cc, uint64_t pn);
+
+	/* Defined only if pacing is used. */
+	uint (*pacing_rate)(const struct quic_cc *cc);
 };
 
 #endif /* USE_QUIC */
