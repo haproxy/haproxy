@@ -27430,9 +27430,10 @@ Timings events in TCP mode:
     instance during a POST request, the time already runs, and this can distort
     apparent response time. For this reason, it's generally wise not to trust
     too much this field for POST requests initiated from clients behind an
-    untrusted network. A value of "-1" here means that the last the response
-    header (empty line) was never seen, most likely because the server timeout
-    stroke before the server managed to process the request.
+    untrusted network. A value of "-1" here means that the last response header
+    (empty line) was never seen, most likely because the server timeout stroke
+    before the server managed to process the request or because the server
+    returned an invalid response.
 
     This timer is named %Tr as a log-format alias, and res.timer.hdr as a
     sample fetch.
