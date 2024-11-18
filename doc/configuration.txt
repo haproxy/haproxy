@@ -24686,7 +24686,7 @@ wait_end                                              boolean
 
 Detailed list:
 
-bs.aborted: boolean
+bs.aborted : boolean
   Returns true is an abort was received from the server for the current
   stream. Otherwise false is returned.
 
@@ -24716,7 +24716,7 @@ bs.id : integer
   Returns the multiplexer's stream ID on the server side. It is the
   multiplexer's responsibility to return the appropriate information.
 
-bs.rst_code: integer
+bs.rst_code : integer
   Returns the reset code received from the server for the current stream. The
   code of the H2 RST_STREAM frame or the QUIC STOP_SENDING frame received from
   the server is returned. The sample fetch fails if no abort was received or if
@@ -24748,7 +24748,7 @@ distcc_param(<token>[,<occ>]) : integer
       # send large files to the big farm
       use_backend big_farm if { distcc_param(DOTI) gt 1000000 }
 
-fs.aborted: boolean
+fs.aborted : boolean
   Returns true is an abort was received from the client for the current
   stream. Otherwise false is returned.
 
@@ -24779,7 +24779,7 @@ fs.id : integer
   multiplexer's responsibility to return the appropriate information. For
   instance, on a raw TCP, 0 is always returned because there is no stream.
 
-fs.rst_code: integer
+fs.rst_code : integer
   Returns the reset code received from the client for the current stream. The
   code of the H2 RST_STREAM frame or the QUIC STOP_SENDING frame received from
   the client is returned. The sample fetch fails if no abort was received or
