@@ -82,7 +82,8 @@ static inline void *quic_cc_priv(const struct quic_cc *cc)
  * which is true for an IPv4 path, if not false for an IPv6 path.
  */
 static inline void quic_cc_path_init(struct quic_cc_path *path, int ipv4, unsigned long max_cwnd,
-                                     struct quic_cc_algo *algo, struct quic_conn *qc)
+                                     struct quic_cc_algo *algo, int burst,
+                                     struct quic_conn *qc)
 {
 	unsigned int max_dgram_sz;
 
@@ -96,6 +97,7 @@ static inline void quic_cc_path_init(struct quic_cc_path *path, int ipv4, unsign
 	path->prep_in_flight = 0;
 	path->in_flight = 0;
 	path->ifae_pkts = 0;
+	path->pacing_burst = burst;
 	quic_cc_init(&path->cc, algo, qc);
 }
 
