@@ -17351,7 +17351,22 @@ agent-check
     Values in this format will set the weight proportional to the initial
     weight of a server as configured when HAProxy starts. Note that a zero
     weight is reported on the stats page as "DRAIN" since it has the same
-    effect on the server (it's removed from the LB farm).
+    effect on the server (it's removed from the LB farm). It is the legacy way
+    to set the weight of a server. Setting it with the "weight:" prefix is
+    preferred.
+
+  - The string "weight:" following by an positive interger or a positive
+    interger percentage, with no space. If the value ends with the '%' sign,
+    then the new weight will be proportional to the initially weight of the
+    server. Otherwise, the value is considered as an absolute weight and must
+    be between 0 and 256. Servers which are part of a farm running a static
+    load-balancing algorithm have stricter limitations because the weight
+    cannot change once set. Thus for these servers, the only accepted values
+    are 0 and 100% (or 0 and the initial weight). Changes take effect
+    immediately, though certain LB algorithms require a certain amount of
+    requests to consider changes. Note that a zero weight is reported on the
+    stats page as "DRAIN" since it has the same effect on the server (it's
+    removed from the LB farm).
 
   - The string "maxconn:" followed by an integer (no space between). Values
     in this format will set the maxconn of a server. The maximum number of

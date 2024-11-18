@@ -1090,6 +1090,10 @@ enum tcpcheck_eval_ret tcpcheck_agent_expect_reply(struct check *check, struct t
 		else if (strncasecmp(cmd, "maxconn:", strlen("maxconn:")) == 0) {
 			sc = cmd;
 		}
+		/* try to parse a maxconn here */
+		else if (strncasecmp(cmd, "weight:", strlen("weight:")) == 0) {
+			ps = cmd + strlen("weight:");
+		}
 		else {
 			/* keep a copy of the first error */
 			if (!err)
