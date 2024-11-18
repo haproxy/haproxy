@@ -518,8 +518,10 @@ struct redirect_rule {
 	struct lf_expr rdr_fmt;
 	int code;
 	unsigned int flags;
-	int cookie_len;
-	char *cookie_str;
+	union {
+		struct ist str;     /* the cookie is a string  */
+		struct lf_expr fmt; /* or a log-format string (possible for set-cookie only) */
+	} cookie;
 };
 
 /* some of the most common options which are also the easiest to handle */

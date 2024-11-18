@@ -322,7 +322,10 @@ void http_free_redirect_rule(struct redirect_rule *rdr)
 {
 	free_acl_cond(rdr->cond);
 	free(rdr->rdr_str);
-	free(rdr->cookie_str);
+	if ((rdr->flags & REDIRECT_FLAG_COOKIE_FMT))
+		lf_expr_deinit(&rdr->cookie.fmt);
+	else
+		istfree(&rdr->cookie.str);
 	lf_expr_deinit(&rdr->rdr_fmt);
 	free(rdr);
 }
@@ -342,6 +345,7 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 	const char *destination = NULL;
 	const char *cookie = NULL;
 	int cookie_set = 0;
+	size_t cookie_len = 0;
 	unsigned int flags = (!dir ? REDIRECT_FLAG_FROM_REQ : REDIRECT_FLAG_NONE);
 	struct acl_cond *cond = NULL;
 
@@ -377,6 +381,14 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 			cur_arg++;
 			cookie = args[cur_arg];
 			cookie_set = 1;
+		}
+		else if (strcmp(args[cur_arg], "set-cookie-fmt") == 0) {
+			if (!*args[cur_arg + 1])
+				goto missing_arg;
+
+			cur_arg++;
+			cookie = args[cur_arg];
+			cookie_set = 2;
 		}
 		else if (strcmp(args[cur_arg], "clear-cookie") == 0) {
 			if (!*args[cur_arg + 1])
@@ -422,7 +434,8 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 		}
 		else {
 			memprintf(errmsg,
-			          "expects 'code', 'prefix', 'location', 'scheme', 'set-cookie', 'clear-cookie', 'drop-query', 'keep-query', 'ignore-empty' or 'append-slash' (was '%s')",
+			          "expects 'code', 'prefix', 'location', 'scheme', 'set-cookie', 'set-cookie-fmt',"
+				  " 'clear-cookie', 'drop-query', 'keep-query', 'ignore-empty' or 'append-slash' (was '%s')",
 			          args[cur_arg]);
 			goto err;
 		}
@@ -476,21 +489,38 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 		/* depending on cookie_set, either we want to set the cookie, or to clear it.
 		 * a clear consists in appending "; path=/; Max-Age=0;" at the end.
 		 */
-		rule->cookie_len = strlen(cookie);
-		if (cookie_set) {
-			rule->cookie_str = malloc(rule->cookie_len + 10);
-			if (!rule->cookie_str)
+		cookie_len = strlen(cookie);
+		if (cookie_set == 1) { // set-cookie
+			rule->cookie.str = istalloc(cookie_len+9);
+			if (!isttest(rule->cookie.str))
 				goto out_of_memory;
-			memcpy(rule->cookie_str, cookie, rule->cookie_len);
-			memcpy(rule->cookie_str + rule->cookie_len, "; path=/;", 10);
-			rule->cookie_len += 9;
-		} else {
-			rule->cookie_str = malloc(rule->cookie_len + 21);
-			if (!rule->cookie_str)
+			istcpy(&rule->cookie.str, ist2(cookie, cookie_len), cookie_len);
+			istcat(&rule->cookie.str, ist2("; path=/;", 9), cookie_len+10);
+		}
+		else if (cookie_set == 2) { // set-cookie-fmt
+			int cap = 0;
+
+			lf_expr_init(&rule->cookie.fmt);
+			curproxy->conf.args.ctx = ARGC_RDR;
+			if (curproxy->cap & PR_CAP_FE)
+				cap |= (dir ? SMP_VAL_FE_HRS_HDR : SMP_VAL_FE_HRQ_HDR);
+			if (curproxy->cap & PR_CAP_BE)
+				cap |= (dir ? SMP_VAL_BE_HRS_HDR : SMP_VAL_BE_HRQ_HDR);
+
+			chunk_memcpy(&trash, cookie, cookie_len);
+			chunk_strcat(&trash, "; path=/;");
+			if (!parse_logformat_string(trash.area, curproxy, &rule->cookie.fmt, LOG_OPT_HTTP, cap, errmsg)) {
+				goto err;
+			}
+
+			flags |= REDIRECT_FLAG_COOKIE_FMT;
+		}
+		else { // clear-cookie
+			rule->cookie.str = istalloc(cookie_len+20);
+			if (!isttest(rule->cookie.str))
 				goto out_of_memory;
-			memcpy(rule->cookie_str, cookie, rule->cookie_len);
-			memcpy(rule->cookie_str + rule->cookie_len, "; path=/; Max-Age=0;", 21);
-			rule->cookie_len += 20;
+			istcpy(&rule->cookie.str, ist2(cookie, cookie_len), cookie_len);
+			istcat(&rule->cookie.str, ist2("; path=/; Max-Age=0;", 20), cookie_len+21);
 		}
 	}
 	rule->type = type;

@@ -11453,6 +11453,12 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
         that for a browser, a sole cookie name without an equal sign is
         different from a cookie with an equal sign.
 
+      - "set-cookie-fmt <fmt>"
+        It is equivaliant to the option above, except the "Set-Cookie" header
+        will be filled with the result of the log-format string <fmt>
+        evaluation. Be carefull to respect the "NAME[=value]" format because no
+        special check are performed during the configuration parsing.
+
       - "clear-cookie NAME[=]"
         A "Set-Cookie" header will be added with NAME (and optionally "="), but
         with the "Max-Age" attribute set to zero. This will tell the browser to

@@ -2518,8 +2518,13 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 			goto fail;
 	}
 
-	if (rule->cookie_len) {
-		if (!htx_add_header(htx, ist("Set-Cookie"), ist2(rule->cookie_str, rule->cookie_len)))
+	if (rule->flags & REDIRECT_FLAG_COOKIE_FMT) {
+		trash.data = build_logline(s, trash.area, trash.size, &rule->cookie.fmt);
+		if (!htx_add_header(htx, ist("Set-Cookie"), ist2(trash.area, trash.data)))
+			goto fail;
+	}
+	else if (isttest(rule->cookie.str)) {
+		if (!htx_add_header(htx, ist("Set-Cookie"), rule->cookie.str))
 			goto fail;
 	}
 
