@@ -3899,7 +3899,7 @@ tune.peers.max-updates-at-once <number>
   Conversely low values may also incur higher CPU overhead, and take longer
   to complete. The default value is 200 and it is suggested not to change it.
 
-tune.pipesize <number>
+tune.pipesize <size>
   Sets the kernel pipe buffer size to this size (in bytes). By default, pipes
   are the default size for the system. But sometimes when using TCP splicing,
   it can improve performance to increase pipe sizes, especially if it is

@@ -1308,7 +1308,9 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 			memprintf(err, "'%s' expects an integer argument.", args[0]);
 			return -1;
 		}
-		global.tune.pipesize = atol(args[1]);
+		res = parse_size_err(args[1], &global.tune.pipesize);
+		if (res != NULL)
+			goto size_err;
 
 		return 0;
 	}
