@@ -4085,8 +4085,8 @@ tune.renice.startup <number>
 
   See also: tune.renice.runtime
 
-tune.rcvbuf.backend <number>
-tune.rcvbuf.frontend <number>
+tune.rcvbuf.backend  <size>
+tune.rcvbuf.frontend <size>
   For the kernel socket receive buffer size on non-connected sockets to this
   size. This can be used QUIC in listener mode and log-forward on the frontend.
   The default system buffers might sometimes be too small for sockets receiving
@@ -4148,8 +4148,8 @@ tune.sched.low-latency { on | off }
   massive traffic, at the expense of a higher impact on this large traffic.
   For regular usage it is better to leave this off. The default value is off.
 
-tune.sndbuf.backend <number>
-tune.sndbuf.frontend <number>
+tune.sndbuf.backend  <size>
+tune.sndbuf.frontend <size>
   For the kernel socket send buffer size on non-connected sockets to this size.
   This can be used for UNIX socket and UDP logging on the backend side, and for
   QUIC in listener mode on the frontend. The default system buffers might

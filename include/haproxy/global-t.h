@@ -174,10 +174,10 @@ struct global {
 		uint client_rcvbuf;   /* set client rcvbuf to this value if not null */
 		uint server_sndbuf;   /* set server sndbuf to this value if not null */
 		uint server_rcvbuf;   /* set server rcvbuf to this value if not null */
-		int frontend_sndbuf; /* set frontend dgram sndbuf to this value if not null */
-		int frontend_rcvbuf; /* set frontend dgram rcvbuf to this value if not null */
-		int backend_sndbuf;  /* set backend dgram sndbuf to this value if not null */
-		int backend_rcvbuf;  /* set backend dgram rcvbuf to this value if not null */
+		uint frontend_sndbuf; /* set frontend dgram sndbuf to this value if not null */
+		uint frontend_rcvbuf; /* set frontend dgram rcvbuf to this value if not null */
+		uint backend_sndbuf;  /* set backend dgram sndbuf to this value if not null */
+		uint backend_rcvbuf;  /* set backend dgram rcvbuf to this value if not null */
 		int pipesize;      /* pipe size in bytes, system defaults if zero */
 		int max_http_hdr;  /* max number of HTTP headers, use MAX_HTTP_HDR if zero */
 		int requri_len;    /* max len of request URI, use REQURI_LEN if zero */

@@ -37,8 +37,9 @@ static int dgram_parse_tune_bufs(char **args, int section_type, struct proxy *cu
                                  const struct proxy *defpx, const char *file, int line,
                                  char **err)
 {
-	int *valptr;
-	int val;
+	const char *res;
+	uint *valptr;
+	uint val;
 
 	if (too_many_args(1, args, err, NULL))
 		return -1;
@@ -56,7 +57,11 @@ static int dgram_parse_tune_bufs(char **args, int section_type, struct proxy *cu
 		return 1;
 	}
 
-	val = atoi(args[1]);
+	res = parse_size_err(args[1], &val);
+	if (res != NULL) {
+		memprintf(err, "parsing [%s:%d]: unexpected '%s' after size passed to '%s'", file, line, res, args[0]);
+		return -1;
+	}
 
 	if (*(args[1]) == 0 || val <= 0) {
 		memprintf(err, "parsing [%s:%d] : '%s' expects a strictly positive integer argument.\n", file, line, args[0]);
