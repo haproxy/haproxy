@@ -163,8 +163,10 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 	 * size allowed.
 	 */
 	if (h1_eval_htx_size(meth, uri, vsn, hdrs) > max) {
-		if (htx_is_empty(htx))
+		if (htx_is_empty(htx)) {
+			h1m->err_code = 431;
 			goto error;
+		}
 		goto output_full;
 	}
 
@@ -364,8 +366,13 @@ int h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
 		 * contains headers and is full, which is detected by it being
 		 * full and the offset to be zero, it's an error because
 		 * headers are too large to be handled by the parser. */
-		if (ret < 0 || (!ret && !ofs && !buf_room_for_htx_data(srcbuf)))
+		if (ret < 0)
 			goto error;
+		if (!ret && !ofs && !buf_room_for_htx_data(srcbuf)) {
+			if (!(h1m->flags & H1_MF_RESP))
+				h1m->err_code = (h1m->err_state < H1_MSG_HDR_FIRST) ? 414: 431;
+			goto error;
+		}
 		goto end;
 	}
 	total = ret;

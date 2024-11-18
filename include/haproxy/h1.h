@@ -131,6 +131,7 @@ struct h1m {
 	uint64_t curr_len;          // content-length or last chunk length
 	uint64_t body_len;          // total known size of the body length
 	uint32_t next;              // next byte to parse, relative to buffer's head
+	unsigned int err_code;      // the HTTP status code corresponding to the error, if it can be specified (0: unset)
 	int err_pos;                // position in the byte stream of the first error (H1 or H2)
 	int err_state;              // state where the first error was met (H1 or H2)
 };
@@ -358,6 +359,7 @@ static inline struct h1m *h1m_init_req(struct h1m *h1m)
 	h1m->flags = H1_MF_NONE;
 	h1m->curr_len = 0;
 	h1m->body_len = 0;
+	h1m->err_code = 0;
 	h1m->err_pos = -2;
 	h1m->err_state = 0;
 	return h1m;
@@ -371,6 +373,7 @@ static inline struct h1m *h1m_init_res(struct h1m *h1m)
 	h1m->flags = H1_MF_RESP;
 	h1m->curr_len = 0;
 	h1m->body_len = 0;
+	h1m->err_code = 0;
 	h1m->err_pos = -2;
 	h1m->err_state = 0;
 	return h1m;
