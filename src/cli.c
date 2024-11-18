@@ -1635,7 +1635,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 
 
 /* parse a "show env" CLI request. Returns 0 if it needs to continue, 1 if it
- * wants to stop here. It reserves a sohw_env_ctx where it puts the variable to
+ * wants to stop here. It reserves a show_env_ctx where it puts the variable to
  * be dumped as well as a flag if a single variable is requested, otherwise puts
  * environ there.
  */
@@ -3671,7 +3671,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "severity-output",  NULL },   "set severity-output [none|number|string]: set presence of severity level in feedback information",  cli_parse_set_severity_output, NULL, NULL },
 	{ { "set", "timeout",  NULL },           "set timeout [cli] <delay>               : change a timeout setting",                                cli_parse_set_timeout, NULL, NULL },
 	{ { "show", "anon", NULL },              "show anon                               : display the current state of anonymized mode",            cli_parse_show_anon, NULL },
-	{ { "show", "env",  NULL },              "show env [var]                          : dump environment variables known to the process",         cli_parse_show_env, cli_io_handler_show_env, NULL },
+	{ { "show", "env",  NULL },              "show env [var]                          : dump environment variables known to the process",         cli_parse_show_env, cli_io_handler_show_env, NULL, NULL, ACCESS_MASTER },
 	{ { "show", "cli", "sockets",  NULL },   "show cli sockets                        : dump list of cli sockets",                                cli_parse_default, cli_io_handler_show_cli_sock, NULL, NULL, ACCESS_MASTER },
 	{ { "show", "cli", "level", NULL },      "show cli level                          : display the level of the current CLI session",            cli_parse_show_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "show", "fd", NULL },                "show fd [-!plcfbsd]* [num]              : dump list of file descriptors in use or a specific one",  cli_parse_show_fd, cli_io_handler_show_fd, NULL },
