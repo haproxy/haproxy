@@ -373,9 +373,14 @@ static inline void task_set_thread(struct task *t, int thr)
  * at least once scheduled on a specific thread. With DEBUG_TASK, the
  * <file>:<line> from the call place are stored into the tasklet for tracing
  * purposes.
+ *
+ * The macro accepts an optional 3rd argument that is passed as a set of flags
+ * to be set on the tasklet, among TASK_WOKEN_*, TASK_F_UEVT* etc to indicate a
+ * wakeup cause to the tasklet. When not set, the arg defaults to zero (i.e. no
+ * flag is added).
  */
-#define tasklet_wakeup_on(tl, thr) \
-	_tasklet_wakeup_on(tl, thr, 0, MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP, 0, 0))
+#define tasklet_wakeup_on(tl, thr, ...)					\
+	_tasklet_wakeup_on(tl, thr, DEFZERO(__VA_ARGS__), MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP, 0, 0))
 
 static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, uint f, const struct ha_caller *caller)
 {
@@ -405,9 +410,14 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, uint f, const
  * is either its owner thread if >= 0 or the current thread if < 0. When
  * DEBUG_TASK is set, the <file>:<line> from the call place are stored into the
  * task for tracing purposes.
+ *
+ * The macro accepts an optional 3rd argument that is passed as a set of flags
+ * to be set on the tasklet, among TASK_WOKEN_*, TASK_F_UEVT* etc to indicate a
+ * wakeup cause to the tasklet. When not set, the arg defaults to zero (i.e. no
+ * flag is added).
  */
-#define tasklet_wakeup(tl) \
-	_tasklet_wakeup_on(tl, (tl)->tid, 0, MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP, 0, 0))
+#define tasklet_wakeup(tl, ...)						\
+	_tasklet_wakeup_on(tl, (tl)->tid, DEFZERO(__VA_ARGS__), MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP, 0, 0))
 
 /* instantly wakes up task <t> on its owner thread even if it's not the current
  * one, bypassing the run queue. The purpose is to be able to avoid contention
@@ -466,9 +476,14 @@ static inline void _task_instant_wakeup(struct task *t, unsigned int f, const st
  * thread will be used.
  * With DEBUG_TASK, the <file>:<line> from the call place are stored into the tasklet
  * for tracing purposes.
+ *
+ * The macro accepts an optional 3rd argument that is passed as a set of flags
+ * to be set on the tasklet, among TASK_WOKEN_*, TASK_F_UEVT* etc to indicate a
+ * wakeup cause to the tasklet. When not set, the arg defaults to zero (i.e. no
+ * flag is added).
  */
-#define tasklet_wakeup_after(head, tl) \
-	_tasklet_wakeup_after(head, tl, 0, MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP_AFTER, 0, 0))
+#define tasklet_wakeup_after(head, tl, ...)					\
+	_tasklet_wakeup_after(head, tl, DEFZERO(__VA_ARGS__), MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP_AFTER, 0, 0))
 
 static inline struct list *_tasklet_wakeup_after(struct list *head, struct tasklet *tl,
                                                  uint f, const struct ha_caller *caller)

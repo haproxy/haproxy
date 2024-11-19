@@ -98,12 +98,14 @@ void task_set_thread(t, id)
         indicate "any thread". It's ignored and replaced by zero when threads
         are disabled.
 
-void tasklet_wakeup(tl)
+void tasklet_wakeup(tl, [flags])
         Make sure that tasklet <tl> will wake up, that is, will execute at
         least once. The tasklet will run on its assigned thread, or on any
-        thread if its TID is negative.
+        thread if its TID is negative. An optional <flags> value may be passed
+        to set a wakeup cause on the tasklet's flags, typically TASK_WOKEN_* or
+        TASK_F_UEVT*. When not set, 0 is passed (i.e. no flags are changed).
 
-struct list *tasklet_wakeup_after(head, tl)
+struct list *tasklet_wakeup_after(head, tl, [flags])
         Schedule tasklet <tl> to run immediately the current one if <head> is
         NULL, or after the last queued one if <head> is non-null. The new head
         is returned, to be passed to the next call. The purpose here is to
@@ -113,15 +115,20 @@ struct list *tasklet_wakeup_after(head, tl)
         already queued tasklets. This may induce extra latencies for pending
         jobs and must only be used extremely carefully when it's certain that
         the processing will benefit from using fresh data from the L1 cache.
+        An optional <flags> value may be passed to set a wakeup cause on the
+        tasklet's flags, typically TASK_WOKEN_* or TASK_F_UEVT*. When not set,
+        0 is passed (i.e. no flags are changed).
 
-void tasklet_wakeup_on(tl, thr)
+void tasklet_wakeup_on(tl, thr, [flags])
         Make sure that tasklet <tl> will wake up on thread <thr>, that is, will
         execute at least once. The designated thread may only differ from the
         calling one if the tasklet is already configured to run on another
         thread, and it is not permitted to self-assign a tasklet if its tid is
         negative, as it may already be scheduled to run somewhere else. Just in
         case, only use tasklet_wakeup() which will pick the tasklet's assigned
-        thread ID.
+        thread ID. An optional <flags> value may be passed to set a wakeup
+        cause on the tasklet's flags, typically TASK_WOKEN_* or TASK_F_UEVT*.
+        When not set, 0 is passed (i.e. no flags are changed).
 
 struct tasklet *tasklet_new()
         Allocate a new tasklet and set it to run by default on the calling
