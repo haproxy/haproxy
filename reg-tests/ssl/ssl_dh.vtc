@@ -29,7 +29,7 @@ server s1 -repeat 8 {
 } -start
 
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
     global
         stats socket "${tmpdir}/h1/stats" level admin
 
@@ -65,7 +65,7 @@ haproxy h1 -conf {
         server s1 ${s1_addr}:${s1_port}
 } -start
 
-haproxy h2 -conf {
+haproxy h2 -arg '-dW' -conf {
     global
         stats socket "${tmpdir}/h2/stats" level admin
 
@@ -92,7 +92,7 @@ haproxy h2 -conf {
         server s1 ${s1_addr}:${s1_port}
 } -start
 
-haproxy h3 -conf {
+haproxy h3 -arg '-dW' -conf {
     global
         stats socket "${tmpdir}/h3/stats" level admin
 

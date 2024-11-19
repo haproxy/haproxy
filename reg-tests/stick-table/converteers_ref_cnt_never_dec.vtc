@@ -26,7 +26,7 @@ feature ignore_unknown_macro
 server s1 {
 } -start
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
     # Configuration file of 'h1' haproxy instance.
     defaults
         mode   http

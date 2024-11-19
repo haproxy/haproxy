@@ -5,7 +5,7 @@ varnishtest "h2 glitches"
 feature ignore_unknown_macro
 
 # haproxy frontend
-haproxy hap -conf {
+haproxy hap -arg '-dW' -conf {
 	defaults
 		timeout client 30s
 		timeout server 30s

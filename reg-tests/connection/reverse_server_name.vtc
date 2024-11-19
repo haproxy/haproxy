@@ -6,7 +6,7 @@ feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.9-dev0)'"
 
 barrier b1 cond 2
 
-haproxy h_edge -conf {
+haproxy h_edge -arg '-dW' -conf {
 global
 	expose-experimental-directives
 
@@ -31,7 +31,7 @@ frontend priv
 
 # Simple clear <-> SSL bridge between clients and h_edge haproxy
 # Used certificate has the name "client1"
-haproxy h_ssl_bridge -conf {
+haproxy h_ssl_bridge -arg '-dW' -conf {
 defaults
 	log global
 	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"

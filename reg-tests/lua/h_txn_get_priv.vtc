@@ -3,7 +3,7 @@ varnishtest "Lua: txn:get_priv() scope"
 
 feature ignore_unknown_macro
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
     global
         lua-load ${testdir}/h_txn_get_priv.lua
 

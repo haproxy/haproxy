@@ -28,7 +28,7 @@ syslog S2 -level notice {
 } -start
 
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
     defaults
         mode tcp
         timeout client "${HAPROXY_TEST_TIMEOUT-5s}"

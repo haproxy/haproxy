@@ -139,7 +139,7 @@ server srv_h1_h2c {
 	  -status 200
 } -start
 
-haproxy hap -conf {
+haproxy hap -arg '-dW' -conf {
 	defaults
 	mode http
 	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"

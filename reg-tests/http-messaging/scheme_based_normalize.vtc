@@ -17,7 +17,7 @@ syslog S1 -level info {
 	expect ~ "^.* uri: GET https://hostname:80/ HTTP/2.0; host: {hostname:80}$"
 } -start
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
 	defaults
 		mode http
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"

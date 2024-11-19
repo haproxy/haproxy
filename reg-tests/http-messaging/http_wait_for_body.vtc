@@ -69,7 +69,7 @@ server s2 {
     send "1"
 } -start
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
     defaults
         mode http
         timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"

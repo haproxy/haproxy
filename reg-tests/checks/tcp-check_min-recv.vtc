@@ -29,7 +29,7 @@ server s2 {
     expect_close
 } -start
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
   defaults
     mode tcp
     timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"

@@ -3,7 +3,7 @@ feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev5)'"
 
 feature ignore_unknown_macro
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
     global
         # note below, str60 is purposely not defined so that the default is used
         set-var proc.int12 int(12)

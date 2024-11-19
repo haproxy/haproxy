@@ -1,7 +1,7 @@
 varnishtest "stick table: src_conn_rate"
 feature ignore_unknown_macro
 
-haproxy h0 -conf {
+haproxy h0 -arg '-dW' -conf {
 	defaults
 		mode http
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"

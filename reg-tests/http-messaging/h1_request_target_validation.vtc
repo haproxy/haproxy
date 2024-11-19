@@ -4,7 +4,7 @@ feature ignore_unknown_macro
 
 #REQUIRE_VERSION=3.0
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
     global
         # WT: limit false-positives causing "HTTP header incomplete" due to
         # idle server connections being randomly used and randomly expiring

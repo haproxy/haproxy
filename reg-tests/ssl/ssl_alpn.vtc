@@ -9,7 +9,7 @@ feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.8-dev7)'"
 feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && openssl_version_atleast(1.0.2)'"
 feature ignore_unknown_macro
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
     global
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048

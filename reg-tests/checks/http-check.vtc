@@ -89,7 +89,7 @@ syslog S1 -level notice {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be[0-9]/srv succeeded.*code: 200"
 } -start
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
     defaults
         mode http
         timeout client "${HAPROXY_TEST_TIMEOUT-5s}"

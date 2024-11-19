@@ -13,7 +13,7 @@ syslog Slg1 -level info {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /client_c1 HTTP/1.1\""
 } -repeat 50 -start
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
 	global
 		insecure-fork-wanted
 	defaults

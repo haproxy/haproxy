@@ -6,38 +6,38 @@ feature ignore_unknown_macro
 #
 # anonymous defaults section cannot define TCP/HTTP rules
 #
-haproxy h1 -conf-BAD {} {
+haproxy h1 -arg '-dW' -conf-BAD {} {
     defaults
         http-request set-header X-Hdr 1
 }
 
-haproxy h2 -conf-BAD {} {
+haproxy h2 -arg '-dW' -conf-BAD {} {
     defaults
         http-response set-header X-Hdr 1
 }
 
-haproxy h3 -conf-BAD {} {
+haproxy h3 -arg '-dW' -conf-BAD {} {
     defaults
         http-after-request set-header X-Hdr 1
 }
 
-haproxy h4 -conf-BAD {} {
+haproxy h4 -arg '-dW' -conf-BAD {} {
     defaults
         tcp-request connection accept
 }
 
-haproxy h5 -conf-BAD {} {
+haproxy h5 -arg '-dW' -conf-BAD {} {
     defaults
         tcp-request session accept
 }
 
-haproxy h6 -conf-BAD {} {
+haproxy h6 -arg '-dW' -conf-BAD {} {
     defaults
         tcp-request inspect-delay 5s
         tcp-request content accept
 }
 
-haproxy h7 -conf-BAD {} {
+haproxy h7 -arg '-dW' -conf-BAD {} {
     defaults
         tcp-response inspect-delay 5s
         tcp-response content accept
@@ -47,7 +47,7 @@ haproxy h7 -conf-BAD {} {
 # defaults section defining TCP/HTTP rules cannot be used to init another
 # defaults section
 #
-haproxy h8 -conf-BAD {} {
+haproxy h8 -arg '-dW' -conf-BAD {} {
     defaults invalid
         tcp-response inspect-delay 5s
         tcp-response content accept
@@ -60,7 +60,7 @@ haproxy h8 -conf-BAD {} {
 # defaults section defining TCP/HTTP rules cannot be used to init a listen
 # section
 #
-haproxy h9 -conf-BAD {} {
+haproxy h9 -arg '-dW' -conf-BAD {} {
     defaults invalid
         tcp-request inspect-delay 5s
         tcp-request content accept
@@ -76,7 +76,7 @@ haproxy h9 -conf-BAD {} {
 # backend sections at the same time
 #
 #
-haproxy h10 -conf-BAD {} {
+haproxy h10 -arg '-dW' -conf-BAD {} {
     defaults invalid
         tcp-request inspect-delay 5s
         tcp-request content accept
@@ -95,7 +95,7 @@ haproxy h10 -conf-BAD {} {
 # defaults section defining 'tcp-request connection' or 'tcp-request session'
 # rules cannot be used to init backend sections
 #
-haproxy h11 -conf-BAD {} {
+haproxy h11 -arg '-dW' -conf-BAD {} {
     defaults invalid
         tcp-request connection accept
 
@@ -104,7 +104,7 @@ haproxy h11 -conf-BAD {} {
         server www 127.0.0.1:80
 }
 
-haproxy h12 -conf-BAD {} {
+haproxy h12 -arg '-dW' -conf-BAD {} {
     defaults invalid
         tcp-request session accept
 
@@ -117,7 +117,7 @@ haproxy h12 -conf-BAD {} {
 # defaults section defining 'tcp-response content' rules cannot be used to init
 # a frontend section
 #
-haproxy h13 -conf-BAD {} {
+haproxy h13 -arg '-dW' -conf-BAD {} {
     defaults invalid
         tcp-response inspect-delay 5s
         tcp-response content accept
@@ -127,7 +127,7 @@ haproxy h13 -conf-BAD {} {
         bind "fd@${feh10}"
 }
 
-haproxy h14 -arg -V -conf-OK {
+haproxy h14 -arg -V -arg '-dW' -conf-OK {
     defaults tcp
 	timeout client 30s
 	timeout server 30s
@@ -145,7 +145,7 @@ haproxy h14 -arg -V -conf-OK {
 # SRV/TAB arguments without an explicit proxy name are not allowed.
 #
 
-haproxy h15 -conf-BAD {} {
+haproxy h15 -arg '-dW' -conf-BAD {} {
     defaults invalid
         mode http
         http-request set-header x-test "%[srv_conn(www)]"
@@ -154,7 +154,7 @@ haproxy h15 -conf-BAD {} {
         server www 127.0.0.1:80
 }
 
-haproxy h16 -conf-BAD {} {
+haproxy h16 -arg '-dW' -conf-BAD {} {
     defaults invalid
         mode http
         http-request track-sc0 src
@@ -165,7 +165,7 @@ haproxy h16 -conf-BAD {} {
         server www 127.0.0.1:80
 }
 
-haproxy h17 -arg -V -conf-OK {
+haproxy h17 -arg -V -arg '-dW' -conf-OK {
     defaults common
 	timeout client 30s
 	timeout server 30s

@@ -8,7 +8,7 @@ feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && !ssllib_name_startswith(w
 feature ignore_unknown_macro
 
 # haproxy server
-haproxy hapsrv -conf {
+haproxy hapsrv -arg '-dW' -conf {
 	defaults
 		mode http
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -37,7 +37,7 @@ haproxy hapsrv -conf {
 } -start
 
 # haproxy LB
-haproxy hap -conf {
+haproxy hap -arg '-dW' -conf {
 	defaults
 		mode http
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"

@@ -89,7 +89,7 @@ syslog S3 {
 } -start
 
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
 	global
 		stats socket "${tmpdir}/h1/stats" level admin
 

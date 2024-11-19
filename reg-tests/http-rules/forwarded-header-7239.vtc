@@ -6,7 +6,7 @@ feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.8-dev0)'"
 feature ignore_unknown_macro
 
 #test: converters, parsing and header injection logic
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
     global
         # WT: limit false-positives causing "HTTP header incomplete" due to
         # idle server connections being randomly used and randomly expiring
@@ -53,7 +53,7 @@ haproxy h1 -conf {
 } -start
 
 #test: "default" and "no option forwarded"
-haproxy h2 -conf {
+haproxy h2 -arg '-dW' -conf {
     global
         # WT: limit false-positives causing "HTTP header incomplete" due to
         # idle server connections being randomly used and randomly expiring

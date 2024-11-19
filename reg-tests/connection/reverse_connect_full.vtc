@@ -8,7 +8,7 @@ server s1 {
     txresp
 } -start
 
-haproxy h_edge -conf {
+haproxy h_edge -arg '-dW' -conf {
 global
 	expose-experimental-directives
 
@@ -31,7 +31,7 @@ backend be-reverse
 	server dev rhttp@
 } -start
 
-haproxy h_dev -conf {
+haproxy h_dev -arg '-dW' -conf {
 global
 	expose-experimental-directives
 

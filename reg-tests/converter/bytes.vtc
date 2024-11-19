@@ -10,7 +10,7 @@ server s1 {
 	txresp -hdr "Connection: close"
 } -repeat 1 -start
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
 	defaults
 		mode http
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -97,7 +97,7 @@ client c1 -connect ${h1_fe_sock} {
 
 # TEST - 2
 # negative starting index causes startup failure
-haproxy h2 -conf {
+haproxy h2 -arg '-dW' -conf {
 	defaults
 		mode http
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -117,7 +117,7 @@ haproxy h2 -conf {
 
 # TEST - 3
 # negative length causes startup failure
-haproxy h3 -conf {
+haproxy h3 -arg '-dW' -conf {
 	defaults
 		mode http
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -137,7 +137,7 @@ haproxy h3 -conf {
 
 # TEST - 4
 # 0 length causes startup failure
-haproxy h4 -conf {
+haproxy h4 -arg '-dW' -conf {
 	defaults
 		mode http
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"

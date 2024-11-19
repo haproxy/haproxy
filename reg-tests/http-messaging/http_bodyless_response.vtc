@@ -30,7 +30,7 @@ server s1 {
           -body "last response"
 } -repeat 3 -start
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
     global
         # WT: limit false-positives causing "HTTP header incomplete" due to
         # idle server connections being randomly used and randomly expiring

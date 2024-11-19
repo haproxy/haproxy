@@ -2,7 +2,7 @@ varnishtest "Test the http-reuse aggressive mode"
 
 feature ignore_unknown_macro
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
 	defaults
 		timeout client 30s
 		timeout server 30s

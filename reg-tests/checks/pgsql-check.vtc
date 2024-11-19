@@ -47,7 +47,7 @@ syslog S4 -level notice {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv succeeded, reason: Layer7 check passed.+info: \"PostgreSQL server is ok\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
 } -start
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
     defaults
         mode tcp
         timeout client "${HAPROXY_TEST_TIMEOUT-5s}"

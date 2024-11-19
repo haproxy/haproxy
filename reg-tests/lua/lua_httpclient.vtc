@@ -36,7 +36,7 @@ server s3 {
 } -start
 
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
     global
         lua-load ${testdir}/lua_httpclient.lua
 

@@ -41,7 +41,7 @@ server s3 {
        chunkedlen 0
 } -start
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
     global
         # WT: limit false-positives causing "HTTP header incomplete" due to
         # idle server connections being randomly used and randomly expiring

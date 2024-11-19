@@ -27,7 +27,7 @@ syslog S4 -level notice {
 } -start
 
 
-haproxy htst -conf {
+haproxy htst -arg '-dW' -conf {
     global
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
@@ -62,7 +62,7 @@ haproxy htst -conf {
 
 } -start
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
     defaults
         mode tcp
         timeout client "${HAPROXY_TEST_TIMEOUT-5s}"

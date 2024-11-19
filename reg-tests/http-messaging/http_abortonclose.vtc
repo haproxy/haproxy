@@ -63,7 +63,7 @@ syslog S2 -level info {
     expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe2 be2/srv1 [0-9]*/[0-9]*/-1/-1/[0-9]* 503 .* - - SC-- .* .* \"GET /c6 HTTP/1\\.1\""
 } -start
 
-haproxy h1 -conf {
+haproxy h1 -arg '-dW' -conf {
     global
         # WT: limit false-positives causing "HTTP header incomplete" due to
         # idle server connections being randomly used and randomly expiring
@@ -109,7 +109,7 @@ haproxy h1 -conf {
 } -start
 
 
-haproxy h2 -conf {
+haproxy h2 -arg '-dW' -conf {
     global
         # WT: limit false-positives causing "HTTP header incomplete" due to
         # idle server connections being randomly used and randomly expiring
