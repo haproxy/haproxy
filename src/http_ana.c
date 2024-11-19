@@ -1234,8 +1234,11 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	htx = htxbuf(&rep->buf);
 
 	/* Parsing errors are caught here */
-	if (htx->flags & HTX_FL_PARSING_ERROR)
+	if (htx->flags & HTX_FL_PARSING_ERROR) {
+		if (objt_server(s->target))
+			health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_HDRRSP);
 		goto return_bad_res;
+	}
 	if (htx->flags & HTX_FL_PROCESSING_ERROR)
 		goto return_int_err;
 
@@ -1257,6 +1260,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		if (s->scb->flags & SC_FL_ERROR) {
 			struct connection *conn = sc_conn(s->scb);
 
+			if (!(s->flags & SF_SRV_REUSED) && objt_server(s->target))
+				health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_READ_ERROR);
 
 			if ((txn->flags & TX_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_DISCONNECTED) &&
@@ -1279,10 +1284,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				goto abort_keep_alive;
 
 			_HA_ATOMIC_INC(&s->be->be_counters.failed_resp);
-			if (objt_server(s->target)) {
+			if (objt_server(s->target))
 				_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_resp);
-				health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_READ_ERROR);
-			}
 
 			/* if the server refused the early data, just send a 425 */
 			if (conn && conn->err_code == CO_ER_SSL_EARLY_FAILED)
@@ -1306,6 +1309,9 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		/* 2: read timeout : return a 504 to the client. */
 		else if (rep->flags & CF_READ_TIMEOUT) {
+			if (objt_server(s->target))
+				health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_READ_TIMEOUT);
+
 			if ((txn->flags & TX_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_TIMEOUT)) {
 				if (co_data(rep) || do_l7_retry(s, s->scb) == 0) {
@@ -1315,10 +1321,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				}
 			}
 			_HA_ATOMIC_INC(&s->be->be_counters.failed_resp);
-			if (objt_server(s->target)) {
+			if (objt_server(s->target))
 				_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_resp);
-				health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_READ_TIMEOUT);
-			}
 
 			txn->status = 504;
 			stream_inc_http_fail_ctr(s);
@@ -1360,6 +1364,9 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		/* 4: close from server, capture the response if the server has started to respond */
 		else if (s->scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) {
+			if (!(s->flags & SF_SRV_REUSED) && objt_server(s->target))
+				health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_BROKEN_PIPE);
+
 			if ((txn->flags & TX_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_DISCONNECTED)) {
 				if (co_data(rep) || do_l7_retry(s, s->scb) == 0) {
@@ -1373,10 +1380,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				goto abort_keep_alive;
 
 			_HA_ATOMIC_INC(&s->be->be_counters.failed_resp);
-			if (objt_server(s->target)) {
+			if (objt_server(s->target))
 				_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_resp);
-				health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_BROKEN_PIPE);
-			}
 
 			txn->status = 502;
 			stream_inc_http_fail_ctr(s);
@@ -1426,6 +1431,17 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 */
 	BUG_ON(htx_get_first_type(htx) != HTX_BLK_RES_SL);
 	sl = http_get_stline(htx);
+
+	/* Adjust server's health based on status code. Note: status codes 501
+	 * and 505 are triggered on demand by client request, so we must not
+	 * count them as server failures.
+	 */
+	if (objt_server(s->target)) {
+		if (sl->info.res.status >= 100 && (sl->info.res.status < 500 || sl->info.res.status == 501 || sl->info.res.status == 505))
+			health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_OK);
+		else
+			health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_STS);
+	}
 
 	/* Perform a L7 retry because of the status code */
 	if ((txn->flags & TX_L7_RETRY) &&
@@ -1499,17 +1515,6 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.p.http.cum_req);
 	}
 
-	/* Adjust server's health based on status code. Note: status codes 501
-	 * and 505 are triggered on demand by client request, so we must not
-	 * count them as server failures.
-	 */
-	if (objt_server(s->target)) {
-		if (txn->status >= 100 && (txn->status < 500 || txn->status == 501 || txn->status == 505))
-			health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_OK);
-		else
-			health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_STS);
-	}
-
 	/*
 	 * We may be facing a 100-continue response, or any other informational
 	 * 1xx response which is non-final, in which case this is not the right
@@ -1535,8 +1540,11 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 * header content. But it is probably stronger enough for now.
 	 */
 	if (txn->status == 101 &&
-	    (!(txn->req.flags & HTTP_MSGF_CONN_UPG) || !(txn->rsp.flags & HTTP_MSGF_CONN_UPG)))
+	    (!(txn->req.flags & HTTP_MSGF_CONN_UPG) || !(txn->rsp.flags & HTTP_MSGF_CONN_UPG))) {
+		if (objt_server(s->target))
+			health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_HDRRSP);
 		goto return_bad_res;
+	}
 
 	/*
 	 * 2: check for cacheability.
@@ -1657,11 +1665,6 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	goto return_prx_cond;
 
   return_bad_res:
-	_HA_ATOMIC_INC(&s->be->be_counters.failed_resp);
-	if (objt_server(s->target)) {
-		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_resp);
-		health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_HDRRSP);
-	}
 	if ((s->be->retry_type & PR_RE_JUNK_REQUEST) &&
 	    (txn->flags & TX_L7_RETRY) &&
 	    do_l7_retry(s, s->scb) == 0) {
@@ -1669,6 +1672,11 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 		return 0;
 	}
+
+	_HA_ATOMIC_INC(&s->be->be_counters.failed_resp);
+	if (objt_server(s->target))
+		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_resp);
+
 	txn->status = 502;
 	stream_inc_http_fail_ctr(s);
 	/* fall through */
