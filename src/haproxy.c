@@ -1573,7 +1573,7 @@ static void init_early(int argc, char **argv)
 
 	/* preset some environment variables */
 	localpeer = strdup(hostname);
-	if (!localpeer || setenv("HAPROXY_LOCALPEER", localpeer, 1) < 0) {
+	if (!localpeer) {
 		ha_alert("Cannot allocate memory for local peer.\n");
 		exit(EXIT_FAILURE);
 	}
@@ -1874,7 +1874,6 @@ static void init_args(int argc, char **argv)
 						ha_alert("Cannot allocate memory for local peer.\n");
 						exit(EXIT_FAILURE);
 					}
-					setenv("HAPROXY_LOCALPEER", localpeer, 1);
 					global.localpeer_cmdline = 1;
 					break;
 				case 'f' :
@@ -3840,6 +3839,13 @@ int main(int argc, char **argv)
 		/* all sections have been parsed, we can free the content */
 		list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list)
 			ha_free(&cfg->content);
+
+		/* localpeer could be redefined via 'localpeer' keyword from the
+		 * global section, in master-worker mode it's parsed only by
+		 * worker, so let set HAPROXY_LOCALPEER explicitly here
+		 */
+		if (localpeer != NULL)
+			setenv("HAPROXY_LOCALPEER", localpeer, 1);
 		usermsgs_clr(NULL);
 	}
 

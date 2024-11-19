@@ -845,7 +845,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		setenv("HAPROXY_LOCALPEER", localpeer, 1);
 	}
 	else if (strcmp(args[0], "numa-cpu-mapping") == 0) {
 		global.numa_cpu_mapping = (kwm == KWM_NO) ? 0 : 1;
