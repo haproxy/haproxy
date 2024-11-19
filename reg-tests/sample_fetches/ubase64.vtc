@@ -20,9 +20,8 @@ haproxy h1 -conf {
     frontend fe
         bind "fd@${fe}"
 				acl input hdr(encode) -m found
-        http-request return content-type text/plain hdr encode %[hdr(encode),ub64enc] hdr decode %[hdr(decode),ub64dec] if input
-        http-request return content-type text/plain hdr encode %[bin(14fb9c03d97f12d97e),ub64enc] hdr decode %[str(FPucA9l_Etl-),ub64dec,hex,lower] if !input
-
+        http-request return hdr encode %[hdr(encode),ub64enc] hdr decode %[hdr(decode),ub64dec] if input
+        http-request return hdr encode %[bin(14fb9c03d97f12d97e),ub64enc] hdr decode %[str(FPucA9l_Etl-),ub64dec,hex,lower] if !input
 } -start
 
 client c1 -connect ${h1_fe_sock} {
