@@ -103,6 +103,17 @@ void tasklet_wakeup(tl)
         least once. The tasklet will run on its assigned thread, or on any
         thread if its TID is negative.
 
+struct list *tasklet_wakeup_after(head, tl)
+        Schedule tasklet <tl> to run immediately the current one if <head> is
+        NULL, or after the last queued one if <head> is non-null. The new head
+        is returned, to be passed to the next call. The purpose here is to
+        permit instant wakeups of resumed tasklets that still preserve
+        ordering between them. A typical use case is for a mux' I/O handler to
+        instantly wake up a series of urgent streams before continuing with
+        already queued tasklets. This may induce extra latencies for pending
+        jobs and must only be used extremely carefully when it's certain that
+        the processing will benefit from using fresh data from the L1 cache.
+
 void tasklet_wakeup_on(tl, thr)
         Make sure that tasklet <tl> will wake up on thread <thr>, that is, will
         execute at least once. The designated thread may only differ from the
