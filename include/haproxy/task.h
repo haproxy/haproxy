@@ -193,6 +193,12 @@ static inline int thread_has_tasks(void)
 		(int)!MT_LIST_ISEMPTY(&th_ctx->shared_tasklet_list));
 }
 
+/* returns the most recent known date of the task's call from the scheduler */
+static inline uint64_t task_mono_time(void)
+{
+	return th_ctx->sched_call_date;
+}
+
 /* puts the task <t> in run queue with reason flags <f>, and returns <t> */
 /* This will put the task in the local runqueue if the task is only runnable
  * by the current thread, in the global runqueue otherwies. With DEBUG_TASK,

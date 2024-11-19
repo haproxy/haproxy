@@ -567,17 +567,24 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		t->calls++;
 
 		th_ctx->sched_wake_date = t->wake_date;
-		if (th_ctx->sched_wake_date) {
-			uint32_t now_ns = now_mono_time();
-			uint32_t lat = now_ns - th_ctx->sched_wake_date;
+		if (th_ctx->sched_wake_date || (t->state & TASK_F_WANTS_TIME)) {
+			/* take the most accurate clock we have, either
+			 * mono_time() or last now_ns (monotonic but only
+			 * incremented once per poll loop).
+			 */
+			th_ctx->sched_call_date = now_mono_time();
+			if (unlikely(!th_ctx->sched_call_date))
+				th_ctx->sched_call_date = now_ns;
+		}
 
+		if (th_ctx->sched_wake_date) {
 			t->wake_date = 0;
-			th_ctx->sched_call_date = now_ns;
 			profile_entry = sched_activity_entry(sched_activity, t->process, t->caller);
 			th_ctx->sched_profile_entry = profile_entry;
-			HA_ATOMIC_ADD(&profile_entry->lat_time, lat);
+			HA_ATOMIC_ADD(&profile_entry->lat_time, (uint32_t)(th_ctx->sched_call_date - th_ctx->sched_wake_date));
 			HA_ATOMIC_INC(&profile_entry->calls);
 		}
+
 		__ha_barrier_store();
 
 		th_ctx->current = t;
