@@ -269,7 +269,7 @@ haproxy h1 -conf {
     backend converter_be
         server s1 ${s1_addr}:${s1_port}
 
-        http-request deny if { req.len,set-var(proc.req_len,ifexists) -m int 0 }
+        http-request deny if { req.hdrs,length,set-var(proc.req_len,ifexists) -m int 0 }
         http-request deny if { req.hdr("X-Cust"),set-var(sess.x_cust,ifnotempty,ifnotset),length -m int 0 }
 
         http-response set-header x-var "proc.req_len=%[var(proc.req_len)] sess.x_cust=%[var(sess.x_cust)]"
@@ -358,5 +358,5 @@ client c10 -connect ${h1_mainfe_sock} {
     txreq -url "/converter" -hdr "X-Cust: foobar"
     rxresp
     expect resp.status == 200
-    expect resp.http.x-var == "proc.req_len=67 sess.x_cust=foobar"
+    expect resp.http.x-var == "proc.req_len=35 sess.x_cust=foobar"
 } -run
