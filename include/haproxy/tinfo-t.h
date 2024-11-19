@@ -152,7 +152,16 @@ struct thread_ctx {
 
 	void **emergency_bufs;              /* array of buffers allocated at boot. Next free one is [emergency_bufs_left-1] */
 	uint emergency_bufs_left;           /* number of emergency buffers left in magic_bufs[] */
-	// around 36 bytes here for thread-local variables
+
+	uint32_t sched_wake_date;           /* current task/tasklet's wake date in 32-bit ns or 0 if not supported */
+	uint32_t sched_call_date;           /* current task/tasklet's call date in 32-bit ns */
+
+	// 4 bytes hole here
+
+	uint64_t prev_mono_time;            /* previous system wide monotonic time (leaving poll) */
+	uint64_t curr_mono_time;            /* latest system wide monotonic time (leaving poll) */
+
+	// around 8 bytes here for thread-local variables
 
 	// third cache line here on 64 bits: accessed mostly using atomic ops
 	ALWAYS_ALIGN(64);
@@ -164,12 +173,7 @@ struct thread_ctx {
 	uint flags;                         /* thread flags, TH_FL_*, atomic! */
 	uint active_checks;                 /* number of active health checks on this thread, incl migrated */
 
-	uint32_t sched_wake_date;           /* current task/tasklet's wake date or 0 */
-	uint32_t sched_call_date;           /* current task/tasklet's call date (valid if sched_wake_date > 0) */
-
 	uint64_t prev_cpu_time;             /* previous per thread CPU time */
-	uint64_t prev_mono_time;            /* previous system wide monotonic time  */
-	uint64_t curr_mono_time;            /* latest system wide monotonic time  */
 
 	struct eb_root rqueue_shared;       /* run queue fed by other threads */
 	__decl_thread(HA_SPINLOCK_T rqsh_lock); /* lock protecting the shared runqueue */
@@ -183,7 +187,7 @@ struct thread_ctx {
 	unsigned long long total_streams;       /* Total number of streams created on this thread */
 	unsigned int stream_cnt;                /* Number of streams attached to this thread */
 
-	// around 44 bytes here for shared variables
+	// around 68 bytes here for shared variables
 
 	ALWAYS_ALIGN(128);
 };
