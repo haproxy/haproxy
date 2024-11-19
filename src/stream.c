@@ -1639,8 +1639,12 @@ static void stream_handle_timeouts(struct stream *s)
  */
 static void stream_cond_update_cpu_latency(struct stream *s)
 {
-	uint32_t lat = th_ctx->sched_call_date - th_ctx->sched_wake_date;
+	uint32_t lat;
 
+	if (likely(!th_ctx->sched_wake_date))
+		return;
+
+	lat = th_ctx->sched_call_date - th_ctx->sched_wake_date;
 	s->lat_time += lat;
 }
 
