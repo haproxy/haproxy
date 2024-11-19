@@ -73,9 +73,15 @@ static unsigned long parse_window_size(const char *kw, char *value,
 static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
                                    struct bind_conf *conf, char **err)
 {
-	struct quic_cc_algo *cc_algo;
+	struct quic_cc_algo *cc_algo = NULL;
 	const char *algo = NULL;
 	char *arg;
+
+	cc_algo = calloc(1, sizeof(struct quic_cc_algo));
+	if (!cc_algo) {
+		memprintf(err, "'%s' : out of memory", args[cur_arg]);
+		goto fail;
+	}
 
 	if (!*args[cur_arg + 1]) {
 		memprintf(err, "'%s' : missing control congestion algorithm", args[cur_arg]);
@@ -86,13 +92,13 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 	if (strncmp(arg, QUIC_CC_NEWRENO_STR, strlen(QUIC_CC_NEWRENO_STR)) == 0) {
 		/* newreno */
 		algo = QUIC_CC_NEWRENO_STR;
-		cc_algo = &quic_cc_algo_nr;
+		*cc_algo = quic_cc_algo_nr;
 		arg += strlen(QUIC_CC_NEWRENO_STR);
 	}
 	else if (strncmp(arg, QUIC_CC_CUBIC_STR, strlen(QUIC_CC_CUBIC_STR)) == 0) {
 		/* cubic */
 		algo = QUIC_CC_CUBIC_STR;
-		cc_algo = &quic_cc_algo_cubic;
+		*cc_algo = quic_cc_algo_cubic;
 		arg += strlen(QUIC_CC_CUBIC_STR);
 	}
 	else if (strncmp(arg, QUIC_CC_NO_CC_STR, strlen(QUIC_CC_NO_CC_STR)) == 0) {
@@ -104,7 +110,7 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 		}
 
 		algo = QUIC_CC_NO_CC_STR;
-		cc_algo = &quic_cc_algo_nocc;
+		*cc_algo = quic_cc_algo_nocc;
 		arg += strlen(QUIC_CC_NO_CC_STR);
 	}
 	else {
@@ -132,6 +138,7 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 	return 0;
 
  fail:
+	free(cc_algo);
 	return ERR_ALERT | ERR_FATAL;
 }
 

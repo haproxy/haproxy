@@ -387,6 +387,9 @@ void free_proxy(struct proxy *p)
 		LIST_DELETE(&bind_conf->by_fe);
 		free(bind_conf->guid_prefix);
 		free(bind_conf->rhttp_srvname);
+#ifdef USE_QUIC
+		free(bind_conf->quic_cc_algo);
+#endif
 		free(bind_conf);
 	}
 
