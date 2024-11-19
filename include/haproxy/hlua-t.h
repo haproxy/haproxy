@@ -234,8 +234,13 @@ struct hlua_server_list_iterator_context {
 	struct proxy *px;
 };
 
+/* pat_ref struct wrapper for lua */
+struct hlua_patref {
+	struct pat_ref *ptr;
+};
+
 struct hlua_patref_iterator_context {
-	struct pat_ref *ref;
+	struct hlua_patref *ref;
 	struct bref bref;       /* back-reference from the pat_ref_elt being accessed
 	                         * during listing */
 };
