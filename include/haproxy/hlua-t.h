@@ -234,9 +234,17 @@ struct hlua_server_list_iterator_context {
 	struct proxy *px;
 };
 
+#define HLUA_PATREF_FL_NONE    0x00
+#define HLUA_PATREF_FL_GEN     0x01 /* patref update backed by specific subset, check curr_gen */
+
 /* pat_ref struct wrapper for lua */
 struct hlua_patref {
+	/* no need for lock-protecting the struct, it is not meant to
+	 * be used by parallel lua contexts
+	 */
 	struct pat_ref *ptr;
+	uint16_t flags; /* HLUA_PATREF_FL_* */
+	unsigned int curr_gen; /* relevant if HLUA_PATREF_FL_GEN is set */
 };
 
 struct hlua_patref_iterator_context {

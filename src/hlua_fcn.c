@@ -2641,6 +2641,59 @@ int hlua_patref_is_map(lua_State *L)
 	return 1;
 }
 
+/* full-clear may require yielding between pruning
+ * batches
+ */
+static int _hlua_patref_clear(lua_State *L, int status, lua_KContext ctx)
+{
+	struct hlua_patref *ref = hlua_checkudata(L, 1, class_patref_ref);
+	unsigned int from = lua_tointeger(L, 2);
+	unsigned int to = lua_tointeger(L, 3);
+	int ret;
+
+ loop:
+	HA_RWLOCK_WRLOCK(PATREF_LOCK, &ref->ptr->lock);
+	ret = pat_ref_purge_range(ref->ptr, from, to, 100);
+	HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->ptr->lock);
+	if (!ret) {
+		hlua_yieldk(L, 0, 0, _hlua_patref_clear, TICK_ETERNITY, HLUA_CTRLYIELD); // continue
+		/* never reached, unless if called from body/init state
+		 * where yieldk is no-op, thus we can't do anything to prevent
+		 * thread contention
+		 */
+		goto loop;
+	}
+
+	lua_pushboolean(L, 1);
+	return 1; // end
+}
+
+int hlua_patref_commit(lua_State *L)
+{
+	struct hlua_patref *ref;
+	int ret;
+
+	ref = hlua_checkudata(L, 1, class_patref_ref);
+	BUG_ON(!ref);
+
+	if (!(ref->flags & HLUA_PATREF_FL_GEN))
+		return hlua_error(L, "Nothing to do");
+
+	ref->flags &= ~HLUA_PATREF_FL_GEN;
+	ret = pat_ref_commit(ref->ptr, ref->curr_gen);
+
+	if (ret)
+		return hlua_error(L, "Commit failed");
+
+	/* cleanup: prune previous generations: The range of generations
+	 * that get trashed by a commit starts from the opposite of the
+	 * current one and ends at the previous one.
+         */
+	lua_pushinteger(L, ref->curr_gen - ((~0U) >> 1)); // from
+	lua_pushinteger(L, ref->curr_gen - 1); // to
+	return _hlua_patref_clear(L, LUA_OK, 0);
+}
+
 void hlua_fcn_new_patref(lua_State *L, struct pat_ref *ref)
 {
 	struct hlua_patref *_ref;
@@ -2659,6 +2712,8 @@ void hlua_fcn_new_patref(lua_State *L, struct pat_ref *ref)
 		if (!_ref)
 			luaL_error(L, "Lua out of memory error.");
 		_ref->ptr = ref;
+		_ref->curr_gen = 0;
+		_ref->flags = HLUA_PATREF_FL_NONE;
 		lua_pushlightuserdata(L, _ref);
 		lua_rawseti(L, -2, 0);
 	}
@@ -2666,6 +2721,7 @@ void hlua_fcn_new_patref(lua_State *L, struct pat_ref *ref)
 	/* set public methods */
 	hlua_class_function(L, "get_name", hlua_patref_get_name);
 	hlua_class_function(L, "is_map", hlua_patref_is_map);
+	hlua_class_function(L, "commit", hlua_patref_commit);
 }
 
 int hlua_patref_gc(lua_State *L)
@@ -2696,7 +2752,11 @@ int hlua_listable_patref_index(lua_State *L)
 
 	/* Perform pat ref element lookup by key */
 	HA_RWLOCK_WRLOCK(PATREF_LOCK, &ref->ptr->lock);
-	elt = pat_ref_find_elt(ref->ptr, key);
+	if ((ref->flags & HLUA_PATREF_FL_GEN) &&
+	    pat_ref_may_commit(ref->ptr, ref->curr_gen))
+		elt = pat_ref_gen_find_elt(ref->ptr, ref->curr_gen, key);
+	else
+		elt = pat_ref_find_elt(ref->ptr, key);
 	if (elt == NULL) {
 		HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->ptr->lock);
 		lua_pushnil(L);
@@ -2718,11 +2778,18 @@ static int _hlua_listable_patref_pairs_iterator(lua_State *L, int status, lua_KC
 	struct hlua_patref_iterator_context *hctx;
 	struct pat_ref_elt *elt;
 	int cnt = 0;
+	unsigned int curr_gen;
 
 	context_index = lua_upvalueindex(1);
 	hctx = lua_touserdata(L, context_index);
 
 	HA_RWLOCK_WRLOCK(PATREF_LOCK, &hctx->ref->ptr->lock);
+
+	if ((hctx->ref->flags & HLUA_PATREF_FL_GEN) &&
+	    pat_ref_may_commit(hctx->ref->ptr, hctx->ref->curr_gen))
+		curr_gen = hctx->ref->curr_gen;
+	else
+		curr_gen = hctx->ref->ptr->curr_gen;
 
 	if (LIST_ISEMPTY(&hctx->bref.users)) {
 		/* first iteration */
@@ -2741,7 +2808,7 @@ static int _hlua_listable_patref_pairs_iterator(lua_State *L, int status, lua_KC
 
 	elt = LIST_ELEM(hctx->bref.ref, struct pat_ref_elt *, list);
 
-	if (elt->gen_id != hctx->ref->ptr->curr_gen) {
+	if (elt->gen_id != curr_gen) {
 		/* check if we may do something to try to prevent thread contention,
 		 * unless we run from body/init state where hlua_yieldk is no-op
 		 */

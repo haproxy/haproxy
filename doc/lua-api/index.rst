@@ -3456,6 +3456,17 @@ Patref class
   :returns: true if the pattern reference is used to handle maps instead
    of acl, false otherwise.
 
+.. js:function:: Patref.commit(ref)
+
+  Tries to commit pending Patref object updates, that is updates made to the
+  local object will be committed to the underlying patter reference storage
+  in an atomic manner upon success. Upon failure, local pending updates are
+  lost. Upon success, all other pending updates on the pattern reference
+  (e.g.: "prepare" from the cli or from other Patref Lua objects) started
+  before the new one will be pruned.
+
+  :returns: true on success and nil on failure (followed by an error message).
+
 .. _applethttp_class:
 
 AppletHTTP class
