@@ -935,7 +935,77 @@ existing variables, not empty ones.
       user "$HAPROXY_USER"
 
 Some variables are defined by HAProxy, they can be used in the configuration
-file, or could be inherited by a program (See 3.7. Programs):
+file, or could be inherited by a program (See 3.7. Programs). These variables
+are listed in the matrix below, and they are classified among four categories:
+
+  * usable: the variable is accessible from the configuration, either to be
+    resolved as-is, or used within conditional blocks or predicates to enable
+    or disable this some configuration fragments, as described in section 2.4
+    "Conditional blocks".
+
+  * modifiable: the variable can be redefined or unset in the configuration via
+    "setenv"/"unsetenv" keywords.
+
+  * listed: the variable is listed in CLI's "show env" command output,
+    described in section 9.3 "Unix Sockets commands" of the management guide.
+
+  * exported: variable is exported to launch programs in a modified environment
+    (See section 3.7 "Programs"). Note that this does not apply to external
+    checks which have their own rules regarding exported variables.
+
+There also two subcategories "master" and "worker", respectively marked 'M' and
+'W' in the table below, showing the differences between the two processes when
+HAProxy is launched in master-worker mode.
+
+  * master: the variable is set and accessible from the master process. So, it
+    will appear in the master CLI's "show env" output and it can be used in
+    conditional blocks or directives to enable some special settings for the
+    master (see examples in section 2.4 "Conditional blocks").
+
+  * worker: the variable is set and accessible from the worker process. It will
+    appear in the worker CLI's "show env" (or the master CLI's "@1 show env")
+    and it may as well condition some worker process parameters (see examples
+    from section 2.4 "Conditional blocks").
+
+In standalone mode (without "-W" option nor the "master-worker" keyword) the
+process behaves like a worker, except for variables "HAPROXY_MASTER_CLI" and
+"HAPROXY_MWORKER" which are not defined.
+
+Some variables are marked as not usable and not modifiable:
+
+  * HAPROXY_CFGFILES
+  * HAPROXY_MWORKER
+  * HAPROXY_CLI
+  * HAPROXY_MASTER_CLI
+  * HAPROXY_LOCALPEER
+
+Their values are undefined during configuration parsing, they are set later
+during the initialization. So, it's recommended not to use these variables
+within conditional blocks and not to reference them in the global section's
+"setenv"/"resetenv"/"unsetenv" keywords.
+
+The table below summaries the status of each variable for the different working
+modes:
+
+  +--------------------------+----------+---------+------------+-----------+
+  |        variable          | exported | usable  | modifiable |  listed   |
+  |                          |          +---------+------------+-----------+
+  |                          |          |  M | W  |   M  |  W  |  M  |  W  |
+  +--------------------------+----------+----+----+------+-----+-----+-----+
+  | HAPROXY_STARTUP_VERSION  |    X     |  X | X  |      |     |  X  |  X  |
+  | HAPROXY_BRANCH           |    X     |  X | X  |      |     |  X  |  X  |
+  | HAPROXY_CFGFILES         |    X     |    |    |      |     |  X  |  X  |
+  | HAPROXY_MWORKER          |    X     |    |    |      |     |  X  |  X  |
+  | HAPROXY_CLI              |          |    |    |      |     |     |  X  |
+  | HAPROXY_MASTER_CLI       |          |    |    |      |     |  X  |     |
+  | HAPROXY_LOCALPEER        |          |    |    |      |     |     |  X  |
+  | HAPROXY_HTTP_LOG_FMT     |          |    | X  |      |  X  |     |     |
+  | HAPROXY_HTTP_CLF_LOG_FMT |          |    | X  |      |  X  |     |     |
+  | HAPROXY_HTTPS_LOG_FMT    |          |    | X  |      |  X  |     |     |
+  | HAPROXY_TCP_LOG_FMT      |          |    | X  |      |  X  |     |     |
+  +--------------------------+----------+----+----+------+-----+-----+-----+
+
+The variables in question are the following:
 
 * HAPROXY_LOCALPEER: defined at the startup of the process which contains the
   name of the local peer. (See "-L" in the management guide.)
@@ -968,8 +1038,8 @@ file, or could be inherited by a program (See 3.7. Programs):
 
 * HAPROXY_MWORKER: In master-worker mode, this variable is set to 1.
 
-* HAPROXY_CLI: configured listeners addresses of the stats socket for every
-  processes, separated by semicolons.
+* HAPROXY_CLI: configured listeners addresses of the stats socket of every
+  processe, these addresses are separated by semicolons.
 
 * HAPROXY_MASTER_CLI: In master-worker mode, listeners addresses of the master
   CLI, separated by semicolons.
@@ -1005,8 +1075,6 @@ proxies.
 This way it is possible to emit information to help locate a rule in variables,
 logs, error statuses, health checks, header values, or even to use line numbers
 to name some config objects like servers for example.
-
-See also "external-check command" for other variables.
 
 
 2.4. Conditional blocks
@@ -1139,11 +1207,40 @@ The list of currently supported predicates is the following:
 
 Example:
 
+   # 1. HAPROXY_MWORKER variable is set automatically by HAProxy in master and
+   # in worker process environments (see HAProxy variables matrix from
+   # 2.3. Environment variables). Its presence enables an additional listener.
+
+   global
+     master-worker
+
    .if defined(HAPROXY_MWORKER)
        listen mwcli_px
           bind :1111
           ...
    .endif
+
+   # 2. HAPROXY_BRANCH is set automatically by HAProxy in master and in worker
+   # process environments (see HAProxy variables matrix from 2.3. Environment
+   # variables). We check HAPROXY_BRANCH value and conditionally enable
+   # mworker-max-reloads parameter.
+
+   global
+     master-worker
+
+   .if streq("$HAPROXY_BRANCH",3.1)
+        mworker-max-reloads 5
+   .endif
+
+   # 3. Some arbitrary environment variables are set by user in the global
+   # section. If HAProxy is started in master-worker mode, they are presented in
+   # master and in worker process environments. We check values of these
+   # variables and conditionally enable ports 80 and 443. Environment variables
+   # checks can be mixed with features and version checks.
+
+   global
+     setenv WITH_SSL yes
+     unsetenv SSL_ONLY
 
    .if strneq("$SSL_ONLY",yes)
           bind :80
@@ -11290,8 +11387,6 @@ external-check command <command>
 
     PATH                    The PATH environment variable used when executing
                             the command may be set using "external-check path".
-
-  See also "2.3. Environment variables" for other variables.
 
   If the command executed and exits with a zero status then the check is
   considered to have passed, otherwise the check is considered to have
