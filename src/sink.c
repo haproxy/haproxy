@@ -976,8 +976,7 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 			goto err;
 		}
 
-		size = atol(args[1]);
-		if (!size) {
+		if (parse_size_err(args[1], &size) != NULL || !size) {
 			ha_alert("parsing [%s:%d] : invalid size '%s' for new sink buffer.\n", file, linenum, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto err;
