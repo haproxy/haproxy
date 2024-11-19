@@ -51,6 +51,12 @@
  * use in macros arguments.
  */
 #define DEFNULL(...) _FIRST_ARG(NULL, ##__VA_ARGS__, NULL)
+
+/* DEFZERO() returns either the argument as-is, or 0 if absent. This is for
+ * use in macros arguments.
+ */
+#define DEFZERO(...) _FIRST_ARG(NULL, ##__VA_ARGS__, 0)
+
 #define _FIRST_ARG(a, b, ...) b
 
 /* options flags for parse_line() */
