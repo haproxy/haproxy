@@ -1520,7 +1520,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.frontend.glitches-threshold
    - tune.quic.frontend.max-idle-timeout
    - tune.quic.frontend.max-streams-bidi
-   - tune.quic.frontend.max-window-size
+   - tune.quic.frontend.default-max-window-size
    - tune.quic.max-frame-loss
    - tune.quic.reorder-ratio
    - tune.quic.retry-threshold
@@ -3991,7 +3991,7 @@ tune.quic.frontend.max-streams-bidi <number>
 
   The default value is 100.
 
-tune.quic.frontend.max-window-size <size>
+tune.quic.frontend.default-max-window-size <size>
   Sets the default maximum window size for the congestion controller of a
   single QUIC connection. The value must be written as an integer with an
   optional suffix 'k', 'm' or 'g'. It must be between 10k and 4g.
@@ -17043,7 +17043,7 @@ quic-cc-algo { cubic | newreno | nocc }(<max_window>)
   maximum window size. It must be greater than 10k and smaller than 4g.
 
   Default value: cubic
-  Default window value: "tune.quic.frontend.max-window-size"
+  Default window value: "tune.quic.frontend.default-max-window-size"
 
   Example:
       # newreno congestion control algorithm
