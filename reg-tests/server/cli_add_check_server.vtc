@@ -66,6 +66,11 @@ haproxy h1 -conf {
 	global
 		stats socket "${tmpdir}/h1/stats" level admin
 
+	defaults
+		timeout client 30s
+		timeout server 30s
+		timeout connect 30s
+
 	backend be1
 		option log-health-checks
 		option httpchk GET /

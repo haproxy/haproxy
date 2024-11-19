@@ -13,6 +13,9 @@ haproxy h1 -conf {
     tune.idle-pool.shared off
 
   defaults
+    timeout client 30s
+    timeout server 30s
+    timeout connect 30s
     mode http
 
   frontend fe1

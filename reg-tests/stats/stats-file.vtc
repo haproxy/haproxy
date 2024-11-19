@@ -7,6 +7,11 @@ haproxy h1 -conf {
 	global
 		stats-file ${testdir}/sample-stats-file
 
+	defaults
+		timeout client 30s
+		timeout server 30s
+		timeout connect 30s
+
 	frontend fe
 		guid guid-fe
 		bind "fd@${feS}" guid-prefix guid-feS

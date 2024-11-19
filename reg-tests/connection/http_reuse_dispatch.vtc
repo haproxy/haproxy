@@ -10,6 +10,9 @@ feature ignore_unknown_macro
 
 haproxy h1 -conf {
 	defaults
+		timeout client 30s
+		timeout server 30s
+		timeout connect 30s
 		mode http
 
 	listen sender

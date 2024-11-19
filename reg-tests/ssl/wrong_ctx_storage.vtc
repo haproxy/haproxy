@@ -27,6 +27,11 @@ haproxy h1 -conf {
     tune.ssl.default-dh-param 2048
     tune.ssl.capture-buffer-size 1
 
+  defaults
+    timeout client 30s
+    timeout server 30s
+    timeout connect 30s
+
   listen frt
     mode http
     bind "fd@${frt}" ssl crt ${testdir}/common.pem

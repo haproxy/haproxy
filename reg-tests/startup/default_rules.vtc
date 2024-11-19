@@ -129,6 +129,9 @@ haproxy h13 -conf-BAD {} {
 
 haproxy h14 -arg -V -conf-OK {
     defaults tcp
+	timeout client 30s
+	timeout server 30s
+	timeout connect 30s
         tcp-response inspect-delay 5s
         tcp-response content accept
 
@@ -164,6 +167,9 @@ haproxy h16 -conf-BAD {} {
 
 haproxy h17 -arg -V -conf-OK {
     defaults common
+	timeout client 30s
+	timeout server 30s
+	timeout connect 30s
         mode http
 
     defaults def_front from common

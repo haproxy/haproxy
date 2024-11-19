@@ -40,6 +40,11 @@ haproxy h1 -conf {
     global
         lua-load ${testdir}/lua_httpclient.lua
 
+    defaults
+        timeout client 30s
+        timeout server 30s
+        timeout connect 30s
+
     frontend fe1
         mode http
         bind "fd@${fe1}"
@@ -49,10 +54,10 @@ haproxy h1 -conf {
         mode http
         http-request use-service lua.fakeserv
 
-   listen li1
-       mode http
-       bind unix@${tmpdir}/srv3
-       server srv3 ${s3_addr}:${s3_port}
+    listen li1
+        mode http
+        bind unix@${tmpdir}/srv3
+        server srv3 ${s3_addr}:${s3_port}
 
 } -start
 

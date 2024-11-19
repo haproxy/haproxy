@@ -93,6 +93,11 @@ haproxy h1 -conf {
 	global
 		stats socket "${tmpdir}/h1/stats" level admin
 
+	defaults
+		timeout client 30s
+		timeout server 30s
+		timeout connect 30s
+
 	backend be_check
 		server srv_check ${s1_addr}:${s1_port} check
 		server srv_no_check ${s1_addr}:${s1_port}

@@ -7,6 +7,11 @@ haproxy h1 -conf {
     global
         lua-load ${testdir}/h_txn_get_priv.lua
 
+    defaults
+        timeout client 30s
+        timeout server 30s
+        timeout connect 30s
+
     frontend fe1
         mode http
         bind "fd@${fe1}"

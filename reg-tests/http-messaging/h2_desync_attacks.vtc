@@ -15,6 +15,9 @@ server s1 {
 # haproxy frontend
 haproxy hap -conf {
 	defaults
+		timeout client 30s
+		timeout server 30s
+		timeout connect 30s
 		mode http
 
 	listen feSrvH1
