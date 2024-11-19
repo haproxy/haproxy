@@ -234,6 +234,12 @@ struct hlua_server_list_iterator_context {
 	struct proxy *px;
 };
 
+struct hlua_patref_iterator_context {
+	struct pat_ref *ref;
+	struct bref bref;       /* back-reference from the pat_ref_elt being accessed
+	                         * during listing */
+};
+
 #else /* USE_LUA */
 /************************ For use when Lua is disabled ********************/
 

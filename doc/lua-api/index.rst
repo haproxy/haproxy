@@ -3434,7 +3434,15 @@ Patref class
   (reference) which often is a filename, unless it is prefixed by 'virt@'
   for virtual references or 'opt@' for references that don't necessarily
   point to real file. From Lua, :ref:`patref_class` object may be used to
-  directly manipulate existing pattern reference storage.
+  directly manipulate existing pattern reference storage. For convenience,
+  Patref objects may be directly accessed and listed as a table thanks to
+  index and pairs metamethods. Note however that for the index metamethod,
+  in case of duplicated entries, only the first matching entry is returned.
+
+  .. Warning::
+     Not meant to be shared bewteen multiple contexts. If multiple contexts
+     need to work on the same pattern reference, each context should have
+     its own patref object.
 
   Patref object is obtained using the :js:func:`core.get_patref()`
   function
@@ -3442,6 +3450,11 @@ Patref class
 .. js:function:: Patref.get_name(ref)
 
   :returns: the name of the pattern reference object.
+
+.. js:function:: Patref.is_map(ref)
+
+  :returns: true if the pattern reference is used to handle maps instead
+   of acl, false otherwise.
 
 .. _applethttp_class:
 

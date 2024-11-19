@@ -29,7 +29,7 @@
 #include <haproxy/hlua_fcn.h>
 #include <haproxy/http.h>
 #include <haproxy/net_helper.h>
-#include <haproxy/pattern-t.h>
+#include <haproxy/pattern.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
 #include <haproxy/regex.h>
@@ -2629,6 +2629,17 @@ int hlua_patref_get_name(lua_State *L)
 	return 1;
 }
 
+int hlua_patref_is_map(lua_State *L)
+{
+	struct pat_ref *ref;
+
+	ref = hlua_checkudata(L, 1, class_patref_ref);
+	BUG_ON(!ref);
+
+	lua_pushboolean(L, !!(ref->flags & PAT_REF_MAP));
+	return 1;
+}
+
 void hlua_fcn_new_patref(lua_State *L, struct pat_ref *ref)
 {
 	lua_newtable(L);
@@ -2646,6 +2657,133 @@ void hlua_fcn_new_patref(lua_State *L, struct pat_ref *ref)
 
 	/* set public methods */
 	hlua_class_function(L, "get_name", hlua_patref_get_name);
+	hlua_class_function(L, "is_map", hlua_patref_is_map);
+}
+
+int hlua_listable_patref_newindex(lua_State *L) {
+	/* not yet supported */
+	return 0;
+}
+
+/* first arg is the pat_ref
+ * second arg is the required index, in case of duplicate, only the
+ * first matching entry is returned.
+ */
+int hlua_listable_patref_index(lua_State *L)
+{
+	struct pat_ref *ref;
+	const char *key;
+	struct pat_ref_elt *elt;
+
+	ref = hlua_checkudata(L, 1, class_patref_ref);
+	key = luaL_checkstring(L, 2);
+
+	/* Perform pat ref element lookup by key */
+	HA_RWLOCK_WRLOCK(PATREF_LOCK, &ref->lock);
+	elt = pat_ref_find_elt(ref, key);
+	if (elt == NULL) {
+		HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->lock);
+		lua_pushnil(L);
+		return 1;
+	}
+
+	if (elt->sample)
+		lua_pushstring(L, elt->sample);
+	else
+		lua_pushboolean(L, 1); // acl: just push true to tell that the key exists
+	HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->lock);
+
+	return 1;
+}
+
+static int _hlua_listable_patref_pairs_iterator(lua_State *L, int status, lua_KContext ctx)
+{
+	int context_index;
+	struct hlua_patref_iterator_context *hctx;
+	struct pat_ref_elt *elt;
+	int cnt = 0;
+
+	context_index = lua_upvalueindex(1);
+	hctx = lua_touserdata(L, context_index);
+
+	HA_RWLOCK_WRLOCK(PATREF_LOCK, &hctx->ref->lock);
+
+	if (LIST_ISEMPTY(&hctx->bref.users)) {
+		/* first iteration */
+		hctx->bref.ref = hctx->ref->head.n;
+	}
+	else
+		LIST_DEL_INIT(&hctx->bref.users); // drop back ref from previous iteration
+
+ next:
+	/* reached end of list? */
+	if (hctx->bref.ref == &hctx->ref->head) {
+		HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &hctx->ref->lock);
+		lua_pushnil(L);
+		return 1;
+	}
+
+	elt = LIST_ELEM(hctx->bref.ref, struct pat_ref_elt *, list);
+
+	if (elt->gen_id != hctx->ref->curr_gen) {
+		/* check if we may do something to try to prevent thread contention,
+		 * unless we run from body/init state where hlua_yieldk is no-op
+		 */
+		if (cnt > 10000 && hlua_gethlua(L)) {
+			/* let's yield and wait for being called again to continue where we left off */
+			LIST_APPEND(&elt->back_refs, &hctx->bref.users);
+			HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &hctx->ref->lock);
+			hlua_yieldk(L, 0, 0, _hlua_listable_patref_pairs_iterator, TICK_ETERNITY, HLUA_CTRLYIELD); // continue
+			return 0; // not reached
+		}
+
+		hctx->bref.ref = elt->list.n;
+		cnt++;
+		goto next;
+	}
+
+	LIST_APPEND(&elt->back_refs, &hctx->bref.users);
+	HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &hctx->ref->lock);
+
+	hctx->bref.ref = elt->list.n;
+
+	lua_pushstring(L, elt->pattern);
+	if (elt->sample)
+		lua_pushstring(L, elt->sample);
+	else
+		return 1;
+	return 2;
+
+}
+/* iterator must return key as string and value as patref
+ * element value (as string), if we reach end of list, it
+ * returns nil. The context knows the last returned patref's
+ * value. if the context contains patref_elem == NULL, we
+ * start enumeration. We use pat_ref element iterator logic
+ * to iterate through the list.
+ */
+int hlua_listable_patref_pairs_iterator(lua_State *L)
+{
+	return _hlua_listable_patref_pairs_iterator(L, LUA_OK, 0);
+}
+
+/* init the iterator context, return iterator function
+ * with context as closure. The only argument is a
+ * patref list object.
+ */
+int hlua_listable_patref_pairs(lua_State *L)
+{
+	struct hlua_patref_iterator_context *ctx;
+	struct pat_ref *ref;
+
+	ref = hlua_checkudata(L, 1, class_patref_ref);
+
+	ctx = lua_newuserdata(L, sizeof(*ctx));
+	ctx->ref = ref;
+	LIST_INIT(&ctx->bref.users);
+
+	lua_pushcclosure(L, hlua_listable_patref_pairs_iterator, 1);
+	return 1;
 }
 
 void hlua_fcn_reg_core_fcn(lua_State *L)
@@ -2708,6 +2846,9 @@ void hlua_fcn_reg_core_fcn(lua_State *L)
 
 	/* Create patref object. */
 	lua_newtable(L);
+	hlua_class_function(L, "__index", hlua_listable_patref_index);
+	hlua_class_function(L, "__newindex", hlua_listable_patref_newindex);
+	hlua_class_function(L, "__pairs", hlua_listable_patref_pairs);
 	class_patref_ref = hlua_register_metatable(L, CLASS_PATREF);
 
 	/* Create server object. */
