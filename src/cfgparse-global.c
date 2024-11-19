@@ -1633,7 +1633,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "noevports", cfg_parse_global_disable_poller, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "nopoll", cfg_parse_global_disable_poller, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "pidfile", cfg_parse_global_pidfile, KWF_DISCOVERY },
-	{ CFG_GLOBAL, "expose-deprecated-directives", cfg_parse_global_non_std_directives },
+	{ CFG_GLOBAL, "expose-deprecated-directives", cfg_parse_global_non_std_directives, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "expose-experimental-directives", cfg_parse_global_non_std_directives },
 	{ CFG_GLOBAL, "tune.runqueue-depth", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.maxpollevents", cfg_parse_global_tune_opts },
