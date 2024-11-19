@@ -375,11 +375,11 @@ static inline void task_set_thread(struct task *t, int thr)
  * purposes.
  */
 #define tasklet_wakeup_on(tl, thr) \
-	_tasklet_wakeup_on(tl, thr, MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP, 0, 0))
+	_tasklet_wakeup_on(tl, thr, 0, MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP, 0, 0))
 
-static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const struct ha_caller *caller)
+static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, uint f, const struct ha_caller *caller)
 {
-	unsigned int state = tl->state;
+	unsigned int state = _HA_ATOMIC_OR_FETCH(&tl->state, f);
 
 	do {
 		/* do nothing if someone else already added it */
@@ -407,7 +407,7 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const struct 
  * task for tracing purposes.
  */
 #define tasklet_wakeup(tl) \
-	_tasklet_wakeup_on(tl, (tl)->tid, MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP, 0, 0))
+	_tasklet_wakeup_on(tl, (tl)->tid, 0, MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP, 0, 0))
 
 /* instantly wakes up task <t> on its owner thread even if it's not the current
  * one, bypassing the run queue. The purpose is to be able to avoid contention
@@ -468,12 +468,12 @@ static inline void _task_instant_wakeup(struct task *t, unsigned int f, const st
  * for tracing purposes.
  */
 #define tasklet_wakeup_after(head, tl) \
-	_tasklet_wakeup_after(head, tl, MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP_AFTER, 0, 0))
+	_tasklet_wakeup_after(head, tl, 0, MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP_AFTER, 0, 0))
 
 static inline struct list *_tasklet_wakeup_after(struct list *head, struct tasklet *tl,
-                                                 const struct ha_caller *caller)
+                                                 uint f, const struct ha_caller *caller)
 {
-	unsigned int state = tl->state;
+	unsigned int state = _HA_ATOMIC_OR_FETCH(&tl->state, f);
 
 	do {
 		/* do nothing if someone else already added it */
