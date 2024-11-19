@@ -119,21 +119,35 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 	}
 
 	if (*arg++ == '(') {
-		unsigned long cwnd;
 		char *end_opt;
 
-		cwnd = parse_window_size(args[cur_arg], arg, &end_opt, err);
-		if (!cwnd)
-			goto fail;
+		if (*arg == ')')
+			goto out;
 
-		if (*end_opt != ')') {
-			memprintf(err, "'%s' : expects %s(<max window>)", args[cur_arg + 1], algo);
-			goto fail;
+		if (*arg != ',') {
+			unsigned long cwnd = parse_window_size(args[cur_arg], arg, &end_opt, err);
+			if (!cwnd)
+				goto fail;
+
+			conf->max_cwnd = cwnd;
+
+			if (*end_opt == ')') {
+				goto out;
+			}
+			else if (*end_opt != ',') {
+				memprintf(err, "'%s' : cannot parse max-window argument for '%s' algorithm", args[cur_arg], algo);
+				goto fail;
+			}
+			arg = end_opt;
 		}
 
-		conf->max_cwnd = cwnd;
+		if (*++arg != ')') {
+			memprintf(err, "'%s' : too many argument for '%s' algorithm", args[cur_arg], algo);
+			goto fail;
+		}
 	}
 
+ out:
 	conf->quic_cc_algo = cc_algo;
 	return 0;
 

@@ -17035,15 +17035,19 @@ proto <name>
   instance, it is possible to force the http/2 on clear TCP by specifying "proto
   h2" on the bind line.
 
-quic-cc-algo { cubic | newreno | nocc }
-quic-cc-algo { cubic | newreno | nocc }(<max_window>)
+quic-cc-algo { cubic | newreno | nocc }[(<args,...>)]
   This is a QUIC specific setting to select the congestion control algorithm
   for any connection attempts to the configured QUIC listeners. They are similar
-  to those used by TCP. An optional value in bytes may be used to specify the
-  maximum window size. It must be greater than 10k and smaller than 4g.
+  to those used by TCP.
 
   Default value: cubic
-  Default window value: "tune.quic.frontend.default-max-window-size"
+
+  For further customization, a list of parameters can be specified after the
+  algorithm token. It must be written between parenthesis, separated by a comma
+  operator. Each argument is optional and can be empty if needed. Here is the
+  mandatory order of each parameters :
+  - maximum window size in bytes. It must be greater than 10k and smaller than
+    4g. By default "tune.quic.frontend.default-max-window-size" value is used.
 
   Example:
       # newreno congestion control algorithm
