@@ -2780,7 +2780,8 @@ const char *parse_time_err(const char *text, unsigned *ret, unsigned unit_flags)
  * stored in <ret>. If an error is detected, the pointer to the unexpected
  * character is returned. If the conversion is successful, NULL is returned.
  */
-const char *parse_size_err(const char *text, unsigned *ret) {
+const char *parse_size_ui(const char *text, unsigned *ret)
+{
 	unsigned value = 0;
 
 	if (!isdigit((unsigned char)*text))
@@ -2821,6 +2822,76 @@ const char *parse_size_err(const char *text, unsigned *ret) {
 		if (value > ~0U >> 30)
 			return text;
 		value = value << 30;
+		break;
+	default:
+		return text;
+	}
+
+	if (*text != '\0' && *++text != '\0')
+		return text;
+
+	*ret = value;
+	return NULL;
+}
+
+/* this function converts the string starting at <text> to an ullong stored in
+ * <ret>. If an error is detected, the pointer to the unexpected character is
+ * returned. If the conversion is successful, NULL is returned.
+ */
+const char *parse_size_ull(const char *text, ullong *ret)
+{
+	ullong value = 0;
+
+	if (!isdigit((unsigned char)*text))
+		return text;
+
+	while (1) {
+		unsigned int j;
+
+		j = *text - '0';
+		if (j > 9)
+			break;
+		if (value > ~0ULL / 10)
+			return text;
+		value *= 10;
+		if (value > (value + j))
+			return text;
+		value += j;
+		text++;
+	}
+
+	switch (*text) {
+	case '\0':
+		break;
+	case 'K':
+	case 'k':
+		if (value > ~0ULL >> 10)
+			return text;
+		value = value << 10;
+		break;
+	case 'M':
+	case 'm':
+		if (value > ~0ULL >> 20)
+			return text;
+		value = value << 20;
+		break;
+	case 'G':
+	case 'g':
+		if (value > ~0ULL >> 30)
+			return text;
+		value = value << 30;
+		break;
+	case 'T':
+	case 't':
+		if (value > ~0ULL >> 40)
+			return text;
+		value = value << 40;
+		break;
+	case 'P':
+	case 'p':
+		if (value > ~0ULL >> 50)
+			return text;
+		value = value << 50;
 		break;
 	default:
 		return text;

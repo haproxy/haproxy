@@ -642,7 +642,26 @@ extern time_t my_timegm(const struct tm *tm);
  * <ret> is left untouched.
  */
 extern const char *parse_time_err(const char *text, unsigned *ret, unsigned unit_flags);
-extern const char *parse_size_err(const char *text, unsigned *ret);
+extern const char *parse_size_ui(const char *text, unsigned *ret);
+extern const char *parse_size_ull(const char *text, ullong *ret);
+
+/* Parse a size from <_test> into <_ret> which must be compatible with a
+ * uint or ullong. The return value is a pointer to the first unparsable
+ * character (if any) or NULL if everything's OK.
+ */
+#define parse_size_err(_text, _ret) ({			\
+	const char *_err;				\
+	if (sizeof(*(_ret)) > sizeof(int)) {		\
+		unsigned long long _tmp;		\
+		_err = parse_size_ull(_text, &_tmp);	\
+		*_ret = _tmp;				\
+	} else {					\
+		unsigned int _tmp;			\
+		_err = parse_size_ui(_text, &_tmp);	\
+		*_ret = _tmp;				\
+	}						\
+	_err;						\
+})
 
 /*
  * Parse binary string written in hexadecimal (source) and store the decoded
