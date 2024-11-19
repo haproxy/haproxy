@@ -1664,7 +1664,7 @@ static void stream_cond_update_cpu_usage(struct stream *s)
 	if (likely(!th_ctx->sched_wake_date))
 		return;
 
-	cpu = (uint32_t)now_mono_time() - th_ctx->sched_call_date;
+	cpu = now_mono_time() - th_ctx->sched_call_date;
 	s->cpu_time += cpu;
 	HA_ATOMIC_ADD(&th_ctx->sched_profile_entry->cpu_time, cpu);
 	th_ctx->sched_wake_date = 0;

@@ -154,9 +154,7 @@ struct thread_ctx {
 	uint emergency_bufs_left;           /* number of emergency buffers left in magic_bufs[] */
 
 	uint32_t sched_wake_date;           /* current task/tasklet's wake date in 32-bit ns or 0 if not supported */
-	uint32_t sched_call_date;           /* current task/tasklet's call date in 32-bit ns */
-
-	// 4 bytes hole here
+	uint64_t sched_call_date;           /* current task/tasklet's call date in ns */
 
 	uint64_t prev_mono_time;            /* previous system wide monotonic time (leaving poll) */
 	uint64_t curr_mono_time;            /* latest system wide monotonic time (leaving poll) */
