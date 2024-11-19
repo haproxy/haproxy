@@ -12,4 +12,5 @@ int quic_pacing_expired(const struct quic_pacer *pacer)
 void quic_pacing_sent_done(struct quic_pacer *pacer, int sent)
 {
 	pacer->next = now_mono_time() + pacer->cc->algo->pacing_rate(pacer->cc) * sent;
+	pacer->last_sent = sent;
 }

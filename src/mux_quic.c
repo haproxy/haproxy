@@ -2443,6 +2443,7 @@ static int qcc_io_send(struct qcc *qcc)
 		/* qcc_send_frames cannot return 1 if pacing not used. */
 		BUG_ON(!qcc_is_pacing_active(qcc->conn));
 		qcc_wakeup_pacing(qcc);
+		++qcc->tx.paced_sent_ctr;
 	}
 	else if (!LIST_ISEMPTY(&qcc->tx.frms)) {
 		/* Deallocate frames that the transport layer has rejected. */
@@ -2799,17 +2800,22 @@ static void qcc_purge_sending(struct qcc *qcc)
 	struct quic_pacer *pacer = &qcc->tx.pacer;
 	struct list *frms = &qcc->tx.frms;
 	enum quic_tx_err ret = QUIC_TX_ERR_PACING;
+	int sent = 0;
 
 	/* This function is reserved for pacing usage. */
 	BUG_ON(!qcc_is_pacing_active(qcc->conn));
 
 	/* Only restart emission if pacing delay is reached. */
-	if (quic_pacing_expired(pacer))
+	if (quic_pacing_expired(pacer)) {
 		ret = qc_send_mux(qcc->conn->handle.qc, frms, pacer);
+		sent = 1;
+	}
 
 	if (ret == QUIC_TX_ERR_PACING) {
 		BUG_ON(LIST_ISEMPTY(frms));
 		qcc_wakeup_pacing(qcc);
+		if (sent)
+			++qcc->tx.paced_sent_ctr;
 	}
 	else if (ret == QUIC_TX_ERR_FATAL) {
 		TRACE_DEVEL("error on sending", QMUX_EV_QCC_SEND, qcc->conn);
@@ -2960,8 +2966,10 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 
 	qcc->tx.buf_in_flight = 0;
 
-	if (qcc_is_pacing_active(conn))
+	if (qcc_is_pacing_active(conn)) {
 		quic_pacing_init(&qcc->tx.pacer, &conn->handle.qc->path->cc);
+		qcc->tx.paced_sent_ctr = 0;
+	}
 
 	if (conn_is_back(conn)) {
 		qcc->next_bidi_l    = 0x00;
@@ -3593,6 +3601,12 @@ void qcc_show_quic(struct qcc *qcc)
 	chunk_appendf(&trash, "  qcc=0x%p flags=0x%x sc=%llu hreq=%llu bwnd=%llu/%llu\n",
 	              qcc, qcc->flags, (ullong)qcc->nb_sc, (ullong)qcc->nb_hreq,
 	              (ullong)qcc->tx.buf_in_flight, (ullong)qc->path->cwnd);
+
+	if (qcc_is_pacing_active(qcc->conn)) {
+		chunk_appendf(&trash, "  pacing int_sent=%d last_sent=%d\n",
+		              qcc->tx.paced_sent_ctr,
+		              qcc->tx.pacer.last_sent);
+	}
 
 	node = eb64_first(&qcc->streams_by_id);
 	while (node) {

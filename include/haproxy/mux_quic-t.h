@@ -71,6 +71,7 @@ struct qcc {
 		uint64_t buf_in_flight; /* sum of currently allocated Tx buffer sizes */
 		struct list frms; /* list of STREAM frames ready for sent */
 		struct quic_pacer pacer; /* engine used to pace emission */
+		int paced_sent_ctr; /* counter for when emission is interrupted due to pacing */
 	} tx;
 
 	uint64_t largest_bidi_r; /* largest remote bidi stream ID opened. */
