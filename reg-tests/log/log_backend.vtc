@@ -37,7 +37,7 @@ syslog Slg24 -level info {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /backup HTTP/1.1\""
 } -repeat 1 -start
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
 	defaults
 		mode http
 		option httplog

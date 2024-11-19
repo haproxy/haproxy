@@ -56,7 +56,7 @@ server s37 {} -start
 server s38 {} -start
 server s39 {} -start
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
     defaults
         timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
         timeout server "${HAPROXY_TEST_TIMEOUT-5s}"

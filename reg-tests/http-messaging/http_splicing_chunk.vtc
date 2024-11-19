@@ -26,7 +26,7 @@ server s1 {
     chunkedlen 0
 } -start
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
     global
         log stderr len 4096 local0 debug
 

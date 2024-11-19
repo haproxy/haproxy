@@ -21,7 +21,7 @@ server s4 {
     txresp -hdr "Server: s4"
 } -repeat 2 -start
 
-haproxy h1 -arg "-L A" -arg '-dW' -conf {
+haproxy h1 -arg "-L A" -conf {
     defaults
         mode http
         timeout server "${HAPROXY_TEST_TIMEOUT-5s}"

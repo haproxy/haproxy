@@ -47,7 +47,7 @@ server s2 {
 
 # haproxy instance used as a server
 # generate a http/1.1 websocket response with the valid key
-haproxy hap_srv -arg '-dW' -conf {
+haproxy hap_srv -conf {
 	defaults
 	mode http
 	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -69,7 +69,7 @@ haproxy hap_srv -arg '-dW' -conf {
 
 # haproxy instance used as a server
 # generate a http/1.1 websocket response with an invalid key
-haproxy hap_srv_bad_key -arg '-dW' -conf {
+haproxy hap_srv_bad_key -conf {
 	defaults
 	mode http
 	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -89,7 +89,7 @@ haproxy hap_srv_bad_key -arg '-dW' -conf {
 	http-after-response set-status 101 if { status eq 200 }
 } -start
 
-haproxy hap -arg '-dW' -conf {
+haproxy hap -conf {
 	defaults
 	mode http
 	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"

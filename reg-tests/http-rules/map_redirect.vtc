@@ -31,7 +31,7 @@ server s4 {
    txresp -body "test1 after del map ok"
 } -start
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
   defaults
     mode http
     log global

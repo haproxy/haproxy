@@ -5,7 +5,7 @@ feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.6-dev0)'"
 
 feature ignore_unknown_macro
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
     global
         # WT: limit false-positives causing "HTTP header incomplete" due to
         # idle server connections being randomly used and randomly expiring

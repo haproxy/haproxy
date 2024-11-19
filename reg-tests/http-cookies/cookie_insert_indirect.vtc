@@ -21,7 +21,7 @@ server s1 {
     txresp -hdr "Cookie: SRVID=S1"
 } -start
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
 	global
         log ${S1_addr}:${S1_port} len 2048 local0 debug err
 

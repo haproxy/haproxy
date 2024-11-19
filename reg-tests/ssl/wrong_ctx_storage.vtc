@@ -22,7 +22,7 @@ varnishtest "OpenSSL bug: Random crashes"
 feature ignore_unknown_macro
 
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
   global
   .if !ssllib_name_startswith(AWS-LC)
     tune.ssl.default-dh-param 2048

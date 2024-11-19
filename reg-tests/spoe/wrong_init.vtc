@@ -11,7 +11,7 @@ varnishtest "SPOE bug: missing configuration file"
 
 feature ignore_unknown_macro
 
-haproxy h1 -arg '-dW' -conf-BAD {} {
+haproxy h1 -conf-BAD {} {
 	defaults
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
         timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"

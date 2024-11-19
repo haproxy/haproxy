@@ -24,7 +24,7 @@ server s5 {
 } -start
 
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
     global
 	http-err-codes  220 +300-499 -300-399  # only 220, 400-499 remain
 	http-fail-codes -550-580 +555,599,556-566

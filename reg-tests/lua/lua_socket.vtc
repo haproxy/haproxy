@@ -8,7 +8,7 @@ server s1 {
     txresp -bodylen 20
 } -start
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
     global
         lua-load ${testdir}/lua_socket.lua
 

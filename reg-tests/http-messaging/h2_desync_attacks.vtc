@@ -13,7 +13,7 @@ server s1 {
 } -start
 
 # haproxy frontend
-haproxy hap -arg '-dW' -conf {
+haproxy hap -conf {
 	defaults
 		timeout client 30s
 		timeout server 30s

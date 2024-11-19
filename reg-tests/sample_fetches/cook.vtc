@@ -9,7 +9,7 @@ server s1 {
     txresp
 } -start
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
     defaults
 	timeout client 30s
 	timeout server 30s
@@ -51,7 +51,7 @@ server s2 {
     txresp -hdr "Set-Cookie: cook1=0; cook2=123; cook3=22"
 } -start
 
-haproxy h2 -arg '-dW' -conf {
+haproxy h2 -conf {
     defaults
 	timeout client 30s
 	timeout server 30s
@@ -83,7 +83,7 @@ server s3 {
     txresp
 } -start
 
-haproxy h3 -arg '-dW' -conf {
+haproxy h3 -conf {
     defaults
 	timeout client 30s
 	timeout server 30s
@@ -118,7 +118,7 @@ server s4 {
            -hdr "Set-Cookie: cook4=1; cook5=2; cook6=3"
 } -start
 
-haproxy h4 -arg '-dW' -conf {
+haproxy h4 -conf {
     defaults
 	timeout client 30s
 	timeout server 30s

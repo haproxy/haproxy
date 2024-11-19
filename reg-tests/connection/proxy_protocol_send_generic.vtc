@@ -2,7 +2,7 @@ varnishtest "Check that generic TLV IDs are sent properly"
 
 feature ignore_unknown_macro
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
     defaults
         mode http
         log global
@@ -41,7 +41,7 @@ client c1 -connect ${h1_feS_sock} {
 } -run
 
 # Ensure that we achieve the same via a default-server.
-haproxy h2 -arg '-dW' -conf {
+haproxy h2 -conf {
     defaults
         mode http
         log global

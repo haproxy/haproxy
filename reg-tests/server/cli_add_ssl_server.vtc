@@ -23,7 +23,7 @@ syslog S1 -level notice {
 	expect ~ "Health check for server li-ssl/s3 succeeded."
 } -start
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
 	global
 		stats socket "${tmpdir}/h1/stats" level admin
 

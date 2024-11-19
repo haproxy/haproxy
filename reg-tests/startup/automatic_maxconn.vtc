@@ -18,7 +18,7 @@ server s1 {
 } -start
 
 
-haproxy h1 -arg "-m 1024" -arg '-dW' -conf {
+haproxy h1 -arg "-m 1024" -conf {
 } -start
 
 haproxy h1 -cli {
@@ -26,7 +26,7 @@ haproxy h1 -cli {
 	expect ~ ".*Maxconn: (29000|28000)\n.*"
 }
 
-haproxy h2 -arg "-m 384" -arg '-dW' -conf {
+haproxy h2 -arg "-m 384" -conf {
 } -start
 
 haproxy h2 -cli {
@@ -34,7 +34,7 @@ haproxy h2 -cli {
 	expect ~ ".*Maxconn: (11000|10000)\n.*"
 }
 
-haproxy h3 -arg "-m 256" -arg '-dW' -conf {
+haproxy h3 -arg "-m 256" -conf {
 } -start
 
 haproxy h3 -cli {
@@ -44,7 +44,7 @@ haproxy h3 -cli {
 
 # 1 SSL front but no back
 
-haproxy h4 -arg "-m 256" -arg '-dW' -conf {
+haproxy h4 -arg "-m 256" -conf {
 	defaults
 		mode http
 		timeout connect 1s
@@ -63,7 +63,7 @@ haproxy h4 -cli {
 
 # 1 SSL back but not front
 
-haproxy h5 -arg "-m 256" -arg '-dW' -conf {
+haproxy h5 -arg "-m 256" -conf {
 	defaults
 		mode http
 		timeout connect 1s
@@ -84,7 +84,7 @@ haproxy h5 -cli {
 
 # 1 SSL front and 1 back
 
-haproxy h6 -arg "-m 256" -arg '-dW' -conf {
+haproxy h6 -arg "-m 256" -conf {
 	defaults
 		mode http
 		timeout connect 1s

@@ -5,7 +5,7 @@ feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.9-dev0)'"
 
 barrier b1 cond 2
 
-haproxy h_edge -arg '-dW' -conf {
+haproxy h_edge -conf {
 global
 	expose-experimental-directives
 

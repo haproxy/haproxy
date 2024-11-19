@@ -1,7 +1,7 @@
 varnishtest "Tests for fetching PROXY protocol v2 TLVs"
 feature ignore_unknown_macro
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
     defaults
         mode http
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"

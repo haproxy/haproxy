@@ -32,7 +32,7 @@ syslog S1 -level notice {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* fe1~ be1/srv1 .* 200 [[:digit:]]+ - - ---- .* \"OPTIONS \\* HTTP/1.1\""
 } -start
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
     global
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
@@ -83,7 +83,7 @@ syslog S6 -level notice {
     expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Health check for server be6/srv3 succeeded, reason: Layer7 check passed.+code: 200.+check duration: [[:digit:]]+ms, status: 1/1 UP."
 } -start
 
-haproxy h2 -arg '-dW' -conf {
+haproxy h2 -conf {
     global
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048

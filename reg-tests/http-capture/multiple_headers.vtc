@@ -38,7 +38,7 @@ server s {
            -bodylen 16384
 } -start
 
-haproxy h -arg '-dW' -conf {
+haproxy h -conf {
     defaults
         mode http
         timeout client "${HAPROXY_TEST_TIMEOUT-5s}"

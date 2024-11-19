@@ -3,7 +3,7 @@ varnishtest "Lua: set_var"
 
 feature ignore_unknown_macro
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
     global
         # WT: limit false-positives causing "HTTP header incomplete" due to
         # idle server connections being randomly used and randomly expiring

@@ -45,7 +45,7 @@ feature ignore_unknown_macro
 # This test will only be the most basic one where we check that ocsp response
 # loading still works as expected.
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
     global
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
@@ -115,7 +115,7 @@ syslog Syslog_ocsp -level notice {
     barrier b2 sync
 } -start
 
-haproxy h2 -arg '-dW' -conf {
+haproxy h2 -conf {
     global
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
@@ -184,7 +184,7 @@ syslog Syslog_ocsp3 -level notice {
     barrier b3 sync
 } -start
 
-haproxy h3 -arg '-dW' -conf {
+haproxy h3 -conf {
     global
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
@@ -258,7 +258,7 @@ syslog Syslog_ocsp4 -level notice {
     barrier b4 sync
 } -start
 
-haproxy h4 -arg '-dW' -conf {
+haproxy h4 -conf {
     global
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
@@ -374,7 +374,7 @@ syslog Syslog_ocsp5 -level notice {
     barrier b5 sync
 } -start
 
-haproxy h5 -arg '-dW' -conf {
+haproxy h5 -conf {
     global
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
@@ -458,7 +458,7 @@ syslog Syslog_ocsp6 -level notice {
     barrier b6 sync
 } -start
 
-haproxy h6 -arg '-dW' -conf {
+haproxy h6 -conf {
     global
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
@@ -536,7 +536,7 @@ syslog Syslog_ocsp7 -level notice {
     barrier b7 sync
 } -start
 
-haproxy h7 -arg '-dW' -conf {
+haproxy h7 -conf {
     global
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
@@ -601,7 +601,7 @@ process p7 -wait
 # instance is removed (via del ssl crt-list).
 #
 
-haproxy h8 -arg '-dW' -conf {
+haproxy h8 -conf {
     global
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
@@ -697,7 +697,7 @@ syslog Syslog_ocsp9 -level notice {
 } -start
 
 
-haproxy h9 -arg '-dW' -conf {
+haproxy h9 -conf {
     global
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048

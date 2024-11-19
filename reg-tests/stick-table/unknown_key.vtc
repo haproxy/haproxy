@@ -10,7 +10,7 @@ server s0 {
 	txresp
 } -start
 
-haproxy h0 -arg '-dW' -conf {
+haproxy h0 -conf {
 	defaults
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
 		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"

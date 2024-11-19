@@ -54,7 +54,7 @@ syslog Slog9 -level info {
     expect ~ "^.*timeout: 5000 3000.*$"
 } -start
 
-haproxy hap -arg '-dW' -conf {
+haproxy hap -conf {
     defaults
         timeout connect 5s
         timeout client 5s

@@ -17,7 +17,7 @@ server s1 -repeat 3 {
 	  -body "resp from s1"
 } -start
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
 	global
 		stats socket "${tmpdir}/h1/stats" level admin
 

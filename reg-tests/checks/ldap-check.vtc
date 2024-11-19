@@ -49,7 +49,7 @@ syslog S4 -level notice {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv succeeded, reason: Layer7 check passed.+info: \"Success\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
 } -start
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
     defaults
         mode tcp
         timeout client "${HAPROXY_TEST_TIMEOUT-5s}"

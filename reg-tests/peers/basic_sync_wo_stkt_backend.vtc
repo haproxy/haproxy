@@ -3,7 +3,7 @@ feature ignore_unknown_macro
 
 #REGTEST_TYPE=slow
 
-haproxy h1 -arg "-L A" -arg '-dW' -conf {
+haproxy h1 -arg "-L A" -conf {
     defaults
         timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -24,7 +24,7 @@ haproxy h1 -arg "-L A" -arg '-dW' -conf {
         tcp-request content sc-inc-gpc0(0)
 }
 
-haproxy h2 -arg "-L B" -arg '-dW' -conf {
+haproxy h2 -arg "-L B" -conf {
     defaults
         mode http
         timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -44,7 +44,7 @@ haproxy h2 -arg "-L B" -arg '-dW' -conf {
         http-request sc-inc-gpc0(0)
 }
 
-haproxy h3 -arg "-L C" -arg '-dW' -conf {
+haproxy h3 -arg "-L C" -conf {
     defaults
         mode http
         timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"

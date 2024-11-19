@@ -4,7 +4,7 @@ varnishtest "Check that the unique ID TLV is properly sent for servers with ALPN
 
 feature ignore_unknown_macro
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
     defaults
 	timeout client 30s
 	timeout server 30s

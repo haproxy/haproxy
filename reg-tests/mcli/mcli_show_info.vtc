@@ -6,7 +6,7 @@ feature ignore_unknown_macro
 server s1 {
 } -start
 
-haproxy h1 -W -S -arg '-dW' -conf {
+haproxy h1 -W -S -conf {
     defaults
         mode http
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"

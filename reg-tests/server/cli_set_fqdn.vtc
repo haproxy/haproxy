@@ -9,7 +9,7 @@ feature ignore_unknown_macro
 server s1 {
 } -start
 
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
     defaults
         mode http
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -24,7 +24,7 @@ haproxy h1 -arg '-dW' -conf {
         server www1 ${s1_addr}:${s1_port}
 } -start
 
-haproxy h2 -arg '-dW' -conf {
+haproxy h2 -conf {
     defaults
         mode http
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"

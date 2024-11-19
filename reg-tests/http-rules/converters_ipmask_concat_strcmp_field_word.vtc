@@ -72,7 +72,7 @@ server s2 {
 
 
 # ipmask,hdr_ip tests with accept-proxy bind
-haproxy h1 -arg '-dW' -conf {
+haproxy h1 -conf {
   defaults
     mode http
     timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -131,7 +131,7 @@ haproxy h1 -arg '-dW' -conf {
 } -start
 
 # concat,strcmp,word,field haproxy
-haproxy h2 -arg '-dW' -conf {
+haproxy h2 -conf {
   defaults
     mode http
     timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"

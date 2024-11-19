@@ -32,7 +32,7 @@ server s2 {
     txresp -hdr "Server: s2"
 } -repeat 8 -start
 
-haproxy h1 -arg "-L A" -arg '-dW' -conf {
+haproxy h1 -arg "-L A" -conf {
     defaults
         mode http
         timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -73,7 +73,7 @@ haproxy h1 -arg "-L A" -arg '-dW' -conf {
         bind "fd@${fe}"
 }
 
-haproxy h2 -arg "-L B" -arg '-dW' -conf {
+haproxy h2 -arg "-L B" -conf {
     defaults
         mode http
         timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
