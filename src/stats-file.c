@@ -279,13 +279,13 @@ static int parse_stat_line(struct ist line,
 
 		if (domain == STFILE_DOMAIN_PX_FE) {
 			if (!(px->cap & PR_CAP_FE))
-				goto err;
+				return 0; /* silently ignored fe/be mismatch */
 			base_off = (char *)&px->fe_counters;
 			off = 0;
 		}
 		else if (domain == STFILE_DOMAIN_PX_BE) {
 			if (!(px->cap & PR_CAP_BE))
-				goto err;
+				return 0; /* silently ignored fe/be mismatch */
 			base_off = (char *)&px->be_counters;
 			off = 1;
 		}
