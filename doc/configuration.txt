@@ -21749,6 +21749,7 @@ txn.id32                                           integer
 txn.sess_term_state                                string
 uuid([<version>])                                  string
 var(<var-name>[,<default>])                        undefined
+wait_end                                           boolean
 waiting_entity                                     string
 -------------------------------------------------+-------------
 
@@ -22258,6 +22259,29 @@ var(<var-name>[,<default>]) : undefined
   sample fetch fails, unless a default value is provided, in which case it will
   return it as a string. Empty strings are permitted. See section 2.8 about
   variables for details.
+
+wait_end : boolean
+  This fetch either returns true when the inspection period is over, or does
+  not fetch. It is only used in ACLs, in conjunction with content analysis to
+  avoid returning a wrong verdict early. It may also be used to delay some
+  actions, such as a delayed reject for some special addresses. Since it either
+  stops the rules evaluation or immediately returns true, it is recommended to
+  use this acl as the last one in a rule. Please note that the default ACL
+  "WAIT_END" is always usable without prior declaration. This test was designed
+  to be used with TCP request content inspection.
+
+  Examples :
+     # delay every incoming request by 2 seconds
+     tcp-request inspect-delay 2s
+     tcp-request content accept if WAIT_END
+
+     # don't immediately tell bad guys they are rejected
+     tcp-request inspect-delay 10s
+     acl goodguys src 10.0.0.0/24
+     acl badguys  src 10.0.1.0/24
+     tcp-request content accept if goodguys
+     tcp-request content reject if badguys WAIT_END
+     tcp-request content reject
 
 waiting_entity : string
   This returns the identity of the entity that was waiting to continue its
@@ -24682,7 +24706,6 @@ res.payload(<offset>,<length>)                        binary
 res.payload_lv(<offset1>,<length>[,<offset2>])        binary
 res.ssl_hello_type                                    integer
 rep_ssl_hello_type                                    integer
-wait_end                                              boolean
 ----------------------------------------------------+-------------
 
 Detailed list:
@@ -25016,29 +25039,6 @@ rep_ssl_hello_type : integer (deprecated)
   SSL data layer, so this will not work with "server" lines having the "ssl"
   option. This is mostly used in ACL to detect presence of an SSL hello message
   that is supposed to contain an SSL session ID usable for stickiness.
-
-wait_end : boolean
-  This fetch either returns true when the inspection period is over, or does
-  not fetch. It is only used in ACLs, in conjunction with content analysis to
-  avoid returning a wrong verdict early. It may also be used to delay some
-  actions, such as a delayed reject for some special addresses. Since it either
-  stops the rules evaluation or immediately returns true, it is recommended to
-  use this acl as the last one in a rule. Please note that the default ACL
-  "WAIT_END" is always usable without prior declaration. This test was designed
-  to be used with TCP request content inspection.
-
-  Examples :
-     # delay every incoming request by 2 seconds
-     tcp-request inspect-delay 2s
-     tcp-request content accept if WAIT_END
-
-     # don't immediately tell bad guys they are rejected
-     tcp-request inspect-delay 10s
-     acl goodguys src 10.0.0.0/24
-     acl badguys  src 10.0.1.0/24
-     tcp-request content accept if goodguys
-     tcp-request content reject if badguys WAIT_END
-     tcp-request content reject
 
 
 7.3.6. Fetching HTTP samples (Layer 7)
