@@ -9,6 +9,8 @@ server s1 {
 } -start
 
 haproxy h1 -W -S -conf {
+    global
+        expose-deprecated-directives
     defaults
         mode http
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"

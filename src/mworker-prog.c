@@ -194,9 +194,15 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 			goto error;
 		}
 
-		ha_warning("parsing [%s:%d]: The '%s' section is deprecated and will eventually be removed, please consider "
-		           "using a process manager instead, such as sysvinit, systemd, supervisord or s6\n",
-		           file, linenum, args[0]);
+		if (!deprecated_directives_allowed) {
+			ha_warning("parsing [%s:%d]: The 'program' section is deprecated and will be eventually removed, "
+			           "it can be still allowed by setting 'expose-deprecated-directives' keyword in the 'global' "
+			           "section defined before any 'program' section. Please, consider to use a process manager instead "
+			           "of 'program' section, such as sysvinit, systemd, supervisord or s6.\n",
+			           file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto error;
+		}
 
 		LIST_APPEND(&proc_list, &ext_child->list);
 
