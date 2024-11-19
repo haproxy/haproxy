@@ -21,7 +21,9 @@ server s1 -repeat 3 {
 
 haproxy h1 -conf {
     global
+    .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
+    .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h1/stats" level admin
         crt-base ${testdir}

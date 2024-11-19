@@ -24,7 +24,9 @@ syslog Slog_1 -repeat 8 -level info {
 
 haproxy h1 -conf {
     global
+    .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
+    .endif
         log ${Slog_1_addr}:${Slog_1_port} len 2048 local0 debug err
 
     defaults

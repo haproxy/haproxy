@@ -47,7 +47,9 @@ feature ignore_unknown_macro
 
 haproxy h1 -conf {
     global
+    .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
+    .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h1/stats" level admin
         crt-base ${testdir}/ocsp_update
@@ -115,7 +117,9 @@ syslog Syslog_ocsp -level notice {
 
 haproxy h2 -conf {
     global
+    .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
+    .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h2/stats" level admin
         crt-base ${testdir}/ocsp_update
@@ -182,7 +186,9 @@ syslog Syslog_ocsp3 -level notice {
 
 haproxy h3 -conf {
     global
+    .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
+    .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h3/stats" level admin
         crt-base ${testdir}/ocsp_update
@@ -254,7 +260,9 @@ syslog Syslog_ocsp4 -level notice {
 
 haproxy h4 -conf {
     global
+    .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
+    .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h4/stats" level admin
         crt-base ${testdir}/ocsp_update
@@ -368,7 +376,9 @@ syslog Syslog_ocsp5 -level notice {
 
 haproxy h5 -conf {
     global
+    .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
+    .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h5/stats" level admin
         crt-base ${testdir}/ocsp_update
@@ -450,7 +460,9 @@ syslog Syslog_ocsp6 -level notice {
 
 haproxy h6 -conf {
     global
+    .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
+    .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h6/stats" level admin
         crt-base ${testdir}
@@ -526,7 +538,9 @@ syslog Syslog_ocsp7 -level notice {
 
 haproxy h7 -conf {
     global
+    .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
+    .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h7/stats" level admin
         crt-base ${testdir}
@@ -589,7 +603,9 @@ process p7 -wait
 
 haproxy h8 -conf {
     global
+    .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
+    .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h8/stats" level admin
         crt-base ${testdir}/ocsp_update
@@ -683,7 +699,9 @@ syslog Syslog_ocsp9 -level notice {
 
 haproxy h9 -conf {
     global
+    .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
+    .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h9/stats" level admin
         crt-base ${testdir}/ocsp_update
