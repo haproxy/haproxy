@@ -12,8 +12,6 @@ haproxy h1 -W -S -conf {
 
   defaults
     mode http
-    log global
-    option httplog
     timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
     timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
     timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"

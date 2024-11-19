@@ -75,8 +75,6 @@ server s2 {
 haproxy h1 -conf {
   defaults
     mode http
-    log global
-    option httplog
     timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
     timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
     timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -136,8 +134,6 @@ haproxy h1 -conf {
 haproxy h2 -conf {
   defaults
     mode http
-    log global
-    option httplog
     timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
     timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
     timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"

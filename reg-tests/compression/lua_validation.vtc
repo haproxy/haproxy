@@ -8,13 +8,10 @@ feature ignore_unknown_macro
 
 haproxy h1 -conf {
 global
-#	log stdout format short daemon
 	lua-load		${testdir}/lua_validation.lua
 
 defaults
 	mode			http
-	log			global
-	option			httplog
 
 frontend main-https
 	bind			"fd@${fe1}" ssl crt ${testdir}/common.pem

@@ -58,12 +58,10 @@ haproxy h1 -conf {
         use_backend be1
 
     frontend fe2
-        option tcplog
         bind "fd@${fe2}" ssl crt ${testdir}/common.pem
         use_backend be2
 
     frontend fe3
-        option httplog
         bind "fd@${fe3}" ssl crt ${testdir}/common.pem
         use_backend be3
 } -start
