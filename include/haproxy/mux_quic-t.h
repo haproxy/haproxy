@@ -232,7 +232,8 @@ static forceinline char *qcc_show_flags(char *buf, size_t len, const char *delim
 	_(QC_CF_ERRL_DONE,
 	_(QC_CF_CONN_FULL,
 	_(QC_CF_APP_SHUT,
-	_(QC_CF_ERR_CONN)))));
+	_(QC_CF_ERR_CONN,
+	_(QC_CF_WAIT_FOR_HS))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
@@ -267,13 +268,14 @@ static forceinline char *qcs_show_flags(char *buf, size_t len, const char *delim
 	_(QC_SF_FIN_STREAM,
 	_(QC_SF_BLK_MROOM,
 	_(QC_SF_DETACH,
+	_(QC_SF_TXBUB_OOB,
 	_(QC_SF_DEM_FULL,
 	_(QC_SF_READ_ABORTED,
 	_(QC_SF_TO_RESET,
 	_(QC_SF_HREQ_RECV,
 	_(QC_SF_TO_STOP_SENDING,
 	_(QC_SF_UNKNOWN_PL_LENGTH,
-	_(QC_SF_RECV_RESET)))))))))));
+	_(QC_SF_RECV_RESET))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
