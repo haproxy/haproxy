@@ -385,6 +385,10 @@ void apply_stats_file(void)
 		if (!istlen(istline))
 			continue;
 
+		/* comment line starts by // */
+		if (istmatch(istline, ist("//")) != 0)
+			continue;
+
 		if (*istptr(istline) == '#') {
 			if (parse_header_line(istline, &st_tree, &domain, cols)) {
 				if (!valid_format) {
