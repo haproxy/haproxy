@@ -2279,6 +2279,7 @@ static int hlua_set_map(lua_State *L)
 	const char *key;
 	const char *value;
 	struct pat_ref *ref;
+	struct pat_ref_elt *elt;
 
 	MAY_LJMP(check_args(L, 3, "set_map"));
 
@@ -2291,8 +2292,9 @@ static int hlua_set_map(lua_State *L)
 		WILL_LJMP(luaL_error(L, "'set_map': unknown map file '%s'", name));
 
 	HA_RWLOCK_WRLOCK(PATREF_LOCK, &ref->lock);
-	if (pat_ref_find_elt(ref, key) != NULL)
-		pat_ref_set(ref, key, value, NULL, NULL);
+	elt = pat_ref_find_elt(ref, key);
+	if (elt)
+		pat_ref_set(ref, key, value, NULL, elt);
 	else
 		pat_ref_add(ref, key, value, NULL);
 	HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->lock);
