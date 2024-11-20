@@ -38,7 +38,7 @@ static const char *common_kw_list[] = {
 	"external-check", "user", "group", "maxconn",
 	"ssl-server-verify", "maxconnrate", "maxsessrate", "maxsslrate",
 	"maxcomprate", "maxpipes", "maxzlibmem", "maxcompcpuusage", "ulimit-n",
-	"chroot", "description", "node", "unix-bind", "log",
+	"description", "node", "unix-bind", "log",
 	"log-send-hostname", "server-state-base", "server-state-file",
 	"log-tag", "spread-checks", "max-spread-checks", "cpu-map",
 	"strict-limits", "localpeer",
@@ -426,21 +426,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		global.rlimit_nofile = atol(args[1]);
-	}
-	else if (strcmp(args[0], "chroot") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.chroot != NULL) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects a directory as an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.chroot = strdup(args[1]);
 	}
 	else if (strcmp(args[0], "description") == 0) {
 		int i, len=0;
@@ -1618,6 +1603,26 @@ static int cfg_parse_tune_renice(char **args, int section_type, struct proxy *cu
 	return 0;
 }
 
+static int cfg_parse_global_chroot(char **args, int section_type, struct proxy *curpx,
+				   const struct proxy *defpx, const char *file, int line,
+				   char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (global.chroot != NULL) {
+		memprintf(err, "'%s' is already specified. Continuing.\n", args[0]);
+		return 1;
+	}
+	if (*(args[1]) == 0) {
+		memprintf(err, "'%s' expects a directory as an argument.\n", args[0]);
+		return -1;
+	}
+	global.chroot = strdup(args[1]);
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "prealloc-fd", cfg_parse_prealloc_fd },
 	{ CFG_GLOBAL, "force-cfg-parser-pause", cfg_parse_global_parser_pause, KWF_EXPERIMENTAL },
@@ -1661,6 +1666,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "unsetenv", cfg_parse_global_env_opts, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "resetenv", cfg_parse_global_env_opts, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "presetenv", cfg_parse_global_env_opts, KWF_DISCOVERY },
+	{ CFG_GLOBAL, "chroot", cfg_parse_global_chroot },
 	{ 0, NULL, NULL },
 }};
 
