@@ -1789,6 +1789,26 @@ int pat_ref_set_elt_duplicate(struct pat_ref *ref, struct pat_ref_elt *elt, cons
 }
 
 /* This function modifies to <value> the sample of all patterns matching <key>
+ * and belonging to <gen_id> under <ref>.
+ */
+int pat_ref_gen_set(struct pat_ref *ref, unsigned int gen_id,
+                    const char *key, const char *value, char **err)
+{
+	struct ebmb_node *node;
+	struct pat_ref_elt *elt;
+
+	/* Look for pattern in the reference. */
+	node = ebst_lookup(&ref->ebmb_root, key);
+	while (node) {
+		elt = ebmb_entry(node, struct pat_ref_elt, node);
+		if (elt->gen_id == gen_id)
+			break;
+		node = ebmb_next_dup(node);
+	}
+	return pat_ref_set_from_node(ref, node, value, err);
+}
+
+/* This function modifies to <value> the sample of all patterns matching <key>
  * under <ref>.
  */
 int pat_ref_set(struct pat_ref *ref, const char *key, const char *value, char **err)
