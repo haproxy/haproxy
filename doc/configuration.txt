@@ -1056,6 +1056,54 @@ expression made of any combination of:
   - expressions combined with a logical OR ('||'), which will be evaluated
     from right to left until one returns true
 
+The same line tokenizer and argument parser are used as for the rest of the
+configuration language. Words are split around consecutive series of one or
+more unquoted spaces or tabs, and are reassembled together using a single space
+to delimit them before evaluation, in order to save the user from having to
+quote the entire line. But this also means that spaces surrounding commas or
+parenthesis are definitely part of the value, which is not always expected.
+For example, the expression below:
+
+   .if defined( HAPROXY_MWORKER )
+
+will test for the existence of variable " HAPROXY_MWORKER " (with spaces),
+and this one:
+
+   .if streq("$ENABLE_SSL",     1)
+
+will compare the environment variable "ENABLE_SSL" to the value " 1" (with a
+single leading space). The reason is the line is first split into words like
+this:
+
+   .if streq("$ENABLE_SSL",     1)
+  |---|--------------------|   |--|
+    1           2               3
+
+then the weak quoting is applied and environment variable "$ENABLE_SSL" is
+resolved (let's say for example that ENABLE_SSL=0), and finally the words are
+reassembled into a single string by placing a single space between the words:
+
+   .if streq(0, 1)
+  |---|-------|--|
+    1     2     3
+
+and only then it is parsed as a single expression. The space that was inserted
+between the comma and "1" is still part of the argument value, making this
+argument " 1":
+
+   .if streq(0, 1)
+  |---|-----|-|--|
+    \    \    \  \_ argument2: " 1"
+     \    \    \___ argument1: "0"
+      \    \_______ function: "streq"
+       \___________ directive: ".if"
+
+It's visible here that even if ENABLE_SSL had been equal to "1", it wouldn't
+have matched " 1" since the string would differ by one space.
+
+Note: as explained in section "2.2. Quoting and escaping", a good rule of thumb
+      is to never insert unneeded spaces inside expressions.
+
 Note that like in other languages, the AND operator has precedence over the OR
 operator, so that "A && B || C && D" evalues as "(A && B) || (C && D)".
 
