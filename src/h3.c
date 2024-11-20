@@ -525,7 +525,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	struct buffer *tmp = get_trash_chunk();
 	struct htx *htx = NULL;
 	struct htx_sl *sl;
-	struct http_hdr list[global.tune.max_http_hdr];
+	struct http_hdr list[global.tune.max_http_hdr * 2];
 	unsigned int flags = HTX_SL_F_NONE;
 	struct ist meth = IST_NULL, path = IST_NULL;
 	struct ist scheme = IST_NULL, authority = IST_NULL;
@@ -898,6 +898,12 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		}
 	}
 
+	/* Check the number of blocks agains "tune.http.maxhdr" value before adding EOH block */
+	if (htx_nbblks(htx) > global.tune.max_http_hdr) {
+		len = -1;
+		goto out;
+	}
+
 	if (!htx_add_endof(htx, HTX_BLK_EOH)) {
 		len = -1;
 		goto out;
@@ -962,7 +968,7 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	struct buffer *appbuf = NULL;
 	struct htx *htx = NULL;
 	struct htx_sl *sl;
-	struct http_hdr list[global.tune.max_http_hdr];
+	struct http_hdr list[global.tune.max_http_hdr * 2];
 	int hdr_idx, ret;
 	const char *ctl;
 	int qpack_err;
@@ -1078,6 +1084,12 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		}
 
 		++hdr_idx;
+	}
+
+	/* Check the number of blocks agains "tune.http.maxhdr" value before adding EOT block */
+	if (htx_nbblks(htx) > global.tune.max_http_hdr) {
+		len = -1;
+		goto out;
 	}
 
 	if (!htx_add_endof(htx, HTX_BLK_EOT)) {
