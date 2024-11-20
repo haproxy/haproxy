@@ -1645,21 +1645,7 @@ int pat_ref_gen_delete(struct pat_ref *ref, unsigned int gen_id, const char *key
  */
 int pat_ref_delete(struct pat_ref *ref, const char *key)
 {
-	struct ebmb_node *node;
-	int found = 0;
-
-	/* delete pattern from reference */
-	node = ebst_lookup(&ref->ebmb_root, key);
-	while (node) {
-		struct pat_ref_elt *elt;
-
-		elt = ebmb_entry(node, struct pat_ref_elt, node);
-		node = ebmb_next_dup(node);
-		pat_ref_delete_by_ptr(ref, elt);
-		found = 1;
-	}
-
-	return found;
+	return pat_ref_gen_delete(ref, ref->curr_gen, key);
 }
 
 /*
@@ -1690,13 +1676,7 @@ struct pat_ref_elt *pat_ref_gen_find_elt(struct pat_ref *ref, unsigned int gen_i
  */
 struct pat_ref_elt *pat_ref_find_elt(struct pat_ref *ref, const char *key)
 {
-	struct ebmb_node *node;
-
-	node = ebst_lookup(&ref->ebmb_root, key);
-	if (node)
-		return ebmb_entry(node, struct pat_ref_elt, node);
-
-	return NULL;
+	return pat_ref_gen_find_elt(ref, ref->curr_gen, key);
 }
 
 
@@ -1870,11 +1850,7 @@ int pat_ref_gen_set(struct pat_ref *ref, unsigned int gen_id,
  */
 int pat_ref_set(struct pat_ref *ref, const char *key, const char *value, char **err)
 {
-	struct ebmb_node *node;
-
-	/* Look for pattern in the reference. */
-	node = ebst_lookup(&ref->ebmb_root, key);
-	return pat_ref_set_from_node(ref, node, value, err);
+	return pat_ref_gen_set(ref, ref->curr_gen, key, value, err);
 }
 
 /* helper function to create and initialize a generic pat_ref struct
