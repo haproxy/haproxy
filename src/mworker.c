@@ -38,12 +38,10 @@
 #include <haproxy/signal.h>
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
+#include <haproxy/systemd.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
 
-#if defined(USE_SYSTEMD)
-#include <haproxy/systemd.h>
-#endif
 
 static int exitcode = -1;
 int max_reloads = INT_MAX; /* max number of reloads a worker can have until they are killed */
@@ -308,11 +306,9 @@ void mworker_catch_sigterm(struct sig_handler *sh)
 {
 	int sig = sh->arg;
 
-#if defined(USE_SYSTEMD)
 	if (global.tune.options & GTUNE_USE_SYSTEMD) {
 		sd_notify(0, "STOPPING=1");
 	}
-#endif
 	ha_warning("Exiting Master process...\n");
 	mworker_kill(sig);
 }

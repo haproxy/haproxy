@@ -59,9 +59,6 @@
 #ifdef DEBUG_FULL
 #include <assert.h>
 #endif
-#if defined(USE_SYSTEMD)
-#include <haproxy/systemd.h>
-#endif
 
 #include <import/sha1.h>
 
@@ -123,6 +120,7 @@
 #include <haproxy/stats-file.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream.h>
+#include <haproxy/systemd.h>
 #include <haproxy/task.h>
 #include <haproxy/thread.h>
 #include <haproxy/time.h>
@@ -619,9 +617,7 @@ static void usage(char *name)
 		"        -V enters verbose mode (disables quiet mode)\n"
 		"        -D goes daemon ; -C changes to <dir> before loading files.\n"
 		"        -W master-worker mode.\n"
-#if defined(USE_SYSTEMD)
 		"        -Ws master-worker mode with systemd notify support.\n"
-#endif
 		"        -q quiet mode : don't display messages\n"
 		"        -c check mode : only check config files and exit\n"
 		"        -cc check condition : evaluate a condition and exit\n"
@@ -868,7 +864,6 @@ void mworker_reload(int hardreload)
 		child->reloads++;
 	}
 
-#if defined(USE_SYSTEMD)
 	if (global.tune.options & GTUNE_USE_SYSTEMD) {
 		struct timespec ts;
 
@@ -880,7 +875,6 @@ void mworker_reload(int hardreload)
 		               "MONOTONIC_USEC=%" PRIu64 "\n",
 		           (ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000ULL));
 	}
-#endif
 	mworker_reexec(hardreload);
 }
 
@@ -938,12 +932,10 @@ void on_new_child_failure()
 	usermsgs_clr(NULL);
 	load_status = 0;
 	ha_warning("Failed to load worker!\n");
-#if defined(USE_SYSTEMD)
 	/* the sd_notify API is not able to send a reload failure signal. So
 	 * the READY=1 signal still need to be sent */
 	if (global.tune.options & GTUNE_USE_SYSTEMD)
 		sd_notify(0, "READY=1\nSTATUS=Reload failed!\n");
-#endif
 }
 
 /*
@@ -1783,12 +1775,7 @@ static void init_args(int argc, char **argv)
 				arg_mode |= MODE_DAEMON;
 			else if (*flag == 'W' && flag[1] == 's') {
 				arg_mode |= MODE_MWORKER | MODE_FOREGROUND;
-#if defined(USE_SYSTEMD)
 				global.tune.options |= GTUNE_USE_SYSTEMD;
-#else
-				ha_alert("master-worker mode with systemd support (-Ws) requested, but not compiled. Use master-worker mode (-W) if you are not using Type=notify in your unit file or recompile with USE_SYSTEMD=1.\n\n");
-				usage(progname);
-#endif
 			}
 			else if (*flag == 'W')
 				arg_mode |= MODE_MWORKER;
@@ -3063,12 +3050,10 @@ static void run_master_in_recovery_mode(int argc, char **argv)
 	list_for_each_entry(proc, &proc_list, list) {
 		proc->failedreloads++;
 	}
-#if defined(USE_SYSTEMD)
 	/* the sd_notify API is not able to send a reload failure signal. So
 	 * the READY=1 signal still need to be sent */
 	if (global.tune.options & GTUNE_USE_SYSTEMD)
 		sd_notify(0, "READY=1\nSTATUS=Reload failed (master failed to load or to parse new configuration)!\n");
-#endif
 
 	global.nbtgroups = 1;
 	global.nbthread = 1;

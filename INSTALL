@@ -465,12 +465,6 @@ are the extra libraries that may be referenced at build time :
                   on Linux. It is automatically detected and may be disabled
                   using "USE_DL=", though it should never harm.
 
-  - USE_SYSTEMD=1 enables support for the sdnotify features of systemd,
-                  allowing better integration with systemd on Linux systems
-                  which come with it. It is never enabled by default so there
-                  is no need to disable it.
-
-
 4.10) Common errors
 -------------------
 Some build errors may happen depending on the options combinations or the

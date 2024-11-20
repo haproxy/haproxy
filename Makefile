@@ -56,7 +56,6 @@
 #   USE_DEVICEATLAS         : enable DeviceAtlas api.
 #   USE_51DEGREES           : enable third party device detection library from 51Degrees
 #   USE_WURFL               : enable WURFL detection library from Scientiamobile
-#   USE_SYSTEMD             : enable sd_notify() support.
 #   USE_OBSOLETE_LINKER     : use when the linker fails to emit __start_init/__stop_init
 #   USE_THREAD_DUMP         : use the more advanced thread state dump system. Automatic.
 #   USE_OT                  : enable the OpenTracing filter
@@ -340,7 +339,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER USE_POLL                        \
            USE_SSL USE_LUA USE_ACCEPT4 USE_CLOSEFROM USE_ZLIB USE_SLZ         \
            USE_CPU_AFFINITY USE_TFO USE_NS USE_DL USE_RT USE_LIBATOMIC        \
            USE_MATH USE_DEVICEATLAS USE_51DEGREES                             \
-           USE_WURFL USE_SYSTEMD USE_OBSOLETE_LINKER USE_PRCTL USE_PROCCTL    \
+           USE_WURFL USE_OBSOLETE_LINKER USE_PRCTL USE_PROCCTL                \
            USE_THREAD_DUMP USE_EVPORTS USE_OT USE_QUIC USE_PROMEX             \
            USE_MEMORY_PROFILING USE_SHM_OPEN                                  \
            USE_STATIC_PCRE USE_STATIC_PCRE2                                   \
@@ -381,7 +380,7 @@ ifeq ($(TARGET),linux-glibc)
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
     USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_LINUX_TPROXY USE_LINUX_CAP      \
     USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL USE_THREAD_DUMP USE_NS USE_TFO     \
-    USE_GETADDRINFO USE_BACKTRACE USE_SHM_OPEN USE_SYSTEMD)
+    USE_GETADDRINFO USE_BACKTRACE USE_SHM_OPEN)
   INSTALL = install -v
 endif
 
@@ -765,10 +764,6 @@ ifneq ($(USE_WURFL:0=),)
   WURFL_LDFLAGS    = $(if $(WURFL_LIB),-L$(WURFL_LIB)) -lwurfl
 endif
 
-ifneq ($(USE_SYSTEMD:0=),)
-  OPTIONS_OBJS    += src/systemd.o
-endif
-
 ifneq ($(USE_PCRE:0=)$(USE_STATIC_PCRE:0=)$(USE_PCRE_JIT:0=),)
   ifneq ($(USE_PCRE2:0=)$(USE_STATIC_PCRE2:0=)$(USE_PCRE2_JIT:0=),)
     $(error cannot compile both PCRE and PCRE2 support)
@@ -988,7 +983,7 @@ OBJS += src/mux_h2.o src/mux_h1.o src/mux_fcgi.o src/stream.o		\
         src/cebub_tree.o src/cebuib_tree.o src/cebuis_tree.o		\
         src/cebul_tree.o src/cebus_tree.o				\
         src/ebtree.o src/dgram.o src/hash.o src/version.o		\
-	 src/limits.o src/mux_spop.o
+	 src/limits.o src/mux_spop.o src/systemd.o
 
 ifneq ($(TRACE),)
   OBJS += src/calltrace.o
