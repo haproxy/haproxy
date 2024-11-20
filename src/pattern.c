@@ -1613,6 +1613,32 @@ int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
 	return 0;
 }
 
+/* This function removes all elements belonging to <gen_id> and matching <key>
+ * from the reference <ref>.
+ * This function returns 1 if the deletion is done and returns 0 if
+ * the entry is not found.
+ */
+int pat_ref_gen_delete(struct pat_ref *ref, unsigned int gen_id, const char *key)
+{
+	struct ebmb_node *node;
+	int found = 0;
+
+	/* delete pattern from reference */
+	node = ebst_lookup(&ref->ebmb_root, key);
+	while (node) {
+		struct pat_ref_elt *elt;
+
+		elt = ebmb_entry(node, struct pat_ref_elt, node);
+		node = ebmb_next_dup(node);
+		if (elt->gen_id != gen_id)
+			continue;
+		pat_ref_delete_by_ptr(ref, elt);
+		found = 1;
+	}
+
+	return found;
+}
+
 /* This function removes all patterns matching <key> from the reference
  * and from each expr member of the reference. This function returns 1
  * if the deletion is done and returns 0 is the entry is not found.

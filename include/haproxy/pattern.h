@@ -194,6 +194,7 @@ int pat_ref_set_elt_duplicate(struct pat_ref *ref, struct pat_ref_elt *elt, cons
 int pat_ref_gen_set(struct pat_ref *ref, unsigned int gen_id, const char *key, const char *value, char **err);
 int pat_ref_set_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt, const char *value, char **err);
 int pat_ref_delete(struct pat_ref *ref, const char *key);
+int pat_ref_gen_delete(struct pat_ref *ref, unsigned int gen_id, const char *key);
 void pat_ref_delete_by_ptr(struct pat_ref *ref, struct pat_ref_elt *elt);
 int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt);
 int pat_ref_prune(struct pat_ref *ref);
