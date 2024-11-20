@@ -3787,15 +3787,22 @@ tune.http.logurilen <number>
   The default value is 1024.
 
 tune.http.maxhdr <number>
-  Sets the maximum number of headers in a request. When a request comes with a
-  number of headers greater than this value (including the first line), it is
-  rejected with a "400 Bad Request" status code. Similarly, too large responses
-  are blocked with "502 Bad Gateway". The default value is 101, which is enough
-  for all usages, considering that the widely deployed Apache server uses the
-  same limit. It can be useful to push this limit further to temporarily allow
-  a buggy application to work by the time it gets fixed. The accepted range is
-  1..32767. Keep in mind that each new header consumes 32bits of memory for
-  each stream, so don't push this limit too high.
+  Sets the maximum number of headers allowed in received HTTP messages. When a
+  message comes with a number of headers greater than this value (including the
+  first line), it is rejected with a "400 Bad Request" status code for a
+  request, or "502 Bad Gateway" for a response. The default value is 101, which
+  is enough for all usages, considering that the widely deployed Apache server
+  uses the same limit. It can be useful to push this limit further to
+  temporarily allow a buggy application to work by the time it gets fixed. The
+  accepted range is 1..32767. Keep in mind that each new header consumes 32bits
+  of memory for each stream, so don't push this limit too high.
+
+  Note that HTTP/1.1 is a text protocol, so there is no special limit when the
+  message is sent. The limit during the message parsing is sufficient. HTTP/2
+  and HTTP/3 are binary protocols and require an encoding step. A limit is set
+  too when headers are encoded to comply to limitation imposed by the
+  protocols. This limit is large enough but not documented on purpose. The same
+  limit is applied on the first steps of the decoding for the same reason.
 
 tune.idle-pool.shared { on | off }
   Enables ('on') or disables ('off') sharing of idle connection pools between
