@@ -808,7 +808,7 @@ static int cli_parse_set_map(char **args, char *payload, struct appctx *appctx, 
 			 */
 			err = NULL;
 			HA_RWLOCK_WRLOCK(PATREF_LOCK, &ctx->ref->lock);
-			if (!pat_ref_set(ctx->ref, args[3], args[4], &err, NULL)) {
+			if (!pat_ref_set(ctx->ref, args[3], args[4], &err)) {
 				HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ctx->ref->lock);
 				if (err)
 					return cli_dynerr(appctx, memprintf(&err, "%s.\n", err));

@@ -1754,21 +1754,10 @@ int pat_ref_set_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt, const cha
 	return 0;
 }
 
-/* This function modifies to <value> the sample of all patterns matching <key>
- * under <ref>.
- */
-int pat_ref_set(struct pat_ref *ref, const char *key, const char *value, char **err, struct pat_ref_elt *elt)
+static int pat_ref_set_from_node(struct pat_ref *ref, struct ebmb_node *node, const char *value, char **err)
 {
+	struct pat_ref_elt *elt;
 	int found = 0;
-	struct ebmb_node *node;
-
-	if (elt) {
-		node = &elt->node;
-	}
-	else {
-		/* Look for pattern in the reference. */
-		node = ebst_lookup(&ref->ebmb_root, key);
-	}
 
 	while (node) {
 		char *tmp_err = NULL;
@@ -1790,6 +1779,25 @@ int pat_ref_set(struct pat_ref *ref, const char *key, const char *value, char **
 		return 0;
 	}
 	return 1;
+}
+
+/* modifies to <value> the sample for <elt> and all its duplicates */
+int pat_ref_set_elt_duplicate(struct pat_ref *ref, struct pat_ref_elt *elt, const char *value,
+                              char **err)
+{
+	return pat_ref_set_from_node(ref, &elt->node, value, err);
+}
+
+/* This function modifies to <value> the sample of all patterns matching <key>
+ * under <ref>.
+ */
+int pat_ref_set(struct pat_ref *ref, const char *key, const char *value, char **err)
+{
+	struct ebmb_node *node;
+
+	/* Look for pattern in the reference. */
+	node = ebst_lookup(&ref->ebmb_root, key);
+	return pat_ref_set_from_node(ref, node, value, err);
 }
 
 /* helper function to create and initialize a generic pat_ref struct

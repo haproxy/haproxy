@@ -1848,7 +1848,7 @@ static enum act_return http_action_set_map(struct act_rule *rule, struct proxy *
 		elt = pat_ref_find_elt(ref, key->area);
 		if (elt) {
 			/* update entry if it exists */
-			pat_ref_set(ref, key->area, value->area, NULL, elt);
+			pat_ref_set_elt_duplicate(ref, elt, value->area, NULL);
 		}
 		else {
 			/* insert a new entry */

@@ -2294,7 +2294,7 @@ static int hlua_set_map(lua_State *L)
 	HA_RWLOCK_WRLOCK(PATREF_LOCK, &ref->lock);
 	elt = pat_ref_find_elt(ref, key);
 	if (elt)
-		pat_ref_set(ref, key, value, NULL, elt);
+		pat_ref_set_elt_duplicate(ref, elt, value, NULL);
 	else
 		pat_ref_add(ref, key, value, NULL);
 	HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->lock);
