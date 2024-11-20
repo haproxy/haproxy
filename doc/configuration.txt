@@ -852,6 +852,26 @@ double quotes inside (so that the double quotes are not stripped again):
                                           arg2 ___________/    /
                                           arg3 _______________/
 
+But in this case it's important to note that delimiters embedded into the
+higher level string remain pure characters and are not delimiters anymore. It
+particularly means that spaces and tabs around commas are part of the string.
+The example below is wrong on multiple points:
+
+    http-request set-path '%[path, regsub("(foo|bar)", blah, g)]'
+    ------------ --------  --------------------------------------
+       word1       word2    word3=%[path, regsub("(foo|bar)", blah, g)]
+                                        |--------|---------||-----|--|
+                       converter=" regsub" _/        /         /   /
+                                    arg1=(foo|bar) _/         /   /
+                                     arg2=" blah" ___________/   /
+                                        arg3=" g" ______________/
+
+The single fact of surrounding commas with spaces resulted in the spaces being
+part of the field itself, hence the converter " regsub" (starting with a
+space), which won't be found and will trigger an error, but more subtly, the
+replacement string " blah" will insert a space in the output. A good rule of
+thumb is to never insert unneeded spaces inside expressions.
+
 When using regular expressions, it can happen that the dollar ('$') character
 appears in the expression or that a backslash ('\') is used in the replacement
 string. In this case these ones will also be processed inside the double quotes
