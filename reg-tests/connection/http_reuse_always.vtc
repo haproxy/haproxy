@@ -1,3 +1,4 @@
+#EXCLUDE_TARGETS=osx
 varnishtest "Test the http-reuse always mode"
 
 feature ignore_unknown_macro

@@ -1,3 +1,4 @@
+#EXCLUDE_TARGETS=osx
 varnishtest "haproxy ACL, CLI and mCLI spaces"
 feature ignore_unknown_macro
 

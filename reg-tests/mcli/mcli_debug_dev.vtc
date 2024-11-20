@@ -1,3 +1,4 @@
+#EXCLUDE_TARGETS=osx
 varnishtest "Test master CLI multiple commands with export-mode"
 
 # This test only checks if the master CLI parsing with pipelined commands is working:

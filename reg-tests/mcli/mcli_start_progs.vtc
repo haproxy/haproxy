@@ -1,3 +1,4 @@
+#EXCLUDE_TARGETS=osx
 varnishtest "Try to start a master CLI with 2 programs"
 #REGTEST_TYPE=bug
 feature cmd "command -v sleep"

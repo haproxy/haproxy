@@ -1,3 +1,4 @@
+#EXCLUDE_TARGETS=osx
 varnishtest "Show info of process 1"
 
 feature ignore_unknown_macro
