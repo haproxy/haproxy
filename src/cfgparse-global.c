@@ -1607,6 +1607,8 @@ static int cfg_parse_global_chroot(char **args, int section_type, struct proxy *
 				   const struct proxy *defpx, const char *file, int line,
 				   char **err)
 {
+	struct stat dir_stat;
+
 	if (too_many_args(1, args, err, NULL))
 		return -1;
 
@@ -1619,6 +1621,25 @@ static int cfg_parse_global_chroot(char **args, int section_type, struct proxy *
 		return -1;
 	}
 	global.chroot = strdup(args[1]);
+
+	/* some additional test for chroot dir, warn messages might be
+	 * handy to catch misconfiguration errors more quickly
+	 */
+	if (stat(args[1], &dir_stat) != 0) {
+		if (errno == ENOENT)
+			ha_diag_warning("parsing [%s:%d]: '%s': '%s': %s.\n",
+					file, line, args[0], args[1], strerror(errno));
+		else if (errno == EACCES)
+			ha_diag_warning("parsing [%s:%d]: '%s': '%s': %s "
+					"(process is need to be started with root priviledges to be able to chroot).\n",
+					file, line, args[0], args[1], strerror(errno));
+		else
+			ha_diag_warning("parsing [%s:%d]: '%s': '%s': stat() is failed: %s.\n",
+					file, line, args[0], args[1], strerror(errno));
+	} else if ((dir_stat.st_mode & S_IFMT) != S_IFDIR) {
+		ha_diag_warning("parsing [%s:%d]: '%s': '%s' is not a directory.\n",
+				file, line, args[0], args[1]);
+	}
 
 	return 0;
 }
