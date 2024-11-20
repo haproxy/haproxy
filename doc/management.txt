@@ -2820,14 +2820,14 @@ show env [<name>]
   can only be issued on sockets configured for levels "operator" or "admin".
 
 show errors [<iid>|<proxy>] [request|response]
-  Dump last known request and response errors collected by frontends and
-  backends. If <iid> is specified, the limit the dump to errors concerning
-  either frontend or backend whose ID is <iid>. Proxy ID "-1" will cause
-  all instances to be dumped. If a proxy name is specified instead, its ID
-  will be used as the filter. If "request" or "response" is added after the
-  proxy name or ID, only request or response errors will be dumped. This
-  command is restricted and can only be issued on sockets configured for
-  levels "operator" or "admin".
+  Dump last known HTTP/1.x request and response errors collected by frontends
+  and backends. If <iid> is specified, the limit the dump to errors concerning
+  either frontend or backend whose ID is <iid>. Proxy ID "-1" will cause all
+  instances to be dumped. If a proxy name is specified instead, its ID will be
+  used as the filter. If "request" or "response" is added after the proxy name
+  or ID, only request or response errors will be dumped. This command is
+  restricted and can only be issued on sockets configured for levels "operator"
+  or "admin".
 
   The errors which may be collected are the last request and response errors
   caused by protocol violations, often due to invalid characters in header
@@ -4537,17 +4537,17 @@ connections are handled in parallel, though the "debug2ansi" and "debug2html"
 scripts found in the examples/ directory definitely help here by coloring the
 output.
 
-If a request or response is rejected because HAProxy finds it is malformed, the
-best thing to do is to connect to the CLI and issue "show errors", which will
-report the last captured faulty request and response for each frontend and
-backend, with all the necessary information to indicate precisely the first
-character of the input stream that was rejected. This is sometimes needed to
-prove to customers or to developers that a bug is present in their code. In this
-case it is often possible to relax the checks (but still keep the captures)
-using "option accept-unsafe-violations-in-http-request" or its equivalent for
-responses coming from the server "option
-accept-unsafe-violations-in-http-response". Please see the configuration manual
-for more details.
+If a HTTP/1.x request or response is rejected because HAProxy finds it is
+malformed, the best thing to do is to connect to the CLI and issue "show
+errors", which will report the last captured faulty HTTP/1.x request and
+response for each frontend and backend, with all the necessary information to
+indicate precisely the first character of the input stream that was
+rejected. This is sometimes needed to prove to customers or to developers that a
+bug is present in their code. In this case it is often possible to relax the
+checks (but still keep the captures) using "option
+accept-unsafe-violations-in-http-request" or its equivalent for responses coming
+from the server "option accept-unsafe-violations-in-http-response". Please see
+the configuration manual for more details.
 
 Example :
 
