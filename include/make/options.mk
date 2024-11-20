@@ -62,4 +62,4 @@ warn_unknown_options =                                                       \
               $(filter-out $(foreach opt,$(use_opts),$(opt:==%)),            \
                            $(foreach opt,$(MAKEOVERRIDES),                   \
                                      $(strip $(filter USE_%,$(opt))))),      \
-              $(warning Warning: ignoring unknown build option: $(unknown)))
+              $(call $(complain),ignoring unknown build option: $(unknown)))

@@ -134,7 +134,12 @@
 #   VTEST_PROGRAM  : location of the vtest program to run reg-tests.
 #   DEBUG_USE_ABORT: use abort() for program termination, see include/haproxy/bug.h for details
 
+#### Add -Werror when set to non-empty, and make Makefile stop on warnings.
+#### It must be declared before includes because it's used there.
+ERR =
+
 include include/make/verbose.mk
+include include/make/errors.mk
 include include/make/compiler.mk
 include include/make/options.mk
 
@@ -158,7 +163,7 @@ TARGET =
 CPU =
 ifneq ($(CPU),)
 ifneq ($(CPU),generic)
-$(warning Warning: the "CPU" variable was forced to "$(CPU)" but is no longer \
+$(call $(complain),the "CPU" variable was forced to "$(CPU)" but is no longer \
   used and will be ignored. For native builds, modern compilers generally     \
   prefer that the string "-march=native" is passed in CPU_CFLAGS or CFLAGS.   \
   For other CPU-specific options, please read suggestions in the INSTALL file.)
@@ -168,7 +173,7 @@ endif
 #### No longer used
 ARCH =
 ifneq ($(ARCH),)
-$(warning Warning: the "ARCH" variable was forced to "$(ARCH)" but is no \
+$(call $(complain),the "ARCH" variable was forced to "$(ARCH)" but is no \
   longer used and will be ignored. Please check the INSTALL file for other \
   options, but usually in order to pass arch-specific options, ARCH_FLAGS, \
   CFLAGS or LDFLAGS are preferred.)
@@ -186,16 +191,13 @@ OPT_CFLAGS = -O2
 #### No longer used
 DEBUG_CFLAGS =
 ifneq ($(DEBUG_CFLAGS),)
-$(warning Warning: DEBUG_CFLAGS was forced to "$(DEBUG_CFLAGS)" but is no     \
+$(call $(complain),DEBUG_CFLAGS was forced to "$(DEBUG_CFLAGS)" but is no     \
   longer used and will be ignored. If you have ported this build setting from \
   and older version, it is likely that you just want to pass these options    \
   to the CFLAGS variable. If you are passing some debugging-related options   \
   such as -g/-ggdb3/-pg etc, they can now be passed in ARCH_FLAGS at once for \
   both the compilation and linking stages.)
 endif
-
-#### Add -Werror when set to non-empty
-ERR =
 
 #### May be used to force running a specific set of reg-tests
 REG_TEST_FILES =
@@ -246,7 +248,7 @@ endif
 #### No longer used
 SMALL_OPTS =
 ifneq ($(SMALL_OPTS),)
-$(warning Warning: SMALL_OPTS was forced to "$(SMALL_OPTS)" but is no longer \
+$(call $(complain),SMALL_OPTS was forced to "$(SMALL_OPTS)" but is no longer \
   used and will be ignored. Please check if this setting are still relevant, \
   and move it either to DEFINE or to CFLAGS instead.)
 endif
