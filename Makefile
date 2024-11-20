@@ -936,7 +936,7 @@ all:
 	@echo
 	@exit 1
 else
-all: haproxy dev/flags/flags $(EXTRA)
+all: dev/flags/flags haproxy $(EXTRA)
 endif # obsolete targets
 endif # TARGET
 
