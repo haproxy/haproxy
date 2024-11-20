@@ -1805,12 +1805,20 @@ int pat_ref_set_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt, const cha
 static int pat_ref_set_from_node(struct pat_ref *ref, struct ebmb_node *node, const char *value, char **err)
 {
 	struct pat_ref_elt *elt;
+	unsigned int gen;
+	int first = 1;
 	int found = 0;
 
 	while (node) {
 		char *tmp_err = NULL;
 
 		elt = ebmb_entry(node, struct pat_ref_elt, node);
+		if (first)
+			gen = elt->gen_id;
+		else if (elt->gen_id != gen) {
+			/* only consider duplicate elements from the same gen! */
+			continue;
+		}
 		node = ebmb_next_dup(node);
 		if (!pat_ref_set_elt(ref, elt, value, &tmp_err)) {
 			if (err)
@@ -1820,6 +1828,7 @@ static int pat_ref_set_from_node(struct pat_ref *ref, struct ebmb_node *node, co
 			return 0;
 		}
 		found = 1;
+		first = 0;
 	}
 
 	if (!found) {
