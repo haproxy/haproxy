@@ -5979,6 +5979,7 @@ next_frame:
 	/* Trailers terminate a DATA sequence */
 	if (h2_make_htx_trailers(list, htx) <= 0) {
 		TRACE_STATE("failed to append HTX trailers into rxbuf", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2S_ERR, h2c->conn);
+		htx->flags |= HTX_FL_PARSING_ERROR;
 		goto fail;
 	}
 	*flags |= H2_SF_ES_RCVD;
