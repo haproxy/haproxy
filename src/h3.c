@@ -1569,7 +1569,7 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 	struct buffer outbuf;
 	struct buffer headers_buf = BUF_NULL;
 	struct buffer *res;
-	struct http_hdr list[global.tune.max_http_hdr];
+	struct http_hdr list[global.tune.max_http_hdr * 2];
 	struct htx_sl *sl;
 	struct htx_blk *blk;
 	enum htx_blk_type type;
