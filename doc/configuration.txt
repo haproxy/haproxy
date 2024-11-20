@@ -1007,64 +1007,64 @@ modes:
 
 The variables in question are the following:
 
-* HAPROXY_LOCALPEER: defined at the startup of the process which contains the
-  name of the local peer. (See "-L" in the management guide.)
+  * HAPROXY_LOCALPEER: defined at the startup of the process which contains the
+    name of the local peer. (See "-L" in the management guide.)
 
-* HAPROXY_CFGFILES: list of the configuration files loaded by HAProxy,
-  separated by semicolons. Can be useful in the case you specified a
-  directory.
+  * HAPROXY_CFGFILES: list of the configuration files loaded by HAProxy,
+    separated by semicolons. Can be useful in the case you specified a
+    directory.
 
-* HAPROXY_HTTP_LOG_FMT: contains the value of the default HTTP log format as
-  defined in section 8.2.3 "HTTP log format". It can be used to override the
-  default log format without having to copy the whole original definition.
+  * HAPROXY_HTTP_LOG_FMT: contains the value of the default HTTP log format as
+    defined in section 8.2.3 "HTTP log format". It can be used to override the
+    default log format without having to copy the whole original definition.
 
-* HAPROXY_HTTP_CLF_LOG_FMT: contains the value of the default HTTP CLF log
-  format as defined in section 8.2.3 "HTTP log format". It can be used to
-  override the default log format without having to copy the whole original
-  definition.
+  * HAPROXY_HTTP_CLF_LOG_FMT: contains the value of the default HTTP CLF log
+    format as defined in section 8.2.3 "HTTP log format". It can be used to
+    override the default log format without having to copy the whole original
+    definition.
 
-  Example:
-    # Add the rule that gave the final verdict to the log
-    log-format "${HAPROXY_TCP_LOG_FMT} lr=last_rule_file:last_rule_line"
+    Example:
+      # Add the rule that gave the final verdict to the log
+      log-format "${HAPROXY_TCP_LOG_FMT} lr=last_rule_file:last_rule_line"
 
-* HAPROXY_HTTPS_LOG_FMT: similar to HAPROXY_HTTP_LOG_FMT but for HTTPS log
-  format as defined in section 8.2.4 "HTTPS log format".
+  * HAPROXY_HTTPS_LOG_FMT: similar to HAPROXY_HTTP_LOG_FMT but for HTTPS log
+    format as defined in section 8.2.4 "HTTPS log format".
 
-* HAPROXY_TCP_LOG_FMT: similar to HAPROXY_HTTP_LOG_FMT but for TCP log format
-  as defined in section 8.2.2 "TCP log format".
+  * HAPROXY_TCP_LOG_FMT: similar to HAPROXY_HTTP_LOG_FMT but for TCP log format
+    as defined in section 8.2.2 "TCP log format".
 
-* HAPROXY_TCP_CLF_LOG_FMT: similar to HAPROXY_HTTP_CLF_LOG_FMT but for TCP CLF
-  log format as defined in section 8.2.2 "TCP log format".
+  * HAPROXY_TCP_CLF_LOG_FMT: similar to HAPROXY_HTTP_CLF_LOG_FMT but for TCP
+    CLF log format as defined in section 8.2.2 "TCP log format".
 
-* HAPROXY_MWORKER: In master-worker mode, this variable is set to 1.
+  * HAPROXY_MWORKER: In master-worker mode, this variable is set to 1.
 
-* HAPROXY_CLI: configured listeners addresses of the stats socket of every
-  processe, these addresses are separated by semicolons.
+  * HAPROXY_CLI: configured listeners addresses of the stats socket of every
+    processe, these addresses are separated by semicolons.
 
-* HAPROXY_MASTER_CLI: In master-worker mode, listeners addresses of the master
-  CLI, separated by semicolons.
+  * HAPROXY_MASTER_CLI: In master-worker mode, listeners addresses of the master
+    CLI, separated by semicolons.
 
-* HAPROXY_STARTUP_VERSION: contains the version used to start, in master-worker
-  mode this is the version which was used to start the master, even after
-  updating the binary and reloading.
+  * HAPROXY_STARTUP_VERSION: contains the version used to start, in master-
+    worker mode this is the version which was used to start the master, even
+    after updating the binary and reloading.
 
-* HAPROXY_BRANCH: contains the HAProxy branch version (such as "2.8"). It does
-  not contain the full version number. It can be useful in case of migration
-  if resources (such as maps or certificates) are in a path containing the
-  branch number.
+  * HAPROXY_BRANCH: contains the HAProxy branch version (such as "2.8"). It
+    does not contain the full version number. It can be useful in case of
+    migration if resources (such as maps or certificates) are in a path
+    containing the branch number.
 
 In addition, some pseudo-variables are internally resolved and may be used as
 regular variables. Pseudo-variables always start with a dot ('.'), and are the
 only ones where the dot is permitted. The current list of pseudo-variables is:
 
-* .FILE: the name of the configuration file currently being parsed.
+  * .FILE: the name of the configuration file currently being parsed.
 
-* .LINE: the line number of the configuration file currently being parsed,
-  starting at one.
+  * .LINE: the line number of the configuration file currently being parsed,
+    starting at one.
 
-* .SECTION: the name of the section currently being parsed, or its type if the
-  section doesn't have a name (e.g. "global"), or an empty string before the
-  first section.
+  * .SECTION: the name of the section currently being parsed, or its type if
+    the section doesn't have a name (e.g. "global"), or an empty string before
+    the first section.
 
 These variables are resolved at the location where they are parsed. For example
 if a ".LINE" variable is used in a "log-format" directive located in a defaults
