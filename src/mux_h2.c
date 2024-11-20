@@ -6123,7 +6123,7 @@ try_again:
  */
 static size_t h2s_snd_fhdrs(struct h2s *h2s, struct htx *htx)
 {
-	struct http_hdr list[global.tune.max_http_hdr];
+	struct http_hdr list[global.tune.max_http_hdr * 2];
 	struct h2c *h2c = h2s->h2c;
 	struct htx_blk *blk;
 	struct buffer outbuf;
@@ -6388,7 +6388,7 @@ static size_t h2s_snd_fhdrs(struct h2s *h2s, struct htx *htx)
  */
 static size_t h2s_snd_bhdrs(struct h2s *h2s, struct htx *htx)
 {
-	struct http_hdr list[global.tune.max_http_hdr];
+	struct http_hdr list[global.tune.max_http_hdr * 2];
 	struct h2c *h2c = h2s->h2c;
 	struct htx_blk *blk;
 	struct buffer outbuf;
@@ -7179,7 +7179,7 @@ static size_t h2s_skip_data(struct h2s *h2s, struct buffer *buf, size_t count)
  */
 static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 {
-	struct http_hdr list[global.tune.max_http_hdr];
+	struct http_hdr list[global.tune.max_http_hdr * 2];
 	struct h2c *h2c = h2s->h2c;
 	struct htx_blk *blk;
 	struct buffer outbuf;
