@@ -8,7 +8,7 @@ feature ignore_unknown_macro
 server s1 {
 } -start
 
-haproxy h1 -W -S -conf {
+haproxy h1 -Ws -S -conf {
     global
         expose-deprecated-directives
     defaults

@@ -19,7 +19,7 @@ syslog S1 -level info {
 } -start
 
 
-haproxy h1 -W -S -conf {
+haproxy h1 -Ws -S -conf {
     global
 	log ${S1_addr}:${S1_port} local0 info
 

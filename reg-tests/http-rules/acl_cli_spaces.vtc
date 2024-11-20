@@ -7,7 +7,7 @@ server s1 {
    txresp
 } -repeat 2 -start
 
-haproxy h1 -W -S -conf {
+haproxy h1 -Ws -S -conf {
   defaults
     mode http
     timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
