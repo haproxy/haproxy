@@ -1637,6 +1637,28 @@ int pat_ref_delete(struct pat_ref *ref, const char *key)
 }
 
 /*
+ * find and return an element <elt> belonging to <gen_id> and matching <key> in a
+ * reference <ref> return NULL if not found
+ */
+struct pat_ref_elt *pat_ref_gen_find_elt(struct pat_ref *ref, unsigned int gen_id, const char *key)
+{
+	struct ebmb_node *node;
+	struct pat_ref_elt *elt;
+
+	node = ebst_lookup(&ref->ebmb_root, key);
+	while (node) {
+		elt = ebmb_entry(node, struct pat_ref_elt, node);
+		if (elt->gen_id == gen_id)
+			break;
+		node = ebmb_next_dup(node);
+	}
+	if (node)
+		return ebmb_entry(node, struct pat_ref_elt, node);
+
+	return NULL;
+}
+
+/*
  * find and return an element <elt> matching <key> in a reference <ref>
  * return NULL if not found
  */

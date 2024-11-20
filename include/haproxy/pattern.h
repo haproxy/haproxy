@@ -184,6 +184,7 @@ struct pat_ref *pat_ref_lookupid(int unique_id);
 struct pat_ref *pat_ref_new(const char *reference, const char *display, unsigned int flags);
 struct pat_ref *pat_ref_newid(int unique_id, const char *display, unsigned int flags);
 struct pat_ref_elt *pat_ref_find_elt(struct pat_ref *ref, const char *key);
+struct pat_ref_elt *pat_ref_gen_find_elt(struct pat_ref *ref, unsigned int gen_id, const char *key);
 struct pat_ref_elt *pat_ref_append(struct pat_ref *ref, const char *pattern, const char *sample, int line);
 struct pat_ref_elt *pat_ref_load(struct pat_ref *ref, unsigned int gen, const char *pattern, const char *sample, int line, char **err);
 int pat_ref_push(struct pat_ref_elt *elt, struct pattern_expr *expr, int patflags, char **err);
