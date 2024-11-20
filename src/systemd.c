@@ -10,6 +10,7 @@
  */
 
 #include <errno.h>
+#include <fcntl.h>
 #include <inttypes.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -87,8 +88,13 @@ int sd_notify(int unset_environment, const char *message)
 	if (socket_addr.sun.sun_path[0] == '@')
 		socket_addr.sun.sun_path[0] = 0;
 
-	fd = socket(AF_UNIX, SOCK_DGRAM|SOCK_CLOEXEC, 0);
+	fd = socket(AF_UNIX, SOCK_DGRAM, 0);
 	if (fd < 0) {
+		ret = -errno;
+		goto end;
+	}
+
+	if (fcntl(fd, F_SETFD, FD_CLOEXEC) != 0) {
 		ret = -errno;
 		goto end;
 	}
