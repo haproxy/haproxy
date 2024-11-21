@@ -35,6 +35,12 @@ struct sched_activity *sched_activity_entry(struct sched_activity *array, const 
 
 #ifdef USE_MEMORY_PROFILING
 struct memprof_stats *memprof_get_bin(const void *ra, enum memprof_method meth);
+void memprof_remove_stale_info(const void *info);
+#else
+static inline void memprof_remove_stale_info(const void *info)
+{
+	/* nothing to do */
+}
 #endif
 
 #endif /* _HAPROXY_ACTIVITY_H */

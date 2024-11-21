@@ -324,6 +324,23 @@ void free(void *ptr)
 	_HA_ATOMIC_ADD(&bin->free_tot, size_before);
 }
 
+/* remove info from entries matching <info>. This needs to be used by callers
+ * of pool_destroy() so that we don't keep a reference to a dead pool. Nothing
+ * is done if <info> is NULL.
+ */
+void memprof_remove_stale_info(const void *info)
+{
+	int i;
+
+	if (!info)
+		return;
+
+	for (i = 0; i < MEMPROF_HASH_BUCKETS; i++) {
+		if (_HA_ATOMIC_LOAD(&memprof_stats[i].info) == info)
+			_HA_ATOMIC_STORE(&memprof_stats[i].info, NULL);
+	}
+}
+
 #endif // USE_MEMORY_PROFILING
 
 /* Updates the current thread's statistics about stolen CPU time. The unit for
