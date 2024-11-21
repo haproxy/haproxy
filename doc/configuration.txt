@@ -998,7 +998,7 @@ modes:
   | HAPROXY_MWORKER          |    X     |    |    |      |     |  X  |  X  |
   | HAPROXY_CLI              |          |    |    |      |     |     |  X  |
   | HAPROXY_MASTER_CLI       |          |    |    |      |     |  X  |     |
-  | HAPROXY_LOCALPEER        |          |    |    |      |     |     |  X  |
+  | HAPROXY_LOCALPEER        |          |    | X  |      |     |     |  X  |
   | HAPROXY_HTTP_LOG_FMT     |          |    | X  |      |  X  |     |     |
   | HAPROXY_HTTP_CLF_LOG_FMT |          |    | X  |      |  X  |     |     |
   | HAPROXY_HTTPS_LOG_FMT    |          |    | X  |      |  X  |     |     |

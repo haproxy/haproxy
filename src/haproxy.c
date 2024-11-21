@@ -3827,6 +3827,14 @@ int main(int argc, char **argv)
 			}
 			setenv("HAPROXY_MWORKER", "1", 1);
 		}
+
+		/* localpeer default value could be redefined via 'localpeer' keyword
+		 * from the global section, which has already parsed in MODE_DISCOVERY by
+		 * read_cfg_in_discovery_mode(). So, let's set HAPROXY_LOCALPEER explicitly
+		 * here.
+		 */
+		setenv("HAPROXY_LOCALPEER", localpeer, 1);
+
 		non_global_section_parsed = 0;
 		if (read_cfg() < 0) {
 			list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list) {
@@ -3839,12 +3847,6 @@ int main(int argc, char **argv)
 		list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list)
 			ha_free(&cfg->content);
 
-		/* localpeer could be redefined via 'localpeer' keyword from the
-		 * global section, in master-worker mode it's parsed only by
-		 * worker, so let set HAPROXY_LOCALPEER explicitly here
-		 */
-		if (localpeer != NULL)
-			setenv("HAPROXY_LOCALPEER", localpeer, 1);
 		usermsgs_clr(NULL);
 	}
 
