@@ -72,11 +72,11 @@ static unsigned long parse_window_size(const char *kw, char *value,
 
 /* Parse <value> as a number of datagrams allowed for burst.
  *
- * Returns the parsed value or 0 on error.
+ * Returns the parsed value or a negative error code.
  */
-static uint parse_burst(const char *kw, char *value, char **end_opt, char **err)
+static int parse_burst(const char *kw, char *value, char **end_opt, char **err)
 {
-	uint burst;
+	int burst;
 
 	errno = 0;
 	burst = strtoul(value, end_opt, 0);
@@ -85,15 +85,15 @@ static uint parse_burst(const char *kw, char *value, char **end_opt, char **err)
 		goto fail;
 	}
 
-	if (!burst || burst > 1024) {
-		memprintf(err, "'%s' : pacing burst value must be between 1 and 1024", kw);
+	if (burst < 0 || burst > 1024) {
+		memprintf(err, "'%s' : pacing burst value must be between 0 and 1024", kw);
 		goto fail;
 	}
 
 	return burst;
 
  fail:
-	return 0;
+	return -1;
 }
 
 /* parse "quic-cc-algo" bind keyword */
@@ -101,7 +101,6 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
                                    struct bind_conf *conf, char **err)
 {
 	struct quic_cc_algo *cc_algo = NULL;
-	const char *str_pacing = "-pacing";
 	const char *algo = NULL;
 	char *arg;
 
@@ -128,19 +127,6 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 		algo = QUIC_CC_CUBIC_STR;
 		*cc_algo = quic_cc_algo_cubic;
 		arg += strlen(QUIC_CC_CUBIC_STR);
-
-		if (strncmp(arg, str_pacing, strlen(str_pacing)) == 0) {
-			if (!experimental_directives_allowed) {
-				memprintf(err, "'%s' : support for pacing is experimental, must be allowed via a global "
-				          "'expose-experimental-directives'\n", args[cur_arg]);
-				goto fail;
-			}
-
-			cc_algo->pacing_rate = quic_cc_default_pacing_rate;
-			cc_algo->pacing_burst = quic_cc_default_pacing_burst;
-			conf->quic_pacing_burst = 1;
-			arg += strlen(str_pacing);
-		}
 	}
 	else if (strncmp(arg, QUIC_CC_BBR_STR, strlen(QUIC_CC_BBR_STR)) == 0) {
 		if (!experimental_directives_allowed) {
@@ -198,11 +184,25 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 			goto out;
 
 		if (*arg != ',') {
-			uint burst = parse_burst(args[cur_arg], arg, &end_opt, err);
-			if (!burst)
+			int burst = parse_burst(args[cur_arg], arg, &end_opt, err);
+			if (burst < 0)
 				goto fail;
 
-			conf->quic_pacing_burst = burst;
+			if (burst && cc_algo->type == QUIC_CC_ALGO_TP_CUBIC) {
+				if (!experimental_directives_allowed) {
+					memprintf(err, "'%s' : support for pacing is experimental, must be allowed via a global "
+						  "'expose-experimental-directives'\n", args[cur_arg]);
+					goto fail;
+				}
+
+				conf->quic_pacing_burst = burst;
+				cc_algo->pacing_rate = quic_cc_default_pacing_rate;
+				cc_algo->pacing_burst = quic_cc_default_pacing_burst;
+			}
+			else {
+				ha_warning("'%s' : burst parameter ignored for '%s' congestion algorithm\n",
+				           args[cur_arg], algo);
+			}
 
 			if (*end_opt == ')') {
 				goto out;

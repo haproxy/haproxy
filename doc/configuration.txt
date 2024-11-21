@@ -17206,7 +17206,7 @@ proto <name>
   instance, it is possible to force the http/2 on clear TCP by specifying "proto
   h2" on the bind line.
 
-quic-cc-algo { cubic[-pacing] | newreno | bbr | nocc }[(<args,...>)]
+quic-cc-algo { cubic | newreno | bbr | nocc }[(<args,...>)]
   This is a QUIC specific setting to select the congestion control algorithm
   for any connection attempts to the configured QUIC listeners. They are similar
   to those used by TCP.
@@ -17214,15 +17214,15 @@ quic-cc-algo { cubic[-pacing] | newreno | bbr | nocc }[(<args,...>)]
   Default value: cubic
 
   It is possible to active pacing if the algorithm is compatible. This is done
-  by using the suffix "-pacing" after the algorithm name. Pacing purpose is to
-  smooth emission of data without burst to reduce network loss. In some
-  scenario, it can significantly improve network throughput. However, it can
-  also increase CPU usage if haproxy is forced to wait too long between each
-  emission. Pacing support is still experimental, as such it requires
-  "expose-experimental-directives". BBR congestion control algorithm depends on
-  the pacing support which is in this case implicitely activated by "bbr".
-  Note that BBR haproxy implementation is still considered as experimental and
-  cannot be enabled without "expose-experimental-directives".
+  by specifying optional burst argument as described in the next paragraph.
+  Pacing purpose is to smooth emission of data without burst to reduce network
+  loss. In some scenario, it can significantly improve network throughput.
+  However, it can also increase CPU usage if haproxy is forced to wait too long
+  between each emission. Pacing support is still experimental, as such it
+  requires "expose-experimental-directives". BBR congestion control algorithm
+  depends on the pacing support which is in this case implicitely activated by
+  "bbr". Note that BBR haproxy implementation is still considered as
+  experimental and cannot be enabled without "expose-experimental-directives".
 
   For further customization, a list of parameters can be specified after the
   algorithm token. It must be written between parenthesis, separated by a comma
@@ -17230,8 +17230,9 @@ quic-cc-algo { cubic[-pacing] | newreno | bbr | nocc }[(<args,...>)]
   mandatory order of each parameters :
   - maximum window size in bytes. It must be greater than 10k and smaller than
     4g. By default "tune.quic.frontend.default-max-window-size" value is used.
-  - count of datagrams to emit in a burst if pacing is activated. It must be
-    between the default value of 1 and 1024.
+  - burst size in bytes. By default, it is set to 0, which means unlimited. A
+    positive value up to 1024 can be specified to smooth emission with pacing.
+    See above paragraph for more explanation.
 
   Example:
       # newreno congestion control algorithm
@@ -17239,7 +17240,7 @@ quic-cc-algo { cubic[-pacing] | newreno | bbr | nocc }[(<args,...>)]
       # cubic congestion control algorithm with one megabytes as window
       quic-cc-algo cubic(1m)
       # cubic with pacing on top of it, with burst limited to 12 datagrams
-      quic-cc-algo cubic-pacing(,12)
+      quic-cc-algo cubic(,12)
 
   A special value "nocc" may be used to force a fixed congestion window always
   set at the maximum size. It is reserved for debugging scenarios to remove any
