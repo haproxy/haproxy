@@ -1146,29 +1146,19 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	 */
 	for (i = max = 0; i < max_lines; i++) {
 		struct memprof_stats *entry = &tmp_memstats[i];
-		char *p;
 
 		if (!entry->alloc_calls && !entry->free_calls)
 			continue;
 
 		chunk_reset(name_buffer);
 		if (!entry->caller)
-			chunk_printf(name_buffer, "other:");
+			chunk_printf(name_buffer, "other");
 		else
-			resolve_sym_name(name_buffer, "", entry->caller);
-
-		/* figure the DSO name (before colon) otherwise "*program*" */
-		p = strchr(name_buffer->area, ':');
-		if (p) {
-			*p = 0;
-			p = name_buffer->area;
-		}
-		else
-			p = "*program*";
+			resolve_dso_name(name_buffer, "", entry->caller);
 
 		/* look it up among known names (0..max) */
 		for (j = 0; j < max; j++) {
-			if (tmp_memstats[j].info && strcmp(p, tmp_memstats[j].info) == 0)
+			if (tmp_memstats[j].info && strcmp(name_buffer->area, tmp_memstats[j].info) == 0)
 				break;
 		}
 
@@ -1181,7 +1171,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 			if (j != i) // set max to keep min caller's address
 				tmp_memstats[j].caller = (void*)-1;
 
-			tmp_memstats[j].info = strdup(p);   // may fail, but checked when used
+			tmp_memstats[j].info = strdup(name_buffer->area);   // may fail, but checked when used
 			tmp_memstats[j].alloc_calls = entry->alloc_calls;
 			tmp_memstats[j].alloc_tot   = entry->alloc_tot;
 			if ((1UL << entry->method) & MEMPROF_FREE_MASK) {
