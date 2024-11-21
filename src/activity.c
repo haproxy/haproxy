@@ -46,6 +46,7 @@ struct show_activity_ctx {
 #undef calloc
 #undef malloc
 #undef realloc
+#undef strdup
 #endif
 
 /* bit field of profiling options. Beware, may be modified at runtime! */
@@ -67,7 +68,7 @@ struct sched_activity sched_activity[SCHED_ACT_HASH_BUCKETS] __attribute__((alig
 #ifdef USE_MEMORY_PROFILING
 
 static const char *const memprof_methods[MEMPROF_METH_METHODS] = {
-	"unknown", "malloc", "calloc", "realloc", "free", "p_alloc", "p_free",
+	"unknown", "malloc", "calloc", "realloc", "strdup", "free", "p_alloc", "p_free",
 };
 
 /* last one is for hash collisions ("others") and has no caller address */
@@ -82,6 +83,7 @@ static THREAD_LOCAL int in_memprof = 0;
 static void *memprof_malloc_initial_handler(size_t size);
 static void *memprof_calloc_initial_handler(size_t nmemb, size_t size);
 static void *memprof_realloc_initial_handler(void *ptr, size_t size);
+static char *memprof_strdup_initial_handler(const char *s);
 static void  memprof_free_initial_handler(void *ptr);
 
 /* Fallback handlers for the main alloc/free functions. They are preset to
@@ -90,6 +92,7 @@ static void  memprof_free_initial_handler(void *ptr);
 static void *(*memprof_malloc_handler)(size_t size)               = memprof_malloc_initial_handler;
 static void *(*memprof_calloc_handler)(size_t nmemb, size_t size) = memprof_calloc_initial_handler;
 static void *(*memprof_realloc_handler)(void *ptr, size_t size)   = memprof_realloc_initial_handler;
+static char *(*memprof_strdup_handler)(const char *s)             = memprof_strdup_initial_handler;
 static void  (*memprof_free_handler)(void *ptr)                   = memprof_free_initial_handler;
 
 /* Used to force to die if it's not possible to retrieve the allocation
@@ -125,6 +128,10 @@ static void memprof_init()
 	memprof_realloc_handler = get_sym_next_addr("realloc");
 	if (!memprof_realloc_handler)
 		memprof_die("FATAL: realloc() function not found.\n");
+
+	memprof_strdup_handler  = get_sym_next_addr("strdup");
+	if (!memprof_strdup_handler)
+		memprof_die("FATAL: strdup() function not found.\n");
 
 	memprof_free_handler    = get_sym_next_addr("free");
 	if (!memprof_free_handler)
@@ -166,6 +173,17 @@ static void *memprof_realloc_initial_handler(void *ptr, size_t size)
 
 	memprof_init();
 	return memprof_realloc_handler(ptr, size);
+}
+
+static char *memprof_strdup_initial_handler(const char *s)
+{
+	if (in_memprof) {
+		/* probably that dlsym() needs strdup(), let's fail */
+		return NULL;
+	}
+
+	memprof_init();
+	return memprof_strdup_handler(s);
 }
 
 static void  memprof_free_initial_handler(void *ptr)
@@ -292,6 +310,32 @@ void *realloc(void *ptr, size_t size)
 		_HA_ATOMIC_ADD(&bin->free_calls, 1);
 		_HA_ATOMIC_ADD(&bin->free_tot, size_before - size);
 	}
+	return ret;
+}
+
+/* This is the new global strdup() function. It must optimize for the normal
+ * case (i.e. profiling disabled) hence the first test to permit a direct jump.
+ * It must remain simple to guarantee the lack of reentrance. stdio is not
+ * possible there even for debugging. The reported size is the really allocated
+ * one as returned by malloc_usable_size(), because this will allow it to be
+ * compared to the one before realloc() or free(). This is a GNU and jemalloc
+ * extension but other systems may also store this size in ptr[-1].
+ */
+char *strdup(const char *s)
+{
+	struct memprof_stats *bin;
+	size_t size;
+	char *ret;
+
+	if (likely(!(profiling & HA_PROF_MEMORY)))
+		return memprof_strdup_handler(s);
+
+	ret = memprof_strdup_handler(s);
+	size = malloc_usable_size(ret) + sizeof(void *);
+
+	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_STRDUP);
+	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
+	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
 	return ret;
 }
 
