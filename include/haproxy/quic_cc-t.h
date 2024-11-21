@@ -152,6 +152,7 @@ struct quic_cc_algo {
 	void (*on_pkt_lost)(struct quic_cc *cc,
 	                    struct quic_tx_packet *pkt, uint32_t lost_bytes);
 	void (*congestion_event)(struct quic_cc *cc, uint32_t ts);
+	void (*check_app_limited)(const struct quic_cc *cc, int sent);
 };
 
 #endif /* USE_QUIC */

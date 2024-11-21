@@ -18,6 +18,7 @@
 
 #include <haproxy/pool.h>
 #include <haproxy/trace.h>
+#include <haproxy/quic_cc_drs.h>
 #include <haproxy/quic_cid.h>
 #include <haproxy/quic_conn.h>
 #include <haproxy/quic_pacing.h>
@@ -506,6 +507,10 @@ enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms,
 	TRACE_STATE("preparing data (from MUX)", QUIC_EV_CONN_TXPKT, qc);
 	qel_register_send(&send_list, qc->ael, frms);
 	sent = qc_send(qc, 0, &send_list, max_dgram);
+
+	if (pacer && qc->path->cc.algo->check_app_limited)
+		qc->path->cc.algo->check_app_limited(&qc->path->cc, sent);
+
 	if (sent <= 0) {
 		ret = QUIC_TX_ERR_FATAL;
 	}
