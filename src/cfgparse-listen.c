@@ -193,30 +193,30 @@ static int warnif_misplaced_monitor(struct proxy *proxy, const char *file, int l
 }
 
 /* report a warning if a "tcp request content" rule is dangerously placed */
-int warnif_misplaced_tcp_cont(struct proxy *proxy, const char *file, int line, const char *arg1, const char *arg2)
+int warnif_misplaced_tcp_req_cont(struct proxy *proxy, const char *file, int line, const char *arg1, const char *arg2)
 {
 	return	warnif_rule_after_monitor(proxy, file, line, arg1, arg2) ||
 		warnif_misplaced_monitor(proxy, file, line, arg1, arg2);
 }
 
 /* report a warning if a "tcp request session" rule is dangerously placed */
-int warnif_misplaced_tcp_sess(struct proxy *proxy, const char *file, int line, const char *arg1, const char *arg2)
+int warnif_misplaced_tcp_req_sess(struct proxy *proxy, const char *file, int line, const char *arg1, const char *arg2)
 {
 	return	warnif_rule_after_tcp_cont(proxy, file, line, arg1, arg2) ||
-		warnif_misplaced_tcp_cont(proxy, file, line, arg1, arg2);
+		warnif_misplaced_tcp_req_cont(proxy, file, line, arg1, arg2);
 }
 
 /* report a warning if a "tcp request connection" rule is dangerously placed */
-int warnif_misplaced_tcp_conn(struct proxy *proxy, const char *file, int line, const char *arg1, const char *arg2)
+int warnif_misplaced_tcp_req_conn(struct proxy *proxy, const char *file, int line, const char *arg1, const char *arg2)
 {
 	return	warnif_rule_after_tcp_sess(proxy, file, line, arg1, arg2) ||
-		warnif_misplaced_tcp_sess(proxy, file, line, arg1, arg2);
+		warnif_misplaced_tcp_req_sess(proxy, file, line, arg1, arg2);
 }
 
 int warnif_misplaced_quic_init(struct proxy *proxy, const char *file, int line, const char *arg1, const char *arg2)
 {
 	return warnif_rule_after_tcp_conn(proxy, file, line, arg1, arg2) ||
-	       warnif_misplaced_tcp_conn(proxy, file, line, arg1, arg2);
+	       warnif_misplaced_tcp_req_conn(proxy, file, line, arg1, arg2);
 }
 
 int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
