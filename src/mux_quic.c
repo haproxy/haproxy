@@ -2996,6 +2996,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 
 	qcc->wait_event.tasklet->process = qcc_io_cb;
 	qcc->wait_event.tasklet->context = qcc;
+	qcc->wait_event.tasklet->state  |= TASK_F_WANTS_TIME;
 	qcc->wait_event.events = 0;
 
 	qcc->proxy = prx;

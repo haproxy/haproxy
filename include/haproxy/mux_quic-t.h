@@ -18,6 +18,7 @@
 #include <haproxy/quic_pacing-t.h>
 #include <haproxy/quic_stream-t.h>
 #include <haproxy/stconn-t.h>
+#include <haproxy/task-t.h>
 #include <haproxy/time-t.h>
 
 /* Stream types */
