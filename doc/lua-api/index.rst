@@ -3456,6 +3456,11 @@ Patref class
   :returns: true if the pattern reference is used to handle maps instead
    of acl, false otherwise.
 
+.. js:function:: Patref.purge(ref)
+
+  Completely prune all pattern reference entries pointed to by Patref object.
+  This special operation doesn't require committing.
+
 .. js:function:: Patref.prepare(ref)
 
   Create a new empty version for Patref Object. It can be used to manipulate
