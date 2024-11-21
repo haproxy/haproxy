@@ -900,6 +900,9 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 			    (entry->method != MEMPROF_METH_CALLOC)) {
 				tmp_memstats[j].free_calls  = entry->free_calls;
 				tmp_memstats[j].free_tot    = entry->free_tot;
+			} else {
+				tmp_memstats[j].free_calls  = 0;
+				tmp_memstats[j].free_tot    = 0;
 			}
 		} else {
 			tmp_memstats[j].alloc_calls += entry->alloc_calls;
