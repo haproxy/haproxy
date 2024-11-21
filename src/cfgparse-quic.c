@@ -151,7 +151,7 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 
 		/* bbr */
 		algo = QUIC_CC_BBR_STR;
-		cc_algo = &quic_cc_algo_bbr;
+		*cc_algo = quic_cc_algo_bbr;
 		arg += strlen(QUIC_CC_BBR_STR);
 	}
 	else if (strncmp(arg, QUIC_CC_NO_CC_STR, strlen(QUIC_CC_NO_CC_STR)) == 0) {
