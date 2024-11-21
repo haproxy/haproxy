@@ -1,6 +1,140 @@
 ChangeLog :
 ===========
 
+2024/11/21 : 3.1-dev14
+    - MINOR: acl: export find_acl_default()
+    - MINOR: sample: extend the "when" converter to support an ACL
+    - MINOR: cfgparse: parse tune.{rcvbuf,sndbuf}.{client,server} as sizes
+    - MINOR: cfgparse: parse tune.{rcvbuf,sndbuf}.{frontend,backend} as sizes
+    - MINOR: cfgparse: parse tune.pipesize as a size
+    - MINOR: cfgparse: parse tune.recv_enough as a size
+    - MINOR: cfgparse: parse tune.bufsize as a size
+    - MINOR: cfgparse: parse tune.bufsize.small as a size
+    - REGTESTS: silence the "log format ignored" warnings
+    - REGTESTS: silence warning "previous 'http-response' action is final"
+    - REGTESTS: make the unit explicit for very short timeouts
+    - REGTESTS: silence warnings about content-type being ignored
+    - REGTESTS: remove a duplicate "option httpslog" in the defaults section
+    - REGTESTS: silence warning "L6 sample fetches ignored" in cond_set_var
+    - REGTESTS: add missing timeouts to 30 tests
+    - REGTESTS: only use tune.ssl.default-dh-param when not using AWS-LC
+    - REGTESTS: enable -dW on almost all tests to fail on warnings
+    - MEDIUM: config: warn on unitless timeouts < 100 ms
+    - MINOR: tools: make parse_size_err() support 32/64 bits
+    - MINOR: ring: support unit suffixes in the size
+    - MINOR: cfgparse-global: parse options to allow non std keywords in discovery mode
+    - BUG/MINOR: mworker-prog: don't warn about deprecated section with expose-deprecated-directives
+    - MINOR: cli: make "show env" accessible via master CLI without enabling debug
+    - MINOR: config: show HAPROXY_BRANCH in "show env" output
+    - MINOR: http-ana: Add option to keep query-string on a localtion-based redirect
+    - MINOR: http-ana: Add support for "set-cookie-fmt" option to redirect rules
+    - MINOR: agent-check: Be able to set absolute weight via an agent
+    - MINOR: stream: Add an option to "show sess" command to dump the captured URI
+    - DOC: config: A a space before ':' for {bs,fs}.aborted and {bs,fs}.rst_code
+    - DOC: config: Fix a typo in "1.3.1. The Request line"
+    - MINOR: http: Add support for HTTP 414/431 status codes
+    - DEV: phash: Update 414 and 431 status codes to phash
+    - MINIR: mux-h1: Return 414 or 431 when appropriate
+    - BUG/MINOR: http_ana: Report -1 for %Tr for invalid response only
+    - DOC: config: Slightly improve the %Tr documentation
+    - DOC: config: Move wait_end in section about internal samples
+    - DOC: config: Move fs.* and bs.* in section about L5 samples
+    - MINOR: stats-file: add the filename in the warning
+    - MEDIUM: stats-file: explicitely ignore comments starting by //
+    - DOC: quic: rename max-window-size as with default prefix
+    - MINOR: mux-quic: add missing values for show flags
+    - MINOR: quic: simplify qc_prep_pkts() exit path
+    - MINOR: quic: support a max number of built packet per send iteration
+    - MINOR: quic: extend qc_send_mux() return type with a dedicated enum
+    - MINOR: quic: define quic_pacing module
+    - MINOR: quic/pacing: implement quic_pacer engine
+    - MINOR: quic/pacing: support pacing emission on quic_conn layer
+    - MINOR: quic/pacing: add burst support
+    - MINOR: mux-quic: define a tx STREAM frame list member
+    - MINOR: mux-quic: encapsulate QCC tasklet wakeup
+    - MAJOR: mux-quic: support pacing emission
+    - MINOR: quic: use dynamic cc_algo on bind_conf
+    - MINOR: quic: extend quic-cc-algo optional parameters
+    - MEDIUM: quic: define cubic-pacing congestion algorithm
+    - MINOR: mux_quic/pacing: display pacing info on show quic
+    - MEDIUM: stats-file: silently ignore be/fe mistmatch
+    - REGTESTS: use -dW by default on every reg-tests
+    - DOC: lua: fix yield-dependent methods expected contexts
+    - DOC: sched: add missing scheduler API documentation for tasklet_wakeup_after()
+    - DOC: sched: document the missing TASK_F_UEVT* flags
+    - CLEANUP: tinfo: move sched_*_date/*_mono_time to the thread-local area
+    - MINOR: stream: don't update s->lat_time when the wakeup date is not set
+    - MINOR: tinfo/clock: turn sched_call_date to 64-bits
+    - MINOR: sched: add TASK_F_WANTS_TIME to make the scheduler update the call date
+    - MINOR: tools: add new macro DEFZERO to provide a default zero argument
+    - MINOR: tasklet: make the low-level tasklet API take a flag
+    - MINOR: tasklet: support an optional set of wakeup flags to tasklet_wakeup_on()
+    - DOC: configuration: explain the rules regarding spaces in arguments
+    - DOC: configuration: explain quotes and spaces in conditional blocks
+    - DOC: configuration: wrap long line for "strstr()" conditional expression
+    - BUG/MINOR: http-ana: Adjust the server status before the L7 retries
+    - MINOR: http-fetch: Add an option to 'query" to get the QS with the '?'
+    - BUG/MINOR: cfgparse-quic: fix renaming of max-window-size
+    - MEDIUM: mworker: remove USE_SYSTEMD requirement for -Ws
+    - CI: vtest: temporarily build from the sd-notify PR
+    - MINOR: systemd: replace SOCK_CLOEXEC by fcntl call to FD_CLOEXEC
+    - BUILD: makefile: make ERR apply to build options as well
+    - MINOR: startup: set HAPROXY_LOCALPEER only once
+    - DOC: configuration: update "Environment variables" chapter
+    - DOC: config: indent the list of environment variables
+    - OPTION: map/hlua: make core.set_map() lookup more efficient
+    - REGTESTS: switch to -Ws for master-worker reg-tests
+    - REGTESTS: disable temporarly mworker test on OSX
+    - MINOR: quic: Add the congestion window initial value to QUIC path
+    - MINOR: window_filter: Implement windowed filter (only max)
+    - MINOR: quic: implement delivery rate sampling algorithm
+    - MINOR: quic: implement BBR congestion control algorithm for QUIC
+    - MINOR: quic: quic_cc modifications to support BBR
+    - MINOR: quic: quic_loss modifications to support BBR
+    - MINOR: quic: RX part modifications to support BBR
+    - MINOR: quic: TX part modifications to support BBR.
+    - MINOR: quic: add "bbr" new "quic-cc-algo" option
+    - BUG/MEDIUM: mux-h2: Increase max number of headers when encoding HEADERS frames
+    - BUG/MEDIUM: mux-h2: Check the number of headers in HEADERS frame after decoding
+    - BUG/MEDIUM: h3: Properly limit the number of headers received
+    - BUG/MEDIUM: h3: Increase max number of headers when sending headers
+    - DOC: config: Improve documentation of tune.http.maxhdr directive
+    - DOC: management: Clearly state "show errors" only reports malformed H1 messages
+    - BUILD: makefile: build flags.c before haproxy to speed up the build
+    - BUILD: makefile: reorder object files by build time
+    - MINOR: config: Improve warnings on misplaced rules by adding an optional arg
+    - CLEANUP: cfgparse: Add direction in functions name that warn on misplaced rules
+    - MINOR: cfgparse: Emit a warning for misplaced "tcp-response content" rules
+    - BUG/MINOR: cfgparse-quic: fix bbr initialization
+    - MINOR: cfgparse-quic: activate pacing only via burst argument
+    - MINOR: quic: Useless rate sample member initialization
+    - BUG/MINOR: cfgparse-quic: fix warning for cc-aglo with 0 burst
+    - MINOR: quic: support pacing for newreno and nocc
+    - BUG/MINOR: quic: Missing application limitations tracking for BBR
+    - MINOR: cfgparse-global: add cfg_parse_global_chroot
+    - MINOR: cfgparse-global: add more checks for "chroot" argument
+    - BUG/MINOR: startup: fix UAF when set the default for log_tag
+    - MINOR: capabilities: rename program_name argument to progname
+    - MINOR: startup: use global progname variable
+    - MINOR: cfgparse-global: add cfg_parse_global_localpeer
+    - BUG/MINOR: config: allow to check HAPROXY_LOCALPEER in config
+    - BUG/MINOR: startup: init_early: remove obsolete comment
+    - BUG/MEDIUM: debug: don't set the STUCK flag from debug_handler()
+    - BUG/MEDIUM: wdt: fix the stuck detection for warnings
+    - BUG/MINOR: activity/memprofile: reinitialize the free calls on DSO summary
+    - MINOR: activity/memprofile: offer a function to unregister stale info
+    - BUG/MEDIUM: pools/memprofile: always clean stale pool info on pool_destroy()
+    - MINOR: activity: better report nil than ffff in unknown callers
+    - CLEANUP: activity: better use a mask to tests freeing methods
+    - MINOR: activity/memprofile: also monitor strdup() activity
+    - MINOR: activity/memprofile: monitor non-portable calls as well
+    - MINOR: activity: interrupt the show profile dump more often
+    - MINOR: tools: resolve main() only once in resolve_sym_name()
+    - MINOR: tools: add a new function "resolve_dso_name" to find a symbol's DSO
+    - MINOR: activity/memprofile: use resolve_dso_name() for the DSO summary
+    - REGTESTS: relax strerror matching to avoid a failure on libmusl
+    - REGTESTS: don't rely on the base64 utility when openssl base64 is already used
+
 2024/11/15 : 3.1-dev13
     - MEDIUM: mworker: depreciate the 'program' section
     - BUILD: ot: use a cebtree instead of a list for variable names
