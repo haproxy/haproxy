@@ -951,6 +951,7 @@ int h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
 
 /* Appends the H1 representation of the request line <sl> to the chunk <chk>. It
  * returns 1 if data are successfully appended, otherwise it returns 0.
+ * <chk> buffer must not wrap.
  */
 int h1_format_htx_reqline(const struct htx_sl *sl, struct buffer *chk)
 {
@@ -985,6 +986,7 @@ int h1_format_htx_reqline(const struct htx_sl *sl, struct buffer *chk)
 
 /* Appends the H1 representation of the status line <sl> to the chunk <chk>. It
  * returns 1 if data are successfully appended, otherwise it returns 0.
+ * <chk> buffer must not wrap.
  */
 int h1_format_htx_stline(const struct htx_sl *sl, struct buffer *chk)
 {
@@ -1018,6 +1020,7 @@ int h1_format_htx_stline(const struct htx_sl *sl, struct buffer *chk)
 /* Appends the H1 representation of the header <n> with the value <v> to the
  * chunk <chk>. It returns 1 if data are successfully appended, otherwise it
  * returns 0.
+ * <chk> buffer must not wrap.
  */
 int h1_format_htx_hdr(const struct ist n, const struct ist v, struct buffer *chk)
 {
@@ -1042,6 +1045,7 @@ int h1_format_htx_hdr(const struct ist n, const struct ist v, struct buffer *chk
 /* Appends the H1 representation of the data <data> to the chunk <chk>. If
  * <chunked> is non-zero, it emits HTTP/1 chunk-encoded data. It returns 1 if
  * data are successfully appended, otherwise it returns 0.
+ * <chk> buffer must not wrap.
  */
 int h1_format_htx_data(const struct ist data, struct buffer *chk, int chunked)
 {

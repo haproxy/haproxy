@@ -2341,6 +2341,7 @@ static size_t h1_make_reqline(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 {
 	struct h1c *h1c = h1s->h1c;
         struct htx_blk *blk;
+	struct buffer outbuf;
 	struct htx_sl *sl;
 	enum htx_blk_type type;
 	uint32_t sz;
@@ -2365,10 +2366,13 @@ static size_t h1_make_reqline(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 
 	if (b_space_wraps(&h1c->obuf))
 		b_slow_realign(&h1c->obuf, trash.area, b_data(&h1c->obuf));
+	outbuf = b_make(b_tail(&h1c->obuf), b_contig_space(&h1c->obuf), 0, 0);
 
 	sl = htx_get_blk_ptr(htx, blk);
-	if (!h1_format_htx_reqline(sl, &h1c->obuf))
+	if (!h1_format_htx_reqline(sl, &outbuf))
 		goto full;
+
+	b_add(&h1c->obuf, outbuf.data);
 
 	h1s->meth = sl->info.req.meth;
 	h1_parse_req_vsn(h1m, sl);
@@ -2424,6 +2428,7 @@ static size_t h1_make_stline(struct h1s *h1s, struct h1m *h1m, struct htx *htx, 
 {
 	struct h1c *h1c = h1s->h1c;
 	struct htx_blk *blk;
+	struct buffer outbuf;
 	struct htx_sl *sl;
 	enum htx_blk_type type;
 	uint32_t sz;
@@ -2450,10 +2455,13 @@ static size_t h1_make_stline(struct h1s *h1s, struct h1m *h1m, struct htx *htx, 
 
 	if (b_space_wraps(&h1c->obuf))
 		b_slow_realign(&h1c->obuf, trash.area, b_data(&h1c->obuf));
+	outbuf = b_make(b_tail(&h1c->obuf), b_contig_space(&h1c->obuf), 0, 0);
 
 	sl = htx_get_blk_ptr(htx, blk);
-	if (!h1_format_htx_stline(sl, &h1c->obuf))
+	if (!h1_format_htx_stline(sl, &outbuf))
 		goto full;
+
+	b_add(&h1c->obuf, outbuf.data);
 
 	h1s->status = sl->info.res.status;
 	h1_parse_res_vsn(h1m, sl);
