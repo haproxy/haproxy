@@ -951,7 +951,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		chunk_appendf(&trash, "%11llu %11llu %14llu %14llu| %16p DSO:%s;",
 			      entry->alloc_calls, entry->free_calls,
 			      entry->alloc_tot, entry->free_tot,
-			      entry->caller, entry->info ? (const char*)entry->info : "other");
+			      entry->caller == (void*)-1 ? 0 : entry->caller, entry->info ? (const char*)entry->info : "other");
 
 		if (entry->alloc_tot != entry->free_tot)
 			chunk_appendf(&trash, " delta_calls=%lld; delta_bytes=%lld",
