@@ -419,7 +419,7 @@ haproxy h5 -cli {
 shell {
     ocsp_resp_file="${tmpdir}.ocsp_resp.der"
 
-   echo "show ssl ocsp-response base64 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015" | socat "${tmpdir}/h5/stats" - | base64 -d > $ocsp_resp_file
+   echo "show ssl ocsp-response base64 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015" | socat "${tmpdir}/h5/stats" - | sed -e 's/.\{72\}/&\n/g' | openssl base64 -d | tee /tmp/with-o64 > $ocsp_resp_file
 
    if [ $? -eq 0 ]
    then
@@ -732,7 +732,7 @@ shell {
     echo "new ssl cert ${testdir}/ocsp_update/rsa.pem" | socat "${tmpdir}/h9/stats" -
     printf "set ssl cert ${testdir}/ocsp_update/rsa.pem <<\n$(cat ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa)\n\n" | socat "${tmpdir}/h9/stats" -
     printf "set ssl cert ${testdir}/ocsp_update/rsa.pem.issuer <<\n$(cat ${testdir}/ocsp_update/ocsp_update_rootca.crt)\n\n" | socat "${tmpdir}/h9/stats" -
-    printf "set ssl cert ${testdir}/ocsp_update/rsa.pem.ocsp <<\n$(base64 -w 1000 ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa.ocsp)\n\n" | socat "${tmpdir}/h9/stats" -
+    printf "set ssl cert ${testdir}/ocsp_update/rsa.pem.ocsp <<\n$(openssl base64 < ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa.ocsp)\n\n" | socat "${tmpdir}/h9/stats" -
     echo "commit ssl cert ${testdir}/ocsp_update/rsa.pem" | socat "${tmpdir}/h9/stats" -
 
     printf "add ssl crt-list ${testdir}/ocsp_update/multicert_ecdsa_no_update.crt-list <<\nrsa.pem [ocsp-update off] foo.bar\n\n" | socat "${tmpdir}/h9/stats" -
