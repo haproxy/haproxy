@@ -229,7 +229,7 @@ int connected_peers = 0; /* number of connected peers (verified ones) */
 int arg_mode = 0;	/* MODE_DEBUG etc as passed on command line ... */
 char *change_dir = NULL; /* set when -C is passed */
 char *check_condition = NULL; /* check condition passed to -cc */
-char *progname;
+char *progname = NULL; /* HAProxy binary's name */
 
 /* Here we store information about the pids of the processes we may pause
  * or kill. We will send them a signal every 10 ms until we can bind to all
@@ -1169,7 +1169,7 @@ next_dir_entry:
  * frees in its stack the memory allocated for config files content, if it has
  * encountered an error.
  */
-static int load_cfg(char *progname)
+static int load_cfg()
 {
 	struct cfgfile *cfg, *cfg_tmp;
 
@@ -1197,7 +1197,7 @@ static int load_cfg(char *progname)
  * Otherwise, it returns an err_code, which may contain 0 (OK) or ERR_WARN,
  * ERR_ALERT.
  */
-static int read_cfg(char *progname)
+static int read_cfg()
 {
 	char *env_cfgfiles = NULL;
 	struct cfgfile *cfg;
@@ -1465,7 +1465,7 @@ static void ha_random_boot(char *const *argv)
  * configuration. Makes process to exit with 0, if the condition is true, with
  * 1, if the condition is false or with 2, if parse_line encounters an error.
  */
-static void do_check_condition(char *progname)
+static void do_check_condition()
 {
 	int result;
 	uint32_t err;
@@ -1602,8 +1602,6 @@ static void init_early(int argc, char **argv)
 static void init_args(int argc, char **argv)
 {
 	char *err_msg = NULL;
-
-	progname = global.log_tag.area;
 
 	/* pre-fill in the global tuning options before we let the cmdline
 	 * change them.
@@ -2333,7 +2331,7 @@ static void step_init_1()
 
 	/* Do check_condition, if we started with -cc, and exit. */
 	if (global.mode & MODE_CHECK_CONDITION)
-		do_check_condition(progname);
+		do_check_condition();
 
 	if (change_dir && chdir(change_dir) < 0) {
 		ha_alert("Could not change to directory %s : %s\n", change_dir, strerror(errno));
@@ -2937,7 +2935,7 @@ static void step_init_3(void)
 	 * binding to privileged ports.
 	 */
 	if (!master)
-	    prepare_caps_from_permitted_set(geteuid(), global.uid, progname);
+	    prepare_caps_from_permitted_set(geteuid(), global.uid);
 #endif
 }
 
@@ -3098,7 +3096,7 @@ static void read_cfg_in_discovery_mode(int argc, char **argv)
 	global.mode |= MODE_DISCOVERY;
 
 	usermsgs_clr("config");
-	if (load_cfg(progname) < 0) {
+	if (load_cfg() < 0) {
 		if (getenv("HAPROXY_MWORKER_REEXEC") != NULL) {
 			ha_warning("Master failed to load new configuration and "
 				   "can't start a new worker. Already running worker "
@@ -3114,7 +3112,7 @@ static void read_cfg_in_discovery_mode(int argc, char **argv)
 			exit(1);
 	}
 
-	if (read_cfg(progname) < 0) {
+	if (read_cfg() < 0) {
 		list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list) {
 			ha_free(&cfg->content);
 			ha_free(&cfg->filename);
@@ -3363,6 +3361,7 @@ void deinit(void)
 		}
 		free(init_env);
 	}
+	free(progname);
 
 } /* end deinit() */
 
@@ -3829,7 +3828,7 @@ int main(int argc, char **argv)
 			setenv("HAPROXY_MWORKER", "1", 1);
 		}
 		non_global_section_parsed = 0;
-		if (read_cfg(progname) < 0) {
+		if (read_cfg() < 0) {
 			list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list) {
 				ha_free(&cfg->content);
 				ha_free(&cfg->filename);

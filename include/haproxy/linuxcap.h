@@ -22,6 +22,6 @@ static inline int capget(cap_user_header_t hdrp, const cap_user_data_t datap)
 }
 int prepare_caps_for_setuid(int from_uid, int to_uid);
 int finalize_caps_after_setuid(int from_uid, int to_uid);
-int prepare_caps_from_permitted_set(int from_uid, int to_uid, const char *progname);
+int prepare_caps_from_permitted_set(int from_uid, int to_uid);
 
 #endif /* _HAPROXY_LINUXCAP_H */

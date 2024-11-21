@@ -50,6 +50,7 @@ extern int atexit_flag;
 extern unsigned char boot_seed[20];  // per-boot random seed (160 bits initially)
 extern THREAD_LOCAL struct buffer trash;
 extern char **init_env;
+extern char *progname;
 
 struct proxy;
 struct server;

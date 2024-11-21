@@ -80,7 +80,7 @@ static uint32_t caplist;
  * LSTCHK_NETADM/LSTCHK_SYSADM is presented in global.last_checks and some
  * failures are encountered.
  */
-int prepare_caps_from_permitted_set(int from_uid, int to_uid, const char *progname)
+int prepare_caps_from_permitted_set(int from_uid, int to_uid)
 {
 	/* _LINUX_CAPABILITY_U32S_1 = 1 and corresponds to version 1, which is three
 	 * 32-bit integers set. So kernel in capset()/capget() will copy_from/to_user
