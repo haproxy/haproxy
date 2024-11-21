@@ -946,6 +946,9 @@ void *pool_destroy(struct pool_head *pool)
 			/* note that if used == 0, the cache is empty */
 			free(pool->base_addr);
 		}
+
+		/* make sure this pool is no longer referenced in memory profiling */
+		memprof_remove_stale_info(pool);
 	}
 	return NULL;
 }
