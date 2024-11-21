@@ -48,6 +48,15 @@ enum memprof_method {
 	MEMPROF_METH_METHODS /* count, must be last */
 };
 
+/* mask of 1 << method to match those which free. Note that we don't count
+ * p_alloc among them since p_alloc only has an optionally valid free counter
+ * but which is reported by another call in any case since p_alloc itself does
+ * not free.
+ */
+#define MEMPROF_FREE_MASK   ((1UL << MEMPROF_METH_REALLOC) | \
+                             (1UL << MEMPROF_METH_FREE)    | \
+                             (1UL << MEMPROF_METH_P_FREE))
+
 /* stats:
  *   - malloc increases alloc
  *   - free increases free (if non null)

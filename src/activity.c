@@ -825,9 +825,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		else
 			chunk_appendf(&trash, "[other]");
 
-		if ((tmp_memstats[i].method != MEMPROF_METH_P_ALLOC) &&
-		    (tmp_memstats[i].method != MEMPROF_METH_MALLOC) &&
-		    (tmp_memstats[i].method != MEMPROF_METH_CALLOC)) {
+		if (((1UL << tmp_memstats[i].method) & MEMPROF_FREE_MASK) || !entry->alloc_calls) {
 			chunk_appendf(&trash," %s(%lld)", memprof_methods[entry->method],
 				(long long)(entry->alloc_tot - entry->free_tot) / (long long)(entry->alloc_calls + entry->free_calls));
 		} else
@@ -858,9 +856,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	for (i = 0; i < max_lines; i++) {
 		tot_alloc_calls += tmp_memstats[i].alloc_calls;
 		tot_alloc_bytes += tmp_memstats[i].alloc_tot;
-		if ((tmp_memstats[i].method != MEMPROF_METH_P_ALLOC) &&
-		    (tmp_memstats[i].method != MEMPROF_METH_MALLOC) &&
-		    (tmp_memstats[i].method != MEMPROF_METH_CALLOC)) {
+		if ((1UL << tmp_memstats[i].method) & MEMPROF_FREE_MASK) {
 			tot_free_calls  += tmp_memstats[i].free_calls;
 			tot_free_bytes  += tmp_memstats[i].free_tot;
 		}
@@ -912,9 +908,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 			tmp_memstats[j].info = strdup(p);   // may fail, but checked when used
 			tmp_memstats[j].alloc_calls = entry->alloc_calls;
 			tmp_memstats[j].alloc_tot   = entry->alloc_tot;
-			if ((entry->method != MEMPROF_METH_P_ALLOC) &&
-			    (entry->method != MEMPROF_METH_MALLOC) &&
-			    (entry->method != MEMPROF_METH_CALLOC)) {
+			if ((1UL << entry->method) & MEMPROF_FREE_MASK) {
 				tmp_memstats[j].free_calls  = entry->free_calls;
 				tmp_memstats[j].free_tot    = entry->free_tot;
 			} else {
@@ -924,9 +918,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		} else {
 			tmp_memstats[j].alloc_calls += entry->alloc_calls;
 			tmp_memstats[j].alloc_tot += entry->alloc_tot;
-			if ((entry->method != MEMPROF_METH_P_ALLOC) &&
-			    (entry->method != MEMPROF_METH_MALLOC) &&
-			    (entry->method != MEMPROF_METH_CALLOC)) {
+			if ((1UL << entry->method) & MEMPROF_FREE_MASK) {
 				tmp_memstats[j].free_calls  += entry->free_calls;
 				tmp_memstats[j].free_tot  += entry->free_tot;
 			}
