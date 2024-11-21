@@ -1592,7 +1592,7 @@ static void init_early(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	chunk_initlen(&global.log_tag, progname, len, len);
+	chunk_initlen(&global.log_tag, strdup(progname), len, len);
 }
 
 /* handles program arguments. Very minimal parsing is performed, variables are
