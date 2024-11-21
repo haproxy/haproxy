@@ -10,6 +10,7 @@
  *
  */
 
+#include <errno.h>
 #include <haproxy/activity-t.h>
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
@@ -69,6 +70,7 @@ struct sched_activity sched_activity[SCHED_ACT_HASH_BUCKETS] __attribute__((alig
 
 static const char *const memprof_methods[MEMPROF_METH_METHODS] = {
 	"unknown", "malloc", "calloc", "realloc", "strdup", "free", "p_alloc", "p_free",
+	"strndup", "valloc", "aligned_valloc", "posix_memalign", "memalign", "pvalloc",
 };
 
 /* last one is for hash collisions ("others") and has no caller address */
@@ -86,6 +88,14 @@ static void *memprof_realloc_initial_handler(void *ptr, size_t size);
 static char *memprof_strdup_initial_handler(const char *s);
 static void  memprof_free_initial_handler(void *ptr);
 
+/* these ones are optional but may be used by some dependecies */
+static char *memprof_strndup_initial_handler(const char *s, size_t n);
+static void *memprof_valloc_initial_handler(size_t sz);
+static void *memprof_pvalloc_initial_handler(size_t sz);
+static void *memprof_memalign_initial_handler(size_t al, size_t sz);
+static void *memprof_aligned_alloc_initial_handler(size_t al, size_t sz);
+static int   memprof_posix_memalign_initial_handler(void **ptr, size_t al, size_t sz);
+
 /* Fallback handlers for the main alloc/free functions. They are preset to
  * the initializer in order to save a test in the functions's critical path.
  */
@@ -94,6 +104,14 @@ static void *(*memprof_calloc_handler)(size_t nmemb, size_t size) = memprof_call
 static void *(*memprof_realloc_handler)(void *ptr, size_t size)   = memprof_realloc_initial_handler;
 static char *(*memprof_strdup_handler)(const char *s)             = memprof_strdup_initial_handler;
 static void  (*memprof_free_handler)(void *ptr)                   = memprof_free_initial_handler;
+
+/* these ones are optional but may be used by some dependecies */
+static char *(*memprof_strndup_handler)(const char *s, size_t n)                 = memprof_strndup_initial_handler;
+static void *(*memprof_valloc_handler)(size_t sz)                                = memprof_valloc_initial_handler;
+static void *(*memprof_pvalloc_handler)(size_t sz)                               = memprof_pvalloc_initial_handler;
+static void *(*memprof_memalign_handler)(size_t al, size_t sz)                   = memprof_memalign_initial_handler;
+static void *(*memprof_aligned_alloc_handler)(size_t al, size_t sz)              = memprof_aligned_alloc_initial_handler;
+static int   (*memprof_posix_memalign_handler)(void **ptr, size_t al, size_t sz) = memprof_posix_memalign_initial_handler;
 
 /* Used to force to die if it's not possible to retrieve the allocation
  * functions. We cannot even use stdio in this case.
@@ -136,6 +154,17 @@ static void memprof_init()
 	memprof_free_handler    = get_sym_next_addr("free");
 	if (!memprof_free_handler)
 		memprof_die("FATAL: free() function not found.\n");
+
+	/* these ones are not always implemented, rarely used and may not exist
+	 * so we don't fail on them.
+	 */
+	memprof_strndup_handler        = get_sym_next_addr("strndup");
+	memprof_valloc_handler         = get_sym_next_addr("valloc");
+	memprof_pvalloc_handler        = get_sym_next_addr("pvalloc");
+	memprof_memalign_handler       = get_sym_next_addr("memalign");
+	memprof_aligned_alloc_handler  = get_sym_next_addr("aligned_alloc");
+	memprof_posix_memalign_handler = get_sym_next_addr("posix_memalign");
+
 	in_memprof--;
 }
 
@@ -190,6 +219,74 @@ static void  memprof_free_initial_handler(void *ptr)
 {
 	memprof_init();
 	memprof_free_handler(ptr);
+}
+
+/* optional handlers */
+
+static char *memprof_strndup_initial_handler(const char *s, size_t n)
+{
+	if (in_memprof) {
+		/* probably that dlsym() needs strndup(), let's fail */
+		return NULL;
+	}
+
+	memprof_init();
+	return memprof_strndup_handler(s, n);
+}
+
+static void *memprof_valloc_initial_handler(size_t sz)
+{
+	if (in_memprof) {
+		/* probably that dlsym() needs valloc(), let's fail */
+		return NULL;
+	}
+
+	memprof_init();
+	return memprof_valloc_handler(sz);
+}
+
+static void *memprof_pvalloc_initial_handler(size_t sz)
+{
+	if (in_memprof) {
+		/* probably that dlsym() needs pvalloc(), let's fail */
+		return NULL;
+	}
+
+	memprof_init();
+	return memprof_pvalloc_handler(sz);
+}
+
+static void *memprof_memalign_initial_handler(size_t al, size_t sz)
+{
+	if (in_memprof) {
+		/* probably that dlsym() needs memalign(), let's fail */
+		return NULL;
+	}
+
+	memprof_init();
+	return memprof_memalign_handler(al, sz);
+}
+
+static void *memprof_aligned_alloc_initial_handler(size_t al, size_t sz)
+{
+	if (in_memprof) {
+		/* probably that dlsym() needs aligned_alloc(), let's fail */
+		return NULL;
+	}
+
+	memprof_init();
+	return memprof_aligned_alloc_handler(al, sz);
+}
+
+static int memprof_posix_memalign_initial_handler(void **ptr, size_t al, size_t sz)
+{
+	if (in_memprof) {
+		/* probably that dlsym() needs posix_memalign(), let's fail */
+		return NULL;
+	}
+
+	memprof_init();
+	return memprof_posix_memalign_handler(ptr, al, sz);
 }
 
 /* Assign a bin for the memprof_stats to the return address. May perform a few
@@ -366,6 +463,125 @@ void free(void *ptr)
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_FREE);
 	_HA_ATOMIC_ADD(&bin->free_calls, 1);
 	_HA_ATOMIC_ADD(&bin->free_tot, size_before);
+}
+
+/* optional handlers below, essentially to monitor libs activities */
+
+char *strndup(const char *s, size_t size)
+{
+	struct memprof_stats *bin;
+	char *ret;
+
+	if (!memprof_strndup_handler)
+		return NULL;
+
+	ret = memprof_strndup_handler(s, size);
+	if (likely(!(profiling & HA_PROF_MEMORY)))
+		return ret;
+
+	size = malloc_usable_size(ret) + sizeof(void *);
+	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_STRNDUP);
+	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
+	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
+	return ret;
+}
+
+void *valloc(size_t size)
+{
+	struct memprof_stats *bin;
+	void *ret;
+
+	if (!memprof_valloc_handler)
+		return NULL;
+
+	ret = memprof_valloc_handler(size);
+	if (likely(!(profiling & HA_PROF_MEMORY)))
+		return ret;
+
+	size = malloc_usable_size(ret) + sizeof(void *);
+	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_VALLOC);
+	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
+	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
+	return ret;
+}
+
+void *pvalloc(size_t size)
+{
+	struct memprof_stats *bin;
+	void *ret;
+
+	if (!memprof_pvalloc_handler)
+		return NULL;
+
+	ret = memprof_pvalloc_handler(size);
+	if (likely(!(profiling & HA_PROF_MEMORY)))
+		return ret;
+
+	size = malloc_usable_size(ret) + sizeof(void *);
+	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_PVALLOC);
+	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
+	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
+	return ret;
+}
+
+void *memalign(size_t align, size_t size)
+{
+	struct memprof_stats *bin;
+	void *ret;
+
+	if (!memprof_memalign_handler)
+		return NULL;
+
+	ret = memprof_memalign_handler(align, size);
+	if (likely(!(profiling & HA_PROF_MEMORY)))
+		return ret;
+
+	size = malloc_usable_size(ret) + sizeof(void *);
+	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_MEMALIGN);
+	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
+	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
+	return ret;
+}
+
+void *aligned_alloc(size_t align, size_t size)
+{
+	struct memprof_stats *bin;
+	void *ret;
+
+	if (!memprof_aligned_alloc_handler)
+		return NULL;
+
+	ret = memprof_aligned_alloc_handler(align, size);
+	if (likely(!(profiling & HA_PROF_MEMORY)))
+		return ret;
+
+	size = malloc_usable_size(ret) + sizeof(void *);
+	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_ALIGNED_ALLOC);
+	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
+	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
+	return ret;
+}
+
+int posix_memalign(void **ptr, size_t align, size_t size)
+{
+	struct memprof_stats *bin;
+	int ret;
+
+	if (!memprof_posix_memalign_handler)
+		return ENOMEM;
+
+	ret = memprof_posix_memalign_handler(ptr, align, size);
+	if (likely(!(profiling & HA_PROF_MEMORY)))
+		return ret;
+
+	if (ret != 0) // error
+		return ret;
+
+	size = malloc_usable_size(*ptr) + sizeof(void *);
+	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_POSIX_MEMALIGN);
+	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
+	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
+	return ret;
 }
 
 /* remove info from entries matching <info>. This needs to be used by callers

@@ -46,6 +46,12 @@ enum memprof_method {
 	MEMPROF_METH_FREE,
 	MEMPROF_METH_P_ALLOC, // pool_alloc()
 	MEMPROF_METH_P_FREE,  // pool_free()
+	MEMPROF_METH_STRNDUP,        // _POSIX_C_SOURCE >= 200809L || glibc >= 2.10
+	MEMPROF_METH_VALLOC,         // _BSD_SOURCE || _XOPEN_SOURCE>=500 || glibc >= 2.12
+	MEMPROF_METH_ALIGNED_ALLOC,  // _ISOC11_SOURCE
+	MEMPROF_METH_POSIX_MEMALIGN, // _POSIX_C_SOURCE >= 200112L
+	MEMPROF_METH_MEMALIGN,       // obsolete
+	MEMPROF_METH_PVALLOC,        // obsolete
 	MEMPROF_METH_METHODS /* count, must be last */
 };
 
