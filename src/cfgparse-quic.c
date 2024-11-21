@@ -586,7 +586,7 @@ static int quic_parse_quic_initial(char **args, int section_type, struct proxy *
 	}
 
 	/* the following function directly emits the warning */
-	warnif_misplaced_quic_init(curpx, file, line, args[0]);
+	warnif_misplaced_quic_init(curpx, file, line, args[0], NULL);
 
 	LIST_APPEND(&curpx->quic_init_rules, &rule->list);
 
