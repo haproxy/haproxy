@@ -934,6 +934,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	const char *str;
 	int max_lines;
 	int i, j, max;
+	int dumped;
 
 	chunk_reset(&trash);
 
@@ -997,11 +998,17 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	if (!max_lines)
 		max_lines = SCHED_ACT_HASH_BUCKETS;
 
+	dumped = 0;
 	for (i = ctx->linenum; i < max_lines; i++) {
 		if (!tmp_activity[i].calls)
 			continue; // skip aggregated or empty entries
 
 		ctx->linenum = i;
+
+		/* resolve_sym_name() may be slow, better dump a few entries at a time */
+		if (dumped >= 10)
+			return 0;
+
 		chunk_reset(name_buffer);
 		caller = HA_ATOMIC_LOAD(&tmp_activity[i].caller);
 
@@ -1034,6 +1041,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 			/* failed, try again */
 			return 0;
 		}
+		dumped++;
 	}
 
 	if (applet_putchk(appctx, &trash) == -1) {
@@ -1069,12 +1077,18 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	if (!max_lines)
 		max_lines = MEMPROF_HASH_BUCKETS + 1;
 
+	dumped = 0;
 	for (i = ctx->linenum; i < max_lines; i++) {
 		struct memprof_stats *entry = &tmp_memstats[i];
 
 		ctx->linenum = i;
 		if (!entry->alloc_calls && !entry->free_calls)
 			continue;
+
+		/* resolve_sym_name() may be slow, better dump a few entries at a time */
+		if (dumped >= 10)
+			return 0;
+
 		chunk_appendf(&trash, "%11llu %11llu %14llu %14llu| %16p ",
 			      entry->alloc_calls, entry->free_calls,
 			      entry->alloc_tot, entry->free_tot,
@@ -1107,6 +1121,8 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 
 		if (applet_putchk(appctx, &trash) == -1)
 			return 0;
+
+		dumped++;
 	}
 
 	if (applet_putchk(appctx, &trash) == -1)
