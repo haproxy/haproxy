@@ -120,7 +120,7 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 		if (!(_HA_ATOMIC_LOAD(&ha_thread_ctx[thr].flags) & TH_FL_STUCK)) {
 			uint prev_ctxsw;
 
-			prev_ctxsw = HA_ATOMIC_LOAD(&per_thread_wd_ctx[tid].prev_ctxsw);
+			prev_ctxsw = HA_ATOMIC_LOAD(&per_thread_wd_ctx[thr].prev_ctxsw);
 
 			/* only after one second it's clear we're stuck */
 			if (n - p >= 1000000000ULL)
@@ -131,9 +131,11 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 			 * a warning (unless already stuck).
 			 */
 			if (n - p >= (ullong)wdt_warn_blocked_traffic_ns) {
-				if (HA_ATOMIC_LOAD(&activity[thr].ctxsw) == prev_ctxsw)
+				uint curr_ctxsw = HA_ATOMIC_LOAD(&activity[thr].ctxsw);
+
+				if (curr_ctxsw == prev_ctxsw)
 					ha_stuck_warning(thr);
-				HA_ATOMIC_STORE(&activity[thr].ctxsw, prev_ctxsw);
+				HA_ATOMIC_STORE(&per_thread_wd_ctx[thr].prev_ctxsw, curr_ctxsw);
 			}
 
 			goto update_and_leave;
