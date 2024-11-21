@@ -674,6 +674,7 @@ static void quic_cc_cubic_state_cli(struct buffer *buf, const struct quic_cc_pat
 
 struct quic_cc_algo quic_cc_algo_cubic = {
 	.type        = QUIC_CC_ALGO_TP_CUBIC,
+	.flags       = QUIC_CC_ALGO_FL_OPT_PACING,
 	.init        = quic_cc_cubic_init,
 	.event       = quic_cc_cubic_event,
 	.slow_start  = quic_cc_cubic_slow_start,

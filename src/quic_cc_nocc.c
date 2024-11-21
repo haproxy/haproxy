@@ -68,6 +68,7 @@ static void quic_cc_nocc_event(struct quic_cc *cc, struct quic_cc_event *ev)
 
 struct quic_cc_algo quic_cc_algo_nocc = {
 	.type        = QUIC_CC_ALGO_TP_NOCC,
+	.flags       = QUIC_CC_ALGO_FL_OPT_PACING,
 	.init        = quic_cc_nocc_init,
 	.event       = quic_cc_nocc_event,
 	.slow_start  = quic_cc_nocc_slow_start,

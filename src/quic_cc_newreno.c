@@ -216,6 +216,7 @@ static void quic_cc_nr_event(struct quic_cc *cc, struct quic_cc_event *ev)
 
 struct quic_cc_algo quic_cc_algo_nr = {
 	.type        = QUIC_CC_ALGO_TP_NEWRENO,
+	.flags       = QUIC_CC_ALGO_FL_OPT_PACING,
 	.init        = quic_cc_nr_init,
 	.event       = quic_cc_nr_event,
 	.slow_start  = quic_cc_nr_slow_start,

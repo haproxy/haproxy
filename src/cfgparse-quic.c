@@ -188,7 +188,7 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 			if (burst < 0)
 				goto fail;
 
-			if (cc_algo->type != QUIC_CC_ALGO_TP_CUBIC) {
+			if (!(cc_algo->flags & QUIC_CC_ALGO_FL_OPT_PACING)) {
 				ha_warning("'%s' : burst parameter ignored for '%s' congestion algorithm\n",
 				           args[cur_arg], algo);
 			}
