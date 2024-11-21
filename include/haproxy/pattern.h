@@ -229,6 +229,27 @@ static inline void pat_ref_giveup(struct pat_ref *ref, unsigned int gen)
 	HA_ATOMIC_CAS(&ref->next_gen, &gen, gen - 1);
 }
 
+/* Checks if the provided <gen> number is valid in the sense that it may
+ * still be committed. Indeed, multiple gen numbers may be created in parallel,
+ * but once one of them gets committed, pending generation numbers below the
+ * new current one are not valid anymore (they should be recreated).
+ *
+ * It is not strictly mandatory to call this function under lock if the caller
+ * uses this info as an opportunistic hint, otherwise, when consistency is
+ * required, <ref> lock should be held as commit operation is also performed
+ * under the lock.
+ *
+ * The function returns 1 if <gen> is still valid, and 0 otherwise
+ */
+static inline int pat_ref_may_commit(struct pat_ref *ref, unsigned int gen)
+{
+	unsigned int curr_gen = HA_ATOMIC_LOAD(&ref->curr_gen);
+
+	if ((int)(gen - curr_gen) > 0)
+		return 1;
+	return 0;
+}
+
 /* Commit the whole pattern reference by updating the generation number or
  * failing in case someone else managed to do it meanwhile. While this could
  * be done using a CAS, it must instead be called with the PATREF_LOCK held in
@@ -239,7 +260,7 @@ static inline void pat_ref_giveup(struct pat_ref *ref, unsigned int gen)
  */
 static inline int pat_ref_commit(struct pat_ref *ref, unsigned int gen)
 {
-	if ((int)(gen - ref->curr_gen) > 0) {
+	if (pat_ref_may_commit(ref, gen)) {
 		ref->curr_gen = gen;
 		event_hdl_publish(&ref->e_subs, EVENT_HDL_SUB_PAT_REF_COMMIT, NULL);
 	}
