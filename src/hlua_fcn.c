@@ -2694,6 +2694,17 @@ int hlua_patref_commit(lua_State *L)
 	return _hlua_patref_clear(L, LUA_OK, 0);
 }
 
+int hlua_patref_prepare(lua_State *L)
+{
+	struct hlua_patref *ref;
+
+	ref = hlua_checkudata(L, 1, class_patref_ref);
+	BUG_ON(!ref);
+	ref->curr_gen = pat_ref_newgen(ref->ptr);
+	ref->flags |= HLUA_PATREF_FL_GEN;
+	return 0;
+}
+
 void hlua_fcn_new_patref(lua_State *L, struct pat_ref *ref)
 {
 	struct hlua_patref *_ref;
@@ -2721,6 +2732,7 @@ void hlua_fcn_new_patref(lua_State *L, struct pat_ref *ref)
 	/* set public methods */
 	hlua_class_function(L, "get_name", hlua_patref_get_name);
 	hlua_class_function(L, "is_map", hlua_patref_is_map);
+	hlua_class_function(L, "prepare", hlua_patref_prepare);
 	hlua_class_function(L, "commit", hlua_patref_commit);
 }
 

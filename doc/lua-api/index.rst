@@ -3456,6 +3456,12 @@ Patref class
   :returns: true if the pattern reference is used to handle maps instead
    of acl, false otherwise.
 
+.. js:function:: Patref.prepare(ref)
+
+  Create a new empty version for Patref Object. It can be used to manipulate
+  the Patref object with update methods without applying the updates until the
+  commit() method is called.
+
 .. js:function:: Patref.commit(ref)
 
   Tries to commit pending Patref object updates, that is updates made to the
@@ -3466,6 +3472,8 @@ Patref class
   before the new one will be pruned.
 
   :returns: true on success and nil on failure (followed by an error message).
+
+  See :js:func:`Patref.prepare()`
 
 .. _applethttp_class:
 
