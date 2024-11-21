@@ -5617,6 +5617,48 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 	return NULL;
 }
 
+/* Tries to append to buffer <buf> the DSO name containing the symbol at address
+ * <addr>. The name (lib or executable) is limited to what lies between the last
+ * '/' and the first following '.'. An optional prefix <pfx> is prepended before
+ * the output if not null. It returns "*unknown*" when the symbol is not found.
+ *
+ * The symbol's address is returned, or NULL when unresolved, in order to allow
+ * the caller to match it against known ones.
+ */
+const void *resolve_dso_name(struct buffer *buf, const char *pfx, const void *addr)
+{
+#if (defined(__ELF__) && !defined(__linux__)) || defined(USE_DL)
+	Dl_info dli;
+	size_t size;
+	const char *fname, *p;
+
+	/* Now let's try to be smarter */
+	if (!dladdr_and_size(addr, &dli, &size))
+		goto unknown;
+
+	if (pfx) {
+		chunk_appendf(buf, "%s", pfx);
+		pfx = NULL;
+	}
+
+	/* keep the part between '/' and '.' */
+	fname = dli.dli_fname;
+	p = strrchr(fname, '/');
+	if (p++)
+		fname = p;
+	p = strchr(fname, '.');
+	if (!p)
+		p = fname + strlen(fname);
+	chunk_appendf(buf, "%.*s", (int)(long)(p - fname), fname);
+	return addr;
+ unknown:
+#endif /* __ELF__ && !__linux__ || USE_DL */
+
+	/* unknown symbol */
+	chunk_appendf(buf, "%s*unknown*", pfx ? pfx : "");
+	return NULL;
+}
+
 /* On systems where this is supported, let's provide a possibility to enumerate
  * the list of object files. The output is appended to a buffer initialized by
  * the caller, with one name per line. A trailing zero is always emitted if data
