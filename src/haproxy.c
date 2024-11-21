@@ -1571,7 +1571,6 @@ static void init_early(int argc, char **argv)
 	memset(hostname, 0, sizeof(hostname));
 	gethostname(hostname, sizeof(hostname) - 1);
 
-	/* preset some environment variables */
 	localpeer = strdup(hostname);
 	if (!localpeer) {
 		ha_alert("Cannot allocate memory for local peer.\n");
