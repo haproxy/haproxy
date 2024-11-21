@@ -1200,6 +1200,8 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 			warn++;
 		}
 
+		/* the following function directly emits the warning */
+		warnif_misplaced_tcp_res_cont(curpx, file, line, args[0], args[1]);
 		LIST_APPEND(&curpx->tcp_rep.inspect_rules, &rule->list);
 	}
 	else {

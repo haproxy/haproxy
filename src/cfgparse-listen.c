@@ -132,6 +132,19 @@ static int warnif_rule_after_http_req(struct proxy *proxy, const char *file, int
 	return 0;
 }
 
+/* Report a warning if a rule is placed after an 'http_response' rule.
+ * Return 1 if the warning has been emitted, otherwise 0.
+ */
+static int warnif_rule_after_http_res(struct proxy *proxy, const char *file, int line, const char *arg1, const char *arg2)
+{
+	if (!LIST_ISEMPTY(&proxy->http_res_rules)) {
+		ha_warning("parsing [%s:%d] : a '%s%s%s' rule placed after an 'http-response' rule will still be processed before.\n",
+			   file, line, arg1, (arg2 ? " ": ""), (arg2 ? arg2 : ""));
+		return 1;
+	}
+	return 0;
+}
+
 /* Report a warning if a rule is placed after a redirect rule.
  * Return 1 if the warning has been emitted, otherwise 0.
  */
@@ -197,6 +210,12 @@ int warnif_misplaced_tcp_req_cont(struct proxy *proxy, const char *file, int lin
 {
 	return	warnif_rule_after_monitor(proxy, file, line, arg1, arg2) ||
 		warnif_misplaced_monitor(proxy, file, line, arg1, arg2);
+}
+
+/* report a warning if a "tcp response content" rule is dangerously placed */
+int warnif_misplaced_tcp_res_cont(struct proxy *proxy, const char *file, int line, const char *arg1, const char *arg2)
+{
+	return	warnif_rule_after_http_res(proxy, file, line, arg1, arg2);
 }
 
 /* report a warning if a "tcp request session" rule is dangerously placed */
