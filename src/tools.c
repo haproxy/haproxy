@@ -5536,7 +5536,9 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 	};
 
 #if (defined(__ELF__) && !defined(__linux__)) || defined(USE_DL)
-	Dl_info dli, dli_main;
+	static Dl_info dli_main;
+	static int dli_main_done; // 0 = not resolved, 1 = resolve in progress, 2 = done
+	Dl_info dli;
 	size_t size;
 	const char *fname, *p;
 #endif
@@ -5561,8 +5563,21 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 	 * that contains the main function. The name is picked between last '/'
 	 * and first following '.'.
 	 */
-	if (!dladdr(main, &dli_main))
-		dli_main.dli_fbase = NULL;
+
+	/* let's check main only once, no need to do it all the time */
+
+	i = HA_ATOMIC_LOAD(&dli_main_done);
+	while (i < 2) {
+		i = 0;
+		if (HA_ATOMIC_CAS(&dli_main_done, &i, 1)) {
+			/* we're the first ones, resolve it */
+			if (!dladdr(main, &dli_main))
+				dli_main.dli_fbase = NULL;
+			HA_ATOMIC_STORE(&dli_main_done, 2); // done
+			break;
+		}
+		ha_thread_relax();
+	}
 
 	if (dli_main.dli_fbase != dli.dli_fbase) {
 		fname = dli.dli_fname;
