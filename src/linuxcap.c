@@ -80,7 +80,7 @@ static uint32_t caplist;
  * LSTCHK_NETADM/LSTCHK_SYSADM is presented in global.last_checks and some
  * failures are encountered.
  */
-int prepare_caps_from_permitted_set(int from_uid, int to_uid, const char *program_name)
+int prepare_caps_from_permitted_set(int from_uid, int to_uid, const char *progname)
 {
 	/* _LINUX_CAPABILITY_U32S_1 = 1 and corresponds to version 1, which is three
 	 * 32-bit integers set. So kernel in capset()/capget() will copy_from/to_user
@@ -106,7 +106,7 @@ int prepare_caps_from_permitted_set(int from_uid, int to_uid, const char *progra
 		if (global.last_checks & (LSTCHK_NETADM | LSTCHK_SYSADM))
 			ha_diag_warning("Failed to get process capabilities using capget(): %s. "
 					"Can't use capabilities that might be set on %s binary "
-					"by administrator.\n", strerror(errno), program_name);
+					"by administrator.\n", strerror(errno), progname);
 		return 0;
 	}
 
@@ -135,7 +135,7 @@ int prepare_caps_from_permitted_set(int from_uid, int to_uid, const char *progra
 		} else if (global.last_checks & (LSTCHK_NETADM|LSTCHK_SYSADM)) {
 			ha_diag_warning("Failed to put capabilities from caplist in %s "
 					"process Effective capabilities set using capset(): %s\n",
-					program_name, strerror(errno));
+					progname, strerror(errno));
 		}
 	}
 
