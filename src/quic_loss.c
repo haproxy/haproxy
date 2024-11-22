@@ -216,7 +216,9 @@ void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
 		if (tick_is_le(loss_time_limit, now_ms) || reordered) {
 			struct quic_cc *cc = &qc->path->cc;
 
-			if (cc->algo->on_pkt_lost)
+			/* Delivery rate sampling is applied to ack-eliciting packet only. */
+			if ((pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING) &&
+			    cc->algo->on_pkt_lost)
 				cc->algo->on_pkt_lost(cc, pkt, pkt->rs.lost);
 			eb64_delete(&pkt->pn_node);
 			LIST_APPEND(lost_pkts, &pkt->list);
