@@ -944,6 +944,50 @@ void mworker_create_master_cli(void)
 	}
 }
 
+/* This function fills proc_list for master-worker mode and creates a sockpair,
+ * copied after master-worker fork() to each process context to enable master
+ * CLI at worker side (worker can send its status to master).It only returns if
+ * everything is OK. If something fails, it exits.
+ */
+void mworker_prepare_master(void)
+{
+	struct mworker_proc *tmproc;
+
+	setenv("HAPROXY_MWORKER", "1", 1);
+
+	if (getenv("HAPROXY_MWORKER_REEXEC") == NULL) {
+
+		tmproc = mworker_proc_new();
+		if (!tmproc) {
+			ha_alert("Cannot allocate process structures.\n");
+			exit(EXIT_FAILURE);
+		}
+		tmproc->options |= PROC_O_TYPE_MASTER; /* master */
+		tmproc->pid = pid;
+		tmproc->timestamp = start_date.tv_sec;
+		proc_self = tmproc;
+
+		LIST_APPEND(&proc_list, &tmproc->list);
+	}
+
+	tmproc = mworker_proc_new();
+	if (!tmproc) {
+		ha_alert("Cannot allocate process structures.\n");
+		exit(EXIT_FAILURE);
+	}
+	/* worker */
+	tmproc->options |= (PROC_O_TYPE_WORKER | PROC_O_INIT);
+
+	/* create a sockpair to copy it via fork(), thus it will be in
+	 * master and in worker processes
+	 */
+	if (socketpair(AF_UNIX, SOCK_STREAM, 0, tmproc->ipc_fd) < 0) {
+		ha_alert("Cannot create worker master CLI socketpair.\n");
+		exit(EXIT_FAILURE);
+	}
+	LIST_APPEND(&proc_list, &tmproc->list);
+}
+
 static struct cfg_kw_list mworker_kws = {{ }, {
 	{ CFG_GLOBAL, "mworker-max-reloads", mworker_parse_global_max_reloads, KWF_DISCOVERY },
 	{ 0, NULL, NULL },

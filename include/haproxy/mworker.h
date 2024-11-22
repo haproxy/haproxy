@@ -51,4 +51,6 @@ void mworker_cleanup_proc();
 
 void mworker_create_master_cli(void);
 
+void mworker_prepare_master(void);
+
 #endif /* _HAPROXY_MWORKER_H_ */
