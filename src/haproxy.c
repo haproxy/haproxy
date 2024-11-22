@@ -1964,14 +1964,6 @@ static void mworker_run_master()
 {
 	struct mworker_proc *child, *it;
 
-	if ((!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
-		(global.mode & MODE_DAEMON)) {
-		/* detach from the tty, this is required to properly daemonize. */
-		if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL))
-			stdio_quiet(-1);
-		global.mode &= ~MODE_VERBOSE;
-		global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
-	}
 	proc_self->failedreloads = 0; /* reset the number of failure */
 	mworker_loop();
 #if defined(USE_OPENSSL) && !defined(OPENSSL_NO_DH)
@@ -3013,6 +3005,17 @@ static void run_master_in_recovery_mode(int argc, char **argv)
 	}
 
 	step_init_4();
+
+	/* set quiet mode if MODE_DAEMON */
+	if ((!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
+		(global.mode & MODE_DAEMON)) {
+		/* detach from the tty, this is required to properly daemonize. */
+		if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL))
+			stdio_quiet(-1);
+		global.mode &= ~MODE_VERBOSE;
+		global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
+	}
+
 	/* enter in master polling loop */
 	mworker_run_master();
 }
@@ -3846,6 +3849,15 @@ int main(int argc, char **argv)
 
 	/* Master enters in its polling loop */
 	if (master) {
+		/* set quiet mode if MODE_DAEMON */
+		if ((!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
+			(global.mode & MODE_DAEMON)) {
+			/* detach from the tty, this is required to properly daemonize. */
+			if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL))
+				stdio_quiet(-1);
+			global.mode &= ~MODE_VERBOSE;
+			global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
+		}
 		mworker_run_master();
 		/* never get there in master context */
 	}
