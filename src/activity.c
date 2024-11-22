@@ -282,7 +282,7 @@ static int memprof_posix_memalign_initial_handler(void **ptr, size_t al, size_t 
 {
 	if (in_memprof) {
 		/* probably that dlsym() needs posix_memalign(), let's fail */
-		return NULL;
+		return ENOMEM;
 	}
 
 	memprof_init();
