@@ -58,6 +58,7 @@ int main(int argc, char **argv);
 void deinit(void);
 __attribute__((noreturn)) void deinit_and_exit(int);
 void run_poll_loop(void);
+void *run_thread_poll_loop(void *data); /* takes the thread config in argument or NULL for any thread */
 int tell_old_pids(int sig);
 int delete_oldpid(int pid);
 void hap_register_build_opts(const char *str, int must_free);

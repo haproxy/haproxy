@@ -36,6 +36,7 @@
 #include <haproxy/ring.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/signal.h>
+#include <haproxy/ssl_sock.h>
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
 #include <haproxy/systemd.h>
@@ -986,6 +987,73 @@ void mworker_prepare_master(void)
 		exit(EXIT_FAILURE);
 	}
 	LIST_APPEND(&proc_list, &tmproc->list);
+}
+
+static void mworker_loop()
+{
+
+	/* Busy polling makes no sense in the master :-) */
+	global.tune.options &= ~GTUNE_BUSY_POLLING;
+
+
+	signal_unregister(SIGTTIN);
+	signal_unregister(SIGTTOU);
+	signal_unregister(SIGUSR1);
+	signal_unregister(SIGHUP);
+	signal_unregister(SIGQUIT);
+
+	signal_register_fct(SIGTERM, mworker_catch_sigterm, SIGTERM);
+	signal_register_fct(SIGUSR1, mworker_catch_sigterm, SIGUSR1);
+	signal_register_fct(SIGTTIN, mworker_broadcast_signal, SIGTTIN);
+	signal_register_fct(SIGTTOU, mworker_broadcast_signal, SIGTTOU);
+	signal_register_fct(SIGINT, mworker_catch_sigterm, SIGINT);
+	signal_register_fct(SIGHUP, mworker_catch_sighup, SIGHUP);
+	signal_register_fct(SIGUSR2, mworker_catch_sighup, SIGUSR2);
+	signal_register_fct(SIGCHLD, mworker_catch_sigchld, SIGCHLD);
+
+	mworker_unblock_signals();
+	mworker_cleantasks();
+
+	mworker_catch_sigchld(NULL); /* ensure we clean the children in case
+				     some SIGCHLD were lost */
+
+	jobs++; /* this is the "master" job, we want to take care of the
+		signals even if there is no listener so the poll loop don't
+		leave */
+
+	fork_poller();
+	run_thread_poll_loop(NULL);
+}
+
+void mworker_run_master(void)
+{
+	struct mworker_proc *child, *it;
+
+	proc_self->failedreloads = 0; /* reset the number of failure */
+	mworker_loop();
+#if defined(USE_OPENSSL) && !defined(OPENSSL_NO_DH)
+	ssl_free_dh();
+#endif
+	master = 0;
+	/* close useless master sockets */
+	mworker_cli_proxy_stop();
+
+	/* free proc struct of other processes  */
+	list_for_each_entry_safe(child, it, &proc_list, list) {
+		/* close the FD of the master side for all
+		 * workers, we don't need to close the worker
+		 * side of other workers since it's done with
+		 * the bind_proc */
+		if (child->ipc_fd[0] >= 0) {
+			close(child->ipc_fd[0]);
+			child->ipc_fd[0] = -1;
+		}
+		LIST_DELETE(&child->list);
+		mworker_free_child(child);
+		child = NULL;
+	}
+	/* master must leave */
+	exit(0);
 }
 
 static struct cfg_kw_list mworker_kws = {{ }, {

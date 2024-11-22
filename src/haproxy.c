@@ -262,9 +262,6 @@ int master = 0; /* 1 if in master, 0 if in child */
 /* per-boot randomness */
 unsigned char boot_seed[20];        /* per-boot random seed (160 bits initially) */
 
-/* takes the thread config in argument or NULL for any thread */
-static void *run_thread_poll_loop(void *data);
-
 /* bitfield of a few warnings to emit just once (WARN_*) */
 unsigned int warned = 0;
 
@@ -876,42 +873,6 @@ void mworker_reload(int hardreload)
 		           (ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000ULL));
 	}
 	mworker_reexec(hardreload);
-}
-
-static void mworker_loop()
-{
-
-	/* Busy polling makes no sense in the master :-) */
-	global.tune.options &= ~GTUNE_BUSY_POLLING;
-
-
-	signal_unregister(SIGTTIN);
-	signal_unregister(SIGTTOU);
-	signal_unregister(SIGUSR1);
-	signal_unregister(SIGHUP);
-	signal_unregister(SIGQUIT);
-
-	signal_register_fct(SIGTERM, mworker_catch_sigterm, SIGTERM);
-	signal_register_fct(SIGUSR1, mworker_catch_sigterm, SIGUSR1);
-	signal_register_fct(SIGTTIN, mworker_broadcast_signal, SIGTTIN);
-	signal_register_fct(SIGTTOU, mworker_broadcast_signal, SIGTTOU);
-	signal_register_fct(SIGINT, mworker_catch_sigterm, SIGINT);
-	signal_register_fct(SIGHUP, mworker_catch_sighup, SIGHUP);
-	signal_register_fct(SIGUSR2, mworker_catch_sighup, SIGUSR2);
-	signal_register_fct(SIGCHLD, mworker_catch_sigchld, SIGCHLD);
-
-	mworker_unblock_signals();
-	mworker_cleantasks();
-
-	mworker_catch_sigchld(NULL); /* ensure we clean the children in case
-				     some SIGCHLD were lost */
-
-	jobs++; /* this is the "master" job, we want to take care of the
-		signals even if there is no listener so the poll loop don't
-		leave */
-
-	fork_poller();
-	run_thread_poll_loop(NULL);
 }
 
 /*
@@ -1958,37 +1919,6 @@ static void generate_random_cluster_secret()
 	rand = ha_random64();
 	memcpy(global.cluster_secret + sizeof(rand), &rand, sizeof(rand));
 	cluster_secret_isset = 1;
-}
-
-static void mworker_run_master()
-{
-	struct mworker_proc *child, *it;
-
-	proc_self->failedreloads = 0; /* reset the number of failure */
-	mworker_loop();
-#if defined(USE_OPENSSL) && !defined(OPENSSL_NO_DH)
-	ssl_free_dh();
-#endif
-	master = 0;
-	/* close useless master sockets */
-	mworker_cli_proxy_stop();
-
-	/* free proc struct of other processes  */
-	list_for_each_entry_safe(child, it, &proc_list, list) {
-		/* close the FD of the master side for all
-		 * workers, we don't need to close the worker
-		 * side of other workers since it's done with
-		 * the bind_proc */
-		if (child->ipc_fd[0] >= 0) {
-			close(child->ipc_fd[0]);
-			child->ipc_fd[0] = -1;
-		}
-		LIST_DELETE(&child->list);
-		mworker_free_child(child);
-		child = NULL;
-	}
-	/* master must leave */
-	exit(0);
 }
 
 /*
@@ -3405,7 +3335,7 @@ void run_poll_loop()
 	_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_IN_LOOP);
 }
 
-static void *run_thread_poll_loop(void *data)
+void *run_thread_poll_loop(void *data)
 {
 	struct per_thread_alloc_fct  *ptaf;
 	struct per_thread_init_fct   *ptif;
