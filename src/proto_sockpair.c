@@ -239,12 +239,12 @@ static int sockpair_bind_listener(struct listener *listener, char *errmsg, int e
  */
 int send_fd_uxst(int fd, int send_fd)
 {
-	char iobuf[2];
+	char iobuf[2] = {0};
 	struct iovec iov;
 	struct msghdr msghdr;
 
-	char cmsgbuf[CMSG_SPACE(sizeof(int))];
-	char buf[CMSG_SPACE(sizeof(int))];
+	char cmsgbuf[CMSG_SPACE(sizeof(int))] = {0};
+	char buf[CMSG_SPACE(sizeof(int))] = {0};
 	struct cmsghdr *cmsg = (void *)buf;
 
 	int *fdptr;
