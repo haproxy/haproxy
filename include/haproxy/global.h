@@ -68,7 +68,6 @@ void display_version();
 
 void mworker_accept_wrapper(int fd);
 void mworker_reload(int hardreload);
-void mworker_on_new_child_failure(void);
 
 /* to be used with warned and WARN_* */
 static inline int already_warned(unsigned int warning)

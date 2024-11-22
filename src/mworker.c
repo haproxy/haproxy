@@ -314,6 +314,31 @@ void mworker_catch_sigterm(struct sig_handler *sh)
 }
 
 /*
+ * Performs some routines for the worker process, which has failed the reload,
+ * updates the global load_status.
+ */
+static void mworker_on_new_child_failure()
+{
+	struct mworker_proc *child;
+
+	/* increment the number of failed reloads */
+	list_for_each_entry(child, &proc_list, list) {
+		child->failedreloads++;
+	}
+
+	/* do not keep unused FDs retrieved from the previous process */
+	sock_drop_unused_old_sockets();
+
+	usermsgs_clr(NULL);
+	load_status = 0;
+	ha_warning("Failed to load worker!\n");
+	/* the sd_notify API is not able to send a reload failure signal. So
+	 * the READY=1 signal still need to be sent */
+	if (global.tune.options & GTUNE_USE_SYSTEMD)
+		sd_notify(0, "READY=1\nSTATUS=Reload failed!\n");
+}
+
+/*
  * Wait for every children to exit
  */
 
