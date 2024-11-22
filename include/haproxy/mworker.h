@@ -54,5 +54,6 @@ void mworker_create_master_cli(void);
 
 void mworker_prepare_master(void);
 void mworker_run_master(void);
+void mworker_apply_master_worker_mode(void);
 
 #endif /* _HAPROXY_MWORKER_H_ */
