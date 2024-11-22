@@ -1803,7 +1803,7 @@ static void handle_pidfile()
  * (master CLI applet is attached in master process to MASTER proxy). This
  * function returns only if everything is OK. If something fails, it exits.
  */
-static void apply_master_worker_mode()
+static void mworker_apply_master_worker_mode()
 {
 	int worker_pid;
 	struct mworker_proc *child;
@@ -3494,7 +3494,7 @@ int main(int argc, char **argv)
 		/* fork and run binary from command keyword in program section */
 		mworker_ext_launch_all();
 		/* fork worker */
-		apply_master_worker_mode();
+		mworker_apply_master_worker_mode();
 	}
 
 	/* Worker, daemon, foreground modes read the rest of the config */
