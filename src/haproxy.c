@@ -915,9 +915,10 @@ static void mworker_loop()
 }
 
 /*
- * Reexec the process in failure mode, instead of exiting
+ * Performs some routines for the worker process, which has failed the reload,
+ * updates the global load_status.
  */
-void on_new_child_failure()
+void mworker_on_new_child_failure()
 {
 	struct mworker_proc *child;
 

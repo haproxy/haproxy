@@ -356,7 +356,7 @@ restart_wait:
 			/* We didn't find the PID in the list, that shouldn't happen but we can emit a warning */
 			ha_warning("Process %d exited with code %d (%s)\n", exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 		} else if (child->options & PROC_O_INIT) {
-			on_new_child_failure();
+			mworker_on_new_child_failure();
 
 			/* Detach all listeners */
 			for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
