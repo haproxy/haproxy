@@ -696,7 +696,6 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 					if (first_pkt && (first_pkt->type != QUIC_PACKET_TYPE_INITIAL ||
 					                  wrlen >= QUIC_INITIAL_PACKET_MINLEN)) {
 						qc_txb_store(buf, wrlen, first_pkt);
-						++dgram_cnt;
 					}
 					TRACE_PROTO("could not prepare anymore packet", QUIC_EV_CONN_PHPKTS, qc, qel);
 					break;
@@ -733,6 +732,12 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 					cur_pkt->flags |= QUIC_FL_TX_PACKET_COALESCED;
 			}
 
+			/* If <dglen> is NULL at this stage, it means the built
+			 * packet is the first of a new datagram.
+			 */
+			if (!dglen)
+				++dgram_cnt;
+
 			total += cur_pkt->len;
 			dglen += cur_pkt->len;
 			wrlen += cur_pkt->len;
@@ -766,8 +771,6 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				prv_pkt = cur_pkt;
 				dglen = 0;
 
-				++dgram_cnt;
-
 				/* man 7 udp UDP_SEGMENT
 				 * The segment size must be chosen such that at
 				 * most 64 datagrams are sent in a single call
@@ -781,7 +784,6 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				wrlen = dglen = 0;
 				padding = 0;
 				prv_pkt = NULL;
-				++dgram_cnt;
 				gso_dgram_cnt = 0;
 			}
 
