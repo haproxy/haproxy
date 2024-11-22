@@ -1965,7 +1965,7 @@ static void generate_random_cluster_secret()
  * CLI at worker side (worker can send its status to master).It only returns if
  * everything is OK. If something fails, it exits.
  */
-static void prepare_master()
+static void mworker_prepare_master()
 {
 	struct mworker_proc *tmproc;
 
@@ -2004,7 +2004,7 @@ static void prepare_master()
 	LIST_APPEND(&proc_list, &tmproc->list);
 }
 
-static void run_master()
+static void mworker_run_master()
 {
 	struct mworker_proc *child, *it;
 
@@ -3058,7 +3058,7 @@ static void run_master_in_recovery_mode(int argc, char **argv)
 
 	step_init_4();
 	/* enter in master polling loop */
-	run_master();
+	mworker_run_master();
 }
 
 /* parse conf in disovery mode and set modes from config */
@@ -3758,7 +3758,7 @@ int main(int argc, char **argv)
 	 * setenv("HAPROXY_MWORKER", "1", 1).
 	 */
 	if (global.mode & MODE_MWORKER)
-		prepare_master();
+		mworker_prepare_master();
 
 	/* If we are in a daemon mode and we might be also in master-worker mode:
 	 * we should do daemonization fork here to put the main process (which
@@ -3890,7 +3890,7 @@ int main(int argc, char **argv)
 
 	/* Master enters in its polling loop */
 	if (master) {
-		run_master();
+		mworker_run_master();
 		/* never get there in master context */
 	}
 
