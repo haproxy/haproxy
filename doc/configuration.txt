@@ -28490,6 +28490,13 @@ filter opentracing [id <id>] config <file>
 More detailed documentation related to the operation, configuration and use
 of the filter can be found in the addons/ot directory.
 
+Note: The OpenTracing filter shouldn't be used for new designs as OpenTracing
+      itself is no longer maintained nor supported by its authors. A
+      replacement filter base on OpenTelemetry is currently under development
+      and is expected to be ready around HAProxy 3.2. As such OpenTracing will
+      be deprecated in 3.3 and removed in 3.5.
+
+
 9.7. Bandwidth limitation
 --------------------------
 

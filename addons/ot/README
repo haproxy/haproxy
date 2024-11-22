@@ -47,6 +47,12 @@ via the OpenTracing API with OpenTracing compatible servers (tracers).
 Currently, tracers that support this API include Datadog, Jaeger, LightStep
 and Zipkin.
 
+Note: The OpenTracing filter shouldn't be used for new designs as OpenTracing
+      itself is no longer maintained nor supported by its authors. A
+      replacement filter base on OpenTelemetry is currently under development
+      and is expected to be ready around HAProxy 3.2. As such OpenTracing will
+      be deprecated in 3.3 and removed in 3.5.
+
 The OT filter was primarily tested with the Jaeger tracer, while configurations
 for both Datadog and Zipkin tracers were also set in the test directory.
 
