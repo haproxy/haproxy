@@ -75,6 +75,21 @@ static int cli_parse_show_quic(char **args, char *payload, struct appctx *appctx
 		ctx->fields = QUIC_DUMP_FLD_MASK;
 		++argc;
 	}
+	else if (strcmp(args[argc], "help") == 0) {
+		chunk_printf(&trash,
+			     "Usage: show quic [help|<format>] [<filter>]\n"
+			     "Dumps information about QUIC connections. Available output formats:\n"
+			     "  oneline    dump a single, netstat-like line per connection (default)\n"
+			     "  full       dump all known information about each connection\n"
+			     "  <levels>*  only dump certain information, defined by a comma-delimited list\n"
+			     "             of levels among 'tp', 'sock', 'pktns', 'cc', or 'mux'\n"
+			     "  help       display this help\n"
+			     "Available output filters:\n"
+			     "  all        dump all connections (the default)\n"
+			     "  <id>       dump only the connection matching this identifier (0x...)\n"
+			     "Without any argument, all connections are dumped using the oneline format.\n");
+		return cli_err(appctx, trash.area);
+	}
 	else if (*args[argc]) {
 		struct ist istarg = ist(args[argc]);
 		struct ist field = istsplit(&istarg, ',');
@@ -101,7 +116,7 @@ static int cli_parse_show_quic(char **args, char *payload, struct appctx *appctx
 				 * field name has been specified.
 				 */
 				if (istarg.len || ctx->fields) {
-					cli_err(appctx, "Invalid field.\n");
+					cli_err(appctx, "Invalid field, use 'help' for more options.\n");
 					return 1;
 				}
 
@@ -140,7 +155,7 @@ static int cli_parse_show_quic(char **args, char *payload, struct appctx *appctx
 			ctx->flags |= QC_CLI_FL_SHOW_ALL;
 		}
 		else {
-			cli_err(appctx, "Invalid argument.\n");
+			cli_err(appctx, "Invalid argument, use 'help' for more options.\n");
 			return 1;
 		}
 
@@ -489,7 +504,7 @@ static void cli_release_show_quic(struct appctx *appctx)
 }
 
 static struct cli_kw_list cli_kws = {{ }, {
-	{ { "show", "quic", NULL }, "show quic [<format>] [<filter>]         : display quic connections status", cli_parse_show_quic, cli_io_handler_dump_quic, cli_release_show_quic },
+	{ { "show", "quic", NULL }, "show quic [help|<format>] [<filter>]    : display quic connections status", cli_parse_show_quic, cli_io_handler_dump_quic, cli_release_show_quic },
 	{{},}
 }};
 
