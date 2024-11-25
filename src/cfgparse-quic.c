@@ -102,6 +102,7 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 {
 	struct quic_cc_algo *cc_algo = NULL;
 	const char *algo = NULL;
+	struct ist algo_ist, arg_ist;
 	char *arg;
 
 	cc_algo = calloc(1, sizeof(struct quic_cc_algo));
@@ -116,19 +117,21 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 	}
 
 	arg = args[cur_arg + 1];
-	if (strncmp(arg, QUIC_CC_NEWRENO_STR, strlen(QUIC_CC_NEWRENO_STR)) == 0) {
+	arg_ist = ist(args[cur_arg + 1]);
+	algo_ist = istsplit(&arg_ist, '(');
+	if (isteq(algo_ist, ist(QUIC_CC_NEWRENO_STR))) {
 		/* newreno */
 		algo = QUIC_CC_NEWRENO_STR;
 		*cc_algo = quic_cc_algo_nr;
 		arg += strlen(QUIC_CC_NEWRENO_STR);
 	}
-	else if (strncmp(arg, QUIC_CC_CUBIC_STR, strlen(QUIC_CC_CUBIC_STR)) == 0) {
+	else if (isteq(algo_ist, ist(QUIC_CC_CUBIC_STR))) {
 		/* cubic */
 		algo = QUIC_CC_CUBIC_STR;
 		*cc_algo = quic_cc_algo_cubic;
 		arg += strlen(QUIC_CC_CUBIC_STR);
 	}
-	else if (strncmp(arg, QUIC_CC_BBR_STR, strlen(QUIC_CC_BBR_STR)) == 0) {
+	else if (isteq(algo_ist, ist(QUIC_CC_BBR_STR))) {
 		if (!experimental_directives_allowed) {
 			ha_alert("'%s' algo is experimental, must be allowed via a global "
 			         "'expose-experimental-directives'\n", arg);
@@ -140,7 +143,7 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 		*cc_algo = quic_cc_algo_bbr;
 		arg += strlen(QUIC_CC_BBR_STR);
 	}
-	else if (strncmp(arg, QUIC_CC_NO_CC_STR, strlen(QUIC_CC_NO_CC_STR)) == 0) {
+	else if (isteq(algo_ist, ist(QUIC_CC_NO_CC_STR))) {
 		/* nocc */
 		if (!experimental_directives_allowed) {
 			ha_alert("'%s' algo is experimental, must be allowed via a global "
