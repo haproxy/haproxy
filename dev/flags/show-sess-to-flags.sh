@@ -195,7 +195,7 @@ while read -r; do
                 ! [[ "$REPLY" =~ [[:blank:]]h2c.*\.flg=([0-9a-fx]*) ]] || append_flag b.h2c.flg   h2c  "${BASH_REMATCH[1]}"
         elif [ $ctx = cob ]; then
                 ! [[ "$REPLY" =~ [[:blank:]]flags=([0-9a-fx]*) ]]      || append_flag b.co.flg    conn "${BASH_REMATCH[1]}"
-                ! [[ "$REPLY" =~ [[:blank:]]fd.state=([0-9a-fx]*) ]]   || append_flag b.co.fd.st  fd   "${BASH_REMATCH[1]}"
+                ! [[ "$REPLY" =~ [[:blank:]]fd.state=([0-9a-fx]*) ]]   || append_flag b.co.fd.st  fd   0x"${BASH_REMATCH[1]}"
         elif [ $ctx = res ]; then
                 ! [[ "$REPLY" =~ [[:blank:]]\(f=([0-9a-fx]*) ]]        || append_flag res.flg     chn  "${BASH_REMATCH[1]}"
                 ! [[ "$REPLY" =~ [[:blank:]]an=([0-9a-fx]*) ]]         || append_flag res.ana     ana  "${BASH_REMATCH[1]}"
