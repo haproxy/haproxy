@@ -28,6 +28,10 @@ jobs:
         with:
           path: '~/opt/'
           key: ssl-${{ steps.get_wolfssl_release.outputs.result }}-Ubuntu-latest-gcc
+      - name: Install apt dependencies
+        run: |
+          sudo apt-get update -o Acquire::Languages=none -o Acquire::Translation=none
+          sudo apt-get --no-install-recommends -y install socat gdb
       - name: Install WolfSSL
         if: ${{ steps.cache_ssl.outputs.cache-hit != 'true' }}
         run: env ${{ steps.get_wolfssl_release.outputs.result }} scripts/build-ssl.sh
@@ -64,3 +68,17 @@ jobs:
             echo "::endgroup::"
           done
           exit 1
+      - name: Show coredumps
+        if: ${{ failure() && steps.vtest.outcome == 'failure' }}
+        run: |
+          failed=false
+          shopt -s nullglob
+          for file in /tmp/core.*; do
+            failed=true
+            printf "::group::"
+            gdb -ex 'thread apply all bt full' ./haproxy $file
+            echo "::endgroup::"
+          done
+          if [ "$failed" = true ]; then
+            exit 1;
+          fi
