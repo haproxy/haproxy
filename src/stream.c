@@ -3722,6 +3722,19 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 		ctx->target = (void *)-1;
 		cur_arg++;
 	}
+	else if (*args[cur_arg] && strcmp(args[cur_arg], "help") == 0) {
+		chunk_printf(&trash,
+			     "Usage: show sess [<id> | older <age> | susp | all] [<options>*]\n"
+			     "Dumps active streams (formerly called 'sessions'). Available selectors:\n"
+			     "   <id>         dump only this stream identifier (0x...)\n"
+			     "   all          dump all stream in large format\n"
+			     "   older <age>  only display stream older than <age>\n"
+			     "   susp         report streams considered suspicious\n"
+			     "Available options: \n"
+			     "   show-uri     also display the transaction URI, if available\n"
+			     "Without any argument, all streams are dumped in a shorter format.");
+		return cli_err(appctx, trash.area);
+	}
 	else if (*args[cur_arg]) {
 		ctx->target = (void *)strtoul(args[cur_arg], NULL, 0);
 		if (ctx->target)
@@ -3734,7 +3747,7 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 			ctx->flags |= CLI_SHOWSESS_F_DUMP_URI;
 		}
 		else {
-			chunk_printf(&trash, "Unsupported option '%s'.\n", args[cur_arg]);
+			chunk_printf(&trash, "Unsupported option '%s', try 'help' for more info.\n", args[cur_arg]);
 			return cli_err(appctx, trash.area);
 		}
 		cur_arg++;
@@ -4050,7 +4063,7 @@ static int cli_parse_shutdown_sessions_server(char **args, char *payload, struct
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "show", "sess",  NULL },             "show sess [<id>|all|susp|older <age>]   : report the list of current sessions or dump this exact session", cli_parse_show_sess, cli_io_handler_dump_sess, cli_release_show_sess },
+	{ { "show", "sess",  NULL },             "show sess [help|<id>|all|susp|older...] : report the list of current streams or dump this exact stream", cli_parse_show_sess, cli_io_handler_dump_sess, cli_release_show_sess },
 	{ { "shutdown", "session",  NULL },      "shutdown session [id]                   : kill a specific session",                                        cli_parse_shutdown_session, NULL, NULL },
 	{ { "shutdown", "sessions",  "server" }, "shutdown sessions server <bk>/<srv>     : kill sessions on a server",                                      cli_parse_shutdown_sessions_server, NULL, NULL },
 	{{},}
