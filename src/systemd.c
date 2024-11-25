@@ -39,9 +39,9 @@ int sd_notify(int unset_environment, const char *message)
 {
 	union sockaddr_union {
 		struct sockaddr sa;
-		struct sockaddr_un sun;
+		struct sockaddr_un ux;
 	} socket_addr = {
-		.sun.sun_family = AF_UNIX,
+		.ux.sun_family = AF_UNIX,
 	};
 	int ret = 1;
 	int fd = -1;
@@ -77,16 +77,16 @@ int sd_notify(int unset_environment, const char *message)
 
 	path_length = strlen(socket_path);
 	/* Ensure there is room for NUL byte */
-	if (path_length >= sizeof(socket_addr.sun.sun_path)) {
+	if (path_length >= sizeof(socket_addr.ux.sun_path)) {
 		ret = -E2BIG;
 		goto end;
 	}
 
-	memcpy(socket_addr.sun.sun_path, socket_path, path_length);
+	memcpy(socket_addr.ux.sun_path, socket_path, path_length);
 
 	/* Support for abstract socket */
-	if (socket_addr.sun.sun_path[0] == '@')
-		socket_addr.sun.sun_path[0] = 0;
+	if (socket_addr.ux.sun_path[0] == '@')
+		socket_addr.ux.sun_path[0] = 0;
 
 	fd = socket(AF_UNIX, SOCK_DGRAM, 0);
 	if (fd < 0) {
