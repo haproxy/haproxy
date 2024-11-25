@@ -3478,7 +3478,12 @@ Patref class
 
   :returns: true on success and nil on failure (followed by an error message).
 
-  See :js:func:`Patref.prepare()`
+  See :js:func:`Patref.prepare()` and :js:func:`Patref.giveup()`
+
+.. js:function:: Patref.giveup(ref)
+
+  Drop the pending patref version created using Patref:prepare(): get back to
+  live dataset.
 
 .. _applethttp_class:
 

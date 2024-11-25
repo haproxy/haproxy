@@ -2694,6 +2694,28 @@ int hlua_patref_commit(lua_State *L)
 	return _hlua_patref_clear(L, LUA_OK, 0);
 }
 
+int hlua_patref_giveup(lua_State *L)
+{
+	struct hlua_patref *ref;
+
+	ref = hlua_checkudata(L, 1, class_patref_ref);
+	BUG_ON(!ref);
+
+	if (!(ref->flags & HLUA_PATREF_FL_GEN)) {
+		/* nothing to do */
+		return 0;
+	}
+
+	lua_pushinteger(L, ref->curr_gen); // from
+	lua_pushinteger(L, ref->curr_gen); // to
+	_hlua_patref_clear(L, LUA_OK, 0);
+
+	/* didn't make use of the generation ID, give it back to the API */
+	pat_ref_giveup(ref->ptr, ref->curr_gen);
+
+	return 0;
+}
+
 int hlua_patref_prepare(lua_State *L)
 {
 	struct hlua_patref *ref;
@@ -2746,6 +2768,7 @@ void hlua_fcn_new_patref(lua_State *L, struct pat_ref *ref)
 	hlua_class_function(L, "is_map", hlua_patref_is_map);
 	hlua_class_function(L, "prepare", hlua_patref_prepare);
 	hlua_class_function(L, "commit", hlua_patref_commit);
+	hlua_class_function(L, "giveup", hlua_patref_giveup);
 	hlua_class_function(L, "purge", hlua_patref_purge);
 }
 
