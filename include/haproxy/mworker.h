@@ -14,6 +14,7 @@
 #ifndef _HAPROXY_MWORKER_H_
 #define _HAPROXY_MWORKER_H_
 
+#include <haproxy/limits.h>
 #include <haproxy/mworker-t.h>
 #include <haproxy/signal-t.h>
 

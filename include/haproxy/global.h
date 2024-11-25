@@ -51,6 +51,8 @@ extern unsigned char boot_seed[20];  // per-boot random seed (160 bits initially
 extern THREAD_LOCAL struct buffer trash;
 extern char **init_env;
 extern char *progname;
+extern char **old_argv;
+extern const char *old_unixsocket;
 
 struct proxy;
 struct server;
@@ -68,7 +70,6 @@ int compare_current_version(const char *version);
 void display_version();
 
 void mworker_accept_wrapper(int fd);
-void mworker_reload(int hardreload);
 
 /* to be used with warned and WARN_* */
 static inline int already_warned(unsigned int warning)

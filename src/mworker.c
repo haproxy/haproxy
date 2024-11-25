@@ -298,6 +298,177 @@ void mworker_broadcast_signal(struct sig_handler *sh)
  * When called, this function reexec haproxy with -sf followed by current
  * children PIDs and possibly old children PIDs if they didn't leave yet.
  */
+static void mworker_reexec(int hardreload)
+{
+	char **next_argv = NULL;
+	int old_argc = 0; /* previous number of argument */
+	int next_argc = 0;
+	int i = 0;
+	char *msg = NULL;
+	struct rlimit limit;
+	struct mworker_proc *current_child = NULL;
+	int x_off = 0; /* disable -x by putting -x /dev/null */
+
+	mworker_block_signals();
+
+	/* restore initial environment (before parsing the config) and do re-exec.
+	 * The initial process environment should be restored here, preceded by
+	 * clean_env(), which do the same job as clearenv().
+	 * Otherwise, after the re-exec we will start the new worker in the
+	 * environment modified by '*env' keywords from the previous configuration,
+	 * i.e. existed before the reload.
+	 */
+	if (clean_env() != 0) {
+		ha_alert("Master encountered a non-recoverable error, exiting.\n");
+		exit(EXIT_FAILURE);
+	}
+
+	if (restore_env() != 0) {
+		ha_alert("Master encountered a non-recoverable error, exiting.\n");
+		exit(EXIT_FAILURE);
+	}
+
+	setenv("HAPROXY_MWORKER_REEXEC", "1", 1);
+
+	mworker_proc_list_to_env(); /* put the children description in the env */
+
+	/* during the reload we must ensure that every FDs that can't be
+	 * reuse (ie those that are not referenced in the proc_list)
+	 * are closed or they will leak. */
+
+	/* close the listeners FD */
+	mworker_cli_proxy_stop();
+
+	if (fdtab)
+		deinit_pollers();
+
+#ifdef HAVE_SSL_RAND_KEEP_RANDOM_DEVICES_OPEN
+	/* close random device FDs */
+	RAND_keep_random_devices_open(0);
+#endif
+
+	/* restore the initial FD limits */
+	limit.rlim_cur = rlim_fd_cur_at_boot;
+	limit.rlim_max = rlim_fd_max_at_boot;
+	if (raise_rlim_nofile(&limit, &limit) != 0) {
+		ha_warning("Failed to restore initial FD limits (cur=%u max=%u), using cur=%u max=%u\n",
+			   rlim_fd_cur_at_boot, rlim_fd_max_at_boot,
+			   (unsigned int)limit.rlim_cur, (unsigned int)limit.rlim_max);
+	}
+
+	/* compute length  */
+	while (old_argv[old_argc])
+		old_argc++;
+
+	/* 1 for haproxy -sf, 2 for -x /socket */
+	next_argv = calloc(old_argc + 1 + 2 + mworker_child_nb() + 1,
+			   sizeof(*next_argv));
+	if (next_argv == NULL)
+		goto alloc_error;
+
+	/* copy the program name */
+	next_argv[next_argc++] = old_argv[0];
+
+	/* we need to reintroduce /dev/null every time */
+	if (old_unixsocket && strcmp(old_unixsocket, "/dev/null") == 0)
+		x_off = 1;
+
+	/* insert the new options just after argv[0] in case we have a -- */
+
+	/* add -sf <PID>*  to argv */
+	if (mworker_child_nb() > 0) {
+		struct mworker_proc *child;
+
+		if (hardreload)
+			next_argv[next_argc++] = "-st";
+		else
+			next_argv[next_argc++] = "-sf";
+
+		list_for_each_entry(child, &proc_list, list) {
+			if (!(child->options & PROC_O_LEAVING) && (child->options & PROC_O_TYPE_WORKER))
+				current_child = child;
+
+			if (!(child->options & (PROC_O_TYPE_WORKER|PROC_O_TYPE_PROG)) || child->pid <= -1)
+				continue;
+			if ((next_argv[next_argc++] = memprintf(&msg, "%d", child->pid)) == NULL)
+				goto alloc_error;
+			msg = NULL;
+		}
+	}
+	if (!x_off && current_child) {
+		/* add the -x option with the socketpair of the current worker */
+		next_argv[next_argc++] = "-x";
+		if ((next_argv[next_argc++] = memprintf(&msg, "sockpair@%d", current_child->ipc_fd[0])) == NULL)
+			goto alloc_error;
+		msg = NULL;
+	}
+
+	if (x_off) {
+		/* if the cmdline contained a -x /dev/null, continue to use it */
+		next_argv[next_argc++] = "-x";
+		next_argv[next_argc++] = "/dev/null";
+	}
+
+	/* copy the previous options */
+	for (i = 1; i < old_argc; i++)
+		next_argv[next_argc++] = old_argv[i];
+
+	/* need to withdraw MODE_STARTING from master, because we have to free
+	 * the startup logs ring here, see more details in print_message()
+	 */
+	global.mode &= ~MODE_STARTING;
+	startup_logs_free(startup_logs);
+
+	signal(SIGPROF, SIG_IGN);
+	execvp(next_argv[0], next_argv);
+	ha_warning("Failed to reexecute the master process [%d]: %s\n", pid, strerror(errno));
+	ha_free(&next_argv);
+	return;
+
+alloc_error:
+	ha_free(&next_argv);
+	ha_warning("Failed to reexecute the master process [%d]: Cannot allocate memory\n", pid);
+	return;
+}
+
+/* reload haproxy and emit a warning */
+static void mworker_reload(int hardreload)
+{
+	struct mworker_proc *child;
+	struct per_thread_deinit_fct *ptdf;
+
+	ha_notice("Reloading HAProxy%s\n", hardreload?" (hard-reload)":"");
+
+	/* close the poller FD and the thread waker pipe FD */
+	list_for_each_entry(ptdf, &per_thread_deinit_list, list)
+		ptdf->fct();
+
+	/* increment the number of reloads, child->reloads is checked in
+	 * mworker_env_to_proc_list() (after reload) in order to set
+	 * PROC_O_LEAVING flag for the process
+	 */
+	list_for_each_entry(child, &proc_list, list) {
+		child->reloads++;
+	}
+
+	if (global.tune.options & GTUNE_USE_SYSTEMD) {
+		struct timespec ts;
+
+		(void)clock_gettime(CLOCK_MONOTONIC, &ts);
+
+		sd_notifyf(0,
+		           "RELOADING=1\n"
+		               "STATUS=Reloading Configuration.\n"
+		               "MONOTONIC_USEC=%" PRIu64 "\n",
+		           (ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000ULL));
+	}
+	mworker_reexec(hardreload);
+}
+
+/*
+ * When called, this function reexec haproxy with -sf followed by current
+ * children PIDs and possibly old children PIDs if they didn't leave yet.
+ */
 void mworker_catch_sighup(struct sig_handler *sh)
 {
 	mworker_reload(0);
