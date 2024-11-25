@@ -431,3 +431,72 @@ void set_global_maxconn(void)
 		}
 	}
 }
+
+/* Sets the current and max nofile limits for the process. It may terminate the
+ * process, if it can't raise FD limit and there is no 'no strict-limits' in the
+ * global section.
+ */
+void apply_nofile_limit(void)
+{
+	struct rlimit limit;
+
+	if (!global.rlimit_nofile)
+		global.rlimit_nofile = global.maxsock;
+
+	if (global.rlimit_nofile) {
+		limit.rlim_cur = global.rlimit_nofile;
+		limit.rlim_max = MAX(rlim_fd_max_at_boot, limit.rlim_cur);
+
+		if ((global.fd_hard_limit && limit.rlim_cur > global.fd_hard_limit) ||
+		    raise_rlim_nofile(NULL, &limit) != 0) {
+			getrlimit(RLIMIT_NOFILE, &limit);
+			if (global.fd_hard_limit && limit.rlim_cur > global.fd_hard_limit)
+				limit.rlim_cur = global.fd_hard_limit;
+
+			if (global.tune.options & GTUNE_STRICT_LIMITS) {
+				ha_alert("[%s.main()] Cannot raise FD limit to %d, limit is %d.\n",
+					 progname, global.rlimit_nofile, (int)limit.rlim_cur);
+				exit(1);
+			}
+			else {
+				/* try to set it to the max possible at least */
+				limit.rlim_cur = limit.rlim_max;
+				if (global.fd_hard_limit && limit.rlim_cur > global.fd_hard_limit)
+					limit.rlim_cur = global.fd_hard_limit;
+
+				if (raise_rlim_nofile(&limit, &limit) == 0)
+					getrlimit(RLIMIT_NOFILE, &limit);
+
+				ha_warning("[%s.main()] Cannot raise FD limit to %d, limit is %d.\n",
+					   progname, global.rlimit_nofile, (int)limit.rlim_cur);
+				global.rlimit_nofile = limit.rlim_cur;
+			}
+		}
+	}
+
+}
+
+/* Sets the current and max memory limits for the process. It may terminate the
+ * process, if it can't raise RLIMIT_DATA limit and there is no
+ * 'no strict-limits' in the global section.
+ */
+void apply_memory_limit(void)
+{
+	struct rlimit limit;
+
+	if (global.rlimit_memmax) {
+		limit.rlim_cur = limit.rlim_max =
+			global.rlimit_memmax * 1048576ULL;
+		if (setrlimit(RLIMIT_DATA, &limit) == -1) {
+			if (global.tune.options & GTUNE_STRICT_LIMITS) {
+				ha_alert("[%s.main()] Cannot fix MEM limit to %d megs.\n",
+					 progname, global.rlimit_memmax);
+				exit(1);
+			}
+			else
+				ha_warning("[%s.main()] Cannot fix MEM limit to %d megs.\n",
+					   progname, global.rlimit_memmax);
+		}
+	}
+
+}

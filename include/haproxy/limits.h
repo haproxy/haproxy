@@ -38,5 +38,8 @@ int check_if_maxsock_permitted(int maxsock);
 int raise_rlim_nofile(struct rlimit *old_limit, struct rlimit *new_limit);
 
 void set_global_maxconn(void);
+void apply_nofile_limit(void);
+void apply_memory_limit(void);
+
 
 #endif /* _HAPROXY_LIMITS_H */

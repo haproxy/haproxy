@@ -2312,7 +2312,6 @@ static void step_init_2(int argc, char** argv)
  */
 static void step_init_3(void)
 {
-	struct rlimit limit;
 
 	signal_register_fct(SIGQUIT, dump, SIGQUIT);
 	signal_register_fct(SIGUSR1, sig_soft_stop, SIGUSR1);
@@ -2326,54 +2325,8 @@ static void step_init_3(void)
 	signal_register_fct(SIGPIPE, NULL, 0);
 
 	/* ulimits */
-	if (!global.rlimit_nofile)
-		global.rlimit_nofile = global.maxsock;
-
-	if (global.rlimit_nofile) {
-		limit.rlim_cur = global.rlimit_nofile;
-		limit.rlim_max = MAX(rlim_fd_max_at_boot, limit.rlim_cur);
-
-		if ((global.fd_hard_limit && limit.rlim_cur > global.fd_hard_limit) ||
-		    raise_rlim_nofile(NULL, &limit) != 0) {
-			getrlimit(RLIMIT_NOFILE, &limit);
-			if (global.fd_hard_limit && limit.rlim_cur > global.fd_hard_limit)
-				limit.rlim_cur = global.fd_hard_limit;
-
-			if (global.tune.options & GTUNE_STRICT_LIMITS) {
-				ha_alert("[%s.main()] Cannot raise FD limit to %d, limit is %d.\n",
-					 progname, global.rlimit_nofile, (int)limit.rlim_cur);
-				exit(1);
-			}
-			else {
-				/* try to set it to the max possible at least */
-				limit.rlim_cur = limit.rlim_max;
-				if (global.fd_hard_limit && limit.rlim_cur > global.fd_hard_limit)
-					limit.rlim_cur = global.fd_hard_limit;
-
-				if (raise_rlim_nofile(&limit, &limit) == 0)
-					getrlimit(RLIMIT_NOFILE, &limit);
-
-				ha_warning("[%s.main()] Cannot raise FD limit to %d, limit is %d.\n",
-					   progname, global.rlimit_nofile, (int)limit.rlim_cur);
-				global.rlimit_nofile = limit.rlim_cur;
-			}
-		}
-	}
-
-	if (global.rlimit_memmax) {
-		limit.rlim_cur = limit.rlim_max =
-			global.rlimit_memmax * 1048576ULL;
-		if (setrlimit(RLIMIT_DATA, &limit) == -1) {
-			if (global.tune.options & GTUNE_STRICT_LIMITS) {
-				ha_alert("[%s.main()] Cannot fix MEM limit to %d megs.\n",
-					 progname, global.rlimit_memmax);
-				exit(1);
-			}
-			else
-				ha_warning("[%s.main()] Cannot fix MEM limit to %d megs.\n",
-					   progname, global.rlimit_memmax);
-		}
-	}
+	apply_nofile_limit();
+	apply_memory_limit();
 
 #if defined(USE_LINUX_CAP)
 	/* If CAP_NET_BIND_SERVICE is in binary file permitted set and process
