@@ -7,6 +7,8 @@
 
 #ifndef _HAPROXY_LIMITS_H
 #define _HAPROXY_LIMITS_H
+#include <errno.h>
+#include <fcntl.h>
 #include <sys/resource.h>
 #include <haproxy/compat.h>
 
@@ -40,6 +42,7 @@ int raise_rlim_nofile(struct rlimit *old_limit, struct rlimit *new_limit);
 void set_global_maxconn(void);
 void apply_nofile_limit(void);
 void apply_memory_limit(void);
+void check_nofile_lim_and_prealloc_fd(void);
 
 
 #endif /* _HAPROXY_LIMITS_H */

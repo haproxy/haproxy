@@ -500,3 +500,38 @@ void apply_memory_limit(void)
 	}
 
 }
+
+/* Checks the current nofile limit via getrlimit and preallocates the
+ * (limit.rlim_cur - 1) of FDs. It may terminate the process, if its current
+ * nofile limit is lower than global.maxsock and there is no 'no strict-limits'
+ * in the global section.
+ */
+void check_nofile_lim_and_prealloc_fd(void)
+{
+	struct rlimit limit;
+
+	limit.rlim_cur = limit.rlim_max = 0;
+	getrlimit(RLIMIT_NOFILE, &limit);
+	if (limit.rlim_cur < global.maxsock) {
+		if (global.tune.options & GTUNE_STRICT_LIMITS) {
+			ha_alert("[%s.main()] FD limit (%d) too low for maxconn=%d/maxsock=%d. "
+				 "Please raise 'ulimit-n' to %d or more to avoid any trouble.\n",
+			         progname, (int)limit.rlim_cur, global.maxconn, global.maxsock,
+				 global.maxsock);
+			exit(1);
+		}
+		else
+			ha_alert("[%s.main()] FD limit (%d) too low for maxconn=%d/maxsock=%d. "
+				 "Please raise 'ulimit-n' to %d or more to avoid any trouble.\n",
+			         progname, (int)limit.rlim_cur, global.maxconn, global.maxsock,
+				 global.maxsock);
+	}
+
+	if (global.prealloc_fd && fcntl((int)limit.rlim_cur - 1, F_GETFD) == -1) {
+		if (dup2(0, (int)limit.rlim_cur - 1) == -1)
+			ha_warning("[%s.main()] Unable to preallocate file descriptor %d : %s",
+				progname, (int)limit.rlim_cur - 1, strerror(errno));
+		else
+			close((int)limit.rlim_cur - 1);
+	}
+}

@@ -23,8 +23,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <fcntl.h>
-#include <errno.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <sys/resource.h>
@@ -2345,8 +2343,6 @@ static void step_init_3(void)
  */
 static void step_init_4(void)
 {
-	struct rlimit limit;
-
 	/* MODE_QUIET is applied here, it can inhibit alerts and warnings below this line */
 	if (getenv("HAPROXY_MWORKER_REEXEC") != NULL) {
 		/* either stdin/out/err are already closed or should stay as they are. */
@@ -2366,31 +2362,10 @@ static void step_init_4(void)
 	 * be able to restart the old pids.
 	 */
 
-	/* check ulimits */
-	limit.rlim_cur = limit.rlim_max = 0;
-	getrlimit(RLIMIT_NOFILE, &limit);
-	if (limit.rlim_cur < global.maxsock) {
-		if (global.tune.options & GTUNE_STRICT_LIMITS) {
-			ha_alert("[%s.main()] FD limit (%d) too low for maxconn=%d/maxsock=%d. "
-				 "Please raise 'ulimit-n' to %d or more to avoid any trouble.\n",
-			         progname, (int)limit.rlim_cur, global.maxconn, global.maxsock,
-				 global.maxsock);
-			exit(1);
-		}
-		else
-			ha_alert("[%s.main()] FD limit (%d) too low for maxconn=%d/maxsock=%d. "
-				 "Please raise 'ulimit-n' to %d or more to avoid any trouble.\n",
-			         progname, (int)limit.rlim_cur, global.maxconn, global.maxsock,
-				 global.maxsock);
-	}
-
-	if (global.prealloc_fd && fcntl((int)limit.rlim_cur - 1, F_GETFD) == -1) {
-		if (dup2(0, (int)limit.rlim_cur - 1) == -1)
-			ha_warning("[%s.main()] Unable to preallocate file descriptor %d : %s",
-				progname, (int)limit.rlim_cur - 1, strerror(errno));
-		else
-			close((int)limit.rlim_cur - 1);
-	}
+	/* check current nofile limit reported via getrlimit() and check if we
+	 * can preallocate FDs, if global.prealloc_fd is set.
+	 */
+	check_nofile_lim_and_prealloc_fd();
 
 	/* update the ready date a last time to also account for final setup time */
 	clock_update_date(0, 1);
