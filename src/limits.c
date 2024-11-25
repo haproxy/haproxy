@@ -7,6 +7,7 @@
 
 #include <haproxy/global.h>
 #include <haproxy/limits.h>
+#include <haproxy/log.h>
 #include <haproxy/proxy.h>
 
 
@@ -111,7 +112,7 @@ int compute_ideal_maxpipes()
  * used to rely on this value as the default one. The system will emit a
  * warning indicating how many FDs are missing anyway if needed.
  */
-int compute_ideal_maxconn()
+static int compute_ideal_maxconn()
 {
 	int ssl_sides = !!global.ssl_used_frontend + !!global.ssl_used_backend;
 	int engine_fds = global.ssl_used_async_engines * ssl_sides;
@@ -249,4 +250,184 @@ int check_if_maxsock_permitted(int maxsock)
 		return 1;
 
 	return ret == 0;
+}
+
+/* Calculates and sets global.maxconn and if compiled with USE_OPENSSL,
+ * global.maxsslconn.
+ */
+void set_global_maxconn(void)
+{
+	int ideal_maxconn = compute_ideal_maxconn();
+
+	/* It's a bit tricky. Maxconn defaults to the pre-computed value based
+	 * on rlim_fd_cur and the number of FDs in use due to the configuration,
+	 * and maxsslconn defaults to DEFAULT_MAXSSLCONN. On top of that we can
+	 * enforce a lower limit based on memmax.
+	 *
+	 * If memmax is set, then it depends on which values are set. If
+	 * maxsslconn is set, we use memmax to determine how many cleartext
+	 * connections may be added, and set maxconn to the sum of the two.
+	 * If maxconn is set and not maxsslconn, maxsslconn is computed from
+	 * the remaining amount of memory between memmax and the cleartext
+	 * connections. If neither are set, then it is considered that all
+	 * connections are SSL-capable, and maxconn is computed based on this,
+	 * then maxsslconn accordingly. We need to know if SSL is used on the
+	 * frontends, backends, or both, because when it's used on both sides,
+	 * we need twice the value for maxsslconn, but we only count the
+	 * handshake once since it is not performed on the two sides at the
+	 * same time (frontend-side is terminated before backend-side begins).
+	 * The SSL stack is supposed to have filled ssl_session_cost and
+	 * ssl_handshake_cost during its initialization. In any case, if
+	 * SYSTEM_MAXCONN is set, we still enforce it as an upper limit for
+	 * maxconn in order to protect the system.
+	 */
+
+	if (!global.rlimit_memmax) {
+		if (global.maxconn == 0) {
+			global.maxconn = ideal_maxconn;
+			if (global.mode & (MODE_VERBOSE|MODE_DEBUG))
+				fprintf(stderr, "Note: setting global.maxconn to %d.\n", global.maxconn);
+		}
+	}
+#ifdef USE_OPENSSL
+	else if (!global.maxconn && !global.maxsslconn &&
+		 (global.ssl_used_frontend || global.ssl_used_backend)) {
+		/* memmax is set, compute everything automatically. Here we want
+		 * to ensure that all SSL connections will be served. We take
+		 * care of the number of sides where SSL is used, and consider
+		 * the worst case : SSL used on both sides and doing a handshake
+		 * simultaneously. Note that we can't have more than maxconn
+		 * handshakes at a time by definition, so for the worst case of
+		 * two SSL conns per connection, we count a single handshake.
+		 */
+		int sides = !!global.ssl_used_frontend + !!global.ssl_used_backend;
+		int64_t mem = global.rlimit_memmax * 1048576ULL;
+		int retried = 0;
+
+		mem -= global.tune.sslcachesize * 200ULL; // about 200 bytes per SSL cache entry
+		mem -= global.maxzlibmem;
+		mem = mem * MEM_USABLE_RATIO;
+
+		/* Principle: we test once to set maxconn according to the free
+		 * memory. If it results in values the system rejects, we try a
+		 * second time by respecting rlim_fd_max. If it fails again, we
+		 * go back to the initial value and will let the final code
+		 * dealing with rlimit report the error. That's up to 3 attempts.
+		 */
+		do {
+			global.maxconn = mem /
+				((STREAM_MAX_COST + 2 * global.tune.bufsize) +    // stream + 2 buffers per stream
+				 sides * global.ssl_session_max_cost +            // SSL buffers, one per side
+				 global.ssl_handshake_max_cost);                  // 1 handshake per connection max
+
+			if (retried == 1)
+				global.maxconn = MIN(global.maxconn, ideal_maxconn);
+			global.maxconn = round_2dig(global.maxconn);
+#ifdef SYSTEM_MAXCONN
+			if (global.maxconn > SYSTEM_MAXCONN)
+				global.maxconn = SYSTEM_MAXCONN;
+#endif /* SYSTEM_MAXCONN */
+			global.maxsslconn = sides * global.maxconn;
+
+			if (check_if_maxsock_permitted(compute_ideal_maxsock(global.maxconn)))
+				break;
+		} while (retried++ < 2);
+
+		if (global.mode & (MODE_VERBOSE|MODE_DEBUG))
+			fprintf(stderr, "Note: setting global.maxconn to %d and global.maxsslconn to %d.\n",
+			        global.maxconn, global.maxsslconn);
+	}
+	else if (!global.maxsslconn &&
+		 (global.ssl_used_frontend || global.ssl_used_backend)) {
+		/* memmax and maxconn are known, compute maxsslconn automatically.
+		 * maxsslconn being forced, we don't know how many of it will be
+		 * on each side if both sides are being used. The worst case is
+		 * when all connections use only one SSL instance because
+		 * handshakes may be on two sides at the same time.
+		 */
+		int sides = !!global.ssl_used_frontend + !!global.ssl_used_backend;
+		int64_t mem = global.rlimit_memmax * 1048576ULL;
+		int64_t sslmem;
+
+		mem -= global.tune.sslcachesize * 200ULL; // about 200 bytes per SSL cache entry
+		mem -= global.maxzlibmem;
+		mem = mem * MEM_USABLE_RATIO;
+
+		sslmem = mem - global.maxconn * (int64_t)(STREAM_MAX_COST + 2 * global.tune.bufsize);
+		global.maxsslconn = sslmem / (global.ssl_session_max_cost + global.ssl_handshake_max_cost);
+		global.maxsslconn = round_2dig(global.maxsslconn);
+
+		if (sslmem <= 0 || global.maxsslconn < sides) {
+			ha_alert("Cannot compute the automatic maxsslconn because global.maxconn is already too "
+				 "high for the global.memmax value (%d MB). The absolute maximum possible value "
+				 "without SSL is %d, but %d was found and SSL is in use.\n",
+				 global.rlimit_memmax,
+				 (int)(mem / (STREAM_MAX_COST + 2 * global.tune.bufsize)),
+				 global.maxconn);
+			exit(1);
+		}
+
+		if (global.maxsslconn > sides * global.maxconn)
+			global.maxsslconn = sides * global.maxconn;
+
+		if (global.mode & (MODE_VERBOSE|MODE_DEBUG))
+			fprintf(stderr, "Note: setting global.maxsslconn to %d\n", global.maxsslconn);
+	}
+#endif
+	else if (!global.maxconn) {
+		/* memmax and maxsslconn are known/unused, compute maxconn automatically */
+		int sides = !!global.ssl_used_frontend + !!global.ssl_used_backend;
+		int64_t mem = global.rlimit_memmax * 1048576ULL;
+		int64_t clearmem;
+		int retried = 0;
+
+		if (global.ssl_used_frontend || global.ssl_used_backend)
+			mem -= global.tune.sslcachesize * 200ULL; // about 200 bytes per SSL cache entry
+
+		mem -= global.maxzlibmem;
+		mem = mem * MEM_USABLE_RATIO;
+
+		clearmem = mem;
+		if (sides)
+			clearmem -= (global.ssl_session_max_cost + global.ssl_handshake_max_cost) * (int64_t)global.maxsslconn;
+
+		/* Principle: we test once to set maxconn according to the free
+		 * memory. If it results in values the system rejects, we try a
+		 * second time by respecting rlim_fd_max. If it fails again, we
+		 * go back to the initial value and will let the final code
+		 * dealing with rlimit report the error. That's up to 3 attempts.
+		 */
+		do {
+			global.maxconn = clearmem / (STREAM_MAX_COST + 2 * global.tune.bufsize);
+			if (retried == 1)
+				global.maxconn = MIN(global.maxconn, ideal_maxconn);
+			global.maxconn = round_2dig(global.maxconn);
+#ifdef SYSTEM_MAXCONN
+			if (global.maxconn > SYSTEM_MAXCONN)
+				global.maxconn = SYSTEM_MAXCONN;
+#endif /* SYSTEM_MAXCONN */
+
+			if (clearmem <= 0 || !global.maxconn) {
+				ha_alert("Cannot compute the automatic maxconn because global.maxsslconn is already too "
+					 "high for the global.memmax value (%d MB). The absolute maximum possible value "
+					 "is %d, but %d was found.\n",
+					 global.rlimit_memmax,
+				 (int)(mem / (global.ssl_session_max_cost + global.ssl_handshake_max_cost)),
+					 global.maxsslconn);
+				exit(1);
+			}
+
+			if (check_if_maxsock_permitted(compute_ideal_maxsock(global.maxconn)))
+				break;
+		} while (retried++ < 2);
+
+		if (global.mode & (MODE_VERBOSE|MODE_DEBUG)) {
+			if (sides && global.maxsslconn > sides * global.maxconn) {
+				fprintf(stderr, "Note: global.maxsslconn is forced to %d which causes global.maxconn "
+				        "to be limited to %d. Better reduce global.maxsslconn to get more "
+				        "room for extra connections.\n", global.maxsslconn, global.maxconn);
+			}
+			fprintf(stderr, "Note: setting global.maxconn to %d\n", global.maxconn);
+		}
+	}
 }

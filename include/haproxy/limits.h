@@ -29,7 +29,6 @@ static inline ulong normalize_rlim(ulong rlim)
  * cmd line or via configuration file.
 */
 int compute_ideal_maxpipes();
-int compute_ideal_maxconn();
 int compute_ideal_maxsock(int maxconn);
 int check_if_maxsock_permitted(int maxsock);
 
@@ -37,5 +36,7 @@ int check_if_maxsock_permitted(int maxsock);
  * to tie them up with the internal process limits
  */
 int raise_rlim_nofile(struct rlimit *old_limit, struct rlimit *new_limit);
+
+void set_global_maxconn(void);
 
 #endif /* _HAPROXY_LIMITS_H */
