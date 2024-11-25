@@ -3920,9 +3920,14 @@ int main(int argc, char **argv)
 
 	/* End of initialization for standalone and worker modes */
 	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
-		devnullfd = open("/dev/null", (O_RDWR | O_CLOEXEC), 0);
+		devnullfd = open("/dev/null", O_RDWR, 0);
 		if (devnullfd < 0) {
 			ha_alert("Cannot open /dev/null\n");
+			exit(EXIT_FAILURE);
+		}
+		if (fcntl(devnullfd, FD_CLOEXEC) != 0) {
+			ha_alert("Cannot make /dev/null CLOEXEC\n");
+			close(devnullfd);
 			exit(EXIT_FAILURE);
 		}
 	}
