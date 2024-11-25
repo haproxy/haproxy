@@ -2012,7 +2012,23 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 				goto comp_pkt_len;
 			}
 
-			if (!ack_frm_len && !qel->pktns->tx.pto_probe)
+			if (qel->pktns->tx.pto_probe) {
+				/* If a probing packet was asked and could not be built,
+				 * this is not because there was not enough room, but due to
+				 * its frames which were already acknowledeged.
+				 * See qc_stream_frm_is_acked()) called by qc_build_frms().
+				 * Note that qc_stream_frm_is_acked() logs a trace in this
+				 * case mentionning some frames were already acknowledged.
+				 *
+				 * That said, the consequence must be the same: cancelling
+				 * the packet build as if there was not enough room in the
+				 * TX buffer.
+				 */
+				 qel->pktns->tx.pto_probe--;
+				 goto no_room;
+			}
+
+			if (!ack_frm_len)
 				goto no_room;
 		}
 	}
