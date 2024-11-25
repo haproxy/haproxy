@@ -13,6 +13,7 @@ name: openssl no-deprecated
 on:
   schedule:
   - cron: "0 0 * * 4"
+  workflow_dispatch:
 
 permissions:
   contents: read

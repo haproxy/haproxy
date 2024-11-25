@@ -3,6 +3,7 @@ name: Fedora/Rawhide/QuicTLS
 on:
   schedule:
     - cron: "0 0 25 * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
