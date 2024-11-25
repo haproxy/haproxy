@@ -17213,26 +17213,33 @@ quic-cc-algo { cubic | newreno | bbr | nocc }[(<args,...>)]
 
   Default value: cubic
 
-  It is possible to active pacing if the algorithm is compatible. This is done
-  by specifying optional burst argument as described in the next paragraph.
-  Pacing purpose is to smooth emission of data without burst to reduce network
-  loss. In some scenario, it can significantly improve network throughput.
-  However, it can also increase CPU usage if haproxy is forced to wait too long
-  between each emission. Pacing support is still experimental, as such it
-  requires "expose-experimental-directives". BBR congestion control algorithm
-  depends on the pacing support which is in this case implicitely activated by
-  "bbr". Note that BBR haproxy implementation is still considered as
-  experimental and cannot be enabled without "expose-experimental-directives".
+  It is possible to enable pacing if the algorithm is compatible. This is done
+  by specifying an optional burst argument as described in the next paragraph.
+  The purpose of pacing is to smooth emission of data to reduce network losses.
+  In some scenario, it can significantly improve network throughput by avoiding
+  retransmissions. However, it can also increase CPU usage if haproxy is forced
+  to wait too long between each emission. Pacing support is still experimental,
+  as such it requires "expose-experimental-directives". The BBR congestion
+  control algorithm depends on the pacing support which is in this case
+  implicitly enabled by choosing the "bbr" algorithm. Note that haproxy's BBR
+  implementation is still considered as experimental and cannot be enabled
+  without "expose-experimental-directives".
 
   For further customization, a list of parameters can be specified after the
-  algorithm token. It must be written between parenthesis, separated by a comma
-  operator. Each argument is optional and can be empty if needed. Here is the
+  algorithm token. It must be written between parenthesis, separated by a
+  comma. Each argument is optional and can be empty if needed. Here is the
   mandatory order of each parameters :
   - maximum window size in bytes. It must be greater than 10k and smaller than
     4g. By default "tune.quic.frontend.default-max-window-size" value is used.
-  - burst size in bytes. By default, it is set to 0, which means unlimited. A
-    positive value up to 1024 can be specified to smooth emission with pacing.
-    See above paragraph for more explanation.
+  - burst size in datagrams. By default, it is set to 0, which means unlimited.
+    A positive value up to 1024 can be specified to smooth emission using
+    pacing. Lower values provide a smoother traffic (hence less losses) at the
+    expense of a higher CPU usage, while higher values will reduce CPU usage
+    and provide a slightly more bursty traffic. Note that a datagram is usually
+    around 1252 bytes, and that a typical receive buffer is 208kB or 170
+    datagrams, so in order to keep the traffic smooth, bursts should only
+    represent a small fraction of this value (between a few units to a few tens
+    at most). See above paragraph for more explanation.
 
   Example:
       # newreno congestion control algorithm
