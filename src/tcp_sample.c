@@ -288,6 +288,7 @@ static int val_fc_time_value(struct arg *args, char **err)
  * case, the argument is ignored and a warning is emitted. Returns 0 on error
  * and non-zero if OK.
  */
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__APPLE__)
 static int var_fc_counter(struct arg *args, char **err)
 {
 	if (args[0].type != ARGT_STOP) {
@@ -299,6 +300,7 @@ static int var_fc_counter(struct arg *args, char **err)
 
 	return 1;
 }
+#endif
 
 /* Returns some tcp_info data if it's available. "dir" must be set to 0 if
  * the client connection is required, otherwise it is set to 1. "val" represents
