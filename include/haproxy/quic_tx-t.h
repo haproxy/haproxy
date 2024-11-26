@@ -5,6 +5,17 @@
 #define QUIC_DGRAM_HEADLEN  (sizeof(uint16_t) + sizeof(void *))
 #define QUIC_MAX_CC_BUFSIZE (2 * (QUIC_MIN_CC_PKTSIZE + QUIC_DGRAM_HEADLEN))
 
+/* Sendmsg input buffer cannot be bigger than 65535 bytes. This comes from UDP
+ * header which uses a 2-bytes length field. QUIC datagrams are limited to 1252
+ * bytes for now so this does not cause any issue for serialized emission.
+ *
+ * However when using GSO large buffer can be transferred. By default, no more
+ * than 64 datagrams can be emitted via a single GSO call (man 7 udp). This is
+ * still too much with 1252 bytes datagram. Use a 52 datagrams max value, which
+ * ensures sendmsg input will be limited to 65104 bytes.
+ */
+#define QUIC_MAX_GSO_DGRAMS  52
+
 #include <import/eb64tree.h>
 #include <haproxy/list-t.h>
 

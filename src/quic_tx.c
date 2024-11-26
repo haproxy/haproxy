@@ -570,6 +570,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 	int total = 0;
 	struct quic_enc_level *qel, *tmp_qel;
 	int dgram_cnt = 0;
+	/* Restrict GSO emission to comply with sendmsg limitation. See QUIC_MAX_GSO_DGRAMS for more details. */
 	uchar gso_dgram_cnt = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_IO_CB, qc);
@@ -763,7 +764,8 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			         !(HA_ATOMIC_LOAD(&qc->li->flags) & LI_F_UDP_GSO_NOTSUPP) &&
 			         dglen == qc->path->mtu &&
 			         (char *)end < b_wrap(buf) &&
-			         gso_dgram_cnt < 64) {
+			         ++gso_dgram_cnt < QUIC_MAX_GSO_DGRAMS) {
+
 				/* A datagram covering the full MTU has been
 				 * built, use GSO to built next entry. Do not
 				 * reserve extra space for datagram header.
@@ -771,11 +773,6 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				prv_pkt = cur_pkt;
 				dglen = 0;
 
-				/* man 7 udp UDP_SEGMENT
-				 * The segment size must be chosen such that at
-				 * most 64 datagrams are sent in a single call
-				 */
-				++gso_dgram_cnt;
 			}
 			else {
 				/* Finalize current datagram if not all frames sent. */
