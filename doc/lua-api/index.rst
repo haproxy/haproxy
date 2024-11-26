@@ -3510,6 +3510,22 @@ Patref class
      Affects the live pattern reference version, unless :js:func:`Patref.prepare()`
      was called and is still ongoing (waiting for commit or giveup)
 
+.. js:function:: Patref.set(ref, key, value[, force])
+
+  Only relevant for maps. Set existing entries matching key to the provided
+  value. In case of duplicate keys, all matching keys will be set to the new
+  value.
+
+  :param string key: the string used as a key
+  :param string value: the string used as value
+  :param bool force: create the entry if it doesn't exist (optional,
+   defaults to false)
+  :returns: true on success and nil on failure (followed by an error message)
+
+  .. Note::
+     Affects the live pattern reference version, unless :js:func:`Patref.prepare()`
+     was called and is still ongoing (waiting for commit or giveup)
+
 .. _applethttp_class:
 
 AppletHTTP class

@@ -2797,6 +2797,56 @@ int hlua_patref_del(lua_State *L)
 	return 1;
 }
 
+int hlua_patref_set(lua_State *L)
+{
+	struct hlua_patref *ref;
+	const char *key;
+	const char *value;
+	char *errmsg = NULL;
+	unsigned int curr_gen;
+	int force = 0;
+	int ret;
+
+	ref = hlua_checkudata(L, 1, class_patref_ref);
+
+	BUG_ON(!ref);
+
+	key = luaL_checkstring(L, 2);
+	value = luaL_checkstring(L, 3);
+
+	if (lua_gettop(L) == 4)
+		force = lua_tointeger(L, 4);
+
+	HA_RWLOCK_WRLOCK(PATREF_LOCK, &ref->ptr->lock);
+	if ((ref->flags & HLUA_PATREF_FL_GEN) &&
+	    pat_ref_may_commit(ref->ptr, ref->curr_gen))
+		curr_gen = ref->curr_gen;
+	else
+		curr_gen = ref->ptr->curr_gen;
+
+	if (force) {
+		struct pat_ref_elt *elt;
+
+		elt = pat_ref_gen_find_elt(ref->ptr, curr_gen, key);
+		if (elt)
+			ret = pat_ref_set_elt_duplicate(ref->ptr, elt, value, &errmsg);
+		else
+			ret = !!pat_ref_load(ref->ptr, curr_gen, key, value, -1, &errmsg);
+	}
+	else
+		ret = pat_ref_gen_set(ref->ptr, curr_gen, key, value, &errmsg);
+
+	HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->ptr->lock);
+
+	if (!ret) {
+		ret = hlua_error(L, errmsg);
+		ha_free(&errmsg);
+		return ret;
+	}
+	lua_pushboolean(L, 1);
+	return 1;
+}
+
 void hlua_fcn_new_patref(lua_State *L, struct pat_ref *ref)
 {
 	struct hlua_patref *_ref;
@@ -2830,6 +2880,7 @@ void hlua_fcn_new_patref(lua_State *L, struct pat_ref *ref)
 	hlua_class_function(L, "purge", hlua_patref_purge);
 	hlua_class_function(L, "add", hlua_patref_add);
 	hlua_class_function(L, "del", hlua_patref_del);
+	hlua_class_function(L, "set", hlua_patref_set);
 }
 
 int hlua_patref_gc(lua_State *L)
