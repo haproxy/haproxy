@@ -3498,6 +3498,22 @@ Patref class
      Affects the live pattern reference version, unless :js:func:`Patref.prepare()`
      was called and is still ongoing (waiting for commit or giveup)
 
+.. js:function:: patref.add_bulk(ref, table)
+
+  Adds multiple entries at once to the Pattern reference. It is recommended
+  to use this one over :js:func:`Patref.prepare()` to add a lot of entries
+  at once because this one is more efficient.
+
+  :param table table: For ACL, a table of keys strings: t[0] = "key1",
+   t[1] = "key2"...
+
+   For Maps, a table of key:value string pairs: t["key"] = "value"
+  :returns: true on success and nil on failure (followed by an error message).
+
+  .. Note::
+     Affects the live pattern reference version, unless :js:func:`Patref.prepare()`
+     was called and is still pending (waiting for commit or giveup)
+
 .. js:function:: Patref.del(ref, key)
 
   Delete all entries matching the input key in the pattern reference. In

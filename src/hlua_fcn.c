@@ -2773,6 +2773,80 @@ int hlua_patref_add(lua_State *L)
 	return 1;
 }
 
+/* re-entrant helper, expects table of string as second argument on the stack */
+static int _hlua_patref_add_bulk(lua_State *L, int status, lua_KContext ctx)
+{
+	struct hlua_patref *ref = hlua_checkudata(L, 1, class_patref_ref);
+	char *errmsg;
+	unsigned int curr_gen;
+	int count = 0;
+	int ret;
+
+	if ((ref->flags & HLUA_PATREF_FL_GEN) &&
+	    pat_ref_may_commit(ref->ptr, ref->curr_gen))
+		curr_gen = ref->curr_gen;
+	else
+		curr_gen = ref->ptr->curr_gen;
+
+	HA_RWLOCK_WRLOCK(PATREF_LOCK, &ref->ptr->lock);
+
+	while (lua_next(L, 2) != 0) {
+		const char *key;
+		const char *value = NULL;
+
+		/* check if we may do something to try to prevent thread contention,
+		 * unless we run from body/init state where hlua_yieldk is no-op
+		 */
+		if (count > 100 && hlua_gethlua(L)) {
+			/* let's yield and wait for being called again to continue where we left off */
+			HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->ptr->lock);
+			hlua_yieldk(L, 0, 0, _hlua_patref_add_bulk, TICK_ETERNITY, HLUA_CTRLYIELD); // continue
+			return 0; // not reached
+
+		}
+
+		if (ref->ptr->flags & PAT_REF_SMP) {
+			/* key:val table */
+			luaL_checktype(L, -2, LUA_TSTRING);
+			key = lua_tostring(L, -2);
+			luaL_checktype(L, -1, LUA_TSTRING);
+			value = lua_tostring(L, -1);
+		}
+		else {
+			/* key-only table, use value as key */
+			luaL_checktype(L, -1, LUA_TSTRING);
+			key = lua_tostring(L, -1);
+		}
+
+		if (!pat_ref_load(ref->ptr, curr_gen, key, value, -1, &errmsg)) {
+			HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->ptr->lock);
+			ret = hlua_error(L, errmsg);
+			ha_free(&errmsg);
+			return ret;
+		}
+
+
+		/* removes 'value'; keeps 'key' for next iteration */
+		lua_pop(L, 1);
+		count += 1;
+	}
+	HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->ptr->lock);
+	lua_pushboolean(L, 1);
+	return 1;
+}
+int hlua_patref_add_bulk(lua_State *L)
+{
+	struct hlua_patref *ref;
+
+	ref = hlua_checkudata(L, 1, class_patref_ref);
+
+	BUG_ON(!ref);
+
+	/* table is in the stack at index 't' */
+	lua_pushnil(L);  /* first key */
+	return _hlua_patref_add_bulk(L, LUA_OK, 0);
+}
+
 int hlua_patref_del(lua_State *L)
 {
 	struct hlua_patref *ref;
@@ -2879,6 +2953,7 @@ void hlua_fcn_new_patref(lua_State *L, struct pat_ref *ref)
 	hlua_class_function(L, "giveup", hlua_patref_giveup);
 	hlua_class_function(L, "purge", hlua_patref_purge);
 	hlua_class_function(L, "add", hlua_patref_add);
+	hlua_class_function(L, "add_bulk", hlua_patref_add_bulk);
 	hlua_class_function(L, "del", hlua_patref_del);
 	hlua_class_function(L, "set", hlua_patref_set);
 }
