@@ -3498,6 +3498,18 @@ Patref class
      Affects the live pattern reference version, unless :js:func:`Patref.prepare()`
      was called and is still ongoing (waiting for commit or giveup)
 
+.. js:function:: Patref.del(ref, key)
+
+  Delete all entries matching the input key in the pattern reference. In
+  case of duplicate keys, all keys are removed.
+
+  :param string key: the string used as a key
+  :returns: true on success and false on failure.
+
+  .. Note::
+     Affects the live pattern reference version, unless :js:func:`Patref.prepare()`
+     was called and is still ongoing (waiting for commit or giveup)
+
 .. _applethttp_class:
 
 AppletHTTP class

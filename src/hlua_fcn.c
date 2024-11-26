@@ -2773,6 +2773,30 @@ int hlua_patref_add(lua_State *L)
 	return 1;
 }
 
+int hlua_patref_del(lua_State *L)
+{
+	struct hlua_patref *ref;
+	const char *key;
+	int ret;
+
+	ref = hlua_checkudata(L, 1, class_patref_ref);
+
+	BUG_ON(!ref);
+
+	key = luaL_checkstring(L, 2);
+
+	HA_RWLOCK_WRLOCK(PATREF_LOCK, &ref->ptr->lock);
+	if ((ref->flags & HLUA_PATREF_FL_GEN) &&
+	    pat_ref_may_commit(ref->ptr, ref->curr_gen))
+		ret = pat_ref_gen_delete(ref->ptr, ref->curr_gen, key);
+	else
+		ret = pat_ref_delete(ref->ptr, key);
+	HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->ptr->lock);
+
+	lua_pushboolean(L, !!ret);
+	return 1;
+}
+
 void hlua_fcn_new_patref(lua_State *L, struct pat_ref *ref)
 {
 	struct hlua_patref *_ref;
@@ -2805,6 +2829,7 @@ void hlua_fcn_new_patref(lua_State *L, struct pat_ref *ref)
 	hlua_class_function(L, "giveup", hlua_patref_giveup);
 	hlua_class_function(L, "purge", hlua_patref_purge);
 	hlua_class_function(L, "add", hlua_patref_add);
+	hlua_class_function(L, "del", hlua_patref_del);
 }
 
 int hlua_patref_gc(lua_State *L)
