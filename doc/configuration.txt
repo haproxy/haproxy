@@ -17239,7 +17239,8 @@ quic-cc-algo { cubic | newreno | bbr | nocc }[(<args,...>)]
     around 1252 bytes, and that a typical receive buffer is 208kB or 170
     datagrams, so in order to keep the traffic smooth, bursts should only
     represent a small fraction of this value (between a few units to a few tens
-    at most). See above paragraph for more explanation.
+    at most). See above paragraph for more explanation. This parameter is
+    ignored by BBR.
 
   Example:
       # newreno congestion control algorithm
