@@ -111,7 +111,7 @@ HAProxy requires a working GCC or Clang toolchain and GNU make :
     may want to retry with "gmake" which is the name commonly used for GNU make
     on BSD systems.
 
-  - GCC >= 4.2 (up to 13 tested). Older versions can be made to work with a
+  - GCC >= 4.2 (up to 14 tested). Older versions can be made to work with a
     few minor adaptations if really needed. Newer versions may sometimes break
     due to compiler regressions or behaviour changes. The version shipped with
     your operating system is very likely to work with no trouble. Clang >= 3.0
@@ -235,7 +235,7 @@ to forcefully enable it using "USE_LIBCRYPT=1".
 -----------------
 For SSL/TLS, it is necessary to use a cryptography library. HAProxy currently
 supports the OpenSSL library, and is known to build and work with branches
-1.0.0, 1.0.1, 1.0.2, 1.1.0, 1.1.1, and 3.0 to 3.3. It is recommended to use
+1.0.0, 1.0.1, 1.0.2, 1.1.0, 1.1.1, and 3.0 to 3.4. It is recommended to use
 at least OpenSSL 1.1.1 to have support for all SSL keywords and configuration
 in HAProxy. OpenSSL follows a long-term support cycle similar to HAProxy's,
 and each of the branches above receives its own fixes, without forcing you to
