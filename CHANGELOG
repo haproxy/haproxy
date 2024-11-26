@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2024/11/26 : 3.2-dev0
+    - exact copy of 3.1.0
+
 2024/11/26 : 3.1.0
     - BUG/MAJOR: mux-h1: Properly handle wrapping on obuf when dumping the first-line
     - BUILD: activity/memprofile: fix a build warning in the posix_memalign handler

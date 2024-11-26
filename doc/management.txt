@@ -1,7 +1,7 @@
                              ------------------------
                              HAProxy Management Guide
                              ------------------------
-                                   version 3.1
+                                   version 3.2
 
 
 This document describes how to start, stop, manage, and troubleshoot HAProxy,
