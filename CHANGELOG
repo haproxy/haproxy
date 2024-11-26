@@ -1,6 +1,49 @@
 ChangeLog :
 ===========
 
+2024/11/26 : 3.1.0
+    - BUG/MAJOR: mux-h1: Properly handle wrapping on obuf when dumping the first-line
+    - BUILD: activity/memprofile: fix a build warning in the posix_memalign handler
+    - BUG/MINOR: quic: Avoid BUG_ON() on ->on_pkt_lost() BBR callback call
+    - CI: update to the latest AWS-LC version
+    - CI: update to the latest WolfSSL version
+    - DOC: ot: mention planned deprecation of the OT filter
+    - Revert "CI: update to the latest WolfSSL version"
+    - CI: github: add a WolfSSL job which tries the latest version
+    - BUILD: systemd: fix usage of reserved name "sun" in the address field
+    - BUILD: init: use the more portable FD_CLOEXEC for /dev/null
+    - CI: github: improve the Wolfssl job
+    - CI: github: improve the AWS-LC job
+    - BUG/MINOR: mux-quic: fix show quic report of QCS prepared bytes
+    - BUG/MEDIUM: quic: fix sending performance due to qc_prep_pkts() return
+    - MINOR: mux-quic: use sched call time for pacing
+    - CI: github: allow to run the Illumos job manually
+    - BUILD: tcp_sample: var_fc_counter defined but not used
+    - CI: github: add 'workflow_dispatch' on remaining build jobs
+    - DOC: config: refine a little bit the text on QUIC pacing
+    - MINOR: proto_sockpair: send_fd_uxst: init iobuf, cmsghdr, cmsgbuf to zeros
+    - MINOR: startup: rename on_new_child_failure to mworker_on_new_child_failure
+    - REORG: startup: move on_new_child_failure in mworker.c
+    - MINOR: startup: prefix prepare_master and run_master with mworker_*
+    - REORG: startup: move mworker_prepare_master in mworker.c
+    - MINOR: startup: keep updating verbosity modes only in haproxy.c
+    - REORG: startup: move mworker_run_master and mworker_loop in mworker.c
+    - REORG: startup: move mworker_reexec and mworker_reload in mworker.c
+    - MINOR: startup: prefix apply_master_worker_mode with mworker_*
+    - REORG: startup: move mworker_apply_master_worker_mode in mworker.c
+    - MINOR: cfgparse-quic: strengthen quic-cc-algo parsing
+    - BUG/MAJOR: quic: fix wrong packet building due to already acked frames
+    - DEV: lags/show-sess-to-flags: Properly handle fd state on server side
+    - BUG/MEDIUM: http-ana: Don't release too early the L7 buffer
+    - MINOR: quic: make bbr consider the max window size setting
+    - DOC: quic: Amend the pacing information about BBR.
+    - BUG/MEDIUM: quic: prevent EMSGSIZE with GSO for larger bufsize
+    - MINOR: cli: Add a "help" keyword to show sess
+    - MINOR: cli/quic: Add a "help" keyword to show quic
+    - DOC: management: mention "show sess help" and "show quic help"
+    - DOC: install: update the list of supported versions
+    - MINOR: version: mention that 3.1 is stable now
+
 2024/11/21 : 3.1-dev14
     - MINOR: acl: export find_acl_default()
     - MINOR: sample: extend the "when" converter to support an ACL
