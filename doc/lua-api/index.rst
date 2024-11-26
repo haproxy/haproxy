@@ -3485,6 +3485,19 @@ Patref class
   Drop the pending patref version created using Patref:prepare(): get back to
   live dataset.
 
+.. js:function:: Patref.add(ref, key[, value])
+
+  Add a new key to the pattern reference, with associated value for maps.
+
+  :param string key: the string used as a key
+  :param string value: the string used as value to be associated with the key
+   (only relevant for maps)
+  :returns: true on success and nil on failure (followed by an error message).
+
+  .. Note::
+     Affects the live pattern reference version, unless :js:func:`Patref.prepare()`
+     was called and is still ongoing (waiting for commit or giveup)
+
 .. _applethttp_class:
 
 AppletHTTP class
