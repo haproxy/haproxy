@@ -559,6 +559,8 @@ static void bbr_set_cwnd(struct bbr *bbr, struct quic_cc_path *p, uint32_t acked
 	p->cwnd = MAX(p->cwnd, bbr_min_pipe_cwnd(p));
 	bbr_bound_cwnd_for_probe_rtt(bbr, p);
 	bbr_bound_cwnd_for_model(bbr, p);
+	/* Limitation by configuration (not in BBR RFC). */
+	p->cwnd = MIN(p->cwnd, p->max_cwnd);
 }
 
 static int bbr_init(struct quic_cc *cc)
