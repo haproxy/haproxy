@@ -10,10 +10,10 @@ struct quic_cc_rs {
 	uint64_t lost;
 	uint64_t prior_lost;
 	int64_t last_end_seq;
-	uint32_t interval;
-	uint32_t prior_time;
-	uint32_t send_elapsed;
-	uint32_t ack_elapsed;
+	uint64_t prior_time_ns;
+	uint32_t interval_us;
+	uint32_t send_elapsed_us;
+	uint32_t ack_elapsed_us;
 	uint32_t is_app_limited;
 };
 
@@ -26,8 +26,8 @@ struct quic_cc_drs {
 	uint64_t delivered;
 	uint64_t lost;
 	int64_t last_seq;
-	uint32_t delivered_time;
-	uint32_t first_sent_time;
+	uint64_t delivered_time_ns;
+	uint64_t first_sent_time_ns;
 	int is_cwnd_limited; /* boolean */
 	int app_limited; /* boolean */
 };
@@ -36,6 +36,6 @@ void quic_cc_drs_init(struct quic_cc_drs *drs);
 void quic_cc_drs_on_pkt_sent(struct quic_cc_path *path,
                              struct quic_tx_packet *pkt, struct quic_cc_drs *drs);
 void quic_cc_drs_update_rate_sample(struct quic_cc_drs *drs,
-                                    struct quic_tx_packet *pkt);
+                                    struct quic_tx_packet *pkt, uint64_t time_ns);
 void quic_cc_drs_on_ack_recv(struct quic_cc_drs *drs, struct quic_cc_path *path,
                              uint64_t pkt_delivered);

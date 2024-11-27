@@ -206,7 +206,7 @@ void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
 		if ((int64_t)pkt->pn_node.key > largest_acked_pn)
 			break;
 
-		time_sent = pkt->time_sent;
+		time_sent = pkt->time_sent_ms;
 		loss_time_limit = tick_add(time_sent, loss_delay);
 
 		reordered = (int64_t)largest_acked_pn >= pkt->pn_node.key + pktthresh;
@@ -290,12 +290,12 @@ int qc_release_lost_pkts(struct quic_conn *qc, struct quic_pktns *pktns,
 			struct quic_cc_event ev = { };
 
 			ev.type = QUIC_CC_EVT_LOSS;
-			ev.loss.time_sent = newest_lost->time_sent;
+			ev.loss.time_sent = newest_lost->time_sent_ms;
 			ev.loss.count = tot_lost;
 
 			quic_cc_event(cc, &ev);
 			if (cc->algo->congestion_event)
-			    cc->algo->congestion_event(cc, newest_lost->time_sent);
+			    cc->algo->congestion_event(cc, newest_lost->time_sent_ms);
 		}
 
 		/* If an RTT have been already sampled, <rtt_min> has been set.
@@ -304,7 +304,7 @@ int qc_release_lost_pkts(struct quic_conn *qc, struct quic_pktns *pktns,
 		 * slow start state.
 		 */
 		if (qc->path->loss.rtt_min && newest_lost != oldest_lost) {
-			unsigned int period = newest_lost->time_sent - oldest_lost->time_sent;
+			unsigned int period = newest_lost->time_sent_ms - oldest_lost->time_sent_ms;
 
 			if (quic_loss_persistent_congestion(&qc->path->loss, period,
 							    now_ms, qc->max_ack_delay) &&

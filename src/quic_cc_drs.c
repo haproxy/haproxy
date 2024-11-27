@@ -4,20 +4,21 @@
 #include <haproxy/quic_cc-t.h>
 #include <haproxy/quic_cc_drs.h>
 #include <haproxy/quic_tx-t.h>
+#include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/window_filter.h>
 
 static void quic_cc_rs_init(struct quic_cc_rs *rs)
 {
-	rs->interval = UINT32_MAX;
+	rs->interval_us = UINT32_MAX;
 	rs->delivered = 0;
 	rs->prior_delivered = 0;
-	rs->prior_time = TICK_ETERNITY;
+	rs->prior_time_ns = 0;
 	rs->tx_in_flight = 0;
 	rs->lost = 0;
 	rs->prior_lost = 0;
-	rs->send_elapsed = 0;
-	rs->ack_elapsed = 0;
+	rs->send_elapsed_us = 0;
+	rs->ack_elapsed_us = 0;
 	rs->last_end_seq = -1;
 	rs->is_app_limited = 0;
 }
@@ -31,8 +32,8 @@ void quic_cc_drs_init(struct quic_cc_drs *drs)
 	drs->delivered = 0;
 	drs->lost = 0;
 	drs->last_seq = -1;
-	drs->delivered_time = TICK_ETERNITY;
-	drs->first_sent_time = TICK_ETERNITY;
+	drs->delivered_time_ns = 0;
+	drs->first_sent_time_ns = 0;
 	drs->app_limited = 0;
 	drs->is_cwnd_limited = 0;
 }
@@ -44,12 +45,12 @@ void quic_cc_drs_on_pkt_sent(struct quic_cc_path *path,
                              struct quic_tx_packet *pkt, struct quic_cc_drs *drs)
 {
 	if (!path->in_flight)
-		drs->first_sent_time  = drs->delivered_time = pkt->time_sent;
+		drs->first_sent_time_ns = drs->delivered_time_ns = pkt->time_sent_ns;
 
-	pkt->rs.first_sent_time = drs->first_sent_time;
-	pkt->rs.delivered_time  = drs->delivered_time;
-	pkt->rs.delivered       = drs->delivered;
-	pkt->rs.is_app_limited  = drs->app_limited != 0;
+	pkt->rs.first_sent_time_ns = drs->first_sent_time_ns;
+	pkt->rs.delivered_time_ns  = drs->delivered_time_ns;
+	pkt->rs.delivered          = drs->delivered;
+	pkt->rs.is_app_limited     = drs->app_limited != 0;
 
 	pkt->rs.tx_in_flight = path->in_flight + pkt->len;
 	pkt->rs.lost = drs->lost;
@@ -62,8 +63,8 @@ void quic_cc_drs_on_pkt_sent(struct quic_cc_path *path,
 static inline int quic_cc_drs_is_newest_packet(struct quic_cc_drs *drs,
                                                struct quic_tx_packet *pkt)
 {
-	return tick_is_lt(drs->first_sent_time, pkt->time_sent) ||
-		(pkt->time_sent == drs->first_sent_time &&
+	return drs->first_sent_time_ns < pkt->time_sent_ns ||
+		(pkt->time_sent_ns == drs->first_sent_time_ns &&
 		 pkt->rs.end_seq > drs->rs.last_end_seq);
 }
 
@@ -83,32 +84,32 @@ static inline int quic_cc_drs_is_newest_packet(struct quic_cc_drs *drs,
  * RFC UpdateRateSample() called from first part of GenerateRateSample().
  */
 void quic_cc_drs_update_rate_sample(struct quic_cc_drs *drs,
-                                    struct quic_tx_packet *pkt)
+                                    struct quic_tx_packet *pkt, uint64_t time_ns)
 {
 	struct quic_cc_rs *rs = &drs->rs;
 
-	if (!tick_isset(pkt->rs.delivered_time))
+	if (!pkt->rs.delivered_time_ns)
 		return;
 
 	drs->delivered += pkt->len;
-	drs->delivered_time = now_ms;
+	drs->delivered_time_ns = time_ns;
 	/* Update info using the newest packet. */
-	if (tick_isset(rs->prior_time) && !quic_cc_drs_is_newest_packet(drs, pkt))
+	if (rs->prior_time_ns && !quic_cc_drs_is_newest_packet(drs, pkt))
 		return;
 
 	rs->prior_delivered  = pkt->rs.delivered;
-	rs->prior_time       = pkt->rs.delivered_time;
+	rs->prior_time_ns    = pkt->rs.delivered_time_ns;
 	rs->is_app_limited   = pkt->rs.is_app_limited;
-	rs->send_elapsed     = pkt->time_sent - pkt->rs.first_sent_time;
-	rs->ack_elapsed      = drs->delivered_time - pkt->rs.delivered_time;
+	rs->send_elapsed_us  = (pkt->time_sent_ns - pkt->rs.first_sent_time_ns) / 1000;
+	rs->ack_elapsed_us   = (drs->delivered_time_ns - pkt->rs.delivered_time_ns) / 1000;
 	rs->tx_in_flight     = pkt->rs.tx_in_flight;
 	rs->prior_lost       = pkt->rs.lost;
 	rs->last_end_seq     = pkt->rs.end_seq;
-	drs->first_sent_time = pkt->time_sent;
+	drs->first_sent_time_ns = pkt->time_sent_ns;
 	/* Mark the packet as delivered once it's SACKed to
 	 * avoid being used again when it's cumulatively acked.
 	 */
-	pkt->rs.delivered_time = TICK_ETERNITY;
+	pkt->rs.delivered_time_ns = 0;
 }
 
 /* RFC https://datatracker.ietf.org/doc/draft-ietf-ccwg-bbr/
@@ -131,25 +132,26 @@ void quic_cc_drs_on_ack_recv(struct quic_cc_drs *drs, struct quic_cc_path *path,
 		++drs->round_count;
 	}
 
-	if (!tick_isset(rs->prior_time))
+	if (!rs->prior_time_ns)
 		return;
 
-	rs->interval = MAX(rs->send_elapsed, rs->ack_elapsed);
+	rs->interval_us = MAX(rs->send_elapsed_us, rs->ack_elapsed_us);
 
 	BUG_ON(drs->delivered <= rs->prior_delivered);
 	rs->delivered = drs->delivered - rs->prior_delivered;
 	BUG_ON(drs->lost < rs->prior_lost);
 	rs->lost = drs->lost - rs->prior_lost;
 
-	if (rs->interval < path->loss.rtt_min) {
-		rs->interval = UINT32_MAX;
+	if (rs->interval_us < path->loss.rtt_min * 1000) {
+		rs->interval_us = UINT32_MAX;
 		return;
 	}
 
-	if (!rs->interval)
+	if (!rs->interval_us)
 		return;
 
-	rate = rs->delivered * 1000 / rs->interval;
+	/* <rate> is in bytes/s. */
+	rate = rs->delivered * 1000000 / rs->interval_us;
 	if (rate >= wf_get_max(&drs->wf) || !drs->app_limited)
 		path->delivery_rate = wf_max_update(&drs->wf, rate, drs->round_count);
 }

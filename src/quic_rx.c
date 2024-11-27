@@ -432,8 +432,12 @@ static void qc_notify_cc_of_newly_acked_pkts(struct quic_conn *qc,
 	struct quic_cc_drs *drs =
 		p->cc.algo->get_drs ? p->cc.algo->get_drs(&p->cc) : NULL;
 	unsigned int bytes_delivered = 0, pkt_delivered = 0;
+	uint64_t time_ns;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
+
+	if (drs)
+		time_ns = task_mono_time();
 
 	list_for_each_entry_safe(pkt, tmp, newly_acked_pkts, list) {
 		pkt->pktns->tx.in_flight -= pkt->in_flight_len;
@@ -450,12 +454,12 @@ static void qc_notify_cc_of_newly_acked_pkts(struct quic_conn *qc,
 		bytes_delivered += pkt->len;
 		pkt_delivered = pkt->rs.delivered;
 		ev.ack.acked = pkt->in_flight_len;
-		ev.ack.time_sent = pkt->time_sent;
+		ev.ack.time_sent = pkt->time_sent_ms;
 		ev.ack.pn = pkt->pn_node.key;
 		/* Note that this event is not emitted for BBR. */
 		quic_cc_event(&p->cc, &ev);
 		if (drs && (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING))
-			quic_cc_drs_update_rate_sample(drs, pkt);
+			quic_cc_drs_update_rate_sample(drs, pkt, time_ns);
 		LIST_DEL_INIT(&pkt->list);
 		quic_tx_packet_refdec(pkt);
 	}
@@ -523,7 +527,7 @@ static int qc_parse_ack_frm(struct quic_conn *qc,
 		}
 		else {
 			time_sent = eb64_entry(largest_node,
-			                       struct quic_tx_packet, pn_node)->time_sent;
+			                       struct quic_tx_packet, pn_node)->time_sent_ms;
 			new_largest_acked_pn = 1;
 		}
 	}

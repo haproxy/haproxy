@@ -295,7 +295,8 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 		struct buffer tmpbuf = { };
 		struct quic_tx_packet *first_pkt, *pkt, *next_pkt;
 		uint16_t dglen, gso = 0, gso_fallback = 0;
-		unsigned int time_sent;
+		uint64_t time_sent_ns;
+		unsigned int time_sent_ms;
 
 		pos = (unsigned char *)b_head(buf);
 		dglen = read_u16(pos);
@@ -360,7 +361,8 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 
 		b_del(buf, dglen + QUIC_DGRAM_HEADLEN);
 		qc->bytes.tx += tmpbuf.data;
-		time_sent = now_ms;
+		time_sent_ms = now_ms;
+		time_sent_ns = task_mono_time();
 
 		for (pkt = first_pkt; pkt; pkt = next_pkt) {
 			struct quic_cc *cc = &qc->path->cc;
@@ -391,9 +393,10 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 
 			qc->cntrs.sent_pkt++;
 
-			pkt->time_sent = time_sent;
+			pkt->time_sent_ns = time_sent_ns;
+			pkt->time_sent_ms = time_sent_ms;
 			if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING) {
-				pkt->pktns->tx.time_of_last_eliciting = time_sent;
+				pkt->pktns->tx.time_of_last_eliciting = time_sent_ms;
 				qc->path->ifae_pkts++;
 				if (qc->flags & QUIC_FL_CONN_IDLE_TIMER_RESTARTED_AFTER_READ)
 					qc_idle_timer_rearm(qc, 0, 0);
@@ -2202,7 +2205,8 @@ static inline void quic_tx_packet_init(struct quic_tx_packet *pkt, int type)
 	pkt->in_flight_len = 0;
 	pkt->pn_node.key = (uint64_t)-1;
 	LIST_INIT(&pkt->frms);
-	pkt->time_sent = TICK_ETERNITY;
+	pkt->time_sent_ms = TICK_ETERNITY;
+	pkt->time_sent_ns = 0;
 	pkt->next = NULL;
 	pkt->prev = NULL;
 	pkt->largest_acked_pn = -1;

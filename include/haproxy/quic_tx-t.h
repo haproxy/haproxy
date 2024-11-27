@@ -51,7 +51,8 @@ struct quic_tx_packet {
 	/* The list of frames of this packet. */
 	struct list frms;
 	/* The time this packet was sent (ms). */
-	unsigned int time_sent;
+	unsigned int time_sent_ms;
+	uint64_t time_sent_ns;
 	/* Packet number spakce. */
 	struct quic_pktns *pktns;
 	/* Flags. */
@@ -70,8 +71,8 @@ struct quic_tx_packet {
 		uint64_t tx_in_flight;
 		uint64_t lost;
 		int64_t end_seq;
-		uint32_t delivered_time;
-		uint32_t first_sent_time;
+		uint64_t delivered_time_ns;
+		uint64_t first_sent_time_ns;
 		int is_app_limited;
 	} rs;
 	unsigned char type;

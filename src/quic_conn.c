@@ -1247,6 +1247,11 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	}
 	qc->wait_event.tasklet->process = quic_conn_io_cb;
 	qc->wait_event.tasklet->context = qc;
+	/* Enable TASK_F_WANTS_TIME task flag for congestion control algorithms with
+	 * delivery rate estimation only.
+	 */
+	if (qc->path->cc.algo->get_drs)
+		qc->wait_event.tasklet->state |= TASK_F_WANTS_TIME;
 	qc->wait_event.events = 0;
 	qc->subs = NULL;
 
