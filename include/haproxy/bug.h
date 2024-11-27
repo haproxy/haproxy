@@ -225,11 +225,11 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 /* Core of the COUNT_IF() macro, checks the condition and counts one hit if
  * true.
  */
-#define _COUNT_IF(cond, file, line, ...) do {					\
-	(void)(unlikely(cond) ? ({						\
+#define _COUNT_IF(cond, file, line, ...)					\
+	(unlikely(cond) ? ({							\
 		__DBG_COUNT(cond, file, line, DBG_COUNT_IF, __VA_ARGS__);	\
 		1; /* let's return the true condition */			\
-	}) : 0); } while (0)
+	}) : 0)
 
 /* DEBUG_GLITCHES enables counting the number of glitches per line of code. The
  * condition is empty (nothing to write there), except maybe __VA_ARGS at the
@@ -245,7 +245,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 
 #else /* USE_OBSOLETE_LINKER not defined below  */
 # define __DBG_COUNT(cond, file, line, type, ...) do { } while (0)
-# define _COUNT_IF(cond, file, line, ...) do { } while (0)
+# define _COUNT_IF(cond, file, line, ...) (cond)
 # define _COUNT_GLITCH(file, line, ...) do { } while (0)
 #endif
 
