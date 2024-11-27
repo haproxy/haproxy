@@ -3542,6 +3542,58 @@ Patref class
      Affects the live pattern reference version, unless :js:func:`Patref.prepare()`
      was called and is still ongoing (waiting for commit or giveup)
 
+.. js:function:: Patref.event_sub(ref, event_types, func)
+
+  Register a function that will be called on specific PAT_REF events.
+  See :js:func:`core.event_sub()` for generalities. Please note however that
+  for performance reasons pattern reference events can only be subscribed
+  per pattern reference (not globally). What this means is that the provided
+  callback function will only be called for events affecting the pattern
+  reference pointed by the Patref object (ref) passed as parameter.
+
+  If you want to be notified for events on a given set of pattern references, it
+  is still possible to perform as many per-patref subscriptions as needed.
+
+  Also, for PAT_REF events, no event data is provided (known as "event_data" in
+  callback function's prototype from :js:func:`core.event_sub()`)
+
+  The list of the available event types for the PAT_REF family are:
+
+    * **PAT_REF_ADD**: element was added to the current version of the pattern
+      reference
+    * **PAT_REF_DEL**: element was deleted from the current version of the
+      pattern reference
+    * **PAT_REF_SET**: element was modified in the current version of the
+      pattern reference
+    * **PAT_REF_CLEAR**: all elements were cleared from the current version of
+      the pattern reference
+    * **PAT_REF_COMMIT**: pending element(s) was/were committed in the current
+      version of the pattern reference
+
+   .. Note::
+     Use **PAT_REF** in **event_types** to subscribe to all pattern reference
+     events types at once.
+
+  Here is a working example showing how to trigger a callback function for the
+  pattern reference associated to file "test.map":
+
+.. code-block:: lua
+
+  core.register_init(function()
+    -- We assume that "test.map" is a map file referenced in haproxy config
+    -- file, thus it is loaded during config parsing and is expected to be
+    -- available at init Lua stage. Indeed, the below code wouldn't work if
+    -- used directly within body context, as at that time the config is not
+    -- fully parsed.
+    local map_patref = core.get_patref("test.map")
+    map_patref:event_sub({"PAT_REF_ADD"}, function(event, data, sub)
+      -- in the patref event handler
+      print("entry added!")
+    end)
+  end)
+
+..
+
 .. _applethttp_class:
 
 AppletHTTP class

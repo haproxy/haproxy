@@ -2921,6 +2921,27 @@ int hlua_patref_set(lua_State *L)
 	return 1;
 }
 
+/* hlua_event_sub wrapper for per-patref subscription:
+ *
+ * hlua_event_sub() is called with ref->ptr->e_subs subscription list and
+ * lua arguments are passed as-is (skipping the first argument which
+ * is the hlua_patref)
+ */
+int hlua_patref_event_sub(lua_State *L)
+{
+	struct hlua_patref *ref;
+
+	ref = hlua_checkudata(L, 1, class_patref_ref);
+
+	BUG_ON(!ref);
+
+	/* remove first argument from the stack (hlua_patref) */
+	lua_remove(L, 1);
+
+	/* try to subscribe within patref's subscription list */
+	return hlua_event_sub(L, &ref->ptr->e_subs);
+}
+
 void hlua_fcn_new_patref(lua_State *L, struct pat_ref *ref)
 {
 	struct hlua_patref *_ref;
@@ -2956,6 +2977,7 @@ void hlua_fcn_new_patref(lua_State *L, struct pat_ref *ref)
 	hlua_class_function(L, "add_bulk", hlua_patref_add_bulk);
 	hlua_class_function(L, "del", hlua_patref_del);
 	hlua_class_function(L, "set", hlua_patref_set);
+	hlua_class_function(L, "event_sub", hlua_patref_event_sub);
 }
 
 int hlua_patref_gc(lua_State *L)
