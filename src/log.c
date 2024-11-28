@@ -2411,8 +2411,6 @@ static inline char *_lf_text_len(char *dst, const char *src,
 			if (++len > size)
 				len = size;
 			len = strlcpy2(dst, src, len);
-			if (len == 0)
-				return NULL;
 		}
 		dst += len;
 		size -= len;
