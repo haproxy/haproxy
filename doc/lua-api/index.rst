@@ -360,6 +360,8 @@ Core class
 
 .. js:function:: core.add_acl(name, key)
 
+  **LEGACY**
+
   **context**: init, task, action, sample-fetch, converter
 
   Add the ACL *key* in the ACLs list referenced by *name*.
@@ -367,7 +369,13 @@ Core class
   :param string name: the name that reference the ACL entries.
   :param string key: the key which will be added.
 
+  .. Note::
+     This function is not optimal due to systematic Map reference lookup.
+     It is recommended to use :js:func:`Patref.add()` instead.
+
 .. js:function:: core.del_acl(name, key)
+
+  **LEGACY**
 
   **context**: init, task, action, sample-fetch, converter
 
@@ -377,7 +385,13 @@ Core class
   :param string name: the name that reference the ACL entries.
   :param string key: the key which will be deleted.
 
+  .. Note::
+     This function is not optimal due to systematic Map reference lookup.
+     It is recommended to use :js:func:`Patref.del()` instead.
+
 .. js:function:: core.del_map(name, key)
+
+  **LEGACY**
 
   **context**: init, task, action, sample-fetch, converter
 
@@ -386,6 +400,10 @@ Core class
 
   :param string name: the name that reference the map entries.
   :param string key: the key which will be deleted.
+
+  .. Note::
+     This function is not optimal due to systematic Map reference lookup.
+     It is recommended to use :js:func:`Patref.del()` instead.
 
 .. js:function:: core.get_info()
 
@@ -840,6 +858,8 @@ Core class
 
 .. js:function:: core.set_map(name, key, value)
 
+  **LEGACY**
+
   **context**: init, task, action, sample-fetch, converter
 
   Set the value *value* associated to the key *key* in the map referenced by
@@ -848,6 +868,10 @@ Core class
   :param string name: the Map reference
   :param string key: the key to set or replace
   :param string value: the associated value
+
+  .. Note::
+     This function is not optimal due to systematic Map reference lookup.
+     It is recommended to use :js:func:`Patref.set()` instead.
 
 .. js:function:: core.sleep(int seconds)
 
