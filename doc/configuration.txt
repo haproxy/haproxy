@@ -11760,10 +11760,10 @@ retry-on [space-delimited list of keywords]
 
       <status>          any HTTP status code among "401" (Unauthorized), "403"
                         (Forbidden), "404" (Not Found), "408" (Request Timeout),
-                        "425" (Too Early), "429" (Too Many Requests), "500"
-                        (Server Error), "501" (Not Implemented), "502"
-                        (Bad Gateway), "503" (Service Unavailable), "504"
-                        (Gateway Timeout).
+			"421" (Misdirected Request), "425" (Too Early),
+			"429" (Too Many Requests), "500" (Server Error),
+			"501" (Not Implemented), "502" (Bad Gateway),
+			"503" (Service Unavailable), "504" (Gateway Timeout).
 
       all-retryable-errors
                         retry request for any error that are considered

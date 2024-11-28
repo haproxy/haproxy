@@ -877,6 +877,8 @@ proxy_parse_retry_on(char **args, int section, struct proxy *curpx,
 			curpx->retry_type |= PR_RE_404;
 		else if (strcmp(args[i], "408") == 0)
 			curpx->retry_type |= PR_RE_408;
+		else if (strcmp(args[i], "421") == 0)
+			curpx->retry_type |= PR_RE_421;
 		else if (strcmp(args[i], "425") == 0)
 			curpx->retry_type |= PR_RE_425;
 		else if (strcmp(args[i], "429") == 0)

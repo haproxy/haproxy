@@ -192,17 +192,18 @@ enum PR_SRV_STATE_FILE {
 #define PR_RE_403                 0x00000010 /* Retry if we got a 403 */
 #define PR_RE_404                 0x00000020 /* Retry if we got a 404 */
 #define PR_RE_408                 0x00000040 /* Retry if we got a 408 */
-#define PR_RE_425                 0x00000080 /* Retry if we got a 425 */
-#define PR_RE_429                 0x00000100 /* Retry if we got a 429 */
-#define PR_RE_500                 0x00000200 /* Retry if we got a 500 */
-#define PR_RE_501                 0x00000400 /* Retry if we got a 501 */
-#define PR_RE_502                 0x00000800 /* Retry if we got a 502 */
-#define PR_RE_503                 0x00001000 /* Retry if we got a 503 */
-#define PR_RE_504                 0x00002000 /* Retry if we got a 504 */
+#define PR_RE_421                 0x00000080 /* Retry if we got a 421 */
+#define PR_RE_425                 0x00000100 /* Retry if we got a 425 */
+#define PR_RE_429                 0x00000200 /* Retry if we got a 429 */
+#define PR_RE_500                 0x00000400 /* Retry if we got a 500 */
+#define PR_RE_501                 0x00000800 /* Retry if we got a 501 */
+#define PR_RE_502                 0x00001000 /* Retry if we got a 502 */
+#define PR_RE_503                 0x00002000 /* Retry if we got a 503 */
+#define PR_RE_504                 0x00004000 /* Retry if we got a 504 */
 #define PR_RE_STATUS_MASK         (PR_RE_401 | PR_RE_403 | PR_RE_404 | \
-                                   PR_RE_408 | PR_RE_425 | PR_RE_429 | \
-                                   PR_RE_500 | PR_RE_501 | PR_RE_502 | \
-                                   PR_RE_503 | PR_RE_504)
+                                   PR_RE_408 | PR_RE_421 | PR_RE_425 | \
+                                   PR_RE_429 | PR_RE_500 | PR_RE_501 | \
+                                   PR_RE_502 | PR_RE_503 | PR_RE_504)
 /* 0x00000800, 0x00001000, 0x00002000, 0x00004000 and 0x00008000 unused,
  * reserved for eventual future status codes
  */

@@ -205,6 +205,8 @@ static inline int l7_status_match(struct proxy *p, int status)
 		return (p->retry_type & PR_RE_404);
 	case 408:
 		return (p->retry_type & PR_RE_408);
+	case 421:
+		return (p->retry_type & PR_RE_421);
 	case 425:
 		return (p->retry_type & PR_RE_425);
 	case 429:
