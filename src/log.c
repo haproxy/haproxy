@@ -2461,21 +2461,23 @@ static inline char *_lf_quotetext_len(char *dst, const char *src,
  */
 static char *lf_text_len(char *dst, const char *src, size_t len, size_t size, struct lf_buildctx *ctx)
 {
+	char *ret;
+
 	if ((ctx->options & (LOG_OPT_QUOTE | LOG_OPT_ENCODE_JSON)))
 		return _lf_quotetext_len(dst, src, len, size, ctx);
-	else if ((ctx->options & LOG_OPT_ENCODE_CBOR) ||
-	         (src && len))
-		return _lf_text_len(dst, src, len, size, ctx);
+
+	ret = _lf_text_len(dst, src, len, size, ctx);
+	if (dst != ret ||
+	    (ctx->options & LOG_OPT_ENCODE_CBOR) ||
+	    !(ctx->options & LOG_OPT_MANDATORY))
+		return ret;
+
+	/* empty output and "+M" option is set, try to print '-' */
 
 	if (size < 2)
 		return NULL;
 
-	if ((ctx->options & LOG_OPT_MANDATORY))
-		return _lf_text_len(dst, "-", 1, size, ctx);
-
-	*dst = '\0';
-
-	return dst;
+	return _lf_text_len(dst, "-", 1, size, ctx);
 }
 
 /*
