@@ -2449,6 +2449,10 @@ static int qcc_io_send(struct qcc *qcc)
 		/* Deallocate frames that the transport layer has rejected. */
 		qcc_tx_frms_free(qcc);
 	}
+	else {
+		/* Everything sent */
+		HA_ATOMIC_AND(&qcc->wait_event.tasklet->state, ~TASK_F_USR1);
+	}
 
 	/* Re-insert on-error QCS at the end of the send-list. */
 	if (!LIST_ISEMPTY(&qcs_failed)) {
@@ -2823,8 +2827,13 @@ static void qcc_purge_sending(struct qcc *qcc)
 		qcc_subscribe_send(qcc);
 	}
 	else {
-		if (!LIST_ISEMPTY(frms))
+		if (!LIST_ISEMPTY(frms)) {
 			qcc_subscribe_send(qcc);
+		}
+		else {
+			/* Everything sent */
+			HA_ATOMIC_AND(&qcc->wait_event.tasklet->state, ~TASK_F_USR1);
+		}
 	}
 }
 
