@@ -864,6 +864,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 
 		/* Wake up connection layer if on wait-for-handshake. */
 		if (qc->subs && qc->subs->events & SUB_RETRY_RECV) {
+			TRACE_STATE("notify upper layer (recv)", QUIC_EV_CONN_IO_CB, qc);
 			tasklet_wakeup(qc->subs->tasklet);
 			qc->subs->events &= ~SUB_RETRY_RECV;
 			if (!qc->subs->events)
@@ -1767,6 +1768,8 @@ int qc_check_dcid(struct quic_conn *qc, unsigned char *dcid, size_t dcid_len)
 int qc_notify_send(struct quic_conn *qc)
 {
 	const struct quic_pktns *pktns = qc->apktns;
+
+	TRACE_STATE("notify upper layer (send)", QUIC_EV_CONN_IO_CB, qc);
 
 	/* Wake up MUX for new emission unless there is no congestion room or
 	 * connection FD is not ready.

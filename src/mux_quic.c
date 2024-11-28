@@ -2806,6 +2806,8 @@ static void qcc_purge_sending(struct qcc *qcc)
 	enum quic_tx_err ret = QUIC_TX_ERR_PACING;
 	int sent = 0;
 
+	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
+
 	/* This function is reserved for pacing usage. */
 	BUG_ON(!qcc_is_pacing_active(qcc->conn));
 
@@ -2835,6 +2837,8 @@ static void qcc_purge_sending(struct qcc *qcc)
 			HA_ATOMIC_AND(&qcc->wait_event.tasklet->state, ~TASK_F_USR1);
 		}
 	}
+
+	TRACE_LEAVE(QMUX_EV_QCC_WAKE, qcc->conn);
 }
 
 struct task *qcc_io_cb(struct task *t, void *ctx, unsigned int status)
@@ -2845,7 +2849,7 @@ struct task *qcc_io_cb(struct task *t, void *ctx, unsigned int status)
 
 	if (status & TASK_F_USR1) {
 		qcc_purge_sending(qcc);
-		return NULL;
+		goto end;
 	}
 
 	if (!(qcc->wait_event.events & SUB_RETRY_SEND))
