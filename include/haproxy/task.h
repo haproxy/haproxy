@@ -380,7 +380,7 @@ static inline void task_set_thread(struct task *t, int thr)
  * flag is added).
  */
 #define tasklet_wakeup_on(tl, thr, ...)					\
-	_tasklet_wakeup_on(tl, thr, DEFZERO(__VA_ARGS__), MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP, 0, 0))
+	_tasklet_wakeup_on(tl, thr, DEFVAL(TASK_WOKEN_OTHER, ##__VA_ARGS__), MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP, 0, 0))
 
 static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, uint f, const struct ha_caller *caller)
 {
@@ -417,7 +417,7 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, uint f, const
  * flag is added).
  */
 #define tasklet_wakeup(tl, ...)						\
-	_tasklet_wakeup_on(tl, (tl)->tid, DEFZERO(__VA_ARGS__), MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP, 0, 0))
+	_tasklet_wakeup_on(tl, (tl)->tid, DEFVAL(TASK_WOKEN_OTHER, ##__VA_ARGS__), MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP, 0, 0))
 
 /* instantly wakes up task <t> on its owner thread even if it's not the current
  * one, bypassing the run queue. The purpose is to be able to avoid contention
@@ -479,11 +479,14 @@ static inline void _task_instant_wakeup(struct task *t, unsigned int f, const st
  *
  * The macro accepts an optional 3rd argument that is passed as a set of flags
  * to be set on the tasklet, among TASK_WOKEN_*, TASK_F_UEVT* etc to indicate a
- * wakeup cause to the tasklet. When not set, the arg defaults to zero (i.e. no
- * flag is added).
+ * wakeup cause to the tasklet. When not set, the arg defaults to
+ * TASK_WOKEN_OTHER, so that tasklets can differentiate a unique explicit wakeup
+ * cause from a wakeup cause combined with other implicit ones. I.e. that may be
+ * used by muxes to decide whether or not to perform a short path for certain
+ * operations, or a complete one that also covers regular I/O.
  */
 #define tasklet_wakeup_after(head, tl, ...)					\
-	_tasklet_wakeup_after(head, tl, DEFZERO(__VA_ARGS__), MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP_AFTER, 0, 0))
+	_tasklet_wakeup_after(head, tl, DEFVAL(TASK_WOKEN_OTHER, ##__VA_ARGS__), MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP_AFTER, 0, 0))
 
 static inline struct list *_tasklet_wakeup_after(struct list *head, struct tasklet *tl,
                                                  uint f, const struct ha_caller *caller)
