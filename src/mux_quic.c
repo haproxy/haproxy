@@ -2476,6 +2476,39 @@ static int qcc_io_send(struct qcc *qcc)
 	return total;
 }
 
+/* Detects QUIC handshake completion. Any SE_FL_WAIT_FOR_HS streams are woken
+ * up if wait-for-handshake is active.
+ */
+static void qcc_wait_for_hs(struct qcc *qcc)
+{
+	struct connection *conn = qcc->conn;
+	struct quic_conn *qc = conn->handle.qc;
+	struct eb64_node *node;
+	struct qcs *qcs;
+
+	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
+
+	if (qc->state >= QUIC_HS_ST_COMPLETE) {
+		if (conn->flags & CO_FL_EARLY_SSL_HS) {
+			TRACE_STATE("mark early data as ready", QMUX_EV_QCC_WAKE, conn);
+			conn->flags &= ~CO_FL_EARLY_SSL_HS;
+		}
+
+		/* wake-up any stream blocked on early data transfer */
+		node = eb64_first(&qcc->streams_by_id);
+		while (node) {
+			qcs = container_of(node, struct qcs, by_id);
+			if (se_fl_test(qcs->sd, SE_FL_WAIT_FOR_HS))
+				qcs_notify_recv(qcs);
+			node = eb64_next(node);
+		}
+
+		qcc->flags &= ~QC_CF_WAIT_HS;
+	}
+
+	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
+}
+
 /* Proceed on receiving. Loop through all streams from <qcc> and use decode_qcs
  * operation.
  *
@@ -2493,6 +2526,9 @@ static int qcc_io_recv(struct qcc *qcc)
 		TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
 		return 0;
 	}
+
+	if ((qcc->flags & QC_CF_WAIT_HS) && !(qcc->wait_event.events & SUB_RETRY_RECV))
+		qcc_wait_for_hs(qcc);
 
 	node = eb64_first(&qcc->streams_by_id);
 	while (node) {
@@ -2626,44 +2662,6 @@ static int qcc_wake_some_streams(struct qcc *qcc)
 	return 0;
 }
 
-/* Checks whether QUIC handshake is still active or not. This is necessary to
- * mark that connection may convey early data to delay stream processing if
- * wait-for-handshake is active. On handshake completion, any SE_FL_WAIT_FOR_HS
- * streams are woken up to restart their processing.
- */
-static void qcc_wait_for_hs(struct qcc *qcc)
-{
-	struct connection *conn = qcc->conn;
-	struct quic_conn *qc = conn->handle.qc;
-	struct eb64_node *node;
-	struct qcs *qcs;
-
-	if (qc->state < QUIC_HS_ST_COMPLETE) {
-		if (!(conn->flags & CO_FL_EARLY_SSL_HS)) {
-			TRACE_STATE("flag connection with early data", QMUX_EV_QCC_WAKE, conn);
-			conn->flags |= CO_FL_EARLY_SSL_HS;
-			/* subscribe for handshake completion */
-			conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV,
-			                      &qcc->wait_event);
-		}
-	}
-	else {
-		if (conn->flags & CO_FL_EARLY_SSL_HS) {
-			TRACE_STATE("mark early data as ready", QMUX_EV_QCC_WAKE, conn);
-			conn->flags &= ~CO_FL_EARLY_SSL_HS;
-		}
-		qcc->flags |= QC_CF_WAIT_FOR_HS;
-
-		node = eb64_first(&qcc->streams_by_id);
-		while (node) {
-			qcs = container_of(node, struct qcs, by_id);
-			if (se_fl_test(qcs->sd, SE_FL_WAIT_FOR_HS))
-				qcs_notify_recv(qcs);
-			node = eb64_next(node);
-		}
-	}
-}
-
 /* Conduct operations which should be made for <qcc> connection after
  * input/output. Most notably, closed streams are purged which may leave the
  * connection has ready to be released.
@@ -2673,9 +2671,6 @@ static void qcc_wait_for_hs(struct qcc *qcc)
 static int qcc_io_process(struct qcc *qcc)
 {
 	qcc_purge_streams(qcc);
-
-	if (!(qcc->flags & QC_CF_WAIT_FOR_HS))
-		qcc_wait_for_hs(qcc);
 
 	/* Check if a soft-stop is in progress.
 	 *
@@ -3059,6 +3054,21 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 
 	/* init read cycle */
 	qcc_wakeup(qcc);
+
+	/* MUX is initialized before QUIC handshake completion if early data
+	 * received. Flag connection to delay stream processing if
+	 * wait-for-handshake is active.
+	 */
+	if (conn->handle.qc->state < QUIC_HS_ST_COMPLETE) {
+		if (!(conn->flags & CO_FL_EARLY_SSL_HS)) {
+			TRACE_STATE("flag connection with early data", QMUX_EV_QCC_WAKE, conn);
+			conn->flags |= CO_FL_EARLY_SSL_HS;
+			/* subscribe for handshake completion */
+			conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV,
+			                      &qcc->wait_event);
+			qcc->flags |= QC_CF_WAIT_HS;
+		}
+	}
 
 	TRACE_LEAVE(QMUX_EV_QCC_NEW, conn);
 	return 0;

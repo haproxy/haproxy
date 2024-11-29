@@ -219,7 +219,7 @@ struct qcc_app_ops {
 #define QC_CF_CONN_FULL 0x00000008 /* no stream buffers available on connection */
 #define QC_CF_APP_SHUT  0x00000010 /* Application layer shutdown done. */
 #define QC_CF_ERR_CONN  0x00000020 /* fatal error reported by transport layer */
-#define QC_CF_WAIT_FOR_HS 0x00000040 /* QUIC handshake has been completed */
+#define QC_CF_WAIT_HS   0x00000040 /* MUX init before QUIC handshake completed (0-RTT) */
 
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
@@ -236,7 +236,7 @@ static forceinline char *qcc_show_flags(char *buf, size_t len, const char *delim
 	_(QC_CF_CONN_FULL,
 	_(QC_CF_APP_SHUT,
 	_(QC_CF_ERR_CONN,
-	_(QC_CF_WAIT_FOR_HS))))));
+	_(QC_CF_WAIT_HS))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
