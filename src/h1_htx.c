@@ -991,6 +991,7 @@ int h1_format_htx_reqline(const struct htx_sl *sl, struct buffer *chk)
 int h1_format_htx_stline(const struct htx_sl *sl, struct buffer *chk)
 {
 	size_t sz = chk->data;
+	struct ist reason;
 
 	if (HTX_SL_LEN(sl) + 4 > b_room(chk))
 		return 0;
@@ -1003,10 +1004,15 @@ int h1_format_htx_stline(const struct htx_sl *sl, struct buffer *chk)
 		if (!chunk_memcat(chk, HTX_SL_RES_VPTR(sl), HTX_SL_RES_VLEN(sl)))
 			goto full;
 	}
+
+	reason = htx_sl_res_reason(sl);
+	if (istlen(reason) == 0)
+		reason = ist(http_get_reason(sl->info.res.status));
+
 	if (!chunk_memcat(chk, " ", 1) ||
 	    !chunk_memcat(chk, HTX_SL_RES_CPTR(sl), HTX_SL_RES_CLEN(sl)) ||
 	    !chunk_memcat(chk, " ", 1) ||
-	    !chunk_memcat(chk, HTX_SL_RES_RPTR(sl), HTX_SL_RES_RLEN(sl)) ||
+	    !chunk_memcat(chk, istptr(reason), istlen(reason)) ||
 	    !chunk_memcat(chk, "\r\n", 2))
 		goto full;
 
