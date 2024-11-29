@@ -3254,8 +3254,15 @@ static size_t qmux_strm_snd_buf(struct stconn *sc, struct buffer *buf,
 		const size_t data = qcs_prep_bytes(qcs) - old_data;
 		if (data || fin)
 			qcc_send_stream(qcs, 0, data);
+
+		/* Wake up MUX to emit newly transferred data. If blocked on
+		 * send, ensure next emission will refresh data by removing
+		 * pacing status info.
+		 */
 		if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
 			qcc_wakeup(qcs->qcc);
+		else
+			HA_ATOMIC_AND(&qcs->qcc->wait_event.tasklet->state, ~TASK_F_USR1);
 	}
 
  end:
@@ -3375,8 +3382,12 @@ static size_t qmux_strm_done_ff(struct stconn *sc)
 
 	if (data || qcs->flags & QC_SF_FIN_STREAM)
 		qcc_send_stream(qcs, 0, data);
+
+	/* Similar to snd_buf callback. */
 	if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
 		qcc_wakeup(qcc);
+	else
+		HA_ATOMIC_AND(&qcs->qcc->wait_event.tasklet->state, ~TASK_F_USR1);
 
   end:
 	TRACE_LEAVE(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
