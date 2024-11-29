@@ -432,12 +432,9 @@ static void qc_notify_cc_of_newly_acked_pkts(struct quic_conn *qc,
 	struct quic_cc_drs *drs =
 		p->cc.algo->get_drs ? p->cc.algo->get_drs(&p->cc) : NULL;
 	unsigned int bytes_delivered = 0, pkt_delivered = 0;
-	uint64_t time_ns;
+	uint64_t time_ns = task_mono_time();
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSAFRM, qc);
-
-	if (drs)
-		time_ns = task_mono_time();
 
 	list_for_each_entry_safe(pkt, tmp, newly_acked_pkts, list) {
 		pkt->pktns->tx.in_flight -= pkt->in_flight_len;
