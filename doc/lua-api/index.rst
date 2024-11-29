@@ -3558,7 +3558,7 @@ Patref class
 
   :param string key: the string used as a key
   :param string value: the string used as value
-  :param bool force: create the entry if it doesn't exist (optional,
+  :param boolean force: create the entry if it doesn't exist (optional,
    defaults to false)
   :returns: true on success and nil on failure (followed by an error message)
 

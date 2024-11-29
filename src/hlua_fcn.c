@@ -2889,7 +2889,7 @@ int hlua_patref_set(lua_State *L)
 	value = luaL_checkstring(L, 3);
 
 	if (lua_gettop(L) == 4)
-		force = lua_tointeger(L, 4);
+		force = lua_toboolean(L, 4);
 
 	HA_RWLOCK_WRLOCK(PATREF_LOCK, &ref->ptr->lock);
 	if ((ref->flags & HLUA_PATREF_FL_GEN) &&
