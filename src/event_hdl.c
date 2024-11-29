@@ -890,8 +890,10 @@ static int _event_hdl_publish(event_hdl_sub_list *sub_list, struct event_hdl_sub
 					 * use the same async_data
 					 */
 					HA_ATOMIC_INC(&async_data->refcount);
-				} else
+				} else {
+					new_event->_data = NULL;
 					new_event->data = NULL;
+				}
 
 				/* appending new event to event hdl queue */
 				MT_LIST_INIT(&new_event->mt_list);
