@@ -12310,6 +12310,10 @@ static void hlua_filter_delete(struct stream *s, struct filter *filter)
 	struct hlua_flt_ctx *flt_ctx = filter->ctx;
 	struct hlua *hlua = hlua_stream_ctx_get(s, flt_ctx->_hlua->state_id);
 
+	BUG_ON(!hlua); /* hlua_filter_new() is responsible for preparing
+	                * hlua stream_ctx, thus hlua_stream_ctx_get() should
+	                * not return NULL!
+	                */
 	hlua_lock(hlua);
 	hlua_unref(hlua->T, flt_ctx->ref);
 	hlua_unlock(hlua);
