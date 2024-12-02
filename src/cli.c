@@ -2526,6 +2526,14 @@ static int _send_status(char **args, char *payload, struct appctx *appctx, void 
 			kill(proc->pid, oldpids_sig);
 		}
 	}
+
+	/* At this point we are sure, that newly forked worker is started,
+	 * so we can write our PID in a pidfile, if provided. Master doesn't
+	 * perform chroot.
+	 */
+	if (global.pidfile != NULL)
+		handle_pidfile();
+
 	load_status = 1;
 	ha_notice("Loading success.\n");
 

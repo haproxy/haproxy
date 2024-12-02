@@ -3370,10 +3370,6 @@ int main(int argc, char **argv)
 	if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL) && (global.mode & MODE_DAEMON))
 		apply_daemon_mode();
 
-	/* Open pid file before the chroot */
-	if ((global.mode & MODE_DAEMON || global.mode & MODE_MWORKER) && global.pidfile != NULL)
-		handle_pidfile();
-
 	/* Master-worker and program forks */
 	if (global.mode & MODE_MWORKER) {
 		/* fork and run binary from command keyword in program section */
@@ -3525,6 +3521,15 @@ int main(int argc, char **argv)
 		if (setpriority(PRIO_PROCESS, 0, global.tune.renice_runtime - 100) == -1) {
 			ha_warning("[%s.main()] couldn't set the runtime nice value to %d: %s\n",
 			           argv[0], global.tune.renice_runtime - 100, strerror(errno));
+		}
+	}
+
+	/* Open PID file before the chroot. In master-worker mode, it's master
+	 * who will create the pidfile, see _send_status().
+	 */
+	if (!(global.mode & MODE_MWORKER)) {
+		if (global.mode & MODE_DAEMON && (global.pidfile != NULL)) {
+			handle_pidfile();
 		}
 	}
 
