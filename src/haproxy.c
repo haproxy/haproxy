@@ -1777,7 +1777,7 @@ static void apply_daemon_mode()
 }
 
 /* Only returns if everything is OK. If something fails, it exits. */
-static void handle_pidfile()
+void handle_pidfile(void)
 {
 	char pidstr[100];
 
@@ -1792,6 +1792,9 @@ static void handle_pidfile()
 	}
 	snprintf(pidstr, sizeof(pidstr), "%d\n", (int)getpid());
 	DISGUISE(write(pidfd, pidstr, strlen(pidstr)));
+	close(pidfd);
+	/* We won't ever use this anymore */
+	ha_free(&global.pidfile);
 }
 
 static void get_listeners_fd()
@@ -2568,14 +2571,6 @@ static void step_init_4(void)
 	clock_update_date(0, 1);
 	clock_adjust_now_offset();
 	ready_date = date;
-
-	/* close the pidfile both in children and father */
-	if (pidfd >= 0) {
-		//lseek(pidfd, 0, SEEK_SET);  /* debug: emulate eglibc bug */
-		close(pidfd);
-	}
-	/* We won't ever use this anymore */
-	ha_free(&global.pidfile);
 }
 
 /* This function sets verbosity modes. Should be called after the first

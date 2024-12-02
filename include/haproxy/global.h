@@ -68,6 +68,7 @@ void hap_register_feature(const char *name);
 int split_version(const char *version, unsigned int *value);
 int compare_current_version(const char *version);
 void display_version();
+void handle_pidfile(void);
 
 void mworker_accept_wrapper(int fd);
 
