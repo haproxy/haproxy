@@ -1622,7 +1622,7 @@ void listener_release(struct listener *l)
 	if (fe && !MT_LIST_ISEMPTY(&fe->listener_queue) &&
 	    (!fe->fe_sps_lim || freq_ctr_remain(&fe->fe_counters.sess_per_sec, fe->fe_sps_lim, 0) > 0))
 		dequeue_proxy_listeners(fe, 0);
-	else {
+	else if (fe) {
 		unsigned int wait;
 		int expire = TICK_ETERNITY;
 
