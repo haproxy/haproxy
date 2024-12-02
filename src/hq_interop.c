@@ -214,14 +214,8 @@ static size_t hq_interop_nego_ff(struct qcs *qcs, size_t count)
 
 static size_t hq_interop_done_ff(struct qcs *qcs)
 {
-	const size_t ret = qcs->sd->iobuf.data;
-
-	/* No header required for HTTP/0.9, simply mark ff as done. */
-	qcs->sd->iobuf.buf = NULL;
-	qcs->sd->iobuf.offset = 0;
-	qcs->sd->iobuf.data = 0;
-
-	return ret;
+	/* No header required for HTTP/0.9. */
+	return qcs->sd->iobuf.data;
 }
 
 static int hq_interop_attach(struct qcs *qcs, void *conn_ctx)

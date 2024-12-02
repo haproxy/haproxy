@@ -2179,9 +2179,14 @@ static size_t h3_nego_ff(struct qcs *qcs, size_t count)
 	return ret;
 }
 
+/* Finalize encoding of a HTTP/3 data frame after zero-copy for <qcs> stream.
+ * No frame is encoded if <qcs> iobuf indicates that no data were transferred.
+ *
+ * Return the payload size of the H3 data frame or 0 if no frame encoded.
+ */
 static size_t h3_done_ff(struct qcs *qcs)
 {
-	size_t total = qcs->sd->iobuf.data;
+	size_t total = 0;
 	TRACE_ENTER(H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
 	h3_debug_printf(stderr, "%s\n", __func__);
@@ -2189,15 +2194,14 @@ static size_t h3_done_ff(struct qcs *qcs)
 	if (qcs->sd->iobuf.data) {
 		TRACE_DATA("encoding DATA frame (fast forward)",
 		           H3_EV_TX_FRAME|H3_EV_TX_DATA, qcs->qcc->conn, qcs);
+
 		b_sub(qcs->sd->iobuf.buf, qcs->sd->iobuf.data);
 		b_putchr(qcs->sd->iobuf.buf, 0x00); /* h3 frame type = DATA */
 		b_quic_enc_int(qcs->sd->iobuf.buf, qcs->sd->iobuf.data, QUIC_VARINT_MAX_SIZE); /* h3 frame length */
 		b_add(qcs->sd->iobuf.buf, qcs->sd->iobuf.data);
-	}
 
-	qcs->sd->iobuf.buf = NULL;
-	qcs->sd->iobuf.offset = 0;
-	qcs->sd->iobuf.data = 0;
+		total = qcs->sd->iobuf.offset + qcs->sd->iobuf.data;
+	}
 
 	TRACE_LEAVE(H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
 	return total;

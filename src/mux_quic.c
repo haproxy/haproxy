@@ -3385,12 +3385,14 @@ static size_t qmux_strm_done_ff(struct stconn *sc)
 		goto end;
 	}
 
-	if (data)
-		data += sd->iobuf.offset;
 	total = qcs->qcc->app_ops->done_ff(qcs);
+	if (total || qcs->flags & QC_SF_FIN_STREAM)
+		qcc_send_stream(qcs, 0, total);
 
-	if (data || qcs->flags & QC_SF_FIN_STREAM)
-		qcc_send_stream(qcs, 0, data);
+	/* Reset stconn iobuf information. */
+	qcs->sd->iobuf.buf = NULL;
+	qcs->sd->iobuf.offset = 0;
+	qcs->sd->iobuf.data = 0;
 
 	/* Similar to snd_buf callback. */
 	if (!(qcs->qcc->wait_event.events & SUB_RETRY_SEND))
@@ -3400,7 +3402,7 @@ static size_t qmux_strm_done_ff(struct stconn *sc)
 
   end:
 	TRACE_LEAVE(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
-	return total;
+	return data;
 }
 
 static int qmux_strm_resume_ff(struct stconn *sc, unsigned int flags)
