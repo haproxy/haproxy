@@ -2518,14 +2518,6 @@ static int _send_status(char **args, char *payload, struct appctx *appctx, void 
 
 		}
 	}
-	/* stop previous worker process, if it wasn't signaled during max reloads check */
-	list_for_each_entry(proc, &proc_list, list) {
-		if ((proc->options & PROC_O_TYPE_WORKER) &&
-			(proc->options & PROC_O_LEAVING) &&
-			(proc->reloads >= 1)) {
-			kill(proc->pid, oldpids_sig);
-		}
-	}
 
 	/* At this point we are sure, that newly forked worker is started,
 	 * so we can write our PID in a pidfile, if provided. Master doesn't
@@ -2534,11 +2526,19 @@ static int _send_status(char **args, char *payload, struct appctx *appctx, void 
 	if (global.pidfile != NULL)
 		handle_pidfile();
 
+	/* either send USR1/TERM to old master, case when we launched as -W -D ... -sf $(cat pidfile),
+	 * or send USR1/TERM to old worker processes.
+	 */
+	if (nb_oldpids > 0) {
+		nb_oldpids = tell_old_pids(oldpids_sig);
+	}
+
 	load_status = 1;
 	ha_notice("Loading success.\n");
 
 	if (global.tune.options & GTUNE_USE_SYSTEMD)
 		sd_notifyf(0, "READY=1\nMAINPID=%lu\nSTATUS=Ready.\n", (unsigned long)getpid());
+
 	return 1;
 }
 
