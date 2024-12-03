@@ -3552,10 +3552,15 @@ int main(int argc, char **argv)
 
 	ha_free(&global.chroot);
 
-	/* In master-worker mode master sends TERM to previous workers up to
-	 * receiving status READY
+
+	/* In standalone mode send USR1/TERM to the previous worker,
+	 * launched with -sf $(cat pidfile).
+	 * In master-worker mode, see _send_status(): master process sends
+	 * USR1/TERM to previous workers up to receiving status READY from the
+	 * worker, which is newly forked. Then master sends USR1 or TERM to previous
+	 * master, if it was launched with (-W -D -sf $(cat pidfile).
 	 */
-	if (!(global.mode & MODE_MWORKER) && nb_oldpids) {
+	if (!(global.mode & MODE_MWORKER) && (nb_oldpids > 0)) {
 		nb_oldpids = tell_old_pids(oldpids_sig);
 	}
 
