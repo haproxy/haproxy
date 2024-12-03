@@ -3489,13 +3489,17 @@ static int resolvers_new(struct resolvers **resolvers, const char *id, const cha
 	p = calloc(1, sizeof *p);
 	if (!p) {
 		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
+		goto err_free_r;
 	}
 
 	init_new_proxy(p);
 	resolvers_setup_proxy(p);
 	p->parent = r;
 	p->id = strdup(id);
+	if (!p->id) {
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto err_free_p;
+	}
 	p->conf.args.file = p->conf.file = copy_file_name(file);
 	p->conf.args.line = p->conf.line = linenum;
 	r->px = p;
@@ -3503,8 +3507,16 @@ static int resolvers_new(struct resolvers **resolvers, const char *id, const cha
 	/* default values */
 	LIST_APPEND(&sec_resolvers, &r->list);
 	r->conf.file = strdup(file);
+	if (!r->conf.file) {
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto err_free_p_id;
+	}
 	r->conf.line = linenum;
 	r->id = strdup(id);
+	if (!r->id) {
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto err_free_conf_file;
+	}
 	r->query_ids = EB_ROOT;
 	/* default maximum response size */
 	r->accepted_payload_size = 512;
@@ -3528,11 +3540,17 @@ static int resolvers_new(struct resolvers **resolvers, const char *id, const cha
 	*resolvers = r;
 
 out:
-	if (err_code & (ERR_FATAL|ERR_ABORT)) {
-		ha_free(&r);
-		ha_free(&p);
-	}
+	return err_code;
 
+/* free all allocated stuff and return err_code */
+err_free_conf_file:
+	ha_free((void **)&r->conf.file);
+err_free_p_id:
+	ha_free(&p->id);
+err_free_p:
+	ha_free(&p);
+err_free_r:
+	ha_free(&r);
 	return err_code;
 }
 
