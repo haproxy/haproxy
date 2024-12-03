@@ -2523,8 +2523,12 @@ static int _send_status(char **args, char *payload, struct appctx *appctx, void 
 	 * so we can write our PID in a pidfile, if provided. Master doesn't
 	 * perform chroot.
 	 */
-	if (global.pidfile != NULL)
-		handle_pidfile();
+	if (global.pidfile != NULL) {
+		if (handle_pidfile() < 0) {
+			ha_alert("Fatal error(s) found, exiting.\n");
+			exit(1);
+		}
+	}
 
 	/* either send USR1/TERM to old master, case when we launched as -W -D ... -sf $(cat pidfile),
 	 * or send USR1/TERM to old worker processes.

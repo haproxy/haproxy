@@ -1776,8 +1776,8 @@ static void apply_daemon_mode()
 	}
 }
 
-/* Only returns if everything is OK. If something fails, it exits. */
-void handle_pidfile(void)
+/* Returns 0, if everything is OK. If open() fails, returns -1. */
+int handle_pidfile(void)
 {
 	char pidstr[100];
 
@@ -1785,16 +1785,15 @@ void handle_pidfile(void)
 	pidfd = open(global.pidfile, O_CREAT | O_WRONLY | O_TRUNC, 0644);
 	if (pidfd < 0) {
 		ha_alert("[%s.main()] Cannot create pidfile %s\n", progname, global.pidfile);
-		if (nb_oldpids)
-			tell_old_pids(SIGTTIN);
-		protocol_unbind_all();
-		exit(1);
+		return -1;
 	}
 	snprintf(pidstr, sizeof(pidstr), "%d\n", (int)getpid());
 	DISGUISE(write(pidfd, pidstr, strlen(pidstr)));
 	close(pidfd);
 	/* We won't ever use this anymore */
 	ha_free(&global.pidfile);
+
+	return 0;
 }
 
 static void get_listeners_fd()
@@ -3529,7 +3528,13 @@ int main(int argc, char **argv)
 	 */
 	if (!(global.mode & MODE_MWORKER)) {
 		if (global.mode & MODE_DAEMON && (global.pidfile != NULL)) {
-			handle_pidfile();
+			if (handle_pidfile() < 0) {
+				if (nb_oldpids) {
+					tell_old_pids(SIGTTIN);
+					protocol_unbind_all();
+				}
+				exit(1);
+			}
 		}
 	}
 
