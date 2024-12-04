@@ -3603,7 +3603,13 @@ int main(int argc, char **argv)
 		devnullfd = -1;
 	}
 	pid = getpid(); /* update pid */
-	setsid();
+
+	/* Daemonized processes must be detached from the terminal. that's
+	 * valid for a standalone daemon as well as a daemonized master.
+	 */
+	if (global.mode & MODE_DAEMON)
+		setsid();
+
 	fork_poller();
 
 	/* pass through every cli socket, and check if it's bound to
