@@ -3610,7 +3610,13 @@ int main(int argc, char **argv)
 	if (global.mode & MODE_DAEMON)
 		setsid();
 
-	fork_poller();
+	/* forked child processes (daemon and worker) must reopen their own
+	 * polling instance.
+	 */
+	if ((global.mode & MODE_DAEMON) ||
+	    ((global.mode & MODE_MWORKER) && !master)) {
+		fork_poller();
+	}
 
 	/* pass through every cli socket, and check if it's bound to
 	 * the current process and if it exposes listeners sockets.
