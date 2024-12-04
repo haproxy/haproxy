@@ -3603,7 +3603,14 @@ int main(int argc, char **argv)
 		devnullfd = -1;
 	}
 	pid = getpid(); /* update pid */
-	fork_poller();
+
+	/* This call is expensive, as it creates a new poller, scans and tries
+	 * to migrate to it all existing FDs until the highest known one. With
+	 * very high numbers of FDs, this can take several seconds to start.
+	 * So, it's only desirable for modes, when we perform a fork().
+	 */
+	if (global.mode & MODE_DAEMON)
+		fork_poller();
 
 	/* pass through every cli socket, and check if it's bound to
 	 * the current process and if it exposes listeners sockets.
