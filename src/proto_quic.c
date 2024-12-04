@@ -565,13 +565,13 @@ static int quic_test_socketopts(struct listener *l)
 
 #ifdef UDP_SEGMENT
 		if (setsockopt(fdtest, SOL_UDP, UDP_SEGMENT, &zero, sizeof(zero))) {
-			ha_alert("Your platform does not support UDP GSO. "
-			         "This will be automatically disabled for QUIC transfer.\n");
+			ha_diag_warning("Your platform does not support UDP GSO. "
+			                "This will be automatically disabled for QUIC transfer.\n");
 			global.tune.options |= GTUNE_QUIC_NO_UDP_GSO;
 		}
 #else
-		ha_alert("Your platform does not support UDP GSO. "
-		         "This will be automatically disabled for QUIC transfer.\n");
+		ha_diag_warning("Your platform does not support UDP GSO. "
+		                "This will be automatically disabled for QUIC transfer.\n");
 		global.tune.options |= GTUNE_QUIC_NO_UDP_GSO;
 #endif
 	}
