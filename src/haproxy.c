@@ -3603,7 +3603,6 @@ int main(int argc, char **argv)
 		devnullfd = -1;
 	}
 	pid = getpid(); /* update pid */
-	setsid();
 	fork_poller();
 
 	/* pass through every cli socket, and check if it's bound to
