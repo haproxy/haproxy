@@ -850,7 +850,7 @@ static void bbr_advance_max_bw_filter(struct bbr *bbr)
 
 static uint64_t bbr_target_inflight(struct bbr *bbr, struct quic_cc_path *p)
 {
-	uint64_t bdp = bbr_inflight(bbr, p, bbr->bw, 100);
+	uint64_t bdp = bbr_inflight(bbr, p, bbr->bw, bbr->cwnd_gain);
 	return MIN(bdp, p->cwnd);
 }
 
@@ -982,7 +982,7 @@ static int bbr_is_time_to_cruise(struct bbr *bbr, struct quic_cc_path *p)
 	if (p->in_flight > bbr_inflight_with_headroom(bbr, p))
 		return 0; /* not enough headroom */
 
-	if (p->in_flight <= bbr_inflight(bbr, p, bbr->max_bw, 1))
+	if (p->in_flight <= bbr_inflight(bbr, p, bbr->max_bw, 100))
 		return 1; /* inflight <= estimated BDP */
 
 	return 0;
