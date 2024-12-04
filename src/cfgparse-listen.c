@@ -2409,20 +2409,24 @@ stats_error_parsing:
 
 			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
 				goto out;
-			if (warnifnotcap(curproxy, PR_MODE_HTTP, file, linenum, args[1], NULL)) {
-				err_code |= ERR_WARN;
-				goto out;
-			}
 
 			if (args[1][22] == 'q') {
-				ha_alert("parsing [%s:%d]: option '%s' is deprecated. please use 'option accept-unsafe-violations-in-http-request' if absolutely needed.\n",
-					 file, linenum, args[1]);
-				val = PR_O2_REQBUG_OK;
+                            if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[1], NULL)) {
+                                err_code |= ERR_WARN;
+                                goto out;
+                            }
+                            ha_warning("parsing [%s:%d]: option '%s' is deprecated. please use 'option accept-unsafe-violations-in-http-request' if absolutely needed.\n",
+                                       file, linenum, args[1]);
+                            val = PR_O2_REQBUG_OK;
 			}
 			else {
-				ha_alert("parsing [%s:%d]: option '%s' is deprecated. please use 'option accept-unsafe-violations-in-http-response' if absolutely needed.\n",
-					 file, linenum, args[1]);
-				val = PR_O2_RSPBUG_OK;
+                            if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL)) {
+                                err_code |= ERR_WARN;
+                                goto out;
+                            }
+                            ha_warning("parsing [%s:%d]: option '%s' is deprecated. please use 'option accept-unsafe-violations-in-http-response' if absolutely needed.\n",
+                                       file, linenum, args[1]);
+                            val = PR_O2_RSPBUG_OK;
 			}
 
 			curproxy->no_options2 &= ~val;
