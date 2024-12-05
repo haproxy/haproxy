@@ -437,6 +437,24 @@ int process_srv_queue(struct server *s)
 		if (p->lbprm.server_take_conn)
 			p->lbprm.server_take_conn(s);
 	}
+	if (s->served == 0 && p->served == 0 && !HA_ATOMIC_LOAD(&p->ready_srv)) {
+		/*
+		 * If there is no task running on the server, and the proxy,
+		 * let it known that we are ready, there is a small race
+		 * condition if a task was being added just before we checked
+		 * the proxy queue. It will look for that server, and use it
+		 * if nothing is currently running, as there would be nobody
+		 * to wake it up.
+		 */
+		_HA_ATOMIC_STORE(&p->ready_srv, s);
+		/*
+		 * Maybe a stream was added to the queue just after we
+		 * checked, but before we set ready_srv so it would not see it,
+		 * just in case try to run one more stream.
+		 */
+		if (pendconn_process_next_strm(s, p, px_ok))
+			done++;
+	}
 	return done;
 }
 

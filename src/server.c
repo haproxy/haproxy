@@ -6834,6 +6834,14 @@ static void srv_update_status(struct server *s, int type, int cause)
 			s->counters.down_trans++;
 			_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_DOWN, cb_data.common, s);
 		}
+
+		/*
+		 * If the server is no longer running, let's not pretend
+		 * it can handle requests.
+		 */
+		if (s->cur_state != SRV_ST_RUNNING && s->proxy->ready_srv == s)
+			HA_ATOMIC_STORE(&s->proxy->ready_srv, NULL);
+
 		s->counters.last_change = ns_to_sec(now_ns);
 
 		/* publish the state change */
