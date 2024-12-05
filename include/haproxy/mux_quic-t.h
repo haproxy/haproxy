@@ -82,6 +82,7 @@ struct qcc {
 
 	struct eb_root streams_by_id; /* all active streams by their ID */
 
+	struct list recv_list; /* list of qcs for which demux can be resumed */
 	struct list send_list; /* list of qcs ready to send (STREAM, STOP_SENDING or RESET_STREAM emission) */
 	struct list fctl_list; /* list of sending qcs blocked on conn flow control */
 	struct list buf_wait_list; /* list of qcs blocked on stream desc buf */
@@ -150,6 +151,7 @@ struct qcs {
 	uint64_t id;
 	struct qc_stream_desc *stream;
 
+	struct list el_recv; /* element of qcc.recv_list */
 	struct list el_send; /* element of qcc.send_list */
 	struct list el_opening; /* element of qcc.opening_list */
 	struct list el_fctl; /* element of qcc.fctl_list */
