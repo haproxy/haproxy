@@ -388,7 +388,7 @@ static void mworker_reexec(int hardreload)
 			if (!(child->options & PROC_O_LEAVING) && (child->options & PROC_O_TYPE_WORKER))
 				current_child = child;
 
-			if (!(child->options & (PROC_O_TYPE_WORKER|PROC_O_TYPE_PROG)) || child->pid <= -1)
+			if (!(child->options & (PROC_O_TYPE_WORKER)) || child->pid <= -1)
 				continue;
 			if ((next_argv[next_argc++] = memprintf(&msg, "%d", child->pid)) == NULL)
 				goto alloc_error;
