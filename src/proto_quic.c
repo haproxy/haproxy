@@ -702,6 +702,93 @@ static int quic_deallocate_dghdlrs(void)
 }
 REGISTER_POST_DEINIT(quic_deallocate_dghdlrs);
 
+/* Checks that connection socket-owner mode is supported.
+ * Returns 1 if it is, 0 if not. A negative error code is used for an unknown
+ * error which leaves support status as unknown.
+ */
+static int quic_test_conn_socket_owner(void)
+{
+	int fdtest[2] = { -1, -1 };
+	struct sockaddr_in lo_addr;
+	socklen_t addrlen __maybe_unused = sizeof(lo_addr);
+	int i, ret = 1;
+
+	lo_addr.sin_family = AF_INET;
+	lo_addr.sin_addr.s_addr = ntohl(INADDR_LOOPBACK);
+	lo_addr.sin_port = 0;
+
+	if ((fdtest[0] = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ||
+	    (fdtest[1] = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+		ret = -1;
+		goto end;
+	}
+
+	/* Connection socket-owner mode relies on several system features :
+	 * - IP_PKTINFO or equivalent, to retrieve peer address for connect()
+	 * - support for multiple UDP sockets bound on the same source address
+	 */
+
+#if defined(IP_PKTINFO) || defined(IP_RECVDSTADDR)
+	/* Bind first UDP socket on a random source port for loopback address. */
+	if (setsockopt(fdtest[0], SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) ||
+	    bind(fdtest[0], (struct sockaddr *)&lo_addr, sizeof(lo_addr))) {
+		ret = 0;
+		goto end;
+	}
+
+	/* Retrieve bound port to reuse it for the second UDP socket. */
+	if (getsockname(fdtest[0], (struct sockaddr *)&lo_addr, &addrlen)) {
+		ret = -1;
+		goto end;
+	}
+
+	/* Bind second UDP socket on the same port as the first socket. */
+	if (setsockopt(fdtest[1], SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) ||
+	    bind(fdtest[1], (struct sockaddr *)&lo_addr, sizeof(lo_addr))) {
+		ret = 0;
+		goto end;
+	}
+#else
+	ret = 0;
+	goto end;
+#endif
+
+ end:
+	for (i = 0; i <= 1; ++i) {
+		if (fdtest[i] >= 0)
+			close(fdtest[i]);
+	}
+
+	return ret;
+}
+
+/* Returns 1 if GSO is supported, 0 if not, or a negative error code if unknown. */
+static int quic_test_gso(void)
+{
+	int fdtest = -1;
+	int ret = 1;
+
+	if ((fdtest = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+		ret = -1;
+		goto end;
+	}
+
+#ifdef UDP_SEGMENT
+	if (setsockopt(fdtest, SOL_UDP, UDP_SEGMENT, &zero, sizeof(zero))) {
+		ret = 0;
+		goto end;
+	}
+#else
+	ret = 0;
+	goto end;
+#endif
+
+ end:
+	if (fdtest >= 0)
+		close(fdtest);
+	return ret;
+}
+
 /* Check for platform support of every advanced UDP network API features used
  * by the QUIC stack. For every unsupported feature, switch to a fallback
  * mechanism. A message is notified in this case when running in diagnostic
@@ -712,86 +799,41 @@ REGISTER_POST_DEINIT(quic_deallocate_dghdlrs);
  */
 static int quic_test_socketopts(void)
 {
-	int fdtest[2] = { -1, -1 };
-	struct sockaddr_in lo_addr;
-	socklen_t addrlen;
-	int i;
+	int ret;
 
-	lo_addr.sin_family = AF_INET;
-	lo_addr.sin_addr.s_addr = INADDR_LOOPBACK;
-	lo_addr.sin_port = 0;
-
-	/* Check if IP destination address can be retrieved on recvfrom()
-	 * operation.
-	 */
+	/* Check for connection socket-owner mode support. */
 	if (global.tune.options & GTUNE_QUIC_SOCK_PER_CONN) {
-		if ((fdtest[0] = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+		ret = quic_test_conn_socket_owner();
+		if (ret < 0) {
 			goto err;
-		if ((fdtest[1] = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
-			goto err;
-
-#if defined(IP_PKTINFO) || defined(IP_RECVDSTADDR)
-		/* Bind first UDP socket on a random source port for loopback address. */
-		if (setsockopt(fdtest[0], SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) ||
-		    bind(fdtest[0], (struct sockaddr *)&lo_addr, sizeof(lo_addr))) {
-			ha_diag_warning("Your platform does not seem to support multiple UDP sockets binded on the same address. "
+		}
+		else if (!ret) {
+			ha_diag_warning("Your platform does not seem to support UDP source address retrieval through IP_PKTINFO or an alternative flag. "
 			                "QUIC connections will use listener socket.\n");
 			global.tune.options &= ~GTUNE_QUIC_SOCK_PER_CONN;
 		}
-
-		/* Retrieve bound port to reuse it for the second UDP socket. */
-		if (getsockname(fdtest[0], (struct sockaddr *)&lo_addr, &addrlen))
-			goto err;
-
-		/* Bind second UDP socket on the same port as the first socket. */
-		if (setsockopt(fdtest[1], SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) ||
-		    bind(fdtest[1], (struct sockaddr *)&lo_addr, sizeof(lo_addr)) < 0) {
-			ha_diag_warning("Your platform does not seem to support multiple UDP sockets binded on the same address. "
-			                "QUIC connections will use listener socket.\n");
-			global.tune.options &= ~GTUNE_QUIC_SOCK_PER_CONN;
-		}
-#else
-		ha_diag_warning("Your platform does not seem to support UDP source address retrieval through IP_PKTINFO or an alternative flag. "
-		                "QUIC connections will use listener socket.\n");
-		global.tune.options &= ~GTUNE_QUIC_SOCK_PER_CONN;
-#endif
 	}
 
 	/* Check for UDP GSO support. */
 	if (!(global.tune.options & GTUNE_QUIC_NO_UDP_GSO)) {
-		if (fdtest[0] < 0 && (fdtest[0] = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+		ret = quic_test_gso();
+		if (ret < 0) {
 			goto err;
-
-#ifdef UDP_SEGMENT
-		if (setsockopt(fdtest[0], SOL_UDP, UDP_SEGMENT, &zero, sizeof(zero))) {
+		}
+		else if (!ret) {
 			ha_diag_warning("Your platform does not support UDP GSO. "
 			                "This will be automatically disabled for QUIC transfer.\n");
 			global.tune.options |= GTUNE_QUIC_NO_UDP_GSO;
 		}
-#else
-		ha_diag_warning("Your platform does not support UDP GSO. "
-		                "This will be automatically disabled for QUIC transfer.\n");
-		global.tune.options |= GTUNE_QUIC_NO_UDP_GSO;
-#endif
-	}
-
-	for (i = 0; i <= 1; ++i) {
-		if (fdtest[i] >= 0)
-			close(fdtest[i]);
 	}
 
 	return ERR_NONE;
 
  err:
-	for (i = 0; i <= 1; ++i) {
-		if (fdtest[i] >= 0)
-			close(fdtest[i]);
-	}
-
 	ha_alert("Fatal error on %s(): %s.\n", __func__, strerror(errno));
 	return ERR_FATAL;
 }
-INITCALL0(STG_REGISTER, quic_test_socketopts);
+REGISTER_POST_CHECK(quic_test_socketopts);
 
 /*
  * Local variables:
