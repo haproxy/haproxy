@@ -835,6 +835,25 @@ static int quic_test_socketopts(void)
 }
 REGISTER_POST_CHECK(quic_test_socketopts);
 
+static void quic_register_build_options(void)
+{
+	char *ptr = NULL;
+	int ret;
+
+	ret = quic_test_conn_socket_owner();
+	memprintf(&ptr, "QUIC: connection socket-owner mode support : ");
+	memprintf(&ptr, "%s%s\n", ptr, ret > 0 ? "yes" :
+	                               !ret ? "no" : "unknown");
+
+	ret = quic_test_gso();
+	memprintf(&ptr, "%sQUIC: GSO emission support : ", ptr);
+	memprintf(&ptr, "%s%s", ptr, ret > 0 ? "yes" :
+	                             !ret ? "no" : "unknown");
+
+	hap_register_build_opts(ptr, 1);
+}
+INITCALL0(STG_REGISTER, quic_register_build_options);
+
 /*
  * Local variables:
  *  c-indent-level: 8
