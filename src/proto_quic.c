@@ -516,75 +516,6 @@ static int quic_alloc_rxbufs_listener(struct listener *l)
 	return 0;
 }
 
-/* Check for platform support of a set of advanced UDP network API features
- * used by haproxy QUIC stack. Automatically disable unsupported features.
- * Listener <l> serves to test the ability of binding multiple sockets on the
- * same address.
- */
-static int quic_test_socketopts(struct listener *l)
-{
-	const struct receiver *rx = &l->rx;
-	int fdtest = -1;
-
-	/* Check if IP destination address can be retrieved on recvfrom()
-	 * operation.
-	 */
-	if (global.tune.options & GTUNE_QUIC_SOCK_PER_CONN) {
-		fdtest = socket(rx->proto->fam->sock_domain,
-				rx->proto->sock_type, rx->proto->sock_prot);
-		if (fdtest < 0)
-			goto err;
-
-#if defined(IP_PKTINFO) || defined(IP_RECVDSTADDR)
-		/* Check if platform support multiple UDP sockets bind on the same
-		 * local address. Create a dummy socket and bind it on the same address
-		 * as <l> listener. If bind system call fails, deactivate socket per
-		 * connection. All other errors are not taken into account.
-		 */
-		if (setsockopt(fdtest, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) &&
-		    bind(fdtest, (struct sockaddr *)&rx->addr, rx->proto->fam->sock_addrlen) < 0) {
-			ha_diag_warning("Your platform does not seem to support multiple UDP sockets binded on the same address. "
-			                "QUIC connections will use listener socket.\n");
-			global.tune.options &= ~GTUNE_QUIC_SOCK_PER_CONN;
-		}
-#else
-		ha_diag_warning("Your platform does not seem to support UDP source address retrieval through IP_PKTINFO or an alternative flag. "
-		                "QUIC connections will use listener socket.\n");
-		global.tune.options &= ~GTUNE_QUIC_SOCK_PER_CONN;
-#endif
-	}
-
-	/* Check for UDP GSO support. */
-	if (!(global.tune.options & GTUNE_QUIC_NO_UDP_GSO)) {
-		if (fdtest < 0) {
-			fdtest = socket(rx->proto->fam->sock_domain,
-					rx->proto->sock_type, rx->proto->sock_prot);
-			if (fdtest < 0)
-				goto err;
-		}
-
-#ifdef UDP_SEGMENT
-		if (setsockopt(fdtest, SOL_UDP, UDP_SEGMENT, &zero, sizeof(zero))) {
-			ha_diag_warning("Your platform does not support UDP GSO. "
-			                "This will be automatically disabled for QUIC transfer.\n");
-			global.tune.options |= GTUNE_QUIC_NO_UDP_GSO;
-		}
-#else
-		ha_diag_warning("Your platform does not support UDP GSO. "
-		                "This will be automatically disabled for QUIC transfer.\n");
-		global.tune.options |= GTUNE_QUIC_NO_UDP_GSO;
-#endif
-	}
-
-	if (fdtest >= 0)
-		close(fdtest);
-	return ERR_NONE;
-
- err:
-	ha_alert("Fatal error on quic_test_sockopts(): %s.\n", strerror(errno));
-	return ERR_FATAL;
-}
-
 /* This function tries to bind a QUIC4/6 listener. It may return a warning or
  * an error message in <errmsg> if the message is at most <errlen> bytes long
  * (including '\0'). Note that <errmsg> may be NULL if <errlen> is also zero.
@@ -645,9 +576,6 @@ static int quic_bind_listener(struct listener *listener, char *errmsg, int errle
 		err |= ERR_WARN;
 		goto udp_return;
 	}
-
-	if (quic_test_socketopts(listener))
-		return ERR_FATAL;
 
 	if (global.tune.frontend_rcvbuf)
 		setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.frontend_rcvbuf, sizeof(global.tune.frontend_rcvbuf));
@@ -773,6 +701,97 @@ static int quic_deallocate_dghdlrs(void)
 	return 1;
 }
 REGISTER_POST_DEINIT(quic_deallocate_dghdlrs);
+
+/* Check for platform support of every advanced UDP network API features used
+ * by the QUIC stack. For every unsupported feature, switch to a fallback
+ * mechanism. A message is notified in this case when running in diagnostic
+ * mode.
+ *
+ * Returns ERR_NONE if every checks performed, wether or not some features are
+ * not available. ERR_FATAL is reported if checks cannot be executed.
+ */
+static int quic_test_socketopts(void)
+{
+	int fdtest[2] = { -1, -1 };
+	struct sockaddr_in lo_addr;
+	socklen_t addrlen;
+	int i;
+
+	lo_addr.sin_family = AF_INET;
+	lo_addr.sin_addr.s_addr = INADDR_LOOPBACK;
+	lo_addr.sin_port = 0;
+
+	/* Check if IP destination address can be retrieved on recvfrom()
+	 * operation.
+	 */
+	if (global.tune.options & GTUNE_QUIC_SOCK_PER_CONN) {
+		if ((fdtest[0] = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+			goto err;
+		if ((fdtest[1] = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+			goto err;
+
+#if defined(IP_PKTINFO) || defined(IP_RECVDSTADDR)
+		/* Bind first UDP socket on a random source port for loopback address. */
+		if (setsockopt(fdtest[0], SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) ||
+		    bind(fdtest[0], (struct sockaddr *)&lo_addr, sizeof(lo_addr))) {
+			ha_diag_warning("Your platform does not seem to support multiple UDP sockets binded on the same address. "
+			                "QUIC connections will use listener socket.\n");
+			global.tune.options &= ~GTUNE_QUIC_SOCK_PER_CONN;
+		}
+
+		/* Retrieve bound port to reuse it for the second UDP socket. */
+		if (getsockname(fdtest[0], (struct sockaddr *)&lo_addr, &addrlen))
+			goto err;
+
+		/* Bind second UDP socket on the same port as the first socket. */
+		if (setsockopt(fdtest[1], SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) ||
+		    bind(fdtest[1], (struct sockaddr *)&lo_addr, sizeof(lo_addr)) < 0) {
+			ha_diag_warning("Your platform does not seem to support multiple UDP sockets binded on the same address. "
+			                "QUIC connections will use listener socket.\n");
+			global.tune.options &= ~GTUNE_QUIC_SOCK_PER_CONN;
+		}
+#else
+		ha_diag_warning("Your platform does not seem to support UDP source address retrieval through IP_PKTINFO or an alternative flag. "
+		                "QUIC connections will use listener socket.\n");
+		global.tune.options &= ~GTUNE_QUIC_SOCK_PER_CONN;
+#endif
+	}
+
+	/* Check for UDP GSO support. */
+	if (!(global.tune.options & GTUNE_QUIC_NO_UDP_GSO)) {
+		if (fdtest[0] < 0 && (fdtest[0] = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+			goto err;
+
+#ifdef UDP_SEGMENT
+		if (setsockopt(fdtest[0], SOL_UDP, UDP_SEGMENT, &zero, sizeof(zero))) {
+			ha_diag_warning("Your platform does not support UDP GSO. "
+			                "This will be automatically disabled for QUIC transfer.\n");
+			global.tune.options |= GTUNE_QUIC_NO_UDP_GSO;
+		}
+#else
+		ha_diag_warning("Your platform does not support UDP GSO. "
+		                "This will be automatically disabled for QUIC transfer.\n");
+		global.tune.options |= GTUNE_QUIC_NO_UDP_GSO;
+#endif
+	}
+
+	for (i = 0; i <= 1; ++i) {
+		if (fdtest[i] >= 0)
+			close(fdtest[i]);
+	}
+
+	return ERR_NONE;
+
+ err:
+	for (i = 0; i <= 1; ++i) {
+		if (fdtest[i] >= 0)
+			close(fdtest[i]);
+	}
+
+	ha_alert("Fatal error on %s(): %s.\n", __func__, strerror(errno));
+	return ERR_FATAL;
+}
+INITCALL0(STG_REGISTER, quic_test_socketopts);
 
 /*
  * Local variables:
