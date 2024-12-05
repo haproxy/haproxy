@@ -155,6 +155,10 @@ struct stksess {
 	/* WARNING! do not put anything after <keys>, it's used by the key */
 };
 
+#define STK_FL_NONE      0x00
+#define STK_FL_RECV_ONLY 0x01      /* table is assumed to be remotely updated only
+                                    * (never updated locally)
+                                    */
 
 /* stick table */
 struct stktable {
@@ -196,6 +200,8 @@ struct stktable {
 		struct stktable *t; /* postparsing */
 		void *ptr;          /* generic ptr to check if set or not */
 	} write_to; /* updates received on the source table will also update write_to */
+
+	uint16_t flags;
 
 	THREAD_ALIGN(64);
 

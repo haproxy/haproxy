@@ -1373,6 +1373,10 @@ int parse_stick_table(const char *file, int linenum, char **args,
 			}
 			idx++;
 		}
+		else if (strcmp(args[idx], "recv-only") == 0) {
+			t->flags |= STK_FL_RECV_ONLY;
+			idx++;
+		}
 		else if (strcmp(args[idx], "write-to") == 0) {
 			char *write_to;
 

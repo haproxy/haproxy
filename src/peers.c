@@ -1823,12 +1823,14 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 		if (!((1ULL << data_type) & st->remote_data))
 			continue;
 
-		/* We shouldn't learn local-only values. Also, when handling the
-		 * write_to table we must ignore types that can be processed
-		 * so we don't interfere with any potential arithmetic logic
-		 * performed on them (ie: cumulative counters).
+		/* We shouldn't learn local-only values unless the table is
+		 * considered as "recv-only". Also, when handling the write_to
+		 * table we must ignore types that can be processed so we don't
+		 * interfere with any potential arithmetic logic performed on
+		 * them (ie: cumulative counters).
 		 */
-		if (stktable_data_types[data_type].is_local ||
+		if ((stktable_data_types[data_type].is_local &&
+		     !(table->flags & STK_FL_RECV_ONLY)) ||
 		    (table != st->table && !stktable_data_types[data_type].as_is))
 			ignore = 1;
 

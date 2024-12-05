@@ -4714,13 +4714,19 @@ user <username> [password|insecure-password <password>]
 It is possible to propagate entries of any data-types in stick-tables between
 several HAProxy instances over TCP connections in a multi-master fashion. Each
 instance pushes its local updates and insertions to remote peers. The pushed
-values overwrite remote ones without aggregation. As an exception, the data
-type "conn_cur" is never learned from peers, as it is supposed to reflect local
-values. Earlier versions used to synchronize it and to cause negative values in
-active-active setups, and always-growing values upon reloads or active-passive
+values overwrite remote ones without aggregation.
+
+One exception is the data type "conn_cur" which is never learned from peers by
+default as it is supposed to reflect local values. Earlier versions used to
+synchronize it by default which was known to cause negative values in active-
+active setups, and always-growing values upon reloads or active-passive
 switches because the local value would reflect more connections than locally
-present. This information, however, is pushed so that monitoring systems can
-watch it.
+present. However there are some setups where it could be relevant to learn
+this value from peers, for instance when the table is a passive remote table
+solely used to learn/monitor data from it without relying on it for write-
+oriented operations or updates. To achieve this, the "recv-only" keyword can
+be added on the table declaration. In any case, the "conn_cur" info is always
+pushed so that monitoring systems can watch it.
 
 Interrupted exchanges are automatically detected and recovered from the last
 known point. In addition, during a soft restart, the old process connects to
@@ -4845,6 +4851,7 @@ shards <shards>
 
 table <tablename> type {ip | integer | string [len <length>] | binary [len <length>]}
       size <size> [expire <expire>] [write-to <wtable>] [nopurge] [store <data_type>]*
+      [recv-only]
 
   Configure a stickiness table for the current section. This line is parsed
   exactly the same way as the "stick-table" keyword in others section, except
@@ -12879,6 +12886,7 @@ stick store-request <pattern> [table <table>] [{if | unless} <condition>]
 stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
             size <size> [expire <expire>] [nopurge] [peers <peersect>] [srvkey <srvkey>]
             [write-to <wtable>] [store <data_type>]* [brates-factor <factor>]
+            [recv-only]
   Configure the stickiness table for the current section
 
   May be used in the following contexts: tcp, http
@@ -13006,6 +13014,18 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
                parameter, it is possible to have rates exceeding the 4G on the
                defined period. The factor must be greater than 0 and lower or
                equal to 1024.
+
+   [recv-only] indicates that we don't intent to use the table to perform
+               updates on it, but thay we only plan on using the table to
+               retrieve data from a remote peer which we are interested in.
+               Indeed, the use of this keyword enables the retrieval of
+               local-only values such as conn_cur that are not learned by
+               default as they would conflict with local updates performed
+               on the table by the local peer. Use of this option is only
+               relevant for tables that are not involved in tracking rules or
+               methods that perform update operations on the table, or put
+               simpler: remote tables that are only used to retrieve
+               information.
 
   The data types that can be stored with an entry are the following :
     - server_id : this is an integer which holds the numeric ID of the server a
