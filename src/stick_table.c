@@ -396,7 +396,8 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 
 	if (unlikely(current >= t->size)) {
 		/* the table was already full, we may have to purge entries */
-		if (t->nopurge || !stktable_trash_oldest(t, (t->size >> 8) + 1)) {
+		if ((t->flags & STK_FL_NOPURGE) ||
+		    !stktable_trash_oldest(t, (t->size >> 8) + 1)) {
 			HA_ATOMIC_DEC(&t->current);
 			return NULL;
 		}
@@ -1248,7 +1249,7 @@ int parse_stick_table(const char *file, int linenum, char **args,
 			idx++;
 		}
 		else if (strcmp(args[idx], "nopurge") == 0) {
-			t->nopurge = 1;
+			t->flags |= STK_FL_NOPURGE;
 			idx++;
 		}
 		else if (strcmp(args[idx], "type") == 0) {

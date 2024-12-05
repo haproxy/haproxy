@@ -823,7 +823,7 @@ int hlua_stktable_info(lua_State *L)
 	lua_settable(L, -3);
 
 	lua_pushstring(L, "nopurge");
-	lua_pushboolean(L, tbl->nopurge > 0);
+	lua_pushboolean(L, (tbl->flags & STK_FL_NOPURGE));
 	lua_settable(L, -3);
 
 	lua_pushstring(L, "expire");
