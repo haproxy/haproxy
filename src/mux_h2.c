@@ -2991,7 +2991,7 @@ static int h2c_send_strm_wu(struct h2c *h2c)
 	if (ret > 0) {
 		h2c->wu_s = 0;
 		h2s = h2c_st_by_id(h2c, h2c->dsi);
-		if (h2s)
+		if (h2s && h2s->h2c)
 			h2s->last_adv_ofs = h2s->next_max_ofs;
 	}
  out:
