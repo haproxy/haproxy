@@ -155,11 +155,12 @@ struct stksess {
 	/* WARNING! do not put anything after <keys>, it's used by the key */
 };
 
-#define STK_FL_NONE      0x00
-#define STK_FL_RECV_ONLY 0x01      /* table is assumed to be remotely updated only
+/* stktable struct flags */
+#define STK_FL_NONE      0x0000
+#define STK_FL_RECV_ONLY 0x0001    /* table is assumed to be remotely updated only
                                     * (never updated locally)
                                     */
-#define STK_FL_NOPURGE   0x02      /* if non-zero, don't purge sticky sessions when full */
+#define STK_FL_NOPURGE   0x0002    /* if non-zero, don't purge sticky sessions when full */
 
 /* stick table */
 struct stktable {
@@ -189,7 +190,7 @@ struct stktable {
 	int data_ofs[STKTABLE_DATA_TYPES]; /* negative offsets of present data types, or 0 if absent */
 	unsigned int data_nbelem[STKTABLE_DATA_TYPES]; /* to store nb_elem in case of array types */
 	unsigned int brates_factor; /* Factor used for IN/OUT bytes rates */
-	uint16_t flags;
+	uint16_t flags; /* STK_FL_* flags */
 	/* 2-bytes hole */
 	union {
 		int i;
