@@ -2199,7 +2199,7 @@ static int h2c_frt_recv_preface(struct h2c *h2c)
 			h2c->flags |= H2_CF_DEM_SHORT_READ;
 		if (ret1 < 0 || (h2c->flags & H2_CF_RCVD_SHUT)) {
 			h2c_report_glitch(h2c, 1);
-			TRACE_ERROR("I/O error or short read", H2_EV_RX_FRAME|H2_EV_RX_PREFACE, h2c->conn);
+			TRACE_ERROR("I/O error or short read on PREFACE", H2_EV_RX_FRAME|H2_EV_RX_PREFACE, h2c->conn);
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 			if (b_data(&h2c->dbuf) ||
 			    !(((const struct session *)h2c->conn->owner)->fe->options & PR_O_IGNORE_PRB))
@@ -5717,7 +5717,7 @@ next_frame:
 		if (hdr.ft != H2_FT_CONTINUATION) {
 			/* RFC7540#6.10: frame of unexpected type */
 			h2c_report_glitch(h2c, 1);
-			TRACE_STATE("not continuation!", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_HDR|H2_EV_RX_CONT|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
+			TRACE_STATE("not a CONTINUATION frame", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_HDR|H2_EV_RX_CONT|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 			HA_ATOMIC_INC(&h2c->px_counters->conn_proto_err);
 			goto fail;
@@ -5726,7 +5726,7 @@ next_frame:
 		if (hdr.sid != h2c->dsi) {
 			/* RFC7540#6.10: frame of different stream */
 			h2c_report_glitch(h2c, 1);
-			TRACE_STATE("different stream ID!", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_HDR|H2_EV_RX_CONT|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
+			TRACE_STATE("CONTINUATION on different stream ID", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_HDR|H2_EV_RX_CONT|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 			HA_ATOMIC_INC(&h2c->px_counters->conn_proto_err);
 			goto fail;
@@ -5735,7 +5735,7 @@ next_frame:
 		if ((unsigned)hdr.len > (unsigned)global.tune.bufsize) {
 			/* RFC7540#4.2: invalid frame length */
 			h2c_report_glitch(h2c, 1);
-			TRACE_STATE("too large frame!", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_HDR|H2_EV_RX_CONT|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
+			TRACE_STATE("too large CONTIUATION frame", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_HDR|H2_EV_RX_CONT|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 			h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR);
 			goto fail;
 		}
@@ -5782,7 +5782,7 @@ next_frame:
 		if (read_n32(hdrs) == h2c->dsi) {
 			/* RFC7540#5.3.1 : stream dep may not depend on itself */
 			h2c_report_glitch(h2c, 1);
-			TRACE_STATE("invalid stream dependency!", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
+			TRACE_STATE("PRIORITY frame referencing itself", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 			HA_ATOMIC_INC(&h2c->px_counters->conn_proto_err);
 			goto fail;
@@ -5790,7 +5790,7 @@ next_frame:
 
 		if (flen < 5) {
 			h2c_report_glitch(h2c, 1);
-			TRACE_STATE("frame too short for priority!", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
+			TRACE_STATE("too short PRIORITY frame", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 			h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR);
 			goto fail;
 		}
@@ -5875,7 +5875,7 @@ next_frame:
 	if (outlen < 0 || htx_free_space(htx) < global.tune.maxrewrite) {
 		/* too large headers? this is a stream error only */
 		h2c_report_glitch(h2c, 1);
-		TRACE_STATE("message headers too large or invalid", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2S_ERR|H2_EV_PROTO_ERR, h2c->conn);
+		TRACE_STATE("decompressed headers too large or invalid", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2S_ERR|H2_EV_PROTO_ERR, h2c->conn);
 		htx->flags |= HTX_FL_PARSING_ERROR;
 		goto fail;
 	}
@@ -5911,7 +5911,7 @@ next_frame:
 		if (msgf & H2_MSGF_RSP_1XX) {
 			/* RFC9113#8.1 : HEADERS frame with the ES flag set that carries an informational status code is malformed */
 			h2c_report_glitch(h2c, 1);
-			TRACE_STATE("invalid interim response with ES flag!", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
+			TRACE_STATE("invalid interim response with ES flag", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 			goto fail;
 		}
 		/* no more data are expected for this message */
