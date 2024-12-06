@@ -2667,6 +2667,7 @@ static int h2c_handle_settings(struct h2c *h2c)
 			if (arg < 0) { // RFC7540#6.5.2
 				error = H2_ERR_FLOW_CONTROL_ERROR;
 				h2c_report_glitch(h2c, 1);
+				TRACE_STATE("negative INITIAL_WINDOW_SIZE", H2_EV_RX_FRAME|H2_EV_RX_SETTINGS|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 				goto fail;
 			}
 			/* Let's count a glitch here in case of a reduction
