@@ -5954,7 +5954,7 @@ next_frame:
 	 * its counter by 100.
 	 */
 	if (unlikely(fragments > 4) && fragments > flen / 1024 && ret != 0) {
-		if (h2c_report_glitch(h2c, (fragments + 15) / 16), "too many CONTINUATION frames") {
+		if (h2c_report_glitch(h2c, (fragments + 15) / 16, "too many CONTINUATION frames")) {
 			TRACE_STATE("glitch limit reached on CONTINUATION frame", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 			ret = -1;
 		}
