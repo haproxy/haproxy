@@ -32,6 +32,7 @@
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
 #include <haproxy/errors.h>
+#include <haproxy/proxy.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_sock.h>
@@ -84,6 +85,15 @@ struct show_cert_ctx {
 	struct ckch_store *old_ckchs;
 	struct ckch_store *cur_ckchs;
 	int transaction;
+};
+
+/* CLI context used by "show ssl sni" */
+struct show_sni_ctx {
+	struct proxy *px;
+	struct bind_conf *bind;
+	struct ebmb_node *n;
+	int nodetype;
+	int onefrontend;
 };
 
 /* CLI context used by "dump ssl cert" */
@@ -1535,6 +1545,177 @@ struct cert_exts cert_exts[] = {
 	{ NULL,      CERT_TYPE_MAX,      NULL },
 };
 
+/* release function of the  `show ssl sni' command */
+static void cli_release_show_sni(struct appctx *appctx)
+{
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+}
+
+/* IO handler of "show ssl sni [<frontend>]".
+ * It makes use of a show_sni_ctx context
+ *
+ * The fonction does loop over the frontend, the bind_conf and the sni_ctx.
+ */
+static int cli_io_handler_show_sni(struct appctx *appctx)
+{
+	struct show_sni_ctx *ctx = appctx->svcctx;
+	struct buffer *trash = alloc_trash_chunk();
+	struct ebmb_node *n = NULL;
+	int type = 0;
+	struct bind_conf *bind = NULL;
+	struct proxy *px = NULL;
+
+	if (trash == NULL)
+		return 1;
+
+	/* ctx->bind is NULL only once we finished dumping a frontend or when starting
+	 * so let's dump the header in these cases*/
+	if (ctx->bind == NULL && (ctx->onefrontend == 1 || (ctx->onefrontend == 0 && ctx->px == proxies_list)))
+		chunk_appendf(trash, "# Frontend/Bind\tSNI\tType\tFilename\tNotAfter\tNotBefore\n");
+	if (applet_putchk(appctx, trash) == -1)
+		goto yield;
+
+	for (px = ctx->px; px; px = px->next) {
+
+		/* only check the frontends which are not internal proxies */
+		if (!(px->cap & PR_CAP_FE) || (px->cap & PR_CAP_INT))
+			continue;
+
+		bind = ctx->bind;
+		/* if we didn't get a bind from the previous yield */
+		if (!bind)
+			bind = LIST_ELEM(px->conf.bind.n, typeof(bind), by_fe);
+
+		list_for_each_entry_from(bind, &px->conf.bind, by_fe) {
+
+			HA_RWLOCK_RDLOCK(SNI_LOCK, &bind->sni_lock);
+
+			/* do this twice: once for wildcards and once for standard SNI */
+			for (type = ctx->nodetype; type < 2; type++) {
+
+				n = ctx->n; /* get the node from previous yield */
+
+				if (!n) {
+					if (type == 0)
+						n = ebmb_first(&bind->sni_ctx);
+					else
+						n = ebmb_first(&bind->sni_w_ctx);
+				}
+				/* emty SNI tree, skip */
+				if (!n)
+					continue;
+
+				while (n) {
+					struct sni_ctx *sni;
+					const char *name;
+					const char *certalg;
+
+					chunk_appendf(trash, "%s/%s:%d\t", bind->frontend->id, bind->file, bind->line);
+
+					sni = ebmb_entry(n, struct sni_ctx, name);
+
+					name = (char *)sni->name.key;
+
+					chunk_appendf(trash, "%s%s%s\t", sni->neg ? "!" : "", type ? "*" : "",  name);
+
+					switch (sni->kinfo.sig) {
+						case TLSEXT_signature_ecdsa:
+							certalg = "ecdsa";
+							break;
+						case TLSEXT_signature_rsa:
+							certalg = "rsa";
+							break;
+						default: /* TLSEXT_signature_anonymous|dsa */
+							certalg = "dsa";
+							break;
+					}
+
+					chunk_appendf(trash, "%s\t", certalg);
+
+					/* we need to lock so the certificates in the ckch are not modified during the listing */
+					chunk_appendf(trash, "%s\t", sni->ckch_inst->ckch_store->path);
+					chunk_appendf(trash, "%s\t", x509_get_notafter(sni->ckch_inst->ckch_store->data->cert));
+					chunk_appendf(trash, "%s\n", x509_get_notbefore(sni->ckch_inst->ckch_store->data->cert));
+
+					if (applet_putchk(appctx, trash) == -1) {
+						HA_RWLOCK_RDUNLOCK(SNI_LOCK, &bind->sni_lock);
+						goto yield;
+					}
+
+					n = ebmb_next(n);
+				}
+				ctx->n = NULL;
+			}
+			ctx->nodetype = 0;
+			HA_RWLOCK_RDUNLOCK(SNI_LOCK, &bind->sni_lock);
+
+		}
+		ctx->bind = NULL;
+		/* only want to display the specified frontend */
+		if (ctx->onefrontend)
+			break;
+	}
+	ctx->px = NULL;
+
+	free_trash_chunk(trash);
+	return 1;
+yield:
+
+	ctx->px = px;
+	ctx->bind = bind;
+	ctx->n = n;
+	ctx->nodetype = type;
+
+	free_trash_chunk(trash);
+	return 0; /* should come back */
+}
+
+
+/* parsing function for 'show ssl sni [-f <frontend>]' */
+static int cli_parse_show_sni(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct show_sni_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
+
+	ctx->px = proxies_list;
+
+	/* look for the right <frontend> to display */
+	if (*args[3]) {
+		struct proxy *px;
+
+		if (strcmp(args[3], "-f") != 0)
+			return cli_err(appctx, "'show ssl sni' only supports a '-f' option!\n");
+
+		if (*args[4] == '\0')
+			return cli_err(appctx, "'-f' requires a frontend name !\n");
+
+		for (px = proxies_list; px; px = px->next) {
+
+			/* only check the frontends */
+			if (!(px->cap & PR_CAP_FE))
+				continue;
+
+			/* skip the internal proxies */
+			if (px->cap & PR_CAP_INT)
+				continue;
+
+			if (strcmp(px->id, args[3]) == 0) {
+				ctx->px = px;
+				ctx->onefrontend = 1;
+			}
+		}
+		if (ctx->px == NULL)
+			goto error;
+	}
+
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't list SNIs\nOperations on certificates are currently locked!\n");
+
+	return 0;
+
+error:
+	return cli_err(appctx, "Couldn't find the specified frontend!\n");
+}
 
 /* release function of the  `show ssl cert' command */
 static void cli_release_show_cert(struct appctx *appctx)
@@ -4182,6 +4363,8 @@ void ckch_deinit()
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
+	{ { "show", "ssl", "sni", NULL },       "show ssl sni [-f <frontend>]            : display the list of SNI and their corresponding filename",              cli_parse_show_sni, cli_io_handler_show_sni, cli_release_show_sni },
+
 	{ { "new", "ssl", "cert", NULL },       "new ssl cert <certfile>                 : create a new certificate file to be used in a crt-list or a directory", cli_parse_new_cert, NULL, NULL },
 	{ { "set", "ssl", "cert", NULL },       "set ssl cert <certfile> <payload>       : replace a certificate file",                                            cli_parse_set_cert, NULL, NULL },
 	{ { "commit", "ssl", "cert", NULL },    "commit ssl cert <certfile>              : commit a certificate file",                                             cli_parse_commit_cert, cli_io_handler_commit_cert, cli_release_commit_cert },

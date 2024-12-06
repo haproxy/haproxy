@@ -3761,6 +3761,41 @@ show ssl providers
         - fips
         - base
 
+show ssl sni [-f <frontend>]
+  Dump every SNI configured for the designated frontend, or all frontends if no
+  frontend was specified. It allows to see what SNI are offered for a frontend,
+  and to identify if a SNI is defined multiple time by multiple certificates for
+  the same frontend.
+
+  Columns are separated by a single \t, allowing to parse it simply.
+
+  The frontend/bind column shows the frontend name followed by the bind line
+  position in the configuration (file:linenum).
+
+  The SNI column shows the SNI, it can be either a CN, a SAN or a positive
+  filter from a crt-list. Negative filters are not displayed.
+
+  The 'type' column shows the encryption algorithm type, it can be "rsa", "ecdsa" or "dsa".
+
+  The default certificates of a bind line, (which are either declared
+  explicitely by 'default-crt' or is implicitely the first certificate of a bind
+  line when no 'strict-sni' is used) shows the '*' character in the SNI column.
+
+  The 'filename' column can be either a filename from the configuration, or an
+  alias declarated in a crt-store.
+
+  The 'NotAfter' and 'NotBefore' columns are directly extracted from the X509
+  leaf certificate.
+
+  Example:
+    $ echo "@1 show ssl sni" | socat /var/run/haproxy-master.sock - | column -t -s $'\t'
+    # Frontend/Bind        SNI        Type   Filename             NotAfter                  NotBefore
+    li1/haproxy.cfg:10021  machine10  rsa    machine10.pem.rsa    Jun 13 13:37:21 2024 GMT  May 14 13:37:21 2024 GMT
+    li1/haproxy.cfg:10021  machine10  ecdsa  machine10.pem.ecdsa  Jun 13 13:37:21 2024 GMT  May 14 13:37:21 2024 GMT
+    li1/haproxy.cfg:10021  localhost  rsa    localhost.pem.rsa    Jun 13 13:37:11 2024 GMT  May 14 13:37:11 2024 GMT
+    li1/haproxy.cfg:10021  localhost  ecdsa  localhost.pem.ecdsa  Jun 13 13:37:10 2024 GMT  May 14 13:37:10 2024 GMT
+    li1/haproxy.cfg:10021  *          rsa    localhost.pem.rsa    Jun 13 13:37:11 2024 GMT  May 14 13:37:11 2024 GMT
+
 show startup-logs
   Dump all messages emitted during the startup of the current haproxy process,
   each startup-logs buffer is unique to its haproxy worker.
