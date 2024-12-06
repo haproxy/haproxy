@@ -2980,7 +2980,7 @@ struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned int state)
 		t = NULL;
 
 	if (!ret && conn_in_list) {
-		struct server *srv = objt_server(conn->target);
+		struct server *srv = __objt_server(conn->target);
 
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		_srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
