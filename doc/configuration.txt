@@ -18143,13 +18143,8 @@ init-state { fully-up | up | down | fully-down }
       # pass traffic to the server only after 3 successful health checks
       backend google-backend
         mode http
-        server srv1 google.com:80 check init-state down rise 3
-        server srv2 google.com:80 check init-state down rise 3
-
-      # or
-      listen
-        mode http
-        server-template srv 2 google.com:80 check init-state down rise 3
+        server srv1 google.com:80 check init-state fully-down rise 3
+        server srv2 google.com:80 check init-state fully-down rise 3
 
 See also: "option tcp-check", "option httpchk"
 
