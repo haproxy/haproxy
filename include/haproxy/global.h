@@ -70,6 +70,7 @@ int split_version(const char *version, unsigned int *value);
 int compare_current_version(const char *version);
 void display_version();
 int handle_pidfile(void);
+void stdio_quiet(int fd);
 
 void mworker_accept_wrapper(int fd);
 

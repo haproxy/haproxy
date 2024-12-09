@@ -814,7 +814,7 @@ static void dump(struct sig_handler *sh)
  *  In the case of chrooting, you have to open /dev/null before the chroot, and
  *  pass the <fd> to this function
  */
-static void stdio_quiet(int fd)
+void stdio_quiet(int fd)
 {
 	if (fd < 0)
 		fd = open("/dev/null", O_RDWR, 0);
@@ -3533,15 +3533,6 @@ int main(int argc, char **argv)
 
 	/* Master enters in its polling loop */
 	if (master) {
-		/* set quiet mode if MODE_DAEMON */
-		if ((!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
-			(global.mode & MODE_DAEMON)) {
-			/* detach from the tty, this is required to properly daemonize. */
-			if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL))
-				stdio_quiet(-1);
-			global.mode &= ~MODE_VERBOSE;
-			global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
-		}
 		mworker_run_master();
 		/* never get there in master context */
 	}
