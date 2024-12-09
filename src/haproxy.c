@@ -155,6 +155,7 @@ static struct list cfg_cfgfiles = LIST_HEAD_INIT(cfg_cfgfiles);
 int  pid;			/* current process id */
 char **init_env;		/* to keep current process env variables backup */
 int  pidfd = -1;		/* FD to keep PID */
+int daemon_fd[2] = {-1, -1};	/* pipe to communicate with parent process */
 
 static unsigned long stopping_tgroup_mask; /* Thread groups acknowledging stopping */
 
@@ -1756,6 +1757,17 @@ static void generate_random_cluster_secret()
 static void apply_daemon_mode()
 {
 	int ret;
+	int wstatus = 0;
+	int exitcode = 0;
+	pid_t child_pid;
+	char buf[2];
+
+	if (pipe(daemon_fd) < 0) {
+		ha_alert("[%s.main()] Cannot create pipe for getting the status of "
+			 "child process: %s.\n", progname, strerror(errno));
+
+		exit(EXIT_FAILURE);
+	}
 
 	ret = fork();
 	switch(ret) {
@@ -1767,12 +1779,44 @@ static void apply_daemon_mode()
 		/* in child, change the process group ID, in the master-worker
 		 * mode, this will be the master process
 		 */
+		close(daemon_fd[0]);
+		daemon_fd[0] = -1;
 		setsid();
 
 		break;
 	default:
-		/* in parent, which leaves to daemonize */
-		exit(0);
+		/* in parent */
+		close(daemon_fd[1]);
+		daemon_fd[1] = -1;
+		/* In standalone + daemon modes: parent (launcher process) tries
+		 * to read the child's (daemonized process) "READY" message. Child
+		 * writes this message, when he has finished initialization. If
+		 * child failed to start, we get his status.
+		 * In master-worker mode: daemonized process is the master. He
+		 * sends his READY message to launcher, only when
+		 * he has received the READY message from the worker, see
+		 * _send_status().
+		 */
+		if (read(daemon_fd[0], buf, 1) == 0) {
+			child_pid = waitpid(ret, &wstatus, 0);
+			if (child_pid < 0) {
+				ha_alert("[%s.main()] waitpid() failed: %s\n",
+					 progname, strerror(errno));
+				exit(EXIT_FAILURE);
+			}
+			if (WIFEXITED(wstatus))
+				wstatus = WEXITSTATUS(wstatus);
+			else if (WIFSIGNALED(wstatus))
+				wstatus = 128 + WTERMSIG(wstatus);
+			else
+				wstatus = 255;
+
+			ha_alert("Process %d exited with code %d (%s)\n",
+				 child_pid, wstatus, (wstatus >= 128) ? strsignal(wstatus - 128) : "Exit");
+			if (wstatus != 0 && wstatus != 143)
+				exitcode = wstatus;
+		}
+		exit(exitcode);
 	}
 }
 
@@ -3248,6 +3292,7 @@ int main(int argc, char **argv)
 	struct cfgfile *cfg, *cfg_tmp;
 	struct ring *tmp_startup_logs = NULL;
 	struct mworker_proc *proc;
+	char *msg = "READY\n";
 
 	/* Catch broken toolchains */
 	if (sizeof(long) != sizeof(void *) || (intovf + 0x7FFFFFFF >= intovf)) {
@@ -3753,6 +3798,19 @@ int main(int argc, char **argv)
 			exit(EXIT_FAILURE);
 		startup_logs_free(startup_logs);
 		startup_logs = tmp_startup_logs;
+	}
+
+	/* worker is already sent its READY message to master. This applies only
+	 * for daemon standalone mode. Master in daemon mode will "forward" the READY
+	 * message received from the worker to the launching process, see _send_status().
+	 */
+	if ((global.mode & MODE_DAEMON) && !(global.mode & MODE_MWORKER)) {
+		if (write(daemon_fd[1], msg, strlen(msg)) < 0) {
+			ha_alert("[%s.main()] Failed to write into pipe with parent process: %s\n", progname, strerror(errno));
+			exit(1);
+		}
+		close(daemon_fd[1]);
+		daemon_fd[1] = -1;
 	}
 	/* can't unset MODE_STARTING earlier, otherwise worker's last alerts
 	 * should be not written in startup logs.
