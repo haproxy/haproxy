@@ -3366,7 +3366,8 @@ int main(int argc, char **argv)
 	 * will become then a master) in background, before it will fork a
 	 * worker, because the worker should be also in background for this case.
 	 */
-	if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL) && (global.mode & MODE_DAEMON))
+	if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL) && (global.mode & MODE_DAEMON)
+	    && !(global.mode & MODE_CHECK))
 		apply_daemon_mode();
 
 	/* Master-worker and program forks */
