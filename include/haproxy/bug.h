@@ -245,7 +245,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 
 #else /* USE_OBSOLETE_LINKER not defined below  */
 # define __DBG_COUNT(cond, file, line, type, ...) do { } while (0)
-# define _COUNT_IF(cond, file, line, ...) (cond)
+# define _COUNT_IF(cond, file, line, ...) DISGUISE(cond)
 # define _COUNT_GLITCH(file, line, ...) do { } while (0)
 #endif
 
@@ -351,7 +351,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #  define BUG_ON(cond, ...)   do { (void)sizeof(cond); } while (0)
 #  define WARN_ON(cond, ...)  do { (void)sizeof(cond); } while (0)
 #  define CHECK_IF(cond, ...) do { (void)sizeof(cond); } while (0)
-#  define COUNT_IF(cond, ...) do { (void)sizeof(cond); } while (0)
+#  define COUNT_IF(cond, ...) DISGUISE(cond)
 #endif
 
 /* These macros are only for hot paths and remain disabled unless DEBUG_STRICT is 2 or above.
@@ -378,7 +378,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #else
 #  define BUG_ON_HOT(cond, ...)   do { (void)sizeof(cond) ; } while (0)
 #  define CHECK_IF_HOT(cond, ...) do { (void)sizeof(cond) ; } while (0)
-#  define COUNT_IF_HOT(cond, ...) do { (void)sizeof(cond) ; } while (0)
+#  define COUNT_IF_HOT(cond, ...) DISGUISE(cond)
 #endif
 
 
