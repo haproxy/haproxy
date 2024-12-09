@@ -2494,6 +2494,7 @@ static int _send_status(char **args, char *payload, struct appctx *appctx, void 
 {
 	struct listener *mproxy_li;
 	struct mworker_proc *proc;
+	char *msg = "READY\n";
 	int pid;
 
 	BUG_ON((strcmp(args[0], "_send_status") != 0),
@@ -2535,6 +2536,15 @@ static int _send_status(char **args, char *payload, struct appctx *appctx, void 
 	 */
 	if (nb_oldpids > 0) {
 		nb_oldpids = tell_old_pids(oldpids_sig);
+	}
+
+	if (daemon_fd[1] != -1) {
+		if (write(daemon_fd[1], msg, strlen(msg)) < 0) {
+			ha_alert("[%s.main()] Failed to write into pipe with parent process: %s\n", progname, strerror(errno));
+			exit(1);
+		}
+		close(daemon_fd[1]);
+		daemon_fd[1] = -1;
 	}
 
 	load_status = 1;

@@ -1250,6 +1250,11 @@ void mworker_apply_master_worker_mode(void)
 
 		exit(EXIT_FAILURE);
 	case 0:
+		if (daemon_fd[1] >= 0) {
+			close(daemon_fd[1]);
+			daemon_fd[1] = -1;
+		}
+
 		/* This one must not be exported, it's internal! */
 		unsetenv("HAPROXY_MWORKER_REEXEC");
 		ha_random_jump96(1);
