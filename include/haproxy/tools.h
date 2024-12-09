@@ -1028,9 +1028,27 @@ void make_word_fingerprint(uint8_t *fp, const char *word);
 int word_fingerprint_distance(const uint8_t *fp1, const uint8_t *fp2);
 
 /* debugging macro to emit messages using write() on fd #-1 so that strace sees
- * them.
+ * them. It relies on variadic macros with optional arguments so that any
+ * number of argument is accepted. If at least one argument is passed, the
+ * first one is a format string and the other ones are the arguments, exactly
+ * like printf(). The macro always prepends the function name and the location
+ * as file:line between square brackets on any line. If no format string is
+ * passed, then "\n" is used. Otherwise the caller has to deal with \n itself
+ * (format or data).
  */
-#define fddebug(msg...) do { char *_m = NULL; memprintf(&_m, ##msg); if (_m) write(-1, _m, strlen(_m)); free(_m); } while (0)
+#define fddebug(...) __fddebug(__VA_ARGS__)
+#define _fddebug(fmt, msg...) __fddebug("" ##fmt, ##msg)
+#define __fddebug(fmt, msg...) do {					\
+		char *_m = NULL;					\
+		memprintf(&_m,						\
+			  (""fmt)[0] ?					\
+			  ("[%s@%s:%d] " fmt) :				\
+			  ("[%s@%s:%d]\n"), __func__,			\
+			  __FILE__, __LINE__, ##msg);			\
+		if (_m)							\
+			write(-1, _m, strlen(_m));			\
+		free(_m);						\
+	} while (0)
 
 /* displays a <len> long memory block at <buf>, assuming first byte of <buf>
  * has address <baseaddr>. String <pfx> may be placed as a prefix in front of
