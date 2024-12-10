@@ -1590,7 +1590,7 @@ static int cli_io_handler_show_sni(struct appctx *appctx)
 
 			HA_RWLOCK_RDLOCK(SNI_LOCK, &bind->sni_lock);
 
-			/* do this twice: once for wildcards and once for standard SNI */
+			/* do this twice: once for the standard SNI and once for wildcards */
 			for (type = ctx->nodetype; type < 2; type++) {
 
 				n = ctx->n; /* get the node from previous yield */
