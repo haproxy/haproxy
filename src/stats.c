@@ -1064,6 +1064,10 @@ static int cli_io_handler_dump_stat_file(struct appctx *appctx)
 
 static void cli_io_handler_release_dump_stat_file(struct appctx *appctx)
 {
+	struct show_stat_ctx *ctx = appctx->svcctx;
+
+	if (ctx->px_st == STAT_PX_ST_SV)
+		srv_drop(ctx->obj2);
 }
 
 int stats_allocate_proxy_counters_internal(struct extra_counters **counters,
