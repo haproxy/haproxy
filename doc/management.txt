@@ -3764,25 +3764,23 @@ show ssl providers
 show ssl sni [-f <frontend>]
   Dump every SNI configured for the designated frontend, or all frontends if no
   frontend was specified. It allows to see what SNI are offered for a frontend,
-  and to identify if a SNI is defined multiple time by multiple certificates for
+  and to identify if a SNI is defined multiple times by multiple certificates for
   the same frontend.
 
   Columns are separated by a single \t, allowing to parse it simply.
 
-  The frontend/bind column shows the frontend name followed by the bind line
-  position in the configuration (file:linenum).
+  The 'Frontend/Bind' column shows the frontend name followed by the bind line
+  position in the configuration (frontend/file:linenum).
 
-  The SNI column shows the SNI, it can be either a CN, a SAN or a positive
-  filter from a crt-list. Negative filters are not displayed.
-
-  The 'type' column shows the encryption algorithm type, it can be "rsa", "ecdsa" or "dsa".
-
+  The 'SNI' column shows the SNI, it can be either a CN, a SAN or a filter from a crt-list.
   The default certificates of a bind line, (which are either declared
   explicitely by 'default-crt' or is implicitely the first certificate of a bind
   line when no 'strict-sni' is used) shows the '*' character in the SNI column.
 
-  The 'filename' column can be either a filename from the configuration, or an
-  alias declarated in a crt-store.
+  The 'Type' column shows the encryption algorithm type, it can be "rsa", "ecdsa" or "dsa".
+
+  The 'Filename' column can be either a filename from the configuration, or an
+  alias declared in a crt-store.
 
   The 'NotAfter' and 'NotBefore' columns are directly extracted from the X509
   leaf certificate.
