@@ -13,6 +13,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    if: ${{ github.repository_owner == 'haproxy' }}
     permissions:
       contents: read
       packages: write
@@ -49,6 +50,7 @@ jobs:
 
     name: ${{ matrix.suite.client }}
     runs-on: ubuntu-24.04
+    if: ${{ github.repository_owner == 'haproxy' }}
 
     steps:
       - uses: actions/checkout@v4
