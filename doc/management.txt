@@ -3777,6 +3777,10 @@ show ssl sni [-f <frontend>]
   explicitely by 'default-crt' or is implicitely the first certificate of a bind
   line when no 'strict-sni' is used) shows the '*' character in the SNI column.
 
+  The 'Negative Filter' column is the list of negative filters associated to a
+  wildcard, this will show all negatives filters that are on the same crt-list
+  line. A dash character is displayed if there are none.
+
   The 'Type' column shows the encryption algorithm type, it can be "rsa", "ecdsa" or "dsa".
 
   The 'Filename' column can be either a filename from the configuration, or an
@@ -3787,12 +3791,14 @@ show ssl sni [-f <frontend>]
 
   Example:
     $ echo "@1 show ssl sni" | socat /var/run/haproxy-master.sock - | column -t -s $'\t'
-    # Frontend/Bind        SNI        Type   Filename             NotAfter                  NotBefore
-    li1/haproxy.cfg:10021  machine10  rsa    machine10.pem.rsa    Jun 13 13:37:21 2024 GMT  May 14 13:37:21 2024 GMT
-    li1/haproxy.cfg:10021  machine10  ecdsa  machine10.pem.ecdsa  Jun 13 13:37:21 2024 GMT  May 14 13:37:21 2024 GMT
-    li1/haproxy.cfg:10021  localhost  rsa    localhost.pem.rsa    Jun 13 13:37:11 2024 GMT  May 14 13:37:11 2024 GMT
-    li1/haproxy.cfg:10021  localhost  ecdsa  localhost.pem.ecdsa  Jun 13 13:37:10 2024 GMT  May 14 13:37:10 2024 GMT
-    li1/haproxy.cfg:10021  *          rsa    localhost.pem.rsa    Jun 13 13:37:11 2024 GMT  May 14 13:37:11 2024 GMT
+    # Frontend/Bind        SNI        Negative Filter  Type   Filename             NotAfter                  NotBefore
+    li1/haproxy.cfg:10021  *.ex.lan   !m1.ex.lan       rsa    example.lan.pem      Jun 13 13:37:21 2024 GMT  May 14 13:37:21 2024 GMT
+    li1/haproxy.cfg:10021  machine10  -                ecdsa  machine10.pem.ecdsa  Jun 13 13:37:21 2024 GMT  May 14 13:37:21 2024 GMT
+    li1/haproxy.cfg:10021  machine10  -                rsa    machine10.pem.rsa    Jun 13 13:37:21 2024 GMT  May 14 13:37:21 2024 GMT
+    li1/haproxy.cfg:10021  machine10  -                ecdsa  machine10.pem.ecdsa  Jun 13 13:37:21 2024 GMT  May 14 13:37:21 2024 GMT
+    li1/haproxy.cfg:10021  localhost  -                rsa    localhost.pem.rsa    Jun 13 13:37:11 2024 GMT  May 14 13:37:11 2024 GMT
+    li1/haproxy.cfg:10021  localhost  -                ecdsa  localhost.pem.ecdsa  Jun 13 13:37:10 2024 GMT  May 14 13:37:10 2024 GMT
+    li1/haproxy.cfg:10021  *          -                rsa    localhost.pem.rsa    Jun 13 13:37:11 2024 GMT  May 14 13:37:11 2024 GMT
 
 show startup-logs
   Dump all messages emitted during the startup of the current haproxy process,

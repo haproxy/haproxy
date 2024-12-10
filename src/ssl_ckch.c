@@ -1571,7 +1571,7 @@ static int cli_io_handler_show_sni(struct appctx *appctx)
 	/* ctx->bind is NULL only once we finished dumping a frontend or when starting
 	 * so let's dump the header in these cases*/
 	if (ctx->bind == NULL && (ctx->onefrontend == 1 || (ctx->onefrontend == 0 && ctx->px == proxies_list)))
-		chunk_appendf(trash, "# Frontend/Bind\tSNI\tType\tFilename\tNotAfter\tNotBefore\n");
+		chunk_appendf(trash, "# Frontend/Bind\tSNI\tNegative Filter\tType\tFilename\tNotAfter\tNotBefore\n");
 	if (applet_putchk(appctx, trash) == -1)
 		goto yield;
 
@@ -1605,18 +1605,34 @@ static int cli_io_handler_show_sni(struct appctx *appctx)
 				if (!n)
 					continue;
 
-				while (n) {
+				for (; n; n = ebmb_next(n)) {
 					struct sni_ctx *sni;
 					const char *name;
 					const char *certalg;
-
-					chunk_appendf(trash, "%s/%s:%d\t", bind->frontend->id, bind->file, bind->line);
+					int isneg = 0; /* is there any negative filters associated to this node */
 
 					sni = ebmb_entry(n, struct sni_ctx, name);
+
+					if (sni->neg)
+						continue;
+
+					chunk_appendf(trash, "%s/%s:%d\t", bind->frontend->id, bind->file, bind->line);
 
 					name = (char *)sni->name.key;
 
 					chunk_appendf(trash, "%s%s%s\t", sni->neg ? "!" : "", type ? "*" : "",  name);
+
+					/* we are looking at wildcards, let's check the negative filters */
+					if (type == 1) {
+						struct sni_ctx *sni_tmp;
+						list_for_each_entry(sni_tmp, &sni->ckch_inst->sni_ctx, by_ckch_inst) {
+							if (sni_tmp->neg) {
+								chunk_appendf(trash, "%s%s ", sni_tmp->neg ? "!" : "",  (char *)sni_tmp->name.key);
+								isneg = 1;
+							}
+						}
+					}
+					chunk_appendf(trash, "%s\t", isneg ? "" : "-");
 
 					switch (sni->kinfo.sig) {
 						case TLSEXT_signature_ecdsa:
@@ -1642,7 +1658,6 @@ static int cli_io_handler_show_sni(struct appctx *appctx)
 						goto yield;
 					}
 
-					n = ebmb_next(n);
 				}
 				ctx->n = NULL;
 			}
