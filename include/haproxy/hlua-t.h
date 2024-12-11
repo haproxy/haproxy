@@ -230,8 +230,11 @@ struct hlua_server_list {
 };
 
 struct hlua_server_list_iterator_context {
-	struct server *cur;
-	struct proxy *px;
+	struct watcher srv_watch; /* watcher to automatically update next pointer
+	                           * on server deletion
+	                           */
+	struct server *next;      /* next server in list */
+	struct proxy *px;         /* to retrieve first server */
 };
 
 #define HLUA_PATREF_FL_NONE    0x00

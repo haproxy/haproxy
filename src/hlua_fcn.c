@@ -1896,29 +1896,33 @@ int hlua_listable_servers_pairs_iterator(lua_State *L)
 {
 	int context_index;
 	struct hlua_server_list_iterator_context *ctx;
+	struct server *cur;
 
 	context_index = lua_upvalueindex(1);
 	ctx = lua_touserdata(L, context_index);
 
-	if (ctx->cur == NULL) {
+	if (ctx->px) {
 		/* First iteration, initialize list on the first server */
-		ctx->cur = ctx->px->srv;
-	} else {
-
-		/* Next server (next ptr is always valid, even if current
-		 * server has the SRV_F_DELETED flag set)
-		 */
-		ctx->cur = ctx->cur->next;
+		cur = ctx->px->srv;
+		watcher_attach(&ctx->srv_watch, cur);
+		ctx->px = NULL;
+	}
+	else {
+		/* next iteration */
+		cur = ctx->next;
 	}
 
-	/* next server is null, end of iteration */
-	if (ctx->cur == NULL) {
+	/* cur server is null, end of iteration */
+	if (cur == NULL) {
 		lua_pushnil(L);
 		return 1;
 	}
 
-	lua_pushstring(L, ctx->cur->id);
-	hlua_fcn_new_server(L, ctx->cur);
+	/* compute next server */
+	ctx->next = watcher_next(&ctx->srv_watch, cur->next);
+
+	lua_pushstring(L, cur->id);
+	hlua_fcn_new_server(L, cur);
 	return 2;
 }
 
@@ -1935,7 +1939,8 @@ int hlua_listable_servers_pairs(lua_State *L)
 
 	ctx = lua_newuserdata(L, sizeof(*ctx));
 	ctx->px = hlua_srv_list->px;
-	ctx->cur = NULL;
+	ctx->next = NULL;
+	watcher_init(&ctx->srv_watch, &ctx->next, offsetof(struct server, watcher_list));
 
 	lua_pushcclosure(L, hlua_listable_servers_pairs_iterator, 1);
 	return 1;
