@@ -2229,6 +2229,8 @@ int val_hdr(struct arg *arg, char **err_msg)
 
 int val_query(struct arg *args, char **err_msg)
 {
+	int val = 0;
+
 	if (args[0].type == ARGT_STOP)
 		return 1;
 
@@ -2237,14 +2239,17 @@ int val_query(struct arg *args, char **err_msg)
 		return 0;
 	}
 
-	if (chunk_strcmp(&args[0].data.str, "with_qm") != 0) {
-		memprintf(err_msg, "supported options are: 'with_qm'");
-		return 0;
+	if (args[0].data.str.data != 0) {
+		if (chunk_strcmp(&args[0].data.str, "with_qm") != 0) {
+			memprintf(err_msg, "supported options are: 'with_qm'");
+			return 0;
+		}
+		val = 1;
 	}
 
 	chunk_destroy(&args[0].data.str);
 	args[0].type = ARGT_SINT;
-	args[0].data.sint = 1;
+	args[0].data.sint = val;
 	return 1;
 
 }
