@@ -2286,7 +2286,7 @@ static int qcc_io_send(struct qcc *qcc)
 	struct list qcs_failed = LIST_HEAD_INIT(qcs_failed);
 	struct qcs *qcs, *qcs_tmp, *first_qcs = NULL;
 	uint64_t window_conn = qfctl_rcap(&qcc->tx.fc);
-	int ret = 0, total = 0, resent;
+	int ret = 0, ret_sent = 0, total = 0, resent;
 
 	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
 
@@ -2408,7 +2408,7 @@ static int qcc_io_send(struct qcc *qcc)
 	/* Retry sending until no frame to send, data rejected or connection
 	 * flow-control limit reached.
 	 */
-	while ((ret = qcc_send_frames(qcc, frms, 1)) == 0 && !qfctl_rblocked(&qcc->tx.fc)) {
+	while ((ret_sent = qcc_send_frames(qcc, frms, 1)) == 0 && !qfctl_rblocked(&qcc->tx.fc)) {
 		window_conn = qfctl_rcap(&qcc->tx.fc);
 		resent = 0;
 
@@ -2439,7 +2439,7 @@ static int qcc_io_send(struct qcc *qcc)
 	}
 
  sent_done:
-	if (ret == 1) {
+	if (ret_sent == 1) {
 		/* qcc_send_frames cannot return 1 if pacing not used. */
 		BUG_ON(!qcc_is_pacing_active(qcc->conn));
 		qcc_wakeup_pacing(qcc);
