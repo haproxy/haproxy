@@ -255,7 +255,7 @@ end:
 	return ret;
 }
 
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+#if defined(HAVE_SSL_OCSP)
 /*
  * This function load the OCSP Response in DER format contained in file at
  * path 'ocsp_path' or base64 in a buffer <buf>
@@ -457,6 +457,7 @@ int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, char
 	}
 #endif
 
+#ifdef HAVE_SSL_OCSP
 	/* try to load an ocsp response file */
 	if (global_ssl.extra_files & SSL_GF_OCSP) {
 		struct stat st;
@@ -478,7 +479,6 @@ int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, char
 		*(fp->area + fp->data - strlen(".ocsp")) = '\0';
 		b_sub(fp, strlen(".ocsp"));
 	}
-
 #ifndef OPENSSL_IS_BORINGSSL /* Useless for BoringSSL */
 	if (data->ocsp_response && (global_ssl.extra_files & SSL_GF_OCSP_ISSUER)) {
 		/* if no issuer was found, try to load an issuer from the .issuer */
@@ -510,6 +510,7 @@ int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, char
 			b_sub(fp, strlen(".issuer"));
 		}
 	}
+#endif
 #endif
 
 	ret = 0;
@@ -767,7 +768,7 @@ void ssl_sock_free_cert_key_and_chain_contents(struct ckch_data *data)
 	/* We need to properly remove the reference to the corresponding
 	 * certificate_ocsp structure if it exists (which it should).
 	 */
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
+#if (defined(HAVE_SSL_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 	if (data->ocsp_cid) {
 		struct certificate_ocsp *ocsp = NULL;
 		unsigned char certid[OCSP_MAX_CERTID_ASN1_LENGTH] = {};
@@ -837,6 +838,7 @@ struct ckch_data *ssl_sock_copy_cert_key_and_chain(struct ckch_data *src,
 		dst->sctl = sctl;
 	}
 
+#ifdef HAVE_SSL_OCSP
 	if (src->ocsp_response) {
 		struct buffer *ocsp_response;
 
@@ -852,9 +854,8 @@ struct ckch_data *ssl_sock_copy_cert_key_and_chain(struct ckch_data *src,
 		X509_up_ref(src->ocsp_issuer);
 		dst->ocsp_issuer = src->ocsp_issuer;
 	}
-
 	dst->ocsp_cid = OCSP_CERTID_dup(src->ocsp_cid);
-
+#endif
 	return dst;
 
 error:
@@ -1538,7 +1539,7 @@ int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_ty
 struct cert_exts cert_exts[] = {
 	{ "",        CERT_TYPE_PEM,      &ssl_sock_load_pem_into_ckch }, /* default mode, no extensions */
 	{ "key",     CERT_TYPE_KEY,      &ssl_sock_load_key_into_ckch },
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+#if defined(HAVE_SSL_OCSP)
 	{ "ocsp",    CERT_TYPE_OCSP,     &ssl_sock_load_ocsp_response_from_file },
 #endif
 #ifdef HAVE_SSL_SCTL
@@ -2090,7 +2091,7 @@ end:
  */
 static int ckch_store_show_ocsp_certid(struct ckch_store *ckch_store, struct buffer *out)
 {
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
+#if (defined(HAVE_SSL_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 	unsigned char key[OCSP_MAX_CERTID_ASN1_LENGTH] = {};
 	unsigned int key_length = 0;
 	int i;
@@ -2163,7 +2164,7 @@ yield:
  */
 static int cli_io_handler_show_cert_ocsp_detail(struct appctx *appctx)
 {
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
+#if (defined(HAVE_SSL_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 	struct show_cert_ctx *ctx = appctx->svcctx;
 	struct ckch_store *ckchs = ctx->cur_ckchs;
 	struct buffer *out = alloc_trash_chunk();
@@ -2884,13 +2885,14 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 		goto end;
 	}
 
+#if defined(HAVE_SSL_OCSP)
 	/* Reset the OCSP CID */
 	if (cert_ext->type == CERT_TYPE_PEM || cert_ext->type == CERT_TYPE_KEY ||
 	    cert_ext->type == CERT_TYPE_ISSUER) {
 		OCSP_CERTID_free(new_ckchs->data->ocsp_cid);
 		new_ckchs->data->ocsp_cid = NULL;
 	}
-
+#endif
 	data = new_ckchs->data;
 
 	/* apply the change on the duplicate */
@@ -4471,10 +4473,14 @@ struct ckch_conf_kws ckch_conf_kws[] = {
 	{ "alias",                               -1,                 PARSE_TYPE_NONE, NULL,                                  NULL },
 	{ "crt",    offsetof(struct ckch_conf, crt),    PARSE_TYPE_STR, ckch_conf_load_pem,           &current_crtbase },
 	{ "key",    offsetof(struct ckch_conf, key),    PARSE_TYPE_STR, ckch_conf_load_key,           &current_keybase },
+#ifdef HAVE_SSL_OCSP
 	{ "ocsp",   offsetof(struct ckch_conf, ocsp),   PARSE_TYPE_STR, ckch_conf_load_ocsp_response, &current_crtbase },
+#endif
 	{ "issuer", offsetof(struct ckch_conf, issuer), PARSE_TYPE_STR, ckch_conf_load_ocsp_issuer,   &current_crtbase },
 	{ "sctl",   offsetof(struct ckch_conf, sctl),   PARSE_TYPE_STR, ckch_conf_load_sctl,          &current_crtbase },
+#if defined(HAVE_SSL_OCSP)
 	{ "ocsp-update", offsetof(struct ckch_conf, ocsp_update_mode), PARSE_TYPE_ONOFF, ocsp_update_init, NULL   },
+#endif
 	{ NULL,     -1,                                  PARSE_TYPE_STR, NULL,                                  NULL            }
 };
 
@@ -4655,6 +4661,7 @@ int ckch_conf_cmp(struct ckch_conf *prev, struct ckch_conf *new, char **err)
 			default:
 				break;
 		}
+#if defined(HAVE_SSL_OCSP)
 		/* special case for ocsp-update and default */
 		if (strcmp(ckch_conf_kws[i].name, "ocsp-update") == 0) {
 			int o1, o2; /* ocsp-update from the configuration */
@@ -4694,6 +4701,7 @@ int ckch_conf_cmp(struct ckch_conf *prev, struct ckch_conf *new, char **err)
 				ret = 1;
 			}
 		}
+#endif
 	}
 
 out:

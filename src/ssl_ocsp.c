@@ -62,6 +62,7 @@
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 
+#ifdef HAVE_SSL_OCSP
 
 /* ***** READ THIS before adding code here! *****
  *
@@ -2073,6 +2074,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 REGISTER_CONFIG_POSTPARSER("ocsp-update", ocsp_update_postparser_init);
+
+#endif /* HAVE_SSL_OCSP */
 /*
  * Local variables:
  *  c-indent-level: 8

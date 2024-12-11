@@ -149,6 +149,12 @@
 #define HASSL_DH_up_ref DH_up_ref
 #endif
 
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB || AWSLC_API_VERSION >= 29) && (!defined(OPENSSL_NO_OCSP)))
+#define HAVE_SSL_OCSP
+#else
+typedef void OCSP_CERTID;
+#endif
+
 #if ((HA_OPENSSL_VERSION_NUMBER < 0x1000000fL) && !defined(X509_get_X509_PUBKEY))
 #define X509_get_X509_PUBKEY(x) ((x)->cert_info->key)
 #endif

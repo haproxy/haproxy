@@ -136,7 +136,7 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store);
 #ifdef HAVE_SSL_PROVIDERS
 int ssl_init_provider(const char *provider_name);
 #endif
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
+#if (defined(HAVE_SSL_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 int ssl_get_ocspresponse_detail(unsigned char *ocsp_certid, struct buffer *out);
 int ssl_ocsp_response_print(struct buffer *ocsp_response, struct buffer *out);
 #endif

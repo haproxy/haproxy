@@ -137,7 +137,7 @@ struct global_ssl global_ssl = {
 	.keylog = 0,
 #endif
 	.security_level = -1,
-#ifndef OPENSSL_NO_OCSP
+#ifdef HAVE_SSL_OCSP
 	.ocsp_update.delay_max = SSL_OCSP_UPDATE_DELAY_MAX,
 	.ocsp_update.delay_min = SSL_OCSP_UPDATE_DELAY_MIN,
 	.ocsp_update.mode = SSL_SOCK_OCSP_UPDATE_OFF,
@@ -1092,7 +1092,7 @@ static int tlskeys_finalize_config(void)
 #endif /* SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB */
 
 
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
+#if (defined(HAVE_SSL_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 /*
  * This function enables the handling of OCSP status extension on 'ctx' if a
  * ocsp_response buffer was found in the cert_key_and_chain.  To enable OCSP
@@ -2772,7 +2772,7 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, struct ckch_store *store
 	}
 #endif
 
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+#if defined(HAVE_SSL_OCSP)
 	/* Load OCSP Info into context
 	 * If OCSP update mode is set to 'on', an entry will be created in the
 	 * ocsp tree even if no ocsp_response was known during init, unless the
@@ -6965,7 +6965,7 @@ static void __ssl_sock_init(void)
 	sctl_ex_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_sctl_free_func);
 #endif
 
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
+#if (defined(HAVE_SSL_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 	ocsp_ex_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_ocsp_free_func);
 #endif
 
@@ -7019,7 +7019,9 @@ static void __ssl_sock_init(void)
 
 	HA_SPIN_INIT(&ckch_lock);
 
+#if defined(HAVE_SSL_OCSP)
 	HA_SPIN_INIT(&ocsp_tree_lock);
+#endif
 
 	/* Try to register dedicated SSL/TLS protocol message callbacks for
 	 * heartbleed attack (CVE-2014-0160) and clienthello.
@@ -7159,7 +7161,7 @@ static void __ssl_sock_deinit(void)
 #endif
 	BIO_meth_free(ha_meth);
 
-#if !defined OPENSSL_NO_OCSP
+#if defined(HAVE_SSL_OCSP)
 	ssl_destroy_ocsp_update_task();
 #endif
 }
