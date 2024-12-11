@@ -1,6 +1,103 @@
 ChangeLog :
 ===========
 
+2024/12/11 : 3.2-dev1
+    - MINOR: pattern: split pat_ref_set()
+    - MINOR: pattern: add pat_ref_gen_set() function
+    - MINOR: pattern: add pat_ref_gen_find_elt() function
+    - MINOR: pattern: add pat_ref_gen_delete() function
+    - MEDIUM: pattern: consider gen_id in pat_ref_set_from_node()
+    - MEDIUM: pattern: always consider gen_id for pat_ref lookup operations
+    - MINOR: version: this is development again (3.2)
+    - DEV: patchbot: prepare for new version 3.2-dev
+    - BUG/MEDIUM: sock: Remove FD_POLL_HUP during connect() if FD_POLL_ERR is not set
+    - MINOR: proxy: Add support of 421-Misdirected-Request in retry-on status
+    - BUG/MINOR: log: fix lf_text() behavior with empty string
+    - MINOR: log: always consider "+M" option in lf_text_len()
+    - BUG/MINOR: improve BBR throughput on very fast links
+    - MINOR: event_hdl: add PAT_REF events
+    - MINOR: pattern: publish event_hdl events on pat_ref updates
+    - MINOR: hlua: add patref class
+    - MINOR: hlua: add core.get_patref method
+    - MINOR: hlua_fcn: implement index and pair metamethods for patref class
+    - MINOR: hlua_fcn: wrap pat_ref struct for patref class
+    - MINOR: pattern: add pat_ref_may_commit() helper function
+    - MINOR: hlua_fcn: add Patref:commit() method
+    - MINOR: hlua_fcn: add Patref:prepare() method
+    - MINOR: hlua_fcn: add Patref:purge() method
+    - MINOR: hlua_fcn: add Patref:giveup()
+    - MINOR: hlua_fcn: add Patref:add()
+    - MINOR: hlua_fcn: add Patref:del()
+    - MINOR: hlua_fcn: add Patref:set()
+    - MINOR: hlua_fcn: add Patref:add_bulk()
+    - MINOR: hlua_fcn: add Patref:event_sub()
+    - DOC: lua: prefer Patref:{set,add}() over legacy methods for acl and maps
+    - BUG/MINOR: hlua_fcn: fix Patref:set() force parameter
+    - BUG/MEDIUM: event_hdl: fix uninitialized value in async mode when no data is provided
+    - BUG/MEDIUM: quic: prevent stream freeze on pacing
+    - BUG/MEDIUM: http-ana: Reset request flag about data sent to perform a L7 retry
+    - BUG/MINOR: h1-htx: Use default reason if not set when formatting the response
+    - BUILD: quic: fix a build error about an non initialized timestamp
+    - CI: github: allow coredumps on aws-lc and wolfssl jobs
+    - BUG/MINOR: listener: fix potential null pointer dereference in listener_release()
+    - MINOR: hlua: fix ambiguous hlua usage in hlua_filter_delete()
+    - BUG/MINOR: signal: register default handler for SIGINT in signal_init()
+    - BUG/MINOR: startup: close pidfd and free global.pidfile in handle_pidfile()
+    - BUG/MINOR: startup: fix pidfile creation
+    - MINOR: tools: add a new macro DEFVAL() to provide a default argument
+    - MINOR: tasklet: set TASK_WOKEN_OTHER on tasklets by default
+    - BUG/MINOR: quic: fix bbr_inflight() calls with wrong gain value
+    - BUG/MEDIUM: init: make sure only daemonized processes change their session
+    - BUG/MINOR: init: do not call fork_poller() for non-forked processes
+    - BUG/MEDIUM: mux-quic: remove pacing status when everything is sent
+    - BUG/MINOR: quic: remove startup alert if conn socket-owner unsupported
+    - BUG/MINOR: quic: remove startup alert if GSO unsupported
+    - MINOR: stktable: implement "recv-only" table option
+    - CLEANUP: stktable: replace nopurge attribute with flag
+    - CLEANUP: stktable: add some stktable flags polishing
+    - BUG/MEDIUM: mux-h2: make sure not to touch dummy streams when sending WU
+    - MINOR: mux-quic: clean up zero-copy done_ff callback
+    - BUG/MINOR: config: Fix parsing of accept-invalid-http-{request,response}
+    - BUG/MINOR: mworker: don't save program PIDs in oldpids
+    - BUG/MINOR: mworker: fix -D -W -sf/-st modes
+    - BUG/MINOR: startup: fix error path for master, if can't open pidfile
+    - CLEANUP: startup: make if condition to kill old pids more readable
+    - DOC: config: fix confusing init-state examples
+    - MINOR: mux-h1: use explicit __objt_server on idle conn reinsert
+    - MINOR: mux-h2: use explicit __objt_server on idle conn reinsert
+    - MINOR: mux-spop: use explicit __objt_server on idle conn reinsert
+    - MINOR: mux-fcgi: use explicit __objt_server on idle conn reinsert
+    - MINOR: quic: convert startup check in a freestanding function
+    - MINOR: quic: split startup check function
+    - MINOR: quic: implement build options report
+    - BUG/MINOR: debug: COUNT_IF() should return true/false
+    - MINOR: mux-h2/traces: add a missing trace on negative initial window size
+    - CLEANUP: mux-h2/traces: reword certain ambiguous traces
+    - MINOR: mux-h2/glitches: add a description to the H2 glitches
+    - BUG/MINOR: mux-h2: fix expression when detecting excess of CONTINUATION frames
+    - BUILD: debug: fix build issues in COUNT_IF() with -Wunused-value
+    - MINOR: tools: make fddebug() automatically emit the location
+    - MINOR: ssl: add notBefore and notAfter utility functions
+    - MEDIUM: ssl/cli: "show ssl sni" list the loaded SNI in frontends
+    - BUG/MEDIUM: startup: don't daemonize if started with -c
+    - BUG/MEDIUM: startup: report status if daemonized process fails
+    - BUG/MEDIUM: mworker: report status, if daemonized master fails
+    - BUG/MINOR: mworker: detach from tty when received READY from worker
+    - BUG/MINOR: namespace: handle a possible strdup() failure
+    - BUG/MINOR: ssl_crtlist: handle a possible strdup() failure
+    - BUG/MINOR: resolvers: handle a possible strdup() failure
+    - CI: use "/tmp" as default value for TMPDIR when searching logs
+    - DOC: management: fix typos and paragraph ordering in 'show ssl sni'
+    - CLEANUP: ssl: fix comment in 'show ssl sni'
+    - MINOR: ssl/cli: add negative filters to "show ssl sni"
+    - BUG/MINOR: stats: decrement srv refcount on stats-file release
+    - MINOR: list: define a watcher type
+    - BUG/MEDIUM: stats/server: use watcher to track server during stats dump
+    - MINOR: server: remove prev_deleted server list
+    - BUG/MINOR: http-fetch: Ignore empty argument string for query()
+    - BUG/MINOR: server-state: Fix expiration date of srvrq_check tasks
+    - BUG/MINOR: hlua_fcn: restore server pairs iterator pointer consistency
+
 2024/11/26 : 3.2-dev0
     - exact copy of 3.1.0
 
