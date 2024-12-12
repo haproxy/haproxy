@@ -67,6 +67,22 @@ def determine_latest_aws_lc(ssl):
     latest_tag = max(valid_tags, key=aws_lc_version_string_to_num)
     return "AWS_LC_VERSION={}".format(latest_tag[1:])
 
+def aws_lc_fips_version_string_to_num(version_string):
+    return tuple(map(int, version_string[12:].split('.')))
+
+def aws_lc_fips_version_valid(version_string):
+    return re.match('^AWS-LC-FIPS-[0-9]+(\.[0-9]+)*$', version_string)
+
+@functools.lru_cache(5)
+def determine_latest_aws_lc_fips(ssl):
+    # the AWS-LC-FIPS tags are at the end of the list, so let's get a lot
+    tags = get_all_github_tags("https://api.github.com/repos/aws/aws-lc/tags?per_page=200")
+    if not tags:
+        return "AWS_LC_FIPS_VERSION=failed_to_detect"
+    valid_tags = list(filter(aws_lc_fips_version_valid, tags))
+    latest_tag = max(valid_tags, key=aws_lc_fips_version_string_to_num)
+    return "AWS_LC_FIPS_VERSION={}".format(latest_tag[12:])
+
 def wolfssl_version_string_to_num(version_string):
     return tuple(map(int, version_string[1:].removesuffix('-stable').split('.')))
 

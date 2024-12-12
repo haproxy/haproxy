@@ -1,0 +1,86 @@
+name: AWS-LC-FIPS
+
+on:
+  schedule:
+    - cron: "0 0 * * 4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install VTest
+        run: |
+          scripts/build-vtest.sh
+      - name: Determine latest AWS-LC release
+        id: get_aws_lc_release
+        run: |
+          result=$(cd .github && python3  -c "from matrix import determine_latest_aws_lc_fips; print(determine_latest_aws_lc_fips(''))")
+          echo $result
+          echo "result=$result" >> $GITHUB_OUTPUT
+      - name: Cache AWS-LC
+        id: cache_aws_lc
+        uses: actions/cache@v4
+        with:
+          path: '~/opt/'
+          key: ssl-${{ steps.get_aws_lc_release.outputs.result }}-Ubuntu-latest-gcc
+      - name: Install apt dependencies
+        run: |
+          sudo apt-get update -o Acquire::Languages=none -o Acquire::Translation=none
+          sudo apt-get --no-install-recommends -y install socat gdb
+      - name: Install AWS-LC
+        if: ${{ steps.cache_ssl.outputs.cache-hit != 'true' }}
+        run: env ${{ steps.get_aws_lc_release.outputs.result }} scripts/build-ssl.sh
+      - name: Compile HAProxy
+        run: |
+          make -j$(nproc) ERR=1 CC=gcc TARGET=linux-glibc \
+            USE_OPENSSL_AWSLC=1 USE_QUIC=1 \
+            SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include \
+            DEBUG="-DDEBUG_POOL_INTEGRITY" \
+            ADDLIB="-Wl,-rpath,/usr/local/lib/ -Wl,-rpath,$HOME/opt/lib/"
+          sudo make install
+      - name: Show HAProxy version
+        id: show-version
+        run: |
+          ldd $(which haproxy)
+          haproxy -vv
+          echo "version=$(haproxy -v |awk 'NR==1{print $3}')" >> $GITHUB_OUTPUT
+      - name: Install problem matcher for VTest
+        run: echo "::add-matcher::.github/vtest.json"
+      - name: Run VTest for HAProxy
+        id: vtest
+        run: |
+          # This is required for macOS which does not actually allow to increase
+          # the '-n' soft limit to the hard limit, thus failing to run.
+          ulimit -n 65536
+          # allow to catch coredumps
+          ulimit -c unlimited
+          make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
+      - name: Show VTest results
+        if: ${{ failure() && steps.vtest.outcome == 'failure' }}
+        run: |
+          for folder in ${TMPDIR:-/tmp}/haregtests-*/vtc.*; do
+            printf "::group::"
+            cat $folder/INFO
+            cat $folder/LOG
+            echo "::endgroup::"
+          done
+          exit 1
+      - name: Show coredumps
+        if: ${{ failure() && steps.vtest.outcome == 'failure' }}
+        run: |
+          failed=false
+          shopt -s nullglob
+          for file in /tmp/core.*; do
+            failed=true
+            printf "::group::"
+            gdb -ex 'thread apply all bt full' ./haproxy $file
+            echo "::endgroup::"
+          done
+          if [ "$failed" = true ]; then
+            exit 1;
+          fi
