@@ -2511,7 +2511,7 @@ static int qcc_io_send(struct qcc *qcc)
 
 	if (qcc_is_pacing_active(qcc->conn)) {
 		if (!LIST_ISEMPTY(frms) && !quic_pacing_expired(&qcc->tx.pacer)) {
-			tasklet_wakeup(qcc->wait_event.tasklet);
+			tasklet_wakeup(qcc->wait_event.tasklet, TASK_F_UEVT1);
 			total = 0;
 			goto out;
 		}
@@ -2553,7 +2553,7 @@ static int qcc_io_send(struct qcc *qcc)
 	if (ret == 1) {
 		/* qcc_send_frames cannot return 1 if pacing not used. */
 		BUG_ON(!qcc_is_pacing_active(qcc->conn));
-		tasklet_wakeup(qcc->wait_event.tasklet);
+		tasklet_wakeup(qcc->wait_event.tasklet, TASK_F_UEVT1);
 		++qcc->tx.paced_sent_ctr;
 	}
 
@@ -2867,6 +2867,13 @@ struct task *qcc_io_cb(struct task *t, void *ctx, unsigned int status)
 {
 	struct qcc *qcc = ctx;
 
+	/* Check if woken up only for pacing but not yet expired. */
+	if ((status & (TASK_F_UEVT1|TASK_WOKEN_ANY)) == TASK_F_UEVT1 &&
+	    !quic_pacing_expired(&qcc->tx.pacer)) {
+		/* hide any trace as no progress should be performed on this invokation. */
+		trace_disable();
+	}
+
 	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
 
 	if (!(qcc->wait_event.events & SUB_RETRY_SEND))
@@ -2882,12 +2889,17 @@ struct task *qcc_io_cb(struct task *t, void *ctx, unsigned int status)
 	qcc_refresh_timeout(qcc);
 
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE, qcc->conn);
+	trace_resume();
+
 	return NULL;
 
  release:
 	qcc_shutdown(qcc);
 	qcc_release(qcc);
+
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE);
+	trace_resume();
+
 	return NULL;
 }
 
