@@ -76,20 +76,17 @@ static inline uint64_t wf_max_update(struct wf *wf, uint64_t v, uint32_t t)
 	if (unlikely(delta_t > wf->len)) {
 		wf->smp[0] = wf->smp[1];
 		wf->smp[1] = wf->smp[2];
-		wf->smp[2].v = v;
-		wf->smp[2].t = t;
+		wf->smp[2] = smp;
 
 		if (unlikely(t - wf->smp[0].t > wf->len)) {
 			wf->smp[0] = wf->smp[1];
 			wf->smp[1] = wf->smp[2];
 		}
-	} else if (unlikely(wf->smp[1].v == wf->smp[0].v) && delta_t > wf->len / 4) {
-		wf->smp[2].v = v;
-		wf->smp[2].t = t;
+	} else if (unlikely(wf->smp[1].t == wf->smp[0].t) && delta_t > wf->len / 4) {
+		wf->smp[2] = smp;
 		wf->smp[1] = wf->smp[2];
-	} else if (unlikely(wf->smp[2].v == wf->smp[1].v) && delta_t > wf->len / 2) {
-		wf->smp[2].v = v;
-		wf->smp[2].t = t;
+	} else if (unlikely(wf->smp[2].t == wf->smp[1].t) && delta_t > wf->len / 2) {
+		wf->smp[2] = smp;
 	}
 
 	return wf->smp[0].v;
