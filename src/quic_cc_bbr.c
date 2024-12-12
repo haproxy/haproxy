@@ -1026,9 +1026,15 @@ static void bbr_loss_lower_bounds(struct bbr *bbr)
 	                       bbr->inflight_lo * BBR_BETA_MULT / BBR_BETA_DIVI);
 }
 
+static inline int bbr_is_accelerating_probing_bw(struct bbr *bbr)
+{
+	return bbr->state == BBR_ST_PROBE_BW_REFILL ||
+		bbr->state == BBR_ST_PROBE_BW_UP;
+}
+
 static void bbr_adapt_lower_bounds_from_congestion(struct bbr *bbr, struct quic_cc_path *p)
 {
-	if (bbr_is_probing_bw(bbr))
+	if (bbr_is_accelerating_probing_bw(bbr))
 		return;
 
 	if (bbr->loss_in_round) {
