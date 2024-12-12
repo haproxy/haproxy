@@ -1351,6 +1351,7 @@ static void qcc_notify_fctl(struct qcc *qcc)
 /* Free <qcc> STREAM frames in Tx list. */
 static void qcc_clear_frms(struct qcc *qcc)
 {
+	TRACE_STATE("resetting STREAM frames list", QMUX_EV_QCC_SEND, qcc->conn);
 	while (!LIST_ISEMPTY(&qcc->tx.frms)) {
 		struct quic_frame *frm = LIST_ELEM(qcc->tx.frms.n, struct quic_frame *, list);
 		qc_frm_free(qcc->conn->handle.qc, &frm);
@@ -1412,6 +1413,8 @@ void qcc_send_stream(struct qcs *qcs, int urg, int count)
 
 	/* Cannot send if already closed. */
 	BUG_ON(qcs_is_close_local(qcs));
+
+	qcc_clear_frms(qcc);
 
 	if (urg) {
 		/* qcc_emit_rs_ss() relies on resetted/aborted streams in send_list front. */
@@ -1664,6 +1667,9 @@ int qcc_recv_max_data(struct qcc *qcc, uint64_t max)
 
 		if (unblock_soft)
 			qcc_notify_fctl(qcc);
+
+		if (unblock_soft || unblock_real)
+			qcc_clear_frms(qcc);
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
@@ -1713,6 +1719,9 @@ int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max)
 				tot_time_stop(&qcs->timer.fctl);
 				qcs_notify_send(qcs);
 			}
+
+			if (unblock_soft || unblock_real)
+				qcc_clear_frms(qcc);
 		}
 	}
 
@@ -2468,8 +2477,6 @@ static int qcc_io_send(struct qcc *qcc)
 	 * apply for STREAM frames.
 	 */
 
-	qcc_clear_frms(qcc);
-
 	/* Check for transport error. */
 	if (qcc->flags & QC_CF_ERR_CONN || qcc->conn->flags & CO_FL_ERROR) {
 		TRACE_DEVEL("connection on error", QMUX_EV_QCC_SEND, qcc->conn);
@@ -2505,10 +2512,14 @@ static int qcc_io_send(struct qcc *qcc)
 		goto out;
 	}
 
-	/* Encode STREAM frames for registered streams. */
-	total = qcc_build_frms(qcc, &qcs_failed);
-	if (!total)
-		goto sent_done;
+	/* Encode new STREAM frames if list has been previously cleared. */
+	if (LIST_ISEMPTY(frms) && !LIST_ISEMPTY(&qcc->send_list)) {
+		total = qcc_build_frms(qcc, &qcs_failed);
+		if (!total) {
+			BUG_ON(!LIST_ISEMPTY(frms));
+			goto out;
+		}
+	}
 
 	if (qcc_is_pacing_active(qcc->conn)) {
 		if (!LIST_ISEMPTY(frms) && !quic_pacing_expired(&qcc->tx.pacer)) {
@@ -2550,22 +2561,18 @@ static int qcc_io_send(struct qcc *qcc)
 		}
 	}
 
- sent_done:
 	if (ret == 1) {
 		/* qcc_send_frames cannot return 1 if pacing not used. */
 		BUG_ON(!qcc_is_pacing_active(qcc->conn));
 		qcc_wakeup_pacing(qcc);
 		++qcc->tx.paced_sent_ctr;
 	}
-	else if (!LIST_ISEMPTY(&qcc->tx.frms)) {
-		/* Deallocate frames that the transport layer has rejected. */
-		qcc_clear_frms(qcc);
-	}
-	else {
+	else if (LIST_ISEMPTY(frms)) {
 		/* Everything sent */
 		HA_ATOMIC_AND(&qcc->wait_event.tasklet->state, ~TASK_F_USR1);
 	}
 
+ out:
 	/* Re-insert on-error QCS at the end of the send-list. */
 	if (!LIST_ISEMPTY(&qcs_failed)) {
 		list_for_each_entry_safe(qcs, qcs_tmp, &qcs_failed, el_send) {
@@ -2577,7 +2584,6 @@ static int qcc_io_send(struct qcc *qcc)
 			qcc_wakeup(qcc);
 	}
 
- out:
 	if (qcc->conn->flags & CO_FL_ERROR && !(qcc->flags & QC_CF_ERR_CONN)) {
 		TRACE_ERROR("error reported by transport layer",
 		            QMUX_EV_QCC_SEND, qcc->conn);
