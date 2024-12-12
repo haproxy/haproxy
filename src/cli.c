@@ -962,19 +962,19 @@ size_t cli_snd_buf(struct appctx *appctx, struct buffer *buf, size_t count, unsi
 
 		if (str[len-1] == '\n')
 			lf = 1;
-
-		/* Remove the trailing \r, if any and add a null byte at the
-		 * end. For normal mode, the trailing \n is removed, but we
-		 * conserve if for payload mode.
-		 */
 		len--;
-		if (len && str[len-1] == '\r')
-			len--;
+
 		if (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD) {
 			str[len+1] = '\0';
 			b_add(&appctx->inbuf, len+1);
 		}
 		else  {
+			/* Remove the trailing \r, if any and add a null byte at the
+			 * end. For normal mode, the trailing \n is removed, but we
+			 * conserve \r\n or \n sequences for payload mode.
+			 */
+			if (len && str[len-1] == '\r')
+				len--;
 			str[len] = '\0';
 			b_add(&appctx->inbuf, len);
 		}
