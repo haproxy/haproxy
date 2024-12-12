@@ -26,7 +26,6 @@ static void quic_cc_rs_init(struct quic_cc_rs *rs)
 void quic_cc_drs_init(struct quic_cc_drs *drs)
 {
 	quic_cc_rs_init(&drs->rs);
-	wf_init(&drs->wf, 12, 0, ~0U);
 	drs->round_count = 0;
 	drs->next_round_delivered = 0;
 	drs->delivered = 0;
@@ -122,7 +121,6 @@ void quic_cc_drs_on_ack_recv(struct quic_cc_drs *drs, struct quic_cc_path *path,
                              uint64_t pkt_delivered)
 {
 	struct quic_cc_rs *rs = &drs->rs;
-	uint64_t rate;
 
 	if (drs->app_limited && drs->delivered > drs->app_limited)
 		drs->app_limited = 0;
@@ -150,8 +148,6 @@ void quic_cc_drs_on_ack_recv(struct quic_cc_drs *drs, struct quic_cc_path *path,
 	if (!rs->interval_us)
 		return;
 
-	/* <rate> is in bytes/s. */
-	rate = rs->delivered * 1000000 / rs->interval_us;
-	if (rate >= wf_get_max(&drs->wf) || !drs->app_limited)
-		path->delivery_rate = wf_max_update(&drs->wf, rate, drs->round_count);
+	/* <delivery_rate> is in bytes/s. */
+	path->delivery_rate = rs->delivered * 1000000 / rs->interval_us;
 }
