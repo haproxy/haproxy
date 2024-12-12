@@ -177,13 +177,6 @@ enum bbr_state {
 	BBR_ST_PROBE_RTT,
 };
 
-enum bbr_ack_phase {
-	BBR_ACK_PHASE_ACKS_PROBE_STARTING,
-	BBR_ACK_PHASE_ACKS_PROBE_STOPPING,
-	BBR_ACK_PHASE_ACKS_PROBE_FEEDBACK,
-	BBR_ACK_PHASE_ACKS_REFILLING,
-};
-
 struct bbr {
 	/* Delivery rate sampling information. */
 	struct quic_cc_drs drs;
@@ -218,7 +211,6 @@ struct bbr {
 	uint64_t offload_budget;
 	uint64_t probe_up_cnt;
 	uint32_t cycle_stamp;
-	enum bbr_ack_phase ack_phase;
 	unsigned int bw_probe_wait;
 	int bw_probe_samples;
 	int bw_probe_up_rounds;
@@ -599,7 +591,6 @@ static int bbr_init(struct quic_cc *cc)
 	bbr->offload_budget = 0;
 	bbr->probe_up_cnt = UINT64_MAX;
 	bbr->cycle_stamp = TICK_ETERNITY;
-	bbr->ack_phase = 0;
 	bbr->bw_probe_wait = 0;
 	bbr->bw_probe_samples = 0;
 	bbr->bw_probe_up_rounds = 0;
@@ -736,6 +727,11 @@ static void bbr_raise_inflight_hi_slope(struct bbr *bbr, struct quic_cc_path *p)
 	bbr->probe_up_cnt = MAX(p->cwnd / growth_this_round, 1) * p->mtu;
 }
 
+static inline void bbr_advance_max_bw_filter(struct bbr *bbr)
+{
+	bbr->cycle_count++;
+}
+
 /* 4.3.3. ProbeBW
  *
  * Long-lived BBR flows tend to spend the vast majority of their time in the
@@ -767,11 +763,12 @@ static void bbr_start_probe_bw_down(struct bbr *bbr)
 	bbr->probe_up_cnt = UINT64_MAX;
 	bbr_pick_probe_wait(bbr);
 	bbr->cycle_stamp = now_ms;
-	bbr->ack_phase = BBR_ACK_PHASE_ACKS_PROBE_STOPPING;
 	bbr_start_round(bbr);
 	bbr->state = BBR_ST_PROBE_BW_DOWN;
 	bbr->pacing_gain = 90;
 	bbr->cwnd_gain = BBR_DEFAULT_CWND_GAIN_MULT;
+	if (!bbr->drs.rs.is_app_limited)
+		bbr_advance_max_bw_filter(bbr);
 }
 
 /*  4.3.3.2. ProbeBW_CRUISE
@@ -800,7 +797,6 @@ static void bbr_start_probe_bw_refill(struct bbr *bbr)
 	bbr_reset_lower_bounds(bbr);
 	bbr->bw_probe_up_rounds = 0;
 	bbr->bw_probe_up_acks = 0;
-	bbr->ack_phase = BBR_ACK_PHASE_ACKS_REFILLING;
 	bbr_start_round(bbr);
 	bbr->state = BBR_ST_PROBE_BW_REFILL;
 	bbr->pacing_gain = 100;
@@ -809,7 +805,6 @@ static void bbr_start_probe_bw_refill(struct bbr *bbr)
 
 static void bbr_start_probe_bw_up(struct bbr *bbr, struct quic_cc_path *p)
 {
-	bbr->ack_phase = BBR_ACK_PHASE_ACKS_PROBE_STARTING;
 	bbr_start_round(bbr);
 	bbr_reset_full_bw(bbr);
 	bbr->full_bw = p->delivery_rate;
@@ -841,11 +836,6 @@ static void bbr_exit_probe_rtt(struct bbr *bbr)
 	} else {
 		bbr_enter_startup(bbr);
 	}
-}
-
-static void bbr_advance_max_bw_filter(struct bbr *bbr)
-{
-	bbr->cycle_count++;
 }
 
 static uint64_t bbr_target_inflight(struct bbr *bbr, struct quic_cc_path *p)
@@ -907,16 +897,6 @@ static void bbr_probe_inflight_hi_upward(struct bbr *bbr, struct quic_cc_path *p
 static void bbr_adapt_upper_bounds(struct bbr *bbr, struct quic_cc_path *p,
                                    uint32_t acked)
 {
-	if (bbr->ack_phase == BBR_ACK_PHASE_ACKS_PROBE_STARTING && bbr->round_start)
-		/* starting to get bw probing samples */
-		bbr->ack_phase = BBR_ACK_PHASE_ACKS_PROBE_FEEDBACK;
-
-	if (bbr->ack_phase == BBR_ACK_PHASE_ACKS_PROBE_STOPPING && bbr->round_start) {
-		/* end of samples from bw probing phase */
-		if (bbr_is_probing_bw(bbr) && !bbr->drs.rs.is_app_limited)
-			bbr_advance_max_bw_filter(bbr);
-	}
-
 	if (bbr_is_inflight_too_high(bbr, p))
 		return;
 
@@ -1241,7 +1221,6 @@ static inline void bbr_check_probe_rtt(struct bbr *bbr, struct quic_cc_path *p)
 		bbr_enter_probe_rtt(bbr);
 		bbr_save_cwnd(bbr, p);
 		bbr->probe_rtt_done_stamp = TICK_ETERNITY;
-		bbr->ack_phase = BBR_ACK_PHASE_ACKS_PROBE_STOPPING;
 		bbr_start_round(bbr);
 	}
 
