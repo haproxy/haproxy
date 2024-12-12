@@ -28,7 +28,7 @@ struct quic_cc_drs {
 	uint64_t delivered_time_ns;
 	uint64_t first_sent_time_ns;
 	int is_cwnd_limited; /* boolean */
-	int app_limited; /* boolean */
+	int app_limited;
 };
 
 void quic_cc_drs_init(struct quic_cc_drs *drs);
