@@ -1334,9 +1334,13 @@ static uint64_t bbr_inflight_hi_from_lost_packet(struct quic_cc_rs *rs,
 	BUG_ON(rs->lost < size);
 	/* What was lost before this packet? */
 	lost_prev = rs->lost - size;
+	if (BBR_LOSS_THRESH_MULT * inflight_prev < lost_prev * BBR_LOSS_THRESH_DIVI)
+		return inflight_prev;
+
 	lost_prefix =
 		(BBR_LOSS_THRESH_MULT * inflight_prev - lost_prev * BBR_LOSS_THRESH_DIVI) /
 		(BBR_LOSS_THRESH_DIVI - BBR_LOSS_THRESH_MULT);
+	/* At what inflight value did losses cross BBRLossThresh? */
 	return inflight_prev + lost_prefix;
 }
 
