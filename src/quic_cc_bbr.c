@@ -1296,7 +1296,7 @@ static void bbr_update_control_parameters(struct bbr *bbr,
 
 static inline int in_recovery_period(struct quic_cc_path *p, uint32_t ts)
 {
-	return tick_isset(p->recovery_start_ts) ||
+	return tick_isset(p->recovery_start_ts) &&
 		tick_is_le(ts, p->recovery_start_ts);
 }
 
