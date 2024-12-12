@@ -840,7 +840,7 @@ static void bbr_exit_probe_rtt(struct bbr *bbr)
 
 static uint64_t bbr_target_inflight(struct bbr *bbr, struct quic_cc_path *p)
 {
-	uint64_t bdp = bbr_inflight(bbr, p, bbr->bw, bbr->cwnd_gain);
+	uint64_t bdp = bbr_inflight(bbr, p, bbr->bw, 100);
 	return MIN(bdp, p->cwnd);
 }
 
