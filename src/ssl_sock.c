@@ -7041,16 +7041,16 @@ static void ssl_register_build_options()
 	char *ptr = NULL;
 	int i;
 
-	memprintf(&ptr, "Built with OpenSSL version : "
+	memprintf(&ptr, "Built with SSL library version : "
 #ifdef OPENSSL_IS_BORINGSSL
 		"BoringSSL");
 #else /* OPENSSL_IS_BORINGSSL */
 	        OPENSSL_VERSION_TEXT
-		"\nRunning on OpenSSL version : %s%s",
+		"\nRunning on SSL library version : %s%s",
 	       OpenSSL_version(OPENSSL_VERSION),
 	       ((OPENSSL_VERSION_NUMBER ^ OpenSSL_version_num()) >> 8) ? " (VERSIONS DIFFER!)" : "");
 #endif
-	memprintf(&ptr, "%s\nOpenSSL library supports TLS extensions : "
+	memprintf(&ptr, "%s\nSSL library supports TLS extensions : "
 #if HA_OPENSSL_VERSION_NUMBER < 0x00907000L
 		"no (library version too old)"
 #elif defined(OPENSSL_NO_TLSEXT)
@@ -7060,7 +7060,7 @@ static void ssl_register_build_options()
 #endif
 		"", ptr);
 
-	memprintf(&ptr, "%s\nOpenSSL library supports SNI : "
+	memprintf(&ptr, "%s\nSSL library supports SNI : "
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 		"yes"
 #else
@@ -7072,9 +7072,9 @@ static void ssl_register_build_options()
 #endif
 	       "", ptr);
 #if defined(USE_OPENSSL) && (HA_OPENSSL_VERSION_NUMBER < 0x3000000fL)
-	memprintf(&ptr, "%s\nOpenSSL library FIPS mode : %s", ptr, FIPS_mode() ? "yes" : "no");
+	memprintf(&ptr, "%s\nSSL library FIPS mode : %s", ptr, FIPS_mode() ? "yes" : "no");
 #endif
-	memprintf(&ptr, "%s\nOpenSSL library supports :", ptr);
+	memprintf(&ptr, "%s\nSSL library supports :", ptr);
 	for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
 		if (methodVersions[i].option)
 			memprintf(&ptr, "%s %s", ptr, methodVersions[i].name);
