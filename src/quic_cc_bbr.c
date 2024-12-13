@@ -277,7 +277,7 @@ static inline int is_inflight_too_high(struct quic_cc_rs *rs)
 		rs->tx_in_flight * BBR_LOSS_THRESH_MULT;
 }
 
-static inline int bbr_is_probing_bw(struct bbr *bbr)
+static inline int bbr_is_in_a_probe_bw_state(struct bbr *bbr)
 {
 	switch (bbr->state) {
 	case BBR_ST_PROBE_BW_DOWN:
@@ -527,7 +527,7 @@ static void bbr_bound_cwnd_for_model(struct bbr *bbr, struct quic_cc_path *p)
 {
 	uint64_t cap = UINT64_MAX;
 
-	if (bbr_is_probing_bw(bbr) && bbr->state != BBR_ST_PROBE_BW_CRUISE)
+	if (bbr_is_in_a_probe_bw_state(bbr) && bbr->state != BBR_ST_PROBE_BW_CRUISE)
 		cap = bbr->inflight_hi;
 	else if (bbr->state == BBR_ST_PROBE_RTT || bbr->state == BBR_ST_PROBE_BW_CRUISE)
 		cap = bbr_inflight_with_headroom(bbr, p);
@@ -1026,7 +1026,7 @@ static void bbr_loss_lower_bounds(struct bbr *bbr)
 	                       bbr->inflight_lo * BBR_BETA_MULT / BBR_BETA_DIVI);
 }
 
-static inline int bbr_is_accelerating_probing_bw(struct bbr *bbr)
+static inline int bbr_is_probing_bw(struct bbr *bbr)
 {
 	return bbr->state == BBR_ST_STARTUP ||
 		bbr->state == BBR_ST_PROBE_BW_REFILL ||
@@ -1035,7 +1035,7 @@ static inline int bbr_is_accelerating_probing_bw(struct bbr *bbr)
 
 static void bbr_adapt_lower_bounds_from_congestion(struct bbr *bbr, struct quic_cc_path *p)
 {
-	if (bbr_is_accelerating_probing_bw(bbr))
+	if (bbr_is_probing_bw(bbr))
 		return;
 
 	if (bbr->loss_in_round) {
@@ -1134,7 +1134,7 @@ static void bbr_update_probe_bw_cycle_phase(struct bbr *bbr, struct quic_cc_path
 		return; /* only handling steady-state behavior here */
 
 	bbr_adapt_upper_bounds(bbr, p, acked);
-	if (!bbr_is_probing_bw(bbr))
+	if (!bbr_is_in_a_probe_bw_state(bbr))
 		return; /* only handling ProbeBW states here: */
 
 	switch (bbr->state) {
@@ -1413,7 +1413,7 @@ static void bbr_handle_restart_from_idle(struct bbr *bbr, struct quic_cc_path *p
 	bbr->idle_restart = 1;
 	bbr->extra_acked_interval_start = now_ms;
 
-	if (bbr_is_probing_bw(bbr))
+	if (bbr_is_in_a_probe_bw_state(bbr))
 		bbr_set_pacing_rate_with_gain(bbr, p, 100);
 	else if (bbr->state == BBR_ST_PROBE_RTT)
 		bbr_check_probe_rtt_done(bbr, p);
