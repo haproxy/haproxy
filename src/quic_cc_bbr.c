@@ -1028,7 +1028,8 @@ static void bbr_loss_lower_bounds(struct bbr *bbr)
 
 static inline int bbr_is_accelerating_probing_bw(struct bbr *bbr)
 {
-	return bbr->state == BBR_ST_PROBE_BW_REFILL ||
+	return bbr->state == BBR_ST_STARTUP ||
+		bbr->state == BBR_ST_PROBE_BW_REFILL ||
 		bbr->state == BBR_ST_PROBE_BW_UP;
 }
 
