@@ -628,11 +628,14 @@ void stream_free(struct stream *s)
 	}
 
 	if (unlikely(s->srv_conn)) {
+		struct server *oldsrv = s->srv_conn;
 		/* the stream still has a reserved slot on a server, but
 		 * it should normally be only the same as the one above,
 		 * so this should not happen in fact.
 		 */
 		sess_change_server(s, NULL);
+		if (may_dequeue_tasks(oldsrv, s->be))
+			process_srv_queue(oldsrv);
 	}
 
 	/* We may still be present in the buffer wait queue */
