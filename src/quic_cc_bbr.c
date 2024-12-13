@@ -1446,7 +1446,7 @@ static void bbr_congestion_event(struct quic_cc *cc, uint32_t ts)
 		tick_isset(bbr->recovery_start_ts) || in_recovery_period(p, ts))
 		return;
 
-	bbr->recovery_start_ts = ts;
+	bbr->recovery_start_ts = now_ms;
 }
 
 /* Callback to return the delivery rate sample struct from <cc> */
