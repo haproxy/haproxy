@@ -58,6 +58,7 @@ struct certificate_ocsp {
 
 	/* OCSP update stats */
 	u64 last_update;		/* Time of last successful update */
+	char *last_update_error;	/* Error message filled in case of update issue */
 	unsigned int last_update_status;/* Status of the last OCSP update */
 	unsigned int num_success;	/* Number of successful updates */
 	unsigned int num_failure;	/* Number of failed updates */

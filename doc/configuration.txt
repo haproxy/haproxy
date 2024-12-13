@@ -5520,6 +5520,9 @@ ocsp-update [ off | on ]
   section.
   In case of "OCSP response check failure" error, you might want to check that
   the issuer certificate that you provided is valid.
+  A more precise error message might also be displayed between parenthesis
+  after the "generic" error message. It can happen for "OCSP response check
+  failure" or "Error during insertion" errors.
 
 4. Proxies
 ----------

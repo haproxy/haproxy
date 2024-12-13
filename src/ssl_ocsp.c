@@ -376,6 +376,7 @@ static void ssl_sock_free_ocsp_data(struct certificate_ocsp *ocsp)
 		ha_free(&ocsp->uri->area);
 		ha_free(&ocsp->uri);
 	}
+	ha_free(&ocsp->last_update_error);
 	free(ocsp);
 }
 
@@ -1099,6 +1100,8 @@ static void ssl_ocsp_send_log()
 	int status_str_len = 0;
 	char *status_str = NULL;
 	struct certificate_ocsp *ocsp = ssl_ocsp_task_ctx.cur_ocsp;
+	char *last_error = NULL;
+	struct buffer *tmpbuf = get_trash_chunk();
 
 	if (!httpclient_ocsp_update_px)
 		return;
@@ -1106,15 +1109,20 @@ static void ssl_ocsp_send_log()
 	if (ocsp && ssl_ocsp_task_ctx.update_status < OCSP_UPDT_ERR_LAST) {
 		status_str_len = istlen(ocsp_update_errors[ssl_ocsp_task_ctx.update_status]);
 		status_str = istptr(ocsp_update_errors[ssl_ocsp_task_ctx.update_status]);
+		last_error = ocsp->last_update_error;
 	}
 
-	send_log(httpclient_ocsp_update_px, LOG_NOTICE, "%s %s %u \"%.*s\" %u %u",
-	         httpclient_ocsp_update_px->id,
-	         ocsp->path,
-	         ssl_ocsp_task_ctx.update_status,
-	         status_str_len, status_str,
-	         ocsp ? ocsp->num_failure : 0,
-	         ocsp ? ocsp->num_success : 0);
+	chunk_printf(tmpbuf, "%s %s %u \"%.*s", httpclient_ocsp_update_px->id,
+	             ocsp->path, ssl_ocsp_task_ctx.update_status,
+	             status_str_len, status_str);
+
+	if (last_error)
+		chunk_appendf(tmpbuf, " (%s)", last_error);
+
+	chunk_appendf(tmpbuf, "\" %u %u", ocsp ? ocsp->num_failure : 0,
+	              ocsp ? ocsp->num_success : 0);
+
+	send_log(httpclient_ocsp_update_px, LOG_NOTICE, "%.*s", (int)b_data(tmpbuf), b_orig(tmpbuf));
 }
 
 /*
@@ -1147,6 +1155,7 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 	struct buffer *req_body = NULL;
 	OCSP_CERTID *certid = NULL;
 	struct ssl_ocsp_task_ctx *ctx = &ssl_ocsp_task_ctx;
+	char *err = NULL;
 
 	if (ctx->cur_ocsp) {
 		/* An update is in process */
@@ -1189,12 +1198,12 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 			/* Process the body that must be complete since
 			 * HC_F_RES_END is set. */
 			if (ctx->flags & HC_F_RES_BODY) {
-				if (ssl_ocsp_check_response(ocsp->chain, ocsp->issuer, &hc->res.buf, NULL)) {
+				if (ssl_ocsp_check_response(ocsp->chain, ocsp->issuer, &hc->res.buf, &err)) {
 					ctx->update_status = OCSP_UPDT_ERR_CHECK;
 					goto http_error;
 				}
 
-				if (ssl_sock_update_ocsp_response(&hc->res.buf, NULL) != 0) {
+				if (ssl_sock_update_ocsp_response(&hc->res.buf, &err) != 0) {
 					ctx->update_status = OCSP_UPDT_ERR_INSERT;
 					goto http_error;
 				}
@@ -1208,6 +1217,7 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 			ocsp->last_update = date.tv_sec;
 			ctx->update_status = OCSP_UPDT_OK;
 			ocsp->last_update_status = ctx->update_status;
+			ha_free(&ocsp->last_update_error);
 
 			ssl_ocsp_send_log();
 
@@ -1352,13 +1362,15 @@ wait:
 	return task;
 
 http_error:
-	ssl_ocsp_send_log();
 	/* Reinsert certificate into update list so that it can be updated later */
 	if (ocsp) {
 		++ocsp->num_failure;
 		ocsp->last_update_status = ctx->update_status;
+		ha_free(&ocsp->last_update_error);
+		ocsp->last_update_error = err;
 		ssl_ocsp_update_insert_after_error(ocsp);
 	}
+	ssl_ocsp_send_log();
 
 	if (hc)
 		httpclient_stop_and_destroy(hc);
@@ -1806,8 +1818,11 @@ static int dump_ocsp_update_info(struct certificate_ocsp *ocsp, struct buffer *o
 	/* Last update status str */
 	if (ocsp->last_update_status >= OCSP_UPDT_ERR_LAST)
 		chunk_appendf(out, "-");
-	else
+	else {
 		chunk_appendf(out, "%s", istptr(ocsp_update_errors[ocsp->last_update_status]));
+		if (ocsp->last_update_error)
+			chunk_appendf(out, " (%s)", ocsp->last_update_error);
+	}
 
 	chunk_appendf(out, "\n");
 
