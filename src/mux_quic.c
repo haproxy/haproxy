@@ -1414,6 +1414,9 @@ void qcc_send_stream(struct qcs *qcs, int urg, int count)
 	BUG_ON(qcs_is_close_local(qcs));
 
 	if (urg) {
+		/* qcc_emit_rs_ss() relies on resetted/aborted streams in send_list front. */
+		BUG_ON(!(qcs->flags & (QC_SF_TO_RESET|QC_SF_TO_STOP_SENDING|QC_SF_TXBUB_OOB)));
+
 		LIST_DEL_INIT(&qcs->el_send);
 		LIST_INSERT(&qcc->send_list, &qcs->el_send);
 	}
@@ -2298,6 +2301,81 @@ static int qcs_send(struct qcs *qcs, struct list *frms, uint64_t window_conn)
 	return -1;
 }
 
+/* Send RESET_STREAM/STOP_SENDING for streams in <qcc> send_list if requested.
+ * Each frame is encoded and emitted separately for now. If a frame cannot be
+ * sent, send_list looping is interrupted.
+ *
+ * Returns 0 on success else non-zero.
+ */
+static int qcc_emit_rs_ss(struct qcc *qcc)
+{
+	struct qcs *qcs, *qcs_tmp;
+
+	TRACE_ENTER(QMUX_EV_QCC_END, qcc->conn);
+
+	list_for_each_entry_safe(qcs, qcs_tmp, &qcc->send_list, el_send) {
+		/* Stream must not be present in send_list if it has nothing to send. */
+		BUG_ON(!(qcs->flags & (QC_SF_FIN_STREAM|QC_SF_TO_STOP_SENDING|QC_SF_TO_RESET)) &&
+		       (!qcs->stream || !qcs_prep_bytes(qcs)));
+
+		/* Interrupt looping for the first stream where no RS nor SS is
+		 * necessary and is not use for "metadata" transfer. These
+		 * streams are always in front of the send_list.
+		 */
+		if (!(qcs->flags & (QC_SF_TO_STOP_SENDING|QC_SF_TO_RESET|QC_SF_TXBUB_OOB)))
+			break;
+
+		TRACE_DATA("prepare for RS/SS transfer", QMUX_EV_QCC_SEND, qcc->conn, qcs);
+
+		/* Each RS and SS frame is sent individually. Necessary to
+		 * ensure it has been emitted as there is no transport callback
+		 * for now.
+		 *
+		 * TODO multiplex frames to optimize sending. However, it may
+		 * not be advisable to mix different streams in the same dgram
+		 * to avoid interdependency in case of loss.
+		 */
+
+		if (qcs->flags & QC_SF_TO_STOP_SENDING) {
+			if (qcs_send_stop_sending(qcs))
+				goto err;
+
+			/* Remove stream from send_list if only SS was necessary. */
+			if (!(qcs->flags & (QC_SF_FIN_STREAM|QC_SF_TO_RESET)) &&
+			    (!qcs->stream || !qcs_prep_bytes(qcs))) {
+				LIST_DEL_INIT(&qcs->el_send);
+				continue;
+			}
+		}
+
+		if (qcs->flags & QC_SF_TO_RESET) {
+			if (qcs_send_reset(qcs))
+				goto err;
+
+			/* RFC 9000 3.3. Permitted Frame Types
+			 *
+			 * A sender MUST NOT send
+			 * a STREAM or STREAM_DATA_BLOCKED frame for a stream in the
+			 * "Reset Sent" state or any terminal state -- that is, after
+			 * sending a RESET_STREAM frame.
+			 */
+			LIST_DEL_INIT(&qcs->el_send);
+			if (qcs_is_completed(qcs)) {
+				TRACE_STATE("add stream in purg_list", QMUX_EV_QCC_SEND|QMUX_EV_QCS_SEND, qcc->conn, qcs);
+				LIST_APPEND(&qcc->purg_list, &qcs->el_send);
+			}
+			continue;
+		}
+	}
+
+	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);
+	return 0;
+
+ err:
+	TRACE_DEVEL("leaving on error", QMUX_EV_QCC_SEND, qcc->conn);
+	return 1;
+}
+
 /* Encode STREAM frames into <qcc> tx frms for streams registered into
  * send_list. On each error, related stream is removed from send_list and
  * inserted into <qcs_failed> list.
@@ -2326,47 +2404,12 @@ static int qcc_build_frms(struct qcc *qcc, struct list *qcs_failed)
 		if (qcs == first_qcs)
 			break;
 
+		TRACE_DATA("prepare for data transfer", QMUX_EV_QCC_SEND, qcc->conn, qcs);
+
+		/* Streams with RS/SS must be handled via qcc_emit_rs_ss(). */
+		BUG_ON(qcs->flags & (QC_SF_TO_STOP_SENDING|QC_SF_TO_RESET));
 		/* Stream must not be present in send_list if it has nothing to send. */
-		BUG_ON(!(qcs->flags & (QC_SF_FIN_STREAM|QC_SF_TO_STOP_SENDING|QC_SF_TO_RESET)) &&
-		       (!qcs->stream || !qcs_prep_bytes(qcs)));
-
-		/* Each STOP_SENDING/RESET_STREAM frame is sent individually to
-		 * guarantee its emission.
-		 *
-		 * TODO multiplex several frames in same datagram to optimize sending
-		 */
-		if (qcs->flags & QC_SF_TO_STOP_SENDING) {
-			if (qcs_send_stop_sending(qcs))
-				goto err;
-
-			/* Remove stream from send_list if it had only STOP_SENDING
-			 * to send.
-			 */
-			if (!(qcs->flags & (QC_SF_FIN_STREAM|QC_SF_TO_RESET)) &&
-			    (!qcs->stream || !qcs_prep_bytes(qcs))) {
-				LIST_DEL_INIT(&qcs->el_send);
-				continue;
-			}
-		}
-
-		if (qcs->flags & QC_SF_TO_RESET) {
-			if (qcs_send_reset(qcs))
-				goto err;
-
-			/* RFC 9000 3.3. Permitted Frame Types
-			 *
-			 * A sender MUST NOT send
-			 * a STREAM or STREAM_DATA_BLOCKED frame for a stream in the
-			 * "Reset Sent" state or any terminal state -- that is, after
-			 * sending a RESET_STREAM frame.
-			 */
-			LIST_DEL_INIT(&qcs->el_send);
-			if (qcs_is_completed(qcs)) {
-				TRACE_STATE("add stream in purg_list", QMUX_EV_QCC_SEND|QMUX_EV_QCS_SEND, qcc->conn, qcs);
-				LIST_APPEND(&qcc->purg_list, &qcs->el_send);
-			}
-			continue;
-		}
+		BUG_ON(!(qcs->flags & QC_SF_FIN_STREAM) && (!qcs->stream || !qcs_prep_bytes(qcs)));
 
 		/* Total sent bytes must not exceed connection window. */
 		BUG_ON(total > window_conn);
@@ -2457,7 +2500,12 @@ static int qcc_io_send(struct qcc *qcc)
 		}
 	}
 
-	/* Send STREAM/STOP_SENDING/RESET_STREAM data for registered streams. */
+	if (qcc_emit_rs_ss(qcc)) {
+		TRACE_DEVEL("emission interrupted on STOP_SENDING/RESET_STREAM send error", QMUX_EV_QCC_SEND, qcc->conn);
+		goto out;
+	}
+
+	/* Encode STREAM frames for registered streams. */
 	total = qcc_build_frms(qcc, &qcs_failed);
 	if (!total)
 		goto sent_done;
