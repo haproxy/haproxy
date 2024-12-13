@@ -677,7 +677,7 @@ static void bbr_check_full_bw_reached(struct bbr *bbr, struct quic_cc_path *p)
 static void bbr_check_startup_high_loss(struct bbr *bbr, struct quic_cc_path *p)
 {
 	if (bbr->full_bw_reached ||
-	    bbr->loss_events_in_round <= BBR_STARTUP_FULL_LOSS_COUNT ||
+	    bbr->loss_events_in_round < BBR_STARTUP_FULL_LOSS_COUNT ||
 	    (bbr->in_loss_recovery &&
 	     bbr->round_count <= bbr->round_count_at_recovery) ||
 	    !is_inflight_too_high(&bbr->drs.rs)) {
