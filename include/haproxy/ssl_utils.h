@@ -47,6 +47,10 @@ const char *x509_v_err_int_to_str(int code);
 long asn1_generalizedtime_to_epoch(ASN1_GENERALIZEDTIME *d);
 const char *x509_get_notbefore(X509 *cert);
 const char *x509_get_notafter(X509 *cert);
+#ifdef HAVE_ASN1_TIME_TO_TM
+time_t ASN1_to_time_t(ASN1_TIME *asn1_time);
+time_t x509_get_notafter_time_t(X509 *cert);
+#endif
 
 #endif /* _HAPROXY_SSL_UTILS_H */
 #endif /* USE_OPENSSL */

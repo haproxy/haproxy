@@ -753,3 +753,33 @@ end:
 	return NULL;
 }
 
+#ifdef HAVE_ASN1_TIME_TO_TM
+/* Takes a ASN1_TIME and converts it into a time_t */
+time_t ASN1_to_time_t(ASN1_TIME *asn1_time)
+{
+	struct tm tm;
+	time_t ret = -1;
+
+	if (ASN1_TIME_to_tm(asn1_time, &tm) == 0)
+		goto error;
+
+	ret  = my_timegm(&tm);
+error:
+	return ret;
+}
+
+/* return the notAfter date of a X509 certificate in a time_t format */
+time_t x509_get_notafter_time_t(X509 *cert)
+{
+	time_t ret = -1;
+	ASN1_TIME *asn1_time;
+
+	if ((asn1_time = X509_getm_notAfter(cert)) == NULL)
+		goto error;
+
+	ret = ASN1_to_time_t(asn1_time);
+
+error:
+	return ret;
+}
+#endif
