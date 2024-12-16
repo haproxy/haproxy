@@ -2130,6 +2130,8 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 	chunk_appendf(out, "Status: ");
 	if (ckchs->data->cert == NULL)
 		chunk_appendf(out, "Empty\n");
+	else if (ckchs == ckchs_transaction.new_ckchs)
+		chunk_appendf(out, "Uncommitted\n");
 	else if (LIST_ISEMPTY(&ckchs->ckch_inst))
 		chunk_appendf(out, "Unused\n");
 	else
@@ -3539,6 +3541,8 @@ static int cli_io_handler_show_cafile_detail(struct appctx *appctx)
 	chunk_appendf(out, "Status: ");
 	if (!cafile_entry->ca_store)
 		chunk_appendf(out, "Empty\n");
+	else if (cafile_entry == cafile_transaction.new_cafile_entry)
+		chunk_appendf(out, "Uncommitted\n");
 	else if (LIST_ISEMPTY(&cafile_entry->ckch_inst_link))
 		chunk_appendf(out, "Unused\n");
 	else
@@ -4226,6 +4230,8 @@ static int cli_io_handler_show_crlfile_detail(struct appctx *appctx)
 	chunk_appendf(out, "Status: ");
 	if (!cafile_entry->ca_store)
 		chunk_appendf(out, "Empty\n");
+	else if (cafile_entry == crlfile_transaction.new_crlfile_entry)
+		chunk_appendf(out, "Uncommitted\n");
 	else if (LIST_ISEMPTY(&cafile_entry->ckch_inst_link))
 		chunk_appendf(out, "Unused\n");
 	else
