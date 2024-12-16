@@ -3761,11 +3761,14 @@ show ssl providers
         - fips
         - base
 
-show ssl sni [-f <frontend>]
+show ssl sni [-f <frontend>] [-A]
   Dump every SNI configured for the designated frontend, or all frontends if no
   frontend was specified. It allows to see what SNI are offered for a frontend,
   and to identify if a SNI is defined multiple times by multiple certificates for
   the same frontend.
+
+  The -A option allows to filter the list and only displays the certificates
+  that are past the notAfter date, allowing to show only expired certificates.
 
   Columns are separated by a single \t, allowing to parse it simply.
 

@@ -87,13 +87,16 @@ struct show_cert_ctx {
 	int transaction;
 };
 
+#define SHOW_SNI_OPT_1FRONTEND  (1 << 0) /* show only the selected frontend */
+#define SHOW_SNI_OPT_NOTAFTER   (1 << 1) /* show certificates that are [A]fter the notAfter date */
+
 /* CLI context used by "show ssl sni" */
 struct show_sni_ctx {
 	struct proxy *px;
 	struct bind_conf *bind;
 	struct ebmb_node *n;
 	int nodetype;
-	int onefrontend;
+	int options;
 };
 
 /* CLI context used by "dump ssl cert" */
@@ -1570,7 +1573,8 @@ static int cli_io_handler_show_sni(struct appctx *appctx)
 
 	/* ctx->bind is NULL only once we finished dumping a frontend or when starting
 	 * so let's dump the header in these cases*/
-	if (ctx->bind == NULL && (ctx->onefrontend == 1 || (ctx->onefrontend == 0 && ctx->px == proxies_list)))
+	if (ctx->bind == NULL && (ctx->options & SHOW_SNI_OPT_1FRONTEND ||
+	    (!(ctx->options & SHOW_SNI_OPT_1FRONTEND) && ctx->px == proxies_list)))
 		chunk_appendf(trash, "# Frontend/Bind\tSNI\tNegative Filter\tType\tFilename\tNotAfter\tNotBefore\n");
 	if (applet_putchk(appctx, trash) == -1)
 		goto yield;
@@ -1615,6 +1619,13 @@ static int cli_io_handler_show_sni(struct appctx *appctx)
 
 					if (sni->neg)
 						continue;
+#ifdef HAVE_ASN1_TIME_TO_TM
+					if (ctx->options & SHOW_SNI_OPT_NOTAFTER) {
+						time_t notAfter = x509_get_notafter_time_t(sni->ckch_inst->ckch_store->data->cert);
+						if (!(date.tv_sec > notAfter))
+							continue;
+					}
+#endif
 
 					chunk_appendf(trash, "%s/%s:%d\t", bind->frontend->id, bind->file, bind->line);
 
@@ -1667,7 +1678,7 @@ static int cli_io_handler_show_sni(struct appctx *appctx)
 		}
 		ctx->bind = NULL;
 		/* only want to display the specified frontend */
-		if (ctx->onefrontend)
+		if (ctx->options & SHOW_SNI_OPT_1FRONTEND)
 			break;
 	}
 	ctx->px = NULL;
@@ -1686,50 +1697,61 @@ yield:
 }
 
 
-/* parsing function for 'show ssl sni [-f <frontend>]' */
+/* parsing function for 'show ssl sni [-f <frontend>] [-A]' */
 static int cli_parse_show_sni(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct show_sni_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
-
+	int cur_arg = 3;
 
 	ctx->px = proxies_list;
 
 	/* look for the right <frontend> to display */
-	if (*args[3]) {
+
+	while (*args[cur_arg]) {
 		struct proxy *px;
 
-		if (strcmp(args[3], "-f") != 0)
-			return cli_err(appctx, "'show ssl sni' only supports a '-f' option!\n");
+		if (strcmp(args[cur_arg], "-f") == 0) {
 
-		if (*args[4] == '\0')
-			return cli_err(appctx, "'-f' requires a frontend name !\n");
+			if (*args[cur_arg+1] == '\0')
+				return cli_err(appctx, "'-f' requires a frontend name!\n");
 
-		for (px = proxies_list; px; px = px->next) {
+			for (px = proxies_list; px; px = px->next) {
 
-			/* only check the frontends */
-			if (!(px->cap & PR_CAP_FE))
-				continue;
+				/* only check the frontends */
+				if (!(px->cap & PR_CAP_FE))
+					continue;
 
-			/* skip the internal proxies */
-			if (px->cap & PR_CAP_INT)
-				continue;
+				/* skip the internal proxies */
+				if (px->cap & PR_CAP_INT)
+					continue;
 
-			if (strcmp(px->id, args[3]) == 0) {
-				ctx->px = px;
-				ctx->onefrontend = 1;
+				if (strcmp(px->id, args[cur_arg+1]) == 0) {
+					ctx->px = px;
+					ctx->options |= SHOW_SNI_OPT_1FRONTEND;
+				}
 			}
+			cur_arg++; /* skip the argument */
+			if (ctx->px == NULL)
+				return cli_err(appctx, "Couldn't find the specified frontend!\n");
+
+		} else if (strcmp(args[cur_arg], "-A") == 0) {
+			/* when current date > notAfter */
+			ctx->options |= SHOW_SNI_OPT_NOTAFTER;
+#ifndef HAVE_ASN1_TIME_TO_TM
+			return cli_err(appctx, "'-A' option is only supported with OpenSSL >= 1.1.1!\n");
+#endif
+
+		} else {
+
+			return cli_err(appctx, "Invalid parameters, 'show ssl sni' only supports '-f', or '-A' options!\n");
 		}
-		if (ctx->px == NULL)
-			goto error;
+		cur_arg++;
 	}
 
 	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
 		return cli_err(appctx, "Can't list SNIs\nOperations on certificates are currently locked!\n");
 
 	return 0;
-
-error:
-	return cli_err(appctx, "Couldn't find the specified frontend!\n");
 }
 
 /* release function of the  `show ssl cert' command */
