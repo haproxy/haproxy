@@ -2203,7 +2203,7 @@ yield:
 #endif
 }
 
-/* parsing function for 'show ssl cert [certfile]' */
+/* parsing function for 'show ssl cert [[*][\]<certfile>]' */
 static int cli_parse_show_cert(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct show_cert_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
@@ -2232,17 +2232,27 @@ static int cli_parse_show_cert(char **args, char *payload, struct appctx *appctx
 		}
 
 		if (*args[3] == '*') {
+			char *filename = args[3]+1;
+
 			from_transaction = 1;
 			if (!ckchs_transaction.new_ckchs)
 				goto error;
 
 			ckchs = ckchs_transaction.new_ckchs;
 
-			if (strcmp(args[3] + 1, ckchs->path) != 0)
+			if (filename[0] == '\\')
+				filename++;
+
+			if (strcmp(filename, ckchs->path) != 0)
 				goto error;
 
 		} else {
-			if ((ckchs = ckchs_lookup(args[3])) == NULL)
+			char *filename = args[3];
+
+			if (filename[0] == '\\')
+				filename++;
+
+			if ((ckchs = ckchs_lookup(filename)) == NULL)
 				goto error;
 
 		}

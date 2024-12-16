@@ -3572,14 +3572,15 @@ show ssl ca-file [<cafile>[:<index>]]
     Serial: 587A1CE5ED855040A0C82BF255FF300ADB7C8136
     [...]
 
-show ssl cert [<filename>]
+show ssl cert [[*][\]<filename>]
   Display the list of certificates loaded into the process. They are not used
   by any frontend or backend until their status is "Used".
   If a filename is prefixed by an asterisk, it is a transaction which is not
   committed yet. If a filename is specified, it will show details about the
   certificate. This command can be useful to check if a certificate was well
   updated. You can also display details on a transaction by prefixing the
-  filename by an asterisk.
+  filename by a '*'. If the first character of the filename is a '*', it can be
+  escaped with '\*'.
   This command can also be used to display the details of a certificate's OCSP
   response by suffixing the filename with a ".ocsp" extension. It works for
   committed certificates as well as for ongoing transactions. On a committed
@@ -3609,6 +3610,11 @@ show ssl cert [<filename>]
     $ echo "@1 show ssl cert *test.local.pem" | socat /var/run/haproxy.master -
     Filename: *test.local.pem
     Status: Unused
+    [...]
+
+    $ echo "@1 show ssl cert \*.local.pem" | socat /var/run/haproxy.master -
+    Filename: *.local.pem
+    Status: Used
     [...]
 
 show ssl crl-file [<crlfile>[:<index>]]
