@@ -2261,13 +2261,17 @@ static int debug_parse_cli_counters(char **args, char *payload, struct appctx *a
 			return cli_err(appctx, "Expects an optional action ('reset','show'), optional types ('bug','chk','cnt','glt') and optionally 'all' to even dump null counters.\n");
 	}
 
+#if DEBUG_STRICT > 0 || defined(DEBUG_GLITCHES)
+	ctx->start = &__start_dbg_cnt;
+	ctx->stop  = &__stop_dbg_cnt;
+#endif
 	if (action == 1) { // reset
 		struct debug_count *ptr;
 
 		if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 			return 1;
 
-		for (ptr = &__start_dbg_cnt; ptr < &__stop_dbg_cnt; ptr++) {
+		for (ptr = ctx->start; ptr < ctx->stop; ptr++) {
 			if (ctx->types && !(ctx->types & (1 << ptr->type)))
 				continue;
 			_HA_ATOMIC_STORE(&ptr->count, 0);
@@ -2276,8 +2280,6 @@ static int debug_parse_cli_counters(char **args, char *payload, struct appctx *a
 	}
 
 	/* OK it's a show, let's dump relevant counters */
-	ctx->start = &__start_dbg_cnt;
-	ctx->stop  = &__stop_dbg_cnt;
 	return 0;
 }
 
