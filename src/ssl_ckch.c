@@ -4191,7 +4191,7 @@ end:
 	return 0;
 }
 
-/* IO handler of details "show ssl crl-file <filename[:index]>".
+/* IO handler of details "show ssl crl-file [*][\]<filename[:index]>".
  * It uses show_crlfile_ctx and the global
  * crlfile_transaction.new_cafile_entry in read-only.
  */
@@ -4293,18 +4293,26 @@ static int cli_parse_show_crlfile(char **args, char *payload, struct appctx *app
 		}
 
 		if (*args[3] == '*') {
+			char *filename = args[3]+1;
+
+			if (filename[0] == '\\')
+				 filename++;
 			if (!crlfile_transaction.new_crlfile_entry)
 				goto error;
 
 			cafile_entry = crlfile_transaction.new_crlfile_entry;
 
-			if (strcmp(args[3] + 1, cafile_entry->path) != 0)
+			if (strcmp(filename, cafile_entry->path) != 0)
 				goto error;
 
 		} else {
+			char *filename = args[3];
+
+			if (filename[0] == '\\')
+				filename++;
 			/* Get the "original" cafile_entry and not the
 			 * uncommitted one if it exists. */
-			if ((cafile_entry = ssl_store_get_cafile_entry(args[3], 1)) == NULL || cafile_entry->type != CAFILE_CRL)
+			if ((cafile_entry = ssl_store_get_cafile_entry(filename, 1)) == NULL || cafile_entry->type != CAFILE_CRL)
 				goto error;
 		}
 

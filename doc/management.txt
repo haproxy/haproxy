@@ -3617,7 +3617,7 @@ show ssl cert [[*][\]<filename>]
     Status: Used
     [...]
 
-show ssl crl-file [<crlfile>[:<index>]]
+show ssl crl-file [[*][\]<crlfile>[:<index>]]
   Display the list of CRL files loaded into the process. They are not used
   by any frontend or backend until their status is "Used".
   If a filename is prefixed by an asterisk, it is a transaction which is not
@@ -3630,7 +3630,8 @@ show ssl crl-file [<crlfile>[:<index>]]
   If the index is invalid (too big for instance), nothing will be displayed.
   This command can be useful to check if a CRL file was properly updated.
   You can also display the details of an ongoing transaction by prefixing the
-  filename by an asterisk.
+  filename by a '*'. If the first character of the filename is a '*', it can be
+  escaped with '\*'.
 
   Example :
 
