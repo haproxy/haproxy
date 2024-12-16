@@ -1349,8 +1349,12 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 
 	if (sess)
 		proxy_inc_fe_cum_sess_ver_ctr(sess->listener, prx, 2);
-	HA_ATOMIC_INC(&h2c->px_counters->open_conns);
-	HA_ATOMIC_INC(&h2c->px_counters->total_conns);
+
+	/* Rhttp connections are only accounted after reverse completion. */
+	if (!conn_is_reverse(conn)) {
+		HA_ATOMIC_INC(&h2c->px_counters->open_conns);
+		HA_ATOMIC_INC(&h2c->px_counters->total_conns);
+	}
 
 	/* prepare to read something */
 	h2c_restart_reading(h2c, 1);
@@ -1426,7 +1430,9 @@ static void h2_release(struct h2c *h2c)
 		conn->xprt->unsubscribe(conn, conn->xprt_ctx, h2c->wait_event.events,
 					&h2c->wait_event);
 
-	HA_ATOMIC_DEC(&h2c->px_counters->open_conns);
+	/* Rhttp connections are not accounted prior to their reverse. */
+	if (!conn || !conn_is_reverse(conn))
+		HA_ATOMIC_DEC(&h2c->px_counters->open_conns);
 
 	pool_free(pool_head_h2_rx_bufs, h2c->shared_rx_bufs);
 	pool_free(pool_head_h2c, h2c);
@@ -3927,6 +3933,9 @@ static int h2_conn_reverse(struct h2c *h2c)
 		LIST_APPEND(&mux_stopping_data[tid].list,
 		            &h2c->conn->stopping_list);
 	}
+
+	HA_ATOMIC_INC(&h2c->px_counters->open_conns);
+	HA_ATOMIC_INC(&h2c->px_counters->total_conns);
 
 	/* Check if stream creation is initially forbidden. This is the case
 	 * for active preconnect until reversal is done.
