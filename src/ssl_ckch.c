@@ -3584,7 +3584,7 @@ yield:
 }
 
 
-/* parsing function for 'show ssl ca-file [cafile[:index]]'.
+/* parsing function for 'show ssl ca-file [[*][\]<cafile>[:index]]'.
  * It prepares a show_cafile_ctx context, and checks the global
  * cafile_transaction under the ckch_lock (read only).
  */
@@ -3626,18 +3626,27 @@ static int cli_parse_show_cafile(char **args, char *payload, struct appctx *appc
 		}
 
 		if (*args[3] == '*') {
+			char *filename = args[3]+1;
+
+			if (filename[0] == '\\')
+				filename++;
+
 			if (!cafile_transaction.new_cafile_entry)
 				goto error;
 
 			cafile_entry = cafile_transaction.new_cafile_entry;
 
-			if (strcmp(args[3] + 1, cafile_entry->path) != 0)
+			if (strcmp(filename, cafile_entry->path) != 0)
 				goto error;
 
 		} else {
+			char *filename = args[3];
+
+			if (filename[0] == '\\')
+				filename++;
 			/* Get the "original" cafile_entry and not the
 			 * uncommitted one if it exists. */
-			if ((cafile_entry = ssl_store_get_cafile_entry(args[3], 1)) == NULL || cafile_entry->type != CAFILE_CERT)
+			if ((cafile_entry = ssl_store_get_cafile_entry(filename, 1)) == NULL || cafile_entry->type != CAFILE_CERT)
 				goto error;
 		}
 

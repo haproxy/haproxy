@@ -3523,7 +3523,7 @@ show stat [domain <resolvers|proxy>] [{<iid>|<proxy>} <type> <sid>] \
   $ echo "show stat json" | socat /var/run/haproxy.sock stdio | \
     python -m json.tool
 
-show ssl ca-file [<cafile>[:<index>]]
+show ssl ca-file [[*][\]<cafile>[:<index>]]
   Display the list of CA files loaded into the process and their respective
   certificate counts. The certificates are not used by any frontend or backend
   until their status is "Used".
@@ -3540,7 +3540,8 @@ show ssl ca-file [<cafile>[:<index>]]
   If the index is invalid (too big for instance), nothing will be displayed.
   This command can be useful to check if a CA file was properly updated.
   You can also display the details of an ongoing transaction by prefixing the
-  filename by an asterisk.
+  filename by a '*'. If the first character of the filename is a '*', it can be
+  escaped with '\*'.
 
   Example :
 
