@@ -4400,7 +4400,7 @@ void ckch_deinit()
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "show", "ssl", "sni", NULL },       "show ssl sni [-f <frontend>]            : display the list of SNI and their corresponding filename",              cli_parse_show_sni, cli_io_handler_show_sni, cli_release_show_sni },
+	{ { "show", "ssl", "sni", NULL },       "show ssl sni [-f <frontend>] [-A]       : display the list of SNI and their corresponding filename",              cli_parse_show_sni, cli_io_handler_show_sni, cli_release_show_sni },
 
 	{ { "new", "ssl", "cert", NULL },       "new ssl cert <certfile>                 : create a new certificate file to be used in a crt-list or a directory", cli_parse_new_cert, NULL, NULL },
 	{ { "set", "ssl", "cert", NULL },       "set ssl cert <certfile> <payload>       : replace a certificate file",                                            cli_parse_set_cert, NULL, NULL },
