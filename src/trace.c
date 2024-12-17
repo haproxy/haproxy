@@ -97,7 +97,11 @@ int __trace_enabled(enum trace_level level, uint64_t mask, struct trace_source *
 	/* in case we also follow another one (e.g. session) */
 	origin = HA_ATOMIC_LOAD(&src->follow);
 
+	/* Trace can be temporarily disabled via trace_disable(). */
 	if (likely(src->state == TRACE_STATE_STOPPED) && !origin)
+		return 0;
+
+	if (th_ctx->trc_disable_ctr)
 		return 0;
 
 	/* check that at least one action is interested by this event */

@@ -206,6 +206,48 @@ static inline char trace_event_char(uint64_t conf, uint64_t ev)
 	return (conf & ev) ? '+' : '-';
 }
 
+/* Temporarily disable trace using a cumulative counter. If called multiple
+ * times, the same number of resume must be used to reactivate tracing.
+ *
+ * Returns the incremented counter value or 0 if already at the maximum value.
+ */
+static inline uint8_t trace_disable(void)
+{
+	if (unlikely(th_ctx->trc_disable_ctr == UCHAR_MAX))
+		return 0;
+	return ++th_ctx->trc_disable_ctr;
+}
+
+/* Resume tracing after a temporarily disabling. It may be called several times
+ * as disable operation is cumulative.
+ */
+static inline void trace_resume(void)
+{
+	if (th_ctx->trc_disable_ctr)
+		--th_ctx->trc_disable_ctr;
+}
+
+/* Resume tracing immediately even after multiple disable operations.
+ *
+ * Returns the old counter value. Useful to reactivate trace disabling at the
+ * previous level.
+ */
+static inline uint8_t trace_force_resume(void)
+{
+	const int val = th_ctx->trc_disable_ctr;
+	th_ctx->trc_disable_ctr = 0;
+	return val;
+}
+
+/* Set trace disabling counter to <disable>. Mostly useful with the value
+ * returned from trace_force_resume() to restore tracing disable status to the
+ * previous level.
+ */
+static inline void trace_reset_disable(uint8_t disable)
+{
+	th_ctx->trc_disable_ctr = disable;
+}
+
 #endif /* _HAPROXY_TRACE_H */
 
 /*

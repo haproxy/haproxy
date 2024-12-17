@@ -136,8 +136,9 @@ struct thread_ctx {
 	unsigned int nb_tasks;              /* number of tasks allocated on this thread */
 	uint8_t tl_class_mask;              /* bit mask of non-empty tasklets classes */
 	uint8_t bufq_map;                   /* one bit per non-empty buffer_wq */
+	uint8_t trc_disable_ctr;            /* cumulative counter to temporarily disable tracing */
 
-	// 2 bytes hole here
+	// 1 byte hole here
 	unsigned int nb_rhttp_conns;        /* count of current conns used for active reverse HTTP */
 	struct sched_activity *sched_profile_entry; /* profile entry in use by the current task/tasklet, only if sched_wake_date>0 */
 
