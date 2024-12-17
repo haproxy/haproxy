@@ -191,6 +191,11 @@
 #define __read_mostly           HA_SECTION("read_mostly")
 #endif
 
+/* __builtin_unreachable() was added in gcc 4.5 */
+#if defined(__GNUC__) && (__GNUC__ >= 5 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5))
+#define __has_builtin___builtin_unreachable 1
+#endif
+
 /* This allows gcc to know that some locations are never reached, for example
  * after a longjmp() in the Lua code, hence that some errors caught by such
  * methods cannot propagate further. This is important with gcc versions 6 and
@@ -200,7 +205,7 @@
 #ifdef DEBUG_USE_ABORT
 #define my_unreachable() abort()
 #else
-#if defined(__GNUC__) && (__GNUC__ >= 5 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5))
+#if __has_builtin(__builtin_unreachable)
 #define my_unreachable() __builtin_unreachable()
 #else
 #define my_unreachable() do { } while (1)
