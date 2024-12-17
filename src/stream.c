@@ -2743,11 +2743,17 @@ void sess_change_server(struct stream *strm, struct server *newsrv)
 	 * invocation of sess_change_server().
 	 */
 
+	/*
+	 * It is assumed if the stream has a non-NULL srv_conn, then its
+	 * served field has been incremented, so we have to decrement it now.
+	 */
+	if (oldsrv)
+		_HA_ATOMIC_DEC(&oldsrv->served);
+
 	if (oldsrv == newsrv)
 		return;
 
 	if (oldsrv) {
-		_HA_ATOMIC_DEC(&oldsrv->served);
 		_HA_ATOMIC_DEC(&oldsrv->proxy->served);
 		__ha_barrier_atomic_store();
 		if (oldsrv->proxy->lbprm.server_drop_conn)
@@ -2756,7 +2762,6 @@ void sess_change_server(struct stream *strm, struct server *newsrv)
 	}
 
 	if (newsrv) {
-		_HA_ATOMIC_INC(&newsrv->served);
 		_HA_ATOMIC_INC(&newsrv->proxy->served);
 		__ha_barrier_atomic_store();
 		if (newsrv->proxy->lbprm.server_take_conn)

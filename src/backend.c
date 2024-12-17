@@ -1029,28 +1029,50 @@ int assign_server_and_queue(struct stream *s)
 		 * is set on the server, we must also check that the server's queue is
 		 * not full, in which case we have to return FULL.
 		 */
-		if (srv->maxconn &&
-		    (srv->queue.length || srv->served >= srv_dynamic_maxconn(srv))) {
+		if (srv->maxconn) {
+			int served;
+			int got_it = 0;
 
-			if (srv->maxqueue > 0 && srv->queue.length >= srv->maxqueue)
-				return SRV_STATUS_FULL;
-
-			p = pendconn_add(s);
-			if (p) {
-				/* There's a TOCTOU here: it may happen that between the
-				 * moment we decided to queue the request and the moment
-				 * it was done, the last active request on the server
-				 * ended and no new one will be able to dequeue that one.
-				 * Since we already have our server we don't care, this
-				 * will be handled by the caller which will check for
-				 * this condition and will immediately dequeue it if
-				 * possible.
+			/*
+			 * Make sure that there's still a slot on the server.
+			 * Try to increment its served, while making sure
+			 * it is < maxconn.
+			 */
+			if (!srv->queue.length &&
+			    (served = srv->served) < srv_dynamic_maxconn(srv)) {
+				/*
+				 * Attempt to increment served, while
+				 * making sure it is always below maxconn
 				 */
-				return SRV_STATUS_QUEUED;
+
+				do {
+					got_it = _HA_ATOMIC_CAS(&srv->served,
+							        &served, served + 1);
+				} while (!got_it && served < srv_dynamic_maxconn(srv) &&
+					 __ha_cpu_relax());
 			}
-			else
-				return SRV_STATUS_INTERNAL;
-		}
+			if (!got_it) {
+				if (srv->maxqueue > 0 && srv->queue.length >= srv->maxqueue)
+					return SRV_STATUS_FULL;
+
+				p = pendconn_add(s);
+				if (p) {
+					/* There's a TOCTOU here: it may happen that between the
+					 * moment we decided to queue the request and the moment
+					 * it was done, the last active request on the server
+					 * ended and no new one will be able to dequeue that one.
+					 * Since we already have our server we don't care, this
+					 * will be handled by the caller which will check for
+					 * this condition and will immediately dequeue it if
+					 * possible.
+					 */
+					return SRV_STATUS_QUEUED;
+				}
+				else
+					return SRV_STATUS_INTERNAL;
+			}
+		} else
+			_HA_ATOMIC_INC(&srv->served);
 
 		/* OK, we can use this server. Let's reserve our place */
 		sess_change_server(s, srv);

@@ -259,6 +259,9 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px, int 
 	struct pendconn *p = NULL;
 	struct pendconn *pp = NULL;
 	u32 pkey, ppkey;
+	int served;
+	int maxconn;
+	int got_it = 0;
 
 	p = NULL;
 	if (srv->queue.length)
@@ -277,7 +280,25 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px, int 
 
 	if (!p && !pp)
 		return 0;
-	else if (!pp)
+
+	served = _HA_ATOMIC_LOAD(&srv->served);
+	maxconn = srv_dynamic_maxconn(srv);
+
+	while (served < maxconn && !got_it)
+		got_it = _HA_ATOMIC_CAS(&srv->served, &served, served + 1);
+
+	/* No more slot available, give up */
+	if (!got_it) {
+		if (pp)
+			HA_SPIN_UNLOCK(QUEUE_LOCK, &px->queue.lock);
+		return 0;
+	}
+
+	/*
+	 * Now we know we'll have something available.
+	 * Let's try to allocate a slot on the server.
+	 */
+	if (!pp)
 		goto use_p; /*  p != NULL */
 	else if (!p)
 		goto use_pp; /* pp != NULL */
@@ -394,10 +415,13 @@ int process_srv_queue(struct server *s)
 
 		HA_SPIN_LOCK(QUEUE_LOCK, &s->queue.lock);
 		while (s->served < maxconn) {
+			/*
+			 * pendconn_process_next_strm() will increment
+			 * the served field, only if it is < maxconn.
+			 */
 			stop = !pendconn_process_next_strm(s, p, px_ok);
 			if (stop)
 				break;
-			_HA_ATOMIC_INC(&s->served);
 			done++;
 			if (done >= global.tune.maxpollevents)
 				break;
