@@ -66,6 +66,14 @@
 #define __has_attribute(x) __equals_1(__has_attribute_ ## x)
 #endif
 
+/* gcc 10 and clang 3 brought __has_builtin() to test if a builtin exists.
+ * Just like above, if it doesn't exist, we remap it to a macro allowing us
+ * to define these ourselves by defining __has_builtin_<name> to 1.
+ */
+#ifndef __has_builtin
+#define __has_builtin(x) __equals_1(__has_builtin_ ## x)
+#endif
+
 /* The fallthrough attribute arrived with gcc 7, the same version that started
  * to emit the fallthrough warnings and to parse the comments. Comments do not
  * manage to stop the warning when preprocessing is split from compiling (e.g.
