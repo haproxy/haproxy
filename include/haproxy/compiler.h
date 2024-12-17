@@ -220,13 +220,19 @@
  * with compilers that support it, and we do not want to emit any static code
  * for other ones, so we use a construct that the compiler should easily be
  * able to optimize away. Clang also has __builtin_assume() since at least 3.x.
+ * In addition, ASSUME_NONNULL() tells the compiler that the pointer argument
+ * will never be null. If not supported, it will be disguised via an assembly
+ * step.
  */
 #if __has_builtin(__builtin_assume)
 # define ASSUME(expr) __builtin_assume(expr)
+# define ASSUME_NONNULL(p) ({ typeof(p) __p = (p); __builtin_assume(__p != NULL); (__p); })
 #elif __has_builtin(__builtin_unreachable)
 # define ASSUME(expr) do { if (!(expr)) __builtin_unreachable(); } while (0)
+# define ASSUME_NONNULL(p) ({ typeof(p) __p = (p); if (__p == NULL) __builtin_unreachable(); (__p); })
 #else
 # define ASSUME(expr) do { if (!(expr)) break; } while (0)
+# define ASSUME_NONNULL(p) ({ typeof(p) __p = (p); asm("" : "=rm"(__p) : "0"(__p)); __p; })
 #endif
 
 /* This prevents the compiler from folding multiple identical code paths into a
