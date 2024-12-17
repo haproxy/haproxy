@@ -219,9 +219,11 @@
  * know that some conditions are not supposed to happen. This can only be used
  * with compilers that support it, and we do not want to emit any static code
  * for other ones, so we use a construct that the compiler should easily be
- * able to optimize away.
+ * able to optimize away. Clang also has __builtin_assume() since at least 3.x.
  */
-#if __has_builtin(__builtin_unreachable)
+#if __has_builtin(__builtin_assume)
+# define ASSUME(expr) __builtin_assume(expr)
+#elif __has_builtin(__builtin_unreachable)
 # define ASSUME(expr) do { if (!(expr)) __builtin_unreachable(); } while (0)
 #else
 # define ASSUME(expr) do { if (!(expr)) break; } while (0)
