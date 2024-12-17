@@ -54,17 +54,17 @@ s *     queue's lock.
  *   - the pendconn is unlinked either by its own stream upon success/abort/
  *     free, or by another one offering it its server slot. This is achieved by
  *     pendconn_process_next_strm() under either the server or proxy's lock,
- *     pendconn_redistribute() under the server's lock, pendconn_grab_from_px()
- *     under the proxy's lock, or pendconn_unlink() under either the proxy's or
- *     the server's lock depending on the queue the pendconn is attached to.
+ *     pendconn_redistribute() under the server's lock, or pendconn_unlink()
+ *     under either the proxy's or the server's lock depending
+ *     on the queue the pendconn is attached to.
  *
  *   - no single operation except the pendconn initialisation prior to the
  *     insertion are performed without eithre a queue lock held or the element
  *     being unlinked and visible exclusively to its stream.
  *
- *   - pendconn_grab_from_px() and pendconn_process_next_strm() assign ->target
- *     so that the stream knows what server to work with (via
- *     pendconn_dequeue() which sets it on strm->target).
+ *   - pendconn_process_next_strm() assign ->target so that the stream knows
+ *     what server to work with (via pendconn_dequeue() which sets it on
+ *     strm->target).
  *
  *   - a pendconn doesn't switch between queues, it stays where it is.
  */
@@ -557,49 +557,6 @@ int pendconn_redistribute(struct server *s)
 	return xferred + px_xferred;
 }
 
-/* Check for pending connections at the backend, and assign some of them to
- * the server coming up. The server's weight is checked before being assigned
- * connections it may not be able to handle. The total number of transferred
- * connections is returned. It will take the proxy's queue lock and will not
- * use nor depend on other locks.
- */
-int pendconn_grab_from_px(struct server *s)
-{
-	struct pendconn *p;
-	int maxconn, xferred = 0;
-
-	if (!srv_currently_usable(s))
-		return 0;
-
-	/* if this is a backup server and there are active servers or at
-	 * least another backup server was elected, then this one must
-	 * not dequeue requests from the proxy.
-	 */
-	if ((s->flags & SRV_F_BACKUP) &&
-	    (s->proxy->srv_act ||
-	     ((s != s->proxy->lbprm.fbck) && !(s->proxy->options & PR_O_USE_ALL_BK))))
-		return 0;
-
-	HA_SPIN_LOCK(QUEUE_LOCK, &s->proxy->queue.lock);
-	maxconn = srv_dynamic_maxconn(s);
-	while ((p = pendconn_first(&s->proxy->queue.head))) {
-		if (s->maxconn && s->served + xferred >= maxconn)
-			break;
-
-		__pendconn_unlink_prx(p);
-		p->target = s;
-
-		task_wakeup(p->strm->task, TASK_WOKEN_RES);
-		xferred++;
-	}
-	HA_SPIN_UNLOCK(QUEUE_LOCK, &s->proxy->queue.lock);
-	if (xferred) {
-		_HA_ATOMIC_SUB(&s->proxy->queue.length, xferred);
-		_HA_ATOMIC_SUB(&s->proxy->totpend, xferred);
-	}
-	return xferred;
-}
-
 /* Try to dequeue pending connection attached to the stream <strm>. It must
  * always exists here. If the pendconn is still linked to the server or the
  * proxy queue, nothing is done and the function returns 1. Otherwise,
@@ -624,7 +581,7 @@ int pendconn_dequeue(struct stream *strm)
 	p = strm->pend_pos;
 
 	/* note below : we need to grab the queue's lock to check for emptiness
-	 * because we don't want a partial _grab_from_px() or _redistribute()
+	 * because we don't want a partial process_srv_queue() or redistribute()
 	 * to be called in parallel and show an empty list without having the
 	 * time to finish. With this we know that if we see the element
 	 * unlinked, these functions were completely done.

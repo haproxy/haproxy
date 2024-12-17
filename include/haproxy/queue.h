@@ -37,7 +37,6 @@ int pendconn_dequeue(struct stream *strm);
 void process_srv_queue(struct server *s);
 unsigned int srv_dynamic_maxconn(const struct server *s);
 int pendconn_redistribute(struct server *s);
-int pendconn_grab_from_px(struct server *s);
 void pendconn_unlink(struct pendconn *p);
 int pendconn_must_try_again(struct pendconn *p);
 
