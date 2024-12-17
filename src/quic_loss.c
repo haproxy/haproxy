@@ -317,7 +317,7 @@ int qc_release_lost_pkts(struct quic_conn *qc, struct quic_pktns *pktns,
 	 * that <pkts> list is not empty. Without this, GCC 12.2.0 reports a
 	 * possible overflow on a 0 byte region with O2 optimization.
 	 */
-	ALREADY_CHECKED(oldest_lost);
+	ASSUME_NONNULL(oldest_lost);
 	quic_tx_packet_refdec(oldest_lost);
 	if (newest_lost != oldest_lost)
 		quic_tx_packet_refdec(newest_lost);

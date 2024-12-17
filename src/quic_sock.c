@@ -613,8 +613,11 @@ static void cmsg_set_saddr(struct msghdr *msg, struct cmsghdr **cmsg,
 	/* Set first msg_controllen to be able to use CMSG_* macros. */
 	msg->msg_controllen += CMSG_SPACE(sz);
 
+	/* seems necessary to please gcc-13 */
+	ASSUME_NONNULL(CMSG_FIRSTHDR(msg));
+
 	*cmsg = !(*cmsg) ? CMSG_FIRSTHDR(msg) : CMSG_NXTHDR(msg, *cmsg);
-	ALREADY_CHECKED(*cmsg);
+	ASSUME_NONNULL(*cmsg);
 	c = *cmsg;
 	c->cmsg_len = CMSG_LEN(sz);
 
@@ -666,8 +669,11 @@ static void cmsg_set_gso(struct msghdr *msg, struct cmsghdr **cmsg,
 	/* Set first msg_controllen to be able to use CMSG_* macros. */
 	msg->msg_controllen += CMSG_SPACE(sz);
 
+	/* seems necessary to please gcc-13 */
+	ASSUME_NONNULL(CMSG_FIRSTHDR(msg));
+
 	*cmsg = !(*cmsg) ? CMSG_FIRSTHDR(msg) : CMSG_NXTHDR(msg, *cmsg);
-	ALREADY_CHECKED(*cmsg);
+	ASSUME_NONNULL(*cmsg);
 	c = *cmsg;
 	c->cmsg_len = CMSG_LEN(sz);
 
@@ -884,7 +890,7 @@ int qc_rcv_buf(struct quic_conn *qc)
 			TRACE_STATE("datagram for other connection on quic-conn socket, requeue it", QUIC_EV_CONN_RCV, qc);
 
 			rxbuf = MT_LIST_POP(&l->rx.rxbuf_list, typeof(rxbuf), rxbuf_el);
-			ALREADY_CHECKED(rxbuf);
+			ASSUME_NONNULL(rxbuf);
 			cspace = b_contig_space(&rxbuf->buf);
 
 			tmp_dgram = quic_rxbuf_purge_dgrams(rxbuf);
