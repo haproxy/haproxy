@@ -820,8 +820,7 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 		goto no_cache;
 	}
 
-	/* disguise below to shut a warning on */
-	DISGUISE((struct cache_entry *)st->first_block->data)->body_size += data_len;
+	ASSUME_NONNULL((struct cache_entry *)st->first_block->data)->body_size += data_len;
 	ret = shctx_row_data_append(shctx, st->first_block,
 				    (unsigned char *)b_head(&trash), b_data(&trash));
 	if (ret < 0)
