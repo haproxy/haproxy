@@ -86,6 +86,7 @@ struct qcc {
 	struct list send_list; /* list of qcs ready to send (STREAM, STOP_SENDING or RESET_STREAM emission) */
 	struct list fctl_list; /* list of sending qcs blocked on conn flow control */
 	struct list buf_wait_list; /* list of qcs blocked on stream desc buf */
+	struct list purg_list; /* list of qcs which can be purged */
 
 	struct wait_event wait_event;  /* To be used if we're waiting for I/Os */
 
