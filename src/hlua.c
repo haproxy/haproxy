@@ -5064,10 +5064,9 @@ __LJMP static struct hlua_appctx *hlua_checkapplet_tcp(lua_State *L, int ud)
 static int hlua_applet_tcp_new(lua_State *L, struct appctx *ctx)
 {
 	struct hlua_appctx *luactx;
-	struct stream *s = appctx_strm(ctx);
+	struct stream *s = ASSUME_NONNULL(appctx_strm(ctx));
 	struct proxy *p;
 
-	ALREADY_CHECKED(s);
 	p = s->be;
 
 	/* Check stack size. */
