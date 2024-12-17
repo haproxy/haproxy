@@ -18997,6 +18997,15 @@ track [<backend>/]<server>
   enabled. If <backend> is omitted the current one is used. If disable-on-404 is
   used, it has to be enabled on both proxies.
 
+  Example :
+
+    backend A
+    server a1 1.1.1.1:80 track B/b1
+    server a2 1.1.1.2:80 track B/b1
+
+    backend B
+    server b1 2.2.2.2:80 check
+
 tls-tickets
   May be used in the following contexts: tcp, http, log, peers, ring
 
