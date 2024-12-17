@@ -3994,8 +3994,7 @@ static size_t fcgi_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, 
 
 	while (fstrm->state < FCGI_SS_HLOC && !(fstrm->flags & FCGI_SF_BLK_ANY) &&
 	       count && !htx_is_empty(htx)) {
-		blk = htx_get_head_blk(htx);
-		ALREADY_CHECKED(blk);
+		blk = ASSUME_NONNULL(htx_get_head_blk(htx));
 		bsize = htx_get_blksz(blk);
 
 		switch (htx_get_blk_type(blk)) {
