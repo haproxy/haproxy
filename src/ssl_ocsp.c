@@ -333,6 +333,11 @@ int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
 	}
 #endif
 
+	if (ocsp->expire < date.tv_sec) {
+		memprintf(err, "OCSP single response: no longer valid. Must be valid during at least %ds.", OCSP_MAX_RESPONSE_TIME_SKEW);
+		goto out;
+	}
+
 	ret = 0;
 out:
 	ERR_clear_error();
