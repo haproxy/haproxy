@@ -1098,7 +1098,7 @@ void ocsp_update_response_end_cb(struct httpclient *hc)
 static void ssl_ocsp_send_log()
 {
 	int status_str_len = 0;
-	char *status_str = NULL;
+	char *status_str = "";
 	struct certificate_ocsp *ocsp = ssl_ocsp_task_ctx.cur_ocsp;
 	char *last_error = NULL;
 	struct buffer *tmpbuf = get_trash_chunk();
