@@ -1642,6 +1642,7 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
  */
 int qcc_recv_max_data(struct qcc *qcc, uint64_t max)
 {
+	const int blocked_soft = qfctl_sblocked(&qcc->tx.fc);
 	int unblock_soft = 0, unblock_real = 0;
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
@@ -1656,7 +1657,11 @@ int qcc_recv_max_data(struct qcc *qcc, uint64_t max)
 		if (unblock_soft)
 			qcc_notify_fctl(qcc);
 
-		if (unblock_soft || unblock_real)
+		/* Refresh frms list only if this would result in newer data :
+		 * a. flow-control is not real blocked
+		 * b. soft off was equal or greater than previous limit
+		 */
+		if (!qfctl_rblocked(&qcc->tx.fc) && blocked_soft)
 			qcc_clear_frms(qcc);
 	}
 
@@ -1693,6 +1698,7 @@ int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max)
 		goto err;
 
 	if (qcs) {
+		const int blocked_soft = qfctl_sblocked(&qcs->tx.fc);
 		int unblock_soft = 0, unblock_real = 0;
 
 		TRACE_PROTO("receiving MAX_STREAM_DATA", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
@@ -1708,7 +1714,8 @@ int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max)
 				qcs_notify_send(qcs);
 			}
 
-			if (unblock_soft || unblock_real)
+			/* Same refresh condition as qcc_recv_max_data(). */
+			if (!qfctl_rblocked(&qcs->tx.fc) && blocked_soft)
 				qcc_clear_frms(qcc);
 		}
 	}
