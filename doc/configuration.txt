@@ -1664,12 +1664,12 @@ The following keywords are supported in the "global" section :
    - tune.idle-pool.shared
    - tune.idletimer
    - tune.lua.forced-yield
+   - tune.lua.log.loggers
+   - tune.lua.log.stderr
    - tune.lua.maxmem
    - tune.lua.service-timeout
    - tune.lua.session-timeout
    - tune.lua.task-timeout
-   - tune.lua.log.loggers
-   - tune.lua.log.stderr
    - tune.max-checks-per-thread
    - tune.maxaccept
    - tune.maxpollevents
@@ -3878,34 +3878,6 @@ tune.listener.multi-queue { on | fair | off }
   short-lived and it is estimated that the operating system already provides a
   good enough distribution. The default is "on".
 
-tune.lua.forced-yield <number>
-  This directive forces the Lua engine to execute a yield each <number> of
-  instructions executed. This permits interrupting a long script and allows the
-  HAProxy scheduler to process other tasks like accepting connections or
-  forwarding traffic. The default value is 10000 instructions for scripts loaded
-  using "lua-load-per-thread" and MAX(500, 10000 / nbthread) instructions for
-  scripts loaded using "lua-load" (it was found to be an optimal value for
-  performance while taking care of not creating thread contention with multiple
-  threads competing for the global lua lock).
-
-  If HAProxy often executes some Lua code but more responsiveness is required,
-  this value can be lowered. If the Lua code is quite long and its result is
-  absolutely required to process the data, the <number> can be increased, but
-  the value should be set wisely as in multithreading context it could increase
-  contention.
-
-tune.lua.maxmem <number>
-  Sets the maximum amount of RAM in megabytes per process usable by Lua. By
-  default it is zero which means unlimited. It is important to set a limit to
-  ensure that a bug in a script will not result in the system running out of
-  memory.
-
-tune.lua.session-timeout <timeout>
-  This is the execution timeout for the Lua sessions. This is useful for
-  preventing infinite loops or spending too much time in Lua. This timeout
-  counts only the pure Lua runtime. If the Lua does a sleep, the sleep is
-  not taken in account. The default timeout is 4s.
-
 tune.lua.burst-timeout <timeout>
   The "burst" execution timeout applies to any Lua handler. If the handler
   fails to finish or yield before timeout is reached, it will be aborted to
@@ -3956,17 +3928,21 @@ tune.lua.burst-timeout <timeout>
 
   Setting value to 0 completely disables this protection.
 
-tune.lua.service-timeout <timeout>
-  This is the execution timeout for the Lua services. This is useful for
-  preventing infinite loops or spending too much time in Lua. This timeout
-  counts only the pure Lua runtime. If the Lua does a sleep, the sleep is
-  not taken in account. The default timeout is 4s.
+tune.lua.forced-yield <number>
+  This directive forces the Lua engine to execute a yield each <number> of
+  instructions executed. This permits interrupting a long script and allows the
+  HAProxy scheduler to process other tasks like accepting connections or
+  forwarding traffic. The default value is 10000 instructions for scripts loaded
+  using "lua-load-per-thread" and MAX(500, 10000 / nbthread) instructions for
+  scripts loaded using "lua-load" (it was found to be an optimal value for
+  performance while taking care of not creating thread contention with multiple
+  threads competing for the global lua lock).
 
-tune.lua.task-timeout <timeout>
-  Purpose is the same as "tune.lua.session-timeout", but this timeout is
-  dedicated to the tasks. By default, this timeout isn't set because a task may
-  remain alive during of the lifetime of HAProxy. For example, a task used to
-  check servers.
+  If HAProxy often executes some Lua code but more responsiveness is required,
+  this value can be lowered. If the Lua code is quite long and its result is
+  absolutely required to process the data, the <number> can be increased, but
+  the value should be set wisely as in multithreading context it could increase
+  contention.
 
 tune.lua.log.loggers { on | off }
   Enables ('on') or disables ('off') logging the output of LUA scripts via the
@@ -3987,6 +3963,30 @@ tune.lua.log.stderr { on | auto | off }
   configured via tune.lua.log.loggers.
 
   Defaults to 'auto'.
+
+tune.lua.maxmem <number>
+  Sets the maximum amount of RAM in megabytes per process usable by Lua. By
+  default it is zero which means unlimited. It is important to set a limit to
+  ensure that a bug in a script will not result in the system running out of
+  memory.
+
+tune.lua.service-timeout <timeout>
+  This is the execution timeout for the Lua services. This is useful for
+  preventing infinite loops or spending too much time in Lua. This timeout
+  counts only the pure Lua runtime. If the Lua does a sleep, the sleep is
+  not taken in account. The default timeout is 4s.
+
+tune.lua.session-timeout <timeout>
+  This is the execution timeout for the Lua sessions. This is useful for
+  preventing infinite loops or spending too much time in Lua. This timeout
+  counts only the pure Lua runtime. If the Lua does a sleep, the sleep is
+  not taken in account. The default timeout is 4s.
+
+tune.lua.task-timeout <timeout>
+  Purpose is the same as "tune.lua.session-timeout", but this timeout is
+  dedicated to the tasks. By default, this timeout isn't set because a task may
+  remain alive during of the lifetime of HAProxy. For example, a task used to
+  check servers.
 
 tune.max-checks-per-thread <number>
   Sets the number of active checks per thread above which a thread will
