@@ -1663,6 +1663,7 @@ The following keywords are supported in the "global" section :
    - tune.http.maxhdr
    - tune.idle-pool.shared
    - tune.idletimer
+   - tune.lua.burst-timeout
    - tune.lua.forced-yield
    - tune.lua.log.loggers
    - tune.lua.log.stderr
