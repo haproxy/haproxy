@@ -1647,6 +1647,47 @@ int stktable_get_data_type(char *name)
 	return -1;
 }
 
+/*
+ * Same as stktable_get_data_type() but also expects optional index after the
+ * name in the form "name[idx]", but only for array types
+ * If index optional argument is not provided, default value (0) is applied
+ *
+ * Returns the data type number on success, or < 0 if not found.
+ */
+int stktable_get_data_type_idx(char *name, unsigned int *idx)
+{
+	int type;
+	size_t stop = strcspn(name, "[");
+
+	if (!name[stop]) {
+		/* no idx argument */
+		*idx = 0;
+		return stktable_get_data_type(name);
+	}
+
+	for (type = 0; type < STKTABLE_DATA_TYPES; type++) {
+		char *ret;
+
+		if (!stktable_data_types[type].name ||
+		    !stktable_data_types[type].is_array)
+			continue;
+		if (strncmp(name, stktable_data_types[type].name, stop))
+			continue;
+
+		/* we've got a match */
+		name += stop + 1;
+		*idx = strtoul(name, &ret, 10);
+		if (ret == name || *ret != ']')
+			return -1; // bad value
+		if (ret[1])
+			return -1; // unexpected data
+
+		return type;
+	}
+
+	return -1; // not found
+}
+
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
  * it up into this table. Returns true if found, false otherwise. The input
  * type is STR so that input samples are converted to string (since all types
