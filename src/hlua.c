@@ -84,6 +84,18 @@ enum hlua_log_opt {
 /* default log options, made of flags in hlua_log_opt */
 static uint hlua_log_opts = HLUA_LOG_LOGGERS_ON | HLUA_LOG_STDERR_AUTO;
 
+#define HLUA_SMP_PRESERVE_BOOL_UNK 0x0
+#define HLUA_SMP_PRESERVE_BOOL_ON  0x1
+#define HLUA_SMP_PRESERVE_BOOL_OFF 0X2
+
+/* used to know how to deal with smp2lua bool handling, option implicitly
+ * defaults to historical behavior (off), but it has to be set explicitly
+ * to avoid ambiguity, else a warning will be emitted
+ *
+ * FIXME: make it default to ON in 3.3??
+ */
+static uint8_t hlua_smp_preserve_bool = HLUA_SMP_PRESERVE_BOOL_UNK;
+
 /* Lua uses longjmp to perform yield or throwing errors. This
  * macro is used only for identifying the function that can
  * not return because a longjmp is executed.
@@ -1085,8 +1097,13 @@ __LJMP static int hlua_smp2lua(lua_State *L, struct sample *smp)
 {
 	switch (smp->data.type) {
 	case SMP_T_SINT:
-	case SMP_T_BOOL:
 		lua_pushinteger(L, smp->data.u.sint);
+		break;
+	case SMP_T_BOOL:
+		if (hlua_smp_preserve_bool == HLUA_SMP_PRESERVE_BOOL_ON)
+			lua_pushboolean(L, !!smp->data.u.sint);
+		else
+			lua_pushinteger(L, smp->data.u.sint);
 		break;
 
 	case SMP_T_BIN:
@@ -12936,6 +12953,24 @@ static int hlua_cfg_parse_log_stderr(char **args, int section_type, struct proxy
 	return 0;
 }
 
+static int hlua_cfg_parse_smp_preserve_bool(char **args, int section_type, struct proxy *curpx,
+                                            const struct proxy *defpx, const char *file, int line,
+                                            char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "on") == 0)
+		hlua_smp_preserve_bool = HLUA_SMP_PRESERVE_BOOL_ON;
+	else if (strcmp(args[1], "off") == 0)
+		hlua_smp_preserve_bool = HLUA_SMP_PRESERVE_BOOL_OFF;
+	else {
+		memprintf(err, "'%s' expects either 'on' or 'off' but got '%s'.", args[0], args[1]);
+		return -1;
+	}
+	return 0;
+}
+
 /* This function is called by the main configuration key "lua-load". It loads and
  * execute an lua file during the parsing of the HAProxy configuration file. It is
  * the main lua entry point.
@@ -12954,6 +12989,21 @@ static int hlua_load_state(char **args, lua_State *L, char **err)
 {
 	int error;
 	int nargs;
+
+	if (ONLY_ONCE()) {
+		/* we know we get there if "lua-load" or "lua-load-per-thread" was
+		 * used in the config
+		 */
+		if (hlua_smp_preserve_bool == HLUA_SMP_PRESERVE_BOOL_UNK) {
+			/* hlua_smp_preserve_bool tunable must be explicitly set to
+			 * avoid ambiguity, so we raise a warning (but only if lua
+			 * is actually used
+			 */
+			ha_warning("hlua: please set \"tune.lua.smp-preserve-bool\" tunable to "
+			           "either \"on\" or \"off\" explicitly to avoid ambiguities. "
+			           "Defaulting to \"off\".\n");
+		}
+	}
 
 	/* Just load and compile the file. */
 	error = luaL_loadfile(L, args[0]);
@@ -13186,6 +13236,7 @@ static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "tune.lua.maxmem",          hlua_parse_maxmem },
 	{ CFG_GLOBAL, "tune.lua.log.loggers",     hlua_cfg_parse_log_loggers },
 	{ CFG_GLOBAL, "tune.lua.log.stderr",      hlua_cfg_parse_log_stderr },
+	{ CFG_GLOBAL, "tune.lua.smp-preserve-bool", hlua_cfg_parse_smp_preserve_bool },
 	{ 0, NULL, NULL },
 }};
 
