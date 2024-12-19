@@ -2443,11 +2443,6 @@ static int qcc_build_frms(struct qcc *qcc, struct list *qcs_failed)
 
 	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);
 	return total;
-
- err:
-	qcc_clear_frms(qcc);
-	TRACE_DEVEL("leaving on error", QMUX_EV_QCC_SEND, qcc->conn);
-	return 0;
 }
 
 /* Proceed to sending. Loop through all available streams for the <qcc>
