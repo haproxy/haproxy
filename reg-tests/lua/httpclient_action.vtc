@@ -12,6 +12,7 @@ feature ignore_unknown_macro
 haproxy h1 -conf {
 
     global
+        tune.lua.smp-preserve-bool on
         lua-load ${testdir}/httpclient_action.lua
     defaults
         mode                    tcp
