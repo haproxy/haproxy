@@ -1869,6 +1869,9 @@ clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ] |
   the entry cannot be matched using the key due to empty key or incompatible
   characters on the cli.
 
+  If data.<type> is an array type, "[]" may be used to access a specific
+  index in the array, like so: data.gpt[1]
+
   Example :
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
     >>> # table: http_proxy, type: ip, size:204800, used:2
@@ -2624,6 +2627,9 @@ set table <table> ptr <ptr> [data.<data_type> <value>]*
   returned by a previous "show table" command. Matching an entry using its
   pointer may be relevant if the entry cannot be matched using the key due to
   empty key or incompatible characters on the cli.
+
+  If data.<data_type> is an array type, "[]" may be used to access a specific
+  index in the array, like so: data.gpt[1]
 
 set timeout cli <delay>
   Change the CLI interface timeout for current connection. This can be useful
@@ -3861,6 +3867,9 @@ show table <name> [ data.<type> <operator> <value> [data.<type> ...]] |
   "show table" command. Matching an entry using its pointer may be relevant if
   the entry cannot be matched using the key due empty key or incompatible
   characters on the cli.
+
+  If data.<type> is an array type, "[]" may be used to access a specific
+  index in the array, like so: data.gpt[1]
 
   Example :
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
