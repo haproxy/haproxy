@@ -35,7 +35,7 @@ syslog Slog {
 
 haproxy h1 -conf {
     global
-        tune.lua.smp-preserve-bool on
+        tune.lua.bool-sample-conversion normal
         lua-load ${testdir}/bad_http_clt_req_duration.lua
 
     defaults

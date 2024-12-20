@@ -11,7 +11,7 @@ haproxy h1 -conf {
         tune.idle-pool.shared off
 
     global
-        tune.lua.smp-preserve-bool on
+        tune.lua.bool-sample-conversion normal
         lua-load ${testdir}/set_var.lua
 
     defaults

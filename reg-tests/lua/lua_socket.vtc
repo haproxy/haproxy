@@ -10,7 +10,7 @@ server s1 {
 
 haproxy h1 -conf {
     global
-        tune.lua.smp-preserve-bool on
+        tune.lua.bool-sample-conversion normal
         lua-load ${testdir}/lua_socket.lua
 
     defaults

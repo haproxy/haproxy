@@ -1663,6 +1663,7 @@ The following keywords are supported in the "global" section :
    - tune.http.maxhdr
    - tune.idle-pool.shared
    - tune.idletimer
+   - tune.lua.bool-sample-conversion
    - tune.lua.burst-timeout
    - tune.lua.forced-yield
    - tune.lua.log.loggers
@@ -1670,7 +1671,6 @@ The following keywords are supported in the "global" section :
    - tune.lua.maxmem
    - tune.lua.service-timeout
    - tune.lua.session-timeout
-   - tune.lua.smp-preserve-bool
    - tune.lua.task-timeout
    - tune.max-checks-per-thread
    - tune.maxaccept
@@ -3880,6 +3880,26 @@ tune.listener.multi-queue { on | fair | off }
   short-lived and it is estimated that the operating system already provides a
   good enough distribution. The default is "on".
 
+tune.lua.bool-sample-conversion { normal | pre-3.1-bug }
+  Explicitly tell haproxy how haproxy sample objects should be handled when
+  pushed to Lua. Indeed, when leveraging native converters, sample fetches or
+  variables from Lua script (to name a few), haproxy converts the internal
+  smp type to equivalent Lua type. Because of historical implementation, there
+  is an ambiguity around boolean handling: when doing Lua -> haproxy smp
+  conversion, booleans are properly preserved, but when doing haproxy
+  smp -> Lua conversion, booleans were converted to integers by mistake. This
+  means that a sample fetch or converter returning a boolean would return an
+  integer 0 or 1 when leveraged from Lua. Unfortunately, in Lua, booleans and
+  integers are not interchangeable. Thus, to avoid ambiguities,
+  "tune.lua.bool-sample-conversion" must explicitly be set to either "normal"
+  (which means dropping the historical behavior for better consistency) or
+  "pre-3.1-bug" (enforce historical behavior to prevent existing script logic
+  from misbehaving). If the option is not set explicitly and a Lua script is
+  loaded from the configuration, haproxy will emit a warning, and the option
+  will implicitly default to "pre-3.1-bug" to match with the historical
+  behavior. It is recommended to set this option to "normal" after ensuring
+  that in-use Lua scripts are properly handling bool haproxy samples as booleans.
+
 tune.lua.burst-timeout <timeout>
   The "burst" execution timeout applies to any Lua handler. If the handler
   fails to finish or yield before timeout is reached, it will be aborted to
@@ -3989,25 +4009,6 @@ tune.lua.task-timeout <timeout>
   dedicated to the tasks. By default, this timeout isn't set because a task may
   remain alive during of the lifetime of HAProxy. For example, a task used to
   check servers.
-
-tune.lua.smp-preserve-bool { on | off }
-  Explicitly tell haproxy how haproxy sample objects should be handled when
-  pushed to Lua. Indeed, when using native converters or sample fetches from
-  Lua script, haproxy converts the smp type to equivalent Lua type. Because
-  of historical implementation, there is an ambiguity around boolean
-  handling: when doing Lua -> haproxy smp conversion, booleans are properly
-  preserved, but when doing haproxy smp -> Lua conversion, booleans were
-  converted to integers. This means that a sample fetch or converter returning
-  a boolean would return an integer 0 or 1 when leveraged from Lua.
-  Unfortunately, in Lua, booleans and integers are not interchangeable. Thus,
-  to avoid ambiguities, "tune.lua.smp-preserve-bool" must explicitly be set to
-  either "on" (which means dropping the historical behavior for better
-  consistency) or "off" (enforce historical behavior to prevent existing script
-  logic from misbehaving). If the option is not set explicitly and a Lua script
-  is loaded from the configuration, haproxy will emit a warning, and the option
-  will implicitly default to "off" to match with the historical behavior. When
-  possible, it is recommended to set this option to "on" after ensuring that
-  in-use Lua scripts are properly handling bool haproxy samples as booleans.
 
 tune.max-checks-per-thread <number>
   Sets the number of active checks per thread above which a thread will

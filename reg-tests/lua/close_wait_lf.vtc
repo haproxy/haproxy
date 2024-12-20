@@ -30,7 +30,7 @@ haproxy h1 -conf {
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
 
     global
-        tune.lua.smp-preserve-bool on
+        tune.lua.bool-sample-conversion normal
         lua-load ${testdir}/close_wait_lf.lua
 
     frontend frt
