@@ -173,7 +173,6 @@ static int bind_parse_namespace(char **args, int cur_arg, struct proxy *px, stru
 		ha_alert("Cannot open namespace '%s'.\n", args[cur_arg + 1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
-	global.last_checks |= LSTCHK_SYSADM;
 
 	return 0;
 }
