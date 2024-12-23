@@ -16,25 +16,12 @@ jobs:
       - name: Install VTest
         run: |
           scripts/build-vtest.sh
-      - name: Determine latest WolfSSL release
-        id: get_wolfssl_release
-        run: |
-          result=$(cd .github && python3  -c "from matrix import determine_latest_wolfssl; print(determine_latest_wolfssl(''))")
-          echo $result
-          echo "result=$result" >> $GITHUB_OUTPUT
-      - name: Cache WolfSSL
-        id: cache_wolfssl
-        uses: actions/cache@v4
-        with:
-          path: '~/opt/'
-          key: ssl-${{ steps.get_wolfssl_release.outputs.result }}-Ubuntu-latest-gcc
       - name: Install apt dependencies
         run: |
           sudo apt-get update -o Acquire::Languages=none -o Acquire::Translation=none
           sudo apt-get --no-install-recommends -y install socat gdb
       - name: Install WolfSSL
-        if: ${{ steps.cache_ssl.outputs.cache-hit != 'true' }}
-        run: env ${{ steps.get_wolfssl_release.outputs.result }} scripts/build-ssl.sh
+        run: env WOLFSSL_VERSION=git-master scripts/build-ssl.sh
       - name: Compile HAProxy
         run: |
           make -j$(nproc) ERR=1 CC=gcc TARGET=linux-glibc \
