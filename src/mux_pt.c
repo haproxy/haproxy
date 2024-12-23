@@ -23,6 +23,7 @@
 struct mux_pt_ctx {
 	struct sedesc *sd;
 	struct connection *conn;
+	uint32_t term_evts_log;
 	struct wait_event wait_event;
 };
 
@@ -200,6 +201,16 @@ static void pt_trace(enum trace_level level, uint64_t mask, const struct trace_s
 	}
 }
 
+static inline void mux_pt_report_term_evt(struct mux_pt_ctx *ctx, enum term_event_type type)
+{
+	struct connection *conn = ctx->conn;
+	enum term_event_loc loc = tevt_loc_muxc;
+
+	if (conn_is_back(conn))
+		loc += 8;
+	ctx->term_evts_log = tevt_report_event(ctx->term_evts_log, loc, type);
+}
+
 static void mux_pt_destroy(struct mux_pt_ctx *ctx)
 {
 	struct connection *conn = NULL;
@@ -298,6 +309,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 	ctx->wait_event.tasklet->process = mux_pt_io_cb;
 	ctx->wait_event.events = 0;
 	ctx->conn = conn;
+	ctx->term_evts_log = 0;
 
 	if (!sc) {
 		ctx->sd = sedesc_new();
@@ -468,6 +480,8 @@ static void mux_pt_shut(struct stconn *sc, unsigned int mode, struct se_abort_in
 
 	TRACE_ENTER(PT_EV_STRM_SHUT, conn, sc);
 	if (mode & (SE_SHW_SILENT|SE_SHW_NORMAL)) {
+		mux_pt_report_term_evt(ctx, tevt_type_shutw);
+
 		if (conn_xprt_ready(conn) && conn->xprt->shutw)
 			conn->xprt->shutw(conn, conn->xprt_ctx, (mode & SE_SHW_NORMAL));
 		if (!(conn->flags & CO_FL_SOCK_WR_SH))
@@ -513,6 +527,7 @@ static size_t mux_pt_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count
 	b_realign_if_empty(buf);
 	ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, count, flags);
 	if (conn->flags & CO_FL_ERROR) {
+		mux_pt_report_term_evt(ctx, tevt_type_rcv_err);
 		se_fl_clr(ctx->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 		if (conn_xprt_read0_pending(conn))
 			se_fl_set(ctx->sd, SE_FL_EOS);
@@ -520,6 +535,7 @@ static size_t mux_pt_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count
 		TRACE_DEVEL("error on connection", PT_EV_RX_DATA|PT_EV_CONN_ERR, conn, sc);
 	}
 	else if (conn_xprt_read0_pending(conn)) {
+		mux_pt_report_term_evt(ctx, tevt_type_shutr);
 		se_fl_clr(ctx->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 		se_fl_set(ctx->sd, (SE_FL_EOI|SE_FL_EOS));
 		TRACE_DEVEL("read0 on connection", PT_EV_RX_DATA, conn, sc);
@@ -544,6 +560,7 @@ static size_t mux_pt_snd_buf(struct stconn *sc, struct buffer *buf, size_t count
 		b_del(buf, ret);
 
 	if (conn->flags & CO_FL_ERROR) {
+		mux_pt_report_term_evt(ctx, tevt_type_snd_err);
 		if (conn_xprt_read0_pending(conn))
 			se_fl_set(ctx->sd, SE_FL_EOS);
 		se_fl_set_error(ctx->sd);
@@ -697,12 +714,14 @@ static int mux_pt_fastfwd(struct stconn *sc, unsigned int count, unsigned int fl
 
  out:
 	if (conn->flags & CO_FL_ERROR) {
+		mux_pt_report_term_evt(ctx, tevt_type_rcv_err);
 		if (conn_xprt_read0_pending(conn))
 			se_fl_set(ctx->sd, SE_FL_EOS);
 		se_fl_set(ctx->sd, SE_FL_ERROR);
 		TRACE_DEVEL("error on connection", PT_EV_RX_DATA|PT_EV_CONN_ERR, conn, sc);
 	}
 	else if (conn_xprt_read0_pending(conn))  {
+		mux_pt_report_term_evt(ctx, tevt_type_shutr);
 		se_fl_set(ctx->sd, (SE_FL_EOS|SE_FL_EOI));
 		TRACE_DEVEL("read0 on connection", PT_EV_RX_DATA, conn, sc);
 	}
@@ -733,6 +752,7 @@ static int mux_pt_resume_fastfwd(struct stconn *sc, unsigned int flags)
 
   out:
 	if (conn->flags & CO_FL_ERROR) {
+		mux_pt_report_term_evt(ctx, tevt_type_snd_err);
 		if (conn_xprt_read0_pending(conn))
 			se_fl_set(ctx->sd, SE_FL_EOS);
 		se_fl_set_error(ctx->sd);
@@ -774,6 +794,7 @@ static int mux_pt_unsubscribe(struct stconn *sc, int event_type, struct wait_eve
 
 static int mux_pt_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *output)
 {
+	struct mux_pt_ctx *ctx = conn->ctx;
 	int ret = 0;
 
 	switch (mux_ctl) {
@@ -787,6 +808,8 @@ static int mux_pt_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *
 		return mux_pt_used_streams(conn);
 	case MUX_CTL_GET_MAXSTRM:
 		return 1;
+	case MUX_CTL_TEVTS:
+		return ctx->term_evts_log;
 	default:
 		return -1;
 	}
@@ -801,6 +824,9 @@ static int mux_pt_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *out
 		if (output)
 			*((int64_t *)output) = 0;
 		return ret;
+
+	case MUX_SCTL_TEVTS:
+		return sc->sedesc->term_evts_log;
 
 	default:
 		return -1;
