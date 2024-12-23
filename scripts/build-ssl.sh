@@ -4,6 +4,8 @@ set -eux
 BUILDSSL_DESTDIR=${BUILDSSL_DESTDIR:-${HOME}/opt}
 BUILDSSL_TMPDIR=${BUILDSSL_TMPDIR:-/tmp/download-cache}
 
+WOLFSSL_DEBUG=${WOLFSSL_DEBUG:-0}
+
 download_openssl () {
     if [ ! -f "${BUILDSSL_TMPDIR}/openssl-${OPENSSL_VERSION}.tar.gz" ]; then
 
@@ -209,10 +211,16 @@ build_wolfssl () {
     if [ "$(cat ${BUILDSSL_DESTDIR}/.wolfssl-version)" != "${WOLFSSL_VERSION}" ]; then
         mkdir -p "${BUILDSSL_TMPDIR}/wolfssl-${WOLFSSL_VERSION}/"
         tar zxf "${BUILDSSL_TMPDIR}/wolfssl-${WOLFSSL_VERSION}.tar.gz" -C "${BUILDSSL_TMPDIR}/wolfssl-${WOLFSSL_VERSION}/" --strip-components=1
+        if [ "${WOLFSSL_DEBUG}" -eq 1 ]; then
+          WOLFSSL_DEBUG="--enable-debug"
+        else
+          WOLFSSL_DEBUG=
+        fi
         (
+
            cd "${BUILDSSL_TMPDIR}/wolfssl-${WOLFSSL_VERSION}/"
             autoreconf -i
-           ./configure --enable-haproxy --enable-quic --prefix="${BUILDSSL_DESTDIR}"
+           ./configure --enable-haproxy --enable-quic --prefix="${BUILDSSL_DESTDIR}" ${WOLFSSL_DEBUG}
            make -j$(nproc)
            make install
         )
