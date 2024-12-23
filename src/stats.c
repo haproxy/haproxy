@@ -988,6 +988,14 @@ static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx
 	return 0;
 }
 
+static int cli_parse_show_schema_json(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct show_stat_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
+	/* ctx is allocated, nothing else to do */
+	return 0;
+}
+
 static int cli_io_handler_dump_info(struct appctx *appctx)
 {
 	struct show_stat_ctx *ctx = appctx->svcctx;
@@ -1315,7 +1323,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "clear", "counters",  NULL },      "clear counters [all]                    : clear max statistics counters (or all counters)", cli_parse_clear_counters, NULL, NULL },
 	{ { "show", "info",  NULL },           "show info [desc|json|typed|float]*      : report information about the running process",    cli_parse_show_info, cli_io_handler_dump_info, NULL },
 	{ { "show", "stat",  NULL },           "show stat [desc|json|no-maint|typed|up]*: report counters for each proxy and server",       cli_parse_show_stat, cli_io_handler_dump_stat, cli_io_handler_release_stat },
-	{ { "show", "schema",  "json", NULL }, "show schema json                        : report schema used for stats",                    NULL, cli_io_handler_dump_json_schema, NULL },
+	{ { "show", "schema",  "json", NULL }, "show schema json                        : report schema used for stats",                    cli_parse_show_schema_json, cli_io_handler_dump_json_schema, NULL },
 	{ { "dump", "stats-file", NULL },      "dump stats-file                         : dump stats for restore",                          cli_parse_dump_stat_file, cli_io_handler_dump_stat_file, cli_io_handler_release_dump_stat_file },
 	{{},}
 }};
