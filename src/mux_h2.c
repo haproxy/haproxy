@@ -5255,6 +5255,9 @@ static int h2_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *outp
 	case MUX_CTL_GET_MAXSTRM:
 		return h2c->streams_limit;
 
+	case MUX_CTL_TEVTS:
+		return h2c->term_evts_log;
+
 	default:
 		return -1;
 	}
@@ -5290,6 +5293,8 @@ static int h2_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *output)
 		/* other layers not implemented */
 		dbg_ctx->ret.buf = *buf;
 		return ret;
+	case MUX_SCTL_TEVTS:
+		return h2s->sd->term_evts_log;
 
 	default:
 		return -1;

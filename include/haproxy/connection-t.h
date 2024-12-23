@@ -339,12 +339,14 @@ enum mux_ctl_type {
 	MUX_CTL_GET_GLITCHES, /* returns number of glitches on the connection */
 	MUX_CTL_GET_NBSTRM, /* Return the current number of streams on the connection */
 	MUX_CTL_GET_MAXSTRM, /* Return the max number of streams supported by the connection */
+	MUX_CTL_TEVTS, /* Return the termination events log of the mux connection */
 };
 
 /* sctl command used by mux->sctl() */
 enum mux_sctl_type {
 	MUX_SCTL_SID, /* Return the mux stream ID as output, as a signed 64bits integer */
 	MUX_SCTL_DBG_STR,    /* takes a mux_sctl_dbg_str_ctx argument, reads flags and returns debug info */
+	MUX_SCTL_TEVTS, /* Return the termination events log of the mux stream */
 };
 
 #define MUX_SCTL_DBG_STR_L_MUXS  0x00000001  // info from mux stream

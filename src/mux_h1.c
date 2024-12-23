@@ -5262,6 +5262,8 @@ static int h1_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *outp
 		return h1_used_streams(conn);
 	case MUX_CTL_GET_MAXSTRM:
 		return 1;
+	case MUX_CTL_TEVTS:
+		return h1c->term_evts_log;
 	default:
 		return -1;
 	}
@@ -5297,6 +5299,8 @@ static int h1_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *output)
 		/* other layers not implemented */
 		dbg_ctx->ret.buf = *buf;
 		return ret;
+	case MUX_SCTL_TEVTS:
+		return h1s->sd->term_evts_log;
 	default:
 		return -1;
 	}
