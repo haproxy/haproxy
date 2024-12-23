@@ -6435,7 +6435,7 @@ static int _srv_update_status_op(struct server *s, enum srv_op_st_chg_cause caus
 		/* check if we can handle some connections queued.
 		 * We will take as many as we can handle.
 		 */
-		process_srv_queue(s);
+		xferred = process_srv_queue(s);
 
 		tmptrash = alloc_trash_chunk();
 		if (tmptrash) {
@@ -6631,7 +6631,7 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 		/* check if we can handle some connections queued.
 		 * We will take as many as we can handle.
 		 */
-		process_srv_queue(s);
+		xferred = process_srv_queue(s);
 	}
 	else if (s->next_admin & SRV_ADMF_MAINT) {
 		/* remaining in maintenance mode, let's inform precisely about the

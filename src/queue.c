@@ -354,7 +354,7 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px, int 
 /* Manages a server's connection queue. This function will try to dequeue as
  * many pending streams as possible, and wake them up.
  */
-void process_srv_queue(struct server *s)
+int process_srv_queue(struct server *s)
 {
 	struct server *ref = s->track ? s->track : s;
 	struct proxy  *p = s->proxy;
@@ -413,6 +413,7 @@ void process_srv_queue(struct server *s)
 		if (p->lbprm.server_take_conn)
 			p->lbprm.server_take_conn(s);
 	}
+	return done;
 }
 
 /* Adds the stream <strm> to the pending connection queue of server <strm>->srv
