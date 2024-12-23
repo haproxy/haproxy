@@ -53,6 +53,8 @@ struct h1c {
 
 	unsigned int req_count;          /* The number of requests handled by this H1 connection */
 
+	uint32_t term_evts_log;        /* Termination events log: first 4 events reported */
+
 	struct h1_counters *px_counters; /* h1 counters attached to proxy */
 	struct buffer_wait buf_wait;     /* Wait list for buffer allocation */
 	struct wait_event wait_event;    /* To be used if we're waiting for I/Os */
@@ -646,6 +648,24 @@ static inline void h1_release_buf(struct h1c *h1c, struct buffer *bptr)
 		b_free(bptr);
 		offer_buffers(h1c->buf_wait.target, 1);
 	}
+}
+
+static inline void h1c_report_term_evt(struct h1c *h1c, enum term_event_type type)
+{
+	enum term_event_loc loc = tevt_loc_muxc;
+
+	if (h1c->flags & H1C_F_IS_BACK)
+		loc += 8;
+	h1c->term_evts_log = tevt_report_event(h1c->term_evts_log, loc, type);
+}
+
+static inline void h1s_report_term_evt(struct h1s *h1s, enum term_event_type type)
+{
+	enum term_event_loc loc = tevt_loc_se;
+
+	if (h1s->h1c->flags & H1C_F_IS_BACK)
+		loc += 8;
+	h1s->sd->term_evts_log = tevt_report_event(h1s->sd->term_evts_log, loc, type);
 }
 
 /* Returns 1 if the H1 connection is alive (IDLE, EMBRYONIC, RUNNING or
@@ -1244,6 +1264,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	h1c->h1s   = NULL;
 	h1c->task  = NULL;
 	h1c->req_count = 0;
+	h1c->term_evts_log = 0;
 
 	LIST_INIT(&h1c->buf_wait.list);
 	h1c->wait_event.tasklet = tasklet_new();
@@ -2286,18 +2307,26 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 	}
 	else {
 		se_fl_clr(h1s->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
+
 		if (h1c->flags & H1C_F_EOS) {
+			if (!(h1c->flags & H1C_F_ERROR))
+				h1c_report_term_evt(h1c, (se_fl_test(h1c->h1s->sd, SE_FL_EOI) ? tevt_type_shutr : tevt_type_truncated_shutr));
+
 			se_fl_set(h1s->sd, SE_FL_EOS);
 			TRACE_STATE("report EOS to SE", H1_EV_RX_DATA, h1c->conn, h1s);
 			if (h1m->state >= H1_MSG_DONE || (h1m->state > H1_MSG_LAST_LF && !(h1m->flags & H1_MF_XFER_LEN))) {
 				/* DONE or TUNNEL or SHUTR without XFER_LEN, set
 				 * EOI on the stream connector */
+				if (!(h1c->flags & H1C_F_ERROR))
+					h1s_report_term_evt(h1s, tevt_type_shutr);
 				se_fl_set(h1s->sd, SE_FL_EOI);
 				TRACE_STATE("report EOI to SE", H1_EV_RX_DATA, h1c->conn, h1s);
 			}
 			else if (h1m->state < H1_MSG_DONE) {
 				if (h1m->state <= H1_MSG_LAST_LF && b_data(&h1c->ibuf))
 					htx->flags |= HTX_FL_PARSING_ERROR;
+				if (!(h1c->flags & H1C_F_ERROR))
+					h1s_report_term_evt(h1s, tevt_type_truncated_shutr);
 				se_fl_set(h1s->sd, SE_FL_ERROR);
 				COUNT_IF(1, "H1C EOS before the end of the message");
 				TRACE_ERROR("message aborted, set error on SC", H1_EV_RX_DATA|H1_EV_H1S_ERR, h1c->conn, h1s);
@@ -2311,6 +2340,9 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 		}
 		if (h1c->flags & H1C_F_ERROR) {
 			/* Report a terminal error to the SE if a previous read error was detected */
+			h1c_report_term_evt(h1c, (se_fl_test(h1c->h1s->sd, SE_FL_EOI) ? tevt_type_rcv_err : tevt_type_truncated_rcv_err));
+			h1s_report_term_evt(h1s, (se_fl_test(h1c->h1s->sd, SE_FL_EOI) ? tevt_type_rcv_err : tevt_type_truncated_rcv_err));
+
 			se_fl_set(h1s->sd, SE_FL_ERROR);
 			COUNT_IF(h1m->state < H1_MSG_DONE, "H1C ERROR before the end of the message");
 			TRACE_STATE("report ERROR to SE", H1_EV_RX_DATA|H1_EV_H1S_ERR, h1c->conn, h1s);
@@ -3940,6 +3972,7 @@ static int h1_send(struct h1c *h1c)
 		TRACE_DEVEL("connection error", H1_EV_H1C_SEND, h1c->conn);
 		COUNT_IF(b_data(&h1c->obuf), "connection error (send) with pending output data");
 		h1c->flags |= H1C_F_ERR_PENDING;
+		h1c_report_term_evt(h1c, tevt_type_snd_err);
 		if (h1c->flags & H1C_F_EOS)
 			h1c->flags |= H1C_F_ERROR;
 		else if (!(h1c->wait_event.events & SUB_RETRY_RECV)) {
@@ -4070,6 +4103,9 @@ static int h1_process(struct h1c * h1c)
 	    (h1c->state >= H1_CS_CLOSING && (h1c->flags & H1C_F_SILENT_SHUT) && !b_data(&h1c->obuf))) {
 		if (h1c->state != H1_CS_RUNNING) {
 			/* No stream connector or upgrading */
+			if (h1c->state == H1_CS_IDLE)
+				h1c_report_term_evt(h1c, ((h1c->flags & H1C_F_ERROR) ? tevt_type_rcv_err : tevt_type_shutr));
+
 			if (h1c->state < H1_CS_RUNNING && !(h1c->flags & (H1C_F_IS_BACK|H1C_F_ABRT_PENDING))) {
 				/* shutdown for reads and no error on the frontend connection: Send an error */
 				if (h1_handle_parsing_error(h1c))
@@ -4351,6 +4387,8 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state)
 			conn_delete_from_tree(h1c->conn);
 
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+
+		h1c_report_term_evt(h1c, tevt_type_tout);
 	}
 
   do_leave:
@@ -4487,6 +4525,7 @@ static void h1_shut(struct stconn *sc, unsigned int mode, struct se_abort_info *
 	COUNT_IF((h1c->flags & H1C_F_IS_BACK) && (h1s->res.state < H1_MSG_DONE), "Abort sending of the response");
 	COUNT_IF(!(h1c->flags & H1C_F_IS_BACK) && (h1s->req.state < H1_MSG_DONE), "Abort sending of the request");
 
+	h1c_report_term_evt(h1c, tevt_type_shutw);
 	h1_close(h1c);
 	if (!(mode & SE_SHW_NORMAL))
 		h1c->flags |= H1C_F_SILENT_SHUT;
@@ -5087,11 +5126,13 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 			/* DONE or TUNNEL or SHUTR without XFER_LEN, set
 			 * EOI on the stream connector */
 			se_fl_set(h1s->sd, SE_FL_EOI);
+			h1c_report_term_evt(h1c, tevt_type_shutr);
 			TRACE_STATE("report EOI to SE", H1_EV_STRM_RECV, h1c->conn, h1s);
 		}
 		else {
 			se_fl_set(h1s->sd, SE_FL_ERROR);
 			h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_ERROR;
+			h1c_report_term_evt(h1c, tevt_type_truncated_shutr);
 			COUNT_IF(1, "H1C EOS before the end of the message");
 			TRACE_ERROR("message aborted, set error on SC", H1_EV_STRM_RECV|H1_EV_H1S_ERR, h1c->conn, h1s);
 		}
@@ -5101,6 +5142,8 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 	if (h1c->conn->flags & CO_FL_ERROR) {
 		se_fl_set(h1s->sd, SE_FL_ERROR);
 		h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_ERROR;
+		if (!(h1c->flags & H1C_F_EOS))
+			h1c_report_term_evt(h1c, tevt_type_truncated_rcv_err);
 		COUNT_IF(h1m->state < H1_MSG_DONE, "H1C ERROR before the end of the message");
 		COUNT_IF(b_data(&h1c->obuf) || (h1s->sd->iobuf.pipe && h1s->sd->iobuf.pipe->data), "connection error (fastfwd) with pending output data");
 		TRACE_DEVEL("connection error", H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
