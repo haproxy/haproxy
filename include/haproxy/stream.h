@@ -418,6 +418,19 @@ static inline unsigned int stream_map_task_state(unsigned int state)
 		0;
 }
 
+static inline void stream_report_term_evt(struct stconn *sc, enum term_event_loc loc, enum term_event_type type)
+{
+	struct stream *s = sc_strm(sc);
+
+	if (!s)
+		return;
+
+	if (sc->flags & SC_FL_ISBACK)
+		loc += 8;
+	s->term_evts_log = tevt_report_event(s->term_evts_log, loc, type);
+	sc->term_evts_log = tevt_report_event(sc->term_evts_log, loc, type);
+}
+
 
 int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout);
 void stream_retnclose(struct stream *s, const struct buffer *msg);

@@ -347,6 +347,7 @@ struct stconn {
 
 	unsigned int flags;                  /* SC_FL_* */
 	unsigned int ioto;                   /* I/O activity timeout */
+	uint32_t term_evts_log;              /* termination events log aggregating SE + connection events */
 	ssize_t room_needed;                 /* free space in the input buffer required to receive more data.
 					      *    -1   : the SC is waiting for room but not on a specific amount of data
 					      *    >= 0 : min free space required to progress. 0 means SC must be unblocked ASAP

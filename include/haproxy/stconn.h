@@ -565,4 +565,13 @@ static inline size_t se_done_ff(struct sedesc *se)
 	return ret;
 }
 
+static inline void sc_report_term_evt(struct stconn *sc, enum term_event_loc loc, enum term_event_type type)
+{
+	if (sc->flags & SC_FL_ISBACK)
+		loc += 8;
+	sc->term_evts_log = tevt_report_event(sc->term_evts_log, loc, type);
+	if (sc_strm(sc))
+		__sc_strm(sc)->term_evts_log = tevt_report_event(__sc_strm(sc)->term_evts_log, loc, type);
+}
+
 #endif /* _HAPROXY_STCONN_H */
