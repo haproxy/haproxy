@@ -2109,7 +2109,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 	h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->req : &h1s->res);
 	data = htx->data;
 
-	if (h1s->flags & (H1S_F_INTERNAL_ERROR|H1S_F_PARSING_ERROR|H1S_F_NOT_IMPL_ERROR))
+	if (h1s->flags & H1S_F_DEMUX_ERROR)
 		goto end;
 
 	if (h1s->flags & H1S_F_RX_BLK)
@@ -2206,10 +2206,10 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 		}
 
 		count -= htx_used_space(htx) - used;
-	} while (!(h1s->flags & (H1S_F_PARSING_ERROR|H1S_F_NOT_IMPL_ERROR|H1S_F_RX_BLK|H1S_F_RX_CONGESTED)));
+	} while (!(h1s->flags & (H1S_F_DEMUX_ERROR|H1S_F_RX_BLK|H1S_F_RX_CONGESTED)));
 
 
-	if (h1s->flags & (H1S_F_PARSING_ERROR|H1S_F_NOT_IMPL_ERROR)) {
+	if (h1s->flags & H1S_F_DEMUX_ERROR) {
 		TRACE_ERROR("parsing or not-implemented error", H1_EV_RX_DATA|H1_EV_H1S_ERR, h1c->conn, h1s);
 		goto err;
 	}
@@ -3442,7 +3442,7 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 	if (htx_is_empty(htx))
 		goto end;
 
-	if (h1s->flags & (H1S_F_INTERNAL_ERROR|H1S_F_PROCESSING_ERROR|H1S_F_TX_BLK))
+	if (h1s->flags & (H1S_F_MUX_ERROR|H1S_F_TX_BLK))
 		goto end;
 
 	if (!h1_get_obuf(h1c)) {
@@ -3452,7 +3452,7 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 	h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->res : &h1s->req);
 
 	while (!(h1c->flags & H1C_F_OUT_FULL) &&
-	       !(h1s->flags & (H1S_F_PROCESSING_ERROR|H1S_F_TX_BLK)) &&
+	       !(h1s->flags & (H1S_F_MUX_ERROR|H1S_F_TX_BLK)) &&
 	       !htx_is_empty(htx) && count) {
 		switch (h1m->state) {
 			case H1_MSG_RQBEFORE:
