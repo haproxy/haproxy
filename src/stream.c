@@ -4295,6 +4295,23 @@ static int smp_fetch_conn_retries(const struct arg *args, struct sample *smp, co
 	return 1;
 }
 
+static int smp_fetch_strm_tevts(const struct arg *args, struct sample *smp, const char *km, void *private)
+{
+	struct buffer *trash = get_trash_chunk();
+
+	smp->flags = SMP_F_VOL_TXN;
+	smp->data.type = SMP_T_STR;
+	if (!smp->strm)
+		return 0;
+
+	chunk_appendf(trash, "%s", tevt_evts2str(smp->strm->term_evts_log));
+
+	smp->data.u.str = *trash;
+	smp->data.type = SMP_T_STR;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
 static int smp_fetch_id32(const struct arg *args, struct sample *smp, const char *km, void *private)
 {
 	smp->flags = SMP_F_VOL_TXN;
@@ -4329,6 +4346,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "last_rule_file",     smp_fetch_last_rule_file,     0, NULL, SMP_T_STR,  SMP_USE_INTRN, },
 	{ "last_rule_line",     smp_fetch_last_rule_line,     0, NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "txn.conn_retries",   smp_fetch_conn_retries,       0, NULL, SMP_T_SINT, SMP_USE_L4SRV, },
+	{ "txn.term_events",    smp_fetch_strm_tevts,         0, NULL, SMP_T_STR,  SMP_USE_INTRN, },
 	{ "txn.id32",           smp_fetch_id32,               0, NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "txn.redispatched",   smp_fetch_redispatched,       0, NULL, SMP_T_BOOL, SMP_USE_L4SRV, },
 	{ "txn.sess_term_state",smp_fetch_sess_term_state,    0, NULL, SMP_T_STR,  SMP_USE_INTRN, },

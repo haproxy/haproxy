@@ -2528,6 +2528,29 @@ smp_fetch_strm_rst_code(const struct arg *args, struct sample *smp, const char *
 	return 1;
 }
 
+/* return the string representation of the termination event logs of the
+ * frontend or backend mux stream.
+ */
+static int smp_fetch_strm_tevts(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct stconn *sc;
+	struct buffer *buf;
+
+	if (!smp->strm)
+		return 0;
+
+	buf = get_trash_chunk();
+
+	sc = (kw[0] == 'f' ? smp->strm->scf : smp->strm->scb);
+	chunk_strcpy(buf, tevt_evts2str(sc->sedesc->term_evts_log));
+
+	smp->data.type = SMP_T_STR;
+	smp->flags = SMP_F_VOL_TEST | SMP_F_MAY_CHANGE;
+	smp->data.u.str = *buf;
+
+	return 1;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Note: fetches that may return multiple types should be declared using the
  * appropriate pseudo-type. If not available it must be declared as the lowest
@@ -2538,10 +2561,12 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "bs.id", smp_fetch_sid, 0, NULL, SMP_T_SINT, SMP_USE_L5SRV },
 	{ "bs.aborted", smp_fetch_strm_aborted, 0, NULL, SMP_T_SINT, SMP_USE_L5SRV },
 	{ "bs.rst_code", smp_fetch_strm_rst_code, 0, NULL, SMP_T_SINT, SMP_USE_L5SRV },
+	{ "bs.term_events", smp_fetch_strm_tevts, 0, NULL, SMP_T_STR, SMP_USE_L5SRV },
 	{ "fs.debug_str", smp_fetch_debug_str, ARG1(0,SINT), NULL, SMP_T_STR, SMP_USE_L5CLI },
 	{ "fs.id", smp_fetch_sid, 0, NULL, SMP_T_STR, SMP_USE_L5CLI },
 	{ "fs.aborted", smp_fetch_strm_aborted, 0, NULL, SMP_T_SINT, SMP_USE_L5CLI },
 	{ "fs.rst_code", smp_fetch_strm_rst_code, 0, NULL, SMP_T_SINT, SMP_USE_L5CLI },
+	{ "fs.term_events", smp_fetch_strm_tevts, 0, NULL, SMP_T_STR, SMP_USE_L5SRV },
 	{ /* END */ },
 }};
 
