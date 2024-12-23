@@ -538,6 +538,44 @@ struct conn_tlv_list {
 	char value[0];
 } __attribute__((packed));
 
+
+/* Termination events logs:
+ * Each event is stored on 8 bits: 4 bits bor the event location and
+ * 4 bits for the event type.
+ */
+
+/* Locations for termination event logs (4-bits). But only 7 locations are
+ * supported because 1 bit is reserved to distinguish frontend to backend
+ * events: the msb is set to 1 for backend events.
+ */
+enum term_event_loc {
+	tevt_loc_fd    = 1,
+	tevt_loc_hs    = 2,
+	tevt_loc_xprt  = 3,
+	tevt_loc_muxc  = 4,
+	tevt_loc_se    = 5,
+	tevt_loc_strm  = 6,
+};
+
+/* Types for termination event logs (4-bits) */
+enum term_event_type {
+	/* Events emitted by haproxy */
+	tevt_type_shutw            =  1,
+	tevt_type_intercepted      =  2,
+	tevt_type_tout             =  3,
+
+	/* 4..9 unsued */
+
+	/* Events received by haproxy */
+	tevt_type_shutr            =  10,
+	tevt_type_rcv_err          =  11,
+	tevt_type_truncated_shutr  =  12,
+	tevt_type_truncated_rcv_err=  13,
+	tevt_type_snd_err          =  14,
+
+	/* 15 unsued */
+};
+
 /* This structure describes a connection with its methods and data.
  * A connection may be performed to proxy or server via a local or remote
  * socket, and can also be made to an internal applet. It can support
@@ -588,6 +626,8 @@ struct connection {
 		enum obj_type *target; /* Listener for active reverse, server for passive. */
 		struct buffer name;    /* Only used for passive reverse. Used as SNI when connection added to server idle pool. */
 	} reverse;
+
+	uint32_t term_evts_log;        /* Termination events log: first 4 events reported from fd, handshake or xprt */
 	uint32_t mark;                 /* set network mark, if CO_FL_OPT_MARK is set */
 	uint8_t tos;                   /* set ip tos, if CO_FL_OPT_TOS is set */
 };

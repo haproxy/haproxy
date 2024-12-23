@@ -1007,6 +1007,7 @@ int sock_conn_check(struct connection *conn)
 	/* Write error on the file descriptor. Report it to the connection
 	 * and disable polling on this FD.
 	 */
+	conn_report_term_evt(conn, tevt_loc_fd, tevt_type_truncated_rcv_err);
 	conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 	HA_ATOMIC_AND(&fdtab[fd].state, ~FD_LINGER_RISK);
 	fd_stop_both(fd);
