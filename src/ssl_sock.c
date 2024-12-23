@@ -156,6 +156,8 @@ enum {
 	SSL_ST_SESS,
 	SSL_ST_REUSED_SESS,
 	SSL_ST_FAILED_HANDSHAKE,
+	SSL_ST_OCSP_STAPLE,
+	SSL_ST_FAILED_OCSP_STAPLE,
 
 	SSL_ST_STATS_COUNT /* must be the last member of the enum */
 };
@@ -167,6 +169,10 @@ static struct stat_col ssl_stats[] = {
 	                              .desc = "Total number of ssl sessions reused" },
 	[SSL_ST_FAILED_HANDSHAKE] = { .name = "ssl_failed_handshake",
 	                              .desc = "Total number of failed handshake" },
+	[SSL_ST_OCSP_STAPLE]      = { .name = "ssl_ocsp_staple",
+	                              .desc = "Total number of stapled OCSP responses" },
+	[SSL_ST_FAILED_OCSP_STAPLE] = { .name = "ssl_failed_ocsp_staple",
+	                              .desc = "Total number of failed OCSP stapling (expired or error)" },
 };
 
 static struct ssl_counters ssl_counters;
@@ -189,6 +195,13 @@ static int ssl_fill_stats(void *data, struct field *stats, unsigned int *selecte
 		case SSL_ST_FAILED_HANDSHAKE:
 			metric = mkf_u64(FN_COUNTER, counters->failed_handshake);
 			break;
+		case SSL_ST_OCSP_STAPLE:
+			metric = mkf_u64(FN_COUNTER, counters->ocsp_staple);
+			break;
+		case SSL_ST_FAILED_OCSP_STAPLE:
+			metric = mkf_u64(FN_COUNTER, counters->failed_ocsp_staple);
+			break;
+
 		default:
 			/* not used for frontends. If a specific metric
 			 * is requested, return an error. Otherwise continue.

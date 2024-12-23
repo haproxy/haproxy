@@ -331,6 +331,8 @@ struct ssl_counters {
 	long long sess;
 	long long reused_sess;
 	long long failed_handshake;
+	long long ocsp_staple;
+	long long failed_ocsp_staple;
 };
 
 #endif /* USE_OPENSSL */
