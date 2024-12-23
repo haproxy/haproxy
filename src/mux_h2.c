@@ -5272,7 +5272,9 @@ static int h2_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *output)
 			h2_dump_h2c_info(buf, h2s->h2c, NULL);
 
 		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_CONN)
-			chunk_appendf(buf, " conn.flg=%#08x", h2s->h2c->conn->flags);
+			chunk_appendf(buf, " conn.flg=%#08x conn.err_code=%u conn.evts=%s",
+				      h2s->h2c->conn->flags, h2s->h2c->conn->err_code,
+				      tevt_evts2str(h2s->h2c->conn->term_evts_log));
 
 		/* other layers not implemented */
 		dbg_ctx->ret.buf = *buf;
@@ -8002,7 +8004,7 @@ static int h2_dump_h2s_info(struct buffer *msg, const struct h2s *h2s, const cha
 			      h2s_sc(h2s)->flags, h2s_sc(h2s)->app);
 
 	chunk_appendf(msg, " .sd=%p", h2s->sd);
-	chunk_appendf(msg, "(.flg=0x%08x)", se_fl_get(h2s->sd));
+	chunk_appendf(msg, "(.flg=0x%08x .evts=%s)", se_fl_get(h2s->sd), tevt_evts2str(h2s->sd->term_evts_log));
 
 	if (pfx)
 		chunk_appendf(msg, "\n%s", pfx);
@@ -8058,9 +8060,10 @@ static int h2_dump_h2c_info(struct buffer *msg, struct h2c *h2c, const char *pfx
 	hmbuf = br_head(h2c->mbuf);
 	tmbuf = br_tail(h2c->mbuf);
 	chunk_appendf(msg, " h2c.st0=%s .err=%d .maxid=%d .lastid=%d .flg=0x%04x"
-		      " .nbst=%u .nbsc=%u .nbrcv=%u .glitches=%d",
+		      " .nbst=%u .nbsc=%u .nbrcv=%u .glitches=%d .evts=%s",
 		      h2c_st_to_str(h2c->st0), h2c->errcode, h2c->max_id, h2c->last_sid, h2c->flags,
-		      h2c->nb_streams, h2c->nb_sc, h2c->receiving_streams, h2c->glitches);
+		      h2c->nb_streams, h2c->nb_sc, h2c->receiving_streams, h2c->glitches,
+		      tevt_evts2str(h2c->term_evts_log));
 
 	if (pfx)
 		chunk_appendf(msg, "\n%s", pfx);

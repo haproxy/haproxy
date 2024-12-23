@@ -5290,7 +5290,9 @@ static int h1_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *output)
 			h1_dump_h1c_info(buf, h1s->h1c, NULL);
 
 		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_CONN)
-			chunk_appendf(buf, " conn.flg=%#08x", h1s->h1c->conn->flags);
+			chunk_appendf(buf, " conn.flg=%#08x conn.err_code=%u conn.evts=%s",
+				      h1s->h1c->conn->flags, h1s->h1c->conn->err_code,
+				      tevt_evts2str(h1s->h1c->conn->term_evts_log));
 
 		/* other layers not implemented */
 		dbg_ctx->ret.buf = *buf;
@@ -5312,12 +5314,13 @@ static int h1_dump_h1c_info(struct buffer *msg, struct h1c *h1c, const char *pfx
 	if (!h1c)
 		return ret;
 
-	chunk_appendf(msg, " h1c.flg=0x%x .sub=%d .ibuf=%u@%p+%u/%u .obuf=%u@%p+%u/%u",
+	chunk_appendf(msg, " h1c.flg=0x%x .sub=%d .ibuf=%u@%p+%u/%u .obuf=%u@%p+%u/%u .evts=%s",
 		      h1c->flags,  h1c->wait_event.events,
 		      (unsigned int)b_data(&h1c->ibuf), b_orig(&h1c->ibuf),
 		      (unsigned int)b_head_ofs(&h1c->ibuf), (unsigned int)b_size(&h1c->ibuf),
 		      (unsigned int)b_data(&h1c->obuf), b_orig(&h1c->obuf),
-		      (unsigned int)b_head_ofs(&h1c->obuf), (unsigned int)b_size(&h1c->obuf));
+		      (unsigned int)b_head_ofs(&h1c->obuf), (unsigned int)b_size(&h1c->obuf),
+		      tevt_evts2str(h1c->term_evts_log));
 
 	chunk_appendf(msg, " .task=%p", h1c->task);
 	if (h1c->task) {
@@ -5347,9 +5350,8 @@ static int h1_dump_h1s_info(struct buffer *msg, const struct h1s *h1s, const cha
 	else
 		method = "UNKNOWN";
 
-	chunk_appendf(msg, " h1s=%p h1s.flg=0x%x .sd.flg=0x%x .req.state=%s .res.state=%s",
-		      h1s, h1s->flags, se_fl_get(h1s->sd),
-		      h1m_state_str(h1s->req.state), h1m_state_str(h1s->res.state));
+	chunk_appendf(msg, " h1s=%p h1s.flg=0x%x .sd.flg=0x%x", h1s, h1s->flags, se_fl_get(h1s->sd));
+	chunk_appendf(msg, " .req.state=%s .res.state=%s", h1m_state_str(h1s->req.state), h1m_state_str(h1s->res.state));
 
 	if (pfx)
 		chunk_appendf(msg, "\n%s", pfx);
@@ -5357,10 +5359,11 @@ static int h1_dump_h1s_info(struct buffer *msg, const struct h1s *h1s, const cha
 	chunk_appendf(msg, " .meth=%s status=%d",
 		      method, h1s->status);
 
-	chunk_appendf(msg, " .sd.flg=0x%08x", se_fl_get(h1s->sd));
-	if (!se_fl_test(h1s->sd, SE_FL_ORPHAN))
-		chunk_appendf(msg, " .sc.flg=0x%08x .sc.app=%p",
-			      h1s_sc(h1s)->flags, h1s_sc(h1s)->app);
+	chunk_appendf(msg, " .sd.flg=0x%08x .sd.evts=%s", se_fl_get(h1s->sd), tevt_evts2str(h1s->sd->term_evts_log));
+	if (!se_fl_test(h1s->sd, SE_FL_ORPHAN)) {
+		chunk_appendf(msg, " .sc.flg=0x%08x .sc.app=%p .sc.evts=%s",
+			      h1s_sc(h1s)->flags, h1s_sc(h1s)->app, tevt_evts2str(h1s_sc(h1s)->term_evts_log));
+	}
 
 	if (pfx && h1s->subs)
 		chunk_appendf(msg, "\n%s", pfx);
