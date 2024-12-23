@@ -100,7 +100,7 @@ void sedesc_init(struct sedesc *sedesc)
 	sedesc->fsb = TICK_ETERNITY;
 	sedesc->xref.peer = NULL;
 	se_fl_setall(sedesc, SE_FL_NONE);
-
+	sedesc->term_evts_log = 0;
 	sedesc->abort_info.info = 0;
 	sedesc->abort_info.code = 0;
 
@@ -146,8 +146,10 @@ void se_shutdown(struct sedesc *sedesc, enum se_shut_mode mode)
 	struct se_abort_info *reason = NULL;
 	unsigned int flags = 0;
 
-	if ((mode & (SE_SHW_SILENT|SE_SHW_NORMAL)) && !se_fl_test(sedesc, SE_FL_SHW))
+	if ((mode & (SE_SHW_SILENT|SE_SHW_NORMAL)) && !se_fl_test(sedesc, SE_FL_SHW)) {
+		sc_report_term_evt(sedesc->sc, tevt_loc_strm, tevt_type_shutw);
 		flags |= (mode & SE_SHW_NORMAL) ? SE_FL_SHWN : SE_FL_SHWS;
+	}
 	if ((mode & (SE_SHR_RESET|SE_SHR_DRAIN)) && !se_fl_test(sedesc, SE_FL_SHR))
 		flags |= (mode & SE_SHR_DRAIN) ? SE_FL_SHRD : SE_FL_SHRR;
 
@@ -207,6 +209,8 @@ static struct stconn *sc_new(struct sedesc *sedesc)
 	sc->dst = NULL;
 	sc->wait_event.tasklet = NULL;
 	sc->wait_event.events = 0;
+
+	sc->term_evts_log = 0;
 
 	/* If there is no endpoint, allocate a new one now */
 	if (!sedesc) {
@@ -1233,7 +1237,7 @@ static void sc_conn_eos(struct stconn *sc)
 	sc->flags |= SC_FL_EOS;
 	ic->flags |= CF_READ_EVENT;
 	sc_ep_report_read_activity(sc);
-
+	sc_report_term_evt(sc, tevt_loc_strm, (sc->flags & SC_FL_EOI ? tevt_type_shutr: tevt_type_truncated_shutr));
 	if (sc->state != SC_ST_EST)
 		return;
 
@@ -1520,6 +1524,8 @@ int sc_conn_recv(struct stconn *sc)
 	}
 	if (sc_ep_test(sc, SE_FL_ERROR)) {
 		sc->flags |= SC_FL_ERROR;
+		if (!(sc->flags & SC_FL_EOS))
+			sc_report_term_evt(sc, tevt_loc_strm, (sc->flags & SC_FL_EOI ? tevt_type_rcv_err: tevt_type_truncated_rcv_err));
 		ret = 1;
 	}
 
@@ -1745,6 +1751,7 @@ int sc_conn_send(struct stconn *sc)
 	if (sc_ep_test(sc, SE_FL_ERROR | SE_FL_ERR_PENDING)) {
 		oc->flags |= CF_WRITE_EVENT;
 		BUG_ON(sc_ep_test(sc, SE_FL_EOS|SE_FL_ERROR|SE_FL_ERR_PENDING) == (SE_FL_EOS|SE_FL_ERR_PENDING));
+		sc_report_term_evt(sc, tevt_loc_strm, tevt_type_snd_err);
 		if (sc_ep_test(sc, SE_FL_ERROR))
 			sc->flags |= SC_FL_ERROR;
 		return 1;
@@ -1856,6 +1863,19 @@ int sc_conn_process(struct stconn *sc)
 			sc->state = SC_ST_RDY;
 	}
 
+	/* Report EOI on the channel if it was reached from the mux point of
+	 * view.
+	 *
+	 * Note: This test is only required because sc_conn_process is also the SI
+	 *       wake callback. Otherwise sc_conn_recv()/sc_conn_send() already take
+	 *       care of it.
+	 */
+	if (sc_ep_test(sc, SE_FL_EOI) && !(sc->flags & SC_FL_EOI)) {
+		sc->flags |= SC_FL_EOI;
+		ic->flags |= CF_READ_EVENT;
+		sc_ep_report_read_activity(sc);
+	}
+
 	/* Report EOS on the channel if it was reached from the mux point of
 	 * view.
 	 *
@@ -1870,21 +1890,11 @@ int sc_conn_process(struct stconn *sc)
 		sc_conn_eos(sc);
 	}
 
-	/* Report EOI on the channel if it was reached from the mux point of
-	 * view.
-	 *
-	 * Note: This test is only required because sc_conn_process is also the SI
-	 *       wake callback. Otherwise sc_conn_recv()/sc_conn_send() already take
-	 *       care of it.
-	 */
-	if (sc_ep_test(sc, SE_FL_EOI) && !(sc->flags & SC_FL_EOI)) {
-		sc->flags |= SC_FL_EOI;
-		ic->flags |= CF_READ_EVENT;
-		sc_ep_report_read_activity(sc);
-	}
-
-	if (sc_ep_test(sc, SE_FL_ERROR))
+	if (sc_ep_test(sc, SE_FL_ERROR) && !(sc->flags & SC_FL_ERROR)) {
+		if (!(sc->flags & SC_FL_EOS))
+			sc_report_term_evt(sc, tevt_loc_strm, (sc->flags & SC_FL_EOI ? tevt_type_rcv_err: tevt_type_truncated_rcv_err));
 		sc->flags |= SC_FL_ERROR;
+	}
 
 	/* Second step : update the stream connector and channels, try to forward any
 	 * pending data, then possibly wake the stream up based on the new

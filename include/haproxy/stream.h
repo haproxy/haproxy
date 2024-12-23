@@ -401,6 +401,20 @@ static inline void stream_shutdown(struct stream *s, int why)
 	             0));
 }
 
+static inline void stream_report_term_evt(struct stconn *sc, enum term_event_loc loc, enum term_event_type type)
+{
+	struct stream *s = sc_strm(sc);
+
+	if (!s)
+		return;
+
+	if (sc->flags & SC_FL_ISBACK)
+		loc += 8;
+	s->term_evts_log = tevt_report_event(s->term_evts_log, loc, type);
+	sc->term_evts_log = tevt_report_event(sc->term_evts_log, loc, type); // XXX: check if it is needed !
+}
+
+
 int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout);
 void stream_retnclose(struct stream *s, const struct buffer *msg);
 void sess_set_term_flags(struct stream *s);

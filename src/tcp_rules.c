@@ -268,6 +268,8 @@ resume_execution:
 	stream_abort(s);
 
  abort:
+	// XXX: All errors are handled as intercepted here !
+	stream_report_term_evt(s->scf, tevt_loc_strm, tevt_type_intercepted);
 	req->analysers &= AN_REQ_FLT_END;
 	s->current_rule = s->current_rule_list = NULL;
 	req->analyse_exp = s->rules_exp = TICK_ETERNITY;
@@ -474,6 +476,8 @@ resume_execution:
 	stream_abort(s);
 
   abort:
+	// XXX: All errors are handled as intercepted here !
+	stream_report_term_evt(s->scb, tevt_loc_strm, tevt_type_intercepted);
 	rep->analysers &= AN_RES_FLT_END;
 	s->current_rule = s->current_rule_list = NULL;
 	rep->analyse_exp = s->rules_exp = TICK_ETERNITY;

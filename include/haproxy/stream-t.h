@@ -312,6 +312,7 @@ struct stream {
 	} waiting_entity;                       /* The entity waiting to continue its processing and interrupted by an error/timeout */
 
 	unsigned int stream_epoch;              /* copy of stream_epoch when the stream was created */
+	uint32_t term_evts_log;                 /* termination events log */
 	struct hlua *hlua[2];                   /* lua runtime context (0: global, 1: per-thread) */
 
 	/* Context */
