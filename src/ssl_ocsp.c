@@ -109,15 +109,15 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 
 	ctx = SSL_get_SSL_CTX(ssl);
 	if (!ctx)
-		return SSL_TLSEXT_ERR_NOACK;
+		goto error;
 
 	ocsp_arg = SSL_CTX_get_ex_data(ctx, ocsp_ex_index);
 	if (!ocsp_arg)
-		return SSL_TLSEXT_ERR_NOACK;
+		goto error;
 
 	ssl_pkey = SSL_get_privatekey(ssl);
 	if (!ssl_pkey)
-		return SSL_TLSEXT_ERR_NOACK;
+		goto error;
 
 	key_type = EVP_PKEY_base_id(ssl_pkey);
 
@@ -130,7 +130,7 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 		index = ssl_sock_get_ocsp_arg_kt_index(key_type);
 
 		if (index < 0)
-			return SSL_TLSEXT_ERR_NOACK;
+			goto error;
 
 		ocsp = ocsp_arg->m_ocsp[index];
 
@@ -140,16 +140,20 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 	    !ocsp->response.area ||
 	    !ocsp->response.data ||
 	    (ocsp->expire < date.tv_sec))
-		return SSL_TLSEXT_ERR_NOACK;
+		goto error;
 
 	ssl_buf = OPENSSL_malloc(ocsp->response.data);
 	if (!ssl_buf)
-		return SSL_TLSEXT_ERR_NOACK;
+		goto error;
+
 
 	memcpy(ssl_buf, ocsp->response.area, ocsp->response.data);
 	SSL_set_tlsext_status_ocsp_resp(ssl, (unsigned char*)ssl_buf, ocsp->response.data);
 
 	return SSL_TLSEXT_ERR_OK;
+
+error:
+	return SSL_TLSEXT_ERR_NOACK;
 }
 
 #endif /* !defined(OPENSSL_NO_OCSP) */
