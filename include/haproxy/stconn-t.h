@@ -317,10 +317,10 @@ struct sedesc {
 	struct stconn *sc;         /* the stream connector we're attached to, or NULL */
 	struct iobuf iobuf;        /* contains data forwarded by the other side and that must be sent by the stream endpoint */
 	unsigned int flags;        /* SE_FL_* */
+	uint32_t term_evts_log;    /* Termination events log: first 4 events reported */
 	struct se_abort_info abort_info; /* Info about abort, as reported by the endpoint and eventually enriched by the app level */
 	unsigned int lra;          /* the last read activity */
 	unsigned int fsb;          /* the first send blocked */
-	/* 4 bytes hole here */
 	struct xref xref;          /* cross reference with the opposite SC */
 };
 
