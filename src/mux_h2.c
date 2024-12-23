@@ -87,6 +87,8 @@ struct h2c {
 	unsigned int stream_cnt;  /* total number of streams seen */
 	int glitches;             /* total number of glitches on this connection */
 
+	uint32_t term_evts_log;  /* Termination events log: first 4 events reported */
+
 	struct proxy *proxy; /* the proxy this connection was created for */
 	struct task *task;  /* timeout management task */
 	struct h2_counters *px_counters; /* h2 counters attached to proxy */
@@ -693,6 +695,14 @@ static void h2_trace_fill_ctx(struct trace_ctx *ctx, const struct trace_source *
 	}
 }
 
+static inline void h2c_report_term_evt(struct h2c *h2c, enum term_event_type type)
+{
+	enum term_event_loc loc = tevt_loc_muxc;
+
+	if (h2c->flags & H2_CF_IS_BACK)
+		loc += 8;
+	h2c->term_evts_log = tevt_report_event(h2c->term_evts_log, loc, type);
+}
 
 /* Detect a pending read0 for a H2 connection. It happens if a read0 was
  * already reported on a previous xprt->rcvbuf() AND a frame parser failed
@@ -1311,6 +1321,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->stream_cnt = 0;
 	h2c->receiving_streams = 0;
 	h2c->glitches = 0;
+	h2c->term_evts_log = 0;
 
 	h2c->dbuf = *input;
 	h2c->dsi = -1;
@@ -1426,9 +1437,12 @@ static void h2_release(struct h2c *h2c)
 		h2c->task = NULL;
 	}
 	tasklet_free(h2c->wait_event.tasklet);
-	if (conn && h2c->wait_event.events != 0)
-		conn->xprt->unsubscribe(conn, conn->xprt_ctx, h2c->wait_event.events,
-					&h2c->wait_event);
+	if (conn) {
+		if (h2c->wait_event.events != 0)
+			conn->xprt->unsubscribe(conn, conn->xprt_ctx, h2c->wait_event.events,
+						&h2c->wait_event);
+		h2c_report_term_evt(h2c, tevt_type_shutw);
+	}
 
 	/* Rhttp connections are not accounted prior to their reverse. */
 	if (!conn || !conn_is_reverse(conn))
@@ -4390,6 +4404,15 @@ static void h2_process_demux(struct h2c *h2c)
 			h2c->flags |= H2_CF_END_REACHED;
 	}
 
+	if (h2c->flags & H2_CF_ERROR)
+		h2c_report_term_evt(h2c, ((eb_is_empty(&h2c->streams_by_id) && !(h2c->flags & H2_CF_DEM_IN_PROGRESS))
+					  ? tevt_type_rcv_err
+					  : tevt_type_truncated_rcv_err));
+	else if (h2c->flags & H2_CF_END_REACHED)
+		h2c_report_term_evt(h2c, ((eb_is_empty(&h2c->streams_by_id) && !(h2c->flags & H2_CF_DEM_IN_PROGRESS))
+					  ? tevt_type_shutr
+					  : tevt_type_truncated_shutr));
+
 	/* Make sure to clear DFULL if contents were deleted */
 	if (!b_full(&h2c->dbuf))
 		h2c->flags &= ~H2_CF_DEM_DFULL;
@@ -4733,6 +4756,7 @@ static int h2_send(struct h2c *h2c)
 
 	if (conn->flags & CO_FL_ERROR) {
 		h2c->flags |= H2_CF_ERR_PENDING;
+		h2c_report_term_evt(h2c, tevt_type_snd_err);
 		if (h2c->flags & H2_CF_END_REACHED)
 			h2c->flags |= H2_CF_ERROR;
 		b_reset(br_tail(h2c->mbuf));
@@ -5066,6 +5090,8 @@ struct task *h2_timeout_task(struct task *t, void *context, unsigned int state)
 				t->expire = tick_add_ifset(now_ms, h2c->timeout);
 			return t;
 		}
+
+		h2c_report_term_evt(h2c, tevt_type_tout);
 	}
 
 do_leave:
