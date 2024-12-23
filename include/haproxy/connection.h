@@ -107,6 +107,8 @@ const char *conn_err_code_str(struct connection *c);
 int xprt_add_hs(struct connection *conn);
 void register_mux_proto(struct mux_proto_list *list);
 
+static inline void conn_report_term_evt(struct connection *conn, enum term_event_loc loc, enum term_event_type type);
+
 extern struct idle_conns idle_conns[MAX_THREADS];
 
 /* set conn->err_code to any CO_ER_* code if it was not set yet, otherwise
@@ -254,6 +256,7 @@ static inline void conn_sock_shutw(struct connection *c, int clean)
 		if (!(c->flags & CO_FL_SOCK_RD_SH) && clean)
 			shutdown(c->handle.fd, SHUT_WR);
 	}
+	conn_report_term_evt(c, tevt_loc_fd, tevt_type_shutw);
 }
 
 static inline void conn_xprt_shutw(struct connection *c)
@@ -738,6 +741,60 @@ static inline int conn_pr_mode_to_proto_mode(int proxy_mode)
 		PROTO_MODE_TCP);
 
 	return mode;
+}
+
+/* Must be used to report add an event in <_evt> termination events log.
+ * For now, it only handles 32-bits integers.
+ */
+#define tevt_report_event(_evts, loc, type) ({	\
+						\
+	if (!((_evts) & 0xff000000)) {		\
+		(_evts) <<= 8;			\
+		(_evts) |= (loc) << 4;		\
+		(_evts) |= (type);		\
+	}					\
+	(_evts);				\
+})
+
+/* Function to convert a termination events log to a string */
+static THREAD_LOCAL char tevt_evts_str[9];
+static inline const char *tevt_evts2str(uint32_t evts)
+{
+	uint32_t evt_msk = 0xff000000;
+	unsigned int evt_bits = 24;
+	int idx;
+
+	for (idx = 0; evt_msk; evt_msk >>= 8, evt_bits -= 8) {
+		unsigned char evt = (evts & evt_msk) >> evt_bits;
+		unsigned int is_back;
+
+		if (!evt)
+			continue;
+
+		/* Backend location are displayed in captial letter */
+		is_back = !!((evt >> 4) & 0x8);
+		switch ((enum term_event_loc)((evt >> 4) & ~0x8)) {
+			case tevt_loc_fd:   tevt_evts_str[idx++] = (is_back ? 'F' : 'f'); break;
+			case tevt_loc_hs:   tevt_evts_str[idx++] = (is_back ? 'H' : 'h'); break;
+			case tevt_loc_xprt: tevt_evts_str[idx++] = (is_back ? 'X' : 'x'); break;
+			case tevt_loc_muxc: tevt_evts_str[idx++] = (is_back ? 'M' : 'm'); break;
+			case tevt_loc_se:   tevt_evts_str[idx++] = (is_back ? 'E' : 'e'); break;
+			case tevt_loc_strm: tevt_evts_str[idx++] = (is_back ? 'S' : 's'); break;
+			default:            tevt_evts_str[idx++] = '-';
+		}
+
+		tevt_evts_str[idx++] = hextab[evt & 0xf];
+	}
+	tevt_evts_str[idx] = '\0';
+	return tevt_evts_str;
+}
+
+/* Report a connection event. <loc> may be "tevt_loc_fd", "tevt_loc_hs" or "tevt_loc_xprt" */
+static inline void conn_report_term_evt(struct connection *conn, enum term_event_loc loc, enum term_event_type type)
+{
+	if (conn_is_back(conn))
+		loc |= 0x08;
+	conn->term_evts_log = tevt_report_event(conn->term_evts_log, loc, type);
 }
 
 #endif /* _HAPROXY_CONNECTION_H */
