@@ -1667,6 +1667,10 @@ static int start_checks()
 	/* 0- init the dummy frontend used to create all checks sessions */
 	init_new_proxy(&checks_fe);
 	checks_fe.id = strdup("CHECKS-FE");
+	if (!checks_fe.id) {
+		ha_alert("Out of memory creating the checks frontend.\n");
+		return ERR_ALERT | ERR_FATAL;
+	}
 	checks_fe.cap = PR_CAP_FE | PR_CAP_BE;
         checks_fe.mode = PR_MODE_TCP;
 	checks_fe.maxconn = 0;
