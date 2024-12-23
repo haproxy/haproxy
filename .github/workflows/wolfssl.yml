@@ -28,7 +28,8 @@ jobs:
             USE_OPENSSL_WOLFSSL=1 USE_QUIC=1 \
             SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include \
             DEBUG="-DDEBUG_POOL_INTEGRITY" \
-            ADDLIB="-Wl,-rpath,/usr/local/lib/ -Wl,-rpath,$HOME/opt/lib/"
+            ADDLIB="-Wl,-rpath,/usr/local/lib/ -Wl,-rpath,$HOME/opt/lib/" \
+            ARCH_FLAGS="-ggdb3 -fsanitize=address"
           sudo make install
       - name: Show HAProxy version
         id: show-version
