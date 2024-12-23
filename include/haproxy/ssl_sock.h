@@ -54,6 +54,7 @@ extern int ssl_client_sni_index;
 extern struct pool_head *pool_head_ssl_keylog;
 extern struct pool_head *pool_head_ssl_keylog_str;
 extern struct list openssl_providers;
+extern struct stats_module ssl_stats_module;
 
 int ssl_sock_prep_ctx_and_inst(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
 			       SSL_CTX *ctx, struct ckch_inst *ckch_inst, char **err);

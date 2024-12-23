@@ -169,11 +169,7 @@ static struct stat_col ssl_stats[] = {
 	                              .desc = "Total number of failed handshake" },
 };
 
-static struct ssl_counters {
-	long long sess;
-	long long reused_sess;
-	long long failed_handshake;
-} ssl_counters;
+static struct ssl_counters ssl_counters;
 
 static int ssl_fill_stats(void *data, struct field *stats, unsigned int *selected_field)
 {
@@ -208,7 +204,7 @@ static int ssl_fill_stats(void *data, struct field *stats, unsigned int *selecte
 	return 1;
 }
 
-static struct stats_module ssl_stats_module = {
+struct stats_module ssl_stats_module = {
 	.name          = "ssl",
 	.fill_stats    = ssl_fill_stats,
 	.stats         = ssl_stats,
