@@ -2048,6 +2048,8 @@ static int debug_parse_cli_memstats(char **args, char *payload, struct appctx *a
 		else if (strcmp(args[arg], "match") == 0 && *args[arg + 1]) {
 			ha_free(&ctx->match);
 			ctx->match = strdup(args[arg + 1]);
+			if (!ctx->match)
+				return cli_err(appctx, "Out of memory.\n");
 			arg++;
 			continue;
 		}
