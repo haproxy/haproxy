@@ -1505,7 +1505,8 @@ void thread_detect_count(void)
 	 * no cpu-map directive is present.
 	 */
 
-	if (global.numa_cpu_mapping && !global.nbthread && !thread_cpu_mask_forced() && !cpu_map_configured()) {
+	/* FIXME: instead we want to refine existing mapping */
+	if (1/*global.numa_cpu_mapping && !global.nbthread && !thread_cpu_mask_forced()*/ && !cpu_map_configured()) {
 		struct hap_cpuset node_cpu_set;
 		int first_node_id = -1;
 		int cpu_count = 0;
