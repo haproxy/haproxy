@@ -15015,6 +15015,7 @@ silent-drop                    -           X     X     X     X            X   X 
 strict-mode                    -           -     -     -     -            X   X   X
 switch-mode                    -           -     -     X     -            -   -   -
 tarpit                         -           -     -     -     -            X   -   -
+track-sc0                      -           X     X     X     -            X   X   -
 track-sc1                      -           X     X     X     -            X   X   -
 track-sc2                      -           X     X     X     -            X   X   -
 unset-var                      -           X     X     X     X            X   X   X
