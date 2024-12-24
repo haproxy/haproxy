@@ -507,6 +507,9 @@ struct stksess *stktable_lookup_ptr(struct stktable *t, void *ptr)
 /*
  * Looks in table <t> for a sticky session with same key as <ts>.
  * Returns pointer on requested sticky session or NULL if none was found.
+ *
+ * <ts> must originate from a table with same key type and length than <t>,
+ * else it is undefined behavior.
  */
 struct stksess *__stktable_lookup(struct stktable *t, struct stksess *ts, uint shard)
 {
@@ -528,6 +531,9 @@ struct stksess *__stktable_lookup(struct stktable *t, struct stksess *ts, uint s
  * Returns pointer on requested sticky session or NULL if none was found.
  * The refcount of the found entry is increased and this function
  * is protected using the table lock
+ *
+ * <ts> must originate from a table with same key type and length than <t>,
+ * else it is undefined behavior.
  */
 struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
 {
@@ -3575,7 +3581,12 @@ smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg 
 		return NULL;
 
 	if (unlikely(args[arg].type == ARGT_TAB)) {
-		/* an alternate table was specified, let's look up the same key there */
+		/* an alternate table was specified, let's look up the same key there
+		 * unless the table key type or length differs from the tracked one
+		 */
+		if (args[arg].data.t->type != stkptr->table->type ||
+		    args[arg].data.t->key_size != stkptr->table->key_size)
+			return NULL;
 		stkctr->table = args[arg].data.t;
 		stkctr_set_entry(stkctr, stktable_lookup(stkctr->table, stksess));
 		return stkctr;
