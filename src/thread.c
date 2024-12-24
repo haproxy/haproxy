@@ -1570,6 +1570,11 @@ void thread_detect_count(void)
 			lastcpu = cpu;
 
 	for (cpu = 0; cpu <= lastcpu; cpu++) {
+		if (cpu < global.nbthread)
+			printf("keep ");
+		else
+			printf("drop ");
+
 		printf("thr %3d -> cpu %3d  onl=%d bnd=%d pk=%02d no=%02d l3=%02d cl=%03d l2=%03d ts=%03d l1=%03d smt=%d capa=%d\n", cpu, ha_cpu_topo[cpu].idx,
 		       !(ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE),
 		       !(ha_cpu_topo[cpu].st & HA_CPU_F_EXCLUDED),
