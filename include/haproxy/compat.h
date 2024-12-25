@@ -24,6 +24,7 @@
 
 #include <limits.h>
 #include <unistd.h>
+#include <fcntl.h>
 /* This is needed on Linux for Netfilter includes */
 #include <sys/param.h>
 #include <sys/types.h>
