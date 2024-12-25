@@ -1,6 +1,105 @@
 ChangeLog :
 ===========
 
+2024/12/25 : 3.2-dev2
+    - MINOR: build: define DEBUG_STRESS
+    - MINOR: applet: define applet_putchk_stress() alternative
+    - MINOR: stats: use stress mode to force reentrant dumps
+    - CI: scripts: add support for AWS-LC-FIPS in build-ssl.sh
+    - MINOR: ssl: add "FIPS" details in haproxy -vv
+    - MEDIUM: ssl: rename 'OpenSSL' by 'SSL library' in haproxy -vv
+    - CI: github: let's add an AWS-LC-FIPS job
+    - MINOR: window_filter: rely on the time to update the filter samples (QUIC/BBR)
+    - BUG/MINOR: quic: wrong logical statement in in_recovery_period() (BBR)
+    - BUG/MINOR: quic: fix BBB max bandwidth oscillation issue.
+    - BUG/MINOR: quic: wrong bbr_target_inflight() implementation
+    - BUG/MINOR: quic: remove max_bw filter from delivery rate sampling
+    - BUG/MINOR: quic: underflow issue for bbr_inflight_hi_from_lost_packet()
+    - BUG/MINOR: quic: reduce packet losses at least during ProbeBW_CRUISE (BBR)
+    - MINOR: quic: reduce the private data size of QUIC cc algos
+    - CLEANUP: quic: remove a wrong comment about ->app_limited (drs)
+    - BUG/MINOR: quic: fix the wrong tracked recovery start time value
+    - BUG/MINOR: quic: too permissive exit condition for high loss detection in Startup (BBR)
+    - BUG/MINOR: cli: cli_snd_buf: preserve \r\n for payload lines
+    - REGTESTS: ssl: add a PEM with mix of LF and CRLF line endings
+    - BUG/MINOR: quic: missing Startup accelerating probing bw states
+    - CLEANUP: quic: Rename some BBR functions in relation with bw probing
+    - REORG: startup: move global.maxconn calculations in limits.c
+    - REORG: startup: move code that applies limits to limits.c
+    - REORG: startup: move nofile limit checks in limits.c
+    - MINOR: ssl: add utils functions to extract X509 notAfter date
+    - MINOR: ssl/cli: allow to filter expired certificates with 'show ssl sni'
+    - MINOR: ssl/cli: add -A to the 'show ssl sni' command description
+    - BUG/MINOR: ssl/cli: 'show ssl cert' escape the first '*' of a filename
+    - BUG/MINOR: ssl/cli: 'show ssl crl-file' escape the first '*' of a filename
+    - BUG/MINOR: ssl/cli: 'show ssl ca-file' escape the first '*' of a filename
+    - BUG/MEDIUM: stconn: Only consider I/O timers to update stream's expiration date
+    - BUG/MEDIUM: queues: Make sure we call process_srv_queue() when leaving
+    - BUG/MEDIUM: queues: Do not use pendconn_grab_from_px().
+    - CLEANUP: queues: Remove pendconn_grab_from_px().
+    - BUILD: debug: only dump/reset glitch counters when really defined
+    - MINOR: compiler: add a __has_builtin() macro to detect features more easily
+    - MINOR: compiler: rely on builtin detection for __builtin_unreachable()
+    - MINOR: compiler: add a new "ASSUME" macro to help the compiler
+    - MINOR: compiler: also enable __builtin_assume() for ASSUME()
+    - MINOR: compiler: add ASSUME_NONNULL() to tell the compiler a pointer is valid
+    - MINOR: bug: make BUG_ON() fall back to ASSUME
+    - CLEANUP: cache: use ASSUME_NONNULL() instead of DISGUISE()
+    - CLEANUP: hlua: use ASSUME_NONNULL() instead of ALREADY_CHECKED()
+    - CLEANUP: htx: use ASSUME_NONNULL() to mark the start line as non-null
+    - CLEANUP: mux-fcgi: use ASSUME_NONNULL() to indicate that the first block exists
+    - CLEANUP: stats: use ASSUME_NONNULL() to indicate that the first block exists
+    - CLEANUP: quic: replace ALREADY_CHECKED() with ASSUME_NONNULL() at a few places
+    - CLEANUP: ssl-sock: drop two now unneeded ALREADY_CHECKED()
+    - BUG/MEDIUM: mux-quic: do not mix qcc_io_send() return codes with pacing
+    - CLEANUP: mux-quic: remove unused qcc member send_retry_list
+    - MINOR: quic: add traces
+    - MINOR: mux-quic: refactor wait-for-handshake support
+    - MEDIUM/OPTIM: mux-quic: define a recv_list for demux resumption
+    - MEDIUM/OPTIM: mux-quic: implement purg_list
+    - MINOR: mux-quic: extract code to build STREAM frames list
+    - MINOR: mux-quic: split STREAM and RS/SS emission
+    - MEDIUM/OPTIM: mux-quic: do not rebuild frms list on every send
+    - MEDIUM: mux-quic: remove pacing specific code on qcc_io_cb
+    - MINOR: trace: implement tracing disabling API
+    - MINOR: mux-quic: hide traces when woken up on pacing only
+    - MINOR: ssl/cli: add a 'Uncommitted' status for 'show ssl' commands
+    - MINOR: ssl/ocsp: Add extra details in error logs when possible
+    - BUILD: ssl/ocsp: error: ‘%.*s’ directive argument is null
+    - MEDIUM: ssl/ocsp: OCSP response is expired with OCSP_MAX_RESPONSE_TIME_SKEW
+    - MINOR: ssl: improve HAVE_SSL_OCSP ifdef
+    - DOC: config: add example for server "track" keyword
+    - DOC: config: reorder "tune.lua.*" keywords by alphabetical order
+    - DOC: config: add "tune.lua.burst-timeout" to the list of global parameters
+    - MINOR: hlua: add option to preserve bool type from smp to lua
+    - REGTESTS: fix lua-based regtests using tune.lua.smp-preserve-bool
+    - BUG/MEDIUM: mux-quic: prevent BUG_ON() by refreshing frms on MAX_DATA
+    - CLEANUP: mux-quic: remove dead err label in qcc_build_frms()
+    - BUG/MINOR: h2/rhttp: fix HTTP2 conn counters on reverse
+    - MINOR: hlua: rename "tune.lua.preserve-smp-bool" to "tune.lua.bool-sample-conversion"
+    - MINOR: ssl: change visibility of ssl_stats_module
+    - MINOR: ssl: rework the error management in the OCSP callback
+    - MEDIUM: ssl/ocsp: counters for OCSP stapling
+    - CI: limit aws-lc and libressl Quic Interop to "haproxy" only
+    - BUG/MEDIUM: queue: Make process_srv_queue return the number of streams
+    - CI: github: try to build the latest WolfSSL master weekly
+    - CI: github: activate ASAN on the WolfSSL weekly job
+    - BUG/MINOR: stats: fix segfault caused by uninitialized value in "show schema json"
+    - MINOR: stktable: add stktable_get_data_type_idx() helper function
+    - MINOR: stktable: support optional index for array types in {set, clear, show} table commands
+    - CI: scripts: allow to build wolfssl with --enable-debug
+    - CI: github: activate debug in wolfssl weekly build
+    - BUG/MEDIUM: queues: Stricly respect maxconn for outgoing connections
+    - MEDIUM: queue: Handle the race condition between queue and dequeue differently
+    - CLEANUP: Remove pendconn_must_try_again().
+    - BUILD: compat: add missing fcntl.h before defining F_SETPIPE_SZ
+    - BUILD: mworker: always initialize the saveptr of strtok_r()
+    - BUILD: limits: make normalize_rlim() take an rlim_t to fix build on m68k
+    - BUG/MINOR: checks: handle a possible strdup() failure
+    - BUG/MINOR: listener: handle a possible strdup() failure
+    - BUG/MINOR: mux_h1: handle a possible strdup() failure
+    - BUG/MINOR: debug: handle a possible strdup() failure
+
 2024/12/11 : 3.2-dev1
     - MINOR: pattern: split pat_ref_set()
     - MINOR: pattern: add pat_ref_gen_set() function
