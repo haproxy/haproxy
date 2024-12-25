@@ -636,23 +636,23 @@ static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *a
 #endif
 	chunk_appendf(&trash, "  boot limits:\n");
 	chunk_appendf(&trash, "  \tfd limit (soft): %s\n",
-		      LIM2A(normalize_rlim((ulong)post_mortem.process.boot_lim_fd.rlim_cur), "unlimited"));
+		      LIM2A(normalize_rlim(post_mortem.process.boot_lim_fd.rlim_cur), "unlimited"));
 	chunk_appendf(&trash, "  \tfd limit (hard): %s\n",
-		      LIM2A(normalize_rlim((ulong)post_mortem.process.boot_lim_fd.rlim_max), "unlimited"));
+		      LIM2A(normalize_rlim(post_mortem.process.boot_lim_fd.rlim_max), "unlimited"));
 	chunk_appendf(&trash, "  \tram limit (soft): %s\n",
-		      LIM2A(normalize_rlim((ulong)post_mortem.process.boot_lim_ram.rlim_cur), "unlimited"));
+		      LIM2A(normalize_rlim(post_mortem.process.boot_lim_ram.rlim_cur), "unlimited"));
 	chunk_appendf(&trash, "  \tram limit (hard): %s\n",
-		      LIM2A(normalize_rlim((ulong)post_mortem.process.boot_lim_ram.rlim_max), "unlimited"));
+		      LIM2A(normalize_rlim(post_mortem.process.boot_lim_ram.rlim_max), "unlimited"));
 
 	chunk_appendf(&trash, "  runtime limits:\n");
 	chunk_appendf(&trash, "  \tfd limit (soft): %s\n",
-		      LIM2A(normalize_rlim((ulong)post_mortem.process.run_lim_fd.rlim_cur), "unlimited"));
+		      LIM2A(normalize_rlim(post_mortem.process.run_lim_fd.rlim_cur), "unlimited"));
 	chunk_appendf(&trash, "  \tfd limit (hard): %s\n",
-		      LIM2A(normalize_rlim((ulong)post_mortem.process.run_lim_fd.rlim_max), "unlimited"));
+		      LIM2A(normalize_rlim(post_mortem.process.run_lim_fd.rlim_max), "unlimited"));
 	chunk_appendf(&trash, "  \tram limit (soft): %s\n",
-		      LIM2A(normalize_rlim((ulong)post_mortem.process.run_lim_ram.rlim_cur), "unlimited"));
+		      LIM2A(normalize_rlim(post_mortem.process.run_lim_ram.rlim_cur), "unlimited"));
 	chunk_appendf(&trash, "  \tram limit (hard): %s\n",
-		      LIM2A(normalize_rlim((ulong)post_mortem.process.run_lim_ram.rlim_max), "unlimited"));
+		      LIM2A(normalize_rlim(post_mortem.process.run_lim_ram.rlim_max), "unlimited"));
 
 	return cli_msg(appctx, LOG_INFO, trash.area);
 }

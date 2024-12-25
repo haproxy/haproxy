@@ -19,12 +19,12 @@ extern unsigned int rlim_fd_max_at_boot;
  * returns the limit, useful to print limit values as strings in err messages
  * via LIM2A macros.
  */
-static inline ulong normalize_rlim(ulong rlim)
+static inline ulong normalize_rlim(rlim_t rlim)
 {
 	if (rlim == RLIM_INFINITY)
 		return 0;
 
-	return rlim;
+	return (ulong)rlim;
 }
 
 /* handlers to compute internal process limits, if they are not provided via
