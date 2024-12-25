@@ -175,7 +175,7 @@ int mworker_env_to_proc_list()
 
 	while ((token = strtok_r(msg, "|", &s1))) {
 		char *subtoken = NULL;
-		char *s2;
+		char *s2 = NULL;
 
 		msg = NULL;
 
