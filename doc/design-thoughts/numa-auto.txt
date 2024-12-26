@@ -722,3 +722,192 @@ it allows to pack together threads of the same core.
 We should also have an option to enable/disable SMT (e.g. max threads per core)
 so that we can skip siblings of cores already assigned. This can be convenient
 with network running on the other sibling.
+
+
+2024-12-26
+----------
+
+Some interesting cases about intel 14900. The CPU has 8 P-cores and 16 E-cores.
+Experiments in the lab show excellent performance by binding the network to E
+cores and haproxy to P cores. Here's how the clusters are made:
+
+$ grep -h . /sys/devices/system/cpu/cpu*/topology/package_cpus | sort |uniq -c
+     32 ffffffff
+
+  => expected
+
+$ grep -h . /sys/devices/system/cpu/cpu*/topology/die_cpus | sort |uniq -c
+     32 ffffffff
+
+  => all CPUs on the same die
+
+$ grep -h . /sys/devices/system/cpu/cpu*/topology/cluster_cpus|sort |uniq -c
+      2 00000003
+      2 0000000c
+      2 00000030
+      2 000000c0
+      2 00000300
+      2 00000c00
+      2 00003000
+      2 0000c000
+      4 000f0000
+      4 00f00000
+      4 0f000000
+      4 f0000000
+
+  => 1 "cluster" per core on each P-core (2 threads, 8 clusters total)
+  => 1 "cluster" per 4 E-cores (4 clusters total)
+  => It can be difficult to split that into groups by just using this topology.
+
+$ grep -h . /sys/devices/system/cpu/cpu*/cache/index3/shared_cpu_list | sort |uniq -c
+     32 0-31
+
+  => everyone shares a uniform L3 cache
+
+$ grep -h . /sys/devices/system/cpu/cpu*/cache/index2/shared_cpu_map | sort |uniq -c
+      2 00000003
+      2 0000000c
+      2 00000030
+      2 000000c0
+      2 00000300
+      2 00000c00
+      2 00003000
+      2 0000c000
+      4 000f0000
+      4 00f00000
+      4 0f000000
+      4 f0000000
+
+  => L2 is split like the respective "clusters" above.
+
+Semms like one would like to split them into 12 groups :-/  Maybe it still
+remains relevant to consider L3 for grouping, and core performance for
+selection (e.g. evict/prefer E-cores depending on policy).
+
+Differences between P and E cores on 14900:
+
+- acpi_cppc/*perf : pretty useful but not always there (e.g. aloha)
+- cache index0: 48 vs 32k (bigger CPU has smaller cache)
+- cache index1: 32 vs 64k (smaller CPU has bigger cache)
+- cache index2: 2 vs 4M, but dedicated per core vs shared per cluster (4 cores)
+
+=> probably that the presence of a larger "cluster" with less cache per
+   avg core is an indication of a smaller CPU set. Warning however, some
+   CPUs (e.g. S922X) have a large (4) cluster of big cores and a small (2)
+   cluster of little cores.
+
+
+diff -urN cpu0/acpi_cppc/lowest_nonlinear_perf cpu16/acpi_cppc/lowest_nonlinear_perf
+--- cpu0/acpi_cppc/lowest_nonlinear_perf        2024-12-26 18:39:27.563410317 +0100
++++ cpu16/acpi_cppc/lowest_nonlinear_perf       2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-20
++15
+diff -urN cpu0/acpi_cppc/nominal_perf cpu16/acpi_cppc/nominal_perf
+--- cpu0/acpi_cppc/nominal_perf 2024-12-26 18:39:27.563410317 +0100
++++ cpu16/acpi_cppc/nominal_perf        2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-40
++24
+diff -urN cpu0/acpi_cppc/reference_perf cpu16/acpi_cppc/reference_perf
+--- cpu0/acpi_cppc/reference_perf       2024-12-26 18:39:27.563410317 +0100
++++ cpu16/acpi_cppc/reference_perf      2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-40
++24
+diff -urN cpu0/cache/index0/size cpu16/cache/index0/size
+--- cpu0/cache/index0/size      2024-12-26 18:39:27.563410317 +0100
++++ cpu16/cache/index0/size     2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-48K
++32K
+diff -urN cpu0/cache/index1/shared_cpu_list cpu16/cache/index1/shared_cpu_list
+--- cpu0/cache/index1/shared_cpu_list   2024-12-26 18:39:27.563410317 +0100
++++ cpu16/cache/index1/shared_cpu_list  2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-0-1
++16
+diff -urN cpu0/cache/index1/shared_cpu_map cpu16/cache/index1/shared_cpu_map
+--- cpu0/cache/index1/shared_cpu_map    2024-12-26 18:39:27.563410317 +0100
++++ cpu16/cache/index1/shared_cpu_map   2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-00000003
++00010000
+diff -urN cpu0/cache/index1/size cpu16/cache/index1/size
+--- cpu0/cache/index1/size      2024-12-26 18:39:27.563410317 +0100
++++ cpu16/cache/index1/size     2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-32K
++64K
+diff -urN cpu0/cache/index2/shared_cpu_list cpu16/cache/index2/shared_cpu_list
+--- cpu0/cache/index2/shared_cpu_list   2024-12-26 18:39:27.563410317 +0100
++++ cpu16/cache/index2/shared_cpu_list  2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-0-1
++16-19
+--- cpu0/cache/index2/size      2024-12-26 18:39:27.563410317 +0100
++++ cpu16/cache/index2/size     2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-2048K
++4096K
+diff -urN cpu0/topology/cluster_cpus cpu16/topology/cluster_cpus
+--- cpu0/topology/cluster_cpus  2024-12-26 18:39:27.563410317 +0100
++++ cpu16/topology/cluster_cpus 2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-00000003
++000f0000
+diff -urN cpu0/topology/cluster_cpus_list cpu16/topology/cluster_cpus_list
+--- cpu0/topology/cluster_cpus_list     2024-12-26 18:39:27.563410317 +0100
++++ cpu16/topology/cluster_cpus_list    2024-12-26 18:40:39.531408186 +0100
+@@ -1 +1 @@
+-0-1
++16-19
+
+For acpi_cppc, the values differ between machines, looks like nominal_perf
+is always usable:
+
+14900k:
+$ grep '' cpu8/acpi_cppc/*
+cpu8/acpi_cppc/feedback_ctrs:ref:85172004640 del:143944480100
+cpu8/acpi_cppc/highest_perf:255
+cpu8/acpi_cppc/lowest_freq:0
+cpu8/acpi_cppc/lowest_nonlinear_perf:20
+cpu8/acpi_cppc/lowest_perf:1
+cpu8/acpi_cppc/nominal_freq:3200
+cpu8/acpi_cppc/nominal_perf:40
+cpu8/acpi_cppc/reference_perf:40
+cpu8/acpi_cppc/wraparound_time:18446744073709551615
+
+$ grep '' cpu16/acpi_cppc/*
+cpu16/acpi_cppc/feedback_ctrs:ref:84153776128 del:112977352354
+cpu16/acpi_cppc/highest_perf:255
+cpu16/acpi_cppc/lowest_freq:0
+cpu16/acpi_cppc/lowest_nonlinear_perf:15
+cpu16/acpi_cppc/lowest_perf:1
+cpu16/acpi_cppc/nominal_freq:3200
+cpu16/acpi_cppc/nominal_perf:24
+cpu16/acpi_cppc/reference_perf:24
+cpu16/acpi_cppc/wraparound_time:18446744073709551615
+
+altra:
+$ grep '' /sys/devices/system/cpu/cpu0/acpi_cppc/*
+feedback_ctrs:ref:227098452801 del:590247062111
+highest_perf:260
+lowest_freq:1000
+lowest_nonlinear_perf:200
+lowest_perf:100
+nominal_freq:2600
+nominal_perf:260
+reference_perf:100
+
+w3-2345:
+$ grep '' /sys/devices/system/cpu/cpu0/acpi_cppc/*
+feedback_ctrs:ref:4775674480779 del:5675950973600
+highest_perf:45
+lowest_freq:0
+lowest_nonlinear_perf:8
+lowest_perf:5
+nominal_freq:0
+nominal_perf:31
+reference_perf:31
+wraparound_time:18446744073709551615
