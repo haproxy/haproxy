@@ -912,6 +912,110 @@ nominal_perf:31
 reference_perf:31
 wraparound_time:18446744073709551615
 
+Other approaches may consist in checking the CPU's max frequency via
+cpufreq, e.g on the N2:
+
+  $ grep . /sys/devices/system/cpu/cpu?/cpufreq/scaling_max_freq
+  /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq:2016000
+  /sys/devices/system/cpu/cpu1/cpufreq/scaling_max_freq:2016000
+  /sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq:2400000
+  /sys/devices/system/cpu/cpu3/cpufreq/scaling_max_freq:2400000
+  /sys/devices/system/cpu/cpu4/cpufreq/scaling_max_freq:2400000
+  /sys/devices/system/cpu/cpu5/cpufreq/scaling_max_freq:2400000
+
+However on x86, the cores no longer all have the same frequency, like below on
+the W3-2345, so it cannot always be used to split them into groups, it may at
+best be used to sort them.
+
+  $ grep . /sys/devices/system/cpu/cpu*/cpufreq/scaling_max_freq
+  /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq:4500000
+  /sys/devices/system/cpu/cpu1/cpufreq/scaling_max_freq:4500000
+  /sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq:4300000
+  /sys/devices/system/cpu/cpu3/cpufreq/scaling_max_freq:4400000
+  /sys/devices/system/cpu/cpu4/cpufreq/scaling_max_freq:4300000
+  /sys/devices/system/cpu/cpu5/cpufreq/scaling_max_freq:4300000
+  /sys/devices/system/cpu/cpu6/cpufreq/scaling_max_freq:4400000
+  /sys/devices/system/cpu/cpu7/cpufreq/scaling_max_freq:4300000
+  /sys/devices/system/cpu/cpu8/cpufreq/scaling_max_freq:4500000
+  /sys/devices/system/cpu/cpu9/cpufreq/scaling_max_freq:4500000
+  /sys/devices/system/cpu/cpu10/cpufreq/scaling_max_freq:4300000
+  /sys/devices/system/cpu/cpu11/cpufreq/scaling_max_freq:4400000
+  /sys/devices/system/cpu/cpu12/cpufreq/scaling_max_freq:4300000
+  /sys/devices/system/cpu/cpu13/cpufreq/scaling_max_freq:4300000
+  /sys/devices/system/cpu/cpu14/cpufreq/scaling_max_freq:4400000
+  /sys/devices/system/cpu/cpu15/cpufreq/scaling_max_freq:4300000
+
+On x86, the model number might help:
+
+  w3$ grep 'model\s*:' /proc/cpuinfo
+  model           : 143
+  model           : 143
+  model           : 143
+  model           : 143
+  model           : 143
+  model           : 143
+  model           : 143
+  model           : 143
+  model           : 143
+  model           : 143
+  model           : 143
+  model           : 143
+  model           : 143
+  model           : 143
+  model           : 143
+  model           : 143
+
+
+On ARM it's rather the part number:
+
+  # a9
+  $ grep part /proc/cpuinfo
+  CPU part        : 0xc09
+  CPU part        : 0xc09
+
+  # a17
+  $ grep part /proc/cpuinfo
+  CPU part        : 0xc0d
+  CPU part        : 0xc0d
+  CPU part        : 0xc0d
+  CPU part        : 0xc0d
+
+  # a72
+  $ grep part /proc/cpuinfo
+  CPU part        : 0xd08
+  CPU part        : 0xd08
+  CPU part        : 0xd08
+  CPU part        : 0xd08
+
+  # a53+a72
+  $ grep part /proc/cpuinfo
+  CPU part        : 0xd03
+  CPU part        : 0xd03
+  CPU part        : 0xd03
+  CPU part        : 0xd03
+  CPU part        : 0xd08
+  CPU part        : 0xd08
+
+  # a53+a73
+  $ grep 'part' /proc/cpuinfo
+  CPU part        : 0xd03
+  CPU part        : 0xd03
+  CPU part        : 0xd09
+  CPU part        : 0xd09
+  CPU part        : 0xd09
+  CPU part        : 0xd09
+
+  # a55+a76
+  $ grep 'part' /proc/cpuinfo
+  CPU part        : 0xd05
+  CPU part        : 0xd05
+  CPU part        : 0xd05
+  CPU part        : 0xd05
+  CPU part        : 0xd0b
+  CPU part        : 0xd0b
+  CPU part        : 0xd0b
+  CPU part        : 0xd0b
+
 
 2024-12-27
 ----------
