@@ -1373,6 +1373,8 @@ static int cli_parse_show_pools(char **args, char *payload, struct appctx *appct
 		}
 		else if (strcmp(args[arg], "match") == 0 && *args[arg+1]) {
 			ctx->prefix = strdup(args[arg+1]); // only pools starting with this
+			if (!ctx->prefix)
+				return cli_err(appctx, "Out of memory.\n");
 			arg++;
 		}
 		else if (isdigit((unsigned char)*args[arg])) {
