@@ -116,12 +116,19 @@ int comp_append_type(struct comp_type **types, const char *type)
 
 	comp_type = calloc(1, sizeof(*comp_type));
 	if (!comp_type)
-		return 1;
+		goto fail;
 	comp_type->name_len = strlen(type);
 	comp_type->name = strdup(type);
+	if (!comp_type->name)
+		goto fail_free_comp_type;
 	comp_type->next = *types;
 	*types = comp_type;
 	return 0;
+
+fail_free_comp_type:
+	free(comp_type);
+fail:
+	return 1;
 }
 
 /*
