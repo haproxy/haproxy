@@ -911,3 +911,100 @@ nominal_freq:0
 nominal_perf:31
 reference_perf:31
 wraparound_time:18446744073709551615
+
+
+2024-12-27
+----------
+
+Such machines with P+E cores are becoming increasingly common. Some like the
+CIX-P1 can even provide 3 levels of performance: 4 big cores (A720-2.8G), 4
+medium cores (A720-2.4G), 4 little cores (A520-1.8G). Architectures like below
+will become the norm, and can be used under different policies:
+
+                      +-----------------------------+
+                      |             L3              |
+                      +---+----------+----------+---+
+                          |          |          |
+                      +---+---+  +---+---+  +---+---+
+                      | P | P |  | E | E |  | E | E |
+                      +---+---+  +---+---+  +---+---+
+   Policy:            | P | P |  | E | E |  | E | E |
+   -------            +---+---+  +---+---+  +---+---+
+   1 group, min:         N/A         0          0
+   1 group, max:          0         N/A        N/A
+   1 group, all:          0          0          0
+   2 groups, min:        N/A         0          1
+   2 groups, full:        0          1          1
+   3 groups:              0          1          2
+
+In dual-socket or multiple dies it can even become more complicated:
+
+   +---+---+  +---+---+  +---+---+
+   | P | P |  | E | E |  | E | E |
+   +---+---+  +---+---+  +---+---+
+   | P | P |  | E | E |  | E | E |
+   +---+---+  +---+---+  +---+---+
+       |          |          |
+   +---+----------+----------+---+
+   |            L3.0             |
+   +-----------------------------+
+
+   +-----------------------------+
+   |            L3.1             |
+   +---+----------+----------+---+
+       |          |          |
+   +---+---+  +---+---+  +---+---+
+   | P | P |  | E | E |  | E | E |
+   +---+---+  +---+---+  +---+---+
+   | P | P |  | E | E |  | E | E |
+   +---+---+  +---+---+  +---+---+
+
+Setting only a thread count would yield interesting things above:
+  1-4T: P.0
+  5-8T: P.0, P.1 (2 grp)
+ 9-16T: P.0, E.0, P.1, E.1 (3-4 grp)
+17-24T: PEE.0, PEE.1 (5-6 grp)
+
+With forced tgrp = 1:
+  - only fill node 0 first (P then PE, then PEE)
+
+With forced tgrp = 2:
+
+  def:  P.0, P.1
+  2-4T: P.0 only ?
+  6-8T: P.0, P.1
+ 9-24T: PEE.0, PEE.1
+
+With dual-socket, dual-die, it becomes:
+
+   +---+---+  +---+---+  +---+---+  '  +---+---+  +---+---+  +---+---+
+   | P | P |  | E | E |  | E | E |  '  | P | P |  | E | E |  | E | E |
+   +---+---+  +---+---+  +---+---+  '  +---+---+  +---+---+  +---+---+
+   | P | P |  | E | E |  | E | E |  '  | P | P |  | E | E |  | E | E |
+   +---+---+  +---+---+  +---+---+  '  +---+---+  +---+---+  +---+---+
+       |          |          |      '      |          |          |
+   +---+----------+----------+---+  '  +---+----------+----------+---+
+   |            L3.0.0           |  '  |            L3.1.0           |
+   +-----------------------------+  '  +-----------------------------+
+                                    '
+   +-----------------------------+  '  +-----------------------------+
+   |            L3.0.1           |  '  |            L3.1.1           |
+   +---+----------+----------+---+  '  +---+----------+----------+---+
+       |          |          |      '      |          |          |
+   +---+---+  +---+---+  +---+---+  '  +---+---+  +---+---+  +---+---+
+   | P | P |  | E | E |  | E | E |  '  | P | P |  | E | E |  | E | E |
+   +---+---+  +---+---+  +---+---+  '  +---+---+  +---+---+  +---+---+
+   | P | P |  | E | E |  | E | E |  '  | P | P |  | E | E |  | E | E |
+   +---+---+  +---+---+  +---+---+  '  +---+---+  +---+---+  +---+---+
+
+In such conditions, it could make sense to first enumerate all the available
+cores with all their characteristics, and distribute them between "buckets"
+representing the thread groups:
+
+  1. create the min number of tgrp (tgrp.min)
+  2. it's possible to automatically create more until tgrp.max
+  -> cores are sorted by performance then by proximity. They're
+     distributed in order into existing buckets, and if too distant,
+     then new groups are created. It could allow for example to use
+     all P-cores in the DSDD model above, split into 4 tgrp.
+  -> the total number of threads is then discovered at the end.
