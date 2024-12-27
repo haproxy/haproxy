@@ -1008,3 +1008,56 @@ representing the thread groups:
      then new groups are created. It could allow for example to use
      all P-cores in the DSDD model above, split into 4 tgrp.
   -> the total number of threads is then discovered at the end.
+
+
+It seems in the end that such binding policies (P, E, single/multi dies,
+single/multi sockets etc) should be made more accessible to the user. What
+we're missing in "cpu-map" is the ability to apply to the whole process in
+fact, so that it can supersede taskset. Indeed, right now, cpu-map requires
+too many details and that's why it often remains easier to deal with taskset,
+particularly when dealing with thread groups.
+
+We can revisit the situation differently. First, let's keep in mind that
+cpu-map is a restriction. It means "use no more than these", it does not
+mean "use all of these". So it totally makes sense to use it to replace
+taskset at the process level without interfering with groups detection.
+We could then have:
+
+  - "cpu-map all|process|global|? ..."  to apply to the whole process
+  - then special keywords for the CPUs designation, among:
+     - package (socket) number
+     - die number (CCD)
+     - L3 number (CCX)
+     - cluster type (big/performant, medium, little/efficient)
+     - use of SMT or not, and which ones
+  - maybe optional numbers before these to indicate (any two of them),
+    e.g. "4P" to indicate "4 performance cores".
+
+Question: how would we designate "only P cores of socket 0" ? Or
+          "only thread 0 of all P cores" ?
+
+One benefit of such a declaration method is that it can make nbthread often
+useless and automatic while still portable across a whole fleet of servers. E.g.
+if "cpu-map all S0P*T0" would designate thread 0 of all P-cores of socket 0, it
+would mean the same on all machines.
+
+Another benefit is that we can make cpu-map and automatic detection more
+exclusive:
+  - cpu-map all => equivalent of taskset, leaves auto-detection on
+  - cpu-map thr => disables auto-detection
+
+So in the end:
+  - cpu-map all restricts the CPUs the process may use
+    -> auto-detection starts from here and sorts them
+  - thread-groups offers more "buckets" to arrange distant CPUs in the
+    same process
+  - nbthread limits the number of threads we'll use
+    -> pick the most suited ones (at least thr.min, at most thr.max)
+       and distribute them optimally among the number of thread groups.
+
+One question remains: is it always possible to automatically configure
+thread-groups ? Maybe it's possible after the detection to set an optimal
+one between grp.min and grp.max ? (e.g. socket count, core types, etc).
+
+It still seems that a policy such as "optimize-for resources|perfomance"
+would still help quite a bit.
