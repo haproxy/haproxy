@@ -22748,6 +22748,10 @@ sc_kbytes_out(<ctr>[,<table>])                     integer
 sc0_kbytes_out([<table>])                          integer
 sc1_kbytes_out([<table>])                          integer
 sc2_kbytes_out([<table>])                          integer
+sc_key(<ctr>)                                      any
+sc0_key                                            any
+sc1_key                                            any
+sc2_key                                            any
 sc_sess_cnt(<ctr>[,<table>])                       integer
 sc0_sess_cnt([<table>])                            integer
 sc1_sess_cnt([<table>])                            integer
@@ -23559,6 +23563,12 @@ sc2_kbytes_out([<table>]) : integer
   Returns the total amount of server-to-client data from the currently tracked
   counters, measured in kilobytes. The test is currently performed on 32-bit
   integers, which limits values to 4 terabytes. See also src_kbytes_out.
+
+sc_key(<ctr>) : any
+sc0_key : any
+sc1_key : any
+sc2_key : any
+  Returns the key used to match the currently tracked counter.
 
 sc_sess_cnt(<ctr>[,<table>]) : integer
 sc0_sess_cnt([<table>]) : integer
