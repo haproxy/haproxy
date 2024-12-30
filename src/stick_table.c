@@ -207,6 +207,25 @@ void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key 
 	}
 }
 
+/*
+ * Get the key in the sticky session <ts> present in table <t>
+ * It cannot fail as it is assumed that if <ts> exists, then the key has
+ * been set.
+ * It uses static_table_key to store the key
+ */
+struct stktable_key *stksess_getkey(struct stktable *t, struct stksess *ts)
+{
+	if (t->type != SMP_T_STR) {
+		static_table_key.key = ts->key.key;
+		static_table_key.key_len = t->key_size;
+	}
+	else {
+		static_table_key.key = ts->key.key;
+		static_table_key.key_len = strnlen2((char *)ts->key.key, t->key_size);
+	}
+	return &static_table_key;
+}
+
 /* return a shard number for key <key> of len <len> present in table <t>. This
  * takes into account the presence or absence of a peers section with shards
  * and the number of shards, the table's hash_seed, and of course the key. The
