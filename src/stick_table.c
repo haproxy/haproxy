@@ -1520,6 +1520,49 @@ struct stktable_key *smp_to_stkey(struct sample *smp, struct stktable *t)
 	return &static_table_key;
 }
 
+/* reverse operation for smp_to_stkey(): fills input <smp> with content of
+ * <key>
+ * smp_make_safe() may be applied to smp before returning to ensure it can be
+ * used even if the key is no longer available upon return.
+ * Returns 1 on success and 0 on failure
+ */
+int stkey_to_smp(struct sample *smp, struct stktable_key *key, int key_type)
+{
+	smp->data.type = key_type;
+	smp->flags = 0;
+
+	switch (key_type) {
+
+	case SMP_T_IPV4:
+		memcpy(&smp->data.u.ipv4, static_table_key.key, sizeof(struct in_addr));
+		break;
+	case SMP_T_IPV6:
+		memcpy(&smp->data.u.ipv6, static_table_key.key, sizeof(struct in6_addr));
+		break;
+
+	case SMP_T_SINT:
+		/* The stick table require a 32bit unsigned int, "sint" is a
+		 * signed 64 it, so we can convert it inplace.
+		 */
+		smp->data.u.sint = *(unsigned int *)static_table_key.key;
+		break;
+
+	case SMP_T_STR:
+	case SMP_T_BIN:
+		smp->data.u.str.area = static_table_key.key;
+		smp->data.u.str.data = static_table_key.key_len;
+		smp->flags = SMP_F_CONST;
+		if (!smp_make_safe(smp))
+			return 0;
+		break;
+
+	default: /* impossible case. */
+		return 0;
+	}
+
+	return 1;
+}
+
 /*
  * Process a fetch + format conversion as defined by the sample expression <expr>
  * on request or response considering the <opt> parameter. Returns either NULL if
