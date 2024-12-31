@@ -2014,7 +2014,7 @@ static void qcs_destroy(struct qcs *qcs)
  * truncated if greater than <fc_conn_wnd>. This allows to prepare several
  * frames in a loop while respecting connection flow control window.
  *
- * Returns the payload length of the STREAM frame or a negative error code.
+ * Returns the length of the STREAM frame or a negative error code.
  */
 static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
                                 struct list *frm_list, uint64_t window_conn)
@@ -2103,7 +2103,7 @@ static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
 		            qcc->conn, qcs, &arg);
 	}
 
-	return total;
+	return qc_frm_len(frm);
 
  err:
 	TRACE_LEAVE(QMUX_EV_QCS_SEND, qcc->conn, qcs);
@@ -2265,7 +2265,7 @@ static int qcs_send_stop_sending(struct qcs *qcs)
  * This allows to prepare several frames in a loop while respecting connection
  * flow control window.
  *
- * Returns the payload length of the STREAM frame or a negative error code.
+ * Returns the length of the STREAM frame or a negative error code.
  */
 static int qcs_send(struct qcs *qcs, struct list *frms, uint64_t window_conn)
 {
