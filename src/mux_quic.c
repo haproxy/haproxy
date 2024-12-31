@@ -894,17 +894,27 @@ void qcs_send_metadata(struct qcs *qcs)
 	qc_stream_desc_sub_room(qcs->stream, NULL);
 }
 
+/* Instantiate a streamdesc instance for <qcs> stream. This is necessary to
+ * transfer data after a new request reception. <buf> can be used to forward
+ * the first received request data. <fin> must be set if the whole request is
+ * already received.
+ *
+ * Returns the newly allocated instance on success or NULL on error.
+ */
 struct stconn *qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin)
 {
 	struct qcc *qcc = qcs->qcc;
 	struct session *sess = qcc->conn->owner;
 
+	TRACE_ENTER(QMUX_EV_STRM_RECV, qcc->conn, qcs);
 
 	/* TODO duplicated from mux_h2 */
 	sess->t_idle = ns_to_ms(now_ns - sess->accept_ts) - sess->t_handshake;
 
-	if (!sc_new_from_endp(qcs->sd, sess, buf))
+	if (!sc_new_from_endp(qcs->sd, sess, buf)) {
+		TRACE_DEVEL("leaving on error", QMUX_EV_STRM_RECV, qcc->conn, qcs);
 		return NULL;
+	}
 
 	/* QC_SF_HREQ_RECV must be set once for a stream. Else, nb_hreq counter
 	 * will be incorrect for the connection.
@@ -948,6 +958,7 @@ struct stconn *qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin)
 		se_fl_set_error(qcs->sd);
 	}
 
+	TRACE_LEAVE(QMUX_EV_STRM_RECV, qcc->conn, qcs);
 	return qcs->sd->sc;
 }
 
