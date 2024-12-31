@@ -1152,7 +1152,7 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 	if (qcs_is_close_remote(qcs))
 		fin = 1;
 
-	if (!(qcs->flags & QC_SF_READ_ABORTED)) {
+	if (!(qcs->flags & QC_SF_READ_ABORTED) && !qcs_is_completed(qcs)) {
 		ret = qcc->app_ops->rcv_buf(qcs, &b, fin);
 
 		if (qcc->glitches != prev_glitches)
