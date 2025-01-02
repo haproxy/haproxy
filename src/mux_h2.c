@@ -7444,6 +7444,7 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	struct htx *h2s_htx = NULL;
 	struct htx *buf_htx = NULL;
 	struct buffer *rxbuf = NULL;
+	struct htx_ret htxret;
 	size_t ret = 0;
 	uint prev_h2c_flags = h2c->flags;
 
@@ -7470,13 +7471,15 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	/* <buf> is empty and the message is small enough, swap the
 	 * buffers. */
 	if (htx_is_empty(buf_htx) && htx_used_space(h2s_htx) <= count) {
+		count -= h2s_htx->data;
 		htx_to_buf(buf_htx, buf);
 		htx_to_buf(h2s_htx, rxbuf);
 		b_xfer(buf, rxbuf, b_data(rxbuf));
 		goto end;
 	}
 
-	htx_xfer_blks(buf_htx, h2s_htx, count, HTX_BLK_UNUSED);
+	htxret = htx_xfer_blks(buf_htx, h2s_htx, count, HTX_BLK_UNUSED);
+	count -= htxret.ret;
 
 	if (h2s_htx->flags & HTX_FL_PARSING_ERROR) {
 		buf_htx->flags |= HTX_FL_PARSING_ERROR;
@@ -7504,7 +7507,9 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	if (rxbuf && !b_size(rxbuf)) {
 		h2s_put_rxbuf(h2s);
 		h2c->flags &= ~(H2_CF_DEM_RXBUF | H2_CF_DEM_SFULL);
-		goto xfer_next_buf;
+		/* Copied more data if possible */
+		if (count)
+			goto xfer_next_buf;
 	}
 
 	/* tell the stream layer whether there are data left or not */
