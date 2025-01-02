@@ -2389,7 +2389,9 @@ static int qcc_emit_rs_ss(struct qcc *qcc)
  * error occured during this step, this is considered as fatal. Tx frms is
  * cleared and 0 is returned.
  *
- * Returns the sum of encoded STREAM frames length or 0 if no frame built.
+ * Returns the sum of encoded payload STREAM frames length. Note that 0 can be
+ * returned either if no frame was built or only empty payload frames were
+ * encoded.
  */
 static int qcc_build_frms(struct qcc *qcc, struct list *qcs_failed)
 {
@@ -2505,10 +2507,8 @@ static int qcc_io_send(struct qcc *qcc)
 	/* Encode new STREAM frames if list has been previously cleared. */
 	if (LIST_ISEMPTY(frms) && !LIST_ISEMPTY(&qcc->send_list)) {
 		total = qcc_build_frms(qcc, &qcs_failed);
-		if (!total) {
-			BUG_ON(!LIST_ISEMPTY(frms));
+		if (LIST_ISEMPTY(frms))
 			goto out;
-		}
 	}
 
 	if (qcc_is_pacing_active(qcc->conn)) {
