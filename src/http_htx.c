@@ -1999,6 +1999,11 @@ static int proxy_parse_errorloc(char **args, int section, struct proxy *curpx,
 		ret = -1;
 		goto out;
 	}
+	if (*(args[3])) {
+		memprintf(errmsg, "%s : expects exactly two arguments.\n", args[0]);
+		ret = -1;
+		goto out;
+	}
 
 	status = atol(args[1]);
 	errloc = (strcmp(args[0], "errorloc303") == 0 ? 303 : 302);
@@ -2063,6 +2068,11 @@ static int proxy_parse_errorfile(char **args, int section, struct proxy *curpx,
 
 	if (*(args[1]) == 0 || *(args[2]) == 0) {
 		memprintf(errmsg, "%s : expects <status_code> and <file> as arguments.\n", args[0]);
+		ret = -1;
+		goto out;
+	}
+	if (*(args[3])) {
+		memprintf(errmsg, "%s : expects exactly two arguments.\n", args[0]);
 		ret = -1;
 		goto out;
 	}
