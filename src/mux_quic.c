@@ -743,7 +743,7 @@ void qcc_set_error(struct qcc *qcc, int err, int app)
 	 * is too tedious too not forget a wakeup outside of this function for
 	 * the moment.
 	 */
-	HA_ATOMIC_AND(&qcc->wait_event.tasklet->state, ~TASK_F_USR1);
+	tasklet_wakeup(qcc->wait_event.tasklet);
 }
 
 /* Increment glitch counter for <qcc> connection by <inc> steps. If configured
