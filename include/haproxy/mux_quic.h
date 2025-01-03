@@ -21,7 +21,7 @@ void qcc_set_error(struct qcc *qcc, int err, int app);
 int _qcc_report_glitch(struct qcc *qcc, int inc);
 struct qcs *qcc_init_stream_local(struct qcc *qcc, int bidi);
 void qcs_send_metadata(struct qcs *qcs);
-struct stconn *qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin);
+int qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin);
 int qcs_is_close_local(struct qcs *qcs);
 int qcs_is_close_remote(struct qcs *qcs);
 

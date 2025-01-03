@@ -899,9 +899,9 @@ void qcs_send_metadata(struct qcs *qcs)
  * the first received request data. <fin> must be set if the whole request is
  * already received.
  *
- * Returns the newly allocated instance on success or NULL on error.
+ * Returns 0 on success else a negative error code.
  */
-struct stconn *qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin)
+int qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin)
 {
 	struct qcc *qcc = qcs->qcc;
 	struct session *sess = qcc->conn->owner;
@@ -913,7 +913,7 @@ struct stconn *qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin)
 
 	if (!sc_new_from_endp(qcs->sd, sess, buf)) {
 		TRACE_DEVEL("leaving on error", QMUX_EV_STRM_RECV, qcc->conn, qcs);
-		return NULL;
+		return -1;
 	}
 
 	/* QC_SF_HREQ_RECV must be set once for a stream. Else, nb_hreq counter
@@ -959,7 +959,7 @@ struct stconn *qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin)
 	}
 
 	TRACE_LEAVE(QMUX_EV_STRM_RECV, qcc->conn, qcs);
-	return qcs->sd->sc;
+	return 0;
 }
 
 /* Use this function for a stream <id> which is not in <qcc> stream tree. It

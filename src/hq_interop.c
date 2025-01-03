@@ -77,7 +77,7 @@ static ssize_t hq_interop_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 	htx->flags |= HTX_FL_EOM;
 	htx_to_buf(htx, &htx_buf);
 
-	if (!qcs_attach_sc(qcs, &htx_buf, fin))
+	if (qcs_attach_sc(qcs, &htx_buf, fin))
 		return -1;
 
 	b_free(&htx_buf);
