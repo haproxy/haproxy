@@ -938,8 +938,8 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	if (htx)
 		htx_to_buf(htx, &htx_buf);
 
-	/* buffer is transferred to the stream connector and set to NULL
-	 * except on stream creation error.
+	/* Buffer is transferred to the stream connector and set to NULL except
+	 * on stream creation error or QCS already fully closed.
 	 */
 	if (b_size(&htx_buf)) {
 		b_free(&htx_buf);
