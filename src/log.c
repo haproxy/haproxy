@@ -6791,11 +6791,6 @@ enum act_parse_ret do_log_parse_act(enum log_orig_id id,
                                     const char **args, int *orig_arg, struct proxy *px,
                                     struct act_rule *rule, char **err)
 {
-	if (*args[*orig_arg]) {
-		memprintf(err, "doesn't expects any argument");
-		return ACT_RET_PRS_ERR;
-	}
-
 	rule->action_ptr = do_log_action;
 	rule->action = ACT_CUSTOM;
 	rule->release_ptr = NULL;
