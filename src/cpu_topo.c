@@ -249,6 +249,8 @@ int cpu_detect_topology(void)
 	struct ha_cpu_topo cpu_id = { }; /* all zeroes */
 	struct hap_cpuset node_cpu_set;
 	struct dirent *de;
+	int no_cache, no_topo, no_capa, no_clust, no_pkg;
+	int no_cppc, no_freq;
 	DIR *dir;
 	int cpu;
 
@@ -263,6 +265,8 @@ int cpu_detect_topology(void)
 	if (!is_dir_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu"))
 		goto skip_cpu;
 
+	/* detect the presence of some kernel-specific fields */
+	no_cache = no_topo = no_capa = no_clust = no_pkg = no_freq = no_cppc = -1;
 	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++) {
 		struct hap_cpuset cpus_list;
 		int next_level = 1; // assume L1 if unknown
@@ -285,6 +289,12 @@ int cpu_detect_topology(void)
 		 * are "Data", "Instruction", "Unified". We just ignore inst if
 		 * found.
 		 */
+		if (no_cache < 0)
+			no_cache = !is_dir_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cache", cpu);
+
+		if (no_cache)
+			goto skip_cache;
+
 		for (idx = 0; idx < 10; idx++) {
 			if (!is_dir_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cache/index%d", cpu, idx))
 				break;
@@ -320,6 +330,13 @@ int cpu_detect_topology(void)
 				}
 			}
 		}
+
+	skip_cache:
+		if (no_topo < 0)
+			no_topo = !is_dir_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology", cpu);
+
+		if (no_topo)
+			goto skip_topo;
 
 		/* Now let's try to get more info about how the cores are
 		 * arranged in packages, clusters, cores, threads etc. It
@@ -359,7 +376,12 @@ int cpu_detect_topology(void)
 		 * only consider these values if there's more than one CPU per
 		 * cluster (some kernels such as 6.1 report one cluster per CPU).
 		 */
-		if (ha_cpu_topo[cpu].cl_gid < 0 &&
+		if (no_clust < 0) {
+			no_clust = !is_file_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/cluster_cpus_list", cpu) &&
+				   !is_file_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/core_siblings_list", cpu);
+		}
+
+		if (!no_clust && ha_cpu_topo[cpu].cl_gid < 0 &&
 		    (read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/cluster_cpus_list", cpu) >= 0 ||
 		     read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/core_siblings_list", cpu) >= 0)) {
 			parse_cpu_set_args[0] = trash.area;
@@ -384,7 +406,12 @@ int cpu_detect_topology(void)
 		 * number starts at 0. The first one is preferred because it
 		 * provides a list in a single read().
 		 */
-		if (ha_cpu_topo[cpu].pk_id < 0 &&
+		if (no_pkg < 0) {
+			no_pkg = !is_file_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/package_cpus_list", cpu) &&
+				 !is_file_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/core_siblings_list", cpu);
+		}
+
+		if (!no_pkg && ha_cpu_topo[cpu].pk_id < 0 &&
 		    (read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/package_cpus_list", cpu) >= 0 ||
 		     read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/core_siblings_list", cpu) >= 0)) {
 			parse_cpu_set_args[0] = trash.area;
@@ -404,11 +431,15 @@ int cpu_detect_topology(void)
 				ha_cpu_topo[cpu].pk_id = str2uic(trash.area);
 		}
 
+	skip_topo:
+		if (no_capa < 0)
+			no_capa = !is_file_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cpu_capacity", cpu);
+
 		/* CPU capacity is a relative notion to compare little and big
 		 * cores. Usually the values encountered in field set the big
 		 * CPU's nominal capacity to 1024 and the other ones below.
 		 */
-		if (ha_cpu_topo[cpu].capa < 0 &&
+		if (!no_capa && ha_cpu_topo[cpu].capa < 0 &&
 		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cpu_capacity", cpu) >= 0) {
 			if (trash.data)
 				ha_cpu_topo[cpu].capa = str2uic(trash.area);
@@ -432,7 +463,10 @@ int cpu_detect_topology(void)
 		 * an efficient core, and we major performant cores' capacity
 		 * by 50% (shown to be roughly correct on modern CPUs).
 		 */
-		if (ha_cpu_topo[cpu].capa < 0 &&
+		if (no_freq < 0)
+			no_freq = !is_dir_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cpufreq", cpu);
+
+		if (!no_freq && ha_cpu_topo[cpu].capa < 0 &&
 		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cpufreq/scaling_max_freq", cpu) >= 0) {
 			/* This is in kHz, turn it to MHz to stay below 32k */
 			if (trash.data) {
@@ -442,7 +476,10 @@ int cpu_detect_topology(void)
 			}
 		}
 
-		if (ha_cpu_topo[cpu].capa < 0 &&
+		if (no_cppc < 0)
+			no_cppc = !is_dir_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/acpi_cppc", cpu);
+
+		if (!no_cppc && ha_cpu_topo[cpu].capa < 0 &&
 		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/acpi_cppc/nominal_perf", cpu) >= 0) {
 			if (trash.data)
 				ha_cpu_topo[cpu].capa = str2uic(trash.area);
