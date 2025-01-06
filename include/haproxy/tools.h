@@ -1020,6 +1020,9 @@ int my_unsetenv(const char *name);
  * some expansion is made.
  */
 char *env_expand(char *in);
+int is_path_mode(mode_t mode, const char *path_fmt, ...);
+int is_file_present(const char *path_fmt, ...);
+int is_dir_present(const char *path_fmt, ...);
 uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbargs, uint32_t opts, const char **errptr);
 ssize_t read_line_to_trash(const char *path_fmt, ...);
 size_t sanitize_for_printing(char *line, size_t pos, size_t width);
