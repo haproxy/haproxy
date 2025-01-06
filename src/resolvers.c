@@ -3959,8 +3959,13 @@ static void *rslv_promex_start_ts(void *unused, unsigned int id)
 	if (LIST_ISEMPTY(&sec_resolvers))
 		return NULL;
 
-	resolver = LIST_NEXT(&sec_resolvers, struct resolvers *, list);
-	return LIST_NEXT(&resolver->nameservers, struct dns_nameserver *, list);
+	/* Find the first resolvers with at least one nameserver */
+	list_for_each_entry(resolver, &sec_resolvers, list) {
+		if (LIST_ISEMPTY(&resolver->nameservers))
+			continue;
+		return LIST_NEXT(&resolver->nameservers, struct dns_nameserver *, list);
+	}
+	return NULL;
 }
 
 static void *rslv_promex_next_ts(void *unused, void *metric_ctx, unsigned int id)
@@ -3970,10 +3975,14 @@ static void *rslv_promex_next_ts(void *unused, void *metric_ctx, unsigned int id
 
 	ns = LIST_NEXT(&ns->list, struct dns_nameserver *, list);
 	if (&ns->list == &resolver->nameservers) {
+		/* Find the next resolver with at least on nameserver */
 		resolver = LIST_NEXT(&resolver->list, struct resolvers *, list);
-		ns = ((&resolver->list == &sec_resolvers)
-		      ? NULL
-		      : LIST_NEXT(&resolver->nameservers, struct dns_nameserver *, list));
+		list_for_each_entry_from(resolver, &sec_resolvers, list) {
+			if (LIST_ISEMPTY(&resolver->nameservers))
+				continue;
+			return LIST_NEXT(&resolver->nameservers, struct dns_nameserver *, list);
+		}
+		ns = NULL;
 	}
 	return ns;
 }
