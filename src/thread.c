@@ -1576,11 +1576,12 @@ void thread_detect_count(void)
 		else
 			printf("drop ");
 
-		printf("thr %3d -> cpu %3d  onl=%d bnd=%d pk=%02d no=%02d l3=%02d cl=%03d l2=%03d ts=%03d l1=%03d smt=%d capa=%d\n", cpu, ha_cpu_topo[cpu].idx,
+		printf("thr %3d -> cpu %3d  onl=%d bnd=%d pk=%02d no=%02d di=%02d l3=%02d cl=%03d l2=%03d ts=%03d l1=%03d smt=%d capa=%d\n", cpu, ha_cpu_topo[cpu].idx,
 		       !(ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE),
 		       !(ha_cpu_topo[cpu].st & HA_CPU_F_EXCLUDED),
 		       ha_cpu_topo[cpu].pk_id,
 		       ha_cpu_topo[cpu].no_id,
+		       ha_cpu_topo[cpu].di_id,
 		       ha_cpu_topo[cpu].l3_id,
 		       ha_cpu_topo[cpu].cl_id,
 		       ha_cpu_topo[cpu].l2_id,
