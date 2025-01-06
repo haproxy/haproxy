@@ -2469,6 +2469,19 @@ static int qcc_build_frms(struct qcc *qcc, struct list *qcs_failed)
 	return total;
 }
 
+static void qcc_wakeup_pacing(struct qcc *qcc)
+{
+	const int remain = qcc->tx.pacer.next - task_mono_time();
+
+	if (remain >= 1000000) {
+		qcc->pacing_task->expire = tick_add_ifset(now_ms, remain / 1000000);
+	}
+	else {
+		qcc->pacing_task->expire = TICK_ETERNITY;
+		tasklet_wakeup(qcc->wait_event.tasklet);
+	}
+}
+
 /* Proceed to sending. Loop through all available streams for the <qcc>
  * instance and try to send as much as possible.
  *
@@ -2484,6 +2497,9 @@ static int qcc_io_send(struct qcc *qcc)
 	int ret = 0, total = 0, resent;
 
 	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
+
+	/* Always reset pacing_task timer to prevent unnecessary execution. */
+	qcc->pacing_task->expire = TICK_ETERNITY;
 
 	/* TODO if socket in transient error, sending should be temporarily
 	 * disabled for all frames. However, checking for send subscription is
@@ -2535,7 +2551,7 @@ static int qcc_io_send(struct qcc *qcc)
 
 	if (qcc_is_pacing_active(qcc->conn)) {
 		if (!LIST_ISEMPTY(frms) && !quic_pacing_expired(&qcc->tx.pacer)) {
-			tasklet_wakeup(qcc->wait_event.tasklet, TASK_F_UEVT1);
+			qcc_wakeup_pacing(qcc);
 			total = 0;
 			goto out;
 		}
@@ -2577,7 +2593,7 @@ static int qcc_io_send(struct qcc *qcc)
 	if (ret == 1) {
 		/* qcc_send_frames cannot return 1 if pacing not used. */
 		BUG_ON(!qcc_is_pacing_active(qcc->conn));
-		tasklet_wakeup(qcc->wait_event.tasklet, TASK_F_UEVT1);
+		qcc_wakeup_pacing(qcc);
 		++qcc->tx.paced_sent_ctr;
 	}
 
@@ -2824,6 +2840,8 @@ static void qcc_release(struct qcc *qcc)
 
 	TRACE_ENTER(QMUX_EV_QCC_END, conn);
 
+	task_destroy(qcc->pacing_task);
+
 	if (qcc->task) {
 		task_destroy(qcc->task);
 		qcc->task = NULL;
@@ -2912,6 +2930,9 @@ struct task *qcc_io_cb(struct task *t, void *ctx, unsigned int status)
 
 	qcc_refresh_timeout(qcc);
 
+	if (tick_isset(qcc->pacing_task->expire))
+		task_queue(qcc->pacing_task);
+
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE, qcc->conn);
 	trace_resume();
 
@@ -2925,6 +2946,26 @@ struct task *qcc_io_cb(struct task *t, void *ctx, unsigned int status)
 	trace_resume();
 
 	return NULL;
+}
+
+static struct task *qcc_pacing_task(struct task *t, void *ctx, unsigned int state)
+{
+	struct qcc *qcc = ctx;
+	int expired = tick_is_expired(t->expire, now_ms);
+
+	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
+
+	if (!expired) {
+		if (!tick_isset(t->expire))
+			TRACE_DEVEL("cancelled pacing task", QMUX_EV_QCC_WAKE, qcc->conn);
+		goto requeue;
+	}
+
+	qcc_io_send(qcc);
+
+ requeue:
+	TRACE_LEAVE(QMUX_EV_QCC_WAKE, qcc->conn);
+	return t;
 }
 
 static struct task *qcc_timeout_task(struct task *t, void *ctx, unsigned int state)
@@ -3065,6 +3106,16 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	qcc->wait_event.tasklet->context = qcc;
 	qcc->wait_event.tasklet->state  |= TASK_F_WANTS_TIME;
 	qcc->wait_event.events = 0;
+
+	qcc->pacing_task = task_new_here();
+	if (!qcc->pacing_task) {
+		TRACE_ERROR("pacing task alloc failure", QMUX_EV_QCC_NEW);
+		goto err;
+	}
+	qcc->pacing_task->process = qcc_pacing_task;
+	qcc->pacing_task->context = qcc;
+	qcc->pacing_task->expire = TICK_ETERNITY;
+	qcc->pacing_task->state |= TASK_F_WANTS_TIME;
 
 	qcc->proxy = prx;
 	/* haproxy timeouts */
