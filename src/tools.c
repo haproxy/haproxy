@@ -5975,6 +5975,70 @@ void ha_generate_uuid_v7(struct buffer *output)
 }
 
 
+/* See is_path_mode(). This version is for internal use and uses a va_list. */
+static int _is_path_mode(mode_t mode, const char *path_fmt, va_list args)
+{
+	struct stat file_stat;
+	ssize_t ret;
+
+	chunk_reset(&trash);
+
+	ret = vsnprintf(trash.area, trash.size, path_fmt, args);
+	if (ret >= trash.size)
+		return 0;
+
+	if (stat(trash.area, &file_stat) != 0)
+		return 0;
+
+	return (file_stat.st_mode & S_IFMT) == mode;
+}
+
+/* Use <path_fmt> and following arguments as a printf format to build up the
+ * name of a file, which will be checked for existence and for mode matching
+ * <mode> among S_IF*. On success, non-zero is returned. On failure, zero is
+ * returned. The trash is destroyed.
+ */
+int is_path_mode(mode_t mode, const char *path_fmt, ...)
+{
+	va_list args;
+	int ret;
+
+	va_start(args, path_fmt);
+	ret = _is_path_mode(mode, path_fmt, args);
+	va_end(args);
+	return ret;
+}
+
+/* Use <path_fmt> and following arguments as a printf format to build up the
+ * name of a file, which will be checked for existence. On success, non-zero
+ * is returned. On failure, zero is returned. The trash is destroyed.
+ */
+int is_file_present(const char *path_fmt, ...)
+{
+	va_list args;
+	int ret;
+
+	va_start(args, path_fmt);
+	ret = _is_path_mode(S_IFREG, path_fmt, args);
+	va_end(args);
+	return ret;
+}
+
+/* Use <path_fmt> and following arguments as a printf format to build up the
+ * name of a directory, which will be checked for existence. On success, non-zero
+ * is returned. On failure, zero is returned. The trash is destroyed.
+ */
+int is_dir_present(const char *path_fmt, ...)
+{
+	va_list args;
+	int ret;
+
+	va_start(args, path_fmt);
+	ret = _is_path_mode(S_IFDIR, path_fmt, args);
+	va_end(args);
+	return ret;
+}
+
 /* only used by parse_line() below. It supports writing in place provided that
  * <in> is updated to the next location before calling it. In that case, the
  * char at <in> may be overwritten.
