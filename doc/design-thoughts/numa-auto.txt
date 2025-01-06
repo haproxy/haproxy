@@ -741,7 +741,7 @@ $ grep -h . /sys/devices/system/cpu/cpu*/topology/die_cpus | sort |uniq -c
 
   => all CPUs on the same die
 
-$ grep -h . /sys/devices/system/cpu/cpu*/topology/cluster_cpus|sort |uniq -c
+$ grep -h . /sys/devices/system/cpu/cpu*/topology/cluster_cpus | sort |uniq -c
       2 00000003
       2 0000000c
       2 00000030
@@ -945,26 +945,25 @@ best be used to sort them.
   /sys/devices/system/cpu/cpu14/cpufreq/scaling_max_freq:4400000
   /sys/devices/system/cpu/cpu15/cpufreq/scaling_max_freq:4300000
 
-On x86, the model number might help:
+On 14900, not cool either:
 
-  w3$ grep 'model\s*:' /proc/cpuinfo
-  model           : 143
-  model           : 143
-  model           : 143
-  model           : 143
-  model           : 143
-  model           : 143
-  model           : 143
-  model           : 143
-  model           : 143
-  model           : 143
-  model           : 143
-  model           : 143
-  model           : 143
-  model           : 143
-  model           : 143
-  model           : 143
+  $ grep -h . /sys/devices/system/cpu/cpu*/cpufreq/scaling_max_freq|sort|uniq -c
+     16 4400000
+     12 5700000
+      4 6000000
 
+Considering that values that are within +/-10% of a cluster's min/max are still
+part of it would seem to work and would make a good rule of thumb.
+
+On x86, the model number might help, here on w3-2345:
+
+  $ grep '^model\s\s' /proc/cpuinfo |sort|uniq -c
+     16 model           : 143
+
+But not always (here: 14900K with 8xP and 16xE):
+
+  $ grep '^model\s\s' /proc/cpuinfo |sort|uniq -c
+     32 model           : 183
 
 On ARM it's rather the part number:
 
@@ -1165,3 +1164,69 @@ one between grp.min and grp.max ? (e.g. socket count, core types, etc).
 
 It still seems that a policy such as "optimize-for resources|perfomance"
 would still help quite a bit.
+
+-> what defines a match between a CPU core and a group:
+   - cluster identification:
+     - either cluster_cpus if present (and sometimes), or:
+     - pkg+die+ccd number
+     - same LLC instance (L3 if present, L2 if no L3 etc)
+     - CPU core model ("model" on x86, "CPU part" on arm)
+     - number of SMT per core
+   - speed if known:
+     - /sys/devices/system/cpu/cpu0/acpi_cppc/nominal_perf if available
+     - or /sys/devices/system/cpu/cpu15/cpufreq/scaling_max_freq +/- 10%
+
+PB: on intel P+E, clusters of E cores sharing the same L2+L3, but P cores are
+alone on their L3 => poor grouping.
+
+Maybe one approach could be to characterize how L3/L2 are used. E.g. on the
+14900, we have:
+  - L3 0     => all cpus there
+  - L2 0..7  => 1C2T per L2
+  - L2 8..11 => 4C4T per L2
+  => it's obvious that CPUs connected to L2 #8..11 are not the same as those
+     on L2 #0..7. We could make something with them.
+  => it does not make sense to ditch the L2 distinction due to L3 being
+     present and the same, though it doesn't make sense to use L3 either.
+     Maybe elements with a cardinality of 1 should just be ignored. E.g.
+     cores per cache == 1 => ignore L2. Probably not true per die/pkg
+     though.
+  => replace absent or irrelevant info with "?"
+
+Note that for caches we have the list of CPUs, not the list of cores, so
+we need to remap that invidivually to cores.
+
+Warning: die_id, core_id etc are per socket, not per system. Worse, on Altra,
+core_id has gigantic values (multiples of +1 and +256). However core_cpus_list
+indicates other threads and could be a solution to create our own global core
+ID. Also, cluster_id=-1 found on all cores for A8040 on kernel 6.1.
+
+Note that LLC is always the first discriminator. But within a same LLC we can
+have the issues above (e.g. 14900).
+
+Would an intermediate approach like this work ?
+-----------------------------------------------
+  1) first split by LLC (also test with L3-less A8040, N2800, x5-8350)
+  2) within LLC, check of we have different cores (model, perf, freq?)
+     and resplit
+  3) divide again so that no group has more than 64 CPUs
+
+  => it looks like from the beginning that's what we're trying to do:
+     preserve locality first, then possibly trim down the number of cores
+     if some don't bring sufficient benefit. It possibly avoids the need
+     to identify dies etc. It still doesn't completely solve the 14900
+     though.
+
+Multi-die CPUs worth checking:
+  Pentium-D (Presler, Dempsey: two 65nm dies)
+  Core2Quad Q6600/Q6700 (Kentsfield, Clowertown: two 65nm dual-core dies)
+  Core2Quad Q8xxx/Q9xxx (Yorkfield, Harpertown, Tigerton: two 45nm dual-core dies)
+  - atom 330 ("diamondville") is really a dual-die
+  - note that atom x3-z8350 ("cherry trail"), N2800 ("cedar trail") and D510
+    ("pine trail") are single-die (verified) but have two L2 caches and no L3.
+  Note that these are apparently not identified as multi-die (Q6600 has die=0).
+
+It *seems* that in order to form groups we'll first have to sort by topology,
+and only after that sort by performance so as to choose preferred CPUs.
+Otherwise we could end up trying to form inter-socket CPU groups first in
+case we're forced to mix adjacent CPUs due to too many groups.
