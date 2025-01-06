@@ -276,6 +276,8 @@ int cpu_detect_topology(void)
 	const char *parse_cpu_set_args[2];
 	struct ha_cpu_topo cpu_id = { }; /* all zeroes */
 	struct dirent *de;
+	int no_cache, no_topo, no_capa, no_clust;
+	int no_die, no_cppc, no_freq;
 	int maxcpus = 0;
 	int lastcpu = 0;
 	DIR *dir;
@@ -298,6 +300,8 @@ int cpu_detect_topology(void)
 	if (!is_dir_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu"))
 		goto skip_cpu;
 
+	/* detect the presence of some kernel-specific fields */
+	no_cache = no_topo = no_capa = no_clust = no_die = no_freq = no_cppc = -1;
 	for (cpu = 0; cpu <= lastcpu; cpu++) {
 		struct hap_cpuset cpus_list;
 		int cpu2;
@@ -312,6 +316,12 @@ int cpu_detect_topology(void)
 		 * it, index0 generally is the L1D cache, index1 the L1I, index2
 		 * the L2 and index3 the L3.
 		 */
+
+		if (no_cache < 0)
+			no_cache = !is_dir_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cache", cpu);
+
+		if (no_cache)
+			goto skip_cache;
 
 		/* other CPUs sharing the same L1 cache (SMT) */
 		if (ha_cpu_topo[cpu].l1_id < 0 &&
@@ -355,6 +365,13 @@ int cpu_detect_topology(void)
 			}
 		}
 
+	skip_cache:
+		if (no_topo < 0)
+			no_topo = !is_dir_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology", cpu);
+
+		if (no_topo)
+			goto skip_topo;
+
 		/* Now let's try to get more info about how the cores are
 		 * arranged in packages, clusters, cores, threads etc. It
 		 * overlaps a bit with the cache above, but as not all systems
@@ -387,7 +404,10 @@ int cpu_detect_topology(void)
 		 * precise than core lists (e.g. big.little), otherwise use
 		 * core lists.
 		 */
-		if (ha_cpu_topo[cpu].cl_id < 0 &&
+		if (no_clust < 0)
+			no_clust = !is_file_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/cluster_cpus_list", cpu);
+
+		if (!no_clust && ha_cpu_topo[cpu].cl_id < 0 &&
 		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/cluster_cpus_list", cpu) >= 0) {
 			parse_cpu_set_args[0] = trash.area;
 			parse_cpu_set_args[1] = "\0";
@@ -414,7 +434,10 @@ int cpu_detect_topology(void)
 		/* Dies when they exist ("ccd"). On modern CPUs there can be
 		 * multiple dies each with multiple L3 inside a single package.
 		 */
-		if (ha_cpu_topo[cpu].di_id < 0 &&
+		if (no_die < 0)
+			no_die = !is_file_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/die_cpus_list", cpu);
+
+		if (!no_die && ha_cpu_topo[cpu].di_id < 0 &&
 		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/die_cpus_list", cpu) >= 0) {
 			parse_cpu_set_args[0] = trash.area;
 			parse_cpu_set_args[1] = "\0";
@@ -453,11 +476,15 @@ int cpu_detect_topology(void)
 				ha_cpu_topo[cpu].pk_id = str2uic(trash.area);
 		}
 
+	skip_topo:
+		if (no_capa < 0)
+			no_capa = !is_file_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cpu_capacity", cpu);
+
 		/* CPU capacity is a relative notion to compare little and big
 		 * cores. Usually the values encountered in field set the big
 		 * CPU's nominal capacity to 1024 and the other ones below.
 		 */
-		if (ha_cpu_topo[cpu].capa < 0 &&
+		if (!no_capa && ha_cpu_topo[cpu].capa < 0 &&
 		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cpu_capacity", cpu) >= 0) {
 			if (trash.data)
 				ha_cpu_topo[cpu].capa = str2uic(trash.area);
@@ -471,7 +498,10 @@ int cpu_detect_topology(void)
 		 * more reliable than the max cpufreq values because it doesn't
 		 * seem to take into account the die quality.
 		 */
-		if (ha_cpu_topo[cpu].capa < 0 &&
+		if (no_cppc < 0)
+			no_cppc = !is_dir_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/acpi_cppc", cpu);
+
+		if (!no_cppc && ha_cpu_topo[cpu].capa < 0 &&
 		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/acpi_cppc/nominal_perf", cpu) >= 0) {
 			if (trash.data)
 				ha_cpu_topo[cpu].capa = str2uic(trash.area);
@@ -480,7 +510,10 @@ int cpu_detect_topology(void)
 		/* Finally if none of them is available we can have a look at
 		 * cpufreq's max cpu frequency.
 		 */
-		if (ha_cpu_topo[cpu].capa < 0 &&
+		if (no_freq < 0)
+			no_freq = !is_dir_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cpufreq", cpu);
+
+		if (!no_freq && ha_cpu_topo[cpu].capa < 0 &&
 		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cpufreq/scaling_max_freq", cpu) >= 0) {
 			/* This is in kHz turn it to MHz to stay below 32k */
 			if (trash.data)
