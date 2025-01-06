@@ -404,6 +404,22 @@ int cpu_detect_topology(void)
 			}
 		}
 
+		/* Dies when they exist ("ccd"). On modern CPUs there can be
+		 * multiple dies each with multiple L3 inside a single package.
+		 */
+		if (ha_cpu_topo[cpu].di_id < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/die_cpus_list", cpu) >= 0) {
+			parse_cpu_set_args[0] = trash.area;
+			parse_cpu_set_args[1] = "\0";
+			if (parse_cpu_set(parse_cpu_set_args, &cpus_list, NULL) == 0) {
+				for (cpu2 = 0; cpu2 <= lastcpu; cpu2++) {
+					if (ha_cpuset_isset(&cpus_list, cpu2))
+						ha_cpu_topo[cpu2].di_id = cpu_id.di_id;
+				}
+				cpu_id.di_id++;
+			}
+		}
+
 		/* package CPUs list, like nodes, are generally a hard limit
 		 * for groups, which must not span over multiple of them. On
 		 * some systems, the package_cpus_list is not always provided,
@@ -564,6 +580,12 @@ static int cmp_cpu_optimal(const void *a, const void *b)
 	if (l->no_id >= 0 && l->no_id < r->no_id)
 		return -1;
 	if (l->no_id > r->no_id && r->no_id >= 0)
+		return  1;
+
+	/* next, CCD */
+	if (l->di_id >= 0 && l->di_id < r->di_id)
+		return -1;
+	if (l->di_id > r->di_id && r->di_id >= 0)
 		return  1;
 
 	/* next, L3 */

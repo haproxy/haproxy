@@ -71,7 +71,8 @@ struct ha_cpu_topo {
 	short l2_id;  // L2 cache identifier
 	short l3_id;  // L3 cache slice identifier
 	short ts_id;  // thread-set identifier (generally core number)
-	short cl_id;  // cluster identifier (group of more shortimate cores)
+	short cl_id;  // cluster identifier (group of more intimate cores)
+	short di_id;  // die ID (per package)
 	short no_id;  // NUMA node identifier
 	short pk_id;  // package identifier
 	short tg_id;  // thread group ID
