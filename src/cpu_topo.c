@@ -272,6 +272,9 @@ int cpu_detect_topology(void)
 		if (ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE)
 			continue;
 
+		if (!is_dir_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d", cpu))
+			continue;
+
 		/* First, let's check the cache hierarchy. On systems exposing
 		 * it, index0 generally is the L1D cache, index1 the L1I, index2
 		 * the L2 and index3 the L3. But sometimes L1I/D are reversed,
