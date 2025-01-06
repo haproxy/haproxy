@@ -249,6 +249,10 @@ int cpu_detect_topology(void)
 	 * thread_set_id, cluster_id, l1/l2/l3 id, etc. We don't revisit entries
 	 * already filled from the list provided by another CPU.
 	 */
+
+	if (!is_dir_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu"))
+		goto skip_cpu;
+
 	for (cpu = 0; cpu <= lastcpu; cpu++) {
 		struct hap_cpuset cpus_list;
 		int next_level = 1; // assume L1 if unknown
@@ -425,6 +429,7 @@ int cpu_detect_topology(void)
 		}
 	}
 
+ skip_cpu:
 	/* Now locate NUMA node IDs if any */
 
 	dir = opendir(NUMA_DETECT_SYSTEM_SYSFS_PATH "/node");
