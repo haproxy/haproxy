@@ -406,6 +406,30 @@ int cpu_detect_topology(void)
 			if (trash.data)
 				ha_cpu_topo[cpu].capa = str2uic(trash.area);
 		}
+
+		/* When cpu_capacity is not available, sometimes acpi_cppc is
+		 * available on servers to provide an equivalent metric allowing
+		 * to distinguish big from small cores. Values as low as 15 and
+		 * as high as 260 were seen there. Note that only nominal_perf
+		 * is trustable, as nominal_freq may return zero. It's also
+		 * more reliable than the max cpufreq values because it doesn't
+		 * seem to take into account the die quality.
+		 */
+		if (ha_cpu_topo[cpu].capa < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/acpi_cppc/nominal_perf", cpu) >= 0) {
+			if (trash.data)
+				ha_cpu_topo[cpu].capa = str2uic(trash.area);
+		}
+
+		/* Finally if none of them is available we can have a look at
+		 * cpufreq's max cpu frequency.
+		 */
+		if (ha_cpu_topo[cpu].capa < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cpufreq/scaling_max_freq", cpu) >= 0) {
+			/* This is in kHz turn it to MHz to stay below 32k */
+			if (trash.data)
+				ha_cpu_topo[cpu].capa = (str2uic(trash.area) + 999U) / 1000U;
+		}
 	}
 
 	/* Now locate NUMA node IDs if any */
