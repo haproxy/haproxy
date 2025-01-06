@@ -53,6 +53,7 @@
 #include <haproxy/log.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/proxy.h>
+#include <haproxy/quic_conn-t.h>
 #include <haproxy/shctx.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_ocsp-t.h>
@@ -100,7 +101,7 @@ int ssl_sock_get_ocsp_arg_kt_index(int evp_keytype)
 int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 {
 	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
-	struct listener *li;
+	struct listener *li = NULL;
 	struct ssl_counters *counters = NULL;
 	struct ssl_counters *counters_px = NULL;
 	struct certificate_ocsp *ocsp;
@@ -115,8 +116,18 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 	if (!ctx)
 		goto error;
 
-	if (obj_type(conn->target) == OBJ_TYPE_LISTENER) {
+	if (conn && obj_type(conn->target) == OBJ_TYPE_LISTENER)
 		li = __objt_listener(conn->target);
+#ifdef USE_QUIC
+	else if (!conn) {
+		struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
+
+		/* null if not a listener */
+		li = qc->li;
+	}
+#endif
+
+	if (li) {
 		counters = EXTRA_COUNTERS_GET(li->extra_counters, &ssl_stats_module);
 		counters_px = EXTRA_COUNTERS_GET(li->bind_conf->frontend->extra_counters_fe, &ssl_stats_module);
 	}
