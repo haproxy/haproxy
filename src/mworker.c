@@ -1008,7 +1008,6 @@ static int cli_io_handler_show_loadstatus(struct appctx *appctx)
 	else
 		chunk_printf(&trash, "Success=1\n");
 
-#ifdef USE_SHM_OPEN
 	if (startup_logs && ring_data(startup_logs) > 1)
 		chunk_appendf(&trash, "--\n");
 
@@ -1020,10 +1019,6 @@ static int cli_io_handler_show_loadstatus(struct appctx *appctx)
 		ring_attach_cli(startup_logs, appctx, 0);
 		return 0;
 	}
-#else
-	if (applet_putchk(appctx, &trash) == -1)
-		return 0;
-#endif
 	return 1;
 }
 

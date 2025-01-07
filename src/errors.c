@@ -21,9 +21,7 @@
  * retrieve on the CLI. */
 struct ring *startup_logs = NULL;
 uint tot_warnings = 0;
-#ifdef USE_SHM_OPEN
 static struct ring *shm_startup_logs = NULL;
-#endif
 
 /* A thread local buffer used to store all alerts/warnings. It can be used to
  * retrieve them for CLI commands after startup.
@@ -36,71 +34,6 @@ static THREAD_LOCAL struct buffer usermsgs_buf = BUF_NULL;
 #define USERMSGS_CTX_BUFSIZE   PATH_MAX
 static THREAD_LOCAL struct usermsgs_ctx usermsgs_ctx = { .str = BUF_NULL, };
 
-#ifdef USE_SHM_OPEN
-
-/* initialise an SHM for the startup logs and return its fd */
-static int startup_logs_new_shm()
-{
-	char *path = NULL;
-	int fd = -1;
-	int flags;
-
-	/* create a unique path per PID so we don't collide with another
-	   process */
-	memprintf(&path, "/haproxy_startup_logs_%d", getpid());
-	fd = shm_open(path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
-	if (fd == -1)
-		goto error;
-	shm_unlink(path);
-	ha_free(&path);
-
-	if (ftruncate(fd, STARTUP_LOG_SIZE) == -1)
-		goto error;
-
-	flags = fcntl(fd, F_GETFD);
-	if (flags == -1)
-		goto error;
-	flags &= ~FD_CLOEXEC;
-	flags = fcntl(fd, F_SETFD, flags);
-	if (flags == -1)
-		goto error;
-
-	return fd;
-error:
-	if (fd != -1) {
-		close(fd);
-		fd = -1;
-	}
-	return fd;
-}
-
-/* mmap a startup-logs from a <fd>.
- * if <new> is set to one, initialize the buffer.
- * Returns the ring.
- */
-static struct ring *startup_logs_from_fd(int fd, int new)
-{
-	char *area;
-	struct ring *r = NULL;
-
-	if (fd == -1)
-		goto error;
-
-	area = mmap(NULL, STARTUP_LOG_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (area == MAP_FAILED || area == NULL)
-		goto error;
-
-        r = ring_make_from_area(area, STARTUP_LOG_SIZE, new);
-	if (r == NULL)
-		goto error;
-
-	shm_startup_logs = r; /* save the ptr so we can unmap later */
-
-	return r;
-error:
-	return NULL;
-}
-
 /*
  * At process start (step_init_1) opens shm and allocates the ring area for the
  * startup logs into it. In master-worker mode master and worker share the same
@@ -112,30 +45,29 @@ error:
 static struct ring *startup_logs_init_shm()
 {
 	struct ring *r = NULL;
-	int fd = -1;
+	char *area = NULL;
 
-	fd = startup_logs_new_shm();
-	if (fd == -1)
-		return NULL;
+	area = mmap(NULL, STARTUP_LOG_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+	if (area == MAP_FAILED || area == NULL)
+		goto error;
 
-	r = startup_logs_from_fd(fd, 1);
-	close(fd);
+        r = ring_make_from_area(area, STARTUP_LOG_SIZE, 1);
+	if (r == NULL)
+		goto error;
 
-	if (!r)
-		return NULL;
+	shm_startup_logs = r; /* save the ptr so we can unmap later */
+
+	return r;
+error:
+	if (area != MAP_FAILED && area != NULL)
+		munmap(area, STARTUP_LOG_SIZE);
 
 	return r;
 }
 
-#endif /* ! USE_SHM_OPEN */
-
 void startup_logs_init()
 {
-#ifdef USE_SHM_OPEN
 	startup_logs = startup_logs_init_shm();
-#else /* ! USE_SHM_OPEN */
-	startup_logs = ring_new(STARTUP_LOG_SIZE);
-#endif
 	if (startup_logs)
 		vma_set_name(ring_allocated_area(startup_logs),
 		             ring_allocated_size(startup_logs),
@@ -145,10 +77,8 @@ void startup_logs_init()
 /* free the startup logs, unmap if it was an shm */
 void startup_logs_free(struct ring *r)
 {
-#ifdef USE_SHM_OPEN
 	if (r == shm_startup_logs)
 		munmap(ring_allocated_area(r), STARTUP_LOG_SIZE);
-#endif /* ! USE_SHM_OPEN */
 	ring_free(r);
 	startup_logs = NULL;
 }

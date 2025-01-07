@@ -62,7 +62,6 @@
 #   USE_MEMORY_PROFILING    : enable the memory profiler. Linux-glibc only.
 #   USE_LIBATOMIC           : force to link with/without libatomic. Automatic.
 #   USE_PTHREAD_EMULATION   : replace pthread's rwlocks with ours
-#   USE_SHM_OPEN            : use shm_open() for the startup-logs
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string). The list of enabled and disabled options for a
@@ -343,7 +342,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER USE_POLL                        \
            USE_MATH USE_DEVICEATLAS USE_51DEGREES                             \
            USE_WURFL USE_OBSOLETE_LINKER USE_PRCTL USE_PROCCTL                \
            USE_THREAD_DUMP USE_EVPORTS USE_OT USE_QUIC USE_PROMEX             \
-           USE_MEMORY_PROFILING USE_SHM_OPEN                                  \
+           USE_MEMORY_PROFILING                                               \
            USE_STATIC_PCRE USE_STATIC_PCRE2                                   \
            USE_PCRE USE_PCRE_JIT USE_PCRE2 USE_PCRE2_JIT USE_QUIC_OPENSSL_COMPAT
 
@@ -382,7 +381,7 @@ ifeq ($(TARGET),linux-glibc)
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
     USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_LINUX_TPROXY USE_LINUX_CAP      \
     USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL USE_THREAD_DUMP USE_NS USE_TFO     \
-    USE_GETADDRINFO USE_BACKTRACE USE_SHM_OPEN)
+    USE_GETADDRINFO USE_BACKTRACE)
   INSTALL = install -v
 endif
 
@@ -401,7 +400,7 @@ ifeq ($(TARGET),linux-musl)
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
     USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_LINUX_TPROXY USE_LINUX_CAP      \
     USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL USE_THREAD_DUMP USE_NS USE_TFO     \
-    USE_GETADDRINFO USE_SHM_OPEN)
+    USE_GETADDRINFO)
   INSTALL = install -v
 endif
 
@@ -418,7 +417,7 @@ endif
 ifeq ($(TARGET),freebsd)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_THREAD USE_CPU_AFFINITY USE_KQUEUE   \
-    USE_ACCEPT4 USE_CLOSEFROM USE_GETADDRINFO USE_PROCCTL USE_SHM_OPEN)
+    USE_ACCEPT4 USE_CLOSEFROM USE_GETADDRINFO USE_PROCCTL)
 endif
 
 # kFreeBSD glibc
