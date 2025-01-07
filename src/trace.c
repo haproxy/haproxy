@@ -27,6 +27,7 @@
 #include <haproxy/istbuf.h>
 #include <haproxy/list.h>
 #include <haproxy/log.h>
+#include <haproxy/global.h>
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/sink.h>
 #include <haproxy/trace.h>
@@ -348,11 +349,7 @@ void trace_no_cb(enum trace_level level, uint64_t mask, const struct trace_sourc
 	/* do nothing */
 }
 
-/* registers trace source <source>. Modifies the list element!
- * The {start,pause,stop,report} events are not changed so the source may
- * preset them.
- */
-void trace_register_source(struct trace_source *source)
+static void trace_source_reset(struct trace_source *source)
 {
 	source->lockon = TRACE_LOCKON_NOTHING;
 	source->level = TRACE_LEVEL_USER;
@@ -360,6 +357,16 @@ void trace_register_source(struct trace_source *source)
 	source->sink = NULL;
 	source->state = TRACE_STATE_STOPPED;
 	source->lockon_ptr = NULL;
+	source->cmdline = 0;
+}
+
+/* registers trace source <source>. Modifies the list element!
+ * The {start,pause,stop,report} events are not changed so the source may
+ * preset them.
+ */
+void trace_register_source(struct trace_source *source)
+{
+	trace_source_reset(source);
 	LIST_APPEND(&trace_sources, &source->source_link);
 }
 
@@ -473,6 +480,15 @@ static struct sink *_trace_get_sink(const char *name, char **msg,
 	return sink;
 }
 
+/* Returns true if <src> trace source configuration can be changed. */
+static int trace_enforce_origin_priority(const struct trace_source *src)
+{
+	/* Trace cannot be modified via configuration file (during startup) if
+	 * already activated via -dt command line argument.
+	 */
+	return !src->cmdline || !(global.mode & MODE_STARTING);
+}
+
 /* Parse a "trace" statement. Returns a severity as a LOG_* level and a status
  * message that may be delivered to the user, in <msg>. The message will be
  * nulled first and msg must be an allocated pointer. A null status message output
@@ -555,6 +571,9 @@ static int _trace_parse_statement(char **args, char **msg, const char *file, int
 		return LOG_ERR;
 	}
 
+	if (src && !trace_enforce_origin_priority(src))
+		goto out;
+
 	if (strcmp(args[cur_arg], "follow") == 0) {
 		const struct trace_source *origin = src ? HA_ATOMIC_LOAD(&src->follow) : NULL;
 
@@ -589,12 +608,15 @@ static int _trace_parse_statement(char **args, char **msg, const char *file, int
 			}
 		}
 
-		if (src)
+		if (src) {
 			HA_ATOMIC_STORE(&src->follow, origin);
-		else
-			list_for_each_entry(src, &trace_sources, source_link)
-				if (src != origin)
+		}
+		else {
+			list_for_each_entry(src, &trace_sources, source_link) {
+				if (src != origin && trace_enforce_origin_priority(src))
 					HA_ATOMIC_STORE(&src->follow, origin);
+			}
+		}
 		cur_arg += 2;
 		goto next_stmt;
 	}
@@ -712,11 +734,15 @@ static int _trace_parse_statement(char **args, char **msg, const char *file, int
 				return LOG_ERR;
 		}
 
-		if (src)
+		if (src) {
 			HA_ATOMIC_STORE(&src->sink, sink);
-		else
-			list_for_each_entry(src, &trace_sources, source_link)
-				HA_ATOMIC_STORE(&src->sink, sink);
+		}
+		else {
+			list_for_each_entry(src, &trace_sources, source_link) {
+				if (trace_enforce_origin_priority(src))
+					HA_ATOMIC_STORE(&src->sink, sink);
+			}
+		}
 
 		cur_arg += 2;
 		goto next_stmt;
@@ -750,11 +776,15 @@ static int _trace_parse_statement(char **args, char **msg, const char *file, int
 			return *name ? LOG_ERR : LOG_WARNING;
 		}
 
-		if (src)
+		if (src) {
 			HA_ATOMIC_STORE(&src->level, level);
-		else
-			list_for_each_entry(src, &trace_sources, source_link)
-				HA_ATOMIC_STORE(&src->level, level);
+		}
+		else {
+			list_for_each_entry(src, &trace_sources, source_link) {
+				if (trace_enforce_origin_priority(src))
+					HA_ATOMIC_STORE(&src->level, level);
+			}
+		}
 
 		cur_arg += 2;
 		goto next_stmt;
@@ -960,10 +990,12 @@ static int trace_parse_statement(char **args, char **msg)
 
 void _trace_parse_cmd(struct trace_source *src, int level, int verbosity)
 {
+	trace_source_reset(src);
 	src->sink = sink_find("stderr");
 	src->level = level >= 0 ? level : TRACE_LEVEL_ERROR;
 	src->verbosity = verbosity >= 0 ? verbosity : 1;
 	src->state = TRACE_STATE_RUNNING;
+	src->cmdline = 1;
 }
 
 /* Parse a process argument specified via "-dt".

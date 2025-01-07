@@ -184,6 +184,7 @@ struct trace_source {
 	enum trace_state state;
 	const void *lockon_ptr;  // what to lockon when lockon is set
 	const struct trace_source *follow; // other trace source's tracker to follow
+	int cmdline;             // true if source was activated via -dt command line args
 };
 
 #endif /* _HAPROXY_TRACE_T_H */
