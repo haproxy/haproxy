@@ -1016,10 +1016,11 @@ int trace_parse_cmd(const char *arg_src, char **errmsg)
 			  "A list can be specified as argument to configure several trace sources with comma as separator.\n"
 			  "Each entry can contains the trace name, a log level and a verbosity using colon as separator.\n"
 			  "Every fields are optional and can be left empty, or with a colon to specify the next one.\n\n"
-			  "An empty name will activate all registered sources.\n"
+			  "An empty name or the alias 'all' will activate all registered sources.\n"
 			  "Verbosity cannot be configured in this case except 'quiet' as their values are specific to each source.\n\n"
 			  "Examples:\n"
 			  "-dt           activate every sources on error level\n"
+			  "-dt all:user  activate every sources on user level\n"
 			  "-dt h1        activate HTTP/1 traces on error level\n"
 			  "-dt h2:data   activate HTTP/2 traces on data level\n"
 			  "-dt quic::clean,qmux::minimal\n    activate both QUIC transport and MUX traces on error level with their custom verbosity\n");
@@ -1060,7 +1061,7 @@ int trace_parse_cmd(const char *arg_src, char **errmsg)
 			str = NULL;
 		}
 
-		if (strlen(name)) {
+		if (strlen(name) && strcmp(name, "all") != 0) {
 			src = trace_find_source(name);
 			if (!src) {
 				memprintf(errmsg, "unknown trace source '%s'", name);
