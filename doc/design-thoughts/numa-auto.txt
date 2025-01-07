@@ -1230,3 +1230,63 @@ It *seems* that in order to form groups we'll first have to sort by topology,
 and only after that sort by performance so as to choose preferred CPUs.
 Otherwise we could end up trying to form inter-socket CPU groups first in
 case we're forced to mix adjacent CPUs due to too many groups.
+
+
+2025-01-07
+----------
+
+What is needed in fact is to act on two directions:
+
+  - binding restrictions: the user doesn't want the process to run on
+    second node, on efficient cores, second thread of each core, so
+    they're indicating where (not) to bind. This is a strict choice,
+    and it overrides taskset. That's the process-wide cpu-map.
+
+  - user preferences / execution profile: the user expresses their wishes
+    about how to allocate resources. This is only a binding order strategy
+    among a few existing ones that help easily decide which cores to select.
+    In this case CPUs are not enumerated. We can imagine choices as:
+
+      - full : use all permitted cores
+      - performance: use all permitted performance cores (all sockets)
+      - single-node: (like today): use all cores of a single node
+      - balanced: use a reasonable amount of perf cores (e.g. all perf
+        cores of a single socket)
+      - resources: use a single cluster of efficient cores
+      - minimal: use a single efficient core
+
+By sorting CPUs first on the performance, then applying the filtering based on
+the profile to eliminate more CPUs, then applying the limit on the desired max
+number of threads, then sorting again on the topology, it should be possible to
+draw a list of usable CPUs that can then be split in groups along the L3s.
+
+It even sounds likely that the CPU profile or allocation strategy will affect
+the first sort method. E.g:
+  - full: no sort needed though we'll use the same as perf so as to enable
+    the maximum possible high-perf threads when #threads is limited
+  - performance: probably that we should invert the topology so as to maximize
+    memory bandwidth across multiple sockets, i.e. visite node1.core0 just
+    after node0.core0 etc, and visit their threads later.
+  - bandwidth: that could be the same as "performance" one above in fact
+  - (low-)latency: better stay local first
+  - balanced: sort by perf then sockets (i.e. P0, P1, E0, E1)
+  - resources: sort on perf first.
+  - etc
+
+The strategy will also help determine the number of threads when it's not fixed
+in the configuration.
+
+Plan:
+  1) make the profile configurable and implement the sort:
+     - option name? cpu-tuning, cpu-strategy, cpu-policy, cpu-allocation,
+       cpu-selection, cpu-priority, cpu-optimize-for, cpu-prefer, cpu-favor,
+       cpu-profile
+       => cpu-selection
+
+  2) make the process-wide cpu-map configurable
+  3) extend cpu-map to make it possible to designate symbolic groups
+     (e.g. "ht0/ht1, node 0, 3*CCD, etc)
+
+Also, offering an option to the user to see how haproxy sees the CPUs and the
+bindings for various profiles would be a nice improvement helping them make
+educated decisions instead of trying blindly.
