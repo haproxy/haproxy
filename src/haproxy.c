@@ -1513,10 +1513,18 @@ static void init_args(int argc, char **argv)
 			}
 			else if (*flag == 'd' && flag[1] == 't') {
 				if (argc > 1 && argv[1][0] != '-') {
-					if (trace_parse_cmd(argv[1], &err_msg)) {
-						ha_alert("-dt: %s.\n", err_msg);
-						ha_free(&err_msg);
-						exit(EXIT_FAILURE);
+					int ret = trace_parse_cmd(argv[1], &err_msg);
+					if (ret <= -1) {
+						if (ret < -1) {
+							ha_alert("-dt: %s.\n", err_msg);
+							ha_free(&err_msg);
+							exit(EXIT_FAILURE);
+						}
+						else {
+							printf("%s\n", err_msg);
+							ha_free(&err_msg);
+							exit(0);
+						}
 					}
 					argc--; argv++;
 				}

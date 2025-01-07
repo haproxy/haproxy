@@ -977,11 +977,28 @@ int trace_parse_cmd(const char *arg_src, char **errmsg)
 	char *saveptr;
 
 	if (arg_src) {
+		if (strcmp(arg_src, "help") == 0) {
+			memprintf(errmsg,
+			  "-dt activates traces on stderr output via the command-line.\n"
+			  "Without argument, all registered trace sources are activated with error level as filter.\n"
+			  "A list can be specified as argument to configure several trace sources with comma as separator.\n"
+			  "Each entry can contains the trace name, a log level and a verbosity using colon as separator.\n"
+			  "Every fields are optional and can be left empty, or with a colon to specify the next one.\n\n"
+			  "An empty name will activate all registered sources.\n"
+			  "Verbosity cannot be configured in this case except 'quiet' as their values are specific to each source.\n\n"
+			  "Examples:\n"
+			  "-dt           activate every sources on error level\n"
+			  "-dt h1        activate HTTP/1 traces on error level\n"
+			  "-dt h2:data   activate HTTP/2 traces on data level\n"
+			  "-dt quic::clean,qmux::minimal\n    activate both QUIC transport and MUX traces on error level with their custom verbosity\n");
+			return -1;
+		}
+
 		/* keep a copy of the ptr for strtok */
 		oarg = arg = strdup(arg_src);
 		if (!arg) {
 			memprintf(errmsg, "Can't allocate !");
-			return 1;
+			return -2;
 		}
 	}
 
@@ -1016,7 +1033,7 @@ int trace_parse_cmd(const char *arg_src, char **errmsg)
 			if (!src) {
 				memprintf(errmsg, "unknown trace source '%s'", name);
 				ha_free(&oarg);
-				return 1;
+				return -2;
 			}
 		}
 
@@ -1039,7 +1056,7 @@ int trace_parse_cmd(const char *arg_src, char **errmsg)
 			if (level < 0) {
 				memprintf(errmsg, "no such trace level '%s', available levels are 'error', 'user', 'proto', 'state', 'data', and 'developer'", field);
 				ha_free(&oarg);
-				return 1;
+				return -2;
 			}
 		}
 
@@ -1049,9 +1066,9 @@ int trace_parse_cmd(const char *arg_src, char **errmsg)
 		/* 3. verbosity */
 		field = str;
 		if (strchr(field, ':')) {
-			memprintf(errmsg, "too many double-colon separators in trace definition");
+			memprintf(errmsg, "too many colon separators in trace definition");
 			ha_free(&oarg);
-			return 1;
+			return -2;
 		}
 
 		verbosity = trace_source_parse_verbosity(src, field);
@@ -1068,7 +1085,7 @@ int trace_parse_cmd(const char *arg_src, char **errmsg)
 			}
 
 			ha_free(&oarg);
-			return 1;
+			return -2;
 		}
 
  parse:
