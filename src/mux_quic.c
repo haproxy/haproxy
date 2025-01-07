@@ -2476,9 +2476,12 @@ static void qcc_wakeup_pacing(struct qcc *qcc)
 	if (remain >= 1000000) {
 		qcc->pacing_task->expire = tick_add_ifset(now_ms, remain / 1000000);
 	}
-	else {
+	else if (global.tune.options & GTUNE_QUIC_PACING_HI_RES) {
 		qcc->pacing_task->expire = TICK_ETERNITY;
 		tasklet_wakeup(qcc->wait_event.tasklet);
+	}
+	else {
+		qcc->pacing_task->expire = tick_add_ifset(now_ms, MS_TO_TICKS(1));
 	}
 }
 

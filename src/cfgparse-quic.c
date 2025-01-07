@@ -461,6 +461,12 @@ static int cfg_parse_quic_tune_on_off(char **args, int section_type, struct prox
 		else
 			global.tune.options &= ~GTUNE_QUIC_CC_HYSTART;
 	}
+	else if (strcmp(suffix, "pacing.high-res") == 0) {
+		if (on)
+			global.tune.options |= GTUNE_QUIC_PACING_HI_RES;
+		else
+			global.tune.options &= ~GTUNE_QUIC_PACING_HI_RES;
+	}
 
 	return 0;
 }
@@ -475,6 +481,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.frontend.max-idle-timeout", cfg_parse_quic_time },
 	{ CFG_GLOBAL, "tune.quic.frontend.default-max-window-size", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.max-frame-loss", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.pacing.high-res", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.reorder-ratio", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.retry-threshold", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.disable-udp-gso", cfg_parse_quic_tune_setting0 },
