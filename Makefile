@@ -1132,10 +1132,13 @@ clean:
 	$(Q)rm -f addons/ot/src/*.[oas]
 	$(Q)rm -f addons/wurfl/*.[oas] addons/wurfl/dummy/*.[oas]
 	$(Q)rm -f admin/*/*.[oas] admin/*/*/*.[oas]
+	$(Q)rm -f dev/*/*.[oas]
+	$(Q)rm -f dev/flags/flags
+
+distclean: clean
 	$(Q)rm -f admin/iprange/iprange admin/iprange/ip6range admin/halog/halog
 	$(Q)rm -f admin/dyncookie/dyncookie
-	$(Q)rm -f dev/*/*.[oas]
-	$(Q)rm -f dev/flags/flags dev/haring/haring dev/poll/poll dev/tcploop/tcploop
+	$(Q)rm -f dev/haring/haring dev/poll/poll dev/tcploop/tcploop
 	$(Q)rm -f dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht
 	$(Q)rm -f dev/qpack/decode
 
