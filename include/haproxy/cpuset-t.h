@@ -80,4 +80,13 @@ struct ha_cpu_topo {
 	short capa;   // estimated CPU relative capacity; more is better
 };
 
+/* Description of a CPU selection strategy. For now it only associates an
+ * option name with a sorting function. More settings might come later.
+ */
+struct ha_cpu_selection {
+	const char *name;          /* option name in the configuration */
+	const char *desc;       /* short description for help messages */
+	int (*cmp_cpu)(const void *a, const void *b); /* sort function */
+};
+
 #endif /* _HAPROXY_CPUSET_T_H */

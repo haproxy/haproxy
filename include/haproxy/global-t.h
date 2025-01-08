@@ -228,6 +228,7 @@ struct global {
 					 * than 255 arguments
 					 */
 	/* 2-bytes hole */
+	int cpu_sel;                    /* CPU selection strategy. 0 = default. */
 	int cfg_curr_line;              /* line number currently being parsed */
 	const char *cfg_curr_file;      /* config file currently being parsed or NULL */
 	char *cfg_curr_section;         /* config section name currently being parsed or NULL */
