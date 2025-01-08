@@ -5,6 +5,7 @@
 #include <sched.h>
 
 #include <haproxy/api.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/cpuset.h>
 #include <haproxy/global.h>
 #include <haproxy/intops.h>
@@ -711,12 +712,20 @@ static int cmp_cpu_index(const void *a, const void *b)
 	return 0;
 }
 
+/* list of CPU selection strategies for "cpu-selection". The default one
+ * is the first one.
+ */
+static struct ha_cpu_selection ha_cpu_selection[] = {
+	[0] = { .name = "performance", .desc = "Optimize for maximized CPU performance",        cmp_cpu_optimal },
+	[1] = { .name = "all",         .desc = "Use all available CPUs in the system's order",  cmp_cpu_index   },
+};
+
 /* arrange a CPU topology array optimally to consider vicinity and performance
  * so that cutting this into thread groups can be done linearly.
  */
 void cpu_optimize_topology(struct ha_cpu_topo *topo, int entries)
 {
-	qsort(ha_cpu_topo, entries, sizeof(*ha_cpu_topo), cmp_cpu_optimal);
+	qsort(ha_cpu_topo, entries, sizeof(*ha_cpu_topo), ha_cpu_selection[global.cpu_sel].cmp_cpu);
 }
 
 /* re-order a CPU topology array by CPU index only, to undo the function above,
@@ -725,6 +734,36 @@ void cpu_optimize_topology(struct ha_cpu_topo *topo, int entries)
 void cpu_reorder_topology(struct ha_cpu_topo *topo, int entries)
 {
 	qsort(ha_cpu_topo, entries, sizeof(*ha_cpu_topo), cmp_cpu_index);
+}
+
+/* Parse the "cpu-selection" global directive, which takes the name of one
+ * of the ha_cpu_selection[] names, and sets the associated index in
+ * global.cpusel.
+ */
+static int cfg_parse_cpu_selection(char **args, int section_type, struct proxy *curpx,
+                                   const struct proxy *defpx, const char *file, int line,
+                                   char **err)
+{
+	int i;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	for (i = 0; i < sizeof(ha_cpu_selection) / sizeof(ha_cpu_selection[0]); i++) {
+		if (strcmp(args[1], ha_cpu_selection[i].name) == 0) {
+			global.cpu_sel = i;
+			return 0;
+		}
+	}
+
+	memprintf(err, "'%s' passed an unknown CPU selection strategy '%s'. Supported values are:", args[0], args[1]);
+	for (i = 0; i < sizeof(ha_cpu_selection) / sizeof(ha_cpu_selection[0]); i++) {
+		memprintf(err, "%s%s '%s'%s", *err,
+		          (i > 0 && i == sizeof(ha_cpu_selection) / sizeof(ha_cpu_selection[0]) - 1) ? " and" : "",
+		          ha_cpu_selection[i].name,
+		          (i == sizeof(ha_cpu_selection) / sizeof(ha_cpu_selection[0]) - 1) ? ".\n" : ",");
+	}
+	return -1;
 }
 
 /* Parse cpu sets. Each CPU set is either a unique number between 0 and
@@ -866,3 +905,11 @@ static void cpuset_deinit(void)
 
 INITCALL0(STG_ALLOC, cpuset_alloc);
 REGISTER_POST_DEINIT(cpuset_deinit);
+
+/* config keyword parsers */
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "cpu-selection",  cfg_parse_cpu_selection, 0 },
+	{ 0, NULL, NULL }
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
