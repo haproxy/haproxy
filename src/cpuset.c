@@ -606,6 +606,83 @@ int cpu_detect_topology(void)
 
 
 /* function used by qsort to compare two hwcpus and arrange them by vicinity
+ * only. -1 says a<b, 1 says a>b. The goal is to arrange the closest CPUs
+ * together, preferring locality over performance in order to keep latency
+ * as low as possible, so that when picking a fixed number of threads, the
+ * closest ones are used in priority. It's also used to help arranging groups
+ * at the end.
+ */
+static int cmp_cpu_locality(const void *a, const void *b)
+{
+	const struct ha_cpu_topo *l = (const struct ha_cpu_topo *)a;
+	const struct ha_cpu_topo *r = (const struct ha_cpu_topo *)b;
+
+	/* first, online vs offline */
+	if (!(l->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)) && (r->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)))
+		return -1;
+
+	if (!(r->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)) && (l->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)))
+		return 1;
+
+	/* next, package ID */
+	if (l->pk_id >= 0 && l->pk_id < r->pk_id)
+		return -1;
+	if (l->pk_id > r->pk_id && r->pk_id >= 0)
+		return  1;
+
+	/* next, node ID */
+	if (l->no_id >= 0 && l->no_id < r->no_id)
+		return -1;
+	if (l->no_id > r->no_id && r->no_id >= 0)
+		return  1;
+
+	/* next, CCD */
+	if (l->di_id >= 0 && l->di_id < r->di_id)
+		return -1;
+	if (l->di_id > r->di_id && r->di_id >= 0)
+		return  1;
+
+	/* next, L3 */
+	if (l->l3_id >= 0 && l->l3_id < r->l3_id)
+		return -1;
+	if (l->l3_id > r->l3_id && r->l3_id >= 0)
+		return  1;
+
+	/* next, cluster */
+	if (l->cl_id >= 0 && l->cl_id < r->cl_id)
+		return -1;
+	if (l->cl_id > r->cl_id && r->cl_id >= 0)
+		return  1;
+
+	/* next, L2 */
+	if (l->l2_id >= 0 && l->l2_id < r->l2_id)
+		return -1;
+	if (l->l2_id > r->l2_id && r->l2_id >= 0)
+		return  1;
+
+	/* next, thread set */
+	if (l->ts_id >= 0 && l->ts_id < r->ts_id)
+		return -1;
+	if (l->ts_id > r->ts_id && r->ts_id >= 0)
+		return  1;
+
+	/* next, L1 */
+	if (l->l1_id >= 0 && l->l1_id < r->l1_id)
+		return -1;
+	if (l->l1_id > r->l1_id && r->l1_id >= 0)
+		return  1;
+
+	/* next, IDX, so that SMT ordering is preserved */
+	if (l->idx >= 0 && l->idx < r->idx)
+		return -1;
+	if (l->idx > r->idx && r->idx >= 0)
+		return  1;
+
+	/* exactly the same (e.g. absent) */
+	return 0;
+}
+
+/* function used by qsort to compare two hwcpus and arrange them by vicinity
  * and capacity -1 says a<b, 1 says a>b. The goal is to arrange the closest
  * CPUs together, preferring locality over performance in order to keep latency
  * as low as possible, so that when picking a fixed number of threads, the
@@ -926,7 +1003,8 @@ static struct ha_cpu_selection ha_cpu_selection[] = {
 	[0] = { .name = "balanced",    .desc = "Use biggest CPUs grouped by locality first",   cmp_cpu_balanced },
 	[1] = { .name = "performance", .desc = "Optimize for maximized CPU performance",        cmp_cpu_optimal },
 	[2] = { .name = "low-latency", .desc = "Optimize for minimized CPU latency",        cmp_cpu_low_latency },
-	[3] = { .name = "all",         .desc = "Use all available CPUs in the system's order",  cmp_cpu_index   },
+	[3] = { .name = "locality",    .desc = "Arrange by locality only",                     cmp_cpu_locality },
+	[4] = { .name = "all",         .desc = "Use all available CPUs in the system's order",  cmp_cpu_index   },
 };
 
 /* arrange a CPU topology array optimally to consider vicinity and performance
@@ -937,10 +1015,16 @@ void cpu_optimize_topology(struct ha_cpu_topo *topo, int entries)
 	qsort(ha_cpu_topo, entries, sizeof(*ha_cpu_topo), ha_cpu_selection[global.cpu_sel].cmp_cpu);
 }
 
+/* re-order a CPU topology array by topology to help form groups. */
+void cpu_reorder_topology(struct ha_cpu_topo *topo, int entries)
+{
+	qsort(ha_cpu_topo, entries, sizeof(*ha_cpu_topo), cmp_cpu_locality);
+}
+
 /* re-order a CPU topology array by CPU index only, to undo the function above,
  * in case other calls need to be made on top of this.
  */
-void cpu_reorder_topology(struct ha_cpu_topo *topo, int entries)
+void cpu_reorder_by_index(struct ha_cpu_topo *topo, int entries)
 {
 	qsort(ha_cpu_topo, entries, sizeof(*ha_cpu_topo), cmp_cpu_index);
 }

@@ -75,10 +75,13 @@ int cpu_detect_topology(void);
  */
 void cpu_optimize_topology(struct ha_cpu_topo *topo, int entries);
 
+/* re-order a CPU topology array by topology to help form groups. */
+void cpu_reorder_topology(struct ha_cpu_topo *topo, int entries);
+
 /* re-order a CPU topology array by CPU index only, to undo the function above,
  * in case other calls need to be made on top of this.
  */
-void cpu_reorder_topology(struct ha_cpu_topo *topo, int entries);
+void cpu_reorder_by_index(struct ha_cpu_topo *topo, int entries);
 
 /* Parse cpu sets. Each CPU set is either a unique number between 0 and
  * ha_cpuset_size() - 1 or a range with two such numbers delimited by a dash
