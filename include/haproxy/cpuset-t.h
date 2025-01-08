@@ -77,6 +77,7 @@ struct ha_cpu_topo {
 	short pk_id;  // package identifier
 	short tg_id;  // thread group ID
 	short th_cnt; // number of siblings threads
+	short th_id;  // thread ID among siblings of the same core
 	short capa;   // estimated CPU relative capacity; more is better
 };
 
