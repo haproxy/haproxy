@@ -1555,6 +1555,13 @@ void thread_detect_count(void)
 			}
 			thr++;
 		}
+
+		printf("\n### limited to %d CPUS. Reordering by topology now\n", thr);
+		cpu_reorder_topology(ha_cpu_topo, maxcpus);
+
+		/* here we're supposed to optimally form thread groups based on
+		 * the current CPU topology.
+		 */
 	}
 #endif // USE_THREAD && USE_CPU_AFFINITY
 
