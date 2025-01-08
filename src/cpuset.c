@@ -877,6 +877,100 @@ static int cmp_cpu_balanced(const void *a, const void *b)
 }
 
 /* function used by qsort to compare two hwcpus and arrange them by capacity
+ * and vicinity. -1 says a<b, 1 says a>b. The goal is to use the smallest
+ * number of CPUs and the cheapest ones from the first CCDs first before using
+ * the ones from the second node, so that when picking a fixed number of
+ * threads, the lowest costs are applied.
+ */
+static int cmp_cpu_resource(const void *a, const void *b)
+{
+	const struct ha_cpu_topo *l = (const struct ha_cpu_topo *)a;
+	const struct ha_cpu_topo *r = (const struct ha_cpu_topo *)b;
+
+	/* first, online vs offline */
+	if (!(l->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)) && (r->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)))
+		return -1;
+
+	if (!(r->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)) && (l->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)))
+		return 1;
+
+	/* next, CPU capacity, used by big.little arm/arm64. Lower is better.
+	 * We tolerate a +/- 5% margin however so that if some values come from
+	 * measurement we don't end up reorganizing everything.
+	 */
+	if (l->capa > 0 && (int)l->capa * 19 > (int)r->capa * 20)
+		return 1;
+	if (r->capa > 0 && (int)l->capa * 20 < (int)r->capa * 19)
+		return  -1;
+
+	/* next, CPU SMT, generally useful when capacity is not known: cores
+	 * supporting SMT are usually bigger than the other ones, so prefer
+	 * the ones without.
+	 */
+	if (l->th_cnt > r->th_cnt)
+		return 1;
+	if (l->th_cnt < r->th_cnt)
+		return  -1;
+
+	/* next, package ID */
+	if (l->pk_id >= 0 && l->pk_id < r->pk_id)
+		return -1;
+	if (l->pk_id > r->pk_id && r->pk_id >= 0)
+		return  1;
+
+	/* next, node ID */
+	if (l->no_id >= 0 && l->no_id < r->no_id)
+		return -1;
+	if (l->no_id > r->no_id && r->no_id >= 0)
+		return  1;
+
+	/* next, CCD */
+	if (l->di_id >= 0 && l->di_id < r->di_id)
+		return -1;
+	if (l->di_id > r->di_id && r->di_id >= 0)
+		return  1;
+
+	/* next, L3 */
+	if (l->l3_id >= 0 && l->l3_id < r->l3_id)
+		return -1;
+	if (l->l3_id > r->l3_id && r->l3_id >= 0)
+		return  1;
+
+	/* next, cluster */
+	if (l->cl_id >= 0 && l->cl_id < r->cl_id)
+		return -1;
+	if (l->cl_id > r->cl_id && r->cl_id >= 0)
+		return  1;
+
+	/* next, L2 */
+	if (l->l2_id >= 0 && l->l2_id < r->l2_id)
+		return -1;
+	if (l->l2_id > r->l2_id && r->l2_id >= 0)
+		return  1;
+
+	/* next, thread set */
+	if (l->ts_id >= 0 && l->ts_id < r->ts_id)
+		return -1;
+	if (l->ts_id > r->ts_id && r->ts_id >= 0)
+		return  1;
+
+	/* next, L1 */
+	if (l->l1_id >= 0 && l->l1_id < r->l1_id)
+		return -1;
+	if (l->l1_id > r->l1_id && r->l1_id >= 0)
+		return  1;
+
+	/* next, IDX, so that SMT ordering is preserved */
+	if (l->idx >= 0 && l->idx < r->idx)
+		return -1;
+	if (l->idx > r->idx && r->idx >= 0)
+		return  1;
+
+	/* exactly the same (e.g. absent) */
+	return 0;
+}
+
+/* function used by qsort to compare two hwcpus and arrange them by capacity
  * first, then by vicinity. -1 says a<b, 1 says a>b. The goal is to use the
  * biggest CPUs and memory channels first before using the smallest ones, so
  * that when picking a fixed number of threads, the best ones are used in
@@ -1004,7 +1098,8 @@ static struct ha_cpu_selection ha_cpu_selection[] = {
 	[1] = { .name = "performance", .desc = "Optimize for maximized CPU performance",        cmp_cpu_optimal },
 	[2] = { .name = "low-latency", .desc = "Optimize for minimized CPU latency",        cmp_cpu_low_latency },
 	[3] = { .name = "locality",    .desc = "Arrange by locality only",                     cmp_cpu_locality },
-	[4] = { .name = "all",         .desc = "Use all available CPUs in the system's order",  cmp_cpu_index   },
+	[4] = { .name = "resource",    .desc = "Lowest resource usage",                        cmp_cpu_resource },
+	[5] = { .name = "all",         .desc = "Use all available CPUs in the system's order",  cmp_cpu_index   },
 };
 
 /* arrange a CPU topology array optimally to consider vicinity and performance
