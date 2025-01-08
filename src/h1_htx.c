@@ -176,10 +176,19 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 	if (h1sl->rq.meth == HTTP_METH_CONNECT) {
 		h1m->flags &= ~(H1_MF_CLEN|H1_MF_CHNK);
 		h1m->curr_len = h1m->body_len = 0;
+		h1m->state = H1_MSG_DONE;
+		htx->flags |= HTX_FL_EOM;
 	}
-	else if (h1sl->rq.meth == HTTP_METH_HEAD)
-		flags |= HTX_SL_F_BODYLESS_RESP;
+	else {
+		if (h1sl->rq.meth == HTTP_METH_HEAD)
+			flags |= HTX_SL_F_BODYLESS_RESP;
 
+		if (((h1m->flags & H1_MF_CLEN) && h1m->body_len == 0) ||
+		    (h1m->flags & (H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK)) == H1_MF_XFER_LEN) {
+			h1m->state = H1_MSG_DONE;
+			htx->flags |= HTX_FL_EOM;
+		}
+	}
 
 	flags |= h1m_htx_sl_flags(h1m);
 
@@ -295,6 +304,8 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		h1m->flags &= ~(H1_MF_CLEN|H1_MF_CHNK);
 		h1m->flags |= H1_MF_XFER_LEN;
 		h1m->curr_len = h1m->body_len = 0;
+		h1m->state = H1_MSG_DONE;
+		htx->flags |= HTX_FL_EOM;
 	}
 	else if ((h1m->flags & H1_MF_METH_HEAD) || (code >= 100 && code < 200) ||
 		 (code == 204) || (code == 304)) {
@@ -303,10 +314,20 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		h1m->curr_len = h1m->body_len = 0;
 		if (code >= 200)
 			flags |= HTX_SL_F_BODYLESS_RESP;
+		h1m->state = H1_MSG_DONE;
+		htx->flags |= HTX_FL_EOM;
 	}
-	else if (h1m->flags & (H1_MF_CLEN|H1_MF_CHNK)) {
-		/* Responses with a known body length. */
-		h1m->flags |= H1_MF_XFER_LEN;
+	else {
+		if (h1m->flags & (H1_MF_CLEN|H1_MF_CHNK)) {
+			/* Responses with a known body length. */
+			h1m->flags |= H1_MF_XFER_LEN;
+		}
+
+		if (((h1m->flags & H1_MF_CLEN) && h1m->body_len == 0) ||
+		    (h1m->flags & (H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK)) == H1_MF_XFER_LEN) {
+			h1m->state = H1_MSG_DONE;
+			htx->flags |= HTX_FL_EOM;
+		}
 	}
 
 	flags |= h1m_htx_sl_flags(h1m);
@@ -400,13 +421,6 @@ int h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
 		ret = h1_postparse_res_hdrs(h1m, h1sl, dsthtx, hdrs, max);
 		if (ret < 0)
 			return ret;
-	}
-
-	/* Switch messages without any payload to DONE state */
-	if (((h1m->flags & H1_MF_CLEN) && h1m->body_len == 0) ||
-	    ((h1m->flags & (H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK)) == H1_MF_XFER_LEN)) {
-		h1m->state = H1_MSG_DONE;
-		dsthtx->flags |= HTX_FL_EOM;
 	}
 
   end:
