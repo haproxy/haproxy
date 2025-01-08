@@ -1576,7 +1576,7 @@ void thread_detect_count(void)
 		else
 			printf("drop ");
 
-		printf("thr %3d -> cpu %3d  onl=%d bnd=%d pk=%02d no=%02d di=%02d l3=%02d cl=%03d l2=%03d ts=%03d l1=%03d smt=%d capa=%d\n", cpu, ha_cpu_topo[cpu].idx,
+		printf("thr %3d -> cpu %3d  onl=%d bnd=%d pk=%02d no=%02d di=%02d l3=%02d cl=%03d l2=%03d ts=%03d l1=%03d smt=%d/%d capa=%d\n", cpu, ha_cpu_topo[cpu].idx,
 		       !(ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE),
 		       !(ha_cpu_topo[cpu].st & HA_CPU_F_EXCLUDED),
 		       ha_cpu_topo[cpu].pk_id,
@@ -1587,6 +1587,7 @@ void thread_detect_count(void)
 		       ha_cpu_topo[cpu].l2_id,
 		       ha_cpu_topo[cpu].ts_id,
 		       ha_cpu_topo[cpu].l1_id,
+		       ha_cpu_topo[cpu].th_id,
 		       ha_cpu_topo[cpu].th_cnt,
 		       ha_cpu_topo[cpu].capa);
 	}
