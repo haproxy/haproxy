@@ -298,11 +298,14 @@ int cpu_detect_topology(void)
 			parse_cpu_set_args[0] = trash.area;
 			parse_cpu_set_args[1] = "\0";
 			if (parse_cpu_set(parse_cpu_set_args, &cpus_list, NULL) == 0) {
+				int sib_id = 0;
+
 				cpu_id.th_cnt = ha_cpuset_count(&cpus_list);
 				for (cpu2 = 0; cpu2 <= cpu_topo_lastcpu; cpu2++) {
 					if (ha_cpuset_isset(&cpus_list, cpu2)) {
 						ha_cpu_topo[cpu2].ts_id  = cpu_id.ts_id;
 						ha_cpu_topo[cpu2].th_cnt = cpu_id.th_cnt;
+						ha_cpu_topo[cpu2].th_id  = sib_id++;
 					}
 				}
 				cpu_id.ts_id++;
