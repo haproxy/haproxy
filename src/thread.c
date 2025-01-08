@@ -1539,6 +1539,22 @@ void thread_detect_count(void)
 				break;
 			}
 		}
+
+		/* now we have all preferred CPUs at the top and the
+		 * least desired ones at the bottom. We can apply the
+		 * thr_max enforcement.
+		 */
+		for (thr = cpu = 0; cpu < maxcpus; cpu++) {
+			if (ha_cpu_topo[cpu].st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED))
+				continue;
+
+			if (thr >= thr_max) {
+				/* too many CPUs, we need to exclude this one */
+				ha_cpu_topo[cpu].st |= HA_CPU_F_EXCLUDED;
+				continue;
+			}
+			thr++;
+		}
 	}
 #endif // USE_THREAD && USE_CPU_AFFINITY
 
