@@ -70,6 +70,7 @@ int _cmp_cpu_locality(const void *a, const void *b);
 int _cmp_cpu_performance(const void *a, const void *b);
 int _cmp_cpu_low_latency(const void *a, const void *b);
 int _cmp_cpu_balanced(const void *a, const void *b);
+int _cmp_cpu_resource(const void *a, const void *b);
 int _cmp_cpu_cluster(const void *a, const void *b);
 
 #endif /* _HAPROXY_CPU_TOPO_H */
