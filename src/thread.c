@@ -1570,6 +1570,9 @@ void thread_detect_count(void)
 		if (!(ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE))
 			lastcpu = cpu;
 
+	printf("\n### Reordering threads by CPU number for easier visualisation\n");
+	cpu_reorder_by_index(ha_cpu_topo, maxcpus);
+
 	for (cpu = 0; cpu <= lastcpu; cpu++) {
 		if (ha_cpu_topo[cpu].st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED))
 			printf(" drop ");
