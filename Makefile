@@ -1022,7 +1022,7 @@ help:
 IGNORE_OPTS=help install install-man install-doc install-bin \
 	uninstall clean tags cscope tar git-tar version update-version \
 	opts reg-tests reg-tests-help admin/halog/halog dev/flags/flags \
-	dev/haring/haring dev/poll/poll dev/tcploop/tcploop
+	dev/haring/haring dev/ncpu/ncpu dev/poll/poll dev/tcploop/tcploop
 
 ifneq ($(TARGET),)
 ifeq ($(filter $(firstword $(MAKECMDGOALS)),$(IGNORE_OPTS)),)
@@ -1059,6 +1059,9 @@ dev/haring/haring: dev/haring/haring.o
 dev/hpack/%: dev/hpack/%.o
 	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
+dev/ncpu/ncpu:
+	$(cmd_MAKE) -C dev/ncpu ncpu V='$(V)'
+
 dev/poll/poll:
 	$(cmd_MAKE) -C dev/poll poll CC='$(CC)' OPTIMIZE='$(COPTS)' V='$(V)'
 
@@ -1072,7 +1075,7 @@ dev/udp/udp-perturb: dev/udp/udp-perturb.o
 	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 # rebuild it every time
-.PHONY: src/version.c dev/poll/poll dev/tcploop/tcploop
+.PHONY: src/version.c dev/ncpu/ncpu dev/poll/poll dev/tcploop/tcploop
 
 src/calltrace.o: src/calltrace.c $(DEP)
 	$(cmd_CC) $(TRACE_COPTS) -c -o $@ $<
@@ -1138,7 +1141,7 @@ clean:
 distclean: clean
 	$(Q)rm -f admin/iprange/iprange admin/iprange/ip6range admin/halog/halog
 	$(Q)rm -f admin/dyncookie/dyncookie
-	$(Q)rm -f dev/haring/haring dev/poll/poll dev/tcploop/tcploop
+	$(Q)rm -f dev/haring/haring dev/ncpu/ncpu{,.so} dev/poll/poll dev/tcploop/tcploop
 	$(Q)rm -f dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht
 	$(Q)rm -f dev/qpack/decode
 
