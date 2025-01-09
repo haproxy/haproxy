@@ -1475,13 +1475,17 @@ struct stktable_key *smp_to_stkey(struct sample *smp, struct stktable *t)
 		break;
 
 	case SMP_T_SINT:
+	{
+		uint *_sint = (uint *)&smp->data.u.sint;
+
 		/* The stick table require a 32bit unsigned int, "sint" is a
 		 * signed 64 it, so we can convert it inplace.
 		 */
-		smp->data.u.sint = (unsigned int)smp->data.u.sint;
-		static_table_key.key = &smp->data.u.sint;
+		*_sint = smp->data.u.sint;
+		static_table_key.key = _sint;
 		static_table_key.key_len = 4;
 		break;
+	}
 
 	case SMP_T_STR:
 		if (!smp_make_safe(smp))
