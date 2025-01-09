@@ -1,6 +1,34 @@
 ChangeLog :
 ===========
 
+2025/01/09 : 3.2-dev3
+    - DOC: config: add missing "track-sc0" in action keywords matrix
+    - BUG/MINOR: stktable: invalid use of stkctr_set_entry() with mixed table types
+    - BUG/MAJOR: mux-quic: fix BUG_ON on empty STREAM emission
+    - BUG/MEDIUM: mux-h2: Count copied data when looping on RX bufs in h2_rcv_buf()
+    - Revert "BUG/MAJOR: mux-quic: fix BUG_ON on empty STREAM emission"
+    - BUG/MAJOR: mux-quic: properly fix BUG_ON on empty STREAM emission
+    - MINOR: mux-quic: add traces on sd attach
+    - BUG/MEDIUM: mux-quic: do not attach on already closed stream
+    - BUG/MINOR: compression: handle a possible strdup() failure
+    - BUG/MINOR: pool: handle a possible strdup() failure
+    - BUG/MINOR: cfgparse-tcp: handle a possible strdup() failure
+    - BUG/MINOR: log: Allow to use if/unless conditionnals for do-log action
+    - MINOR: config: Alert about extra arguments for errorfile and errorloc
+    - BUG/MINOR: mux-quic: fix wakeup on qcc_set_error()
+    - MINOR: mux-quic: change return value of qcs_attach_sc()
+    - BUG/MINOR: mux-quic: handle closure of uni-stream
+    - BUG/MEDIUM: promex/resolvers: Don't dump metrics if no nameserver is defined
+    - BUG/MAJOR: ssl/ocsp: fix NULL conn object dereferencing to access QUIC TLS counters
+    - MEDIUM: errors: get rid of shm_open()
+    - BUILD: makefile: do not clean standalone binaries on a simple "make clean"
+    - BUILD: makefile: add a qinfo macro to pass info in quiet mode
+    - DEV: ncpu: add a simple utility to help with NUMA development
+    - DEV: ncpu: implement a wrapper mode
+    - DEV: ncpu: make the wrapper work both as a lib and executable
+    - BUG/MEDIUM: h1-htx: Properly handle bodyless messages
+    - MINOR: tools: add a few functions to simply check for a file's existence
+
 2024/12/25 : 3.2-dev2
     - MINOR: build: define DEBUG_STRESS
     - MINOR: applet: define applet_putchk_stress() alternative
