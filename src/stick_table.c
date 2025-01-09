@@ -1766,6 +1766,25 @@ int stktable_get_data_type_idx(char *name, unsigned int *idx)
 	return -1; // not found
 }
 
+/* Perform a lookup in <table> based on <smp> and returns stksess entry or NULL
+ * if not found. Set <create> to force the entry creation if it doesn't exist.
+ *
+ * <smp> may be modified by underlying functions
+ */
+static struct stksess *smp_fetch_stksess(struct stktable *table, struct sample *smp, int create)
+{
+	struct stktable_key *key;
+
+	/* Converts smp into key. */
+	key = smp_to_stkey(smp, table);
+	if (!key)
+		return NULL;
+
+	if (create)
+		return stktable_get_entry(table, key);
+	return stktable_lookup_key(table, key);
+}
+
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
  * it up into this table. Returns true if found, false otherwise. The input
  * type is STR so that input samples are converted to string (since all types
@@ -1776,16 +1795,11 @@ int stktable_get_data_type_idx(char *name, unsigned int *idx)
 static int sample_conv_in_table(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->data.type = SMP_T_BOOL;
 	smp->data.u.sint = !!ts;
@@ -1803,17 +1817,12 @@ static int sample_conv_in_table(const struct arg *arg_p, struct sample *smp, voi
 static int sample_conv_table_bytes_in_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -1845,17 +1854,12 @@ static int sample_conv_table_bytes_in_rate(const struct arg *arg_p, struct sampl
 static int sample_conv_table_conn_cnt(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -1886,17 +1890,12 @@ static int sample_conv_table_conn_cnt(const struct arg *arg_p, struct sample *sm
 static int sample_conv_table_conn_cur(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -1927,17 +1926,12 @@ static int sample_conv_table_conn_cur(const struct arg *arg_p, struct sample *sm
 static int sample_conv_table_conn_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -1968,16 +1962,11 @@ static int sample_conv_table_conn_rate(const struct arg *arg_p, struct sample *s
 static int sample_conv_table_expire(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2006,16 +1995,11 @@ static int sample_conv_table_expire(const struct arg *arg_p, struct sample *smp,
 static int sample_conv_table_idle(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2045,17 +2029,12 @@ static int sample_conv_table_idle(const struct arg *arg_p, struct sample *smp, v
 static int sample_conv_table_bytes_out_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2087,17 +2066,12 @@ static int sample_conv_table_bytes_out_rate(const struct arg *arg_p, struct samp
 static int sample_conv_table_glitch_cnt(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2128,17 +2102,12 @@ static int sample_conv_table_glitch_cnt(const struct arg *arg_p, struct sample *
 static int sample_conv_table_glitch_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2170,7 +2139,6 @@ static int sample_conv_table_glitch_rate(const struct arg *arg_p, struct sample 
 static int sample_conv_table_gpt(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 	unsigned int idx;
@@ -2179,11 +2147,7 @@ static int sample_conv_table_gpt(const struct arg *arg_p, struct sample *smp, vo
 
 	t = arg_p[1].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2214,17 +2178,12 @@ static int sample_conv_table_gpt(const struct arg *arg_p, struct sample *smp, vo
 static int sample_conv_table_gpt0(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2258,7 +2217,6 @@ static int sample_conv_table_gpt0(const struct arg *arg_p, struct sample *smp, v
 static int sample_conv_table_gpc(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 	unsigned int idx;
@@ -2267,11 +2225,7 @@ static int sample_conv_table_gpc(const struct arg *arg_p, struct sample *smp, vo
 
 	t = arg_p[1].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2302,7 +2256,6 @@ static int sample_conv_table_gpc(const struct arg *arg_p, struct sample *smp, vo
 static int sample_conv_table_gpc_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 	unsigned int idx;
@@ -2311,11 +2264,7 @@ static int sample_conv_table_gpc_rate(const struct arg *arg_p, struct sample *sm
 
 	t = arg_p[1].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2347,17 +2296,12 @@ static int sample_conv_table_gpc_rate(const struct arg *arg_p, struct sample *sm
 static int sample_conv_table_gpc0(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2393,17 +2337,12 @@ static int sample_conv_table_gpc0(const struct arg *arg_p, struct sample *smp, v
 static int sample_conv_table_gpc0_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2447,17 +2386,12 @@ static int sample_conv_table_gpc0_rate(const struct arg *arg_p, struct sample *s
 static int sample_conv_table_gpc1(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2493,17 +2427,12 @@ static int sample_conv_table_gpc1(const struct arg *arg_p, struct sample *smp, v
 static int sample_conv_table_gpc1_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2547,17 +2476,12 @@ static int sample_conv_table_gpc1_rate(const struct arg *arg_p, struct sample *s
 static int sample_conv_table_http_err_cnt(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2588,17 +2512,12 @@ static int sample_conv_table_http_err_cnt(const struct arg *arg_p, struct sample
 static int sample_conv_table_http_err_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2630,17 +2549,12 @@ static int sample_conv_table_http_err_rate(const struct arg *arg_p, struct sampl
 static int sample_conv_table_http_fail_cnt(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2671,17 +2585,12 @@ static int sample_conv_table_http_fail_cnt(const struct arg *arg_p, struct sampl
 static int sample_conv_table_http_fail_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2713,17 +2622,12 @@ static int sample_conv_table_http_fail_rate(const struct arg *arg_p, struct samp
 static int sample_conv_table_http_req_cnt(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2754,17 +2658,12 @@ static int sample_conv_table_http_req_cnt(const struct arg *arg_p, struct sample
 static int sample_conv_table_http_req_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2796,17 +2695,12 @@ static int sample_conv_table_http_req_rate(const struct arg *arg_p, struct sampl
 static int sample_conv_table_kbytes_in(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2837,17 +2731,12 @@ static int sample_conv_table_kbytes_in(const struct arg *arg_p, struct sample *s
 static int sample_conv_table_kbytes_out(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2878,17 +2767,12 @@ static int sample_conv_table_kbytes_out(const struct arg *arg_p, struct sample *
 static int sample_conv_table_server_id(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2919,17 +2803,12 @@ static int sample_conv_table_server_id(const struct arg *arg_p, struct sample *s
 static int sample_conv_table_sess_cnt(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -2960,17 +2839,12 @@ static int sample_conv_table_sess_cnt(const struct arg *arg_p, struct sample *sm
 static int sample_conv_table_sess_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 	void *ptr;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -3002,16 +2876,11 @@ static int sample_conv_table_sess_rate(const struct arg *arg_p, struct sample *s
 static int sample_conv_table_trackers(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
-	struct stktable_key *key;
 	struct stksess *ts;
 
 	t = arg_p[0].data.t;
 
-	key = smp_to_stkey(smp, t);
-	if (!key)
-		return 0;
-
-	ts = stktable_lookup_key(t, key);
+	ts = smp_fetch_stksess(t, smp, 0);
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -3742,7 +3611,7 @@ smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg 
 		num = args[arg++].data.sint;
 	}
 	else if (num > 9) { /* src_* variant, args[0] = table */
-		struct stktable_key *key;
+		struct stksess *entry;
 		struct connection *conn = objt_conn(sess->origin);
 		struct sample smp;
 
@@ -3756,13 +3625,10 @@ smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg 
 		if (!smp_fetch_src || !smp_fetch_src(empty_arg_list, &smp, "src", NULL))
 			return NULL;
 
-		/* Converts into key. */
-		key = smp_to_stkey(&smp, args->data.t);
-		if (!key)
-			return NULL;
+		entry = smp_fetch_stksess(args->data.t, &smp, 0);
 
 		stkctr->table = args->data.t;
-		stkctr_set_entry(stkctr, stktable_lookup_key(stkctr->table, key));
+		stkctr_set_entry(stkctr, entry);
 		return stkctr;
 	}
 
@@ -3813,7 +3679,7 @@ smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg 
 struct stkctr *
 smp_create_src_stkctr(struct session *sess, struct stream *strm, const struct arg *args, const char *kw, struct stkctr *stkctr)
 {
-	struct stktable_key *key;
+	struct stksess *entry;
 	struct connection *conn = objt_conn(sess->origin);
 	struct sample smp;
 
@@ -3830,13 +3696,10 @@ smp_create_src_stkctr(struct session *sess, struct stream *strm, const struct ar
 	if (!smp_fetch_src || !smp_fetch_src(empty_arg_list, &smp, "src", NULL))
 		return NULL;
 
-	/* Converts into key. */
-	key = smp_to_stkey(&smp, args->data.t);
-	if (!key)
-		return NULL;
+	entry = smp_fetch_stksess(args->data.t, &smp, 1);
 
 	stkctr->table = args->data.t;
-	stkctr_set_entry(stkctr, stktable_get_entry(stkctr->table, key));
+	stkctr_set_entry(stkctr, entry);
 	return stkctr;
 }
 
@@ -4666,7 +4529,6 @@ smp_fetch_src_updt_conn_cnt(const struct arg *args, struct sample *smp, const ch
 {
 	struct connection *conn = objt_conn(smp->sess->origin);
 	struct stksess *ts;
-	struct stktable_key *key;
 	void *ptr;
 	struct stktable *t;
 
@@ -4677,14 +4539,9 @@ smp_fetch_src_updt_conn_cnt(const struct arg *args, struct sample *smp, const ch
 	if (!smp_fetch_src || !smp_fetch_src(empty_arg_list, smp, "src", NULL))
 		return 0;
 
-	/* Converts into key. */
-	key = smp_to_stkey(smp, args->data.t);
-	if (!key)
-		return 0;
-
 	t = args->data.t;
 
-	if ((ts = stktable_get_entry(t, key)) == NULL)
+	if ((ts = smp_fetch_stksess(t, smp, 1)) == NULL)
 		/* entry does not exist and could not be created */
 		return 0;
 
