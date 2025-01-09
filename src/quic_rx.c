@@ -439,7 +439,6 @@ static void qc_notify_cc_of_newly_acked_pkts(struct quic_conn *qc,
 	list_for_each_entry_safe(pkt, tmp, newly_acked_pkts, list) {
 		pkt->pktns->tx.in_flight -= pkt->in_flight_len;
 		p->prep_in_flight -= pkt->in_flight_len;
-		p->in_flight -= pkt->in_flight_len;
 		if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING)
 			p->ifae_pkts--;
 		/* If this packet contained an ACK frame, proceed to the
@@ -455,6 +454,7 @@ static void qc_notify_cc_of_newly_acked_pkts(struct quic_conn *qc,
 		ev.ack.pn = pkt->pn_node.key;
 		/* Note that this event is not emitted for BBR. */
 		quic_cc_event(&p->cc, &ev);
+		p->in_flight -= pkt->in_flight_len;
 		if (drs && (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING))
 			quic_cc_drs_update_rate_sample(drs, pkt, time_ns);
 		LIST_DEL_INIT(&pkt->list);

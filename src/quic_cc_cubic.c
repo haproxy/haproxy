@@ -382,9 +382,11 @@ static inline void quic_cubic_update(struct quic_cc *cc, uint32_t acked)
 			inc = W_est_inc;
 	}
 
-	path->cwnd += inc;
-	path->cwnd = QUIC_MIN(path->max_cwnd, path->cwnd);
-	path->mcwnd = QUIC_MAX(path->cwnd, path->mcwnd);
+	if (quic_cwnd_may_increase(path)) {
+		path->cwnd += inc;
+		path->cwnd = QUIC_MIN(path->max_cwnd, path->cwnd);
+		path->mcwnd = QUIC_MAX(path->cwnd, path->mcwnd);
+	}
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc);
 }
@@ -453,8 +455,10 @@ static void quic_cc_cubic_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 			if (path->cwnd >= QUIC_CC_INFINITE_SSTHESH - acked)
 				goto out;
 
-			path->cwnd += acked;
-			path->mcwnd = QUIC_MAX(path->cwnd, path->mcwnd);
+			if (quic_cwnd_may_increase(path)) {
+				path->cwnd += acked;
+				path->mcwnd = QUIC_MAX(path->cwnd, path->mcwnd);
+			}
 			quic_cc_hystart_track_min_rtt(cc, h, path->loss.latest_rtt);
 			if (ev->ack.pn >= h->wnd_end)
 				h->wnd_end = UINT64_MAX;
@@ -465,8 +469,10 @@ static void quic_cc_cubic_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 			}
 		}
 		else if (path->cwnd < QUIC_CC_INFINITE_SSTHESH - ev->ack.acked) {
-			path->cwnd += ev->ack.acked;
-			path->cwnd = QUIC_MIN(path->max_cwnd, path->cwnd);
+			if (quic_cwnd_may_increase(path)) {
+				path->cwnd += ev->ack.acked;
+				path->cwnd = QUIC_MIN(path->max_cwnd, path->cwnd);
+			}
 		}
 		/* Exit to congestion avoidance if slow start threshold is reached. */
 		if (path->cwnd >= c->ssthresh)
@@ -544,8 +550,10 @@ static void quic_cc_cubic_cs_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 		if (path->cwnd >= QUIC_CC_INFINITE_SSTHESH - acked)
 			goto out;
 
-		path->cwnd += acked;
-		path->mcwnd = QUIC_MAX(path->cwnd, path->mcwnd);
+		if (quic_cwnd_may_increase(path)) {
+			path->cwnd += acked;
+			path->mcwnd = QUIC_MAX(path->cwnd, path->mcwnd);
+		}
 		quic_cc_hystart_track_min_rtt(cc, h, path->loss.latest_rtt);
 		if (quic_cc_hystart_may_reenter_ss(h)) {
 			/* Exit to slow start */
