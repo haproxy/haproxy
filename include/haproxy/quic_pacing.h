@@ -11,6 +11,8 @@ static inline void quic_pacing_init(struct quic_pacer *pacer,
 {
 	pacer->cc = cc;
 	pacer->next = 0;
+	pacer->cur = 0;
+	pacer->credit = 100;
 }
 
 int quic_pacing_expired(const struct quic_pacer *pacer);
