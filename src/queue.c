@@ -452,8 +452,11 @@ int process_srv_queue(struct server *s)
 		 * checked, but before we set ready_srv so it would not see it,
 		 * just in case try to run one more stream.
 		 */
-		if (pendconn_process_next_strm(s, p, px_ok))
+		if (pendconn_process_next_strm(s, p, px_ok)) {
+			_HA_ATOMIC_SUB(&p->totpend, 1);
+			_HA_ATOMIC_ADD(&p->served, 1);
 			done++;
+		}
 	}
 	return done;
 }
