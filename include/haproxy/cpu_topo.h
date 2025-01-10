@@ -54,11 +54,15 @@ void cpu_reorder_by_index(struct ha_cpu_topo *topo, int entries);
  */
 void cpu_reorder_by_performance(struct ha_cpu_topo *topo, int entries);
 
+/* re-order a CPU topology array by cluster id. */
+void cpu_reorder_by_cluster(struct ha_cpu_topo *topo, int entries);
+
 /* Functions used by qsort to compare hardware CPUs (not meant to be used from
  * outside cpu_topo).
  */
 int _cmp_cpu_index(const void *a, const void *b);
 int _cmp_cpu_locality(const void *a, const void *b);
 int _cmp_cpu_performance(const void *a, const void *b);
+int _cmp_cpu_cluster(const void *a, const void *b);
 
 #endif /* _HAPROXY_CPU_TOPO_H */
