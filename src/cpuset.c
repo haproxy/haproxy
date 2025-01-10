@@ -567,6 +567,31 @@ int cpu_detect_topology(void)
 		/* done */
 		closedir(dir);
 	}
+
+	/* Now we'll sort CPUs by topology and assign cluster IDs to those that
+	 * don't yet have one, based on the die/pkg/llc
+	 */
+	cpu_reorder_topology(ha_cpu_topo, maxcpus);
+	for (cpu = 0; cpu <= lastcpu; cpu++) {
+		if (ha_cpu_topo[cpu].cl_id < 0) {
+			/* cluster not assigned, we'll compare pkg/die/llc with
+			 * the last CPU's and verify if we need to create a new
+			 * cluster ID. Note that some platforms don't report
+			 * cache.
+			 */
+			ha_cpu_topo[cpu].cl_id = cpu_id.cl_id;
+			if (cpu &&
+			    ((ha_cpu_topo[cpu].pk_id != ha_cpu_topo[cpu-1].pk_id) ||
+			     (ha_cpu_topo[cpu].no_id != ha_cpu_topo[cpu-1].no_id) ||
+			     (ha_cpu_topo[cpu].di_id != ha_cpu_topo[cpu-1].di_id) ||
+			     (ha_cpu_topo[cpu].l3_id != ha_cpu_topo[cpu-1].l3_id) ||
+			     (ha_cpu_topo[cpu].l3_id < 0 && // no l3 ? check L2
+			      (ha_cpu_topo[cpu].l2_id != ha_cpu_topo[cpu-1].l2_id))))
+				cpu_id.cl_id++;
+		}
+	}
+	cpu_reorder_by_index(ha_cpu_topo, maxcpus);
+
 	return 1;
 }
 
