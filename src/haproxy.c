@@ -2065,6 +2065,9 @@ static void step_init_2(int argc, char** argv)
 
 	/* Now detect how CPUs are arranged */
 	cpu_detect_topology();
+
+	/* fixup missing info */
+	cpu_fixup_topology();
 #endif
 
 	/* detect the optimal thread-groups and nbthreads if not set */

@@ -26,6 +26,9 @@ int cpu_detect_usable(void);
 /* detect the CPU topology based on info in /sys */
 int cpu_detect_topology(void);
 
+/* fix missing info in the CPU topology */
+void cpu_fixup_topology(void);
+
 /* Detects CPUs that are bound to the current process. Returns the number of
  * CPUs detected or 0 if the detection failed.
  */
