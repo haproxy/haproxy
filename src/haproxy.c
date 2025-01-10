@@ -2065,6 +2065,9 @@ static void step_init_2(int argc, char** argv)
 
 	/* Now detect how CPUs are arranged */
 	cpu_detect_topology();
+
+	/* compose clusters */
+	cpu_compose_clusters();
 #endif
 
 	/* detect the optimal thread-groups and nbthreads if not set */

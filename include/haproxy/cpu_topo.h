@@ -28,6 +28,9 @@ int cpu_detect_usable(void);
 /* detect the CPU topology based on info in /sys */
 int cpu_detect_topology(void);
 
+/* compose clusters */
+void cpu_compose_clusters(void);
+
 /* Detects CPUs that are bound to the current process. Returns the number of
  * CPUs detected or 0 if the detection failed.
  */

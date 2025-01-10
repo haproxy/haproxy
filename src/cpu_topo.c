@@ -415,6 +415,54 @@ static int cpu_topo_get_maxcpus(void)
 	return abs_max;
 }
 
+/* This function is responsible for composing clusters based on existing info
+ * on the CPU topology.
+ */
+void cpu_compose_clusters(void)
+{
+	int cpu;
+	int curr_gid, prev_gid;
+	int curr_lid, prev_lid;
+
+	/* Now we'll sort CPUs by topology and assign cluster IDs to those that
+	 * don't yet have one, based on the die/pkg/llc.
+	 */
+	cpu_reorder_by_locality(ha_cpu_topo, cpu_topo_maxcpus);
+
+	prev_gid = prev_lid = -2; // make sure it cannot match even unassigned ones
+	curr_gid = curr_lid = -1;
+	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++) {
+		/* renumber clusters and assign unassigned ones at the same
+		 * time. For this, we'll compare pkg/die/llc with the last
+		 * CPU's and verify if we need to create a new cluster ID.
+		 * Note that some platforms don't report cache. The locao value
+		 * is local to the pkg+node combination so that we reset it
+		 * when changing, contrary to the global one which grows.
+		 */
+		if (!cpu ||
+		    (ha_cpu_topo[cpu].pk_id != ha_cpu_topo[cpu-1].pk_id) ||
+		    (ha_cpu_topo[cpu].no_id != ha_cpu_topo[cpu-1].no_id)) {
+			curr_gid++;
+			curr_lid = 0;
+		}
+		else if (ha_cpu_topo[cpu].cl_gid != prev_gid ||
+			 ha_cpu_topo[cpu].ca_id[4] != ha_cpu_topo[cpu-1].ca_id[4] ||
+			 (ha_cpu_topo[cpu].ca_id[4] < 0 && // no l4 ? check L3
+			  ((ha_cpu_topo[cpu].ca_id[3] != ha_cpu_topo[cpu-1].ca_id[3]) ||
+			   (ha_cpu_topo[cpu].ca_id[3] < 0 && // no l3 ? check L2
+			    (ha_cpu_topo[cpu].ca_id[2] != ha_cpu_topo[cpu-1].ca_id[2]))))) {
+			curr_gid++;
+			curr_lid++;
+		}
+		prev_gid = ha_cpu_topo[cpu].cl_gid;
+		prev_lid = ha_cpu_topo[cpu].cl_lid;
+		ha_cpu_topo[cpu].cl_gid = curr_gid;
+		ha_cpu_topo[cpu].cl_lid = curr_lid;
+	}
+
+	cpu_reorder_by_index(ha_cpu_topo, cpu_topo_maxcpus);
+}
+
 /* CPU topology detection below, OS-specific */
 
 #if defined(__linux__)
