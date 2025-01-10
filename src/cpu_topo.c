@@ -322,6 +322,62 @@ int _cmp_cpu_locality(const void *a, const void *b)
 	return 0;
 }
 
+/* function used by qsort to compare two hwcpus and arrange them by cluster to
+ * make sure no cluster crosses L3 boundaries. -1 says a<b, 1 says a>b. It's
+ * only used during topology detection.
+ */
+int _cmp_cpu_cluster(const void *a, const void *b)
+{
+	const struct ha_cpu_topo *l = (const struct ha_cpu_topo *)a;
+	const struct ha_cpu_topo *r = (const struct ha_cpu_topo *)b;
+
+	/* first, online vs offline */
+	if (!(l->st & HA_CPU_F_EXCL_MASK) && (r->st & HA_CPU_F_EXCL_MASK))
+		return -1;
+
+	if (!(r->st & HA_CPU_F_EXCL_MASK) && (l->st & HA_CPU_F_EXCL_MASK))
+		return 1;
+
+	/* next, cluster */
+	if (l->cl_gid >= 0 && l->cl_gid < r->cl_gid)
+		return -1;
+	if (l->cl_gid > r->cl_gid && r->cl_gid >= 0)
+		return  1;
+
+	/* next, package ID */
+	if (l->pk_id >= 0 && l->pk_id < r->pk_id)
+		return -1;
+	if (l->pk_id > r->pk_id && r->pk_id >= 0)
+		return  1;
+
+	/* next, node ID */
+	if (l->no_id >= 0 && l->no_id < r->no_id)
+		return -1;
+	if (l->no_id > r->no_id && r->no_id >= 0)
+		return  1;
+
+	/* next, L3 */
+	if (l->ca_id[3] >= 0 && l->ca_id[3] < r->ca_id[3])
+		return -1;
+	if (l->ca_id[3] > r->ca_id[3] && r->ca_id[3] >= 0)
+		return  1;
+
+	/* if no L3, then L2 */
+	if (l->ca_id[2] >= 0 && l->ca_id[2] < r->ca_id[2])
+		return -1;
+	if (l->ca_id[2] > r->ca_id[2] && r->ca_id[2] >= 0)
+		return  1;
+
+	/* next, IDX, so that SMT ordering is preserved */
+	if (l->idx >= 0 && l->idx < r->idx)
+		return -1;
+	if (l->idx > r->idx && r->idx >= 0)
+		return  1;
+
+	/* exactly the same (e.g. absent) */
+	return 0;
+}
+
 /* re-order a CPU topology array by CPU index only. This is mostly used before
  * listing CPUs regardless of their characteristics.
  */
@@ -334,6 +390,12 @@ void cpu_reorder_by_index(struct ha_cpu_topo *topo, int entries)
 void cpu_reorder_by_locality(struct ha_cpu_topo *topo, int entries)
 {
 	qsort(topo, entries, sizeof(*topo), _cmp_cpu_locality);
+}
+
+/* re-order a CPU topology array by cluster id. */
+void cpu_reorder_by_cluster(struct ha_cpu_topo *topo, int entries)
+{
+	qsort(topo, entries, sizeof(*topo), _cmp_cpu_cluster);
 }
 
 /* returns an optimal maxcpus for the current system. It will take into
