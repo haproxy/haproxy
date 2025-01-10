@@ -592,6 +592,33 @@ int cpu_detect_topology(void)
 				cpu_id.cl_id++;
 		}
 	}
+
+	/* and now we must check that CPUs having different L3s have different
+	 * cluster IDs, otherwise we assign new ones.
+	 */
+	qsort(ha_cpu_topo, maxcpus, sizeof(*ha_cpu_topo), cmp_cpu_cluster);
+
+	for (cpu = 0; cpu < lastcpu; cpu++) {
+		int changed = 0;
+		int cpu2 = cpu + 1;
+
+		while (cpu2 <= lastcpu &&
+		       (ha_cpu_topo[cpu2].cl_id == ha_cpu_topo[cpu].cl_id) &&
+		       ((ha_cpu_topo[cpu2].pk_id != ha_cpu_topo[cpu].pk_id) ||
+		        (ha_cpu_topo[cpu2].no_id != ha_cpu_topo[cpu].no_id) ||
+		        (ha_cpu_topo[cpu2].di_id != ha_cpu_topo[cpu].di_id) ||
+		        (ha_cpu_topo[cpu2].l3_id != ha_cpu_topo[cpu].l3_id) ||
+		        (ha_cpu_topo[cpu2].l3_id < 0 && // no l3 ? check L2
+		         (ha_cpu_topo[cpu2].l2_id != ha_cpu_topo[cpu].l2_id)))) {
+			ha_cpu_topo[cpu2].cl_id = cpu_id.cl_id;
+			cpu2++;
+			changed = 1;
+		}
+
+		if (changed)
+			cpu_id.cl_id++;
+	}
+
 	cpu_reorder_by_index(ha_cpu_topo, maxcpus);
 
 	return 1;
