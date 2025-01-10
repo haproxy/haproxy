@@ -54,7 +54,7 @@ void quic_cc_state_trace(struct buffer *buf, const struct quic_cc *cc)
 uint quic_cc_default_pacing_inter(const struct quic_cc *cc)
 {
 	struct quic_cc_path *path = container_of(cc, struct quic_cc_path, cc);
-	return path->loss.srtt * 1000000 / (path->cwnd / path->mtu + 1);
+	return path->loss.srtt * 1000000 / (path->cwnd / path->mtu + 1) + 1;
 }
 
 /* Return the max number of datagrams which can be emitted in a burst with

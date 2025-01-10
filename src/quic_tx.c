@@ -503,7 +503,7 @@ enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms,
 	}
 
 	if (pacer) {
-		max_dgram = qc->path->cc.algo->pacing_burst(&qc->path->cc);
+		max_dgram = pacer->credit;
 		BUG_ON(max_dgram <= 0); /* pacer must specify a positive burst value. */
 	}
 

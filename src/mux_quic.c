@@ -2533,8 +2533,8 @@ static int qcc_io_send(struct qcc *qcc, int after_pacing)
 			goto out;
 	}
 
-	if (qcc_is_pacing_active(qcc->conn)) {
-		if (!LIST_ISEMPTY(frms) && !quic_pacing_expired(&qcc->tx.pacer)) {
+	if (!LIST_ISEMPTY(frms) && qcc_is_pacing_active(qcc->conn)) {
+		if (!quic_pacing_reload(&qcc->tx.pacer)) {
 			if (!after_pacing)
 				++qcc->tx.paced_sent_ctr;
 			tasklet_wakeup(qcc->wait_event.tasklet, TASK_F_UEVT1);
