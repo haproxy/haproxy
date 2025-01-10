@@ -16,6 +16,8 @@ struct cpu_map *cpu_map;
 /* CPU topology information, ha_cpuset_size() entries, allocated at boot */
 struct ha_cpu_topo *ha_cpu_topo = NULL;
 
+static int cmp_cpu_cluster(const void *a, const void *b);
+
 void ha_cpuset_zero(struct hap_cpuset *set)
 {
 #if defined(CPUSET_USE_CPUSET) || defined(CPUSET_USE_FREEBSD_CPUSET)
@@ -1091,6 +1093,68 @@ static int cmp_cpu_optimal(const void *a, const void *b)
 	if (l->pk_id >= 0 && l->pk_id < r->pk_id)
 		return -1;
 	if (l->pk_id > r->pk_id && r->pk_id >= 0)
+		return  1;
+
+	/* next, IDX, so that SMT ordering is preserved */
+	if (l->idx >= 0 && l->idx < r->idx)
+		return -1;
+	if (l->idx > r->idx && r->idx >= 0)
+		return  1;
+
+	/* exactly the same (e.g. absent) */
+	return 0;
+}
+
+/* function used by qsort to compare two hwcpus and arrange them by cluster to
+ * make sure no cluster crosses L3 boundaries. -1 says a<b, 1 says a>b. It's
+ * only used during topology detection.
+ */
+static int cmp_cpu_cluster(const void *a, const void *b)
+{
+	const struct ha_cpu_topo *l = (const struct ha_cpu_topo *)a;
+	const struct ha_cpu_topo *r = (const struct ha_cpu_topo *)b;
+
+	/* first, online vs offline */
+	if (!(l->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)) && (r->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)))
+		return -1;
+
+	if (!(r->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)) && (l->st & (HA_CPU_F_OFFLINE | HA_CPU_F_EXCLUDED)))
+		return 1;
+
+	/* next, cluster */
+	if (l->cl_id >= 0 && l->cl_id < r->cl_id)
+		return -1;
+	if (l->cl_id > r->cl_id && r->cl_id >= 0)
+		return  1;
+
+	/* next, package ID */
+	if (l->pk_id >= 0 && l->pk_id < r->pk_id)
+		return -1;
+	if (l->pk_id > r->pk_id && r->pk_id >= 0)
+		return  1;
+
+	/* next, node ID */
+	if (l->no_id >= 0 && l->no_id < r->no_id)
+		return -1;
+	if (l->no_id > r->no_id && r->no_id >= 0)
+		return  1;
+
+	/* next, CCD */
+	if (l->di_id >= 0 && l->di_id < r->di_id)
+		return -1;
+	if (l->di_id > r->di_id && r->di_id >= 0)
+		return  1;
+
+	/* next, L3 */
+	if (l->l3_id >= 0 && l->l3_id < r->l3_id)
+		return -1;
+	if (l->l3_id > r->l3_id && r->l3_id >= 0)
+		return  1;
+
+	/* if no L3, then L2 */
+	if (l->l2_id >= 0 && l->l2_id < r->l2_id)
+		return -1;
+	if (l->l2_id > r->l2_id && r->l2_id >= 0)
 		return  1;
 
 	/* next, IDX, so that SMT ordering is preserved */
