@@ -304,6 +304,7 @@ int cpu_detect_topology(void)
 	/* detect the presence of some kernel-specific fields */
 	no_cache = no_topo = no_capa = no_clust = no_die = no_freq = no_cppc = -1;
 	for (cpu = 0; cpu <= lastcpu; cpu++) {
+		struct hap_cpuset siblings_list = { 0 };
 		struct hap_cpuset cpus_list;
 		int cpu2;
 
@@ -383,18 +384,19 @@ int cpu_detect_topology(void)
 		 * share the same cores, and also to tell apart cores that
 		 * support SMT from those which do not. When mixed, generally
 		 * the ones with SMT are big cores and the ones without are the
-		 * small ones.
+		 * small ones. We also read the entry if the cluster_id is not
+		 * known because we'll have to compare both values.
 		 */
-		if (ha_cpu_topo[cpu].ts_id < 0 &&
+		if ((ha_cpu_topo[cpu].ts_id < 0 || ha_cpu_topo[cpu].cl_id < 0) &&
 		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/thread_siblings_list", cpu) >= 0) {
 			parse_cpu_set_args[0] = trash.area;
 			parse_cpu_set_args[1] = "\0";
-			if (parse_cpu_set(parse_cpu_set_args, &cpus_list, NULL) == 0) {
+			if (parse_cpu_set(parse_cpu_set_args, &siblings_list, NULL) == 0) {
 				int sib_id = 0;
 
-				cpu_id.th_cnt = ha_cpuset_count(&cpus_list);
+				cpu_id.th_cnt = ha_cpuset_count(&siblings_list);
 				for (cpu2 = 0; cpu2 <= lastcpu; cpu2++) {
-					if (ha_cpuset_isset(&cpus_list, cpu2)) {
+					if (ha_cpuset_isset(&siblings_list, cpu2)) {
 						ha_cpu_topo[cpu2].ts_id  = cpu_id.ts_id;
 						ha_cpu_topo[cpu2].th_cnt = cpu_id.th_cnt;
 						ha_cpu_topo[cpu2].th_id  = sib_id++;
@@ -406,7 +408,10 @@ int cpu_detect_topology(void)
 
 		/* clusters of cores when they exist, can be smaller and more
 		 * precise than core lists (e.g. big.little), otherwise use
-		 * core lists.
+		 * core lists. Note that we purposely ignore clusters that are
+		 * reportedly equal to the siblings list, because some machines
+		 * report one distinct cluster per core (e.g. some armv7 and
+		 * intel 14900).
 		 */
 		if (no_clust < 0)
 			no_clust = !is_file_present(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/cluster_cpus_list", cpu);
@@ -415,7 +420,8 @@ int cpu_detect_topology(void)
 		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/topology/cluster_cpus_list", cpu) >= 0) {
 			parse_cpu_set_args[0] = trash.area;
 			parse_cpu_set_args[1] = "\0";
-			if (parse_cpu_set(parse_cpu_set_args, &cpus_list, NULL) == 0) {
+			if (parse_cpu_set(parse_cpu_set_args, &cpus_list, NULL) == 0 &&
+			    (memcmp(&cpus_list, &siblings_list, sizeof(cpus_list)) != 0)) {
 				for (cpu2 = 0; cpu2 <= lastcpu; cpu2++) {
 					if (ha_cpuset_isset(&cpus_list, cpu2))
 						ha_cpu_topo[cpu2].cl_id = cpu_id.cl_id;
