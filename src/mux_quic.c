@@ -2474,7 +2474,7 @@ static int qcc_build_frms(struct qcc *qcc, struct list *qcs_failed)
  *
  * Returns the total of bytes sent to the transport layer.
  */
-static int qcc_io_send(struct qcc *qcc)
+static int qcc_io_send(struct qcc *qcc, int after_pacing)
 {
 	struct list *frms = &qcc->tx.frms;
 	/* Temporary list for QCS on error. */
@@ -2535,6 +2535,8 @@ static int qcc_io_send(struct qcc *qcc)
 
 	if (qcc_is_pacing_active(qcc->conn)) {
 		if (!LIST_ISEMPTY(frms) && !quic_pacing_expired(&qcc->tx.pacer)) {
+			if (!after_pacing)
+				++qcc->tx.paced_sent_ctr;
 			tasklet_wakeup(qcc->wait_event.tasklet, TASK_F_UEVT1);
 			total = 0;
 			goto out;
@@ -2706,7 +2708,7 @@ static void qcc_shutdown(struct qcc *qcc)
 	TRACE_STATE("perform graceful shutdown", QMUX_EV_QCC_END, qcc->conn);
 	if (qcc->app_ops && qcc->app_ops->shutdown) {
 		qcc->app_ops->shutdown(qcc->ctx);
-		qcc_io_send(qcc);
+		qcc_io_send(qcc, 0);
 	}
 	else {
 		qcc->err = quic_err_transport(QC_ERR_NO_ERROR);
@@ -2778,7 +2780,7 @@ static int qcc_io_process(struct qcc *qcc)
 		if (!qc_test_fd(qcc->conn->handle.qc)) {
 			TRACE_DEVEL("proxy disabled with listener socket, closing connection", QMUX_EV_QCC_WAKE, qcc->conn);
 			qcc->conn->flags |= (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH);
-			qcc_io_send(qcc);
+			qcc_io_send(qcc, 0);
 			goto out;
 		}
 
@@ -2901,7 +2903,7 @@ struct task *qcc_io_cb(struct task *t, void *ctx, unsigned int status)
 	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
 
 	if (!(qcc->wait_event.events & SUB_RETRY_SEND))
-		qcc_io_send(qcc);
+		qcc_io_send(qcc, status & TASK_F_UEVT1);
 
 	qcc_io_recv(qcc);
 
