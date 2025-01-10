@@ -10,6 +10,8 @@ static inline void quic_pacing_init(struct quic_pacer *pacer,
                                     const struct quic_cc *cc)
 {
 	pacer->cc = cc;
+	pacer->cur = 0;
+	pacer->credit = 100;
 	pacer->next = 0;
 }
 

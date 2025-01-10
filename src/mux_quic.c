@@ -2482,6 +2482,7 @@ static int qcc_io_send(struct qcc *qcc, int after_pacing)
 	struct qcs *qcs, *qcs_tmp;
 	uint64_t window_conn = qfctl_rcap(&qcc->tx.fc);
 	int ret = 0, total = 0, resent;
+	int nb_pkt;
 
 	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
 
@@ -2531,6 +2532,15 @@ static int qcc_io_send(struct qcc *qcc, int after_pacing)
 		total = qcc_build_frms(qcc, &qcs_failed);
 		if (LIST_ISEMPTY(frms))
 			goto out;
+	}
+
+	nb_pkt = (task_mono_time() - qcc->tx.pacer.cur) / qcc->tx.pacer.cc->algo->pacing_rate(qcc->tx.pacer.cc);
+	if (nb_pkt) {
+		qcc->tx.pacer.credit += nb_pkt;
+		qcc->tx.pacer.cur = task_mono_time();
+
+		if (qcc->tx.pacer.credit > 50)
+			qcc->tx.pacer.credit = 50;
 	}
 
 	if (qcc_is_pacing_active(qcc->conn)) {
