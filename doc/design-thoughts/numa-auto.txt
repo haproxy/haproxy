@@ -1290,3 +1290,26 @@ Plan:
 Also, offering an option to the user to see how haproxy sees the CPUs and the
 bindings for various profiles would be a nice improvement helping them make
 educated decisions instead of trying blindly.
+
+2025-01-11
+----------
+
+Configuration profile: there are multiple dimensions:
+  - preferences between cores types
+  - never use a given cpu type
+  - never use a given cpu location
+
+Better use something like:
+  - ignore-XXX   -> never use XXX
+  - avoid-XXX    -> prefer not to use XXX
+  - prefer-XXX   -> prefer to use XXX
+  - restrict-XXX -> only use XXX
+
+"XXX" could be "single-threaded", "dual-threaded", "first-thread",
+"second-thread", "first-socket", "second-socket", "slowest", "fastest",
+"node-XXX" etc.
+
+We could then have:
+  - cpu-selection restrict-first-socket,ignore-slowest,...
+
+Then some of the keywords could simply be shortcuts for these.
