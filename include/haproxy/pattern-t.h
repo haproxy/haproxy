@@ -22,6 +22,7 @@
 #ifndef _HAPROXY_PATTERN_T_H
 #define _HAPROXY_PATTERN_T_H
 
+#include <import/cebtree.h>
 #include <import/ebtree-t.h>
 
 #include <haproxy/api-t.h>
@@ -107,7 +108,7 @@ struct pat_ref {
 	char *reference; /* The reference name. */
 	char *display; /* String displayed to identify the pattern origin. */
 	struct list head; /* The head of the list of struct pat_ref_elt. */
-	struct eb_root ebmb_root; /* The tree where pattern reference elements are attached. */
+	struct ceb_root *ceb_root; /* The tree where pattern reference elements are attached. */
 	struct list pat; /* The head of the list of struct pattern_expr. */
 	unsigned int flags; /* flags PAT_REF_*. */
 	unsigned int curr_gen; /* current generation number (anything below can be removed) */
@@ -132,7 +133,7 @@ struct pat_ref_elt {
 	char *sample;
 	unsigned int gen_id; /* generation of pat_ref this was made for */
 	int line;
-	struct ebmb_node node; /* Node to attach this element to its <pat_ref> ebtree. */
+	struct ceb_node node; /* Node to attach this element to its <pat_ref> ebtree. */
 	const char pattern[0]; // const only to make sure nobody tries to free it.
 };
 
