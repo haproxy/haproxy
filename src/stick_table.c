@@ -3725,6 +3725,34 @@ smp_fetch_sc_tracked(const struct arg *args, struct sample *smp, const char *kw,
 	return 1;
 }
 
+static int smp_fetch_get_gpt(struct stkctr *stkctr, struct sample *smp, unsigned int idx, int decrefcnt)
+{
+	smp->flags = SMP_F_VOL_TEST;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = 0;
+
+	if (stkctr_entry(stkctr)) {
+		void *ptr;
+
+		ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPT, idx);
+		if (!ptr) {
+			if (decrefcnt)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
+			return 0; /* parameter not stored */
+		}
+
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
+
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (decrefcnt)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
+	}
+	return 1;
+}
+
 /* set <smp> to the General Purpose Tag of index set as first arg
  * to value from the stream's tracked frontend counters or from the src.
  * Supports being called as "sc_get_gpt(<gpt-idx>,<sc-idx>[,<table>])" or
@@ -3744,6 +3772,11 @@ smp_fetch_sc_get_gpt(const struct arg *args, struct sample *smp, const char *kw,
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_get_gpt(stkctr, smp, idx, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_get_gpt0(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
@@ -3751,9 +3784,12 @@ smp_fetch_sc_get_gpt(const struct arg *args, struct sample *smp, const char *kw,
 	if (stkctr_entry(stkctr)) {
 		void *ptr;
 
-		ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPT, idx);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPT0);
+		if (!ptr)
+			ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPT, 0);
+
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
@@ -3764,7 +3800,7 @@ smp_fetch_sc_get_gpt(const struct arg *args, struct sample *smp, const char *kw,
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
@@ -3785,19 +3821,21 @@ smp_fetch_sc_get_gpt0(const struct arg *args, struct sample *smp, const char *kw
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_get_gpt0(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_get_gpc(struct stkctr *stkctr, struct sample *smp, unsigned int idx, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	if (stkctr_entry(stkctr)) {
+	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPT0);
-		if (!ptr)
-			ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPT, 0);
-
+		ptr  = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC, idx);
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
@@ -3808,7 +3846,7 @@ smp_fetch_sc_get_gpt0(const struct arg *args, struct sample *smp, const char *kw
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
@@ -3833,6 +3871,11 @@ smp_fetch_sc_get_gpc(const struct arg *args, struct sample *smp, const char *kw,
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_get_gpc(stkctr, smp, idx, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_get_gpc0(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
@@ -3840,9 +3883,14 @@ smp_fetch_sc_get_gpc(const struct arg *args, struct sample *smp, const char *kw,
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
-		ptr  = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC, idx);
+		ptr  = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			/* fallback on the gpc array */
+			ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC, 0);
+		}
+
+		if (!ptr) {
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
@@ -3853,7 +3901,7 @@ smp_fetch_sc_get_gpc(const struct arg *args, struct sample *smp, const char *kw,
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
@@ -3874,6 +3922,11 @@ smp_fetch_sc_get_gpc0(const struct arg *args, struct sample *smp, const char *kw
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_get_gpc0(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_get_gpc1(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
@@ -3881,14 +3934,14 @@ smp_fetch_sc_get_gpc0(const struct arg *args, struct sample *smp, const char *kw
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
-		ptr  = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
+		ptr  = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC1);
 		if (!ptr) {
 			/* fallback on the gpc array */
-			ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC, 0);
+			ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC, 1);
 		}
 
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
@@ -3899,7 +3952,7 @@ smp_fetch_sc_get_gpc0(const struct arg *args, struct sample *smp, const char *kw
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
@@ -3920,32 +3973,32 @@ smp_fetch_sc_get_gpc1(const struct arg *args, struct sample *smp, const char *kw
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_get_gpc1(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_gpc_rate(struct stkctr *stkctr, struct sample *smp, unsigned int idx, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
-
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
-		ptr  = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC1);
+		ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC_RATE, idx);
 		if (!ptr) {
-			/* fallback on the gpc array */
-			ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC, 1);
-		}
-
-		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+		                   stkctr->table->data_arg[STKTABLE_DT_GPC_RATE].u);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
@@ -3970,47 +4023,12 @@ smp_fetch_sc_gpc_rate(const struct arg *args, struct sample *smp, const char *kw
 	if (!stkctr)
 		return 0;
 
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr;
-
-		ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC_RATE, idx);
-		if (!ptr) {
-			if (stkctr == &tmpstkctr)
-				stktable_release(stkctr->table, stkctr_entry(stkctr));
-			return 0; /* parameter not stored */
-		}
-
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
-
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-		                   stkctr->table->data_arg[STKTABLE_DT_GPC_RATE].u);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
-
-		if (stkctr == &tmpstkctr)
-			stktable_release(stkctr->table, stkctr_entry(stkctr));
-	}
-	return 1;
+	return smp_fetch_gpc_rate(stkctr, smp, idx, (stkctr == &tmpstkctr) ? 1 : 0);
 }
 
-/* set <smp> to the General Purpose Counter 0's event rate from the stream's
- * tracked frontend counters or from the src.
- * Supports being called as "sc[0-9]_gpc0_rate" or "src_gpc0_rate" only.
- * Value zero is returned if the key is new.
- */
-static int
-smp_fetch_sc_gpc0_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
+static int smp_fetch_gpc0_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
 {
-	struct stkctr tmpstkctr;
-	struct stkctr *stkctr;
 	unsigned int period;
-
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
-	if (!stkctr)
-		return 0;
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -4030,7 +4048,7 @@ smp_fetch_sc_gpc0_rate(const struct arg *args, struct sample *smp, const char *k
 		}
 
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
@@ -4041,27 +4059,33 @@ smp_fetch_sc_gpc0_rate(const struct arg *args, struct sample *smp, const char *k
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
 
-/* set <smp> to the General Purpose Counter 1's event rate from the stream's
+/* set <smp> to the General Purpose Counter 0's event rate from the stream's
  * tracked frontend counters or from the src.
- * Supports being called as "sc[0-9]_gpc1_rate" or "src_gpc1_rate" only.
+ * Supports being called as "sc[0-9]_gpc0_rate" or "src_gpc0_rate" only.
  * Value zero is returned if the key is new.
  */
 static int
-smp_fetch_sc_gpc1_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
+smp_fetch_sc_gpc0_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
-	unsigned int period;
 
 	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
+
+	return smp_fetch_gpc0_rate(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_gpc1_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
+	unsigned int period;
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
@@ -4081,7 +4105,7 @@ smp_fetch_sc_gpc1_rate(const struct arg *args, struct sample *smp, const char *k
 		}
 
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
@@ -4092,36 +4116,35 @@ smp_fetch_sc_gpc1_rate(const struct arg *args, struct sample *smp, const char *k
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
 
-/* Increment the GPC[args(0)] value from the stream's tracked
- * frontend counters and return it into temp integer.
- * Supports being called as "sc_inc_gpc(<gpc-idx>,<sc-idx>[,<table>])"
- * or "src_inc_gpc(<gpc-idx>[,<table>])" only.
+/* set <smp> to the General Purpose Counter 1's event rate from the stream's
+ * tracked frontend counters or from the src.
+ * Supports being called as "sc[0-9]_gpc1_rate" or "src_gpc1_rate" only.
+ * Value zero is returned if the key is new.
  */
 static int
-smp_fetch_sc_inc_gpc(const struct arg *args, struct sample *smp, const char *kw, void *private)
+smp_fetch_sc_gpc1_rate(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
-	unsigned int idx;
 
-	idx = args[0].data.sint;
-
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args + 1, kw, &tmpstkctr);
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_gpc1_rate(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_inc_gpc(struct stkctr *stkctr, struct sample *smp, unsigned int idx, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
-
-	if (!stkctr_entry(stkctr))
-		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args + 1, kw, &tmpstkctr);
 
 	if (stkctr && stkctr_entry(stkctr)) {
 		void *ptr1,*ptr2;
@@ -4147,35 +4170,46 @@ smp_fetch_sc_inc_gpc(const struct arg *args, struct sample *smp, const char *kw,
 			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 			/* If data was modified, we need to touch to re-schedule sync */
-			stktable_touch_local(stkctr->table, stkctr_entry(stkctr), (stkctr == &tmpstkctr) ? 1 : 0);
+			stktable_touch_local(stkctr->table, stkctr_entry(stkctr), decrefcnt);
 		}
-		else if (stkctr == &tmpstkctr)
+		else if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
 
-/* Increment the General Purpose Counter 0 value from the stream's tracked
+/* Increment the GPC[args(0)] value from the stream's tracked
  * frontend counters and return it into temp integer.
- * Supports being called as "sc[0-9]_inc_gpc0" or "src_inc_gpc0" only.
+ * Supports being called as "sc_inc_gpc(<gpc-idx>,<sc-idx>[,<table>])"
+ * or "src_inc_gpc(<gpc-idx>[,<table>])" only.
  */
 static int
-smp_fetch_sc_inc_gpc0(const struct arg *args, struct sample *smp, const char *kw, void *private)
+smp_fetch_sc_inc_gpc(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
-	unsigned int period = 0;
+	unsigned int idx;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	idx = args[0].data.sint;
+
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args + 1, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
+
+	if (!stkctr_entry(stkctr))
+		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args + 1, kw, &tmpstkctr);
+
+	return smp_fetch_inc_gpc(stkctr, smp, idx, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+
+static int smp_fetch_inc_gpc0(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
+	unsigned int period = 0;
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
-
-	if (!stkctr_entry(stkctr))
-		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 
 	if (stkctr && stkctr_entry(stkctr)) {
 		void *ptr1,*ptr2;
@@ -4216,35 +4250,41 @@ smp_fetch_sc_inc_gpc0(const struct arg *args, struct sample *smp, const char *kw
 			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 			/* If data was modified, we need to touch to re-schedule sync */
-			stktable_touch_local(stkctr->table, stkctr_entry(stkctr), (stkctr == &tmpstkctr) ? 1 : 0);
+			stktable_touch_local(stkctr->table, stkctr_entry(stkctr), decrefcnt);
 		}
-		else if (stkctr == &tmpstkctr)
+		else if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
 }
 
-/* Increment the General Purpose Counter 1 value from the stream's tracked
+/* Increment the General Purpose Counter 0 value from the stream's tracked
  * frontend counters and return it into temp integer.
- * Supports being called as "sc[0-9]_inc_gpc1" or "src_inc_gpc1" only.
+ * Supports being called as "sc[0-9]_inc_gpc0" or "src_inc_gpc0" only.
  */
 static int
-smp_fetch_sc_inc_gpc1(const struct arg *args, struct sample *smp, const char *kw, void *private)
+smp_fetch_sc_inc_gpc0(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
-	unsigned int period = 0;
 
 	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
 		return 0;
 
+	if (!stkctr_entry(stkctr))
+		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
+	return smp_fetch_inc_gpc0(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_inc_gpc1(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
+	unsigned int period = 0;
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
-
-	if (!stkctr_entry(stkctr))
-		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 
 	if (stkctr && stkctr_entry(stkctr)) {
 		void *ptr1,*ptr2;
@@ -4285,10 +4325,59 @@ smp_fetch_sc_inc_gpc1(const struct arg *args, struct sample *smp, const char *kw
 			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 			/* If data was modified, we need to touch to re-schedule sync */
-			stktable_touch_local(stkctr->table, stkctr_entry(stkctr), (stkctr == &tmpstkctr) ? 1 : 0);
+			stktable_touch_local(stkctr->table, stkctr_entry(stkctr), (decrefcnt) ? 1 : 0);
 		}
-		else if (stkctr == &tmpstkctr)
+		else if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
+	}
+	return 1;
+}
+
+/* Increment the General Purpose Counter 1 value from the stream's tracked
+ * frontend counters and return it into temp integer.
+ * Supports being called as "sc[0-9]_inc_gpc1" or "src_inc_gpc1" only.
+ */
+static int
+smp_fetch_sc_inc_gpc1(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct stkctr tmpstkctr;
+	struct stkctr *stkctr;
+
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (!stkctr)
+		return 0;
+
+	if (!stkctr_entry(stkctr))
+		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
+	return smp_fetch_inc_gpc1(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_clr_gpc(struct stkctr *stkctr, struct sample *smp, unsigned int idx, int decrefcnt)
+{
+	smp->flags = SMP_F_VOL_TEST;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = 0;
+
+	if (stkctr && stkctr_entry(stkctr)) {
+		void *ptr;
+
+		ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC, idx);
+		if (!ptr) {
+			if (decrefcnt)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
+			return 0; /* parameter not stored */
+		}
+
+		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
+		stktable_data_cast(ptr, std_t_uint) = 0;
+
+		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		/* If data was modified, we need to touch to re-schedule sync */
+		stktable_touch_local(stkctr->table, stkctr_entry(stkctr), decrefcnt);
 	}
 	return 1;
 }
@@ -4311,19 +4400,29 @@ smp_fetch_sc_clr_gpc(const struct arg *args, struct sample *smp, const char *kw,
 	if (!stkctr)
 		return 0;
 
+	if (!stkctr_entry(stkctr))
+		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
+	return smp_fetch_clr_gpc(stkctr, smp, idx, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_clr_gpc0(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	if (!stkctr_entry(stkctr))
-		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
-
 	if (stkctr && stkctr_entry(stkctr)) {
 		void *ptr;
 
-		ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC, idx);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			/* fallback on the gpc array */
+			ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC, 0);
+		}
+
+		if (!ptr) {
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
@@ -4336,7 +4435,7 @@ smp_fetch_sc_clr_gpc(const struct arg *args, struct sample *smp, const char *kw,
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		/* If data was modified, we need to touch to re-schedule sync */
-		stktable_touch_local(stkctr->table, stkctr_entry(stkctr), (stkctr == &tmpstkctr) ? 1 : 0);
+		stktable_touch_local(stkctr->table, stkctr_entry(stkctr), decrefcnt);
 	}
 	return 1;
 }
@@ -4355,24 +4454,29 @@ smp_fetch_sc_clr_gpc0(const struct arg *args, struct sample *smp, const char *kw
 	if (!stkctr)
 		return 0;
 
+	if (!stkctr_entry(stkctr))
+		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
+	return smp_fetch_clr_gpc0(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_clr_gpc1(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	if (!stkctr_entry(stkctr))
-		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
-
 	if (stkctr && stkctr_entry(stkctr)) {
 		void *ptr;
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC1);
 		if (!ptr) {
 			/* fallback on the gpc array */
-			ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC, 0);
+			ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC, 1);
 		}
 
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
@@ -4385,7 +4489,7 @@ smp_fetch_sc_clr_gpc0(const struct arg *args, struct sample *smp, const char *kw
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		/* If data was modified, we need to touch to re-schedule sync */
-		stktable_touch_local(stkctr->table, stkctr_entry(stkctr), (stkctr == &tmpstkctr) ? 1 : 0);
+		stktable_touch_local(stkctr->table, stkctr_entry(stkctr), decrefcnt);
 	}
 	return 1;
 }
@@ -4404,37 +4508,37 @@ smp_fetch_sc_clr_gpc1(const struct arg *args, struct sample *smp, const char *kw
 	if (!stkctr)
 		return 0;
 
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
 	if (!stkctr_entry(stkctr))
 		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 
-	if (stkctr && stkctr_entry(stkctr)) {
+	return smp_fetch_clr_gpc1(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_conn_cnt(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
+	smp->flags = SMP_F_VOL_TEST;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = 0;
+	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC1);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_CNT);
 		if (!ptr) {
-			/* fallback on the gpc array */
-			ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC, 1);
-		}
-
-		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
 
-		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
-		stktable_data_cast(ptr, std_t_uint) = 0;
 
-		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		/* If data was modified, we need to touch to re-schedule sync */
-		stktable_touch_local(stkctr->table, stkctr_entry(stkctr), (stkctr == &tmpstkctr) ? 1 : 0);
+		if (decrefcnt)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
+
+
 	}
 	return 1;
 }
@@ -4453,29 +4557,33 @@ smp_fetch_sc_conn_cnt(const struct arg *args, struct sample *smp, const char *kw
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_conn_cnt(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_conn_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_CNT);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_RATE);
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+					       stkctr->table->data_arg[STKTABLE_DT_CONN_RATE].u);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
-
-
 	}
 	return 1;
 }
@@ -4494,29 +4602,34 @@ smp_fetch_sc_conn_rate(const struct arg *args, struct sample *smp, const char *k
 	if (!stkctr)
 		return 0;
 
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr;
+	return smp_fetch_conn_rate(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_RATE);
-		if (!ptr) {
-			if (stkctr == &tmpstkctr)
-				stktable_release(stkctr->table, stkctr_entry(stkctr));
-			return 0; /* parameter not stored */
-		}
+static int smp_fetch_updt_conn_cnt(struct stkctr *stkctr, struct sample *smp)
+{
+	void *ptr;
 
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+	if (!stkctr_entry(stkctr))
+		return 0; /* not found */
 
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-					       stkctr->table->data_arg[STKTABLE_DT_CONN_RATE].u);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
-
-		if (stkctr == &tmpstkctr)
-			stktable_release(stkctr->table, stkctr_entry(stkctr));
+	ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_CNT);
+	if (!ptr) {
+		return 0; /* parameter not stored in this table */
 	}
+
+	smp->data.type = SMP_T_SINT;
+
+	HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+	smp->data.u.sint = ++stktable_data_cast(ptr, std_t_uint);
+
+	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+	smp->flags = SMP_F_VOL_TEST;
+
+	stktable_touch_local(stkctr->table, stkctr_entry(stkctr), 1);
+
+	/* Touch was previously performed by stktable_update_key */
 	return 1;
 }
 
@@ -4529,8 +4642,7 @@ smp_fetch_src_updt_conn_cnt(const struct arg *args, struct sample *smp, const ch
 {
 	struct connection *conn = objt_conn(smp->sess->origin);
 	struct stksess *ts;
-	void *ptr;
-	struct stktable *t;
+	struct stkctr tmpstkctr;
 
 	if (!conn)
 		return 0;
@@ -4539,30 +4651,41 @@ smp_fetch_src_updt_conn_cnt(const struct arg *args, struct sample *smp, const ch
 	if (!smp_fetch_src || !smp_fetch_src(empty_arg_list, smp, "src", NULL))
 		return 0;
 
-	t = args->data.t;
+	tmpstkctr.table = args->data.t;
 
-	if ((ts = smp_fetch_stksess(t, smp, 1)) == NULL)
+	if ((ts = smp_fetch_stksess(args->data.t, smp, 1)) == NULL)
 		/* entry does not exist and could not be created */
 		return 0;
 
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_CNT);
-	if (!ptr) {
-		return 0; /* parameter not stored in this table */
-	}
+	stkctr_set_entry(&tmpstkctr, ts);
 
-	smp->data.type = SMP_T_SINT;
+	return smp_fetch_updt_conn_cnt(&tmpstkctr, smp);
+}
 
-	HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
-
-	smp->data.u.sint = ++stktable_data_cast(ptr, std_t_uint);
-
-	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-
+static int smp_fetch_conn_cur(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = 0;
+	if (stkctr_entry(stkctr) != NULL) {
+		void *ptr;
 
-	stktable_touch_local(t, ts, 1);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_CUR);
+		if (!ptr) {
+			if (decrefcnt)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
+			return 0; /* parameter not stored */
+		}
 
-	/* Touch was previously performed by stktable_update_key */
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
+
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (decrefcnt)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
+	}
 	return 1;
 }
 
@@ -4580,15 +4703,20 @@ smp_fetch_sc_conn_cur(const struct arg *args, struct sample *smp, const char *kw
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_conn_cur(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_glitch_cnt(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_CUR);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GLITCH_CNT);
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
@@ -4599,7 +4727,7 @@ smp_fetch_sc_conn_cur(const struct arg *args, struct sample *smp, const char *kw
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
@@ -4619,26 +4747,32 @@ smp_fetch_sc_glitch_cnt(const struct arg *args, struct sample *smp, const char *
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_glitch_cnt(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_glitch_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GLITCH_CNT);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GLITCH_RATE);
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+					       stkctr->table->data_arg[STKTABLE_DT_GLITCH_RATE].u);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
@@ -4658,27 +4792,31 @@ smp_fetch_sc_glitch_rate(const struct arg *args, struct sample *smp, const char 
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_glitch_rate(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_sess_cnt(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GLITCH_RATE);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_CNT);
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-					       stkctr->table->data_arg[STKTABLE_DT_GLITCH_RATE].u);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
@@ -4698,26 +4836,32 @@ smp_fetch_sc_sess_cnt(const struct arg *args, struct sample *smp, const char *kw
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_sess_cnt(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_sess_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_CNT);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_RATE);
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+					       stkctr->table->data_arg[STKTABLE_DT_SESS_RATE].u);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
@@ -4736,27 +4880,31 @@ smp_fetch_sc_sess_rate(const struct arg *args, struct sample *smp, const char *k
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_sess_rate(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_http_req_cnt(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_RATE);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_REQ_CNT);
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-					       stkctr->table->data_arg[STKTABLE_DT_SESS_RATE].u);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
@@ -4776,26 +4924,32 @@ smp_fetch_sc_http_req_cnt(const struct arg *args, struct sample *smp, const char
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_http_req_cnt(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_http_req_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_REQ_CNT);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_REQ_RATE);
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+					       stkctr->table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
@@ -4815,27 +4969,31 @@ smp_fetch_sc_http_req_rate(const struct arg *args, struct sample *smp, const cha
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_http_req_rate(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_http_err_cnt(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_REQ_RATE);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_ERR_CNT);
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-					       stkctr->table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
@@ -4855,26 +5013,32 @@ smp_fetch_sc_http_err_cnt(const struct arg *args, struct sample *smp, const char
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_http_err_cnt(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_http_err_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_ERR_CNT);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_ERR_RATE);
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+					       stkctr->table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
@@ -4894,27 +5058,31 @@ smp_fetch_sc_http_err_rate(const struct arg *args, struct sample *smp, const cha
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_http_err_rate(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_http_fail_cnt(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_ERR_RATE);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_FAIL_CNT);
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-					       stkctr->table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
@@ -4934,29 +5102,36 @@ smp_fetch_sc_http_fail_cnt(const struct arg *args, struct sample *smp, const cha
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_http_fail_cnt(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_http_fail_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_FAIL_CNT);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_FAIL_RATE);
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+					       stkctr->table->data_arg[STKTABLE_DT_HTTP_FAIL_RATE].u);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
+
 }
 
 /* set <smp> to the HTTP response failure rate from the stream's tracked frontend
@@ -4973,27 +5148,31 @@ smp_fetch_sc_http_fail_rate(const struct arg *args, struct sample *smp, const ch
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_http_fail_rate(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_kbytes_in(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_FAIL_RATE);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_IN_CNT);
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-					       stkctr->table->data_arg[STKTABLE_DT_HTTP_FAIL_RATE].u);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_ull) >> 10;
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
@@ -5013,26 +5192,32 @@ smp_fetch_sc_kbytes_in(const struct arg *args, struct sample *smp, const char *k
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_kbytes_in(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_bytes_in_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_IN_CNT);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_IN_RATE);
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_ull) >> 10;
+		smp->data.u.sint = (uint64_t)read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+								  stkctr->table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u) * stkctr->table->brates_factor;
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
@@ -5052,27 +5237,31 @@ smp_fetch_sc_bytes_in_rate(const struct arg *args, struct sample *smp, const cha
 	if (!stkctr)
 		return 0;
 
+	return smp_fetch_bytes_in_rate(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
+}
+
+static int smp_fetch_kbytes_out(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_IN_RATE);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_OUT_CNT);
 		if (!ptr) {
-			if (stkctr == &tmpstkctr)
+			if (decrefcnt)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
 		}
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = (uint64_t)read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-								  stkctr->table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u) * stkctr->table->brates_factor;
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_ull) >> 10;
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		if (stkctr == &tmpstkctr)
+		if (decrefcnt)
 			stktable_release(stkctr->table, stkctr_entry(stkctr));
 	}
 	return 1;
@@ -5092,29 +5281,7 @@ smp_fetch_sc_kbytes_out(const struct arg *args, struct sample *smp, const char *
 	if (!stkctr)
 		return 0;
 
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr;
-
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_OUT_CNT);
-		if (!ptr) {
-			if (stkctr == &tmpstkctr)
-				stktable_release(stkctr->table, stkctr_entry(stkctr));
-			return 0; /* parameter not stored */
-		}
-
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
-
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_ull) >> 10;
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
-
-		if (stkctr == &tmpstkctr)
-			stktable_release(stkctr->table, stkctr_entry(stkctr));
-	}
-	return 1;
+	return smp_fetch_kbytes_out(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
 }
 
 /* set <smp> to the key associated to the stream's tracked entry.
@@ -5143,6 +5310,34 @@ smp_fetch_sc_key(const struct arg *args, struct sample *smp, const char *kw, voi
 	return 0; /* nothing currently tracked */
 }
 
+static int smp_fetch_bytes_out_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
+{
+	smp->flags = SMP_F_VOL_TEST;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = 0;
+	if (stkctr_entry(stkctr) != NULL) {
+		void *ptr;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_OUT_RATE);
+		if (!ptr) {
+			if (decrefcnt)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
+			return 0; /* parameter not stored */
+		}
+
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		smp->data.u.sint = (uint64_t)read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+								  stkctr->table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u) * stkctr->table->brates_factor;
+
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (decrefcnt)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
+	}
+	return 1;
+}
+
 /* set <smp> to the data rate sent to clients in bytes/s, as found in the
  * stream's tracked frontend counters. Supports being called as
  * "sc[0-9]_bytes_out_rate" or "src_bytes_out_rate" only.
@@ -5157,30 +5352,7 @@ smp_fetch_sc_bytes_out_rate(const struct arg *args, struct sample *smp, const ch
 	if (!stkctr)
 		return 0;
 
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-	if (stkctr_entry(stkctr) != NULL) {
-		void *ptr;
-
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_OUT_RATE);
-		if (!ptr) {
-			if (stkctr == &tmpstkctr)
-				stktable_release(stkctr->table, stkctr_entry(stkctr));
-			return 0; /* parameter not stored */
-		}
-
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
-
-		smp->data.u.sint = (uint64_t)read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-								  stkctr->table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u) * stkctr->table->brates_factor;
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
-
-		if (stkctr == &tmpstkctr)
-			stktable_release(stkctr->table, stkctr_entry(stkctr));
-	}
-	return 1;
+	return smp_fetch_bytes_out_rate(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
 }
 
 /* set <smp> to the number of active trackers on the SC entry in the stream's
