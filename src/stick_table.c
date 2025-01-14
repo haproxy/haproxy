@@ -1814,35 +1814,15 @@ static int sample_conv_in_table(const struct arg *arg_p, struct sample *smp, voi
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
+static int smp_fetch_bytes_in_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_bytes_in_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_BYTES_IN_RATE);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = (uint64_t)read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-								  t->data_arg[STKTABLE_DT_BYTES_IN_RATE].u) * t->brates_factor;
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_bytes_in_rate(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -1851,34 +1831,15 @@ static int sample_conv_table_bytes_in_rate(const struct arg *arg_p, struct sampl
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
+static int smp_fetch_conn_cnt(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_conn_cnt(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_CNT);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_conn_cnt(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -1887,34 +1848,15 @@ static int sample_conv_table_conn_cnt(const struct arg *arg_p, struct sample *sm
  * can be easily performed. If the inspected parameter is not stored in the
  * table, <not found> is returned.
  */
+static int smp_fetch_conn_cur(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_conn_cur(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_CUR);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_conn_cur(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -1923,35 +1865,15 @@ static int sample_conv_table_conn_cur(const struct arg *arg_p, struct sample *sm
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
+static int smp_fetch_conn_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_conn_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_RATE);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-                                                       t->data_arg[STKTABLE_DT_CONN_RATE].u);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_conn_rate(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -2026,35 +1948,15 @@ static int sample_conv_table_idle(const struct arg *arg_p, struct sample *smp, v
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
+static int smp_fetch_bytes_out_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_bytes_out_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_BYTES_OUT_RATE);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = (uint64_t)read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-								  t->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u) * t->brates_factor;
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_bytes_out_rate(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -2063,34 +1965,15 @@ static int sample_conv_table_bytes_out_rate(const struct arg *arg_p, struct samp
  * can be easily performed. If the inspected parameter is not stored in the
  * table, <not found> is returned.
  */
+static int smp_fetch_glitch_cnt(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_glitch_cnt(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_GLITCH_CNT);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_glitch_cnt(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -2099,35 +1982,15 @@ static int sample_conv_table_glitch_cnt(const struct arg *arg_p, struct sample *
  * performed. If the inspected parameter is not stored in the table, <not found>
  * is returned.
  */
+static int smp_fetch_glitch_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_glitch_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_GLITCH_RATE);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-                                                       t->data_arg[STKTABLE_DT_GLITCH_RATE].u);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_glitch_rate(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg_p(1), and looks
@@ -2136,37 +1999,17 @@ static int sample_conv_table_glitch_rate(const struct arg *arg_p, struct sample 
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
+static int smp_fetch_get_gpt(struct stkctr *stkctr, struct sample *smp, unsigned int idx, int decrefcnt);
 static int sample_conv_table_gpt(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 	unsigned int idx;
 
 	idx = arg_p[0].data.sint;
+	stkctr.table = arg_p[1].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	t = arg_p[1].data.t;
-
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr_idx(t, ts, STKTABLE_DT_GPT, idx);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_get_gpt(&stkctr, smp, idx, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -2175,37 +2018,15 @@ static int sample_conv_table_gpt(const struct arg *arg_p, struct sample *smp, vo
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
+static int smp_fetch_get_gpt0(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_gpt0(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_GPT0);
-	if (!ptr)
-		ptr = stktable_data_ptr_idx(t, ts, STKTABLE_DT_GPT, 0);
-
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_get_gpt0(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg_p(1), and looks
@@ -2214,37 +2035,17 @@ static int sample_conv_table_gpt0(const struct arg *arg_p, struct sample *smp, v
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
+static int smp_fetch_get_gpc(struct stkctr *stkctr, struct sample *smp, unsigned int idx, int decrefcnt);
 static int sample_conv_table_gpc(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 	unsigned int idx;
 
 	idx = arg_p[0].data.sint;
+	stkctr.table = arg_p[1].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	t = arg_p[1].data.t;
-
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr_idx(t, ts, STKTABLE_DT_GPC, idx);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_get_gpc(&stkctr, smp, idx, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg_p(1), and looks
@@ -2253,38 +2054,17 @@ static int sample_conv_table_gpc(const struct arg *arg_p, struct sample *smp, vo
  * comparisons can be easily performed. If the inspected parameter is not
  * stored in the table, <not found> is returned.
  */
+static int smp_fetch_gpc_rate(struct stkctr *stkctr, struct sample *smp, unsigned int idx, int decrefcnt);
 static int sample_conv_table_gpc_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 	unsigned int idx;
 
 	idx = arg_p[0].data.sint;
+	stkctr.table = arg_p[1].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	t = arg_p[1].data.t;
-
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr_idx(t, ts, STKTABLE_DT_GPC_RATE, idx);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-		                                        t->data_arg[STKTABLE_DT_GPC_RATE].u);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_gpc_rate(&stkctr, smp, idx, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -2293,39 +2073,15 @@ static int sample_conv_table_gpc_rate(const struct arg *arg_p, struct sample *sm
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
+static int smp_fetch_get_gpc0(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_gpc0(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_GPC0);
-	if (!ptr) {
-		/* fallback on the gpc array */
-		ptr = stktable_data_ptr_idx(t, ts, STKTABLE_DT_GPC, 0);
-	}
-
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_get_gpc0(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -2334,47 +2090,15 @@ static int sample_conv_table_gpc0(const struct arg *arg_p, struct sample *smp, v
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
+static int smp_fetch_gpc0_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_gpc0_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_GPC0_RATE);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-                                                       t->data_arg[STKTABLE_DT_GPC0_RATE].u);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-	else {
-		/* fallback on the gpc array */
-		ptr = stktable_data_ptr_idx(t, ts, STKTABLE_DT_GPC_RATE, 0);
-		if (ptr) {
-			HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-			smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-			                                        t->data_arg[STKTABLE_DT_GPC_RATE].u);
-
-			HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-		}
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_gpc0_rate(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -2383,39 +2107,15 @@ static int sample_conv_table_gpc0_rate(const struct arg *arg_p, struct sample *s
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
+static int smp_fetch_get_gpc1(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_gpc1(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_GPC1);
-	if (!ptr) {
-		/* fallback on the gpc array */
-		ptr = stktable_data_ptr_idx(t, ts, STKTABLE_DT_GPC, 1);
-	}
-
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_get_gpc1(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -2424,47 +2124,15 @@ static int sample_conv_table_gpc1(const struct arg *arg_p, struct sample *smp, v
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
+static int smp_fetch_gpc1_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_gpc1_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_GPC1_RATE);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-                                                       t->data_arg[STKTABLE_DT_GPC1_RATE].u);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-	else {
-		/* fallback on the gpc array */
-		ptr = stktable_data_ptr_idx(t, ts, STKTABLE_DT_GPC_RATE, 1);
-		if (ptr) {
-			HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-			smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-			                                        t->data_arg[STKTABLE_DT_GPC_RATE].u);
-
-			HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-		}
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_gpc1_rate(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -2473,34 +2141,15 @@ static int sample_conv_table_gpc1_rate(const struct arg *arg_p, struct sample *s
  * comparisons can be easily performed. If the inspected parameter is not stored
  * in the table, <not found> is returned.
  */
+static int smp_fetch_http_err_cnt(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_http_err_cnt(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_ERR_CNT);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_http_err_cnt(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -2509,35 +2158,15 @@ static int sample_conv_table_http_err_cnt(const struct arg *arg_p, struct sample
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
+static int smp_fetch_http_err_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_http_err_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_ERR_RATE);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-                                                       t->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_http_err_rate(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -2546,34 +2175,15 @@ static int sample_conv_table_http_err_rate(const struct arg *arg_p, struct sampl
  * comparisons can be easily performed. If the inspected parameter is not stored
  * in the table, <not found> is returned.
  */
+static int smp_fetch_http_fail_cnt(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_http_fail_cnt(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_FAIL_CNT);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_http_fail_cnt(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -2582,35 +2192,15 @@ static int sample_conv_table_http_fail_cnt(const struct arg *arg_p, struct sampl
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
+static int smp_fetch_http_fail_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_http_fail_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_FAIL_RATE);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-                                                       t->data_arg[STKTABLE_DT_HTTP_FAIL_RATE].u);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_http_fail_rate(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -2619,34 +2209,15 @@ static int sample_conv_table_http_fail_rate(const struct arg *arg_p, struct samp
  * can be easily performed. If the inspected parameter is not stored in the
  * table, <not found> is returned.
  */
+static int smp_fetch_http_req_cnt(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_http_req_cnt(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_CNT);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_http_req_cnt(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -2655,35 +2226,15 @@ static int sample_conv_table_http_req_cnt(const struct arg *arg_p, struct sample
  * performed. If the inspected parameter is not stored in the table, <not found>
  * is returned.
  */
+static int smp_fetch_http_req_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_http_req_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_RATE);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-                                                       t->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_http_req_rate(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -2692,34 +2243,15 @@ static int sample_conv_table_http_req_rate(const struct arg *arg_p, struct sampl
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
+static int smp_fetch_kbytes_in(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_kbytes_in(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_BYTES_IN_CNT);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_ull) >> 10;
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_kbytes_in(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -2728,34 +2260,15 @@ static int sample_conv_table_kbytes_in(const struct arg *arg_p, struct sample *s
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
+static int smp_fetch_kbytes_out(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_kbytes_out(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_BYTES_OUT_CNT);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_ull) >> 10;
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_kbytes_out(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -2800,34 +2313,15 @@ static int sample_conv_table_server_id(const struct arg *arg_p, struct sample *s
  * can be easily performed. If the inspected parameter is not stored in the
  * table, <not found> is returned.
  */
+static int smp_fetch_sess_cnt(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_sess_cnt(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_SESS_CNT);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_sess_cnt(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -2836,35 +2330,15 @@ static int sample_conv_table_sess_cnt(const struct arg *arg_p, struct sample *sm
  * performed. If the inspected parameter is not stored in the table, <not found>
  * is returned.
  */
+static int smp_fetch_sess_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
 static int sample_conv_table_sess_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct stktable *t;
-	struct stksess *ts;
-	void *ptr;
+	struct stkctr stkctr;
 
-	t = arg_p[0].data.t;
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
 
-	ts = smp_fetch_stksess(t, smp, 0);
-
-	smp->flags = SMP_F_VOL_TEST;
-	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = 0;
-
-	if (!ts) /* key not present */
-		return 1;
-
-	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_SESS_RATE);
-	if (ptr) {
-		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-                                                       t->data_arg[STKTABLE_DT_SESS_RATE].u);
-
-		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-	}
-
-	stktable_release(t, ts);
-	return !!ptr;
+	return smp_fetch_sess_rate(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
