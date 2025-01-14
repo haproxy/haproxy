@@ -3610,27 +3610,8 @@ smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg 
 		/* sc_* variant, args[0] = ctr# (mandatory) */
 		num = args[arg++].data.sint;
 	}
-	else if (num > 9) { /* src_* variant, args[0] = table */
-		struct stksess *entry;
-		struct connection *conn = objt_conn(sess->origin);
-		struct sample smp;
 
-		if (!conn)
-			return NULL;
-
-		/* Fetch source address in a sample. */
-		smp.px = NULL;
-		smp.sess = sess;
-		smp.strm = strm;
-		if (!smp_fetch_src || !smp_fetch_src(empty_arg_list, &smp, "src", NULL))
-			return NULL;
-
-		entry = smp_fetch_stksess(args->data.t, &smp, 0);
-
-		stkctr->table = args->data.t;
-		stkctr_set_entry(stkctr, entry);
-		return stkctr;
-	}
+	BUG_ON(num > 9, "unexpected value");
 
 	/* Here, <num> contains the counter number from 0 to 9 for
 	 * the sc[0-9]_ form, or even higher using sc_(num) if needed.
@@ -3672,19 +3653,15 @@ smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg 
 }
 
 /* same as smp_fetch_sc_stkctr() but dedicated to src_* and can create
- * the entry if it doesn't exist yet. This is needed for a few fetch
- * functions which need to create an entry, such as src_inc_gpc* and
- * src_clr_gpc*.
+ * the entry if it doesn't exist yet and <create> is set to 1.
  */
 struct stkctr *
-smp_create_src_stkctr(struct session *sess, struct stream *strm, const struct arg *args, const char *kw, struct stkctr *stkctr)
+smp_fetch_src_stkctr(struct session *sess, struct stream *strm,
+                     const struct arg *args, struct stkctr *stkctr, int create)
 {
 	struct stksess *entry;
 	struct connection *conn = objt_conn(sess->origin);
 	struct sample smp;
-
-	if (strncmp(kw, "src_", 4) != 0)
-		return NULL;
 
 	if (!conn)
 		return NULL;
@@ -3696,7 +3673,7 @@ smp_create_src_stkctr(struct session *sess, struct stream *strm, const struct ar
 	if (!smp_fetch_src || !smp_fetch_src(empty_arg_list, &smp, "src", NULL))
 		return NULL;
 
-	entry = smp_fetch_stksess(args->data.t, &smp, 1);
+	entry = smp_fetch_stksess(args->data.t, &smp, create);
 
 	stkctr->table = args->data.t;
 	stkctr_set_entry(stkctr, entry);
@@ -3768,7 +3745,11 @@ smp_fetch_sc_get_gpt(const struct arg *args, struct sample *smp, const char *kw,
 
 	idx = args[0].data.sint;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args + 1, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args + 1, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args + 1, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -3817,7 +3798,11 @@ smp_fetch_sc_get_gpt0(const struct arg *args, struct sample *smp, const char *kw
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -3867,7 +3852,11 @@ smp_fetch_sc_get_gpc(const struct arg *args, struct sample *smp, const char *kw,
 
 	idx = args[0].data.sint;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args + 1, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args + 1, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args + 1, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -3918,7 +3907,11 @@ smp_fetch_sc_get_gpc0(const struct arg *args, struct sample *smp, const char *kw
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -3969,7 +3962,11 @@ smp_fetch_sc_get_gpc1(const struct arg *args, struct sample *smp, const char *kw
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -4019,7 +4016,11 @@ smp_fetch_sc_gpc_rate(const struct arg *args, struct sample *smp, const char *kw
 
 	idx = args[0].data.sint;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args + 1, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args + 1, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args + 1, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -4076,7 +4077,11 @@ smp_fetch_sc_gpc0_rate(const struct arg *args, struct sample *smp, const char *k
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -4133,7 +4138,11 @@ smp_fetch_sc_gpc1_rate(const struct arg *args, struct sample *smp, const char *k
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -4192,12 +4201,13 @@ smp_fetch_sc_inc_gpc(const struct arg *args, struct sample *smp, const char *kw,
 
 	idx = args[0].data.sint;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args + 1, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args + 1, &tmpstkctr, 1);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args + 1, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
-
-	if (!stkctr_entry(stkctr))
-		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args + 1, kw, &tmpstkctr);
 
 	return smp_fetch_inc_gpc(stkctr, smp, idx, (stkctr == &tmpstkctr) ? 1 : 0);
 }
@@ -4268,12 +4278,13 @@ smp_fetch_sc_inc_gpc0(const struct arg *args, struct sample *smp, const char *kw
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 1);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
-
-	if (!stkctr_entry(stkctr))
-		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 
 	return smp_fetch_inc_gpc0(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
 }
@@ -4343,12 +4354,13 @@ smp_fetch_sc_inc_gpc1(const struct arg *args, struct sample *smp, const char *kw
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 1);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
-
-	if (!stkctr_entry(stkctr))
-		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 
 	return smp_fetch_inc_gpc1(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
 }
@@ -4396,12 +4408,13 @@ smp_fetch_sc_clr_gpc(const struct arg *args, struct sample *smp, const char *kw,
 
 	idx = args[0].data.sint;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args + 1, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args + 1, &tmpstkctr, 1);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args + 1, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
-
-	if (!stkctr_entry(stkctr))
-		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 
 	return smp_fetch_clr_gpc(stkctr, smp, idx, (stkctr == &tmpstkctr) ? 1 : 0);
 }
@@ -4450,12 +4463,13 @@ smp_fetch_sc_clr_gpc0(const struct arg *args, struct sample *smp, const char *kw
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 1);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
-
-	if (!stkctr_entry(stkctr))
-		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 
 	return smp_fetch_clr_gpc0(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
 }
@@ -4504,12 +4518,13 @@ smp_fetch_sc_clr_gpc1(const struct arg *args, struct sample *smp, const char *kw
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 1);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
-
-	if (!stkctr_entry(stkctr))
-		stkctr = smp_create_src_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 
 	return smp_fetch_clr_gpc1(stkctr, smp, (stkctr == &tmpstkctr) ? 1 : 0);
 }
@@ -4553,7 +4568,11 @@ smp_fetch_sc_conn_cnt(const struct arg *args, struct sample *smp, const char *kw
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -4598,7 +4617,11 @@ smp_fetch_sc_conn_rate(const struct arg *args, struct sample *smp, const char *k
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -4640,26 +4663,15 @@ static int smp_fetch_updt_conn_cnt(struct stkctr *stkctr, struct sample *smp)
 static int
 smp_fetch_src_updt_conn_cnt(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn = objt_conn(smp->sess->origin);
-	struct stksess *ts;
 	struct stkctr tmpstkctr;
+	struct stkctr *stkctr;
 
-	if (!conn)
+	stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 1);
+
+	if (!stkctr)
 		return 0;
 
-	/* Fetch source address in a sample. */
-	if (!smp_fetch_src || !smp_fetch_src(empty_arg_list, smp, "src", NULL))
-		return 0;
-
-	tmpstkctr.table = args->data.t;
-
-	if ((ts = smp_fetch_stksess(args->data.t, smp, 1)) == NULL)
-		/* entry does not exist and could not be created */
-		return 0;
-
-	stkctr_set_entry(&tmpstkctr, ts);
-
-	return smp_fetch_updt_conn_cnt(&tmpstkctr, smp);
+	return smp_fetch_updt_conn_cnt(stkctr, smp);
 }
 
 static int smp_fetch_conn_cur(struct stkctr *stkctr, struct sample *smp, int decrefcnt)
@@ -4699,7 +4711,11 @@ smp_fetch_sc_conn_cur(const struct arg *args, struct sample *smp, const char *kw
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -4743,7 +4759,11 @@ smp_fetch_sc_glitch_cnt(const struct arg *args, struct sample *smp, const char *
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -4788,7 +4808,11 @@ smp_fetch_sc_glitch_rate(const struct arg *args, struct sample *smp, const char 
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -4832,7 +4856,11 @@ smp_fetch_sc_sess_cnt(const struct arg *args, struct sample *smp, const char *kw
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -4876,7 +4904,11 @@ smp_fetch_sc_sess_rate(const struct arg *args, struct sample *smp, const char *k
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -4920,7 +4952,11 @@ smp_fetch_sc_http_req_cnt(const struct arg *args, struct sample *smp, const char
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -4965,7 +5001,11 @@ smp_fetch_sc_http_req_rate(const struct arg *args, struct sample *smp, const cha
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -5009,7 +5049,11 @@ smp_fetch_sc_http_err_cnt(const struct arg *args, struct sample *smp, const char
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -5054,7 +5098,11 @@ smp_fetch_sc_http_err_rate(const struct arg *args, struct sample *smp, const cha
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -5098,7 +5146,11 @@ smp_fetch_sc_http_fail_cnt(const struct arg *args, struct sample *smp, const cha
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -5144,7 +5196,11 @@ smp_fetch_sc_http_fail_rate(const struct arg *args, struct sample *smp, const ch
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -5188,7 +5244,11 @@ smp_fetch_sc_kbytes_in(const struct arg *args, struct sample *smp, const char *k
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -5233,7 +5293,11 @@ smp_fetch_sc_bytes_in_rate(const struct arg *args, struct sample *smp, const cha
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -5277,7 +5341,11 @@ smp_fetch_sc_kbytes_out(const struct arg *args, struct sample *smp, const char *
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
@@ -5348,7 +5416,11 @@ smp_fetch_sc_bytes_out_rate(const struct arg *args, struct sample *smp, const ch
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
 
-	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+	if (strncmp(kw, "src_", 4) == 0)
+		stkctr = smp_fetch_src_stkctr(smp->sess, smp->strm, args, &tmpstkctr, 0);
+	else
+		stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
+
 	if (!stkctr)
 		return 0;
 
