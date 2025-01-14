@@ -1037,7 +1037,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 	static struct ist prefix = IST("haproxy_backend_");
 	struct promex_ctx *ctx = appctx->svcctx;
 	struct proxy *px = ctx->p[0];
-	struct stats_module *mod = ctx->p[2];
+	struct stats_module *mod = ctx->p[1];
 	struct server *sv;
 	struct field val;
 	struct channel *chn = sc_ic(appctx_sc(appctx));
