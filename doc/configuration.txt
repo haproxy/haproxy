@@ -15290,7 +15290,7 @@ do-log
       tcp-request connection do-log             #uses special log-profile format
       tcp-request content do-log                #uses proxy logformat
 
-do-resolve(<var>,<resolvers>,[ipv4,ipv6]) <expr>
+do-resolve(<var>,<resolvers>[,ipv4|ipv6]) <expr>
   Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     - |          -  |   -  |   X  |   -  |          X |  - |  -
 
@@ -20060,19 +20060,19 @@ The following keywords are supported:
 ------------------------------------------------+-------------+----------------
 51d.single(prop[,prop*])                           string       string
 add(value)                                         integer      integer
-add_item(delim,[var][,suff]])                      string       string
+add_item(delim[,var[,suff]])                       string       string
 aes_gcm_dec(bits,nonce,key,aead_tag)               binary       binary
 aes_gcm_enc(bits,nonce,key,aead_tag)               binary       binary
 and(value)                                         integer      integer
 b64dec                                             string       binary
 base64                                             binary       string
-be2dec(separator,chunk_size,[truncate])            binary       string
-be2hex([separator],[chunk_size],[truncate])        binary       string
+be2dec(separator,chunk_size[,truncate])            binary       string
+be2hex([separator[,chunk_size[,truncate]]])        binary       string
 bool                                               integer      boolean
 bytes(offset[,length])                             binary       binary
 capture-req(id)                                    string       string
 capture-res(id)                                    string       string
-concat([start],[var],[end])                        string       string
+concat([start[,var[,end]]])                        string       string
 cpl                                                integer      integer
 crc32([avalanche])                                 binary       integer
 crc32c([avalanche])                                binary       integer
@@ -20093,14 +20093,14 @@ hex2i                                              binary       integer
 hmac(algorithm,key)                                binary       binary
 host_only                                          string       string
 htonl                                              integer      integer
-http_date([offset],[unit])                         integer      string
+http_date([offset[,unit]])                         integer      string
 iif(true,false)                                    boolean      string
 in_table(table)                                    string       boolean
-ipmask(mask4,[mask6])                              address      address
+ipmask(mask4[,mask6])                              address      address
 json([input-code])                                 string       string
-json_query(json_path,[output_type])                string       _outtype_
-jwt_header_query([json_path],[output_type])        string       string
-jwt_payload_query([json_path],[output_type])       string       string
+json_query(json_path[,output_type])                string       _outtype_
+jwt_header_query([json_path[,output_type]])        string       string
+jwt_payload_query([json_path[,output_type]])       string       string
 -- keyword -------------------------------------+- input type + output type -
 jwt_verify(alg,key)                                string       integer
 language(value[,default])                          string       string
@@ -20123,9 +20123,9 @@ not                                                integer      boolean
 odd                                                integer      boolean
 or(value)                                          integer      integer
 -- keyword -------------------------------------+- input type + output type -
-param(name,[delim])                                string       string
+param(name[,delim])                                string       string
 port_only                                          string       integer
-protobuf(field_number,[field_type])                binary       binary
+protobuf(field_number[,field_type])                binary       binary
 regsub(regex,subst[,flags])                        string       string
 rfc7239_field(field)                               string       string
 rfc7239_is_valid                                   string       boolean
@@ -20175,7 +20175,7 @@ table_sess_rate(table)                             string       integer
 table_trackers(table)                              string       integer
 ub64dec                                            string       string
 ub64enc                                            string       string
-ungrpc(field_number,[field_type])                  binary       binary / int
+ungrpc(field_number[,field_type])                  binary       binary / int
 unset-var(var)                                      any          same
 upper                                              string       string
 url_dec([in_form])                                 string       string
@@ -20217,7 +20217,7 @@ add(<value>)
   result as a signed integer. <value> can be a numeric value or a variable
   name. See section 2.8 about variables for details.
 
-add_item(<delim>,[<var>][,<suff>]])
+add_item(<delim>[,<var>[,<suff>]])
   Concatenates a minimum of 2 and up to 3 fields after the current sample which
   is then turned into a string. The first one, <delim>, is a constant string,
   that will be appended immediately after the existing sample if an existing
@@ -20288,7 +20288,7 @@ base64
   an SSL ID can be copied in a header). For base64url("URL and Filename
   Safe Alphabet" (RFC 4648)) variant see "ub64enc".
 
-be2dec(<separator>,<chunk_size>,[<truncate>])
+be2dec(<separator>,<chunk_size>[,<truncate>])
   Converts big-endian binary input sample to a string containing an unsigned
   integer number per <chunk_size> input bytes. <separator> is put every
   <chunk_size> binary input bytes if specified. <truncate> flag indicates
@@ -20301,7 +20301,7 @@ be2dec(<separator>,<chunk_size>,[<truncate>])
       bin(01020304050607),be2dec(,2,1)  # 2587721286
       bin(7f000001),be2dec(.,1)         # 127.0.0.1
 
-be2hex([<separator>],[<chunk_size>],[<truncate>])
+be2hex([<separator>[,<chunk_size>[,<truncate>]]])
   Converts big-endian binary input sample to a hex string containing two hex
   digits per input byte. It is used to log or transfer hex dumps of some
   binary input data in a way that can be reliably transferred (e.g. an SSL ID
@@ -20356,7 +20356,7 @@ capture-res(<id>)
             "http-response capture", "capture.req.hdr" and
             "capture.res.hdr" (sample fetches).
 
-concat([<start>],[<var>],[<end>])
+concat([<start>[,<var>[,<end>]]])
   Concatenates up to 3 fields after the current sample which is then turned to
   a string. The first one, <start>, is a constant string, that will be appended
   immediately after the existing sample. It may be omitted if not used. The
@@ -20575,7 +20575,7 @@ htonl
   this converter is used, the input integer value is first casted to an
   unsigned 32-bit integer.
 
-http_date([<offset],[<unit>])
+http_date([<offset[,<unit>]])
   Converts an integer supposed to contain a date since epoch to a string
   representing this date in a format suitable for use in HTTP header fields. If
   an offset value is specified, then it is added to the date before the
@@ -20601,7 +20601,7 @@ in_table(<table>)
   the presence of a certain key in a table tracking some elements (e.g. whether
   or not a source IP address or an Authorization header was already seen).
 
-ipmask(<mask4>,[<mask6>])
+ipmask(<mask4>[,<mask6>])
   Apply a mask to an IP address, and use the result for lookups and storage.
   This can be used to make all hosts within a certain mask to share the same
   table entries and as such use the same server. The mask4 can be passed in
@@ -20650,7 +20650,7 @@ json([<input-code>])
   Output log:
      {"ip":"127.0.0.1","user-agent":"Very \"Ugly\" UA 1\/2"}
 
-json_query(<json_path>,[<output_type>])
+json_query(<json_path>[,<output_type>])
   The json_query converter supports the JSON types string, boolean, number
   and array. Floating point numbers will be returned as a string. By
   specifying the output_type 'int' the value will be converted to an
@@ -20682,7 +20682,7 @@ json_query(<json_path>,[<output_type>])
      # get the value of the key 'iss' from a JWT Bearer token
      http-request set-var(txn.token_payload) req.hdr(Authorization),word(2,.),ub64dec,json_query('$.iss')
 
-jwt_header_query([<json_path>],[<output_type>])
+jwt_header_query([<json_path>[,<output_type>]])
   When given a JSON Web Token (JWT) in input, either returns the decoded header
   part of the token (the first base64-url encoded part of the JWT) if no
   parameter is given, or performs a json_query on the decoded header part of
@@ -20692,7 +20692,7 @@ jwt_header_query([<json_path>],[<output_type>])
   Please note that this converter is only available when HAProxy has been
   compiled with USE_OPENSSL.
 
-jwt_payload_query([<json_path>],[<output_type>])
+jwt_payload_query([<json_path>[,<output_type>]])
   When given a JSON Web Token (JWT) in input, either returns the decoded
   payload part of the token (the second base64-url encoded part of the JWT) if
   no parameter is given, or performs a json_query on the decoded payload part
@@ -21059,7 +21059,7 @@ or(<value>)
   integer, and returns the result as an signed integer. <value> can be a
   numeric value or a variable name. See section 2.8 about variables for details.
 
-param(<name>,[<delim>])
+param(<name>[,<delim>])
   This extracts the first occurrence of the parameter <name> in the input string
   where parameters are delimited by <delim>, which defaults to "&", and the name
   and value of the parameter are separated by a "=". If there is no "=" and
@@ -21096,7 +21096,7 @@ port_only
 
   See also: "host_only" converter which will return the host.
 
-protobuf(<field_number>,[<field_type>])
+protobuf(<field_number>[,<field_type>])
   This extracts the protocol buffers message field in raw mode of an input binary
   sample representation of a protocol buffer message with <field_number> as field
   number (dotted notation) if <field_type> is not present, or as an integer sample
@@ -21623,7 +21623,7 @@ ub64dec
 ub64enc
   This converter is the base64url variant of base64 converter.
 
-ungrpc(<field_number>,[<field_type>])
+ungrpc(<field_number>[,<field_type>])
   This extracts the protocol buffers message field in raw mode of an input binary
   sample representation of a gRPC message with <field_number> as field number
   (dotted notation) if <field_type> is not present, or as an integer sample if this
@@ -21964,7 +21964,7 @@ connslots([<backend>])                             integer
 cpu_calls                                          integer
 cpu_ns_avg                                         integer
 cpu_ns_tot                                         integer
-date([<offset>],[<unit>])                          integer
+date([<offset>[,<unit>]])                          integer
 date_us                                            integer
 env(<name>)                                        string
 fe_conn([<frontend>])                              integer
@@ -22152,7 +22152,7 @@ cpu_ns_tot : integer
   high cpu_calls count, for example when processing many HTTP chunks, and for
   this reason it is often preferred to log cpu_ns_avg instead.
 
-date([<offset>],[<unit>]) : integer
+date([<offset>[,<unit>]]) : integer
   Returns the current date as the epoch (number of seconds since 01/01/1970).
 
   If an offset value is specified, then it is added to the current date before
@@ -22773,13 +22773,13 @@ so_name                                            string
 src                                                ip
 src_bytes_in_rate([<table>])                       integer
 src_bytes_out_rate([<table>])                      integer
-src_clr_gpc(<idx>,[<table>])                       integer
+src_clr_gpc(<idx>[,<table>])                       integer
 src_clr_gpc0([<table>])                            integer
 src_clr_gpc1([<table>])                            integer
 src_conn_cnt([<table>])                            integer
 src_conn_cur([<table>])                            integer
 src_conn_rate([<table>])                           integer
-src_get_gpc(<idx>,[<table>])                       integer
+src_get_gpc(<idx>[,<table>])                       integer
 src_get_gpc0([<table>])                            integer
 src_get_gpc1([<table>])                            integer
 src_get_gpt(<idx>[,<table>])                       integer
@@ -22795,7 +22795,7 @@ src_http_fail_cnt([<table>])                       integer
 src_http_fail_rate([<table>])                      integer
 src_http_req_cnt([<table>])                        integer
 src_http_req_rate([<table>])                       integer
-src_inc_gpc(<idx>,[<table>])                       integer
+src_inc_gpc(<idx>[,<table>])                       integer
 src_inc_gpc0([<table>])                            integer
 src_inc_gpc1([<table>])                            integer
 src_is_local                                       boolean
@@ -23656,7 +23656,7 @@ src_bytes_out_rate([<table>]) : integer
   amount of bytes over the period configured in the table. If the address is
   not found, zero is returned. See also sc/sc0/sc1/sc2_bytes_out_rate.
 
-src_clr_gpc(<idx>,[<table>]) : integer
+src_clr_gpc(<idx>[,<table>]) : integer
   Clears the General Purpose Counter at the index <idx> of the array
   associated to the incoming connection's source address in the current proxy's
   stick-table or in the designated stick-table <table>, and returns its
@@ -23709,7 +23709,7 @@ src_conn_rate([<table>]) : integer
   measured in amount of connections over the period configured in the table. If
   the address is not found, zero is returned. See also sc/sc0/sc1/sc2_conn_rate.
 
-src_get_gpc(<idx>,[<table>]) : integer
+src_get_gpc(<idx>[,<table>]) : integer
   Returns the value of the General Purpose Counter at the index <idx> of the
   array associated to the incoming connection's source address in the
   current proxy's stick-table or in the designated stick-table <table>. <idx>
@@ -23841,7 +23841,7 @@ src_http_req_rate([<table>]) : integer
   table. This includes every started request, valid or not. If the address is
   not found, zero is returned. See also sc/sc0/sc1/sc2_http_req_rate.
 
-src_inc_gpc(<idx>,[<table>]) : integer
+src_inc_gpc(<idx>[,<table>]) : integer
   Increments the General Purpose Counter at index <idx> of the array
   associated to the incoming connection's source address in the current proxy's
   stick-table or in the designated stick-table <table>, and returns its new
