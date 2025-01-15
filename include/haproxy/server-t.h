@@ -271,8 +271,12 @@ struct srv_per_thread {
 
 /* Each server will have one occurrence of this structure per thread group */
 struct srv_per_tgroup {
+	struct queue queue;			/* pending connections */
+	unsigned int last_other_tgrp_served;	/* Last other tgrp we dequeued from */
+	unsigned int self_served;		/* Number of connection we dequeued from our own queue */
+	unsigned int dequeuing;                 /* non-zero = dequeuing in progress (atomic) */
 	unsigned int next_takeover;             /* thread ID to try to steal connections from next time */
-};
+} THREAD_ALIGNED(64);
 
 /* Configure the protocol selection for websocket */
 enum __attribute__((__packed__)) srv_ws_mode {
@@ -314,7 +318,7 @@ struct server {
 	struct log_target *log_target;          /* when 'mode log' is enabled, target facility used to transport log messages */
 	unsigned maxconn, minconn;		/* max # of active sessions (0 = unlimited), min# for dynamic limit. */
 	struct srv_per_thread *per_thr;         /* array of per-thread stuff such as connections lists */
-	struct srv_per_tgroup *per_tgrp;        /* array of per-tgroup stuff such as idle conns */
+	struct srv_per_tgroup *per_tgrp;        /* array of per-tgroup stuff such as idle conns and queues */
 	unsigned int *curr_idle_thr;            /* Current number of orphan idling connections per thread */
 
 	char *pool_conn_name;
@@ -343,6 +347,7 @@ struct server {
 	unsigned rweight;			/* remainder of weight in the current LB tree */
 	unsigned cumulative_weight;		/* weight of servers prior to this one in the same group, for chash balancing */
 	int maxqueue;				/* maximum number of pending connections allowed */
+	unsigned int queueslength;		/* Sum of the length of each queue */
 	int shard;				/* shard (in peers protocol context only) */
 	int log_bufsize;			/* implicit ring bufsize (for log server only - in log backend) */
 
