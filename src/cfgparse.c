@@ -4307,6 +4307,7 @@ init_proxies_list_stage2:
 		struct listener *listener;
 		unsigned int next_id;
 
+		proxy_init_per_thr(curproxy);
 		/* Configure SSL for each bind line.
 		 * Note: if configuration fails at some point, the ->ctx member
 		 * remains NULL so that listeners can later detach.

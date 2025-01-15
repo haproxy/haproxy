@@ -407,6 +407,7 @@ void free_proxy(struct proxy *p)
 
 	stktable_deinit(p->table);
 	ha_free(&p->table);
+	ha_free(&p->per_tgrp);
 
 	HA_RWLOCK_DESTROY(&p->lbprm.lock);
 	HA_RWLOCK_DESTROY(&p->lock);
@@ -1461,6 +1462,18 @@ void init_new_proxy(struct proxy *p)
 
 	/* initialize the default settings */
 	proxy_preset_defaults(p);
+}
+
+/* Initialize per-thread proxy fields */
+int proxy_init_per_thr(struct proxy *px)
+{
+	int i;
+
+	px->per_tgrp = calloc(global.nbtgroups, sizeof(*px->per_tgrp));
+	for (i = 0; i < global.nbtgroups; i++)
+		queue_init(&px->per_tgrp[i].queue, px, NULL);
+
+	return 0;
 }
 
 /* Preset default settings onto proxy <defproxy>. */

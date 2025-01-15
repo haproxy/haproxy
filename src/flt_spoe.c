@@ -1210,6 +1210,8 @@ static int spoe_init(struct proxy *px, struct flt_conf *fconf)
 	conf->agent->fe.timeout.client = TICK_ETERNITY;
 	conf->agent->fe.fe_req_ana = AN_REQ_SWITCHING_RULES;
 
+	proxy_init_per_thr(&conf->agent->fe);
+
 	conf->agent->engine_id = generate_pseudo_uuid();
 	if (conf->agent->engine_id == NULL)
 		return -1;

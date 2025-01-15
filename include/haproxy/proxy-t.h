@@ -271,6 +271,11 @@ struct error_snapshot {
 	char buf[VAR_ARRAY];                    /* copy of the beginning of the message for bufsize bytes */
 };
 
+/* Each proxy will have one occurence of this structure per thread group */
+struct proxy_per_tgroup {
+	struct queue queue;
+} THREAD_ALIGNED(64);
+
 struct proxy {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_PROXY */
 	char flags;                             /* bit field PR_FL_* */
@@ -358,6 +363,8 @@ struct proxy {
 
 	char *id, *desc;			/* proxy id (name) and description */
 	struct queue queue;			/* queued requests (pendconns) */
+	struct proxy_per_tgroup *per_tgrp;	/* array of per-tgroup stuff such as queues */
+	unsigned int queueslength;		/* Sum of the length of each queue */
 	int totpend;				/* total number of pending connections on this instance (for stats) */
 	unsigned int feconn, beconn;		/* # of active frontend and backends streams */
 	unsigned int fe_sps_lim;		/* limit on new sessions per second on the frontend */
