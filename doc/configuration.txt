@@ -20095,7 +20095,7 @@ host_only                                          string       string
 htonl                                              integer      integer
 http_date([offset[,unit]])                         integer      string
 iif(true,false)                                    boolean      string
-in_table([table])                                  string       boolean
+in_table([table])                                  any          boolean
 ipmask(mask4[,mask6])                              address      address
 json([input-code])                                 string       string
 json_query(json_path[,output_type])                string       _outtype_
@@ -20142,37 +20142,37 @@ sha2([bits])                                       binary       binary
 srv_queue                                          string       integer
 strcmp(var)                                        string       boolean
 sub(value)                                         integer      integer
-table_bytes_in_rate([table])                       string       integer
-table_bytes_out_rate([table])                      string       integer
-table_conn_cnt([table])                            string       integer
+table_bytes_in_rate([table])                       any          integer
+table_bytes_out_rate([table])                      any          integer
+table_conn_cnt([table])                            any          integer
 -- keyword -------------------------------------+- input type + output type -
-table_conn_cur([table])                            string       integer
-table_conn_rate([table])                           string       integer
-table_expire([table[,default_value]])              string       integer
-table_glitch_cnt([table])                          string       integer
-table_glitch_rate([table])                         string       integer
-table_gpc(idx[,table])                             string       integer
-table_gpc0([table])                                string       integer
-table_gpc0_rate([table])                           string       integer
-table_gpc1([table])                                string       integer
-table_gpc1_rate([table])                           string       integer
-table_gpc_rate(idx[,table])                        string       integer
-table_gpt(idx[,table])                             string       integer
-table_gpt0([table])                                string       integer
-table_http_err_cnt([table])                        string       integer
-table_http_err_rate([table])                       string       integer
-table_http_fail_cnt([table])                       string       integer
-table_http_fail_rate([table])                      string       integer
-table_http_req_cnt([table])                        string       integer
-table_http_req_rate([table])                       string       integer
-table_idle([table[,default_value]])                string       integer
-table_kbytes_in([table])                           string       integer
+table_conn_cur([table])                            any          integer
+table_conn_rate([table])                           any          integer
+table_expire([table[,default_value]])              any          integer
+table_glitch_cnt([table])                          any          integer
+table_glitch_rate([table])                         any          integer
+table_gpc(idx[,table])                             any          integer
+table_gpc0([table])                                any          integer
+table_gpc0_rate([table])                           any          integer
+table_gpc1([table])                                any          integer
+table_gpc1_rate([table])                           any          integer
+table_gpc_rate(idx[,table])                        any          integer
+table_gpt(idx[,table])                             any          integer
+table_gpt0([table])                                any          integer
+table_http_err_cnt([table])                        any          integer
+table_http_err_rate([table])                       any          integer
+table_http_fail_cnt([table])                       any          integer
+table_http_fail_rate([table])                      any          integer
+table_http_req_cnt([table])                        any          integer
+table_http_req_rate([table])                       any          integer
+table_idle([table[,default_value]])                any          integer
+table_kbytes_in([table])                           any          integer
 -- keyword -------------------------------------+- input type + output type -
-table_kbytes_out([table])                          string       integer
-table_server_id([table])                           string       integer
-table_sess_cnt([table])                            string       integer
-table_sess_rate([table])                           string       integer
-table_trackers([table])                            string       integer
+table_kbytes_out([table])                          any          integer
+table_server_id([table])                           any          integer
+table_sess_cnt([table])                            any          integer
+table_sess_rate([table])                           any          integer
+table_trackers([table])                            any          integer
 ub64dec                                            string       string
 ub64enc                                            string       string
 ungrpc(field_number[,field_type])                  binary       binary / int
@@ -20595,12 +20595,12 @@ iif(<true>,<false>)
     http-request set-header x-forwarded-proto %[ssl_fc,iif(https,http)]
 
 in_table([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, a boolean false is returned. Otherwise a boolean
-  true is returned. This can be used to verify the presence of a certain key in
-  a table tracking some elements (e.g. whether or not a source IP address or an
-  Authorization header was already seen).
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table, a
+  boolean false is returned. Otherwise a boolean true is returned. This can be
+  used to verify the presence of a certain key in a table tracking some
+  elements (e.g. whether or not a source IP address or an Authorization header
+  was already seen).
 
 ipmask(<mask4>[,<mask6>])
   Apply a mask to an IP address, and use the result for lookups and storage.
@@ -21369,47 +21369,42 @@ sub(<value>)
   or a variable name. See section 2.8 about variables for details.
 
 table_bytes_in_rate([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the average client-to-server bytes rate associated with the
-  input sample in the designated table, measured in amount of bytes over the
-  period configured in the table. See also the sc_bytes_in_rate sample fetch
-  keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the average
+  client-to-server bytes rate associated with the input sample in the designated
+  table, measured in amount of bytes over the period configured in the table.
+  See also the sc_bytes_in_rate sample fetch keyword.
 
 
 table_bytes_out_rate([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the average server-to-client bytes rate associated with the
-  input sample in the designated table, measured in amount of bytes over the
-  period configured in the table. See also the sc_bytes_out_rate sample fetch
-  keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the average
+  server-to-client bytes rate associated with the input sample in the designated
+  table, measured in amount of bytes over the period configured in the table.
+  See also the sc_bytes_out_rate sample fetch keyword.
 
 table_conn_cnt([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the cumulative number of incoming connections associated
-  with the input sample in the designated table. See also the sc_conn_cnt sample
-  fetch keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the cumulative
+  number of incoming connections associated with the input sample in the
+  designated table. See also the sc_conn_cnt sample fetch keyword.
 
 table_conn_cur([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the current amount of concurrent tracked connections
-  associated with the input sample in the designated table. See also the
-  sc_conn_cur sample fetch keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the current
+  amount of concurrent tracked connections associated with the input sample in
+  the designated table. See also the sc_conn_cur sample fetch keyword.
 
 table_conn_rate([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the average incoming connection rate associated with the
-  input sample in the designated table. See also the sc_conn_rate sample fetch
-  keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the average
+  incoming connection rate associated with the input sample in the designated
+  table. See also the sc_conn_rate sample fetch keyword.
 
 table_expire([<table>[,<default_value>]])
   Uses the input sample to perform a look up in in the current proxy's
@@ -21420,145 +21415,134 @@ table_expire([<table>[,<default_value>]])
   in the designated table. See also the table_idle sample fetch keyword.
 
 table_glitch_cnt([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the cumulative number of front connection glitches
-  associated with the input sample in the designated table. See also the
-  sc_glitch_cnt sample fetch keyword and fc_glitches for the value measured on
-  the current front connection.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the cumulative
+  number of front connection glitches associated with the input sample in the
+  designated table. See also the sc_glitch_cnt sample fetch keyword and
+  fc_glitches for the value measured on the current front connection.
 
 table_glitch_rate([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the average front connection glitch rate associated with
-  the input sample in the designated table. See also the sc_glitch_rate sample
-  fetch keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the average
+  front connection glitch rate associated with the input sample in the
+  designated table. See also the sc_glitch_rate sample fetch keyword.
 
 table_gpc(<idx>[,<table>])
-  Uses the string representation of the input sample to perform a lookup in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the current value of the General Purpose Counter at the
-  index <idx> of the array associated to the input sample in the designated
-  <table>. <idx> is an integer between 0 and 99.
-  If there is no GPC stored at this index, it also returns the boolean value 0.
-  This applies only to the 'gpc' array data_type (and not to the legacy
-  'gpc0' nor 'gpc1' data_types).
-  See also the sc_get_gpc sample fetch keyword.
+  Uses the input sample to perform a lookup in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the current
+  value of the General Purpose Counter at the index <idx> of the array
+  associated to the input sample in the designated <table>. <idx> is an integer
+  between 0 and 99. If there is no GPC stored at this index, it also returns
+  the boolean value 0. This applies only to the 'gpc' array data_type (and not
+  to the legacy 'gpc0' nor 'gpc1' data_types). See also the sc_get_gpc sample
+  fetch keyword.
 
 table_gpc0([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the current value of the first general purpose counter
-  associated with the input sample in the designated table. See also the
-  sc_get_gpc0 sample fetch keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the current
+  value of the first general purpose counter associated with the input sample
+  in the designated table. See also the sc_get_gpc0 sample fetch keyword.
 
 table_gpc0_rate([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the frequency which the gpc0 counter was incremented over
-  the configured period in the table, associated with the input sample in the
-  designated table. See also the sc_get_gpc0_rate sample fetch keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the frequency
+  which the gpc0 counter was incremented over the configured period in the
+  table, associated with the input sample in the designated table. See also the
+  sc_get_gpc0_rate sample fetch keyword.
 
 table_gpc1([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the current value of the second general purpose counter
-  associated with the input sample in the designated table. See also the
-  sc_get_gpc1 sample fetch keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the current
+  value of the second general purpose counter associated with the input sample
+  in the designated table. See also the sc_get_gpc1 sample fetch keyword.
 
 table_gpc1_rate([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the frequency which the gpc1 counter was incremented over
-  the configured period in the table, associated with the input sample in the
-  designated table. See also the sc_get_gpc1_rate sample fetch keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the frequency
+  which the gpc1 counter was incremented over the configured period in the
+  table, associated with the input sample in the designated table. See also the
+  sc_get_gpc1_rate sample fetch keyword.
 
 table_gpc_rate(<idx>[,<table>])
-  Uses the string representation of the input sample to perform a lookup in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the frequency which the Global Purpose Counter at index
-  <idx> of the array (associated to the input sample in the designated
-  stick-table <table>) was incremented over the configured period. <idx> is an
-  integer between 0 and 99. If there is no gpc_rate stored at this index, it
-  also returns the boolean value 0.
-  This applies only to the 'gpc_rate' array data_type (and not to the
-  legacy 'gpc0_rate' nor 'gpc1_rate' data_types).
-  See also the sc_gpc_rate sample fetch keyword.
+  Uses the input sample to perform a lookup in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the frequency
+  which the Global Purpose Counter at index <idx> of the array (associated to
+  the input sample in the designated stick-table <table>) was incremented over
+  the configured period. <idx> is an integer between 0 and 99. If there is no
+  gpc_rate stored at this index, it also returns the boolean value 0. This
+  applies only to the 'gpc_rate' array data_type (and not to the legacy
+  'gpc0_rate' nor 'gpc1_rate' data_types). See also the sc_gpc_rate sample
+  fetch keyword.
 
 table_gpt(<idx>[,<table>])
-  Uses the string representation of the input sample to perform a lookup in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, boolean value zero is returned. Otherwise the
-  converter returns the current value of the general purpose tag at the index
-  <idx> of the array associated to the input sample in the designated <table>.
-  <idx> is an integer between 0 and 99. If there is no GPT stored at this index,
-  it also returns the boolean value 0. This applies only to the 'gpt' array
-  data_type (and not on the legacy 'gpt0' data-type).
-  See also the sc_get_gpt sample fetch keyword.
+  Uses the input sample to perform a lookup in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  boolean value zero is returned. Otherwise the converter returns the current
+  value of the general purpose tag at the index <idx> of the array associated
+  to the input sample in the designated <table>. <idx> is an integer between
+  0 and 99. If there is no GPT stored at this index, it also returns the
+  boolean value 0. This applies only to the 'gpt' array data_type (and not on
+  the legacy 'gpt0' data-type). See also the sc_get_gpt sample fetch keyword.
 
 table_gpt0([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, boolean value zero is returned. Otherwise the
-  converter returns the current value of the first general purpose tag
-  associated with the input sample in the designated table. See also the
-  sc_get_gpt0 sample fetch keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  boolean value zero is returned. Otherwise the converter returns the current
+  value of the first general purpose tag associated with the input sample in
+  the designated table. See also the sc_get_gpt0 sample fetch keyword.
 
 table_http_err_cnt([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the cumulative number of HTTP errors associated with the
-  input sample in the designated table. See also the sc_http_err_cnt sample
-  fetch keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the cumulative
+  number of HTTP errors associated with the input sample in the designated
+  table. See also the sc_http_err_cnt sample fetch keyword.
 
 table_http_err_rate([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  average rate of HTTP errors associated with the input sample in the designated
-  table, measured in amount of errors over the period configured in the table.
-  See also the sc_http_err_rate sample fetch keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the average rate of HTTP errors
+  associated with the input sample in the designated table, measured in amount
+  of errors over the period configured in the table. See also the
+  sc_http_err_rate sample fetch keyword.
 
 table_http_fail_cnt([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the cumulative number of HTTP failures associated with the
-  input sample in the designated table. See also the sc_http_fail_cnt sample
-  fetch keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the cumulative
+  number of HTTP failures associated with the input sample in the designated
+  table. See also the sc_http_fail_cnt sample fetch keyword.
 
 table_http_fail_rate([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  average rate of HTTP failures associated with the input sample in the
-  designated table, measured in amount of failures over the period configured
-  in the table. See also the sc_http_fail_rate sample fetch keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the average rate of HTTP failures
+  associated with the input sample in the designated table, measured in amount
+  of failures over the period configured in the table. See also the
+  sc_http_fail_rate sample fetch keyword.
 
 table_http_req_cnt([<table>])
-  Uses the string representation of the input sample to perform a look up in the
-  current proxy's stick-table or in the designated stick-table. If the key is
-  not found in the table, integer value zero is returned. Otherwise the
-  converter returns the cumulative number of HTTP requests associated with the
-  input sample in the designated table. See also the sc_http_req_cnt sample
-  fetch keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the cumulative
+  number of HTTP requests associated with the input sample in the designated
+  table. See also the sc_http_req_cnt sample fetch keyword.
 
 table_http_req_rate([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  average rate of HTTP requests associated with the input sample in the
-  designated table, measured in amount of requests over the period configured in
-  the table. See also the sc_http_req_rate sample fetch keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the average rate of HTTP requests
+  associated with the input sample in the designated table, measured in amount
+  of requests over the period configured in the table. See also the
+  sc_http_req_rate sample fetch keyword.
 
 table_idle([<table>[,<default_value>]])
   Uses the input sample to perform a look up in the current proxy's stick-table
@@ -21570,61 +21554,60 @@ table_idle([<table>[,<default_value>]])
   table_expire sample fetch keyword.
 
 table_kbytes_in([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the cumulative number of client-to-server data associated
-  with the input sample in the designated table, measured in kilobytes. The test
-  is currently performed on 32-bit integers, which limits values to 4 terabytes.
-  See also the sc_kbytes_in sample fetch keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the cumulative
+  number of client-to-server data associated with the input sample in the
+  designated table, measured in kilobytes. The test is currently performed on
+  32-bit integers, which limits values to 4 terabytes. See also the sc_kbytes_in
+  sample fetch keyword.
 
 table_kbytes_out([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the cumulative number of server-to-client data associated
-  with the input sample in the designated table, measured in kilobytes. The test
-  is currently performed on 32-bit integers, which limits values to 4 terabytes.
-  See also the sc_kbytes_out sample fetch keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the cumulative
+  number of server-to-client data associated with the input sample in the
+  designated table, measured in kilobytes. The test is currently performed on
+  32-bit integers, which limits values to 4 terabytes. See also the
+  sc_kbytes_out sample fetch keyword.
 
 table_server_id([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the server ID associated with the input sample in the
-  designated table. A server ID is associated to a sample by a "stick" rule when
-  a connection to a server succeeds. A server ID zero means that no server is
-  associated with this key.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the server ID
+  associated with the input sample in the designated table. A server ID is
+  associated to a sample by a "stick" rule when a connection to a server
+  succeeds. A server ID zero means that no server is associated with this key.
 
 table_sess_cnt([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the cumulative number of incoming sessions associated with
-  the input sample in the designated table. Note that a session here refers to
-  an incoming connection being accepted by the "tcp-request connection"
-  rulesets. See also the sc_sess_cnt sample fetch keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the cumulative
+  number of incoming sessions associated with the input sample in the designated
+  table. Note that a session here refers to an incoming connection being
+  accepted by the "tcp-request connection" rulesets. See also the sc_sess_cnt
+  sample fetch keyword.
 
 table_sess_rate([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the average incoming session rate associated with the input
-  sample in the designated table. Note that a session here refers to an incoming
-  connection being accepted by the "tcp-request connection" rulesets. See also
-  the sc_sess_rate sample fetch keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the average
+  incoming session rate associated with the input sample in the designated
+  table. Note that a session here refers to an incoming connection being
+  accepted by the "tcp-request connection" rulesets. See also the sc_sess_rate
+  sample fetch keyword.
 
 table_trackers([<table>])
-  Uses the string representation of the input sample to perform a look up in
-  the current proxy's stick-table or in the designated stick-table. If the key
-  is not found in the table, integer value zero is returned. Otherwise the
-  converter returns the current amount of concurrent connections tracking the
-  same key as the input sample in the designated table. It differs from
-  table_conn_cur in that it does not rely on any stored information but on the
-  table's reference count (the "use" value which is returned by "show table" on
-  the CLI). This may sometimes be more suited for layer7 tracking. It can be
-  used to tell a server how many concurrent connections there are from a given
-  address for example. See also the sc_trackers sample fetch keyword.
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. If the key is not found in the table,
+  integer value zero is returned. Otherwise the converter returns the current
+  amount of concurrent connections tracking the same key as the input sample
+  in the designated table. It differs from table_conn_cur in that it does not
+  rely on any stored information but on the table's reference count (the "use"
+  value which is returned by "show table" on the CLI). This may sometimes be
+  more suited for layer7 tracking. It can be used to tell a server how many
+  concurrent connections there are from a given address for example. See also
+  the sc_trackers sample fetch keyword.
 
 ub64dec
   This converter is the base64url variant of b64dec converter. base64url
