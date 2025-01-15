@@ -1826,6 +1826,23 @@ static int sample_conv_table_bytes_in_rate(const struct arg *arg_p, struct sampl
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the data rate sent to clients in bytes/s
+ * if the key is present in the table, otherwise zero, so that comparisons can
+ * be easily performed. If the inspected parameter is not stored in the table,
+ * <not found> is returned.
+ */
+static int smp_fetch_bytes_out_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
+static int sample_conv_table_bytes_out_rate(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct stkctr stkctr;
+
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
+
+	return smp_fetch_bytes_out_rate(&stkctr, smp, 1);
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
  * it up into this table. Returns the cumulated number of connections for the key
  * if the key is present in the table, otherwise zero, so that comparisons can
  * be easily performed. If the inspected parameter is not stored in the table,
@@ -1940,23 +1957,6 @@ static int sample_conv_table_idle(const struct arg *arg_p, struct sample *smp, v
 
 	stktable_release(t, ts);
 	return 1;
-}
-
-/* Casts sample <smp> to the type of the table specified in arg(0), and looks
- * it up into this table. Returns the data rate sent to clients in bytes/s
- * if the key is present in the table, otherwise zero, so that comparisons can
- * be easily performed. If the inspected parameter is not stored in the table,
- * <not found> is returned.
- */
-static int smp_fetch_bytes_out_rate(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
-static int sample_conv_table_bytes_out_rate(const struct arg *arg_p, struct sample *smp, void *private)
-{
-	struct stkctr stkctr;
-
-	stkctr.table = arg_p[0].data.t;
-	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 0));
-
-	return smp_fetch_bytes_out_rate(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
