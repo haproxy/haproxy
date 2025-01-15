@@ -564,7 +564,7 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 		fwrr_update_position(grp, srv);
 		fwrr_dequeue_srv(srv);
 		grp->curr_pos++;
-		if (!srv->maxconn || (!srv->queue.length && srv->served < srv_dynamic_maxconn(srv))) {
+		if (!srv->maxconn || (!srv->queueslength && srv->served < srv_dynamic_maxconn(srv))) {
 			/* make sure it is not the server we are trying to exclude... */
 			if (srv != srvtoavoid || avoided)
 				break;

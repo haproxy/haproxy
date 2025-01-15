@@ -584,7 +584,7 @@ struct server *get_server_rnd(struct stream *s, const struct server *avoid)
 	 * the backend's queue instead.
 	 */
 	if (curr &&
-	    (curr->queue.length || (curr->maxconn && curr->served >= srv_dynamic_maxconn(curr))))
+	    (curr->queueslength || (curr->maxconn && curr->served >= srv_dynamic_maxconn(curr))))
 		curr = NULL;
 
 	return curr;
@@ -654,7 +654,7 @@ int assign_server(struct stream *s)
 			    ((s->sess->flags & SESS_FL_PREFER_LAST) ||
 			     (!s->be->max_ka_queue ||
 			      server_has_room(tmpsrv) || (
-			      tmpsrv->queue.length + 1 < s->be->max_ka_queue))) &&
+			      tmpsrv->queueslength + 1 < s->be->max_ka_queue))) &&
 			    srv_currently_usable(tmpsrv)) {
 				list_for_each_entry(conn, &pconns->conn_list, sess_el) {
 					if (!(conn->flags & CO_FL_WAIT_XPRT)) {
@@ -681,7 +681,7 @@ int assign_server(struct stream *s)
 		/* if there's some queue on the backend, with certain algos we
 		 * know it's because all servers are full.
 		 */
-		if (s->be->queue.length && s->be->served && s->be->queue.length != s->be->beconn &&
+		if (s->be->queueslength && s->be->served && s->be->queueslength != s->be->beconn &&
 		    (((s->be->lbprm.algo & (BE_LB_KIND|BE_LB_NEED|BE_LB_PARM)) == BE_LB_ALGO_FAS)||   // first
 		     ((s->be->lbprm.algo & (BE_LB_KIND|BE_LB_NEED|BE_LB_PARM)) == BE_LB_ALGO_RR) ||   // roundrobin
 		     ((s->be->lbprm.algo & (BE_LB_KIND|BE_LB_NEED|BE_LB_PARM)) == BE_LB_ALGO_SRR))) { // static-rr
@@ -1051,7 +1051,7 @@ int assign_server_and_queue(struct stream *s)
 					 __ha_cpu_relax());
 			}
 			if (!got_it) {
-				if (srv->maxqueue > 0 && srv->queue.length >= srv->maxqueue)
+				if (srv->maxqueue > 0 && srv->queueslength >= srv->maxqueue)
 					return SRV_STATUS_FULL;
 
 				p = pendconn_add(s);
@@ -3063,7 +3063,7 @@ smp_fetch_connslots(const struct arg *args, struct sample *smp, const char *kw, 
 		}
 
 		smp->data.u.sint += (iterator->maxconn - iterator->cur_sess)
-		                       +  (iterator->maxqueue - iterator->queue.length);
+		                       +  (iterator->maxqueue - iterator->queueslength);
 	}
 
 	return 1;
@@ -3340,7 +3340,7 @@ smp_fetch_srv_queue(const struct arg *args, struct sample *smp, const char *kw, 
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = args->data.srv->queue.length;
+	smp->data.u.sint = args->data.srv->queueslength;
 	return 1;
 }
 
@@ -3482,7 +3482,7 @@ sample_conv_srv_queue(const struct arg *args, struct sample *smp, void *private)
 		return 0;
 
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = srv->queue.length;
+	smp->data.u.sint = srv->queueslength;
 	return 1;
 }
 

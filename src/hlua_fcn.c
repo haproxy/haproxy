@@ -1421,7 +1421,7 @@ int hlua_server_get_pend_conn(lua_State *L)
 		return 1;
 	}
 
-	lua_pushinteger(L, srv->queue.length);
+	lua_pushinteger(L, srv->queueslength);
 	return 1;
 }
 

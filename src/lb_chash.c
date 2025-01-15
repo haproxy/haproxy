@@ -521,7 +521,7 @@ struct server *chash_get_next_server(struct proxy *p, struct server *srvtoavoid)
 		 * case we simply remember it for later use if needed.
 		 */
 		s = eb32_entry(node, struct tree_occ, node)->server;
-		if (!s->maxconn || (!s->queue.length && s->served < srv_dynamic_maxconn(s))) {
+		if (!s->maxconn || (!s->queueslength && s->served < srv_dynamic_maxconn(s))) {
 			if (s != srvtoavoid) {
 				srv = s;
 				break;

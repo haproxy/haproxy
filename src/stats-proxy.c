@@ -786,7 +786,7 @@ int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
 				field = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
 				break;
 			case ST_I_PX_QCUR:
-				field = mkf_u32(0, sv->queue.length);
+				field = mkf_u32(0, sv->queueslength);
 				break;
 			case ST_I_PX_QMAX:
 				field = mkf_u32(FN_MAX, sv->counters.nbpend_max);
@@ -1165,7 +1165,7 @@ int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
 				field = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
 				break;
 			case ST_I_PX_QCUR:
-				field = mkf_u32(0, px->queue.length);
+				field = mkf_u32(0, px->queueslength);
 				break;
 			case ST_I_PX_QMAX:
 				field = mkf_u32(FN_MAX, px->be_counters.nbpend_max);

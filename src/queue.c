@@ -348,6 +348,7 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px, int 
 
 	_HA_ATOMIC_DEC(&px->queue.length);
 	_HA_ATOMIC_INC(&px->queue.idx);
+	_HA_ATOMIC_DEC(&px->queueslength);
 	return 1;
 
  use_p:
@@ -369,6 +370,7 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px, int 
 
 	_HA_ATOMIC_DEC(&srv->queue.length);
 	_HA_ATOMIC_INC(&srv->queue.idx);
+	_HA_ATOMIC_DEC(&srv->queueslength);
 	return 1;
 }
 
@@ -487,6 +489,7 @@ struct pendconn *pendconn_add(struct stream *strm)
 	struct server   *srv;
 	struct queue    *q;
 	unsigned int *max_ptr;
+	unsigned int *queueslength;
 	unsigned int old_max, new_max;
 
 	p = pool_alloc(pool_head_pendconn);
@@ -509,15 +512,18 @@ struct pendconn *pendconn_add(struct stream *strm)
 	if (srv) {
 		q = &srv->queue;
 		max_ptr = &srv->counters.nbpend_max;
+		queueslength = &srv->queueslength;
 	}
 	else {
 		q = &px->queue;
 		max_ptr = &px->be_counters.nbpend_max;
+		queueslength = &px->queueslength;
 	}
 
 	p->queue = q;
 	p->queue_idx  = _HA_ATOMIC_LOAD(&q->idx) - 1; // for logging only
-	new_max = _HA_ATOMIC_ADD_FETCH(&q->length, 1);
+	new_max = _HA_ATOMIC_ADD_FETCH(queueslength, 1);
+	_HA_ATOMIC_INC(&q->length);
 	old_max = _HA_ATOMIC_LOAD(max_ptr);
 	while (new_max > old_max) {
 		if (likely(_HA_ATOMIC_CAS(max_ptr, &old_max, new_max)))
@@ -572,6 +578,7 @@ int pendconn_redistribute(struct server *s)
 
 	if (xferred) {
 		_HA_ATOMIC_SUB(&s->queue.length, xferred);
+		_HA_ATOMIC_SUB(&s->queueslength, xferred);
 		_HA_ATOMIC_SUB(&s->proxy->totpend, xferred);
 	}
 
@@ -597,6 +604,7 @@ int pendconn_redistribute(struct server *s)
 
 	if (px_xferred) {
 		_HA_ATOMIC_SUB(&px->queue.length, px_xferred);
+		_HA_ATOMIC_SUB(&px->queueslength, px_xferred);
 		_HA_ATOMIC_SUB(&px->totpend, px_xferred);
 	}
  done:

@@ -2092,13 +2092,13 @@ static void srv_append_more(struct buffer *msg, struct server *s,
 				" %d sessions active, %d requeued, %d remaining in queue",
 				s->proxy->srv_act, s->proxy->srv_bck,
 				(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
-				s->cur_sess, xferred, s->queue.length);
+				s->cur_sess, xferred, s->queueslength);
 		else
 			chunk_appendf(msg, ". %d active and %d backup servers online.%s"
 				" %d sessions requeued, %d total in queue",
 				s->proxy->srv_act, s->proxy->srv_bck,
 				(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
-				xferred, s->queue.length);
+				xferred, s->queueslength);
 	}
 }
 
@@ -6044,7 +6044,7 @@ int srv_check_for_deletion(const char *bename, const char *svname, struct proxy 
 
 	/* Ensure that there is no active/pending connection on the server. */
 	if (srv->curr_used_conns ||
-	    !eb_is_empty(&srv->queue.head) || srv_has_streams(srv)) {
+	    srv->queueslength || srv_has_streams(srv)) {
 		msg = "Server still has connections attached to it, cannot remove it.";
 		goto leave;
 	}
