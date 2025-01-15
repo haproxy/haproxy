@@ -22469,11 +22469,11 @@ str(<string>) : string
 
 table_avl([<table>]) : integer
   Returns the total number of available entries in the current proxy's
-  stick-table or in the designated stick-table. See also table_cnt.
+  stick-table or in the designated stick-table. See also "table_cnt".
 
 table_cnt([<table>]) : integer
   Returns the total number of entries currently in use in the current proxy's
-  stick-table or in the designated stick-table. See also src_conn_cnt and
+  stick-table or in the designated stick-table. See also "table_conn_cnt" and
   table_avl for other entry counting methods.
 
 thread : integer
@@ -23283,7 +23283,7 @@ sc1_bytes_in_rate([<table>]) : integer
 sc2_bytes_in_rate([<table>]) : integer
   Returns the average client-to-server bytes rate from the currently tracked
   counters, measured in amount of bytes over the period configured in the
-  table. See also src_bytes_in_rate.
+  table. See also "table_bytes_in_rate".
 
 sc_bytes_out_rate(<ctr>[,<table>]) : integer
 sc0_bytes_out_rate([<table>]) : integer
@@ -23291,7 +23291,7 @@ sc1_bytes_out_rate([<table>]) : integer
 sc2_bytes_out_rate([<table>]) : integer
   Returns the average server-to-client bytes rate from the currently tracked
   counters, measured in amount of bytes over the period configured in the
-  table. See also src_bytes_out_rate.
+  table. See also "table_bytes_out_rate".
 
 sc_clr_gpc(<idx>,<ctr>[,<table>]) : integer
   Clears the General Purpose Counter at the index <idx> of the array
@@ -23338,7 +23338,7 @@ sc0_conn_cnt([<table>]) : integer
 sc1_conn_cnt([<table>]) : integer
 sc2_conn_cnt([<table>]) : integer
   Returns the cumulative number of incoming connections from currently tracked
-  counters. See also src_conn_cnt.
+  counters. See also "table_conn_cnt".
 
 sc_conn_cur(<ctr>[,<table>]) : integer
 sc0_conn_cur([<table>]) : integer
@@ -23346,7 +23346,7 @@ sc1_conn_cur([<table>]) : integer
 sc2_conn_cur([<table>]) : integer
   Returns the current amount of concurrent connections tracking the same
   tracked counters. This number is automatically incremented when tracking
-  begins and decremented when tracking stops. See also src_conn_cur.
+  begins and decremented when tracking stops. See also "table_conn_cur".
 
 sc_conn_rate(<ctr>[,<table>]) : integer
 sc0_conn_rate([<table>]) : integer
@@ -23354,7 +23354,7 @@ sc1_conn_rate([<table>]) : integer
 sc2_conn_rate([<table>]) : integer
   Returns the average connection rate from the currently tracked counters,
   measured in amount of connections over the period configured in the table.
-  See also src_conn_rate.
+  See also "table_conn_rate".
 
 sc_get_gpc(<idx>,<ctr>[,<table>]) : integer
   Returns the value of the General Purpose Counter at the index <idx>
@@ -23364,21 +23364,21 @@ sc_get_gpc(<idx>,<ctr>[,<table>]) : integer
   <ctr> an integer between 0 and 2. If there is not gpc stored at this
   index, zero is returned.
   This fetch applies only to the 'gpc' array data_type (and not to the legacy
-  'gpc0' nor 'gpc1' data_types). See also src_get_gpc and sc_inc_gpc.
+  'gpc0' nor 'gpc1' data_types). See also "table_gpc" and "sc_inc_gpc".
 
 sc_get_gpc0(<ctr>[,<table>]) : integer
 sc0_get_gpc0([<table>]) : integer
 sc1_get_gpc0([<table>]) : integer
 sc2_get_gpc0([<table>]) : integer
   Returns the value of the first General Purpose Counter associated to the
-  currently tracked counters. See also src_get_gpc0 and sc/sc0/sc1/sc2_inc_gpc0.
+  currently tracked counters. See also "table_gpc0" and sc/sc0/sc1/sc2_inc_gpc0.
 
 sc_get_gpc1(<ctr>[,<table>]) : integer
 sc0_get_gpc1([<table>]) : integer
 sc1_get_gpc1([<table>]) : integer
 sc2_get_gpc1([<table>]) : integer
   Returns the value of the second General Purpose Counter associated to the
-  currently tracked counters. See also src_get_gpc1 and sc/sc0/sc1/sc2_inc_gpc1.
+  currently tracked counters. See also "table_gpc1" and sc/sc0/sc1/sc2_inc_gpc1.
 
 sc_get_gpt(<idx>,<ctr>[,<table>]) : integer
   Returns the value of the first General Purpose Tag at the index <idx> of
@@ -23387,14 +23387,14 @@ sc_get_gpt(<idx>,<ctr>[,<table>]) : integer
   is an integer between 0 and 99 and <ctr> an integer between 0 and 2.
   If there is no GPT stored at this index, zero is returned.
   This fetch applies only to the 'gpt' array data_type (and not on
-  the legacy 'gpt0' data-type). See also src_get_gpt.
+  the legacy 'gpt0' data-type). See also "table_gpt".
 
 sc_get_gpt0(<ctr>[,<table>]) : integer
 sc0_get_gpt0([<table>]) : integer
 sc1_get_gpt0([<table>]) : integer
 sc2_get_gpt0([<table>]) : integer
   Returns the value of the first General Purpose Tag associated to the
-  currently tracked counters. See also src_get_gpt0.
+  currently tracked counters. See also "table_gpt0".
 
 sc_glitch_cnt(<ctr>[,<table>]) : integer
 sc0_glitch_cnt([<table>]) : integer
@@ -23422,7 +23422,7 @@ sc2_glitch_rate([<table>]) : integer
   occasionally cause a few glitches per connection, hence a low rate is
   generally expected. However, a very bogus or malevolent client may quickly
   cause thousands of events to be added per connection, and maintain a high
-  rate here. See also src_glitch_rate and sc_glitch_cnt.
+  rate here. See also "table_glitch_rate" and "sc_glitch_cnt".
 
 sc_gpc_rate(<idx>,<ctr>[,<table>]) : integer
   Returns the average increment rate of the General Purpose Counter at the
@@ -23435,7 +23435,7 @@ sc_gpc_rate(<idx>,<ctr>[,<table>]) : integer
   for a value to be returned, as 'gpc' only holds the event count.
   This fetch applies only to the 'gpc_rate' array data_type (and not to
   the legacy 'gpc0_rate' nor 'gpc1_rate' data_types).
-  See also src_gpc_rate, sc_get_gpc, and sc_inc_gpc.
+  See also "table_gpc_rate", "sc_get_gpc", and "sc_inc_gpc".
 
 sc_gpc0_rate(<ctr>[,<table>]) : integer
 sc0_gpc0_rate([<table>]) : integer
@@ -23465,7 +23465,7 @@ sc1_http_err_cnt([<table>]) : integer
 sc2_http_err_cnt([<table>]) : integer
   Returns the cumulative number of HTTP errors from the currently tracked
   counters. This includes the both request errors and 4xx error responses.
-  See also src_http_err_cnt.
+  See also "table_http_err_cnt".
 
 sc_http_err_rate(<ctr>[,<table>]) : integer
 sc0_http_err_rate([<table>]) : integer
@@ -23482,7 +23482,7 @@ sc1_http_fail_cnt([<table>]) : integer
 sc2_http_fail_cnt([<table>]) : integer
   Returns the cumulative number of HTTP response failures from the currently
   tracked counters. This includes the both response errors and 5xx status codes
-  other than 501 and 505. See also src_http_fail_cnt.
+  other than 501 and 505. See also "table_http_fail_cnt".
 
 sc_http_fail_rate(<ctr>[,<table>]) : integer
 sc0_http_fail_rate([<table>]) : integer
@@ -23491,7 +23491,7 @@ sc2_http_fail_rate([<table>]) : integer
   Returns the average rate of HTTP response failures from the currently tracked
   counters, measured in amount of failures over the period configured in the
   table. This includes the both response errors and 5xx status codes other than
-  501 and 505. See also src_http_fail_rate.
+  501 and 505. See also "table_http_fail_rate".
 
 sc_http_req_cnt(<ctr>[,<table>]) : integer
 sc0_http_req_cnt([<table>]) : integer
@@ -23552,7 +23552,7 @@ sc1_kbytes_in([<table>]) : integer
 sc2_kbytes_in([<table>]) : integer
   Returns the total amount of client-to-server data from the currently tracked
   counters, measured in kilobytes. The test is currently performed on 32-bit
-  integers, which limits values to 4 terabytes. See also src_kbytes_in.
+  integers, which limits values to 4 terabytes. See also "table_kbytes_in".
 
 sc_kbytes_out(<ctr>[,<table>]) : integer
 sc0_kbytes_out([<table>]) : integer
@@ -23560,7 +23560,7 @@ sc1_kbytes_out([<table>]) : integer
 sc2_kbytes_out([<table>]) : integer
   Returns the total amount of server-to-client data from the currently tracked
   counters, measured in kilobytes. The test is currently performed on 32-bit
-  integers, which limits values to 4 terabytes. See also src_kbytes_out.
+  integers, which limits values to 4 terabytes. See also "table_kbytes_out".
 
 sc_key(<ctr>) : any
 sc0_key : any
@@ -23577,7 +23577,7 @@ sc2_sess_cnt([<table>]) : integer
   connection" rule, from the currently tracked counters. A backend may count
   more sessions than connections because each connection could result in many
   backend sessions if some HTTP keep-alive is performed over the connection
-  with the client. See also src_sess_cnt.
+  with the client. See also "table_sess_cnt".
 
 sc_sess_rate(<ctr>[,<table>]) : integer
 sc0_sess_rate([<table>]) : integer
@@ -23588,7 +23588,7 @@ sc2_sess_rate([<table>]) : integer
   session is a connection that got past the early "tcp-request connection"
   rules. A backend may count more sessions than connections because each
   connection could result in many backend sessions if some HTTP keep-alive is
-  performed over the connection with the client. See also src_sess_rate.
+  performed over the connection with the client. See also "table_sess_rate".
 
 sc_tracked(<ctr>[,<table>]) : boolean
 sc0_tracked([<table>]) : boolean
@@ -23643,16 +23643,16 @@ src : ip
        http-request set-header X-Country %[src,map_ip(geoip.lst)]
 
 src_bytes_in_rate([<table>]) : integer
-  Returns the average bytes rate from the incoming connection's source address
-  in the current proxy's stick-table or in the designated stick-table, measured
-  in amount of bytes over the period configured in the table. If the address is
-  not found, zero is returned. See also sc/sc0/sc1/sc2_bytes_in_rate.
+  Same as "table_bytes_in_rate" converter with key set to the incoming
+  connection's source address.
+
+  Equivalent to: src,table_bytes_in_rate([<table>])
 
 src_bytes_out_rate([<table>]) : integer
-  Returns the average bytes rate to the incoming connection's source address in
-  the current proxy's stick-table or in the designated stick-table, measured in
-  amount of bytes over the period configured in the table. If the address is
-  not found, zero is returned. See also sc/sc0/sc1/sc2_bytes_out_rate.
+  Same as "table_bytes_out_rate" converter with key set to the incoming
+  connection's source address.
+
+  Equivalent to: src,table_bytes_out_rate([<table>])
 
 src_clr_gpc(<idx>[,<table>]) : integer
   Clears the General Purpose Counter at the index <idx> of the array
@@ -23690,154 +23690,118 @@ src_clr_gpc1([<table>]) : integer
   was verified.
 
 src_conn_cnt([<table>]) : integer
-  Returns the cumulative number of connections initiated from the current
-  incoming connection's source address in the current proxy's stick-table or in
-  the designated stick-table. If the address is not found, zero is returned.
-  See also sc/sc0/sc1/sc2_conn_cnt.
+  Same as "table_conn_cnt" converter with key set to the incoming
+  connection's source address.
+
+  Equivalent to: src,table_conn_cnt([<table>])
 
 src_conn_cur([<table>]) : integer
-  Returns the current amount of concurrent connections initiated from the
-  current incoming connection's source address in the current proxy's
-  stick-table or in the designated stick-table. If the address is not found,
-  zero is returned. See also sc/sc0/sc1/sc2_conn_cur.
+  Same as "table_conn_cur" converter with key set to the incoming
+  connection's source address.
+
+  Equivalent to: src,table_conn_cur([<table>])
 
 src_conn_rate([<table>]) : integer
-  Returns the average connection rate from the incoming connection's source
-  address in the current proxy's stick-table or in the designated stick-table,
-  measured in amount of connections over the period configured in the table. If
-  the address is not found, zero is returned. See also sc/sc0/sc1/sc2_conn_rate.
+  Same as "table_conn_rate" converter with key set to the incoming
+  connection's source address.
+
+  Equivalent to: src,table_conn_rate([<table>])
 
 src_get_gpc(<idx>[,<table>]) : integer
-  Returns the value of the General Purpose Counter at the index <idx> of the
-  array associated to the incoming connection's source address in the
-  current proxy's stick-table or in the designated stick-table <table>. <idx>
-  is an integer between 0 and 99.
-  If the address is not found or there is no gpc stored at this index, zero
-  is returned.
-  This fetch applies only to the 'gpc' array data_type (and not on the legacy
-  'gpc0' nor 'gpc1' data_types).
-  See also sc_get_gpc and src_inc_gpc.
+  Same as "table_gpc" converter with key set to the incoming connection's
+  source address.
+
+  Equivalent to: src,table_gpc(<idx>[,<table>])
 
 src_get_gpc0([<table>]) : integer
-  Returns the value of the first General Purpose Counter associated to the
-  incoming connection's source address in the current proxy's stick-table or in
-  the designated stick-table. If the address is not found, zero is returned.
-  See also sc/sc0/sc1/sc2_get_gpc0 and src_inc_gpc0.
+  Same as "table_gpc0" converter with key set to the incoming connection's
+  source address.
+
+  Equivalent to: src,table_gpc0([<table>])
 
 src_get_gpc1([<table>]) : integer
-  Returns the value of the second General Purpose Counter associated to the
-  incoming connection's source address in the current proxy's stick-table or in
-  the designated stick-table. If the address is not found, zero is returned.
-  See also sc/sc0/sc1/sc2_get_gpc1 and src_inc_gpc1.
+  Same as "table_gpc1" converter with key set to the incoming connection's
+  source address.
+
+  Equivalent to: src,table_gpc1([<table>])
 
 src_get_gpt(<idx>[,<table>]) : integer
-  Returns the value of the first General Purpose Tag at the index <idx> of
-  the array associated to the incoming connection's source address in the
-  current proxy's stick-table or in the designated stick-table <table>.
-  <idx> is an integer between 0 and 99.
-  If the address is not found or the GPT is not stored, zero is returned.
-  See also the sc_get_gpt sample fetch keyword.
+  Same as "table_gpt" converter with key set to the incoming connection's
+  source address.
+
+  Equivalent to: src,table_gpt(<idx>[,<table>])
 
 src_get_gpt0([<table>]) : integer
-  Returns the value of the first General Purpose Tag associated to the
-  incoming connection's source address in the current proxy's stick-table or in
-  the designated stick-table. If the address is not found, zero is returned.
-  See also sc/sc0/sc1/sc2_get_gpt0.
+  Same as "table_gpt0" converter with key set to the incoming connection's
+  source address.
+
+  Equivalent to: src,table_gpt0([<table>])
 
 src_glitch_cnt([<table>]) : integer
-  Returns the cumulative number of front connection glitches that were observed
-  on connections from the current connection's source address. Usually these
-  result in requests or connections to be aborted so the returned value will
-  often correspond to past connections. There is no good nor bad value, but a
-  poor quality client may occasionally cause a few glitches per connection,
-  while a very bogus or malevolent client may quickly cause thousands of events
-  to be added on a connection. See also fc_glitches for the number affecting
-  the current connection, sc_glitch_cnt to look them up in currently tracked
-  counters, and src_glitch_rate for the event rate measurements.
+  Same as "table_glitch_cnt" converter with key set to the incoming
+  connection's source address.
+
+  Equivalent to: src,table_glitch_cnt([<table>])
 
 src_glitch_rate([<table>]) : integer
-  Returns the average rate at which front connection glitches were observed for
-  on connections from the current connection's source address, measured in
-  amount of events over the period configured in the table. Usually these
-  glitches result in requests or connections to be aborted so the returned
-  value will often be related to past connections. There is no good nor bad
-  value, but a poor quality client may occasionally cause a few glitches per
-  connection, hence a low rate is generally expected. However, a very bogus or
-  malevolent client may quickly cause thousands of events to be added per
-  connection, and maintain a high rate here. See also sc_glitch_rate and
-  src_glitch_cnt.
+  Same as "table_glitch_rate" converter with key set to the incoming
+  connection's source address.
+
+  Equivalent to: src,table_glitch_rate([<table>])
 
 src_gpc_rate(<idx>[,<table>]) : integer
-  Returns the average increment rate of the General Purpose Counter at the
-  index <idx> of the array associated to the incoming connection's
-  source address in the current proxy's stick-table or in the designated
-  stick-table <table>. It reports the frequency which the gpc counter was
-  incremented over the configured period. <idx> is an integer between 0 and 99.
-  Note that the 'gpc_rate' counter must be stored in the stick-table for a
-  value to be returned, as 'gpc' only holds the event count.
-  This fetch applies only to the 'gpc_rate' array data_type (and not to
-  the legacy 'gpc0_rate' nor 'gpc1_rate' data_types).
-  See also sc_gpc_rate, src_get_gpc, and sc_inc_gpc.
+  Same as "table_gpc_rate" converter with key set to the incoming connection's
+  source address.
+
+  Equivalent to: src,table_gpc_rate(<idx>[,<table>])
 
 src_gpc0_rate([<table>]) : integer
-  Returns the average increment rate of the first General Purpose Counter
-  associated to the incoming connection's source address in the current proxy's
-  stick-table or in the designated stick-table. It reports the frequency
-  which the gpc0 counter was incremented over the configured period. See also
-  sc/sc0/sc1/sc2_gpc0_rate, src_get_gpc0, and sc/sc0/sc1/sc2_inc_gpc0. Note
-  that the "gpc0_rate" counter must be stored in the stick-table for a value to
-  be returned, as "gpc0" only holds the event count.
+  Same as "table_gpc0_rate" converter with key set to the incoming connection's
+  source address.
+
+  Equivalent to: src,table_gpc0_rate([<table>])
 
 src_gpc1_rate([<table>]) : integer
-  Returns the average increment rate of the second General Purpose Counter
-  associated to the incoming connection's source address in the current proxy's
-  stick-table or in the designated stick-table. It reports the frequency
-  which the gpc1 counter was incremented over the configured period. See also
-  sc/sc0/sc1/sc2_gpc1_rate, src_get_gpc1, and sc/sc0/sc1/sc2_inc_gpc1. Note
-  that the "gpc1_rate" counter must be stored in the stick-table for a value to
-  be returned, as "gpc1" only holds the event count.
+  Same as "table_gpc1_rate" converter with key set to the incoming connection's
+  source address.
+
+  Equivalent to: src,table_gpc1_rate([<table>])
 
 src_http_err_cnt([<table>]) : integer
-  Returns the cumulative number of HTTP errors from the incoming connection's
-  source address in the current proxy's stick-table or in the designated
-  stick-table. This includes the both request errors and 4xx error responses.
-  See also sc/sc0/sc1/sc2_http_err_cnt. If the address is not found, zero is
-  returned.
+  Same as "table_http_err_cnt" converter with key set to the incoming
+  connection's source address.
+
+  Equivalent to: src,table_http_err_cnt([<table>])
 
 src_http_err_rate([<table>]) : integer
-  Returns the average rate of HTTP errors from the incoming connection's source
-  address in the current proxy's stick-table or in the designated stick-table,
-  measured in amount of errors over the period configured in the table. This
-  includes the both request errors and 4xx error responses. If the address is
-  not found, zero is returned. See also sc/sc0/sc1/sc2_http_err_rate.
+  Same as "table_http_err_rate" converter with key set to the incoming
+  connection's source address.
+
+  Equivalent to: src,table_http_err_rate([<table>])
 
 src_http_fail_cnt([<table>]) : integer
-  Returns the cumulative number of HTTP response failures triggered by the
-  incoming connection's source address in the current proxy's stick-table or in
-  the designated stick-table. This includes the both response errors and 5xx
-  status codes other than 501 and 505. See also sc/sc0/sc1/sc2_http_fail_cnt.
-  If the address is not found, zero is returned.
+  Same as "table_http_fail_cnt" converter with key set to the incoming
+  connection's source address.
+
+  Equivalent to: src,table_http_fail_cnt([<table>])
 
 src_http_fail_rate([<table>]) : integer
-  Returns the average rate of HTTP response failures triggered by the incoming
-  connection's source address in the current proxy's stick-table or in the
-  designated stick-table, measured in amount of failures over the period
-  configured in the table. This includes the both response errors and 5xx
-  status codes other than 501 and 505. If the address is not found, zero is
-  returned. See also sc/sc0/sc1/sc2_http_fail_rate.
+  Same as "table_http_fail_rate" converter with key set to the incoming
+  connection's source address.
+
+  Equivalent to: src,table_http_fail_rate([<table>])
 
 src_http_req_cnt([<table>]) : integer
-  Returns the cumulative number of HTTP requests from the incoming connection's
-  source address in the current proxy's stick-table or in the designated stick-
-  table. This includes every started request, valid or not. If the address is
-  not found, zero is returned. See also sc/sc0/sc1/sc2_http_req_cnt.
+  Same as "table_http_req_cnt" converter with key set to the incoming
+  connection's source address.
+
+  Equivalent to: src,table_http_req_cnt([<table>])
 
 src_http_req_rate([<table>]) : integer
-  Returns the average rate of HTTP requests from the incoming connection's
-  source address in the current proxy's stick-table or in the designated stick-
-  table, measured in amount of requests over the period configured in the
-  table. This includes every started request, valid or not. If the address is
-  not found, zero is returned. See also sc/sc0/sc1/sc2_http_req_rate.
+  Same as "table_http_req_rate" converter with key set to the incoming
+  connection's source address.
+
+  Equivalent to: src,table_http_req_rate([<table>])
 
 src_inc_gpc(<idx>[,<table>]) : integer
   Increments the General Purpose Counter at index <idx> of the array
@@ -23880,18 +23844,16 @@ src_is_local : boolean
   once per connection.
 
 src_kbytes_in([<table>]) : integer
-  Returns the total amount of data received from the incoming connection's
-  source address in the current proxy's stick-table or in the designated
-  stick-table, measured in kilobytes. If the address is not found, zero is
-  returned. The test is currently performed on 32-bit integers, which limits
-  values to 4 terabytes. See also sc/sc0/sc1/sc2_kbytes_in.
+  Same as "table_kbytes_in" converter with key set to the incoming connection's
+  source address.
+
+  Equivalent to: src,table_kbytes_in([<table>])
 
 src_kbytes_out([<table>]) : integer
-  Returns the total amount of data sent to the incoming connection's source
-  address in the current proxy's stick-table or in the designated stick-table,
-  measured in kilobytes. If the address is not found, zero is returned. The
-  test is currently performed on 32-bit integers, which limits values to 4
-  terabytes. See also sc/sc0/sc1/sc2_kbytes_out.
+  Same as "table_kbytes_out" converter with key set to the incoming connection's
+  source address.
+
+  Equivalent to: src,table_kbytes_out([<table>])
 
 src_port : integer
   Returns an integer value corresponding to the TCP source port of the
@@ -23901,18 +23863,16 @@ src_port : integer
   nowadays.
 
 src_sess_cnt([<table>]) : integer
-  Returns the cumulative number of connections initiated from the incoming
-  connection's source IPv4 address in the current proxy's stick-table or in the
-  designated stick-table, that were transformed into sessions, which means that
-  they were accepted by "tcp-request" rules. If the address is not found, zero
-  is returned. See also sc/sc0/sc1/sc2_sess_cnt.
+  Same as "table_sess_cnt" converter with key set to the incoming connection's
+  source address.
+
+  Equivalent to: src,table_sess_cnt([<table>])
 
 src_sess_rate([<table>]) : integer
-  Returns the average session rate from the incoming connection's source
-  address in the current proxy's stick-table or in the designated stick-table,
-  measured in amount of sessions over the period configured in the table. A
-  session is a connection that went past the early "tcp-request" rules. If the
-  address is not found, zero is returned. See also sc/sc0/sc1/sc2_sess_rate.
+  Same as "table_sess_rate" converter with key set to the incoming connection's
+  source address.
+
+  Equivalent to: src,table_sess_rate([<table>])
 
 src_updt_conn_cnt([<table>]) : integer
   Creates or updates the entry associated to the incoming connection's source
