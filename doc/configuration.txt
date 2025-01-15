@@ -21436,7 +21436,7 @@ table_gpc(<idx>[,<table>])
   value of the General Purpose Counter at the index <idx> of the array
   associated to the input sample in the designated <table>. <idx> is an integer
   between 0 and 99. If there is no GPC stored at this index, it also returns
-  the boolean value 0. This applies only to the 'gpc' array data_type (and not
+  the integer value 0. This applies only to the 'gpc' array data_type (and not
   to the legacy 'gpc0' nor 'gpc1' data_types). See also the sc_get_gpc sample
   fetch keyword.
 
@@ -21477,7 +21477,7 @@ table_gpc_rate(<idx>[,<table>])
   which the Global Purpose Counter at index <idx> of the array (associated to
   the input sample in the designated stick-table <table>) was incremented over
   the configured period. <idx> is an integer between 0 and 99. If there is no
-  gpc_rate stored at this index, it also returns the boolean value 0. This
+  gpc_rate stored at this index, it also returns the integer value 0. This
   applies only to the 'gpc_rate' array data_type (and not to the legacy
   'gpc0_rate' nor 'gpc1_rate' data_types). See also the sc_gpc_rate sample
   fetch keyword.
@@ -21485,17 +21485,17 @@ table_gpc_rate(<idx>[,<table>])
 table_gpt(<idx>[,<table>])
   Uses the input sample to perform a lookup in the current proxy's stick-table
   or in the designated stick-table. If the key is not found in the table,
-  boolean value zero is returned. Otherwise the converter returns the current
+  integer value zero is returned. Otherwise the converter returns the current
   value of the general purpose tag at the index <idx> of the array associated
   to the input sample in the designated <table>. <idx> is an integer between
   0 and 99. If there is no GPT stored at this index, it also returns the
-  boolean value 0. This applies only to the 'gpt' array data_type (and not on
+  integer value 0. This applies only to the 'gpt' array data_type (and not on
   the legacy 'gpt0' data-type). See also the sc_get_gpt sample fetch keyword.
 
 table_gpt0([<table>])
   Uses the input sample to perform a look up in the current proxy's stick-table
   or in the designated stick-table. If the key is not found in the table,
-  boolean value zero is returned. Otherwise the converter returns the current
+  integer value zero is returned. Otherwise the converter returns the current
   value of the first general purpose tag associated with the input sample in
   the designated table. See also the sc_get_gpt0 sample fetch keyword.
 
