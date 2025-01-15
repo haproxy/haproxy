@@ -362,7 +362,6 @@ struct proxy {
 	__decl_thread(HA_RWLOCK_T lock);        /* may be taken under the server's lock */
 
 	char *id, *desc;			/* proxy id (name) and description */
-	struct queue queue;			/* queued requests (pendconns) */
 	struct proxy_per_tgroup *per_tgrp;	/* array of per-tgroup stuff such as queues */
 	unsigned int queueslength;		/* Sum of the length of each queue */
 	int totpend;				/* total number of pending connections on this instance (for stats) */

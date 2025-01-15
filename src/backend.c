@@ -1029,6 +1029,7 @@ int assign_server_and_queue(struct stream *s)
 		 * not full, in which case we have to return FULL.
 		 */
 		if (srv->maxconn) {
+			struct queue *queue = &srv->per_tgrp[tgid - 1].queue;
 			int served;
 			int got_it = 0;
 
@@ -1037,7 +1038,7 @@ int assign_server_and_queue(struct stream *s)
 			 * Try to increment its served, while making sure
 			 * it is < maxconn.
 			 */
-			if (!srv->queue.length &&
+			if (!queue->length &&
 			    (served = srv->served) < srv_dynamic_maxconn(srv)) {
 				/*
 				 * Attempt to increment served, while

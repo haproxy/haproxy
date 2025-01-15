@@ -589,4 +589,8 @@
 # define DEBUG_MEMORY_POOLS 1
 #endif
 
+#ifndef MAX_SELF_USE_QUEUE
+#define MAX_SELF_USE_QUEUE 9
+#endif
+
 #endif /* _HAPROXY_DEFAULTS_H */
