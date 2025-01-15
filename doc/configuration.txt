@@ -20144,6 +20144,9 @@ strcmp(var)                                        string       boolean
 sub(value)                                         integer      integer
 table_bytes_in_rate([table])                       any          integer
 table_bytes_out_rate([table])                      any          integer
+table_clr_gpc(idx[,table])                         any          integer
+table_clr_gpc0([table])                            any          integer
+table_clr_gpc1([table])                            any          integer
 table_conn_cnt([table])                            any          integer
 -- keyword -------------------------------------+- input type + output type -
 table_conn_cur([table])                            any          integer
@@ -20166,6 +20169,9 @@ table_http_fail_rate([table])                      any          integer
 table_http_req_cnt([table])                        any          integer
 table_http_req_rate([table])                       any          integer
 table_idle([table[,default_value]])                any          integer
+table_inc_gpc(idx[,table])                         any          integer
+table_inc_gpc0([table])                            any          integer
+table_inc_gpc1([table])                            any          integer
 table_kbytes_in([table])                           any          integer
 -- keyword -------------------------------------+- input type + output type -
 table_kbytes_out([table])                          any          integer
@@ -21385,6 +21391,41 @@ table_bytes_out_rate([<table>])
   table, measured in amount of bytes over the period configured in the table.
   See also the sc_bytes_out_rate sample fetch keyword.
 
+table_clr_gpc(<idx>[,<table>])
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. Clears the General Purpose Counter at the
+  index <idx> of the gpc array and returns its previous value. <idx> is an
+  integer between 0 and 99. If the entry is not found, an entry is created and
+  0 is returned. This converter applies only to the 'gpc' array data_type (and
+  not to the legacy 'gpc0' nor 'gpc1' data_types).
+  See also the sc_clr_gpc sample fetch keyword.
+
+table_clr_gpc0([<table>])
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. Clears the first General Purpose Counter
+  '0' and returns its previous value. If the entry is not found, an entry is
+  created and 0 is returned. This is typically used as a second ACL in an
+  expression in order to mark a connection when a first ACL was verified :
+
+  Example:
+        # block if 5 consecutive requests continue to come faster than 10 sess
+        # per second, and reset the counter as soon as the traffic slows down.
+        acl abuse src_http_req_rate gt 10
+        acl kill  src,table_inc_gpc0 gt 5
+        acl save  src,table_clr_gpc0 ge 0
+        tcp-request connection accept if !abuse save
+        tcp-request connection reject if abuse kill
+
+  See also the sc_clr_gpc0 sample fetch keyword.
+
+table_clr_gpc1([<table>])
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. Clears the first General Purpose Counter
+  '1' and returns its previous value. If the entry is not found, an entry is
+  created and 0 is returned. This is typically used as a second ACL in an
+  expression in order to mark a connection when a first ACL was verified.
+  See also the sc_clr_gpc1 sample fetch keyword.
+
 table_conn_cnt([<table>])
   Uses the input sample to perform a look up in the current proxy's stick-table
   or in the designated stick-table. If the key is not found in the table,
@@ -21552,6 +21593,35 @@ table_idle([<table>[,<default_value>]])
   the time the key entry associated with the input sample in the designated
   table remained idle since the last time it was updated. See also the
   table_expire sample fetch keyword.
+
+table_inc_gpc(<idx>[,<table>])
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. Increments the General Purpose Counter at
+  index <idx> of the array and returns its new value. <idx> is an integer
+  between 0 and 99. If the entry is not found, an entry is created and 1 is
+  returned. This converter applies only to the 'gpc' array data_type (and not to
+  the legacy 'gpc0' nor 'gpc1' data_types). See also sc_inc_gpc.
+
+table_inc_gpc0([<table>])
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. Increments the General Purpose Counter '0'
+  and returns its new value. If the entry is not found, an entry is created and
+  1 is returned. See also sc0/sc2/sc2_inc_gpc0. This is typically used as a
+  second ACL in an expression in order to mark a connection when a first ACL
+  was verified :
+
+  Example:
+        acl abuse src,table_req_rate gt 10
+        acl kill  src,table_inc_gpc0 gt 0
+        tcp-request connection reject if abuse kill
+
+table_inc_gpc1([<table>])
+  Uses the input sample to perform a look up in the current proxy's stick-table
+  or in the designated stick-table. Increments the General Purpose Counter '1'
+  and returns its new value. If the entry is not found, an entry is created and
+  1 is returned. See also sc0/sc2/sc2_inc_gpc1. This is typically used as a
+  second ACL in an expression in order to mark a connection when a first ACL
+  was verified.
 
 table_kbytes_in([<table>])
   Uses the input sample to perform a look up in the current proxy's stick-table
@@ -23655,39 +23725,22 @@ src_bytes_out_rate([<table>]) : integer
   Equivalent to: src,table_bytes_out_rate([<table>])
 
 src_clr_gpc(<idx>[,<table>]) : integer
-  Clears the General Purpose Counter at the index <idx> of the array
-  associated to the incoming connection's source address in the current proxy's
-  stick-table or in the designated stick-table <table>, and returns its
-  previous value. <idx> is an integer between 0 and 99.
-  If the address is not found, an entry is created and 0 is returned.
-  This fetch applies only to the 'gpc' array data_type (and not to the legacy
-  'gpc0' nor 'gpc1' data_types).
-  See also sc_clr_gpc.
+  Same as "table_clr_gpc" converter with key set to the incoming
+  connection's source address.
+
+  Equivalent to: src,table_clr_gpc(<idx>[,<table>])
 
 src_clr_gpc0([<table>]) : integer
-  Clears the first General Purpose Counter associated to the incoming
-  connection's source address in the current proxy's stick-table or in the
-  designated stick-table, and returns its previous value. If the address is not
-  found, an entry is created and 0 is returned. This is typically used as a
-  second ACL in an expression in order to mark a connection when a first ACL
-  was verified :
+  Same as "table_clr_gpc0" converter with key set to the incoming
+  connection's source address.
 
-  Example:
-        # block if 5 consecutive requests continue to come faster than 10 sess
-        # per second, and reset the counter as soon as the traffic slows down.
-        acl abuse src_http_req_rate gt 10
-        acl kill  src_inc_gpc0 gt 5
-        acl save  src_clr_gpc0 ge 0
-        tcp-request connection accept if !abuse save
-        tcp-request connection reject if abuse kill
+  Equivalent to: src,table_clr_gpc0([<table>])
 
 src_clr_gpc1([<table>]) : integer
-  Clears the second General Purpose Counter associated to the incoming
-  connection's source address in the current proxy's stick-table or in the
-  designated stick-table, and returns its previous value. If the address is not
-  found, an entry is created and 0 is returned. This is typically used as a
-  second ACL in an expression in order to mark a connection when a first ACL
-  was verified.
+  Same as "table_clr_gpc1" converter with key set to the incoming
+  connection's source address.
+
+  Equivalent to: src,table_clr_gpc1([<table>])
 
 src_conn_cnt([<table>]) : integer
   Same as "table_conn_cnt" converter with key set to the incoming
@@ -23804,35 +23857,22 @@ src_http_req_rate([<table>]) : integer
   Equivalent to: src,table_http_req_rate([<table>])
 
 src_inc_gpc(<idx>[,<table>]) : integer
-  Increments the General Purpose Counter at index <idx> of the array
-  associated to the incoming connection's source address in the current proxy's
-  stick-table or in the designated stick-table <table>, and returns its new
-  value. <idx> is an integer between 0 and 99.
-  If the address is not found, an entry is created and 1 is returned.
-  This fetch applies only to the 'gpc' array data_type (and not to the legacy
-  'gpc0' nor 'gpc1' data_types).
-  See also sc_inc_gpc.
+  Same as "src_inc_gpc" converter with key set to the incoming
+  connection's source address.
+
+  Equivalent to: src,table_inc_gpc(<idx>[,<table>])
 
 src_inc_gpc0([<table>]) : integer
-  Increments the first General Purpose Counter associated to the incoming
-  connection's source address in the current proxy's stick-table or in the
-  designated stick-table, and returns its new value. If the address is not
-  found, an entry is created and 1 is returned. See also sc0/sc2/sc2_inc_gpc0.
-  This is typically used as a second ACL in an expression in order to mark a
-  connection when a first ACL was verified :
+  Same as "src_inc_gpc0" converter with key set to the incoming
+  connection's source address.
 
-  Example:
-        acl abuse src_http_req_rate gt 10
-        acl kill  src_inc_gpc0 gt 0
-        tcp-request connection reject if abuse kill
+  Equivalent to: src,table_inc_gpc0([<table>])
 
 src_inc_gpc1([<table>]) : integer
-  Increments the second General Purpose Counter associated to the incoming
-  connection's source address in the current proxy's stick-table or in the
-  designated stick-table, and returns its new value. If the address is not
-  found, an entry is created and 1 is returned. See also sc0/sc2/sc2_inc_gpc1.
-  This is typically used as a second ACL in an expression in order to mark a
-  connection when a first ACL was verified.
+  Same as "src_inc_gpc1" converter with key set to the incoming
+  connection's source address.
+
+  Equivalent to: src,table_inc_gpc1([<table>])
 
 src_is_local : boolean
   Returns true if the source address of the incoming connection is local to the

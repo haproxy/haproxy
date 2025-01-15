@@ -1842,6 +1842,59 @@ static int sample_conv_table_bytes_out_rate(const struct arg *arg_p, struct samp
 	return smp_fetch_bytes_out_rate(&stkctr, smp, 1);
 }
 
+/* Casts sample <smp> to the type of the table specified in arg(1), and looks
+ * it up into this table. Clears the general purpose counter at GPC[arg_p(0)]
+ * and return its previous value if the key is present in the table,
+ * otherwise zero. If the inspected parameter is not stored in the table,
+ * <not found> is returned.
+ */
+static int smp_fetch_clr_gpc(struct stkctr *stkctr, struct sample *smp, unsigned int idx, int decrefcnt);
+static int sample_conv_table_clr_gpc(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct stkctr stkctr;
+	unsigned int idx;
+
+	idx = arg_p[0].data.sint;
+	stkctr.table = arg_p[1].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 1));
+
+	return smp_fetch_clr_gpc(&stkctr, smp, idx, 1);
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Clears the general purpose counter at GPC0
+ * and return its previous value if the key is present in the table,
+ * otherwise zero. If the inspected parameter is not stored in the table,
+ * <not found> is returned.
+ */
+static int smp_fetch_clr_gpc0(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
+static int sample_conv_table_clr_gpc0(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct stkctr stkctr;
+
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 1));
+
+	return smp_fetch_clr_gpc0(&stkctr, smp, 1);
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Clears the general purpose counter at GPC1
+ * and return its previous value if the key is present in the table,
+ * otherwise zero. If the inspected parameter is not stored in the table,
+ * <not found> is returned.
+ */
+static int smp_fetch_clr_gpc1(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
+static int sample_conv_table_clr_gpc1(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct stkctr stkctr;
+
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 1));
+
+	return smp_fetch_clr_gpc1(&stkctr, smp, 1);
+}
+
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
  * it up into this table. Returns the cumulated number of connections for the key
  * if the key is present in the table, otherwise zero, so that comparisons can
@@ -1957,6 +2010,58 @@ static int sample_conv_table_idle(const struct arg *arg_p, struct sample *smp, v
 
 	stktable_release(t, ts);
 	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(1), and looks
+ * it up into this table. Increases the general purpose counter at GPC[arg_p(0)]
+ * and return its new value if the key is present in the table, otherwise zero.
+ * If the inspected parameter is not stored in the table, <not found> is returned.
+ */
+static int smp_fetch_inc_gpc(struct stkctr *stkctr, struct sample *smp, unsigned int idx, int decrefcnt);
+static int sample_conv_table_inc_gpc(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct stkctr stkctr;
+	unsigned int idx;
+
+	idx = arg_p[0].data.sint;
+	stkctr.table = arg_p[1].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 1));
+
+	return smp_fetch_inc_gpc(&stkctr, smp, idx, 1);
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Increases the general purpose counter at GPC0
+ * and return its new value if the key is present in the table, otherwise
+ * zero. If the inspected parameter is not stored in the table, <not found>
+ * is returned.
+ */
+static int smp_fetch_inc_gpc0(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
+static int sample_conv_table_inc_gpc0(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct stkctr stkctr;
+
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 1));
+
+	return smp_fetch_inc_gpc0(&stkctr, smp, 1);
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Increases the general purpose counter at GPC1
+ * and return its new value if the key is present in the table, otherwise
+ * zero. If the inspected parameter is not stored in the table, <not found>
+ * is returned.
+ */
+static int smp_fetch_inc_gpc1(struct stkctr *stkctr, struct sample *smp, int decrefcnt);
+static int sample_conv_table_inc_gpc1(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct stkctr stkctr;
+
+	stkctr.table = arg_p[0].data.t;
+	stkctr_set_entry(&stkctr, smp_fetch_stksess(stkctr.table, smp, 1));
+
+	return smp_fetch_inc_gpc1(&stkctr, smp, 1);
 }
 
 /* Casts sample <smp> to the type of the table specified in arg(0), and looks
@@ -5932,6 +6037,9 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "in_table",             sample_conv_in_table,             ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_BOOL  },
 	{ "table_bytes_in_rate",  sample_conv_table_bytes_in_rate,  ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_bytes_out_rate", sample_conv_table_bytes_out_rate, ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
+	{ "table_clr_gpc",        sample_conv_table_clr_gpc,        ARG2(2,SINT,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
+	{ "table_clr_gpc0",       sample_conv_table_clr_gpc0,       ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
+	{ "table_clr_gpc1",       sample_conv_table_clr_gpc1,       ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_conn_cnt",       sample_conv_table_conn_cnt,       ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_conn_cur",       sample_conv_table_conn_cur,       ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_conn_rate",      sample_conv_table_conn_rate,      ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
@@ -5953,6 +6061,9 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "table_http_req_cnt",   sample_conv_table_http_req_cnt,   ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_http_req_rate",  sample_conv_table_http_req_rate,  ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_idle",           sample_conv_table_idle,           ARG2(1,TAB,SINT),  NULL, SMP_T_ANY,  SMP_T_SINT  },
+	{ "table_inc_gpc",        sample_conv_table_inc_gpc,        ARG2(2,SINT,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
+	{ "table_inc_gpc0",       sample_conv_table_inc_gpc0,       ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
+	{ "table_inc_gpc1",       sample_conv_table_inc_gpc1,       ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_kbytes_in",      sample_conv_table_kbytes_in,      ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_kbytes_out",     sample_conv_table_kbytes_out,     ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_server_id",      sample_conv_table_server_id,      ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
