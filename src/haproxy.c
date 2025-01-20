@@ -1303,7 +1303,7 @@ static void init_early(int argc, char **argv)
 	char *tmp;
 	int len;
 
-	setenv("HAPROXY_STARTUP_VERSION", HAPROXY_VERSION, 0);
+	setenv("HAPROXY_STARTUP_VERSION", haproxy_version, 0);
 
 	/* First, let's initialize most global variables */
 	totalconn = actconn = listeners = stopping = 0;
