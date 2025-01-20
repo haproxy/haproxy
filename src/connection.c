@@ -1373,14 +1373,14 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	goto fail;
 
  recv_abort:
-	conn_report_term_evt(conn, tevt_loc_hs, tevt_type_truncated_shutr);
+	conn_report_term_evt(conn, tevt_loc_hs, hs_tevt_type_truncated_shutr);
 	conn->err_code = CO_ER_PRX_ABORT;
 	conn->flags |= CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 	goto fail;
 
  fail:
 	if (!(conn->flags & CO_FL_SOCK_RD_SH))
-		conn_report_term_evt(conn, tevt_loc_hs, tevt_type_truncated_rcv_err);
+		conn_report_term_evt(conn, tevt_loc_hs, hs_tevt_type_truncated_rcv_err);
 	conn->flags |= CO_FL_ERROR;
 	return 0;
 }
@@ -1474,7 +1474,7 @@ int conn_send_proxy(struct connection *conn, unsigned int flag)
 
  out_error:
 	/* Write error on the file descriptor */
-	conn_report_term_evt(conn, tevt_loc_hs, tevt_type_snd_err);
+	conn_report_term_evt(conn, tevt_loc_hs, hs_tevt_type_snd_err);
 	conn->flags |= CO_FL_ERROR;
 	return 0;
 
@@ -1677,14 +1677,14 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 	goto fail;
 
  recv_abort:
-	conn_report_term_evt(conn, tevt_loc_hs, tevt_type_truncated_shutr);
+	conn_report_term_evt(conn, tevt_loc_hs, hs_tevt_type_truncated_shutr);
 	conn->err_code = CO_ER_CIP_ABORT;
 	conn->flags |= CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 	goto fail;
 
  fail:
 	if (!(conn->flags & CO_FL_SOCK_RD_SH))
-		conn_report_term_evt(conn, tevt_loc_hs, tevt_type_truncated_rcv_err);
+		conn_report_term_evt(conn, tevt_loc_hs, hs_tevt_type_truncated_rcv_err);
 	conn->flags |= CO_FL_ERROR;
 	return 0;
 }
@@ -1758,7 +1758,7 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 
  out_error:
 	/* Write error on the file descriptor */
-	conn_report_term_evt(conn, tevt_loc_hs, tevt_type_snd_err);
+	conn_report_term_evt(conn, tevt_loc_hs, hs_tevt_type_snd_err);
 	conn->flags |= CO_FL_ERROR;
 	if (conn->err_code == CO_ER_NONE) {
 		conn->err_code = CO_ER_SOCKS4_SEND;
@@ -1879,7 +1879,7 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 	return 0;
 
  recv_abort:
-	conn_report_term_evt(conn, tevt_loc_hs, tevt_type_truncated_shutr);
+	conn_report_term_evt(conn, tevt_loc_hs, hs_tevt_type_truncated_shutr);
 	if (conn->err_code == CO_ER_NONE) {
 		conn->err_code = CO_ER_SOCKS4_ABORT;
 	}
@@ -1888,7 +1888,7 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 
  fail:
 	if (!(conn->flags & CO_FL_SOCK_RD_SH))
-		conn_report_term_evt(conn, tevt_loc_hs, tevt_type_truncated_rcv_err);
+		conn_report_term_evt(conn, tevt_loc_hs, hs_tevt_type_truncated_rcv_err);
 	conn->flags |= CO_FL_ERROR;
 	return 0;
 }

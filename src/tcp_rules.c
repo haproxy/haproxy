@@ -579,7 +579,7 @@ int tcp_exec_l4_rules(struct session *sess)
 	}
  end:
 	if (!result)
-		conn_report_term_evt(conn, tevt_loc_fd, tevt_type_intercepted);
+		conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_intercepted);
 	return result;
 }
 

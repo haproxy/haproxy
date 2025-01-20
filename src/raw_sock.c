@@ -77,7 +77,7 @@ int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe,
 
 		/* report error on POLL_ERR before connection establishment */
 		if ((fdtab[conn->handle.fd].state & FD_POLL_ERR) && (conn->flags & CO_FL_WAIT_L4_CONN)) {
-			conn_report_term_evt(conn, tevt_loc_fd, tevt_type_rcv_err);
+			conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_rcv_err);
 			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 			conn_set_errcode(conn, CO_ER_POLLERR);
 			errno = 0; /* let the caller do a getsockopt() if it wants it */
@@ -128,7 +128,7 @@ int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe,
 				continue;
 			}
 			/* here we have another error */
-			conn_report_term_evt(conn, tevt_loc_fd, tevt_type_rcv_err);
+			conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_rcv_err);
 			conn->flags |= CO_FL_ERROR;
 			conn_set_errno(conn, errno);
 			break;
@@ -157,7 +157,7 @@ int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe,
 	return retval;
 
  out_read0:
-	conn_report_term_evt(conn, tevt_loc_fd, tevt_type_shutr);
+	conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_shutr);
 	conn_sock_read0(conn);
 	conn->flags &= ~CO_FL_WAIT_L4_CONN;
 	goto leave;
@@ -179,7 +179,7 @@ int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pip
 
 	if (conn->flags & CO_FL_SOCK_WR_SH) {
 		/* it's already closed */
-		conn_report_term_evt(conn, tevt_loc_fd, tevt_type_snd_err);
+		conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_snd_err);
 		conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH;
 		errno = EPIPE;
 		conn_set_errno(conn, errno);
@@ -203,7 +203,7 @@ int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pip
 				continue;
 
 			/* here we have another error */
-			conn_report_term_evt(conn, tevt_loc_fd, tevt_type_snd_err);
+			conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_snd_err);
 			conn->flags |= CO_FL_ERROR;
 			conn_set_errno(conn, errno);
 			break;
@@ -256,7 +256,7 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 
 		/* report error on POLL_ERR before connection establishment */
 		if ((fdtab[conn->handle.fd].state & FD_POLL_ERR) && (conn->flags & CO_FL_WAIT_L4_CONN)) {
-			conn_report_term_evt(conn, tevt_loc_fd, tevt_type_rcv_err);
+			conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_rcv_err);
 			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 			conn_set_errcode(conn, CO_ER_POLLERR);
 			goto leave;
@@ -316,7 +316,7 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 			break;
 		}
 		else if (errno != EINTR) {
-			conn_report_term_evt(conn, tevt_loc_fd, tevt_type_rcv_err);
+			conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_rcv_err);
 			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 			conn_set_errno(conn, errno);
 			break;
@@ -330,7 +330,7 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 	return done;
 
  read0:
-	conn_report_term_evt(conn, tevt_loc_fd, tevt_type_shutr);
+	conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_shutr);
 	conn_sock_read0(conn);
 	conn->flags &= ~CO_FL_WAIT_L4_CONN;
 
@@ -342,7 +342,7 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 	 * an error without checking.
 	 */
 	if (unlikely(!done && fdtab[conn->handle.fd].state & FD_POLL_ERR)) {
-		conn_report_term_evt(conn, tevt_loc_fd, tevt_type_rcv_err);
+		conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_rcv_err);
 		conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 		conn_set_errcode(conn, CO_ER_POLLERR);
 	}
@@ -377,7 +377,7 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 
 	if (unlikely(fdtab[conn->handle.fd].state & FD_POLL_ERR)) {
 		/* an error was reported on the FD, we can't send anymore */
-		conn_report_term_evt(conn, tevt_loc_fd, tevt_type_snd_err);
+		conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_snd_err);
 		conn->flags |= CO_FL_ERROR | CO_FL_SOCK_WR_SH | CO_FL_SOCK_RD_SH;
 		conn_set_errcode(conn, CO_ER_POLLERR);
 		errno = EPIPE;
@@ -386,7 +386,7 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 
 	if (conn->flags & CO_FL_SOCK_WR_SH) {
 		/* it's already closed */
-		conn_report_term_evt(conn, tevt_loc_fd, tevt_type_snd_err);
+		conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_snd_err);
 		conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH;
 		errno = EPIPE;
 		conn_set_errno(conn, errno);
@@ -427,7 +427,7 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 			break;
 		}
 		else if (errno != EINTR) {
-			conn_report_term_evt(conn, tevt_loc_fd, tevt_type_snd_err);
+			conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_snd_err);
 			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 			conn_set_errno(conn, errno);
 			break;

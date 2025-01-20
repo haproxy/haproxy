@@ -5533,7 +5533,7 @@ reneg_ok:
 
 	/* Report an HS error only on SSL error */
 	if (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)))
-		conn_report_term_evt(conn, tevt_loc_hs, tevt_type_truncated_rcv_err);
+		conn_report_term_evt(conn, tevt_loc_hs, hs_tevt_type_truncated_rcv_err);
 
 	/* Fail on all other handshake errors */
 	conn->flags |= CO_FL_ERROR;
@@ -5886,12 +5886,12 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 	ssl_sock_dump_errors(conn, NULL);
 	ERR_clear_error();
  read0:
-	conn_report_term_evt(conn, tevt_loc_xprt, tevt_type_shutr);
+	conn_report_term_evt(conn, tevt_loc_xprt, xprt_tevt_type_shutr);
 	conn_sock_read0(conn);
 	goto leave;
 
  out_error:
-	conn_report_term_evt(conn, tevt_loc_xprt, tevt_type_rcv_err);
+	conn_report_term_evt(conn, tevt_loc_xprt, xprt_tevt_type_rcv_err);
 	conn->flags |= CO_FL_ERROR;
 	/* Clear openssl global errors stack */
 	ssl_sock_dump_errors(conn, NULL);
@@ -6058,7 +6058,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 	ssl_sock_dump_errors(conn, NULL);
 	ERR_clear_error();
 
-	conn_report_term_evt(conn, tevt_loc_xprt, tevt_type_snd_err);
+	conn_report_term_evt(conn, tevt_loc_xprt, xprt_tevt_type_snd_err);
 	conn->flags |= CO_FL_ERROR;
 	goto leave;
 }
@@ -6149,7 +6149,7 @@ static void ssl_sock_shutw(struct connection *conn, void *xprt_ctx, int clean)
 
 	if (conn->flags & (CO_FL_WAIT_XPRT | CO_FL_SSL_WAIT_HS))
 		return;
-	conn_report_term_evt(conn, tevt_loc_xprt, tevt_type_shutw);
+	conn_report_term_evt(conn, tevt_loc_xprt, xprt_tevt_type_shutw);
 	if (!clean)
 		/* don't sent notify on SSL_shutdown */
 		SSL_set_quiet_shutdown(ctx->ssl, 1);

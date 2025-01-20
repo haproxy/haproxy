@@ -559,7 +559,32 @@ enum term_event_loc {
 	tevt_loc_strm  = 6,
 };
 
-/* Types for termination event logs (4-bits) */
+/* Types for termination event logs (4-bits) per location */
+enum fd_term_event_type {
+	fd_tevt_type_shutw       = 1,
+	fd_tevt_type_shutr       = 2,
+	fd_tevt_type_rcv_err     = 3,
+	fd_tevt_type_snd_err     = 4,
+	/* unused: 5, 6 */
+	fd_tevt_type_connect_err = 7,
+	fd_tevt_type_intercepted = 8,
+};
+
+enum hs_term_event_type {
+	/* unused: 1, 2, 3 */
+	hs_tevt_type_snd_err           = 4,
+	hs_tevt_type_truncated_shutr   = 5,
+	hs_tevt_type_truncated_rcv_err = 6,
+};
+
+enum xprt_term_event_type {
+	xprt_tevt_type_shutw   = 1,
+	xprt_tevt_type_shutr   = 2,
+	xprt_tevt_type_rcv_err = 3,
+	xprt_tevt_type_snd_err = 4,
+};
+
+
 enum term_event_type {
 	/* Events emitted by haproxy */
 	tevt_type_shutw            =  1,

@@ -107,7 +107,7 @@ const char *conn_err_code_str(struct connection *c);
 int xprt_add_hs(struct connection *conn);
 void register_mux_proto(struct mux_proto_list *list);
 
-static inline void conn_report_term_evt(struct connection *conn, enum term_event_loc loc, enum term_event_type type);
+static inline void conn_report_term_evt(struct connection *conn, enum term_event_loc loc, unsigned char type);
 
 extern struct idle_conns idle_conns[MAX_THREADS];
 
@@ -256,7 +256,7 @@ static inline void conn_sock_shutw(struct connection *c, int clean)
 		if (!(c->flags & CO_FL_SOCK_RD_SH) && clean)
 			shutdown(c->handle.fd, SHUT_WR);
 	}
-	conn_report_term_evt(c, tevt_loc_fd, tevt_type_shutw);
+	conn_report_term_evt(c, tevt_loc_fd, fd_tevt_type_shutw);
 }
 
 static inline void conn_xprt_shutw(struct connection *c)
@@ -790,7 +790,7 @@ static inline const char *tevt_evts2str(uint32_t evts)
 }
 
 /* Report a connection event. <loc> may be "tevt_loc_fd", "tevt_loc_hs" or "tevt_loc_xprt" */
-static inline void conn_report_term_evt(struct connection *conn, enum term_event_loc loc, enum term_event_type type)
+static inline void conn_report_term_evt(struct connection *conn, enum term_event_loc loc, unsigned char type)
 {
 	if (conn_is_back(conn))
 		loc |= 0x08;
