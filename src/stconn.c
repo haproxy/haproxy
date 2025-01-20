@@ -147,7 +147,7 @@ void se_shutdown(struct sedesc *sedesc, enum se_shut_mode mode)
 	unsigned int flags = 0;
 
 	if ((mode & (SE_SHW_SILENT|SE_SHW_NORMAL)) && !se_fl_test(sedesc, SE_FL_SHW)) {
-		sc_report_term_evt(sedesc->sc, tevt_loc_strm, tevt_type_shutw);
+		se_report_term_evt(sedesc, se_tevt_type_shutw);
 		flags |= (mode & SE_SHW_NORMAL) ? SE_FL_SHWN : SE_FL_SHWS;
 	}
 	if ((mode & (SE_SHR_RESET|SE_SHR_DRAIN)) && !se_fl_test(sedesc, SE_FL_SHR))
@@ -785,6 +785,7 @@ static void sc_app_shut_conn(struct stconn *sc)
 	sc->flags |= SC_FL_SHUT_DONE;
 	oc->flags |= CF_WRITE_EVENT;
 	sc_set_hcto(sc);
+	sc_report_term_evt(sedesc->sc, tevt_loc_strm, tevt_type_shutw);
 
 	switch (sc->state) {
 	case SC_ST_RDY:
