@@ -785,7 +785,7 @@ static void sc_app_shut_conn(struct stconn *sc)
 	sc->flags |= SC_FL_SHUT_DONE;
 	oc->flags |= CF_WRITE_EVENT;
 	sc_set_hcto(sc);
-	sc_report_term_evt(sedesc->sc, tevt_loc_strm, tevt_type_shutw);
+	sc_report_term_evt(sc, strm_tevt_type_shutw);
 
 	switch (sc->state) {
 	case SC_ST_RDY:
@@ -1238,7 +1238,7 @@ static void sc_conn_eos(struct stconn *sc)
 	sc->flags |= SC_FL_EOS;
 	ic->flags |= CF_READ_EVENT;
 	sc_ep_report_read_activity(sc);
-	sc_report_term_evt(sc, tevt_loc_strm, (sc->flags & SC_FL_EOI ? tevt_type_shutr: tevt_type_truncated_shutr));
+	sc_report_term_evt(sc, (sc->flags & SC_FL_EOI ? strm_tevt_type_eos: strm_tevt_type_truncated_eos));
 	if (sc->state != SC_ST_EST)
 		return;
 
@@ -1526,7 +1526,7 @@ int sc_conn_recv(struct stconn *sc)
 	if (sc_ep_test(sc, SE_FL_ERROR)) {
 		sc->flags |= SC_FL_ERROR;
 		if (!(sc->flags & SC_FL_EOS))
-			sc_report_term_evt(sc, tevt_loc_strm, (sc->flags & SC_FL_EOI ? tevt_type_rcv_err: tevt_type_truncated_rcv_err));
+			sc_report_term_evt(sc, (sc->flags & SC_FL_EOI ? strm_tevt_type_rcv_err: strm_tevt_type_truncated_rcv_err));
 		ret = 1;
 	}
 
@@ -1752,7 +1752,7 @@ int sc_conn_send(struct stconn *sc)
 	if (sc_ep_test(sc, SE_FL_ERROR | SE_FL_ERR_PENDING)) {
 		oc->flags |= CF_WRITE_EVENT;
 		BUG_ON(sc_ep_test(sc, SE_FL_EOS|SE_FL_ERROR|SE_FL_ERR_PENDING) == (SE_FL_EOS|SE_FL_ERR_PENDING));
-		sc_report_term_evt(sc, tevt_loc_strm, tevt_type_snd_err);
+		sc_report_term_evt(sc, strm_tevt_type_snd_err);
 		if (sc_ep_test(sc, SE_FL_ERROR))
 			sc->flags |= SC_FL_ERROR;
 		return 1;
@@ -1893,7 +1893,7 @@ int sc_conn_process(struct stconn *sc)
 
 	if (sc_ep_test(sc, SE_FL_ERROR) && !(sc->flags & SC_FL_ERROR)) {
 		if (!(sc->flags & SC_FL_EOS))
-			sc_report_term_evt(sc, tevt_loc_strm, (sc->flags & SC_FL_EOI ? tevt_type_rcv_err: tevt_type_truncated_rcv_err));
+			sc_report_term_evt(sc, (sc->flags & SC_FL_EOI ? strm_tevt_type_rcv_err: strm_tevt_type_truncated_rcv_err));
 		sc->flags |= SC_FL_ERROR;
 	}
 

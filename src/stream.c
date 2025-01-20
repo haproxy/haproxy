@@ -1576,25 +1576,25 @@ static void stream_handle_timeouts(struct stream *s)
 	channel_check_timeout(&s->res);
 
 	if (unlikely(!(s->scb->flags & SC_FL_SHUT_DONE) && (s->req.flags & CF_WRITE_TIMEOUT))) {
-		stream_report_term_evt(s->scb, tevt_loc_strm, tevt_type_tout);
+		stream_report_term_evt(s->scb, strm_tevt_type_tout);
 		s->scb->flags |= SC_FL_NOLINGER;
 		sc_shutdown(s->scb);
 	}
 
 	if (unlikely(!(s->scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) && (s->req.flags & CF_READ_TIMEOUT))) {
-		stream_report_term_evt(s->scf, tevt_loc_strm, tevt_type_tout);
+		stream_report_term_evt(s->scf, strm_tevt_type_tout);
 		if (s->scf->flags & SC_FL_NOHALF)
 			s->scf->flags |= SC_FL_NOLINGER;
 		sc_abort(s->scf);
 	}
 	if (unlikely(!(s->scf->flags & SC_FL_SHUT_DONE) && (s->res.flags & CF_WRITE_TIMEOUT))) {
-		stream_report_term_evt(s->scf, tevt_loc_strm, tevt_type_tout);
+		stream_report_term_evt(s->scf, strm_tevt_type_tout);
 		s->scf->flags |= SC_FL_NOLINGER;
 		sc_shutdown(s->scf);
 	}
 
 	if (unlikely(!(s->scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) && (s->res.flags & CF_READ_TIMEOUT))) {
-		stream_report_term_evt(s->scb, tevt_loc_strm, tevt_type_tout);
+		stream_report_term_evt(s->scb, strm_tevt_type_tout);
 		if (s->scb->flags & SC_FL_NOHALF)
 			s->scb->flags |= SC_FL_NOLINGER;
 		sc_abort(s->scb);

@@ -244,6 +244,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 				txn->status = 503;
 				if (!(s->flags & SF_ERR_MASK))
 					s->flags |= SF_ERR_LOCAL; /* we don't want a real error here */
+				stream_report_term_evt(s->scf, strm_tevt_type_intercepted);
 				goto return_prx_cond;
 			}
 
@@ -251,6 +252,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			txn->status = 200;
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_LOCAL; /* we don't want a real error here */
+			stream_report_term_evt(s->scf, strm_tevt_type_intercepted);
 			goto return_prx_cond;
 		}
 	}
@@ -343,6 +345,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
 	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_INC(&sess->listener->counters->internal_errors);
+	stream_report_term_evt(s->scb, strm_tevt_type_internal_err);
 	goto return_prx_cond;
 
  return_bad_req:
@@ -350,11 +353,10 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_req);
 	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_INC(&sess->listener->counters->failed_req);
+	stream_report_term_evt(s->scb, strm_tevt_type_proto_err);
 	/* fall through */
 
  return_prx_cond:
-	// XXX: All errors are handled as intercepted here !
-	stream_report_term_evt(s->scf, tevt_loc_strm, tevt_type_intercepted);
 	http_set_term_flags(s);
 	http_reply_and_close(s, txn->status, http_error_message(s));
 
@@ -412,6 +414,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 			goto deny;
 
 		case HTTP_RULE_RES_ABRT: /* abort request, response already sent. Eg: auth */
+			stream_report_term_evt(s->scf, strm_tevt_type_intercepted);
 			goto return_prx_cond;
 
 		case HTTP_RULE_RES_DONE: /* OK, but terminate request processing (eg: redirect) */
@@ -465,8 +468,10 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		if (verdict == HTTP_RULE_RES_DENY) /* stats http-request deny */
 			goto deny;
 
-		if (verdict == HTTP_RULE_RES_ABRT) /* stats auth / stats http-request auth */
+		if (verdict == HTTP_RULE_RES_ABRT) { /* stats auth / stats http-request auth */
+			stream_report_term_evt(s->scf, strm_tevt_type_intercepted);
 			goto return_prx_cond;
+		}
 
 		if (verdict == HTTP_RULE_RES_BADREQ) /* failed with a bad request */
 			goto return_bad_req;
@@ -507,7 +512,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		if (!http_apply_redirect_rule(rule, s, txn)) {
 			goto return_int_err;
 		}
-		stream_report_term_evt(s->scf, tevt_loc_strm, tevt_type_intercepted);
+		stream_report_term_evt(s->scf, strm_tevt_type_intercepted);
 		goto done;
 	}
 
@@ -559,6 +564,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		_HA_ATOMIC_INC(&s->be->be_counters.denied_req);
 	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_INC(&sess->listener->counters->denied_req);
+	stream_report_term_evt(s->scf, strm_tevt_type_intercepted);
 	goto done_without_exp;
 
  deny:	/* this request was blocked (denied) */
@@ -575,6 +581,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		_HA_ATOMIC_INC(&s->be->be_counters.denied_req);
 	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_INC(&sess->listener->counters->denied_req);
+	stream_report_term_evt(s->scf, strm_tevt_type_intercepted);
 	goto return_prx_err;
 
  return_fail_rewrite:
@@ -598,6 +605,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
 	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_INC(&sess->listener->counters->internal_errors);
+	stream_report_term_evt(s->scf, strm_tevt_type_internal_err);
 	goto return_prx_err;
 
  return_bad_req:
@@ -605,6 +613,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_req);
 	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_INC(&sess->listener->counters->failed_req);
+	stream_report_term_evt(s->scf, strm_tevt_type_proto_err);
 	/* fall through */
 
  return_prx_err:
@@ -613,8 +622,6 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	/* fall through */
 
  return_prx_cond:
-	// XXX: All errors are handled as intercepted here !
-	stream_report_term_evt(s->scf, tevt_loc_strm, tevt_type_intercepted);
 	http_set_term_flags(s);
 	req->analysers &= AN_REQ_FLT_END;
 	req->analyse_exp = TICK_ETERNITY;
@@ -750,9 +757,8 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
 	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_INC(&sess->listener->counters->internal_errors);
+	stream_report_term_evt(s->scf, strm_tevt_type_internal_err);
 
-	// XXX: All errors are handled as intercepted here !
-	stream_report_term_evt(s->scf, tevt_loc_strm, tevt_type_intercepted);
 	http_set_term_flags(s);
 	http_reply_and_close(s, txn->status, http_error_message(s));
 
@@ -795,7 +801,7 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	s->logs.t_queue = ns_to_ms(now_ns - s->logs.accept_ts);
 
 	// XXX: All errors are handled as intercepted here !
-	stream_report_term_evt(s->scf, tevt_loc_strm, tevt_type_intercepted);
+	stream_report_term_evt(s->scf, strm_tevt_type_intercepted);
 	http_set_term_flags(s);
 	http_reply_and_close(s, txn->status, (!(s->scf->flags & SC_FL_ERROR) ? http_error_message(s) : NULL));
 
@@ -833,6 +839,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	case HTTP_RULE_RES_ERROR:
 		goto return_int_err;
 	case HTTP_RULE_RES_ABRT:
+		stream_report_term_evt(s->scf, strm_tevt_type_intercepted);
 		goto return_prx_cond;
 	default:
 		goto return_int_err;
@@ -861,6 +868,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 		_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
 	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_INC(&sess->listener->counters->internal_errors);
+	stream_report_term_evt(s->scf, strm_tevt_type_internal_err);
 	goto return_prx_err;
 
  return_bad_req: /* let's centralize all bad requests */
@@ -868,6 +876,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_req);
 	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_INC(&sess->listener->counters->failed_req);
+	stream_report_term_evt(s->scf, strm_tevt_type_proto_err);
 	/* fall through */
 
  return_prx_err:
@@ -876,8 +885,6 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	/* fall through */
 
  return_prx_cond:
-	// XXX: All errors are handled as intercepted here !
-	stream_report_term_evt(s->scf, tevt_loc_strm, tevt_type_intercepted);
 	http_set_term_flags(s);
 
 	req->analysers &= AN_REQ_FLT_END;
@@ -1112,8 +1119,6 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	goto return_prx_cond;
 
   return_int_err:
-	// XXX: All errors are handled as intercepted here !
-	stream_report_term_evt(s->scf, tevt_loc_strm, tevt_type_intercepted);
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_INTERNAL;
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
@@ -1122,16 +1127,16 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		_HA_ATOMIC_INC(&sess->listener->counters->internal_errors);
 	if (objt_server(s->target))
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.internal_errors);
+	stream_report_term_evt(s->scf, strm_tevt_type_internal_err);
 	status = 500;
 	COUNT_IF(1, "Internal error during request forwarding");
 	goto return_prx_cond;
 
   return_bad_req:
-	// XXX: All errors are handled as intercepted here !
-	stream_report_term_evt(s->scf, tevt_loc_strm, tevt_type_intercepted);
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_req);
 	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_INC(&sess->listener->counters->failed_req);
+	stream_report_term_evt(s->scf, strm_tevt_type_proto_err);
 	status = 400;
 	COUNT_IF(1, "Request parsing error during request forwarding");
 	/* fall through */
@@ -1663,6 +1668,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	txn->status = 500;
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_INTERNAL;
+	stream_report_term_evt(s->scb, strm_tevt_type_internal_err);
 	goto return_prx_cond;
 
   return_bad_res:
@@ -1680,11 +1686,10 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 	txn->status = 502;
 	stream_inc_http_fail_ctr(s);
+	stream_report_term_evt(s->scb, strm_tevt_type_proto_err);
 	/* fall through */
 
  return_prx_cond:
-	// XXX: All errors are handled as intercepted here !
-	stream_report_term_evt(s->scb, tevt_loc_strm, tevt_type_intercepted);
 	http_set_term_flags(s);
 	http_reply_and_close(s, txn->status, http_error_message(s));
 
@@ -1785,6 +1790,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 				goto deny;
 
 			case HTTP_RULE_RES_ABRT: /* abort request, response already sent */
+				stream_report_term_evt(s->scb, strm_tevt_type_intercepted);
 				goto return_prx_cond;
 
 			case HTTP_RULE_RES_DONE: /* OK, but terminate request processing (eg: redirect) */
@@ -1976,6 +1982,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		_HA_ATOMIC_INC(&sess->listener->counters->denied_resp);
 	if (objt_server(s->target))
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.denied_resp);
+	stream_report_term_evt(s->scb, strm_tevt_type_intercepted);
 	goto return_prx_err;
 
  return_fail_rewrite:
@@ -1999,6 +2006,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		_HA_ATOMIC_INC(&sess->listener->counters->internal_errors);
 	if (objt_server(s->target))
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.internal_errors);
+	stream_report_term_evt(s->scb, strm_tevt_type_internal_err);
 	goto return_prx_err;
 
  return_bad_res:
@@ -2010,6 +2018,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_resp);
 		health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_RSP);
 	}
+	stream_report_term_evt(s->scb, strm_tevt_type_proto_err);
 	/* fall through */
 
  return_prx_err:
@@ -2019,9 +2028,6 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 
  return_prx_cond:
 	s->scb->flags |= SC_FL_NOLINGER;
-
-	// XXX: All errors are handled as intercepted here !
-	stream_report_term_evt(s->scb, tevt_loc_strm, tevt_type_intercepted);
 	http_set_term_flags(s);
 
 	rep->analysers &= AN_RES_FLT_END;
@@ -2264,7 +2270,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 
   return_int_err:
 	// XXX: All errors are handled as intercepted here !
-	stream_report_term_evt(s->scb, tevt_loc_strm, tevt_type_intercepted);
+	stream_report_term_evt(s->scb, strm_tevt_type_intercepted);
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
 	_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
 	if (sess->listener && sess->listener->counters)
@@ -2274,11 +2280,12 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_INTERNAL;
 	COUNT_IF(1, "Internal error during response forwarding");
+	stream_report_term_evt(s->scb, strm_tevt_type_internal_err);
 	goto return_error;
 
   return_bad_res:
 	// XXX: All errors are handled as intercepted here !
-	stream_report_term_evt(s->scb, tevt_loc_strm, tevt_type_intercepted);
+	stream_report_term_evt(s->scb, strm_tevt_type_intercepted);
 	_HA_ATOMIC_INC(&s->be->be_counters.failed_resp);
 	if (objt_server(s->target)) {
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_resp);
@@ -2286,6 +2293,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	}
 	stream_inc_http_fail_ctr(s);
 	COUNT_IF(1, "Response parsing error during response forwarding");
+	stream_report_term_evt(s->scb, strm_tevt_type_proto_err);
 	/* fall through */
 
    return_error:

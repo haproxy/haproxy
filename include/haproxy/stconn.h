@@ -574,7 +574,10 @@ static inline void se_report_term_evt(struct sedesc *se, enum se_term_event_type
 	se->term_evts_log = tevt_report_event(se->term_evts_log, loc, type);
 }
 
+static inline void sc_report_term_evt(struct stconn *sc, enum strm_term_event_type type)
 {
+	enum term_event_loc loc = tevt_loc_strm;
+
 	if (sc->flags & SC_FL_ISBACK)
 		loc += 8;
 	sc->term_evts_log = tevt_report_event(sc->term_evts_log, loc, type);

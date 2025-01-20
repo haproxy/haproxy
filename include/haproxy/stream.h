@@ -418,9 +418,10 @@ static inline unsigned int stream_map_task_state(unsigned int state)
 		0;
 }
 
-static inline void stream_report_term_evt(struct stconn *sc, enum term_event_loc loc, enum term_event_type type)
+static inline void stream_report_term_evt(struct stconn *sc, enum strm_term_event_type type)
 {
 	struct stream *s = sc_strm(sc);
+	enum term_event_loc loc = tevt_loc_strm;
 
 	if (!s)
 		return;

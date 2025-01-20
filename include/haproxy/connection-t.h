@@ -616,22 +616,21 @@ enum se_term_event_type {
 	se_tevt_type_cancelled        = 12,
 };
 
-enum term_event_type {
-	/* Events emitted by haproxy */
-	tevt_type_shutw            =  1,
-	tevt_type_intercepted      =  2,
-	tevt_type_tout             =  3,
+enum strm_term_event_type {
+	strm_tevt_type_shutw            =  1,
+	strm_tevt_type_eos              =  2,
+	strm_tevt_type_rcv_err          =  3,
+	strm_tevt_type_snd_err          =  4,
+	strm_tevt_type_truncated_eos    =  5,
+	strm_tevt_type_truncated_rcv_err=  6,
 
-	/* 4..9 unsued */
+	strm_tevt_type_tout             =  7,
+	strm_tevt_type_intercepted      =  8,
 
-	/* Events received by haproxy */
-	tevt_type_shutr            =  10,
-	tevt_type_rcv_err          =  11,
-	tevt_type_truncated_shutr  =  12,
-	tevt_type_truncated_rcv_err=  13,
-	tevt_type_snd_err          =  14,
-
-	/* 15 unsued */
+	strm_tevt_type_proto_err        =  9,
+	strm_tevt_type_internal_err     = 10,
+	strm_tevt_type_other_err        = 11,
+	strm_tevt_type_aborted          = 12,
 };
 
 /* This structure describes a connection with its methods and data.
