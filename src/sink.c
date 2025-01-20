@@ -1285,17 +1285,28 @@ struct sink *sink_new_from_srv(struct server *srv, const char *from)
 {
 	struct sink *sink = NULL;
 	int bufsize = (srv->log_bufsize) ? srv->log_bufsize : BUFSIZE;
+	char *sink_name = NULL;
 
 	/* prepare description for the sink */
 	chunk_reset(&trash);
 	chunk_printf(&trash, "created from %s declared into '%s' at line %d", from, srv->conf.file, srv->conf.line);
 
+	memprintf(&sink_name, "%s/%s", srv->proxy->id, srv->id);
+	if (!sink_name) {
+		ha_alert("memory error while creating ring buffer for server '%s/%s'.\n", srv->proxy->id, srv->id);
+		goto error;
+	}
+
 	/* directly create a sink of BUF type, and use UNSPEC log format to
 	 * inherit from caller fmt in sink_write()
+	 *
+	 * sink_name must be unique to prevent existing sink from being re-used
 	 */
-	sink = sink_new_buf(srv->id, trash.area, LOG_FORMAT_UNSPEC, bufsize);
+	sink = sink_new_buf(sink_name, trash.area, LOG_FORMAT_UNSPEC, bufsize);
+	ha_free(&sink_name); // no longer needed
+
 	if (!sink) {
-		ha_alert("unable to create a new sink buffer for server '%s'.\n", srv->id);
+		ha_alert("unable to create a new sink buffer for server '%s/%s'.\n", srv->proxy->id, srv->id);
 		goto error;
 	}
 
