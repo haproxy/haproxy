@@ -383,11 +383,7 @@ static inline void quic_cubic_update(struct quic_cc *cc, uint32_t acked)
 			inc = W_est_inc;
 	}
 
-	if (quic_cwnd_may_increase(path)) {
-		path->cwnd += inc;
-		path->cwnd = QUIC_MIN(path->limit_max, path->cwnd);
-		path->cwnd_last_max = QUIC_MAX(path->cwnd, path->cwnd_last_max);
-	}
+	quic_cc_path_inc(path, inc);
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc);
 }
@@ -434,7 +430,7 @@ static void quic_enter_recovery(struct quic_cc *cc)
 	}
 
 	c->ssthresh = (CUBIC_BETA_SCALED * path->cwnd) >> CUBIC_SCALE_FACTOR_SHIFT;
-	path->cwnd =  QUIC_MAX(c->ssthresh, (uint32_t)path->limit_min);
+	quic_cc_path_set(path, c->ssthresh);
 	c->state = QUIC_CC_ST_RP;
 	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc, NULL, cc);
 }
@@ -456,10 +452,7 @@ static void quic_cc_cubic_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 			if (path->cwnd >= QUIC_CC_INFINITE_SSTHESH - acked)
 				goto out;
 
-			if (quic_cwnd_may_increase(path)) {
-				path->cwnd += acked;
-				path->cwnd_last_max = QUIC_MAX(path->cwnd, path->cwnd_last_max);
-			}
+			quic_cc_path_inc(path, acked);
 			quic_cc_hystart_track_min_rtt(cc, h, path->loss.latest_rtt);
 			if (ev->ack.pn >= h->wnd_end)
 				h->wnd_end = UINT64_MAX;
@@ -470,15 +463,11 @@ static void quic_cc_cubic_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 			}
 		}
 		else if (path->cwnd < QUIC_CC_INFINITE_SSTHESH - ev->ack.acked) {
-			if (quic_cwnd_may_increase(path)) {
-				path->cwnd += ev->ack.acked;
-				path->cwnd = QUIC_MIN(path->limit_max, path->cwnd);
-			}
+			quic_cc_path_inc(path, ev->ack.acked);
 		}
 		/* Exit to congestion avoidance if slow start threshold is reached. */
 		if (path->cwnd >= c->ssthresh)
 			c->state = QUIC_CC_ST_CA;
-		path->cwnd_last_max = QUIC_MAX(path->cwnd, path->cwnd_last_max);
 		break;
 
 	case QUIC_CC_EVT_LOSS:
@@ -551,10 +540,7 @@ static void quic_cc_cubic_cs_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 		if (path->cwnd >= QUIC_CC_INFINITE_SSTHESH - acked)
 			goto out;
 
-		if (quic_cwnd_may_increase(path)) {
-			path->cwnd += acked;
-			path->cwnd_last_max = QUIC_MAX(path->cwnd, path->cwnd_last_max);
-		}
+		quic_cc_path_inc(path, acked);
 		quic_cc_hystart_track_min_rtt(cc, h, path->loss.latest_rtt);
 		if (quic_cc_hystart_may_reenter_ss(h)) {
 			/* Exit to slow start */

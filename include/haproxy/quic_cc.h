@@ -115,7 +115,9 @@ static inline size_t quic_cc_path_prep_data(struct quic_cc_path *path)
 	return path->cwnd - path->prep_in_flight;
 }
 
-int quic_cwnd_may_increase(const struct quic_cc_path *path);
+void quic_cc_path_reset(struct quic_cc_path *path);
+void quic_cc_path_set(struct quic_cc_path *path, uint64_t val);
+void quic_cc_path_inc(struct quic_cc_path *path, uint64_t val);
 
 #endif /* USE_QUIC */
 #endif /* _PROTO_QUIC_CC_H */

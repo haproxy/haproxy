@@ -419,7 +419,7 @@ static void bbr_save_cwnd(struct bbr *bbr, struct quic_cc_path *p)
 
 static void bbr_restore_cwnd(struct bbr *bbr, struct quic_cc_path *p)
 {
-	p->cwnd = MAX(p->cwnd, bbr->prior_cwnd);
+	quic_cc_path_set(p, MAX(p->cwnd, bbr->prior_cwnd));
 }
 
 /* <gain> must be provided in percents. */
@@ -560,7 +560,7 @@ static void bbr_set_cwnd(struct bbr *bbr, struct quic_cc_path *p, uint32_t acked
 	cwnd = bbr_bound_cwnd_for_probe_rtt(bbr, p, cwnd);
 	cwnd = bbr_bound_cwnd_for_model(bbr, p, cwnd);
 	/* Limitation by configuration (not in BBR RFC). */
-	p->cwnd = MIN(cwnd, p->limit_max);
+	quic_cc_path_set(p, cwnd);
 }
 
 static int bbr_init(struct quic_cc *cc)
@@ -1316,7 +1316,7 @@ static void bbr_handle_recovery(struct bbr *bbr, struct quic_cc_path *p,
 	bbr->round_count_at_recovery =
 		bbr->round_start ? bbr->round_count : bbr->round_count + 1;
 	bbr_save_cwnd(bbr, p);
-	p->cwnd = p->in_flight + MAX(acked, p->mtu);
+	quic_cc_path_set(p, p->in_flight + MAX(acked, p->mtu));
 	p->recovery_start_ts = bbr->recovery_start_ts;
 	bbr->recovery_start_ts = TICK_ETERNITY;
 }

@@ -55,7 +55,7 @@ static void quic_cc_nr_slow_start(struct quic_cc *cc)
 	struct nr *nr = quic_cc_priv(cc);
 
 	path = container_of(cc, struct quic_cc_path, cc);
-	path->cwnd = path->limit_min;
+	quic_cc_path_reset(path);
 	/* Re-entering slow start state. */
 	nr->state = QUIC_CC_ST_SS;
 	/* Recovery start time reset */
@@ -71,7 +71,7 @@ static void quic_cc_nr_enter_recovery(struct quic_cc *cc)
 	path = container_of(cc, struct quic_cc_path, cc);
 	nr->recovery_start_time = now_ms;
 	nr->ssthresh = path->cwnd >> 1;
-	path->cwnd = QUIC_MAX(nr->ssthresh, (uint32_t)path->limit_min);
+	quic_cc_path_set(path, nr->ssthresh);
 	nr->state = QUIC_CC_ST_RP;
 }
 
@@ -86,11 +86,7 @@ static void quic_cc_nr_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	path = container_of(cc, struct quic_cc_path, cc);
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
-		if (quic_cwnd_may_increase(path)) {
-			path->cwnd += ev->ack.acked;
-			path->cwnd = QUIC_MIN(path->limit_max, path->cwnd);
-			path->cwnd_last_max = QUIC_MAX(path->cwnd, path->cwnd_last_max);
-		}
+		quic_cc_path_inc(path, ev->ack.acked);
 		/* Exit to congestion avoidance if slow start threshold is reached. */
 		if (path->cwnd > nr->ssthresh)
 			nr->state = QUIC_CC_ST_CA;
@@ -126,11 +122,7 @@ static void quic_cc_nr_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 		 */
 		acked = ev->ack.acked * path->mtu + nr->remain_acked;
 		nr->remain_acked = acked % path->cwnd;
-		if (quic_cwnd_may_increase(path)) {
-			path->cwnd += acked / path->cwnd;
-			path->cwnd = QUIC_MIN(path->limit_max, path->cwnd);
-			path->cwnd_last_max = QUIC_MAX(path->cwnd, path->cwnd_last_max);
-		}
+		quic_cc_path_inc(path, acked / path->cwnd);
 		break;
 	}
 
@@ -170,7 +162,7 @@ static void quic_cc_nr_rp_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 
 		nr->state = QUIC_CC_ST_CA;
 		nr->recovery_start_time = TICK_ETERNITY;
-		path->cwnd = nr->ssthresh;
+		quic_cc_path_set(path, nr->ssthresh);
 		break;
 	case QUIC_CC_EVT_LOSS:
 		/* Do nothing */
