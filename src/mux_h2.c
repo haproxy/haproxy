@@ -695,7 +695,7 @@ static void h2_trace_fill_ctx(struct trace_ctx *ctx, const struct trace_source *
 	}
 }
 
-static inline void h2c_report_term_evt(struct h2c *h2c, enum term_event_type type)
+static inline void h2c_report_term_evt(struct h2c *h2c, enum muxc_term_event_type type)
 {
 	enum term_event_loc loc = tevt_loc_muxc;
 
@@ -1441,7 +1441,7 @@ static void h2_release(struct h2c *h2c)
 		if (h2c->wait_event.events != 0)
 			conn->xprt->unsubscribe(conn, conn->xprt_ctx, h2c->wait_event.events,
 						&h2c->wait_event);
-		h2c_report_term_evt(h2c, tevt_type_shutw);
+		h2c_report_term_evt(h2c, muxc_tevt_type_shutw);
 	}
 
 	/* Rhttp connections are not accounted prior to their reverse. */
@@ -1819,13 +1819,19 @@ static inline void h2s_propagate_term_flags(struct h2c *h2c, struct h2s *h2s)
 	if (h2s->flags & H2_SF_ES_RCVD) {
 		se_fl_set(h2s->sd, SE_FL_EOI);
 		/* Add EOS flag for tunnel */
-		if (h2s->flags & H2_SF_BODY_TUNNEL)
+		if (h2s->flags & H2_SF_BODY_TUNNEL) {
 			se_fl_set(h2s->sd, SE_FL_EOS);
+			se_report_term_evt(h2s->sd, (h2c->flags & H2_CF_ERROR ? se_tevt_type_rcv_err : se_tevt_type_eos));
+		}
 	}
 	if (h2c_read0_pending(h2c) || h2s->st == H2_SS_CLOSED) {
 		se_fl_set(h2s->sd, SE_FL_EOS);
-		if (!se_fl_test(h2s->sd, SE_FL_EOI))
+		if (!se_fl_test(h2s->sd, SE_FL_EOI)) {
 			se_fl_set(h2s->sd, SE_FL_ERROR);
+			se_report_term_evt(h2s->sd, (h2c->flags & H2_CF_ERROR ? se_tevt_type_rcv_err : se_tevt_type_eos));
+		}
+		else
+			se_report_term_evt(h2s->sd, (h2c->flags & H2_CF_ERROR ? se_tevt_type_truncated_rcv_err : se_tevt_type_truncated_eos));
 	}
 	if (se_fl_test(h2s->sd, SE_FL_ERR_PENDING))
 		se_fl_set(h2s->sd, SE_FL_ERROR);
@@ -2351,10 +2357,26 @@ static int h2c_send_goaway_error(struct h2c *h2c, struct h2s *h2s)
 	switch (h2c->errcode) {
 	case H2_ERR_NO_ERROR:
 	case H2_ERR_ENHANCE_YOUR_CALM:
+		h2c_report_term_evt(h2c, muxc_tevt_type_graceful_shut);
+		__fallthrough;
 	case H2_ERR_REFUSED_STREAM:
 	case H2_ERR_CANCEL:
 		break;
+
+	case H2_ERR_PROTOCOL_ERROR:
+	case H2_ERR_FRAME_SIZE_ERROR:
+	case H2_ERR_COMPRESSION_ERROR:
+		h2c_report_term_evt(h2c, muxc_tevt_type_proto_err);
+		HA_ATOMIC_INC(&h2c->px_counters->goaway_resp);
+		break;
+
+	case H2_ERR_INTERNAL_ERROR:
+		h2c_report_term_evt(h2c, muxc_tevt_type_internal_err);
+		HA_ATOMIC_INC(&h2c->px_counters->goaway_resp);
+		break;
+
 	default:
+		h2c_report_term_evt(h2c, muxc_tevt_type_other_err);
 		HA_ATOMIC_INC(&h2c->px_counters->goaway_resp);
 	}
  out:
@@ -2487,6 +2509,26 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 		}
 	}
 
+	if (h2s->id) {
+		switch (h2s->errcode) {
+		case H2_ERR_REFUSED_STREAM:
+			break;
+
+		case H2_ERR_CANCEL:
+			se_report_term_evt(h2s->sd, se_tevt_type_cancelled);
+			break;
+
+		case H2_ERR_STREAM_CLOSED:
+		case H2_ERR_PROTOCOL_ERROR:
+			se_report_term_evt(h2s->sd, se_tevt_type_proto_err);
+			break;
+		case H2_ERR_INTERNAL_ERROR:
+			se_report_term_evt(h2s->sd, se_tevt_type_internal_err);
+			break;
+		default:
+			se_report_term_evt(h2s->sd, se_tevt_type_other_err);
+		}
+	}
  ignore:
 	if (h2s->id) {
 		h2s->flags |= H2_SF_RST_SENT;
@@ -3185,6 +3227,7 @@ static int h2c_handle_goaway(struct h2c *h2c)
 	h2c->errcode = h2_get_n32(&h2c->dbuf, 4);
 	if (h2c->last_sid < 0)
 		h2c->last_sid = last;
+	h2c_report_term_evt(h2c, muxc_tevt_type_goaway_rcvd);
 	h2_wake_some_streams(h2c, last);
 	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_GOAWAY, h2c->conn);
 	return 1;
@@ -3245,6 +3288,7 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 
 	if (h2s_sc(h2s)) {
 		se_fl_set_error(h2s->sd);
+		se_report_term_evt(h2s->sd, se_tevt_type_rst_rcvd);
 		if (!h2s->sd->abort_info.info) {
 			h2s->sd->abort_info.info = (SE_ABRT_SRC_MUX_H2 << SE_ABRT_SRC_SHIFT);
 			h2s->sd->abort_info.code = h2s->errcode;
@@ -4406,12 +4450,12 @@ static void h2_process_demux(struct h2c *h2c)
 
 	if (h2c->flags & H2_CF_ERROR)
 		h2c_report_term_evt(h2c, ((eb_is_empty(&h2c->streams_by_id) && !(h2c->flags & H2_CF_DEM_IN_PROGRESS))
-					  ? tevt_type_rcv_err
-					  : tevt_type_truncated_rcv_err));
+					  ? muxc_tevt_type_rcv_err
+					  : muxc_tevt_type_truncated_rcv_err));
 	else if (h2c->flags & H2_CF_END_REACHED)
 		h2c_report_term_evt(h2c, ((eb_is_empty(&h2c->streams_by_id) && !(h2c->flags & H2_CF_DEM_IN_PROGRESS))
-					  ? tevt_type_shutr
-					  : tevt_type_truncated_shutr));
+					  ? muxc_tevt_type_shutr
+					  : muxc_tevt_type_truncated_shutr));
 
 	/* Make sure to clear DFULL if contents were deleted */
 	if (!b_full(&h2c->dbuf))
@@ -4756,7 +4800,7 @@ static int h2_send(struct h2c *h2c)
 
 	if (conn->flags & CO_FL_ERROR) {
 		h2c->flags |= H2_CF_ERR_PENDING;
-		h2c_report_term_evt(h2c, tevt_type_snd_err);
+		h2c_report_term_evt(h2c, muxc_tevt_type_snd_err);
 		if (h2c->flags & H2_CF_END_REACHED)
 			h2c->flags |= H2_CF_ERROR;
 		b_reset(br_tail(h2c->mbuf));
@@ -5091,7 +5135,7 @@ struct task *h2_timeout_task(struct task *t, void *context, unsigned int state)
 			return t;
 		}
 
-		h2c_report_term_evt(h2c, tevt_type_tout);
+		h2c_report_term_evt(h2c, muxc_tevt_type_tout);
 	}
 
 do_leave:
@@ -7726,6 +7770,7 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	if (h2s->st == H2_SS_ERROR || h2s->flags & H2_SF_RST_RCVD) {
 		TRACE_DEVEL("reporting RST/error to the app-layer stream", H2_EV_H2S_SEND|H2_EV_H2S_ERR|H2_EV_STRM_ERR, h2s->h2c->conn, h2s);
 		se_fl_set_error(h2s->sd);
+		se_report_term_evt(h2s->sd, se_tevt_type_snd_err);
 		if (h2s_send_rst_stream(h2s->h2c, h2s) > 0)
 			h2s_close(h2s);
 	}

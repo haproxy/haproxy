@@ -565,7 +565,15 @@ static inline size_t se_done_ff(struct sedesc *se)
 	return ret;
 }
 
-static inline void sc_report_term_evt(struct stconn *sc, enum term_event_loc loc, enum term_event_type type)
+static inline void se_report_term_evt(struct sedesc *se, enum se_term_event_type type)
+{
+	enum term_event_loc loc = tevt_loc_se;
+
+	if (se->sc && se->sc->flags & SC_FL_ISBACK)
+		loc += 8;
+	se->term_evts_log = tevt_report_event(se->term_evts_log, loc, type);
+}
+
 {
 	if (sc->flags & SC_FL_ISBACK)
 		loc += 8;

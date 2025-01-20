@@ -201,7 +201,7 @@ static void pt_trace(enum trace_level level, uint64_t mask, const struct trace_s
 	}
 }
 
-static inline void mux_pt_report_term_evt(struct mux_pt_ctx *ctx, enum term_event_type type)
+static inline void mux_pt_report_term_evt(struct mux_pt_ctx *ctx, enum muxc_term_event_type type)
 {
 	struct connection *conn = ctx->conn;
 	enum term_event_loc loc = tevt_loc_muxc;
@@ -480,7 +480,7 @@ static void mux_pt_shut(struct stconn *sc, unsigned int mode, struct se_abort_in
 
 	TRACE_ENTER(PT_EV_STRM_SHUT, conn, sc);
 	if (mode & (SE_SHW_SILENT|SE_SHW_NORMAL)) {
-		mux_pt_report_term_evt(ctx, tevt_type_shutw);
+		mux_pt_report_term_evt(ctx, muxc_tevt_type_shutw);
 
 		if (conn_xprt_ready(conn) && conn->xprt->shutw)
 			conn->xprt->shutw(conn, conn->xprt_ctx, (mode & SE_SHW_NORMAL));
@@ -527,7 +527,7 @@ static size_t mux_pt_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count
 	b_realign_if_empty(buf);
 	ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, count, flags);
 	if (conn->flags & CO_FL_ERROR) {
-		mux_pt_report_term_evt(ctx, tevt_type_rcv_err);
+		mux_pt_report_term_evt(ctx, muxc_tevt_type_rcv_err);
 		se_fl_clr(ctx->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 		if (conn_xprt_read0_pending(conn))
 			se_fl_set(ctx->sd, SE_FL_EOS);
@@ -535,7 +535,7 @@ static size_t mux_pt_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count
 		TRACE_DEVEL("error on connection", PT_EV_RX_DATA|PT_EV_CONN_ERR, conn, sc);
 	}
 	else if (conn_xprt_read0_pending(conn)) {
-		mux_pt_report_term_evt(ctx, tevt_type_shutr);
+		mux_pt_report_term_evt(ctx, muxc_tevt_type_shutr);
 		se_fl_clr(ctx->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
 		se_fl_set(ctx->sd, (SE_FL_EOI|SE_FL_EOS));
 		TRACE_DEVEL("read0 on connection", PT_EV_RX_DATA, conn, sc);
@@ -560,7 +560,7 @@ static size_t mux_pt_snd_buf(struct stconn *sc, struct buffer *buf, size_t count
 		b_del(buf, ret);
 
 	if (conn->flags & CO_FL_ERROR) {
-		mux_pt_report_term_evt(ctx, tevt_type_snd_err);
+		mux_pt_report_term_evt(ctx, muxc_tevt_type_snd_err);
 		if (conn_xprt_read0_pending(conn))
 			se_fl_set(ctx->sd, SE_FL_EOS);
 		se_fl_set_error(ctx->sd);
@@ -714,14 +714,14 @@ static int mux_pt_fastfwd(struct stconn *sc, unsigned int count, unsigned int fl
 
  out:
 	if (conn->flags & CO_FL_ERROR) {
-		mux_pt_report_term_evt(ctx, tevt_type_rcv_err);
+		mux_pt_report_term_evt(ctx, muxc_tevt_type_rcv_err);
 		if (conn_xprt_read0_pending(conn))
 			se_fl_set(ctx->sd, SE_FL_EOS);
 		se_fl_set(ctx->sd, SE_FL_ERROR);
 		TRACE_DEVEL("error on connection", PT_EV_RX_DATA|PT_EV_CONN_ERR, conn, sc);
 	}
 	else if (conn_xprt_read0_pending(conn))  {
-		mux_pt_report_term_evt(ctx, tevt_type_shutr);
+		mux_pt_report_term_evt(ctx, muxc_tevt_type_shutr);
 		se_fl_set(ctx->sd, (SE_FL_EOS|SE_FL_EOI));
 		TRACE_DEVEL("read0 on connection", PT_EV_RX_DATA, conn, sc);
 	}
@@ -752,7 +752,7 @@ static int mux_pt_resume_fastfwd(struct stconn *sc, unsigned int flags)
 
   out:
 	if (conn->flags & CO_FL_ERROR) {
-		mux_pt_report_term_evt(ctx, tevt_type_snd_err);
+		mux_pt_report_term_evt(ctx, muxc_tevt_type_snd_err);
 		if (conn_xprt_read0_pending(conn))
 			se_fl_set(ctx->sd, SE_FL_EOS);
 		se_fl_set_error(ctx->sd);

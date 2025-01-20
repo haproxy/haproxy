@@ -584,6 +584,37 @@ enum xprt_term_event_type {
 	xprt_tevt_type_snd_err = 4,
 };
 
+enum muxc_term_event_type {
+	muxc_tevt_type_shutw            =  1,
+	muxc_tevt_type_shutr            =  2,
+	muxc_tevt_type_rcv_err          =  3,
+	muxc_tevt_type_snd_err          =  4,
+	muxc_tevt_type_truncated_shutr  =  5,
+	muxc_tevt_type_truncated_rcv_err=  6,
+
+	muxc_tevt_type_tout             =  7,
+	muxc_tevt_type_goaway_rcvd      =  8,
+	muxc_tevt_type_proto_err        =  9,
+	muxc_tevt_type_internal_err     = 10,
+	muxc_tevt_type_other_err        = 11,
+	muxc_tevt_type_graceful_shut    = 12,
+
+};
+
+enum se_term_event_type {
+	se_tevt_type_shutw            =  1,
+	se_tevt_type_eos              =  2,
+	se_tevt_type_rcv_err          =  3,
+	se_tevt_type_snd_err          =  4,
+	se_tevt_type_truncated_eos    =  5,
+	se_tevt_type_truncated_rcv_err=  6,
+	/* unused: 7 */
+	se_tevt_type_rst_rcvd         =  8,
+	se_tevt_type_proto_err        =  9,
+	se_tevt_type_internal_err     = 10,
+	se_tevt_type_other_err        = 11,
+	se_tevt_type_cancelled        = 12,
+};
 
 enum term_event_type {
 	/* Events emitted by haproxy */
