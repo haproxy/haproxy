@@ -1080,7 +1080,7 @@ dev/udp/udp-perturb: dev/udp/udp-perturb.o
 src/calltrace.o: src/calltrace.c $(DEP)
 	$(cmd_CC) $(TRACE_COPTS) -c -o $@ $<
 
-src/haproxy.o:	src/haproxy.c $(DEP)
+src/version.o:	src/version.c $(DEP)
 	$(cmd_CC) $(COPTS) \
 	      -DBUILD_TARGET='"$(strip $(TARGET))"' \
 	      -DBUILD_CC='"$(strip $(CC))"' \

@@ -142,12 +142,6 @@ DECLARE_INIT_STAGES;
  */
 empty_t __read_mostly_align HA_SECTION("read_mostly") ALIGNED(64);
 
-#ifdef BUILD_FEATURES
-char *build_features = BUILD_FEATURES;
-#else
-char *build_features = "";
-#endif
-
 /* list of config files */
 static struct list cfg_cfgfiles = LIST_HEAD_INIT(cfg_cfgfiles);
 int  pid;			/* current process id */
@@ -561,26 +555,12 @@ static void display_build_opts()
 {
 	const char **opt;
 
-	printf("Build options :"
-#ifdef BUILD_TARGET
-	       "\n  TARGET  = " BUILD_TARGET
-#endif
-#ifdef BUILD_CC
-	       "\n  CC      = " BUILD_CC
-#endif
-#ifdef BUILD_CFLAGS
-	       "\n  CFLAGS  = " BUILD_CFLAGS
-#endif
-#ifdef BUILD_OPTIONS
-	       "\n  OPTIONS = " BUILD_OPTIONS
-#endif
-#ifdef BUILD_DEBUG
-	       "\n  DEBUG   = " BUILD_DEBUG
-#endif
+	printf("Build options : %s"
 	       "\n\nFeature list : %s"
 	       "\n\nDefault settings :"
 	       "\n  bufsize = %d, maxrewrite = %d, maxpollevents = %d"
 	       "\n\n",
+	       build_opts_string,
 	       build_features, BUFSIZE, MAXREWRITE, MAX_POLL_EVENTS);
 
 	for (opt = NULL; (opt = hap_get_next_build_opt(opt)); puts(*opt))
@@ -2287,23 +2267,11 @@ static void step_init_2(int argc, char** argv)
 #endif
 	/* toolchain opts */
 	cflags = chunk_newstr(&trash);
-#ifdef BUILD_CC
-	chunk_appendf(&trash, "%s", BUILD_CC);
-#endif
-#ifdef BUILD_CFLAGS
-	chunk_appendf(&trash, " %s", BUILD_CFLAGS);
-#endif
-#ifdef BUILD_DEBUG
-	chunk_appendf(&trash, " %s", BUILD_DEBUG);
-#endif
+	chunk_appendf(&trash, "%s", pm_toolchain_opts);
+
 	/* settings */
 	opts = chunk_newstr(&trash);
-#ifdef BUILD_TARGET
-	chunk_appendf(&trash, "TARGET='%s'", BUILD_TARGET);
-#endif
-#ifdef BUILD_OPTIONS
-	chunk_appendf(&trash, " %s", BUILD_OPTIONS);
-#endif
+	chunk_appendf(&trash, "TARGET='%s'", pm_target_opts);
 
 	post_mortem_add_component("haproxy", haproxy_version, cc, cflags, opts, argv[0]);
 }
@@ -3081,23 +3049,8 @@ int main(int argc, char **argv)
 		fprintf(stderr,
 		        "FATAL ERROR: invalid code detected -- cannot go further, please recompile!\n"
 		        "%s"
-			"\nBuild options :"
-#ifdef BUILD_TARGET
-		        "\n  TARGET  = " BUILD_TARGET
-#endif
-#ifdef BUILD_CC
-		        "\n  CC      = " BUILD_CC
-#endif
-#ifdef BUILD_CFLAGS
-		        "\n  CFLAGS  = " BUILD_CFLAGS
-#endif
-#ifdef BUILD_OPTIONS
-		        "\n  OPTIONS = " BUILD_OPTIONS
-#endif
-#ifdef BUILD_DEBUG
-		        "\n  DEBUG   = " BUILD_DEBUG
-#endif
-		        "\n\n", msg);
+			"\nBuild options :%s"
+		        "\n\n", msg, build_opts_string);
 
 		return 1;
 	}

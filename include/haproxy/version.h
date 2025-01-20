@@ -81,6 +81,10 @@
 extern char haproxy_version[];
 extern char haproxy_date[];
 extern char stats_version_string[];
+extern char build_opts_string[];
+extern const char pm_target_opts[];
+extern const char pm_toolchain_opts[];
+extern char *build_features;
 
 #endif /* _HAPROXY_VERSION_H */
 

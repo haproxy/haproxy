@@ -25,7 +25,6 @@
 #include <haproxy/api-t.h>
 #include <haproxy/global-t.h>
 
-extern char *build_features;
 extern struct global global;
 extern int  pid;                /* current process id */
 extern int  actconn;            /* # of active sessions */
