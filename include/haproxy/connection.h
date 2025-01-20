@@ -746,14 +746,17 @@ static inline int conn_pr_mode_to_proto_mode(int proxy_mode)
 /* Must be used to report add an event in <_evt> termination events log.
  * For now, it only handles 32-bits integers.
  */
-#define tevt_report_event(_evts, loc, type) ({	\
-						\
-	if (!((_evts) & 0xff000000)) {		\
-		(_evts) <<= 8;			\
-		(_evts) |= (loc) << 4;		\
-		(_evts) |= (type);		\
-	}					\
-	(_evts);				\
+#define tevt_report_event(_evts, loc, type) ({			\
+								\
+	unsigned int _evt = ((loc) << 4) | (type);		\
+								\
+	if (!((_evts) & 0xff000000) &&				\
+	    (unsigned char)_evt != (unsigned char)(_evts)) {	\
+		(_evts) <<= 8;					\
+		(_evts) |= (loc) << 4;				\
+		(_evts) |= (type);				\
+	}							\
+	(_evts);						\
 })
 
 /* Function to convert a termination events log to a string */
