@@ -63,6 +63,7 @@ static inline void quic_tx_packet_dgram_detach(struct quic_tx_packet *pkt)
 		pkt->prev->next = pkt->next;
 	if (pkt->next)
 		pkt->next->prev = pkt->prev;
+	pkt->prev = pkt->next = NULL;
 }
 
 
