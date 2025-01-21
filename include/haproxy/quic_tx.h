@@ -76,6 +76,7 @@ static inline void quic_tx_packet_refinc(struct quic_tx_packet *pkt)
 /* Decrement the reference counter of <pkt> */
 static inline void quic_tx_packet_refdec(struct quic_tx_packet *pkt)
 {
+	BUG_ON(pkt->refcnt <= 0);
 	if (--pkt->refcnt == 0) {
 		BUG_ON(!LIST_ISEMPTY(&pkt->frms));
 		/* If there are others packet in the same datagram <pkt> is attached to,
