@@ -57,3 +57,4 @@ dev/udp/udp-perturb
 /src/dlmalloc.c
 /tests/test_hashes
 doc/lua-api/_build
+dev/term_events/term_events

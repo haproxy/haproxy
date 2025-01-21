@@ -1022,7 +1022,8 @@ help:
 IGNORE_OPTS=help install install-man install-doc install-bin \
 	uninstall clean tags cscope tar git-tar version update-version \
 	opts reg-tests reg-tests-help admin/halog/halog dev/flags/flags \
-	dev/haring/haring dev/ncpu/ncpu dev/poll/poll dev/tcploop/tcploop
+	dev/haring/haring dev/ncpu/ncpu dev/poll/poll dev/tcploop/tcploop \
+	dev/term_events/term_events
 
 ifneq ($(TARGET),)
 ifeq ($(filter $(firstword $(MAKECMDGOALS)),$(IGNORE_OPTS)),)
@@ -1072,6 +1073,9 @@ dev/tcploop/tcploop:
 	$(cmd_MAKE) -C dev/tcploop tcploop CC='$(CC)' OPTIMIZE='$(COPTS)' V='$(V)'
 
 dev/udp/udp-perturb: dev/udp/udp-perturb.o
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+
+dev/term_events/term_events: dev/term_events/term_events.o
 	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 # rebuild it every time
