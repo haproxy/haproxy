@@ -22087,6 +22087,7 @@ stopping                                           boolean
 str(<string>)                                      string
 table_avl([<table>])                               integer
 table_cnt([<table>])                               integer
+term_events                                        string
 thread                                             integer
 txn.id32                                           integer
 txn.sess_term_state                                string
@@ -22564,6 +22565,27 @@ table_cnt([<table>]) : integer
   Returns the total number of entries currently in use in the current proxy's
   stick-table or in the designated stick-table. See also "table_conn_cnt" and
   table_avl for other entry counting methods.
+
+term_events: string
+  Returns all known termination events for all entities attached a stream, on
+  client and server sides. A tuple of seven elements is returned with following info:
+
+    - the termination events of the frontend connection
+    - the termination events of the frontend mux connection
+    - the termination events of the frontend stream endpoint descriptor
+      (the mux stream or the applet)
+    - the termination events of the stream
+    - the termination events of the backend stream endpoint descriptor
+      (the mux stream or the applet)
+    - the termination events of the backend mux connection
+    - the termination events of the backend connection
+
+  At each level, the first four events are reported. An empty string is
+  returned if no event was reported yet for a specific level. If termination
+  events are not supported, a "-" is returned.
+
+  It must only be used for debugging purpose. The exact format is not
+  documented because it may evolve depending on developers requirements.
 
 thread : integer
   Returns an integer value corresponding to the position of the thread calling

@@ -4271,6 +4271,35 @@ static int smp_fetch_conn_retries(const struct arg *args, struct sample *smp, co
 	return 1;
 }
 
+static int smp_fetch_tevts(const struct arg *args, struct sample *smp, const char *km, void *private)
+{
+	struct buffer *trash = get_trash_chunk();
+	struct connection *fconn, *bconn;
+	int fc_mux_ret, bc_mux_ret;
+
+	fconn = smp->sess ? objt_conn(smp->sess->origin) : NULL;
+	bconn = smp->strm ? sc_conn(smp->strm->scb) : NULL;
+	fc_mux_ret = bc_mux_ret = -1;
+
+	if (fconn && fconn->mux && fconn->mux->ctl)
+		fc_mux_ret = fconn->mux->ctl(fconn, MUX_CTL_TEVTS, NULL);
+	if (bconn && bconn->mux && bconn->mux->ctl)
+		bc_mux_ret = bconn->mux->ctl(bconn, MUX_CTL_TEVTS, NULL);
+
+	chunk_printf(trash, "{%s,", fconn ? tevt_evts2str(fconn->term_evts_log) : "-");
+	chunk_appendf(trash, "%s,", (fc_mux_ret != -1) ? tevt_evts2str(fc_mux_ret) : "-");
+	chunk_appendf(trash, "%s,", smp->strm ? tevt_evts2str(smp->strm->scf->sedesc->term_evts_log) : "-");
+	chunk_appendf(trash, "%s,", smp->strm ? tevt_evts2str(smp->strm->term_evts_log) : "-");
+	chunk_appendf(trash, "%s,", smp->strm ? tevt_evts2str(smp->strm->scb->sedesc->term_evts_log) : "-");
+	chunk_appendf(trash, "%s,", (bc_mux_ret != -1) ? tevt_evts2str(bc_mux_ret) : "-");
+	chunk_appendf(trash, "%s}", bconn ? tevt_evts2str(bconn->term_evts_log) : "-");
+
+	smp->data.u.str = *trash;
+	smp->data.type = SMP_T_STR;
+	smp->flags = SMP_F_VOL_TEST | SMP_F_MAY_CHANGE;
+	return 1;
+}
+
 static int smp_fetch_id32(const struct arg *args, struct sample *smp, const char *km, void *private)
 {
 	smp->flags = SMP_F_VOL_TXN;
@@ -4304,6 +4333,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "last_entity",        smp_fetch_last_entity,        0, NULL, SMP_T_STR,  SMP_USE_INTRN, },
 	{ "last_rule_file",     smp_fetch_last_rule_file,     0, NULL, SMP_T_STR,  SMP_USE_INTRN, },
 	{ "last_rule_line",     smp_fetch_last_rule_line,     0, NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "term_events",        smp_fetch_tevts,              0, NULL, SMP_T_STR,  SMP_USE_INTRN, },
 	{ "txn.conn_retries",   smp_fetch_conn_retries,       0, NULL, SMP_T_SINT, SMP_USE_L4SRV, },
 	{ "txn.id32",           smp_fetch_id32,               0, NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "txn.redispatched",   smp_fetch_redispatched,       0, NULL, SMP_T_BOOL, SMP_USE_L4SRV, },
