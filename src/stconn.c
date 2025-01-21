@@ -969,6 +969,7 @@ static void sc_app_shut_applet(struct stconn *sc)
 	sc->flags |= SC_FL_SHUT_DONE;
 	oc->flags |= CF_WRITE_EVENT;
 	sc_set_hcto(sc);
+	sc_report_term_evt(sc, strm_tevt_type_shutw);
 
 	/* on shutw we always wake the applet up */
 	appctx_wakeup(__sc_appctx(sc));
@@ -1946,6 +1947,7 @@ static void sc_applet_eos(struct stconn *sc)
 	sc->flags |= SC_FL_EOS;
 	ic->flags |= CF_READ_EVENT;
 	sc_ep_report_read_activity(sc);
+	sc_report_term_evt(sc, (sc->flags & SC_FL_EOI ? strm_tevt_type_eos: strm_tevt_type_truncated_eos));
 
 	/* Note: on abort, we don't call the applet */
 

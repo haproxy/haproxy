@@ -558,6 +558,11 @@ size_t appctx_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 			se_fl_set(appctx->sedesc, SE_FL_ERROR);
 			TRACE_STATE("report ERROR to SE", APPLET_EV_RECV|APPLET_EV_BLK, appctx);
 		}
+
+		if (applet_fl_test(appctx, APPCTX_FL_ERROR))
+			se_report_term_evt(appctx->sedesc, !applet_fl_test(appctx, APPCTX_FL_EOI) ? se_tevt_type_truncated_rcv_err : se_tevt_type_rcv_err);
+		else if (applet_fl_test(appctx, APPCTX_FL_EOS))
+			se_report_term_evt(appctx->sedesc, !applet_fl_test(appctx, APPCTX_FL_EOI) ? se_tevt_type_truncated_eos : se_tevt_type_eos);
 	}
 
   end:
@@ -631,6 +636,9 @@ size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 	}
 
 	ret = appctx->applet->snd_buf(appctx, buf, count, flags);
+
+	if (applet_fl_test(appctx, (APPCTX_FL_ERROR|APPCTX_FL_ERR_PENDING)))
+		se_report_term_evt(appctx->sedesc, se_tevt_type_snd_err);
 
   end:
 	if (applet_fl_test(appctx, (APPCTX_FL_ERROR|APPCTX_FL_ERR_PENDING))) {
@@ -711,6 +719,11 @@ int appctx_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 	}
 	/* else */
 	/* 	applet_have_more_data(appctx); */
+
+	if (applet_fl_test(appctx, APPCTX_FL_ERROR))
+		se_report_term_evt(appctx->sedesc, !applet_fl_test(appctx, APPCTX_FL_EOI) ? se_tevt_type_truncated_rcv_err : se_tevt_type_rcv_err);
+	else if (applet_fl_test(appctx, APPCTX_FL_EOS))
+		se_report_term_evt(appctx->sedesc, !applet_fl_test(appctx, APPCTX_FL_EOI) ? se_tevt_type_truncated_eos : se_tevt_type_eos);
 
 	if (se_done_ff(sdo) != 0 || !(sdo->iobuf.flags & (IOBUF_FL_FF_BLOCKED|IOBUF_FL_FF_WANT_ROOM))) {
 		/* Something was forwarding or the consumer states it is not
