@@ -765,9 +765,19 @@ static inline const char *tevt_evts2str(uint32_t evts)
 {
 	uint32_t evt_msk = 0xff000000;
 	unsigned int evt_bits = 24;
-	int idx;
+	int idx = 0;
 
-	for (idx = 0; evt_msk; evt_msk >>= 8, evt_bits -= 8) {
+	/* no events: do nothing */
+	if (!evts)
+		goto end;
+
+	/* -1 means the feature is not supported for the location or the entity does not exist. print a dash */
+	if (evts == UINT_MAX) {
+		tevt_evts_str[idx++] = '-';
+		goto end;
+	}
+
+	for (; evt_msk; evt_msk >>= 8, evt_bits -= 8) {
 		unsigned char evt = (evts & evt_msk) >> evt_bits;
 		unsigned int is_back;
 
@@ -788,6 +798,7 @@ static inline const char *tevt_evts2str(uint32_t evts)
 
 		tevt_evts_str[idx++] = hextab[evt & 0xf];
 	}
+  end:
 	tevt_evts_str[idx] = '\0';
 	return tevt_evts_str;
 }

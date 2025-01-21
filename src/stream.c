@@ -4286,13 +4286,13 @@ static int smp_fetch_tevts(const struct arg *args, struct sample *smp, const cha
 	if (bconn && bconn->mux && bconn->mux->ctl)
 		bc_mux_ret = bconn->mux->ctl(bconn, MUX_CTL_TEVTS, NULL);
 
-	chunk_printf(trash, "{%s,", fconn ? tevt_evts2str(fconn->term_evts_log) : "-");
-	chunk_appendf(trash, "%s,", (fc_mux_ret != -1) ? tevt_evts2str(fc_mux_ret) : "-");
-	chunk_appendf(trash, "%s,", smp->strm ? tevt_evts2str(smp->strm->scf->sedesc->term_evts_log) : "-");
-	chunk_appendf(trash, "%s,", smp->strm ? tevt_evts2str(smp->strm->term_evts_log) : "-");
-	chunk_appendf(trash, "%s,", smp->strm ? tevt_evts2str(smp->strm->scb->sedesc->term_evts_log) : "-");
-	chunk_appendf(trash, "%s,", (bc_mux_ret != -1) ? tevt_evts2str(bc_mux_ret) : "-");
-	chunk_appendf(trash, "%s}", bconn ? tevt_evts2str(bconn->term_evts_log) : "-");
+	chunk_printf(trash, "{%s,", tevt_evts2str(fconn ? fconn->term_evts_log : -1));
+	chunk_appendf(trash, "%s,", tevt_evts2str(fc_mux_ret));
+	chunk_appendf(trash, "%s,", tevt_evts2str(smp->strm ? smp->strm->scf->sedesc->term_evts_log : -1));
+	chunk_appendf(trash, "%s,", tevt_evts2str(smp->strm ? smp->strm->term_evts_log : -1));
+	chunk_appendf(trash, "%s,", tevt_evts2str(smp->strm ? smp->strm->scb->sedesc->term_evts_log : -1));
+	chunk_appendf(trash, "%s,", tevt_evts2str(bc_mux_ret));
+	chunk_appendf(trash, "%s}", tevt_evts2str(bconn ? bconn->term_evts_log : -1));
 
 	smp->data.u.str = *trash;
 	smp->data.type = SMP_T_STR;
