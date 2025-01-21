@@ -283,6 +283,12 @@ int qc_release_lost_pkts(struct quic_conn *qc, struct quic_pktns *pktns,
 		tot_lost++;
 	}
 
+	/* <oldest_lost> cannot be NULL at this stage because we have ensured
+	 * that <pkts> list is not empty. Without this, GCC 12.2.0 reports a
+	 * possible overflow on a 0 byte region with O2 optimization.
+	 */
+	ASSUME_NONNULL(oldest_lost);
+
 	if (!close) {
 		if (newest_lost) {
 			struct quic_cc *cc = &qc->path->cc;
@@ -313,11 +319,6 @@ int qc_release_lost_pkts(struct quic_conn *qc, struct quic_pktns *pktns,
 		}
 	}
 
-	/* <oldest_lost> cannot be NULL at this stage because we have ensured
-	 * that <pkts> list is not empty. Without this, GCC 12.2.0 reports a
-	 * possible overflow on a 0 byte region with O2 optimization.
-	 */
-	ASSUME_NONNULL(oldest_lost);
 	quic_tx_packet_refdec(oldest_lost);
 	if (newest_lost != oldest_lost)
 		quic_tx_packet_refdec(newest_lost);
