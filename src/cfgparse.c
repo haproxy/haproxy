@@ -51,6 +51,7 @@
 #include <haproxy/clock.h>
 #ifdef USE_CPU_AFFINITY
 #include <haproxy/cpuset.h>
+#include <haproxy/cpu_topo.h>
 #endif
 #include <haproxy/connection.h>
 #include <haproxy/errors.h>

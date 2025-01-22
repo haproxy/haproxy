@@ -1,13 +1,9 @@
 #define _GNU_SOURCE
-#include <sched.h>
-#include <ctype.h>
 
 #include <haproxy/compat.h>
 #include <haproxy/cpuset.h>
 #include <haproxy/intops.h>
 #include <haproxy/tools.h>
-
-struct cpu_map *cpu_map;
 
 void ha_cpuset_zero(struct hap_cpuset *set)
 {
@@ -149,30 +145,6 @@ int ha_cpuset_size()
 #endif
 }
 
-/* Detects CPUs that are bound to the current process. Returns the number of
- * CPUs detected or 0 if the detection failed.
- */
-int ha_cpuset_detect_bound(struct hap_cpuset *set)
-{
-	ha_cpuset_zero(set);
-
-	/* detect bound CPUs depending on the OS's API */
-	if (0
-#if defined(__linux__)
-	    || sched_getaffinity(0, sizeof(set->cpuset), &set->cpuset) != 0
-#elif defined(__FreeBSD__)
-	    || cpuset_getaffinity(CPU_LEVEL_CPUSET, CPU_WHICH_PID, -1, sizeof(set->cpuset), &set->cpuset) != 0
-#else
-	    || 1 // unhandled platform
-#endif
-	    ) {
-		/* detection failed */
-		return 0;
-	}
-
-	return ha_cpuset_count(set);
-}
-
 /* Parse cpu sets. Each CPU set is either a unique number between 0 and
  * ha_cpuset_size() - 1 or a range with two such numbers delimited by a dash
  * ('-'). Each CPU set can be a list of unique numbers or ranges separated by
@@ -258,39 +230,3 @@ void parse_cpumap(char *cpumap_str, struct hap_cpuset *cpu_set)
 		++i;
 	} while (comma);
 }
-
-/* Returns true if at least one cpu-map directive was configured, otherwise
- * false.
- */
-int cpu_map_configured(void)
-{
-	int grp, thr;
-
-	for (grp = 0; grp < MAX_TGROUPS; grp++) {
-		for (thr = 0; thr < MAX_THREADS_PER_GROUP; thr++)
-			if (ha_cpuset_count(&cpu_map[grp].thread[thr]))
-				return 1;
-	}
-	return 0;
-}
-
-/* Allocates everything needed to store CPU information at boot.
- * Returns non-zero on success, zero on failure.
- */
-static int cpuset_alloc(void)
-{
-	/* allocate the structures used to store CPU topology info */
-	cpu_map = calloc(MAX_TGROUPS, sizeof(*cpu_map));
-	if (!cpu_map)
-		return 0;
-
-	return 1;
-}
-
-static void cpuset_deinit(void)
-{
-	ha_free(&cpu_map);
-}
-
-INITCALL0(STG_ALLOC, cpuset_alloc);
-REGISTER_POST_DEINIT(cpuset_deinit);
