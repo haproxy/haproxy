@@ -48,11 +48,6 @@ void ha_cpuset_assign(struct hap_cpuset *dst, struct hap_cpuset *src);
  */
 int ha_cpuset_size(void);
 
-/* Detects CPUs that are bound to the current process. Returns the number of
- * CPUs detected or 0 if the detection failed.
- */
-int ha_cpuset_detect_bound(struct hap_cpuset *set);
-
 /* Parse cpu sets. Each CPU set is either a unique number between 0 and
  * ha_cpuset_size() - 1 or a range with two such numbers delimited by a dash
  * ('-'). Each CPU set can be a list of unique numbers or ranges separated by
@@ -67,10 +62,5 @@ int parse_cpu_set(const char **args, struct hap_cpuset *cpu_set, char **err);
  * most-significant byte first, one bit per cpu number.
  */
 void parse_cpumap(char *cpumap_str, struct hap_cpuset *cpu_set);
-
-/* Returns true if at least one cpu-map directive was configured, otherwise
- * false.
- */
-int cpu_map_configured(void);
 
 #endif /* _HAPROXY_CPUSET_H */
