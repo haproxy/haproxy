@@ -35,6 +35,7 @@
 #    include <mach/thread_policy.h>
 #  endif
 #  include <haproxy/cpuset.h>
+#  include <haproxy/cpu_topo.h>
 #endif
 
 #include <haproxy/cfgparse.h>

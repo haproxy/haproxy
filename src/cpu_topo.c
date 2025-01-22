@@ -1,10 +1,15 @@
 #define _GNU_SOURCE
 
+#include <sched.h>
+#include <string.h>
+
 #include <haproxy/api.h>
+#include <haproxy/cpuset.h>
 #include <haproxy/cpu_topo.h>
 
 /* CPU topology information, ha_cpuset_size() entries, allocated at boot */
 struct ha_cpu_topo *ha_cpu_topo = NULL;
+struct cpu_map *cpu_map;
 
 
 /* Detects the CPUs that will be used based on the ones the process is bound to
@@ -30,6 +35,45 @@ int cpu_detect_usable(void)
 		if (!ha_cpuset_isset(&boot_set, cpu))
 			ha_cpu_topo[cpu].st |= HA_CPU_F_EXCLUDED;
 
+	return 0;
+}
+
+/* Detects CPUs that are bound to the current process. Returns the number of
+ * CPUs detected or 0 if the detection failed.
+ */
+int ha_cpuset_detect_bound(struct hap_cpuset *set)
+{
+	ha_cpuset_zero(set);
+
+	/* detect bound CPUs depending on the OS's API */
+	if (0
+#if defined(__linux__)
+	    || sched_getaffinity(0, sizeof(set->cpuset), &set->cpuset) != 0
+#elif defined(__FreeBSD__)
+	    || cpuset_getaffinity(CPU_LEVEL_CPUSET, CPU_WHICH_PID, -1, sizeof(set->cpuset), &set->cpuset) != 0
+#else
+	    || 1 // unhandled platform
+#endif
+	    ) {
+		/* detection failed */
+		return 0;
+	}
+
+	return ha_cpuset_count(set);
+}
+
+/* Returns true if at least one cpu-map directive was configured, otherwise
+ * false.
+ */
+int cpu_map_configured(void)
+{
+	int grp, thr;
+
+	for (grp = 0; grp < MAX_TGROUPS; grp++) {
+		for (thr = 0; thr < MAX_THREADS_PER_GROUP; thr++)
+			if (ha_cpuset_count(&cpu_map[grp].thread[thr]))
+				return 1;
+	}
 	return 0;
 }
 
@@ -91,6 +135,11 @@ static int cpu_topo_alloc(void)
 	int cpu;
 
 	/* allocate the structures used to store CPU topology info */
+	cpu_map = calloc(MAX_TGROUPS, sizeof(*cpu_map));
+	if (!cpu_map)
+		return 0;
+
+	/* allocate the structures used to store CPU topology info */
 	ha_cpu_topo = (struct ha_cpu_topo*)malloc(maxcpus * sizeof(*ha_cpu_topo));
 	if (!ha_cpu_topo)
 		return 0;
@@ -110,6 +159,7 @@ static int cpu_topo_alloc(void)
 static void cpu_topo_deinit(void)
 {
 	ha_free(&ha_cpu_topo);
+	ha_free(&cpu_map);
 }
 
 INITCALL0(STG_ALLOC, cpu_topo_alloc);
