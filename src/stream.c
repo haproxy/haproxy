@@ -1072,45 +1072,38 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 		struct switching_rule *rule;
 
 		list_for_each_entry(rule, &fe->switching_rules, list) {
-			int ret = 1;
+			struct proxy *backend = NULL;
 
-			if (rule->cond) {
-				ret = acl_exec_cond(rule->cond, fe, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
-				ret = acl_pass(ret);
-				if (rule->cond->pol == ACL_COND_UNLESS)
-					ret = !ret;
-			}
+			if (!acl_match_cond(rule->cond, fe, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL))
+				continue;
 
-			if (ret) {
-				/* If the backend name is dynamic, try to resolve the name.
-				 * If we can't resolve the name, or if any error occurs, break
-				 * the loop and fallback to the default backend.
-				 */
-				struct proxy *backend = NULL;
+			/* If the backend name is dynamic, try to resolve the name.
+			 * If we can't resolve the name, or if any error occurs, break
+			 * the loop and fallback to the default backend.
+			 */
 
-				if (rule->dynamic) {
-					struct buffer *tmp;
+			if (rule->dynamic) {
+				struct buffer *tmp;
 
-					tmp = alloc_trash_chunk();
-					if (!tmp)
-						goto sw_failed;
-
-					if (build_logline(s, tmp->area, tmp->size, &rule->be.expr))
-						backend = proxy_be_by_name(tmp->area);
-
-					free_trash_chunk(tmp);
-					tmp = NULL;
-
-					if (!backend)
-						break;
-				}
-				else
-					backend = rule->be.backend;
-
-				if (!stream_set_backend(s, backend))
+				tmp = alloc_trash_chunk();
+				if (!tmp)
 					goto sw_failed;
-				break;
+
+				if (build_logline(s, tmp->area, tmp->size, &rule->be.expr))
+					backend = proxy_be_by_name(tmp->area);
+
+				free_trash_chunk(tmp);
+				tmp = NULL;
+
+				if (!backend)
+					break;
 			}
+			else
+				backend = rule->be.backend;
+
+			if (!stream_set_backend(s, backend))
+				goto sw_failed;
+			break;
 		}
 
 		/* To ensure correct connection accounting on the backend, we
@@ -1147,24 +1140,16 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 	 * persistence rule, and report that in the stream.
 	 */
 	list_for_each_entry(prst_rule, &s->be->persist_rules, list) {
-		int ret = 1;
+		if (!acl_match_cond(prst_rule->cond, s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL))
+			continue;
 
-		if (prst_rule->cond) {
-	                ret = acl_exec_cond(prst_rule->cond, s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
-			ret = acl_pass(ret);
-			if (prst_rule->cond->pol == ACL_COND_UNLESS)
-				ret = !ret;
+		/* no rule, or the rule matches */
+		if (prst_rule->type == PERSIST_TYPE_FORCE) {
+			s->flags |= SF_FORCE_PRST;
+		} else {
+			s->flags |= SF_IGNORE_PRST;
 		}
-
-		if (ret) {
-			/* no rule, or the rule matches */
-			if (prst_rule->type == PERSIST_TYPE_FORCE) {
-				s->flags |= SF_FORCE_PRST;
-			} else {
-				s->flags |= SF_IGNORE_PRST;
-			}
-			break;
-		}
+		break;
 	}
 
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA, s);
@@ -1201,40 +1186,34 @@ static int process_server_rules(struct stream *s, struct channel *req, int an_bi
 
 	if (!(s->flags & SF_ASSIGNED)) {
 		list_for_each_entry(rule, &px->server_rules, list) {
-			int ret;
+			struct server *srv;
 
-			ret = acl_exec_cond(rule->cond, s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
-			ret = acl_pass(ret);
-			if (rule->cond->pol == ACL_COND_UNLESS)
-				ret = !ret;
+			if (!acl_match_cond(rule->cond, s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL))
+				continue;
 
-			if (ret) {
-				struct server *srv;
+			if (rule->dynamic) {
+				struct buffer *tmp = get_trash_chunk();
 
-				if (rule->dynamic) {
-					struct buffer *tmp = get_trash_chunk();
-
-					if (!build_logline(s, tmp->area, tmp->size, &rule->expr))
-						break;
-
-					srv = findserver(s->be, tmp->area);
-					if (!srv)
-						break;
-				}
-				else
-					srv = rule->srv.ptr;
-
-				if ((srv->cur_state != SRV_ST_STOPPED) ||
-				    (px->options & PR_O_PERSIST) ||
-				    (s->flags & SF_FORCE_PRST)) {
-					s->flags |= SF_DIRECT | SF_ASSIGNED;
-					s->target = &srv->obj_type;
+				if (!build_logline(s, tmp->area, tmp->size, &rule->expr))
 					break;
-				}
-				/* if the server is not UP, let's go on with next rules
-				 * just in case another one is suited.
-				 */
+
+				srv = findserver(s->be, tmp->area);
+				if (!srv)
+					break;
 			}
+			else
+				srv = rule->srv.ptr;
+
+			if ((srv->cur_state != SRV_ST_STOPPED) ||
+			    (px->options & PR_O_PERSIST) ||
+			    (s->flags & SF_FORCE_PRST)) {
+				s->flags |= SF_DIRECT | SF_ASSIGNED;
+				s->target = &srv->obj_type;
+				break;
+			}
+			/* if the server is not UP, let's go on with next rules
+			 * just in case another one is suited.
+			 */
 		}
 	}
 
@@ -1310,7 +1289,7 @@ static int process_sticking_rules(struct stream *s, struct channel *req, int an_
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA, s);
 
 	list_for_each_entry(rule, &px->sticking_rules, list) {
-		int ret = 1 ;
+		struct stktable_key *key;
 		int i;
 
 		/* Only the first stick store-request of each table is applied
@@ -1330,38 +1309,30 @@ static int process_sticking_rules(struct stream *s, struct channel *req, int an_
 				continue;
 		}
 
-		if (rule->cond) {
-	                ret = acl_exec_cond(rule->cond, px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
-			ret = acl_pass(ret);
-			if (rule->cond->pol == ACL_COND_UNLESS)
-				ret = !ret;
+		if (!acl_match_cond(rule->cond, px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL))
+			continue;
+
+		key = stktable_fetch_key(rule->table.t, px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->expr, NULL);
+		if (!key)
+			continue;
+
+		if (rule->flags & STK_IS_MATCH) {
+			struct stksess *ts;
+
+			if ((ts = stktable_lookup_key(rule->table.t, key)) != NULL) {
+				if (!(s->flags & SF_ASSIGNED))
+					sticking_rule_find_target(s, rule->table.t, ts);
+				stktable_touch_local(rule->table.t, ts, 1);
+			}
 		}
-
-		if (ret) {
-			struct stktable_key *key;
-
-			key = stktable_fetch_key(rule->table.t, px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->expr, NULL);
-			if (!key)
-				continue;
-
-			if (rule->flags & STK_IS_MATCH) {
+		if (rule->flags & STK_IS_STORE) {
+			if (s->store_count < (sizeof(s->store) / sizeof(s->store[0]))) {
 				struct stksess *ts;
 
-				if ((ts = stktable_lookup_key(rule->table.t, key)) != NULL) {
-					if (!(s->flags & SF_ASSIGNED))
-						sticking_rule_find_target(s, rule->table.t, ts);
-					stktable_touch_local(rule->table.t, ts, 1);
-				}
-			}
-			if (rule->flags & STK_IS_STORE) {
-				if (s->store_count < (sizeof(s->store) / sizeof(s->store[0]))) {
-					struct stksess *ts;
-
-					ts = stksess_new(rule->table.t, key);
-					if (ts) {
-						s->store[s->store_count].table = rule->table.t;
-						s->store[s->store_count++].ts = ts;
-					}
+				ts = stksess_new(rule->table.t, key);
+				if (ts) {
+					s->store[s->store_count].table = rule->table.t;
+					s->store[s->store_count++].ts = ts;
 				}
 			}
 		}
@@ -1388,7 +1359,7 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA, s);
 
 	list_for_each_entry(rule, &px->storersp_rules, list) {
-		int ret = 1 ;
+		struct stktable_key *key;
 
 		/* Only the first stick store-response of each table is applied
 		 * and other ones are ignored. The purpose is to allow complex
@@ -1411,28 +1382,20 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 		if (i < s->store_count)
 			continue;
 
-		if (rule->cond) {
-	                ret = acl_exec_cond(rule->cond, px, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL);
-	                ret = acl_pass(ret);
-			if (rule->cond->pol == ACL_COND_UNLESS)
-				ret = !ret;
-		}
+		if (!acl_match_cond(rule->cond, px, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL))
+			continue;
 
-		if (ret) {
-			struct stktable_key *key;
+		key = stktable_fetch_key(rule->table.t, px, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL, rule->expr, NULL);
+		if (!key)
+			continue;
 
-			key = stktable_fetch_key(rule->table.t, px, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL, rule->expr, NULL);
-			if (!key)
-				continue;
+		if (s->store_count < (sizeof(s->store) / sizeof(s->store[0]))) {
+			struct stksess *ts;
 
-			if (s->store_count < (sizeof(s->store) / sizeof(s->store[0]))) {
-				struct stksess *ts;
-
-				ts = stksess_new(rule->table.t, key);
-				if (ts) {
-					s->store[s->store_count].table = rule->table.t;
-					s->store[s->store_count++].ts = ts;
-				}
+			ts = stksess_new(rule->table.t, key);
+			if (ts) {
+				s->store[s->store_count].table = rule->table.t;
+				s->store[s->store_count++].ts = ts;
 			}
 		}
 	}

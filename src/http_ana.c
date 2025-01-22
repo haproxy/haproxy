@@ -237,19 +237,14 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 			/* Check if we want to fail this monitor request or not */
 			list_for_each_entry(cond, &sess->fe->mon_fail_cond, list) {
-				int ret = acl_exec_cond(cond, sess->fe, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
+				if (!acl_match_cond(cond, sess->fe, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL))
+					continue;
 
-				ret = acl_pass(ret);
-				if (cond->pol == ACL_COND_UNLESS)
-					ret = !ret;
-
-				if (ret) {
-					/* we fail this request, let's return 503 service unavail */
-					txn->status = 503;
-					if (!(s->flags & SF_ERR_MASK))
-						s->flags |= SF_ERR_LOCAL; /* we don't want a real error here */
-					goto return_prx_cond;
-				}
+				/* we fail this request, let's return 503 service unavail */
+				txn->status = 503;
+				if (!(s->flags & SF_ERR_MASK))
+					s->flags |= SF_ERR_LOCAL; /* we don't want a real error here */
+				goto return_prx_cond;
 			}
 
 			/* nothing to fail, let's reply normally */
@@ -505,16 +500,8 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 	/* check whether we have some ACLs set to redirect this request */
 	list_for_each_entry(rule, &px->redirect_rules, list) {
-		if (rule->cond) {
-			int ret;
-
-			ret = acl_exec_cond(rule->cond, px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
-			ret = acl_pass(ret);
-			if (rule->cond->pol == ACL_COND_UNLESS)
-				ret = !ret;
-			if (!ret)
-				continue;
-		}
+		if (!acl_match_cond(rule->cond, px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL))
+			continue;
 		if (!http_apply_redirect_rule(rule, s, txn)) {
 			goto return_int_err;
 		}
@@ -2757,18 +2744,8 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 
 	list_for_each_entry(rule, s->current_rule_list, list) {
 		/* check optional condition */
-		if (rule->cond) {
-			int ret;
-
-			ret = acl_exec_cond(rule->cond, px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
-			ret = acl_pass(ret);
-
-			if (rule->cond->pol == ACL_COND_UNLESS)
-				ret = !ret;
-
-			if (!ret) /* condition not matched */
-				continue;
-		}
+		if (!acl_match_cond(rule->cond, px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL))
+			continue;
 
 		act_opts |= ACT_OPT_FIRST;
   resume_execution:
@@ -2938,18 +2915,8 @@ static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct lis
 
 	list_for_each_entry(rule, s->current_rule_list, list) {
 		/* check optional condition */
-		if (rule->cond) {
-			int ret;
-
-			ret = acl_exec_cond(rule->cond, px, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL);
-			ret = acl_pass(ret);
-
-			if (rule->cond->pol == ACL_COND_UNLESS)
-				ret = !ret;
-
-			if (!ret) /* condition not matched */
-				continue;
-		}
+		if (!acl_match_cond(rule->cond, px, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL))
+			continue;
 
 		act_opts |= ACT_OPT_FIRST;
 resume_execution:
@@ -4122,20 +4089,12 @@ static int http_handle_stats(struct stream *s, struct channel *req, struct proxy
 
 	/* now check whether we have some admin rules for this request */
 	list_for_each_entry(stats_admin_rule, &uri_auth->admin_rules, list) {
-		int ret = 1;
+		if (!acl_match_cond(stats_admin_rule->cond, s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL))
+			continue;
 
-		if (stats_admin_rule->cond) {
-			ret = acl_exec_cond(stats_admin_rule->cond, s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
-			ret = acl_pass(ret);
-			if (stats_admin_rule->cond->pol == ACL_COND_UNLESS)
-				ret = !ret;
-		}
-
-		if (ret) {
-			/* no rule, or the rule matches */
-			ctx->flags |= STAT_F_ADMIN;
-			break;
-		}
+		/* no rule, or the rule matches */
+		ctx->flags |= STAT_F_ADMIN;
+		break;
 	}
 
 	if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)

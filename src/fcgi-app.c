@@ -311,7 +311,6 @@ static int fcgi_flt_http_headers(struct stream *s, struct filter *filter, struct
 	struct eb_root hdr_rules = EB_ROOT;
 	struct htx *htx;
 	struct http_hdr_ctx ctx;
-	int ret;
 
 	htx = htxbuf(&msg->chn->buf);
 
@@ -368,16 +367,8 @@ static int fcgi_flt_http_headers(struct stream *s, struct filter *filter, struct
 		goto end;
 
 	list_for_each_entry(rule, &fcgi_conf->param_rules, list) {
-		if (rule->cond) {
-			ret = acl_exec_cond(rule->cond, s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
-			ret = acl_pass(ret);
-			if (rule->cond->pol == ACL_COND_UNLESS)
-				ret = !ret;
-
-			/* the rule does not match */
-			if (!ret)
-				continue;
-		}
+		if (!acl_match_cond(rule->cond, s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL))
+			continue;
 
 		param_rule = NULL;
 		node = ebis_lookup_len(&param_rules, rule->name.ptr, rule->name.len);
@@ -398,16 +389,8 @@ static int fcgi_flt_http_headers(struct stream *s, struct filter *filter, struct
 	}
 
 	list_for_each_entry(rule, &fcgi_conf->hdr_rules, list) {
-		if (rule->cond) {
-			ret = acl_exec_cond(rule->cond, s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
-			ret = acl_pass(ret);
-			if (rule->cond->pol == ACL_COND_UNLESS)
-				ret = !ret;
-
-			/* the rule does not match */
-			if (!ret)
-				continue;
-		}
+		if (!acl_match_cond(rule->cond, s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL))
+			continue;
 
 		hdr_rule = NULL;
 		node = ebis_lookup_len(&hdr_rules, rule->name.ptr, rule->name.len);

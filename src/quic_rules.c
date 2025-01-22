@@ -18,7 +18,6 @@ int quic_init_exec_rules(struct listener *li, struct quic_dgram *dgram)
 {
 	static THREAD_LOCAL struct session rule_sess;
 	struct act_rule *rule;
-	enum acl_test_res ret;
 	struct proxy *px;
 	int result = 1;
 
@@ -34,40 +33,32 @@ int quic_init_exec_rules(struct listener *li, struct quic_dgram *dgram)
 	rule_sess.origin = &dgram->obj_type;
 
 	list_for_each_entry(rule, &px->quic_init_rules, list) {
-		ret = ACL_TEST_PASS;
+		if (!acl_match_cond(rule->cond, px, &rule_sess, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL))
+			continue;
 
-		if (rule->cond) {
-			ret = acl_exec_cond(rule->cond, px, &rule_sess, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
-			ret = acl_pass(ret);
-			if (rule->cond->pol == ACL_COND_UNLESS)
-				ret = !ret;
-		}
-
-		if (ret) {
-			if (rule->action_ptr) {
-				switch (rule->action_ptr(rule, px, &rule_sess, NULL, 0)) {
-				case ACT_RET_CONT:
-					break;
-				case ACT_RET_DONE:
-				case ACT_RET_STOP:
-					goto end;
-				case ACT_RET_ABRT:
-				case ACT_RET_DENY:
-				case ACT_RET_ERR:
-				case ACT_RET_INV:
-					result = 0;
-					goto end;
-				default:
-					ABORT_NOW("not implemented");
-				}
-			}
-			else if (rule->action == ACT_ACTION_ALLOW) {
+		if (rule->action_ptr) {
+			switch (rule->action_ptr(rule, px, &rule_sess, NULL, 0)) {
+			case ACT_RET_CONT:
+				break;
+			case ACT_RET_DONE:
+			case ACT_RET_STOP:
 				goto end;
-			}
-			else if (rule->action == ACT_ACTION_DENY) {
+			case ACT_RET_ABRT:
+			case ACT_RET_DENY:
+			case ACT_RET_ERR:
+			case ACT_RET_INV:
 				result = 0;
 				goto end;
+			default:
+				ABORT_NOW("not implemented");
 			}
+		}
+		else if (rule->action == ACT_ACTION_ALLOW) {
+			goto end;
+		}
+		else if (rule->action == ACT_ACTION_DENY) {
+			result = 0;
+			goto end;
 		}
 	}
 

@@ -104,6 +104,26 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct list *known_a
  */
 enum acl_test_res acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *sess, struct stream *strm, unsigned int opt);
 
+
+/* helper that combines acl_exec_cond() and acl_pass(), and also takes into
+ * account cond->pol in order to return either 1 if the cond should pass and
+ * 0 otherwise
+ * <cond> may be NULL, in which case 1 is returned as the cond cannot fail
+ */
+static inline int acl_match_cond(struct acl_cond *cond, struct proxy *px, struct session *sess, struct stream *strm, unsigned int opt)
+{
+	int ret;
+
+	if (!cond)
+		return 1;
+
+	ret = acl_pass(acl_exec_cond(cond, px, sess, strm, opt));
+	if (cond->pol == ACL_COND_UNLESS)
+		ret = !ret;
+
+	return ret;
+}
+
 /* Returns a pointer to the first ACL conflicting with usage at place <where>
  * which is one of the SMP_VAL_* bits indicating a check place, or NULL if
  * no conflict is found. Only full conflicts are detected (ACL is not usable).

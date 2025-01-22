@@ -592,16 +592,8 @@ static int spoe_encode_message(struct stream *s, struct spoe_context *ctx,
 	struct spoe_arg *arg;
 	int ret;
 
-	if (msg->cond) {
-		ret = acl_exec_cond(msg->cond, s->be, s->sess, s, dir|SMP_OPT_FINAL);
-		ret = acl_pass(ret);
-		if (msg->cond->pol == ACL_COND_UNLESS)
-			ret = !ret;
-
-		/* the rule does not match */
-		if (!ret)
-			goto next;
-	}
+	if (!acl_match_cond(msg->cond, s->be, s->sess, s, dir|SMP_OPT_FINAL))
+		goto next;
 
 	/* Check if there is enough space for the message name and the
 	 * number of arguments. It implies <msg->id_len> is encoded on 2
