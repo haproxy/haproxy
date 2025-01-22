@@ -14,8 +14,6 @@ static inline void quic_pacing_init(struct quic_pacer *pacer,
 	pacer->credit = cc->algo->pacing_burst(cc);
 }
 
-int quic_pacing_expired(const struct quic_pacer *pacer);
-
 void quic_pacing_sent_done(struct quic_pacer *pacer, int sent);
 
 int quic_pacing_reload(struct quic_pacer *pacer);

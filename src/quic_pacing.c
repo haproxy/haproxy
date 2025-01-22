@@ -3,12 +3,6 @@
 #include <haproxy/quic_tx.h>
 #include <haproxy/task.h>
 
-/* Returns true if <pacer> timer is expired and emission can be retried. */
-int quic_pacing_expired(const struct quic_pacer *pacer)
-{
-	return pacer->credit;
-}
-
 /* Notify <pacer> about an emission of <sent> count of datagrams. */
 void quic_pacing_sent_done(struct quic_pacer *pacer, int sent)
 {

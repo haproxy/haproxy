@@ -17269,14 +17269,13 @@ quic-cc-algo { cubic | newreno | bbr | nocc }[(<args,...>)]
   It is possible to enable pacing if the algorithm is compatible. This is done
   by specifying an optional burst argument as described in the next paragraph.
   The purpose of pacing is to smooth emission of data to reduce network losses.
-  In some scenario, it can significantly improve network throughput by avoiding
-  retransmissions. However, it can also increase CPU usage if haproxy is forced
-  to wait too long between each emission. Pacing support is still experimental,
-  as such it requires "expose-experimental-directives". The BBR congestion
-  control algorithm depends on the pacing support which is in this case
-  implicitly enabled by choosing the "bbr" algorithm. Note that haproxy's BBR
-  implementation is still considered as experimental and cannot be enabled
-  without "expose-experimental-directives".
+  In most scenario, it can significantly improve network throughput by avoiding
+  retransmissions. Pacing support is still experimental, as such it requires
+  "expose-experimental-directives". The BBR congestion control algorithm
+  depends on the pacing support which is in this case implicitly enabled by
+  choosing the "bbr" algorithm. Note that haproxy's BBR implementation is still
+  considered as experimental and cannot be enabled without
+  "expose-experimental-directives".
 
   For further customization, a list of parameters can be specified after the
   algorithm token. It must be written between parenthesis, separated by a
