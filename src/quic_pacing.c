@@ -21,14 +21,29 @@ int quic_pacing_reload(struct quic_pacer *pacer)
 {
 	const uint64_t task_now_ns = task_mono_time();
 	const uint64_t inter = pacer->cc->algo->pacing_inter(pacer->cc);
-	uint64_t inc;
+	uint64_t inc, wakeup_delay;
 	uint credit_max;
 
 	if (task_now_ns > pacer->cur) {
 		/* Calculate number of packets which could have been emitted since last emission sequence. Result is rounded up. */
 		inc = (task_now_ns - pacer->cur + inter - 1) / inter;
 
-		credit_max = pacer->cc->algo->pacing_burst(pacer->cc);
+		/* Credit must not exceed a maximal value to guarantee a
+		 * smooth emission. This max value represents the number of
+		 * packet based on congestion window and RTT which can be sent
+		 * to cover the sleep until the next wakeup. This delay is
+		 * roughly the max between the scheduler delay or 1ms.
+		 */
+
+		/* Calculate wakeup_delay to determine max credit value. */
+		wakeup_delay = MAX(swrate_avg(activity[tid].avg_loop_us, TIME_STATS_SAMPLES), 1000);
+		/* Convert it to nanoseconds. Use 1.5 factor tolerance to try to cover the imponderable extra system delay until the next wakeup. */
+		wakeup_delay *= 1500;
+		/* Determine max credit from wakeup_delay and packet rate emission. */
+		credit_max = wakeup_delay / inter;
+		/* Ensure max credit will never be smaller than 2. */
+		credit_max = MAX(credit_max, 2);
+		/* Apply max credit on the new value. */
 		pacer->credit = MIN(pacer->credit + inc, credit_max);
 
 		/* Refresh pacing reload timer. */

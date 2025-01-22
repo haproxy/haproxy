@@ -11,7 +11,7 @@ static inline void quic_pacing_init(struct quic_pacer *pacer,
 {
 	pacer->cc = cc;
 	pacer->cur = 0;
-	pacer->credit = cc->algo->pacing_burst(cc);
+	pacer->credit = 0;
 }
 
 void quic_pacing_sent_done(struct quic_pacer *pacer, int sent);
