@@ -185,7 +185,6 @@ struct bind_conf {
 	struct quic_cc_algo *quic_cc_algo; /* QUIC control congestion algorithm */
 	size_t max_cwnd;                   /* QUIC maximumu congestion control window size (kB) */
 	enum quic_sock_mode quic_mode;     /* QUIC socket allocation strategy */
-	int quic_pacing_burst;             /* QUIC allowed pacing burst size */
 #endif
 	struct proxy *frontend;    /* the frontend all these listeners belong to, or NULL */
 	const struct mux_proto_list *mux_proto; /* the mux to use for all incoming connections (specified by the "proto" keyword) */

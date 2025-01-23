@@ -202,9 +202,7 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 					goto fail;
 				}
 
-				conf->quic_pacing_burst = burst;
 				cc_algo->pacing_inter = quic_cc_default_pacing_inter;
-				cc_algo->pacing_burst = quic_cc_default_pacing_burst;
 			}
 
 			if (*end_opt == ')') {

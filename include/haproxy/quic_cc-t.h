@@ -118,8 +118,6 @@ struct quic_cc_path {
 	uint64_t in_flight;
 	/* Number of in flight ack-eliciting packets. */
 	uint64_t ifae_pkts;
-	/* Burst size if pacing is used. Not used if congestion algo handle pacing itself. */
-	uint32_t pacing_burst;
 	uint64_t delivery_rate; /* bytes per second */
 	size_t send_quantum;
 	uint32_t recovery_start_ts;
