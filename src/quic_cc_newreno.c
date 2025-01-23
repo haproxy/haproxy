@@ -55,7 +55,7 @@ static void quic_cc_nr_slow_start(struct quic_cc *cc)
 	struct nr *nr = quic_cc_priv(cc);
 
 	path = container_of(cc, struct quic_cc_path, cc);
-	path->cwnd = path->min_cwnd;
+	path->cwnd = path->limit_min;
 	/* Re-entering slow start state. */
 	nr->state = QUIC_CC_ST_SS;
 	/* Recovery start time reset */
@@ -71,7 +71,7 @@ static void quic_cc_nr_enter_recovery(struct quic_cc *cc)
 	path = container_of(cc, struct quic_cc_path, cc);
 	nr->recovery_start_time = now_ms;
 	nr->ssthresh = path->cwnd >> 1;
-	path->cwnd = QUIC_MAX(nr->ssthresh, (uint32_t)path->min_cwnd);
+	path->cwnd = QUIC_MAX(nr->ssthresh, (uint32_t)path->limit_min);
 	nr->state = QUIC_CC_ST_RP;
 }
 
@@ -88,8 +88,8 @@ static void quic_cc_nr_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	case QUIC_CC_EVT_ACK:
 		if (quic_cwnd_may_increase(path)) {
 			path->cwnd += ev->ack.acked;
-			path->cwnd = QUIC_MIN(path->max_cwnd, path->cwnd);
-			path->mcwnd = QUIC_MAX(path->cwnd, path->mcwnd);
+			path->cwnd = QUIC_MIN(path->limit_max, path->cwnd);
+			path->cwnd_last_max = QUIC_MAX(path->cwnd, path->cwnd_last_max);
 		}
 		/* Exit to congestion avoidance if slow start threshold is reached. */
 		if (path->cwnd > nr->ssthresh)
@@ -128,8 +128,8 @@ static void quic_cc_nr_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 		nr->remain_acked = acked % path->cwnd;
 		if (quic_cwnd_may_increase(path)) {
 			path->cwnd += acked / path->cwnd;
-			path->cwnd = QUIC_MIN(path->max_cwnd, path->cwnd);
-			path->mcwnd = QUIC_MAX(path->cwnd, path->mcwnd);
+			path->cwnd = QUIC_MIN(path->limit_max, path->cwnd);
+			path->cwnd_last_max = QUIC_MAX(path->cwnd, path->cwnd_last_max);
 		}
 		break;
 	}
@@ -190,10 +190,10 @@ static void quic_cc_nr_state_trace(struct buffer *buf, const struct quic_cc *cc)
 	struct nr *nr = quic_cc_priv(cc);
 
 	path = container_of(cc, struct quic_cc_path, cc);
-	chunk_appendf(buf, " state=%s cwnd=%llu mcwnd=%llu ssthresh=%ld rpst=%dms pktloss=%llu",
+	chunk_appendf(buf, " state=%s cwnd=%llu cwnd_last_max=%llu ssthresh=%ld rpst=%dms pktloss=%llu",
 	              quic_cc_state_str(nr->state),
 	              (unsigned long long)path->cwnd,
-	              (unsigned long long)path->mcwnd,
+	              (unsigned long long)path->cwnd_last_max,
 	              (long)nr->ssthresh,
 	              !tick_isset(nr->recovery_start_time) ? -1 :
 	              TICKS_TO_MS(tick_remain(nr->recovery_start_time, now_ms)),

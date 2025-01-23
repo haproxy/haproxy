@@ -91,9 +91,9 @@ static inline void quic_cc_path_init(struct quic_cc_path *path, int ipv4, unsign
 	*(size_t *)&path->mtu = max_dgram_sz;
 	path->initial_wnd = QUIC_MIN(10 * max_dgram_sz, QUIC_MAX(max_dgram_sz << 1, 14720U));
 	path->cwnd = path->initial_wnd;
-	path->mcwnd = path->cwnd;
-	path->max_cwnd = max_cwnd;
-	path->min_cwnd = max_dgram_sz << 1;
+	path->cwnd_last_max = path->cwnd;
+	path->limit_max = max_cwnd;
+	path->limit_min = max_dgram_sz << 1;
 	path->prep_in_flight = 0;
 	path->in_flight = 0;
 	path->ifae_pkts = 0;

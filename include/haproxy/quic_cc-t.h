@@ -107,11 +107,11 @@ struct quic_cc_path {
 	/* Congestion window. */
 	uint64_t cwnd;
 	/* The current maximum congestion window value reached. */
-	uint64_t mcwnd;
-	/* The maximum congestion window value which can be reached. */
-	uint64_t max_cwnd;
-	/* Minimum congestion window. */
-	uint64_t min_cwnd;
+	uint64_t cwnd_last_max;
+	/* Max limit on congestion window size. */
+	uint64_t limit_max;
+	/* Min limit on congestion window size. */
+	uint64_t limit_min;
 	/* Prepared data to be sent (in bytes). */
 	uint64_t prep_in_flight;
 	/* Outstanding data (in bytes). */

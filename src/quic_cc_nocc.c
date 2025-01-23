@@ -15,7 +15,7 @@ static int quic_cc_nocc_init(struct quic_cc *cc)
 	struct quic_cc_path *path;
 
 	path = container_of(cc, struct quic_cc_path, cc);
-	path->cwnd = path->max_cwnd;
+	path->cwnd = path->limit_max;
 	return 1;
 }
 
