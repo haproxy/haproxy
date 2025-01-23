@@ -38,7 +38,7 @@ void quic_cc_event(struct quic_cc *cc, struct quic_cc_event *ev);
 void quic_cc_state_trace(struct buffer *buf, const struct quic_cc *cc);
 
 /* Pacing callbacks */
-uint quic_cc_default_pacing_rate(const struct quic_cc *cc);
+uint quic_cc_default_pacing_inter(const struct quic_cc *cc);
 uint quic_cc_default_pacing_burst(const struct quic_cc *cc);
 
 static inline const char *quic_cc_state_str(enum quic_cc_algo_state_type state)

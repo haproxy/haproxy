@@ -41,7 +41,7 @@ static void qmux_ctrl_room(struct qc_stream_desc *, uint64_t room);
 static int qcc_is_pacing_active(const struct connection *conn)
 {
 	const struct quic_conn *qc = conn->handle.qc;
-	return !!(qc->path->cc.algo->pacing_rate);
+	return !!(qc->path->cc.algo->pacing_inter);
 }
 
 static void qcs_free_ncbuf(struct qcs *qcs, struct ncbuf *ncbuf)

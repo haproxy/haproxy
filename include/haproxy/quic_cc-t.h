@@ -140,7 +140,7 @@ struct quic_cc_algo {
 	void (*hystart_start_round)(struct quic_cc *cc, uint64_t pn);
 
 	/* Defined only if pacing is used. */
-	uint (*pacing_rate)(const struct quic_cc *cc);
+	uint (*pacing_inter)(const struct quic_cc *cc);
 	uint (*pacing_burst)(const struct quic_cc *cc);
 
 	struct quic_cc_drs *(*get_drs)(struct quic_cc *cc);

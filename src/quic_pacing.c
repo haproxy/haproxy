@@ -12,6 +12,6 @@ int quic_pacing_expired(const struct quic_pacer *pacer)
 /* Notify <pacer> about an emission of <sent> count of datagrams. */
 void quic_pacing_sent_done(struct quic_pacer *pacer, int sent)
 {
-	pacer->next = task_mono_time() + pacer->cc->algo->pacing_rate(pacer->cc) * sent;
+	pacer->next = task_mono_time() + pacer->cc->algo->pacing_inter(pacer->cc) * sent;
 	pacer->last_sent = sent;
 }

@@ -1457,7 +1457,7 @@ struct quic_cc_drs *bbr_get_drs(struct quic_cc *cc)
 }
 
 /* Return the pacing delay between bursts of packets in nanoseconds. */
-uint bbr_pacing_rate(const struct quic_cc *cc)
+uint bbr_pacing_inter(const struct quic_cc *cc)
 {
 	struct bbr *bbr = quic_cc_priv(cc);
 	struct quic_cc_path *p = container_of(cc, struct quic_cc_path, cc);
@@ -1526,7 +1526,7 @@ static void bbr_state_cli(struct buffer *buf, const struct quic_cc_path *p)
 struct quic_cc_algo quic_cc_algo_bbr = {
 	.type        = QUIC_CC_ALGO_TP_BBR,
 	.init        = bbr_init,
-	.pacing_rate = bbr_pacing_rate,
+	.pacing_inter = bbr_pacing_inter,
 	.pacing_burst = bbr_pacing_burst,
 	.get_drs     = bbr_get_drs,
 	.on_transmit = bbr_on_transmit,
