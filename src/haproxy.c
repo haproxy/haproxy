@@ -689,6 +689,9 @@ static void usage(char *name)
 #if defined(HA_HAVE_DUMP_LIBS)
 		"        -dL dumps loaded object files after config checks\n"
 #endif
+#if defined(USE_CPU_AFFINITY)
+		"        -dc dumps the list of selected and evicted CPUs\n"
+#endif
 		"        -dK{class[,...]} dump registered keywords (use 'help' for list)\n"
 		"        -dr ignores server address resolution failures\n"
 		"        -dV disables SSL verify on servers side\n"
@@ -1492,6 +1495,10 @@ static void init_args(int argc, char **argv)
 #if defined(SO_REUSEPORT)
 			else if (*flag == 'd' && flag[1] == 'R')
 				protocol_clrf_all(PROTO_F_REUSEPORT_SUPPORTED);
+#endif
+#if defined(USE_CPU_AFFINITY)
+			else if (*flag == 'd' && flag[1] == 'c')
+				global.tune.debug |= GDBG_CPU_AFFINITY;
 #endif
 			else if (*flag == 'd' && flag[1] == 'F')
 				global.tune.options &= ~GTUNE_USE_FAST_FWD;
