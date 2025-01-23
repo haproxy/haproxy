@@ -30,6 +30,8 @@ SSL_CTX *ssl_sock_assign_generated_cert(unsigned int key, struct bind_conf *bind
 SSL_CTX *ssl_sock_get_generated_cert(unsigned int key, struct bind_conf *bind_conf);
 int ssl_sock_set_generated_cert(SSL_CTX *ctx, unsigned int key, struct bind_conf *bind_conf);
 unsigned int ssl_sock_generated_cert_key(const void *data, size_t len);
+int ssl_sock_gencert_load_ca(struct bind_conf *bind_conf);
+void ssl_sock_gencert_free_ca(struct bind_conf *bind_conf);
 
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_SSL_GENCERT_H */

@@ -68,8 +68,6 @@ void ssl_sock_free_srv_ctx(struct server *srv);
 void ssl_sock_free_all_ctx(struct bind_conf *bind_conf);
 int ssl_sock_get_alpn(const struct connection *conn, void *xprt_ctx,
                       const char **str, int *len);
-int ssl_sock_gencert_load_ca(struct bind_conf *bind_conf);
-void ssl_sock_gencert_free_ca(struct bind_conf *bind_conf);
 int ssl_bio_and_sess_init(struct connection *conn, SSL_CTX *ssl_ctx,
                           SSL **ssl, BIO **bio, BIO_METHOD *bio_meth, void *ctx);
 const char *ssl_sock_get_sni(struct connection *conn);
