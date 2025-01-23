@@ -4790,7 +4790,7 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 
 #ifndef SSL_NO_GENERATE_CERTIFICATES
 	/* initialize CA variables if the certificates generation is enabled */
-	err += ssl_sock_load_ca(bind_conf);
+	err += ssl_sock_gencert_load_ca(bind_conf);
 #endif
 
 	return -err;
@@ -4884,7 +4884,7 @@ REGISTER_POST_DEINIT(ssl_sock_deinit);
 void ssl_sock_destroy_bind_conf(struct bind_conf *bind_conf)
 {
 #ifndef SSL_NO_GENERATE_CERTIFICATES
-	ssl_sock_free_ca(bind_conf);
+	ssl_sock_gencert_free_ca(bind_conf);
 #endif
 	ssl_sock_free_all_ctx(bind_conf);
 	ssl_sock_free_ssl_conf(&bind_conf->ssl_conf);
