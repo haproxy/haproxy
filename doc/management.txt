@@ -394,6 +394,9 @@ list of options is :
     foreground. It is mainly used during development or during small tests, as
     Ctrl-C is enough to stop the process. Never use it in an init script.
 
+  -dc : enable CPU affinity debugging. The list of selected and evicted CPUs as
+    well as their topology will be reported before starting.
+
   -de : disable the use of the "epoll" poller. It is equivalent to the "global"
     section's keyword "noepoll". It is mostly useful when suspecting a bug
     related to this poller. On systems supporting epoll, the fallback will

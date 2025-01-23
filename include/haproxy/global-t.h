@@ -88,6 +88,9 @@
 #define GTUNE_QUIC_CC_HYSTART    (1<<29)
 #define GTUNE_QUIC_NO_UDP_GSO    (1<<30)
 
+/* subsystem-specific debugging options for tune.debug */
+#define GDBG_CPU_AFFINITY           (1U<< 0)
+
 #define NO_ZERO_COPY_FWD             0x0001 /* Globally disable zero-copy FF */
 #define NO_ZERO_COPY_FWD_PT          0x0002 /* disable zero-copy FF for PT (recv & send are disabled automatically) */
 #define NO_ZERO_COPY_FWD_H1_RCV      0x0004 /* disable zero-copy FF for H1 on received */
@@ -171,6 +174,7 @@ struct global {
 		int max_rules_at_once; /* max number of rules excecuted in a single evaluation loop */
 		int maxaccept;     /* max number of consecutive accept() */
 		int options;       /* various tuning options */
+		uint debug;        /* various debugging options (GDBG_*) */
 		int runqueue_depth;/* max number of tasks to run at once */
 		uint recv_enough;  /* how many input bytes at once are "enough" */
 		uint bufsize;      /* buffer size in bytes, defaults to BUFSIZE */
