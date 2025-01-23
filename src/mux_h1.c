@@ -3912,7 +3912,7 @@ static int h1_send(struct h1c *h1c)
 		b_reset(&h1c->obuf);
 		if (h1c->flags & H1C_F_EOS)
 			h1c->flags |= H1C_F_ERROR;
-		return 1;
+		goto end;
 	}
 
 	if (!b_data(&h1c->obuf))
