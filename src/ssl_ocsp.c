@@ -1373,7 +1373,7 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 
 		/* if the ocsp_update.http_proxy option was set */
 		if (ocsp_update_dst) {
-			hc->flags |= HC_F_HTTPPROXY;
+			hc->options |= HTTPCLIENT_O_HTTPPROXY;
 			if (!sockaddr_alloc(&hc->dst, ocsp_update_dst, sizeof(*ocsp_update_dst))) {
 				ha_alert("ocsp-update: Failed to allocate sockaddr in %s:%d.\n", __FUNCTION__, __LINE__);
 				goto leave;

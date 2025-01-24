@@ -281,7 +281,7 @@ int httpclient_req_gen(struct httpclient *hc, const struct ist url, enum http_me
 	int i;
 	int foundhost = 0, foundaccept = 0, foundua = 0;
 
-	if (!(hc->flags & HC_F_HTTPPROXY))
+	if (!(hc->options & HTTPCLIENT_O_HTTPPROXY))
 		flags |= HTX_SL_F_NORMALIZED_URI;
 
 	if (!b_alloc(&hc->req.buf, DB_CHANNEL))

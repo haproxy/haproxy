@@ -32,6 +32,7 @@ struct httpclient {
 	int timeout_server;                   /* server timeout in ms */
 	void *caller;                         /* ptr of the caller */
 	unsigned int flags;                   /* other flags */
+	unsigned int options;                 /* options */
 	struct proxy *px;                     /* proxy for special cases */
 	struct server *srv_raw;               /* server for clear connections */
 #ifdef USE_OPENSSL
@@ -47,6 +48,9 @@ struct httpclient {
 #define    HTTPCLIENT_FS_STARTED      0x00010000 /* the httpclient was started */
 #define    HTTPCLIENT_FS_ENDED        0x00020000 /* the httpclient is stopped */
 
+/* options */
+#define    HTTPCLIENT_O_HTTPPROXY     0x00000001 /* the request must be use an absolute URI */
+
 /* States of the HTTP Client Appctx */
 enum {
 	HTTPCLIENT_S_REQ = 0,
@@ -59,12 +63,12 @@ enum {
 
 #define HTTPCLIENT_USERAGENT "HAProxy"
 
-/* What kind of data we need to read */
+/* What kind of data we need to read  */
+/* flags meant for the httpclient CLI API */
 #define HC_F_RES_STLINE     0x01
 #define HC_F_RES_HDR        0x02
 #define HC_F_RES_BODY       0x04
 #define HC_F_RES_END        0x08
-#define HC_F_HTTPPROXY      0x10
 
 
 #endif /* ! _HAPROXY_HTTCLIENT__T_H */
