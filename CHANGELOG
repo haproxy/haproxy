@@ -1,6 +1,52 @@
 ChangeLog :
 ===========
 
+2025/01/24 : 3.2-dev4
+    - BUG/MINOR: stktable: fix big-endian compatiblity in smp_to_stkey()
+    - MINOR: stktable: add stkey_to_smp() helper
+    - MINOR: stktable: add stksess_getkey() helper
+    - MINOR: stktable: add sc[0-2]_key fetches
+    - BUG/MEDIUM: queues: Adjust the proxy counters when appropriate
+    - MINOR: trace: add help message for -dt argument
+    - MINOR: trace: ensure -dt priority over traces config section
+    - MINOR: trace: support all source alias on -dt
+    - BUG/MINOR: quic: reject NEW_TOKEN frames from clients
+    - MINOR: stktable: fix potential build issue in smp_to_stkey
+    - BUG/MEDIUM: stktable: fix missing lock on some table converters
+    - BUG/MEDIUM: promex: Use right context pointers to dump backends extra-counters
+    - MINOR: stktable: fix potential build issue in smp_to_stkey (2nd try)
+    - MINOR: stktable: add smp_fetch_stksess() helper function
+    - MEDIUM: stktable: split src-based key smp_fetch_sc functions
+    - MEDIUM: stktable: split sc_ and src_ fetch lookup logics
+    - MEDIUM: stktable: leverage smp_fetch_* helpers from sample conv
+    - DOC: config: unify sample conv|fetches optional arguments syntax
+    - DOC: config: stick-table converters support implicit <table> argument
+    - DOC: config: stick-table converter do accept ANY-typed input
+    - DOC: config: clarify return type for some stick-table converters
+    - DOC: config: refer to canonical sticktable converters for src_* fetches
+    - CLEANUP: stktable: move sample_conv_table_bytes_out_rate()
+    - MINOR: stktable: add table_{inc,clr}_gpc* converters
+    - BUG/MAJOR: quic: reject too large CRYPTO frames
+    - BUG/MAJOR: log/sink: possible sink collision in sink_new_from_srv()
+    - BUG/MINOR: init: set HAPROXY_STARTUP_VERSION from the variable, not the macro
+    - REORG: version: move the remaining BUILD_* stuff from haproxy.c to version.c
+    - BUG/MINOR: quic: ensure a detached coalesced packet can't access its neighbours
+    - MINOR: quic: Add a BUG_ON() on quic_tx_packet refcount
+    - BUILD: quic: Move an ASSUME_NONNULL() for variable which is not null
+    - BUG/MEDIUM: mux-h1: Properly close H1C if an error is reported before sending data
+    - CLEANUP: quic: remove unused prototype
+    - MINOR: quic: rename pacing_rate cb to pacing_inter
+    - BUG/MINOR: quic: do not increase congestion window if app limited
+    - MINOR: mux-quic: increment pacing retry counter on expired
+    - MEDIUM: quic: implement credit based pacing
+    - MEDIUM: mux-quic: reduce pacing CPU usage with passive wait
+    - MEDIUM: quic: use dynamic credit for pacing
+    - MINOR: quic: remove unused pacing burst in bind_conf/quic_cc_path
+    - MINOR: quic: adapt credit based pacing to BBR
+    - MINOR: tools: add errname to print errno macro name
+    - MINOR: debug: debug_parse_cli_show_dev: use errname
+    - MINOR: debug: show boot and runtime process settings in table
+
 2025/01/09 : 3.2-dev3
     - DOC: config: add missing "track-sc0" in action keywords matrix
     - BUG/MINOR: stktable: invalid use of stkctr_set_entry() with mixed table types
