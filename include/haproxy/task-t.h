@@ -61,7 +61,8 @@
 #define TASK_F_UEVT1      0x00020000  /* one-shot user event type 1, application specific, def:0 */
 #define TASK_F_UEVT2      0x00040000  /* one-shot user event type 2, application specific, def:0 */
 #define TASK_F_WANTS_TIME 0x00080000  /* task/tasklet wants th_ctx->sched_call_date to be set */
-/* unused: 0x100000..0x80000000 */
+#define TASK_F_UEVT3      0x00100000  /* one-shot user event type 3, application specific, def:0 */
+/* unused: 0x200000..0x80000000 */
 
 /* These flags are persistent across scheduler calls */
 #define TASK_PERSISTENT   (TASK_SELF_WAKING | TASK_KILLED | \

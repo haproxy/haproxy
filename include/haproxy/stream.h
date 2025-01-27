@@ -389,15 +389,17 @@ static inline int stream_check_conn_timeout(struct stream *s)
  * locked one way or another so that it cannot leave (i.e. when inspecting
  * a locked list or under thread isolation). Process_stream() will recognize
  * the message and complete the job. <why> only supports SF_ERR_DOWN (mapped
- * to UEVT1) and SF_ERR_KILLED (mapped to UEVT2). Other values will just
- * trigger TASK_WOKEN_OTHER. The stream handler will first call function
- * stream_shutdown_self() on wakeup to complete the notification.
+ * to UEVT1), SF_ERR_KILLED (mapped to UEVT2) and SF_ERR_UP (mapped to UEVT3).
+ * Other values will just trigger TASK_WOKEN_OTHER.
+ * The stream handler will first call function stream_shutdown_self() on wakeup
+ * to complete the notification.
  */
 static inline void stream_shutdown(struct stream *s, int why)
 {
 	task_wakeup(s->task, TASK_WOKEN_OTHER |
 	            ((why == SF_ERR_DOWN) ? TASK_F_UEVT1 :
 	             (why == SF_ERR_KILLED) ? TASK_F_UEVT2 :
+	             (why == SF_ERR_UP) ? TASK_F_UEVT3 :
 	             0));
 }
 

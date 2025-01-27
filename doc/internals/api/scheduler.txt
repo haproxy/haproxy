@@ -221,6 +221,9 @@ state field before the call to ->process()
   - TASK_F_UEVT2       one-shot user-defined event type 2. This is application
                        specific, and reset to 0 when the handler is called.
 
+  - TASK_F_UEVT3       one-shot user-defined event type 3. This is application
+                       specific, and reset to 0 when the handler is called.
+
 In addition, a few persistent flags may be observed or manipulated by the
 application, both for tasks and tasklets:
 
