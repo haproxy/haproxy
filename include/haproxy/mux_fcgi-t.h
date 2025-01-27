@@ -58,6 +58,9 @@
 #define FCGI_CF_ERR_PENDING     0x00008000  /* A write error was detected (block sends but not reads) */
 #define FCGI_CF_ERROR           0x00010000  /* A read error was detected (handled has an abort) */
 
+#define FCGI_CF_DEM_SHORT_READ  0x00020000  /* demux blocked on incomplete frame */
+#define FCGI_CF_END_REACHED     0x00040000  /* pending data too short with RCVD_SHUT present */
+
 
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
