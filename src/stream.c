@@ -1703,12 +1703,14 @@ void stream_update_timings(struct task *t, uint64_t lat, uint64_t cpu)
  * and each function is called only if at least another function has changed at
  * least one flag it is interested in.
  *
- * This task handler understands a few wake up reasons:
- *  - TASK_WOKEN_MSG forces analysers to be re-evaluated
- *  - TASK_WOKEN_OTHER+TASK_F_UEVT1 shuts the stream down on server down
- *  - TASK_WOKEN_OTHER+TASK_F_UEVT2 shuts the stream down on active kill
- *  - TASK_WOKEN_OTHER+TASK_F_UEVT3 shuts the stream down because a preferred backend became available
- *  - TASK_WOKEN_OTHER alone has no effect
+ * TASK_WOKEN_* wake up reasons are mapped to STRM_EVT_*
+ *
+ * This task handler understands a few wake up events:
+ *  - STRM_EVT_MSG forces analysers to be re-evaluated
+ *  - STRM_EVT_TIMER forces timers to be re-evaluated
+ *  - STRM_EVT_SHUT_SRV_DOWN shuts the stream down on server down
+ *  - STRM_EVT_KILLED shuts the stream down on active kill
+ *  - STRM_EVT_SHUT_SRV_UP shuts the stream down because a preferred backend became available
  */
 struct task *process_stream(struct task *t, void *context, unsigned int state)
 {

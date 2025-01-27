@@ -386,24 +386,25 @@ static inline int stream_check_conn_timeout(struct stream *s)
 }
 
 /* Wake a stream up for shutdown by sending it an event. The stream must be
- * locked one way or another so that it cannot leave (i.e. when inspecting
- * a locked list or under thread isolation). Process_stream() will recognize
- * the message and complete the job. <why> only supports SF_ERR_DOWN (mapped
- * to UEVT1), SF_ERR_KILLED (mapped to UEVT2) and SF_ERR_UP (mapped to UEVT3).
- * Other values will just trigger TASK_WOKEN_OTHER.
- * The stream handler will first call function stream_shutdown_self() on wakeup
- * to complete the notification.
+ * locked one way or another so that it cannot leave (i.e. when inspecting a
+ * locked list or under thread isolation). Process_stream() will recognize the
+ * message and complete the job. <why> only supports SF_ERR_DOWN (mapped to
+ * STRM_EVT_SHUT_SRV_DOWN), SF_ERR_KILLED (mapped to STRM_EVT_KILLED) and
+ * SF_ERR_UP (mapped to STRM_EVT_SHUT_SRV_UP). Other values will just be
+ * ignored. The stream is woken up with TASK_WOKEN_OTHER reason. The stream
+ * handler will first call function stream_shutdown_self() on wakeup to complete
+ * the notification.
  */
 static inline void stream_shutdown(struct stream *s, int why)
 {
-	task_wakeup(s->task, TASK_WOKEN_OTHER |
-	            ((why == SF_ERR_DOWN) ? TASK_F_UEVT1 :
-	             (why == SF_ERR_KILLED) ? TASK_F_UEVT2 :
-	             (why == SF_ERR_UP) ? TASK_F_UEVT3 :
-	             0));
+	HA_ATOMIC_OR(&s->new_events, ((why == SF_ERR_DOWN) ? STRM_EVT_SHUT_SRV_DOWN :
+				      (why == SF_ERR_KILLED) ? STRM_EVT_KILLED :
+				      (why == SF_ERR_UP) ? STRM_EVT_SHUT_SRV_UP :
+				      0));
+	task_wakeup(s->task, TASK_WOKEN_OTHER);
 }
 
-/* Map task states to stream events. TASK_WOKEN_* and TASK_F_UEVT* are mapped on
+/* Map task states to stream events. TASK_WOKEN_* are mapped on
  * STRM_EVT_*. Not all states/flags are mapped, only those explicitly used by
  * the stream.
  */
