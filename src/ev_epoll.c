@@ -16,6 +16,7 @@
 
 #include <haproxy/activity.h>
 #include <haproxy/api.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/clock.h>
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
@@ -28,6 +29,7 @@
 /* private data */
 static THREAD_LOCAL struct epoll_event *epoll_events = NULL;
 static int epoll_fd[MAX_THREADS] __read_mostly; // per-thread epoll_fd
+static uint epoll_mask = 0; // events to be masked and turned to EPOLLIN
 
 #ifndef EPOLLRDHUP
 /* EPOLLRDHUP was defined late in libc, and it appeared in kernel 2.6.17 */
@@ -150,6 +152,7 @@ static void _update_fd(int fd)
 		ev.events |= EPOLLOUT;
 
  done:
+	ev.events &= ~epoll_mask;
 	ev.data.fd = fd;
 	epoll_ctl(epoll_fd[tid], opcode, fd, &ev);
 }
@@ -259,6 +262,11 @@ static void _do_poll(struct poller *p, int exp, int wake)
 #ifdef DEBUG_FD
 		_HA_ATOMIC_INC(&fdtab[fd].event_count);
 #endif
+		if (e & epoll_mask) {
+			e |= EPOLLIN;
+			e &= ~epoll_mask;
+		}
+
 		n = ((e & EPOLLIN)    ? FD_EV_READY_R : 0) |
 		    ((e & EPOLLOUT)   ? FD_EV_READY_W : 0) |
 		    ((e & EPOLLRDHUP) ? FD_EV_SHUT_R  : 0) |
@@ -404,6 +412,43 @@ static void _do_register(void)
 	p->fork = _do_fork;
 }
 
+/* config parser for global "tune.epoll.mask-events", accepts "err", "hup", "rdhup" */
+static int cfg_parse_tune_epoll_mask_events(char **args, int section_type, struct proxy *curpx,
+                                            const struct proxy *defpx, const char *file, int line,
+                                            char **err)
+{
+	char *comma, *kw;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	epoll_mask = 0;
+	for (kw = args[1]; kw && *kw; kw = comma) {
+		comma = strchr(kw, ',');
+		if (comma)
+			*(comma++) = 0;
+
+		if (strcmp(kw, "err") == 0)
+			epoll_mask |= EPOLLERR;
+		else if (strcmp(kw, "hup") == 0)
+			epoll_mask |= EPOLLHUP;
+		else if (strcmp(kw, "rdhup") == 0)
+			epoll_mask |= EPOLLRDHUP;
+		else {
+			memprintf(err, "'%s' expects a comma-delimited list of 'err', 'hup' and 'rdhup' but got '%s'.", args[0], kw);
+			return -1;
+		}
+	}
+	return 0;
+}
+
+/* config keyword parsers */
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "tune.epoll.mask-events",   cfg_parse_tune_epoll_mask_events },
+	{ 0, NULL, NULL }
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 INITCALL0(STG_REGISTER, _do_register);
 
 

@@ -1639,6 +1639,7 @@ The following keywords are supported in the "global" section :
    - tune.comp.maxlevel
    - tune.disable-fast-forward
    - tune.disable-zero-copy-forwarding
+   - tune.epoll.mask-events
    - tune.events.max-events-at-once
    - tune.fail-alloc
    - tune.fd.edge-triggered
@@ -3548,6 +3549,31 @@ tune.disable-zero-copy-forwarding
   See also: tune.pt.zero-copy-forwarding, tune.applet.zero-copy-forwarding,
             tune.h1.zero-copy-fwd-recv, tune.h1.zero-copy-fwd-send,
             tune.h2.zero-copy-fwd-send, tune.quic.zero-copy-fwd-send
+
+tune.epoll.mask-events <event[,...]>
+  Along HAProxy's history, a few complex issues were met that were caused by
+  bugs in the epoll mechanism in the Linux kernel. These ones usually are very
+  rare and unreproducible outside the reporter's environment, and may only be
+  worked around by disabling epoll and switching to poll instead, which is not
+  very satisfying for high performance environments. Each time, issues affect
+  only very specific (and rare) event types, and offering the ability to mask
+  them can constitute a more acceptable work-around. This options offers this
+  possibility by permitting to silently ignore events a few uncommon events
+  and replace them with an input (which reports an unspecified incoming event).
+  The effect is to avoid the fast error processing paths in certain places and
+  only use the common paths. This should never be used unless being invited to
+  do so by an expert in order to diagnose or work around a kernel bug.
+
+  The option takes a single argument which is a comma-delimited list of words
+  each designating an event to be masked. The currently supported list of
+  events is:
+    - "err":   mask the EPOLLERR event
+    - "hup":   mask the EPOLLHUP events
+    - "rdhup": mask the EPOLLRDHUP events
+
+  Example:
+     # mask all non-traffic epoll events:
+     tune.epoll.mask-events err,hup,rdhup
 
 tune.events.max-events-at-once <number>
   Sets the number of events that may be processed at once by an asynchronous
