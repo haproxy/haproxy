@@ -1346,7 +1346,7 @@ static void spoe_check_timeouts(struct stream *s, struct filter *filter)
 	struct spoe_context *ctx = filter->ctx;
 
 	if (tick_is_expired(ctx->process_exp, now_ms))
-		s->pending_events |= TASK_WOKEN_MSG;
+		s->pending_events |= STRM_EVT_MSG;
 }
 
 /* Called when we are ready to filter data on a channel */

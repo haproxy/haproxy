@@ -432,7 +432,7 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 		goto out_fail_alloc;
 
 	s->task = t;
-	s->pending_events = 0;
+	s->pending_events = s->new_events = STRM_EVT_NONE;
 	s->conn_retries = 0;
 	s->max_retries = 0;
 	s->conn_exp = TICK_ETERNITY;
@@ -1729,9 +1729,15 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	activity[tid].stream_calls++;
 	stream_cond_update_cpu_latency(s);
 
-	if ((state & TASK_WOKEN_OTHER) && (state & (TASK_F_UEVT1 | TASK_F_UEVT2 | TASK_F_UEVT3))) {
+	/* update pending events */
+	s->pending_events |= stream_map_task_state(state);
+	s->pending_events |= HA_ATOMIC_XCHG(&s->new_events, STRM_EVT_NONE);
+
+	if (s->pending_events & (STRM_EVT_SHUT_SRV_DOWN|STRM_EVT_SHUT_SRV_UP|STRM_EVT_KILLED)) {
 		/* that an instant kill message, the reason is in _UEVT* */
-		stream_shutdown_self(s, (state & TASK_F_UEVT3) ? SF_ERR_UP : (state & TASK_F_UEVT2) ? SF_ERR_KILLED : SF_ERR_DOWN);
+		stream_shutdown_self(s, ((s->pending_events & STRM_EVT_SHUT_SRV_DOWN) ? SF_ERR_DOWN :
+					 (s->pending_events & STRM_EVT_SHUT_SRV_UP) ? SF_ERR_UP:
+					 SF_ERR_KILLED));
 	}
 
 	req = &s->req;
@@ -1774,24 +1780,23 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	scf_flags = scf->flags;
 	scb_flags = scb->flags;
 
-	/* update pending events */
-	s->pending_events |= (state & TASK_WOKEN_ANY);
-
 	/* 1a: Check for low level timeouts if needed. We just set a flag on
 	 * stream connectors when their timeouts have expired.
 	 */
-	if (unlikely(s->pending_events & TASK_WOKEN_TIMER)) {
+	if (unlikely(s->pending_events & STRM_EVT_TIMER)) {
 		stream_handle_timeouts(s);
 
 		/* Once in a while we're woken up because the task expires. But
-		 * this does not necessarily mean that a timeout has been reached.
-		 * So let's not run a whole stream processing if only an expiration
-		 * timeout needs to be refreshed.
+		 * this does not necessarily mean that a timeout has been
+		 * reached.  So let's not run a whole stream processing if only
+		 * an expiration timeout needs to be refreshed. To do so, we
+		 * must be sure only the TIMER event was triggered and not
+		 * error/timeout/abort/shut occurred. on both sides.
 		 */
 		if (!((scf->flags | scb->flags) & (SC_FL_ERROR|SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_SHUT_DONE)) &&
 		    !((req->flags | res->flags) & (CF_READ_EVENT|CF_READ_TIMEOUT|CF_WRITE_EVENT|CF_WRITE_TIMEOUT)) &&
 		    !(s->flags & SF_CONN_EXP) &&
-		    ((s->pending_events & TASK_WOKEN_ANY) == TASK_WOKEN_TIMER)) {
+		    (s->pending_events  == STRM_EVT_TIMER)) {
 			scf->flags &= ~SC_FL_DONT_WAKE;
 			scb->flags &= ~SC_FL_DONT_WAKE;
 			goto update_exp_and_leave;
@@ -1952,7 +1957,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	    (req->analysers && (scb->flags & SC_FL_SHUT_DONE)) ||
 	    scf->state != rq_prod_last ||
 	    scb->state != rq_cons_last ||
-	    s->pending_events & TASK_WOKEN_MSG) {
+	    s->pending_events & STRM_EVT_MSG) {
 		unsigned int scf_flags_ana = scf->flags;
 		unsigned int scb_flags_ana = scb->flags;
 
@@ -2058,7 +2063,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	    (res->analysers && (scf->flags & SC_FL_SHUT_DONE)) ||
 	    scf->state != rp_cons_last ||
 	    scb->state != rp_prod_last ||
-	    s->pending_events & TASK_WOKEN_MSG) {
+	    s->pending_events & STRM_EVT_MSG) {
 		unsigned int scb_flags_ana = scb->flags;
 		unsigned int scf_flags_ana = scf->flags;
 
@@ -2524,7 +2529,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		stream_update_both_sc(s);
 
 		/* Reset pending events now */
-		s->pending_events = 0;
+		s->pending_events = STRM_EVT_NONE;
 
 	update_exp_and_leave:
 		/* Note: please ensure that if you branch here you disable SC_FL_DONT_WAKE */
@@ -2554,7 +2559,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			goto resync_stconns;
 		}
 	leave:
-		s->pending_events &= ~(TASK_WOKEN_TIMER | TASK_WOKEN_RES);
+		s->pending_events &= ~STRM_EVT_TIMER;
 		stream_release_buffers(s);
 
 		DBG_TRACE_DEVEL("queuing", STRM_EV_STRM_PROC, s);

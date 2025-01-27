@@ -403,6 +403,21 @@ static inline void stream_shutdown(struct stream *s, int why)
 	             0));
 }
 
+/* Map task states to stream events. TASK_WOKEN_* and TASK_F_UEVT* are mapped on
+ * STRM_EVT_*. Not all states/flags are mapped, only those explicitly used by
+ * the stream.
+ */
+static inline unsigned int stream_map_task_state(unsigned int state)
+{
+	return ((state & TASK_WOKEN_TIMER) ? STRM_EVT_TIMER : 0)         |
+		((state & TASK_WOKEN_MSG)  ? STRM_EVT_MSG : 0)           |
+		((state & TASK_F_UEVT1)    ? STRM_EVT_SHUT_SRV_DOWN : 0) |
+		((state & TASK_F_UEVT3)    ? STRM_EVT_SHUT_SRV_UP : 0)   |
+		((state & TASK_F_UEVT2)    ? STRM_EVT_KILLED : 0)        |
+		0;
+}
+
+
 int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout);
 void stream_retnclose(struct stream *s, const struct buffer *msg);
 void sess_set_term_flags(struct stream *s);

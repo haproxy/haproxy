@@ -718,7 +718,7 @@ static void flt_ot_check_timeouts(struct stream *s, struct filter *f)
 	if (flt_ot_is_disabled(f FLT_OT_DBG_ARGS(, -1)))
 		FLT_OT_RETURN();
 
-	s->pending_events |= TASK_WOKEN_MSG;
+	s->pending_events |= STRM_EVT_MSG;
 
 	flt_ot_return_void(f, &err);
 

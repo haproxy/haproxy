@@ -167,6 +167,18 @@ enum {
 	STRM_ENTITY_WREQ_BODY = 0x0003,
 };
 
+/* All possible stream events handled by process_stream(). First ones are mapped
+ * from TASK_WOKEN_*.
+ */
+enum {
+	STRM_EVT_NONE          = 0x00000000, /* No events */
+	STRM_EVT_TIMER         = 0x00000001, /* A timer has expired */
+	STRM_EVT_MSG           = 0x00000002, /* A message event was triggered  */
+	STRM_EVT_SHUT_SRV_DOWN = 0x00000004, /* Must be shut because the selected server became available */
+	STRM_EVT_SHUT_SRV_UP   = 0x00000008, /* Must be shut because a preferred server became available */
+	STRM_EVT_KILLED        = 0x00000010, /* Must be shut for external reason */
+};
+
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
  * __APPEND_FLAG macro. The new end of the buffer is returned.
@@ -241,8 +253,8 @@ struct stream {
 	struct http_txn *txn;           /* current HTTP transaction being processed. Should become a list. */
 
 	struct task *task;              /* the task associated with this stream */
-	unsigned int pending_events;	/* the pending events not yet processed by the stream.
-					 * This is a bit field of TASK_WOKEN_* */
+	unsigned int pending_events;	/* the pending events not yet processed by the stream but handled by process_stream() */
+	unsigned int new_events;        /* the new events added since the previous wakeup (never seen by process_stream()). It is atomic field */
 	int conn_retries;               /* number of connect retries performed */
 	unsigned int conn_exp;          /* wake up time for connect, queue, turn-around, ... */
 	unsigned int conn_err_type;     /* first error detected, one of STRM_ET_* */
