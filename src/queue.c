@@ -453,7 +453,7 @@ int process_srv_queue(struct server *s)
 					else
 						new_served++;
 				}
-			} while (!_HA_ATOMIC_CAS(&s->per_tgrp[tgid - 1].last_other_tgrp_served, &old_served, new_served));
+			} while (!_HA_ATOMIC_CAS(&s->per_tgrp[tgid - 1].last_other_tgrp_served, &old_served, new_served) && __ha_cpu_relax());
 			cur_tgrp = new_served;
 			to_dequeue = 1;
 		} else {
