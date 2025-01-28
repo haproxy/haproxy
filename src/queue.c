@@ -428,7 +428,7 @@ int process_srv_queue(struct server *s)
 	       self_served = _HA_ATOMIC_LOAD(&s->per_tgrp[tgid - 1].self_served) % (MAX_SELF_USE_QUEUE + 1);
 	       if ((self_served == MAX_SELF_USE_QUEUE && non_empty_tgids != (1UL << (tgid - 1))) ||
 		    !(non_empty_tgids & (1UL << (tgid - 1)))) {
-			int old_served, new_served;
+			unsigned int old_served, new_served;
 
 			/*
 			 * We want to dequeue from another queue. The last
