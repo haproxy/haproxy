@@ -89,6 +89,13 @@ static void free_trash_buffers_per_thread()
 /* Initialize the trash buffers. It returns 0 if an error occurred. */
 int init_trash_buffers(int first)
 {
+	/* first, make sure we don't keep any trash in object in pools nor cache */
+	if (pool_head_trash) {
+		if (!(pool_debugging & POOL_DBG_NO_CACHE))
+			pool_evict_from_local_cache(pool_head_trash, 1);
+		pool_flush(pool_head_trash);
+	}
+
 	BUG_ON(!first && pool_used(pool_head_trash) > 0); /* we tried to keep a trash buffer after reinit the pool */
 	pool_destroy(pool_head_trash);
 	pool_head_trash = create_pool("trash",
