@@ -373,6 +373,10 @@ static inline uint fd_take_tgid(int fd)
 	uint old;
 
 	old = _HA_ATOMIC_FETCH_ADD(&fdtab[fd].refc_tgid, 0x10000) & 0xffff;
+	while (old & 0x8000) {
+                old = _HA_ATOMIC_LOAD(&fdtab[fd].refc_tgid) & 0xffff;
+                __ha_cpu_relax();
+	}
 	if (likely(old))
 		return old;
 	HA_ATOMIC_SUB(&fdtab[fd].refc_tgid, 0x10000);
@@ -398,6 +402,11 @@ static inline uint fd_grab_tgid(int fd, uint desired_tgid)
 	uint old;
 
 	old = _HA_ATOMIC_FETCH_ADD(&fdtab[fd].refc_tgid, 0x10000) & 0xffff;
+	/* If the tgid is locked, wait until it no longer is */
+	while (old & 0x8000) {
+		old = _HA_ATOMIC_LOAD(&fdtab[fd].refc_tgid) & 0xffff;
+		__ha_cpu_relax();
+	}
 	if (likely(old == desired_tgid))
 		return 1;
 	HA_ATOMIC_SUB(&fdtab[fd].refc_tgid, 0x10000);
