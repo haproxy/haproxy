@@ -364,6 +364,20 @@ static inline void fd_lock_tgid(int fd, uint desired_tgid)
 	}
 }
 
+/*
+ * Try to lock the tgid, keeping the current tgid value.
+ * Returns 1 on success, or 0 on failure.
+ */
+static inline int fd_lock_tgid_cur(int fd)
+{
+	uint old = _HA_ATOMIC_LOAD(&fdtab[fd].refc_tgid) & 0x7fff;
+
+	if (_HA_ATOMIC_CAS(&fdtab[fd].refc_tgid, &old, (old | 0x8000) + 0x10000))
+		return 1;
+	return 0;
+}
+
+
 /* Grab a reference to the FD's TGID, and return the tgid. Note that a TGID of
  * zero indicates the FD was closed, thus also fails (i.e. no need to drop it).
  * On non-zero (success), the caller must release it using fd_drop_tgid().
