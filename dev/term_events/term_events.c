@@ -101,8 +101,14 @@ char *tevt_show_events(char *buf, size_t len, const char *delim, const char *val
 	char loc[5];
 	int ret;
 
-	if (!value)
+	if (!value || !*value) {
+		snprintf(buf, len, "##NONE");
 		goto end;
+	}
+	if (strcmp(value, "-") == 0) {
+		snprintf(buf, len, "##UNK");
+		goto end;
+	}
 
 	if (strlen(value) % 2 != 0) {
 		snprintf(buf, len, "##INV");
@@ -135,10 +141,47 @@ char *tevt_show_events(char *buf, size_t len, const char *delim, const char *val
 	return buf;
 }
 
+char *tevt_show_tuple_events(char *buf, size_t len, char *value)
+{
+	char *p = value;
+
+	/* skip '{' */
+	p++;
+	while (*p) {
+		char *v;
+		char c;
+
+		while (*p == ' ' || *p == '\t')
+			p++;
+
+		v = p;
+		while (*p && *p != ',' && *p != '}')
+			p++;
+		c = *p;
+		*p = 0;
+
+		tevt_show_events(buf, len, " > ", v);
+		printf("\t- %s\n", buf);
+
+		*p = c;
+		if (*p == ',')
+			p++;
+		else if (*p == '}')
+			break;
+		else {
+			printf("\t- ##INV\n");
+			break;
+		}
+	}
+
+	*buf = 0;
+	return buf;
+}
+
 int main(int argc, char **argv)
 {
 	const char *name = argv[0];
-	char line[20];
+	char line[128];
 	char *value;
 	int multi = 0;
 	int use_stdin = 0;
@@ -165,7 +208,7 @@ int main(int argc, char **argv)
 				value++;
 
 			err = value;
-			while (isalnum((unsigned char)*err))
+			while (*err && *err != '\n')
 				err++;
 			*err = 0;
 		}
@@ -177,7 +220,13 @@ int main(int argc, char **argv)
 		if (multi)
 			printf("### %-8s : ", value);
 
-		tevt_show_events(buf, bsz, " > ", value);
+		if (*value == '{') {
+			if (!use_stdin)
+				printf("\n");
+			tevt_show_tuple_events(buf, bsz, value);
+		}
+		else
+			tevt_show_events(buf, bsz, " > ", value);
 		printf("%s\n", buf);
 	}
 	return 0;
