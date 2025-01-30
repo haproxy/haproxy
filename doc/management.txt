@@ -2309,7 +2309,7 @@ help [<command>]
   the requested one. The same help screen is also displayed for unknown
   commands.
 
-httpclient <method> <URI>
+httpclient [--htx] <method> <URI>
   Launch an HTTP client request and print the response on the CLI. Only
   supported on a CLI connection running in expert mode (see "expert-mode on").
   It's only meant for debugging. The httpclient is able to resolve a server
@@ -2317,6 +2317,9 @@ httpclient <method> <URI>
   with the DNS servers of your /etc/resolv.conf by default. However it won't be
   able to resolve an host from /etc/hosts if you don't use a local dns daemon
   which can resolve those.
+
+  The --htx option allow to use the haproxy internal htx representation using
+  the htx_dump() function, mainly used for debugging.
 
 new ssl ca-file <cafile>
   Create a new empty CA file tree entry to be filled with a set of CA

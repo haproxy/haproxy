@@ -26,6 +26,7 @@
 struct hcli_svc_ctx {
 	struct httpclient *hc;  /* the httpclient instance */
 	uint flags;             /* flags from HC_CLI_F_* above */
+	uint is_htx:1;          /* is the response an htx buffer */
 };
 
 /* These are the callback used by the HTTP Client when it needs to notify new
@@ -85,7 +86,7 @@ void hc_cli_res_end_cb(struct httpclient *hc)
 
 /*
  * Parse an httpclient keyword on the cli:
- * httpclient <ID> <method> <URI>
+ * httpclient [--htx] <method> <URI>
  */
 static int hc_cli_parse(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -96,17 +97,33 @@ static int hc_cli_parse(char **args, char *payload, struct appctx *appctx, void 
 	char *meth_str;
 	struct ist uri;
 	struct ist body = IST_NULL;
+	int cur_arg = 1;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	if (!*args[1] || !*args[2]) {
+	/* look at optional keywords */
+	while (*args[cur_arg] == '-') {
+		if (strcmp(args[cur_arg], "--htx") == 0) {
+			ctx->is_htx = 1;
+		}
+		else if (strcmp(args[cur_arg], "--") == 0) {
+			cur_arg++;
+			break;
+		} else {
+			memprintf(&err, ": Unknown '%s' optional keyword", args[cur_arg]);
+			goto err;
+		}
+		cur_arg++;
+	}
+
+	if (!*args[cur_arg] || !*args[cur_arg+1]) {
 		memprintf(&err, ": not enough parameters");
 		goto err;
 	}
 
-	meth_str = args[1];
-	uri = ist(args[2]);
+	meth_str = args[cur_arg];
+	uri = ist(args[cur_arg+1]);
 
 	if (payload)
 		body = ist(payload);
@@ -126,6 +143,10 @@ static int hc_cli_parse(char **args, char *payload, struct appctx *appctx, void 
 
 	ctx->hc = hc; /* store the httpclient ptr in the applet */
 	ctx->flags = 0;
+
+	/* enable the HTX mode for reception */
+	if (ctx->is_htx)
+		hc->options |= HTTPCLIENT_O_RES_HTX;
 
 	if (httpclient_req_gen(hc, hc->req.url, hc->req.meth, NULL, body) != ERR_NONE)
 		goto err;
@@ -152,10 +173,24 @@ static int hc_cli_io_handler(struct appctx *appctx)
 	struct hcli_svc_ctx *ctx = appctx->svcctx;
 	struct httpclient *hc = ctx->hc;
 	struct http_hdr *hdrs, *hdr;
+	struct htx *hc_htx = NULL;
+
+	if (ctx->is_htx && ctx->flags & (HC_F_RES_STLINE|HC_F_RES_HDR|HC_F_RES_BODY)) {
+		hc_htx = htxbuf(&hc->res.buf);
+
+		if (!hc_htx)
+			goto error;
+
+		if (htx_is_empty(hc_htx))
+			goto error;
+	}
 
 	if (ctx->flags & HC_F_RES_STLINE) {
-		chunk_printf(&trash, "%.*s %d %.*s\n", (unsigned int)istlen(hc->res.vsn), istptr(hc->res.vsn),
-			     hc->res.status, (unsigned int)istlen(hc->res.reason), istptr(hc->res.reason));
+		chunk_reset(&trash);
+		if (!ctx->is_htx) {
+			chunk_printf(&trash, "%.*s %d %.*s\n", (unsigned int)istlen(hc->res.vsn), istptr(hc->res.vsn),
+			             hc->res.status, (unsigned int)istlen(hc->res.reason), istptr(hc->res.reason));
+		}
 		if (applet_putchk(appctx, &trash) == -1)
 			goto more;
 		ctx->flags &= ~HC_F_RES_STLINE;
@@ -163,25 +198,42 @@ static int hc_cli_io_handler(struct appctx *appctx)
 
 	if (ctx->flags & HC_F_RES_HDR) {
 		chunk_reset(&trash);
-		hdrs = hc->res.hdrs;
-		for (hdr = hdrs; isttest(hdr->v); hdr++) {
-			if (!h1_format_htx_hdr(hdr->n, hdr->v, &trash))
+		if (!ctx->is_htx) {
+			hdrs = hc->res.hdrs;
+			for (hdr = hdrs; isttest(hdr->v); hdr++) {
+				if (!h1_format_htx_hdr(hdr->n, hdr->v, &trash))
+					goto too_many_hdrs;
+			}
+			if (!chunk_memcat(&trash, "\r\n", 2))
 				goto too_many_hdrs;
 		}
-		if (!chunk_memcat(&trash, "\r\n", 2))
-			goto too_many_hdrs;
 		if (applet_putchk(appctx, &trash) == -1)
 			goto more;
 		ctx->flags &= ~HC_F_RES_HDR;
 	}
 
 	if (ctx->flags & HC_F_RES_BODY) {
-		httpclient_res_xfer(hc, &appctx->outbuf);
-
-		/* remove the flag if the buffer was emptied */
-		if (httpclient_data(hc))
-			goto more;
+		if (!ctx->is_htx) {
+			httpclient_res_xfer(hc, &appctx->outbuf);
+			/* remove the flag if the buffer was emptied */
+			if (httpclient_data(hc))
+				goto more;
+		}
 		ctx->flags &= ~HC_F_RES_BODY;
+	}
+
+	if (ctx->is_htx && hc_htx) {
+		struct htx_blk *blk = NULL;
+
+		chunk_reset(&trash);
+		htx_dump(&trash, hc_htx, 1);
+		if (applet_putchk(appctx, &trash) == -1)
+			goto more;
+		blk = htx_get_head_blk(hc_htx);
+		while (blk)
+			blk = htx_remove_blk(hc_htx, blk);
+		htx_to_buf(hc_htx, &hc->res.buf);
+
 	}
 
 	/* we must close only if F_END is the last flag */
@@ -199,6 +251,8 @@ end:
 
 too_many_hdrs:
 	return cli_err(appctx, "Too many headers.\n");
+error:
+	return cli_err(appctx, "Unknown error.\n");
 }
 
 static void hc_cli_release(struct appctx *appctx)
