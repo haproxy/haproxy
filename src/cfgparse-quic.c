@@ -70,27 +70,27 @@ static unsigned long parse_window_size(const char *kw, char *value,
 	return 0;
 }
 
-/* Parse <value> as a number of datagrams allowed for burst.
+/* Parse <value> as pacing argument.
  *
  * Returns the parsed value or a negative error code.
  */
-static int parse_burst(const char *kw, char *value, char **end_opt, char **err)
+static int parse_pacing(const char *kw, char *value, char **end_opt, char **err)
 {
-	int burst;
+	int pacing;
 
 	errno = 0;
-	burst = strtoul(value, end_opt, 0);
+	pacing = strtoul(value, end_opt, 0);
 	if (*end_opt == value || errno != 0) {
-		memprintf(err, "'%s' : could not parse burst value", kw);
+		memprintf(err, "'%s' : could not parse pacing value", kw);
 		goto fail;
 	}
 
-	if (burst < 0 || burst > 1024) {
-		memprintf(err, "'%s' : pacing burst value must be between 0 and 1024", kw);
+	if (!pacing) {
+		memprintf(err, "'%s' : pacing value cannot be negative", kw);
 		goto fail;
 	}
 
-	return burst;
+	return pacing;
 
  fail:
 	return -1;
@@ -187,15 +187,15 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 			goto out;
 
 		if (*arg != ',') {
-			int burst = parse_burst(args[cur_arg], arg, &end_opt, err);
-			if (burst < 0)
+			int pacing = parse_pacing(args[cur_arg], arg, &end_opt, err);
+			if (pacing < 0)
 				goto fail;
 
 			if (!(cc_algo->flags & QUIC_CC_ALGO_FL_OPT_PACING)) {
-				ha_warning("'%s' : burst parameter ignored for '%s' congestion algorithm\n",
+				ha_warning("'%s' : pacing parameter ignored for '%s' congestion algorithm\n",
 				           args[cur_arg], algo);
 			}
-			else if (burst) {
+			else if (pacing) {
 				if (!experimental_directives_allowed) {
 					memprintf(err, "'%s' : support for pacing is experimental, must be allowed via a global "
 						  "'expose-experimental-directives'\n", args[cur_arg]);
@@ -209,7 +209,7 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 				goto out;
 			}
 			else if (*end_opt != ',') {
-				memprintf(err, "'%s' : cannot parse burst argument for '%s' algorithm", args[cur_arg], algo);
+				memprintf(err, "'%s' : cannot parse pacing argument for '%s' algorithm", args[cur_arg], algo);
 				goto fail;
 			}
 			arg = end_opt;
