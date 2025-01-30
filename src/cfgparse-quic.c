@@ -70,32 +70,6 @@ static unsigned long parse_window_size(const char *kw, char *value,
 	return 0;
 }
 
-/* Parse <value> as pacing argument.
- *
- * Returns the parsed value or a negative error code.
- */
-static int parse_pacing(const char *kw, char *value, char **end_opt, char **err)
-{
-	int pacing;
-
-	errno = 0;
-	pacing = strtoul(value, end_opt, 0);
-	if (*end_opt == value || errno != 0) {
-		memprintf(err, "'%s' : could not parse pacing value", kw);
-		goto fail;
-	}
-
-	if (!pacing) {
-		memprintf(err, "'%s' : pacing value cannot be negative", kw);
-		goto fail;
-	}
-
-	return pacing;
-
- fail:
-	return -1;
-}
-
 /* parse "quic-cc-algo" bind keyword */
 static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
                                    struct bind_conf *conf, char **err)
@@ -178,39 +152,6 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 			}
 			else if (*end_opt != ',') {
 				memprintf(err, "'%s' : cannot parse max-window argument for '%s' algorithm", args[cur_arg], algo);
-				goto fail;
-			}
-			arg = end_opt;
-		}
-
-		if (*++arg == ')')
-			goto out;
-
-		if (*arg != ',') {
-			int pacing = parse_pacing(args[cur_arg], arg, &end_opt, err);
-			if (pacing < 0)
-				goto fail;
-
-			if (pacing) {
-				if (!experimental_directives_allowed) {
-					memprintf(err, "'%s' : support for pacing is experimental, must be allowed via a global "
-						  "'expose-experimental-directives'\n", args[cur_arg]);
-					goto fail;
-				}
-
-				cc_algo->pacing_inter = quic_cc_default_pacing_inter;
-			}
-			else if (!(cc_algo->flags & QUIC_CC_ALGO_FL_OPT_PACING)) {
-				ha_warning("'%s' : '%s' algorithm without pacing may cause slowdowns or high loss rates during transfers\n",
-				           args[cur_arg], algo);
-				cc_algo->pacing_inter = NULL;
-			}
-
-			if (*end_opt == ')') {
-				goto out;
-			}
-			else if (*end_opt != ',') {
-				memprintf(err, "'%s' : cannot parse pacing argument for '%s' algorithm", args[cur_arg], algo);
 				goto fail;
 			}
 			arg = end_opt;
@@ -460,6 +401,18 @@ static int cfg_parse_quic_tune_on_off(char **args, int section_type, struct prox
 		else
 			global.tune.options &= ~GTUNE_QUIC_CC_HYSTART;
 	}
+	else if (strcmp(suffix, "tune.quic.tx-pacing") == 0) {
+		if (on) {
+			if (!experimental_directives_allowed) {
+				memprintf(err, "'%s' : support for pacing is experimental, must be allowed via a global "
+				          "'expose-experimental-directives'\n", args[0]);
+				return -1;
+			}
+			global.tune.options &= ~GTUNE_QUIC_NO_PACING;
+		}
+		else
+			global.tune.options |= GTUNE_QUIC_NO_PACING;
+	}
 
 	return 0;
 }
@@ -467,6 +420,7 @@ static int cfg_parse_quic_tune_on_off(char **args, int section_type, struct prox
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.socket-owner", cfg_parse_quic_tune_socket_owner },
 	{ CFG_GLOBAL, "tune.quic.cc-hystart", cfg_parse_quic_tune_on_off },
+	{ CFG_GLOBAL, "tune.quic.tx-pacing", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.cc.cubic.min-losses", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.conn-tx-buffers.limit", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.glitches-threshold", cfg_parse_quic_tune_setting },

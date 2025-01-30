@@ -5,6 +5,7 @@
  */
 
 #include <haproxy/api-t.h>
+#include <haproxy/quic_cc.h>
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_trace.h>
 #include <haproxy/trace.h>
@@ -71,6 +72,8 @@ struct quic_cc_algo quic_cc_algo_nocc = {
 	.flags       = QUIC_CC_ALGO_FL_OPT_PACING,
 	.init        = quic_cc_nocc_init,
 	.event       = quic_cc_nocc_event,
+	.pacing_inter = quic_cc_default_pacing_inter,
+	.pacing_burst = NULL,
 	.slow_start  = quic_cc_nocc_slow_start,
 	.state_trace = quic_cc_nocc_state_trace,
 };

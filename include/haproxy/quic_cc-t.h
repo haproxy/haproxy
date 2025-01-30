@@ -137,9 +137,8 @@ struct quic_cc_algo {
 	void (*state_cli)(struct buffer *buf, const struct quic_cc_path *path);
 	void (*hystart_start_round)(struct quic_cc *cc, uint64_t pn);
 
-	/* Defined only if pacing is used. */
 	uint (*pacing_inter)(const struct quic_cc *cc);
-	uint (*pacing_burst)(const struct quic_cc *cc);
+	uint (*pacing_burst)(const struct quic_cc *cc); /* only set if pacing integrated with congestion algo */
 
 	struct quic_cc_drs *(*get_drs)(struct quic_cc *cc);
 	void (*on_transmit)(struct quic_cc *cc);

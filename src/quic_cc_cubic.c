@@ -687,6 +687,8 @@ struct quic_cc_algo quic_cc_algo_cubic = {
 	.event       = quic_cc_cubic_event,
 	.slow_start  = quic_cc_cubic_slow_start,
 	.hystart_start_round = quic_cc_cubic_hystart_start_round,
+	.pacing_inter = quic_cc_default_pacing_inter,
+	.pacing_burst = NULL,
 	.state_trace = quic_cc_cubic_state_trace,
 	.state_cli   = quic_cc_cubic_state_cli,
 };

@@ -225,6 +225,8 @@ struct quic_cc_algo quic_cc_algo_nr = {
 	.event       = quic_cc_nr_event,
 	.slow_start  = quic_cc_nr_slow_start,
 	.hystart_start_round = quic_cc_nr_hystart_start_round,
+	.pacing_inter = quic_cc_default_pacing_inter,
+	.pacing_burst = NULL,
 	.state_trace = quic_cc_nr_state_trace,
 };
 

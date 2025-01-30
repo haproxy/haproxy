@@ -1694,6 +1694,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.reorder-ratio
    - tune.quic.retry-threshold
    - tune.quic.socket-owner
+   - tune.quic.tx-pacing
    - tune.quic.zero-copy-fwd-send
    - tune.renice.runtime
    - tune.renice.startup
@@ -4286,6 +4287,19 @@ tune.quic.socket-owner { connection | listener }
   listener, unless its bind option is set to "listener". However, if "listener"
   is used globally, it will be forced on every listener instance, regardless of
   their individual configuration.
+
+tune.quic.tx-pacing { on | off }
+  Enables ('on') or disables ('off') pacing support for QUIC emission. By
+  default it is disabled. The purpose of pacing is to smooth emission of data
+  to reduce network losses. In most scenario, it can significantly improve
+  network throughput by avoiding retransmissions. However, it can be useful to
+  deactivate it for networks with very high bandwidth/low latency
+  characteristics to prevent unwanted delay and reduce CPU consumption.
+
+  Pacing support is still experimental, as such it requires
+  "expose-experimental-directives".
+
+  See also the "quic-cc-algo" bind option.
 
 tune.quic.zero-copy-fwd-send { on | off }
   Enables ('on') of disabled ('off') the zero-copy sends of data for the QUIC
@@ -17287,22 +17301,18 @@ proto <name>
 
 quic-cc-algo { cubic | newreno | bbr | nocc }[(<args,...>)]
   This is a QUIC specific setting to select the congestion control algorithm
-  for any connection attempts to the configured QUIC listeners. They are similar
-  to those used by TCP.
+  for any connection attempts to the configured QUIC listeners. They are
+  similar to those used by TCP.
+
+  Pacing can be activated on top of the congestion algorithm to reduce loss and
+  improve throughput. This is performed via "tune.quic.tx-pacing" experimental
+  global keyword. Special care is required when using BBR as it relies on
+  pacing to work as expected. Using BBR without it may cause slowdowns or high
+  loss rates during transfers. Also note that haproxy's BBR implementation is
+  also considered as experimental and cannot be enabled without
+  "expose-experimental-directives".
 
   Default value: cubic
-
-  It is possible to enable pacing if the algorithm is compatible. This is done
-  by setting an optional integer argument as described in the next paragraph.
-  The purpose of pacing is to smooth emission of data to reduce network losses.
-  In most scenario, it can significantly improve network throughput by avoiding
-  retransmissions. Pacing support is still experimental, as such it requires
-  "expose-experimental-directives". Selecting BBR congestion algorithm will
-  implicitly activate pacing as it relies on it to work as expected. Explicitly
-  disabling pacing in conjunction with BBR may cause slowdowns or high loss
-  rates during transfers. Also note that haproxy's BBR implementation is also
-  considered as experimental and cannot be enabled without
-  "expose-experimental-directives".
 
   For further customization, a list of parameters can be specified after the
   algorithm token. It must be written between parenthesis, separated by a
@@ -17310,17 +17320,12 @@ quic-cc-algo { cubic | newreno | bbr | nocc }[(<args,...>)]
   mandatory order of each parameters :
   - maximum window size in bytes. It must be greater than 10k and smaller than
     4g. By default "tune.quic.frontend.default-max-window-size" value is used.
-  - pacing activation. By default, it is set to 0, which means pacing is not
-    used. To activate it, specify a positive value. Burst size will be
-    dynamically adjusted to adapt to the network conditions.
 
   Example:
       # newreno congestion control algorithm
       quic-cc-algo newreno
       # cubic congestion control algorithm with one megabytes as window
       quic-cc-algo cubic(1m)
-      # cubic with pacing activated on top of it
-      quic-cc-algo cubic(,1)
 
   A special value "nocc" may be used to force a fixed congestion window always
   set at the maximum size. It is reserved for debugging scenarios to remove any

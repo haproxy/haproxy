@@ -70,6 +70,7 @@
 #include <haproxy/sink.h>
 #include <haproxy/mailers.h>
 #include <haproxy/namespace.h>
+#include <haproxy/quic_cc-t.h>
 #include <haproxy/quic_sock.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/openssl-compat.h>
@@ -3051,6 +3052,21 @@ init_proxies_list_stage1:
 #endif
 			} /* HTTP && bufsize < 16384 */
 #endif
+
+#ifdef USE_QUIC
+			if (bind_conf->xprt == xprt_get(XPRT_QUIC)) {
+				const struct quic_cc_algo *cc_algo = bind_conf->quic_cc_algo ?
+				  bind_conf->quic_cc_algo : default_quic_cc_algo;
+
+				if (!(cc_algo->flags & QUIC_CC_ALGO_FL_OPT_PACING) &&
+				    global.tune.options & GTUNE_QUIC_NO_PACING) {
+					ha_warning("Binding [%s:%d] for %s %s: using the selected congestion algorithm without pacing may cause slowdowns or high loss rates during transfers.\n",
+					           bind_conf->file, bind_conf->line,
+					           proxy_type_str(curproxy), curproxy->id);
+					err_code |= ERR_WARN;
+				}
+			}
+#endif /* USE_QUIC */
 
 			/* finish the bind setup */
 			ret = bind_complete_thread_setup(bind_conf, &err_code);
