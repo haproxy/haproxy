@@ -17297,9 +17297,10 @@ quic-cc-algo { cubic | newreno | bbr | nocc }[(<args,...>)]
   The purpose of pacing is to smooth emission of data to reduce network losses.
   In most scenario, it can significantly improve network throughput by avoiding
   retransmissions. Pacing support is still experimental, as such it requires
-  "expose-experimental-directives". The BBR congestion control algorithm
-  depends on the pacing support which is in this case implicitly enabled by
-  choosing the "bbr" algorithm. Note that haproxy's BBR implementation is still
+  "expose-experimental-directives". Selecting BBR congestion algorithm will
+  implicitly activate pacing as it relies on it to work as expected. Explicitly
+  disabling pacing in conjunction with BBR may cause slowdowns or high loss
+  rates during transfers. Also note that haproxy's BBR implementation is also
   considered as experimental and cannot be enabled without
   "expose-experimental-directives".
 
@@ -17311,8 +17312,7 @@ quic-cc-algo { cubic | newreno | bbr | nocc }[(<args,...>)]
     4g. By default "tune.quic.frontend.default-max-window-size" value is used.
   - pacing activation. By default, it is set to 0, which means pacing is not
     used. To activate it, specify a positive value. Burst size will be
-    dynamically adjusted to adapt to the network conditions. This parameter is
-    ignored by BBR as pacing is automatically activated for this algorithm.
+    dynamically adjusted to adapt to the network conditions.
 
   Example:
       # newreno congestion control algorithm

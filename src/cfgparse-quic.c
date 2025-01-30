@@ -191,11 +191,7 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 			if (pacing < 0)
 				goto fail;
 
-			if (!(cc_algo->flags & QUIC_CC_ALGO_FL_OPT_PACING)) {
-				ha_warning("'%s' : pacing parameter ignored for '%s' congestion algorithm\n",
-				           args[cur_arg], algo);
-			}
-			else if (pacing) {
+			if (pacing) {
 				if (!experimental_directives_allowed) {
 					memprintf(err, "'%s' : support for pacing is experimental, must be allowed via a global "
 						  "'expose-experimental-directives'\n", args[cur_arg]);
@@ -203,6 +199,11 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 				}
 
 				cc_algo->pacing_inter = quic_cc_default_pacing_inter;
+			}
+			else if (!(cc_algo->flags & QUIC_CC_ALGO_FL_OPT_PACING)) {
+				ha_warning("'%s' : '%s' algorithm without pacing may cause slowdowns or high loss rates during transfers\n",
+				           args[cur_arg], algo);
+				cc_algo->pacing_inter = NULL;
 			}
 
 			if (*end_opt == ')') {
