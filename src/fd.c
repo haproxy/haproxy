@@ -512,6 +512,8 @@ void fd_migrate_on(int fd, uint new_tid)
 int fd_takeover(int fd, void *expected_owner)
 {
 	unsigned long old;
+	int changing_tgid = 0;
+	int old_ltid, old_tgid;
 
 	/* protect ourself against a delete then an insert for the same fd,
 	 * if it happens, then the owner will no longer be the expected
@@ -520,23 +522,48 @@ int fd_takeover(int fd, void *expected_owner)
 	if (fdtab[fd].owner != expected_owner)
 		return -1;
 
-	/* we must be alone to work on this idle FD. If not, it means that its
-	 * poller is currently waking up and is about to use it, likely to
-	 * close it on shut/error, but maybe also to process any unexpectedly
-	 * pending data. It's also possible that the FD was closed and
-	 * reassigned to another thread group, so let's be careful.
-	 */
-	if (unlikely(!fd_grab_tgid(fd, ti->tgid)))
-		return -1;
+	/* We're taking a connection from a different thread group */
+	if ((fdtab[fd].refc_tgid & 0x7fff) != tgid) {
+		changing_tgid = 1;
+
+		old_tgid = fd_tgid(fd);
+		BUG_ON(atleast2(fdtab[fd].thread_mask));
+		old_ltid = my_ffsl(fdtab[fd].thread_mask) - 1;
+
+		if (unlikely(!fd_lock_tgid_cur(fd)))
+			return -1;
+	} else {
+		/* we must be alone to work on this idle FD. If not, it means that its
+		 * poller is currently waking up and is about to use it, likely to
+		 * close it on shut/error, but maybe also to process any unexpectedly
+		 * pending data. It's also possible that the FD was closed and
+		 * reassigned to another thread group, so let's be careful.
+		 */
+		if (unlikely(!fd_grab_tgid(fd, ti->tgid)))
+			return -1;
+	}
 
 	old = 0;
 	if (!HA_ATOMIC_CAS(&fdtab[fd].running_mask, &old, ti->ltid_bit)) {
+		if (changing_tgid)
+			fd_unlock_tgid(fd);
 		fd_drop_tgid(fd);
 		return -1;
 	}
 
 	/* success, from now on it's ours */
 	HA_ATOMIC_STORE(&fdtab[fd].thread_mask, ti->ltid_bit);
+
+	/*
+	 * Change the tgid to our own tgid.
+	 * This removes the lock, we don't need it anymore, but we keep
+	 * the refcount.
+	 */
+	if (changing_tgid) {
+		fd_update_tgid(fd, tgid);
+		if (cur_poller.fixup_tgid_takeover)
+			cur_poller.fixup_tgid_takeover(&cur_poller, fd, old_ltid, old_tgid);
+	}
 
 	/* Make sure the FD doesn't have the active bit. It is possible that
 	 * the fd is polled by the thread that used to own it, the new thread

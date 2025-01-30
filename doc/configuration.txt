@@ -1724,6 +1724,7 @@ The following keywords are supported in the "global" section :
    - tune.ssl.ssl-ctx-cache-size
    - tune.ssl.ocsp-update.maxdelay (deprecated)
    - tune.ssl.ocsp-update.mindelay (deprecated)
+   - tune.takeover-other-tg-connections
    - tune.vars.global-max-size
    - tune.vars.proc-max-size
    - tune.vars.reqres-max-size
@@ -4583,6 +4584,17 @@ tune.stick-counters <number>
   for each request, which does have measurable CPU impacts. Conversely, when
   no "track-sc" rules are used, the value may be lowered (0 being valid to
   entirely disable stick-counters).
+
+tune.takeover-other-tg-connections <value>
+  By default, we won't attempt to use idle connections from other thread groups.
+  This can however be changed. Valid values for <value> are : "none", the
+  default, if used, no attempt will be made to use idle connections from
+  other thread groups, "restricted" where we will only attempt to get an idle
+  connection from another thread if we're using protocols that can't create
+  new connections, such as reverse http, and "full" where we will always look
+  in other thread groups for idle connections.
+  Note that using connections from other thread groups can occur performance
+  penalties, so it should not be used unless really needed.
 
 tune.vars.global-max-size <size>
 tune.vars.proc-max-size <size>

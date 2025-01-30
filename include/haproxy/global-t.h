@@ -109,6 +109,13 @@ enum {
 	SSL_SERVER_VERIFY_REQUIRED = 1,
 };
 
+/* Takeover across thread groups */
+enum threadgroup_takeover {
+	NO_THREADGROUP_TAKEOVER = 0,
+	RESTRICTED_THREADGROUP_TAKEOVER = 1,
+	FULL_THREADGROUP_TAKEOVER = 2,
+};
+
 /* bit values to go with "warned" above */
 #define WARN_ANY                    0x00000001 /* any warning was emitted */
 #define WARN_FORCECLOSE_DEPRECATED  0x00000002
@@ -199,6 +206,7 @@ struct global {
 		int default_shards; /* default shards for listeners, or -1 (by-thread) or -2 (by-group) */
 		uint max_checks_per_thread; /* if >0, no more than this concurrent checks per thread */
 		uint ring_queues;   /* if >0, #ring queues, otherwise equals #thread groups */
+		enum threadgroup_takeover tg_takeover; /* Policy for threadgroup takeover */
 #ifdef USE_QUIC
 		unsigned int quic_backend_max_idle_timeout;
 		unsigned int quic_frontend_max_idle_timeout;

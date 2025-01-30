@@ -1263,7 +1263,9 @@ int alloc_bind_address(struct sockaddr_storage **ss,
  */
 struct connection *conn_backend_get(struct stream *s, struct server *srv, int is_safe, int64_t hash)
 {
+	const struct tgroup_info *curtg = tg;
 	struct connection *conn = NULL;
+	unsigned int curtgid = tgid;
 	int i; // thread number
 	int found = 0;
 	int stop;
@@ -1318,10 +1320,10 @@ struct connection *conn_backend_get(struct stream *s, struct server *srv, int is
 	 * unvisited thread, but always staying in the same group.
 	 */
 	stop = srv->per_tgrp[tgid - 1].next_takeover;
-	if (stop >= tg->count)
-		stop %= tg->count;
-
-	stop += tg->base;
+	if (stop >= curtg->count)
+		stop %= curtg->count;
+	stop += curtg->base;
+check_tgid:
 	i = stop;
 	do {
 		if (!srv->curr_idle_thr[i] || i == tid)
@@ -1356,8 +1358,21 @@ struct connection *conn_backend_get(struct stream *s, struct server *srv, int is
 			}
 		}
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
-	} while (!found && (i = (i + 1 == tg->base + tg->count) ? tg->base : i + 1) != stop);
+	} while (!found && (i = (i + 1 == curtg->base + curtg->count) ? curtg->base : i + 1) != stop);
 
+	if (!found && (global.tune.tg_takeover == FULL_THREADGROUP_TAKEOVER ||
+	    (global.tune.tg_takeover == RESTRICTED_THREADGROUP_TAKEOVER &&
+	    srv->flags & SRV_F_RHTTP))) {
+		curtgid = curtgid + 1;
+		if (curtgid == global.nbtgroups + 1)
+			curtgid = 1;
+		/* If we haven't looped yet */
+		if (curtgid != tgid) {
+			curtg = &ha_tgroup_info[curtgid - 1];
+			stop = curtg->base;
+			goto check_tgid;
+		}
+	}
 	if (!found)
 		conn = NULL;
  done:

@@ -1348,6 +1348,22 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 			return -1;
 		}
 	}
+	else if (strcmp(args[0], "tune.takeover-other-tg-connections") == 0) {
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects 'none', 'restricted', or 'full'", args[0]);
+			return -1;
+		}
+		if (strcmp(args[1], "none") == 0)
+			global.tune.tg_takeover = NO_THREADGROUP_TAKEOVER;
+		else if (strcmp(args[1], "restricted") == 0)
+			global.tune.tg_takeover = RESTRICTED_THREADGROUP_TAKEOVER;
+		else if (strcmp(args[1], "full") == 0)
+			global.tune.tg_takeover = FULL_THREADGROUP_TAKEOVER;
+		else {
+			memprintf(err, "'%s' expects 'none', 'restricted', or 'full', got '%s'", args[0], args[1]);
+			return -1;
+		}
+	}
 	else {
 		BUG_ON(1, "Triggered in cfg_parse_global_tune_opts() by unsupported keyword.\n");
 		return -1;
@@ -1716,6 +1732,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.http.maxhdr", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.comp.maxlevel", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.pattern.cache-size", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.takeover-other-tg-connections", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.disable-fast-forward", cfg_parse_global_tune_forward_opts },
 	{ CFG_GLOBAL, "tune.disable-zero-copy-forwarding", cfg_parse_global_tune_forward_opts },
 	{ CFG_GLOBAL, "tune.chksize", cfg_parse_global_unsupported_opts },

@@ -448,6 +448,22 @@ static inline void fd_claim_tgid(int fd, uint desired_tgid)
 	}
 }
 
+/*
+ * Update the FD's TGID.
+ * This should be called with the lock held, and will drop the lock once
+ * the TGID is updated.
+ * The reference counter is however preserved.
+ */
+static inline void fd_update_tgid(int fd, uint desired_tgid)
+{
+	unsigned int orig_tgid = fdtab[fd].refc_tgid;
+	unsigned int new_tgid;
+	/* Remove the lock, and switch to the new tgid */
+	do {
+		new_tgid = (orig_tgid & 0xffff0000) | desired_tgid;
+	} while (!_HA_ATOMIC_CAS(&fdtab[fd].refc_tgid, &orig_tgid, new_tgid) && __ha_cpu_relax());
+}
+
 /* atomically read the running mask if the tgid matches, or returns zero if it
  * does not match. This is meant for use in code paths where the bit is expected
  * to be present and will be sufficient to protect against a short-term group
