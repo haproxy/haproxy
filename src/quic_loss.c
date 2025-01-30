@@ -259,7 +259,11 @@ int qc_release_lost_pkts(struct quic_conn *qc, struct quic_pktns *pktns,
 	if (LIST_ISEMPTY(pkts))
 		goto leave;
 
-	oldest_lost = newest_lost = NULL;
+	/* Oldest will point to first list entry and newest on the last. First,
+	 * initialize them to point on the same entry. Newest pointer will be
+	 * updated along the loop. Release all other packet in between.
+	 */
+	newest_lost = oldest_lost = LIST_ELEM(pkts->n, struct quic_tx_packet *, list);
 	list_for_each_entry_safe(pkt, tmp, pkts, list) {
 		struct list tmp = LIST_HEAD_INIT(tmp);
 
@@ -272,37 +276,28 @@ int qc_release_lost_pkts(struct quic_conn *qc, struct quic_pktns *pktns,
 		if (!qc_handle_frms_of_lost_pkt(qc, pkt, &pktns->tx.frms))
 			close = 1;
 		LIST_DELETE(&pkt->list);
-		if (!oldest_lost) {
-			oldest_lost = newest_lost = pkt;
-		}
-		else {
-			if (newest_lost != oldest_lost)
-				quic_tx_packet_refdec(newest_lost);
-			newest_lost = pkt;
-		}
+
+		/* Move newest so that it will point on the last list entry.
+		 * Release every intermediary packet.
+		 */
+		if (oldest_lost != newest_lost)
+			quic_tx_packet_refdec(newest_lost);
+		newest_lost = pkt;
 		tot_lost++;
 	}
 
-	/* <oldest_lost> cannot be NULL at this stage because we have ensured
-	 * that <pkts> list is not empty. Without this, GCC 12.2.0 reports a
-	 * possible overflow on a 0 byte region with O2 optimization.
-	 */
-	ASSUME_NONNULL(oldest_lost);
-
 	if (!close) {
-		if (newest_lost) {
-			struct quic_cc *cc = &qc->path->cc;
-			/* Sent a congestion event to the controller */
-			struct quic_cc_event ev = { };
+		struct quic_cc *cc = &qc->path->cc;
+		/* Sent a congestion event to the controller */
+		struct quic_cc_event ev = { };
 
-			ev.type = QUIC_CC_EVT_LOSS;
-			ev.loss.time_sent = newest_lost->time_sent_ms;
-			ev.loss.count = tot_lost;
+		ev.type = QUIC_CC_EVT_LOSS;
+		ev.loss.time_sent = newest_lost->time_sent_ms;
+		ev.loss.count = tot_lost;
 
-			quic_cc_event(cc, &ev);
-			if (cc->algo->congestion_event)
-			    cc->algo->congestion_event(cc, newest_lost->time_sent_ms);
-		}
+		quic_cc_event(cc, &ev);
+		if (cc->algo->congestion_event)
+		    cc->algo->congestion_event(cc, newest_lost->time_sent_ms);
 
 		/* If an RTT have been already sampled, <rtt_min> has been set.
 		 * We must check if we are experiencing a persistent congestion.
