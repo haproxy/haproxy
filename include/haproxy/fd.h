@@ -500,6 +500,10 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), int tgid
 	fdtab[fd].iocb = iocb;
 	fdtab[fd].state = newstate;
 	fdtab[fd].thread_mask = thread_mask;
+
+	/* just for debugging: how many times taken over since last fd_insert() */
+	fdtab[fd].nb_takeover = 0;
+
 	fd_drop_tgid(fd);
 
 #ifdef DEBUG_FD

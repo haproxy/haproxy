@@ -542,6 +542,9 @@ int fd_takeover(int fd, void *expected_owner)
 	 */
 	fd_stop_recv(fd);
 
+	/* essentially for debugging */
+	fdtab[fd].nb_takeover++;
+
 	/* we're done with it */
 	HA_ATOMIC_AND(&fdtab[fd].running_mask, ~ti->ltid_bit);
 

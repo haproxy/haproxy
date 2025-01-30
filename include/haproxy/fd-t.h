@@ -193,6 +193,11 @@ struct fdtab {
 	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
 	unsigned int state;                  /* FD state for read and write directions (FD_EV_*) + FD_POLL_* */
 	unsigned int refc_tgid;              /* refcounted tgid, updated atomically */
+	/* the info below are mainly used for epoll debugging/strengthening.
+	 * they're filling the rest of the cache line but may easily be dropped
+	 * if the room is needed for more important stuff.
+	 */
+	unsigned int nb_takeover;            /* number of times this FD was taken over since inserted (used for debugging) */
 #ifdef DEBUG_FD
 	unsigned int event_count;            /* number of events reported */
 #endif
