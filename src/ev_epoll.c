@@ -153,7 +153,7 @@ static void _update_fd(int fd)
 
  done:
 	ev.events &= ~epoll_mask;
-	ev.data.fd = fd;
+	ev.data.u64 = ((u64)fdtab[fd].generation << 32) + fd;
 	epoll_ctl(epoll_fd[tid], opcode, fd, &ev);
 }
 
@@ -252,9 +252,52 @@ static void _do_poll(struct poller *p, int exp, int wake)
 
 	for (count = 0; count < status; count++) {
 		unsigned int n, e;
+		uint64_t epoll_data;
+		uint ev_gen, fd_gen;
 
 		e = epoll_events[count].events;
-		fd = epoll_events[count].data.fd;
+		epoll_data = epoll_events[count].data.u64;
+
+		/* epoll_data contains the fd's generation in the 32 upper bits
+		 * and the fd in the 32 lower ones.
+		 */
+		fd = (uint32_t)epoll_data;
+		ev_gen = epoll_data >> 32;
+		fd_gen = _HA_ATOMIC_LOAD(&fdtab[fd].generation);
+
+		if (unlikely(ev_gen != fd_gen)) {
+			/* this is a stale report for an older instance of this FD */
+
+			if (_HA_ATOMIC_LOAD(&fdtab[fd].owner)) {
+				ulong tmask = _HA_ATOMIC_LOAD(&fdtab[fd].thread_mask);
+				if (!(tmask & ti->ltid_bit)) {
+					/* thread has change. quite common, that's already handled
+					 * by fd_update_events(), let's just report sensitivive
+					 * events for statistics purposes.
+					 */
+					if (e & (EPOLLRDHUP|EPOLLHUP|EPOLLERR))
+						COUNT_IF(1, "epoll report of HUP/ERR on a stale fd reopened on another thread (harmless)");
+				} else {
+					/* same thread but different generation, this smells bad,
+					 * maybe that could be caused by crossed takeovers with a
+					 * close() in between or something like this, but this is
+					 * something fd_update_events() cannot detect. It still
+					 * remains relatively safe for HUP because we consider it
+					 * once we've read all pending data.
+					 */
+					if (e & EPOLLERR)
+						COUNT_IF(1, "epoll report of ERR on a stale fd reopened on the same thread (suspicious)");
+					else if (e & (EPOLLRDHUP|EPOLLHUP))
+						COUNT_IF(1, "epoll report of HUP on a stale fd reopened on the same thread (suspicious)");
+					else
+						COUNT_IF(1, "epoll report of a harmless event on a stale fd reopened on the same thread (suspicious)");
+				}
+			} else if (ev_gen + 1 != fd_gen) {
+				COUNT_IF(1, "epoll report of event on a closed recycled fd (rare)");
+			} else {
+				COUNT_IF(1, "epoll report of event on a just closed fd (harmless)");
+			}
+		}
 
 		if ((e & EPOLLRDHUP) && !(cur_poller.flags & HAP_POLL_F_RDHUP))
 			_HA_ATOMIC_OR(&cur_poller.flags, HAP_POLL_F_RDHUP);
