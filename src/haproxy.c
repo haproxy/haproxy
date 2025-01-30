@@ -1375,7 +1375,6 @@ static void init_args(int argc, char **argv)
 #endif
 #ifdef USE_QUIC
 	global.tune.options |= GTUNE_QUIC_SOCK_PER_CONN;
-	global.tune.options |= GTUNE_QUIC_NO_PACING;
 #endif
 	global.tune.options |= GTUNE_STRICT_LIMITS;
 

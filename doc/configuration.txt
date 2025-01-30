@@ -1685,6 +1685,7 @@ The following keywords are supported in the "global" section :
    - tune.pool-low-fd-ratio
    - tune.pt.zero-copy-forwarding
    - tune.quic.cc-hystart
+   - tune.quic.disable-tx-pacing
    - tune.quic.disable-udp-gso
    - tune.quic.frontend.glitches-threshold
    - tune.quic.frontend.max-idle-timeout
@@ -1694,7 +1695,6 @@ The following keywords are supported in the "global" section :
    - tune.quic.reorder-ratio
    - tune.quic.retry-threshold
    - tune.quic.socket-owner
-   - tune.quic.tx-pacing
    - tune.quic.zero-copy-fwd-send
    - tune.renice.runtime
    - tune.renice.startup
@@ -4183,6 +4183,16 @@ tune.quic.cc.cubic.min-losses <number>
   compare some metrics. Never go beyond 2 without an expert's prior analysis of
   the situation. The default and minimum value is 1. Always use 1.
 
+tune.quic.disable-tx-pacing
+  Disables pacing support for QUIC emission. The purpose of pacing is to smooth
+  emission of data to reduce network losses. In most scenario, it will
+  significantly improve network throughput by avoiding retransmissions.
+  However, it can be useful to deactivate it for networks with very high
+  bandwidth/low latency characteristics to prevent unwanted delay and reduce
+  CPU consumption.
+
+  See also the "quic-cc-algo" bind option.
+
 tune.quic.disable-udp-gso
   Disable UDP GSO emission. This kernel feature allows to emit multiple
   datagrams via a single system call which is more efficient for large
@@ -4287,19 +4297,6 @@ tune.quic.socket-owner { connection | listener }
   listener, unless its bind option is set to "listener". However, if "listener"
   is used globally, it will be forced on every listener instance, regardless of
   their individual configuration.
-
-tune.quic.tx-pacing { on | off }
-  Enables ('on') or disables ('off') pacing support for QUIC emission. By
-  default it is disabled. The purpose of pacing is to smooth emission of data
-  to reduce network losses. In most scenario, it can significantly improve
-  network throughput by avoiding retransmissions. However, it can be useful to
-  deactivate it for networks with very high bandwidth/low latency
-  characteristics to prevent unwanted delay and reduce CPU consumption.
-
-  Pacing support is still experimental, as such it requires
-  "expose-experimental-directives".
-
-  See also the "quic-cc-algo" bind option.
 
 tune.quic.zero-copy-fwd-send { on | off }
   Enables ('on') of disabled ('off') the zero-copy sends of data for the QUIC
@@ -17304,13 +17301,13 @@ quic-cc-algo { cubic | newreno | bbr | nocc }[(<args,...>)]
   for any connection attempts to the configured QUIC listeners. They are
   similar to those used by TCP.
 
-  Pacing can be activated on top of the congestion algorithm to reduce loss and
-  improve throughput. This is performed via "tune.quic.tx-pacing" experimental
-  global keyword. Special care is required when using BBR as it relies on
-  pacing to work as expected. Using BBR without it may cause slowdowns or high
-  loss rates during transfers. Also note that haproxy's BBR implementation is
-  also considered as experimental and cannot be enabled without
-  "expose-experimental-directives".
+  Pacing is activated on top of the congestion algorithm to reduce loss and
+  improve throughput. It can be turned off via "tune.quic.disable-tx-pacing"
+  global keyword. In most cases, pacing should remain activated, especially
+  when using BBR as it relies on it to work as expected. Using BBR without
+  pacing may cause slowdowns or high loss rates during transfers. Also note
+  that haproxy's BBR implementation is also considered as experimental and
+  cannot be enabled without "expose-experimental-directives".
 
   Default value: cubic
 

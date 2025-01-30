@@ -356,7 +356,10 @@ static int cfg_parse_quic_tune_setting0(char **args, int section_type,
 		return -1;
 
 	suffix = args[0] + prefix_len;
-	if (strcmp(suffix, "disable-udp-gso") == 0) {
+	if (strcmp(suffix, "disable-tx-pacing") == 0) {
+		global.tune.options |= GTUNE_QUIC_NO_PACING;
+	}
+	else if (strcmp(suffix, "disable-udp-gso") == 0) {
 		global.tune.options |= GTUNE_QUIC_NO_UDP_GSO;
 	}
 	else {
@@ -401,18 +404,6 @@ static int cfg_parse_quic_tune_on_off(char **args, int section_type, struct prox
 		else
 			global.tune.options &= ~GTUNE_QUIC_CC_HYSTART;
 	}
-	else if (strcmp(suffix, "tune.quic.tx-pacing") == 0) {
-		if (on) {
-			if (!experimental_directives_allowed) {
-				memprintf(err, "'%s' : support for pacing is experimental, must be allowed via a global "
-				          "'expose-experimental-directives'\n", args[0]);
-				return -1;
-			}
-			global.tune.options &= ~GTUNE_QUIC_NO_PACING;
-		}
-		else
-			global.tune.options |= GTUNE_QUIC_NO_PACING;
-	}
 
 	return 0;
 }
@@ -420,7 +411,6 @@ static int cfg_parse_quic_tune_on_off(char **args, int section_type, struct prox
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.socket-owner", cfg_parse_quic_tune_socket_owner },
 	{ CFG_GLOBAL, "tune.quic.cc-hystart", cfg_parse_quic_tune_on_off },
-	{ CFG_GLOBAL, "tune.quic.tx-pacing", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.cc.cubic.min-losses", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.conn-tx-buffers.limit", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.glitches-threshold", cfg_parse_quic_tune_setting },
@@ -430,6 +420,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.max-frame-loss", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.reorder-ratio", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.retry-threshold", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.disable-tx-pacing", cfg_parse_quic_tune_setting0 },
 	{ CFG_GLOBAL, "tune.quic.disable-udp-gso", cfg_parse_quic_tune_setting0 },
 	{ CFG_GLOBAL, "tune.quic.zero-copy-fwd-send", cfg_parse_quic_tune_on_off },
 	{ 0, NULL, NULL }
