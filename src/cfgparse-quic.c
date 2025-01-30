@@ -354,7 +354,7 @@ static int cfg_parse_quic_tune_setting0(char **args, int section_type,
 
 	suffix = args[0] + prefix_len;
 	if (strcmp(suffix, "disable-tx-pacing") == 0) {
-		global.tune.options |= GTUNE_QUIC_NO_PACING;
+		quic_tune.options |= QUIC_TUNE_NO_PACING;
 	}
 	else if (strcmp(suffix, "disable-udp-gso") == 0) {
 		global.tune.options |= GTUNE_QUIC_NO_UDP_GSO;

@@ -23,6 +23,7 @@
 #include <haproxy/quic_sock.h>
 #include <haproxy/quic_stream.h>
 #include <haproxy/quic_tp-t.h>
+#include <haproxy/quic_tune.h>
 #include <haproxy/quic_tx.h>
 #include <haproxy/session.h>
 #include <haproxy/ssl_sock-t.h>
@@ -40,7 +41,7 @@ static void qmux_ctrl_room(struct qc_stream_desc *, uint64_t room);
 /* Returns true if pacing should be used for <conn> connection. */
 static int qcc_is_pacing_active(const struct connection *conn)
 {
-	return !(global.tune.options & GTUNE_QUIC_NO_PACING);
+	return !(quic_tune.options & QUIC_TUNE_NO_PACING);
 }
 
 static void qcs_free_ncbuf(struct qcs *qcs, struct ncbuf *ncbuf)

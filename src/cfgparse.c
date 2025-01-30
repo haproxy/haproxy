@@ -72,6 +72,7 @@
 #include <haproxy/namespace.h>
 #include <haproxy/quic_cc-t.h>
 #include <haproxy/quic_sock.h>
+#include <haproxy/quic_tune.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/peers-t.h>
@@ -3059,7 +3060,7 @@ init_proxies_list_stage1:
 				  bind_conf->quic_cc_algo : default_quic_cc_algo;
 
 				if (!(cc_algo->flags & QUIC_CC_ALGO_FL_OPT_PACING) &&
-				    global.tune.options & GTUNE_QUIC_NO_PACING) {
+				    quic_tune.options & QUIC_TUNE_NO_PACING) {
 					ha_warning("Binding [%s:%d] for %s %s: using the selected congestion algorithm without pacing may cause slowdowns or high loss rates during transfers.\n",
 					           bind_conf->file, bind_conf->line,
 					           proxy_type_str(curproxy), curproxy->id);
