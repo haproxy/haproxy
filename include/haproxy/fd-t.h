@@ -198,6 +198,7 @@ struct fdtab {
 	 * if the room is needed for more important stuff.
 	 */
 	unsigned int nb_takeover;            /* number of times this FD was taken over since inserted (used for debugging) */
+	unsigned int generation;             /* number of times this FD was closed before (used for epoll strengthening) */
 #ifdef DEBUG_FD
 	unsigned int event_count;            /* number of events reported */
 #endif

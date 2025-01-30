@@ -1415,7 +1415,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			suspicious = 1;
 
 		chunk_printf(&trash,
-			     "  %5d : st=0x%06x(%c%c %c%c%c%c%c W:%c%c%c R:%c%c%c) ref=%#x gid=%d tmask=0x%lx umask=0x%lx prmsk=0x%lx pwmsk=0x%lx owner=%p tkov=%u iocb=%p(",
+			     "  %5d : st=0x%06x(%c%c %c%c%c%c%c W:%c%c%c R:%c%c%c) ref=%#x gid=%d tmask=0x%lx umask=0x%lx prmsk=0x%lx pwmsk=0x%lx owner=%p gen=%u tkov=%u iocb=%p(",
 			     fd,
 			     fdt.state,
 			     (fdt.state & FD_CLONED) ? 'C' : 'c',
@@ -1437,6 +1437,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			     polled_mask[fd].poll_recv,
 			     polled_mask[fd].poll_send,
 			     fdt.owner,
+			     fdt.generation,
 			     fdt.nb_takeover,
 			     fdt.iocb);
 		resolve_sym_name(&trash, NULL, fdt.iocb);
