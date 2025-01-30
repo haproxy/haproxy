@@ -2157,6 +2157,9 @@ static void step_init_2(int argc, char** argv)
 	if (global.tune.maxpollevents <= 0)
 		global.tune.maxpollevents = MAX_POLL_EVENTS;
 
+	if (global.tune.max_rules_at_once <= 0)
+		global.tune.max_rules_at_once = MAX_RULES_AT_ONCE;
+
 	if (global.tune.runqueue_depth <= 0) {
 		/* tests on various thread counts from 1 to 64 have shown an
 		 * optimal queue depth following roughly 1/sqrt(threads).

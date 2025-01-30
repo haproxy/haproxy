@@ -135,22 +135,39 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 	 * current rule, and go to the action execution point.
 	 */
 	if (s->current_rule) {
+		int forced = s->flags & SF_RULE_FYIELD;
+
 		rule = s->current_rule;
 		s->current_rule = NULL;
+		s->flags &= ~SF_RULE_FYIELD;
 		if (!(req->flags & SC_FL_ERROR) && !(req->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) {
 			s->waiting_entity.type = STRM_ENTITY_NONE;
 			s->waiting_entity.ptr = NULL;
 		}
-		if ((def_rules && s->current_rule_list == def_rules) || s->current_rule_list == rules)
+		if ((def_rules && s->current_rule_list == def_rules) || s->current_rule_list == rules) {
+			if (forced)
+				goto resume_rule;
 			goto resume_execution;
+		}
 	}
 	s->current_rule_list = ((!def_rules || s->current_rule_list == def_rules) ? rules : def_rules);
 
   restart:
 	list_for_each_entry(rule, s->current_rule_list, list) {
-		enum acl_test_res ret = ACL_TEST_PASS;
+ resume_rule:
+		/* check if budget is exceeded and we need to continue on the next
+		 * polling loop, unless we know that we cannot yield
+		 */
+		if (s->rules_bcount++ >= global.tune.max_rules_at_once && !(act_opts & ACT_OPT_FINAL)) {
+			s->current_rule = rule;
+			s->flags |= SF_RULE_FYIELD;
+			task_wakeup(s->task, TASK_WOKEN_MSG);
+			goto missing_data;
+		}
 
 		if (rule->cond) {
+			enum acl_test_res ret = ACL_TEST_PASS;
+
 			ret = acl_exec_cond(rule->cond, s->be, sess, s, SMP_OPT_DIR_REQ | partial);
 			if (ret == ACL_TEST_MISS)
 				goto missing_data;
@@ -331,22 +348,39 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 	 * current rule, and go to the action execution point.
 	 */
 	if (s->current_rule) {
+		int forced = s->flags & SF_RULE_FYIELD;
+
 		rule = s->current_rule;
 		s->current_rule = NULL;
+		s->flags &= ~SF_RULE_FYIELD;
 		if (!(rep->flags & SC_FL_ERROR) && !(rep->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) {
 			s->waiting_entity.type = STRM_ENTITY_NONE;
 			s->waiting_entity.ptr = NULL;
 		}
-		if ((def_rules && s->current_rule_list == def_rules) || s->current_rule_list == rules)
+		if ((def_rules && s->current_rule_list == def_rules) || s->current_rule_list == rules) {
+			if (forced)
+				goto resume_rule;
 			goto resume_execution;
+		}
 	}
 	s->current_rule_list = ((!def_rules || s->current_rule_list == def_rules) ? rules : def_rules);
 
   restart:
 	list_for_each_entry(rule, s->current_rule_list, list) {
-		enum acl_test_res ret = ACL_TEST_PASS;
+ resume_rule:
+		/* check if budget is exceeded and we need to continue on the next
+		 * polling loop, unless we know that we cannot yield
+		 */
+		if (s->rules_bcount++ >= global.tune.max_rules_at_once && !(act_opts & ACT_OPT_FINAL)) {
+			s->current_rule = rule;
+			s->flags |= SF_RULE_FYIELD;
+			task_wakeup(s->task, TASK_WOKEN_MSG);
+			goto missing_data;
+		}
 
 		if (rule->cond) {
+			enum acl_test_res ret = ACL_TEST_PASS;
+
 			ret = acl_exec_cond(rule->cond, s->be, sess, s, SMP_OPT_DIR_RES | partial);
 			if (ret == ACL_TEST_MISS)
 				goto missing_data;

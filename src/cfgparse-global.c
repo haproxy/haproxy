@@ -1106,6 +1106,17 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 
 		return 0;
 	}
+	else if (strcmp(args[0], "tune.max-rules-at-once") == 0) {
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects a positive numeric value", args[0]);
+			return -1;
+		}
+		global.tune.max_rules_at_once = atoi(args[1]);
+		if (global.tune.max_rules_at_once < 0) {
+			memprintf(err, "'%s' expects a positive numeric value", args[0]);
+			return -1;
+		}
+	}
 	else if (strcmp(args[0], "tune.maxaccept") == 0) {
 		long max;
 
@@ -1687,6 +1698,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "expose-experimental-directives", cfg_parse_global_non_std_directives },
 	{ CFG_GLOBAL, "tune.runqueue-depth", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.maxpollevents", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.max-rules-at-once", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.maxaccept", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.recv_enough", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.bufsize", cfg_parse_global_tune_opts },

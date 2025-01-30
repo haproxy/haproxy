@@ -2018,6 +2018,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			 */
 
 			ana_list = ana_back = req->analysers;
+			s->rules_bcount = 0;
 			while (ana_list && max_loops--) {
 				/* Warning! ensure that analysers are always placed in ascending order! */
 				ANALYZE    (s, req, flt_start_analyze,          ana_list, ana_back, AN_REQ_FLT_START_FE);
@@ -2100,6 +2101,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			 */
 
 			ana_list = ana_back = res->analysers;
+			s->rules_bcount = 0;
 			while (ana_list && max_loops--) {
 				/* Warning! ensure that analysers are always placed in ascending order! */
 				ANALYZE    (s, res, flt_start_analyze,          ana_list, ana_back, AN_RES_FLT_START_FE);

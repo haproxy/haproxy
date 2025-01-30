@@ -404,6 +404,9 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		case HTTP_RULE_RES_YIELD: /* some data miss, call the function later. */
 			goto return_prx_yield;
 
+		case HTTP_RULE_RES_FYIELD: /* we must try again after context-switch */
+			goto return_prx_fyield;
+
 		case HTTP_RULE_RES_CONT:
 		case HTTP_RULE_RES_STOP: /* nothing to do */
 			break;
@@ -633,6 +636,12 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
  return_prx_yield:
 	channel_dont_connect(req);
 	DBG_TRACE_DEVEL("waiting for more data",
+			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
+	return 0;
+
+ return_prx_fyield:
+	channel_dont_connect(req);
+	DBG_TRACE_DEVEL("forced yield",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 0;
 }
@@ -1773,6 +1782,9 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 			case HTTP_RULE_RES_YIELD: /* some data miss, call the function later. */
 				goto return_prx_yield;
 
+			case HTTP_RULE_RES_FYIELD: /* we must try again after context-switch */
+				goto return_prx_fyield;
+
 			case HTTP_RULE_RES_CONT:
 			case HTTP_RULE_RES_STOP: /* nothing to do */
 				break;
@@ -2034,6 +2046,13 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	DBG_TRACE_DEVEL("waiting for more data",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 0;
+
+ return_prx_fyield:
+	channel_dont_close(rep);
+	DBG_TRACE_DEVEL("forced yield",
+			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
+	return 0;
+
 }
 
 /* This function is an analyser which forwards response body (including chunk
@@ -2733,16 +2752,27 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 	enum rule_result rule_ret = HTTP_RULE_RES_CONT;
 	int act_opts = 0;
 
+	if ((s->scf->flags & SC_FL_ERROR) ||
+	    ((s->scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
+	     (px->options & PR_O_ABRT_CLOSE)))
+		act_opts |= ACT_OPT_FINAL;
+
 	/* If "the current_rule_list" match the executed rule list, we are in
 	 * resume condition. If a resume is needed it is always in the action
 	 * and never in the ACL or converters. In this case, we initialise the
 	 * current rule, and go to the action execution point.
 	 */
 	if (s->current_rule) {
+		int forced = s->flags & SF_RULE_FYIELD;
+
 		rule = s->current_rule;
 		s->current_rule = NULL;
-		if (s->current_rule_list == rules || (def_rules && s->current_rule_list == def_rules))
+		s->flags &= ~SF_RULE_FYIELD;
+		if (s->current_rule_list == rules || (def_rules && s->current_rule_list == def_rules)) {
+			if (forced)
+				goto resume_rule;
 			goto resume_execution;
+		}
 	}
 	s->current_rule_list = ((!def_rules || s->current_rule_list == def_rules) ? rules : def_rules);
 
@@ -2751,6 +2781,18 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 	txn->req.flags &= ~HTTP_MSGF_SOFT_RW;
 
 	list_for_each_entry(rule, s->current_rule_list, list) {
+ resume_rule:
+		/* check if budget is exceeded and we need to continue on the next
+		 * polling loop, unless we know that we cannot yield
+		 */
+		if (s->rules_bcount++ >= global.tune.max_rules_at_once && !(act_opts & ACT_OPT_FINAL)) {
+			s->current_rule = rule;
+			s->flags |= SF_RULE_FYIELD;
+			rule_ret = HTTP_RULE_RES_FYIELD;
+			task_wakeup(s->task, TASK_WOKEN_MSG);
+			goto end;
+		}
+
 		/* check optional condition */
 		if (!acl_match_cond(rule->cond, px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL))
 			continue;
@@ -2762,11 +2804,6 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 
 		/* Always call the action function if defined */
 		if (rule->action_ptr) {
-			if ((s->scf->flags & SC_FL_ERROR) ||
-			    ((s->scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
-			     (px->options & PR_O_ABRT_CLOSE)))
-				act_opts |= ACT_OPT_FINAL;
-
 			if (!(s->scf->flags & SC_FL_ERROR) & !(s->req.flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) {
 				s->waiting_entity.type = STRM_ENTITY_NONE;
 				s->waiting_entity.ptr  = NULL;
@@ -2876,7 +2913,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 
   end:
 	/* if the ruleset evaluation is finished reset the strict mode */
-	if (rule_ret != HTTP_RULE_RES_YIELD)
+	if (rule_ret != HTTP_RULE_RES_YIELD && rule_ret != HTTP_RULE_RES_FYIELD)
 		txn->req.flags &= ~HTTP_MSGF_SOFT_RW;
 
 	/* we reached the end of the rules, nothing to report */
@@ -2884,8 +2921,8 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 }
 
 /* Executes the http-response rules <rules> for stream <s> and proxy <px>. It
- * returns one of 5 possible statuses: HTTP_RULE_RES_CONT, HTTP_RULE_RES_STOP,
- * HTTP_RULE_RES_DONE, HTTP_RULE_RES_YIELD, or HTTP_RULE_RES_BADREQ. If *CONT
+ * returns one of 6 possible statuses: HTTP_RULE_RES_CONT, HTTP_RULE_RES_STOP,
+ * HTTP_RULE_RES_DONE, HTTP_RULE_RES_(F)YIELD, or HTTP_RULE_RES_BADREQ. If *CONT
  * is returned, the process can continue the evaluation of next rule list. If
  * *STOP or *DONE is returned, the process must stop the evaluation. If *BADREQ
  * is returned, it means the operation could not be processed and a server error
@@ -2903,16 +2940,27 @@ static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct lis
 
 	if (final)
 		act_opts |= ACT_OPT_FINAL;
+	if ((s->scf->flags & SC_FL_ERROR) ||
+	    ((s->scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
+	     (px->options & PR_O_ABRT_CLOSE)))
+		act_opts |= ACT_OPT_FINAL;
+
 	/* If "the current_rule_list" match the executed rule list, we are in
 	 * resume condition. If a resume is needed it is always in the action
 	 * and never in the ACL or converters. In this case, we initialise the
 	 * current rule, and go to the action execution point.
 	 */
 	if (s->current_rule) {
+		int forced = s->flags & SF_RULE_FYIELD;
+
 		rule = s->current_rule;
 		s->current_rule = NULL;
-		if (s->current_rule_list == rules || (def_rules && s->current_rule_list == def_rules))
+		s->flags &= ~SF_RULE_FYIELD;
+		if (s->current_rule_list == rules || (def_rules && s->current_rule_list == def_rules)) {
+			if (forced)
+				goto resume_rule;
 			goto resume_execution;
+		}
 	}
 	s->current_rule_list = ((!def_rules || s->current_rule_list == def_rules) ? rules : def_rules);
 
@@ -2922,6 +2970,18 @@ static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct lis
 	txn->rsp.flags &= ~HTTP_MSGF_SOFT_RW;
 
 	list_for_each_entry(rule, s->current_rule_list, list) {
+ resume_rule:
+		/* check if budget is exceeded and we need to continue on the next
+		 * polling loop, unless we know that we cannot yield
+		 */
+		if (s->rules_bcount++ >= global.tune.max_rules_at_once && !(act_opts & ACT_OPT_FINAL)) {
+			s->current_rule = rule;
+			s->flags |= SF_RULE_FYIELD;
+			rule_ret = HTTP_RULE_RES_YIELD;
+			task_wakeup(s->task, TASK_WOKEN_MSG);
+			goto end;
+		}
+
 		/* check optional condition */
 		if (!acl_match_cond(rule->cond, px, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL))
 			continue;
@@ -2933,11 +2993,6 @@ resume_execution:
 
 		/* Always call the action function if defined */
 		if (rule->action_ptr) {
-			if ((s->scf->flags & SC_FL_ERROR) ||
-			    ((s->scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
-			     (px->options & PR_O_ABRT_CLOSE)))
-				act_opts |= ACT_OPT_FINAL;
-
 			if (!(s->scb->flags & SC_FL_ERROR) & !(s->res.flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) {
 				s->waiting_entity.type = STRM_ENTITY_NONE;
 				s->waiting_entity.ptr  = NULL;
@@ -3037,7 +3092,7 @@ resume_execution:
 
   end:
 	/* if the ruleset evaluation is finished reset the strict mode */
-	if (rule_ret != HTTP_RULE_RES_YIELD)
+	if (rule_ret != HTTP_RULE_RES_YIELD && rule_ret != HTTP_RULE_RES_FYIELD)
 		txn->rsp.flags &= ~HTTP_MSGF_SOFT_RW;
 
 	/* we reached the end of the rules, nothing to report */

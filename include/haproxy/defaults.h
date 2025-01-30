@@ -194,6 +194,15 @@
 #define MAX_POLL_EVENTS 200
 #endif
 
+// the max number of rules evaluated in one call to rule handling function.
+// If the function is able to yield, a forced yield will be enforced when
+// reaching this value, else the evaluation will continue. Lowering this
+// value may help to fight against thread contention with cpu-intensive
+// rulesets
+#ifndef MAX_RULES_AT_ONCE
+#define MAX_RULES_AT_ONCE 50
+#endif
+
 /* eternity when exprimed in timeval */
 #ifndef TV_ETERNITY
 #define TV_ETERNITY     (~0UL)

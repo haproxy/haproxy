@@ -89,6 +89,7 @@
 #define SF_SRC_ADDR     0x00800000	/* get the source ip/port with getsockname */
 #define SF_BC_MARK      0x01000000	/* need to set specific mark on backend/srv conn upon connect */
 #define SF_BC_TOS       0x02000000	/* need to set specific tos on backend/srv conn upon connect */
+#define SF_RULE_FYIELD  0x04000000      /* s->current_rule set because of forced yield */
 
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
@@ -103,7 +104,8 @@ static forceinline char *strm_show_flags(char *buf, size_t len, const char *deli
 	_(0);
 	/* flags & enums */
 	_(SF_IGNORE_PRST, _(SF_SRV_REUSED, _(SF_SRV_REUSED_ANTICIPATED,
-	_(SF_WEBSOCKET, _(SF_SRC_ADDR, _(SF_BC_MARK, _(SF_BC_TOS)))))));
+	_(SF_WEBSOCKET, _(SF_SRC_ADDR, _(SF_BC_MARK, _(SF_BC_TOS,
+	_(SF_RULE_FYIELD))))))));
 
 	_e(SF_FINST_MASK, SF_FINST_R,    _e(SF_FINST_MASK, SF_FINST_C,
 	_e(SF_FINST_MASK, SF_FINST_H,    _e(SF_FINST_MASK, SF_FINST_D,
@@ -258,6 +260,8 @@ struct stream {
 	int conn_retries;               /* number of connect retries performed */
 	unsigned int conn_exp;          /* wake up time for connect, queue, turn-around, ... */
 	unsigned int conn_err_type;     /* first error detected, one of STRM_ET_* */
+
+	uint32_t rules_bcount;          /* number of rules evaluated since last yield */
 
 	struct stream *parent;          /* Pointer to the parent stream, if any. NULL most of time */
 

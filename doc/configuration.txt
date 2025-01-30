@@ -1677,6 +1677,7 @@ The following keywords are supported in the "global" section :
    - tune.maxaccept
    - tune.maxpollevents
    - tune.maxrewrite
+   - tune.max-rules-at-once
    - tune.memory.hot-size
    - tune.pattern.cache-size
    - tune.peers.max-updates-at-once
@@ -4082,6 +4083,28 @@ tune.maxrewrite <number>
   to about 1024. It is automatically readjusted to half of bufsize if it is
   larger than that. This means you don't have to worry about it when changing
   bufsize.
+
+tune.max-rules-at-once <number>
+  Sets the maximum number of rules that can be evaluated at once in ruleset
+  evaluating functions, provided that they support yielding. Indeed, it is
+  not rare to see configurations with a large number of "tcp-request content"
+  or "http-request" rules for instance. A large number of rules combined with
+  cpu-demanding actions (e.g.: actions that work on content) may create thread
+  contention as all the rules from a given ruleset are evaluated under the same
+  polling loop if the evaluation is not interrupted. This option ensures that no
+  more than <number> number of rules may be excecuted under the same polling
+  loop for content-oriented rulesets (those that already support yielding due
+  to content inspection). What it does is that it forces the evaluating function
+  to yield, so that it comes back on the next polling loop to continues the
+  evaluation.
+
+  Affected rulesets are:
+   - "tcp-request content"
+   - "tcp-response content"
+   - "http-request"
+   - "http-response"
+
+  The default value is 50.
 
 tune.memory.hot-size <number>
   Sets the per-thread amount of memory that will be kept hot in the local cache
