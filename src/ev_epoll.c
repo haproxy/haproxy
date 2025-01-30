@@ -266,7 +266,9 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		fd_gen = _HA_ATOMIC_LOAD(&fdtab[fd].generation);
 
 		if (unlikely(ev_gen != fd_gen)) {
-			/* this is a stale report for an older instance of this FD */
+			/* this is a stale report for an older instance of this FD,
+			 * we must ignore it.
+			 */
 
 			if (_HA_ATOMIC_LOAD(&fdtab[fd].owner)) {
 				ulong tmask = _HA_ATOMIC_LOAD(&fdtab[fd].thread_mask);
@@ -297,6 +299,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 			} else {
 				COUNT_IF(1, "epoll report of event on a just closed fd (harmless)");
 			}
+			continue;
 		}
 
 		if ((e & EPOLLRDHUP) && !(cur_poller.flags & HAP_POLL_F_RDHUP))
