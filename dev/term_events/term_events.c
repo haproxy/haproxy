@@ -23,10 +23,10 @@ static const char *tevt_unknown_types[16] = {
 };
 
 static const char *tevt_fd_types[16] = {
-	[ 0] = "-",           [ 1] = "shutw", [ 2] = "shutr", [ 3] = "rcv_err",
-	[ 4] = "snd_err",     [ 5] = "-",     [ 6] = "-",     [ 7] = "conn_err",
-	[ 8] = "intercepted", [ 9] = "-",     [10] = "-",     [11] = "-",
-	[12] = "-",           [13] = "-",     [14] = "-",     [15] = "-",
+	[ 0] = "-",           [ 1] = "shutw",         [ 2] = "shutr",    [ 3] = "rcv_err",
+	[ 4] = "snd_err",     [ 5] = "-",             [ 6] = "-",        [ 7] = "conn_err",
+	[ 8] = "intercepted", [ 9] = "conn_poll_err", [10] = "poll_err", [11] = "poll_hup",
+	[12] = "-",           [13] = "-",             [14] = "-",        [15] = "-",
 };
 
 static const char *tevt_hs_types[16] = {

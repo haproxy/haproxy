@@ -988,8 +988,10 @@ int sock_conn_check(struct connection *conn)
 		if (errno == EALREADY || errno == EINPROGRESS)
 			goto wait;
 
-		if (errno && errno != EISCONN)
+		if (errno && errno != EISCONN) {
+			conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_connect_err);
 			goto out_error;
+		}
 	}
 
  done:
@@ -1007,7 +1009,6 @@ int sock_conn_check(struct connection *conn)
 	/* Write error on the file descriptor. Report it to the connection
 	 * and disable polling on this FD.
 	 */
-	conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_connect_err);
 	conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 	HA_ATOMIC_AND(&fdtab[fd].state, ~FD_LINGER_RISK);
 	fd_stop_both(fd);
@@ -1018,8 +1019,10 @@ int sock_conn_check(struct connection *conn)
 	 * in some corner cases while the system disagrees and reports an error
 	 * on the FD.
 	 */
-	if (fdtab[fd].state & FD_POLL_ERR)
+	if (fdtab[fd].state & FD_POLL_ERR) {
+		conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_connect_poll_err);
 		goto out_error;
+	}
 
 	fd_cant_send(fd);
 	fd_want_send(fd);

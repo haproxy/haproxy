@@ -763,6 +763,10 @@ enum fd_term_event_type {
 	/* unused: 5, 6 */
 	fd_tevt_type_connect_err = 7,
 	fd_tevt_type_intercepted = 8,
+
+	fd_tevt_type_connect_poll_err  =  9,
+	fd_tevt_type_poll_err          = 10,
+	fd_tevt_type_poll_hup          = 11,
 };
 
 enum hs_term_event_type {
