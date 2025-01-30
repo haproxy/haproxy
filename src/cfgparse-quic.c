@@ -15,12 +15,15 @@
 #include <haproxy/proxy.h>
 #include <haproxy/quic_cc.h>
 #include <haproxy/quic_rules.h>
+#include <haproxy/quic_tune.h>
 #include <haproxy/tools.h>
 
 #define QUIC_CC_NEWRENO_STR "newreno"
 #define QUIC_CC_CUBIC_STR   "cubic"
 #define QUIC_CC_BBR_STR     "bbr"
 #define QUIC_CC_NO_CC_STR   "nocc"
+
+struct quic_tune quic_tune;
 
 static int bind_parse_quic_force_retry(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
