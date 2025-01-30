@@ -106,12 +106,6 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 		arg += strlen(QUIC_CC_CUBIC_STR);
 	}
 	else if (isteq(algo_ist, ist(QUIC_CC_BBR_STR))) {
-		if (!experimental_directives_allowed) {
-			ha_alert("'%s' algo is experimental, must be allowed via a global "
-			         "'expose-experimental-directives'\n", arg);
-			goto fail;
-		}
-
 		/* bbr */
 		algo = QUIC_CC_BBR_STR;
 		*cc_algo = quic_cc_algo_bbr;

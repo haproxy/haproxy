@@ -17305,9 +17305,7 @@ quic-cc-algo { cubic | newreno | bbr | nocc }[(<args,...>)]
   improve throughput. It can be turned off via "tune.quic.disable-tx-pacing"
   global keyword. In most cases, pacing should remain activated, especially
   when using BBR as it relies on it to work as expected. Using BBR without
-  pacing may cause slowdowns or high loss rates during transfers. Also note
-  that haproxy's BBR implementation is also considered as experimental and
-  cannot be enabled without "expose-experimental-directives".
+  pacing may cause slowdowns or high loss rates during transfers.
 
   Default value: cubic
 
