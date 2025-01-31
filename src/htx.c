@@ -675,10 +675,10 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 	return blk;
 }
 
-/* Transfer HTX blocks from <src> to <dst>, stopping on the first block of the
- * type <mark> (typically EOH or EOT) or when <count> bytes were moved
- * (including payload and meta-data). It returns the number of bytes moved and
- * the last HTX block inserted in <dst>.
+/* Transfer HTX blocks from <src> to <dst>, stopping once the first block of the
+ * type <mark> is transferred (typically EOH or EOT) or when <count> bytes were
+ * moved (including payload and meta-data). It returns the number of bytes moved
+ * and the last HTX block inserted in <dst>.
  */
 struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 			     enum htx_blk_type mark)

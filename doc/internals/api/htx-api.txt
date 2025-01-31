@@ -540,14 +540,15 @@ message. These functions are used by HTX analyzers or by multiplexers.
       the amount of data drained.
 
     - htx_xfer_blks() transfers HTX blocks from an HTX message to another,
-      stopping on the first block of a specified type or when a specific amount
-      of bytes, including meta-data, was moved. If the tail block is a DATA
-      block, it may be partially moved. All other block are transferred at once
-      or kept. This function returns a mixed value, with the last block moved,
-      or NULL if nothing was moved, and the amount of data transferred. When
-      HEADERS or TRAILERS blocks must be transferred, this function transfers
-      all of them. Otherwise, if it is not possible, it triggers an error. It is
-      the caller responsibility to transfer all headers or trailers at once.
+      stopping after the first block of a specified type is transferred or when
+      a specific amount of bytes, including meta-data, was moved. If the tail
+      block is a DATA block, it may be partially moved. All other block are
+      transferred at once or kept. This function returns a mixed value, with the
+      last block moved, or NULL if nothing was moved, and the amount of data
+      transferred. When HEADERS or TRAILERS blocks must be transferred, this
+      function transfers all of them. Otherwise, if it is not possible, it
+      triggers an error. It is the caller responsibility to transfer all headers
+      or trailers at once.
 
     - htx_append_msg() append an HTX message to another one. All the message is
       copied or nothing. So, if an error occurred, a rollback is performed. This
