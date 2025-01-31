@@ -730,12 +730,6 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 			break;
 		}
 
-		if (type == mark) {
-			blk = htx_get_next_blk(src, blk);
-			srcref = dstref = NULL;
-			break;
-		}
-
 		/* Save <blk> to <srcref> and <dstblk> to <dstref> when we start
 		 * to xfer headers or trailers. When EOH/EOT block is reached,
 		 * both are reset. It is mandatory to be able to rollback a
@@ -748,6 +742,12 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 		}
 		else if (type == HTX_BLK_EOH || type == HTX_BLK_EOT)
 			srcref = dstref = NULL;
+
+		/* <mark> allows a copy of the block which matched, then stop */
+		if (type == mark) {
+			blk = htx_get_next_blk(src, blk);
+			break;
+		}
 	}
 
 	if (unlikely(dstref)) {
