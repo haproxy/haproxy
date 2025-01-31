@@ -722,7 +722,7 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 		dstblk->info = info;
 		htx_memcpy(htx_get_blk_ptr(dst, dstblk), htx_get_blk_ptr(src, blk), sz);
 
-		count -= sizeof(dstblk) + sz;
+		count -= sizeof(*dstblk) + sz;
 		if (blk->info != info) {
 			/* Partial xfer: don't remove <blk> from <src> but
 			 * resize its content */
