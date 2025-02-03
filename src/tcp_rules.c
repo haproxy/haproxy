@@ -383,7 +383,6 @@ resume_execution:
 					}
 					s->waiting_entity.type = STRM_ENTITY_RULE;
 					s->waiting_entity.ptr  = rule;
-					channel_dont_close(rep);
 					goto missing_data;
 				case ACT_RET_DENY:
 					s->last_entity.type = STRM_ENTITY_RULE;
@@ -445,6 +444,7 @@ resume_execution:
 
  missing_data:
 	/* just set the analyser timeout once at the beginning of the response */
+	channel_dont_close(rep);
 	if (!tick_isset(s->rules_exp) && s->be->tcp_rep.inspect_delay)
 		s->rules_exp = tick_add(now_ms, s->be->tcp_rep.inspect_delay);
 	rep->analyse_exp = tick_first((tick_is_expired(rep->analyse_exp, now_ms) ? 0 : rep->analyse_exp), s->rules_exp);
