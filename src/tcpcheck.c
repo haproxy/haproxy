@@ -1569,7 +1569,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 		if ((istlen(vsn) == 6 && *(vsn.ptr+5) == '2') ||
 		    (istlen(vsn) == 8 && (*(vsn.ptr+5) > '1' || (*(vsn.ptr+5) == '1' && *(vsn.ptr+7) >= '1'))))
 			slflags |= HTX_SL_F_VER_11;
-		slflags |= (HTX_SL_F_XFER_LEN|HTX_SL_F_CLEN);
+		slflags |= HTX_SL_F_XFER_LEN;
 		if (!(send->http.flags & TCPCHK_SND_HTTP_FL_BODY_FMT) && !isttest(send->http.body))
 			slflags |= HTX_SL_F_BODYLESS;
 
@@ -1628,6 +1628,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 			clen = ist((!istlen(body) ? "0" : ultoa(istlen(body))));
 			if (!htx_add_header(htx, ist("Content-length"), clen))
 				goto error_htx;
+			sl->flags |= HTX_SL_F_CLEN;
 		}
 
 		if (!htx_add_endof(htx, HTX_BLK_EOH) ||
