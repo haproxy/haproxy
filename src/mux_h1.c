@@ -1037,15 +1037,10 @@ static void h1s_destroy(struct h1s *h1s)
 			h1c->state = H1_CS_IDLE;
 			h1c->flags |= H1C_F_WAIT_NEXT_REQ;
 			h1c->req_count++;
-
-			COUNT_IF(!(h1c->flags & H1C_F_IS_BACK) && b_data(&h1c->obuf), "front H1C switched in IDLE state with pending outgoing data");
-			COUNT_IF((h1c->flags & H1C_F_IS_BACK) && b_data(&h1c->obuf), "back H1C switched in IDLE state with pending outgoing data");
 			TRACE_STATE("set idle mode on h1c, waiting for the next request", H1_EV_H1C_ERR, h1c->conn, h1s);
 		}
 		else {
 			h1_close(h1c);
-			COUNT_IF(!(h1c->flags & H1C_F_IS_BACK) && b_data(&h1c->obuf), "front H1C swiched in CLOSED state with pending outgoing data");
-			COUNT_IF((h1c->flags & H1C_F_IS_BACK) && b_data(&h1c->obuf), "back H1C switch in CLOSED state with pending outgoing data");
 			TRACE_STATE("close h1c", H1_EV_H1S_END, h1c->conn, h1s);
 		}
 
@@ -2328,7 +2323,6 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 				if (h1m->state <= H1_MSG_LAST_LF && b_data(&h1c->ibuf))
 					htx->flags |= HTX_FL_PARSING_ERROR;
 				se_fl_set(h1s->sd, SE_FL_ERROR);
-				COUNT_IF(1, "H1C EOS before the end of the message");
 				TRACE_ERROR("message aborted, set error on SC", H1_EV_RX_DATA|H1_EV_H1S_ERR, h1c->conn, h1s);
 			}
 
@@ -2361,8 +2355,6 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 				se_report_term_evt(h1s->sd, se_tevt_type_truncated_rcv_err);
 				h1c_report_term_evt(h1c, muxc_tevt_type_truncated_rcv_err);
 			}
-
-			COUNT_IF(h1m->state < H1_MSG_DONE, "H1C ERROR before the end of the message");
 			TRACE_STATE("report ERROR to SE", H1_EV_RX_DATA|H1_EV_H1S_ERR, h1c->conn, h1s);
 		}
 	}
@@ -3548,7 +3540,6 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 				htx->flags |= HTX_FL_PROCESSING_ERROR;
 				h1s->flags |= H1S_F_PROCESSING_ERROR;
 				se_fl_set(h1s->sd, SE_FL_ERROR);
-				COUNT_IF(1, "processing error during message formatting");
 				TRACE_ERROR("processing error", H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 				break;
 		}
@@ -3922,7 +3913,6 @@ static int h1_recv(struct h1c *h1c)
 	}
 	if (h1c->conn->flags & CO_FL_ERROR) {
 		TRACE_DEVEL("connection error", H1_EV_H1C_RECV, h1c->conn);
-		COUNT_IF(b_data(&h1c->obuf), "connection error (recv) with pending output data");
 		h1c->flags |= H1C_F_ERROR;
 	}
 
@@ -3961,7 +3951,6 @@ static int h1_send(struct h1c *h1c)
 
 	if (h1c->flags & (H1C_F_ERROR|H1C_F_ERR_PENDING)) {
 		TRACE_DEVEL("leaving on H1C error|err_pending", H1_EV_H1C_SEND, h1c->conn);
-		COUNT_IF(b_data(&h1c->obuf), "connection error (send) with pending output data");
 		b_reset(&h1c->obuf);
 		if (h1c->flags & H1C_F_EOS)
 			h1c->flags |= H1C_F_ERROR;
@@ -3991,7 +3980,6 @@ static int h1_send(struct h1c *h1c)
 	if (conn->flags & CO_FL_ERROR) {
 		/* connection error, nothing to send, clear the buffer to release it */
 		TRACE_DEVEL("connection error", H1_EV_H1C_SEND, h1c->conn);
-		COUNT_IF(b_data(&h1c->obuf), "connection error (send) with pending output data");
 		h1c->flags |= H1C_F_ERR_PENDING;
 		h1c_report_term_evt(h1c, muxc_tevt_type_snd_err);
 		if (h1c->flags & H1C_F_EOS)
@@ -4398,9 +4386,6 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state)
 			return t;
 		}
 
-		COUNT_IF(b_data(&h1c->ibuf), "H1C timed out with pending input data");
-		COUNT_IF(b_data(&h1c->obuf), "H1C timed out with pending output data");
-
 		/* We're about to destroy the connection, so make sure nobody attempts
 		 * to steal it from us.
 		 */
@@ -4544,9 +4529,6 @@ static void h1_shut(struct stconn *sc, unsigned int mode, struct se_abort_info *
 		goto end;
 
   do_shutw:
-	COUNT_IF((h1c->flags & H1C_F_IS_BACK) && (h1s->res.state < H1_MSG_DONE), "Abort sending of the response");
-	COUNT_IF(!(h1c->flags & H1C_F_IS_BACK) && (h1s->req.state < H1_MSG_DONE), "Abort sending of the request");
-
 	h1c_report_term_evt(h1c, muxc_tevt_type_shutw);
 	h1_close(h1c);
 	if (!(mode & SE_SHW_NORMAL))
@@ -4566,9 +4548,6 @@ static void h1_shutw_conn(struct connection *conn)
 	h1_close(h1c);
 	if (conn->flags & CO_FL_SOCK_WR_SH)
 		return;
-
-	COUNT_IF(b_data(&h1c->ibuf), "close connection with pending input data");
-	COUNT_IF(b_data(&h1c->obuf), "close connection with pending output data");
 
 	conn_xprt_shutw(conn);
 	conn_sock_shutw(conn, !(h1c->flags & H1C_F_SILENT_SHUT));
@@ -4985,7 +4964,6 @@ static size_t h1_done_ff(struct stconn *sc)
 			 */
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 		}
-		COUNT_IF(b_data(&h1c->obuf) || (sd->iobuf.pipe && sd->iobuf.pipe->data), "connection error (done_ff) with pending output data");
 		se_fl_set_error(h1s->sd);
 		se_report_term_evt(h1s->sd, se_tevt_type_snd_err);
 		if (sd->iobuf.pipe) {
@@ -5160,7 +5138,6 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 			h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_ERROR;
 			if (!(h1c->conn->flags & CO_FL_ERROR))
 				se_report_term_evt(h1s->sd, se_tevt_type_truncated_eos);
-			COUNT_IF(1, "H1C EOS before the end of the message");
 			TRACE_ERROR("message aborted, set error on SC", H1_EV_STRM_RECV|H1_EV_H1S_ERR, h1c->conn, h1s);
 		}
 		h1c->flags = (h1c->flags & ~H1C_F_WANT_FASTFWD) | H1C_F_EOS;
@@ -5190,9 +5167,6 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 			se_report_term_evt(h1s->sd, se_tevt_type_truncated_rcv_err);
 			h1c_report_term_evt(h1c, muxc_tevt_type_truncated_rcv_err);
 		}
-
-		COUNT_IF(h1m->state < H1_MSG_DONE, "H1C ERROR before the end of the message");
-		COUNT_IF(b_data(&h1c->obuf) || (h1s->sd->iobuf.pipe && h1s->sd->iobuf.pipe->data), "connection error (fastfwd) with pending output data");
 		TRACE_DEVEL("connection error", H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 	}
 
@@ -5274,7 +5248,6 @@ static int h1_resume_fastfwd(struct stconn *sc, unsigned int flags)
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 		}
 		se_fl_set_error(h1s->sd);
-		COUNT_IF(b_data(&h1c->obuf) || (h1s->sd->iobuf.pipe && h1s->sd->iobuf.pipe->data), "connection error (resume_ff) with pending output data");
 		if (h1s->sd->iobuf.pipe) {
 			put_pipe(h1s->sd->iobuf.pipe);
 			h1s->sd->iobuf.pipe = NULL;
