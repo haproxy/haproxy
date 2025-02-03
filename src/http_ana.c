@@ -800,7 +800,6 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	 */
 	s->logs.t_queue = ns_to_ms(now_ns - s->logs.accept_ts);
 
-	// XXX: All errors are handled as intercepted here !
 	stream_report_term_evt(s->scf, strm_tevt_type_intercepted);
 	http_set_term_flags(s);
 	http_reply_and_close(s, txn->status, (!(s->scf->flags & SC_FL_ERROR) ? http_error_message(s) : NULL));
@@ -2269,8 +2268,6 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	goto return_error;
 
   return_int_err:
-	// XXX: All errors are handled as intercepted here !
-	stream_report_term_evt(s->scb, strm_tevt_type_intercepted);
 	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
 	_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
 	if (sess->listener && sess->listener->counters)
@@ -2284,8 +2281,6 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	goto return_error;
 
   return_bad_res:
-	// XXX: All errors are handled as intercepted here !
-	stream_report_term_evt(s->scb, strm_tevt_type_intercepted);
 	_HA_ATOMIC_INC(&s->be->be_counters.failed_resp);
 	if (objt_server(s->target)) {
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_resp);
