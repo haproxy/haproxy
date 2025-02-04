@@ -921,11 +921,23 @@ struct task *task_process_applet(struct task *t, void *context, unsigned int sta
 
 	TRACE_POINT(APPLET_EV_PROCESS, app);
 
-	if (b_data(&app->outbuf) || se_fl_test(app->sedesc, SE_FL_MAY_FASTFWD_PROD) ||
-	    applet_fl_test(app, APPCTX_FL_EOI|APPCTX_FL_EOS|APPCTX_FL_ERROR))
+	if (b_data(&app->outbuf) || se_fl_test(app->sedesc, SE_FL_MAY_FASTFWD_PROD))
 		applet_have_more_data(app);
 
 	sc_applet_sync_recv(sc);
+
+	if (applet_fl_test(app, APPCTX_FL_EOI) && !se_fl_test(app->sedesc, SE_FL_EOI)) {
+		se_fl_set(app->sedesc, SE_FL_EOI);
+		TRACE_STATE("report EOI to SE", APPLET_EV_RECV|APPLET_EV_BLK, app);
+	}
+	if (applet_fl_test(app, APPCTX_FL_EOS) && !se_fl_test(app->sedesc, SE_FL_EOS)) {
+		se_fl_set(app->sedesc, SE_FL_EOS);
+		TRACE_STATE("report EOS to SE", APPLET_EV_RECV|APPLET_EV_BLK, app);
+	}
+	if (applet_fl_test(app, APPCTX_FL_ERROR) && !se_fl_test(app->sedesc, SE_FL_ERROR)) {
+		se_fl_set(app->sedesc, SE_FL_ERROR);
+		TRACE_STATE("report ERROR to SE", APPLET_EV_RECV|APPLET_EV_BLK, app);
+	}
 
 	/* TODO: May be move in appctx_rcv_buf or sc_applet_process ? */
 	if (sc_waiting_room(sc) && (sc->flags & SC_FL_ABRT_DONE)) {
