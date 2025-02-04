@@ -278,7 +278,7 @@ static const struct spop_strm *spop_closed_stream = &(const struct spop_strm){
         .sd        = (struct sedesc *)&closed_ep,
         .spop_conn = NULL,
         .state     = SPOP_SS_CLOSED,
-	.flags     = SPOP_SF_NONE, // TODO ?
+	.flags     = SPOP_SF_NONE,
         .id        = 0,
 };
 
@@ -1961,14 +1961,6 @@ static int spop_conn_handle_ack(struct spop_conn *spop_conn, struct spop_strm *s
 	/* b_del(&spop_conn->dbuf, sent); */
 	spop_conn->dfl -= sent;
 
-	// TODO: may happen or not ?
-	/* /\* call the upper layers to process the frame, then let the upper layer */
-	/*  * notify the stream about any change. */
-	/*  *\/ */
-	/* if (!spop_strm_sc(spop_strm)) { */
-	/* 	/\* The upper layer has already closed *\/ */
-
-	/* } */
 	if (spop_strm->state == SPOP_SS_OPEN)
 		spop_strm->state = SPOP_SS_HREM;
 	else
@@ -2612,8 +2604,7 @@ static int spop_process(struct spop_conn *spop_conn)
 	}
 
 	if ((spop_conn->flags & SPOP_CF_ERROR) || spop_conn_read0_pending(spop_conn) ||
-	    spop_conn->state == SPOP_CS_CLOSED || (spop_conn->flags & SPOP_CF_DISCO_FAILED) /* || */
-	    /* TODO: no sure ? eb_is_empty(&spop_conn->streams_by_id) */) {
+	    spop_conn->state == SPOP_CS_CLOSED || (spop_conn->flags & SPOP_CF_DISCO_FAILED)) {
 		spop_wake_some_streams(spop_conn, 0);
 
 		if (eb_is_empty(&spop_conn->streams_by_id)) {
@@ -2910,7 +2901,7 @@ static void spop_detach(struct sedesc *sd)
 	/* this stream may be blocked waiting for some data to leave, so orphan
 	 * it in this case.
 	 */
-	if (!(spop_conn->flags & (SPOP_CF_ERR_PENDING|SPOP_CF_ERROR)) && // FIXME: Be sure for ERR_PENDING
+	if (!(spop_conn->flags & (SPOP_CF_ERR_PENDING|SPOP_CF_ERROR)) &&
 	    (spop_conn->state != SPOP_CS_CLOSED) &&
 	    (spop_strm->flags & (SPOP_SF_BLK_MBUSY|SPOP_SF_BLK_MROOM)) &&
 	    spop_strm->subs) {
@@ -3257,7 +3248,7 @@ static size_t spop_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, 
 		}
 	}
 
-	if (ret && spop_conn->dsi == spop_strm->id) { // TODO must match the frame id too !!!!
+	if (ret && spop_conn->dsi == spop_strm->id) {
 		/* demux is blocking on this stream's buffer */
 		spop_conn->flags &= ~SPOP_CF_DEM_SFULL;
 		spop_conn_restart_reading(spop_conn, 1);
