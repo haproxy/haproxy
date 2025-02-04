@@ -490,7 +490,7 @@ static void spoe_handle_appctx(struct appctx *appctx)
 	if (!appctx_get_buf(appctx, &appctx->inbuf))
 		goto out;
 
-	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR)))) {
+	if (unlikely(applet_fl_test(appctx, APPCTX_FL_EOS|APPCTX_FL_ERROR))) {
 		b_reset(&appctx->inbuf);
 		applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
 		goto out;
@@ -509,11 +509,11 @@ static void spoe_handle_appctx(struct appctx *appctx)
 
 		case SPOE_APPCTX_ST_EXIT:
 			appctx->st0 = SPOE_APPCTX_ST_END;
-			se_fl_set(appctx->sedesc, SE_FL_EOS);
+			applet_set_eos(appctx);
 			if (SPOE_APPCTX(appctx)->status_code != SPOP_ERR_NONE)
-				se_fl_set(appctx->sedesc, SE_FL_ERROR);
+				applet_set_error(appctx);
 			else
-				se_fl_set(appctx->sedesc, SE_FL_EOI);
+				applet_set_eoi(appctx);
 			__fallthrough;
 
 		case SPOE_APPCTX_ST_END:
