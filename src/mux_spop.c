@@ -49,6 +49,8 @@ struct spop_conn {
 	unsigned int nb_reserved;            /* number of reserved streams */
 	unsigned int stream_cnt;             /* total number of streams seen */
 
+	uint32_t term_evts_log;              /* Termination events log: first 4 events reported */
+
 	struct proxy *proxy;                 /* the proxy this connection was created for */
 	struct spoe_agent *agent;            /* SPOE agent used by this mux */
 	struct task *task;                   /* timeout management task */
@@ -551,6 +553,13 @@ static inline int spop_recv_allowed(const struct spop_conn *spop_conn)
 	return 0;
 }
 
+static inline void spop_conn_report_term_evt(struct spop_conn *spop_conn, enum muxc_term_event_type type)
+{
+	enum term_event_loc loc = tevt_loc_muxc + 8; /* Always on backend side for now */
+
+	spop_conn->term_evts_log = tevt_report_event(spop_conn->term_evts_log, loc, type);
+}
+
 /* Restarts reading on the connection if it was not enabled */
 static inline void spop_conn_restart_reading(const struct spop_conn *spop_conn, int consider_buffer)
 {
@@ -671,6 +680,7 @@ static int spop_init(struct connection *conn, struct proxy *px, struct session *
 	spop_conn->nb_sc = 0;
 	spop_conn->nb_reserved = 0;
 	spop_conn->stream_cnt = 0;
+	spop_conn->term_evts_log = 0;
 
 	spop_conn->dbuf = *input;
 	spop_conn->dsi = -1;
@@ -741,9 +751,12 @@ static void spop_release(struct spop_conn *spop_conn)
 		spop_conn->task = NULL;
 	}
 	tasklet_free(spop_conn->wait_event.tasklet);
-	if (conn && spop_conn->wait_event.events != 0)
-		conn->xprt->unsubscribe(conn, conn->xprt_ctx, spop_conn->wait_event.events,
-					&spop_conn->wait_event);
+	if (conn) {
+		if (spop_conn->wait_event.events != 0)
+			conn->xprt->unsubscribe(conn, conn->xprt_ctx, spop_conn->wait_event.events,
+						&spop_conn->wait_event);
+		spop_conn_report_term_evt(spop_conn, muxc_tevt_type_shutw);
+	}
 
 	pool_free(pool_head_spop_conn, spop_conn);
 
@@ -1119,8 +1132,12 @@ static inline void spop_strm_propagate_term_flags(struct spop_conn *spop_conn, s
 	}
 	if (spop_conn_read0_pending(spop_conn) || spop_strm->state == SPOP_SS_CLOSED) {
 		se_fl_set(spop_strm->sd, SE_FL_EOS);
-		if (!se_fl_test(spop_strm->sd, SE_FL_EOI))
+		if (!se_fl_test(spop_strm->sd, SE_FL_EOI)) {
 			se_fl_set(spop_strm->sd, SE_FL_ERROR);
+			se_report_term_evt(spop_strm->sd, (spop_conn->flags & SPOP_CF_ERROR ? se_tevt_type_truncated_rcv_err : se_tevt_type_truncated_eos));
+		}
+		else
+			se_report_term_evt(spop_strm->sd, (spop_conn->flags & SPOP_CF_ERROR ? se_tevt_type_rcv_err : se_tevt_type_eos));
 	}
 	if (se_fl_test(spop_strm->sd, SE_FL_ERR_PENDING))
 		se_fl_set(spop_strm->sd, SE_FL_ERROR);
@@ -1535,6 +1552,43 @@ static int spop_conn_send_disconnect(struct spop_conn *spop_conn)
 	spop_conn->flags |= SPOP_CF_DISCO_SENT;
 	ret = 1;
 
+	switch (spop_conn->errcode) {
+	case SPOP_ERR_NONE:
+		spop_conn_report_term_evt(spop_conn, muxc_tevt_type_graceful_shut);
+		break;
+
+	case SPOP_ERR_IO:
+		spop_conn_report_term_evt(spop_conn, muxc_tevt_type_other_err);
+		break;
+
+	case SPOP_ERR_TOUT:
+		spop_conn_report_term_evt(spop_conn, muxc_tevt_type_tout);
+		break;
+
+	case SPOP_ERR_TOO_BIG:
+	case SPOP_ERR_INVALID:
+	case SPOP_ERR_NO_VSN:
+	case SPOP_ERR_NO_FRAME_SIZE:
+	case SPOP_ERR_NO_CAP:
+	case SPOP_ERR_BAD_VSN:
+	case SPOP_ERR_BAD_FRAME_SIZE:
+	case SPOP_ERR_FRAG_NOT_SUPPORTED:
+	case SPOP_ERR_INTERLACED_FRAMES:
+	case SPOP_ERR_FRAMEID_NOTFOUND:
+		spop_conn_report_term_evt(spop_conn, muxc_tevt_type_proto_err);
+		break;
+
+	case SPOP_ERR_RES:
+	case SPOP_ERR_UNKNOWN:
+		spop_conn_report_term_evt(spop_conn, muxc_tevt_type_internal_err);
+		break;
+
+	default:
+		spop_conn_report_term_evt(spop_conn, muxc_tevt_type_tout);
+		break;
+
+	}
+
   end:
 	TRACE_LEAVE(SPOP_EV_TX_FRAME|SPOP_EV_TX_DISCO, spop_conn->conn);
 	return ret;
@@ -1834,6 +1888,7 @@ static int spop_conn_handle_disconnect(struct spop_conn *spop_conn)
 	spop_conn_error(spop_conn, status_code);
 	spop_conn->state = SPOP_CS_CLOSED;
 	spop_wake_some_streams(spop_conn, 0/*last*/);
+	spop_conn_report_term_evt(spop_conn, muxc_tevt_type_goaway_rcvd);
 	TRACE_LEAVE(SPOP_EV_RX_FRAME|SPOP_EV_RX_DISCO, spop_conn->conn);
 	return 1;
   fail:
@@ -2203,6 +2258,15 @@ static void spop_process_demux(struct spop_conn *spop_conn)
 			spop_conn->flags |= SPOP_CF_END_REACHED;
 	}
 
+	if (spop_conn->flags & SPOP_CF_ERROR)
+		spop_conn_report_term_evt(spop_conn, ((eb_is_empty(&spop_conn->streams_by_id) && (spop_conn->state == SPOP_CS_FRAME_H))
+						      ? muxc_tevt_type_rcv_err
+						      : muxc_tevt_type_truncated_rcv_err));
+	else if (spop_conn->flags & SPOP_CF_END_REACHED)
+		spop_conn_report_term_evt(spop_conn, ((eb_is_empty(&spop_conn->streams_by_id) && (spop_conn->state == SPOP_CS_FRAME_H))
+						      ? muxc_tevt_type_shutr
+						      : muxc_tevt_type_truncated_shutr));
+
 	if (spop_strm && spop_strm_sc(spop_strm) &&
 	    (b_data(&spop_strm->rxbuf) ||
 	     spop_conn_read0_pending(spop_conn) ||
@@ -2411,6 +2475,7 @@ static int spop_send(struct spop_conn *spop_conn)
 
 	if (conn->flags & CO_FL_ERROR) {
 		spop_conn->flags |= SPOP_CF_ERR_PENDING;
+		spop_conn_report_term_evt(spop_conn, muxc_tevt_type_snd_err);
 		if (spop_conn->flags & SPOP_CF_END_REACHED)
 			spop_conn->flags |= SPOP_CF_ERROR;
 		b_reset(br_tail(spop_conn->mbuf));
@@ -2604,6 +2669,8 @@ static int spop_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *ou
 		return spop_conn->nb_streams;
 	case MUX_CTL_GET_MAXSTRM:
 		return spop_conn->streams_limit;
+	case MUX_CTL_TEVTS:
+		return spop_conn->term_evts_log;
 	default:
 		return -1;
 	}
@@ -2619,7 +2686,8 @@ static int spop_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *outpu
 		if (output)
 			*((int64_t *)output) = spop_strm->id;
 		return ret;
-
+	case MUX_SCTL_TEVTS:
+		return spop_strm->sd->term_evts_log;
 	default:
 		return -1;
 	}
@@ -2663,6 +2731,8 @@ static struct task *spop_timeout_task(struct task *t, void *context, unsigned in
 			conn_delete_from_tree(spop_conn->conn);
 
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+
+		spop_conn_report_term_evt(spop_conn, muxc_tevt_type_tout);
 	}
 
 do_leave:
@@ -3234,6 +3304,7 @@ static size_t spop_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, 
 
 	if (spop_conn->state >= SPOP_CS_ERROR) {
 		se_fl_set(spop_strm->sd, SE_FL_ERROR);
+		se_report_term_evt(spop_strm->sd, se_tevt_type_snd_err);
 		TRACE_DEVEL("connection is in error, leaving in error", SPOP_EV_STRM_SEND|SPOP_EV_SPOP_STRM_ERR|SPOP_EV_STRM_ERR,
 			    spop_conn->conn, spop_strm);
 		return 0;
@@ -3339,7 +3410,7 @@ static int spop_show_fd(struct buffer *msg, struct connection *conn)
 	tmbuf = br_tail(spop_conn->mbuf);
 	chunk_appendf(msg, " spop_conn.st0=%d .maxid=%d .flg=0x%04x .nbst=%u"
 		      " .nbcs=%u .send_cnt=%d .tree_cnt=%d .orph_cnt=%d .sub=%d "
-		      ".dsi=%d .dbuf=%u@%p+%u/%u .mbuf=[%u..%u|%u],h=[%u@%p+%u/%u],t=[%u@%p+%u/%u]",
+		      ".dsi=%d .dbuf=%u@%p+%u/%u .mbuf=[%u..%u|%u],h=[%u@%p+%u/%u],t=[%u@%p+%u/%u] .evts=%s",
 		      spop_conn->state, spop_conn->max_id, spop_conn->flags,
 		      spop_conn->nb_streams, spop_conn->nb_sc, send_cnt, tree_cnt, orph_cnt,
 		      spop_conn->wait_event.events, spop_conn->dsi,
@@ -3349,7 +3420,8 @@ static int spop_show_fd(struct buffer *msg, struct connection *conn)
 		      (unsigned int)b_data(hmbuf), b_orig(hmbuf),
 		      (unsigned int)b_head_ofs(hmbuf), (unsigned int)b_size(hmbuf),
 		      (unsigned int)b_data(tmbuf), b_orig(tmbuf),
-		      (unsigned int)b_head_ofs(tmbuf), (unsigned int)b_size(tmbuf));
+		      (unsigned int)b_head_ofs(tmbuf), (unsigned int)b_size(tmbuf),
+		      tevt_evts2str(spop_conn->term_evts_log));
 
 	if (spop_strm) {
 		chunk_appendf(msg, " last_spop_strm=%p .id=%d .flg=0x%04x .rxbuf=%u@%p+%u/%u .sc=%p",
@@ -3358,10 +3430,10 @@ static int spop_show_fd(struct buffer *msg, struct connection *conn)
 			      (unsigned int)b_head_ofs(&spop_strm->rxbuf), (unsigned int)b_size(&spop_strm->rxbuf),
 			      spop_strm_sc(spop_strm));
 
-		chunk_appendf(msg, " .sd.flg=0x%08x", se_fl_get(spop_strm->sd));
+		chunk_appendf(msg, " .sd.flg=0x%08x .sd.evts=%s", se_fl_get(spop_strm->sd), tevt_evts2str(spop_strm->sd->term_evts_log));
 		if (!se_fl_test(spop_strm->sd, SE_FL_ORPHAN))
-			chunk_appendf(msg, " .sc.flg=0x%08x .sc.app=%p",
-				      spop_strm_sc(spop_strm)->flags, spop_strm_sc(spop_strm)->app);
+			chunk_appendf(msg, " .sc.flg=0x%08x .sc.app=%p .sc.evts=%s",
+				      spop_strm_sc(spop_strm)->flags, spop_strm_sc(spop_strm)->app, tevt_evts2str(spop_strm_sc(spop_strm)->term_evts_log));
 
 		chunk_appendf(msg, " .subs=%p", spop_strm->subs);
 		if (spop_strm->subs) {
