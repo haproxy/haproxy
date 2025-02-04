@@ -1828,10 +1828,10 @@ static inline void h2s_propagate_term_flags(struct h2c *h2c, struct h2s *h2s)
 		se_fl_set(h2s->sd, SE_FL_EOS);
 		if (!se_fl_test(h2s->sd, SE_FL_EOI)) {
 			se_fl_set(h2s->sd, SE_FL_ERROR);
-			se_report_term_evt(h2s->sd, (h2c->flags & H2_CF_ERROR ? se_tevt_type_rcv_err : se_tevt_type_eos));
+			se_report_term_evt(h2s->sd, (h2c->flags & H2_CF_ERROR ? se_tevt_type_truncated_rcv_err : se_tevt_type_truncated_eos));
 		}
 		else
-			se_report_term_evt(h2s->sd, (h2c->flags & H2_CF_ERROR ? se_tevt_type_truncated_rcv_err : se_tevt_type_truncated_eos));
+			se_report_term_evt(h2s->sd, (h2c->flags & H2_CF_ERROR ? se_tevt_type_rcv_err : se_tevt_type_eos));
 	}
 	if (se_fl_test(h2s->sd, SE_FL_ERR_PENDING))
 		se_fl_set(h2s->sd, SE_FL_ERROR);
