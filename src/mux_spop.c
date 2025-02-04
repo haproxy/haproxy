@@ -3369,20 +3369,66 @@ static size_t spop_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, 
 	return total;
 }
 
-
-/* for debugging with CLI's "show fd" command */
-static int spop_show_fd(struct buffer *msg, struct connection *conn)
+/* appends some info about stream <spop_strm> to buffer <msg>, or does nothing
+ * if <spop_strm> is NULL. Returns non-zero if the stream is considered
+ * suspicious. May emit multiple lines, each new one being prefixed with <pfx>,
+ * if <pfx> is not NULL, otherwise a single line is used.
+ */
+static int spop_dump_spop_strm_info(struct buffer *msg, const struct spop_strm *spop_strm, const char *pfx)
 {
-	struct spop_conn *spop_conn = conn->ctx;
+	int ret = 0;
+
+	if (!spop_strm)
+		return ret;
+
+	chunk_appendf(msg, " .id=%d .flg=0x%04x .rxbuf=%u@%p+%u/%u .sc=%p",
+		      spop_strm->id, spop_strm->flags,
+		      (unsigned int)b_data(&spop_strm->rxbuf), b_orig(&spop_strm->rxbuf),
+		      (unsigned int)b_head_ofs(&spop_strm->rxbuf), (unsigned int)b_size(&spop_strm->rxbuf),
+		      spop_strm_sc(spop_strm));
+
+	if (pfx && spop_strm->subs)
+		chunk_appendf(msg, "\n%s", pfx);
+
+	chunk_appendf(msg, " .sd.flg=0x%08x .sd.evts=%s", se_fl_get(spop_strm->sd), tevt_evts2str(spop_strm->sd->term_evts_log));
+	if (!se_fl_test(spop_strm->sd, SE_FL_ORPHAN))
+		chunk_appendf(msg, " .sc.flg=0x%08x .sc.app=%p .sc.evts=%s",
+			      spop_strm_sc(spop_strm)->flags, spop_strm_sc(spop_strm)->app, tevt_evts2str(spop_strm_sc(spop_strm)->term_evts_log));
+
+	if (pfx && spop_strm->subs)
+		chunk_appendf(msg, "\n%s", pfx);
+
+	chunk_appendf(msg, " .subs=%p", spop_strm->subs);
+	if (spop_strm->subs) {
+		chunk_appendf(msg, "(ev=%d tl=%p", spop_strm->subs->events, spop_strm->subs->tasklet);
+		chunk_appendf(msg, " tl.calls=%d tl.ctx=%p tl.fct=",
+			      spop_strm->subs->tasklet->calls,
+			      spop_strm->subs->tasklet->context);
+		if (spop_strm->subs->tasklet->calls >= 1000000)
+			ret = 1;
+		resolve_sym_name(msg, NULL, spop_strm->subs->tasklet->process);
+		chunk_appendf(msg, ")");
+	}
+	return ret;
+}
+
+/* appends some info about connection <spop_conn> to buffer <msg>, or does
+ * nothing if <spop_conn> is NULL. Returns non-zero if the connection is
+ * considered suspicious.  May emit multiple lines, each new one being prefixed
+ * with <pfx>, if <pfx> is not NULL, otherwise a single line is used.
+ */
+static int spop_dump_spop_conn_info(struct buffer *msg, struct spop_conn *spop_conn, const char *pfx)
+{
+	const struct buffer *hmbuf, *tmbuf;
 	struct spop_strm *spop_strm = NULL;
 	struct eb32_node *node;
 	int send_cnt = 0;
 	int tree_cnt = 0;
 	int orph_cnt = 0;
-	struct buffer *hmbuf, *tmbuf;
+	int ret = 0;
 
 	if (!spop_conn)
-		return 0;
+		return ret;
 
 	list_for_each_entry(spop_strm, &spop_conn->send_list, list)
 		send_cnt++;
@@ -3399,44 +3445,61 @@ static int spop_show_fd(struct buffer *msg, struct connection *conn)
 
 	hmbuf = br_head(spop_conn->mbuf);
 	tmbuf = br_tail(spop_conn->mbuf);
-	chunk_appendf(msg, " spop_conn.st0=%d .maxid=%d .flg=0x%04x .nbst=%u"
-		      " .nbcs=%u .send_cnt=%d .tree_cnt=%d .orph_cnt=%d .sub=%d "
-		      ".dsi=%d .dbuf=%u@%p+%u/%u .mbuf=[%u..%u|%u],h=[%u@%p+%u/%u],t=[%u@%p+%u/%u] .evts=%s",
+	chunk_appendf(msg, " spop_conn.st0=%d .maxid=%d .flg=0x%04x .nbst=%u .nbcs=%u .evts=%s",
 		      spop_conn->state, spop_conn->max_id, spop_conn->flags,
-		      spop_conn->nb_streams, spop_conn->nb_sc, send_cnt, tree_cnt, orph_cnt,
-		      spop_conn->wait_event.events, spop_conn->dsi,
+		      spop_conn->nb_streams, spop_conn->nb_sc,
+		      tevt_evts2str(spop_conn->term_evts_log));
+
+	if (pfx)
+		chunk_appendf(msg, "\n%s", pfx);
+
+	chunk_appendf(msg, ".send_cnt=%d .tree_cnt=%d .orph_cnt=%d  .sub=%d .dsi=%d .dbuf=%u@%p+%u/%u",
+		      send_cnt, tree_cnt, orph_cnt, spop_conn->wait_event.events, spop_conn->dsi,
 		      (unsigned int)b_data(&spop_conn->dbuf), b_orig(&spop_conn->dbuf),
-		      (unsigned int)b_head_ofs(&spop_conn->dbuf), (unsigned int)b_size(&spop_conn->dbuf),
+		      (unsigned int)b_head_ofs(&spop_conn->dbuf), (unsigned int)b_size(&spop_conn->dbuf));
+
+
+	if (pfx)
+		chunk_appendf(msg, "\n%s", pfx);
+
+	chunk_appendf(msg, ".mbuf=[%u..%u|%u],h=[%u@%p+%u/%u],t=[%u@%p+%u/%u]",
 		      br_head_idx(spop_conn->mbuf), br_tail_idx(spop_conn->mbuf), br_size(spop_conn->mbuf),
 		      (unsigned int)b_data(hmbuf), b_orig(hmbuf),
 		      (unsigned int)b_head_ofs(hmbuf), (unsigned int)b_size(hmbuf),
 		      (unsigned int)b_data(tmbuf), b_orig(tmbuf),
-		      (unsigned int)b_head_ofs(tmbuf), (unsigned int)b_size(tmbuf),
-		      tevt_evts2str(spop_conn->term_evts_log));
+		      (unsigned int)b_head_ofs(tmbuf), (unsigned int)b_size(tmbuf));
 
-	if (spop_strm) {
-		chunk_appendf(msg, " last_spop_strm=%p .id=%d .flg=0x%04x .rxbuf=%u@%p+%u/%u .sc=%p",
-			      spop_strm, spop_strm->id, spop_strm->flags,
-			      (unsigned int)b_data(&spop_strm->rxbuf), b_orig(&spop_strm->rxbuf),
-			      (unsigned int)b_head_ofs(&spop_strm->rxbuf), (unsigned int)b_size(&spop_strm->rxbuf),
-			      spop_strm_sc(spop_strm));
-
-		chunk_appendf(msg, " .sd.flg=0x%08x .sd.evts=%s", se_fl_get(spop_strm->sd), tevt_evts2str(spop_strm->sd->term_evts_log));
-		if (!se_fl_test(spop_strm->sd, SE_FL_ORPHAN))
-			chunk_appendf(msg, " .sc.flg=0x%08x .sc.app=%p .sc.evts=%s",
-				      spop_strm_sc(spop_strm)->flags, spop_strm_sc(spop_strm)->app, tevt_evts2str(spop_strm_sc(spop_strm)->term_evts_log));
-
-		chunk_appendf(msg, " .subs=%p", spop_strm->subs);
-		if (spop_strm->subs) {
-			chunk_appendf(msg, "(ev=%d tl=%p", spop_strm->subs->events, spop_strm->subs->tasklet);
-			chunk_appendf(msg, " tl.calls=%d tl.ctx=%p tl.fct=",
-				      spop_strm->subs->tasklet->calls,
-				      spop_strm->subs->tasklet->context);
-			resolve_sym_name(msg, NULL, spop_strm->subs->tasklet->process);
-			chunk_appendf(msg, ")");
-		}
+	chunk_appendf(msg, " .task=%p", spop_conn->task);
+	if (spop_conn->task) {
+		chunk_appendf(msg, " .exp=%s",
+			      spop_conn->task->expire ? tick_is_expired(spop_conn->task->expire, now_ms) ? "<PAST>" :
+			      human_time(TICKS_TO_MS(spop_conn->task->expire - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
 	}
-	return 0;
+
+	return ret;
+}
+
+/* for debugging with CLI's "show fd" command */
+static int spop_show_fd(struct buffer *msg, struct connection *conn)
+{
+	struct spop_conn *spop_conn = conn->ctx;
+	struct spop_strm *spop_strm = NULL;
+	struct eb32_node *node;
+	int ret = 0;
+
+	if (!spop_conn)
+		return ret;
+
+	ret |= spop_dump_spop_conn_info(msg, spop_conn, NULL);
+
+	node = eb32_first(&spop_conn->streams_by_id);
+	if (node) {
+		spop_strm = container_of(node, struct spop_strm, by_id);
+		chunk_appendf(msg, " last_spop_strm=%p", spop_strm);
+		ret |= spop_dump_spop_strm_info(msg, spop_strm, NULL);
+	}
+
+	return ret;
 }
 
 /* Migrate the the connection to the current thread.
