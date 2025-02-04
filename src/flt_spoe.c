@@ -391,7 +391,8 @@ static int spoe_init_appctx(struct appctx *appctx)
 	applet_need_more_data(appctx);
 
 	s->do_log = NULL;
-	s->scb->flags |= SC_FL_RCV_ONCE;
+	s->scb->flags |= SC_FL_RCV_ONCE | SC_FL_NOHALF;
+	s->scf->flags |= SC_FL_NOHALF;
 	s->parent = spoe_appctx->spoe_ctx->strm;
 
 	appctx->st0 = SPOE_APPCTX_ST_WAITING_ACK;
@@ -508,13 +509,16 @@ static void spoe_handle_appctx(struct appctx *appctx)
 			goto switchstate;
 
 		case SPOE_APPCTX_ST_EXIT:
-			appctx->st0 = SPOE_APPCTX_ST_END;
-			applet_set_eos(appctx);
 			if (SPOE_APPCTX(appctx)->status_code != SPOP_ERR_NONE)
 				applet_set_error(appctx);
 			else
 				applet_set_eoi(appctx);
-			__fallthrough;
+			if (!SPOE_APPCTX(appctx)->spoe_ctx) {
+				appctx->st0 = SPOE_APPCTX_ST_END;
+				applet_set_eos(appctx);
+				goto switchstate;
+			}
+			break;
 
 		case SPOE_APPCTX_ST_END:
 			b_reset(&appctx->inbuf);
