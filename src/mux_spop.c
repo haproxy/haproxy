@@ -3502,6 +3502,28 @@ static int spop_show_fd(struct buffer *msg, struct connection *conn)
 	return ret;
 }
 
+/* for debugging with CLI's "show sess" command. May emit multiple lines, each
+ * new one being prefixed with <pfx>, if <pfx> is not NULL, otherwise a single
+ * line is used. Each field starts with a space so it's safe to print it after
+ * existing fields.
+ */
+static int spop_show_sd(struct buffer *msg, struct sedesc *sd, const char *pfx)
+{
+	struct spop_strm *spop_strm = sd->se;
+	int ret = 0;
+
+	if (!spop_strm)
+		return ret;
+
+	chunk_appendf(msg, " spop_strm=%p", spop_strm);
+	ret |= spop_dump_spop_strm_info(msg, spop_strm, pfx);
+	if (pfx)
+		chunk_appendf(msg, "\n%s", pfx);
+	chunk_appendf(msg, " spop_conn=%p", spop_strm->spop_conn);
+	ret |= spop_dump_spop_conn_info(msg, spop_strm->spop_conn, pfx);
+	return ret;
+}
+
 /* Migrate the the connection to the current thread.
  * Return 0 if successful, non-zero otherwise.
  * Expected to be called with the old thread lock held.
@@ -3622,6 +3644,7 @@ static const struct mux_ops mux_spop_ops = {
 	.ctl           = spop_ctl,
 	.sctl          = spop_sctl,
 	.show_fd       = spop_show_fd,
+	.show_sd       = spop_show_sd,
 	.takeover      = spop_takeover,
 	.flags         = MX_FL_HOL_RISK|MX_FL_NO_UPG,
 	.name          = "SPOP",
