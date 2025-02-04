@@ -1726,7 +1726,6 @@ static int spop_conn_handle_hello(struct spop_conn *spop_conn)
 	return 1;
   fail:
 	spop_conn->state = SPOP_CS_CLOSED;
-	spop_conn->flags |= SPOP_CF_ERROR;
 	TRACE_STATE("switching to CLOSED", SPOP_EV_RX_FRAME|SPOP_EV_RX_HELLO, spop_conn->conn);
 	TRACE_DEVEL("leaving on error", SPOP_EV_RX_FRAME|SPOP_EV_RX_HELLO|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
 	return 0;
@@ -1839,7 +1838,6 @@ static int spop_conn_handle_disconnect(struct spop_conn *spop_conn)
 	return 1;
   fail:
 	spop_conn->state = SPOP_CS_CLOSED;
-	spop_conn->flags |= SPOP_CF_ERROR;
 	TRACE_STATE("switching to CLOSED", SPOP_EV_RX_FRAME|SPOP_EV_RX_DISCO, spop_conn->conn);
 	TRACE_DEVEL("leaving on error", SPOP_EV_RX_FRAME|SPOP_EV_RX_DISCO|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
 	return 0;
