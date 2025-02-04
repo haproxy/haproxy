@@ -395,6 +395,9 @@ static int spoe_init_appctx(struct appctx *appctx)
 	s->scf->flags |= SC_FL_NOHALF;
 	s->parent = spoe_appctx->spoe_ctx->strm;
 
+	/* The frame was forwarded to the SPOP mux, set EOI now */
+	applet_set_eoi(appctx);
+
 	appctx->st0 = SPOE_APPCTX_ST_WAITING_ACK;
 	appctx_wakeup(appctx);
 	return 0;
@@ -511,8 +514,6 @@ static void spoe_handle_appctx(struct appctx *appctx)
 		case SPOE_APPCTX_ST_EXIT:
 			if (SPOE_APPCTX(appctx)->status_code != SPOP_ERR_NONE)
 				applet_set_error(appctx);
-			else
-				applet_set_eoi(appctx);
 			if (!SPOE_APPCTX(appctx)->spoe_ctx) {
 				appctx->st0 = SPOE_APPCTX_ST_END;
 				applet_set_eos(appctx);
