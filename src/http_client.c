@@ -397,16 +397,20 @@ void httpclient_destroy(struct httpclient *hc)
 	/* request */
 	istfree(&hc->req.url);
 	b_free(&hc->req.buf);
-	/* response */
-	istfree(&hc->res.vsn);
-	istfree(&hc->res.reason);
-	hdrs = hc->res.hdrs;
-	while (hdrs && isttest(hdrs->n)) {
-		istfree(&hdrs->n);
-		istfree(&hdrs->v);
-		hdrs++;
+
+	if (!(hc->options & HTTPCLIENT_O_RES_HTX)) {
+		/* response */
+		istfree(&hc->res.vsn);
+		istfree(&hc->res.reason);
+		hdrs = hc->res.hdrs;
+		while (hdrs && isttest(hdrs->n)) {
+			istfree(&hdrs->n);
+			istfree(&hdrs->v);
+			hdrs++;
+		}
+		ha_free(&hc->res.hdrs);
 	}
-	ha_free(&hc->res.hdrs);
+
 	b_free(&hc->res.buf);
 	sockaddr_free(&hc->dst);
 
@@ -502,6 +506,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 	struct htx_sl *sl = NULL;
 	uint32_t hdr_num;
 	uint32_t sz;
+	int count = 0;
 	int ret;
 
 	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR)))) {
@@ -608,6 +613,13 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 				break;
 
 			case HTTPCLIENT_S_RES_STLINE:
+				/* in HTX mode, don't try to copy the stline
+				 * alone, we must copy the headers with it */
+                                if (hc->options & HTTPCLIENT_O_RES_HTX) {
+					appctx->st0 = HTTPCLIENT_S_RES_HDR;
+					goto out;
+				}
+
 				/* Request is finished, report EOI */
 				se_fl_set(appctx->sedesc, SE_FL_EOI);
 
@@ -646,19 +658,42 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 				break;
 
 			case HTTPCLIENT_S_RES_HDR:
+				if (!co_data(res))
+					goto out;
+				htx = htxbuf(&res->buf);
+				if (htx_is_empty(htx))
+					goto out;
+
+				if (hc->options & HTTPCLIENT_O_RES_HTX) {
+					/* HTX mode transfers the header to the hc buffer */
+					struct htx *hc_htx;
+					struct htx_ret ret;
+
+					if (!b_alloc(&hc->res.buf, DB_MUX_TX))
+						goto out;
+					hc_htx = htxbuf(&hc->res.buf);
+
+					/* xfer the headers */
+					count = htx->data;
+					ret = htx_xfer_blks(hc_htx, htx, htx_used_space(htx), HTX_BLK_EOH);
+					if (ret.ret <= 0)
+						goto out;
+					count -= htx->data;
+					c_rew(res, count);
+
+					if (htx->flags & HTX_FL_EOM)
+						hc_htx->flags |= HTX_FL_EOM;
+
+					htx_to_buf(htx, &res->buf);
+					htx_to_buf(hc_htx, &hc->res.buf);
+
+				} else {
 				/* first copy the headers in a local hdrs
 				 * structure, once we the total numbers of the
 				 * header we allocate the right size and copy
 				 * them. The htx block of the headers are
 				 * removed each time one is read  */
-				{
 					struct http_hdr hdrs[global.tune.max_http_hdr];
-
-					if (!co_data(res))
-						goto out;
-					htx = htxbuf(&res->buf);
-					if (htx_is_empty(htx))
-						goto out;
 
 					hdr_num = 0;
 					blk = htx_get_head_blk(htx);
@@ -690,20 +725,20 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 						if (!hc->res.hdrs)
 							goto error;
 						memcpy(hc->res.hdrs, hdrs, sizeof(struct http_hdr) * (hdr_num + 1));
-
-						/* caller callback */
-						if (hc->ops.res_headers)
-							hc->ops.res_headers(hc);
-					}
-
-					/* if there is no HTX data anymore and the EOM flag is
-					 * set, leave (no body) */
-					if (htx_is_empty(htx) && htx->flags & HTX_FL_EOM) {
-						appctx->st0 = HTTPCLIENT_S_RES_END;
-					} else {
-						appctx->st0 = HTTPCLIENT_S_RES_BODY;
 					}
 				}
+				/* caller callback */
+				if (hc->ops.res_headers)
+					hc->ops.res_headers(hc);
+
+				/* if there is no HTX data anymore and the EOM flag is
+				 * set, leave (no body) */
+				if (htx_is_empty(htx) && htx->flags & HTX_FL_EOM) {
+					appctx->st0 = HTTPCLIENT_S_RES_END;
+				} else {
+					appctx->st0 = HTTPCLIENT_S_RES_BODY;
+				}
+
 				break;
 
 			case HTTPCLIENT_S_RES_BODY:
@@ -724,66 +759,85 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 				if (b_full(&hc->res.buf))
 					goto process_data;
 
-				/* decapsule the htx data to raw data */
-				blk = htx_get_head_blk(htx);
-				while (blk) {
-					enum htx_blk_type type = htx_get_blk_type(blk);
-					size_t count = co_data(res);
-					uint32_t blksz = htx_get_blksz(blk);
-					uint32_t room = b_room(&hc->res.buf);
-					uint32_t vlen;
+				if (hc->options & HTTPCLIENT_O_RES_HTX) {
+					/* HTX mode transfers the header to the hc buffer */
+					struct htx *hc_htx;
+					struct htx_ret ret;
 
-					/* we should try to copy the maximum output data in a block, which fit
-					 * the destination buffer */
-					vlen = MIN(count, blksz);
-					vlen = MIN(vlen, room);
+					hc_htx = htxbuf(&hc->res.buf);
 
-					if (vlen == 0) {
-						htx_to_buf(htx, &res->buf);
+					/* xfer the status line to the res buffer */
+					count = htx->data;
+					ret = htx_xfer_blks(hc_htx, htx, htx_used_space(htx), HTX_BLK_UNUSED);
+					if (ret.ret <= 0)
 						goto process_data;
-					}
+					count -= htx->data;
+					c_rew(res, count);
 
-					if (type == HTX_BLK_DATA) {
-						struct ist v = htx_get_blk_value(htx, blk);
+					if (htx->flags & HTX_FL_EOM)
+						hc_htx->flags |= HTX_FL_EOM;
 
-						__b_putblk(&hc->res.buf, v.ptr, vlen);
-						c_rew(res, vlen);
+					htx_to_buf(hc_htx, &hc->res.buf);
+				} else {
 
-						if (vlen == blksz)
+					/* decapsule the htx data to raw data */
+					blk = htx_get_head_blk(htx);
+					while (blk) {
+						enum htx_blk_type type = htx_get_blk_type(blk);
+						size_t count = co_data(res);
+						uint32_t blksz = htx_get_blksz(blk);
+						uint32_t room = b_room(&hc->res.buf);
+						uint32_t vlen;
+
+						/* we should try to copy the maximum output data in a block, which fit
+						 * the destination buffer */
+						vlen = MIN(count, blksz);
+						vlen = MIN(vlen, room);
+
+						if (vlen == 0) {
+							htx_to_buf(htx, &res->buf);
+							goto process_data;
+						}
+
+						if (type == HTX_BLK_DATA) {
+							struct ist v = htx_get_blk_value(htx, blk);
+
+							__b_putblk(&hc->res.buf, v.ptr, vlen);
+							c_rew(res, vlen);
+
+							if (vlen == blksz)
+								blk = htx_remove_blk(htx, blk);
+							else
+								htx_cut_data_blk(htx, blk, vlen);
+
+							/* cannot copy everything, need to process */
+							if (vlen != blksz) {
+								htx_to_buf(htx, &res->buf);
+								goto process_data;
+							}
+						} else {
+							if (vlen != blksz) {
+								htx_to_buf(htx, &res->buf);
+								goto process_data;
+							}
+
+							/* remove any block which is not a data block */
+							c_rew(res, blksz);
 							blk = htx_remove_blk(htx, blk);
-						else
-							htx_cut_data_blk(htx, blk, vlen);
-
-						/* the data must be processed by the caller in the receive phase */
-						if (hc->ops.res_payload)
-							hc->ops.res_payload(hc);
-
-						/* cannot copy everything, need to process */
-						if (vlen != blksz) {
-							htx_to_buf(htx, &res->buf);
-							goto process_data;
 						}
-					} else {
-						if (vlen != blksz) {
-							htx_to_buf(htx, &res->buf);
-							goto process_data;
-						}
-
-						/* remove any block which is not a data block */
-						c_rew(res, blksz);
-						blk = htx_remove_blk(htx, blk);
 					}
 				}
 
 				htx_to_buf(htx, &res->buf);
 
+				/* the data must be processed by the caller in the receive phase */
+				if (hc->ops.res_payload)
+					hc->ops.res_payload(hc);
+
 				/* if not finished, should be called again */
-				if (!(htx_is_empty(htx) && (htx->flags & HTX_FL_EOM)))
-					goto out;
-
-
+				if ((htx_is_empty(htx) && (htx->flags & HTX_FL_EOM)))
+					appctx->st0 = HTTPCLIENT_S_RES_END;
 				/* end of message, we should quit */
-				appctx->st0 = HTTPCLIENT_S_RES_END;
 				break;
 
 			case HTTPCLIENT_S_RES_END:

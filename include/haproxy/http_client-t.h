@@ -50,6 +50,7 @@ struct httpclient {
 
 /* options */
 #define    HTTPCLIENT_O_HTTPPROXY     0x00000001 /* the request must be use an absolute URI */
+#define    HTTPCLIENT_O_RES_HTX      0x00000002 /* response is stored in HTX */
 
 /* States of the HTTP Client Appctx */
 enum {
