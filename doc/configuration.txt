@@ -10875,7 +10875,8 @@ no option redispatch
 
 
   In HTTP mode, if a server designated by a cookie is down, clients may
-  definitely stick to it because they cannot flush the cookie, so they will not
+  definitely stick to it, for example when using "option persist" or
+  "force-persist", because they cannot flush the cookie, so they will not
   be able to access the service anymore.
 
   Specifying "option redispatch" will allow the proxy to break cookie or
@@ -10908,7 +10909,7 @@ no option redispatch
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "retries", "force-persist"
+  See also : "option persist", "force-persist", "retries"
 
 
 option redis-check
