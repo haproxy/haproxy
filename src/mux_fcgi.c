@@ -4206,19 +4206,66 @@ static size_t fcgi_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, 
 	return total;
 }
 
-/* for debugging with CLI's "show fd" command */
-static int fcgi_show_fd(struct buffer *msg, struct connection *conn)
+/* appends some info about stream <fstrm> to buffer <msg>, or does nothing if
+ * <fstrm> is NULL. Returns non-zero if the stream is considered suspicious. May
+ * emit multiple lines, each new one being prefixed with <pfx>, if <pfx> is not
+ * NULL, otherwise a single line is used.
+ */
+static int fcgi_dump_fcgi_strm_info(struct buffer *msg, const struct fcgi_strm *fstrm, const char *pfx)
 {
-	struct fcgi_conn *fconn = conn->ctx;
+	int ret = 0;
+
+	if (!fstrm)
+		return ret;
+
+	chunk_appendf(msg, " .id=%d .flg=0x%04x .rxbuf=%u@%p+%u/%u .sc=%p",
+		      fstrm->id, fstrm->flags,
+		      (unsigned int)b_data(&fstrm->rxbuf), b_orig(&fstrm->rxbuf),
+		      (unsigned int)b_head_ofs(&fstrm->rxbuf), (unsigned int)b_size(&fstrm->rxbuf),
+		      fcgi_strm_sc(fstrm));
+
+	if (pfx && fstrm->subs)
+		chunk_appendf(msg, "\n%s", pfx);
+
+	chunk_appendf(msg, " .sd.flg=0x%08x .sd.evts=%s", se_fl_get(fstrm->sd), tevt_evts2str(fstrm->sd->term_evts_log));
+	if (!se_fl_test(fstrm->sd, SE_FL_ORPHAN))
+		chunk_appendf(msg, " .sc.flg=0x%08x .sc.app=%p .sc.evts=%s",
+			      fcgi_strm_sc(fstrm)->flags, fcgi_strm_sc(fstrm)->app, tevt_evts2str(fcgi_strm_sc(fstrm)->term_evts_log));
+
+	if (pfx && fstrm->subs)
+		chunk_appendf(msg, "\n%s", pfx);
+
+	chunk_appendf(msg, " .subs=%p", fstrm->subs);
+	if (fstrm->subs) {
+		chunk_appendf(msg, "(ev=%d tl=%p", fstrm->subs->events, fstrm->subs->tasklet);
+		chunk_appendf(msg, " tl.calls=%d tl.ctx=%p tl.fct=",
+			      fstrm->subs->tasklet->calls,
+			      fstrm->subs->tasklet->context);
+		if (fstrm->subs->tasklet->calls >= 1000000)
+			ret = 1;
+		resolve_sym_name(msg, NULL, fstrm->subs->tasklet->process);
+		chunk_appendf(msg, ")");
+	}
+	return ret;
+}
+
+/* appends some info about connection <fconn> to buffer <msg>, or does nothing
+ * if <fconn> is NULL. Returns non-zero if the connection is considered
+ * suspicious.  May emit multiple lines, each new one being prefixed with <pfx>,
+ * if <pfx> is not NULL, otherwise a single line is used.
+ */
+static int fcgi_dump_fcgi_conn_info(struct buffer *msg, struct fcgi_conn *fconn, const char *pfx)
+{
+	const struct buffer *hmbuf, *tmbuf;
 	struct fcgi_strm *fstrm = NULL;
 	struct eb32_node *node;
 	int send_cnt = 0;
 	int tree_cnt = 0;
 	int orph_cnt = 0;
-	struct buffer *hmbuf, *tmbuf;
+	int ret = 0;
 
 	if (!fconn)
-		return 0;
+		return ret;
 
 	list_for_each_entry(fstrm, &fconn->send_list, send_list)
 		send_cnt++;
@@ -4235,44 +4282,86 @@ static int fcgi_show_fd(struct buffer *msg, struct connection *conn)
 
 	hmbuf = br_head(fconn->mbuf);
 	tmbuf = br_tail(fconn->mbuf);
-	chunk_appendf(msg, " fconn.st0=%d .maxid=%d .flg=0x%04x .nbst=%u"
-		      " .nbcs=%u .send_cnt=%d .tree_cnt=%d .orph_cnt=%d .sub=%d "
-		      ".dsi=%d .dbuf=%u@%p+%u/%u .mbuf=[%u..%u|%u],h=[%u@%p+%u/%u],t=[%u@%p+%u/%u] .evts=%s",
+	chunk_appendf(msg, " fconn.st0=%d .maxid=%d .flg=0x%04x .nbst=%u .nbcs=%u .evts=%s",
 		      fconn->state, fconn->max_id, fconn->flags,
-		      fconn->nb_streams, fconn->nb_sc, send_cnt, tree_cnt, orph_cnt,
-		      fconn->wait_event.events, fconn->dsi,
+		      fconn->nb_streams, fconn->nb_sc,
+		      tevt_evts2str(fconn->term_evts_log));
+
+	if (pfx)
+		chunk_appendf(msg, "\n%s", pfx);
+
+	chunk_appendf(msg, ".send_cnt=%d .tree_cnt=%d .orph_cnt=%d  .sub=%d .dsi=%d .dbuf=%u@%p+%u/%u",
+		      send_cnt, tree_cnt, orph_cnt, fconn->wait_event.events, fconn->dsi,
 		      (unsigned int)b_data(&fconn->dbuf), b_orig(&fconn->dbuf),
-		      (unsigned int)b_head_ofs(&fconn->dbuf), (unsigned int)b_size(&fconn->dbuf),
+		      (unsigned int)b_head_ofs(&fconn->dbuf), (unsigned int)b_size(&fconn->dbuf));
+
+
+	if (pfx)
+		chunk_appendf(msg, "\n%s", pfx);
+
+	chunk_appendf(msg, ".mbuf=[%u..%u|%u],h=[%u@%p+%u/%u],t=[%u@%p+%u/%u]",
 		      br_head_idx(fconn->mbuf), br_tail_idx(fconn->mbuf), br_size(fconn->mbuf),
 		      (unsigned int)b_data(hmbuf), b_orig(hmbuf),
 		      (unsigned int)b_head_ofs(hmbuf), (unsigned int)b_size(hmbuf),
 		      (unsigned int)b_data(tmbuf), b_orig(tmbuf),
-		      (unsigned int)b_head_ofs(tmbuf), (unsigned int)b_size(tmbuf),
-		      tevt_evts2str(fconn->term_evts_log));
+		      (unsigned int)b_head_ofs(tmbuf), (unsigned int)b_size(tmbuf));
 
-	if (fstrm) {
-		chunk_appendf(msg, " last_fstrm=%p .id=%d .flg=0x%04x .rxbuf=%u@%p+%u/%u .sc=%p",
-			      fstrm, fstrm->id, fstrm->flags,
-			      (unsigned int)b_data(&fstrm->rxbuf), b_orig(&fstrm->rxbuf),
-			      (unsigned int)b_head_ofs(&fstrm->rxbuf), (unsigned int)b_size(&fstrm->rxbuf),
-			      fcgi_strm_sc(fstrm));
-
-		chunk_appendf(msg, " .sd.flg=0x%08x .sd.evts=%s", se_fl_get(fstrm->sd), tevt_evts2str(fstrm->sd->term_evts_log));
-		if (!se_fl_test(fstrm->sd, SE_FL_ORPHAN))
-			chunk_appendf(msg, " .sc.flg=0x%08x .sc.app=%p .sc.evts=%s",
-				      fcgi_strm_sc(fstrm)->flags, fcgi_strm_sc(fstrm)->app, tevt_evts2str(fcgi_strm_sc(fstrm)->term_evts_log));
-
-		chunk_appendf(msg, " .subs=%p", fstrm->subs);
-		if (fstrm->subs) {
-			chunk_appendf(msg, "(ev=%d tl=%p", fstrm->subs->events, fstrm->subs->tasklet);
-			chunk_appendf(msg, " tl.calls=%d tl.ctx=%p tl.fct=",
-				      fstrm->subs->tasklet->calls,
-				      fstrm->subs->tasklet->context);
-			resolve_sym_name(msg, NULL, fstrm->subs->tasklet->process);
-			chunk_appendf(msg, ")");
-		}
+	chunk_appendf(msg, " .task=%p", fconn->task);
+	if (fconn->task) {
+		chunk_appendf(msg, " .exp=%s",
+			      fconn->task->expire ? tick_is_expired(fconn->task->expire, now_ms) ? "<PAST>" :
+			      human_time(TICKS_TO_MS(fconn->task->expire - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
 	}
-	return 0;
+
+	return ret;
+}
+
+
+
+/* for debugging with CLI's "show fd" command */
+static int fcgi_show_fd(struct buffer *msg, struct connection *conn)
+{
+	struct fcgi_conn *fconn = conn->ctx;
+	struct fcgi_strm *fstrm = NULL;
+	struct eb32_node *node;
+	int ret = 0;
+
+	if (!fconn)
+		return ret;
+
+	ret |= fcgi_dump_fcgi_conn_info(msg, fconn, NULL);
+
+	node = eb32_first(&fconn->streams_by_id);
+	if (node) {
+		fstrm = container_of(node, struct fcgi_strm, by_id);
+		chunk_appendf(msg, " last_fstrm=%p", fstrm);
+		ret |= fcgi_dump_fcgi_strm_info(msg, fstrm, NULL);
+	}
+
+	return ret;
+}
+
+
+/* for debugging with CLI's "show sess" command. May emit multiple lines, each
+ * new one being prefixed with <pfx>, if <pfx> is not NULL, otherwise a single
+ * line is used. Each field starts with a space so it's safe to print it after
+ * existing fields.
+ */
+static int fcgi_show_sd(struct buffer *msg, struct sedesc *sd, const char *pfx)
+{
+	struct fcgi_strm *fstrm = sd->se;
+	int ret = 0;
+
+	if (!fstrm)
+		return ret;
+
+	chunk_appendf(msg, " fstrm=%p", fstrm);
+	ret |= fcgi_dump_fcgi_strm_info(msg, fstrm, pfx);
+	if (pfx)
+		chunk_appendf(msg, "\n%s", pfx);
+	chunk_appendf(msg, " fconn=%p", fstrm->fconn);
+	ret |= fcgi_dump_fcgi_conn_info(msg, fstrm->fconn, pfx);
+	return ret;
 }
 
 /* Migrate the the connection to the current thread.
@@ -4400,6 +4489,7 @@ static const struct mux_ops mux_fcgi_ops = {
 	.ctl           = fcgi_ctl,
 	.sctl           = fcgi_sctl,
 	.show_fd       = fcgi_show_fd,
+	.show_sd       = fcgi_show_sd,
 	.takeover      = fcgi_takeover,
 	.flags         = MX_FL_HTX|MX_FL_HOL_RISK|MX_FL_NO_UPG,
 	.name          = "FCGI",
