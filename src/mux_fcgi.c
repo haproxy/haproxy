@@ -933,6 +933,26 @@ static inline void fcgi_strm_close(struct fcgi_strm *fstrm)
 	}
 }
 
+/* Check fconn and fstrm flags to evaluate if EOI/EOS/ERR_PENDING/ERROR flags must
+ * be set on the SE.
+ */
+static inline void fcgi_strm_propagate_term_flags(struct fcgi_conn *fconn, struct fcgi_strm *fstrm)
+{
+	if (fstrm->h1m.state == H1_MSG_DONE) {
+		se_fl_set(fstrm->sd, SE_FL_EOI);
+		/* Add EOS flag for tunnel */
+		if (!(fstrm->h1m.flags & (H1_MF_VER_11|H1_MF_XFER_LEN)))
+			se_fl_set(fstrm->sd, SE_FL_EOS);
+	}
+	if (fcgi_conn_read0_pending(fconn) || fstrm->st == FCGI_SS_CLOSED) {
+		se_fl_set(fstrm->sd, SE_FL_EOS);
+		if (!se_fl_test(fstrm->sd, SE_FL_EOI))
+			se_fl_set(fstrm->sd, SE_FL_ERROR);
+	}
+	if (se_fl_test(fstrm->sd, SE_FL_ERR_PENDING))
+		se_fl_set(strm->sd, SE_FL_ERROR);
+}
+
 /* Detaches a FCGI stream from its FCGI connection and releases it to the
  * fcgi_strm pool.
  */
@@ -3968,18 +3988,7 @@ static size_t fcgi_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, 
 	}
 	else {
 		se_fl_clr(fstrm->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
-		if (fstrm->state == FCGI_SS_ERROR || (fstrm->h1m.state == H1_MSG_DONE)) {
-			se_fl_set(fstrm->sd, SE_FL_EOI);
-			if (!(fstrm->h1m.flags & (H1_MF_VER_11|H1_MF_XFER_LEN)))
-				se_fl_set(fstrm->sd, SE_FL_EOS);
-		}
-		if (fcgi_conn_read0_pending(fconn)) {
-			se_fl_set(fstrm->sd, SE_FL_EOS);
-			if (!se_fl_test(fstrm->sd, SE_FL_EOI))
-				se_fl_set(fstrm->sd, SE_FL_ERROR);
-		}
-		if (se_fl_test(fstrm->sd, SE_FL_ERR_PENDING))
-			se_fl_set(fstrm->sd, SE_FL_ERROR);
+		fcgi_strm_propagate_term_flags(fconn, fstrm);
 		fcgi_release_buf(fconn, &fstrm->rxbuf);
 	}
 
