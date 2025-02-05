@@ -68,6 +68,8 @@ struct fcgi_conn {
 	unsigned int nb_reserved;            /* number of reserved streams */
 	unsigned int stream_cnt;             /* total number of streams seen */
 
+	uint32_t term_evts_log;              /* Termination events log: first 4 events reported */
+
 	struct proxy *proxy;                 /* the proxy this connection was created for */
 	struct fcgi_app *app;                /* FCGI application used by this mux */
 	struct task *task;                   /* timeout management task */
@@ -690,6 +692,7 @@ static int fcgi_init(struct connection *conn, struct proxy *px, struct session *
 	fconn->nb_sc = 0;
 	fconn->nb_reserved = 0;
 	fconn->stream_cnt = 0;
+	fconn->term_evts_log = 0;
 
 	fconn->dbuf = *input;
 	fconn->dsi = -1;
@@ -729,6 +732,14 @@ static int fcgi_init(struct connection *conn, struct proxy *px, struct session *
 	return -1;
 }
 
+
+static inline void fcgi_conn_report_term_evt(struct fcgi_conn *fconn, enum muxc_term_event_type type)
+{
+	enum term_event_loc loc = tevt_loc_muxc + 8; /* Always on backend side for now */
+
+	fconn->term_evts_log = tevt_report_event(fconn->term_evts_log, loc, type);
+}
+
 /* Returns the next allocatable outgoing stream ID for the FCGI connection, or
  * -1 if no more is allocatable.
  */
@@ -758,7 +769,6 @@ static inline struct fcgi_strm *fcgi_conn_st_by_id(struct fcgi_conn *fconn, int 
 	return container_of(node, struct fcgi_strm, by_id);
 }
 
-
 /* Release function. This one should be called to free all resources allocated
  * to the mux.
  */
@@ -779,9 +789,12 @@ static void fcgi_release(struct fcgi_conn *fconn)
 		fconn->task = NULL;
 	}
 	tasklet_free(fconn->wait_event.tasklet);
-	if (conn && fconn->wait_event.events != 0)
-		conn->xprt->unsubscribe(conn, conn->xprt_ctx, fconn->wait_event.events,
-					&fconn->wait_event);
+	if (conn) {
+		if (fconn->wait_event.events != 0)
+			conn->xprt->unsubscribe(conn, conn->xprt_ctx, fconn->wait_event.events,
+						&fconn->wait_event);
+		fcgi_conn_report_term_evt(fconn, muxc_tevt_type_shutw);
+	}
 
 	pool_free(pool_head_fcgi_conn, fconn);
 
@@ -941,16 +954,22 @@ static inline void fcgi_strm_propagate_term_flags(struct fcgi_conn *fconn, struc
 	if (fstrm->h1m.state == H1_MSG_DONE) {
 		se_fl_set(fstrm->sd, SE_FL_EOI);
 		/* Add EOS flag for tunnel */
-		if (!(fstrm->h1m.flags & (H1_MF_VER_11|H1_MF_XFER_LEN)))
+		if (!(fstrm->h1m.flags & (H1_MF_VER_11|H1_MF_XFER_LEN))) {
 			se_fl_set(fstrm->sd, SE_FL_EOS);
+			se_report_term_evt(fstrm->sd, (fconn->flags & FCGI_CF_ERROR ? se_tevt_type_rcv_err : se_tevt_type_eos));
+		}
 	}
-	if (fcgi_conn_read0_pending(fconn) || fstrm->st == FCGI_SS_CLOSED) {
+	if (fcgi_conn_read0_pending(fconn) || fstrm->state == FCGI_SS_CLOSED) {
 		se_fl_set(fstrm->sd, SE_FL_EOS);
-		if (!se_fl_test(fstrm->sd, SE_FL_EOI))
+		if (!se_fl_test(fstrm->sd, SE_FL_EOI)) {
 			se_fl_set(fstrm->sd, SE_FL_ERROR);
+			se_report_term_evt(fstrm->sd, (fconn->flags & FCGI_CF_ERROR ? se_tevt_type_truncated_rcv_err : se_tevt_type_truncated_eos));
+		}
+		else
+			se_report_term_evt(fstrm->sd, (fconn->flags & FCGI_CF_ERROR ? se_tevt_type_rcv_err : se_tevt_type_eos));
 	}
 	if (se_fl_test(fstrm->sd, SE_FL_ERR_PENDING))
-		se_fl_set(strm->sd, SE_FL_ERROR);
+		se_fl_set(fstrm->sd, SE_FL_ERROR);
 }
 
 /* Detaches a FCGI stream from its FCGI connection and releases it to the
@@ -1666,6 +1685,7 @@ static int fcgi_conn_send_aborts(struct fcgi_conn *fconn)
 			return 0;
 	}
 	fconn->flags |= FCGI_CF_ABRTS_SENT;
+	fcgi_conn_report_term_evt(fconn, muxc_tevt_type_graceful_shut);
 	TRACE_STATE("aborts sent to all fstrms", FCGI_EV_TX_RECORD, fconn->conn);
 	TRACE_LEAVE(FCGI_EV_TX_RECORD, fconn->conn);
 	return 1;
@@ -1842,6 +1862,7 @@ static int fcgi_strm_send_abort(struct fcgi_conn *fconn, struct fcgi_strm *fstrm
 	ret = fcgi_strm_send_empty_record(fconn, fstrm, FCGI_ABORT_REQUEST);
 	if (ret) {
 		fstrm->flags |= FCGI_SF_ABRT_SENT;
+		se_report_term_evt(fstrm->sd, se_tevt_type_cancelled);
 		TRACE_PROTO("FCGI ABORT record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_ABORT, fconn->conn, fstrm, 0, (size_t[]){0});
 		TRACE_USER("FCGI request aborted", FCGI_EV_TX_RECORD|FCGI_EV_TX_ABORT, fconn->conn, fstrm);
 		TRACE_STATE("abort sent", FCGI_EV_TX_RECORD|FCGI_EV_TX_ABORT, fconn->conn, fstrm);
@@ -2671,6 +2692,15 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 			fconn->flags |= FCGI_CF_END_REACHED;
 	}
 
+	if (fconn->flags & FCGI_CF_ERROR)
+		fcgi_conn_report_term_evt(fconn, ((eb_is_empty(&fconn->streams_by_id) && (fconn->state == FCGI_CS_RECORD_H))
+						  ? muxc_tevt_type_rcv_err
+						  : muxc_tevt_type_truncated_rcv_err));
+	else if (fconn->flags & FCGI_CF_END_REACHED)
+		fcgi_conn_report_term_evt(fconn, ((eb_is_empty(&fconn->streams_by_id) && (fconn->state == FCGI_CS_RECORD_H))
+						  ? muxc_tevt_type_shutr
+						  : muxc_tevt_type_truncated_shutr));
+
 	/* Make sure to clear DFULL if contents were deleted */
 	if (!b_full(&fconn->dbuf))
 		fconn->flags &= ~FCGI_CF_DEM_DFULL;
@@ -2944,6 +2974,7 @@ static int fcgi_send(struct fcgi_conn *fconn)
 
 	if (conn->flags & CO_FL_ERROR) {
 		fconn->flags |= FCGI_CF_ERR_PENDING;
+		fcgi_conn_report_term_evt(fconn, muxc_tevt_type_snd_err);
 		if (fconn->flags & FCGI_CF_EOS)
 			fconn->flags |= FCGI_CF_ERROR;
 		b_reset(br_tail(fconn->mbuf));
@@ -3191,6 +3222,8 @@ static int fcgi_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *ou
 		return fconn->nb_streams;
 	case MUX_CTL_GET_MAXSTRM:
 		return fconn->streams_limit;
+	case MUX_CTL_TEVTS:
+		return fconn->term_evts_log;
 	default:
 		return -1;
 	}
@@ -3206,7 +3239,8 @@ static int fcgi_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *outpu
 		if (output)
 			*((int64_t *)output) = fstrm->id;
 		return ret;
-
+	case MUX_SCTL_TEVTS:
+		return fstrm->sd->term_evts_log;
 	default:
 		return -1;
 	}
@@ -3250,6 +3284,8 @@ struct task *fcgi_timeout_task(struct task *t, void *context, unsigned int state
 			conn_delete_from_tree(fconn->conn);
 
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+
+		fcgi_conn_report_term_evt(fconn, muxc_tevt_type_tout);
 	}
 
 do_leave:
@@ -4147,6 +4183,7 @@ static size_t fcgi_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, 
 	if (fstrm->state == FCGI_SS_ERROR) {
 		TRACE_DEVEL("reporting error to the app-layer stream", FCGI_EV_STRM_SEND|FCGI_EV_FSTRM_ERR|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
 		se_fl_set_error(fstrm->sd);
+		se_report_term_evt(fstrm->sd, se_tevt_type_snd_err);
 		if (!(fstrm->flags & FCGI_SF_BEGIN_SENT) || fcgi_strm_send_abort(fconn, fstrm))
 			fcgi_strm_close(fstrm);
 	}
@@ -4200,7 +4237,7 @@ static int fcgi_show_fd(struct buffer *msg, struct connection *conn)
 	tmbuf = br_tail(fconn->mbuf);
 	chunk_appendf(msg, " fconn.st0=%d .maxid=%d .flg=0x%04x .nbst=%u"
 		      " .nbcs=%u .send_cnt=%d .tree_cnt=%d .orph_cnt=%d .sub=%d "
-		      ".dsi=%d .dbuf=%u@%p+%u/%u .mbuf=[%u..%u|%u],h=[%u@%p+%u/%u],t=[%u@%p+%u/%u]",
+		      ".dsi=%d .dbuf=%u@%p+%u/%u .mbuf=[%u..%u|%u],h=[%u@%p+%u/%u],t=[%u@%p+%u/%u] .evts=%s",
 		      fconn->state, fconn->max_id, fconn->flags,
 		      fconn->nb_streams, fconn->nb_sc, send_cnt, tree_cnt, orph_cnt,
 		      fconn->wait_event.events, fconn->dsi,
@@ -4210,7 +4247,8 @@ static int fcgi_show_fd(struct buffer *msg, struct connection *conn)
 		      (unsigned int)b_data(hmbuf), b_orig(hmbuf),
 		      (unsigned int)b_head_ofs(hmbuf), (unsigned int)b_size(hmbuf),
 		      (unsigned int)b_data(tmbuf), b_orig(tmbuf),
-		      (unsigned int)b_head_ofs(tmbuf), (unsigned int)b_size(tmbuf));
+		      (unsigned int)b_head_ofs(tmbuf), (unsigned int)b_size(tmbuf),
+		      tevt_evts2str(fconn->term_evts_log));
 
 	if (fstrm) {
 		chunk_appendf(msg, " last_fstrm=%p .id=%d .flg=0x%04x .rxbuf=%u@%p+%u/%u .sc=%p",
@@ -4219,10 +4257,10 @@ static int fcgi_show_fd(struct buffer *msg, struct connection *conn)
 			      (unsigned int)b_head_ofs(&fstrm->rxbuf), (unsigned int)b_size(&fstrm->rxbuf),
 			      fcgi_strm_sc(fstrm));
 
-		chunk_appendf(msg, " .sd.flg=0x%08x", se_fl_get(fstrm->sd));
+		chunk_appendf(msg, " .sd.flg=0x%08x .sd.evts=%s", se_fl_get(fstrm->sd), tevt_evts2str(fstrm->sd->term_evts_log));
 		if (!se_fl_test(fstrm->sd, SE_FL_ORPHAN))
-			chunk_appendf(msg, " .sc.flg=0x%08x .sc.app=%p",
-				      fcgi_strm_sc(fstrm)->flags, fcgi_strm_sc(fstrm)->app);
+			chunk_appendf(msg, " .sc.flg=0x%08x .sc.app=%p .sc.evts=%s",
+				      fcgi_strm_sc(fstrm)->flags, fcgi_strm_sc(fstrm)->app, tevt_evts2str(fcgi_strm_sc(fstrm)->term_evts_log));
 
 		chunk_appendf(msg, " .subs=%p", fstrm->subs);
 		if (fstrm->subs) {
