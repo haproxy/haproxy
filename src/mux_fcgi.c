@@ -299,6 +299,8 @@ static void fcgi_strm_notify_recv(struct fcgi_strm *fstrm);
 static void fcgi_strm_notify_send(struct fcgi_strm *fstrm);
 static void fcgi_strm_alert(struct fcgi_strm *fstrm);
 static int fcgi_strm_send_abort(struct fcgi_conn *fconn, struct fcgi_strm *fstrm);
+static int fcgi_dump_fcgi_conn_info(struct buffer *msg, struct fcgi_conn *fconn, const char *pfx);
+static int fcgi_dump_fcgi_strm_info(struct buffer *msg, const struct fcgi_strm *fstrm, const char *pfx);
 
 /* a dummy closed endpoint */
 static const struct sedesc closed_ep = {
@@ -3233,11 +3235,31 @@ static int fcgi_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *outpu
 {
 	int ret = 0;
 	struct fcgi_strm *fstrm = __sc_mux_strm(sc);
+	union mux_sctl_dbg_str_ctx *dbg_ctx;
+	struct buffer *buf;
 
 	switch (mux_sctl) {
 	case MUX_SCTL_SID:
 		if (output)
 			*((int64_t *)output) = fstrm->id;
+		return ret;
+	case MUX_SCTL_DBG_STR:
+		dbg_ctx = output;
+		buf = get_trash_chunk();
+
+		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_MUXS)
+			fcgi_dump_fcgi_strm_info(buf, fstrm, NULL);
+
+		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_MUXC)
+			fcgi_dump_fcgi_conn_info(buf, fstrm->fconn, NULL);
+
+		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_CONN)
+			chunk_appendf(buf, " conn.flg=%#08x conn.err_code=%u conn.evts=%s",
+				      fstrm->fconn->conn->flags, fstrm->fconn->conn->err_code,
+				      tevt_evts2str(fstrm->fconn->conn->term_evts_log));
+
+		/* other layers not implemented */
+		dbg_ctx->ret.buf = *buf;
 		return ret;
 	case MUX_SCTL_TEVTS:
 		return fstrm->sd->term_evts_log;

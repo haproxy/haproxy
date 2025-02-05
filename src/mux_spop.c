@@ -266,6 +266,8 @@ static void spop_strm_notify_send(struct spop_strm *spop_strm);
 static void spop_strm_alert(struct spop_strm *spop_strm);
 static inline void spop_remove_from_list(struct spop_strm *spop_strm);
 static inline void spop_conn_restart_reading(const struct spop_conn *spop_conn, int consider_buffer);
+static int spop_dump_spop_conn_info(struct buffer *msg, struct spop_conn *spop_conn, const char *pfx);
+static int spop_dump_spop_strm_info(struct buffer *msg, const struct spop_strm *spop_strm, const char *pfx);
 
 /* a dummy closed endpoint */
 static const struct sedesc closed_ep = {
@@ -2671,11 +2673,31 @@ static int spop_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *outpu
 {
 	int ret = 0;
 	struct spop_strm *spop_strm = __sc_mux_strm(sc);
+	union mux_sctl_dbg_str_ctx *dbg_ctx;
+	struct buffer *buf;
 
 	switch (mux_sctl) {
 	case MUX_SCTL_SID:
 		if (output)
 			*((int64_t *)output) = spop_strm->id;
+		return ret;
+	case MUX_SCTL_DBG_STR:
+		dbg_ctx = output;
+		buf = get_trash_chunk();
+
+		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_MUXS)
+			spop_dump_spop_strm_info(buf, spop_strm, NULL);
+
+		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_MUXC)
+			spop_dump_spop_conn_info(buf, spop_strm->spop_conn, NULL);
+
+		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_CONN)
+			chunk_appendf(buf, " conn.flg=%#08x conn.err_code=%u conn.evts=%s",
+				      spop_strm->spop_conn->conn->flags, spop_strm->spop_conn->conn->err_code,
+				      tevt_evts2str(spop_strm->spop_conn->conn->term_evts_log));
+
+		/* other layers not implemented */
+		dbg_ctx->ret.buf = *buf;
 		return ret;
 	case MUX_SCTL_TEVTS:
 		return spop_strm->sd->term_evts_log;
