@@ -1110,7 +1110,7 @@ static void fcgi_strm_wake_one_stream(struct fcgi_strm *fstrm)
 
 	if (fconn->state == FCGI_CS_CLOSED || (fconn->flags & (FCGI_CF_ERR_PENDING|FCGI_CF_ERROR))) {
 		se_fl_set_error(fstrm->sd);
-
+		fcgi_strm_propagate_term_flags(fconn, fstrm);
 		if (fstrm->state < FCGI_SS_ERROR) {
 			fstrm->state = FCGI_SS_ERROR;
 			TRACE_STATE("switching to ERROR", FCGI_EV_STRM_WAKE|FCGI_EV_FSTRM_END, fconn->conn, fstrm);
