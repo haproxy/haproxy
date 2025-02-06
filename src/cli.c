@@ -2438,10 +2438,8 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	}
 
 out:
-	if (fd >= 0 && old_fcntl >= 0 && fcntl(fd, F_SETFL, old_fcntl) == -1) {
+	if (fd >= 0 && old_fcntl >= 0 && fcntl(fd, F_SETFL, old_fcntl) == -1)
 		ha_warning("Cannot make the unix socket non-blocking\n");
-		goto out;
-	}
 	applet_set_eoi(appctx);
 	appctx->st0 = CLI_ST_END;
 	free(cmsgbuf);
