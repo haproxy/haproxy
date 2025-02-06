@@ -60,7 +60,7 @@ static int stats_emit_json_field_tags(struct buffer *out, const struct field *f)
 /* Limit JSON integer values to the range [-(2**53)+1, (2**53)-1] as per
  * the recommendation for interoperable integers in section 6 of RFC 7159.
  */
-#define JSON_INT_MAX ((1ULL << 53) - 1)
+#define JSON_INT_MAX ((1LL << 53) - 1)
 #define JSON_INT_MIN (0 - JSON_INT_MAX)
 
 /* Emits a stats field value and its type in JSON.
