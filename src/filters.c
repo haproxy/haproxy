@@ -241,7 +241,7 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
 			}
 			if (kw->parse(args, &cur_arg, curpx, fconf, err, kw->private) != 0) {
 				if (err && *err)
-					memprintf(err, "'%s' : '%s'",
+					memprintf(err, "'%s' : %s",
 						  args[0], *err);
 				else
 					memprintf(err, "'%s' : error encountered while processing '%s'",
