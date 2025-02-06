@@ -147,7 +147,11 @@ int userlist_postinit()
 				if (!ag) {
 					ha_alert("userlist '%s': no such group '%s' specified in user '%s'\n",
 						 curuserlist->name, group, curuser->user);
-					free(groups);
+					while (groups) {
+						grl = groups;
+						groups = groups->next;
+						free(grl);
+					}
 					return ERR_ALERT | ERR_FATAL;
 				}
 
@@ -156,7 +160,11 @@ int userlist_postinit()
 				if (!grl) {
 					ha_alert("userlist '%s': no more memory when trying to allocate the user groups.\n",
 						 curuserlist->name);
-					free(groups);
+					while (groups) {
+						grl = groups;
+						groups = groups->next;
+						free(grl);
+					}
 					return ERR_ALERT | ERR_FATAL;
 				}
 
