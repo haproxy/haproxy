@@ -192,19 +192,6 @@ static inline STACK_OF(X509) *X509_chain_up_ref(STACK_OF(X509) *chain)
 
 #endif
 
-#ifdef OPENSSL_IS_BORINGSSL
-/*
- * Functions missing in BoringSSL
- */
-
-static inline X509_CRL *X509_OBJECT_get0_X509_CRL(const X509_OBJECT *a)
-{
-    if (a == NULL || a->type != X509_LU_CRL) {
-        return NULL;
-    }
-    return a->data.crl;
-}
-#endif
 
 #if (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL) && (!defined(LIBRESSL_VERSION_NUMBER) || LIBRESSL_VERSION_NUMBER < 0x2070000fL)
 /*
