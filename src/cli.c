@@ -1181,7 +1181,7 @@ static void cli_io_handler(struct appctx *appctx)
 					}
 				break;
 			default: /* abnormal state */
-				se_fl_set(appctx->sedesc, SE_FL_ERROR);
+				applet_set_error(appctx);
 				break;
 			}
 
@@ -2442,7 +2442,7 @@ out:
 		ha_warning("Cannot make the unix socket non-blocking\n");
 		goto out;
 	}
-	se_fl_set(appctx->sedesc, SE_FL_EOI);
+	applet_set_eoi(appctx);
 	appctx->st0 = CLI_ST_END;
 	free(cmsgbuf);
 	free(tmpbuf);
@@ -2464,7 +2464,7 @@ static int cli_parse_simple(char **args, char *payload, struct appctx *appctx, v
 			appctx->st1 ^= APPCTX_CLI_ST1_PROMPT;
 	else if (*args[0] == 'q') {
 		/* quit */
-		se_fl_set(appctx->sedesc, SE_FL_EOI);
+		applet_set_eoi(appctx);
 		appctx->st0 = CLI_ST_END;
 	}
 
