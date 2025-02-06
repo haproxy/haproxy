@@ -631,6 +631,11 @@ parse_trace_flt(char **args, int *cur_arg, struct proxy *px,
 						  args[*cur_arg], args[pos]);
 					goto error;
 				}
+				if (conf->name) {
+					memprintf(err, "'%s' : '%s' option already defined",
+						  args[*cur_arg], args[pos]);
+					goto error;
+				}
 				conf->name = strdup(args[pos + 1]);
 				if (!conf->name) {
 					memprintf(err, "%s: out of memory", args[*cur_arg]);
