@@ -1997,6 +1997,13 @@ static int srv_parse_weight(char **args, int *cur_arg, struct proxy *px, struct 
 	return 0;
 }
 
+static int srv_parse_strict_maxconn(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+
+	newsrv->flags |= SRV_F_STRICT_MAXCONN;
+
+	return 0;
+}
 /* Returns 1 if the server has streams pointing to it, and 0 otherwise.
  *
  * Must be called with the server lock held.
@@ -2397,6 +2404,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "slowstart",            srv_parse_slowstart,            1,  1,  1 }, /* Set the warm-up timer for a previously failed server */
 	{ "source",               srv_parse_source,              -1,  1,  1 }, /* Set the source address to be used to connect to the server */
 	{ "stick",                srv_parse_stick,                0,  1,  0 }, /* Enable stick-table persistence */
+	{ "strict-maxconn",       srv_parse_strict_maxconn,       0,  1,  1 }, /* Strictly enforces maxconn */
 	{ "tfo",                  srv_parse_tfo,                  0,  1,  1 }, /* enable TCP Fast Open of server */
 	{ "track",                srv_parse_track,                1,  1,  1 }, /* Set the current state of the server, tracking another one */
 	{ "socks4",               srv_parse_socks4,               1,  1,  0 }, /* Set the socks4 proxy of the server*/

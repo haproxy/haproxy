@@ -634,9 +634,16 @@ void stream_free(struct stream *s)
 		 * it should normally be only the same as the one above,
 		 * so this should not happen in fact.
 		 */
-		sess_change_server(s, NULL);
-		if (may_dequeue_tasks(oldsrv, s->be))
-			process_srv_queue(oldsrv);
+		/*
+		 * We don't want to release the slot just yet
+		 * if we're using strict-maxconn, we want to
+		 * free the connection before.
+		 */
+		if (!(oldsrv->flags & SRV_F_STRICT_MAXCONN)) {
+			sess_change_server(s, NULL);
+			if (may_dequeue_tasks(oldsrv, s->be))
+				process_srv_queue(oldsrv);
+		}
 	}
 
 	/* We may still be present in the buffer wait queue */
@@ -729,6 +736,20 @@ void stream_free(struct stream *s)
 
 	sc_destroy(s->scb);
 	sc_destroy(s->scf);
+	/*
+	 * Now we've free'd the connection, so if we're running with
+	 * strict-maxconn, now is a good time to free the slot, and see
+	 * if we can dequeue anything.
+	 */
+	if (s->srv_conn && (s->srv_conn->flags & SRV_F_STRICT_MAXCONN)) {
+		struct server *oldsrv = s->srv_conn;
+
+		if ((oldsrv->flags & SRV_F_STRICT_MAXCONN)) {
+			sess_change_server(s, NULL);
+			if (may_dequeue_tasks(oldsrv, s->be))
+				process_srv_queue(oldsrv);
+		}
+	}
 
 	pool_free(pool_head_stream, s);
 
@@ -1929,9 +1950,16 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 				s->flags &= ~SF_CURR_SESS;
 				_HA_ATOMIC_DEC(&srv->cur_sess);
 			}
-			sess_change_server(s, NULL);
-			if (may_dequeue_tasks(srv, s->be))
-				process_srv_queue(srv);
+			/*
+			 * We don't want to release the slot just yet
+			 * if we're using strict-maxconn, we want to
+			 * free the connection before.
+			 */
+			if (!(srv->flags & SRV_F_STRICT_MAXCONN)) {
+				sess_change_server(s, NULL);
+				if (may_dequeue_tasks(srv, s->be))
+					process_srv_queue(srv);
+			}
 		}
 
 		/* This is needed only when debugging is enabled, to indicate

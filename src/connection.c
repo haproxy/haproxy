@@ -502,10 +502,15 @@ static void conn_backend_deinit(struct connection *conn)
 	if (LIST_INLIST(&conn->sess_el))
 		session_unown_conn(conn->owner, conn);
 
-	/* If the connection is not private, it is accounted by the server. */
-	if (!(conn->flags & CO_FL_PRIVATE)) {
-		if (obj_type(conn->target) == OBJ_TYPE_SERVER)
-			srv_release_conn(__objt_server(conn->target), conn);
+	if (obj_type(conn->target) == OBJ_TYPE_SERVER) {
+		struct server *srv = __objt_server(conn->target);
+
+		/* If the connection is not private, it is accounted by the server. */
+		if (!(conn->flags & CO_FL_PRIVATE)) {
+			srv_release_conn(srv, conn);
+		}
+		if (srv->flags & SRV_F_STRICT_MAXCONN)
+			_HA_ATOMIC_DEC(&srv->curr_total_conns);
 	}
 
 	/* Make sure the connection is not left in the idle connection tree */

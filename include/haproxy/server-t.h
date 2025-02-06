@@ -170,6 +170,7 @@ enum srv_init_state {
 #define SRV_F_NON_PURGEABLE 0x2000       /* this server cannot be removed at runtime */
 #define SRV_F_DEFSRV_USE_SSL 0x4000      /* default-server uses SSL */
 #define SRV_F_DELETED 0x8000             /* srv is deleted but not yet purged */
+#define SRV_F_STRICT_MAXCONN 0x10000     /* maxconn is to be strictly enforced, as a limit of outbound connections */
 
 /* configured server options for send-proxy (server->pp_opts) */
 #define SRV_PP_V1               0x0001   /* proxy protocol version 1 */
@@ -366,6 +367,7 @@ struct server {
 	unsigned int curr_idle_nb;              /* Current number of connections in the idle list */
 	unsigned int curr_safe_nb;              /* Current number of connections in the safe list */
 	unsigned int curr_used_conns;           /* Current number of used connections */
+	unsigned int curr_total_conns;          /* Current number of total connections to the server, used or idle, only calculated if strict-maxconn is used */
 	unsigned int max_used_conns;            /* Max number of used connections (the counter is reset at each connection purges */
 	unsigned int est_need_conns;            /* Estimate on the number of needed connections (max of curr and previous max_used) */
 

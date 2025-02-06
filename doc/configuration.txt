@@ -4591,8 +4591,9 @@ tune.takeover-other-tg-connections <value>
   default, if used, no attempt will be made to use idle connections from
   other thread groups, "restricted" where we will only attempt to get an idle
   connection from another thread if we're using protocols that can't create
-  new connections, such as reverse http, and "full" where we will always look
-  in other thread groups for idle connections.
+  new connections, such as reverse http, as well as when using strict-maxconn,
+  and "full" where we will always look in other thread groups for idle
+  connections.
   Note that using connections from other thread groups can occur performance
   penalties, so it should not be used unless really needed.
 
@@ -19105,6 +19106,20 @@ stick
   default value.
   It may also be used as "default-server" setting to reset any previous
   "default-server" "non-stick" setting.
+
+strict-maxconn
+  May be used in the following contexts: tcp, http
+
+  maxconn to servers is a bit of a misnomer, it actually configure the maximum
+  number of requests we send to a server, but with idle connections, we may
+  have more total connections to the server. If a strict limit of connections
+  to a server is required, then adding strict-maxconn can be used. We will
+  then never establish more connections to a server than maxconn, and try to
+  reuse or kill connections if needed. Please note, however, than it may lead
+  to failed requests in case we can't establish a new connection, and no
+  idle connection is available. This can happen when 'private" connections
+  are established, connections tied only to a session, because authentication
+  happened.
 
 socks4 <addr>:<port>
   May be used in the following contexts: tcp, http, log, peers, ring

@@ -1362,7 +1362,7 @@ check_tgid:
 
 	if (!found && (global.tune.tg_takeover == FULL_THREADGROUP_TAKEOVER ||
 	    (global.tune.tg_takeover == RESTRICTED_THREADGROUP_TAKEOVER &&
-	    srv->flags & SRV_F_RHTTP))) {
+	    srv->flags & (SRV_F_RHTTP | SRV_F_STRICT_MAXCONN)))) {
 		curtgid = curtgid + 1;
 		if (curtgid == global.nbtgroups + 1)
 			curtgid = 1;
@@ -1437,6 +1437,83 @@ static int do_connect_server(struct stream *s, struct connection *conn)
 		conn_get_src(conn);
 
 	return ret;
+}
+
+/*
+ * Returns the first connection from a tree we managed to take over,
+ * if any.
+ */
+static struct connection *
+takeover_random_idle_conn(struct eb_root *root, int curtid)
+{
+	struct conn_hash_node *hash_node;
+	struct connection *conn = NULL;
+	struct eb64_node *node = eb64_first(root);
+
+	while (node) {
+		hash_node = eb64_entry(node, struct conn_hash_node, node);
+		conn = hash_node->conn;
+		if (conn && conn->mux->takeover && conn->mux->takeover(conn, curtid, 0) == 0) {
+			conn_delete_from_tree(conn);
+			return conn;
+		}
+		node = eb64_next(node);
+	}
+
+	return NULL;
+}
+
+/*
+ * Kills an idle connection, any idle connection we can get a hold on.
+ * The goal is just to free a connection in case we reached the max and
+ * have to establish a new one.
+ * Returns -1 if there is no idle connection to kill, 0 if there are some
+ * available but we failed to get one, and 1 if we successfully killed one.
+ */
+static int
+kill_random_idle_conn(struct server *srv)
+{
+	struct connection *conn = NULL;
+	int i;
+	int curtid;
+	/* No idle conn, then there is nothing we can do at this point */
+
+	if (srv->curr_idle_conns == 0)
+		return -1;
+	for (i = 0; i < global.nbthread; i++) {
+		curtid = (i + tid) % global.nbthread;
+
+		if (HA_SPIN_TRYLOCK(IDLE_CONNS_LOCK, &idle_conns[curtid].idle_conns_lock) != 0)
+			continue;
+		conn = takeover_random_idle_conn(&srv->per_thr[curtid].idle_conns, curtid);
+		if (!conn)
+			conn = takeover_random_idle_conn(&srv->per_thr[curtid].safe_conns, curtid);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[curtid].idle_conns_lock);
+		if (conn)
+			break;
+	}
+	if (conn) {
+		/*
+		 * We have to manually decrement counters, as srv_release_conn()
+		 * will attempt to access the current tid's counters, while
+		 * we may have taken the connection from a different thread.
+		 */
+		if (conn->flags & CO_FL_LIST_MASK) {
+			_HA_ATOMIC_DEC(&srv->curr_idle_conns);
+			_HA_ATOMIC_DEC(conn->flags & CO_FL_SAFE_LIST ? &srv->curr_safe_nb : &srv->curr_idle_nb);
+			_HA_ATOMIC_DEC(&srv->curr_idle_thr[curtid]);
+			conn->flags &= ~CO_FL_LIST_MASK;
+			/*
+			 * If we have no list flag then srv_release_conn()
+			 * will consider the connection is used, so let's
+			 * pretend it is.
+			 */
+			_HA_ATOMIC_INC(&srv->curr_used_conns);
+		}
+		conn->mux->destroy(conn->ctx);
+		return 1;
+	}
+	return 0;
 }
 
 /*
@@ -1728,12 +1805,49 @@ int connect_server(struct stream *s)
 skip_reuse:
 	/* no reuse or failed to reuse the connection above, pick a new one */
 	if (!srv_conn) {
+		unsigned int total_conns;
+
 		if (srv && (srv->flags & SRV_F_RHTTP)) {
 			DBG_TRACE_USER("cannot open a new connection for reverse server", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 			s->conn_err_type = STRM_ET_CONN_ERR;
 			return SF_ERR_INTERNAL;
 		}
 
+		if (srv && (srv->flags & SRV_F_STRICT_MAXCONN)) {
+			int kill_tries = 0;
+			/*
+			 * Before creating a new connection, make sure we still
+			 * have a slot for that
+			 */
+			total_conns = srv->curr_total_conns;
+
+			while (1) {
+				if (total_conns < srv->maxconn) {
+					if (_HA_ATOMIC_CAS(&srv->curr_total_conns,
+					    &total_conns, total_conns + 1))
+						break;
+					__ha_cpu_relax();
+				} else {
+					int ret = kill_random_idle_conn(srv);
+
+					/*
+					 * There is no idle connection to kill
+					 * so there is nothing we can do at
+					 * that point but to report an
+					 * error.
+					 */
+					if (ret == -1)
+						return SF_ERR_RESOURCE;
+					kill_tries++;
+					/*
+					 * We tried 3 times to kill an idle
+					 * connection, we failed, give up now.
+					 */
+					if (ret == 0 && kill_tries == 3)
+						return SF_ERR_RESOURCE;
+				}
+			}
+		}
 		srv_conn = conn_new(s->target);
 		if (srv_conn) {
 			DBG_TRACE_STATE("alloc new be connection", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
@@ -1762,7 +1876,8 @@ skip_reuse:
 			}
 
 			srv_conn->hash_node->node.key = hash;
-		}
+		} else if (srv && (srv->flags & SRV_F_STRICT_MAXCONN))
+			_HA_ATOMIC_DEC(&srv->curr_total_conns);
 	}
 
 	/* if bind_addr is non NULL free it */
