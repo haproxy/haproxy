@@ -1407,6 +1407,15 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 
 		while (*args[cur_arg]) {
 			if (strcmp(args[cur_arg], "users") == 0) {
+				if (ag->groupusers) {
+					ha_alert("parsing [%s:%d]: 'users' option already defined in '%s' name '%s'.\n",
+						 file, linenum, args[0], args[1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					free(ag->groupusers);
+					free(ag->name);
+					free(ag);
+					goto out;
+				}
 				ag->groupusers = strdup(args[cur_arg + 1]);
 				cur_arg += 2;
 				continue;
