@@ -1520,6 +1520,9 @@ static struct task *debug_task_handler(struct task *t, void *ctx, unsigned int s
 	unsigned long inter = tctx[1];
 	unsigned long rnd;
 
+	if (stopping)
+		return NULL;
+
 	t->expire = tick_add(now_ms, inter);
 
 	/* half of the calls will wake up another entry */
@@ -1542,6 +1545,9 @@ static struct task *debug_tasklet_handler(struct task *t, void *ctx, unsigned in
 	unsigned long *tctx = ctx; // [0] = #tasks, [1] = inter, [2+] = { tl | (tsk+1) }
 	unsigned long rnd;
 	int i;
+
+	if (stopping)
+		return NULL;
 
 	/* wake up two random entries */
 	for (i = 0; i < 2; i++) {
