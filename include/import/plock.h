@@ -549,6 +549,13 @@ static unsigned int pl_wait_new_int(const unsigned int *lock, const unsigned int
 			__pl_r = pl_ldadd_acq(__lk_r, __set_r);                                \
 			if (!__builtin_expect(__pl_r & __msk_r, 0))                            \
 				break;                                                         \
+			if (!__builtin_expect(__pl_r & PLOCK64_WL_ANY, 0)) {                   \
+				/* S only: let it finish but impose ourselves */               \
+				pl_sub_noret_lax(__lk_r, PLOCK64_RL_1);                        \
+				__pl_r = pl_wait_unlock_long(__lk_r, PLOCK64_RL_ANY);          \
+				__pl_r = pl_ldadd_acq(__lk_r, PLOCK64_RL_1);                   \
+				break;                                                         \
+			}                                                                      \
 			pl_sub_noret_lax(__lk_r, __set_r);                                     \
 			__pl_r = pl_wait_unlock_long(__lk_r, __msk_r);                         \
 		}                                                                              \
@@ -566,6 +573,13 @@ static unsigned int pl_wait_new_int(const unsigned int *lock, const unsigned int
 			__pl_r = pl_ldadd_acq(__lk_r, __set_r);                                \
 			if (!__builtin_expect(__pl_r & __msk_r, 0))                            \
 				break;                                                         \
+			if (!__builtin_expect(__pl_r & PLOCK32_WL_ANY, 0)) {                   \
+				/* S only: let it finish but impose ourselves */               \
+				pl_sub_noret_lax(__lk_r, PLOCK32_RL_1);                        \
+				__pl_r = pl_wait_unlock_int(__lk_r, PLOCK32_RL_ANY);          \
+				__pl_r = pl_ldadd_acq(__lk_r, PLOCK32_RL_1);                   \
+				break;                                                         \
+			}                                                                      \
 			pl_sub_noret_lax(__lk_r, __set_r);                                     \
 			__pl_r = pl_wait_unlock_int(__lk_r, __msk_r);                          \
 		}                                                                              \
