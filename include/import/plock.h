@@ -114,11 +114,11 @@ static unsigned long __pl_wait_unlock_long(const unsigned long *lock, const unsi
 }
 
 # if defined(PLOCK_INLINE_EBO)
-__attribute__((unused,always_inline,no_instrument_function)) inline
+__attribute__((unused,always_inline,no_instrument_function)) static inline
 # else
-__attribute__((unused,noinline,no_instrument_function))
+__attribute__((unused,noinline,no_instrument_function,weak))
 # endif
-static unsigned long pl_wait_unlock_long(const unsigned long *lock, const unsigned long mask)
+unsigned long pl_wait_unlock_long(const unsigned long *lock, const unsigned long mask)
 {
 	return __pl_wait_unlock_long(lock, mask);
 }
@@ -183,11 +183,11 @@ static unsigned int __pl_wait_unlock_int(const unsigned int *lock, const unsigne
 }
 
 # if defined(PLOCK_INLINE_EBO)
-__attribute__((unused,always_inline,no_instrument_function)) inline
+__attribute__((unused,always_inline,no_instrument_function)) static inline
 # else
-__attribute__((unused,noinline,no_instrument_function))
+__attribute__((unused,noinline,no_instrument_function,weak))
 # endif
-static unsigned int pl_wait_unlock_int(const unsigned int *lock, const unsigned int mask)
+unsigned int pl_wait_unlock_int(const unsigned int *lock, const unsigned int mask)
 {
 	return __pl_wait_unlock_int(lock, mask);
 }
