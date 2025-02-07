@@ -93,7 +93,7 @@ static unsigned long __pl_wait_unlock_long(const unsigned long *lock, const unsi
 			loops -= 32768;
 		}
 #endif
-		for (; loops >= 60; loops --)
+		for (; loops >= 90; loops --)
 			pl_cpu_relax();
 
 		for (; loops >= 1; loops--)
