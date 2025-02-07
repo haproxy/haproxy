@@ -1633,7 +1633,7 @@ static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appc
 	tctx[0] = (unsigned long)count;
 	tctx[1] = (unsigned long)inter;
 
-	if (thrid >= global.nbthread)
+	if ((int)thrid >= global.nbthread)
 		thrid = tid;
 
 	for (i = 0; i < count; i++) {
