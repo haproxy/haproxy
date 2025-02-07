@@ -1286,3 +1286,109 @@ void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm)
 	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
 }
 
+/* Calculate the length of <frm> frame header and payload using a buffer of
+ * <room> size as destination. This helper function can deal both with STREAM
+ * and CRYPTO frames. If input frame payload is too big for <room>, it must be
+ * truncated to <split> offset output parameter.
+ *
+ * Returns the total frame length, or 0 if not enough space.
+ */
+size_t quic_strm_frm_fillbuf(size_t room, struct quic_frame *frm, size_t *split)
+{
+	size_t total = 0; /* Length of frame header and payload. */
+	size_t payload; /* Input payload length. */
+
+	*split = 0;
+
+	if (frm->type >= QUIC_FT_STREAM_8 && frm->type <= QUIC_FT_STREAM_F) {
+		total = 1;
+		total += quic_int_getsize(frm->stream.id);
+		if (frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT)
+			total += quic_int_getsize(frm->stream.offset);
+		payload = frm->stream.len;
+	}
+	else {
+		/* Function must only be used with STREAM or CRYPTO frames. */
+		ABORT_NOW();
+	}
+
+	if (total > room) {
+		/* Header (without Length) already too large. */
+		return 0;
+	}
+	room -= total;
+
+	if (payload) {
+		/* Payload requested, determine Length field varint size. */
+
+		/* Optimal length value if whole room is used. */
+		const size_t room_data = quic_int_cap_length(room);
+		if (!room_data) {
+			/* Not enough space to encode a varint length first. */
+			return 0;
+		}
+
+		if (payload > room_data) {
+			total += quic_int_getsize(room_data);
+			total += room_data;
+			*split = room_data;
+		}
+		else {
+			total += quic_int_getsize(payload);
+			total += payload;
+		}
+	}
+
+	return total;
+}
+
+/* Split a STREAM or CRYPTO <frm> frame payload at <split> bytes. A newly
+ * allocated frame will point to the original payload head up to the split.
+ * Input frame payload is reduced to contains the remaining data only.
+ *
+ * Returns the newly allocated frame or NULL on error.
+ */
+struct quic_frame *quic_strm_frm_split(struct quic_frame *frm, uint64_t split)
+{
+	struct quic_frame *new;
+	struct buffer stream_buf;
+
+	new = qc_frm_alloc(frm->type);
+	if (!new)
+		return NULL;
+
+	if (frm->type >= QUIC_FT_STREAM_8 && frm->type <= QUIC_FT_STREAM_F) {
+		new->stream.stream = frm->stream.stream;
+		new->stream.buf = frm->stream.buf;
+		new->stream.id = frm->stream.id;
+		new->stream.offset = frm->stream.offset;
+		new->stream.len = split;
+		new->type |= QUIC_STREAM_FRAME_TYPE_LEN_BIT;
+		new->type &= ~QUIC_STREAM_FRAME_TYPE_FIN_BIT;
+		new->stream.data = frm->stream.data;
+		new->stream.dup = frm->stream.dup;
+
+		/* Advance original frame to point to the remaining data. */
+		frm->type |= QUIC_STREAM_FRAME_TYPE_OFF_BIT;
+		stream_buf = b_make(b_orig(frm->stream.buf),
+		                    b_size(frm->stream.buf),
+		                    (char *)frm->stream.data - b_orig(frm->stream.buf), 0);
+		frm->stream.len -= split;
+		frm->stream.offset += split;
+		frm->stream.data = (unsigned char *)b_peek(&stream_buf, split);
+	}
+	else {
+		/* Function must only be used with STREAM or CRYPTO frames. */
+		ABORT_NOW();
+	}
+
+	/* Detach <frm> from its origin if it was duplicated. */
+	if (frm->origin) {
+		LIST_APPEND(&frm->origin->reflist, &new->ref);
+		new->origin = frm->origin;
+		LIST_DEL_INIT(&frm->ref);
+		frm->origin = NULL;
+	}
+
+	return new;
+}

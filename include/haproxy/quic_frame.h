@@ -277,5 +277,8 @@ static inline void qc_stream_frm_mv_fwd(struct quic_frame *frm, uint64_t data)
 	strm_frm->data = (unsigned char *)b_peek(&cf_buf, data);
 }
 
+size_t quic_strm_frm_fillbuf(size_t room, struct quic_frame *frm, size_t *split_size);
+struct quic_frame *quic_strm_frm_split(struct quic_frame *frm, uint64_t left);
+
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_QUIC_FRAME_H */

@@ -1532,8 +1532,10 @@ static int qc_build_frms(struct list *outlist, struct list *inlist,
 	 * in the switch/case block.
 	 */
 	list_for_each_entry_safe(cf, cfbak, inlist, list) {
+		struct quic_frame *split_frm;
 		/* header length, data length, frame length. */
 		size_t hlen, dlen, flen;
+		size_t split_size;
 
 		if (!room)
 			break;
@@ -1601,103 +1603,13 @@ static int qc_build_frms(struct list *outlist, struct list *inlist,
 					continue;
 				}
 			}
-			/* Note that these frames are accepted in short packets only without
-			 * "Length" packet field. Here, <*len> is used only to compute the
-			 * sum of the lengths of the already built frames for this packet.
-			 *
-			 * Compute the length of this STREAM frame "header" made a all the field
-			 * excepting the variable ones. Note that +1 is for the type of this frame.
-			 */
-			hlen = 1 + quic_int_getsize(cf->stream.id) +
-				((cf->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) ? quic_int_getsize(cf->stream.offset) : 0);
-			if (room <= hlen)
+
+			flen = quic_strm_frm_fillbuf(room, cf, &split_size);
+			if (!flen)
 				continue;
 
-			TRACE_DEVEL("          New STREAM frame build (room, len)",
-			            QUIC_EV_CONN_BCFRMS, qc, &room, len);
-
-			/* hlen contains STREAM id and offset. Ensure there is
-			 * enough room for length field.
-			 */
-			if (cf->type & QUIC_STREAM_FRAME_TYPE_LEN_BIT) {
-				dlen = QUIC_MIN(quic_int_cap_length(room - hlen),
-				                cf->stream.len);
-				flen = hlen + quic_int_getsize(dlen) + dlen;
-			}
-			else {
-				dlen = QUIC_MIN(room - hlen, cf->stream.len);
-				flen = hlen + dlen;
-			}
-
-			if (cf->stream.len && !dlen) {
-				/* Only a small gap is left on buffer, not
-				 * enough to encode the STREAM data length.
-				 */
-				continue;
-			}
-
-			TRACE_DEVEL(" STREAM data length (hlen, stream.len, dlen)",
-			            QUIC_EV_CONN_BCFRMS, qc, &hlen, &cf->stream.len, &dlen);
 			TRACE_DEVEL("                 STREAM frame length (flen)",
 			            QUIC_EV_CONN_BCFRMS, qc, &flen);
-			/* Add the STREAM data length and its encoded length to the packet
-			 * length and the length of this length.
-			 */
-			*len += flen;
-			room -= flen;
-			if (dlen == cf->stream.len) {
-				/* <cf> STREAM data have been consumed. */
-				LIST_DEL_INIT(&cf->list);
-				LIST_APPEND(outlist, &cf->list);
-
-				qc_stream_desc_send(cf->stream.stream,
-				                    cf->stream.offset,
-				                    cf->stream.len);
-			}
-			else {
-				struct quic_frame *new_cf;
-				struct buffer cf_buf;
-
-				new_cf = qc_frm_alloc(cf->type);
-				if (!new_cf) {
-					TRACE_ERROR("No memory for new STREAM frame", QUIC_EV_CONN_BCFRMS, qc);
-					continue;
-				}
-
-				new_cf->stream.stream = cf->stream.stream;
-				new_cf->stream.buf = cf->stream.buf;
-				new_cf->stream.id = cf->stream.id;
-				new_cf->stream.offset = cf->stream.offset;
-				new_cf->stream.len = dlen;
-				new_cf->type |= QUIC_STREAM_FRAME_TYPE_LEN_BIT;
-				/* FIN bit reset */
-				new_cf->type &= ~QUIC_STREAM_FRAME_TYPE_FIN_BIT;
-				new_cf->stream.data = cf->stream.data;
-				new_cf->stream.dup = cf->stream.dup;
-				TRACE_DEVEL("split frame", QUIC_EV_CONN_PRSAFRM, qc, new_cf);
-				if (cf->origin) {
-					TRACE_DEVEL("duplicated frame", QUIC_EV_CONN_PRSAFRM, qc);
-					/* This <cf> frame was duplicated */
-					LIST_APPEND(&cf->origin->reflist, &new_cf->ref);
-					new_cf->origin = cf->origin;
-					/* Detach this STREAM frame from its origin */
-					LIST_DEL_INIT(&cf->ref);
-					cf->origin = NULL;
-				}
-				LIST_APPEND(outlist, &new_cf->list);
-				cf->type |= QUIC_STREAM_FRAME_TYPE_OFF_BIT;
-				/* Consume <dlen> bytes of the current frame. */
-				cf_buf = b_make(b_orig(cf->stream.buf),
-				                b_size(cf->stream.buf),
-				                (char *)cf->stream.data - b_orig(cf->stream.buf), 0);
-				cf->stream.len -= dlen;
-				cf->stream.offset += dlen;
-				cf->stream.data = (unsigned char *)b_peek(&cf_buf, dlen);
-
-				qc_stream_desc_send(new_cf->stream.stream,
-				                    new_cf->stream.offset,
-				                    new_cf->stream.len);
-			}
 
 			/* TODO the MUX is notified about the frame sending via
 			 * previous qc_stream_desc_send call. However, the
@@ -1706,6 +1618,32 @@ static int qc_build_frms(struct list *outlist, struct list *inlist,
 			 * notified, the transport layer is responsible to
 			 * bufferize and resent the announced data later.
 			 */
+
+			if (split_size) {
+				split_frm = quic_strm_frm_split(cf, split_size);
+				if (!split_frm) {
+					TRACE_ERROR("No memory for new STREAM frame", QUIC_EV_CONN_BCFRMS, qc);
+					continue;
+				}
+
+				TRACE_DEVEL("split frame", QUIC_EV_CONN_PRSAFRM, qc, split_frm);
+				if (split_frm->origin)
+					TRACE_DEVEL("duplicated frame", QUIC_EV_CONN_PRSAFRM, qc);
+				LIST_APPEND(outlist, &split_frm->list);
+				qc_stream_desc_send(split_frm->stream.stream,
+				                    split_frm->stream.offset,
+				                    split_frm->stream.len);
+			}
+			else {
+				LIST_DEL_INIT(&cf->list);
+				LIST_APPEND(outlist, &cf->list);
+				qc_stream_desc_send(cf->stream.stream,
+				                    cf->stream.offset,
+				                    cf->stream.len);
+			}
+
+			*len += flen;
+			room -= flen;
 
 			break;
 
