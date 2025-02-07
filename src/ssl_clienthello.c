@@ -259,6 +259,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	if (SSL_client_hello_get0_ext(ssl, TLSEXT_TYPE_signature_algorithms, &extension_data, &extension_len)) {
 #endif
 		uint8_t sign;
+		uint8_t hash;
 		size_t len;
 		if (extension_len < 2)
 			goto abort;
@@ -269,7 +270,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		if (len % 2 != 0)
 			goto abort;
 		for (; len > 0; len -= 2) {
-			extension_data++; /* hash */
+			hash = *extension_data++; /* hash */
 			sign = *extension_data++;
 			switch (sign) {
 			case TLSEXT_signature_rsa:
@@ -277,6 +278,18 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 				break;
 			case TLSEXT_signature_ecdsa:
 				has_ecdsa_sig = 1;
+				break;
+			case 0x04:
+			case 0x05:
+			case 0x06:
+			case 0x09:
+			case 0x0a:
+			case 0x0b:
+				/* match the RSA-PSS sigalgs from TLSv1.3
+				 * https://datatracker.ietf.org/doc/html/rfc8446#section-4.2.3
+				 */
+				if (hash == 0x08)
+					has_rsa_sig = 1;
 				break;
 			default:
 				continue;
