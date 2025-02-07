@@ -107,7 +107,7 @@ static unsigned long __pl_wait_unlock_long(const unsigned long *lock, const unsi
 		 * values and still growing. This allows competing threads to
 		 * wait different times once the threshold is reached.
 		 */
-		m = ((m + (m >> 1)) + 2) & 0x3ffff;
+		m = ((m + (m >> 2)) + 1) & 0x1ffff;
 	} while (1);
 
 	return ret;
@@ -176,7 +176,7 @@ static unsigned int __pl_wait_unlock_int(const unsigned int *lock, const unsigne
 		 * values and still growing. This allows competing threads to
 		 * wait different times once the threshold is reached.
 		 */
-		m = ((m + (m >> 1)) + 2) & 0x3ffff;
+		m = ((m + (m >> 2)) + 1) & 0x1ffff;
 	} while (1);
 
 	return ret;
