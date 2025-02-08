@@ -1,6 +1,105 @@
 ChangeLog :
 ===========
 
+2025/02/08 : 3.2-dev5
+    - BUG/MINOR: ssl: put ssl_sock_load_ca under SSL_NO_GENERATE_CERTIFICATES
+    - CLEANUP: ssl: rename ssl_sock_load_ca to ssl_sock_gencert_load_ca
+    - CLEANUP: ssl: move ssl_sock_gencert_load_ca declaration in ssl_gencert.h
+    - CLEANUP: tree-wide: define and use acl_match_cond() helper
+    - MINOR: epoll: permit to mask certain specific events
+    - MINOR: proxies: Add a per-thread group field to struct proxy.
+    - MINOR: Add fields to the per-thread group field in struct server.
+    - MINOR: proxies/servers: Calculate queueslength and use it.
+    - MEDIUM: servers/proxies: Switch to using per-tgroup queues.
+    - BUG/MINOR: stream: Properly handle "on-marked-up shutdown-backup-sessions"
+    - MEDIUM: stream: Map task wake up reasons to dedicated stream events
+    - MEDIUM: stream: No longer use TASK_F_UEVT* to shut a stream down
+    - BUILD: tools: fix build on BSD by dropping the ETIME check
+    - MINOR: queues: use __ha_cpu_relax() on failed CAS.
+    - BUILD: queues: Use unsigned int when needed
+    - BUILD: ssl: allow to build without the renegotiation API of WolfSSL
+    - BUILD: ssl: more cleaner approach to WolfSSL without renegotiation
+    - BUG/MEDIUM: chunk: make sure to flush the trash pool before resizing
+    - MINOR: quic: remove references to burst in quic-cc-algo parsing
+    - MINOR: quic: allow BBR testing without pacing
+    - MINOR: quic: transform pacing settings into a global option
+    - MAJOR: quic: mark pacing as stable and enable it by default
+    - MINOR: quic: mark BBR as stable
+    - MINOR: quic: define quic_tune
+    - BUILD: quic: fix overflow in global tune
+    - DEBUG: fd: add a counter of takeovers of an FD since it was last opened
+    - MINOR: fd: add a generation number to file descriptors
+    - DEBUG: epoll: store and compare the FD's generation count with reported event
+    - MEDIUM: epoll: skip reports of stale file descriptors
+    - MINOR: mux-h1: Add masks to group H1S DEMUX and MUX errors
+    - BUG/MINOR: mux-h1: Only report a SE error on demux error
+    - MINOR: tevt: Add the termination events log's fundations
+    - MINOR: tevt/stconn: Add a termination events log in the SE descriptor
+    - MINOR: tevt/mux-h1: Report termination events for the H1C and H1S
+    - MINOR: tevt/mux-h2: Report termination events for the H2C
+    - MINOR: tevt/stream/stconn: Report termination events for stream and sc
+    - MINOR: tevt/conn: Report intercepted event for L4 rules
+    - MINOR: tevt/mux-h1/mux-h2: Add termination events log when dumping mux info
+    - MINOR: tevt/muxes: Add CTL and SCTL command to get the termination event logs
+    - MINOR: tevt/mux-pt: Add support for termination event logs
+    - MINOR: tevt/connection: Add dedicated termination events for lower locations
+    - MEDIUM: tevt/muxes: Add dedicated termination events for muxc/se locations
+    - MINOR: tevt/stconn: Be more accurate to report shutw events
+    - MEDIUM: tevt/stconn/stream: Add dedicated termination events for stream location
+    - MINOR: tevt: Don't duplicate termination event during reporting
+    - MINOR: tevt/applet:  Add limited support for termination event logs for applets
+    - MINOR: tevt: Add a sample to get termination events for all locations
+    - MINOR: tevt: Improve function to convert a termination events log to string
+    - REORG: tevt/connection: Move enums at the end of the header file
+    - MINOR: tevt/dev: Add term_events tool
+    - MINOR: tevt/connection: Add support for POLL_HUP/POLL_ERR events
+    - MINOR: tevt/dev: Parse tuple of termination events
+    - BUG/MEDIUM: htx: wrong count computation in htx_xfer_blks()
+    - DOC: htx: clarify <mark> parameter for htx_xfer_blks()
+    - BUILD: quic: remove GCC undefined error in qc_release_lost_pkts()
+    - MEDIUM: htx: prevent <mark> to copy incomplete headers in htx_xfer_blks()
+    - BUG/MEDIUM: mux-fcgi: Properly handle read0 on partial records
+    - BUG/MINOR: tevt/http-ana: Remove badly placed event reports
+    - DEBUG: http-ana: Remove debug counters from HTTP analyzers
+    - DEBUG: mux-h1: Remove some debug counters
+    - BUG/MINOR: tcp-rules: Don't forward close during tcp-response content rules eval
+    - MEDIUM: stream: interrupt costly rulesets after too many evaluations
+    - BUG/MINOR: http-check: Don't pretend a C-L heeader is set before adding it
+    - BUILD: ssl: remove a boringssl definition defined by recent boringssl libs
+    - BUG/MINOR: tevt/mux-h2: Set truncated receive/eos events at SE level on error
+    - BUG/MEDIUM: flt-spoe: Set/test applet flags instead of SE flags from I/O handler
+    - BUG/MEDIUM: applet: Don't pretend to have more data to handle EOI/EOS/ERROR
+    - BUG/MEDIUM: flt-spoe: Properly handle end of stream from the SPOE applet
+    - MINOR: flt-spoe: Report end of input immediately after applet init
+    - MINOR: mux-spop: Report EOI on the SE when a ACK is received for a stream
+    - MINOR: mux-spop: Set SPOP_CF_ERROR flag on connection error only
+    - MINOR: tevt/mux-spop:  Report termination events for the SPOP connect/stream
+    - CLEANUP: mux-spop: Remove useless comments
+    - MINOR: mux-spop: Dump info about connections and streams in dedicated functions
+    - MINOR: mux-spop: Implement .show_sd callback function
+    - MEDIUM: mux-fcgi: Add a function to propagate termination flags from fstrm to SE
+    - BUG/MEDIUM: mux-fcgi: Propagate flags to SE in fcgi_strm_wake_one_stream
+    - MINOR: tevt/mux-fcgi:  Report termination events for the FCGI connect/stream
+    - MINOR: mux-fcgi: Dump info about connections and streams in dedicated functions
+    - MINOR: mux-spop/mux-fcgi: Add support of the debug string for logs
+    - BUG/MINOR: cli: Don't set SE flags from the cli applet
+    - BUG/MINOR: cli: Fix memory leak on error for _getsocks command
+    - BUG/MINOR: cli: Fix a possible infinite loop in _getsocks()
+    - BUG/MINOR: config/userlist: Support one 'users' option for 'group' directive
+    - BUG/MINOR: auth: Fix a leak on error path when parsing user's groups
+    - BUG/MINOR: flt-trace: Support only one name option
+    - MINOR: filters: Improve errors formating during filters parsing
+    - BUG/MINOR: stats-json: Define JSON_INT_MAX as a signed integer
+    - DOC: option redispatch should mention persist options
+    - BUG/MINOR: debug: make "debug dev sched" accept a negative TID
+    - BUG/MINOR: debug: make sure the "debug dev sched" tasks don't block stopping
+    - IMPORT: plock: export the uninlined version of the lock wait function
+    - IMPORT: plock: give higher precedence to W than S
+    - IMPORT: plock: lower the slope of the exponential back-off
+    - IMPORT: plock: use cpu_relax() for a shorter time in EBO
+    - Revert "IMPORT: plock: export the uninlined version of the lock wait function"
+    - BUG/MEDIUM: ssl: chosing correct certificate using RSA-PSS with TLSv1.3
+
 2025/01/24 : 3.2-dev4
     - BUG/MINOR: stktable: fix big-endian compatiblity in smp_to_stkey()
     - MINOR: stktable: add stkey_to_smp() helper
