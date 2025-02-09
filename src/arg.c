@@ -223,6 +223,9 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 		if (len && *in && *in != ',' && *in != ')')
 			goto buffer_err;
 
+		if (!trash.data)
+			goto empty_err;
+
 		trash.area[trash.data] = 0;
 
 		arg->type = (mask >> (pos * ARGT_BITS)) & ARGT_MASK;
