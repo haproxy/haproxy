@@ -314,6 +314,16 @@ alphanumerically ordered:
   call to cfg_register_section() with the three arguments at stage
   STG_REGISTER.
 
+  You can only register a section once, but you can register post callbacks
+  multiple time for this section with REGISTER_CONFIG_SECTION_POST().
+
+- REGISTER_CONFIG_SECTION_POST(name, post)
+
+  Registers a function which will be called after a section is parsed. This is
+  the same as the <post> argument in REGISTER_CONFIG_SECTION(), the difference
+  is that it allows to register multiple <post> callbacks and to register them
+  elsewhere in the code.
+
 - REGISTER_PER_THREAD_ALLOC(fct)
 
   Registers a call to register_per_thread_alloc(fct) at stage STG_REGISTER.

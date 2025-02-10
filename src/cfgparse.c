@@ -2052,7 +2052,10 @@ next_line:
 
 				/* if a word is in sections list, is_sect = 1 */
 				list_for_each_entry(sect, &sections, list) {
-					if (strcmp(args[0], sect->section_name) == 0) {
+					/* look for a section_name, but also a section_parser, because there might be
+					 * only a post_section_parser */
+					if (strcmp(args[0], sect->section_name) == 0 &&
+					    sect->section_parser) {
 						is_sect = 1;
 						break;
 					}
@@ -2562,7 +2565,7 @@ next_line:
 
 		/* detect section start */
 		list_for_each_entry(ics, &sections, list) {
-			if (strcmp(args[0], ics->section_name) == 0) {
+			if (strcmp(args[0], ics->section_name) == 0 && ics->section_parser) {
 				cursection = ics->section_name;
 				pcs = cs;
 				cs = ics;
@@ -2573,20 +2576,29 @@ next_line:
 			}
 		}
 
-		if (pcs && pcs->post_section_parser) {
+		if (pcs) {
+			struct cfg_section *psect;
 			int status;
 
-			/* don't call post_section_parser in MODE_DISCOVERY */
-			if (global.mode & MODE_DISCOVERY)
-				goto section_parser;
 
-			status = pcs->post_section_parser();
-			err_code |= status;
-			if (status & ERR_FATAL)
-				fatal++;
+			/* look for every post_section_parser for the previous section name */
+			list_for_each_entry(psect, &sections, list) {
+				if (strcmp(pcs->section_name, psect->section_name) == 0 &&
+						psect->post_section_parser) {
 
-			if (err_code & ERR_ABORT)
-				goto err;
+					/* don't call post_section_parser in MODE_DISCOVERY */
+					if (global.mode & MODE_DISCOVERY)
+						goto section_parser;
+
+					status = psect->post_section_parser();
+					err_code |= status;
+					if (status & ERR_FATAL)
+						fatal++;
+
+					if (err_code & ERR_ABORT)
+						goto err;
+				}
+			}
 		}
 		pcs = NULL;
 
@@ -2625,10 +2637,19 @@ section_parser:
 	ha_free(&global.cfg_curr_section);
 
 	/* call post_section_parser of the last section when there is no more lines */
-	if (cs && cs->post_section_parser) {
+	if (cs) {
+		struct cfg_section *psect;
+
 		/* don't call post_section_parser in MODE_DISCOVERY */
-		if (!(global.mode & MODE_DISCOVERY))
-			err_code |= cs->post_section_parser();
+		if (!(global.mode & MODE_DISCOVERY)) {
+			list_for_each_entry(psect, &sections, list) {
+				if (strcmp(cs->section_name, psect->section_name) == 0 &&
+				     psect->post_section_parser) {
+
+					err_code |= cs->post_section_parser();
+				}
+			}
+		}
 	}
 
 	if (nested_cond_lvl) {
@@ -4722,10 +4743,13 @@ int cfg_register_section(char *section_name,
 {
 	struct cfg_section *cs;
 
-	list_for_each_entry(cs, &sections, list) {
-		if (strcmp(cs->section_name, section_name) == 0) {
-			ha_alert("register section '%s': already registered.\n", section_name);
-			return 0;
+	if (section_parser) {
+		/* only checks if we register a section parser, not a post section callback */
+		list_for_each_entry(cs, &sections, list) {
+			if (strcmp(cs->section_name, section_name) == 0 && cs->section_parser) {
+				ha_alert("register section '%s': already registered.\n", section_name);
+				return 0;
+			}
 		}
 	}
 

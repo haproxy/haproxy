@@ -151,6 +151,10 @@ ssize_t load_cfg_in_mem(char* filename, char** cfg_content);
 #define REGISTER_CONFIG_SECTION(name, parse, post)                            \
 	INITCALL3(STG_REGISTER, cfg_register_section, (name), (parse), (post))
 
+/* simplified way to define a post section parser */
+#define REGISTER_CONFIG_POST_SECTION(name, post)                              \
+	INITCALL3(STG_REGISTER, cfg_register_section, (name), NULL, (post))
+
 #define REGISTER_CONFIG_POSTPARSER(name, parser)                              \
 	INITCALL2(STG_REGISTER, cfg_register_postparser, (name), (parser))
 
