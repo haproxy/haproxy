@@ -1307,6 +1307,11 @@ size_t quic_strm_frm_fillbuf(size_t room, struct quic_frame *frm, size_t *split)
 			total += quic_int_getsize(frm->stream.offset);
 		payload = frm->stream.len;
 	}
+	else if (frm->type == QUIC_FT_CRYPTO) {
+		total = 1;
+		total += quic_int_getsize(frm->crypto.offset);
+		payload = frm->crypto.len;
+	}
 	else {
 		/* Function must only be used with STREAM or CRYPTO frames. */
 		ABORT_NOW();
@@ -1376,6 +1381,15 @@ struct quic_frame *quic_strm_frm_split(struct quic_frame *frm, uint64_t split)
 		frm->stream.len -= split;
 		frm->stream.offset += split;
 		frm->stream.data = (unsigned char *)b_peek(&stream_buf, split);
+	}
+	else if (frm->type == QUIC_FT_CRYPTO) {
+		new->crypto.qel = frm->crypto.qel;
+		new->crypto.offset = frm->crypto.offset;
+		new->crypto.len = split;
+
+		/* Advance original frame to point to the remaining data. */
+		frm->crypto.len -= split;
+		frm->crypto.offset += split;
 	}
 	else {
 		/* Function must only be used with STREAM or CRYPTO frames. */

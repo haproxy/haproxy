@@ -1533,67 +1533,39 @@ static int qc_build_frms(struct list *outlist, struct list *inlist,
 	 */
 	list_for_each_entry_safe(cf, cfbak, inlist, list) {
 		struct quic_frame *split_frm;
-		/* header length, data length, frame length. */
-		size_t hlen, dlen, flen;
-		size_t split_size;
+		size_t flen, split_size;
 
 		if (!room)
 			break;
 
 		switch (cf->type) {
 		case QUIC_FT_CRYPTO:
-			TRACE_DEVEL("          New CRYPTO frame build (room, len)",
-			            QUIC_EV_CONN_BCFRMS, qc, &room, len);
-			/* Compute the length of this CRYPTO frame header */
-			hlen = 1 + quic_int_getsize(cf->crypto.offset);
-			/* Compute the data length of this CRYPTO frame. */
-			dlen = QUIC_MIN(quic_int_cap_length(room - hlen), cf->crypto.len);
-			TRACE_DEVEL(" CRYPTO data length (hlen, crypto.len, dlen)",
-			            QUIC_EV_CONN_BCFRMS, qc, &hlen, &cf->crypto.len, &dlen);
-			if (!dlen)
+			flen = quic_strm_frm_fillbuf(room, cf, &split_size);
+			if (!flen)
 				continue;
 
-			/* CRYPTO frame length. */
-			flen = hlen + quic_int_getsize(dlen) + dlen;
 			TRACE_DEVEL("                 CRYPTO frame length (flen)",
 			            QUIC_EV_CONN_BCFRMS, qc, &flen);
-			/* Add the CRYPTO data length and its encoded length to the packet
-			 * length and the length of this length.
-			 */
-			*len += flen;
-			room -= flen;
-			if (dlen == cf->crypto.len) {
-				/* <cf> CRYPTO data have been consumed. */
-				LIST_DEL_INIT(&cf->list);
-				LIST_APPEND(outlist, &cf->list);
-			}
-			else {
-				struct quic_frame *new_cf;
 
-				new_cf = qc_frm_alloc(QUIC_FT_CRYPTO);
-				if (!new_cf) {
+			if (split_size) {
+				split_frm = quic_strm_frm_split(cf, split_size);
+				if (!split_frm) {
 					TRACE_ERROR("No memory for new crypto frame", QUIC_EV_CONN_BCFRMS, qc);
 					continue;
 				}
-
-				new_cf->crypto.len = dlen;
-				new_cf->crypto.offset = cf->crypto.offset;
-				new_cf->crypto.qel = qel;
-				TRACE_DEVEL("split frame", QUIC_EV_CONN_PRSAFRM, qc, new_cf);
-				if (cf->origin) {
+				TRACE_DEVEL("split frame", QUIC_EV_CONN_PRSAFRM, qc, split_frm);
+				if (split_frm->origin)
 					TRACE_DEVEL("duplicated frame", QUIC_EV_CONN_PRSAFRM, qc);
-					/* This <cf> frame was duplicated */
-					LIST_APPEND(&cf->origin->reflist, &new_cf->ref);
-					new_cf->origin = cf->origin;
-					/* Detach the remaining CRYPTO frame from its original frame */
-					LIST_DEL_INIT(&cf->ref);
-					cf->origin = NULL;
-				}
-				LIST_APPEND(outlist, &new_cf->list);
-				/* Consume <dlen> bytes of the current frame. */
-				cf->crypto.len -= dlen;
-				cf->crypto.offset += dlen;
+				LIST_APPEND(outlist, &split_frm->list);
 			}
+			else {
+				LIST_DEL_INIT(&cf->list);
+				LIST_APPEND(outlist, &cf->list);
+			}
+
+			*len += flen;
+			room -= flen;
+
 			break;
 
 		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
