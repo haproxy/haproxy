@@ -938,9 +938,9 @@ void __spin_lock(enum lock_label lbl, struct ha_spinlock *l,
 
 	start_time = now_mono_time();
 	__SPIN_LOCK(&l->lock);
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_write, (now_mono_time() - start_time));
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, (now_mono_time() - start_time));
 
-	HA_ATOMIC_INC(&lock_stats[lbl].num_write_locked);
+	HA_ATOMIC_INC(&lock_stats[lbl].num_seek_locked);
 
 
 	st->owner                  = tbit;
@@ -967,7 +967,7 @@ int __spin_trylock(enum lock_label lbl, struct ha_spinlock *l,
 	r = __SPIN_TRYLOCK(&l->lock);
 	if (unlikely(r))
 		return r;
-	HA_ATOMIC_INC(&lock_stats[lbl].num_write_locked);
+	HA_ATOMIC_INC(&lock_stats[lbl].num_seek_locked);
 
 	st->owner                      = tbit;
 	l->info.last_location.function = func;
@@ -994,7 +994,7 @@ void __spin_unlock(enum lock_label lbl, struct ha_spinlock *l,
 	l->info.last_location.line     = line;
 
 	__SPIN_UNLOCK(&l->lock);
-	HA_ATOMIC_INC(&lock_stats[lbl].num_write_unlocked);
+	HA_ATOMIC_INC(&lock_stats[lbl].num_seek_unlocked);
 }
 
 #endif // defined(DEBUG_THREAD) || defined(DEBUG_FULL)
