@@ -64,6 +64,7 @@ enum {
 #define TH_FL_SLEEPING          0x00000008  /* thread won't check its task list before next wakeup */
 #define TH_FL_STARTED           0x00000010  /* set once the thread starts */
 #define TH_FL_IN_LOOP           0x00000020  /* set only inside the polling loop */
+#define TH_FL_DUMPING_OTHERS    0x00000040  /* thread currently dumping other threads */
 
 /* we have 4 buffer-wait queues, in highest to lowest emergency order */
 #define DYNBUF_NBQ              4
