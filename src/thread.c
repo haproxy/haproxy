@@ -417,7 +417,9 @@ int thread_cpu_mask_forced()
 
 #if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
 
-struct lock_stat lock_stats[LOCK_LABELS];
+struct lock_stat lock_stats_rd[LOCK_LABELS] = { };
+struct lock_stat lock_stats_sk[LOCK_LABELS] = { };
+struct lock_stat lock_stats_wr[LOCK_LABELS] = { };
 
 /* this is only used below */
 static const char *lock_label(enum lock_label label)
@@ -482,7 +484,7 @@ static uint64_t get_lock_stat_num_read(int lbl)
 	uint bucket;
 
 	for (bucket = 0; bucket < 32; bucket++)
-		ret += _HA_ATOMIC_LOAD(&lock_stats[lbl].read_buckets[bucket]);
+		ret += _HA_ATOMIC_LOAD(&lock_stats_rd[lbl].buckets[bucket]);
 	return ret;
 }
 
@@ -492,7 +494,7 @@ static uint64_t get_lock_stat_num_seek(int lbl)
 	uint bucket;
 
 	for (bucket = 0; bucket < 32; bucket++)
-		ret += _HA_ATOMIC_LOAD(&lock_stats[lbl].seek_buckets[bucket]);
+		ret += _HA_ATOMIC_LOAD(&lock_stats_sk[lbl].buckets[bucket]);
 	return ret;
 }
 
@@ -502,7 +504,7 @@ static uint64_t get_lock_stat_num_write(int lbl)
 	uint bucket;
 
 	for (bucket = 0; bucket < 32; bucket++)
-		ret += _HA_ATOMIC_LOAD(&lock_stats[lbl].write_buckets[bucket]);
+		ret += _HA_ATOMIC_LOAD(&lock_stats_wr[lbl].buckets[bucket]);
 	return ret;
 }
 
@@ -535,14 +537,14 @@ void show_lock_stats()
 			        "\t # wait time for write/lock: %.3f nsec\n"
 			        "\t # WR wait time(ns) buckets:",
 			        (ullong)num_write_locked,
-			        (ullong)lock_stats[lbl].num_write_unlocked,
-			        (llong)(lock_stats[lbl].num_write_unlocked - num_write_locked),
-			        (double)lock_stats[lbl].nsec_wait_for_write / 1000000.0,
-			        num_write_locked ? ((double)lock_stats[lbl].nsec_wait_for_write / (double)num_write_locked) : 0);
+			        (ullong)lock_stats_wr[lbl].num_unlocked,
+			        (llong)(lock_stats_wr[lbl].num_unlocked - num_write_locked),
+			        (double)lock_stats_wr[lbl].nsec_wait / 1000000.0,
+			        num_write_locked ? ((double)lock_stats_wr[lbl].nsec_wait / (double)num_write_locked) : 0);
 
 			for (bucket = 0; bucket < 32; bucket++)
-				if (lock_stats[lbl].write_buckets[bucket])
-					fprintf(stderr, " %u:%llu", bucket, (ullong)lock_stats[lbl].write_buckets[bucket]);
+				if (lock_stats_wr[lbl].buckets[bucket])
+					fprintf(stderr, " %u:%llu", bucket, (ullong)lock_stats_wr[lbl].buckets[bucket]);
 			fprintf(stderr, "\n");
 		}
 
@@ -554,14 +556,14 @@ void show_lock_stats()
 			        "\t # wait time for seek/lock : %.3f nsec\n"
 			        "\t # SK wait time(ns) buckets:",
 			        (ullong)num_seek_locked,
-			        (ullong)lock_stats[lbl].num_seek_unlocked,
-			        (llong)(lock_stats[lbl].num_seek_unlocked - num_seek_locked),
-			        (double)lock_stats[lbl].nsec_wait_for_seek / 1000000.0,
-			        num_seek_locked ? ((double)lock_stats[lbl].nsec_wait_for_seek / (double)num_seek_locked) : 0);
+			        (ullong)lock_stats_sk[lbl].num_unlocked,
+			        (llong)(lock_stats_sk[lbl].num_unlocked - num_seek_locked),
+			        (double)lock_stats_sk[lbl].nsec_wait / 1000000.0,
+			        num_seek_locked ? ((double)lock_stats_sk[lbl].nsec_wait / (double)num_seek_locked) : 0);
 
 			for (bucket = 0; bucket < 32; bucket++)
-				if (lock_stats[lbl].seek_buckets[bucket])
-					fprintf(stderr, " %u:%llu", bucket, (ullong)lock_stats[lbl].seek_buckets[bucket]);
+				if (lock_stats_sk[lbl].buckets[bucket])
+					fprintf(stderr, " %u:%llu", bucket, (ullong)lock_stats_sk[lbl].buckets[bucket]);
 			fprintf(stderr, "\n");
 		}
 
@@ -573,14 +575,14 @@ void show_lock_stats()
 			        "\t # wait time for read/lock : %.3f nsec\n"
 			        "\t # RD wait time(ns) buckets:",
 			        (ullong)num_read_locked,
-			        (ullong)lock_stats[lbl].num_read_unlocked,
-			        (llong)(lock_stats[lbl].num_read_unlocked - num_read_locked),
-			        (double)lock_stats[lbl].nsec_wait_for_read / 1000000.0,
-			        num_read_locked ? ((double)lock_stats[lbl].nsec_wait_for_read / (double)num_read_locked) : 0);
+			        (ullong)lock_stats_rd[lbl].num_unlocked,
+			        (llong)(lock_stats_rd[lbl].num_unlocked - num_read_locked),
+			        (double)lock_stats_rd[lbl].nsec_wait / 1000000.0,
+			        num_read_locked ? ((double)lock_stats_rd[lbl].nsec_wait / (double)num_read_locked) : 0);
 
 			for (bucket = 0; bucket < 32; bucket++)
-				if (lock_stats[lbl].read_buckets[bucket])
-					fprintf(stderr, " %u:%llu", bucket, (ullong)lock_stats[lbl].read_buckets[bucket]);
+				if (lock_stats_rd[lbl].buckets[bucket])
+					fprintf(stderr, " %u:%llu", bucket, (ullong)lock_stats_rd[lbl].buckets[bucket]);
 			fprintf(stderr, "\n");
 		}
 	}
@@ -615,10 +617,10 @@ void __ha_rwlock_wrlock(enum lock_label lbl, struct ha_rwlock *l,
 	start_time = -now_mono_time();
 	__RWLOCK_WRLOCK(&l->lock);
 	start_time += now_mono_time();
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_write, start_time);
+	HA_ATOMIC_ADD(&lock_stats_wr[lbl].nsec_wait, start_time);
 
 	bucket = flsnz((uint32_t)start_time + 1) - 1;
-	HA_ATOMIC_INC(&lock_stats[lbl].write_buckets[bucket]);
+	HA_ATOMIC_INC(&lock_stats_wr[lbl].buckets[bucket]);
 
 	st->cur_writer                 = tbit;
 	l->info.last_location.function = func;
@@ -650,10 +652,10 @@ int __ha_rwlock_trywrlock(enum lock_label lbl, struct ha_rwlock *l,
 		HA_ATOMIC_AND(&st->wait_writers, ~tbit);
 		return r;
 	}
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_write, start_time);
+	HA_ATOMIC_ADD(&lock_stats_wr[lbl].nsec_wait, start_time);
 
 	bucket = flsnz((uint32_t)start_time ? (uint32_t)start_time : 1) - 1;
-	HA_ATOMIC_INC(&lock_stats[lbl].write_buckets[bucket]);
+	HA_ATOMIC_INC(&lock_stats_wr[lbl].buckets[bucket]);
 
 	st->cur_writer                 = tbit;
 	l->info.last_location.function = func;
@@ -683,7 +685,7 @@ void __ha_rwlock_wrunlock(enum lock_label lbl,struct ha_rwlock *l,
 
 	__RWLOCK_WRUNLOCK(&l->lock);
 
-	HA_ATOMIC_INC(&lock_stats[lbl].num_write_unlocked);
+	HA_ATOMIC_INC(&lock_stats_wr[lbl].num_unlocked);
 }
 
 void __ha_rwlock_rdlock(enum lock_label lbl,struct ha_rwlock *l)
@@ -701,10 +703,10 @@ void __ha_rwlock_rdlock(enum lock_label lbl,struct ha_rwlock *l)
 	start_time = -now_mono_time();
 	__RWLOCK_RDLOCK(&l->lock);
 	start_time += now_mono_time();
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_read, start_time);
+	HA_ATOMIC_ADD(&lock_stats_rd[lbl].nsec_wait, start_time);
 
 	bucket = flsnz((uint32_t)start_time ? (uint32_t)start_time : 1) - 1;
-	HA_ATOMIC_INC(&lock_stats[lbl].read_buckets[bucket]);
+	HA_ATOMIC_INC(&lock_stats_rd[lbl].buckets[bucket]);
 
 	HA_ATOMIC_OR(&st->cur_readers, tbit);
 
@@ -730,10 +732,10 @@ int __ha_rwlock_tryrdlock(enum lock_label lbl,struct ha_rwlock *l)
 	if (unlikely(r))
 		return r;
 
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_read, start_time);
+	HA_ATOMIC_ADD(&lock_stats_rd[lbl].nsec_wait, start_time);
 
 	bucket = flsnz((uint32_t)start_time ? (uint32_t)start_time : 1) - 1;
-	HA_ATOMIC_INC(&lock_stats[lbl].read_buckets[bucket]);
+	HA_ATOMIC_INC(&lock_stats_rd[lbl].buckets[bucket]);
 
 	HA_ATOMIC_OR(&st->cur_readers, tbit);
 
@@ -754,7 +756,7 @@ void __ha_rwlock_rdunlock(enum lock_label lbl,struct ha_rwlock *l)
 
 	__RWLOCK_RDUNLOCK(&l->lock);
 
-	HA_ATOMIC_INC(&lock_stats[lbl].num_read_unlocked);
+	HA_ATOMIC_INC(&lock_stats_rd[lbl].num_unlocked);
 }
 
 void __ha_rwlock_wrtord(enum lock_label lbl, struct ha_rwlock *l,
@@ -776,10 +778,10 @@ void __ha_rwlock_wrtord(enum lock_label lbl, struct ha_rwlock *l,
 	start_time = -now_mono_time();
 	__RWLOCK_WRTORD(&l->lock);
 	start_time += now_mono_time();
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_read, start_time);
+	HA_ATOMIC_ADD(&lock_stats_rd[lbl].nsec_wait, start_time);
 
 	bucket = flsnz((uint32_t)start_time ? (uint32_t)start_time : 1) - 1;
-	HA_ATOMIC_INC(&lock_stats[lbl].read_buckets[bucket]);
+	HA_ATOMIC_INC(&lock_stats_rd[lbl].buckets[bucket]);
 
 	HA_ATOMIC_OR(&st->cur_readers, tbit);
 	HA_ATOMIC_AND(&st->cur_writer, ~tbit);
@@ -809,10 +811,10 @@ void __ha_rwlock_wrtosk(enum lock_label lbl, struct ha_rwlock *l,
 	start_time = -now_mono_time();
 	__RWLOCK_WRTOSK(&l->lock);
 	start_time += now_mono_time();
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, start_time);
+	HA_ATOMIC_ADD(&lock_stats_sk[lbl].nsec_wait, start_time);
 
 	bucket = flsnz((uint32_t)start_time ? (uint32_t)start_time : 1) - 1;
-	HA_ATOMIC_INC(&lock_stats[lbl].seek_buckets[bucket]);
+	HA_ATOMIC_INC(&lock_stats_sk[lbl].buckets[bucket]);
 
 	HA_ATOMIC_OR(&st->cur_seeker, tbit);
 	HA_ATOMIC_AND(&st->cur_writer, ~tbit);
@@ -839,10 +841,10 @@ void __ha_rwlock_sklock(enum lock_label lbl, struct ha_rwlock *l,
 	start_time = -now_mono_time();
 	__RWLOCK_SKLOCK(&l->lock);
 	start_time += now_mono_time();
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, start_time);
+	HA_ATOMIC_ADD(&lock_stats_sk[lbl].nsec_wait, start_time);
 
 	bucket = flsnz((uint32_t)start_time ? (uint32_t)start_time : 1) - 1;
-	HA_ATOMIC_INC(&lock_stats[lbl].seek_buckets[bucket]);
+	HA_ATOMIC_INC(&lock_stats_sk[lbl].buckets[bucket]);
 
 	HA_ATOMIC_OR(&st->cur_seeker, tbit);
 	l->info.last_location.function = func;
@@ -871,10 +873,10 @@ void __ha_rwlock_sktowr(enum lock_label lbl, struct ha_rwlock *l,
 	start_time = -now_mono_time();
 	__RWLOCK_SKTOWR(&l->lock);
 	start_time += now_mono_time();
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_write, start_time);
+	HA_ATOMIC_ADD(&lock_stats_wr[lbl].nsec_wait, start_time);
 
 	bucket = flsnz((uint32_t)start_time ? (uint32_t)start_time : 1) - 1;
-	HA_ATOMIC_INC(&lock_stats[lbl].write_buckets[bucket]);
+	HA_ATOMIC_INC(&lock_stats_wr[lbl].buckets[bucket]);
 
 	HA_ATOMIC_OR(&st->cur_writer, tbit);
 	HA_ATOMIC_AND(&st->cur_seeker, ~tbit);
@@ -904,10 +906,10 @@ void __ha_rwlock_sktord(enum lock_label lbl, struct ha_rwlock *l,
 	start_time = -now_mono_time();
 	__RWLOCK_SKTORD(&l->lock);
 	start_time += now_mono_time();
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_read, start_time);
+	HA_ATOMIC_ADD(&lock_stats_rd[lbl].nsec_wait, start_time);
 
 	bucket = flsnz((uint32_t)start_time ? (uint32_t)start_time : 1) - 1;
-	HA_ATOMIC_INC(&lock_stats[lbl].read_buckets[bucket]);
+	HA_ATOMIC_INC(&lock_stats_rd[lbl].buckets[bucket]);
 
 	HA_ATOMIC_OR(&st->cur_readers, tbit);
 	HA_ATOMIC_AND(&st->cur_seeker, ~tbit);
@@ -933,7 +935,7 @@ void __ha_rwlock_skunlock(enum lock_label lbl,struct ha_rwlock *l,
 
 	__RWLOCK_SKUNLOCK(&l->lock);
 
-	HA_ATOMIC_INC(&lock_stats[lbl].num_seek_unlocked);
+	HA_ATOMIC_INC(&lock_stats_sk[lbl].num_unlocked);
 }
 
 int __ha_rwlock_trysklock(enum lock_label lbl, struct ha_rwlock *l,
@@ -956,10 +958,10 @@ int __ha_rwlock_trysklock(enum lock_label lbl, struct ha_rwlock *l,
 
 	if (likely(!r)) {
 		/* got the lock ! */
-		HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, start_time);
+		HA_ATOMIC_ADD(&lock_stats_sk[lbl].nsec_wait, start_time);
 
 		bucket = flsnz((uint32_t)start_time ? (uint32_t)start_time : 1) - 1;
-		HA_ATOMIC_INC(&lock_stats[lbl].seek_buckets[bucket]);
+		HA_ATOMIC_INC(&lock_stats_sk[lbl].buckets[bucket]);
 		HA_ATOMIC_OR(&st->cur_seeker, tbit);
 		l->info.last_location.function = func;
 		l->info.last_location.file     = file;
@@ -993,10 +995,10 @@ int __ha_rwlock_tryrdtosk(enum lock_label lbl, struct ha_rwlock *l,
 
 	if (likely(!r)) {
 		/* got the lock ! */
-		HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, start_time);
+		HA_ATOMIC_ADD(&lock_stats_sk[lbl].nsec_wait, start_time);
 
 		bucket = flsnz((uint32_t)start_time ? (uint32_t)start_time : 1) - 1;
-		HA_ATOMIC_INC(&lock_stats[lbl].seek_buckets[bucket]);
+		HA_ATOMIC_INC(&lock_stats_sk[lbl].buckets[bucket]);
 		HA_ATOMIC_OR(&st->cur_seeker, tbit);
 		HA_ATOMIC_AND(&st->cur_readers, ~tbit);
 		l->info.last_location.function = func;
@@ -1038,10 +1040,10 @@ void __spin_lock(enum lock_label lbl, struct ha_spinlock *l,
 	start_time = -now_mono_time();
 	__SPIN_LOCK(&l->lock);
 	start_time += now_mono_time();
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, start_time);
+	HA_ATOMIC_ADD(&lock_stats_sk[lbl].nsec_wait, start_time);
 
 	bucket = flsnz((uint32_t)start_time ? (uint32_t)start_time : 1) - 1;
-	HA_ATOMIC_INC(&lock_stats[lbl].seek_buckets[bucket]);
+	HA_ATOMIC_INC(&lock_stats_sk[lbl].buckets[bucket]);
 
 
 	st->owner                  = tbit;
@@ -1074,10 +1076,10 @@ int __spin_trylock(enum lock_label lbl, struct ha_spinlock *l,
 	if (unlikely(r))
 		return r;
 
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, start_time);
+	HA_ATOMIC_ADD(&lock_stats_sk[lbl].nsec_wait, start_time);
 
 	bucket = flsnz((uint32_t)start_time ? (uint32_t)start_time : 1) - 1;
-	HA_ATOMIC_INC(&lock_stats[lbl].seek_buckets[bucket]);
+	HA_ATOMIC_INC(&lock_stats_sk[lbl].buckets[bucket]);
 
 	st->owner                      = tbit;
 	l->info.last_location.function = func;
@@ -1104,7 +1106,7 @@ void __spin_unlock(enum lock_label lbl, struct ha_spinlock *l,
 	l->info.last_location.line     = line;
 
 	__SPIN_UNLOCK(&l->lock);
-	HA_ATOMIC_INC(&lock_stats[lbl].num_seek_unlocked);
+	HA_ATOMIC_INC(&lock_stats_sk[lbl].num_unlocked);
 }
 
 #endif // defined(DEBUG_THREAD) || defined(DEBUG_FULL)
@@ -1211,10 +1213,6 @@ static void __thread_init(void)
 	memprintf(&ptr, "Built with multi-threading support (MAX_TGROUPS=%d, MAX_THREADS=%d, default=%d).",
 		  MAX_TGROUPS, MAX_THREADS, thread_cpus_enabled_at_boot);
 	hap_register_build_opts(ptr, 1);
-
-#if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
-	memset(lock_stats, 0, sizeof(lock_stats));
-#endif
 }
 INITCALL0(STG_PREPARE, __thread_init);
 
