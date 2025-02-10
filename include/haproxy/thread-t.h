@@ -121,11 +121,8 @@ struct lock_stat {
 	uint64_t nsec_wait_for_write;
 	uint64_t nsec_wait_for_read;
 	uint64_t nsec_wait_for_seek;
-	uint64_t num_write_locked;
 	uint64_t num_write_unlocked;
-	uint64_t num_read_locked;
 	uint64_t num_read_unlocked;
-	uint64_t num_seek_locked;
 	uint64_t num_seek_unlocked;
 } ALIGNED(256);
 
