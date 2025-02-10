@@ -110,7 +110,14 @@
 
 /* Debugging information that is only used when thread debugging is enabled */
 
+/* This is aligned as it's already ~1kB per lock label, so better simplify the
+ * address calculations in the fast path than save a few bytes in BSS.
+ */
 struct lock_stat {
+	/* operations of each type per time buckets (1-2ns to 2.1-4.3s) */
+	uint64_t write_buckets[32];
+	uint64_t read_buckets[32];
+	uint64_t seek_buckets[32];
 	uint64_t nsec_wait_for_write;
 	uint64_t nsec_wait_for_read;
 	uint64_t nsec_wait_for_seek;
@@ -120,7 +127,7 @@ struct lock_stat {
 	uint64_t num_read_unlocked;
 	uint64_t num_seek_locked;
 	uint64_t num_seek_unlocked;
-};
+} ALIGNED(256);
 
 struct ha_spinlock_state {
 	unsigned long owner; /* a bit is set to 1 << tid for the lock owner */
