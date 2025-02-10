@@ -556,9 +556,10 @@ void __ha_rwlock_wrlock(enum lock_label lbl, struct ha_rwlock *l,
 
 	HA_ATOMIC_OR(&st->wait_writers, tbit);
 
-	start_time = now_mono_time();
+	start_time = -now_mono_time();
 	__RWLOCK_WRLOCK(&l->lock);
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_write, (now_mono_time() - start_time));
+	start_time += now_mono_time();
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_write, start_time);
 
 	HA_ATOMIC_INC(&lock_stats[lbl].num_write_locked);
 
@@ -584,13 +585,14 @@ int __ha_rwlock_trywrlock(enum lock_label lbl, struct ha_rwlock *l,
 	/* We set waiting writer because trywrlock could wait for readers to quit */
 	HA_ATOMIC_OR(&st->wait_writers, tbit);
 
-	start_time = now_mono_time();
+	start_time = -now_mono_time();
 	r = __RWLOCK_TRYWRLOCK(&l->lock);
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_write, (now_mono_time() - start_time));
+	start_time += now_mono_time();
 	if (unlikely(r)) {
 		HA_ATOMIC_AND(&st->wait_writers, ~tbit);
 		return r;
 	}
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_write, start_time);
 	HA_ATOMIC_INC(&lock_stats[lbl].num_write_locked);
 
 	st->cur_writer                 = tbit;
@@ -635,9 +637,10 @@ void __ha_rwlock_rdlock(enum lock_label lbl,struct ha_rwlock *l)
 
 	HA_ATOMIC_OR(&st->wait_readers, tbit);
 
-	start_time = now_mono_time();
+	start_time = -now_mono_time();
 	__RWLOCK_RDLOCK(&l->lock);
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_read, (now_mono_time() - start_time));
+	start_time += now_mono_time();
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_read, start_time);
 	HA_ATOMIC_INC(&lock_stats[lbl].num_read_locked);
 
 	HA_ATOMIC_OR(&st->cur_readers, tbit);
@@ -649,15 +652,21 @@ int __ha_rwlock_tryrdlock(enum lock_label lbl,struct ha_rwlock *l)
 {
 	ulong tbit = (ti && ti->ltid_bit) ? ti->ltid_bit : 1;
 	struct ha_rwlock_state *st = &l->info.st[tgid-1];
+	uint64_t start_time;
 	int r;
 
 	if ((st->cur_readers | st->cur_seeker | st->cur_writer) & tbit)
 		abort();
 
 	/* try read should never wait */
+	start_time = -now_mono_time();
 	r = __RWLOCK_TRYRDLOCK(&l->lock);
+	start_time += now_mono_time();
+
 	if (unlikely(r))
 		return r;
+
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_read, start_time);
 	HA_ATOMIC_INC(&lock_stats[lbl].num_read_locked);
 
 	HA_ATOMIC_OR(&st->cur_readers, tbit);
@@ -697,9 +706,10 @@ void __ha_rwlock_wrtord(enum lock_label lbl, struct ha_rwlock *l,
 
 	HA_ATOMIC_OR(&st->wait_readers, tbit);
 
-	start_time = now_mono_time();
+	start_time = -now_mono_time();
 	__RWLOCK_WRTORD(&l->lock);
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_read, (now_mono_time() - start_time));
+	start_time += now_mono_time();
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_read, start_time);
 
 	HA_ATOMIC_INC(&lock_stats[lbl].num_read_locked);
 
@@ -727,9 +737,10 @@ void __ha_rwlock_wrtosk(enum lock_label lbl, struct ha_rwlock *l,
 
 	HA_ATOMIC_OR(&st->wait_seekers, tbit);
 
-	start_time = now_mono_time();
+	start_time = -now_mono_time();
 	__RWLOCK_WRTOSK(&l->lock);
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, (now_mono_time() - start_time));
+	start_time += now_mono_time();
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, start_time);
 
 	HA_ATOMIC_INC(&lock_stats[lbl].num_seek_locked);
 
@@ -754,9 +765,10 @@ void __ha_rwlock_sklock(enum lock_label lbl, struct ha_rwlock *l,
 
 	HA_ATOMIC_OR(&st->wait_seekers, tbit);
 
-	start_time = now_mono_time();
+	start_time = -now_mono_time();
 	__RWLOCK_SKLOCK(&l->lock);
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, (now_mono_time() - start_time));
+	start_time += now_mono_time();
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, start_time);
 
 	HA_ATOMIC_INC(&lock_stats[lbl].num_seek_locked);
 
@@ -783,9 +795,10 @@ void __ha_rwlock_sktowr(enum lock_label lbl, struct ha_rwlock *l,
 
 	HA_ATOMIC_OR(&st->wait_writers, tbit);
 
-	start_time = now_mono_time();
+	start_time = -now_mono_time();
 	__RWLOCK_SKTOWR(&l->lock);
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_write, (now_mono_time() - start_time));
+	start_time += now_mono_time();
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_write, start_time);
 
 	HA_ATOMIC_INC(&lock_stats[lbl].num_write_locked);
 
@@ -813,9 +826,10 @@ void __ha_rwlock_sktord(enum lock_label lbl, struct ha_rwlock *l,
 
 	HA_ATOMIC_OR(&st->wait_readers, tbit);
 
-	start_time = now_mono_time();
+	start_time = -now_mono_time();
 	__RWLOCK_SKTORD(&l->lock);
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_read, (now_mono_time() - start_time));
+	start_time += now_mono_time();
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_read, start_time);
 
 	HA_ATOMIC_INC(&lock_stats[lbl].num_read_locked);
 
@@ -859,12 +873,13 @@ int __ha_rwlock_trysklock(enum lock_label lbl, struct ha_rwlock *l,
 
 	HA_ATOMIC_OR(&st->wait_seekers, tbit);
 
-	start_time = now_mono_time();
+	start_time = -now_mono_time();
 	r = __RWLOCK_TRYSKLOCK(&l->lock);
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, (now_mono_time() - start_time));
+	start_time += now_mono_time();
 
 	if (likely(!r)) {
 		/* got the lock ! */
+		HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, start_time);
 		HA_ATOMIC_INC(&lock_stats[lbl].num_seek_locked);
 		HA_ATOMIC_OR(&st->cur_seeker, tbit);
 		l->info.last_location.function = func;
@@ -892,12 +907,13 @@ int __ha_rwlock_tryrdtosk(enum lock_label lbl, struct ha_rwlock *l,
 
 	HA_ATOMIC_OR(&st->wait_seekers, tbit);
 
-	start_time = now_mono_time();
+	start_time = -now_mono_time();
 	r = __RWLOCK_TRYRDTOSK(&l->lock);
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, (now_mono_time() - start_time));
+	start_time += now_mono_time();
 
 	if (likely(!r)) {
 		/* got the lock ! */
+		HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, start_time);
 		HA_ATOMIC_INC(&lock_stats[lbl].num_seek_locked);
 		HA_ATOMIC_OR(&st->cur_seeker, tbit);
 		HA_ATOMIC_AND(&st->cur_readers, ~tbit);
@@ -936,9 +952,10 @@ void __spin_lock(enum lock_label lbl, struct ha_spinlock *l,
 
 	HA_ATOMIC_OR(&st->waiters, tbit);
 
-	start_time = now_mono_time();
+	start_time = -now_mono_time();
 	__SPIN_LOCK(&l->lock);
-	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, (now_mono_time() - start_time));
+	start_time += now_mono_time();
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, start_time);
 
 	HA_ATOMIC_INC(&lock_stats[lbl].num_seek_locked);
 
@@ -956,6 +973,7 @@ int __spin_trylock(enum lock_label lbl, struct ha_spinlock *l,
 {
 	ulong tbit = (ti && ti->ltid_bit) ? ti->ltid_bit : 1;
 	struct ha_spinlock_state *st = &l->info.st[tgid-1];
+	uint64_t start_time;
 	int r;
 
 	if (unlikely(st->owner & tbit)) {
@@ -964,9 +982,14 @@ int __spin_trylock(enum lock_label lbl, struct ha_spinlock *l,
 	}
 
 	/* try read should never wait */
+	start_time = -now_mono_time();
 	r = __SPIN_TRYLOCK(&l->lock);
+	start_time += now_mono_time();
+
 	if (unlikely(r))
 		return r;
+
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, start_time);
 	HA_ATOMIC_INC(&lock_stats[lbl].num_seek_locked);
 
 	st->owner                      = tbit;
