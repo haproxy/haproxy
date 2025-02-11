@@ -180,6 +180,7 @@ struct lbprm {
 	void (*set_server_status_down)(struct server *); /* to be called after status changes to DOWN // srvlock */
 	void (*server_take_conn)(struct server *);       /* to be called when connection is assigned */
 	void (*server_drop_conn)(struct server *);       /* to be called when connection is dropped */
+	void (*server_requeue)(struct server *);         /* function used to place the server where it must be */
 };
 
 #endif /* _HAPROXY_BACKEND_T_H */

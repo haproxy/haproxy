@@ -292,6 +292,7 @@ void fwlc_init_server_tree(struct proxy *p)
 	p->lbprm.update_server_eweight  = fwlc_update_server_weight;
 	p->lbprm.server_take_conn = fwlc_srv_reposition;
 	p->lbprm.server_drop_conn = fwlc_srv_reposition;
+	p->lbprm.server_requeue   = fwlc_srv_reposition;
 
 	p->lbprm.wdiv = BE_WEIGHT_SCALE;
 	for (srv = p->srv; srv; srv = srv->next) {
