@@ -15,6 +15,7 @@
 #include <haproxy/backend.h>
 #include <haproxy/queue.h>
 #include <haproxy/server-t.h>
+#include <haproxy/task.h>
 
 
 /* Remove a server from a tree. It must have previously been dequeued. This
@@ -80,7 +81,19 @@ static void fwlc_srv_reposition(struct server *s)
 	if (s->lb_node.node.leaf_p && eweight && s->lb_node.key == new_key)
 		return;
 
-	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
+	if (HA_RWLOCK_TRYWRLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock) != 0) {
+		/* there's already some contention on the tree's lock, there's
+		 * no point insisting. Better wake up the server's tasklet that
+		 * will let this or another thread retry later. For the time
+		 * being, the server's apparent load is slightly inaccurate but
+		 * we don't care, if there is contention, it will self-regulate.
+		 */
+		if (s->requeue_tasklet)
+			tasklet_wakeup(s->requeue_tasklet);
+		return;
+	}
+
+	/* below we've got the lock */
 	if (s->lb_tree) {
 		/* we might have been waiting for a while on the lock above
 		 * so it's worth testing again because other threads are very
