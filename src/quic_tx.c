@@ -1369,30 +1369,13 @@ static inline size_t max_available_room(size_t sz, size_t *len_sz)
  */
 static inline size_t max_stream_data_size(size_t sz, size_t ilen, size_t dlen)
 {
-	size_t ret, len_sz, dlen_sz;
+	size_t ret, dlen_sz;
 
-	/*
-	 * The length of variable-length QUIC integers are powers of two.
-	 * Look for the first 3length" field value <len_sz> which match our need.
-	 * As we must put <ilen> bytes in our buffer, the minimum value for
-	 * <len_sz> is the number of bytes required to encode <ilen>.
-	 */
-	for (len_sz = quic_int_getsize(ilen);
-	     len_sz <= QUIC_VARINT_MAX_SIZE;
-	     len_sz <<= 1) {
-		if (sz < len_sz + ilen)
-			return 0;
+	ret = max_available_room(sz - ilen, &dlen_sz);
+	if (!ret)
+		return 0;
 
-		ret = max_available_room(sz - len_sz - ilen, &dlen_sz);
-		if (!ret)
-			return 0;
-
-		/* Check that <*len_sz> matches <ret> value */
-		if (len_sz + ilen + dlen_sz + ret <= quic_max_int(len_sz))
-			return ret < dlen ? ret : dlen;
-	}
-
-	return 0;
+	return ret < dlen ? ret : dlen;
 }
 
 /* Return the length in bytes of <pn> packet number depending on
