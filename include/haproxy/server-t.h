@@ -395,6 +395,7 @@ struct server {
 
 	struct eb_root *lb_tree;                /* we want to know in what tree the server is */
 	struct tree_occ *lb_nodes;              /* lb_nodes_tot * struct tree_occ */
+	struct tasklet *requeue_tasklet;        /* tasklet to call to asynchronously requeue the server */
 	unsigned lb_nodes_tot;                  /* number of allocated lb_nodes (C-HASH) */
 	unsigned lb_nodes_now;                  /* number of lb_nodes placed in the tree (C-HASH) */
 	enum srv_hash_key hash_key;             /* method to compute node hash (C-HASH) */

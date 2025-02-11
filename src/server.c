@@ -2442,6 +2442,22 @@ void server_recalc_eweight(struct server *sv, int must_update)
 		srv_update_status(sv, 0, SRV_OP_STCHGC_NONE);
 }
 
+/* requeuing tasklet used to asynchronously queue the server into its tree in
+ * case of extreme contention. It is woken up by the code that failed to grab
+ * an important lock.
+ */
+struct task *server_requeue(struct task *t, void *context, unsigned int state)
+{
+	struct server *srv = context;
+
+	/* let's call the LB's requeue function. If it fails, it will itself
+	 * wake us up.
+	 */
+	if (srv->proxy->lbprm.server_requeue)
+		srv->proxy->lbprm.server_requeue(srv);
+	return t;
+}
+
 /*
  * Parses weight_str and configures sv accordingly.
  * Returns NULL on success, error message string otherwise.
@@ -3072,6 +3088,8 @@ struct server *srv_drop(struct server *srv)
 
 	guid_remove(&srv->guid);
 
+	if (srv->requeue_tasklet)
+		tasklet_kill(srv->requeue_tasklet);
 	task_destroy(srv->warmup);
 	task_destroy(srv->srvrq_check);
 
@@ -5691,6 +5709,24 @@ static int init_srv_slowstart(struct server *srv)
 }
 REGISTER_POST_SERVER_CHECK(init_srv_slowstart);
 
+
+/* allocate the tasklet that's meant to permit a server */
+static int init_srv_requeue(struct server *srv)
+{
+	struct tasklet *t;
+
+	if ((t = tasklet_new()) == NULL) {
+		ha_alert("Cannot allocate a server requeuing tasklet for server %s/%s: out of memory.\n", srv->proxy->id, srv->id);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	srv->requeue_tasklet = t;
+	t->process = server_requeue;
+	t->context = srv;
+	return ERR_NONE;
+}
+REGISTER_POST_SERVER_CHECK(init_srv_requeue);
+
 /* Memory allocation and initialization of the per_thr field.
  * Returns 0 if the field has been successfully initialized, -1 on failure.
  */
@@ -5868,6 +5904,9 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 
 	/* Init slowstart if needed. */
 	if (init_srv_slowstart(srv))
+		goto out;
+
+	if (init_srv_requeue(srv) != 0)
 		goto out;
 
 	/* Attach the server to the end of the proxy linked list. Note that this
