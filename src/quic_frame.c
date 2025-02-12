@@ -1099,6 +1099,53 @@ const struct quic_frame_parser quic_frame_parsers[] = {
 	[QUIC_FT_HANDSHAKE_DONE]       = { .func = quic_parse_handshake_done_frame,       .flags = QUIC_FL_RX_PACKET_ACK_ELICITING, .mask = QUIC_FT_PKT_TYPE____1_BITMASK, },
 };
 
+/* Extra frame types with their associated builder and parser instances.
+ * Complete quic_frame_type_is_known() and both qf_builder()/qf_parser() to use them.
+ *
+ * Definition example:
+ *
+ * const uint64_t QUIC_FT_MY_CUSTOM_FRM = 0x01020304;
+ * const struct quic_frame_builder qf_ft_qs_tp_builder = {
+ *     .func = quic_build_my_custom_frm,
+ *     .mask = 0,
+ *     .flags = 0,
+ * };
+ * const struct quic_frame_parser qf_ft_qs_tp_parser = {
+ *     .func = quic_parse_my_custom_frm,
+ *     .mask = 0,
+ *     .flags = 0,
+ * };
+ */
+
+/* Returns true if frame <type> is supported. */
+static inline int quic_frame_type_is_known(uint64_t type)
+{
+	/* Complete here for extra frame types greater than QUIC_FT_MAX. */
+	return type < QUIC_FT_MAX;
+}
+
+static const struct quic_frame_parser *qf_parser(uint64_t type)
+{
+	if (type < QUIC_FT_MAX)
+		return &quic_frame_parsers[type];
+
+	/* Complete here for extra frame types greater than QUIC_FT_MAX. */
+
+	ABORT_NOW();
+	return NULL;
+}
+
+const struct quic_frame_builder *qf_builder(uint64_t type)
+{
+	if (type < QUIC_FT_MAX)
+		return &quic_frame_builders[type];
+
+	/* Complete here for extra frame types greater than QUIC_FT_MAX. */
+
+	ABORT_NOW();
+	return NULL;
+}
+
 /* Decode a QUIC frame at <pos> buffer position into <frm> frame.
  * Returns 1 if succeeded (enough data at <pos> buffer position to parse the frame), 0 if not.
  */
@@ -1115,8 +1162,8 @@ int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
 		goto leave;
 	}
 
-	frm->type = *(*pos)++;
-	if (frm->type >= QUIC_FT_MAX) {
+	quic_dec_int(&frm->type, pos, end);
+	if (!quic_frame_type_is_known(frm->type)) {
 		/* RFC 9000 12.4. Frames and Frame Types
 		 *
 		 * An endpoint MUST treat the receipt of a frame of unknown type as a
@@ -1127,7 +1174,7 @@ int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
 		goto leave;
 	}
 
-	parser = &quic_frame_parsers[frm->type];
+	parser = qf_parser(frm->type);
 	if (!(parser->mask & (1U << pkt->type))) {
 		TRACE_DEVEL("unauthorized frame", QUIC_EV_CONN_PRSFRM, qc, frm);
 		goto leave;
@@ -1162,21 +1209,20 @@ int qc_build_frm(unsigned char **pos, const unsigned char *end,
 	unsigned char *p = *pos;
 
 	TRACE_ENTER(QUIC_EV_CONN_BFRM, qc);
-	builder = &quic_frame_builders[frm->type];
+	builder = qf_builder(frm->type);
 	if (!(builder->mask & (1U << pkt->type))) {
 		/* XXX This it a bug to send an unauthorized frame with such a packet type XXX */
 		TRACE_ERROR("unauthorized frame", QUIC_EV_CONN_BFRM, qc, frm);
 		BUG_ON(!(builder->mask & (1U << pkt->type)));
 	}
 
-	if (end <= p) {
+	if (!quic_enc_int(&p, end, frm->type)) {
 		TRACE_DEVEL("not enough room", QUIC_EV_CONN_BFRM, qc, frm);
 		goto leave;
 	}
 
 	TRACE_PROTO("TX frm", QUIC_EV_CONN_BFRM, qc, frm);
-	*p++ = frm->type;
-	if (!quic_frame_builders[frm->type].func(&p, end, frm, qc)) {
+	if (!builder->func(&p, end, frm, qc)) {
 		TRACE_ERROR("frame building error", QUIC_EV_CONN_BFRM, qc, frm);
 		goto leave;
 	}

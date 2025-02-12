@@ -82,6 +82,12 @@ enum quic_frame_type {
 	QUIC_FT_MAX
 };
 
+/* Extra frame types larger than QUIC_FT_MAX should be declared here.
+ * For every new value, an associated builder and parser instances should be
+ * defined in quic_frame.c. Do not forget to complete the associated function
+ * quic_frame_type_is_known() and both qf_builder()/qf_parser().
+ */
+
 #define QUIC_FT_PKT_TYPE_I_BITMASK (1 << QUIC_PACKET_TYPE_INITIAL)
 #define QUIC_FT_PKT_TYPE_0_BITMASK (1 << QUIC_PACKET_TYPE_0RTT)
 #define QUIC_FT_PKT_TYPE_H_BITMASK (1 << QUIC_PACKET_TYPE_HANDSHAKE)
@@ -246,7 +252,7 @@ struct qf_connection_close_app {
 struct quic_frame {
 	struct list list;           /* List elem from parent elem (typically a Tx packet instance, a PKTNS or a MUX element). */
 	struct quic_tx_packet *pkt; /* Last Tx packet used to send the frame. */
-	unsigned char type;         /* QUIC frame type. */
+	uint64_t type;              /* QUIC frame type. */
 	union {
 		struct qf_padding padding;
 		struct qf_ack ack;

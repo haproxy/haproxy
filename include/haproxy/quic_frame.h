@@ -206,7 +206,7 @@ static inline struct quic_err quic_err_app(uint64_t code)
  *
  * Returns the allocated frame or NULL on failure.
  */
-static inline struct quic_frame *qc_frm_alloc(int type)
+static inline struct quic_frame *qc_frm_alloc(uint64_t type)
 {
 	struct quic_frame *frm = NULL;
 
