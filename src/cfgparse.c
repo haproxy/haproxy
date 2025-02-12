@@ -2576,8 +2576,8 @@ next_line:
 		if (pcs && pcs->post_section_parser) {
 			int status;
 
-			/* don't call post_section_parser in MODE_DISCOVERY, except program section */
-			if ((global.mode & MODE_DISCOVERY) && (strcmp(pcs->section_name, "program") != 0))
+			/* don't call post_section_parser in MODE_DISCOVERY */
+			if (global.mode & MODE_DISCOVERY)
 				goto section_parser;
 
 			status = pcs->post_section_parser();
