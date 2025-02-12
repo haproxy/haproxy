@@ -960,6 +960,12 @@ static void dump_crtlist_conf(struct buffer *buf, const struct ssl_bind_conf *co
 		space++;
 	}
 
+	if (conf->client_sigalgs) {
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "client-sigalgs %s", conf->client_sigalgs);
+		space++;
+	}
+
 	/* the crt-lists only support ssl-min-ver and ssl-max-ver */
 	if (conf->ssl_methods_cfg.min) {
 		if (space) chunk_appendf(buf, " ");
