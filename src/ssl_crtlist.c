@@ -520,11 +520,14 @@ int crtlist_load_crt(char *crt_path, struct ckch_conf *cc, struct crtlist *newli
 	if (ckchs == NULL) {
 		if (stat(crt_path, &st) == 0) {
 			found++;
-			free(cc->crt);
-			cc->crt = strdup(crt_path);
-			if (cc->crt == NULL) {
-				cfgerr |= ERR_ALERT | ERR_FATAL;
-				goto error;
+
+			if (crt_path != cc->crt) {
+				free(cc->crt);
+				cc->crt = strdup(crt_path);
+				if (cc->crt == NULL) {
+					cfgerr |= ERR_ALERT | ERR_FATAL;
+					goto error;
+				}
 			}
 
 			ckchs = ckch_store_new_load_files_conf(crt_path, cc, err);
