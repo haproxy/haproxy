@@ -1012,6 +1012,18 @@ dump_ckch:
 	if (!cc->used)
 		goto end;
 
+	if (cc->crt) {
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "crt %s", cc->crt);
+		space++;
+	}
+
+	if (cc->key) {
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "key %s", cc->key);
+		space++;
+	}
+
 	if (cc->ocsp_update_mode == SSL_SOCK_OCSP_UPDATE_OFF) {
 		if (space) chunk_appendf(buf, " ");
 		chunk_appendf(buf, "ocsp-update off");
@@ -1021,6 +1033,19 @@ dump_ckch:
 		chunk_appendf(buf, "ocsp-update on");
 		space++;
 	}
+
+	if (cc->ocsp) {
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "ocsp %s", cc->ocsp);
+		space++;
+	}
+
+	if (cc->sctl) {
+		if (space) chunk_appendf(buf, " ");
+		chunk_appendf(buf, "sctl %s", cc->sctl);
+		space++;
+	}
+
 
 end:
 
