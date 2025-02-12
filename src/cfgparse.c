@@ -2578,7 +2578,7 @@ next_line:
 
 			/* don't call post_section_parser in MODE_DISCOVERY, except program section */
 			if ((global.mode & MODE_DISCOVERY) && (strcmp(pcs->section_name, "program") != 0))
-				continue;
+				goto section_parser;
 
 			status = pcs->post_section_parser();
 			err_code |= status;
@@ -2590,6 +2590,7 @@ next_line:
 		}
 		pcs = NULL;
 
+section_parser:
 		if (!cs) {
 			/* ignore unknown section names during the first read in MODE_DISCOVERY */
 			if (global.mode & MODE_DISCOVERY)
