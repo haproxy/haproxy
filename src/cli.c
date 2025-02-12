@@ -2361,6 +2361,9 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 		if (!(fdtab[cur_fd].state & FD_EXPORTED))
 			continue;
 
+		/* this FD is now shared between processes */
+		HA_ATOMIC_OR(&fdtab[cur_fd].state, FD_CLONED);
+
 		ns_name = if_name = "";
 		ns_nlen = if_nlen = 0;
 
