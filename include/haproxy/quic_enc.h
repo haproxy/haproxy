@@ -271,5 +271,31 @@ static inline size_t quic_decint_size_diff(uint64_t val)
 	}
 }
 
+/* Determine the optimal length value which can be used for <room> as buffer
+ * space with a variable-length integer prefix. This is useful to encode a
+ * variable-length integer Length field such as in QUIC long headers, and both
+ * STREAM and CRYPTO frames.
+ *
+ * Returns the value usable as Length field, or 0 if <room> is too small.
+ *
+ * Here are examples of the output returned by the function. For each inputs
+ * between charets, returned value is written associated with its implicit
+ * variable-length integer size :
+ *
+ * [64] => 63(1)        [65] => 63(1)        [66] => 64(2)
+ * [16383] => 16381(2)  [16384] => 16382(2)  [16385] => 16383(2)
+ * [16386] => 16383(2)  [16387] => 16383(2)  [16388] => 16384(4)
+ */
+static inline size_t quic_int_cap_length(size_t room)
+{
+	const int sz = quic_int_getsize(room);
+	if (unlikely(room <= sz))
+		return 0;
+
+	if (likely(sz == quic_int_getsize(room - sz)))
+		return room - sz;
+	return MIN(quic_max_int(sz >> 1), room - (sz >> 1));
+}
+
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_QUIC_ENC_H */

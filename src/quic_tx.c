@@ -1314,70 +1314,6 @@ static inline int quic_write_uint32(unsigned char **buf,
 	return 1;
 }
 
-/* Return the maximum number of bytes we must use to completely fill a
- * buffer with <sz> as size for a data field of bytes prefixed by its QUIC
- * variable-length (may be 0).
- * Also put in <*len_sz> the size of this QUIC variable-length.
- * So after returning from this function we have : <*len_sz> + <ret> <= <sz>
- * (<*len_sz> = { max(i), i + ret <= <sz> }) .
- */
-static inline size_t max_available_room(size_t sz, size_t *len_sz)
-{
-	size_t sz_sz, ret;
-	size_t diff;
-
-	sz_sz = quic_int_getsize(sz);
-	if (sz <= sz_sz)
-		return 0;
-
-	ret = sz - sz_sz;
-	*len_sz = quic_int_getsize(ret);
-	/* Difference between the two sizes. Note that <sz_sz> >= <*len_sz>. */
-	diff = sz_sz - *len_sz;
-	if (unlikely(diff > 0)) {
-		/* Let's try to take into an account remaining bytes.
-		 *
-		 *                  <----------------> <sz_sz>
-		 *  <--------------><-------->  +----> <max_int>
-		 *       <ret>       <len_sz>   |
-		 *  +---------------------------+-----------....
-		 *  <--------------------------------> <sz>
-		 */
-		size_t max_int = quic_max_int(*len_sz);
-
-		if (max_int + *len_sz <= sz)
-			ret = max_int;
-		else
-			ret = sz - diff;
-	}
-
-	return ret;
-}
-
-/* This function computes the maximum data we can put into a buffer with <sz> as
- * size prefixed with a variable-length field "Length" whose value is the
- * remaining data length, already filled of <ilen> bytes which must be taken
- * into an account by "Length" field, and finally followed by the data we want
- * to put in this buffer prefixed again by a variable-length field.
- * <sz> is the size of the buffer to fill.
- * <ilen> the number of bytes already put after the "Length" field.
- * <dlen> the number of bytes we want to at most put in the buffer.
- * Also set <*dlen_sz> to the size of the data variable-length we want to put in
- * the buffer. This is typically this function which must be used to fill as
- * much as possible a QUIC packet made of only one CRYPTO or STREAM frames.
- * Returns this computed size if there is enough room in the buffer, 0 if not.
- */
-static inline size_t max_stream_data_size(size_t sz, size_t ilen, size_t dlen)
-{
-	size_t ret, dlen_sz;
-
-	ret = max_available_room(sz - ilen, &dlen_sz);
-	if (!ret)
-		return 0;
-
-	return ret < dlen ? ret : dlen;
-}
-
 /* Return the length in bytes of <pn> packet number depending on
  * <largest_acked_pn> the largest ackownledged packet number.
  */
@@ -1597,7 +1533,7 @@ static int qc_build_frms(struct list *outlist, struct list *inlist,
 	 */
 	list_for_each_entry_safe(cf, cfbak, inlist, list) {
 		/* header length, data length, frame length. */
-		size_t hlen, dlen, dlen_sz, avail_room, flen;
+		size_t hlen, dlen, flen;
 
 		if (!room)
 			break;
@@ -1609,7 +1545,7 @@ static int qc_build_frms(struct list *outlist, struct list *inlist,
 			/* Compute the length of this CRYPTO frame header */
 			hlen = 1 + quic_int_getsize(cf->crypto.offset);
 			/* Compute the data length of this CRYPTO frame. */
-			dlen = max_stream_data_size(room, hlen, cf->crypto.len);
+			dlen = QUIC_MIN(quic_int_cap_length(room - hlen), cf->crypto.len);
 			TRACE_DEVEL(" CRYPTO data length (hlen, crypto.len, dlen)",
 			            QUIC_EV_CONN_BCFRMS, qc, &hlen, &cf->crypto.len, &dlen);
 			if (!dlen)
@@ -1674,9 +1610,7 @@ static int qc_build_frms(struct list *outlist, struct list *inlist,
 			 */
 			hlen = 1 + quic_int_getsize(cf->stream.id) +
 				((cf->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) ? quic_int_getsize(cf->stream.offset) : 0);
-			/* Compute the data length of this STREAM frame. */
-			avail_room = room - hlen;
-			if ((ssize_t)avail_room <= 0)
+			if (room <= hlen)
 				continue;
 
 			TRACE_DEVEL("          New STREAM frame build (room, len)",
@@ -1686,13 +1620,12 @@ static int qc_build_frms(struct list *outlist, struct list *inlist,
 			 * enough room for length field.
 			 */
 			if (cf->type & QUIC_STREAM_FRAME_TYPE_LEN_BIT) {
-				dlen = QUIC_MIN((uint64_t)max_available_room(avail_room, &dlen_sz),
+				dlen = QUIC_MIN(quic_int_cap_length(room - hlen),
 				                cf->stream.len);
-				dlen_sz = quic_int_getsize(dlen);
-				flen = hlen + dlen_sz + dlen;
+				flen = hlen + quic_int_getsize(dlen) + dlen;
 			}
 			else {
-				dlen = QUIC_MIN((uint64_t)avail_room, cf->stream.len);
+				dlen = QUIC_MIN(room - hlen, cf->stream.len);
 				flen = hlen + dlen;
 			}
 
