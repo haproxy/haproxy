@@ -17,7 +17,7 @@
 #include <haproxy/quic_enc.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_rx-t.h>
-#include <haproxy/quic_tp-t.h>
+#include <haproxy/quic_tp.h>
 #include <haproxy/quic_trace.h>
 #include <haproxy/quic_tx.h>
 #include <haproxy/trace.h>
@@ -1011,6 +1011,43 @@ static int quic_build_handshake_done_frame(unsigned char **pos, const unsigned c
 	return 1;
 }
 
+static int quic_build_qs_tp_frame(unsigned char **pos, const unsigned char *end,
+                                  struct quic_frame *frm, struct quic_conn *conn)
+{
+	unsigned char *old = *pos;
+	struct buffer buf;
+
+	if (end - *pos < 8)
+		return 0;
+
+	buf = b_make((char *)*pos, end - *pos, 0, 0);
+	if (!b_quic_enc_int(&buf, 0, 8))
+		return 0;
+
+	//if (!quic_enc_int(pos, end, 0))
+	//	return 0;
+	*pos += 8;
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_MAX_IDLE_TIMEOUT, 30000))
+		return 0;
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_DATA, 16384))
+		return 0;
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAM_DATA_BIDI_LOCAL, 16384))
+		return 0;
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAM_DATA_BIDI_REMOTE, 16384))
+		return 0;
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAM_DATA_UNI, 16384))
+		return 0;
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAMS_BIDI, 100))
+		return 0;
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAMS_UNI, 100))
+		return 0;
+
+	buf = b_make((char *)old, 8, 0, 0);
+	b_quic_enc_int(&buf, *pos - 8 - old, 8);
+
+	return 1;
+}
+
 /* Parse a HANDSHAKE_DONE frame at QUIC layer at <pos> buffer position with <end> as end into <frm> frame.
  * Always succeed.
  */
@@ -1018,6 +1055,17 @@ static int quic_parse_handshake_done_frame(struct quic_frame *frm, struct quic_c
                                            const unsigned char **pos, const unsigned char *end)
 {
 	/* No field */
+	return 1;
+}
+
+static int quic_parse_qs_tp(struct quic_frame *frm, struct quic_conn *qc,
+                            const unsigned char **pos, const unsigned char *end)
+{
+	struct qf_qs_tp *qs_tp_frm = &frm->qs_tp;
+	uint64_t len;
+
+	quic_dec_int(&len, pos, end);
+	quic_transport_params_decode(&qs_tp_frm->tps, 1, *pos, end);
 	return 1;
 }
 
@@ -1121,11 +1169,25 @@ const struct quic_frame_parser quic_frame_parsers[] = {
  * };
  */
 
+/* quic-on-streams transport parameters frame. */
+const uint64_t QUIC_FT_QS_TP     = 0x3f5153300d0a0d0a;
+const struct quic_frame_parser qf_ft_qs_tp_parser = {
+	.func = quic_parse_qs_tp,
+	.mask = 0,
+	.flags = 0,
+};
+const struct quic_frame_builder qf_ft_qs_tp_builder = {
+	.func = quic_build_qs_tp_frame,
+	.mask = 0,
+	.flags = 0,
+};
+
 /* Returns true if frame <type> is supported. */
 static inline int quic_frame_type_is_known(uint64_t type)
 {
 	/* Complete here for extra frame types greater than QUIC_FT_MAX. */
-	return type < QUIC_FT_MAX;
+	return type < QUIC_FT_MAX ||
+	       (type == QUIC_FT_QS_TP);
 }
 
 static const struct quic_frame_parser *qf_parser(uint64_t type)
@@ -1134,6 +1196,8 @@ static const struct quic_frame_parser *qf_parser(uint64_t type)
 		return &quic_frame_parsers[type];
 
 	/* Complete here for extra frame types greater than QUIC_FT_MAX. */
+	if (type == QUIC_FT_QS_TP)
+		return &qf_ft_qs_tp_parser;
 
 	ABORT_NOW();
 	return NULL;
@@ -1145,6 +1209,8 @@ const struct quic_frame_builder *qf_builder(uint64_t type)
 		return &quic_frame_builders[type];
 
 	/* Complete here for extra frame types greater than QUIC_FT_MAX. */
+	if (type == QUIC_FT_QS_TP)
+		return &qf_ft_qs_tp_builder;
 
 	ABORT_NOW();
 	return NULL;

@@ -87,6 +87,7 @@ enum quic_frame_type {
  * defined in quic_frame.c. Do not forget to complete the associated function
  * quic_frame_type_is_known() and both qf_builder()/qf_parser().
  */
+extern const uint64_t QUIC_FT_QS_TP;
 
 #define QUIC_FT_PKT_TYPE_I_BITMASK (1 << QUIC_PACKET_TYPE_INITIAL)
 #define QUIC_FT_PKT_TYPE_0_BITMASK (1 << QUIC_PACKET_TYPE_0RTT)
@@ -252,6 +253,10 @@ struct qf_connection_close_app {
 	unsigned char reason_phrase[QUIC_CC_REASON_PHRASE_MAXLEN];
 };
 
+struct qf_qs_tp {
+	struct quic_transport_params tps;
+};
+
 struct quic_frame {
 	struct list list;           /* List elem from parent elem (typically a Tx packet instance, a PKTNS or a MUX element). */
 	struct quic_tx_packet *pkt; /* Last Tx packet used to send the frame. */
@@ -279,6 +284,7 @@ struct quic_frame {
 		struct qf_path_challenge_response path_challenge_response;
 		struct qf_connection_close connection_close;
 		struct qf_connection_close_app connection_close_app;
+		struct qf_qs_tp qs_tp;
 	};
 	struct quic_frame *origin;  /* Parent frame. Set if frame is a duplicate (used for retransmission). */
 	struct list reflist;        /* List head containing duplicated children frames. */
