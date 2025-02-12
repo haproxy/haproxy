@@ -315,9 +315,9 @@ alphanumerically ordered:
   STG_REGISTER.
 
   You can only register a section once, but you can register post callbacks
-  multiple time for this section with REGISTER_CONFIG_SECTION_POST().
+  multiple time for this section with REGISTER_CONFIG_POST_SECTION().
 
-- REGISTER_CONFIG_SECTION_POST(name, post)
+- REGISTER_CONFIG_POST_SECTION(name, post)
 
   Registers a function which will be called after a section is parsed. This is
   the same as the <post> argument in REGISTER_CONFIG_SECTION(), the difference
