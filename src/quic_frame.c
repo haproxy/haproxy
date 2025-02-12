@@ -1011,6 +1011,13 @@ static int quic_build_handshake_done_frame(unsigned char **pos, const unsigned c
 	return 1;
 }
 
+static int quic_build_qmux_transport_parameters(unsigned char **pos, const unsigned char *end,
+                                                struct quic_frame *frm, struct quic_conn *conn)
+{
+	/* TODO */
+	return 1;
+}
+
 /* Parse a HANDSHAKE_DONE frame at QUIC layer at <pos> buffer position with <end> as end into <frm> frame.
  * Always succeed.
  */
@@ -1018,6 +1025,13 @@ static int quic_parse_handshake_done_frame(struct quic_frame *frm, struct quic_c
                                            const unsigned char **pos, const unsigned char *end)
 {
 	/* No field */
+	return 1;
+}
+
+static int quic_parse_qmux_transport_parameters(struct quic_frame *frm, struct quic_conn *qc,
+                                                const unsigned char **pos, const unsigned char *end)
+{
+	/* TODO */
 	return 1;
 }
 
@@ -1121,11 +1135,25 @@ const struct quic_frame_parser quic_frame_parsers[] = {
  * };
  */
 
+/* quic-on-streams transport parameters frame. */
+const uint64_t QUIC_FT_QX_TRANSPORT_PARAMETERS = 0x3f5153300d0a0d0a;
+const struct quic_frame_parser qf_parser_qx_transport_parameters = {
+	.func = quic_parse_qmux_transport_parameters,
+	.mask = 0,
+	.flags = 0,
+};
+const struct quic_frame_builder qf_builder_qx_transport_parameters = {
+	.func = quic_build_qmux_transport_parameters,
+	.mask = 0,
+	.flags = 0,
+};
+
 /* Returns true if frame <type> is supported. */
 static inline int quic_frame_type_is_known(uint64_t type)
 {
 	/* Complete here for extra frame types greater than QUIC_FT_MAX. */
-	return type < QUIC_FT_MAX;
+	return type < QUIC_FT_MAX ||
+	       (type == QUIC_FT_QX_TRANSPORT_PARAMETERS);
 }
 
 static const struct quic_frame_parser *qf_parser(uint64_t type)
@@ -1134,6 +1162,8 @@ static const struct quic_frame_parser *qf_parser(uint64_t type)
 		return &quic_frame_parsers[type];
 
 	/* Complete here for extra frame types greater than QUIC_FT_MAX. */
+	if (type == QUIC_FT_QX_TRANSPORT_PARAMETERS)
+		return &qf_parser_qx_transport_parameters;
 
 	ABORT_NOW();
 	return NULL;
@@ -1145,6 +1175,8 @@ const struct quic_frame_builder *qf_builder(uint64_t type)
 		return &quic_frame_builders[type];
 
 	/* Complete here for extra frame types greater than QUIC_FT_MAX. */
+	if (type == QUIC_FT_QX_TRANSPORT_PARAMETERS)
+		return &qf_builder_qx_transport_parameters;
 
 	ABORT_NOW();
 	return NULL;
