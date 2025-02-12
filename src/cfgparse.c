@@ -2623,8 +2623,13 @@ section_parser:
 	}
 
 	ha_free(&global.cfg_curr_section);
-	if (cs && cs->post_section_parser)
-		err_code |= cs->post_section_parser();
+
+	/* call post_section_parser of the last section when there is no more lines */
+	if (cs && cs->post_section_parser) {
+		/* don't call post_section_parser in MODE_DISCOVERY */
+		if (!(global.mode & MODE_DISCOVERY))
+			err_code |= cs->post_section_parser();
+	}
 
 	if (nested_cond_lvl) {
 		ha_alert("parsing [%s:%d]: non-terminated '.if' block.\n", file, linenum);
