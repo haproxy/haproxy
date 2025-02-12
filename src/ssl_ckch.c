@@ -4841,6 +4841,9 @@ out:
 /* freeing the content of a ckch_conf structure */
 void ckch_conf_clean(struct ckch_conf *conf)
 {
+	if (!conf)
+		return;
+
 	free(conf->crt);
 	free(conf->key);
 	free(conf->ocsp);
