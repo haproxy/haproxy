@@ -27,7 +27,7 @@
 
 /* cert_key_and_chain functions */
 
-int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, char **err);
+int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, struct ckch_conf *conf, char **err);
 int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct ckch_data *datackch , char **err);
 void ssl_sock_free_cert_key_and_chain_contents(struct ckch_data *data);
 

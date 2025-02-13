@@ -351,7 +351,7 @@ end:
  *      0 on Success
  *      1 on SSL Failure
  */
-int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, char **err)
+int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, struct ckch_conf *conf, char **err)
 {
 	struct buffer *fp = NULL;
 	int ret = 1;
@@ -361,6 +361,20 @@ int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, char
 	if (ssl_sock_load_pem_into_ckch(path, NULL, data , err) != 0) {
 		goto end;
 	}
+
+	if (conf) {
+		conf->crt = strdup(path);
+		if (!conf->crt) {
+			memprintf(err, "%s out of memory.\n", err && *err ? *err : "");
+			goto end;
+		}
+		conf->key = strdup(path);
+		if (!conf->key) {
+			memprintf(err, "%s out of memory.\n", err && *err ? *err : "");
+			goto end;
+		}
+	}
+
 
 	fp = alloc_trash_chunk();
 	if (!fp) {
@@ -419,6 +433,14 @@ int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, char
 			memprintf(err, "%sNo Private Key found in '%s'.\n", err && *err ? *err : "", fp->area);
 			goto end;
 		}
+		if (conf) {
+			free(conf->key);
+			conf->key = strdup(fp->area);
+			if (!conf->key) {
+				memprintf(err, "%s out of memory.\n", err && *err ? *err : "");
+				goto end;
+			}
+		}
 		/* remove the added extension */
 		*(fp->area + fp->data - strlen(".key")) = '\0';
 		b_sub(fp, strlen(".key"));
@@ -451,6 +473,14 @@ int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, char
 				goto end;
 			}
 		}
+		if (conf) {
+			conf->sctl = strdup(fp->area);
+			if (!conf->sctl) {
+				memprintf(err, "%s out of memory.\n", err && *err ? *err : "");
+				goto end;
+			}
+		}
+
 		/* remove the added extension */
 		*(fp->area + fp->data - strlen(".sctl")) = '\0';
 		b_sub(fp, strlen(".sctl"));
@@ -475,6 +505,14 @@ int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, char
 				goto end;
 			}
 		}
+		if (conf) {
+			conf->ocsp = strdup(fp->area);
+			if (!conf->ocsp) {
+				memprintf(err, "%s out of memory.\n", err && *err ? *err : "");
+				goto end;
+			}
+		}
+
 		/* remove the added extension */
 		*(fp->area + fp->data - strlen(".ocsp")) = '\0';
 		b_sub(fp, strlen(".ocsp"));
@@ -505,6 +543,14 @@ int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, char
 					goto end;
 				}
 			}
+			if (conf) {
+				conf->issuer = strdup(fp->area);
+				if (!conf->issuer) {
+					memprintf(err, "%s out of memory.\n", err && *err ? *err : "");
+					goto end;
+				}
+			}
+
 			/* remove the added extension */
 			*(fp->area + fp->data - strlen(".issuer")) = '\0';
 			b_sub(fp, strlen(".issuer"));
@@ -1029,7 +1075,7 @@ struct ckch_store *ckch_store_new_load_files_path(char *path, char **err)
 		goto end;
 	}
 
-	if (ssl_sock_load_files_into_ckch(path, ckchs->data, err) == 1)
+	if (ssl_sock_load_files_into_ckch(path, ckchs->data, &ckchs->conf, err) == 1)
 		goto end;
 
 	ckchs->conf.used = CKCH_CONF_SET_EMPTY;
@@ -1066,7 +1112,7 @@ struct ckch_store *ckch_store_new_load_files_conf(char *name, struct ckch_conf *
 	 * auto-detecting them. */
 	if ((conf->used == CKCH_CONF_SET_EMPTY || conf->used == CKCH_CONF_SET_CRTLIST) &&
 		(!conf->key && !conf->ocsp && !conf->issuer && !conf->sctl)) {
-		cfgerr = ssl_sock_load_files_into_ckch(conf->crt, ckchs->data, err);
+		cfgerr = ssl_sock_load_files_into_ckch(conf->crt, ckchs->data, &ckchs->conf, err);
 		if (cfgerr & ERR_FATAL)
 			goto end;
 		/* set conf->crt to NULL so it's not erased */
