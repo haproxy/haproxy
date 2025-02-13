@@ -1,0 +1,129 @@
+2025-02-13 - Details of the watchdog's internals
+------------------------------------------------
+
+1. The watchdog timer
+---------------------
+
+The watchdog sets up a timer that triggers every 1 to 1000ms. This is pre-
+initialized by init_wdt() which positions wdt_handler() as the signal handler
+of signal WDTSIG (SIGALRM).
+
+But this is not sufficient, an alarm actually has to be set. This is done for
+each thread by init_wdt_per_thread() which calls clock_setup_signal_timer()
+which in turn enables a ticking timer for the current thread, that delivers
+the WDTSIG signal (SIGALRM) to the process. Since there's no notion of thread
+at this point, there are as many timers as there are threads, and each signal
+comes with an integer value which in fact contains the thread number as passed
+to clock_setup_signal_timer() during initialization.
+
+The timer preferably uses CLOCK_THREAD_CPUTIME_ID if available, otherwise
+falls back to CLOCK_REALTIME. The former is more accurate as it really counts
+the time spent in the process, while the latter might also account for time
+stuck on paging in etc.
+
+Then wdt_ping() is called to arm the timer. t's set to trigger every
+<wdt_warn_blocked_traffic_ns> interval. It is also called by wdt_handler()
+to reprogram a new wakeup after it has ticked.
+
+When wdt_handler() is called, it reads the thread number in si_value.sival_int,
+as positioned during initialization. Most of the time the signal lands on the
+wrong thread (typically thread 1 regardless of the reported thread). From this
+point, the function retrieves the various info related to that thread's recent
+activity (its current time and flags), ignores corner cases such as if that
+thread is already dumping another one, being dumped, in the poller, has quit,
+etc.
+
+If the thread was not marked as stuck, it's verified that no progress was made
+for at least one second, in which case the TH_FL_STUCK flag is set. The lack of
+progress is measured by the distance between the thread's current cpu_time and
+its prev_cpu_time. If the lack of progress is at least as large as the warning
+threshold and no context switch happened since last call, ha_stuck_warning() is
+called to emit a warning about that thread. In any case the context switch
+counter for that thread is updated.
+
+If the thread was already marked as stuck, then the thread is considered as
+definitely stuck. Then ha_panic() is directly called if the thread is the
+current one, otherwise ha_kill() is used to resend the signal directly to the
+target thread, which will in turn go through this handler and handle the panic
+itself.
+
+Most of the time there's no panic of course, and a wdt_ping() is performed
+before leaving the handler to reprogram a check for that thread.
+
+2. The debug handler
+--------------------
+
+Both ha_panic() and ha_stuck_warning() are quite similar. In both cases, they
+will first verify that no panic is in progress and just return if so. This is
+verified using mark_tained() which atomically sets a tainted bit and returns
+the previous value. ha_panic() sets TAINTED_PANIC while ha_stuck_warning() will
+set TAINTED_WARN_BLOCKED_TRAFFIC.
+
+ha_panic() uses the current thread's trash buffer to produce the messages, as
+we don't care about its contents since that thread will never return. However
+ha_stuck_warning() instead uses a local 4kB buffer in the thread's stack.
+ha_panic() will call ha_thread_dump_fill() for each thread, to complete the
+buffer being filled with each thread's dump messages. ha_stuck_warning() only
+calls the function for the current thread. In both cases the message is then
+directly sent to fd #2 (stderr) and ha_thread_dump_one() is called to release
+the dumped thread.
+
+Both print a few extra messages, but ha_panic() just ends by looping on abort()
+until the process dies.
+
+ha_thread_dump_fill() uses a locking mechanism to make sure that each thread is
+only dumped once at a time. For this it atomically sets is thread_dump_buffer
+to point to the target buffer. The thread_dump_buffer has 4 possible values:
+  - NULL: no dump in progress
+  - a valid, even, pointer: this is the pointer to the buffer that's currently
+    in the process of being filled by the thread
+  - a valid pointer + 1: this is the pointer of the now filled buffer, that the
+    caller can consume. The atomic |1 at the end marks the end of the dump.
+  - 0x2: this indicates to the dumping function that it is responsible for
+    assigning its own buffer itself (used by the debug_handler to pick one of
+    its own trash buffers during a panic). The idea here is that each thread
+    will keep their own copy of their own dump so that it can be later found in
+    the core file for inspection.
+
+ha_thread_dump_fill() then either directly calls ha_thread_dump_one() if the
+target thread is the current thread, or sends the target thread DEBUGSIG
+(SIGURG) if it's a different thread. This signal is initialized at boot time
+by init_debug() to call handler debug_handler().
+
+debug_handler() then operates on the target thread and recognizes that it must
+allocate its own buffer if the pointer is 0x2, calls ha_thread_dump_one(), then
+waits forever (it does not return from the signal handler so as to make sure
+the dumped thread will not badly interact with other ones).
+
+ha_thread_dump_one() collects some info, that it prints all along into the
+target buffer. Depending on the situation, it will dump current tasks or not,
+may mark that Lua is involved and TAINTED_LUA_STUCK, and if running in shared
+mode, also taint the process with TAINTED_LUA_STUCK_SHARED. It calls
+ha_dump_backtrace() before returning.
+
+ha_dump_backtrace() produces a backtrace into a local buffer (100 entries max),
+then dumps the code bytes nearby the crashing instrution, dumps pointers and
+tries to resolve function names, and sends all of that into the target buffer.
+
+3. Improvements
+---------------
+
+The symbols resolution is extremely expensive, particularly for the warnings
+which should be fast. But we need it, it's just unfortunate that it strikes at
+the wrong moment.
+
+In an ideal case, ha_dump_backtrace() would dump the pointers to a local array,
+which would then later be resolved asynchronously in a tasklet. This can work
+because the code bytes will not change either so the dump can be done at once
+there.
+
+However the tasks dumps are not much compatible with this. For example
+ha_task_dump() makes a number of tests and itself will call hlua_traceback() if
+needed, so it might still need to be dumped in real time synchronously and
+buffered. But then it's difficult to reassemble chunks of text between the
+backtrace (that needs to be resolved later) and the tasks/lua parts. Or maybe
+we can afford to disable Lua trace dumps in warnings and keep them only for
+panics (where the asynchronous resolution is not needed) ?
+
+Also differentiating the call paths for warnings and panics is not something
+easy either.
