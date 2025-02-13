@@ -2128,6 +2128,27 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 		chunk_appendf(out, "*");
 	chunk_appendf(out, "%s\n", ckchs->path);
 
+	if (ckchs->conf.crt) {
+		chunk_appendf(out, "Crt filename: ");
+		chunk_appendf(out, "%s\n", ckchs->conf.crt);
+	}
+	if (ckchs->conf.key) {
+		chunk_appendf(out, "Key filename: ");
+		chunk_appendf(out, "%s\n", ckchs->conf.key);
+	}
+	if (ckchs->conf.ocsp) {
+		chunk_appendf(out, "OCSP filename: ");
+		chunk_appendf(out, "%s\n", ckchs->conf.ocsp);
+	}
+	if (ckchs->conf.issuer) {
+		chunk_appendf(out, "OCSP Issuer filename: ");
+		chunk_appendf(out, "%s\n", ckchs->conf.issuer);
+	}
+	if (ckchs->conf.sctl) {
+		chunk_appendf(out, "SCTL filename: ");
+		chunk_appendf(out, "%s\n", ckchs->conf.sctl);
+	}
+
 	chunk_appendf(out, "Status: ");
 	if (ckchs->data->cert == NULL)
 		chunk_appendf(out, "Empty\n");
