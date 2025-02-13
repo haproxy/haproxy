@@ -347,13 +347,30 @@ void hap_register_feature(const char *name)
 	static int must_free = 0;
 	int new_len = strlen(build_features) + 2 + strlen(name);
 	char *new_features;
+	char *found, *endp;
 
 	new_features = malloc(new_len + 1);
 	if (!new_features)
 		return;
 
 	strlcpy2(new_features, build_features, new_len);
-	snprintf(new_features, new_len + 1, "%s +%s", build_features, name);
+
+	/* look if the string already exists */
+	/* must be a complete feature name with a space of end of string behind (eg OPENSSL vs OPENSSL_AWSLC) */
+	found = strstr(new_features, name);
+	endp = found+strlen(name);
+
+	if (found && (*endp == ' ' || *endp == '\0')) {
+
+		/* if the feature name was found with a '-' replace it by a '+' */
+		if ((found-1 >= new_features) && (*(found-1) == '-')) {
+			*(found-1) = '+';
+		}
+
+	} else {
+		/* if we didn't find the feature add it to the string */
+		snprintf(new_features, new_len + 1, "%s +%s", build_features, name);
+	}
 
 	if (must_free)
 		ha_free(&build_features);
