@@ -38,6 +38,15 @@ jobs:
             SSLLIB: AWS-LC
           tags: ghcr.io/${{ github.repository }}:aws-lc
 
+      - name: Cleanup registry
+        uses: actions/delete-package-versions@v5
+        with:
+          owner: ${{ github.repository_owner }}
+          package-name: 'haproxy'
+          package-type: container
+          min-versions-to-keep: 1
+          delete-only-untagged-versions: 'true'
+
   run:
     needs: build
     strategy:
