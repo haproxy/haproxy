@@ -2639,6 +2639,7 @@ section_parser:
 	/* call post_section_parser of the last section when there is no more lines */
 	if (cs) {
 		struct cfg_section *psect;
+		int status;
 
 		/* don't call post_section_parser in MODE_DISCOVERY */
 		if (!(global.mode & MODE_DISCOVERY)) {
@@ -2646,7 +2647,15 @@ section_parser:
 				if (strcmp(cs->section_name, psect->section_name) == 0 &&
 				     psect->post_section_parser) {
 
-					err_code |= cs->post_section_parser();
+					status = psect->post_section_parser();
+					if (status & ERR_FATAL)
+						fatal++;
+
+					err_code |= status;
+
+					if (err_code & ERR_ABORT)
+						goto err;
+
 				}
 			}
 		}
