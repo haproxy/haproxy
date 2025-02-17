@@ -5783,6 +5783,7 @@ clitcpka-idle                             X          X         X         -
 clitcpka-intvl                            X          X         X         -
 compression                               X          X         X         X
 cookie                                    X          -         X         X
+crt                                       -          X         X         -
 declare capture                           -          X         X         -
 default-server                            X          -         X         X
 default_backend                           X          X         X         -
@@ -7009,6 +7010,62 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
 
   See also : "balance source", "capture cookie", "server" and "ignore-persist".
 
+crt <crtname> [<sslbindconf> ...]*
+  Assignate a certificate to the current frontend.
+
+  May be used in the following contexts: tcp, http
+
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    yes   |   yes  |   no
+
+  Arguments :
+    <sslbindconf> supports the following keywords from the bind line
+    (see Section 5.1. Bind options):
+
+    - allow-0rtt
+    - alpn
+    - ca-file
+    - ca-verify-file
+    - ciphers
+    - ciphersuites
+    - client-sigalgs
+    - crl-file
+    - curves
+    - ecdhe
+    - no-alpn
+    - no-ca-names
+    - npn
+    - sigalgs
+    - ssl-min-ver
+    - ssl-max-ver
+    - verify
+
+    sslbindconf also supports the following keywords from the crt-store load
+    keyword (see Section 3.12.1. Load options):
+
+    - key
+    - ocsp
+    - issuer
+    - sctl
+    - ocsp-update
+
+  Assignate a certificate <crtname> to a crt-list created automatically with the
+  frontend name and prefixed by @ (ex: '@frontend1').
+
+  This implicit crt-list will be assigned to every "ssl" bind lines in a
+  frontend that does not already have the "crt" or the "crt-list" line.
+  crt-list commands from the stats socket are effective with this crt-list, so
+  one could replace, remove or add certificates and SSL options to it.
+
+  Example :
+
+    frontend https
+        bind :443 ssl
+        crt foobar.pem.rsa sigalgs "RSA-PSS+SHA256"
+        crt test.foobar.pem
+        crt test2.foobar.crt key test2.foobar.key ocsp test2.foobar.ocsp ocsp-update on
+
+  See also : "crt-list" and "crt".
 
 declare capture [ request | response ] len <length>
   Declares a capture slot.
