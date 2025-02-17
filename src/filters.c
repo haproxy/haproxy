@@ -700,23 +700,21 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 		/* Call http_payload for filters only. Forward all data for
 		 * others and update the filter offset
 		 */
-		if (!IS_DATA_FILTER(filter, msg->chn)) {
+		if (!IS_DATA_FILTER(filter, msg->chn) || !FLT_OPS(filter)->http_payload) {
 			*flt_off += data - offset;
 			continue;
 		}
 
-		if (FLT_OPS(filter)->http_payload) {
-			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
-			filter->calls++;
-			ret = FLT_OPS(filter)->http_payload(s, filter, msg, out + offset, data - offset);
-			if (ret < 0) {
-				s->last_entity.type = STRM_ENTITY_FILTER;
-				s->last_entity.ptr = filter;
-				goto end;
-			}
-			data = ret + *flt_off - *strm_off;
-			*flt_off += ret;
+		DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
+		filter->calls++;
+		ret = FLT_OPS(filter)->http_payload(s, filter, msg, out + offset, data - offset);
+		if (ret < 0) {
+			s->last_entity.type = STRM_ENTITY_FILTER;
+			s->last_entity.ptr = filter;
+			goto end;
 		}
+		data = ret + *flt_off - *strm_off;
+		*flt_off += ret;
 	}
 
 	/* If nothing was forwarded yet, we take care to hold the headers if
@@ -998,24 +996,21 @@ flt_tcp_payload(struct stream *s, struct channel *chn, unsigned int len)
 		/* Call tcp_payload for filters only. Forward all data for
 		 * others and update the filter offset
 		 */
-		if (!IS_DATA_FILTER(filter, chn)) {
+		if (!IS_DATA_FILTER(filter, chn) || !FLT_OPS(filter)->tcp_payload) {
 			*flt_off += data - offset;
 			continue;
 		}
 
-		if (FLT_OPS(filter)->tcp_payload) {
-
-			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
-			filter->calls++;
-			ret = FLT_OPS(filter)->tcp_payload(s, filter, chn, out + offset, data - offset);
-			if (ret < 0) {
-				s->last_entity.type = STRM_ENTITY_FILTER;
-				s->last_entity.ptr = filter;
-				goto end;
-			}
-			data = ret + *flt_off - *strm_off;
-			*flt_off += ret;
+		DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
+		filter->calls++;
+		ret = FLT_OPS(filter)->tcp_payload(s, filter, chn, out + offset, data - offset);
+		if (ret < 0) {
+			s->last_entity.type = STRM_ENTITY_FILTER;
+			s->last_entity.ptr = filter;
+			goto end;
 		}
+		data = ret + *flt_off - *strm_off;
+		*flt_off += ret;
 	}
 
 	/* Only forward data if the last filter decides to forward something */
