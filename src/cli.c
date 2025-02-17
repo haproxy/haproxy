@@ -924,6 +924,12 @@ size_t cli_snd_buf(struct appctx *appctx, struct buffer *buf, size_t count, unsi
 
 	if (appctx->st0 == CLI_ST_INIT)
 		cli_init(appctx);
+	else if (appctx->st0 == CLI_ST_END) {
+		/* drop all data on END state */
+		ret = count;
+		b_del(buf, ret);
+		goto end;
+	}
 	else if (appctx->st0 != CLI_ST_GETREQ)
 		goto end;
 
