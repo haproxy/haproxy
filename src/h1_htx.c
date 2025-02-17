@@ -274,7 +274,7 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 			if (isteqi(hdrs[hdr].n, ist("status"))) {
 				code = http_parse_status_val(hdrs[hdr].v, &status, &reason);
 			}
-			else if (isteqi(hdrs[hdr].n, ist("location"))) {
+			else if (isteqi(hdrs[hdr].n, ist("location")) && !code) {
 				code = 302;
 				status = ist("302");
 				reason = ist("Found");
