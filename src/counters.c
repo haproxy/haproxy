@@ -83,7 +83,7 @@ static int _counters_shared_prepare(struct counters_shared *shared,
 	struct be_counters_shared *be_shared;
 	int it = 0;
 
-	if (!guid->node.key || !shm_stats_file_hdr)
+	if (!guid->key || !shm_stats_file_hdr)
 		shared->flags |= COUNTERS_SHARED_F_LOCAL;
 
 	while (it < global.nbtgroups) {

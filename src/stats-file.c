@@ -65,10 +65,10 @@ int stats_dump_fields_file(struct buffer *out,
 	}
 
 	/* Skip objects without GUID. */
-	if (!guid->node.key)
+	if (!guid->key)
 		return 1;
 
-	chunk_appendf(out, "%s,", (char *)guid->node.key);
+	chunk_appendf(out, "%s,", (char *)guid->key);
 
 	for (i = 0; i < stats_count; ++i) {
 		/* Empty field for stats-file is used to skip its output,
