@@ -25,6 +25,8 @@ static void quic_close(struct connection *conn, void *xprt_ctx)
 
 	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
 
+	qc->conn = NULL;
+
 	/* Next application data can be dropped. */
 	qc->mux_state = QC_MUX_RELEASED;
 
