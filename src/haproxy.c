@@ -347,7 +347,8 @@ void hap_register_feature(const char *name)
 	static int must_free = 0;
 	int new_len = strlen(build_features) + 2 + strlen(name);
 	char *new_features;
-	char *found, *endp;
+	char *startp, *endp;
+	int found = 0;
 
 	new_features = malloc(new_len + 1);
 	if (!new_features)
@@ -355,22 +356,38 @@ void hap_register_feature(const char *name)
 
 	strlcpy2(new_features, build_features, new_len);
 
+	startp = new_features;
+
 	/* look if the string already exists */
-	/* must be a complete feature name with a space of end of string behind (eg OPENSSL vs OPENSSL_AWSLC) */
-	found = strstr(new_features, name);
-	endp = found+strlen(name);
+	while (startp) {
+		char *sign = startp;
 
-	if (found && (*endp == ' ' || *endp == '\0')) {
+		/* tokenize for simpler strcmp */
+		endp = strchr(startp, ' ');
+		if (endp)
+			*endp = '\0';
 
-		/* if the feature name was found with a '-' replace it by a '+' */
-		if ((found-1 >= new_features) && (*(found-1) == '-')) {
-			*(found-1) = '+';
+		startp++; /* skip sign */
+
+		if (strcmp(startp, name) == 0) {
+			*sign = '+';
+			found = 1;
 		}
 
-	} else {
-		/* if we didn't find the feature add it to the string */
-		snprintf(new_features, new_len + 1, "%s +%s", build_features, name);
+		/* couldn't find a space, that's the end of the string */
+		if (!endp)
+			break;
+
+		*endp = ' ';
+		startp = endp + 1;
+
+		if (found)
+			break;
 	}
+
+	/* if we didn't find the feature add it to the string */
+	if (!found)
+		snprintf(new_features, new_len + 1, "%s +%s", build_features, name);
 
 	if (must_free)
 		ha_free(&build_features);
