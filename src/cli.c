@@ -2444,6 +2444,16 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 			ha_warning("Failed to transfer sockets\n");
 			goto out;
 		}
+
+		/* Wait for an ack */
+		do {
+			ret = recv(fd, &tot_fd_nb, sizeof(tot_fd_nb), 0);
+		} while (ret == -1 && errno == EINTR);
+
+		if (ret <= 0) {
+			ha_warning("Unexpected error while transferring sockets\n");
+			goto out;
+		}
 	}
 
 out:
