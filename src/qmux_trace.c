@@ -133,6 +133,7 @@ INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 static char *qcc_app_st_to_str(const enum qcc_app_st st)
 {
 	switch (st) {
+	case QCC_APP_ST_NULL: return "NULL";
 	case QCC_APP_ST_INIT: return "INIT";
 	case QCC_APP_ST_SHUT: return "SHUT";
 	default:              return "";

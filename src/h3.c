@@ -1488,7 +1488,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 	return -1;
 }
 
-/* Function used to emit stream data from <qcs> control uni-stream.
+/* Emit SETTINGS frame on <qcs> control uni-stream.
  *
  * On success return the number of sent bytes. A negative code is used on
  * error.
@@ -2406,7 +2406,8 @@ static int h3_init(struct qcc *qcc)
 	return 0;
 }
 
-/* Initialize H3 control stream and prepare SETTINGS emission.
+/* Open control stream for <ctx> HTTP/3 connection and schedule a SETTINGS
+ * frame emission on it.
  *
  * Returns 0 on success else non-zero.
  */
@@ -2429,6 +2430,13 @@ static int h3_finalize(void *ctx)
 	qcs_send_metadata(qcs);
 	h3c->ctrl_strm = qcs;
 
+	/* RFC 9114 7.2.4.2. Initialization
+	 *
+	 * Endpoints MUST NOT require any data to be
+	 * received from the peer prior to sending the SETTINGS frame;
+	 * settings MUST be sent as soon as the transport is ready to
+	 * send data.
+	 */
 	if (h3_control_send(qcs, h3c) < 0) {
 		qcc_set_error(qcc, H3_ERR_INTERNAL_ERROR, 1);
 		goto err;

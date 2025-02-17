@@ -33,6 +33,7 @@ enum qcs_type {
 };
 
 enum qcc_app_st {
+	QCC_APP_ST_NULL,
 	QCC_APP_ST_INIT,
 	QCC_APP_ST_SHUT,
 } __attribute__((packed));

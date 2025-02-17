@@ -1474,27 +1474,12 @@ int qcc_install_app_ops(struct qcc *qcc, const struct qcc_app_ops *app_ops)
 	TRACE_ENTER(QMUX_EV_QCC_NEW, qcc->conn);
 
 	if (app_ops->init && !app_ops->init(qcc)) {
-		TRACE_ERROR("app ops init error", QMUX_EV_QCC_NEW, qcc->conn);
+		TRACE_ERROR("application layer install error", QMUX_EV_QCC_NEW, qcc->conn);
 		goto err;
 	}
 
-	TRACE_PROTO("application layer initialized", QMUX_EV_QCC_NEW, qcc->conn);
+	TRACE_PROTO("application layer installed", QMUX_EV_QCC_NEW, qcc->conn);
 	qcc->app_ops = app_ops;
-
-	/* RFC 9114 7.2.4.2. Initialization
-	 *
-	 * Endpoints MUST NOT require any data to be
-	 * received from the peer prior to sending the SETTINGS frame;
-	 * settings MUST be sent as soon as the transport is ready to
-	 * send data.
-	 */
-	if (qcc->app_ops->finalize) {
-		if (qcc->app_ops->finalize(qcc->ctx)) {
-			TRACE_ERROR("app ops finalize error", QMUX_EV_QCC_NEW, qcc->conn);
-			goto err;
-		}
-		tasklet_wakeup(qcc->wait_event.tasklet);
-	}
 
 	TRACE_LEAVE(QMUX_EV_QCC_NEW, qcc->conn);
 	return 0;
@@ -2480,6 +2465,29 @@ static void qcc_wakeup_pacing(struct qcc *qcc)
 	++qcc->tx.paced_sent_ctr;
 }
 
+/* Finalize <qcc> app layer initialization with I/O operations.
+ *
+ * Returns 0 on success else non-zero.
+ */
+static int qcc_app_init(struct qcc *qcc)
+{
+	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
+
+	if (qcc->app_ops->finalize && qcc->app_ops->finalize(qcc->ctx)) {
+		TRACE_ERROR("app ops finalize error", QMUX_EV_QCC_NEW, qcc->conn);
+		goto err;
+	}
+
+	qcc->app_st = QCC_APP_ST_INIT;
+
+	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);
+	return 0;
+
+ err:
+	TRACE_DEVEL("leaving on error", QMUX_EV_QCC_SEND, qcc->conn);
+	return 1;
+}
+
 /* Proceed to sending. Loop through all available streams for the <qcc>
  * instance and try to send as much as possible.
  *
@@ -2528,6 +2536,11 @@ static int qcc_io_send(struct qcc *qcc)
 		qcc->conn->flags |= CO_FL_ERROR;
 		TRACE_DEVEL("connection on error", QMUX_EV_QCC_SEND, qcc->conn);
 		goto out;
+	}
+
+	if (qcc->app_st < QCC_APP_ST_INIT) {
+		if (qcc_app_init(qcc))
+			goto out;
 	}
 
 	if (!LIST_ISEMPTY(&qcc->lfctl.frms)) {
@@ -3042,7 +3055,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	conn->ctx = qcc;
 	qcc->nb_hreq = qcc->nb_sc = 0;
 	qcc->flags = 0;
-	qcc->app_st = QCC_APP_ST_INIT;
+	qcc->app_st = QCC_APP_ST_NULL;
 	qcc->glitches = 0;
 	qcc->err = quic_err_transport(QC_ERR_NO_ERROR);
 
