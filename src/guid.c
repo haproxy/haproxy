@@ -1,6 +1,6 @@
 #include <haproxy/guid.h>
 
-#include <import/ebistree.h>
+#include <import/cebis_tree.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/proxy.h>
@@ -9,15 +9,16 @@
 #include <haproxy/thread.h>
 
 /* GUID global tree */
-struct eb_root guid_tree = EB_ROOT_UNIQUE;
+struct ceb_root *guid_tree = NULL;
 __decl_thread(HA_RWLOCK_T guid_lock);
+
+/* note: touched under the guid_lock */
 static int _guid_count = 0;
 
 /* Initialize <guid> members. */
 void guid_init(struct guid_node *guid)
 {
-	guid->node.key = NULL;
-	guid->node.node.leaf_p = NULL;
+	memset(guid, 0, sizeof(*guid));
 }
 
 /* Insert <objt> into GUID global tree with key <uid>. Must only be called on
@@ -30,7 +31,6 @@ int guid_insert(enum obj_type *objt, const char *uid, char **errmsg)
 {
 	struct guid_node *guid = NULL;
 	struct guid_node *dup;
-	struct ebpt_node *node;
 	char *dup_name = NULL;
 
 	if (!guid_is_valid_fmt(uid, errmsg))
@@ -55,16 +55,15 @@ int guid_insert(enum obj_type *objt, const char *uid, char **errmsg)
 		return 0;
 	}
 
-	guid->node.key = strdup(uid);
-	if (!guid->node.key) {
+	guid->key = strdup(uid);
+	if (!guid->key) {
 		memprintf(errmsg, "key alloc failure");
 		goto err;
 	}
 
 	HA_RWLOCK_WRLOCK(GUID_LOCK, &guid_lock);
-	node = ebis_insert(&guid_tree, &guid->node);
-	if (node != &guid->node) {
-		dup = ebpt_entry(node, struct guid_node, node);
+	dup = cebuis_item_insert(&guid_tree, node, key, guid);
+	if (dup != guid) {
 		HA_RWLOCK_WRUNLOCK(GUID_LOCK, &guid_lock);
 		dup_name = guid_name(dup);
 		memprintf(errmsg, "duplicate entry with %s", dup_name);
@@ -79,10 +78,8 @@ int guid_insert(enum obj_type *objt, const char *uid, char **errmsg)
 
  err:
 	if (guid)
-		ha_free(&guid->node.key);
+		ha_free(&guid->key);
 	ha_free(&dup_name);
-	if (guid)
-		guid->node.key = NULL; /* so that we can check that guid is not in a tree */
 	return 1;
 }
 
@@ -92,10 +89,10 @@ int guid_insert(enum obj_type *objt, const char *uid, char **errmsg)
 void guid_remove(struct guid_node *guid)
 {
 	HA_RWLOCK_WRLOCK(GUID_LOCK, &guid_lock);
-	ebpt_delete(&guid->node);
-	if (guid->node.key)
+	if (guid->key)
 		_guid_count--;
-	ha_free(&guid->node.key);
+	cebuis_item_delete(&guid_tree, node, key, guid);
+	ha_free(&guid->key);
 	HA_RWLOCK_WRUNLOCK(GUID_LOCK, &guid_lock);
 }
 
@@ -105,7 +102,6 @@ void guid_remove(struct guid_node *guid)
  */
 struct guid_node *guid_lookup(const char *uid)
 {
-	struct ebpt_node *node = NULL;
 	struct guid_node *guid = NULL;
 
 	/* For now, guid_lookup() is only used during startup in single-thread
@@ -114,10 +110,7 @@ struct guid_node *guid_lookup(const char *uid)
 	 */
 	BUG_ON(!(global.mode & MODE_STARTING));
 
-	node = ebis_lookup(&guid_tree, uid);
-	if (node)
-		guid = ebpt_entry(node, struct guid_node, node);
-
+	guid = cebuis_item_lookup(&guid_tree, node, key, uid, struct guid_node);
 	return guid;
 }
 

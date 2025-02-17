@@ -17,7 +17,7 @@ struct guid_node *guid_lookup(const char *uid);
  */
 static inline const char *guid_get(const struct guid_node *guid)
 {
-	return guid->node.key;
+	return guid->key;
 }
 
 int guid_is_valid_fmt(const char *uid, char **errmsg);

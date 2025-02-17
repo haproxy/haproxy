@@ -64,7 +64,7 @@ static int _counters_shared_prepare(struct counters_shared *shared, const struct
 	/* no shared memory for now, simply allocate a memory block
 	 * for the counters (zero-initialized), ignore guid
 	 */
-	if (!guid->node.key)
+	if (!guid->key)
 		shared->flags |= COUNTERS_SHARED_F_LOCAL;
 	while (it < global.nbtgroups) {
 		shared->tg[it] = calloc(1, size);
