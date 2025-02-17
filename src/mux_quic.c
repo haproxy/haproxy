@@ -3190,6 +3190,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 		/* In case of MUX init failure, session will ensure connection is freed. */
 		qcc->conn = NULL;
 		qcc_release(qcc);
+		conn->ctx = NULL;
 	}
 
 	TRACE_DEVEL("leaving on error", QMUX_EV_QCC_NEW, conn);
