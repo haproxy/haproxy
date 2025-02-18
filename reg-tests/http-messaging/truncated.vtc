@@ -58,6 +58,7 @@ server s1 {
 	#delay 0.05
 	chunkedlen 815
 	delay 0.05
+	chunkedlen 0
 } -repeat 2 -start
 
 haproxy h1 -conf {
