@@ -1,4 +1,3 @@
-#EXCLUDE_TARGETS=freebsd
 varnishtest "HTTP response size tests: H2->H1 (HTX and legacy mode)"
 
 feature ignore_unknown_macro
