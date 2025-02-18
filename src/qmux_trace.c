@@ -130,6 +130,15 @@ static void qmux_trace_fill_ctx(struct trace_ctx *ctx, const struct trace_source
 /* register qmux traces */
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
+static char *qcc_app_st_to_str(const enum qcc_app_st st)
+{
+	switch (st) {
+	case QCC_APP_ST_INIT: return "INIT";
+	case QCC_APP_ST_SHUT: return "SHUT";
+	default:              return "";
+	}
+}
+
 void qmux_dump_qcc_info(struct buffer *msg, const struct qcc *qcc)
 {
 	const struct quic_conn *qc = qcc->conn->handle.qc;
@@ -137,7 +146,9 @@ void qmux_dump_qcc_info(struct buffer *msg, const struct qcc *qcc)
 	chunk_appendf(msg, " qcc=%p(F)", qcc);
 	if (qcc->conn->handle.qc)
 		chunk_appendf(msg, " qc=%p", qcc->conn->handle.qc);
-	chunk_appendf(msg, " .sc=%llu .hreq=%llu .flg=0x%04x", (ullong)qcc->nb_sc, (ullong)qcc->nb_hreq, qcc->flags);
+	chunk_appendf(msg, " .st=%s .sc=%llu .hreq=%llu .flg=0x%04x",
+	              qcc_app_st_to_str(qcc->app_st), (ullong)qcc->nb_sc,
+	              (ullong)qcc->nb_hreq, qcc->flags);
 
 	chunk_appendf(msg, " .tx=%llu %llu/%llu bwnd=%llu/%llu",
 	              (ullong)qcc->tx.fc.off_soft, (ullong)qcc->tx.fc.off_real, (ullong)qcc->tx.fc.limit,

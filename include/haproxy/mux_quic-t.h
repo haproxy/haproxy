@@ -32,11 +32,17 @@ enum qcs_type {
 	QCS_MAX_TYPES
 };
 
+enum qcc_app_st {
+	QCC_APP_ST_INIT,
+	QCC_APP_ST_SHUT,
+} __attribute__((packed));
+
 struct qcc {
 	struct connection *conn;
 	uint64_t nb_sc; /* number of attached stream connectors */
 	uint64_t nb_hreq; /* number of in-progress http requests */
 	uint32_t flags; /* QC_CF_* */
+	enum qcc_app_st app_st; /* application layer state */
 	int glitches;   /* total number of glitches on this connection */
 
 	/* flow-control fields set by us enforced on our side. */
@@ -221,7 +227,7 @@ struct qcc_app_ops {
 #define QC_CF_ERRL_DONE 0x00000002 /* local error properly handled, connection can be released */
 /* unused 0x00000004 */
 #define QC_CF_CONN_FULL 0x00000008 /* no stream buffers available on connection */
-#define QC_CF_APP_SHUT  0x00000010 /* Application layer shutdown done. */
+/* unused 0x00000010 */
 #define QC_CF_ERR_CONN  0x00000020 /* fatal error reported by transport layer */
 #define QC_CF_WAIT_HS   0x00000040 /* MUX init before QUIC handshake completed (0-RTT) */
 
@@ -238,9 +244,8 @@ static forceinline char *qcc_show_flags(char *buf, size_t len, const char *delim
 	_(QC_CF_ERRL,
 	_(QC_CF_ERRL_DONE,
 	_(QC_CF_CONN_FULL,
-	_(QC_CF_APP_SHUT,
 	_(QC_CF_ERR_CONN,
-	_(QC_CF_WAIT_HS))))));
+	_(QC_CF_WAIT_HS)))));
 	/* epilogue */
 	_(~0U);
 	return buf;

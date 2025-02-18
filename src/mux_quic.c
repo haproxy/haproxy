@@ -309,7 +309,7 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 	 * processed if shutdown already one or connection is idle.
 	 */
 	if (!conn_is_back(qcc->conn)) {
-		if (qcc->nb_hreq && !(qcc->flags & QC_CF_APP_SHUT)) {
+		if (qcc->nb_hreq && qcc->app_st < QCC_APP_ST_SHUT) {
 			TRACE_DEVEL("one or more requests still in progress", QMUX_EV_QCC_WAKE, qcc->conn);
 			qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
 			task_queue(qcc->task);
@@ -317,7 +317,7 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 		}
 
 		if ((!LIST_ISEMPTY(&qcc->opening_list) || unlikely(!qcc->largest_bidi_r)) &&
-		    !(qcc->flags & QC_CF_APP_SHUT)) {
+		    qcc->app_st < QCC_APP_ST_SHUT) {
 			int timeout = px->timeout.httpreq;
 			struct qcs *qcs = NULL;
 			int base_time;
@@ -333,7 +333,7 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 			qcc->task->expire = tick_add_ifset(base_time, timeout);
 		}
 		else {
-			if (qcc->flags & QC_CF_APP_SHUT) {
+			if (qcc->app_st >= QCC_APP_ST_SHUT) {
 				TRACE_DEVEL("connection in closing", QMUX_EV_QCC_WAKE, qcc->conn);
 				qcc->task->expire = tick_add_ifset(now_ms,
 				                                   qcc->shut_timeout);
@@ -2704,7 +2704,7 @@ static void qcc_purge_streams(struct qcc *qcc)
 
 /* Execute application layer shutdown. If this operation is not defined, a
  * CONNECTION_CLOSE will be prepared as a fallback. This function is protected
- * against multiple invocation with the flag QC_CF_APP_SHUT.
+ * against multiple invocation thanks to <qcc> application state context.
  */
 static void qcc_shutdown(struct qcc *qcc)
 {
@@ -2715,7 +2715,7 @@ static void qcc_shutdown(struct qcc *qcc)
 		goto out;
 	}
 
-	if (qcc->flags & QC_CF_APP_SHUT)
+	if (qcc->app_st >= QCC_APP_ST_SHUT)
 		goto out;
 
 	TRACE_STATE("perform graceful shutdown", QMUX_EV_QCC_END, qcc->conn);
@@ -2738,7 +2738,7 @@ static void qcc_shutdown(struct qcc *qcc)
 		qcc->conn->handle.qc->err = qcc->err;
 
  out:
-	qcc->flags |= QC_CF_APP_SHUT;
+	qcc->app_st = QCC_APP_ST_SHUT;
 	TRACE_LEAVE(QMUX_EV_QCC_END, qcc->conn);
 }
 
@@ -3042,6 +3042,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	conn->ctx = qcc;
 	qcc->nb_hreq = qcc->nb_sc = 0;
 	qcc->flags = 0;
+	qcc->app_st = QCC_APP_ST_INIT;
 	qcc->glitches = 0;
 	qcc->err = quic_err_transport(QC_ERR_NO_ERROR);
 
