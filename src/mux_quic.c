@@ -3091,6 +3091,11 @@ static void qcc_wait_for_hs(struct qcc *qcc)
 
 		qcc->flags &= ~QC_CF_WAIT_HS;
 	}
+	else {
+		/* subscribe for handshake completion */
+		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV,
+		                      &qcc->wait_event);
+	}
 
 	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
 }
@@ -3753,9 +3758,6 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 			if (!(conn->flags & CO_FL_EARLY_SSL_HS)) {
 				TRACE_STATE("flag connection with early data", QMUX_EV_QCC_WAKE, conn);
 				conn->flags |= CO_FL_EARLY_SSL_HS;
-				/* subscribe for handshake completion */
-				conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV,
-				                      &qcc->wait_event);
 				qcc->flags |= QC_CF_WAIT_HS;
 			}
 		}
