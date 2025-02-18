@@ -2465,21 +2465,34 @@ static void qcc_wakeup_pacing(struct qcc *qcc)
 	++qcc->tx.paced_sent_ctr;
 }
 
-/* Finalize <qcc> app layer initialization with I/O operations.
+/* Conduct I/O operations to finalize <qcc> app layer initialization. Note that
+ * <qcc> app state may remain NULL even on success, if only a transient
+ * blocking was encountered. Finalize operation can be retry later.
  *
  * Returns 0 on success else non-zero.
  */
 static int qcc_app_init(struct qcc *qcc)
 {
+	int ret;
+
 	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
 
-	if (qcc->app_ops->finalize && qcc->app_ops->finalize(qcc->ctx)) {
-		TRACE_ERROR("app ops finalize error", QMUX_EV_QCC_NEW, qcc->conn);
-		goto err;
+	if (qcc->app_ops->finalize) {
+		ret = qcc->app_ops->finalize(qcc->ctx);
+		if (ret < 0) {
+			TRACE_ERROR("app ops finalize error", QMUX_EV_QCC_NEW, qcc->conn);
+			goto err;
+		}
+
+		if (ret) {
+			TRACE_STATE("cannot finalize app ops yet", QMUX_EV_QCC_NEW, qcc->conn);
+			goto again;
+		}
 	}
 
 	qcc->app_st = QCC_APP_ST_INIT;
 
+ again:
 	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);
 	return 0;
 

@@ -1531,11 +1531,6 @@ static int h3_control_send(struct qcs *qcs, void *ctx)
 		b_quic_enc_int(&pos, h3_settings_max_field_section_size, 0);
 	}
 
-	if (qfctl_sblocked(&qcs->tx.fc) || qfctl_sblocked(&qcs->qcc->tx.fc)) {
-		TRACE_ERROR("not enough initial credit for control stream", H3_EV_TX_FRAME|H3_EV_TX_SETTINGS, qcs->qcc->conn, qcs);
-		goto err;
-	}
-
 	if (!(res = qcc_get_stream_txbuf(qcs, &err, 0))) {
 		/* Only memory failure can cause buf alloc error for control stream due to qcs_send_metadata() usage. */
 		TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_SETTINGS, qcs->qcc->conn, qcs);
@@ -2409,26 +2404,35 @@ static int h3_init(struct qcc *qcc)
 /* Open control stream for <ctx> HTTP/3 connection and schedule a SETTINGS
  * frame emission on it.
  *
- * Returns 0 on success else non-zero.
+ * Returns 0 on success. If a transient error was encountered, a positive value
+ * is returned, finalize operation should be recalled later. A negative value is
+ * used for a fatal error, in this case the connection should be closed.
  */
 static int h3_finalize(void *ctx)
 {
 	struct h3c *h3c = ctx;
 	struct qcc *qcc = h3c->qcc;
-	struct qcs *qcs;
+	struct qcs *qcs = h3c->ctrl_strm;
 
 	TRACE_ENTER(H3_EV_H3C_NEW, qcc->conn);
 
-	qcs = qcc_init_stream_local(qcc, 0);
 	if (!qcs) {
-		/* Error must be set by qcc_init_stream_local(). */
-		BUG_ON(!(qcc->flags & QC_CF_ERRL));
-		TRACE_ERROR("cannot init control stream", H3_EV_H3C_NEW, qcc->conn);
-		goto err;
+		qcs = qcc_init_stream_local(qcc, 0);
+		if (!qcs) {
+			/* Error must be set by qcc_init_stream_local(). */
+			BUG_ON(!(qcc->flags & QC_CF_ERRL));
+			TRACE_ERROR("cannot init control stream", H3_EV_H3C_NEW, qcc->conn);
+			goto err;
+		}
+
+		qcs_send_metadata(qcs);
+		h3c->ctrl_strm = qcs;
 	}
 
-	qcs_send_metadata(qcs);
-	h3c->ctrl_strm = qcs;
+	if (qfctl_sblocked(&qcs->tx.fc) || qfctl_sblocked(&qcs->qcc->tx.fc)) {
+		TRACE_STATE("not enough initial credit for control stream", H3_EV_TX_FRAME|H3_EV_TX_SETTINGS, qcs->qcc->conn, qcs);
+		goto again;
+	}
 
 	/* RFC 9114 7.2.4.2. Initialization
 	 *
@@ -2445,9 +2449,13 @@ static int h3_finalize(void *ctx)
 	TRACE_LEAVE(H3_EV_H3C_NEW, qcc->conn);
 	return 0;
 
+ again:
+	TRACE_DEVEL("leaving on transient state", H3_EV_H3C_NEW, qcc->conn);
+	return 1;
+
  err:
 	TRACE_DEVEL("leaving on error", H3_EV_H3C_NEW, qcc->conn);
-	return 1;
+	return -1;
 }
 
 /* Send a HTTP/3 GOAWAY followed by a CONNECTION_CLOSE_APP. */
