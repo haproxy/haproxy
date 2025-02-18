@@ -49,7 +49,7 @@ h2ff = {
     [6] = { [0] = "ACK" }, -- ping
     [7] = { }, -- goaway
     [8] = { }, -- window_update
-    [9] = { [3] = "PADDED" }, -- continuation
+    [9] = { [2] = "EH" }, -- continuation
 }
 
 function Dec:new()
