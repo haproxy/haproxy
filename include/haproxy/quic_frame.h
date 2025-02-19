@@ -38,9 +38,16 @@ int qc_build_frm(unsigned char **pos, const unsigned char *end,
                  struct quic_frame *frm, struct quic_tx_packet *pkt,
                  struct quic_conn *conn);
 
-int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
-                 const unsigned char **pos, const unsigned char *end,
-                 struct quic_conn *conn);
+int qc_parse_frm_type(struct quic_frame *frm,
+                      const unsigned char **pos, const unsigned char *end,
+                      struct quic_conn *conn);
+
+int qc_parse_frm_pkt(const struct quic_frame *frm,
+                     const struct quic_rx_packet *pkt, int *flags);
+
+int qc_parse_frm_payload(struct quic_frame *frm,
+                         const unsigned char **pos, const unsigned char *end,
+                         struct quic_conn *qc);
 
 void qc_release_frm(struct quic_conn *qc, struct quic_frame *frm);
 

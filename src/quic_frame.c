@@ -1150,17 +1150,19 @@ const struct quic_frame_builder *qf_builder(uint64_t type)
 	return NULL;
 }
 
-/* Decode a QUIC frame at <pos> buffer position into <frm> frame.
- * Returns 1 if succeeded (enough data at <pos> buffer position to parse the frame), 0 if not.
+/* Parse frame type in buffer starting at <pos> and ending at <end> and store
+ * it in <frm> object.
+ *
+ * Returns 1 on success else 0.
  */
-int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
-                 const unsigned char **pos, const unsigned char *end,
-                 struct quic_conn *qc)
+int qc_parse_frm_type(struct quic_frame *frm,
+                      const unsigned char **pos, const unsigned char *end,
+                      struct quic_conn *qc)
 {
 	int ret = 0;
-	const struct quic_frame_parser *parser;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSFRM, qc);
+
 	if (end <= *pos) {
 		TRACE_DEVEL("wrong frame", QUIC_EV_CONN_PRSFRM, qc);
 		goto leave;
@@ -1168,42 +1170,56 @@ int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
 
 	if (!quic_dec_int(&frm->type, pos, end)) {
 		TRACE_ERROR("malformed frame type", QUIC_EV_CONN_PRSFRM, qc);
-		quic_set_connection_close(qc, quic_err_transport(QC_ERR_FRAME_ENCODING_ERROR));
 		goto leave;
 	}
 
 	if (!quic_frame_type_is_known(frm->type)) {
-		/* RFC 9000 12.4. Frames and Frame Types
-		 *
-		 * An endpoint MUST treat the receipt of a frame of unknown type as a
-		 * connection error of type FRAME_ENCODING_ERROR.
-		 */
 		TRACE_DEVEL("wrong frame type", QUIC_EV_CONN_PRSFRM, qc, frm);
-		quic_set_connection_close(qc, quic_err_transport(QC_ERR_FRAME_ENCODING_ERROR));
 		goto leave;
 	}
+
+	ret = 1;
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_PRSFRM, qc);
+	return ret;
+}
+
+/* Checks that <frm> frame is authorized in <pkt> packet. Output parameter <flags>
+ * may be updated if the frame characteristics impacts the containing packet.
+ *
+ * Returns true for a valid frame else false.
+ */
+int qc_parse_frm_pkt(const struct quic_frame *frm,
+                     const struct quic_rx_packet *pkt, int *flags)
+{
+	const struct quic_frame_parser *parser = qf_parser(frm->type);
+	if (!(parser->mask & (1U << pkt->type)))
+		return 0;
+
+	*flags = parser->flags;
+	return 1;
+}
+
+/* Parse frame content in buffer starting at <pos> and ending at <end>.
+ *
+ * Returns 1 on success else 0.
+ */
+int qc_parse_frm_payload(struct quic_frame *frm,
+                         const unsigned char **pos, const unsigned char *end,
+                         struct quic_conn *qc)
+{
+	int ret = 0;
+	const struct quic_frame_parser *parser;
+
+	TRACE_ENTER(QUIC_EV_CONN_PRSFRM, qc);
 
 	parser = qf_parser(frm->type);
-	if (!(parser->mask & (1U << pkt->type))) {
-		/* RFC 9000 12.4. Frames and Frame Types
-		 *
-		 * An endpoint MUST treat
-		 * receipt of a frame in a packet type that is not permitted as a
-		 * connection error of type PROTOCOL_VIOLATION.
-		 */
-		TRACE_DEVEL("unauthorized frame", QUIC_EV_CONN_PRSFRM, qc, frm);
-		quic_set_connection_close(qc, quic_err_transport(QC_ERR_PROTOCOL_VIOLATION));
-		goto leave;
-	}
-
 	if (!parser->func(frm, qc, pos, end)) {
 		TRACE_DEVEL("parsing error", QUIC_EV_CONN_PRSFRM, qc, frm);
 		goto leave;
 	}
 
 	TRACE_PROTO("RX frm", QUIC_EV_CONN_PSTRM, qc, frm);
-
-	pkt->flags |= parser->flags;
 
 	ret = 1;
  leave:

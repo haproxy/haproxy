@@ -840,7 +840,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 {
 	struct quic_frame *frm = NULL;
 	const unsigned char *pos, *end;
-	int fast_retrans = 0, ret;
+	int fast_retrans = 0, pkt_flags = 0, ret;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
 	/* Skip the AAD */
@@ -867,7 +867,32 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			goto err;
 		}
 
-		if (!qc_parse_frm(frm, pkt, &pos, end, qc)) {
+		if (!qc_parse_frm_type(frm, &pos, end, qc)) {
+			/* RFC 9000 12.4. Frames and Frame Types
+			 *
+			 * An endpoint MUST treat the receipt of a frame of unknown type as a
+			 * connection error of type FRAME_ENCODING_ERROR.
+			 */
+			quic_set_connection_close(qc, quic_err_transport(QC_ERR_FRAME_ENCODING_ERROR));
+			/* trace already emitted by above function */
+			goto err;
+		}
+
+		/* RFC 9000 12.4. Frames and Frame Types
+		 *
+		 * An endpoint MUST treat
+		 * receipt of a frame in a packet type that is not permitted as a
+		 * connection error of type PROTOCOL_VIOLATION.
+		 */
+		if (!qc_parse_frm_pkt(frm, pkt, &pkt_flags)) {
+			TRACE_ERROR("unauthorized frame", QUIC_EV_CONN_PRSFRM, qc, frm);
+			quic_set_connection_close(qc, quic_err_transport(QC_ERR_PROTOCOL_VIOLATION));
+			goto err;
+		}
+
+		pkt->flags |= pkt_flags;
+
+		if (!qc_parse_frm_payload(frm, &pos, end, qc)) {
 			// trace already emitted by function above
 			goto err;
 		}
@@ -1147,7 +1172,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			qc->state = QUIC_HS_ST_CONFIRMED;
 			break;
 		default:
-			/* Unknown frame type must be rejected by qc_parse_frm(). */
+			/* Unknown frame type must be rejected by qc_parse_frm_type(). */
 			ABORT_NOW();
 		}
 	}
