@@ -4671,3 +4671,28 @@ static struct mux_proto_list mux_proto_quic =
   { .token = IST("quic"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_BOTH, .mux = &qmux_ops };
 
 INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_quic);
+
+static const struct mux_ops qstrm_ops = {
+	.init        = qmux_init,
+	.destroy     = qmux_destroy,
+	.detach      = qmux_strm_detach,
+	.rcv_buf     = qmux_strm_rcv_buf,
+	.snd_buf     = qmux_strm_snd_buf,
+	.nego_fastfwd = qmux_strm_nego_ff,
+	.done_fastfwd = qmux_strm_done_ff,
+	.resume_fastfwd = qmux_strm_resume_ff,
+	.subscribe   = qmux_strm_subscribe,
+	.unsubscribe = qmux_strm_unsubscribe,
+	.wake        = qmux_wake,
+	.shut        = qmux_strm_shut,
+	.ctl         = qmux_ctl,
+	.sctl        = qmux_sctl,
+	.show_sd     = qmux_strm_show_sd,
+	.flags = MX_FL_HTX|MX_FL_NO_UPG|MX_FL_EXPERIMENTAL,
+	.name = "QMUX",
+};
+
+static struct mux_proto_list mux_proto_qstrm =
+  { .token = IST("qmux"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_FE, .mux = &qstrm_ops };
+
+INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_qstrm);
