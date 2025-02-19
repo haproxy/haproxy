@@ -1245,7 +1245,7 @@ int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
 	}
 
 	parser = qf_parser(frm->type);
-	if (!(parser->mask & (1U << pkt->type))) {
+	if (pkt && !(parser->mask & (1U << pkt->type))) {
 		TRACE_DEVEL("unauthorized frame", QUIC_EV_CONN_PRSFRM, qc, frm);
 		goto leave;
 	}
@@ -1257,7 +1257,8 @@ int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
 
 	TRACE_PROTO("RX frm", QUIC_EV_CONN_PSTRM, qc, frm);
 
-	pkt->flags |= parser->flags;
+	if (pkt)
+		pkt->flags |= parser->flags;
 
 	ret = 1;
  leave:
@@ -1280,7 +1281,7 @@ int qc_build_frm(unsigned char **pos, const unsigned char *end,
 
 	TRACE_ENTER(QUIC_EV_CONN_BFRM, qc);
 	builder = qf_builder(frm->type);
-	if (!(builder->mask & (1U << pkt->type))) {
+	if (pkt && !(builder->mask & (1U << pkt->type))) {
 		/* XXX This it a bug to send an unauthorized frame with such a packet type XXX */
 		TRACE_ERROR("unauthorized frame", QUIC_EV_CONN_BFRM, qc, frm);
 		BUG_ON(!(builder->mask & (1U << pkt->type)));
@@ -1297,7 +1298,8 @@ int qc_build_frm(unsigned char **pos, const unsigned char *end,
 		goto leave;
 	}
 
-	pkt->flags |= builder->flags;
+	if (pkt)
+		pkt->flags |= builder->flags;
 	*pos = p;
 
 	ret = 1;
