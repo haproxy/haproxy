@@ -1,6 +1,59 @@
 ChangeLog :
 ===========
 
+2025/02/19 : 3.2-dev6
+    - BUG/MEDIUM: debug: close a possible race between thread dump and panic()
+    - DEBUG: thread: report the spin lock counters as seek locks
+    - DEBUG: thread: make lock time computation more consistent
+    - DEBUG: thread: report the wait time buckets for lock classes
+    - DEBUG: thread: don't keep the redundant _locked counter
+    - DEBUG: thread: make lock_stat per operation instead of for all operations
+    - DEBUG: thread: reduce the struct lock_stat to store only 30 buckets
+    - MINOR: lbprm: add a new callback ->server_requeue to the lbprm
+    - MEDIUM: server: allocate a tasklet for asyncronous requeuing
+    - MAJOR: leastconn: postpone the server's repositioning under contention
+    - BUG/MINOR: quic: reserve length field for long header encoding
+    - BUG/MINOR: quic: fix CRYPTO payload size calcul for encoding
+    - MINOR: quic: simplify length calculation for STREAM/CRYPTO frames
+    - BUG/MINOR: mworker: section ignored in discovery after a post_section_parser
+    - BUG/MINOR: mworker: post_section_parser for the last section in discovery
+    - CLEANUP: mworker: "program" section does not have a post_section_parser anymore
+    - MEDIUM: initcall: allow to register mutiple post_section_parser per section
+    - CI: cirrus-ci: bump FreeBSD image to 14-2
+    - DOC: initcall: name correctly REGISTER_CONFIG_POST_SECTION()
+    - REGTESTS: stop using truncated.vtc on freebsd
+    - MINOR: quic: refactor STREAM encoding and splitting
+    - MINOR: quic: refactor CRYPTO encoding and splitting
+    - BUG/MEDIUM: fd: mark FD transferred to another process as FD_CLONED
+    - BUG/MINOR: ssl/cli: "show ssl crt-list" lacks client-sigals
+    - BUG/MINOR: ssl/cli: "show ssl crt-list" lacks sigals
+    - MINOR: ssl/cli: display more filenames in 'show ssl cert'
+    - DOC: watchdog: document the sequence of the watchdog and panic
+    - MINOR: ssl: store the filenames resulting from a lookup in ckch_conf
+    - MINOR: startup: allow hap_register_feature() to enable a feature in the list
+    - MINOR: quic: support frame type as a varint
+    - BUG/MINOR: startup: leave at first post_section_parser which fails
+    - BUG/MINOR: startup: hap_register_feature() fix for partial feature name
+    - BUG/MEDIUM: cli: Be sure to drop all input data in END state
+    - BUG/MINOR: cli: Wait for the last ACK when FDs are xferred from the old worker
+    - BUG/MEDIUM: filters: Handle filters registered on data with no payload callback
+    - BUG/MINOR: fcgi: Don't set the status to 302 if it is already set
+    - MINOR: ssl/crtlist: split the ckch_conf loading from the crtlist line parsing
+    - MINOR: ssl/crtlist: handle crt_path == cc->crt in crtlist_load_crt()
+    - MINOR: ssl/ckch: return from ckch_conf_clean() when conf is NULL
+    - MEDIUM: ssl/crtlist: "crt" keyword in frontend
+    - DOC: configuration: document the "crt" frontend keyword
+    - DEV: h2: add a Lua-based HTTP/2 connection tracer
+    - BUG/MINOR: quic: prevent crash on conn access after MUX init failure
+    - BUG/MINOR: mux-quic: prevent crash after MUX init failure
+    - DEV: h2: fix flags for the continuation frame
+    - REGTESTS: Fix truncated.vtc to send 0-CRLF
+    - BUG/MINOR: mux-h2: Properly handle full or truncated HTX messages on shut
+    - Revert "REGTESTS: stop using truncated.vtc on freebsd"
+    - MINOR: mux-quic: define a QCC application state member
+    - MINOR: mux-quic/h3: emit SETTINGS via MUX tasklet handler
+    - MINOR: mux-quic/h3: support temporary blocking on control stream sending
+
 2025/02/08 : 3.2-dev5
     - BUG/MINOR: ssl: put ssl_sock_load_ca under SSL_NO_GENERATE_CERTIFICATES
     - CLEANUP: ssl: rename ssl_sock_load_ca to ssl_sock_gencert_load_ca
