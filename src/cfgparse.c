@@ -555,7 +555,9 @@ static int init_peers_frontend(const char *file, int linenum,
                                const char *id, struct peers *peers)
 {
 	struct proxy *p;
-
+	if (!peers) {
+		return -1;
+	}
 	if (peers->peers_fe) {
 		p = peers->peers_fe;
 		goto out;
