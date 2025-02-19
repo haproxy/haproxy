@@ -194,6 +194,12 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 
 	qcs->err = 0;
 
+	if (!qmux_is_quic(qcc)) {
+		qcs->qos_buf = BUF_NULL;
+		b_alloc(&qcs->qos_buf, DB_MUX_TX);
+		BUG_ON(!b_size(&qcs->qos_buf));
+	}
+
 	/* Reset all timers and start base one. */
 	tot_time_reset(&qcs->timer.base);
 	tot_time_reset(&qcs->timer.buf);
@@ -573,19 +579,36 @@ void qcs_notify_send(struct qcs *qcs)
 	}
 }
 
+const struct buffer *qcs_tx_buf_const(const struct qcs *qcs)
+{
+	return qmux_is_quic(qcs->qcc) ?
+	  qc_stream_buf_get(qcs->stream) : &qcs->qos_buf;
+}
+
+struct buffer *qcs_tx_buf(struct qcs *qcs)
+{
+	return qmux_is_quic(qcs->qcc) ?
+	  qc_stream_buf_get(qcs->stream) : &qcs->qos_buf;
+}
+
 /* Returns total number of bytes not already sent to quic-conn layer. */
 static uint64_t qcs_prep_bytes(const struct qcs *qcs)
 {
-	struct buffer *out = qc_stream_buf_get(qcs->stream);
+	const struct buffer *out = qcs_tx_buf_const(qcs);
 	uint64_t diff, base_off;
 
 	if (!out)
 		return 0;
 
-	/* if ack_offset < buf_offset, it points to an older buffer. */
-	base_off = MAX(qcs->stream->buf_offset, qcs->stream->ack_offset);
-	diff = qcs->tx.fc.off_real - base_off;
-	return b_data(out) - diff;
+	if (qmux_is_quic(qcs->qcc)) {
+		/* if ack_offset < buf_offset, it points to an older buffer. */
+		base_off = MAX(qcs->stream->buf_offset, qcs->stream->ack_offset);
+		diff = qcs->tx.fc.off_real - base_off;
+		return b_data(out) - diff;
+	}
+	else {
+		return b_data(out);
+	}
 }
 
 /* Used as a callback for qc_stream_desc layer to notify about emission of a
@@ -1448,7 +1471,7 @@ struct buffer *qcc_get_stream_rxbuf(struct qcs *qcs)
 struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err, int small)
 {
 	struct qcc *qcc = qcs->qcc;
-	struct buffer *out = qc_stream_buf_get(qcs->stream);
+	struct buffer *out = qcs_tx_buf(qcs);
 
 	/* Stream must not try to reallocate a buffer if currently waiting for one. */
 	BUG_ON(LIST_INLIST(&qcs->el_buf));
@@ -2660,7 +2683,7 @@ static int qcs_send_stop_sending(struct qcs *qcs)
 static int qcs_send(struct qcs *qcs, struct list *frms, uint64_t window_conn)
 {
 	struct qcc *qcc = qcs->qcc;
-	struct buffer *out = qc_stream_buf_get(qcs->stream);
+	struct buffer *out = qcs_tx_buf(qcs);
 	int flen = 0;
 	const char fin = qcs->flags & QC_SF_FIN_STREAM;
 

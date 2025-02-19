@@ -190,6 +190,8 @@ struct qcs {
 		struct tot_time buf;  /* stream to QCS send blocked on buffer */
 		struct tot_time fctl; /* stream to QCS send blocked on flow-control */
 	} timer;
+
+	struct buffer qos_buf;
 };
 
 /* Used as qcc_app_ops.close callback argument. */
