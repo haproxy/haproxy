@@ -270,7 +270,7 @@ void clock_update_global_date()
 	 * otherwise catch up.
 	 */
 	old_now_ns = _HA_ATOMIC_LOAD(&global_now_ns);
-	old_now_ms = global_now_ms;
+	old_now_ms = _HA_ATOMIC_LOAD(&global_now_ms);
 
 	do {
 		if (now_ns < old_now_ns)
