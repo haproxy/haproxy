@@ -129,6 +129,13 @@ static inline void quic_transport_params_dump(struct buffer *b,
 	quic_tp_version_info_dump(b, &p->version_information, local);
 }
 
+int quic_transport_param_enc_int(unsigned char **buf,
+                                 const unsigned char *end,
+                                 uint64_t type, uint64_t val);
+enum quic_tp_dec_err
+quic_transport_params_decode(struct quic_transport_params *p, int server,
+                             const unsigned char *buf, const unsigned char *end);
+
 static inline void quic_early_transport_params_dump(struct buffer *b,
                                                     const struct quic_conn *qc,
                                                     const struct quic_early_transport_params *p)

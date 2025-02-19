@@ -463,9 +463,9 @@ static int quic_transport_param_enc_mem(unsigned char **buf, const unsigned char
 /* Encode <val> 64-bits value as variable length integer into <buf>.
  * Returns 1 if succeeded, 0 if not.
  */
-static int quic_transport_param_enc_int(unsigned char **buf,
-                                        const unsigned char *end,
-                                        uint64_t type, uint64_t val)
+int quic_transport_param_enc_int(unsigned char **buf,
+                                 const unsigned char *end,
+                                 uint64_t type, uint64_t val)
 {
 	size_t len;
 
@@ -680,7 +680,7 @@ int quic_transport_params_encode(unsigned char *buf,
  * or 0 for a client (connection to a haproxy server).
  * Returns 1 if succeeded, 0 if not.
  */
-static enum quic_tp_dec_err
+enum quic_tp_dec_err
 quic_transport_params_decode(struct quic_transport_params *p, int server,
                              const unsigned char *buf, const unsigned char *end)
 {
