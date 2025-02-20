@@ -4,6 +4,8 @@
 
 #include <haproxy/openssl-compat.h>
 
+#define ACME_RETRY 3
+
 /* acme section configuration */
 struct acme_cfg {
 	char *filename;             /* config filename */
@@ -24,6 +26,13 @@ struct acme_cfg {
 	} key;
 	char *challenge;            /* HTTP-01, DNS-01, etc */
 	struct acme_cfg *next;
+};
+
+struct acme_ctx {
+	int retries;
+	struct acme_cfg *cfg;
+	struct ckch_store *store;
+	unsigned int state;
 };
 
 #endif

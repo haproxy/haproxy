@@ -14,6 +14,7 @@
 
 #include <haproxy/acme-t.h>
 
+#include <haproxy/cli.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/errors.h>
 #include <haproxy/jws.h>
@@ -471,6 +472,126 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws_acme);
 
 REGISTER_CONFIG_SECTION("acme", cfg_parse_acme, cfg_postsection_acme);
 
+struct task *acme_process(struct task *task, void *context, unsigned int state)
+{
+
+	return task;
+}
+
+
+static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	char *err = NULL;
+	struct acme_cfg *cfg;
+	struct task *task;
+	struct acme_ctx *ctx = NULL;
+	struct ckch_store *store = NULL, *newstore = NULL;
+	EVP_PKEY_CTX *pkey_ctx = NULL;
+	EVP_PKEY *pkey = NULL;
+
+	if (!*args[1]) {
+		memprintf(&err, ": not enough parameters\n");
+		goto err;
+	}
+
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't update: operations on certificates are currently locked!\n");
+
+	if ((store = ckchs_lookup(args[2])) == NULL) {
+		memprintf(&err, "Can't find the certificate '%s'.\n", args[1]);
+		goto err;
+	}
+
+	if (store->conf.acme.id == NULL) {
+		memprintf(&err, "No ACME configuration defined for file '%s'.\n", args[1]);
+		goto err;
+	}
+
+	cfg = get_acme_cfg(store->conf.acme.id);
+	if (!cfg) {
+		memprintf(&err, "No ACME configuration found for file '%s'.\n", args[1]);
+		goto err;
+	}
+
+	newstore = ckch_store_new(store->path);
+	if (!newstore) {
+		memprintf(&err, "Out of memory.\n");
+		goto err;
+	}
+
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+
+	ctx = calloc(1, sizeof *ctx);
+	if (!ctx) {
+		memprintf(&err, "Out of memory.\n");
+		goto err;
+	}
+
+	/* set the number of remaining retries when facing an error */
+	ctx->retries = ACME_RETRY;
+
+	if ((pkey_ctx = EVP_PKEY_CTX_new_id(cfg->key.type, NULL)) == NULL) {
+		memprintf(&err, "%sCan't generate a private key.\n", err ? err : "");
+		goto err;
+	}
+
+	if (EVP_PKEY_keygen_init(pkey_ctx) <= 0) {
+		memprintf(&err, "%sCan't generate a private key.\n", err ? err : "");
+		goto err;
+	}
+
+	if (cfg->key.type == EVP_PKEY_EC) {
+		if (EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pkey_ctx, cfg->key.curves) <= 0) {
+			memprintf(&err, "%sCan't set the curves on the new private key.\n", err ? err : "");
+			goto err;
+		}
+	} else if (cfg->key.type == EVP_PKEY_RSA) {
+		if (EVP_PKEY_CTX_set_rsa_keygen_bits(pkey_ctx, cfg->key.bits) <= 0) {
+			memprintf(&err, "%sCan't set the bits on the new private key.\n", err ? err : "");
+			goto err;
+		}
+	}
+
+	if (EVP_PKEY_keygen(pkey_ctx, &pkey) <= 0) {
+		memprintf(&err, "%sCan't generate a private key.\n", err ? err : "");
+		goto err;
+	}
+
+	EVP_PKEY_CTX_free(pkey_ctx);
+
+	newstore->data->key = pkey;
+	ctx->store = newstore;
+	ctx->cfg = cfg;
+
+	task = task_new_anywhere();
+	if (!task)
+		goto err;
+	task->nice = 0;
+	task->process = acme_process;
+	task->context = ctx;
+
+	task_wakeup(task, TASK_WOKEN_INIT);
+
+	return 0;
+
+err:
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	ckch_store_free(newstore);
+	EVP_PKEY_CTX_free(pkey_ctx);
+	free(ctx);
+	memprintf(&err, "%sCan't start the ACME client.\n", err ? err : "");
+	return cli_dynerr(appctx, err);
+}
+
+
+
+static struct cli_kw_list cli_kws = {{ },{
+	{ { "acme", "renew", NULL }, NULL, cli_acme_renew_parse, NULL, NULL, NULL, 0 },
+	{ { NULL }, NULL, NULL, NULL }
+}};
+
+
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 /*
  * Local variables:
