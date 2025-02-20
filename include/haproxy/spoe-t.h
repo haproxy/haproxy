@@ -52,6 +52,7 @@
 
 /* All supported SPOP actions */
 enum spoe_action_type {
+	SPOP_ACT_T_NOOP = 0, /* internal action for ampty ACK */
 	SPOP_ACT_T_SET_VAR = 1,
 	SPOP_ACT_T_UNSET_VAR,
 	SPOP_ACT_TYPES,

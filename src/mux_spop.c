@@ -1941,8 +1941,16 @@ static int spop_conn_handle_ack(struct spop_conn *spop_conn, struct spop_strm *s
 	}
 
 	flen = spop_conn->dfl;
-	if (!flen)
+	if (!flen) {
+		if (!b_room(rxbuf)) {
+			spop_conn->flags |= SPOP_CF_DEM_SFULL;
+			TRACE_STATE("spop_strm rxbuf is full", SPOP_EV_RX_FRAME|SPOP_EV_RX_ACK|SPOP_EV_SPOP_STRM_BLK, spop_conn->conn, spop_strm);
+			goto fail;
+		}
+		b_putchr(rxbuf, SPOP_ACT_T_NOOP);
+		sent = 1;
 		goto end;
+	}
 
 	// TODO: For now we know all data were received
 	/* if (flen > b_data(&h2c->dbuf)) { */
@@ -1963,12 +1971,12 @@ static int spop_conn_handle_ack(struct spop_conn *spop_conn, struct spop_strm *s
 	/* b_del(&spop_conn->dbuf, sent); */
 	spop_conn->dfl -= sent;
 
+  end:
 	if (spop_strm->state == SPOP_SS_OPEN)
 		spop_strm->state = SPOP_SS_HREM;
 	else
 		spop_strm_close(spop_strm);
 
-  end:
 	spop_strm->flags |= SPOP_SF_ACK_RCVD;
 	TRACE_PROTO("SPOP AGENT ACK frame rcvd", SPOP_EV_RX_FRAME|SPOP_EV_RX_ACK, spop_conn->conn, spop_strm, 0, (size_t[]){sent});
 	spop_conn->state = SPOP_CS_FRAME_H;
