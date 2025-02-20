@@ -926,17 +926,22 @@ struct task *task_process_applet(struct task *t, void *context, unsigned int sta
 
 	sc_applet_sync_recv(sc);
 
-	if (applet_fl_test(app, APPCTX_FL_EOI) && !se_fl_test(app->sedesc, SE_FL_EOI)) {
-		se_fl_set(app->sedesc, SE_FL_EOI);
-		TRACE_STATE("report EOI to SE", APPLET_EV_RECV|APPLET_EV_BLK, app);
-	}
-	if (applet_fl_test(app, APPCTX_FL_EOS) && !se_fl_test(app->sedesc, SE_FL_EOS)) {
-		se_fl_set(app->sedesc, SE_FL_EOS);
-		TRACE_STATE("report EOS to SE", APPLET_EV_RECV|APPLET_EV_BLK, app);
-	}
-	if (applet_fl_test(app, APPCTX_FL_ERROR) && !se_fl_test(app->sedesc, SE_FL_ERROR)) {
-		se_fl_set(app->sedesc, SE_FL_ERROR);
-		TRACE_STATE("report ERROR to SE", APPLET_EV_RECV|APPLET_EV_BLK, app);
+	if (!se_fl_test(app->sedesc, SE_FL_WANT_ROOM)) {
+		/* Handle EOI/EOS/ERROR outside of data transfer. But take care
+		 * there are no pending data. Otherwise, we must wait.
+		 */
+		if (applet_fl_test(app, APPCTX_FL_EOI) && !se_fl_test(app->sedesc, SE_FL_EOI)) {
+			se_fl_set(app->sedesc, SE_FL_EOI);
+			TRACE_STATE("report EOI to SE", APPLET_EV_RECV|APPLET_EV_BLK, app);
+		}
+		if (applet_fl_test(app, APPCTX_FL_EOS) && !se_fl_test(app->sedesc, SE_FL_EOS)) {
+			se_fl_set(app->sedesc, SE_FL_EOS);
+			TRACE_STATE("report EOS to SE", APPLET_EV_RECV|APPLET_EV_BLK, app);
+		}
+		if (applet_fl_test(app, APPCTX_FL_ERROR) && !se_fl_test(app->sedesc, SE_FL_ERROR)) {
+			se_fl_set(app->sedesc, SE_FL_ERROR);
+			TRACE_STATE("report ERROR to SE", APPLET_EV_RECV|APPLET_EV_BLK, app);
+		}
 	}
 
 	/* TODO: May be move in appctx_rcv_buf or sc_applet_process ? */
