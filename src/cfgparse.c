@@ -794,8 +794,10 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+		if (alertif_too_many_args(1, file, linenum, args, &err_code)) {
+			err_code |= ERR_ABORT;
 			goto out;
+		}
 
 		err = invalid_char(args[1]);
 		if (err) {
