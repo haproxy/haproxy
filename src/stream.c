@@ -3408,7 +3408,8 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 		      "%s  task=%p (state=0x%02x nice=%d calls=%u rate=%u exp=%s tid=%d(%d/%d)%s", pfx,
 		     strm->task,
 		     strm->task->state,
-		     strm->task->nice, strm->task->calls, read_freq_ctr(&strm->call_rate),
+		     strm->task->nice, strm->task->calls,
+		     read_freq_ctr_period_estimate(&strm->call_rate, MS_TO_TICKS(1000)),
 		     strm->task->expire ?
 		             tick_is_expired(strm->task->expire, now_ms) ? "<PAST>" :
 		                     human_time(TICKS_TO_MS(strm->task->expire - now_ms),
@@ -3491,7 +3492,8 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 			      tmpctx->st1,
 		              tmpctx->applet->name,
 		              tmpctx->t->tid,
-		              tmpctx->t->nice, tmpctx->t->calls, read_freq_ctr(&tmpctx->call_rate));
+		              tmpctx->t->nice, tmpctx->t->calls,
+			      read_freq_ctr_period_estimate(&tmpctx->call_rate, MS_TO_TICKS(1000)));
 	}
 
 	scb = strm->scb;
@@ -3552,7 +3554,8 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 			      tmpctx->st1,
 		              tmpctx->applet->name,
 		              tmpctx->t->tid,
-		              tmpctx->t->nice, tmpctx->t->calls, read_freq_ctr(&tmpctx->call_rate));
+		              tmpctx->t->nice, tmpctx->t->calls,
+			      read_freq_ctr_period_estimate(&tmpctx->call_rate, MS_TO_TICKS(1000)));
 	}
 
 	if (HAS_FILTERS(strm)) {
