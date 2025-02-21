@@ -3561,8 +3561,9 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 		     human_time(TICKS_TO_MS(strm->req.analyse_exp - now_ms),
 				TICKS_TO_MS(1000)) : "<NEVER>",
 		     &strm->req.buf,
-		     b_orig(&strm->req.buf), (unsigned int)co_data(&strm->req),
-		     (unsigned int)ci_head_ofs(&strm->req), (unsigned int)ci_data(&strm->req),
+		     b_orig(&strm->req.buf), (unsigned int)strm->req.output,
+		     (unsigned int)b_peek_ofs(&strm->req.buf, strm->req.output),
+		     (unsigned int)(c_data(&strm->req) - strm->req.output),
 		     (unsigned int)strm->req.buf.size);
 
 	if (IS_HTX_STRM(strm)) {
@@ -3593,8 +3594,9 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 		     human_time(TICKS_TO_MS(strm->res.analyse_exp - now_ms),
 				TICKS_TO_MS(1000)) : "<NEVER>",
 		     &strm->res.buf,
-	             b_orig(&strm->res.buf), (unsigned int)co_data(&strm->res),
-	             (unsigned int)ci_head_ofs(&strm->res), (unsigned int)ci_data(&strm->res),
+	             b_orig(&strm->res.buf), (unsigned int)strm->res.output,
+		     (unsigned int)b_peek_ofs(&strm->res.buf, strm->res.output),
+		     (unsigned int)(c_data(&strm->res) - strm->res.output),
 		     (unsigned int)strm->res.buf.size);
 
 	if (IS_HTX_STRM(strm)) {
