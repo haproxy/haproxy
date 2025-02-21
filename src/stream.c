@@ -3282,7 +3282,12 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 		     strm_li(strm) ? strm_li(strm)->rx.proto->name : "?");
 
 	conn = objt_conn(strm_orig(strm));
-	switch (conn && conn_get_src(conn) ? addr_to_str(conn->src, pn, sizeof(pn)) : AF_UNSPEC) {
+
+	/* be careful not to allocate RAM from a signal handler! */
+	if (conn && !conn->src && !(th_ctx->flags & TH_FL_IN_SIG_HANDLER))
+		conn_get_src(conn);
+
+	switch (conn && conn->src ? addr_to_str(conn->src, pn, sizeof(pn)) : AF_UNSPEC) {
 	case AF_INET:
 	case AF_INET6:
 		chunk_appendf(buf, " source=%s:%d\n",
@@ -3318,7 +3323,11 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 		     strm_li(strm) ? strm_li(strm)->name ? strm_li(strm)->name : "?" : "?",
 		     strm_li(strm) ? strm_li(strm)->luid : 0);
 
-	switch (conn && conn_get_dst(conn) ? addr_to_str(conn->dst, pn, sizeof(pn)) : AF_UNSPEC) {
+	/* be careful not to allocate RAM from a signal handler! */
+	if (conn && !conn->dst && !(th_ctx->flags & TH_FL_IN_SIG_HANDLER))
+		conn_get_dst(conn);
+
+	switch (conn && conn->dst ? addr_to_str(conn->dst, pn, sizeof(pn)) : AF_UNSPEC) {
 	case AF_INET:
 	case AF_INET6:
 		chunk_appendf(buf, " addr=%s:%d\n",
@@ -3344,7 +3353,12 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 		chunk_appendf(buf, "%s  backend=<NONE> (id=-1 mode=-)", pfx);
 
 	conn = sc_conn(strm->scb);
-	switch (conn && conn_get_src(conn) ? addr_to_str(conn->src, pn, sizeof(pn)) : AF_UNSPEC) {
+
+	/* be careful not to allocate RAM from a signal handler! */
+	if (conn && !conn->src && !(th_ctx->flags & TH_FL_IN_SIG_HANDLER))
+		conn_get_src(conn);
+
+	switch (conn && conn->src ? addr_to_str(conn->src, pn, sizeof(pn)) : AF_UNSPEC) {
 	case AF_INET:
 	case AF_INET6:
 		chunk_appendf(buf, " addr=%s:%d\n",
@@ -3369,7 +3383,11 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 	else
 		chunk_appendf(buf, "%s  server=<NONE> (id=-1)", pfx);
 
-	switch (conn && conn_get_dst(conn) ? addr_to_str(conn->dst, pn, sizeof(pn)) : AF_UNSPEC) {
+	/* be careful not to allocate RAM from a signal handler! */
+	if (conn && !conn->dst && !(th_ctx->flags & TH_FL_IN_SIG_HANDLER))
+		conn_get_dst(conn);
+
+	switch (conn && conn->dst ? addr_to_str(conn->dst, pn, sizeof(pn)) : AF_UNSPEC) {
 	case AF_INET:
 	case AF_INET6:
 		chunk_appendf(buf, " addr=%s:%d\n",
