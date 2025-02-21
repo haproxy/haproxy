@@ -605,8 +605,11 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			else {
 				done++;
 				th_ctx->current = NULL;
-				pool_free(pool_head_tasklet, t);
+				/* signal barrier to prevent thread dump helpers
+				 * from dumping a task currently being freed.
+				 */
 				__ha_barrier_store();
+				pool_free(pool_head_tasklet, t);
 				continue;
 			}
 		} else {
