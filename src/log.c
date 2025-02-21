@@ -2785,6 +2785,7 @@ static inline void __do_send_log(struct log_target *target, struct log_header hd
 		sent = fd_write_frag_line(*plogfd, maxlen, msg_header, nbelem, &msg, 1, 1);
 	}
 	else {
+		struct sockaddr_storage addr;
 		int i = 0;
 		int totlen = maxlen - 1; /* save space for the final '\n' */
 
@@ -2810,7 +2811,9 @@ static inline void __do_send_log(struct log_target *target, struct log_header hd
 		i++;
 
 		msghdr.msg_iovlen = i;
-		msghdr.msg_name = (struct sockaddr *)target->addr;
+		addr = *target->addr;
+		addr.ss_family = real_family(target->addr->ss_family);
+		msghdr.msg_name = (struct sockaddr *)&addr;
 		msghdr.msg_namelen = get_addr_len(target->addr);
 
 		sent = sendmsg(*plogfd, &msghdr, MSG_DONTWAIT | MSG_NOSIGNAL);
