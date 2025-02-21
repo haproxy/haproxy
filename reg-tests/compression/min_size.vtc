@@ -1,0 +1,135 @@
+varnishtest "Compression ignores small payloads"
+
+#REQUIRE_OPTION=ZLIB|SLZ
+
+feature ignore_unknown_macro
+
+server s1 {
+        rxreq
+        expect req.url == "/response-lower"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "ETag: \"123\"" \
+          -bodylen 50
+
+        rxreq
+        expect req.url == "/response-equal"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "ETag: \"123\"" \
+          -bodylen 1024
+
+        rxreq
+        expect req.url == "/response-greater"
+        expect req.http.accept-encoding == "gzip"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -hdr "ETag: \"123\"" \
+          -bodylen 2000
+
+        rxreq
+        expect req.url == "/request-lower"
+        expect req.http.content-encoding == "<undef>"
+        expect req.method == "POST"
+        expect resp.bodylen == 50
+        txresp
+
+        rxreq
+        expect req.url == "/request-equal"
+        expect req.http.content-encoding == "gzip"
+        expect req.method == "POST"
+        gunzip
+        expect resp.bodylen == 800
+        txresp
+
+        rxreq
+        expect req.url == "/request-greater"
+        expect req.http.content-encoding == "gzip"
+        expect req.method == "POST"
+        gunzip
+        expect resp.bodylen == 2000
+        txresp
+} -start
+
+
+haproxy h1 -conf {
+    global
+        # WT: limit false-positives causing "HTTP header incomplete" due to
+        # idle server connections being randomly used and randomly expiring
+        # under us.
+        tune.idle-pool.shared off
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe-gzip
+        bind "fd@${fe_gzip}"
+        default_backend be-gzip
+
+    backend be-gzip
+        compression direction both
+
+        compression algo-res gzip
+        compression type-res text/plain
+        compression minsize-res 1k
+
+        compression algo-req gzip
+        compression type-req text/plain
+        compression minsize-req 800
+
+        server www ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_gzip_sock} {
+        txreq -url "/response-lower" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "<undef>"
+        expect resp.http.etag == "\"123\""
+        expect resp.bodylen == 50
+
+        txreq -url "/response-equal" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        expect resp.http.etag == "W/\"123\""
+        gunzip
+        expect resp.bodylen == 1024
+
+        txreq -url "/response-greater" \
+          -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        expect resp.http.etag == "W/\"123\""
+        gunzip
+        expect resp.bodylen == 2000
+
+        txreq -method POST \
+          -url "/request-lower" \
+          -hdr "Content-Type: text/plain" \
+          -bodylen 50
+        rxresp
+        expect resp.status == 200
+
+        txreq -method POST \
+          -url "/request-equal" \
+          -hdr "Content-Type: text/plain" \
+          -bodylen 800
+        rxresp
+        expect resp.status == 200
+
+        txreq -method POST \
+          -url "/request-greater" \
+          -hdr "Content-Type: text/plain" \
+          -bodylen 2000
+        rxresp
+        expect resp.status == 200
+} -run

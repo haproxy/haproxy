@@ -1868,6 +1868,8 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 		curproxy->comp->algo_req = defproxy->comp->algo_req;
 		curproxy->comp->types_res = defproxy->comp->types_res;
 		curproxy->comp->types_req = defproxy->comp->types_req;
+		curproxy->comp->minsize_res = defproxy->comp->minsize_res;
+		curproxy->comp->minsize_req = defproxy->comp->minsize_req;
 		curproxy->comp->flags = defproxy->comp->flags;
 	}
 

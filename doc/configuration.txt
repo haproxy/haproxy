@@ -6782,6 +6782,8 @@ compression type <mime type> ...
     * The response contains a "Content-Encoding" header, indicating that the
       response is already compressed (see compression offload)
     * The response contains an invalid "ETag" header or multiple ETag headers
+    * The payload size is smaller than the minimum size
+      (see compression minsize-res)
 
   Note: The compression does not emit the Warning header.
 
@@ -6789,7 +6791,22 @@ compression type <mime type> ...
         compression algo gzip
         compression type text/html text/plain
 
-  See also : "compression offload", "compression direction"
+  See also : "compression offload", "compression direction",
+             "compression minsize-req" and "compression minsize-res"
+
+compression minsize-req <size>
+compression minsize-res <size>
+  Sets the minimum payload size in bytes for compression to be applied.
+
+  May be used in the following contexts: http
+
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+
+  Payloads smaller than this size will not be compressed, avoiding unnecessary
+  CPU overhead for data that would not significantly benefit from compression.
+  "minsize-req" applies on requests and "minsize-res" on responses.
+  The default value is 0.
 
 compression offload
   Makes HAProxy work as a compression offloader only.

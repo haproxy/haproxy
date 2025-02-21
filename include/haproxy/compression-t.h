@@ -50,6 +50,8 @@ struct comp {
 	struct comp_algo *algo_req;  /* Algo to use for request */
 	struct comp_type *types_req; /* Types to be compressed for requests */
 	struct comp_type *types_res; /* Types to be compressed for responses */
+	unsigned int minsize_res;    /* Min response body size to be compressed */
+	unsigned int minsize_req;    /* Min request body size to be compressed */
 	unsigned int flags;
 };
 
