@@ -28,6 +28,7 @@ haproxy h1 -Ws -S -conf {
 client c1 -connect ${h1_testme_sock} {
     txreq -url "/"
     rxresp
+    expect resp.status == 200
 } -run
 
 shell {
