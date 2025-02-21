@@ -67,6 +67,44 @@ uint update_freq_ctr_period_slow(struct freq_ctr *ctr, uint period, uint inc)
 /* Returns the total number of events over the current + last period, including
  * a number of already pending events <pend>. The average frequency will be
  * obtained by dividing the output by <period>. This is essentially made to
+ * ease implementation of higher-level read functions. This function does not
+ * access the freq_ctr itself, it's supposed to be called with the stabilized
+ * values. See freq_ctr_total() and freq_ctr_total_estimate() instead.
+ *
+ * As a special case, if pend < 0, it's assumed there are no pending
+ * events and a flapping correction must be applied at the end. This is used by
+ * read_freq_ctr_period() to avoid reporting ups and downs on low-frequency
+ * events when the past value is <= 1.
+ */
+ullong _freq_ctr_total_from_values(uint period, int pend,
+				   uint tick, ullong past, ullong curr)
+{
+	int remain;
+
+	remain = tick + period - HA_ATOMIC_LOAD(&global_now_ms);
+	if (unlikely(remain < 0)) {
+		/* We're past the first period, check if we can still report a
+		 * part of last period or if we're too far away.
+		 */
+		remain += period;
+		past = (remain >= 0) ? curr : 0;
+		curr = 0;
+	}
+
+	if (pend < 0) {
+		/* enable flapping correction at very low rates */
+		pend = 0;
+		if (!curr && past <= 1)
+			return past * period;
+	}
+
+	/* compute the total number of confirmed events over the period */
+	return past * remain + (curr + pend) * period;
+}
+
+/* Returns the total number of events over the current + last period, including
+ * a number of already pending events <pend>. The average frequency will be
+ * obtained by dividing the output by <period>. This is essentially made to
  * ease implementation of higher-level read functions.
  *
  * As a special case, if pend < 0, it's assumed there are no pending
@@ -78,7 +116,6 @@ ullong freq_ctr_total(const struct freq_ctr *ctr, uint period, int pend)
 {
 	ullong curr, past, old_curr, old_past;
 	uint tick, old_tick;
-	int remain;
 
 	tick = HA_ATOMIC_LOAD(&ctr->curr_tick);
 	curr = HA_ATOMIC_LOAD(&ctr->curr_ctr);
@@ -124,26 +161,27 @@ ullong freq_ctr_total(const struct freq_ctr *ctr, uint period, int pend)
 	redo3:
 		__ha_cpu_relax();
 	};
+	return _freq_ctr_total_from_values(period, pend, tick, past, curr);
+}
 
-	remain = tick + period - HA_ATOMIC_LOAD(&global_now_ms);
-	if (unlikely(remain < 0)) {
-		/* We're past the first period, check if we can still report a
-		 * part of last period or if we're too far away.
-		 */
-		remain += period;
-		past = (remain >= 0) ? curr : 0;
-		curr = 0;
-	}
+/* Like the function above but doesn't block if the entry is locked. In this
+ * case it will only return the most accurate estimate it can bring. Based on
+ * the update order in update_freq_ctr_period_slow() above, it may return a
+ * low value caused by the replacement of the curr value before the past one
+ * and/or the tick was updated. Otherwise the value will be correct most of
+ * the time. This is only meant to be used from debug handlers.
+ */
+ullong freq_ctr_total_estimate(const struct freq_ctr *ctr, uint period, int pend)
+{
+	ullong curr, past;
+	uint tick;
 
-	if (pend < 0) {
-		/* enable flapping correction at very low rates */
-		pend = 0;
-		if (!curr && past <= 1)
-			return past * period;
-	}
+	tick = HA_ATOMIC_LOAD(&ctr->curr_tick);
+	curr = HA_ATOMIC_LOAD(&ctr->curr_ctr);
+	past = HA_ATOMIC_LOAD(&ctr->prev_ctr);
 
-	/* compute the total number of confirmed events over the period */
-	return past * remain + (curr + pend) * period;
+	tick &= ~1;
+	return _freq_ctr_total_from_values(period, pend, tick, past, curr);
 }
 
 /* Returns the excess of events (may be negative) over the current period for
