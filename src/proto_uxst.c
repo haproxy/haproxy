@@ -307,6 +307,8 @@ static int uxst_suspend_receiver(struct receiver *rx)
  */
 static int uxst_connect_server(struct connection *conn, int flags)
 {
+	struct sockaddr_storage addr;
+	socklen_t addr_len;
 	int fd, stream_err;
 	struct server *srv;
 	struct proxy *be;
@@ -339,7 +341,14 @@ static int uxst_connect_server(struct connection *conn, int flags)
 	if (global.tune.server_rcvbuf)
                 setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.server_rcvbuf, sizeof(global.tune.server_rcvbuf));
 
-	if (connect(fd, (struct sockaddr *)conn->dst, get_addr_len(conn->dst)) == -1) {
+	/* address may contain a custom family that is used to adjust the
+	 * length (abns vs abnsz).
+	 */
+	addr = *conn->dst;
+	addr_len = get_addr_len(&addr);
+	addr.ss_family = AF_UNIX;
+
+	if (connect(fd, (struct sockaddr *)&addr, addr_len) == -1) {
 		if (errno == EINPROGRESS || errno == EALREADY) {
 			conn->flags |= CO_FL_WAIT_L4_CONN;
 		}
