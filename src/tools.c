@@ -5538,6 +5538,8 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 #if (defined(__ELF__) && !defined(__linux__)) || defined(USE_DL)
 	static Dl_info dli_main;
 	static int dli_main_done; // 0 = not resolved, 1 = resolve in progress, 2 = done
+	static __decl_thread(HA_SPINLOCK_T dladdr_lock);
+	int isolated;
 	Dl_info dli;
 	size_t size;
 	const char *fname, *p;
@@ -5556,7 +5558,27 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 
 #if (defined(__ELF__) && !defined(__linux__)) || defined(USE_DL)
 	/* Now let's try to be smarter */
-	if (!dladdr_and_size(addr, &dli, &size))
+
+	/* dladdr_and_size() can be super expensive and will often rely on a
+	 * mutex inside the library to deal with concurrent accesses. We don't
+	 * want to inflict this to parallel callers who could wait much too
+	 * long (e.g. during a wdt warning). Thus, we'll do the following:
+	 *   - if we're isolated or in a panic, we're safe and don't need to
+	 *     lock so we don't wait.
+	 *   - otherwise we use a trylock and we fail on conflict so that
+	 *     noone waits when there is contention.
+	 */
+	isolated = thread_isolated() || (get_tainted() & TAINTED_PANIC);
+
+	if (!isolated &&
+	    HA_SPIN_TRYLOCK(OTHER_LOCK, &dladdr_lock) != 0)
+		goto unknown;
+
+	i = dladdr_and_size(addr, &dli, &size);
+	if (!isolated)
+		HA_SPIN_UNLOCK(OTHER_LOCK, &dladdr_lock);
+
+	if (!i)
 		goto unknown;
 
 	/* 1. prefix the library name if it's not the same object as the one
