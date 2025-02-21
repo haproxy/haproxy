@@ -65,6 +65,7 @@ enum {
 #define TH_FL_STARTED           0x00000010  /* set once the thread starts */
 #define TH_FL_IN_LOOP           0x00000020  /* set only inside the polling loop */
 #define TH_FL_DUMPING_OTHERS    0x00000040  /* thread currently dumping other threads */
+#define TH_FL_IN_SIG_HANDLER    0x00000080  /* thread currently in signal handler */
 
 /* we have 4 buffer-wait queues, in highest to lowest emergency order */
 #define DYNBUF_NBQ              4

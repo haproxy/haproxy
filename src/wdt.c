@@ -68,6 +68,9 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 	ulong thr_bit;
 	int thr, tgrp;
 
+	/* inform callees to be careful, we're in a signal handler! */
+	_HA_ATOMIC_OR(&th_ctx->flags, TH_FL_IN_SIG_HANDLER);
+
 	switch (si->si_code) {
 	case SI_TIMER:
 		/* A thread's timer fired, the thread ID is in si_int. We have
@@ -163,6 +166,7 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 #endif
 	default:
 		/* unhandled other conditions */
+		_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_IN_SIG_HANDLER);
 		return;
 	}
 
@@ -177,10 +181,14 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 	else
 #endif
 		ha_panic();
+
+	_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_IN_SIG_HANDLER);
 	return;
 
  update_and_leave:
 	wdt_ping(thr);
+
+	_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_IN_SIG_HANDLER);
 }
 
 /* parse the "warn-blocked-traffic-after" parameter */

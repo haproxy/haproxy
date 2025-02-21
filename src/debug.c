@@ -2378,6 +2378,9 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 	if (!buf || (ulong)buf & 0x1UL)
 		return;
 
+	/* inform callees to be careful, we're in a signal handler! */
+	_HA_ATOMIC_OR(&th_ctx->flags, TH_FL_IN_SIG_HANDLER);
+
 	/* Special value 0x2 is used during panics and requires that the thread
 	 * allocates its own dump buffer among its own trash buffers. The goal
 	 * is that all threads keep a copy of their own dump.
@@ -2398,6 +2401,8 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 	 */
 	while (no_return)
 		wait(NULL);
+
+	_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_IN_SIG_HANDLER);
 }
 
 static int init_debug_per_thread()
