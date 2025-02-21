@@ -40,6 +40,7 @@ enum sink_type {
 struct sink_forward_target {
 	struct server *srv;    // used server
 	struct appctx *appctx; // appctx of current session
+	uint last_conn;        // copy of now_ms for last session establishment attempt
 	size_t ofs;            // ring buffer reader offset
 	size_t e_processed;    // processed events
 	struct sink *sink;     // the associated sink
