@@ -134,11 +134,13 @@ enum qcs_state {
 	QC_SS_CLO,      /* closed */
 } __attribute__((packed));
 
-/* STREAM receive buffer. Can handle out-of-order storage. */
+/* STREAM receive buffer. Can handle out-of-order storage.
+ * Can be used as a tree node to allocate multiple entries ordered by offsets.
+ */
 struct qc_stream_rxbuf {
-	struct ncbuf ncb; /* data storage with support for out of order offset */
-	uint64_t off;     /* base offset of current buffer */
-	uint64_t off_end; /* first offset directly outside of current buffer */
+	struct eb64_node off_node; /* base offset of current buffer, node for QCS rx.bufs */
+	struct ncbuf ncb;          /* data storage with support for out of order offset */
+	uint64_t off_end;          /* first offset directly outside of current buffer */
 };
 
 struct qcs {
@@ -151,7 +153,7 @@ struct qcs {
 	struct {
 		uint64_t offset; /* read offset */
 		uint64_t offset_max; /* maximum absolute offset received */
-		struct qc_stream_rxbuf *buf; /* single receive buffer */
+		struct eb_root bufs; /* receive buffers tree ordered by offset */
 		struct buffer app_buf; /* receive buffer used by stconn layer */
 		uint64_t msd; /* current max-stream-data limit to enforce */
 		uint64_t msd_init; /* initial max-stream-data */
