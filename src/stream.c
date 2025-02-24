@@ -3272,14 +3272,25 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 
 	pfx = pfx ? pfx : "";
 
-	get_localtime(strm->logs.accept_date.tv_sec, &tm);
-	chunk_appendf(buf,
-		     "%p: [%02d/%s/%04d:%02d:%02d:%02d.%06d] id=%u proto=%s",
-		     strm,
-		     tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
-		     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(strm->logs.accept_date.tv_usec),
-		     strm->uniq_id,
-		     strm_li(strm) ? strm_li(strm)->rx.proto->name : "?");
+	if (th_ctx->flags & TH_FL_IN_ANY_HANDLER) {
+		/* avoid calling localtime_r() to avoid a risk of deadlock if we
+		 * interrupted libc for example, cf
+		 * https://github.com/haproxy/haproxy/issues/2861#issuecomment-2677761037
+		 */
+		chunk_appendf(buf, "%p: [%lu.%06lu]", strm,
+			      (ulong)strm->logs.accept_date.tv_sec,
+			      (ulong)strm->logs.accept_date.tv_usec);
+	} else {
+		get_localtime(strm->logs.accept_date.tv_sec, &tm);
+		chunk_appendf(buf,
+			      "%p: [%02d/%s/%04d:%02d:%02d:%02d.%06lu]",
+			      strm,
+			      tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
+			      tm.tm_hour, tm.tm_min, tm.tm_sec, (ulong)strm->logs.accept_date.tv_usec);
+	}
+
+	chunk_appendf(buf, " id=%u proto=%s",
+		     strm->uniq_id, strm_li(strm) ? strm_li(strm)->rx.proto->name : "?");
 
 	conn = objt_conn(strm_orig(strm));
 
