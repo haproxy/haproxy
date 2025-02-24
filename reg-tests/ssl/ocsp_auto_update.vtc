@@ -28,7 +28,7 @@
 
 varnishtest "Test the OCSP auto update feature"
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.0-dev0)'"
-feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && !ssllib_name_startswith(BoringSSL) && !ssllib_name_startswith(LibreSSL) && openssl_version_atleast(1.1.1)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL_WOLFSSL) || feature(OPENSSL) && !ssllib_name_startswith(BoringSSL) && !ssllib_name_startswith(LibreSSL) && openssl_version_atleast(1.1.1)'"
 feature cmd "command -v openssl && command -v socat"
 feature ignore_unknown_macro
 
