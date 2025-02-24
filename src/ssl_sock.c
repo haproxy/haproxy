@@ -1143,6 +1143,7 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_store 
 	x = data->cert;
 	if (!x)
 		goto out;
+	fprintf(stderr, "%s:%d\n", __FUNCTION__, __LINE__);
 
 	ssl_ocsp_get_uri_from_cert(x, ocsp_uri, &err);
 	if (!data->ocsp_response && !data->ocsp_cid) {
@@ -1154,6 +1155,7 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_store 
 			goto out;
 		}
 	}
+	fprintf(stderr, "%s:%d\n", __FUNCTION__, __LINE__);
 
 	issuer = data->ocsp_issuer;
 	/* take issuer from chain over ocsp_issuer, is what is done historicaly */
@@ -1167,17 +1169,25 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_store 
 			}
 		}
 	}
+
+	fprintf(stderr, "%s:%d\n", __FUNCTION__, __LINE__);
 	if (!issuer)
 		goto out;
+	fprintf(stderr, "%s:%d\n", __FUNCTION__, __LINE__);
 
 	if (!data->ocsp_cid) {
 		data->ocsp_cid = OCSP_cert_to_id(0, x, issuer);
 		inc_refcount_store = 1;
 	}
+
+	fprintf(stderr, "%s:%d\n", __FUNCTION__, __LINE__);
 	if (!data->ocsp_cid)
 		goto out;
 
+	fprintf(stderr, "%s:%d\n", __FUNCTION__, __LINE__);
+
 	i = i2d_OCSP_CERTID(data->ocsp_cid, NULL);
+	fprintf(stderr, "%s:%d certidlen: %d\n", __FUNCTION__, __LINE__, i);
 	if (!i || (i > OCSP_MAX_CERTID_ASN1_LENGTH))
 		goto out;
 
