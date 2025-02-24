@@ -219,7 +219,7 @@ def main(ref_name):
             "OPENSSL_VERSION=1.0.2u",
             "OPENSSL_VERSION=1.1.1s",
             "QUICTLS=yes",
-            "WOLFSSL_VERSION=5.7.0",
+            "WOLFSSL_VERSION=git-master",
             "AWS_LC_VERSION=1.39.0",
             # "BORINGSSL=yes",
         ]
