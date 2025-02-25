@@ -154,7 +154,14 @@ static void _update_fd(int fd)
  done:
 	ev.events &= ~epoll_mask;
 	ev.data.u64 = ((u64)fdtab[fd].generation << 32) + fd;
-	epoll_ctl(epoll_fd[tid], opcode, fd, &ev);
+	if (epoll_ctl(epoll_fd[tid], opcode, fd, &ev) != 0) {
+		if (opcode == EPOLL_CTL_ADD && errno == EEXIST) {
+			BUG_ON(epoll_ctl(epoll_fd[tid], EPOLL_CTL_DEL, fd, &ev) != 0);
+			BUG_ON(epoll_ctl(epoll_fd[tid], EPOLL_CTL_ADD, fd, &ev) != 0);
+		} else {
+			BUG_ON(1, "epoll_ctl() failed when it should not");
+		}
+	}
 }
 
 /*
