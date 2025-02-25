@@ -3,6 +3,7 @@ set -eux
 
 BUILDSSL_DESTDIR=${BUILDSSL_DESTDIR:-${HOME}/opt}
 BUILDSSL_TMPDIR=${BUILDSSL_TMPDIR:-/tmp/download-cache}
+QUICTLS_URL=${QUICTLS_URL:-https://github.com/quictls/openssl}
 
 WOLFSSL_DEBUG=${WOLFSSL_DEBUG:-0}
 
@@ -178,7 +179,7 @@ build_aws_lc_fips () {
 
 download_quictls () {
     if [ ! -d "${BUILDSSL_TMPDIR}/quictls" ]; then
-        git clone --depth=1 https://github.com/quictls/openssl ${BUILDSSL_TMPDIR}/quictls
+        git clone --depth=1 ${QUICTLS_URL} ${BUILDSSL_TMPDIR}/quictls
     else
        (
         cd ${BUILDSSL_TMPDIR}/quictls
