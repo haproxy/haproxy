@@ -1675,6 +1675,9 @@ int connect_server(struct stream *s)
 					task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
 					break;
 				}
+
+				if (!(global.tune.options & GTUNE_IDLE_POOL_SHARED))
+					break;
 			}
 		}
 
