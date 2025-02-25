@@ -69,6 +69,14 @@ static void __fd_clo(int fd)
 	}
 }
 
+static void _do_fixup_tgid_takeover(struct poller *poller, const int fd, const int old_ltid, const int old_tgid)
+{
+
+	polled_mask[fd].poll_recv = 0;
+	polled_mask[fd].poll_send = 0;
+	fdtab[fd].update_mask = 0;
+}
+
 static void _update_fd(int fd)
 {
 	int en, opcode;
@@ -463,6 +471,7 @@ static void _do_register(void)
 	p->term = _do_term;
 	p->poll = _do_poll;
 	p->fork = _do_fork;
+	p->fixup_tgid_takeover = _do_fixup_tgid_takeover;
 }
 
 /* config parser for global "tune.epoll.mask-events", accepts "err", "hup", "rdhup" */

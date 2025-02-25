@@ -242,6 +242,7 @@ struct poller {
 	void   (*term)(struct poller *p);            /* termination of this poller */
 	int    (*test)(struct poller *p);            /* pre-init check of the poller */
 	int    (*fork)(struct poller *p);            /* post-fork re-opening */
+	void   (*fixup_tgid_takeover)(struct poller *p, const int fd, const int old_tid, const int old_tgid); /* Fixup anything necessary after a FD takeover across tgids */
 	const char   *name;                                  /* poller name */
 	unsigned int flags;                                  /* HAP_POLL_F_* */
 	int    pref;                                         /* try pollers with higher preference first */

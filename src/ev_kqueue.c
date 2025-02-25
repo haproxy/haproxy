@@ -84,6 +84,14 @@ static int _update_fd(int fd, int start)
 	return changes;
 }
 
+static void _do_fixup_tgid_takeover(struct poller *poller, const int fd, const int old_ltid, const int old_tgid)
+{
+
+	polled_mask[fd].poll_recv = 0;
+	polled_mask[fd].poll_send = 0;
+	fdtab[fd].update_mask = 0;
+}
+
 /*
  * kqueue() poller
  */
@@ -368,6 +376,7 @@ static void _do_register(void)
 	p->term = _do_term;
 	p->poll = _do_poll;
 	p->fork = _do_fork;
+	p->fixup_tgid_takeover = _do_fixup_tgid_takeover;
 }
 
 INITCALL0(STG_REGISTER, _do_register);
