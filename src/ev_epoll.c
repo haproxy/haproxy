@@ -315,7 +315,15 @@ static void _do_poll(struct poller *p, int exp, int wake)
 				COUNT_IF(1, "epoll report of event on a just closed fd (harmless)");
 			}
 			continue;
-		}
+		} else if (fd_tgid(fd) != tgid) {
+			struct epoll_event ev;
+			/*
+			 * We've been taken over by another thread from
+			 * another thread group, give up.
+			 */
+			epoll_ctl(epoll_fd[tid], EPOLL_CTL_DEL, fd, &ev);
+			continue;
+                }
 
 		if ((e & EPOLLRDHUP) && !(cur_poller.flags & HAP_POLL_F_RDHUP))
 			_HA_ATOMIC_OR(&cur_poller.flags, HAP_POLL_F_RDHUP);

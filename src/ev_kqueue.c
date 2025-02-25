@@ -60,23 +60,23 @@ static int _update_fd(int fd, int start)
 
 		if (en & FD_EV_ACTIVE_R) {
 			if (!(pr & ti->ltid_bit)) {
-				EV_SET(&kev[changes++], fd, EVFILT_READ, EV_ADD, 0, 0, NULL);
+				EV_SET(&kev[changes++], fd, EVFILT_READ, EV_ADD, 0, 0, (void *)(uintptr_t)fdtab[fd].generation);
 				_HA_ATOMIC_OR(&polled_mask[fd].poll_recv, ti->ltid_bit);
 			}
 		}
 		else if (pr & ti->ltid_bit) {
-			EV_SET(&kev[changes++], fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+			EV_SET(&kev[changes++], fd, EVFILT_READ, EV_DELETE, 0, 0, (void *)(uintptr_t)fdtab[fd].generation);
 			HA_ATOMIC_AND(&polled_mask[fd].poll_recv, ~ti->ltid_bit);
 		}
 
 		if (en & FD_EV_ACTIVE_W) {
 			if (!(ps & ti->ltid_bit)) {
-				EV_SET(&kev[changes++], fd, EVFILT_WRITE, EV_ADD, 0, 0, NULL);
+				EV_SET(&kev[changes++], fd, EVFILT_WRITE, EV_ADD, 0, 0, (void *)(uintptr_t)fdtab[fd].generation);
 				_HA_ATOMIC_OR(&polled_mask[fd].poll_send, ti->ltid_bit);
 			}
 		}
 		else if (ps & ti->ltid_bit) {
-			EV_SET(&kev[changes++], fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
+			EV_SET(&kev[changes++], fd, EVFILT_WRITE, EV_DELETE, 0, 0, (void *)(uintptr_t)fdtab[fd].generation);
 			_HA_ATOMIC_AND(&polled_mask[fd].poll_send, ~ti->ltid_bit);
 		}
 
@@ -208,12 +208,26 @@ static void _do_poll(struct poller *p, int exp, int wake)
 
 	for (count = 0; count < status; count++) {
 		unsigned int n = 0;
+		unsigned int generation = (unsigned int)(uintptr_t)kev[count].udata;
 
 		fd = kev[count].ident;
 
 #ifdef DEBUG_FD
 		_HA_ATOMIC_INC(&fdtab[fd].event_count);
 #endif
+		if (generation == fdtab[fd].generation && fd_tgid(fd) != tgid) {
+			struct kevent tmpkev[2];
+
+			/*
+			 * The FD was taken over by another tgid, forget about
+			 * it.
+			 */
+			EV_SET(&tmpkev[0], fd,  EVFILT_READ, EV_DELETE, 0, 0, (void *)(uintptr_t)fdtab[fd].generation);
+			EV_SET(&tmpkev[1], fd,  EVFILT_WRITE, EV_DELETE, 0, 0, (void *)(uintptr_t)fdtab[fd].generation);
+			kevent(kqueue_fd[tid], tmpkev, 2, NULL, 0, &timeout_ts);
+			continue;
+		}
+
 		if (kev[count].filter == EVFILT_READ) {
 			if (kev[count].data || !(kev[count].flags & EV_EOF))
 				n |= FD_EV_READY_R;
