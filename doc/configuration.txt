@@ -1952,6 +1952,8 @@ cpu-set <directive>...
   - reset           this undoes any previous limitation that could have been
                     inherited by a service manager or a "taskset" command for
                     example.
+  - drop-cpu <set>  do not bind to CPUs in this set
+  - only-cpu <set>  do not bind to CPUs not in this set
 
 crt-base <dir>
   Assigns a default directory to fetch SSL certificates from when a relative
