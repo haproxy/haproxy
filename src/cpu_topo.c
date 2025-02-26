@@ -28,6 +28,9 @@ int cpu_mask_forced = 0;
 /* "cpu-set" global configuration */
 struct cpu_set_cfg {
 	uint flags; // CPU_SET_FL_XXX above
+	/* CPU numbers to accept / reject */
+	struct hap_cpuset only_cpus;
+	struct hap_cpuset drop_cpus;
 } cpu_set_cfg;
 
 /* Detects CPUs that are online on the system. It may rely on FS access (e.g.
@@ -101,6 +104,13 @@ int cpu_detect_usable(void)
 		for (cpu = 0; cpu < cpu_topo_maxcpus; cpu++)
 			if (!ha_cpuset_isset(&boot_set, cpu))
 				ha_cpu_topo[cpu].st |= HA_CPU_F_EXCLUDED;
+	}
+
+	/* remove CPUs in the drop-cpu set or not in the only-cpu set */
+	for (cpu = 0; cpu < cpu_topo_maxcpus; cpu++) {
+		if ( ha_cpuset_isset(&cpu_set_cfg.drop_cpus, cpu) ||
+		    !ha_cpuset_isset(&cpu_set_cfg.only_cpus, cpu))
+			ha_cpu_topo[cpu].st |= HA_CPU_F_DONT_USE;
 	}
 
 	/* Update the list of currently offline CPUs. Normally it's a subset
@@ -482,16 +492,31 @@ static int cfg_parse_cpu_set(char **args, int section_type, struct proxy *curpx,
                                    const struct proxy *defpx, const char *file, int line,
                                    char **err)
 {
+	const char *cpu_set_str[2] = { "", "" };
+	struct hap_cpuset tmp_cpuset = { };
 	int arg;
 
 	for (arg = 1; *args[arg]; arg++) {
 		if (strcmp(args[arg], "reset") == 0) {
-			if (too_many_args(0 + arg, args, err, NULL))
-				return -1;
-
 			/* reset the excluded CPUs first (undo "taskset") */
 			cpu_set_cfg.flags |= CPU_SET_FL_DO_RESET;
 			cpu_mask_forced = 0;
+		}
+		else if (strcmp(args[arg], "drop-cpu") == 0 || strcmp(args[arg], "only-cpu") == 0) {
+			if (!*args[arg + 1]) {
+				memprintf(err, "missing CPU set");
+				goto parse_err;
+			}
+
+			cpu_set_str[0] = args[arg + 1];
+			if (parse_cpu_set(cpu_set_str, &tmp_cpuset, err) != 0)
+				goto parse_err;
+
+			if (*args[arg] == 'd') // cpus to drop
+				ha_cpuset_or(&cpu_set_cfg.drop_cpus, &tmp_cpuset);
+			else // cpus to keep
+				ha_cpuset_and(&cpu_set_cfg.only_cpus, &tmp_cpuset);
+			arg++;
 		}
 		else {
 			/* fall back with default error message */
@@ -508,9 +533,17 @@ static int cfg_parse_cpu_set(char **args, int section_type, struct proxy *curpx,
 	/* all done */
 	return 0;
 
+ parse_err:
+	/* displays args[0] and args[arg] followed by *err so as to remind the
+	 * option name, the sub-directive and the reported error.
+	 */
+	memprintf(err, "'%s %s': %s\n.", args[0], args[arg], *err);
+	goto leave;
+
  leave_with_err:
 	/* complete with supported directives */
-	memprintf(err, "%s (only 'reset' supported).", *err);
+	memprintf(err, "%s (only 'reset', 'only-cpu', 'drop-cpu' supported).", *err);
+ leave:
 	return -1;
 }
 
@@ -540,6 +573,15 @@ static int cpu_topo_alloc(void)
 		memset(&ha_cpu_topo[cpu], 0xff, sizeof(*ha_cpu_topo));
 		ha_cpu_topo[cpu].st  = 0;
 		ha_cpu_topo[cpu].idx = cpu;
+	}
+
+	/* pre-inizialize the configured CPU sets */
+	ha_cpuset_zero(&cpu_set_cfg.drop_cpus);
+	ha_cpuset_zero(&cpu_set_cfg.only_cpus);
+
+	/* preset all CPUs in the "only-XXX" sets */
+	for (cpu = 0; cpu < cpu_topo_maxcpus; cpu++) {
+		ha_cpuset_set(&cpu_set_cfg.only_cpus, cpu);
 	}
 
 	return 1;
