@@ -1946,6 +1946,13 @@ cpu-map [auto:]<thread-group>[/<thread-set>] <cpu-set>[,...] [...]
       cpu-map 4/1-40   40-79,120-159
 
 
+cpu-set <directive>...
+  Allows to symbolically describe what sets of CPUs to run on. The directive
+  supports the following keyword:
+  - reset           this undoes any previous limitation that could have been
+                    inherited by a service manager or a "taskset" command for
+                    example.
+
 crt-base <dir>
   Assigns a default directory to fetch SSL certificates from when a relative
   path is used with "crtfile" or "crt" directives. Absolute locations specified
