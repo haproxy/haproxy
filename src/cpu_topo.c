@@ -6,10 +6,15 @@
 #include <unistd.h>
 
 #include <haproxy/api.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/cpuset.h>
 #include <haproxy/cpu_topo.h>
 #include <haproxy/global.h>
 #include <haproxy/tools.h>
+
+/* for cpu_set.flags below */
+#define CPU_SET_FL_NONE       0x0000
+#define CPU_SET_FL_DO_RESET   0x0001
 
 /* CPU topology information, ha_cpuset_size() entries, allocated at boot */
 int cpu_topo_maxcpus  = -1;  // max number of CPUs supported by OS/haproxy
@@ -19,6 +24,11 @@ struct cpu_map *cpu_map;
 
 /* non-zero if we're certain that taskset or similar was used to force CPUs */
 int cpu_mask_forced = 0;
+
+/* "cpu-set" global configuration */
+struct cpu_set_cfg {
+	uint flags; // CPU_SET_FL_XXX above
+} cpu_set_cfg;
 
 /* Detects CPUs that are online on the system. It may rely on FS access (e.g.
  * /sys on Linux). Returns the number of CPUs detected or 0 if the detection
@@ -83,13 +93,15 @@ int cpu_detect_usable(void)
 	struct hap_cpuset boot_set = { };
 	int cpu;
 
-	/* update the list with the CPUs currently bound to the current process */
-	ha_cpuset_detect_bound(&boot_set);
+	if (!(cpu_set_cfg.flags & CPU_SET_FL_DO_RESET)) {
+		/* update the list with the CPUs currently bound to the current process */
+		ha_cpuset_detect_bound(&boot_set);
 
-	/* remove the known-excluded CPUs */
-	for (cpu = 0; cpu < cpu_topo_maxcpus; cpu++)
-		if (!ha_cpuset_isset(&boot_set, cpu))
-			ha_cpu_topo[cpu].st |= HA_CPU_F_EXCLUDED;
+		/* remove the known-excluded CPUs */
+		for (cpu = 0; cpu < cpu_topo_maxcpus; cpu++)
+			if (!ha_cpuset_isset(&boot_set, cpu))
+				ha_cpu_topo[cpu].st |= HA_CPU_F_EXCLUDED;
+	}
 
 	/* Update the list of currently offline CPUs. Normally it's a subset
 	 * of the unbound ones, but we cannot infer anything if we don't have
@@ -463,6 +475,45 @@ int cpu_detect_topology(void)
 
 #endif // OS-specific cpu_detect_topology()
 
+/* Parse the "cpu-set" global directive, which takes action names and
+ * optional values, and fills the cpu_set structure above.
+ */
+static int cfg_parse_cpu_set(char **args, int section_type, struct proxy *curpx,
+                                   const struct proxy *defpx, const char *file, int line,
+                                   char **err)
+{
+	int arg;
+
+	for (arg = 1; *args[arg]; arg++) {
+		if (strcmp(args[arg], "reset") == 0) {
+			if (too_many_args(0 + arg, args, err, NULL))
+				return -1;
+
+			/* reset the excluded CPUs first (undo "taskset") */
+			cpu_set_cfg.flags |= CPU_SET_FL_DO_RESET;
+			cpu_mask_forced = 0;
+		}
+		else {
+			/* fall back with default error message */
+			memprintf(err, "'%s' passed an unknown directive '%s'", args[0], args[arg]);
+			goto leave_with_err;
+		}
+	}
+
+	if (arg == 1) {
+		memprintf(err, "'%s' requires a directive and an optional value", args[0]);
+		goto leave_with_err;
+	}
+
+	/* all done */
+	return 0;
+
+ leave_with_err:
+	/* complete with supported directives */
+	memprintf(err, "%s (only 'reset' supported).", *err);
+	return -1;
+}
+
 /* Allocates everything needed to store CPU topology at boot.
  * Returns non-zero on success, zero on failure.
  */
@@ -502,3 +553,11 @@ static void cpu_topo_deinit(void)
 
 INITCALL0(STG_ALLOC, cpu_topo_alloc);
 REGISTER_POST_DEINIT(cpu_topo_deinit);
+
+/* config keyword parsers */
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "cpu-set",  cfg_parse_cpu_set, 0 },
+	{ 0, NULL, NULL }
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
