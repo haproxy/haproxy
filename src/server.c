@@ -3061,6 +3061,7 @@ void srv_free_params(struct server *srv)
 		deinit_log_target(srv->log_target);
 		free(srv->log_target);
 	}
+	free(srv->tmpl_info.prefix);
 
 	if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->destroy_srv)
 		xprt_get(XPRT_SSL)->destroy_srv(srv);
