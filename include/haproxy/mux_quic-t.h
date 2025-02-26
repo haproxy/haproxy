@@ -112,9 +112,6 @@ struct qcc {
 	void *ctx; /* Application layer context */
 };
 
-/* Maximum size of stream Rx buffer. */
-#define QC_S_RX_BUF_SZ   (global.tune.bufsize - NCB_RESERVED_SZ)
-
 /* QUIC stream states
  *
  * On initialization a stream is put on idle state. It is opened as soon as

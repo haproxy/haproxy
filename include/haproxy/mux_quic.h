@@ -46,6 +46,11 @@ int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max);
 int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t final_size);
 int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err);
 
+static inline int qmux_stream_rx_bufsz(void)
+{
+	return global.tune.bufsize - NCB_RESERVED_SZ;
+}
+
 /* Bit shift to get the stream sub ID for internal use which is obtained
  * shifting the stream IDs by this value, knowing that the
  * QCS_ID_TYPE_SHIFT less significant bits identify the stream ID

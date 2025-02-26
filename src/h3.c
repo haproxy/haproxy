@@ -1380,7 +1380,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			 * SETTINGS_MAX_FIELD_SECTION_SIZE parameter to prevent
 			 * excessive decompressed size.
 			 */
-			if (flen > QC_S_RX_BUF_SZ) {
+			if (flen > qmux_stream_rx_bufsz()) {
 				TRACE_ERROR("received a too big frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 				qcc_set_error(qcs->qcc, H3_ERR_EXCESSIVE_LOAD, 1);
 				qcc_report_glitch(qcs->qcc, 1);

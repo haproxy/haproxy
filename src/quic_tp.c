@@ -46,7 +46,7 @@ static void quic_dflt_transport_params_cpy(struct quic_transport_params *dst)
  */
 void quic_transport_params_init(struct quic_transport_params *p, int server)
 {
-	const uint64_t ncb_size = global.tune.bufsize - NCB_RESERVED_SZ;
+	const uint64_t stream_rx_bufsz = qmux_stream_rx_bufsz();
 	const int max_streams_bidi = global.tune.quic_frontend_max_streams_bidi;
 	const int max_streams_uni = 3;
 
@@ -64,10 +64,10 @@ void quic_transport_params_init(struct quic_transport_params *p, int server)
 
 	p->initial_max_streams_bidi            = max_streams_bidi;
 	p->initial_max_streams_uni             = max_streams_uni;
-	p->initial_max_stream_data_bidi_local  = ncb_size;
-	p->initial_max_stream_data_bidi_remote = ncb_size;
-	p->initial_max_stream_data_uni         = ncb_size;
-	p->initial_max_data = (max_streams_bidi + max_streams_uni) * ncb_size;
+	p->initial_max_stream_data_bidi_local  = stream_rx_bufsz;
+	p->initial_max_stream_data_bidi_remote = stream_rx_bufsz;
+	p->initial_max_stream_data_uni         = stream_rx_bufsz;
+	p->initial_max_data = (max_streams_bidi + max_streams_uni) * stream_rx_bufsz;
 
 	if (server) {
 		p->with_stateless_reset_token  = 1;
