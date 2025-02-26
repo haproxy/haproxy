@@ -1706,6 +1706,7 @@ static int srv_parse_set_proxy_v2_tlv_fmt(char **args, int *cur_arg,
 		goto fail;
 	}
 	srv_tlv->type = tlv_type;
+	lf_expr_init(&srv_tlv->fmt);
 	srv_tlv->fmt_string = strdup(args[*cur_arg + 1]);
 	if (unlikely(!srv_tlv->fmt_string)) {
 		memprintf(err, "'%s' : failed to save format string for parsing", args[*cur_arg]);
@@ -2966,6 +2967,15 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 			break;
 		}
 		new_srv_tlv->type = srv_tlv->type;
+		lf_expr_init(&new_srv_tlv->fmt);
+		if (srv_tmpl) {
+			if (new_srv_tlv->fmt_string && unlikely(!parse_logformat_string(new_srv_tlv->fmt_string,
+			    srv->proxy, &new_srv_tlv->fmt, 0, SMP_VAL_BE_SRV_CON, NULL))) {
+				free(new_srv_tlv->fmt_string);
+				free(new_srv_tlv);
+				break;
+			}
+		}
 		LIST_APPEND(&srv->pp_tlvs, &new_srv_tlv->list);
 	}
 }
@@ -3708,7 +3718,6 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 	}
 
 	list_for_each_entry(srv_tlv, &srv->pp_tlvs, list) {
-		lf_expr_init(&srv_tlv->fmt);
 		if (srv_tlv->fmt_string && unlikely(!parse_logformat_string(srv_tlv->fmt_string,
 			srv->proxy, &srv_tlv->fmt, 0, SMP_VAL_BE_SRV_CON, &errmsg))) {
 			if (errmsg) {
