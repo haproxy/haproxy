@@ -547,6 +547,36 @@ void cpu_fixup_topology(void)
 		}
 	}
 
+	/* let's make core numbers contiguous and per (pkg,node) as well, as
+	 * holes may exist due to SMT.
+	 */
+	prev_id = -2; // make sure it cannot match even unassigned ones
+	curr_id = -1;
+	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++) {
+		/* renumber clusters and assign unassigne ones at the same
+		 * time. For this, we'll compare pkg/die/llc with the last
+		 * CPU's and verify if we need to create a new cluster ID.
+		 * Note that some platforms don't report cache. The value is
+		 * local to the pkg+node combination so that we reset it when
+		 * changing.
+		 */
+		if (!cpu ||
+		    (ha_cpu_topo[cpu].pk_id != ha_cpu_topo[cpu-1].pk_id) ||
+		    (ha_cpu_topo[cpu].no_id != ha_cpu_topo[cpu-1].no_id)) {
+			curr_id = 0;
+		}
+		else if (ha_cpu_topo[cpu].ts_id != prev_id ||
+			 ha_cpu_topo[cpu].ca_id[4] != ha_cpu_topo[cpu-1].ca_id[4] ||
+			 (ha_cpu_topo[cpu].ca_id[4] < 0 && // no l4 ? check L3
+			  ((ha_cpu_topo[cpu].ca_id[3] != ha_cpu_topo[cpu-1].ca_id[3]) ||
+			   (ha_cpu_topo[cpu].ca_id[3] < 0 && // no l3 ? check L2
+			    (ha_cpu_topo[cpu].ca_id[2] != ha_cpu_topo[cpu-1].ca_id[2]))))) {
+			curr_id++;
+		}
+		prev_id = ha_cpu_topo[cpu].ts_id;
+		ha_cpu_topo[cpu].ts_id = curr_id;
+	}
+
 	cpu_reorder_by_index(ha_cpu_topo, cpu_topo_maxcpus);
 }
 
