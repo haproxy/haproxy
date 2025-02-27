@@ -1956,6 +1956,8 @@ cpu-set <directive>...
   - only-cpu <set>  do not bind to CPUs not in this set
   - drop-node <set> do not bind to CPUs belonging to this NUMA node
   - only-node <set> do not bind to CPUs not belonging to this NUMA node
+  - drop-thread <set> do not bind to CPUs on this hardware thread number
+  - only-thread <set> do not bind to CPUs not on this hardware thread number
 
 crt-base <dir>
   Assigns a default directory to fetch SSL certificates from when a relative
