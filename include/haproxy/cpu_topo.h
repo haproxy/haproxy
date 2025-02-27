@@ -66,5 +66,6 @@ void cpu_reorder_by_cluster(struct ha_cpu_topo *topo, int entries);
 int _cmp_cpu_index(const void *a, const void *b);
 int _cmp_cpu_locality(const void *a, const void *b);
 int _cmp_cpu_cluster(const void *a, const void *b);
+int _cmp_cpu_cluster_capa(const void *a, const void *b);
 
 #endif /* _HAPROXY_CPU_TOPO_H */
