@@ -1270,7 +1270,9 @@ static ssize_t h3_parse_settings_frm(struct h3c *h3c, const struct buffer *buf,
 /* Transcode HTTP/3 payload received in buffer <b> to HTX data for stream
  * <qcs>. If <fin> is set, it indicates that no more data will arrive after.
  *
- * Returns 0 on success else non-zero.
+ * Returns the count of consumed bytes or a negative error code. If 0 is
+ * returned, stream data is incomplete, decoding should be call again later
+ * with more content.
  */
 static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 {
