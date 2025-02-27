@@ -2100,6 +2100,12 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 	 * request, clients SHOULD continue sending the content of the request
 	 * and close the stream normally.
 	 */
+
+	/* TODO deactivate for now STOP_SENDING emission on complete response.
+	 * In particular, this may prevent FIN transmission to stream layer
+	 * which results in transfers reported as prematurely aborted (cL--).
+	 */
+#if 0
 	if (unlikely((htx->flags & HTX_FL_EOM) && htx_is_empty(htx)) &&
 	             !qcs_is_close_remote(qcs)) {
 	        /* Generate a STOP_SENDING if full response transferred before
@@ -2108,6 +2114,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 	        qcs->err = H3_ERR_NO_ERROR;
 	        qcc_abort_stream_read(qcs);
 	}
+#endif
 
  out:
 	htx_to_buf(htx, buf);
