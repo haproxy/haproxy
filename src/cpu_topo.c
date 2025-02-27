@@ -725,7 +725,7 @@ void cpu_reorder_by_cluster(struct ha_cpu_topo *topo, int entries)
  */
 void cpu_fixup_topology(void)
 {
-	int cpu, lastcpu, maxcpus;
+	int cpu, cpu2, lastcpu, maxcpus;
 	int curr_gid, prev_gid;
 	int curr_lid, prev_lid;
 
@@ -740,6 +740,45 @@ void cpu_fixup_topology(void)
 	 * don't yet have one, based on the die/pkg/llc.
 	 */
 	cpu_reorder_by_locality(ha_cpu_topo, maxcpus);
+
+	/* First, on some machines, L3 is not reported. But some also don't
+	 * have L3.  However, no L3 when there are more than 2 L2 is quite
+	 * unheard of, and while we don't really care about firing 2 groups for
+	 * 2 L2, we'd rather avoid this if there are 8! In this case we'll add
+	 * an L3 instance to fix the situation.
+	 */
+	prev_gid = -2; // make sure it cannot match even unassigned ones
+	curr_gid = -1;
+	for (cpu = cpu2 = 0; cpu <= lastcpu; cpu++) {
+		if (ha_cpu_topo[cpu].ca_id[3] >= 0)
+			continue;
+
+		/* L3 not assigned, count L2 instances */
+		if (!cpu ||
+		    (ha_cpu_topo[cpu].pk_id != ha_cpu_topo[cpu-1].pk_id) ||
+		    (ha_cpu_topo[cpu].no_id != ha_cpu_topo[cpu-1].no_id) ||
+		    (ha_cpu_topo[cpu].ca_id[4] != ha_cpu_topo[cpu-1].ca_id[4])) {
+			curr_gid = 0;
+			prev_gid = -2;
+			cpu2 = cpu;
+		}
+		else if (ha_cpu_topo[cpu].ca_id[2] != prev_gid) {
+			curr_gid++;
+			if (curr_gid >= 2) {
+				/* let's assign L3 id to zero for all those.
+				 * We can go till the end since we'll just skip
+				 * them on next passes above.
+				 */
+				for (; cpu2 <= lastcpu; cpu2++) {
+					if (ha_cpu_topo[cpu2].ca_id[3] < 0 &&
+					    ha_cpu_topo[cpu2].pk_id == ha_cpu_topo[cpu].pk_id &&
+					    ha_cpu_topo[cpu2].no_id == ha_cpu_topo[cpu].no_id &&
+					    ha_cpu_topo[cpu2].ca_id[4] == ha_cpu_topo[cpu].ca_id[4])
+						ha_cpu_topo[cpu2].ca_id[3] = 0;
+				}
+			}
+		}
+	}
 
 	prev_gid = prev_lid = -2; // make sure it cannot match even unassigned ones
 	curr_gid = curr_lid = -1;
