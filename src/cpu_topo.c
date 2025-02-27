@@ -684,10 +684,12 @@ void cpu_compose_clusters(void)
 	int curr_gid, prev_gid;
 	int curr_lid, prev_lid;
 
-	/* Now we'll sort CPUs by topology and assign cluster IDs to those that
-	 * don't yet have one, based on the die/pkg/llc.
+	/* Now we'll sort CPUs by topology/cluster/capacity and assign cluster
+	 * IDs to those that don't have one, based on the die/pkg/lcc, and
+	 * double-check that capacity within a cluster doesn't vary by +/- 5%,
+	 * otherwise it indicates different clusters (typically big.little).
 	 */
-	cpu_reorder_by_locality(ha_cpu_topo, cpu_topo_maxcpus);
+	cpu_reorder_by_cluster_capa(ha_cpu_topo, cpu_topo_maxcpus);
 
 	prev_gid = prev_lid = -2; // make sure it cannot match even unassigned ones
 	curr_gid = curr_lid = -1;
@@ -710,7 +712,10 @@ void cpu_compose_clusters(void)
 			 (ha_cpu_topo[cpu].ca_id[4] < 0 && // no l4 ? check L3
 			  ((ha_cpu_topo[cpu].ca_id[3] != ha_cpu_topo[cpu-1].ca_id[3]) ||
 			   (ha_cpu_topo[cpu].ca_id[3] < 0 && // no l3 ? check L2
-			    (ha_cpu_topo[cpu].ca_id[2] != ha_cpu_topo[cpu-1].ca_id[2]))))) {
+			    (ha_cpu_topo[cpu].ca_id[2] != ha_cpu_topo[cpu-1].ca_id[2])))) ||
+			 (ha_cpu_topo[cpu].capa > 0 && ha_cpu_topo[cpu-1].capa > 0 &&
+			  (ha_cpu_topo[cpu].capa * 100 < ha_cpu_topo[cpu-1].capa * 95 ||
+			   ha_cpu_topo[cpu].capa * 95  > ha_cpu_topo[cpu-1].capa * 100))) {
 			curr_gid++;
 			curr_lid++;
 		}
