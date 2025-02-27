@@ -1954,6 +1954,8 @@ cpu-set <directive>...
                     example.
   - drop-cpu <set>  do not bind to CPUs in this set
   - only-cpu <set>  do not bind to CPUs not in this set
+  - drop-node <set> do not bind to CPUs belonging to this NUMA node
+  - only-node <set> do not bind to CPUs not belonging to this NUMA node
 
 crt-base <dir>
   Assigns a default directory to fetch SSL certificates from when a relative

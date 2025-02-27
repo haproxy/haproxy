@@ -29,6 +29,9 @@ int cpu_detect_topology(void);
 /* fix missing info in the CPU topology */
 void cpu_fixup_topology(void);
 
+/* apply remaining topology-based cpu set restrictions */
+void cpu_refine_cpusets(void);
+
 /* Detects CPUs that are bound to the current process. Returns the number of
  * CPUs detected or 0 if the detection failed.
  */
