@@ -986,6 +986,12 @@ void cpu_fixup_topology(void)
 		}
 	}
 
+	/* Second, double-check that capacity within a cluster doesn't vary by
+	 * +/- 5%, otherwise it indicates different clusters (typically
+	 * big.little).
+	 */
+	cpu_reorder_by_cluster_capa(ha_cpu_topo, maxcpus);
+
 	prev_gid = prev_lid = -2; // make sure it cannot match even unassigned ones
 	curr_gid = curr_lid = -1;
 	for (cpu = 0; cpu <= lastcpu; cpu++) {
@@ -1007,7 +1013,10 @@ void cpu_fixup_topology(void)
 			 (ha_cpu_topo[cpu].ca_id[4] < 0 && // no l4 ? check L3
 			  ((ha_cpu_topo[cpu].ca_id[3] != ha_cpu_topo[cpu-1].ca_id[3]) ||
 			   (ha_cpu_topo[cpu].ca_id[3] < 0 && // no l3 ? check L2
-			    (ha_cpu_topo[cpu].ca_id[2] != ha_cpu_topo[cpu-1].ca_id[2]))))) {
+			    (ha_cpu_topo[cpu].ca_id[2] != ha_cpu_topo[cpu-1].ca_id[2])))) ||
+			 (ha_cpu_topo[cpu].capa > 0 && ha_cpu_topo[cpu-1].capa > 0 &&
+			  (ha_cpu_topo[cpu].capa * 100 < ha_cpu_topo[cpu-1].capa * 95 ||
+			   ha_cpu_topo[cpu].capa * 95  > ha_cpu_topo[cpu-1].capa * 100))) {
 			curr_gid++;
 			curr_lid++;
 		}
@@ -1016,6 +1025,8 @@ void cpu_fixup_topology(void)
 		ha_cpu_topo[cpu].cl_gid = curr_gid;
 		ha_cpu_topo[cpu].cl_lid = curr_lid;
 	}
+
+	cpu_reorder_by_locality(ha_cpu_topo, maxcpus);
 
 	/* let's make core numbers contiguous and per (pkg,node) as well, as
 	 * holes may exist due to SMT.
