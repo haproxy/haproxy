@@ -23,10 +23,6 @@ static ssize_t hq_interop_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 	/* hq-interop parser does not support buffer wrapping. */
 	BUG_ON(b_data(b) != b_contig_data(b, 0));
 
-	/* hq-interop parser is only done once full message is received. */
-	if (!fin)
-		return 0;
-
 	b_alloc(&htx_buf, DB_MUX_RX);
 	htx = htx_from_buf(&htx_buf);
 
@@ -38,13 +34,13 @@ static ssize_t hq_interop_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 
 	if (!data || !HTTP_IS_SPHT(*ptr)) {
 		fprintf(stderr, "truncated stream\n");
-		return -1;
+		return 0;
 	}
 
 	ptr++;
 	if (!--data) {
 		fprintf(stderr, "truncated stream\n");
-		return -1;
+		return 0;
 	}
 
 	if (HTTP_IS_LWS(*ptr)) {
@@ -61,7 +57,7 @@ static ssize_t hq_interop_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 
 	if (!data) {
 		fprintf(stderr, "truncated stream\n");
-		return -1;
+		return 0;
 	}
 
 	path.len = ptr - path.ptr;
