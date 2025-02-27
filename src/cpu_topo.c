@@ -189,9 +189,9 @@ void cpu_dump_topology(const struct ha_cpu_topo *topo)
 		if (ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE)
 			continue;
 
-		printf("%3d: cpu=%3d excl=%d pk=%02d no=%02d cl=%03d(%03d)",
-		       cpu, ha_cpu_topo[cpu].idx,
-		       (ha_cpu_topo[cpu].st & HA_CPU_F_EXCL_MASK),
+		printf("[%s] cpu=%3d pk=%02d no=%02d cl=%03d(%03d)",
+		       (ha_cpu_topo[cpu].st & HA_CPU_F_EXCL_MASK) ? "----" : "keep",
+		       ha_cpu_topo[cpu].idx,
 		       ha_cpu_topo[cpu].pk_id,
 		       ha_cpu_topo[cpu].no_id,
 		       ha_cpu_topo[cpu].cl_gid,
