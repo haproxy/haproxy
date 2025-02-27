@@ -1956,6 +1956,8 @@ cpu-set <directive>...
   - only-cpu <set>  do not bind to CPUs not in this set
   - drop-node <set> do not bind to CPUs belonging to this NUMA node
   - only-node <set> do not bind to CPUs not belonging to this NUMA node
+  - drop-cluster <set> do not bind to CPUs on this hardware cluster number
+  - only-cluster <set> do not bind to CPUs not on this hardware cluster number
   - drop-core <set> do not bind to CPUs on this hardware core number
   - only-core <set> do not bind to CPUs not on this hardware core number
   - drop-thread <set> do not bind to CPUs on this hardware thread number
