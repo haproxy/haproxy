@@ -35,6 +35,9 @@ struct cpu_set_cfg {
 	/* node numbers to accept / reject */
 	struct hap_cpuset only_nodes;
 	struct hap_cpuset drop_nodes;
+	/* core numbers to accept / reject */
+	struct hap_cpuset only_cores;
+	struct hap_cpuset drop_cores;
 	/* thread numbers to accept / reject */
 	struct hap_cpuset only_threads;
 	struct hap_cpuset drop_threads;
@@ -844,6 +847,13 @@ void cpu_refine_cpusets(void)
 			ha_cpu_topo[cpu].st |= HA_CPU_F_DONT_USE;
 	}
 
+	/* remove CPUs in the drop-core set or not in the only-core set */
+	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++) {
+		if ( ha_cpuset_isset(&cpu_set_cfg.drop_cores, ha_cpu_topo[cpu].ts_id) ||
+		    !ha_cpuset_isset(&cpu_set_cfg.only_cores, ha_cpu_topo[cpu].ts_id))
+			ha_cpu_topo[cpu].st |= HA_CPU_F_DONT_USE;
+	}
+
 	/* remove CPUs in the drop-thread set or not in the only-thread set */
 	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++) {
 		if ( ha_cpuset_isset(&cpu_set_cfg.drop_threads, ha_cpu_topo[cpu].th_id) ||
@@ -1233,6 +1243,22 @@ static int cfg_parse_cpu_set(char **args, int section_type, struct proxy *curpx,
 				ha_cpuset_and(&cpu_set_cfg.only_nodes, &tmp_cpuset);
 			arg++;
 		}
+		else if (strcmp(args[arg], "drop-core") == 0 || strcmp(args[arg], "only-core") == 0) {
+			if (!*args[arg + 1]) {
+				memprintf(err, "missing core set");
+				goto parse_err;
+			}
+
+			cpu_set_str[0] = args[arg + 1];
+			if (parse_cpu_set(cpu_set_str, &tmp_cpuset, err) != 0)
+				goto parse_err;
+
+			if (*args[arg] == 'd') // cores to drop
+				ha_cpuset_or(&cpu_set_cfg.drop_cores, &tmp_cpuset);
+			else // cores to keep
+				ha_cpuset_and(&cpu_set_cfg.only_cores, &tmp_cpuset);
+			arg++;
+		}
 		else if (strcmp(args[arg], "drop-thread") == 0 || strcmp(args[arg], "only-thread") == 0) {
 			if (!*args[arg + 1]) {
 				memprintf(err, "missing thread set");
@@ -1273,7 +1299,7 @@ static int cfg_parse_cpu_set(char **args, int section_type, struct proxy *curpx,
 
  leave_with_err:
 	/* complete with supported directives */
-	memprintf(err, "%s (only 'reset', 'only-cpu', 'drop-cpu', 'only-node', 'drop-node', 'only-thread', 'drop-thread' supported).", *err);
+	memprintf(err, "%s (only 'reset', 'only-cpu', 'drop-cpu', 'only-node', 'drop-node', 'only-core', 'drop-core', 'only-thread', 'drop-thread' supported).", *err);
  leave:
 	return -1;
 }
@@ -1320,6 +1346,8 @@ static int cpu_topo_alloc(void)
 	ha_cpuset_zero(&cpu_set_cfg.only_cpus);
 	ha_cpuset_zero(&cpu_set_cfg.drop_nodes);
 	ha_cpuset_zero(&cpu_set_cfg.only_nodes);
+	ha_cpuset_zero(&cpu_set_cfg.drop_cores);
+	ha_cpuset_zero(&cpu_set_cfg.only_cores);
 	ha_cpuset_zero(&cpu_set_cfg.drop_threads);
 	ha_cpuset_zero(&cpu_set_cfg.only_threads);
 
@@ -1327,6 +1355,7 @@ static int cpu_topo_alloc(void)
 	for (cpu = 0; cpu < cpu_topo_maxcpus; cpu++) {
 		ha_cpuset_set(&cpu_set_cfg.only_cpus, cpu);
 		ha_cpuset_set(&cpu_set_cfg.only_nodes, cpu);
+		ha_cpuset_set(&cpu_set_cfg.only_cores, cpu);
 		ha_cpuset_set(&cpu_set_cfg.only_threads, cpu);
 	}
 
