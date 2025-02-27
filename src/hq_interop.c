@@ -23,6 +23,12 @@ static ssize_t hq_interop_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 	/* hq-interop parser does not support buffer wrapping. */
 	BUG_ON(b_data(b) != b_contig_data(b, 0));
 
+	if (!b_data(b) && fin && quic_stream_is_bidi(qcs->id)) {
+		if (qcs_http_handle_standalone_fin(qcs))
+			return -1;
+		return 0;
+	}
+
 	/* skip method */
 	while (data && HTTP_IS_TOKEN(*ptr)) {
 		ptr++;

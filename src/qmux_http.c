@@ -62,6 +62,27 @@ size_t qcs_http_rcv_buf(struct qcs *qcs, struct buffer *buf, size_t count,
 	return ret;
 }
 
+int qcs_http_handle_standalone_fin(struct qcs *qcs)
+{
+	struct buffer *appbuf;
+	struct htx *htx;
+	int eom;
+
+	if (!(appbuf = qcc_get_stream_rxbuf(qcs)))
+		goto err;
+
+	htx = htx_from_buf(appbuf);
+	eom = htx_set_eom(htx);
+	htx_to_buf(htx, appbuf);
+	if (!eom)
+		goto err;
+
+	return 0;
+
+ err:
+	return -1;
+}
+
 /* QUIC MUX snd_buf operation using HTX data. HTX data will be transferred from
  * <buf> to <qcs> stream buffer. Input buffer is expected to be of length
  * <count>. <fin> will be set to signal the last data to send for this stream.
