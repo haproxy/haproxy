@@ -34,6 +34,9 @@ void cpu_fixup_topology(void);
 /* compose clusters */
 void cpu_compose_clusters(void);
 
+/* apply remaining topology-based cpu set restrictions */
+void cpu_refine_cpusets(void);
+
 /* Detects CPUs that are bound to the current process. Returns the number of
  * CPUs detected or 0 if the detection failed.
  */

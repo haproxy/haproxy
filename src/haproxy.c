@@ -2071,6 +2071,9 @@ static void step_init_2(int argc, char** argv)
 
 	/* compose clusters */
 	cpu_compose_clusters();
+
+	/* refine topology-based CPU sets */
+	cpu_refine_cpusets();
 #endif
 
 	/* detect the optimal thread-groups and nbthreads if not set */

@@ -32,6 +32,9 @@ struct cpu_set_cfg {
 	/* CPU numbers to accept / reject */
 	struct hap_cpuset only_cpus;
 	struct hap_cpuset drop_cpus;
+	/* node numbers to accept / reject */
+	struct hap_cpuset only_nodes;
+	struct hap_cpuset drop_nodes;
 } cpu_set_cfg;
 
 /* Detects CPUs that are online on the system. It may rely on FS access (e.g.
@@ -826,6 +829,19 @@ void cpu_compose_clusters(void)
 	cpu_reorder_by_index(ha_cpu_topo, cpu_topo_maxcpus);
 }
 
+/* apply remaining topology-based cpu set restrictions */
+void cpu_refine_cpusets(void)
+{
+	int cpu;
+
+	/* remove CPUs in the drop-node set or not in the only-node set */
+	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++) {
+		if ( ha_cpuset_isset(&cpu_set_cfg.drop_nodes, ha_cpu_topo[cpu].no_id) ||
+		    !ha_cpuset_isset(&cpu_set_cfg.only_nodes, ha_cpu_topo[cpu].no_id))
+			ha_cpu_topo[cpu].st |= HA_CPU_F_DONT_USE;
+	}
+}
+
 /* CPU topology detection below, OS-specific */
 
 #if defined(__linux__)
@@ -1191,6 +1207,22 @@ static int cfg_parse_cpu_set(char **args, int section_type, struct proxy *curpx,
 				ha_cpuset_and(&cpu_set_cfg.only_cpus, &tmp_cpuset);
 			arg++;
 		}
+		else if (strcmp(args[arg], "drop-node") == 0 || strcmp(args[arg], "only-node") == 0) {
+			if (!*args[arg + 1]) {
+				memprintf(err, "missing node set");
+				goto parse_err;
+			}
+
+			cpu_set_str[0] = args[arg + 1];
+			if (parse_cpu_set(cpu_set_str, &tmp_cpuset, err) != 0)
+				goto parse_err;
+
+			if (*args[arg] == 'd') // nodes to drop
+				ha_cpuset_or(&cpu_set_cfg.drop_nodes, &tmp_cpuset);
+			else // nodes to keep
+				ha_cpuset_and(&cpu_set_cfg.only_nodes, &tmp_cpuset);
+			arg++;
+		}
 		else {
 			/* fall back with default error message */
 			memprintf(err, "'%s' passed an unknown directive '%s'", args[0], args[arg]);
@@ -1215,7 +1247,7 @@ static int cfg_parse_cpu_set(char **args, int section_type, struct proxy *curpx,
 
  leave_with_err:
 	/* complete with supported directives */
-	memprintf(err, "%s (only 'reset', 'only-cpu', 'drop-cpu' supported).", *err);
+	memprintf(err, "%s (only 'reset', 'only-cpu', 'drop-cpu', 'only-node', 'drop-node' supported).", *err);
  leave:
 	return -1;
 }
@@ -1260,10 +1292,13 @@ static int cpu_topo_alloc(void)
 	/* pre-inizialize the configured CPU sets */
 	ha_cpuset_zero(&cpu_set_cfg.drop_cpus);
 	ha_cpuset_zero(&cpu_set_cfg.only_cpus);
+	ha_cpuset_zero(&cpu_set_cfg.drop_nodes);
+	ha_cpuset_zero(&cpu_set_cfg.only_nodes);
 
 	/* preset all CPUs in the "only-XXX" sets */
 	for (cpu = 0; cpu < cpu_topo_maxcpus; cpu++) {
 		ha_cpuset_set(&cpu_set_cfg.only_cpus, cpu);
+		ha_cpuset_set(&cpu_set_cfg.only_nodes, cpu);
 	}
 
 	return 1;
