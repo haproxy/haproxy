@@ -38,4 +38,8 @@ void post_mortem_add_component(const char *name, const char *version,
 			       const char *toolchain, const char *toolchain_opts,
 			       const char *build_settings, const char *path);
 
+#ifdef DEBUG_UNIT
+void list_unittests();
+#endif
+
 #endif /* _HAPROXY_DEBUG_H */

@@ -2764,6 +2764,31 @@ static int feed_post_mortem_late()
 REGISTER_PER_THREAD_INIT(feed_post_mortem_late);
 #endif
 
+#ifdef DEBUG_UNIT
+
+extern struct list unittest_list;
+
+void list_unittests()
+{
+	struct unittest_fct *unit;
+	int found = 0;
+
+	fprintf(stdout, "Unit tests list :");
+
+	list_for_each_entry(unit, &unittest_list, list) {
+		fprintf(stdout, " %s", unit->name);
+		found = 1;
+	}
+
+	if (!found)
+		fprintf(stdout, " none");
+
+	fprintf(stdout, "\n");
+}
+
+#endif
+
+
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 #if !defined(USE_OBSOLETE_LINKER)

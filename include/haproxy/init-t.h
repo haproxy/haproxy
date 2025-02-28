@@ -61,4 +61,10 @@ struct per_thread_deinit_fct {
 	void (*fct)();
 };
 
+struct unittest_fct {
+	struct list list;
+	const char *name;
+	int (*fct)(int argc, char **argv);
+};
+
 #endif /* _HAPROXY_INIT_T_H */

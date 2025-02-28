@@ -250,6 +250,11 @@ char **old_argv = NULL; /* previous argv but cleaned up */
 
 struct list proc_list = LIST_HEAD_INIT(proc_list);
 
+#ifdef DEBUG_UNIT
+struct list unittest_list = LIST_HEAD_INIT(unittest_list);
+static int unittest_argc = -1;
+#endif
+
 int master = 0; /* 1 if in master, 0 if in child */
 
 /* per-boot randomness */
@@ -395,6 +400,22 @@ void hap_register_feature(const char *name)
 	build_features = new_features;
 	must_free = 1;
 }
+
+#ifdef DEBUG_UNIT
+/* register a function that could be registered in "-U" argument */
+void hap_register_unittest(const char *name, int (*fct)(int argc, char **argv))
+{
+	struct unittest_fct *unit;
+
+	if (!name || !fct)
+		return;
+
+	unit = calloc(1, sizeof(*unit));
+	unit->fct = fct;
+	unit->name = name;
+	LIST_APPEND(&unittest_list, &unit->list);
+}
+#endif
 
 #define VERSION_MAX_ELTS  7
 
@@ -602,6 +623,10 @@ static void display_build_opts()
 
 	putchar('\n');
 
+#ifdef DEBUG_UNIT
+	list_unittests();
+	putchar('\n');
+#endif
 	list_pollers(stdout);
 	putchar('\n');
 	list_mux_proto(stdout);
@@ -1629,6 +1654,19 @@ static void init_args(int argc, char **argv)
 					nb_oldpids++;
 				}
 			}
+#ifdef DEBUG_UNIT
+			else if (*flag == 'U')  {
+				if (argc <= 1) {
+					ha_alert("-U takes a least a unittest name in argument, and must be the last option\n");
+					usage(progname);
+				}
+				/* this is the last option, we keep the option position */
+				argv++;
+				argc--;
+				unittest_argc = argc;
+				break;
+			}
+#endif
 			else if (flag[0] == '-' && flag[1] == 0) { /* "--" */
 				/* now that's a cfgfile list */
 				argv++; argc--;
@@ -1912,7 +1950,6 @@ static void bind_listeners()
 		select(0, NULL, NULL, NULL, &w);
 		retry--;
 	}
-
 	/* Note: protocol_bind_all() sends an alert when it fails. */
 	if ((err & ~ERR_WARN) != ERR_NONE) {
 		ha_alert("[%s.main()] Some protocols failed to start their listeners! Exiting.\n", progname);
@@ -3132,6 +3169,26 @@ int main(int argc, char **argv)
 	 * cmdline.
 	 */
 	step_init_1();
+
+	/* call a function to be called with -U in order to make some tests */
+#ifdef DEBUG_UNIT
+	if (unittest_argc > -1) {
+		struct unittest_fct *unit;
+		int ret = 1;
+		int argc_start = argc - unittest_argc;
+
+		list_for_each_entry(unit, &unittest_list, list) {
+
+			if (strcmp(unit->name, argv[argc_start]) == 0) {
+				ret = unit->fct(unittest_argc, argv + argc_start);
+				break;
+			}
+		}
+
+		exit(ret);
+	}
+#endif
+
 
 	/* deserialize processes list, if we do reload in master-worker mode */
 	if ((getenv("HAPROXY_MWORKER_REEXEC") != NULL)) {
