@@ -736,6 +736,17 @@ void cpu_fixup_topology(void)
 		if (!(ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE))
 			lastcpu = cpu;
 
+	/* assign capacity if not filled, based on the number of threads on the
+	 * core: in a same package, SMT-capable cores are generally those
+	 * optimized for performers while non-SMT ones are generally those
+	 * optimized for efficiency. We'll reflect that by assigning 100 and 50
+	 * respectively to those.
+	 */
+	for (cpu = 0; cpu <= lastcpu; cpu++) {
+		if (ha_cpu_topo[cpu].capa < 0)
+			ha_cpu_topo[cpu].capa = (ha_cpu_topo[cpu].th_cnt > 1) ? 100 : 50;
+	}
+
 	/* Now we'll sort CPUs by topology and assign cluster IDs to those that
 	 * don't yet have one, based on the die/pkg/llc.
 	 */
