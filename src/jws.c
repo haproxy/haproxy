@@ -4,6 +4,7 @@
 
 #include <haproxy/base64.h>
 #include <haproxy/chunk.h>
+#include <haproxy/init.h>
 #include <haproxy/openssl-compat.h>
 
 #if defined(HAVE_JWS)
@@ -193,6 +194,45 @@ int EVP_PKEY_to_pub_jwk(EVP_PKEY *pkey, char *dst, size_t dsize)
 	}
 	return ret;
 }
+
+int jwk_debug(int argc, char **argv)
+{
+	FILE *f = NULL;
+	EVP_PKEY *pkey = NULL;
+	char msg[1024];
+	int ret = 1;
+	const char *filename;
+
+	if (argc < 1)
+		goto out;
+
+	filename = argv[1];
+
+	if ((f = fopen(filename, "r")) == NULL) {
+		fprintf(stderr, "fopen!\n");
+		goto out;
+	}
+	if ((pkey = PEM_read_PrivateKey(f, NULL, NULL, NULL)) == NULL) {
+		fprintf(stderr, "PEM_read_PrivateKey!\n");
+		goto out;
+	}
+
+	ret = !EVP_PKEY_to_pub_jwk(pkey, msg, sizeof(msg));
+	fprintf(stdout, "%s\n", msg);
+
+	EVP_PKEY_free(pkey);
+out:
+
+	return ret;
+}
+
+static void __jws_init(void)
+{
+	hap_register_unittest("jwk", jwk_debug);
+}
+
+
+INITCALL0(STG_REGISTER, __jws_init);
 
 #endif /* HAVE_JWS */
 
