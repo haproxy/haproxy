@@ -2842,7 +2842,7 @@ static int fcgi_recv(struct fcgi_conn *fconn)
 		buf->head = sizeof(struct htx) - (fconn->state == FCGI_CS_RECORD_H ? FCGI_RECORD_HEADER_SZ : 0);
 	}
 	else
-		max = buf_room_for_htx_data(buf);
+		max = b_room(buf);
 
 	ret = max ? conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, max, 0) : 0;
 
