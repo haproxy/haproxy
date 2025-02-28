@@ -128,6 +128,10 @@
 #define HAVE_SSL_SET_SECURITY_LEVEL
 #endif
 
+#if ((defined(LIBRESSL_VERSION_NUMBER) && (LIBRESSL_VERSION_NUMBER >= 0x3030600L)) || (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L) || defined(OPENSSL_IS_AWSLC)) && !defined(USE_OPENSSL_WOLFSSL)
+#define HAVE_JWS
+#endif
+
 #if !defined(HAVE_SSL_SET_SECURITY_LEVEL)
 /* define a nope function for set_security_level */
 #define SSL_CTX_set_security_level(ctx, level) ({})
