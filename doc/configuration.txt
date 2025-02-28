@@ -9444,6 +9444,9 @@ no option accept-unsafe-violations-in-http-request
       different protocol names (e.g. RTSP), and multiple digits for both the
       major and the minor version.
 
+    * In H1 only, WebSocket (RFC6455) requests failing to present a valid
+      "Sec-Websocket-Key" header field will be accepted.
+
   This option should never be enabled by default as it hides application bugs
   and open security breaches. It should only be deployed after a problem has
   been confirmed.
@@ -9493,6 +9496,9 @@ no option accept-unsafe-violations-in-http-response
     * In H1 only, tests on the HTTP version will be relaxed. It will allow
       different protocol names (e.g. RTSP), and multiple digits for both the
       major and the minor version.
+
+    * In H1 only, WebSocket (RFC6455) responses failing to present a valid
+      "Sec-Websocket-Accept" header field will be accepted.
 
   This option should never be enabled by default as it hides application bugs
   and open security breaches. It should only be deployed after a problem has

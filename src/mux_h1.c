@@ -1850,7 +1850,7 @@ static void h1_set_tunnel_mode(struct h1s *h1s)
  * responsible for the generation of a key. This happens when a h2 client is
  * interfaced with a h1 server.
  *
- * Returns 0 if no key found or invalid key
+ * Returns 0 if no key found or invalid key. The message is not modified.
  */
 static int h1_search_websocket_key(struct h1s *h1s, struct h1m *h1m, struct htx *htx)
 {
@@ -1900,11 +1900,9 @@ static int h1_search_websocket_key(struct h1s *h1s, struct h1m *h1m, struct htx 
 		}
 	}
 
-	/* missing websocket key, reject the message */
-	if (!ws_key_found) {
-		htx->flags |= HTX_FL_PARSING_ERROR;
+	/* missing websocket key, invalid message */
+	if (!ws_key_found)
 		return 0;
-	}
 
 	return 1;
 }
@@ -1986,13 +1984,24 @@ static size_t h1_handle_headers(struct h1s *h1s, struct h1m *h1m, struct htx *ht
 	if ((h1m->flags & (H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET)) ==
 	    (H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET)) {
 		int ws_ret = h1_search_websocket_key(h1s, h1m, htx);
+
 		if (!ws_ret) {
-			h1s->flags |= H1S_F_PARSING_ERROR;
-			TRACE_ERROR("missing/invalid websocket key, reject H1 message", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 
-			ret = 0;
-			goto end;
+			if ((!(h1m->flags & H1_MF_RESP) && !(h1s->h1c->px->options2 & PR_O2_REQBUG_OK)) ||
+			    ((h1m->flags & H1_MF_RESP) && !(h1s->h1c->px->options2 & PR_O2_RSPBUG_OK))) {
+				htx->flags |= HTX_FL_PARSING_ERROR;
+				h1s->flags |= H1S_F_PARSING_ERROR;
+				TRACE_ERROR("missing/invalid websocket key, reject H1 message",
+					    H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
+
+				ret = 0;
+				goto end;
+			} else {
+				TRACE_ERROR("missing/invalid websocket key, but accepting this "
+					    "violation according to configuration",
+					    H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
+			}
 		}
 	}
 
