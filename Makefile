@@ -201,6 +201,7 @@ endif
 #### May be used to force running a specific set of reg-tests
 REG_TEST_FILES =
 REG_TEST_SCRIPT=./scripts/run-regtests.sh
+UNIT_TEST_SCRIPT=./scripts/run-unittests.sh
 
 #### Standard C definition
 # Compiler-specific flags that may be used to set the standard behavior we
@@ -1023,7 +1024,7 @@ help:
 # TARGET variable is not set since we're not building, by definition.
 IGNORE_OPTS=help install install-man install-doc install-bin \
 	uninstall clean tags cscope tar git-tar version update-version \
-	opts reg-tests reg-tests-help admin/halog/halog dev/flags/flags \
+	opts reg-tests reg-tests-help unit-tests admin/halog/halog dev/flags/flags \
 	dev/haring/haring dev/ncpu/ncpu dev/poll/poll dev/tcploop/tcploop \
 	dev/term_events/term_events
 
@@ -1266,6 +1267,11 @@ reg-tests-help:
 	@echo "(see --help option of this script for more information)."
 
 .PHONY: reg-tests reg-tests-help
+
+unit-tests:
+	$(Q)$(UNIT_TEST_SCRIPT)
+.PHONY: unit-tests
+
 
 # "make range" iteratively builds using "make all" and the exact same build
 # options for all commits within RANGE. RANGE may be either a git range
