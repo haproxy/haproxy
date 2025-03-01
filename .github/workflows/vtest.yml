@@ -117,7 +117,7 @@ jobs:
           ERR=1 \
           TARGET=${{ matrix.TARGET }} \
           CC=${{ matrix.CC }} \
-          DEBUG="-DDEBUG_POOL_INTEGRITY" \
+          DEBUG="-DDEBUG_POOL_INTEGRITY -DDEBUG_UNIT" \
           ${{ join(matrix.FLAGS, ' ') }} \
           ADDLIB="-Wl,-rpath,/usr/local/lib/ -Wl,-rpath,$HOME/opt/lib/"
         sudo make install
@@ -146,6 +146,10 @@ jobs:
         ulimit -n 65536
         ulimit -c unlimited
         make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
+    - name: Run Unit tests
+      id: unittests
+      run: |
+        make unit-tests
     - name: Config syntax check memleak smoke testing
       if: ${{ contains(matrix.name, 'ASAN') }}
       run: |
