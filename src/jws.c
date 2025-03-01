@@ -36,6 +36,47 @@ out:
 	return ret;
 }
 
+/* https://datatracker.ietf.org/doc/html/rfc8422#appendix-A */
+/* SECG to NIST curves name */
+static struct curves { char *name; int nid; } curves_list [] =
+{
+	{ "secp256r1",  NID_X9_62_prime256v1 },
+	{ "prime256v1", NID_X9_62_prime256v1 },
+	{ "P-256",      NID_X9_62_prime256v1 },
+
+	{ "secp384r1",  NID_secp384r1 },
+	{ "P-384",      NID_secp384r1 },
+
+	{ "secp521r1",  NID_secp521r1 },
+	{ "P-521",      NID_secp521r1 },
+	{ NULL,         0 },
+};
+
+/* convert a curves name to a openssl NID */
+int curves2nid(const char *curve)
+{
+	struct curves *curves = curves_list;
+
+	while (curves->name) {
+		if (strcmp(curve, curves->name) == 0)
+			return curves->nid;
+		curves++;
+	}
+	return -1;
+}
+
+/* convert an OpenSSL NID to a NIST curves name */
+const char *nid2nist(int nid)
+{
+	switch (nid) {
+		case NID_X9_62_prime256v1: return "P-256";
+		case NID_secp384r1:        return "P-384";
+		case NID_secp521r1:        return "P-521";
+		default:                   return NULL;
+	}
+}
+
+
 /*
  * Convert a EC <pkey> to a public key JWK
  * Fill a buffer <dst> of <dsize> max size
@@ -47,18 +88,29 @@ static int EVP_PKEY_EC_to_pub_jwk(EVP_PKEY *pkey, char *dst, size_t dsize)
 	BIGNUM *x = NULL, *y = NULL;
 	struct buffer *str_x = NULL, *str_y = NULL;
 	int ret = 0;
+	const char *crv = NULL;
 
 #if HA_OPENSSL_VERSION_NUMBER > 0x30000000L
-	char crv[32];
-	size_t crvlen;
+	char curve[32] = {};
+	size_t curvelen;
+	int nid;
 
 	EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_EC_PUB_X, &x);
 	EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_EC_PUB_Y, &y);
 
-	if (EVP_PKEY_get_utf8_string_param(pkey, OSSL_PKEY_PARAM_GROUP_NAME, crv, sizeof(crv), &crvlen) == 0)
+	if (EVP_PKEY_get_utf8_string_param(pkey, OSSL_PKEY_PARAM_GROUP_NAME, curve, sizeof(curve), &curvelen) == 0)
 		goto out;
+
+	crv = curve;
+
+	/* convert to NIST format */
+	nid = curves2nid(curve);
+	if (nid > 0) {
+		crv = nid2nist(nid);
+		if (crv == NULL)
+			crv = curve;
+	}
 #else
-	const char *crv = NULL;
 	const EC_KEY *ec = NULL;
 	const EC_GROUP *ec_group = NULL;
 	const EC_POINT *ec_point = NULL;
