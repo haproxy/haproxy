@@ -5375,6 +5375,24 @@ void app_log(struct list *loggers, struct buffer *tag, int level, const char *fo
 
 	__send_log(NULL, loggers, tag, level, logline, data_len, default_rfc5424_sd_log_format, 2);
 }
+
+/*
+ * This function sets up the initial state for a log message by preparing
+ * the buffer, setting default values for the log level and facility, and
+ * initializing metadata fields. It is used before parsing or constructing
+ * a log message to ensure all fields are in a known state.
+ */
+static void prepare_log_message(char *buf, size_t buflen, int *level, int *facility,
+                                struct ist *metadata, char **message, size_t *size)
+{
+	*level = *facility = -1;
+
+	*message = buf;
+	*size = buflen;
+
+	memset(metadata, 0, LOG_META_FIELDS*sizeof(struct ist));
+}
+
 /*
  * This function parse a received log message <buf>, of size <buflen>
  * it fills <level>, <facility> and <metadata> depending of the detected
@@ -5390,13 +5408,6 @@ void parse_log_message(char *buf, size_t buflen, int *level, int *facility,
 
 	char *p;
 	int fac_level = 0;
-
-	*level = *facility = -1;
-
-	*message = buf;
-	*size = buflen;
-
-	memset(metadata, 0, LOG_META_FIELDS*sizeof(struct ist));
 
 	p = buf;
 	if (*size < 2 || *p != '<')
@@ -5745,6 +5756,8 @@ void syslog_fd_handler(int fd)
 			_HA_ATOMIC_INC(&cum_log_messages);
 			proxy_inc_fe_req_ctr(l, l->bind_conf->frontend, 0);
 
+			prepare_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
+
 			parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
 			process_send_log(NULL, &l->bind_conf->frontend->loggers, level, facility, metadata, message, size);
@@ -5856,6 +5869,8 @@ static void syslog_io_handler(struct appctx *appctx)
 		/* update counters */
 		_HA_ATOMIC_INC(&cum_log_messages);
 		proxy_inc_fe_req_ctr(l, frontend, 0);
+
+		prepare_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
 		parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
