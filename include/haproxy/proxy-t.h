@@ -161,6 +161,11 @@ enum PR_SRV_STATE_FILE {
 #define PR_O2_CHK_ANY   0xF0000000      /* Mask to cover any check */
 /* end of proxy->options2 */
 
+/* bits for proxy->options_log */
+#define PR_OL_DONTPARSELOG       0x00000001 /* don't parse log messages */
+#define PR_OL_ASSUME_RFC6587_NTF 0x00000002 /* assume that we are going to receive just non-transparent framing messages */
+/* end of proxy->options_log */
+
 /* Cookie settings for pr->ck_opts */
 #define PR_CK_RW        0x00000001      /* rewrite all direct cookies with the right serverid */
 #define PR_CK_IND       0x00000002      /* keep only indirect cookies */
@@ -285,6 +290,7 @@ struct proxy {
 
 	int options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
 	int options2;				/* PR_O2_* */
+	int options_log;			/* PR_OL_* */
 	unsigned int ck_opts;			/* PR_CK_* (cookie options) */
 	unsigned int fe_req_ana, be_req_ana;	/* bitmap of common request protocol analysers for the frontend and backend */
 	unsigned int fe_rsp_ana, be_rsp_ana;	/* bitmap of common response protocol analysers for the frontend and backend */

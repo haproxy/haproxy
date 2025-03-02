@@ -5759,7 +5759,8 @@ void syslog_fd_handler(int fd)
 
 			prepare_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
-			parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
+			if (!(l->bind_conf->frontend->options_log & PR_OL_DONTPARSELOG))
+				parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
 			process_send_log(NULL, &l->bind_conf->frontend->loggers, level, facility, metadata, message, size);
 
@@ -5807,7 +5808,7 @@ static void syslog_io_handler(struct appctx *appctx)
 		else if (to_skip < 0)
 			goto cli_abort;
 
-		if (c == '<') {
+		if (c == '<' || (frontend->options_log & PR_OL_ASSUME_RFC6587_NTF)) {
 			/* rfc-6587, Non-Transparent-Framing: messages separated by
 			 * a trailing LF or CR LF
 			 */
@@ -5873,7 +5874,8 @@ static void syslog_io_handler(struct appctx *appctx)
 
 		prepare_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
-		parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
+		if (!(frontend->options_log & PR_OL_DONTPARSELOG))
+			parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
 		process_send_log(NULL, &frontend->loggers, level, facility, metadata, message, size);
 
@@ -6026,6 +6028,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		px->accept = frontend_accept;
 		px->default_target = &syslog_applet.obj_type;
 		px->id = strdup(args[1]);
+		px->options_log = 0;
 	}
 	else if (strcmp(args[0], "maxconn") == 0) {  /* maxconn */
 		if (warnifnotcap(cfg_log_forward, PR_CAP_FE, file, linenum, args[0], " Maybe you want 'fullconn' instead ?"))
@@ -6202,6 +6205,34 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		cfg_log_forward->timeout.client = MS_TO_TICKS(timeout);
+	}
+	else if (strcmp(args[0], "option") == 0) {
+		int optnum;
+
+		if (*(args[1]) == '\0') {
+			ha_alert("parsing [%s:%d]: '%s' expects an option name.\n",
+		           file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+      goto out;
+		}
+
+		for (optnum = 0; cfg_opts_log[optnum].name; optnum++) {
+			if (strcmp(args[1], cfg_opts_log[optnum].name) == 0) {
+				if (cfg_opts_log[optnum].cap == PR_CAP_NONE) {
+					ha_alert("parsing [%s:%d]: option '%s' is not supported due to build options.\n",
+		               file, linenum, cfg_opts2[optnum].name);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+					goto out;
+				if (warnifnotcap(cfg_log_forward, cfg_opts_log[optnum].cap, file, linenum, args[1], NULL)) {
+					err_code |= ERR_WARN;
+					goto out;
+				}
+				cfg_log_forward->options_log |= cfg_opts_log[optnum].val;
+			}
+		}
 	}
 	else {
 		ha_alert("parsing [%s:%d] : unknown keyword '%s' in log-forward section.\n", file, linenum, args[0]);

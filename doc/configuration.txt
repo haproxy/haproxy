@@ -5345,6 +5345,18 @@ maxconn <conns>
 timeout client <timeout>
   Set the maximum inactivity time on the client side.
 
+option dontparselog
+  Enables HAProxy to relay syslog messages without attempting to parse and
+  restructure them, useful for forwarding messages that may not conform to
+  traditional formats. This option should be used with the format raw setting on
+  destination log targets to ensure the original message content is preserved.
+
+option assume-rfc6587-ntf
+  Directs HAProxy to treat incoming TCP log streams always as using
+  non-transparent framing. This option simplifies the framing logic and ensures
+  consistent handling of messages, particularly useful when dealing with
+  improperly formed starting characters.
+
 3.11. HTTPClient tuning
 -----------------------
 

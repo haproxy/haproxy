@@ -134,6 +134,13 @@ const struct cfg_opt cfg_opts2[] =
 	{ NULL, 0, 0, 0 }
 };
 
+/* proxy->options_log */
+const struct cfg_opt cfg_opts_log[] = {
+	{"dontparselog",				PR_OL_DONTPARSELOG, PR_CAP_FE, 0, PR_MODE_SYSLOG },
+	{"assume-rfc6587-ntf",	PR_OL_ASSUME_RFC6587_NTF, PR_CAP_FE, 0, PR_MODE_SYSLOG },
+	{ NULL, 0, 0, 0 }
+};
+
 /* Helper function to resolve a single sticking rule after config parsing.
  * Returns 1 for success and 0 for failure
  */
