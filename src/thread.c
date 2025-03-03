@@ -1549,6 +1549,7 @@ void thread_detect_count(void)
 	int grp_max __maybe_unused;
 	int cpus_avail __maybe_unused;
 	int cpu __maybe_unused;
+	char *err __maybe_unused;
 
 	thr_min = 1; thr_max = MAX_THREADS;
 	grp_min = 1; grp_max = MAX_TGROUPS;
@@ -1613,6 +1614,13 @@ void thread_detect_count(void)
 	 * capacity order until we reach at least thr_min, then continue
 	 * on the same cluster _capacity_ up to thr_max.
 	 */
+
+	if (cpu_apply_policy(thr_min, thr_max, grp_min, grp_max, &err) < 0) {
+		if (err)
+			ha_warning("cpu-policy: %s\n", err);
+		ha_free(&err);
+		return;
+	}
 
 	/* Let's implement here the automatic binding to the first available
 	 * NUMA node when thread count is not set, taskset is not used and
