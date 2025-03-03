@@ -46,6 +46,15 @@ struct cpu_set_cfg {
 	struct hap_cpuset drop_threads;
 } cpu_set_cfg;
 
+/* CPU policy choice */
+static int cpu_policy = 0;
+
+/* list of CPU policies for "cpu-policy". The default one is the first one. */
+static struct ha_cpu_policy ha_cpu_policy[] = {
+	{ .name = "none",               .desc = "use all available CPUs",                           .fct = NULL   },
+	{ 0 } /* end */
+};
+
 /* Detects CPUs that are online on the system. It may rely on FS access (e.g.
  * /sys on Linux). Returns the number of CPUs detected or 0 if the detection
  * failed.
@@ -872,6 +881,29 @@ void cpu_refine_cpusets(void)
 	}
 }
 
+/* apply the chosen CPU policy if no cpu-map was forced. Returns < 0 on failure
+ * with a message in *err that must be freed by the caller if non-null.
+ */
+int cpu_apply_policy(int tmin, int tmax, int gmin, int gmax, char **err)
+{
+	*err = NULL;
+
+	if (cpu_map_configured()) {
+		/* nothing to do */
+		return 0;
+	}
+
+	if (!ha_cpu_policy[cpu_policy].fct) {
+		/* nothing to do */
+		return 0;
+	}
+
+	if (ha_cpu_policy[cpu_policy].fct(cpu_policy, tmin, tmax, gmin, gmax, err) < 0)
+		return -1;
+
+	return 0;
+}
+
 /* CPU topology detection below, OS-specific */
 
 #if defined(__linux__)
@@ -1330,6 +1362,36 @@ static int cfg_parse_cpu_set(char **args, int section_type, struct proxy *curpx,
 	return -1;
 }
 
+/* Parse the "cpu-policy" global directive, which takes the name of one of the
+ * ha_cpu_policy[] names, and sets the associated index in cpu_policy.
+ */
+static int cfg_parse_cpu_policy(char **args, int section_type, struct proxy *curpx,
+				const struct proxy *defpx, const char *file, int line,
+				char **err)
+{
+	int i;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	for (i = 0; ha_cpu_policy[i].name; i++) {
+		if (strcmp(args[1], ha_cpu_policy[i].name) == 0) {
+			cpu_policy = i;
+			return 0;
+		}
+	}
+
+	memprintf(err, "'%s' passed an unknown CPU policy '%s'. Supported values are:", args[0], args[1]);
+	for (i = 0; ha_cpu_policy[i].name; i++) {
+		memprintf(err, "%s%s '%s' (%s)%s", *err,
+		          (i > 0 && ha_cpu_policy[i+1].name) ? "" : " and",
+		          ha_cpu_policy[i].name,
+		          ha_cpu_policy[i].desc,
+		          (ha_cpu_policy[i+1].name) ? "," : ".\n");
+	}
+	return -1;
+}
+
 /* Allocates everything needed to store CPU topology at boot.
  * Returns non-zero on success, zero on failure.
  */
@@ -1403,6 +1465,7 @@ REGISTER_POST_DEINIT(cpu_topo_deinit);
 
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "cpu-policy",  cfg_parse_cpu_policy, 0 },
 	{ CFG_GLOBAL, "cpu-set",  cfg_parse_cpu_set, 0 },
 	{ 0, NULL, NULL }
 }};

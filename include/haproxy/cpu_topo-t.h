@@ -49,4 +49,19 @@ struct ha_cpu_cluster {
 	uint nb_cpu;      /* total CPUs */
 };
 
+/* Description of a CPU selection policy. For now it only associates an option
+ * name with a callback function that is supposed to adjust the global.nbthread
+ * and global.nbtgroups based on the policy, the topology, and the constraints
+ * on the number of threads which must be between tmin and tmax included, and
+ * the number of thread groups which must be between gmin and gmax included.
+ * The callback also takes the policy number (cpu_policy) and a pointer to a
+ * string to write an error to in case of failure (in which case ret must be
+ * < 0 and the caller will fre the location). More settings might come later.
+ */
+struct ha_cpu_policy {
+	const char *name;                    /* option name in the configuration */
+	const char *desc;                    /* short description for help messages */
+	int (*fct)(int policy, int tmin, int tmax, int gmin, int gmax, char **err);
+};
+
 #endif /* _HAPROXY_CPU_TOPO_T_H */

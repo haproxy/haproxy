@@ -37,6 +37,11 @@ void cpu_compose_clusters(void);
 /* apply remaining topology-based cpu set restrictions */
 void cpu_refine_cpusets(void);
 
+/* apply the chosen CPU policy. Returns < 0 on failure with a message in *err
+ * that must be freed by the caller if non-null.
+ */
+int cpu_apply_policy(int tmin, int tmax, int gmin, int gmax, char **err);
+
 /* Detects CPUs that are bound to the current process. Returns the number of
  * CPUs detected or 0 if the detection failed.
  */
