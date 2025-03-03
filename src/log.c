@@ -6010,6 +6010,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		px->accept = frontend_accept;
 		px->default_target = &syslog_applet.obj_type;
 		px->id = strdup(args[1]);
+		px->options2 = 0;
 	}
 	else if (strcmp(args[0], "maxconn") == 0) {  /* maxconn */
 		if (warnifnotcap(cfg_log_forward, PR_CAP_FE, file, linenum, args[0], " Maybe you want 'fullconn' instead ?"))
@@ -6186,6 +6187,28 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		cfg_log_forward->timeout.client = MS_TO_TICKS(timeout);
+	}
+	else if (strcmp(args[0], "option") == 0) {
+		if (*(args[1]) == '\0') {
+			ha_alert("parsing [%s:%d]: '%s' expects an option name.\n",
+				 file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		/* only consider options that are frontend oriented and log oriented, such options may be set
+		 * in px->options2 because px->options is already full of tcp/http oriented options
+		 */
+		if (cfg_parse_listen_match_option(file, linenum, kwm, cfg_opts2, &err_code, args,
+		                                  PR_MODE_SYSLOG, PR_CAP_FE,
+		                                  &cfg_log_forward->options2, &cfg_log_forward->no_options2))
+			goto out;
+
+		if (err_code & ERR_CODE)
+			goto out;
+
+		ha_alert("parsing [%s:%d] : unknown option '%s' in log-forward section.\n", file, linenum, args[1]);
+		err_code |= ERR_ALERT | ERR_ABORT;
 	}
 	else {
 		ha_alert("parsing [%s:%d] : unknown keyword '%s' in log-forward section.\n", file, linenum, args[0]);
