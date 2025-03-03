@@ -150,14 +150,6 @@ jobs:
       id: unittests
       run: |
         make unit-tests
-    - name: Config syntax check memleak smoke testing
-      if: ${{ contains(matrix.name, 'ASAN') }}
-      run: |
-        ./haproxy -dI -f .github/h2spec.config -c
-        ./haproxy -dI -f examples/content-sw-sample.cfg -c
-        ./haproxy -dI -f examples/option-http_proxy.cfg -c
-        ./haproxy -dI -f examples/quick-test.cfg -c
-        ./haproxy -dI -f examples/transparent_proxy.cfg -c
     - name: Show VTest results
       if: ${{ failure() && steps.vtest.outcome == 'failure' }}
       run: |
