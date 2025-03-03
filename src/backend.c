@@ -1598,7 +1598,7 @@ int connect_server(struct stream *s)
 	hash_params.src_addr = bind_addr;
 
 	/* 5. proxy protocol */
-	if (srv && srv->pp_opts) {
+	if (srv && (srv->pp_opts & SRV_PP_ENABLED)) {
 		proxy_line_ret = make_proxy_line(trash.area, trash.size, srv, cli_conn, s, strm_sess(s));
 		if (proxy_line_ret) {
 			hash_params.proxy_prehash =
@@ -1932,7 +1932,7 @@ skip_reuse:
 		/* process the case where the server requires the PROXY protocol to be sent */
 		srv_conn->send_proxy_ofs = 0;
 
-		if (srv && srv->pp_opts) {
+		if (srv && (srv->pp_opts & SRV_PP_ENABLED)) {
 			srv_conn->flags |= CO_FL_SEND_PROXY;
 			srv_conn->send_proxy_ofs = 1; /* must compute size */
 		}

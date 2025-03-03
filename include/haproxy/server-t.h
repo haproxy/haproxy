@@ -175,6 +175,7 @@ enum srv_init_state {
 /* configured server options for send-proxy (server->pp_opts) */
 #define SRV_PP_V1               0x0001   /* proxy protocol version 1 */
 #define SRV_PP_V2               0x0002   /* proxy protocol version 2 */
+#define SRV_PP_ENABLED          0x0003   /* proxy protocol version 1 or version 2 */
 #define SRV_PP_V2_SSL           0x0004   /* proxy protocol version 2 with SSL */
 #define SRV_PP_V2_SSL_CN        0x0008   /* proxy protocol version 2 with CN */
 #define SRV_PP_V2_SSL_KEY_ALG   0x0010   /* proxy protocol version 2 with cert key algorithm */

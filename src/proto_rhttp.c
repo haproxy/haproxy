@@ -84,7 +84,7 @@ static struct connection *new_reverse_conn(struct listener *l, struct server *sr
 	set_host_port(conn->dst, srv->svc_port);
 
 	conn->send_proxy_ofs = 0;
-	if (srv->pp_opts) {
+	if (srv->pp_opts & SRV_PP_ENABLED) {
 		conn->flags |= CO_FL_SEND_PROXY;
 		conn->send_proxy_ofs = 1; /* must compute size */
 	}
