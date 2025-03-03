@@ -5724,9 +5724,11 @@ void syslog_fd_handler(int fd)
 	int level;
 	int facility;
 	struct listener *l = objt_listener(fdtab[fd].owner);
+	struct proxy *frontend;
 	int max_accept;
 
 	BUG_ON(!l);
+	frontend = l->bind_conf->frontend;
 
 	if (fdtab[fd].state & FD_POLL_IN) {
 
@@ -5754,13 +5756,14 @@ void syslog_fd_handler(int fd)
 
 			/* update counters */
 			_HA_ATOMIC_INC(&cum_log_messages);
-			proxy_inc_fe_req_ctr(l, l->bind_conf->frontend, 0);
+			proxy_inc_fe_req_ctr(l, frontend, 0);
 
 			prepare_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
-			parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
+			if (!(frontend->options2 & PR_O2_DONTPARSELOG))
+				parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
-			process_send_log(NULL, &l->bind_conf->frontend->loggers, level, facility, metadata, message, size);
+			process_send_log(NULL, &frontend->loggers, level, facility, metadata, message, size);
 
 		} while (--max_accept);
 	}
@@ -5806,7 +5809,7 @@ static void syslog_io_handler(struct appctx *appctx)
 		else if (to_skip < 0)
 			goto cli_abort;
 
-		if (c == '<') {
+		if (c == '<' || (frontend->options2 & PR_O2_ASSUME_RFC6587_NTF)) {
 			/* rfc-6587, Non-Transparent-Framing: messages separated by
 			 * a trailing LF or CR LF
 			 */
@@ -5872,7 +5875,8 @@ static void syslog_io_handler(struct appctx *appctx)
 
 		prepare_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
-		parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
+		if (!(frontend->options2 & PR_O2_DONTPARSELOG))
+			parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
 		process_send_log(NULL, &frontend->loggers, level, facility, metadata, message, size);
 
