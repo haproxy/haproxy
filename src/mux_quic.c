@@ -1181,9 +1181,12 @@ static void qcs_consume(struct qcs *qcs, uint64_t bytes, struct qc_stream_rxbuf 
 }
 
 /* Decode the content of STREAM frames already received on the stream instance
- * <qcs>.
+ * <qcs> from the <qcc> connection.
  *
- * Returns 0 on success else non-zero.
+ * Returns the result of app_ops rcv_buf callback, which is the number of bytes
+ * successfully transcoded, or a negative error code. If no error occurred but
+ * decoding cannot proceed due to missing data, the return value is 0. The
+ * value 0 may also be returned when dealing with a standalone FIN signal.
  */
 static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 {
@@ -1237,11 +1240,11 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 		qcs_notify_recv(qcs);
 
 	TRACE_LEAVE(QMUX_EV_QCS_RECV, qcc->conn, qcs);
-	return 0;
+	return ret;
 
  err:
-	TRACE_LEAVE(QMUX_EV_QCS_RECV, qcc->conn, qcs);
-	return 1;
+	TRACE_DEVEL("leaving on error", QMUX_EV_QCS_RECV, qcc->conn, qcs);
+	return ret;
 }
 
 /* Allocate if needed and retrieve <qcs> stream buffer for data reception.
