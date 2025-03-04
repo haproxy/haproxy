@@ -1114,28 +1114,30 @@ static ncb_sz_t qcs_rx_avail_data(struct qcs *qcs)
 	return b ? ncb_data(&b->ncb, 0) : 0;
 }
 
-/* Remove <bytes> from <qcs> Rx buffer. Flow-control for received offsets may
- * be allocated for the peer if needed.
+/* Remove <bytes> from <buf> current Rx buffer of <qcs> stream. Flow-control
+ * for received offsets may be allocated for the peer if needed.
  */
-static void qcs_consume(struct qcs *qcs, uint64_t bytes)
+static void qcs_consume(struct qcs *qcs, uint64_t bytes, struct qc_stream_rxbuf *buf)
 {
 	struct qcc *qcc = qcs->qcc;
 	struct quic_frame *frm;
-	struct qc_stream_rxbuf *rxbuf;
 	enum ncb_ret ret;
 
 	TRACE_ENTER(QMUX_EV_QCS_RECV, qcc->conn, qcs);
 
-	rxbuf = qcs_get_curr_rxbuf(qcs);
-	ret = ncb_advance(&rxbuf->ncb, bytes);
+	/* <buf> must be current QCS Rx buffer. */
+	BUG_ON_HOT(buf->off_node.key > qcs->rx.offset ||
+	           qcs->rx.offset >= buf->off_end);
+
+	ret = ncb_advance(&buf->ncb, bytes);
 	if (ret) {
 		ABORT_NOW(); /* should not happens because removal only in data */
 	}
 
-	if (ncb_is_empty(&rxbuf->ncb))
-		qcs_free_rxbuf(qcs, rxbuf);
-
 	qcs->rx.offset += bytes;
+	/* QCS Rx offset must only point directly up to the next buffer. */
+	BUG_ON_HOT(qcs->rx.offset > buf->off_end);
+
 	/* Not necessary to emit a MAX_STREAM_DATA if all data received. */
 	if (qcs->flags & QC_SF_SIZE_KNOWN)
 		goto conn_fctl;
@@ -1223,8 +1225,14 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 		ret = b_data(&b);
 	}
 
-	if (ret)
-		qcs_consume(qcs, ret);
+	if (rxbuf) {
+		if (ret)
+			qcs_consume(qcs, ret, rxbuf);
+
+		if (ncb_is_empty(&rxbuf->ncb))
+			qcs_free_rxbuf(qcs, rxbuf);
+	}
+
 	if (ret || (!b_data(&b) && fin))
 		qcs_notify_recv(qcs);
 
