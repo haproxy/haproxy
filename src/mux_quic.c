@@ -1499,6 +1499,7 @@ int qcc_install_app_ops(struct qcc *qcc, const struct qcc_app_ops *app_ops)
 int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
              char fin, char *data)
 {
+	const int fin_standalone = (!len && fin);
 	struct qcs *qcs;
 	enum ncb_ret ret;
 
@@ -1627,7 +1628,8 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 		qcs_close_remote(qcs);
 	}
 
-	if ((ncb_data(&qcs->rx.ncbuf, 0) && !(qcs->flags & QC_SF_DEM_FULL)) || fin) {
+	if ((ncb_data(&qcs->rx.ncbuf, 0) && !(qcs->flags & QC_SF_DEM_FULL)) ||
+	    unlikely(fin_standalone && qcs_is_close_remote(qcs))) {
 		qcc_decode_qcs(qcc, qcs);
 		LIST_DEL_INIT(&qcs->el_recv);
 		qcc_refresh_timeout(qcc);
