@@ -499,17 +499,25 @@ smp_fetch_accept_date(const struct arg *args, struct sample *smp, const char *kw
 	struct strm_logs *logs;
 	struct timeval tv;
 
-	if (!smp->strm)
+	if (smp->strm) {
+		logs = &smp->strm->logs;
+
+		if (kw[0] == 'r') {  /* request_date */
+			tv_ms_add(&tv, &logs->accept_date, logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0);
+		} else {             /* accept_date */
+			tv.tv_sec = logs->accept_date.tv_sec;
+			tv.tv_usec = logs->accept_date.tv_usec;
+		}
+	/* case of error-log-format */
+	} else if (smp->sess) {
+		if (kw[0] == 'r') {  /* request_date */
+			tv_ms_add(&tv, &smp->sess->accept_date, smp->sess->t_idle >= 0 ? smp->sess->t_idle + smp->sess->t_handshake : 0);
+		} else {             /* accept_date */
+			tv.tv_sec = smp->sess->accept_date.tv_sec;
+			tv.tv_usec = smp->sess->accept_date.tv_usec;
+		}
+	} else
 		return 0;
-
-	logs = &smp->strm->logs;
-
-	if (kw[0] == 'r') {  /* request_date */
-		tv_ms_add(&tv, &logs->accept_date, logs->t_idle >= 0 ? logs->t_idle + logs->t_handshake : 0);
-	} else {             /* accept_date */
-		tv.tv_sec = logs->accept_date.tv_sec;
-		tv.tv_usec = logs->accept_date.tv_usec;
-	}
 
 	smp->data.u.sint = tv.tv_sec;
 
