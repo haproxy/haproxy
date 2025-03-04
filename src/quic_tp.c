@@ -65,7 +65,7 @@ void quic_transport_params_init(struct quic_transport_params *p, int server)
 	p->initial_max_streams_bidi            = max_streams_bidi;
 	p->initial_max_streams_uni             = max_streams_uni;
 	p->initial_max_stream_data_bidi_local  = stream_rx_bufsz;
-	p->initial_max_stream_data_bidi_remote = stream_rx_bufsz;
+	p->initial_max_stream_data_bidi_remote = stream_rx_bufsz * QMUX_STREAM_RX_BUF_FACTOR;
 	p->initial_max_stream_data_uni         = stream_rx_bufsz;
 	p->initial_max_data = (max_streams_bidi + max_streams_uni) * stream_rx_bufsz;
 
