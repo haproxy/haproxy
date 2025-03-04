@@ -699,27 +699,30 @@ int test_istist()
 
 int main(void)
 {
-        printf("%4d ist()\n", test_ist());
-        printf("%4d ist2()\n", test_ist2());
-        printf("%4d istlen()\n", test_istlen());
-        printf("%4d istnext()\n", test_istnext());
-        printf("%4d istpad()\n", test_istpad());
-        printf("%4d isttrim()\n", test_isttrim());
-        printf("%4d istzero()\n", test_istzero());
-        printf("%4d iststrip()\n", test_iststrip());
-        printf("%4d istdiff()\n", test_istdiff());
-        printf("%4d istmatch()\n", test_istmatch());
-        printf("%4d istnmatch()\n", test_istnmatch());
-        printf("%4d isteq()\n", test_isteq());
-        printf("%4d istneq()\n", test_istneq());
-        printf("%4d istcpy()\n", test_istcpy());
-        printf("%4d istscpy()\n", test_istscpy());
-        printf("%4d istcat()\n", test_istcat());
-        printf("%4d istscat()\n", test_istscat());
-        printf("%4d istchr()\n", test_istchr());
-        printf("%4d istfind()\n", test_istfind());
-        printf("%4d istskip()\n", test_istskip());
-        printf("%4d istist()\n", test_istist());
+	int tret = 0;
+	int fret = 0;
 
-	return 0;
+	tret = test_ist();           printf("%4d ist()\n", tret);        if (fret == 0) fret = tret;
+	tret = test_ist2();          printf("%4d ist2()\n", tret);       if (fret == 0) fret = tret;
+	tret = test_istlen();        printf("%4d istlen()\n", tret);     if (fret == 0) fret = tret;
+	tret = test_istnext();       printf("%4d istnext()\n", tret);    if (fret == 0) fret = tret;
+	tret = test_istpad();        printf("%4d istpad()\n", tret);     if (fret == 0) fret = tret;
+	tret = test_isttrim();       printf("%4d isttrim()\n", tret);    if (fret == 0) fret = tret;
+	tret = test_istzero();       printf("%4d istzero()\n", tret);    if (fret == 0) fret = tret;
+	tret = test_iststrip();      printf("%4d iststrip()\n", tret);   if (fret == 0) fret = tret;
+	tret = test_istdiff();       printf("%4d istdiff()\n", tret);    if (fret == 0) fret = tret;
+	tret = test_istmatch();      printf("%4d istmatch()\n", tret);   if (fret == 0) fret = tret;
+	tret = test_istnmatch();     printf("%4d istnmatch()\n", tret);  if (fret == 0) fret = tret;
+	tret = test_isteq();         printf("%4d isteq()\n", tret);      if (fret == 0) fret = tret;
+	tret = test_istneq();        printf("%4d istneq()\n", tret);     if (fret == 0) fret = tret;
+	tret = test_istcpy();        printf("%4d istcpy()\n", tret);     if (fret == 0) fret = tret;
+	tret = test_istscpy();       printf("%4d istscpy()\n", tret);    if (fret == 0) fret = tret;
+	tret = test_istcat();        printf("%4d istcat()\n", tret);     if (fret == 0) fret = tret;
+	tret = test_istscat();       printf("%4d istscat()\n", tret);    if (fret == 0) fret = tret;
+	tret = test_istchr();        printf("%4d istchr()\n", tret);     if (fret == 0) fret = tret;
+	tret = test_istfind();       printf("%4d istfind()\n", tret);    if (fret == 0) fret = tret;
+	tret = test_istskip();       printf("%4d istskip()\n", tret);    if (fret == 0) fret = tret;
+	tret = test_istist();        printf("%4d istist()\n", tret);     if (fret == 0) fret = tret;
+
+	return !!fret;
 }
