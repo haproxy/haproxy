@@ -68,7 +68,7 @@ int test_istnext()
 struct ist f_istpad(void *buf, const struct ist ist) { return istpad(buf, ist); }
 int test_istpad()
 {
-	char buf[5] = "xxxxx";
+	char buf[6] = "xxxxx";
 
 	if (strncmp(istpad(buf, ist("foo")).ptr, "foo", 3) != 0)
 		return __LINE__;
@@ -106,7 +106,7 @@ int test_isttrim()
 struct ist f_istzero(struct ist ist, size_t size) { return istzero(ist, size); }
 int test_istzero()
 {
-	char buf[5] = "xxxxx";
+	char buf[6] = "xxxxx";
 
 	if (istzero(ist2(buf, 5), 10).ptr != buf)
 		return __LINE__;
