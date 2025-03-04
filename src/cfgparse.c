@@ -121,7 +121,7 @@ static enum default_path_mode {
 	DEFAULT_PATH_ORIGIN,       /* "origin": paths are relative to default_path_origin */
 } default_path_mode;
 
-static char initial_cwd[PATH_MAX];
+char initial_cwd[PATH_MAX];
 static char current_cwd[PATH_MAX];
 
 /* List head of all known configuration keywords */
@@ -2666,11 +2666,6 @@ section_parser:
 	if (nested_cond_lvl) {
 		ha_alert("parsing [%s:%d]: non-terminated '.if' block.\n", file, linenum);
 		err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
-	}
-
-	if (*initial_cwd && chdir(initial_cwd) == -1) {
-		ha_alert("Impossible to get back to initial directory '%s' : %s\n", initial_cwd, strerror(errno));
-		err_code |= ERR_ALERT | ERR_FATAL;
 	}
 
 err:

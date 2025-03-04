@@ -2052,6 +2052,10 @@ static void step_init_2(int argc, char** argv)
 
 	/* Note: global.nbthread will be initialized as part of this call */
 	err_code |= check_config_validity();
+	if (*initial_cwd && chdir(initial_cwd) == -1) {
+		ha_alert("Impossible to get back to initial directory '%s' : %s\n", initial_cwd, strerror(errno));
+		exit(1);
+	}
 
 	/* update the ready date to also account for the check time */
 	clock_update_date(0, 1);
