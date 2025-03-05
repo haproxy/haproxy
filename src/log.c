@@ -2868,8 +2868,7 @@ static inline void __do_send_log_backend(struct proxy *be, struct log_header hdr
 		result.data.type = SMP_T_STR;
 		result.flags = SMP_F_CONST;
 		result.data.u.str.area = message;
-		result.data.u.str.data = size;
-		result.data.u.str.size = size + 1; /* with terminating NULL byte */
+		result.data.u.str.data = result.data.u.str.size = size;
 		if (sample_process_cnv(be->lbprm.expr, &result)) {
 			/* gen_hash takes binary input, ensure that we provide such value to it */
 			if (result.data.type == SMP_T_BIN || sample_casts[result.data.type][SMP_T_BIN]) {
