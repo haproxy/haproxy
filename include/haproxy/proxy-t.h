@@ -45,15 +45,19 @@
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/http_ext-t.h>
 
-/* values for proxy->mode */
+/* values for proxy->mode, only one value per proxy.
+ *
+ * values are bitfield compatible so that functions may
+ * take a bitfield of compatible modes as parameter
+ */
 enum pr_mode {
-	PR_MODE_TCP = 0,
-	PR_MODE_HTTP,
-	PR_MODE_CLI,
-	PR_MODE_SYSLOG,
-	PR_MODE_PEERS,
-	PR_MODE_SPOP,
-	PR_MODES
+	PR_MODES       = 0x00,
+	PR_MODE_TCP    = 0x01,
+	PR_MODE_HTTP   = 0x02,
+	PR_MODE_CLI    = 0x04,
+	PR_MODE_SYSLOG = 0x08,
+	PR_MODE_PEERS  = 0x10,
+	PR_MODE_SPOP   = 0x20,
 } __attribute__((packed));
 
 enum PR_SRV_STATE_FILE {
