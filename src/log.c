@@ -2912,6 +2912,9 @@ struct process_send_log_ctx {
 static inline void _process_send_log_final(struct logger *logger, struct log_header hdr,
                                            char *message, size_t size, int nblogger)
 {
+	if (!size)
+		return; // don't try to send empty message
+
 	if (logger->target.type == LOG_TARGET_BACKEND) {
 		__do_send_log_backend(logger->target.be, hdr, nblogger, logger->maxlen, message, size);
 	}
@@ -5188,6 +5191,7 @@ out:
  */
 void do_log(struct session *sess, struct stream *s, struct log_orig origin)
 {
+	struct process_send_log_ctx ctx;
 	int size;
 	int sd_size = 0;
 	int level = -1;
@@ -5222,15 +5226,12 @@ void do_log(struct session *sess, struct stream *s, struct log_orig origin)
 	}
 
 	size = sess_build_logline_orig(sess, s, logline, global.max_syslog_len, &sess->fe->logformat, origin);
-	if (size > 0) {
-		struct process_send_log_ctx ctx;
 
-		ctx.origin = origin;
-		ctx.sess = sess;
-		ctx.stream = s;
-		__send_log(&ctx, &sess->fe->loggers, &sess->fe->log_tag, level,
-			   logline, size, logline_rfc5424, sd_size);
-	}
+	ctx.origin = origin;
+	ctx.sess = sess;
+	ctx.stream = s;
+	__send_log(&ctx, &sess->fe->loggers, &sess->fe->log_tag, level,
+		   logline, size, logline_rfc5424, sd_size);
 }
 
 /*
@@ -5239,6 +5240,7 @@ void do_log(struct session *sess, struct stream *s, struct log_orig origin)
  */
 void strm_log(struct stream *s, struct log_orig origin)
 {
+	struct process_send_log_ctx ctx;
 	struct session *sess = s->sess;
 	int size, err, level;
 	int sd_size = 0;
@@ -5280,17 +5282,14 @@ void strm_log(struct stream *s, struct log_orig origin)
 	}
 
 	size = build_logline_orig(s, logline, global.max_syslog_len, &sess->fe->logformat, origin);
-	if (size > 0) {
-		struct process_send_log_ctx ctx;
 
-		_HA_ATOMIC_INC(&sess->fe->log_count);
-		ctx.origin = origin;
-		ctx.sess = sess;
-		ctx.stream = s;
-		__send_log(&ctx, &sess->fe->loggers, &sess->fe->log_tag, level,
-			   logline, size, logline_rfc5424, sd_size);
-		s->logs.logwait = 0;
-	}
+	_HA_ATOMIC_INC(&sess->fe->log_count);
+	ctx.origin = origin;
+	ctx.sess = sess;
+	ctx.stream = s;
+	__send_log(&ctx, &sess->fe->loggers, &sess->fe->log_tag, level,
+		   logline, size, logline_rfc5424, sd_size);
+	s->logs.logwait = 0;
 }
 
 /*
@@ -5308,6 +5307,7 @@ void strm_log(struct stream *s, struct log_orig origin)
  */
 void _sess_log(struct session *sess, int embryonic)
 {
+	struct process_send_log_ctx ctx;
 	int size, level;
 	int sd_size = 0;
 	struct log_orig orig;
@@ -5349,17 +5349,14 @@ void _sess_log(struct session *sess, int embryonic)
 		session_embryonic_build_legacy_err(sess, &buf);
 		size = buf.data;
 	}
-	if (size > 0) {
-		struct process_send_log_ctx ctx;
 
-		_HA_ATOMIC_INC(&sess->fe->log_count);
-		ctx.origin = orig;
-		ctx.sess = sess;
-		ctx.stream = NULL;
-		__send_log(&ctx, &sess->fe->loggers,
-		           &sess->fe->log_tag, level,
-			   logline, size, logline_rfc5424, sd_size);
-	}
+	_HA_ATOMIC_INC(&sess->fe->log_count);
+	ctx.origin = orig;
+	ctx.sess = sess;
+	ctx.stream = NULL;
+	__send_log(&ctx, &sess->fe->loggers,
+	           &sess->fe->log_tag, level,
+		   logline, size, logline_rfc5424, sd_size);
 }
 
 void app_log(struct list *loggers, struct buffer *tag, int level, const char *format, ...)
