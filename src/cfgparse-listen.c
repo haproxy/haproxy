@@ -238,6 +238,64 @@ int warnif_misplaced_quic_init(struct proxy *proxy, const char *file, int line, 
 	       warnif_misplaced_tcp_req_conn(proxy, file, line, arg1, arg2);
 }
 
+/* helper function that checks for a match in cfg_opt array, for a given
+ * input args, capability (if <cap> != PR_CAP_NONE) and mode (if <mode> != PR_MODES)
+ *
+ * <options> and <no_options> will be set according to <kwm> if an option matches
+ *
+ * Returns 1 on success and 0 if no match
+ * <err_code> is updated accordingly and must be checked upon return
+ */
+int cfg_parse_listen_match_option(const char *file, int linenum, int kwm,
+                                  const struct cfg_opt config_opts[], int *err_code,
+                                  char **args, int mode, int cap,
+                                  int *options, int *no_options)
+{
+	int optnum;
+
+	for (optnum = 0; config_opts[optnum].name; optnum++) {
+		if (strcmp(args[1], config_opts[optnum].name) == 0) {
+			if (config_opts[optnum].cap == PR_CAP_NONE) {
+				ha_alert("parsing [%s:%d]: option '%s' is not supported due to build options.\n",
+					 file, linenum, config_opts[optnum].name);
+				*err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			if ((mode != PR_MODES && !(config_opts[optnum].mode & mode)) ||
+			    (cap != PR_CAP_NONE && !(config_opts[optnum].cap & cap))) {
+				ha_alert("parsing [%s:%d]: option '%s' is not supported in this section.\n",
+				         file, linenum, config_opts[optnum].name);
+				*err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, err_code))
+				goto out;
+			if (warnifnotcap(curproxy, config_opts[optnum].cap, file, linenum, args[1], NULL)) {
+				*err_code |= ERR_WARN;
+				goto out;
+			}
+
+			*no_options &= ~config_opts[optnum].val;
+			*options &= ~config_opts[optnum].val;
+
+			switch (kwm) {
+				case KWM_STD:
+					*options |= config_opts[optnum].val;
+					break;
+				case KWM_NO:
+					*no_options |= config_opts[optnum].val;
+					break;
+				case KWM_DEF: /* already cleared */
+					break;
+			}
+			return 1;
+		}
+	}
+ out:
+	return 0;
+}
+
 int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 {
 	static struct proxy *curr_defproxy = NULL;
@@ -1985,8 +2043,6 @@ stats_error_parsing:
 		}
 	}
 	else if (strcmp(args[0], "option") == 0) {
-		int optnum;
-
 		if (*(args[1]) == '\0') {
 			ha_alert("parsing [%s:%d]: '%s' expects an option name.\n",
 				 file, linenum, args[0]);
@@ -1994,71 +2050,21 @@ stats_error_parsing:
 			goto out;
 		}
 
-		for (optnum = 0; cfg_opts[optnum].name; optnum++) {
-			if (strcmp(args[1], cfg_opts[optnum].name) == 0) {
-				if (cfg_opts[optnum].cap == PR_CAP_NONE) {
-					ha_alert("parsing [%s:%d]: option '%s' is not supported due to build options.\n",
-						 file, linenum, cfg_opts[optnum].name);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
-					goto out;
+		/* try to match option within cfg_opts */
+		if (cfg_parse_listen_match_option(file, linenum, kwm, cfg_opts, &err_code, args,
+		                                  PR_MODES, PR_CAP_NONE,
+		                                  &curproxy->options, &curproxy->no_options))
+			goto out;
+		if (err_code & ERR_CODE)
+			goto out;
 
-				if (warnifnotcap(curproxy, cfg_opts[optnum].cap, file, linenum, args[1], NULL)) {
-					err_code |= ERR_WARN;
-					goto out;
-				}
-
-				curproxy->no_options &= ~cfg_opts[optnum].val;
-				curproxy->options    &= ~cfg_opts[optnum].val;
-
-				switch (kwm) {
-				case KWM_STD:
-					curproxy->options |= cfg_opts[optnum].val;
-					break;
-				case KWM_NO:
-					curproxy->no_options |= cfg_opts[optnum].val;
-					break;
-				case KWM_DEF: /* already cleared */
-					break;
-				}
-
-				goto out;
-			}
-		}
-
-		for (optnum = 0; cfg_opts2[optnum].name; optnum++) {
-			if (strcmp(args[1], cfg_opts2[optnum].name) == 0) {
-				if (cfg_opts2[optnum].cap == PR_CAP_NONE) {
-					ha_alert("parsing [%s:%d]: option '%s' is not supported due to build options.\n",
-						 file, linenum, cfg_opts2[optnum].name);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
-					goto out;
-				if (warnifnotcap(curproxy, cfg_opts2[optnum].cap, file, linenum, args[1], NULL)) {
-					err_code |= ERR_WARN;
-					goto out;
-				}
-
-				curproxy->no_options2 &= ~cfg_opts2[optnum].val;
-				curproxy->options2    &= ~cfg_opts2[optnum].val;
-
-				switch (kwm) {
-				case KWM_STD:
-					curproxy->options2 |= cfg_opts2[optnum].val;
-					break;
-				case KWM_NO:
-					curproxy->no_options2 |= cfg_opts2[optnum].val;
-					break;
-				case KWM_DEF: /* already cleared */
-					break;
-				}
-				goto out;
-			}
-		}
+		/* try to match option within cfg_opts2 */
+		if (cfg_parse_listen_match_option(file, linenum, kwm, cfg_opts2, &err_code, args,
+		                                  PR_MODES, PR_CAP_NONE,
+		                                  &curproxy->options2, &curproxy->no_options2))
+			goto out;
+		if (err_code & ERR_CODE)
+			goto out;
 
 		/* HTTP options override each other. They can be cancelled using
 		 * "no option xxx" which only switches to default mode if the mode

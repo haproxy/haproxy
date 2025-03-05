@@ -23,6 +23,7 @@
 #define _HAPROXY_CFGPARSE_H
 
 #include <haproxy/api.h>
+#include <haproxy/proxy-t.h>
 
 struct hap_cpuset;
 struct proxy;
@@ -112,6 +113,10 @@ extern struct proxy *curproxy;
 
 int cfg_parse_global(const char *file, int linenum, char **args, int inv);
 int cfg_parse_listen(const char *file, int linenum, char **args, int inv);
+int cfg_parse_listen_match_option(const char *file, int linenum, int kwm,
+                                  const struct cfg_opt config_opts[], int *err_code,
+                                  char **args, int mode, int cap,
+                                  int *options, int *no_options);
 int cfg_parse_traces(const char *file, int linenum, char **args, int inv);
 int cfg_parse_track_sc_num(unsigned int *track_sc_num,
                            const char *arg, const char *end, char **err);
