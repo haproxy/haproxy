@@ -5229,7 +5229,7 @@ void do_log(struct session *sess, struct stream *s, struct log_orig origin)
 		ctx.sess = sess;
 		ctx.stream = s;
 		__send_log(&ctx, &sess->fe->loggers, &sess->fe->log_tag, level,
-			   logline, size + 1, logline_rfc5424, sd_size);
+			   logline, size, logline_rfc5424, sd_size);
 	}
 }
 
@@ -5288,7 +5288,7 @@ void strm_log(struct stream *s, struct log_orig origin)
 		ctx.sess = sess;
 		ctx.stream = s;
 		__send_log(&ctx, &sess->fe->loggers, &sess->fe->log_tag, level,
-			   logline, size + 1, logline_rfc5424, sd_size);
+			   logline, size, logline_rfc5424, sd_size);
 		s->logs.logwait = 0;
 	}
 }
@@ -5358,7 +5358,7 @@ void _sess_log(struct session *sess, int embryonic)
 		ctx.stream = NULL;
 		__send_log(&ctx, &sess->fe->loggers,
 		           &sess->fe->log_tag, level,
-			   logline, size + 1, logline_rfc5424, sd_size);
+			   logline, size, logline_rfc5424, sd_size);
 	}
 }
 
