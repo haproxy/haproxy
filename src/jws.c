@@ -247,6 +247,214 @@ int EVP_PKEY_to_pub_jwk(EVP_PKEY *pkey, char *dst, size_t dsize)
 	return ret;
 }
 
+
+/*
+ * Generate the JWS payload and converts it to base64url.
+ * Use either <kid> or <jwk>, but won't use both
+ *
+ * Return the size of the data or 0
+ */
+
+int jws_b64_protected(const char *alg, char *kid, char *jwk, char *nonce, char *url,
+                      char *dst, size_t dsize)
+{
+	char *acc;
+	char *acctype;
+	int ret = 0;
+	struct buffer *json = NULL;
+
+	if ((json = alloc_trash_chunk()) == NULL)
+		goto out;
+
+	/* kid or jwk ? */
+	acc = kid ? kid : jwk;
+	acctype = kid ? "kid" : "jwk";
+
+	ret = snprintf(json->area, json->size, "{\n"
+			"    \"alg\": \"%s\",\n"
+			"    \"%s\":  %s%s%s,\n"
+			"    \"nonce\":   \"%s\",\n"
+			"    \"url\":   \"%s\"\n"
+			"}\n",
+			alg, acctype, kid ? "\"" : "", acc, kid ? "\"" : "", nonce, url);
+	if (ret >= json->size) {
+		ret = 0;
+		goto out;
+	}
+
+
+	json->data = ret;
+
+	ret = a2base64url(json->area, json->data, dst, dsize);
+out:
+	free_trash_chunk(json);
+	return ret;
+}
+
+/*
+ * Converts the JWS payload to base64url
+ *
+ * Return the size of the data or 0
+ */
+
+int jws_b64_payload(char *payload, char *dst, size_t dsize)
+{
+	int ret = 0;
+
+	ret = a2base64url(payload, strlen(payload), dst, dsize);
+
+	return ret;
+}
+
+/*
+ * Generate a JWS signature using the base64url protected buffer and the base64url payload buffer
+ *
+ *  For RSA it uses the RS256 algorithm (EVP_sha256)
+ *  For ECDSA, the ES256, ES384 or ES512 is chosen depending on the curves of the key
+ *
+ *  Return the size of the data or 0
+ */
+int jws_b64_signature(EVP_PKEY *pkey, char *b64protected, char *b64payload, char *dst, size_t dsize)
+{
+	EVP_MD_CTX *ctx;
+	const EVP_MD *evp_md = NULL;
+	int ret = 0;
+	struct buffer *sign = NULL;
+	size_t out_sign_len = 0;
+
+	if ((sign = alloc_trash_chunk()) == NULL)
+		goto out;
+
+	if (EVP_PKEY_base_id(pkey) == EVP_PKEY_EC) {
+#if HA_OPENSSL_VERSION_NUMBER > 0x30000000L
+		char curve[32] = {};
+		size_t curvelen;
+		int nid;
+
+		if (EVP_PKEY_get_utf8_string_param(pkey, OSSL_PKEY_PARAM_GROUP_NAME, curve, sizeof(curve), &curvelen) == 0)
+			goto out;
+
+		nid = curves2nid(curve);
+
+#else
+		const EC_KEY *ec = NULL;
+		const EC_GROUP *ec_group = NULL;
+		int nid = -1;
+
+		if ((ec = EVP_PKEY_get0_EC_KEY(pkey)) == NULL)
+			goto out;
+		if ((ec_group = EC_KEY_get0_group(ec)) == NULL)
+			goto out;
+
+		nid = EC_GROUP_get_curve_name(ec_group);
+#endif
+
+		/* https://www.rfc-editor.org/rfc/rfc7518#section-3.1 */
+		switch (nid) {
+			/* ES256: ECDSA using P-256 and SHA-256 */
+			case NID_X9_62_prime256v1:
+				evp_md = EVP_sha256();
+				break;
+			/* ES384: ECDSA using P-384 and SHA-384 */
+			case NID_secp384r1:
+				evp_md = EVP_sha384();
+				break;
+			/* ES512: ECDSA using P-521 and SHA-512 */
+			case NID_secp521r1:
+				evp_md = EVP_sha512();
+				break;
+			default:
+				evp_md = NULL;
+				break;
+		}
+
+	} else {
+		evp_md = EVP_sha256();
+	}
+
+	if ((ctx = EVP_MD_CTX_new()) == NULL)
+		goto out;
+
+	if (EVP_DigestSignInit(ctx, NULL, evp_md, NULL, pkey) == 0)
+		goto out;
+
+	if (EVP_DigestSignUpdate(ctx, b64protected, strlen(b64protected)) == 0)
+		goto out;
+
+	if (EVP_DigestSignUpdate(ctx, ".", 1) == 0)
+		goto out;
+
+	if (EVP_DigestSignUpdate(ctx, b64payload, strlen(b64payload)) == 0)
+		goto out;
+
+	if (EVP_DigestSignFinal(ctx, NULL, &out_sign_len) == 0)
+		goto out;
+
+	if (out_sign_len > sign->size)
+		goto out;
+
+	if (EVP_DigestSignFinal(ctx, (unsigned char *)sign->area, &out_sign_len) == 0)
+		goto out;
+
+	sign->data = out_sign_len;
+
+
+	if (EVP_PKEY_base_id(pkey) == EVP_PKEY_EC) {
+		/* Convert the DigestSign output to an ECDSA_SIG (R and S parameters concatenatedi,
+		 * see section 3.4 of RFC7518), and output R and S padded.
+		 */
+		ECDSA_SIG *sig = NULL;
+		const BIGNUM *r = NULL, *s = NULL;
+		int bignum_len;
+
+		/* need to pad to byte size, essentialy for P-521 */
+		bignum_len = (EVP_PKEY_bits(pkey) + 7) / 8;
+
+		if ((sig = d2i_ECDSA_SIG(NULL, (const unsigned char **)&sign->area, sign->data)) == NULL)
+			goto out;
+
+		if ((r = ECDSA_SIG_get0_r(sig)) == NULL)
+			goto out;
+
+		if ((s = ECDSA_SIG_get0_s(sig)) == NULL)
+			goto out;
+
+		if (BN_bn2binpad(r, (unsigned char *)sign->area, bignum_len) != bignum_len)
+			goto out;
+
+		if (BN_bn2binpad(s, (unsigned char *)sign->area + bignum_len, bignum_len) != bignum_len)
+			goto out;
+
+		sign->data = bignum_len * 2;
+
+	}
+
+	/* Then encode the whole thing in base64url */
+	ret = a2base64url(sign->area, sign->data, dst, dsize);
+
+out:
+	free_trash_chunk(sign);
+
+	return ret;
+
+}
+
+int jws_flattened(char *protected, char *payload, char *signature, char *dst, size_t dsize)
+{
+	int ret = 0;
+
+	ret = snprintf(dst, dsize, "{\n"
+			"    \"protected\": \"%s\",\n"
+			"    \"payload\":   \"%s\",\n"
+			"    \"signature\": \"%s\"\n"
+			"}\n",
+			protected, payload, signature);
+
+	if (ret >= dsize)
+		ret = 0;
+	return ret;
+}
+
 int jwk_debug(int argc, char **argv)
 {
 	FILE *f = NULL;
