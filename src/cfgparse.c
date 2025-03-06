@@ -893,13 +893,18 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			/* parse_server didn't add a server:
 			 * Remove the newly allocated peer.
 			 */
-			if (newpeer != curpeers->local) {
-				struct peer *p;
+			struct peer *p;
 
-				p = curpeers->remote;
-				curpeers->remote = curpeers->remote->next;
-				free(p->id);
-				free(p);
+			p = curpeers->remote;
+			curpeers->remote = curpeers->remote->next;
+			free(p->id);
+			free(p);
+			if (newpeer == curpeers->local) {
+				/* reset curpeers and curpeers fields
+				 * that are local peer related
+				 */
+				curpeers->local = NULL;
+				ha_free(&curpeers->peers_fe->id);
 			}
 			goto out;
 		}
