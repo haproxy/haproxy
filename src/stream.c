@@ -3297,6 +3297,7 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 	char pn[INET6_ADDRSTRLEN];
 	struct connection *conn;
 	struct appctx *tmpctx;
+	uint64_t request_ts;
 
 	pfx = pfx ? pfx : "";
 
@@ -3458,9 +3459,11 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 	             ha_thread_info[strm->task->tid].ltid,
 		     task_in_rq(strm->task) ? ", running" : "");
 
+	request_ts = strm->logs.accept_ts;
+	request_ts += ms_to_ns(strm->logs.t_idle >= 0 ? strm->logs.t_idle + strm->logs.t_handshake : 0);
 	chunk_appendf(buf,
-		     " age=%s)\n",
-		     human_time(ns_to_sec(now_ns) - ns_to_sec(strm->logs.request_ts), 1));
+		      " age=%s)\n",
+		      human_time(ns_to_sec(now_ns) - ns_to_sec(request_ts), 1));
 
 	if (strm->txn) {
 		chunk_appendf(buf,
@@ -3845,6 +3848,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 	while (1) {
 		char pn[INET6_ADDRSTRLEN];
 		struct stream *curr_strm;
+		uint64_t request_ts;
 		int done= 0;
 
 		if (ctx->bref.ref == &ha_thread_ctx[ctx->thr].streams)
@@ -3931,10 +3935,12 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 			break;
 		}
 
+		request_ts = curr_strm->logs.accept_ts;
+		request_ts += ms_to_ns(curr_strm->logs.t_idle >= 0 ? curr_strm->logs.t_idle + curr_strm->logs.t_handshake : 0);
 		chunk_appendf(&trash,
 			     " ts=%02x epoch=%#x age=%s calls=%u rate=%u cpu=%llu lat=%llu",
 		             curr_strm->task->state, curr_strm->stream_epoch,
-		             human_time(ns_to_sec(now_ns) - ns_to_sec(curr_strm->logs.request_ts), 1),
+		             human_time(ns_to_sec(now_ns) - ns_to_sec(request_ts), 1),
 		             curr_strm->task->calls, read_freq_ctr(&curr_strm->call_rate),
 		             (unsigned long long)curr_strm->cpu_time, (unsigned long long)curr_strm->lat_time);
 
