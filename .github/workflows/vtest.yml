@@ -146,10 +146,6 @@ jobs:
         ulimit -n 65536
         ulimit -c unlimited
         make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
-    - name: Run Unit tests
-      id: unittests
-      run: |
-        make unit-tests
     - name: Show VTest results
       if: ${{ failure() && steps.vtest.outcome == 'failure' }}
       run: |
@@ -160,7 +156,19 @@ jobs:
           echo "::endgroup::"
         done
         exit 1
-
+    - name: Run Unit tests
+      id: unittests
+      run: |
+        make unit-tests
+    - name: Show Unit-Tests results
+      if: ${{ failure() && steps.unittests.outcome == 'failure' }}
+      run: |
+        for result in ${TMPDIR:-/tmp}/ha-unittests-*/results/res.*; do
+          printf "::group::"
+          cat $result
+          echo "::endgroup::"
+        done
+        exit 1
     - name: Show coredumps
       if: ${{ failure() && steps.vtest.outcome == 'failure' }}
       run: |
