@@ -1522,6 +1522,7 @@ The following keywords are supported in the "global" section :
    - chroot
    - cluster-secret
    - cpu-map
+   - cpu-policy
    - cpu-set
    - crt-base
    - daemon
@@ -1946,6 +1947,41 @@ cpu-map [auto:]<thread-group>[/<thread-set>] <cpu-set>[,...] [...]
       cpu-map 3/1-40   40-79,120-159  # node1, siblings 0 & 1
       cpu-map 4/1-40   40-79,120-159
 
+
+cpu-policy <policy>
+  Selects the CPU allocation policy to be used.
+
+  On multi-CPU systems, there can be plenty of reasons for not using all
+  available CPU cores, and/or for grouping them into different thread groups,
+  for performance, latency, cost, or system-wide resource management. The
+  "cpu-set" directive already allows to evict a number of them, but once done,
+  it is necessary to decide how to assign the remaining ones to threads and
+  thread groups.
+
+  This mapping is normally performed using the "cpu-map" directive, though it
+  can be particularly difficult to maintain on heterogenous systems.
+
+  The "cpu-policy" directive chooses between a small number of allocation
+  policies which one to use instead, when "cpu-map" is not used. The following
+  policies are currently supported:
+
+   - none               no particular post-selection is performed. All enabled
+                        CPUs will be usable, and if the number of threads is
+                        not set, it will be set to the number of available CPUs
+                        but no more than 32 for 32-bit systems or 64 for 64-bit
+                        systems, per thread-group. The number of thread-groups,
+                        if not set, will be set to 1.
+
+   - first-usable-node  if the CPUs were not previously restricted at boot (for
+                        example using the "taskset" utility), and if the
+                        "nbthread" directive was not set, then the first NUMA
+                        node with enabled CPUs will be used, and this number of
+                        CPUs will be used as the number of threads. A single
+                        thread group will be enabled with all of them, within
+                        the limit of 32 or 64 depending on the system. This is
+                        the default policy.
+
+  See also: "cpu-map", "cpu-set", "nbthread"
 
 cpu-set <directive>...
   Allows to symbolically describe what sets of CPUs to run on. The directive

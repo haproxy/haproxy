@@ -10,6 +10,7 @@
 #include <haproxy/cpuset.h>
 #include <haproxy/cpu_topo.h>
 #include <haproxy/global.h>
+#include <haproxy/log.h>
 #include <haproxy/tools.h>
 
 /* for cpu_set.flags below */
@@ -50,8 +51,11 @@ struct cpu_set_cfg {
 static int cpu_policy = 0;
 
 /* list of CPU policies for "cpu-policy". The default one is the first one. */
+static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin, int gmax, char **err);
+
 static struct ha_cpu_policy ha_cpu_policy[] = {
 	{ .name = "none",               .desc = "use all available CPUs",                           .fct = NULL   },
+	{ .name = "first-usable-node",  .desc = "use only first usable node if nbthreads not set",  .fct = cpu_policy_first_usable_node  },
 	{ 0 } /* end */
 };
 
@@ -879,6 +883,80 @@ void cpu_refine_cpusets(void)
 		    !ha_cpuset_isset(&cpu_set_cfg.only_threads, ha_cpu_topo[cpu].th_id))
 			ha_cpu_topo[cpu].st |= HA_CPU_F_DONT_USE;
 	}
+}
+
+/* the "first-usable-node" cpu-policy: historical one
+ *  - does nothing if numa_cpu_mapping is not set
+ *  - does nothing if nbthread is set
+ *  - does nothing if the set of CPUs had been set manually using taskset
+ *  - does nothing if the first node couldn't be determined
+ * Otherwise ignores all CPUs not on the first node.
+ */
+static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin, int gmax, char **err)
+{
+	struct hap_cpuset node_cpu_set;
+	int first_node_id = -1;
+	int second_node_id = -1;
+	int cpu;
+	int cpu_count;
+	int grp, thr;
+
+	if (!global.numa_cpu_mapping)
+		return 0;
+
+	if (global.nbthread)
+		return 0;
+
+	if (cpu_mask_forced)
+		return 0;
+
+	/* determine first and second nodes with usable CPUs */
+	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++) {
+		if (ha_cpu_topo[cpu].st & HA_CPU_F_EXCL_MASK)
+			continue;
+
+		if (ha_cpu_topo[cpu].no_id >= 0 &&
+		    ha_cpu_topo[cpu].no_id != first_node_id) {
+			if (first_node_id < 0)
+				first_node_id = ha_cpu_topo[cpu].no_id;
+			else {
+				second_node_id = ha_cpu_topo[cpu].no_id;
+				break;
+			}
+		}
+	}
+
+	/* no information found on a second node */
+	if (second_node_id < 0)
+		return 0;
+
+	/* ignore all CPUs of other nodes, count the remaining valid ones,
+	 * and make a CPU set of them.
+	 */
+	ha_cpuset_zero(&node_cpu_set);
+	for (cpu = cpu_count = 0; cpu <= cpu_topo_lastcpu; cpu++) {
+		if (ha_cpu_topo[cpu].no_id != first_node_id)
+			ha_cpu_topo[cpu].st |= HA_CPU_F_IGNORED;
+		else if (!(ha_cpu_topo[cpu].st & HA_CPU_F_EXCL_MASK)) {
+			ha_cpuset_set(&node_cpu_set, ha_cpu_topo[cpu].idx);
+			cpu_count++;
+		}
+	}
+
+	/* assign all threads of all thread groups to this node */
+	for (grp = 0; grp < MAX_TGROUPS; grp++)
+		for (thr = 0; thr < MAX_THREADS_PER_GROUP; thr++)
+			ha_cpuset_assign(&cpu_map[grp].thread[thr], &node_cpu_set);
+
+	if (tmin <= cpu_count && cpu_count < tmax)
+		tmax = cpu_count;
+
+	ha_diag_warning("Multi-socket cpu detected, automatically binding on active CPUs of '%d' (%u active cpu(s))\n", first_node_id, cpu_count);
+
+	if (!global.nbthread)
+		global.nbthread = tmax;
+
+	return 0;
 }
 
 /* apply the chosen CPU policy if no cpu-map was forced. Returns < 0 on failure
