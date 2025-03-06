@@ -455,6 +455,94 @@ int jws_flattened(char *protected, char *payload, char *signature, char *dst, si
 	return ret;
 }
 
+
+int jws_debug(int argc, char **argv)
+{
+	FILE *f = NULL;
+	EVP_PKEY *pkey = NULL;
+	char jwk[1024];
+
+
+	char b64prot[4096];
+	char b64payload[4096];
+	char b64sign[4096];
+	char output[16384];
+
+	int ret = 1;
+	const char *filename = NULL;
+	char *payload = NULL;
+	char *alg = NULL;
+	char *nonce = NULL;
+	char *url = NULL;
+	int nid;
+
+	if (argc < 5) {
+		fprintf(stderr, "error: -U jws <pkey> <payload> <nonce> <url>!\n");
+		goto out;
+	}
+
+	filename = argv[1];
+	payload = argv[2];
+	nonce = argv[3];
+	url = argv[4];
+
+	if ((f = fopen(filename, "r")) == NULL) {
+		fprintf(stderr, "fopen!\n");
+		goto out;
+	}
+	if ((pkey = PEM_read_PrivateKey(f, NULL, NULL, NULL)) == NULL) {
+		fprintf(stderr, "PEM_read_PrivateKey!\n");
+		goto out;
+	}
+
+	ret = !EVP_PKEY_to_pub_jwk(pkey, jwk, sizeof(jwk));
+
+	fprintf(stderr, "JWK: %s\n", jwk);
+
+	if (EVP_PKEY_base_id(pkey) == EVP_PKEY_EC) {
+#if HA_OPENSSL_VERSION_NUMBER > 0x30000000L
+		char curve[32] = {};
+		size_t curvelen;
+
+		if (EVP_PKEY_get_utf8_string_param(pkey, OSSL_PKEY_PARAM_GROUP_NAME, curve, sizeof(curve), &curvelen) == 0)
+			goto out;
+
+		nid = curves2nid(curve);
+
+#else
+		const EC_KEY *ec = NULL;
+		const EC_GROUP *ec_group = NULL;
+
+		if ((ec = EVP_PKEY_get0_EC_KEY(pkey)) == NULL)
+			goto out;
+		if ((ec_group = EC_KEY_get0_group(ec)) == NULL)
+			goto out;
+
+		nid = EC_GROUP_get_curve_name(ec_group);
+#endif
+		switch (nid) {
+			case NID_X9_62_prime256v1: alg = "ES256"; break;
+			case NID_secp384r1:        alg = "ES384"; break;
+			case NID_secp521r1:        alg = "ES512"; break;
+		}
+	} else {
+		alg = "RS256";
+	}
+
+	jws_b64_protected(alg, NULL, jwk, nonce, url, b64prot, sizeof(b64prot));
+	jws_b64_payload(payload, b64payload, sizeof(b64payload));
+	jws_b64_signature(pkey, b64prot, b64payload, b64sign, sizeof(b64sign));
+	jws_flattened(b64prot, b64payload, b64sign, output, sizeof(output));
+
+	fprintf(stdout, "%s", output);
+
+	EVP_PKEY_free(pkey);
+out:
+
+	return ret;
+}
+
+
 int jwk_debug(int argc, char **argv)
 {
 	FILE *f = NULL;
@@ -489,6 +577,7 @@ out:
 static void __jws_init(void)
 {
 	hap_register_unittest("jwk", jwk_debug);
+	hap_register_unittest("jws", jws_debug);
 }
 
 
