@@ -835,6 +835,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (strcmp(args[0], "peer") == 0 ||
 	         strcmp(args[0], "server") == 0) { /* peer or server definition */
+		struct server *prev_srv;
 		int local_peer, peer;
 		int parse_addr = 0;
 
@@ -885,10 +886,13 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		 * or if we are parsing a "server" line and the current peer is not the local one.
 		 */
 		parse_addr = (peer || !local_peer) ? SRV_PARSE_PARSE_ADDR : 0;
+		prev_srv = curpeers->peers_fe->srv;
 		err_code |= parse_server(file, linenum, args, curpeers->peers_fe, NULL,
 		                         SRV_PARSE_IN_PEER_SECTION|parse_addr|SRV_PARSE_INITIAL_RESOLVE);
-		if (!curpeers->peers_fe->srv) {
-			/* Remove the newly allocated peer. */
+		if (curpeers->peers_fe->srv == prev_srv) {
+			/* parse_server didn't add a server:
+			 * Remove the newly allocated peer.
+			 */
 			if (newpeer != curpeers->local) {
 				struct peer *p;
 
