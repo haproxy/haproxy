@@ -4,6 +4,7 @@ export HAPROXY_PROGRAM="${HAPROXY_PROGRAM:-${PWD}/haproxy}"
 export HAPROXY_ARGS="${HAPROXY_ARGS--dM -dI -dW}"
 export ROOTDIR="${ROOTDIR:-${PWD}}"
 export TESTDIR="${TESTDIR:-./tests/unit/}"
+export TMPDIR="${TMPDIR:-/tmp}"
 
 result=0
 
@@ -49,9 +50,14 @@ failed=0
 skipped=0
 testlist=
 
+TESTRUNDATETIME="$(date '+%Y-%m-%d_%H-%M-%S')"
+DSTDIR=$(mktemp -d "${TMPDIR}/ha-unittests-$TESTRUNDATETIME.XXXXXX") || exit 1
+mkdir -p "${DSTDIR}" || exit 1
+mkdir -p "${DSTDIR}/results/" || exit 1
+
 echo "########################## Gathering tests to run ##########################"
 
-for test in $(find "$TESTDIR" -name "*.sh"); do
+for test in $(find "${TESTDIR}" -name "*.sh"); do
 	sh -e ${test} check 2>&1 1>/dev/null
 	r="$?"
 	if [ "$r" = "0" ]; then
@@ -66,18 +72,20 @@ done
 echo "########################## Starting unit tests ##########################"
 
 for TEST in $testlist; do
-#	echo "*** run ${TEST}"
-	export TEST
-	export TESTDIR=`dirname ${TEST}`
+	export TESTDIR=$( dirname ${TEST} )
+	RESULTFILE=$( mktemp "${DSTDIR}/results/res.XXXXXX" )
+	touch "${RESULTFILE}" || exit 1
 
-	sh -e ${TEST} run 2>&1 1>/dev/null
+	echo "${TEST}" > "${RESULTFILE}"
+	sh -x -e "${TEST}" run 1>>"${RESULTFILE}" 2>&1
 	r="$?"
 	if [ "$r" != "0" ]; then
-		echo "Test ${TEST} failed: $r"
+		echo "  Test ${TEST} failed: $r"
 		result=$r
 		failed=$((failed+1))
 	else
 		succeed=$((succeed+1))
+		rm "${RESULTFILE}"
 	fi
 done
 
