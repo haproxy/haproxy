@@ -52,7 +52,7 @@ testlist=
 echo "########################## Gathering tests to run ##########################"
 
 for test in $(find "$TESTDIR" -name "*.sh"); do
-	sh ${test} check
+	sh -e ${test} check 2>&1 1>/dev/null
 	r="$?"
 	if [ "$r" = "0" ]; then
 		echo "  Add test: $test"
@@ -70,10 +70,10 @@ for TEST in $testlist; do
 	export TEST
 	export TESTDIR=`dirname ${TEST}`
 
-	sh -e ${TEST} run
+	sh -e ${TEST} run 2>&1 1>/dev/null
 	r="$?"
-#	echo "*** result ${TEST}: $r"
 	if [ "$r" != "0" ]; then
+		echo "Test ${TEST} failed: $r"
 		result=$r
 		failed=$((failed+1))
 	else
