@@ -3363,7 +3363,10 @@ show sess [<id> | all | help] [<options>*]
 
   It is possible to set some options to customize the dump or apply some
   filters. Here are the supported options:
+    - backend <b>  only display streams attached to this backend
+    - frontend <f> only display streams attached to this frontend
     - older <age>  only display streams older than <age> seconds
+    - server <b/s> only show streams attached to this backend+server
     - show-uri     dump the transaction URI, as captured during the request
                    analysis. It is only displayed if it was captured.
     - susp         only show streams considered as suspicious by the developers
