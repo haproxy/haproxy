@@ -895,12 +895,28 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			 */
 			struct peer *p;
 
+			/* while it is tolerated to have a "server" line without address, it isn't
+			 * the case for a "peer" line
+			 */
+			if (peer) {
+				ha_warning("parsing [%s:%d] : '%s %s' : ignoring invalid peer definition (missing address:port)\n",
+				           file, linenum, args[0], args[1]);
+				err_code |= ERR_WARN;
+			}
+			else {
+				ha_diag_warning("parsing [%s:%d] : '%s %s' : ignoring server (not a local peer, valid address:port is expected)\n",
+				                file, linenum, args[0], args[1]);
+			}
+
 			p = curpeers->remote;
 			curpeers->remote = curpeers->remote->next;
 			free(p->id);
 			free(p);
-			if (newpeer == curpeers->local) {
-				/* reset curpeers and curpeers fields
+			if (local_peer) {
+				/* we only get there with incomplete "peer"
+				 * line for local peer (missing address):
+				 *
+				 * reset curpeers and curpeers fields
 				 * that are local peer related
 				 */
 				curpeers->local = NULL;
