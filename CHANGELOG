@@ -1,6 +1,95 @@
 ChangeLog :
 ===========
 
+2025/03/07 : 3.2-dev7
+    - BUG/MEDIUM: applet: Don't handle EOI/EOS/ERROR is applet is waiting for room
+    - BUG/MEDIUM: spoe/mux-spop: Introduce an NOOP action to deal with empty ACK
+    - BUG/MINOR: cfgparse: fix NULL ptr dereference in cfg_parse_peers
+    - BUG/MEDIUM: uxst: fix outgoing abns address family in connect()
+    - REGTESTS: fix reg-tests/server/abnsz.vtc
+    - BUG/MINOR: log: fix outgoing abns address family
+    - BUG/MINOR: sink: add tempo between 2 connection attempts for sft servers
+    - MINOR: clock: always use atomic ops for global_now_ms
+    - CI: QUIC Interop: clean old docker images
+    - BUG/MINOR: stream: do not call co_data() from __strm_dump_to_buffer()
+    - BUG/MINOR: mux-h1: always make sure h1s->sd exists in h1_dump_h1s_info()
+    - MINOR: tinfo: add a new thread flag to indicate a call from a sig handler
+    - BUG/MEDIUM: stream: never allocate connection addresses from signal handler
+    - MINOR: freq_ctr: provide non-blocking read functions
+    - BUG/MEDIUM: stream: use non-blocking freq_ctr calls from the stream dumper
+    - MINOR: tools: use only opportunistic symbols resolution
+    - CLEANUP: task: move the barrier after clearing th_ctx->current
+    - MINOR: compression: Introduce minimum size
+    - BUG/MINOR: h2: always trim leading and trailing LWS in header values
+    - MINOR: tinfo: split the signal handler report flags into 3
+    - BUG/MEDIUM: stream: don't use localtime in dumps from a signal handler
+    - OPTIM: connection: don't try to kill other threads' connection when !shared
+    - BUILD: add possibility to use different QuicTLS variants
+    - MEDIUM: fd: Wait if locked in fd_grab_tgid() and fd_take_tgid().
+    - MINOR: fd: Add fd_lock_tgid_cur().
+    - MEDIUM: epoll: Make sure we can add a new event
+    - MINOR: pollers: Add a fixup_tgid_takeover() method.
+    - MEDIUM: pollers: Drop fd events after a takeover to another tgid.
+    - MEDIUM: connections: Allow taking over connections from other tgroups.
+    - MEDIUM: servers: Add strict-maxconn.
+    - BUG/MEDIUM: server: properly initialize PROXY v2 TLVs
+    - BUG/MINOR: server: fix the "server-template" prefix memory leak
+    - BUG/MINOR: h3: do not report transfer as aborted on preemptive response
+    - CLEANUP: h3: fix documentation of h3_rcv_buf()
+    - MINOR: hq-interop: properly handle incomplete request
+    - BUG/MEDIUM: mux-fcgi: Try to fully fill demux buffer on receive if not empty
+    - MINOR: h1: permit to relax the websocket checks for missing mandatory headers
+    - BUG/MINOR: hq-interop: fix leak in case of rcv_buf early return
+    - BUG/MINOR: server: check for either proxy-protocol v1 or v2 to send hedaer
+    - MINOR: jws: implement a JWK public key converter
+    - DEBUG: init: add a way to register functions for unit tests
+    - TESTS: add a unit test runner in the Makefile
+    - TESTS: jws: register a unittest for jwk
+    - CI: github: run make unit-tests on the CI
+    - TESTS: add config smoke checks in the unit tests
+    - MINOR: jws: conversion to NIST curves name
+    - CI: github: remove smoke tests from vtest.yml
+    - TESTS: ist: fix wrong array size
+    - TESTS: ist: use the exit code to return a verdict
+    - TESTS: ist: add a ist.sh to launch in make unit-tests
+    - CI: github: fix h2spec.config proxy names
+    - DEBUG: init: Add a macro to register unit tests
+    - MINOR: sample: allow custom date format in error-log-format
+    - CLEANUP: log: removing "log-balance" references
+    - BUG/MINOR: log: set proper smp size for balance log-hash
+    - MINOR: log: use __send_log() with exact payload length
+    - MEDIUM: log: postpone the decision to send or not log with empty messages
+    - MINOR: proxy: make pr_mode enum bitfield compatible
+    - MINOR: cfgparse-listen: add and use cfg_parse_listen_match_option() helper
+    - MINOR: log: add options eval for log-forward
+    - MINOR: log: detach prepare from parse message
+    - MINOR: log: add dont-parse-log and assume-rfc6587-ntf options
+    - BUG/MEIDUM: startup: return to initial cwd only after check_config_validity()
+    - TESTS: change the output of run-unittests.sh
+    - TESTS: unit-tests: store sh -x in a result file
+    - CI: github: show results of the Unit tests
+    - BUG/MINOR: cfgparse/peers: fix inconsistent check for missing peer server
+    - BUG/MINOR: cfgparse/peers: properly handle ignored local peer case
+    - BUG/MINOR: server: dont return immediately from parse_server() when skipping checks
+    - MINOR: cfgparse/peers: provide more info when ignoring invalid "peer" or "server" lines
+    - BUG/MINOR: stream: fix age calculation in "show sess" output
+    - MINOR: stream/cli: rework "show sess" to better consider optional arguments
+    - MINOR: stream/cli: make "show sess" support filtering on front/back/server
+    - TESTS: quic: create first quic unittest
+    - MINOR: h3/hq-interop: restore function for standalone FIN receive
+    - MINOR/OPTIM: mux-quic: do not allocate rxbuf on standalone FIN
+    - MINOR: mux-quic: refine reception of standalone STREAM FIN
+    - MINOR: mux-quic: define globally stream rxbuf size
+    - MINOR: mux-quic: define rxbuf wrapper
+    - MINOR: mux-quic: store QCS Rx buf in a single-entry tree
+    - MINOR: mux-quic: adjust Rx data consumption API
+    - MINOR: mux-quic: adapt return value of qcc_decode_qcs()
+    - MAJOR: mux-quic: support multiple QCS RX buffers
+    - MEDIUM: mux-quic: handle too short data splitted on multiple rxbuf
+    - MAJOR: mux-quic: increase stream flow-control for multi-buffer alloc
+    - BUG/MINOR: cfgparse-tcp: relax namespace bind check
+    - MINOR: startup: adjust alert messages, when capabilities are missed
+
 2025/02/19 : 3.2-dev6
     - BUG/MEDIUM: debug: close a possible race between thread dump and panic()
     - DEBUG: thread: report the spin lock counters as seek locks
