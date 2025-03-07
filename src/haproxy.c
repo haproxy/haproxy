@@ -3438,8 +3438,8 @@ int main(int argc, char **argv)
 #if defined(USE_LINUX_CAP)
 			ha_alert("[%s.main()] Alternately, if your system supports "
 			         "Linux capabilities, you may also consider using "
-			         "'setcap cap_net_raw' or 'setcap cap_net_admin' in the "
-			         "'global' section.\n", argv[0]);
+			         "'setcap cap_net_raw', 'setcap cap_net_admin' or "
+			         "'setcap cap_sys_admin' in the 'global' section.\n", argv[0]);
 #endif
 			protocol_unbind_all();
 			exit(1);
