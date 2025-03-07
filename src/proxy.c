@@ -136,6 +136,12 @@ const struct cfg_opt cfg_opts2[] =
 	{ NULL, 0, 0, 0 }
 };
 
+/* proxy->options3 */
+const struct cfg_opt cfg_opts3[] =
+{
+	{ NULL, 0, 0, 0 }
+};
+
 /* Helper function to resolve a single sticking rule after config parsing.
  * Returns 1 for success and 0 for failure
  */

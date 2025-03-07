@@ -39,6 +39,7 @@ extern struct eb_root proxy_by_name;    /* tree of proxies sorted by name */
 
 extern const struct cfg_opt cfg_opts[];
 extern const struct cfg_opt cfg_opts2[];
+extern const struct cfg_opt cfg_opts3[];
 
 struct task *manage_proxy(struct task *t, void *context, unsigned int state);
 void proxy_cond_pause(struct proxy *p);

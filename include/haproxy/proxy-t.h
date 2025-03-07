@@ -170,6 +170,10 @@ enum PR_SRV_STATE_FILE {
 #define PR_O2_CHK_ANY   0xF0000000      /* Mask to cover any check */
 /* end of proxy->options2 */
 
+/* bits for proxy->options3 */
+/* unused: 0x00000000 to  0x80000000 */
+/* end of proxy->options3 */
+
 /* Cookie settings for pr->ck_opts */
 #define PR_CK_RW        0x00000001      /* rewrite all direct cookies with the right serverid */
 #define PR_CK_IND       0x00000002      /* keep only indirect cookies */
@@ -294,6 +298,7 @@ struct proxy {
 
 	int options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
 	int options2;				/* PR_O2_* */
+	int options3;                           /* PR_O3_* */
 	unsigned int ck_opts;			/* PR_CK_* (cookie options) */
 	unsigned int fe_req_ana, be_req_ana;	/* bitmap of common request protocol analysers for the frontend and backend */
 	unsigned int fe_rsp_ana, be_rsp_ana;	/* bitmap of common response protocol analysers for the frontend and backend */
@@ -429,6 +434,7 @@ struct proxy {
 	/* used only during configuration parsing */
 	int no_options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
 	int no_options2;			/* PR_O2_* */
+	int no_options3;                        /* PR_O3_* */
 
 	struct {
 		const char *file;		/* file where the section appears */

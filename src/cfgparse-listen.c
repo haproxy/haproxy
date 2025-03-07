@@ -2066,6 +2066,14 @@ stats_error_parsing:
 		if (err_code & ERR_CODE)
 			goto out;
 
+		/* try to match option within cfg_opts3 */
+		if (cfg_parse_listen_match_option(file, linenum, kwm, cfg_opts3, &err_code, args,
+		                                  PR_MODES, PR_CAP_NONE,
+		                                  &curproxy->options3, &curproxy->no_options3))
+			goto out;
+		if (err_code & ERR_CODE)
+			goto out;
+
 		/* HTTP options override each other. They can be cancelled using
 		 * "no option xxx" which only switches to default mode if the mode
 		 * was this one (useful for cancelling options set in defaults
