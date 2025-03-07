@@ -6229,6 +6229,41 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		if (err_code & ERR_CODE)
 			goto out;
 
+
+		if (strcmp(args[1], "host") == 0) {
+			int value = 0;
+
+			if (strcmp(args[2], "replace") == 0)
+				value = PR_O3_LOGF_HOST_REPLACE;
+			else if (strcmp(args[2], "fill") == 0)
+				value = PR_O3_LOGF_HOST_FILL;
+			else if (strcmp(args[2], "keep") == 0)
+				value = PR_O3_LOGF_HOST_KEEP;
+			else if (strcmp(args[2], "append") == 0)
+				value = PR_O3_LOGF_HOST_APPEND;
+
+			if (!value) {
+				ha_alert("parsing [%s:%d] : option 'host' expects {replace|fill|keep|append}.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+
+			cfg_log_forward->options3 &= ~PR_O3_LOGF_HOST;
+			cfg_log_forward->no_options3 &= ~PR_O3_LOGF_HOST;
+
+			switch (kwm) {
+				case KWM_STD:
+					cfg_log_forward->options3 |= value;
+					break;
+				case KWM_NO:
+					cfg_log_forward->no_options3 |= value;
+					break;
+				case KWM_DEF: /* already cleared */
+					break;
+			}
+			goto out;
+		}
+
 		ha_alert("parsing [%s:%d] : unknown option '%s' in log-forward section.\n", file, linenum, args[1]);
 		err_code |= ERR_ALERT | ERR_ABORT;
 	}

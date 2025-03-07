@@ -172,7 +172,15 @@ enum PR_SRV_STATE_FILE {
 #define PR_O3_DONTPARSELOG       0x00000001 /* don't parse log messages */
 #define PR_O3_ASSUME_RFC6587_NTF 0x00000002 /* assume that we are going to receive just non-transparent framing messages */
 
-/* unused: 0x00000004 to  0x80000000 */
+/* unused: 0x00000004 to 0x00000008 */
+
+#define PR_O3_LOGF_HOST_REPLACE  0x00000010
+#define PR_O3_LOGF_HOST_FILL     0x00000020
+#define PR_O3_LOGF_HOST_KEEP     0x00000040
+#define PR_O3_LOGF_HOST_APPEND   0x00000080
+#define PR_O3_LOGF_HOST          0x000000F0
+
+/* unused: 0x00000100 to  0x80000000 */
 /* end of proxy->options3 */
 
 /* Cookie settings for pr->ck_opts */
