@@ -3758,7 +3758,7 @@ int parse_server(const char *file, int linenum, char **args,
 	if ((parse_flags & (SRV_PARSE_IN_PEER_SECTION|SRV_PARSE_PARSE_ADDR)) ==
 	    (SRV_PARSE_IN_PEER_SECTION|SRV_PARSE_PARSE_ADDR)) {
 		if (!*args[2])
-			return 0;
+			goto out;
 	}
 
 	err_code = _srv_parse_init(&newsrv, args, &cur_arg, curproxy,
