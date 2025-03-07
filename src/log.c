@@ -5729,7 +5729,7 @@ static void syslog_process_message(struct proxy *frontend, struct listener *l,
 
 	prepare_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
-	if (!(frontend->options2 & PR_O2_DONTPARSELOG))
+	if (!(frontend->options3 & PR_O3_DONTPARSELOG))
 		parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
 	process_send_log(NULL, &frontend->loggers, level, facility, metadata, message, size);
@@ -5813,7 +5813,7 @@ static void syslog_io_handler(struct appctx *appctx)
 		else if (to_skip < 0)
 			goto cli_abort;
 
-		if (c == '<' || (frontend->options2 & PR_O2_ASSUME_RFC6587_NTF)) {
+		if (c == '<' || (frontend->options3 & PR_O3_ASSUME_RFC6587_NTF)) {
 			/* rfc-6587, Non-Transparent-Framing: messages separated by
 			 * a trailing LF or CR LF
 			 */
@@ -6211,9 +6211,9 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		/* only consider options that are frontend oriented and log oriented, such options may be set
 		 * in px->options2 because px->options is already full of tcp/http oriented options
 		 */
-		if (cfg_parse_listen_match_option(file, linenum, kwm, cfg_opts2, &err_code, args,
+		if (cfg_parse_listen_match_option(file, linenum, kwm, cfg_opts3, &err_code, args,
 		                                  PR_MODE_SYSLOG, PR_CAP_FE,
-		                                  &cfg_log_forward->options2, &cfg_log_forward->no_options2))
+		                                  &cfg_log_forward->options3, &cfg_log_forward->no_options3))
 			goto out;
 
 		if (err_code & ERR_CODE)

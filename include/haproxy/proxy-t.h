@@ -156,11 +156,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_O2_RSTRICT_REQ_HDR_NAMES_NOOP 0x01000000 /* preserve request header names containing chars outside of [0-9a-zA-Z-] charset */
 #define PR_O2_RSTRICT_REQ_HDR_NAMES_MASK 0x01c00000 /* mask for restrict-http-header-names option */
 
-/* bits for log-forward proxies */
-#define PR_O2_DONTPARSELOG       0x02000000 /* don't parse log messages */
-#define PR_O2_ASSUME_RFC6587_NTF 0x04000000 /* assume that we are going to receive just non-transparent framing messages */
-
-/* unused : 0x08000000 */
+/* unused : 0x02000000 ... 0x08000000 */
 
 /* server health checks */
 #define PR_O2_CHK_NONE  0x00000000      /* no L7 health checks configured (TCP by default) */
@@ -171,7 +167,12 @@ enum PR_SRV_STATE_FILE {
 /* end of proxy->options2 */
 
 /* bits for proxy->options3 */
-/* unused: 0x00000000 to  0x80000000 */
+
+/*   bits for log-forward proxies */
+#define PR_O3_DONTPARSELOG       0x00000001 /* don't parse log messages */
+#define PR_O3_ASSUME_RFC6587_NTF 0x00000002 /* assume that we are going to receive just non-transparent framing messages */
+
+/* unused: 0x00000004 to  0x80000000 */
 /* end of proxy->options3 */
 
 /* Cookie settings for pr->ck_opts */

@@ -131,14 +131,14 @@ const struct cfg_opt cfg_opts2[] =
 	{"h1-case-adjust-bogus-client",   PR_O2_H1_ADJ_BUGCLI, PR_CAP_FE, 0, 0 },
 	{"h1-case-adjust-bogus-server",   PR_O2_H1_ADJ_BUGSRV, PR_CAP_BE, 0, 0 },
 	{"disable-h2-upgrade",            PR_O2_NO_H2_UPGRADE, PR_CAP_FE, 0, PR_MODE_HTTP },
-	{"assume-rfc6587-ntf",            PR_O2_ASSUME_RFC6587_NTF, PR_CAP_FE, 0, PR_MODE_SYSLOG },
-	{"dont-parse-log",                PR_O2_DONTPARSELOG, PR_CAP_FE, 0, PR_MODE_SYSLOG },
 	{ NULL, 0, 0, 0 }
 };
 
 /* proxy->options3 */
 const struct cfg_opt cfg_opts3[] =
 {
+	{"assume-rfc6587-ntf",            PR_O3_ASSUME_RFC6587_NTF, PR_CAP_FE, 0, PR_MODE_SYSLOG },
+	{"dont-parse-log",                PR_O3_DONTPARSELOG, PR_CAP_FE, 0, PR_MODE_SYSLOG },
 	{ NULL, 0, 0, 0 }
 };
 
