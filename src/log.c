@@ -5722,6 +5722,7 @@ static void syslog_process_message(struct proxy *frontend, struct listener *l,
                                    struct buffer *buf)
 {
 	static THREAD_LOCAL struct ist metadata[LOG_META_FIELDS];
+	char *src_addr = NULL;
 	size_t size;
 	char *message;
 	int level;
@@ -5733,10 +5734,46 @@ static void syslog_process_message(struct proxy *frontend, struct listener *l,
 
 	prepare_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
-	if (!(frontend->options3 & PR_O3_DONTPARSELOG))
-		parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
+	if (frontend->options3 & PR_O3_DONTPARSELOG)
+		goto end;
 
+	parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
+
+	if (real_family(saddr->ss_family) == AF_UNIX)
+		saddr = NULL; /* no source information for UNIX addresses */
+
+	/* handle host options */
+	if (!(frontend->options3 & PR_O3_LOGF_HOST_KEEP)) {
+		if (saddr)
+			src_addr = sa2str(saddr, -1, 0);
+
+		if ((frontend->options3 & PR_O3_LOGF_HOST_REPLACE) && src_addr) {
+			/* unconditional replace, unless source is not available */
+			metadata[LOG_META_HOST] = ist(src_addr);
+		}
+		else if ((frontend->options3 & PR_O3_LOGF_HOST_FILL) &&
+		          src_addr && !metadata[LOG_META_HOST].len) {
+			/* only fill if missing */
+			metadata[LOG_META_HOST] = ist(src_addr);
+		}
+		else if ((frontend->options3 & PR_O3_LOGF_HOST_APPEND) && src_addr) {
+			/* append source after existing host */
+			if (metadata[LOG_META_HOST].len) {
+				memprintf(&src_addr, "%.*s,%s",
+				          (int)metadata[LOG_META_HOST].len,
+				          metadata[LOG_META_HOST].ptr, src_addr);
+				if (src_addr)
+					metadata[LOG_META_HOST] = ist(src_addr);
+			}
+			else
+				metadata[LOG_META_HOST] = ist(src_addr);
+		}
+	}
+	// else nothing to do
+
+ end:
 	process_send_log(NULL, &frontend->loggers, level, facility, metadata, message, size);
+	ha_free(&src_addr);
 }
 
 /*
@@ -6033,6 +6070,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		px->accept = frontend_accept;
 		px->default_target = &syslog_applet.obj_type;
 		px->id = strdup(args[1]);
+		px->options3 |= PR_O3_LOGF_HOST_KEEP;
 	}
 	else if (strcmp(args[0], "maxconn") == 0) {  /* maxconn */
 		if (warnifnotcap(cfg_log_forward, PR_CAP_FE, file, linenum, args[0], " Maybe you want 'fullconn' instead ?"))

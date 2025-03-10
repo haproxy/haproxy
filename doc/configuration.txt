@@ -5370,6 +5370,41 @@ option dont-parse-log
   traditional formats. This option should be used with the format raw setting on
   destination log targets to ensure the original message content is preserved.
 
+option host { replace | fill | keep | append }
+  Set the host strategy that should be used on the log-forward section
+  regarding syslog host field for outbound rfc3164 or rfc5424 messages.
+
+      replace If input message already contains a value for the host field,
+              we replace it by the source IP address from the sender.
+              If input message doesn't contain a value for the host field (ie:
+              '-' as input rfc5424 message or non compliant rfc3164 or rfc5424
+              message), we use the source IP address from the sender as host
+              field.
+
+      fill    If input message already contains a value for the host field,
+              we keep it.
+              If input message doesn't contain a value for the host field
+              (ie: '-' as input rfc5424 message or non compliant rfc3164 or
+              rfc5424 message), we use the source IP address from the sender as
+              host field.
+
+      keep    If input message already contains a value for the host field,
+              we keep it.
+              If input message doesn't contain a value for the host field,
+              we set it to 'localhost' (rfc3164) or '-' (rfc5424).
+              (This is the default)
+
+      append  If input message already contains a value for the host field,
+              we append a comma followed by the IP address from the sender.
+              If input message doesn't contain a value for the host field,
+              we use the source IP address from the sender.
+
+  For all options above, if the source IP address from the sender is not
+  available (ie: UNIX/ABNS socket), then the resulting strategy is "keep".
+
+  Note that this option is only relevant for rfc3164 or rfc5424 destination
+  log format. Else setting the option will have no visible effect.
+
 3.11. HTTPClient tuning
 -----------------------
 
