@@ -5711,18 +5711,37 @@ bad_format:
 	return;
 }
 
+/* helper function for syslog handlers: process input message stored
+ * in <buf> according to <frontend> options, and send it to frontend loggers
+ */
+static void syslog_process_message(struct proxy *frontend, struct listener *l,
+                                   struct buffer *buf)
+{
+	static THREAD_LOCAL struct ist metadata[LOG_META_FIELDS];
+	size_t size;
+	char *message;
+	int level;
+	int facility;
+
+	/* update counters */
+	_HA_ATOMIC_INC(&cum_log_messages);
+	proxy_inc_fe_req_ctr(l, frontend, 0);
+
+	prepare_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
+
+	if (!(frontend->options2 & PR_O2_DONTPARSELOG))
+		parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
+
+	process_send_log(NULL, &frontend->loggers, level, facility, metadata, message, size);
+}
+
 /*
  * UDP syslog fd handler
  */
 void syslog_fd_handler(int fd)
 {
-	static THREAD_LOCAL struct ist metadata[LOG_META_FIELDS];
 	ssize_t ret = 0;
 	struct buffer *buf = get_trash_chunk();
-	size_t size;
-	char *message;
-	int level;
-	int facility;
 	struct listener *l = objt_listener(fdtab[fd].owner);
 	struct proxy *frontend;
 	int max_accept;
@@ -5754,17 +5773,7 @@ void syslog_fd_handler(int fd)
 			}
 			buf->data = ret;
 
-			/* update counters */
-			_HA_ATOMIC_INC(&cum_log_messages);
-			proxy_inc_fe_req_ctr(l, frontend, 0);
-
-			prepare_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
-
-			if (!(frontend->options2 & PR_O2_DONTPARSELOG))
-				parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
-
-			process_send_log(NULL, &frontend->loggers, level, facility, metadata, message, size);
-
+			syslog_process_message(frontend, l, buf);
 		} while (--max_accept);
 	}
 
@@ -5777,7 +5786,6 @@ out:
  */
 static void syslog_io_handler(struct appctx *appctx)
 {
-	static THREAD_LOCAL struct ist metadata[LOG_META_FIELDS];
 	struct stconn *sc = appctx_sc(appctx);
 	struct stream *s = __sc_strm(sc);
 	struct proxy *frontend = strm_fe(s);
@@ -5785,10 +5793,6 @@ static void syslog_io_handler(struct appctx *appctx)
 	struct buffer *buf = get_trash_chunk();
 	int max_accept;
 	int to_skip;
-	int facility;
-	int level;
-	char *message;
-	size_t size;
 
 	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR)))) {
 		co_skip(sc_oc(sc), co_data(sc_oc(sc)));
@@ -5869,17 +5873,7 @@ static void syslog_io_handler(struct appctx *appctx)
 
 		co_skip(sc_oc(sc), to_skip);
 
-		/* update counters */
-		_HA_ATOMIC_INC(&cum_log_messages);
-		proxy_inc_fe_req_ctr(l, frontend, 0);
-
-		prepare_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
-
-		if (!(frontend->options2 & PR_O2_DONTPARSELOG))
-			parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
-
-		process_send_log(NULL, &frontend->loggers, level, facility, metadata, message, size);
-
+		syslog_process_message(frontend, l, buf);
 	}
 
 missing_data:
