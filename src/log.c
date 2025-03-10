@@ -5711,10 +5711,14 @@ bad_format:
 	return;
 }
 
-/* helper function for syslog handlers: process input message stored
- * in <buf> according to <frontend> options, and send it to frontend loggers
+/* helper function for syslog handlers: process input message sent by
+ * <saddr> and stored in <buf> according to <frontend> options, and send
+ * it to frontend loggers
+ *
+ * <saddr> may be NULL if sender information is not available.
  */
 static void syslog_process_message(struct proxy *frontend, struct listener *l,
+                                   const struct sockaddr_storage *saddr,
                                    struct buffer *buf)
 {
 	static THREAD_LOCAL struct ist metadata[LOG_META_FIELDS];
@@ -5773,7 +5777,7 @@ void syslog_fd_handler(int fd)
 			}
 			buf->data = ret;
 
-			syslog_process_message(frontend, l, buf);
+			syslog_process_message(frontend, l, &saddr, buf);
 		} while (--max_accept);
 	}
 
@@ -5791,6 +5795,7 @@ static void syslog_io_handler(struct appctx *appctx)
 	struct proxy *frontend = strm_fe(s);
 	struct listener *l = strm_li(s);
 	struct buffer *buf = get_trash_chunk();
+	struct connection *conn;
 	int max_accept;
 	int to_skip;
 
@@ -5801,6 +5806,7 @@ static void syslog_io_handler(struct appctx *appctx)
 
 	max_accept = l->bind_conf->maxaccept ? l->bind_conf->maxaccept : 1;
 	while (1) {
+		const struct sockaddr_storage *saddr = NULL;
 		char c;
 
 		if (max_accept <= 0)
@@ -5873,7 +5879,11 @@ static void syslog_io_handler(struct appctx *appctx)
 
 		co_skip(sc_oc(sc), to_skip);
 
-		syslog_process_message(frontend, l, buf);
+		conn = sc_conn(s->scf);
+		if (conn && conn_get_src(conn))
+			saddr = conn_src(conn);
+
+		syslog_process_message(frontend, l, saddr, buf);
 	}
 
 missing_data:
