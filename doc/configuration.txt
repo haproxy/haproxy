@@ -5387,12 +5387,12 @@ option host { replace | fill | keep | append }
               (ie: '-' as input rfc5424 message or non compliant rfc3164 or
               rfc5424 message), we use the source IP address from the sender as
               host field.
+              (This is the default)
 
       keep    If input message already contains a value for the host field,
               we keep it.
               If input message doesn't contain a value for the host field,
               we set it to 'localhost' (rfc3164) or '-' (rfc5424).
-              (This is the default)
 
       append  If input message already contains a value for the host field,
               we append a comma followed by the IP address from the sender.
