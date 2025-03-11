@@ -86,7 +86,8 @@ jobs:
           ${{ contains(matrix.FLAGS, 'USE_PCRE2=1')   && 'libpcre2-dev'   || '' }} \
           ${{ contains(matrix.ssl,   'BORINGSSL=yes') && 'ninja-build'    || '' }} \
           socat \
-          gdb
+          gdb \
+          jose
     - name: Install brew dependencies
       if: ${{ startsWith(matrix.os, 'macos-') }}
       run: |
