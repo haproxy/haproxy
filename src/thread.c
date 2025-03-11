@@ -1613,6 +1613,36 @@ void thread_detect_count(void)
 	 * capacity order until we reach at least thr_min, then continue
 	 * on the same cluster _capacity_ up to thr_max.
 	 */
+
+	if (!ha_cpuset_count(&cpu_map[0].thread[0])) {
+		/* thread 1 is not mapped, no policy was applied, so we have to
+		 * count the threads ourselves.
+		 */
+		struct hap_cpuset node_cpu_set;
+		int thr, cpu, grp, cpu_count;
+
+		ha_cpuset_zero(&node_cpu_set);
+
+		for (cpu = cpu_count = 0; cpu <= cpu_topo_lastcpu; cpu++) {
+			if (ha_cpu_topo[cpu].st & HA_CPU_F_EXCL_MASK)
+				continue;
+
+			ha_cpuset_set(&node_cpu_set, ha_cpu_topo[cpu].idx);
+			cpu_count++;
+		}
+
+		/* assign all threads of all thread groups to this node */
+		for (grp = 0; grp < MAX_TGROUPS; grp++)
+			for (thr = 0; thr < MAX_THREADS_PER_GROUP; thr++)
+				ha_cpuset_assign(&cpu_map[grp].thread[thr], &node_cpu_set);
+
+		/* if the number of CPUs is within the allowed thread range,
+		 * automatically set the max thread count to the number of CPUs
+		 * as this will be used as the final number of threads.
+		 */
+		if (thr_min <= cpu_count && cpu_count <= thr_max)
+			thr_max = cpu_count;
+	}
 #endif // USE_THREAD && USE_CPU_AFFINITY
 
 	if (!global.nbthread)
