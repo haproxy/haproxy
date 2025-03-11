@@ -48,7 +48,7 @@ struct cpu_set_cfg {
 } cpu_set_cfg;
 
 /* CPU policy choice */
-static int cpu_policy = 0;
+static int cpu_policy = 1; // "first-usable-node"
 
 /* list of CPU policies for "cpu-policy". The default one is the first one. */
 static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin, int gmax, char **err);
