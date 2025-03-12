@@ -1367,7 +1367,7 @@ check_tgid:
 		if (curtgid == global.nbtgroups + 1)
 			curtgid = 1;
 		/* If we haven't looped yet */
-		if (curtgid != tgid) {
+		if (MAX_TGROUPS > 1 && curtgid != tgid) {
 			curtg = &ha_tgroup_info[curtgid - 1];
 			stop = curtg->base;
 			goto check_tgid;
