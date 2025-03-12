@@ -19,26 +19,29 @@
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 
-/* Define a new metric for both frontend and backend sides. */
+/* Define a new generic metric for both frontend and backend sides. */
 #define ME_NEW_PX(name_f, nature, format, offset_f, cap_f, desc_f)            \
   { .name = (name_f), .desc = (desc_f), .type = (nature)|(format),            \
     .metric.offset[0] = offsetof(struct fe_counters, offset_f),               \
     .metric.offset[1] = offsetof(struct be_counters, offset_f),               \
     .cap = (cap_f),                                                           \
+    .generic = 1,                                                             \
   }
 
-/* Define a new metric for frontend side only. */
+/* Define a new generic metric for frontend side only. */
 #define ME_NEW_FE(name_f, nature, format, offset_f, cap_f, desc_f)            \
   { .name = (name_f), .desc = (desc_f), .type = (nature)|(format),            \
     .metric.offset[0] = offsetof(struct fe_counters, offset_f),               \
     .cap = (cap_f),                                                           \
+    .generic = 1,                                                             \
   }
 
-/* Define a new metric for backend side only. */
+/* Define a new generic metric for backend side only. */
 #define ME_NEW_BE(name_f, nature, format, offset_f, cap_f, desc_f)            \
   { .name = (name_f), .desc = (desc_f), .type = (nature)|(format),            \
     .metric.offset[1] = offsetof(struct be_counters, offset_f),               \
     .cap = (cap_f),                                                           \
+    .generic = 1,                                                             \
   }
 
 const struct stat_col stat_cols_px[ST_I_PX_MAX] = {

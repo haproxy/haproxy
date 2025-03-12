@@ -349,6 +349,8 @@ struct stat_col {
 
 	uint32_t type;    /* combination of field_nature and field_format */
 	uint8_t cap;      /* mask of stats_domain_px_cap to restrain metrics to an object types subset */
+	uint8_t generic;  /* bit set if generic */
+	/* 2 bytes hole */
 
 	/* used only for generic metrics */
 	struct {
