@@ -298,11 +298,6 @@ static inline unsigned long thread_isolated()
 	return _HA_ATOMIC_LOAD(&isolated_thread) == tid;
 }
 
-/* Returns 1 if the cpu set is currently restricted for the process else 0.
- * Currently only implemented for the Linux platform.
- */
-int thread_cpu_mask_forced(void);
-
 #if !defined(DEBUG_THREAD) && !defined(DEBUG_FULL)
 
 /* Thread debugging is DISABLED, these are the regular locking functions */

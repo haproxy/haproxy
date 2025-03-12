@@ -2922,7 +2922,7 @@ int check_config_validity()
 		{
 			int numa_cores = 0;
 #if defined(USE_CPU_AFFINITY)
-			if (global.numa_cpu_mapping && !thread_cpu_mask_forced() && !cpu_map_configured())
+			if (global.numa_cpu_mapping && !cpu_mask_forced && !cpu_map_configured())
 				numa_cores = numa_detect_topology();
 #endif
 			global.nbthread = numa_cores ? numa_cores :
