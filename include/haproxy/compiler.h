@@ -503,6 +503,18 @@
 #define __decl_thread(decl)
 #endif
 
+/* The __decl_thread_var() statement declares a variable when threads are enabled
+ * or replaces it with an dummy statement to avoid placing a lone semi-colon. The
+ * purpose is to condition the presence of some variables or to the fact that
+ * threads are enabled, without having to enclose them inside an ugly
+ * #ifdef USE_THREAD/#endif clause.
+ */
+#ifdef USE_THREAD
+#define __decl_thread_var(decl) decl
+#else
+#define __decl_thread_var(decl) enum { CONCAT(_dummy_var_decl_,__LINE__), }
+#endif
+
 /* clang has a __has_feature() macro which reports true/false on a number of
  * internally supported features. Let's make sure this macro is always defined
  * and returns zero when not supported.
