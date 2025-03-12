@@ -5543,7 +5543,7 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 #if (defined(__ELF__) && !defined(__linux__)) || defined(USE_DL)
 	static Dl_info dli_main;
 	static int dli_main_done; // 0 = not resolved, 1 = resolve in progress, 2 = done
-	static __decl_thread(HA_SPINLOCK_T dladdr_lock);
+	__decl_thread_var(static HA_SPINLOCK_T dladdr_lock);
 	int isolated;
 	Dl_info dli;
 	size_t size;
