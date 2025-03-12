@@ -287,14 +287,14 @@ void set_thread_cpu_affinity()
 			thread_affinity_policy_data_t cpu_set = { j - 1 };
 			thread_port_t mthread;
 
-			mthread = pthread_mach_thread_np(ha_pthread[tid]);
+			mthread = pthread_mach_thread_np(pthread_self());
 			thread_policy_set(mthread, THREAD_AFFINITY_POLICY, (thread_policy_t)&cpu_set, 1);
 			set &= ~(1UL << (j - 1));
 		}
 #  else
 		struct hap_cpuset *set = &cpu_map[tgid - 1].thread[ti->ltid];
 
-		pthread_setaffinity_np(ha_pthread[tid], sizeof(set->cpuset), &set->cpuset);
+		pthread_setaffinity_np(pthread_self(), sizeof(set->cpuset), &set->cpuset);
 #  endif
 	}
 #endif /* USE_CPU_AFFINITY */
