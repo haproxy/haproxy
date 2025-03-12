@@ -413,22 +413,25 @@ int cpu_detect_topology(void)
 		 * as high as 260 were seen there. Note that only nominal_perf
 		 * is trustable, as nominal_freq may return zero. It's also
 		 * more reliable than the max cpufreq values because it doesn't
-		 * seem to take into account the die quality.
+		 * seem to take into account the die quality. However, acpi_cppc
+		 * can be super slow on some systems (5ms per access noticed on
+		 * a 64-core EPYC), making haproxy literally take seconds to
+		 * start just due to this. Thus we start with cpufreq and fall
+		 * back to acpi_cppc. If it becomes an issue, we could imagine
+		 * forcing the value to all members of the same core and even
+		 * cluster.
 		 */
+		if (ha_cpu_topo[cpu].capa < 0 &&
+		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cpufreq/scaling_max_freq", cpu) >= 0) {
+			/* This is in kHz, turn it to MHz to stay below 32k */
+			if (trash.data)
+				ha_cpu_topo[cpu].capa = (str2uic(trash.area) + 999U) / 1000U;
+		}
+
 		if (ha_cpu_topo[cpu].capa < 0 &&
 		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/acpi_cppc/nominal_perf", cpu) >= 0) {
 			if (trash.data)
 				ha_cpu_topo[cpu].capa = str2uic(trash.area);
-		}
-
-		/* Finally if none of them is available we can have a look at
-		 * cpufreq's max cpu frequency.
-		 */
-		if (ha_cpu_topo[cpu].capa < 0 &&
-		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cpufreq/scaling_max_freq", cpu) >= 0) {
-			/* This is in kHz turn it to MHz to stay below 32k */
-			if (trash.data)
-				ha_cpu_topo[cpu].capa = (str2uic(trash.area) + 999U) / 1000U;
 		}
 	}
 
