@@ -9,6 +9,9 @@ extern int cpu_topo_maxcpus;
 extern int cpu_topo_lastcpu;
 extern struct ha_cpu_topo *ha_cpu_topo;
 
+/* non-zero if we're certain that taskset or similar was used to force CPUs */
+extern int cpu_mask_forced;
+
 /* Detects CPUs that are online on the system. It may rely on FS access (e.g.
  * /sys on Linux). Returns the number of CPUs detected or 0 if the detection
  * failed.

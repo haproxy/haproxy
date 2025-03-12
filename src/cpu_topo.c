@@ -17,6 +17,8 @@ int cpu_topo_lastcpu  = -1;  // last supposed online CPU (no need to look beyond
 struct ha_cpu_topo *ha_cpu_topo = NULL;
 struct cpu_map *cpu_map;
 
+/* non-zero if we're certain that taskset or similar was used to force CPUs */
+int cpu_mask_forced = 0;
 
 /* Detects CPUs that are online on the system. It may rely on FS access (e.g.
  * /sys on Linux). Returns the number of CPUs detected or 0 if the detection
@@ -91,14 +93,19 @@ int cpu_detect_usable(void)
 
 	/* Update the list of currently offline CPUs. Normally it's a subset
 	 * of the unbound ones, but we cannot infer anything if we don't have
-	 * the info so we only update what we know.
+	 * the info so we only update what we know. We take this opportunity
+	 * for detecting that some online CPUs are not bound, indicating that
+	 * taskset or equivalent was used.
 	 */
 	if (ha_cpuset_detect_online(&boot_set)) {
 		for (cpu = 0; cpu < cpu_topo_maxcpus; cpu++) {
-			if (!ha_cpuset_isset(&boot_set, cpu))
+			if (!ha_cpuset_isset(&boot_set, cpu)) {
 				ha_cpu_topo[cpu].st |= HA_CPU_F_OFFLINE;
-			else
+			} else {
 				cpu_topo_lastcpu = cpu;
+				if (ha_cpu_topo[cpu].st & HA_CPU_F_EXCLUDED)
+					cpu_mask_forced = 1;
+			}
 		}
 	}
 
