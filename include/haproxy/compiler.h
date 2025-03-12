@@ -283,6 +283,10 @@
 #define _TOSTR(x) #x
 #define TOSTR(x) _TOSTR(x)
 
+/* concatenates the two strings after resolving possible macros */
+#define _CONCAT(a,b) a ## b
+#define CONCAT(a,b) _CONCAT(a,b)
+
 /*
  * Gcc >= 3 provides the ability for the program to give hints to the
  * compiler about what branch of an if is most likely to be taken. This
