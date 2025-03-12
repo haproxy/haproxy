@@ -21,7 +21,7 @@ void ha_cpuset_zero(struct hap_cpuset *set)
 
 int ha_cpuset_set(struct hap_cpuset *set, int cpu)
 {
-	if (cpu >= ha_cpuset_size())
+	if (cpu < 0 || cpu >= ha_cpuset_size())
 		return 1;
 
 #if defined(CPUSET_USE_CPUSET) || defined(CPUSET_USE_FREEBSD_CPUSET)
@@ -36,7 +36,7 @@ int ha_cpuset_set(struct hap_cpuset *set, int cpu)
 
 int ha_cpuset_clr(struct hap_cpuset *set, int cpu)
 {
-	if (cpu >= ha_cpuset_size())
+	if (cpu < 0 || cpu >= ha_cpuset_size())
 		return 1;
 
 #if defined(CPUSET_USE_CPUSET) || defined(CPUSET_USE_FREEBSD_CPUSET)
@@ -77,7 +77,7 @@ void ha_cpuset_or(struct hap_cpuset *dst, struct hap_cpuset *src)
 
 int ha_cpuset_isset(const struct hap_cpuset *set, int cpu)
 {
-	if (cpu >= ha_cpuset_size())
+	if (cpu < 0 || cpu >= ha_cpuset_size())
 		return 0;
 
 #if defined(CPUSET_USE_CPUSET) || defined(CPUSET_USE_FREEBSD_CPUSET)
