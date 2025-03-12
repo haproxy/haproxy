@@ -1981,6 +1981,16 @@ cpu-policy <policy>
                         the limit of 32 or 64 depending on the system. This is
                         the default policy.
 
+   - group-by-cluster   if neither "nbthread" not "nbtgroups" were set, then
+                        one thread group is created for each CPU cluster with
+                        available CPUs, each with as many threads as CPUs. All
+                        threads of a group are bound to all CPUs of the cluster
+                        so that intra-group communications remain local to the
+                        cluster without enforcing too strong a binding. The
+                        per-group thread limits and thread-group limits are
+                        respected. This is recommended on multi-socket and NUMA
+                        systems, as well as CPUs with bad inter-CCX latencies.
+
   See also: "cpu-map", "cpu-set", "nbthread"
 
 cpu-set <directive>...

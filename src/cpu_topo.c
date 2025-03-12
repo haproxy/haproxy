@@ -52,10 +52,12 @@ static int cpu_policy = 1; // "first-usable-node"
 
 /* list of CPU policies for "cpu-policy". The default one is the first one. */
 static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin, int gmax, char **err);
+static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin, int gmax, char **err);
 
 static struct ha_cpu_policy ha_cpu_policy[] = {
 	{ .name = "none",               .desc = "use all available CPUs",                           .fct = NULL   },
 	{ .name = "first-usable-node",  .desc = "use only first usable node if nbthreads not set",  .fct = cpu_policy_first_usable_node  },
+	{ .name = "group-by-cluster",   .desc = "make one thread group per core cluster",           .fct = cpu_policy_group_by_cluster   },
 	{ 0 } /* end */
 };
 
@@ -955,6 +957,94 @@ static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin
 
 	if (!global.nbthread)
 		global.nbthread = tmax;
+
+	return 0;
+}
+
+/* the "group-by-cluster" cpu-policy:
+ *  - does nothing if nbthread or thread-groups are set
+ *  - otherwise tries to create one thread-group per cluster, with as many
+ *    threads as CPUs in the cluster, and bind all the threads of this group
+ *    to all the CPUs of the cluster.
+ */
+static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin, int gmax, char **err)
+{
+	struct hap_cpuset node_cpu_set;
+	int cpu, cpu_start;
+	int cpu_count;
+	int cid, lcid;
+	int thr;
+
+	if (global.nbthread)
+		return 0;
+
+	if (global.nbtgroups)
+		return 0;
+
+	/* iterate over each new cluster */
+	lcid = -1;
+	cpu_start = 0;
+	while (global.nbtgroups < MAX_TGROUPS) {
+		ha_cpuset_zero(&node_cpu_set);
+		cid = -1; cpu_count = 0;
+
+		for (cpu = cpu_start; cpu <= cpu_topo_lastcpu; cpu++) {
+			/* skip disabled and already visited CPUs */
+			if (ha_cpu_topo[cpu].st & HA_CPU_F_EXCL_MASK)
+				continue;
+			if (ha_cpu_topo[cpu].cl_gid <= lcid)
+				continue;
+
+			if (cid < 0) {
+				cid = ha_cpu_topo[cpu].cl_gid;
+				cpu_start = cpu + 1;
+			}
+			else if (cid != ha_cpu_topo[cpu].cl_gid)
+				continue;
+
+			/* make a mask of all of this cluster's CPUs */
+			ha_cpuset_set(&node_cpu_set, ha_cpu_topo[cpu].idx);
+			cpu_count++;
+		}
+		/* now cid = next cluster_id or -1 if none; cpu_count is the
+		 * number of CPUs in this cluster, and cpu_start is the next
+		 * cpu to restart from to scan for new clusters.
+		 */
+		if (cid < 0)
+			break;
+
+		/* check that we're still within limits */
+		if (cpu_count > MAX_THREADS_PER_GROUP)
+			cpu_count = MAX_THREADS_PER_GROUP;
+
+		if (cpu_count + global.nbthread > MAX_THREADS)
+			cpu_count = MAX_THREADS - global.nbthread;
+
+		if (cpu_count <= 0)
+			break;
+
+		/* let's create the new thread group */
+		ha_tgroup_info[global.nbtgroups].base  = global.nbthread;
+		ha_tgroup_info[global.nbtgroups].count = cpu_count;
+
+		/* assign to this group the required number of threads */
+		for (thr = 0; thr < cpu_count; thr++) {
+			ha_thread_info[thr + global.nbthread].tgid = global.nbtgroups + 1;
+			ha_thread_info[thr + global.nbthread].tg = &ha_tgroup_info[global.nbtgroups];
+			ha_thread_info[thr + global.nbthread].tg_ctx = &ha_tgroup_ctx[global.nbtgroups];
+			/* map these threads to all the CPUs */
+			ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &node_cpu_set);
+		}
+
+		lcid = cid; // last cluster_id
+		global.nbthread += cpu_count;
+		global.nbtgroups++;
+	}
+
+	if (global.nbthread)
+		ha_diag_warning("Created %d threads split into %d groups\n", global.nbthread, global.nbtgroups);
+	else
+		ha_diag_warning("Could not determine any CPU cluster\n");
 
 	return 0;
 }
