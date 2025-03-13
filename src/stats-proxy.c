@@ -72,7 +72,7 @@ const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
 	[ST_I_PX_IID]                           = { .name = "iid",                         .desc = "Frontend or Backend numeric identifier ('id' setting)" },
 	[ST_I_PX_SID]                           = { .name = "sid",                         .desc = "Server numeric identifier ('id' setting)" },
 	[ST_I_PX_THROTTLE]                      = { .name = "throttle",                    .desc = "Throttling ratio applied to a server's maxconn and weight during the slowstart period (0 to 100%)" },
-	[ST_I_PX_LBTOT]         = ME_NEW_BE("lbtot",         FN_COUNTER, FF_U64, cum_lbconn,             STATS_PX_CAP_LFBS, "Total number of requests routed by load balancing since the worker process started (ignores queue pop and stickiness)"),
+	[ST_I_PX_LBTOT]         = ME_NEW_BE("lbtot",         FN_COUNTER, FF_U64, cum_lbconn,             STATS_PX_CAP___BS, "Total number of requests routed by load balancing since the worker process started (ignores queue pop and stickiness)"),
 	[ST_I_PX_TRACKED]                       = { .name = "tracked",                     .desc = "Name of the other server this server tracks for its state" },
 	[ST_I_PX_TYPE]                          = { .name = "type",                        .desc = "Type of the object (Listener, Frontend, Backend, Server)" },
 	[ST_I_PX_RATE]          = ME_NEW_PX("rate",          FN_RATE,    FF_U32, sess_per_sec,           STATS_PX_CAP__FBS, "Total number of sessions processed by this object over the last second (sessions for listeners/frontends, requests for backends/servers)"),
@@ -92,8 +92,8 @@ const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
 	[ST_I_PX_REQ_RATE_MAX]                  = { .name = "req_rate_max",                .desc = "Highest value of http requests observed since the worker process started" },
 	/* Note: ST_I_PX_REQ_TOT is also diplayed on frontend but does not uses a raw counter value, see me_generate_field() for details. */
 	[ST_I_PX_REQ_TOT]       = ME_NEW_BE("req_tot",       FN_COUNTER, FF_U64, p.http.cum_req,         STATS_PX_CAP___BS, "Total number of HTTP requests processed by this object since the worker process started"),
-	[ST_I_PX_CLI_ABRT]      = ME_NEW_BE("cli_abrt",      FN_COUNTER, FF_U64, cli_aborts,             STATS_PX_CAP_LFBS, "Total number of requests or connections aborted by the client since the worker process started"),
-	[ST_I_PX_SRV_ABRT]      = ME_NEW_BE("srv_abrt",      FN_COUNTER, FF_U64, srv_aborts,             STATS_PX_CAP_LFBS, "Total number of requests or connections aborted by the server since the worker process started"),
+	[ST_I_PX_CLI_ABRT]      = ME_NEW_BE("cli_abrt",      FN_COUNTER, FF_U64, cli_aborts,             STATS_PX_CAP___BS, "Total number of requests or connections aborted by the client since the worker process started"),
+	[ST_I_PX_SRV_ABRT]      = ME_NEW_BE("srv_abrt",      FN_COUNTER, FF_U64, srv_aborts,             STATS_PX_CAP___BS, "Total number of requests or connections aborted by the server since the worker process started"),
 	[ST_I_PX_COMP_IN]       = ME_NEW_PX("comp_in",       FN_COUNTER, FF_U64, comp_in[COMP_DIR_RES],  STATS_PX_CAP__FB_, "Total number of bytes submitted to the HTTP compressor for this object since the worker process started"),
 	[ST_I_PX_COMP_OUT]      = ME_NEW_PX("comp_out",      FN_COUNTER, FF_U64, comp_out[COMP_DIR_RES], STATS_PX_CAP__FB_, "Total number of bytes emitted by the HTTP compressor for this object since the worker process started"),
 	[ST_I_PX_COMP_BYP]      = ME_NEW_PX("comp_byp",      FN_COUNTER, FF_U64, comp_byp[COMP_DIR_RES], STATS_PX_CAP__FB_, "Total number of bytes that bypassed HTTP compression for this object since the worker process started (CPU/memory/bandwidth limitation)"),
@@ -190,6 +190,7 @@ static int stcol_hide(enum stat_idx_px idx, enum obj_type *objt)
 	case ST_I_PX_HRSP_3XX:
 	case ST_I_PX_HRSP_4XX:
 	case ST_I_PX_HRSP_5XX:
+	case ST_I_PX_HRSP_OTHER:
 	case ST_I_PX_REQ_TOT:
 	case ST_I_PX_INTERCEPTED:
 	case ST_I_PX_CACHE_LOOKUPS:
