@@ -5518,6 +5518,9 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 #define DEF_SYM(sym, ...) { .func = ({ __VA_ARGS__; sym; }), .name = #sym }
 		DEF_SYM(process_stream),
 		DEF_SYM(task_run_applet),
+		DEF_SYM(run_poll_loop),
+		DEF_SYM(run_tasks_from_lists),
+		DEF_SYM(process_runnable_tasks),
 		DEF_SYM(sc_conn_io_cb),
 		DEF_SYM(sock_conn_iocb),
 		DEF_SYM(dgram_fd_handler),
@@ -5526,6 +5529,8 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 		DEF_SYM(poller_pipe_io_handler),
 		DEF_SYM(mworker_accept_wrapper),
 		DEF_SYM(session_expire_embryonic),
+		DEF_SYM(ha_dump_backtrace, extern void ha_dump_backtrace(struct buffer, const char *, int)),
+		DEF_SYM(cli_io_handler, extern void cli_io_handler(struct appctx*)),
 #ifdef USE_THREAD
 		DEF_SYM(accept_queue_process),
 #endif
