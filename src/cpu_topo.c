@@ -973,6 +973,7 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 	int cpu, cpu_start;
 	int cpu_count;
 	int cid, lcid;
+	int thr_per_grp, nb_grp;
 	int thr;
 
 	if (global.nbthread)
@@ -984,7 +985,7 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 	/* iterate over each new cluster */
 	lcid = -1;
 	cpu_start = 0;
-	while (global.nbtgroups < MAX_TGROUPS) {
+	while (global.nbtgroups < MAX_TGROUPS && global.nbthread < MAX_THREADS) {
 		ha_cpuset_zero(&node_cpu_set);
 		cid = -1; cpu_count = 0;
 
@@ -1010,35 +1011,49 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 		 * number of CPUs in this cluster, and cpu_start is the next
 		 * cpu to restart from to scan for new clusters.
 		 */
-		if (cid < 0)
+		if (cid < 0 || !cpu_count)
 			break;
 
-		/* check that we're still within limits */
-		if (cpu_count > MAX_THREADS_PER_GROUP)
-			cpu_count = MAX_THREADS_PER_GROUP;
+		/* check that we're still within limits. If there are too many
+		 * CPUs but enough groups left, we'll try to make more smaller
+		 * groups, of the closest size each.
+		 */
+		nb_grp = (cpu_count + MAX_THREADS_PER_GROUP - 1) / MAX_THREADS_PER_GROUP;
+		if (nb_grp > MAX_TGROUPS - global.nbtgroups)
+			nb_grp = MAX_TGROUPS - global.nbtgroups;
+		thr_per_grp = (cpu_count + nb_grp - 1) / nb_grp;
+		if (thr_per_grp > MAX_THREADS_PER_GROUP)
+			thr_per_grp = MAX_THREADS_PER_GROUP;
 
-		if (cpu_count + global.nbthread > MAX_THREADS)
-			cpu_count = MAX_THREADS - global.nbthread;
+		while (nb_grp && cpu_count > 0) {
+			/* create at most thr_per_grp threads */
+			if (thr_per_grp > cpu_count)
+				thr_per_grp = cpu_count;
 
-		if (cpu_count <= 0)
-			break;
+			if (thr_per_grp + global.nbthread > MAX_THREADS)
+				thr_per_grp = MAX_THREADS - global.nbthread;
 
-		/* let's create the new thread group */
-		ha_tgroup_info[global.nbtgroups].base  = global.nbthread;
-		ha_tgroup_info[global.nbtgroups].count = cpu_count;
+			/* let's create the new thread group */
+			ha_tgroup_info[global.nbtgroups].base  = global.nbthread;
+			ha_tgroup_info[global.nbtgroups].count = thr_per_grp;
 
-		/* assign to this group the required number of threads */
-		for (thr = 0; thr < cpu_count; thr++) {
-			ha_thread_info[thr + global.nbthread].tgid = global.nbtgroups + 1;
-			ha_thread_info[thr + global.nbthread].tg = &ha_tgroup_info[global.nbtgroups];
-			ha_thread_info[thr + global.nbthread].tg_ctx = &ha_tgroup_ctx[global.nbtgroups];
-			/* map these threads to all the CPUs */
-			ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &node_cpu_set);
+			/* assign to this group the required number of threads */
+			for (thr = 0; thr < thr_per_grp; thr++) {
+				ha_thread_info[thr + global.nbthread].tgid = global.nbtgroups + 1;
+				ha_thread_info[thr + global.nbthread].tg = &ha_tgroup_info[global.nbtgroups];
+				ha_thread_info[thr + global.nbthread].tg_ctx = &ha_tgroup_ctx[global.nbtgroups];
+				/* map these threads to all the CPUs */
+				ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &node_cpu_set);
+			}
+
+			cpu_count -= thr_per_grp;
+			global.nbthread += thr_per_grp;
+			global.nbtgroups++;
+			if (global.nbtgroups >= MAX_TGROUPS || global.nbthread >= MAX_THREADS)
+				break;
 		}
 
 		lcid = cid; // last cluster_id
-		global.nbthread += cpu_count;
-		global.nbtgroups++;
 	}
 
 	if (global.nbthread)
