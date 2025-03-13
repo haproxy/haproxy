@@ -94,7 +94,7 @@ const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
 	[ST_I_PX_REQ_RATE]      = ME_NEW_FE("req_rate",      FN_RATE,    FF_U32, req_per_sec,            STATS_PX_CAP__F__, "Number of HTTP requests processed over the last second on this object"),
 	[ST_I_PX_REQ_RATE_MAX]                  = { .name = "req_rate_max",                .desc = "Highest value of http requests observed since the worker process started", .cap = STATS_PX_CAP__F__ },
 	/* Note: ST_I_PX_REQ_TOT is also diplayed on frontend but does not uses a raw counter value, see me_generate_field() for details. */
-	[ST_I_PX_REQ_TOT]       = ME_NEW_BE("req_tot",       FN_COUNTER, FF_U64, p.http.cum_req,         STATS_PX_CAP___BS, "Total number of HTTP requests processed by this object since the worker process started"),
+	[ST_I_PX_REQ_TOT]       = ME_NEW_BE("req_tot",       FN_COUNTER, FF_U64, p.http.cum_req,         STATS_PX_CAP__FBS, "Total number of HTTP requests processed by this object since the worker process started"),
 	[ST_I_PX_CLI_ABRT]      = ME_NEW_BE("cli_abrt",      FN_COUNTER, FF_U64, cli_aborts,             STATS_PX_CAP___BS, "Total number of requests or connections aborted by the client since the worker process started"),
 	[ST_I_PX_SRV_ABRT]      = ME_NEW_BE("srv_abrt",      FN_COUNTER, FF_U64, srv_aborts,             STATS_PX_CAP___BS, "Total number of requests or connections aborted by the server since the worker process started"),
 	[ST_I_PX_COMP_IN]       = ME_NEW_PX("comp_in",       FN_COUNTER, FF_U64, comp_in[COMP_DIR_RES],  STATS_PX_CAP__FB_, "Total number of bytes submitted to the HTTP compressor for this object since the worker process started"),
