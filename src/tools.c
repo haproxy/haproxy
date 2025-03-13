@@ -5549,17 +5549,30 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 	size_t size;
 	const char *fname, *p;
 #endif
-	int i;
+	size_t dist, best_dist;
+	int i, best_idx;
 
 	if (pfx)
 		chunk_appendf(buf, "%s", pfx);
 
+	best_idx = -1; best_dist = ~0;
 	for (i = 0; i < sizeof(fcts) / sizeof(fcts[0]); i++) {
-		if (addr == fcts[i].func) {
-			chunk_appendf(buf, "%s", fcts[i].name);
-			return addr;
+		if (addr < (void*)fcts[i].func)
+			continue;
+		dist = addr - (void*)fcts[i].func;
+		if (dist < (1<<18) && dist < best_dist) {
+			best_dist = dist;
+			best_idx = i;
+			if (!dist)
+				break;
 		}
 	}
+
+	/* if that's an exact match, no need to call dl_addr. This happends
+	 * when showing callback pointers for example, but not in backtraces.
+	 */
+	if (!best_dist)
+		goto use_array;
 
 #if (defined(__ELF__) && !defined(__linux__)) || defined(USE_DL)
 	/* Now let's try to be smarter */
@@ -5577,14 +5590,14 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 
 	if (!isolated &&
 	    HA_SPIN_TRYLOCK(OTHER_LOCK, &dladdr_lock) != 0)
-		goto unknown;
+		goto use_array;
 
 	i = dladdr_and_size(addr, &dli, &size);
 	if (!isolated)
 		HA_SPIN_UNLOCK(OTHER_LOCK, &dladdr_lock);
 
 	if (!i)
-		goto unknown;
+		goto use_array;
 
 	/* 1. prefix the library name if it's not the same object as the one
 	 * that contains the main function. The name is picked between last '/'
@@ -5635,9 +5648,15 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 		return NULL;
 	}
 #endif /* __ELF__ && !__linux__ || USE_DL */
- unknown:
-	/* unresolved symbol from the main file, report relative offset to main */
-	if ((void*)addr < (void*)main)
+ use_array:
+	/* either exact match from the array, or unresolved symbol for which we
+	 * may have a close match. Otherwise we report an offset relative to main.
+	 */
+	if (best_idx >= 0) {
+		chunk_appendf(buf, "%s+%#lx", fcts[best_idx].name, (long)best_dist);
+		return best_dist == 0 ? addr : NULL;
+	}
+	else if ((void*)addr < (void*)main)
 		chunk_appendf(buf, "main-%#lx", (long)((void*)main - addr));
 	else
 		chunk_appendf(buf, "main+%#lx", (long)(addr - (void*)main));
