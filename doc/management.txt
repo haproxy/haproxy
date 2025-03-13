@@ -1122,9 +1122,9 @@ CSV output format for monitoring tools. The same format is provided on the
 Unix socket.
 
 Statistics are regroup in categories labelled as domains, corresponding to the
-multiple components of HAProxy. There are two domains available: proxy and dns.
-If not specified, the proxy domain is selected. Note that only the proxy
-statistics are printed on the HTTP page.
+multiple components of HAProxy. There are two domains available: proxy and
+resolvers. If not specified, the proxy domain is selected. Note that only the
+proxy statistics are printed on the HTTP page.
 
 9.1. CSV format
 ---------------
@@ -3374,12 +3374,12 @@ show sess [<id> | all | help] [<options>*]
 
 show stat [domain <resolvers|proxy>] [{<iid>|<proxy>} <type> <sid>] \
           [typed|json] [desc] [up|no-maint]
-  Dump statistics. The domain is used to select which statistics to print; dns
-  and proxy are available for now. By default, the CSV format is used; you can
-  activate the extended typed output format described in the section above if
-  "typed" is passed after the other arguments; or in JSON if "json" is passed
-  after the other arguments. By passing <id>, <type> and <sid>, it is possible
-  to dump only selected items :
+  Dump statistics. The domain is used to select which statistics to print;
+  resolvers and proxy are available for now. By default, the CSV format is used;
+  you can activate the extended typed output format described in the section
+  above if "typed" is passed after the other arguments; or in JSON if "json" is
+  passed after the other arguments. By passing <id>, <type> and <sid>, it is
+  possible to dump only selected items :
     - <iid> is a proxy ID, -1 to dump everything. Alternatively, a proxy name
       <proxy> may be specified. In this case, this proxy's ID will be used as
       the ID selector.
