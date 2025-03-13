@@ -415,6 +415,97 @@ static int cpu_topo_get_maxcpus(void)
 	return abs_max;
 }
 
+/* This function is responsible for trying to fill in the missing info after
+ * topology detection and making sure we don't leave any ID at -1, but rather
+ * we assign unused ones.
+ */
+void cpu_fixup_topology(void)
+{
+	struct hap_cpuset cpuset;
+	int cpu;
+	int min_id, neg;
+
+	/* fill the package id, node id and thread_id. First we'll build a bitmap
+	 * of all unassigned ones so that we can spot the lowest unassigned one
+	 * and assign it to those currently set to -1.
+	 */
+
+	/* package id */
+	ha_cpuset_zero(&cpuset);
+	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++)
+		ha_cpuset_set(&cpuset, cpu);
+
+	for (cpu = neg = 0; cpu <= cpu_topo_lastcpu; cpu++) {
+		if (ha_cpu_topo[cpu].pk_id < 0)
+			neg++;
+		else
+			ha_cpuset_clr(&cpuset, ha_cpu_topo[cpu].pk_id);
+	}
+
+	/* get the first unused pkg id */
+	min_id = ha_cpuset_ffs(&cpuset) - 1;
+	for (cpu = 0; neg && cpu <= cpu_topo_lastcpu; cpu++) {
+		if (ha_cpu_topo[cpu].pk_id < 0) {
+			ha_cpu_topo[cpu].pk_id = min_id;
+			neg--;
+		}
+	}
+
+	/* node id */
+	ha_cpuset_zero(&cpuset);
+	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++)
+		ha_cpuset_set(&cpuset, cpu);
+
+	for (cpu = neg = 0; cpu <= cpu_topo_lastcpu; cpu++) {
+		if (ha_cpu_topo[cpu].no_id < 0)
+			neg++;
+		else
+			ha_cpuset_clr(&cpuset, ha_cpu_topo[cpu].no_id);
+	}
+
+	/* get the first unused node id */
+	min_id = ha_cpuset_ffs(&cpuset) - 1;
+	for (cpu = 0; neg && cpu <= cpu_topo_lastcpu; cpu++) {
+		if (ha_cpu_topo[cpu].no_id < 0) {
+			ha_cpu_topo[cpu].no_id = min_id;
+			neg--;
+		}
+	}
+
+	/* thread id */
+	ha_cpuset_zero(&cpuset);
+	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++)
+		ha_cpuset_set(&cpuset, cpu);
+
+	for (cpu = neg = 0; cpu <= cpu_topo_lastcpu; cpu++) {
+		if (ha_cpu_topo[cpu].th_id < 0)
+			neg++;
+		else
+			ha_cpuset_clr(&cpuset, ha_cpu_topo[cpu].th_id);
+	}
+
+	/* get the first unused thr id */
+	min_id = ha_cpuset_ffs(&cpuset) - 1;
+	for (cpu = 0; neg && cpu <= cpu_topo_lastcpu; cpu++) {
+		if (ha_cpu_topo[cpu].th_id < 0) {
+			ha_cpu_topo[cpu].th_id = min_id;
+			ha_cpu_topo[cpu].th_cnt = min_id + 1;
+			neg--;
+		}
+	}
+
+	/* assign capacity if not filled, based on the number of threads on the
+	 * core: in a same package, SMT-capable cores are generally those
+	 * optimized for performers while non-SMT ones are generally those
+	 * optimized for efficiency. We'll reflect that by assigning 100 and 50
+	 * respectively to those.
+	 */
+	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++) {
+		if (ha_cpu_topo[cpu].capa < 0)
+			ha_cpu_topo[cpu].capa = (ha_cpu_topo[cpu].th_cnt > 1) ? 100 : 50;
+	}
+}
+
 /* This function is responsible for composing clusters based on existing info
  * on the CPU topology.
  */
