@@ -943,6 +943,7 @@ void cpu_fixup_topology(void)
 	int curr_gid, prev_gid;
 	int curr_lid, prev_lid;
 	int min_id, neg;
+	int cl_cpu, tot_cl, small_cl;
 
 	/* fill the package id, node id and thread_id. First we'll build a bitmap
 	 * of all unassigned ones so that we can spot the lowest unassigned one
@@ -1012,6 +1013,76 @@ void cpu_fixup_topology(void)
 			neg--;
 		}
 	}
+
+	/* Some machines (typically ARM cortex A76 and Neoverse-N1) report 1
+	 * cluster per pair of cores due to the internal architecture. While
+	 * this can occasionally make sense (i.e. big.LITTLE etc), when there
+	 * are many clusters of few cores, this is totally pointless. Here
+	 * we'll check if there are at least 4 2-cpu clusters, and if so, all
+	 * the 2-cpu clusters will be cancelled.
+	 */
+	cpu_reorder_by_cluster(ha_cpu_topo, cpu_topo_maxcpus);
+
+	curr_gid = -1;
+	tot_cl = cl_cpu = small_cl = 0;
+	for (cpu = cpu2 = 0; cpu <= cpu_topo_lastcpu; cpu++) {
+		if (ha_cpu_topo[cpu].cl_gid < 0)
+			continue;
+
+		if (ha_cpu_topo[cpu].st & HA_CPU_F_EXCL_MASK)
+			continue;
+
+		if (ha_cpu_topo[cpu].cl_gid != curr_gid) {
+			if (curr_gid >= 0 && cl_cpu <= 2)
+				small_cl++;
+			tot_cl++;
+			cl_cpu = 0;
+			cpu2 = cpu;
+			curr_gid = ha_cpu_topo[cpu].cl_gid;
+		}
+		cl_cpu++;
+	}
+
+	/* last one */
+	if (cl_cpu && cl_cpu <= 2)
+		small_cl++;
+
+	/* here we have the number of clusters in tot_cl, the number of small
+	 * clusters (<=2 cpu) in small_cl.
+	 */
+	if (small_cl >= 4) {
+		for (cpu = cpu2 = 0; cpu <= cpu_topo_lastcpu; cpu++) {
+			if (ha_cpu_topo[cpu].cl_gid < 0)
+				continue;
+
+			if (ha_cpu_topo[cpu].st & HA_CPU_F_EXCL_MASK)
+				continue;
+
+			if (ha_cpu_topo[cpu].cl_gid != curr_gid) {
+				if (curr_gid >= 0 && cl_cpu <= 2) {
+					/* small cluster found for curr_gid */
+					while (cpu2 < cpu) {
+						if (ha_cpu_topo[cpu2].cl_gid == curr_gid)
+							ha_cpu_topo[cpu2].cl_gid = -1;
+						cpu2++;
+					}
+				}
+				cl_cpu = 0;
+				cpu2 = cpu;
+				curr_gid = ha_cpu_topo[cpu].cl_gid;
+			}
+			cl_cpu++;
+		}
+
+		/* handle the last cluster */
+		while (curr_gid >= 0 && cl_cpu <= 2 && cpu2 < cpu) {
+			if (ha_cpu_topo[cpu2].cl_gid == curr_gid)
+				ha_cpu_topo[cpu2].cl_gid = -1;
+			cpu2++;
+		}
+	}
+
+	cpu_reorder_by_index(ha_cpu_topo, cpu_topo_maxcpus);
 
 	/* assign capacity if not filled, based on the number of threads on the
 	 * core: in a same package, SMT-capable cores are generally those
