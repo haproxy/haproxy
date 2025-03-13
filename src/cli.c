@@ -1059,7 +1059,7 @@ size_t cli_snd_buf(struct appctx *appctx, struct buffer *buf, size_t count, unsi
  * CLI_ST_* constants. appctx->st1 is used to indicate whether prompt is enabled
  * or not.
  */
-static void cli_io_handler(struct appctx *appctx)
+void cli_io_handler(struct appctx *appctx)
 {
 	if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_ALLOC|APPCTX_FL_OUTBLK_FULL))
 		goto out;
