@@ -5515,29 +5515,31 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 		const void *func;
 		const char *name;
 	} fcts[] = {
-		{ .func = process_stream, .name = "process_stream" },
-		{ .func = task_run_applet, .name = "task_run_applet" },
-		{ .func = sc_conn_io_cb, .name = "sc_conn_io_cb" },
-		{ .func = sock_conn_iocb, .name = "sock_conn_iocb" },
-		{ .func = dgram_fd_handler, .name = "dgram_fd_handler" },
-		{ .func = listener_accept, .name = "listener_accept" },
-		{ .func = manage_global_listener_queue, .name = "manage_global_listener_queue" },
-		{ .func = poller_pipe_io_handler, .name = "poller_pipe_io_handler" },
-		{ .func = mworker_accept_wrapper, .name = "mworker_accept_wrapper" },
-		{ .func = session_expire_embryonic, .name = "session_expire_embryonic" },
+#define DEF_SYM(sym, ...) { .func = ({ __VA_ARGS__; sym; }), .name = #sym }
+		DEF_SYM(process_stream),
+		DEF_SYM(task_run_applet),
+		DEF_SYM(sc_conn_io_cb),
+		DEF_SYM(sock_conn_iocb),
+		DEF_SYM(dgram_fd_handler),
+		DEF_SYM(listener_accept),
+		DEF_SYM(manage_global_listener_queue),
+		DEF_SYM(poller_pipe_io_handler),
+		DEF_SYM(mworker_accept_wrapper),
+		DEF_SYM(session_expire_embryonic),
 #ifdef USE_THREAD
-		{ .func = accept_queue_process, .name = "accept_queue_process" },
+		DEF_SYM(accept_queue_process),
 #endif
 #ifdef USE_LUA
-		{ .func = hlua_process_task, .name = "hlua_process_task" },
+		DEF_SYM(hlua_process_task),
 #endif
 #ifdef SSL_MODE_ASYNC
-		{ .func = ssl_async_fd_free, .name = "ssl_async_fd_free" },
-		{ .func = ssl_async_fd_handler, .name = "ssl_async_fd_handler" },
+		DEF_SYM(ssl_async_fd_free),
+		DEF_SYM(ssl_async_fd_handler),
 #endif
 #ifdef USE_QUIC
-		{ .func = quic_conn_sock_fd_iocb, .name = "quic_conn_sock_fd_iocb" },
+		DEF_SYM(quic_conn_sock_fd_iocb),
 #endif
+#undef DEF_SYM
 	};
 
 #if (defined(__ELF__) && !defined(__linux__)) || defined(USE_DL)
