@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#include <errno.h>
 #include <limits.h>
 #include <sched.h>
 #include <stdio.h>
@@ -10,6 +11,22 @@
 // NCPU=16 LD_PRELOAD=$PWD/ncpu.so command args...
 
 static char prog_full_path[PATH_MAX];
+
+long sysconf(int name)
+{
+	if (name == _SC_NPROCESSORS_ONLN ||
+	    name == _SC_NPROCESSORS_CONF) {
+		const char *ncpu = getenv("NCPU");
+		int n;
+
+		n = ncpu ? atoi(ncpu) : CPU_SETSIZE;
+		if (n < 0 || n > CPU_SETSIZE)
+			n = CPU_SETSIZE;
+		return n;
+	}
+	errno = EINVAL;
+	return -1;
+}
 
 /* return a cpu_set having the first $NCPU set */
 int sched_getaffinity(pid_t pid, size_t cpusetsize, cpu_set_t *mask)
