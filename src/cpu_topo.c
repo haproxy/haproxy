@@ -54,12 +54,14 @@ static int cpu_policy = 1; // "first-usable-node"
 static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin, int gmax, char **err);
 static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin, int gmax, char **err);
 static int cpu_policy_performance(int policy, int tmin, int tmax, int gmin, int gmax, char **err);
+static int cpu_policy_efficiency(int policy, int tmin, int tmax, int gmin, int gmax, char **err);
 
 static struct ha_cpu_policy ha_cpu_policy[] = {
 	{ .name = "none",               .desc = "use all available CPUs",                           .fct = NULL   },
 	{ .name = "first-usable-node",  .desc = "use only first usable node if nbthreads not set",  .fct = cpu_policy_first_usable_node  },
 	{ .name = "group-by-cluster",   .desc = "make one thread group per core cluster",           .fct = cpu_policy_group_by_cluster   },
 	{ .name = "performance",        .desc = "make one thread group per perf. core cluster",     .fct = cpu_policy_performance        },
+	{ .name = "efficiency",         .desc = "make one thread group per eff. core cluster",      .fct = cpu_policy_efficiency         },
 	{ 0 } /* end */
 };
 
@@ -1118,6 +1120,45 @@ static int cpu_policy_performance(int policy, int tmin, int tmax, int gmin, int 
 	for (cluster = 0; cluster < cpu_topo_maxcpus; cluster++) {
 		if (capa && ha_cpu_clusters[cluster].capa < capa / 2) {
 			/* This cluster is more than twice as slow as the
+			 * previous one, we're not interested in using it.
+			 */
+			for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++) {
+				if (ha_cpu_topo[cpu].cl_gid == ha_cpu_clusters[cluster].idx)
+					ha_cpu_topo[cpu].st |= HA_CPU_F_IGNORED;
+			}
+		}
+		else
+			capa = ha_cpu_clusters[cluster].capa;
+	}
+
+	cpu_cluster_reorder_by_index(ha_cpu_clusters, cpu_topo_maxcpus);
+
+	/* and finish using the group-by-cluster strategy */
+	return cpu_policy_group_by_cluster(policy, tmin, tmax, gmin, gmax, err);
+}
+
+/* the "efficiency" cpu-policy:
+ *  - does nothing if nbthread or thread-groups are set
+ *  - eliminates clusters whose total capacity is above half of others
+ *  - tries to create one thread-group per cluster, with as many
+ *    threads as CPUs in the cluster, and bind all the threads of
+ *    this group to all the CPUs of the cluster.
+ */
+static int cpu_policy_efficiency(int policy, int tmin, int tmax, int gmin, int gmax, char **err)
+{
+	int cpu, cluster;
+	int capa;
+
+	if (global.nbthread || global.nbtgroups)
+		return 0;
+
+	/* sort clusters by reverse capacity */
+	cpu_cluster_reorder_by_capa(ha_cpu_clusters, cpu_topo_maxcpus);
+
+	capa = 0;
+	for (cluster = cpu_topo_maxcpus - 1; cluster >= 0; cluster--) {
+		if (capa && ha_cpu_clusters[cluster].capa > capa * 2) {
+			/* This cluster is more than twice as fast as the
 			 * previous one, we're not interested in using it.
 			 */
 			for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++) {
