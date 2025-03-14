@@ -20,6 +20,7 @@
 int cpu_topo_maxcpus  = -1;  // max number of CPUs supported by OS/haproxy
 int cpu_topo_lastcpu  = -1;  // last supposed online CPU (no need to look beyond)
 struct ha_cpu_topo *ha_cpu_topo = NULL;
+struct ha_cpu_cluster *ha_cpu_clusters = NULL;
 struct cpu_map *cpu_map;
 
 /* non-zero if we're certain that taskset or similar was used to force CPUs */
@@ -218,6 +219,16 @@ void cpu_dump_topology(const struct ha_cpu_topo *topo)
 				       ha_cpu_topo[cpu].th_cnt);
 		}
 		putchar('\n');
+	}
+
+	printf("CPU clusters:\n");
+	for (cpu = 0; cpu < cpu_topo_maxcpus; cpu++) {
+		if (!ha_cpu_clusters[cpu].nb_cpu)
+			continue;
+		printf("  %3u  cpus=%3u cores=%3u capa=%u\n",
+		       cpu, ha_cpu_clusters[cpu].nb_cpu,
+		       ha_cpu_clusters[cpu].nb_cores,
+		       ha_cpu_clusters[cpu].capa);
 	}
 }
 
@@ -680,7 +691,7 @@ void cpu_fixup_topology(void)
  */
 void cpu_compose_clusters(void)
 {
-	int cpu;
+	int cpu, core;
 	int curr_gid, prev_gid;
 	int curr_lid, prev_lid;
 
@@ -693,6 +704,8 @@ void cpu_compose_clusters(void)
 
 	prev_gid = prev_lid = -2; // make sure it cannot match even unassigned ones
 	curr_gid = curr_lid = -1;
+	core = -1;
+
 	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++) {
 		/* renumber clusters and assign unassigned ones at the same
 		 * time. For this, we'll compare pkg/die/llc with the last
@@ -706,6 +719,7 @@ void cpu_compose_clusters(void)
 		    (ha_cpu_topo[cpu].no_id != ha_cpu_topo[cpu-1].no_id)) {
 			curr_gid++;
 			curr_lid = 0;
+			core = -1;
 		}
 		else if (ha_cpu_topo[cpu].cl_gid != prev_gid ||
 			 ha_cpu_topo[cpu].ca_id[4] != ha_cpu_topo[cpu-1].ca_id[4] ||
@@ -723,6 +737,22 @@ void cpu_compose_clusters(void)
 		prev_lid = ha_cpu_topo[cpu].cl_lid;
 		ha_cpu_topo[cpu].cl_gid = curr_gid;
 		ha_cpu_topo[cpu].cl_lid = curr_lid;
+
+		/* update per-cluster info */
+		if (!(ha_cpu_topo[cpu].st & HA_CPU_F_EXCL_MASK)) {
+			ha_cpu_clusters[curr_gid].nb_cpu++;
+			if (ha_cpu_topo[cpu].ts_id != core) {
+				/* new core for this cluster */
+				ha_cpu_clusters[curr_gid].nb_cores++;
+				ha_cpu_clusters[curr_gid].capa += ha_cpu_topo[cpu].capa;
+				core = ha_cpu_topo[cpu].ts_id;
+			} else {
+				/* tests show that it's reasonable to expect
+				 * ~+33% for an extra thread on the same core.
+				 */
+				ha_cpu_clusters[curr_gid].capa += ha_cpu_topo[cpu].capa / 3;
+			}
+		}
 	}
 
 	cpu_reorder_by_index(ha_cpu_topo, cpu_topo_maxcpus);
@@ -1141,13 +1171,22 @@ static int cpu_topo_alloc(void)
 	if (!ha_cpu_topo)
 		return 0;
 
+	/* allocate the structures used to store CPU topology info */
+	ha_cpu_clusters = (struct ha_cpu_cluster*)malloc(cpu_topo_maxcpus * sizeof(*ha_cpu_clusters));
+	if (!ha_cpu_topo)
+		return 0;
+
 	/* preset all fields to -1 except the index and the state flags which
 	 * are assumed to all be bound and online unless detected otherwise.
+	 * Also set all cluster idx to their respective index.
 	 */
 	for (cpu = 0; cpu < cpu_topo_maxcpus; cpu++) {
 		memset(&ha_cpu_topo[cpu], 0xff, sizeof(*ha_cpu_topo));
 		ha_cpu_topo[cpu].st  = 0;
 		ha_cpu_topo[cpu].idx = cpu;
+
+		memset(&ha_cpu_clusters[cpu], 0x0, sizeof(*ha_cpu_clusters));
+		ha_cpu_clusters[cpu].idx = cpu;
 	}
 
 	/* pre-inizialize the configured CPU sets */
@@ -1164,6 +1203,7 @@ static int cpu_topo_alloc(void)
 
 static void cpu_topo_deinit(void)
 {
+	ha_free(&ha_cpu_clusters);
 	ha_free(&ha_cpu_topo);
 	ha_free(&cpu_map);
 }

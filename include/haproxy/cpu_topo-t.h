@@ -41,4 +41,12 @@ struct ha_cpu_topo {
 	short capa;   // estimated CPU relative capacity; more is better
 };
 
+/* Description of a CPU cluster. */
+struct ha_cpu_cluster {
+	uint idx;         /* used when sorting, normally the entry index */
+	uint capa;        /* total capacity */
+	uint nb_cores;    /* total distinct cores */
+	uint nb_cpu;      /* total CPUs */
+};
+
 #endif /* _HAPROXY_CPU_TOPO_T_H */
