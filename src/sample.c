@@ -1983,7 +1983,7 @@ int sample_conv_var2smp_str(const struct arg *arg, struct sample *smp)
 	}
 }
 
-static int sample_conv_be2dec_check(struct arg *args, struct sample_conv *conv,
+static int sample_conv_2dec_check(struct arg *args, struct sample_conv *conv,
                                     const char *file, int line, char **err)
 {
 	if (args[1].data.sint <= 0 || args[1].data.sint > sizeof(unsigned long long)) {
@@ -1999,13 +1999,13 @@ static int sample_conv_be2dec_check(struct arg *args, struct sample_conv *conv,
 	return 1;
 }
 
-/* Converts big-endian binary input sample to a string containing an unsigned
+/* Converts big-endian/little-endian binary input sample to a string containing an unsigned
  * integer number per <chunk_size> input bytes separated with <separator>.
  * Optional <truncate> flag indicates if input is truncated at <chunk_size>
  * boundaries.
- * Arguments: separator (string), chunk_size (integer), truncate (0,1)
+ * Arguments: separator (string), chunk_size (integer), truncate (0,1), big endian (0,1)
  */
-static int sample_conv_be2dec(const struct arg *args, struct sample *smp, void *private)
+static int sample_conv_2dec(const struct arg *args, struct sample *smp, void *private, int be)
 {
 	struct buffer *trash = get_trash_chunk();
 	const int last = args[2].data.sint ? smp->data.u.str.data - args[1].data.sint + 1 : smp->data.u.str.data;
@@ -2029,8 +2029,12 @@ static int sample_conv_be2dec(const struct arg *args, struct sample *smp, void *
 			max_size -= args[0].data.str.data;
 
 		/* Add integer */
-		for (number = 0, i = 0; i < args[1].data.sint && ptr < smp->data.u.str.data; i++)
-			number = (number << 8) + (unsigned char)smp->data.u.str.area[ptr++];
+		for (number = 0, i = 0; i < args[1].data.sint && ptr < smp->data.u.str.data; i++) {
+			if (be)
+				number = (number << 8) + (unsigned char)smp->data.u.str.area[ptr++];
+			else
+				number |= (unsigned char)smp->data.u.str.area[ptr++] << (i*8);
+		}
 
 		pos = ulltoa(number, trash->area + trash->data, trash->size - trash->data);
 		if (pos)
@@ -2045,6 +2049,28 @@ static int sample_conv_be2dec(const struct arg *args, struct sample *smp, void *
 	smp->data.type = SMP_T_STR;
 	smp->flags &= ~SMP_F_CONST;
 	return 1;
+}
+
+/* Converts big-endian binary input sample to a string containing an unsigned
+ * integer number per <chunk_size> input bytes separated with <separator>.
+ * Optional <truncate> flag indicates if input is truncated at <chunk_size>
+ * boundaries.
+ * Arguments: separator (string), chunk_size (integer), truncate (0,1)
+ */
+static int sample_conv_be2dec(const struct arg *args, struct sample *smp, void *private)
+{
+	return sample_conv_2dec(args, smp, private, 1);
+}
+
+/* Converts little-endian binary input sample to a string containing an unsigned
+ * integer number per <chunk_size> input bytes separated with <separator>.
+ * Optional <truncate> flag indicates if input is truncated at <chunk_size>
+ * boundaries.
+ * Arguments: separator (string), chunk_size (integer), truncate (0,1)
+ */
+static int sample_conv_le2dec(const struct arg *args, struct sample *smp, void *private)
+{
+	return sample_conv_2dec(args, smp, private, 0);
 }
 
 static int sample_conv_be2hex_check(struct arg *args, struct sample_conv *conv,
@@ -5415,7 +5441,8 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "upper",   sample_conv_str2upper,    0,                     NULL,                     SMP_T_STR,  SMP_T_STR  },
 	{ "lower",   sample_conv_str2lower,    0,                     NULL,                     SMP_T_STR,  SMP_T_STR  },
 	{ "length",  sample_conv_length,       0,                     NULL,                     SMP_T_STR,  SMP_T_SINT },
-	{ "be2dec",  sample_conv_be2dec,       ARG3(1,STR,SINT,SINT), sample_conv_be2dec_check, SMP_T_BIN,  SMP_T_STR  },
+	{ "be2dec",  sample_conv_be2dec,       ARG3(1,STR,SINT,SINT), sample_conv_2dec_check,   SMP_T_BIN,  SMP_T_STR  },
+	{ "le2dec",  sample_conv_le2dec,       ARG3(1,STR,SINT,SINT), sample_conv_2dec_check,   SMP_T_BIN,  SMP_T_STR  },
 	{ "be2hex",  sample_conv_be2hex,       ARG3(1,STR,SINT,SINT), sample_conv_be2hex_check, SMP_T_BIN,  SMP_T_STR  },
 	{ "hex",     sample_conv_bin2hex,      0,                     NULL,                     SMP_T_BIN,  SMP_T_STR  },
 	{ "hex2i",   sample_conv_hex2int,      0,                     NULL,                     SMP_T_STR,  SMP_T_SINT },

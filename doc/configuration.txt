@@ -19901,6 +19901,7 @@ and(value)                                         integer      integer
 b64dec                                             string       binary
 base64                                             binary       string
 be2dec(separator,chunk_size[,truncate])            binary       string
+le2dec(separator,chunk_size[,truncate])            binary       string
 be2hex([separator[,chunk_size[,truncate]]])        binary       string
 bool                                               integer      boolean
 bytes(offset[,length])                             binary       binary
@@ -20140,6 +20141,19 @@ be2dec(<separator>,<chunk_size>[,<truncate>])
       bin(01020304050607),be2dec(-,2,1) # 258-772-1286
       bin(01020304050607),be2dec(,2,1)  # 2587721286
       bin(7f000001),be2dec(.,1)         # 127.0.0.1
+
+le2dec(<separator>,<chunk_size>[,<truncate>])
+  Converts little-endian binary input sample to a string containing an unsigned
+  integer number per <chunk_size> input bytes. <separator> is inserted every
+  <chunk_size> binary input bytes if specified. The <truncate> flag indicates
+  whether the binary input is truncated at <chunk_size> boundaries. The maximum
+  value for <chunk_size> is limited by the size of long long int (8 bytes).
+
+  Example:
+      bin(01020304050607),le2dec(:,2)   # 513:1284:2055:7
+      bin(01020304050607),le2dec(-,2,1) # 513-1284-2055
+      bin(01020304050607),le2dec(,2,1)  # 51312842055
+      bin(7f000001),le2dec(.,1)         # 127.0.0.1
 
 be2hex([<separator>[,<chunk_size>[,<truncate>]]])
   Converts big-endian binary input sample to a hex string containing two hex

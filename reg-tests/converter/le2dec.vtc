@@ -1,0 +1,56 @@
+varnishtest "le2dec converter Test"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.0-dev0)'"
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp -hdr "Connection: close"
+} -repeat 3 -start
+
+haproxy h1 -conf {
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+
+	#### requests
+	http-request  set-var(txn.input) req.hdr(input)
+
+	http-response set-header le2dec-1   "%[var(txn.input),le2dec(:,1)]"
+	http-response set-header le2dec-2   "%[var(txn.input),le2dec(-,3)]"
+	http-response set-header le2dec-3   "%[var(txn.input),le2dec(::,3,1)]"
+
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/" \
+	  -hdr "input:"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.le2dec-1 == ""
+	expect resp.http.le2dec-2 == ""
+	expect resp.http.le2dec-3 == ""
+	txreq -url "/" \
+	  -hdr "input: 0123456789"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.le2dec-1 == "48:49:50:51:52:53:54:55:56:57"
+	expect resp.http.le2dec-2 == "3289392-3486771-3684150-57"
+	expect resp.http.le2dec-3 == "3289392::3486771::3684150"
+	txreq -url "/" \
+	  -hdr "input: abcdefghijklmnopqrstuvwxyz"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.le2dec-1 == "97:98:99:100:101:102:103:104:105:106:107:108:109:110:111:112:113:114:115:116:117:118:119:120:121:122"
+	expect resp.http.le2dec-2 == "6513249-6710628-6908007-7105386-7302765-7500144-7697523-7894902-31353"
+	expect resp.http.le2dec-3 == "6513249::6710628::6908007::7105386::7302765::7500144::7697523::7894902"
+} -run
