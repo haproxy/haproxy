@@ -1991,6 +1991,17 @@ cpu-policy <policy>
                         respected. This is recommended on multi-socket and NUMA
                         systems, as well as CPUs with bad inter-CCX latencies.
 
+   - performance        exactly like group-by-cluster above, except that CPU
+                        clusters whose performance is less than half of the
+                        next more performant one are evicted. These are
+                        typically "little" or "efficient" cores, whose addition
+                        generally doesn't bring significant gains and can
+                        easily be counter-productive (e.g. TLS handshakes).
+                        Often, keeping such cores for other tasks such as
+                        network handling is much more effective. On development
+                        systems, these can also be used to run auxiliary tools
+                        such as load generators and monitoring tools.
+
   See also: "cpu-map", "cpu-set", "nbthread"
 
 cpu-set <directive>...
