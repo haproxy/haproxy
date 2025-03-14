@@ -2014,6 +2014,17 @@ cpu-policy <policy>
                         systems, these can also be used to run auxiliary tools
                         such as load generators and monitoring tools.
 
+   - resource           this is like group-by-cluster above, except that only
+                        the smallest and most efficient CPU cluster will be
+                        used, while all other ones will be ignored. This can be
+                        used to limit the resource usage to the strict minimum
+                        that still delivers decent performance, for example to
+                        try to further reduce power consumption or minimize the
+                        number of cores needed on some rented systems for a
+                        sidecar setup, in order to scale the system down more
+                        easily. Note that if a single cluster is present, it
+                        will still be fully used.
+
   See also: "cpu-map", "cpu-set", "nbthread"
 
 cpu-set <directive>...
