@@ -5553,7 +5553,7 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 	__decl_thread_var(static HA_SPINLOCK_T dladdr_lock);
 	int isolated;
 	Dl_info dli;
-	size_t size;
+	size_t size = 0;
 	const char *fname, *p;
 #endif
 	size_t dist, best_dist;
