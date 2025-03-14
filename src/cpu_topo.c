@@ -419,13 +419,20 @@ int cpu_detect_topology(void)
 		 * start just due to this. Thus we start with cpufreq and fall
 		 * back to acpi_cppc. If it becomes an issue, we could imagine
 		 * forcing the value to all members of the same core and even
-		 * cluster.
+		 * cluster. Since the frequency alone is not a good criterion
+		 * to qualify the CPU quality (perf vs efficiency core), instead
+		 * we rely on the thread count to gauge if it's a performant or
+		 * an efficient core, and we major performant cores' capacity
+		 * by 50% (shown to be roughly correct on modern CPUs).
 		 */
 		if (ha_cpu_topo[cpu].capa < 0 &&
 		    read_line_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH "/cpu/cpu%d/cpufreq/scaling_max_freq", cpu) >= 0) {
 			/* This is in kHz, turn it to MHz to stay below 32k */
-			if (trash.data)
+			if (trash.data) {
 				ha_cpu_topo[cpu].capa = (str2uic(trash.area) + 999U) / 1000U;
+				if (ha_cpu_topo[cpu].th_cnt > 1)
+					ha_cpu_topo[cpu].capa = ha_cpu_topo[cpu].capa * 3 / 2;
+			}
 		}
 
 		if (ha_cpu_topo[cpu].capa < 0 &&
