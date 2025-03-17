@@ -2845,11 +2845,28 @@ void stream_shutdown_self(struct stream *stream, int why)
 	if (stream->scb->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED))
 		return;
 
-	sc_schedule_shutdown(stream->scb);
-	sc_schedule_abort(stream->scb);
 	stream->task->nice = 1024;
 	if (!(stream->flags & SF_ERR_MASK))
 		stream->flags |= why;
+
+	if (objt_server(stream->target)) {
+		if (stream->flags & SF_CURR_SESS) {
+			stream->flags &= ~SF_CURR_SESS;
+			_HA_ATOMIC_DEC(&__objt_server(stream->target)->cur_sess);
+		}
+
+		sess_change_server(stream, NULL);
+		if (may_dequeue_tasks(objt_server(stream->target), stream->be))
+			process_srv_queue(objt_server(stream->target));
+	}
+
+	/* shutw is enough to stop a connecting socket */
+	stream->scb->flags |= SC_FL_ERROR | SC_FL_NOLINGER;
+	sc_shutdown(stream->scb);
+
+	stream->scb->state = SC_ST_CLO;
+	if (stream->srv_error)
+		stream->srv_error(stream, stream->scb);
 }
 
 /* dumps an error message for type <type> at ptr <ptr> related to stream <s>,
