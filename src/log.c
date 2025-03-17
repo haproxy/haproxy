@@ -5739,7 +5739,7 @@ static void syslog_process_message(struct proxy *frontend, struct listener *l,
 
 	parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
-	if (real_family(saddr->ss_family) == AF_UNIX)
+	if (saddr && real_family(saddr->ss_family) == AF_UNIX)
 		saddr = NULL; /* no source information for UNIX addresses */
 
 	/* handle host options */
