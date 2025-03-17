@@ -3886,11 +3886,13 @@ AppletTCP class
   :param class_AppletTCP applet: An :ref:`applettcp_class`
   :returns: a string. The string can be empty if we reach the end of the stream.
 
-.. js:function:: AppletTCP.receive(applet, [size])
+.. js:function:: AppletTCP.receive(applet, [size, [timeout]])
 
   Reads data from the TCP stream, according to the specified read *size*. If the
   *size* is missing, the function tries to read all the content of the stream
-  until the end.
+  until the end. An optional timeout may be specified in milliseconds. In this
+  case the function will return no longer than this delay, with the amount of
+  available data (possibly none).
 
   :param class_AppletTCP applet: An :ref:`applettcp_class`
   :param integer size: the required read size.

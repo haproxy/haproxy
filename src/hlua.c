@@ -5321,6 +5321,7 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 	struct stconn *sc = appctx_sc(luactx->appctx);
 	size_t len = MAY_LJMP(luaL_checkinteger(L, 2));
+	int exp_date = MAY_LJMP(luaL_checkinteger(L, -1));
 	int ret;
 	const char *blk1;
 	size_t len1;
@@ -5335,8 +5336,14 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 
 	/* Data not yet available. return yield. */
 	if (ret == 0) {
+		if (tick_is_expired(exp_date, now_ms)) {
+			/* return the result. */
+			luaL_pushresult(&luactx->b);
+			return 1;
+		}
+
 		applet_need_more_data(luactx->appctx);
-		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, TICK_ETERNITY, 0));
+		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, exp_date, 0));
 	}
 
 	/* End of data: commit the total strings and return. */
@@ -5361,8 +5368,15 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 			b_del(&luactx->appctx->inbuf, len1 + len2);
 		else
 			co_skip(sc_oc(sc), len1 + len2);
+
+		if (tick_is_expired(exp_date, now_ms)) {
+			/* return the result. */
+			luaL_pushresult(&luactx->b);
+			return 1;
+		}
+
 		applet_need_more_data(luactx->appctx);
-		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, TICK_ETERNITY, 0));
+		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, exp_date, 0));
 
 	} else {
 
@@ -5384,11 +5398,11 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 			co_skip(sc_oc(sc), len1 + len2);
 
 		/* If there is no other data available, yield waiting for new data. */
-		if (len > 0) {
+		if (len > 0 && !tick_is_expired(exp_date, now_ms)) {
 			lua_pushinteger(L, len);
 			lua_replace(L, 2);
 			applet_need_more_data(luactx->appctx);
-			MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, TICK_ETERNITY, 0));
+			MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, exp_date, 0));
 		}
 
 		/* return the result. */
@@ -5406,17 +5420,27 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 __LJMP static int hlua_applet_tcp_recv(lua_State *L)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	int exp_date;
+	int delay = 0;
 	int len = -1;
 
-	if (lua_gettop(L) > 2)
-		WILL_LJMP(luaL_error(L, "The 'recv' function requires between 1 and 2 arguments."));
+	if (lua_gettop(L) > 3)
+		WILL_LJMP(luaL_error(L, "The 'recv' function requires between 1 and 3 arguments."));
 	if (lua_gettop(L) >= 2) {
+		if (lua_gettop(L) >= 3) {
+			delay = MAY_LJMP(luaL_checkinteger(L, 3));
+			lua_pop(L, 1);
+		}
 		len = MAY_LJMP(luaL_checkinteger(L, 2));
 		lua_pop(L, 1);
 	}
 
 	/* Confirm or set the required length */
 	lua_pushinteger(L, len);
+
+	/* set the expiration date */
+	exp_date = delay ? tick_add(now_ms, delay) : TICK_ETERNITY;
+	lua_pushinteger(L, exp_date);
 
 	/* Initialise the string catenation. */
 	luaL_buffinit(L, &luactx->b);
