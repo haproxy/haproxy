@@ -79,14 +79,12 @@
 #define GTUNE_DISABLE_H2_WEBSOCKET (1<<21)
 #define GTUNE_DISABLE_ACTIVE_CLOSE (1<<22)
 #define GTUNE_QUICK_EXIT         (1<<23)
-#define GTUNE_QUIC_SOCK_PER_CONN (1<<24)
+/* (1<<24) unused */
 #define GTUNE_NO_QUIC            (1<<25)
 #define GTUNE_USE_FAST_FWD       (1<<26)
 #define GTUNE_LISTENER_MQ_FAIR   (1<<27)
 #define GTUNE_LISTENER_MQ_OPT    (1<<28)
 #define GTUNE_LISTENER_MQ_ANY    (GTUNE_LISTENER_MQ_FAIR | GTUNE_LISTENER_MQ_OPT)
-#define GTUNE_QUIC_CC_HYSTART    (1<<29)
-#define GTUNE_QUIC_NO_UDP_GSO    (1<<30)
 
 /* subsystem-specific debugging options for tune.debug */
 #define GDBG_CPU_AFFINITY           (1U<< 0)

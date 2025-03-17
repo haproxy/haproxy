@@ -28,6 +28,7 @@
 #include <haproxy/quic_stream.h>
 #include <haproxy/quic_tls.h>
 #include <haproxy/quic_trace.h>
+#include <haproxy/quic_tune.h>
 #include <haproxy/ssl_sock-t.h>
 
 DECLARE_POOL(pool_head_quic_tx_packet, "quic_tx_packet", sizeof(struct quic_tx_packet));
@@ -427,7 +428,7 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 			}
 			qc->path->in_flight += pkt->in_flight_len;
 			pkt->pktns->tx.in_flight += pkt->in_flight_len;
-			if ((global.tune.options & GTUNE_QUIC_CC_HYSTART) && pkt->pktns == qc->apktns)
+			if ((quic_tune.options & QUIC_TUNE_CC_HYSTART) && pkt->pktns == qc->apktns)
 				cc->algo->hystart_start_round(cc, pkt->pn_node.key);
 			if (pkt->in_flight_len)
 				qc_set_timer(qc);
@@ -763,7 +764,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				/* Everything sent. Continue within the same datagram. */
 				prv_pkt = cur_pkt;
 			}
-			else if (!(global.tune.options & GTUNE_QUIC_NO_UDP_GSO) &&
+			else if (!(quic_tune.options & QUIC_TUNE_NO_UDP_GSO) &&
 			         !(HA_ATOMIC_LOAD(&qc->li->flags) & LI_F_UDP_GSO_NOTSUPP) &&
 			         dglen == qc->path->mtu &&
 			         (char *)end < b_wrap(buf) &&

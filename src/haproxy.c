@@ -101,6 +101,7 @@
 #include <haproxy/openssl-compat.h>
 #include <haproxy/quic_conn.h>
 #include <haproxy/quic_tp-t.h>
+#include <haproxy/quic_tune.h>
 #include <haproxy/pattern.h>
 #include <haproxy/peers.h>
 #include <haproxy/pool.h>
@@ -1436,15 +1437,16 @@ static void init_args(int argc, char **argv)
 #ifdef USE_THREAD
 	global.tune.options |= GTUNE_IDLE_POOL_SHARED;
 #endif
-#ifdef USE_QUIC
-	global.tune.options |= GTUNE_QUIC_SOCK_PER_CONN;
-#endif
 	global.tune.options |= GTUNE_STRICT_LIMITS;
 
 	global.tune.options |= GTUNE_USE_FAST_FWD; /* Use fast-forward by default */
 
 	/* Use zero-copy forwarding by default */
 	global.tune.no_zero_copy_fwd = 0;
+
+#ifdef USE_QUIC
+	quic_tune.options |= QUIC_TUNE_SOCK_PER_CONN;
+#endif
 
 	/* keep a copy of original arguments for the master process */
 	old_argv = copy_argv(argc, argv);

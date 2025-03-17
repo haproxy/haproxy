@@ -212,10 +212,10 @@ static int cfg_parse_quic_tune_socket_owner(char **args, int section_type,
 		return -1;
 
 	if (strcmp(args[1], "connection") == 0) {
-		global.tune.options |= GTUNE_QUIC_SOCK_PER_CONN;
+		quic_tune.options |= QUIC_TUNE_SOCK_PER_CONN;
 	}
 	else if (strcmp(args[1], "listener") == 0) {
-		global.tune.options &= ~GTUNE_QUIC_SOCK_PER_CONN;
+		quic_tune.options &= ~QUIC_TUNE_SOCK_PER_CONN;
 	}
 	else {
 		memprintf(err, "'%s' expects either 'listener' or 'connection' but got '%s'.", args[0], args[1]);
@@ -357,7 +357,7 @@ static int cfg_parse_quic_tune_setting0(char **args, int section_type,
 		quic_tune.options |= QUIC_TUNE_NO_PACING;
 	}
 	else if (strcmp(suffix, "disable-udp-gso") == 0) {
-		global.tune.options |= GTUNE_QUIC_NO_UDP_GSO;
+		quic_tune.options |= QUIC_TUNE_NO_UDP_GSO;
 	}
 	else {
 		memprintf(err, "'%s' keyword unhandled (please report this bug).", args[0]);
@@ -397,9 +397,9 @@ static int cfg_parse_quic_tune_on_off(char **args, int section_type, struct prox
 	}
 	else if (strcmp(suffix, "cc-hystart") == 0) {
 		if (on)
-			global.tune.options |= GTUNE_QUIC_CC_HYSTART;
+			quic_tune.options |= QUIC_TUNE_CC_HYSTART;
 		else
-			global.tune.options &= ~GTUNE_QUIC_CC_HYSTART;
+			quic_tune.options &= ~QUIC_TUNE_CC_HYSTART;
 	}
 
 	return 0;

@@ -2,6 +2,7 @@
 #include <haproxy/quic_cc.h>
 #include <haproxy/quic_cc_hystart.h>
 #include <haproxy/quic_trace.h>
+#include <haproxy/quic_tune.h>
 #include <haproxy/ticks.h>
 #include <haproxy/trace.h>
 
@@ -102,7 +103,7 @@ static void quic_cc_cubic_reset(struct quic_cc *cc)
 	c->last_w_max = 0;
 	c->W_est = 0;
 	c->recovery_start_time = 0;
-	if (global.tune.options & GTUNE_QUIC_CC_HYSTART)
+	if (quic_tune.options & QUIC_TUNE_CC_HYSTART)
 		quic_cc_hystart_reset(&c->hystart);
 	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc);
 }
@@ -448,7 +449,7 @@ static void quic_cc_cubic_ss_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	TRACE_PROTO("CC cubic", QUIC_EV_CONN_CC, cc->qc, ev);
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
-		if (global.tune.options & GTUNE_QUIC_CC_HYSTART) {
+		if (quic_tune.options & QUIC_TUNE_CC_HYSTART) {
 			struct quic_hystart *h = &c->hystart;
 			unsigned int acked = QUIC_MIN(ev->ack.acked, (uint64_t)HYSTART_LIMIT * path->mtu);
 

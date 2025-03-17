@@ -60,6 +60,7 @@
 #include <haproxy/quic_token.h>
 #include <haproxy/quic_tp.h>
 #include <haproxy/quic_trace.h>
+#include <haproxy/quic_tune.h>
 #include <haproxy/quic_tx.h>
 #include <haproxy/cbuf.h>
 #include <haproxy/proto_quic.h>
@@ -1174,7 +1175,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	conn_id->qc = qc;
 
 	if (HA_ATOMIC_LOAD(&l->rx.quic_mode) == QUIC_SOCK_MODE_CONN &&
-	    (global.tune.options & GTUNE_QUIC_SOCK_PER_CONN) &&
+	    (quic_tune.options & QUIC_TUNE_SOCK_PER_CONN) &&
 	    is_addr(local_addr)) {
 		TRACE_USER("Allocate a socket for QUIC connection", QUIC_EV_CONN_INIT, qc);
 		qc_alloc_fd(qc, local_addr, peer_addr);
