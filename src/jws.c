@@ -2,6 +2,8 @@
 
 #include <stdio.h>
 
+#include <haproxy/jwt-t.h>
+
 #include <haproxy/base64.h>
 #include <haproxy/chunk.h>
 #include <haproxy/init.h>
@@ -255,13 +257,25 @@ int EVP_PKEY_to_pub_jwk(EVP_PKEY *pkey, char *dst, size_t dsize)
  * Return the size of the data or 0
  */
 
-int jws_b64_protected(const char *alg, char *kid, char *jwk, char *nonce, char *url,
+int jws_b64_protected(enum jwt_alg alg, char *kid, char *jwk, char *nonce, char *url,
                       char *dst, size_t dsize)
 {
 	char *acc;
 	char *acctype;
 	int ret = 0;
 	struct buffer *json = NULL;
+	const char *algstr;
+
+	switch (alg) {
+		case JWS_ALG_RS256: algstr = "RS256"; break;
+		case JWS_ALG_RS384: algstr = "RS384"; break;
+		case JWS_ALG_RS512: algstr = "RS512"; break;
+		case JWS_ALG_ES256: algstr = "ES256"; break;
+		case JWS_ALG_ES384: algstr = "ES384"; break;
+		case JWS_ALG_ES512: algstr = "ES512"; break;
+		default:
+			goto out;
+	}
 
 	if ((json = alloc_trash_chunk()) == NULL)
 		goto out;
@@ -276,7 +290,7 @@ int jws_b64_protected(const char *alg, char *kid, char *jwk, char *nonce, char *
 			"    \"nonce\":   \"%s\",\n"
 			"    \"url\":   \"%s\"\n"
 			"}\n",
-			alg, acctype, kid ? "\"" : "", acc, kid ? "\"" : "", nonce, url);
+			algstr, acctype, kid ? "\"" : "", acc, kid ? "\"" : "", nonce, url);
 	if (ret >= json->size) {
 		ret = 0;
 		goto out;
@@ -307,23 +321,11 @@ int jws_b64_payload(char *payload, char *dst, size_t dsize)
 }
 
 /*
- * Generate a JWS signature using the base64url protected buffer and the base64url payload buffer
- *
- *  For RSA it uses the RS256 algorithm (EVP_sha256)
- *  For ECDSA, the ES256, ES384 or ES512 is chosen depending on the curves of the key
- *
- *  Return the size of the data or 0
+ * Return a JWS algorithm compatible with a Private KEY, or JWS_ALG_NONE.
  */
-int jws_b64_signature(EVP_PKEY *pkey, char *b64protected, char *b64payload, char *dst, size_t dsize)
+enum jwt_alg EVP_PKEY_to_jws_alg(EVP_PKEY *pkey)
 {
-	EVP_MD_CTX *ctx;
-	const EVP_MD *evp_md = NULL;
-	int ret = 0;
-	struct buffer *sign = NULL;
-	size_t out_sign_len = 0;
-
-	if ((sign = alloc_trash_chunk()) == NULL)
-		goto out;
+	enum jwt_alg alg = JWS_ALG_NONE;
 
 	if (EVP_PKEY_base_id(pkey) == EVP_PKEY_EC) {
 #if HA_OPENSSL_VERSION_NUMBER > 0x30000000L
@@ -348,29 +350,74 @@ int jws_b64_signature(EVP_PKEY *pkey, char *b64protected, char *b64payload, char
 
 		nid = EC_GROUP_get_curve_name(ec_group);
 #endif
-
-		/* https://www.rfc-editor.org/rfc/rfc7518#section-3.1 */
 		switch (nid) {
 			/* ES256: ECDSA using P-256 and SHA-256 */
 			case NID_X9_62_prime256v1:
-				evp_md = EVP_sha256();
+				alg = JWS_ALG_ES256;
 				break;
 			/* ES384: ECDSA using P-384 and SHA-384 */
 			case NID_secp384r1:
-				evp_md = EVP_sha384();
+				alg = JWS_ALG_ES384;
 				break;
 			/* ES512: ECDSA using P-521 and SHA-512 */
 			case NID_secp521r1:
-				evp_md = EVP_sha512();
+				alg = JWS_ALG_ES512;
 				break;
 			default:
-				evp_md = NULL;
+				alg = JWS_ALG_NONE;
 				break;
 		}
 
 	} else {
-		evp_md = EVP_sha256();
+		alg = JWS_ALG_RS256;
 	}
+out:
+	return alg;
+}
+
+
+/*
+ * Generate a JWS signature using the base64url protected buffer and the base64url payload buffer
+ *
+ *  For RSA it uses the RS256 algorithm (EVP_sha256)
+ *  For ECDSA, the ES256, ES384 or ES512 is chosen depending on the curves of the key
+ *
+ *  Return the size of the data or 0
+ */
+int jws_b64_signature(EVP_PKEY *pkey, enum jwt_alg alg, char *b64protected, char *b64payload, char *dst, size_t dsize)
+{
+	EVP_MD_CTX *ctx;
+	const EVP_MD *evp_md = NULL;
+	int ret = 0;
+	struct buffer *sign = NULL;
+	size_t out_sign_len = 0;
+
+	switch (alg) {
+		case JWS_ALG_ES256:
+		case JWS_ALG_RS256:
+			evp_md = EVP_sha256();
+			break;
+
+		case JWS_ALG_ES384:
+		case JWS_ALG_RS384:
+			evp_md = EVP_sha384();
+			break;
+
+		case JWS_ALG_ES512:
+		case JWS_ALG_RS512:
+			evp_md = EVP_sha512();
+			break;
+
+		default:
+			evp_md = NULL;
+			break;
+	}
+
+	if (evp_md == NULL)
+		goto out;
+
+	if ((sign = alloc_trash_chunk()) == NULL)
+		goto out;
 
 	if ((ctx = EVP_MD_CTX_new()) == NULL)
 		goto out;
@@ -471,10 +518,9 @@ int jws_debug(int argc, char **argv)
 	int ret = 1;
 	const char *filename = NULL;
 	char *payload = NULL;
-	char *alg = NULL;
+	enum jwt_alg alg = JWS_ALG_NONE;
 	char *nonce = NULL;
 	char *url = NULL;
-	int nid;
 
 	if (argc < 5) {
 		fprintf(stderr, "error: -U jws <pkey> <payload> <nonce> <url>!\n");
@@ -499,39 +545,10 @@ int jws_debug(int argc, char **argv)
 
 	fprintf(stderr, "JWK: %s\n", jwk);
 
-	if (EVP_PKEY_base_id(pkey) == EVP_PKEY_EC) {
-#if HA_OPENSSL_VERSION_NUMBER > 0x30000000L
-		char curve[32] = {};
-		size_t curvelen;
-
-		if (EVP_PKEY_get_utf8_string_param(pkey, OSSL_PKEY_PARAM_GROUP_NAME, curve, sizeof(curve), &curvelen) == 0)
-			goto out;
-
-		nid = curves2nid(curve);
-
-#else
-		const EC_KEY *ec = NULL;
-		const EC_GROUP *ec_group = NULL;
-
-		if ((ec = EVP_PKEY_get0_EC_KEY(pkey)) == NULL)
-			goto out;
-		if ((ec_group = EC_KEY_get0_group(ec)) == NULL)
-			goto out;
-
-		nid = EC_GROUP_get_curve_name(ec_group);
-#endif
-		switch (nid) {
-			case NID_X9_62_prime256v1: alg = "ES256"; break;
-			case NID_secp384r1:        alg = "ES384"; break;
-			case NID_secp521r1:        alg = "ES512"; break;
-		}
-	} else {
-		alg = "RS256";
-	}
-
+	alg = EVP_PKEY_to_jws_alg(pkey);
 	jws_b64_protected(alg, NULL, jwk, nonce, url, b64prot, sizeof(b64prot));
 	jws_b64_payload(payload, b64payload, sizeof(b64payload));
-	jws_b64_signature(pkey, b64prot, b64payload, b64sign, sizeof(b64sign));
+	jws_b64_signature(pkey, alg, b64prot, b64payload, b64sign, sizeof(b64sign));
 	jws_flattened(b64prot, b64payload, b64sign, output, sizeof(output));
 
 	fprintf(stdout, "%s", output);
