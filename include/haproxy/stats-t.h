@@ -565,6 +565,7 @@ enum stats_domain_px_cap {
 #define STATS_PX_CAP__F__ (STATS_PX_CAP_FE)
 #define STATS_PX_CAP___BS (STATS_PX_CAP_BE|STATS_PX_CAP_SRV)
 #define STATS_PX_CAP____S (STATS_PX_CAP_SRV)
+#define STATS_PX_CAP___B_ (STATS_PX_CAP_BE)
 
 /* the context of a "show stat" command in progress on the CLI or the stats applet */
 struct show_stat_ctx {
