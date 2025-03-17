@@ -1752,10 +1752,32 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	struct stconn *scf, *scb;
 	unsigned int rate;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_PROC, s);
-
 	activity[tid].stream_calls++;
 	stream_cond_update_cpu_latency(s);
+
+	req = &s->req;
+	res = &s->res;
+
+	scf = s->scf;
+	scb = s->scb;
+
+	DBG_TRACE_ENTER(STRM_EV_STRM_PROC, s);
+
+	/* This flag must explicitly be set every time */
+	req->flags &= ~CF_WAKE_WRITE;
+	res->flags &= ~CF_WAKE_WRITE;
+
+	/* Keep a copy of req/rep flags so that we can detect shutdowns */
+	rqf_last = req->flags & ~CF_MASK_ANALYSER;
+	rpf_last = res->flags & ~CF_MASK_ANALYSER;
+
+	/* we don't want the stream connector functions to recursively wake us up */
+	scf->flags |= SC_FL_DONT_WAKE;
+	scb->flags |= SC_FL_DONT_WAKE;
+
+	/* Keep a copy of SC flags */
+	scf_flags = scf->flags;
+	scb_flags = scb->flags;
 
 	/* update pending events */
 	s->pending_events |= stream_map_task_state(state);
@@ -1767,12 +1789,6 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 					 (s->pending_events & STRM_EVT_SHUT_SRV_UP) ? SF_ERR_UP:
 					 SF_ERR_KILLED));
 	}
-
-	req = &s->req;
-	res = &s->res;
-
-	scf = s->scf;
-	scb = s->scb;
 
 	/* First, attempt to receive pending data from I/O layers */
 	sc_sync_recv(scf);
@@ -1791,22 +1807,6 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* this data may be no longer valid, clear it */
 	if (s->txn)
 		memset(&s->txn->auth, 0, sizeof(s->txn->auth));
-
-	/* This flag must explicitly be set every time */
-	req->flags &= ~CF_WAKE_WRITE;
-	res->flags &= ~CF_WAKE_WRITE;
-
-	/* Keep a copy of req/rep flags so that we can detect shutdowns */
-	rqf_last = req->flags & ~CF_MASK_ANALYSER;
-	rpf_last = res->flags & ~CF_MASK_ANALYSER;
-
-	/* we don't want the stream connector functions to recursively wake us up */
-	scf->flags |= SC_FL_DONT_WAKE;
-	scb->flags |= SC_FL_DONT_WAKE;
-
-	/* Keep a copy of SC flags */
-	scf_flags = scf->flags;
-	scb_flags = scb->flags;
 
 	/* 1a: Check for low level timeouts if needed. We just set a flag on
 	 * stream connectors when their timeouts have expired.
