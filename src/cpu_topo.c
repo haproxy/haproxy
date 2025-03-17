@@ -676,7 +676,7 @@ void cpu_fixup_topology(void)
 
 	curr_id = -1;
 	cl_cpu = small_cl = 0;
-	for (cpu = cpu2 = 0; cpu <= cpu_topo_lastcpu; cpu++) {
+	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++) {
 		if (ha_cpu_topo[cpu].cl_gid < 0)
 			continue;
 
@@ -687,7 +687,6 @@ void cpu_fixup_topology(void)
 			if (curr_id >= 0 && cl_cpu <= 2)
 				small_cl++;
 			cl_cpu = 0;
-			cpu2 = cpu;
 			curr_id = ha_cpu_topo[cpu].cl_gid;
 		}
 		cl_cpu++;
