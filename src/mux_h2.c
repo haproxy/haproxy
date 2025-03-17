@@ -5540,8 +5540,11 @@ static void h2_do_shutr(struct h2s *h2s, struct se_abort_info *reason)
 		 * stream anymore. This may happen when the server responds
 		 * before the end of an upload and closes quickly (redirect,
 		 * deny, ...)
+		 *
+		 * RFC9113#8.1: Use NO_ERROR code after a complete response was
+		 *              sent (So frontend side and ES sent)
 		 */
-		h2s_error(h2s, H2_ERR_CANCEL);
+		h2s_error(h2s, (!(h2c->flags & H2_CF_IS_BACK) && (h2s->flags & H2_SF_ES_SENT)) ? H2_ERR_NO_ERROR : H2_ERR_CANCEL);
 	}
 
 	if (!(h2s->flags & H2_SF_RST_SENT) &&
