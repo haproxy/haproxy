@@ -346,6 +346,7 @@ enum stat_idx_info {
 struct stat_col {
 	const char *name; /* short name, used notably in CSV headers */
 	const char *desc; /* user-friendly description */
+	const char *alt_name; /* name used by some stats provider such as promex addon, ignored if NULL */
 
 	uint32_t type;    /* combination of field_nature and field_format */
 	uint8_t cap;      /* mask of stats_domain_px_cap to restrain metrics to an object types subset */
