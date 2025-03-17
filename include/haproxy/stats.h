@@ -39,7 +39,7 @@ struct stconn;
  * the the number of entries in "enum stat_idx_px" and "enum stat_idx_info"
  */
 extern const struct stat_col stat_cols_px[];
-extern const struct name_desc stat_cols_info[];
+extern const struct stat_col stat_cols_info[];
 extern const char *stat_status_codes[];
 extern struct applet http_stats_applet;
 extern struct list stats_module_list[];

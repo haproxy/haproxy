@@ -92,7 +92,7 @@ const char *stat_status_codes[STAT_STATUS_SIZE] = {
  * to always use the exact same name except that the strings for new names must
  * be lower case or CamelCase while the enum entries must be upper case.
  */
-const struct name_desc stat_cols_info[ST_I_INF_MAX] = {
+const struct stat_col stat_cols_info[ST_I_INF_MAX] = {
 	[ST_I_INF_NAME]                           = { .name = "Name",                        .desc = "Product name" },
 	[ST_I_INF_VERSION]                        = { .name = "Version",                     .desc = "Product version" },
 	[ST_I_INF_RELEASE_DATE]                   = { .name = "Release_date",                .desc = "Date of latest source code update" },
