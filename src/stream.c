@@ -2749,22 +2749,32 @@ void sess_change_server(struct stream *strm, struct server *newsrv)
 	 * invocation of sess_change_server().
 	 */
 
-	/*
-	 * It is assumed if the stream has a non-NULL srv_conn, then its
-	 * served field has been incremented, so we have to decrement it now.
-	 */
-	if (oldsrv)
-		_HA_ATOMIC_DEC(&oldsrv->served);
-
-	if (oldsrv == newsrv)
+	if (oldsrv == newsrv) {
+		/*
+		 * It is assumed if the stream has a non-NULL srv_conn, then its
+		 * served field has been incremented, so we have to decrement it now.
+		 */
+		if (oldsrv)
+			_HA_ATOMIC_DEC(&oldsrv->served);
 		return;
+	}
 
 	if (oldsrv) {
+		/* Note: we cannot decrement served after calling server_drop_conn
+		 * because that one may rely on served (e.g. for leastconn). The
+		 * real need here is to make sure that when served==0, no stream
+		 * knows the server anymore, mainly for server removal purposes,
+		 * and that removal will be done under isolation anyway. Thus by
+		 * decrementing served after detaching from the list, we're
+		 * guaranteeing that served==0 implies that no stream is in the
+		 * list anymore, which is a sufficient guarantee for tha goal.
+		 */
 		_HA_ATOMIC_DEC(&oldsrv->proxy->served);
+		stream_del_srv_conn(strm);
+		_HA_ATOMIC_DEC(&oldsrv->served);
 		__ha_barrier_atomic_store();
 		if (oldsrv->proxy->lbprm.server_drop_conn)
 			oldsrv->proxy->lbprm.server_drop_conn(oldsrv);
-		stream_del_srv_conn(strm);
 	}
 
 	if (newsrv) {
