@@ -2005,18 +2005,10 @@ static int srv_parse_strict_maxconn(char **args, int *cur_arg, struct proxy *px,
 
 	return 0;
 }
-/* Returns 1 if the server has streams pointing to it, and 0 otherwise.
- *
- * Must be called with the server lock held.
- */
+/* Returns 1 if the server has streams pointing to it, and 0 otherwise. */
 static int srv_has_streams(struct server *srv)
 {
-	int thr;
-
-	for (thr = 0; thr < global.nbthread; thr++)
-		if (!MT_LIST_ISEMPTY(&srv->per_thr[thr].streams))
-			return 1;
-	return 0;
+	return !!_HA_ATOMIC_LOAD(&srv->served);
 }
 
 /* Shutdown all connections of a server. The caller must pass a termination
