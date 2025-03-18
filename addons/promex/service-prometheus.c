@@ -161,6 +161,7 @@ const struct ist promex_global_metrics[ST_I_INF_MAX] = {
 	[ST_I_INF_BYTES_OUT_RATE]                 = IST("bytes_out_rate"),
 	[ST_I_INF_CUM_LOG_MSGS]                   = IST("recv_logs_total"),
 	[ST_I_INF_BUILD_INFO]                     = IST("build_info"),
+	[ST_I_INF_WARNINGS]                       = IST("total_warnings"),
 };
 
 static inline enum promex_mt_type promex_global_gettype(int index, enum field_nature nature)
