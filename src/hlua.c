@@ -5321,7 +5321,7 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 	struct stconn *sc = appctx_sc(luactx->appctx);
 	size_t len = MAY_LJMP(luaL_checkinteger(L, 2));
-	int exp_date = MAY_LJMP(luaL_checkinteger(L, -1));
+	int exp_date = MAY_LJMP(luaL_checkinteger(L, 3));
 	int ret;
 	const char *blk1;
 	size_t len1;
