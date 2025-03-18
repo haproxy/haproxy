@@ -6044,11 +6044,13 @@ out:
 }
 
 /* Check if the server <bename>/<svname> exists and is ready for being deleted.
- * Both <bename> and <svname> must be valid strings. This must be called under
- * thread isolation. If pb/ps are not null, upon success, the pointer to
- * the backend and server respectively will be put there. If pm is not null,
- * a pointer to an error/success message is returned there (possibly NULL if
- * nothing to say). Returned values:
+ * This means that the server is in maintenance with no streams attached to it,
+ * no queue and no used idle conns. This is not supposed to change during all
+ * the maintenance phase (except for force-persist etc, which are not covered).
+ * Both <bename> and <svname> must be valid strings. If pb/ps are not null,
+ * upon success, the pointer to the backend and server respectively will be put
+ * there. If pm is not null, a pointer to an error/success message is returned
+ * there (possibly NULL if nothing to say). Returned values:
  *  >0 if OK
  *   0 if not yet (should wait if it can)
  *  <0 if not possible
@@ -6091,8 +6093,8 @@ int srv_check_for_deletion(const char *bename, const char *svname, struct proxy 
 	ret = 0;
 
 	/* Ensure that there is no active/pending connection on the server. */
-	if (srv->curr_used_conns ||
-	    srv->queueslength || srv_has_streams(srv)) {
+	if (_HA_ATOMIC_LOAD(&srv->curr_used_conns) ||
+	    _HA_ATOMIC_LOAD(&srv->queueslength) || srv_has_streams(srv)) {
 		msg = "Server still has connections attached to it, cannot remove it.";
 		goto leave;
 	}
