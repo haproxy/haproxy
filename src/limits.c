@@ -227,7 +227,7 @@ int compute_ideal_maxsock(int maxconn)
 
 /* Tests if it is possible to set the current process's RLIMIT_NOFILE to
  * <maxsock>, then sets it back to the previous value. Returns non-zero if the
- * value is accepted, non-zero otherwise. This is used to determine if an
+ * value is accepted, zero otherwise. This is used to determine if an
  * automatic limit may be applied or not. When it is not, the caller knows that
  * the highest we can do is the rlim_max at boot. In case of error, we return
  * that the setting is possible, so that we defer the error processing to the
