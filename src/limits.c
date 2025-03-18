@@ -152,8 +152,14 @@ static int compute_ideal_maxconn()
 	if (!is_any_limit_configured())
 		global.fd_hard_limit = DEFAULT_MAXFD;
 
-	if (remain > global.fd_hard_limit)
+	if (global.fd_hard_limit && (remain > global.fd_hard_limit)) {
+		/* cap remain only when global.fd_hard_limit > 0, i.e.: either
+		 * there were no any other limits set and it's defined by lines
+		 * above as DEFAULT_MAXFD (100), or fd_hard_limit is explicitly
+		 * provided in config.
+		 */
 		remain = global.fd_hard_limit;
+	}
 
 	/* subtract listeners and checks */
 	remain -= global.maxsock;
