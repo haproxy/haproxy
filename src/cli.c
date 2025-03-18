@@ -2127,9 +2127,7 @@ static int cli_io_handler_wait(struct appctx *appctx)
 
 	if (ctx->cond == CLI_WAIT_COND_SRV_UNUSED) {
 		/* check if the server in args[0]/args[1] can be released now */
-		thread_isolate();
 		ret = srv_check_for_deletion(ctx->args[0], ctx->args[1], NULL, NULL, NULL);
-		thread_release();
 
 		if (ret < 0) {
 			/* unrecoverable failure */
