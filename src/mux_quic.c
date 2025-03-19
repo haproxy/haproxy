@@ -173,7 +173,7 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	else if (quic_stream_is_remote(qcc, id)) {
 		qcs->rx.msd = qcc->lfctl.msd_uni_r;
 	}
-	qcs->rx.msd_init = qcs->rx.msd;
+	qcs->rx.msd_base = 0;
 
 	qcs->wait_event.tasklet = NULL;
 	qcs->wait_event.events = 0;
@@ -1198,6 +1198,7 @@ static void qcs_consume(struct qcs *qcs, uint64_t bytes, struct qc_stream_rxbuf 
 	struct qcc *qcc = qcs->qcc;
 	struct quic_frame *frm;
 	enum ncb_ret ret;
+	uint64_t diff, inc = 0;
 
 	TRACE_ENTER(QMUX_EV_QCS_RECV, qcc->conn, qcs);
 
@@ -1218,7 +1219,24 @@ static void qcs_consume(struct qcs *qcs, uint64_t bytes, struct qc_stream_rxbuf 
 	if (qcs->flags & QC_SF_SIZE_KNOWN)
 		goto conn_fctl;
 
-	if (qcs->rx.msd - qcs->rx.offset < qcs->rx.msd_init / 2) {
+	/* Check if a MAX_STREAM_DATA frame should be emitted, determined by
+	 * the consumed capacity. If no more than 2 Rx buffers can be allocated
+	 * per QCS, the limit is set to half the capacity. Else, the limit is
+	 * set to match bufsize.
+	 */
+	if (qcs->rx.msd - qcs->rx.msd_base < qmux_stream_rx_bufsz() * 2) {
+		if ((qcs->rx.offset - qcs->rx.msd_base) * 2 >= qcs->rx.msd - qcs->rx.msd_base)
+			inc = qcs->rx.offset - qcs->rx.msd_base;
+	}
+	else {
+		diff = qcs->rx.offset - qcs->rx.msd_base;
+		while (diff >= qmux_stream_rx_bufsz()) {
+			inc += qmux_stream_rx_bufsz();
+			diff -= qmux_stream_rx_bufsz();
+		}
+	}
+
+	if (inc) {
 		TRACE_DATA("increase stream credit via MAX_STREAM_DATA", QMUX_EV_QCS_RECV, qcc->conn, qcs);
 		frm = qc_frm_alloc(QUIC_FT_MAX_STREAM_DATA);
 		if (!frm) {
@@ -1226,7 +1244,8 @@ static void qcs_consume(struct qcs *qcs, uint64_t bytes, struct qc_stream_rxbuf 
 			return;
 		}
 
-		qcs->rx.msd = qcs->rx.offset + qcs->rx.msd_init;
+		qcs->rx.msd += inc;
+		qcs->rx.msd_base += inc;
 
 		frm->max_stream_data.id = qcs->id;
 		frm->max_stream_data.max_stream_data = qcs->rx.msd;
