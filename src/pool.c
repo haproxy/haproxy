@@ -102,7 +102,7 @@ struct pool_dump_info {
 /* context used by "show pools" */
 struct show_pools_ctx {
 	char *prefix;  /* if non-null, match this prefix name for the pool */
-	int by_what; /* 0=no sort, 1=by name, 2=by item size, 3=by total alloc */
+	int how;     /* bits 0..3: 0=no sort, 1=by name, 2=by item size, 3=by total alloc */
 	int maxcnt;  /* 0=no limit, other=max number of output entries */
 };
 
@@ -1132,11 +1132,11 @@ static int cmp_dump_pools_usage(const void *a, const void *b)
 #define POOLS_MAX_DUMPED_ENTRIES 1024
 
 /* This function dumps memory usage information into the trash buffer.
- * It may sort by a criterion if <by_what> is non-zero, and limit the
- * number of output lines if <max> is non-zero. It may limit only to
- * pools whose names start with <pfx> if <pfx> is non-null.
+ * It may sort by a criterion if bits 0..3 of <how> are non-zero, and
+ * limit the number of output lines if <max> is non-zero. It may limit
+ * only to pools whose names start with <pfx> if <pfx> is non-null.
  */
-void dump_pools_to_trash(int by_what, int max, const char *pfx)
+void dump_pools_to_trash(int how, int max, const char *pfx)
 {
 	struct pool_dump_info pool_info[POOLS_MAX_DUMPED_ENTRIES];
 	struct pool_head *entry;
@@ -1145,6 +1145,7 @@ void dump_pools_to_trash(int by_what, int max, const char *pfx)
 	unsigned long long cached_bytes = 0;
 	uint cached = 0;
 	uint alloc_items;
+	int by_what = how & 0xF; // bits 0..3 = sorting criterion
 
 	allocated = used = nbpools = 0;
 
@@ -1363,13 +1364,13 @@ static int cli_parse_show_pools(char **args, char *payload, struct appctx *appct
 
 	for (arg = 2; *args[arg]; arg++) {
 		if (strcmp(args[arg], "byname") == 0) {
-			ctx->by_what = 1; // sort output by name
+			ctx->how = (ctx->how & ~0xF) | 1; // sort output by name
 		}
 		else if (strcmp(args[arg], "bysize") == 0) {
-			ctx->by_what = 2; // sort output by item size
+			ctx->how = (ctx->how & ~0xF) | 2; // sort output by item size
 		}
 		else if (strcmp(args[arg], "byusage") == 0) {
-			ctx->by_what = 3; // sort output by total allocated size
+			ctx->how = (ctx->how & ~0xF) | 3; // sort output by total allocated size
 		}
 		else if (strcmp(args[arg], "match") == 0 && *args[arg+1]) {
 			ctx->prefix = strdup(args[arg+1]); // only pools starting with this
@@ -1402,7 +1403,7 @@ static int cli_io_handler_dump_pools(struct appctx *appctx)
 {
 	struct show_pools_ctx *ctx = appctx->svcctx;
 
-	dump_pools_to_trash(ctx->by_what, ctx->maxcnt, ctx->prefix);
+	dump_pools_to_trash(ctx->how, ctx->maxcnt, ctx->prefix);
 	if (applet_putchk(appctx, &trash) == -1)
 		return 0;
 	return 1;
