@@ -7215,6 +7215,32 @@ void free_all_file_names()
 	HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &file_names.lock);
 }
 
+
+/*
+ * Fill a <dst> buffer with a path. <*dst> must be at least of size PATH_MAX.
+ * If a <base> is specified and the path does not start with "/", concatenate <base>/<path>
+ *
+ */
+int path_base(const char *path, const char *base, char *dst, char **err)
+{
+	int err_code = 0;
+	int rv = 0;
+
+	if (base && *base && *path != '/')
+		rv = snprintf(dst, PATH_MAX, "%s/%s", base, path);
+	else
+		rv = snprintf(dst, PATH_MAX, "%s", path);
+
+	if (rv >= PATH_MAX) {
+		memprintf(err, "'%s/%s' : path too long", base, path);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+out:
+	return err_code;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8
