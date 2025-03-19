@@ -282,7 +282,7 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 {
 	unsigned int arg = 0;
 	int prefix_len = strlen("tune.quic.");
-	const char *suffix;
+	const char *suffix, *errptr;
 
 	if (too_many_args(1, args, err, NULL))
 		return -1;
@@ -305,6 +305,15 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 	}
 	else if (strcmp(suffix, "frontend.glitches-threshold") == 0)
 		global.tune.quic_frontend_glitches_threshold = arg;
+	else if (strcmp(suffix, "frontend.max-data-size") == 0) {
+		if ((errptr = parse_size_err(args[1], &arg))) {
+			memprintf(err, "'%s': unexpected charater '%c' in size argument '%s'.",
+			          args[0], *errptr, args[1]);
+			return -1;
+		}
+
+		global.tune.quic_frontend_max_data = arg;
+	}
 	else if (strcmp(suffix, "frontend.max-streams-bidi") == 0)
 		global.tune.quic_frontend_max_streams_bidi = arg;
 	else if (strcmp(suffix, "frontend.default-max-window-size") == 0) {
@@ -411,6 +420,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.cc.cubic.min-losses", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.conn-tx-buffers.limit", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.glitches-threshold", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.frontend.max-data-size", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-streams-bidi", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-idle-timeout", cfg_parse_quic_time },
 	{ CFG_GLOBAL, "tune.quic.frontend.default-max-window-size", cfg_parse_quic_tune_setting },

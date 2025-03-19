@@ -1691,6 +1691,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.disable-tx-pacing
    - tune.quic.disable-udp-gso
    - tune.quic.frontend.glitches-threshold
+   - tune.quic.frontend.max-data-size
    - tune.quic.frontend.max-idle-timeout
    - tune.quic.frontend.max-streams-bidi
    - tune.quic.frontend.default-max-window-size
@@ -4335,6 +4336,18 @@ tune.quic.frontend.glitches-threshold <number>
   effective without affecting slightly bogus clients.
 
   See also: fc_glitches
+
+tune.quic.frontend.max-data-size <size>
+  This setting is the hard limit for the number of data bytes in flight over a
+  QUIC frontend connection. It is reused as the value for the initial_max_data
+  transport parameter. It directly impacts the upload bandwidth for the peer
+  depending on the latency and the per-connection memory consumption in
+  haproxy.
+
+  By default, the value is set to 0, which indicates that it must be
+  automatically generated as the product between max-streams-bidi and bufsize.
+  This can be increased for example if a backend application relies on massive
+  uploads over high latency networks.
 
 tune.quic.frontend.max-idle-timeout <timeout>
   Sets the QUIC max_idle_timeout transport parameters in milliseconds for
