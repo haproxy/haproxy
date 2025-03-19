@@ -11880,6 +11880,8 @@ static void hlua_cli_io_release_fct(struct appctx *appctx)
 {
 	struct hlua_cli_ctx *ctx = appctx->svcctx;
 
+	task_destroy(ctx->task);
+	ctx->task = NULL;
 	hlua_ctx_destroy(ctx->hlua);
 	ctx->hlua = NULL;
 }
