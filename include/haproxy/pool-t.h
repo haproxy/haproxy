@@ -62,6 +62,17 @@ struct pool_cache_head {
 	ulong fill_pattern;  /* pattern used to fill the area on free */
 } THREAD_ALIGNED(64);
 
+/* This describes a pool registration, which is what was passed to
+ * create_pool() and that might have been merged with an existing pool.
+ */
+struct pool_registration {
+	struct list list;    /* link element */
+	char name[12];       /* name of the pool */
+	unsigned int size;   /* expected object size */
+	unsigned int flags;  /* MEM_F_* */
+	unsigned int align;  /* expected alignment; 0=unspecified */
+};
+
 /* This represents one item stored in the thread-local cache. <by_pool> links
  * the object to the list of objects in the pool, and <by_lru> links the object
  * to the local thread's list of hottest objects. This way it's possible to
@@ -117,6 +128,7 @@ struct pool_head {
 	struct list list;	/* list of all known pools */
 	void *base_addr;        /* allocation address, for free() */
 	char name[12];		/* name of the pool */
+	struct list regs;       /* registrations: alt names for this pool */
 
 	/* heavily read-write part */
 	THREAD_ALIGN(64);

@@ -3125,7 +3125,7 @@ show peers [dict|-] [<peers section>]
             table:0x55871b5b46a0 id=stkt update=1 localupdate=0 \
               commitupdate=0 syncing=0
 
-show pools [byname|bysize|byusage] [match <pfx>] [<nb>]
+show pools [byname|bysize|byusage] [detailed] [match <pfx>] [<nb>]
   Dump the status of internal memory pools. This is useful to track memory
   usage when suspecting a memory leak for example. It does exactly the same
   as the SIGQUIT when running in foreground except that it does not flush the
@@ -3133,10 +3133,12 @@ show pools [byname|bysize|byusage] [match <pfx>] [<nb>]
   sorted by pool name; if "bysize" is specified, it is sorted by item size in
   reverse order; if "byusage" is specified, it is sorted by total usage in
   reverse order, and only used entries are shown. It is also possible to limit
-  the output to the <nb> first entries (e.g. when sorting by usage). Finally,
-  if "match" followed by a prefix is specified, then only pools whose name
-  starts with this prefix will be shown. The reported total only concerns pools
-  matching the filtering criteria. Example:
+  the output to the <nb> first entries (e.g. when sorting by usage). It is
+  possible to also dump more internal details, including the list of all pools
+  that were merged together, by specifying "detailed". Finally, if "match"
+  followed by a prefix is specified, then only pools whose name starts with
+  this prefix will be shown. The reported total only concerns pools matching
+  the filtering criteria. Example:
 
     $ socat - /tmp/haproxy.sock <<< "show pools match quic byusage"
     Dumping pools usage. Use SIGQUIT to flush them.

@@ -293,11 +293,22 @@ static int mem_should_fail(const struct pool_head *pool)
 struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 {
 	unsigned int extra_mark, extra_caller, extra;
+	struct pool_registration *reg;
 	struct pool_head *pool;
 	struct pool_head *entry;
 	struct list *start;
 	unsigned int align;
 	int thr __maybe_unused;
+
+	pool = NULL;
+	reg = calloc(1, sizeof(*reg));
+	if (!reg)
+		goto fail;
+
+	strlcpy2(reg->name, name, sizeof(reg->name));
+	reg->size = size;
+	reg->flags = flags;
+	reg->align = 0;
 
 	extra_mark = (pool_debugging & POOL_DBG_TAG) ? POOL_EXTRA_MARK : 0;
 	extra_caller = (pool_debugging & POOL_DBG_CALLER) ? POOL_EXTRA_CALLER : 0;
@@ -327,7 +338,6 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	/* TODO: thread: we do not lock pool list for now because all pools are
 	 * created during HAProxy startup (so before threads creation) */
 	start = &pools;
-	pool = NULL;
 
 	list_for_each_entry(entry, &pools, list) {
 		if (entry->size == size) {
@@ -356,7 +366,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 
 		pool_addr = calloc(1, sizeof(*pool) + __alignof__(*pool));
 		if (!pool_addr)
-			return NULL;
+			goto fail;
 
 		/* always provide an aligned pool */
 		pool = (struct pool_head*)((((size_t)pool_addr) + __alignof__(*pool)) & -(size_t)__alignof__(*pool));
@@ -368,6 +378,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 		pool->size = size;
 		pool->flags = flags;
 		LIST_APPEND(start, &pool->list);
+		LIST_INIT(&pool->regs);
 
 		if (!(pool_debugging & POOL_DBG_NO_CACHE)) {
 			/* update per-thread pool cache if necessary */
@@ -378,8 +389,13 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 			}
 		}
 	}
+
+	LIST_APPEND(&pool->regs, &reg->list);
 	pool->users++;
 	return pool;
+ fail:
+	free(reg);
+	return NULL;
 }
 
 /* Tries to allocate an object for the pool <pool> using the system's allocator
@@ -942,7 +958,16 @@ void *pool_destroy(struct pool_head *pool)
 			return pool;
 		pool->users--;
 		if (!pool->users) {
+			/* remove all registrations at once */
+			struct pool_registration *reg, *back;
+
+			list_for_each_entry_safe(reg, back, &pool->regs, list) {
+				LIST_DELETE(&reg->list);
+				free(reg);
+			}
+
 			LIST_DELETE(&pool->list);
+
 			/* note that if used == 0, the cache is empty */
 			free(pool->base_addr);
 		}
@@ -1146,6 +1171,7 @@ void dump_pools_to_trash(int how, int max, const char *pfx)
 	uint cached = 0;
 	uint alloc_items;
 	int by_what = how & 0xF; // bits 0..3 = sorting criterion
+	int detailed = !!(how & 0x10); // print details
 
 	allocated = used = nbpools = 0;
 
@@ -1204,6 +1230,12 @@ void dump_pools_to_trash(int how, int max, const char *pfx)
 		cached_bytes += pool_info[i].cached_items * (ulong)pool_info[i].entry->size;
 		allocated    += pool_info[i].alloc_items  * (ulong)pool_info[i].entry->size;
 		used         += pool_info[i].used_items   * (ulong)pool_info[i].entry->size;
+
+		if (detailed) {
+			struct pool_registration *reg;
+			list_for_each_entry(reg, &pool_info[i].entry->regs, list)
+				chunk_appendf(&trash, "      >  %-12s: size=%u flags=%#x align=%u\n", reg->name, reg->size, reg->flags, reg->align);
+		}
 	}
 
 	chunk_appendf(&trash, "Total: %d pools, %llu bytes allocated, %llu used"
@@ -1372,6 +1404,9 @@ static int cli_parse_show_pools(char **args, char *payload, struct appctx *appct
 		else if (strcmp(args[arg], "byusage") == 0) {
 			ctx->how = (ctx->how & ~0xF) | 3; // sort output by total allocated size
 		}
+		else if (strcmp(args[arg], "detailed") == 0) {
+			ctx->how |= 0x10;                 // print detailed registrations
+		}
 		else if (strcmp(args[arg], "match") == 0 && *args[arg+1]) {
 			ctx->prefix = strdup(args[arg+1]); // only pools starting with this
 			if (!ctx->prefix)
@@ -1382,7 +1417,7 @@ static int cli_parse_show_pools(char **args, char *payload, struct appctx *appct
 			ctx->maxcnt = atoi(args[arg]); // number of entries to dump
 		}
 		else
-			return cli_err(appctx, "Expects either 'byname', 'bysize', 'byusage', 'match <pfx>', or a max number of output lines.\n");
+			return cli_err(appctx, "Expects either 'byname', 'bysize', 'byusage', 'match <pfx>', 'detailed', or a max number of output lines.\n");
 	}
 	return 0;
 }
