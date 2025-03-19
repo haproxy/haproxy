@@ -25,6 +25,9 @@
 
 #include <haproxy/ssl_ckch-t.h>
 
+#include <haproxy/errors.h>
+#include <haproxy/tools.h>
+
 /* cert_key_and_chain functions */
 
 int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, struct ckch_conf *conf, char **err);
@@ -81,12 +84,25 @@ int __ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_
 extern struct cert_exts cert_exts[];
 extern int (*ssl_commit_crlfile_cb)(const char *path, X509_STORE *ctx, char **err);
 
-/* ckch_conf keyword loading */
-static inline int ckch_conf_load_pem(void *value, char *buf, struct ckch_data *d, int cli, char **err) { if (cli) return 0; return ssl_sock_load_pem_into_ckch(value, buf, d, err); }
-static inline int ckch_conf_load_key(void *value, char *buf, struct ckch_data *d, int cli, char **err) { if (cli) return 0; return ssl_sock_load_key_into_ckch(value, buf, d, err); }
-static inline int ckch_conf_load_ocsp_response(void *value, char *buf, struct ckch_data *d, int cli, char **err) { if (cli) return 0; return ssl_sock_load_ocsp_response_from_file(value, buf, d, err); }
-static inline int ckch_conf_load_ocsp_issuer(void *value, char *buf, struct ckch_data *d, int cli, char **err) { if (cli) return 0; return ssl_sock_load_issuer_file_into_ckch(value, buf, d, err); }
-static inline int ckch_conf_load_sctl(void *value, char *buf, struct ckch_data *d, int cli, char **err) { if (cli) return 0; return ssl_sock_load_sctl_from_file(value, buf, d, err); }
+/*
+ * ckch_conf keywords loading
+ * The following  macro allow to declare a wrapper on function that actually load files
+ *
+ */
+#define DECLARE_CKCH_CONF_LOAD(name, base, callback)                                                        \
+static inline int ckch_conf_load_##name(void *value, char *buf, struct ckch_data *d, int cli, char **err)   \
+{                                                                                                           \
+	char path[PATH_MAX];                                                                                \
+	int err_code = 0;                                                                                   \
+	if (cli)                                                                                            \
+		return 0;                                                                                   \
+	err_code |= path_base(value, (base), path, err);                                                    \
+	if (err_code & ERR_CODE)                                                                            \
+		goto out;                                                                                   \
+	err_code |= (callback)(path, buf, d, err);                                                          \
+out:                                                                                                        \
+	return err_code;                                                                                    \
+};
 
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_SSL_CRTLIST_H */
