@@ -32,11 +32,11 @@
 
 /* Prometheus exporter flags (ctx->flags) */
 #define PROMEX_FL_METRIC_HDR        0x00000001
-#define PROMEX_FL_INFO_METRIC       0x00000002
-#define PROMEX_FL_FRONT_METRIC      0x00000004
-#define PROMEX_FL_BACK_METRIC       0x00000008
-#define PROMEX_FL_SRV_METRIC        0x00000010
-#define PROMEX_FL_LI_METRIC         0x00000020
+/* unused: 0x00000002 */
+/* unused: 0x00000004 */
+/* unused: 0x00000008 */
+/* unused: 0x00000010 */
+/* unused: 0x00000020 */
 #define PROMEX_FL_MODULE_METRIC     0x00000040
 #define PROMEX_FL_SCOPE_GLOBAL      0x00000080
 #define PROMEX_FL_SCOPE_FRONT       0x00000100

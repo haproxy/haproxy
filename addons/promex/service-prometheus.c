@@ -1805,7 +1805,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 
 	switch (appctx->st1) {
 		case PROMEX_DUMPER_INIT:
-			ctx->flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_INFO_METRIC);
+			ctx->flags |= PROMEX_FL_METRIC_HDR;
 			ctx->obj_state = 0;
 			ctx->field_num = ST_I_INF_NAME;
 			appctx->st1 = PROMEX_DUMPER_GLOBAL;
@@ -1821,8 +1821,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 				}
 			}
 
-			ctx->flags &= ~PROMEX_FL_INFO_METRIC;
-			ctx->flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_FRONT_METRIC);
+			ctx->flags |= PROMEX_FL_METRIC_HDR;
 			ctx->obj_state = 0;
 			ctx->field_num = ST_I_PX_PXNAME;
 			ctx->mod_field_num = 0;
@@ -1839,8 +1838,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 				}
 			}
 
-			ctx->flags &= ~PROMEX_FL_FRONT_METRIC;
-			ctx->flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_LI_METRIC);
+			ctx->flags |= PROMEX_FL_METRIC_HDR;
 			ctx->obj_state = 0;
 			ctx->field_num = ST_I_PX_PXNAME;
 			ctx->mod_field_num = 0;
@@ -1857,8 +1855,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 				}
 			}
 
-			ctx->flags &= ~PROMEX_FL_LI_METRIC;
-			ctx->flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_BACK_METRIC);
+			ctx->flags |= PROMEX_FL_METRIC_HDR;
 			ctx->obj_state = 0;
 			ctx->field_num = ST_I_PX_PXNAME;
 			ctx->mod_field_num = 0;
@@ -1875,8 +1872,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 				}
 			}
 
-			ctx->flags &= ~PROMEX_FL_BACK_METRIC;
-			ctx->flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_SRV_METRIC);
+			ctx->flags |= PROMEX_FL_METRIC_HDR;
 			ctx->obj_state = 0;
 			ctx->field_num = ST_I_PX_PXNAME;
 			ctx->mod_field_num = 0;
@@ -1893,7 +1889,6 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 				}
 			}
 
-			ctx->flags &= ~(PROMEX_FL_METRIC_HDR|PROMEX_FL_SRV_METRIC);
 			ctx->flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_MODULE_METRIC);
 			ctx->field_num = 0;
 			ctx->mod_field_num = 0;
