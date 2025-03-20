@@ -51,9 +51,6 @@ static inline int qmux_stream_rx_bufsz(void)
 	return global.tune.bufsize - NCB_RESERVED_SZ;
 }
 
-/* Number of buffers usable on Rx per QCS instance. */
-#define QMUX_STREAM_RX_BUF_FACTOR    90
-
 /* Bit shift to get the stream sub ID for internal use which is obtained
  * shifting the stream IDs by this value, knowing that the
  * QCS_ID_TYPE_SHIFT less significant bits identify the stream ID

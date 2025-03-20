@@ -44,6 +44,7 @@ struct tp_version_information {
 #define QUIC_TP_DFLT_FRONT_MAX_IDLE_TIMEOUT      30000 /* milliseconds */
 #define QUIC_TP_DFLT_FRONT_MAX_STREAMS_BIDI        100
 #define QUIC_TP_DFLT_BACK_MAX_IDLE_TIMEOUT       30000 /* milliseconds */
+#define QUIC_TP_DFLT_FRONT_STREAM_DATA_RATIO        90
 
 /* Types of QUIC transport parameters */
 #define QUIC_TP_ORIGINAL_DESTINATION_CONNECTION_ID  0x00

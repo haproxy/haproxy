@@ -1694,6 +1694,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.frontend.max-data-size
    - tune.quic.frontend.max-idle-timeout
    - tune.quic.frontend.max-streams-bidi
+   - tune.quic.frontend.stream-data-ratio
    - tune.quic.frontend.default-max-window-size
    - tune.quic.max-frame-loss
    - tune.quic.reorder-ratio
@@ -4349,6 +4350,9 @@ tune.quic.frontend.max-data-size <size>
   This can be increased for example if a backend application relies on massive
   uploads over high latency networks.
 
+  See also: "tune.quic.frontend.max-streams-bidi",
+            "tune.quic.frontend.stream-data-ratio"
+
 tune.quic.frontend.max-idle-timeout <timeout>
   Sets the QUIC max_idle_timeout transport parameters in milliseconds for
   frontends which determines the period of time after which a connection silently
@@ -4366,7 +4370,32 @@ tune.quic.frontend.max-streams-bidi <number>
   will be authorized to open. This determines the number of concurrent client
   requests.
 
-  The default value is 100.
+  The default value is 100. Note that if you reduces it, it can restrict the
+  buffering capabilities of streams on receive, which would result in poor
+  upload throughput. It can be corrected by increasing
+  tune.quic.frontend.max-data-size setting.
+
+  See also: "tune.quic.frontend.max-data-size",
+            "tune.quic.frontend.stream-data-ratio"
+
+tune.quic.frontend.stream-data-ratio  <0..100, in percent>
+  This setting allows to configure the hard limit of the number of data bytes
+  in flight over each stream. It is expressed as a percentage relative to
+  "tune.quic.frontend.max-data-size" setting, with the result rounded up to
+  bufsize.
+
+  The default value is 90. This is suitable with the most frequent web
+  scenario, where uploads is performed only for one or a few streams, whereas
+  the rest are used for download only. If max-data-size connection limit
+  remains at a reasonable level, it ensures that only a portion of opened
+  streams can allocate to their maximum capacity.
+
+  In the case of an application using many uploading streams in parallel and
+  suffering from unfairness between these streams, it can make sense to reduce
+  this ratio, to increase fairness and reduce the per-stream bandwidth.
+
+  See also: "tune.quic.frontend.max-data-size",
+            "tune.quic.frontend.max-streams-bidi"
 
 tune.quic.frontend.default-max-window-size <size>
   Sets the default maximum window size for the congestion controller of a

@@ -330,6 +330,13 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 
 		global.tune.quic_frontend_max_window_size = cwnd;
 	}
+	else if (strcmp(suffix, "frontend.stream-data-ratio") == 0) {
+		if (arg < 1 || arg > 100) {
+			memprintf(err, "'%s' expects an integer argument between 1 and 100.", args[0]);
+			return -1;
+		}
+		global.tune.quic_frontend_stream_data_ratio = arg;
+	}
 	else if (strcmp(suffix, "max-frame-loss") == 0)
 		global.tune.quic_max_frame_loss = arg;
 	else if (strcmp(suffix, "reorder-ratio") == 0) {
@@ -424,6 +431,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.frontend.max-streams-bidi", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-idle-timeout", cfg_parse_quic_time },
 	{ CFG_GLOBAL, "tune.quic.frontend.default-max-window-size", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.frontend.stream-data-ratio", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.max-frame-loss", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.reorder-ratio", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.retry-threshold", cfg_parse_quic_tune_setting },

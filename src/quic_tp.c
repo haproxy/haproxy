@@ -76,8 +76,13 @@ void quic_transport_params_init(struct quic_transport_params *p, int server)
 	else
 		p->initial_max_data = max_streams_bidi * stream_rx_bufsz;
 
-	/* Set remote streams flow-control data limit. */
-	p->initial_max_stream_data_bidi_remote = stream_rx_bufsz * QMUX_STREAM_RX_BUF_FACTOR;
+	/* Set remote streams flow-control data limit. This is calculated as a
+	 * ratio from max-data, then rounded up to bufsize.
+	 */
+	p->initial_max_stream_data_bidi_remote =
+	  p->initial_max_data * global.tune.quic_frontend_stream_data_ratio / 100;
+	p->initial_max_stream_data_bidi_remote =
+	  stream_rx_bufsz * ((p->initial_max_stream_data_bidi_remote + (stream_rx_bufsz - 1)) / stream_rx_bufsz);
 
 	/* Set remaining flow-control data limit. Local bidi streams are unused
 	 * on server side. Uni streams are only used for control exchange, so

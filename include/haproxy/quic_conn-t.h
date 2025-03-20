@@ -100,6 +100,9 @@ typedef unsigned long long ull;
 /* Default congestion window size. 480 kB, equivalent to the legacy value which was 30*bufsize */
 #define QUIC_DFLT_MAX_WINDOW_SIZE  491520
 
+/* Default ratio applied for max-stream-data-bidi-remote derived from max-data */
+#define QUIC_DFLT_FRONT_STREAM_DATA_RATIO 90
+
 /*
  *  0                   1                   2                   3
  *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
