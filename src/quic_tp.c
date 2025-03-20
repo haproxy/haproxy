@@ -70,7 +70,7 @@ void quic_transport_params_init(struct quic_transport_params *p, int server)
 	/* Set connection flow-control data limit, automatically calculated
 	 * from max number of concurrently opened streams.
 	 */
-	p->initial_max_data = (max_streams_bidi + max_streams_uni) * stream_rx_bufsz;
+	p->initial_max_data = max_streams_bidi * stream_rx_bufsz;
 
 	/* Set remote streams flow-control data limit. */
 	p->initial_max_stream_data_bidi_remote = stream_rx_bufsz * QMUX_STREAM_RX_BUF_FACTOR;
