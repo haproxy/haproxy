@@ -4801,6 +4801,53 @@ int ckch_conf_parse(char **args, int cur_arg, struct ckch_conf *f, int *found, c
 					err_code |= ERR_ALERT | ERR_ABORT;
 					goto out;
 				}
+			} else if (ckch_conf_kws[i].type == PARSE_TYPE_ARRAY_SUBSTR) {
+				char ***t = target;
+				char **r = NULL;
+				int n = 0;
+				char *b, *e;
+
+				/* split a string into substring splitted by colons */
+
+				e = b = args[cur_arg + 1];
+				do {
+					while (*e != ',' && *e != '\0')
+						e++;
+					r = realloc(r, sizeof(char *) * (n + 2));
+					if (!r) {
+						ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+						err_code |= ERR_ALERT | ERR_ABORT;
+						goto out;
+					}
+					r[n] = strndup(b, e - b);
+					if (!r[n]) {
+						ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+						err_code |= ERR_ALERT | ERR_ABORT;
+						goto out;
+					}
+
+					n++;
+
+					if (*e == '\0')
+						break;
+
+					e++; /* skip the separator */
+
+					/* skip trailing spaces */
+					while (*e == ' ')
+						e++;
+
+					b = e;
+
+				} while (*b);
+
+				r[n] = NULL; /* last element is NULL */
+				*t = r;
+// debug
+//				while (*r)
+//					fprintf(stderr, "sub: \"%s\"\n", *r++);
+
+
 			} else if (ckch_conf_kws[i].type == PARSE_TYPE_INT) {
 				int *t = target;
 				char *stop;
