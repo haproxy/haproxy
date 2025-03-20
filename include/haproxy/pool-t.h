@@ -125,6 +125,7 @@ struct pool_head {
 	unsigned int flags;	/* MEM_F_* */
 	unsigned int users;	/* number of pools sharing this zone */
 	unsigned int alloc_sz;	/* allocated size (includes hidden fields) */
+	unsigned int sum_size;	/* sum of all registered users' size */
 	struct list list;	/* list of all known pools */
 	void *base_addr;        /* allocation address, for free() */
 	char name[12];		/* name of the pool */

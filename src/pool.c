@@ -298,6 +298,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	struct pool_head *entry;
 	struct list *start;
 	unsigned int align;
+	unsigned int best_diff;
 	int thr __maybe_unused;
 
 	pool = NULL;
@@ -338,9 +339,18 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	/* TODO: thread: we do not lock pool list for now because all pools are
 	 * created during HAProxy startup (so before threads creation) */
 	start = &pools;
+	best_diff = ~0U;
 
 	list_for_each_entry(entry, &pools, list) {
-		if (entry->size == size) {
+		if (entry->size == size ||
+		    (!(flags & MEM_F_EXACT) && !pool_allocated(entry) &&
+		     /* size within 1% of avg size */
+		     (((ullong)entry->sum_size * 100ULL < (ullong)size * entry->users * 101ULL &&
+		       (ullong)entry->sum_size * 101ULL > (ullong)size * entry->users * 100ULL) ||
+		      /* or +/- 16 compared to the current avg size */
+		      (entry->sum_size - 16 * entry->users < size * entry->users &&
+		       entry->sum_size + 16 * entry->users > size * entry->users)))) {
+
 			/* either we can share this place and we take it, or
 			 * we look for a shareable one or for the next position
 			 * before which we will insert a new one.
@@ -349,15 +359,28 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 			    (!(pool_debugging & POOL_DBG_DONT_MERGE) ||
 			     strcmp(name, entry->name) == 0)) {
 				/* we can share this one */
-				pool = entry;
-				DPRINTF(stderr, "Sharing %s with %s\n", name, pool->name);
-				break;
+				uint diff = (abs((int)(size * entry->users - entry->size)) + entry->users / 2) / entry->users;
+
+				/* the principle here is:
+				 *   - if the best pool is smaller and the current
+				 *     candidate larger, we prefer the larger one
+				 *     so as not to grow an existing pool;
+				 *   - otherwise we go for the smallest distance
+				 *     from the existing one.
+				 */
+				if (!pool || entry->size == size ||
+				    (pool->size != size &&
+				     ((pool->size < size && entry->size >= size) ||
+				      (diff == best_diff && entry->size >= size) ||
+				      (diff < best_diff)))) {
+					best_diff = diff;
+					pool = entry;
+				}
 			}
 		}
 		else if (entry->size > size) {
 			/* insert before this one */
 			start = &entry->list;
-			break;
 		}
 	}
 
@@ -389,9 +412,19 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 			}
 		}
 	}
+	else {
+		/* we found the best one */
+		if (size > pool->size) {
+			pool->size = size;
+			pool->alloc_sz = size + extra;
+		}
+		DPRINTF(stderr, "Sharing %s with %s\n", name, pool->name);
+	}
 
 	LIST_APPEND(&pool->regs, &reg->list);
 	pool->users++;
+	pool->sum_size += size;
+
 	return pool;
  fail:
 	free(reg);
