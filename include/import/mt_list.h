@@ -225,7 +225,7 @@ static inline __attribute__((always_inline)) unsigned long mt_list_cpu_relax(uns
 	/* limit maximum wait time for unlucky threads */
 	loop = mt_list_wait(loop);
 
-	for (loop &= 0x7fffff; loop >= 32; loop--) {
+	for (loop &= 0xfffff; loop >= 32; loop--) {
 #if defined(__x86_64__)
 		/* This is a PAUSE instruction on x86_64 */
 		asm volatile("rep;nop\n");
