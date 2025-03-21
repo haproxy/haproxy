@@ -134,85 +134,6 @@ static inline enum promex_mt_type promex_global_gettype(int index, enum field_na
 	return type;
 }
 
-/* frontend/backend/server fields metric names, only exposed if explicitly set */
-const struct ist promex_st_metrics[ST_I_PX_MAX] = {
-	[ST_I_PX_QCUR]                 = IST("current_queue"),
-	[ST_I_PX_QMAX]                 = IST("max_queue"),
-	[ST_I_PX_SCUR]                 = IST("current_sessions"),
-	[ST_I_PX_SMAX]                 = IST("max_sessions"),
-	[ST_I_PX_SLIM]                 = IST("limit_sessions"),
-	[ST_I_PX_STOT]                 = IST("sessions_total"),
-	[ST_I_PX_BIN]                  = IST("bytes_in_total"),
-	[ST_I_PX_BOUT]                 = IST("bytes_out_total"),
-	[ST_I_PX_DREQ]                 = IST("requests_denied_total"),
-	[ST_I_PX_DRESP]                = IST("responses_denied_total"),
-	[ST_I_PX_EREQ]                 = IST("request_errors_total"),
-	[ST_I_PX_ECON]                 = IST("connection_errors_total"),
-	[ST_I_PX_ERESP]                = IST("response_errors_total"),
-	[ST_I_PX_WRETR]                = IST("retry_warnings_total"),
-	[ST_I_PX_WREDIS]               = IST("redispatch_warnings_total"),
-	[ST_I_PX_STATUS]               = IST("status"),
-	[ST_I_PX_WEIGHT]               = IST("weight"),
-	[ST_I_PX_ACT]                  = IST("active_servers"),
-	[ST_I_PX_BCK]                  = IST("backup_servers"),
-	[ST_I_PX_CHKFAIL]              = IST("check_failures_total"),
-	[ST_I_PX_CHKDOWN]              = IST("check_up_down_total"),
-	[ST_I_PX_LASTCHG]              = IST("check_last_change_seconds"),
-	[ST_I_PX_DOWNTIME]             = IST("downtime_seconds_total"),
-	[ST_I_PX_QLIMIT]               = IST("queue_limit"),
-	[ST_I_PX_THROTTLE]             = IST("current_throttle"),
-	[ST_I_PX_LBTOT]                = IST("loadbalanced_total"),
-	[ST_I_PX_RATE_LIM]             = IST("limit_session_rate"),
-	[ST_I_PX_RATE_MAX]             = IST("max_session_rate"),
-	[ST_I_PX_CHECK_STATUS]         = IST("check_status"),
-	[ST_I_PX_CHECK_CODE]           = IST("check_code"),
-	[ST_I_PX_CHECK_DURATION]       = IST("check_duration_seconds"),
-	[ST_I_PX_HRSP_1XX]             = IST("http_responses_total"),
-	[ST_I_PX_HRSP_2XX]             = IST("http_responses_total"),
-	[ST_I_PX_HRSP_3XX]             = IST("http_responses_total"),
-	[ST_I_PX_HRSP_4XX]             = IST("http_responses_total"),
-	[ST_I_PX_HRSP_5XX]             = IST("http_responses_total"),
-	[ST_I_PX_HRSP_OTHER]           = IST("http_responses_total"),
-	[ST_I_PX_REQ_RATE_MAX]         = IST("http_requests_rate_max"),
-	[ST_I_PX_REQ_TOT]              = IST("http_requests_total"),
-	[ST_I_PX_CLI_ABRT]             = IST("client_aborts_total"),
-	[ST_I_PX_SRV_ABRT]             = IST("server_aborts_total"),
-	[ST_I_PX_COMP_IN]              = IST("http_comp_bytes_in_total"),
-	[ST_I_PX_COMP_OUT]             = IST("http_comp_bytes_out_total"),
-	[ST_I_PX_COMP_BYP]             = IST("http_comp_bytes_bypassed_total"),
-	[ST_I_PX_COMP_RSP]             = IST("http_comp_responses_total"),
-	[ST_I_PX_LASTSESS]             = IST("last_session_seconds"),
-	[ST_I_PX_QTIME]                = IST("queue_time_average_seconds"),
-	[ST_I_PX_CTIME]                = IST("connect_time_average_seconds"),
-	[ST_I_PX_RTIME]                = IST("response_time_average_seconds"),
-	[ST_I_PX_TTIME]                = IST("total_time_average_seconds"),
-	[ST_I_PX_CONN_RATE_MAX]        = IST("connections_rate_max"),
-	[ST_I_PX_CONN_TOT]             = IST("connections_total"),
-	[ST_I_PX_INTERCEPTED]          = IST("intercepted_requests_total"),
-	[ST_I_PX_DCON]                 = IST("denied_connections_total"),
-	[ST_I_PX_DSES]                 = IST("denied_sessions_total"),
-	[ST_I_PX_WREW]                 = IST("failed_header_rewriting_total"),
-	[ST_I_PX_CONNECT]              = IST("connection_attempts_total"),
-	[ST_I_PX_REUSE]                = IST("connection_reuses_total"),
-	[ST_I_PX_CACHE_LOOKUPS]        = IST("http_cache_lookups_total"),
-	[ST_I_PX_CACHE_HITS]           = IST("http_cache_hits_total"),
-	[ST_I_PX_SRV_ICUR]             = IST("idle_connections_current"),
-	[ST_I_PX_SRV_ILIM]             = IST("idle_connections_limit"),
-	[ST_I_PX_QT_MAX]               = IST("max_queue_time_seconds"),
-	[ST_I_PX_CT_MAX]               = IST("max_connect_time_seconds"),
-	[ST_I_PX_RT_MAX]               = IST("max_response_time_seconds"),
-	[ST_I_PX_TT_MAX]               = IST("max_total_time_seconds"),
-	[ST_I_PX_EINT]                 = IST("internal_errors_total"),
-	[ST_I_PX_IDLE_CONN_CUR]        = IST("unsafe_idle_connections_current"),
-	[ST_I_PX_SAFE_CONN_CUR]        = IST("safe_idle_connections_current"),
-	[ST_I_PX_USED_CONN_CUR]        = IST("used_connections_current"),
-	[ST_I_PX_NEED_CONN_EST]        = IST("need_connections_current"),
-	[ST_I_PX_UWEIGHT]              = IST("uweight"),
-	[ST_I_PX_AGG_SRV_CHECK_STATUS] = IST("agg_server_check_status"),
-	[ST_I_PX_AGG_SRV_STATUS ]      = IST("agg_server_status"),
-	[ST_I_PX_AGG_CHECK_STATUS]     = IST("agg_check_status"),
-};
-
 static inline enum promex_mt_type promex_st_gettype(int index, enum field_nature nature)
 {
 	enum promex_mt_type type;
@@ -597,7 +518,7 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 	enum promex_front_state state;
 
 	for (;ctx->field_num < ST_I_PX_MAX; ctx->field_num++) {
-		if (!isttest(promex_st_metrics[ctx->field_num]) ||
+		if (!stat_cols_px[ctx->field_num].alt_name ||
 		    !(stat_cols_px[ctx->field_num].cap & STATS_PX_CAP_FE))
 			continue;
 
@@ -605,7 +526,7 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 		desc = promex_st_metric_desc[ctx->field_num];
 
 		if (!isttest(name))
-			name = promex_st_metrics[ctx->field_num];
+			name = ist(stat_cols_px[ctx->field_num].alt_name);
 		if (!isttest(desc))
 			desc = ist(stat_cols_px[ctx->field_num].desc);
 
@@ -801,7 +722,7 @@ static int promex_dump_listener_metrics(struct appctx *appctx, struct htx *htx)
 	enum li_status status;
 
 	for (;ctx->field_num < ST_I_PX_MAX; ctx->field_num++) {
-		if (!isttest(promex_st_metrics[ctx->field_num]) ||
+		if (!stat_cols_px[ctx->field_num].alt_name ||
 		    !(stat_cols_px[ctx->field_num].cap & STATS_PX_CAP_LI))
 			continue;
 
@@ -809,7 +730,7 @@ static int promex_dump_listener_metrics(struct appctx *appctx, struct htx *htx)
 		desc = promex_st_metric_desc[ctx->field_num];
 
 		if (!isttest(name))
-			name = promex_st_metrics[ctx->field_num];
+			name = ist(stat_cols_px[ctx->field_num].alt_name);
 		if (!isttest(desc))
 			desc = ist(stat_cols_px[ctx->field_num].desc);
 
@@ -1009,7 +930,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 	enum healthcheck_status srv_check_status;
 
 	for (;ctx->field_num < ST_I_PX_MAX; ctx->field_num++) {
-		if (!isttest(promex_st_metrics[ctx->field_num]) ||
+		if (!stat_cols_px[ctx->field_num].alt_name ||
 		    !(stat_cols_px[ctx->field_num].cap & STATS_PX_CAP_BE))
 			continue;
 
@@ -1017,7 +938,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 		desc = promex_st_metric_desc[ctx->field_num];
 
 		if (!isttest(name))
-			name = promex_st_metrics[ctx->field_num];
+			name = ist(stat_cols_px[ctx->field_num].alt_name);
 		if (!isttest(desc))
 			desc = ist(stat_cols_px[ctx->field_num].desc);
 
@@ -1293,7 +1214,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 	const char *check_state;
 
 	for (;ctx->field_num < ST_I_PX_MAX; ctx->field_num++) {
-		if (!isttest(promex_st_metrics[ctx->field_num]) ||
+		if (!stat_cols_px[ctx->field_num].alt_name ||
 		    !(stat_cols_px[ctx->field_num].cap & STATS_PX_CAP_SRV))
 			continue;
 
@@ -1301,7 +1222,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 		desc = promex_st_metric_desc[ctx->field_num];
 
 		if (!isttest(name))
-			name = promex_st_metrics[ctx->field_num];
+			name = ist(stat_cols_px[ctx->field_num].alt_name);
 		if (!isttest(desc))
 			desc = ist(stat_cols_px[ctx->field_num].desc);
 
