@@ -5312,11 +5312,10 @@ __LJMP static int hlua_applet_tcp_getline(lua_State *L)
 	return MAY_LJMP(hlua_applet_tcp_getline_yield(L, 0, 0));
 }
 
-/* If expected data not yet available, it returns a yield. This function
- * consumes the data in the buffer. It returns a string containing the
- * data. This string can be empty.
+/* returns 1 on success (number of bytes received is pushed on the stack)
+ * or 0 if yielding if required (not enough data available)
  */
-__LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KContext ctx)
+__LJMP static int hlua_applet_tcp_recv_try(lua_State *L)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 	struct stconn *sc = appctx_sc(luactx->appctx);
@@ -5343,7 +5342,7 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 		}
 
 		applet_need_more_data(luactx->appctx);
-		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, exp_date, 0));
+		return 0;
 	}
 
 	/* End of data: commit the total strings and return. */
@@ -5376,7 +5375,7 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 		}
 
 		applet_need_more_data(luactx->appctx);
-		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, exp_date, 0));
+		return 0;
 
 	} else {
 
@@ -5402,7 +5401,7 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 			lua_pushinteger(L, len);
 			lua_replace(L, 2);
 			applet_need_more_data(luactx->appctx);
-			MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, exp_date, 0));
+			return 0;
 		}
 
 		/* return the result. */
@@ -5414,6 +5413,23 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 	hlua_pusherror(L, "Lua: internal error");
 	WILL_LJMP(lua_error(L));
 	return 0;
+}
+
+/* If expected data not yet available, it returns a yield. This function
+ * consumes the data in the buffer. It returns a string containing the
+ * data. This string can be empty.
+ */
+__LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KContext ctx)
+{
+	int exp_date = MAY_LJMP(luaL_checkinteger(L, 3));
+	int ret;
+
+	ret = hlua_applet_tcp_recv_try(L);
+
+	if (ret == 0)
+		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, exp_date, 0));
+
+	return ret;
 }
 
 /* Check arguments for the function "hlua_channel_get_yield". */
