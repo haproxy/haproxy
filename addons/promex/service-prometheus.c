@@ -97,73 +97,6 @@ struct promex_ctx {
  */
 #define PROMEX_MAX_METRIC_LENGTH 512
 
-/* Global metrics names, only exposed if explicitly set  */
-const struct ist promex_global_metrics[ST_I_INF_MAX] = {
-	[ST_I_INF_NBTHREAD]                       = IST("nbthread"),
-	[ST_I_INF_NBPROC]                         = IST("nbproc"),
-	[ST_I_INF_PROCESS_NUM]                    = IST("relative_process_id"),
-	[ST_I_INF_UPTIME_SEC]                     = IST("uptime_seconds"),
-	[ST_I_INF_START_TIME_SEC]                 = IST("start_time_seconds"),
-	[ST_I_INF_MEMMAX_BYTES]                   = IST("max_memory_bytes"),
-	[ST_I_INF_POOL_ALLOC_BYTES]               = IST("pool_allocated_bytes"),
-	[ST_I_INF_POOL_USED_BYTES]                = IST("pool_used_bytes"),
-	[ST_I_INF_POOL_FAILED]                    = IST("pool_failures_total"),
-	[ST_I_INF_ULIMIT_N]                       = IST("max_fds"),
-	[ST_I_INF_MAXSOCK]                        = IST("max_sockets"),
-	[ST_I_INF_MAXCONN]                        = IST("max_connections"),
-	[ST_I_INF_HARD_MAXCONN]                   = IST("hard_max_connections"),
-	[ST_I_INF_CURR_CONN]                      = IST("current_connections"),
-	[ST_I_INF_CUM_CONN]                       = IST("connections_total"),
-	[ST_I_INF_CUM_REQ]                        = IST("requests_total"),
-	[ST_I_INF_MAX_SSL_CONNS]                  = IST("max_ssl_connections"),
-	[ST_I_INF_CURR_SSL_CONNS]                 = IST("current_ssl_connections"),
-	[ST_I_INF_CUM_SSL_CONNS]                  = IST("ssl_connections_total"),
-	[ST_I_INF_MAXPIPES]                       = IST("max_pipes"),
-	[ST_I_INF_PIPES_USED]                     = IST("pipes_used_total"),
-	[ST_I_INF_PIPES_FREE]                     = IST("pipes_free_total"),
-	[ST_I_INF_CONN_RATE]                      = IST("current_connection_rate"),
-	[ST_I_INF_CONN_RATE_LIMIT]                = IST("limit_connection_rate"),
-	[ST_I_INF_MAX_CONN_RATE]                  = IST("max_connection_rate"),
-	[ST_I_INF_SESS_RATE]                      = IST("current_session_rate"),
-	[ST_I_INF_SESS_RATE_LIMIT]                = IST("limit_session_rate"),
-	[ST_I_INF_MAX_SESS_RATE]                  = IST("max_session_rate"),
-	[ST_I_INF_SSL_RATE]                       = IST("current_ssl_rate"),
-	[ST_I_INF_SSL_RATE_LIMIT]                 = IST("limit_ssl_rate"),
-	[ST_I_INF_MAX_SSL_RATE]                   = IST("max_ssl_rate"),
-	[ST_I_INF_SSL_FRONTEND_KEY_RATE]          = IST("current_frontend_ssl_key_rate"),
-	[ST_I_INF_SSL_FRONTEND_MAX_KEY_RATE]      = IST("max_frontend_ssl_key_rate"),
-	[ST_I_INF_SSL_FRONTEND_SESSION_REUSE_PCT] = IST("frontend_ssl_reuse"),
-	[ST_I_INF_SSL_BACKEND_KEY_RATE]           = IST("current_backend_ssl_key_rate"),
-	[ST_I_INF_SSL_BACKEND_MAX_KEY_RATE]       = IST("max_backend_ssl_key_rate"),
-	[ST_I_INF_SSL_CACHE_LOOKUPS]              = IST("ssl_cache_lookups_total"),
-	[ST_I_INF_SSL_CACHE_MISSES]               = IST("ssl_cache_misses_total"),
-	[ST_I_INF_COMPRESS_BPS_IN]                = IST("http_comp_bytes_in_total"),
-	[ST_I_INF_COMPRESS_BPS_OUT]               = IST("http_comp_bytes_out_total"),
-	[ST_I_INF_COMPRESS_BPS_RATE_LIM]          = IST("limit_http_comp"),
-	[ST_I_INF_ZLIB_MEM_USAGE]                 = IST("current_zlib_memory"),
-	[ST_I_INF_MAX_ZLIB_MEM_USAGE]             = IST("max_zlib_memory"),
-	[ST_I_INF_TASKS]                          = IST("current_tasks"),
-	[ST_I_INF_RUN_QUEUE]                      = IST("current_run_queue"),
-	[ST_I_INF_IDLE_PCT]                       = IST("idle_time_percent"),
-	[ST_I_INF_NODE]                           = IST("node"),
-	[ST_I_INF_DESCRIPTION]                    = IST("description"),
-	[ST_I_INF_STOPPING]                       = IST("stopping"),
-	[ST_I_INF_JOBS]                           = IST("jobs"),
-	[ST_I_INF_UNSTOPPABLE_JOBS]               = IST("unstoppable_jobs"),
-	[ST_I_INF_LISTENERS]                      = IST("listeners"),
-	[ST_I_INF_ACTIVE_PEERS]                   = IST("active_peers"),
-	[ST_I_INF_CONNECTED_PEERS]                = IST("connected_peers"),
-	[ST_I_INF_DROPPED_LOGS]                   = IST("dropped_logs_total"),
-	[ST_I_INF_BUSY_POLLING]                   = IST("busy_polling_enabled"),
-	[ST_I_INF_FAILED_RESOLUTIONS]             = IST("failed_resolutions"),
-	[ST_I_INF_TOTAL_BYTES_OUT]                = IST("bytes_out_total"),
-	[ST_I_INF_TOTAL_SPLICED_BYTES_OUT]        = IST("spliced_bytes_out_total"),
-	[ST_I_INF_BYTES_OUT_RATE]                 = IST("bytes_out_rate"),
-	[ST_I_INF_CUM_LOG_MSGS]                   = IST("recv_logs_total"),
-	[ST_I_INF_BUILD_INFO]                     = IST("build_info"),
-	[ST_I_INF_WARNINGS]                       = IST("total_warnings"),
-};
-
 static inline enum promex_mt_type promex_global_gettype(int index, enum field_nature nature)
 {
 	enum promex_mt_type type;
@@ -584,10 +517,10 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 		enum promex_mt_type type;
 		int lb_idx = 0;
 
-		if (!isttest(promex_global_metrics[ctx->field_num]))
+		if (!stat_cols_info[ctx->field_num].alt_name)
 			continue;
 
-		name = promex_global_metrics[ctx->field_num];
+		name = ist(stat_cols_info[ctx->field_num].alt_name);
 		desc = ist(stat_cols_info[ctx->field_num].desc);
 
 		if (promex_filter_metric(appctx, prefix, name))
