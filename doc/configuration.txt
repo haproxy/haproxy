@@ -6011,6 +6011,7 @@ filter                                    -          X         X         X
 fullconn                                  X          -         X         X
 guid                                      -          X         X         X
 hash-balance-factor                       X          -         X         X
+hash-preserve-affinity                    X          -         X         X
 hash-type                                 X          -         X         X
 http-after-response                       X (!)      X         X         X
 http-check comment                        X          -         X         X
@@ -7899,6 +7900,35 @@ hash-balance-factor <factor>
 
   See also : "balance" and "hash-type".
 
+hash-preserve-affinity { always | maxconn | maxqueue }
+  Specify a method for assigning streams to servers with hash load balancing
+  when servers are satured or have a full queue.
+
+  May be used in the following contexts: http
+
+  May be used in sections:   defaults | frontend | listen | backend
+                               yes    |    no    |   yes  |   yes
+
+  The following values can be specified:
+
+    - "always"   : this is the default stategy. A stream is assigned to a
+                   server based on hashing irrespective of whether the server
+                   is currently saturated.
+
+    - "maxconn"  : when selected, servers that have "maxconn" set and are
+                   currently saturated will be skipped. Another server will be
+                   picked by following the hashing ring. This has no effect on
+                   servers that do not set "maxconn". If all servers are
+                   saturated, the request is enqueued to the last server in the
+                   hash ring before the initially selected server.
+
+    - "maxqueue" : when selected, servers that have "maxconn" set, "maxqueue"
+                   set to a non-zero value (limited queue size) and currently
+                   have a full queue will be skipped. Another server will be
+                   picked by following the hashing ring. This has no effect on
+                   servers that do not set both "maxconn" and "maxqueue".
+
+  See also : "maxconn", "maxqueue", "hash-balance-factor"
 
 hash-type <method> <function> <modifier>
   Specify a method to use for mapping hashes to servers
@@ -7992,8 +8022,8 @@ hash-type <method> <function> <modifier>
   default function is "sdbm", the selection of a function should be based on
   the range of the values being hashed.
 
-  See also : "balance", "hash-balance-factor", "server"
-
+  See also : "balance", "hash-balance-factor", "hash-preserve-affinity",
+             "server"
 
 http-after-response <action> <options...> [ { if | unless } <condition> ]
   Access control for all Layer 7 responses (server, applet/service and internal

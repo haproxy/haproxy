@@ -1,0 +1,89 @@
+
+vtest "Test for balance URI with hash-preserve-affinity maxqueue"
+feature ignore_unknown_macro
+
+# The test proceeds as follows:
+#
+# - `c1a` sends a request, which should be routed to `s1`.
+#
+# - Once `s1` receives the request, we unblock `b_s1_has_rxed_c1a`, which allows `c1b` to send
+#   a request, which should also be routed to `s1`. Since `s1` is saturated, the request from
+#   `c1b` is put in the queue for `s1`.
+#
+# - After the request from `c1b` has been transmitted, we unblock `b_has_txed_c1b`, which allows
+#   `c2` to send a request. Since `s1` is at maxconn and maxqueue, it should be sent to `s0` and
+#   complete right away.
+#
+# - Once the request from `c2` has been served successfully from `s0`, we unblock `b_c2_is_done`
+#   which allows `s1` to serve the requests from `c1a` and `c1b`.
+
+barrier b_s1_has_rxed_c1a cond 2
+barrier b_has_txed_c1b cond 2
+barrier b_c2_is_done cond 2
+barrier b_c1_is_done cond 3
+
+server s0 {
+    rxreq
+    txresp
+} -start
+
+server s1 {
+    rxreq
+
+    # Indicates that c1a's request has been received
+    barrier b_s1_has_rxed_c1a sync
+
+    # Wait until c2 is done
+    barrier b_c2_is_done sync
+
+    txresp
+} -start
+
+haproxy h1 -arg "-L A" -conf {
+    defaults
+        mode http
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen px
+        bind "fd@${px}"
+        balance uri
+        hash-preserve-affinity maxqueue
+        hash-type consistent
+
+        http-response set-header Server %s
+
+        server s0 ${s0_addr}:${s0_port} maxconn 1
+        server s1 ${s1_addr}:${s1_port} maxconn 1 maxqueue 1
+} -start
+
+# c1a sends a request, it should go to s1 and wait
+client c1a -connect ${h1_px_sock} {
+    txreq -url "/test-url"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.Server ~ s1
+}  -start
+
+barrier b_s1_has_rxed_c1a sync
+
+# c1b sends a request, it should go to s1 and wait in queue
+client c1b -connect ${h1_px_sock} {
+    txreq -url "/test-url"
+    barrier b_has_txed_c1b sync
+    rxresp
+}  -start
+
+barrier b_has_txed_c1b sync
+
+# s1 is saturated, requests should be assigned to s0
+client c2 -connect ${h1_px_sock} {
+    txreq -url "/test-url"
+    rxresp
+    barrier b_c2_is_done sync
+    expect resp.status == 200
+    expect resp.http.Server ~ s0
+} -run
+
+client c1a -wait

@@ -180,7 +180,13 @@ enum PR_SRV_STATE_FILE {
 #define PR_O3_LOGF_HOST_APPEND   0x00000080
 #define PR_O3_LOGF_HOST          0x000000F0
 
-/* unused: 0x00000100 to  0x80000000 */
+/* bits for hash-preserve-affinity */
+#define PR_O3_HASHAFNTY_ALWS     0x00000000 /* always preserve hash affinity */
+#define PR_O3_HASHAFNTY_MAXCONN  0x00000100 /* preserve hash affinity until maxconn is reached */
+#define PR_O3_HASHAFNTY_MAXQUEUE 0x00000200 /* preserve hash affinity until maxqueue is reached */
+#define PR_O3_HASHAFNTY_MASK     0x00000300 /* mask for hash-preserve-affinity */
+
+/* unused: 0x00000400 to  0x80000000 */
 /* end of proxy->options3 */
 
 /* Cookie settings for pr->ck_opts */

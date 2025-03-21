@@ -1,0 +1,59 @@
+vtest "Test for balance URI with hash-preserve-affinity maxconn"
+feature ignore_unknown_macro
+
+# Ensure c1 doesn't finish before c2
+barrier b1 cond 2
+
+# Ensure c2 only starts once c1's request is already in flight
+barrier b2 cond 2
+
+server s0 {
+    rxreq
+    barrier b1 sync
+    txresp -hdr "Server: s0"
+} -start
+
+server s1 {
+    rxreq
+    barrier b2 sync
+    barrier b1 sync
+    txresp -hdr "Server: s1"
+} -start
+
+haproxy h1 -arg "-L A" -conf {
+    defaults
+        mode http
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen px
+        bind "fd@${px}"
+        balance uri
+        hash-preserve-affinity maxconn
+        hash-type consistent
+
+        server srv0 ${s0_addr}:${s0_port} maxconn 1
+        server srv1 ${s1_addr}:${s1_port} maxconn 1
+
+} -start
+
+client c1 -connect ${h1_px_sock} {
+    txreq -url "/test-url"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.Server ~ s1
+}  -start
+
+barrier b2 sync
+
+# s1 is saturated, request should be assigned to s0
+client c2 -connect ${h1_px_sock} {
+    txreq -url "/test-url"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.Server ~ s0
+} -start
+
+client c1 -wait
+client c2 -wait

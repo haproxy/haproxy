@@ -404,6 +404,7 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash, const s
 	struct eb_root *root;
 	unsigned int dn, dp;
 	int loop;
+	int hashafnty;
 
 	HA_RWLOCK_RDLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
@@ -449,7 +450,17 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash, const s
 	}
 
 	loop = 0;
-	while (nsrv == avoid || (p->lbprm.hash_balance_factor && !chash_server_is_eligible(nsrv))) {
+	hashafnty = p->options3 & PR_O3_HASHAFNTY_MASK;
+
+	while (nsrv == avoid ||
+			(p->lbprm.hash_balance_factor && !chash_server_is_eligible(nsrv)) ||
+			(hashafnty == PR_O3_HASHAFNTY_MAXCONN &&
+				nsrv->maxconn &&
+				nsrv->served >= srv_dynamic_maxconn(nsrv)) ||
+			(hashafnty == PR_O3_HASHAFNTY_MAXQUEUE &&
+				nsrv->maxconn &&
+				nsrv->maxqueue &&
+				nsrv->served + nsrv->queueslength >= srv_dynamic_maxconn(nsrv) + nsrv->maxqueue)) {
 		next = eb32_next(next);
 		if (!next) {
 			next = eb32_first(root);

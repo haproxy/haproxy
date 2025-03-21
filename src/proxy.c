@@ -927,6 +927,37 @@ proxy_parse_retry_on(char **args, int section, struct proxy *curpx,
 	return 0;
 }
 
+/* This function parses a "hash-preserve-affinity" statement */
+static int
+proxy_parse_hash_preserve_affinity(char **args, int section, struct proxy *curpx,
+									const struct proxy *defpx, const char *file, int line,
+									char **err)
+{
+	if (!(*args[1])) {
+		memprintf(err, "'%s' needs a keyword to specify when to preserve hash affinity", args[0]);
+		return -1;
+	}
+	if (!(curpx->cap & PR_CAP_BE)) {
+		memprintf(err, "'%s' only available in backend or listen section", args[0]);
+		return -1;
+	}
+
+	curpx->options3 &= ~PR_O3_HASHAFNTY_MASK;
+
+	if (strcmp(args[1], "always") == 0)
+		curpx->options3 |= PR_O3_HASHAFNTY_ALWS;
+	else if (strcmp(args[1], "maxconn") == 0)
+		curpx->options3 |= PR_O3_HASHAFNTY_MAXCONN;
+	else if (strcmp(args[1], "maxqueue") == 0)
+		curpx->options3 |= PR_O3_HASHAFNTY_MAXQUEUE;
+	else {
+		memprintf(err, "'%s': unknown keyword '%s'", args[0], args[1]);
+		return -1;
+	}
+
+	return 0;
+}
+
 #ifdef TCP_KEEPCNT
 /* This function parses "{cli|srv}tcpka-cnt" statements */
 static int proxy_parse_tcpka_cnt(char **args, int section, struct proxy *proxy,
@@ -2698,6 +2729,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "max-keep-alive-queue", proxy_parse_max_ka_queue },
 	{ CFG_LISTEN, "declare", proxy_parse_declare },
 	{ CFG_LISTEN, "retry-on", proxy_parse_retry_on },
+	{ CFG_LISTEN, "hash-preserve-affinity", proxy_parse_hash_preserve_affinity },
 #ifdef TCP_KEEPCNT
 	{ CFG_LISTEN, "clitcpka-cnt", proxy_parse_tcpka_cnt },
 	{ CFG_LISTEN, "srvtcpka-cnt", proxy_parse_tcpka_cnt },
