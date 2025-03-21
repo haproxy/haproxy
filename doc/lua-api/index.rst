@@ -926,12 +926,21 @@ Core class
   its work and wants to give back the control to HAProxy without executing the
   remaining code. It can be seen as a multi-level "return".
 
+.. js:function:: core.wait()
+
+  **context**: task, action
+
+  Give back the hand at the HAProxy scheduler. Unlike :js:func:`core.yield`
+  the task will not be woken up automatically to resume as fast as possible.
+  Instead, it will wait for an event to wake the task.
+
 .. js:function:: core.yield()
 
   **context**: task, action
 
   Give back the hand at the HAProxy scheduler. It is used when the LUA
-  processing consumes a lot of processing time.
+  processing consumes a lot of processing time. Lua excecution will be resumed
+  automatically (automatic reschedule).
 
 .. js:function:: core.parse_addr(address)
 

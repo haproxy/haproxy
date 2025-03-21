@@ -9247,6 +9247,17 @@ __LJMP static int hlua_yield(lua_State *L)
 	return 0;
 }
 
+/* same as hlua_yield() but doesn't enforce CTRLYIELD so the Lua task won't be
+ * automatically woken up to resume ASAP, instead it means we will wait for
+ * an event to occur to wake the task. Only use when you're confident that
+ * something or someone will wake the task at some point.
+ */
+__LJMP static int hlua_wait(lua_State *L)
+{
+	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_yield_yield, TICK_ETERNITY, 0));
+	return 0;
+}
+
 /* This function change the nice of the currently executed
  * task. It is used set low or high priority at the current
  * task.
@@ -13877,6 +13888,7 @@ lua_State *hlua_init_state(int thread_num)
 	hlua_class_function(L, "register_cli", hlua_register_cli);
 	hlua_class_function(L, "register_filter", hlua_register_filter);
 	hlua_class_function(L, "yield", hlua_yield);
+	hlua_class_function(L, "wait", hlua_wait);
 	hlua_class_function(L, "set_nice", hlua_set_nice);
 	hlua_class_function(L, "sleep", hlua_sleep);
 	hlua_class_function(L, "msleep", hlua_msleep);
