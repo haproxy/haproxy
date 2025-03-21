@@ -728,7 +728,7 @@ static void hlua_queue_init(lua_State *L)
 
 	hlua_class_function(L, "__gc", hlua_queue_gc);
 
-	class_queue_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+	class_queue_ref = hlua_register_metatable(L, CLASS_QUEUE);
 }
 
 int hlua_fcn_new_stktable(lua_State *L, struct stktable *tbl)

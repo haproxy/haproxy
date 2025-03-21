@@ -60,6 +60,7 @@
 #define CLASS_CERTCACHE    "CertCache"
 #define CLASS_PROXY_LIST   "ProxyList"
 #define CLASS_SERVER_LIST  "ServerList"
+#define CLASS_QUEUE        "Queue"
 
 struct stream;
 
