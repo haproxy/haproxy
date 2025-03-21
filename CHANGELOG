@@ -1,6 +1,127 @@
 ChangeLog :
 ===========
 
+2025/03/21 : 3.2-dev8
+    - MINOR: jws: implement JWS signing
+    - TESTS: jws: implement a test for JWS signing
+    - CI: github: add "jose" to apt dependencies
+    - CLEANUP: log-forward: remove useless options2 init
+    - CLEANUP: log: add syslog_process_message() helper
+    - MINOR: proxy: add proxy->options3
+    - MINOR: log: migrate log-forward options from proxy->options2 to options3
+    - MINOR: log: provide source address information in syslog_process_message()
+    - MINOR: tools: only print address in sa2str() when port == -1
+    - MINOR: log: add "option host" log-forward option
+    - MINOR: log: handle log-forward "option host"
+    - MEDIUM: log: change default "host" strategy for log-forward section
+    - BUG/MEDIUM: thread: use pthread_self() not ha_pthread[tid] in set_affinity
+    - MINOR: compiler: add a simple macro to concatenate resolved strings
+    - MINOR: compiler: add a new __decl_thread_var() macro to declare local variables
+    - BUILD: tools: silence a build warning when USE_THREAD=0
+    - BUILD: backend: silence a build warning when threads are disabled
+    - DOC: management: rename some last occurences from domain "dns" to "resolvers"
+    - BUG/MINOR: stats: fix capabilities and hide settings for some generic metrics
+    - MINOR: cli: export cli_io_handler() to ease symbol resolution
+    - MINOR: tools: improve symbol resolution without dl_addr
+    - MINOR: tools: ease the declaration of known symbols in resolve_sym_name()
+    - MINOR: tools: teach resolve_sym_name() a few more common symbols
+    - BUILD: tools: avoid a build warning on gcc-4.8 in resolve_sym_name()
+    - DEV: ncpu: also emulate sysconf() for _SC_NPROCESSORS_*
+    - DOC: design-thoughts: commit numa-auto.txt
+    - MINOR: cpuset: make the API support negative CPU IDs
+    - MINOR: thread: rely on the cpuset functions to count bound CPUs
+    - MINOR: cpu-topo: add ha_cpu_topo definition
+    - MINOR: cpu-topo: allocate and initialize the ha_cpu_topo array.
+    - MINOR: cpu-topo: rely on _SC_NPROCESSORS_CONF to trim maxcpus
+    - MINOR: cpu-topo: add a function to dump CPU topology
+    - MINOR: cpu-topo: update CPU topology from excluded CPUs at boot
+    - REORG: cpu-topo: move bound cpu detection from cpuset to cpu-topo
+    - MINOR: cpu-topo: add detection of online CPUs on Linux
+    - MINOR: cpu-topo: add detection of online CPUs on FreeBSD
+    - MINOR: cpu-topo: try to detect offline cpus at boot
+    - MINOR: cpu-topo: add CPU topology detection for linux
+    - MINOR: cpu-topo: also store the sibling ID with SMT
+    - MINOR: cpu-topo: add NUMA node identification to CPUs on Linux
+    - MINOR: cpu-topo: add NUMA node identification to CPUs on FreeBSD
+    - MINOR: thread: turn thread_cpu_mask_forced() into an init-time variable
+    - MINOR: cfgparse: move the binding detection into numa_detect_topology()
+    - MINOR: cfgparse: use already known offline CPU information
+    - MINOR: global: add a command-line option to enable CPU binding debugging
+    - MINOR: cpu-topo: add a new "cpu-set" global directive to choose cpus
+    - MINOR: cpu-topo: add "drop-cpu" and "only-cpu" to cpu-set
+    - MEDIUM: thread: start to detect thread groups and threads min/max
+    - MEDIUM: cpu-topo: make sure to properly assign CPUs to threads as a fallback
+    - MEDIUM: thread: reimplement first numa node detection
+    - MEDIUM: cfgparse: remove now unused numa & thread-count detection
+    - MINOR: cpu-topo: refine cpu dump output to better show kept/dropped CPUs
+    - MINOR: cpu-topo: fall back to nominal_perf and scaling_max_freq for the capacity
+    - MINOR: cpu-topo: use cpufreq before acpi cppc
+    - MINOR: cpu-topo: boost the capacity of performance cores with cpufreq
+    - MINOR: cpu-topo: skip CPU detection when /sys/.../cpu does not exist
+    - MINOR: cpu-topo: skip identification of non-existing CPUs
+    - MINOR: cpu-topo: skip CPU properties that we've verified do not exist
+    - MINOR: cpu-topo: implement a sorting mechanism for CPU index
+    - MINOR: cpu-topo: implement a sorting mechanism by CPU locality
+    - MINOR: cpu-topo: implement a CPU sorting mechanism by cluster ID
+    - MINOR: cpu-topo: ignore single-core clusters
+    - MINOR: cpu-topo: assign clusters to cores without and renumber them
+    - MINOR: cpu-topo: make sure we don't leave unassigned IDs in the cpu_topo
+    - MINOR: cpu-topo: assign an L3 cache if more than 2 L2 instances
+    - MINOR: cpu-topo: renumber cores to avoid holes and make them contiguous
+    - MINOR: cpu-topo: add a function to sort by cluster+capacity
+    - MINOR: cpu-topo: consider capacity when forming clusters
+    - MINOR: cpu-topo: create an array of the clusters
+    - MINOR: cpu-topo: ignore excess of too small clusters
+    - MINOR: cpu-topo: add "only-node" and "drop-node" to cpu-set
+    - MINOR: cpu-topo: add "only-thread" and "drop-thread" to cpu-set
+    - MINOR: cpu-topo: add "only-core" and "drop-core" to cpu-set
+    - MINOR: cpu-topo: add "only-cluster" and "drop-cluster" to cpu-set
+    - MINOR: cpu-topo: add a CPU policy setting to the global section
+    - MINOR: cpu-topo: add a 'first-usable-node' cpu policy
+    - MEDIUM: cpu-topo: use the "first-usable-node" cpu-policy by default
+    - CLEANUP: thread: now remove the temporary CPU node binding code
+    - MINOR: cpu-topo: add cpu-policy "group-by-cluster"
+    - MEDIUM: cpu-topo: let the "group-by-cluster" split groups
+    - MINOR: cpu-topo: add a new "performance" cpu-policy
+    - MINOR: cpu-topo: add a new "efficiency" cpu-policy
+    - MINOR: cpu-topo: add a new "resource" cpu-policy
+    - MINOR: jws: add new functions in jws.h
+    - MINOR: cpu-topo: fix unused stack var 'cpu2' reported by coverity
+    - MINOR: hlua: add an optional timeout to AppletTCP:receive()
+    - MINOR: jws: use jwt_alg type instead of a char
+    - BUG/MINOR: log: prevent saddr NULL deref in syslog_io_handler()
+    - MINOR: stream: decrement srv->served after detaching from the list
+    - BUG/MINOR: hlua: fix optional timeout argument index for AppletTCP:receive()
+    - MINOR: server: simplify srv_has_streams()
+    - CLEANUP: server: make it clear that srv_check_for_deletion() is thread-safe
+    - MINOR: cli/server: don't take thread isolation to check for srv-removable
+    - BUG/MINOR: limits: compute_ideal_maxconn: don't cap remain if fd_hard_limit=0
+    - MINOR: limits: fix check_if_maxsock_permitted description
+    - BUG/MEDIUM: hlua/cli: fix cli applet UAF in hlua_applet_wakeup()
+    - MINOR: tools: path_base() concatenates a path with a base path
+    - MEDIUM: ssl/ckch: make the ckch_conf more generic
+    - BUG/MINOR: mux-h2: Reset streams with NO_ERROR code if full response was already sent
+    - MINOR: stats: add .generic explicit field in stat_col struct
+    - MINOR: stats: STATS_PX_CAP___B_ macro
+    - MINOR: stats: add .cap for some static metrics
+    - MINOR: stats: use stat_col storage stat_cols_info
+    - MEDIUM: promex: switch to using stat_cols_info for global metrics
+    - MINOR: promex: expose ST_I_INF_WARNINGS (AKA total_warnings) metric
+    - MEDIUM: promex: switch to using stat_cols_px for front/back/server metrics
+    - MINOR: stats: explicitly add frontend cap for ST_I_PX_REQ_TOT
+    - CLEANUP: promex: remove unused PROMEX_FL_{INFO,FRONT,BACK,LI,SRV} flags
+    - BUG/MEDIUM: mux-quic: fix crash on RS/SS emission if already close local
+    - BUG/MINOR: mux-quic: remove extra BUG_ON() in _qcc_send_stream()
+    - MEDIUM: mt_list: Reduce the max number of loops with exponential backoff
+    - MINOR: stats: add alt_name field to stat_col struct
+    - MINOR: stats: add alt name info to stat_cols_info where relevant
+    - MINOR: promex: get rid of promex_global_metric array
+    - MINOR: stats-proxy: add alt_name field for ME_NEW_{FE,BE,PX} helpers
+    - MINOR: stats-proxy: add alt name info to stat_cols_px where relevant
+    - MINOR: promex: get rid of promex_st_metrics array
+    - MINOR: pools: rename the "by_what" field of the show pools context to "how"
+    - MINOR: cli/pools: record the list of pool registrations even when merging them
+
 2025/03/07 : 3.2-dev7
     - BUG/MEDIUM: applet: Don't handle EOI/EOS/ERROR is applet is waiting for room
     - BUG/MEDIUM: spoe/mux-spop: Introduce an NOOP action to deal with empty ACK
