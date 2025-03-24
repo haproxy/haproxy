@@ -48,6 +48,7 @@ void quic_transport_params_init(struct quic_transport_params *p, int server)
 {
 	const uint64_t stream_rx_bufsz = qmux_stream_rx_bufsz();
 	const int max_streams_bidi = global.tune.quic_frontend_max_streams_bidi;
+	/* TODO value used to conform with HTTP/3, should be derived from app_ops */
 	const int max_streams_uni = 3;
 
 	/* Set RFC default values for unspecified parameters. */
@@ -62,12 +63,24 @@ void quic_transport_params_init(struct quic_transport_params *p, int server)
 	else
 		p->max_idle_timeout = global.tune.quic_backend_max_idle_timeout;
 
-	p->initial_max_streams_bidi            = max_streams_bidi;
-	p->initial_max_streams_uni             = max_streams_uni;
-	p->initial_max_stream_data_bidi_local  = stream_rx_bufsz;
-	p->initial_max_stream_data_bidi_remote = stream_rx_bufsz * QMUX_STREAM_RX_BUF_FACTOR;
-	p->initial_max_stream_data_uni         = stream_rx_bufsz;
+	/* Set limit on number of concurrently opened streams. */
+	p->initial_max_streams_bidi = max_streams_bidi;
+	p->initial_max_streams_uni  = max_streams_uni;
+
+	/* Set connection flow-control data limit, automatically calculated
+	 * from max number of concurrently opened streams.
+	 */
 	p->initial_max_data = (max_streams_bidi + max_streams_uni) * stream_rx_bufsz;
+
+	/* Set remote streams flow-control data limit. */
+	p->initial_max_stream_data_bidi_remote = stream_rx_bufsz * QMUX_STREAM_RX_BUF_FACTOR;
+
+	/* Set remaining flow-control data limit. Local bidi streams are unused
+	 * on server side. Uni streams are only used for control exchange, so
+	 * only a single buffer for in flight data should be enough.
+	 */
+	p->initial_max_stream_data_bidi_local  = stream_rx_bufsz;
+	p->initial_max_stream_data_uni         = stream_rx_bufsz;
 
 	if (server) {
 		p->with_stateless_reset_token  = 1;
