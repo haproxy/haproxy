@@ -17,6 +17,7 @@
 #include <haproxy/quic_frame-t.h>
 #include <haproxy/quic_pacing-t.h>
 #include <haproxy/quic_stream-t.h>
+#include <haproxy/quic_utils-t.h>
 #include <haproxy/stconn-t.h>
 #include <haproxy/task-t.h>
 #include <haproxy/time-t.h>
@@ -157,6 +158,7 @@ struct qcs {
 		struct buffer app_buf; /* receive buffer used by stconn layer */
 		uint64_t msd; /* current max-stream-data limit to enforce */
 		uint64_t msd_base; /* max-stream-data previous to latest update */
+		struct bdata_ctr data; /* data utilization counter. Note that <tot> is now used for now as accounting may be difficult with ncbuf. */
 	} rx;
 	struct {
 		struct quic_fctl fc; /* stream flow control applied on sending */

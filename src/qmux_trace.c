@@ -162,7 +162,9 @@ void qmux_dump_qcs_info(struct buffer *msg, const struct qcs *qcs)
 	chunk_appendf(msg, " qcs=%p .id=%llu .st=%s .flg=0x%04x", qcs, (ullong)qcs->id,
 	              qcs_st_to_str(qcs->st), qcs->flags);
 
-	chunk_appendf(msg, " .rx=%llu/%llu", (ullong)qcs->rx.offset_max, (ullong)qcs->rx.msd);
+	chunk_appendf(msg, " .rx=%llu/%llu rxb=%u(%u)",
+	              (ullong)qcs->rx.offset_max, (ullong)qcs->rx.msd,
+	              qcs->rx.data.bcnt, qcs->rx.data.bmax);
 	chunk_appendf(msg, " .tx=%llu %llu/%llu", (ullong)qcs->tx.fc.off_soft,
 	                                          (ullong)qcs->tx.fc.off_real,
 	                                          (ullong)qcs->tx.fc.limit);

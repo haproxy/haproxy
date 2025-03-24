@@ -67,6 +67,7 @@ static void qcs_free_rxbuf(struct qcs *qcs, struct qc_stream_rxbuf *rxbuf)
 
 	eb64_delete(&rxbuf->off_node);
 	pool_free(pool_head_qc_stream_rxbuf, rxbuf);
+	bdata_ctr_bdec(&qcs->rx.data);
 }
 
 /* Free <qcs> instance. This function is reserved for internal usage : it must
@@ -177,6 +178,7 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 		qcs->rx.msd = qcc->lfctl.msd_uni_r;
 	}
 	qcs->rx.msd_base = 0;
+	bdata_ctr_init(&qcs->rx.data);
 
 	qcs->wait_event.tasklet = NULL;
 	qcs->wait_event.events = 0;
@@ -1151,6 +1153,7 @@ static int qcs_transfer_rx_data(struct qcs *qcs, struct qc_stream_rxbuf *rxbuf)
 			b_free(&b_next);
 			offer_buffers(NULL, 1);
 			pool_free(pool_head_qc_stream_rxbuf, rxbuf_next);
+			bdata_ctr_bdec(&qcs->rx.data);
 		}
 
 		ret = 0;
@@ -1723,6 +1726,7 @@ static struct qc_stream_rxbuf *qcs_get_rxbuf(struct qcs *qcs, uint64_t offset,
 		buf->off_node.key = aligned_off;
 		buf->off_end = aligned_off + qmux_stream_rx_bufsz();
 		eb64_insert(&qcs->rx.bufs, &buf->off_node);
+		bdata_ctr_binc(&qcs->rx.data);
 	}
 
 	ncbuf = &buf->ncb;
@@ -4121,8 +4125,10 @@ void qcc_show_quic(struct qcc *qcc)
 		              qcs, (ullong)qcs->id, qcs->flags,
 		              qcs_st_to_str(qcs->st));
 
-		if (!quic_stream_is_uni(qcs->id) || !quic_stream_is_local(qcc, qcs->id))
+		if (!quic_stream_is_uni(qcs->id) || !quic_stream_is_local(qcc, qcs->id)) {
+			chunk_appendf(&trash, " rxb=%u(%u)", qcs->rx.data.bcnt, qcs->rx.data.bmax);
 			chunk_appendf(&trash, " rxoff=%llu", (ullong)qcs->rx.offset);
+		}
 
 		if (!quic_stream_is_uni(qcs->id) || !quic_stream_is_remote(qcc, qcs->id)) {
 			if (qcs->stream)
