@@ -1,6 +1,13 @@
 
 vtest "Test for balance URI with hash-preserve-affinity maxqueue"
 feature ignore_unknown_macro
+#REGTEST_TYPE=broken
+
+# Marked as broken because despite the barriers, we're still bound by how
+# connections are established on the servers, and while it often works fine
+# locally, it tends to fail a lot on the CI. Some tests with pool-idle-shared,
+# nbthread and http-reuse never didn't help.
+
 
 # The test proceeds as follows:
 #
