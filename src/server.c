@@ -3114,6 +3114,9 @@ struct server *srv_drop(struct server *srv)
 
 	EXTRA_COUNTERS_FREE(srv->extra_counters);
 
+	if (srv->proxy->lbprm.server_deinit)
+		srv->proxy->lbprm.server_deinit(srv);
+
 	ha_free(&srv);
 
  end:

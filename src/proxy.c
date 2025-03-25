@@ -372,6 +372,9 @@ void free_proxy(struct proxy *p)
 	 */
 	srv_free_params(&p->defsrv);
 
+	if (p->lbprm.proxy_deinit)
+		p->lbprm.proxy_deinit(p);
+
 	list_for_each_entry_safe(l, l_next, &p->conf.listeners, by_fe) {
 		guid_remove(&l->guid);
 		LIST_DELETE(&l->by_fe);

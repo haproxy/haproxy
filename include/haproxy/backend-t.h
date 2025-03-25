@@ -181,6 +181,8 @@ struct lbprm {
 	void (*server_take_conn)(struct server *);       /* to be called when connection is assigned */
 	void (*server_drop_conn)(struct server *);       /* to be called when connection is dropped */
 	void (*server_requeue)(struct server *);         /* function used to place the server where it must be */
+	void (*proxy_deinit)(struct proxy *);            /* to be called when we're destroying the proxy */
+	void (*server_deinit)(struct server *);          /* to be called when we're destroying the server */
 };
 
 #endif /* _HAPROXY_BACKEND_T_H */
