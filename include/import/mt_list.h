@@ -780,6 +780,28 @@ static MT_INLINE struct mt_list mt_list_lock_prev(struct mt_list *lh)
 	return el;
 }
 
+/*
+ * Same as mt_list_lock_prev(), except it doesn't wait if the prev
+ * is locked already, and just returns { NULL, NULL }
+ */
+static MT_INLINE struct mt_list mt_list_try_lock_prev(struct mt_list *lh)
+{
+	struct mt_list el;
+	struct mt_list missed = { NULL, NULL };
+
+	el.prev = __atomic_exchange_n(&lh->prev, MT_LIST_BUSY, __ATOMIC_RELAXED);
+	if (el.prev == MT_LIST_BUSY)
+		return missed;
+
+	el.next = __atomic_exchange_n(&el.prev->next, MT_LIST_BUSY, __ATOMIC_RELAXED);
+	if (el.next == MT_LIST_BUSY) {
+		lh->prev = el.prev;
+		__atomic_thread_fence(__ATOMIC_RELEASE);
+		return missed;
+	}
+	return el;
+}
+
 
 /* Element <el> is locked on both sides, but the list around it isn't touched.
  * A copy of the previous element is returned, and may be used to pass to

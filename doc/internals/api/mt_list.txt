@@ -376,6 +376,9 @@ mt_list_lock_prev(elt)
   Return    A  elt
   value:    <===>
 
+mt_list_try_lock_prev(elt)
+    Does the same thing as mt_list_lock_prev(), except if the list is
+    locked already, it returns { NULL, NULL } instead of waiting.
 
 mt_list_lock_elem(elt)
     Locks the element only. Both of its pointers are replaced by two locked
