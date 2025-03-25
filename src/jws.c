@@ -148,13 +148,13 @@ static int EVP_PKEY_EC_to_pub_jwk(EVP_PKEY *pkey, char *dst, size_t dsize)
 	if (str_x->data == 0 || str_y->data == 0)
 		goto out;
 
-	ret = snprintf(dst, dsize, "{\n"
-			"    \"kty\": \"%s\",\n"
-			"    \"crv\": \"%s\",\n"
-			"    \"x\":   \"%s\",\n"
-			"    \"y\":   \"%s\"\n"
-			"}\n",
-			"EC", crv, str_x->area, str_y->area);
+	ret = snprintf(dst, dsize, "{"
+			"\"crv\":\"%s\","
+			"\"kty\":\"%s\","
+			"\"x\":\"%s\","
+			"\"y\":\"%s\""
+			"}",
+			crv, "EC", str_x->area, str_y->area);
 	if (ret >= dsize)
 		ret = 0;
 
@@ -209,12 +209,12 @@ static int EVP_PKEY_RSA_to_pub_jwk(EVP_PKEY *pkey, char *dst, size_t dsize)
 	if (str_n->data == 0 || str_e->data == 0)
 		goto out;
 
-	ret = snprintf(dst, dsize, "{\n"
-			"    \"kty\": \"%s\",\n"
-			"    \"n\":   \"%s\",\n"
-			"    \"e\":   \"%s\"\n"
-			"}\n",
-			"RSA", str_n->area, str_e->area);
+	ret = snprintf(dst, dsize, "{"
+			"\"e\":\"%s\","
+			"\"kty\":\"%s\","
+			"\"n\":\"%s\""
+			"}",
+			str_e->area, "RSA", str_n->area );
 	if (ret >= dsize)
 		ret = 0;
 
@@ -485,6 +485,44 @@ out:
 	return ret;
 
 }
+
+/*
+ * Fill a <dst> buffer of <dsize> size with a jwk thumbprint from a pkey
+ *
+ * Return the size of the data or 0
+ */
+int jws_thumbprint(EVP_PKEY *pkey, char *dst, size_t dsize)
+{
+	int ret = 0;
+	struct buffer *jwk = NULL;
+	unsigned char md[EVP_MAX_MD_SIZE];
+	unsigned int size;
+
+	if ((jwk = alloc_trash_chunk()) == NULL)
+		goto out;
+
+	switch (EVP_PKEY_base_id(pkey)) {
+		case EVP_PKEY_RSA:
+			jwk->data = EVP_PKEY_RSA_to_pub_jwk(pkey, jwk->area, jwk->size);
+			break;
+		case EVP_PKEY_EC:
+			jwk->data = EVP_PKEY_EC_to_pub_jwk(pkey, jwk->area, jwk->size);
+			break;
+		default:
+			break;
+	}
+
+
+	if (EVP_Digest(jwk->area, jwk->data, md, &size, EVP_sha256(), NULL) == 0)
+		goto out;
+
+	ret = a2base64url((const char *)md, size, dst, dsize);
+
+out:
+	free_trash_chunk(jwk);
+	return ret;
+}
+
 
 int jws_flattened(char *protected, char *payload, char *signature, char *dst, size_t dsize)
 {

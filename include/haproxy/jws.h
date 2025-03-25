@@ -13,5 +13,6 @@ int jws_b64_payload(char *payload, char *dst, size_t dsize);
 int jws_b64_protected(enum jwt_alg alg, char *kid, char *jwk, char *nonce, char *url, char *dst, size_t dsize);
 int jws_b64_signature(EVP_PKEY *pkey, enum jwt_alg alg, char *b64protected, char *b64payload, char *dst, size_t dsize);
 int jws_flattened(char *protected, char *payload, char *signature, char *dst, size_t dsize);
+int jws_thumbprint(EVP_PKEY *pkey, char *dst, size_t dsize);
 
 #endif /* ! _HAPROXY_JWK_H_ */
