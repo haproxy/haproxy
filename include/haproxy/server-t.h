@@ -383,6 +383,12 @@ struct server {
 	union {
 		struct eb32_node lb_node;       /* node used for tree-based load balancing */
 		struct list lb_list;            /* elem used for list-based load balancing */
+		struct {
+			struct fwlc_tree_elt *tree_elt; /* pointer to the element stored in tree, protected by lb_lock  */
+			struct fwlc_tree_elt *free_elt; /* A free element, so that we don't have to allocate one, protected by lb_lock */
+			struct mt_list lb_mt_list;      /* elem used for mt list-based load balancing, protected by lb_lock */
+			int lb_lock;                    /* make sure we are the only one updating the server */
+		};
 	};
 	struct server *next_full;               /* next server in the temporary full list */
 

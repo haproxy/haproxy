@@ -1478,6 +1478,8 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->filter_configs);
 	LIST_INIT(&p->tcpcheck_rules.preset_vars);
 
+	MT_LIST_INIT(&p->lbprm.lb_free_list);
+
 	p->defsrv.id = "default-server";
 	p->conf.used_listener_id = EB_ROOT;
 	p->conf.used_server_id   = EB_ROOT;

@@ -162,12 +162,15 @@ struct lbprm {
 	int wmult;			/* ratio between user weight and effective weight */
 	int wdiv;			/* ratio between effective weight and user weight */
 	int hash_balance_factor;	/* load balancing factor * 100, 0 if disabled */
+	unsigned int lb_free_list_nb;   /* Number of elements in the free list */
 	struct sample_expr *expr;       /* sample expression for "balance (log-)hash" */
 	char *arg_str;			/* name of the URL parameter/header/cookie used for hashing */
 	int   arg_len;			/* strlen(arg_str), computed only once */
 	int   arg_opt1;			/* extra option 1 for the LB algo (algo-specific) */
 	int   arg_opt2;			/* extra option 2 for the LB algo (algo-specific) */
 	int   arg_opt3;			/* extra option 3 for the LB algo (algo-specific) */
+	uint64_t lb_seq;                /* sequence number for algos who need it */
+	struct mt_list lb_free_list;	/* LB tree elements available */
 	__decl_thread(HA_RWLOCK_T lock);
 	struct server *fbck;		/* first backup server when !PR_O_USE_ALL_BK, or NULL */
 

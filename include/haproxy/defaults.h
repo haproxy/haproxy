@@ -602,4 +602,33 @@
 #define MAX_SELF_USE_QUEUE 9
 #endif
 
+/*
+ * FWLC defines
+ */
+
+/*
+ * How many mt_lists we use per tree elements.
+ * The more lists we have, the less likely it
+ * will be that we'll have contention when
+ * inserting/removing an element, but the more
+ * costly it will be to look up servers.
+ */
+#ifndef FWLC_LISTS_NB
+#define FWLC_LISTS_NB   4
+#endif /* FWLC_LISTS_NB */
+
+/*
+ * How many entries we want to keep in the
+ * free list, before trying to use some.
+ * We want to keep some nodes in the tree,
+ * to avoid having to re-allocate one and
+ * modify the tree, which requires the
+ * write lock and is costly, but we
+ * don't want to have too much, to save
+ * memory.
+ */
+#ifndef FWLC_MIN_FREE_ENTRIES
+#define FWLC_MIN_FREE_ENTRIES 500
+#endif /* FWLC_MIN_FREE_ENTRIES */
+
 #endif /* _HAPROXY_DEFAULTS_H */
