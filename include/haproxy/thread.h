@@ -87,6 +87,7 @@ enum { tgid = 1 };
 #define HA_RWLOCK_SKUNLOCK(lbl,l)       do { /* do nothing */ } while(0)
 #define HA_RWLOCK_TRYSKLOCK(lbl,l)      ({ 0; })
 #define HA_RWLOCK_TRYRDTOSK(lbl,l)      ({ 0; })
+#define HA_RWLOCK_TRYRDTOWR(lbl,l)      ({ 0; })
 
 #define ha_sigmask(how, set, oldset)  sigprocmask(how, set, oldset)
 
@@ -327,6 +328,7 @@ static inline unsigned long thread_isolated()
 #define HA_RWLOCK_SKUNLOCK(lbl,l)       pl_drop_s(l)      /* S --> N */
 #define HA_RWLOCK_TRYSKLOCK(lbl,l)      (!pl_try_s(l))    /* N -?> S */
 #define HA_RWLOCK_TRYRDTOSK(lbl,l)      (!pl_try_rtos(l)) /* R -?> S */
+#define HA_RWLOCK_TRYRDTOWR(lbl, l)     (!pl_try_rtow(l)) /* R -?> W */
 
 #else /* !defined(DEBUG_THREAD) && !defined(DEBUG_FULL) */
 
@@ -356,6 +358,7 @@ static inline unsigned long thread_isolated()
 #define __RWLOCK_SKUNLOCK(l)       pl_drop_s(l)      /* S --> N */
 #define __RWLOCK_TRYSKLOCK(l)      (!pl_try_s(l))    /* N -?> S */
 #define __RWLOCK_TRYRDTOSK(l)      (!pl_try_rtos(l)) /* R -?> S */
+#define __RWLOCK_TRYRDTOWR(l)      (!pl_try_rtow(l)) /* R -?> W */
 
 #define HA_SPIN_INIT(l)            __spin_init(l)
 #define HA_SPIN_DESTROY(l)         __spin_destroy(l)
@@ -381,6 +384,7 @@ static inline unsigned long thread_isolated()
 #define HA_RWLOCK_SKUNLOCK(lbl,l)  __ha_rwlock_skunlock(lbl, l, __func__, __FILE__, __LINE__)
 #define HA_RWLOCK_TRYSKLOCK(lbl,l) __ha_rwlock_trysklock(lbl, l, __func__, __FILE__, __LINE__)
 #define HA_RWLOCK_TRYRDTOSK(lbl,l) __ha_rwlock_tryrdtosk(lbl, l, __func__, __FILE__, __LINE__)
+#define HA_RWLOCK_TRYRDTOWR(lbl,l) __ha_rwlock_tryrdtowr(lbl, l, __func__, __FILE__, __LINE__)
 
 /* Following functions are used to collect some stats about locks. We wrap
  * pthread functions to known how much time we wait in a lock. */
@@ -412,6 +416,8 @@ void __ha_rwlock_skunlock(enum lock_label lbl,struct ha_rwlock *l,
 int __ha_rwlock_trysklock(enum lock_label lbl, struct ha_rwlock *l,
                           const char *func, const char *file, int line);
 int __ha_rwlock_tryrdtosk(enum lock_label lbl, struct ha_rwlock *l,
+                          const char *func, const char *file, int line);
+int __ha_rwlock_tryrdtowr(enum lock_label lbl, struct ha_rwlock *l,
                           const char *func, const char *file, int line);
 void __spin_init(struct ha_spinlock *l);
 void __spin_destroy(struct ha_spinlock *l);

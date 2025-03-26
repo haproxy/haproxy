@@ -998,6 +998,46 @@ int __ha_rwlock_tryrdtosk(enum lock_label lbl, struct ha_rwlock *l,
 	return r;
 }
 
+int __ha_rwlock_tryrdtowr(enum lock_label lbl, struct ha_rwlock *l,
+                          const char *func, const char *file, int line)
+{
+	ulong tbit = (ti && ti->ltid_bit) ? ti->ltid_bit : 1;
+	struct ha_rwlock_state *st = &l->info.st[tgid-1];
+	uint64_t start_time;
+	uint bucket;
+	int r;
+
+	if ((st->cur_writer | st->cur_seeker) & tbit)
+		abort();
+
+	if (!(st->cur_readers & tbit))
+		abort();
+
+	HA_ATOMIC_OR(&st->wait_writers, tbit);
+
+	start_time = -now_mono_time();
+	r = __RWLOCK_TRYRDTOWR(&l->lock);
+	start_time += now_mono_time();
+
+	if (likely(!r)) {
+		/* got the lock ! */
+		HA_ATOMIC_ADD(&lock_stats_sk[lbl].nsec_wait, start_time);
+
+		start_time &= 0x3fffffff; // keep values below 1 billion only
+		bucket = flsnz((uint32_t)start_time ? (uint32_t)start_time : 1) - 1;
+		HA_ATOMIC_INC(&lock_stats_sk[lbl].buckets[bucket]);
+		HA_ATOMIC_OR(&st->cur_writer, tbit);
+		HA_ATOMIC_AND(&st->cur_readers, ~tbit);
+		l->info.last_location.function = func;
+		l->info.last_location.file     = file;
+		l->info.last_location.line     = line;
+	}
+
+	HA_ATOMIC_AND(&st->wait_writers, ~tbit);
+	return r;
+}
+
+
 void __spin_init(struct ha_spinlock *l)
 {
 	memset(l, 0, sizeof(struct ha_spinlock));
