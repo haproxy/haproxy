@@ -177,9 +177,8 @@ const char *log_levels[NB_LOG_LEVELS] = {
 	"emerg", "alert", "crit", "err",
 	"warning", "notice", "info", "debug"
 };
-
-const char sess_term_cond[16] = "-LcCsSPRIDKUIIII"; /* normal, Local, CliTo, CliErr, SrvTo, SrvErr, PxErr, Resource, Internal, Down, Killed, Up, -- */
-const char sess_fin_state[8]  = "-RCHDLQT";	/* cliRequest, srvConnect, srvHeader, Data, Last, Queue, Tarpit */
+const char sess_term_cond[] = "-LcCsSPRIDKUIIII"; /* normal, Local, CliTo, CliErr, SrvTo, SrvErr, PxErr, Resource, Internal, Down, Killed, Up, -- */
+const char sess_fin_state[]  = "-RCHDLQT";	/* cliRequest, srvConnect, srvHeader, Data, Last, Queue, Tarpit */
 const struct buffer empty = { };
 
 
@@ -3473,9 +3472,8 @@ struct ist *build_log_header(struct log_header hdr, size_t *nbelem)
 
 	return hdr_ctx.ist_vector;
 }
-
-const char sess_cookie[8]     = "NIDVEOU7";	/* No cookie, Invalid cookie, cookie for a Down server, Valid cookie, Expired cookie, Old cookie, Unused, unknown */
-const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found and left unchanged (passive),
+const char sess_cookie[]     = "NIDVEOU7";	/* No cookie, Invalid cookie, cookie for a Down server, Valid cookie, Expired cookie, Old cookie, Unused, unknown */
+const char sess_set_cookie[] = "NPDIRU67";	/* No set-cookie, Set-cookie found and left unchanged (passive),
 						   Set-cookie Deleted, Set-Cookie Inserted, Set-cookie Rewritten,
 						   Set-cookie Updated, unknown, unknown */
 
