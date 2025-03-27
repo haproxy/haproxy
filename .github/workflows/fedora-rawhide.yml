@@ -20,7 +20,7 @@ jobs:
         ]
     name: ${{ matrix.platform.cc }}.${{ matrix.platform.name }}
     runs-on: ubuntu-latest
-    if: ${{ github.repository_owner == 'haproxy' }}
+    if: ${{ github.repository_owner == 'haproxy' || github.event_name == 'workflow_dispatch' }}
     container:
       image: fedora:rawhide
     steps:
