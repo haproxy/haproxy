@@ -1275,7 +1275,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	conn->ctx = check->sc;
 #endif
 #if 1
-	conn_err = connect_server_reuse(s, check->sc, check->sess);
+	conn_err = connect_server_reuse(s, check->sc, check->sess, NULL, NULL, NULL, NULL);
 	if (conn_err != SF_ERR_NONE) {
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.area);
 		ret = TCPCHK_EVAL_STOP;

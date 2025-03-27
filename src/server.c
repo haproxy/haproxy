@@ -7015,8 +7015,7 @@ struct connection *srv_lookup_conn(struct eb_root *tree, uint64_t hash)
 	struct connection *conn = NULL;
 	struct conn_hash_node *hash_node = NULL;
 
-	//node = eb64_lookup(tree, hash);
-	node = eb64_first(tree);
+	node = eb64_lookup(tree, hash);
 	if (node) {
 		hash_node = ebmb_entry(node, struct conn_hash_node, node);
 		conn = hash_node->conn;

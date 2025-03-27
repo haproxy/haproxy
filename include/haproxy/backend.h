@@ -46,7 +46,9 @@ int alloc_bind_address(struct sockaddr_storage **ss,
                        struct server *srv, struct proxy *be,
                        struct stream *s);
 int connect_server_reuse(struct server *srv, struct stconn *sc,
-                         struct session *sess);
+                         struct session *sess, struct stream *strm,
+                         struct sockaddr_storage *src,
+                         struct sockaddr_storage *dst, int64_t *out_hash);
 int srv_redispatch_connect(struct stream *t);
 void back_try_conn_req(struct stream *s);
 void back_handle_st_req(struct stream *s);
