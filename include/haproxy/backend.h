@@ -49,6 +49,8 @@ int64_t calculate_conn_hash(struct server *srv, struct stream *strm,
                             struct session *sess,
                             struct sockaddr_storage *src,
                             struct sockaddr_storage *dst);
+int connect_server_reuse(int64_t hash, struct server *srv, struct stconn *sc,
+                         struct session *sess, struct stream *strm);
 int srv_redispatch_connect(struct stream *t);
 void back_try_conn_req(struct stream *s);
 void back_handle_st_req(struct stream *s);

@@ -858,13 +858,12 @@ out_ok:
 	return err;
 }
 
-/* Allocate an address for the destination endpoint
- * The address is taken from the currently assigned server, or from the
- * dispatch or transparent address.
+/* Allocate <*ss> address unless already set. Address is then set to the
+ * destination endpoint of <srv> server, or via <s> from a dispatch or
+ * transparent address.
  *
- * Returns SRV_STATUS_OK on success. Does nothing if the address was
- * already set.
- * On error, no address is allocated and SRV_STATUS_INTERNAL is returned.
+ * Returns SRV_STATUS_OK on success, or if already already set. Else an error
+ * code is returned and <*ss> is not allocated.
  */
 static int alloc_dst_address(struct sockaddr_storage **ss,
                              struct server *srv, struct stream *s)
@@ -1387,7 +1386,7 @@ check_tgid:
 		conn->flags &= ~CO_FL_LIST_MASK;
 		__ha_barrier_atomic_store();
 
-		if ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_SAFE &&
+		if (s && (s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_SAFE &&
 		    conn->mux->flags & MX_FL_HOL_RISK) {
 			/* attach the connection to the session private list
 			 */
@@ -1524,9 +1523,6 @@ int64_t calculate_conn_hash(struct server *srv, struct stream *strm,
 	struct conn_hash_params hash_params;
 	struct proxy *be = srv ? srv->proxy : strm ? strm->be : NULL;
 
-	BUG_ON(strm && be != strm->be);
-	BUG_ON(strm && sess != strm->sess);
-
 	/* first, set unique connection parameters and then calculate hash */
 	memset(&hash_params, 0, sizeof(hash_params));
 
@@ -1597,6 +1593,135 @@ int64_t calculate_conn_hash(struct server *srv, struct stream *strm,
 
 	return conn_calculate_hash(&hash_params);
 }
+
+int connect_server_reuse(int64_t hash, struct server *srv, struct stconn *sc,
+                         struct session *sess, struct stream *strm)
+{
+	struct connection *srv_conn = NULL;
+	struct proxy *be = srv ? srv->proxy : strm ? strm->be : NULL;
+	void *target = srv ? (void *)srv : strm ? strm->target : NULL;
+	int reuse_mode;
+
+	BUG_ON(strm && be != strm->be);
+	BUG_ON(strm && sess != strm->sess);
+
+	reuse_mode = be->options & PR_O_REUSE_MASK;
+	/* Override reuse-mode if reverse-connect is used. */
+	if (srv && srv->flags & SRV_F_RHTTP)
+		reuse_mode = PR_O_REUSE_ALWS;
+
+	/* first, search for a matching connection in the session's idle conns */
+	srv_conn = session_get_conn(sess, target, hash);
+	if (srv_conn) {
+		strm->txn->flags |= TX_REUSE;
+		//DBG_TRACE_STATE("reuse connection from session", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+	}
+	else if (srv && reuse_mode != PR_O_REUSE_NEVR) {
+		/* Below we pick connections from the safe, idle  or
+		 * available (which are safe too) lists based
+		 * on the strategy, the fact that this is a first or second
+		 * (retryable) request, with the indicated priority (1 or 2) :
+		 *
+		 *          SAFE                 AGGR                ALWS
+		 *
+		 *      +-----+-----+        +-----+-----+       +-----+-----+
+		 *   req| 1st | 2nd |     req| 1st | 2nd |    req| 1st | 2nd |
+		 *  ----+-----+-----+    ----+-----+-----+   ----+-----+-----+
+		 *  safe|  -  |  2  |    safe|  1  |  2  |   safe|  1  |  2  |
+		 *  ----+-----+-----+    ----+-----+-----+   ----+-----+-----+
+		 *  idle|  -  |  1  |    idle|  -  |  1  |   idle|  2  |  1  |
+		 *  ----+-----+-----+    ----+-----+-----+   ----+-----+-----+
+		 *
+		 * Idle conns are necessarily looked up on the same thread so
+		 * that there is no concurrency issues.
+		 */
+		if (!eb_is_empty(&srv->per_thr[tid].avail_conns)) {
+			//DBG_TRACE_STATE("lookup into avail tree", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+			srv_conn = srv_lookup_conn(&srv->per_thr[tid].avail_conns, hash);
+			if (srv_conn) {
+				/* connection cannot be in idle list if used as an avail idle conn. */
+				BUG_ON(LIST_INLIST(&srv_conn->idle_list));
+				strm->txn->flags |= TX_REUSE;
+
+				//DBG_TRACE_STATE("reuse connection from avail", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+			}
+			else {
+				//DBG_TRACE_STATE("no connection from avail", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+			}
+		}
+	}
+
+	/* if no available connections found, search for an idle/safe */
+	if (srv && !srv_conn && srv->max_idle_conns && srv->curr_idle_conns > 0) {
+		const int not_first_req = strm && strm->txn && strm->txn->flags & TX_NOT_FIRST;
+		const int idle = srv->curr_idle_nb > 0;
+		const int safe = srv->curr_safe_nb > 0;
+		const int retry_safe = (be->retry_type & (PR_RE_CONN_FAILED | PR_RE_DISCONNECTED | PR_RE_TIMEOUT)) ==
+		                                         (PR_RE_CONN_FAILED | PR_RE_DISCONNECTED | PR_RE_TIMEOUT);
+
+		//DBG_TRACE_STATE("lookup into idle/safe tree", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+		/* second column of the tables above,
+		 * search for an idle then safe conn */
+		if (not_first_req || retry_safe) {
+			if (idle || safe) {
+				srv_conn = conn_backend_get(strm, srv, 0, hash);
+			}
+		}
+		/* first column of the tables above */
+		else if (reuse_mode >= PR_O_REUSE_AGGR) {
+			/* search for a safe conn */
+			if (safe)
+				srv_conn = conn_backend_get(strm, srv, 1, hash);
+
+			/* search for an idle conn if no safe conn found
+			 * on always reuse mode */
+			if (!srv_conn &&
+			    reuse_mode == PR_O_REUSE_ALWS && idle) {
+				/* TODO conn_backend_get should not check the
+				 * safe list is this case */
+				srv_conn = conn_backend_get(strm, srv, 0, hash);
+			}
+		}
+
+		if (srv_conn) {
+			//DBG_TRACE_STATE("reuse connection from idle/safe", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+			strm->txn->flags |= TX_REUSE;
+		}
+	}
+
+	if (!srv_conn) {
+		return SF_ERR_RESOURCE;
+	}
+	else if (srv_conn->mux) {
+		int avail = srv_conn->mux->avail_streams(srv_conn);
+
+		if (avail <= 1) {
+			/* no more streams available, remove it from the list */
+			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			conn_delete_from_tree(srv_conn);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		}
+
+		if (avail >= 1) {
+			if (srv_conn->mux->attach(srv_conn, sc->sedesc, sess) == -1) {
+				srv_conn = NULL;
+				if (sc_reset_endp(sc) < 0) {
+					//DBG_TRACE_ERROR("cannot reset stream connector endpoint", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+					return SF_ERR_INTERNAL;
+				}
+				sc_ep_clr(sc, ~SE_FL_DETACHED);
+			}
+		}
+		else {
+			//DBG_TRACE_STATE("cannot reuse avail conn", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+			return SF_ERR_RESOURCE;
+		}
+	}
+	/* otherwise srv_conn is left intact */
+
+	return SF_ERR_NONE;
+}
+
 /*
  * This function initiates a connection to the server assigned to this stream
  * (s->target, (s->scb)->addr.to). It will assign a server if none
@@ -1627,10 +1752,6 @@ int connect_server(struct stream *s)
 	 * it can be NULL for dispatch mode or transparent backend */
 	srv = objt_server(s->target);
 
-	/* Override reuse-mode if reverse-connect is used. */
-	if (srv && srv->flags & SRV_F_RHTTP)
-		reuse_mode = PR_O_REUSE_ALWS;
-
 	err = alloc_dst_address(&s->scb->dst, srv, s);
 	if (err != SRV_STATUS_OK)
 		return SF_ERR_INTERNAL;
@@ -1642,98 +1763,20 @@ int connect_server(struct stream *s)
 	/* disable reuse if websocket stream and the protocol to use is not the
 	 * same as the main protocol of the server.
 	 */
-	if (unlikely(s->flags & SF_WEBSOCKET) && srv) {
-		if (!srv_check_reuse_ws(srv)) {
-			DBG_TRACE_STATE("skip idle connections reuse: websocket stream", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
-			goto skip_reuse;
+	if (unlikely(s->flags & SF_WEBSOCKET) && srv && !srv_check_reuse_ws(srv)) {
+		DBG_TRACE_STATE("skip idle connections reuse: websocket stream", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+	}
+	else {
+		hash = calculate_conn_hash(srv, s, s->sess, bind_addr, s->scb->dst);
+		err = connect_server_reuse(hash, srv, s->scb, s->sess, s);
+		if (err == SF_ERR_NONE) {
+			srv_conn = sc_conn(s->scb);
+			BUG_ON(!srv_conn);
+			reuse = 1;
 		}
 	}
 
-	hash = calculate_conn_hash(srv, s, s->sess, bind_addr, s->scb->dst);
-
-	/* first, search for a matching connection in the session's idle conns */
-	srv_conn = session_get_conn(s->sess, s->target, hash);
-	if (srv_conn) {
-		DBG_TRACE_STATE("reuse connection from session", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
-		s->txn->flags |= TX_REUSE;
-		reuse = 1;
-	}
-
-	if (srv && !reuse && reuse_mode != PR_O_REUSE_NEVR) {
-		/* Below we pick connections from the safe, idle  or
-		 * available (which are safe too) lists based
-		 * on the strategy, the fact that this is a first or second
-		 * (retryable) request, with the indicated priority (1 or 2) :
-		 *
-		 *          SAFE                 AGGR                ALWS
-		 *
-		 *      +-----+-----+        +-----+-----+       +-----+-----+
-		 *   req| 1st | 2nd |     req| 1st | 2nd |    req| 1st | 2nd |
-		 *  ----+-----+-----+    ----+-----+-----+   ----+-----+-----+
-		 *  safe|  -  |  2  |    safe|  1  |  2  |   safe|  1  |  2  |
-		 *  ----+-----+-----+    ----+-----+-----+   ----+-----+-----+
-		 *  idle|  -  |  1  |    idle|  -  |  1  |   idle|  2  |  1  |
-		 *  ----+-----+-----+    ----+-----+-----+   ----+-----+-----+
-		 *
-		 * Idle conns are necessarily looked up on the same thread so
-		 * that there is no concurrency issues.
-		 */
-		if (!eb_is_empty(&srv->per_thr[tid].avail_conns)) {
-			srv_conn = srv_lookup_conn(&srv->per_thr[tid].avail_conns, hash);
-			if (srv_conn) {
-				/* connection cannot be in idle list if used as an avail idle conn. */
-				BUG_ON(LIST_INLIST(&srv_conn->idle_list));
-
-				DBG_TRACE_STATE("reuse connection from avail", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
-				s->txn->flags |= TX_REUSE;
-				reuse = 1;
-			}
-		}
-
-		/* if no available connections found, search for an idle/safe */
-		if (!srv_conn && srv->max_idle_conns && srv->curr_idle_conns > 0) {
-			const int not_first_req = s->txn && s->txn->flags & TX_NOT_FIRST;
-			const int idle = srv->curr_idle_nb > 0;
-			const int safe = srv->curr_safe_nb > 0;
-			const int retry_safe = (s->be->retry_type & (PR_RE_CONN_FAILED | PR_RE_DISCONNECTED | PR_RE_TIMEOUT)) ==
-			                                            (PR_RE_CONN_FAILED | PR_RE_DISCONNECTED | PR_RE_TIMEOUT);
-
-			/* second column of the tables above,
-			 * search for an idle then safe conn */
-			if (not_first_req || retry_safe) {
-				if (idle || safe)
-					srv_conn = conn_backend_get(s, srv, 0, hash);
-			}
-			/* first column of the tables above */
-			else if (reuse_mode >= PR_O_REUSE_AGGR) {
-				/* search for a safe conn */
-				if (safe)
-					srv_conn = conn_backend_get(s, srv, 1, hash);
-
-				/* search for an idle conn if no safe conn found
-				 * on always reuse mode */
-				if (!srv_conn &&
-				    reuse_mode == PR_O_REUSE_ALWS && idle) {
-					/* TODO conn_backend_get should not check the
-					 * safe list is this case */
-					srv_conn = conn_backend_get(s, srv, 0, hash);
-				}
-			}
-
-			if (srv_conn) {
-				DBG_TRACE_STATE("reuse connection from idle/safe", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
-				s->txn->flags |= TX_REUSE;
-				reuse = 1;
-			}
-		}
-	}
-
-
-	/* here reuse might have been set above, indicating srv_conn finally
-	 * is OK.
-	 */
-
-	if (ha_used_fds > global.tune.pool_high_count && srv) {
+	if (srv && ha_used_fds > global.tune.pool_high_count) {
 		/* We have more FDs than deemed acceptable, attempt to kill an idling connection. */
 		struct connection *tokill_conn = NULL;
 		/* First, try from our own idle list */
@@ -1786,37 +1829,8 @@ int connect_server(struct stream *s)
 					break;
 			}
 		}
-
 	}
 
-	if (reuse) {
-		if (srv_conn->mux) {
-			int avail = srv_conn->mux->avail_streams(srv_conn);
-
-			if (avail <= 1) {
-				/* No more streams available, remove it from the list */
-				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-				conn_delete_from_tree(srv_conn);
-				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-			}
-
-			if (avail >= 1) {
-				if (srv_conn->mux->attach(srv_conn, s->scb->sedesc, s->sess) == -1) {
-					srv_conn = NULL;
-					if (sc_reset_endp(s->scb) < 0)
-						return SF_ERR_INTERNAL;
-					sc_ep_clr(s->scb, ~SE_FL_DETACHED);
-				}
-			}
-			else
-				srv_conn = NULL;
-		}
-		/* otherwise srv_conn is left intact */
-	}
-	else
-		srv_conn = NULL;
-
-skip_reuse:
 	/* no reuse or failed to reuse the connection above, pick a new one */
 	if (!srv_conn) {
 		unsigned int total_conns;
@@ -1870,8 +1884,9 @@ skip_reuse:
 			/* connection will be attached to the session if
 			 * http-reuse mode is never or it is not targeted to a
 			 * server */
-			if (reuse_mode == PR_O_REUSE_NEVR || !srv)
+			if (reuse_mode == PR_O_REUSE_NEVR || !srv) {
 				conn_set_private(srv_conn);
+			}
 
 			/* assign bind_addr to srv_conn */
 			srv_conn->src = bind_addr;
