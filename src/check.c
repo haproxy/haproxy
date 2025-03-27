@@ -2377,6 +2377,20 @@ static int srv_parse_check_proto(char **args, int *cur_arg,
 	goto out;
 }
 
+/* Parse the "check-reuse-pool" server keyword */
+static int srv_parse_check_reuse_pool(char **args, int *cur_arg,
+                                      struct proxy *curpx, struct server *srv,
+                                      char **errmsg)
+{
+	if (srv->check.port) {
+		memprintf(errmsg, "'%s' cannot be used if a specific check address/port is defined.", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	srv->check.reuse_pool = 1;
+	return 0;
+}
+
 
 /* Parse the "rise" server keyword */
 static int srv_parse_check_rise(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
@@ -2645,6 +2659,7 @@ static struct srv_kw_list srv_kws = { "CHK", { }, {
 	{ "agent-send",          srv_parse_agent_send,          1,  1,  1 }, /* Set string to send to agent. */
 	{ "check",               srv_parse_check,               0,  1,  1 }, /* Enable health checks */
 	{ "check-proto",         srv_parse_check_proto,         1,  1,  1 }, /* Set the mux protocol for health checks  */
+	{ "check-reuse-pool",    srv_parse_check_reuse_pool,    0,  1,  1 }, /* Allows to reuse idle connections for checks */
 	{ "check-send-proxy",    srv_parse_check_send_proxy,    0,  1,  1 }, /* Enable PROXY protocol for health checks */
 	{ "check-via-socks4",    srv_parse_check_via_socks4,    0,  1,  1 }, /* Enable socks4 proxy for health checks */
 	{ "no-agent-check",      srv_parse_no_agent_check,      0,  1,  0 }, /* Do not enable any auxiliary agent check */
