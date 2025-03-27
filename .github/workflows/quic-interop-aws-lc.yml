@@ -13,7 +13,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    if: ${{ github.repository_owner == 'haproxy' }}
+    if: ${{ github.repository_owner == 'haproxy' || github.event_name == 'workflow_dispatch' }}
     permissions:
       contents: read
       packages: write
@@ -61,7 +61,7 @@ jobs:
 
     name: ${{ matrix.suite.client }}
     runs-on: ubuntu-24.04
-    if: ${{ github.repository_owner == 'haproxy' }}
+    if: ${{ github.repository_owner == 'haproxy' || github.event_name == 'workflow_dispatch' }}
 
     steps:
       - uses: actions/checkout@v4
