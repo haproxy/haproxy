@@ -1723,10 +1723,8 @@ int connect_server(struct stream *s)
 	 */
 
 	if (ha_used_fds > global.tune.pool_high_count && srv) {
+		/* We have more FDs than deemed acceptable, attempt to kill an idling connection. */
 		struct connection *tokill_conn = NULL;
-		/* We can't reuse a connection, and e have more FDs than deemd
-		 * acceptable, attempt to kill an idling connection
-		 */
 		/* First, try from our own idle list */
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		if (!LIST_ISEMPTY(&srv->per_thr[tid].idle_conn_list)) {
