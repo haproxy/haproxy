@@ -91,7 +91,7 @@ jobs:
           }
         ]
     runs-on: ubuntu-latest
-    if: ${{ github.repository_owner == 'haproxy' }}
+    if: ${{ github.repository_owner == 'haproxy' || github.event_name == 'workflow_dispatch' }}
     steps:
     - name: install packages
       run: |
