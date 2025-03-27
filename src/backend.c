@@ -1527,7 +1527,7 @@ int connect_server_reuse(struct server *srv, struct stconn *sc,
 {
 	struct connection *srv_conn = NULL;
 	struct conn_hash_params hash_params;
-	struct proxy *be = srv->proxy;
+	struct proxy *be = srv ? srv->proxy : strm ? strm->be : NULL;
 	int64_t hash = 0;
 	int reuse_mode;
 
@@ -1536,17 +1536,17 @@ int connect_server_reuse(struct server *srv, struct stconn *sc,
 
 	reuse_mode = be->options & PR_O_REUSE_MASK;
 	/* Override reuse-mode if reverse-connect is used. */
-	if (srv->flags & SRV_F_RHTTP)
+	if (srv && srv->flags & SRV_F_RHTTP)
 		reuse_mode = PR_O_REUSE_ALWS;
 
 	/* first, set unique connection parameters and then calculate hash */
 	memset(&hash_params, 0, sizeof(hash_params));
 
 	/* 1. target */
-	hash_params.target = srv;
+	hash_params.target = srv ? (void *)srv : strm ? strm->target : NULL;
 
 	/* 2. pool-conn-name */
-	if (srv->pool_conn_name_expr) {
+	if (srv && srv->pool_conn_name_expr) {
 		struct sample *name_smp;
 
 		name_smp = sample_fetch_as_type(be, sess, strm,
@@ -1560,16 +1560,14 @@ int connect_server_reuse(struct server *srv, struct stconn *sc,
 	}
 
 	/* 3. destination address */
-	if (srv_is_transparent(srv)) {
-		BUG_ON(!strm);
-		hash_params.dst_addr = strm->scb->dst;
-	}
+	if (srv && srv_is_transparent(srv))
+		hash_params.dst_addr = dst;
 
 	/* 4. source address */
 	hash_params.src_addr = src;
 
 	/* 5. proxy protocol */
-	if (srv->pp_opts & SRV_PP_ENABLED) {
+	if (srv && srv->pp_opts & SRV_PP_ENABLED) {
 		struct connection *cli_conn = objt_conn(strm_orig(strm));
 		int proxy_line_ret = make_proxy_line(trash.area, trash.size,
 		                                     srv, cli_conn, strm, sess);
@@ -1615,12 +1613,12 @@ int connect_server_reuse(struct server *srv, struct stconn *sc,
 		*out_hash = hash;
 
 	/* first, search for a matching connection in the session's idle conns */
-	srv_conn = session_get_conn(sess, srv, hash);
+	srv_conn = session_get_conn(sess, hash_params.target, hash);
 	if (srv_conn) {
 		fprintf(stderr, "reuse from session\n");
 		//DBG_TRACE_STATE("reuse connection from session", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 	}
-	else if (reuse_mode != PR_O_REUSE_NEVR) {
+	else if (srv && reuse_mode != PR_O_REUSE_NEVR) {
 		/* Below we pick connections from the safe, idle  or
 		 * available (which are safe too) lists based
 		 * on the strategy, the fact that this is a first or second
@@ -1656,7 +1654,7 @@ int connect_server_reuse(struct server *srv, struct stconn *sc,
 	}
 
 	/* if no available connections found, search for an idle/safe */
-	if (!srv_conn && srv->max_idle_conns && srv->curr_idle_conns > 0) {
+	if (srv && !srv_conn && srv->max_idle_conns && srv->curr_idle_conns > 0) {
 		const int not_first_req = strm && strm->txn && strm->txn->flags & TX_NOT_FIRST;
 		const int idle = srv->curr_idle_nb > 0;
 		const int safe = srv->curr_safe_nb > 0;
@@ -1727,6 +1725,7 @@ int connect_server_reuse(struct server *srv, struct stconn *sc,
 	}
 	/* otherwise srv_conn is left intact */
 
+	*srv_conn->dst = *dst;
 	return SF_ERR_NONE;
 }
 
@@ -2019,7 +2018,7 @@ int connect_server(struct stream *s)
 		}
 	}
 
-	if (srv) {
+	//if (srv) {
 		err = connect_server_reuse(srv, s->scb, s->sess, s, bind_addr,
 		                           s->scb->dst, &hash);
 		if (err == SF_ERR_NONE) {
@@ -2028,7 +2027,7 @@ int connect_server(struct stream *s)
 			BUG_ON(!srv_conn);
 			reuse = 1;
 		}
-	}
+	//}
 
 	if (srv && ha_used_fds > global.tune.pool_high_count) {
 		/* We have more FDs than deemed acceptable, attempt to kill an idling connection. */
@@ -2139,8 +2138,10 @@ skip_reuse:
 			/* connection will be attached to the session if
 			 * http-reuse mode is never or it is not targeted to a
 			 * server */
-			if (reuse_mode == PR_O_REUSE_NEVR || !srv)
+			if (reuse_mode == PR_O_REUSE_NEVR || !srv) {
+				fprintf(stderr, "conn private\n");
 				conn_set_private(srv_conn);
+			}
 
 			/* assign bind_addr to srv_conn */
 			srv_conn->src = bind_addr;
