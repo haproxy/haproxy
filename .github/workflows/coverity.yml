@@ -15,7 +15,7 @@ permissions:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    if: ${{ github.repository_owner == 'haproxy' }}
+    if: ${{ github.repository_owner == 'haproxy' || github.event_name == 'workflow_dispatch' }}
     steps:
     - uses: actions/checkout@v4
     - name: Install apt dependencies
