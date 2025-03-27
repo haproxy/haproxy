@@ -18203,6 +18203,22 @@ check
         tcp-check connect
         server s1 192.168.0.1:443 ssl check
 
+check-reuse-pool
+  May be used in the following contexts: tcp, http
+
+  This option permits checks to reuse idle connections if available instead of
+  opening a dedicated one. The connection is reinserted in the pool on check
+  completion. The main objective is to limit the number of connections opening
+  and closure on a specific server.
+
+  Note that for configuration simplicity, this option is silently ignored if
+  any specific check connect option is defined, either on the server line or
+  via a custom tcp-check connect rule.
+
+  If checks are activated for a reverse HTTP server, this option is mandatory
+  for checks to succeed, as by definition these servers do not have the ability
+  to initiate connection.
+
 check-send-proxy
   May be used in the following contexts: tcp, http
 
@@ -18701,6 +18717,12 @@ no-check
   default value.
   It may also be used as "default-server" setting to reset any previous
   "default-server" "check" setting.
+
+no-check-reuse-pool
+  May be used in the following contexts: tcp, http
+
+  This option reverts any previous "check-reuse-pool" possibly inherited from a
+  "default-server". Any checks will be conducted on its dedicated connection.
 
 no-check-ssl
   May be used in the following contexts: tcp, http, log

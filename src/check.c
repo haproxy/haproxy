@@ -2345,6 +2345,15 @@ static int srv_parse_no_check(char **args, int *cur_arg, struct proxy *curpx, st
 	return 0;
 }
 
+/* Parse the "no-check-reuse-pool" server keyword */
+static int srv_parse_no_check_reuse_pool(char **args, int *cur_arg,
+                                         struct proxy *curpx, struct server *srv,
+                                         char **errmsg)
+{
+	srv->check.reuse_pool = 0;
+	return 0;
+}
+
 /* Parse the "no-check-send-proxy" server keyword */
 static int srv_parse_no_check_send_proxy(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
 					 char **errmsg)
@@ -2375,6 +2384,15 @@ static int srv_parse_check_proto(char **args, int *cur_arg,
   error:
 	err_code |= ERR_ALERT | ERR_FATAL;
 	goto out;
+}
+
+/* Parse the "check-reuse-pool" server keyword */
+static int srv_parse_check_reuse_pool(char **args, int *cur_arg,
+                                      struct proxy *curpx, struct server *srv,
+                                      char **errmsg)
+{
+	srv->check.reuse_pool = 1;
+	return 0;
 }
 
 
@@ -2645,10 +2663,12 @@ static struct srv_kw_list srv_kws = { "CHK", { }, {
 	{ "agent-send",          srv_parse_agent_send,          1,  1,  1 }, /* Set string to send to agent. */
 	{ "check",               srv_parse_check,               0,  1,  1 }, /* Enable health checks */
 	{ "check-proto",         srv_parse_check_proto,         1,  1,  1 }, /* Set the mux protocol for health checks  */
+	{ "check-reuse-pool",    srv_parse_check_reuse_pool,    0,  1,  1 }, /* Allows to reuse idle connections for checks */
 	{ "check-send-proxy",    srv_parse_check_send_proxy,    0,  1,  1 }, /* Enable PROXY protocol for health checks */
 	{ "check-via-socks4",    srv_parse_check_via_socks4,    0,  1,  1 }, /* Enable socks4 proxy for health checks */
 	{ "no-agent-check",      srv_parse_no_agent_check,      0,  1,  0 }, /* Do not enable any auxiliary agent check */
 	{ "no-check",            srv_parse_no_check,            0,  1,  0 }, /* Disable health checks */
+	{ "no-check-reuse-pool", srv_parse_no_check_reuse_pool, 0,  1,  0 }, /* Disable PROXY protocol for health checks */
 	{ "no-check-send-proxy", srv_parse_no_check_send_proxy, 0,  1,  0 }, /* Disable PROXY protocol for health checks */
 	{ "rise",                srv_parse_check_rise,          1,  1,  1 }, /* Set rise value for health checks */
 	{ "fall",                srv_parse_check_fall,          1,  1,  1 }, /* Set fall value for health checks */
