@@ -1866,6 +1866,9 @@ skip_reuse:
 			srv_conn->src = bind_addr;
 			bind_addr = NULL;
 
+			/* copy the target address into the connection */
+			*srv_conn->dst = *s->scb->dst;
+
 			/* mark? */
 			if (s->flags & SF_BC_MARK) {
 				srv_conn->mark = s->bc_mark;
@@ -1889,9 +1892,6 @@ skip_reuse:
 	/* srv_conn is still NULL only on allocation failure */
 	if (!srv_conn)
 		return SF_ERR_RESOURCE;
-
-	/* copy the target address into the connection */
-	*srv_conn->dst = *s->scb->dst;
 
 	/* Copy network namespace from client connection */
 	srv_conn->proxy_netns = cli_conn ? cli_conn->proxy_netns : NULL;
