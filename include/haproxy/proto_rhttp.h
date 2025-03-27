@@ -12,6 +12,7 @@ void rhttp_enable_listener(struct listener *l);
 void rhttp_disable_listener(struct listener *l);
 int rhttp_suspend_listener(struct listener *l);
 struct connection *rhttp_accept_conn(struct listener *l, int *status);
+int rhttp_connect_server(struct connection *conn, int flags);
 void rhttp_unbind_receiver(struct listener *l);
 int rhttp_bind_tid_prep(struct connection *conn, int new_tid);
 

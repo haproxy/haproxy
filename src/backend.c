@@ -1387,7 +1387,7 @@ check_tgid:
 		conn->flags &= ~CO_FL_LIST_MASK;
 		__ha_barrier_atomic_store();
 
-		if ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_SAFE &&
+		if (s && (s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_SAFE &&
 		    conn->mux->flags & MX_FL_HOL_RISK) {
 			/* attach the connection to the session private list
 			 */
@@ -1514,6 +1514,118 @@ kill_random_idle_conn(struct server *srv)
 		return 1;
 	}
 	return 0;
+}
+
+int connect_server_reuse(struct server *srv, struct stconn *sc,
+                         struct session *sess)
+{
+	struct connection *srv_conn = NULL;
+
+	/* TODO */
+	int reuse_mode = PR_O_REUSE_ALWS;
+	int hash = 0;
+
+	/* Below we pick connections from the safe, idle  or
+	 * available (which are safe too) lists based
+	 * on the strategy, the fact that this is a first or second
+	 * (retryable) request, with the indicated priority (1 or 2) :
+	 *
+	 *          SAFE                 AGGR                ALWS
+	 *
+	 *      +-----+-----+        +-----+-----+       +-----+-----+
+	 *   req| 1st | 2nd |     req| 1st | 2nd |    req| 1st | 2nd |
+	 *  ----+-----+-----+    ----+-----+-----+   ----+-----+-----+
+	 *  safe|  -  |  2  |    safe|  1  |  2  |   safe|  1  |  2  |
+	 *  ----+-----+-----+    ----+-----+-----+   ----+-----+-----+
+	 *  idle|  -  |  1  |    idle|  -  |  1  |   idle|  2  |  1  |
+	 *  ----+-----+-----+    ----+-----+-----+   ----+-----+-----+
+	 *
+	 * Idle conns are necessarily looked up on the same thread so
+	 * that there is no concurrency issues.
+	 */
+	if (!eb_is_empty(&srv->per_thr[tid].avail_conns)) {
+		//DBG_TRACE_STATE("lookup into avail tree", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+		srv_conn = srv_lookup_conn(&srv->per_thr[tid].avail_conns, hash);
+		if (srv_conn) {
+			/* connection cannot be in idle list if used as an avail idle conn. */
+			BUG_ON(LIST_INLIST(&srv_conn->idle_list));
+
+			//DBG_TRACE_STATE("reuse connection from avail", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+		}
+		else {
+			//DBG_TRACE_STATE("no connection from avail", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+		}
+	}
+
+	/* if no available connections found, search for an idle/safe */
+	if (!srv_conn && srv->max_idle_conns && srv->curr_idle_conns > 0) {
+		//const int not_first_req = s->txn && s->txn->flags & TX_NOT_FIRST;
+		const int not_first_req = 1;
+		const int idle = srv->curr_idle_nb > 0;
+		const int safe = srv->curr_safe_nb > 0;
+		//const int retry_safe = (s->be->retry_type & (PR_RE_CONN_FAILED | PR_RE_DISCONNECTED | PR_RE_TIMEOUT)) ==
+		//                                            (PR_RE_CONN_FAILED | PR_RE_DISCONNECTED | PR_RE_TIMEOUT);
+		const int retry_safe = 1;
+
+		//DBG_TRACE_STATE("lookup into idle/safe tree", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+		/* second column of the tables above,
+		 * search for an idle then safe conn */
+		if (not_first_req || retry_safe) {
+			if (idle || safe)
+				srv_conn = conn_backend_get(NULL, srv, 0, hash);
+		}
+		/* first column of the tables above */
+		else if (reuse_mode >= PR_O_REUSE_AGGR) {
+			/* search for a safe conn */
+			if (safe)
+				srv_conn = conn_backend_get(NULL, srv, 1, hash);
+
+			/* search for an idle conn if no safe conn found
+			 * on always reuse mode */
+			if (!srv_conn &&
+			    reuse_mode == PR_O_REUSE_ALWS && idle) {
+				/* TODO conn_backend_get should not check the
+				 * safe list is this case */
+				srv_conn = conn_backend_get(NULL, srv, 0, hash);
+			}
+		}
+
+		if (srv_conn) {
+			//DBG_TRACE_STATE("reuse connection from idle/safe", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+		}
+	}
+
+	if (!srv_conn)
+		return SF_ERR_INTERNAL;
+
+	if (srv_conn->mux) {
+		int avail = srv_conn->mux->avail_streams(srv_conn);
+
+		if (avail <= 1) {
+			/* no more streams available, remove it from the list */
+			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			conn_delete_from_tree(srv_conn);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		}
+
+		if (avail >= 1) {
+			if (srv_conn->mux->attach(srv_conn, sc->sedesc, sess) == -1) {
+				srv_conn = NULL;
+				if (sc_reset_endp(sc) < 0) {
+					//DBG_TRACE_ERROR("cannot reset stream connector endpoint", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+					return SF_ERR_INTERNAL;
+				}
+				sc_ep_clr(sc, ~SE_FL_DETACHED);
+			}
+		}
+		else {
+			//DBG_TRACE_STATE("cannot reuse avail conn", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+			srv_conn = NULL;
+		}
+	}
+	/* otherwise srv_conn is left intact */
+
+	return SF_ERR_NONE;
 }
 
 /*
