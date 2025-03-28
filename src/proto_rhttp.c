@@ -40,6 +40,7 @@ struct protocol proto_rhttp = {
 	.unbind      = rhttp_unbind_receiver,
 	.resume      = default_resume_listener,
 	.accept_conn = rhttp_accept_conn,
+	.connect     = rhttp_connect_server,
 	.bind_tid_prep = rhttp_bind_tid_prep,
 
 	/* address family */
@@ -470,6 +471,11 @@ struct connection *rhttp_accept_conn(struct listener *l, int *status)
 	*status = CO_AC_NONE;
 
 	return conn;
+}
+
+int rhttp_connect_server(struct connection *conn, int flags)
+{
+	return SF_ERR_NONE;
 }
 
 void rhttp_unbind_receiver(struct listener *l)

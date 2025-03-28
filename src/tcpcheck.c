@@ -35,6 +35,7 @@
 
 #include <haproxy/action.h>
 #include <haproxy/api.h>
+#include <haproxy/backend.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/check.h>
 #include <haproxy/chunk.h>
@@ -1219,9 +1220,11 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	struct task *t = check->task;
 	struct connection *conn = sc_conn(check->sc);
 	struct protocol *proto;
-	struct xprt_ops *xprt;
+	struct xprt_ops *xprt __maybe_unused;
 	struct tcpcheck_rule *next;
 	int status, port;
+	int conn_err;
+	int64_t hash;
 
 	TRACE_ENTER(CHK_EV_TCPCHK_CONN, check);
 
@@ -1249,6 +1252,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	check_release_buf(check, &check->bi);
 	check_release_buf(check, &check->bo);
 
+#if 0
 	/* No connection, prepare a new one */
 	conn = conn_new((s ? &s->obj_type : &proxy->obj_type));
 	if (!conn) {
@@ -1268,7 +1272,21 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		status = SF_ERR_RESOURCE;
 		goto fail_check;
 	}
+
 	conn->ctx = check->sc;
+#endif
+#if 1
+	hash = calculate_conn_hash(s, NULL, check->sess, NULL, NULL);
+	conn_err = connect_server_reuse(hash, s, check->sc, check->sess, NULL);
+	if (conn_err != SF_ERR_NONE) {
+		set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.area);
+		ret = TCPCHK_EVAL_STOP;
+		goto out;
+	}
+	conn = __sc_conn(check->sc);
+	BUG_ON(!conn);
+#endif
+
 	conn_set_owner(conn, check->sess, NULL);
 
 	/* no client address */
@@ -1316,11 +1334,13 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		? xprt_get(XPRT_SSL)
 		: ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) ? check->xprt : xprt_get(XPRT_RAW)));
 
+#if 0
 	if (conn_prepare(conn, proto, xprt) < 0) {
 		TRACE_ERROR("xprt allocation error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
 		status = SF_ERR_RESOURCE;
 		goto fail_check;
 	}
+#endif
 
 	if ((connect->options & TCPCHK_OPT_SOCKS4) && s && (s->flags & SRV_F_SOCKS4_PROXY)) {
 		conn->send_proxy_ofs = 1;
@@ -1355,11 +1375,13 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		status = proto->connect(conn, flags);
 	}
 
-	if (status != SF_ERR_NONE)
+	if (status != SF_ERR_NONE) {
+		BUG_ON(status == SF_ERR_INTERNAL);
 		goto fail_check;
+	}
 
-	conn_set_private(conn);
-	conn->ctx = check->sc;
+	//conn_set_private(conn);
+	//conn->ctx = check->sc;
 
 #ifdef USE_OPENSSL
 	if (connect->sni)
@@ -1388,6 +1410,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		goto fail_check;
 	}
 
+#if 0
 	/* The mux may be initialized now if there isn't server attached to the
 	 * check (email alerts) or if there is a mux proto specified or if there
 	 * is no alpn.
@@ -1412,6 +1435,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 			goto fail_check;
 		}
 	}
+#endif
 
   fail_check:
 	/* It can return one of :

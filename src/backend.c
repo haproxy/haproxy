@@ -1613,7 +1613,8 @@ int connect_server_reuse(int64_t hash, struct server *srv, struct stconn *sc,
 	/* first, search for a matching connection in the session's idle conns */
 	srv_conn = session_get_conn(sess, target, hash);
 	if (srv_conn) {
-		strm->txn->flags |= TX_REUSE;
+		if (strm)
+			strm->txn->flags |= TX_REUSE;
 		//DBG_TRACE_STATE("reuse connection from session", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 	}
 	else if (srv && reuse_mode != PR_O_REUSE_NEVR) {
@@ -1641,7 +1642,8 @@ int connect_server_reuse(int64_t hash, struct server *srv, struct stconn *sc,
 			if (srv_conn) {
 				/* connection cannot be in idle list if used as an avail idle conn. */
 				BUG_ON(LIST_INLIST(&srv_conn->idle_list));
-				strm->txn->flags |= TX_REUSE;
+				if (strm)
+					strm->txn->flags |= TX_REUSE;
 
 				//DBG_TRACE_STATE("reuse connection from avail", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 			}
@@ -1685,7 +1687,8 @@ int connect_server_reuse(int64_t hash, struct server *srv, struct stconn *sc,
 
 		if (srv_conn) {
 			//DBG_TRACE_STATE("reuse connection from idle/safe", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
-			strm->txn->flags |= TX_REUSE;
+			if (strm)
+				strm->txn->flags |= TX_REUSE;
 		}
 	}
 
