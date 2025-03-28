@@ -1547,10 +1547,13 @@ static int be_reuse_mode(struct proxy *be, struct server *srv)
 /* Calculate hash to select a matching connection for reuse. Here is the list
  * of input parameters :
  * - <srv> is the server instance. Can be NULL on dispatch/transparent proxy.
- * - <strm> is the stream instance.
+ * - <strm> is the stream instance. Can be NULL if no stream is used.
  * - <src> is the bind address if an explicit source address is used.
  * - <dst> is the destination address. Must be set in every cases, except on
  *   reverse HTTP.
+ *
+ * Note that all input parameters can be NULL. The only requirement is that
+ * it's not possible to have both <srv> and <strm> NULL at the same time.
  *
  * Returns the calculated hash.
  */
@@ -1592,7 +1595,7 @@ int64_t be_calculate_conn_hash(struct server *srv, struct stream *strm,
 	hash_params.src_addr = src;
 
 	/* 5. proxy protocol */
-	if (srv && srv->pp_opts & SRV_PP_ENABLED) {
+	if (strm && srv && srv->pp_opts & SRV_PP_ENABLED) {
 		struct connection *cli_conn = objt_conn(strm_orig(strm));
 		int proxy_line_ret = make_proxy_line(trash.area, trash.size,
 		                                     srv, cli_conn, strm, sess);
@@ -1603,7 +1606,7 @@ int64_t be_calculate_conn_hash(struct server *srv, struct stream *strm,
 	}
 
 	/* 6. Custom mark, tos? */
-	if (strm->flags & (SF_BC_MARK | SF_BC_TOS)) {
+	if (strm && (strm->flags & (SF_BC_MARK | SF_BC_TOS))) {
 		/* mark: 32bits, tos: 8bits = 40bits
 		 * last 2 bits are there to indicate if mark and/or tos are set
 		 * total: 42bits:

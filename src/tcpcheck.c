@@ -35,6 +35,7 @@
 
 #include <haproxy/action.h>
 #include <haproxy/api.h>
+#include <haproxy/backend.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/check.h>
 #include <haproxy/chunk.h>
@@ -1206,6 +1207,20 @@ enum tcpcheck_eval_ret tcpcheck_agent_expect_reply(struct check *check, struct t
 	goto out;
 }
 
+/* Returns true if <check> or <connect> rule uses any specific connect options
+ * which may differ from their underlying server counterparts.
+ */
+static inline int tcpcheck_use_nondefault_connect(const struct check *check,
+                                                  const struct tcpcheck_connect *connect)
+{
+	return check->mux_proto || connect->mux_proto ||
+	  is_addr(&check->addr) || is_addr(&connect->addr) ||
+	  check->port || connect->port || connect->port_expr ||
+	  check->use_ssl || check->sni || connect->sni || check->alpn_len || connect->alpn_len ||
+	  check->send_proxy || check->via_socks4 ||
+	  (connect->options & TCPCHK_MASK_OPTS_CONNECT);
+}
+
 /* Evaluates a TCPCHK_ACT_CONNECT rule. Returns TCPCHK_EVAL_WAIT to wait the
  * connection establishment, TCPCHK_EVAL_CONTINUE to evaluate the next rule or
  * TCPCHK_EVAL_STOP if an error occurred.
@@ -1248,6 +1263,32 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	/* Always release input and output buffer when a new connect is evaluated */
 	check_release_buf(check, &check->bi);
 	check_release_buf(check, &check->bo);
+
+	if (!(check->state & CHK_ST_AGENT) && check->reuse_pool &&
+	    !tcpcheck_use_nondefault_connect(check, connect)) {
+		int64_t hash;
+		int conn_err;
+
+		TRACE_DEVEL("trying connection reuse for check", CHK_EV_TCPCHK_CONN, check);
+
+		hash = be_calculate_conn_hash(s, NULL, check->sess, NULL, NULL);
+		conn_err = be_reuse_connection(hash, check->sess, s->proxy, s,
+		                               check->sc, &s->obj_type, 0);
+		if (conn_err == SF_ERR_INTERNAL) {
+			TRACE_ERROR("error during connection reuse", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
+			set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.area);
+			ret = TCPCHK_EVAL_STOP;
+			goto out;
+		}
+		else if (conn_err == SF_ERR_NONE) {
+			TRACE_STATE("check performed with connection reuse", CHK_EV_TCPCHK_CONN, check);
+			conn = __sc_conn(check->sc);
+			conn_set_owner(conn, check->sess, NULL);
+			/* connection will be reinsert in idle conn pool due to missing conn_set_private(). */
+			status = SF_ERR_NONE;
+			goto skip_connect;
+		}
+	}
 
 	/* No connection, prepare a new one */
 	conn = conn_new((s ? &s->obj_type : &proxy->obj_type));
@@ -1414,6 +1455,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	}
 
   fail_check:
+  skip_connect:
 	/* It can return one of :
 	 *  - SF_ERR_NONE if everything's OK
 	 *  - SF_ERR_SRVTO if there are no more servers

@@ -36,6 +36,7 @@
 #define TCPCHK_OPT_IMPLICIT        0x0010  /* Implicit connect */
 #define TCPCHK_OPT_SOCKS4          0x0020  /* check the connection via socks4 proxy */
 #define TCPCHK_OPT_HAS_DATA        0x0040  /* data should be sent after connection */
+#define TCPCHK_MASK_OPTS_CONNECT   0x0027  /* mask for any options which overrides default connect params */
 
 enum tcpcheck_send_type {
 	TCPCHK_SEND_UNDEF = 0,  /* Send is not parsed. */
