@@ -23083,6 +23083,7 @@ bc_err_str                                         string
 bc_glitches                                        integer
 bc_http_major                                      integer
 bc_nb_streams                                      integer
+bc_reused                                          boolean
 bc_src                                             ip
 bc_src_port                                        integer
 bc_srv_queue                                       integer
@@ -23374,6 +23375,9 @@ bc_http_major : integer
 
 bc_nb_streams : integer
   Returns the number of streams opened on the backend connection.
+
+bc_reused : boolean
+  Returns true if the transfer was performed via a reused backend connection.
 
 bc_src : ip
   This is the source ip address of the connection on the server side, which is

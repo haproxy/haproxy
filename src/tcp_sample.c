@@ -116,6 +116,17 @@ smp_fetch_sport(const struct arg *args, struct sample *smp, const char *kw, void
 	return 1;
 }
 
+/* return a valid test if the current request was performed using connection reuse */
+static int smp_fetch_reused(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (!smp->strm)
+		return 0;
+
+	smp->data.type = SMP_T_BOOL;
+	smp->data.u.sint = !!(smp->strm->flags & SF_SRV_REUSED);
+	return 1;
+}
+
 /* fetch the connection's destination IPv4/IPv6 address. Depending on the
  * keyword, it may be the frontend or the backend connection.
  */
@@ -551,6 +562,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "bc_dst_port", smp_fetch_dport, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
 	{ "bc_src",      smp_fetch_src,   0, NULL, SMP_T_ADDR, SMP_USE_L4SRV },
 	{ "bc_src_port", smp_fetch_sport, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
+	{ "bc_reused",   smp_fetch_reused, 0, NULL, SMP_T_BOOL, SMP_USE_L4SRV },
 
 	{ "dst",      smp_fetch_dst,   0, NULL, SMP_T_ADDR, SMP_USE_L4CLI },
 	{ "dst_is_local", smp_fetch_dst_is_local, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
