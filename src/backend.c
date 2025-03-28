@@ -1531,6 +1531,96 @@ kill_random_idle_conn(struct server *srv)
 	return 0;
 }
 
+/* Calculate hash to select a matching connection for reuse. Here is the list
+ * of input parameters :
+ * - <srv> is the server instance. Can be NULL on dispatch/transparent proxy.
+ * - <strm> is the stream instance.
+ * - <src> is the bind address if an explicit source address is used.
+ * - <dst> is the destination address. Must be set in every cases, except on
+ *   reverse HTTP.
+ *
+ * Returns the calculated hash.
+ */
+int64_t be_calculate_conn_hash(struct server *srv, struct stream *strm,
+                               struct session *sess,
+                               struct sockaddr_storage *src,
+                               struct sockaddr_storage *dst)
+{
+	struct proxy *be = srv ? srv->proxy : strm->be;
+	struct conn_hash_params hash_params;
+
+	/* Caller cannot set both <srv> and <strm> to NULL. */
+	BUG_ON_HOT(!srv && !strm);
+
+	/* first, set unique connection parameters and then calculate hash */
+	memset(&hash_params, 0, sizeof(hash_params));
+
+	/* 1. target */
+	hash_params.target = srv ? &srv->obj_type : strm->target;
+
+	/* 2. pool-conn-name */
+	if (srv && srv->pool_conn_name_expr) {
+		struct sample *name_smp;
+
+		name_smp = sample_fetch_as_type(be, sess, strm,
+		                                SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
+		                                srv->pool_conn_name_expr, SMP_T_STR);
+		if (name_smp) {
+			hash_params.name_prehash =
+			  conn_hash_prehash(name_smp->data.u.str.area,
+			                    name_smp->data.u.str.data);
+		}
+	}
+
+	/* 3. destination address */
+	hash_params.dst_addr = dst;
+
+	/* 4. source address */
+	hash_params.src_addr = src;
+
+	/* 5. proxy protocol */
+	if (srv && srv->pp_opts & SRV_PP_ENABLED) {
+		struct connection *cli_conn = objt_conn(strm_orig(strm));
+		int proxy_line_ret = make_proxy_line(trash.area, trash.size,
+		                                     srv, cli_conn, strm, sess);
+		if (proxy_line_ret) {
+			hash_params.proxy_prehash =
+			  conn_hash_prehash(trash.area, proxy_line_ret);
+		}
+	}
+
+	/* 6. Custom mark, tos? */
+	if (strm->flags & (SF_BC_MARK | SF_BC_TOS)) {
+		/* mark: 32bits, tos: 8bits = 40bits
+		 * last 2 bits are there to indicate if mark and/or tos are set
+		 * total: 42bits:
+		 *
+		 * 63==== (unused) ====42    39----32 31-----------------------------0
+		 * 0000000000000000000000 11 00000111 00000000000000000000000000000011
+		 *                        ^^ ^^^^^^^^ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		 *                        ||    |                     |
+		 *                       /  \    \                     \
+		 *                      /    \    \                     \
+		 *                    tos?   mark? \             mark value (32bits)
+		 *                            tos value (8bits)
+		 * ie: in the above example:
+		 *  - mark is set, mark = 3
+		 *  - tos is set, tos = 7
+		 */
+		if (strm->flags & SF_BC_MARK) {
+			hash_params.mark_tos_prehash |= strm->bc_mark;
+			/* 41th bit: mark set */
+			hash_params.mark_tos_prehash |= 1ULL << 40;
+		}
+		if (strm->flags & SF_BC_TOS) {
+			hash_params.mark_tos_prehash |= (uint64_t)strm->bc_tos << 32;
+			/* 42th bit: tos set */
+			hash_params.mark_tos_prehash |= 1ULL << 41;
+		}
+	}
+
+	return conn_calculate_hash(&hash_params);
+}
 /*
  * This function initiates a connection to the server assigned to this stream
  * (s->target, (s->scb)->addr.to). It will assign a server if none
@@ -1554,11 +1644,8 @@ int connect_server(struct stream *s)
 	int reuse = 0;
 	int init_mux = 0;
 	int err;
-	struct sample *name_smp = NULL;
 	struct sockaddr_storage *bind_addr = NULL;
-	int proxy_line_ret;
 	int64_t hash = 0;
-	struct conn_hash_params hash_params;
 
 	/* in standard configuration, srv will be valid
 	 * it can be NULL for dispatch mode or transparent backend */
@@ -1576,12 +1663,6 @@ int connect_server(struct stream *s)
 	if (err != SRV_STATUS_OK)
 		return SF_ERR_INTERNAL;
 
-	if (srv && srv->pool_conn_name_expr) {
-		name_smp = sample_fetch_as_type(s->be, s->sess, s,
-		                                SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
-		                                srv->pool_conn_name_expr, SMP_T_STR);
-	}
-
 	/* disable reuse if websocket stream and the protocol to use is not the
 	 * same as the main protocol of the server.
 	 */
@@ -1592,65 +1673,7 @@ int connect_server(struct stream *s)
 		}
 	}
 
-	/* first, set unique connection parameters and then calculate hash */
-	memset(&hash_params, 0, sizeof(hash_params));
-
-	/* 1. target */
-	hash_params.target = s->target;
-
-	/* 2. pool-conn-name */
-	if (name_smp) {
-		hash_params.name_prehash =
-		  conn_hash_prehash(name_smp->data.u.str.area,
-		                    name_smp->data.u.str.data);
-	}
-
-	/* 3. destination address */
-	hash_params.dst_addr = s->scb->dst;
-
-	/* 4. source address */
-	hash_params.src_addr = bind_addr;
-
-	/* 5. proxy protocol */
-	if (srv && (srv->pp_opts & SRV_PP_ENABLED)) {
-		proxy_line_ret = make_proxy_line(trash.area, trash.size, srv, cli_conn, s, strm_sess(s));
-		if (proxy_line_ret) {
-			hash_params.proxy_prehash =
-			  conn_hash_prehash(trash.area, proxy_line_ret);
-		}
-	}
-
-	/* 6. Custom mark, tos? */
-	if (s->flags & (SF_BC_MARK | SF_BC_TOS)) {
-		/* mark: 32bits, tos: 8bits = 40bits
-		 * last 2 bits are there to indicate if mark and/or tos are set
-		 * total: 42bits:
-		 *
-		 * 63==== (unused) ====42    39----32 31-----------------------------0
-		 * 0000000000000000000000 11 00000111 00000000000000000000000000000011
-		 *                        ^^ ^^^^^^^^ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		 *                        ||    |                     |
-		 *                       /  \    \                     \
-		 *                      /    \    \                     \
-		 *                    tos?   mark? \             mark value (32bits)
-		 *                            tos value (8bits)
-		 * ie: in the above example:
-		 *  - mark is set, mark = 3
-		 *  - tos is set, tos = 7
-		 */
-		if (s->flags & SF_BC_MARK) {
-			hash_params.mark_tos_prehash |= s->bc_mark;
-			/* 41th bit: mark set */
-			hash_params.mark_tos_prehash |= 1ULL << 40;
-		}
-		if (s->flags & SF_BC_TOS) {
-			hash_params.mark_tos_prehash |= (uint64_t)s->bc_tos << 32;
-			/* 42th bit: tos set */
-			hash_params.mark_tos_prehash |= 1ULL << 41;
-		}
-	}
-
-	hash = conn_calculate_hash(&hash_params);
+	hash = be_calculate_conn_hash(srv, s, s->sess, bind_addr, s->scb->dst);
 
 	/* first, search for a matching connection in the session's idle conns */
 	srv_conn = session_get_conn(s->sess, s->target, hash);

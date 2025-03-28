@@ -45,6 +45,12 @@ int assign_server_and_queue(struct stream *s);
 int alloc_bind_address(struct sockaddr_storage **ss,
                        struct server *srv, struct proxy *be,
                        struct stream *s);
+
+int64_t be_calculate_conn_hash(struct server *srv, struct stream *strm,
+                               struct session *sess,
+                               struct sockaddr_storage *src,
+                               struct sockaddr_storage *dst);
+
 int srv_redispatch_connect(struct stream *t);
 void back_try_conn_req(struct stream *s);
 void back_handle_st_req(struct stream *s);
