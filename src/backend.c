@@ -1642,6 +1642,7 @@ int connect_server(struct stream *s)
 	srv_conn = session_get_conn(s->sess, s->target, hash);
 	if (srv_conn) {
 		DBG_TRACE_STATE("reuse connection from session", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+		s->txn->flags |= TX_REUSE;
 		reuse = 1;
 	}
 
@@ -1671,6 +1672,7 @@ int connect_server(struct stream *s)
 				BUG_ON(LIST_INLIST(&srv_conn->idle_list));
 
 				DBG_TRACE_STATE("reuse connection from avail", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+				s->txn->flags |= TX_REUSE;
 				reuse = 1;
 			}
 		}
@@ -1707,6 +1709,7 @@ int connect_server(struct stream *s)
 
 			if (srv_conn) {
 				DBG_TRACE_STATE("reuse connection from idle/safe", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+				s->txn->flags |= TX_REUSE;
 				reuse = 1;
 			}
 		}

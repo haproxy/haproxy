@@ -1317,6 +1317,17 @@ static int smp_fetch_http_first_req(const struct arg *args, struct sample *smp, 
 	return 1;
 }
 
+/* return a valid test if the current request was performed using connection reuse */
+static int smp_fetch_http_reuse(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (!smp->strm)
+		return 0;
+
+	smp->data.type = SMP_T_BOOL;
+	smp->data.u.sint = !!(smp->strm->txn->flags & TX_REUSE);
+	return 1;
+}
+
 /* Fetch the authentication method if there is an Authorization header. It
  * relies on get_http_auth()
  */
@@ -2300,6 +2311,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "http_auth",          smp_fetch_http_auth,          ARG1(1,USR),      NULL,    SMP_T_BOOL, SMP_USE_HRQHV },
 	{ "http_auth_group",    smp_fetch_http_auth_grp,      ARG1(1,USR),      NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "http_first_req",     smp_fetch_http_first_req,     0,                NULL,    SMP_T_BOOL, SMP_USE_HRQHP },
+	{ "http_reuse",         smp_fetch_http_reuse,         0,                NULL,    SMP_T_BOOL, SMP_USE_HRSHP },
 	{ "method",             smp_fetch_meth,               0,                NULL,    SMP_T_METH, SMP_USE_HRQHP },
 	{ "path",               smp_fetch_path,               0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "pathq",              smp_fetch_path,               0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },

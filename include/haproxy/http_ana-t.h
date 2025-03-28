@@ -75,6 +75,7 @@
 
 #define TX_L7_RETRY     0x00080000      /* The transaction may attempt L7 retries */
 #define TX_D_L7_RETRY   0x00100000      /* Disable L7 retries on this transaction, even if configured to do it */
+#define TX_REUSE        0x00200000      /* connection reuse was performed to complete this transaction */
 
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
