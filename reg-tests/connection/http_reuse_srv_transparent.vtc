@@ -9,6 +9,18 @@ feature cmd "$HAPROXY_PROGRAM -cc 'feature(TPROXY)'"
 
 feature ignore_unknown_macro
 
+server s1 {
+	rxreq
+	txresp \
+	  -hdr "srv-id: s1"
+} -repeat 10 -start
+
+server s2 {
+	rxreq
+	txresp \
+	  -hdr "srv-id: s2"
+} -repeat 10 -start
+
 haproxy h1 -conf {
 	defaults
 		timeout client 30s
@@ -18,67 +30,62 @@ haproxy h1 -conf {
 
 	listen sender
 		bind "fd@${feS}"
-		option transparent
-		http-request set-dst-port int(${h1_feR_port})
-
-	listen receiver
-		bind "fd@${feR}"
 		http-request set-var(sess.client_id) req.hdr(client-id)
-		http-request return status 200
+
+		http-request set-dst hdr(dst)
+		http-request set-dst-port hdr(dst-port)
+
 		http-after-response set-header http_first_request %[http_first_req]
+		http-after-response set-header http_reuse %[http_reuse]
 		http-after-response set-header client-id %[var(sess.client_id)]
+
+		option transparent
+		#server srv 0.0.0.0:0
 } -start
 
 client c1 -connect ${h1_feS_sock} {
 	txreq \
-	  -hdr "client-id: c1"
+	  -hdr "client-id: c1" \
+	  -hdr "dst: ${s1_addr}" \
+	  -hdr "dst-port: ${s1_port}"
 	rxresp
 	expect resp.http.http_first_request == "1"
+	expect resp.http.http_reuse == "0"
+	expect resp.http.srv-id == "s1"
 
-	txreq
+	txreq \
+	  -hdr "dst: ${s1_addr}" \
+	  -hdr "dst-port: ${s1_port}"
 	rxresp
 	expect resp.http.http_first_request == "0"
+	#expect resp.http.http_reuse == "1"
 	expect resp.http.client-id == "c1"
-
-	txreq
-	rxresp
-	expect resp.http.http_first_request == "0"
-	expect resp.http.client-id == "c1"
+	expect resp.http.srv-id == "s1"
 } -run
 
 client c2 -connect ${h1_feS_sock} {
 	txreq \
-	  -hdr "client-id: c2"
+	  -hdr "client-id: c2" \
+	  -hdr "dst: ${s1_addr}" \
+	  -hdr "dst-port: ${s1_port}"
 	rxresp
 	expect resp.http.http_first_request == "1"
 	expect resp.http.client-id == "c2"
+	expect resp.http.srv-id == "s1"
 
-	txreq
-	rxresp
-	expect resp.http.http_first_request == "0"
-	expect resp.http.client-id == "c2"
-
-	txreq
-	rxresp
-	expect resp.http.http_first_request == "0"
-	expect resp.http.client-id == "c2"
-} -run
-
-client c3 -connect ${h1_feS_sock} {
 	txreq \
-	  -hdr "client-id: c3"
-	rxresp
-	expect resp.http.http_first_request == "1"
-	expect resp.http.client-id == "c3"
-
-	txreq
+	  -hdr "dst: ${s2_addr}" \
+	  -hdr "dst-port: ${s2_port}"
 	rxresp
 	expect resp.http.http_first_request == "0"
-	expect resp.http.client-id == "c3"
+	expect resp.http.client-id == "c2"
+	expect resp.http.srv-id == "s2"
 
-	txreq
+	txreq \
+	  -hdr "dst: ${s1_addr}" \
+	  -hdr "dst-port: ${s1_port}"
 	rxresp
 	expect resp.http.http_first_request == "0"
-	expect resp.http.client-id == "c3"
+	expect resp.http.client-id == "c2"
+	expect resp.http.srv-id == "s1"
 } -run
-

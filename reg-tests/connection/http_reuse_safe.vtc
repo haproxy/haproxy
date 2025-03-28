@@ -15,6 +15,7 @@ haproxy h1 -conf {
 		bind "fd@${feS}"
 		http-reuse safe
 		http-request set-header client-id %[req.hdr(client-id)] if { req.hdr(client-id) -m found }
+		http-after-response set-header http_reuse %[http_reuse]
 		server srv ${h1_feR_addr}:${h1_feR_port} pool-max-conn 1
 
 	listen receiver
@@ -30,16 +31,19 @@ client c1 -connect ${h1_feS_sock} {
 	  -hdr "client-id: c1"
 	rxresp
 	expect resp.http.http_first_request == "1"
+	expect resp.http.http_reuse == "0"
 
 	txreq
 	rxresp
 	expect resp.http.http_first_request == "0"
 	expect resp.http.client-id == "c1"
+	expect resp.http.http_reuse == "1"
 
 	txreq
 	rxresp
 	expect resp.http.http_first_request == "0"
 	expect resp.http.client-id == "c1"
+	expect resp.http.http_reuse == "1"
 } -run
 
 client c2 -connect ${h1_feS_sock} {
@@ -53,11 +57,13 @@ client c2 -connect ${h1_feS_sock} {
 	rxresp
 	expect resp.http.http_first_request == "0"
 	expect resp.http.client-id == "c1"
+	expect resp.http.http_reuse == "1"
 
 	txreq
 	rxresp
 	expect resp.http.http_first_request == "0"
 	expect resp.http.client-id == "c1"
+	expect resp.http.http_reuse == "1"
 } -run
 
 client c3 -connect ${h1_feS_sock} {
