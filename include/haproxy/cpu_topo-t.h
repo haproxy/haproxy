@@ -62,6 +62,7 @@ struct ha_cpu_policy {
 	const char *name;                    /* option name in the configuration */
 	const char *desc;                    /* short description for help messages */
 	int (*fct)(int policy, int tmin, int tmax, int gmin, int gmax, char **err);
+	int arg;                             /* optional arg for the function */
 };
 
 #endif /* _HAPROXY_CPU_TOPO_T_H */

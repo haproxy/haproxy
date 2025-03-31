@@ -59,11 +59,11 @@ static int cpu_policy_resource(int policy, int tmin, int tmax, int gmin, int gma
 
 static struct ha_cpu_policy ha_cpu_policy[] = {
 	{ .name = "none",               .desc = "use all available CPUs",                           .fct = NULL   },
-	{ .name = "first-usable-node",  .desc = "use only first usable node if nbthreads not set",  .fct = cpu_policy_first_usable_node  },
-	{ .name = "group-by-cluster",   .desc = "make one thread group per core cluster",           .fct = cpu_policy_group_by_cluster   },
-	{ .name = "performance",        .desc = "make one thread group per perf. core cluster",     .fct = cpu_policy_performance        },
-	{ .name = "efficiency",         .desc = "make one thread group per eff. core cluster",      .fct = cpu_policy_efficiency         },
-	{ .name = "resource",           .desc = "make one thread group from the smallest cluster",  .fct = cpu_policy_resource           },
+	{ .name = "first-usable-node",  .desc = "use only first usable node if nbthreads not set",  .fct = cpu_policy_first_usable_node, .arg = 0 },
+	{ .name = "group-by-cluster",   .desc = "make one thread group per core cluster",           .fct = cpu_policy_group_by_cluster , .arg = 1 },
+	{ .name = "performance",        .desc = "make one thread group per perf. core cluster",     .fct = cpu_policy_performance      , .arg = 0 },
+	{ .name = "efficiency",         .desc = "make one thread group per eff. core cluster",      .fct = cpu_policy_efficiency       , .arg = 0 },
+	{ .name = "resource",           .desc = "make one thread group from the smallest cluster",  .fct = cpu_policy_resource         , .arg = 0 },
 	{ 0 } /* end */
 };
 
