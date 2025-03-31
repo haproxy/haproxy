@@ -858,13 +858,14 @@ out_ok:
 	return err;
 }
 
-/* Allocate an address for the destination endpoint
- * The address is taken from the currently assigned server, or from the
- * dispatch or transparent address.
+/* Allocate <*ss> address unless already set. Address is then set to the
+ * destination endpoint of <srv> server, or via <s> from a dispatch or
+ * transparent address.
  *
- * Returns SRV_STATUS_OK on success. Does nothing if the address was
- * already set.
- * On error, no address is allocated and SRV_STATUS_INTERNAL is returned.
+ * Note that no address is allocated if server relies on reverse HTTP.
+ *
+ * Returns SRV_STATUS_OK on success, or if already already set. Else an error
+ * code is returned and <*ss> is not allocated.
  */
 static int alloc_dst_address(struct sockaddr_storage **ss,
                              struct server *srv, struct stream *s)
@@ -873,6 +874,11 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 
 	if (*ss)
 		return SRV_STATUS_OK;
+
+	if (srv && (srv->flags & SRV_F_RHTTP)) {
+		/* For reverse HTTP, destination address is unknown. */
+		return SRV_STATUS_OK;
+	}
 
 	if ((s->flags & SF_DIRECT) || (s->be->lbprm.algo & BE_LB_KIND)) {
 		/* A server is necessarily known for this stream */
@@ -1888,7 +1894,8 @@ skip_reuse:
 		return SF_ERR_RESOURCE;
 
 	/* copy the target address into the connection */
-	*srv_conn->dst = *s->scb->dst;
+	if (s->scb->dst)
+		*srv_conn->dst = *s->scb->dst;
 
 	/* Copy network namespace from client connection */
 	srv_conn->proxy_netns = cli_conn ? cli_conn->proxy_netns : NULL;
