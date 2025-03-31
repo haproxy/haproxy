@@ -523,4 +523,15 @@
 #define __has_feature(x) 0
 #endif
 
+/* gcc 15 throws warning if fixed-size char array does not contain a terminating
+ * NUL. gcc has an attribute 'nonstring', which allows to suppress this warning
+ * for such array declarations. But it's not the case for clang and other
+ * compilers.
+ */
+#if __has_attribute(nonstring)
+#define __nonstring __attribute__ ((nonstring))
+#else
+#define __nonstring
+#endif
+
 #endif /* _HAPROXY_COMPILER_H */

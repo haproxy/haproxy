@@ -65,6 +65,7 @@ extern void *__elf_aux_vector;
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
 #include <haproxy/chunk.h>
+#include <haproxy/compiler.h>
 #include <haproxy/dgram.h>
 #include <haproxy/global.h>
 #include <haproxy/hlua.h>
@@ -2038,7 +2039,7 @@ int addr_is_local(const struct netns_entry *ns,
  *
  * Return the address of the \0 character, or NULL on error
  */
-const char hextab[16] = "0123456789ABCDEF";
+const char hextab[16] __nonstring = "0123456789ABCDEF";
 char *encode_string(char *start, char *stop,
 		    const char escape, const long *map,
 		    const char *string)
