@@ -61,6 +61,9 @@ static struct ha_cpu_policy ha_cpu_policy[] = {
 	{ .name = "none",               .desc = "use all available CPUs",                           .fct = NULL   },
 	{ .name = "first-usable-node",  .desc = "use only first usable node if nbthreads not set",  .fct = cpu_policy_first_usable_node, .arg = 0 },
 	{ .name = "group-by-cluster",   .desc = "make one thread group per core cluster",           .fct = cpu_policy_group_by_cluster , .arg = 1 },
+	{ .name = "group-by-2-clusters",.desc = "make one thread group per 2 core clusters",        .fct = cpu_policy_group_by_cluster , .arg = 2 },
+	{ .name = "group-by-3-clusters",.desc = "make one thread group per 3 core clusters",        .fct = cpu_policy_group_by_cluster , .arg = 3 },
+	{ .name = "group-by-4-clusters",.desc = "make one thread group per 4 core clusters",        .fct = cpu_policy_group_by_cluster , .arg = 4 },
 	{ .name = "performance",        .desc = "make one thread group per perf. core cluster",     .fct = cpu_policy_performance      , .arg = 0 },
 	{ .name = "efficiency",         .desc = "make one thread group per eff. core cluster",      .fct = cpu_policy_efficiency       , .arg = 0 },
 	{ .name = "resource",           .desc = "make one thread group from the smallest cluster",  .fct = cpu_policy_resource         , .arg = 0 },
@@ -1063,6 +1066,8 @@ static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin
  *  - otherwise tries to create one thread-group per cluster, with as many
  *    threads as CPUs in the cluster, and bind all the threads of this group
  *    to all the CPUs of the cluster.
+ * Also implements the variants "group-by-2-clusters", "group-by-3-clusters"
+ * and "group-by-4-clusters".
  */
 static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin, int gmax, char **err)
 {
@@ -1072,6 +1077,7 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 	int cid, lcid;
 	int thr_per_grp, nb_grp;
 	int thr;
+	int div;
 
 	if (global.nbthread)
 		return 0;
@@ -1082,6 +1088,11 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 	/* iterate over each new cluster */
 	lcid = -1;
 	cpu_start = 0;
+
+	/* used as a divisor of clusters*/
+	div = ha_cpu_policy[policy].arg;
+	div = div ? div : 1;
+
 	while (global.nbtgroups < MAX_TGROUPS && global.nbthread < MAX_THREADS) {
 		ha_cpuset_zero(&node_cpu_set);
 		cid = -1; cpu_count = 0;
@@ -1090,14 +1101,14 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 			/* skip disabled and already visited CPUs */
 			if (ha_cpu_topo[cpu].st & HA_CPU_F_EXCL_MASK)
 				continue;
-			if (ha_cpu_topo[cpu].cl_gid <= lcid)
+			if ((ha_cpu_topo[cpu].cl_gid / div) <= lcid)
 				continue;
 
 			if (cid < 0) {
-				cid = ha_cpu_topo[cpu].cl_gid;
+				cid = ha_cpu_topo[cpu].cl_gid / div;
 				cpu_start = cpu + 1;
 			}
-			else if (cid != ha_cpu_topo[cpu].cl_gid)
+			else if (cid != ha_cpu_topo[cpu].cl_gid / div)
 				continue;
 
 			/* make a mask of all of this cluster's CPUs */

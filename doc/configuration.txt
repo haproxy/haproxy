@@ -1995,6 +1995,33 @@ cpu-policy <policy>
                         the limit of 32 or 64 depending on the system. This is
                         the default policy.
 
+   - group-by-2-clusters same as "group-by-cluster" but create a group every
+                        two clusters. This can make sense on CPUs having many
+                        clusters of few cores each, to avoid creating many
+                        groups, or to smooth the distribution a little bit when
+                        not all cores are in use. Please note that it can have
+                        very bad performance effects when the communication
+                        between clusters is slow. This is generally recommended
+                        against.
+
+   - group-by-3-clusters same as "group-by-cluster" but create a group every
+                        three clusters. This can make sense on CPUs having many
+                        clusters of few cores each, to avoid creating many
+                        groups, or to smooth the distribution a little bit when
+                        not all cores are in use. Please note that it can have
+                        very bad performance effects when the communication
+                        between clusters is slow. This is generally recommended
+                        against.
+
+   - group-by-4-clusters same as "group-by-cluster" but create a group every
+                        four clusters. This can make sense on CPUs having many
+                        clusters of few cores each, to avoid creating many
+                        groups, or to smooth the distribution a little bit when
+                        not all cores are in use. Please note that it can have
+                        very bad performance effects when the communication
+                        between clusters is slow. This is generally recommended
+                        against.
+
    - group-by-cluster   if neither "nbthread" not "nbtgroups" were set, then
                         one thread group is created for each CPU cluster with
                         available CPUs, each with as many threads as CPUs. All
