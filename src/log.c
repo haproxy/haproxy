@@ -5976,7 +5976,7 @@ static struct applet syslog_applet = {
  * large msg). The input vectors are not modified. The caller is responsible for
  * making sure that there are at least ofs+len bytes in the input buffer.
  */
-ssize_t syslog_applet_append_event(void *ctx, struct ist v1, struct ist v2, size_t ofs, size_t len)
+ssize_t syslog_applet_append_event(void *ctx, struct ist v1, struct ist v2, size_t ofs, size_t len, char delim)
 {
 	struct appctx *appctx = ctx;
 	char *p;

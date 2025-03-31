@@ -412,7 +412,7 @@ void sink_setup_proxy(struct proxy *px)
 }
 
 static void _sink_forward_io_handler(struct appctx *appctx,
-                                     ssize_t (*msg_handler)(void *ctx, struct ist v1, struct ist v2, size_t ofs, size_t len))
+                                     ssize_t (*msg_handler)(void *ctx, struct ist v1, struct ist v2, size_t ofs, size_t len, char delim))
 {
 	struct stconn *sc = appctx_sc(appctx);
 	struct sink_forward_target *sft = appctx->svcctx;
@@ -446,7 +446,7 @@ static void _sink_forward_io_handler(struct appctx *appctx,
 	MT_LIST_DELETE(&appctx->wait_entry);
 
 	ret = ring_dispatch_messages(ring, appctx, &sft->ofs, &last_ofs, 0,
-	                             msg_handler, &processed);
+	                             msg_handler, '\n', &processed);
 	sft->e_processed += processed;
 
 	/* if server's max-reuse is set (>= 0), destroy the applet once the

@@ -737,7 +737,7 @@ end:
 	return ret;
 }
 
-/* Atomically append a line to applet <ctx>'s output, appending a trailing LF.
+/* Atomically append a line to applet <ctx>'s output, appending a delimiter.
  * The line is read from vectors <v1> and <v2> at offset <ofs> relative to the
  * area's origin, for <len> bytes. It returns the number of bytes consumed from
  * the input vectors on success, -1 if it temporarily cannot (buffer full), -2
@@ -745,7 +745,7 @@ end:
  * The caller is responsible for making sure that there are at least ofs+len
  * bytes in the input vectors.
  */
-ssize_t applet_append_line(void *ctx, struct ist v1, struct ist v2, size_t ofs, size_t len)
+ssize_t applet_append_line(void *ctx, struct ist v1, struct ist v2, size_t ofs, size_t len, char delim)
 {
 	struct appctx *appctx = ctx;
 
@@ -757,7 +757,7 @@ ssize_t applet_append_line(void *ctx, struct ist v1, struct ist v2, size_t ofs, 
 	chunk_reset(&trash);
 	vp_peek_ofs(v1, v2, ofs, trash.area, len);
 	trash.data += len;
-	trash.area[trash.data++] = '\n';
+	trash.area[trash.data++] = delim;
 	if (applet_putchk(appctx, &trash) == -1)
 		return -1;
 	return len;

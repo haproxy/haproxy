@@ -550,7 +550,8 @@ int ring_attach_cli(struct ring *ring, struct appctx *appctx, uint flags)
  * processed by the function (even when the function returns 0)
  */
 int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t *last_ofs_ptr, uint flags,
-                           ssize_t (*msg_handler)(void *ctx, struct ist v1, struct ist v2, size_t ofs, size_t len),
+                           ssize_t (*msg_handler)(void *ctx, struct ist v1, struct ist v2, size_t ofs, size_t len, char delim),
+                           char delim,
                            size_t *processed)
 {
 	size_t head_ofs, tail_ofs, prev_ofs;
@@ -644,7 +645,7 @@ int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t
 
 		BUG_ON(msg_len + cnt + 1 > vp_size(v1, v2));
 
-		copied = msg_handler(ctx, v1, v2, cnt, msg_len);
+		copied = msg_handler(ctx, v1, v2, cnt, msg_len, delim);
 		if (copied == -2) {
 			/* too large a message to ever fit, let's skip it */
 			goto skip;
@@ -703,7 +704,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 
 	MT_LIST_DELETE(&appctx->wait_entry);
 
-	ret = ring_dispatch_messages(ring, appctx, &ctx->ofs, &last_ofs, ctx->flags, applet_append_line, NULL);
+	ret = ring_dispatch_messages(ring, appctx, &ctx->ofs, &last_ofs, ctx->flags, applet_append_line, '\n', NULL);
 
 	if (ret && (ctx->flags & RING_WF_WAIT_MODE)) {
 		/* we've drained everything and are configured to wait for more

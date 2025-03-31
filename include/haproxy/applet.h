@@ -58,7 +58,7 @@ size_t appctx_raw_snd_buf(struct appctx *appctx, struct buffer *buf, size_t coun
 size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsigned int flags);
 
 int appctx_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags);
-ssize_t applet_append_line(void *ctx, struct ist v1, struct ist v2, size_t ofs, size_t len);
+ssize_t applet_append_line(void *ctx, struct ist v1, struct ist v2, size_t ofs, size_t len, char delim);
 static forceinline void applet_fl_set(struct appctx *appctx, uint on);
 static forceinline void applet_fl_clr(struct appctx *appctx, uint off);
 
