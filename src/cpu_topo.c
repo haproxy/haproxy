@@ -214,6 +214,7 @@ void cpu_dump_topology(const struct ha_cpu_topo *topo)
 {
 	int has_smt = 0;
 	int cpu, lvl;
+	int grp, thr;
 
 	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++)
 		if (ha_cpu_topo[cpu].th_cnt > 1)
@@ -262,6 +263,67 @@ void cpu_dump_topology(const struct ha_cpu_topo *topo)
 		       cpu, ha_cpu_clusters[cpu].nb_cpu,
 		       ha_cpu_clusters[cpu].nb_cores,
 		       ha_cpu_clusters[cpu].capa);
+	}
+
+	printf("Thread CPU Bindings:\n  Tgrp/Thr  Tid        CPU set\n");
+	for (grp = 0; grp < global.nbtgroups; grp++) {
+		int first, last;
+		int min, max;
+
+		first = ha_tgroup_info[grp].base;
+		last  = ha_tgroup_info[grp].base + ha_tgroup_info[grp].count - 1;
+
+		min = max = -1;
+		for (thr = first; thr <= last; thr++) {
+			if (min < 0)
+				min = thr;
+
+			if (thr == last ||
+			    !ha_cpuset_isequal(&cpu_map[grp].thread[min - first],
+					       &cpu_map[grp].thread[thr + 1 - first]))
+				max = thr;
+
+			if (min >= 0 && max >= 0) {
+				/* we have a range */
+				char str[1024];
+				int len = 0;
+				int len2;
+
+				/* print group/thread-range */
+				len += snprintf(str + len, sizeof(str) - len, "%d/%d", grp + 1, min - first + 1);
+				if (min != max)
+					len += snprintf(str + len, sizeof(str) - len, "-%d", max - first + 1);
+
+				/* max len is 8: "64/64-64", plus 2 spaces = 10 */
+				while (len < 10) {
+					str[len++] = ' ';
+					str[len] = 0;
+				}
+
+				/* append global thread range */
+				len += snprintf(str + len, sizeof(str) - len, "%d", min + 1);
+				if (min != max)
+					len += snprintf(str + len, sizeof(str) - len, "-%d", max + 1);
+
+				/* max len is 9: "4096-4096", plus 2 spaces = 11, plus 10 initial chars = 21 */
+				while (len < 21) {
+					str[len++] = ' ';
+					str[len] = 0;
+				}
+
+				if (ha_cpuset_count(&cpu_map[grp].thread[thr - first]))
+					len += snprintf(str + len, sizeof(str) - len, "%d: ", ha_cpuset_count(&cpu_map[grp].thread[thr - first]));
+
+				len2 = print_cpu_set(str + len, sizeof(str) - len, &cpu_map[grp].thread[thr - first]);
+				if (len2 > sizeof(str) - len)
+					snprintf(str + len, sizeof(str) - len, "<too_large>");
+				else if (len2 == 0)
+					snprintf(str + len, sizeof(str) - len, "<all>");
+
+				printf("  %s\n", str);
+				min = max = -1;
+			}
+		}
 	}
 }
 
