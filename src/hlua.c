@@ -5464,6 +5464,34 @@ __LJMP static int hlua_applet_tcp_recv(lua_State *L)
 	return MAY_LJMP(hlua_applet_tcp_recv_yield(L, 0, 0));
 }
 
+/* Check arguments for the function "hlua_channel_get_yield". */
+__LJMP static int hlua_applet_tcp_try_recv(lua_State *L)
+{
+	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	int ret;
+
+	if (lua_gettop(L) > 1)
+		WILL_LJMP(luaL_error(L, "The 'try_recv' function only expects applet argument."));
+
+	/* Confirm or set the required length */
+	lua_pushinteger(L, -1);
+
+	/* set the expiration date (mandatory arg but not relevant here) */
+	lua_pushinteger(L, TICK_ETERNITY);
+
+	/* Initialise the string catenation. */
+	luaL_buffinit(L, &luactx->b);
+
+	ret = hlua_applet_tcp_recv_try(L);
+	if (!ret) {
+		/* return the result (may be empty). */
+		luaL_pushresult(&luactx->b);
+		return 1;
+	}
+
+	return ret;
+}
+
 /* Append data in the output side of the buffer. This data is immediately
  * sent. The function returns the amount of data written. If the buffer
  * cannot contain the data, the function yields. The function returns -1
@@ -14289,6 +14317,7 @@ lua_State *hlua_init_state(int thread_num)
 	/* Register Lua functions. */
 	hlua_class_function(L, "getline",   hlua_applet_tcp_getline);
 	hlua_class_function(L, "receive",   hlua_applet_tcp_recv);
+	hlua_class_function(L, "try_receive", hlua_applet_tcp_try_recv);
 	hlua_class_function(L, "send",      hlua_applet_tcp_send);
 	hlua_class_function(L, "set_priv",  hlua_applet_tcp_set_priv);
 	hlua_class_function(L, "get_priv",  hlua_applet_tcp_get_priv);

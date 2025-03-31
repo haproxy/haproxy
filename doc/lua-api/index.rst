@@ -3912,6 +3912,15 @@ AppletTCP class
   :returns: always return a string, the string can be empty if the connection is
    closed.
 
+.. js:function:: AppletTCP.try_receive(applet)
+
+  Reads available data from the TCP stream and returns immediately. Returns a
+  string containing read bytes that may possibly be empty if no bytes are
+  available at that time.
+
+  :param class_AppletTCP applet: An :ref:`applettcp_class`
+  :returns: always return a string, the string can be empty.
+
 .. js:function:: AppletTCP.send(appletmsg)
 
   Send the message on the stream.
