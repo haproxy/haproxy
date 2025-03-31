@@ -95,6 +95,7 @@
 /* ring watch flags to be used when watching the ring */
 #define RING_WF_WAIT_MODE  0x00000001   /* wait for new contents */
 #define RING_WF_SEEK_NEW   0x00000002   /* seek to new contents  */
+#define RING_WF_END_ZERO   0x00000004   /* mark end of events with \0 instead of \n */
 
 /* ring flags */
 #define RING_FL_MAPPED     0x00000001 /* mmapped area, must not free() */

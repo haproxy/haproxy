@@ -2884,7 +2884,7 @@ show errors [<iid>|<proxy>] [request|response]
     error was at byte 23. This is the slash ('/') in header name
     "header/bizarre", which is not a valid HTTP character for a header name.
 
-show events [<sink>] [-w] [-n]
+show events [<sink>] [-w] [-n] [-0]
   With no option, this lists all known event sinks and their types. With an
   option, it will dump all available events in the designated sink if it is of
   type buffer. If option "-w" is passed after the sink name, then once the end
@@ -2893,7 +2893,9 @@ show events [<sink>] [-w] [-n]
   be discarded) or by closing the session. Finally, option "-n" is used to
   directly seek to the end of the buffer, which is often convenient when
   combined with "-w" to only report new events. For convenience, "-wn" or "-nw"
-  may be used to enable both options at once.
+  may be used to enable both options at once. By default, all events are
+  delimited by a line feed character ('\n' or 10 or 0x0A). It is possible to
+  change this to the NUL character ('\0' or 0) by passing the "-0" argument.
 
 show fd [-!plcfbsd]* [<fd>]
   Dump the list of either all open file descriptors or just the one number <fd>

@@ -704,7 +704,8 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 
 	MT_LIST_DELETE(&appctx->wait_entry);
 
-	ret = ring_dispatch_messages(ring, appctx, &ctx->ofs, &last_ofs, ctx->flags, applet_append_line, '\n', NULL);
+	ret = ring_dispatch_messages(ring, appctx, &ctx->ofs, &last_ofs, ctx->flags, applet_append_line,
+				     (ctx->flags & RING_WF_END_ZERO) ? 0 : '\n', NULL);
 
 	if (ret && (ctx->flags & RING_WF_WAIT_MODE)) {
 		/* we've drained everything and are configured to wait for more
