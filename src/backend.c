@@ -1263,11 +1263,21 @@ int alloc_bind_address(struct sockaddr_storage **ss,
 	return SRV_STATUS_OK;
 }
 
-/* Attempt to get a backend connection from the specified mt_list array
- * (safe or idle connections). The <is_safe> argument means what type of
- * connection the caller wants.
+/* Attempt to retrieve a connection matching <hash> from <srv> server lists for
+ * connection reuse. If <is_safe> is true, only connections considered safe for
+ * reuse are inspected. Thread-local list is inspected first. If no matching
+ * connection is found, takeover may be performed to steal a connection from a
+ * foreign thread.
+ *
+ * If <reuse_mode> backend policy is safe and connection MUX is subject to
+ * head-of-line blocking, connection is attached to <sess> session, which
+ * prevents mixing several frontend client over it.
+ *
+ * Returns the connection instance if found.
  */
-struct connection *conn_backend_get(struct stream *s, struct server *srv, int is_safe, int64_t hash)
+struct connection *conn_backend_get(int reuse_mode,
+                                    struct server *srv, struct session *sess,
+                                    int is_safe, int64_t hash)
 {
 	const struct tgroup_info *curtg = tg;
 	struct connection *conn = NULL;
@@ -1393,17 +1403,16 @@ check_tgid:
 		conn->flags &= ~CO_FL_LIST_MASK;
 		__ha_barrier_atomic_store();
 
-		if ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_SAFE &&
-		    conn->mux->flags & MX_FL_HOL_RISK) {
-			/* attach the connection to the session private list
-			 */
-			conn->owner = s->sess;
-			session_add_conn(s->sess, conn, conn->target);
+		if (reuse_mode == PR_O_REUSE_SAFE && conn->mux->flags & MX_FL_HOL_RISK) {
+			/* attach the connection to the session private list */
+			conn->owner = sess;
+			session_add_conn(sess, conn, conn->target);
 		}
 		else {
 			srv_add_to_avail_list(srv, conn);
 		}
 	}
+
 	return conn;
 }
 
@@ -1692,13 +1701,13 @@ int connect_server(struct stream *s)
 			 * search for an idle then safe conn */
 			if (not_first_req || retry_safe) {
 				if (idle || safe)
-					srv_conn = conn_backend_get(s, srv, 0, hash);
+					srv_conn = conn_backend_get(reuse_mode, srv, s->sess, 0, hash);
 			}
 			/* first column of the tables above */
 			else if (reuse_mode >= PR_O_REUSE_AGGR) {
 				/* search for a safe conn */
 				if (safe)
-					srv_conn = conn_backend_get(s, srv, 1, hash);
+					srv_conn = conn_backend_get(reuse_mode, srv, s->sess, 1, hash);
 
 				/* search for an idle conn if no safe conn found
 				 * on always reuse mode */
@@ -1706,7 +1715,7 @@ int connect_server(struct stream *s)
 				    reuse_mode == PR_O_REUSE_ALWS && idle) {
 					/* TODO conn_backend_get should not check the
 					 * safe list is this case */
-					srv_conn = conn_backend_get(s, srv, 0, hash);
+					srv_conn = conn_backend_get(reuse_mode, srv, s->sess, 0, hash);
 				}
 			}
 
