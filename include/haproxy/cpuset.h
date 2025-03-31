@@ -60,6 +60,14 @@ int ha_cpuset_size(void);
  */
 int parse_cpu_set(const char **args, struct hap_cpuset *cpu_set, char **err);
 
+/* Print a cpu-set as compactly as possible and returns the output length.
+ * Returns >size if it cannot emit anything due to length constraints, in which
+ * case it will match what is at least needed to go further, and may return 0
+ * for an empty set. It will emit series of comma-delimited ranges in the form
+ * "beg[-end]".
+ */
+int print_cpu_set(char *output, size_t size, const struct hap_cpuset *cpu_set);
+
 /* Parse a linux cpu map string representing to a numeric cpu mask map
  * The cpu map string is a list of 4-byte hex strings separated by commas, with
  * most-significant byte first, one bit per cpu number.
