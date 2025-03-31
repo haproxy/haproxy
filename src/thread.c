@@ -1432,6 +1432,13 @@ int thread_map_to_groups()
 #ifdef USE_THREAD
 	all_tgroups_mask = m;
 #endif
+
+#if defined(USE_THREAD) && defined(USE_CPU_AFFINITY)
+	if (global.tune.debug & GDBG_CPU_AFFINITY) {
+		cpu_reorder_by_index(ha_cpu_topo, cpu_topo_maxcpus);
+		cpu_dump_topology(ha_cpu_topo);
+	}
+#endif
 	return 0;
 }
 
@@ -1664,13 +1671,6 @@ void thread_detect_count(void)
 				global.nbthread, MAX_THREADS_PER_GROUP * global.nbtgroups, MAX_THREADS_PER_GROUP, MAX_TGROUPS);
 		global.nbthread = MAX_THREADS_PER_GROUP * global.nbtgroups;
 	}
-
-#if defined(USE_THREAD) && defined(USE_CPU_AFFINITY)
-	if (global.tune.debug & GDBG_CPU_AFFINITY) {
-		cpu_reorder_by_index(ha_cpu_topo, cpu_topo_maxcpus);
-		cpu_dump_topology(ha_cpu_topo);
-	}
-#endif
 	return;
 }
 
