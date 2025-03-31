@@ -1597,8 +1597,7 @@ int connect_server(struct stream *s)
 	}
 
 	/* 3. destination address */
-	if (srv && srv_is_transparent(srv))
-		hash_params.dst_addr = s->scb->dst;
+	hash_params.dst_addr = s->scb->dst;
 
 	/* 4. source address */
 	hash_params.src_addr = bind_addr;
