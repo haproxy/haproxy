@@ -134,6 +134,20 @@ void ha_cpuset_assign(struct hap_cpuset *dst, struct hap_cpuset *src)
 #endif
 }
 
+/* returns true if the sets are equal */
+int ha_cpuset_isequal(const struct hap_cpuset *dst, const struct hap_cpuset *src)
+{
+#if defined(CPUSET_USE_CPUSET)
+	return CPU_EQUAL(&dst->cpuset, &src->cpuset);
+
+#elif defined(CPUSET_USE_FREEBSD_CPUSET)
+	return !CPU_CMP(&src->cpuset, &dst->cpuset);
+
+#elif defined(CPUSET_USE_ULONG)
+	return dst->cpuset == src->cpuset;
+#endif
+}
+
 int ha_cpuset_size()
 {
 #if defined(CPUSET_USE_CPUSET) || defined(CPUSET_USE_FREEBSD_CPUSET)

@@ -44,6 +44,9 @@ int ha_cpuset_ffs(const struct hap_cpuset *set);
  */
 void ha_cpuset_assign(struct hap_cpuset *dst, struct hap_cpuset *src);
 
+/* returns true if the sets are equal */
+int ha_cpuset_isequal(const struct hap_cpuset *dst, const struct hap_cpuset *src);
+
 /* Returns the biggest index plus one usable on the platform.
  */
 int ha_cpuset_size(void);
