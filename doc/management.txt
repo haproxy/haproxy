@@ -4360,7 +4360,44 @@ Example:
   CLI session. Similarly, a few rare commands ("show events", "wait") actively
   monitor the CLI for input or closure and are immediately interrupted when the
   CLI is closed. These commands will not work as expected through the master
-  CLI because the command's input is closed after each command.
+  CLI because the command's input is closed after each command. For such rare
+  casesn the "@@" variant below might be more suited.
+
+@@<[!]pid> [command...]
+  This prefix or command is very similar to the "@" prefix documented above
+  except that it enters the worker process, delivers the whole command line
+  into it as-is and stays there until the command finishes. Semi-colons are
+  delivered as well, allowing to execute a full pipelined command in a worker
+  process. The connection with the work remains open until the list of commands
+  completes. Any data sent after the commands will be forwarded to the worker
+  process' CLI and may be consumed by the commands being executed and will be
+  lost for the master process' CLI, offering a truly bidirectional connection
+  with the worker process. As such, users of such commands must be very careful
+  to wait for the command's completion before sending new commands to the
+  master CLI.
+
+  Instead of executing a single command, it is also possible to open a fully
+  interactive session on the worker process by not specifying any command
+  (i.e. "@@1" on its own line). This session can be terminated either by
+  closing the connection or by quitting the worker process (using the "quit"
+  command).
+
+  Examples:
+    # gracefully close connections and delete a server once idle (wait max 10s)
+    $ socat -t 11 /var/run/haproxy-master.sock - <<< \
+       "@@1 disable server app2/srv36; \
+       wait 10000 srv-removable app2/srv36; \
+       del server app2/srv36"
+
+    # forcefully close connections and quickly delete a server
+    $ socat /var/run/haproxy-master.sock - <<< \
+       "@@1 disable server app2/srv36; \
+       shutdown sessions server app2/srv36; \
+       wait 100 srv-removable app2/srv36; \
+       del server app2/srv36"
+
+    # show messages arriving to this ring in real time ("tail -f" equivalent)
+    $ (echo "show events buf0 -w"; read) | socat /var/run/haproxy-master.sock -
 
 expert-mode [on|off]
   This command activates the "expert-mode" for every worker accessed from the

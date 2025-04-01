@@ -2876,6 +2876,70 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 	return 0;
 }
 
+/* parse <str> up to <end> for stream <s> and request channel <req>, searching
+ * for the '@@' prefix. If found, the pid is returned in <next_pid> and the
+ * function returns a positive value representing the number of bytes
+ * processed. If the prefix is found but the pid couldn't be parsed, <0 is
+ * returned with an error placed into <errmsg>. If nothing is found, zero is
+ * returned. In any case, <str> is advanced by the number of chars to be
+ * skipped.
+ */
+int pcli_find_bidir_prefix(struct stream *s, struct channel *req, char **str, const char *end, char **errmsg, int *next_pid)
+{
+	char *p = *str;
+	int ret = 0;
+
+	/* skip leading spaces / tabs*/
+	while (p < end && (*p == '\t' || *p == ' '))
+		p++;
+
+	/* check for '@@' prefix */
+	if (p + 2 <= end && p[0] == '@' && p[1] == '@') {
+		const char *pid_str = p;
+		int target_pid;
+
+		p += 2; // skip '@@'
+
+		/* find end of process designation, then zero out all following LWS
+		 * to stop on the beginning of the command if any.
+		 */
+		while (p < end && !(*p == '\t' || *p == '\n' || *p == '\r' || *p == ' '))
+			p++;
+
+		while (p < end && (*p == '\t' || *p == '\n' || *p == '\r' || *p == ' '))
+			*(p++) = 0;
+
+		target_pid = pcli_prefix_to_pid(pid_str + 1);
+		if (target_pid == -1) {
+			memprintf(errmsg, "Can't find the target PID matching the prefix '%s'\n", pid_str);
+			ret = -1;
+			goto leave;
+		}
+
+		/* bidirectional connection to this worker */
+		s->pcli_flags |= PCLI_F_BIDIR;
+		*next_pid = target_pid;
+
+		/* skip '@@pid' and LWS */
+		b_del(&req->buf, p - *str);
+
+		/* forward what remains */
+		ret = end - p;
+
+		/* without any command, simply enter the worker in interactive mode */
+		if (!ret) {
+			const char *cmd = "prompt;";
+			ci_insert(req, 0, cmd, strlen(cmd));
+			ret += strlen(cmd);
+		}
+	}
+
+	/* update with already parsed contents */
+ leave:
+	*str = p;
+	return ret;
+}
+
 /*
  * Parse the CLI request:
  *  - It does basically the same as the cli_io_handler, but as a proxy
@@ -2910,6 +2974,13 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 	p = str;
 
 	if (!(s->pcli_flags & PCLI_F_PAYLOAD)) {
+		/* look for the '@@' prefix and intercept it if found */
+		ret = pcli_find_bidir_prefix(s, req, &p, end, errmsg, next_pid);
+		if (ret != 0) // success or failure
+			goto end;
+
+		reql = p - str;
+		p = str;
 
 		/* Looks for the end of one command */
 		while (p+reql < end) {
@@ -3093,6 +3164,7 @@ int pcli_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	if (s->res.analysers & AN_RES_WAIT_CLI)
 		return 0;
 
+	s->pcli_flags &= ~PCLI_F_BIDIR; // only for one connection
 	if ((s->pcli_flags & ACCESS_LVL_MASK) == ACCESS_LVL_NONE)
 		s->pcli_flags |= strm_li(s)->bind_conf->level & ACCESS_LVL_MASK;
 
@@ -3127,12 +3199,18 @@ read_again:
 		int target_pid;
 		/* enough data */
 
-		/* forward only 1 command */
-		channel_forward(req, to_forward);
+		/* forward only 1 command for '@' or everything for '@@' */
+		if (!(s->pcli_flags & PCLI_F_BIDIR))
+			channel_forward(req, to_forward);
+		else
+			channel_forward_forever(req);
 
 		if (!(s->pcli_flags & PCLI_F_PAYLOAD)) {
-			/* we send only 1 command per request, and we write close after it */
-			sc_schedule_shutdown(s->scb);
+			/* we send only 1 command per request, and we write
+			 * close after it when not in full-duplex mode.
+			 */
+			if (!(s->pcli_flags & PCLI_F_BIDIR))
+				sc_schedule_shutdown(s->scb);
 		} else {
 			pcli_write_prompt(s);
 		}
@@ -3331,6 +3409,9 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		s->req.flags &= ~(CF_AUTO_CONNECT|CF_STREAMER|CF_STREAMER_FAST|CF_WROTE_DATA);
 		s->res.flags &= ~(CF_STREAMER|CF_STREAMER_FAST|CF_WRITE_EVENT|CF_WROTE_DATA|CF_READ_EVENT);
+		s->req.to_forward = 0;
+		s->res.to_forward = 0;
+		s->pcli_flags &= ~PCLI_F_BIDIR;
 		s->flags &= ~(SF_DIRECT|SF_ASSIGNED|SF_BE_ASSIGNED|SF_FORCE_PRST|SF_IGNORE_PRST);
 		s->flags &= ~(SF_CURR_SESS|SF_REDIRECTABLE|SF_SRV_REUSED);
 		s->flags &= ~(SF_ERR_MASK|SF_FINST_MASK|SF_REDISP);
