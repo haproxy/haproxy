@@ -2506,7 +2506,7 @@ next_line:
 		}
 
 		/* .warning/.error/.notice/.diag */
-		if (*args[0] == '.') {
+		if (*args[0] == '.' && !(global.mode & MODE_DISCOVERY)) {
 			if (strcmp(args[0], ".alert") == 0) {
 				if (*args[2]) {
 					ha_alert("parsing [%s:%d]: Unexpected argument '%s' for '%s'. Use quotes if the message should contain spaces.\n",
