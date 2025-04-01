@@ -2012,8 +2012,6 @@ static char *_encode_byte_hex(char *start, char *stop, unsigned char byte)
 
 /* lf cbor function ptr used to encode a single byte according to RFC8949
  *
- * for now only hex form is supported.
- *
  * The function may only be called under CBOR context (that is when
  * LOG_OPT_ENCODE_CBOR option is set).
  *
