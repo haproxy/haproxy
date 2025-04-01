@@ -3464,7 +3464,7 @@ Patref class
   in case of duplicated entries, only the first matching entry is returned.
 
   .. Warning::
-     Not meant to be shared bewteen multiple contexts. If multiple contexts
+     Not meant to be shared between multiple contexts. If multiple contexts
      need to work on the same pattern reference, each context should have
      its own patref object.
 
@@ -3494,7 +3494,7 @@ Patref class
 .. js:function:: Patref.commit(ref)
 
   Tries to commit pending Patref object updates, that is updates made to the
-  local object will be committed to the underlying patter reference storage
+  local object will be committed to the underlying pattern reference storage
   in an atomic manner upon success. Upon failure, local pending updates are
   lost. Upon success, all other pending updates on the pattern reference
   (e.g.: "prepare" from the cli or from other Patref Lua objects) started

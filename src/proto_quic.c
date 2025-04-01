@@ -795,7 +795,7 @@ static int quic_test_gso(void)
  * mechanism. A message is notified in this case when running in diagnostic
  * mode.
  *
- * Returns ERR_NONE if every checks performed, wether or not some features are
+ * Returns ERR_NONE if every checks performed, whether or not some features are
  * not available. ERR_FATAL is reported if checks cannot be executed.
  */
 static int quic_test_socketopts(void)

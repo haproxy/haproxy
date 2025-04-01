@@ -5576,7 +5576,7 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 		}
 	}
 
-	/* if that's an exact match, no need to call dl_addr. This happends
+	/* if that's an exact match, no need to call dl_addr. This happens
 	 * when showing callback pointers for example, but not in backtraces.
 	 */
 	if (!best_dist)

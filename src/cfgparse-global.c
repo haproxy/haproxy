@@ -836,7 +836,7 @@ discovery_kw:
 					continue;
 				if (strcmp(kwl->kw[index].kw, args[0]) == 0) {
 
-					/* in MODE_DISCOVERY we read only the keywords, which contains the appropiate flag */
+					/* in MODE_DISCOVERY we read only the keywords, which contains the appropriate flag */
 					if ((global.mode & MODE_DISCOVERY) && ((kwl->kw[index].flags & KWF_DISCOVERY) == 0 ))
 						goto out;
 
@@ -1626,7 +1626,7 @@ static int cfg_parse_global_chroot(char **args, int section_type, struct proxy *
 					file, line, args[0], args[1], strerror(errno));
 		else if (errno == EACCES)
 			ha_diag_warning("parsing [%s:%d]: '%s': '%s': %s "
-					"(process is need to be started with root priviledges to be able to chroot).\n",
+					"(process is need to be started with root privileges to be able to chroot).\n",
 					file, line, args[0], args[1], strerror(errno));
 		else
 			ha_diag_warning("parsing [%s:%d]: '%s': '%s': stat() is failed: %s.\n",

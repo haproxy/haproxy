@@ -169,7 +169,7 @@ struct global {
 	unsigned char cluster_secret[16]; /* 128 bits of an SHA1 digest of a secret defined as ASCII string */
 	struct {
 		int maxpollevents; /* max number of poll events at once */
-		int max_rules_at_once; /* max number of rules excecuted in a single evaluation loop */
+		int max_rules_at_once; /* max number of rules executed in a single evaluation loop */
 		int maxaccept;     /* max number of consecutive accept() */
 		int options;       /* various tuning options */
 		uint debug;        /* various debugging options (GDBG_*) */

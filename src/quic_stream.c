@@ -128,7 +128,7 @@ void qc_stream_desc_release(struct qc_stream_desc *stream,
 		if (final_size < tail_offset)
 			b_sub(buf, tail_offset - final_size);
 
-		/* Release active buffer, or delete it immediatly if there is
+		/* Release active buffer, or delete it immediately if there is
 		 * no data to acknowledge. Both functions will reset active
 		 * buf pointer and invoke <notify_room> if necessary.
 		 */
@@ -243,7 +243,7 @@ static int qc_stream_buf_store_ack(struct qc_stream_buf *buf,
 }
 
 /* Acknowledges data for buffer <buf> attached to <stream> instance. This covers
- * the range strating at <offset> and of length <len>, with <fin> sets for the
+ * the range starting at <offset> and of length <len>, with <fin> sets for the
  * last stream frame.
  *
  * Returns <buf> if there is still data to acknowledge or buffered ACK to
@@ -495,7 +495,7 @@ struct buffer *qc_stream_buf_realloc(struct qc_stream_desc *stream)
 	/* This function is reserved to convert a big buffer to a smaller one. */
 	BUG_ON(!stream->buf || !stream->buf->sbuf);
 
-	/* This function can only be used if targetted buffer is empty. */
+	/* This function can only be used if targeted buffer is empty. */
 	BUG_ON(b_data(&stream->buf->buf));
 
 	/* Release buffer */

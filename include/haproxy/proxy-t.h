@@ -299,7 +299,7 @@ struct error_snapshot {
 	char buf[VAR_ARRAY];                    /* copy of the beginning of the message for bufsize bytes */
 };
 
-/* Each proxy will have one occurence of this structure per thread group */
+/* Each proxy will have one occurrence of this structure per thread group */
 struct proxy_per_tgroup {
 	struct queue queue;
 } THREAD_ALIGNED(64);

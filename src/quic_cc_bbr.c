@@ -256,7 +256,7 @@ struct bbr {
  * The camelcase naming convention is used by the BBR RFC for the function names
  * and constants. To helps in matching the code below with the RFC one, note
  * that all the function names have been translated this way. The uppercase
- * letters have been replaced by lowercase letters. The words have been seperated
+ * letters have been replaced by lowercase letters. The words have been separated
  * by underscores as follows:
  *
  *     ex: BBRMinPipeCwnd() -> bbr_min_pipe_cwnd()

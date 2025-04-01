@@ -676,7 +676,7 @@ static struct task *process_sink_forward(struct task * task, void *context, unsi
 		while (sft) {
 			HA_SPIN_LOCK(SFT_LOCK, &sft->lock);
 			/* If appctx is NULL, start a new session and perform the appctx
-			 * assigment right away since the applet is not supposed to change
+			 * assignment right away since the applet is not supposed to change
 			 * during the session lifetime. By doing the assignment now we
 			 * make sure to start the session exactly once.
 			 *

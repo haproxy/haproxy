@@ -2550,7 +2550,7 @@ static void run_master_in_recovery_mode(int argc, char **argv)
 	mworker_run_master();
 }
 
-/* parse conf in disovery mode and set modes from config */
+/* parse conf in discovery mode and set modes from config */
 static void read_cfg_in_discovery_mode(int argc, char **argv)
 {
 	struct cfgfile *cfg, *cfg_tmp;
@@ -2604,7 +2604,7 @@ static void read_cfg_in_discovery_mode(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	/* "progam" sections, if there are any, were alredy parsed only by master
+	/* "program" sections, if there are any, were already parsed only by master
 	 * and programs are forked before calling postparser functions from
 	 * postparser list. So, all checks related to "program" section integrity
 	 * and sections vs MODE_MWORKER combinations should be done here.
@@ -3242,7 +3242,7 @@ int main(int argc, char **argv)
 	if (backup_env() != 0)
 		exit(EXIT_FAILURE);
 
-	/* parse conf in disovery mode and set modes from config */
+	/* parse conf in discovery mode and set modes from config */
 	read_cfg_in_discovery_mode(argc, argv);
 
 	/* From this stage all runtime modes are known. So let's do below some
@@ -3347,8 +3347,8 @@ int main(int argc, char **argv)
 	 * forked. Thus the current worker inherits ipc_fd[0]s from the previous
 	 * ones by it's parent, master, because we have to keep shared sockpair
 	 * ipc_fd[0] always opened in master (master CLI server is listening on
-	 * this fd). It's safe to call close() at this point on these inhereted
-	 * ipc_fd[0]s, as they are inhereted after master re-exec unbound, we
+	 * this fd). It's safe to call close() at this point on these inherited
+	 * ipc_fd[0]s, as they are inherited after master re-exec unbound, we
 	 * keep them like this during bind_listeners() call. So, these fds were
 	 * never referenced in the current worker's fdtab.
 	 */
@@ -3404,7 +3404,7 @@ int main(int argc, char **argv)
 	}
 
         /* applies the renice value in the worker or standalone after configuration parsing
-         * but before chaning identity */
+         * but before changing identity */
         if (!master && global.tune.renice_runtime) {
 		if (setpriority(PRIO_PROCESS, 0, global.tune.renice_runtime - 100) == -1) {
 			ha_warning("[%s.main()] couldn't set the runtime nice value to %d: %s\n",

@@ -830,9 +830,9 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		/* Note: if no token for address validation was received
 		 * for a 0RTT connection, some 0RTT packet could still be
 		 * waiting for HP removal AFTER the successful handshake completion.
-		 * Indeed a successful handshake completion implicitely valids
+		 * Indeed a successful handshake completion implicitly valids
 		 * the peer address. In this case, one wants to process
-		 * these ORTT packets AFTER the succesful handshake completion.
+		 * these ORTT packets AFTER the successful handshake completion.
 		 *
 		 * On the contrary, when a token for address validation was received,
 		 * release 0RTT packets still waiting for HP removal. These

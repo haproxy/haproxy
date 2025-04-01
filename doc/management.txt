@@ -3339,7 +3339,7 @@ show sess [<options>*]
   output reports less entries than really exist because it will dump all
   existing streams up to the last one that was created before the command was
   entered; those which die in the mean time will not appear.
-  For supported opitons, see below.
+  For supported options, see below.
 
 show sess [<id> | all | help] [<options>*]
   Display a lot of internal information about the matching streams. The command
@@ -3807,7 +3807,7 @@ show ssl sni [-f <frontend>] [-A]
 
   The 'SNI' column shows the SNI, it can be either a CN, a SAN or a filter from a crt-list.
   The default certificates of a bind line, (which are either declared
-  explicitely by 'default-crt' or is implicitely the first certificate of a bind
+  explicitly by 'default-crt' or is implicitly the first certificate of a bind
   line when no 'strict-sni' is used) shows the '*' character in the SNI column.
 
   The 'Negative Filter' column is the list of negative filters associated to a

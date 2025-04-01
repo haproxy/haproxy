@@ -408,7 +408,7 @@ static inline unsigned long ERR_peek_error_func(const char **func)
 #define SSL_OP_CIPHER_SERVER_PREFERENCE 0
 #endif
 
-/* needs OpenSSL >= 0.9.7 and renegotation options on WolfSSL */
+/* needs OpenSSL >= 0.9.7 and renegotiation options on WolfSSL */
 #if !defined(SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION) || \
 	 (defined(USE_OPENSSL_WOLFSSL) && !defined(HAVE_SECURE_RENEGOTIATION) && !defined(HAVE_SERVER_RENEGOTIATION_INFO))
 #undef  SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION

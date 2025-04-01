@@ -784,7 +784,7 @@ static inline const char *tevt_evts2str(uint32_t evts)
 		if (!evt)
 			continue;
 
-		/* Backend location are displayed in captial letter */
+		/* Backend location are displayed in capital letter */
 		is_back = !!((evt >> 4) & 0x8);
 		switch ((enum term_event_loc)((evt >> 4) & ~0x8)) {
 			case tevt_loc_fd:   tevt_evts_str[idx++] = (is_back ? 'F' : 'f'); break;

@@ -5834,7 +5834,7 @@ next_frame:
 		if ((unsigned)hdr.len > (unsigned)global.tune.bufsize) {
 			/* RFC7540#4.2: invalid frame length */
 			h2c_report_glitch(h2c, 1, "too large CONTINUATION frame");
-			TRACE_STATE("too large CONTIUATION frame", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_HDR|H2_EV_RX_CONT|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
+			TRACE_STATE("too large CONTINUATION frame", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_HDR|H2_EV_RX_CONT|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 			h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR);
 			goto fail;
 		}

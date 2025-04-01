@@ -162,7 +162,7 @@ int __stksess_kill(struct stktable *t, struct stksess *ts)
 }
 
 /*
- * Decrease the refcount of a stksess and relase it if the refcount falls to 0.
+ * Decrease the refcount of a stksess and release it if the refcount falls to 0.
  * Returns non-zero if deleted, zero otherwise.
  *
  * This function locks the corresponding table shard to proceed. When this

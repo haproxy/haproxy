@@ -123,7 +123,7 @@ struct quic_cc_path {
 	uint32_t recovery_start_ts;
 };
 
-/* pacing can be optionnaly activated on top of the algorithm */
+/* pacing can be optionally activated on top of the algorithm */
 #define QUIC_CC_ALGO_FL_OPT_PACING           0x01
 
 struct quic_cc_algo {

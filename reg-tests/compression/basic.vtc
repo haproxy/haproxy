@@ -271,7 +271,7 @@ client c1 -connect ${h1_fe_gzip_sock} {
         expect resp.http.transfer-encoding == "<undef>"
         expect resp.bodylen == 100
 
-        # 7. Response alerady compressed by the server (with "Accept-Encoding")
+        # 7. Response already compressed by the server (with "Accept-Encoding")
         txreq -url "/c1.7" \
           -hdr "Accept-Encoding: gzip"
         rxresp

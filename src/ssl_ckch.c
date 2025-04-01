@@ -1604,7 +1604,7 @@ static void cli_release_show_sni(struct appctx *appctx)
 /* IO handler of "show ssl sni [<frontend>]".
  * It makes use of a show_sni_ctx context
  *
- * The fonction does loop over the frontend, the bind_conf and the sni_ctx.
+ * The function does loop over the frontend, the bind_conf and the sni_ctx.
  */
 static int cli_io_handler_show_sni(struct appctx *appctx)
 {
@@ -1652,7 +1652,7 @@ static int cli_io_handler_show_sni(struct appctx *appctx)
 					else
 						n = ebmb_first(&bind->sni_w_ctx);
 				}
-				/* emty SNI tree, skip */
+				/* empty SNI tree, skip */
 				if (!n)
 					continue;
 

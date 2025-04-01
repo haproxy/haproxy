@@ -299,7 +299,7 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 	if (strcmp(suffix, "cc.cubic.min-losses") == 0)
 		global.tune.quic_cubic_loss_tol = arg - 1;
 	else if (strcmp(suffix, "frontend.conn-tx-buffers.limit") == 0) {
-		memprintf(err, "'%s' keyword is now obsolote and has no effect. "
+		memprintf(err, "'%s' keyword is now obsolete and has no effect. "
 		               "Use 'tune.quic.frontend.default-max-window-size' to limit Tx buffer allocation per connection.", args[0]);
 		return 1;
 	}
@@ -307,7 +307,7 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 		global.tune.quic_frontend_glitches_threshold = arg;
 	else if (strcmp(suffix, "frontend.max-data-size") == 0) {
 		if ((errptr = parse_size_err(args[1], &arg))) {
-			memprintf(err, "'%s': unexpected charater '%c' in size argument '%s'.",
+			memprintf(err, "'%s': unexpected character '%c' in size argument '%s'.",
 			          args[0], *errptr, args[1]);
 			return -1;
 		}

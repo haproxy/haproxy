@@ -660,7 +660,7 @@ static inline void h1c_report_term_evt(struct h1c *h1c, enum muxc_term_event_typ
 }
 
 /* Returns 1 if the H1 connection is alive (IDLE, EMBRYONIC, RUNNING or
- * DRAINING). Ortherwise 0 is returned.
+ * DRAINING). Otherwise 0 is returned.
  */
 static inline int h1_is_alive(const struct h1c *h1c)
 {

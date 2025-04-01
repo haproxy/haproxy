@@ -153,7 +153,7 @@ struct buffer *qc_get_txb(struct quic_conn *qc)
 
 /* Commit a datagram payload written into <buf> of length <length>. <first_pkt>
  * must contains the address of the first packet stored in the payload. When
- * GSO is used, several datagrams can be commited at once. In this case,
+ * GSO is used, several datagrams can be committed at once. In this case,
  * <length> must be the total length of all consecutive datagrams.
  *
  * Caller is responsible that there is enough space in the buffer.
@@ -1856,7 +1856,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 				 * its frames which were already acknowledeged.
 				 * See qc_stream_frm_is_acked()) called by qc_build_frms().
 				 * Note that qc_stream_frm_is_acked() logs a trace in this
-				 * case mentionning some frames were already acknowledged.
+				 * case mentioning some frames were already acknowledged.
 				 *
 				 * That said, the consequence must be the same: cancelling
 				 * the packet build as if there was not enough room in the

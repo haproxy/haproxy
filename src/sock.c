@@ -957,7 +957,7 @@ int sock_conn_check(struct connection *conn)
 		 *
 		 * We have no explanation for now. Why epoll report the
 		 * connection is closed while the connect() it able to validate
-		 * it ? no idea. But, it seems reasonnable in this case, and if
+		 * it ? no idea. But, it seems reasonable in this case, and if
 		 * no error was reported, to remove the the HUP flag. At worst, if
 		 * the connection is really closed, this will be reported later.
 		 *

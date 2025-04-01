@@ -344,7 +344,7 @@ int _cmp_cpu_index(const void *a, const void *b)
 	if (l->idx > r->idx && r->idx >= 0)
 		return  1;
 
-	/* exactly the same (e.g. absent, should not happend) */
+	/* exactly the same (e.g. absent, should not happen) */
 	return 0;
 }
 
@@ -1355,7 +1355,7 @@ int cpu_detect_topology(void)
 		/* First, let's check the cache hierarchy. On systems exposing
 		 * it, index0 generally is the L1D cache, index1 the L1I, index2
 		 * the L2 and index3 the L3. But sometimes L1I/D are reversed,
-		 * and some CPUs also have L0 or L4. Maybe some heterogenous
+		 * and some CPUs also have L0 or L4. Maybe some heterogeneous
 		 * SoCs even have inconsistent levels between clusters... Thus
 		 * we'll scan all entries that we can find for each CPU and
 		 * assign levels based on what is reported. The types generally

@@ -610,7 +610,7 @@ static unsigned int hlua_nb_instruction = 0;
  *
  *  configured    | Number of
  *  instructions  | loops executed
- *  between two   | in milions
+ *  between two   | in millions
  *  forced yields |
  * ---------------+---------------
  *  10            | 160

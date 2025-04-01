@@ -1961,7 +1961,7 @@ cpu-policy <policy>
   thread groups.
 
   This mapping is normally performed using the "cpu-map" directive, though it
-  can be particularly difficult to maintain on heterogenous systems.
+  can be particularly difficult to maintain on heterogeneous systems.
 
   The "cpu-policy" directive chooses between a small number of allocation
   policies which one to use instead, when "cpu-map" is not used. The following
@@ -4223,7 +4223,7 @@ tune.max-rules-at-once <number>
   cpu-demanding actions (e.g.: actions that work on content) may create thread
   contention as all the rules from a given ruleset are evaluated under the same
   polling loop if the evaluation is not interrupted. This option ensures that no
-  more than <number> number of rules may be excecuted under the same polling
+  more than <number> number of rules may be executed under the same polling
   loop for content-oriented rulesets (those that already support yielding due
   to content inspection). What it does is that it forces the evaluating function
   to yield, so that it comes back on the next polling loop to continues the
@@ -4883,9 +4883,9 @@ subsystem. This will dump debug messages about a specific subsystem. It is a
 very powerful tool to diagnose issues. Traces can be dynamically configured via
 the CLI. It is also possible to predefined some settings in the configuration
 file, in dedicated "traces" sections. More details about traces can be found in
-the management guide. It remains a developper tools used during complex
+the management guide. It remains a developer tools used during complex
 debugging sessions.  It is pretty verbose and have a cost, so use it with
-caution. And because it is a developper tool, there is no warranty about the
+caution. And because it is a developer tool, there is no warranty about the
 backward compatibility of this section.
 
 traces
@@ -5993,7 +5993,7 @@ specified in a previous "defaults" section. Keywords supported in defaults
 sections marked with "(!)" are only supported in named defaults sections, not
 anonymous ones.
 
-Note: Some dangerous and not recommanded directives are intentionnaly not
+Note: Some dangerous and not recommended directives are intentionnaly not
       listed in the following matrix. It is on purpose. These directives are
       documentated. But by not listing them below is one more way to discourage
       anyone to use it.
@@ -7938,7 +7938,7 @@ hash-preserve-affinity { always | maxconn | maxqueue }
 
   The following values can be specified:
 
-    - "always"   : this is the default stategy. A stream is assigned to a
+    - "always"   : this is the default strategy. A stream is assigned to a
                    server based on hashing irrespective of whether the server
                    is currently saturated.
 
@@ -17991,8 +17991,8 @@ agent-check
     to set the weight of a server. Setting it with the "weight:" prefix is
     preferred.
 
-  - The string "weight:" following by an positive interger or a positive
-    interger percentage, with no space. If the value ends with the '%' sign,
+  - The string "weight:" following by an positive integer or a positive
+    integer percentage, with no space. If the value ends with the '%' sign,
     then the new weight will be proportional to the initially weight of the
     server. Otherwise, the value is considered as an absolute weight and must
     be between 0 and 256. Servers which are part of a farm running a static
@@ -22242,7 +22242,7 @@ when(<condition>[,<args>...])
   some rarely needed data that should only be emitted under certain conditions,
   such as debugging information when an error is met.
 
-  The condition is made of a keyword among the list below, optionally preceeded
+  The condition is made of a keyword among the list below, optionally preceded
   by an exclamation mark ('!') to negate it, and optionally suffixed by some
   arguments specific to that condition:
 

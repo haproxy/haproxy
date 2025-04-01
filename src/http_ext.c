@@ -1882,8 +1882,8 @@ static int sample_conv_7239_n2np(const struct arg *args, struct sample *smp, voi
 
 /*
  * input: ipv4 address, ipv6 address or str (empty string will result in
- * "unknown" indentifier, else string will be translated to _obfs
- * indentifier, prefixed by '_'. Must comply with RFC7239 charset)
+ * "unknown" identifier, else string will be translated to _obfs
+ * identifier, prefixed by '_'. Must comply with RFC7239 charset)
  *
  * output: rfc7239-compliant forwarded header nodename
  */
@@ -1938,7 +1938,7 @@ static int sample_conv_7239_nn(const struct arg *args, struct sample *smp, void 
 
 /*
  * input: unsigned integer or str (string will be translated to _obfs
- * indentifier, prefixed by '_'. Must comply with RFC7239 charset)
+ * identifier, prefixed by '_'. Must comply with RFC7239 charset)
  *
  * output: rfc7239-compliant forwarded header nodeport
  */

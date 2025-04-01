@@ -3619,7 +3619,7 @@ static int smp_check_concat(struct arg *args, struct sample_conv *conv,
 }
 
 /* Append delimiter (only to a non empty input) followed by the optional
- * variable contents concatenated with the optional sufix.
+ * variable contents concatenated with the optional suffix.
  */
 static int sample_conv_add_item(const struct arg *arg_p, struct sample *smp, void *private)
 {

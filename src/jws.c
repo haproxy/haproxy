@@ -454,7 +454,7 @@ int jws_b64_signature(EVP_PKEY *pkey, enum jwt_alg alg, char *b64protected, char
 		const BIGNUM *r = NULL, *s = NULL;
 		int bignum_len;
 
-		/* need to pad to byte size, essentialy for P-521 */
+		/* need to pad to byte size, essentially for P-521 */
 		bignum_len = (EVP_PKEY_bits(pkey) + 7) / 8;
 
 		if ((sig = d2i_ECDSA_SIG(NULL, (const unsigned char **)&sign->area, sign->data)) == NULL)

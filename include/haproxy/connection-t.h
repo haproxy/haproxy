@@ -332,7 +332,7 @@ enum proto_proxy_side {
 
 /* ctl command used by mux->ctl() */
 enum mux_ctl_type {
-	MUX_CTL_STATUS, /* Expects an int as output, sets it to a combinaison of MUX_CTL_STATUS flags */
+	MUX_CTL_STATUS, /* Expects an int as output, sets it to a combination of MUX_CTL_STATUS flags */
 	MUX_CTL_EXIT_STATUS, /* Expects an int as output, sets the mux exist/error/http status, if known or 0 */
 	MUX_CTL_REVERSE_CONN, /* Notify about an active reverse connection accepted. */
 	MUX_CTL_SUBS_RECV, /* Notify the mux it must wait for read events again  */

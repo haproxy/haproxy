@@ -88,7 +88,7 @@ static void *memprof_realloc_initial_handler(void *ptr, size_t size);
 static char *memprof_strdup_initial_handler(const char *s);
 static void  memprof_free_initial_handler(void *ptr);
 
-/* these ones are optional but may be used by some dependecies */
+/* these ones are optional but may be used by some dependencies */
 static char *memprof_strndup_initial_handler(const char *s, size_t n);
 static void *memprof_valloc_initial_handler(size_t sz);
 static void *memprof_pvalloc_initial_handler(size_t sz);
@@ -105,7 +105,7 @@ static void *(*memprof_realloc_handler)(void *ptr, size_t size)   = memprof_real
 static char *(*memprof_strdup_handler)(const char *s)             = memprof_strdup_initial_handler;
 static void  (*memprof_free_handler)(void *ptr)                   = memprof_free_initial_handler;
 
-/* these ones are optional but may be used by some dependecies */
+/* these ones are optional but may be used by some dependencies */
 static char *(*memprof_strndup_handler)(const char *s, size_t n)                 = memprof_strndup_initial_handler;
 static void *(*memprof_valloc_handler)(size_t sz)                                = memprof_valloc_initial_handler;
 static void *(*memprof_pvalloc_handler)(size_t sz)                               = memprof_pvalloc_initial_handler;

@@ -1529,7 +1529,7 @@ static void _qcc_send_stream(struct qcs *qcs, int urg)
 	qcc_clear_frms(qcc);
 
 	if (urg) {
-		/* qcc_emit_rs_ss() relies on resetted/aborted streams in send_list front. */
+		/* qcc_emit_rs_ss() relies on reset/aborted streams in send_list front. */
 		BUG_ON(!(qcs->flags & (QC_SF_TO_RESET|QC_SF_TO_STOP_SENDING|QC_SF_TXBUB_OOB)));
 
 		LIST_DEL_INIT(&qcs->el_send);
@@ -2637,7 +2637,7 @@ static int qcc_emit_rs_ss(struct qcc *qcc)
  *
  * This functions also serves to emit RESET_STREAM and STOP_SENDING frames. In
  * this case, frame is emitted immediately without using <qcc> tx frms. If an
- * error occured during this step, this is considered as fatal. Tx frms is
+ * error occurred during this step, this is considered as fatal. Tx frms is
  * cleared and 0 is returned.
  *
  * Returns the sum of encoded payload STREAM frames length. Note that 0 can be

@@ -413,7 +413,7 @@ int process_srv_queue(struct server *s)
 	 *
 	 * We'll dequeue MAX_SELF_USE_QUEUE items from the queue corresponding
 	 * to our thread group, then we'll get one from a different one, to
-	 * be sure those actually get processsed too.
+	 * be sure those actually get processed too.
 	 */
 	while (non_empty_tgids != 0
 	       && (done < global.tune.maxpollevents || !s->served) &&

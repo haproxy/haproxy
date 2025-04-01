@@ -63,7 +63,7 @@
  *   the same split bit as its parent node, it is necessary its associated leaf
  *
  * When descending along the tree, it is possible to know that a search key is
- * not present, because its XOR with both of the branches is stricly higher
+ * not present, because its XOR with both of the branches is strictly higher
  * than the inter-branch XOR. The reason is simple : the inter-branch XOR will
  * have its highest bit set indicating the split bit. Since it's the bit that
  * differs between the two branches, the key cannot have it both set and

@@ -457,7 +457,7 @@ struct server *get_server_hh(struct stream *s, const struct server *avoid)
 					break;
 			}
 			else if (*p == '.') {
-				/* The pointer is rewinded to the dot before the
+				/* The pointer is rewound to the dot before the
 				 * tld, we memorize the end of the domain and
 				 * can enter the domain processing. */
 				end = p;

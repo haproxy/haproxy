@@ -5,7 +5,7 @@
 #include <haproxy/quic_cc-t.h>
 
 struct quic_pacer {
-	const struct quic_cc *cc; /* Congestion controler algo used for this connection */
+	const struct quic_cc *cc; /* Congestion controller algo used for this connection */
 	ullong cur;  /* Nanosecond timestamp of the last credit reloading */
 	uint credit; /* Number of packets which can be emitted in a single burst */
 

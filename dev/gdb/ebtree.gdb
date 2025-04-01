@@ -25,7 +25,7 @@ end
 
 # returns $node filled with the first node of ebroot $arg0
 define ebtree_first
-  # browse ebtree left until encoutering leaf
+  # browse ebtree left until encountering leaf
   set $node = (struct eb_node *)$arg0->b[0]
   while 1
     _ebtree_set_tag_node $node
@@ -76,7 +76,7 @@ end
 
 # returns $node filled with the first node of ebroot $arg0
 define ebsctree_first
-  # browse ebsctree left until encoutering leaf
+  # browse ebsctree left until encountering leaf
   set $node = (struct eb32sc_node *)$arg0->b[0]
   while 1
     _ebsctree_set_tag_node $node

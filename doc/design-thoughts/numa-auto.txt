@@ -1326,7 +1326,7 @@ Problem: we need to set the restrictions first to eliminate undesired CPUs,
          is considered the best CPUs. So the preference really looks like
          a different setting.
 
-More precisely, the final stategy involves multiple criteria. For example,
+More precisely, the final strategy involves multiple criteria. For example,
 let's say that the number of threads is set to 4 and we've restricted ourselves
 to using the first thread of each CPU core. We're on an EPYC74F3, there are 3
 cores per CCX. One algorithm (resource) would create one group with 3 threads
@@ -1444,7 +1444,7 @@ for example. However not all boards report their cluster number (see CIX-P1
 above). However the info about the capacity still allows to figure that and
 should probably be used for that. At this point it would seem logical to say
 that the cluster number is re-adjusted based on the claimed capacity, at
-least to avoid accidentally mixing workloads on heterogenous cores. But
+least to avoid accidentally mixing workloads on heterogeneous cores. But
 sorting by cluster number might not necessarily work if allocated randomly.
 So we might need a distinct metric that doesn't require to override the
 system's numbering, like a "set", "group", "team", "bond", "bunch", "club",

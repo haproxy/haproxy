@@ -1936,7 +1936,7 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 
 	/* defproxy is const pointer, so we need to typecast log_steps to
 	 * drop the const in order to use EB tree API, please note however
-	 * that the operations performed below should theorically be read-only
+	 * that the operations performed below should theoretically be read-only
 	 */
 	node = eb32_first((struct eb_root *)&defproxy->conf.log_steps);
 	while (node) {
