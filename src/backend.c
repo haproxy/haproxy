@@ -1635,24 +1635,32 @@ int64_t be_calculate_conn_hash(struct server *srv, struct stream *strm,
 	return conn_calculate_hash(&hash_params);
 }
 
-/* Try to reuse a connection for <strm> stream, first from <sess> session, then
- * to <srv> server lists if not NULL, matching <hash> value. If reuse is
- * successful, connection is attached to <sc> stconn instance.
+/* Try to reuse a connection, first from <sess> session, then to <srv> server
+ * lists if not NULL, matching <hash> value and <be> reuse policy. If reuse is
+ * on <be> proxy successful, connection is attached to <sc> stconn instance.
+ *
+ * <target> must point either to the server instance, or a stream target on
+ * dispatch/transparent proxy.
+ *
+ * <not_first_req> must be set if the underlying request is not the first one
+ * conducted on <sess> session. This allows to use a connection not yet
+ * labelled as safe under http-reuse safe policy.
  *
  * Returns SF_ERR_NONE if a connection has been reused. The connection instance
  * can be retrieve via <sc> stconn. SF_ERR_RESOURCE is returned if no matching
  * connection found. SF_ERR_INTERNAL is used on internal error.
  */
-int be_reuse_connection(int64_t hash, struct session *sess, struct server *srv,
-                        struct stconn *sc, struct stream *strm)
+int be_reuse_connection(int64_t hash, struct session *sess,
+                        struct proxy *be, struct server *srv,
+                        struct stconn *sc, enum obj_type *target, int not_first_req)
 {
 	struct connection *srv_conn;
-	const int reuse_mode = be_reuse_mode(strm->be, srv);
+	const int reuse_mode = be_reuse_mode(be, srv);
 
 	/* first, search for a matching connection in the session's idle conns */
-	srv_conn = session_get_conn(sess, strm->target, hash);
+	srv_conn = session_get_conn(sess, target, hash);
 	if (srv_conn) {
-		DBG_TRACE_STATE("reuse connection from session", STRM_EV_STRM_PROC|STRM_EV_CS_ST, strm);
+		//DBG_TRACE_STATE("reuse connection from session", STRM_EV_STRM_PROC|STRM_EV_CS_ST, strm);
 	}
 	else if (srv && reuse_mode != PR_O_REUSE_NEVR) {
 		/* Below we pick connections from the safe, idle  or
@@ -1678,17 +1686,16 @@ int be_reuse_connection(int64_t hash, struct session *sess, struct server *srv,
 			if (srv_conn) {
 				/* connection cannot be in idle list if used as an avail idle conn. */
 				BUG_ON(LIST_INLIST(&srv_conn->idle_list));
-				DBG_TRACE_STATE("reuse connection from avail", STRM_EV_STRM_PROC|STRM_EV_CS_ST, strm);
+				//DBG_TRACE_STATE("reuse connection from avail", STRM_EV_STRM_PROC|STRM_EV_CS_ST, strm);
 			}
 		}
 
 		/* if no available connections found, search for an idle/safe */
 		if (!srv_conn && srv->max_idle_conns && srv->curr_idle_conns > 0) {
-			const int not_first_req = strm->txn && strm->txn->flags & TX_NOT_FIRST;
 			const int idle = srv->curr_idle_nb > 0;
 			const int safe = srv->curr_safe_nb > 0;
-			const int retry_safe = (strm->be->retry_type & (PR_RE_CONN_FAILED | PR_RE_DISCONNECTED | PR_RE_TIMEOUT)) ==
-			                                               (PR_RE_CONN_FAILED | PR_RE_DISCONNECTED | PR_RE_TIMEOUT);
+			const int retry_safe = (be->retry_type & (PR_RE_CONN_FAILED | PR_RE_DISCONNECTED | PR_RE_TIMEOUT)) ==
+			                                         (PR_RE_CONN_FAILED | PR_RE_DISCONNECTED | PR_RE_TIMEOUT);
 
 			/* second column of the tables above, search for an idle then safe conn */
 			if (not_first_req || retry_safe) {
@@ -1710,7 +1717,7 @@ int be_reuse_connection(int64_t hash, struct session *sess, struct server *srv,
 			}
 
 			if (srv_conn) {
-				DBG_TRACE_STATE("reuse connection from idle/safe", STRM_EV_STRM_PROC|STRM_EV_CS_ST, strm);
+				//DBG_TRACE_STATE("reuse connection from idle/safe", STRM_EV_STRM_PROC|STRM_EV_CS_ST, strm);
 			}
 		}
 	}
@@ -1795,8 +1802,10 @@ int connect_server(struct stream *s)
 		DBG_TRACE_STATE("skip idle connections reuse: websocket stream", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 	}
 	else {
+		const int not_first_req = s->txn && s->txn->flags & TX_NOT_FIRST;
 		hash = be_calculate_conn_hash(srv, s, s->sess, bind_addr, s->scb->dst);
-		err = be_reuse_connection(hash, s->sess, srv, s->scb, s);
+		err = be_reuse_connection(hash, s->sess, s->be, srv, s->scb,
+		                          s->target, not_first_req);
 		if (err == SF_ERR_INTERNAL)
 			return err;
 
