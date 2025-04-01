@@ -419,8 +419,8 @@ struct hlua_flt_ctx {
 struct hlua_csk_ctx {
 	int connected;
 	struct xref xref; /* cross reference with the Lua object owner. */
-	struct list wake_on_read;
-	struct list wake_on_write;
+	struct mt_list wake_on_read;
+	struct mt_list wake_on_write;
 	struct appctx *appctx;
 	struct server *srv;
 	int timeout;
@@ -3771,8 +3771,8 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	ctx->srv = NULL;
 	ctx->timeout = 0;
 	ctx->appctx = appctx;
-	LIST_INIT(&ctx->wake_on_write);
-	LIST_INIT(&ctx->wake_on_read);
+	MT_LIST_INIT(&ctx->wake_on_write);
+	MT_LIST_INIT(&ctx->wake_on_read);
 
 	hlua->gc_count++;
 

@@ -793,22 +793,12 @@ static inline struct notification *_notification_new(struct list *purge, struct 
  * events like TCP I/O or sleep functions. This function allocate
  * memory for the signal.
  */
-static inline struct notification *notification_new(struct list *purge, struct list *event, struct task *wakeup)
+static inline struct notification *notification_new(struct list *purge, struct mt_list *event, struct task *wakeup)
 {
 	struct notification *com = _notification_new(purge, wakeup);
 	if (!com)
 		return NULL;
-	LIST_APPEND(event, &com->wake_me);
-	return com;
-}
-
-/* thread safe variant */
-static inline struct notification *notification_new_mt(struct list *purge, struct mt_list *event, struct task *wakeup)
-{
-	struct notification *com = _notification_new(purge, wakeup);
-	if (!com)
-		return NULL;
-	MT_LIST_APPEND(event, &com->wake_me_mt);
+	MT_LIST_APPEND(event, &com->wake_me);
 	return com;
 }
 
@@ -872,29 +862,15 @@ static inline void _notification_wake(struct notification *com)
 }
 /* This function sends signals. It wakes all the tasks attached
  * to a list head, and remove the signal, and free the used
- * memory. The wake list is not locked because it is owned by
- * only one process. before browsing this list, the caller must
- * ensure to be the only one browser.
+ * memory.
  */
-static inline void notification_wake(struct list *wake)
-{
-	struct notification *com, *back;
-
-	/* Wake task and delete all pending communication signals. */
-	list_for_each_entry_safe(com, back, wake, wake_me) {
-		LIST_DELETE(&com->wake_me);
-		_notification_wake(com);
-	}
-}
-
-/* thread safe variant */
-static inline void notification_wake_mt(struct mt_list *wake)
+static inline void notification_wake(struct mt_list *wake)
 {
 	struct notification *com;
 	struct mt_list back;
 
 	/* Wake task and delete all pending communication signals. */
-	MT_LIST_FOR_EACH_ENTRY_UNLOCKED(com, wake, wake_me_mt, back) {
+	MT_LIST_FOR_EACH_ENTRY_UNLOCKED(com, wake, wake_me, back) {
 		_notification_wake(com);
 		com = NULL;
 	}
@@ -902,9 +878,9 @@ static inline void notification_wake_mt(struct mt_list *wake)
 
 /* This function returns true is some notification are pending
  */
-static inline int notification_registered(struct list *wake)
+static inline int notification_registered(struct mt_list *wake)
 {
-	return !LIST_ISEMPTY(wake);
+	return !MT_LIST_ISEMPTY(wake);
 }
 
 #endif /* _HAPROXY_TASK_H */

@@ -557,7 +557,7 @@ static int hlua_queue_alarm(lua_State *L)
 		return 0; /* not reached */
 	}
 
-	if (!notification_new_mt(&hlua->com, &queue->wait_tasks, hlua->task))
+	if (!notification_new(&hlua->com, &queue->wait_tasks, hlua->task))
 		luaL_error(L, "out of memory");
 
 	return 0;
@@ -595,7 +595,7 @@ static int hlua_queue_push(lua_State *L)
 	MT_LIST_APPEND(&queue->list, &item->list);
 
 	/* notify tasks waiting on queue:pop_wait() (if any) */
-	notification_wake_mt(&queue->wait_tasks);
+	notification_wake(&queue->wait_tasks);
 
 	lua_pushboolean(L, 1);
 	return 1;
@@ -657,7 +657,7 @@ static int _hlua_queue_pop_wait(lua_State *L, int status, lua_KContext ctx)
 		struct hlua *hlua;
 
 		hlua = hlua_gethlua(L);
-		if (!notification_new_mt(&hlua->com, &queue->wait_tasks, hlua->task)) {
+		if (!notification_new(&hlua->com, &queue->wait_tasks, hlua->task)) {
 			lua_pushnil(L);
 			return 1; /* memory error, return nil */
 		}
