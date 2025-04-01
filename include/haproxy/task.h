@@ -775,6 +775,17 @@ static inline const char *task_wakeup_type_str(uint t)
 	}
 }
 
+static inline struct notification *_notification_new(struct list *purge, struct task *wakeup)
+{
+	struct notification *com = pool_alloc(pool_head_notification);
+	if (!com)
+		return NULL;
+	LIST_APPEND(purge, &com->purge_me);
+	HA_SPIN_INIT(&com->lock);
+	com->task = wakeup;
+	return com;
+}
+
 /* This function register a new signal. "lua" is the current lua
  * execution context. It contains a pointer to the associated task.
  * "link" is a list head attached to an other task that must be wake
@@ -784,13 +795,20 @@ static inline const char *task_wakeup_type_str(uint t)
  */
 static inline struct notification *notification_new(struct list *purge, struct list *event, struct task *wakeup)
 {
-	struct notification *com = pool_alloc(pool_head_notification);
+	struct notification *com = _notification_new(purge, wakeup);
 	if (!com)
 		return NULL;
-	LIST_APPEND(purge, &com->purge_me);
 	LIST_APPEND(event, &com->wake_me);
-	HA_SPIN_INIT(&com->lock);
-	com->task = wakeup;
+	return com;
+}
+
+/* thread safe variant */
+static inline struct notification *notification_new_mt(struct list *purge, struct mt_list *event, struct task *wakeup)
+{
+	struct notification *com = _notification_new(purge, wakeup);
+	if (!com)
+		return NULL;
+	MT_LIST_APPEND(event, &com->wake_me_mt);
 	return com;
 }
 
@@ -839,6 +857,19 @@ static inline void notification_gc(struct list *purge)
 	}
 }
 
+static inline void _notification_wake(struct notification *com)
+{
+	HA_SPIN_LOCK(NOTIF_LOCK, &com->lock);
+	if (!com->task) {
+		HA_SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
+		pool_free(pool_head_notification, com);
+		return;
+	}
+	task_wakeup(com->task, TASK_WOKEN_MSG);
+	com->task = NULL;
+	HA_SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
+
+}
 /* This function sends signals. It wakes all the tasks attached
  * to a list head, and remove the signal, and free the used
  * memory. The wake list is not locked because it is owned by
@@ -851,16 +882,21 @@ static inline void notification_wake(struct list *wake)
 
 	/* Wake task and delete all pending communication signals. */
 	list_for_each_entry_safe(com, back, wake, wake_me) {
-		HA_SPIN_LOCK(NOTIF_LOCK, &com->lock);
 		LIST_DELETE(&com->wake_me);
-		if (!com->task) {
-			HA_SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
-			pool_free(pool_head_notification, com);
-			continue;
-		}
-		task_wakeup(com->task, TASK_WOKEN_MSG);
-		com->task = NULL;
-		HA_SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
+		_notification_wake(com);
+	}
+}
+
+/* thread safe variant */
+static inline void notification_wake_mt(struct mt_list *wake)
+{
+	struct notification *com;
+	struct mt_list back;
+
+	/* Wake task and delete all pending communication signals. */
+	MT_LIST_FOR_EACH_ENTRY_UNLOCKED(com, wake, wake_me_mt, back) {
+		_notification_wake(com);
+		com = NULL;
 	}
 }
 

@@ -107,8 +107,13 @@ enum {
 struct notification {
 	struct list purge_me; /* Part of the list of signals to be purged in the
 	                         case of the LUA execution stack crash. */
-	struct list wake_me; /* Part of list of signals to be targeted if an
-	                        event occurs. */
+	union {
+		struct list wake_me; /* Part of list of signals to be targeted if an
+	                                event occurs. */
+		struct mt_list wake_me_mt; /* thread safe signal list */
+	} wake;
+# define wake_me wake.wake_me
+# define wake_me_mt wake.wake_me_mt
 	struct task *task; /* The task to be wake if an event occurs. */
 	__decl_thread(HA_SPINLOCK_T lock);
 };
