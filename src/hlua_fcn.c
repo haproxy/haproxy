@@ -515,21 +515,9 @@ struct hlua_queue_item {
 	struct mt_list list;
 };
 
-/* used to store wait entries in queue->wait_tasks */
-struct hlua_queue_wait
-{
-	struct task *task;
-	struct mt_list entry;
-};
-
 /* This is the memory pool containing struct hlua_queue_item (queue items)
  */
 DECLARE_STATIC_POOL(pool_head_hlua_queue, "hlua_queue", sizeof(struct hlua_queue_item));
-
-/* This is the memory pool containing struct hlua_queue_wait
- * (queue waiting tasks)
- */
-DECLARE_STATIC_POOL(pool_head_hlua_queuew, "hlua_queuew", sizeof(struct hlua_queue_wait));
 
 static struct hlua_queue *hlua_check_queue(lua_State *L, int ud)
 {
@@ -557,8 +545,6 @@ static int hlua_queue_push(lua_State *L)
 {
 	struct hlua_queue *queue = hlua_check_queue(L, 1);
 	struct hlua_queue_item *item;
-	struct mt_list back;
-	struct hlua_queue_wait *waiter;
 
 	if (lua_gettop(L) != 2 || lua_isnoneornil(L, 2)) {
 		luaL_error(L, "unexpected argument");
@@ -583,9 +569,7 @@ static int hlua_queue_push(lua_State *L)
 	MT_LIST_APPEND(&queue->list, &item->list);
 
 	/* notify tasks waiting on queue:pop_wait() (if any) */
-	MT_LIST_FOR_EACH_ENTRY_LOCKED(waiter, &queue->wait_tasks, entry, back) {
-		task_wakeup(waiter->task, TASK_WOKEN_MSG);
-	}
+	notification_wake_mt(&queue->wait_tasks);
 
 	lua_pushboolean(L, 1);
 	return 1;
@@ -641,24 +625,25 @@ static int hlua_queue_pop(lua_State *L)
 static int _hlua_queue_pop_wait(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_queue *queue = hlua_check_queue(L, 1);
-	struct hlua_queue_wait *wait = lua_touserdata(L, 2);
 
 	/* new pop attempt */
 	if (!_hlua_queue_pop(L, queue)) {
+		struct hlua *hlua;
+
+		hlua = hlua_gethlua(L);
+		if (!notification_new_mt(&hlua->com, &queue->wait_tasks, hlua->task)) {
+			lua_pushnil(L);
+			return 1; /* memory error, return nil */
+		}
 		hlua_yieldk(L, 0, 0, _hlua_queue_pop_wait, TICK_ETERNITY, 0); // wait retry
 		return 0; // never reached, yieldk won't return
 	}
-
-	/* remove task from waiting list */
-	MT_LIST_DELETE(&wait->entry);
-	pool_free(pool_head_hlua_queuew, wait);
 
 	return 1; // success
 }
 static int hlua_queue_pop_wait(lua_State *L)
 {
 	struct hlua_queue *queue = hlua_check_queue(L, 1);
-	struct hlua_queue_wait *wait;
 	struct hlua *hlua;
 
 	BUG_ON(!queue);
@@ -677,21 +662,6 @@ static int hlua_queue_pop_wait(lua_State *L)
 		return 1; // success
 
 	/* no pending items, waiting required */
-
-	wait = pool_alloc(pool_head_hlua_queuew);
-	if (!wait) {
-		lua_pushnil(L);
-		return 1; /* memory error, return nil */
-	}
-
-	wait->task = hlua->task;
-	MT_LIST_INIT(&wait->entry);
-
-	/* add task to queue's wait list */
-	MT_LIST_TRY_APPEND(&queue->wait_tasks, &wait->entry);
-
-	/* push wait entry at index 2 on the stack (queue is already there) */
-	lua_pushlightuserdata(L, wait);
 
 	/* Go to waiting loop which immediately performs a new attempt to make
 	 * sure we didn't miss a push during the wait entry initialization.
@@ -738,19 +708,7 @@ static int hlua_queue_new(lua_State *L)
 static int hlua_queue_gc(struct lua_State *L)
 {
 	struct hlua_queue *queue = hlua_check_queue(L, 1);
-	struct hlua_queue_wait *wait;
 	struct hlua_queue_item *item;
-
-	/* Purge waiting tasks (if any)
-	 *
-	 * It is normally not expected to have waiting tasks, except if such
-	 * task has been aborted while in the middle of a queue:pop_wait()
-	 * function call.
-	 */
-	while ((wait = MT_LIST_POP(&queue->wait_tasks, typeof(wait), entry))) {
-		/* free the wait entry */
-		pool_free(pool_head_hlua_queuew, wait);
-	}
 
 	/* purge remaining (unconsumed) items in the queue */
 	while ((item = MT_LIST_POP(&queue->list, typeof(item), list))) {
