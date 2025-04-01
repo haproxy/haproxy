@@ -132,8 +132,9 @@ static forceinline char *strm_show_flags(char *buf, size_t len, const char *deli
 
 
 /* flags for the proxy of the master CLI */
-/* 0x0001.. to 0x8000 are reserved for ACCESS_* flags from cli-t.h */
+/* 0x0001.. to 0x4000 are reserved for ACCESS_* flags from cli-t.h */
 
+#define PCLI_F_BIDIR    0x08000 /* communicate with worker in bidirectional mode (forward till close) */
 #define PCLI_F_PROMPT   0x10000
 #define PCLI_F_PAYLOAD  0x20000
 #define PCLI_F_RELOAD   0x40000 /* this is the "reload" stream, quits after displaying reload status */
