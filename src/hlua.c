@@ -9251,10 +9251,23 @@ __LJMP static int hlua_yield(lua_State *L)
  * automatically woken up to resume ASAP, instead it means we will wait for
  * an event to occur to wake the task. Only use when you're confident that
  * something or someone will wake the task at some point.
+ *
+ * Takes optional <delay> argument as parameter, in which case an automatic
+ * wake will be performed after <delay>
  */
 __LJMP static int hlua_wait(lua_State *L)
 {
-	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_yield_yield, TICK_ETERNITY, 0));
+	int nb_arg;
+	unsigned int delay;
+	int wakeup_ms = TICK_ETERNITY; // tick value
+
+	nb_arg = lua_gettop(L);
+	if (nb_arg >= 1) {
+		delay = MAY_LJMP(luaL_checkinteger(L, 1));
+		wakeup_ms = tick_add(now_ms, delay);
+	}
+
+	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_yield_yield, wakeup_ms, 0));
 	return 0;
 }
 

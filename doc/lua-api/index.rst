@@ -926,13 +926,17 @@ Core class
   its work and wants to give back the control to HAProxy without executing the
   remaining code. It can be seen as a multi-level "return".
 
-.. js:function:: core.wait()
+.. js:function:: core.wait([milliseconds])
 
   **context**: task, action
 
   Give back the hand at the HAProxy scheduler. Unlike :js:func:`core.yield`
   the task will not be woken up automatically to resume as fast as possible.
-  Instead, it will wait for an event to wake the task.
+  Instead, it will wait for an event to wake the task. If milliseconds argument
+  is provided then the Lua excecution will be automatically resumed passed this
+  delay even if no event caused the task to wake itself up.
+
+  :param integer milliseconds: automatic wakeup passed this delay. (optional)
 
 .. js:function:: core.yield()
 
