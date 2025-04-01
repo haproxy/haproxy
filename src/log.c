@@ -759,11 +759,17 @@ int lf_expr_compile(struct lf_expr *lf_expr,
 				else {
 					/* custom type */
 					*str = 0; // so that typecast_str is 0 terminated
-					typecast = type_to_smp(typecast_str);
-					if (typecast != SMP_T_STR && typecast != SMP_T_SINT &&
-					    typecast != SMP_T_BOOL) {
-						memprintf(err, "unexpected output type '%.*s' at position %d line : '%s'. Supported types are: str, sint, bool", (int)(str - typecast_str), typecast_str, (int)(typecast_str - backfmt), fmt);
-						goto fail;
+					if (strcmp(typecast_str, "raw") == 0) {
+						/* special case */
+						typecast = SMP_TYPES;
+					}
+					else {
+						typecast = type_to_smp(typecast_str);
+						if (typecast != SMP_T_STR && typecast != SMP_T_SINT &&
+						    typecast != SMP_T_BOOL) {
+							memprintf(err, "unexpected output type '%.*s' at position %d line : '%s'. Supported types are: str, sint, bool, raw", (int)(str - typecast_str), typecast_str, (int)(typecast_str - backfmt), fmt);
+							goto fail;
+						}
 					}
 				}
 				cformat = LF_EDONAME;
@@ -4104,9 +4110,16 @@ int sess_build_logline_orig(struct session *sess, struct stream *s,
 			 * know how to deal with binary data.
 			 */
 			if (ctx->options & LOG_OPT_ENCODE) {
-				if (ctx->typecast == SMP_T_STR ||
-				    ctx->typecast == SMP_T_SINT ||
-				    ctx->typecast == SMP_T_BOOL) {
+				if (ctx->typecast == SMP_TYPES) {
+					/* raw data, ignore LOG opts and enforce binary
+					 * to dump smp as-is
+					 */
+					ctx->options = LOG_OPT_NONE;
+					type = SMP_T_BIN;
+				}
+				else if (ctx->typecast == SMP_T_STR ||
+				         ctx->typecast == SMP_T_SINT ||
+				         ctx->typecast == SMP_T_BOOL) {
 					/* enforce type */
 					type = ctx->typecast;
 				}
