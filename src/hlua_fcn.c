@@ -537,6 +537,32 @@ static int hlua_queue_size(lua_State *L)
 	return 1;
 }
 
+/* queue:alarm(): (re)arms queue waiting alarm so that the current
+ * Lua task is woken up on new queue events
+ */
+static int hlua_queue_alarm(lua_State *L)
+{
+	struct hlua_queue *queue = hlua_check_queue(L, 1);
+
+	struct hlua *hlua;
+
+	BUG_ON(!queue);
+
+	/* Get hlua struct, or NULL if we execute from main lua state */
+	hlua = hlua_gethlua(L);
+
+	if (!hlua || HLUA_CANT_YIELD(hlua)) {
+		luaL_error(L, "alarm() may only be used within task context "
+			      "(requires yielding)");
+		return 0; /* not reached */
+	}
+
+	if (!notification_new_mt(&hlua->com, &queue->wait_tasks, hlua->task))
+		luaL_error(L, "out of memory");
+
+	return 0;
+}
+
 /* queue:push(): push an item (any type, except nil) at the end of the queue
  *
  * Returns boolean:true for success and boolean:false on error
@@ -701,6 +727,7 @@ static int hlua_queue_new(lua_State *L)
 	hlua_class_function(L, "pop", hlua_queue_pop);
 	hlua_class_function(L, "pop_wait", hlua_queue_pop_wait);
 	hlua_class_function(L, "push", hlua_queue_push);
+	hlua_class_function(L, "alarm", hlua_queue_alarm);
 
 	return 1;
 }

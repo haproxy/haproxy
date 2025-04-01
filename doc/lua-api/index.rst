@@ -1882,6 +1882,17 @@ Queue class
 
   Use :js:func:`core.queue` to get a new Queue object.
 
+.. js:function:: Queue.alarm()
+
+  **context**: task, action, service
+
+  Sets a wakeup alarm on the current Lua context so that when new data
+  becomes available on the Queue, the current Lua context is woken up
+  automatically. It can be combined with :js:func:`core.wait` to wait
+  for Queue events.
+
+  :param class_queue queue: A :ref:`queue_class` to the current queue
+
 .. js:function:: Queue.size(queue)
 
   This function returns the number of items within the Queue.
