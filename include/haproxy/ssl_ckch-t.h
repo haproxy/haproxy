@@ -67,6 +67,10 @@ struct ckch_conf {
 	char *issuer;
 	char *sctl;
 	int ocsp_update_mode;
+	struct {
+		char *id;
+		char **domains;
+	} acme;
 };
 
 /*

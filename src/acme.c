@@ -66,6 +66,35 @@ out:
 	return ret;
 }
 
+/*
+ * ckch_conf acme parser
+ */
+int ckch_conf_acme_init(void *value, char *buf, struct ckch_data *d, int cli, const char *filename, int linenum, char **err)
+{
+	int err_code = 0;
+	struct acme_cfg *cfg;
+
+	cfg = new_acme_cfg(value);
+	if (!cfg) {
+		memprintf(err, "out of memory.\n");
+		err_code |= ERR_FATAL| ERR_ALERT;
+		goto error;
+	}
+
+	if (cfg->linenum == 0) {
+		cfg->filename = strdup(filename);
+                /* store the linenum as a negative value because is the one of
+                 * the crt-store, not the one of the section. It will be replace
+                 * by the one of the section once initialized
+                 */
+                cfg->linenum = -linenum;
+	}
+
+error:
+	return err_code;
+}
+
+
 /* acme section parser
  * Fill the acme_cfgs linked list
  */
@@ -311,6 +340,30 @@ out:
 	ha_free(&errmsg);
 	return err_code;
 }
+
+/* postparser function checks if the ACME section was declared */
+static int cfg_postparser_acme()
+{
+	struct acme_cfg *tmp_acme = acme_cfgs;
+	int ret = 0;
+
+        /* first check if the ID was already used */
+	while (tmp_acme) {
+		/* if the linenum is not > 0, it means the acme keyword was used without declaring a section, and the
+		 * linenum of the crt-store is stored negatively */
+		if (tmp_acme->linenum <= 0) {
+			ret++;
+			ha_alert("acme '%s' was used on a crt line [%s:%d], but no '%s' section exists!\n",
+			         tmp_acme->name, tmp_acme->filename, -tmp_acme->linenum, tmp_acme->name);
+		}
+		tmp_acme = tmp_acme->next;
+	}
+
+
+	return ret;
+}
+
+REGISTER_CONFIG_POSTPARSER("acme", cfg_postparser_acme);
 
 void deinit_acme()
 {
