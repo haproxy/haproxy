@@ -1,6 +1,66 @@
 ChangeLog :
 ===========
 
+2025/04/02 : 3.2-dev9
+    - MINOR: quic: move global tune options into quic_tune
+    - CLEANUP: quic: reorganize TP flow-control initialization
+    - MINOR: quic: ignore uni-stream for initial max data TP
+    - MINOR: mux-quic: define config for max-data
+    - MINOR: quic: define max-stream-data configuration as a ratio
+    - MEDIUM: lb-chash: add directive hash-preserve-affinity
+    - MEDIUM: pools: be a bit smarter when merging comparable size pools
+    - REGTESTS: disable the test balance/balance-hash-maxqueue
+    - BUG/MINOR: log: fix gcc warn about truncating NUL terminator while init char arrays
+    - CI: fedora rawhide: allow "on: workflow_dispatch" in forks
+    - CI: fedora rawhide: install "awk" as a dependency
+    - CI: spellcheck: allow "on: workflow_dispatch" in forks
+    - CI: coverity scan: allow "on: workflow_dispatch" in forks
+    - CI: cross compile: allow "on: workflow_dispatch" in forks
+    - CI: Illumos: allow "on: workflow_dispatch" in forks
+    - CI: NetBSD: allow "on: workflow_dispatch" in forks
+    - CI: QUIC Interop on AWS-LC: allow "on: workflow_dispatch" in forks
+    - CI: QUIC Interop on LibreSSL: allow "on: workflow_dispatch" in forks
+    - MINOR: compiler: add __nonstring macro
+    - MINOR: thread: dump the CPU topology in thread_map_to_groups()
+    - MINOR: cpu-set: compare two cpu sets with ha_cpuset_isequal()
+    - MINOR: cpu-set: add a new function to print cpu-sets in human-friendly mode
+    - MINOR: cpu-topo: add a dump of thread-to-CPU mapping to -dc
+    - MINOR: cpu-topo: pass an extra argument to ha_cpu_policy
+    - MINOR: cpu-topo: add new cpu-policies "group-by-2-clusters" and above
+    - BUG/MINOR: config: silence .notice/.warning/.alert in discovery mode
+    - EXAMPLES: add "games.cfg" and an example game in Lua
+    - MINOR: jws: emit the JWK thumbprint
+    - TESTS: jws: change the jwk format
+    - MINOR: ssl/ckch: add substring parser for ckch_conf
+    - MINOR: mt_list: Implement mt_list_try_lock_prev().
+    - MINOR: lbprm: Add method to deinit server and proxy
+    - MINOR: threads: Add HA_RWLOCK_TRYRDTOWR()
+    - MAJOR: leastconn; Revamp the way servers are ordered.
+    - BUG/MINOR: ssl/ckch: leak in error path
+    - BUILD: ssl/ckch: potential null pointer dereference
+    - MINOR: log: support "raw" logformat node typecast
+    - CLEANUP: assorted typo fixes in the code and comments
+    - DOC: config: fix two missing "content" in "tcp-request" examples
+    - MINOR: cpu-topo: cpu_dump_topology() SMT info check little optimisation
+    - BUILD: compiler: undefine the CONCAT() macro if already defined
+    - BUG/MEDIUM: leastconn: Don't try to reposition if the server is down
+    - BUG/MINOR: rhttp: fix incorrect dst/dst_port values
+    - BUG/MINOR: backend: do not overwrite srv dst address on reuse
+    - BUG/MEDIUM: backend: fix reuse with set-dst/set-dst-port
+    - MINOR: sample: define bc_reused fetch
+    - REGTESTS: extend conn reuse test with transparent proxy
+    - MINOR: backend: fix comment when killing idle conns
+    - MINOR: backend: adjust conn_backend_get() API
+    - MINOR: backend: extract conn hash calculation from connect_server()
+    - MINOR: backend: extract conn reuse from connect_server()
+    - MINOR: backend: remove stream usage on connection reuse
+    - MINOR: check define check-reuse-pool server keyword
+    - MEDIUM: check: implement check-reuse-pool
+    - BUILD: backend: silence a build warning when not using ssl
+    - BUILD: quic_sock: address a strict-aliasing build warning with gcc 5 and 6
+    - BUILD: ssl_ckch: use my_strndup() instead of strndup()
+    - DOC: update INSTALL to reflect the minimum compiler version
+
 2025/03/21 : 3.2-dev8
     - MINOR: jws: implement JWS signing
     - TESTS: jws: implement a test for JWS signing
