@@ -330,6 +330,15 @@ static void fwlc_srv_reposition(struct server *s)
 		return;
 	}
 
+	/*
+	 * We're not in the tree, the server is probably down, don't
+	 * do anything.
+	 */
+	if (unlikely(!s->tree_elt)) {
+		HA_RWLOCK_RDUNLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
+		_HA_ATOMIC_STORE(&s->lb_lock, 0);
+		return;
+	}
 	node = eb32_lookup(s->lb_tree, new_key);
 	if (node)
 		tree_elt = container_of(node, struct fwlc_tree_elt, lb_node);
@@ -462,8 +471,7 @@ static void fwlc_srv_reposition(struct server *s)
 
 	__ha_barrier_store();
 
-	if (s->tree_elt)
-                _HA_ATOMIC_DEC(&s->tree_elt->elements);
+	_HA_ATOMIC_DEC(&s->tree_elt->elements);
 
 	/*
 	 * Now lock the existing element, and its target list.
