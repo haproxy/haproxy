@@ -39,6 +39,7 @@ struct acl_cond;
 #define CFG_CRTLIST	5
 #define CFG_CRTSTORE    6
 #define CFG_TRACES      7
+#define CFG_ACME        8
 
 /* various keyword modifiers */
 enum kw_mod {
