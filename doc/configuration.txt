@@ -14353,8 +14353,8 @@ tcp-request content <action> [{if | unless} <condition>]
         # and reject everything else. (works for HTTP/1 and HTTP/2 connections)
         acl is_host_com hdr(Host) -i example.com
         tcp-request inspect-delay 5s
-        tcp-request switch-mode http if HTTP
-        tcp-request reject   # non-HTTP traffic is implicit here
+        tcp-request content switch-mode http if HTTP
+        tcp-request content reject   # non-HTTP traffic is implicit here
         ...
         http-request reject unless is_host_com
 
