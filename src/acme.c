@@ -19,6 +19,7 @@
 #include <haproxy/jws.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/ssl_utils.h>
 #include <haproxy/tools.h>
 
 static struct acme_cfg *acme_cfgs = NULL;
@@ -58,6 +59,13 @@ struct acme_cfg *new_acme_cfg(const char *name)
 	ret->linenum = 0;
 
 	ret->challenge = strdup("HTTP-01"); /* default value */
+
+	/* The default generated keys are EC-384 */
+	ret->key.type = EVP_PKEY_EC;
+	ret->key.curves = NID_secp384r1;
+
+	/* default to 4096 bits when using RSA */
+	ret->key.bits = 4096;
 
 	ret->next = acme_cfgs;
 	acme_cfgs = ret;
@@ -267,6 +275,71 @@ out:
 	return err_code;
 }
 
+static int cfg_parse_acme_cfg_key(char **args, int section_type, struct proxy *curpx, const struct proxy *defpx,
+                              const char *file, int linenum, char **err)
+{
+	int err_code = 0;
+	char *errmsg = NULL;
+
+	if (strcmp(args[0], "keytype") == 0) {
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires an argument\n", file, linenum, args[0], cursection);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
+		if (strcmp(args[1], "RSA") == 0) {
+			cur_acme->key.type = EVP_PKEY_RSA;
+		} else if (strcmp(args[1], "ECDSA") == 0) {
+			cur_acme->key.type = EVP_PKEY_EC;
+		} else {
+			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires either 'RSA' or 'ECDSA' argument\n", file, linenum, args[0], cursection);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+	} else if (strcmp(args[0], "bits") == 0) {
+		char *stop;
+
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires an argument\n", file, linenum, args[0], cursection);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		cur_acme->key.bits = strtol(args[1], &stop, 10);
+		if (*stop != '\0') {
+			err_code |= ERR_ALERT | ERR_FATAL;
+			ha_alert("parsing [%s:%d] : cannot parse '%s' value '%s', an integer is expected.\n", file, linenum, args[0], args[1]);
+			goto out;
+		}
+
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
+	} else if (strcmp(args[0], "curves") == 0) {
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires an argument\n", file, linenum, args[0], cursection);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
+		if ((cur_acme->key.curves = curves2nid(args[1])) == -1) {
+			ha_alert("parsing [%s:%d]: unsupported curves '%s'\n", file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
+
+out:
+	free(errmsg);
+	return err_code;
+}
+
 /* Initialize stuff once the section is parsed */
 static int cfg_postsection_acme()
 {
@@ -388,6 +461,9 @@ static struct cfg_kw_list cfg_kws_acme = {ILH, {
 	{ CFG_ACME, "contact",  cfg_parse_acme_kws },
 	{ CFG_ACME, "account",  cfg_parse_acme_kws },
 	{ CFG_ACME, "challenge",  cfg_parse_acme_kws },
+	{ CFG_ACME, "keytype",  cfg_parse_acme_cfg_key },
+	{ CFG_ACME, "bits",  cfg_parse_acme_cfg_key },
+	{ CFG_ACME, "curves",  cfg_parse_acme_cfg_key },
 	{ 0, NULL, NULL },
 }};
 

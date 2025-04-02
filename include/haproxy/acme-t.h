@@ -16,6 +16,12 @@ struct acme_cfg {
 		EVP_PKEY *pkey;     /* account PKEY */
 		char *thumbprint;   /* account PKEY JWS thumbprint */
 	} account;
+
+	struct {
+		int type;                   /* EVP_PKEY_EC or EVP_PKEY_RSA */
+		int bits;                   /* bits for RSA */
+		int curves;                 /* NID of curves */
+	} key;
 	char *challenge;            /* HTTP-01, DNS-01, etc */
 	struct acme_cfg *next;
 };
