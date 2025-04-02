@@ -111,20 +111,22 @@ HAProxy requires a working GCC or Clang toolchain and GNU make :
     may want to retry with "gmake" which is the name commonly used for GNU make
     on BSD systems.
 
-  - GCC >= 4.2 (up to 14 tested). Older versions can be made to work with a
-    few minor adaptations if really needed. Newer versions may sometimes break
-    due to compiler regressions or behaviour changes. The version shipped with
-    your operating system is very likely to work with no trouble. Clang >= 3.0
-    is also known to work as an alternative solution. Recent versions may emit
-    a bit more warnings that are worth reporting as they may reveal real bugs.
-    TCC (https://repo.or.cz/tinycc.git) is also usable for developers but will
-    not support threading and was found at least once to produce bad code in
-    some rare corner cases (since fixed). But it builds extremely quickly
-    (typically half a second for the whole project) and is very convenient to
-    run quick tests during API changes or code refactoring.
+  - GCC >= 4.7 (up to 14 tested). Older versions are no longer supported due to
+    the latest mt_list update which only uses c11-like atomics. Newer versions
+    may sometimes break due to compiler regressions or behaviour changes. The
+    version shipped with your operating system is very likely to work with no
+    trouble. Clang >= 3.0 is also known to work as an alternative solution, and
+    versions up to 19 were successfully tested. Recent versions may emit a bit
+    more warnings that are worth reporting as they may reveal real bugs. TCC
+    (https://repo.or.cz/tinycc.git) is also usable for developers but will not
+    support threading and was found at least once to produce bad code in some
+    rare corner cases (since fixed). But it builds extremely quickly (typically
+    half a second for the whole project) and is very convenient to run quick
+    tests during API changes or code refactoring.
 
   - GNU ld (binutils package), with no particular version. Other linkers might
-    work but were not tested.
+    work but were not tested. The default one from your operating system will
+    normally work.
 
 On debian or Ubuntu systems and their derivatives, you may get all these tools
 at once by issuing the two following commands :
@@ -488,8 +490,8 @@ target. Common issues may include:
        other supported compatible library.
 
   - many "dereferencing pointer 'sa.985' does break strict-aliasing rules"
-    => these warnings happen on old compilers (typically gcc-4.4), and may
-       safely be ignored; newer ones are better on these.
+    => these warnings happen on old compilers (typically gcc before 7.x),
+       and may safely be ignored; newer ones are better on these.
 
 
 4.11) QUIC
@@ -754,8 +756,8 @@ forced to produce final binaries, and must not be used during bisect sessions,
 as it will often lead to the wrong commit.
 
 Examples:
-  # silence strict-aliasing warnings with old gcc-4.4:
-  $ make -j$(nproc) TARGET=linux-glibc CC=gcc-44 CFLAGS=-fno-strict-aliasing
+  # silence strict-aliasing warnings with old gcc-5.5:
+  $ make -j$(nproc) TARGET=linux-glibc CC=gcc-55 CFLAGS=-fno-strict-aliasing
 
   # disable all warning options:
   $ make -j$(nproc) TARGET=linux-glibc CC=mycc WARN_CFLAGS= NOWARN_CFLAGS=
