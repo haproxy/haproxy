@@ -783,3 +783,44 @@ error:
 	return ret;
 }
 #endif
+
+/* https://datatracker.ietf.org/doc/html/rfc8422#appendix-A */
+/* SECG to NIST curves name */
+static struct curves { char *name; int nid; } curves_list [] =
+{
+	{ "secp256r1",  NID_X9_62_prime256v1 },
+	{ "prime256v1", NID_X9_62_prime256v1 },
+	{ "P-256",      NID_X9_62_prime256v1 },
+
+	{ "secp384r1",  NID_secp384r1 },
+	{ "P-384",      NID_secp384r1 },
+
+	{ "secp521r1",  NID_secp521r1 },
+	{ "P-521",      NID_secp521r1 },
+	{ NULL,         0 },
+};
+
+/* convert a curves name to a openssl NID */
+int curves2nid(const char *curve)
+{
+	struct curves *curves = curves_list;
+
+	while (curves->name) {
+		if (strcmp(curve, curves->name) == 0)
+			return curves->nid;
+		curves++;
+	}
+	return -1;
+}
+
+/* convert an OpenSSL NID to a NIST curves name */
+const char *nid2nist(int nid)
+{
+	switch (nid) {
+		case NID_X9_62_prime256v1: return "P-256";
+		case NID_secp384r1:        return "P-384";
+		case NID_secp521r1:        return "P-521";
+		default:                   return NULL;
+	}
+}
+

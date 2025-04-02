@@ -51,6 +51,8 @@ const char *x509_get_notafter(X509 *cert);
 time_t ASN1_to_time_t(ASN1_TIME *asn1_time);
 time_t x509_get_notafter_time_t(X509 *cert);
 #endif
+int curves2nid(const char *curve);
+const char *nid2nist(int nid);
 
 #endif /* _HAPROXY_SSL_UTILS_H */
 #endif /* USE_OPENSSL */
