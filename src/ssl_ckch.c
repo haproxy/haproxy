@@ -4817,13 +4817,13 @@ int ckch_conf_parse(char **args, int cur_arg, struct ckch_conf *f, int *found, c
 					if (!r) {
 						ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 						err_code |= ERR_ALERT | ERR_ABORT;
-						goto out;
+						goto array_err;
 					}
 					r[n] = strndup(b, e - b);
 					if (!r[n]) {
 						ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 						err_code |= ERR_ALERT | ERR_ABORT;
-						goto out;
+						goto array_err;
 					}
 
 					n++;
@@ -4846,6 +4846,15 @@ int ckch_conf_parse(char **args, int cur_arg, struct ckch_conf *f, int *found, c
 // debug
 //				while (*r)
 //					fprintf(stderr, "sub: \"%s\"\n", *r++);
+
+				goto out;
+array_err:
+				while (*r) {
+					char *prev = *r;
+					r++;
+					free(prev);
+				}
+				free(r);
 
 
 			} else if (ckch_conf_kws[i].type == PARSE_TYPE_INT) {
