@@ -18215,9 +18215,8 @@ check-reuse-pool
   any specific check connect option is defined, either on the server line or
   via a custom tcp-check connect rule.
 
-  If checks are activated for a reverse HTTP server, this option is mandatory
-  for checks to succeed, as by definition these servers do not have the ability
-  to initiate connection.
+  This option is automatically enabled for servers acting as passive reverse
+  HTTP gateway, as for those servers connect is only supported through reuse.
 
 check-send-proxy
   May be used in the following contexts: tcp, http
