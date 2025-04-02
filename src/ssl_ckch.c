@@ -4819,7 +4819,7 @@ int ckch_conf_parse(char **args, int cur_arg, struct ckch_conf *f, int *found, c
 						err_code |= ERR_ALERT | ERR_ABORT;
 						goto array_err;
 					}
-					r[n] = strndup(b, e - b);
+					r[n] = my_strndup(b, e - b);
 					if (!r[n]) {
 						ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 						err_code |= ERR_ALERT | ERR_ABORT;
