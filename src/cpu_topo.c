@@ -219,9 +219,12 @@ void cpu_dump_topology(const struct ha_cpu_topo *topo)
 	int cpu, lvl;
 	int grp, thr;
 
-	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++)
-		if (ha_cpu_topo[cpu].th_cnt > 1)
+	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++) {
+		if (ha_cpu_topo[cpu].th_cnt > 1) {
 			has_smt = 1;
+			break;
+		}
+	}
 
 	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++) {
 		if (ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE)
