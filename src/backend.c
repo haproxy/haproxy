@@ -1779,7 +1779,7 @@ int connect_server(struct stream *s)
 	struct connection *srv_conn = NULL;
 	struct server *srv;
 	int reuse_mode;
-	int reuse = 0;
+	int reuse __maybe_unused = 0;
 	int init_mux = 0;
 	int err;
 	struct sockaddr_storage *bind_addr = NULL;
