@@ -4849,7 +4849,7 @@ int ckch_conf_parse(char **args, int cur_arg, struct ckch_conf *f, int *found, c
 
 				goto out;
 array_err:
-				while (*r) {
+				while (r && *r) {
 					char *prev = *r;
 					r++;
 					free(prev);
