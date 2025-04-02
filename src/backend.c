@@ -1553,6 +1553,8 @@ static int be_reuse_mode(struct proxy *be, struct server *srv)
  * - <src> is the bind address if an explicit source address is used.
  * - <dst> is the destination address. Must be set in every cases, except on
  *   reverse HTTP.
+ * - <name> is a string identifier associated to the connection. Set by
+ *   pool-conn-name, also used for SSL SNI matching.
  *
  * Note that all input parameters can be NULL. The only requirement is that
  * it's not possible to have both <srv> and <strm> NULL at the same time.
@@ -1562,9 +1564,9 @@ static int be_reuse_mode(struct proxy *be, struct server *srv)
 int64_t be_calculate_conn_hash(struct server *srv, struct stream *strm,
                                struct session *sess,
                                struct sockaddr_storage *src,
-                               struct sockaddr_storage *dst)
+                               struct sockaddr_storage *dst,
+                               struct ist name)
 {
-	struct proxy *be = srv ? srv->proxy : strm->be;
 	struct conn_hash_params hash_params;
 
 	/* Caller cannot set both <srv> and <strm> to NULL. */
@@ -1577,17 +1579,9 @@ int64_t be_calculate_conn_hash(struct server *srv, struct stream *strm,
 	hash_params.target = srv ? &srv->obj_type : strm->target;
 
 	/* 2. pool-conn-name */
-	if (srv && srv->pool_conn_name_expr) {
-		struct sample *name_smp;
-
-		name_smp = sample_fetch_as_type(be, sess, strm,
-		                                SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
-		                                srv->pool_conn_name_expr, SMP_T_STR);
-		if (name_smp) {
-			hash_params.name_prehash =
-			  conn_hash_prehash(name_smp->data.u.str.area,
-			                    name_smp->data.u.str.data);
-		}
+	if (istlen(name)) {
+		hash_params.name_prehash =
+		  conn_hash_prehash(istptr(name), istlen(name));
 	}
 
 	/* 3. destination address */
@@ -1808,7 +1802,20 @@ int connect_server(struct stream *s)
 	}
 	else {
 		const int not_first_req = s->txn && s->txn->flags & TX_NOT_FIRST;
-		hash = be_calculate_conn_hash(srv, s, s->sess, bind_addr, s->scb->dst);
+		struct ist name = IST_NULL;
+		struct sample *name_smp;
+
+		if (srv && srv->pool_conn_name_expr) {
+			name_smp = sample_fetch_as_type(s->be, s->sess, s,
+			                                SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
+			                                srv->pool_conn_name_expr, SMP_T_STR);
+			if (name_smp) {
+				name = ist2(name_smp->data.u.str.area,
+				            name_smp->data.u.str.data);
+			}
+		}
+
+		hash = be_calculate_conn_hash(srv, s, s->sess, bind_addr, s->scb->dst, name);
 		err = be_reuse_connection(hash, s->sess, s->be, srv, s->scb,
 		                          s->target, not_first_req);
 		if (err == SF_ERR_INTERNAL)

@@ -49,7 +49,8 @@ int alloc_bind_address(struct sockaddr_storage **ss,
 int64_t be_calculate_conn_hash(struct server *srv, struct stream *strm,
                                struct session *sess,
                                struct sockaddr_storage *src,
-                               struct sockaddr_storage *dst);
+                               struct sockaddr_storage *dst,
+                               struct ist name);
 int be_reuse_connection(int64_t hash, struct session *sess,
                         struct proxy *be, struct server *srv,
                         struct stconn *sc, enum obj_type *target, int not_first_req);

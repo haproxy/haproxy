@@ -1216,7 +1216,7 @@ static inline int tcpcheck_use_nondefault_connect(const struct check *check,
 	return check->mux_proto || connect->mux_proto ||
 	  is_addr(&check->addr) || is_addr(&connect->addr) ||
 	  check->port || connect->port || connect->port_expr ||
-	  check->use_ssl || check->sni || connect->sni || check->alpn_len || connect->alpn_len ||
+	  check->use_ssl || check->alpn_len || connect->alpn_len ||
 	  check->send_proxy || check->via_socks4 ||
 	  (connect->options & TCPCHK_MASK_OPTS_CONNECT);
 }
@@ -1266,12 +1266,18 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 
 	if (!(check->state & CHK_ST_AGENT) && check->reuse_pool &&
 	    !tcpcheck_use_nondefault_connect(check, connect)) {
+		struct ist pool_conn_name = IST_NULL;
 		int64_t hash;
 		int conn_err;
 
 		TRACE_DEVEL("trying connection reuse for check", CHK_EV_TCPCHK_CONN, check);
 
-		hash = be_calculate_conn_hash(s, NULL, check->sess, NULL, NULL);
+		if (connect->sni)
+			pool_conn_name = ist(connect->sni);
+		else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && check->sni)
+			pool_conn_name = ist(check->sni);
+
+		hash = be_calculate_conn_hash(s, NULL, check->sess, NULL, NULL, pool_conn_name);
 		conn_err = be_reuse_connection(hash, check->sess, s->proxy, s,
 		                               check->sc, &s->obj_type, 0);
 		if (conn_err == SF_ERR_INTERNAL) {
