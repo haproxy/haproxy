@@ -680,7 +680,7 @@ static void cmsg_set_gso(struct msghdr *msg, struct cmsghdr **cmsg,
 	c->cmsg_level = SOL_UDP;
 	c->cmsg_type = UDP_SEGMENT;
 	c->cmsg_len = CMSG_LEN(sz);
-	*((uint16_t *)CMSG_DATA(c)) = gso_size;
+	write_u16(CMSG_DATA(c), gso_size);
 #endif
 }
 
