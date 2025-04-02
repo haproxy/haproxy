@@ -898,7 +898,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		}
 	}
 
-	/* Check the number of blocks agains "tune.http.maxhdr" value before adding EOH block */
+	/* Check the number of blocks against "tune.http.maxhdr" value before adding EOH block */
 	if (htx_nbblks(htx) > global.tune.max_http_hdr) {
 		len = -1;
 		goto out;
@@ -1086,7 +1086,7 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		++hdr_idx;
 	}
 
-	/* Check the number of blocks agains "tune.http.maxhdr" value before adding EOT block */
+	/* Check the number of blocks against "tune.http.maxhdr" value before adding EOT block */
 	if (htx_nbblks(htx) > global.tune.max_http_hdr) {
 		len = -1;
 		goto out;

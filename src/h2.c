@@ -503,7 +503,7 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 			goto fail;
 	}
 
-	/* Check the number of blocks agains "tune.http.maxhdr" value before adding EOH block */
+	/* Check the number of blocks against "tune.http.maxhdr" value before adding EOH block */
 	if (htx_nbblks(htx) > global.tune.max_http_hdr)
 		goto fail;
 
@@ -767,7 +767,7 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 		 */
 	}
 
-	/* Check the number of blocks agains "tune.http.maxhdr" value before adding EOH block */
+	/* Check the number of blocks against "tune.http.maxhdr" value before adding EOH block */
 	if (htx_nbblks(htx) > global.tune.max_http_hdr)
 		goto fail;
 
@@ -847,7 +847,7 @@ int h2_make_htx_trailers(struct http_hdr *list, struct htx *htx)
 			goto fail;
 	}
 
-	/* Check the number of blocks agains "tune.http.maxhdr" value before adding EOT block */
+	/* Check the number of blocks against "tune.http.maxhdr" value before adding EOT block */
 	if (htx_nbblks(htx) > global.tune.max_http_hdr)
 		goto fail;
 

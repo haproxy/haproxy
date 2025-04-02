@@ -184,7 +184,7 @@ enum parse_type_t {
 	PARSE_TYPE_NONE = 0,
 	PARSE_TYPE_INT,
 	PARSE_TYPE_STR,            /* string which is strdup() */
-	PARSE_TYPE_ARRAY_SUBSTR,   /* string splitted by colons into an array of substring */
+	PARSE_TYPE_ARRAY_SUBSTR,   /* string split by colons into an array of substring */
 	PARSE_TYPE_ONOFF,          /* "on" or "off" keyword */
 };
 

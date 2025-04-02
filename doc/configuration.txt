@@ -12067,7 +12067,7 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
       - "set-cookie-fmt <fmt>"
         It is equivaliant to the option above, except the "Set-Cookie" header
         will be filled with the result of the log-format string <fmt>
-        evaluation. Be carefull to respect the "NAME[=value]" format because no
+        evaluation. Be careful to respect the "NAME[=value]" format because no
         special check are performed during the configuration parsing.
 
       - "clear-cookie NAME[=]"
@@ -13448,8 +13448,8 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
                defined period. The factor must be greater than 0 and lower or
                equal to 1024.
 
-   [recv-only] indicates that we don't intent to use the table to perform
-               updates on it, but thay we only plan on using the table to
+   [recv-only] indicates that we don't intend to use the table to perform
+               updates on it, but that we only plan on using the table to
                retrieve data from a remote peer which we are interested in.
                Indeed, the use of this keyword enables the retrieval of
                local-only values such as conn_cur that are not learned by
@@ -18547,7 +18547,7 @@ init-state { fully-up | up | down | fully-down }
 
   The "init-state" option sets the initial state of the server:
     - when set to 'fully-up', the server is considered immediately available
-      and can turn to the DOWN sate when ALL health checks fail.
+      and can turn to the DOWN state when ALL health checks fail.
     - when set to 'up' (the default), the server is considered immediately
       available and will initiate a health check that can turn it to the DOWN
       state immediately if it fails.
@@ -19090,7 +19090,7 @@ resolve-opts <option>,<option>,...
     using an "agent-check" or through the runtime api.
 
   * prevent-dup-ip
-    Ensure HAProxy's default behavior is enforced on a server: prevent re-using
+    Ensure HAProxy's default behavior is enforced on a server: prevent reusing
     an IP address already set to a server in the same backend and sharing the
     same fqdn.
     This is the opposite of allow-dup-ip.

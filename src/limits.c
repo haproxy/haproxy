@@ -137,7 +137,7 @@ static int compute_ideal_maxconn()
 	 * extremely large and watchdog will kill the process, when it will try
 	 * to loop over the fdtab (see fd_reregister_all). Please note, that
 	 * fd_hard_limit is taken in account implicitly via 'ideal_maxconn'
-	 * value in all global.maxconn adjustements, when global.rlimit_memmax
+	 * value in all global.maxconn adjustments, when global.rlimit_memmax
 	 * is set:
 	 *
 	 *   MIN(global.maxconn, capped by global.rlimit_memmax, ideal_maxconn);

@@ -461,7 +461,7 @@ void clock_entering_poll(void)
 
 	/* The time might have jumped either backwards or forwards during tasks
 	 * processing. It's easy to detect a backwards jump, but a forward jump
-	 * needs a marging. Here the upper limit of 2 seconds corresponds to a
+	 * needs a margin. Here the upper limit of 2 seconds corresponds to a
 	 * large margin at which the watchdog would already trigger so it looks
 	 * sufficient to avoid false positives most of the time. The goal here
 	 * is to make sure that before_poll can be trusted when entering

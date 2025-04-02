@@ -2108,7 +2108,7 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 	 * has already been closed locally. This is useful to not emit multiple
 	 * RESET_STREAM for a single stream. This is functional if stream is
 	 * locally closed due to all data transmitted, but in this case the RFC
-	 * advices to use an explicit RESET_STREAM.
+	 * advises to use an explicit RESET_STREAM.
 	 */
 	if (qcs_is_close_local(qcs)) {
 		TRACE_STATE("ignoring STOP_SENDING", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);

@@ -1312,7 +1312,7 @@ struct sink *sink_new_from_srv(struct server *srv, const char *from)
 	/* directly create a sink of BUF type, and use UNSPEC log format to
 	 * inherit from caller fmt in sink_write()
 	 *
-	 * sink_name must be unique to prevent existing sink from being re-used
+	 * sink_name must be unique to prevent existing sink from being reused
 	 */
 	sink = sink_new_buf(sink_name, trash.area, LOG_FORMAT_UNSPEC, bufsize);
 	ha_free(&sink_name); // no longer needed

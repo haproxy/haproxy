@@ -362,7 +362,7 @@ option set-process-time <var name>
   latency added by the SPOE processing for the last handled event or group.
 
   If several events or groups are processed for the same stream, this value
-  will be overrideen.
+  will be overridden.
 
   See also: "option set-total-time".
 

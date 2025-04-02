@@ -599,7 +599,7 @@ static unsigned int hlua_nb_instruction = 0;
 
 /* Wrapper to retrieve the number of instructions between two interrupts
  * depending on user settings and current hlua context. If not already
- * explicitly set, we compute the ideal value using hard limits releaved
+ * explicitly set, we compute the ideal value using hard limits revealed
  * by Thierry Fournier's work, whose original notes may be found below:
  *
  * --
@@ -9562,7 +9562,7 @@ static void hlua_event_handler(struct hlua *hlua)
 		hlua_timer_init(&hlua->timer, hlua_timeout_task);
 
 	/* make sure to reset the task expiry before each hlua_ctx_resume()
-	 * since the task is re-used for multiple cb function calls
+	 * since the task is reused for multiple cb function calls
 	 * We couldn't risk to have t->expire pointing to a past date because
 	 * it was set during last function invocation but was never reset since
 	 * (ie: E_AGAIN)

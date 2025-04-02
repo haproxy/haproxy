@@ -4807,7 +4807,7 @@ int ckch_conf_parse(char **args, int cur_arg, struct ckch_conf *f, int *found, c
 				int n = 0;
 				char *b, *e;
 
-				/* split a string into substring splitted by colons */
+				/* split a string into substring split by colons */
 
 				e = b = args[cur_arg + 1];
 				do {

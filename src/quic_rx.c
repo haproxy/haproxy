@@ -1645,7 +1645,7 @@ static inline int quic_padding_check(const unsigned char *pos,
 
 /* Validate the token, retry or not (provided by NEW_TOKEN) parsed into
  * <pkt> RX packet from <dgram> datagram.
- * Return 1 if succeded, 0 if not.
+ * Return 1 if succeeded, 0 if not.
  */
 static inline int quic_token_validate(struct quic_rx_packet *pkt,
                                       struct quic_dgram *dgram,

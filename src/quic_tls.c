@@ -244,7 +244,7 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	}
 
 	/* Ensure early-data encryption is not inserted at the end of this ->qel_list
-	 * list. This would perturbate the sender during handshakes. This latter adds
+	 * list. This would disrupt the sender during handshakes. This latter adds
 	 * PADDING frames to datagrams from the last encryption level in this list,
 	 * for datagram with at least an ack-eliciting Initial packet inside.
 	 * But a QUIC server has nothing to send from this early-data encryption

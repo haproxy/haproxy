@@ -443,7 +443,7 @@ static void fcgi_trace(enum trace_level level, uint64_t mask, const struct trace
  * a bit complex due to some API limits for now. The rules are the following :
  *   - if an error or a shutdown was detected on the connection,
        we must not attempt to receive
- *   - if we're subscribed for receving, no need to try again
+ *   - if we're subscribed for receiving, no need to try again
  *   - if the demux buf failed to be allocated, we must not try to receive and
  *     we know there is nothing pending (we'll be woken up once allocated)
  *   - if the demux buf is full, we will not be able to receive.

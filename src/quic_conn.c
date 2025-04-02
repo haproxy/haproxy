@@ -1931,7 +1931,7 @@ void qc_bind_tid_commit(struct quic_conn *qc, struct listener *new_li)
 	conn_id = eb64_entry(node, struct quic_connection_id, seq_num);
 
 	/* Rebinding is considered done when CID points to the new
-	 * thread. quic-conn instance cannot be derefence after it.
+	 * thread. quic-conn instance cannot be dereferenced after it.
 	 */
 	HA_ATOMIC_STORE(&conn_id->tid, new_tid);
 	qc = NULL;

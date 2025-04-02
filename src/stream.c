@@ -81,8 +81,8 @@ static void strm_trace(enum trace_level level, uint64_t mask,
 /* The event representation is split like this :
  *   strm  - stream
  *   sc    - stream connector
- *   http  - http analyzis
- *   tcp   - tcp analyzis
+ *   http  - http analysis
+ *   tcp   - tcp analysis
  *
  * STRM_EV_* macros are defined in <proto/stream.h>
  */
@@ -96,13 +96,13 @@ static const struct trace_event strm_trace_events[] = {
 	{ .mask = STRM_EV_CS_ST,        .name = "sc_state",     .desc = "processing connector states" },
 
 	{ .mask = STRM_EV_HTTP_ANA,     .name = "http_ana",     .desc = "HTTP analyzers" },
-	{ .mask = STRM_EV_HTTP_ERR,     .name = "http_err",     .desc = "error during HTTP analyzis" },
+	{ .mask = STRM_EV_HTTP_ERR,     .name = "http_err",     .desc = "error during HTTP analysis" },
 
 	{ .mask = STRM_EV_TCP_ANA,      .name = "tcp_ana",      .desc = "TCP analyzers" },
-	{ .mask = STRM_EV_TCP_ERR,      .name = "tcp_err",      .desc = "error during TCP analyzis" },
+	{ .mask = STRM_EV_TCP_ERR,      .name = "tcp_err",      .desc = "error during TCP analysis" },
 
 	{ .mask = STRM_EV_FLT_ANA,      .name = "flt_ana",      .desc = "Filter analyzers" },
-	{ .mask = STRM_EV_FLT_ERR,      .name = "flt_err",      .desc = "error during filter analyzis" },
+	{ .mask = STRM_EV_FLT_ERR,      .name = "flt_err",      .desc = "error during filter analysis" },
 	{}
 };
 
@@ -1148,7 +1148,7 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 
 	}
 
-	/* Se the max connection retries for the stream. may be overwriten later */
+	/* Se the max connection retries for the stream. may be overwritten later */
 	s->max_retries = s->be->conn_retries;
 
 	/* we don't want to run the TCP or HTTP filters again if the backend has not changed */
@@ -2767,7 +2767,7 @@ void sess_change_server(struct stream *strm, struct server *newsrv)
 		 * and that removal will be done under isolation anyway. Thus by
 		 * decrementing served after detaching from the list, we're
 		 * guaranteeing that served==0 implies that no stream is in the
-		 * list anymore, which is a sufficient guarantee for tha goal.
+		 * list anymore, which is a sufficient guarantee for that goal.
 		 */
 		_HA_ATOMIC_DEC(&oldsrv->proxy->served);
 		stream_del_srv_conn(strm);
@@ -3716,7 +3716,7 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 	}
 }
 
-/* Context-less function to append a complet dump of a stream state onto the
+/* Context-less function to append a complete dump of a stream state onto the
  * buffer. It relies on __strm_dump_to_buffer.
  */
 void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const char *pfx, uint32_t anon_key)

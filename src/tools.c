@@ -7106,7 +7106,7 @@ int clean_env(void)
 /* Restores **environ from backup created by backup_env(). Must be always
  * preceded by clean_env() in order to properly restore the process environment.
  * global init_env ptr array must be freed by the upper layers.
- * Returns 0 on sucess and -1 in case if the process has run out of memory. If
+ * Returns 0 on success and -1 in case if the process has run out of memory. If
  * setenv() fails with EINVAL or the parsed string doesn't contain '=' (the
  * latter is mandatory format for strings kept in **environ), emits warning and
  * continues. This allows to terminate the process at the startup stage, if it

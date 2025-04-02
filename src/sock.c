@@ -482,7 +482,7 @@ int sock_get_old_sockets(const char *unixsocket)
 
 		/* dst_fd is always open in the worker process context because
 		 * it's inherited from the master via -x cmd option. It's closed
-		 * futher in main (after bind_listeners()) and not here for the
+		 * further in main (after bind_listeners()) and not here for the
 		 * simplicity. In main(), after bind_listeners(), it's safe just
 		 * to loop over all workers list, launched before this reload and
 		 * to close its ipc_fd[0], thus we also close this fd. If we

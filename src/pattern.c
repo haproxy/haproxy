@@ -137,7 +137,7 @@ int const pat_match_types[PAT_MATCH_NUM] = {
 static THREAD_LOCAL struct pattern static_pattern;
 static THREAD_LOCAL struct sample_data static_sample_data;
 
-/* This is the root of the list of all pattern_ref avalaibles. */
+/* This is the root of the list of all available pattern_ref values. */
 struct list pattern_reference = LIST_HEAD_INIT(pattern_reference);
 
 static THREAD_LOCAL struct lru64_head *pat_lru_tree;
