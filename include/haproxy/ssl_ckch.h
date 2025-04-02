@@ -41,13 +41,13 @@ int ssl_sock_load_issuer_file_into_ckch(const char *path, char *buf, struct ckch
 
 /* ckch_store functions */
 struct ckch_store *ckch_store_new_load_files_path(char *path, char **err);
-struct ckch_store *ckch_store_new_load_files_conf(char *name, struct ckch_conf *conf, char **err);
+struct ckch_store *ckch_store_new_load_files_conf(char *name, struct ckch_conf *conf, const char *filename, int linenum, char **err);
 struct ckch_store *ckchs_lookup(char *path);
 struct ckch_store *ckchs_dup(const struct ckch_store *src);
 struct ckch_store *ckch_store_new(const char *filename);
 void ckch_store_free(struct ckch_store *store);
 void ckch_store_replace(struct ckch_store *old_ckchs, struct ckch_store *new_ckchs);
-int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, int cli, char **err);
+int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, int cli, const char *file, int linenum, char **err);
 
 /* ckch_conf functions */
 
@@ -89,19 +89,19 @@ extern int (*ssl_commit_crlfile_cb)(const char *path, X509_STORE *ctx, char **er
  * The following  macro allow to declare a wrapper on function that actually load files
  *
  */
-#define DECLARE_CKCH_CONF_LOAD(name, base, callback)                                                        \
-static inline int ckch_conf_load_##name(void *value, char *buf, struct ckch_data *d, int cli, char **err)   \
-{                                                                                                           \
-	char path[PATH_MAX];                                                                                \
-	int err_code = 0;                                                                                   \
-	if (cli)                                                                                            \
-		return 0;                                                                                   \
-	err_code |= path_base(value, (base), path, err);                                                    \
-	if (err_code & ERR_CODE)                                                                            \
-		goto out;                                                                                   \
-	err_code |= (callback)(path, buf, d, err);                                                          \
-out:                                                                                                        \
-	return err_code;                                                                                    \
+#define DECLARE_CKCH_CONF_LOAD(name, base, callback)                                                                                           \
+static inline int ckch_conf_load_##name(void *value, char *buf, struct ckch_data *d, int cli, const char *filename, int linenum, char **err)   \
+{                                                                                                                                              \
+	char path[PATH_MAX];                                                                                                                   \
+	int err_code = 0;                                                                                                                      \
+	if (cli)                                                                                                                               \
+		return 0;                                                                                                                      \
+	err_code |= path_base(value, (base), path, err);                                                                                       \
+	if (err_code & ERR_CODE)                                                                                                               \
+		goto out;                                                                                                                      \
+	err_code |= (callback)(path, buf, d, err);                                                                                             \
+out:                                                                                                                                           \
+	return err_code;                                                                                                                       \
 };
 
 #endif /* USE_OPENSSL */

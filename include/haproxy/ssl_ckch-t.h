@@ -192,7 +192,7 @@ struct ckch_conf_kws {
 	const char *name;
 	ssize_t offset;
 	enum parse_type_t type;
-	int (*func)(void *value, char *buf, struct ckch_data *d, int cli, char **err);
+	int (*func)(void *value, char *buf, struct ckch_data *d, int cli, const char *filename, int linenum, char **err);
 };
 
 extern struct ckch_conf_kws ckch_conf_kws[];

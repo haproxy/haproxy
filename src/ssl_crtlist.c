@@ -530,7 +530,7 @@ int crtlist_load_crt(char *crt_path, struct ckch_conf *cc, struct crtlist *newli
 				}
 			}
 
-			ckchs = ckch_store_new_load_files_conf(crt_path, cc, err);
+			ckchs = ckch_store_new_load_files_conf(crt_path, cc, file, linenum, err);
 			if (ckchs == NULL) {
 				cfgerr |= ERR_ALERT | ERR_FATAL;
 				goto error;
@@ -1436,7 +1436,7 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 
 		store->conf = cc;
 		/* fresh new, run more init (for example init ocsp-update tasks) */
-		cfgerr |= ckch_store_load_files(&cc, store, 1, &err);
+		cfgerr |= ckch_store_load_files(&cc, store, 1, "CLI", 1, &err);
 		if (cfgerr & ERR_FATAL)
 			goto error;
 

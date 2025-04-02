@@ -1095,7 +1095,7 @@ end:
  * This function allocate a ckch_store and populate it with certificates using
  * the ckch_conf structure.
  */
-struct ckch_store *ckch_store_new_load_files_conf(char *name, struct ckch_conf *conf, char **err)
+struct ckch_store *ckch_store_new_load_files_conf(char *name, struct ckch_conf *conf, const char *file, int linenum, char **err)
 {
 	struct ckch_store *ckchs;
 	int cfgerr = ERR_NONE;
@@ -1120,7 +1120,7 @@ struct ckch_store *ckch_store_new_load_files_conf(char *name, struct ckch_conf *
 	}
 
 	/* load files using the ckch_conf */
-	cfgerr = ckch_store_load_files(conf, ckchs, 0, err);
+	cfgerr = ckch_store_load_files(conf, ckchs, 0, file, linenum, err);
 	if (cfgerr & ERR_FATAL)
 		goto end;
 
@@ -4560,7 +4560,7 @@ struct ckch_conf_kws ckch_conf_kws[] = {
 
 
 /* crt-store does not try to find files, but use the stored filename */
-int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, int cli, char **err)
+int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, int cli, const char *file, int linenum, char **err)
 {
 	int i;
 	int err_code = 0;
@@ -4587,7 +4587,7 @@ int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, int cli, ch
 				if (!v)
 					goto next;
 
-				rc = ckch_conf_kws[i].func(v, NULL, d, cli, err);
+				rc = ckch_conf_kws[i].func(v, NULL, d, cli, file, linenum, err);
 				if (rc) {
 					err_code |= ERR_ALERT | ERR_FATAL;
 					memprintf(err, "%s '%s' cannot be read or parsed.", err && *err ? *err : "", v);
@@ -4600,7 +4600,7 @@ int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, int cli, ch
 			case PARSE_TYPE_ONOFF:
 			{
 				int v = *(int *)src;
-				rc = ckch_conf_kws[i].func(&v, NULL, d, cli, err);
+				rc = ckch_conf_kws[i].func(&v, NULL, d, cli, file, linenum, err);
 				if (rc) {
 					err_code |= ERR_ALERT | ERR_FATAL;
 					memprintf(err, "%s '%d' cannot be read or parsed.", err && *err ? *err : "", v);
@@ -5001,7 +5001,7 @@ static int crtstore_parse_load(char **args, int section_type, struct proxy *curp
 	if (!c)
 		goto alloc_error;
 
-	err_code |= ckch_store_load_files(&f, c,  0, err);
+	err_code |= ckch_store_load_files(&f, c,  0, file, linenum, err);
 	if (err_code & ERR_FATAL)
 		goto out;
 
