@@ -284,6 +284,7 @@
 #define TOSTR(x) _TOSTR(x)
 
 /* concatenates the two strings after resolving possible macros */
+#undef CONCAT // Turns out NetBSD defines it to the same in exec_elf.h
 #define _CONCAT(a,b) a ## b
 #define CONCAT(a,b) _CONCAT(a,b)
 
