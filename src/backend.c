@@ -888,6 +888,8 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 		if (!sockaddr_alloc(ss, NULL, 0))
 			return SRV_STATUS_INTERNAL;
 
+		ASSUME_NONNULL(srv); /* srv is guaranteed by SF_ASSIGNED */
+
 		**ss = srv->addr;
 		set_host_port(*ss, srv->svc_port);
 		if (!is_addr(*ss)) {
