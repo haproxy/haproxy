@@ -26,9 +26,9 @@
 #include <haproxy/compiler.h>
 
 /* A few notes for the macros and functions here:
- *  - this file is painful to edit, most operations exist in 3 variants,
- *    no-thread, threads with gcc<4.7, threads with gcc>=4.7. Be careful when
- *    modifying it not to break any of them.
+ *  - this file is painful to edit, most operations exist in 2 variants,
+ *    no-thread, and threads (with gcc>=4.7). Be careful when modifying
+ *    it not to break any of them.
  *
  *  - macros named HA_ATOMIC_* are or use in the general case, they contain the
  *    required memory barriers to guarantee sequential consistency
@@ -191,121 +191,9 @@
 
 /* Threads are ENABLED, all atomic ops are made thread-safe. By extension they
  * can also be used for inter-process synchronization but one must verify that
- * the code still builds with threads disabled.
+ * the code still builds with threads disabled. Code below requires C11 atomics
+ * as present in gcc >= 4.7 or clang.
  */
-
-#if defined(__GNUC__) && (__GNUC__ < 4 || __GNUC__ == 4 && __GNUC_MINOR__ < 7) && !defined(__clang__)
-/* gcc < 4.7 */
-
-#define HA_ATOMIC_LOAD(val)						      \
-        ({								      \
-		typeof((val)) __val_load = (val);			      \
-		typeof(*(val)) __ret_val =				      \
-			({ __sync_synchronize(); *(volatile typeof(__val_load))__val_load; }); \
-		__sync_synchronize();					      \
-		__ret_val;						      \
-	})
-
-#define HA_ATOMIC_STORE(val, new)					\
-	({								\
-		typeof((val)) __val_store = (val);			\
-		typeof(*(val)) __old_store;				\
-		typeof((new)) __new_store = (new);			\
-		do { __old_store = *__val_store;			\
-		} while (!__sync_bool_compare_and_swap(__val_store, __old_store, __new_store) && __ha_cpu_relax()); \
-	})
-
-#define HA_ATOMIC_XCHG(val, new)					\
-	({								\
-		typeof((val)) __val_xchg = (val);			\
-		typeof(*(val)) __old_xchg;				\
-		typeof((new)) __new_xchg = (new);			\
-		do { __old_xchg = *__val_xchg;				\
-		} while (!__sync_bool_compare_and_swap(__val_xchg, __old_xchg, __new_xchg) && __ha_cpu_relax()); \
-		__old_xchg;						\
-	})
-
-#define HA_ATOMIC_AND(val, flags)    do { __sync_and_and_fetch(val, flags); } while (0)
-#define HA_ATOMIC_OR(val, flags)     do { __sync_or_and_fetch(val,  flags); } while (0)
-#define HA_ATOMIC_ADD(val, i)        do { __sync_add_and_fetch(val, i); } while (0)
-#define HA_ATOMIC_SUB(val, i)        do { __sync_sub_and_fetch(val, i); } while (0)
-#define HA_ATOMIC_INC(val)           do { __sync_add_and_fetch(val, 1); } while (0)
-#define HA_ATOMIC_DEC(val)           do { __sync_sub_and_fetch(val, 1); } while (0)
-
-#define HA_ATOMIC_AND_FETCH(val, flags) __sync_and_and_fetch(val, flags)
-#define HA_ATOMIC_OR_FETCH(val, flags)  __sync_or_and_fetch(val,  flags)
-#define HA_ATOMIC_ADD_FETCH(val, i)     __sync_add_and_fetch(val, i)
-#define HA_ATOMIC_SUB_FETCH(val, i)     __sync_sub_and_fetch(val, i)
-
-#define HA_ATOMIC_FETCH_AND(val, flags) __sync_fetch_and_and(val, flags)
-#define HA_ATOMIC_FETCH_OR(val, flags)  __sync_fetch_and_or(val,  flags)
-#define HA_ATOMIC_FETCH_ADD(val, i)     __sync_fetch_and_add(val, i)
-#define HA_ATOMIC_FETCH_SUB(val, i)     __sync_fetch_and_sub(val, i)
-
-#define HA_ATOMIC_BTS(val, bit)						\
-	({								\
-		typeof(*(val)) __b_bts = (1UL << (bit));		\
-		__sync_fetch_and_or((val), __b_bts) & __b_bts;		\
-	})
-
-#define HA_ATOMIC_BTR(val, bit)						\
-	({								\
-		typeof(*(val)) __b_btr = (1UL << (bit));		\
-		__sync_fetch_and_and((val), ~__b_btr) & __b_btr;	\
-	})
-
-/* the CAS is a bit complicated. The older API doesn't support returning the
- * value and the swap's result at the same time. So here we take what looks
- * like the safest route, consisting in using the boolean version guaranteeing
- * that the operation was performed or not, and we snoop a previous value. If
- * the compare succeeds, we return. If it fails, we return the previous value,
- * but only if it differs from the expected one. If it's the same it's a race
- * thus we try again to avoid confusing a possibly sensitive caller.
- */
-#define HA_ATOMIC_CAS(val, old, new)					\
-	({								\
-		typeof((val)) __val_cas = (val);			\
-		typeof((old)) __oldp_cas = (old);			\
-		typeof(*(old)) __oldv_cas;				\
-		typeof((new)) __new_cas = (new);			\
-		int __ret_cas;						\
-		do {							\
-			__oldv_cas = *__val_cas;			\
-			__ret_cas = __sync_bool_compare_and_swap(__val_cas, *__oldp_cas, __new_cas); \
-		} while (!__ret_cas && *__oldp_cas == __oldv_cas && __ha_cpu_relax()); \
-		if (!__ret_cas)						\
-			*__oldp_cas = __oldv_cas;			\
-		__ret_cas;						\
-	})
-
-/* warning, n is a pointer to the double value for dwcas */
-#define HA_ATOMIC_DWCAS(val, o, n) __ha_cas_dw(val, o, n)
-
-#define HA_ATOMIC_UPDATE_MAX(val, new)					\
-	({								\
-		typeof(val) __val = (val);				\
-		typeof(*(val)) __old_max = *__val;			\
-		typeof(*(val)) __new_max = (new);			\
-									\
-		while (__old_max < __new_max &&				\
-		       !HA_ATOMIC_CAS(__val, &__old_max, __new_max) && __ha_cpu_relax()); \
-		*__val;							\
-	})
-
-#define HA_ATOMIC_UPDATE_MIN(val, new)					\
-	({								\
-		typeof(val) __val = (val);				\
-		typeof(*(val)) __old_min = *__val;			\
-		typeof(*(val)) __new_min = (new);			\
-									\
-		while (__old_min > __new_min &&				\
-		       !HA_ATOMIC_CAS(__val, &__old_min, __new_min) && __ha_cpu_relax()); \
-		*__val;							\
-	})
-
-#else /* gcc */
-
-/* gcc >= 4.7 or clang */
 
 #define HA_ATOMIC_STORE(val, new)    __atomic_store_n(val, new,    __ATOMIC_RELEASE)
 #define HA_ATOMIC_LOAD(val)          __atomic_load_n(val,          __ATOMIC_ACQUIRE)
@@ -519,8 +407,6 @@
 #define _HA_ATOMIC_CAS(val, old, new) __atomic_compare_exchange_n(val, old, new, 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED)
 /* warning, n is a pointer to the double value for dwcas */
 #define _HA_ATOMIC_DWCAS(val, o, n)   __ha_cas_dw(val, o, n)
-
-#endif /* gcc >= 4.7 */
 
 /* Here come a few architecture-specific double-word CAS and barrier
  * implementations.
