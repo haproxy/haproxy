@@ -1740,6 +1740,8 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 		memcpy(&expire, *msg_cur, expire_sz);
 		*msg_cur += expire_sz;
 		expire = ntohl(expire);
+		/* the rest of the code considers expire as ticks and not MS */
+		expire = MS_TO_TICKS(expire);
 	}
 
 	newts = stksess_new(table, NULL);
