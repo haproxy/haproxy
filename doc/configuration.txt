@@ -18218,6 +18218,8 @@ check-reuse-pool
   This option is automatically enabled for servers acting as passive reverse
   HTTP gateway, as for those servers connect is only supported through reuse.
 
+  See also: "check-pool-conn-name"
+
 check-send-proxy
   May be used in the following contexts: tcp, http
 
@@ -18235,6 +18237,16 @@ check-alpn <protocols>
   Defines which protocols to advertise with ALPN. The protocol list consists in
   a comma-delimited list of protocol names, for instance: "http/1.1,http/1.0"
   (without quotes). If it is not set, the server ALPN is used.
+
+check-pool-conn-name <name>
+  May be used in the following contexts: tcp, http
+
+  When connection reuse is performed for checks, uses <name> if set as a
+  connection identifier to match a corresponding connection in the pool. This
+  serves as the equivalent to the "pool-conn-name" server keyword. "check-sni"
+  will also be used as a fallback if the current option is not used.
+
+  See also: "check-reuse-pool"
 
 check-proto <name>
   May be used in the following contexts: tcp, http

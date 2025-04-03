@@ -1272,7 +1272,9 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 
 		TRACE_DEVEL("trying connection reuse for check", CHK_EV_TCPCHK_CONN, check);
 
-		if (connect->sni)
+		if (check->pool_conn_name)
+			pool_conn_name = ist(check->pool_conn_name);
+		else if (connect->sni)
 			pool_conn_name = ist(connect->sni);
 		else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && check->sni)
 			pool_conn_name = ist(check->sni);

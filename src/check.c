@@ -1572,6 +1572,8 @@ void free_check(struct check *check)
 		ha_free(&check->tcpcheck_rules);
 	}
 
+	ha_free(&check->pool_conn_name);
+
 	task_destroy(check->task);
 
 	check_release_buf(check, &check->bi);
@@ -2362,6 +2364,34 @@ static int srv_parse_no_check_send_proxy(char **args, int *cur_arg, struct proxy
 	return 0;
 }
 
+/* parse the "check-pool-conn-name" server keyword */
+static int srv_parse_check_pool_conn_name(char **args, int *cur_arg,
+                                          struct proxy *px,
+                                          struct server *newsrv, char **err)
+{
+	int err_code = 0;
+
+	if (!*args[*cur_arg + 1]) {
+		memprintf(err, "'%s' : missing value", args[*cur_arg]);
+		goto error;
+	}
+
+	ha_free(&newsrv->check.pool_conn_name);
+	newsrv->check.pool_conn_name = strdup(args[*cur_arg + 1]);
+	if (!newsrv->check.pool_conn_name) {
+		memprintf(err, "'%s' : out of memory", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+  out:
+	return err_code;
+
+  error:
+	err_code |= ERR_ALERT | ERR_FATAL;
+	goto out;
+}
+
+
 /* parse the "check-proto" server keyword */
 static int srv_parse_check_proto(char **args, int *cur_arg,
 				 struct proxy *px, struct server *newsrv, char **err)
@@ -2662,6 +2692,7 @@ static struct srv_kw_list srv_kws = { "CHK", { }, {
 	{ "agent-port",          srv_parse_agent_port,          1,  1,  1 }, /* Set the TCP port used for agent checks. */
 	{ "agent-send",          srv_parse_agent_send,          1,  1,  1 }, /* Set string to send to agent. */
 	{ "check",               srv_parse_check,               0,  1,  1 }, /* Enable health checks */
+	{ "check-pool-conn-name", srv_parse_check_pool_conn_name, 1, 1, 1 }, /* */
 	{ "check-proto",         srv_parse_check_proto,         1,  1,  1 }, /* Set the mux protocol for health checks  */
 	{ "check-reuse-pool",    srv_parse_check_reuse_pool,    0,  1,  1 }, /* Allows to reuse idle connections for checks */
 	{ "check-send-proxy",    srv_parse_check_send_proxy,    0,  1,  1 }, /* Enable PROXY protocol for health checks */

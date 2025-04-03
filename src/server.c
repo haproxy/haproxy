@@ -2854,6 +2854,8 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	srv->check.alpn_len           = src->check.alpn_len;
 	if (!(srv->flags & SRV_F_RHTTP))
 		srv->check.reuse_pool = src->check.reuse_pool;
+	if (src->check.pool_conn_name)
+		srv->check.pool_conn_name = strdup(src->check.pool_conn_name);
 	/* Note: 'flags' field has potentially been already initialized. */
 	srv->flags                   |= src->flags;
 	srv->do_check                 = src->do_check;
