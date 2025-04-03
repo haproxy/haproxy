@@ -182,7 +182,7 @@ void switch_trees() {
 	p = sw;
 }
 
-main(int argc, char **argv) {
+int main(int argc, char **argv) {
 	int conns;
 	int i;
 
