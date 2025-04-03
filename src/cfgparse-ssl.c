@@ -2168,23 +2168,18 @@ struct cfg_crt_node {
 /* list used for inline crt-list initialization */
 static struct list cur_crtlist = LIST_HEAD_INIT(cur_crtlist);
 /*
- * Parse a "crt" line in a frontend.
+ * Parse a "ssl-f-use" line in a frontend.
  */
-static int proxy_parse_crt(char **args, int section_type, struct proxy *curpx,
-                           const struct proxy *defpx, const char *file, int linenum,
-                           char **err)
+static int proxy_parse_ssl_f_use(char **args, int section_type, struct proxy *curpx,
+                                 const struct proxy *defpx, const char *file, int linenum,
+                                 char **err)
 {
 	int cfgerr = 0;
 	struct ssl_bind_conf *ssl_conf = NULL;
 	struct ckch_conf *ckch_conf = NULL;
 	struct cfg_crt_node *cfg_crt_node = NULL;
-	int cur_arg = 2;
+	int cur_arg = 1;
 	int i;
-
-	if (!*args[1]) {
-		memprintf(err, "parsing [%s:%d] : '%s' : expects a certificate name", file, linenum, args[0]);
-		goto error;
-	}
 
 	cfg_crt_node = calloc(1, sizeof *cfg_crt_node);
 	if (!cfg_crt_node) {
@@ -2546,7 +2541,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "ssl-load-extra-files", ssl_parse_global_extra_files },
 	{ CFG_GLOBAL, "ssl-load-extra-del-ext", ssl_parse_global_extra_noext },
 
-	{ CFG_LISTEN, "crt", proxy_parse_crt },
+	{ CFG_LISTEN, "ssl-f-use", proxy_parse_ssl_f_use },
 
 	{ 0, NULL, NULL },
 }};
