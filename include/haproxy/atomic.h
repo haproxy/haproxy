@@ -685,12 +685,13 @@ static __inline int __ha_cas_dw(void *target, void *compare, void *set)
 
 #else /* unknown / unhandled architecture, fall back to generic barriers */
 
-#define __ha_barrier_atomic_load __sync_synchronize
-#define __ha_barrier_atomic_store __sync_synchronize
-#define __ha_barrier_atomic_full __sync_synchronize
-#define __ha_barrier_load __sync_synchronize
-#define __ha_barrier_store __sync_synchronize
-#define __ha_barrier_full __sync_synchronize
+#define __ha_barrier_atomic_load  __atomic_thread_fence(__ATOMIC_ACQUIRE)
+#define __ha_barrier_atomic_store __atomic_thread_fence(__ATOMIC_RELEASE)
+#define __ha_barrier_atomic_full  __atomic_thread_fence(__ATOMIC_SEQ_CST)
+#define __ha_barrier_load         __atomic_thread_fence(__ATOMIC_ACQUIRE)
+#define __ha_barrier_store        __atomic_thread_fence(__ATOMIC_RELEASE)
+#define __ha_barrier_full         __atomic_thread_fence(__ATOMIC_SEQ_CST)
+
 /* Note: there is no generic DWCAS */
 
 /* short-lived CPU relaxation */
