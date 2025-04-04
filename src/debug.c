@@ -180,15 +180,29 @@ unsigned int debug_enable_counters = (DEBUG_COUNTERS >= 2);
  */
 void ha_dump_backtrace(struct buffer *buf, const char *prefix, int dump)
 {
+	sigset_t new_mask, old_mask;
 	struct buffer bak;
 	char pfx2[100];
 	void *callers[100];
 	int j, nptrs;
 	const void *addr;
 
+	/* make sure we don't re-enter from debug coming from other threads,
+	 * as some libc's backtrace() are not re-entrant. We'll block these
+	 * sensitive signals while possibly dumping a backtrace.
+	 */
+	sigemptyset(&new_mask);
+#ifdef WDTSIG
+	sigaddset(&new_mask, WDTSIG);
+#endif
+#ifdef DEBUGSIG
+	sigaddset(&new_mask, DEBUGSIG);
+#endif
+	ha_sigmask(SIG_BLOCK, &new_mask, &old_mask);
+
 	nptrs = my_backtrace(callers, sizeof(callers)/sizeof(*callers));
 	if (!nptrs)
-		return;
+		goto leave;
 
 	if (snprintf(pfx2, sizeof(pfx2), "%s| ", prefix) > sizeof(pfx2))
 		pfx2[0] = 0;
@@ -266,6 +280,9 @@ void ha_dump_backtrace(struct buffer *buf, const char *prefix, int dump)
 		/* OK, line dumped */
 		chunk_appendf(buf, "\n");
 	}
+ leave:
+	/* unblock temporarily blocked signals */
+	ha_sigmask(SIG_SETMASK, &old_mask, NULL);
 }
 
 /* dump a backtrace of current thread's stack to stderr. */
