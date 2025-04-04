@@ -5611,11 +5611,12 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 		goto use_array;
 
 	i = dladdr_and_size(addr, &dli, &size);
-	if (!isolated)
-		HA_SPIN_UNLOCK(OTHER_LOCK, &dladdr_lock);
 
-	if (!i)
+	if (!i) {
+		if (!isolated)
+			HA_SPIN_UNLOCK(OTHER_LOCK, &dladdr_lock);
 		goto use_array;
+	}
 
 	/* 1. prefix the library name if it's not the same object as the one
 	 * that contains the main function. The name is picked between last '/'
@@ -5636,6 +5637,9 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 		}
 		ha_thread_relax();
 	}
+
+	if (!isolated)
+		HA_SPIN_UNLOCK(OTHER_LOCK, &dladdr_lock);
 
 	if (dli_main.dli_fbase != dli.dli_fbase) {
 		fname = dli.dli_fname;
