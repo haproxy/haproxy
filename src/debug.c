@@ -393,8 +393,11 @@ struct buffer *ha_thread_dump_fill(struct buffer *buf, int thr)
 	if (HA_ATOMIC_LOAD(&ha_thread_ctx[thr].flags) & TH_FL_DUMPING_OTHERS)
 		return NULL;
 
-	/* This will be undone in ha_thread_dump_done() */
-	HA_ATOMIC_OR(&th_ctx->flags, TH_FL_DUMPING_OTHERS);
+	/* This will be undone in ha_thread_dump_done(). We're using an atomic
+	 * OR to also block any possible re-entrance.
+	 */
+	if (HA_ATOMIC_FETCH_OR(&th_ctx->flags, TH_FL_DUMPING_OTHERS) & TH_FL_DUMPING_OTHERS)
+		return NULL;
 
 	/* try to impose our dump buffer and to reserve the target thread's
 	 * next dump for us.
