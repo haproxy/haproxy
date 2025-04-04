@@ -2465,8 +2465,11 @@ static int ckch_inst_add_cert_sni(SSL_CTX *ctx, struct ckch_inst *ckch_inst,
 			default_crt = 1;
 	}
 	/* !* filter is a nop */
-	if (neg && wild)
+	if (neg && wild) {
+		if (*name)
+			ha_warning("parsing [%s:%d]: crt-list: Unsupported exclusion (!) on a wildcard filter \"!*%s\"\n", s->file, s->line, name);
 		return order;
+	}
 	if (*name || default_crt) {
 		int j, len;
 		len = strlen(name);
