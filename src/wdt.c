@@ -263,6 +263,13 @@ int init_wdt()
 	sa.sa_handler = NULL;
 	sa.sa_sigaction = wdt_handler;
 	sigemptyset(&sa.sa_mask);
+	sigaddset(&sa.sa_mask, WDTSIG);
+#ifdef DEBUGSIG
+	sigaddset(&sa.sa_mask, DEBUGSIG);
+#endif
+#if defined(DEBUG_DEV)
+	sigaddset(&sa.sa_mask, SIGRTMAX);
+#endif
 	sa.sa_flags = SA_SIGINFO;
 	sigaction(WDTSIG, &sa, NULL);
 	return ERR_NONE;

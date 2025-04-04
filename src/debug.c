@@ -2481,6 +2481,13 @@ static int init_debug()
 	sa.sa_handler = NULL;
 	sa.sa_sigaction = debug_handler;
 	sigemptyset(&sa.sa_mask);
+#ifdef WDTSIG
+	sigaddset(&sa.sa_mask, WDTSIG);
+#endif
+	sigaddset(&sa.sa_mask, DEBUGSIG);
+#if defined(DEBUG_DEV)
+	sigaddset(&sa.sa_mask, SIGRTMAX);
+#endif
 	sa.sa_flags = SA_SIGINFO;
 	sigaction(DEBUGSIG, &sa, NULL);
 
