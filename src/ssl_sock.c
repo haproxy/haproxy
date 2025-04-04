@@ -2508,6 +2508,7 @@ void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf *bind_
 
 	struct sni_ctx *sc0, *sc0b, *sc1;
 	struct ebmb_node *node;
+	int nb_neg = 0, nb_wild = 0;
 
 	list_for_each_entry_safe(sc0, sc0b, &ckch_inst->sni_ctx, by_ckch_inst) {
 
@@ -2537,11 +2538,21 @@ void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf *bind_
 		if (!sc0)
 			continue;
 
+		if (sc0->wild && sc0->name.key[0]) /* count wildcard but exclude the default */
+			nb_wild++;
+		if (sc0->neg)
+			nb_neg++;
+
 		if (sc0->wild)
 			ebst_insert(&bind_conf->sni_w_ctx, &sc0->name);
 		else
 			ebst_insert(&bind_conf->sni_ctx, &sc0->name);
 	}
+
+	if (nb_neg > 0 && nb_wild == 0) {
+		ha_warning("parsing [%s:%d]: crt-list: negative filters on crt-list line \"%s\" without a positive wildcard filter won't do anything!\n", bind_conf->file, bind_conf->line, ckch_inst->ckch_store->node.key);
+	}
+
 }
 
 /*
