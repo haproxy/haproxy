@@ -2266,7 +2266,7 @@ static char *_lf_encode_bytes(char *start, char *stop,
 		encode_byte = _lf_map_escape_byte;
 
 	if (ctx->options & LOG_OPT_ENCODE_CBOR) {
-		if (!bytes_stop) {
+		if (!bytes_stop || ctx->in_text) {
 			/* printable chars: use cbor text */
 			cbor_string_prefix = 0x60;
 		}
