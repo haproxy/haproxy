@@ -3168,7 +3168,7 @@ static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp, void 
 		output->data = exp_replace(output->area, output->size, start, arg_p[1].data.str.area, pmatch);
 
 		/* replace the matching part */
-		max = output->size - output->data;
+		max = trash->size - trash->data;
 		if (max) {
 			if (max > output->data)
 				max = output->data;
