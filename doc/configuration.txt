@@ -17267,81 +17267,114 @@ crt-list <file>
 
         <crtfile> [\[<sslbindconf> ...\]] [[!]<snifilter> ...]
 
-  sslbindconf supports the following keywords from the bind line
-  (see Section 5.1. Bind options):
-
-  - allow-0rtt
-  - alpn
-  - ca-file
-  - ca-verify-file
-  - ciphers
-  - ciphersuites
-  - client-sigalgs
-  - crl-file
-  - curves
-  - ecdhe
-  - no-alpn
-  - no-ca-names
-  - npn
-  - sigalgs
-  - ssl-min-ver
-  - ssl-max-ver
-  - verify
-
-  sslbindconf also supports the following keywords from the crt-store load
-  keyword (see Section 3.12.1. Load options):
-
-  - crt
-  - key
-  - ocsp
-  - issuer
-  - sctl
-  - ocsp-update
-
-  It overrides the configuration set in bind line for the certificate.
-
-  Wildcards are supported in the SNI filter. Negative filter are also supported,
-  useful in combination with a wildcard filter to exclude a particular SNI, or
-  after the first certificate to exclude a pattern from its CN or Subject Alt
-  Name (SAN). The certificates will be presented to clients who provide a valid
-  TLS Server Name Indication field matching one of the SNI filters. If no SNI
-  filter is specified, the CN and SAN are used. This directive may be specified
-  multiple times. See the "crt" option for more information. The default
-  certificate is still needed to meet OpenSSL expectations. If it is not used,
-  the 'strict-sni' option may be used.
-
-  Multi-cert bundling (see "ssl-load-extra-files") is supported with crt-list,
-  as long as only the base name is given in the crt-list. SNI filter will do
-  the same work on all bundled certificates.
-
   Empty lines as well as lines beginning with a hash ('#') will be ignored.
 
-  The first declared certificate of a bind line is used as the default
-  certificate, either from crt or crt-list option, which HAProxy should use in
-  the TLS handshake if no other certificate matches. This certificate will also
-  be used if the provided SNI matches its CN or SAN, even if a matching SNI
-  filter is found on any crt-list. The SNI filter !* can be used after the first
-  declared certificate to not include its CN and SAN in the SNI tree, so it will
-  never match except if no other certificate matches. This way the first
-  declared certificate act as a fallback. It is also possible to declare a '*'
-  filter, which will allow to chose this certificate as default. When multiple
-  default certificates are defined, HAProxy is able to chose the right ECDSA or
-  RSA one depending on what the client supports.
+  The crt-list can be manipulated dynamically over the stats socket. (See "add
+  ssl crt-list", "del ssl crt-list", "show ssl crt-list" in the management
+  guide).
 
-  When no ALPN is set, the "bind" line's default one is used. If a "bind" line
-  has no "no-alpn", "alpn" nor "npn" set, a default value will be used
-  depending on the protocol (see "alpn" above). However if the "bind" line has
-  a different default, or explicitly disables ALPN using "no-alpn", it is
-  possible to force a specific value for a certificate.
+  crt-list are usually dedicated files, however a directory loaded with the "crt"
+  directive is represented internally as a crt-list. The "ssl-f-use" directive
+  in a frontend also declares a crt-list linked to this frontend.
 
-  crt-list file example:
-        cert1.pem !*
+  crtfile:
+
+    This is the filename of the certificate, or an identifier if it was declared
+    elsewhere (over the CLI or in a crt-store with an alias for example).
+
+    It is possible to use the same <crtfile> on multiple lines with different
+    options and filters.
+
+    Multi-cert bundling (see "ssl-load-extra-files") is supported in a
+    crt-list, as long as only the base name is given in <crtfile>. HAProxy
+    will duplicate the crt-list line internally, adding an algorithm extension
+    (.rsa, .ecdsa, .dsa) when loading the file.
+
+  sslbindconf:
+
+     <sslbindconf> supports the following keywords from the bind line (see
+     Section 5.1. Bind options):
+
+     - allow-0rtt
+     - alpn
+     - ca-file
+     - ca-verify-file
+     - ciphers
+     - ciphersuites
+     - client-sigalgs
+     - crl-file
+     - curves
+     - ecdhe
+     - no-alpn
+     - no-ca-names
+     - npn
+     - sigalgs
+     - ssl-min-ver
+     - ssl-max-ver
+     - verify
+
+     <sslbindconf> also supports the following keywords from the crt-store load
+     keyword (see Section 3.12.1. Load options):
+
+     - crt
+     - key
+     - ocsp
+     - issuer
+     - sctl
+     - ocsp-update
+
+    Parameters from the bind line are inherited in <sslbindconf>, if none were
+    specified, the default options are inherited, the parameters specified in
+    <sslbindconf> overwrite those inherited settings.
+
+  snifilter:
+
+    When the <snifilter> parameter is used on a crt-list line, the CN and SAN
+    are not used anymore to select the certificate on this line during the
+    handshake but the <snifilter> is used instead.
+
+    <snifilter> is a list of entries separated by spaces. This list can contain
+    domains, or wildcards. The wildcards are in wildcard DNS format, using a
+    single asterisk as the first character of the entry. It is possible to
+    exclude a domain from a wildcard with a negative filter by specifying a '!'
+    in front of a single domain. Having a ! in front of a * is ignored. Having
+    negative filters without a wildcard on the same line is not supported as
+    well. The special entry '*' is used to specify default certificates, which
+    are used as fallback when no domain matched.
+
+    The certificates will be presented to clients who provide a valid TLS
+    Server Name Indication field matching one of the SNI filters, or the CN and
+    SAN of a <crtfile>. The matching algorithm first looks for a positive domain
+    entry in the list, if not found it will try to look for a wildcard in the
+    list. If a wilcard match, haproxy checks for a negative filter from the
+    same line and unmatch if necessary. In case of multiple key algorithms
+    (RSA,ECDSA,DSA), HAProxy will try to match one certificate per type and
+    chose the right one depending on what is supported by the client.
+
+    If no SNI is presented by the client or if no certificate matched, this
+    will fallback to one of the default certificate. To disable the default
+    certificate fallback, the 'strict-sni' option may be used.
+    When multiple default certificates are defined, HAProxy is able to chose
+    the right ECDSA or RSA one depending on what the client supports.
+
+    The first declared certificate of a bind line is used as a default
+    certificate, either from crt or crt-list option.
+    It is also possible to declare a '*' filter, which will add this
+    certificate to the list of default certificates. To clarify the
+    configuration, the default certificates could be explicited (with a '*'
+    filter) at the beginning of the list, so an implicit default is not added
+    before.
+
+    The "show ssl sni" command on the stats socket could be used to debug your
+    configuration. (See "show ssl sni" in the management guide)
+
+  Example:
         # comment
-        cert2.pem [alpn h2,http/1.1]
-        certW.pem                   *.domain.tld !secure.domain.tld
-        certS.pem [curves X25519:P-256 ciphers ECDHE-ECDSA-AES256-GCM-SHA384] secure.domain.tld
         default.pem.rsa *
         default.pem.ecdsa *
+        cert2.pem [alpn h2,http/1.1]
+        certW.pem *.domain.tld !secure.domain.tld
+        certS.pem [curves X25519:P-256 ciphers ECDHE-ECDSA-AES256-GCM-SHA384] secure.domain.tld
         foo.crt [key bar.pem ocsp foo.ocsp ocsp-update on] foo.bar.com
 
 default-crt <cert>
