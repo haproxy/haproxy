@@ -863,7 +863,7 @@ static void h2c_update_timeout(struct h2c *h2c)
 			h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
 		} else {
 			int dft = tick_add_ifset(now_ms, h2c->timeout);
-			int ping = TICK_ETERNITY;
+			int ping = tick_add_ifset(now_ms, h2c->idle_ping);
 			int d1 = TICK_ETERNITY;
 			int d2 = TICK_ETERNITY;
 
@@ -908,7 +908,6 @@ static void h2c_update_timeout(struct h2c *h2c)
 			}
 			else {
 				d2 = dft;
-				ping = tick_add_ifset(now_ms, h2c->idle_ping);
 			}
 
 			h2c->task->expire = TICK_ETERNITY;
@@ -1300,11 +1299,13 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 		h2c->px_counters = EXTRA_COUNTERS_GET(prx->extra_counters_be,
 		                                      &h2_stats_module);
 	} else {
+		const struct bind_conf *bc = sess->listener->bind_conf;
+
 		h2c->flags = H2_CF_NONE;
 		h2c->shut_timeout = h2c->timeout = prx->timeout.client;
 		if (tick_isset(prx->timeout.clientfin))
 			h2c->shut_timeout = prx->timeout.clientfin;
-		h2c->idle_ping = TICK_ETERNITY;
+		h2c->idle_ping = bc->idle_ping;
 
 		h2c->px_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe,
 		                                      &h2_stats_module);
