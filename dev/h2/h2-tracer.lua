@@ -224,7 +224,7 @@ function Dec:tcp_payload(txn, chn)
         ff = ""
         for i = 7, 0, -1 do
             if (((self.st[dir].fflg >> i) & 1) ~= 0) then
-                if h2ff[self.st[dir].ftyp][i] ~= nil then
+                if self.st[dir].ftyp <= 9 and h2ff[self.st[dir].ftyp][i] ~= nil then
                     ff = ff .. ((ff == "") and "" or "+")
                     ff = ff .. h2ff[self.st[dir].ftyp][i]
                 else
