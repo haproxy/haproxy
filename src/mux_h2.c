@@ -3104,10 +3104,12 @@ static int h2c_send_strm_wu(struct h2c *h2c)
 	return ret;
 }
 
-/* try to send an ACK for a ping frame on the connection. Returns > 0 on
- * success, 0 on missing data or one of the h2_status values.
+/* Try to send a PING frame for <h2c> connection. Set <ack> to respond to an
+ * incoming PING, in this case payload is copied from demux buffer.
+ *
+ * Returns a positive value on success, else 0.
  */
-static int h2c_ack_ping(struct h2c *h2c)
+static int h2c_send_ping(struct h2c *h2c, int ack)
 {
 	struct buffer *res;
 	char str[17];
@@ -3115,16 +3117,29 @@ static int h2c_ack_ping(struct h2c *h2c)
 
 	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_PING, h2c->conn);
 
-	if (b_data(&h2c->dbuf) < 8)
-		goto out;
+	if (!ack) {
+		memcpy(str,
+		       "\x00\x00\x08"     /* length : 8 (same payload) */
+		       "\x06\x00"         /* type   : 6, flags : ACK   */
+		       "\x00\x00\x00\x00" /* stream ID */, 9);
 
-	memcpy(str,
-	       "\x00\x00\x08"     /* length : 8 (same payload) */
-	       "\x06" "\x01"      /* type   : 6, flags : ACK   */
-	       "\x00\x00\x00\x00" /* stream ID */, 9);
+		/* opaque data */
+		memcpy(str + 8, "\x00\x01\x02\x03\x04\x05\x06\x07", 8);
+	}
+	else {
+		if (b_data(&h2c->dbuf) < 8) {
+			/* incoming PING payload too short */
+			goto out;
+		}
 
-	/* copy the original payload */
-	h2_get_buf_bytes(str + 9, 8, &h2c->dbuf, 0);
+		memcpy(str,
+		       "\x00\x00\x08"     /* length : 8 (same payload) */
+		       "\x06\x01"         /* type   : 6, flags : ACK   */
+		       "\x00\x00\x00\x00" /* stream ID */, 9);
+
+		/* copy the original payload */
+		h2_get_buf_bytes(str + 9, 8, &h2c->dbuf, 0);
+	}
 
 	res = br_tail(h2c->mbuf);
  retry:
@@ -4355,7 +4370,7 @@ static void h2_process_demux(struct h2c *h2c)
 
 			if (h2c->st0 == H2_CS_FRAME_A) {
 				TRACE_PROTO("sending H2 PING ACK frame", H2_EV_TX_FRAME|H2_EV_TX_SETTINGS, h2c->conn, h2s);
-				ret = h2c_ack_ping(h2c);
+				ret = h2c_send_ping(h2c, 1);
 			}
 			break;
 
