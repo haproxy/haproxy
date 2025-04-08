@@ -856,6 +856,7 @@ static void h2c_update_timeout(struct h2c *h2c)
 		/* no more streams attached */
 		if (br_data(h2c->mbuf)) {
 			/* pending output data: always the regular data timeout */
+			TRACE_STATE("using data timeout", H2_EV_H2C_WAKE, h2c->conn);
 			h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
 		} else {
 			int dft = tick_add_ifset(now_ms, h2c->timeout);
@@ -939,8 +940,8 @@ static void h2c_update_timeout(struct h2c *h2c)
 				task_wakeup(h2c->task, TASK_WOKEN_TIMER);
 			}
 		}
-
 	} else {
+		TRACE_STATE("no expire", H2_EV_H2C_WAKE, h2c->conn);
 		h2c->task->expire = TICK_ETERNITY;
 	}
 	task_queue(h2c->task);
@@ -5144,6 +5145,7 @@ struct task *h2_timeout_task(struct task *t, void *context, unsigned int state)
 			 * for the data layer, so we must not enforce the timeout here.
 			 */
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			TRACE_DEVEL("leaving (cannot expire)", H2_EV_H2C_WAKE, h2c->conn);
 			t->expire = TICK_ETERNITY;
 			return t;
 		}
@@ -5167,6 +5169,7 @@ struct task *h2_timeout_task(struct task *t, void *context, unsigned int state)
 			t->expire = tick_add_ifset(now_ms, h2c->shut_timeout);
 			if (!tick_isset(t->expire))
 				t->expire = tick_add_ifset(now_ms, h2c->timeout);
+			TRACE_DEVEL("leaving (goaway sent)", H2_EV_H2C_WAKE, h2c->conn);
 			return t;
 		}
 
