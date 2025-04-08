@@ -4045,6 +4045,9 @@ static int h2_conn_reverse(struct h2c *h2c)
 		xprt_set_idle(conn, conn->xprt, conn->xprt_ctx);
 		if (!srv_add_to_idle_list(srv, conn, 1))
 			goto err;
+
+		if (tick_isset(srv->idle_ping))
+			h2c->idle_ping = srv->idle_ping;
 	}
 	else {
 		struct listener *l = __objt_listener(h2c->conn->target);
@@ -4082,7 +4085,7 @@ static int h2_conn_reverse(struct h2c *h2c)
 	/* If only the new side has a defined timeout, task must be allocated.
 	 * On the contrary, if only old side has a timeout, it must be freed.
 	 */
-	if (!h2c->task && tick_isset(h2c->timeout)) {
+	if (!h2c->task && (tick_isset(h2c->timeout) || tick_isset(h2c->idle_ping))) {
 		h2c->task = task_new_here();
 		if (!h2c->task)
 			goto err;
@@ -4090,16 +4093,14 @@ static int h2_conn_reverse(struct h2c *h2c)
 		h2c->task->process = h2_timeout_task;
 		h2c->task->context = h2c;
 	}
-	else if (!tick_isset(h2c->timeout)) {
+	else if (!tick_isset(h2c->timeout) && !tick_isset(h2c->idle_ping)) {
 		task_destroy(h2c->task);
 		h2c->task = NULL;
 	}
 
 	/* Requeue task if instantiated with the new timeout value. */
-	if (h2c->task) {
-		h2c->task->expire = tick_add(now_ms, h2c->timeout);
-		task_queue(h2c->task);
-	}
+	if (h2c->task)
+		h2c_update_timeout(h2c);
 
 	TRACE_LEAVE(H2_EV_H2C_WAKE, h2c->conn);
 	return 1;
