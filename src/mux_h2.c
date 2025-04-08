@@ -576,8 +576,9 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
 		return;
 
 	if (src->verbosity > H2_VERB_CLEAN) {
-		chunk_appendf(&trace_buf, " : h2c=%p(%c=%s,%s,%#x)",
+		chunk_appendf(&trace_buf, " : h2c=%p(%c=%s,%d,%s,%#x)",
 		              h2c, conn_is_back(conn) ? 'B' : 'F', h2c->proxy->id,
+		              h2c->nb_sc,
 		              h2c_st_to_str(h2c->st0), h2c->flags);
 
 		if (mask & H2_EV_H2C_NEW) // inside h2_init, otherwise it's hard to match conn & h2c
