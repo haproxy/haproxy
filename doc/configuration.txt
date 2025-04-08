@@ -18515,6 +18515,15 @@ id <value>
   the proxy. An unused ID will automatically be assigned if unset. The first
   assigned value will be 1. This ID is currently only returned in statistics.
 
+idle-ping <delay>
+  May be used in the following contexts: tcp, http, log
+
+  Define an interval for periodic liveliness idle connection test. The
+  objective is to sollicitate a peer activity to prevent the connection
+  expiration on inactivity timeout. This relies on a specific underlying
+  protocol support. For now, only H2 mux implements it. The value is ignored
+  for all other protocols.
+
 init-addr {last | libc | none | <ip>},[...]*
   May be used in the following contexts: tcp, http, log
 
