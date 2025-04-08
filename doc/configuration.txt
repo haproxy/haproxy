@@ -17621,6 +17621,18 @@ id <id>
   must be strictly positive and unique within the listener/frontend. This
   option can only be used when defining only a single socket.
 
+idle-ping <delay>
+  May be used in the following contexts: tcp, http, log
+
+  Define an interval for periodic liveliness on idle frontend connections. If
+  the peer is unable to respond before the next scheduled test, the connection
+  is closed. Else, the client timeout is refreshed and the connection is kept.
+  Note that http-request/http-keep-alive timers run in parallel and are not
+  refreshed by idle-ping.
+
+  This feature relies on specific underlying protocol support. For now, only H2
+  mux implements it. Idle-ping is simply ignored by other protocols.
+
 interface <interface>
   Restricts the socket to a specific interface. When specified, only packets
   received from that particular interface are processed by the socket. This is

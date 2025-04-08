@@ -863,6 +863,7 @@ static void h2c_update_timeout(struct h2c *h2c)
 		else {
 			int dft = TICK_ETERNITY;
 			int exp = TICK_ETERNITY;
+			int ping = TICK_ETERNITY;
 
 			/* idle connection : no stream, no output data */
 			if (h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED)) {
@@ -904,13 +905,19 @@ static void h2c_update_timeout(struct h2c *h2c)
 
 					is_idle_conn = 1;
 				}
-				else if (!(h2c->proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED))) {
+				else {
 					/* Only idle-ping is relevant for backend idle conn. */
-					exp = tick_add_ifset(now_ms, conn_idle_ping(h2c->conn));
-					if (tick_isset(exp) && !(h2c->flags & H2_CF_IDL_PING_SENT)) {
-						/* If PING timer selected, set flag to trigger its emission rather than conn deletion on next timeout. */
-						h2c->flags |= H2_CF_IDL_PING;
-					}
+					exp = TICK_ETERNITY;
+				}
+
+				if (!(h2c->proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED)))
+					ping = tick_add_ifset(now_ms, conn_idle_ping(h2c->conn));
+
+				exp = tick_first(exp, ping);
+				/* If PING timer selected, set flag to trigger its emission rather than conn deletion on next timeout. */
+				if (tick_isset(exp) && exp == ping && ping != dft &&
+				    !(h2c->flags & H2_CF_IDL_PING_SENT)) {
+					h2c->flags |= H2_CF_IDL_PING;
 				}
 			}
 

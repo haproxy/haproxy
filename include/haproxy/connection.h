@@ -716,8 +716,8 @@ static inline int conn_idle_ping(const struct connection *conn)
 		return srv ? srv->idle_ping : TICK_ETERNITY;
 	}
 	else {
-		/* TODO */
-		return TICK_ETERNITY;
+		struct session *sess = conn->owner;
+		return sess->listener->bind_conf->idle_ping;
 	}
 }
 

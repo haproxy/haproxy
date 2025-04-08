@@ -2216,6 +2216,44 @@ static int bind_parse_id(char **args, int cur_arg, struct proxy *px, struct bind
 	return 0;
 }
 
+/* Parse the "idle-ping" bind keyword */
+static int bind_parse_idle_ping(char **args, int cur_arg,
+                                struct proxy *px, struct bind_conf *conf,
+                                char **err)
+{
+	const char *res;
+	unsigned int value;
+
+	if (!*(args[cur_arg+1])) {
+		memprintf(err, "'%s' expects an argument.", args[cur_arg]);
+		goto error;
+	}
+
+	res = parse_time_err(args[cur_arg+1], &value, TIME_UNIT_MS);
+	if (res == PARSE_TIME_OVER) {
+		memprintf(err, "timer overflow in argument <%s> to <%s> on bind line, maximum value is 2147483647 ms (~24.8 days).",
+		          args[cur_arg+1], args[cur_arg]);
+		goto error;
+	}
+	else if (res == PARSE_TIME_UNDER) {
+		memprintf(err, "timer underflow in argument <%s> to <%s> on bind line, minimum non-null value is 1 ms.",
+		          args[cur_arg+1], args[cur_arg]);
+		goto error;
+	}
+	else if (res) {
+		memprintf(err, "unexpected character '%c' in '%s' argument on bind line.",
+		          *res, args[cur_arg]);
+		goto error;
+	}
+
+	conf->idle_ping = value;
+
+	return 0;
+
+  error:
+	return ERR_ALERT | ERR_FATAL;
+}
+
 /* Complete a bind_conf by parsing the args after the address. <args> is the
  * arguments array, <cur_arg> is the first one to be considered. <section> is
  * the section name to report in error messages, and <file> and <linenum> are
@@ -2584,6 +2622,7 @@ static struct bind_kw_list bind_kws = { "ALL", { }, {
 	{ "backlog",      bind_parse_backlog,      1, 0 }, /* set backlog of listening socket */
 	{ "guid-prefix",  bind_parse_guid_prefix,  1, 1 }, /* set guid of listening socket */
 	{ "id",           bind_parse_id,           1, 1 }, /* set id of listening socket */
+	{ "idle-ping",    bind_parse_idle_ping,    1, 1 }, /* activate idle ping if mux support it */
 	{ "maxconn",      bind_parse_maxconn,      1, 0 }, /* set maxconn of listening socket */
 	{ "name",         bind_parse_name,         1, 1 }, /* set name of listening socket */
 	{ "nbconn",       bind_parse_nbconn,       1, 1 }, /* set number of connection on active preconnect */
