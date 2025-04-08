@@ -69,6 +69,8 @@
 #define H2_CF_ERR_PENDING       0x00800000  // A write error was detected (block sends but not reads)
 #define H2_CF_ERROR             0x01000000  //A read error was detected (handled has an abort)
 #define H2_CF_WAIT_INLIST       0x02000000  // there is at least one stream blocked by another stream in send_list/fctl_list
+#define H2_CF_NEED_PING         0x04000000  // timer task scheduled for a PING emission
+#define H2_CF_WAIT_PING_ACK     0x08000000  // PING emitted, waiting for its ACK
 
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the

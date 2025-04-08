@@ -101,6 +101,8 @@ struct h2c {
 	struct wait_event wait_event;  /* To be used if we're waiting for I/Os */
 
 	struct list *next_tasklet; /* which applet to wake up next (NULL by default) */
+
+	int idle_ping; /* interval for idle connection liveliness testing */
 };
 
 
@@ -848,6 +850,7 @@ static void h2c_update_timeout(struct h2c *h2c)
 	int is_idle_conn = 0;
 
 	TRACE_ENTER(H2_EV_H2C_WAKE, h2c->conn);
+	h2c->flags &= ~H2_CF_NEED_PING;
 
 	if (!h2c->task)
 		goto leave;
@@ -860,6 +863,7 @@ static void h2c_update_timeout(struct h2c *h2c)
 			h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
 		} else {
 			int dft = tick_add_ifset(now_ms, h2c->timeout);
+			int ping = TICK_ETERNITY;
 			int d1 = TICK_ETERNITY;
 			int d2 = TICK_ETERNITY;
 
@@ -904,11 +908,18 @@ static void h2c_update_timeout(struct h2c *h2c)
 			}
 			else {
 				d2 = dft;
+				ping = tick_add_ifset(now_ms, h2c->idle_ping);
 			}
 
 			h2c->task->expire = TICK_ETERNITY;
 			h2c->task->expire = tick_first(h2c->task->expire, d1);
 			h2c->task->expire = tick_first(h2c->task->expire, d2);
+			h2c->task->expire = tick_first(h2c->task->expire, ping);
+
+			if (h2c->task->expire == ping && ping != dft) {
+				/* PING timer selected, set flag to trigger its emission rather than conn deletion on next timeout. */
+				h2c->flags |= H2_CF_NEED_PING;
+			}
 		}
 
 		if ((h2c->proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) &&
@@ -931,6 +942,7 @@ static void h2c_update_timeout(struct h2c *h2c)
 					 * because the close spread window end comes earlier.
 					 */
 					h2c->task->expire = tick_add(now_ms, statistical_prng_range(remaining_window));
+					h2c->flags &= ~H2_CF_NEED_PING;
 				}
 			}
 			else {
@@ -938,6 +950,7 @@ static void h2c_update_timeout(struct h2c *h2c)
 				 * task up immediately.
 				 */
 				task_wakeup(h2c->task, TASK_WOKEN_TIMER);
+				h2c->flags &= ~H2_CF_NEED_PING;
 			}
 		}
 	} else {
@@ -1276,10 +1289,13 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 		goto fail_no_h2c;
 
 	if (conn_is_back(conn)) {
+		const struct server *srv = objt_server(conn->target);
+
 		h2c->flags = H2_CF_IS_BACK;
 		h2c->shut_timeout = h2c->timeout = prx->timeout.server;
 		if (tick_isset(prx->timeout.serverfin))
 			h2c->shut_timeout = prx->timeout.serverfin;
+		h2c->idle_ping = srv ? srv->idle_ping : TICK_ETERNITY;
 
 		h2c->px_counters = EXTRA_COUNTERS_GET(prx->extra_counters_be,
 		                                      &h2_stats_module);
@@ -1288,6 +1304,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 		h2c->shut_timeout = h2c->timeout = prx->timeout.client;
 		if (tick_isset(prx->timeout.clientfin))
 			h2c->shut_timeout = prx->timeout.clientfin;
+		h2c->idle_ping = TICK_ETERNITY;
 
 		h2c->px_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe,
 		                                      &h2_stats_module);
@@ -1299,7 +1316,8 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->next_tasklet = NULL;
 	h2c->shared_rx_bufs = NULL;
 	h2c->idle_start = now_ms;
-	if (tick_isset(h2c->timeout)) {
+
+	if (tick_isset(h2c->timeout) || tick_isset(h2c->idle_ping)) {
 		t = task_new_here();
 		if (!t)
 			goto fail;
@@ -2880,9 +2898,15 @@ static int h2c_ack_settings(struct h2c *h2c)
  */
 static int h2c_handle_ping(struct h2c *h2c)
 {
-	/* schedule a response */
-	if (!(h2c->dff & H2_F_PING_ACK))
+	if (h2c->dff & H2_F_PING_ACK && h2c->flags & H2_CF_WAIT_PING_ACK) {
+		TRACE_PROTO("receiving H2 PING ACK frame", H2_EV_RX_FRAME|H2_EV_RX_PING, h2c->conn);
+		h2c->flags &= ~H2_CF_WAIT_PING_ACK;
+		h2c_update_timeout(h2c);
+	}
+	else {
+		/* schedule a response */
 		h2c->st0 = H2_CS_FRAME_A;
+	}
 	return 1;
 }
 
@@ -5163,6 +5187,23 @@ struct task *h2_timeout_task(struct task *t, void *context, unsigned int state)
 			TRACE_DEVEL("leaving (cannot expire)", H2_EV_H2C_WAKE, h2c->conn);
 			t->expire = TICK_ETERNITY;
 			return t;
+		}
+
+		if (h2c->flags & H2_CF_NEED_PING && !(h2c->flags & H2_CF_WAIT_PING_ACK)) {
+			int ret = h2c_send_ping(h2c, 0);
+			if (ret > 0) {
+				h2c->flags |= H2_CF_WAIT_PING_ACK;
+				tasklet_wakeup(h2c->wait_event.tasklet);
+
+				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+				TRACE_DEVEL("leaving (idle ping sent)", H2_EV_H2C_WAKE, h2c->conn);
+				t->expire = TICK_ETERNITY;
+				return t;
+			}
+
+			TRACE_ERROR("error on PING emission", H2_EV_H2C_WAKE, h2c->conn);
+			/* Let the connection be destroyed if PING cannot be emitted. */
+			h2c->flags &= ~H2_CF_NEED_PING;
 		}
 
 		/* We're about to destroy the connection, so make sure nobody attempts
