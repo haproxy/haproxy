@@ -342,6 +342,10 @@ enum stat_idx_info {
 	ST_I_INF_MAX
 };
 
+/* Flags for stat_col.flags */
+#define STAT_COL_FL_NONE    0x00
+#define STAT_COL_FL_GENERIC 0x01        /* stat is generic if set */
+
 /* Represent an exposed statistic. */
 struct stat_col {
 	const char *name; /* short name, used notably in CSV headers */
@@ -350,8 +354,8 @@ struct stat_col {
 
 	uint32_t type;    /* combination of field_nature and field_format */
 	uint8_t cap;      /* mask of stats_domain_px_cap to restrain metrics to an object types subset */
-	uint8_t generic;  /* bit set if generic */
-	/* 2 bytes hole */
+	/* 1 byte hole */
+	uint16_t flags;   /* STAT_COL_FL_* flags */
 
 	/* used only for generic metrics */
 	struct {

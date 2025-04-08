@@ -25,7 +25,7 @@
     .metric.offset[0] = offsetof(struct fe_counters, offset_f),               \
     .metric.offset[1] = offsetof(struct be_counters, offset_f),               \
     .cap = (cap_f),                                                           \
-    .generic = 1,                                                             \
+    .flags = STAT_COL_FL_GENERIC,                                             \
     .alt_name = alt_n,                                                        \
   }
 
@@ -34,7 +34,7 @@
   { .name = (name_f), .desc = (desc_f), .type = (nature)|(format),            \
     .metric.offset[0] = offsetof(struct fe_counters, offset_f),               \
     .cap = (cap_f),                                                           \
-    .generic = 1,                                                             \
+    .flags = STAT_COL_FL_GENERIC,                                             \
     .alt_name = alt_n,                                                        \
   }
 
@@ -43,7 +43,7 @@
   { .name = (name_f), .desc = (desc_f), .type = (nature)|(format),            \
     .metric.offset[1] = offsetof(struct be_counters, offset_f),               \
     .cap = (cap_f),                                                           \
-    .generic = 1,                                                             \
+    .flags = STAT_COL_FL_GENERIC,                                             \
     .alt_name = alt_n,                                                        \
   }
 
