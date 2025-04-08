@@ -17497,6 +17497,15 @@ id <id>
   must be strictly positive and unique within the listener/frontend. This
   option can only be used when defining only a single socket.
 
+idle-ping <delay>
+  May be used in the following contexts: tcp, http, log
+
+  Define an interval for periodic liveliness idle connection test. The
+  objective is to sollicitate a peer activity to prevent the connection
+  expiration on inactivity timeout. This relies on a specific underlying
+  protocol support. For now, only H2 mux implements it. The value is ignored
+  for all other protocols.
+
 interface <interface>
   Restricts the socket to a specific interface. When specified, only packets
   received from that particular interface are processed by the socket. This is
