@@ -4312,6 +4312,11 @@ Example:
   master. Leaving processes are only accessible with the PID as relative process
   number are only usable with the current processes.
 
+  This prefix may be used as a wrapper before a command, indicating that this
+  command and only this one will be sent to the designated process. In this
+  case the full command ends at the end of line or semi-colon like any regular
+  command.
+
   Examples:
 
     $ socat /var/run/haproxy-master.sock readline
@@ -4329,8 +4334,10 @@ Example:
     $ echo '@!1271 show info; @!1272 show info' | socat /var/run/haproxy-master.sock -
     [...]
 
-  A prefix could be use as a command, which will send every next commands to
-  the specified process.
+  The prefix may also be use as a standalone command to switch the default execution
+  context to the designated process, indicating that all subsequent commands will all
+  be executed in that process, until a new '@' command changes the execution context
+  again.
 
   Examples:
 
