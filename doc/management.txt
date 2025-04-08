@@ -4354,6 +4354,14 @@ Example:
     $ echo '@1; show info; show stat; @2; show info; show stat' | socat /var/run/haproxy-master.sock -
     [...]
 
+  Note about limitations: a few rare commands alter a CLI session's state
+  (e.g. "set anon", "set timeout") and may not behave exactly similarly once
+  run from the master CLI due to commands being sent one at a time on their own
+  CLI session. Similarly, a few rare commands ("show events", "wait") actively
+  monitor the CLI for input or closure and are immediately interrupted when the
+  CLI is closed. These commands will not work as expected through the master
+  CLI because the command's input is closed after each command.
+
 expert-mode [on|off]
   This command activates the "expert-mode" for every worker accessed from the
   master CLI. Combined with "mcli-debug-mode" it also activates the command on
