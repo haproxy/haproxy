@@ -105,6 +105,7 @@ struct h2c {
 	int idle_ping; /* interval for idle connection liveliness testing */
 	int exp_next;
 	int ping_next;
+	int ping_ack;
 };
 
 
@@ -1327,6 +1328,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->idle_start = now_ms;
 	h2c->exp_next = TICK_ETERNITY;
 	h2c->ping_next = TICK_ETERNITY;
+	h2c->ping_ack = 0;
 
 	if (tick_isset(h2c->timeout) || tick_isset(h2c->idle_ping)) {
 		t = task_new_here();
@@ -3143,6 +3145,12 @@ static int h2c_send_ping(struct h2c *h2c, int ack)
 	int ret = 0;
 
 	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_PING, h2c->conn);
+
+	if (ack && h2c->ping_ack++ > 5) {
+		fprintf(stderr, " ** do not ack ping anymore **\n");
+		ret = 1;
+		goto out;
+	}
 
 	if (!ack) {
 		memcpy(str,
