@@ -17633,6 +17633,10 @@ idle-ping <delay>
   This feature relies on specific underlying protocol support. For now, only H2
   mux implements it. Idle-ping is simply ignored by other protocols.
 
+  This option is particularly useful when using reverse HTTP. Setting it on the
+  bind line is useful for the peer which is responsible to actively initiate
+  connections and will then receive incoming traffic through them.
+
 interface <interface>
   Restricts the socket to a specific interface. When specified, only packets
   received from that particular interface are processed by the socket. This is
@@ -18662,6 +18666,11 @@ idle-ping <delay>
 
   This feature relies on specific underlying protocol support. For now, only H2
   mux implements it. Idle-ping is simply ignored by other protocols.
+
+  This option is particularly useful when using reverse HTTP. Setting it on the
+  server line is useful for the peer which listen for incoming connections and
+  attach them to a corresponding server to be able to reuse later on traffic
+  forwarding.
 
 init-addr {last | libc | none | <ip>},[...]*
   May be used in the following contexts: tcp, http, log
