@@ -708,6 +708,19 @@ static inline void conn_set_reverse(struct connection *conn, enum obj_type *targ
 	conn->reverse.target = target;
 }
 
+/* Returns idle-ping value for <conn> depending on its proxy side. */
+static inline int conn_idle_ping(const struct connection *conn)
+{
+	if (conn_is_back(conn)) {
+		struct server *srv = objt_server(conn->target);
+		return srv ? srv->idle_ping : TICK_ETERNITY;
+	}
+	else {
+		/* TODO */
+		return TICK_ETERNITY;
+	}
+}
+
 /* Returns the listener instance for connection used for active reverse. */
 static inline struct listener *conn_active_reverse_listener(const struct connection *conn)
 {

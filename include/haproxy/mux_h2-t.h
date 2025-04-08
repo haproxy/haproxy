@@ -70,6 +70,9 @@
 #define H2_CF_ERROR             0x01000000  //A read error was detected (handled has an abort)
 #define H2_CF_WAIT_INLIST       0x02000000  // there is at least one stream blocked by another stream in send_list/fctl_list
 
+#define H2_CF_IDL_PING          0x04000000  // timer task scheduled for a PING emission
+#define H2_CF_IDL_PING_SENT     0x08000000  // PING emitted, or will be on next tasklet run, waiting for ACK
+
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
  * __APPEND_FLAG macro. The new end of the buffer is returned.

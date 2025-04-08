@@ -848,6 +848,9 @@ static void h2c_update_timeout(struct h2c *h2c)
 
 	TRACE_ENTER(H2_EV_H2C_WAKE, h2c->conn);
 
+	/* Always reset flag for PING emission prior to refresh timeout. */
+	h2c->flags &= ~H2_CF_IDL_PING;
+
 	if (!h2c->task)
 		goto leave;
 
@@ -901,9 +904,13 @@ static void h2c_update_timeout(struct h2c *h2c)
 
 					is_idle_conn = 1;
 				}
-				else {
-					/* No timeout on backend idle conn. */
-					exp = TICK_ETERNITY;
+				else if (!(h2c->proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED))) {
+					/* Only idle-ping is relevant for backend idle conn. */
+					exp = tick_add_ifset(now_ms, conn_idle_ping(h2c->conn));
+					if (tick_isset(exp) && !(h2c->flags & H2_CF_IDL_PING_SENT)) {
+						/* If PING timer selected, set flag to trigger its emission rather than conn deletion on next timeout. */
+						h2c->flags |= H2_CF_IDL_PING;
+					}
 				}
 			}
 
@@ -1308,7 +1315,8 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->next_tasklet = NULL;
 	h2c->shared_rx_bufs = NULL;
 	h2c->idle_start = now_ms;
-	if (tick_isset(h2c->timeout)) {
+
+	if (tick_isset(h2c->timeout) || tick_isset(conn_idle_ping(conn))) {
 		t = task_new_here();
 		if (!t)
 			goto fail;
@@ -2888,9 +2896,17 @@ static int h2c_ack_settings(struct h2c *h2c)
  */
 static int h2c_handle_ping(struct h2c *h2c)
 {
-	/* schedule a response */
-	if (!(h2c->dff & H2_F_PING_ACK))
+	if (h2c->dff & H2_F_PING_ACK) {
+		TRACE_PROTO("receiving H2 PING ACK frame", H2_EV_RX_FRAME|H2_EV_RX_PING, h2c->conn);
+		if ((h2c->flags & (H2_CF_IDL_PING|H2_CF_IDL_PING_SENT)) == H2_CF_IDL_PING_SENT) {
+			h2c->flags &= ~H2_CF_IDL_PING_SENT;
+			h2c_update_timeout(h2c);
+		}
+	}
+	else {
+		/* schedule a response */
 		h2c->st0 = H2_CS_FRAME_A;
+	}
 	return 1;
 }
 
@@ -4640,6 +4656,14 @@ static int h2_process_mux(struct h2c *h2c)
 	    h2c_send_conn_wu(h2c) < 0)
 		goto fail;
 
+	/* emit PING to test connection liveliness */
+	if ((h2c->flags & (H2_CF_IDL_PING|H2_CF_IDL_PING_SENT)) == (H2_CF_IDL_PING|H2_CF_IDL_PING_SENT)) {
+		if (!h2c_send_ping(h2c, 0))
+			goto fail;
+		TRACE_USER("sent ping", H2_EV_H2C_WAKE, h2c->conn);
+		h2c->flags &= ~H2_CF_IDL_PING;
+	}
+
 	/* First we always process the flow control list because the streams
 	 * waiting there were already elected for immediate emission but were
 	 * blocked just on this.
@@ -5172,6 +5196,15 @@ struct task *h2_timeout_task(struct task *t, void *context, unsigned int state)
 			return t;
 		}
 
+		if (h2c->flags & H2_CF_IDL_PING) {
+			h2c->flags |= H2_CF_IDL_PING_SENT;
+			tasklet_wakeup(h2c->wait_event.tasklet);
+			TRACE_DEVEL("leaving (idle ping)", H2_EV_H2C_WAKE, h2c->conn);
+			t->expire = conn_idle_ping(h2c->conn);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			return t;
+		}
+
 		/* We're about to destroy the connection, so make sure nobody attempts
 		 * to steal it from us.
 		 */
@@ -5469,6 +5502,12 @@ static void h2_detach(struct sedesc *sd)
 
 	if (h2c->flags & H2_CF_IS_BACK) {
 		if (!(h2c->flags & (H2_CF_RCVD_SHUT|H2_CF_ERR_PENDING|H2_CF_ERROR))) {
+			/* Ensure idle-ping is activated before going to idle. */
+			if (eb_is_empty(&h2c->streams_by_id) &&
+			    tick_isset(conn_idle_ping(h2c->conn))) {
+				h2c_update_timeout(h2c);
+			}
+
 			if (h2c->conn->flags & CO_FL_PRIVATE) {
 				/* Add the connection in the session server list, if not already done */
 				if (!session_add_conn(sess, h2c->conn, h2c->conn->target)) {

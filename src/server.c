@@ -1003,6 +1003,43 @@ static int srv_parse_hash_key(char **args, int *cur_arg,
 	return 0;
 }
 
+/* Parse the "idle-ping" server keyword */
+static int srv_parse_idle_ping(char **args, int *cur_arg,
+                               struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	const char *res;
+	unsigned int value;
+
+	if (!*(args[*cur_arg+1])) {
+		memprintf(err, "'%s' expects an argument.", args[*cur_arg]);
+		goto error;
+	}
+
+	res = parse_time_err(args[*cur_arg+1], &value, TIME_UNIT_MS);
+	if (res == PARSE_TIME_OVER) {
+		memprintf(err, "timer overflow in argument <%s> to <%s> of server %s, maximum value is 2147483647 ms (~24.8 days).",
+		          args[*cur_arg+1], args[*cur_arg], newsrv->id);
+		goto error;
+	}
+	else if (res == PARSE_TIME_UNDER) {
+		memprintf(err, "timer underflow in argument <%s> to <%s> of server %s, minimum non-null value is 1 ms.",
+		          args[*cur_arg+1], args[*cur_arg], newsrv->id);
+		goto error;
+	}
+	else if (res) {
+		memprintf(err, "unexpected character '%c' in '%s' argument of server %s.",
+		          *res, args[*cur_arg], newsrv->id);
+		goto error;
+	}
+
+	newsrv->idle_ping = value;
+
+	return 0;
+
+  error:
+	return ERR_ALERT | ERR_FATAL;
+}
+
 /* Parse the "init-addr" server keyword */
 static int srv_parse_init_addr(char **args, int *cur_arg,
                                struct proxy *curproxy, struct server *newsrv, char **err)
@@ -2361,6 +2398,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "ws",                   srv_parse_ws,                   1,  1,  1 }, /* websocket protocol */
 	{ "hash-key",             srv_parse_hash_key,             1,  1,  1 }, /* Configure how chash keys are computed */
 	{ "id",                   srv_parse_id,                   1,  0,  1 }, /* set id# of server */
+	{ "idle-ping",            srv_parse_idle_ping,            1,  1,  1 }, /* Activate idle ping if mux support it */
 	{ "init-addr",            srv_parse_init_addr,            1,  1,  0 }, /* */
 	{ "init-state",           srv_parse_init_state,           1,  1,  1 }, /* Set the initial state of the server */
 	{ "log-bufsize",          srv_parse_log_bufsize,          1,  1,  0 }, /* Set the ring bufsize for log server (only for log backends) */

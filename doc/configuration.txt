@@ -18639,6 +18639,18 @@ id <value>
   the proxy. An unused ID will automatically be assigned if unset. The first
   assigned value will be 1. This ID is currently only returned in statistics.
 
+idle-ping <delay>
+  May be used in the following contexts: tcp, http, log
+
+  Define an interval for periodic liveliness on idle backend connections. If
+  the peer is unable to respond before the next scheduled test, the connection
+  is closed. This keyword refers to the backend side, so it is useful to check
+  that idle connections are still usable. Note that this won't prevent the
+  connection from being destroyed on idle pool purge.
+
+  This feature relies on specific underlying protocol support. For now, only H2
+  mux implements it. Idle-ping is simply ignored by other protocols.
+
 init-addr {last | libc | none | <ip>},[...]*
   May be used in the following contexts: tcp, http, log
 

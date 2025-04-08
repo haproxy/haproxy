@@ -340,6 +340,7 @@ struct server {
 	short onmarkeddown;			/* what to do when marked down: one of HANA_ONMARKEDDOWN_* */
 	short onmarkedup;			/* what to do when marked up: one of HANA_ONMARKEDUP_* */
 	int slowstart;				/* slowstart time in seconds (ms in the conf) */
+	int idle_ping;				/* MUX idle-ping interval in ms */
 
 	char *id;				/* just for identification */
 	uint32_t rid;				/* revision: if id has been reused for a new server, rid won't match */
