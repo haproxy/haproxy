@@ -19,32 +19,35 @@
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 
-/* Define a new generic metric for both frontend and backend sides. */
-#define ME_NEW_PX(name_f, alt_n, nature, format, offset_f, cap_f, desc_f)     \
-  { .name = (name_f), .desc = (desc_f), .type = (nature)|(format),            \
-    .metric.offset[0] = offsetof(struct fe_counters, offset_f),               \
-    .metric.offset[1] = offsetof(struct be_counters, offset_f),               \
+/* Common helper to create a new generic metric */
+#define ME_NEW_COMMON(name_f, alt_n, nature, format, offset_f, cap_f, desc_f) \
+    .name = (name_f), .desc = (desc_f), .type = (nature)|(format),            \
     .cap = (cap_f),                                                           \
-    .flags = STAT_COL_FL_GENERIC,                                             \
     .alt_name = alt_n,                                                        \
+
+/* Define a new generic metric for both frontend and backend sides. */
+#define ME_NEW_PX(name_f, alt_n, nature, format, offset_f, cap_f, desc_f)      \
+  {                                                                            \
+    ME_NEW_COMMON(name_f, alt_n, nature, format, offset_f, cap_f, desc_f)      \
+    .flags = STAT_COL_FL_GENERIC,                                              \
+    .metric.offset[0] = offsetof(struct fe_counters, offset_f),                \
+    .metric.offset[1] = offsetof(struct be_counters, offset_f),                \
   }
 
 /* Define a new generic metric for frontend side only. */
 #define ME_NEW_FE(name_f, alt_n, nature, format, offset_f, cap_f, desc_f)     \
-  { .name = (name_f), .desc = (desc_f), .type = (nature)|(format),            \
-    .metric.offset[0] = offsetof(struct fe_counters, offset_f),               \
-    .cap = (cap_f),                                                           \
+  {                                                                           \
+    ME_NEW_COMMON(name_f, alt_n, nature, format, offset_f, cap_f, desc_f)     \
     .flags = STAT_COL_FL_GENERIC,                                             \
-    .alt_name = alt_n,                                                        \
+    .metric.offset[0] = offsetof(struct fe_counters, offset_f),               \
   }
 
 /* Define a new generic metric for backend side only. */
 #define ME_NEW_BE(name_f, alt_n, nature, format, offset_f, cap_f, desc_f)     \
-  { .name = (name_f), .desc = (desc_f), .type = (nature)|(format),            \
-    .metric.offset[1] = offsetof(struct be_counters, offset_f),               \
-    .cap = (cap_f),                                                           \
+  {                                                                           \
+    ME_NEW_COMMON(name_f, alt_n, nature, format, offset_f, cap_f, desc_f)     \
     .flags = STAT_COL_FL_GENERIC,                                             \
-    .alt_name = alt_n,                                                        \
+    .metric.offset[1] = offsetof(struct be_counters, offset_f),               \
   }
 
 const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
