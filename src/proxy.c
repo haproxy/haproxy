@@ -221,6 +221,8 @@ static inline void proxy_free_common(struct proxy *px)
 	ha_free(&px->id);
 	LIST_DEL_INIT(&px->global_list);
 	drop_file_name(&px->conf.file);
+	ha_free(&px->fe_counters.shared);
+	ha_free(&px->be_counters.shared);
 	ha_free(&px->check_command);
 	ha_free(&px->check_path);
 	ha_free(&px->cookie_name);
@@ -395,7 +397,10 @@ void deinit_proxy(struct proxy *p)
 		free(l->name);
 		free(l->label);
 		free(l->per_thr);
-		free(l->counters);
+		if (l->counters) {
+			free(l->counters->shared);
+			free(l->counters);
+		}
 		task_destroy(l->rx.rhttp.task);
 
 		EXTRA_COUNTERS_FREE(l->extra_counters);
@@ -1710,16 +1715,39 @@ int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char *
 	init_new_proxy(px);
 
 	last_change = ns_to_sec(now_ns);
-	if (cap & PR_CAP_FE)
-		px->fe_counters.last_change = last_change;
-	if (cap & PR_CAP_BE)
-		px->be_counters.last_change = last_change;
+	/* allocate private memory for shared counters: used as a fallback
+	 * or when sharing is disabled. If sharing is enabled pointers will
+	 * be updated to point to the proper shared memory location during
+	 * proxy postparsing, see proxy_postparse()
+	 */
+	if (cap & PR_CAP_FE) {
+		px->fe_counters.shared = calloc(1, sizeof(*px->fe_counters.shared));
+		if (!px->fe_counters.shared) {
+			memprintf(errmsg, "out of memory");
+			goto fail;
+		}
+		HA_ATOMIC_STORE(&px->fe_counters.shared->last_change, last_change);
+	}
+	if (cap & (PR_CAP_FE|PR_CAP_BE)) {
+		/* by default stream->be points to stream->fe, thus proxy
+		 * be_counters may be used even if the proxy lacks the backend
+		 * capability
+		 */
+		px->be_counters.shared = calloc(1, sizeof(*px->be_counters.shared));
+		if (!px->be_counters.shared) {
+			memprintf(errmsg, "out of memory");
+			goto fail;
+		}
+
+		HA_ATOMIC_STORE(&px->be_counters.shared->last_change, last_change);
+	}
+
 
 	if (name) {
 		px->id = strdup(name);
 		if (!px->id) {
-			memprintf(errmsg, "proxy '%s': out of memory", name);
-			return 0;
+			memprintf(errmsg, "out of memory");
+			goto fail;
 		}
 	}
 
@@ -1732,6 +1760,16 @@ int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char *
 		LIST_APPEND(&proxies, &px->global_list);
 
 	return 1;
+
+ fail:
+	if (name)
+		memprintf(errmsg, "proxy '%s': %s", name, *errmsg);
+
+	ha_free(&px->id);
+	ha_free(&px->fe_counters.shared);
+	ha_free(&px->be_counters.shared);
+
+	return 0;
 }
 
 /* Allocates a new proxy <name> of type <cap>.
@@ -2082,9 +2120,9 @@ void proxy_cond_disable(struct proxy *p)
 	 * the data plane but on the control plane.
 	 */
 	if (p->cap & PR_CAP_FE)
-		cum_conn = p->fe_counters.cum_conn;
+		cum_conn = HA_ATOMIC_LOAD(&p->fe_counters.shared->cum_conn);
 	if (p->cap & PR_CAP_BE)
-		cum_sess = p->be_counters.cum_sess;
+		cum_sess = HA_ATOMIC_LOAD(&p->be_counters.shared->cum_sess);
 
 	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP || p->mode == PR_MODE_SYSLOG || p->mode == PR_MODE_SPOP) && !(p->cap & PR_CAP_INT))
 		ha_warning("Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
@@ -2179,7 +2217,7 @@ struct task *manage_proxy(struct task *t, void *context, unsigned int state)
 		goto out;
 
 	if (p->fe_sps_lim &&
-	    (wait = next_event_delay(&p->fe_counters.sess_per_sec, p->fe_sps_lim, 0))) {
+	    (wait = next_event_delay(&p->fe_counters.shared->sess_per_sec, p->fe_sps_lim, 0))) {
 		/* we're blocking because a limit was reached on the number of
 		 * requests/s on the frontend. We want to re-check ASAP, which
 		 * means in 1 ms before estimated expiration date, because the
@@ -2923,7 +2961,7 @@ static int dump_servers_state(struct appctx *appctx)
 		dump_server_addr(&srv->check.addr, srv_check_addr);
 		dump_server_addr(&srv->agent.addr, srv_agent_addr);
 
-		srv_time_since_last_change = ns_to_sec(now_ns) - srv->counters.last_change;
+		srv_time_since_last_change = ns_to_sec(now_ns) - HA_ATOMIC_LOAD(&srv->counters.shared->last_change);
 		bk_f_forced_id = px->options & PR_O_FORCED_ID ? 1 : 0;
 		srv_f_forced_id = srv->flags & SRV_F_FORCED_ID ? 1 : 0;
 

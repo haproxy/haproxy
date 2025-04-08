@@ -142,10 +142,12 @@ const char *srv_op_st_chg_cause(enum srv_op_st_chg_cause cause)
 
 int srv_downtime(const struct server *s)
 {
-	if ((s->cur_state != SRV_ST_STOPPED) || s->counters.last_change >= ns_to_sec(now_ns))		// ignore negative time
+	unsigned long last_change = HA_ATOMIC_LOAD(&s->counters.shared->last_change);
+
+	if ((s->cur_state != SRV_ST_STOPPED) || last_change >= ns_to_sec(now_ns))		// ignore negative time
 		return s->down_time;
 
-	return ns_to_sec(now_ns) - s->counters.last_change + s->down_time;
+	return ns_to_sec(now_ns) - last_change + s->down_time;
 }
 
 int srv_getinter(const struct check *check)
@@ -2456,10 +2458,11 @@ INITCALL1(STG_REGISTER, srv_register_keywords, &srv_kws);
  */
 void server_recalc_eweight(struct server *sv, int must_update)
 {
+	unsigned long last_change = HA_ATOMIC_LOAD(&sv->counters.shared->last_change);
 	struct proxy *px = sv->proxy;
 	unsigned w;
 
-	if (ns_to_sec(now_ns) < sv->counters.last_change || ns_to_sec(now_ns) >= sv->counters.last_change + sv->slowstart) {
+	if (ns_to_sec(now_ns) < last_change || ns_to_sec(now_ns) >= last_change + sv->slowstart) {
 		/* go to full throttle if the slowstart interval is reached unless server is currently down */
 		if ((sv->cur_state != SRV_ST_STOPPED) && (sv->next_state == SRV_ST_STARTING))
 			sv->next_state = SRV_ST_RUNNING;
@@ -2471,7 +2474,7 @@ void server_recalc_eweight(struct server *sv, int must_update)
 	if ((sv->cur_state == SRV_ST_STOPPED) && (sv->next_state == SRV_ST_STARTING) && (px->lbprm.algo & BE_LB_PROP_DYN))
 		w = 1;
 	else if ((sv->next_state == SRV_ST_STARTING) && (px->lbprm.algo & BE_LB_PROP_DYN))
-		w = (px->lbprm.wdiv * (ns_to_sec(now_ns) - sv->counters.last_change) + sv->slowstart) / sv->slowstart;
+		w = (px->lbprm.wdiv * (ns_to_sec(now_ns) - last_change) + sv->slowstart) / sv->slowstart;
 	else
 		w = px->lbprm.wdiv;
 
@@ -3025,10 +3028,17 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 struct server *new_server(struct proxy *proxy)
 {
 	struct server *srv;
+	struct be_counters_shared *scounters;
 
 	srv = calloc(1, sizeof *srv);
 	if (!srv)
 		return NULL;
+
+	scounters = calloc(1, sizeof(*scounters));
+	if (!scounters) {
+		ha_free(&srv);
+		return NULL;
+	}
 
 	srv_take(srv);
 
@@ -3042,7 +3052,8 @@ struct server *new_server(struct proxy *proxy)
 	srv->rid = 0; /* rid defaults to 0 */
 
 	srv->next_state = SRV_ST_RUNNING; /* early server setup */
-	srv->counters.last_change = ns_to_sec(now_ns);
+	srv->counters.shared = scounters;
+	HA_ATOMIC_STORE(&srv->counters.shared->last_change, ns_to_sec(now_ns));
 
 	srv->check.obj_type = OBJ_TYPE_CHECK;
 	srv->check.status = HCHK_STATUS_INI;
@@ -3114,6 +3125,7 @@ void srv_free_params(struct server *srv)
 	free(srv->resolvers_id);
 	free(srv->addr_node.key);
 	free(srv->lb_nodes);
+	free(srv->counters.shared);
 	if (srv->log_target) {
 		deinit_log_target(srv->log_target);
 		free(srv->log_target);
@@ -5790,7 +5802,7 @@ static int init_srv_slowstart(struct server *srv)
 		if (srv->next_state == SRV_ST_STARTING) {
 			task_schedule(srv->warmup,
 			              tick_add(now_ms,
-			                       MS_TO_TICKS(MAX(1000, (ns_to_sec(now_ns) - srv->counters.last_change)) / 20)));
+			                       MS_TO_TICKS(MAX(1000, (ns_to_sec(now_ns) - HA_ATOMIC_LOAD(&srv->counters.shared->last_change))) / 20)));
 		}
 	}
 
@@ -6993,14 +7005,16 @@ static void srv_update_status(struct server *s, int type, int cause)
 	/* check if server stats must be updated due the the server state change */
 	if (srv_prev_state != s->cur_state) {
 		if (srv_prev_state == SRV_ST_STOPPED) {
+			unsigned long last_change = HA_ATOMIC_LOAD(&s->counters.shared->last_change);
+
 			/* server was down and no longer is */
-			if (s->counters.last_change < ns_to_sec(now_ns))                        // ignore negative times
-				s->down_time += ns_to_sec(now_ns) - s->counters.last_change;
+			if (last_change < ns_to_sec(now_ns))                        // ignore negative times
+				s->down_time += ns_to_sec(now_ns) - last_change;
 			_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_UP, cb_data.common, s);
 		}
 		else if (s->cur_state == SRV_ST_STOPPED) {
 			/* server was up and is currently down */
-			s->counters.down_trans++;
+			HA_ATOMIC_INC(&s->counters.shared->down_trans);
 			_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_DOWN, cb_data.common, s);
 		}
 
@@ -7011,7 +7025,7 @@ static void srv_update_status(struct server *s, int type, int cause)
 		if (s->cur_state != SRV_ST_RUNNING && s->proxy->ready_srv == s)
 			HA_ATOMIC_STORE(&s->proxy->ready_srv, NULL);
 
-		s->counters.last_change = ns_to_sec(now_ns);
+		HA_ATOMIC_STORE(&s->counters.shared->last_change, ns_to_sec(now_ns));
 
 		/* publish the state change */
 		_srv_event_hdl_prepare_state(&cb_data.state,
@@ -7023,12 +7037,14 @@ static void srv_update_status(struct server *s, int type, int cause)
 	if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
 		set_backend_down(s->proxy); /* backend going down */
 	else if (!prev_srv_count && (s->proxy->srv_bck || s->proxy->srv_act)) {
+		unsigned long last_change = HA_ATOMIC_LOAD(&s->proxy->be_counters.shared->last_change);
+
 		/* backend was down and is back up again:
 		 * no helper function, updating last_change and backend downtime stats
 		 */
-		if (s->proxy->be_counters.last_change < ns_to_sec(now_ns))         // ignore negative times
-			s->proxy->down_time += ns_to_sec(now_ns) - s->proxy->be_counters.last_change;
-		s->proxy->be_counters.last_change = ns_to_sec(now_ns);
+		if (last_change < ns_to_sec(now_ns))         // ignore negative times
+			s->proxy->down_time += ns_to_sec(now_ns) - last_change;
+		HA_ATOMIC_STORE(&s->proxy->be_counters.shared->last_change, ns_to_sec(now_ns));
 	}
 }
 

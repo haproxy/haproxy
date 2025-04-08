@@ -345,6 +345,7 @@ enum stat_idx_info {
 /* Flags for stat_col.flags */
 #define STAT_COL_FL_NONE    0x00
 #define STAT_COL_FL_GENERIC 0x01        /* stat is generic if set */
+#define STAT_COL_FL_SHARED  0x02        /* stat may be shared between co-processes if set */
 
 /* Represent an exposed statistic. */
 struct stat_col {

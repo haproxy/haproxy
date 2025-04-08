@@ -136,22 +136,22 @@ static inline void proxy_reset_timeouts(struct proxy *proxy)
 /* increase the number of cumulated connections received on the designated frontend */
 static inline void proxy_inc_fe_conn_ctr(struct listener *l, struct proxy *fe)
 {
-	_HA_ATOMIC_INC(&fe->fe_counters.cum_conn);
+	_HA_ATOMIC_INC(&fe->fe_counters.shared->cum_conn);
 	if (l && l->counters)
-		_HA_ATOMIC_INC(&l->counters->cum_conn);
+		_HA_ATOMIC_INC(&l->counters->shared->cum_conn);
 	HA_ATOMIC_UPDATE_MAX(&fe->fe_counters.cps_max,
-	                     update_freq_ctr(&fe->fe_counters.conn_per_sec, 1));
+	                     update_freq_ctr(&fe->fe_counters.shared->conn_per_sec, 1));
 }
 
 /* increase the number of cumulated connections accepted by the designated frontend */
 static inline void proxy_inc_fe_sess_ctr(struct listener *l, struct proxy *fe)
 {
 
-	_HA_ATOMIC_INC(&fe->fe_counters.cum_sess);
+	_HA_ATOMIC_INC(&fe->fe_counters.shared->cum_sess);
 	if (l && l->counters)
-		_HA_ATOMIC_INC(&l->counters->cum_sess);
+		_HA_ATOMIC_INC(&l->counters->shared->cum_sess);
 	HA_ATOMIC_UPDATE_MAX(&fe->fe_counters.sps_max,
-			     update_freq_ctr(&fe->fe_counters.sess_per_sec, 1));
+			     update_freq_ctr(&fe->fe_counters.shared->sess_per_sec, 1));
 }
 
 /* increase the number of cumulated HTTP sessions on the designated frontend.
@@ -161,20 +161,20 @@ static inline void proxy_inc_fe_cum_sess_ver_ctr(struct listener *l, struct prox
                                                  unsigned int http_ver)
 {
 	if (http_ver == 0 ||
-	    http_ver > sizeof(fe->fe_counters.cum_sess_ver) / sizeof(*fe->fe_counters.cum_sess_ver))
+	    http_ver > sizeof(fe->fe_counters.shared->cum_sess_ver) / sizeof(*fe->fe_counters.shared->cum_sess_ver))
 	    return;
 
-	_HA_ATOMIC_INC(&fe->fe_counters.cum_sess_ver[http_ver - 1]);
+	_HA_ATOMIC_INC(&fe->fe_counters.shared->cum_sess_ver[http_ver - 1]);
 	if (l && l->counters)
-		_HA_ATOMIC_INC(&l->counters->cum_sess_ver[http_ver - 1]);
+		_HA_ATOMIC_INC(&l->counters->shared->cum_sess_ver[http_ver - 1]);
 }
 
 /* increase the number of cumulated streams on the designated backend */
 static inline void proxy_inc_be_ctr(struct proxy *be)
 {
-	_HA_ATOMIC_INC(&be->be_counters.cum_sess);
+	_HA_ATOMIC_INC(&be->be_counters.shared->cum_sess);
 	HA_ATOMIC_UPDATE_MAX(&be->be_counters.sps_max,
-			     update_freq_ctr(&be->be_counters.sess_per_sec, 1));
+			     update_freq_ctr(&be->be_counters.shared->sess_per_sec, 1));
 }
 
 /* increase the number of cumulated requests on the designated frontend.
@@ -184,14 +184,14 @@ static inline void proxy_inc_be_ctr(struct proxy *be)
 static inline void proxy_inc_fe_req_ctr(struct listener *l, struct proxy *fe,
                                         unsigned int http_ver)
 {
-	if (http_ver >= sizeof(fe->fe_counters.p.http.cum_req) / sizeof(*fe->fe_counters.p.http.cum_req))
+	if (http_ver >= sizeof(fe->fe_counters.shared->p.http.cum_req) / sizeof(*fe->fe_counters.shared->p.http.cum_req))
 	    return;
 
-	_HA_ATOMIC_INC(&fe->fe_counters.p.http.cum_req[http_ver]);
+	_HA_ATOMIC_INC(&fe->fe_counters.shared->p.http.cum_req[http_ver]);
 	if (l && l->counters)
-		_HA_ATOMIC_INC(&l->counters->p.http.cum_req[http_ver]);
+		_HA_ATOMIC_INC(&l->counters->shared->p.http.cum_req[http_ver]);
 	HA_ATOMIC_UPDATE_MAX(&fe->fe_counters.p.http.rps_max,
-	                     update_freq_ctr(&fe->fe_counters.req_per_sec, 1));
+	                     update_freq_ctr(&fe->fe_counters.shared->req_per_sec, 1));
 }
 
 /* Returns non-zero if the proxy is configured to retry a request if we got that status, 0 otherwise */

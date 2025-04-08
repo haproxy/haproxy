@@ -321,7 +321,7 @@ static void srv_state_srv_update(struct server *srv, int version, char **params)
 			srv_adm_set_drain(srv);
 	}
 
-	srv->counters.last_change = ns_to_sec(now_ns) - srv_last_time_change;
+	HA_ATOMIC_STORE(&srv->counters.shared->last_change, ns_to_sec(now_ns) - srv_last_time_change);
 	srv->check.status = srv_check_status;
 	srv->check.result = srv_check_result;
 

@@ -393,14 +393,14 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 
 	if (st->comp_ctx[dir] && st->comp_ctx[dir]->cur_lvl > 0) {
 		update_freq_ctr(&global.comp_bps_in, consumed);
-		_HA_ATOMIC_ADD(&strm_fe(s)->fe_counters.comp_in[dir], consumed);
-		_HA_ATOMIC_ADD(&s->be->be_counters.comp_in[dir], consumed);
+		_HA_ATOMIC_ADD(&strm_fe(s)->fe_counters.shared->comp_in[dir], consumed);
+		_HA_ATOMIC_ADD(&s->be->be_counters.shared->comp_in[dir], consumed);
 		update_freq_ctr(&global.comp_bps_out, to_forward);
-		_HA_ATOMIC_ADD(&strm_fe(s)->fe_counters.comp_out[dir], to_forward);
-		_HA_ATOMIC_ADD(&s->be->be_counters.comp_out[dir], to_forward);
+		_HA_ATOMIC_ADD(&strm_fe(s)->fe_counters.shared->comp_out[dir], to_forward);
+		_HA_ATOMIC_ADD(&s->be->be_counters.shared->comp_out[dir], to_forward);
 	} else {
-		_HA_ATOMIC_ADD(&strm_fe(s)->fe_counters.comp_byp[dir], consumed);
-		_HA_ATOMIC_ADD(&s->be->be_counters.comp_byp[dir], consumed);
+		_HA_ATOMIC_ADD(&strm_fe(s)->fe_counters.shared->comp_byp[dir], consumed);
+		_HA_ATOMIC_ADD(&s->be->be_counters.shared->comp_byp[dir], consumed);
 	}
 	return to_forward;
 
@@ -419,9 +419,9 @@ comp_http_end(struct stream *s, struct filter *filter,
 		goto end;
 
 	if (strm_fe(s)->mode == PR_MODE_HTTP)
-		_HA_ATOMIC_INC(&strm_fe(s)->fe_counters.p.http.comp_rsp);
+		_HA_ATOMIC_INC(&strm_fe(s)->fe_counters.shared->p.http.comp_rsp);
 	if ((s->flags & SF_BE_ASSIGNED) && (s->be->mode == PR_MODE_HTTP))
-		_HA_ATOMIC_INC(&s->be->be_counters.p.http.comp_rsp);
+		_HA_ATOMIC_INC(&s->be->be_counters.shared->p.http.comp_rsp);
  end:
 	return 1;
 }

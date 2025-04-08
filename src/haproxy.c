@@ -818,7 +818,7 @@ static void sig_dump_state(struct sig_handler *sh)
 			             "SIGHUP: Server %s/%s is %s. Conn: %d act, %d pend, %lld tot.",
 			             p->id, s->id,
 			             (s->cur_state != SRV_ST_STOPPED) ? "UP" : "DOWN",
-			             s->cur_sess, s->queueslength, s->counters.cum_sess);
+			             s->cur_sess, s->queueslength, HA_ATOMIC_LOAD(&s->counters.shared->cum_sess));
 			ha_warning("%s\n", trash.area);
 			send_log(p, LOG_NOTICE, "%s\n", trash.area);
 			s = s->next;
@@ -829,19 +829,19 @@ static void sig_dump_state(struct sig_handler *sh)
 			chunk_printf(&trash,
 			             "SIGHUP: Proxy %s has no servers. Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %lld+%lld.",
 			             p->id,
-			             p->feconn, p->beconn, p->totpend, p->queueslength, p->fe_counters.cum_conn, p->be_counters.cum_sess);
+			             p->feconn, p->beconn, p->totpend, p->queueslength, HA_ATOMIC_LOAD(&p->fe_counters.shared->cum_conn), HA_ATOMIC_LOAD(&p->be_counters.shared->cum_sess));
 		} else if (p->srv_act == 0) {
 			chunk_printf(&trash,
 			             "SIGHUP: Proxy %s %s ! Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %lld+%lld.",
 			             p->id,
 			             (p->srv_bck) ? "is running on backup servers" : "has no server available",
-			             p->feconn, p->beconn, p->totpend, p->queueslength, p->fe_counters.cum_conn, p->be_counters.cum_sess);
+			             p->feconn, p->beconn, p->totpend, p->queueslength, HA_ATOMIC_LOAD(&p->fe_counters.shared->cum_conn), HA_ATOMIC_LOAD(&p->be_counters.shared->cum_sess));
 		} else {
 			chunk_printf(&trash,
 			             "SIGHUP: Proxy %s has %d active servers and %d backup servers available."
 			             " Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %lld+%lld.",
 			             p->id, p->srv_act, p->srv_bck,
-			             p->feconn, p->beconn, p->totpend, p->queueslength, p->fe_counters.cum_conn, p->be_counters.cum_sess);
+			             p->feconn, p->beconn, p->totpend, p->queueslength, HA_ATOMIC_LOAD(&p->fe_counters.shared->cum_conn), HA_ATOMIC_LOAD(&p->be_counters.shared->cum_sess));
 		}
 		ha_warning("%s\n", trash.area);
 		send_log(p, LOG_NOTICE, "%s\n", trash.area);

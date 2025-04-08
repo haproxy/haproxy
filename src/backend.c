@@ -824,8 +824,8 @@ int assign_server(struct stream *s)
 			goto out;
 		}
 		else if (srv != prev_srv) {
-			_HA_ATOMIC_INC(&s->be->be_counters.cum_lbconn);
-			_HA_ATOMIC_INC(&srv->counters.cum_lbconn);
+			_HA_ATOMIC_INC(&s->be->be_counters.shared->cum_lbconn);
+			_HA_ATOMIC_INC(&srv->counters.shared->cum_lbconn);
 		}
 		s->target = &srv->obj_type;
 	}
@@ -999,11 +999,11 @@ int assign_server_and_queue(struct stream *s)
 					s->txn->flags |= TX_CK_DOWN;
 				}
 				s->flags |= SF_REDISP;
-				_HA_ATOMIC_INC(&prev_srv->counters.redispatches);
-				_HA_ATOMIC_INC(&s->be->be_counters.redispatches);
+				_HA_ATOMIC_INC(&prev_srv->counters.shared->redispatches);
+				_HA_ATOMIC_INC(&s->be->be_counters.shared->redispatches);
 			} else {
-				_HA_ATOMIC_INC(&prev_srv->counters.retries);
-				_HA_ATOMIC_INC(&s->be->be_counters.retries);
+				_HA_ATOMIC_INC(&prev_srv->counters.shared->retries);
+				_HA_ATOMIC_INC(&s->be->be_counters.shared->retries);
 			}
 		}
 	}
@@ -2084,13 +2084,13 @@ int connect_server(struct stream *s)
 		s->scb->flags |= SC_FL_NOLINGER;
 
 	if (s->flags & SF_SRV_REUSED) {
-		_HA_ATOMIC_INC(&s->be->be_counters.reuse);
+		_HA_ATOMIC_INC(&s->be->be_counters.shared->reuse);
 		if (srv)
-			_HA_ATOMIC_INC(&srv->counters.reuse);
+			_HA_ATOMIC_INC(&srv->counters.shared->reuse);
 	} else {
-		_HA_ATOMIC_INC(&s->be->be_counters.connect);
+		_HA_ATOMIC_INC(&s->be->be_counters.shared->connect);
 		if (srv)
-			_HA_ATOMIC_INC(&srv->counters.connect);
+			_HA_ATOMIC_INC(&srv->counters.shared->connect);
 	}
 
 	err = do_connect_server(s, srv_conn);
@@ -2279,8 +2279,8 @@ int srv_redispatch_connect(struct stream *s)
 			s->conn_err_type = STRM_ET_QUEUE_ERR;
 		}
 
-		_HA_ATOMIC_INC(&srv->counters.failed_conns);
-		_HA_ATOMIC_INC(&s->be->be_counters.failed_conns);
+		_HA_ATOMIC_INC(&srv->counters.shared->failed_conns);
+		_HA_ATOMIC_INC(&s->be->be_counters.shared->failed_conns);
 		return 1;
 
 	case SRV_STATUS_NOSRV:
@@ -2289,7 +2289,7 @@ int srv_redispatch_connect(struct stream *s)
 			s->conn_err_type = STRM_ET_CONN_ERR;
 		}
 
-		_HA_ATOMIC_INC(&s->be->be_counters.failed_conns);
+		_HA_ATOMIC_INC(&s->be->be_counters.shared->failed_conns);
 		return 1;
 
 	case SRV_STATUS_QUEUED:
@@ -2318,8 +2318,8 @@ int srv_redispatch_connect(struct stream *s)
 		if (srv)
 			srv_set_sess_last(srv);
 		if (srv)
-			_HA_ATOMIC_INC(&srv->counters.failed_conns);
-		_HA_ATOMIC_INC(&s->be->be_counters.failed_conns);
+			_HA_ATOMIC_INC(&srv->counters.shared->failed_conns);
+		_HA_ATOMIC_INC(&s->be->be_counters.shared->failed_conns);
 
 		/* release other streams waiting for this server */
 		if (may_dequeue_tasks(srv, s->be))
@@ -2393,8 +2393,8 @@ void back_try_conn_req(struct stream *s)
 			if (srv)
 				srv_set_sess_last(srv);
 			if (srv)
-				_HA_ATOMIC_INC(&srv->counters.failed_conns);
-			_HA_ATOMIC_INC(&s->be->be_counters.failed_conns);
+				_HA_ATOMIC_INC(&srv->counters.shared->failed_conns);
+			_HA_ATOMIC_INC(&s->be->be_counters.shared->failed_conns);
 
 			/* release other streams waiting for this server */
 			sess_change_server(s, NULL);
@@ -2460,8 +2460,8 @@ void back_try_conn_req(struct stream *s)
 			pendconn_cond_unlink(s->pend_pos);
 
 			if (srv)
-				_HA_ATOMIC_INC(&srv->counters.failed_conns);
-			_HA_ATOMIC_INC(&s->be->be_counters.failed_conns);
+				_HA_ATOMIC_INC(&srv->counters.shared->failed_conns);
+			_HA_ATOMIC_INC(&s->be->be_counters.shared->failed_conns);
 			sc_abort(sc);
 			sc_shutdown(sc);
 			req->flags |= CF_WRITE_TIMEOUT;
@@ -2716,8 +2716,8 @@ void back_handle_st_cer(struct stream *s)
 		}
 
 		if (objt_server(s->target))
-			_HA_ATOMIC_INC(&objt_server(s->target)->counters.failed_conns);
-		_HA_ATOMIC_INC(&s->be->be_counters.failed_conns);
+			_HA_ATOMIC_INC(&objt_server(s->target)->counters.shared->failed_conns);
+		_HA_ATOMIC_INC(&s->be->be_counters.shared->failed_conns);
 		sess_change_server(s, NULL);
 		if (may_dequeue_tasks(objt_server(s->target), s->be))
 			process_srv_queue(objt_server(s->target));
@@ -2749,8 +2749,8 @@ void back_handle_st_cer(struct stream *s)
 			s->conn_err_type = STRM_ET_CONN_OTHER;
 
 		if (objt_server(s->target))
-			_HA_ATOMIC_INC(&objt_server(s->target)->counters.internal_errors);
-		_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
+			_HA_ATOMIC_INC(&objt_server(s->target)->counters.shared->internal_errors);
+		_HA_ATOMIC_INC(&s->be->be_counters.shared->internal_errors);
 		sess_change_server(s, NULL);
 		if (may_dequeue_tasks(objt_server(s->target), s->be))
 			process_srv_queue(objt_server(s->target));
@@ -2887,8 +2887,8 @@ void back_handle_st_rdy(struct stream *s)
  */
 void set_backend_down(struct proxy *be)
 {
-	be->be_counters.last_change = ns_to_sec(now_ns);
-	_HA_ATOMIC_INC(&be->be_counters.down_trans);
+	HA_ATOMIC_STORE(&be->be_counters.shared->last_change, ns_to_sec(now_ns));
+	_HA_ATOMIC_INC(&be->be_counters.shared->down_trans);
 
 	if (!(global.mode & MODE_STARTING)) {
 		ha_alert("%s '%s' has no server available!\n", proxy_type_str(be), be->id);
@@ -2960,10 +2960,12 @@ no_cookie:
 }
 
 int be_downtime(struct proxy *px) {
-	if (px->lbprm.tot_weight && px->be_counters.last_change < ns_to_sec(now_ns))  // ignore negative time
+	unsigned long last_change = HA_ATOMIC_LOAD(&px->be_counters.shared->last_change);
+
+	if (px->lbprm.tot_weight && last_change < ns_to_sec(now_ns))  // ignore negative time
 		return px->down_time;
 
-	return ns_to_sec(now_ns) - px->be_counters.last_change + px->down_time;
+	return ns_to_sec(now_ns) - last_change + px->down_time;
 }
 
 /*
@@ -3401,7 +3403,7 @@ smp_fetch_be_sess_rate(const struct arg *args, struct sample *smp, const char *k
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = read_freq_ctr(&px->be_counters.sess_per_sec);
+	smp->data.u.sint = read_freq_ctr(&px->be_counters.shared->sess_per_sec);
 	return 1;
 }
 
@@ -3584,7 +3586,7 @@ smp_fetch_srv_sess_rate(const struct arg *args, struct sample *smp, const char *
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = read_freq_ctr(&args->data.srv->counters.sess_per_sec);
+	smp->data.u.sint = read_freq_ctr(&args->data.srv->counters.shared->sess_per_sec);
 	return 1;
 }
 

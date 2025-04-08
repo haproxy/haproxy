@@ -116,13 +116,13 @@ static enum act_return http_action_set_req_line(struct act_rule *rule, struct pr
 	goto leave;
 
   fail_rewrite:
-	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_rewrites);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->failed_rewrites);
 	if (s->flags & SF_BE_ASSIGNED)
-		_HA_ATOMIC_INC(&s->be->be_counters.failed_rewrites);
+		_HA_ATOMIC_INC(&s->be->be_counters.shared->failed_rewrites);
 	if (sess->listener && sess->listener->counters)
-		_HA_ATOMIC_INC(&sess->listener->counters->failed_rewrites);
+		_HA_ATOMIC_INC(&sess->listener->counters->shared->failed_rewrites);
 	if (objt_server(s->target))
-		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_rewrites);
+		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.shared->failed_rewrites);
 
 	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW)) {
 		ret = ACT_RET_ERR;
@@ -386,13 +386,13 @@ static enum act_return http_action_normalize_uri(struct act_rule *rule, struct p
 	goto leave;
 
   fail_rewrite:
-	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.shared->failed_rewrites, 1);
 	if (s->flags & SF_BE_ASSIGNED)
-		_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
+		_HA_ATOMIC_ADD(&s->be->be_counters.shared->failed_rewrites, 1);
 	if (sess->listener && sess->listener->counters)
-		_HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
+		_HA_ATOMIC_ADD(&sess->listener->counters->shared->failed_rewrites, 1);
 	if (objt_server(s->target))
-		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
+		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.shared->failed_rewrites, 1);
 
 	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW)) {
 		ret = ACT_RET_ERR;
@@ -562,13 +562,13 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 	goto leave;
 
   fail_rewrite:
-	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_rewrites);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->failed_rewrites);
 	if (s->flags & SF_BE_ASSIGNED)
-		_HA_ATOMIC_INC(&s->be->be_counters.failed_rewrites);
+		_HA_ATOMIC_INC(&s->be->be_counters.shared->failed_rewrites);
 	if (sess->listener && sess->listener->counters)
-		_HA_ATOMIC_INC(&sess->listener->counters->failed_rewrites);
+		_HA_ATOMIC_INC(&sess->listener->counters->shared->failed_rewrites);
 	if (objt_server(s->target))
-		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_rewrites);
+		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.shared->failed_rewrites);
 
 	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW)) {
 		ret = ACT_RET_ERR;
@@ -642,13 +642,13 @@ static enum act_return action_http_set_status(struct act_rule *rule, struct prox
                                               struct session *sess, struct stream *s, int flags)
 {
 	if (http_res_set_status(rule->arg.http.i, rule->arg.http.str, s) == -1) {
-		_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_rewrites);
+		_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->failed_rewrites);
 		if (s->flags & SF_BE_ASSIGNED)
-			_HA_ATOMIC_INC(&s->be->be_counters.failed_rewrites);
+			_HA_ATOMIC_INC(&s->be->be_counters.shared->failed_rewrites);
 		if (sess->listener && sess->listener->counters)
-			_HA_ATOMIC_INC(&sess->listener->counters->failed_rewrites);
+			_HA_ATOMIC_INC(&sess->listener->counters->shared->failed_rewrites);
 		if (objt_server(s->target))
-			_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_rewrites);
+			_HA_ATOMIC_INC(&__objt_server(s->target)->counters.shared->failed_rewrites);
 
 		if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW)) {
 			if (!(s->flags & SF_ERR_MASK))
@@ -717,10 +717,10 @@ static enum act_return http_action_reject(struct act_rule *rule, struct proxy *p
 	s->req.analysers &= AN_REQ_FLT_END;
 	s->res.analysers &= AN_RES_FLT_END;
 
-	_HA_ATOMIC_INC(&s->be->be_counters.denied_req);
-	_HA_ATOMIC_INC(&sess->fe->fe_counters.denied_req);
+	_HA_ATOMIC_INC(&s->be->be_counters.shared->denied_req);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->denied_req);
 	if (sess->listener && sess->listener->counters)
-		_HA_ATOMIC_INC(&sess->listener->counters->denied_req);
+		_HA_ATOMIC_INC(&sess->listener->counters->shared->denied_req);
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
@@ -1281,7 +1281,7 @@ static enum act_return http_action_auth(struct act_rule *rule, struct proxy *px,
 	req->analysers &= AN_REQ_FLT_END;
 
 	if (s->sess->fe == s->be) /* report it if the request was intercepted by the frontend */
-		_HA_ATOMIC_INC(&s->sess->fe->fe_counters.intercepted_req);
+		_HA_ATOMIC_INC(&s->sess->fe->fe_counters.shared->intercepted_req);
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_LOCAL;
@@ -1449,13 +1449,13 @@ static enum act_return http_action_set_header(struct act_rule *rule, struct prox
 	goto leave;
 
   fail_rewrite:
-	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_rewrites);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->failed_rewrites);
 	if (s->flags & SF_BE_ASSIGNED)
-		_HA_ATOMIC_INC(&s->be->be_counters.failed_rewrites);
+		_HA_ATOMIC_INC(&s->be->be_counters.shared->failed_rewrites);
 	if (sess->listener && sess->listener->counters)
-		_HA_ATOMIC_INC(&sess->listener->counters->failed_rewrites);
+		_HA_ATOMIC_INC(&sess->listener->counters->shared->failed_rewrites);
 	if (objt_server(s->target))
-		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_rewrites);
+		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.shared->failed_rewrites);
 
 	if (!(msg->flags & HTTP_MSGF_SOFT_RW)) {
 		ret = ACT_RET_ERR;
@@ -1581,13 +1581,13 @@ static enum act_return http_action_replace_header(struct act_rule *rule, struct 
 	goto leave;
 
   fail_rewrite:
-	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_rewrites);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->failed_rewrites);
 	if (s->flags & SF_BE_ASSIGNED)
-		_HA_ATOMIC_INC(&s->be->be_counters.failed_rewrites);
+		_HA_ATOMIC_INC(&s->be->be_counters.shared->failed_rewrites);
 	if (sess->listener && sess->listener->counters)
-		_HA_ATOMIC_INC(&sess->listener->counters->failed_rewrites);
+		_HA_ATOMIC_INC(&sess->listener->counters->shared->failed_rewrites);
 	if (objt_server(s->target))
-		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_rewrites);
+		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.shared->failed_rewrites);
 
 	if (!(msg->flags & HTTP_MSGF_SOFT_RW)) {
 		ret = ACT_RET_ERR;
@@ -2315,7 +2315,7 @@ static enum act_return http_action_return(struct act_rule *rule, struct proxy *p
 		req->analysers &= AN_REQ_FLT_END;
 
 		if (s->sess->fe == s->be) /* report it if the request was intercepted by the frontend */
-			_HA_ATOMIC_INC(&s->sess->fe->fe_counters.intercepted_req);
+			_HA_ATOMIC_INC(&s->sess->fe->fe_counters.shared->intercepted_req);
 	}
 
 	return ACT_RET_ABRT;

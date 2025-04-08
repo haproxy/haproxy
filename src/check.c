@@ -515,7 +515,7 @@ void set_server_check_status(struct check *check, short status, const char *desc
 		if ((!(check->state & CHK_ST_AGENT) ||
 		    (check->status >= HCHK_STATUS_L57DATA)) &&
 		    (check->health > 0)) {
-			_HA_ATOMIC_INC(&s->counters.failed_checks);
+			_HA_ATOMIC_INC(&s->counters.shared->failed_checks);
 			report = 1;
 			check->health--;
 			if (check->health < check->rise)
@@ -743,7 +743,7 @@ void __health_adjust(struct server *s, short status)
 	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 
 	HA_ATOMIC_STORE(&s->consecutive_errors, 0);
-	_HA_ATOMIC_INC(&s->counters.failed_hana);
+	_HA_ATOMIC_INC(&s->counters.shared->failed_hana);
 
 	if (s->check.fastinter) {
 		/* timer might need to be advanced, it might also already be
@@ -995,6 +995,7 @@ int httpchk_build_status_header(struct server *s, struct buffer *buf)
 				      "UP %d/%d", "UP",
 				      "NOLB %d/%d", "NOLB",
 				      "no check" };
+	unsigned long last_change = HA_ATOMIC_LOAD(&s->counters.shared->last_change);
 
 	if (!(s->check.state & CHK_ST_ENABLED))
 		sv_state = 6;
@@ -1032,9 +1033,9 @@ int httpchk_build_status_header(struct server *s, struct buffer *buf)
 		      s->queueslength);
 
 	if ((s->cur_state == SRV_ST_STARTING) &&
-	    ns_to_sec(now_ns) < s->counters.last_change + s->slowstart &&
-	    ns_to_sec(now_ns) >= s->counters.last_change) {
-		ratio = MAX(1, 100 * (ns_to_sec(now_ns) - s->counters.last_change) / s->slowstart);
+	    ns_to_sec(now_ns) < last_change + s->slowstart &&
+	    ns_to_sec(now_ns) >= last_change) {
+		ratio = MAX(1, 100 * (ns_to_sec(now_ns) - last_change) / s->slowstart);
 		chunk_appendf(buf, "; throttle=%d%%", ratio);
 	}
 

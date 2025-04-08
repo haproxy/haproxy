@@ -258,7 +258,7 @@ static int parse_stat_line(struct ist line,
 	struct server *srv;
 	struct proxy *px;
 	struct ist token;
-	char *base_off;
+	char *base_off, *base_off_shared;
 	char *guid;
 	int i, off;
 
@@ -280,13 +280,19 @@ static int parse_stat_line(struct ist line,
 		if (domain == STFILE_DOMAIN_PX_FE) {
 			if (!(px->cap & PR_CAP_FE))
 				return 0; /* silently ignored fe/be mismatch */
+
+			base_off_shared = (char *)px->fe_counters.shared;
 			base_off = (char *)&px->fe_counters;
+
 			off = 0;
 		}
 		else if (domain == STFILE_DOMAIN_PX_BE) {
 			if (!(px->cap & PR_CAP_BE))
 				return 0; /* silently ignored fe/be mismatch */
+
+			base_off_shared = (char *)px->be_counters.shared;
 			base_off = (char *)&px->be_counters;
+
 			off = 1;
 		}
 		else {
@@ -304,7 +310,9 @@ static int parse_stat_line(struct ist line,
 		if (!li->counters)
 			return 0;
 
+		base_off_shared = (char *)li->counters->shared;
 		base_off = (char *)li->counters;
+
 		off = 0;
 		break;
 
@@ -313,7 +321,9 @@ static int parse_stat_line(struct ist line,
 			goto err;
 
 		srv = __objt_server(node->obj_type);
+		base_off_shared = (char *)srv->counters.shared;
 		base_off = (char *)&srv->counters;
+
 		off = 1;
 		break;
 
@@ -332,7 +342,10 @@ static int parse_stat_line(struct ist line,
 		if (!col)
 			continue;
 
-		load_ctr(col, token, base_off + col->metric.offset[off]);
+		if (col->flags & STAT_COL_FL_SHARED)
+			load_ctr(col, token, base_off_shared + col->metric.offset[off]);
+		else
+			load_ctr(col, token, base_off + col->metric.offset[off]);
 	}
 
 	return 0;

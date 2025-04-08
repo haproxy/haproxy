@@ -264,25 +264,25 @@ resume_execution:
 	return 0;
 
  deny:
-	_HA_ATOMIC_INC(&sess->fe->fe_counters.denied_req);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->denied_req);
 	if (sess->listener && sess->listener->counters)
-		_HA_ATOMIC_INC(&sess->listener->counters->denied_req);
+		_HA_ATOMIC_INC(&sess->listener->counters->shared->denied_req);
 	stream_report_term_evt(s->scf, strm_tevt_type_intercepted);
 	goto reject;
 
  internal:
-	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->internal_errors);
 	if (sess->listener && sess->listener->counters)
-		_HA_ATOMIC_INC(&sess->listener->counters->internal_errors);
+		_HA_ATOMIC_INC(&sess->listener->counters->shared->internal_errors);
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_INTERNAL;
 	stream_report_term_evt(s->scf, strm_tevt_type_internal_err);
 	goto reject;
 
  invalid:
-	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_req);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->failed_req);
 	if (sess->listener && sess->listener->counters)
-		_HA_ATOMIC_INC(&sess->listener->counters->failed_req);
+		_HA_ATOMIC_INC(&sess->listener->counters->shared->failed_req);
 	stream_report_term_evt(s->scf, strm_tevt_type_proto_err);
 
  reject:
@@ -486,31 +486,31 @@ resume_execution:
 	return 0;
 
   deny:
-	_HA_ATOMIC_INC(&s->sess->fe->fe_counters.denied_resp);
-	_HA_ATOMIC_INC(&s->be->be_counters.denied_resp);
+	_HA_ATOMIC_INC(&s->sess->fe->fe_counters.shared->denied_resp);
+	_HA_ATOMIC_INC(&s->be->be_counters.shared->denied_resp);
 	if (s->sess->listener && s->sess->listener->counters)
-		_HA_ATOMIC_INC(&s->sess->listener->counters->denied_resp);
+		_HA_ATOMIC_INC(&s->sess->listener->counters->shared->denied_resp);
 	if (objt_server(s->target))
-		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.denied_resp);
+		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.shared->denied_resp);
 	stream_report_term_evt(s->scb, strm_tevt_type_intercepted);
 	goto reject;
 
  internal:
-	_HA_ATOMIC_INC(&s->sess->fe->fe_counters.internal_errors);
-	_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
+	_HA_ATOMIC_INC(&s->sess->fe->fe_counters.shared->internal_errors);
+	_HA_ATOMIC_INC(&s->be->be_counters.shared->internal_errors);
 	if (s->sess->listener && s->sess->listener->counters)
-		_HA_ATOMIC_INC(&s->sess->listener->counters->internal_errors);
+		_HA_ATOMIC_INC(&s->sess->listener->counters->shared->internal_errors);
 	if (objt_server(s->target))
-		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.internal_errors);
+		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.shared->internal_errors);
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_INTERNAL;
 	stream_report_term_evt(s->scf, strm_tevt_type_internal_err);
 	goto reject;
 
  invalid:
-	_HA_ATOMIC_INC(&s->be->be_counters.failed_resp);
+	_HA_ATOMIC_INC(&s->be->be_counters.shared->failed_resp);
 	if (objt_server(s->target))
-		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_resp);
+		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.shared->failed_resp);
 	stream_report_term_evt(s->scf, strm_tevt_type_proto_err);
 
  reject:
@@ -585,9 +585,9 @@ int tcp_exec_l4_rules(struct session *sess)
 			goto end;
 		}
 		else if (rule->action == ACT_ACTION_DENY) {
-			_HA_ATOMIC_INC(&sess->fe->fe_counters.denied_conn);
+			_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->denied_conn);
 			if (sess->listener && sess->listener->counters)
-				_HA_ATOMIC_INC(&sess->listener->counters->denied_conn);
+				_HA_ATOMIC_INC(&sess->listener->counters->shared->denied_conn);
 
 			result = 0;
 			goto end;
@@ -673,9 +673,9 @@ int tcp_exec_l5_rules(struct session *sess)
 			goto end;
 		}
 		else if (rule->action == ACT_ACTION_DENY) {
-			_HA_ATOMIC_INC(&sess->fe->fe_counters.denied_sess);
+			_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->denied_sess);
 			if (sess->listener && sess->listener->counters)
-				_HA_ATOMIC_INC(&sess->listener->counters->denied_sess);
+				_HA_ATOMIC_INC(&sess->listener->counters->shared->denied_sess);
 
 			result = 0;
 			goto end;

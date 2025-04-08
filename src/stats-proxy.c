@@ -34,12 +34,29 @@
     .metric.offset[1] = offsetof(struct be_counters, offset_f),                \
   }
 
+/* Define a new generic shared metric for both frontend and backend sides. */
+#define ME_NEW_PX_SHARED(name_f, alt_n, nature, format, offset_f, cap_f, desc_f)\
+  {                                                                            \
+    ME_NEW_COMMON(name_f, alt_n, nature, format, offset_f, cap_f, desc_f)      \
+    .flags = STAT_COL_FL_GENERIC | STAT_COL_FL_SHARED,                         \
+    .metric.offset[0] = offsetof(struct fe_counters_shared, offset_f),         \
+    .metric.offset[1] = offsetof(struct be_counters_shared, offset_f),         \
+  }
+
 /* Define a new generic metric for frontend side only. */
 #define ME_NEW_FE(name_f, alt_n, nature, format, offset_f, cap_f, desc_f)     \
   {                                                                           \
     ME_NEW_COMMON(name_f, alt_n, nature, format, offset_f, cap_f, desc_f)     \
     .flags = STAT_COL_FL_GENERIC,                                             \
     .metric.offset[0] = offsetof(struct fe_counters, offset_f),               \
+  }
+
+/* Define a new generic shared metric for frontend side only. */
+#define ME_NEW_FE_SHARED(name_f, alt_n, nature, format, offset_f, cap_f, desc_f)\
+  {                                                                           \
+    ME_NEW_COMMON(name_f, alt_n, nature, format, offset_f, cap_f, desc_f)     \
+    .flags = STAT_COL_FL_GENERIC | STAT_COL_FL_SHARED,                        \
+    .metric.offset[0] = offsetof(struct fe_counters_shared, offset_f),        \
   }
 
 /* Define a new generic metric for backend side only. */
@@ -50,6 +67,14 @@
     .metric.offset[1] = offsetof(struct be_counters, offset_f),               \
   }
 
+/* Define a new generic shared metric for backend side only. */
+#define ME_NEW_BE_SHARED(name_f, alt_n, nature, format, offset_f, cap_f, desc_f)\
+  {                                                                           \
+    ME_NEW_COMMON(name_f, alt_n, nature, format, offset_f, cap_f, desc_f)     \
+    .flags = STAT_COL_FL_GENERIC | STAT_COL_FL_SHARED,                        \
+    .metric.offset[1] = offsetof(struct be_counters_shared, offset_f),        \
+  }
+
 const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
 	[ST_I_PX_PXNAME]                        = { .name = "pxname",                      .alt_name = NULL,                              .desc = "Proxy name" },
 	[ST_I_PX_SVNAME]                        = { .name = "svname",                      .alt_name = NULL,                              .desc = "Server name" },
@@ -58,56 +83,56 @@ const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
 	[ST_I_PX_SCUR]                          = { .name = "scur",                        .alt_name = "current_sessions",                .desc = "Number of current sessions on the frontend, backend or server", .cap = STATS_PX_CAP_LFBS},
 	[ST_I_PX_SMAX]                          = { .name = "smax",                        .alt_name = "max_sessions",                    .desc = "Highest value of current sessions encountered since process started", .cap = STATS_PX_CAP_LFBS },
 	[ST_I_PX_SLIM]                          = { .name = "slim",                        .alt_name = "limit_sessions",                  .desc = "Frontend/listener/server's maxconn, backend's fullconn", .cap = STATS_PX_CAP_LFBS },
-	[ST_I_PX_STOT]          = ME_NEW_PX("stot",          "sessions_total",                     FN_COUNTER, FF_U64, cum_sess,               STATS_PX_CAP_LFBS, "Total number of sessions since process started"),
-	[ST_I_PX_BIN]           = ME_NEW_PX("bin",           "bytes_in_total",                     FN_COUNTER, FF_U64, bytes_in,               STATS_PX_CAP_LFBS, "Total number of request bytes since process started"),
-	[ST_I_PX_BOUT]          = ME_NEW_PX("bout",          "bytes_out_total",                    FN_COUNTER, FF_U64, bytes_out,              STATS_PX_CAP_LFBS, "Total number of response bytes since process started"),
-	[ST_I_PX_DREQ]          = ME_NEW_PX("dreq",          "requests_denied_total",              FN_COUNTER, FF_U64, denied_req,             STATS_PX_CAP_LFB_, "Total number of denied requests since process started"),
-	[ST_I_PX_DRESP]         = ME_NEW_PX("dresp",         "responses_denied_total",             FN_COUNTER, FF_U64, denied_resp,            STATS_PX_CAP_LFBS, "Total number of denied responses since process started"),
-	[ST_I_PX_EREQ]          = ME_NEW_FE("ereq",          "request_errors_total",               FN_COUNTER, FF_U64, failed_req,             STATS_PX_CAP_LF__, "Total number of invalid requests since process started"),
-	[ST_I_PX_ECON]          = ME_NEW_BE("econ",          "connection_errors_total",            FN_COUNTER, FF_U64, failed_conns,           STATS_PX_CAP___BS, "Total number of failed connections to server since the worker process started"),
-	[ST_I_PX_ERESP]         = ME_NEW_BE("eresp",         "response_errors_total",              FN_COUNTER, FF_U64, failed_resp,            STATS_PX_CAP___BS, "Total number of invalid responses since the worker process started"),
-	[ST_I_PX_WRETR]         = ME_NEW_BE("wretr",         "retry_warnings_total",               FN_COUNTER, FF_U64, retries,                STATS_PX_CAP___BS, "Total number of server connection retries since the worker process started"),
-	[ST_I_PX_WREDIS]        = ME_NEW_BE("wredis",        "redispatch_warnings_total",          FN_COUNTER, FF_U64, redispatches,           STATS_PX_CAP___BS, "Total number of server redispatches due to connection failures since the worker process started"),
+	[ST_I_PX_STOT]          = ME_NEW_PX_SHARED("stot",          "sessions_total",                     FN_COUNTER, FF_U64, cum_sess,               STATS_PX_CAP_LFBS, "Total number of sessions since process started"),
+	[ST_I_PX_BIN]           = ME_NEW_PX_SHARED("bin",           "bytes_in_total",                     FN_COUNTER, FF_U64, bytes_in,               STATS_PX_CAP_LFBS, "Total number of request bytes since process started"),
+	[ST_I_PX_BOUT]          = ME_NEW_PX_SHARED("bout",          "bytes_out_total",                    FN_COUNTER, FF_U64, bytes_out,              STATS_PX_CAP_LFBS, "Total number of response bytes since process started"),
+	[ST_I_PX_DREQ]          = ME_NEW_PX_SHARED("dreq",          "requests_denied_total",              FN_COUNTER, FF_U64, denied_req,             STATS_PX_CAP_LFB_, "Total number of denied requests since process started"),
+	[ST_I_PX_DRESP]         = ME_NEW_PX_SHARED("dresp",         "responses_denied_total",             FN_COUNTER, FF_U64, denied_resp,            STATS_PX_CAP_LFBS, "Total number of denied responses since process started"),
+	[ST_I_PX_EREQ]          = ME_NEW_FE_SHARED("ereq",          "request_errors_total",               FN_COUNTER, FF_U64, failed_req,             STATS_PX_CAP_LF__, "Total number of invalid requests since process started"),
+	[ST_I_PX_ECON]          = ME_NEW_BE_SHARED("econ",          "connection_errors_total",            FN_COUNTER, FF_U64, failed_conns,           STATS_PX_CAP___BS, "Total number of failed connections to server since the worker process started"),
+	[ST_I_PX_ERESP]         = ME_NEW_BE_SHARED("eresp",         "response_errors_total",              FN_COUNTER, FF_U64, failed_resp,            STATS_PX_CAP___BS, "Total number of invalid responses since the worker process started"),
+	[ST_I_PX_WRETR]         = ME_NEW_BE_SHARED("wretr",         "retry_warnings_total",               FN_COUNTER, FF_U64, retries,                STATS_PX_CAP___BS, "Total number of server connection retries since the worker process started"),
+	[ST_I_PX_WREDIS]        = ME_NEW_BE_SHARED("wredis",        "redispatch_warnings_total",          FN_COUNTER, FF_U64, redispatches,           STATS_PX_CAP___BS, "Total number of server redispatches due to connection failures since the worker process started"),
 	[ST_I_PX_STATUS]                        = { .name = "status",                      .alt_name = "status",                          .desc = "Frontend/listen status: OPEN/WAITING/FULL/STOP; backend: UP/DOWN; server: last check status", .cap = STATS_PX_CAP_LFBS },
 	[ST_I_PX_WEIGHT]                        = { .name = "weight",                      .alt_name = "weight",                          .desc = "Server's effective weight, or sum of active servers' effective weights for a backend", .cap = STATS_PX_CAP___BS },
 	[ST_I_PX_ACT]                           = { .name = "act",                         .alt_name = "active_servers",                  .desc = "Total number of active UP servers with a non-zero weight", .cap = STATS_PX_CAP___BS },
 	[ST_I_PX_BCK]                           = { .name = "bck",                         .alt_name = "backup_servers",                  .desc = "Total number of backup UP servers with a non-zero weight", .cap = STATS_PX_CAP___BS },
-	[ST_I_PX_CHKFAIL]       = ME_NEW_BE("chkfail",       "check_failures_total",               FN_COUNTER, FF_U64, failed_checks,          STATS_PX_CAP____S, "Total number of failed individual health checks per server/backend, since the worker process started"),
-	[ST_I_PX_CHKDOWN]       = ME_NEW_BE("chkdown",       "check_up_down_total",                FN_COUNTER, FF_U64, down_trans,             STATS_PX_CAP___BS, "Total number of failed checks causing UP to DOWN server transitions, per server/backend, since the worker process started"),
-	[ST_I_PX_LASTCHG]       = ME_NEW_BE("lastchg",       "check_last_change_seconds",          FN_AGE,     FF_U32, last_change,            STATS_PX_CAP___BS, "How long ago the last server state changed, in seconds"),
+	[ST_I_PX_CHKFAIL]       = ME_NEW_BE_SHARED("chkfail",       "check_failures_total",               FN_COUNTER, FF_U64, failed_checks,          STATS_PX_CAP____S, "Total number of failed individual health checks per server/backend, since the worker process started"),
+	[ST_I_PX_CHKDOWN]       = ME_NEW_BE_SHARED("chkdown",       "check_up_down_total",                FN_COUNTER, FF_U64, down_trans,             STATS_PX_CAP___BS, "Total number of failed checks causing UP to DOWN server transitions, per server/backend, since the worker process started"),
+	[ST_I_PX_LASTCHG]       = ME_NEW_BE_SHARED("lastchg",       "check_last_change_seconds",          FN_AGE,     FF_U32, last_change,            STATS_PX_CAP___BS, "How long ago the last server state changed, in seconds"),
 	[ST_I_PX_DOWNTIME]                      = { .name = "downtime",                    .alt_name = "downtime_seconds_total",          .desc = "Total time spent in DOWN state, for server or backend", .cap = STATS_PX_CAP___BS },
 	[ST_I_PX_QLIMIT]                        = { .name = "qlimit",                      .alt_name = "queue_limit",                     .desc = "Limit on the number of connections in queue, for servers only (maxqueue argument)", .cap = STATS_PX_CAP____S },
 	[ST_I_PX_PID]                           = { .name = "pid",                         .alt_name = NULL,                              .desc = "Relative worker process number (1)" },
 	[ST_I_PX_IID]                           = { .name = "iid",                         .alt_name = NULL,                              .desc = "Frontend or Backend numeric identifier ('id' setting)" },
 	[ST_I_PX_SID]                           = { .name = "sid",                         .alt_name = NULL,                              .desc = "Server numeric identifier ('id' setting)" },
 	[ST_I_PX_THROTTLE]                      = { .name = "throttle",                    .alt_name = "current_throttle",                .desc = "Throttling ratio applied to a server's maxconn and weight during the slowstart period (0 to 100%)", .cap = STATS_PX_CAP____S },
-	[ST_I_PX_LBTOT]         = ME_NEW_BE("lbtot",         "loadbalanced_total",                 FN_COUNTER, FF_U64, cum_lbconn,             STATS_PX_CAP___BS, "Total number of requests routed by load balancing since the worker process started (ignores queue pop and stickiness)"),
+	[ST_I_PX_LBTOT]         = ME_NEW_BE_SHARED("lbtot",         "loadbalanced_total",                 FN_COUNTER, FF_U64, cum_lbconn,             STATS_PX_CAP___BS, "Total number of requests routed by load balancing since the worker process started (ignores queue pop and stickiness)"),
 	[ST_I_PX_TRACKED]                       = { .name = "tracked",                     .alt_name = NULL,                              .desc = "Name of the other server this server tracks for its state" },
 	[ST_I_PX_TYPE]                          = { .name = "type",                        .alt_name = NULL,                              .desc = "Type of the object (Listener, Frontend, Backend, Server)" },
-	[ST_I_PX_RATE]          = ME_NEW_PX("rate",          "current_session_rate",               FN_RATE,    FF_U32, sess_per_sec,           STATS_PX_CAP__FBS, "Total number of sessions processed by this object over the last second (sessions for listeners/frontends, requests for backends/servers)"),
+	[ST_I_PX_RATE]          = ME_NEW_PX_SHARED("rate",          "current_session_rate",               FN_RATE,    FF_U32, sess_per_sec,           STATS_PX_CAP__FBS, "Total number of sessions processed by this object over the last second (sessions for listeners/frontends, requests for backends/servers)"),
 	[ST_I_PX_RATE_LIM]                      = { .name = "rate_lim",                    .alt_name = "limit_session_rate",              .desc = "Limit on the number of sessions accepted in a second (frontend only, 'rate-limit sessions' setting)", .cap = STATS_PX_CAP__F__ },
 	[ST_I_PX_RATE_MAX]                      = { .name = "rate_max",                    .alt_name = "max_session_rate",                .desc = "Highest value of sessions per second observed since the worker process started", .cap = STATS_PX_CAP__FBS },
 	[ST_I_PX_CHECK_STATUS]                  = { .name = "check_status",                .alt_name = "check_status",                    .desc = "Status report of the server's latest health check, prefixed with '*' if a check is currently in progress", .cap = STATS_PX_CAP____S },
 	[ST_I_PX_CHECK_CODE]                    = { .name = "check_code",                  .alt_name = "check_code",                      .desc = "HTTP/SMTP/LDAP status code reported by the latest server health check", .cap = STATS_PX_CAP____S },
 	[ST_I_PX_CHECK_DURATION]                = { .name = "check_duration",              .alt_name = "check_duration_seconds",          .desc = "Total duration of the latest server health check, in milliseconds", .cap = STATS_PX_CAP____S },
-	[ST_I_PX_HRSP_1XX]      = ME_NEW_PX("hrsp_1xx",      "http_responses_total",               FN_COUNTER, FF_U64, p.http.rsp[1],          STATS_PX_CAP__FBS, "Total number of HTTP responses with status 100-199 returned by this object since the worker process started"),
-	[ST_I_PX_HRSP_2XX]      = ME_NEW_PX("hrsp_2xx",      "http_responses_total",               FN_COUNTER, FF_U64, p.http.rsp[2],          STATS_PX_CAP__FBS, "Total number of HTTP responses with status 200-299 returned by this object since the worker process started"),
-	[ST_I_PX_HRSP_3XX]      = ME_NEW_PX("hrsp_3xx",      "http_responses_total",               FN_COUNTER, FF_U64, p.http.rsp[3],          STATS_PX_CAP__FBS, "Total number of HTTP responses with status 300-399 returned by this object since the worker process started"),
-	[ST_I_PX_HRSP_4XX]      = ME_NEW_PX("hrsp_4xx",      "http_responses_total",               FN_COUNTER, FF_U64, p.http.rsp[4],          STATS_PX_CAP__FBS, "Total number of HTTP responses with status 400-499 returned by this object since the worker process started"),
-	[ST_I_PX_HRSP_5XX]      = ME_NEW_PX("hrsp_5xx",      "http_responses_total",               FN_COUNTER, FF_U64, p.http.rsp[5],          STATS_PX_CAP__FBS, "Total number of HTTP responses with status 500-599 returned by this object since the worker process started"),
-	[ST_I_PX_HRSP_OTHER]    = ME_NEW_PX("hrsp_other",    "http_responses_total",               FN_COUNTER, FF_U64, p.http.rsp[0],          STATS_PX_CAP__FBS, "Total number of HTTP responses with status <100, >599 returned by this object since the worker process started (error -1 included)"),
-	[ST_I_PX_HANAFAIL]      = ME_NEW_BE("hanafail",      NULL,                                 FN_COUNTER, FF_U64, failed_hana,            STATS_PX_CAP____S, "Total number of failed checks caused by an 'on-error' directive after an 'observe' condition matched"),
-	[ST_I_PX_REQ_RATE]      = ME_NEW_FE("req_rate",      NULL,                                 FN_RATE,    FF_U32, req_per_sec,            STATS_PX_CAP__F__, "Number of HTTP requests processed over the last second on this object"),
+	[ST_I_PX_HRSP_1XX]      = ME_NEW_PX_SHARED("hrsp_1xx",      "http_responses_total",               FN_COUNTER, FF_U64, p.http.rsp[1],          STATS_PX_CAP__FBS, "Total number of HTTP responses with status 100-199 returned by this object since the worker process started"),
+	[ST_I_PX_HRSP_2XX]      = ME_NEW_PX_SHARED("hrsp_2xx",      "http_responses_total",               FN_COUNTER, FF_U64, p.http.rsp[2],          STATS_PX_CAP__FBS, "Total number of HTTP responses with status 200-299 returned by this object since the worker process started"),
+	[ST_I_PX_HRSP_3XX]      = ME_NEW_PX_SHARED("hrsp_3xx",      "http_responses_total",               FN_COUNTER, FF_U64, p.http.rsp[3],          STATS_PX_CAP__FBS, "Total number of HTTP responses with status 300-399 returned by this object since the worker process started"),
+	[ST_I_PX_HRSP_4XX]      = ME_NEW_PX_SHARED("hrsp_4xx",      "http_responses_total",               FN_COUNTER, FF_U64, p.http.rsp[4],          STATS_PX_CAP__FBS, "Total number of HTTP responses with status 400-499 returned by this object since the worker process started"),
+	[ST_I_PX_HRSP_5XX]      = ME_NEW_PX_SHARED("hrsp_5xx",      "http_responses_total",               FN_COUNTER, FF_U64, p.http.rsp[5],          STATS_PX_CAP__FBS, "Total number of HTTP responses with status 500-599 returned by this object since the worker process started"),
+	[ST_I_PX_HRSP_OTHER]    = ME_NEW_PX_SHARED("hrsp_other",    "http_responses_total",               FN_COUNTER, FF_U64, p.http.rsp[0],          STATS_PX_CAP__FBS, "Total number of HTTP responses with status <100, >599 returned by this object since the worker process started (error -1 included)"),
+	[ST_I_PX_HANAFAIL]      = ME_NEW_BE_SHARED("hanafail",      NULL,                                 FN_COUNTER, FF_U64, failed_hana,            STATS_PX_CAP____S, "Total number of failed checks caused by an 'on-error' directive after an 'observe' condition matched"),
+	[ST_I_PX_REQ_RATE]      = ME_NEW_FE_SHARED("req_rate",      NULL,                                 FN_RATE,    FF_U32, req_per_sec,            STATS_PX_CAP__F__, "Number of HTTP requests processed over the last second on this object"),
 	[ST_I_PX_REQ_RATE_MAX]                  = { .name = "req_rate_max",                .alt_name = "http_requests_rate_max",          .desc = "Highest value of http requests observed since the worker process started", .cap = STATS_PX_CAP__F__ },
 	/* Note: ST_I_PX_REQ_TOT is also displayed on frontend but does not uses a raw counter value, see me_generate_field() for details. */
-	[ST_I_PX_REQ_TOT]       = ME_NEW_BE("req_tot",       "http_requests_total",                FN_COUNTER, FF_U64, p.http.cum_req,         STATS_PX_CAP__FBS, "Total number of HTTP requests processed by this object since the worker process started"),
-	[ST_I_PX_CLI_ABRT]      = ME_NEW_BE("cli_abrt",      "client_aborts_total",                FN_COUNTER, FF_U64, cli_aborts,             STATS_PX_CAP___BS, "Total number of requests or connections aborted by the client since the worker process started"),
-	[ST_I_PX_SRV_ABRT]      = ME_NEW_BE("srv_abrt",      "server_aborts_total",                FN_COUNTER, FF_U64, srv_aborts,             STATS_PX_CAP___BS, "Total number of requests or connections aborted by the server since the worker process started"),
-	[ST_I_PX_COMP_IN]       = ME_NEW_PX("comp_in",       "http_comp_bytes_in_total",           FN_COUNTER, FF_U64, comp_in[COMP_DIR_RES],  STATS_PX_CAP__FB_, "Total number of bytes submitted to the HTTP compressor for this object since the worker process started"),
-	[ST_I_PX_COMP_OUT]      = ME_NEW_PX("comp_out",      "http_comp_bytes_out_total",          FN_COUNTER, FF_U64, comp_out[COMP_DIR_RES], STATS_PX_CAP__FB_, "Total number of bytes emitted by the HTTP compressor for this object since the worker process started"),
-	[ST_I_PX_COMP_BYP]      = ME_NEW_PX("comp_byp",      "http_comp_bytes_bypassed_total",     FN_COUNTER, FF_U64, comp_byp[COMP_DIR_RES], STATS_PX_CAP__FB_, "Total number of bytes that bypassed HTTP compression for this object since the worker process started (CPU/memory/bandwidth limitation)"),
-	[ST_I_PX_COMP_RSP]      = ME_NEW_PX("comp_rsp",      "http_comp_responses_total",          FN_COUNTER, FF_U64, p.http.comp_rsp,        STATS_PX_CAP__FB_, "Total number of HTTP responses that were compressed for this object since the worker process started"),
-	[ST_I_PX_LASTSESS]      = ME_NEW_BE("lastsess",      "last_session_seconds",               FN_AGE,     FF_S32, last_sess,              STATS_PX_CAP___BS, "How long ago some traffic was seen on this object on this worker process, in seconds"),
+	[ST_I_PX_REQ_TOT]       = ME_NEW_BE_SHARED("req_tot",       "http_requests_total",                FN_COUNTER, FF_U64, p.http.cum_req,         STATS_PX_CAP__FBS, "Total number of HTTP requests processed by this object since the worker process started"),
+	[ST_I_PX_CLI_ABRT]      = ME_NEW_BE_SHARED("cli_abrt",      "client_aborts_total",                FN_COUNTER, FF_U64, cli_aborts,             STATS_PX_CAP___BS, "Total number of requests or connections aborted by the client since the worker process started"),
+	[ST_I_PX_SRV_ABRT]      = ME_NEW_BE_SHARED("srv_abrt",      "server_aborts_total",                FN_COUNTER, FF_U64, srv_aborts,             STATS_PX_CAP___BS, "Total number of requests or connections aborted by the server since the worker process started"),
+	[ST_I_PX_COMP_IN]       = ME_NEW_PX_SHARED("comp_in",       "http_comp_bytes_in_total",           FN_COUNTER, FF_U64, comp_in[COMP_DIR_RES],  STATS_PX_CAP__FB_, "Total number of bytes submitted to the HTTP compressor for this object since the worker process started"),
+	[ST_I_PX_COMP_OUT]      = ME_NEW_PX_SHARED("comp_out",      "http_comp_bytes_out_total",          FN_COUNTER, FF_U64, comp_out[COMP_DIR_RES], STATS_PX_CAP__FB_, "Total number of bytes emitted by the HTTP compressor for this object since the worker process started"),
+	[ST_I_PX_COMP_BYP]      = ME_NEW_PX_SHARED("comp_byp",      "http_comp_bytes_bypassed_total",     FN_COUNTER, FF_U64, comp_byp[COMP_DIR_RES], STATS_PX_CAP__FB_, "Total number of bytes that bypassed HTTP compression for this object since the worker process started (CPU/memory/bandwidth limitation)"),
+	[ST_I_PX_COMP_RSP]      = ME_NEW_PX_SHARED("comp_rsp",      "http_comp_responses_total",          FN_COUNTER, FF_U64, p.http.comp_rsp,        STATS_PX_CAP__FB_, "Total number of HTTP responses that were compressed for this object since the worker process started"),
+	[ST_I_PX_LASTSESS]      = ME_NEW_BE_SHARED("lastsess",      "last_session_seconds",               FN_AGE,     FF_S32, last_sess,              STATS_PX_CAP___BS, "How long ago some traffic was seen on this object on this worker process, in seconds"),
 	[ST_I_PX_LAST_CHK]                      = { .name = "last_chk",                    .alt_name = NULL,                              .desc = "Short description of the latest health check report for this server (see also check_desc)" },
 	[ST_I_PX_LAST_AGT]                      = { .name = "last_agt",                    .alt_name = NULL,                              .desc = "Short description of the latest agent check report for this server (see also agent_desc)" },
 	[ST_I_PX_QTIME]                         = { .name = "qtime",                       .alt_name = "queue_time_average_seconds",      .desc = "Time spent in the queue, in milliseconds, averaged over the 1024 last requests (backend/server)", .cap = STATS_PX_CAP___BS },
@@ -129,24 +154,24 @@ const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
 	[ST_I_PX_COOKIE]                        = { .name = "cookie",                      .alt_name = NULL,                              .desc = "Backend's cookie name or Server's cookie value, shown only if show-legends is set, or at levels oper/admin for the CLI" },
 	[ST_I_PX_MODE]                          = { .name = "mode",                        .alt_name = NULL,                              .desc = "'mode' setting (tcp/http/health/cli/spop)" },
 	[ST_I_PX_ALGO]                          = { .name = "algo",                        .alt_name = NULL,                              .desc = "Backend's load balancing algorithm, shown only if show-legends is set, or at levels oper/admin for the CLI" },
-	[ST_I_PX_CONN_RATE]     = ME_NEW_FE("conn_rate",     NULL,                            FN_RATE,    FF_U32, conn_per_sec,           STATS_PX_CAP__F__, "Number of new connections accepted over the last second on the frontend for this worker process"),
+	[ST_I_PX_CONN_RATE]     = ME_NEW_FE_SHARED("conn_rate",     NULL,                            FN_RATE,    FF_U32, conn_per_sec,           STATS_PX_CAP__F__, "Number of new connections accepted over the last second on the frontend for this worker process"),
 	[ST_I_PX_CONN_RATE_MAX]                 = { .name = "conn_rate_max",               .alt_name = "connections_rate_max",            .desc = "Highest value of connections per second observed since the worker process started", .cap = STATS_PX_CAP__F__ },
-	[ST_I_PX_CONN_TOT]      = ME_NEW_FE("conn_tot",      "connections_total",             FN_COUNTER, FF_U64, cum_conn,               STATS_PX_CAP_LF__, "Total number of new connections accepted on this frontend since the worker process started"),
-	[ST_I_PX_INTERCEPTED]   = ME_NEW_FE("intercepted",   "intercepted_requests_total",    FN_COUNTER, FF_U64, intercepted_req,        STATS_PX_CAP__F__, "Total number of HTTP requests intercepted on the frontend (redirects/stats/services) since the worker process started"),
-	[ST_I_PX_DCON]          = ME_NEW_FE("dcon",          "denied_connections_total",      FN_COUNTER, FF_U64, denied_conn,            STATS_PX_CAP_LF__, "Total number of incoming connections blocked on a listener/frontend by a tcp-request connection rule since the worker process started"),
-	[ST_I_PX_DSES]          = ME_NEW_FE("dses",          "denied_sessions_total",         FN_COUNTER, FF_U64, denied_sess,            STATS_PX_CAP_LF__, "Total number of incoming sessions blocked on a listener/frontend by a tcp-request connection rule since the worker process started"),
-	[ST_I_PX_WREW]          = ME_NEW_PX("wrew",          "failed_header_rewriting_total", FN_COUNTER, FF_U64, failed_rewrites,        STATS_PX_CAP_LFBS, "Total number of failed HTTP header rewrites since the worker process started"),
-	[ST_I_PX_CONNECT]       = ME_NEW_BE("connect",       "connection_attempts_total",     FN_COUNTER, FF_U64, connect,                STATS_PX_CAP___BS, "Total number of outgoing connection attempts on this backend/server since the worker process started"),
-	[ST_I_PX_REUSE]         = ME_NEW_BE("reuse",         "connection_reuses_total",       FN_COUNTER, FF_U64, reuse,                  STATS_PX_CAP___BS, "Total number of reused connection on this backend/server since the worker process started"),
-	[ST_I_PX_CACHE_LOOKUPS] = ME_NEW_PX("cache_lookups", "http_cache_lookups_total",      FN_COUNTER, FF_U64, p.http.cache_lookups,   STATS_PX_CAP__FB_, "Total number of HTTP requests looked up in the cache on this frontend/backend since the worker process started"),
-	[ST_I_PX_CACHE_HITS]    = ME_NEW_PX("cache_hits",    "http_cache_hits_total",         FN_COUNTER, FF_U64, p.http.cache_hits,      STATS_PX_CAP__FB_, "Total number of HTTP requests not found in the cache on this frontend/backend since the worker process started"),
+	[ST_I_PX_CONN_TOT]      = ME_NEW_FE_SHARED("conn_tot",      "connections_total",             FN_COUNTER, FF_U64, cum_conn,               STATS_PX_CAP_LF__, "Total number of new connections accepted on this frontend since the worker process started"),
+	[ST_I_PX_INTERCEPTED]   = ME_NEW_FE_SHARED("intercepted",   "intercepted_requests_total",    FN_COUNTER, FF_U64, intercepted_req,        STATS_PX_CAP__F__, "Total number of HTTP requests intercepted on the frontend (redirects/stats/services) since the worker process started"),
+	[ST_I_PX_DCON]          = ME_NEW_FE_SHARED("dcon",          "denied_connections_total",      FN_COUNTER, FF_U64, denied_conn,            STATS_PX_CAP_LF__, "Total number of incoming connections blocked on a listener/frontend by a tcp-request connection rule since the worker process started"),
+	[ST_I_PX_DSES]          = ME_NEW_FE_SHARED("dses",          "denied_sessions_total",         FN_COUNTER, FF_U64, denied_sess,            STATS_PX_CAP_LF__, "Total number of incoming sessions blocked on a listener/frontend by a tcp-request connection rule since the worker process started"),
+	[ST_I_PX_WREW]          = ME_NEW_PX_SHARED("wrew",          "failed_header_rewriting_total", FN_COUNTER, FF_U64, failed_rewrites,        STATS_PX_CAP_LFBS, "Total number of failed HTTP header rewrites since the worker process started"),
+	[ST_I_PX_CONNECT]       = ME_NEW_BE_SHARED("connect",       "connection_attempts_total",     FN_COUNTER, FF_U64, connect,                STATS_PX_CAP___BS, "Total number of outgoing connection attempts on this backend/server since the worker process started"),
+	[ST_I_PX_REUSE]         = ME_NEW_BE_SHARED("reuse",         "connection_reuses_total",       FN_COUNTER, FF_U64, reuse,                  STATS_PX_CAP___BS, "Total number of reused connection on this backend/server since the worker process started"),
+	[ST_I_PX_CACHE_LOOKUPS] = ME_NEW_PX_SHARED("cache_lookups", "http_cache_lookups_total",      FN_COUNTER, FF_U64, p.http.cache_lookups,   STATS_PX_CAP__FB_, "Total number of HTTP requests looked up in the cache on this frontend/backend since the worker process started"),
+	[ST_I_PX_CACHE_HITS]    = ME_NEW_PX_SHARED("cache_hits",    "http_cache_hits_total",         FN_COUNTER, FF_U64, p.http.cache_hits,      STATS_PX_CAP__FB_, "Total number of HTTP requests not found in the cache on this frontend/backend since the worker process started"),
 	[ST_I_PX_SRV_ICUR]                      = { .name = "srv_icur",                    .alt_name = "idle_connections_current",        .desc = "Current number of idle connections available for reuse on this server", .cap = STATS_PX_CAP____S },
 	[ST_I_PX_SRV_ILIM]                      = { .name = "src_ilim",                    .alt_name = "idle_connections_limit",          .desc = "Limit on the number of available idle connections on this server (server 'pool_max_conn' directive)", .cap = STATS_PX_CAP____S },
 	[ST_I_PX_QT_MAX]                        = { .name = "qtime_max",                   .alt_name = "max_queue_time_seconds",          .desc = "Maximum observed time spent in the queue, in milliseconds (backend/server)", .cap = STATS_PX_CAP___BS },
 	[ST_I_PX_CT_MAX]                        = { .name = "ctime_max",                   .alt_name = "max_connect_time_seconds",        .desc = "Maximum observed time spent waiting for a connection to complete, in milliseconds (backend/server)", .cap = STATS_PX_CAP___BS },
 	[ST_I_PX_RT_MAX]                        = { .name = "rtime_max",                   .alt_name = "max_response_time_seconds",       .desc = "Maximum observed time spent waiting for a server response, in milliseconds (backend/server)", .cap = STATS_PX_CAP___BS },
 	[ST_I_PX_TT_MAX]                        = { .name = "ttime_max",                   .alt_name = "max_total_time_seconds",          .desc = "Maximum observed total request+response time (request+queue+connect+response+processing), in milliseconds (backend/server)", .cap = STATS_PX_CAP___BS },
-	[ST_I_PX_EINT]          = ME_NEW_PX("eint",          "internal_errors_total",         FN_COUNTER, FF_U64, internal_errors,        STATS_PX_CAP_LFBS, "Total number of internal errors since process started"),
+	[ST_I_PX_EINT]          = ME_NEW_PX_SHARED("eint",          "internal_errors_total",         FN_COUNTER, FF_U64, internal_errors,        STATS_PX_CAP_LFBS, "Total number of internal errors since process started"),
 	[ST_I_PX_IDLE_CONN_CUR]                 = { .name = "idle_conn_cur",               .alt_name = "unsafe_idle_connections_current", .desc = "Current number of unsafe idle connections", .cap = STATS_PX_CAP____S},
 	[ST_I_PX_SAFE_CONN_CUR]                 = { .name = "safe_conn_cur",               .alt_name = "safe_idle_connections_current",   .desc = "Current number of safe idle connections", .cap = STATS_PX_CAP____S},
 	[ST_I_PX_USED_CONN_CUR]                 = { .name = "used_conn_cur",               .alt_name = "used_connections_current",        .desc = "Current number of connections in use", .cap = STATS_PX_CAP____S},
@@ -157,13 +182,13 @@ const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
 	[ST_I_PX_AGG_CHECK_STATUS]              = { .name = "agg_check_status",            .alt_name = "agg_check_status",                .desc = "Backend's aggregated gauge of servers' state check status", .cap = STATS_PX_CAP___B_ },
 	[ST_I_PX_SRID]                          = { .name = "srid",                        .alt_name = NULL,                              .desc = "Server id revision, to prevent server id reuse mixups" },
 	[ST_I_PX_SESS_OTHER]                    = { .name = "sess_other",                  .alt_name = NULL,                              .desc = "Total number of sessions other than HTTP since process started" },
-	[ST_I_PX_H1SESS]        = ME_NEW_FE("h1sess",        NULL,                            FN_COUNTER, FF_U64, cum_sess_ver[0],        STATS_PX_CAP__F__, "Total number of HTTP/1 sessions since process started"),
-	[ST_I_PX_H2SESS]        = ME_NEW_FE("h2sess",        NULL,                            FN_COUNTER, FF_U64, cum_sess_ver[1],        STATS_PX_CAP__F__, "Total number of HTTP/2 sessions since process started"),
-	[ST_I_PX_H3SESS]        = ME_NEW_FE("h3sess",        NULL,                            FN_COUNTER, FF_U64, cum_sess_ver[2],        STATS_PX_CAP__F__, "Total number of HTTP/3 sessions since process started"),
-	[ST_I_PX_REQ_OTHER]     = ME_NEW_FE("req_other",     NULL,                            FN_COUNTER, FF_U64, p.http.cum_req[0],      STATS_PX_CAP__F__, "Total number of sessions other than HTTP processed by this object since the worker process started"),
-	[ST_I_PX_H1REQ]         = ME_NEW_FE("h1req",         NULL,                            FN_COUNTER, FF_U64, p.http.cum_req[1],      STATS_PX_CAP__F__, "Total number of HTTP/1 sessions processed by this object since the worker process started"),
-	[ST_I_PX_H2REQ]         = ME_NEW_FE("h2req",         NULL,                            FN_COUNTER, FF_U64, p.http.cum_req[2],      STATS_PX_CAP__F__, "Total number of hTTP/2 sessions processed by this object since the worker process started"),
-	[ST_I_PX_H3REQ]         = ME_NEW_FE("h3req",         NULL,                            FN_COUNTER, FF_U64, p.http.cum_req[3],      STATS_PX_CAP__F__, "Total number of HTTP/3 sessions processed by this object since the worker process started"),
+	[ST_I_PX_H1SESS]        = ME_NEW_FE_SHARED("h1sess",        NULL,                            FN_COUNTER, FF_U64, cum_sess_ver[0],        STATS_PX_CAP__F__, "Total number of HTTP/1 sessions since process started"),
+	[ST_I_PX_H2SESS]        = ME_NEW_FE_SHARED("h2sess",        NULL,                            FN_COUNTER, FF_U64, cum_sess_ver[1],        STATS_PX_CAP__F__, "Total number of HTTP/2 sessions since process started"),
+	[ST_I_PX_H3SESS]        = ME_NEW_FE_SHARED("h3sess",        NULL,                            FN_COUNTER, FF_U64, cum_sess_ver[2],        STATS_PX_CAP__F__, "Total number of HTTP/3 sessions since process started"),
+	[ST_I_PX_REQ_OTHER]     = ME_NEW_FE_SHARED("req_other",     NULL,                            FN_COUNTER, FF_U64, p.http.cum_req[0],      STATS_PX_CAP__F__, "Total number of sessions other than HTTP processed by this object since the worker process started"),
+	[ST_I_PX_H1REQ]         = ME_NEW_FE_SHARED("h1req",         NULL,                            FN_COUNTER, FF_U64, p.http.cum_req[1],      STATS_PX_CAP__F__, "Total number of HTTP/1 sessions processed by this object since the worker process started"),
+	[ST_I_PX_H2REQ]         = ME_NEW_FE_SHARED("h2req",         NULL,                            FN_COUNTER, FF_U64, p.http.cum_req[2],      STATS_PX_CAP__F__, "Total number of hTTP/2 sessions processed by this object since the worker process started"),
+	[ST_I_PX_H3REQ]         = ME_NEW_FE_SHARED("h3req",         NULL,                            FN_COUNTER, FF_U64, p.http.cum_req[3],      STATS_PX_CAP__F__, "Total number of HTTP/3 sessions processed by this object since the worker process started"),
 	[ST_I_PX_PROTO]                         = { .name = "proto",                       .alt_name = NULL,                              .desc = "Protocol" },
 };
 
@@ -220,9 +245,9 @@ static int stcol_hide(enum stat_idx_px idx, enum obj_type *objt)
 
 	case ST_I_PX_LASTSESS:
 		if (srv)
-			return !srv->counters.last_sess;
+			return !HA_ATOMIC_LOAD(&srv->counters.shared->last_sess);
 		else if (px)
-			return !px->be_counters.last_sess;
+			return !HA_ATOMIC_LOAD(&px->be_counters.shared->last_sess);
 		else
 			return 0;
 
@@ -256,13 +281,19 @@ static struct field me_generate_field(const struct stat_col *col,
 	switch (cap) {
 	case STATS_PX_CAP_FE:
 	case STATS_PX_CAP_LI:
-		counter = (char *)counters + col->metric.offset[0];
+		if (col->flags & STAT_COL_FL_SHARED)
+			counter = (char *)((struct fe_counters *)counters)->shared + col->metric.offset[0];
+		else
+			counter = (char *)counters + col->metric.offset[0];
 		wrong_side = !(col->cap & (STATS_PX_CAP_FE|STATS_PX_CAP_LI));
 		break;
 
 	case STATS_PX_CAP_BE:
 	case STATS_PX_CAP_SRV:
-		counter = (char *)counters + col->metric.offset[1];
+		if (col->flags & STAT_COL_FL_SHARED)
+			counter = (char *)((struct be_counters *)counters)->shared + col->metric.offset[1];
+		else
+			counter = (char *)counters + col->metric.offset[1];
 		wrong_side = !(col->cap & (STATS_PX_CAP_BE|STATS_PX_CAP_SRV));
 		break;
 
@@ -278,13 +309,13 @@ static struct field me_generate_field(const struct stat_col *col,
 	if (idx == ST_I_PX_REQ_TOT && cap == STATS_PX_CAP_FE && !stat_file) {
 		struct proxy *px = __objt_proxy(objt);
 		const size_t nb_reqs =
-		  sizeof(px->fe_counters.p.http.cum_req) /
-		  sizeof(*px->fe_counters.p.http.cum_req);
+		  sizeof(px->fe_counters.shared->p.http.cum_req) /
+		  sizeof(*px->fe_counters.shared->p.http.cum_req);
 		uint64_t total_req = 0;
 		int i;
 
 		for (i = 0; i < nb_reqs; i++)
-			total_req += px->fe_counters.p.http.cum_req[i];
+			total_req += HA_ATOMIC_LOAD(&px->fe_counters.shared->p.http.cum_req[i]);
 		return mkf_u64(FN_COUNTER, total_req);
 	}
 
@@ -311,7 +342,11 @@ static struct field me_generate_field(const struct stat_col *col,
 	if (fn == FN_COUNTER) {
 		switch (stcol_format(col)) {
 		case FF_U64:
-			value = mkf_u64(FN_COUNTER, *(uint64_t *)counter);
+			if (col->flags & STAT_COL_FL_SHARED)
+				value = mkf_u64(FN_COUNTER, HA_ATOMIC_LOAD((uint64_t *)counter));
+
+			else
+				value = mkf_u64(FN_COUNTER, *(uint64_t *)counter);
 			break;
 		default:
 			/* only FF_U64 counters currently use generic metric calculation */
@@ -324,7 +359,13 @@ static struct field me_generate_field(const struct stat_col *col,
 		value = mkf_u32(FN_RATE, read_freq_ctr(counter));
 	}
 	else if (fn == FN_AGE) {
-		unsigned long age = *(unsigned long *)counter;
+		unsigned long age;
+
+		if (col->flags & STAT_COL_FL_SHARED)
+			age = HA_ATOMIC_LOAD((unsigned long *)counter);
+		else
+			age = *(unsigned long *)counter;
+
 		if (age)
 			age = ns_to_sec(now_ns) - age;
 
@@ -431,11 +472,11 @@ int stats_fill_fe_line(struct proxy *px, int flags, struct field *line, int len,
 				int i;
 				uint64_t total_sess;
 				size_t nb_sess =
-					sizeof(px->fe_counters.cum_sess_ver) / sizeof(*px->fe_counters.cum_sess_ver);
+					sizeof(px->fe_counters.shared->cum_sess_ver) / sizeof(*px->fe_counters.shared->cum_sess_ver);
 
-				total_sess = px->fe_counters.cum_sess;
+				total_sess = HA_ATOMIC_LOAD(&px->fe_counters.shared->cum_sess);
 				for (i = 0; i < nb_sess; i++)
-					total_sess -= px->fe_counters.cum_sess_ver[i];
+					total_sess -= HA_ATOMIC_LOAD(&px->fe_counters.shared->cum_sess_ver[i]);
 				total_sess = (int64_t)total_sess < 0 ? 0 : total_sess;
 				field = mkf_u64(FN_COUNTER, total_sess);
 				break;
@@ -770,7 +811,7 @@ int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
 	if (index == NULL || *index == ST_I_PX_QTIME ||
 	    *index == ST_I_PX_CTIME || *index == ST_I_PX_RTIME ||
 	    *index == ST_I_PX_TTIME) {
-		srv_samples_counter = (px->mode == PR_MODE_HTTP) ? sv->counters.p.http.cum_req : sv->counters.cum_lbconn;
+		srv_samples_counter = (px->mode == PR_MODE_HTTP) ? HA_ATOMIC_LOAD(&sv->counters.shared->p.http.cum_req) : HA_ATOMIC_LOAD(&sv->counters.shared->cum_lbconn);
 		if (srv_samples_counter < TIME_STATS_SAMPLES && srv_samples_counter > 0)
 			srv_samples_window = srv_samples_counter;
 	}
@@ -1149,7 +1190,7 @@ int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
 	if (!index || *index == ST_I_PX_QTIME ||
 	    *index == ST_I_PX_CTIME || *index == ST_I_PX_RTIME ||
 	    *index == ST_I_PX_TTIME) {
-		be_samples_counter = (px->mode == PR_MODE_HTTP) ? px->be_counters.p.http.cum_req : px->be_counters.cum_lbconn;
+		be_samples_counter = (px->mode == PR_MODE_HTTP) ? HA_ATOMIC_LOAD(&px->be_counters.shared->p.http.cum_req) : HA_ATOMIC_LOAD(&px->be_counters.shared->cum_lbconn);
 		if (be_samples_counter < TIME_STATS_SAMPLES && be_samples_counter > 0)
 			be_samples_window = be_samples_counter;
 	}

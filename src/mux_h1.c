@@ -3729,10 +3729,10 @@ static int h1_handle_internal_err(struct h1c *h1c)
 	}
 	session_inc_http_req_ctr(sess);
 	proxy_inc_fe_req_ctr(sess->listener, sess->fe, 1);
-	_HA_ATOMIC_INC(&sess->fe->fe_counters.p.http.rsp[5]);
-	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->p.http.rsp[5]);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->internal_errors);
 	if (sess->listener && sess->listener->counters)
-		_HA_ATOMIC_INC(&sess->listener->counters->internal_errors);
+		_HA_ATOMIC_INC(&sess->listener->counters->shared->internal_errors);
 
 	h1c->errcode = 500;
 	ret = h1_send_error(h1c);
@@ -3765,10 +3765,10 @@ static int h1_handle_parsing_error(struct h1c *h1c)
 	session_inc_http_req_ctr(sess);
 	session_inc_http_err_ctr(sess);
 	proxy_inc_fe_req_ctr(sess->listener, sess->fe, 1);
-	_HA_ATOMIC_INC(&sess->fe->fe_counters.p.http.rsp[4]);
-	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_req);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->p.http.rsp[4]);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->failed_req);
 	if (sess->listener && sess->listener->counters)
-		_HA_ATOMIC_INC(&sess->listener->counters->failed_req);
+		_HA_ATOMIC_INC(&sess->listener->counters->shared->failed_req);
 
 	if (!h1c->errcode)
 		h1c->errcode = 400;
@@ -3802,10 +3802,10 @@ static int h1_handle_not_impl_err(struct h1c *h1c)
 
 	session_inc_http_req_ctr(sess);
 	proxy_inc_fe_req_ctr(sess->listener, sess->fe, 1);
-	_HA_ATOMIC_INC(&sess->fe->fe_counters.p.http.rsp[4]);
-	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_req);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->p.http.rsp[4]);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->failed_req);
 	if (sess->listener && sess->listener->counters)
-		_HA_ATOMIC_INC(&sess->listener->counters->failed_req);
+		_HA_ATOMIC_INC(&sess->listener->counters->shared->failed_req);
 
 	h1c->errcode = 501;
 	ret = h1_send_error(h1c);
@@ -3837,10 +3837,10 @@ static int h1_handle_req_tout(struct h1c *h1c)
 
 	session_inc_http_req_ctr(sess);
 	proxy_inc_fe_req_ctr(sess->listener, sess->fe, 1);
-	_HA_ATOMIC_INC(&sess->fe->fe_counters.p.http.rsp[4]);
-	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_req);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->p.http.rsp[4]);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->failed_req);
 	if (sess->listener && sess->listener->counters)
-		_HA_ATOMIC_INC(&sess->listener->counters->failed_req);
+		_HA_ATOMIC_INC(&sess->listener->counters->shared->failed_req);
 
 	h1c->errcode = 408;
 	ret = h1_send_error(h1c);
