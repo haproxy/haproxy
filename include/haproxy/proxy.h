@@ -70,6 +70,7 @@ void proxy_destroy_all_unref_defaults(void);
 void proxy_ref_defaults(struct proxy *px, struct proxy *defpx);
 void proxy_unref_defaults(struct proxy *px);
 void proxy_unref_or_destroy_defaults(struct proxy *px);
+int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char **errmsg);
 struct proxy *alloc_new_proxy(const char *name, unsigned int cap,
                               char **errmsg);
 struct proxy *parse_new_proxy(const char *name, unsigned int cap,

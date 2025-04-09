@@ -1674,12 +1674,47 @@ void proxy_unref_defaults(struct proxy *px)
 	px->defpx = NULL;
 }
 
+/* prepares a new proxy <name> of type <cap> from the provided <px>
+ * pointer.
+ * <px> is assumed to be freshly allocated
+ * <name> may be NULL: proxy id assigment will be skipped.
+ *
+ * Returns a 1 on success or 0 on failure (in which case errmsg must be checked
+ * then freed).
+ */
+int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char **errmsg)
+{
+	uint last_change;
+
+	init_new_proxy(px);
+
+	last_change = ns_to_sec(now_ns);
+	if (cap & PR_CAP_FE)
+		px->fe_counters.last_change = last_change;
+	if (cap & PR_CAP_BE)
+		px->be_counters.last_change = last_change;
+
+	if (name) {
+		px->id = strdup(name);
+		if (!px->id) {
+			memprintf(errmsg, "proxy '%s': out of memory", name);
+			return 0;
+		}
+	}
+
+	px->cap = cap;
+
+	if (name && !(cap & PR_CAP_INT))
+		proxy_store_name(px);
+
+	return 1;
+}
+
 /* Allocates a new proxy <name> of type <cap>.
  * Returns the proxy instance on success. On error, NULL is returned.
  */
 struct proxy *alloc_new_proxy(const char *name, unsigned int cap, char **errmsg)
 {
-	uint last_change;
 	struct proxy *curproxy;
 
 	if ((curproxy = calloc(1, sizeof(*curproxy))) == NULL) {
@@ -1687,19 +1722,8 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, char **errmsg)
 		goto fail;
 	}
 
-	init_new_proxy(curproxy);
-
-	last_change = ns_to_sec(now_ns);
-	if (cap & PR_CAP_FE)
-		curproxy->fe_counters.last_change = last_change;
-	if (cap & PR_CAP_BE)
-		curproxy->be_counters.last_change = last_change;
-
-	curproxy->id = strdup(name);
-	curproxy->cap = cap;
-
-	if (!(cap & PR_CAP_INT))
-		proxy_store_name(curproxy);
+	if (!setup_new_proxy(curproxy, name, cap, errmsg))
+		goto fail;
 
  done:
 	return curproxy;
