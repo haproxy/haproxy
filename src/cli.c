@@ -448,17 +448,16 @@ void cli_list_keywords(void)
 static struct proxy *cli_alloc_fe(const char *name, const char *file, int line)
 {
 	struct proxy *fe;
+	char *errmsg = NULL;
 
-	fe = calloc(1, sizeof(*fe));
-	if (!fe)
+	fe = alloc_new_proxy("GLOBAL", PR_CAP_FE|PR_CAP_INT, &errmsg);
+	if (!fe) {
+		ha_free(&errmsg); // ignored
 		return NULL;
+	}
 
-	init_new_proxy(fe);
 	fe->next = proxies_list;
 	proxies_list = fe;
-	fe->fe_counters.last_change = ns_to_sec(now_ns);
-	fe->id = strdup("GLOBAL");
-	fe->cap = PR_CAP_FE|PR_CAP_INT;
 	fe->maxconn = 10;                 /* default to 10 concurrent connections */
 	fe->timeout.client = MS_TO_TICKS(10000); /* default timeout of 10 seconds */
 	fe->conf.file = copy_file_name(file);

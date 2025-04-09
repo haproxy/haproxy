@@ -556,19 +556,20 @@ static int init_peers_frontend(const char *file, int linenum,
                                const char *id, struct peers *peers)
 {
 	struct proxy *p;
+	char *errmsg = NULL;
 
 	if (peers->peers_fe) {
 		p = peers->peers_fe;
 		goto out;
 	}
 
-	p = calloc(1, sizeof *p);
+	p = alloc_new_proxy(NULL, PR_CAP_FE | PR_CAP_BE, &errmsg);
 	if (!p) {
-		ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+		ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+		ha_free(&errmsg);
 		return -1;
 	}
 
-	init_new_proxy(p);
 	peers_setup_frontend(p);
 	p->parent = peers;
 	/* Finally store this frontend. */

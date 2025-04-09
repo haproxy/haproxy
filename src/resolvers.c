@@ -3327,8 +3327,6 @@ int check_action_do_resolve(struct act_rule *rule, struct proxy *px, char **err)
 
 void resolvers_setup_proxy(struct proxy *px)
 {
-	px->fe_counters.last_change = px->be_counters.last_change = ns_to_sec(now_ns);
-	px->cap = PR_CAP_FE | PR_CAP_BE;
 	px->maxconn = 0;
 	px->conn_retries = 1;
 	px->timeout.server = TICK_ETERNITY;
@@ -3478,6 +3476,7 @@ static int resolvers_new(struct resolvers **resolvers, const char *id, const cha
 {
 	struct resolvers *r = NULL;
 	struct proxy *p = NULL;
+	char *errmsg = NULL;
 	int err_code = 0;
 
 	if ((r = calloc(1, sizeof(*r))) == NULL) {
@@ -3486,20 +3485,15 @@ static int resolvers_new(struct resolvers **resolvers, const char *id, const cha
 	}
 
 	/* allocate new proxy to tcp servers */
-	p = calloc(1, sizeof *p);
+	p = alloc_new_proxy(id, PR_CAP_FE | PR_CAP_BE, &errmsg);
 	if (!p) {
+		ha_free(&errmsg); // ignored
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto err_free_r;
 	}
 
-	init_new_proxy(p);
 	resolvers_setup_proxy(p);
 	p->parent = r;
-	p->id = strdup(id);
-	if (!p->id) {
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto err_free_p;
-	}
 	p->conf.args.file = p->conf.file = copy_file_name(file);
 	p->conf.args.line = p->conf.line = linenum;
 	r->px = p;
@@ -3509,7 +3503,7 @@ static int resolvers_new(struct resolvers **resolvers, const char *id, const cha
 	r->conf.file = strdup(file);
 	if (!r->conf.file) {
 		err_code |= ERR_ALERT | ERR_FATAL;
-		goto err_free_p_id;
+		goto err_free_p;
 	}
 	r->conf.line = linenum;
 	r->id = strdup(id);
@@ -3545,10 +3539,8 @@ out:
 /* free all allocated stuff and return err_code */
 err_free_conf_file:
 	ha_free((void **)&r->conf.file);
-err_free_p_id:
-	ha_free(&p->id);
 err_free_p:
-	ha_free(&p);
+	free_proxy(p);
 err_free_r:
 	ha_free(&r);
 	return err_code;

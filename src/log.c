@@ -6060,25 +6060,22 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_WARN;
 		}
 
-		px = calloc(1, sizeof *px);
+		px = alloc_new_proxy(args[1], PR_CAP_FE, &errmsg);
 		if (!px) {
+			ha_alert("Parsing [%s:%d]: %s\n", file, linenum, errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		init_new_proxy(px);
 		px->next = cfg_log_forward;
 		cfg_log_forward = px;
 		px->conf.file = copy_file_name(file);
 		px->conf.line = linenum;
 		px->mode = PR_MODE_SYSLOG;
-		px->fe_counters.last_change = ns_to_sec(now_ns);
-		px->cap = PR_CAP_FE;
 		px->maxconn = 10;
 		px->timeout.client = TICK_ETERNITY;
 		px->accept = frontend_accept;
 		px->default_target = &syslog_applet.obj_type;
-		px->id = strdup(args[1]);
 		px->options3 |= PR_O3_LOGF_HOST_FILL;
 	}
 	else if (strcmp(args[0], "maxconn") == 0) {  /* maxconn */

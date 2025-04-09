@@ -1204,8 +1204,6 @@ static int spoe_init(struct proxy *px, struct flt_conf *fconf)
 
 	/* conf->agent->fe was already initialized during the config
 	 * parsing. Finish initialization. */
-	conf->agent->fe.fe_counters.last_change = ns_to_sec(now_ns);
-	conf->agent->fe.cap = PR_CAP_FE | PR_CAP_INT;
 	conf->agent->fe.mode = PR_MODE_SPOP;
 	conf->agent->fe.maxconn = 0;
 	conf->agent->fe.options2 |= PR_O2_INDEPSTR;
@@ -2541,8 +2539,11 @@ static int parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	/* Start agent's proxy initialization here. It will be finished during
 	 * the filter init. */
         memset(&conf->agent->fe, 0, sizeof(conf->agent->fe));
-        init_new_proxy(&conf->agent->fe);
-	conf->agent->fe.id        = conf->agent->id;
+	if (!setup_new_proxy(&conf->agent->fe, conf->agent->id, PR_CAP_FE | PR_CAP_INT, err)) {
+		memprintf(err, "SPOE agent '%s': %s",
+			  curagent->id, *err);
+		goto error;
+	}
 	conf->agent->fe.parent    = conf->agent;
 	conf->agent->fe.options  |= curpxopts;
 	conf->agent->fe.options2 |= curpxopts2;

@@ -400,8 +400,6 @@ static int cli_parse_show_events(char **args, char *payload, struct appctx *appc
 /* Pre-configures a ring proxy to emit connections */
 void sink_setup_proxy(struct proxy *px)
 {
-	px->be_counters.last_change = ns_to_sec(now_ns);
-	px->cap = PR_CAP_BE;
 	px->maxconn = 0;
 	px->conn_retries = 1;
 	px->timeout.server = TICK_ETERNITY;
@@ -828,15 +826,11 @@ static struct sink *sink_new_ringbuf(const char *id, const char *description,
 	struct proxy *p = NULL; // forward_px
 
 	/* allocate new proxy to handle forwards */
-	p = calloc(1, sizeof(*p));
-	if (!p) {
-		memprintf(err_msg, "out of memory");
+	p = alloc_new_proxy(id, PR_CAP_BE, err_msg);
+	if (!p)
 		goto err;
-	}
 
-	init_new_proxy(p);
 	sink_setup_proxy(p);
-	p->id = strdup(id);
 	p->conf.args.file = p->conf.file = copy_file_name(file);
 	p->conf.args.line = p->conf.line = linenum;
 
