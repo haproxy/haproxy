@@ -2,6 +2,7 @@
 #ifndef _ACME_T_H_
 #define _ACME_T_H_
 
+#include <haproxy/istbuf.h>
 #include <haproxy/openssl-compat.h>
 
 #define ACME_RETRY 3
@@ -28,11 +29,28 @@ struct acme_cfg {
 	struct acme_cfg *next;
 };
 
-struct acme_ctx {
-	int retries;
-	struct acme_cfg *cfg;
-	struct ckch_store *store;
-	unsigned int state;
+enum acme_st {
+	ACME_RESSOURCES = 0,
+	ACME_END
 };
 
+enum http_st {
+	ACME_HTTP_REQ,
+	ACME_HTTP_RES,
+};
+
+/* acme task context */
+struct acme_ctx {
+	enum acme_st state;
+	enum http_st http_state;
+	int retries;
+	struct httpclient *hc;
+	struct acme_cfg *cfg;
+	struct ckch_store *store;
+	struct {
+		struct ist newNonce;
+		struct ist newAccount;
+		struct ist newOrder;
+	} ressources;
+};
 #endif

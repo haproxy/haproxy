@@ -18,6 +18,14 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/errors.h>
 #include <haproxy/jws.h>
+
+#include <haproxy/base64.h>
+#include <haproxy/cfgparse.h>
+#include <haproxy/cli.h>
+#include <haproxy/errors.h>
+#include <haproxy/http_client.h>
+#include <haproxy/jws.h>
+#include <haproxy/list.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
@@ -478,8 +486,173 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws_acme);
 
 REGISTER_CONFIG_SECTION("acme", cfg_parse_acme, cfg_postsection_acme);
 
+
+static void acme_httpclient_end(struct httpclient *hc)
+{
+	struct task *task = hc->caller;
+	struct acme_ctx *ctx = task->context;
+
+	if (!task)
+		return;
+
+	if (ctx->http_state == ACME_HTTP_REQ)
+		ctx->http_state = ACME_HTTP_RES;
+
+	task_wakeup(task, TASK_WOKEN_MSG);
+}
+
+
+int acme_http_req(struct task *task, struct acme_ctx *ctx, struct ist url, enum http_meth_t meth)
+{
+	struct httpclient *hc;
+
+	hc = httpclient_new(task, meth, url);
+	if (!hc)
+		goto error;
+
+	if (httpclient_req_gen(hc, hc->req.url, hc->req.meth, NULL, IST_NULL) != ERR_NONE)
+		goto error;
+
+	hc->ops.res_end = acme_httpclient_end;
+
+	ctx->hc = hc;
+
+	if (!httpclient_start(hc))
+		goto error;
+
+	return 0;
+error:
+	httpclient_destroy(hc);
+	ctx->hc = NULL;
+
+	return 1;
+
+}
+
+int acme_directory(struct task *task, struct acme_ctx *ctx, char **errmsg)
+{
+	struct httpclient *hc;
+	int ret = 0;
+
+	hc = ctx->hc;
+
+	if (!hc)
+		goto error;
+
+	if (hc->res.status != 200) {
+		memprintf(errmsg, "invalid HTTP status code %d when getting directory URL", hc->res.status);
+		goto error;
+	}
+
+	if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.newNonce", trash.area, trash.size)) <= 0) {
+		memprintf(errmsg, "couldn't get newNonce URL from the directory URL");
+		goto error;
+	}
+	ctx->ressources.newNonce = istdup(ist2(trash.area, ret));
+	if (!isttest(ctx->ressources.newNonce)) {
+		memprintf(errmsg, "couldn't get newNonce URL from the directory URL");
+		goto error;
+	}
+
+	if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.newAccount", trash.area, trash.size)) <= 0) {
+		memprintf(errmsg, "couldn't get newAccount URL from the directory URL");
+		goto error;
+	}
+	ctx->ressources.newAccount = istdup(ist2(trash.area, ret));
+	if (!isttest(ctx->ressources.newAccount)) {
+		memprintf(errmsg, "couldn't get newAccount URL from the directory URL");
+		goto error;
+	}
+	if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.newOrder", trash.area, trash.size)) <= 0) {
+		memprintf(errmsg, "couldn't get newOrder URL from the directory URL");
+		goto error;
+	}
+	ctx->ressources.newOrder = istdup(ist2(trash.area, ret));
+	if (!isttest(ctx->ressources.newOrder)) {
+		memprintf(errmsg, "couldn't get newOrder URL from the directory URL");
+		goto error;
+	}
+
+	httpclient_destroy(hc);
+	ctx->hc = NULL;
+
+//	fprintf(stderr, "newNonce: %s\nnewAccount: %s\nnewOrder: %s\n",
+//	        ctx->ressources.newNonce.ptr, ctx->ressources.newAccount.ptr, ctx->ressources.newOrder.ptr);
+
+	return 0;
+
+error:
+	httpclient_destroy(hc);
+	ctx->hc = NULL;
+
+	istfree(&ctx->ressources.newNonce);
+	istfree(&ctx->ressources.newAccount);
+	istfree(&ctx->ressources.newOrder);
+
+	return 1;
+}
+
+/*
+ * Task for ACME processing:
+ *  - when retrying after a failure, the task must be waked up
+ *  - when calling a get function, the httpclient is waking up the task again
+ * once the data are ready or upon failure
+ */
 struct task *acme_process(struct task *task, void *context, unsigned int state)
 {
+	struct acme_ctx *ctx = task->context;
+	enum acme_st st = ctx->state;
+	enum http_st http_st = ctx->http_state;
+	char *errmsg = NULL;
+
+	switch (st) {
+		case ACME_RESSOURCES:
+			if (http_st == ACME_HTTP_REQ) {
+				if (acme_http_req(task, ctx, ist(ctx->cfg->uri), HTTP_METH_GET) != 0)
+					goto retry;
+			}
+
+			if (http_st == ACME_HTTP_RES) {
+				if (acme_directory(task, ctx, &errmsg) != 0) {
+					http_st = ACME_HTTP_REQ;
+					goto retry;
+				}
+				st = ACME_END;
+			}
+		break;
+
+		case ACME_END:
+			goto end;
+		break;
+		default:
+		break;
+
+	}
+
+	ctx->http_state = http_st;
+	ctx->state = st;
+
+	return task;
+
+retry:
+	ctx->http_state = http_st;
+	ctx->state = st;
+
+	ctx->retries--;
+	if (ctx->retries > 0) {
+		ha_notice("acme: %s, retrying (%d/%d)...\n", errmsg ? errmsg : "", ACME_RETRY-ctx->retries, ACME_RETRY);
+		task_wakeup(task, TASK_WOKEN_MSG);
+	} else {
+		ha_notice("acme: %s, aborting. (%d/%d)\n", errmsg ? errmsg : "", ACME_RETRY-ctx->retries, ACME_RETRY);
+		goto end;
+	}
+
+	ha_free(&errmsg);
+
+	return task;
+end:
+	task_destroy(task);
+	task = NULL;
 
 	return task;
 }
