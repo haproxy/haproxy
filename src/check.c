@@ -1673,7 +1673,7 @@ static int start_checks()
 		ha_alert("Out of memory creating the checks frontend.\n");
 		return ERR_ALERT | ERR_FATAL;
 	}
-	checks_fe.cap = PR_CAP_FE | PR_CAP_BE;
+	checks_fe.cap = PR_CAP_FE | PR_CAP_BE | PR_CAP_INT;
         checks_fe.mode = PR_MODE_TCP;
 	checks_fe.maxconn = 0;
 	checks_fe.conn_retries = CONN_RETRIES;
