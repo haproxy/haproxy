@@ -1231,6 +1231,15 @@ int alloc_bind_address(struct sockaddr_storage **ss,
 			return SRV_STATUS_INTERNAL;
 
 		**ss = *addr;
+		if ((src->opts & CO_SRC_TPROXY_MASK) == CO_SRC_TPROXY_CIP) {
+			/* always set port to zero when using "clientip", or
+			 * the idle connection hash will include the port part.
+			 */
+			if (addr->ss_family == AF_INET)
+				((struct sockaddr_in *)*ss)->sin_port = 0;
+			else if (addr->ss_family == AF_INET6)
+				((struct sockaddr_in6 *)*ss)->sin6_port = 0;
+		}
 		break;
 
 	case CO_SRC_TPROXY_DYN:
