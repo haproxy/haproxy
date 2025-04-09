@@ -628,7 +628,7 @@ error:
 	return ret;
 }
 
-int acme_res_account(struct task *task, struct acme_ctx *ctx, char **errmsg)
+int acme_res_account(struct task *task, struct acme_ctx *ctx, int newaccount, char **errmsg)
 {
 	struct httpclient *hc;
 	struct http_hdr *hdrs, *hdr;
@@ -663,9 +663,11 @@ int acme_res_account(struct task *task, struct acme_ctx *ctx, char **errmsg)
 		if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.type", t2->area, t2->size)) > -1)
 			t2->data = ret;
 
-		/* not an error, we only need to create a new account */
-		if (strcmp("urn:ietf:params:acme:error:accountDoesNotExist", t2->area) == 0)
-			goto out;
+		if (!newaccount) {
+			/* not an error, we only need to create a new account */
+			if (strcmp("urn:ietf:params:acme:error:accountDoesNotExist", t2->area) == 0)
+				goto out;
+		}
 
 		if (t2->data && t1->data)
 			memprintf(errmsg, "invalid HTTP status code %d when getting Account URL: \"%.*s\" (%.*s)", hc->res.status, (int)t1->data, t1->area, (int)t2->data, t2->area);
@@ -839,16 +841,32 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 					goto retry;
 			}
 			if (http_st == ACME_HTTP_RES) {
-				if (acme_res_account(task, ctx, &errmsg) != 0) {
+				if (acme_res_account(task, ctx, 0, &errmsg) != 0) {
 					http_st = ACME_HTTP_REQ;
 					goto retry;
 				}
-				st = ACME_END;
+				if (!isttest(ctx->kid)) {
+					st = ACME_NEWACCOUNT;
+					http_st = ACME_HTTP_REQ;
+					task_wakeup(task, TASK_WOKEN_MSG);
+				}
+				goto end;
+			}
+		break;
+		case ACME_NEWACCOUNT:
+			if (http_st == ACME_HTTP_REQ) {
+				if (acme_req_account(task, ctx, 1, &errmsg) != 0)
+					goto retry;
+			}
+			if (http_st == ACME_HTTP_RES) {
+				if (acme_res_account(task, ctx, 1, &errmsg) != 0) {
+					http_st = ACME_HTTP_REQ;
+					goto retry;
+				}
+				goto end;
 			}
 
-		break;
-		case ACME_END:
-			goto end;
+
 		break;
 		default:
 		break;
