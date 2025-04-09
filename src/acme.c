@@ -529,6 +529,43 @@ error:
 
 }
 
+int acme_nonce(struct task *task, struct acme_ctx *ctx, char **errmsg)
+{
+	struct httpclient *hc;
+	struct http_hdr *hdrs, *hdr;
+
+	hc = ctx->hc;
+	if (!hc)
+		goto error;
+
+	if (hc->res.status < 200 || hc->res.status >= 300) {
+		memprintf(errmsg, "invalid HTTP status code %d when getting Nonce URL", hc->res.status);
+		goto error;
+	}
+
+	hdrs = hc->res.hdrs;
+
+	for (hdr = hdrs; isttest(hdr->v); hdr++) {
+		if (isteqi(hdr->n, ist("Replay-Nonce"))) {
+			istfree(&ctx->nonce);
+			ctx->nonce = istdup(hdr->v);
+//			fprintf(stderr, "Replay-Nonce: %.*s\n", (int)hdr->v.len, hdr->v.ptr);
+
+		}
+	}
+
+	httpclient_destroy(hc);
+	ctx->hc = NULL;
+
+	return 0;
+
+error:
+	httpclient_destroy(hc);
+	ctx->hc = NULL;
+
+	return 1;
+}
+
 int acme_directory(struct task *task, struct acme_ctx *ctx, char **errmsg)
 {
 	struct httpclient *hc;
@@ -617,10 +654,25 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 					http_st = ACME_HTTP_REQ;
 					goto retry;
 				}
-				st = ACME_END;
+				st = ACME_NEWNONCE;
+				http_st = ACME_HTTP_REQ;
+				task_wakeup(task, TASK_WOKEN_MSG);
 			}
 		break;
+		case ACME_NEWNONCE:
+			if (http_st == ACME_HTTP_REQ) {
+				if (acme_http_req(task, ctx, ctx->ressources.newNonce, HTTP_METH_HEAD) != 0)
+					goto retry;
+			}
+			if (http_st == ACME_HTTP_RES) {
+				if (acme_nonce(task, ctx, &errmsg) != 0) {
+					http_st = ACME_HTTP_REQ;
+					goto retry;
+				}
+				st = ACME_END;
+			}
 
+		break;
 		case ACME_END:
 			goto end;
 		break;
