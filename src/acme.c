@@ -529,7 +529,7 @@ error:
 
 }
 
-int acme_jws_payload(struct buffer *req, struct ist nonce, struct ist url, EVP_PKEY *pkey, struct buffer *output, char **errmsg)
+int acme_jws_payload(struct buffer *req, struct ist nonce, struct ist url, EVP_PKEY *pkey, struct ist kid, struct buffer *output, char **errmsg)
 {
 	struct buffer *b64payload = NULL;
 	struct buffer *b64prot = NULL;
@@ -554,7 +554,8 @@ int acme_jws_payload(struct buffer *req, struct ist nonce, struct ist url, EVP_P
 		goto error;
 	}
 
-	jwk->data = EVP_PKEY_to_pub_jwk(pkey, jwk->area, jwk->size);
+	if (!isttest(kid))
+		jwk->data = EVP_PKEY_to_pub_jwk(pkey, jwk->area, jwk->size);
 	alg = EVP_PKEY_to_jws_alg(pkey);
 
 	if (alg == JWS_ALG_NONE) {
@@ -563,7 +564,7 @@ int acme_jws_payload(struct buffer *req, struct ist nonce, struct ist url, EVP_P
 	}
 
 	b64payload->data = jws_b64_payload(req->area, b64payload->area, b64payload->size);
-	b64prot->data = jws_b64_protected(alg, NULL, jwk->area, nonce.ptr, url.ptr, b64prot->area, b64prot->size);
+	b64prot->data = jws_b64_protected(alg, kid.ptr, jwk->area, nonce.ptr, url.ptr, b64prot->area, b64prot->size);
 	b64sign->data = jws_b64_signature(pkey, alg, b64prot->area, b64payload->area, b64sign->area, b64sign->size);
 	output->data = jws_flattened(b64prot->area, b64payload->area, b64sign->area, output->area, output->size);
 
@@ -581,6 +582,142 @@ error:
 
 	return ret;
 }
+
+int acme_req_neworder(struct task *task, struct acme_ctx *ctx, char **errmsg)
+{
+	struct buffer *req_in = NULL;
+	struct buffer *req_out = NULL;
+	const struct http_hdr hdrs[] = {
+		{ IST("Content-Type"), IST("application/jose+json") },
+		{ IST_NULL, IST_NULL }
+	};
+	int ret = 1;
+	char **san = ctx->store->conf.acme.domains;
+
+        if ((req_in = alloc_trash_chunk()) == NULL)
+		goto error;
+        if ((req_out = alloc_trash_chunk()) == NULL)
+		goto error;
+
+	chunk_printf(req_in, "{ \"identifiers\": [ ");
+
+	if (!san)
+		goto error;
+
+	for (; san && *san; san++) {
+//		fprintf(stderr, "%s:%d %s\n", __FUNCTION__, __LINE__, *san);
+		chunk_appendf(req_in, "%s{ \"type\": \"dns\",  \"value\": \"%s\" }", (*san == *ctx->store->conf.acme.domains) ?  "" : ",", *san);
+	}
+
+	chunk_appendf(req_in, " ] }");
+
+
+	if (acme_jws_payload(req_in, ctx->nonce, ctx->ressources.newOrder, ctx->cfg->account.pkey, ctx->kid, req_out, errmsg) != 0)
+		goto error;
+
+	if (acme_http_req(task, ctx, ctx->ressources.newOrder, HTTP_METH_POST, hdrs, ist2(req_out->area, req_out->data)))
+		goto error;
+
+	ret = 0;
+error:
+	memprintf(errmsg, "couldn't generate the newOrder request");
+
+	free_trash_chunk(req_in);
+	free_trash_chunk(req_out);
+
+	return ret;
+
+}
+
+int acme_res_neworder(struct task *task, struct acme_ctx *ctx, char **errmsg)
+{
+	struct httpclient *hc;
+	struct http_hdr *hdrs, *hdr;
+	struct buffer *t1 = NULL, *t2 = NULL;
+	int ret = 1;
+	int i;
+
+	hc = ctx->hc;
+	if (!hc)
+		goto error;
+
+        if ((t1 = alloc_trash_chunk()) == NULL)
+		goto error;
+        if ((t2 = alloc_trash_chunk()) == NULL)
+		goto error;
+
+	hdrs = hc->res.hdrs;
+
+	for (hdr = hdrs; isttest(hdr->v); hdr++) {
+		if (isteqi(hdr->n, ist("Replay-Nonce"))) {
+			istfree(&ctx->nonce);
+			ctx->nonce = istdup(hdr->v);
+		}
+		/* get the order URL */
+		if (isteqi(hdr->n, ist("Location"))) {
+			istfree(&ctx->order);
+			ctx->order = istdup(hdr->v);
+		}
+	}
+
+	if (hc->res.status < 200 || hc->res.status >= 300) {
+		if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.detail", t1->area, t1->size)) > -1)
+			t1->data = ret;
+		if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.type", t2->area, t2->size)) > -1)
+			t2->data = ret;
+		if (t2->data && t1->data)
+			memprintf(errmsg, "invalid HTTP status code %d when getting newOrder URL: \"%.*s\" (%.*s)", hc->res.status, (int)t1->data, t1->area, (int)t2->data, t2->area);
+		else
+			memprintf(errmsg, "invalid HTTP status code %d when getting newOrder URL", hc->res.status);
+		goto error;
+	}
+
+	if (!isttest(ctx->order)) {
+		memprintf(errmsg, "couldn't get an order Location during newOrder");
+		goto error;
+	}
+	/* get the multiple authorizations URL and tokens */
+	for (i = 0; ; i++) {
+		struct acme_auth *auth;
+		char url[] = "$.authorizations[XXX]";
+
+		if (snprintf(url, sizeof(url), "$.authorizations[%d]", i) >= sizeof(url)) {
+			memprintf(errmsg, "couldn't loop on authorizations during newOrder");
+			goto error;
+		}
+
+		ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, url, trash.area, trash.size);
+		if (ret == -1) /* end of the authorizations array */
+			break;
+		trash.data = ret;
+
+		if ((auth = calloc(1, sizeof(*auth))) == NULL) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+
+		auth->auth = istdup(ist2(trash.area, trash.data));
+		if (!isttest(auth->auth)) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+
+		auth->next = ctx->auths;
+		ctx->auths = auth;
+	}
+
+out:
+	ret = 0;
+
+error:
+	free_trash_chunk(t1);
+	free_trash_chunk(t2);
+	httpclient_destroy(hc);
+	ctx->hc = NULL;
+
+	return ret;
+}
+
 
 int acme_req_account(struct task *task, struct acme_ctx *ctx, int newaccount, char **errmsg)
 {
@@ -612,7 +749,7 @@ int acme_req_account(struct task *task, struct acme_ctx *ctx, int newaccount, ch
 	else
 		chunk_printf(req_in, "%s", accountreq);
 
-	if (acme_jws_payload(req_in, ctx->nonce, ctx->ressources.newAccount, ctx->cfg->account.pkey, req_out, errmsg) != 0)
+	if (acme_jws_payload(req_in, ctx->nonce, ctx->ressources.newAccount, ctx->cfg->account.pkey, ctx->kid, req_out, errmsg) != 0)
 		goto error;
 
 	if (acme_http_req(task, ctx, ctx->ressources.newAccount, HTTP_METH_POST, hdrs, ist2(req_out->area, req_out->data)))
@@ -845,12 +982,12 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 					http_st = ACME_HTTP_REQ;
 					goto retry;
 				}
-				if (!isttest(ctx->kid)) {
+				if (!isttest(ctx->kid))
 					st = ACME_NEWACCOUNT;
-					http_st = ACME_HTTP_REQ;
-					task_wakeup(task, TASK_WOKEN_MSG);
-				}
-				goto end;
+				else
+					st = ACME_NEWORDER;
+				http_st = ACME_HTTP_REQ;
+				task_wakeup(task, TASK_WOKEN_MSG);
 			}
 		break;
 		case ACME_NEWACCOUNT:
@@ -863,11 +1000,31 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 					http_st = ACME_HTTP_REQ;
 					goto retry;
 				}
+				st = ACME_NEWORDER;
+				http_st = ACME_HTTP_REQ;
+				task_wakeup(task, TASK_WOKEN_MSG);
+
 				goto end;
 			}
 
 
 		break;
+		case ACME_NEWORDER:
+			if (http_st == ACME_HTTP_REQ) {
+				if (acme_req_neworder(task, ctx, &errmsg) != 0)
+					goto retry;
+			}
+			if (http_st == ACME_HTTP_RES) {
+				if (acme_res_neworder(task, ctx, &errmsg) != 0) {
+					http_st = ACME_HTTP_REQ;
+					goto retry;
+				}
+				goto end;
+			}
+
+
+		break;
+
 		default:
 		break;
 
@@ -983,6 +1140,10 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 	EVP_PKEY_CTX_free(pkey_ctx);
 
 	newstore->data->key = pkey;
+
+	/* XXX: must implement a real copy */
+	newstore->conf = store->conf;
+
 	ctx->store = newstore;
 	ctx->cfg = cfg;
 

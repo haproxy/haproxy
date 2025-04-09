@@ -34,12 +34,20 @@ enum acme_st {
 	ACME_NEWNONCE,
 	ACME_CHKACCOUNT,
 	ACME_NEWACCOUNT,
+	ACME_NEWORDER,
 	ACME_END
 };
 
 enum http_st {
 	ACME_HTTP_REQ,
 	ACME_HTTP_RES,
+};
+
+struct acme_auth {
+       struct ist auth;   /* auth URI */
+       struct ist chall;  /* challenge URI */
+       struct ist token;  /* token */
+       void *next;
 };
 
 /* acme task context */
@@ -57,5 +65,7 @@ struct acme_ctx {
 	} ressources;
 	struct ist nonce;
 	struct ist kid;
+	struct ist order;
+	struct acme_auth *auths;
 };
 #endif
