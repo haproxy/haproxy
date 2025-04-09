@@ -921,6 +921,16 @@ static void h2c_update_timeout(struct h2c *h2c)
 	} else {
 		h2c->task->expire = TICK_ETERNITY;
 	}
+
+	/* Timer may already be expired, in this case it must not be requeued.
+	 * Currently it may happen with idle conn calculation based on shut or
+	 * http-req/ka timeouts.
+	 */
+	if (unlikely(tick_is_expired(h2c->task->expire, now_ms))) {
+		task_wakeup(h2c->task, TASK_WOKEN_TIMER);
+		goto leave;
+	}
+
 	task_queue(h2c->task);
  leave:
 	TRACE_LEAVE(H2_EV_H2C_WAKE);
