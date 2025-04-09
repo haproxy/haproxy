@@ -32,6 +32,7 @@ struct acme_cfg {
 enum acme_st {
 	ACME_RESSOURCES = 0,
 	ACME_NEWNONCE,
+	ACME_CHKACCOUNT,
 	ACME_END
 };
 
@@ -54,5 +55,6 @@ struct acme_ctx {
 		struct ist newOrder;
 	} ressources;
 	struct ist nonce;
+	struct ist kid;
 };
 #endif
