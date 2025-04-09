@@ -116,6 +116,12 @@ static int cfg_parse_acme(const char *file, int linenum, char **args, int kwm)
 	int err_code = 0;
 	char *errmsg = NULL;
 
+	if (!experimental_directives_allowed) {
+		ha_alert("parsing [%s:%d]: section '%s' is experimental, must be allowed via a global 'expose-experimental-directives'\n", file, linenum, cursection);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
 	if (strcmp(args[0], "acme") == 0) {
 		struct acme_cfg *tmp_acme = acme_cfgs;
 
