@@ -881,6 +881,18 @@ static void h2c_update_timeout(struct h2c *h2c)
 
 				h2c->task->expire = tick_add_ifset(h2c->idle_start, to);
 				is_idle_conn = 1;
+
+				/* Contrary to other timeouts, hr/ka timers are
+				 * not based on now_ms but rather on
+				 * idle_start. Thus, its value could already be
+				 * expired here. In this case, task must not be
+				 * queued but rather directly woken up.
+				 */
+				if (tick_is_expired(d2, now_ms)) {
+					h2c->task->expire = d2;
+					task_wakeup(h2c->task, TASK_WOKEN_TIMER);
+					goto leave;
+				}
 			}
 
 			/* if a timeout above was not set, fall back to the default one */
