@@ -188,6 +188,7 @@ struct thread_ctx {
 	unsigned long long out_bytes;           /* total #of bytes emitted */
 	unsigned long long spliced_out_bytes;   /* total #of bytes emitted though a kernel pipe */
 	struct buffer *thread_dump_buffer;      /* NULL out of dump, 0x02=to alloc, valid during a dump, |0x01 once done */
+	struct buffer *last_dump_buffer;        /* Copy of last buffer used for a dump; may be NULL or invalid; for post-mortem only */
 	unsigned long long total_streams;       /* Total number of streams created on this thread */
 	unsigned int stream_cnt;                /* Number of streams attached to this thread */
 

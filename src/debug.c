@@ -319,6 +319,9 @@ void ha_thread_dump_one(int thr, int from_signal)
 	unsigned long long n = now_cpu_time_thread(thr);
 	int stuck = !!(ha_thread_ctx[thr].flags & TH_FL_STUCK);
 
+	/* keep a copy of the dump pointer for post-mortem analysis */
+	HA_ATOMIC_STORE(&ha_thread_ctx[thr].last_dump_buffer, buf);
+
 	chunk_appendf(buf,
 	              "%c%cThread %-2u: id=0x%llx act=%d glob=%d wq=%d rq=%d tl=%d tlsz=%d rqsz=%d\n"
 	              "     %2u/%-2u   stuck=%d prof=%d",

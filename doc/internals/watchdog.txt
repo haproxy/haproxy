@@ -85,6 +85,12 @@ to point to the target buffer. The thread_dump_buffer has 4 possible values:
     will keep their own copy of their own dump so that it can be later found in
     the core file for inspection.
 
+A copy of the last valid thread_dump_buffer used is kept in last_dump_buffer,
+for easier post-mortem analysis. This one may be NULL or even invalid, but
+usually during a panic it will be valid, and may reveal useful hints even if it
+still contains the dump of the last warning. Usually this will point to a trash
+buffer or to stack area.
+
 ha_thread_dump_fill() then either directly calls ha_thread_dump_one() if the
 target thread is the current thread, or sends the target thread DEBUGSIG
 (SIGURG) if it's a different thread. This signal is initialized at boot time
