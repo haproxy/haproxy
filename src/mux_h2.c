@@ -103,6 +103,8 @@ struct h2c {
 	struct list *next_tasklet; /* which applet to wake up next (NULL by default) */
 
 	int idle_ping; /* interval for idle connection liveliness testing */
+	int exp_next;
+	int ping_next;
 };
 
 
@@ -850,7 +852,10 @@ static void h2c_update_timeout(struct h2c *h2c)
 	int is_idle_conn = 0;
 
 	TRACE_ENTER(H2_EV_H2C_WAKE, h2c->conn);
-	h2c->flags &= ~H2_CF_NEED_PING;
+	//h2c->flags &= ~H2_CF_NEED_PING;
+
+	h2c->exp_next = TICK_ETERNITY;
+	h2c->exp_next = TICK_ETERNITY;
 
 	if (!h2c->task)
 		goto leave;
@@ -913,7 +918,10 @@ static void h2c_update_timeout(struct h2c *h2c)
 			h2c->task->expire = TICK_ETERNITY;
 			h2c->task->expire = tick_first(h2c->task->expire, d1);
 			h2c->task->expire = tick_first(h2c->task->expire, d2);
+			h2c->exp_next = h2c->task->expire;
+
 			h2c->task->expire = tick_first(h2c->task->expire, ping);
+			h2c->ping_next = ping;
 
 			if (h2c->task->expire == ping && ping != dft) {
 				/* PING timer selected, set flag to trigger its emission rather than conn deletion on next timeout. */
@@ -1317,6 +1325,8 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->next_tasklet = NULL;
 	h2c->shared_rx_bufs = NULL;
 	h2c->idle_start = now_ms;
+	h2c->exp_next = TICK_ETERNITY;
+	h2c->ping_next = TICK_ETERNITY;
 
 	if (tick_isset(h2c->timeout) || tick_isset(h2c->idle_ping)) {
 		t = task_new_here();
