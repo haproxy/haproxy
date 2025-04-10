@@ -1746,6 +1746,12 @@ static int start_checks()
 	return ERR_NONE;
 }
 
+/* called during deinit */
+static void clear_checks()
+{
+	if (checks_fe.id)
+		deinit_proxy(&checks_fe);
+}
 
 /*
  * Return value:
@@ -1998,6 +2004,7 @@ REGISTER_POST_CHECK(start_checks);
 
 REGISTER_SERVER_DEINIT(deinit_srv_check);
 REGISTER_SERVER_DEINIT(deinit_srv_agent_check);
+REGISTER_POST_DEINIT(clear_checks);
 
 /* perform minimal initializations */
 static void init_checks()
