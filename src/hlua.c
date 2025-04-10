@@ -14459,7 +14459,7 @@ lua_State *hlua_init_state(int thread_num)
 
 void hlua_init(void) {
 	int i;
-	char *errmsg;
+	char *errmsg = NULL;
 #ifdef USE_OPENSSL
 	struct srv_kw *kw;
 	int tmp_error;
