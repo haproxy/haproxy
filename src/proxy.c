@@ -284,7 +284,10 @@ static inline void proxy_free_common(struct proxy *px)
 	px->uri_auth = NULL;
 }
 
-void free_proxy(struct proxy *p)
+/* deinit all <p> proxy members, but doesn't touch to the parent pointer
+ * itself
+ */
+void deinit_proxy(struct proxy *p)
 {
 	struct server *s;
 	struct cap_hdr *h,*h_next;
@@ -424,6 +427,12 @@ void free_proxy(struct proxy *p)
 	HA_RWLOCK_DESTROY(&p->lock);
 
 	proxy_unref_defaults(p);
+}
+
+/* deinit and free <p> proxy */
+void free_proxy(struct proxy *p)
+{
+	deinit_proxy(p);
 	ha_free(&p);
 }
 

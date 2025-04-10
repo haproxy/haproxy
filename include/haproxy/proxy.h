@@ -51,6 +51,7 @@ int resume_proxy(struct proxy *p);
 void stop_proxy(struct proxy *p);
 int  stream_set_backend(struct stream *s, struct proxy *be);
 
+void deinit_proxy(struct proxy *p);
 void free_proxy(struct proxy *p);
 const char *proxy_cap_str(int cap);
 const char *proxy_mode_str(int mode);
