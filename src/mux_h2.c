@@ -856,44 +856,58 @@ static void h2c_update_timeout(struct h2c *h2c)
 		if (br_data(h2c->mbuf)) {
 			/* pending output data: always the regular data timeout */
 			h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
-		} else {
-			/* no stream, no output data */
+		}
+		else {
+			int dft = TICK_ETERNITY;
+			int exp = TICK_ETERNITY;
+
+			/* idle connection : no stream, no output data */
 			if (h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED)) {
 				/* GOAWAY sent (or failed), closing in progress */
-				int exp = tick_add_ifset(now_ms, h2c->shut_timeout);
+				dft = tick_add_ifset(now_ms, h2c->timeout);
 
-				h2c->task->expire = tick_first(h2c->task->expire, exp);
-				/* if a timeout above was not set, fall back to the default one */
-				if (!tick_isset(h2c->task->expire))
-					h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
-
-				is_idle_conn = 1;
-			}
-			else if (!(h2c->flags & H2_CF_IS_BACK)) {
-				int to;
-
-				if (h2c->max_id > 0 && !b_data(&h2c->dbuf) &&
-				    tick_isset(h2c->proxy->timeout.httpka)) {
-					/* idle after having seen one stream => keep-alive */
-					to = h2c->proxy->timeout.httpka;
-				} else {
-					/* before first request, or started to deserialize a
-					 * new req => http-request.
-					 */
-					to = h2c->proxy->timeout.httpreq;
-				}
-
-				h2c->task->expire = tick_add_ifset(h2c->idle_start, to);
-				/* if a timeout above was not set, fall back to the default one */
-				if (!tick_isset(h2c->task->expire))
-					h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
+				/* Use {client,server}-fin but do not reset if
+				 * already defined. Fallback to client/server if needed.
+				 */
+				exp = tick_add_ifset(now_ms, h2c->shut_timeout);
+				exp = tick_first(exp, h2c->task->expire);
+				if (!tick_isset(exp))
+					exp = dft;
 
 				is_idle_conn = 1;
 			}
 			else {
-				/* No timeout on backend idle conn. */
-				h2c->task->expire = TICK_ETERNITY;
+				if (!(h2c->flags & H2_CF_IS_BACK)) {
+					int to;
+
+					dft = tick_add_ifset(now_ms, h2c->timeout);
+
+					if (h2c->max_id > 0 && !b_data(&h2c->dbuf) &&
+					    tick_isset(h2c->proxy->timeout.httpka)) {
+						/* idle after having seen one stream => keep-alive */
+						to = h2c->proxy->timeout.httpka;
+					}
+					else {
+						/* before first request, or started to deserialize a
+						 * new req => http-request.
+						 */
+						to = h2c->proxy->timeout.httpreq;
+					}
+
+					/* Use hr/ka timers. Fallback to client timeout only if unset. */
+					exp = tick_add_ifset(h2c->idle_start, to);
+					if (!tick_isset(exp))
+						exp = dft;
+
+					is_idle_conn = 1;
+				}
+				else {
+					/* No timeout on backend idle conn. */
+					exp = TICK_ETERNITY;
+				}
 			}
+
+			h2c->task->expire = exp;
 		}
 
 		if ((h2c->proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) &&
@@ -925,8 +939,8 @@ static void h2c_update_timeout(struct h2c *h2c)
 				task_wakeup(h2c->task, TASK_WOKEN_TIMER);
 			}
 		}
-
-	} else {
+	}
+	else {
 		h2c->task->expire = TICK_ETERNITY;
 	}
 
