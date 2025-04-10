@@ -321,6 +321,8 @@ static void spoe_release_agent(struct spoe_agent *agent)
 	}
 	free(agent->events);
 	free(agent->engine_id);
+	if (agent->fe.id)
+		deinit_proxy(&agent->fe);
 	free(agent);
 }
 
