@@ -857,12 +857,16 @@ static void h2c_update_timeout(struct h2c *h2c)
 			/* pending output data: always the regular data timeout */
 			h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
 		} else {
+			int dft = tick_add_ifset(now_ms, h2c->timeout);
+			int d1 = TICK_ETERNITY;
+			int d2 = TICK_ETERNITY;
+
 			/* no stream, no output data */
 			if (h2c->flags & (H2_CF_GOAWAY_SENT|H2_CF_GOAWAY_FAILED)) {
 				/* GOAWAY sent (or failed), closing in progress */
 				int exp = tick_add_ifset(now_ms, h2c->shut_timeout);
+				d1 = tick_first(exp, dft);
 
-				h2c->task->expire = tick_first(h2c->task->expire, exp);
 				is_idle_conn = 1;
 			}
 			else if (!(h2c->flags & H2_CF_IS_BACK)) {
@@ -879,7 +883,9 @@ static void h2c_update_timeout(struct h2c *h2c)
 					to = h2c->proxy->timeout.httpreq;
 				}
 
-				h2c->task->expire = tick_add_ifset(h2c->idle_start, to);
+				d2 = tick_add_ifset(h2c->idle_start, to);
+				d2 = tick_first(d2, dft);
+
 				is_idle_conn = 1;
 
 				/* Contrary to other timeouts, hr/ka timers are
@@ -894,10 +900,13 @@ static void h2c_update_timeout(struct h2c *h2c)
 					goto leave;
 				}
 			}
+			else {
+				d2 = dft;
+			}
 
-			/* if a timeout above was not set, fall back to the default one */
-			if (!tick_isset(h2c->task->expire))
-				h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
+			h2c->task->expire = TICK_ETERNITY;
+			h2c->task->expire = tick_first(h2c->task->expire, d1);
+			h2c->task->expire = tick_first(h2c->task->expire, d2);
 		}
 
 		if ((h2c->proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) &&
