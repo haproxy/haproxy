@@ -539,11 +539,6 @@ int acme_jws_payload(struct buffer *req, struct ist nonce, struct ist url, EVP_P
 	int ret = 1;
 
 
-	if (req->data == 0) {
-		memprintf(errmsg, "no input data");
-		goto error;
-	}
-
 	b64payload = alloc_trash_chunk();
 	b64prot = alloc_trash_chunk();
 	jwk = alloc_trash_chunk();
