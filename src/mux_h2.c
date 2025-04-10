@@ -1454,6 +1454,7 @@ static void h2_release(struct h2c *h2c)
 	struct connection *conn = h2c->conn;
 
 	TRACE_ENTER(H2_EV_H2C_END);
+	TRACE_USER("release H2 connection", H2_EV_H2C_END, conn);
 
 	hpack_dht_free(h2c->ddht);
 
