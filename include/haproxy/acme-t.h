@@ -35,6 +35,7 @@ enum acme_st {
 	ACME_CHKACCOUNT,
 	ACME_NEWACCOUNT,
 	ACME_NEWORDER,
+	ACME_AUTH,
 	ACME_END
 };
 
@@ -67,5 +68,6 @@ struct acme_ctx {
 	struct ist kid;
 	struct ist order;
 	struct acme_auth *auths;
+	struct acme_auth *next_auth;
 };
 #endif

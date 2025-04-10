@@ -578,6 +578,147 @@ error:
 	return ret;
 }
 
+/*
+ * Get an Auth URL
+ */
+int acme_req_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *auth, char **errmsg)
+{
+	struct buffer *req_in = NULL;
+	struct buffer *req_out = NULL;
+	const struct http_hdr hdrs[] = {
+		{ IST("Content-Type"), IST("application/jose+json") },
+		{ IST_NULL, IST_NULL }
+	};
+	int ret = 1;
+
+        if ((req_in = alloc_trash_chunk()) == NULL)
+		goto error;
+        if ((req_out = alloc_trash_chunk()) == NULL)
+		goto error;
+
+	/* empty payload */
+	if (acme_jws_payload(req_in, ctx->nonce, auth->auth, ctx->cfg->account.pkey, ctx->kid, req_out, errmsg) != 0)
+		goto error;
+
+	if (acme_http_req(task, ctx, auth->auth, HTTP_METH_POST, hdrs, ist2(req_out->area, req_out->data)))
+		goto error;
+
+	ret = 0;
+error:
+	memprintf(errmsg, "couldn't generate the Authorizations request");
+
+	free_trash_chunk(req_in);
+	free_trash_chunk(req_out);
+
+	return ret;
+
+}
+
+int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *auth, char **errmsg)
+{
+	struct httpclient *hc;
+	struct http_hdr *hdrs, *hdr;
+	struct buffer *t1 = NULL, *t2 = NULL;
+	int ret = 1;
+	int i;
+
+	hc = ctx->hc;
+	if (!hc)
+		goto error;
+
+        if ((t1 = alloc_trash_chunk()) == NULL)
+		goto error;
+        if ((t2 = alloc_trash_chunk()) == NULL)
+		goto error;
+
+	hdrs = hc->res.hdrs;
+
+	for (hdr = hdrs; isttest(hdr->v); hdr++) {
+		if (isteqi(hdr->n, ist("Replay-Nonce"))) {
+			istfree(&ctx->nonce);
+			ctx->nonce = istdup(hdr->v);
+		}
+	}
+
+	if (hc->res.status < 200 || hc->res.status >= 300) {
+		/* XXX: need a generic URN error parser */
+		if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.detail", t1->area, t1->size)) > -1)
+			t1->data = ret;
+		if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.type", t2->area, t2->size)) > -1)
+			t2->data = ret;
+		if (t2->data && t1->data)
+			memprintf(errmsg, "invalid HTTP status code %d when getting Authorization URL: \"%.*s\" (%.*s)", hc->res.status, (int)t1->data, t1->area, (int)t2->data, t2->area);
+		else
+			memprintf(errmsg, "invalid HTTP status code %d when getting Authorization URL", hc->res.status);
+		goto error;
+	}
+
+	/* get the multiple challenges and select the one from the configuration */
+	for (i = 0; ; i++) {
+		int ret;
+		char chall[] = "$.challenges[XXX]";
+		const char *tokptr;
+		int toklen;
+
+		if (snprintf(chall, sizeof(chall), "$.challenges[%d]", i) >= sizeof(chall))
+			goto error;
+
+		/* break the loop at the end of the challenges objects list */
+		if (mjson_find(hc->res.buf.area, hc->res.buf.data, chall, &tokptr, &toklen) == MJSON_TOK_INVALID)
+			break;
+
+		ret = mjson_get_string(tokptr, toklen, "$.type", trash.area, trash.size);
+		if (ret == -1) {
+			memprintf(errmsg, "couldn't get a challenge type in challenges[%d] from Authorization URL \"%s\"", i, auth->auth.ptr);
+			goto error;
+		}
+		trash.data = ret;
+
+		/* skip until this is the challenge we need */
+		if (strncasecmp(ctx->cfg->challenge, trash.area, trash.data) != 0)
+			continue;
+
+		ret = mjson_get_string(tokptr, toklen, "$.url", trash.area, trash.size);
+		if (ret == -1) {
+			memprintf(errmsg, "couldn't get a challenge URL in challenges[%d] from Authorization URL \"%s\"", i, auth->auth.ptr);
+			goto error;
+		}
+		trash.data = ret;
+		auth->chall = istdup(ist2(trash.area, trash.data));
+		if (!isttest(auth->chall)) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+
+		ret = mjson_get_string(tokptr, toklen, "$.token", trash.area, trash.size);
+		if (ret == -1) {
+			memprintf(errmsg, "couldn't get a token in challenges[%d] from Authorization URL \"%s\"", i, auth->auth.ptr);
+			goto error;
+		}
+		trash.data = ret;
+		auth->token = istdup(ist2(trash.area, trash.data));
+		if (!isttest(auth->token)) {
+			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+
+		/* we only need one challenge, and iteration is only used to found the right one */
+		break;
+	}
+
+out:
+	ret = 0;
+
+error:
+	free_trash_chunk(t1);
+	free_trash_chunk(t2);
+	httpclient_destroy(hc);
+	ctx->hc = NULL;
+
+	return ret;
+}
+
+
 int acme_req_neworder(struct task *task, struct acme_ctx *ctx, char **errmsg)
 {
 	struct buffer *req_in = NULL;
@@ -699,6 +840,7 @@ int acme_res_neworder(struct task *task, struct acme_ctx *ctx, char **errmsg)
 
 		auth->next = ctx->auths;
 		ctx->auths = auth;
+		ctx->next_auth = auth;
 	}
 
 out:
@@ -998,7 +1140,6 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 				st = ACME_NEWORDER;
 				http_st = ACME_HTTP_REQ;
 				task_wakeup(task, TASK_WOKEN_MSG);
-
 				goto end;
 			}
 
@@ -1014,10 +1155,27 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 					http_st = ACME_HTTP_REQ;
 					goto retry;
 				}
-				goto end;
+				st = ACME_AUTH;
+				http_st = ACME_HTTP_REQ;
+				task_wakeup(task, TASK_WOKEN_MSG);
 			}
+		break;
+		case ACME_AUTH:
+			if (http_st == ACME_HTTP_REQ) {
+				if (acme_req_auth(task, ctx, ctx->next_auth, &errmsg) != 0)
+					goto retry;
+			}
+			if (http_st == ACME_HTTP_RES) {
+				if (acme_res_auth(task, ctx, ctx->next_auth, &errmsg) != 0) {
+					http_st = ACME_HTTP_REQ;
+					goto retry;
+				}
+				if ((ctx->next_auth = ctx->next_auth->next) == NULL)
+					goto end;
 
-
+				http_st = ACME_HTTP_REQ;
+				task_wakeup(task, TASK_WOKEN_MSG);
+			}
 		break;
 
 		default:
