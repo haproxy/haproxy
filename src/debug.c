@@ -465,12 +465,12 @@ struct buffer *ha_thread_dump_fill(struct buffer *buf, int thr)
 	return (struct buffer *)((ulong)old & ~0x1UL);
 }
 
-/* Indicates to the called thread that the dumped data are collected by writing
- * <buf> into the designated thread's dump buffer (usually buf is NULL). It
- * waits for the dump to be completed if it was not the case, and can also
- * leave if the pointer is NULL (e.g. if a thread has aborted).
+/* Indicates to the called thread that the dumped data are collected by
+ * clearing the thread_dump_buffer pointer. It waits for the dump to be
+ * completed if it was not the case, and can also leave if the pointer
+ * is already NULL (e.g. if a thread has aborted).
  */
-void ha_thread_dump_done(struct buffer *buf, int thr)
+void ha_thread_dump_done(int thr)
 {
 	struct buffer *old;
 
@@ -483,7 +483,7 @@ void ha_thread_dump_done(struct buffer *buf, int thr)
 			ha_thread_relax();
 			continue;
 		}
-	} while (!HA_ATOMIC_CAS(&ha_thread_ctx[thr].thread_dump_buffer, &old, buf));
+	} while (!HA_ATOMIC_CAS(&ha_thread_ctx[thr].thread_dump_buffer, &old, NULL));
 
 	HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_DUMPING_OTHERS);
 }
@@ -584,7 +584,7 @@ int cli_io_handler_show_threads(struct appctx *appctx)
 	do {
 		chunk_reset(&trash);
 		if (ha_thread_dump_fill(&trash, *thr)) {
-			ha_thread_dump_done(NULL, *thr);
+			ha_thread_dump_done(*thr);
 			if (applet_putchk(appctx, &trash) == -1) {
 				/* failed, try again */
 				return 0;
@@ -757,7 +757,7 @@ void ha_panic()
 
 		DISGUISE(write(2, buf->area, buf->data));
 		/* restore the thread's dump pointer for easier post-mortem analysis */
-		ha_thread_dump_done(buf, thr);
+		ha_thread_dump_done(thr);
 	}
 
 #ifdef USE_LUA
@@ -847,7 +847,7 @@ void ha_stuck_warning(int thr)
 	if (ha_thread_dump_fill(&buf, thr)) {
 		DISGUISE(write(2, buf.area, buf.data));
 		/* restore the thread's dump pointer for easier post-mortem analysis */
-		ha_thread_dump_done(NULL, thr);
+		ha_thread_dump_done(thr);
 	}
 
 #ifdef USE_LUA
