@@ -3997,6 +3997,8 @@ static int h2_conn_reverse(struct h2c *h2c)
 		struct proxy *prx = l->bind_conf->frontend;
 
 		h2c->flags &= ~H2_CF_IS_BACK;
+		/* Must manually init max_id so that GOAWAY can be emitted. */
+		h2c->max_id = 0;
 
 		h2c->shut_timeout = h2c->timeout = prx->timeout.client;
 		if (tick_isset(prx->timeout.clientfin))
