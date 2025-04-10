@@ -288,7 +288,7 @@ struct task *rhttp_process(struct task *task, void *ctx, unsigned int state)
 		l->rx.rhttp.pend_conn = conn;
 
 		/* On success task will be woken up by H2 mux after reversal. */
-		l->rx.rhttp.task->expire = conn ?
+		l->rx.rhttp.task->expire = conn && tick_isset(srv->proxy->timeout.connect) ?
 		  tick_add_ifset(now_ms, srv->proxy->timeout.connect) :
 		  MS_TO_TICKS(now_ms + 1000);
 	}
