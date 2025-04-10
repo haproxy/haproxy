@@ -296,56 +296,53 @@ void ha_backtrace_to_stderr(void)
 		DISGUISE(write(2, b.area, b.data));
 }
 
-/* Dumps to the thread's buffer some known information for the desired thread,
- * and optionally extra info when it's safe to do so (current thread or
- * isolated). The dump will be appended to the buffer, so the caller is
- * responsible for preliminary initializing it. The <from_signal> argument will
- * indicate if the function is called from the debug signal handler, indicating
- * the thread was dumped upon request from another one, otherwise if the thread
- * it the current one, a star ('*') will be displayed in front of the thread to
- * indicate the requesting one. Any stuck thread is also prefixed with a '>'.
- * The caller is responsible for atomically setting up the thread's dump buffer
- * to point to a valid buffer with enough room. Output will be truncated if it
- * does not fit. When the dump is complete, the dump buffer will have bit 0 set
- * to 1 to tell the caller it's done, and the caller will then change that value
- * to indicate it's done once the contents are collected.
+/* Dumps some known information about the current thread into its dump buffer,
+ * and optionally extra info when it's considered safe to do so. The dump will
+ * be appended to the buffer, so the caller is responsible for preliminary
+ * initializing it. The <is_caller> argument will indicate if the thread is the
+ * one requesting the dump (e.g. watchdog, panic etc), in order to display a
+ * star ('*') in front of the thread to indicate the requesting one. Any stuck
+ * thread is also prefixed with a '>'. The caller is responsible for atomically
+ * setting up the thread's dump buffer to point to a valid buffer with enough
+ * room. Output will be truncated if it does not fit. When the dump is complete
+ * the dump buffer will have bit 0 set to 1 to tell the caller it's done, and
+ * the caller will then change that value to indicate it's done once the
+ * contents are collected.
  */
-void ha_thread_dump_one(int thr, int from_signal)
+void ha_thread_dump_one(int is_caller)
 {
-	struct buffer *buf = HA_ATOMIC_LOAD(&ha_thread_ctx[thr].thread_dump_buffer);
-	unsigned long __maybe_unused thr_bit = ha_thread_info[thr].ltid_bit;
-	int __maybe_unused tgrp  = ha_thread_info[thr].tgid;
-	unsigned long long p = ha_thread_ctx[thr].prev_cpu_time;
-	unsigned long long n = now_cpu_time_thread(thr);
-	int stuck = !!(ha_thread_ctx[thr].flags & TH_FL_STUCK);
+	struct buffer *buf = HA_ATOMIC_LOAD(&th_ctx->thread_dump_buffer);
+	unsigned long long p = th_ctx->prev_cpu_time;
+	unsigned long long n = now_cpu_time();
+	int stuck = !!(th_ctx->flags & TH_FL_STUCK);
 
 	/* keep a copy of the dump pointer for post-mortem analysis */
-	HA_ATOMIC_STORE(&ha_thread_ctx[thr].last_dump_buffer, buf);
+	HA_ATOMIC_STORE(&th_ctx->last_dump_buffer, buf);
 
 	chunk_appendf(buf,
 	              "%c%cThread %-2u: id=0x%llx act=%d glob=%d wq=%d rq=%d tl=%d tlsz=%d rqsz=%d\n"
 	              "     %2u/%-2u   stuck=%d prof=%d",
-	              (thr == tid && !from_signal) ? '*' : ' ', stuck ? '>' : ' ', thr + 1,
-		      ha_get_pthread_id(thr),
+	              (is_caller) ? '*' : ' ', stuck ? '>' : ' ', tid + 1,
+		      ha_get_pthread_id(tid),
 		      thread_has_tasks(),
-	              !eb_is_empty(&ha_thread_ctx[thr].rqueue_shared),
-	              !eb_is_empty(&ha_thread_ctx[thr].timers),
-	              !eb_is_empty(&ha_thread_ctx[thr].rqueue),
-	              !(LIST_ISEMPTY(&ha_thread_ctx[thr].tasklets[TL_URGENT]) &&
-			LIST_ISEMPTY(&ha_thread_ctx[thr].tasklets[TL_NORMAL]) &&
-			LIST_ISEMPTY(&ha_thread_ctx[thr].tasklets[TL_BULK]) &&
-			MT_LIST_ISEMPTY(&ha_thread_ctx[thr].shared_tasklet_list)),
-	              ha_thread_ctx[thr].tasks_in_list,
-	              ha_thread_ctx[thr].rq_total,
-		      ha_thread_info[thr].tgid, ha_thread_info[thr].ltid + 1,
+	              !eb_is_empty(&th_ctx->rqueue_shared),
+	              !eb_is_empty(&th_ctx->timers),
+	              !eb_is_empty(&th_ctx->rqueue),
+	              !(LIST_ISEMPTY(&th_ctx->tasklets[TL_URGENT]) &&
+			LIST_ISEMPTY(&th_ctx->tasklets[TL_NORMAL]) &&
+			LIST_ISEMPTY(&th_ctx->tasklets[TL_BULK]) &&
+			MT_LIST_ISEMPTY(&th_ctx->shared_tasklet_list)),
+	              th_ctx->tasks_in_list,
+	              th_ctx->rq_total,
+		      ti->tgid, ti->ltid + 1,
 	              stuck,
-	              !!(ha_thread_ctx[thr].flags & TH_FL_TASK_PROFILING));
+	              !!(th_ctx->flags & TH_FL_TASK_PROFILING));
 
 #if defined(USE_THREAD)
 	chunk_appendf(buf,
 	              " harmless=%d isolated=%d",
-	              !!(_HA_ATOMIC_LOAD(&ha_tgroup_ctx[tgrp-1].threads_harmless) & thr_bit),
-		      isolated_thread == thr);
+	              !!(_HA_ATOMIC_LOAD(&tg_ctx->threads_harmless) & ti->ltid_bit),
+		      isolated_thread == tid);
 #endif
 
 	chunk_appendf(buf, "\n");
@@ -353,13 +350,10 @@ void ha_thread_dump_one(int thr, int from_signal)
 
 	/* this is the end of what we can dump from outside the current thread */
 
-	if (thr != tid && !thread_isolated())
-		goto leave;
-
 	chunk_appendf(buf, "             curr_task=");
 	ha_task_dump(buf, th_ctx->current, "             ");
 
-	if (thr == tid && !(HA_ATOMIC_LOAD(&tg_ctx->threads_idle) & ti->ltid_bit)) {
+	if (!(HA_ATOMIC_LOAD(&tg_ctx->threads_idle) & ti->ltid_bit)) {
 		/* only dump the stack of active threads */
 #ifdef USE_LUA
 		if (th_ctx->current &&
@@ -388,7 +382,7 @@ void ha_thread_dump_one(int thr, int from_signal)
 	}
  leave:
 	/* end of dump, setting the buffer to 0x1 will tell the caller we're done */
-	HA_ATOMIC_OR((ulong*)DISGUISE(&ha_thread_ctx[thr].thread_dump_buffer), 0x1UL);
+	HA_ATOMIC_OR((ulong*)DISGUISE(&th_ctx->thread_dump_buffer), 0x1UL);
 }
 
 /* Triggers a thread dump from thread <thr>, either directly if it's the
@@ -434,7 +428,7 @@ struct buffer *ha_thread_dump_fill(struct buffer *buf, int thr)
 	if (thr != tid)
 		ha_tkill(thr, DEBUGSIG);
 	else
-		ha_thread_dump_one(thr, thr != tid);
+		ha_thread_dump_one(1);
 
 	/* now wait for the dump to be done (or cancelled) */
 	while (1) {
@@ -460,7 +454,7 @@ struct buffer *ha_thread_dump_fill(struct buffer *buf, int thr)
 		buf = get_trash_chunk();
 	HA_ATOMIC_STORE(&th_ctx->thread_dump_buffer, buf);
 	old = buf;
-	ha_thread_dump_one(tid, 0);
+	ha_thread_dump_one(1);
 #endif
 	return (struct buffer *)((ulong)old & ~0x1UL);
 }
@@ -2466,7 +2460,7 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 	/* now dump the current state into the designated buffer, and indicate
 	 * we come from a sig handler.
 	 */
-	ha_thread_dump_one(tid, 1);
+	ha_thread_dump_one(0);
 
 	/* in case of panic, no return is planned so that we don't destroy
 	 * the buffer's contents and we make sure not to trigger in loops.
