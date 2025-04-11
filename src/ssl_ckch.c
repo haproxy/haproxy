@@ -1027,6 +1027,8 @@ error:
 struct ckch_store *ckchs_dup(const struct ckch_store *src)
 {
 	struct ckch_store *dst;
+	int n = 0;
+	char **r = NULL;
 
 	if (!src)
 		return NULL;
@@ -1041,9 +1043,50 @@ struct ckch_store *ckchs_dup(const struct ckch_store *src)
 
 	dst->conf.ocsp_update_mode = src->conf.ocsp_update_mode;
 
+        /* copy ckch_conf
+	 * XXX: could be automated for each fiedl with the
+         * ckch_conf array used for parsing */
+
+        if (src->conf.crt)
+		dst->conf.crt = strdup(src->conf.crt);
+	if (src->conf.key)
+		dst->conf.key = strdup(src->conf.key);
+	if (src->conf.ocsp)
+		dst->conf.ocsp = strdup(src->conf.ocsp);
+	if (src->conf.issuer)
+		dst->conf.issuer = strdup(src->conf.issuer);
+	if (src->conf.sctl)
+		dst->conf.sctl = strdup(src->conf.sctl);
+	if (src->conf.acme.id)
+		dst->conf.acme.id = strdup(src->conf.acme.id);
+	if (src->conf.acme.domains) {
+
+		/* copy the array of domain strings */
+
+		while (src->conf.acme.domains[n]) {
+			r = realloc(r, sizeof(char *) * (n + 2));
+			if (!r)
+				goto error;
+
+			r[n] = strdup(src->conf.acme.domains[n]);
+			if (!r[n]) {
+				goto error;
+			}
+			n++;
+		}
+		r[n] = 0;
+		dst->conf.acme.domains = r;
+	}
+
 	return dst;
 
 error:
+	while (r && *r) {
+		char *prev = *r;
+		r++;
+		free(prev);
+	}
+	free(r);
 	ckch_store_free(dst);
 
 	return NULL;
@@ -4895,14 +4938,27 @@ out:
 /* freeing the content of a ckch_conf structure */
 void ckch_conf_clean(struct ckch_conf *conf)
 {
+	char **r;
+
 	if (!conf)
 		return;
 
-	free(conf->crt);
-	free(conf->key);
-	free(conf->ocsp);
-	free(conf->issuer);
-	free(conf->sctl);
+	ha_free(&conf->crt);
+	ha_free(&conf->key);
+	ha_free(&conf->ocsp);
+	ha_free(&conf->issuer);
+	ha_free(&conf->sctl);
+
+	ha_free(&conf->acme.id);
+
+	r = conf->acme.domains;
+	while (r && *r) {
+		char *prev = *r;
+		r++;
+		free(prev);
+	}
+	ha_free(&conf->acme.domains);
+
 }
 
 static char current_crtstore_name[PATH_MAX] = {};
