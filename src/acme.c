@@ -578,7 +578,7 @@ error:
 	return ret;
 }
 
-int acme_res_chkorder(struct task *task, struct acme_ctx *ctx, char **errmsg)
+int acme_res_certificate(struct task *task, struct acme_ctx *ctx, char **errmsg)
 {
 	struct httpclient *hc;
 	struct http_hdr *hdrs, *hdr;
@@ -597,6 +597,59 @@ int acme_res_chkorder(struct task *task, struct acme_ctx *ctx, char **errmsg)
 	hdrs = hc->res.hdrs;
 
 	for (hdr = hdrs; isttest(hdr->v); hdr++) {
+		if (isteqi(hdr->n, ist("Replay-Nonce"))) {
+			istfree(&ctx->nonce);
+			ctx->nonce = istdup(hdr->v);
+		}
+	}
+
+	if (hc->res.status < 200 || hc->res.status >= 300) {
+		if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.detail", t1->area, t1->size)) > -1)
+			t1->data = ret;
+		if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.type", t2->area, t2->size)) > -1)
+			t2->data = ret;
+
+		if (t2->data && t1->data)
+			memprintf(errmsg, "invalid HTTP status code %d when getting challenge URL: \"%.*s\" (%.*s)", hc->res.status, (int)t1->data, t1->area, (int)t2->data, t2->area);
+		else
+			memprintf(errmsg, "invalid HTTP status code %d when getting challengge URL", hc->res.status);
+		goto error;
+	}
+
+	if (ssl_sock_load_pem_into_ckch(ctx->store->path, hc->res.buf.area, ctx->store->data , errmsg) != 0)
+		goto error;
+
+out:
+	ret = 0;
+
+error:
+	free_trash_chunk(t1);
+	free_trash_chunk(t2);
+	httpclient_destroy(hc);
+	ctx->hc = NULL;
+
+	return ret;
+}
+
+int acme_res_chkorder(struct task *task, struct acme_ctx *ctx, char **errmsg)
+{
+	struct httpclient *hc;
+	struct http_hdr *hdrs, *hdr;
+	struct buffer *t1 = NULL, *t2 = NULL;
+	int ret = 1;
+
+	hc = ctx->hc;
+	if (!hc)
+		goto error;
+
+        if ((t1 = alloc_trash_chunk()) == NULL)
+		goto error;
+        if ((t2 = alloc_trash_chunk()) == NULL)
+		goto error;
+
+	hdrs = hc->res.hdrs;
+
+	for (hdr = hdrs; hdrs && isttest(hdr->v); hdr++) {
 		if (isteqi(hdr->n, ist("Replay-Nonce"))) {
 			istfree(&ctx->nonce);
 			ctx->nonce = istdup(hdr->v);
@@ -1517,11 +1570,27 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 					goto retry;
 				}
 				http_st = ACME_HTTP_REQ;
+				st = ACME_CERTIFICATE;
+				task_wakeup(task, TASK_WOKEN_MSG);
+			}
+		break;
+		case ACME_CERTIFICATE:
+			if (http_st == ACME_HTTP_REQ) {
+				if (acme_http_req(task, ctx, ctx->certificate, HTTP_METH_GET, NULL, IST_NULL) != 0)
+					goto retry;
+			}
+			if (http_st == ACME_HTTP_RES) {
+				if (acme_res_certificate(task, ctx, &errmsg) != 0) {
+					http_st = ACME_HTTP_REQ;
+					goto retry;
+				}
+				http_st = ACME_HTTP_REQ;
 				goto end;
 			}
 		break;
 
-		default:
+		case ACME_END:
+			goto end;
 		break;
 
 	}
