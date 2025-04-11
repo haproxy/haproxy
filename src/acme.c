@@ -1723,7 +1723,7 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 		goto err;
 	}
 
-	newstore = ckch_store_new(store->path);
+	newstore = ckchs_dup(store);
 	if (!newstore) {
 		memprintf(&err, "Out of memory.\n");
 		goto err;
@@ -1769,6 +1769,7 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 
 	EVP_PKEY_CTX_free(pkey_ctx);
 
+	EVP_PKEY_free(newstore->data->key);
 	newstore->data->key = pkey;
 
 	ctx->req = acme_x509_req(pkey, store->conf.acme.domains);
@@ -1777,8 +1778,6 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 		goto err;
 	}
 
-	/* XXX: must implement a real copy */
-	newstore->conf = store->conf;
 
 	ctx->store = newstore;
 	ctx->cfg = cfg;
