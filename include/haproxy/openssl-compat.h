@@ -132,6 +132,10 @@
 #define HAVE_JWS
 #endif
 
+#if (defined(HAVE_JWS))
+#define HAVE_ACME
+#endif
+
 #if !defined(HAVE_SSL_SET_SECURITY_LEVEL)
 /* define a nope function for set_security_level */
 #define SSL_CTX_set_security_level(ctx, level) ({})

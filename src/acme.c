@@ -31,6 +31,8 @@
 #include <haproxy/ssl_utils.h>
 #include <haproxy/tools.h>
 
+#if defined(HAVE_ACME)
+
 static struct acme_cfg *acme_cfgs = NULL;
 static struct acme_cfg *cur_acme = NULL;
 
@@ -1878,6 +1880,8 @@ static struct cli_kw_list cli_kws = {{ },{
 
 
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
+
+#endif /* ! HAVE_ACME */
 
 /*
  * Local variables:

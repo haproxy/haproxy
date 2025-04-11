@@ -4599,7 +4599,9 @@ struct ckch_conf_kws ckch_conf_kws[] = {
 #if defined(HAVE_SSL_OCSP)
 	{ "ocsp-update",  offsetof(struct ckch_conf, ocsp_update_mode), PARSE_TYPE_ONOFF, ocsp_update_init,               },
 #endif
+#if defined(HAVE_ACME)
 	{ "acme",         offsetof(struct ckch_conf, acme.id),          PARSE_TYPE_STR,   ckch_conf_acme_init,            },
+#endif
 	{ "domains",      offsetof(struct ckch_conf, acme.domains),     PARSE_TYPE_ARRAY_SUBSTR,   NULL,            },
 	{ NULL,          -1,                                            PARSE_TYPE_STR,   NULL,                           }
 };
