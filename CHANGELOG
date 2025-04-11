@@ -1,6 +1,54 @@
 ChangeLog :
 ===========
 
+2025/04/11 : 3.2-dev10
+    - REORG: ssl: move curves2nid and nid2nist to ssl_utils
+    - BUG/MEDIUM: stream: Fix a possible freeze during a forced shut on a stream
+    - MEDIUM: stream: Save SC and channel flags earlier in process_steam()
+    - BUG/MINOR: peers: fix expire learned from a peer not converted from ms to ticks
+    - BUG/MEDIUM: peers: prevent learning expiration too far in futur from unsync node
+    - CI: spell check: allow manual trigger
+    - CI: codespell: add "pres" to spellcheck whitelist
+    - CLEANUP: assorted typo fixes in the code, commits and doc
+    - CLEANUP: atomics: remove support for gcc < 4.7
+    - CLEANUP: atomics: also replace __sync_synchronize() with __atomic_thread_fence()
+    - TESTS: Fix build for filltab25.c
+    - MEDIUM: ssl: replace "crt" lines by "ssl-f-use" lines
+    - DOC: configuration: replace "crt" by "ssl-f-use" in listeners
+    - MINOR: backend: mark srv as nonnull in alloc_dst_address()
+    - BUG/MINOR: server: ensure check-reuse-pool is copied from default-server
+    - MINOR: server: activate automatically check reuse for rhttp@ protocol
+    - MINOR: check/backend: support conn reuse with SNI
+    - MINOR: check: implement check-pool-conn-name srv keyword
+    - MINOR: task: add thread safe notification_new and notification_wake variants
+    - BUG/MINOR: hlua_fcn: fix potential UAF with Queue:pop_wait()
+    - MINOR: hlua_fcn: register queue class using hlua_register_metatable()
+    - MINOR: hlua: add core.wait()
+    - MINOR: hlua: core.wait() takes optional delay paramater
+    - MINOR: hlua: split hlua_applet_tcp_recv_yield() in two functions
+    - MINOR: hlua: add AppletTCP:try_receive()
+    - MINOR: hlua_fcn: add Queue:alarm()
+    - MEDIUM: task: make notification_* API thread safe by default
+    - CLEANUP: log: adjust _lf_cbor_encode_byte() comment
+    - MEDIUM: ssl/crt-list: warn on negative wildcard filters
+    - MEDIUM: ssl/crt-list: warn on negative filters only
+    - BUILD: atomics: fix build issue on non-x86/non-arm systems
+    - BUG/MINOR: log: fix CBOR encoding with LOG_VARTEXT_START() + lf_encode_chunk()
+    - BUG/MEDIUM: sample: fix risk of overflow when replacing multiple regex back-refs
+    - DOC: configuration: rework the crt-list section
+    - MINOR: ring: support arbitrary delimiters through ring_dispatch_messages()
+    - MINOR: ring/cli: support delimiting events with a trailing \0 on "show events"
+    - DEV: h2: fix h2-tracer.lua nil value index
+    - BUG/MINOR: backend: do not use the source port when hashing clientip
+    - BUG/MINOR: hlua: fix invalid errmsg use in hlua_init()
+    - MINOR: proxy: add setup_new_proxy() function
+    - MINOR: checks: mark CHECKS-FE dummy frontend as internal
+    - MINOR: flt_spoe: mark spoe agent frontend as internal
+    - MEDIUM: tree-wide: avoid manually initializing proxies
+    - MINOR: proxy: add deinit_proxy() helper func
+    - MINOR: checks: deinit checks_fe upon deinit
+    - MINOR: flt_spoe: deinit spoe agent proxy upon agent release
+
 2025/04/02 : 3.2-dev9
     - MINOR: quic: move global tune options into quic_tune
     - CLEANUP: quic: reorganize TP flow-control initialization
