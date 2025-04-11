@@ -1339,6 +1339,70 @@ end:
 	return task;
 }
 
+/*
+ * Generate a X509_REQ using a PKEY and a list of SAN finished by a NULL entry
+ */
+X509_REQ *acme_x509_req(EVP_PKEY *pkey, char **san)
+{
+	struct buffer *san_trash = NULL;
+	X509_REQ *x = NULL;
+	X509_NAME *nm;
+	STACK_OF(X509_EXTENSION) *exts = NULL;
+	X509_EXTENSION *ext_san;
+	char *str_san = NULL;
+	int i = 0;
+
+	if ((san_trash = alloc_trash_chunk()) == NULL)
+		goto error;
+
+	if ((x = X509_REQ_new()) == NULL)
+		goto error;
+
+	if (!X509_REQ_set_pubkey(x, pkey))
+		goto error;
+
+	if ((nm = X509_NAME_new()) == NULL)
+		goto error;
+
+	/* common name is the first SAN in the list */
+	if (!X509_NAME_add_entry_by_txt(nm, "CN", MBSTRING_ASC,
+	                         (unsigned char *)san[0], -1, -1, 0))
+		goto error;
+	/* assign the CN to the REQ */
+	if (!X509_REQ_set_subject_name(x, nm))
+		goto error;
+
+	/* Add the SANs */
+	if ((exts = sk_X509_EXTENSION_new_null()) == NULL)
+		goto error;
+
+	for (i = 0; san[i]; i++) {
+		chunk_appendf(san_trash, "%sDNS:%s", i ? "," : "", san[i]);
+	}
+	str_san = strndup(san_trash->area, san_trash->data);
+
+	if ((ext_san = X509V3_EXT_conf_nid(NULL, NULL, NID_subject_alt_name, str_san)) == NULL)
+		goto error;
+
+	if (!sk_X509_EXTENSION_push(exts, ext_san))
+		goto error;
+	if (!X509_REQ_add_extensions(x, exts))
+		goto error;
+
+	sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
+
+	if (!X509_REQ_sign(x, pkey, EVP_sha256()))
+		goto error;
+
+	free_trash_chunk(san_trash);
+
+	return x;
+
+error:
+	free_trash_chunk(san_trash);
+	return NULL;
+
+}
 
 static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -1421,6 +1485,12 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 	EVP_PKEY_CTX_free(pkey_ctx);
 
 	newstore->data->key = pkey;
+
+	ctx->req = acme_x509_req(pkey, store->conf.acme.domains);
+	if (!ctx->req) {
+		memprintf(&err, "%sCan't generate a CSR.\n", err ? err : "");
+		goto err;
+	}
 
 	/* XXX: must implement a real copy */
 	newstore->conf = store->conf;

@@ -71,5 +71,6 @@ struct acme_ctx {
 	struct ist order;
 	struct acme_auth *auths;
 	struct acme_auth *next_auth;
+	X509_REQ *req;
 };
 #endif
