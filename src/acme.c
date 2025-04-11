@@ -578,6 +578,77 @@ error:
 	return ret;
 }
 
+int acme_res_chkorder(struct task *task, struct acme_ctx *ctx, char **errmsg)
+{
+	struct httpclient *hc;
+	struct http_hdr *hdrs, *hdr;
+	struct buffer *t1 = NULL, *t2 = NULL;
+	int ret = 1;
+
+	hc = ctx->hc;
+	if (!hc)
+		goto error;
+
+        if ((t1 = alloc_trash_chunk()) == NULL)
+		goto error;
+        if ((t2 = alloc_trash_chunk()) == NULL)
+		goto error;
+
+	hdrs = hc->res.hdrs;
+
+	for (hdr = hdrs; isttest(hdr->v); hdr++) {
+		if (isteqi(hdr->n, ist("Replay-Nonce"))) {
+			istfree(&ctx->nonce);
+			ctx->nonce = istdup(hdr->v);
+		}
+	}
+
+	if (hc->res.status < 200 || hc->res.status >= 300) {
+		if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.detail", t1->area, t1->size)) > -1)
+			t1->data = ret;
+		if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.type", t2->area, t2->size)) > -1)
+			t2->data = ret;
+
+		if (t2->data && t1->data)
+			memprintf(errmsg, "invalid HTTP status code %d when getting Order URL: \"%.*s\" (%.*s)", hc->res.status, (int)t1->data, t1->area, (int)t2->data, t2->area);
+		else
+			memprintf(errmsg, "invalid HTTP status code %d when getting Order URL", hc->res.status);
+		goto error;
+	}
+	ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.certificate", trash.area, trash.size);
+	if (ret == -1) {
+		memprintf(errmsg, "couldn't get a the certificate URL");
+		goto error;
+	}
+	trash.data = ret;
+	ctx->certificate = istdup(ist2(trash.area, trash.data));
+	if (!isttest(ctx->certificate)) {
+		memprintf(errmsg, "out of memory");
+		goto error;
+	}
+	ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.status", trash.area, trash.size);
+	if (ret == -1) {
+		memprintf(errmsg, "couldn't get a the Order status");
+		goto error;
+	}
+	trash.data = ret;
+	if (strncasecmp("valid", trash.area, trash.data) != 0) {
+		memprintf(errmsg, "order status: %.*s", (int)trash.data, trash.area);
+		goto error;
+	};
+
+out:
+	ret = 0;
+
+error:
+	free_trash_chunk(t1);
+	free_trash_chunk(t2);
+	httpclient_destroy(hc);
+	ctx->hc = NULL;
+
+	return ret;
+}
+
 /* Send the CSR over the Finalize URL */
 int acme_req_finalize(struct task *task, struct acme_ctx *ctx, char **errmsg)
 {
@@ -1427,6 +1498,21 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 			}
 			if (http_st == ACME_HTTP_RES) {
 				if (acme_res_finalize(task, ctx, &errmsg) != 0) {
+					http_st = ACME_HTTP_REQ;
+					goto retry;
+				}
+				http_st = ACME_HTTP_REQ;
+				st = ACME_CHKORDER;
+				task_wakeup(task, TASK_WOKEN_MSG);
+			}
+		break;
+		case ACME_CHKORDER:
+			if (http_st == ACME_HTTP_REQ) {
+				if (acme_http_req(task, ctx, ctx->order, HTTP_METH_GET, NULL, IST_NULL) != 0)
+					goto retry;
+			}
+			if (http_st == ACME_HTTP_RES) {
+				if (acme_res_chkorder(task, ctx, &errmsg) != 0) {
 					http_st = ACME_HTTP_REQ;
 					goto retry;
 				}
