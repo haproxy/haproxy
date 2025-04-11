@@ -641,16 +641,16 @@ int acme_res_challenge(struct task *task, struct acme_ctx *ctx, struct acme_auth
 		}
 	}
 
-	if (hc->res.status < 200 || hc->res.status >= 300) {
+	if (hc->res.status < 200 || hc->res.status >= 300 || mjson_find(hc->res.buf.area, hc->res.buf.data, "$.error", NULL, NULL) == MJSON_TOK_OBJECT) {
 		/* XXX: need a generic URN error parser */
-		if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.detail", t1->area, t1->size)) > -1)
+		if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.error.detail", t1->area, t1->size)) > -1)
 			t1->data = ret;
-		if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.type", t2->area, t2->size)) > -1)
+		if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.error.type", t2->area, t2->size)) > -1)
 			t2->data = ret;
 		if (t2->data && t1->data)
-			memprintf(errmsg, "invalid HTTP status code %d when getting Challenge URL: \"%.*s\" (%.*s)", hc->res.status, (int)t1->data, t1->area, (int)t2->data, t2->area);
+			memprintf(errmsg, "error when when getting Challenge URL: \"%.*s\" (%.*s) (HTTP status code %d)", (int)t1->data, t1->area, (int)t2->data, t2->area, hc->res.status);
 		else
-			memprintf(errmsg, "invalid HTTP status code %d when getting Challenge URL", hc->res.status);
+			memprintf(errmsg, "error when getting Challenge URL (HTTP status code %d)", hc->res.status);
 		goto error;
 	}
 
@@ -1278,10 +1278,30 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 					http_st = ACME_HTTP_REQ;
 					goto retry;
 				}
+				http_st = ACME_HTTP_REQ;
+				if ((ctx->next_auth = ctx->next_auth->next) == NULL) {
+					st = ACME_CHKCHALLENGE;
+					ctx->next_auth = ctx->auths;
+				}
+				/* call with next auth or do the challenge step */
+				task_wakeup(task, TASK_WOKEN_MSG);
+			}
+		break;
+		case ACME_CHKCHALLENGE:
+			if (http_st == ACME_HTTP_REQ) {
+				if (acme_http_req(task, ctx, ctx->next_auth->chall, HTTP_METH_GET, NULL, IST_NULL) != 0)
+					goto retry;
+			}
+			if (http_st == ACME_HTTP_RES) {
+				if (acme_res_challenge(task, ctx, ctx->next_auth, &errmsg) != 0) {
+					http_st = ACME_HTTP_REQ;
+					goto retry;
+				}
+				http_st = ACME_HTTP_REQ;
 				if ((ctx->next_auth = ctx->next_auth->next) == NULL)
 					goto end;
 
-				http_st = ACME_HTTP_REQ;
+				/* call with next auth or do the challenge step */
 				task_wakeup(task, TASK_WOKEN_MSG);
 			}
 		break;
