@@ -1659,7 +1659,7 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 
 	ctx->http_state = http_st;
 	ctx->state = st;
-
+	task->expire = TICK_ETERNITY;
 	return task;
 
 retry:
@@ -1668,8 +1668,14 @@ retry:
 
 	ctx->retries--;
 	if (ctx->retries > 0) {
-		ha_notice("acme: %s, retrying (%d/%d)...\n", errmsg ? errmsg : "", ACME_RETRY-ctx->retries, ACME_RETRY);
-		task_wakeup(task, TASK_WOKEN_MSG);
+		int delay = 1;
+		int i;
+
+		for (i = 0; i < ACME_RETRY - ctx->retries; i++)
+			delay *= 3000;
+		ha_notice("acme: %s, retrying in %dms (%d/%d)...\n", errmsg ? errmsg : "", delay, ACME_RETRY-ctx->retries, ACME_RETRY);
+		task->expire = tick_add(now_ms, delay);
+
 	} else {
 		ha_notice("acme: %s, aborting. (%d/%d)\n", errmsg ? errmsg : "", ACME_RETRY-ctx->retries, ACME_RETRY);
 		goto end;
