@@ -579,12 +579,62 @@ error:
 	return ret;
 }
 
+/*
+ * Update every certificate instances for the new store
+ *
+ * XXX: ideally this should be reentrant like in lua or the CLI.
+ */
+int acme_update_certificate(struct task *task, struct acme_ctx *ctx, char **errmsg)
+{
+	int ret = 1;
+	struct ckch_store *old_ckchs, *new_ckchs = NULL;
+	struct ckch_inst *ckchi;
+
+	new_ckchs = ctx->store;
+
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock)) {
+		memprintf(errmsg, "couldn't get the certificate lock!");
+		goto error;
+
+	}
+
+	if ((old_ckchs = ckchs_lookup(new_ckchs->path)) == NULL) {
+		memprintf(errmsg, "couldn't find the previous certificate to update");
+		goto error;
+	}
+
+	ckchi = LIST_ELEM(old_ckchs->ckch_inst.n, typeof(ckchi), by_ckchs);
+
+	/* walk through the old ckch_inst and creates new ckch_inst using the updated ckchs */
+	list_for_each_entry_from(ckchi, &old_ckchs->ckch_inst, by_ckchs) {
+		struct ckch_inst *new_inst;
+
+		if (ckch_inst_rebuild(new_ckchs, ckchi, &new_inst, errmsg)) {
+			goto error;
+		}
+
+		/* link the new ckch_inst to the duplicate */
+		LIST_APPEND(&new_ckchs->ckch_inst, &new_inst->by_ckchs);
+	}
+
+	/* insert everything and remove the previous objects */
+	ckch_store_replace(old_ckchs, new_ckchs);
+
+	ret = 0;
+
+error:
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return ret;
+
+}
+
 int acme_res_certificate(struct task *task, struct acme_ctx *ctx, char **errmsg)
 {
 	struct httpclient *hc;
 	struct http_hdr *hdrs, *hdr;
 	struct buffer *t1 = NULL, *t2 = NULL;
 	int ret = 1;
+	EVP_PKEY *key;
 
 	hc = ctx->hc;
 	if (!hc)
@@ -617,7 +667,18 @@ int acme_res_certificate(struct task *task, struct acme_ctx *ctx, char **errmsg)
 		goto error;
 	}
 
+	/* loading a PEM would remove the key, save it for later */
+	key = ctx->store->data->key;
+	ctx->store->data->key = NULL;
+
+	/* XXX: might need a function dedicated to this, which does not read a private key */
 	if (ssl_sock_load_pem_into_ckch(ctx->store->path, hc->res.buf.area, ctx->store->data , errmsg) != 0)
+		goto error;
+
+	/* restore the key */
+	ctx->store->data->key = key;
+
+	if (acme_update_certificate(task, ctx, errmsg) != 0)
 		goto error;
 
 out:
