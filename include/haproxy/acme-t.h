@@ -38,6 +38,7 @@ enum acme_st {
 	ACME_AUTH,
 	ACME_CHALLENGE,
 	ACME_CHKCHALLENGE,
+	ACME_FINALIZE,
 	ACME_END
 };
 
@@ -72,5 +73,6 @@ struct acme_ctx {
 	struct acme_auth *auths;
 	struct acme_auth *next_auth;
 	X509_REQ *req;
+	struct ist finalize;
 };
 #endif
