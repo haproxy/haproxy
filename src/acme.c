@@ -99,7 +99,8 @@ int ckch_conf_acme_init(void *value, char *buf, struct ckch_data *d, int cli, co
 	}
 
 	if (cfg->linenum == 0) {
-		cfg->filename = strdup(filename);
+		if (filename)
+			cfg->filename = strdup(filename);
                 /* store the linenum as a negative value because is the one of
                  * the crt-store, not the one of the section. It will be replace
                  * by the one of the section once initialized
