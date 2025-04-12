@@ -1822,7 +1822,7 @@ static int cpu_topo_alloc(void)
 
 	/* allocate the structures used to store CPU topology info */
 	ha_cpu_clusters = (struct ha_cpu_cluster*)malloc(cpu_topo_maxcpus * sizeof(*ha_cpu_clusters));
-	if (!ha_cpu_topo)
+	if (!ha_cpu_clusters)
 		return 0;
 
 	/* preset all fields to -1 except the index and the state flags which
