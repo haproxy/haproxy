@@ -1591,7 +1591,8 @@ int thread_resolve_group_mask(struct thread_set *ts, int defgrp, char **err)
  */
 void thread_detect_count(void)
 {
-	int thr_min, thr_max;
+	int thr_max;
+	int thr_min __maybe_unused;
 	int grp_min __maybe_unused;
 	int grp_max __maybe_unused;
 	int cpus_avail __maybe_unused;
@@ -1615,9 +1616,11 @@ void thread_detect_count(void)
 	if (global.nbtgroups)
 		grp_min = grp_max = global.nbtgroups;
 
+#if defined(USE_THREAD)
 	/* Adjust to boot settings if not forced */
 	if (thr_min <= thread_cpus_enabled_at_boot && thread_cpus_enabled_at_boot < thr_max)
 		thr_max = thread_cpus_enabled_at_boot;
+#endif
 
 	if (global.thread_limit && thr_max > global.thread_limit)
 		thr_max = global.thread_limit;
