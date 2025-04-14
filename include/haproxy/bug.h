@@ -222,14 +222,24 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 		_HA_ATOMIC_INC(&__dbg_cnt_##_line.count);			\
 	} while (0)
 
-/* Core of the COUNT_IF() macro, checks the condition and counts one hit if
- * true.
+
+/* Matrix for DEBUG_COUNTERS:
+ *    0 : only BUG_ON() and CHECK_IF() are reported (super rare)
+ *    1 : COUNT_GLITCH() and COUNT_IF() are also reported (rare)
  */
-#define _COUNT_IF(cond, file, line, ...)					\
+
+/* Core of the COUNT_IF() macro, checks the condition and counts one hit if
+ * true. It's only enabled at DEBUG_COUNTERS >= 1.
+ */
+# if defined(DEBUG_COUNTERS) && (DEBUG_COUNTERS >= 1)
+#  define _COUNT_IF(cond, file, line, ...)					\
 	(unlikely(cond) ? ({							\
 		__DBG_COUNT(cond, file, line, DBG_COUNT_IF, __VA_ARGS__);	\
 		1; /* let's return the true condition */			\
 	}) : 0)
+# else
+#  define _COUNT_IF(cond, file, line, ...) DISGUISE(unlikely(cond) ? 1 : 0)
+# endif
 
 /* DEBUG_COUNTERS enables counting the number of glitches per line of code. The
  * condition is empty (nothing to write there), except maybe __VA_ARGS at the
@@ -245,7 +255,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 
 #else /* USE_OBSOLETE_LINKER not defined below  */
 # define __DBG_COUNT(cond, file, line, type, ...) do { } while (0)
-# define _COUNT_IF(cond, file, line, ...) DISGUISE(cond)
+# define _COUNT_IF(cond, file, line, ...) DISGUISE(unlikely(cond) ? 1 : 0)
 # define _COUNT_GLITCH(file, line, ...) do { } while (0)
 #endif
 
