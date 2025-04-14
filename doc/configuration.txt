@@ -63,6 +63,7 @@ Summary
 3.11.     HTTPClient tuning
 3.12.     Certificate Storage
 3.12.1.       Load options
+3.13.     ACME
 
 4.    Proxies
 4.1.      Proxy keywords matrix
@@ -5713,10 +5714,27 @@ crt <filename>
   private key.  If no private key is provided in this file, a key can be provided
   with the "key" keyword.
 
+acme <string>
+  This option allows to configure the ACME protocol for a given certificate.
+  This is an experimental feature which needs the
+  "expose-experimental-directives" keyword in the global section.
+
+  See also Section 3.13 ("ACME") and "domains" in this section.
+
 alias <string>
   Optional argument. Allow to name the certificate with an alias, so it can be
   referenced with it in the configuration. An alias must be prefixed with '@/'
   when called elsewhere in the configuration.
+
+domains <string>
+  Configure the list of domains that will be used for ACME certificates. The
+  first domain of the list is used as the CN. Domains are separated by commas in the list.
+
+  See also Section 3.13 ("ACME") and "acme" in this section.
+
+  Example:
+
+    load crt "example.com.pem" acme LE domains "bar.example.com,foo.example.com"
 
 key <filename>
   This argument is optional. Load a private key in PEM format. If a private key
@@ -5835,6 +5853,97 @@ ocsp-update [ off | on ]
   A more precise error message might also be displayed between parenthesis
   after the "generic" error message. It can happen for "OCSP response check
   failure" or "Error during insertion" errors.
+
+3.13. ACME
+----------
+
+The ACME protocol can be configured using the "acme" section. The section takes
+a <name> argument, which is used to link a certificate to the section.
+
+The ACME section allows to configure HAProxy as an ACMEv2 client. This feature
+is experimental meaning that "expose-experimental-directives" must be in the
+global section so this can be used.
+
+Current limitations: The feature is limited to the HTTP-01 challenge for now.
+The current HAProxy architecture is a non-blocking model, access to the disk is
+not suppose to be done after the configuration is loaded, because it could
+block the event loop, blocking the traffic on the same thread. Meaning that the
+certificates and keys generated from HAProxy will need to be dumped from
+outside HAProxy using "dump ssl cert" on the stats socket.
+The generation is not scheduled and must be triggered using the CLI command
+"acme renew".
+
+The following keywords are usable in the ACME section:
+
+account <filename>
+  Configure the path to the account key. The key need to be generated before
+  launching HAProxy. If no account keyword is used, the acme section will try
+  to load a filename using the section name "<name>.account.key"
+
+  You can generate an RSA private key with openssl:
+
+    openssl genrsa -out account.key 2048
+
+  Or an ecdsa one:
+
+    openssl ecparam -name secp384r1 -genkey -noout -out account.key
+
+bits <number>
+  Configure the number of bits to generate an RSA certificate. Default to 2048.
+  Setting a too high value can trigger a warning if your machine is not
+  powerful enough. (This can be configured with "warn-blocked-traffic-after"
+  but blocking the traffic too long could trigger the watchdog.)
+
+challenge <string>
+  Takes a challenge type as parameter, this must be HTTP-01 or DNS-01. When not
+  used the default is HTTP-01.
+
+contact <string>
+  The contact email that will be associated to the account key in the CA.
+
+curves <string>
+  When using the ECDSA keytype, configure the curves. The default is P-384.
+
+keytype <string>
+  Configure the type of key that will be generated. Value can be either "RSA"
+  or "ECDSA". You can also configure the "curves" for ECDSA and the number of
+  "bits" for RSA. By default EC384 keys are generated.
+
+uri <string>
+  This keyword configures the directory URL for the CA used by this acme
+  section. This keyword is mandatory as there is no default uri.
+
+  Example:
+    uri https://acme-staging-v02.api.letsencrypt.org/directory
+
+Example:
+
+  global
+      expose-experimental-directives
+      httpclient.resolvers.prefer ipv4
+
+  frontend in
+      bind *:80
+      bind *:443 ssl
+      http-request return status 200 content-type text/plain lf-string "%[path,field(-1,/)].${ACCOUNT_THUMBPRINT}\n" if { path_beg '/.well-known/acme-challenge/' }
+      ssl-f-use crt "foo.example.com.pem.rsa"   acme LE1 domains "foo.example.com.pem,bar.example.com"
+      ssl-f-use crt "foo.example.com.pem.ecdsa" acme LE2 domains "foo.example.com.pem,bar.example.com"
+
+  acme LE1
+      uri https://acme-staging-v02.api.letsencrypt.org/directory
+      account /etc/haproxy/account.key
+      contact john.doe@example.com
+      challenge HTTP-01
+      keytype RSA
+      bits 2048
+
+  acme LE2
+      uri https://acme-staging-v02.api.letsencrypt.org/directory
+      account /etc/haproxy/account.key
+      contact john.doe@example.com
+      challenge HTTP-01
+      keytype ECDSA
+      curves P-384
 
 4. Proxies
 ----------
