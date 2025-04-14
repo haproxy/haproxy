@@ -75,8 +75,8 @@ struct acme_cfg *new_acme_cfg(const char *name)
 	ret->key.type = EVP_PKEY_EC;
 	ret->key.curves = NID_secp384r1;
 
-	/* default to 4096 bits when using RSA */
-	ret->key.bits = 4096;
+	/* default to 2048 bits when using RSA */
+	ret->key.bits = 2048;
 
 	ret->next = acme_cfgs;
 	acme_cfgs = ret;
