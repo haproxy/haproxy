@@ -12,6 +12,14 @@ int guid_insert(enum obj_type *obj_type, const char *uid, char **errmsg);
 void guid_remove(struct guid_node *guid);
 struct guid_node *guid_lookup(const char *uid);
 
+/* Returns the actual text key associated to <guid> node or NULL if not
+ * set
+ */
+static inline const char *guid_get(const struct guid_node *guid)
+{
+	return guid->node.key;
+}
+
 int guid_is_valid_fmt(const char *uid, char **errmsg);
 char *guid_name(const struct guid_node *guid);
 
