@@ -207,7 +207,7 @@ void ha_dump_backtrace(struct buffer *buf, const char *prefix, int dump)
 			j = 0;
 		}
 		bak = *buf;
-		dump_addr_and_bytes(buf, pfx2, callers[j], 8);
+		dump_addr_and_bytes(buf, pfx2, callers[j], -8);
 		addr = resolve_sym_name(buf, ": ", callers[j]);
 		if ((dump & 3) == 0) {
 			/* dump not started, will start *after* ha_thread_dump_one(),
