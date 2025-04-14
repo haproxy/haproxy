@@ -2423,6 +2423,7 @@ static int init_debug()
 {
 	struct sigaction sa;
 	void *callers[1];
+	int ret = ERR_NONE;
 
 	/* calling backtrace() will access libgcc at runtime. We don't want to
 	 * do it after the chroot, so let's perform a first call to have it
@@ -2442,7 +2443,25 @@ static int init_debug()
 	sa.sa_flags = SA_SIGINFO;
 	sigaction(SIGRTMAX, &sa, NULL);
 #endif
-	return ERR_NONE;
+
+#if !defined(USE_OBSOLETE_LINKER) && ((DEBUG_STRICT > 0) || (DEBUG_COUNTERS > 0))
+	if (&__start_dbg_cnt) {
+		const struct debug_count *ptr;
+		const char *p;
+
+		for (ptr = &__start_dbg_cnt; ptr < &__stop_dbg_cnt; ptr++) {
+			for (p = ptr->desc; *p; p++) {
+				if (*p < 0x20 || *p >= 0x7f) {
+					ha_warning("Invalid character 0x%02x at position %d in description string at %s:%d %s()\n",
+						   (uchar)*p, (int)(p - ptr->desc), ptr->file, ptr->line, ptr->func);
+					ret = ERR_WARN;
+					break;
+				}
+			}
+		}
+	}
+#endif
+	return ret;
 }
 
 REGISTER_POST_CHECK(init_debug);
