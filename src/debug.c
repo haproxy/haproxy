@@ -209,6 +209,24 @@ void ha_dump_backtrace(struct buffer *buf, const char *prefix, int dump)
 		bak = *buf;
 		dump_addr_and_bytes(buf, pfx2, callers[j], -8);
 		addr = resolve_sym_name(buf, ": ", callers[j]);
+
+#if defined(__i386__) || defined(__x86_64__)
+		/* Try to decode a relative call (0xe8 + 32-bit signed ofs) */
+		if (may_access(callers[j] - 5) && may_access(callers[j] - 1) &&
+		    *((uchar*)(callers[j] - 5)) == 0xe8) {
+			int ofs = *((int *)(callers[j] - 4));
+			const void *addr2 = callers[j] + ofs;
+			resolve_sym_name(buf, " > ", addr2);
+		}
+#elif defined(__aarch64__)
+		/* Try to decode a relative call (0x9X + 26-bit signed ofs) */
+		if (may_access(callers[j] - 4) && may_access(callers[j] - 1) &&
+		    (*((int*)(callers[j] - 4)) & 0xFC000000) == 0x94000000) {
+			int ofs = (*((int *)(callers[j] - 4)) << 6) >> 4; // 26-bit signed immed*4
+			const void *addr2 = callers[j] - 4 + ofs;
+			resolve_sym_name(buf, " > ", addr2);
+		}
+#endif
 		if ((dump & 3) == 0) {
 			/* dump not started, will start *after* ha_thread_dump_one(),
 			 * ha_panic and ha_backtrace_to_stderr
