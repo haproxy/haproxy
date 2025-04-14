@@ -2282,7 +2282,7 @@ static int debug_parse_cli_counters(char **args, char *payload, struct appctx *a
 			return cli_err(appctx, "Expects an optional action ('reset','show'), optional types ('bug','chk','cnt','glt') and optionally 'all' to even dump null counters.\n");
 	}
 
-#if DEBUG_STRICT > 0 || defined(DEBUG_GLITCHES)
+#if (DEBUG_STRICT > 0) || (DEBUG_COUNTERS > 0)
 	ctx->start = &__start_dbg_cnt;
 	ctx->stop  = &__stop_dbg_cnt;
 #endif

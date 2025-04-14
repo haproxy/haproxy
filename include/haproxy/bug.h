@@ -231,17 +231,17 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 		1; /* let's return the true condition */			\
 	}) : 0)
 
-/* DEBUG_GLITCHES enables counting the number of glitches per line of code. The
+/* DEBUG_COUNTERS enables counting the number of glitches per line of code. The
  * condition is empty (nothing to write there), except maybe __VA_ARGS at the
  * end.
  */
-# if !defined(DEBUG_GLITCHES)
+# if !defined(DEBUG_COUNTERS) || (DEBUG_COUNTERS == 0)
 #  define _COUNT_GLITCH(file, line, ...) do { } while (0)
 # else
 #  define _COUNT_GLITCH(file, line, ...) do {						\
 		__DBG_COUNT(, file, line, DBG_GLITCH, __VA_ARGS__); 	\
 	} while (0)
-#  endif
+# endif
 
 #else /* USE_OBSOLETE_LINKER not defined below  */
 # define __DBG_COUNT(cond, file, line, type, ...) do { } while (0)

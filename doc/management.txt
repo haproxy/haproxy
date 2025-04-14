@@ -2001,7 +2001,7 @@ commit ssl crl-file <crlfile>
 
 debug counters [reset|show|all|bug|chk|cnt|glt|?]*
   List internal counters placed in the code, which may vary depending on some
-  build options. Some of them depend on DEBUG_STRICT, others on DEBUG_GLITCHES.
+  build options. Some of them depend on DEBUG_STRICT, others on DEBUG_COUNTERS.
   The command takes a combination of multiple arguments, some defining actions
   and others defining filters:
     - bug     enables listing the counters for BUG_ON() statements

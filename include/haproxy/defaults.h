@@ -594,6 +594,11 @@
 # define DEBUG_STRICT 1
 #endif
 
+/* Let's make DEBUG_COUNTERS default to 1 to have glitches counters by default */
+#ifndef DEBUG_COUNTERS
+# define DEBUG_COUNTERS 1
+#endif
+
 #if !defined(DEBUG_MEMORY_POOLS)
 # define DEBUG_MEMORY_POOLS 1
 #endif
