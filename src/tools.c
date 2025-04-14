@@ -7120,7 +7120,7 @@ int restore_env(void)
 	char *value;
 
 	BUG_ON(!init_env, "Triggered in restore_env(): must be preceded by "
-	       "backup_env(), which allocates init_env.\n");
+	       "backup_env(), which allocates init_env.");
 
 	while (*env) {
 		pos = strchr(*env, '=');

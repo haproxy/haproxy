@@ -1043,7 +1043,7 @@ static int mworker_parse_global_max_reloads(char **args, int section_type, struc
 			return -1;
 		}
 	} else {
-		BUG_ON(1, "Triggered in mworker_parse_global_max_reloads() by unsupported keyword.\n");
+		BUG_ON(1, "Triggered in mworker_parse_global_max_reloads() by unsupported keyword.");
 		return -1;
 	}
 

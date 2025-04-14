@@ -2514,7 +2514,7 @@ static int _send_status(char **args, char *payload, struct appctx *appctx, void 
 	int pid;
 
 	BUG_ON((strcmp(args[0], "_send_status") != 0),
-		"Triggered in _send_status by unsupported command name.\n");
+		"Triggered in _send_status by unsupported command name.");
 
 	pid = atoi(args[2]);
 
@@ -3530,7 +3530,7 @@ int mworker_cli_attach_server(char **errmsg)
 	struct mworker_proc *child;
 
 	BUG_ON((mworker_proxy == NULL), "Triggered in mworker_cli_attach_server(), "
-		"mworker_proxy must be created before this call.\n");
+		"mworker_proxy must be created before this call.");
 
 	/* create all servers using the mworker_proc list */
 	list_for_each_entry(child, &proc_list, list) {
