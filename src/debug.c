@@ -31,6 +31,7 @@
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
 #include <haproxy/buf.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
 #include <haproxy/clock.h>
 #include <haproxy/debug.h>
@@ -163,6 +164,7 @@ struct post_mortem {
 
 unsigned int debug_commands_issued = 0;
 unsigned int warn_blocked_issued = 0;
+unsigned int debug_enable_counters = (DEBUG_COUNTERS >= 2);
 
 /* dumps a backtrace of the current thread that is appended to buffer <buf>.
  * Lines are prefixed with the string <prefix> which may be empty (used for
@@ -2254,6 +2256,14 @@ static int debug_parse_cli_counters(char **args, char *payload, struct appctx *a
 			action = 1;
 			continue;
 		}
+		else if (strcmp(args[arg], "off") == 0) {
+			action = 2;
+			continue;
+		}
+		else if (strcmp(args[arg], "on") == 0) {
+			action = 3;
+			continue;
+		}
 		else if (strcmp(args[arg], "all") == 0) {
 			ctx->show_all = 1;
 			continue;
@@ -2279,7 +2289,7 @@ static int debug_parse_cli_counters(char **args, char *payload, struct appctx *a
 			continue;
 		}
 		else
-			return cli_err(appctx, "Expects an optional action ('reset','show'), optional types ('bug','chk','cnt','glt') and optionally 'all' to even dump null counters.\n");
+			return cli_err(appctx, "Expects an optional action ('reset','show','on','off'), optional types ('bug','chk','cnt','glt') and optionally 'all' to even dump null counters.\n");
 	}
 
 #if (DEBUG_STRICT > 0) || (DEBUG_COUNTERS > 0)
@@ -2298,6 +2308,12 @@ static int debug_parse_cli_counters(char **args, char *payload, struct appctx *a
 			_HA_ATOMIC_STORE(&ptr->count, 0);
 		}
 		return 1;
+	}
+	else if (action == 2 || action == 3) { // off/on
+		if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+			return 1;
+		HA_ATOMIC_STORE(&debug_enable_counters, action == 3);
+		return 0;
 	}
 
 	/* OK it's a show, let's dump relevant counters */
@@ -2340,10 +2356,11 @@ static int debug_iohandler_counters(struct appctx *appctx)
 		}
 
 		if (ptr->type < DBG_COUNTER_TYPES)
-			chunk_appendf(&trash, "%-10u %3s %s:%d %s()%s%s\n",
+			chunk_appendf(&trash, "%-10u %3s %s:%d %s()%s%s%s\n",
 				      ptr->count, bug_type[ptr->type],
 				      name, ptr->line, ptr->func,
-				      *ptr->desc ? ": " : "", ptr->desc);
+				      *ptr->desc ? ": " : "", ptr->desc,
+				      (ptr->type == DBG_COUNT_IF && !debug_enable_counters) ? " (stopped)" : "");
 
 		if (applet_putchk(appctx, &trash) == -1) {
 			ctx->start = ptr;
@@ -2807,6 +2824,36 @@ void list_unittests()
 
 #endif
 
+#if DEBUG_STRICT > 1
+/* config parser for global "debug.counters", accepts "on" or "off" */
+static int cfg_parse_debug_counters(char **args, int section_type, struct proxy *curpx,
+                                    const struct proxy *defpx, const char *file, int line,
+                                    char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "on") == 0) {
+		HA_ATOMIC_STORE(&debug_enable_counters, 1);
+	}
+	else if (strcmp(args[1], "off") == 0)
+		HA_ATOMIC_STORE(&debug_enable_counters, 0);
+	else {
+		memprintf(err, "'%s' expects either 'on' or 'off' but got '%s'.", args[0], args[1]);
+		return -1;
+	}
+	return 0;
+}
+#endif
+
+/* config keyword parsers */
+static struct cfg_kw_list cfg_kws = {ILH, {
+#if DEBUG_STRICT > 1
+	{ CFG_GLOBAL, "debug.counters",         cfg_parse_debug_counters      },
+#endif
+	{ 0, NULL, NULL }
+}};
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{

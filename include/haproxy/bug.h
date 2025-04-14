@@ -161,6 +161,8 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
  * COUNT_IF() invocation requires a special section ("dbg_cnt") hence a modern
  * linker.
  */
+extern unsigned int debug_enable_counters;
+
 #if !defined(USE_OBSOLETE_LINKER)
 
 /* type of checks that can be verified. We cannot really distinguish between
@@ -225,17 +227,21 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 
 /* Matrix for DEBUG_COUNTERS:
  *    0 : only BUG_ON() and CHECK_IF() are reported (super rare)
- *    1 : COUNT_GLITCH() and COUNT_IF() are also reported (rare)
+ *    1 : COUNT_GLITCH() are also reported (rare)
+ *        COUNT_IF() are also reported only if debug_enable_counters was set
+ *    2 : COUNT_IF() are also reported unless debug_enable_counters was reset
  */
 
 /* Core of the COUNT_IF() macro, checks the condition and counts one hit if
- * true. It's only enabled at DEBUG_COUNTERS >= 1.
+ * true. It's only enabled at DEBUG_COUNTERS >= 1, and enabled by default if
+ * DEBUG_COUNTERS >= 2.
  */
 # if defined(DEBUG_COUNTERS) && (DEBUG_COUNTERS >= 1)
-#  define _COUNT_IF(cond, file, line, ...)					\
-	(unlikely(cond) ? ({							\
-		__DBG_COUNT(cond, file, line, DBG_COUNT_IF, __VA_ARGS__);	\
-		1; /* let's return the true condition */			\
+#  define _COUNT_IF(cond, file, line, ...)					  \
+	(unlikely(cond) ? ({							  \
+		if (debug_enable_counters)					  \
+			__DBG_COUNT(cond, file, line, DBG_COUNT_IF, __VA_ARGS__); \
+		1; /* let's return the true condition */			  \
 	}) : 0)
 # else
 #  define _COUNT_IF(cond, file, line, ...) DISGUISE(unlikely(cond) ? 1 : 0)

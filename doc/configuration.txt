@@ -1741,6 +1741,7 @@ The following keywords are supported in the "global" section :
 
  * Debugging
    - anonkey
+   - debug.counters
    - force-cfg-parser-pause
    - quiet
    - warn-blocked-traffic-after
@@ -4814,6 +4815,19 @@ anonkey <key>
   commands when anonymized mode is enabled. This key may also be set at runtime
   from the CLI command "set anon global-key". See also command line argument
   "-dC" in the management manual.
+
+debug.counters { on | off }
+  Enables ('on') or disables ('off') the updating of event counters in the
+  code. These are the counters reported under the type "CNT" in the CLI command
+  "debug counters". These counters are only available when the code was build
+  with DEBUG_COUNTERS set to a value 1 or above. With the value 1, the counters
+  are not updated by default ("debug.counters off"), and with value 2, they are
+  updated by default ("debug.counters on"). There is normally no reason to
+  change this setting unless a developer requests it, or unless it is suspected
+  to consume abnormal amounts of CPU (in which case a report to developers is
+  necessary with a dump of the counters). It is also possible to change this
+  status at run time using the "debug counters" CLI command. Please consult the
+  management manual.
 
 force-cfg-parser-pause <timeout>
   This command is pausing the configuration parser for <timeout> milliseconds.

@@ -1999,7 +1999,7 @@ commit ssl crl-file <crlfile>
   See also "new ssl crl-file", "set ssl crl-file", "abort ssl crl-file" and
   "add ssl crt-list".
 
-debug counters [reset|show|all|bug|chk|cnt|glt|?]*
+debug counters [reset|show|on|off|all|bug|chk|cnt|glt|?]*
   List internal counters placed in the code, which may vary depending on some
   build options. Some of them depend on DEBUG_STRICT, others on DEBUG_COUNTERS.
   The command takes a combination of multiple arguments, some defining actions
@@ -2009,6 +2009,8 @@ debug counters [reset|show|all|bug|chk|cnt|glt|?]*
     - chk     enables listing the counters for CHECK_IF() statements
     - glt     enables listing the counters for COUNT_GLITCH() statements
     - all     enables showing counters that never triggered (value 0)
+    - off     action: disables updating of the COUNT_IF() counters
+    - on      action: enables updating of the COUNT_IF() counters
     - reset   action: resets all specified counters
     - show    action: shows all specified counters
 
