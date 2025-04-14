@@ -5184,13 +5184,23 @@ void dump_hex(struct buffer *out, const char *pfx, const void *buf, int len, int
  *    "0x7f10b6557690 [48 c7 c0 0f 00 00 00 0f]"
  * It relies on may_access() to know if the bytes are dumpable, otherwise "--"
  * is emitted. A NULL <pfx> will be considered empty.
+ * if <n> is negative, then the bytes before the address are dumped instead, so
+ * that the address ends after the last byte. This can be handy for call traces
+ * where the code that follows hasn't been executed but the code that precedes
+ * usually contains a call instruction. In this case, the opening bracket uses
+ * a '<' instead of '[' to indicate that the address is at the ']'.
  */
 void dump_addr_and_bytes(struct buffer *buf, const char *pfx, const void *addr, int n)
 {
 	int ok = 0;
 	int i;
 
-	chunk_appendf(buf, "%s%#14lx [", pfx ? pfx : "", (long)addr);
+	chunk_appendf(buf, "%s%#14lx %c", pfx ? pfx : "", (long)addr, (n < 0) ? '<' : '[');
+
+	if (n < 0) {
+		addr += n;
+		n = -n;
+	}
 
 	for (i = 0; i < n; i++) {
 		if (i == 0 || (((long)(addr + i) ^ (long)(addr)) & 4096))
