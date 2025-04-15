@@ -2596,17 +2596,21 @@ static size_t h1_make_headers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				h1s->flags |= H1S_F_HAVE_CHNK;
                         }
 			else if (isteq(n, ist("content-length"))) {
-				if ((h1m->flags & H1_MF_RESP) && (h1s->status < 200 || h1s->status == 204))
-					goto nextblk;
+				unsigned long long body_len = h1m->body_len;
+
+				/* Report error for invalid content-length.
+				 * Skip custom content-length headers except "content-length: 0"
+				 * for 1xx and 204 messages.
+				 */
+				if (http_parse_cont_len_header(&v, &body_len, (h1s->flags & H1S_F_HAVE_CLEN)) < 0)
+					goto error;
+				if (!body_len && (h1m->flags & H1_MF_RESP) && (h1s->status < 200 || h1s->status == 204))
+					h1m->flags |= H1_MF_CLEN;
 				if (!(h1m->flags & H1_MF_CLEN))
 					goto nextblk;
-				if (!(h1s->flags & H1S_F_HAVE_CLEN))
-					h1m->flags &= ~H1_MF_CLEN;
-				/* Only skip C-L header with invalid value. */
-				if (h1_parse_cont_len_header(h1m, &v) < 0)
-					goto error;
 				if (h1s->flags & H1S_F_HAVE_CLEN)
 					goto nextblk;
+				h1m->curr_len = h1m->body_len = body_len;
 				h1s->flags |= H1S_F_HAVE_CLEN;
 			}
 			else if (isteq(n, ist("connection"))) {
