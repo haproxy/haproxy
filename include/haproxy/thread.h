@@ -110,27 +110,32 @@ static inline void ha_set_thread(const struct thread_info *thr)
 
 static inline void thread_idle_now()
 {
+	tg_ctx->threads_idle |= ti->ltid_bit;
 }
 
 static inline void thread_idle_end()
 {
+	tg_ctx->threads_idle &= ~ti->ltid_bit;
 }
 
 static inline void thread_harmless_now()
 {
+	tg_ctx->threads_harmless |= ti->ltid_bit;
 }
 
 static inline int is_thread_harmless()
 {
-	return 1;
+	return 	!!(tg_ctx->threads_harmless & ti->ltid_bit);
 }
 
 static inline void thread_harmless_end()
 {
+	tg_ctx->threads_harmless &= ~ti->ltid_bit;
 }
 
 static inline void thread_harmless_end_sig()
 {
+	tg_ctx->threads_harmless &= ~ti->ltid_bit;
 }
 
 static inline void thread_isolate()
