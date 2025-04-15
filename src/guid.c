@@ -11,6 +11,7 @@
 /* GUID global tree */
 struct eb_root guid_tree = EB_ROOT_UNIQUE;
 __decl_thread(HA_RWLOCK_T guid_lock);
+static int _guid_count = 0;
 
 /* Initialize <guid> members. */
 void guid_init(struct guid_node *guid)
@@ -69,15 +70,19 @@ int guid_insert(enum obj_type *objt, const char *uid, char **errmsg)
 		memprintf(errmsg, "duplicate entry with %s", dup_name);
 		goto err;
 	}
+	_guid_count += 1;
 	HA_RWLOCK_WRUNLOCK(GUID_LOCK, &guid_lock);
 
 	guid->obj_type = objt;
+
 	return 0;
 
  err:
 	if (guid)
 		ha_free(&guid->node.key);
 	ha_free(&dup_name);
+	if (guid)
+		guid->node.key = NULL; /* so that we can check that guid is not in a tree */
 	return 1;
 }
 
@@ -88,6 +93,8 @@ void guid_remove(struct guid_node *guid)
 {
 	HA_RWLOCK_WRLOCK(GUID_LOCK, &guid_lock);
 	ebpt_delete(&guid->node);
+	if (guid->node.key)
+		_guid_count--;
 	ha_free(&guid->node.key);
 	HA_RWLOCK_WRUNLOCK(GUID_LOCK, &guid_lock);
 }
@@ -170,4 +177,15 @@ char *guid_name(const struct guid_node *guid)
 	}
 
 	return NULL;
+}
+
+/* returns the number of guid inserted in guid_tree */
+int guid_count(void)
+{
+	int count;
+
+	HA_RWLOCK_WRLOCK(GUID_LOCK, &guid_lock);
+	count = _guid_count;
+	HA_RWLOCK_WRUNLOCK(GUID_LOCK, &guid_lock);
+	return count;
 }

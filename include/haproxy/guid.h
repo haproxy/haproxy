@@ -22,5 +22,6 @@ static inline const char *guid_get(const struct guid_node *guid)
 
 int guid_is_valid_fmt(const char *uid, char **errmsg);
 char *guid_name(const struct guid_node *guid);
+int guid_count(void);
 
 #endif /* _HAPROXY_GUID_H */
