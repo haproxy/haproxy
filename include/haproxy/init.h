@@ -34,7 +34,7 @@ void hap_register_per_thread_free(void (*fct)());
 
 
 #ifdef DEBUG_UNIT
-void hap_register_unittest(const char *name, int (*fct)());
+void hap_register_unittest(const char *name, int (*fct)(int, char **));
 /* Simplified way to register a unit test */
 #define REGISTER_UNITTEST(name, fct) \
 	INITCALL2(STG_REGISTER, hap_register_unittest, name, (fct))
