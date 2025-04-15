@@ -115,10 +115,10 @@ enum PR_SRV_STATE_FILE {
 #define PR_O_HTTP_SCL   0x02000000      /* HTTP server close mode (http-server-close) */
 #define PR_O_HTTP_MODE  0x03000000      /* MASK to retrieve the HTTP mode */
 /* unused: 0x04000000 */
+/* unused: 0x08000000 */
 
-#define PR_O_TCPCHK_SSL 0x08000000	/* at least one TCPCHECK connect rule requires SSL */
-#define PR_O_CONTSTATS	0x10000000	/* continuous counters */
-/* unused: 0x20000000 */
+#define PR_O_TCPCHK_SSL 0x10000000      /* at least one TCPCHECK connect rule requires SSL */
+#define PR_O_CONTSTATS  0x20000000      /* continuous counters */
 #define PR_O_DISABLE404 0x40000000      /* Disable a server on a 404 response to a health-check */
 /* unused: 0x80000000 */
 
