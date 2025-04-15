@@ -863,6 +863,10 @@ static void h2c_update_timeout(struct h2c *h2c)
 				int exp = tick_add_ifset(now_ms, h2c->shut_timeout);
 
 				h2c->task->expire = tick_first(h2c->task->expire, exp);
+				/* if a timeout above was not set, fall back to the default one */
+				if (!tick_isset(h2c->task->expire))
+					h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
+
 				is_idle_conn = 1;
 			}
 			else if (!(h2c->flags & H2_CF_IS_BACK)) {
@@ -880,12 +884,16 @@ static void h2c_update_timeout(struct h2c *h2c)
 				}
 
 				h2c->task->expire = tick_add_ifset(h2c->idle_start, to);
+				/* if a timeout above was not set, fall back to the default one */
+				if (!tick_isset(h2c->task->expire))
+					h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
+
 				is_idle_conn = 1;
 			}
-
-			/* if a timeout above was not set, fall back to the default one */
-			if (!tick_isset(h2c->task->expire))
-				h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
+			else {
+				/* No timeout on backend idle conn. */
+				h2c->task->expire = TICK_ETERNITY;
+			}
 		}
 
 		if ((h2c->proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) &&
