@@ -591,7 +591,7 @@ error:
 int acme_update_certificate(struct task *task, struct acme_ctx *ctx, char **errmsg)
 {
 	int ret = 1;
-	struct ckch_store *old_ckchs, *new_ckchs = NULL;
+	struct ckch_store *old_ckchs, *new_ckchs;
 	struct ckch_inst *ckchi;
 
 	new_ckchs = ctx->store;
