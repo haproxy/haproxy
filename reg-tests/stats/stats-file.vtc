@@ -32,13 +32,13 @@ haproxy h1 -conf {
 
 haproxy h1 -cli {
 	send "show stat fe 15 -1 typed"
-	expect ~ "F.*.*.*.stot.1:MCP:u64:1024"
+	expect ~ "F.*.*.*.stot.1:MCP.*:u64:1024"
 
 	send "show stat fe2 15 -1 typed"
-	expect ~ "L.*.*.*.stot.1:MCP:u64:1024"
+	expect ~ "L.*.*.*.stot.1:MCP.*:u64:1024"
 
 	send "show stat be 15 -1 typed"
-	expect ~ "B.*.*.*.stot.1:MCP:u64:1024"
+	expect ~ "B.*.*.*.stot.1:MCP.*:u64:1024"
 	send "show stat be 15 -1 typed"
-	expect ~ "S.*.*.*.stot.1:MCP:u64:1024"
+	expect ~ "S.*.*.*.stot.1:MCP.*:u64:1024"
 }

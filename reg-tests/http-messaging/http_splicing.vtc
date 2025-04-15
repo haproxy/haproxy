@@ -70,12 +70,12 @@ client c2 -connect ${h1_li2_sock} {
 
 haproxy h1 -cli {
     send "show stat typed"
-    expect ~ "F.10.0.[[:digit:]]+.h1_spliced_bytes_in.1:MCP:u64:[1-9][[:digit:]]+\nF.10.0.[[:digit:]]+.h1_spliced_bytes_out.1:MCP:u64:[1-9][[:digit:]]+"
+    expect ~ "F.10.0.[[:digit:]]+.h1_spliced_bytes_in.1:MCPV:u64:[1-9][[:digit:]]+\nF.10.0.[[:digit:]]+.h1_spliced_bytes_out.1:MCPV:u64:[1-9][[:digit:]]+"
     send "show stat typed"
-    expect ~ "B.10.0.[[:digit:]]+.h1_spliced_bytes_in.1:MCP:u64:[1-9][[:digit:]]+\nB.10.0.[[:digit:]]+.h1_spliced_bytes_out.1:MCP:u64:[1-9][[:digit:]]+"
+    expect ~ "B.10.0.[[:digit:]]+.h1_spliced_bytes_in.1:MCPV:u64:[1-9][[:digit:]]+\nB.10.0.[[:digit:]]+.h1_spliced_bytes_out.1:MCPV:u64:[1-9][[:digit:]]+"
 
     send "show stat typed"
-    expect ~ "F.20.0.[[:digit:]]+.h1_spliced_bytes_in.1:MCP:u64:0\nF.20.0.[[:digit:]]+.h1_spliced_bytes_out.1:MCP:u64:[1-9][[:digit:]]+"
+    expect ~ "F.20.0.[[:digit:]]+.h1_spliced_bytes_in.1:MCPV:u64:0\nF.20.0.[[:digit:]]+.h1_spliced_bytes_out.1:MCPV:u64:[1-9][[:digit:]]+"
     send "show stat typed"
-    expect ~ "B.20.0.[[:digit:]]+.h1_spliced_bytes_in.1:MCP:u64:[1-9][[:digit:]]+\nB.20.0.[[:digit:]]+.h1_spliced_bytes_out.1:MCP:u64:0"
+    expect ~ "B.20.0.[[:digit:]]+.h1_spliced_bytes_in.1:MCPV:u64:[1-9][[:digit:]]+\nB.20.0.[[:digit:]]+.h1_spliced_bytes_out.1:MCPV:u64:0"
 }

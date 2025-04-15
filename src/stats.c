@@ -386,11 +386,12 @@ int stats_emit_typed_data_field(struct buffer *out, const struct field *f)
 	}
 }
 
-/* Emits an encoding of the field type on 3 characters followed by a delimiter.
+/* Emits an encoding of the field type on 3 characters, followed by "V"
+ * or "P" whether the field is volatile or persistent, followed by a delimiter.
  * Returns non-zero on success, 0 if the buffer is full.
  */
 int stats_emit_field_tags(struct buffer *out, const struct field *f,
-			  char delim)
+                          int persistent, char delim)
 {
 	char origin, nature, scope;
 
@@ -427,7 +428,7 @@ int stats_emit_field_tags(struct buffer *out, const struct field *f,
 	default:         scope = '?'; break;
 	}
 
-	return chunk_appendf(out, "%c%c%c%c", origin, nature, scope, delim);
+	return chunk_appendf(out, "%c%c%c%c%c", origin, nature, scope, (persistent) ? 'P' : 'V', delim);
 }
 
 /* Dump all fields from <line> into <out> using CSV format */
@@ -467,6 +468,8 @@ static int stats_dump_fields_typed(struct buffer *out,
 	int i;
 
 	for (i = 0; i < stats_count; ++i) {
+		int persistent = 0;
+
 		if (!line[i].type)
 			continue;
 
@@ -493,7 +496,12 @@ static int stats_dump_fields_typed(struct buffer *out,
 			break;
 		}
 
-		if (!stats_emit_field_tags(out, &line[i], ':'))
+		/* for now only some PX stats may be shared */
+		if (domain == STATS_DOMAIN_PROXY &&
+		    i < ST_I_PX_MAX && stat_cols_px[i].flags & STAT_COL_FL_SHARED)
+			persistent = 1;
+
+		if (!stats_emit_field_tags(out, &line[i], persistent, ':'))
 			return 0;
 		if (!stats_emit_typed_data_field(out, &line[i]))
 			return 0;
@@ -676,7 +684,7 @@ static int stats_dump_typed_info_fields(struct buffer *out,
 		                   line[ST_I_INF_PROCESS_NUM].u.u32)) {
 			return 0;
 		}
-		if (!stats_emit_field_tags(out, &line[i], ':'))
+		if (!stats_emit_field_tags(out, &line[i], 0, ':'))
 			return 0;
 		if (!stats_emit_typed_data_field(out, &line[i]))
 			return 0;

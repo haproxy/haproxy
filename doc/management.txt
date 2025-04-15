@@ -1346,9 +1346,10 @@ The first column designates the object or metric being dumped. Its format is
 specific to the command producing this output and will not be described in this
 section. Usually it will consist in a series of identifiers and field names.
 
-The second column contains 3 characters respectively indicating the origin, the
-nature and the scope of the value being reported. The first character (the
-origin) indicates where the value was extracted from. Possible characters are :
+The second column contains 4 characters respectively indicating the origin, the
+nature, the scope and the persistence state of the value being reported. The
+first character (the origin) indicates where the value was extracted from.
+Possible characters are :
 
   M   The value is a metric. It is valid at one instant any may change depending
       on its nature .
@@ -1464,7 +1465,16 @@ characters are currently supported :
       current date or resource usage. At the moment this scope is not used by
       any metric.
 
-Consumers of these information will generally have enough of these 3 characters
+The fourth character (persistence state) indicates that the value (the metric)
+is volatile or persistent across reloads. The following characters are expected :
+
+  V   The metric is volatile because it is local to the current process so
+      the value will be lost when reloading.
+
+  P   The metric is persistent because it may be shared with other co-processes
+      so that the value is preserved across reloads.
+
+Consumers of these information will generally have enough of these 4 characters
 to determine how to accurately report aggregated information across multiple
 processes.
 
@@ -2989,18 +2999,19 @@ show info [typed|json] [desc] [float]
       (...)
 
       > show info typed
-      0.Name.1:POS:str:HAProxy
-      1.Version.1:POS:str:1.7-dev1-de52ea-146
-      2.Release_date.1:POS:str:2016/03/11
-      3.Nbproc.1:CGS:u32:1
-      4.Process_num.1:KGP:u32:1
-      5.Pid.1:SGP:u32:28105
-      6.Uptime.1:MDP:str:0d 0h00m08s
-      7.Uptime_sec.1:MDP:u32:8
-      8.Memmax_MB.1:CLP:u32:0
-      9.PoolAlloc_MB.1:MGP:u32:0
-      10.PoolUsed_MB.1:MGP:u32:0
-      11.PoolFailed.1:MCP:u32:0
+      0.Name.1:POSV:str:HAProxy
+      1.Version.1:POSV:str:3.1-dev0-7c653d-2466
+      2.Release_date.1:POSV:str:2025/07/01
+      3.Nbthread.1:CGSV:u32:1
+      4.Nbproc.1:CGSV:u32:1
+      5.Process_num.1:KGPV:u32:1
+      6.Pid.1:SGPV:u32:638069
+      7.Uptime.1:MDPV:str:0d 0h00m07s
+      8.Uptime_sec.1:MDPV:u32:7
+      9.Memmax_MB.1:CLPV:u32:0
+      10.PoolAlloc_MB.1:MGPV:u32:0
+      11.PoolUsed_MB.1:MGPV:u32:0
+      12.PoolFailed.1:MCPV:u32:0
       (...)
 
   In the typed format, the presence of the process ID at the end of the
@@ -3481,10 +3492,11 @@ show stat [domain <resolvers|proxy>] [{<iid>|<proxy>} <type> <sid>] \
 
   The rest of the line starting after the first colon follows the "typed output
   format" described in the section above. In short, the second column (after the
-  first ':') indicates the origin, nature and scope of the variable. The third
-  column indicates the field type, among "s32", "s64", "u32", "u64", "flt' and
-  "str". Then the fourth column is the value itself, which the consumer knows
-  how to parse thanks to column 3 and how to process thanks to column 2.
+  first ':') indicates the origin, nature, scope and persistence state of the
+  variable. The third column indicates the field type, among "s32", "s64",
+  "u32", "u64", "flt' and "str". Then the fourth column is the value itself,
+  which the consumer knows how to parse thanks to column 3 and how to process
+  thanks to column 2.
 
   When "desc" is appended to the command, one extra colon followed by a quoted
   string is appended with a description for the metric. At the time of writing,
@@ -3497,37 +3509,32 @@ show stat [domain <resolvers|proxy>] [{<iid>|<proxy>} <type> <sid>] \
   Here's an example of typed output format :
 
         $ echo "show stat typed" | socat stdio unix-connect:/tmp/sock1
-        F.2.0.0.pxname.1:MGP:str:private-frontend
-        F.2.0.1.svname.1:MGP:str:FRONTEND
-        F.2.0.8.bin.1:MGP:u64:0
-        F.2.0.9.bout.1:MGP:u64:0
-        F.2.0.40.hrsp_2xx.1:MGP:u64:0
-        L.2.1.0.pxname.1:MGP:str:private-frontend
-        L.2.1.1.svname.1:MGP:str:sock-1
-        L.2.1.17.status.1:MGP:str:OPEN
-        L.2.1.73.addr.1:MGP:str:0.0.0.0:8001
-        S.3.13.60.rtime.1:MCP:u32:0
-        S.3.13.61.ttime.1:MCP:u32:0
-        S.3.13.62.agent_status.1:MGP:str:L4TOUT
-        S.3.13.64.agent_duration.1:MGP:u64:2001
-        S.3.13.65.check_desc.1:MCP:str:Layer4 timeout
-        S.3.13.66.agent_desc.1:MCP:str:Layer4 timeout
-        S.3.13.67.check_rise.1:MCP:u32:2
-        S.3.13.68.check_fall.1:MCP:u32:3
-        S.3.13.69.check_health.1:SGP:u32:0
-        S.3.13.70.agent_rise.1:MaP:u32:1
-        S.3.13.71.agent_fall.1:SGP:u32:1
-        S.3.13.72.agent_health.1:SGP:u32:1
-        S.3.13.73.addr.1:MCP:str:1.255.255.255:8888
-        S.3.13.75.mode.1:MAP:str:http
-        B.3.0.0.pxname.1:MGP:str:private-backend
-        B.3.0.1.svname.1:MGP:str:BACKEND
-        B.3.0.2.qcur.1:MGP:u32:0
-        B.3.0.3.qmax.1:MGP:u32:0
-        B.3.0.4.scur.1:MGP:u32:0
-        B.3.0.5.smax.1:MGP:u32:0
-        B.3.0.6.slim.1:MGP:u32:1000
-        B.3.0.55.lastsess.1:MMP:s32:-1
+        F.2.0.0.pxname.1:KNSV:str:dummy
+        F.2.0.1.svname.1:KNSV:str:FRONTEND
+        F.2.0.4.scur.1:MGPV:u32:0
+        F.2.0.5.smax.1:MMPV:u32:0
+        F.2.0.6.slim.1:CLPV:u32:524269
+        F.2.0.7.stot.1:MCPP:u64:0
+        F.2.0.8.bin.1:MCPP:u64:0
+        F.2.0.9.bout.1:MCPP:u64:0
+        F.2.0.10.dreq.1:MCPP:u64:0
+        F.2.0.11.dresp.1:MCPP:u64:0
+        F.2.0.12.ereq.1:MCPP:u64:0
+        F.2.0.17.status.1:SGPV:str:OPEN
+        F.2.0.26.pid.1:KGPV:u32:1
+        F.2.0.27.iid.1:KGSV:u32:2
+        F.2.0.28.sid.1:KGSV:u32:0
+        F.2.0.32.type.1:CGSV:u32:0
+        F.2.0.33.rate.1:MRPP:u32:0
+        F.2.0.34.rate_lim.1:CLPV:u32:0
+        F.2.0.35.rate_max.1:MMPV:u32:0
+        F.2.0.46.req_rate.1:MRPP:u32:0
+        F.2.0.47.req_rate_max.1:MMPV:u32:0
+        F.2.0.48.req_tot.1:MCPP:u64:0
+        F.2.0.51.comp_in.1:MCPP:u64:0
+        F.2.0.52.comp_out.1:MCPP:u64:0
+        F.2.0.53.comp_byp.1:MCPP:u64:0
+        F.2.0.54.comp_rsp.1:MCPP:u64:0
         (...)
 
   In the typed format, the presence of the process ID at the end of the
@@ -3538,20 +3545,20 @@ show stat [domain <resolvers|proxy>] [{<iid>|<proxy>} <type> <sid>] \
         $ ( echo show stat typed | socat /var/run/haproxy.sock1 - ; \
             echo show stat typed | socat /var/run/haproxy.sock2 - ) | \
           sort -t . -k 1,1 -k 2,2n -k 3,3n -k 4,4n -k 5,5 -k 6,6n
-        B.3.0.0.pxname.1:MGP:str:private-backend
-        B.3.0.0.pxname.2:MGP:str:private-backend
-        B.3.0.1.svname.1:MGP:str:BACKEND
-        B.3.0.1.svname.2:MGP:str:BACKEND
-        B.3.0.2.qcur.1:MGP:u32:0
-        B.3.0.2.qcur.2:MGP:u32:0
-        B.3.0.3.qmax.1:MGP:u32:0
-        B.3.0.3.qmax.2:MGP:u32:0
-        B.3.0.4.scur.1:MGP:u32:0
-        B.3.0.4.scur.2:MGP:u32:0
-        B.3.0.5.smax.1:MGP:u32:0
-        B.3.0.5.smax.2:MGP:u32:0
-        B.3.0.6.slim.1:MGP:u32:1000
-        B.3.0.6.slim.2:MGP:u32:1000
+        B.3.0.0.pxname.1:KNSV:str:private-backend
+        B.3.0.0.pxname.2:KNSV:str:private-backend
+        B.3.0.1.svname.1:KNSV:str:BACKEND
+        B.3.0.1.svname.2:KNSV:str:BACKEND
+        B.3.0.2.qcur.1:MGPV:u32:0
+        B.3.0.2.qcur.2:MGPV:u32:0
+        B.3.0.3.qmax.1:MMPV:u32:0
+        B.3.0.3.qmax.2:MMPV:u32:0
+        B.3.0.4.scur.1:MGPV:u32:0
+        B.3.0.4.scur.2:MGPV:u32:0
+        B.3.0.5.smax.1:MMPV:u32:0
+        B.3.0.5.smax.2:MMPV:u32:0
+        B.3.0.6.slim.1:CLPV:u32:1000
+        B.3.0.6.slim.2:CLPV:u32:1000
         (...)
 
   The format of JSON output is described in a schema which may be output

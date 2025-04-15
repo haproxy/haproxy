@@ -73,7 +73,7 @@ int stats_dump_stat_to_buffer(struct stconn *sc, struct buffer *buf, struct htx 
 int stats_emit_raw_data_field(struct buffer *out, const struct field *f);
 int stats_emit_typed_data_field(struct buffer *out, const struct field *f);
 int stats_emit_field_tags(struct buffer *out, const struct field *f,
-			  char delim);
+			  int persistent, char delim);
 
 
 /* Returns true if <col> is fully defined, false if only used as name-desc. */
