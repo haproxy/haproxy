@@ -1020,9 +1020,10 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 
 	if ((s->scb->flags & SC_FL_SHUT_DONE) && co_data(req)) {
 		/* request errors are most likely due to the server aborting the
-		 * transfer.Bit handle server aborts only if there is no
-		 * response. Otherwise, let a change to forward the response
-		 * first.
+		 * transfer. But handle server aborts only if the response was
+		 * not received yet. Otherwise, let the response analyzer the
+		 * responsability to handle the error. It is especially
+		 * important to properly handle L7-retries but also K/A silent close.
 		 */
 		if (txn->rsp.msg_state >= HTTP_MSG_BODY && htx_is_empty(htxbuf(&s->res.buf)))
 			goto return_srv_abort;
@@ -1063,10 +1064,12 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
  waiting:
 	/* waiting for the last bits to leave the buffer */
 	if (s->scb->flags & SC_FL_SHUT_DONE) {
-		/* Handle server aborts only if there is no response. Otherwise,
-		 * let a change to forward the response first.
+		/* Handle server aborts only if the response was not received
+		 * yet. Otherwise, let the response analyzer the responsability
+		 * to handle the error. It is especially important to properly
+		 * handle L7-retries but also K/A silent close.
 		 */
-		if (htx_is_empty(htxbuf(&s->res.buf)))
+		if (txn->rsp.msg_state >= HTTP_MSG_BODY && htx_is_empty(htxbuf(&s->res.buf)))
 			goto return_srv_abort;
 	}
 
