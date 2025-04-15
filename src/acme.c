@@ -493,10 +493,12 @@ REGISTER_CONFIG_SECTION("acme", cfg_parse_acme, cfg_postsection_acme);
 static void acme_httpclient_end(struct httpclient *hc)
 {
 	struct task *task = hc->caller;
-	struct acme_ctx *ctx = task->context;
+	struct acme_ctx *ctx;
 
 	if (!task)
 		return;
+
+	ctx = task->context;
 
 	if (ctx->http_state == ACME_HTTP_REQ)
 		ctx->http_state = ACME_HTTP_RES;
