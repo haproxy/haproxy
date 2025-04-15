@@ -6206,6 +6206,8 @@ option forwarded                     (*)  X          -         X         X
 option h1-case-adjust-bogus-client   (*)  X          X         X         -
 option h1-case-adjust-bogus-server   (*)  X          -         X         X
 option http-buffer-request           (*)  X          X         X         X
+option http-drop-request-trailers    (*)  X          -         -         X
+option http-drop-response-trailers   (*)  X          -         X         -
 option http-ignore-probes            (*)  X          X         X         -
 option http-keep-alive               (*)  X          X         X         X
 option http-no-delay                 (*)  X          X         X         X
@@ -10364,6 +10366,50 @@ no option http-buffer-request
   See also : "option http-no-delay", "timeout http-request",
              "http-request wait-for-body"
 
+option http-drop-request-trailers
+no option http-drop-request-trailers
+  Drop the HTTP trailers from the request when sent to the server
+
+  May be used in the following contexts: http
+
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no   |   no  |   yes
+
+  Arguments : none
+
+  When this option is enabled, any HTTP trailers found in a request will be
+  dropped before sending it to the server.
+
+  RFC9110#section-6.5.1 stated that trailer fields could be merged into the
+  header fields. It should be done on purpose, but it may be a problem for some
+  applications, espcially if malicious clients hide sensitive header fields in
+  the trailers part and some intermediaries merge them with headers with no
+  specific checks. In that case, this option can be enabled on the backend to
+  drop any trailer fields found in requests before sending them to the server.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also: "option http-drop-response-trailers"
+
+option http-drop-response-trailers
+no option http-drop-response-trailers
+  Drop the HTTP trailers from the response when sent to the client
+
+  May be used in the following contexts: http
+
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+
+  Arguments : none
+
+  This option is similar to "option http-drop-request-trailers" but it must be
+  used to drop trailer fields from responses before sending them to clients.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also: "option http-drop-request-trailers"
 
 option http-ignore-probes
 no option http-ignore-probes

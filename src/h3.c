@@ -1818,6 +1818,11 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 	TRACE_ENTER(H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 
 	hdr = 0;
+
+	/* Skip the trailers because the corresponding conf option was set */
+	if (qcs->qcc->proxy->options & PR_O_HTTP_DROP_RES_TRLS)
+		goto skip_trailers;
+
 	for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 		type = htx_get_blk_type(blk);
 
@@ -1842,6 +1847,7 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 		}
 	}
 
+ skip_trailers:
 	if (!hdr) {
 		/* No headers encoded here so no need to generate a H3 HEADERS
 		 * frame. Mux will send an empty QUIC STREAM frame with FIN.

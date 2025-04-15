@@ -1242,7 +1242,6 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 				goto http_msg_invalid;
 			}
 		}
-
 		break;
 
 	default:

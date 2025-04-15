@@ -7410,6 +7410,12 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 
 	/* get trailers. */
 	hdr = 0;
+
+	/* Skip the trailers because the corresponding conf option was set */
+	if ((!(h2c->flags & H2_CF_IS_BACK) && (h2c->proxy->options & PR_O_HTTP_DROP_RES_TRLS)) ||
+	    ((h2c->flags & H2_CF_IS_BACK) && (h2c->proxy->options & PR_O_HTTP_DROP_REQ_TRLS)))
+		goto skip_trailers;
+
 	for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 		type = htx_get_blk_type(blk);
 
@@ -7434,6 +7440,7 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 		}
 	}
 
+ skip_trailers:
 	/* marker for end of trailers */
 	list[hdr].n = ist("");
 
