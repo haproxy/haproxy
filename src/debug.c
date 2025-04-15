@@ -552,8 +552,9 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 
 /* This function dumps all profiling settings. It returns 0 if the output
  * buffer is full and it needs to be called again, otherwise non-zero.
+ * Note: to not statify this one, it's hard to spot in backtraces!
  */
-static int cli_io_handler_show_threads(struct appctx *appctx)
+int cli_io_handler_show_threads(struct appctx *appctx)
 {
 	int *thr = appctx->svcctx;
 
@@ -958,7 +959,7 @@ static int debug_parse_cli_close(char **args, char *payload, struct appctx *appc
 }
 
 /* this is meant to cause a deadlock when more than one task is running it or when run twice */
-static struct task *debug_run_cli_deadlock(struct task *task, void *ctx, unsigned int state)
+struct task *debug_run_cli_deadlock(struct task *task, void *ctx, unsigned int state)
 {
 	static HA_SPINLOCK_T lock __maybe_unused;
 
@@ -1021,7 +1022,7 @@ static int debug_parse_cli_log(char **args, char *payload, struct appctx *appctx
 }
 
 /* parse a "debug dev loop" command. It always returns 1. */
-static int debug_parse_cli_loop(char **args, char *payload, struct appctx *appctx, void *private)
+int debug_parse_cli_loop(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct timeval deadline, curr;
 	int loop = atoi(args[3]);
@@ -1054,7 +1055,7 @@ static int debug_parse_cli_loop(char **args, char *payload, struct appctx *appct
 }
 
 /* parse a "debug dev panic" command. It always returns 1, though it should never return. */
-static int debug_parse_cli_panic(char **args, char *payload, struct appctx *appctx, void *private)
+int debug_parse_cli_panic(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
