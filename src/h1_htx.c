@@ -16,6 +16,7 @@
 #include <haproxy/h1.h>
 #include <haproxy/h1_htx.h>
 #include <haproxy/http.h>
+#include <haproxy/http-hdr.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/tools.h>
@@ -301,6 +302,11 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		h1m->flags &= ~(H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET);
 
 	if (((h1m->flags & H1_MF_METH_CONNECT) && code >= 200 && code < 300) || code == 101) {
+		if (h1m->flags & H1_MF_XFER_ENC)
+			http_del_hdr(hdrs, ist("transfer-encoding"));
+		if (h1m->flags & H1_MF_CLEN)
+			http_del_hdr(hdrs, ist("content-length"));
+
 		h1m->flags &= ~(H1_MF_CLEN|H1_MF_CHNK);
 		h1m->flags |= H1_MF_XFER_LEN;
 		h1m->curr_len = h1m->body_len = 0;
@@ -310,6 +316,15 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 	else if ((h1m->flags & H1_MF_METH_HEAD) || (code >= 100 && code < 200) ||
 		 (code == 204) || (code == 304)) {
 		/* Responses known to have no body. */
+		if ((code >= 100 && code < 200) || (code == 204)) {
+			if (h1m->flags & H1_MF_XFER_ENC)
+				http_del_hdr(hdrs, ist("transfer-encoding"));
+			if (h1m->flags & H1_MF_CLEN)
+				http_del_hdr(hdrs, ist("content-length"));
+
+			h1m->flags &= ~(H1_MF_CLEN|H1_MF_CHNK);
+		}
+
 		h1m->flags |= H1_MF_XFER_LEN;
 		h1m->curr_len = h1m->body_len = 0;
 		if (code >= 200)
