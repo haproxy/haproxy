@@ -1054,8 +1054,9 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 					}
 				}
 				else if (isteqi(n, ist("content-length"))) {
-					ret = h1_parse_cont_len_header(h1m, &v);
+					unsigned long long body_len = h1m->body_len;
 
+					ret = http_parse_cont_len_header(&v, &body_len, (h1m->flags & H1_MF_CLEN));
 					if (ret < 0) {
 						state = H1_MSG_HDR_L2_LWS;
 						ptr = v.ptr; /* Set ptr on the error */
@@ -1065,6 +1066,8 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 						/* skip it */
 						break;
 					}
+					h1m->flags |= H1_MF_CLEN;
+					h1m->curr_len = h1m->body_len = body_len;
 				}
 				else if (isteqi(n, ist("connection"))) {
 					h1_parse_connection_header(h1m, &v);

@@ -6282,18 +6282,21 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 					goto next; /* Skip it */
 			}
 			else if (isteqi(ist2(name, nlen), ist("content-length"))) {
+				unsigned long long body_len = h1m.body_len;
 				struct ist v = ist2(value, vlen);
 				int ret;
 
-				ret = h1_parse_cont_len_header(&h1m, &v);
+				ret = http_parse_cont_len_header(&v, &body_len, (h1m.flags & H1_MF_CLEN));
 				if (ret < 0) {
 					hlua_pusherror(L, "Lua applet http '%s': Invalid '%s' header.\n",
 						       luactx->appctx->rule->arg.hlua_rule->fcn->name,
 						       name);
 					WILL_LJMP(lua_error(L));
 				}
-				else if (ret == 0)
+				else if(ret == 0)
 					goto next; /* Skip it */
+				h1m.flags |= H1_MF_CLEN;
+				h1m.curr_len = h1m.body_len = body_len;
 			}
 
 			/* Add a new header */
