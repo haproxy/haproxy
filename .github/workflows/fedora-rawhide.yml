@@ -41,7 +41,7 @@ jobs:
         make dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht
     - name: Compile HAProxy with ${{ matrix.platform.cc }}
       run: |
-        make -j3 CC=${{ matrix.platform.cc }} V=1 ERR=1 TARGET=linux-glibc USE_OPENSSL=1 USE_QUIC=1 USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 ADDLIB="${{ matrix.platform.ADDLIB_ATOMIC }} -Wl,-rpath,${HOME}/opt/lib" SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include ARCH_FLAGS="${{ matrix.platform.ARCH_FLAGS }}"
+        make -j3 CC=${{ matrix.platform.cc }} V=1 ERR=1 TARGET=linux-glibc DEBUG="-DDEBUG_POOL_INTEGRITY -DDEBUG_UNIT" USE_OPENSSL=1 USE_QUIC=1 USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 ADDLIB="${{ matrix.platform.ADDLIB_ATOMIC }} -Wl,-rpath,${HOME}/opt/lib" SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include ARCH_FLAGS="${{ matrix.platform.ARCH_FLAGS }}"
         make install
     - name: Show HAProxy version
       id: show-version
@@ -64,3 +64,7 @@ jobs:
           cat $folder/LOG
           echo "::endgroup::"
         done
+    - name: Run Unit tests
+      id: unittests
+      run: |
+        make unit-tests
