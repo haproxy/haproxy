@@ -491,6 +491,44 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws_acme);
 REGISTER_CONFIG_SECTION("acme", cfg_parse_acme, cfg_postsection_acme);
 
 
+/* free acme_ctx and its content
+ *
+ * Only acme_cfg and the httpclient is not free
+ *
+ */
+static void acme_ctx_destroy(struct acme_ctx *ctx)
+{
+	struct acme_auth *auth;
+
+	istfree(&ctx->ressources.newNonce);
+	istfree(&ctx->ressources.newAccount);
+	istfree(&ctx->ressources.newOrder);
+	istfree(&ctx->nonce);
+	istfree(&ctx->kid);
+	istfree(&ctx->order);
+
+	auth = ctx->auths;
+	while (auth) {
+		struct acme_auth *next;
+
+		istfree(&auth->auth);
+		istfree(&auth->chall);
+		istfree(&auth->token);
+		next = auth->next;
+		free(auth);
+		auth = next;
+	}
+
+	istfree(&ctx->finalize);
+	istfree(&ctx->certificate);
+
+	ckch_store_free(ctx->store);
+
+	X509_REQ_free(ctx->req);
+
+	free(ctx);
+}
+
 static void acme_httpclient_end(struct httpclient *hc)
 {
 	struct task *task = hc->caller;
@@ -626,6 +664,8 @@ int acme_update_certificate(struct task *task, struct acme_ctx *ctx, char **errm
 	ckch_store_replace(old_ckchs, new_ckchs);
 
 	send_log(NULL, LOG_NOTICE,"acme: %s: Successful update of the certificate.\n", ctx->store->path);
+
+	ctx->store = NULL;
 
 	ret = 0;
 
@@ -1695,6 +1735,7 @@ retry:
 
 	return task;
 end:
+	acme_ctx_destroy(ctx);
 	task_destroy(task);
 	task = NULL;
 
