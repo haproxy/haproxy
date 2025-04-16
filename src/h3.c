@@ -733,6 +733,25 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	flags |= HTX_SL_F_VER_11;
 	flags |= HTX_SL_F_XFER_LEN;
 
+	/* RFC 9114 4.3.1. Request Pseudo-Header Fields
+	 *
+	 * This pseudo-header field MUST NOT be empty for "http" or "https"
+	 * URIs; "http" or "https" URIs that do not contain a path component
+	 * MUST include a value of / (ASCII 0x2f). An OPTIONS request that
+	 * does not include a path component includes the value * (ASCII
+	 * 0x2a) for the :path pseudo-header field; see Section 7.1 of
+	 * [HTTP].
+	 */
+	if ((isteqi(scheme, ist("http")) || isteqi(scheme, ist("https"))) &&
+	    (!istlen(path) ||
+	     (istptr(path)[0] != '/' && !isteq(path, ist("*"))))) {
+		TRACE_ERROR("invalid ':path' pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		h3s->err = H3_ERR_MESSAGE_ERROR;
+		qcc_report_glitch(h3c->qcc, 1);
+		len = -1;
+		goto out;
+	}
+
 	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth, path, ist("HTTP/3.0"));
 	if (!sl) {
 		len = -1;
