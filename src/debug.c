@@ -309,9 +309,8 @@ void ha_backtrace_to_stderr(void)
  * the caller will then change that value to indicate it's done once the
  * contents are collected.
  */
-void ha_thread_dump_one(int is_caller)
+void ha_thread_dump_one(struct buffer *buf, int is_caller)
 {
-	struct buffer *buf = HA_ATOMIC_LOAD(&th_ctx->thread_dump_buffer);
 	unsigned long long p = th_ctx->prev_cpu_time;
 	unsigned long long n = now_cpu_time();
 	int stuck = !!(th_ctx->flags & TH_FL_STUCK);
@@ -381,8 +380,7 @@ void ha_thread_dump_one(int is_caller)
 		ha_dump_backtrace(buf, "             ", 0);
 	}
  leave:
-	/* end of dump, setting the buffer to 0x1 will tell the caller we're done */
-	HA_ATOMIC_OR((ulong*)DISGUISE(&th_ctx->thread_dump_buffer), 0x1UL);
+	return;
 }
 
 /* Triggers a thread dump from thread <thr>, either directly if it's the
@@ -391,16 +389,18 @@ void ha_thread_dump_one(int is_caller)
  * will get the dump appended, and the caller is responsible for making sure
  * there is enough room otherwise some contents will be truncated. The function
  * waits for the called thread to fill the buffer before returning (or cancelling
- * by reporting NULL). It does not release the called thread yet. It returns a
- * pointer to the buffer used if the dump was done, otherwise NULL. When the
- * dump starts, it marks the current thread as dumping, which will only be
- * released via a failure (returns NULL) or via a call to ha_dump_thread_done().
+ * by reporting NULL). It does not release the called thread yet, unless it's the
+ * current one, which in this case is always available. It returns a pointer to
+ * the buffer used if the dump was done, otherwise NULL. When the dump starts, it
+ * marks the current thread as dumping, which will only be released via a failure
+ * (returns NULL) or via a call to ha_dump_thread_done().
  */
 struct buffer *ha_thread_dump_fill(struct buffer *buf, int thr)
 {
-	struct buffer *old = NULL;
-
 #ifdef USE_THREAD_DUMP
+	/* silence bogus warning in gcc 11 without threads */
+	ASSUME(0 <= thr && thr < MAX_THREADS);
+
 	/* A thread that's currently dumping other threads cannot be dumped, or
 	 * it will very likely cause a deadlock.
 	 */
@@ -413,35 +413,39 @@ struct buffer *ha_thread_dump_fill(struct buffer *buf, int thr)
 	if (HA_ATOMIC_FETCH_OR(&th_ctx->flags, TH_FL_DUMPING_OTHERS) & TH_FL_DUMPING_OTHERS)
 		return NULL;
 
-	/* try to impose our dump buffer and to reserve the target thread's
-	 * next dump for us.
-	 */
-	do {
-		if (old)
-			ha_thread_relax();
-		old = NULL;
-	} while (!HA_ATOMIC_CAS(&ha_thread_ctx[thr].thread_dump_buffer, &old, buf));
+	if (thr != tid) {
+		struct buffer *old = NULL;
 
-	/* asking the remote thread to dump itself allows to get more details
-	 * including a backtrace.
-	 */
-	if (thr != tid)
+		/* try to impose our dump buffer and to reserve the target thread's
+		 * next dump for us.
+		 */
+		do {
+			if (old)
+				ha_thread_relax();
+			old = NULL;
+		} while (!HA_ATOMIC_CAS(&ha_thread_ctx[thr].thread_dump_buffer, &old, buf));
+
+		/* asking the remote thread to dump itself allows to get more details
+		 * including a backtrace.
+		 */
 		ha_tkill(thr, DEBUGSIG);
-	else
-		ha_thread_dump_one(1);
 
-	/* now wait for the dump to be done (or cancelled) */
-	while (1) {
-		old = HA_ATOMIC_LOAD(&ha_thread_ctx[thr].thread_dump_buffer);
-		if ((ulong)old & 0x1)
-			break;
-		if (!old) {
-			/* cancelled: no longer dumping */
-			HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_DUMPING_OTHERS);
-			return old;
+		/* now wait for the dump to be done (or cancelled) */
+		while (1) {
+			buf = HA_ATOMIC_LOAD(&ha_thread_ctx[thr].thread_dump_buffer);
+			if ((ulong)buf & 0x1)
+				break;
+			if (!buf) {
+				/* cancelled: no longer dumping */
+				HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_DUMPING_OTHERS);
+				return buf;
+			}
+			ha_thread_relax();
 		}
-		ha_thread_relax();
 	}
+	else
+		ha_thread_dump_one(buf, 1);
+
 #else /* !USE_THREAD_DUMP below, we're on the target thread */
 	/* when thread-dump is not supported, we can only dump our own thread */
 	if (thr != tid)
@@ -453,10 +457,9 @@ struct buffer *ha_thread_dump_fill(struct buffer *buf, int thr)
 	if ((ulong)buf == 0x2UL)
 		buf = get_trash_chunk();
 	HA_ATOMIC_STORE(&th_ctx->thread_dump_buffer, buf);
-	old = buf;
-	ha_thread_dump_one(1);
+	ha_thread_dump_one(buf, 1);
 #endif
-	return (struct buffer *)((ulong)old & ~0x1UL);
+	return (struct buffer *)((ulong)buf & ~0x1UL);
 }
 
 /* Indicates to the called thread that the dumped data are collected by
@@ -468,8 +471,13 @@ void ha_thread_dump_done(int thr)
 {
 	struct buffer *old;
 
+	/* silence bogus warning in gcc 11 without threads */
+	ASSUME(0 <= thr && thr < MAX_THREADS);
+
 	/* now wait for the dump to be done or cancelled, and release it */
 	do {
+		if (thr == tid)
+			break;
 		old = HA_ATOMIC_LOAD(&ha_thread_ctx[thr].thread_dump_buffer);
 		if (!((ulong)old & 0x1)) {
 			if (!old)
@@ -2457,10 +2465,18 @@ void debug_handler(int sig, siginfo_t *si, void *arg)
 		HA_ATOMIC_STORE(&th_ctx->thread_dump_buffer, buf);
 	}
 
+	/* Extra work might have been queued in the mean time via 0x2 */
+	if (((ulong)buf & 0x2UL)) {
+		buf = (void *)((ulong)buf & ~0x2);
+	}
+
 	/* now dump the current state into the designated buffer, and indicate
 	 * we come from a sig handler.
 	 */
-	ha_thread_dump_one(0);
+	ha_thread_dump_one(buf, 0);
+
+	/* end of dump, setting the buffer to 0x1 will tell the caller we're done */
+	HA_ATOMIC_OR((ulong*)DISGUISE(&th_ctx->thread_dump_buffer), 0x1UL);
 
 	/* in case of panic, no return is planned so that we don't destroy
 	 * the buffer's contents and we make sure not to trigger in loops.
