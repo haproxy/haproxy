@@ -625,6 +625,8 @@ int acme_update_certificate(struct task *task, struct acme_ctx *ctx, char **errm
 	/* insert everything and remove the previous objects */
 	ckch_store_replace(old_ckchs, new_ckchs);
 
+	send_log(NULL, LOG_NOTICE,"acme: %s: Successful update of the certificate.\n", ctx->store->path);
+
 	ret = 0;
 
 error:
