@@ -1789,6 +1789,11 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 		goto err;
 	}
 
+	if (store->acme_task != NULL) {
+		memprintf(&err, "An ACME task is already running for certificate '%s'.\n", args[2]);
+		goto err;
+	}
+
 	if (store->conf.acme.id == NULL) {
 		memprintf(&err, "No ACME configuration defined for file '%s'.\n", args[2]);
 		goto err;
@@ -1805,6 +1810,18 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 		memprintf(&err, "Out of memory.\n");
 		goto err;
 	}
+
+
+	task = task_new_anywhere();
+	if (!task)
+		goto err;
+	task->nice = 0;
+	task->process = acme_process;
+
+        /* register the task in the store so we don't
+	 * have 2 tasks at the same time
+	 */
+        store->acme_task = task;
 
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 
@@ -1855,15 +1872,8 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 		goto err;
 	}
 
-
 	ctx->store = newstore;
 	ctx->cfg = cfg;
-
-	task = task_new_anywhere();
-	if (!task)
-		goto err;
-	task->nice = 0;
-	task->process = acme_process;
 	task->context = ctx;
 
 	task_wakeup(task, TASK_WOKEN_INIT);
