@@ -638,7 +638,7 @@ int acme_res_certificate(struct task *task, struct acme_ctx *ctx, char **errmsg)
 	struct http_hdr *hdrs, *hdr;
 	struct buffer *t1 = NULL, *t2 = NULL;
 	int ret = 1;
-	EVP_PKEY *key;
+	EVP_PKEY *key = NULL;
 
 	hc = ctx->hc;
 	if (!hc)
@@ -681,6 +681,7 @@ int acme_res_certificate(struct task *task, struct acme_ctx *ctx, char **errmsg)
 
 	/* restore the key */
 	ctx->store->data->key = key;
+	key = NULL;
 
 	if (acme_update_certificate(task, ctx, errmsg) != 0)
 		goto error;
@@ -689,6 +690,8 @@ out:
 	ret = 0;
 
 error:
+	if (key)
+		ctx->store->data->key = key;
 	free_trash_chunk(t1);
 	free_trash_chunk(t2);
 	httpclient_destroy(hc);
