@@ -529,6 +529,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	unsigned int flags = HTX_SL_F_NONE;
 	struct ist meth = IST_NULL, path = IST_NULL;
 	struct ist scheme = IST_NULL, authority = IST_NULL;
+	struct ist uri;
 	struct ist v;
 	int hdr_idx, ret;
 	int cookie = -1, last_cookie = -1, i;
@@ -752,9 +753,26 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		goto out;
 	}
 
+	if (!istlen(scheme)) {
+		/* No scheme (CONNECT), use :authority only. */
+		uri = authority;
+	}
+	else if (isttest(authority)) {
+		/* Use absolute URI form as :authority is present. */
+		uri = ist2bin(trash.area, scheme);
+		istcat(&uri, ist("://"), trash.size);
+		istcat(&uri, authority, trash.size);
+		if (!isteq(path, ist("*")))
+			istcat(&uri, path, trash.size);
+	}
+	else {
+		/* Use origin URI form. */
+		uri = path;
+	}
+
 	/* Ensure that final URI does not contains LWS nor CTL characters. */
-	for (i = 0; i < path.len; i++) {
-		unsigned char c = istptr(path)[i];
+	for (i = 0; i < uri.len; i++) {
+		unsigned char c = istptr(uri)[i];
 		if (HTTP_IS_LWS(c) || HTTP_IS_CTL(c)) {
 			TRACE_ERROR("invalid character in path", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 			h3s->err = H3_ERR_MESSAGE_ERROR;
@@ -764,7 +782,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		}
 	}
 
-	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth, path, ist("HTTP/3.0"));
+	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth, uri, ist("HTTP/3.0"));
 	if (!sl) {
 		len = -1;
 		goto out;
