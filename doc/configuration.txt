@@ -25684,6 +25684,10 @@ req_ssl_sni                                           string
 req.ssl_st_ext                                        integer
 req.ssl_ver                                           integer
 req_ssl_ver                                           integer
+req.ssl_cipherlist                                    binary
+req.ssl_sigalgs                                       binary
+req.ssl_keyshare_groups                               binary
+req.ssl_supported_groups                              binary
 res.len                                               integer
 res.payload(<offset>,<length>)                        binary
 res.payload_lv(<offset1>,<length>[,<offset2>])        binary
@@ -25887,6 +25891,68 @@ req_ssl_sni : string (deprecated)
      tcp-request content accept if { req.ssl_hello_type 1 }
      use_backend bk_allow if { req.ssl_sni -f allowed_sites }
      default_backend bk_sorry_page
+
+req.ssl_cipherlist binary
+  Returns the binary form of the list of symmetric cipher options supported by
+  the client as reported in the contents of a TLS ClientHello. Note that this
+  only applies to raw contents found in the request buffer and not to contents
+  deciphered via an SSL data layer, so this will not work with "bind" lines
+  having the "ssl" option. Refer to "ssl_fc_cipherlist_bin" which is the SSL
+  bind equivalent that can be used when the "ssl" option is specified.
+
+  Examples :
+    # Wait for a client hello for at most 5 seconds
+    tcp-request inspect-delay 5s
+    tcp-request content accept if { req.ssl_hello_type 1 }
+    use-server fe3 if { req.ssl_cipherlist,be2hex(:,2),lower -m sub 1302:009f }
+    server fe3  ${htst_fe3_addr}:${htst_fe3_port}
+
+req.ssl_sigalgs binary
+  Returns the binary form of the list of signature algorithms supported by the
+  client as reported in the TLS ClientHello. This is available as a client hello
+  extension. Note that this only applies to raw contents found in the request
+  buffer and not to contents deciphered via an SSL data layer, so this will not
+  work with "bind" lines having the "ssl" option. Refer to "ssl_fc_sigalgs_bin"
+  which is the SSL bind equivalent that can be used when the "ssl" option is
+  specified.
+
+  Examples :
+    # Wait for a client hello for at most 5 seconds
+    tcp-request inspect-delay 5s
+    tcp-request content accept if { req.ssl_hello_type 1 }
+    use-server fe4 if { req.ssl_sigalgs,be2hex(:,2),lower -m sub 0403:0805 }
+    server fe4  ${htst_fe4_addr}:${htst_fe4_port}
+
+req.ssl_keyshare_groups binary
+  Return the binary format of the list of cryptographic parameters for key exchange
+  supported by the client as reported in the TLS ClientHello. In TLS v1.3, keyshare
+  is part of the ClientHello message and is the final client hello extension. Note
+  that this only applies to raw contents found in the request buffer and not to
+  contents deciphered via an  SSL data layer, so this will not work with "bind"
+  lines having the "ssl" option.
+
+  Examples :
+    # Wait for a client hello for at most 5 seconds
+    tcp-request inspect-delay 5s
+    tcp-request content accept if { req.ssl_hello_type 1 }
+    use-server fe3 if { req.ssl_keyshare_groups,be2hex(:,2),lower -m sub 001d  }
+    server fe3  ${htst_fe3_addr}:${htst_fe3_port}
+
+req.ssl_supported_groups binary
+  Returns the binary form of the list of supported groups supported by the client
+  as reported in the TLS ClientHello and used for key exchange which can include
+  both elliptic curve and non-EC key exchange. Note that this only applies to raw
+  contents found in the request buffer and not to contents deciphered via an SSL
+  data layer, so this will not  work with "bind" lines having the "ssl" option.
+  Refer to "ssl_fc_eclist_bin" which is the SSL bind equivalent that can be used
+  when the "ssl" option is specified.
+
+  Examples :
+    # Wait for a client hello for at most 5 seconds
+    tcp-request inspect-delay 5s
+    tcp-request content accept if { req.ssl_hello_type 1 }
+    use-server fe3 if { req.ssl_supported_groups, be2hex(:,2),lower -m sub 0017 }
+    server fe3  ${htst_fe3_addr}:${htst_fe3_port}
 
 req.ssl_st_ext : integer
   Returns 0 if the client didn't send a SessionTicket TLS Extension (RFC5077)
