@@ -1679,9 +1679,9 @@ retry:
 		int i;
 
 		for (i = 0; i < ACME_RETRY - ctx->retries; i++)
-			delay *= 3000;
-		ha_notice("acme: %s, retrying in %dms (%d/%d)...\n", errmsg ? errmsg : "", delay, ACME_RETRY-ctx->retries, ACME_RETRY);
-		task->expire = tick_add(now_ms, delay);
+			delay *= 3;
+		ha_notice("acme: %s, retrying in %ds (%d/%d)...\n", errmsg ? errmsg : "", delay, ACME_RETRY - ctx->retries, ACME_RETRY);
+		task->expire = tick_add(now_ms, delay * 1000);
 
 	} else {
 		ha_notice("acme: %s, aborting. (%d/%d)\n", errmsg ? errmsg : "", ACME_RETRY-ctx->retries, ACME_RETRY);
