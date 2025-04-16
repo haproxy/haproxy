@@ -529,6 +529,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	unsigned int flags = HTX_SL_F_NONE;
 	struct ist meth = IST_NULL, path = IST_NULL;
 	struct ist scheme = IST_NULL, authority = IST_NULL;
+	struct ist v;
 	int hdr_idx, ret;
 	int cookie = -1, last_cookie = -1, i;
 	const char *ctl;
@@ -869,7 +870,15 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			goto out;
 		}
 
-		if (!htx_add_header(htx, list[hdr_idx].n, list[hdr_idx].v)) {
+		/* trim leading/trailing LWS */
+		for (v = list[hdr_idx].v; v.len; v.len--) {
+			if (unlikely(HTTP_IS_LWS(*v.ptr)))
+				v.ptr++;
+			else if (!unlikely(HTTP_IS_LWS(v.ptr[v.len - 1])))
+				break;
+		}
+
+		if (!htx_add_header(htx, list[hdr_idx].n, v)) {
 			len = -1;
 			goto out;
 		}
@@ -972,6 +981,7 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	int hdr_idx, ret;
 	const char *ctl;
 	int qpack_err;
+	struct ist v;
 	int i;
 
 	TRACE_ENTER(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
@@ -1077,7 +1087,15 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			goto out;
 		}
 
-		if (!htx_add_trailer(htx, list[hdr_idx].n, list[hdr_idx].v)) {
+		/* trim leading/trailing LWS */
+		for (v = list[hdr_idx].v; v.len; v.len--) {
+			if (unlikely(HTTP_IS_LWS(*v.ptr)))
+				v.ptr++;
+			else if (!unlikely(HTTP_IS_LWS(v.ptr[v.len - 1])))
+				break;
+		}
+
+		if (!htx_add_trailer(htx, list[hdr_idx].n, v)) {
 			TRACE_ERROR("cannot add trailer", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 			len = -1;
 			goto out;
