@@ -839,6 +839,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		else if (isteq(list[hdr_idx].n, ist("connection")) ||
 		         isteq(list[hdr_idx].n, ist("proxy-connection")) ||
 		         isteq(list[hdr_idx].n, ist("keep-alive")) ||
+			 isteq(list[hdr_idx].n, ist("upgrade")) ||
 		         isteq(list[hdr_idx].n, ist("transfer-encoding"))) {
 			/* RFC 9114 4.2. HTTP Fields
 		         *
@@ -1058,6 +1059,7 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		    isteq(list[hdr_idx].n, ist("connection")) ||
 		    isteq(list[hdr_idx].n, ist("proxy-connection")) ||
 		    isteq(list[hdr_idx].n, ist("keep-alive")) ||
+		    isteq(list[hdr_idx].n, ist("upgrade")) ||
 		    isteq(list[hdr_idx].n, ist("te")) ||
 		    isteq(list[hdr_idx].n, ist("transfer-encoding"))) {
 			TRACE_ERROR("forbidden HTTP/3 headers", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
@@ -1689,6 +1691,7 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 		if (isteq(list[hdr].n, ist("connection")) ||
 		    isteq(list[hdr].n, ist("proxy-connection")) ||
 		    isteq(list[hdr].n, ist("keep-alive")) ||
+		    isteq(list[hdr].n, ist("upgrade")) ||
 		    isteq(list[hdr].n, ist("transfer-encoding"))) {
 			continue;
 		}
@@ -1857,6 +1860,7 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 		    isteq(list[hdr].n, ist("connection")) ||
 		    isteq(list[hdr].n, ist("proxy-connection")) ||
 		    isteq(list[hdr].n, ist("keep-alive")) ||
+		    isteq(list[hdr].n, ist("upgrade")) ||
 		    isteq(list[hdr].n, ist("te")) ||
 		    isteq(list[hdr].n, ist("transfer-encoding"))) {
 			continue;
