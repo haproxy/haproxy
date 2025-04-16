@@ -1785,18 +1785,18 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 		return cli_err(appctx, "Can't update: operations on certificates are currently locked!\n");
 
 	if ((store = ckchs_lookup(args[2])) == NULL) {
-		memprintf(&err, "Can't find the certificate '%s'.\n", args[1]);
+		memprintf(&err, "Can't find the certificate '%s'.\n", args[2]);
 		goto err;
 	}
 
 	if (store->conf.acme.id == NULL) {
-		memprintf(&err, "No ACME configuration defined for file '%s'.\n", args[1]);
+		memprintf(&err, "No ACME configuration defined for file '%s'.\n", args[2]);
 		goto err;
 	}
 
 	cfg = get_acme_cfg(store->conf.acme.id);
 	if (!cfg) {
-		memprintf(&err, "No ACME configuration found for file '%s'.\n", args[1]);
+		memprintf(&err, "No ACME configuration found for file '%s'.\n", args[2]);
 		goto err;
 	}
 
