@@ -1411,6 +1411,7 @@ static void sink_init()
 	sink_new_fd("stdout", "standard output (fd#1)", LOG_FORMAT_RAW, 1);
 	sink_new_fd("stderr", "standard output (fd#2)", LOG_FORMAT_RAW, 2);
 	sink_new_buf("buf0",  "in-memory ring buffer", LOG_FORMAT_TIMED, 1048576);
+	sink_new_buf("dpapi",  "DPAPI ring buffer", LOG_FORMAT_TIMED, 1048576);
 }
 
 static int sink_postcheck()
