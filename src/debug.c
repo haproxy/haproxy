@@ -386,6 +386,7 @@ struct buffer *ha_thread_dump_fill(struct buffer *buf, int thr)
 {
 	struct buffer *old = NULL;
 
+#ifdef USE_THREAD_DUMP
 	/* A thread that's currently dumping other threads cannot be dumped, or
 	 * it will very likely cause a deadlock.
 	 */
@@ -404,14 +405,12 @@ struct buffer *ha_thread_dump_fill(struct buffer *buf, int thr)
 		old = NULL;
 	} while (!HA_ATOMIC_CAS(&ha_thread_ctx[thr].thread_dump_buffer, &old, buf));
 
-#ifdef USE_THREAD_DUMP
 	/* asking the remote thread to dump itself allows to get more details
 	 * including a backtrace.
 	 */
 	if (thr != tid)
 		ha_tkill(thr, DEBUGSIG);
 	else
-#endif
 		ha_thread_dump_one(thr, thr != tid);
 
 	/* now wait for the dump to be done (or cancelled) */
@@ -426,6 +425,20 @@ struct buffer *ha_thread_dump_fill(struct buffer *buf, int thr)
 		}
 		ha_thread_relax();
 	}
+#else /* !USE_THREAD_DUMP below, we're on the target thread */
+	/* when thread-dump is not supported, we can only dump our own thread */
+	if (thr != tid)
+		return NULL;
+
+	/* the buffer might not be valid in case of a panic, since we
+	 * have to allocate it ourselves in this case.
+	 */
+	if ((ulong)buf == 0x2UL)
+		buf = get_trash_chunk();
+	HA_ATOMIC_STORE(&th_ctx->thread_dump_buffer, buf);
+	old = buf;
+	ha_thread_dump_one(tid, 0);
+#endif
 	return (struct buffer *)((ulong)old & ~0x1UL);
 }
 
