@@ -401,18 +401,6 @@ struct buffer *ha_thread_dump_fill(struct buffer *buf, int thr)
 	/* silence bogus warning in gcc 11 without threads */
 	ASSUME(0 <= thr && thr < MAX_THREADS);
 
-	/* A thread that's currently dumping other threads cannot be dumped, or
-	 * it will very likely cause a deadlock.
-	 */
-	if (HA_ATOMIC_LOAD(&ha_thread_ctx[thr].flags) & TH_FL_DUMPING_OTHERS)
-		return NULL;
-
-	/* This will be undone in ha_thread_dump_done(). We're using an atomic
-	 * OR to also block any possible re-entrance.
-	 */
-	if (HA_ATOMIC_FETCH_OR(&th_ctx->flags, TH_FL_DUMPING_OTHERS) & TH_FL_DUMPING_OTHERS)
-		return NULL;
-
 	if (thr != tid) {
 		struct buffer *old = NULL;
 
@@ -435,11 +423,8 @@ struct buffer *ha_thread_dump_fill(struct buffer *buf, int thr)
 			buf = HA_ATOMIC_LOAD(&ha_thread_ctx[thr].thread_dump_buffer);
 			if ((ulong)buf & 0x1)
 				break;
-			if (!buf) {
-				/* cancelled: no longer dumping */
-				HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_DUMPING_OTHERS);
+			if (!buf)
 				return buf;
-			}
 			ha_thread_relax();
 		}
 	}
@@ -486,8 +471,6 @@ void ha_thread_dump_done(int thr)
 			continue;
 		}
 	} while (!HA_ATOMIC_CAS(&ha_thread_ctx[thr].thread_dump_buffer, &old, NULL));
-
-	HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_DUMPING_OTHERS);
 }
 
 /* dumps into the buffer some information related to task <task> (which may

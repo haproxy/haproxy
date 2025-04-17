@@ -99,15 +99,13 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 		if (!p)
 			goto update_and_leave;
 
-		if ((_HA_ATOMIC_LOAD(&ha_thread_ctx[thr].flags) & (TH_FL_SLEEPING|TH_FL_DUMPING_OTHERS)) ||
+		if ((_HA_ATOMIC_LOAD(&ha_thread_ctx[thr].flags) & TH_FL_SLEEPING) ||
 		    (_HA_ATOMIC_LOAD(&ha_tgroup_ctx[tgrp-1].threads_harmless) & thr_bit)) {
 			/* This thread is currently doing exactly nothing
 			 * waiting in the poll loop (unlikely but possible),
 			 * waiting for all other threads to join the rendez-vous
 			 * point (common), or waiting for another thread to
-			 * finish an isolated operation (unlikely but possible),
-			 * or waiting for another thread to finish dumping its
-			 * stack.
+			 * finish an isolated operation (unlikely but possible).
 			 */
 			goto update_and_leave;
 		}
