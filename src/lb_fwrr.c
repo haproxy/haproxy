@@ -297,7 +297,7 @@ void fwrr_init_server_groups(struct proxy *p)
 {
 	struct server *srv;
 	struct eb_root init_head = EB_ROOT;
-	int i;
+	int i, j;
 
 	p->lbprm.set_server_status_up   = fwrr_set_server_status_up;
 	p->lbprm.set_server_status_down = fwrr_set_server_status_down;
@@ -334,7 +334,21 @@ void fwrr_init_server_groups(struct proxy *p)
 		p->per_tgrp[i].lbprm.fwrr.bck.next = &p->per_tgrp[i].lbprm.fwrr.bck.t1;
 
 		/* queue active and backup servers in two distinct groups */
+		j = 0;
 		for (srv = p->srv; srv; srv = srv->next) {
+			j++;
+			if (!srv_currently_usable(srv))
+				continue;
+			if (j <= i)
+				continue;
+			fwrr_queue_by_weight((srv->flags & SRV_F_BACKUP) ?
+					p->per_tgrp[i].lbprm.fwrr.bck.init :
+					p->per_tgrp[i].lbprm.fwrr.act.init,
+					srv, i + 1);
+		}
+		j = 0;
+		for (srv = p->srv; srv && j < i; srv = srv->next) {
+			j++;
 			if (!srv_currently_usable(srv))
 				continue;
 			fwrr_queue_by_weight((srv->flags & SRV_F_BACKUP) ?
