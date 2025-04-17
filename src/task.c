@@ -42,6 +42,9 @@ DECLARE_POOL(pool_head_notification, "notification", sizeof(struct notification)
  */
 __decl_aligned_rwlock(wq_lock);
 
+/* used to detect if the scheduler looks stuck (for warnings) */
+static THREAD_LOCAL int sched_stuck;
+
 /* Flags the task <t> for immediate destruction and puts it into its first
  * thread's shared tasklet list if not yet queued/running. This will bypass
  * the priority scheduling and make the task show up as fast as possible in
@@ -605,6 +608,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			else {
 				done++;
 				th_ctx->current = NULL;
+				sched_stuck = 0; // scheduler is not stuck (don't warn)
 				/* signal barrier to prevent thread dump helpers
 				 * from dumping a task currently being freed.
 				 */
@@ -646,6 +650,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 				task_unlink_wq(t);
 				__task_free(t);
 				th_ctx->current = NULL;
+				sched_stuck = 0; // scheduler is not stuck (don't warn)
 				__ha_barrier_store();
 				/* We don't want max_processed to be decremented if
 				 * we're just freeing a destroyed task, we should only
@@ -671,6 +676,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		}
 
 		th_ctx->current = NULL;
+		sched_stuck = 0; // scheduler is not stuck (don't warn)
 		__ha_barrier_store();
 
 		/* stats are only registered for non-zero wake dates */
@@ -892,6 +898,20 @@ void process_runnable_tasks()
  leave:
 	if (tt->tl_class_mask)
 		activity[tid].long_rq++;
+}
+
+/* Pings the scheduler to verify that tasks continue running.
+ * Returns 1 if the scheduler made progress since last call,
+ * 0 if it looks stuck.
+ */
+int is_sched_alive(void)
+{
+	if (sched_stuck)
+		return 0;
+
+	/* next time we'll know if any progress was made */
+	sched_stuck = 1;
+	return 1;
 }
 
 /*
