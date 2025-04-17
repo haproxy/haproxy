@@ -4308,6 +4308,13 @@ init_proxies_list_stage2:
 			goto init_proxies_list_stage2;
 	}
 
+	if (init_proxies_list == cfg_log_forward) {
+		init_proxies_list = sink_proxies_list;
+		/* check if list is not null to avoid infinite loop */
+		if (init_proxies_list)
+			goto init_proxies_list_stage2;
+	}
+
 	/*
 	 * Recount currently required checks.
 	 */
