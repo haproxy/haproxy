@@ -20,6 +20,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/signal-t.h>
+#include <haproxy/task.h>
 #include <haproxy/thread.h>
 #include <haproxy/tools.h>
 
@@ -40,7 +41,6 @@
  */
 static struct {
 	timer_t timer;
-	uint prev_ctxsw;
 } per_thread_wd_ctx[MAX_THREADS];
 
 /* warn about stuck tasks after this delay (ns) */
@@ -65,7 +65,6 @@ int wdt_ping(int thr)
 void wdt_handler(int sig, siginfo_t *si, void *arg)
 {
 	unsigned long long n, p;
-	uint prev_ctxsw, curr_ctxsw;
 	ulong thr_bit;
 	int thr, tgrp;
 
@@ -185,13 +184,9 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_STUCK)
 		ha_panic();
 
-	prev_ctxsw = per_thread_wd_ctx[tid].prev_ctxsw;
-	curr_ctxsw = activity[tid].ctxsw;
-
-	if (curr_ctxsw == prev_ctxsw)
+	if (!is_sched_alive())
 		ha_stuck_warning();
-	else
-		per_thread_wd_ctx[tid].prev_ctxsw = curr_ctxsw;
+
 	/* let's go on */
 
  update_and_leave:
