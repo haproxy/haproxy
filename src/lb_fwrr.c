@@ -35,7 +35,6 @@ static void fwrr_queue_srv(struct server *s);
 static void fwrr_set_server_status_down(struct server *srv)
 {
 	struct proxy *p = srv->proxy;
-	struct fwrr_group *grp;
 
 	if (!srv_lb_status_changed(srv))
 		return;
@@ -49,11 +48,10 @@ static void fwrr_set_server_status_down(struct server *srv)
 		/* server was already down */
 		goto out_update_backend;
 
-	grp = (srv->flags & SRV_F_BACKUP) ? &p->lbprm.fwrr.bck : &p->lbprm.fwrr.act;
-	grp->next_weight -= srv->cur_eweight;
 
 	if (srv->flags & SRV_F_BACKUP) {
-		p->lbprm.tot_wbck = p->lbprm.fwrr.bck.next_weight;
+		p->lbprm.fwrr.next_weight_bck -= srv->cur_eweight;
+		p->lbprm.tot_wbck = p->lbprm.fwrr.next_weight_bck;
 		p->srv_bck--;
 
 		if (srv == p->lbprm.fbck) {
@@ -69,7 +67,8 @@ static void fwrr_set_server_status_down(struct server *srv)
 			p->lbprm.fbck = srv2;
 		}
 	} else {
-		p->lbprm.tot_wact = p->lbprm.fwrr.act.next_weight;
+		p->lbprm.fwrr.next_weight_act -= srv->cur_eweight;
+		p->lbprm.tot_wact = p->lbprm.fwrr.next_weight_act;
 		p->srv_act--;
 	}
 
@@ -98,6 +97,7 @@ static void fwrr_set_server_status_up(struct server *srv)
 {
 	struct proxy *p = srv->proxy;
 	struct fwrr_group *grp;
+	int next_weight;
 
 	if (!srv_lb_status_changed(srv))
 		return;
@@ -112,10 +112,10 @@ static void fwrr_set_server_status_up(struct server *srv)
 		goto out_update_backend;
 
 	grp = (srv->flags & SRV_F_BACKUP) ? &p->lbprm.fwrr.bck : &p->lbprm.fwrr.act;
-	grp->next_weight += srv->next_eweight;
 
 	if (srv->flags & SRV_F_BACKUP) {
-		p->lbprm.tot_wbck = p->lbprm.fwrr.bck.next_weight;
+		p->lbprm.fwrr.next_weight_bck += srv->next_eweight;
+		next_weight = p->lbprm.tot_wbck = p->lbprm.fwrr.next_weight_bck;
 		p->srv_bck++;
 
 		if (!(p->options & PR_O_USE_ALL_BK)) {
@@ -135,13 +135,14 @@ static void fwrr_set_server_status_up(struct server *srv)
 			}
 		}
 	} else {
-		p->lbprm.tot_wact = p->lbprm.fwrr.act.next_weight;
+		p->lbprm.fwrr.next_weight_act += srv->next_eweight;
+		next_weight = p->lbprm.tot_wact = p->lbprm.fwrr.next_weight_act;
 		p->srv_act++;
 	}
 
 	/* note that eweight cannot be 0 here */
 	fwrr_get_srv(srv);
-	srv->npos = grp->curr_pos + (grp->next_weight + grp->curr_weight - grp->curr_pos) / srv->next_eweight;
+	srv->npos = grp->curr_pos + (next_weight + grp->curr_weight - grp->curr_pos) / srv->next_eweight;
 	fwrr_queue_srv(srv);
 
 out_update_backend:
@@ -163,6 +164,7 @@ static void fwrr_update_server_weight(struct server *srv)
 	int old_state, new_state;
 	struct proxy *p = srv->proxy;
 	struct fwrr_group *grp;
+	int next_weight;
 
 	if (!srv_lb_status_changed(srv))
 		return;
@@ -193,11 +195,15 @@ static void fwrr_update_server_weight(struct server *srv)
 
 	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
-	grp = (srv->flags & SRV_F_BACKUP) ? &p->lbprm.fwrr.bck : &p->lbprm.fwrr.act;
-	grp->next_weight = grp->next_weight - srv->cur_eweight + srv->next_eweight;
-
-	p->lbprm.tot_wact = p->lbprm.fwrr.act.next_weight;
-	p->lbprm.tot_wbck = p->lbprm.fwrr.bck.next_weight;
+	if (srv->flags & SRV_F_BACKUP) {
+		p->lbprm.fwrr.next_weight_bck = p->lbprm.fwrr.next_weight_bck - srv->cur_eweight + srv->next_eweight;
+		next_weight = p->lbprm.tot_wbck = p->lbprm.fwrr.next_weight_bck;
+		grp = &p->lbprm.fwrr.bck;
+	} else {
+		p->lbprm.fwrr.next_weight_act = p->lbprm.fwrr.next_weight_act - srv->cur_eweight + srv->next_eweight;
+		next_weight = p->lbprm.tot_wact = p->lbprm.fwrr.next_weight_act;
+		grp = &p->lbprm.fwrr.act;
+	}
 
 	if (srv->lb_tree == grp->init) {
 		fwrr_dequeue_srv(srv);
@@ -209,7 +215,7 @@ static void fwrr_update_server_weight(struct server *srv)
 		 */
 		fwrr_dequeue_srv(srv);
 		fwrr_get_srv(srv);
-		srv->npos = grp->curr_pos + (grp->next_weight + grp->curr_weight - grp->curr_pos) / srv->next_eweight;
+		srv->npos = grp->curr_pos + (next_weight + grp->curr_weight - grp->curr_pos) / srv->next_eweight;
 		fwrr_queue_srv(srv);
 	} else {
 		/* The server is either active or in the next queue. If it's
@@ -220,7 +226,7 @@ static void fwrr_update_server_weight(struct server *srv)
 
 		if (srv->next_eweight > 0) {
 			int prev_next = srv->npos;
-			int step = grp->next_weight / srv->next_eweight;
+			int step = next_weight / srv->next_eweight;
 
 			srv->npos = srv->lpos + step;
 			srv->rweight = 0;
@@ -292,7 +298,7 @@ void fwrr_init_server_groups(struct proxy *p)
 
 	/* prepare the active servers group */
 	p->lbprm.fwrr.act.curr_pos = p->lbprm.fwrr.act.curr_weight =
-		p->lbprm.fwrr.act.next_weight = p->lbprm.tot_wact;
+		p->lbprm.fwrr.next_weight_act = p->lbprm.tot_wact;
 	p->lbprm.fwrr.act.curr = p->lbprm.fwrr.act.t0 =
 		p->lbprm.fwrr.act.t1 = init_head;
 	p->lbprm.fwrr.act.init = &p->lbprm.fwrr.act.t0;
@@ -300,7 +306,7 @@ void fwrr_init_server_groups(struct proxy *p)
 
 	/* prepare the backup servers group */
 	p->lbprm.fwrr.bck.curr_pos = p->lbprm.fwrr.bck.curr_weight =
-		p->lbprm.fwrr.bck.next_weight = p->lbprm.tot_wbck;
+		p->lbprm.fwrr.next_weight_bck = p->lbprm.tot_wbck;
 	p->lbprm.fwrr.bck.curr = p->lbprm.fwrr.bck.t0 =
 		p->lbprm.fwrr.bck.t1 = init_head;
 	p->lbprm.fwrr.bck.init = &p->lbprm.fwrr.bck.t0;
@@ -336,8 +342,14 @@ static void fwrr_queue_srv(struct server *s)
 {
 	struct proxy *p = s->proxy;
 	struct fwrr_group *grp;
+	int next_weight;
 
 	grp = (s->flags & SRV_F_BACKUP) ? &p->lbprm.fwrr.bck : &p->lbprm.fwrr.act;
+	if (s->flags & SRV_F_BACKUP) {
+		next_weight = p->lbprm.fwrr.next_weight_bck;
+	} else {
+		next_weight = p->lbprm.fwrr.next_weight_act;
+	}
 
 	/* Delay everything which does not fit into the window and everything
 	 * which does not fit into the theoretical new window.
@@ -347,7 +359,7 @@ static void fwrr_queue_srv(struct server *s)
 	}
 	else if (s->next_eweight <= 0 ||
 		 s->npos >= 2 * grp->curr_weight ||
-		 s->npos >= grp->curr_weight + grp->next_weight) {
+		 s->npos >= grp->curr_weight + next_weight) {
 		/* put into next tree, and readjust npos in case we could
 		 * finally take this back to current. */
 		s->npos -= grp->curr_weight;
@@ -431,13 +443,13 @@ static void fwrr_get_srv(struct server *s)
  *
  * The lbprm's lock must be held. The server's lock is not used.
  */
-static inline void fwrr_switch_trees(struct fwrr_group *grp)
+static inline void fwrr_switch_trees(struct fwrr_group *grp, int next_weight)
 {
 	struct eb_root *swap;
 	swap = grp->init;
 	grp->init = grp->next;
 	grp->next = swap;
-	grp->curr_weight = grp->next_weight;
+	grp->curr_weight = next_weight;
 	grp->curr_pos = grp->curr_weight;
 }
 
@@ -480,7 +492,7 @@ static struct server *fwrr_get_server_from_group(struct fwrr_group *grp)
  *
  * The lbprm's lock must be held to protect lpos/npos/rweight.
  */
-static inline void fwrr_update_position(struct fwrr_group *grp, struct server *s)
+static inline void fwrr_update_position(struct fwrr_group *grp, struct server *s, int next_weight)
 {
 	unsigned int eweight = *(volatile unsigned int *)&s->cur_eweight;
 
@@ -493,8 +505,8 @@ static inline void fwrr_update_position(struct fwrr_group *grp, struct server *s
 	}
 
 	s->lpos     = s->npos;
-	s->npos    += grp->next_weight / eweight;
-	s->rweight += grp->next_weight % eweight;
+	s->lpos    += next_weight / eweight;
+	s->rweight += next_weight % eweight;
 
 	if (s->rweight >= eweight) {
 		s->rweight -= eweight;
@@ -513,17 +525,20 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 	struct server *srv, *full, *avoided;
 	struct fwrr_group *grp;
 	int switched;
+	int next_weight;
 
 	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
-	if (p->srv_act)
+	if (p->srv_act) {
 		grp = &p->lbprm.fwrr.act;
-	else if (p->lbprm.fbck) {
+		next_weight = p->lbprm.fwrr.next_weight_act;
+	} else if (p->lbprm.fbck) {
 		srv = p->lbprm.fbck;
 		goto out;
 	}
-	else if (p->srv_bck)
+	else if (p->srv_bck) {
+		next_weight = p->lbprm.fwrr.next_weight_bck;
 		grp = &p->lbprm.fwrr.bck;
-	else {
+	} else {
 		srv = NULL;
 		goto out;
 	}
@@ -536,7 +551,7 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 		 * which might have recently changed.
 		 */
 		if (!grp->curr_weight)
-			grp->curr_pos = grp->curr_weight = grp->next_weight;
+			grp->curr_pos = grp->curr_weight = next_weight;
 
 		/* get first server from the "current" tree. When the end of
 		 * the tree is reached, we may have to switch, but only once.
@@ -553,7 +568,7 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 				goto requeue_servers;
 			}
 			switched = 1;
-			fwrr_switch_trees(grp);
+			fwrr_switch_trees(grp, next_weight);
 		}
 
 		/* OK, we have a server. However, it may be saturated, in which
@@ -561,7 +576,7 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 		 * its position and dequeue it anyway, so that we can move it
 		 * to a better place afterwards.
 		 */
-		fwrr_update_position(grp, srv);
+		fwrr_update_position(grp, srv, next_weight);
 		fwrr_dequeue_srv(srv);
 		grp->curr_pos++;
 		if (!srv->maxconn || (!srv->queueslength && srv->served < srv_dynamic_maxconn(srv))) {

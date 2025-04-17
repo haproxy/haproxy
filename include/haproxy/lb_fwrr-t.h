@@ -32,12 +32,13 @@ struct fwrr_group {
 	struct eb_root *next;   /* servers to be placed at next run */
 	int curr_pos;           /* current position in the tree */
 	int curr_weight;        /* total weight of the current time range */
-	int next_weight;        /* total weight of the next time range */
 };
 
 struct lb_fwrr {
 	struct fwrr_group act;	/* weighted round robin on the active servers */
 	struct fwrr_group bck;	/* weighted round robin on the backup servers */
+	int next_weight_act;    /* total weight of the next time range on active servers, for all trees */
+	int next_weight_bck;    /* total weight of the next time range on backup servers, for all trees */
 };
 
 #endif /* _HAPROXY_LB_FWRR_T_H */
