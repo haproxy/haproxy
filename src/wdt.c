@@ -191,7 +191,7 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 	curr_ctxsw = activity[tid].ctxsw;
 
 	if (curr_ctxsw == prev_ctxsw)
-		ha_stuck_warning(tid);
+		ha_stuck_warning();
 	else
 		per_thread_wd_ctx[tid].prev_ctxsw = curr_ctxsw;
 	/* let's go on */

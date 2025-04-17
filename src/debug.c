@@ -804,8 +804,11 @@ void ha_panic()
 
 /* Dumps a state of the current thread on fd #2 and returns. It takes a great
  * care about not using any global state variable so as to gracefully recover.
+ * It is designed to be called exclusively from the watchdog signal handler,
+ * and takes care of not touching thread_dump_buffer so as not to interfere
+ * with any other parallel dump that could have been started.
  */
-void ha_stuck_warning(int thr)
+void ha_stuck_warning(void)
 {
 	char msg_buf[4096];
 	struct buffer buf;
@@ -824,8 +827,8 @@ void ha_stuck_warning(int thr)
 
 	buf = b_make(msg_buf, sizeof(msg_buf), 0, 0);
 
-	p = HA_ATOMIC_LOAD(&ha_thread_ctx[thr].prev_cpu_time);
-	n = now_cpu_time_thread(thr);
+	p = HA_ATOMIC_LOAD(&th_ctx->prev_cpu_time);
+	n = now_cpu_time();
 
 	chunk_printf(&buf,
 		     "\nWARNING! thread %u has stopped processing traffic for %llu milliseconds\n"
@@ -839,18 +842,14 @@ void ha_stuck_warning(int thr)
 		     "    blocking delay before emitting this warning may be adjusted via the global\n"
 		     "    'warn-blocked-traffic-after' directive. Please check the trace below for\n"
 		     "    any clues about configuration elements that need to be corrected:\n\n",
-		     thr + 1, (n - p) / 1000000ULL,
-		     HA_ATOMIC_LOAD(&ha_thread_ctx[thr].stream_cnt));
+		     tid + 1, (n - p) / 1000000ULL,
+		     HA_ATOMIC_LOAD(&ha_thread_ctx[tid].stream_cnt));
 
 	DISGUISE(write(2, buf.area, buf.data));
 
-	/* Note below: the target thread will dump itself */
 	chunk_reset(&buf);
-	if (ha_thread_dump_fill(&buf, thr)) {
-		DISGUISE(write(2, buf.area, buf.data));
-		/* restore the thread's dump pointer for easier post-mortem analysis */
-		ha_thread_dump_done(thr);
-	}
+	ha_thread_dump_one(&buf, 1);
+	DISGUISE(write(2, buf.area, buf.data));
 
 #ifdef USE_LUA
 	if (get_tainted() & TAINTED_LUA_STUCK_SHARED && global.nbthread > 1) {
