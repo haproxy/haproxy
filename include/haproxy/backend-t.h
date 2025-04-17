@@ -144,6 +144,11 @@
  */
 #define BE_WEIGHT_SCALE 16
 
+/* LB parameters for all algorithms, with one instance per thread-group */
+struct lbprm_per_tgrp {
+	union {
+	};
+};
 /* LB parameters for all algorithms */
 struct lbprm {
 	union { /* LB parameters depending on the algo type */

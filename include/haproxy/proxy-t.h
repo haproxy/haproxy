@@ -302,6 +302,7 @@ struct error_snapshot {
 /* Each proxy will have one occurrence of this structure per thread group */
 struct proxy_per_tgroup {
 	struct queue queue;
+	struct lbprm_per_tgrp lbprm;
 } THREAD_ALIGNED(64);
 
 struct proxy {
