@@ -2826,6 +2826,7 @@ init_proxies_list_stage1:
 		struct logger *tmplogger;
 		unsigned int next_id;
 
+		proxy_init_per_thr(curproxy);
 		if (!(curproxy->cap & PR_CAP_INT) && curproxy->uuid < 0) {
 			/* proxy ID not set, use automatic numbering with first
 			 * spare entry starting with next_pxid. We don't assign
@@ -4202,7 +4203,6 @@ init_proxies_list_stage2:
 		struct listener *listener;
 		unsigned int next_id;
 
-		proxy_init_per_thr(curproxy);
 		/* Configure SSL for each bind line.
 		 * Note: if configuration fails at some point, the ->ctx member
 		 * remains NULL so that listeners can later detach.
