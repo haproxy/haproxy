@@ -5805,8 +5805,10 @@ int srv_init_per_thr(struct server *srv)
 		LIST_INIT(&srv->per_thr[i].idle_conn_list);
 	}
 
-	for (i = 0; i < global.nbtgroups; i++)
+	for (i = 0; i < global.nbtgroups; i++) {
+		srv->per_tgrp[i].server = srv;
 		queue_init(&srv->per_tgrp[i].queue, srv->proxy, srv);
+	}
 
 	return 0;
 }

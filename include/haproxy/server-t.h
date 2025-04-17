@@ -274,6 +274,7 @@ struct srv_per_thread {
 /* Each server will have one occurrence of this structure per thread group */
 struct srv_per_tgroup {
 	struct queue queue;			/* pending connections */
+	struct server *server;                  /* pointer to the corresponding server */
 	unsigned int last_other_tgrp_served;	/* Last other tgrp we dequeued from */
 	unsigned int self_served;		/* Number of connection we dequeued from our own queue */
 	unsigned int dequeuing;                 /* non-zero = dequeuing in progress (atomic) */
