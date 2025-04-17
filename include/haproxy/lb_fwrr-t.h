@@ -23,6 +23,7 @@
 #define _HAPROXY_LB_FWRR_T_H
 
 #include <import/ebtree-t.h>
+#include <haproxy/thread-t.h>
 
 /* This structure is used to apply fast weighted round robin on a server group */
 struct fwrr_group {
@@ -34,9 +35,13 @@ struct fwrr_group {
 	int curr_weight;        /* total weight of the current time range */
 };
 
-struct lb_fwrr {
+struct lb_fwrr_per_tgrp {
 	struct fwrr_group act;	/* weighted round robin on the active servers */
 	struct fwrr_group bck;	/* weighted round robin on the backup servers */
+	__decl_thread(HA_RWLOCK_T lock);
+};
+
+struct lb_fwrr {
 	int next_weight_act;    /* total weight of the next time range on active servers, for all trees */
 	int next_weight_bck;    /* total weight of the next time range on backup servers, for all trees */
 };

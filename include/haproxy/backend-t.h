@@ -147,6 +147,7 @@
 /* LB parameters for all algorithms, with one instance per thread-group */
 struct lbprm_per_tgrp {
 	union {
+		struct lb_fwrr_per_tgrp fwrr;
 	};
 };
 /* LB parameters for all algorithms */
