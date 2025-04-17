@@ -830,7 +830,7 @@ void ha_stuck_warning(void)
 	p = HA_ATOMIC_LOAD(&th_ctx->prev_cpu_time);
 	n = now_cpu_time();
 
-	chunk_printf(&buf,
+	chunk_appendf(&buf,
 		     "\nWARNING! thread %u has stopped processing traffic for %llu milliseconds\n"
 		     "    with %d streams currently blocked, prevented from making any progress.\n"
 		     "    While this may occasionally happen with inefficient configurations\n"
@@ -845,40 +845,37 @@ void ha_stuck_warning(void)
 		     tid + 1, (n - p) / 1000000ULL,
 		     HA_ATOMIC_LOAD(&ha_thread_ctx[tid].stream_cnt));
 
-	DISGUISE(write(2, buf.area, buf.data));
-
-	chunk_reset(&buf);
 	ha_thread_dump_one(&buf, 1);
-	DISGUISE(write(2, buf.area, buf.data));
 
 #ifdef USE_LUA
 	if (get_tainted() & TAINTED_LUA_STUCK_SHARED && global.nbthread > 1) {
-		chunk_printf(&buf,
+		chunk_appendf(&buf,
 			     "### Note: at least one thread was stuck in a Lua context loaded using the\n"
 			     "          'lua-load' directive, which is known for causing heavy contention\n"
 			     "          when used with threads. Please consider using 'lua-load-per-thread'\n"
 			     "          instead if your code is safe to run in parallel on multiple threads.\n");
-		DISGUISE(write(2, buf.area, buf.data));
 	}
 	else if (get_tainted() & TAINTED_LUA_STUCK) {
-		chunk_printf(&buf,
+		chunk_appendf(&buf,
 			     "### Note: at least one thread was stuck in a Lua context in a way that suggests\n"
 			     "          heavy processing inside a dependency or a long loop that can't yield.\n"
 			     "          Please make sure any external code you may rely on is safe for use in\n"
 			     "          an event-driven engine.\n");
-		DISGUISE(write(2, buf.area, buf.data));
 	}
 #endif
 	if (get_tainted() & TAINTED_MEM_TRIMMING_STUCK) {
-		chunk_printf(&buf,
+		chunk_appendf(&buf,
 			     "### Note: one thread was found stuck under malloc_trim(), which can run for a\n"
 			     "          very long time on large memory systems. You way want to disable this\n"
 			     "          memory reclaiming feature by setting 'no-memory-trimming' in the\n"
 			     "          'global' section of your configuration to avoid this in the future.\n");
-		DISGUISE(write(2, buf.area, buf.data));
 	}
 
-	chunk_printf(&buf, " => Trying to gracefully recover now.\n");
+	chunk_appendf(&buf, " => Trying to gracefully recover now.\n");
+
+	/* Note: it's important to dump the whole buffer at once to avoid
+	 * interleaved outputs from multiple threads dumping in parallel.
+	 */
 	DISGUISE(write(2, buf.area, buf.data));
 }
 
