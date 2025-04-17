@@ -914,10 +914,18 @@ static void h2c_update_timeout(struct h2c *h2c)
 					ping = tick_add_ifset(now_ms, conn_idle_ping(h2c->conn));
 
 				exp = tick_first(exp, ping);
-				/* If PING timer selected, set flag to trigger its emission rather than conn deletion on next timeout. */
-				if (tick_isset(exp) && exp == ping && ping != dft &&
-				    !(h2c->flags & H2_CF_IDL_PING_SENT)) {
-					h2c->flags |= H2_CF_IDL_PING;
+
+				if (tick_isset(exp)) {
+					if (exp == ping && ping != dft) {
+						/* PING timer selected, set flag to prevent conn deletion on next timeout. */
+						if (!(h2c->flags & H2_CF_IDL_PING_SENT))
+							h2c->flags |= H2_CF_IDL_PING;
+					}
+					else if (h2c->flags & H2_CF_IDL_PING_SENT) {
+						/* timer other than ping selected, remove ping flag to allow GOAWAY on expiration. */
+						h2c->flags &= ~H2_CF_IDL_PING_SENT;
+						ABORT_NOW();
+					}
 				}
 			}
 
@@ -5219,6 +5227,12 @@ struct task *h2_timeout_task(struct task *t, void *context, unsigned int state)
 			conn_delete_from_tree(h2c->conn);
 
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+
+		if (h2c->flags & H2_CF_IDL_PING_SENT) {
+			TRACE_STATE("expired on idle ping", H2_EV_H2C_WAKE, h2c->conn);
+			/* Do not emit GOAWAY on idle ping expiration. */
+			goto do_leave;
+		}
 
 		/* Try to gracefully close idle connections by sending a GOAWAY first,
 		 * and then waiting for the fin timeout.
