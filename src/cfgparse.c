@@ -2789,6 +2789,32 @@ int check_config_validity()
 		proxies_list = next;
 	}
 
+	/*
+	 * we must finish to initialize certain things on the servers,
+	 * as some of the per_thr/per_tgrp fields may be accessed soon
+	 */
+
+	MT_LIST_FOR_EACH_ENTRY_LOCKED(newsrv, &servers_list, global_list, back) {
+		if (srv_init_per_thr(newsrv) == -1) {
+			ha_alert("parsing [%s:%d] : failed to allocate per-thread lists for server '%s'.\n",
+			         newsrv->conf.file, newsrv->conf.line, newsrv->id);
+			cfgerr++;
+			continue;
+		}
+
+		/* initialize idle conns lists */
+		if (newsrv->max_idle_conns != 0) {
+			newsrv->curr_idle_thr = calloc(global.nbthread, sizeof(*newsrv->curr_idle_thr));
+			if (!newsrv->curr_idle_thr) {
+				ha_alert("parsing [%s:%d] : failed to allocate idle connection tasks for server '%s'.\n",
+				         newsrv->conf.file, newsrv->conf.line, newsrv->id);
+				cfgerr++;
+				continue;
+			}
+
+		}
+	}
+
 	/* starting to initialize the main proxies list */
 	init_proxies_list = proxies_list;
 
@@ -4141,29 +4167,6 @@ out_uri_auth_compat:
 	/***********************************************************/
 	/* At this point, target names have already been resolved. */
 	/***********************************************************/
-
-	/* we must finish to initialize certain things on the servers */
-
-	MT_LIST_FOR_EACH_ENTRY_LOCKED(newsrv, &servers_list, global_list, back) {
-		/* initialize idle conns lists */
-		if (srv_init_per_thr(newsrv) == -1) {
-			ha_alert("parsing [%s:%d] : failed to allocate per-thread lists for server '%s'.\n",
-			         newsrv->conf.file, newsrv->conf.line, newsrv->id);
-			cfgerr++;
-			continue;
-		}
-
-		if (newsrv->max_idle_conns != 0) {
-			newsrv->curr_idle_thr = calloc(global.nbthread, sizeof(*newsrv->curr_idle_thr));
-			if (!newsrv->curr_idle_thr) {
-				ha_alert("parsing [%s:%d] : failed to allocate idle connection tasks for server '%s'.\n",
-				         newsrv->conf.file, newsrv->conf.line, newsrv->id);
-				cfgerr++;
-				continue;
-			}
-
-		}
-	}
 
 	idle_conn_task = task_new_anywhere();
 	if (!idle_conn_task) {
