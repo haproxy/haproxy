@@ -414,6 +414,10 @@ void deinit_proxy(struct proxy *p)
 
 	free(p->desc);
 
+	/* note that the node's key points to p->id */
+	ebpt_delete(&p->conf.by_name);
+	free(p->id);
+
 	task_destroy(p->task);
 
 	pool_destroy(p->req_cap_pool);
