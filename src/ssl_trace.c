@@ -40,6 +40,7 @@ static const struct trace_event ssl_trace_events[] = {
 	{ .mask = SSL_EV_CONN_STAPLING,       .name = "sslc_stapling",       .desc = "SSL OCSP stapling callback"},
 	{ .mask = SSL_EV_CONN_SWITCHCTX_CB,   .name = "sslc_switchctx_cb",   .desc = "SSL switchctx callback"},
 	{ .mask = SSL_EV_CONN_CHOOSE_SNI_CTX, .name = "sslc_choose_sni_ctx", .desc = "SSL choose sni context"},
+	{ .mask = SSL_EV_CONN_SIGALG_EXT,     .name = "sslc_sigalg_ext",     .desc = "SSL sigalg extension parsing"},
 	{ }
 };
 
@@ -214,6 +215,36 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 			struct sni_ctx *sni_ctx = container_of(node, struct sni_ctx, name);
 
 			chunk_appendf(&trace_buf, " crt=\"%s\"", sni_ctx->ckch_inst->ckch_store->path);
+		}
+	}
+
+	if (mask & SSL_EV_CONN_SIGALG_EXT && src->verbosity > SSL_VERB_ADVANCED) {
+		if (a2 && a3) {
+			const uint16_t *extension_data = a2;
+			size_t extension_len = *((size_t*)a3);
+			int first = 1;
+
+			chunk_appendf(&trace_buf, " value=");
+
+			while (extension_len > 1) {
+				const char *sigalg_name = sigalg2str(ntohs(*extension_data));
+
+				if (sigalg_name) {
+					chunk_appendf(&trace_buf, "%s%s(0x%02X%02X)", first ? "" : ":", sigalg_name,
+						      ((uint8_t*)extension_data)[0],
+						      ((uint8_t*)extension_data)[1]);
+				} else {
+					chunk_appendf(&trace_buf, "%s0x%02X%02X",
+						      first ? "" : ":",
+						      ((uint8_t*)extension_data)[0],
+						      ((uint8_t*)extension_data)[1]);
+				}
+
+				first = 0;
+
+				extension_len-=sizeof(*extension_data);
+				++extension_data;
+			}
 		}
 	}
 }

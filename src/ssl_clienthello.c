@@ -306,6 +306,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 			TRACE_ERROR("Sigalg parsing error (not even)", SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn);
 			goto abort;
 		}
+		TRACE_DATA("Sigalg extension value", SSL_EV_CONN_SIGALG_EXT, conn, extension_data, &len);
 		for (; len > 0; len -= 2) {
 			hash = *extension_data++; /* hash */
 			sign = *extension_data++;
