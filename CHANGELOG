@@ -1,6 +1,115 @@
 ChangeLog :
 ===========
 
+2025/04/18 : 3.2-dev11
+    - CI: enable weekly QuicTLS build
+    - DOC: management: slightly clarify the prefix role of the '@' command
+    - DOC: management: add a paragraph about the limitations of the '@' prefix
+    - MINOR: master/cli: support bidirectional communications with workers
+    - MEDIUM: ssl/ckch: add filename and linenum argument to crt-store parsing
+    - MINOR: acme: add the acme section in the configuration parser
+    - MINOR: acme: add configuration for the crt-store
+    - MINOR: acme: add private key configuration
+    - MINOR: acme/cli: add the 'acme renew' command
+    - MINOR: acme: the acme section is experimental
+    - MINOR: acme: get the ACME directory
+    - MINOR: acme: handle the nonce
+    - MINOR: acme: check if the account exist
+    - MINOR: acme: generate new account
+    - MINOR: acme: newOrder request retrieve authorizations URLs
+    - MINOR: acme: allow empty payload in acme_jws_payload()
+    - MINOR: acme: get the challenges object from the Auth URL
+    - MINOR: acme: send the request for challenge ready
+    - MINOR: acme: implement a check on the challenge status
+    - MINOR: acme: generate the CSR in a X509_REQ
+    - MINOR: acme: finalize by sending the CSR
+    - MINOR: acme: verify the order status once finalized
+    - MINOR: acme: implement retrieval of the certificate
+    - BUG/MINOR: acme: ckch_conf_acme_init() when no filename
+    - MINOR: ssl/ckch: handle ckch_conf in ckchs_dup() and ckch_conf_clean()
+    - MINOR: acme: copy the original ckch_store
+    - MEDIUM: acme: replace the previous ckch instance with new ones
+    - MINOR: acme: schedule retries with a timer
+    - BUILD: acme: enable the ACME feature when JWS is present
+    - BUG/MINOR: cpu-topo: check the correct variable for NULL after malloc()
+    - BUG/MINOR: acme: key not restored upon error in acme_res_certificate()
+    - BUG/MINOR: thread: protect thread_cpus_enabled_at_boot with USE_THREAD
+    - MINOR: acme: default to 2048bits for RSA
+    - DOC: acme: explain how to configure and run ACME
+    - BUG/MINOR: debug: remove the trailing \n from BUG_ON() statements
+    - DOC: config: add the missing "profiling.memory" to the global kw index
+    - DOC: config: add the missing "force-cfg-parser-pause" to the global kw index
+    - DEBUG: init: report invalid characters in debug description strings
+    - DEBUG: rename DEBUG_GLITCHES to DEBUG_COUNTERS and enable it by default
+    - DEBUG: counters: make COUNT_IF() only appear at DEBUG_COUNTERS>=1
+    - DEBUG: counters: add the ability to enable/disable updating the COUNT_IF counters
+    - MINOR: tools: let dump_addr_and_bytes() support dumping before the offset
+    - MINOR: debug: in call traces, dump the 8 bytes before the return address, not after
+    - MINOR: debug: detect call instructions and show the branch target in backtraces
+    - BUG/MINOR: acme: fix possible NULL deref
+    - CLEANUP: acme: stored value is overwritten before it can be used
+    - BUILD: incompatible pointer type suspected with -DDEBUG_UNIT
+    - BUG/MINOR: http-ana: Properly detect client abort when forwarding the response
+    - BUG/MEDIUM: http-ana: Report 502 from req analyzer only during rsp forwarding
+    - CI: fedora rawhide: enable unit tests
+    - DOC: configuration: fix a typo in ACME documentation
+    - MEDIUM: sink: add a new dpapi ring buffer
+    - Revert "BUG/MINOR: acme: key not restored upon error in acme_res_certificate()"
+    - BUG/MINOR: acme: key not restored upon error in acme_res_certificate() V2
+    - BUG/MINOR: acme: fix the exponential backoff of retries
+    - DOC: configuration: specify limitations of ACME for 3.2
+    - MINOR: acme: emit logs instead of ha_notice
+    - MINOR: acme: add a success message to the logs
+    - BUG/MINOR: acme/cli: fix certificate name in error message
+    - MINOR: acme: register the task in the ckch_store
+    - MINOR: acme: free acme_ctx once the task is done
+    - BUG/MEDIUM: h3: trim whitespaces when parsing headers value
+    - BUG/MEDIUM: h3: trim whitespaces in header value prior to QPACK encoding
+    - BUG/MINOR: h3: filter upgrade connection header
+    - BUG/MINOR: h3: reject invalid :path in request
+    - BUG/MINOR: h3: reject request URI with invalid characters
+    - MEDIUM: h3: use absolute URI form with :authority
+    - BUG/MEDIUM: hlua: fix hlua_applet_{http,tcp}_fct() yield regression (lost data)
+    - BUG/MINOR: mux-h2: prevent past scheduling with idle connections
+    - BUG/MINOR: rhttp: fix reconnect if timeout connect unset
+    - BUG/MINOR: rhttp: ensure GOAWAY can be emitted after reversal
+    - BUG/MINOR: mux-h2: do not apply timer on idle backend connection
+    - MINOR: mux-h2: refactor idle timeout calculation
+    - MINOR: mux-h2: prepare to support PING emission
+    - MEDIUM: server/mux-h2: implement idle-ping on backend side
+    - MEDIUM: listener/mux-h2: implement idle-ping on frontend side
+    - MINOR: mux-h2: do not emit GOAWAY on idle ping expiration
+    - MINOR: mux-h2: handle idle-ping on conn reverse
+    - BUILD: makefile: enable backtrace by default on musl
+    - BUG/MINOR: threads: set threads_idle and threads_harmless even with no threads
+    - BUG/MINOR debug: fix !USE_THREAD_DUMP in ha_thread_dump_fill()
+    - BUG/MINOR: wdt/debug: avoid signal re-entrance between debugger and watchdog
+    - BUG/MINOR: debug: detect and prevent re-entrance in ha_thread_dump_fill()
+    - MINOR: debug: do not statify a few debugging functions often used with wdt/dbg
+    - MINOR: tools: also protect the library name resolution against concurrent accesses
+    - MINOR: tools: protect dladdr() against reentrant calls from the debug handler
+    - MINOR: debug: protect ha_dump_backtrace() against risks of re-entrance
+    - MINOR: tinfo: keep a copy of the pointer to the thread dump buffer
+    - MINOR: debug: always reset the dump pointer when done
+    - MINOR: debug: remove unused case of thr!=tid in ha_thread_dump_one()
+    - MINOR: pass a valid buffer pointer to ha_thread_dump_one()
+    - MEDIUM: wdt: always make the faulty thread report its own warnings
+    - MINOR: debug: make ha_stuck_warning() only work for the current thread
+    - MINOR: debug: make ha_stuck_warning() print the whole message at once
+    - CLEANUP: debug: no longer set nor use TH_FL_DUMPING_OTHERS
+    - MINOR: sched: add a new function is_sched_alive() to report scheduler's health
+    - MINOR: wdt: use is_sched_alive() instead of keeping a local ctxsw copy
+    - MINOR: sample: add 4 new sample fetches for clienthello parsing
+    - REGTEST: add new reg-test for the 4 new clienthello fetches
+    - MINOR: servers: Move the per-thread server initialization earlier
+    - MINOR: proxies: Initialize the per-thread structure earlier.
+    - MINOR: servers: Provide a pointer to the server in srv_per_tgroup.
+    - MINOR: lb_fwrr: Move the next weight out of fwrr_group.
+    - MINOR: proxies: Add a per-thread group lbprm struct.
+    - MEDIUM: lb_fwrr: Use one ebtree per thread group.
+    - MEDIUM: lb_fwrr: Don't start all thread groups on the same server.
+    - MINOR: proxies: Do stage2 initialization for sinks too
+
 2025/04/11 : 3.2-dev10
     - REORG: ssl: move curves2nid and nid2nist to ssl_utils
     - BUG/MEDIUM: stream: Fix a possible freeze during a forced shut on a stream
