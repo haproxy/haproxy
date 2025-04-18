@@ -37,6 +37,7 @@ static const struct trace_event ssl_trace_events[] = {
 	{ .mask = SSL_EV_CONN_IO_CB,          .name = "sslc_io_cb",          .desc = "SSL io callback"},
 	{ .mask = SSL_EV_CONN_HNDSHK,         .name = "sslc_hndshk",         .desc = "SSL handshake"},
 	{ .mask = SSL_EV_CONN_VFY_CB,         .name = "sslc_vfy_cb",         .desc = "SSL verify callback"},
+	{ .mask = SSL_EV_CONN_STAPLING,       .name = "sslc_stapling",       .desc = "SSL OCSP stapling callback"},
 	{ }
 };
 

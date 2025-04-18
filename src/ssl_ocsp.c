@@ -62,6 +62,8 @@
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
+#include <haproxy/trace.h>
+#include <haproxy/ssl_trace-t.h>
 
 #ifdef HAVE_SSL_OCSP
 
@@ -112,6 +114,8 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 	int key_type;
 	int index;
 
+	TRACE_ENTER(SSL_EV_CONN_STAPLING, conn);
+
 	ctx = SSL_get_SSL_CTX(ssl);
 	if (!ctx)
 		goto error;
@@ -133,12 +137,16 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 	}
 
 	ocsp_arg = SSL_CTX_get_ex_data(ctx, ocsp_ex_index);
-	if (!ocsp_arg)
+	if (!ocsp_arg) {
+		TRACE_ERROR("Could not get ex_data", SSL_EV_CONN_STAPLING, conn);
 		goto error;
+	}
 
 	ssl_pkey = SSL_get_privatekey(ssl);
-	if (!ssl_pkey)
+	if (!ssl_pkey) {
+		TRACE_ERROR("Could not get private key from SSL context", SSL_EV_CONN_STAPLING, conn);
 		goto error;
+	}
 
 	key_type = EVP_PKEY_base_id(ssl_pkey);
 
@@ -150,8 +158,10 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 		 */
 		index = ssl_sock_get_ocsp_arg_kt_index(key_type);
 
-		if (index < 0)
+		if (index < 0) {
+			TRACE_ERROR("Wrong key_type", SSL_EV_CONN_STAPLING, conn);
 			goto error;
+		}
 
 		ocsp = ocsp_arg->m_ocsp[index];
 
@@ -159,13 +169,20 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 
 	if (!ocsp ||
 	    !ocsp->response.area ||
-	    !ocsp->response.data ||
-	    (ocsp->expire < date.tv_sec))
+	    !ocsp->response.data) {
+		TRACE_ERROR("Missing OCSP response", SSL_EV_CONN_STAPLING, conn, ssl);
 		goto error;
+	}
+	if (ocsp->expire < date.tv_sec) {
+		TRACE_ERROR("Expired OCSP response", SSL_EV_CONN_STAPLING, conn, ssl);
+		goto error;
+	}
 
 	ssl_buf = OPENSSL_malloc(ocsp->response.data);
-	if (!ssl_buf)
+	if (!ssl_buf) {
+		TRACE_ERROR("Allocation failure", SSL_EV_CONN_STAPLING, conn);
 		goto error;
+	}
 
 
 	memcpy(ssl_buf, ocsp->response.area, ocsp->response.data);
@@ -176,6 +193,8 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 		HA_ATOMIC_INC(&counters_px->ocsp_staple);
 	}
 
+	TRACE_LEAVE(SSL_EV_CONN_STAPLING, conn);
+
 	return SSL_TLSEXT_ERR_OK;
 
 
@@ -185,6 +204,8 @@ error:
 		HA_ATOMIC_INC(&counters->failed_ocsp_staple);
 		HA_ATOMIC_INC(&counters_px->failed_ocsp_staple);
 	}
+
+	TRACE_ERROR("Stapling callback error", SSL_EV_CONN_STAPLING, conn);
 
 	return SSL_TLSEXT_ERR_NOACK;
 }
