@@ -127,7 +127,11 @@ static inline void quic_conn_mv_cids_to_cc_conn(struct quic_conn_closed *cc_conn
 
 }
 
-/* Allocate the underlying required memory for <ncbuf> non-contiguous buffer */
+/* Allocate the underlying required memory for <ncbuf> non-contiguous buffer.
+ * Does nothing if buffer is already allocated.
+ *
+ * Returns the buffer instance or NULL on allocation failure.
+ */
 static inline struct ncbuf *quic_get_ncbuf(struct ncbuf *ncbuf)
 {
 	struct buffer buf = BUF_NULL;
@@ -135,8 +139,8 @@ static inline struct ncbuf *quic_get_ncbuf(struct ncbuf *ncbuf)
 	if (!ncb_is_null(ncbuf))
 		return ncbuf;
 
-	b_alloc(&buf, DB_MUX_RX);
-	BUG_ON(b_is_null(&buf));
+	if (!b_alloc(&buf, DB_MUX_RX))
+		return NULL;
 
 	*ncbuf = ncb_make(buf.area, buf.size, 0);
 	ncb_init(ncbuf, 0);
