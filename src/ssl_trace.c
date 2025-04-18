@@ -30,6 +30,10 @@ static const struct trace_event ssl_trace_events[] = {
 	{ .mask = SSL_EV_CONN_CLOSE,          .name = "sslc_close",          .desc = "close SSL connection" },
 	{ .mask = SSL_EV_CONN_END,            .name = "sslc_end",            .desc = "SSL connection end" },
 	{ .mask = SSL_EV_CONN_ERR,            .name = "sslc_err",            .desc = "SSL error"},
+	{ .mask = SSL_EV_CONN_SEND,           .name = "sslc_send",           .desc = "Tx on SSL connection" },
+	{ .mask = SSL_EV_CONN_SEND_EARLY,     .name = "sslc_send_early",     .desc = "Tx on SSL connection (early data)" },
+	{ .mask = SSL_EV_CONN_RECV,           .name = "sslc_recv",           .desc = "Rx on SSL connection" },
+	{ .mask = SSL_EV_CONN_RECV_EARLY,     .name = "sslc_recv_early",     .desc = "Rx on SSL connection (early data)" },
 	{ }
 };
 
@@ -92,6 +96,21 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 
 	if (src->verbosity <= SSL_VERB_SIMPLE && !(mask & SSL_EV_CONN_ERR))
 		return;
+
+
+	if (mask & SSL_EV_CONN_RECV || mask & SSL_EV_CONN_SEND) {
+
+		if (mask & SSL_EV_CONN_ERR) {
+			const unsigned int *ssl_err_code = a2;
+			chunk_appendf(&trace_buf, " : ssl_err_code=%d ssl_err_str=\"%s\"", *ssl_err_code,
+				      ERR_error_string(*ssl_err_code, NULL));
+		} else if (src->verbosity > SSL_VERB_SIMPLE) {
+			const ssize_t *size = a2;
+
+			if (size)
+				chunk_appendf(&trace_buf, " : size=%ld", *size);
+		}
+	}
 
 }
 

@@ -22,6 +22,10 @@ extern struct trace_source trace_ssl;
 #define SSL_EV_CONN_CLOSE          (1ULL <<  1)
 #define SSL_EV_CONN_END            (1ULL <<  2)
 #define SSL_EV_CONN_ERR            (1ULL <<  3)
+#define SSL_EV_CONN_SEND           (1ULL <<  4)
+#define SSL_EV_CONN_SEND_EARLY     (1ULL <<  5)
+#define SSL_EV_CONN_RECV           (1ULL <<  6)
+#define SSL_EV_CONN_RECV_EARLY     (1ULL <<  7)
 
 #define TRACE_SOURCE &trace_ssl
 

@@ -5813,6 +5813,8 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 	ssize_t ret;
 	size_t try, done = 0;
 
+	TRACE_ENTER(SSL_EV_CONN_RECV, conn);
+
 	if (!ctx)
 		goto out_error;
 
@@ -5826,13 +5828,16 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 		b_del(&ctx->early_buf, try);
 		if (b_data(&ctx->early_buf) == 0)
 			b_free(&ctx->early_buf);
+		TRACE_STATE("read early data", SSL_EV_CONN_RECV|SSL_EV_CONN_RECV_EARLY, conn, &try);
 		return try;
 	}
 #endif
 
-	if (conn->flags & (CO_FL_WAIT_XPRT | CO_FL_SSL_WAIT_HS))
+	if (conn->flags & (CO_FL_WAIT_XPRT | CO_FL_SSL_WAIT_HS)) {
 		/* a handshake was requested */
+		TRACE_LEAVE(SSL_EV_CONN_RECV, conn);
 		return 0;
+	}
 
 	/* read the largest possible block. For this, we perform only one call
 	 * to recv() unless the buffer wraps and we exactly fill the first hunk,
@@ -5858,6 +5863,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 			b_add(buf, ret);
 			done += ret;
 			count -= ret;
+			TRACE_DEVEL("Post SSL_read success", SSL_EV_CONN_RECV, conn, &ret);
 		}
 		else {
 			ret =  SSL_get_error(ctx->ssl, ret);
@@ -5870,6 +5876,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 				if (global_ssl.async)
 					SSL_set_mode(ctx->ssl, SSL_MODE_ASYNC);
 #endif
+				TRACE_DEVEL("SSL want write", SSL_EV_CONN_RECV, conn);
 				break;
 			}
 			else if (ret == SSL_ERROR_WANT_READ) {
@@ -5886,10 +5893,12 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 #endif
 					break;
 				}
+				TRACE_DEVEL("SSL want read", SSL_EV_CONN_RECV, conn);
 				break;
-			} else if (ret == SSL_ERROR_ZERO_RETURN)
+			} else if (ret == SSL_ERROR_ZERO_RETURN) {
+				TRACE_STATE("SSL read error (zero return)", SSL_EV_CONN_RECV, conn);
 				goto read0;
-			else if (ret == SSL_ERROR_SSL) {
+			} else if (ret == SSL_ERROR_SSL) {
 				struct ssl_sock_ctx *ctx = conn_get_ssl_sock_ctx(conn);
 				if (ctx && !ctx->error_code)
 					ctx->error_code = ERR_peek_error();
@@ -5898,13 +5907,17 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 			/* For SSL_ERROR_SYSCALL, make sure to clear the error
 			 * stack before shutting down the connection for
 			 * reading. */
-			if (ret == SSL_ERROR_SYSCALL && (!errno || errno == EAGAIN || errno == EWOULDBLOCK))
+			if (ret == SSL_ERROR_SYSCALL && (!errno || errno == EAGAIN || errno == EWOULDBLOCK)) {
+				TRACE_PROTO("SSL read error (syscall)", SSL_EV_CONN_RECV, conn);
 				goto clear_ssl_error;
+			}
 			/* otherwise it's a real error */
+			TRACE_ERROR("rx fatal error", SSL_EV_CONN_RECV|SSL_EV_CONN_ERR, conn, &ret);
 			goto out_error;
 		}
 	}
  leave:
+	TRACE_LEAVE(SSL_EV_CONN_RECV, conn);
 	return done;
 
  clear_ssl_error:
@@ -5917,6 +5930,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 	goto leave;
 
  out_error:
+	TRACE_ERROR("rx error", SSL_EV_CONN_RECV, conn);
 	conn_report_term_evt(conn, tevt_loc_xprt, xprt_tevt_type_rcv_err);
 	conn->flags |= CO_FL_ERROR;
 	/* Clear openssl global errors stack */
@@ -5944,14 +5958,18 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 	ssize_t ret;
 	size_t try, done;
 
+	TRACE_ENTER(SSL_EV_CONN_SEND, conn);
+
 	done = 0;
 
 	if (!ctx)
 		goto out_error;
 
-	if (conn->flags & (CO_FL_WAIT_XPRT | CO_FL_SSL_WAIT_HS | CO_FL_EARLY_SSL_HS))
+	if (conn->flags & (CO_FL_WAIT_XPRT | CO_FL_SSL_WAIT_HS | CO_FL_EARLY_SSL_HS)) {
 		/* a handshake was requested */
+		TRACE_LEAVE(SSL_EV_CONN_SEND, conn);
 		return 0;
+	}
 
 	/* send the largest possible block. For this we perform only one call
 	 * to send() unless the buffer wraps and we exactly fill the first hunk,
@@ -6017,7 +6035,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 					/* Initiate the handshake, now */
 					tasklet_wakeup(ctx->wait_event.tasklet);
 				}
-
+				TRACE_PROTO("Write early data", SSL_EV_CONN_SEND|SSL_EV_CONN_SEND_EARLY, conn, &ret);
 			}
 
 		} else
@@ -6034,6 +6052,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 			ctx->xprt_st &= ~SSL_SOCK_SEND_UNLIMITED;
 			count -= ret;
 			done += ret;
+			TRACE_DEVEL("Post SSL_write success", SSL_EV_CONN_SEND, conn, &ret);
 		}
 		else {
 			ret = SSL_get_error(ctx->ssl, ret);
@@ -6050,7 +6069,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 #endif
 					break;
 				}
-
+				TRACE_DEVEL("SSL want write", SSL_EV_CONN_SEND, conn);
 				break;
 			}
 			else if (ret == SSL_ERROR_WANT_READ) {
@@ -6064,6 +6083,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 				if (global_ssl.async)
 					SSL_set_mode(ctx->ssl, SSL_MODE_ASYNC);
 #endif
+				TRACE_DEVEL("SSL want read", SSL_EV_CONN_SEND, conn);
 				break;
 			}
 			else if (ret == SSL_ERROR_SSL || ret == SSL_ERROR_SYSCALL) {
@@ -6072,18 +6092,20 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 				if (ctx && !ctx->error_code)
 					ctx->error_code = ERR_peek_error();
 				conn->err_code = CO_ER_SSL_FATAL;
+				TRACE_ERROR("tx fatal error", SSL_EV_CONN_SEND|SSL_EV_CONN_ERR, conn, &ctx->error_code);
 			}
 			goto out_error;
 		}
 	}
  leave:
+	TRACE_LEAVE(SSL_EV_CONN_SEND, conn);
 	return done;
 
  out_error:
+	TRACE_ERROR("tx error", SSL_EV_CONN_SEND, conn);
 	/* Clear openssl global errors stack */
 	ssl_sock_dump_errors(conn, NULL);
 	ERR_clear_error();
-
 	conn_report_term_evt(conn, tevt_loc_xprt, xprt_tevt_type_snd_err);
 	conn->flags |= CO_FL_ERROR;
 	goto leave;
