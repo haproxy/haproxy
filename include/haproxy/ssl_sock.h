@@ -117,8 +117,8 @@ int ssl_sock_switchctx_wolfSSL_cbk(WOLFSSL* ssl, void* arg);
 
 int increment_sslconn();
 void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf *bind_conf);
-struct sni_ctx *ssl_sock_chose_sni_ctx(struct bind_conf *s, const char *servername,
-                                                             int have_rsa_sig, int have_ecdsa_sig);
+struct sni_ctx *ssl_sock_chose_sni_ctx(struct bind_conf *s, struct connection *conn,
+                                       const char *servername, int have_rsa_sig, int have_ecdsa_sig);
 #ifdef SSL_MODE_ASYNC
 void ssl_async_fd_handler(int fd);
 void ssl_async_fd_free(int fd);

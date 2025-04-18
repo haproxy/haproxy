@@ -36,14 +36,14 @@ static void ssl_sock_switchctx_set(SSL *ssl, SSL_CTX *ctx)
  *
  * This function does a lookup in the bind_conf sni tree so the caller should lock its tree.
  */
-struct sni_ctx *ssl_sock_chose_sni_ctx(struct bind_conf *s, const char *servername,
-                                                             int have_rsa_sig, int have_ecdsa_sig)
+struct sni_ctx *ssl_sock_chose_sni_ctx(struct bind_conf *s, struct connection *conn,
+                                       const char *servername, int have_rsa_sig, int have_ecdsa_sig)
 {
 	struct ebmb_node *node, *n, *node_ecdsa = NULL, *node_rsa = NULL, *node_anonymous = NULL;
 	const char *wildp = NULL;
 	int i;
 
-	TRACE_ENTER(SSL_EV_CONN_CHOOSE_SNI_CTX, NULL, servername);
+	TRACE_ENTER(SSL_EV_CONN_CHOOSE_SNI_CTX, conn, servername);
 
 	/* look for the first dot for wildcard search */
 	for (i = 0; servername[i] != '\0'; i++) {
@@ -108,27 +108,27 @@ struct sni_ctx *ssl_sock_chose_sni_ctx(struct bind_conf *s, const char *serverna
 	 * RSA > DSA */
 	if (have_ecdsa_sig && node_ecdsa) {
 		node = node_ecdsa;
-		TRACE_STATE("ECDSA node picked", SSL_EV_CONN_CHOOSE_SNI_CTX, NULL, servername, node);
+		TRACE_STATE("ECDSA node picked", SSL_EV_CONN_CHOOSE_SNI_CTX, conn, servername, node);
 	} else if (have_rsa_sig && node_rsa) {
 		node = node_rsa;
-		TRACE_STATE("RSA node picked", SSL_EV_CONN_CHOOSE_SNI_CTX, NULL, servername, node);
+		TRACE_STATE("RSA node picked", SSL_EV_CONN_CHOOSE_SNI_CTX, conn, servername, node);
 	} else if (node_anonymous) {
 		node = node_anonymous;
-		TRACE_STATE("Anonymous node picked", SSL_EV_CONN_CHOOSE_SNI_CTX, NULL, servername, node);
+		TRACE_STATE("Anonymous node picked", SSL_EV_CONN_CHOOSE_SNI_CTX, conn, servername, node);
 	} else if (node_ecdsa) {
 		node = node_ecdsa;      /* no ecdsa signature case (< TLSv1.2) */
-		TRACE_STATE("ECDSA node picked (< TLSv1.2)", SSL_EV_CONN_CHOOSE_SNI_CTX, NULL, servername, node);
+		TRACE_STATE("ECDSA node picked (< TLSv1.2)", SSL_EV_CONN_CHOOSE_SNI_CTX, conn, servername, node);
 	} else {
 		node = node_rsa;        /* no rsa signature case (far far away) */
-		TRACE_STATE("RSA node picked (fallback)", SSL_EV_CONN_CHOOSE_SNI_CTX, NULL, servername, node);
+		TRACE_STATE("RSA node picked (fallback)", SSL_EV_CONN_CHOOSE_SNI_CTX, conn, servername, node);
 	}
 
 	if (node) {
-		TRACE_LEAVE(SSL_EV_CONN_CHOOSE_SNI_CTX);
+		TRACE_LEAVE(SSL_EV_CONN_CHOOSE_SNI_CTX, conn);
 		return container_of(node, struct sni_ctx, name);
 	}
 
-	TRACE_STATE("No SNI context found", SSL_EV_CONN_CHOOSE_SNI_CTX);
+	TRACE_STATE("No SNI context found", SSL_EV_CONN_CHOOSE_SNI_CTX, conn);
 	return NULL;
 }
 
@@ -407,7 +407,7 @@ sni_lookup:
 	trash.area[i] = 0;
 
 	HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
-	sni_ctx = ssl_sock_chose_sni_ctx(s, trash.area, has_rsa_sig, has_ecdsa_sig);
+	sni_ctx = ssl_sock_chose_sni_ctx(s, conn, trash.area, has_rsa_sig, has_ecdsa_sig);
 	if (sni_ctx) {
 		/* switch ctx */
 		struct ssl_bind_conf *conf = sni_ctx->conf;
@@ -701,7 +701,7 @@ sni_lookup:
 	servername = trash.area;
 
 	HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
-	sni_ctx = ssl_sock_chose_sni_ctx(s, servername, has_rsa_sig, has_ecdsa_sig);
+	sni_ctx = ssl_sock_chose_sni_ctx(s, conn, servername, has_rsa_sig, has_ecdsa_sig);
 	if (sni_ctx) {
 		/* switch ctx */
 		struct ssl_bind_conf *conf = sni_ctx->conf;

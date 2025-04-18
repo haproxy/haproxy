@@ -4787,7 +4787,7 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 		struct sni_ctx *sni_ctx;
 
 		/* if we use the generate-certificates option, look for the first default cert available */
-		sni_ctx = ssl_sock_chose_sni_ctx(bind_conf, "", 1, 1);
+		sni_ctx = ssl_sock_chose_sni_ctx(bind_conf, NULL, "", 1, 1);
 		if (!sni_ctx) {
 			ha_alert("Proxy '%s': no SSL certificate specified for bind '%s' and 'generate-certificates' option at [%s:%d] (use 'crt').\n",
 				 px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
