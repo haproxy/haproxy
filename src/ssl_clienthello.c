@@ -20,6 +20,8 @@
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_gencert.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/trace.h>
+#include <haproxy/ssl_trace-t.h>
 
 static void ssl_sock_switchctx_set(SSL *ssl, SSL_CTX *ctx)
 {
@@ -40,6 +42,8 @@ struct sni_ctx *ssl_sock_chose_sni_ctx(struct bind_conf *s, const char *serverna
 	struct ebmb_node *node, *n, *node_ecdsa = NULL, *node_rsa = NULL, *node_anonymous = NULL;
 	const char *wildp = NULL;
 	int i;
+
+	TRACE_ENTER(SSL_EV_CONN_CHOOSE_SNI_CTX, NULL, servername);
 
 	/* look for the first dot for wildcard search */
 	for (i = 0; servername[i] != '\0'; i++) {
@@ -102,20 +106,29 @@ struct sni_ctx *ssl_sock_chose_sni_ctx(struct bind_conf *s, const char *serverna
 	/* Once the certificates are found, select them depending on what is
 	 * supported in the client and by key_signature priority order: EDSA >
 	 * RSA > DSA */
-	if (have_ecdsa_sig && node_ecdsa)
+	if (have_ecdsa_sig && node_ecdsa) {
 		node = node_ecdsa;
-	else if (have_rsa_sig && node_rsa)
+		TRACE_STATE("ECDSA node picked", SSL_EV_CONN_CHOOSE_SNI_CTX, NULL, servername, node);
+	} else if (have_rsa_sig && node_rsa) {
 		node = node_rsa;
-	else if (node_anonymous)
+		TRACE_STATE("RSA node picked", SSL_EV_CONN_CHOOSE_SNI_CTX, NULL, servername, node);
+	} else if (node_anonymous) {
 		node = node_anonymous;
-	else if (node_ecdsa)
+		TRACE_STATE("Anonymous node picked", SSL_EV_CONN_CHOOSE_SNI_CTX, NULL, servername, node);
+	} else if (node_ecdsa) {
 		node = node_ecdsa;      /* no ecdsa signature case (< TLSv1.2) */
-	else
+		TRACE_STATE("ECDSA node picked (< TLSv1.2)", SSL_EV_CONN_CHOOSE_SNI_CTX, NULL, servername, node);
+	} else {
 		node = node_rsa;        /* no rsa signature case (far far away) */
+		TRACE_STATE("RSA node picked (fallback)", SSL_EV_CONN_CHOOSE_SNI_CTX, NULL, servername, node);
+	}
 
-	if (node)
+	if (node) {
+		TRACE_LEAVE(SSL_EV_CONN_CHOOSE_SNI_CTX);
 		return container_of(node, struct sni_ctx, name);
+	}
 
+	TRACE_STATE("No SNI context found", SSL_EV_CONN_CHOOSE_SNI_CTX);
 	return NULL;
 }
 
@@ -153,6 +166,8 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	int default_lookup = 0; /* did we lookup for a default yet? */
 	int allow_early = 0;
 	int i;
+
+	TRACE_ENTER(SSL_EV_CONN_SWITCHCTX_CB, conn);
 
 	if (conn)
 		s = __objt_listener(conn->target)->bind_conf;
@@ -210,40 +225,55 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		 * was written, so parsing the normal case is a bit complex.
 		 */
 		size_t len;
-		if (extension_len <= 2)
+		if (extension_len <= 2) {
+			TRACE_ERROR("Server_name parsing error (too short)", SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn);
 			goto abort;
+		}
 		/* Extract the length of the supplied list of names. */
 		len = (*extension_data++) << 8;
 		len |= *extension_data++;
-		if (len + 2 != extension_len)
+		if (len + 2 != extension_len) {
+			TRACE_ERROR("Server_name parsing error (wrong announced length)", SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn);
 			goto abort;
+		}
 		/*
 		 * The list in practice only has a single element, so we only consider
 		 * the first one.
 		 */
-		if (len == 0 || *extension_data++ != TLSEXT_NAMETYPE_host_name)
+		if (len == 0 || *extension_data++ != TLSEXT_NAMETYPE_host_name) {
+			TRACE_ERROR("Server_name parsing error (wrong announced length)", SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn);
 			goto abort;
+		}
 		extension_len = len - 1;
 		/* Now we can finally pull out the byte array with the actual hostname. */
-		if (extension_len <= 2)
+		if (extension_len <= 2) {
+			TRACE_ERROR("Server_name parsing error (byte array length)", SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn);
 			goto abort;
+		}
 		len = (*extension_data++) << 8;
 		len |= *extension_data++;
 		if (len == 0 || len + 2 > extension_len || len > TLSEXT_MAXLEN_host_name
-		    || memchr(extension_data, 0, len) != NULL)
+		    || memchr(extension_data, 0, len) != NULL) {
+			TRACE_ERROR("Server_name parsing error", SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn);
 			goto abort;
+		}
 		servername = (char *)extension_data;
 		servername_len = len;
+		TRACE_STATE("Server_name extension parsed", SSL_EV_CONN_SWITCHCTX_CB, conn, ssl, servername, &servername_len);
 	} else {
+		TRACE_STATE("No server_name extension", SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn);
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
 		if (s->options & BC_O_GENERATE_CERTS && ssl_sock_generate_certificate_from_conn(s, ssl)) {
+			TRACE_STATE("No servername provided, certificate generated", SSL_EV_CONN_SWITCHCTX_CB, conn);
 			goto allow_early;
 		}
 #endif
 
 		/* no servername field is not compatible with strict-sni */
-		if (s->strict_sni)
+		if (s->strict_sni) {
+			TRACE_ERROR("No server_name provided and 'strict-sni' enabled", SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn);
 			goto abort;
+		}
 
 		/* without servername extension, look for the defaults which is
 		 * defined by an empty servername string */
@@ -261,22 +291,31 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		uint8_t sign;
 		uint8_t hash;
 		size_t len;
-		if (extension_len < 2)
+
+		if (extension_len < 2) {
+			TRACE_ERROR("Sigalg parsing error (too short)", SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn);
 			goto abort;
+		}
 		len = (*extension_data++) << 8;
 		len |= *extension_data++;
-		if (len + 2 != extension_len)
+		if (len + 2 != extension_len) {
+			TRACE_ERROR("Sigalg parsing error (wrong announced length)", SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn);
 			goto abort;
-		if (len % 2 != 0)
+		}
+		if (len % 2 != 0) {
+			TRACE_ERROR("Sigalg parsing error (not even)", SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn);
 			goto abort;
+		}
 		for (; len > 0; len -= 2) {
 			hash = *extension_data++; /* hash */
 			sign = *extension_data++;
 			switch (sign) {
 			case TLSEXT_signature_rsa:
+				TRACE_DEVEL("Sigalg parsing: has_rsa_sig", SSL_EV_CONN_SWITCHCTX_CB, conn);
 				has_rsa_sig = 1;
 				break;
 			case TLSEXT_signature_ecdsa:
+				TRACE_DEVEL("Sigalg parsing: has_ecdsa_sig", SSL_EV_CONN_SWITCHCTX_CB, conn);
 				has_ecdsa_sig = 1;
 				break;
 			case 0x04:
@@ -288,8 +327,10 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 				/* match the RSA-PSS sigalgs from TLSv1.3
 				 * https://datatracker.ietf.org/doc/html/rfc8446#section-4.2.3
 				 */
-				if (hash == 0x08)
+				if (hash == 0x08) {
+					TRACE_DEVEL("Sigalg parsing: has_rsa_sig (RSA-PSS)", SSL_EV_CONN_SWITCHCTX_CB, conn);
 					has_rsa_sig = 1;
+				}
 				break;
 			default:
 				continue;
@@ -299,6 +340,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		}
 	} else {
 		/* without TLSEXT_TYPE_signature_algorithms extension (< TLSv1.2) */
+		TRACE_DEVEL("Sigalg parsing: has_rsa_sig (default)", SSL_EV_CONN_SWITCHCTX_CB, conn);
 		has_rsa_sig = 1;
 	}
 	if (has_ecdsa_sig) {  /* in very rare case: has ecdsa sign but not a ECDSA cipher */
@@ -317,8 +359,10 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 #else
 		len = SSL_client_hello_get0_ciphers(ssl, &cipher_suites);
 #endif
-		if (len % 2 != 0)
+		if (len % 2 != 0) {
+			TRACE_ERROR("Ciphers parsing error (not even)", SSL_EV_CONN_SWITCHCTX_CB, conn);
 			goto abort;
+		}
 		for (; len != 0; len -= 2, cipher_suites += 2) {
 #if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
 			uint16_t cipher_suite = (cipher_suites[0] << 8) | cipher_suites[1];
@@ -381,6 +425,7 @@ sni_lookup:
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
 	if (s->options & BC_O_GENERATE_CERTS && ssl_sock_generate_certificate(trash.area, s, ssl)) {
 		/* switch ctx done in ssl_sock_generate_certificate */
+		TRACE_STATE("No context found, generate certificate", SSL_EV_CONN_SWITCHCTX_CB, NULL, ssl, trash.area);
 		goto allow_early;
 	}
 #endif
@@ -392,6 +437,7 @@ sni_lookup:
 		servername_len = 0;
 		default_lookup = 1;
 
+		TRACE_STATE("Looking for matching default cert", SSL_EV_CONN_SWITCHCTX_CB, conn);
 		goto sni_lookup;
 	}
 
@@ -416,6 +462,7 @@ sni_lookup:
 	/* abort handshake (was SSL_TLSEXT_ERR_ALERT_FATAL) */
 	if (conn)
 		conn->err_code = CO_ER_SSL_HANDSHAKE;
+	TRACE_ERROR("No suitable SSL context found", SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn, ssl, &conn->err_code);
 #if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
 	return ssl_select_cert_error;
 #else
@@ -431,6 +478,7 @@ allow_early:
 	if (!allow_early)
 		SSL_set_max_early_data(ssl, 0);
 #endif
+	TRACE_LEAVE(SSL_EV_CONN_SWITCHCTX_CB, conn, ssl);
 	return 1;
 }
 
@@ -454,6 +502,8 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 #endif /* USE_QUIC */
 	int i;
 	(void)al; /* shut gcc stupid warning */
+
+	TRACE_ENTER(SSL_EV_CONN_SWITCHCTX_CB);
 
 #ifdef USE_QUIC
 	if (qc) {
@@ -481,11 +531,15 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 	servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 	if (!servername) {
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
-		if (s->options & BC_O_GENERATE_CERTS && ssl_sock_generate_certificate_from_conn(s, ssl))
+		if (s->options & BC_O_GENERATE_CERTS && ssl_sock_generate_certificate_from_conn(s, ssl)) {
+			TRACE_STATE("No servername provided, certificate generated", SSL_EV_CONN_SWITCHCTX_CB);
 			return SSL_TLSEXT_ERR_OK;
+		}
 #endif
-		if (s->strict_sni)
+		if (s->strict_sni) {
+			TRACE_ERROR("No server_name provided and 'strict-sni' enabled", SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR);
 			return SSL_TLSEXT_ERR_ALERT_FATAL;
+		}
 
 		/* without servername extension, look for the defaults which is
 		 * defined by an empty servername string */
@@ -509,6 +563,7 @@ sni_lookup:
 	HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
 	node = NULL;
 	/* lookup in full qualified names */
+	TRACE_STATE("Lookup in fully qualified names", SSL_EV_CONN_SWITCHCTX_CB, NULL, ssl, servername);
 	for (n = ebst_lookup(&s->sni_ctx, trash.area); n; n = ebmb_next_dup(n)) {
 		/* lookup a not neg filter */
 		if (!container_of(n, struct sni_ctx, name)->neg) {
@@ -518,6 +573,7 @@ sni_lookup:
 	}
 	if (!node && wildp) {
 		/* lookup in wildcards names */
+		TRACE_STATE("Lookup in wildcard names", SSL_EV_CONN_SWITCHCTX_CB, NULL, ssl, servername);
 		for (n = ebst_lookup(&s->sni_w_ctx, wildp); n; n = ebmb_next_dup(n)) {
 			/* lookup a not neg filter */
 			if (!container_of(n, struct sni_ctx, name)->neg) {
@@ -531,6 +587,7 @@ sni_lookup:
 		if (s->options & BC_O_GENERATE_CERTS && ssl_sock_generate_certificate(servername, s, ssl)) {
 			/* switch ctx done in ssl_sock_generate_certificate */
 			HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
+			TRACE_STATE("No context found, generate certificate", SSL_EV_CONN_SWITCHCTX_CB, NULL, ssl, servername);
 			return SSL_TLSEXT_ERR_OK;
 		}
 #endif
@@ -542,14 +599,17 @@ sni_lookup:
 			servername = "";
 			default_lookup = 1;
 
+			TRACE_STATE("Looking for matching default cert", SSL_EV_CONN_SWITCHCTX_CB);
 			goto sni_lookup;
 		}
+		TRACE_ERROR("No context found", SSL_EV_CONN_SWITCHCTX_CB, NULL, ssl, servername);
 		return SSL_TLSEXT_ERR_ALERT_FATAL;
 	}
 
 	/* switch ctx */
 	ssl_sock_switchctx_set(ssl, container_of(node, struct sni_ctx, name)->ctx);
 	HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
+	TRACE_LEAVE(SSL_EV_CONN_SWITCHCTX_CB);
 	return SSL_TLSEXT_ERR_OK;
 }
 #endif /* (!) OPENSSL_IS_BORINGSSL */

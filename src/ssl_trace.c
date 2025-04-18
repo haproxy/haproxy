@@ -38,6 +38,8 @@ static const struct trace_event ssl_trace_events[] = {
 	{ .mask = SSL_EV_CONN_HNDSHK,         .name = "sslc_hndshk",         .desc = "SSL handshake"},
 	{ .mask = SSL_EV_CONN_VFY_CB,         .name = "sslc_vfy_cb",         .desc = "SSL verify callback"},
 	{ .mask = SSL_EV_CONN_STAPLING,       .name = "sslc_stapling",       .desc = "SSL OCSP stapling callback"},
+	{ .mask = SSL_EV_CONN_SWITCHCTX_CB,   .name = "sslc_switchctx_cb",   .desc = "SSL switchctx callback"},
+	{ .mask = SSL_EV_CONN_CHOOSE_SNI_CTX, .name = "sslc_choose_sni_ctx", .desc = "SSL choose sni context"},
 	{ }
 };
 
@@ -179,6 +181,39 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 				chunk_appendf(&trace_buf, " ssl_err_code=%u ssl_err_str=\"%s\"", *ssl_err_code,
 					      ERR_reason_error_string(*ssl_err_code));
 			}
+		}
+	}
+
+	if (mask & SSL_EV_CONN_SWITCHCTX_CB) {
+		if (mask & SSL_EV_CONN_ERR) {
+			if (a3) {
+				const unsigned int *err_code = a3;
+				chunk_appendf(&trace_buf, " err_code=%u err_str=\"%s\"", *err_code, conn_err_code_str(conn));
+			}
+		} else if (src->verbosity > SSL_VERB_SIMPLE) {
+			if (a3) {
+				const char *servername = a3;
+
+				if (a4) {
+					const size_t *servername_len = a4;
+					chunk_appendf(&trace_buf, " : servername=\"%.*s\"", (int)*servername_len, servername);
+				} else {
+					chunk_appendf(&trace_buf, " : servername=\"%s\"", servername);
+				}
+			}
+		}
+	}
+
+	if (mask & SSL_EV_CONN_CHOOSE_SNI_CTX && src->verbosity > SSL_VERB_ADVANCED) {
+		if (a2) {
+			const char *servername = a2;
+			chunk_appendf(&trace_buf, " : servername=\"%s\"", servername);
+		}
+		if (a3) {
+			const struct ebmb_node *node = a3;
+			struct sni_ctx *sni_ctx = container_of(node, struct sni_ctx, name);
+
+			chunk_appendf(&trace_buf, " crt=\"%s\"", sni_ctx->ckch_inst->ckch_store->path);
 		}
 	}
 }
