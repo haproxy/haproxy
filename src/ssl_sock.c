@@ -5720,6 +5720,8 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 	int conn_in_list;
 	int ret = 0;
 
+	TRACE_ENTER(SSL_EV_CONN_IO_CB, ctx->conn);
+
 	if (state & TASK_F_USR1) {
 		/* the tasklet was idling on an idle connection, it might have
 		 * been stolen, let's be careful!
@@ -5792,10 +5794,12 @@ leave:
 	if (!ret && conn_in_list) {
 		struct server *srv = objt_server(conn->target);
 
+		TRACE_DEVEL("adding conn back to idle list", SSL_EV_CONN_IO_CB, conn);
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		_srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
+	TRACE_LEAVE(SSL_EV_CONN_IO_CB, conn);
 	return t;
 }
 

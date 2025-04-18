@@ -34,6 +34,7 @@ static const struct trace_event ssl_trace_events[] = {
 	{ .mask = SSL_EV_CONN_SEND_EARLY,     .name = "sslc_send_early",     .desc = "Tx on SSL connection (early data)" },
 	{ .mask = SSL_EV_CONN_RECV,           .name = "sslc_recv",           .desc = "Rx on SSL connection" },
 	{ .mask = SSL_EV_CONN_RECV_EARLY,     .name = "sslc_recv_early",     .desc = "Rx on SSL connection (early data)" },
+	{ .mask = SSL_EV_CONN_IO_CB,          .name = "sslc_io_cb",          .desc = "SSL io callback"},
 	{ }
 };
 
