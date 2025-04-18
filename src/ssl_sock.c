@@ -5218,6 +5218,7 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 	socklen_t lskerr;
 	int skerr;
 
+	TRACE_ENTER(SSL_EV_CONN_HNDSHK, conn);
 
 	if (!conn_ctrl_ready(conn))
 		return 0;
@@ -5246,8 +5247,10 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 		goto out_error;
 
 	/* don't start calculating a handshake on a dead connection */
-	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))
+	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)) {
+		TRACE_ERROR("Trying to perform handshake on dead connection", SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
 		goto out_error;
+	}
 
 	/* FIXME/WT: for now we don't have a clear way to inspect the connection
 	 * status from the lower layers, so let's check the FD directly. Ideally
@@ -5275,9 +5278,12 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			ret = SSL_read_early_data(ctx->ssl,
 			    b_tail(&ctx->early_buf), b_room(&ctx->early_buf),
 			    &read_data);
-			if (ret == SSL_READ_EARLY_DATA_ERROR)
+			if (ret == SSL_READ_EARLY_DATA_ERROR) {
+				TRACE_ERROR("Read early data error", SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
 				goto check_error;
+			}
 			if (read_data > 0) {
+				TRACE_DEVEL("Early data read", SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
 				conn->flags |= CO_FL_EARLY_DATA;
 				b_add(&ctx->early_buf, read_data);
 			}
@@ -5285,6 +5291,7 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				conn->flags &= ~CO_FL_EARLY_SSL_HS;
 				if (!b_data(&ctx->early_buf))
 					b_free(&ctx->early_buf);
+				TRACE_STATE("Read early data finish", SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
 				break;
 			}
 		}
@@ -5299,6 +5306,8 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 	if (!(conn->flags & CO_FL_WAIT_L6_CONN) && SSL_renegotiate_pending(ctx->ssl)) {
 		char c;
 
+		TRACE_STATE("Renegotiate pending", SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
+
 		ret = SSL_peek(ctx->ssl, &c, 1);
 		if (ret <= 0) {
 			/* handshake may have not been completed, let's find why */
@@ -5308,6 +5317,7 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				/* SSL handshake needs to write, L4 connection may not be ready */
 				if (!(ctx->wait_event.events & SUB_RETRY_SEND))
 					ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_SEND, &ctx->wait_event);
+				TRACE_DEVEL("Renegotiate pending: want write", SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
 				return 0;
 			}
 			else if (ret == SSL_ERROR_WANT_READ) {
@@ -5316,16 +5326,19 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
                                  */
 				if (!SSL_renegotiate_pending(ctx->ssl)) {
 					ret = 1;
+					TRACE_DEVEL("Renegotiate pending: reneg ok", SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
 					goto reneg_ok;
 				}
 				/* SSL handshake needs to read, L4 connection is ready */
 				if (!(ctx->wait_event.events & SUB_RETRY_RECV))
 					ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
+				TRACE_DEVEL("Renegotiate pending: want read", SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
 				return 0;
 			}
 #ifdef SSL_MODE_ASYNC
 			else if (ret == SSL_ERROR_WANT_ASYNC) {
 				ssl_async_process_fds(ctx);
+				TRACE_ERROR("Renegotiate pending: want async error", SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
 				return 0;
 			}
 #endif
@@ -5369,6 +5382,7 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 					}
 #endif /* BoringSSL or LibreSSL */
 				}
+				TRACE_ERROR("Renegotiate pending: syscall error", SSL_EV_CONN_HNDSHK|SSL_EV_CONN_ERR, conn, ctx->ssl, &conn->err_code);
 				goto out_error;
 			}
 			else {
@@ -5382,9 +5396,11 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				if (!conn->err_code)
 					conn->err_code = (ctx->xprt_st & SSL_SOCK_RECV_HEARTBEAT) ?
 						CO_ER_SSL_KILLED_HB : CO_ER_SSL_HANDSHAKE;
+				TRACE_ERROR("Renegotiate pending: other error", SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
 				goto out_error;
 			}
 		}
+		TRACE_STATE("Renegotiate pending: reneg ok", SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
 		/* read some data: consider handshake completed */
 		goto reneg_ok;
 	}
@@ -5401,6 +5417,7 @@ check_error:
 			/* SSL handshake needs to write, L4 connection may not be ready */
 			if (!(ctx->wait_event.events & SUB_RETRY_SEND))
 				ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_SEND, &ctx->wait_event);
+			TRACE_DEVEL("Want write (post SSL_do_handshake)", SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
 			return 0;
 		}
 		else if (ret == SSL_ERROR_WANT_READ) {
@@ -5408,11 +5425,13 @@ check_error:
 			if (!(ctx->wait_event.events & SUB_RETRY_RECV))
 				ctx->xprt->subscribe(conn, ctx->xprt_ctx,
 				    SUB_RETRY_RECV, &ctx->wait_event);
+			TRACE_DEVEL("Want read (post SSL_do_handshake)", SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
 			return 0;
 		}
 #ifdef SSL_MODE_ASYNC
 		else if (ret == SSL_ERROR_WANT_ASYNC) {
 			ssl_async_process_fds(ctx);
+			TRACE_ERROR("Want async error", SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
 			return 0;
 		}
 #endif
@@ -5456,6 +5475,7 @@ check_error:
 				}
 #endif /* BoringSSL or LibreSSL */
 			}
+			TRACE_ERROR("Syscall error", SSL_EV_CONN_HNDSHK|SSL_EV_CONN_ERR, conn, ctx->ssl, &conn->err_code, &ctx->error_code);
 			goto out_error;
 
 		} else if (ret == SSL_ERROR_ZERO_RETURN) {
@@ -5463,6 +5483,7 @@ check_error:
 			 * sending a close_notify alert */
 			conn_ctrl_drain(conn);
 			conn->err_code = CO_ER_SSL_EMPTY;
+			TRACE_ERROR("Zero return error", SSL_EV_CONN_HNDSHK|SSL_EV_CONN_ERR, conn, ctx->ssl, &conn->err_code, &ctx->error_code);
 			goto out_error;
 
 		}
@@ -5477,11 +5498,13 @@ check_error:
 			if (!conn->err_code)
 				conn->err_code = (ctx->xprt_st & SSL_SOCK_RECV_HEARTBEAT) ?
 					CO_ER_SSL_KILLED_HB : CO_ER_SSL_HANDSHAKE;
+			TRACE_ERROR("Other error", SSL_EV_CONN_HNDSHK|SSL_EV_CONN_ERR, conn, ctx->ssl, &conn->err_code, &ctx->error_code);
 			goto out_error;
 		}
 	}
-#ifdef SSL_READ_EARLY_DATA_SUCCESS
 	else {
+		TRACE_STATE("Successful SSL_do_handshake", SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
+#ifdef SSL_READ_EARLY_DATA_SUCCESS
 		/*
 		 * If the server refused the early data, we have to send a
 		 * 425 to the client, as we no longer have the data to sent
@@ -5490,11 +5513,12 @@ check_error:
 		if ((conn->flags & CO_FL_EARLY_DATA) && (objt_server(conn->target))) {
 			if (SSL_get_early_data_status(ctx->ssl) == SSL_EARLY_DATA_REJECTED) {
 				conn->err_code = CO_ER_SSL_EARLY_FAILED;
+				TRACE_ERROR("Early data rejected", SSL_EV_CONN_HNDSHK|SSL_EV_CONN_ERR, conn, ctx->ssl, &conn->err_code);
 				goto out_error;
 			}
 		}
-	}
 #endif
+	}
 
 
 reneg_ok:
@@ -5529,6 +5553,8 @@ reneg_ok:
 		HA_ATOMIC_INC(&counters->reused_sess);
 		HA_ATOMIC_INC(&counters_px->reused_sess);
 	}
+
+	TRACE_LEAVE(SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
 
 	/* The connection is now established at both layers, it's time to leave */
 	conn->flags &= ~(flag | CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN);
@@ -5565,6 +5591,8 @@ reneg_ok:
 	conn->flags |= CO_FL_ERROR;
 	if (!conn->err_code)
 		conn->err_code = CO_ER_SSL_HANDSHAKE;
+
+	TRACE_ERROR("handshake error", SSL_EV_CONN_HNDSHK|SSL_EV_CONN_ERR, conn, ctx->ssl, &conn->err_code, &ctx->error_code);
 	return 0;
 }
 

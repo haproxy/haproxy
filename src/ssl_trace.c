@@ -35,6 +35,7 @@ static const struct trace_event ssl_trace_events[] = {
 	{ .mask = SSL_EV_CONN_RECV,           .name = "sslc_recv",           .desc = "Rx on SSL connection" },
 	{ .mask = SSL_EV_CONN_RECV_EARLY,     .name = "sslc_recv_early",     .desc = "Rx on SSL connection (early data)" },
 	{ .mask = SSL_EV_CONN_IO_CB,          .name = "sslc_io_cb",          .desc = "SSL io callback"},
+	{ .mask = SSL_EV_CONN_HNDSHK,         .name = "sslc_hndshk",         .desc = "SSL handshake"},
 	{ }
 };
 
@@ -110,6 +111,51 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 
 			if (size)
 				chunk_appendf(&trace_buf, " : size=%ld", *size);
+		}
+	}
+
+	if (mask & SSL_EV_CONN_HNDSHK) {
+		const SSL *ssl = a2;
+
+		if (ssl && src->verbosity > SSL_VERB_SIMPLE) {
+			const char *servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
+			struct buffer *alpn = get_trash_chunk();
+			unsigned int len = 0;
+
+			chunk_appendf(&trace_buf, " servername=%s", servername);
+
+			SSL_get0_alpn_selected(ssl, (const unsigned char**)&alpn->area, &len);
+			chunk_appendf(&trace_buf, " alpn=%.*s", len, alpn->area);
+
+			chunk_appendf(&trace_buf, " tls_vers=%s", (char *)SSL_get_version(ssl));
+
+			chunk_appendf(&trace_buf, " cipher=%s", (char*)SSL_get_cipher_name(ssl));
+
+			{
+				X509 *crt = SSL_get_certificate(ssl);
+
+				if (crt) {
+					X509_NAME *name = X509_get_subject_name(crt);
+					if (name)
+						chunk_appendf(&trace_buf, " subject=\"%s\"",
+							      X509_NAME_oneline(name, 0, 0));
+				}
+			}
+		}
+
+		if (mask & SSL_EV_CONN_ERR) {
+			/* Try to give more information about the specific handshake
+			 * error we had. */
+			if (a3) {
+				const unsigned int *err_code = a3;
+				chunk_appendf(&trace_buf, " err_code=%u err_str=\"%s\"", *err_code, conn_err_code_str(conn));
+			}
+
+			if (a4) {
+				const unsigned int *ssl_err_code = a4;
+				chunk_appendf(&trace_buf, " ssl_err_code=%u ssl_err_str=\"%s\"", *ssl_err_code,
+					      ERR_error_string(*ssl_err_code, NULL));
+			}
 		}
 	}
 
