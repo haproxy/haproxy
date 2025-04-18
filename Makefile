@@ -630,9 +630,10 @@ ifneq ($(USE_OPENSSL:0=),)
     SSL_LDFLAGS   := $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
   endif
   USE_SSL         := $(if $(USE_SSL:0=),$(USE_SSL:0=),implicit)
-  OPTIONS_OBJS += src/ssl_sock.o src/ssl_ckch.o src/ssl_ocsp.o src/ssl_crtlist.o     \
-                  src/ssl_sample.o src/cfgparse-ssl.o src/ssl_gencert.o              \
-                  src/ssl_utils.o src/jwt.o src/ssl_clienthello.o src/jws.o src/acme.o
+  OPTIONS_OBJS += src/ssl_sock.o src/ssl_ckch.o src/ssl_ocsp.o src/ssl_crtlist.o       \
+                  src/ssl_sample.o src/cfgparse-ssl.o src/ssl_gencert.o                \
+                  src/ssl_utils.o src/jwt.o src/ssl_clienthello.o src/jws.o src/acme.o \
+                  src/ssl_trace.o
 endif
 
 ifneq ($(USE_ENGINE:0=),)

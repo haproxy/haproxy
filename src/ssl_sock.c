@@ -86,6 +86,8 @@
 #include <haproxy/xxhash.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/ssl_ocsp.h>
+#include <haproxy/trace.h>
+#include <haproxy/ssl_trace-t.h>
 
 
 /* ***** READ THIS before adding code here! *****
@@ -5024,6 +5026,8 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 	struct ssl_sock_ctx *ctx;
 	int next_sslconn = 0;
 
+	TRACE_ENTER(SSL_EV_CONN_NEW, conn);
+
 	/* already initialized */
 	if (*xprt_ctx)
 		return 0;
@@ -5031,12 +5035,14 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 	ctx = pool_alloc(ssl_sock_ctx_pool);
 	if (!ctx) {
 		conn->err_code = CO_ER_SSL_NO_MEM;
+		TRACE_ERROR("ssl_sock_ctx allocation failure", SSL_EV_CONN_NEW|SSL_EV_CONN_ERR|SSL_EV_CONN_END, conn);
 		return -1;
 	}
 	ctx->wait_event.tasklet = tasklet_new();
 	if (!ctx->wait_event.tasklet) {
 		conn->err_code = CO_ER_SSL_NO_MEM;
 		pool_free(ssl_sock_ctx_pool, ctx);
+		TRACE_ERROR("tasklet allocation failure", SSL_EV_CONN_NEW|SSL_EV_CONN_ERR|SSL_EV_CONN_END, conn);
 		return -1;
 	}
 	ctx->wait_event.tasklet->process = ssl_sock_io_cb;
@@ -5054,6 +5060,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 	next_sslconn = increment_sslconn();
 	if (!next_sslconn) {
 		conn->err_code = CO_ER_SSL_TOO_MANY;
+		TRACE_ERROR("Too many SSL connections", SSL_EV_CONN_NEW|SSL_EV_CONN_ERR|SSL_EV_CONN_END, conn);
 		goto err;
 	}
 
@@ -5143,6 +5150,8 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 
 		_HA_ATOMIC_INC(&global.totalsslconns);
 		*xprt_ctx = ctx;
+
+		TRACE_LEAVE(SSL_EV_CONN_NEW, conn);
 		return 0;
 	}
 	else if (objt_listener(conn->target)) {
@@ -5175,6 +5184,8 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 
 		_HA_ATOMIC_INC(&global.totalsslconns);
 		*xprt_ctx = ctx;
+
+		TRACE_LEAVE(SSL_EV_CONN_NEW, conn);
 		return 0;
 	}
 	/* don't know how to handle such a target */
@@ -5185,6 +5196,7 @@ err:
 	if (ctx && ctx->wait_event.tasklet)
 		tasklet_free(ctx->wait_event.tasklet);
 	pool_free(ssl_sock_ctx_pool, ctx);
+	TRACE_DEVEL("leaving in error", SSL_EV_CONN_NEW|SSL_EV_CONN_ERR|SSL_EV_CONN_END);
 	return -1;
 }
 
@@ -6081,6 +6093,7 @@ void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 
 	struct ssl_sock_ctx *ctx = xprt_ctx;
 
+	TRACE_ENTER(SSL_EV_CONN_CLOSE, conn);
 
 	if (ctx) {
 		if (ctx->wait_event.events != 0)
@@ -6103,6 +6116,7 @@ void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 			SSL_get_all_async_fds(ctx->ssl, NULL, &num_all_fds);
 			if (num_all_fds > 32) {
 				send_log(NULL, LOG_EMERG, "haproxy: openssl returns too many async fds. It seems a bug. Process may crash\n");
+				TRACE_ERROR("Too many async fds", SSL_EV_CONN_CLOSE|SSL_EV_CONN_ERR, conn);
 				return;
 			}
 
@@ -6128,6 +6142,7 @@ void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 				tasklet_free(ctx->wait_event.tasklet);
 				pool_free(ssl_sock_ctx_pool, ctx);
 				_HA_ATOMIC_INC(&jobs);
+				TRACE_DEVEL("async end", SSL_EV_CONN_CLOSE, conn);
 				return;
 			}
 			/* Else we can remove the fds from the fdtab
@@ -6152,6 +6167,7 @@ void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 		pool_free(ssl_sock_ctx_pool, ctx);
 		_HA_ATOMIC_DEC(&global.sslconns);
 	}
+	TRACE_LEAVE(SSL_EV_CONN_CLOSE, conn);
 }
 
 /* This function tries to perform a clean shutdown on an SSL connection, and in
@@ -6160,6 +6176,8 @@ void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 static void ssl_sock_shutw(struct connection *conn, void *xprt_ctx, int clean)
 {
 	struct ssl_sock_ctx *ctx = xprt_ctx;
+
+	TRACE_ENTER(SSL_EV_CONN_END, conn);
 
 	if (conn->flags & (CO_FL_WAIT_XPRT | CO_FL_SSL_WAIT_HS))
 		return;
@@ -6173,6 +6191,8 @@ static void ssl_sock_shutw(struct connection *conn, void *xprt_ctx, int clean)
 		ssl_sock_dump_errors(conn, NULL);
 		ERR_clear_error();
 	}
+
+	TRACE_LEAVE(SSL_EV_CONN_END, conn);
 }
 
 
