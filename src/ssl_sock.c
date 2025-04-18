@@ -1471,6 +1471,7 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 	if (conn) {
 		bind_conf = __objt_listener(conn->target)->bind_conf;
 		ctx = __conn_get_ssl_sock_ctx(conn);
+		TRACE_ENTER(SSL_EV_CONN_VFY_CB, conn);
 	}
 #ifdef USE_QUIC
 	else {
@@ -1488,8 +1489,10 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 	depth = X509_STORE_CTX_get_error_depth(x_store);
 	err = X509_STORE_CTX_get_error(x_store);
 
-	if (ok) /* no errors */
+	if (ok) { /* no errors */
+		TRACE_LEAVE(SSL_EV_CONN_VFY_CB, conn);
 		return ok;
+	}
 
 	/* Keep a reference to the client's certificate in order to be able to
 	 * dump some fetches values in a log even when the verification process
@@ -1526,12 +1529,16 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 		}
 
 		if (err <= SSL_MAX_VFY_ERROR_CODE &&
-		    cert_ignerr_bitfield_get(bind_conf->ca_ignerr_bitfield, err))
+		    cert_ignerr_bitfield_get(bind_conf->ca_ignerr_bitfield, err)) {
+			TRACE_STATE("Ignored ca-related error", SSL_EV_CONN_VFY_CB, conn, ssl, NULL, &err);
 			goto err_ignored;
+		}
 
 		/* TODO: for QUIC connection, this error code is lost */
-		if (conn)
+		if (conn) {
 			conn->err_code = CO_ER_SSL_CA_FAIL;
+			TRACE_ERROR("Verify callback error (ca)", SSL_EV_CONN_VFY_CB|SSL_EV_CONN_ERR, conn, ssl, &conn->err_code, &err);
+		}
 		return 0;
 	}
 
@@ -1540,17 +1547,22 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 
 	/* check if certificate error needs to be ignored */
 	if (err <= SSL_MAX_VFY_ERROR_CODE &&
-	    cert_ignerr_bitfield_get(bind_conf->crt_ignerr_bitfield, err))
+	    cert_ignerr_bitfield_get(bind_conf->crt_ignerr_bitfield, err)) {
+		TRACE_STATE("Ignored crt-related error", SSL_EV_CONN_VFY_CB, conn, ssl, NULL, &err);
 		goto err_ignored;
+	}
 
 	/* TODO: for QUIC connection, this error code is lost */
-	if (conn)
+	if (conn) {
 		conn->err_code = CO_ER_SSL_CRT_FAIL;
+		TRACE_ERROR("Verify callback error (crt)", SSL_EV_CONN_VFY_CB|SSL_EV_CONN_ERR, conn, ssl, &conn->err_code, &err);
+	}
 	return 0;
 
  err_ignored:
 	ssl_sock_dump_errors(conn, qc);
 	ERR_clear_error();
+	TRACE_LEAVE(SSL_EV_CONN_VFY_CB, conn);
 	return 1;
 }
 

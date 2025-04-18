@@ -36,6 +36,7 @@ static const struct trace_event ssl_trace_events[] = {
 	{ .mask = SSL_EV_CONN_RECV_EARLY,     .name = "sslc_recv_early",     .desc = "Rx on SSL connection (early data)" },
 	{ .mask = SSL_EV_CONN_IO_CB,          .name = "sslc_io_cb",          .desc = "SSL io callback"},
 	{ .mask = SSL_EV_CONN_HNDSHK,         .name = "sslc_hndshk",         .desc = "SSL handshake"},
+	{ .mask = SSL_EV_CONN_VFY_CB,         .name = "sslc_vfy_cb",         .desc = "SSL verify callback"},
 	{ }
 };
 
@@ -159,5 +160,25 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 		}
 	}
 
+	if (mask & SSL_EV_CONN_VFY_CB) {
+		if (mask & SSL_EV_CONN_ERR) {
+			if (a3) {
+				const unsigned int *err_code = a3;
+				chunk_appendf(&trace_buf, " err_code=%u err_str=\"%s\"", *err_code, conn_err_code_str(conn));
+			}
+			if (a4) {
+				const unsigned int *ssl_err_code = a4;
+				chunk_appendf(&trace_buf, " ssl_err_code=%u ssl_err_str=\"%s\"", *ssl_err_code,
+					      ERR_reason_error_string(*ssl_err_code));
+			}
+		} else if (src->verbosity > SSL_VERB_SIMPLE) {
+			/* We faced an ignored error */
+			if (a4) {
+				const unsigned int *ssl_err_code = a4;
+				chunk_appendf(&trace_buf, " ssl_err_code=%u ssl_err_str=\"%s\"", *ssl_err_code,
+					      ERR_reason_error_string(*ssl_err_code));
+			}
+		}
+	}
 }
 
