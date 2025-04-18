@@ -53,6 +53,7 @@ time_t x509_get_notafter_time_t(X509 *cert);
 #endif
 int curves2nid(const char *curve);
 const char *nid2nist(int nid);
+const char *sigalg2str(int sigalg);
 
 #endif /* _HAPROXY_SSL_UTILS_H */
 #endif /* USE_OPENSSL */
