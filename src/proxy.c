@@ -213,6 +213,8 @@ static inline void proxy_free_common(struct proxy *px)
 	struct lf_expr *lf, *lfb;
 	struct eb32_node *node;
 
+	/* note that the node's key points to p->id */
+	ebpt_delete(&px->conf.by_name);
 	ha_free(&px->id);
 	drop_file_name(&px->conf.file);
 	ha_free(&px->check_command);
@@ -413,10 +415,6 @@ void deinit_proxy(struct proxy *p)
 		pxdf->fct(p);
 
 	free(p->desc);
-
-	/* note that the node's key points to p->id */
-	ebpt_delete(&p->conf.by_name);
-	free(p->id);
 
 	task_destroy(p->task);
 
