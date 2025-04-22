@@ -15537,6 +15537,7 @@ early-hint                     -           -     -     -     -            X   - 
 expect-netscaler-cip           -           X     -     -     -            -   -   -
 expect-proxy layer4            -           X     -     -     -            -   -   -
 normalize-uri                  -           -     -     -     -            X   -   -
+pause                          -           -     -     -     -            X   X   -
 redirect                       -           -     -     -     -            X   X   -
 reject                         X           X     X     X     X            X   -   -
 replace-header                 -           -     -     -     -            X   X   X
@@ -16107,6 +16108,22 @@ normalize-uri query-sort-by-name
       - /?aaa=3&a=1&aa=2      -> /?a=1&aa=2&aaa=3
       - /?a=3&b=4&a=1&b=5&a=2 -> /?a=3&a=1&a=2&b=4&b=5
 
+pause { <timeout> | <expr> }
+  Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
+                    - |          -  |   -  |   -  |   -  |          X |  X |  -
+
+  This suspends the message analysis for the sepcified number of milliseconds.
+  The timeout can be specified in milliseconds or with any other unit if the
+  number is suffixed by the unit as explained at the top of this document. It
+  is also possible to write an expression which must return a number
+  interpreted as a timeout in milliseconds. If the expression evaluation fails
+  or if it returns an invalid value, the action is ignored and the evaluation
+  continues.
+
+  This action may be used for debugging purpose. But it could also be used to
+  slow down some clients based on specific criteria. For instance, it is
+  possible to slow down clients if their requests rate is too high, by tracking
+  them via a "track-sc" rule.
 
 redirect <rule>
   Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft

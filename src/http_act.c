@@ -1752,6 +1752,82 @@ static enum act_parse_ret parse_http_del_header(const char **args, int *orig_arg
 	return ACT_RET_PRS_OK;
 }
 
+/* This function executes a pause action.
+ */
+static enum act_return http_action_pause(struct act_rule *rule, struct proxy *px,
+					 struct session *sess, struct stream *s, int flags)
+{
+
+	struct channel *chn = ((rule->from == ACT_F_HTTP_REQ) ? &s->req : &s->res);
+	struct sample *key;
+
+	if (!tick_isset(chn->analyse_exp)) {
+		int time;
+
+		if (rule->arg.timeout.expr) {
+			key = sample_fetch_as_type(px, sess, s, SMP_OPT_FINAL, rule->arg.timeout.expr, SMP_T_SINT);
+			if (!key)
+				return ACT_RET_CONT;
+			time = MS_TO_TICKS(key->data.u.sint);
+		}
+		else
+			time  = MS_TO_TICKS(rule->arg.timeout.value);
+		chn->analyse_exp = tick_add_ifset(now_ms, time);
+	}
+
+	if (tick_isset(chn->analyse_exp) && !tick_is_expired(chn->analyse_exp, now_ms))
+		return ACT_RET_YIELD;
+
+	chn->analyse_exp = TICK_ETERNITY;
+	return ACT_RET_CONT;
+}
+
+/* Parse a "pause" action. It returns ACT_RET_PRS_OK on success,
+ * ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret parse_http_pause(const char **args, int *orig_arg, struct proxy *px,
+					      struct act_rule *rule, char **err)
+{
+	const char *res;
+	int cur_arg;
+
+	rule->action = ACT_CUSTOM;
+	rule->action_ptr = http_action_pause;
+	rule->release_ptr = release_timeout_action;
+
+	cur_arg = *orig_arg;
+
+	res = parse_time_err(args[cur_arg], (unsigned int *)&rule->arg.timeout.value, TIME_UNIT_MS);
+        if (res == PARSE_TIME_OVER) {
+                memprintf(err, "timer overflow in argument '%s' to rule 'pause' (maximum value is 2147483647 ms or ~24.8 days)",
+                          args[cur_arg]);
+                return ACT_RET_PRS_ERR;
+        }
+        else if (res == PARSE_TIME_UNDER) {
+                memprintf(err, "timer underflow in argument '%s' to rule 'pause' (minimum value is 1 ms)",
+                          args[cur_arg]);
+                return ACT_RET_PRS_ERR;
+        }
+        /* res not NULL, parsing error */
+        else if (res) {
+                rule->arg.timeout.expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file,
+                                                           px->conf.args.line, err, &px->conf.args, NULL);
+                if (!rule->arg.timeout.expr) {
+                        memprintf(err, "unexpected character '%c' in rule 'mause'", *res);
+                        return ACT_RET_PRS_ERR;
+                }
+        }
+        /* res NULL, parsing ok but value is 0 */
+        else if (!(rule->arg.timeout.value)) {
+                memprintf(err, "null value is not valid for a 'pause' rule");
+                return ACT_RET_PRS_ERR;
+        }
+
+	*orig_arg = cur_arg + 1;
+	return ACT_RET_PRS_OK;
+}
+
+
 /* Release memory allocated by an http redirect action. */
 static void release_http_redir(struct act_rule *rule)
 {
@@ -2424,6 +2500,7 @@ static struct action_kw_list http_req_actions = {
 		{ "do-log",           parse_http_req_do_log,           0 },
 		{ "early-hint",       parse_http_set_header,           0 },
 		{ "normalize-uri",    parse_http_normalize_uri,        KWF_EXPERIMENTAL },
+		{ "pause",            parse_http_pause,                0 },
 		{ "redirect",         parse_http_redirect,             0 },
 		{ "reject",           parse_http_action_reject,        0 },
 		{ "replace-header",   parse_http_replace_header,       0 },
@@ -2461,6 +2538,7 @@ static struct action_kw_list http_res_actions = {
 		{ "del-map",         parse_http_set_map,        KWF_MATCH_PREFIX },
 		{ "deny",            parse_http_deny,           0 },
 		{ "do-log",          parse_http_res_do_log,     0 },
+		{ "pause",           parse_http_pause,          0 },
 		{ "redirect",        parse_http_redirect,       0 },
 		{ "replace-header",  parse_http_replace_header, 0 },
 		{ "replace-value",   parse_http_replace_header, 0 },
