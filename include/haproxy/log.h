@@ -36,6 +36,7 @@ extern struct pool_head *pool_head_uniqueid;
 extern const char *log_levels[];
 extern char *log_format;
 extern char httpclient_log_format[];
+extern char httpsclient_log_format[];
 extern char default_tcp_log_format[];
 extern char clf_tcp_log_format[];
 extern char default_http_log_format[];

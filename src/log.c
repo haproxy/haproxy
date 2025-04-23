@@ -326,6 +326,7 @@ static const struct logformat_alias logformat_aliases[] = {
 };
 
 char httpclient_log_format[] = "%ci:%cp [%tr] %ft -/- %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r";
+char httpsclient_log_format[] = "%ci:%cp [%tr] %ft -/- %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r %[bc_err]/%[ssl_bc_err,hex]/-/-/%[ssl_bc_is_resumed] -/-/-";
 char default_http_log_format[] = "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r"; // default format
 char default_https_log_format[] = "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r %[fc_err]/%[ssl_fc_err,hex]/%[ssl_c_err]/%[ssl_c_ca_err]/%[ssl_fc_is_resumed] %[ssl_fc_sni]/%sslv/%sslc";
 char clf_http_log_format[] = "%{+Q}o %{-Q}ci - - [%trg] %r %ST %B \"\" \"\" %cp %ms %ft %b %s %TR %Tw %Tc %Tr %Ta %tsc %ac %fc %bc %sc %rc %sq %bq %CC %CS %hrl %hsl";
@@ -344,6 +345,7 @@ char default_rfc5424_sd_log_format[] = "- ";
 static inline int logformat_str_isdefault(const char *str)
 {
 	return str == httpclient_log_format ||
+	       str == httpsclient_log_format ||
 	       str == default_http_log_format ||
 	       str == default_https_log_format ||
 	       str == clf_http_log_format ||
