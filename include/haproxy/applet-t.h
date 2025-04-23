@@ -120,6 +120,7 @@ struct appctx {
 	int cli_severity_output;        /* used within the cli_io_handler to format severity output of informational feedback */
 	int cli_level;              /* the level of CLI which can be lowered dynamically */
 	char cli_payload_pat[8];        /* Payload pattern */
+	char *cli_payload;          /* Pointer on the payload. NULL if no payload */
 	uint32_t cli_anon_key;       /* the key to anonymise with the hash in cli */
 	struct buffer_wait buffer_wait; /* position in the list of objects waiting for a buffer */
 	struct task *t;                  /* task associated to the applet */
