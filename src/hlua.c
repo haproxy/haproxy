@@ -11895,11 +11895,9 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 {
 	struct hlua_cli_ctx *ctx = appctx->svcctx;
 	struct hlua *hlua;
-	struct stconn *sc;
 	struct hlua_function *fcn;
 
 	hlua = ctx->hlua;
-	sc = appctx_sc(appctx);
 	fcn = ctx->fcn;
 
 	/* Execute the function. */
@@ -11913,10 +11911,13 @@ static int hlua_cli_io_handler_fct(struct appctx *appctx)
 	case HLUA_E_AGAIN:
 		/* We want write. */
 		if (HLUA_IS_WAKERESWR(hlua))
-			sc_need_room(sc, -1);
+			applet_have_more_data(appctx);
 		/* Set the timeout. */
 		if (hlua->wake_time != TICK_ETERNITY)
 			task_schedule(hlua->task, hlua->wake_time);
+
+		applet_will_consume(appctx);
+		applet_expect_data(appctx);
 		return 0;
 
 	/* finished with error. */
