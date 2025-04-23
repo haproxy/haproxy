@@ -696,7 +696,6 @@ int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t
 int cli_io_handler_show_ring(struct appctx *appctx)
 {
 	struct show_ring_ctx *ctx = appctx->svcctx;
-	struct stconn *sc = appctx_sc(appctx);
 	struct ring *ring = ctx->ring;
 	size_t last_ofs;
 	size_t ofs;
@@ -711,7 +710,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		/* we've drained everything and are configured to wait for more
 		 * data or an event (keypress, close)
 		 */
-		if (!sc_oc(sc)->output && !(sc->flags & SC_FL_SHUT_DONE)) {
+		if (!b_data(&appctx->inbuf)) {
 			/* let's be woken up once new data arrive */
 			MT_LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 			ofs = ring_tail(ring);
@@ -726,9 +725,11 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 			ret = 0;
 		}
 		/* always drain all the request */
-		co_skip(sc_oc(sc), sc_oc(sc)->output);
+		b_reset(&appctx->inbuf);
+		applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
 	}
 
+	applet_will_consume(appctx);
 	applet_expect_no_data(appctx);
 	return ret;
 }
