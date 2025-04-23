@@ -1933,7 +1933,7 @@ err:
 
 
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "acme", "renew", NULL }, NULL, cli_acme_renew_parse, NULL, NULL, NULL, 0 },
+	{ { "acme", "renew", NULL },           "acme renew <certfile>                   : renew a certificate using the ACME protocol", cli_acme_renew_parse, NULL, NULL, NULL, 0 },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
