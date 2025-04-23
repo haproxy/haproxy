@@ -101,8 +101,8 @@ struct applet {
 struct appctx {
 	enum obj_type obj_type;    /* OBJ_TYPE_APPCTX */
 	/* 3 unused bytes here */
-	unsigned int st0;          /* CLI state for stats, session state for peers */
-	unsigned int st1;          /* prompt/payload (bitwise OR of APPCTX_CLI_ST1_*) for stats, session error for peers */
+	unsigned int st0;          /* Main applet state. May be used by any applet */
+	unsigned int st1;          /* Applet substate. Mau be used by any applet */
 
 	unsigned int flags;        /* APPCTX_FL_* */
 	struct buffer inbuf;
