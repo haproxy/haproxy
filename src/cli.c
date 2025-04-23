@@ -806,6 +806,16 @@ static int cli_parse_request(struct appctx *appctx)
 	}
 	/* fill unused slots */
 	p = b_tail(&appctx->inbuf);
+
+	/* throw an error if too many args are provided */
+	if (*p && i == MAX_CLI_ARGS) {
+		char *err = NULL;
+
+		cli_err(appctx, memprintf(&err, "Too many arguments. Commands must have at most %d arguments.\n", MAX_CLI_ARGS));
+		return 0;
+	}
+
+
 	for (; i < MAX_CLI_ARGS + 1; i++)
 		args[i] = p;
 
