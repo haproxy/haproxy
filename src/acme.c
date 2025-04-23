@@ -37,6 +37,8 @@
 static struct acme_cfg *acme_cfgs = NULL;
 static struct acme_cfg *cur_acme = NULL;
 
+static struct proxy *httpclient_acme_px = NULL;
+
 /* Return an existing acme_cfg section */
 struct acme_cfg *get_acme_cfg(const char *name)
 {
@@ -115,6 +117,17 @@ error:
 	return err_code;
 }
 
+/* Initialize the proxy for the ACME HTTP client */
+static int httpclient_acme_init()
+{
+	httpclient_acme_px = httpclient_create_proxy("<ACME>");
+	if (!httpclient_acme_px)
+		return ERR_FATAL;
+	httpclient_acme_px->logformat.str = httpsclient_log_format; /* ACME server are always SSL */
+
+	return ERR_NONE;
+}
+
 
 /* acme section parser
  * Fill the acme_cfgs linked list
@@ -144,6 +157,14 @@ static int cfg_parse_acme(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			ha_alert("parsing [%s:%d]: section '%s' requires an ID argument.\n", file, linenum, cursection);
 			goto out;
+		}
+
+		if (httpclient_acme_px == NULL) {
+			if (httpclient_acme_init() & ERR_FATAL) {
+				err_code |= ERR_ALERT | ERR_FATAL;
+				ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+				goto out;
+			}
 		}
 
 		cur_acme = new_acme_cfg(args[1]);
@@ -550,7 +571,7 @@ int acme_http_req(struct task *task, struct acme_ctx *ctx, struct ist url, enum 
 {
 	struct httpclient *hc;
 
-	hc = httpclient_new(task, meth, url);
+	hc = httpclient_new_from_proxy(httpclient_acme_px, task, meth, url);
 	if (!hc)
 		goto error;
 
