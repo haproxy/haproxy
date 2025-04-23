@@ -1522,11 +1522,13 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 	if (h3s->err) {
 		qcc_abort_stream_read(qcs);
 		qcc_reset_stream(qcs, h3s->err);
-		return b_data(b);
+		total = b_data(b);
+		goto done;
 	}
 	else if (h3c->err) {
 		qcc_set_error(qcs->qcc, h3c->err, 1);
-		return b_data(b);
+		total = b_data(b);
+		goto done;
 	}
 	else if (unlikely(ret < 0)) {
 		qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1);
