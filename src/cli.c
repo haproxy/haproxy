@@ -917,7 +917,7 @@ int cli_init(struct appctx *appctx)
 
 	appctx->cli_severity_output = bind_conf->severity_output;
 	applet_reset_svcctx(appctx);
-	appctx->st0 = CLI_ST_GETREQ;
+	appctx->st0 = CLI_ST_PARSE_CMDLINE;
 	appctx->cli_level = bind_conf->level;
 	appctx->cli_payload = NULL;
 	appctx->chunk = NULL;
@@ -1055,7 +1055,7 @@ int cli_parse_cmdline(struct appctx *appctx)
 		}
 
 		if (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)) {
-			appctx->st0 = CLI_ST_PARSEREQ;
+			appctx->st0 = CLI_ST_PROCESS_CMDLINE;
 			break;
 		}
 	}
@@ -1063,7 +1063,7 @@ int cli_parse_cmdline(struct appctx *appctx)
 			appctx->st0 = CLI_ST_PROMPT;
 
   end:
-	if (appctx->st0 != CLI_ST_GETREQ)
+	if (appctx->st0 != CLI_ST_PARSE_CMDLINE)
 		ret = 1;
 	return ret;
 }
@@ -1099,11 +1099,11 @@ void cli_io_handler(struct appctx *appctx)
 			applet_set_eos(appctx);
 			break;
 		}
-		else if (appctx->st0 == CLI_ST_GETREQ) {
+		else if (appctx->st0 == CLI_ST_PARSE_CMDLINE) {
 			if (cli_parse_cmdline(appctx) == 0)
 				break;
 		}
-		else if (appctx->st0 == CLI_ST_PARSEREQ) {
+		else if (appctx->st0 == CLI_ST_PROCESS_CMDLINE) {
 			/* ensure we have some output room left in the event we
 			 * would want to return some info right after parsing.
 			 */
@@ -1229,7 +1229,7 @@ void cli_io_handler(struct appctx *appctx)
 
 				if (applet_putstr(appctx, prompt) != -1) {
 					applet_reset_svcctx(appctx);
-					appctx->st0 = (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD) ? CLI_ST_GETREQ : CLI_ST_PARSEREQ;
+					appctx->st0 = (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD) ? CLI_ST_PARSE_CMDLINE : CLI_ST_PROCESS_CMDLINE;
 				}
 			}
 
@@ -1243,7 +1243,7 @@ void cli_io_handler(struct appctx *appctx)
 			/* reactivate the \n at the end of the response for the next command */
 			appctx->st1 &= ~APPCTX_CLI_ST1_NOLF;
 
-			/* switch state back to GETREQ to read next requests in interactove mode, otherwise close  */
+			/* switch state back to PARSE_CMDLINE to read next requests in interactove mode, otherwise close  */
 			if (appctx->st1 & APPCTX_CLI_ST1_LASTCMD) {
 				applet_reset_svcctx(appctx);
 				free_trash_chunk(appctx->chunk);
@@ -1251,7 +1251,7 @@ void cli_io_handler(struct appctx *appctx)
 				appctx->chunk = NULL;
 				appctx->st1 &= ~APPCTX_CLI_ST1_LASTCMD;
 				if (appctx->st1 & APPCTX_CLI_ST1_PROMPT) {
-					appctx->st0 = CLI_ST_GETREQ;
+					appctx->st0 = CLI_ST_PARSE_CMDLINE;
 					applet_will_consume(appctx);
 					applet_expect_data(appctx);
 				}
@@ -1262,7 +1262,7 @@ void cli_io_handler(struct appctx *appctx)
 				}
 			}
 
-			if ((b_data(&appctx->inbuf) && appctx->st0 == CLI_ST_GETREQ) || appctx->st0 == CLI_ST_PARSEREQ)
+			if ((b_data(&appctx->inbuf) && appctx->st0 == CLI_ST_PARSE_CMDLINE) || appctx->st0 == CLI_ST_PROCESS_CMDLINE)
 				appctx_wakeup(appctx);
 
 			/* this forces us to yield between pipelined commands and
