@@ -2952,10 +2952,11 @@ static int qcc_io_recv(struct qcc *qcc)
 			LIST_DEL_INIT(&qcs->el_recv);
 
 			if (ret <= 0)
-				break;
+				goto done;
 		}
 	}
 
+ done:
 	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
 	return 0;
 }
