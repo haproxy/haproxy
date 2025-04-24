@@ -2375,10 +2375,10 @@ static int cli_parse_show_cert(char **args, char *payload, struct appctx *appctx
 		/* use the IO handler that shows details */
 		if (show_ocsp_detail) {
 			ctx->transaction = from_transaction;
-			appctx->io_handler = cli_io_handler_show_cert_ocsp_detail;
+			appctx->cli_ctx.io_handler = cli_io_handler_show_cert_ocsp_detail;
 		}
 		else
-			appctx->io_handler = cli_io_handler_show_cert_detail;
+			appctx->cli_ctx.io_handler = cli_io_handler_show_cert_detail;
 	}
 
 	return 0;
@@ -3769,7 +3769,7 @@ static int cli_parse_show_cafile(char **args, char *payload, struct appctx *appc
 
 		ctx->cur_cafile_entry = cafile_entry;
 		/* use the IO handler that shows details */
-		appctx->io_handler = cli_io_handler_show_cafile_detail;
+		appctx->cli_ctx.io_handler = cli_io_handler_show_cafile_detail;
 	}
 
 	return 0;
@@ -4447,7 +4447,7 @@ static int cli_parse_show_crlfile(char **args, char *payload, struct appctx *app
 		ctx->cafile_entry = cafile_entry;
 		ctx->index = index;
 		/* use the IO handler that shows details */
-		appctx->io_handler = cli_io_handler_show_crlfile_detail;
+		appctx->cli_ctx.io_handler = cli_io_handler_show_crlfile_detail;
 	}
 
 	return 0;

@@ -152,10 +152,10 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 	/* first, let's measure the longest match */
 	list_for_each_entry(kw_list, &cli_keywords.list, list) {
 		for (kw = &kw_list->kw[0]; kw->str_kw[0]; kw++) {
-			if (kw->level & ~appctx->cli_level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT|ACCESS_EXPERIMENTAL))
+			if (kw->level & ~appctx->cli_ctx.level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT|ACCESS_EXPERIMENTAL))
 				continue;
-			if (!(appctx->cli_level & ACCESS_MCLI_DEBUG) &&
-			    (appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) ==
+			if (!(appctx->cli_ctx.level & ACCESS_MCLI_DEBUG) &&
+			    (appctx->cli_ctx.level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) ==
 			    (ACCESS_MASTER_ONLY|ACCESS_MASTER))
 				continue;
 
@@ -200,10 +200,10 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 	if (args && args[length] && *args[length]) {
 		list_for_each_entry(kw_list, &cli_keywords.list, list) {
 			for (kw = &kw_list->kw[0]; kw->str_kw[0]; kw++) {
-				if (kw->level & ~appctx->cli_level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT|ACCESS_EXPERIMENTAL))
+				if (kw->level & ~appctx->cli_ctx.level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT|ACCESS_EXPERIMENTAL))
 					continue;
-				if (!(appctx->cli_level & ACCESS_MCLI_DEBUG) &&
-				    ((appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) ==
+				if (!(appctx->cli_ctx.level & ACCESS_MCLI_DEBUG) &&
+				    ((appctx->cli_ctx.level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) ==
 				    (ACCESS_MASTER_ONLY|ACCESS_MASTER)))
 					continue;
 
@@ -287,15 +287,15 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 			/* in a worker or normal process, don't display master-only commands
 			 * nor expert/experimental mode commands if not in this mode.
 			 */
-			if (kw->level & ~appctx->cli_level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT|ACCESS_EXPERIMENTAL))
+			if (kw->level & ~appctx->cli_ctx.level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT|ACCESS_EXPERIMENTAL))
 				continue;
 
 			/* in master, if the CLI don't have the
 			 * ACCESS_MCLI_DEBUG don't display commands that have
 			 * neither the master bit nor the master-only bit.
 			 */
-			if (!(appctx->cli_level & ACCESS_MCLI_DEBUG) &&
-			    ((appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) ==
+			if (!(appctx->cli_ctx.level & ACCESS_MCLI_DEBUG) &&
+			    ((appctx->cli_ctx.level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) ==
 			    (ACCESS_MASTER_ONLY|ACCESS_MASTER)))
 				continue;
 
@@ -701,7 +701,7 @@ REGISTER_CONFIG_POSTPARSER("cli", cli_socket_setenv);
 int cli_has_level(struct appctx *appctx, int level)
 {
 
-	if ((appctx->cli_level & ACCESS_LVL_MASK) < level) {
+	if ((appctx->cli_ctx.level & ACCESS_LVL_MASK) < level) {
 		cli_err(appctx, cli_permission_denied_msg);
 		return 0;
 	}
@@ -720,8 +720,8 @@ int pcli_has_level(struct stream *s, int level)
 /* Returns severity_output for the current session if set, or default for the socket */
 static int cli_get_severity_output(struct appctx *appctx)
 {
-	if (appctx->cli_severity_output)
-		return appctx->cli_severity_output;
+	if (appctx->cli_ctx.severity_output)
+		return appctx->cli_ctx.severity_output;
 	return strm_li(appctx_strm(appctx))->bind_conf->severity_output;
 }
 
@@ -741,7 +741,7 @@ static int cli_process_cmdline(struct appctx *appctx)
 	int i = 0, ret = 0;
 	struct cli_kw *kw;
 
-	orig = p = b_head(appctx->chunk);
+	orig = p = b_head(appctx->cli_ctx.cmdline);
 	end = p + strlen(p);
 
 	/*
@@ -790,11 +790,11 @@ static int cli_process_cmdline(struct appctx *appctx)
 	/* Pass the payload to the last command. It happens when the end of the
 	 * commend is just before the payload pattern.
 	 */
-	if (appctx->cli_payload && appctx->cli_payload == end + strlen(appctx->cli_payload_pat) + 3) {
+	if (appctx->cli_ctx.payload && appctx->cli_ctx.payload == end + strlen(appctx->cli_ctx.payload_pat) + 3) {
 		appctx->st1 |= APPCTX_CLI_ST1_LASTCMD;
-		payload = appctx->cli_payload;
+		payload = appctx->cli_ctx.payload;
 	}
-	if (end+1 == b_tail(appctx->chunk))
+	if (end+1 == b_tail(appctx->cli_ctx.cmdline))
 		appctx->st1 |= APPCTX_CLI_ST1_LASTCMD;
 
 	/* throw an error if too many args are provided */
@@ -815,21 +815,21 @@ static int cli_process_cmdline(struct appctx *appctx)
 
 	kw = cli_find_kw(args);
 	if (!kw ||
-	    (kw->level & ~appctx->cli_level & ACCESS_MASTER_ONLY) ||
-	    (!(appctx->cli_level & ACCESS_MCLI_DEBUG) &&
-	     (appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) == (ACCESS_MASTER_ONLY|ACCESS_MASTER))) {
+	    (kw->level & ~appctx->cli_ctx.level & ACCESS_MASTER_ONLY) ||
+	    (!(appctx->cli_ctx.level & ACCESS_MCLI_DEBUG) &&
+	     (appctx->cli_ctx.level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) == (ACCESS_MASTER_ONLY|ACCESS_MASTER))) {
 		/* keyword not found in this mode */
 		cli_gen_usage_msg(appctx, args);
 		goto end;
 	}
 
 	/* don't handle expert mode commands if not in this mode. */
-	if (kw->level & ~appctx->cli_level & ACCESS_EXPERT) {
+	if (kw->level & ~appctx->cli_ctx.level & ACCESS_EXPERT) {
 		cli_err(appctx, "This command is restricted to expert mode only.\n");
 		goto end;
 	}
 
-	if (kw->level & ~appctx->cli_level & ACCESS_EXPERIMENTAL) {
+	if (kw->level & ~appctx->cli_ctx.level & ACCESS_EXPERIMENTAL) {
 		cli_err(appctx, "This command is restricted to experimental mode only.\n");
 		goto end;
 	}
@@ -839,8 +839,8 @@ static int cli_process_cmdline(struct appctx *appctx)
 	else if (kw->level == ACCESS_EXPERIMENTAL)
 		mark_tainted(TAINTED_CLI_EXPERIMENTAL_MODE);
 
-	appctx->io_handler = kw->io_handler;
-	appctx->io_release = kw->io_release;
+	appctx->cli_ctx.io_handler = kw->io_handler;
+	appctx->cli_ctx.io_release = kw->io_release;
 
 	if (kw->parse && kw->parse(args, payload, appctx, kw->private) != 0) {
 		ret = 1;
@@ -848,7 +848,7 @@ static int cli_process_cmdline(struct appctx *appctx)
 	}
 
 	/* kw->parse could set its own io_handler or io_release handler */
-	if (!appctx->io_handler) {
+	if (!appctx->cli_ctx.io_handler) {
 		ret = 1;
 		goto fail;
 	}
@@ -858,12 +858,12 @@ static int cli_process_cmdline(struct appctx *appctx)
 	goto end;
 
   fail:
-	appctx->io_handler = NULL;
-	appctx->io_release = NULL;
+	appctx->cli_ctx.io_handler = NULL;
+	appctx->cli_ctx.io_release = NULL;
 
   end:
 	/* Skip the command */
-	b_del(appctx->chunk, end - orig + 1);
+	b_del(appctx->cli_ctx.cmdline, end - orig + 1);
 	return ret;
 }
 
@@ -915,12 +915,12 @@ int cli_init(struct appctx *appctx)
 	struct stconn *sc = appctx_sc(appctx);
 	struct bind_conf *bind_conf = strm_li(__sc_strm(sc))->bind_conf;
 
-	appctx->cli_severity_output = bind_conf->severity_output;
+	appctx->cli_ctx.severity_output = bind_conf->severity_output;
 	applet_reset_svcctx(appctx);
 	appctx->st0 = CLI_ST_PARSE_CMDLINE;
-	appctx->cli_level = bind_conf->level;
-	appctx->cli_payload = NULL;
-	appctx->chunk = NULL;
+	appctx->cli_ctx.level = bind_conf->level;
+	appctx->cli_ctx.payload = NULL;
+	appctx->cli_ctx.cmdline = NULL;
 
 	/* Wakeup the applet ASAP. */
         applet_need_more_data(appctx);
@@ -938,9 +938,9 @@ int cli_parse_cmdline(struct appctx *appctx)
 		goto end;
 
 	/* Allocate a chunk to process the command line */
-	if (!appctx->chunk) {
-		appctx->chunk = alloc_trash_chunk();
-		if (!appctx->chunk) {
+	if (!appctx->cli_ctx.cmdline) {
+		appctx->cli_ctx.cmdline = alloc_trash_chunk();
+		if (!appctx->cli_ctx.cmdline) {
 			cli_err(appctx, "Failed to alloc a buffer to process the command line.\n");
 			applet_set_error(appctx);
 			b_reset(&appctx->inbuf);
@@ -956,14 +956,14 @@ int cli_parse_cmdline(struct appctx *appctx)
 		 * Note we reserve one byte at the end to insert a trailing nul
 		 * byte.
 		 */
-		str = b_tail(appctx->chunk);
+		str = b_tail(appctx->cli_ctx.cmdline);
 		if (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD))
-			len = b_getdelim(&appctx->inbuf, 0, b_data(&appctx->inbuf), str, b_room(appctx->chunk), "\n;", '\\');
+			len = b_getdelim(&appctx->inbuf, 0, b_data(&appctx->inbuf), str, b_room(appctx->cli_ctx.cmdline), "\n;", '\\');
 		else
-			len = b_getline(&appctx->inbuf, 0, b_data(&appctx->inbuf), str, b_room(appctx->chunk) - 1);
+			len = b_getline(&appctx->inbuf, 0, b_data(&appctx->inbuf), str, b_room(appctx->cli_ctx.cmdline) - 1);
 
 		if (!len) {
-			if (!b_room(appctx->chunk) || (b_data(&appctx->inbuf) > b_room(appctx->chunk) - 1)) {
+			if (!b_room(appctx->cli_ctx.cmdline) || (b_data(&appctx->inbuf) > b_room(appctx->cli_ctx.cmdline) - 1)) {
 				cli_err(appctx, "The command line is too big for the buffer size. Please change tune.bufsize in the configuration to use a bigger command.\n");
 				applet_set_error(appctx);
 				b_reset(&appctx->inbuf);
@@ -972,7 +972,7 @@ int cli_parse_cmdline(struct appctx *appctx)
 		}
 
 		b_del(&appctx->inbuf, len);
-		b_add(appctx->chunk,  len);
+		b_add(appctx->cli_ctx.cmdline,  len);
 
 		if (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)) {
 			char *last_arg;
@@ -1017,10 +1017,10 @@ int cli_parse_cmdline(struct appctx *appctx)
 				/* A customized pattern can't be more than 7 characters
 				 * if it's more, don't make it a payload
 				 */
-				if (pat_len < sizeof(appctx->cli_payload_pat)) {
+				if (pat_len < sizeof(appctx->cli_ctx.payload_pat)) {
 					/* copy the customized pattern, don't store the << */
-					strncpy(appctx->cli_payload_pat, last_arg + strlen(PAYLOAD_PATTERN), sizeof(appctx->cli_payload_pat)-1);
-					appctx->cli_payload_pat[sizeof(appctx->cli_payload_pat)-1] = '\0';
+					strncpy(appctx->cli_ctx.payload_pat, last_arg + strlen(PAYLOAD_PATTERN), sizeof(appctx->cli_ctx.payload_pat)-1);
+					appctx->cli_ctx.payload_pat[sizeof(appctx->cli_ctx.payload_pat)-1] = '\0';
 
 					/* The last command finishes before the payload pattern.
 					 * Dont' strip trailing spaces to be sure to detect when
@@ -1029,7 +1029,7 @@ int cli_parse_cmdline(struct appctx *appctx)
 					*last_arg = '\0';
 
 					/* The payload will start on the next character in the buffer */
-					appctx->cli_payload = b_tail(appctx->chunk);
+					appctx->cli_ctx.payload = b_tail(appctx->cli_ctx.cmdline);
 					appctx->st1 |= APPCTX_CLI_ST1_PAYLOAD;
 				}
 			}
@@ -1044,11 +1044,11 @@ int cli_parse_cmdline(struct appctx *appctx)
 			/* look for a pattern at the end of the payload
 			 * (take care to exclue last character because it is a \n)
 			 */
-			if (len-1 == strlen(appctx->cli_payload_pat)) {
-				if (strncmp(str, appctx->cli_payload_pat, len-1) == 0) {
+			if (len-1 == strlen(appctx->cli_ctx.payload_pat)) {
+				if (strncmp(str, appctx->cli_ctx.payload_pat, len-1) == 0) {
 					/* end of payload was reached, rewind before the previous \n and replace it by a \0 */
-					b_sub(appctx->chunk, strlen(appctx->cli_payload_pat) + 2);
-					*b_tail(appctx->chunk) = '\0';
+					b_sub(appctx->cli_ctx.cmdline, strlen(appctx->cli_ctx.payload_pat) + 2);
+					*b_tail(appctx->cli_ctx.cmdline) = '\0';
 					appctx->st1 &= ~APPCTX_CLI_ST1_PAYLOAD;
 				}
 			}
@@ -1178,13 +1178,13 @@ void cli_io_handler(struct appctx *appctx)
 				break;
 
 			case CLI_ST_CALLBACK: /* use custom pointer */
-				if (appctx->io_handler)
-					if (appctx->io_handler(appctx)) {
+				if (appctx->cli_ctx.io_handler)
+					if (appctx->cli_ctx.io_handler(appctx)) {
 						appctx->t->expire = TICK_ETERNITY;
 						appctx->st0 = CLI_ST_PROMPT;
-						if (appctx->io_release) {
-							appctx->io_release(appctx);
-							appctx->io_release = NULL;
+						if (appctx->cli_ctx.io_release) {
+							appctx->cli_ctx.io_release(appctx);
+							appctx->cli_ctx.io_release = NULL;
 							/* some release handlers might have
 							 * pending output to print.
 							 */
@@ -1208,7 +1208,7 @@ void cli_io_handler(struct appctx *appctx)
 						 * to emphasize that more data can still be sent */
 						prompt = "+ ";
 					}
-					else if (b_data(appctx->chunk) && !(appctx->st1 & APPCTX_CLI_ST1_LASTCMD)) {
+					else if (b_data(appctx->cli_ctx.cmdline) && !(appctx->st1 & APPCTX_CLI_ST1_LASTCMD)) {
 						/* we are executing pipelined commands, don't display the prompt */
 						prompt = "\n";
 					}
@@ -1246,9 +1246,9 @@ void cli_io_handler(struct appctx *appctx)
 			/* switch state back to PARSE_CMDLINE to read next requests in interactove mode, otherwise close  */
 			if (appctx->st1 & APPCTX_CLI_ST1_LASTCMD) {
 				applet_reset_svcctx(appctx);
-				free_trash_chunk(appctx->chunk);
-				appctx->cli_payload = NULL;
-				appctx->chunk = NULL;
+				free_trash_chunk(appctx->cli_ctx.cmdline);
+				appctx->cli_ctx.payload = NULL;
+				appctx->cli_ctx.cmdline = NULL;
 				appctx->st1 &= ~APPCTX_CLI_ST1_LASTCMD;
 				if (appctx->st1 & APPCTX_CLI_ST1_PROMPT) {
 					appctx->st0 = CLI_ST_PARSE_CMDLINE;
@@ -1290,9 +1290,9 @@ void cli_io_handler(struct appctx *appctx)
  */
 static void cli_release_handler(struct appctx *appctx)
 {
-	if (appctx->io_release) {
-		appctx->io_release(appctx);
-		appctx->io_release = NULL;
+	if (appctx->cli_ctx.io_release) {
+		appctx->cli_ctx.io_release(appctx);
+		appctx->cli_ctx.io_release = NULL;
 	}
 	else if (appctx->st0 == CLI_ST_PRINT_DYN || appctx->st0 == CLI_ST_PRINT_DYNERR) {
 		struct cli_print_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
@@ -1818,7 +1818,7 @@ static int cli_parse_set_severity_output(char **args, char *payload, struct appc
 	if (strcmp(args[3], "-") == 0)
 		appctx->st1 |= APPCTX_CLI_ST1_NOLF;
 
-	if (*args[2] && set_severity_output(&appctx->cli_severity_output, args[2]))
+	if (*args[2] && set_severity_output(&appctx->cli_ctx.severity_output, args[2]))
 		return 0;
 
 	return cli_err(appctx, "one of 'none', 'number', 'string' is a required argument\n");
@@ -1828,11 +1828,11 @@ static int cli_parse_set_severity_output(char **args, char *payload, struct appc
 /* show the level of the current CLI session */
 static int cli_parse_show_lvl(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	if ((appctx->cli_level & ACCESS_LVL_MASK) == ACCESS_LVL_ADMIN)
+	if ((appctx->cli_ctx.level & ACCESS_LVL_MASK) == ACCESS_LVL_ADMIN)
 		return cli_msg(appctx, LOG_INFO, "admin\n");
-	else if ((appctx->cli_level & ACCESS_LVL_MASK) == ACCESS_LVL_OPER)
+	else if ((appctx->cli_ctx.level & ACCESS_LVL_MASK) == ACCESS_LVL_OPER)
 		return cli_msg(appctx, LOG_INFO, "operator\n");
-	else if ((appctx->cli_level & ACCESS_LVL_MASK) == ACCESS_LVL_USER)
+	else if ((appctx->cli_ctx.level & ACCESS_LVL_MASK) == ACCESS_LVL_USER)
 		return cli_msg(appctx, LOG_INFO, "user\n");
 	else
 		return cli_msg(appctx, LOG_INFO, "unknown\n");
@@ -1849,17 +1849,17 @@ static int cli_parse_set_lvl(char **args, char *payload, struct appctx *appctx, 
 		if (!cli_has_level(appctx, ACCESS_LVL_OPER)) {
 			return 1;
 		}
-		appctx->cli_level &= ~ACCESS_LVL_MASK;
-		appctx->cli_level |= ACCESS_LVL_OPER;
+		appctx->cli_ctx.level &= ~ACCESS_LVL_MASK;
+		appctx->cli_ctx.level |= ACCESS_LVL_OPER;
 
 	} else if (strcmp(args[0], "user") == 0) {
 		if (!cli_has_level(appctx, ACCESS_LVL_USER)) {
 			return 1;
 		}
-		appctx->cli_level &= ~ACCESS_LVL_MASK;
-		appctx->cli_level |= ACCESS_LVL_USER;
+		appctx->cli_ctx.level &= ~ACCESS_LVL_MASK;
+		appctx->cli_ctx.level |= ACCESS_LVL_USER;
 	}
-	appctx->cli_level &= ~(ACCESS_EXPERT|ACCESS_EXPERIMENTAL);
+	appctx->cli_ctx.level &= ~(ACCESS_EXPERT|ACCESS_EXPERIMENTAL);
 	return 1;
 }
 
@@ -1896,13 +1896,13 @@ static int cli_parse_expert_experimental_mode(char **args, char *payload, struct
 
 	if (!*args[1]) {
 		memprintf(&output, "%s is %s\n", level_str,
-		          (appctx->cli_level & level) ? "ON" : "OFF");
+		          (appctx->cli_ctx.level & level) ? "ON" : "OFF");
 		return cli_dynmsg(appctx, LOG_INFO, output);
 	}
 
-	appctx->cli_level &= ~level;
+	appctx->cli_ctx.level &= ~level;
 	if (strcmp(args[1], "on") == 0)
-		appctx->cli_level |= level;
+		appctx->cli_ctx.level |= level;
 	return 1;
 }
 
@@ -1931,14 +1931,14 @@ static int cli_parse_set_anon(char **args, char *payload, struct appctx *appctx,
 			key = atoll(args[3]);
 			if (key < 1 || key > UINT_MAX)
 				return cli_err(appctx, "Value out of range (1 to 4294967295 expected).\n");
-			appctx->cli_anon_key = key;
+			appctx->cli_ctx.anon_key = key;
 		}
 		else {
 			tmp = HA_ATOMIC_LOAD(&global.anon_key);
 			if (tmp != 0)
-				appctx->cli_anon_key = tmp;
+				appctx->cli_ctx.anon_key = tmp;
 			else
-				appctx->cli_anon_key = ha_random32();
+				appctx->cli_ctx.anon_key = ha_random32();
 		}
 	}
 	else if (strcmp(args[2], "off") == 0) {
@@ -1947,7 +1947,7 @@ static int cli_parse_set_anon(char **args, char *payload, struct appctx *appctx,
 			return cli_err(appctx, "Key can't be added while disabling anonymized mode\n");
 		}
 		else {
-			appctx->cli_anon_key = 0;
+			appctx->cli_ctx.anon_key = 0;
 		}
 	}
 	else {
@@ -1982,14 +1982,14 @@ static int cli_parse_show_anon(char **args, char *payload, struct appctx *appctx
 {
 	char *msg = NULL;
 	char *anon_mode = NULL;
-	uint32_t c_key = appctx->cli_anon_key;
+	uint32_t c_key = appctx->cli_ctx.anon_key;
 
 	if (!c_key)
 		anon_mode = "Anonymized mode disabled";
 	else
 		anon_mode = "Anonymized mode enabled";
 
-	if ( !((appctx->cli_level & ACCESS_LVL_MASK) < ACCESS_LVL_OPER) && c_key != 0) {
+	if ( !((appctx->cli_ctx.level & ACCESS_LVL_MASK) < ACCESS_LVL_OPER) && c_key != 0) {
 		cli_dynmsg(appctx, LOG_INFO, memprintf(&msg, "%s\nKey : %u\n", anon_mode, c_key));
 	}
 	else {

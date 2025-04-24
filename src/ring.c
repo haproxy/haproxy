@@ -526,10 +526,10 @@ int ring_attach_cli(struct ring *ring, struct appctx *appctx, uint flags)
 		               "Sorry, too many watchers (" TOSTR(RING_MAX_READERS) ") on this ring buffer. "
 		               "What could it have so interesting to attract so many watchers ?");
 
-	if (!appctx->io_handler)
-		appctx->io_handler = cli_io_handler_show_ring;
-	if (!appctx->io_release)
-                appctx->io_release = cli_io_release_show_ring;
+	if (!appctx->cli_ctx.io_handler)
+		appctx->cli_ctx.io_handler = cli_io_handler_show_ring;
+	if (!appctx->cli_ctx.io_release)
+                appctx->cli_ctx.io_release = cli_io_release_show_ring;
 
 	memset(ctx, 0, sizeof(*ctx));
 	ctx->ring  = ring;

@@ -1156,7 +1156,7 @@ static int cli_parse_dump_crtlist(char **args, char *payload, struct appctx *app
 			return cli_err(appctx, "didn't find the specified filename\n");
 
 		ctx->crtlist_node = lnode;
-		appctx->io_handler = cli_io_handler_dump_crtlist_entries;
+		appctx->cli_ctx.io_handler = cli_io_handler_dump_crtlist_entries;
 	}
 	ctx->mode = mode;
 

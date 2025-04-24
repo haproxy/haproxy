@@ -1653,7 +1653,7 @@ static int cli_parse_show_ocspresponse(char **args, char *payload, struct appctx
 		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 
 		ctx->ocsp = ocsp;
-		appctx->io_handler = cli_io_handler_show_ocspresponse_detail;
+		appctx->cli_ctx.io_handler = cli_io_handler_show_ocspresponse_detail;
 	}
 
 	return 0;

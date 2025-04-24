@@ -109,22 +109,29 @@ struct appctx {
 	struct buffer outbuf;
 	size_t to_forward;
 
-	struct buffer *chunk;       /* used to store unfinished commands */
 	struct applet *applet;     /* applet this context refers to */
 	struct session *sess;      /* session for frontend applets (NULL for backend applets) */
 	struct sedesc *sedesc;     /* stream endpoint descriptor the applet is attached to */
+
+	struct {
+		struct buffer *cmdline;     /* used to store unfinished commands */
+
+		int severity_output;    /* used within the cli_io_handler to format severity output of informational feedback */
+		int level;              /* the level of CLI which can be lowered dynamically */
+		char payload_pat[8];    /* Payload pattern */
+		char *payload;          /* Pointer on the payload. NULL if no payload */
+		uint32_t anon_key;      /* the key to anonymise with the hash in cli */
+		/* XXX 4 unused bytes here */
+		int (*io_handler)(struct appctx *appctx);  /* used within the cli_io_handler when st0 = CLI_ST_CALLBACK */
+		void (*io_release)(struct appctx *appctx); /* used within the cli_io_handler when st0 = CLI_ST_CALLBACK,
+							      if the command is terminated or the session released */
+	} cli_ctx; /* context dedicated to the CLI applet */
+
 	struct act_rule *rule;     /* rule associated with the applet. */
-	int (*io_handler)(struct appctx *appctx);  /* used within the cli_io_handler when st0 = CLI_ST_CALLBACK */
-	void (*io_release)(struct appctx *appctx);  /* used within the cli_io_handler when st0 = CLI_ST_CALLBACK,
-	                                               if the command is terminated or the session released */
-	int cli_severity_output;        /* used within the cli_io_handler to format severity output of informational feedback */
-	int cli_level;              /* the level of CLI which can be lowered dynamically */
-	char cli_payload_pat[8];        /* Payload pattern */
-	char *cli_payload;          /* Pointer on the payload. NULL if no payload */
-	uint32_t cli_anon_key;       /* the key to anonymise with the hash in cli */
 	struct buffer_wait buffer_wait; /* position in the list of objects waiting for a buffer */
 	struct task *t;                  /* task associated to the applet */
 	struct freq_ctr call_rate;       /* appctx call rate */
+	/* XXX 4 unused bytes here */
 	struct mt_list wait_entry;       /* entry in a list of waiters for an event (e.g. ring events) */
 
 	/* The pointer seen by application code is appctx->svcctx. In 2.7 the

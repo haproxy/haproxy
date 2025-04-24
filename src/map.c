@@ -715,7 +715,7 @@ static int cli_parse_show_map(char **args, char *payload, struct appctx *appctx,
 
 		/* no parameter: display all map available */
 		if (!*args[2]) {
-			appctx->io_handler = cli_io_handler_pats_list;
+			appctx->cli_ctx.io_handler = cli_io_handler_pats_list;
 			return 0;
 		}
 
@@ -745,8 +745,8 @@ static int cli_parse_show_map(char **args, char *payload, struct appctx *appctx,
 			ctx->curr_gen = ctx->ref->curr_gen;
 
 		LIST_INIT(&ctx->bref.users);
-		appctx->io_handler = cli_io_handler_pat_list;
-		appctx->io_release = cli_release_show_map;
+		appctx->cli_ctx.io_handler = cli_io_handler_pat_list;
+		appctx->cli_ctx.io_release = cli_release_show_map;
 		return 0;
 	}
 

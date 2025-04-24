@@ -1015,7 +1015,7 @@ static int cli_io_handler_show_loadstatus(struct appctx *appctx)
 		return 0;
 
 	if (startup_logs) {
-		appctx->io_handler = NULL;
+		appctx->cli_ctx.io_handler = NULL;
 		ring_attach_cli(startup_logs, appctx, 0);
 		return 0;
 	}

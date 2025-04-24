@@ -3750,7 +3750,7 @@ static int stats_dump_full_strm_to_buffer(struct appctx *appctx, struct stream *
 		__fallthrough;
 
 	case 1:
-		__strm_dump_to_buffer(&trash, ctx, strm, "", appctx->cli_anon_key);
+		__strm_dump_to_buffer(&trash, ctx, strm, "", appctx->cli_ctx.anon_key);
 		if (applet_putchk(appctx, &trash) == -1)
 			goto full;
 

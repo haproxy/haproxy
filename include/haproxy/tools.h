@@ -71,7 +71,7 @@
 #define HA_ANON_PATH(key, str) hash_anon(key, str, "PATH(", ")")
 
 /* use only in a function that contains an appctx (key comes from appctx). */
-#define HA_ANON_CLI(str) hash_anon(appctx->cli_anon_key, str, "", "")
+#define HA_ANON_CLI(str) hash_anon(appctx->cli_ctx.anon_key, str, "", "")
 
 
 /*

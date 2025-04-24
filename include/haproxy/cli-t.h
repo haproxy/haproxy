@@ -24,7 +24,7 @@
 
 #include <haproxy/applet-t.h>
 
-/* Access level for a stats socket (appctx->cli_level) */
+/* Access level for a stats socket (appctx->cli_ctx.level) */
 #define ACCESS_LVL_NONE     0x0000
 #define ACCESS_LVL_USER     0x0001
 #define ACCESS_LVL_OPER     0x0002
