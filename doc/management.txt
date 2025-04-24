@@ -192,6 +192,11 @@ list of options is :
 
   -Ws : master-worker mode with support of `notify` type of systemd service.
 
+  -4 : force DNS resolvers to query and accept IPv4 addresses only ("A"
+       records). This can be used when facing difficulties in certain
+       environments lacking end-to-end dual-stack connectivity. It overrides
+       the global "dns-accept-family" directive and forces it to "ipv4".
+
   -c : only performs a check of the configuration files and exits before trying
     to bind. The exit status is zero if everything is OK, or non-zero if an
     error is encountered. Presence of warnings will be reported if any.

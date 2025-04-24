@@ -110,6 +110,7 @@
 #include <haproxy/proto_tcp.h>
 #include <haproxy/proxy.h>
 #include <haproxy/regex.h>
+#include <haproxy/resolvers.h>
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
 #include <haproxy/session.h>
@@ -662,6 +663,7 @@ static void usage(char *name)
 		"        -q quiet mode : don't display messages\n"
 		"        -c check mode : only check config files and exit\n"
 		"        -cc check condition : evaluate a condition and exit\n"
+		"        -4 force resolvers to consider IPv4 responses only\n"
 		"        -n sets the maximum total # of connections (uses ulimit -n)\n"
 		"        -m limits the usable amount of memory (in MB)\n"
 		"        -N sets the default, per-proxy maximum # of connections (%d)\n"
@@ -1591,6 +1593,8 @@ static void init_args(int argc, char **argv)
 				argc--;
 				check_condition = *argv;
 			}
+			else if (*flag == '4')
+				resolv_accept_families = RSLV_ACCEPT_IPV4 | RSLV_FORCED_FAMILY;
 			else if (*flag == 'c')
 				arg_mode |= MODE_CHECK;
 			else if (*flag == 'D')

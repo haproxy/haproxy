@@ -3962,7 +3962,11 @@ static int cfg_parse_dns_accept_family(char **args, int section_type, struct pro
 			goto usage;
 	}
 
-	resolv_accept_families = accept_families;
+	/* we ignore the settings if it was forced on the cmdline, but we still
+	 * parse it for config validity checks.
+	 */
+	if (!(resolv_accept_families & RSLV_FORCED_FAMILY))
+		resolv_accept_families = accept_families;
 	return 0;
  usage:
 	memprintf(err, "'%s' expects a comma-delimited list of 'ipv4' and 'ipv6' but got '%s'.", args[0], args[1]);
