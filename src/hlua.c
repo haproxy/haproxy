@@ -10925,6 +10925,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx)
 	struct hlua_tcp_ctx *tcp_ctx = applet_reserve_svcctx(ctx, sizeof(*tcp_ctx));
 	struct stconn *sc = appctx_sc(ctx);
 	struct stream *strm = __sc_strm(sc);
+	struct act_rule *rule = strm->current_rule;
 	struct hlua *hlua;
 	struct task *task;
 	char **arg;
@@ -10957,7 +10958,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx)
 	 * permits to save performances because a systematic
 	 * Lua initialization cause 5% performances loss.
 	 */
-	if (!hlua_ctx_init(hlua, fcn_ref_to_stack_id(ctx->rule->arg.hlua_rule->fcn), task)) {
+	if (!hlua_ctx_init(hlua, fcn_ref_to_stack_id(rule->arg.hlua_rule->fcn), task)) {
 		SEND_ERR(strm->be, "Lua applet tcp '%s': can't initialize Lua context.\n",
 		         ctx->applet->name);
 		return -1;
@@ -10988,7 +10989,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx)
 	}
 
 	/* Restore the function in the stack. */
-	hlua_pushref(hlua->T, ctx->rule->arg.hlua_rule->fcn->function_ref[hlua->state_id]);
+	hlua_pushref(hlua->T, rule->arg.hlua_rule->fcn->function_ref[hlua->state_id]);
 
 	/* Create and and push object stream in the stack. */
 	if (!hlua_applet_tcp_new(hlua->T, ctx)) {
@@ -11000,7 +11001,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx)
 	hlua->nargs = 1;
 
 	/* push keywords in the stack. */
-	for (arg = ctx->rule->arg.hlua_rule->args; arg && *arg; arg++) {
+	for (arg = rule->arg.hlua_rule->args; arg && *arg; arg++) {
 		if (!lua_checkstack(hlua->T, 1)) {
 			SEND_ERR(strm->be, "Lua applet tcp '%s': full stack.\n",
 			         ctx->applet->name);
@@ -11128,6 +11129,7 @@ static int hlua_applet_http_init(struct appctx *ctx)
 	struct hlua_http_ctx *http_ctx = applet_reserve_svcctx(ctx, sizeof(*http_ctx));
 	struct stconn *sc = appctx_sc(ctx);
 	struct stream *strm = __sc_strm(sc);
+	struct act_rule *rule = strm->current_rule;
 	struct http_txn *txn;
 	struct hlua *hlua;
 	char **arg;
@@ -11166,7 +11168,7 @@ static int hlua_applet_http_init(struct appctx *ctx)
 	 * permits to save performances because a systematic
 	 * Lua initialization cause 5% performances loss.
 	 */
-	if (!hlua_ctx_init(hlua, fcn_ref_to_stack_id(ctx->rule->arg.hlua_rule->fcn), task)) {
+	if (!hlua_ctx_init(hlua, fcn_ref_to_stack_id(rule->arg.hlua_rule->fcn), task)) {
 		SEND_ERR(strm->be, "Lua applet http '%s': can't initialize Lua context.\n",
 		         ctx->applet->name);
 		return -1;
@@ -11197,7 +11199,7 @@ static int hlua_applet_http_init(struct appctx *ctx)
 	}
 
 	/* Restore the function in the stack. */
-	hlua_pushref(hlua->T, ctx->rule->arg.hlua_rule->fcn->function_ref[hlua->state_id]);
+	hlua_pushref(hlua->T, rule->arg.hlua_rule->fcn->function_ref[hlua->state_id]);
 
 	/* Create and and push object stream in the stack. */
 	if (!hlua_applet_http_new(hlua->T, ctx)) {
@@ -11209,7 +11211,7 @@ static int hlua_applet_http_init(struct appctx *ctx)
 	hlua->nargs = 1;
 
 	/* push keywords in the stack. */
-	for (arg = ctx->rule->arg.hlua_rule->args; arg && *arg; arg++) {
+	for (arg = rule->arg.hlua_rule->args; arg && *arg; arg++) {
 		if (!lua_checkstack(hlua->T, 1)) {
 			SEND_ERR(strm->be, "Lua applet http '%s': full stack.\n",
 			         ctx->applet->name);
