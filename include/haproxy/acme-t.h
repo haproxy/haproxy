@@ -61,6 +61,7 @@ struct acme_ctx {
 	enum acme_st state;
 	enum http_st http_state;
 	int retries;
+	int retryafter;
 	struct httpclient *hc;
 	struct acme_cfg *cfg;
 	struct ckch_store *store;

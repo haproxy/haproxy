@@ -720,6 +720,10 @@ int acme_res_certificate(struct task *task, struct acme_ctx *ctx, char **errmsg)
 			istfree(&ctx->nonce);
 			ctx->nonce = istdup(hdr->v);
 		}
+		/* get the next retry timing */
+		if (isteqi(hdr->n, ist("Retry-After"))) {
+			ctx->retryafter = atol(hdr->v.ptr);
+		}
 	}
 
 	if (hc->res.status < 200 || hc->res.status >= 300) {
@@ -786,6 +790,10 @@ int acme_res_chkorder(struct task *task, struct acme_ctx *ctx, char **errmsg)
 		if (isteqi(hdr->n, ist("Replay-Nonce"))) {
 			istfree(&ctx->nonce);
 			ctx->nonce = istdup(hdr->v);
+		}
+		/* get the next retry timing */
+		if (isteqi(hdr->n, ist("Retry-After"))) {
+			ctx->retryafter = atol(hdr->v.ptr);
 		}
 	}
 
@@ -912,6 +920,10 @@ int acme_res_finalize(struct task *task, struct acme_ctx *ctx, char **errmsg)
 			istfree(&ctx->nonce);
 			ctx->nonce = istdup(hdr->v);
 		}
+		/* get the next retry timing */
+		if (isteqi(hdr->n, ist("Retry-After"))) {
+			ctx->retryafter = atol(hdr->v.ptr);
+		}
 	}
 
 	if (hc->res.status < 200 || hc->res.status >= 300) {
@@ -998,6 +1010,10 @@ int acme_res_challenge(struct task *task, struct acme_ctx *ctx, struct acme_auth
 		if (isteqi(hdr->n, ist("Replay-Nonce"))) {
 			istfree(&ctx->nonce);
 			ctx->nonce = istdup(hdr->v);
+		}
+		/* get the next retry timing */
+		if (isteqi(hdr->n, ist("Retry-After"))) {
+			ctx->retryafter = atol(hdr->v.ptr);
 		}
 	}
 
@@ -1087,6 +1103,11 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 			istfree(&ctx->nonce);
 			ctx->nonce = istdup(hdr->v);
 		}
+		/* get the next retry timing */
+		if (isteqi(hdr->n, ist("Retry-After"))) {
+			ctx->retryafter = atol(hdr->v.ptr);
+		}
+
 	}
 
 	if (hc->res.status < 200 || hc->res.status >= 300) {
@@ -1238,6 +1259,10 @@ int acme_res_neworder(struct task *task, struct acme_ctx *ctx, char **errmsg)
 			istfree(&ctx->nonce);
 			ctx->nonce = istdup(hdr->v);
 		}
+		/* get the next retry timing */
+		if (isteqi(hdr->n, ist("Retry-After"))) {
+			ctx->retryafter = atol(hdr->v.ptr);
+		}
 		/* get the order URL */
 		if (isteqi(hdr->n, ist("Location"))) {
 			istfree(&ctx->order);
@@ -1385,6 +1410,10 @@ int acme_res_account(struct task *task, struct acme_ctx *ctx, int newaccount, ch
 		if (isteqi(hdr->n, ist("Location"))) {
 			istfree(&ctx->kid);
 			ctx->kid = istdup(hdr->v);
+		}
+		/* get the next retry timing */
+		if (isteqi(hdr->n, ist("Retry-After"))) {
+			ctx->retryafter = atol(hdr->v.ptr);
 		}
 		if (isteqi(hdr->n, ist("Replay-Nonce"))) {
 			istfree(&ctx->nonce);
@@ -1742,9 +1771,16 @@ retry:
 		int delay = 1;
 		int i;
 
-		for (i = 0; i < ACME_RETRY - ctx->retries; i++)
-			delay *= 3;
-		send_log(NULL, LOG_NOTICE, "acme: %s: %s, retrying in %ds (%d/%d)...\n", ctx->store->path, errmsg ? errmsg : "", delay, ACME_RETRY - ctx->retries, ACME_RETRY);
+		if (ctx->retryafter > 0) {
+			/* Use the Retry-After value from the header */
+			delay = ctx->retryafter;
+			ctx->retryafter = 0;
+		} else {
+			/* else does an exponential backoff * 3 */
+			for (i = 0; i < ACME_RETRY - ctx->retries; i++)
+				delay *= 3;
+		}
+		send_log(NULL, LOG_NOTICE, "acme: %s: %s, retrying in %ds (%d/%d retries)...\n", ctx->store->path, errmsg ? errmsg : "", delay, ACME_RETRY - ctx->retries, ACME_RETRY);
 		task->expire = tick_add(now_ms, delay * 1000);
 
 	} else {
