@@ -79,6 +79,9 @@ int sock_inet6_v6only_default = 0;
 int sock_inet_tcp_maxseg_default = -1;
 int sock_inet6_tcp_maxseg_default = -1;
 
+/* indicate whether v6 looks reachable (this is only a hint) */
+int sock_inet6_seems_reachable = 0;
+
 /* Default MPTCPv4/MPTCPv6 MSS settings. -1=unknown. */
 #ifdef HA_HAVE_MPTCP
 int sock_inet_mptcp_maxseg_default = -1;
@@ -526,6 +529,24 @@ static void sock_inet_prepare()
 		close(fd);
 	}
 #endif
+
+	/* detect IPv6 reachability: for this we perform a UDP connect to
+	 * address 2001:: on port 53. No packet will be sent, it will just
+	 * check the routing table towards this prefix for the majority of
+	 * public addresses. In case of error we assume no IPv6 connectivity.
+	 */
+	fd = socket(AF_INET6, SOCK_DGRAM, 0);
+	if (fd >= 0) {
+		struct sockaddr_in6 dest = { };
+
+		dest.sin6_family = AF_INET6;
+		dest.sin6_addr.s6_addr[0] = 0x20;
+		dest.sin6_addr.s6_addr[1] = 0x01;
+		dest.sin6_port = htons(53);
+		if (connect(fd, (struct sockaddr*)&dest, sizeof(dest)) == 0)
+			sock_inet6_seems_reachable = 1;
+		close(fd);
+	}
 }
 
 INITCALL0(STG_PREPARE, sock_inet_prepare);

@@ -30,6 +30,7 @@
 extern int sock_inet6_v6only_default;
 extern int sock_inet_tcp_maxseg_default;
 extern int sock_inet6_tcp_maxseg_default;
+extern int sock_inet6_seems_reachable;
 
 #ifdef HA_HAVE_MPTCP
 extern int sock_inet_mptcp_maxseg_default;
