@@ -273,7 +273,7 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 			goto out;
 		}
-	} else if (strcmp(args[0], "account") == 0) {
+	} else if (strcmp(args[0], "account-key") == 0) {
 		/* save the filename of the account key */
 		if (!*args[1]) {
 			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires a filename argument\n", file, linenum, args[0], cursection);
@@ -499,7 +499,7 @@ void deinit_acme()
 static struct cfg_kw_list cfg_kws_acme = {ILH, {
 	{ CFG_ACME, "directory",  cfg_parse_acme_kws },
 	{ CFG_ACME, "contact",  cfg_parse_acme_kws },
-	{ CFG_ACME, "account",  cfg_parse_acme_kws },
+	{ CFG_ACME, "account-key",  cfg_parse_acme_kws },
 	{ CFG_ACME, "challenge",  cfg_parse_acme_kws },
 	{ CFG_ACME, "keytype",  cfg_parse_acme_cfg_key },
 	{ CFG_ACME, "bits",  cfg_parse_acme_cfg_key },

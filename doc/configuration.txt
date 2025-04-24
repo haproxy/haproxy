@@ -5890,7 +5890,7 @@ The generation is not scheduled and must be triggered using the CLI command
 
 The following keywords are usable in the ACME section:
 
-account <filename>
+account-key <filename>
   Configure the path to the account key. The key need to be generated before
   launching HAProxy. If no account keyword is used, the acme section will try
   to load a filename using the section name "<name>.account.key"
@@ -5947,7 +5947,7 @@ Example:
 
   acme LE1
       directory https://acme-staging-v02.api.letsencrypt.org/directory
-      account /etc/haproxy/account.key
+      account-key /etc/haproxy/letsencrypt.account.key
       contact john.doe@example.com
       challenge HTTP-01
       keytype RSA
@@ -5955,7 +5955,7 @@ Example:
 
   acme LE2
       directory https://acme-staging-v02.api.letsencrypt.org/directory
-      account /etc/haproxy/account.key
+      account-key /etc/haproxy/letsencrypt.account.key
       contact john.doe@example.com
       challenge HTTP-01
       keytype ECDSA
