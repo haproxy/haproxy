@@ -243,7 +243,7 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 	int err_code = 0;
 	char *errmsg = NULL;
 
-	if (strcmp(args[0], "uri") == 0) {
+	if (strcmp(args[0], "directory") == 0) {
 		if (!*args[1]) {
 			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires an argument\n", file, linenum, args[0], cursection);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -251,8 +251,8 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 		}
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
-		cur_acme->uri = strdup(args[1]);
-		if (!cur_acme->uri) {
+		cur_acme->directory = strdup(args[1]);
+		if (!cur_acme->directory) {
 			err_code |= ERR_ALERT | ERR_FATAL;
 			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 			goto out;
@@ -486,7 +486,7 @@ void deinit_acme()
 
 		next = acme_cfgs->next;
 		ha_free(&acme_cfgs->name);
-		ha_free(&acme_cfgs->uri);
+		ha_free(&acme_cfgs->directory);
 		ha_free(&acme_cfgs->account.contact);
 		ha_free(&acme_cfgs->account.file);
 		ha_free(&acme_cfgs->account.thumbprint);
@@ -497,7 +497,7 @@ void deinit_acme()
 }
 
 static struct cfg_kw_list cfg_kws_acme = {ILH, {
-	{ CFG_ACME, "uri",  cfg_parse_acme_kws },
+	{ CFG_ACME, "directory",  cfg_parse_acme_kws },
 	{ CFG_ACME, "contact",  cfg_parse_acme_kws },
 	{ CFG_ACME, "account",  cfg_parse_acme_kws },
 	{ CFG_ACME, "challenge",  cfg_parse_acme_kws },
@@ -1540,7 +1540,7 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 	switch (st) {
 		case ACME_RESSOURCES:
 			if (http_st == ACME_HTTP_REQ) {
-				if (acme_http_req(task, ctx, ist(ctx->cfg->uri), HTTP_METH_GET, NULL, IST_NULL) != 0)
+				if (acme_http_req(task, ctx, ist(ctx->cfg->directory), HTTP_METH_GET, NULL, IST_NULL) != 0)
 					goto retry;
 			}
 

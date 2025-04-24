@@ -5919,17 +5919,18 @@ contact <string>
 curves <string>
   When using the ECDSA keytype, configure the curves. The default is P-384.
 
+directory <string>
+  This keyword configures the directory URL for the CA used by this acme
+  section. This keyword is mandatory as there is no default URL.
+
+  Example:
+    directory https://acme-staging-v02.api.letsencrypt.org/directory
+
 keytype <string>
   Configure the type of key that will be generated. Value can be either "RSA"
   or "ECDSA". You can also configure the "curves" for ECDSA and the number of
   "bits" for RSA. By default EC384 keys are generated.
 
-uri <string>
-  This keyword configures the directory URL for the CA used by this acme
-  section. This keyword is mandatory as there is no default uri.
-
-  Example:
-    uri https://acme-staging-v02.api.letsencrypt.org/directory
 
 Example:
 
@@ -5945,7 +5946,7 @@ Example:
       ssl-f-use crt "foo.example.com.pem.ecdsa" acme LE2 domains "foo.example.com.pem,bar.example.com"
 
   acme LE1
-      uri https://acme-staging-v02.api.letsencrypt.org/directory
+      directory https://acme-staging-v02.api.letsencrypt.org/directory
       account /etc/haproxy/account.key
       contact john.doe@example.com
       challenge HTTP-01
@@ -5953,7 +5954,7 @@ Example:
       bits 2048
 
   acme LE2
-      uri https://acme-staging-v02.api.letsencrypt.org/directory
+      directory https://acme-staging-v02.api.letsencrypt.org/directory
       account /etc/haproxy/account.key
       contact john.doe@example.com
       challenge HTTP-01
