@@ -1757,6 +1757,7 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 
 	}
 
+	ctx->retries = ACME_RETRY;
 	ctx->http_state = http_st;
 	ctx->state = st;
 	task->expire = TICK_ETERNITY;
