@@ -92,6 +92,13 @@ extern struct pool_head *resolv_requester_pool;
  */
 #define SRV_MAX_PREF_NET 5
 
+/* bits describing process-wide acceptable address families for DNS responses */
+enum {
+	RSLV_ACCEPT_IPV4   = 0x01,
+	RSLV_ACCEPT_IPV6   = 0x02,
+	RSLV_ACCEPT_MASK   = RSLV_ACCEPT_IPV4 | RSLV_ACCEPT_IPV6,
+};
+
 /* NOTE: big endian structure */
 struct resolv_query_item {
 	char           name[DNS_MAX_NAME_SIZE+1]; /* query name */

@@ -1533,6 +1533,7 @@ The following keywords are supported in the "global" section :
    - deviceatlas-log-level
    - deviceatlas-properties-cookie
    - deviceatlas-separator
+   - dns-accept-family
    - expose-deprecated-directives
    - expose-experimental-directives
    - external-check
@@ -2164,6 +2165,25 @@ deviceatlas-properties-cookie <name>
 deviceatlas-separator <char>
   Sets the character separator for the API properties results. This directive
   is optional and set to | by default if not set.
+
+dns-accept-family <family>[,...]
+  By default, DNS resolvers accept both IPv4 and IPv6 addresses. This can be
+  influenced by the "resolve-prefer" keywords on server lines as well as the
+  family argument to the "do-resolve" action, but that is only a preference,
+  which does not block the other family from being used when it's alone. In
+  some environments where dual-stack is not usable, stumbling on an unreachable
+  IPv6-only DNS record can cause significant trouble as it will replace a
+  previous IPv4 one which would possibly have continued to work till next
+  request. The "dns-accept-family" global option permits to enforce usage of
+  only one (or both) address families. The argument is a comma-delimited list
+  of the following words:
+    - "ipv4": query and accept IPv4 addresses ("A" records)
+    - "ipv6": query and accept IPv6 addresses ("AAAA" records)
+
+  When a single family is used, no request will be sent to resolvers for the
+  other family, and any response for the othe family will be ignored. The
+  default value is "ipv4,ipv6", which effectively enables both families.
+  See also: "resolve-prefer", "do-resolve"
 
 expose-deprecated-directives
   This statement must appear before using some directives tagged as deprecated
@@ -15871,7 +15891,9 @@ do-resolve(<var>,<resolvers>[,ipv4|ipv6]) <expr>
   the result in the variable <var>. It uses the DNS resolvers section
   pointed by <resolvers>.
   It is possible to choose a resolution preference using the optional
-  arguments 'ipv4' or 'ipv6'.
+  arguments 'ipv4' or 'ipv6'. See also the global "dns-accept-family" keyword
+  to enforce strict usage of a specific family.
+
   When performing the DNS resolution, the client side connection is on
   pause waiting till the end of the resolution.
   If an IP address can be found, it is stored into <var>. If any kind of
@@ -19379,8 +19401,9 @@ resolve-prefer <family>
 
   When DNS resolution is enabled for a server and multiple IP addresses from
   different families are returned, HAProxy will prefer using an IP address
-  from the family mentioned in the "resolve-prefer" parameter.
-  Available families: "ipv4" and "ipv6"
+  from the family mentioned in the "resolve-prefer" parameter. See also the
+  global "dns-accept-family" keyword to enforce strict usage of a specific
+  family. Available families: "ipv4" and "ipv6".
 
   Default value: ipv6
 

@@ -32,6 +32,7 @@ struct list;
 
 extern struct list sec_resolvers;
 extern unsigned int resolv_failed_resolutions;
+extern uint resolv_accept_families;
 
 struct resolvers *find_resolvers_by_id(const char *id);
 struct dns_nameserver *find_nameserver_by_resolvers_and_id(struct resolvers *parent, unsigned int id);

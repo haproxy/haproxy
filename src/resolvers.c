@@ -69,6 +69,8 @@ DECLARE_POOL(resolv_requester_pool,  "resolv_requester",  sizeof(struct resolv_r
 
 static unsigned int resolution_uuid = 1;
 unsigned int resolv_failed_resolutions = 0;
+uint resolv_accept_families = RSLV_ACCEPT_IPV4 | RSLV_ACCEPT_IPV6;
+
 struct task *process_resolvers(struct task *t, void *context, unsigned int state);
 static void resolv_free_resolution(struct resolv_resolution *resolution);
 static void _resolv_unlink_resolution(struct resolv_requester *requester);
@@ -1632,11 +1634,11 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 		unsigned char ip_type;
 
 		record = eb32_entry(eb32, typeof(*record), link);
-		if (record->type == DNS_RTYPE_A) {
+		if (record->type == DNS_RTYPE_A && (resolv_accept_families & RSLV_ACCEPT_IPV4)) {
 			ip_type = AF_INET;
 			ip = &record->data.in4.sin_addr;
 		}
-		else if (record->type == DNS_RTYPE_AAAA) {
+		else if (record->type == DNS_RTYPE_AAAA && (resolv_accept_families & RSLV_ACCEPT_IPV6)) {
 			ip_type = AF_INET6;
 			ip = &record->data.in6.sin6_addr;
 		}
@@ -2067,9 +2069,12 @@ int resolv_link_resolution(void *requester, int requester_type, int requester_lo
 			hostname_dn     = &srv->hostname_dn;
 			hostname_dn_len = srv->hostname_dn_len;
 			resolvers       = srv->resolvers;
-			query_type      = ((srv->resolv_opts.family_prio == AF_INET)
+
+			query_type      = !(resolv_accept_families & RSLV_ACCEPT_IPV6) ? DNS_RTYPE_A :
+			                  !(resolv_accept_families & RSLV_ACCEPT_IPV4) ? DNS_RTYPE_AAAA :
+			                  (srv->resolv_opts.family_prio == AF_INET)
 					   ? DNS_RTYPE_A
-					   : DNS_RTYPE_AAAA);
+					   : DNS_RTYPE_AAAA;
 			break;
 
 		case OBJ_TYPE_SRVRQ:
@@ -2101,9 +2106,12 @@ int resolv_link_resolution(void *requester, int requester_type, int requester_lo
 			hostname_dn     = &stream->resolv_ctx.hostname_dn;
 			hostname_dn_len = stream->resolv_ctx.hostname_dn_len;
 			resolvers       = stream->resolv_ctx.parent->arg.resolv.resolvers;
-			query_type      = ((stream->resolv_ctx.parent->arg.resolv.opts->family_prio == AF_INET)
+
+			query_type      = !(resolv_accept_families & RSLV_ACCEPT_IPV6) ? DNS_RTYPE_A :
+			                  !(resolv_accept_families & RSLV_ACCEPT_IPV4) ? DNS_RTYPE_AAAA :
+			                  (stream->resolv_ctx.parent->arg.resolv.opts->family_prio == AF_INET)
 					   ? DNS_RTYPE_A
-					   : DNS_RTYPE_AAAA);
+					   : DNS_RTYPE_AAAA;
 			break;
 		default:
 			goto err;
@@ -2333,7 +2341,7 @@ static int resolv_process_responses(struct dns_nameserver *ns)
 				if (!res->try)
 					goto report_res_error;
 			}
-			else {
+			else if ((resolv_accept_families & RSLV_ACCEPT_MASK) == (RSLV_ACCEPT_IPV4 | RSLV_ACCEPT_IPV6)) {
 				/* Fallback from A to AAAA or the opposite and re-send
 				 * the resolution immediately. try counter is not
 				 * decremented. */
@@ -2462,9 +2470,11 @@ struct task *process_resolvers(struct task *t, void *context, unsigned int state
 				/* Fallback from A to AAAA or the opposite and re-send
 				 * the resolution immediately. try counter is not
 				 * decremented. */
-				if (res->prefered_query_type == DNS_RTYPE_A)
+				if (res->prefered_query_type == DNS_RTYPE_A &&
+				    (resolv_accept_families & RSLV_ACCEPT_IPV6))
 					res->query_type = DNS_RTYPE_AAAA;
-				else if (res->prefered_query_type == DNS_RTYPE_AAAA)
+				else if (res->prefered_query_type == DNS_RTYPE_AAAA &&
+				    (resolv_accept_families & RSLV_ACCEPT_IPV4))
 					res->query_type = DNS_RTYPE_A;
 				else
 					res->try--;
@@ -3924,6 +3934,48 @@ int cfg_post_parse_resolvers()
 	curr_resolvers = NULL;
 	return err_code;
 }
+
+/* config parser for global "dns-accept-family", accepts "ipv4", "ipv6" or both delimited by a comma */
+static int cfg_parse_dns_accept_family(char **args, int section_type, struct proxy *curpx,
+                                       const struct proxy *defpx, const char *file, int line,
+                                       char **err)
+{
+	char *arg, *comma;
+	int accept_families = 0;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (!args[1][0])
+		goto usage;
+
+	for (arg = args[1]; arg && *arg; arg = comma) {
+		comma = strchr(arg, ',');
+		if (comma)
+			*(comma++) = 0;
+
+		if (strcmp(arg, "ipv4") == 0)
+			accept_families |= RSLV_ACCEPT_IPV4;
+		else if (strcmp(arg, "ipv6") == 0)
+			accept_families |= RSLV_ACCEPT_IPV6;
+		else
+			goto usage;
+	}
+
+	resolv_accept_families = accept_families;
+	return 0;
+ usage:
+	memprintf(err, "'%s' expects a comma-delimited list of 'ipv4' and 'ipv6' but got '%s'.", args[0], args[1]);
+	return -1;
+}
+
+/* config keyword parsers */
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "dns-accept-family",      cfg_parse_dns_accept_family   },
+	{ 0, NULL, NULL }
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 REGISTER_CONFIG_SECTION("resolvers",      cfg_parse_resolvers, cfg_post_parse_resolvers);
 REGISTER_POST_DEINIT(resolvers_deinit);
