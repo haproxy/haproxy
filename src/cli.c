@@ -2938,7 +2938,7 @@ int pcli_find_bidir_prefix(struct stream *s, struct channel *req, char **str, co
 
 		/* without any command, simply enter the worker in interactive mode */
 		if (!ret) {
-			const char *cmd = "prompt;";
+			const char *cmd = "prompt\n";
 			ci_insert(req, 0, cmd, strlen(cmd));
 			ret += strlen(cmd);
 		}
