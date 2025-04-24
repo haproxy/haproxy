@@ -98,6 +98,7 @@ enum {
 	RSLV_ACCEPT_IPV6   = 0x02,
 	RSLV_ACCEPT_MASK   = RSLV_ACCEPT_IPV4 | RSLV_ACCEPT_IPV6,
 	RSLV_FORCED_FAMILY = 0x04,
+	RSLV_AUTO_FAMILY   = 0x08,
 };
 
 /* NOTE: big endian structure */

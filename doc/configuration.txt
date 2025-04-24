@@ -2179,6 +2179,7 @@ dns-accept-family <family>[,...]
   of the following words:
     - "ipv4": query and accept IPv4 addresses ("A" records)
     - "ipv6": query and accept IPv6 addresses ("AAAA" records)
+    - "auto": use IPv4, and IPv6 if the system has a default gateway for it.
 
   When a single family is used, no request will be sent to resolvers for the
   other family, and any response for the othe family will be ignored. The

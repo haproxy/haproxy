@@ -40,6 +40,7 @@
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/server.h>
+#include <haproxy/sock_inet.h>
 #include <haproxy/stats.h>
 #include <haproxy/stconn.h>
 #include <haproxy/task.h>
@@ -3935,6 +3936,19 @@ int cfg_post_parse_resolvers()
 	return err_code;
 }
 
+/* called once the config was fully parsed */
+static int resolvers_late_init(void)
+{
+	if (resolv_accept_families & RSLV_AUTO_FAMILY) {
+		/* Let's adjust our default resolver families based on apparent IPv6 connectivity */
+		if (sock_inet6_seems_reachable)
+			resolv_accept_families = RSLV_ACCEPT_IPV4 | RSLV_ACCEPT_IPV6;
+		else
+			resolv_accept_families = RSLV_ACCEPT_IPV4;
+	}
+	return 0;
+}
+
 /* config parser for global "dns-accept-family", accepts "ipv4", "ipv6" or both delimited by a comma */
 static int cfg_parse_dns_accept_family(char **args, int section_type, struct proxy *curpx,
                                        const struct proxy *defpx, const char *file, int line,
@@ -3958,6 +3972,8 @@ static int cfg_parse_dns_accept_family(char **args, int section_type, struct pro
 			accept_families |= RSLV_ACCEPT_IPV4;
 		else if (strcmp(arg, "ipv6") == 0)
 			accept_families |= RSLV_ACCEPT_IPV6;
+		else if (strcmp(arg, "auto") == 0)
+			accept_families |= RSLV_AUTO_FAMILY;
 		else
 			goto usage;
 	}
@@ -3985,6 +4001,7 @@ REGISTER_CONFIG_SECTION("resolvers",      cfg_parse_resolvers, cfg_post_parse_re
 REGISTER_POST_DEINIT(resolvers_deinit);
 REGISTER_CONFIG_POSTPARSER("dns runtime resolver", resolvers_finalize_config);
 REGISTER_PRE_CHECK(resolvers_create_default);
+REGISTER_POST_CHECK(resolvers_late_init);
 
 #if defined(USE_PROMEX)
 
