@@ -70,6 +70,7 @@ struct cache {
 
 /* the appctx context of a cache applet, stored in appctx->svcctx */
 struct cache_appctx {
+	struct cache *cache;
 	struct cache_tree *cache_tree;
 	struct cache_entry *entry;       /* Entry to be sent from cache. */
 	unsigned int sent;               /* The number of bytes already sent for this cache entry. */
@@ -1464,10 +1465,8 @@ out:
 static void http_cache_applet_release(struct appctx *appctx)
 {
 	struct cache_appctx *ctx = appctx->svcctx;
-	struct cache_flt_conf *cconf = appctx->rule->arg.act.p[0];
 	struct cache_entry *cache_ptr = ctx->entry;
-	struct cache *cache = cconf->c.cache;
-	struct shared_context *shctx = shctx_ptr(cache);
+	struct shared_context *shctx = shctx_ptr(ctx->cache);
 	struct shared_block *first = block_ptr(cache_ptr);
 
 	release_entry(ctx->cache_tree, cache_ptr, 1);
@@ -1482,8 +1481,7 @@ static unsigned int htx_cache_dump_blk(struct appctx *appctx, struct htx *htx, e
 				       uint32_t info, struct shared_block *shblk, unsigned int offset)
 {
 	struct cache_appctx *ctx = appctx->svcctx;
-	struct cache_flt_conf *cconf = appctx->rule->arg.act.p[0];
-	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
+	struct shared_context *shctx = shctx_ptr(ctx->cache);
 	struct htx_blk *blk;
 	char *ptr;
 	unsigned int max, total;
@@ -1527,8 +1525,7 @@ static unsigned int htx_cache_dump_data_blk(struct appctx *appctx, struct htx *h
 					    uint32_t info, struct shared_block *shblk, unsigned int offset)
 {
 	struct cache_appctx *ctx = appctx->svcctx;
-	struct cache_flt_conf *cconf = appctx->rule->arg.act.p[0];
-	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
+	struct shared_context *shctx = shctx_ptr(ctx->cache);
 	unsigned int max, total, rem_data, data_len;
 	uint32_t blksz;
 
@@ -1580,8 +1577,7 @@ static size_t htx_cache_dump_msg(struct appctx *appctx, struct htx *htx, unsigne
 				 enum htx_blk_type mark)
 {
 	struct cache_appctx *ctx = appctx->svcctx;
-	struct cache_flt_conf *cconf = appctx->rule->arg.act.p[0];
-	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
+	struct shared_context *shctx = shctx_ptr(ctx->cache);
 	struct shared_block   *shblk;
 	unsigned int offset, sz;
 	unsigned int ret, total = 0;
@@ -1633,8 +1629,7 @@ static unsigned int ff_cache_dump_data_blk(struct appctx *appctx, struct buffer 
 					   uint32_t info, struct shared_block *shblk, unsigned int offset)
 {
 	struct cache_appctx *ctx = appctx->svcctx;
-	struct cache_flt_conf *cconf = appctx->rule->arg.act.p[0];
-	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
+	struct shared_context *shctx = shctx_ptr(ctx->cache);
 	unsigned int total, rem_data, data_len;
 	uint32_t blksz;
 
@@ -1682,8 +1677,7 @@ static size_t ff_cache_dump_msg(struct appctx *appctx, struct buffer *buf, unsig
 	struct cache_appctx *ctx = appctx->svcctx;
 	struct cache_entry *cache_ptr = ctx->entry;
 	struct shared_block *first = block_ptr(cache_ptr);
-	struct cache_flt_conf *cconf = appctx->rule->arg.act.p[0];
-	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
+	struct shared_context *shctx = shctx_ptr(ctx->cache);
 	struct shared_block   *shblk;
 	unsigned int offset, sz;
 	unsigned int ret, total = 0;
@@ -2219,7 +2213,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			struct cache_appctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 
 			appctx->st0 = HTX_CACHE_INIT;
-			appctx->rule = rule;
+			ctx->cache = cache;
 			ctx->cache_tree = cache_tree;
 			ctx->entry = res;
 			ctx->next = NULL;
@@ -3082,25 +3076,19 @@ smp_fetch_res_cache_name(const struct arg *args, struct sample *smp,
 {
 	struct appctx *appctx = NULL;
 
-	struct cache_flt_conf *cconf = NULL;
-	struct cache *cache = NULL;
-
 	if (!smp->strm || smp->strm->target != &http_cache_applet.obj_type)
 		return 0;
 
 	/* Get appctx from the stream connector. */
 	appctx = sc_appctx(smp->strm->scb);
-	if (appctx && appctx->rule) {
-		cconf = appctx->rule->arg.act.p[0];
-		if (cconf) {
-			cache = cconf->c.cache;
+	if (appctx) {
+		struct cache_appctx *ctx = appctx->svcctx;
 
-			smp->data.type = SMP_T_STR;
-			smp->flags = SMP_F_CONST;
-			smp->data.u.str.area = cache->id;
-			smp->data.u.str.data = strlen(cache->id);
-			return 1;
-		}
+		smp->data.type = SMP_T_STR;
+		smp->flags = SMP_F_CONST;
+		smp->data.u.str.area = ctx->cache->id;
+		smp->data.u.str.data = strlen(ctx->cache->id);
+		return 1;
 	}
 
 	return 0;
