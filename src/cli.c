@@ -1100,8 +1100,18 @@ void cli_io_handler(struct appctx *appctx)
 			break;
 		}
 		else if (appctx->st0 == CLI_ST_PARSE_CMDLINE) {
-			if (cli_parse_cmdline(appctx) == 0)
+			if (cli_parse_cmdline(appctx) == 0) {
+				/* Now we close the output if we're not in interactive
+				 * mode and the request buffer is empty. This still
+				 * allows pipelined requests to be sent in
+				 * non-interactive mode.
+				 */
+				if (se_fl_test(appctx->sedesc, SE_FL_SHW)) {
+					appctx->st0 = CLI_ST_END;
+					continue;
+				}
 				break;
+			}
 		}
 		else if (appctx->st0 == CLI_ST_PROCESS_CMDLINE) {
 			/* ensure we have some output room left in the event we
