@@ -127,7 +127,6 @@ struct appctx {
 							      if the command is terminated or the session released */
 	} cli_ctx; /* context dedicated to the CLI applet */
 
-	struct act_rule *rule;     /* rule associated with the applet. */
 	struct buffer_wait buffer_wait; /* position in the list of objects waiting for a buffer */
 	struct task *t;                  /* task associated to the applet */
 	struct freq_ctr call_rate;       /* appctx call rate */
