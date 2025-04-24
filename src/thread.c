@@ -410,6 +410,7 @@ static const char *lock_label(enum lock_label label)
 	case LBPRM_LOCK:           return "LBPRM";
 	case SIGNALS_LOCK:         return "SIGNALS";
 	case STK_TABLE_LOCK:       return "STK_TABLE";
+	case STK_TABLE_UPDT_LOCK:       return "STK_TABLE_UPDT";
 	case STK_SESS_LOCK:        return "STK_SESS";
 	case APPLETS_LOCK:         return "APPLETS";
 	case PEER_LOCK:            return "PEER";

@@ -1568,7 +1568,7 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 	/* We force new pushed to 1 to force identifier in update message */
 	new_pushed = 1;
 
-	HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
+	HA_RWLOCK_RDLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
 
 	while (1) {
 		struct stksess *ts;
@@ -1590,10 +1590,10 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 		}
 
 		HA_ATOMIC_INC(&ts->ref_cnt);
-		HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
+		HA_RWLOCK_RDUNLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
 
 		ret = peer_send_updatemsg(st, appctx, ts, updateid, new_pushed, use_timed);
-		HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
+		HA_RWLOCK_RDLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
 		HA_ATOMIC_DEC(&ts->ref_cnt);
 		if (ret <= 0)
 			break;
@@ -1622,7 +1622,7 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 	}
 
  out:
-	HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
+	HA_RWLOCK_RDUNLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
 	return ret;
 }
 
@@ -2639,9 +2639,9 @@ static inline int peer_send_msgs(struct appctx *appctx,
 			if (!(peer->flags & PEER_F_TEACH_PROCESS)) {
 				int must_send;
 
-				HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
+				HA_RWLOCK_RDLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
 				must_send = (peer->learnstate == PEER_LR_ST_NOTASSIGNED) && (st->last_pushed != st->table->localupdate);
-				HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
+				HA_RWLOCK_RDUNLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
 
 				if (must_send) {
 					repl = peer_send_teach_process_msgs(appctx, peer, st);
@@ -2834,7 +2834,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 		uint updateid, commitid;
 
 		st->last_get = st->last_acked = 0;
-		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
+		HA_RWLOCK_WRLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
 		/* if st->update appears to be in future it means
 		 * that the last acked value is very old and we
 		 * remain unconnected a too long time to use this
@@ -2858,7 +2858,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 			__ha_cpu_relax();
 		}
 
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &st->table->updt_lock);
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
 	}
 
 	/* Awake main task to ack the new peer state */

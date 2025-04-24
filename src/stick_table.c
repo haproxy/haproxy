@@ -146,7 +146,7 @@ int __stksess_kill(struct stktable *t, struct stksess *ts)
 
 	if (ts->upd.node.leaf_p) {
 		updt_locked = 1;
-		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
+		HA_RWLOCK_WRLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
 		if (HA_ATOMIC_LOAD(&ts->ref_cnt))
 			goto out_unlock;
 	}
@@ -157,7 +157,7 @@ int __stksess_kill(struct stktable *t, struct stksess *ts)
 
   out_unlock:
 	if (updt_locked)
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->updt_lock);
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
 	return 1;
 }
 
@@ -365,7 +365,7 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 			if (ts->upd.node.leaf_p) {
 				if (!updt_locked) {
 					updt_locked = 1;
-					HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
+					HA_RWLOCK_WRLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
 				}
 				/* now we're locked, new peers can't grab it anymore,
 				 * existing ones already have the ref_cnt.
@@ -383,7 +383,7 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 		}
 
 		if (updt_locked)
-			HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->updt_lock);
+			HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
 
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 
@@ -603,7 +603,7 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 			 */
 			if (!ts->upd.node.leaf_p || _HA_ATOMIC_LOAD(&ts->seen)) {
 				/* Time to upgrade the read lock to write lock */
-				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
+				HA_RWLOCK_WRLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
 				use_wrlock = 1;
 
 				/* here we're write-locked */
@@ -633,7 +633,7 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 			 */
 			if (!ts->upd.node.leaf_p) {
 				/* Time to upgrade the read lock to write lock if needed */
-				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
+				HA_RWLOCK_WRLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
 				use_wrlock = 1;
 
 				/* here we're write-locked */
@@ -651,7 +651,7 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 
 		/* drop the lock now */
 		if (use_wrlock)
-			HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->updt_lock);
+			HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
 	}
 
 	if (decrefcnt)
@@ -941,7 +941,7 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 			if (ts->upd.node.leaf_p) {
 				if (!updt_locked) {
 					updt_locked = 1;
-					HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->updt_lock);
+					HA_RWLOCK_WRLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
 				}
 				/* now we're locked, new peers can't grab it anymore,
 				 * existing ones already have the ref_cnt.
@@ -961,7 +961,7 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 
 	out_unlock:
 		if (updt_locked)
-			HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->updt_lock);
+			HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
 
 		task_exp = tick_first(task_exp, exp_next);
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
