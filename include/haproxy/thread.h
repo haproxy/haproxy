@@ -173,6 +173,23 @@ static inline unsigned long long ha_get_pthread_id(unsigned int thr)
 	return 0;
 }
 
+static inline void cshared_init(struct cshared *ctr, uint64_t *var, int lim)
+{
+	ctr->global = var;
+	ctr->diff = 0;
+	ctr->lim = 0;
+}
+
+static inline void cshared_add(struct cshared *ctr, int diff)
+{
+	ctr->global += diff;
+}
+
+static inline uint64_t cshared_read(struct cshared *ctr)
+{
+	return *ctr->global;
+}
+
 #else /* !USE_THREAD */
 
 /********************** THREADS ENABLED ************************/
@@ -331,6 +348,33 @@ static inline unsigned long thread_isolated()
 	})
 
 #endif
+
+/* Init a shared counter <ctr> which references global value <var>. Update are
+ * performed each time the shared counter exceed <lim>, either on the positive
+ * or negative value.
+ */
+static inline void cshared_init(struct cshared *ctr, uint64_t *var, int lim)
+{
+	ctr->global = var;
+	ctr->diff = 0;
+	ctr->lim = lim;
+}
+
+/* Add <diff>, which may be positive or negative, to <ctr> shared counter. */
+static inline void cshared_add(struct cshared *ctr, int diff)
+{
+	ctr->diff += diff;
+	if (ctr->diff <= -(ctr->lim) || ctr->diff >= ctr->lim) {
+		HA_ATOMIC_ADD(ctr->global, ctr->diff);
+		ctr->diff = 0;
+	}
+}
+
+/* Atomically get current global value from <ctr> shared counter. */
+static inline uint64_t cshared_read(struct cshared *ctr)
+{
+	return HA_ATOMIC_LOAD(ctr->global);
+}
 
 #if (DEBUG_THREAD < 2) && !defined(DEBUG_FULL)
 

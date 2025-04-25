@@ -94,6 +94,20 @@
 #define __HA_SPINLOCK_T     unsigned long
 #define __HA_RWLOCK_T       unsigned long
 
+/* Type used as a shared value from a global counter. Manipulation to the
+ * global value is thread-safe. Share counter can be increased/decreased
+ * without modifying the global value to reduce contention. The global value is
+ * modified only when the configured limit is reached.
+ *
+ * Typically a cshared is declared as a thread-local variable, with a reference
+ * to a process global value.
+ */
+struct cshared {
+	uint64_t *global;
+	int diff;
+	int lim;
+};
+
 
 /* When thread debugging is enabled, we remap HA_SPINLOCK_T and HA_RWLOCK_T to
  * complex structures which embed debugging info.
