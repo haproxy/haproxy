@@ -2906,7 +2906,8 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
  * for the '@@' prefix. If found, the pid is returned in <next_pid> and the
  * function returns a positive value representing the number of bytes
  * processed. If the prefix is found but the pid couldn't be parsed, <0 is
- * returned with an error placed into <errmsg>. If nothing is found, zero is
+ * returned with an error placed into <errmsg>. If the string is incomplete
+ * (missing '\n'), -1 is returned with no error. If nothing is found, zero is
  * returned. In any case, <str> is advanced by the number of chars to be
  * skipped.
  */
@@ -2918,6 +2919,12 @@ int pcli_find_bidir_prefix(struct stream *s, struct channel *req, char **str, co
 	/* skip leading spaces / tabs*/
 	while (p < end && (*p == '\t' || *p == ' '))
 		p++;
+
+	/* We only parse complete lines */
+	if (memchr(p, '\n', end - p) == NULL) {
+		ret = -1;
+		goto leave;
+	}
 
 	/* check for '@@' prefix */
 	if (p + 2 <= end && p[0] == '@' && p[1] == '@') {
