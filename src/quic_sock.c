@@ -1113,7 +1113,7 @@ struct task *quic_accept_run(struct task *t, void *ctx, unsigned int i)
 		}
 	}
 
-	return NULL;
+	return t;
 }
 
 /* Returns the maximum number of QUIC connections waiting for handshake to
