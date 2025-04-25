@@ -216,6 +216,23 @@ struct show_resolvers_ctx {
 	struct dns_nameserver *ns;
 };
 
+/* returns the currently accepted address families as a combination of
+ * RSLV_ACCEPT_IPV4 and RSLV_ACCEPT_IPV6 only. It will dynamically adapt adapt
+ * the IPv6 status to sock_inet6_seems_reachable if RSLV_AUTO_FAMILY is set,
+ * otherwise returns the relevant bits of resolv_accept_families.
+ */
+static inline int resolv_active_families(void)
+{
+	if (resolv_accept_families & RSLV_AUTO_FAMILY) {
+		/* Let's adjust our default resolver families based on apparent IPv6 connectivity */
+		if (sock_inet6_seems_reachable)
+			return RSLV_ACCEPT_IPV4 | RSLV_ACCEPT_IPV6;
+		else
+			return RSLV_ACCEPT_IPV4;
+	}
+	return resolv_accept_families & RSLV_ACCEPT_MASK;
+}
+
 /* Returns a pointer to the resolvers matching the id <id>. NULL is returned if
  * no match is found.
  */
@@ -1635,11 +1652,11 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 		unsigned char ip_type;
 
 		record = eb32_entry(eb32, typeof(*record), link);
-		if (record->type == DNS_RTYPE_A && (resolv_accept_families & RSLV_ACCEPT_IPV4)) {
+		if (record->type == DNS_RTYPE_A && (resolv_active_families() & RSLV_ACCEPT_IPV4)) {
 			ip_type = AF_INET;
 			ip = &record->data.in4.sin_addr;
 		}
-		else if (record->type == DNS_RTYPE_AAAA && (resolv_accept_families & RSLV_ACCEPT_IPV6)) {
+		else if (record->type == DNS_RTYPE_AAAA && (resolv_active_families() & RSLV_ACCEPT_IPV6)) {
 			ip_type = AF_INET6;
 			ip = &record->data.in6.sin6_addr;
 		}
@@ -2071,8 +2088,8 @@ int resolv_link_resolution(void *requester, int requester_type, int requester_lo
 			hostname_dn_len = srv->hostname_dn_len;
 			resolvers       = srv->resolvers;
 
-			query_type      = !(resolv_accept_families & RSLV_ACCEPT_IPV6) ? DNS_RTYPE_A :
-			                  !(resolv_accept_families & RSLV_ACCEPT_IPV4) ? DNS_RTYPE_AAAA :
+			query_type      = !(resolv_active_families() & RSLV_ACCEPT_IPV6) ? DNS_RTYPE_A :
+			                  !(resolv_active_families() & RSLV_ACCEPT_IPV4) ? DNS_RTYPE_AAAA :
 			                  (srv->resolv_opts.family_prio == AF_INET)
 					   ? DNS_RTYPE_A
 					   : DNS_RTYPE_AAAA;
@@ -2108,8 +2125,8 @@ int resolv_link_resolution(void *requester, int requester_type, int requester_lo
 			hostname_dn_len = stream->resolv_ctx.hostname_dn_len;
 			resolvers       = stream->resolv_ctx.parent->arg.resolv.resolvers;
 
-			query_type      = !(resolv_accept_families & RSLV_ACCEPT_IPV6) ? DNS_RTYPE_A :
-			                  !(resolv_accept_families & RSLV_ACCEPT_IPV4) ? DNS_RTYPE_AAAA :
+			query_type      = !(resolv_active_families() & RSLV_ACCEPT_IPV6) ? DNS_RTYPE_A :
+			                  !(resolv_active_families() & RSLV_ACCEPT_IPV4) ? DNS_RTYPE_AAAA :
 			                  (stream->resolv_ctx.parent->arg.resolv.opts->family_prio == AF_INET)
 					   ? DNS_RTYPE_A
 					   : DNS_RTYPE_AAAA;
@@ -2342,7 +2359,7 @@ static int resolv_process_responses(struct dns_nameserver *ns)
 				if (!res->try)
 					goto report_res_error;
 			}
-			else if ((resolv_accept_families & RSLV_ACCEPT_MASK) == (RSLV_ACCEPT_IPV4 | RSLV_ACCEPT_IPV6)) {
+			else if (resolv_active_families() == (RSLV_ACCEPT_IPV4 | RSLV_ACCEPT_IPV6)) {
 				/* Fallback from A to AAAA or the opposite and re-send
 				 * the resolution immediately. try counter is not
 				 * decremented. */
@@ -2472,10 +2489,10 @@ struct task *process_resolvers(struct task *t, void *context, unsigned int state
 				 * the resolution immediately. try counter is not
 				 * decremented. */
 				if (res->prefered_query_type == DNS_RTYPE_A &&
-				    (resolv_accept_families & RSLV_ACCEPT_IPV6))
+				    (resolv_active_families() & RSLV_ACCEPT_IPV6))
 					res->query_type = DNS_RTYPE_AAAA;
 				else if (res->prefered_query_type == DNS_RTYPE_AAAA &&
-				    (resolv_accept_families & RSLV_ACCEPT_IPV4))
+				         (resolv_active_families() & RSLV_ACCEPT_IPV4))
 					res->query_type = DNS_RTYPE_A;
 				else
 					res->try--;
@@ -3936,19 +3953,6 @@ int cfg_post_parse_resolvers()
 	return err_code;
 }
 
-/* called once the config was fully parsed */
-static int resolvers_late_init(void)
-{
-	if (resolv_accept_families & RSLV_AUTO_FAMILY) {
-		/* Let's adjust our default resolver families based on apparent IPv6 connectivity */
-		if (sock_inet6_seems_reachable)
-			resolv_accept_families = RSLV_ACCEPT_IPV4 | RSLV_ACCEPT_IPV6;
-		else
-			resolv_accept_families = RSLV_ACCEPT_IPV4;
-	}
-	return 0;
-}
-
 /* config parser for global "dns-accept-family", accepts "ipv4", "ipv6" or both delimited by a comma */
 static int cfg_parse_dns_accept_family(char **args, int section_type, struct proxy *curpx,
                                        const struct proxy *defpx, const char *file, int line,
@@ -4001,7 +4005,6 @@ REGISTER_CONFIG_SECTION("resolvers",      cfg_parse_resolvers, cfg_post_parse_re
 REGISTER_POST_DEINIT(resolvers_deinit);
 REGISTER_CONFIG_POSTPARSER("dns runtime resolver", resolvers_finalize_config);
 REGISTER_PRE_CHECK(resolvers_create_default);
-REGISTER_POST_CHECK(resolvers_late_init);
 
 #if defined(USE_PROMEX)
 
