@@ -626,6 +626,7 @@ struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int sta
  out:
 	if ((qc->flags & QUIC_FL_CONN_CLOSING) && qc->mux_state != QC_MUX_READY) {
 		quic_conn_release(qc);
+		t = NULL;
 		qc = NULL;
 	}
 
