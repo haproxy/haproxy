@@ -1488,6 +1488,11 @@ void listener_accept(struct listener *l)
 			 */
 			ring = &accept_queue_rings[t];
 			if (accept_queue_push_mp(ring, cli_conn, bind_tid_commit)) {
+				if (new_li) {
+					_HA_ATOMIC_INC(&new_li->nbconn);
+					_HA_ATOMIC_DEC(&l->nbconn);
+				}
+
 				_HA_ATOMIC_INC(&activity[t].accq_pushed);
 				tasklet_wakeup(ring->tasklet);
 
