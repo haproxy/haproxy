@@ -181,7 +181,7 @@ struct task *accept_queue_process(struct task *t, void *context, unsigned int st
 	if (!max_accept)
 		tasklet_wakeup(ring->tasklet);
 
-	return NULL;
+	return t;
 }
 
 /* Initializes the accept-queues. Returns 0 on success, otherwise ERR_* flags */
