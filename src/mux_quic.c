@@ -3217,7 +3217,7 @@ struct task *qcc_io_cb(struct task *t, void *ctx, unsigned int status)
 
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE, qcc->conn);
 
-	return NULL;
+	return t;
 
  release:
 	qcc_shutdown(qcc);
