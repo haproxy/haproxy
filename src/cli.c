@@ -2937,7 +2937,7 @@ int pcli_find_bidir_prefix(struct stream *s, struct channel *req, char **str, co
 
 		target_pid = pcli_prefix_to_pid(pid_str + 1);
 		if (target_pid == -1) {
-			memprintf(errmsg, "Can't find the target PID matching the prefix '%.*s'\n", (int)(p - pid_str), pid_str);
+			memprintf(errmsg, "Can't find the target PID matching the prefix '%s'\n", pid_str);
 			ret = -1;
 			goto leave;
 		}
