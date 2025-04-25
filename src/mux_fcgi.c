@@ -3940,7 +3940,7 @@ struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned int state)
 	}
  end:
 	TRACE_LEAVE(FCGI_EV_STRM_SHUT);
-	return NULL;
+	return t;
 }
 
 static void fcgi_shut(struct stconn *sc, unsigned int mode, struct se_abort_info *reason)
