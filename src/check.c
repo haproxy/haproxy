@@ -1105,7 +1105,7 @@ struct task *srv_chk_io_cb(struct task *t, void *ctx, unsigned int state)
 	struct stconn *sc = ctx;
 
 	wake_srv_chk(sc);
-	return NULL;
+	return t;
 }
 
 /* returns <0, 0, >0 if check thread 1 is respectively less loaded than,
