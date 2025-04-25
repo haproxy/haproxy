@@ -1,6 +1,52 @@
 ChangeLog :
 ===========
 
+2025/04/25 : 3.2-dev12
+    - BUG/MINOR: quic: do not crash on CRYPTO ncbuf alloc failure
+    - BUG/MINOR: proxy: always detach a proxy from the names tree on free()
+    - CLEANUP: proxy: detach the name node in proxy_free_common() instead
+    - CLEANUP: Slightly reorder some proxy option flags to free slots
+    - MINOR: proxy: Add options to drop HTTP trailers during message forwarding
+    - MINOR: h1-htx: Skip C-L and T-E headers for 1xx and 204 messages during parsing
+    - MINOR: mux-h1: Keep custom "Content-Length: 0" header in 1xx and 204 messages
+    - MINOR: hlua/h1: Use http_parse_cont_len_header() to parse content-length value
+    - CLEANUP: h1: Remove now useless h1_parse_cont_len_header() function
+    - BUG/MEDIUM: mux-spop: Respect the negociated max-frame-size value to send frames
+    - MINOR: http-act: Add 'pause' action to temporarily suspend the message analysis
+    - MINOR: acme/cli: add the 'acme renew' command to the help message
+    - MINOR: httpclient: add an "https" log-format
+    - MEDIUM: acme: use a customized proxy
+    - MEDIUM: acme: rename "uri" into "directory"
+    - MEDIUM: acme: rename "account" into "account-key"
+    - MINOR: stick-table: use a separate lock label for updates
+    - MINOR: h3: simplify h3_rcv_buf return path
+    - BUG/MINOR: mux-quic: fix possible infinite loop during decoding
+    - BUG/MINOR: mux-quic: do not decode if conn in error
+    - BUG/MINOR: cli: Issue an error when too many args are passed for a command
+    - MINOR: cli: Use a full prompt command for bidir connections with workers
+    - MAJOR: cli: Refacor parsing and execution of pipelined commands
+    - MINOR: cli: Rename some CLI applet states to reflect recent refactoring
+    - CLEANUP: applet: Update st0/st1 comment in appctx structure
+    - BUG/MINOR: hlua: Fix I/O handler of lua CLI commands to not rely on the SC
+    - BUG/MINOR: ring: Fix I/O handler of "show event" command to not rely on the SC
+    - MINOR: cli/applet: Move appctx fields only used by the CLI in a private context
+    - MINOR: cache: Add a pointer on the cache in the cache applet context
+    - MINOR: hlua: Use the applet name in error messages for lua services
+    - MINOR: applet: Save the "use-service" rule in the stream to init a service applet
+    - CLEANUP: applet: Remove unsued rule pointer in appctx structure
+    - BUG/MINOR: master/cli: properly trim the '@@' process name in error messages
+    - MEDIUM: resolvers: add global "dns-accept-family" directive
+    - MINOR: resolvers: add command-line argument -4 to force IPv4-only DNS
+    - MINOR: sock-inet: detect apparent IPv6 connectivity
+    - MINOR: resolvers: add "dns-accept-family auto" to rely on detected IPv6
+    - MEDIUM: acme: use Retry-After value for retries
+    - MEDIUM: acme: reset the remaining retries
+    - MEDIUM: acme: better error/retry management of the challenge checks
+    - BUG/MEDIUM: cli: Handle applet shutdown when waiting for a command line
+    - Revert "BUG/MINOR: master/cli: properly trim the '@@' process name in error messages"
+    - BUG/MINOR: master/cli: only parse the '@@' prefix on complete lines
+    - MINOR: resolvers: use the runtime IPv6 status instead of boot time one
+
 2025/04/18 : 3.2-dev11
     - CI: enable weekly QuicTLS build
     - DOC: management: slightly clarify the prefix role of the '@' command
