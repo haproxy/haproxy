@@ -599,11 +599,19 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 
 		if (t->state & TASK_F_TASKLET) {
 			/* this is a tasklet */
-			state = _HA_ATOMIC_FETCH_AND(&t->state, TASK_PERSISTENT);
-			__ha_barrier_atomic_store();
+			state = _HA_ATOMIC_LOAD(&t->state);
+			do {
+				while (unlikely(state & TASK_RUNNING)) {
+					__ha_cpu_relax();
+					state = _HA_ATOMIC_LOAD(&t->state);
+				}
+			} while (!_HA_ATOMIC_CAS(&t->state, &state, (state & TASK_PERSISTENT) | TASK_RUNNING));
+
 
 			if (likely(!(state & TASK_KILLED))) {
-				process(t, ctx, state);
+				t = process(t, ctx, state);
+				if (t != NULL)
+					_HA_ATOMIC_AND(&t->state, ~TASK_RUNNING);
 			}
 			else {
 				done++;
