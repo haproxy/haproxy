@@ -3039,11 +3039,27 @@ int pcli_find_bidir_prefix(struct stream *s, struct channel *req, char **str, co
 		/* forward what remains */
 		ret = end - p;
 
-		/* without any command, simply enter the worker in interactive mode */
+		/* without any command, simply enter the worker in interactive
+		 * mode or prompt mode (the same as currently used in the master).
+		 * The goal is to make it easy for both scripts and humans to
+		 * enter in the same mode in the worker as they were in the master.
+		 */
 		if (!ret) {
-			const char *cmd = "prompt\n";
-			ci_insert(req, 0, cmd, strlen(cmd));
-			ret += strlen(cmd);
+			const char *cmd;
+
+			cmd = "prompt";
+			ret += ci_insert(req, ret, cmd, strlen(cmd));
+
+			cmd = (s->pcli_flags & PCLI_F_PROMPT) ? " p" : " i";
+			ret += ci_insert(req, ret, cmd, strlen(cmd));
+
+			if (s->pcli_flags & PCLI_F_TIMED) {
+				cmd = " timed";
+				ret += ci_insert(req, ret, cmd, strlen(cmd));
+			}
+
+			cmd = "\n";
+			ret += ci_insert(req, ret, cmd, strlen(cmd));
 		}
 	}
 

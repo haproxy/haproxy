@@ -4427,7 +4427,8 @@ Example:
   interactive session on the worker process by not specifying any command
   (i.e. "@@1" on its own line). This session can be terminated either by
   closing the connection or by quitting the worker process (using the "quit"
-  command).
+  command). In this case, the prompt mode of the master socket (interactive,
+  prompt, timed) is propagated into the worker process.
 
   Examples:
     # gracefully close connections and delete a server once idle (wait max 10s)
