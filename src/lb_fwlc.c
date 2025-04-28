@@ -36,9 +36,6 @@ DECLARE_STATIC_POOL(pool_head_fwlc_elt, "fwlc_tree_elt", sizeof(struct fwlc_tree
  */
 static int fwlc_set_seq_and_smallest(struct lbprm *lbprm, uint64_t current, unsigned int seq, unsigned int smallest)
 {
-#if !defined(HA_CAS_IS_8B) && !defined(HA_HAVE_CAS_DW)
-	__decl_thread(static HA_SPINLOCK_T seq_lock);
-#endif
 	uint64_t dst_nb = seq | ((uint64_t)smallest << 32);
 	int ret;
 #if defined(HA_CAS_IS_8B)
@@ -46,6 +43,8 @@ static int fwlc_set_seq_and_smallest(struct lbprm *lbprm, uint64_t current, unsi
 #elif defined(HA_HAVE_CAS_DW)
 	ret = _HA_ATOMIC_DWCAS(&lbprm->lb_seq, &current, &dst_nb);
 #else
+	__decl_thread(static HA_SPINLOCK_T seq_lock);
+
 	HA_SPIN_LOCK(OTHER_LOCK, &seq_lock);
 	if (lbprm->lb_seq == current) {
 		lbprm->lb_seq = dst_nb;
