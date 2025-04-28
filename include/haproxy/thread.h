@@ -305,7 +305,7 @@ static inline unsigned long thread_isolated()
 	return _HA_ATOMIC_LOAD(&isolated_thread) == tid;
 }
 
-#if !defined(DEBUG_THREAD) && !defined(DEBUG_FULL)
+#if (DEBUG_THREAD < 1) && !defined(DEBUG_FULL)
 
 /* Thread debugging is DISABLED, these are the regular locking functions */
 
@@ -335,7 +335,7 @@ static inline unsigned long thread_isolated()
 #define HA_RWLOCK_TRYRDTOSK(lbl,l)      (!pl_try_rtos(l)) /* R -?> S */
 #define HA_RWLOCK_TRYRDTOWR(lbl, l)     (!pl_try_rtow(l)) /* R -?> W */
 
-#else /* !defined(DEBUG_THREAD) && !defined(DEBUG_FULL) */
+#else /* (DEBUG_THREAD < 1) && !defined(DEBUG_FULL) */
 
 /* Thread debugging is ENABLED, these are the instrumented functions */
 

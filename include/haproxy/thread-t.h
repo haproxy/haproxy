@@ -41,7 +41,7 @@
 #define __decl_rwlock(lock)
 #define __decl_aligned_rwlock(lock)
 
-#elif !defined(DEBUG_THREAD) && !defined(DEBUG_FULL)
+#elif (DEBUG_THREAD < 1) && !defined(DEBUG_FULL)
 
 /************** THREADS ENABLED WITHOUT DEBUGGING **************/
 
@@ -98,7 +98,7 @@
 /* When thread debugging is enabled, we remap HA_SPINLOCK_T and HA_RWLOCK_T to
  * complex structures which embed debugging info.
  */
-#if !defined(DEBUG_THREAD) && !defined(DEBUG_FULL)
+#if (DEBUG_THREAD < 1) && !defined(DEBUG_FULL)
 
 #define HA_SPINLOCK_T        __HA_SPINLOCK_T
 #define HA_RWLOCK_T          __HA_RWLOCK_T

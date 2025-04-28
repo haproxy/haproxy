@@ -260,7 +260,7 @@ void wait_for_threads_completion()
 	for (i = 1; i < global.nbthread; i++)
 		pthread_join(ha_pthread[i], NULL);
 
-#if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
+#if (DEBUG_THREAD > 0) || defined(DEBUG_FULL)
 	show_lock_stats();
 #endif
 }
@@ -392,7 +392,7 @@ static int thread_cpus_enabled()
 
 /* Below come the lock-debugging functions */
 
-#if defined(DEBUG_THREAD) || defined(DEBUG_FULL)
+#if (DEBUG_THREAD > 0) || defined(DEBUG_FULL)
 
 struct lock_stat lock_stats_rd[LOCK_LABELS] = { };
 struct lock_stat lock_stats_sk[LOCK_LABELS] = { };
@@ -1140,7 +1140,7 @@ void __spin_unlock(enum lock_label lbl, struct ha_spinlock *l,
 	HA_ATOMIC_INC(&lock_stats_sk[lbl].num_unlocked);
 }
 
-#endif // defined(DEBUG_THREAD) || defined(DEBUG_FULL)
+#endif // (DEBUG_THREAD > 0) || defined(DEBUG_FULL)
 
 
 #if defined(USE_PTHREAD_EMULATION)
