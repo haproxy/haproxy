@@ -266,7 +266,7 @@ struct bbr {
  * Return the minimal cwnd value BBR targets, to allow pipelining with TCP
  * endpoints that follow an "ACK every other packet" delayed-ACK policy: 4 * SMSS.
  */
-static inline uint64_t bbr_min_pipe_cwnd(struct quic_cc_path *p)
+static inline uint64_t bbr_min_pipe_cwnd(const struct quic_cc_path *p)
 {
 	return 4 * p->mtu;
 }
@@ -423,7 +423,7 @@ static void bbr_restore_cwnd(struct bbr *bbr, struct quic_cc_path *p)
 }
 
 /* <gain> must be provided in percents. */
-static uint64_t bbr_bdp_multiple(struct bbr *bbr, struct quic_cc_path *p,
+static uint64_t bbr_bdp_multiple(struct bbr *bbr, const struct quic_cc_path *p,
                                  uint64_t bw, uint64_t gain)
 {
 	uint64_t bdp;
@@ -437,12 +437,13 @@ static uint64_t bbr_bdp_multiple(struct bbr *bbr, struct quic_cc_path *p,
 	return gain * bdp / BBR_GAIN_DIVI;
 }
 
-static void bbr_update_offload_budget(struct bbr *bbr, struct quic_cc_path *p)
+static void bbr_update_offload_budget(struct bbr *bbr, const struct quic_cc_path *p)
 {
 	bbr->offload_budget = 3 * p->send_quantum;
 }
 
-static uint64_t bbr_quantization_budget(struct bbr *bbr, struct quic_cc_path *p,
+static uint64_t bbr_quantization_budget(struct bbr *bbr,
+                                        const struct quic_cc_path *p,
                                         uint64_t inflight)
 {
 	bbr_update_offload_budget(bbr, p);
@@ -454,14 +455,14 @@ static uint64_t bbr_quantization_budget(struct bbr *bbr, struct quic_cc_path *p,
 	return inflight;
 }
 
-static uint64_t bbr_inflight(struct bbr *bbr, struct quic_cc_path *p,
+static uint64_t bbr_inflight(struct bbr *bbr, const struct quic_cc_path *p,
                              uint64_t bw, uint64_t gain)
 {
 	uint64_t inflight = bbr_bdp_multiple(bbr, p, bw, gain);
 	return bbr_quantization_budget(bbr, p, inflight);
 }
 
-static void bbr_update_max_inflight(struct bbr *bbr, struct quic_cc_path *p)
+static void bbr_update_max_inflight(struct bbr *bbr, const struct quic_cc_path *p)
 {
 	uint64_t inflight;
 
@@ -493,7 +494,7 @@ static void bbr_set_pacing_rate(struct bbr *bbr, struct quic_cc_path *p)
 	bbr_set_pacing_rate_with_gain(bbr, p, bbr->pacing_gain);
 }
 
-static uint64_t bbr_probe_rtt_cwnd(struct bbr *bbr, struct quic_cc_path *p)
+static uint64_t bbr_probe_rtt_cwnd(struct bbr *bbr, const struct quic_cc_path *p)
 {
 	uint64_t probe_rtt_cwnd =
 		bbr_bdp_multiple(bbr, p, bbr->bw, BBR_PROBE_RTT_CWND_GAIN_MULT);
@@ -501,17 +502,22 @@ static uint64_t bbr_probe_rtt_cwnd(struct bbr *bbr, struct quic_cc_path *p)
     return MAX(probe_rtt_cwnd, bbr_min_pipe_cwnd(p));
 }
 
-static void bbr_bound_cwnd_for_probe_rtt(struct bbr *bbr, struct quic_cc_path *p)
+static uint64_t bbr_bound_cwnd_for_probe_rtt(struct bbr *bbr,
+                                             const struct quic_cc_path *p,
+                                             uint64_t cwnd)
 {
 	if (bbr->state == BBR_ST_PROBE_RTT)
-		p->cwnd = MIN(p->cwnd, bbr_probe_rtt_cwnd(bbr, p));
+		return MIN(cwnd, bbr_probe_rtt_cwnd(bbr, p));
+	else
+		return cwnd;
 }
 
 /* Return a volume of data that tries to leave free headroom in the bottleneck
  * buffer or link for other flows, for fairness convergence and lower RTTs and
  * loss.
  */
-static uint64_t bbr_inflight_with_headroom(struct bbr *bbr, struct quic_cc_path *p)
+static uint64_t bbr_inflight_with_headroom(struct bbr *bbr,
+                                           const struct quic_cc_path *p)
 {
 	uint64_t headroom;
 
@@ -523,7 +529,9 @@ static uint64_t bbr_inflight_with_headroom(struct bbr *bbr, struct quic_cc_path 
 	return MAX(bbr->inflight_hi - headroom, bbr_min_pipe_cwnd(p));
 }
 
-static void bbr_bound_cwnd_for_model(struct bbr *bbr, struct quic_cc_path *p)
+static uint64_t bbr_bound_cwnd_for_model(struct bbr *bbr,
+                                         const struct quic_cc_path *p,
+                                         uint64_t cwnd)
 {
 	uint64_t cap = UINT64_MAX;
 
@@ -535,24 +543,24 @@ static void bbr_bound_cwnd_for_model(struct bbr *bbr, struct quic_cc_path *p)
 	/* apply inflight_lo (possibly infinite): */
 	cap = MIN(cap, bbr->inflight_lo);
 	cap = MAX(cap, bbr_min_pipe_cwnd(p));
-	p->cwnd = MIN(p->cwnd, cap);
+	return MIN(cwnd, cap);
 }
 
 static void bbr_set_cwnd(struct bbr *bbr, struct quic_cc_path *p, uint32_t acked)
 {
+	uint64_t cwnd = p->cwnd;
+
 	bbr_update_max_inflight(bbr, p);
-	if (bbr->full_bw_reached) {
-		p->cwnd += acked;
-		p->cwnd = MIN(p->cwnd, bbr->max_inflight);
-	}
-	else if (p->cwnd < bbr->max_inflight || bbr->drs.delivered < p->initial_wnd) {
-		p->cwnd += acked;
-	}
-	p->cwnd = MAX(p->cwnd, bbr_min_pipe_cwnd(p));
-	bbr_bound_cwnd_for_probe_rtt(bbr, p);
-	bbr_bound_cwnd_for_model(bbr, p);
+	if (bbr->full_bw_reached)
+		cwnd = MIN(cwnd + acked, bbr->max_inflight);
+	else if (cwnd < bbr->max_inflight || bbr->drs.delivered < p->initial_wnd)
+		cwnd += acked;
+
+	cwnd = MAX(cwnd, bbr_min_pipe_cwnd(p));
+	cwnd = bbr_bound_cwnd_for_probe_rtt(bbr, p, cwnd);
+	cwnd = bbr_bound_cwnd_for_model(bbr, p, cwnd);
 	/* Limitation by configuration (not in BBR RFC). */
-	p->cwnd = MIN(p->cwnd, p->limit_max);
+	p->cwnd = MIN(cwnd, p->limit_max);
 }
 
 static int bbr_init(struct quic_cc *cc)
@@ -674,7 +682,7 @@ static void bbr_check_full_bw_reached(struct bbr *bbr, struct quic_cc_path *p)
  * and the full bottleneck bandwidth has been measured, before attempting to drain
  * the level of in-flight data to the estimated BDP.
  */
-static void bbr_check_startup_high_loss(struct bbr *bbr, struct quic_cc_path *p)
+static void bbr_check_startup_high_loss(struct bbr *bbr, const struct quic_cc_path *p)
 {
 	if (bbr->full_bw_reached ||
 	    bbr->loss_events_in_round < BBR_STARTUP_FULL_LOSS_COUNT ||
