@@ -165,7 +165,7 @@ struct thread_ctx {
 	uint64_t prev_mono_time;            /* previous system wide monotonic time (leaving poll) */
 	uint64_t curr_mono_time;            /* latest system wide monotonic time (leaving poll) */
 
-	// around 8 bytes here for thread-local variables
+	ulong lock_history;                 /* history of used locks, see thread.h for more details */
 
 	// third cache line here on 64 bits: accessed mostly using atomic ops
 	ALWAYS_ALIGN(64);
