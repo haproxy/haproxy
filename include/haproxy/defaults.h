@@ -594,9 +594,13 @@
 # define DEBUG_STRICT 1
 #endif
 
-/* Let's make DEBUG_THREAD default to 0, and make sure it has a value */
+/* Let's make DEBUG_THREAD default to 1, and make sure it has a value */
 #ifndef DEBUG_THREAD
-# define DEBUG_THREAD 0
+# if defined(USE_THREAD)
+#  define DEBUG_THREAD 1
+# else
+#  define DEBUG_THREAD 0
+# endif
 #endif
 
 /* Let's make DEBUG_COUNTERS default to 1 to have glitches counters by default */
