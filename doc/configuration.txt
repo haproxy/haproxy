@@ -5512,7 +5512,7 @@ timeout server <timeout>
 
     ring myring
         description "My local buffer"
-        format rfc3164
+        format rfc5424
         maxlen 1200
         size 32764
         timeout connect 5s
