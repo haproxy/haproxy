@@ -260,7 +260,7 @@ void wait_for_threads_completion()
 	for (i = 1; i < global.nbthread; i++)
 		pthread_join(ha_pthread[i], NULL);
 
-#if (DEBUG_THREAD > 0) || defined(DEBUG_FULL)
+#if (DEBUG_THREAD > 1) || defined(DEBUG_FULL)
 	show_lock_stats();
 #endif
 }
@@ -394,12 +394,7 @@ static int thread_cpus_enabled()
 
 #if (DEBUG_THREAD > 0) || defined(DEBUG_FULL)
 
-struct lock_stat lock_stats_rd[LOCK_LABELS] = { };
-struct lock_stat lock_stats_sk[LOCK_LABELS] = { };
-struct lock_stat lock_stats_wr[LOCK_LABELS] = { };
-
-/* this is only used below */
-static const char *lock_label(enum lock_label label)
+const char *lock_label(enum lock_label label)
 {
 	switch (label) {
 	case TASK_RQ_LOCK:         return "TASK_RQ";
@@ -454,6 +449,13 @@ static const char *lock_label(enum lock_label label)
 	/* only way to come here is consecutive to an internal bug */
 	abort();
 }
+#endif
+
+#if (DEBUG_THREAD > 1) || defined(DEBUG_FULL)
+
+struct lock_stat lock_stats_rd[LOCK_LABELS] = { };
+struct lock_stat lock_stats_sk[LOCK_LABELS] = { };
+struct lock_stat lock_stats_wr[LOCK_LABELS] = { };
 
 /* returns the num read/seek/write for a given label by summing buckets */
 static uint64_t get_lock_stat_num_read(int lbl)
@@ -1140,7 +1142,7 @@ void __spin_unlock(enum lock_label lbl, struct ha_spinlock *l,
 	HA_ATOMIC_INC(&lock_stats_sk[lbl].num_unlocked);
 }
 
-#endif // (DEBUG_THREAD > 0) || defined(DEBUG_FULL)
+#endif // (DEBUG_THREAD > 1) || defined(DEBUG_FULL)
 
 
 #if defined(USE_PTHREAD_EMULATION)

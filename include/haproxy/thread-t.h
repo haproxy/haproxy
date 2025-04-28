@@ -98,7 +98,7 @@
 /* When thread debugging is enabled, we remap HA_SPINLOCK_T and HA_RWLOCK_T to
  * complex structures which embed debugging info.
  */
-#if (DEBUG_THREAD < 1) && !defined(DEBUG_FULL)
+#if (DEBUG_THREAD < 2) && !defined(DEBUG_FULL)
 
 #define HA_SPINLOCK_T        __HA_SPINLOCK_T
 #define HA_RWLOCK_T          __HA_RWLOCK_T
