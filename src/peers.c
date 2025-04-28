@@ -3237,7 +3237,12 @@ void peers_setup_frontend(struct proxy *fe)
 {
 	fe->mode = PR_MODE_PEERS;
 	fe->maxconn = 0;
-	fe->conn_retries = CONN_RETRIES;
+	fe->conn_retries = CONN_RETRIES; /* FIXME ignored since 91e785ed
+	                                  * ("MINOR: stream: Rely on a per-stream max connection retries value")
+	                                  * If this is really expected this should be set on the stream directly
+	                                  * because the proxy is not part of the main proxy list and thus
+	                                  * lacks the required post init for this setting to be considered
+	                                  */
 	fe->timeout.connect = MS_TO_TICKS(1000);
 	fe->timeout.client = MS_TO_TICKS(5000);
 	fe->timeout.server = MS_TO_TICKS(5000);
