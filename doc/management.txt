@@ -2406,6 +2406,7 @@ prompt [help | n | i | p | timed]*
 
   The prompt mode is more suited to human users, the interactive mode to
   advanced scripts, and the non-interactive mode (default) to basic scripts.
+  Note that the non-interactive mode is not available for the master socket.
 
 quit
   Close the connection when in interactive mode.

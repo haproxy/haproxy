@@ -2865,12 +2865,51 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 			*next_pid = target_pid;
 		return 1;
 	} else if (strcmp("prompt", args[0]) == 0) {
-		if (argl >= 2 && strcmp(args[1], "timed") == 0) {
-			s->pcli_flags |= PCLI_F_PROMPT;
-			s->pcli_flags ^= PCLI_F_TIMED;
+		int mode = 0;  // 0=default, 1="n" (not in master), 2="i", 3="p"
+		int timed = 0; // non-zero = "timed" present
+		int arg;
+
+		const char *usage =
+			"Usage: prompt [help | i | p | timed]*\n"
+			"Changes the default prompt and interactive mode. Available options:\n"
+			"  help    display this help\n"
+			"  i       set to interactive mode only (no prompt, multi-command)\n"
+			"  p       set to prompt+interactive mode (prompt + multi-command)\n"
+			"  timed   toggle displaying the current date in the prompt\n"
+			"Without any argument, toggles between i<->p.\n"
+			;
+
+		for (arg = 1; arg < argl; arg++) {
+			if (strcmp(args[arg], "i") == 0)
+				mode = 2;
+			else if (strcmp(args[arg], "p") == 0)
+				mode = 3;
+			else if (strcmp(args[arg], "timed") == 0)
+				timed = 1;
+			else {
+				memprintf(errmsg, "%s", usage);
+				return -1;
+			}
 		}
+
+		/* In timed mode, the default is to enable prompt+inter and toggle timed.
+		 * In other mode, the default is to toggle prompt+inter (n/i->p, p->n).
+		 */
+		if (timed) {
+			s->pcli_flags ^= PCLI_F_TIMED;
+			mode = mode ? mode : 3; // p by default
+		}
+
+		if (mode) {
+			/* force mode (i,p) */
+			s->pcli_flags &= ~PCLI_F_PROMPT;
+			s->pcli_flags |= (mode >= 3) ? PCLI_F_PROMPT : 0;
+		}
+		else if (~s->pcli_flags & PCLI_F_PROMPT)
+			s->pcli_flags |= PCLI_F_PROMPT; // p
 		else
-			s->pcli_flags ^= PCLI_F_PROMPT;
+			s->pcli_flags &= ~PCLI_F_PROMPT; // i
+
 		return argl; /* return the number of elements in the array */
 	} else if (strcmp("quit", args[0]) == 0) {
 		sc_schedule_abort(s->scf);
