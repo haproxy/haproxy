@@ -413,12 +413,19 @@ static int cfg_postsection_acme()
 
 	path = cur_acme->account.file;
 
+	if (!cur_acme->directory) {
+		err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
+		ha_alert("acme: No directory defined in ACME section '%s'.\n", cur_acme->name);
+		goto out;
+	}
+
 	store = ckch_store_new(path);
 	if (!store) {
 		ha_alert("acme: out of memory.\n");
 		err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
 		goto out;
 	}
+
 	/* tries to open the account key  */
 	if (stat(path, &st) == 0) {
 		if (ssl_sock_load_key_into_ckch(path, NULL, store->data, &errmsg)) {
