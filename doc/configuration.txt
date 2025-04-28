@@ -5579,31 +5579,31 @@ option dont-parse-log
 
 option host { replace | fill | keep | append }
   Set the host strategy that should be used on the log-forward section
-  regarding syslog host field for outbound rfc3164 or rfc5424 messages.
+  regarding syslog hostname field for outbound rfc3164 or rfc5424 messages.
 
-      replace If input message already contains a value for the host field,
+      replace If input message already contains a value for the hostname field,
               we replace it by the source IP address from the sender.
-              If input message doesn't contain a value for the host field (ie:
-              '-' as input rfc5424 message or non compliant rfc3164 or rfc5424
-              message), we use the source IP address from the sender as host
-              field.
-
-      fill    If input message already contains a value for the host field,
-              we keep it.
-              If input message doesn't contain a value for the host field
+              If input message doesn't contain a value for the hostname field
               (ie: '-' as input rfc5424 message or non compliant rfc3164 or
               rfc5424 message), we use the source IP address from the sender as
-              host field.
+              hostname field.
+
+      fill    If input message already contains a value for the hostname field,
+              we keep it.
+              If input message doesn't contain a value for the hostname field
+              (ie: '-' as input rfc5424 message or non compliant rfc3164 or
+              rfc5424 message), we use the source IP address from the sender as
+              hostname field.
               (This is the default)
 
-      keep    If input message already contains a value for the host field,
+      keep    If input message already contains a value for the hostname field,
               we keep it.
-              If input message doesn't contain a value for the host field,
+              If input message doesn't contain a value for the hostname field,
               we set it to 'localhost' (rfc3164) or '-' (rfc5424).
 
-      append  If input message already contains a value for the host field,
+      append  If input message already contains a value for the hostname field,
               we append a comma followed by the IP address from the sender.
-              If input message doesn't contain a value for the host field,
+              If input message doesn't contain a value for the hostname field,
               we use the source IP address from the sender.
 
   For all options above, if the source IP address from the sender is not
