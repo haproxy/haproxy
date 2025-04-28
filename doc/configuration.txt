@@ -5894,7 +5894,7 @@ ocsp-update [ off | on ]
 ----------
 
 The ACME protocol can be configured using the "acme" section. The section takes
-a <name> argument, which is used to link a certificate to the section.
+a "<name>" argument, which is used to link a certificate to the section.
 
 The ACME section allows to configure HAProxy as an ACMEv2 client. This feature
 is experimental meaning that "expose-experimental-directives" must be in the
