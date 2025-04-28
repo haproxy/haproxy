@@ -160,6 +160,7 @@ struct qcs {
 	} rx;
 	struct {
 		struct quic_fctl fc; /* stream flow control applied on sending */
+		struct quic_frame *msd_frm; /* MAX_STREAM_DATA frame prepared */
 	} tx;
 
 	struct eb64_node by_id;
