@@ -321,7 +321,7 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 	/* always show the prompt/help/quit commands */
 	chunk_strcat(tmp,
 	             "  help [<command>]                        : list matching or all commands\n"
-	             "  prompt [timed]                          : toggle interactive mode with prompt\n"
+	             "  prompt [help | n | i | p | timed ]*     : toggle interactive mode with prompt\n"
 	             "  quit                                    : disconnect\n");
 
 	chunk_init(&out, NULL, 0);
@@ -2494,14 +2494,55 @@ static int cli_parse_simple(char **args, char *payload, struct appctx *appctx, v
 	if (*args[0] == 'h')
 		/* help */
 		cli_gen_usage_msg(appctx, args);
-	else if (*args[0] == 'p')
+	else if (*args[0] == 'p') {
 		/* prompt */
-		if (strcmp(args[1], "timed") == 0) {
-			appctx->st1 |= APPCTX_CLI_ST1_PROMPT | APPCTX_CLI_ST1_INTER;
-			appctx->st1 ^= APPCTX_CLI_ST1_TIMED;
+		int mode = 0;  // 0=default, 1="n", 2="i", 3="p"
+		int timed = 0; // non-zero = "timed" present
+		int arg;
+		const char *usage =
+			"Usage: prompt [help | n | i | p | timed]*\n"
+			"Changes the default prompt and interactive mode. Available options:\n"
+			"  help    display this help\n"
+			"  n       set to single-command mode (no prompt, single command)\n"
+			"  i       set to interactive mode only (no prompt, multi-command)\n"
+			"  p       set to prompt+interactive mode (prompt + multi-command)\n"
+			"  timed   toggle displaying the current date in the prompt\n"
+			"Without any argument, toggles between n/i->p, p->n.\n"
+			;
+
+		for (arg = 1; *args[arg]; arg++) {
+			if (strcmp(args[arg], "n") == 0)
+				mode = 1;
+			else if (strcmp(args[arg], "i") == 0)
+				mode = 2;
+			else if (strcmp(args[arg], "p") == 0)
+				mode = 3;
+			else if (strcmp(args[arg], "timed") == 0)
+				timed = 1;
+			else if (strcmp(args[arg], "help") == 0)
+				return cli_msg(appctx, LOG_INFO, usage);
+			else
+				return cli_err(appctx, usage);
 		}
+		/* In timed mode, the default is to enable prompt+inter and toggle timed.
+		 * In other mode, the default is to toggle prompt+inter (n/i->p, p->n).
+		 */
+		if (timed) {
+			appctx->st1 &= ~(APPCTX_CLI_ST1_PROMPT | APPCTX_CLI_ST1_INTER);
+			appctx->st1 ^= APPCTX_CLI_ST1_TIMED;
+			mode = mode ? mode : 3; // p by default
+		}
+
+		if (mode) {
+			/* force mode (n,i,p) */
+			appctx->st1 &= ~(APPCTX_CLI_ST1_PROMPT | APPCTX_CLI_ST1_INTER);
+			appctx->st1 |= ((mode >= 3) ? APPCTX_CLI_ST1_PROMPT : 0)  | ((mode >= 2) ? APPCTX_CLI_ST1_INTER : 0);
+		}
+		else if (~appctx->st1 & (APPCTX_CLI_ST1_PROMPT | APPCTX_CLI_ST1_INTER))
+			appctx->st1 |= APPCTX_CLI_ST1_PROMPT | APPCTX_CLI_ST1_INTER;    // p
 		else
-			appctx->st1 ^= APPCTX_CLI_ST1_PROMPT | APPCTX_CLI_ST1_INTER;
+			appctx->st1 &= ~(APPCTX_CLI_ST1_PROMPT | APPCTX_CLI_ST1_INTER); // n
+	}
 	else if (*args[0] == 'q') {
 		/* quit */
 		applet_set_eoi(appctx);

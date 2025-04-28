@@ -1511,9 +1511,10 @@ that the terminal is handled by the readline library which supports line
 editing and history, which is very convenient when issuing repeated commands
 (eg: watch a counter).
 
-The socket supports two operation modes :
-  - interactive
-  - non-interactive
+The socket supports three operation modes :
+  - non-interactive, silent
+  - interactive, silent
+  - interactive with prompt
 
 The non-interactive mode is the default when socat connects to the socket. In
 this mode, a single line may be sent. It is processed as a whole, responses are
@@ -1527,12 +1528,25 @@ example :
 If a command needs to use a semi-colon or a backslash (eg: in a value), it
 must be preceded by a backslash ('\').
 
-The interactive mode displays a prompt ('>') and waits for commands to be
-entered on the line, then processes them, and displays the prompt again to wait
-for a new command. This mode is entered via the "prompt" command which must be
-sent on the first line in non-interactive mode. The mode is a flip switch, if
-"prompt" is sent in interactive mode, it is disabled and the connection closes
-after processing the last command of the same line.
+The interactive mode allows new commands to be sent after the ones from the
+previous lines finish. It exists in two variants, one silent, which works like
+the non-interactive mode except that the socket waits for a new command instead
+of closing, and one where a prompt is displayed ('>') at the beginning of the
+line. The interactive mode is preferred for advanced tools while the prompt
+mode is preferred for humans.
+
+The mode can be changed using the "prompt" command. By default, it toggles the
+interactive+prompt modes. Entering "prompt" in interactive mode will switch to
+prompt mode. The command optionally takes a specific mode among which:
+
+  - "n" : non-interactive mode (single command and quits)
+  - "i" : interactive mode (multiple commands, no prompt)
+  - "p" : prompt mode (multiple commands with a prompt)
+
+Since the default mode is non-interactive, "prompt" must be used as the first
+command in order to switch it, otherwise the previous command will cause the
+connection to be closed. Switching to non-interactive mode will result in the
+connection to be closed after all the commands of the same line complete.
 
 For this reason, when debugging by hand, it's quite common to start with the
 "prompt" command :
@@ -1542,6 +1556,9 @@ For this reason, when debugging by hand, it's quite common to start with the
    > show info
    ...
    >
+
+Interactive tools might prefer starting with "prompt i" to switch to interactive
+mode without the prompt.
 
 Optionally the process' uptime may be displayed in the prompt. In order to
 enable this, the "prompt timed" command will enable the prompt and toggle the
@@ -2369,15 +2386,26 @@ prepare map <map>
   committed. Version numbers are unsigned 32-bit values which wrap at the end,
   so care must be taken when comparing them in an external program.
 
-prompt
-  Toggle the prompt at the beginning of the line and enter or leave interactive
-  mode. In interactive mode, the connection is not closed after a command
-  completes. Instead, the prompt will appear again, indicating the user that
-  the interpreter is waiting for a new command. The prompt consists in a right
-  angle bracket followed by a space "> ". This mode is particularly convenient
-  when one wants to periodically check information such as stats or errors.
-  It is also a good idea to enter interactive mode before issuing a "help"
-  command.
+prompt [help | n | i | p | timed]*
+  Changes the behavior of the interactive mode and the prompt displayed at the
+  beginning of the line in interactive mode:
+    - "help"    : displays the command's usage
+    - "n"       : switches to non-interactive mode
+    - "i"       : switches to interactive mode
+    - "p"       : switches to interactive + prompt mode
+    - "timed"   : toggles displaying the time in the prompt
+
+  Without any option, this will cycle through prompt mode then non-interactive
+  mode. In non-interactive mode, the connection is closed after the last
+  command of the current line compltes. In interactive mode, the connection is
+  not closed after a command completes, so that a new one can be entered. In
+  prompt mode, the interactive mode is still in use, and a prompt will appear
+  at the beginning of the line, indicating to the user that the interpreter is
+  waiting for a new command. The prompt consists in a right angle bracket
+  followed by a space "> ".
+
+  The prompt mode is more suited to human users, the interactive mode to
+  advanced scripts, and the non-interactive mode (default) to basic scripts.
 
 quit
   Close the connection when in interactive mode.
