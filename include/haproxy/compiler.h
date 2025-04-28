@@ -55,6 +55,24 @@
 #define ___equals_1(x)       ____equals_1(comma_for_one ## x 1)
 #define __equals_1(x)        ___equals_1(x)
 
+/* same but checks if defined as zero, useful to distinguish between -DFOO and
+ * -DFOO=0.
+ */
+#define comma_for_zero0 ,
+#define _____equals_0(x, y, ...) (y)
+#define ____equals_0(x, ...) _____equals_0(x, 0)
+#define ___equals_0(x)       ____equals_0(comma_for_zero ## x 1)
+#define __equals_0(x)        ___equals_0(x)
+
+/* same but checks if defined as empty, useful to distinguish between -DFOO= and
+ * -DFOO=anything.
+ */
+#define comma_for_empty ,
+#define _____def_as_empty(x, y, ...) (y)
+#define ____def_as_empty(x, ...) _____def_as_empty(x, 0)
+#define ___def_as_empty(x)       ____def_as_empty(comma_for_empty ## x 1)
+#define __def_as_empty(x)        ___def_as_empty(x)
+
 /* gcc 5 and clang 3 brought __has_attribute(), which is not well documented in
  * the case of gcc, but is convenient since handled at the preprocessor level.
  * In both cases it's possible to test for __has_attribute() using ifdef. When
