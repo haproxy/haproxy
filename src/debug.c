@@ -352,6 +352,23 @@ void ha_thread_dump_one(struct buffer *buf, int is_caller)
 	chunk_appendf(buf, "             curr_task=");
 	ha_task_dump(buf, th_ctx->current, "             ");
 
+#if defined(USE_THREAD) && ((DEBUG_THREAD > 0) || defined(DEBUG_FULL))
+	/* List the lock history */
+	if (th_ctx->lock_history) {
+		int lkh, lkl;
+
+		chunk_appendf(buf, "             lock_hist:");
+		for (lkl = 7; lkl >= 0; lkl--) {
+			lkh = (th_ctx->lock_history >> (lkl * 8)) & 0xff;
+			if (!lkh)
+				continue;
+			chunk_appendf(buf, " %c:%s",
+				      "URSW"[lkh & 3], lock_label((lkh >> 2) - 1));
+		}
+		chunk_appendf(buf, "\n");
+	}
+#endif
+
 	if (!(HA_ATOMIC_LOAD(&tg_ctx->threads_idle) & ti->ltid_bit)) {
 		/* only dump the stack of active threads */
 #ifdef USE_LUA

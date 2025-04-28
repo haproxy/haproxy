@@ -49,6 +49,7 @@ int thread_map_to_groups();
 int thread_resolve_group_mask(struct thread_set *ts, int defgrp, char **err);
 void thread_detect_count(void);
 int parse_thread_set(const char *arg, struct thread_set *ts, char **err);
+const char *lock_label(enum lock_label label);
 extern int thread_cpus_enabled_at_boot;
 
 
