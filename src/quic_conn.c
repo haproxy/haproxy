@@ -1442,6 +1442,10 @@ void quic_conn_release(struct quic_conn *qc)
 		HA_ATOMIC_DEC(&qc->li->rx.quic_curr_accept);
 	}
 
+	/* Substract last congestion window from global memory counter. */
+	cshared_add(&quic_mem_diff, -qc->path->cwnd);
+	qc->path->cwnd = 0;
+
 	/* free remaining stream descriptors */
 	node = eb64_first(&qc->streams_by_id);
 	while (node) {

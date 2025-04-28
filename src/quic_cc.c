@@ -20,8 +20,10 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+#include <haproxy/proto_quic.h>
 #include <haproxy/quic_cc.h>
 #include <haproxy/quic_pacing.h>
+#include <haproxy/thread.h>
 
 struct quic_cc_algo *default_quic_cc_algo = &quic_cc_algo_cubic;
 
@@ -79,14 +81,19 @@ static int quic_cwnd_may_increase(const struct quic_cc_path *path)
 /* Restore congestion window for <path> to its minimal value. */
 void quic_cc_path_reset(struct quic_cc_path *path)
 {
+	const uint64_t old = path->cwnd;
 	path->cwnd = path->limit_min;
+	cshared_add(&quic_mem_diff, path->cwnd - old);
 }
 
 /* Set congestion window for <path> to <val>. Min and max limits are enforced. */
 void quic_cc_path_set(struct quic_cc_path *path, uint64_t val)
 {
+	const uint64_t old = path->cwnd;
+
 	path->cwnd = QUIC_MIN(val, path->limit_max);
 	path->cwnd = QUIC_MAX(path->cwnd, path->limit_min);
+	cshared_add(&quic_mem_diff, path->cwnd - old);
 
 	path->cwnd_last_max = QUIC_MAX(path->cwnd, path->cwnd_last_max);
 }
@@ -97,9 +104,12 @@ void quic_cc_path_set(struct quic_cc_path *path, uint64_t val)
  */
 void quic_cc_path_inc(struct quic_cc_path *path, uint64_t val)
 {
+	const uint64_t old = path->cwnd;
+
 	if (quic_cwnd_may_increase(path)) {
 		path->cwnd = QUIC_MIN(path->cwnd + val, path->limit_max);
 		path->cwnd = QUIC_MAX(path->cwnd, path->limit_min);
+		cshared_add(&quic_mem_diff, path->cwnd - old);
 
 		path->cwnd_last_max = QUIC_MAX(path->cwnd, path->cwnd_last_max);
 	}

@@ -48,10 +48,14 @@
 #include <haproxy/sock.h>
 #include <haproxy/sock_inet.h>
 #include <haproxy/task.h>
+#include <haproxy/thread.h>
 #include <haproxy/tools.h>
 
 /* per-thread quic datagram handlers */
 struct quic_dghdlr *quic_dghdlrs;
+
+static uint64_t quic_mem_global;
+THREAD_LOCAL struct cshared quic_mem_diff;
 
 /* Size of the internal buffer of QUIC RX buffer at the fd level */
 #define QUIC_RX_BUFSZ  (1UL << 18)
@@ -658,6 +662,14 @@ static void quic_bind_tid_reset(struct connection *conn)
 	struct quic_conn *qc = conn->handle.qc;
 	qc_bind_tid_reset(qc);
 }
+
+static int quic_init_mem(void)
+{
+	/* 1024 is enough to limit modification on global counter but keeping it precise enough even with a lot of threads */
+	cshared_init(&quic_mem_diff, &quic_mem_global, 1024);
+	return 1;
+}
+REGISTER_PER_THREAD_INIT(quic_init_mem);
 
 static int quic_alloc_dghdlrs(void)
 {
