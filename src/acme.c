@@ -45,6 +45,7 @@ enum acme_ret {
 	ACME_RET_FAIL = 2
 };
 
+static EVP_PKEY *acme_EVP_PKEY_gen(int keytype, int curves, int bits, char **errmsg);
 
 /* Return an existing acme_cfg section */
 struct acme_cfg *get_acme_cfg(const char *name)
@@ -1912,6 +1913,45 @@ error:
 
 }
 
+/* Return a new Generated private key of type <keytype> with <bits> and <curves> */
+static EVP_PKEY *acme_EVP_PKEY_gen(int keytype, int curves, int bits, char **errmsg)
+{
+
+	EVP_PKEY_CTX *pkey_ctx = NULL;
+	EVP_PKEY *pkey = NULL;
+
+	if ((pkey_ctx = EVP_PKEY_CTX_new_id(keytype, NULL)) == NULL) {
+		memprintf(errmsg, "%sCan't generate a private key.\n", *errmsg ? *errmsg : "");
+		goto err;
+	}
+
+	if (EVP_PKEY_keygen_init(pkey_ctx) <= 0) {
+		memprintf(errmsg, "%sCan't generate a private key.\n", *errmsg ? *errmsg : "");
+		goto err;
+	}
+
+	if (keytype == EVP_PKEY_EC) {
+		if (EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pkey_ctx, curves) <= 0) {
+			memprintf(errmsg, "%sCan't set the curves on the new private key.\n", *errmsg ? *errmsg : "");
+			goto err;
+		}
+	} else if (keytype == EVP_PKEY_RSA) {
+		if (EVP_PKEY_CTX_set_rsa_keygen_bits(pkey_ctx, bits) <= 0) {
+			memprintf(errmsg, "%sCan't set the bits on the new private key.\n", *errmsg ? *errmsg : "");
+			goto err;
+		}
+	}
+
+	if (EVP_PKEY_keygen(pkey_ctx, &pkey) <= 0) {
+		memprintf(errmsg, "%sCan't generate a private key.\n", *errmsg ? *errmsg : "");
+		goto err;
+	}
+
+err:
+	EVP_PKEY_CTX_free(pkey_ctx);
+	return pkey;
+}
+
 static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	char *err = NULL;
@@ -1919,7 +1959,6 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 	struct task *task;
 	struct acme_ctx *ctx = NULL;
 	struct ckch_store *store = NULL, *newstore = NULL;
-	EVP_PKEY_CTX *pkey_ctx = NULL;
 	EVP_PKEY *pkey = NULL;
 
 	if (!*args[1]) {
@@ -1980,40 +2019,14 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 	/* set the number of remaining retries when facing an error */
 	ctx->retries = ACME_RETRY;
 
-	if ((pkey_ctx = EVP_PKEY_CTX_new_id(cfg->key.type, NULL)) == NULL) {
-		memprintf(&err, "%sCan't generate a private key.\n", err ? err : "");
+	if ((pkey = acme_EVP_PKEY_gen(cfg->key.type, cfg->key.curves, cfg->key.bits, &err)) == NULL)
 		goto err;
-	}
-
-	if (EVP_PKEY_keygen_init(pkey_ctx) <= 0) {
-		memprintf(&err, "%sCan't generate a private key.\n", err ? err : "");
-		goto err;
-	}
-
-	if (cfg->key.type == EVP_PKEY_EC) {
-		if (EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pkey_ctx, cfg->key.curves) <= 0) {
-			memprintf(&err, "%sCan't set the curves on the new private key.\n", err ? err : "");
-			goto err;
-		}
-	} else if (cfg->key.type == EVP_PKEY_RSA) {
-		if (EVP_PKEY_CTX_set_rsa_keygen_bits(pkey_ctx, cfg->key.bits) <= 0) {
-			memprintf(&err, "%sCan't set the bits on the new private key.\n", err ? err : "");
-			goto err;
-		}
-	}
-
-	if (EVP_PKEY_keygen(pkey_ctx, &pkey) <= 0) {
-		memprintf(&err, "%sCan't generate a private key.\n", err ? err : "");
-		goto err;
-	}
-
-	EVP_PKEY_CTX_free(pkey_ctx);
 
 	EVP_PKEY_free(newstore->data->key);
 	newstore->data->key = pkey;
 	pkey = NULL;
 
-	ctx->req = acme_x509_req(pkey, store->conf.acme.domains);
+	ctx->req = acme_x509_req(newstore->data->key, store->conf.acme.domains);
 	if (!ctx->req) {
 		memprintf(&err, "%sCan't generate a CSR.\n", err ? err : "");
 		goto err;
@@ -2031,7 +2044,6 @@ err:
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 	EVP_PKEY_free(pkey);
 	ckch_store_free(newstore);
-	EVP_PKEY_CTX_free(pkey_ctx);
 	free(ctx);
 	memprintf(&err, "%sCan't start the ACME client.\n", err ? err : "");
 	return cli_dynerr(appctx, err);
