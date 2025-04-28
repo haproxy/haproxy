@@ -41,11 +41,12 @@
 #define ACCESS_MCLI_SEVERITY_STR 0x0200 /* 'set severity-output string' on master CLI */
 
 /* flags for appctx->st1 */
-#define APPCTX_CLI_ST1_PROMPT  (1 << 0)
-#define APPCTX_CLI_ST1_PAYLOAD (1 << 1)
-#define APPCTX_CLI_ST1_NOLF    (1 << 2)
-#define APPCTX_CLI_ST1_TIMED   (1 << 3)
-#define APPCTX_CLI_ST1_LASTCMD (1 << 4)
+#define APPCTX_CLI_ST1_PAYLOAD (1 << 0)
+#define APPCTX_CLI_ST1_NOLF    (1 << 1)
+#define APPCTX_CLI_ST1_LASTCMD (1 << 2)
+#define APPCTX_CLI_ST1_INTER   (1 << 3) /* interactive mode (i.e. don't close after 1st cmd) */
+#define APPCTX_CLI_ST1_PROMPT  (1 << 4) /* display prompt */
+#define APPCTX_CLI_ST1_TIMED   (1 << 5) /* display timer in prompt */
 
 #define CLI_PREFIX_KW_NB 5
 #define CLI_MAX_MATCHES 5

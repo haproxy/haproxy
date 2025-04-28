@@ -1260,7 +1260,7 @@ void cli_io_handler(struct appctx *appctx)
 				appctx->cli_ctx.payload = NULL;
 				appctx->cli_ctx.cmdline = NULL;
 				appctx->st1 &= ~APPCTX_CLI_ST1_LASTCMD;
-				if (appctx->st1 & APPCTX_CLI_ST1_PROMPT) {
+				if (appctx->st1 & APPCTX_CLI_ST1_INTER) {
 					appctx->st0 = CLI_ST_PARSE_CMDLINE;
 					applet_will_consume(appctx);
 					applet_expect_data(appctx);
@@ -2497,11 +2497,11 @@ static int cli_parse_simple(char **args, char *payload, struct appctx *appctx, v
 	else if (*args[0] == 'p')
 		/* prompt */
 		if (strcmp(args[1], "timed") == 0) {
-			appctx->st1 |= APPCTX_CLI_ST1_PROMPT;
+			appctx->st1 |= APPCTX_CLI_ST1_PROMPT | APPCTX_CLI_ST1_INTER;
 			appctx->st1 ^= APPCTX_CLI_ST1_TIMED;
 		}
 		else
-			appctx->st1 ^= APPCTX_CLI_ST1_PROMPT;
+			appctx->st1 ^= APPCTX_CLI_ST1_PROMPT | APPCTX_CLI_ST1_INTER;
 	else if (*args[0] == 'q') {
 		/* quit */
 		applet_set_eoi(appctx);
