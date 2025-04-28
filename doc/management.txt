@@ -3805,7 +3805,7 @@ show ssl providers
         - fips
         - base
 
-show ssl sni [-f <frontend>] [-A]
+show ssl sni [-f <frontend>] [-A] [-t <offset>]
   Dump every SNI configured for the designated frontend, or all frontends if no
   frontend was specified. It allows to see what SNI are offered for a frontend,
   and to identify if a SNI is defined multiple times by multiple certificates for
@@ -3813,6 +3813,12 @@ show ssl sni [-f <frontend>] [-A]
 
   The -A option allows to filter the list and only displays the certificates
   that are past the notAfter date, allowing to show only expired certificates.
+
+  The -t option takes an offset in seconds, or with a time unit (s, m, h, d),
+  which is added to the current time, allowing to check which certificates
+  expired after the offset when combined with -A.
+  For example if you want to check which certificates would be expired in 30d,
+  just do "show ssl sni -A -t 30d".
 
   Columns are separated by a single \t, allowing to parse it simply.
 
@@ -3837,7 +3843,7 @@ show ssl sni [-f <frontend>] [-A]
   leaf certificate.
 
   Example:
-    $ echo "@1 show ssl sni" | socat /var/run/haproxy-master.sock - | column -t -s $'\t'
+    $ echo "@1 show ssl sni -A -t 30d" | socat /var/run/haproxy-master.sock - | column -t -s $'\t'
     # Frontend/Bind        SNI        Negative Filter  Type   Filename             NotAfter                  NotBefore
     li1/haproxy.cfg:10021  *.ex.lan   !m1.ex.lan       rsa    example.lan.pem      Jun 13 13:37:21 2024 GMT  May 14 13:37:21 2024 GMT
     li1/haproxy.cfg:10021  machine10  -                ecdsa  machine10.pem.ecdsa  Jun 13 13:37:21 2024 GMT  May 14 13:37:21 2024 GMT

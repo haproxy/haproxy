@@ -98,6 +98,7 @@ struct show_sni_ctx {
 	struct ebmb_node *n;
 	int nodetype;
 	int options;
+	unsigned int offset;
 };
 
 /* CLI context used by "dump ssl cert" */
@@ -1713,7 +1714,7 @@ static int cli_io_handler_show_sni(struct appctx *appctx)
 #ifdef HAVE_ASN1_TIME_TO_TM
 					if (ctx->options & SHOW_SNI_OPT_NOTAFTER) {
 						time_t notAfter = x509_get_notafter_time_t(sni->ckch_inst->ckch_store->data->cert);
-						if (!(date.tv_sec > notAfter))
+						if (!(date.tv_sec+ctx->offset > notAfter))
 							continue;
 					}
 #endif
@@ -1788,7 +1789,7 @@ yield:
 }
 
 
-/* parsing function for 'show ssl sni [-f <frontend>] [-A]' */
+/* parsing function for 'show ssl sni [-f <frontend>] [-A] [-t <offset>]' */
 static int cli_parse_show_sni(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct show_sni_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
@@ -1832,9 +1833,35 @@ static int cli_parse_show_sni(char **args, char *payload, struct appctx *appctx,
 			return cli_err(appctx, "'-A' option is only supported with OpenSSL >= 1.1.1!\n");
 #endif
 
+		} else if (strcmp(args[cur_arg], "-t") == 0) {
+			unsigned int offset;
+			const char *res;
+			char *err = NULL;
+
+			if (*args[cur_arg+1] == '\0')
+				return cli_err(appctx, "'-t' requires an offset argument!\n");
+
+			res = parse_time_err(args[cur_arg+1], &offset, TIME_UNIT_S);
+
+			if (res == PARSE_TIME_OVER) {
+				return cli_dynerr(appctx, memprintf(&err, "offset overflow '%s' (maximum value is 2147483647s or ~24855 days)", args[cur_arg+1]));
+			}
+			else if (res == PARSE_TIME_UNDER) {
+				return cli_dynerr(appctx, memprintf(&err, "timer underflow '%s' (minimum non-null value is 1s)", args[cur_arg+1]));
+			}
+			else if (res) {
+				return cli_dynerr(appctx, memprintf(&err, "'%s %s' : unexpected character '%c'", args[cur_arg], args[cur_arg+1], *res));
+			}
+
+			if (!offset) {
+				return cli_dynerr(appctx, memprintf(&err, "'%s' expects a positive value", args[cur_arg]));
+			}
+
+			ctx->offset = offset;
+			cur_arg++; /* skip the argument */
 		} else {
 
-			return cli_err(appctx, "Invalid parameters, 'show ssl sni' only supports '-f', or '-A' options!\n");
+			return cli_err(appctx, "Invalid parameters, 'show ssl sni' only supports '-f', '-A' or '-t' options!\n");
 		}
 		cur_arg++;
 	}
