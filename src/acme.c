@@ -2011,6 +2011,7 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 
 	EVP_PKEY_free(newstore->data->key);
 	newstore->data->key = pkey;
+	pkey = NULL;
 
 	ctx->req = acme_x509_req(pkey, store->conf.acme.domains);
 	if (!ctx->req) {
@@ -2028,6 +2029,7 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 
 err:
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	EVP_PKEY_free(pkey);
 	ckch_store_free(newstore);
 	EVP_PKEY_CTX_free(pkey_ctx);
 	free(ctx);
