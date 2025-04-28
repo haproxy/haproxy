@@ -446,7 +446,7 @@ static int cfg_postsection_acme()
 
 	trash.data = jws_thumbprint(cur_acme->account.pkey, trash.area, trash.size);
 
-	cur_acme->account.thumbprint = strndup(trash.area, trash.data);
+	cur_acme->account.thumbprint = my_strndup(trash.area, trash.data);
 	if (!cur_acme->account.thumbprint) {
 		ha_alert("acme: out of memory.\n");
 		err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
@@ -1887,7 +1887,7 @@ X509_REQ *acme_x509_req(EVP_PKEY *pkey, char **san)
 	for (i = 0; san[i]; i++) {
 		chunk_appendf(san_trash, "%sDNS:%s", i ? "," : "", san[i]);
 	}
-	str_san = strndup(san_trash->area, san_trash->data);
+	str_san = my_strndup(san_trash->area, san_trash->data);
 
 	if ((ext_san = X509V3_EXT_conf_nid(NULL, NULL, NID_subject_alt_name, str_san)) == NULL)
 		goto error;
