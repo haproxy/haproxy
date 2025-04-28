@@ -398,6 +398,7 @@ static int cfg_postsection_acme()
 	int err_code = 0;
 	char *errmsg = NULL;
 	char *path;
+	char store_path[PATH_MAX]; /* complete path with crt_base */
 	struct stat st;
 
 	/* TODO: generate a key at startup and dumps on the filesystem
@@ -413,7 +414,21 @@ static int cfg_postsection_acme()
 		}
 	}
 
-	path = cur_acme->account.file;
+
+	if (global_ssl.crt_base && *cur_acme->account.file != '/') {
+		int rv;
+		/* When no crt_store name, complete the name in the ckch_tree with 'crt-base' */
+
+		rv = snprintf(store_path, sizeof(store_path), "%s/%s", global_ssl.crt_base, cur_acme->account.file);
+		if (rv >= sizeof(store_path)) {
+			ha_alert(errmsg, "'%s/%s' : path too long", global_ssl.crt_base, cur_acme->account.file);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		path = store_path;
+	} else {
+		path = cur_acme->account.file;
+	}
 
 	if (!cur_acme->directory) {
 		err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
@@ -440,7 +455,7 @@ static int cfg_postsection_acme()
 		}
 		/* ha_notice("acme: reading account key '%s' for id '%s'.\n", path, cur_acme->name); */
 	} else {
-		ha_notice("acme: generate account key '%s' for acme section '%s'.\n", cur_acme->account.file, cur_acme->name);
+		ha_notice("acme: generate account key '%s' for acme section '%s'.\n", path, cur_acme->name);
 
 		if ((key = acme_EVP_PKEY_gen(cur_acme->key.type, cur_acme->key.curves, cur_acme->key.bits, &errmsg)) == NULL) {
 			ha_alert("acme: %s\n", errmsg);
