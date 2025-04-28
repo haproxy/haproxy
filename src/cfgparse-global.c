@@ -1472,10 +1472,15 @@ static int cfg_parse_global_env_opts(char **args, int section_type,
 	if (strcmp(args[0], "setenv") == 0 || strcmp(args[0], "presetenv") == 0) {
 		if (too_many_args(2, args, err, NULL))
 			return -1;
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects environment variable name.\n.",
+				  args[0]);
+			return -1;
+		}
 
 		if (*(args[2]) == 0) {
-			memprintf(err, "'%s' expects an env variable name and a value.\n.",
-				  args[0]);
+			memprintf(err, "'%s' expects environment variable value for '%s'.\n.",
+				  args[0], args[1]);
 			return -1;
 		}
 
