@@ -393,6 +393,8 @@ static int cfg_postsection_acme()
 {
 	struct acme_cfg *cur_acme = acme_cfgs;
 	struct ckch_store *store;
+	EVP_PKEY *key = NULL;
+	BIO *bio = NULL;
 	int err_code = 0;
 	char *errmsg = NULL;
 	char *path;
@@ -438,11 +440,28 @@ static int cfg_postsection_acme()
 		}
 		/* ha_notice("acme: reading account key '%s' for id '%s'.\n", path, cur_acme->name); */
 	} else {
-		ha_alert("%s '%s' is not present and can't be generated, please provide an account file.\n", errmsg, path);
-		err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
-		goto out;
-	}
+		ha_notice("acme: generate account key '%s' for acme section '%s'.\n", cur_acme->account.file, cur_acme->name);
 
+		if ((key = acme_EVP_PKEY_gen(cur_acme->key.type, cur_acme->key.curves, cur_acme->key.bits, &errmsg)) == NULL) {
+			ha_alert("acme: %s\n", errmsg);
+			goto out;
+		}
+
+		if ((bio = BIO_new_file(store->path, "w+")) == NULL) {
+			ha_alert("acme: out of memory.\n");
+			err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
+			goto out;
+		}
+
+		if ((PEM_write_bio_PrivateKey(bio, key, NULL, NULL, 0, NULL, NULL)) == 0) {
+			ha_alert("acme: cannot write account key '%s'.\n", cur_acme->account.file);
+			err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
+			goto out;
+		}
+
+		store->data->key = key;
+		key = NULL;
+	}
 
 	if (store->data->key == NULL) {
 		ha_alert("acme: No Private Key found in '%s'.\n", path);
@@ -451,6 +470,7 @@ static int cfg_postsection_acme()
 	}
 
 	cur_acme->account.pkey = store->data->key;
+	EVP_PKEY_up_ref(cur_acme->account.pkey);
 
 	trash.data = jws_thumbprint(cur_acme->account.pkey, trash.area, trash.size);
 
@@ -465,6 +485,8 @@ static int cfg_postsection_acme()
 	ebst_insert(&ckchs_tree, &store->node);
 
 out:
+	EVP_PKEY_free(key);
+	BIO_free_all(bio);
 	ha_free(&errmsg);
 	return err_code;
 }
