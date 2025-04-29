@@ -12845,6 +12845,7 @@ ssl-f-use [<sslbindconf> ...]*
 
     frontend https
         bind :443 ssl
+        bind quic4@:443 ssl
         ssl-f-use crt foobar.pem.rsa sigalgs "RSA-PSS+SHA256"
         ssl-f-use crt test.foobar.pem
         ssl-f-use crt test2.foobar.crt key test2.foobar.key ocsp test2.foobar.ocsp ocsp-update on
