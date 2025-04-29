@@ -1697,6 +1697,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.frontend.max-data-size
    - tune.quic.frontend.max-idle-timeout
    - tune.quic.frontend.max-streams-bidi
+   - tune.quic.frontend.max-tx-mem
    - tune.quic.frontend.stream-data-ratio
    - tune.quic.frontend.default-max-window-size
    - tune.quic.max-frame-loss
@@ -4445,6 +4446,14 @@ tune.quic.frontend.max-streams-bidi <number>
 
   See also: "tune.quic.frontend.max-data-size",
             "tune.quic.frontend.stream-data-ratio"
+
+tune.quic.frontend.max-tx-mem <size>
+  Sets the maximum amount of memory usable by QUIC stack at the transport layer
+  for emission. This serves both as a limit of in flight bytes and multiplexer
+  output buffers. Note that to prevent threads contention this limit is not
+  strictly enforced so it can be exceeded on some occasions. Also, each
+  connection will always be able to use a window of at least 2 datagrams, so a
+  proper maxconn should be used in conjunction.
 
 tune.quic.frontend.stream-data-ratio  <0..100, in percent>
   This setting allows to configure the hard limit of the number of data bytes

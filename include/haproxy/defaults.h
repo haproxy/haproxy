@@ -645,4 +645,13 @@
 #define FWLC_MIN_FREE_ENTRIES 500
 #endif /* FWLC_MIN_FREE_ENTRIES */
 
+/*
+ * QUIC
+ */
+
+/* Memory usage in bytes on Tx side, 0 for unlimited. */
+#ifndef QUIC_MAX_TX_MEM
+#define QUIC_MAX_TX_MEM 0
+#endif
+
 #endif /* _HAPROXY_DEFAULTS_H */

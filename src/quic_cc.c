@@ -78,6 +78,22 @@ static int quic_cwnd_may_increase(const struct quic_cc_path *path)
 	return 2 * path->in_flight >= path->cwnd  || path->cwnd < 16384;
 }
 
+/* Calculate ratio of free memory relative to the maximum configured limit. */
+static int quic_cc_max_win_ratio(void)
+{
+	uint64_t tot, free = 0;
+	int ratio = 100;
+
+	if (global.tune.quic_frontend_max_tx_mem) {
+		tot = cshared_read(&quic_mem_diff);
+		if (global.tune.quic_frontend_max_tx_mem > tot)
+			free = global.tune.quic_frontend_max_tx_mem - tot;
+		ratio = free * 100 / global.tune.quic_frontend_max_tx_mem;
+	}
+
+	return ratio;
+}
+
 /* Restore congestion window for <path> to its minimal value. */
 void quic_cc_path_reset(struct quic_cc_path *path)
 {
@@ -90,8 +106,9 @@ void quic_cc_path_reset(struct quic_cc_path *path)
 void quic_cc_path_set(struct quic_cc_path *path, uint64_t val)
 {
 	const uint64_t old = path->cwnd;
+	const uint64_t limit_max = path->limit_max * quic_cc_max_win_ratio() / 100;
 
-	path->cwnd = QUIC_MIN(val, path->limit_max);
+	path->cwnd = QUIC_MIN(val, limit_max);
 	path->cwnd = QUIC_MAX(path->cwnd, path->limit_min);
 	cshared_add(&quic_mem_diff, path->cwnd - old);
 
@@ -105,9 +122,11 @@ void quic_cc_path_set(struct quic_cc_path *path, uint64_t val)
 void quic_cc_path_inc(struct quic_cc_path *path, uint64_t val)
 {
 	const uint64_t old = path->cwnd;
+	uint64_t limit_max;
 
 	if (quic_cwnd_may_increase(path)) {
-		path->cwnd = QUIC_MIN(path->cwnd + val, path->limit_max);
+		limit_max = path->limit_max * quic_cc_max_win_ratio() / 100;
+		path->cwnd = QUIC_MIN(path->cwnd + val, limit_max);
 		path->cwnd = QUIC_MAX(path->cwnd, path->limit_min);
 		cshared_add(&quic_mem_diff, path->cwnd - old);
 

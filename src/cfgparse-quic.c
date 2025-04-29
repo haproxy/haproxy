@@ -316,6 +316,17 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 	}
 	else if (strcmp(suffix, "frontend.max-streams-bidi") == 0)
 		global.tune.quic_frontend_max_streams_bidi = arg;
+	else if (strcmp(suffix, "frontend.max-tx-mem") == 0) {
+		ullong max_mem;
+
+		if ((errptr = parse_size_err(args[1], &max_mem))) {
+			memprintf(err, "'%s': unexpected character '%c' in size argument '%s'.",
+			          args[0], *errptr, args[1]);
+			return -1;
+		}
+
+		global.tune.quic_frontend_max_tx_mem = max_mem;
+	}
 	else if (strcmp(suffix, "frontend.default-max-window-size") == 0) {
 		unsigned long cwnd;
 		char *end_opt;
@@ -430,6 +441,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.frontend.max-data-size", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-streams-bidi", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-idle-timeout", cfg_parse_quic_time },
+	{ CFG_GLOBAL, "tune.quic.frontend.max-tx-mem", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.default-max-window-size", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.stream-data-ratio", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.max-frame-loss", cfg_parse_quic_tune_setting },
