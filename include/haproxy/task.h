@@ -534,21 +534,6 @@ static inline struct list *_tasklet_wakeup_after(struct list *head, struct taskl
 #define DEBUG_TASK_PRINT_CALLER(t) do { } while (0)
 #endif
 
-
-/* Try to remove a tasklet from the list. This call is inherently racy and may
- * only be performed on the thread that was supposed to dequeue this tasklet.
- * This way it is safe to call MT_LIST_DELETE without first removing the
- * TASK_QUEUED bit, which must absolutely be removed afterwards in case
- * another thread would want to wake this tasklet up in parallel.
- */
-static inline void tasklet_remove_from_tasklet_list(struct tasklet *t)
-{
-	if (MT_LIST_DELETE(list_to_mt_list(&t->list))) {
-		_HA_ATOMIC_AND(&t->state, ~TASK_QUEUED);
-		_HA_ATOMIC_DEC(&ha_thread_ctx[t->tid >= 0 ? t->tid : tid].rq_total);
-	}
-}
-
 /*
  * Initialize a new task. The bare minimum is performed (queue pointers and
  * state).  The task is returned. This function should not be used outside of
