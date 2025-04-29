@@ -401,10 +401,6 @@ static int cfg_postsection_acme()
 	char store_path[PATH_MAX]; /* complete path with crt_base */
 	struct stat st;
 
-	/* TODO: generate a key at startup and dumps on the filesystem
-	 * TODO: use the standard ckch loading for the account key (need a store with only a key)
-	 */
-
 	/* if account key filename is unspecified, choose a filename for it */
 	if (!cur_acme->account.file) {
 		if (!memprintf(&cur_acme->account.file, "%s.account.key", cur_acme->name)) {
