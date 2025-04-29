@@ -622,15 +622,12 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 					_HA_ATOMIC_AND(&t->state, ~TASK_RUNNING);
 			}
 			else {
-				done++;
-				th_ctx->current = NULL;
-				sched_stuck = 0; // scheduler is not stuck (don't warn)
-				/* signal barrier to prevent thread dump helpers
-				 * from dumping a task currently being freed.
-				 */
-				__ha_barrier_store();
 				pool_free(pool_head_tasklet, t);
-				continue;
+				/* We don't want max_processed to be decremented if
+				 * we're just freeing a destroyed tasklet, we should
+				 * only do so if we really ran a tasklet.
+				 */
+				goto next;
 			}
 		} else {
 			/* This is a regular task */
@@ -649,14 +646,11 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			else {
 				task_unlink_wq(t);
 				__task_free(t);
-				th_ctx->current = NULL;
-				sched_stuck = 0; // scheduler is not stuck (don't warn)
-				__ha_barrier_store();
 				/* We don't want max_processed to be decremented if
 				 * we're just freeing a destroyed task, we should only
 				 * do so if we really ran a task.
 				 */
-				continue;
+				goto next;
 			}
 
 			/* If there is a pending state  we have to wake up the task
@@ -674,7 +668,8 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 				}
 			}
 		}
-
+		done++;
+	next:
 		th_ctx->current = NULL;
 		sched_stuck = 0; // scheduler is not stuck (don't warn)
 		__ha_barrier_store();
@@ -682,7 +677,6 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		/* stats are only registered for non-zero wake dates */
 		if (unlikely(th_ctx->sched_wake_date))
 			HA_ATOMIC_ADD(&profile_entry->cpu_time, (uint32_t)(now_mono_time() - th_ctx->sched_call_date));
-		done++;
 	}
 	th_ctx->current_queue = -1;
 
