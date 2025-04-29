@@ -706,8 +706,7 @@ int acme_update_certificate(struct task *task, struct acme_ctx *ctx, char **errm
 
 	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock)) {
 		memprintf(errmsg, "couldn't get the certificate lock!");
-		goto error;
-
+		return ret;
 	}
 
 	if ((old_ckchs = ckchs_lookup(new_ckchs->path)) == NULL) {
