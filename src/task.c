@@ -613,22 +613,26 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			}
 		} while (!_HA_ATOMIC_CAS(&t->state, &state, (state & TASK_PERSISTENT) | TASK_RUNNING));
 
+		if (unlikely((state & TASK_KILLED) || process == NULL)) {
+			/* Task or tasklet has been killed, let's remove it */
+			if (t->state & TASK_F_TASKLET)
+				pool_free(pool_head_tasklet, t);
+			else {
+				task_unlink_wq(t);
+				__task_free(t);
+			}
+			/* We don't want max_processed to be decremented if
+			 * we're just freeing a destroyed task, we should only
+			 * do so if we really ran a task.
+			 */
+			goto next;
+		}
 		if (t->state & TASK_F_TASKLET) {
 			/* this is a tasklet */
 
-			if (likely(!(state & TASK_KILLED))) {
-				t = process(t, ctx, state);
-				if (t != NULL)
-					_HA_ATOMIC_AND(&t->state, ~TASK_RUNNING);
-			}
-			else {
-				pool_free(pool_head_tasklet, t);
-				/* We don't want max_processed to be decremented if
-				 * we're just freeing a destroyed tasklet, we should
-				 * only do so if we really ran a tasklet.
-				 */
-				goto next;
-			}
+			t = process(t, ctx, state);
+			if (t != NULL)
+				_HA_ATOMIC_AND(&t->state, ~TASK_RUNNING);
 		} else {
 			/* This is a regular task */
 			__ha_barrier_atomic_store();
@@ -639,19 +643,10 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			 * directly free the task. Otherwise it will be seen after processing and
 			 * it's freed on the exit path.
 			 */
-			if (likely(!(state & TASK_KILLED) && process == process_stream))
+			if (process == process_stream)
 				t = process_stream(t, ctx, state);
-			else if (!(state & TASK_KILLED) && process != NULL)
+			else
 				t = process(t, ctx, state);
-			else {
-				task_unlink_wq(t);
-				__task_free(t);
-				/* We don't want max_processed to be decremented if
-				 * we're just freeing a destroyed task, we should only
-				 * do so if we really ran a task.
-				 */
-				goto next;
-			}
 
 			/* If there is a pending state  we have to wake up the task
 			 * immediately, else we defer it into wait queue
