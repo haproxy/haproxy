@@ -1705,7 +1705,6 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 				st = ACME_NEWORDER;
 				http_st = ACME_HTTP_REQ;
 				task_wakeup(task, TASK_WOKEN_MSG);
-				goto end;
 			}
 
 
