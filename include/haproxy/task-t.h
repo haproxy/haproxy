@@ -40,7 +40,6 @@
 /* unused                 0x00000008 */
 #define TASK_SELF_WAKING  0x00000010  /* task/tasklet found waking itself */
 #define TASK_KILLED       0x00000020  /* task/tasklet killed, may now be freed */
-#define TASK_IN_LIST      0x00000040  /* tasklet is in a tasklet list */
 #define TASK_HEAVY        0x00000080  /* this task/tasklet is extremely heavy */
 
 #define TASK_WOKEN_INIT   0x00000100  /* woken up for initialisation purposes */
@@ -80,10 +79,10 @@ static forceinline char *task_show_state(char *buf, size_t len, const char *deli
 	_(0);
 	/* flags */
 	_(TASK_RUNNING, _(TASK_QUEUED, _(TASK_SELF_WAKING,
-	_(TASK_KILLED, _(TASK_IN_LIST, _(TASK_HEAVY, _(TASK_WOKEN_INIT,
+	_(TASK_KILLED, _(TASK_HEAVY, _(TASK_WOKEN_INIT,
 	_(TASK_WOKEN_TIMER, _(TASK_WOKEN_IO, _(TASK_WOKEN_SIGNAL,
 	_(TASK_WOKEN_MSG, _(TASK_WOKEN_RES, _(TASK_WOKEN_OTHER,
-	_(TASK_F_TASKLET, _(TASK_F_USR1)))))))))))))));
+	_(TASK_F_TASKLET, _(TASK_F_USR1))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;

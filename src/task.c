@@ -105,7 +105,7 @@ void tasklet_kill(struct tasklet *t)
 	BUG_ON(state & TASK_KILLED);
 
 	while (1) {
-		while (state & (TASK_IN_LIST)) {
+		while (state & (TASK_QUEUED)) {
 			/* Tasklet already in the list ready to be executed. Add
 			 * the killed flag and wait for the process loop to
 			 * detect it.
@@ -117,7 +117,7 @@ void tasklet_kill(struct tasklet *t)
 		/* Mark the tasklet as killed and wake the thread to process it
 		 * as soon as possible.
 		 */
-		if (_HA_ATOMIC_CAS(&t->state, &state, state | TASK_IN_LIST | TASK_KILLED)) {
+		if (_HA_ATOMIC_CAS(&t->state, &state, state | TASK_QUEUED | TASK_KILLED)) {
 			thr = t->tid >= 0 ? t->tid : tid;
 			MT_LIST_APPEND(&ha_thread_ctx[thr].shared_tasklet_list,
 			               list_to_mt_list(&t->list));
@@ -130,7 +130,7 @@ void tasklet_kill(struct tasklet *t)
 
 /* Do not call this one, please use tasklet_wakeup_on() instead, as this one is
  * the slow path of tasklet_wakeup_on() which performs some preliminary checks
- * and sets TASK_IN_LIST before calling this one. A negative <thr> designates
+ * and sets TASK_QUEUED before calling this one. A negative <thr> designates
  * the current thread.
  */
 void __tasklet_wakeup_on(struct tasklet *tl, int thr)
@@ -169,7 +169,7 @@ void __tasklet_wakeup_on(struct tasklet *tl, int thr)
 
 /* Do not call this one, please use tasklet_wakeup_after_on() instead, as this one is
  * the slow path of tasklet_wakeup_after() which performs some preliminary checks
- * and sets TASK_IN_LIST before calling this one.
+ * and sets TASK_QUEUED before calling this one.
  */
 struct list *__tasklet_wakeup_after(struct list *head, struct tasklet *tl)
 {
