@@ -79,7 +79,6 @@ struct dns_additional_record {
 struct dns_stream_server {
 	struct server *srv;
 	struct dns_ring *ring_req;
-	int max_slots;
 	int maxconn;
 	int idle_conns;
 	int cur_conns;
