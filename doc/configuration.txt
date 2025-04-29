@@ -5914,9 +5914,11 @@ The following keywords are usable in the ACME section:
 account-key <filename>
   Configure the path to the account key. The key need to be generated before
   launching HAProxy. If no account keyword is used, the acme section will try
-  to load a filename using the section name "<name>.account.key"
+  to load a filename using the section name "<name>.account.key". If the file
+  doesn't exist, HAProxy will generate one, using the parameters from the acme
+  section.
 
-  You can generate an RSA private key with openssl:
+  You can also generate manually an RSA private key with openssl:
 
     openssl genrsa -out account.key 2048
 
