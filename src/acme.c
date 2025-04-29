@@ -633,7 +633,7 @@ static void acme_httpclient_end(struct httpclient *hc)
 }
 
 /*
- * Add a map entry with <challenge> as the key, and <thumprint> as value in the virt@acme map.
+ * Add a map entry with <challenge> as the key, and <thumprint> as value in the <map>.
  * Return 0 upon success or 1 otherwise.
  */
 static int acme_add_challenge_map(const char *map, const char *challenge, const char *thumbprint, char **errmsg)
@@ -646,9 +646,9 @@ static int acme_add_challenge_map(const char *map, const char *challenge, const 
 	if (!map)
 		return 0;
 
-	ref = pat_ref_lookup("virt@acme");
+	ref = pat_ref_lookup(map);
 	if (!ref) {
-		memprintf(errmsg, "Unknown map identifier 'virt@acme'.\n");
+		memprintf(errmsg, "Unknown map identifier '%s'.\n", map);
 		goto out;
 	}
 
@@ -666,7 +666,7 @@ out:
 }
 
 /*
- * Remove the <challenge> from the virt@acme map
+ * Remove the <challenge> from the <map>
  */
 static void acme_del_challenge_map(const char *map, const char *challenge)
 {
@@ -689,7 +689,7 @@ out:
 }
 
 /*
- * Remove all challenges from an acme_ctx from the virt@acme map
+ * Remove all challenges from an acme_ctx from the <map>
  */
 static void acme_del_acme_ctx_map(const struct acme_ctx *ctx)
 {
@@ -1340,7 +1340,7 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 		}
 
 		if (acme_add_challenge_map(ctx->cfg->map, auth->token.ptr, ctx->cfg->account.thumbprint, errmsg) != 0) {
-			memprintf(errmsg, "couldn't add the token to virt@acme: %s", *errmsg);
+			memprintf(errmsg, "couldn't add the token to the '%s' map: %s", ctx->cfg->map, *errmsg);
 			goto error;
 		}
 
