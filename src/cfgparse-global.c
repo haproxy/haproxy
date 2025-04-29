@@ -1282,6 +1282,46 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 
 		return 0;
 	}
+	else if (strcmp(args[0], "tune.notsent-lowat.client") == 0) {
+#if defined(TCP_NOTSENT_LOWAT)
+		if (global.tune.client_notsent_lowat != 0) {
+			memprintf(err, "'%s' already specified. Continuing.", args[0]);
+			return 1;
+		}
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+		res = parse_size_err(args[1], &global.tune.client_notsent_lowat);
+		if (res != NULL)
+			goto size_err;
+
+		return 0;
+#else
+		memprintf(err, "'%s' is not supported on this system.", args[0]);
+		return -1;
+#endif
+	}
+	else if (strcmp(args[0], "tune.notsent-lowat.server") == 0) {
+#if defined(TCP_NOTSENT_LOWAT)
+		if (global.tune.server_notsent_lowat != 0) {
+			memprintf(err, "'%s' already specified. Continuing.", args[0]);
+			return 1;
+		}
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+		res = parse_size_err(args[1], &global.tune.server_notsent_lowat);
+		if (res != NULL)
+			goto size_err;
+
+		return 0;
+#else
+		memprintf(err, "'%s' is not supported on this system.", args[0]);
+		return -1;
+#endif
+	}
 	else if (strcmp(args[0], "tune.pipesize") == 0) {
 		if (*(args[1]) == 0) {
 			memprintf(err, "'%s' expects an integer argument.", args[0]);
@@ -1726,6 +1766,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.rcvbuf.server", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.sndbuf.client", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.sndbuf.server", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.notsent-lowat.client", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.notsent-lowat.server", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.pipesize", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.http.cookielen", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.http.logurilen", cfg_parse_global_tune_opts },

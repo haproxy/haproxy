@@ -302,6 +302,11 @@ int session_accept_fd(struct connection *cli_conn)
 	if (global.tune.client_sndbuf)
 		setsockopt(cfd, SOL_SOCKET, SO_SNDBUF, &global.tune.client_sndbuf, sizeof(global.tune.client_sndbuf));
 
+#if defined(TCP_NOTSENT_LOWAT)
+	if (global.tune.client_notsent_lowat && (l->rx.addr.ss_family == AF_INET || l->rx.addr.ss_family == AF_INET6))
+		setsockopt(cfd, IPPROTO_TCP, TCP_NOTSENT_LOWAT, &global.tune.client_notsent_lowat, sizeof(global.tune.client_notsent_lowat));
+#endif
+
 	if (global.tune.client_rcvbuf)
 		setsockopt(cfd, SOL_SOCKET, SO_RCVBUF, &global.tune.client_rcvbuf, sizeof(global.tune.client_rcvbuf));
 

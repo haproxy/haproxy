@@ -545,6 +545,11 @@ int tcp_connect_server(struct connection *conn, int flags)
 	if (global.tune.server_sndbuf)
                 setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &global.tune.server_sndbuf, sizeof(global.tune.server_sndbuf));
 
+#if defined(TCP_NOTSENT_LOWAT)
+	if (global.tune.server_notsent_lowat)
+		setsockopt(fd, IPPROTO_TCP, TCP_NOTSENT_LOWAT, &global.tune.server_notsent_lowat, sizeof(global.tune.server_notsent_lowat));
+#endif
+
 	if (global.tune.server_rcvbuf)
                 setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.server_rcvbuf, sizeof(global.tune.server_rcvbuf));
 

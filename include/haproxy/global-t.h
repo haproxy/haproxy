@@ -184,6 +184,8 @@ struct global {
 		uint client_rcvbuf;   /* set client rcvbuf to this value if not null */
 		uint server_sndbuf;   /* set server sndbuf to this value if not null */
 		uint server_rcvbuf;   /* set server rcvbuf to this value if not null */
+		uint client_notsent_lowat;   /* set client tcp_notsent_lowat to this value if not null */
+		uint server_notsent_lowat;   /* set client tcp_notsent_lowat to this value if not null */
 		uint frontend_sndbuf; /* set frontend dgram sndbuf to this value if not null */
 		uint frontend_rcvbuf; /* set frontend dgram rcvbuf to this value if not null */
 		uint backend_sndbuf;  /* set backend dgram sndbuf to this value if not null */

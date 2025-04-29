@@ -4278,6 +4278,22 @@ tune.memory.hot-size <number>
   disable the per-thread CPU caches, using a very small value could work, but
   it is better to use "-dMno-cache" on the command-line.
 
+tune.notsent-lowat.client <size>
+tune.notsent-lowat.server <size>
+  Adjusts the kernel's per-socket buffering so as to report that the sending
+  side of a socket is full once the amount of buffered data equals this value
+  plus the measured window size. The principle is to let the strict minimum
+  needed amount of bytes in socket buffers, plus a small margin corresponding
+  to what would be sent by the time haproxy tries to send again. Setting this
+  to a low value (typically around tune.bufsize) allows to significantly reduce
+  the memory consumption in system buffers, and reduce the application level
+  latency incurred by flushing buffered data. This generally represents a more
+  effective and more accurate setting than tune.sndbuf.client and
+  tune.sndbuf.client for systems supporting it. This applies per connection
+  (connection from a client or connection to a server depending on the setting)
+  and is only used by TCP connections. The default is zero, which means
+  unlimited. This is only available on Linux.
+
 tune.pattern.cache-size <number>
   Sets the size of the pattern lookup cache to <number> entries. This is an LRU
   cache which reminds previous lookups and their results. It is used by ACLs
@@ -4633,7 +4649,9 @@ tune.sndbuf.server <size>
   of received data. Lower values will significantly increase CPU usage though.
   Another use case is to prevent write timeouts with extremely slow clients due
   to the kernel waiting for a large part of the buffer to be read before
-  notifying HAProxy again.
+  notifying HAProxy again. See also tune.notsent-lowat.client and
+  tune.notsent-lowat.server for more effective settings to more finely control
+  memory usage and responsiveness on Linux without hurting performance.
 
 tune.ssl.cachesize <number>
   Sets the size of the global SSL session cache, in a number of blocks. A block
