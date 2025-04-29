@@ -3155,7 +3155,7 @@ static int h2c_send_ping(struct h2c *h2c, int ack)
 		       "\x00\x00\x00\x00" /* stream ID */, 9);
 
 		/* opaque data */
-		memcpy(str + 8, "\x00\x01\x02\x03\x04\x05\x06\x07", 8);
+		memcpy(str + 9, "\x00\x01\x02\x03\x04\x05\x06\x07", 8);
 	}
 	else {
 		if (b_data(&h2c->dbuf) < 8) {
