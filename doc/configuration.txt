@@ -5981,6 +5981,11 @@ keytype <string>
   or "ECDSA". You can also configure the "curves" for ECDSA and the number of
   "bits" for RSA. By default EC384 keys are generated.
 
+map <map>
+  Configure the map which will be used to store token (key) and thumbprint
+  (value), which is useful to reply to a challenge when there are multiple
+  account used. The acme task will add entries before validating the challenge
+  and will remove the entries at the end of the task.
 
 Example:
 
@@ -5991,7 +5996,7 @@ Example:
   frontend in
       bind *:80
       bind *:443 ssl
-      http-request return status 200 content-type text/plain lf-string "%[path,field(-1,/)].${ACCOUNT_THUMBPRINT}\n" if { path_beg '/.well-known/acme-challenge/' }
+      http-request return status 200 content-type text/plain lf-string "%[path,field(-1,/)].%[path,field(-1,/),map(virt@acme)]\n" if { path_beg '/.well-known/acme-challenge/' }
       ssl-f-use crt "foo.example.com.pem.rsa"   acme LE1 domains "foo.example.com.pem,bar.example.com"
       ssl-f-use crt "foo.example.com.pem.ecdsa" acme LE2 domains "foo.example.com.pem,bar.example.com"
 
@@ -6002,6 +6007,7 @@ Example:
       challenge HTTP-01
       keytype RSA
       bits 2048
+      map virt@acme
 
   acme LE2
       directory https://acme-staging-v02.api.letsencrypt.org/directory
@@ -6010,6 +6016,7 @@ Example:
       challenge HTTP-01
       keytype ECDSA
       curves P-384
+      map virt@acme
 
 4. Proxies
 ----------

@@ -13,6 +13,7 @@ struct acme_cfg {
 	int linenum;                /* config linenum */
 	char *name;                 /* section name */
 	char *directory;            /* directory URL */
+	char *map;                  /* storage for tokens + thumbprint */
 	struct {
 		char *contact;      /* email associated to account */
 		char *file;         /* account key filename */

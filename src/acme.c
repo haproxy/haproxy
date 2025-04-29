@@ -27,6 +27,7 @@
 #include <haproxy/jws.h>
 #include <haproxy/list.h>
 #include <haproxy/log.h>
+#include <haproxy/pattern.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
@@ -313,6 +314,22 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 			goto out;
 		}
+	} else if (strcmp(args[0], "map") == 0) {
+		/* save the map name for thumbprint + token storage */
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires an argument\n", file, linenum, args[0], cursection);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
+		cur_acme->map = strdup(args[1]);
+		if (!cur_acme->map) {
+			err_code |= ERR_ALERT | ERR_FATAL;
+			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			goto out;
+		}
 	} else if (*args[0] != 0) {
 		ha_alert("parsing [%s:%d]: unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
 		err_code |= ERR_ALERT | ERR_FATAL;
@@ -552,6 +569,7 @@ static struct cfg_kw_list cfg_kws_acme = {ILH, {
 	{ CFG_ACME, "keytype",  cfg_parse_acme_cfg_key },
 	{ CFG_ACME, "bits",  cfg_parse_acme_cfg_key },
 	{ CFG_ACME, "curves",  cfg_parse_acme_cfg_key },
+	{ CFG_ACME, "map",  cfg_parse_acme_kws },
 	{ 0, NULL, NULL },
 }};
 
@@ -614,6 +632,80 @@ static void acme_httpclient_end(struct httpclient *hc)
 	task_wakeup(task, TASK_WOKEN_MSG);
 }
 
+/*
+ * Add a map entry with <challenge> as the key, and <thumprint> as value in the virt@acme map.
+ * Return 0 upon success or 1 otherwise.
+ */
+static int acme_add_challenge_map(const char *map, const char *challenge, const char *thumbprint, char **errmsg)
+{
+	int ret = 1;
+	struct pat_ref *ref;
+	struct pat_ref_elt *elt;
+
+	/* when no map configured, return without error */
+	if (!map)
+		return 0;
+
+	ref = pat_ref_lookup("virt@acme");
+	if (!ref) {
+		memprintf(errmsg, "Unknown map identifier 'virt@acme'.\n");
+		goto out;
+	}
+
+	HA_RWLOCK_WRLOCK(PATREF_LOCK, &ref->lock);
+	elt = pat_ref_load(ref, ref->curr_gen, challenge, thumbprint, -1, errmsg);
+	HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->lock);
+
+	if (elt == NULL)
+		goto out;
+
+	ret = 0;
+
+out:
+	return ret;
+}
+
+/*
+ * Remove the <challenge> from the virt@acme map
+ */
+static void acme_del_challenge_map(const char *map, const char *challenge)
+{
+	struct pat_ref *ref;
+
+	/* when no map configured, return without error */
+	if (!map)
+		return;
+
+	ref = pat_ref_lookup(map);
+	if (!ref)
+		goto out;
+
+	HA_RWLOCK_WRLOCK(PATREF_LOCK, &ref->lock);
+	pat_ref_delete(ref, challenge);
+	HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->lock);
+
+out:
+	return;
+}
+
+/*
+ * Remove all challenges from an acme_ctx from the virt@acme map
+ */
+static void acme_del_acme_ctx_map(const struct acme_ctx *ctx)
+{
+	struct acme_auth *auth;
+
+	/* when no map configured, return without error */
+	if (!ctx->cfg->map)
+		return;
+
+	auth = ctx->auths;
+	while (auth) {
+		acme_del_challenge_map(ctx->cfg->map, auth->token.ptr);
+		auth = auth->next;
+	}
+	return;
+}
 
 int acme_http_req(struct task *task, struct acme_ctx *ctx, struct ist url, enum http_meth_t meth, const struct http_hdr *hdrs, struct ist payload)
 {
@@ -1244,6 +1336,11 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 		auth->token = istdup(ist2(trash.area, trash.data));
 		if (!isttest(auth->token)) {
 			memprintf(errmsg, "out of memory");
+			goto error;
+		}
+
+		if (acme_add_challenge_map(ctx->cfg->map, auth->token.ptr, ctx->cfg->account.thumbprint, errmsg) != 0) {
+			memprintf(errmsg, "couldn't add the token to virt@acme: %s", *errmsg);
 			goto error;
 		}
 
@@ -1879,6 +1976,7 @@ abort:
 	ha_free(&errmsg);
 
 end:
+	acme_del_acme_ctx_map(ctx);
 	acme_ctx_destroy(ctx);
 	task_destroy(task);
 	task = NULL;
