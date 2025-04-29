@@ -597,16 +597,24 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		LIST_DEL_INIT(&((struct tasklet *)t)->list);
 		__ha_barrier_store();
 
+
+		/* We must be the exclusive owner of the TASK_RUNNING bit, and
+		 * have to be careful that the task is not being manipulated on
+		 * another thread finding it expired in wake_expired_tasks().
+		 * The TASK_RUNNING bit will be set during these operations,
+		 * they are extremely rare and do not last long so the best to
+		 * do here is to wait.
+		 */
+		state = _HA_ATOMIC_LOAD(&t->state);
+		do {
+			while (unlikely(state & TASK_RUNNING)) {
+				__ha_cpu_relax();
+				state = _HA_ATOMIC_LOAD(&t->state);
+			}
+		} while (!_HA_ATOMIC_CAS(&t->state, &state, (state & TASK_PERSISTENT) | TASK_RUNNING));
+
 		if (t->state & TASK_F_TASKLET) {
 			/* this is a tasklet */
-			state = _HA_ATOMIC_LOAD(&t->state);
-			do {
-				while (unlikely(state & TASK_RUNNING)) {
-					__ha_cpu_relax();
-					state = _HA_ATOMIC_LOAD(&t->state);
-				}
-			} while (!_HA_ATOMIC_CAS(&t->state, &state, (state & TASK_PERSISTENT) | TASK_RUNNING));
-
 
 			if (likely(!(state & TASK_KILLED))) {
 				t = process(t, ctx, state);
@@ -626,22 +634,6 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			}
 		} else {
 			/* This is a regular task */
-
-			/* We must be the exclusive owner of the TASK_RUNNING bit, and
-			 * have to be careful that the task is not being manipulated on
-			 * another thread finding it expired in wake_expired_tasks().
-			 * The TASK_RUNNING bit will be set during these operations,
-			 * they are extremely rare and do not last long so the best to
-			 * do here is to wait.
-			 */
-			state = _HA_ATOMIC_LOAD(&t->state);
-			do {
-				while (unlikely(state & TASK_RUNNING)) {
-					__ha_cpu_relax();
-					state = _HA_ATOMIC_LOAD(&t->state);
-				}
-			} while (!_HA_ATOMIC_CAS(&t->state, &state, (state & TASK_PERSISTENT) | TASK_RUNNING));
-
 			__ha_barrier_atomic_store();
 
 			_HA_ATOMIC_DEC(&ha_thread_ctx[tid].tasks_in_list);
