@@ -42,6 +42,11 @@
 #define DNS_TCP_MSG_MAX_SIZE 65535
 #define DNS_TCP_MSG_RING_MAX_SIZE (1 + 1 + 3 + DNS_TCP_MSG_MAX_SIZE) // varint_bytes(DNS_TCP_MSG_MAX_SIZE) == 3
 
+/* threshold to consider that the link to dns server is failing
+ * and we should stop creating new sessions
+ */
+#define DNS_MAX_DSS_CONSECUTIVE_ERRORS 100
+
 /* DNS request or response header structure */
 struct dns_header {
 	uint16_t id;
@@ -79,6 +84,7 @@ struct dns_additional_record {
 struct dns_stream_server {
 	struct server *srv;
 	struct dns_ring *ring_req;
+	int consecutive_errors;   /* number of errors since last successful query (atomically updated without lock) */
 	int maxconn;
 	int idle_conns;
 	int cur_conns;

@@ -578,6 +578,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 				LIST_APPEND(&ds->queries, &query->list);
 				eb32_insert(&ds->query_ids, &query->qid);
 				ds->onfly_queries++;
+				HA_ATOMIC_STORE(&ds->dss->consecutive_errors, 0);
 			}
 
 			/* update the tx_offset to handle output in 16k streams */
@@ -844,6 +845,7 @@ static void dns_session_release(struct appctx *appctx)
 {
 	struct dns_session *ds = appctx->svcctx;
 	struct dns_stream_server *dss __maybe_unused;
+	int consecutive_errors;
 
 	if (!ds)
 		return;
@@ -905,6 +907,17 @@ static void dns_session_release(struct appctx *appctx)
 
 	/* reset offset to be sure to start from message start */
 	ds->tx_msg_offset = 0;
+
+	consecutive_errors = HA_ATOMIC_LOAD(&ds->dss->consecutive_errors);
+	/* we know ds encountered an error because it failed to send all
+	 * its queries: increase consecutive_errors (we take some precautions
+	 * to prevent the counter from overflowing since it is atomically
+	 * updated)
+	 */
+	while (consecutive_errors < DNS_MAX_DSS_CONSECUTIVE_ERRORS &&
+	       !HA_ATOMIC_CAS(&ds->dss->consecutive_errors,
+	                      &consecutive_errors, consecutive_errors + 1) &&
+	       __ha_cpu_relax());
 
 	/* here the ofs and the attached counter
 	 * are kept unchanged
@@ -1041,6 +1054,9 @@ struct dns_session *dns_session_new(struct dns_stream_server *dss)
 	struct dns_session *ds;
 
 	if (dss->maxconn && (dss->maxconn <= dss->cur_conns))
+		return NULL;
+
+	if (HA_ATOMIC_LOAD(&dss->consecutive_errors) >= DNS_MAX_DSS_CONSECUTIVE_ERRORS)
 		return NULL;
 
 	ds = pool_zalloc(dns_session_pool);
