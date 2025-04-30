@@ -674,7 +674,7 @@ extern const char *parse_size_ull(const char *text, ullong *ret);
 int parse_binary(const char *source, char **binstr, int *binstrlen, char **err);
 
 /* copies at most <n> characters from <src> and always terminates with '\0' */
-char *my_strndup(const char *src, int n);
+char *my_strndup(const char *src, size_t n);
 
 /*
  * search needle in haystack

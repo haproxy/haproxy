@@ -2968,9 +2968,9 @@ bad_input:
 }
 
 /* copies at most <n> characters from <src> and always terminates with '\0' */
-char *my_strndup(const char *src, int n)
+char *my_strndup(const char *src, size_t n)
 {
-	int len = 0;
+	size_t len = 0;
 	char *ret;
 
 	while (len < n && src[len])
