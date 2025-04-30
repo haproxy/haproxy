@@ -5934,7 +5934,7 @@ it could block the event loop, blocking the traffic on the same thread. Meaning
 that the certificates and keys generated from HAProxy will need to be dumped
 from outside HAProxy using "dump ssl cert" on the stats socket.
 The generation is not scheduled and must be triggered using the CLI command
-"acme renew".
+"acme renew". See also "acme ps" in the management guide.
 
 The following keywords are usable in the ACME section:
 

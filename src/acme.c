@@ -11,6 +11,7 @@
 
 #include <import/ebsttree.h>
 #include <import/mjson.h>
+#include <import/mt_list.h>
 
 #include <haproxy/acme-t.h>
 
@@ -34,6 +35,9 @@
 #include <haproxy/tools.h>
 
 #if defined(HAVE_ACME)
+
+
+struct mt_list acme_tasks = MT_LIST_HEAD_INIT(acme_tasks);
 
 static struct acme_cfg *acme_cfgs = NULL;
 static struct acme_cfg *cur_acme = NULL;
@@ -612,6 +616,8 @@ static void acme_ctx_destroy(struct acme_ctx *ctx)
 	ckch_store_free(ctx->store);
 
 	X509_REQ_free(ctx->req);
+
+	MT_LIST_DELETE(&ctx->el);
 
 	free(ctx);
 }
@@ -1737,6 +1743,7 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 	enum acme_st st = ctx->state;
 	enum http_st http_st = ctx->http_state;
 	char *errmsg = NULL;
+	struct mt_list tmp = MT_LIST_LOCK_FULL(&ctx->el);
 
 	switch (st) {
 		case ACME_RESSOURCES:
@@ -1935,6 +1942,7 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 
 	}
 
+	MT_LIST_UNLOCK_FULL(&ctx->el, tmp);
 	ctx->retries = ACME_RETRY;
 	ctx->http_state = http_st;
 	ctx->state = st;
@@ -1969,6 +1977,7 @@ retry:
 
 	ha_free(&errmsg);
 
+	MT_LIST_UNLOCK_FULL(&ctx->el, tmp);
 	return task;
 
 abort:
@@ -1976,6 +1985,7 @@ abort:
 	ha_free(&errmsg);
 
 end:
+	MT_LIST_UNLOCK_FULL(&ctx->el, tmp);
 	acme_del_acme_ctx_map(ctx);
 	acme_ctx_destroy(ctx);
 	task_destroy(task);
@@ -2172,6 +2182,9 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 	ctx->cfg = cfg;
 	task->context = ctx;
 
+	MT_LIST_INIT(&ctx->el);
+	MT_LIST_APPEND(&acme_tasks, &ctx->el);
+
 	task_wakeup(task, TASK_WOKEN_INIT);
 
 	return 0;
@@ -2186,9 +2199,38 @@ err:
 }
 
 
+static int cli_acme_ps_io_handler(struct appctx *appctx)
+{
+	struct mt_list back;
+	struct acme_ctx *ctx;
+
+	chunk_reset(&trash);
+
+	chunk_appendf(&trash, "# certificate\tsection\tstate\n");
+	if (applet_putchk(appctx, &trash) == -1)
+		return 1;
+
+	MT_LIST_FOR_EACH_ENTRY_LOCKED(ctx, &acme_tasks, el, back) {
+		chunk_appendf(&trash, "%s\t%s\tRunning\n", ctx->store->path, ctx->cfg->name);
+
+		/* TODO: handle backref list when list of task > buffer size */
+		if (applet_putchk(appctx, &trash) == -1)
+			return 1;
+	}
+
+	return 1;
+}
+
+static int cli_acme_ps(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	return 0;
+}
+
+
 
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "acme", "renew", NULL },           "acme renew <certfile>                   : renew a certificate using the ACME protocol", cli_acme_renew_parse, NULL, NULL, NULL, 0 },
+	{ { "acme", "ps", NULL },              "acme ps                                 : show running ACME tasks", cli_acme_ps, cli_acme_ps_io_handler, NULL, NULL, 0 },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 

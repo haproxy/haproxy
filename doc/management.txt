@@ -1641,10 +1641,19 @@ abort ssl crl-file <crlfile>
 
   See also "set ssl crl-file" and "commit ssl crl-file".
 
+acme ps
+  Show the running ACME tasks. See also "acme renew".
+
+  Example:
+    $ echo "@1 acme ps" | socat /run/haproxy-master.sock - | column -t -s $'\t'
+    # certificate     section   state
+    foobar.pem.rsa    LE1       Running
+    foobar.pem.ecdsa  LE2       Running
+
 acme renew <certificate>
   Starts an ACME certificate generation task with the given certificate name.
   The certificate must be linked to an acme section, see section 3.13. of the
-  configuration manual.
+  configuration manual. See also "acme ps".
 
 add acl [@<ver>] <acl> <pattern>
   Add an entry into the acl <acl>. <acl> is the #<id> or the <name> returned by

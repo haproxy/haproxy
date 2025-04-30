@@ -79,5 +79,6 @@ struct acme_ctx {
 	X509_REQ *req;
 	struct ist finalize;
 	struct ist certificate;
+	struct mt_list el;
 };
 #endif
