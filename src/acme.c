@@ -591,6 +591,9 @@ static void acme_ctx_destroy(struct acme_ctx *ctx)
 {
 	struct acme_auth *auth;
 
+	if (!ctx)
+		return;
+
 	istfree(&ctx->ressources.newNonce);
 	istfree(&ctx->ressources.newAccount);
 	istfree(&ctx->ressources.newOrder);
