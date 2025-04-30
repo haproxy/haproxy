@@ -2196,7 +2196,7 @@ err:
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 	EVP_PKEY_free(pkey);
 	ckch_store_free(newstore);
-	free(ctx);
+	acme_ctx_destroy(ctx);
 	memprintf(&err, "%sCan't start the ACME client.\n", err ? err : "");
 	return cli_dynerr(appctx, err);
 }
