@@ -1154,6 +1154,7 @@ int hlua_listener_get_stats(lua_State *L)
 		hlua_fcn_pushfield(L, &stats[i]);
 		lua_settable(L, -3);
 	}
+	hlua_yield_asap(L);
 	return 1;
 
 }
@@ -1200,6 +1201,7 @@ int hlua_server_get_stats(lua_State *L)
 		hlua_fcn_pushfield(L, &stats[i]);
 		lua_settable(L, -3);
 	}
+	hlua_yield_asap(L);
 	return 1;
 
 }
@@ -2053,6 +2055,7 @@ int hlua_proxy_get_stats(lua_State *L)
 		hlua_fcn_pushfield(L, &stats[i]);
 		lua_settable(L, -3);
 	}
+	hlua_yield_asap(L);
 	return 1;
 }
 
