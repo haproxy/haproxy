@@ -1,6 +1,90 @@
 ChangeLog :
 ===========
 
+2025/04/30 : 3.2-dev13
+    - MEDIUM: checks: Make sure we return the tasklet from srv_chk_io_cb
+    - MEDIUM: listener: Make sure w ereturn the tasklet from accept_queue_process
+    - MEDIUM: mux_fcgi: Make sure we return the tasklet from fcgi_deferred_shut
+    - MEDIUM: quic: Make sure we return the tasklet from qcc_io_cb
+    - MEDIUM: quic: Make sure we return NULL in quic_conn_app_io_cb if needed
+    - MEDIUM: quic: Make sure we return the tasklet from quic_accept_run
+    - BUG/MAJOR: tasklets: Make sure he tasklet can't run twice
+    - BUG/MAJOR: listeners: transfer connection accounting when switching listeners
+    - MINOR: ssl/cli: add a '-t' option to 'show ssl sni'
+    - DOC: config: fix ACME paragraph rendering issue
+    - DOC: config: clarify log-forward "host" option
+    - MINOR: promex: expose ST_I_PX_RATE (current_session_rate)
+    - BUILD: acme: use my_strndup() instead of strndup()
+    - BUILD: leastconn: fix build warning when building without threads on old machines
+    - MINOR: threads: prepare DEBUG_THREAD to receive more values
+    - MINOR: threads: turn the full lock debugging to DEBUG_THREAD=2
+    - MEDIUM: threads: keep history of taken locks with DEBUG_THREAD > 0
+    - MINOR: threads/cli: display the lock history on "show threads"
+    - MEDIUM: thread: set DEBUG_THREAD to 1 by default
+    - BUG/MINOR: ssl/acme: free EVP_PKEY upon error
+    - MINOR: acme: separate the code generating private keys
+    - MINOR: acme: failure when no directory is specified
+    - MEDIUM: acme: generate the account file when not found
+    - MEDIUM: acme: use 'crt-base' to load the account key
+    - MINOR: compiler: add more macros to detect macro definitions
+    - MINOR: cli: split APPCTX_CLI_ST1_PROMPT into two distinct flags
+    - MEDIUM: cli: make the prompt mode configurable between n/i/p
+    - MEDIUM: mcli: make the prompt mode configurable between i/p
+    - MEDIUM: mcli: replicate the current mode when enterin the worker process
+    - DOC: configuration: acme account key are auto generated
+    - CLEANUP: acme: remove old TODO for account key
+    - DOC: configuration: add quic4 to the ssl-f-use example
+    - BUG/MINOR: acme: does not try to unlock after a failed trylock
+    - BUG/MINOR: mux-h2: fix the offset of the pattern for the ping frame
+    - MINOR: tcp: add support for setting TCP_NOTSENT_LOWAT on both sides
+    - BUG/MINOR: acme: creating an account should not end the task
+    - MINOR: quic: rename min/max fields for congestion window algo
+    - MINOR: quic: refactor BBR API
+    - BUG/MINOR: quic: ensure cwnd limits are always enforced
+    - MINOR: thread: define cshared type
+    - MINOR: quic: account for global congestion window
+    - MEDIUM: quic: limit global Tx memory
+    - MEDIUM: acme: use a map to store tokens and thumbprints
+    - BUG/MINOR: acme: remove references to virt@acme
+    - MINOR: applet: add appctx_schedule() macro
+    - BUG/MINOR: dns: add tempo between 2 connection attempts for dns servers
+    - CLEANUP: dns: remove unused dns_stream_server struct member
+    - BUG/MINOR: dns: prevent ds accumulation within dss
+    - CLEANUP: proxy: mention that px->conn_retries isn't relevant in some cases
+    - DOC: ring: refer to newer RFC5424
+    - MINOR: tools: make my_strndup() take a size_t len instead of and int
+    - MINOR: Add "sigalg" to "sigalg name" helper function
+    - MINOR: ssl: Add traces to ssl init/close functions
+    - MINOR: ssl: Add traces to recv/send functions
+    - MINOR: ssl: Add traces to ssl_sock_io_cb function
+    - MINOR: ssl: Add traces around SSL_do_handshake call
+    - MINOR: ssl: Add traces to verify callback
+    - MINOR: ssl: Add ocsp stapling callback traces
+    - MINOR: ssl: Add traces to the switchctx callback
+    - MINOR: ssl: Add traces about sigalg extension parsing in clientHello callback
+    - MINOR: Add 'conn' param to ssl_sock_chose_sni_ctx
+    - BUG/MEDIUM: mux-spop: Wait end of handshake to declare a spop connection ready
+    - BUG/MEDIUM: mux-spop: Handle CLOSING state and wait for AGENT DISCONNECT frame
+    - BUG/MINOR: mux-h1: Don't pretend connection was released for TCP>H1>H2 upgrade
+    - BUG/MINOR: mux-h1: Fix trace message in h1_detroy() to not relay on connection
+    - BUILD: ssl: Fix wolfssl build
+    - BUG/MINOR: mux-spop: Use the right bitwise operator in spop_ctl()
+    - MEDIUM: mux-quic: increase flow-control on each bufsize
+    - MINOR: mux-quic: limit emitted MSD frames count per qcs
+    - MINOR: add hlua_yield_asap() helper
+    - MINOR: hlua_fcn: enforce yield after *_get_stats() methods
+    - DOC: config: restore default values for resolvers hold directive
+    - MINOR: ssl/cli: "acme ps" shows the acme tasks
+    - MINOR: acme: acme_ctx_destroy() returns upon NULL
+    - MINOR: acme: use acme_ctx_destroy() upon error
+    - MEDIUM: tasks: Mutualize code between tasks and tasklets.
+    - MEDIUM: tasks: More code factorization
+    - MEDIUM: tasks: Remove TASK_IN_LIST and use TASK_QUEUED instead.
+    - MINOR: tasks: Remove unused tasklet_remove_from_tasklet_list
+    - MEDIUM: tasks: Mutualize the TASK_KILLED code between tasks and tasklets
+    - BUG/MEDIUM: connections: Report connection closing in conn_create_mux()
+    - BUILD/MEDIUM: quic: Make sure we build with recent changes
+
 2025/04/25 : 3.2-dev12
     - BUG/MINOR: quic: do not crash on CRYPTO ncbuf alloc failure
     - BUG/MINOR: proxy: always detach a proxy from the names tree on free()
