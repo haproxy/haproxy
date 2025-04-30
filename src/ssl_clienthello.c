@@ -624,6 +624,7 @@ sni_lookup:
  */
 int ssl_sock_switchctx_wolfSSL_cbk(WOLFSSL* ssl, void* arg)
 {
+	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
 	struct bind_conf *s = arg;
 	int has_rsa_sig = 0, has_ecdsa_sig = 0;
 	const char *servername;

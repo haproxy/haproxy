@@ -120,7 +120,7 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 	}
 
 	if (mask & SSL_EV_CONN_HNDSHK) {
-		const SSL *ssl = a2;
+		SSL *ssl = (SSL*)a2;
 
 		if (ssl && src->verbosity > SSL_VERB_SIMPLE) {
 			const char *servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
