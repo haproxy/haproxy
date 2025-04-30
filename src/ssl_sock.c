@@ -5813,10 +5813,17 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 		 * woke a tasklet already.
 		 */
 		if (ctx->conn->xprt_ctx == ctx) {
+			int closed_connection = 0;
+
 			if (!ctx->conn->mux)
-				ret = conn_create_mux(ctx->conn);
-			if (ret >= 0 && !woke && ctx->conn->mux && ctx->conn->mux->wake)
+				ret = conn_create_mux(ctx->conn, &closed_connection);
+			if (ret >= 0 && !woke && ctx->conn->mux && ctx->conn->mux->wake) {
 				ret = ctx->conn->mux->wake(ctx->conn);
+				if (ret < 0)
+					closed_connection = 1;
+			}
+			if (closed_connection)
+				t = NULL;
 			goto leave;
 		}
 	}

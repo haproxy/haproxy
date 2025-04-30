@@ -84,8 +84,11 @@ void conn_delete_from_tree(struct connection *conn)
 	eb64_delete(&conn->hash_node->node);
 }
 
-int conn_create_mux(struct connection *conn)
+int conn_create_mux(struct connection *conn, int *closed_connection)
 {
+	if (closed_connection)
+		*closed_connection = 0;
+
 	if (conn_is_back(conn)) {
 		struct server *srv;
 		struct stconn *sc = conn->ctx;
@@ -138,8 +141,13 @@ fail:
 			task_wakeup(l->rx.rhttp.task, TASK_WOKEN_RES);
 		}
 		return -1;
-	} else
-		return conn_complete_session(conn);
+	} else {
+
+		int ret = conn_complete_session(conn);
+		if (ret == -1 && closed_connection)
+			*closed_connection = 1;
+		return ret;
+	}
 
 }
 
@@ -157,7 +165,7 @@ int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake)
 	 * done with the handshake, attempt to create one.
 	 */
 	if (unlikely(!conn->mux) && !(conn->flags & CO_FL_WAIT_XPRT)) {
-		ret = conn_create_mux(conn);
+		ret = conn_create_mux(conn, NULL);
 		if (ret < 0)
 			goto done;
 	}

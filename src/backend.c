@@ -2217,8 +2217,11 @@ int connect_server(struct stream *s)
 
 	/* catch all sync connect while the mux is not already installed */
 	if (!srv_conn->mux && !(srv_conn->flags & CO_FL_WAIT_XPRT)) {
-		if (conn_create_mux(srv_conn) < 0) {
-			conn_full_close(srv_conn);
+		int closed_connection;
+
+		if (conn_create_mux(srv_conn, &closed_connection) < 0) {
+			if (closed_connection == 0)
+				conn_full_close(srv_conn);
 			return SF_ERR_INTERNAL;
 		}
 	}

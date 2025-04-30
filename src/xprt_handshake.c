@@ -115,7 +115,7 @@ out:
 		 */
 		if (was_conn_ctx) {
 			if (!ctx->conn->mux)
-				ret = conn_create_mux(ctx->conn);
+				ret = conn_create_mux(ctx->conn, NULL);
 			if (ret >= 0 && !woke && ctx->conn->mux && ctx->conn->mux->wake)
 				ret = ctx->conn->mux->wake(ctx->conn);
 		}

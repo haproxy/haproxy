@@ -75,7 +75,7 @@ int conn_send_socks4_proxy_request(struct connection *conn);
 int conn_recv_socks4_proxy_response(struct connection *conn);
 
 /* If we delayed the mux creation because we were waiting for the handshake, do it now */
-int conn_create_mux(struct connection *conn);
+int conn_create_mux(struct connection *conn, int *closed_connection);
 int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake);
 int conn_upgrade_mux_fe(struct connection *conn, void *ctx, struct buffer *buf,
                         struct ist mux_proto, int mode);
