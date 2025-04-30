@@ -20038,6 +20038,8 @@ hold <status> <period>
 
   A separate behavior exists for "hold valid" and "hold obsolete".
 
+  Default value is 10s for "valid", 0s for "obsolete" and 30s for others.
+
 resolve_retries <nb>
   Defines the number <nb> of queries to send to resolve a server name before
   giving up.
