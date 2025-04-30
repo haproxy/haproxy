@@ -1865,7 +1865,7 @@ int qc_bind_tid_prep(struct quic_conn *qc, uint new_tid)
 	}
 
 	/* Reinit IO tasklet. */
-	if (qc->wait_event.tasklet->state & TASK_IN_LIST)
+	if (qc->wait_event.tasklet->state & TASK_QUEUED)
 		qc->flags |= QUIC_FL_CONN_IO_TO_REQUEUE;
 	tasklet_kill(qc->wait_event.tasklet);
 	/* In most cases quic_conn_app_io_cb is used but for 0-RTT quic_conn_io_cb can be still activated. */
