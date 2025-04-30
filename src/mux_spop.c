@@ -2674,7 +2674,7 @@ static int spop_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *ou
 	switch (mux_ctl) {
 	case MUX_CTL_STATUS:
 		if ((spop_conn->state >= SPOP_CS_FRAME_H && spop_conn->state < SPOP_CS_ERROR) &&
-		    !(spop_conn->flags & (SPOP_CF_ERROR|SPOP_CF_ERR_PENDING|SPOP_CF_END_REACHED||SPOP_CF_RCVD_SHUT|SPOP_CF_DISCO_SENT|SPOP_CF_DISCO_FAILED)))
+		    !(spop_conn->flags & (SPOP_CF_ERROR|SPOP_CF_ERR_PENDING|SPOP_CF_END_REACHED|SPOP_CF_RCVD_SHUT|SPOP_CF_DISCO_SENT|SPOP_CF_DISCO_FAILED)))
 			ret |= MUX_STATUS_READY;
 		return ret;
 	case MUX_CTL_EXIT_STATUS:
