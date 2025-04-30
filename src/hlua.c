@@ -1979,6 +1979,20 @@ void hlua_hook(lua_State *L, lua_Debug *ar)
 	lua_sethook(hlua->T, hlua_hook, LUA_MASKRET|LUA_MASKCOUNT, hlua_get_nb_instruction(hlua));
 }
 
+/* tries to yield as soon as possible if the context permits it */
+void hlua_yield_asap(lua_State *L)
+{
+	struct hlua *hlua;
+
+	/* Get hlua struct, or NULL if we execute from main lua state */
+	hlua = hlua_gethlua(L);
+	if (!hlua)
+		return;
+
+	/* enforce hook for current hlua ctx on the next Lua instruction */
+	lua_sethook(hlua->T, hlua_hook, LUA_MASKCOUNT, 1);
+}
+
 /* This function start or resumes the Lua stack execution. If the flag
  * "yield_allowed" if no set and the  LUA stack execution returns a yield
  * The function return an error.

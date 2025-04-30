@@ -50,6 +50,7 @@
 #define HLUA_INIT(__hlua) do { (__hlua)->T = 0; } while(0)
 
 /* Lua HAProxy integration functions. */
+void hlua_yield_asap(lua_State *L);
 const char *hlua_traceback(lua_State *L, const char* sep);
 void hlua_ctx_destroy(struct hlua *lua);
 void hlua_init();
