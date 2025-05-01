@@ -625,8 +625,8 @@ struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int sta
 
  out:
 	if ((qc->flags & QUIC_FL_CONN_CLOSING) && qc->mux_state != QC_MUX_READY) {
-		quic_conn_release(qc);
-		t = NULL;
+		if (quic_conn_release(qc))
+			t = NULL;
 		qc = NULL;
 	}
 
@@ -904,7 +904,8 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	}
 
 	if ((qc->flags & QUIC_FL_CONN_CLOSING) && qc->mux_state != QC_MUX_READY) {
-		quic_conn_release(qc);
+		if (quic_conn_release(qc))
+			t = NULL;
 		qc = NULL;
 	}
 
@@ -1392,12 +1393,15 @@ static inline void quic_conn_prx_cntrs_update(struct quic_conn *qc)
  *
  * This function must only be called by the thread responsible of the quic_conn
  * tasklet.
+ *
+ * Returns 1 if the tasklet was released, 0 otherwise
  */
-void quic_conn_release(struct quic_conn *qc)
+int quic_conn_release(struct quic_conn *qc)
 {
 	struct eb64_node *node;
 	struct quic_rx_packet *pkt, *pktback;
 	struct quic_conn_closed *cc_qc;
+	int ret = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
 
@@ -1425,6 +1429,7 @@ void quic_conn_release(struct quic_conn *qc)
 		qc->cids = NULL;
 		pool_free(pool_head_quic_cc_buf, qc->tx.cc_buf_area);
 		qc->tx.cc_buf_area = NULL;
+		ret = 1;
 	}
 
 	if (qc_test_fd(qc))
@@ -1525,6 +1530,7 @@ void quic_conn_release(struct quic_conn *qc)
 	TRACE_PROTO("QUIC conn. freed", QUIC_EV_CONN_FREED, qc);
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
+	return ret;
 }
 
 /* Initialize the timer task of <qc> QUIC connection.

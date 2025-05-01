@@ -174,7 +174,7 @@ int qc_notify_send(struct quic_conn *qc);
 
 void qc_check_close_on_released_mux(struct quic_conn *qc);
 
-void quic_conn_release(struct quic_conn *qc);
+int quic_conn_release(struct quic_conn *qc);
 
 void qc_kill_conn(struct quic_conn *qc);
 
