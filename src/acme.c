@@ -2286,8 +2286,11 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 		goto err;
 	}
 
-	acme_start_task(store, &errmsg);
+	if (acme_start_task(store, &errmsg) != 0)
+		goto err;
 
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return 0;
 err:
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 	return cli_dynerr(appctx, errmsg);
