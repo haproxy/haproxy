@@ -782,6 +782,21 @@ time_t x509_get_notafter_time_t(X509 *cert)
 error:
 	return ret;
 }
+
+/* return the notBefore date of a X509 certificate in a time_t format */
+time_t x509_get_notbefore_time_t(X509 *cert)
+{
+	time_t ret = -1;
+	ASN1_TIME *asn1_time;
+
+	if ((asn1_time = X509_getm_notBefore(cert)) == NULL)
+		goto error;
+
+	ret = ASN1_to_time_t(asn1_time);
+
+error:
+	return ret;
+}
 #endif
 
 /* https://datatracker.ietf.org/doc/html/rfc8422#appendix-A */
