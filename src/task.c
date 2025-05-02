@@ -616,7 +616,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		__ha_barrier_atomic_store();
 
 		/* keep the task counter up to date */
-		if (!(t->state & TASK_F_TASKLET))
+		if (!(state & TASK_F_TASKLET))
 			_HA_ATOMIC_DEC(&ha_thread_ctx[tid].tasks_in_list);
 
 		/* From this point, we know that the task or tasklet was properly
@@ -628,7 +628,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 
 		if (unlikely((state & TASK_KILLED) || process == NULL)) {
 			/* Task or tasklet has been killed, let's remove it */
-			if (t->state & TASK_F_TASKLET)
+			if (state & TASK_F_TASKLET)
 				pool_free(pool_head_tasklet, t);
 			else {
 				task_unlink_wq(t);
@@ -642,7 +642,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		}
 
 		/* OK now the task or tasklet is well alive and is going to be run */
-		if (t->state & TASK_F_TASKLET) {
+		if (state & TASK_F_TASKLET) {
 			/* this is a tasklet */
 
 			t = process(t, ctx, state);
