@@ -84,6 +84,9 @@ enum hlua_log_opt {
 /* default log options, made of flags in hlua_log_opt */
 static uint hlua_log_opts = HLUA_LOG_LOGGERS_ON | HLUA_LOG_STDERR_AUTO;
 
+/* set to 1 once some lua was loaded already */
+static uint8_t hlua_loaded = 0;
+
 #define HLUA_BOOL_SAMPLE_CONVERSION_UNK     0x0
 #define HLUA_BOOL_SAMPLE_CONVERSION_NORMAL  0x1
 #define HLUA_BOOL_SAMPLE_CONVERSION_BUG     0X2
@@ -13084,17 +13087,28 @@ static int hlua_cfg_parse_bool_sample_conversion(char **args, int section_type, 
                                                  const struct proxy *defpx, const char *file, int line,
                                                  char **err)
 {
+	uint8_t set;
+
 	if (too_many_args(1, args, err, NULL))
 		return -1;
 
 	if (strcmp(args[1], "normal") == 0)
-		hlua_bool_sample_conversion = HLUA_BOOL_SAMPLE_CONVERSION_NORMAL;
+		set = HLUA_BOOL_SAMPLE_CONVERSION_NORMAL;
 	else if (strcmp(args[1], "pre-3.1-bug") == 0)
-		hlua_bool_sample_conversion = HLUA_BOOL_SAMPLE_CONVERSION_BUG;
+		set = HLUA_BOOL_SAMPLE_CONVERSION_BUG;
 	else {
 		memprintf(err, "'%s' expects either 'normal' or 'pre-3.1-bug' but got '%s'.", args[0], args[1]);
 		return -1;
 	}
+
+	if (hlua_loaded)
+		ha_warning("parsing [%s:%d] : %s", file, line, "ignored as some Lua was loaded "
+		           "already. \"tune.lua.bool-sample-conversion\" must be set before "
+		           "any \"lua-load\" or \"lua-load-per-thread\" directive for it to be "
+		           "considered.\n");
+	else
+		hlua_bool_sample_conversion = set;
+
 	return 0;
 }
 
@@ -13118,6 +13132,8 @@ static int hlua_load_state(char **args, lua_State *L, char **err)
 	int nargs;
 
 	if (ONLY_ONCE()) {
+		hlua_loaded = 1;
+
 		/* we know we get there if "lua-load" or "lua-load-per-thread" was
 		 * used in the config
 		 */
@@ -13128,7 +13144,8 @@ static int hlua_load_state(char **args, lua_State *L, char **err)
 			 */
 			ha_warning("hlua: please set \"tune.lua.bool-sample-conversion\" tunable "
 			           "to either \"normal\" or \"pre-3.1-bug\" explicitly to avoid "
-			           "ambiguities. Defaulting to \"pre-3.1-bug\".\n");
+			           "ambiguities. This must be set before any \"lua-load\" or "
+			           "\"lua-load-per-thread\" directive. Defaulting to \"pre-3.1-bug\".\n");
 		}
 	}
 

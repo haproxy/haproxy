@@ -4085,6 +4085,9 @@ tune.lua.bool-sample-conversion { normal | pre-3.1-bug }
   behavior. It is recommended to set this option to "normal" after ensuring
   that in-use Lua scripts are properly handling bool haproxy samples as booleans.
 
+  This setting must be set before any "lua-load" or "lua-load-per-thread"
+  directive for it to be considered, else it is ignored.
+
 tune.lua.burst-timeout <timeout>
   The "burst" execution timeout applies to any Lua handler. If the handler
   fails to finish or yield before timeout is reached, it will be aborted to
