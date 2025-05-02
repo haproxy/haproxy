@@ -5,7 +5,7 @@
 #include <haproxy/istbuf.h>
 #include <haproxy/openssl-compat.h>
 
-#define ACME_RETRY 3
+#define ACME_RETRY 5
 
 /* acme section configuration */
 struct acme_cfg {
