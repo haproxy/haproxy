@@ -1856,6 +1856,9 @@ re:
 				if ((ctx->next_auth = ctx->next_auth->next) == NULL) {
 					st = ACME_CHKCHALLENGE;
 					ctx->next_auth = ctx->auths;
+					/* let 5 seconds before checking the challenge */
+					if (ctx->retryafter == 0)
+						ctx->retryafter = 5;
 				}
 				/* call with next auth or do the challenge step */
 				goto nextreq;
