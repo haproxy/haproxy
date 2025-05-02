@@ -151,6 +151,8 @@ struct stksess {
 	int seen;                 /* 0 only when no peer has seen this entry yet */
 	struct eb32_node exp;     /* ebtree node used to hold the session in expiration tree */
 	struct eb32_node upd;     /* ebtree node used to hold the update sequence tree */
+	struct mt_list pend_updts;/* list of entries to be inserted/moved in the update sequence tree */
+	int updt_is_local;        /* is the update a local one ? */
 	struct ebmb_node key;     /* ebtree node used to hold the session in table */
 	/* WARNING! do not put anything after <keys>, it's used by the key */
 };
@@ -220,9 +222,11 @@ struct stktable {
 	THREAD_ALIGN(64);
 
 	struct eb_root updates;   /* head of sticky updates sequence tree, uses updt_lock */
+	struct mt_list *pend_updts; /* list of updates to be added to the update sequence tree, one per thread-group */
 	unsigned int update;      /* uses updt_lock */
 	unsigned int localupdate; /* uses updt_lock */
 	unsigned int commitupdate;/* used to identify the latest local updates pending for sync, uses updt_lock */
+	struct tasklet *updt_task;/* tasklet responsable for pushing the pending updates into the tree */
 
 	THREAD_ALIGN(64);
 	/* this lock is heavily used and must be on its own cache line */
