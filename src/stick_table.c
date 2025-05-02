@@ -288,8 +288,8 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 {
 	struct stksess *ts;
 	struct eb32_node *eb;
-	int max_search = to_batch * 2; // no more than 50% misses
-	int max_per_shard = (to_batch + CONFIG_HAP_TBL_BUCKETS - 1) / CONFIG_HAP_TBL_BUCKETS;
+	int max_search; // no more than 50% misses
+	int max_per_shard;
 	int done_per_shard;
 	int batched = 0;
 	int updt_locked;
@@ -297,6 +297,12 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 	int shard;
 
 	shard = 0;
+
+	if (to_batch > STKTABLE_MAX_UPDATES_AT_ONCE)
+		to_batch = STKTABLE_MAX_UPDATES_AT_ONCE;
+
+	max_search = to_batch * 2; // no more than 50% misses
+	max_per_shard = (to_batch + CONFIG_HAP_TBL_BUCKETS - 1) / CONFIG_HAP_TBL_BUCKETS;
 
 	while (batched < to_batch) {
 		done_per_shard = 0;
