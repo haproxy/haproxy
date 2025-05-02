@@ -613,6 +613,19 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			}
 		} while (!_HA_ATOMIC_CAS(&t->state, &state, (state & TASK_PERSISTENT) | TASK_RUNNING));
 
+		__ha_barrier_atomic_store();
+
+		/* keep the task counter up to date */
+		if (!(t->state & TASK_F_TASKLET))
+			_HA_ATOMIC_DEC(&ha_thread_ctx[tid].tasks_in_list);
+
+		/* From this point, we know that the task or tasklet was properly
+		 * dequeued, flagged and accounted for. Let's now check if it was
+		 * killed. If TASK_KILLED arrived before we've read the state, we
+		 * directly free the task/tasklet. Otherwise for tasks it will be
+		 * seen after processing and it's freed on the exit path.
+		 */
+
 		if (unlikely((state & TASK_KILLED) || process == NULL)) {
 			/* Task or tasklet has been killed, let's remove it */
 			if (t->state & TASK_F_TASKLET)
@@ -627,6 +640,8 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			 */
 			goto next;
 		}
+
+		/* OK now the task or tasklet is well alive and is going to be run */
 		if (t->state & TASK_F_TASKLET) {
 			/* this is a tasklet */
 
@@ -635,21 +650,14 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 				_HA_ATOMIC_AND(&t->state, ~TASK_RUNNING);
 		} else {
 			/* This is a regular task */
-			__ha_barrier_atomic_store();
 
-			_HA_ATOMIC_DEC(&ha_thread_ctx[tid].tasks_in_list);
-
-			/* Note for below: if TASK_KILLED arrived before we've read the state, we
-			 * directly free the task. Otherwise it will be seen after processing and
-			 * it's freed on the exit path.
-			 */
 			if (process == process_stream)
 				t = process_stream(t, ctx, state);
 			else
 				t = process(t, ctx, state);
 
-			/* If there is a pending state  we have to wake up the task
-			 * immediately, else we defer it into wait queue
+			/* If there is a pending state, we have to wake up the task
+			 * immediately, else we defer it into wait queue.
 			 */
 			if (t != NULL) {
 				state = _HA_ATOMIC_LOAD(&t->state);
