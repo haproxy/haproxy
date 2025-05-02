@@ -1936,7 +1936,18 @@ nextreq:
 	/* this is called when changing step in the state machine */
 	http_st = ACME_HTTP_REQ;
 	ctx->retries = ACME_RETRY; /* reinit the retries */
-	goto re; /* optimize by not leaving the task for the next httpreq to init */
+
+	if (ctx->retryafter == 0)
+		goto re; /* optimize by not leaving the task for the next httpreq to init */
+
+	/* if we have a retryafter, wait before next request (usually finalize) */
+	task->expire = tick_add(now_ms, ctx->retryafter * 1000);
+	ctx->retryafter = 0;
+	ctx->http_state = http_st;
+	ctx->state = st;
+
+	MT_LIST_UNLOCK_FULL(&ctx->el, tmp);
+	return task;
 
 retry:
 	ctx->http_state = ACME_HTTP_REQ;
