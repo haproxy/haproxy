@@ -1927,7 +1927,6 @@ re:
 
 	/* this is called after initializing a request */
 	MT_LIST_UNLOCK_FULL(&ctx->el, tmp);
-	ctx->retries = ACME_RETRY;
 	ctx->http_state = http_st;
 	ctx->state = st;
 	task->expire = TICK_ETERNITY;
@@ -1936,6 +1935,7 @@ re:
 nextreq:
 	/* this is called when changing step in the state machine */
 	http_st = ACME_HTTP_REQ;
+	ctx->retries = ACME_RETRY; /* reinit the retries */
 	goto re; /* optimize by not leaving the task for the next httpreq to init */
 
 retry:
