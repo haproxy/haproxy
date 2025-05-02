@@ -5936,9 +5936,14 @@ the disk is not supposed to be done after the configuration is loaded, because
 it could block the event loop, blocking the traffic on the same thread. Meaning
 that the certificates and keys generated from HAProxy will need to be dumped
 from outside HAProxy using "dump ssl cert" on the stats socket.
-The generation is not scheduled and must be triggered using the CLI command
-"acme renew". See also "acme ps" in the management guide.
-External Account Biding (EAB) is not supported.
+External Account Binding (EAB) is not supported.
+
+The ACME scheduler starts at HAProxy startup, it will loop over the
+certificates and start an ACME renewal task when the notAfter task is past
+curtime + (notAfter - notBefore) / 12, or 7 days if notBefore is not defined.
+The scheduler will then sleep and wakeup after 12 hours.
+It is possible to start manually a renewal task with "acme renew'.
+See also "acme ps" in the management guide.
 
 The following keywords are usable in the ACME section:
 

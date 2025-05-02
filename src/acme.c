@@ -52,6 +52,7 @@ enum acme_ret {
 
 static EVP_PKEY *acme_EVP_PKEY_gen(int keytype, int curves, int bits, char **errmsg);
 static int acme_start_task(struct ckch_store *store, char **errmsg);
+static struct task *acme_scheduler(struct task *task, void *context, unsigned int state);
 
 /* Return an existing acme_cfg section */
 struct acme_cfg *get_acme_cfg(const char *name)
@@ -528,6 +529,7 @@ out:
 static int cfg_postparser_acme()
 {
 	struct acme_cfg *tmp_acme = acme_cfgs;
+	struct task *task = NULL;
 	int ret = 0;
 
         /* first check if the ID was already used */
@@ -542,6 +544,18 @@ static int cfg_postparser_acme()
 		tmp_acme = tmp_acme->next;
 	}
 
+
+	if (acme_cfgs) {
+		task = task_new_anywhere();
+		if (!task) {
+			ret++;
+			ha_alert("acme: couldn't start the scheduler!\n");
+		}
+		task->nice = 0;
+		task->process = acme_scheduler;
+
+		task_wakeup(task, TASK_WOKEN_INIT);
+	}
 
 	return ret;
 }
@@ -1998,6 +2012,65 @@ end:
 	task_destroy(task);
 	task = NULL;
 
+	return task;
+}
+
+/*
+ * Return 1 if the certificate must be regenerated
+ * Check if the notAfter date will append in (validity period / 12) or 7 days per default
+ */
+int acme_will_expire(struct ckch_store *store)
+{
+	int diff = 0;
+	time_t notAfter = 0;
+	time_t notBefore = 0;
+
+	/* compute the validity period of the leaf certificate */
+	if (!store->data || !store->data->cert)
+		return 0;
+
+	notAfter = x509_get_notafter_time_t(store->data->cert);
+	notBefore = x509_get_notbefore_time_t(store->data->cert);
+
+	if (notAfter >= 0 && notBefore >= 0) {
+		diff = (notAfter - notBefore) / 12; /* validity period / 12 */
+	} else {
+		diff = 7 * 24 * 60 * 60; /* default to 7 days */
+	}
+
+	if (date.tv_sec + diff > notAfter)
+		return 1;
+
+	return 0;
+}
+
+/* Does the scheduling of the ACME tasks
+ */
+struct task *acme_scheduler(struct task *task, void *context, unsigned int state)
+{
+	struct ebmb_node *node = NULL;
+	struct ckch_store *store = NULL;
+
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return task;
+
+	node = ebmb_first(&ckchs_tree);
+	while (node) {
+		store = ebmb_entry(node, struct ckch_store, node);
+
+		if (store->conf.acme.id) {
+
+			if (acme_will_expire(store)) {
+				acme_start_task(store, NULL);
+			}
+		}
+		node = ebmb_next(node);
+	}
+end:
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	/* call the task again in 12h */
+	/* XXX: need to be configured */
+	task->expire = tick_add(now_ms, 12 * 60 * 60 * 1000);
 	return task;
 }
 
