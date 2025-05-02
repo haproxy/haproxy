@@ -2050,6 +2050,7 @@ struct task *acme_scheduler(struct task *task, void *context, unsigned int state
 {
 	struct ebmb_node *node = NULL;
 	struct ckch_store *store = NULL;
+	char *errmsg = NULL;
 
 	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
 		return task;
@@ -2061,7 +2062,10 @@ struct task *acme_scheduler(struct task *task, void *context, unsigned int state
 		if (store->conf.acme.id) {
 
 			if (acme_will_expire(store)) {
-				acme_start_task(store, NULL);
+				if (acme_start_task(store, &errmsg) != 0) {
+					send_log(NULL, LOG_NOTICE,"acme: %s: %s, aborting.\n", store->path, errmsg ? errmsg : "");
+					ha_free(&errmsg);
+				}
 			}
 		}
 		node = ebmb_next(node);
