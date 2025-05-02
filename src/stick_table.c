@@ -3236,8 +3236,8 @@ smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg 
 		/* sc_* variant, args[0] = ctr# (mandatory) */
 		num = args[arg++].data.sint;
 	}
-
-	BUG_ON(num > 9, "unexpected value");
+	else
+		BUG_ON(num > 9, "unexpected value");
 
 	/* Here, <num> contains the counter number from 0 to 9 for
 	 * the sc[0-9]_ form, or even higher using sc_(num) if needed.
