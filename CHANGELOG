@@ -1,6 +1,31 @@
 ChangeLog :
 ===========
 
+2025/05/02 : 3.2-dev14
+    - MINOR: acme: retry label always do a request
+    - MINOR: acme: does not leave task for next request
+    - BUG/MINOR: acme: reinit the retries only at next request
+    - MINOR: acme: change the default max retries to 5
+    - MINOR: acme: allow a delay after a valid response
+    - MINOR: acme: wait 5s before checking the challenges results
+    - MINOR: acme: emit a log when starting
+    - MINOR: acme: delay of 5s after the finalize
+    - BUG/MEDIUM: quic: Let it be known if the tasklet has been released.
+    - BUG/MAJOR: tasks: fix task accounting when killed
+    - CLEANUP: tasks: use the local state, not t->state, to check for tasklets
+    - DOC: acme: external account binding is not supported
+    - MINOR: hlua: ignore "tune.lua.bool-sample-conversion" if set after "lua-load"
+    - MEDIUM: peers: Give up if we fail to take locks in hot path
+    - MEDIUM: stick-tables: defer adding updates to a tasklet
+    - MEDIUM: stick-tables: Limit the number of old entries we remove
+    - MEDIUM: stick-tables: Limit the number of entries we expire
+    - MINOR: cfgparse-global: add explicit error messages in cfg_parse_global_env_opts
+    - MINOR: ssl: add function to extract X509 notBefore date in time_t
+    - BUILD: acme: need HAVE_ASN1_TIME_TO_TM
+    - MINOR: acme: move the acme task init in a dedicated function
+    - MEDIUM: acme: add a basic scheduler
+    - MINOR: acme: emit a log when the scheduler can't start the task
+
 2025/04/30 : 3.2-dev13
     - MEDIUM: checks: Make sure we return the tasklet from srv_chk_io_cb
     - MEDIUM: listener: Make sure w ereturn the tasklet from accept_queue_process
