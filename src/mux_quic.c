@@ -3515,7 +3515,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 		goto err;
 	}
 
-	if (qcc->app_ops == &h3_ops)
+	if (qcc->app_ops == &h3_ops && !conn_is_back(conn))
 		proxy_inc_fe_cum_sess_ver_ctr(sess->listener, prx, 3);
 
 	/* Register conn for idle front closing. This is done once everything is allocated. */
