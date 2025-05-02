@@ -2188,6 +2188,8 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 	MT_LIST_INIT(&ctx->el);
 	MT_LIST_APPEND(&acme_tasks, &ctx->el);
 
+	send_log(NULL, LOG_NOTICE, "acme: %s: Starting update of the certificate.\n", ctx->store->path);
+
 	task_wakeup(task, TASK_WOKEN_INIT);
 
 	return 0;
