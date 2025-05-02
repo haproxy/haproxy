@@ -1892,6 +1892,9 @@ re:
 				if (acme_res_finalize(task, ctx, &errmsg) != 0) {
 					goto retry;
 				}
+				/* let 5 seconds to the server to generate the cert */
+				if (ctx->retryafter == 0)
+					ctx->retryafter = 5;
 				st = ACME_CHKORDER;
 				goto nextreq;
 			}
