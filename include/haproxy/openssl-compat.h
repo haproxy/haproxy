@@ -132,7 +132,7 @@
 #define HAVE_JWS
 #endif
 
-#if (defined(HAVE_JWS))
+#if (defined(HAVE_JWS) && defined(HAVE_ASN1_TIME_TO_TM))
 #define HAVE_ACME
 #endif
 
