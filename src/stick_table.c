@@ -884,7 +884,9 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 	struct stktable *t = context;
 	struct stksess *ts;
 	struct eb32_node *eb;
+	int need_resched = 0;
 	int updt_locked;
+	int expired;
 	int looped;
 	int exp_next;
 	int task_exp;
@@ -897,6 +899,7 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 		looped = 0;
 		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 		eb = eb32_lookup_ge(&t->shards[shard].exps, now_ms - TIMER_LOOK_BACK);
+		expired = 0;
 
 		while (1) {
 			if (unlikely(!eb)) {
@@ -952,6 +955,14 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 				continue;
 			}
 
+			if (updt_locked == 1) {
+				expired++;
+				if (expired == STKTABLE_MAX_UPDATES_AT_ONCE) {
+					need_resched = 1;
+					exp_next = TICK_ETERNITY;
+					goto out_unlock;
+				}
+			}
 			/* if the entry is in the update list, we must be extremely careful
 			 * because peers can see it at any moment and start to use it. Peers
 			 * will take the table's updt_lock for reading when doing that, and
@@ -986,13 +997,17 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 	}
 
-	/* Reset the task's expiration. We do this under the lock so as not
-	 * to ruin a call to task_queue() in stktable_requeue_exp() if we
-	 * were to update with TICK_ETERNITY.
-	 */
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
-	task->expire = task_exp;
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
+	if (need_resched) {
+		task_wakeup(task, TASK_WOKEN_OTHER);
+	} else {
+		/* Reset the task's expiration. We do this under the lock so as not
+		 * to ruin a call to task_queue() in stktable_requeue_exp() if we
+		 * were to update with TICK_ETERNITY.
+		 */
+		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
+		task->expire = task_exp;
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
+	}
 
 	return task;
 }
