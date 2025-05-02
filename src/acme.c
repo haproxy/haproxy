@@ -1757,7 +1757,6 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 
 			if (http_st == ACME_HTTP_RES) {
 				if (acme_directory(task, ctx, &errmsg) != 0) {
-					http_st = ACME_HTTP_REQ;
 					goto retry;
 				}
 				st = ACME_NEWNONCE;
@@ -1772,7 +1771,6 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 			}
 			if (http_st == ACME_HTTP_RES) {
 				if (acme_nonce(task, ctx, &errmsg) != 0) {
-					http_st = ACME_HTTP_REQ;
 					goto retry;
 				}
 				st = ACME_CHKACCOUNT;
@@ -1788,7 +1786,6 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 			}
 			if (http_st == ACME_HTTP_RES) {
 				if (acme_res_account(task, ctx, 0, &errmsg) != 0) {
-					http_st = ACME_HTTP_REQ;
 					goto retry;
 				}
 				if (!isttest(ctx->kid))
@@ -1806,7 +1803,6 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 			}
 			if (http_st == ACME_HTTP_RES) {
 				if (acme_res_account(task, ctx, 1, &errmsg) != 0) {
-					http_st = ACME_HTTP_REQ;
 					goto retry;
 				}
 				st = ACME_NEWORDER;
@@ -1823,7 +1819,6 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 			}
 			if (http_st == ACME_HTTP_RES) {
 				if (acme_res_neworder(task, ctx, &errmsg) != 0) {
-					http_st = ACME_HTTP_REQ;
 					goto retry;
 				}
 				st = ACME_AUTH;
@@ -1838,7 +1833,6 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 			}
 			if (http_st == ACME_HTTP_RES) {
 				if (acme_res_auth(task, ctx, ctx->next_auth, &errmsg) != 0) {
-					http_st = ACME_HTTP_REQ;
 					goto retry;
 				}
 				http_st = ACME_HTTP_REQ;
@@ -1859,7 +1853,6 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 				enum acme_ret ret = acme_res_challenge(task, ctx, ctx->next_auth, 0, &errmsg);
 
 				if (ret == ACME_RET_RETRY) {
-					http_st = ACME_HTTP_REQ;
 					goto retry;
 				} else if (ret == ACME_RET_FAIL) {
 					goto end;
@@ -1881,7 +1874,6 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 			if (http_st == ACME_HTTP_RES) {
 				enum acme_ret ret = acme_res_challenge(task, ctx, ctx->next_auth, 1, &errmsg);
 				if (ret == ACME_RET_RETRY) {
-					http_st = ACME_HTTP_REQ;
 					goto retry;
 				} else if (ret == ACME_RET_FAIL) {
 					goto abort;
@@ -1901,7 +1893,6 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 			}
 			if (http_st == ACME_HTTP_RES) {
 				if (acme_res_finalize(task, ctx, &errmsg) != 0) {
-					http_st = ACME_HTTP_REQ;
 					goto retry;
 				}
 				http_st = ACME_HTTP_REQ;
@@ -1916,7 +1907,6 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 			}
 			if (http_st == ACME_HTTP_RES) {
 				if (acme_res_chkorder(task, ctx, &errmsg) != 0) {
-					http_st = ACME_HTTP_REQ;
 					goto retry;
 				}
 				http_st = ACME_HTTP_REQ;
@@ -1931,7 +1921,6 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 			}
 			if (http_st == ACME_HTTP_RES) {
 				if (acme_res_certificate(task, ctx, &errmsg) != 0) {
-					http_st = ACME_HTTP_REQ;
 					goto retry;
 				}
 				http_st = ACME_HTTP_REQ;
@@ -1953,7 +1942,7 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 	return task;
 
 retry:
-	ctx->http_state = http_st;
+	ctx->http_state = ACME_HTTP_REQ;
 	ctx->state = st;
 
 	ctx->retries--;
