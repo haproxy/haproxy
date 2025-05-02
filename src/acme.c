@@ -51,6 +51,7 @@ enum acme_ret {
 };
 
 static EVP_PKEY *acme_EVP_PKEY_gen(int keytype, int curves, int bits, char **errmsg);
+static int acme_start_task(struct ckch_store *store, char **errmsg);
 
 /* Return an existing acme_cfg section */
 struct acme_cfg *get_acme_cfg(const char *name)
@@ -2104,50 +2105,31 @@ err:
 	return pkey;
 }
 
-static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appctx, void *private)
+/* start an ACME task */
+static int acme_start_task(struct ckch_store *store, char **errmsg)
 {
-	char *err = NULL;
-	struct acme_cfg *cfg;
 	struct task *task;
 	struct acme_ctx *ctx = NULL;
-	struct ckch_store *store = NULL, *newstore = NULL;
+	struct acme_cfg *cfg;
+	struct ckch_store *newstore = NULL;
 	EVP_PKEY *pkey = NULL;
 
-	if (!*args[1]) {
-		memprintf(&err, ": not enough parameters\n");
-		goto err;
-	}
-
-	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
-		return cli_err(appctx, "Can't update: operations on certificates are currently locked!\n");
-
-	if ((store = ckchs_lookup(args[2])) == NULL) {
-		memprintf(&err, "Can't find the certificate '%s'.\n", args[2]);
-		goto err;
-	}
-
 	if (store->acme_task != NULL) {
-		memprintf(&err, "An ACME task is already running for certificate '%s'.\n", args[2]);
-		goto err;
-	}
-
-	if (store->conf.acme.id == NULL) {
-		memprintf(&err, "No ACME configuration defined for file '%s'.\n", args[2]);
+		memprintf(errmsg, "An ACME task is already running for certificate '%s'.\n", store->path);
 		goto err;
 	}
 
 	cfg = get_acme_cfg(store->conf.acme.id);
 	if (!cfg) {
-		memprintf(&err, "No ACME configuration found for file '%s'.\n", args[2]);
+		memprintf(errmsg, "No ACME configuration found for file '%s'.\n", store->path);
 		goto err;
 	}
 
 	newstore = ckchs_dup(store);
 	if (!newstore) {
-		memprintf(&err, "Out of memory.\n");
+		memprintf(errmsg, "Out of memory.\n");
 		goto err;
 	}
-
 
 	task = task_new_anywhere();
 	if (!task)
@@ -2160,18 +2142,17 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 	 */
         store->acme_task = task;
 
-	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
-
+	/* XXX: following init part could be done in the task */
 	ctx = calloc(1, sizeof *ctx);
 	if (!ctx) {
-		memprintf(&err, "Out of memory.\n");
+		memprintf(errmsg, "Out of memory.\n");
 		goto err;
 	}
 
 	/* set the number of remaining retries when facing an error */
 	ctx->retries = ACME_RETRY;
 
-	if ((pkey = acme_EVP_PKEY_gen(cfg->key.type, cfg->key.curves, cfg->key.bits, &err)) == NULL)
+	if ((pkey = acme_EVP_PKEY_gen(cfg->key.type, cfg->key.curves, cfg->key.bits, errmsg)) == NULL)
 		goto err;
 
 	EVP_PKEY_free(newstore->data->key);
@@ -2180,7 +2161,7 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 
 	ctx->req = acme_x509_req(newstore->data->key, store->conf.acme.domains);
 	if (!ctx->req) {
-		memprintf(&err, "%sCan't generate a CSR.\n", err ? err : "");
+		memprintf(errmsg, "%sCan't generate a CSR.\n", *errmsg ? *errmsg : "");
 		goto err;
 	}
 
@@ -2198,12 +2179,41 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 	return 0;
 
 err:
-	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 	EVP_PKEY_free(pkey);
 	ckch_store_free(newstore);
 	acme_ctx_destroy(ctx);
-	memprintf(&err, "%sCan't start the ACME client.\n", err ? err : "");
-	return cli_dynerr(appctx, err);
+	memprintf(errmsg, "%sCan't start the ACME client.\n", *errmsg ? *errmsg : "");
+	return 1;
+}
+
+static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct ckch_store *store = NULL;
+	char *errmsg = NULL;
+
+	if (!*args[1]) {
+		memprintf(&errmsg, ": not enough parameters\n");
+		goto err;
+	}
+
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't update: operations on certificates are currently locked!\n");
+
+	if ((store = ckchs_lookup(args[2])) == NULL) {
+		memprintf(&errmsg, "Can't find the certificate '%s'.\n", args[2]);
+		goto err;
+	}
+
+	if (store->conf.acme.id == NULL) {
+		memprintf(&errmsg, "No ACME configuration defined for file '%s'.\n", args[2]);
+		goto err;
+	}
+
+	acme_start_task(store, &errmsg);
+
+err:
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return cli_dynerr(appctx, errmsg);
 }
 
 
