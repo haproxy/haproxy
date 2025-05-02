@@ -1748,6 +1748,8 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 	char *errmsg = NULL;
 	struct mt_list tmp = MT_LIST_LOCK_FULL(&ctx->el);
 
+re:
+
 	switch (st) {
 		case ACME_RESSOURCES:
 			if (http_st == ACME_HTTP_REQ) {
@@ -1760,8 +1762,7 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 					goto retry;
 				}
 				st = ACME_NEWNONCE;
-				http_st = ACME_HTTP_REQ;
-				task_wakeup(task, TASK_WOKEN_MSG);
+				goto nextreq;
 			}
 		break;
 		case ACME_NEWNONCE:
@@ -1774,8 +1775,7 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 					goto retry;
 				}
 				st = ACME_CHKACCOUNT;
-				http_st = ACME_HTTP_REQ;
-				task_wakeup(task, TASK_WOKEN_MSG);
+				goto nextreq;
 			}
 
 		break;
@@ -1792,8 +1792,7 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 					st = ACME_NEWACCOUNT;
 				else
 					st = ACME_NEWORDER;
-				http_st = ACME_HTTP_REQ;
-				task_wakeup(task, TASK_WOKEN_MSG);
+				goto nextreq;
 			}
 		break;
 		case ACME_NEWACCOUNT:
@@ -1806,8 +1805,7 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 					goto retry;
 				}
 				st = ACME_NEWORDER;
-				http_st = ACME_HTTP_REQ;
-				task_wakeup(task, TASK_WOKEN_MSG);
+				goto nextreq;
 			}
 
 
@@ -1822,8 +1820,7 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 					goto retry;
 				}
 				st = ACME_AUTH;
-				http_st = ACME_HTTP_REQ;
-				task_wakeup(task, TASK_WOKEN_MSG);
+				goto nextreq;
 			}
 		break;
 		case ACME_AUTH:
@@ -1835,13 +1832,12 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 				if (acme_res_auth(task, ctx, ctx->next_auth, &errmsg) != 0) {
 					goto retry;
 				}
-				http_st = ACME_HTTP_REQ;
 				if ((ctx->next_auth = ctx->next_auth->next) == NULL) {
 					st = ACME_CHALLENGE;
 					ctx->next_auth = ctx->auths;
 				}
 				/* call with next auth or do the challenge step */
-				task_wakeup(task, TASK_WOKEN_MSG);
+				goto nextreq;
 			}
 		break;
 		case ACME_CHALLENGE:
@@ -1857,13 +1853,12 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 				} else if (ret == ACME_RET_FAIL) {
 					goto end;
 				}
-				http_st = ACME_HTTP_REQ;
 				if ((ctx->next_auth = ctx->next_auth->next) == NULL) {
 					st = ACME_CHKCHALLENGE;
 					ctx->next_auth = ctx->auths;
 				}
 				/* call with next auth or do the challenge step */
-				task_wakeup(task, TASK_WOKEN_MSG);
+				goto nextreq;
 			}
 		break;
 		case ACME_CHKCHALLENGE:
@@ -1878,12 +1873,11 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 				} else if (ret == ACME_RET_FAIL) {
 					goto abort;
 				}
-				http_st = ACME_HTTP_REQ;
 				if ((ctx->next_auth = ctx->next_auth->next) == NULL)
 					st = ACME_FINALIZE;
 
 				/* do it with the next auth or finalize */
-				task_wakeup(task, TASK_WOKEN_MSG);
+				goto nextreq;
 			}
 		break;
 		case ACME_FINALIZE:
@@ -1895,9 +1889,8 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 				if (acme_res_finalize(task, ctx, &errmsg) != 0) {
 					goto retry;
 				}
-				http_st = ACME_HTTP_REQ;
 				st = ACME_CHKORDER;
-				task_wakeup(task, TASK_WOKEN_MSG);
+				goto nextreq;
 			}
 		break;
 		case ACME_CHKORDER:
@@ -1909,9 +1902,8 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 				if (acme_res_chkorder(task, ctx, &errmsg) != 0) {
 					goto retry;
 				}
-				http_st = ACME_HTTP_REQ;
 				st = ACME_CERTIFICATE;
-				task_wakeup(task, TASK_WOKEN_MSG);
+				goto nextreq;
 			}
 		break;
 		case ACME_CERTIFICATE:
@@ -1923,7 +1915,6 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 				if (acme_res_certificate(task, ctx, &errmsg) != 0) {
 					goto retry;
 				}
-				http_st = ACME_HTTP_REQ;
 				goto end;
 			}
 		break;
@@ -1934,12 +1925,18 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 
 	}
 
+	/* this is called after initializing a request */
 	MT_LIST_UNLOCK_FULL(&ctx->el, tmp);
 	ctx->retries = ACME_RETRY;
 	ctx->http_state = http_st;
 	ctx->state = st;
 	task->expire = TICK_ETERNITY;
 	return task;
+
+nextreq:
+	/* this is called when changing step in the state machine */
+	http_st = ACME_HTTP_REQ;
+	goto re; /* optimize by not leaving the task for the next httpreq to init */
 
 retry:
 	ctx->http_state = ACME_HTTP_REQ;
