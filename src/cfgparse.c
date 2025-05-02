@@ -1982,6 +1982,7 @@ next_line:
 		while (1) {
 			uint32_t err;
 			const char *errptr;
+			int check_arg;
 
 			arg = sizeof(args) / sizeof(*args);
 			outlen = outlinesize;
@@ -2062,6 +2063,14 @@ next_line:
 				err_code |= ERR_ALERT | ERR_FATAL;
 				fatal++;
 				goto next_line;
+			}
+
+			for (check_arg = 0; check_arg < arg; check_arg++) {
+				if (*args[check_arg])
+					continue;
+				ha_warning("parsing [%s:%d]: argument number %d is empty and marks the end of the argument list; all subsequent arguments will be ignored.\n",
+					   file, linenum, check_arg + 1);
+				break;
 			}
 
 			/* everything's OK */
