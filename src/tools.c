@@ -6167,7 +6167,9 @@ int is_dir_present(const char *path_fmt, ...)
  * quote/brace is reported in <errptr> if not NULL. When using in-place parsing
  * error reporting might be difficult since zeroes will have been inserted into
  * the string. One solution for the caller may consist in replacing all args
- * delimiters with spaces in this case.
+ * delimiters with spaces in this case. As a convenience, the pointer to the
+ * first empty arg may be reported in errptr if that one was not assigned an
+ * error.
  */
 uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbargs, uint32_t opts, const char **errptr)
 {
@@ -6179,6 +6181,9 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 	int argsmax = *nbargs - 1;
 	size_t outpos = 0;
 	size_t arg_start = 0; // copy of outpos before EMIT_CHAR().
+	const char *curr_in = in; // <in> at the beginning of the loop
+	const char *begin_new_arg = NULL; // <in> at transition to new arg
+	const char *empty_arg_ptr = NULL; // pos of first empty arg if any (wrt in)
 	int squote = 0;
 	int dquote = 0;
 	int arg = 0;
@@ -6196,6 +6201,7 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 	while (1) {
 		prev_in_arg = in_arg;
 		arg_start = outpos;
+		curr_in = in;
 
 		if (*in >= '-' && *in != '\\') {
 			in_arg = 1;
@@ -6426,12 +6432,15 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 						EMIT_CHAR(*value++);
 					}
 					if (!prev_in_arg && in_arg) {
+						begin_new_arg = curr_in;
 						if (arg < argsmax)
 							args[arg] = out + arg_start;
 						else
 							err |= PARSE_ERR_TOOMANY;
 					}
 					if (prev_in_arg && !in_arg) {
+						if (!empty_arg_ptr && args[arg] == out + arg_start)
+							empty_arg_ptr = begin_new_arg;
 						EMIT_CHAR(0);
 						arg++;
 					}
@@ -6464,6 +6473,7 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 		}
 
 		if (!prev_in_arg && in_arg) {
+			begin_new_arg = curr_in;
 			if (arg < argsmax)
 				args[arg] = out + arg_start;
 			else
@@ -6471,6 +6481,8 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 		}
 
 		if (prev_in_arg && !in_arg) {
+			if (!empty_arg_ptr && args[arg] == out + arg_start)
+				empty_arg_ptr = begin_new_arg;
 			EMIT_CHAR(0);
 			arg++;
 		}
@@ -6478,6 +6490,8 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 
 	/* end of output string */
 	if (in_arg) {
+		if (!empty_arg_ptr && args[arg] == out + arg_start)
+			empty_arg_ptr = begin_new_arg;
 		EMIT_CHAR(0);
 		arg++;
 	}
@@ -6502,6 +6516,9 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 	while (arg >= 0 && arg <= argsmax)
 		args[arg++] = out + outpos - 1;
 
+	/* if no error but an empty arg, report its pointer in errptr for convenience */
+	if (empty_arg_ptr && errptr && !err)
+		*errptr = empty_arg_ptr;
 	return err;
 }
 #undef EMIT_CHAR
