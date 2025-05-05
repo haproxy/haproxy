@@ -338,11 +338,12 @@ static inline unsigned long thread_isolated()
 
 #define _lock_wait(_LK_, lbl, expr) do {				\
 		(void)(expr);						\
-		th_ctx->lock_history = (th_ctx->lock_history << 8) + ((lbl + 1) << 2) + _LK_; \
+		if (lbl != OTHER_LOCK)					\
+			th_ctx->lock_history = (th_ctx->lock_history << 8) + ((lbl + 1) << 2) + _LK_; \
 	} while (0)
 #define _lock_cond(_LK_, lbl, expr) ({					\
 		typeof(expr) _expr = (expr);				\
-		if (!_expr)						\
+		if (lbl != OTHER_LOCK && !_expr)			\
 			th_ctx->lock_history = (th_ctx->lock_history << 8) + ((lbl + 1) << 2) + _LK_; \
 		_expr; \
 	})
