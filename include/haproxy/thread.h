@@ -336,15 +336,38 @@ static inline unsigned long thread_isolated()
 
 #else
 
+/* principle: each lock operation takes 8 bits, 6 of which (the highest) are
+ * the lock label, and two of which (the lowest) are the operation (_LK_*).
+ * In order to preserve as much usable history as possible, we try to merge
+ * repetitions:
+ *  - if a lock is taken just after it was released, the release is erased
+ *    from history and replace with the new operation ;
+ *  - if, when replacing an unlock, the new operation is the same as the
+ *    one before the unlock, then the new one is not added.
+ * This means that sequences like "R:foo U:foo R:foo" just become "R:foo",
+ * but that those like "R:foo U:foo W:foo U:foo" become "R:foo W:foo U:foo".
+ */
+#define _lock_wait_common(_LK_, lbl) do {				\
+		ulong _lck = ((lbl + 1) << 2) + _LK_;			\
+		if ((uint8_t)th_ctx->lock_history == (uint8_t)(((lbl + 1) << 2) + _LK_UN)) { \
+			/* re-lock of just unlocked, try to compact and possibly merge with n-2 */ \
+			th_ctx->lock_history >>= 8;			\
+			if ((uint8_t)th_ctx->lock_history != (uint8_t)_lck) \
+				th_ctx->lock_history = (th_ctx->lock_history << 8) + _lck; \
+		}							\
+		else							\
+			th_ctx->lock_history = (th_ctx->lock_history << 8) + _lck; \
+	} while (0)
+
 #define _lock_wait(_LK_, lbl, expr) do {				\
 		(void)(expr);						\
 		if (lbl != OTHER_LOCK)					\
-			th_ctx->lock_history = (th_ctx->lock_history << 8) + ((lbl + 1) << 2) + _LK_; \
+			_lock_wait_common(_LK_, lbl);			\
 	} while (0)
 #define _lock_cond(_LK_, lbl, expr) ({					\
 		typeof(expr) _expr = (expr);				\
 		if (lbl != OTHER_LOCK && !_expr)			\
-			th_ctx->lock_history = (th_ctx->lock_history << 8) + ((lbl + 1) << 2) + _LK_; \
+			_lock_wait_common(_LK_, lbl);			\
 		_expr; \
 	})
 
