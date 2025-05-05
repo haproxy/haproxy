@@ -6507,6 +6507,10 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 	*nbargs = arg;
 	*outlen = outpos;
 
+	/* make sure empty lines are terminated */
+	if (!arg)
+		EMIT_CHAR(0);
+
 	/* empty all trailing args by making them point to the trailing zero,
 	 * at least the last one in any case.
 	 */
