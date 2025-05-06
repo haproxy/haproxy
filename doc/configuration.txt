@@ -5923,6 +5923,8 @@ ocsp-update [ off | on ]
 3.13. ACME
 ----------
 
+acme <name>
+
 The ACME protocol can be configured using the "acme" section. The section takes
 a "<name>" argument, which is used to link a certificate to the section.
 
