@@ -336,9 +336,17 @@ quic_transport_param_decode(struct quic_transport_params *p, int server,
 			return QUIC_TP_DEC_ERR_TRUNC;
 		break;
 	case QUIC_TP_ACK_DELAY_EXPONENT:
-		if (!quic_dec_int(&p->ack_delay_exponent, buf, end) ||
-			p->ack_delay_exponent > QUIC_TP_ACK_DELAY_EXPONENT_LIMIT)
+		if (!quic_dec_int(&p->ack_delay_exponent, buf, end))
 			return QUIC_TP_DEC_ERR_TRUNC;
+
+		/* RFC 9000 18.2. Transport Parameter Definitions
+		 *
+		 * ack_delay_exponent (0x0a): [...]
+		 * Values above 20 are invalid.
+		 */
+		if (p->ack_delay_exponent > QUIC_TP_ACK_DELAY_EXPONENT_LIMIT)
+			return QUIC_TP_DEC_ERR_INVAL;
+
 		break;
 	case QUIC_TP_MAX_ACK_DELAY:
 		if (!quic_dec_int(&p->max_ack_delay, buf, end) ||
@@ -656,12 +664,16 @@ quic_transport_params_decode(struct quic_transport_params *p, int server,
 		return QUIC_TP_DEC_ERR_INVAL;
 	}
 
-	/* Note that if not received by the peer, active_connection_id_limit will
-	 * have QUIC_TP_DFLT_ACTIVE_CONNECTION_ID_LIMIT as default value. This
-	 * is also the minimum value for this transport parameter.
+	/* RFC 9000 18.2. Transport Parameter Definitions
+	 *
+	 * active_connection_id_limit (0x0e):
+	 * [...] The value of the
+	 * active_connection_id_limit parameter MUST be at least 2. An
+	 * endpoint that receives a value less than 2 MUST close the
+	 * connection with an error of type TRANSPORT_PARAMETER_ERROR.
 	 */
 	if (p->active_connection_id_limit < QUIC_TP_DFLT_ACTIVE_CONNECTION_ID_LIMIT)
-		return QUIC_TP_DEC_ERR_TRUNC;
+		return QUIC_TP_DEC_ERR_INVAL;
 
 	return QUIC_TP_DEC_ERR_NONE;
 }
