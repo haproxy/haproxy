@@ -349,9 +349,17 @@ quic_transport_param_decode(struct quic_transport_params *p, int server,
 
 		break;
 	case QUIC_TP_MAX_ACK_DELAY:
-		if (!quic_dec_int(&p->max_ack_delay, buf, end) ||
-			p->max_ack_delay > QUIC_TP_MAX_ACK_DELAY_LIMIT)
+		if (!quic_dec_int(&p->max_ack_delay, buf, end))
 			return QUIC_TP_DEC_ERR_TRUNC;
+
+		/* RFC 9000 18.2. Transport Parameter Definitions
+		 *
+		 * max_ack_delay (0x0b): [...]
+		 * Values of 2^14 or greater are invalid.
+		 */
+		if (p->max_ack_delay >= QUIC_TP_MAX_ACK_DELAY_LIMIT)
+			return QUIC_TP_DEC_ERR_INVAL;
+
 		break;
 	case QUIC_TP_DISABLE_ACTIVE_MIGRATION:
 		/* Zero-length parameter type. */
