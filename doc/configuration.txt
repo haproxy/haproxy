@@ -5720,6 +5720,8 @@ section. It allows to configure certificate definitions and which files should
 be loaded in it. A certificate definition must be written before it is used
 elsewhere in the configuration.
 
+crt-store [<name>]
+
 The "crt-store" takes an optional name in argument. If a name is specified,
 every certificate of this store must be referenced using "@<name>/<crt>" or
 "@<name>/<alias>".
