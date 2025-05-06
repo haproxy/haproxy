@@ -513,12 +513,15 @@ int process_srv_queue(struct server *s)
 		 * just in case try to run one more stream.
 		 */
 		for (i = 0; i < global.nbtgroups; i++) {
+			HA_SPIN_LOCK(QUEUE_LOCK, &s->per_tgrp[i].queue.lock);
 			if (pendconn_process_next_strm(s, p, px_ok, i + 1)) {
+				HA_SPIN_UNLOCK(QUEUE_LOCK, &s->per_tgrp[i].queue.lock);
 				_HA_ATOMIC_SUB(&p->totpend, 1);
 				_HA_ATOMIC_ADD(&p->served, 1);
 				done++;
 				break;
 			}
+			HA_SPIN_UNLOCK(QUEUE_LOCK, &s->per_tgrp[i].queue.lock);
 		}
 	}
 	return done;
