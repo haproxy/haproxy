@@ -254,9 +254,19 @@ quic_transport_param_decode(struct quic_transport_params *p, int server,
 
 	switch (type) {
 	case QUIC_TP_ORIGINAL_DESTINATION_CONNECTION_ID:
-		if (!server || len > sizeof p->original_destination_connection_id.data)
-			return QUIC_TP_DEC_ERR_TRUNC;
+		/* RFC 9000 18.2. Transport Parameter Definitions
+		 *
+		 * A client MUST NOT include any server-only transport parameter:
+		 * original_destination_connection_id, preferred_address,
+		 * retry_source_connection_id, or stateless_reset_token. A server MUST
+		 * treat receipt of any of these transport parameters as a connection
+		 * error of type TRANSPORT_PARAMETER_ERROR.
+		 */
+		if (!server)
+			return QUIC_TP_DEC_ERR_INVAL;
 
+		if (len > sizeof p->original_destination_connection_id.data)
+			return QUIC_TP_DEC_ERR_TRUNC;
 		if (len)
 			memcpy(p->original_destination_connection_id.data, *buf, len);
 		p->original_destination_connection_id.len = len;
@@ -274,15 +284,21 @@ quic_transport_param_decode(struct quic_transport_params *p, int server,
 		p->initial_source_connection_id_present = 1;
 		break;
 	case QUIC_TP_STATELESS_RESET_TOKEN:
-		if (!server || len != sizeof p->stateless_reset_token)
+		/* see original_destination_connection_id RFC reference above. */
+		if (!server)
+			return QUIC_TP_DEC_ERR_INVAL;
+
+		if (len != sizeof p->stateless_reset_token)
 			return QUIC_TP_DEC_ERR_TRUNC;
 		memcpy(p->stateless_reset_token, *buf, len);
 		*buf += len;
 		p->with_stateless_reset_token = 1;
 		break;
 	case QUIC_TP_PREFERRED_ADDRESS:
+		/* see original_destination_connection_id RFC reference above. */
 		if (!server)
-			return QUIC_TP_DEC_ERR_TRUNC;
+			return QUIC_TP_DEC_ERR_INVAL;
+
 		if (!quic_transport_param_dec_pref_addr(&p->preferred_address, buf, *buf + len))
 			return QUIC_TP_DEC_ERR_TRUNC;
 		p->with_preferred_address = 1;
