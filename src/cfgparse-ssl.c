@@ -2186,6 +2186,13 @@ static int proxy_parse_ssl_f_use(char **args, int section_type, struct proxy *cu
 		memprintf(err, "not enough memory!");
 		goto error;
 	}
+	cfg_crt_node->filename = strdup(file);
+	if (!cfg_crt_node->filename) {
+		memprintf(err, "not enough memory!");
+		goto error;
+	}
+	cfg_crt_node->linenum = linenum;
+
 
 	ckch_conf = calloc(1, sizeof *ckch_conf);
 	if (!ckch_conf) {
