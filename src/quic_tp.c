@@ -360,6 +360,13 @@ quic_transport_param_decode(struct quic_transport_params *p, int server,
 		                                           buf, *buf + len, server))
 			return QUIC_TP_DEC_ERR_TRUNC;
 		break;
+	case QUIC_TP_RETRY_SOURCE_CONNECTION_ID:
+		/* see original_destination_connection_id RFC reference above. */
+		if (!server)
+			return QUIC_TP_DEC_ERR_INVAL;
+
+		/* TODO implement parsing for client side */
+		break;
 	default:
 		*buf += len;
 	};
