@@ -246,16 +246,16 @@ static int quic_transport_param_dec_version_info(struct tp_version_information *
  * must be set to 1 for a server (haproxy listener) or 0 for a client (connection
  * to an haproxy server).
  */
-static int quic_transport_param_decode(struct quic_transport_params *p,
-                                       int server, uint64_t type,
-                                       const unsigned char **buf, size_t len)
+static enum quic_tp_dec_err
+quic_transport_param_decode(struct quic_transport_params *p, int server,
+                            uint64_t type, const unsigned char **buf, size_t len)
 {
 	const unsigned char *end = *buf + len;
 
 	switch (type) {
 	case QUIC_TP_ORIGINAL_DESTINATION_CONNECTION_ID:
 		if (!server || len > sizeof p->original_destination_connection_id.data)
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 
 		if (len)
 			memcpy(p->original_destination_connection_id.data, *buf, len);
@@ -265,7 +265,7 @@ static int quic_transport_param_decode(struct quic_transport_params *p,
 		break;
 	case QUIC_TP_INITIAL_SOURCE_CONNECTION_ID:
 		if (len > sizeof p->initial_source_connection_id.data)
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 
 		if (len)
 			memcpy(p->initial_source_connection_id.data, *buf, len);
@@ -275,80 +275,80 @@ static int quic_transport_param_decode(struct quic_transport_params *p,
 		break;
 	case QUIC_TP_STATELESS_RESET_TOKEN:
 		if (!server || len != sizeof p->stateless_reset_token)
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 		memcpy(p->stateless_reset_token, *buf, len);
 		*buf += len;
 		p->with_stateless_reset_token = 1;
 		break;
 	case QUIC_TP_PREFERRED_ADDRESS:
 		if (!server)
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 		if (!quic_transport_param_dec_pref_addr(&p->preferred_address, buf, *buf + len))
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 		p->with_preferred_address = 1;
 		break;
 	case QUIC_TP_MAX_IDLE_TIMEOUT:
 		if (!quic_dec_int(&p->max_idle_timeout, buf, end))
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 		break;
 	case QUIC_TP_MAX_UDP_PAYLOAD_SIZE:
 		if (!quic_dec_int(&p->max_udp_payload_size, buf, end))
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 		break;
 	case QUIC_TP_INITIAL_MAX_DATA:
 		if (!quic_dec_int(&p->initial_max_data, buf, end))
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 		break;
 	case QUIC_TP_INITIAL_MAX_STREAM_DATA_BIDI_LOCAL:
 		if (!quic_dec_int(&p->initial_max_stream_data_bidi_local, buf, end))
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 		break;
 	case QUIC_TP_INITIAL_MAX_STREAM_DATA_BIDI_REMOTE:
 		if (!quic_dec_int(&p->initial_max_stream_data_bidi_remote, buf, end))
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 		break;
 	case QUIC_TP_INITIAL_MAX_STREAM_DATA_UNI:
 		if (!quic_dec_int(&p->initial_max_stream_data_uni, buf, end))
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 		break;
 	case QUIC_TP_INITIAL_MAX_STREAMS_BIDI:
 		if (!quic_dec_int(&p->initial_max_streams_bidi, buf, end))
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 		break;
 	case QUIC_TP_INITIAL_MAX_STREAMS_UNI:
 		if (!quic_dec_int(&p->initial_max_streams_uni, buf, end))
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 		break;
 	case QUIC_TP_ACK_DELAY_EXPONENT:
 		if (!quic_dec_int(&p->ack_delay_exponent, buf, end) ||
 			p->ack_delay_exponent > QUIC_TP_ACK_DELAY_EXPONENT_LIMIT)
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 		break;
 	case QUIC_TP_MAX_ACK_DELAY:
 		if (!quic_dec_int(&p->max_ack_delay, buf, end) ||
 			p->max_ack_delay > QUIC_TP_MAX_ACK_DELAY_LIMIT)
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 		break;
 	case QUIC_TP_DISABLE_ACTIVE_MIGRATION:
 		/* Zero-length parameter type. */
 		if (len != 0)
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 		p->disable_active_migration = 1;
 		break;
 	case QUIC_TP_ACTIVE_CONNECTION_ID_LIMIT:
 		if (!quic_dec_int(&p->active_connection_id_limit, buf, end))
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 		break;
 	case QUIC_TP_VERSION_INFORMATION:
 		if (!quic_transport_param_dec_version_info(&p->version_information,
 		                                           buf, *buf + len, server))
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 		break;
 	default:
 		*buf += len;
 	};
 
-	return *buf == end;
+	return *buf == end ? QUIC_TP_DEC_ERR_NONE : QUIC_TP_DEC_ERR_TRUNC;
 }
 
 /* Encode <type> and <len> variable length values in <buf>.
@@ -598,10 +598,11 @@ int quic_transport_params_encode(unsigned char *buf,
  * or 0 for a client (connection to a haproxy server).
  * Returns 1 if succeeded, 0 if not.
  */
-static int quic_transport_params_decode(struct quic_transport_params *p, int server,
-                                        const unsigned char *buf,
-                                        const unsigned char *end)
+static enum quic_tp_dec_err
+quic_transport_params_decode(struct quic_transport_params *p, int server,
+                             const unsigned char *buf, const unsigned char *end)
 {
+	enum quic_tp_dec_err err;
 	const unsigned char *pos;
 	uint64_t type, len = 0;
 
@@ -609,13 +610,14 @@ static int quic_transport_params_decode(struct quic_transport_params *p, int ser
 
 	while (pos != end) {
 		if (!quic_transport_param_decode_type_len(&type, &len, &pos, end))
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 
 		if (end - pos < len)
-			return 0;
+			return QUIC_TP_DEC_ERR_TRUNC;
 
-		if (!quic_transport_param_decode(p, server, type, &pos, len))
-			return 0;
+		err = quic_transport_param_decode(p, server, type, &pos, len);
+		if (err != QUIC_TP_DEC_ERR_NONE)
+			return err;
 	}
 
 	/*
@@ -624,16 +626,16 @@ static int quic_transport_params_decode(struct quic_transport_params *p, int ser
 	 */
 	if ((server && !p->original_destination_connection_id_present) ||
 	    !p->initial_source_connection_id_present)
-		return 0;
+		return QUIC_TP_DEC_ERR_TRUNC;
 
 	/* Note that if not received by the peer, active_connection_id_limit will
 	 * have QUIC_TP_DFLT_ACTIVE_CONNECTION_ID_LIMIT as default value. This
 	 * is also the minimum value for this transport parameter.
 	 */
 	if (p->active_connection_id_limit < QUIC_TP_DFLT_ACTIVE_CONNECTION_ID_LIMIT)
-		return 0;
+		return QUIC_TP_DEC_ERR_TRUNC;
 
-	return 1;
+	return QUIC_TP_DEC_ERR_NONE;
 }
 
 /* Store transport parameters found in <buf> buffer into <qc> QUIC connection
@@ -642,12 +644,16 @@ static int quic_transport_params_decode(struct quic_transport_params *p, int ser
  * Note that peer transport parameters are stored in the TX part of the connection:
  * they are used to send packets to the peer with its transport parameters as
  * limitations.
- * Returns 1 if succeeded, 0 if not.
+ *
+ * Returns 1 on success, or 0 if parsing is interrupted on a truncated field.
+ * Note that if invalid values are used, success is returned by this function
+ * but the connection is scheduled for CONNECTION_CLOSE emission.
  */
 int quic_transport_params_store(struct quic_conn *qc, int server,
                                 const unsigned char *buf,
                                 const unsigned char *end)
 {
+	enum quic_tp_dec_err err;
 	struct quic_transport_params *tx_params = &qc->tx.params;
 	struct quic_transport_params *rx_params = &qc->rx.params;
 	/* Initial source connection ID */
@@ -656,8 +662,16 @@ int quic_transport_params_store(struct quic_conn *qc, int server,
 	/* initialize peer TPs to RFC default value */
 	quic_dflt_transport_params_cpy(tx_params);
 
-	if (!quic_transport_params_decode(tx_params, server, buf, end))
+	err = quic_transport_params_decode(tx_params, server, buf, end);
+	if (err == QUIC_TP_DEC_ERR_INVAL) {
+		TRACE_ERROR("invalid transport parameter value", QUIC_EV_TRANSP_PARAMS, qc);
+		quic_set_connection_close(qc, quic_err_transport(QC_ERR_TRANSPORT_PARAMETER_ERROR));
+		return 1;
+	}
+	else if (err == QUIC_TP_DEC_ERR_TRUNC) {
+		TRACE_ERROR("error on transport parameters decoding", QUIC_EV_TRANSP_PARAMS, qc);
 		return 0;
+	}
 
 	/* Update the connection from transport parameters received */
 	if (tx_params->version_information.negotiated_version &&

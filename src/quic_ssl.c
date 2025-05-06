@@ -574,17 +574,18 @@ static int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 			ERR_clear_error();
 			goto leave;
 		}
-#if defined(LIBRESSL_VERSION_NUMBER)
 		else if (qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
-			/* Some libressl versions emit TLS alerts without making the handshake
-			 * (SSL_do_handshake()) fail. This is at least the case for
-			 * libressl-3.9.0 when forcing the TLS cipher to TLS_AES_128_CCM_SHA256.
+			/* Immediate close may be set due to invalid received
+			 * transport parameters. This is also used due to some
+			 * SSL libraries which emit TLS alerts without failing
+			 * on SSL_do_handshake(). This is at least the case for
+			 * libressl-3.9.0 when forcing the TLS cipher to
+			 * TLS_AES_128_CCM_SHA256.
 			 */
 			TRACE_ERROR("SSL handshake error", QUIC_EV_CONN_IO_CB, qc, &state, &ssl_err);
 			HA_ATOMIC_INC(&qc->prx_counters->hdshk_fail);
 			goto leave;
 		}
-#endif
 
 #if defined(OPENSSL_IS_AWSLC)
 		/* As a server, if early data is accepted, SSL_do_handshake will
