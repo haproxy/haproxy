@@ -5943,7 +5943,7 @@ certificates and start an ACME renewal task when the notAfter task is past
 curtime + (notAfter - notBefore) / 12, or 7 days if notBefore is not defined.
 The scheduler will then sleep and wakeup after 12 hours.
 It is possible to start manually a renewal task with "acme renew'.
-See also "acme ps" in the management guide.
+See also "acme status" in the management guide.
 
 The following keywords are usable in the ACME section:
 

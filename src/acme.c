@@ -2322,29 +2322,6 @@ err:
 	return cli_dynerr(appctx, errmsg);
 }
 
-
-static int cli_acme_ps_io_handler(struct appctx *appctx)
-{
-	struct mt_list back;
-	struct acme_ctx *ctx;
-
-	chunk_reset(&trash);
-
-	chunk_appendf(&trash, "# certificate\tsection\tstate\n");
-	if (applet_putchk(appctx, &trash) == -1)
-		return 1;
-
-	MT_LIST_FOR_EACH_ENTRY_LOCKED(ctx, &acme_tasks, el, back) {
-		chunk_appendf(&trash, "%s\t%s\tRunning\n", ctx->store->path, ctx->cfg->name);
-
-		/* TODO: handle backref list when list of task > buffer size */
-		if (applet_putchk(appctx, &trash) == -1)
-			return 1;
-	}
-
-	return 1;
-}
-
 static int cli_acme_status_io_handler(struct appctx *appctx)
 {
 	struct ebmb_node *node = NULL;
@@ -2416,7 +2393,6 @@ static int cli_acme_ps(char **args, char *payload, struct appctx *appctx, void *
 
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "acme", "renew", NULL },           "acme renew <certfile>                   : renew a certificate using the ACME protocol", cli_acme_renew_parse, NULL, NULL, NULL, 0 },
-	{ { "acme", "ps", NULL },              "acme ps                                 : show running ACME tasks", cli_acme_ps, cli_acme_ps_io_handler, NULL, NULL, 0 },
 	{ { "acme", "status", NULL },          "acme status                             : show status of certificates configured with ACME", cli_acme_ps, cli_acme_status_io_handler, NULL, NULL, 0 },
 	{ { NULL }, NULL, NULL, NULL }
 }};
