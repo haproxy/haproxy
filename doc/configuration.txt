@@ -13558,7 +13558,7 @@ stick store-request <pattern> [table <table>] [{if | unless} <condition>]
   See also : "stick-table", "stick on", about ACLs and sample fetching.
 
 
-stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
+stick-table type {ip|ipv4|ipv6|integer|string [len <length>]|binary [len <length>]}
             size <size> [expire <expire>] [nopurge] [peers <peersect>] [srvkey <srvkey>]
             [write-to <wtable>] [store <data_type>]* [brates-factor <factor>]
             [recv-only]
@@ -13570,7 +13570,14 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
                                  no    |    yes   |   yes  |   yes
 
   Arguments :
-    ip         a table declared with "type ip" will only store IPv4 addresses.
+    ip         This type should be avoided in favor of a more explicit one such
+               as "ipv4" or "ipv6". Prior to version 3.2 it was the only way to
+               configure IPv4. In 3.2, "ip" is an alias for "ipv4", and "ipv4"
+               is preferred. In a future version, "ip" will instead correspond
+               to "ipv6". It is only meant to ease the transition from pre-3.2
+               to post-3.2.
+
+    ipv4       a table declared with this type will only store IPv4 addresses.
                This form is very compact (about 50 bytes per entry) and allows
                very fast entry lookup and stores with almost no overhead. This
                is mainly used to store client source IP addresses.

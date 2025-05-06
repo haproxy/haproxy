@@ -1133,10 +1133,16 @@ struct stktable_type stktable_types[SMP_TYPES] = {
  */
 int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *key_size, const char *file, int linenum)
 {
+	const char *kw = args[*myidx];
+
+	/* Planning for future changes, for now "ipv4" is an alias for "ip" */
+	if (strcmp(kw, "ipv4") == 0)
+		kw = "ip";
+
 	for (*type = 0; *type < SMP_TYPES; (*type)++) {
 		if (!stktable_types[*type].kw)
 			continue;
-		if (strcmp(args[*myidx], stktable_types[*type].kw) != 0)
+		if (strcmp(kw, stktable_types[*type].kw) != 0)
 			continue;
 
 		*key_size =  stktable_types[*type].default_size;
