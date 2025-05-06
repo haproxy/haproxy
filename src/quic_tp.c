@@ -620,13 +620,18 @@ quic_transport_params_decode(struct quic_transport_params *p, int server,
 			return err;
 	}
 
-	/*
-	 * A server MUST send original_destination_connection_id transport parameter.
-	 * initial_source_connection_id must be present both for server and client.
+	/* RFC 9000 7.3. Authenticating Connection IDs
+	 *
+	 * An endpoint MUST treat the absence of the
+	 * initial_source_connection_id transport parameter from either endpoint
+	 * or the absence of the original_destination_connection_id transport
+	 * parameter from the server as a connection error of type
+	 * TRANSPORT_PARAMETER_ERROR.
 	 */
-	if ((server && !p->original_destination_connection_id_present) ||
-	    !p->initial_source_connection_id_present)
-		return QUIC_TP_DEC_ERR_TRUNC;
+	if (!p->initial_source_connection_id_present ||
+	    (server && !p->original_destination_connection_id_present)) {
+		return QUIC_TP_DEC_ERR_INVAL;
+	}
 
 	/* Note that if not received by the peer, active_connection_id_limit will
 	 * have QUIC_TP_DFLT_ACTIVE_CONNECTION_ID_LIMIT as default value. This
