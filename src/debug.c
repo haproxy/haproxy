@@ -355,7 +355,8 @@ void ha_thread_dump_one(struct buffer *buf, int is_caller)
 #if defined(USE_THREAD) && ((DEBUG_THREAD > 0) || defined(DEBUG_FULL))
 	/* List the lock history */
 	if (th_ctx->lock_history) {
-		int lkh, lkl;
+		int lkh, lkl, lbl;
+		int done;
 
 		chunk_appendf(buf, "             lock_hist:");
 		for (lkl = 7; lkl >= 0; lkl--) {
@@ -364,6 +365,29 @@ void ha_thread_dump_one(struct buffer *buf, int is_caller)
 				continue;
 			chunk_appendf(buf, " %c:%s",
 				      "URSW"[lkh & 3], lock_label((lkh >> 2) - 1));
+		}
+
+		/* now rescan the list to only show those that remain */
+		done = 0;
+		for (lbl = 0; lbl < LOCK_LABELS; lbl++) {
+			/* find the latest occurrence of each label */
+			for (lkl = 0; lkl < 8; lkl++) {
+				lkh = (th_ctx->lock_history >> (lkl * 8)) & 0xff;
+				if (!lkh)
+					continue;
+				if ((lkh >> 2) == lbl)
+					break;
+			}
+			if (lkl == 8) // not found
+				continue;
+			if ((lkh & 3) == _LK_UN)
+				continue;
+			if (!done)
+				chunk_appendf(buf, " locked:");
+			chunk_appendf(buf, " %s(%c)",
+				      lock_label((lkh >> 2) - 1),
+				      "URSW"[lkh & 3]);
+			done++;
 		}
 		chunk_appendf(buf, "\n");
 	}
