@@ -2067,13 +2067,20 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 	ts->expire = tick_add(now_ms, expire);
 
 	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-	stktable_touch_remote(table, ts, 1);
+
+	/* we MUST NOT dec the refcnt yet because stktable_trash_oldest() or
+	 * process_table_expire() could execute between the two next lines.
+	 */
+	stktable_touch_remote(table, ts, 0);
 
 	/* Entry was just learned from a peer, we want to notify this peer
 	 * if we happen to modify it. Thus let's consider at least one
 	 * peer has seen the update (ie: the peer that sent us the update)
 	 */
 	HA_ATOMIC_STORE(&ts->seen, 1);
+
+	/* only now we can decrement the refcnt */
+	HA_ATOMIC_DEC(&ts->ref_cnt);
 
 	if (wts) {
 		/* Start over the message decoding for wts as we got a valid stksess
