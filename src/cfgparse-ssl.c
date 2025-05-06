@@ -2207,7 +2207,29 @@ static int proxy_parse_ssl_f_use(char **args, int section_type, struct proxy *cu
 	}
 
 	while (*args[cur_arg]) {
-		int found = 0;
+		int foundcrtstore = 0; /* found a crt-store keyword */
+		int found = 0;         /* found a crt-list or crt-store keyword */
+
+		if (strcmp("crt", args[cur_arg]) == 0) {
+			char path[MAXPATHLEN+1];
+			const char *arg = args[cur_arg+1];
+
+			if (*arg != '@' && *arg != '/' && global_ssl.crt_base) {
+				if ((strlen(global_ssl.crt_base) + 1 + strlen(arg)) > sizeof(path) ||
+				     snprintf(path, sizeof(path), "%s/%s",  global_ssl.crt_base, arg) > sizeof(path)) {
+					memprintf(err, "parsing [%s:%d]: '%s' : path too long",
+					          file, linenum, arg);
+					cfgerr |= ERR_ALERT | ERR_FATAL;
+					goto error;
+				}
+				arg = path;
+			}
+			free(ckch_conf->crt);
+			ckch_conf->crt = strdup(arg);
+			cur_arg += 2;
+			found = 1;
+			goto next;
+		}
 
 		/* first look for crt-list keywords */
 		for (i = 0; ssl_crtlist_kws[i].kw != NULL; i++) {
@@ -2230,10 +2252,11 @@ static int proxy_parse_ssl_f_use(char **args, int section_type, struct proxy *cu
 		}
 
 		/* then look for ckch_conf keywords */
-		cfgerr |= ckch_conf_parse(args, cur_arg, ckch_conf, &found, file, linenum, err);
+		cfgerr |= ckch_conf_parse(args, cur_arg, ckch_conf, &foundcrtstore, file, linenum, err);
 		if (cfgerr & ERR_CODE)
 			goto error;
-		if (found) {
+		if (foundcrtstore) {
+			found = 1;
 			cur_arg += 2;  /* skip 2 words if the keyword was found */
 			ckch_conf->used = CKCH_CONF_SET_CRTLIST; /* if they are options they must be used everywhere */
 			goto next;
@@ -2261,7 +2284,7 @@ error:
 }
 
 /*
- * After parsing the crt keywords in a frontend/listen section, create the corresponding crt-list and initialize the
+ * After parsing the ssl-f-use keywords in a frontend/listen section, create the corresponding crt-list and initialize the
  * certificates
  */
 
