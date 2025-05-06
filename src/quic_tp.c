@@ -310,6 +310,16 @@ quic_transport_param_decode(struct quic_transport_params *p, int server,
 	case QUIC_TP_MAX_UDP_PAYLOAD_SIZE:
 		if (!quic_dec_int(&p->max_udp_payload_size, buf, end))
 			return QUIC_TP_DEC_ERR_TRUNC;
+
+		/* RFC 9000 18.2. Transport Parameter Definitions
+		 *
+		 * max_udp_payload_size (0x03): [...]
+		 * The default for this parameter is the maximum permitted UDP
+		 * payload of 65527. Values below 1200 are invalid.
+		 */
+		if (p->max_udp_payload_size < 1200)
+			return QUIC_TP_DEC_ERR_INVAL;
+
 		break;
 	case QUIC_TP_INITIAL_MAX_DATA:
 		if (!quic_dec_int(&p->initial_max_data, buf, end))
