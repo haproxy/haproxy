@@ -1655,6 +1655,24 @@ acme renew <certificate>
   The certificate must be linked to an acme section, see section 3.13. of the
   configuration manual. See also "acme ps".
 
+acme status
+  Show the status of every certificates that were configured with ACME.
+
+  This command outputs, separated by a tab:
+  - The name of the certificate configured in haproxy
+  - The acme section used in the configuration
+  - The state of the acme task, either "Running" or "Scheduled"
+  - The UTC expiration date of the certificate in ISO8601 format
+  - The relative expiration time (0d if expired)
+  - The UTC expiration date of the certificate in ISO8601 format
+  - The relative schedule time (0d if Running)
+
+  Example:
+    $ echo "@1; acme status" | socat /tmp/master.sock - | column -t -s $'\t'
+    # certificate   section  state      expiration date (UTC)  expires in        scheduled date (UTC)  scheduled in
+    ecdsa.pem       LE       Running    2020-01-18T09:31:12Z   0d 0h00m00s       2020-01-15T21:31:12Z  0d 0h00m00s
+    foobar.pem.rsa  LE       Scheduled  2025-08-04T11:50:54Z   89d 23h01m13s     2025-07-27T23:50:55Z  82d 11h01m14s
+
 add acl [@<ver>] <acl> <pattern>
   Add an entry into the acl <acl>. <acl> is the #<id> or the <name> returned by
   "show acl". This command does not verify if the entry already exists. Entries

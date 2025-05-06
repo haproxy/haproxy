@@ -2044,6 +2044,32 @@ int acme_will_expire(struct ckch_store *store)
 	return 0;
 }
 
+/*
+ * Return when the next task is scheduled
+ * Check if the notAfter date will happen in (validity period / 12) or 7 days per default
+ */
+time_t acme_schedule_date(struct ckch_store *store)
+{
+	int diff = 0;
+	time_t notAfter = 0;
+	time_t notBefore = 0;
+
+	/* compute the validity period of the leaf certificate */
+	if (!store->data || !store->data->cert)
+		return 0;
+
+	notAfter = x509_get_notafter_time_t(store->data->cert);
+	notBefore = x509_get_notbefore_time_t(store->data->cert);
+
+	if (notAfter >= 0 && notBefore >= 0) {
+		diff = (notAfter - notBefore) / 12; /* validity period / 12 */
+	} else {
+		diff = 7 * 24 * 60 * 60; /* default to 7 days */
+	}
+
+	return (notAfter - diff);
+}
+
 /* Does the scheduling of the ACME tasks
  */
 struct task *acme_scheduler(struct task *task, void *context, unsigned int state)
@@ -2319,6 +2345,68 @@ static int cli_acme_ps_io_handler(struct appctx *appctx)
 	return 1;
 }
 
+static int cli_acme_status_io_handler(struct appctx *appctx)
+{
+	struct ebmb_node *node = NULL;
+	struct ckch_store *store = NULL;
+
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return 1;
+
+	chunk_reset(&trash);
+
+	chunk_appendf(&trash, "# certificate\tsection\tstate\texpiration date (UTC)\texpires in\tscheduled date (UTC)\tscheduled in\n");
+	if (applet_putchk(appctx, &trash) == -1)
+		return 1;
+
+
+	if (applet_putchk(appctx, &trash) == -1)
+		return 1;
+
+	/* TODO: handle backref list when list of task > buffer size */
+	node = ebmb_first(&ckchs_tree);
+	while (node) {
+		store = ebmb_entry(node, struct ckch_store, node);
+
+		if (store->conf.acme.id) {
+			char str[50] = {};
+			char *state = "Scheduled";
+			time_t notAfter = 0;
+			time_t sched = 0;
+			time_t remain = 0;
+
+			if (store->acme_task)
+				state = "Running";
+
+			chunk_appendf(&trash, "%s\t%s\t%s\t", store->path, store->conf.acme.id, state);
+
+			notAfter = x509_get_notafter_time_t(store->data->cert);
+			/* Expiration time */
+			if (notAfter > date.tv_sec)
+				remain = notAfter - date.tv_sec;
+			strftime(str, sizeof(str), "%Y-%m-%dT%H:%M:%SZ", gmtime(&notAfter));
+			chunk_appendf(&trash, "%s\t", str);
+			chunk_appendf(&trash, "%lud %luh%02lum%02lus\t", remain / 86400, (remain % 86400) / 3600, (remain % 3600) / 60, (remain % 60));
+
+			/* Scheduled time */
+			remain = 0;
+			sched = acme_schedule_date(store);
+			if (sched > date.tv_sec)
+				remain = sched - date.tv_sec;
+			strftime(str, sizeof(str), "%Y-%m-%dT%H:%M:%SZ", gmtime(&sched));
+			chunk_appendf(&trash, "%s\t", str);
+			chunk_appendf(&trash, "%lud %luh%02lum%02lus\n", remain / 86400, (remain % 86400) / 3600, (remain % 3600) / 60, (remain % 60));
+
+			if (applet_putchk(appctx, &trash) == -1)
+				return 1;
+		}
+		node = ebmb_next(node);
+	}
+end:
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return 1;
+}
+
 static int cli_acme_ps(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	return 0;
@@ -2329,6 +2417,7 @@ static int cli_acme_ps(char **args, char *payload, struct appctx *appctx, void *
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "acme", "renew", NULL },           "acme renew <certfile>                   : renew a certificate using the ACME protocol", cli_acme_renew_parse, NULL, NULL, NULL, 0 },
 	{ { "acme", "ps", NULL },              "acme ps                                 : show running ACME tasks", cli_acme_ps, cli_acme_ps_io_handler, NULL, NULL, 0 },
+	{ { "acme", "status", NULL },          "acme status                             : show status of certificates configured with ACME", cli_acme_ps, cli_acme_status_io_handler, NULL, NULL, 0 },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
