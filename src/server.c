@@ -5883,6 +5883,10 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	if (errcode)
 		goto out;
 
+	errcode = _srv_postparse(srv);
+	if (errcode)
+		goto out;
+
 	/* A dynamic server does not currently support resolution.
 	 *
 	 * Initialize it explicitly to the "none" method to ensure no
