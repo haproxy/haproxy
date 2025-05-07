@@ -6439,7 +6439,7 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 							err |= PARSE_ERR_TOOMANY;
 					}
 					if (prev_in_arg && !in_arg) {
-						if (!empty_arg_ptr && args[arg] == out + arg_start)
+						if (!empty_arg_ptr && arg < argsmax && args[arg] == out + arg_start)
 							empty_arg_ptr = begin_new_arg;
 						EMIT_CHAR(0);
 						arg++;
@@ -6481,7 +6481,7 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 		}
 
 		if (prev_in_arg && !in_arg) {
-			if (!empty_arg_ptr && args[arg] == out + arg_start)
+			if (!empty_arg_ptr && arg < argsmax && args[arg] == out + arg_start)
 				empty_arg_ptr = begin_new_arg;
 			EMIT_CHAR(0);
 			arg++;
@@ -6490,7 +6490,7 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 
 	/* end of output string */
 	if (in_arg) {
-		if (!empty_arg_ptr && args[arg] == out + arg_start)
+		if (!empty_arg_ptr && arg < argsmax && args[arg] == out + arg_start)
 			empty_arg_ptr = begin_new_arg;
 		EMIT_CHAR(0);
 		arg++;
