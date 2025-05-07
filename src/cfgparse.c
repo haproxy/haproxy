@@ -49,6 +49,7 @@
 #include <haproxy/check.h>
 #include <haproxy/chunk.h>
 #include <haproxy/clock.h>
+#include <haproxy/counters.h>
 #ifdef USE_CPU_AFFINITY
 #include <haproxy/cpuset.h>
 #include <haproxy/cpu_topo.h>
@@ -4259,7 +4260,7 @@ init_proxies_list_stage2:
 			if (curproxy->options2 & PR_O2_SOCKSTAT) {
 				listener->counters = calloc(1, sizeof(*listener->counters));
 				if (listener->counters) {
-					listener->counters->shared = calloc(1, sizeof(*listener->counters->shared));
+					listener->counters->shared = counters_fe_shared_get(&listener->guid);
 					if (!listener->counters->shared) {
 						ha_free(&listener->counters);
 						ha_alert("config: %s '%s': out of memory.\n",

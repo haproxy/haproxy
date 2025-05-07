@@ -25,6 +25,7 @@
 #include <haproxy/capture-t.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
+#include <haproxy/counters.h>
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
 #include <haproxy/filters.h>
@@ -221,8 +222,8 @@ static inline void proxy_free_common(struct proxy *px)
 	ha_free(&px->id);
 	LIST_DEL_INIT(&px->global_list);
 	drop_file_name(&px->conf.file);
-	ha_free(&px->fe_counters.shared);
-	ha_free(&px->be_counters.shared);
+	counters_fe_shared_drop(px->fe_counters.shared);
+	counters_be_shared_drop(px->be_counters.shared);
 	ha_free(&px->check_command);
 	ha_free(&px->check_path);
 	ha_free(&px->cookie_name);
@@ -398,7 +399,7 @@ void deinit_proxy(struct proxy *p)
 		free(l->label);
 		free(l->per_thr);
 		if (l->counters) {
-			free(l->counters->shared);
+			counters_fe_shared_drop(l->counters->shared);
 			free(l->counters);
 		}
 		task_destroy(l->rx.rhttp.task);
@@ -1710,38 +1711,7 @@ void proxy_unref_defaults(struct proxy *px)
  */
 int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char **errmsg)
 {
-	uint last_change;
-
 	init_new_proxy(px);
-
-	last_change = ns_to_sec(now_ns);
-	/* allocate private memory for shared counters: used as a fallback
-	 * or when sharing is disabled. If sharing is enabled pointers will
-	 * be updated to point to the proper shared memory location during
-	 * proxy postparsing, see proxy_postparse()
-	 */
-	if (cap & PR_CAP_FE) {
-		px->fe_counters.shared = calloc(1, sizeof(*px->fe_counters.shared));
-		if (!px->fe_counters.shared) {
-			memprintf(errmsg, "out of memory");
-			goto fail;
-		}
-		HA_ATOMIC_STORE(&px->fe_counters.shared->last_change, last_change);
-	}
-	if (cap & (PR_CAP_FE|PR_CAP_BE)) {
-		/* by default stream->be points to stream->fe, thus proxy
-		 * be_counters may be used even if the proxy lacks the backend
-		 * capability
-		 */
-		px->be_counters.shared = calloc(1, sizeof(*px->be_counters.shared));
-		if (!px->be_counters.shared) {
-			memprintf(errmsg, "out of memory");
-			goto fail;
-		}
-
-		HA_ATOMIC_STORE(&px->be_counters.shared->last_change, last_change);
-	}
-
 
 	if (name) {
 		px->id = strdup(name);
@@ -1766,8 +1736,8 @@ int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char *
 		memprintf(errmsg, "proxy '%s': %s", name, *errmsg);
 
 	ha_free(&px->id);
-	ha_free(&px->fe_counters.shared);
-	ha_free(&px->be_counters.shared);
+	counters_fe_shared_drop(px->fe_counters.shared);
+	counters_be_shared_drop(px->be_counters.shared);
 
 	return 0;
 }
@@ -1798,6 +1768,46 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, char **errmsg)
 	free(curproxy);
 	return NULL;
 }
+
+/* post-check for proxies */
+static int proxy_postcheck(struct proxy *px)
+{
+	int err_code = ERR_NONE;
+
+	/* allocate private memory for shared counters: used as a fallback
+	 * or when sharing is disabled. If sharing is enabled pointers will
+	 * be updated to point to the proper shared memory location during
+	 * proxy postparsing, see proxy_postparse()
+	 */
+	if (px->cap & PR_CAP_FE) {
+		px->fe_counters.shared = counters_fe_shared_get(&px->guid);
+		if (!px->fe_counters.shared) {
+			ha_alert("out of memory while setting up shared counters for %s %s\n",
+			         proxy_type_str(px), px->id);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
+	if (px->cap & (PR_CAP_FE|PR_CAP_BE)) {
+		/* by default stream->be points to stream->fe, thus proxy
+		 * be_counters may be used even if the proxy lacks the backend
+		 * capability
+		 */
+		px->be_counters.shared = counters_be_shared_get(&px->guid);
+		if (!px->be_counters.shared) {
+			ha_alert("out of memory while setting up shared counters for %s %s\n",
+			         proxy_type_str(px), px->id);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+	}
+
+
+ out:
+	return err_code;
+}
+REGISTER_POST_PROXY_CHECK(proxy_postcheck);
 
 /* Copy the proxy settings from <defproxy> to <curproxy>.
  * Returns 0 on success.

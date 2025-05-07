@@ -25,6 +25,7 @@
 #include <haproxy/check.h>
 #include <haproxy/cli.h>
 #include <haproxy/connection.h>
+#include <haproxy/counters.h>
 #include <haproxy/dict-t.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
@@ -3028,17 +3029,10 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 struct server *new_server(struct proxy *proxy)
 {
 	struct server *srv;
-	struct be_counters_shared *scounters;
 
 	srv = calloc(1, sizeof *srv);
 	if (!srv)
 		return NULL;
-
-	scounters = calloc(1, sizeof(*scounters));
-	if (!scounters) {
-		ha_free(&srv);
-		return NULL;
-	}
 
 	srv_take(srv);
 
@@ -3052,8 +3046,6 @@ struct server *new_server(struct proxy *proxy)
 	srv->rid = 0; /* rid defaults to 0 */
 
 	srv->next_state = SRV_ST_RUNNING; /* early server setup */
-	srv->counters.shared = scounters;
-	HA_ATOMIC_STORE(&srv->counters.shared->last_change, ns_to_sec(now_ns));
 
 	srv->check.obj_type = OBJ_TYPE_CHECK;
 	srv->check.status = HCHK_STATUS_INI;
@@ -3125,7 +3117,7 @@ void srv_free_params(struct server *srv)
 	free(srv->resolvers_id);
 	free(srv->addr_node.key);
 	free(srv->lb_nodes);
-	free(srv->counters.shared);
+	counters_be_shared_drop(srv->counters.shared);
 	if (srv->log_target) {
 		deinit_log_target(srv->log_target);
 		free(srv->log_target);
@@ -3434,6 +3426,21 @@ int srv_init(struct server *srv)
 	if (err_code & ERR_CODE)
 		goto out;
 
+	srv->counters.shared = counters_be_shared_get(&srv->guid);
+	if (!srv->counters.shared) {
+		ha_alert("memory error while setting up shared counters for %s/%s server\n", srv->proxy->id, srv->id);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	if (srv->flags & SRV_F_DYNAMIC) {
+		/* A dynamic server is disabled on startup */
+		srv->next_admin = SRV_ADMF_FMAINT;
+		srv->next_state = SRV_ST_STOPPED;
+		server_recalc_eweight(srv, 0); // relies on srv counters
+		srv_lb_commit_status(srv);
+	}
+
 	err_code |= init_srv_requeue(srv);
 
 	if (err_code & ERR_CODE)
@@ -3646,14 +3653,8 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		if (!(parse_flags & SRV_PARSE_DYNAMIC)) {
 			/* Copy default server settings to new server */
 			srv_settings_cpy(newsrv, &curproxy->defsrv, 0);
-		} else {
+		} else
 			srv_settings_init(newsrv);
-
-			/* A dynamic server is disabled on startup */
-			newsrv->next_admin = SRV_ADMF_FMAINT;
-			newsrv->next_state = SRV_ST_STOPPED;
-			server_recalc_eweight(newsrv, 0);
-		}
 		HA_SPIN_INIT(&newsrv->lock);
 	}
 	else {

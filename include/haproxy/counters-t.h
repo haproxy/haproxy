@@ -26,11 +26,13 @@
 #include <haproxy/freq_ctr-t.h>
 
 #define COUNTERS_SHARED_F_NONE    0x0000
+#define COUNTERS_SHARED_F_LOCAL   0x0001 // shared counter struct is actually process-local
 
 // common to fe_counters_shared and be_counters_shared
 #define COUNTERS_SHARED                                                              \
 	struct {                                                                     \
 		uint16_t flags;                         /* COUNTERS_SHARED_F flags */\
+		unsigned long last_change;              /* last time, when the state was changed */\
 	}
 
 // for convenience (generic pointer)
@@ -74,7 +76,6 @@ struct fe_counters_shared {
 		} http;
 	} p;                                    /* protocol-specific stats */
 	struct freq_ctr sess_per_sec;           /* sessions per second on this server */
-	unsigned long last_change;              /* last time, when the state was changed */
 
 	long long failed_req;                   /* failed requests (eg: invalid or timeout) */
 	long long denied_resp;                  /* blocked responses because of security concerns */
@@ -146,8 +147,6 @@ struct be_counters_shared {
 	long long bytes_in;                     /* number of bytes transferred from the client to the server */
 
 	long long    cum_sess;                  /* cumulated number of accepted connections */
-
-	unsigned long last_change;              /* last time, when the state was changed */
 };
 
 /* counters used by servers and backends */

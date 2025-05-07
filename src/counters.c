@@ -19,18 +19,32 @@
  */
 
 #include <stdlib.h>
+#include <haproxy/atomic.h>
+#include <haproxy/clock.h>
 #include <haproxy/counters.h>
+#include <haproxy/time.h>
 
 /* retrieved shared counters pointer for a given <guid> object
  * <size> hint is expected to reflect the actual type size (fe/be)
+ * if <guid> is not set, then sharing is disabled
  * Returns the pointer on success or NULL on failure
  */
-static void *_counters_shared_get(const struct guid_node *guid, size_t size)
+static void*_counters_shared_get(const struct guid_node *guid, size_t size)
 {
+	struct counters_shared *shared;
+	uint last_change;
+
 	/* no shared memory for now, simply allocate a memory block
 	 * for the counters (zero-initialized), ignore guid
 	 */
-	return calloc(1, size);
+	shared = calloc(1, size);
+	if (!shared)
+		return NULL;
+	if (!guid->node.key)
+		shared->flags |= COUNTERS_SHARED_F_LOCAL;
+	last_change = ns_to_sec(now_ns);
+	HA_ATOMIC_STORE(&shared->last_change, last_change);
+	return shared;
 }
 
 /* retrieve shared fe counters pointer for a given <guid> object */
