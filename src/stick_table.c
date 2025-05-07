@@ -144,13 +144,20 @@ int __stksess_kill(struct stktable *t, struct stksess *ts)
 	if (HA_ATOMIC_LOAD(&ts->ref_cnt))
 		return 0;
 
-	if (ts->upd.node.leaf_p || !MT_LIST_ISEMPTY(&ts->pend_updts)) {
+	/* make sure we're no longer in the updates list */
+	MT_LIST_DELETE(&ts->pend_updts);
+
+	/* ... and that nobody added us in between */
+	if (HA_ATOMIC_LOAD(&ts->ref_cnt))
+		return 0;
+
+	/* ... and that we didn't leave the update list for the tree */
+	if (ts->upd.node.leaf_p) {
 		updt_locked = 1;
 		HA_RWLOCK_WRLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
 		if (HA_ATOMIC_LOAD(&ts->ref_cnt))
 			goto out_unlock;
 	}
-	MT_LIST_DELETE(&ts->pend_updts);
 	eb32_delete(&ts->exp);
 	eb32_delete(&ts->upd);
 	ebmb_delete(&ts->key);
