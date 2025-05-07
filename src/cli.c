@@ -770,7 +770,8 @@ static int cli_process_cmdline(struct appctx *appctx)
 				break;
 			}
 		}
-		*p++ = 0;
+		if (p < end)
+			*p++ = 0;
 
 		/* unescape backslashes (\) */
 		for (j = 0, k = 0; args[i][k]; k++) {
