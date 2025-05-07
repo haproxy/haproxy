@@ -246,7 +246,10 @@ static int qc_handle_newly_acked_frm(struct quic_conn *qc, struct quic_frame *fr
 				            QUIC_EV_CONN_ACKSTRM, qc, strm_frm, stream);
 
 				if (qc_stream_desc_done(stream)) {
-					/* no need to continue if stream freed. */
+					/* Free qc_stream_desc instance as transfer is now completed. */
+					qc_stream_desc_free(stream, 0);
+					stream = NULL;
+
 					TRACE_DEVEL("stream released and freed", QUIC_EV_CONN_ACKSTRM, qc);
 					qc_check_close_on_released_mux(qc);
 				}
