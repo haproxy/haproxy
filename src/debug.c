@@ -288,7 +288,7 @@ void ha_dump_backtrace(struct buffer *buf, const char *prefix, int dump)
 /* dump a backtrace of current thread's stack to stderr. */
 void ha_backtrace_to_stderr(void)
 {
-	char area[2048];
+	char area[8192];
 	struct buffer b = b_make(area, sizeof(area), 0, 0);
 
 	ha_dump_backtrace(&b, "  ", 4);
@@ -834,7 +834,7 @@ void ha_panic()
  */
 void ha_stuck_warning(void)
 {
-	char msg_buf[4096];
+	char msg_buf[8192];
 	struct buffer buf;
 	ullong n, p;
 
