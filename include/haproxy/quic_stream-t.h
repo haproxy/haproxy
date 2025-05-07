@@ -7,6 +7,7 @@
 
 #include <haproxy/buf-t.h>
 #include <haproxy/list-t.h>
+#include <haproxy/quic_utils-t.h>
 
 /* A QUIC STREAM buffer used for Tx.
  *
@@ -43,6 +44,7 @@ struct qc_stream_desc {
 
 	uint64_t ack_offset; /* last acknowledged offset */
 	struct eb_root buf_tree; /* list of active and released buffers */
+	struct bdata_ctr data; /* data utilization counter */
 
 	int flags; /* QC_SD_FL_* values */
 

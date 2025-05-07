@@ -9,6 +9,7 @@
 #include <haproxy/mux_quic.h>
 #include <haproxy/pool.h>
 #include <haproxy/quic_conn.h>
+#include <haproxy/quic_utils.h>
 #include <haproxy/task.h>
 
 DECLARE_STATIC_POOL(pool_head_quic_stream_desc, "qc_stream_desc",
@@ -45,6 +46,8 @@ static void qc_stream_buf_free(struct qc_stream_desc *stream,
 		pool_free(pool_head_sbuf, buf->area);
 	}
 	else {
+		bdata_ctr_del(&stream->data, b_data(buf));
+		bdata_ctr_bdec(&stream->data);
 		b_free(buf);
 		offer_buffers(NULL, 1);
 	}
@@ -84,6 +87,7 @@ struct qc_stream_desc *qc_stream_desc_new(uint64_t id, enum qcs_type type, void 
 	stream->buf = NULL;
 	stream->buf_tree = EB_ROOT_UNIQUE;
 	stream->buf_offset = 0;
+	bdata_ctr_init(&stream->data);
 
 	stream->ack_offset = 0;
 	stream->flags = 0;
@@ -263,6 +267,7 @@ static struct qc_stream_buf *qc_stream_buf_ack(struct qc_stream_buf *buf,
 		diff = offset + len - stream->ack_offset;
 		b_del(&buf->buf, diff);
 		stream->ack_offset += diff;
+		bdata_ctr_del(&stream->data, diff);
 
 		/* notify room from acked data if buffer has been released. */
 		if (stream->notify_room && qc_stream_buf_is_released(buf, stream)) {
@@ -481,6 +486,7 @@ struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
 	}
 
 	eb64_insert(&stream->buf_tree, &stream->buf->offset_node);
+	bdata_ctr_binc(&stream->data);
 
 	return &stream->buf->buf;
 }

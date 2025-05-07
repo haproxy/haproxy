@@ -25,6 +25,7 @@
 #include <haproxy/quic_tp-t.h>
 #include <haproxy/quic_tune.h>
 #include <haproxy/quic_tx.h>
+#include <haproxy/quic_utils.h>
 #include <haproxy/session.h>
 #include <haproxy/ssl_sock-t.h>
 #include <haproxy/stconn.h>
@@ -1637,6 +1638,7 @@ void qcc_send_stream(struct qcs *qcs, int urg, int count)
 	if (count) {
 		qfctl_sinc(&qcc->tx.fc, count);
 		qfctl_sinc(&qcs->tx.fc, count);
+		bdata_ctr_add(&qcs->stream->data, count);
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCS_SEND, qcc->conn, qcs);
@@ -4118,13 +4120,18 @@ void qcc_show_quic(struct qcc *qcc)
 		chunk_appendf(&trash, "    qcs=0x%p id=%llu flags=0x%x st=%s",
 		              qcs, (ullong)qcs->id, qcs->flags,
 		              qcs_st_to_str(qcs->st));
+
 		if (!quic_stream_is_uni(qcs->id) || !quic_stream_is_local(qcc, qcs->id))
 			chunk_appendf(&trash, " rxoff=%llu", (ullong)qcs->rx.offset);
-		if (!quic_stream_is_uni(qcs->id) || !quic_stream_is_remote(qcc, qcs->id))
+
+		if (!quic_stream_is_uni(qcs->id) || !quic_stream_is_remote(qcc, qcs->id)) {
+			if (qcs->stream)
+				bdata_ctr_print(&trash, &qcs->stream->data, "txb=");
 			chunk_appendf(&trash, " txoff=%llu(%llu) msd=%llu",
 			              (ullong)qcs->tx.fc.off_real,
 			              (ullong)qcs->tx.fc.off_soft - (ullong)qcs->tx.fc.off_real,
 			              (ullong)qcs->tx.fc.limit);
+		}
 		chunk_appendf(&trash, "\n");
 		node = eb64_next(node);
 	}
