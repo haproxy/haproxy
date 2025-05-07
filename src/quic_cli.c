@@ -6,6 +6,7 @@
 #include <haproxy/mux_quic.h>
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_tp.h>
+#include <haproxy/quic_utils.h>
 #include <haproxy/tools.h>
 
 /* incremented by each "show quic". */
@@ -15,6 +16,7 @@ enum quic_dump_format {
 	QUIC_DUMP_FMT_DEFAULT, /* value used if not explicitly specified. */
 
 	QUIC_DUMP_FMT_ONELINE,
+	QUIC_DUMP_FMT_STREAM,
 	QUIC_DUMP_FMT_CUST,
 };
 
@@ -70,6 +72,11 @@ static int cli_parse_show_quic(char **args, char *payload, struct appctx *appctx
 		ctx->format = QUIC_DUMP_FMT_ONELINE;
 		++argc;
 	}
+	else if (strcmp(args[argc], "stream") == 0) {
+		ctx->format = QUIC_DUMP_FMT_STREAM;
+		ctx->fields = QUIC_DUMP_FLD_MASK;
+		++argc;
+	}
 	else if (strcmp(args[argc], "full") == 0) {
 		ctx->format = QUIC_DUMP_FMT_CUST;
 		ctx->fields = QUIC_DUMP_FLD_MASK;
@@ -80,6 +87,7 @@ static int cli_parse_show_quic(char **args, char *payload, struct appctx *appctx
 			     "Usage: show quic [help|<format>] [<filter>]\n"
 			     "Dumps information about QUIC connections. Available output formats:\n"
 			     "  oneline    dump a single, netstat-like line per connection (default)\n"
+			     "  stream     dump a list of streams, one per line, sorted by connection\n"
 			     "  full       dump all known information about each connection\n"
 			     "  <levels>*  only dump certain information, defined by a comma-delimited list\n"
 			     "             of levels among 'tp', 'sock', 'pktns', 'cc', or 'mux'\n"
@@ -216,6 +224,31 @@ static void dump_quic_oneline(struct show_quic_ctx *ctx, struct quic_conn *qc)
 		chunk_appendf(&trash, "%02x", qc->dcid.data[cid_len]);
 
 	chunk_appendf(&trash, "\n");
+}
+
+/* Dump for "show quic" with "stream" format. */
+static void dump_quic_stream(struct show_quic_ctx *ctx, struct quic_conn *qc)
+{
+	struct eb64_node *node;
+	struct qc_stream_desc *sd;
+	uint64_t id;
+
+	node = eb64_first(&qc->streams_by_id);
+	while (node) {
+		sd = eb_entry(node, struct qc_stream_desc, by_id);
+		id = sd->by_id.key;
+
+		if (quic_stream_is_uni(id)) {
+			node = eb64_next(node);
+			continue;
+		}
+
+		chunk_appendf(&trash, "%p.%04llu: 0x%02x", qc, (ullong)id, sd->flags);
+		bdata_ctr_print(&trash, &sd->data, " txb=");
+
+		chunk_appendf(&trash, "\n");
+		node = eb64_next(node);
+	}
 }
 
 /* Dump for "show quic" with "full" format. */
@@ -462,6 +495,10 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 			break;
 		case QUIC_DUMP_FMT_ONELINE:
 			dump_quic_oneline(ctx, qc);
+			break;
+
+		case QUIC_DUMP_FMT_STREAM:
+			dump_quic_stream(ctx, qc);
 			break;
 
 		case QUIC_DUMP_FMT_DEFAULT:

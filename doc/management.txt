@@ -3274,11 +3274,11 @@ show quic [<format>] [<filter>]
 
   An optional argument can be specified to control the verbosity. Its value can
   be interpreted in different way. The first possibility is to used predefined
-  values, "oneline" for the default format and "full" to display all
-  information. Alternatively, a list of comma-delimited fields can be specified
-  to restrict output. Currently supported values are "tp", "sock", "pktns",
-  "cc" and "mux". Finally, "help" in the format will instead show a more
-  detailed help message.
+  values, "oneline" for the default format, "stream" to list every active
+  streams and "full" to display all information. Alternatively, a list of
+  comma-delimited fields can be specified to restrict output. Currently
+  supported values are "tp", "sock", "pktns", "cc" and "mux". Finally, "help"
+  in the format will instead show a more detailed help message.
 
   The final argument is used to restrict or extend the connection list. By
   default, connections on closing or draining state are not displayed. Use the
