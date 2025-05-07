@@ -231,12 +231,14 @@ static void dump_quic_stream(struct show_quic_ctx *ctx, struct quic_conn *qc)
 {
 	struct eb64_node *node;
 	struct qc_stream_desc *sd;
+	struct qcs *qcs;
 	uint64_t id;
 
 	node = eb64_first(&qc->streams_by_id);
 	while (node) {
 		sd = eb_entry(node, struct qc_stream_desc, by_id);
 		id = sd->by_id.key;
+		qcs = !(sd->flags & QC_SD_FL_RELEASE) ? sd->ctx : NULL;
 
 		if (quic_stream_is_uni(id)) {
 			node = eb64_next(node);
@@ -244,7 +246,18 @@ static void dump_quic_stream(struct show_quic_ctx *ctx, struct quic_conn *qc)
 		}
 
 		chunk_appendf(&trash, "%p.%04llu: 0x%02x", qc, (ullong)id, sd->flags);
-		bdata_ctr_print(&trash, &sd->data, " txb=");
+
+		bdata_ctr_print(&trash, &sd->data, "tx=[");
+		if (qcs) {
+			chunk_appendf(&trash, ",%llu]", (ullong)qcs->tx.fc.off_real);
+			chunk_appendf(&trash, " rxb=%d(%d)/%llu", qcs->rx.data.bcnt, qcs->rx.data.bmax, (ullong)qcs->rx.offset);
+			chunk_appendf(&trash, " qcs[0x%08x,sd=%p]", qcs->flags, qcs->sd);
+		}
+		else {
+			chunk_appendf(&trash, "/-");
+			chunk_appendf(&trash, " rxb=-/-");
+			chunk_appendf(&trash, " -- released --");
+		}
 
 		chunk_appendf(&trash, "\n");
 		node = eb64_next(node);
