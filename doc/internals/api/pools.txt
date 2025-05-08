@@ -342,7 +342,9 @@ struct pool_head *create_pool(char *name, uint size, uint flags)
         "-dMno-merge" is passed on the executable's command line, the pools
         also need to have the exact same name to be merged. In addition, unless
         MEM_F_EXACT is set in <flags>, the object size will usually be rounded
-        up to the size of pointers (16 or 32 bytes). The name that will appear
+        up to the size of pointers (16 or 32 bytes). MEM_F_UAF may be set on a
+        per-pool basis to enable the UAF detection only for this specific pool,
+        saving the massive overhead of global usage. The name that will appear
         in the pool upon merging is the name of the first created pool. The
         returned pointer is the new (or reused) pool head, or NULL upon error.
         Pools created this way must be destroyed using pool_destroy().

@@ -27,6 +27,7 @@
 
 #define MEM_F_SHARED	0x1
 #define MEM_F_EXACT	0x2
+#define MEM_F_UAF	0x4
 
 /* A special pointer for the pool's free_list that indicates someone is
  * currently manipulating it. Serves as a short-lived lock.

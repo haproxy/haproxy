@@ -440,7 +440,7 @@ void *pool_get_from_os_noinc(struct pool_head *pool)
 	if (!pool->limit || pool_allocated(pool) < pool->limit) {
 		void *ptr;
 
-		if (pool_debugging & POOL_DBG_UAF)
+		if ((pool_debugging & POOL_DBG_UAF) || (pool->flags & MEM_F_UAF))
 			ptr = pool_alloc_area_uaf(pool->alloc_sz);
 		else
 			ptr = pool_alloc_area(pool->alloc_sz);
@@ -459,7 +459,7 @@ void *pool_get_from_os_noinc(struct pool_head *pool)
  */
 void pool_put_to_os_nodec(struct pool_head *pool, void *ptr)
 {
-	if (pool_debugging & POOL_DBG_UAF)
+	if ((pool_debugging & POOL_DBG_UAF) || (pool->flags & MEM_F_UAF))
 		pool_free_area_uaf(ptr, pool->alloc_sz);
 	else
 		pool_free_area(ptr, pool->alloc_sz);
@@ -965,6 +965,7 @@ void __pool_free(struct pool_head *pool, void *ptr)
 #endif
 
 	if (unlikely((pool_debugging & POOL_DBG_NO_CACHE) ||
+	             (pool->flags & MEM_F_UAF) ||
 		     global.tune.pool_cache_size < pool->size)) {
 		pool_free_nocache(pool, ptr);
 		return;
