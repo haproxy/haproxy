@@ -796,7 +796,7 @@ static struct task *stktable_add_pend_updates(struct task *t, void *ctx, unsigne
 			empty_tgid++;
 			cur_tgid++;
 			if (cur_tgid == global.nbtgroups)
-                        cur_tgid = 0;
+				cur_tgid = 0;
 
 			if (empty_tgid == global.nbtgroups)
 				break;
@@ -815,9 +815,15 @@ static struct task *stktable_add_pend_updates(struct task *t, void *ctx, unsigne
 		} else {
 			stksess->upd.key = (++table->update) + (2147483648U);
 		}
+
+		/* even though very unlikely, it seldom happens that the entry
+		 * is already in the tree (both for local and remote ones). We
+		 * must dequeue it and requeue it at its new position (e.g. it
+		 * might already have been seen by some peers).
+		 */
+		eb32_delete(&stksess->upd);
 		eb = eb32_insert(&table->updates, &stksess->upd);
 		if (eb != &stksess->upd)  {
-			BUG_ON(1);
 			eb32_delete(eb);
 			eb32_insert(&table->updates, &stksess->upd);
 		}
