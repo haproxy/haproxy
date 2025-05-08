@@ -3409,12 +3409,28 @@ static int _srv_check_proxy_mode(struct server *srv, char postparse)
  *
  * Returns ERR_NONE on success else a combination or ERR_CODE.
  */
+static int init_srv_requeue(struct server *srv);
+static int init_srv_slowstart(struct server *srv);
 static int _srv_postparse(struct server *srv)
 {
 	int err_code = ERR_NONE;
 
 	err_code |= _srv_check_proxy_mode(srv, 1);
 
+	if (err_code & ERR_CODE)
+		goto out;
+
+	err_code |= init_srv_requeue(srv);
+
+	if (err_code & ERR_CODE)
+		goto out;
+
+	err_code |= init_srv_slowstart(srv);
+
+	if (err_code & ERR_CODE)
+		goto out;
+
+ out:
 	return err_code;
 }
 REGISTER_POST_SERVER_CHECK(_srv_postparse);
@@ -5765,8 +5781,6 @@ static int init_srv_slowstart(struct server *srv)
 
 	return ERR_NONE;
 }
-REGISTER_POST_SERVER_CHECK(init_srv_slowstart);
-
 
 /* allocate the tasklet that's meant to permit a server */
 static int init_srv_requeue(struct server *srv)
@@ -5783,7 +5797,6 @@ static int init_srv_requeue(struct server *srv)
 	t->context = srv;
 	return ERR_NONE;
 }
-REGISTER_POST_SERVER_CHECK(init_srv_requeue);
 
 /* Memory allocation and initialization of the per_thr field.
  * Returns 0 if the field has been successfully initialized, -1 on failure.
@@ -5959,10 +5972,6 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	if (errcode)
 		goto out;
 
-	errcode = _srv_postparse(srv);
-	if (errcode)
-		goto out;
-
 	/* A dynamic server does not currently support resolution.
 	 *
 	 * Initialize it explicitly to the "none" method to ensure no
@@ -6041,11 +6050,8 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		srv->agent.state &= ~CHK_ST_ENABLED;
 	}
 
-	/* Init slowstart if needed. */
-	if (init_srv_slowstart(srv))
-		goto out;
-
-	if (init_srv_requeue(srv) != 0)
+	errcode = _srv_postparse(srv);
+	if (errcode)
 		goto out;
 
 	/* Attach the server to the end of the proxy linked list. Note that this
