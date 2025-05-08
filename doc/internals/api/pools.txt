@@ -204,6 +204,14 @@ the cache, when this option is set, objects are picked from the cache from the
 oldest one instead of the freshest one. This way even late memory corruptions
 have a chance to be detected.
 
+Another non-destructive approach is to use "-dMbackup". A full copy of the
+object is made after its end, which eases inspection (e.g. of the parts
+scratched by the pool_item elements), and a comparison is made upon allocation
+of that object, just like with "-dMintegrity", causing a crash on mismatch. The
+initial 4 words corresponding to the list are ignored as well. Note that when
+both "-dMbackup" and "-dMintegrity" are used, the copy is performed before
+being scratched, and the comparison is done by "-dMintegrity" only.
+
 When build option DEBUG_MEMORY_POOLS is set, or the boot-time option "-dMtag"
 is passed on the executable's command line, pool objects are allocated with
 one extra pointer compared to the requested size, so that the bytes that follow

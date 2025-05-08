@@ -325,6 +325,16 @@ list of options is :
         last released. This works best with "no-merge", "cold-first" and "tag".
         Enabling this option will slightly increase the CPU usage.
 
+      - backup / no-backup:
+        This option performs a copy of each released object at release time,
+        allowing developers to inspect them. It also performs a comparison at
+        allocation time to detect if anything changed in between, indicating a
+        use-after-free condition. This doubles the memory usage and slightly
+        increases the CPU usage (similar to "integrity"). If combined with
+        "integrity", it still duplicates the contents but doesn't perform the
+        comparison (which is performed by "integrity"). Just like "integrity",
+        it works best with "no-merge", "cold-first" and "tag".
+
       - no-global / global:
         Depending on the operating system, a process-wide global memory cache
         may be enabled if it is estimated that the standard allocator is too

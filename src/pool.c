@@ -85,6 +85,7 @@ static const struct {
 	{ POOL_DBG_TAG,        "tag",        "no-tag",       "add tag at end of allocated objects" },
 	{ POOL_DBG_POISON,     "poison",     "no-poison",    "poison newly allocated objects" },
 	{ POOL_DBG_UAF,        "uaf",        "no-uaf",       "enable use-after-free checks (slow)" },
+	{ POOL_DBG_BACKUP,     "backup",     "no-backup",    "compare object contents on re-alloc" },
 	{ 0 /* end */ }
 };
 
@@ -336,6 +337,13 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 		size  = ((size + align - 1) & -align);
 	}
 
+	if (pool_debugging & POOL_DBG_BACKUP) {
+		/* keep a full backup of the pool at release time. We need
+		 * a word-aligned size, so it's fine to do it now.
+		 */
+		extra += size;
+	}
+
 	/* TODO: thread: we do not lock pool list for now because all pools are
 	 * created during HAProxy startup (so before threads creation) */
 	start = &pools;
@@ -507,6 +515,20 @@ void pool_free_nocache(struct pool_head *pool, void *ptr)
 	pool_put_to_os_nodec(pool, ptr);
 }
 
+/* Copies the contents of <item> to the reserved area after it to have a backup.
+ * The item part is left untouched.
+ */
+void pool_copy_pattern(struct pool_cache_head *pch, struct pool_cache_item *item, uint size)
+{
+	ulong *ptr = (ulong *)item;
+	ulong extra;
+
+	if (size <= sizeof(*item))
+		return;
+
+	extra = !!(pool_debugging & (POOL_DBG_TAG|POOL_DBG_CALLER));
+	memcpy(&ptr[size/sizeof(*ptr) + extra], ptr, size);
+}
 
 /* Updates <pch>'s fill_pattern and fills the free area after <item> with it,
  * up to <size> bytes. The item part is left untouched.
@@ -530,8 +552,9 @@ void pool_fill_pattern(struct pool_cache_head *pch, struct pool_cache_item *item
 }
 
 /* check for a pool_cache_item integrity after extracting it from the cache. It
- * must have been previously initialized using pool_fill_pattern(). If any
- * corruption is detected, the function provokes an immediate crash.
+ * must have been previously initialized using either pool_fill_pattern() or
+ * pool_copy_pattern(). If any corruption is detected, the function provokes an
+ * immediate crash.
  */
 void pool_check_pattern(struct pool_cache_head *pch, struct pool_head *pool, struct pool_cache_item *item, const void *caller)
 {
@@ -543,15 +566,28 @@ void pool_check_pattern(struct pool_cache_head *pch, struct pool_head *pool, str
 	if (size <= sizeof(*item))
 		return;
 
-	/* let's check that all words past *item are equal */
-	ofs = sizeof(*item) / sizeof(*ptr);
-	u = ptr[ofs++];
-	while (ofs < size / sizeof(*ptr)) {
-		if (unlikely(ptr[ofs] != u)) {
-			pool_inspect_item("cache corruption detected", pool, item, caller, ofs * sizeof(*ptr));
-			ABORT_NOW();
+	if (pool_debugging & POOL_DBG_INTEGRITY) {
+		/* let's check that all words past *item are equal */
+		ofs = sizeof(*item) / sizeof(*ptr);
+		u = ptr[ofs++];
+		while (ofs < size / sizeof(*ptr)) {
+			if (unlikely(ptr[ofs] != u)) {
+				pool_inspect_item("cache corruption detected", pool, item, caller, ofs * sizeof(*ptr));
+				ABORT_NOW();
+			}
+			ofs++;
 		}
-		ofs++;
+	} else {
+		/* the pattern was backed up */
+		ofs = sizeof(*item) / sizeof(*ptr);
+		u = !!(pool_debugging & (POOL_DBG_TAG|POOL_DBG_CALLER));
+		while (ofs < size / sizeof(*ptr)) {
+			if (unlikely(ptr[ofs] != ptr[size/sizeof(*ptr) + u + ofs])) {
+				pool_inspect_item("cache corruption detected", pool, item, caller, ofs * sizeof(*ptr));
+				ABORT_NOW();
+			}
+			ofs++;
+		}
 	}
 }
 
@@ -581,7 +617,7 @@ static void pool_evict_last_items(struct pool_head *pool, struct pool_cache_head
 	while (released < count && !LIST_ISEMPTY(&ph->list)) {
 		item = LIST_PREV(&ph->list, typeof(item), by_pool);
 		BUG_ON(&item->by_pool == &ph->list);
-		if (unlikely(pool_debugging & POOL_DBG_INTEGRITY))
+		if (unlikely(pool_debugging & (POOL_DBG_INTEGRITY|POOL_DBG_BACKUP)))
 			pool_check_pattern(ph, pool, item, caller);
 		LIST_DELETE(&item->by_pool);
 		LIST_DELETE(&item->by_lru);
@@ -687,8 +723,12 @@ void pool_put_to_cache(struct pool_head *pool, void *ptr, const void *caller)
 	LIST_INSERT(&th_ctx->pool_lru_head, &item->by_lru);
 	POOL_DEBUG_TRACE_CALLER(pool, item, caller);
 	ph->count++;
+	if (unlikely(pool_debugging & POOL_DBG_BACKUP))
+		pool_copy_pattern(ph, item, pool->size);
+
 	if (unlikely(pool_debugging & POOL_DBG_INTEGRITY))
 		pool_fill_pattern(ph, item, pool->size);
+
 	pool_cache_count++;
 	pool_cache_bytes += pool->size;
 

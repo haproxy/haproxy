@@ -52,6 +52,7 @@
 #define POOL_DBG_TAG        0x00000080  // place a tag at the end of the area
 #define POOL_DBG_POISON     0x00000100  // poison memory area on pool_alloc()
 #define POOL_DBG_UAF        0x00000200  // enable use-after-free protection
+#define POOL_DBG_BACKUP     0x00000400  // backup the object contents on free()
 
 
 /* This is the head of a thread-local cache */
