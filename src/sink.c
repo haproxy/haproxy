@@ -1267,10 +1267,6 @@ struct sink *sink_new_from_logger(struct logger *logger)
 	srv->svc_port = get_host_port(logger->target.addr);
 	HA_SPIN_INIT(&srv->lock);
 
-	/* process per thread init */
-	if (srv_init_per_thr(srv) == -1)
-		goto error;
-
 	if (sink_finalize(sink) & ERR_CODE)
 		goto error_final;
 

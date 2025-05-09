@@ -3343,7 +3343,7 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
  * This function is expected to be called after _srv_parse_init() initialization
  * but only when the effective server's proxy mode is known, which is not always
  * the case during parsing time, in which case the function will be called during
- * postparsing thanks to the _srv_postparse() below.
+ * postparsing thanks to the srv_init() below.
  *
  * Returns ERR_NONE on success else a combination or ERR_CODE.
  */
@@ -3399,8 +3399,8 @@ static int _srv_check_proxy_mode(struct server *srv, char postparse)
 
 	return err_code;
 }
-
-/* Perform some server postparsing checks / tasks:
+/* Finish initializing the server after parsing
+ *
  * We must be careful that checks / postinits performed within this function
  * don't depend or conflict with other postcheck functions that are registered
  * using REGISTER_POST_SERVER_CHECK() hook.
@@ -3409,9 +3409,13 @@ static int _srv_check_proxy_mode(struct server *srv, char postparse)
  */
 static int init_srv_requeue(struct server *srv);
 static int init_srv_slowstart(struct server *srv);
-static int _srv_postparse(struct server *srv)
+static int srv_init_per_thr(struct server *srv);
+int srv_init(struct server *srv)
 {
 	int err_code = ERR_NONE;
+
+	if (srv->flags & SRV_F_CHECKED)
+		return ERR_NONE; // nothing to do
 
 	err_code |= _srv_check_proxy_mode(srv, 1);
 
@@ -3428,10 +3432,29 @@ static int _srv_postparse(struct server *srv)
 	if (err_code & ERR_CODE)
 		goto out;
 
+	if (srv_init_per_thr(srv) == -1) {
+		ha_alert("error during per-thread init for %s/%s server\n", srv->proxy->id, srv->id);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	/* initialize idle conns lists */
+	if (srv->max_idle_conns != 0) {
+		srv->curr_idle_thr = calloc(global.nbthread, sizeof(*srv->curr_idle_thr));
+		if (!srv->curr_idle_thr) {
+			ha_alert("memory error during idle conn list init for %s/%s server\n",
+			         srv->proxy->id, srv->id);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
+
  out:
+	if (!(err_code & ERR_CODE))
+		srv->flags |= SRV_F_CHECKED;
 	return err_code;
 }
-REGISTER_POST_SERVER_CHECK(_srv_postparse);
+REGISTER_POST_SERVER_CHECK(srv_init);
 
 /* Allocate a new server pointed by <srv> and try to parse the first arguments
  * in <args> as an address for a server or an address-range for a template or
@@ -5793,7 +5816,7 @@ static int init_srv_requeue(struct server *srv)
 /* Memory allocation and initialization of the per_thr field.
  * Returns 0 if the field has been successfully initialized, -1 on failure.
  */
-int srv_init_per_thr(struct server *srv)
+static int srv_init_per_thr(struct server *srv)
 {
 	int i;
 
@@ -5992,19 +6015,6 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		}
 	}
 
-	if (srv_init_per_thr(srv) == -1) {
-		ha_alert("failed to allocate per-thread lists for server.\n");
-		goto out;
-	}
-
-	if (srv->max_idle_conns != 0) {
-		srv->curr_idle_thr = calloc(global.nbthread, sizeof(*srv->curr_idle_thr));
-		if (!srv->curr_idle_thr) {
-			ha_alert("failed to allocate counters for server.\n");
-			goto out;
-		}
-	}
-
 	if (!srv_alloc_lb(srv, be)) {
 		ha_alert("Failed to initialize load-balancing data.\n");
 		goto out;
@@ -6051,7 +6061,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		srv->agent.state &= ~CHK_ST_ENABLED;
 	}
 
-	errcode = _srv_postparse(srv);
+	errcode = srv_init(srv);
 	if (errcode)
 		goto out;
 

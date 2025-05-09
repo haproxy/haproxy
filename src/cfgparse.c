@@ -2817,27 +2817,12 @@ int check_config_validity()
 
 	/*
 	 * we must finish to initialize certain things on the servers,
-	 * as some of the per_thr/per_tgrp fields may be accessed soon
+	 * as some of the fields may be accessed soon
 	 */
-
 	MT_LIST_FOR_EACH_ENTRY_LOCKED(newsrv, &servers_list, global_list, back) {
-		if (srv_init_per_thr(newsrv) == -1) {
-			ha_alert("parsing [%s:%d] : failed to allocate per-thread lists for server '%s'.\n",
-			         newsrv->conf.file, newsrv->conf.line, newsrv->id);
+		if (srv_init(newsrv) & ERR_CODE) {
 			cfgerr++;
 			continue;
-		}
-
-		/* initialize idle conns lists */
-		if (newsrv->max_idle_conns != 0) {
-			newsrv->curr_idle_thr = calloc(global.nbthread, sizeof(*newsrv->curr_idle_thr));
-			if (!newsrv->curr_idle_thr) {
-				ha_alert("parsing [%s:%d] : failed to allocate idle connection tasks for server '%s'.\n",
-				         newsrv->conf.file, newsrv->conf.line, newsrv->id);
-				cfgerr++;
-				continue;
-			}
-
 		}
 	}
 

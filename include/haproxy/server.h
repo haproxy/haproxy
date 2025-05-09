@@ -73,7 +73,7 @@ struct server *new_server(struct proxy *proxy);
 void srv_take(struct server *srv);
 struct server *srv_drop(struct server *srv);
 void srv_free_params(struct server *srv);
-int srv_init_per_thr(struct server *srv);
+int srv_init(struct server *srv);
 void srv_set_ssl(struct server *s, int use_ssl);
 const char *srv_adm_st_chg_cause(enum srv_adm_st_chg_cause cause);
 const char *srv_op_st_chg_cause(enum srv_op_st_chg_cause cause);
