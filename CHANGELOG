@@ -1,6 +1,46 @@
 ChangeLog :
 ===========
 
+2025/05/09 : 3.2-dev15
+    - BUG/MEDIUM: stktable: fix sc_*(<ctr>) BUG_ON() regression with ctx > 9
+    - BUG/MINOR: acme/cli: don't output error on success
+    - BUG/MINOR: tools: do not create an empty arg from trailing spaces
+    - MEDIUM: config: warn about the consequences of empty arguments on a config line
+    - MINOR: tools: make parse_line() provide hints about empty args
+    - MINOR: cfgparse: visually show the input line on empty args
+    - BUG/MINOR: tools: always terminate empty lines
+    - BUG/MINOR: tools: make parseline report the required space for the trailing 0
+    - DEBUG: threads: don't keep lock label "OTHER" in the per-thread history
+    - DEBUG: threads: merge successive idempotent lock operations in history
+    - DEBUG: threads: display held locks in threads dumps
+    - BUG/MINOR: proxy: only use proxy_inc_fe_cum_sess_ver_ctr() with frontends
+    - Revert "BUG/MEDIUM: mux-spop: Handle CLOSING state and wait for AGENT DISCONNECT frame"
+    - MINOR: acme/cli: 'acme status' show the status acme-configured certificates
+    - MEDIUM: acme/ssl: remove 'acme ps' in favor of 'acme status'
+    - DOC: configuration: add "acme" section to the keywords list
+    - DOC: configuration: add the "crt-store" keyword
+    - BUG/MAJOR: queue: lock around the call to pendconn_process_next_strm()
+    - MINOR: ssl: add filename and linenum for ssl-f-use errors
+    - BUG/MINOR: ssl: can't use crt-store some certificates in ssl-f-use
+    - BUG/MINOR: tools: only fill first empty arg when not out of range
+    - MINOR: debug: bump the dump buffer to 8kB
+    - MINOR: stick-tables: add "ipv4" as an alias for the "ip" type
+    - MINOR: quic: extend return value during TP parsing
+    - BUG/MINOR: quic: use proper error code on missing CID in TPs
+    - BUG/MINOR: quic: use proper error code on invalid server TP
+    - BUG/MINOR: quic: reject retry_source_cid TP on server side
+    - BUG/MINOR: quic: use proper error code on invalid received TP value
+    - BUG/MINOR: quic: fix TP reject on invalid max-ack-delay
+    - BUG/MINOR: quic: reject invalid max_udp_payload size
+    - BUG/MEDIUM: peers: hold the refcnt until updating ts->seen
+    - BUG/MEDIUM: stick-tables: close a tiny race in __stksess_kill()
+    - BUG/MINOR: cli: fix too many args detection for commands
+    - MINOR: server: ensure server postparse tasks are run for dynamic servers
+    - BUG/MEDIUM: stick-table: always remove update before adding a new one
+    - BUG/MEDIUM: quic: free stream_desc on all data acked
+    - BUG/MINOR: cfgparse: consider the special case of empty arg caused by \x00
+    - DOC: config: recommend disabling libc-based resolution with resolvers
+
 2025/05/02 : 3.2-dev14
     - MINOR: acme: retry label always do a request
     - MINOR: acme: does not leave task for next request
