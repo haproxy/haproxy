@@ -1981,7 +1981,7 @@ next_line:
 
 		while (1) {
 			uint32_t err;
-			const char *errptr;
+			const char *errptr = NULL;
 			int check_arg;
 
 			arg = sizeof(args) / sizeof(*args);
@@ -2067,8 +2067,15 @@ next_line:
 
 			for (check_arg = 0; check_arg < arg; check_arg++) {
 				if (!*args[check_arg]) {
-					/* if an empty arg was found, its pointer is in <errptr> */
 					size_t newpos;
+
+					/* if an empty arg was found, its pointer should be in <errptr>, except
+					 * for rare cases such as '\x00' etc. We need to check errptr in any case
+					 * and if it's not set, we'll fall back to args's position in the output
+					 * string instead (less accurate but still useful).
+					 */
+					if (!errptr)
+						errptr = args[check_arg] - outline + line;
 
 					/* sanitize input line in-place */
 					newpos = sanitize_for_printing(line, errptr - line, 80);
