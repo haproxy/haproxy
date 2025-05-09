@@ -2200,12 +2200,6 @@ static int proxy_parse_ssl_f_use(char **args, int section_type, struct proxy *cu
 		goto error;
 	}
 
-	ckch_conf->crt = strdup(args[1]);
-	if (!ckch_conf->crt) {
-		memprintf(err, "not enough memory!");
-		goto error;
-	}
-
 	while (*args[cur_arg]) {
 		int foundcrtstore = 0; /* found a crt-store keyword */
 		int found = 0;         /* found a crt-list or crt-store keyword */
