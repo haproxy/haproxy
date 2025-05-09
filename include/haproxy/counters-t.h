@@ -25,8 +25,22 @@
 
 #include <haproxy/freq_ctr-t.h>
 
+#define COUNTERS_SHARED_F_NONE    0x0000
+
+// common to fe_counters_shared and be_counters_shared
+#define COUNTERS_SHARED                                                              \
+	struct {                                                                     \
+		uint16_t flags;                         /* COUNTERS_SHARED_F flags */\
+	}
+
+// for convenience (generic pointer)
+struct counters_shared {
+	COUNTERS_SHARED;
+};
+
 /* counters used by listeners and frontends */
 struct fe_counters_shared {
+	COUNTERS_SHARED;
 	long long internal_errors;              /* internal processing errors */
 	long long failed_rewrites;              /* failed rewrites (warning) */
 	long long denied_sess;                  /* denied session requests (tcp-req-sess rules) */
@@ -86,6 +100,7 @@ struct fe_counters {
 };
 
 struct be_counters_shared {
+	COUNTERS_SHARED;
 	long long internal_errors;              /* internal processing errors */
 
 	long long  cum_lbconn;                  /* cumulated number of sessions processed by load balancing (BE only) */
