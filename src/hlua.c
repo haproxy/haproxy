@@ -14742,12 +14742,6 @@ static void hlua_deinit()
 			lua_close(hlua_states[thr]);
 	}
 
-	srv_drop(socket_tcp);
-
-#ifdef USE_OPENSSL
-	srv_drop(socket_ssl);
-#endif
-
 	free_proxy(socket_proxy);
 }
 

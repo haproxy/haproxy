@@ -319,6 +319,29 @@ static inline int srv_is_transparent(const struct server *srv)
 	       (srv->flags & SRV_F_MAPPORTS);
 }
 
+/* Detach server from proxy list. It is supported to call this
+ * even if the server is not yet in the list
+ * Must be called under thread isolation or when it is safe to assume
+ * that the parent proxy doesn't is not skimming through the server list
+ */
+static inline void srv_detach(struct server *srv)
+{
+	struct proxy *px = srv->proxy;
+
+	if (px->srv == srv)
+		px->srv = srv->next;
+	else {
+		struct server *prev;
+
+		for (prev = px->srv; prev && prev->next != srv; prev = prev->next)
+			;
+
+		BUG_ON(!prev);
+
+		prev->next = srv->next;
+	}
+}
+
 #endif /* _HAPROXY_SERVER_H */
 
 /*

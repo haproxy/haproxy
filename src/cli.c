@@ -3682,8 +3682,6 @@ int mworker_cli_attach_server(char **errmsg)
 		else
 			memprintf(&msg, "old-%d", child->pid);
 
-		newsrv->next = mworker_proxy->srv;
-		mworker_proxy->srv = newsrv;
 		newsrv->conf.file = strdup(msg);
 		newsrv->id = strdup(msg);
 		newsrv->conf.line = 0;

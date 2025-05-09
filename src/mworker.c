@@ -566,8 +566,10 @@ restart_wait:
 			}
 
 			/* Drop server */
-			if (child->srv)
+			if (child->srv) {
+				srv_detach(child->srv);
 				srv_drop(child->srv);
+			}
 
 			/* Delete fd from poller fdtab, which will close it */
 			fd_delete(child->ipc_fd[0]);
@@ -772,6 +774,7 @@ void mworker_cleanup_proc()
 				close(child->ipc_fd[1]);
 			if (child->srv) {
 				/* only exists if we created a master CLI listener */
+				srv_detach(child->srv);
 				srv_drop(child->srv);
 			}
 			LIST_DELETE(&child->list);

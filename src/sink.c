@@ -1271,17 +1271,13 @@ struct sink *sink_new_from_logger(struct logger *logger)
 	if (srv_init_per_thr(srv) == -1)
 		goto error;
 
-	/* link srv with sink forward proxy: the servers are linked
-	 * backwards first into proxy
-	 */
-	srv->next = sink->forward_px->srv;
-	sink->forward_px->srv = srv;
-
 	if (sink_finalize(sink) & ERR_CODE)
 		goto error_final;
 
 	return sink;
  error:
+	if (srv)
+		srv_detach(srv);
 	srv_drop(srv);
 
  error_final:

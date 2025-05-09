@@ -3015,8 +3015,12 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	}
 }
 
-/* allocate a server and attach it to the global servers_list. Returns
- * the server on success, otherwise NULL.
+/* allocate a server, attachs it to the global servers_list
+ * and adds it to <proxy> server list. Before deleting the server with
+ * srv_drop(), srv_detach() must be called to remove it from the parent
+ * proxy list
+ *
+ * Returns the server on success, otherwise NULL.
  */
 struct server *new_server(struct proxy *proxy)
 {
@@ -3061,6 +3065,24 @@ struct server *new_server(struct proxy *proxy)
 #ifdef USE_OPENSSL
 	HA_RWLOCK_INIT(&srv->ssl_ctx.lock);
 #endif
+
+	// add server to proxy list:
+	/* TODO use a double-linked list for px->srv */
+	if (!(proxy->flags & PR_FL_CHECKED) || !proxy->srv) {
+		/* they are linked backwards first during parsing
+		 * This will be restablished after parsing.
+		 */
+		srv->next = proxy->srv;
+		proxy->srv = srv;
+	}
+	else {
+		struct server *sv = proxy->srv;
+
+		// runtime, add the server at the end of the list
+		while (sv && sv->next)
+			sv = sv->next;
+		sv->next = srv;
+	}
 
 	/* please don't put default server settings here, they are set in
 	 * proxy_preset_defaults().
@@ -3164,26 +3186,6 @@ struct server *srv_drop(struct server *srv)
 
  end:
 	return next;
-}
-
-/* Detach server from proxy list. It is supported to call this
- * even if the server is not yet in the list
- */
-static void _srv_detach(struct server *srv)
-{
-	struct proxy *be = srv->proxy;
-
-	if (be->srv == srv) {
-		be->srv = srv->next;
-	}
-	else {
-		struct server *prev;
-
-		for (prev = be->srv; prev && prev->next != srv; prev = prev->next)
-			;
-		if (prev)
-			prev->next = srv->next;
-	}
 }
 
 /* Remove a server <srv> from a tracking list if <srv> is tracking another
@@ -3318,10 +3320,6 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 
 		/* Set this new server ID. */
 		_srv_parse_set_id_from_prefix(newsrv, srv->tmpl_info.prefix, i);
-
-		/* Linked backwards first. This will be restablished after parsing. */
-		newsrv->next = px->srv;
-		px->srv = newsrv;
 
 		newsrv->conf.name.key = newsrv->id;
 		ebis_insert(&curproxy->conf.used_server_name, &newsrv->conf.name);
@@ -3819,12 +3817,6 @@ int parse_server(const char *file, int linenum, char **args,
 
 	err_code = _srv_parse_init(&newsrv, args, &cur_arg, curproxy,
 	                           parse_flags);
-
-	/* the servers are linked backwards first */
-	if (newsrv && !(parse_flags & SRV_PARSE_DEFAULT_SERVER)) {
-		newsrv->next = curproxy->srv;
-		curproxy->srv = newsrv;
-	}
 
 	if (err_code & ERR_CODE)
 		goto out;
@@ -5956,6 +5948,15 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	 */
 	thread_isolate();
 
+	/*
+	 * If a server with the same name is found, reject the new one.
+	 */
+	if (server_find_by_name(be, sv_name)) {
+		thread_release();
+		cli_err(appctx, "Already exists a server with the same name in backend.\n");
+		return 1;
+	}
+
 	args[1] = sv_name;
 	errcode = _srv_parse_init(&srv, args, &argc, be, parse_flags);
 	if (errcode)
@@ -6054,37 +6055,6 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	if (errcode)
 		goto out;
 
-	/* Attach the server to the end of the proxy linked list. Note that this
-	 * operation is not thread-safe so this is executed under thread
-	 * isolation.
-	 *
-	 * If a server with the same name is found, reject the new one.
-	 */
-
-	/* TODO use a double-linked list for px->srv */
-	if (be->srv) {
-		struct server *next = be->srv;
-
-		while (1) {
-			/* check for duplicate server */
-			if (strcmp(srv->id, next->id) == 0) {
-				ha_alert("Already exists a server with the same name in backend.\n");
-				goto out;
-			}
-
-			if (!next->next)
-				break;
-
-			next = next->next;
-		}
-
-		next->next = srv;
-	}
-	else {
-		srv->next = be->srv;
-		be->srv = srv;
-	}
-
 	/* generate the server id if not manually specified */
 	if (!srv->puid) {
 		next_id = get_next_id(&be->conf.used_server_id, 1);
@@ -6162,7 +6132,7 @@ out:
 		}
 
 		/* remove the server from the proxy linked list */
-		_srv_detach(srv);
+		srv_detach(srv);
 	}
 
 	thread_release();
@@ -6369,7 +6339,7 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	 * The proxy servers list is currently not protected by a lock, so this
 	 * requires thread_isolate/release.
 	 */
-	_srv_detach(srv);
+	srv_detach(srv);
 
 	/* remove srv from addr_node tree */
 	eb32_delete(&srv->conf.id);

@@ -1295,6 +1295,7 @@ struct proxy *httpclient_create_proxy(const char *id)
 				goto err;
 			} else {
 				ha_free(&srv_ssl->ssl_ctx.ca_file);
+				srv_detach(srv_ssl);
 				srv_drop(srv_ssl);
 				srv_ssl = NULL;
 			}
@@ -1313,26 +1314,10 @@ struct proxy *httpclient_create_proxy(const char *id)
 		goto err;
 	}
 
-	/* link the 2 servers in the proxy */
-	srv_raw->next = px->srv;
-	px->srv = srv_raw;
-
-#ifdef USE_OPENSSL
-	if (srv_ssl) {
-		srv_ssl->next = px->srv;
-		px->srv = srv_ssl;
-	}
-#endif
-
-
 err:
 	if (err_code & ERR_CODE) {
 		ha_alert("httpclient: cannot initialize: %s\n", errmsg);
 		free(errmsg);
-		srv_drop(srv_raw);
-#ifdef USE_OPENSSL
-		srv_drop(srv_ssl);
-#endif
 		free_proxy(px);
 
 		return NULL;
