@@ -33,6 +33,20 @@
 	struct {                                                                     \
 		uint16_t flags;                         /* COUNTERS_SHARED_F flags */\
 		unsigned long last_change;              /* last time, when the state was changed */\
+		long long srv_aborts;                   /* aborted responses during DATA phase caused by the server */\
+		long long cli_aborts;                   /* aborted responses during DATA phase caused by the client */\
+		long long internal_errors;              /* internal processing errors */\
+		long long failed_rewrites;              /* failed rewrites (warning) */\
+		long long bytes_out;                    /* number of bytes transferred from the server to the client */\
+		long long bytes_in;                     /* number of bytes transferred from the client to the server */\
+		long long denied_resp;                  /* blocked responses because of security concerns */\
+		long long denied_req;                   /* blocked requests because of security concerns */\
+		long long    cum_sess;                  /* cumulated number of accepted connections */\
+		/* compression counters, index 0 for requests, 1 for responses */\
+		long long comp_in[2];                   /* input bytes fed to the compressor */\
+		long long comp_out[2];                  /* output bytes emitted by the compressor */\
+		long long comp_byp[2];                  /* input bytes that bypassed the compressor (cpu/ram/bw limitation) */\
+		struct freq_ctr sess_per_sec;           /* sessions per second on this server */\
 	}
 
 // for convenience (generic pointer)
@@ -43,23 +57,12 @@ struct counters_shared {
 /* counters used by listeners and frontends */
 struct fe_counters_shared {
 	COUNTERS_SHARED;
-	long long internal_errors;              /* internal processing errors */
-	long long failed_rewrites;              /* failed rewrites (warning) */
+
 	long long denied_sess;                  /* denied session requests (tcp-req-sess rules) */
 	long long denied_conn;                  /* denied connection requests (tcp-req-conn rules) */
 	long long intercepted_req;              /* number of monitoring or stats requests intercepted by the frontend */
 	long long    cum_conn;                  /* cumulated number of received connections */
 	struct freq_ctr conn_per_sec;           /* received connections per second on the frontend */
-
-	/* compression counters, index 0 for requests, 1 for responses */
-	long long comp_in[2];                   /* input bytes fed to the compressor */
-	long long comp_out[2];                  /* output bytes emitted by the compressor */
-	long long comp_byp[2];                  /* input bytes that bypassed the compressor (cpu/ram/bw limitation) */
-
-
-	long long srv_aborts;                   /* aborted responses during DATA phase caused by the server */
-	long long cli_aborts;                   /* aborted responses during DATA phase caused by the client */
-
 
 	struct freq_ctr req_per_sec;            /* HTTP requests per second on the frontend */
 
@@ -75,15 +78,8 @@ struct fe_counters_shared {
 
 		} http;
 	} p;                                    /* protocol-specific stats */
-	struct freq_ctr sess_per_sec;           /* sessions per second on this server */
 
 	long long failed_req;                   /* failed requests (eg: invalid or timeout) */
-	long long denied_resp;                  /* blocked responses because of security concerns */
-	long long denied_req;                   /* blocked requests because of security concerns */
-
-	long long bytes_out;                    /* number of bytes transferred from the server to the client */
-	long long bytes_in;                     /* number of bytes transferred from the client to the server */
-	long long    cum_sess;                  /* cumulated number of accepted connections */
 };
 
 struct fe_counters {
@@ -102,22 +98,12 @@ struct fe_counters {
 
 struct be_counters_shared {
 	COUNTERS_SHARED;
-	long long internal_errors;              /* internal processing errors */
 
 	long long  cum_lbconn;                  /* cumulated number of sessions processed by load balancing (BE only) */
 
 	long long connect;                      /* number of connection establishment attempts */
 	long long reuse;                        /* number of connection reuses */
-	long long failed_rewrites;              /* failed rewrites (warning) */
 	unsigned long last_sess;                /* last session time */
-
-	/* compression counters, index 0 for requests, 1 for responses */
-	long long comp_in[2];                   /* input bytes fed to the compressor */
-	long long comp_out[2];                  /* output bytes emitted by the compressor */
-	long long comp_byp[2];                  /* input bytes that bypassed the compressor (cpu/ram/bw limitation) */
-
-	long long srv_aborts;                   /* aborted responses during DATA phase caused by the server */
-	long long cli_aborts;                   /* aborted responses during DATA phase caused by the client */
 
 	long long failed_checks, failed_hana;	/* failed health checks and health analyses for servers */
 	long long down_trans;			/* up->down transitions */
@@ -133,20 +119,11 @@ struct be_counters_shared {
 
 		} http;
 	} p;                                    /* protocol-specific stats */
-	struct freq_ctr sess_per_sec;           /* sessions per second on this server */
 
 	long long redispatches;                 /* retried and redispatched connections (BE only) */
 	long long retries;                      /* retried and redispatched connections (BE only) */
 	long long failed_resp;                  /* failed responses (BE only) */
-
 	long long failed_conns;                 /* failed connect() attempts (BE only) */
-	long long denied_resp;                  /* blocked responses because of security concerns */
-
-	long long denied_req;                   /* blocked requests because of security concerns */
-	long long bytes_out;                    /* number of bytes transferred from the server to the client */
-	long long bytes_in;                     /* number of bytes transferred from the client to the server */
-
-	long long    cum_sess;                  /* cumulated number of accepted connections */
 };
 
 /* counters used by servers and backends */
