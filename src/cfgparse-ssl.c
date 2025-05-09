@@ -2208,6 +2208,10 @@ static int proxy_parse_ssl_f_use(char **args, int section_type, struct proxy *cu
 			char path[MAXPATHLEN+1];
 			const char *arg = args[cur_arg+1];
 
+			if (ckch_conf->crt) {
+				memprintf(err, "'%s' already specified, aborting.", "crt");
+				goto error;
+			}
 			if (*arg != '@' && *arg != '/' && global_ssl.crt_base) {
 				if ((strlen(global_ssl.crt_base) + 1 + strlen(arg)) > sizeof(path) ||
 				     snprintf(path, sizeof(path), "%s/%s",  global_ssl.crt_base, arg) > sizeof(path)) {
