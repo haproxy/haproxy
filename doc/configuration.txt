@@ -18838,12 +18838,19 @@ init-addr {last | libc | none | <ip>},[...]*
   instances on the fly. This option defaults to "last,libc" indicating that the
   previous address found in the state file (if any) is used first, otherwise
   the libc's resolver is used. This ensures continued compatibility with the
-  historic behavior.
+  historic behavior. When using internal resolvers, it is generally recommended
+  to either disable libc-based resolution, or make it explicit (see section 5.3
+  for more details).
 
-  Example:
+  Example 1:
       defaults
           # never fail on address resolution
           default-server init-addr last,libc,none
+
+  Example 2:
+      defaults
+          # disable libc resolution in combination with resolvers
+          default-server init-addr last,none
 
 inter <delay>
 fastinter <delay>
@@ -19487,13 +19494,16 @@ resolvers <id>
   May be used in the following contexts: tcp, http, log
 
   Points to an existing "resolvers" section to resolve current server's
-  hostname.
+  hostname. It is often recommended to disable libc-based resolution when using
+  resolvers, though exceptions exist (see section 5.3.1). In any case it is a
+  good practice to explicitly specify "init-addr" when using resolvers in order
+  not to overlook this element.
 
   Example:
 
-    server s1 app1.domain.com:80 check resolvers mydns
+    server s1 app1.domain.com:80 init-addr last,none check resolvers mydns
 
-  See also section 5.3
+  See also section 5.3 for implementation details and traps to be aware of.
 
 send-proxy
   May be used in the following contexts: tcp, http
@@ -19881,11 +19891,13 @@ configuration file, at startup and cache the result for the process's life.
 This is not sufficient in some cases, such as in Amazon where a server's IP
 can change after a reboot or an ELB Virtual IP can change based on current
 workload.
+
 This chapter describes how HAProxy can be configured to process server's name
 resolution at run time.
-Whether run time server name resolution has been enable or not, HAProxy will
-carry on doing the first resolution when parsing the configuration.
 
+Whether run time server name resolution has been enable or not, by default
+HAProxy will do the first resolution at startup during configuration parsing
+via libc unless disabled by the "init-addr" parameter.
 
 5.3.1. Global overview
 ----------------------
@@ -19918,6 +19930,17 @@ A few things important to notice:
 
   - a resolution is considered as invalid (NX, timeout, refused), when all the
     servers return an error.
+
+  - The DNS client implemented in HAProxy is very basic and will not understand
+    the vast number of options and advanced setups that an operating system's
+    resolver can deal with. As such, except for really trivial setups where a
+    server known by its FQDN only has exactly one IP address at a time and
+    might occasionally renew it (e.g. a reboot), it is highly recommended to
+    avoid mixing libc-based init-time resolution with DNS-based runtime
+    resolution, as such setups are known to cause failures upon address
+    renewal. As a conclusion, unless you know exactly what you are doing, you
+    should always exclude "libc" from "init-addr" when using "resolvers" on a
+    server line.
 
 
 5.3.2. The resolvers section
