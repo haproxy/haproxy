@@ -4870,7 +4870,12 @@ int ckch_conf_parse(char **args, int cur_arg, struct ckch_conf *f, int *found, c
 			if (ckch_conf_kws[i].type == PARSE_TYPE_STR) {
 				char **t = target;
 
-				ha_free(t);
+				if (*t) {
+					ha_free(t);
+					memprintf(err, "'%s' already specified, overwriting.", ckch_conf_kws[i].name);
+					err_code |= ERR_WARN;
+				}
+
 				*t = strdup(args[cur_arg + 1]);
 				if (!*t) {
 					ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
@@ -4884,7 +4889,11 @@ int ckch_conf_parse(char **args, int cur_arg, struct ckch_conf *f, int *found, c
 				char *b, *e;
 
 				/* split a string into substring split by colons */
-				ha_freearray(t);
+				if (*t) {
+					ha_freearray(t);
+					memprintf(err, "'%s' already specified, overwriting.", ckch_conf_kws[i].name);
+					err_code |= ERR_WARN;
+				}
 				e = b = args[cur_arg + 1];
 				do {
 					while (*e != ',' && *e != '\0')
