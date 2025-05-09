@@ -1824,6 +1824,18 @@ The following keywords are supported in the "global" section :
   Please note that this option is only available when HAProxy has been
   compiled with USE_51DEGREES and 51DEGREES_VER=4.
 
+acme.scheduler { auto | off }
+  Enable or disable the ACME scheduler.
+
+  The ACME scheduler starts at HAProxy startup, it will loop over the
+  certificates and start an ACME renewal task when the notAfter value is past
+  curtime + (notAfter - notBefore) / 12, or 7 days if notBefore is not defined.
+  The scheduler will then sleep and wakeup after 12 hours.
+
+  The default value is "auto".
+
+  See also: acme
+
 ca-base <dir>
   Assigns a default directory to fetch SSL CA certificates and CRLs from when a
   relative path is used with "ca-file", "ca-verify-file" or "crl-file"

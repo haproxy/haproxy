@@ -316,6 +316,10 @@ struct global_ssl {
 		int disable;
 	} ocsp_update;
 #endif
+
+#ifdef HAVE_ACME
+	int acme_scheduler;
+#endif
 };
 
 /* The order here matters for picking a default context,

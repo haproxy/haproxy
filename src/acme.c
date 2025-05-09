@@ -411,6 +411,34 @@ out:
 	return err_code;
 }
 
+/* parse 'acme.scheduler' option */
+static int cfg_parse_global_acme_sched(char **args, int section_type, struct proxy *curpx, const struct proxy *defpx,
+                                       const char *file, int linenum, char **err)
+{
+	int err_code = 0;
+
+	if (!*args[1]) {
+		memprintf(err, "parsing [%s:%d]: keyword '%s' in '%s' section requires an argument\n", file, linenum, args[0], cursection);
+		goto error;
+	}
+	if (alertif_too_many_args(1, file, linenum, args, &err_code))
+		goto error;
+
+	if (strcmp(args[1], "auto") == 0) {
+		global_ssl.acme_scheduler = 1;
+	} else if (strcmp(args[1], "off") == 0) {
+		global_ssl.acme_scheduler = 0;
+	} else {
+		memprintf(err, "parsing [%s:%d]: keyword '%s' in '%s' section requires either 'auto' or 'off' argument", file, linenum, args[0], cursection);
+		goto error;
+	}
+
+	return 0;
+
+error:
+	return -1;
+}
+
 /* Initialize stuff once the section is parsed */
 static int cfg_postsection_acme()
 {
@@ -545,7 +573,7 @@ static int cfg_postparser_acme()
 	}
 
 
-	if (acme_cfgs) {
+	if (acme_cfgs && global_ssl.acme_scheduler) {
 		task = task_new_anywhere();
 		if (!task) {
 			ret++;
@@ -589,6 +617,7 @@ static struct cfg_kw_list cfg_kws_acme = {ILH, {
 	{ CFG_ACME, "bits",  cfg_parse_acme_cfg_key },
 	{ CFG_ACME, "curves",  cfg_parse_acme_cfg_key },
 	{ CFG_ACME, "map",  cfg_parse_acme_kws },
+	{ CFG_GLOBAL, "acme.scheduler", cfg_parse_global_acme_sched },
 	{ 0, NULL, NULL },
 }};
 
@@ -2054,6 +2083,9 @@ time_t acme_schedule_date(struct ckch_store *store)
 	time_t notAfter = 0;
 	time_t notBefore = 0;
 
+	if (!global_ssl.acme_scheduler)
+		return 0;
+
 	/* compute the validity period of the leaf certificate */
 	if (!store->data || !store->data->cert)
 		return 0;
@@ -2347,12 +2379,18 @@ static int cli_acme_status_io_handler(struct appctx *appctx)
 
 		if (store->conf.acme.id) {
 			char str[50] = {};
-			char *state = "Scheduled";
+			char *state;
 			time_t notAfter = 0;
 			time_t sched = 0;
 			time_t remain = 0;
+			int running = !!store->acme_task;
 
-			if (store->acme_task)
+			if (global_ssl.acme_scheduler)
+				state = "Scheduled";
+			else
+				state = "Stopped";
+
+			if (running)
 				state = "Running";
 
 			chunk_appendf(&trash, "%s\t%s\t%s\t", store->path, store->conf.acme.id, state);
@@ -2367,12 +2405,16 @@ static int cli_acme_status_io_handler(struct appctx *appctx)
 
 			/* Scheduled time */
 			remain = 0;
-			sched = acme_schedule_date(store);
+			if (!running) /* if running no schedule date yet */
+				sched = acme_schedule_date(store);
 			if (sched > date.tv_sec)
 				remain = sched - date.tv_sec;
 			strftime(str, sizeof(str), "%Y-%m-%dT%H:%M:%SZ", gmtime(&sched));
-			chunk_appendf(&trash, "%s\t", str);
-			chunk_appendf(&trash, "%lud %luh%02lum%02lus\n", remain / 86400, (remain % 86400) / 3600, (remain % 3600) / 60, (remain % 60));
+			chunk_appendf(&trash, "%s\t", sched ? str : "-");
+			if (sched)
+				chunk_appendf(&trash, "%lud %luh%02lum%02lus\n", remain / 86400, (remain % 86400) / 3600, (remain % 3600) / 60, (remain % 60));
+			else
+				chunk_appendf(&trash, "%s\n", "-");
 
 			if (applet_putchk(appctx, &trash) == -1)
 				return 1;

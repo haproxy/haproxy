@@ -145,6 +145,10 @@ struct global_ssl global_ssl = {
 	.ocsp_update.mode = SSL_SOCK_OCSP_UPDATE_OFF,
 	.ocsp_update.disable = 0,
 #endif
+#ifdef HAVE_ACME
+	.acme_scheduler = 1,
+#endif
+
 };
 
 static BIO_METHOD *ha_meth;
