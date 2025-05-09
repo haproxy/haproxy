@@ -4884,7 +4884,7 @@ int ckch_conf_parse(char **args, int cur_arg, struct ckch_conf *f, int *found, c
 				char *b, *e;
 
 				/* split a string into substring split by colons */
-
+				ha_freearray(t);
 				e = b = args[cur_arg + 1];
 				do {
 					while (*e != ',' && *e != '\0')
