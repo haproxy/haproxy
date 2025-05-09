@@ -31,6 +31,7 @@ extern int sock_inet6_v6only_default;
 extern int sock_inet_tcp_maxseg_default;
 extern int sock_inet6_tcp_maxseg_default;
 extern int sock_inet6_seems_reachable;
+extern uint last_inet6_check;
 
 #ifdef HA_HAVE_MPTCP
 extern int sock_inet_mptcp_maxseg_default;
@@ -54,5 +55,6 @@ int sock_inet_is_foreign(int fd, sa_family_t family);
 int sock_inet4_make_foreign(int fd);
 int sock_inet6_make_foreign(int fd);
 int sock_inet_bind_receiver(struct receiver *rx, char **errmsg);
+int is_inet6_reachable(void);
 
 #endif /* _HAPROXY_SOCK_INET_H */

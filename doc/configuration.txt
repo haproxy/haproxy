@@ -2193,6 +2193,7 @@ dns-accept-family <family>[,...]
     - "ipv4": query and accept IPv4 addresses ("A" records)
     - "ipv6": query and accept IPv6 addresses ("AAAA" records)
     - "auto": use IPv4, and IPv6 if the system has a default gateway for it.
+              The result of the last check is cached for 30 seconds.
 
   When a single family is used, no request will be sent to resolvers for the
   other family, and any response for the othe family will be ignored. The

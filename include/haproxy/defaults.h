@@ -349,6 +349,11 @@
 #define SRV_CHK_INTER_THRES 1000
 #endif
 
+/* INET6 connectivity caching interval (in ms) */
+#ifndef INET6_CONNECTIVITY_CACHE_TIME
+#define INET6_CONNECTIVITY_CACHE_TIME 30000
+#endif
+
 /* Specifies the string used to report the version and release date on the
  * statistics page. May be defined to the empty string ("") to permanently
  * disable the feature.

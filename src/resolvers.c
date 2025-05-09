@@ -225,7 +225,7 @@ static inline int resolv_active_families(void)
 {
 	if (resolv_accept_families & RSLV_AUTO_FAMILY) {
 		/* Let's adjust our default resolver families based on apparent IPv6 connectivity */
-		if (sock_inet6_seems_reachable)
+		if (is_inet6_reachable())
 			return RSLV_ACCEPT_IPV4 | RSLV_ACCEPT_IPV6;
 		else
 			return RSLV_ACCEPT_IPV4;
