@@ -1390,4 +1390,6 @@ static inline const char *errname(int err_num, char **out)
 
 int path_base(const char *path, const char *base, char *dst, char **err);
 
+void ha_freearray(char ***array);
+
 #endif /* _HAPROXY_TOOLS_H */

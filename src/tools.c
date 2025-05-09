@@ -7319,6 +7319,22 @@ out:
 }
 
 /*
+ * free() an array of strings terminated by a NULL entry
+ * set the pointer to NULL
+ */
+void ha_freearray(char ***array)
+{
+	int i;
+	char **r = *array;
+
+	for (i = 0; r && r[i]; i++) {
+		free(r[i]);
+		r[i] = NULL;
+	}
+	*array = NULL;
+}
+
+/*
  * Local variables:
  *  c-indent-level: 8
  *  c-basic-offset: 8
