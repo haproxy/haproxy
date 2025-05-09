@@ -245,7 +245,8 @@ static void dump_quic_stream(struct show_quic_ctx *ctx, struct quic_conn *qc)
 			continue;
 		}
 
-		chunk_appendf(&trash, "%p.%04llu: 0x%02x", qc, (ullong)id, sd->flags);
+		chunk_appendf(&trash, "%p.%04llu: 0x%02x age=%s", qc, (ullong)id, sd->flags,
+		              human_time(ns_to_sec(now_ns) - ns_to_sec(sd->origin_ts), 1));
 
 		bdata_ctr_print(&trash, &sd->data, "tx=[");
 		if (qcs) {

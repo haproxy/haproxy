@@ -45,6 +45,7 @@ struct qc_stream_desc {
 	uint64_t ack_offset; /* last acknowledged offset */
 	struct eb_root buf_tree; /* list of active and released buffers */
 	struct bdata_ctr data; /* data utilization counter */
+	ullong origin_ts; /* timestamp for creation date of current stream instance */
 
 	int flags; /* QC_SD_FL_* values */
 

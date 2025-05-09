@@ -89,6 +89,7 @@ struct qc_stream_desc *qc_stream_desc_new(uint64_t id, enum qcs_type type, void 
 	stream->buf_offset = 0;
 	bdata_ctr_init(&stream->data);
 
+	stream->origin_ts = now_ns;
 	stream->ack_offset = 0;
 	stream->flags = 0;
 	stream->ctx = ctx;
