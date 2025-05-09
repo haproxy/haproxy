@@ -4870,6 +4870,7 @@ int ckch_conf_parse(char **args, int cur_arg, struct ckch_conf *f, int *found, c
 			if (ckch_conf_kws[i].type == PARSE_TYPE_STR) {
 				char **t = target;
 
+				ha_free(t);
 				*t = strdup(args[cur_arg + 1]);
 				if (!*t) {
 					ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
