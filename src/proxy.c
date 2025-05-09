@@ -58,7 +58,8 @@
 
 
 int listeners;	/* # of proxy listeners, set by cfgparse */
-struct proxy *proxies_list  = NULL;	/* list of all existing proxies */
+struct proxy *proxies_list  = NULL;     /* list of main proxies */
+struct list proxies = LIST_HEAD_INIT(proxies); /* list of all proxies */
 struct eb_root used_proxy_id = EB_ROOT;	/* list of proxy IDs in use */
 struct eb_root proxy_by_name = EB_ROOT; /* tree of proxies sorted by name */
 struct eb_root defproxy_by_name = EB_ROOT; /* tree of default proxies sorted by name (dups possible) */
@@ -218,6 +219,7 @@ static inline void proxy_free_common(struct proxy *px)
 	/* note that the node's key points to p->id */
 	ebpt_delete(&px->conf.by_name);
 	ha_free(&px->id);
+	LIST_DEL_INIT(&px->global_list);
 	drop_file_name(&px->conf.file);
 	ha_free(&px->check_command);
 	ha_free(&px->check_path);
@@ -1468,6 +1470,7 @@ void init_new_proxy(struct proxy *p)
 {
 	memset(p, 0, sizeof(struct proxy));
 	p->obj_type = OBJ_TYPE_PROXY;
+	LIST_INIT(&p->global_list);
 	LIST_INIT(&p->acl);
 	LIST_INIT(&p->http_req_rules);
 	LIST_INIT(&p->http_res_rules);
@@ -1724,6 +1727,9 @@ int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char *
 
 	if (name && !(cap & PR_CAP_INT))
 		proxy_store_name(px);
+
+	if (!(cap & PR_CAP_DEF))
+		LIST_APPEND(&proxies, &px->global_list);
 
 	return 1;
 }
