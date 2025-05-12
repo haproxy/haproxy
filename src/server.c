@@ -6276,6 +6276,9 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	if (srv->agent.state & CHK_ST_CONFIGURED)
 		check_purge(&srv->agent);
 
+	if (srv->proxy->lbprm.server_deinit)
+		srv->proxy->lbprm.server_deinit(srv);
+
 	while (!MT_LIST_ISEMPTY(&srv->watcher_list)) {
 		srv_watch = MT_LIST_NEXT(&srv->watcher_list, struct watcher *, el);
 		BUG_ON(srv->next && srv->next->flags & SRV_F_DELETED);
