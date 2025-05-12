@@ -2058,6 +2058,9 @@ void proxy_cond_resume(struct proxy *p)
  */
 void proxy_cond_disable(struct proxy *p)
 {
+	long long cum_conn = 0;
+	long long cum_sess = 0;
+
 	if (p->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
 		return;
 
@@ -2072,13 +2075,18 @@ void proxy_cond_disable(struct proxy *p)
 	 * peers, etc) we must not report them at all as they're not really on
 	 * the data plane but on the control plane.
 	 */
+	if (p->cap & PR_CAP_FE)
+		cum_conn = p->fe_counters.cum_conn;
+	if (p->cap & PR_CAP_BE)
+		cum_sess = p->be_counters.cum_sess;
+
 	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP || p->mode == PR_MODE_SYSLOG || p->mode == PR_MODE_SPOP) && !(p->cap & PR_CAP_INT))
 		ha_warning("Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
-			   p->id, p->fe_counters.cum_conn, p->be_counters.cum_sess);
+			   p->id, cum_conn, cum_sess);
 
 	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP || p->mode == PR_MODE_SPOP) && !(p->cap & PR_CAP_INT))
 		send_log(p, LOG_WARNING, "Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
-			 p->id, p->fe_counters.cum_conn, p->be_counters.cum_sess);
+			 p->id, cum_conn, cum_sess);
 
 	if (p->table && p->table->size && p->table->sync_task)
 		task_wakeup(p->table->sync_task, TASK_WOKEN_MSG);
