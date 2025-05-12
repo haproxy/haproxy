@@ -2074,8 +2074,12 @@ next_line:
 					 * and if it's not set, we'll fall back to args's position in the output
 					 * string instead (less accurate but still useful).
 					 */
-					if (!errptr)
-						errptr = args[check_arg] - outline + line;
+					if (!errptr) {
+						newpos = args[check_arg] - outline;
+						if (newpos >= strlen(line))
+							newpos = 0; // impossible to report anything, start at the beginning.
+						errptr = line + newpos;
+					}
 
 					/* sanitize input line in-place */
 					newpos = sanitize_for_printing(line, errptr - line, 80);
