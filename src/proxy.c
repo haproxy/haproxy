@@ -371,6 +371,10 @@ void deinit_proxy(struct proxy *p)
 	while (s) {
 		list_for_each_entry(srvdf, &server_deinit_list, list)
 			srvdf->fct(s);
+
+		if (p->lbprm.server_deinit)
+			p->lbprm.server_deinit(s);
+
 		s = srv_drop(s);
 	}/* end while(s) */
 

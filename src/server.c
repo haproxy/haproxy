@@ -3113,6 +3113,9 @@ void srv_free_params(struct server *srv)
  * dynamic servers, its refcount is decremented first. The free operations are
  * conducted only if the refcount is nul.
  *
+ * A general rule is to assume that proxy may already be freed, so cleanup checks
+ * must not depend on the proxy
+ *
  * As a convenience, <srv.next> is returned if srv is not NULL. It may be useful
  * when calling srv_drop on the list of servers.
  */
@@ -3155,9 +3158,6 @@ struct server *srv_drop(struct server *srv)
 	event_hdl_sub_list_destroy(&srv->e_subs);
 
 	EXTRA_COUNTERS_FREE(srv->extra_counters);
-
-	if (srv->proxy->lbprm.server_deinit)
-		srv->proxy->lbprm.server_deinit(srv);
 
 	ha_free(&srv);
 
