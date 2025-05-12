@@ -232,6 +232,52 @@ static inline int http_path_has_forbidden_char(const struct ist ist, const char 
 	return 0;
 }
 
+/* Checks whether the :authority pseudo header contains dangerous chars that
+ * might affect its reassembly. We want to catch anything below 0x21, above
+ * 0x7e, as well as '@', '[', ']', '/','?', '#', '\', CR, LF, NUL. Then we
+ * fall back to the slow path and decide. Brackets are used for IP-literal and
+ * deserve special case, that is better handled in the slow path. The function
+ * returns 0 if no forbidden char is presnet, non-zero otherwise.
+ */
+static inline int http_authority_has_forbidden_char(const struct ist ist)
+{
+	size_t ofs, len = istlen(ist);
+	const char *p = istptr(ist);
+	int brackets = 0;
+	uchar c;
+
+	/* Many attempts with various methods have shown that moderately recent
+	 * compilers (gcc >= 9, clang >= 13) will arrange the code below as an
+	 * evaluation tree that remains efficient at -O2 and above (~1.2ns per
+	 * char). The immediate next efficient one is the bitmap from 64-bit
+	 * registers but it's extremely sensitive to code arrangements and
+	 * optimization.
+	 */
+	for (ofs = 0; ofs < len; ofs++) {
+		c = p[ofs];
+
+		if (unlikely(c < 0x21 || c > 0x7e ||
+			     c == '#' || c == '/' || c == '?' || c == '@' ||
+			     c == '[' || c == '\\' || c == ']')) {
+			/* all of them must be rejected, except '[' which may
+			 * only appear at the beginning, and ']' which may
+			 * only appear at the end or before a colon.
+			 */
+			if ((c == '[' && ofs == 0) ||
+			    (c == ']' && (ofs == len - 1 || p[ofs + 1] == ':'))) {
+				/* that's an IP-literal (see RFC3986#3.2), it's
+				 * OK for now.
+				 */
+				brackets ^= 1;
+			} else {
+				return 1;
+			}
+		}
+	}
+	/* there must be no opening bracket left nor lone closing one */
+	return brackets;
+}
+
 /* Checks status code array <array> for the presence of status code <status>.
  * Returns non-zero if the code is present, zero otherwise. Any status code is
  * permitted.
