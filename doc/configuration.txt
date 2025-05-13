@@ -23399,7 +23399,7 @@ table_cnt([<table>]) : integer
   stick-table or in the designated stick-table. See also "table_conn_cnt" and
   table_avl for other entry counting methods.
 
-term_events: string
+term_events : string
   Returns all known termination events for all entities attached a stream, on
   client and server sides. A tuple of seven elements is returned with following info:
 
