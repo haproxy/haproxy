@@ -1074,10 +1074,11 @@ static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin
  */
 static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin, int gmax, char **err)
 {
+	struct hap_cpuset visited_cl_set;
 	struct hap_cpuset node_cpu_set;
 	int cpu, cpu_start;
 	int cpu_count;
-	int cid, lcid;
+	int cid;
 	int thr_per_grp, nb_grp;
 	int thr;
 	int div;
@@ -1088,8 +1089,9 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 	if (global.nbtgroups)
 		return 0;
 
+	ha_cpuset_zero(&visited_cl_set);
+
 	/* iterate over each new cluster */
-	lcid = -1;
 	cpu_start = 0;
 
 	/* used as a divisor of clusters*/
@@ -1104,7 +1106,8 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 			/* skip disabled and already visited CPUs */
 			if (ha_cpu_topo[cpu].st & HA_CPU_F_EXCL_MASK)
 				continue;
-			if ((ha_cpu_topo[cpu].cl_gid / div) <= lcid)
+
+			if (ha_cpuset_isset(&visited_cl_set, ha_cpu_topo[cpu].cl_gid / div))
 				continue;
 
 			if (cid < 0) {
@@ -1118,12 +1121,15 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 			ha_cpuset_set(&node_cpu_set, ha_cpu_topo[cpu].idx);
 			cpu_count++;
 		}
+
 		/* now cid = next cluster_id or -1 if none; cpu_count is the
 		 * number of CPUs in this cluster, and cpu_start is the next
 		 * cpu to restart from to scan for new clusters.
 		 */
 		if (cid < 0 || !cpu_count)
 			break;
+
+		ha_cpuset_set(&visited_cl_set, cid);
 
 		/* check that we're still within limits. If there are too many
 		 * CPUs but enough groups left, we'll try to make more smaller
@@ -1163,8 +1169,6 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 			if (global.nbtgroups >= MAX_TGROUPS || global.nbthread >= MAX_THREADS)
 				break;
 		}
-
-		lcid = cid; // last cluster_id
 	}
 
 	if (global.nbthread)
