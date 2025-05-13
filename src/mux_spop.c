@@ -1555,6 +1555,7 @@ static int spop_conn_send_disconnect(struct spop_conn *spop_conn)
 	spop_set_frame_size(outbuf.area, outbuf.data - 4);
 	b_add(mbuf, outbuf.data);
 	spop_conn->flags |= SPOP_CF_DISCO_SENT;
+	spop_conn->state = SPOP_CS_CLOSING;
 	ret = 1;
 
 	switch (spop_conn->errcode) {
@@ -1787,8 +1788,6 @@ static int spop_conn_handle_hello(struct spop_conn *spop_conn)
 	TRACE_LEAVE(SPOP_EV_RX_FRAME|SPOP_EV_RX_HELLO, spop_conn->conn);
 	return 1;
   fail:
-	spop_conn->state = SPOP_CS_CLOSED;
-	TRACE_STATE("switching to CLOSED", SPOP_EV_RX_FRAME|SPOP_EV_RX_HELLO, spop_conn->conn);
 	TRACE_DEVEL("leaving on error", SPOP_EV_RX_FRAME|SPOP_EV_RX_HELLO|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
 	return 0;
 }
@@ -1974,7 +1973,6 @@ static int spop_conn_handle_ack(struct spop_conn *spop_conn, struct spop_strm *s
 
 	sent = b_xfer(rxbuf, dbuf, flen);
 	BUG_ON(sent != flen);
-	/* b_del(&spop_conn->dbuf, sent); */
 	spop_conn->dfl -= sent;
 
   end:
@@ -2062,27 +2060,34 @@ static void spop_process_demux(struct spop_conn *spop_conn)
 
 	TRACE_ENTER(SPOP_EV_SPOP_CONN_WAKE, spop_conn->conn);
 
-	if (spop_conn->state >= SPOP_CS_ERROR)
+	if (spop_conn->state == SPOP_CS_CLOSED)
 		goto out;
 
-	if (unlikely(spop_conn->state < SPOP_CS_RUNNING)) {
+	if (unlikely(spop_conn->state < SPOP_CS_RUNNING || spop_conn->state == SPOP_CS_CLOSING)) {
 		if (spop_conn->state == SPOP_CS_HA_HELLO) {
 			TRACE_STATE("waiting AGENT HELLO frame to be sent", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_RX_HELLO, spop_conn->conn);
 			goto out;
 		}
-		if (spop_conn->state == SPOP_CS_AGENT_HELLO) {
-			/* ensure that what is pending is a valid AGENT HELLO frame. */
-			TRACE_STATE("receiving AGENT HELLO frame header", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR, spop_conn->conn);
+		else { /* AGENT_HELLO OR CLOSING */
+                       /* ensure that what is pending is a valid AGENT HELLO/DISCONNECT frame. */
+			TRACE_STATE("receiving AGENT HELLO/DISCONNECT frame header", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR, spop_conn->conn);
 			if (!spop_get_frame_hdr(&spop_conn->dbuf, &hdr)) {
 				spop_conn->flags |= SPOP_CF_DEM_SHORT_READ;
 				TRACE_ERROR("header frame not available yet", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR, spop_conn->conn);
 				goto done;
 			}
 
-			if (hdr.sid || hdr.fid || hdr.type != SPOP_FRM_T_AGENT_HELLO || !(hdr.flags & SPOP_FRM_FL_FIN)) {
+			if (spop_conn->state == SPOP_CS_AGENT_HELLO && hdr.type != SPOP_FRM_T_AGENT_HELLO) {
 				spop_conn_error(spop_conn, SPOP_ERR_INVALID);
 				spop_conn->state = SPOP_CS_CLOSED;
-				TRACE_ERROR("unexpected frame type or flags", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_RX_HELLO|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+				TRACE_ERROR("unexpected frame type (AGENT HELLO expected)", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_RX_HELLO|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+				TRACE_STATE("switching to CLOSED", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_RX_HELLO|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+				goto done;
+			}
+			if ((hdr.type == SPOP_FRM_T_AGENT_HELLO || hdr.type == SPOP_FRM_T_AGENT_DISCON) && (hdr.sid || hdr.fid || !(hdr.flags & SPOP_FRM_FL_FIN))) {
+				spop_conn_error(spop_conn, SPOP_ERR_INVALID);
+				spop_conn->state = SPOP_CS_CLOSED;
+				TRACE_ERROR("unexpected frame meta-data", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_RX_HELLO|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
 				TRACE_STATE("switching to CLOSED", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_RX_HELLO|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
 				goto done;
 			}
@@ -2109,7 +2114,7 @@ static void spop_process_demux(struct spop_conn *spop_conn)
 			break;
 		}
 
-		if (spop_conn->state >= SPOP_CS_ERROR) {
+		if (spop_conn->state == SPOP_CS_CLOSED) {
 			TRACE_STATE("end of connection reported", SPOP_EV_RX_FRAME|SPOP_EV_RX_EOI, spop_conn->conn);
 			break;
 		}
