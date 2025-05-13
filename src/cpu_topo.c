@@ -620,8 +620,16 @@ int _cmp_cluster_index(const void *a, const void *b)
 	return l->idx - r->idx;
 }
 
-/* function used by qsort to order clustes by reverse capacity */
+/* function used by qsort to order clusters by reverse capacity */
 int _cmp_cluster_capa(const void *a, const void *b)
+{
+	const struct ha_cpu_cluster *l = (const struct ha_cpu_cluster *)a;
+	const struct ha_cpu_cluster *r = (const struct ha_cpu_cluster *)b;
+	return r->capa - l->capa;
+}
+
+/* function used by qsort to order clusters by average reverse capacity */
+int _cmp_cluster_avg_capa(const void *a, const void *b)
 {
 	const struct ha_cpu_cluster *l = (const struct ha_cpu_cluster *)a;
 	const struct ha_cpu_cluster *r = (const struct ha_cpu_cluster *)b;
@@ -638,6 +646,12 @@ void cpu_cluster_reorder_by_index(struct ha_cpu_cluster *clusters, int entries)
 void cpu_cluster_reorder_by_capa(struct ha_cpu_cluster *clusters, int entries)
 {
 	qsort(clusters, entries, sizeof(*clusters), _cmp_cluster_capa);
+}
+
+/* re-order a CPU topology array by locality and avg capacity to detect clusters. */
+void cpu_cluster_reorder_by_avg_capa(struct ha_cpu_cluster *clusters, int entries)
+{
+	qsort(clusters, entries, sizeof(*clusters), _cmp_cluster_avg_capa);
 }
 
 /* returns an optimal maxcpus for the current system. It will take into
