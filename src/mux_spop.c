@@ -1291,7 +1291,7 @@ static void spop_strm_wake_one_stream(struct spop_strm *spop_strm)
 			spop_strm_close(spop_strm);
 	}
 
-	if (spop_conn->state == SPOP_CS_CLOSED || (spop_conn->flags & (SPOP_CF_ERR_PENDING|SPOP_CF_ERROR))) {
+	if (!(spop_strm->flags & SPOP_SF_ACK_RCVD) && (spop_conn->state == SPOP_CS_CLOSED || (spop_conn->flags & (SPOP_CF_ERR_PENDING|SPOP_CF_ERROR)))) {
 		se_fl_set_error(spop_strm->sd);
 		spop_strm_propagate_term_flags(spop_conn, spop_strm);
 		if (!spop_strm->sd->abort_info.info) {
