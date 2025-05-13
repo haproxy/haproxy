@@ -1316,7 +1316,7 @@ static int cpu_policy_group_by_ccx(int policy, int tmin, int tmax, int gmin, int
 
 /* the "performance" cpu-policy:
  *  - does nothing if nbthread or thread-groups are set
- *  - eliminates clusters whose total capacity is below half of others
+ *  - eliminates clusters whose average capacity is less than 80% that of others
  *  - tries to create one thread-group per cluster, with as many
  *    threads as CPUs in the cluster, and bind all the threads of
  *    this group to all the CPUs of the cluster.
@@ -1329,22 +1329,26 @@ static int cpu_policy_performance(int policy, int tmin, int tmax, int gmin, int 
 	if (global.nbthread || global.nbtgroups)
 		return 0;
 
-	/* sort clusters by reverse capacity */
-	cpu_cluster_reorder_by_capa(ha_cpu_clusters, cpu_topo_maxcpus);
+	/* sort clusters by average reverse capacity */
+	cpu_cluster_reorder_by_avg_capa(ha_cpu_clusters, cpu_topo_maxcpus);
 
 	capa = 0;
 	for (cluster = 0; cluster < cpu_topo_maxcpus; cluster++) {
-		if (capa && ha_cpu_clusters[cluster].capa < capa / 2) {
-			/* This cluster is more than twice as slow as the
-			 * previous one, we're not interested in using it.
+		if (capa && ha_cpu_clusters[cluster].capa * 10 < ha_cpu_clusters[cluster].nb_cpu * capa * 8) {
+			/* This cluster is made of cores delivering less than
+			 * 80% of the performance of those of the previous
+			 * cluster, previous one, we're not interested in
+			 * using it.
 			 */
 			for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++) {
 				if (ha_cpu_topo[cpu].cl_gid == ha_cpu_clusters[cluster].idx)
 					ha_cpu_topo[cpu].st |= HA_CPU_F_IGNORED;
 			}
 		}
+		else if (ha_cpu_clusters[cluster].nb_cpu)
+			capa = ha_cpu_clusters[cluster].capa / ha_cpu_clusters[cluster].nb_cpu;
 		else
-			capa = ha_cpu_clusters[cluster].capa;
+			capa = 0;
 	}
 
 	cpu_cluster_reorder_by_index(ha_cpu_clusters, cpu_topo_maxcpus);

@@ -2098,15 +2098,16 @@ cpu-policy <policy>
                         admins to validate setups.
 
    - performance        exactly like group-by-cluster above, except that CPU
-                        clusters whose performance is less than half of the
-                        next more performant one are evicted. These are
-                        typically "little" or "efficient" cores, whose addition
-                        generally doesn't bring significant gains and can
-                        easily be counter-productive (e.g. TLS handshakes).
-                        Often, keeping such cores for other tasks such as
-                        network handling is much more effective. On development
-                        systems, these can also be used to run auxiliary tools
-                        such as load generators and monitoring tools.
+                        clusters composed of cores whose performance is less
+                        than 80% of those of the next more performant one are
+                        evicted. These are typically "little" or "efficient"
+                        cores, whose addition generally doesn't bring significant
+                        gains and can easily be counter-productive (e.g. TLS
+                        handshakes). Often, keeping such cores for other tasks
+                        such as network handling is much more effective. On
+                        development systems, these can also be used to run
+                        auxiliary tools such as load generators and monitoring
+                        tools.
 
    - resource           this is like group-by-cluster above, except that only
                         the smallest and most efficient CPU cluster will be
