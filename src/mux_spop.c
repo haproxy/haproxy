@@ -605,7 +605,7 @@ static int spop_avail_streams(struct connection *conn)
 	int ret1, ret2;
 
 	/* Don't open new stream if the connection is closed */
-	if (spop_conn->state == SPOP_CS_CLOSED)
+	if (spop_conn->state >= SPOP_CS_ERROR || (spop_conn->flags & (SPOP_CF_ERR_PENDING|SPOP_CF_ERROR)))
 		return 0;
 
 	/* May be negative if this setting has changed */
