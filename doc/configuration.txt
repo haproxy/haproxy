@@ -1993,16 +1993,17 @@ cpu-policy <policy>
                         if not set, will be set to 1.
 
    - efficiency         exactly like group-by-cluster below, except that CPU
-                        clusters whose performance is more than twice that of
-                        the next less performant one are evicted. These are
-                        typically "big" or "performance" cores. This means that
-                        if more than one type of CPU cores are detected, only
-                        the efficient one will be used. This can make sense for
-                        use with moderate loads when the most powerful cores
-                        need to be available to the application or a security
-                        component. Some modern CPUs have a large number of such
-                        efficient CPU cores which can collectively deliver a
-                        decent level of performance while using less power.
+                        clusters composed of cores whose performance is more
+                        than 25% above that of the next less performant one are
+                        evicted. These are typically "big" or "performance"
+                        cores. This means that if more than one type of CPU
+                        cores are detected, only the efficient one will be
+                        used. This can make sense for use with moderate loads
+                        when the most powerful cores need to be available to
+                        the application or a security component. Some modern
+                        CPUs have a large number of such efficient CPU cores
+                        which can collectively deliver a decent level of
+                        performance while using less power.
 
    - first-usable-node  if the CPUs were not previously restricted at boot (for
                         example using the "taskset" utility), and if the
