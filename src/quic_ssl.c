@@ -10,8 +10,6 @@
 #include <haproxy/ssl_sock.h>
 #include <haproxy/trace.h>
 
-static BIO_METHOD *ha_quic_meth;
-
 DECLARE_POOL(pool_head_quic_ssl_sock_ctx, "quic_ssl_sock_ctx", sizeof(struct ssl_sock_ctx));
 
 /* Set the encoded version of the transport parameter into the TLS
@@ -875,15 +873,3 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc)
 	pool_free(pool_head_quic_ssl_sock_ctx, ctx);
 	goto leave;
 }
-
-static void __quic_conn_init(void)
-{
-	ha_quic_meth = BIO_meth_new(0x666, "ha QUIC methods");
-}
-INITCALL0(STG_REGISTER, __quic_conn_init);
-
-static void __quic_conn_deinit(void)
-{
-	BIO_meth_free(ha_quic_meth);
-}
-REGISTER_POST_DEINIT(__quic_conn_deinit);
