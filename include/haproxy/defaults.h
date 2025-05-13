@@ -44,7 +44,7 @@
  * doesn't engage us too far.
  */
 #ifndef MAX_TGROUPS
-#define MAX_TGROUPS 16
+#define MAX_TGROUPS 32
 #endif
 
 #define MAX_THREADS_PER_GROUP __WORDSIZE
@@ -53,7 +53,7 @@
  * long bits if more tgroups are enabled.
  */
 #ifndef MAX_THREADS
-#define MAX_THREADS ((((MAX_TGROUPS) > 1) ? 4 : 1) * (MAX_THREADS_PER_GROUP))
+#define MAX_THREADS ((((MAX_TGROUPS) > 1) ? 16 : 1) * (MAX_THREADS_PER_GROUP))
 #endif
 
 #endif // USE_THREAD
