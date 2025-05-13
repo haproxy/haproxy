@@ -11,6 +11,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    if: ${{ github.repository_owner == 'haproxy' || github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v4
       - name: Install VTest
@@ -19,7 +20,7 @@ jobs:
       - name: Install apt dependencies
         run: |
           sudo apt-get update -o Acquire::Languages=none -o Acquire::Translation=none
-          sudo apt-get --no-install-recommends -y install socat gdb
+          sudo apt-get --no-install-recommends -y install socat gdb jose
       - name: Install WolfSSL
         run: env WOLFSSL_VERSION=git-master WOLFSSL_DEBUG=1 scripts/build-ssl.sh
       - name: Compile HAProxy
@@ -27,7 +28,7 @@ jobs:
           make -j$(nproc) ERR=1 CC=gcc TARGET=linux-glibc \
             USE_OPENSSL_WOLFSSL=1 USE_QUIC=1 \
             SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include \
-            DEBUG="-DDEBUG_POOL_INTEGRITY" \
+            DEBUG="-DDEBUG_POOL_INTEGRITY -DDEBUG_UNIT" \
             ADDLIB="-Wl,-rpath,/usr/local/lib/ -Wl,-rpath,$HOME/opt/lib/" \
             ARCH_FLAGS="-ggdb3 -fsanitize=address"
           sudo make install
@@ -48,6 +49,10 @@ jobs:
           # allow to catch coredumps
           ulimit -c unlimited
           make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
+      - name: Run Unit tests
+        id: unittests
+        run: |
+          make unit-tests
       - name: Show VTest results
         if: ${{ failure() && steps.vtest.outcome == 'failure' }}
         run: |
@@ -72,3 +77,13 @@ jobs:
           if [ "$failed" = true ]; then
             exit 1;
           fi
+      - name: Show Unit-Tests results
+        if: ${{ failure() && steps.unittests.outcome == 'failure' }}
+        run: |
+          for result in ${TMPDIR:-/tmp}/ha-unittests-*/results/res.*; do
+            printf "::group::"
+            cat $result
+            echo "::endgroup::"
+          done
+          exit 1
+
