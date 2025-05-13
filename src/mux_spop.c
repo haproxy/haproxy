@@ -31,7 +31,7 @@ struct spop_conn {
 	uint32_t max_id;                     /* highest ID known on this connection, <0 before HELLO handshake */
 	uint32_t flags;                      /* Connection flags: SPOP_CF_* */
 
-	uint32_t dsi;                        /* dmux stream ID (<0 = idle ) */
+	int32_t dsi;                         /* dmux stream ID (<0 = idle ) */
 	uint32_t dfi;                        /* dmux frame ID (if dsi >= 0) */
 	uint32_t dfl;                        /* demux frame length (if dsi >= 0) */
 	uint32_t dff;                        /* demux frame flags */
