@@ -1992,7 +1992,7 @@ cpu-policy <policy>
                         systems, per thread-group. The number of thread-groups,
                         if not set, will be set to 1.
 
-   - efficiency         exactly like group-by-cluster below, except that CPU
+   - efficiency         exactly like "group-by-ccx" below, except that CPU
                         clusters composed of cores whose performance is more
                         than 25% above that of the next less performant one are
                         evicted. These are typically "big" or "performance"
@@ -2098,7 +2098,7 @@ cpu-policy <policy>
                         laptops and desktop machines used by developers and
                         admins to validate setups.
 
-   - performance        exactly like group-by-cluster above, except that CPU
+   - performance        exactly like "group-by-ccx" above, except that CPU
                         clusters composed of cores whose performance is less
                         than 80% of those of the next more performant one are
                         evicted. These are typically "little" or "efficient"
@@ -2110,7 +2110,7 @@ cpu-policy <policy>
                         auxiliary tools such as load generators and monitoring
                         tools.
 
-   - resource           this is like group-by-cluster above, except that only
+   - resource           this is like "group-by-cluster" above, except that only
                         the smallest and most efficient CPU cluster will be
                         used, while all other ones will be ignored. This can be
                         used to limit the resource usage to the strict minimum

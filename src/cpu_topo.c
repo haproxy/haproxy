@@ -1353,8 +1353,10 @@ static int cpu_policy_performance(int policy, int tmin, int tmax, int gmin, int 
 
 	cpu_cluster_reorder_by_index(ha_cpu_clusters, cpu_topo_maxcpus);
 
-	/* and finish using the group-by-cluster strategy */
-	return cpu_policy_group_by_cluster(policy, tmin, tmax, gmin, gmax, err);
+	/* and finish using the group-by-ccx strategy, which will split around
+	 * L3 rather than just cluster types.
+	 */
+	return cpu_policy_group_by_ccx(policy, tmin, tmax, gmin, gmax, err);
 }
 
 /* the "efficiency" cpu-policy:
@@ -1395,8 +1397,10 @@ static int cpu_policy_efficiency(int policy, int tmin, int tmax, int gmin, int g
 
 	cpu_cluster_reorder_by_index(ha_cpu_clusters, cpu_topo_maxcpus);
 
-	/* and finish using the group-by-cluster strategy */
-	return cpu_policy_group_by_cluster(policy, tmin, tmax, gmin, gmax, err);
+	/* and finish using the group-by-ccx strategy, which will split around
+	 * L3 rather than just cluster types.
+	 */
+	return cpu_policy_group_by_ccx(policy, tmin, tmax, gmin, gmax, err);
 }
 
 
