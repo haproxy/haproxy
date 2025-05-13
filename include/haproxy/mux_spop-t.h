@@ -87,10 +87,9 @@ static forceinline char *spop_strm_show_flags(char *buf, size_t len, const char 
 
 /* SPOP connection state (spop_conn->state) */
 enum spop_conn_st {
-	SPOP_CS_HA_HELLO = 0, /* init done, waiting for sending HELLO frame */
-	SPOP_CS_AGENT_HELLO,     /* HELLO frame sent, waiting for agent HELLO frame to define the connection settings */
-	SPOP_CS_FRAME_H,       /* HELLO handshake finished, waiting for a frame header */
-	SPOP_CS_FRAME_P,       /* Frame header received, waiting for a frame data */
+	SPOP_CS_HA_HELLO = 0,  /* init done, waiting for sending HELLO frame */
+	SPOP_CS_AGENT_HELLO,   /* HELLO frame sent, waiting for agent HELLO frame to define the connection settings */
+	SPOP_CS_RUNNING,       /* HELLO handshake finished, exchange NOTIFY/ACK frames */
 	SPOP_CS_ERROR,         /* send DISCONNECT frame to be able ti close the connection */
 	SPOP_CS_CLOSING,       /* DISCONNECT frame sent, waiting for the agent DISCONNECT frame before closing */
 	SPOP_CS_CLOSED,        /* Agent DISCONNECT frame received and  close the connection ASAP */
@@ -103,8 +102,7 @@ static inline const char *spop_conn_st_to_str(enum spop_conn_st st)
 	switch (st) {
 		case SPOP_CS_HA_HELLO   : return "HHL";
 		case SPOP_CS_AGENT_HELLO: return "AHL";
-		case SPOP_CS_FRAME_H    : return "FRH";
-		case SPOP_CS_FRAME_P    : return "FRP";
+		case SPOP_CS_RUNNING    : return "RUN";
 		case SPOP_CS_ERROR      : return "ERR";
 		case SPOP_CS_CLOSING    : return "CLI";
 		case SPOP_CS_CLOSED     : return "CLO";
