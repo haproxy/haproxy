@@ -46,7 +46,25 @@
 
 #ifdef USE_QUIC_OPENSSL_COMPAT
 #include <haproxy/quic_openssl_compat.h>
+#else
+#if defined(OSSL_FUNC_SSL_QUIC_TLS_CRYPTO_SEND)
+/* This macro is defined by the new OpenSSL 3.5.0 QUIC TLS API and it is not
+ * defined by quictls.
+ */
+#define HAVE_OPENSSL_QUIC
+#define SSL_set_quic_transport_params   SSL_set_quic_tls_transport_params
+#define SSL_set_quic_early_data_enabled SSL_set_quic_tls_early_data_enabled
+#define SSL_quic_read_level(arg) -1
+
+enum ssl_encryption_level_t {
+	ssl_encryption_initial = 0,
+	ssl_encryption_early_data,
+	ssl_encryption_handshake,
+	ssl_encryption_application
+};
+
 #endif
+#endif /* USE_QUIC_OPENSSL_COMPAT */
 
 #if defined(OPENSSL_IS_AWSLC)
 #define OPENSSL_NO_DH

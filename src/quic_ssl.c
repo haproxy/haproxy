@@ -325,27 +325,6 @@ write:
 	return ret;
 }
 
-#if defined(OPENSSL_IS_AWSLC)
-/* compatibility function for split read/write encryption secrets to be used
- * with the API which uses 2 callbacks. */
-static inline int ha_quic_set_read_secret(SSL *ssl, enum ssl_encryption_level_t level,
-                                   const SSL_CIPHER *cipher, const uint8_t *secret,
-                                   size_t secret_len)
-{
-	return ha_quic_set_encryption_secrets(ssl, level, secret, NULL, secret_len);
-
-}
-
-static inline int ha_quic_set_write_secret(SSL *ssl, enum ssl_encryption_level_t level,
-                                   const SSL_CIPHER *cipher, const uint8_t *secret,
-                                   size_t secret_len)
-{
-
-	return ha_quic_set_encryption_secrets(ssl, level, NULL, secret, secret_len);
-
-}
-#endif
-
 /* ->add_handshake_data QUIC TLS callback used by the QUIC TLS stack when it
  * wants to provide the QUIC layer with CRYPTO data.
  * Returns 1 if succeeded, 0 if not.
@@ -388,6 +367,137 @@ static int ha_quic_add_handshake_data(SSL *ssl, enum ssl_encryption_level_t leve
 	TRACE_LEAVE(QUIC_EV_CONN_ADDDATA, qc);
 	return ret;
 }
+
+#ifdef HAVE_OPENSSL_QUIC
+/************************** OpenSSL QUIC TLS API (>= 3.5.0) *******************/
+
+static int ha_quic_ossl_crypto_send(SSL *ssl,
+                                    const unsigned char *buf, size_t buf_len,
+                                    size_t *consumed, void *arg)
+{
+	int ret = 0;
+	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
+
+	TRACE_ENTER(QUIC_EV_CONN_ADDDATA, qc);
+	TRACE_LEAVE(QUIC_EV_CONN_ADDDATA, qc);
+
+	return ret;
+}
+
+static int ha_quic_ossl_crypto_recv_rcd(SSL *ssl,
+                                        const unsigned char **buf, size_t *bytes_read,
+                                        void *arg)
+{
+	int ret = 0;
+	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
+
+	TRACE_ENTER(QUIC_EV_CONN_SSLDATA, qc);
+	TRACE_LEAVE(QUIC_EV_CONN_SSLDATA, qc);
+
+	return ret;
+}
+
+static int ha_quic_ossl_crypto_release_rcd(SSL *ssl, size_t bytes_read, void *arg)
+{
+	int ret = 0;
+	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
+
+	TRACE_ENTER(QUIC_EV_CONN_RELEASE_RCD, qc);
+	TRACE_LEAVE(QUIC_EV_CONN_RELEASE_RCD, qc);
+
+	return ret;
+}
+
+static int ha_quic_ossl_yield_secret(SSL *ssl, uint32_t prot_level, int direction,
+                                     const unsigned char *secret, size_t secret_len,
+                                     void *arg)
+{
+	int ret = 0;
+	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
+
+	TRACE_ENTER(QUIC_EV_CONN_RWSEC, qc);
+	TRACE_LEAVE(QUIC_EV_CONN_RWSEC, qc);
+
+	return ret;
+}
+
+static int ha_quic_ossl_got_transport_params(SSL *ssl, const unsigned char *params,
+                                             size_t params_len, void *arg)
+{
+	int ret = 0;
+	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
+
+	TRACE_ENTER(QUIC_EV_TRANSP_PARAMS, qc);
+	TRACE_LEAVE(QUIC_EV_TRANSP_PARAMS, qc);
+
+	return ret;
+}
+
+static int ha_quic_ossl_alert(SSL *ssl, unsigned char alert_code, void *arg)
+{
+	int ret = 1, alert = alert_code;
+	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
+
+	TRACE_ENTER(QUIC_EV_CONN_SSLALERT, qc);
+
+	TRACE_PROTO("Received TLS alert", QUIC_EV_CONN_SSLALERT, qc, &alert);
+	quic_set_tls_alert(qc, alert_code);
+
+	TRACE_LEAVE(QUIC_EV_CONN_SSLALERT, qc);
+
+	return ret;
+}
+
+static const OSSL_DISPATCH ha_quic_dispatch[] = {
+	{
+		OSSL_FUNC_SSL_QUIC_TLS_CRYPTO_SEND,
+		(OSSL_FUNC)ha_quic_ossl_crypto_send,
+	},
+	{
+		OSSL_FUNC_SSL_QUIC_TLS_CRYPTO_RECV_RCD,
+		(OSSL_FUNC)ha_quic_ossl_crypto_recv_rcd,
+	},
+	{
+		OSSL_FUNC_SSL_QUIC_TLS_CRYPTO_RELEASE_RCD,
+		(OSSL_FUNC)ha_quic_ossl_crypto_release_rcd,
+	},
+	{
+		OSSL_FUNC_SSL_QUIC_TLS_YIELD_SECRET,
+		(OSSL_FUNC)ha_quic_ossl_yield_secret,
+	},
+	{
+		OSSL_FUNC_SSL_QUIC_TLS_GOT_TRANSPORT_PARAMS,
+		(OSSL_FUNC)ha_quic_ossl_got_transport_params,
+	},
+	{
+		OSSL_FUNC_SSL_QUIC_TLS_ALERT,
+		(OSSL_FUNC)ha_quic_ossl_alert,
+	},
+	OSSL_DISPATCH_END,
+};
+#else /* !HAVE_OPENSSL_QUIC */
+/***************************** QUICTLS QUIC API ******************************/
+
+#if defined(OPENSSL_IS_AWSLC)
+/* compatibility function for split read/write encryption secrets to be used
+ * with the API which uses 2 callbacks. */
+static inline int ha_quic_set_read_secret(SSL *ssl, enum ssl_encryption_level_t level,
+                                   const SSL_CIPHER *cipher, const uint8_t *secret,
+                                   size_t secret_len)
+{
+	return ha_quic_set_encryption_secrets(ssl, level, secret, NULL, secret_len);
+
+}
+
+static inline int ha_quic_set_write_secret(SSL *ssl, enum ssl_encryption_level_t level,
+                                   const SSL_CIPHER *cipher, const uint8_t *secret,
+                                   size_t secret_len)
+{
+
+	return ha_quic_set_encryption_secrets(ssl, level, NULL, secret, secret_len);
+
+}
+#endif
 
 static int ha_quic_flush_flight(SSL *ssl)
 {
@@ -432,6 +542,7 @@ static SSL_QUIC_METHOD ha_quic_method = {
 	.send_alert             = ha_quic_send_alert,
 };
 #endif
+#endif /* HAVE_OPENSSL_QUIC */
 
 /* Initialize the TLS context of a listener with <bind_conf> as configuration.
  * Returns an error count.
@@ -533,11 +644,13 @@ static int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 
 	TRACE_ENTER(QUIC_EV_CONN_SSLDATA, qc);
 
+#ifndef HAVE_OPENSSL_QUIC
 	if (SSL_provide_quic_data(ctx->ssl, level, data, len) != 1) {
 		TRACE_ERROR("SSL_provide_quic_data() error",
 		            QUIC_EV_CONN_SSLDATA, qc, NULL, NULL, ctx->ssl);
 		goto leave;
 	}
+#endif
 
 	state = qc->state;
 	if (state < QUIC_HS_ST_COMPLETE) {
@@ -645,7 +758,9 @@ static int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 			TRACE_ERROR("quic_tls_key_update() failed", QUIC_EV_CONN_IO_CB, qc);
 			goto leave;
 		}
-	} else {
+	}
+#ifndef HAVE_OPENSSL_QUIC
+	else {
 		ssl_err = SSL_process_quic_post_handshake(ctx->ssl);
 		if (ssl_err != 1) {
 			ssl_err = SSL_get_error(ctx->ssl, ssl_err);
@@ -662,6 +777,7 @@ static int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 
 		TRACE_STATE("SSL post handshake succeeded", QUIC_EV_CONN_IO_CB, qc, &state);
 	}
+#endif
 
  out:
 	ret = 1;
@@ -733,6 +849,16 @@ int qc_ssl_provide_all_quic_data(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 	return ret;
 }
 
+/* Simple helper to set the specifig OpenSSL/quictls QUIC API callbacks */
+int quic_ssl_set_tls_cbs(SSL *ssl)
+{
+#ifdef HAVE_OPENSSL_QUIC
+	return SSL_set_quic_tls_cbs(ssl, ha_quic_dispatch, NULL);
+#else
+	return SSL_set_quic_method(ssl, &ha_quic_method);
+#endif
+}
+
 /* Try to allocate the <*ssl> SSL session object for <qc> QUIC connection
  * with <ssl_ctx> as SSL context inherited settings. Also set the transport
  * parameters of this session.
@@ -759,7 +885,7 @@ static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl)
 	}
 
 	if (!SSL_set_ex_data(*ssl, ssl_qc_app_data_index, qc) ||
-	    !SSL_set_quic_method(*ssl, &ha_quic_method)) {
+	    !quic_ssl_set_tls_cbs(*ssl)) {
 		SSL_free(*ssl);
 		*ssl = NULL;
 		if (!retry--)
