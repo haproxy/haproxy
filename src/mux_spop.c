@@ -1984,7 +1984,6 @@ static int spop_conn_handle_ack(struct spop_conn *spop_conn, struct spop_strm *s
 
 	spop_strm->flags |= SPOP_SF_ACK_RCVD;
 	TRACE_PROTO("SPOP AGENT ACK frame rcvd", SPOP_EV_RX_FRAME|SPOP_EV_RX_ACK, spop_conn->conn, spop_strm, 0, (size_t[]){sent});
-	spop_conn->state = SPOP_CS_FRAME_H;
 	TRACE_LEAVE(SPOP_EV_RX_FRAME|SPOP_EV_RX_ACK, spop_conn->conn, spop_strm);
 	return 1;
 
