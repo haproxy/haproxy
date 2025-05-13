@@ -2013,6 +2013,14 @@ cpu-policy <policy>
                         the limit of 32 or 64 depending on the system. This is
                         the default policy.
 
+   - group-by-2-ccx     same as "group-by-ccx" below but create a group every
+                        two CCX. This can make sense on CPUs having many CCX of
+                        few cores each, to avoid creating many groups, or to
+                        smooth the distribution a little bit when not all cores
+                        are in use. Please note that it can have very bad
+                        performance effects when the communication between CCX
+                        is slow. This is generally recommended against.
+
    - group-by-2-clusters same as "group-by-cluster" but create a group every
                         two clusters. This can make sense on CPUs having many
                         clusters of few cores each, to avoid creating many
@@ -2021,6 +2029,14 @@ cpu-policy <policy>
                         very bad performance effects when the communication
                         between clusters is slow. This is generally recommended
                         against.
+
+   - group-by-3-ccx     same as "group-by-ccx" below but create a group every
+                        three CCX. This can make sense on CPUs having many CCX
+                        of few cores each, to avoid creating many groups, or to
+                        smooth the distribution a little bit when not all cores
+                        are in use. Please note that it can have very bad
+                        performance effects when the communication between CCX
+                        is slow. This is generally recommended against.
 
    - group-by-3-clusters same as "group-by-cluster" but create a group every
                         three clusters. This can make sense on CPUs having many
@@ -2031,6 +2047,14 @@ cpu-policy <policy>
                         between clusters is slow. This is generally recommended
                         against.
 
+   - group-by-4-ccx     same as "group-by-ccx" below but create a group every
+                        four CCX. This can make sense on CPUs having many CCX
+                        of few cores each, to avoid creating many groups, or to
+                        smooth the distribution a little bit when not all cores
+                        are in use. Please note that it can have very bad
+                        performance effects when the communication between CCX
+                        is slow. This is generally recommended against.
+
    - group-by-4-clusters same as "group-by-cluster" but create a group every
                         four clusters. This can make sense on CPUs having many
                         clusters of few cores each, to avoid creating many
@@ -2039,6 +2063,21 @@ cpu-policy <policy>
                         very bad performance effects when the communication
                         between clusters is slow. This is generally recommended
                         against.
+
+   - group-by-ccx       if neither "nbthread" not "nbtgroups" were set, then
+                        one thread group is created for each CPU core complex
+                        ("CCX") with available CPUs, each with as many threads
+                        as CPUs. A CCX groups CPUs having a similarly fast
+                        access to the last level cache ("LLC"), typically the
+                        L3 cache. On most modern machines, it is critical for
+                        performance not to mix CPUs from distant CCX in the
+                        same thread group. All threads of a group are then
+                        bound to all CPUs of the CCX so that intra-group
+                        communications remain local to the CCX without
+                        enforcing too strong a binding. The per-group thread
+                        limits and thread-group limits are respected. This is
+                        recommended on multi-socket and NUMA systems, as well
+                        as CPUs with bad inter-CCX latencies.
 
    - group-by-cluster   if neither "nbthread" not "nbtgroups" were set, then
                         one thread group is created for each CPU cluster with
@@ -2049,6 +2088,14 @@ cpu-policy <policy>
                         per-group thread limits and thread-group limits are
                         respected. This is recommended on multi-socket and NUMA
                         systems, as well as CPUs with bad inter-CCX latencies.
+                        On most server machines, clusters and CCX are the same,
+                        but on heterogenous machines ("performance" vs
+                        "efficiency" or "big" vs "little"), a cluster will
+                        generally be made of only a part of a CCX composed only
+                        of very similar CPUs (same type, +/-5% frequency
+                        difference max). The difference is visible on modern
+                        laptops and desktop machines used by developers and
+                        admins to validate setups.
 
    - performance        exactly like group-by-cluster above, except that CPU
                         clusters whose performance is less than half of the
