@@ -441,8 +441,10 @@ static void spoe_release_appctx(struct appctx *appctx)
 	if (spoe_appctx->spoe_ctx)  {
 		/* Report an error to stream */
 		spoe_appctx->spoe_ctx->spoe_appctx = NULL;
-		spoe_appctx->spoe_ctx->state = SPOE_CTX_ST_ERROR;
-		spoe_appctx->spoe_ctx->status_code = (spoe_appctx->status_code + 0x100);
+		if (spoe_appctx->spoe_ctx->state != SPOE_CTX_ST_DONE) {
+			spoe_appctx->spoe_ctx->state = SPOE_CTX_ST_ERROR;
+			spoe_appctx->spoe_ctx->status_code = (spoe_appctx->status_code + 0x100);
+		}
 		task_wakeup(spoe_appctx->spoe_ctx->strm->task, TASK_WOKEN_MSG);
 	}
 
