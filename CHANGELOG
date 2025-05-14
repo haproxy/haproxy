@@ -1,6 +1,60 @@
 ChangeLog :
 ===========
 
+2025/05/14 : 3.2-dev16
+    - BUG/MEDIUM: mux-quic: fix crash on invalid fctl frame dereference
+    - DEBUG: pool: permit per-pool UAF configuration
+    - MINOR: acme: add the global option 'acme.scheduler'
+    - DEBUG: pools: add a new integrity mode "backup" to copy the released area
+    - MEDIUM: sock-inet: re-check IPv6 connectivity every 30s
+    - BUG/MINOR: ssl: doesn't fill conf->crt with first arg
+    - BUG/MINOR: ssl: prevent multiple 'crt' on the same ssl-f-use line
+    - BUG/MINOR: ssl/ckch: always free() the previous entry during parsing
+    - MINOR: tools: ha_freearray() frees an array of string
+    - BUG/MINOR: ssl/ckch: always ha_freearray() the previous entry during parsing
+    - MINOR: ssl/ckch: warn when the same keyword was used twice
+    - BUG/MINOR: threads: fix soft-stop without multithreading support
+    - BUG/MINOR: tools: improve parse_line()'s robustness against empty args
+    - BUG/MINOR: cfgparse: improve the empty arg position report's robustness
+    - BUG/MINOR: server: dont depend on proxy for server cleanup in srv_drop()
+    - BUG/MINOR: server: perform lbprm deinit for dynamic servers
+    - MINOR: http: add a function to validate characters of :authority
+    - BUG/MEDIUM: h2/h3: reject some forbidden chars in :authority before reassembly
+    - MINOR: quic: account Tx data per stream
+    - MINOR: mux-quic: account Rx data per stream
+    - MINOR: quic: add stream format for "show quic"
+    - MINOR: quic: display QCS info on "show quic stream"
+    - MINOR: quic: display stream age
+    - BUG/MINOR: cpu-topo: fix group-by-cluster policy for disordered clusters
+    - MINOR: cpu-topo: add a new "group-by-ccx" CPU policy
+    - MINOR: cpu-topo: provide a function to sort clusters by average capacity
+    - MEDIUM: cpu-topo: change "performance" to consider per-core capacity
+    - MEDIUM: cpu-topo: change "efficiency" to consider per-core capacity
+    - MEDIUM: cpu-topo: prefer grouping by CCX for "performance" and "efficiency"
+    - MEDIUM: config: change default limits to 1024 threads and 32 groups
+    - BUG/MINOR: hlua: Fix Channel:data() and Channel:line() to respect documentation
+    - DOC: config: Fix a typo in the "term_events" definition
+    - BUG/MINOR: spoe: Don't report error on applet release if filter is in DONE state
+    - BUG/MINOR: mux-spop: Don't report error for stream if ACK was already received
+    - BUG/MINOR: mux-spop: Make the demux stream ID a signed integer
+    - BUG/MINOR: mux-spop: Don't open new streams for SPOP connection on error
+    - MINOR: mux-spop: Don't set SPOP connection state to FRAME_H after ACK parsing
+    - BUG/MEDIUM: mux-spop: Remove frame parsing states from the SPOP connection state
+    - BUG/MEDIUM: mux-spop: Properly handle CLOSING state
+    - BUG/MEDIUM: spop-conn: Report short read for partial frames payload
+    - BUG/MEDIUM: mux-spop: Properly detect truncated frames on demux to report error
+    - BUG/MEDIUM: mux-spop; Don't report a read error if there are pending data
+    - DEBUG: mux-spop: Review some trace messages to adjust the message or the level
+    - DOC: config: move address formats definition to section 2
+    - DOC: config: move stick-tables and peers to their own section
+    - DOC: config: move the extraneous sections out of the "global" definition
+    - CI: AWS-LC(fips): enable unit tests
+    - CI: AWS-LC: enable unit tests
+    - CI: compliance: limit run on forks only to manual + cleanup
+    - CI: musl: enable unit tests
+    - CI: QuicTLS (weekly): limit run on forks only to manual dispatch
+    - CI: WolfSSL: enable unit tests
+
 2025/05/09 : 3.2-dev15
     - BUG/MEDIUM: stktable: fix sc_*(<ctr>) BUG_ON() regression with ctx > 9
     - BUG/MINOR: acme/cli: don't output error on success
