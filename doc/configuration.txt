@@ -16916,7 +16916,7 @@ severity-output <format>
   - "string" severity level is prepended as a string following the
     rfc5424 convention.
 
-shards <number> | by-thread | by-group
+shards { <number> | by-thread | by-group }
   In multi-threaded mode, on operating systems supporting multiple listeners on
   the same IP:port, this will automatically create this number of multiple
   identical listeners for the same line, all bound to a fair share of the number
