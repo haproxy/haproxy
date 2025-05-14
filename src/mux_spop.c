@@ -2272,6 +2272,13 @@ static void spop_process_demux(struct spop_conn *spop_conn)
 			spop_conn->flags |= SPOP_CF_END_REACHED;
 	}
 
+	if (spop_conn_read0_pending(spop_conn) && (spop_conn->flags & SPOP_CF_DEM_SHORT_READ) && b_data(&spop_conn->dbuf)) {
+		spop_conn_error(spop_conn, SPOP_ERR_INVALID);
+		spop_conn->state = SPOP_CS_CLOSED;
+		TRACE_ERROR("truncated data", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+		TRACE_STATE("switching to CLOSED", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+	}
+
 	if (spop_conn->flags & SPOP_CF_ERROR)
 		spop_conn_report_term_evt(spop_conn, ((eb_is_empty(&spop_conn->streams_by_id) && (spop_conn->state == SPOP_CS_RUNNING) && spop_conn->dsi == -1)
 						      ? muxc_tevt_type_rcv_err
