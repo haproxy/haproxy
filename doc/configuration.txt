@@ -46,7 +46,11 @@ Summary
 2.6.      Size format
 2.7.      Name format for maps and ACLs
 2.8.      Variables
-2.9.      Examples
+2.9.      Address formats
+2.9.1.        Address family prefixes
+2.9.2.        Socket type prefixes
+2.9.3.        Protocol prefixes
+2.10.     Examples
 
 3.    Global parameters
 3.1.      Process management and security
@@ -141,11 +145,6 @@ Summary
 10.1.3.       Example
 10.2.     Default parameters
 10.3.     Limitations
-
-11.   Address formats
-11.1.     Address family prefixes
-11.2.     Socket type prefixes
-11.3.     Protocol prefixes
 
 
 1. Quick reminder about HTTP
@@ -1454,7 +1453,198 @@ true when variables are compared to static value. The right matching method
 must be used.
 
 
-2.9. Examples
+2.9. Address formats
+--------------------
+
+Several statements as "bind, "server", "nameserver" and "log" requires an
+address.
+
+This address can be a host name, an IPv4 address, an IPv6 address, or '*'.
+The '*' is equal to the special address "0.0.0.0" and can be used, in the case
+of "bind" or "dgram-bind" to listen on all IPv4 of the system.The IPv6
+equivalent is '::'.
+
+Depending of the statement, a port or port range follows the IP address. This
+is mandatory on 'bind' statement, optional on 'server'.
+
+This address can also begin with a slash '/'. It is considered as the "unix"
+family, and '/' and following characters must be present the path.
+
+Default socket type or transport method "datagram" or "stream" depends on the
+configuration statement showing the address. Indeed, 'bind' and 'server' will
+use a "stream" socket type by default whereas 'log', 'nameserver' or
+'dgram-bind' will use a "datagram".
+
+Optionally, a prefix could be used to force the address family and/or the
+socket type and the transport method.
+
+
+2.9.1. Address family prefixes
+------------------------------
+
+'abns@<name>' following <name> is an abstract namespace (Linux only).
+
+'abnsz@<name>' following <name> is a zero-terminated abstract namespace
+               (Linux only).
+
+'fd@<n>'      following address is a file descriptor <n> inherited from the
+              parent. The fd must be bound and may or may not already be
+              listening.
+
+'ip@<address>[:port1[-port2]]' following <address> is considered as an IPv4 or
+                               IPv6 address depending on the syntax. Depending
+                               on the statement using this address, a port or
+                               a port range may or must be specified.
+
+'ipv4@<address>[:port1[-port2]]' following <address> is always considered as
+                                 an IPv4 address. Depending on the statement
+                                 using this address, a port or a port range
+                                 may or must be specified.
+
+'ipv6@<address>[:port1[-port2]]' following <address> is always considered as
+                                 an IPv6 address. Depending on the statement
+                                 using this address, a port or a port range
+                                 may or must be specified.
+
+'sockpair@<n>' following address is the file descriptor of a connected unix
+               socket or of a socketpair. During a connection, the initiator
+               creates a pair of connected sockets, and passes one of them
+               over the FD to the other end. The listener waits to receive
+               the FD from the unix socket and uses it as if it were the FD
+               of an accept(). Should be used carefully.
+
+'unix@<path>'  following string is considered as a UNIX socket <path>. this
+               prefix is useful to declare an UNIX socket path which don't
+               start by slash '/'.
+
+
+2.9.2. Socket type prefixes
+---------------------------
+
+Previous "Address family prefixes" can also be prefixed to force the socket
+type and the transport method. The default depends of the statement using
+this address but in some cases the user may force it to a different one.
+This is the case for "log" statement where the default is syslog over UDP
+but we could force to use syslog over TCP.
+
+Those prefixes were designed for internal purpose and users should instead use
+use aliases of the next section "2.9.3 Protocol prefixes". However these can
+sometimes be convenient, for example in combination with inherited sockets
+known by their file descriptor number, in which case the address family is "fd"
+and the socket type must be declared.
+
+If users need one those prefixes to perform what they expect because
+they can not configure the same using the protocol prefixes, they should
+report this to the maintainers.
+
+'stream+<family>@<address>' forces socket type and transport method
+                            to "stream"
+
+'dgram+<family>@<address>'  forces socket type and transport method
+                            to "datagram".
+
+'quic+<family>@<address>'   forces socket type to "datagram" and transport
+                            method to "stream".
+
+
+
+2.9.3. Protocol prefixes
+------------------------
+
+'quic4@<address>[:port1[-port2]]' following <address> is always considered as
+                                  an IPv4 address but socket type is forced to
+                                  "datagram" and the transport method is forced
+                                  to "stream". Depending on the statement using
+                                  this address, a UDP port or port range can or
+                                  must be specified. It is equivalent to
+                                  "quic+ipv4@".
+
+'quic6@<address>[:port1[-port2]]' following <address> is always considered as
+                                  an IPv6 address but socket type is forced to
+                                  "datagram" and the transport method is forced
+                                  to "stream". Depending on the statement using
+                                  this address, a UDP port or port range can or
+                                  must be specified. It is equivalent to
+                                  "quic+ipv6@".
+
+'tcp@<address>[:port1[-port2]]' following <address> is considered as an IPv4
+                                or IPv6 address depending of the syntax but
+                                socket type and transport method is forced to
+                                "stream". Depending on the statement using
+                                this address, a port or a port range can or
+                                must be specified. It is considered as an alias
+                                of 'stream+ip@'.
+
+'tcp4@<address>[:port1[-port2]]' following <address> is always considered as
+                                 an IPv4 address but socket type and transport
+                                 method is forced to "stream". Depending on the
+                                 statement using this address, a port or port
+                                 range can or must be specified.
+                                 It is considered as an alias of 'stream+ipv4@'.
+
+'tcp6@<address>[:port1[-port2]]' following <address> is always considered as
+                                 an IPv6 address but socket type and transport
+                                 method is forced to "stream". Depending on the
+                                 statement using this address, a port or port
+                                 range can or must be specified.
+                                 It is considered as an alias of 'stream+ipv4@'.
+
+'mptcp@<address>[:port1[-port2]]' following <address> is considered as an IPv4
+                                  or IPv6 address depending of the syntax but
+                                  socket type and transport method is forced to
+                                  "stream", with the MPTCP protocol. Depending
+                                  on the statement using this address, a port or
+                                  a port range can or must be specified.
+
+'mptcp4@<address>[:port1[-port2]]' following <address> is always considered as
+                                   an IPv4 address but socket type and transport
+                                   method is forced to "stream", with the MPTCP
+                                   protocol. Depending on the statement using
+                                   this address, a port or port range can or
+                                   must be specified.
+
+'mptcp6@<address>[:port1[-port2]]' following <address> is always considered as
+                                   an IPv6 address but socket type and transport
+                                   method is forced to "stream", with the MPTCP
+                                   protocol. Depending on the statement using
+                                   this address, a port or port range can or
+                                   must be specified.
+
+'udp@<address>[:port1[-port2]]' following <address> is considered as an IPv4
+                                or IPv6 address depending of the syntax but
+                                socket type and transport method is forced to
+                                "datagram". Depending on the statement using
+                                this address, a port or a port range can or
+                                must be specified. It is considered as an alias
+                                of 'dgram+ip@'.
+
+'udp4@<address>[:port1[-port2]]' following <address> is always considered as
+                                 an IPv4 address but socket type and transport
+                                 method is forced to "datagram". Depending on
+                                 the statement using this address, a port or
+                                 port range can or must be specified.
+                                 It is considered as an alias of 'dgram+ipv4@'.
+
+'udp6@<address>[:port1[-port2]]' following <address> is always considered as
+                                 an IPv6 address but socket type and transport
+                                 method is forced to "datagram". Depending on
+                                 the statement using this address, a port or
+                                 port range can or must be specified.
+                                 It is considered as an alias of 'dgram+ipv4@'.
+
+'uxdg@<path>'    following string is considered as a unix socket <path> but
+                 transport method is forced to "datagram". It is considered as
+                 an alias of 'dgram+unix@'.
+
+'uxst@<path>'    following string is considered as a unix socket <path> but
+                 transport method is forced to "stream". It is considered as
+                 an alias of 'stream+unix@'.
+
+In future versions, other prefixes could be used to specify protocols like
+QUIC which proposes stream transport based on socket of type "datagram".
+
+
+2.10. Examples
 -------------
 
     # Simple configuration for an HTTP proxy listening on port 80 on all
@@ -29971,195 +30161,6 @@ must not exceeds the size of a buffer. However, there is no reserve to respect
 here.
 
 
-11. Address formats
--------------------
-
-Several statements as "bind, "server", "nameserver" and "log" requires an
-address.
-
-This address can be a host name, an IPv4 address, an IPv6 address, or '*'.
-The '*' is equal to the special address "0.0.0.0" and can be used, in the case
-of "bind" or "dgram-bind" to listen on all IPv4 of the system.The IPv6
-equivalent is '::'.
-
-Depending of the statement, a port or port range follows the IP address. This
-is mandatory on 'bind' statement, optional on 'server'.
-
-This address can also begin with a slash '/'. It is considered as the "unix"
-family, and '/' and following characters must be present the path.
-
-Default socket type or transport method "datagram" or "stream" depends on the
-configuration statement showing the address. Indeed, 'bind' and 'server' will
-use a "stream" socket type by default whereas 'log', 'nameserver' or
-'dgram-bind' will use a "datagram".
-
-Optionally, a prefix could be used to force the address family and/or the
-socket type and the transport method.
-
-
-11.1. Address family prefixes
------------------------------
-
-'abns@<name>' following <name> is an abstract namespace (Linux only).
-
-'abnsz@<name>' following <name> is a zero-terminated abstract namespace
-               (Linux only).
-
-'fd@<n>'      following address is a file descriptor <n> inherited from the
-              parent. The fd must be bound and may or may not already be
-              listening.
-
-'ip@<address>[:port1[-port2]]' following <address> is considered as an IPv4 or
-                               IPv6 address depending on the syntax. Depending
-                               on the statement using this address, a port or
-                               a port range may or must be specified.
-
-'ipv4@<address>[:port1[-port2]]' following <address> is always considered as
-                                 an IPv4 address. Depending on the statement
-                                 using this address, a port or a port range
-                                 may or must be specified.
-
-'ipv6@<address>[:port1[-port2]]' following <address> is always considered as
-                                 an IPv6 address. Depending on the statement
-                                 using this address, a port or a port range
-                                 may or must be specified.
-
-'sockpair@<n>' following address is the file descriptor of a connected unix
-               socket or of a socketpair. During a connection, the initiator
-               creates a pair of connected sockets, and passes one of them
-               over the FD to the other end. The listener waits to receive
-               the FD from the unix socket and uses it as if it were the FD
-               of an accept(). Should be used carefully.
-
-'unix@<path>'  following string is considered as a UNIX socket <path>. this
-               prefix is useful to declare an UNIX socket path which don't
-               start by slash '/'.
-
-
-11.2. Socket type prefixes
---------------------------
-
-Previous "Address family prefixes" can also be prefixed to force the socket
-type and the transport method. The default depends of the statement using
-this address but in some cases the user may force it to a different one.
-This is the case for "log" statement where the default is syslog over UDP
-but we could force to use syslog over TCP.
-
-Those prefixes were designed for internal purpose and users should instead use
-use aliases of the next section "11.3 Protocol prefixes". However these can
-sometimes be convenient, for example in combination with inherited sockets
-known by their file descriptor number, in which case the address family is "fd"
-and the socket type must be declared.
-
-If users need one those prefixes to perform what they expect because
-they can not configure the same using the protocol prefixes, they should
-report this to the maintainers.
-
-'stream+<family>@<address>' forces socket type and transport method
-                            to "stream"
-
-'dgram+<family>@<address>'  forces socket type and transport method
-                            to "datagram".
-
-'quic+<family>@<address>'   forces socket type to "datagram" and transport
-                            method to "stream".
-
-
-
-11.3. Protocol prefixes
------------------------
-
-'quic4@<address>[:port1[-port2]]' following <address> is always considered as
-                                  an IPv4 address but socket type is forced to
-                                  "datagram" and the transport method is forced
-                                  to "stream". Depending on the statement using
-                                  this address, a UDP port or port range can or
-                                  must be specified. It is equivalent to
-                                  "quic+ipv4@".
-
-'quic6@<address>[:port1[-port2]]' following <address> is always considered as
-                                  an IPv6 address but socket type is forced to
-                                  "datagram" and the transport method is forced
-                                  to "stream". Depending on the statement using
-                                  this address, a UDP port or port range can or
-                                  must be specified. It is equivalent to
-                                  "quic+ipv6@".
-
-'tcp@<address>[:port1[-port2]]' following <address> is considered as an IPv4
-                                or IPv6 address depending of the syntax but
-                                socket type and transport method is forced to
-                                "stream". Depending on the statement using
-                                this address, a port or a port range can or
-                                must be specified. It is considered as an alias
-                                of 'stream+ip@'.
-
-'tcp4@<address>[:port1[-port2]]' following <address> is always considered as
-                                 an IPv4 address but socket type and transport
-                                 method is forced to "stream". Depending on the
-                                 statement using this address, a port or port
-                                 range can or must be specified.
-                                 It is considered as an alias of 'stream+ipv4@'.
-
-'tcp6@<address>[:port1[-port2]]' following <address> is always considered as
-                                 an IPv6 address but socket type and transport
-                                 method is forced to "stream". Depending on the
-                                 statement using this address, a port or port
-                                 range can or must be specified.
-                                 It is considered as an alias of 'stream+ipv4@'.
-
-'mptcp@<address>[:port1[-port2]]' following <address> is considered as an IPv4
-                                  or IPv6 address depending of the syntax but
-                                  socket type and transport method is forced to
-                                  "stream", with the MPTCP protocol. Depending
-                                  on the statement using this address, a port or
-                                  a port range can or must be specified.
-
-'mptcp4@<address>[:port1[-port2]]' following <address> is always considered as
-                                   an IPv4 address but socket type and transport
-                                   method is forced to "stream", with the MPTCP
-                                   protocol. Depending on the statement using
-                                   this address, a port or port range can or
-                                   must be specified.
-
-'mptcp6@<address>[:port1[-port2]]' following <address> is always considered as
-                                   an IPv6 address but socket type and transport
-                                   method is forced to "stream", with the MPTCP
-                                   protocol. Depending on the statement using
-                                   this address, a port or port range can or
-                                   must be specified.
-
-'udp@<address>[:port1[-port2]]' following <address> is considered as an IPv4
-                                or IPv6 address depending of the syntax but
-                                socket type and transport method is forced to
-                                "datagram". Depending on the statement using
-                                this address, a port or a port range can or
-                                must be specified. It is considered as an alias
-                                of 'dgram+ip@'.
-
-'udp4@<address>[:port1[-port2]]' following <address> is always considered as
-                                 an IPv4 address but socket type and transport
-                                 method is forced to "datagram". Depending on
-                                 the statement using this address, a port or
-                                 port range can or must be specified.
-                                 It is considered as an alias of 'dgram+ipv4@'.
-
-'udp6@<address>[:port1[-port2]]' following <address> is always considered as
-                                 an IPv6 address but socket type and transport
-                                 method is forced to "datagram". Depending on
-                                 the statement using this address, a port or
-                                 port range can or must be specified.
-                                 It is considered as an alias of 'dgram+ipv4@'.
-
-'uxdg@<path>'    following string is considered as a unix socket <path> but
-                 transport method is forced to "datagram". It is considered as
-                 an alias of 'dgram+unix@'.
-
-'uxst@<path>'    following string is considered as a unix socket <path> but
-                 transport method is forced to "stream". It is considered as
-                 an alias of 'stream+unix@'.
-
-In future versions, other prefixes could be used to specify protocols like
-QUIC which proposes stream transport based on socket of type "datagram".
 
 /*
  * Local variables:
