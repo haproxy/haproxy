@@ -2381,7 +2381,8 @@ static int spop_recv(struct spop_conn *spop_conn)
 		TRACE_DATA("received read0", SPOP_EV_SPOP_CONN_RECV, conn);
 		spop_conn->flags |= SPOP_CF_RCVD_SHUT;
 	}
-	if (conn->flags & CO_FL_ERROR) {
+	if ((conn->flags & CO_FL_ERROR) &&
+	    (!b_data(&spop_conn->dbuf) || (spop_conn->flags & SPOP_CF_DEM_SHORT_READ))) {
 		TRACE_DATA("connection error", SPOP_EV_SPOP_CONN_RECV, conn);
 		spop_conn->flags |= SPOP_CF_ERROR;
 	}
