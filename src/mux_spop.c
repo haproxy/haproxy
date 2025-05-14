@@ -2076,7 +2076,7 @@ static void spop_process_demux(struct spop_conn *spop_conn)
 			TRACE_STATE("receiving AGENT HELLO/DISCONNECT frame header", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR, spop_conn->conn);
 			if (!spop_get_frame_hdr(&spop_conn->dbuf, &hdr)) {
 				spop_conn->flags |= SPOP_CF_DEM_SHORT_READ;
-				TRACE_ERROR("header frame not available yet", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR, spop_conn->conn);
+				TRACE_DEVEL("header frame not available yet", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR, spop_conn->conn);
 				goto done;
 			}
 
@@ -2132,7 +2132,7 @@ static void spop_process_demux(struct spop_conn *spop_conn)
 			if ((int)hdr.len < 0 || (int)hdr.len > spop_conn->max_frame_size) {
 				spop_conn_error(spop_conn, SPOP_ERR_BAD_FRAME_SIZE);
 				TRACE_ERROR("invalid SPOP frame length", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
-				TRACE_STATE("switching to CLOSED", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+				TRACE_STATE("switching to ERROR", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
 				break;
 			}
 
@@ -2148,23 +2148,22 @@ static void spop_process_demux(struct spop_conn *spop_conn)
 			if (!(spop_conn->dff & SPOP_FRM_FL_FIN)) {
 				spop_conn_error(spop_conn, SPOP_ERR_FRAG_NOT_SUPPORTED);
 				TRACE_ERROR("frame fragmentation not supported", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
-				TRACE_STATE("switching to CLOSED", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+				TRACE_STATE("switching to ERROR", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
 				break;
 			}
 			if (!spop_conn->dsi && spop_conn->dft == SPOP_FRM_T_AGENT_ACK) {
 				spop_conn_error(spop_conn, SPOP_ERR_INVALID);
 				TRACE_ERROR("invalid SPOP frame (ACK && dsi == 0)", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
-				TRACE_STATE("switching to CLOSED", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+				TRACE_STATE("switching to ERROR", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
 				break;
 			}
 			if (spop_conn->dsi && !spop_conn->dfi) {
 				spop_conn_error(spop_conn, SPOP_ERR_INVALID);
 				TRACE_ERROR("invalid SPOP frame (dsi != 0 && dfi == 0)", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
-				TRACE_STATE("switching to CLOSED", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+				TRACE_STATE("switching to ERROR", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
 				break;
 			}
 		}
-
 
 		tmp_spop_strm = spop_conn_st_by_id(spop_conn, spop_conn->dsi);
 		if (tmp_spop_strm != spop_strm && spop_strm && spop_strm_sc(spop_strm) &&
