@@ -72,6 +72,7 @@ s *     queue's lock.
 #include <import/eb32tree.h>
 #include <haproxy/api.h>
 #include <haproxy/backend.h>
+#include <haproxy/counters.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/pool.h>
 #include <haproxy/queue.h>
@@ -114,7 +115,7 @@ unsigned int srv_dynamic_maxconn(const struct server *s)
 	else max = MAX(s->minconn,
 		       s->proxy->beconn * s->maxconn / s->proxy->fullconn);
 
-	last_change = HA_ATOMIC_LOAD(&s->counters.shared->last_change);
+	last_change = COUNTERS_SHARED_LAST(s->counters.shared->tg, last_change);
 
 	if ((s->cur_state == SRV_ST_STARTING) &&
 	    ns_to_sec(now_ns) < last_change + s->slowstart &&

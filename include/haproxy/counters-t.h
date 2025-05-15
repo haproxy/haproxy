@@ -32,6 +32,9 @@
 #define COUNTERS_SHARED                                                              \
 	struct {                                                                     \
 		uint16_t flags;                         /* COUNTERS_SHARED_F flags */\
+	};
+#define COUNTERS_SHARED_TG                                                           \
+	struct {                                                                     \
 		unsigned long last_change;              /* last time, when the state was changed */\
 		long long srv_aborts;                   /* aborted responses during DATA phase caused by the server */\
 		long long cli_aborts;                   /* aborted responses during DATA phase caused by the client */\
@@ -52,11 +55,14 @@
 // for convenience (generic pointer)
 struct counters_shared {
 	COUNTERS_SHARED;
+	struct {
+		COUNTERS_SHARED_TG;
+	} *tg[MAX_TGROUPS];
 };
 
 /* counters used by listeners and frontends */
-struct fe_counters_shared {
-	COUNTERS_SHARED;
+struct fe_counters_shared_tg {
+	COUNTERS_SHARED_TG;
 
 	long long denied_sess;                  /* denied session requests (tcp-req-sess rules) */
 	long long denied_conn;                  /* denied connection requests (tcp-req-conn rules) */
@@ -74,12 +80,15 @@ struct fe_counters_shared {
 			long long cache_lookups;/* cache lookups */
 			long long comp_rsp;     /* number of compressed responses */
 			long long rsp[6];       /* http response codes */
-
-
 		} http;
 	} p;                                    /* protocol-specific stats */
 
 	long long failed_req;                   /* failed requests (eg: invalid or timeout) */
+};
+
+struct fe_counters_shared {
+	COUNTERS_SHARED;
+	struct fe_counters_shared_tg *tg[MAX_TGROUPS];
 };
 
 struct fe_counters {
@@ -99,8 +108,8 @@ struct fe_counters {
 	} p;                                    /* protocol-specific stats */
 };
 
-struct be_counters_shared {
-	COUNTERS_SHARED;
+struct be_counters_shared_tg {
+	COUNTERS_SHARED_TG;
 
 	long long  cum_lbconn;                  /* cumulated number of sessions processed by load balancing (BE only) */
 
@@ -127,6 +136,11 @@ struct be_counters_shared {
 	long long retries;                      /* retried and redispatched connections (BE only) */
 	long long failed_resp;                  /* failed responses (BE only) */
 	long long failed_conns;                 /* failed connect() attempts (BE only) */
+};
+
+struct be_counters_shared {
+	COUNTERS_SHARED;
+	struct be_counters_shared_tg *tg[MAX_TGROUPS];
 };
 
 /* counters used by servers and backends */

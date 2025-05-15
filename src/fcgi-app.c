@@ -446,12 +446,12 @@ static int fcgi_flt_http_headers(struct stream *s, struct filter *filter, struct
 	goto end;
 
   rewrite_err:
-	_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->failed_rewrites);
-	_HA_ATOMIC_INC(&s->be->be_counters.shared->failed_rewrites);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.shared->tg[tgid - 1]->failed_rewrites);
+	_HA_ATOMIC_INC(&s->be->be_counters.shared->tg[tgid - 1]->failed_rewrites);
 	if (sess->listener && sess->listener->counters)
-		_HA_ATOMIC_INC(&sess->listener->counters->shared->failed_rewrites);
+		_HA_ATOMIC_INC(&sess->listener->counters->shared->tg[tgid - 1]->failed_rewrites);
 	if (objt_server(s->target))
-		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.shared->failed_rewrites);
+		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.shared->tg[tgid - 1]->failed_rewrites);
   hdr_rule_err:
 	node = ebpt_first(&hdr_rules);
 	while (node) {

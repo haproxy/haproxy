@@ -34,6 +34,7 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/check.h>
 #include <haproxy/chunk.h>
+#include <haproxy/counters.h>
 #include <haproxy/dgram.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/extcheck.h>
@@ -515,7 +516,7 @@ void set_server_check_status(struct check *check, short status, const char *desc
 		if ((!(check->state & CHK_ST_AGENT) ||
 		    (check->status >= HCHK_STATUS_L57DATA)) &&
 		    (check->health > 0)) {
-			_HA_ATOMIC_INC(&s->counters.shared->failed_checks);
+			_HA_ATOMIC_INC(&s->counters.shared->tg[tgid - 1]->failed_checks);
 			report = 1;
 			check->health--;
 			if (check->health < check->rise)
@@ -743,7 +744,7 @@ void __health_adjust(struct server *s, short status)
 	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 
 	HA_ATOMIC_STORE(&s->consecutive_errors, 0);
-	_HA_ATOMIC_INC(&s->counters.shared->failed_hana);
+	_HA_ATOMIC_INC(&s->counters.shared->tg[tgid - 1]->failed_hana);
 
 	if (s->check.fastinter) {
 		/* timer might need to be advanced, it might also already be
@@ -995,7 +996,7 @@ int httpchk_build_status_header(struct server *s, struct buffer *buf)
 				      "UP %d/%d", "UP",
 				      "NOLB %d/%d", "NOLB",
 				      "no check" };
-	unsigned long last_change = HA_ATOMIC_LOAD(&s->counters.shared->last_change);
+	unsigned long last_change = COUNTERS_SHARED_LAST(s->counters.shared->tg, last_change);
 
 	if (!(s->check.state & CHK_ST_ENABLED))
 		sv_state = 6;

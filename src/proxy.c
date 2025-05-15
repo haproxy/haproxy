@@ -2130,9 +2130,9 @@ void proxy_cond_disable(struct proxy *p)
 	 * the data plane but on the control plane.
 	 */
 	if (p->cap & PR_CAP_FE)
-		cum_conn = HA_ATOMIC_LOAD(&p->fe_counters.shared->cum_conn);
+		cum_conn = COUNTERS_SHARED_TOTAL(p->fe_counters.shared->tg, cum_conn, HA_ATOMIC_LOAD);
 	if (p->cap & PR_CAP_BE)
-		cum_sess = HA_ATOMIC_LOAD(&p->be_counters.shared->cum_sess);
+		cum_sess = COUNTERS_SHARED_TOTAL(p->be_counters.shared->tg, cum_sess, HA_ATOMIC_LOAD);
 
 	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP || p->mode == PR_MODE_SYSLOG || p->mode == PR_MODE_SPOP) && !(p->cap & PR_CAP_INT))
 		ha_warning("Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
@@ -2227,7 +2227,8 @@ struct task *manage_proxy(struct task *t, void *context, unsigned int state)
 		goto out;
 
 	if (p->fe_sps_lim &&
-	    (wait = next_event_delay(&p->fe_counters.shared->sess_per_sec, p->fe_sps_lim, 0))) {
+	    (wait = COUNTERS_SHARED_TOTAL_ARG2(p->fe_counters.shared->tg, sess_per_sec, next_event_delay, p->fe_sps_lim, 0))) {
+
 		/* we're blocking because a limit was reached on the number of
 		 * requests/s on the frontend. We want to re-check ASAP, which
 		 * means in 1 ms before estimated expiration date, because the
@@ -2971,7 +2972,7 @@ static int dump_servers_state(struct appctx *appctx)
 		dump_server_addr(&srv->check.addr, srv_check_addr);
 		dump_server_addr(&srv->agent.addr, srv_agent_addr);
 
-		srv_time_since_last_change = ns_to_sec(now_ns) - HA_ATOMIC_LOAD(&srv->counters.shared->last_change);
+		srv_time_since_last_change = ns_to_sec(now_ns) - COUNTERS_SHARED_LAST(srv->counters.shared->tg, last_change);
 		bk_f_forced_id = px->options & PR_O_FORCED_ID ? 1 : 0;
 		srv_f_forced_id = srv->flags & SRV_F_FORCED_ID ? 1 : 0;
 

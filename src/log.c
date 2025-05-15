@@ -5946,15 +5946,15 @@ missing_budget:
 
 parse_error:
 	if (l->counters)
-		_HA_ATOMIC_INC(&l->counters->shared->failed_req);
-	_HA_ATOMIC_INC(&frontend->fe_counters.shared->failed_req);
+		_HA_ATOMIC_INC(&l->counters->shared->tg[tgid - 1]->failed_req);
+	_HA_ATOMIC_INC(&frontend->fe_counters.shared->tg[tgid - 1]->failed_req);
 
 	goto error;
 
 cli_abort:
 	if (l->counters)
-		_HA_ATOMIC_INC(&l->counters->shared->cli_aborts);
-	_HA_ATOMIC_INC(&frontend->fe_counters.shared->cli_aborts);
+		_HA_ATOMIC_INC(&l->counters->shared->tg[tgid - 1]->cli_aborts);
+	_HA_ATOMIC_INC(&frontend->fe_counters.shared->tg[tgid - 1]->cli_aborts);
 
 error:
 	se_fl_set(appctx->sedesc, SE_FL_ERROR);

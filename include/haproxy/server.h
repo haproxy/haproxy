@@ -181,8 +181,8 @@ const struct mux_ops *srv_get_ws_proto(struct server *srv);
 /* increase the number of cumulated streams on the designated server */
 static inline void srv_inc_sess_ctr(struct server *s)
 {
-	_HA_ATOMIC_INC(&s->counters.shared->cum_sess);
-	update_freq_ctr(&s->counters.shared->sess_per_sec, 1);
+	_HA_ATOMIC_INC(&s->counters.shared->tg[tgid - 1]->cum_sess);
+	update_freq_ctr(&s->counters.shared->tg[tgid - 1]->sess_per_sec, 1);
 	HA_ATOMIC_UPDATE_MAX(&s->counters.sps_max,
 	                     update_freq_ctr(&s->counters._sess_per_sec, 1));
 }
@@ -190,7 +190,7 @@ static inline void srv_inc_sess_ctr(struct server *s)
 /* set the time of last session on the designated server */
 static inline void srv_set_sess_last(struct server *s)
 {
-	HA_ATOMIC_STORE(&s->counters.shared->last_sess,  ns_to_sec(now_ns));
+	HA_ATOMIC_STORE(&s->counters.shared->tg[tgid - 1]->last_sess,  ns_to_sec(now_ns));
 }
 
 /* returns the current server throttle rate between 0 and 100% */
