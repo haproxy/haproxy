@@ -23,6 +23,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+ #include <haproxy/spin_delay_arm.h>
+
 #ifndef PL_ATOMIC_OPS_H
 #define PL_ATOMIC_OPS_H
 
@@ -756,7 +758,7 @@
 
 /* This was shown to improve fairness on modern ARMv8 such as Neoverse N1 */
 #define pl_cpu_relax() do {				\
-		asm volatile("isb" ::: "memory");	\
+		spin_delay_arm();	            \
 	} while (0)
 
 /* full/load/store barriers */

@@ -24,6 +24,7 @@
 #define _HAPROXY_ATOMIC_H
 
 #include <haproxy/compiler.h>
+#include <haproxy/spin_delay_arm.h>
 
 /* A few notes for the macros and functions here:
  *  - this file is painful to edit, most operations exist in 2 variants,
@@ -589,10 +590,10 @@ __ha_barrier_atomic_full(void)
 /* short-lived CPU relaxation; this was shown to improve fairness on
  * modern ARMv8 cores such as Neoverse N1.
  */
-#define __ha_cpu_relax() ({ asm volatile("isb" ::: "memory"); 1; })
+#define __ha_cpu_relax() ({ spin_delay_arm(); 1; })
 
 /* aarch64 prefers to wait for real in read loops */
-#define __ha_cpu_relax_for_read() ({ asm volatile("isb" ::: "memory"); 1; })
+#define __ha_cpu_relax_for_read() ({ spin_delay_arm(); 1; })
 
 #if defined(__ARM_FEATURE_ATOMICS) && !defined(__clang__) // ARMv8.1-A atomics
 

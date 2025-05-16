@@ -32,6 +32,7 @@
 
 #include <inttypes.h>
 #include <stddef.h>
+#include <haproxy/spin_delay_arm.h>
 
 #if defined(__TINYC__)
 /* TCC has __atomic_exchange() for gcc's __atomic_exchange_n(). However it does
@@ -233,7 +234,7 @@ static inline __attribute__((always_inline)) unsigned long mt_list_cpu_relax(uns
 		/* This was shown to improve fairness on modern ARMv8
 		 * such as Cortex A72 or Neoverse N1.
 		 */
-		asm volatile("isb");
+		spin_delay_arm();
 #else
 		/* Generic implementation */
 		asm volatile("");
