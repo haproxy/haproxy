@@ -28846,18 +28846,17 @@ that the one in the peers section requires a mandatory name and doesn't take a
 
 In a "frontend", "backend" or "listen" section:
 
-  stick-table type <type> size <size> [expire <expire>] [nopurge] [recv-only]
-              [write-to <wtable>] [srvkey <srvkey>] [store <data_type>]*
-              [brates-factor <factor>] [peers <peersect>]
+stick-table type <type> size <size> [expire <expire>] [nopurge] [recv-only]
+            [write-to <wtable>] [srvkey <srvkey>] [store <data_type>]*
+            [brates-factor <factor>] [peers <peersect>]
 
 In a "peers" section:
 
-  table <name> type <type> size <size> [expire <expire>] [nopurge] [recv-only]
-               [write-to <wtable>] [srvkey <srvkey>] [store <data_type>]*
-               [brates-factor <factor>]
+table <name> type <type> size <size> [expire <expire>] [nopurge] [recv-only]
+             [write-to <wtable>] [srvkey <srvkey>] [store <data_type>]*
+             [brates-factor <factor>]
 
-Arguments (mandatory ones first, then alphabetically sorted):
-
+Arguments: (mandatory ones first, then alphabetically sorted):
   - type <type>
              This mandatory argument sets the key type to <type>, which
              usually is a single word but may also have its own arguments:
@@ -29015,8 +29014,9 @@ are listed below. It is important to keep in mind that memory requirements may
 be important when storing many data types. Indeed, storing all indicators below
 at once in each entry can requires hundreds of bytes per entry, or hundreds of
 MB for a 1-million entries table. For this reason, the approximate storage size
-is mentioned for each type between brackets:
+is mentioned below for each type between brackets after the argument.
 
+Arguments:
   - bytes_in_cnt [4 bytes]
              This is the client to server byte count. It is a positive 64-bit
              integer which counts the cumulative number of bytes received from
