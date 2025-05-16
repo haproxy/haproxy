@@ -986,8 +986,14 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 					h1_parse_upgrade_header(h1m, v);
 				}
 				else if (!(h1m->flags & H1_MF_RESP) && isteqi(n, ist("host"))) {
-					if (host_idx == -1)
+					if (host_idx == -1) {
 						host_idx = hdr_count;
+						if (http_authority_has_forbidden_char(v)) {
+							state = H1_MSG_HDR_L2_LWS;
+							ptr = v.ptr; /* Set ptr on the error */
+							goto http_msg_invalid;
+						}
+					}
 					else {
 						if (!isteqi(v, hdr[host_idx].v)) {
 							state = H1_MSG_HDR_L2_LWS;

@@ -411,10 +411,13 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 		}
 
 		if (isteq(list[idx].n, ist("host"))) {
+			/* skip duplicates */
 			if (fields & H2_PHDR_FND_HOST)
 				continue;
 
 			fields |= H2_PHDR_FND_HOST;
+			if (http_authority_has_forbidden_char(list[idx].v))
+				goto fail;
 		}
 
 		if (isteq(list[idx].n, ist("content-length"))) {
