@@ -68,7 +68,7 @@
 #else // not x86
 
 /* generic implementation, causes a segfault */
-static inline __attribute((always_inline)) void ha_crash_now(void)
+static inline __attribute((always_inline,noreturn,unused)) void ha_crash_now(void)
 {
 #if __GNUC_PREREQ__(5, 0)
 #pragma GCC diagnostic push
