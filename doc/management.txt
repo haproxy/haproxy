@@ -1653,8 +1653,8 @@ abort ssl crl-file <crlfile>
 
 acme renew <certificate>
   Starts an ACME certificate generation task with the given certificate name.
-  The certificate must be linked to an acme section, see section 3.13. of the
-  configuration manual. See also "acme status".
+  The certificate must be linked to an acme section, see section 12.8 "ACME"
+  of the configuration manual. See also "acme status".
 
 acme status
   Show the status of every certificates that were configured with ACME.
