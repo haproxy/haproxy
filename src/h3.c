@@ -861,11 +861,19 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		}
 
 		if (isteq(list[hdr_idx].n, ist("host"))) {
+			struct ist prev_auth = authority;
+
 			if (h3_set_authority(qcs, &authority, list[hdr_idx].v)) {
 				h3s->err = H3_ERR_MESSAGE_ERROR;
 				qcc_report_glitch(h3c->qcc, 1);
 				len = -1;
 				goto out;
+			}
+
+			if (isttest(prev_auth)) {
+				/* skip duplicate Host header */
+				++hdr_idx;
+				continue;
 			}
 		}
 		else if (isteq(list[hdr_idx].n, ist("cookie"))) {
