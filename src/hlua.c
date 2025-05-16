@@ -7183,6 +7183,93 @@ __LJMP static int hlua_http_msg_set_status(lua_State *L)
 	return 1;
 }
 
+/* Change the body length. Accepts a positive integer or the string "chunked". */
+__LJMP static int hlua_http_msg_set_body_len(lua_State *L)
+{
+	struct http_msg *msg;
+	struct htx *htx;
+	struct htx_sl *sl;
+	int type;
+
+	MAY_LJMP(check_args(L, 2, "set_body_len"));
+	msg = MAY_LJMP(hlua_checkhttpmsg(L, 1));
+	if (msg->msg_state > HTTP_MSG_BODY)
+		WILL_LJMP(luaL_error(L, "The 'set_body_len' function cannot be called during the message forwarding"));
+	htx = htxbuf(&msg->chn->buf);
+	sl = ASSUME_NONNULL(http_get_stline(htx));
+	type = lua_type(L, 2);
+	if (type == LUA_TSTRING) {
+		const char *str = lua_tostring(L, 2);
+		struct http_hdr_ctx ctx;
+
+		if (strcmp(str, "chunked") != 0)
+			goto error;
+
+		/* Already chunked, nothing to do */
+		if (msg->flags & HTTP_MSGF_TE_CHNK)
+			goto success;
+
+		/* add "Transfer-Encoding: chunked" header */
+		if (!http_add_header(htx, ist("Transfer-Encoding"), ist("chunked")))
+			goto failure;
+		msg->flags |= (HTTP_MSGF_VER_11|HTTP_MSGF_XFER_LEN|HTTP_MSGF_TE_CHNK);
+		sl->flags |= (HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN|HTX_SL_F_XFER_ENC|HTX_SL_F_CHNK);
+
+		/* remove any Content-Length header */
+		if (msg->flags & HTTP_MSGF_CNT_LEN) {
+			ctx.blk = NULL;
+			while (http_find_header(htx, ist("Content-Length"), &ctx, 1))
+				http_remove_header(htx, &ctx);
+			msg->flags &= ~HTTP_MSGF_CNT_LEN;
+			sl->flags &= ~HTX_SL_F_CLEN;
+		}
+	}
+	else if (type == LUA_TNUMBER) {
+		const char *clen;
+		ssize_t len;
+		struct http_hdr_ctx ctx;
+
+		len = lua_tointeger(L, 2);
+		if (len < 0)
+			goto error;
+		clen = ultoa(len);
+
+		/* remove any Content-Length header */
+		if (msg->flags & HTTP_MSGF_CNT_LEN) {
+			ctx.blk = NULL;
+			while (http_find_header(htx, ist("Content-Length"), &ctx, 1))
+				http_remove_header(htx, &ctx);
+		}
+
+		/* Now add Content-Length header */
+		if (!http_add_header(htx, ist("Content-Length"), ist(clen)))
+			goto failure;
+		msg->flags |= (HTTP_MSGF_VER_11|HTTP_MSGF_XFER_LEN|HTTP_MSGF_CNT_LEN);
+		sl->flags |= (HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN|HTX_SL_F_CLEN);
+
+		/* remove any Transfer-Encoding header */
+		if (msg->flags & HTTP_MSGF_TE_CHNK) {
+			ctx.blk = NULL;
+			while (http_find_header(htx, ist("Transfer-Encoding"), &ctx, 1))
+				http_remove_header(htx, &ctx);
+			msg->flags &= ~HTTP_MSGF_TE_CHNK;
+			sl->flags &= ~(HTX_SL_F_XFER_ENC|HTX_SL_F_CHNK);
+		}
+	}
+	else {
+	  error:
+		WILL_LJMP(luaL_error(L, "The 'set_body_len' function expects a positive integer or the string 'chunked' as argument."));
+	}
+
+  success:
+	lua_pushboolean(L, 1);
+	return 1;
+
+  failure:
+	lua_pushboolean(L, 0);
+	return 1;
+}
+
 /* Returns true if the HTTP message is full. */
 __LJMP static int hlua_http_msg_is_full(lua_State *L)
 {
@@ -14321,6 +14408,7 @@ lua_State *hlua_init_state(int thread_num)
 	hlua_class_function(L, "set_query",   hlua_http_msg_set_query);
 	hlua_class_function(L, "set_uri",     hlua_http_msg_set_uri);
 	hlua_class_function(L, "set_status",  hlua_http_msg_set_status);
+	hlua_class_function(L, "set_body_len",hlua_http_msg_set_body_len);
 	hlua_class_function(L, "is_full",     hlua_http_msg_is_full);
 	hlua_class_function(L, "may_recv",    hlua_http_msg_may_recv);
 	hlua_class_function(L, "eom",         hlua_http_msg_is_eom);

@@ -4607,6 +4607,27 @@ HTTPMessage class
    data by default.
   :returns: an integer containing the amount of bytes copied or -1.
 
+.. js:function:: HTTPMessage.set_body_len(http_msg, length)
+
+  This function changes the expected payload length of the HTTP message
+  **http_msg**. **length** can be an integer value. In that case, a
+  "Content-Length" header is added with the given value. It is also possible to
+  pass the **"chunked"** string instead of an integer value to force the HTTP
+  message to be chunk-encoded. In that case, a "Transfer-Encoding" header is
+  added with the "chunked" value. In both cases, all existing "Content-Length"
+  and "Transfer-Encoding" headers are removed.
+
+  This fnuction should be used in the filter context to be able to alter the
+  payload of the HTTP message. The internal state fo the HTTP message is updated
+  accordingly. :js:func:`HTTPMessage.add_header()` or
+  :js:func:`HTTPMessage.set_header()` functions must to be used in that case.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :param type length: The new payload length to set. It can be an integer or
+		      the string "chunked".
+  :returns: true if the payload length was successfully updated, false
+	    otherwise.
+
 .. js:function:: HTTPMessage.set_eom(http_msg)
 
   This function set the end of message for the HTTP message **http_msg**.
