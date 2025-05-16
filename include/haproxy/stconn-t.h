@@ -206,6 +206,7 @@ enum sc_flags {
 
 	SC_FL_EOS           = 0x00040000,  /* End of stream was reached (from down side to up side) */
 	SC_FL_HAVE_BUFF     = 0x00080000,  /* A buffer is ready, flag will be cleared once allocated */
+	SC_FL_NO_FASTFWD    = 0x00100000,  /* disable data fast-forwarding */
 };
 
 /* This function is used to report flags in debugging tools. Please reflect

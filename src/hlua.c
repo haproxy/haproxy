@@ -7262,6 +7262,7 @@ __LJMP static int hlua_http_msg_set_body_len(lua_State *L)
 	}
 
   success:
+	chn_prod(msg->chn)->flags |= SC_FL_NO_FASTFWD;
 	lua_pushboolean(L, 1);
 	return 1;
 

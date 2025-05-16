@@ -515,6 +515,7 @@ set_compression_header(struct comp_state *st, struct stream *s, struct http_msg 
 			goto error;
 	}
 
+	chn_prod(msg->chn)->flags |= SC_FL_NO_FASTFWD;
 	return 1;
 
   error:

@@ -604,6 +604,7 @@ static inline int sc_cond_forward_shut(struct stconn *sc)
 static inline int sc_is_fastfwd_supported(struct stconn *sc)
 {
 	return (!(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD) &&
+		!(sc->flags & SC_FL_NO_FASTFWD) &&
 		sc_ep_test(sc, SE_FL_MAY_FASTFWD_PROD) &&
 		sc_ep_test(sc_opposite(sc), SE_FL_MAY_FASTFWD_CONS) &&
 		sc_ic(sc)->to_forward);
