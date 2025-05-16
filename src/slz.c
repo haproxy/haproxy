@@ -937,6 +937,7 @@ static inline uint32_t crc32_char(uint32_t crc, uint8_t x)
 	return crc;
 }
 
+#ifdef UNALIGNED_LE_OK
 static inline uint32_t crc32_uint32(uint32_t data)
 {
 #if defined(__ARM_FEATURE_CRC32)
@@ -956,6 +957,7 @@ static inline uint32_t crc32_uint32(uint32_t data)
 #endif
 	return data;
 }
+#endif
 
 /* Modified version originally from RFC1952, working with non-inverting CRCs */
 uint32_t slz_crc32_by1(uint32_t crc, const unsigned char *buf, int len)
