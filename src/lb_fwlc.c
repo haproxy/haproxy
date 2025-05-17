@@ -762,13 +762,14 @@ redo:
 	while (node) {
 		struct fwlc_tree_elt *tree_elt;
 		struct server *s;
+		int unusable = 0;
 		int orig_nb;
 		int i = 0;
 
 		tree_elt = eb32_entry(node, struct fwlc_tree_elt, lb_node);
 		orig_nb = statistical_prng_range(FWLC_LISTS_NB);
 
-		while (_HA_ATOMIC_LOAD(&tree_elt->elements) > 0) {
+		while (_HA_ATOMIC_LOAD(&tree_elt->elements) > unusable) {
 			struct mt_list mt_list;
 			mt_list.next = _HA_ATOMIC_LOAD(&tree_elt->srv_list[(i + orig_nb) % FWLC_LISTS_NB].next);
 
@@ -802,6 +803,8 @@ redo:
                                         }
 					avoided = s;
 				}
+				else
+					unusable++;
 				i++;
 			} else if (mt_list.next == &tree_elt->srv_list[(i + orig_nb) % FWLC_LISTS_NB]) {
 				i++;
