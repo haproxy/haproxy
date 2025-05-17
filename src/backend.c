@@ -1141,6 +1141,12 @@ int assign_server_and_queue(struct stream *s)
 					HA_SPIN_UNLOCK(QUEUE_LOCK, &p->queue->lock);
 
 					_HA_ATOMIC_DEC(&p->queue->length);
+
+					if (p->queue->sv)
+						_HA_ATOMIC_DEC(&p->queue->sv->queueslength);
+					else
+						_HA_ATOMIC_DEC(&p->queue->px->queueslength);
+
 					_HA_ATOMIC_INC(&p->queue->idx);
 					_HA_ATOMIC_DEC(&s->be->totpend);
 

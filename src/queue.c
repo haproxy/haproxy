@@ -197,10 +197,14 @@ void pendconn_unlink(struct pendconn *p)
 
 	if (done) {
 		oldidx -= p->queue_idx;
-		if (sv)
+		if (sv) {
 			p->strm->logs.srv_queue_pos += oldidx;
-		else
+			_HA_ATOMIC_DEC(&sv->queueslength);
+		}
+		else {
 			p->strm->logs.prx_queue_pos += oldidx;
+			_HA_ATOMIC_DEC(&px->queueslength);
+		}
 
 		_HA_ATOMIC_DEC(&q->length);
 		_HA_ATOMIC_DEC(&px->totpend);
