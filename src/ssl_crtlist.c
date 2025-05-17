@@ -1577,7 +1577,7 @@ static int cli_parse_del_crtlist(char **args, char *payload, struct appctx *appc
 	/* Iterate over all the instances in order to see if any of them is a
 	 * default instance. If this is the case, the entry won't be suppressed. */
 	list_for_each_entry_safe(inst, inst_s, &entry->ckch_inst, by_crtlist_entry) {
-		if (inst->is_default && !inst->bind_conf->strict_sni) {
+		if (inst->is_default && !(inst->bind_conf->ssl_options & BC_SSL_O_STRICT_SNI)) {
 			if (!error_message_dumped) {
 				memprintf(&err, "certificate '%s' cannot be deleted, it is used as default certificate by the following frontends:\n", cert_path);
 				error_message_dumped = 1;

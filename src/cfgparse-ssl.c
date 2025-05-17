@@ -1307,10 +1307,13 @@ static int bind_parse_generate_certs(char **args, int cur_arg, struct proxy *px,
 	return 0;
 }
 
-/* parse the "strict-sni" bind keyword */
+/* parse the "strict-sni" and "no-strict-sni" bind keywords */
 static int bind_parse_strict_sni(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	conf->strict_sni = 1;
+	if (strncmp(args[cur_arg], "no-", 3) != 0)
+		conf->ssl_options |= BC_SSL_O_STRICT_SNI;
+	else
+		conf->ssl_options &= ~BC_SSL_O_STRICT_SNI;
 	return 0;
 }
 
@@ -2029,6 +2032,10 @@ static int ssl_parse_default_bind_options(char **args, int section_type, struct 
 			global_ssl.listen_default_ssloptions |= BC_SSL_O_NO_TLS_TICKETS;
 		else if (strcmp(args[i], "prefer-client-ciphers") == 0)
 			global_ssl.listen_default_ssloptions |= BC_SSL_O_PREF_CLIE_CIPH;
+		else if (strcmp(args[i], "strict-sni") == 0)
+			global_ssl.listen_default_ssloptions |= BC_SSL_O_STRICT_SNI;
+		else if (strcmp(args[i], "no-strict-sni") == 0)
+			global_ssl.listen_default_ssloptions &= ~BC_SSL_O_STRICT_SNI;
 		else if (strcmp(args[i], "ssl-min-ver") == 0 || strcmp(args[i], "ssl-max-ver") == 0) {
 			if (!parse_tls_method_minmax(args, i, &global_ssl.listen_default_sslmethods, err))
 				i++;
@@ -2446,6 +2453,7 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "no-alpn",               bind_parse_no_alpn,            0 }, /* disable sending ALPN */
 	{ "no-ca-names",           bind_parse_no_ca_names,        0 }, /* do not send ca names to clients (ca_file related) */
 	{ "no-sslv3",              bind_parse_tls_method_options, 0 }, /* disable SSLv3 */
+	{ "no-strict-sni",         bind_parse_strict_sni,         0 }, /* do not refuse negotiation if sni doesn't match a certificate */
 	{ "no-tlsv10",             bind_parse_tls_method_options, 0 }, /* disable TLSv10 */
 	{ "no-tlsv11",             bind_parse_tls_method_options, 0 }, /* disable TLSv11 */
 	{ "no-tlsv12",             bind_parse_tls_method_options, 0 }, /* disable TLSv12 */

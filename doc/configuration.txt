@@ -16794,6 +16794,13 @@ no-sslv3
   global statement "ssl-default-bind-options". Use "ssl-min-ver" and
   "ssl-max-ver" instead.
 
+no-strict-sni
+  This setting is only available when support for OpenSSL was built in. It
+  disables strict-sni enforcement from a previous "strict-sni" directive. It
+  may be needed in order to selectively disable strict-sni usage on a "bind"
+  line when it was already globally enforced via "ssl-default-bind-options".
+  See also the "strict-sni" bind option.
+
 no-tls-tickets
   This setting is only available when support for OpenSSL was built in. It
   disables the stateless session resumption (RFC 5077 TLS Ticket
@@ -17007,9 +17014,10 @@ strict-sni
   SSL/TLS negotiation is allowed only if the client provided an SNI that matches
   a certificate. The default certificate is not used. This option also allows
   starting without any certificate on a bind line, so an empty directory could
-  be used and filled later from the stats socket.
-  See the "crt" option for more information. See "add ssl crt-list" command in
-  the management guide.
+  be used and filled later from the stats socket. This option is also available
+  on global statement "ssl-default-bind-options", and may be selectively
+  disabled on a "bind" line using "no-strict-sni". See the "crt" option for
+  more information. See "add ssl crt-list" command in the management guide.
 
 tcp-ut <delay>
   Sets the TCP User Timeout for all incoming connections instantiated from this

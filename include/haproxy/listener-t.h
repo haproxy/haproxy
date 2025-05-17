@@ -121,6 +121,7 @@ enum li_status {
 #define BC_SSL_O_NONE           0x0000
 #define BC_SSL_O_NO_TLS_TICKETS 0x0100	/* disable session resumption tickets */
 #define BC_SSL_O_PREF_CLIE_CIPH 0x0200  /* prefer client ciphers */
+#define BC_SSL_O_STRICT_SNI     0x0400  /* refuse negotiation if sni doesn't match a certificate */
 #endif
 
 struct tls_version_filter {
@@ -169,7 +170,6 @@ struct bind_conf {
 	unsigned long long ca_ignerr_bitfield[IGNERR_BF_SIZE];   /* ignored verify errors in handshake if depth > 0 */
 	unsigned long long crt_ignerr_bitfield[IGNERR_BF_SIZE];  /* ignored verify errors in handshake if depth == 0 */
 	void *initial_ctx;             /* SSL context for initial negotiation */
-	int strict_sni;            /* refuse negotiation if sni doesn't match a certificate */
 	int ssl_options;           /* ssl options */
 	struct eb_root sni_ctx;    /* sni_ctx tree of all known certs full-names sorted by name */
 	struct eb_root sni_w_ctx;  /* sni_ctx tree of all known certs wildcards sorted by name */

@@ -274,7 +274,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 #endif
 
 		/* no servername field is not compatible with strict-sni */
-		if (s->strict_sni) {
+		if (s->ssl_options & BC_SSL_O_STRICT_SNI) {
 			TRACE_ERROR("No server_name provided and 'strict-sni' enabled", SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn);
 			goto abort;
 		}
@@ -435,7 +435,7 @@ sni_lookup:
 	}
 #endif
 
-	if (!s->strict_sni && !default_lookup) {
+	if (!(s->ssl_options & BC_SSL_O_STRICT_SNI) && !default_lookup) {
 		/* we didn't find a SNI, and we didn't look for a default
 		 * look again to find a matching default cert */
 		servername = "";
@@ -541,7 +541,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 			return SSL_TLSEXT_ERR_OK;
 		}
 #endif
-		if (s->strict_sni) {
+		if (s->ssl_options & BC_SSL_O_STRICT_SNI) {
 			TRACE_ERROR("No server_name provided and 'strict-sni' enabled", SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR);
 			return SSL_TLSEXT_ERR_ALERT_FATAL;
 		}
@@ -598,7 +598,7 @@ sni_lookup:
 #endif
 		HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 
-		if (!s->strict_sni && !default_lookup) {
+		if (!(s->ssl_options & BC_SSL_O_STRICT_SNI) && !default_lookup) {
 			/* we didn't find a SNI, and we didn't look for a default
 			 * look again to find a matching default cert */
 			servername = "";
@@ -644,7 +644,7 @@ int ssl_sock_switchctx_wolfSSL_cbk(WOLFSSL* ssl, void* arg)
 
 	servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 	if (!servername) {
-		if (s->strict_sni)
+		if (s->ssl_options & BC_SSL_O_STRICT_SNI)
 			goto abort;
 
 		/* without servername extension, look for the defaults which is
@@ -720,7 +720,7 @@ sni_lookup:
 	}
 
 	HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
-	if (!s->strict_sni && !default_lookup) {
+	if (!(s->ssl_options & BC_SSL_O_STRICT_SNI) && !default_lookup) {
 		/* we didn't find a SNI, and we didn't look for a default
 		 * look again to find a matching default cert */
 		servername = "";

@@ -26,6 +26,7 @@ haproxy h1 -conf {
         tune.ssl.capture-buffer-size 1
         crt-base ${testdir}
         stats socket "${tmpdir}/h1/stats" level admin
+        ssl-default-bind-options strict-sni
 
     defaults
         mode http
@@ -47,13 +48,14 @@ haproxy h1 -conf {
         server s3 "${tmpdir}/first-ssl.sock" ssl verify none sni str(record2.bug940.domain.tld)
 
     listen first-ssl-fe
+        # note: strict-sni is enforced from ssl-default-bind-options above
         mode http
-        bind "${tmpdir}/first-ssl.sock" ssl strict-sni crt-list ${testdir}/simple.crt-list
+        bind "${tmpdir}/first-ssl.sock" ssl crt-list ${testdir}/simple.crt-list
         server s1 ${s1_addr}:${s1_port}
 
     listen second-ssl-fe
         mode http
-        bind "${tmpdir}/second-ssl.sock" ssl crt-list ${testdir}/localhost.crt-list
+        bind "${tmpdir}/second-ssl.sock" ssl no-strict-sni crt-list ${testdir}/localhost.crt-list
         server s1 ${s1_addr}:${s1_port}
 } -start
 

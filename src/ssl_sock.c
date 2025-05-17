@@ -4776,7 +4776,7 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 
 	/* check if we have certificates */
 	if (eb_is_empty(&bind_conf->sni_ctx) && eb_is_empty(&bind_conf->sni_w_ctx)) {
-		if (bind_conf->strict_sni && !(bind_conf->options & BC_O_GENERATE_CERTS)) {
+		if ((bind_conf->ssl_options & BC_SSL_O_STRICT_SNI) && !(bind_conf->options & BC_O_GENERATE_CERTS)) {
 			ha_warning("Proxy '%s': no SSL certificate specified for bind '%s' at [%s:%d], ssl connections will fail (use 'crt').\n",
 				   px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 		}
