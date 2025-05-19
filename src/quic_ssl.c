@@ -874,7 +874,27 @@ static int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 		}
 #endif
 
+#ifndef HAVE_OPENSSL_QUIC
 		TRACE_PROTO("SSL handshake OK", QUIC_EV_CONN_IO_CB, qc, &state);
+#else
+		/* Hack to support O-RTT with the OpenSSL 3.5 QUIC API.
+		 * SSL_do_handshake() succeeds at the first call. Why? |-(
+		 * This prevents the handshake CRYPTO data to be sent.
+		 * To overcome this, ensure one does not consider the handshake is
+		 * successful if the read application level secrets have not been
+		 * provided by the stack. This happens after having received the peer
+		 * handshake level CRYPTO data which are validated by the TLS stack.
+		 */
+		if (qc->li->bind_conf->ssl_conf.early_data &&
+		    (!qc->ael || !qc->ael->tls_ctx.rx.secret)) {
+			TRACE_PROTO("SSL handshake in progress",
+			            QUIC_EV_CONN_IO_CB, qc, &state, &ssl_err);
+			goto out;
+		}
+		else {
+			TRACE_PROTO("SSL handshake OK", QUIC_EV_CONN_IO_CB, qc, &state);
+		}
+#endif
 
 		/* Check the alpn could be negotiated */
 		if (!qc->app_ops) {
