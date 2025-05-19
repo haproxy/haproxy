@@ -29,6 +29,7 @@
 #include <haproxy/list.h>
 #include <haproxy/log.h>
 #include <haproxy/pattern.h>
+#include <haproxy/sink.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
@@ -846,6 +847,8 @@ int acme_update_certificate(struct task *task, struct acme_ctx *ctx, char **errm
 	int ret = 1;
 	struct ckch_store *old_ckchs, *new_ckchs;
 	struct ckch_inst *ckchi;
+	struct sink *dpapi;
+	struct ist line[3];
 
 	new_ckchs = ctx->store;
 
@@ -877,6 +880,15 @@ int acme_update_certificate(struct task *task, struct acme_ctx *ctx, char **errm
 	ckch_store_replace(old_ckchs, new_ckchs);
 
 	send_log(NULL, LOG_NOTICE,"acme: %s: Successful update of the certificate.\n", ctx->store->path);
+
+
+	line[0] = ist("acme newcert ");
+	line[1] = ist(ctx->store->path);
+	line[2] = ist("\n\0");
+
+	dpapi = sink_find("dpapi");
+	if (dpapi)
+		sink_write(dpapi, LOG_HEADER_NONE, 0, line, 3);
 
 	ctx->store = NULL;
 
