@@ -237,7 +237,7 @@ to forcefully enable it using "USE_LIBCRYPT=1".
 -----------------
 For SSL/TLS, it is necessary to use a cryptography library. HAProxy currently
 supports the OpenSSL library, and is known to build and work with branches
-1.0.0, 1.0.1, 1.0.2, 1.1.0, 1.1.1, and 3.0 to 3.4. It is recommended to use
+1.0.0, 1.0.1, 1.0.2, 1.1.0, 1.1.1, and 3.0 to 3.5. It is recommended to use
 at least OpenSSL 1.1.1 to have support for all SSL keywords and configuration
 in HAProxy. OpenSSL follows a long-term support cycle similar to HAProxy's,
 and each of the branches above receives its own fixes, without forcing you to
@@ -259,10 +259,10 @@ reported to work as well. While there are some efforts from the community to
 ensure they work well, OpenSSL remains the primary target and this means that
 in case of conflicting choices, OpenSSL support will be favored over other
 options.  Note that QUIC is not fully supported when haproxy is built with
-OpenSSL. In this case, QUICTLS is the preferred alternative.  As of writing
-this, the QuicTLS project follows OpenSSL very closely and provides update
-simultaneously, but being a volunteer-driven project, its long-term future does
-not look certain enough to convince operating systems to package it, so it
+OpenSSL < 3.5 version. In this case, QUICTLS is the preferred alternative.
+As of writing this, the QuicTLS project follows OpenSSL very closely and provides
+update simultaneously, but being a volunteer-driven project, its long-term future
+does not look certain enough to convince operating systems to package it, so it
 needs to be build locally. See the section about QUIC in this document.
 
 A fifth option is wolfSSL (https://github.com/wolfSSL/wolfssl). It is the only
@@ -500,10 +500,11 @@ QUIC is the new transport layer protocol and is required for HTTP/3. This
 protocol stack is currently supported as an experimental feature in haproxy on
 the frontend side. In order to enable it, use "USE_QUIC=1 USE_OPENSSL=1".
 
-Note that QUIC is not fully supported by the OpenSSL library. Indeed QUIC 0-RTT
-cannot be supported by OpenSSL contrary to others libraries with full QUIC
-support. The preferred option is to use QUICTLS. This is a fork of OpenSSL with
-a QUIC-compatible API. Its repository is available at this location:
+Note that QUIC is not always fully supported by the OpenSSL library depending on
+its version. Indeed QUIC 0-RTT cannot be supported by OpenSSL for versions before
+3.5 contrary to others libraries with full QUIC support. The preferred option is
+to use QUICTLS. This is a fork of OpenSSL with a QUIC-compatible API. Its
+repository is available at this location:
 
      https://github.com/quictls/openssl
 
@@ -531,14 +532,18 @@ way assuming that wolfSSL was installed in /opt/wolfssl-5.6.0 as shown in 4.5:
     SSL_INC=/opt/wolfssl-5.6.0/include SSL_LIB=/opt/wolfssl-5.6.0/lib
     LDFLAGS="-Wl,-rpath,/opt/wolfssl-5.6.0/lib"
 
-As last resort, haproxy may be compiled against OpenSSL as follows:
+As last resort, haproxy may be compiled against OpenSSL as follows from 3.5
+version with 0-RTT support:
+
+  $ make TARGET=generic USE_OPENSSL=1 USE_QUIC=1
+
+or as follows for all OpenSSL versions but without O-RTT support:
 
   $ make TARGET=generic USE_OPENSSL=1 USE_QUIC=1 USE_QUIC_OPENSSL_COMPAT=1
 
-Note that QUIC 0-RTT is not supported by haproxy QUIC stack when built against
-OpenSSL. In addition to this compilation requirements, the QUIC listener
-bindings must be explicitly enabled with a specific QUIC tuning parameter.
-(see "limited-quic" global parameter of haproxy Configuration Manual).
+In addition to this requirements, the QUIC listener bindings must be explicitly
+enabled with a specific QUIC tuning parameter. (see "limited-quic" global
+parameter of haproxy Configuration Manual).
 
 
 5) How to build HAProxy
