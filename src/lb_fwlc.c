@@ -786,12 +786,16 @@ redo:
 						 * The server has more requests than expected,
 						 * let's try to reposition it, to avoid too
 						 * many threads using the same server at the
-						 * same time.
+						 * same time. From the moment we release the
+						 * lock, we cannot trust the node nor tree_elt
+						 * anymore, so we need to loop back to the
+						 * beginning.
 						 */
 						if (i >= FWLC_LISTS_NB) {
 							HA_RWLOCK_RDUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 							fwlc_srv_reposition(s);
 							HA_RWLOCK_RDLOCK(LBPRM_LOCK, &p->lbprm.lock);
+							goto redo;
 						}
 						i++;
 						continue;
