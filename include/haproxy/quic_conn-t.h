@@ -334,7 +334,10 @@ struct quic_conn {
 	int tps_tls_ext;
 	int state;
 	enum qc_mux_state mux_state; /* status of the connection/mux layer */
-#ifdef USE_QUIC_OPENSSL_COMPAT
+#ifdef HAVE_OPENSSL_QUIC
+	uint32_t prot_level;
+#endif
+#if defined(USE_QUIC_OPENSSL_COMPAT) || defined(HAVE_OPENSSL_QUIC)
 	unsigned char enc_params[QUIC_TP_MAX_ENCLEN]; /* encoded QUIC transport parameters */
 	size_t enc_params_len;
 #endif

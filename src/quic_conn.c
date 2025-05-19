@@ -1109,6 +1109,9 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	quic_tls_ku_reset(&qc->ku.nxt_rx);
 	quic_tls_ku_reset(&qc->ku.nxt_tx);
 
+#ifdef HAVE_OPENSSL_QUIC
+	qc->prot_level = OSSL_RECORD_PROTECTION_LEVEL_NONE;
+#endif
 	/* Encryption levels */
 	qc->iel = qc->eel = qc->hel = qc->ael = NULL;
 	LIST_INIT(&qc->qel_list);

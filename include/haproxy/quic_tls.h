@@ -291,6 +291,29 @@ static inline struct quic_enc_level **ssl_to_qel_addr(struct quic_conn *qc,
 	}
 }
 
+#ifdef HAVE_OPENSSL_QUIC
+/* Simple helper function which translate an OpenSSL SSL protection level
+ * to a quictls SSL encryption. This way the code which use the OpenSSL QUIC API
+ * may use the code which uses the quictls API.
+ */
+static inline enum ssl_encryption_level_t ssl_prot_level_to_enc_level(struct quic_conn *qc,
+                                                                      uint32_t prot_level)
+{
+	switch (prot_level) {
+	case OSSL_RECORD_PROTECTION_LEVEL_NONE:
+		return ssl_encryption_initial;
+	case OSSL_RECORD_PROTECTION_LEVEL_EARLY:
+		return ssl_encryption_early_data;
+	case OSSL_RECORD_PROTECTION_LEVEL_HANDSHAKE:
+		return ssl_encryption_handshake;
+	case OSSL_RECORD_PROTECTION_LEVEL_APPLICATION:
+		return ssl_encryption_application;
+	default:
+		return -1;
+	}
+}
+#endif
+
 /* Return the address of the QUIC TLS encryption level associated to <level> internal
  * encryption level and attached to <qc> QUIC connection if succeeded, or
  * NULL if failed.
