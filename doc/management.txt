@@ -1662,10 +1662,10 @@ acme status
   This command outputs, separated by a tab:
   - The name of the certificate configured in haproxy
   - The acme section used in the configuration
-  - The state of the acme task, either "Running" or "Scheduled"
+  - The state of the acme task, either "Running", "Scheduled" or "Stopped"
   - The UTC expiration date of the certificate in ISO8601 format
   - The relative expiration time (0d if expired)
-  - The UTC expiration date of the certificate in ISO8601 format
+  - The UTC scheduled date of the certificate in ISO8601 format
   - The relative schedule time (0d if Running)
 
   Example:
