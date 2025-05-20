@@ -122,25 +122,25 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 		 */
 		if (!(_HA_ATOMIC_LOAD(&ha_thread_ctx[thr].flags) & TH_FL_STUCK)) {
 			/* after one second it's clear that we're stuck */
-			if (n - p >= 1000000000ULL)
+			if (n - p >= 1000000000ULL) {
 				_HA_ATOMIC_OR(&ha_thread_ctx[thr].flags, TH_FL_STUCK);
+				goto update_and_leave;
+			}
 			else if (n - p < (ullong)wdt_warn_blocked_traffic_ns) {
 				/* if we haven't crossed the warning boundary,
 				 * let's just refresh the reporting thread's timer.
 				 */
 				goto update_and_leave;
 			}
-
-			/* OK so we've crossed the warning boundary and possibly the
-			 * panic one as well. This may only be reported by the original
-			 * thread. Let's fall back to the common code below which will
-			 * possibly bounce to the reporting thread, which will then
-			 * check the ctxsw count and decide whether to do nothing, to
-			 * warn, or either panic.
-			 */
 		}
 
-		/* No doubt now, there's no hop to recover, die loudly! */
+		/* OK so we've crossed the warning boundary and possibly the
+		 * panic one as well. This may only be reported by the original
+		 * thread. Let's fall back to the common code below which will
+		 * possibly bounce to the reporting thread, which will then
+		 * check the ctxsw count and decide whether to do nothing, to
+		 * warn, or either panic.
+		 */
 		break;
 
 #if defined(USE_THREAD) && defined(SI_TKILL) /* Linux uses this */
