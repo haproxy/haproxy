@@ -175,11 +175,16 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 	}
 #endif
 
-	/* Now the interesting things begin. The timer was at least as large
-	 * as the warning threshold. If the stuck bit was set, we must now
-	 * panic. Otherwise we're checking if we're still context-switching
-	 * or not and we'll either warn if not, or just update the ctxsw
-	 * counter to check next time.
+	/* Now the interesting things begin. We're on the thread of interest.
+	 * Its timer was at least as large as the warning threshold since poll
+	 * was left. If it was at least as high as the panic threshold, we also
+	 * have TH_FL_STUCK, which now proves that nothing is happening since
+	 * the scheduler clears it for each task. We can still recheck whether
+	 * the scheduler looks alive and get away with all of this if we've got
+	 * a proof that it's making forward progress. If stuck, we have to die,
+	 * otherwise we just send a warning. In short, is_sched_alive() serves
+	 * as a ping to detect the warning condition while TH_FL_STUCK works
+	 * the same but for a panic condition.
 	 */
 	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_STUCK)
 		ha_panic();
