@@ -1732,7 +1732,6 @@ static struct qc_stream_rxbuf *qcs_get_rxbuf(struct qcs *qcs, uint64_t offset,
 	ncbuf = &buf->ncb;
 	if (!qcs_get_ncbuf(qcs, ncbuf) || ncb_is_null(ncbuf)) {
 		TRACE_ERROR("receive ncbuf alloc failure", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
-		qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0);
 		goto err;
 	}
 
