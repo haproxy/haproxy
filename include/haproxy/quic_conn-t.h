@@ -28,21 +28,22 @@
 
 #include <sys/socket.h>
 
-#include <haproxy/list.h>
-#include <haproxy/show_flags-t.h>
+#include <import/ebtree-t.h>
 
+#include <haproxy/api-t.h>
+#include <haproxy/buf-t.h>
+#include <haproxy/listener-t.h>
 #include <haproxy/openssl-compat.h>
-#include <haproxy/mux_quic-t.h>
 #include <haproxy/quic_cid-t.h>
 #include <haproxy/quic_cc-t.h>
-#include <haproxy/quic_loss-t.h>
+#include <haproxy/quic_frame-t.h>
 #include <haproxy/quic_openssl_compat-t.h>
 #include <haproxy/quic_stats-t.h>
 #include <haproxy/quic_tls-t.h>
 #include <haproxy/quic_tp-t.h>
-#include <haproxy/task.h>
-
-#include <import/ebtree-t.h>
+#include <haproxy/show_flags-t.h>
+#include <haproxy/ssl_sock-t.h>
+#include <haproxy/task-t.h>
 
 typedef unsigned long long ull;
 
@@ -277,6 +278,10 @@ struct quic_conn_cntrs {
 	long long streams_blocked_bidi;      /* total number of times STREAMS_BLOCKED_BIDI frame was received */
 	long long streams_blocked_uni;       /* total number of times STREAMS_BLOCKED_UNI frame was received */
 };
+
+struct connection;
+struct qcc;
+struct qcc_app_ops;
 
 #define QUIC_CONN_COMMON                               \
     struct {                                           \
