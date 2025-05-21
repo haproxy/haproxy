@@ -2266,6 +2266,11 @@ static int acme_start_task(struct ckch_store *store, char **errmsg)
 		goto err;
 	}
 
+	if (!store->conf.acme.domains) {
+		memprintf(errmsg, "No 'domains' were configured for certificate. ");
+		goto err;
+	}
+
 	cfg = get_acme_cfg(store->conf.acme.id);
 	if (!cfg) {
 		memprintf(errmsg, "No ACME configuration found for file '%s'.\n", store->path);
