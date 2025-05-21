@@ -955,12 +955,13 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
 		{
 			struct qf_stream *strm_frm = &frm->stream;
-			unsigned nb_streams = qc->rx.strms[qcs_id_type(strm_frm->id)].nb_streams;
 			const char fin = frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT;
+			const uint64_t max = quic_stream_is_uni(strm_frm->id) ?
+			  qc->rx.stream_max_uni : qc->rx.stream_max_bidi;
 
 			/* The upper layer may not be allocated. */
 			if (qc->mux_state != QC_MUX_READY) {
-				if ((strm_frm->id >> QCS_ID_TYPE_SHIFT) < nb_streams) {
+				if (strm_frm->id < max) {
 					TRACE_DATA("Already closed stream", QUIC_EV_CONN_PRSHPKT, qc);
 				}
 				else {

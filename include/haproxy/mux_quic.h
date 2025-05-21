@@ -51,15 +51,7 @@ static inline int qmux_stream_rx_bufsz(void)
 	return global.tune.bufsize - NCB_RESERVED_SZ;
 }
 
-/* Bit shift to get the stream sub ID for internal use which is obtained
- * shifting the stream IDs by this value, knowing that the
- * QCS_ID_TYPE_SHIFT less significant bits identify the stream ID
- * types (client initiated bidirectional, server initiated bidirectional,
- * client initiated unidirectional, server initiated bidirectional).
- * Note that there is no reference to such stream sub IDs in the RFC.
- */
 #define QCS_ID_TYPE_MASK         0x3
-#define QCS_ID_TYPE_SHIFT          2
 /* The less significant bit of a stream ID is set for a server initiated stream */
 #define QCS_ID_SRV_INTIATOR_BIT  0x1
 /* This bit is set for unidirectional streams */

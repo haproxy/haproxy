@@ -80,7 +80,6 @@ struct qc_stream_desc *qc_stream_desc_new(uint64_t id, enum qcs_type type, void 
 	else {
 		stream->by_id.key = id;
 		eb64_insert(&qc->streams_by_id, &stream->by_id);
-		qc->rx.strms[type].nb_streams++;
 	}
 	stream->qc = qc;
 

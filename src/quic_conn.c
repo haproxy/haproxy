@@ -1030,7 +1030,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
                               struct sockaddr_storage *peer_addr,
                               int server, int token, void *owner)
 {
-	int i;
 	struct quic_conn *qc = NULL;
 	struct listener *l = server ? owner : NULL;
 	struct proxy *prx = l ? l->bind_conf->frontend : NULL;
@@ -1216,8 +1215,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->bytes.rx = 0;
 	memset(&qc->rx.params, 0, sizeof(qc->rx.params));
 	qc->rx.buf = b_make(qc->rx.buf.area, QUIC_CONN_RX_BUFSZ, 0, 0);
-	for (i = 0; i < QCS_MAX_TYPES; i++)
-		qc->rx.strms[i].nb_streams = 0;
+	qc->rx.stream_max_uni = qc->rx.stream_max_bidi = 0;
 
 	qc->nb_pkt_for_cc = 1;
 	qc->nb_pkt_since_cc = 0;

@@ -28,9 +28,6 @@ enum qcs_type {
 	QCS_SRV_BIDI,
 	QCS_CLT_UNI,
 	QCS_SRV_UNI,
-
-	/* Must be the last one */
-	QCS_MAX_TYPES
 };
 
 enum qcc_app_st {

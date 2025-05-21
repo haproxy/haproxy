@@ -3225,15 +3225,20 @@ static void qcc_release(struct qcc *qcc)
 		qcs_free(qcs);
 	}
 
-	/* unsubscribe from all remaining qc_stream_desc */
 	if (conn) {
 		qc = conn->handle.qc;
+
+		/* unsubscribe from all remaining qc_stream_desc */
 		node = eb64_first(&qc->streams_by_id);
 		while (node) {
 			struct qc_stream_desc *stream = eb64_entry(node, struct qc_stream_desc, by_id);
 			qc_stream_desc_sub_room(stream, NULL);
 			node = eb64_next(node);
 		}
+
+		/* register streams IDs so that quic-conn layer can ignore already closed streams. */
+		qc->rx.stream_max_uni = qcc->largest_uni_r;
+		qc->rx.stream_max_bidi = qcc->largest_bidi_r;
 	}
 
 	tasklet_free(qcc->wait_event.tasklet);

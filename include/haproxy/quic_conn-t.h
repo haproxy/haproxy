@@ -385,10 +385,10 @@ struct quic_conn {
 		/* RX buffer */
 		struct buffer buf;
 		struct list pkt_list;
-		struct {
-			/* Number of open or closed streams */
-			uint64_t nb_streams;
-		} strms[QCS_MAX_TYPES];
+
+		/* first unhandled streams ID, set by MUX after release */
+		uint64_t stream_max_uni;
+		uint64_t stream_max_bidi;
 	} rx;
 	struct {
 		struct quic_tls_kp prv_rx;
