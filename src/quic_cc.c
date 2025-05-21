@@ -20,6 +20,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+#include <haproxy/global.h>
 #include <haproxy/proto_quic.h>
 #include <haproxy/quic_cc.h>
 #include <haproxy/quic_pacing.h>

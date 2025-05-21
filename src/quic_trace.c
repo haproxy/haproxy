@@ -15,6 +15,7 @@
 #include <haproxy/api-t.h>
 #include <haproxy/chunk.h>
 #include <haproxy/quic_conn.h>
+#include <haproxy/quic_loss-t.h>
 #include <haproxy/quic_ssl.h>
 #include <haproxy/quic_tls.h>
 #include <haproxy/quic_trace.h>

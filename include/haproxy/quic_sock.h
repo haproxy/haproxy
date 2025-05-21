@@ -31,6 +31,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/connection-t.h>
+#include <haproxy/fd-t.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_sock-t.h>

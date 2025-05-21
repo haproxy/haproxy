@@ -23,6 +23,7 @@
 
 #include <haproxy/buf-t.h>
 #include <haproxy/list-t.h>
+#include <haproxy/pool.h>
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_tls-t.h>
 #include <haproxy/quic_pacing-t.h>
