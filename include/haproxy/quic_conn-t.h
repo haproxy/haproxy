@@ -28,7 +28,6 @@
 
 #include <sys/socket.h>
 
-#include <haproxy/cbuf-t.h>
 #include <haproxy/list.h>
 #include <haproxy/show_flags-t.h>
 

@@ -28,7 +28,6 @@
 
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
-#include <haproxy/cbuf.h>
 #include <haproxy/connection.h>
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
