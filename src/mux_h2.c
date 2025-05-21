@@ -1682,7 +1682,8 @@ static inline int _h2c_report_glitch(struct h2c *h2c, int increment)
 		h2_be_glitches_threshold : h2_fe_glitches_threshold;
 
 	h2c->glitches += increment;
-	if (thres && h2c->glitches >= thres) {
+	if (thres && h2c->glitches >= thres &&
+	    (th_ctx->idle_pct <= global.tune.glitch_kill_maxidle)) {
 		h2c_error(h2c, H2_ERR_ENHANCE_YOUR_CALM);
 		return 1;
 	}

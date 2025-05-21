@@ -197,6 +197,7 @@ struct global {
 		int pattern_cache; /* max number of entries in the pattern cache. */
 		int sslcachesize;  /* SSL cache size in session, defaults to 20000 */
 		int comp_maxlevel;    /* max HTTP compression level */
+		uint glitch_kill_maxidle; /* have glitches kill only below this level of idle */
 		int pool_low_ratio;   /* max ratio of FDs used before we stop using new idle connections */
 		int pool_high_ratio;  /* max ratio of FDs used before we start killing idle connections when creating new connections */
 		int pool_low_count;   /* max number of opened fd before we stop using new idle connections */

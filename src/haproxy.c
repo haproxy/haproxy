@@ -187,6 +187,7 @@ struct global global = {
 		.sslcachesize = SSLCACHESIZE,
 #endif
 		.comp_maxlevel = 1,
+		.glitch_kill_maxidle = 100,
 #ifdef DEFAULT_IDLE_TIMER
 		.idle_timer = DEFAULT_IDLE_TIMER,
 #else

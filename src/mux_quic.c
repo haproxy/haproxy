@@ -769,7 +769,8 @@ int _qcc_report_glitch(struct qcc *qcc, int inc)
 	const int max = global.tune.quic_frontend_glitches_threshold;
 
 	qcc->glitches += inc;
-	if (max && qcc->glitches >= max && !(qcc->flags & QC_CF_ERRL)) {
+	if (max && qcc->glitches >= max && !(qcc->flags & QC_CF_ERRL) &&
+	    (th_ctx->idle_pct <= global.tune.glitch_kill_maxidle)) {
 		if (qcc->app_ops->report_susp) {
 			qcc->app_ops->report_susp(qcc->ctx);
 			qcc_set_error(qcc, qcc->err.code, 1);

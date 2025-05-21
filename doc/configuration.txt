@@ -4016,6 +4016,25 @@ tune.fd.edge-triggered { on | off }  [ EXPERIMENTAL ]
   certain scenarios. This is still experimental, it may result in frozen
   connections if bugs are still present, and is disabled by default.
 
+tune.glitches.kill.cpu-usage <number>
+  Sets the minimum CPU usage between 0 and 100, at which connections showing
+  too many glitches will be killed. This applies to connections that have
+  reached their glitches-threshold limit. In environments where very long
+  connections often behave badly without causing any performance impact, it
+  might be desirable to keep them regardless of their misbehavior as long as
+  they do not hurt, and to only start to kill such connections when the CPU is
+  getting busy. This parameters allows to specify that a connection reaching
+  its glitches threshold will be actively killed when the CPU usage is at this
+  level or above, but never when it's below. Note that the CPU usage is
+  measured per thread, so a single misbehaving connection might be killed. The
+  default is zero, meaning that a connection reaching its glitches-threshold
+  will automatically get killed. A rule of thumb would be to set this value to
+  twice the usually observed CPU usage, or the commonly observed CPU usage plus
+  half the idle one (i.e. if CPU commonly reaches 60%, setting 80 here can make
+  sense). This parameter has no effect without tune.h2.fe.glitches-threshold or
+  tune.quic.frontend.glitches-threshold. See also the global parameters
+  "tune.h2.fe.glitches-threshold" and "tune.quic.frontend.glitches-threshold".
+
 tune.h1.zero-copy-fwd-recv { on | off }
   Enables ('on') of disabled ('off') the zero-copy receives of data for the H1
   multiplexer. It is enabled by default.
@@ -4036,9 +4055,12 @@ tune.h2.be.glitches-threshold <number>
   event will cause a connection to be closed. Beware that some H2 servers may
   occasionally cause a few glitches over long lasting connection, so any non-
   zero value here should probably be in the hundreds or thousands to be
-  effective without affecting slightly bogus servers.
+  effective without affecting slightly bogus servers. It is also possible to
+  only kill connections when the CPU usage crosses a certain level, by using
+  "tune.glitches.kill.cpu-usage".
 
-  See also: tune.h2.fe.glitches-threshold, bc_glitches
+  See also: tune.h2.fe.glitches-threshold, bc_glitches, and
+            tune.glitches.kill.cpu-usage
 
 tune.h2.be.initial-window-size <number>
   Sets the HTTP/2 initial window size for outgoing connections, which is the
@@ -4090,9 +4112,12 @@ tune.h2.fe.glitches-threshold <number>
   event will cause a connection to be closed. Beware that some H2 clientss may
   occasionally cause a few glitches over long lasting connection, so any non-
   zero value here should probably be in the hundreds or thousands to be
-  effective without affecting slightly bogus clients.
+  effective without affecting slightly bogus clients. It is also possible to
+  only kill connections when the CPU usage crosses a certain level, by using
+  "tune.glitches.kill.cpu-usage".
 
-  See also: tune.h2.be.glitches-threshold, fc_glitches
+  See also: tune.h2.be.glitches-threshold, fc_glitches, and
+            tune.glitches.kill.cpu-usage
 
 tune.h2.fe.initial-window-size <number>
   Sets the HTTP/2 initial window size for incoming connections, which is the
@@ -4663,9 +4688,11 @@ tune.quic.frontend.glitches-threshold <number>
   event will cause a connection to be closed. Beware that some QUIC clients may
   occasionally cause a few glitches over long lasting connection, so any non-
   zero value here should probably be in the hundreds or thousands to be
-  effective without affecting slightly bogus clients.
+  effective without affecting slightly bogus clients. It is also possible to
+  only kill connections when the CPU usage crosses a certain level, by using
+  "tune.glitches.kill.cpu-usage".
 
-  See also: fc_glitches
+  See also: fc_glitches, tune.glitches.kill.cpu-usage
 
 tune.quic.frontend.max-data-size <size>
   This setting is the hard limit for the number of data bytes in flight over a
