@@ -3293,7 +3293,29 @@ show servers conn [<backend>]
   The output consists in a header line showing the fields titles, then one
   server per line with for each, the backend name and ID, server name and ID,
   the address, port and a series or values. The number of fields varies
-  depending on thread count.
+  depending on thread count. The exact format of the output may vary slightly
+  across versions and depending on the number of threads. One needs to pay
+  attention to the header line to match columns when extracting output values,
+  and to the number of threads as the last columns are per-thread:
+
+     bkname/svname         Backend name '/' server name
+     bkid/svid             Backend ID '/' server ID
+     addr                  Server's IP address
+     port                  Server's port (or zero if none)
+     -                     Unused field, serves as a visual delimiter
+     purge_delay           Interval between connection purges, in milliseconds
+     used_cur              Number of connections currently in use
+     used_max              Highest value of used_cur since the process started
+     need_est              Floating estimate of total needed connections
+     unsafe_nb             Number of idle connections considered as "unsafe"
+     safe_nb               Number of idle connections considered as "safe"
+     idle_lim              Configured maximum number of idle connections
+     idle_cur              Total of the per-thread currently idle connections
+     idle_per_thr[NB]      Idle conns per thread for each one of the NB threads
+
+  HAProxy will kill a portion of <idle_cur> every <purge_delay> when the total
+  of <idle_cur> + <used_cur> exceeds the estimate <need_est>. This estimate
+  varies based on connection activity.
 
   Given the threaded nature of idle connections, it's important to understand
   that some values may change once read, and that as such, consistency within a
