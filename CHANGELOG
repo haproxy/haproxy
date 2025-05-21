@@ -1,6 +1,53 @@
 ChangeLog :
 ===========
 
+2025/05/21 : 3.2-dev17
+    - DOC: configuration: explicit multi-choice on bind shards option
+    - BUG/MINOR: sink: detect and warn when using "send-proxy" options with ring servers
+    - BUG/MEDIUM: peers: also limit the number of incoming updates
+    - MEDIUM: hlua: Add function to change the body length of an HTTP Message
+    - BUG/MEDIUM: stconn: Disable 0-copy forwarding for filters altering the payload
+    - BUG/MINOR: h3: don't insert more than one Host header
+    - BUG/MEDIUM: h1/h2/h3: reject forbidden chars in the Host header field
+    - DOC: config: properly index "table and "stick-table" in their section
+    - DOC: management: change reference to configuration manual
+    - BUILD: debug: mark ha_crash_now() as attribute(noreturn)
+    - IMPORT: slz: avoid multiple shifts on 64-bits
+    - IMPORT: slz: support crc32c for lookup hash on sse4 but only if requested
+    - IMPORT: slz: use a better hash for machines with a fast multiply
+    - IMPORT: slz: fix header used for empty zlib message
+    - IMPORT: slz: silence a build warning on non-x86 non-arm
+    - BUG/MAJOR: leastconn: do not loop forever when facing saturated servers
+    - BUG/MAJOR: queue: properly keep count of the queue length
+    - BUG/MINOR: quic: fix crash on quic_conn alloc failure
+    - BUG/MAJOR: leastconn: never reuse the node after dropping the lock
+    - MINOR: acme: renewal notification over the dpapi sink
+    - CLEANUP: quic: Useless BIO_METHOD initialization
+    - MINOR: quic: Add useful error traces about qc_ssl_sess_init() failures
+    - MINOR: quic: Allow the use of the new OpenSSL 3.5.0 QUIC TLS API (to be completed)
+    - MINOR: quic: implement all remaining callbacks for OpenSSL 3.5 QUIC API
+    - MINOR: quic: OpenSSL 3.5 internal QUIC custom extension for transport parameters reset
+    - MINOR: quic: OpenSSL 3.5 trick to support 0-RTT
+    - DOC: update INSTALL for QUIC with OpenSSL 3.5 usages
+    - DOC: management: update 'acme status'
+    - BUG/MEDIUM: wdt: always ignore the first watchdog wakeup
+    - CLEANUP: wdt: clarify the comments on the common exit path
+    - BUILD: ssl: avoid possible printf format warning in traces
+    - BUILD: acme: fix build issue on 32-bit archs with 64-bit time_t
+    - DOC: management: precise some of the fields of "show servers conn"
+    - BUG/MEDIUM: mux-quic: fix BUG_ON() on rxbuf alloc error
+    - DOC: watchdog: update the doc to reflect the recent changes
+    - BUG/MEDIUM: acme: check if acme domains are configured
+    - BUG/MINOR: acme: fix formatting issue in error and logs
+    - EXAMPLES: lua: avoid screen refresh effect in "trisdemo"
+    - CLEANUP: quic: remove unused cbuf module
+    - MINOR: quic: move function to check stream type in utils
+    - MINOR: quic: refactor handling of streams after MUX release
+    - MINOR: quic: add some missing includes
+    - MINOR: quic: adjust quic_conn-t.h include list
+    - CLEANUP: cfgparse: alphabetically sort the global keywords
+    - MINOR: glitches: add global setting "tune.glitches.kill.cpu-usage"
+
 2025/05/14 : 3.2-dev16
     - BUG/MEDIUM: mux-quic: fix crash on invalid fctl frame dereference
     - DEBUG: pool: permit per-pool UAF configuration
