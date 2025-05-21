@@ -115,7 +115,7 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 			const ssize_t *size = a2;
 
 			if (size)
-				chunk_appendf(&trace_buf, " : size=%ld", *size);
+				chunk_appendf(&trace_buf, " : size=%ld", (long)*size);
 		}
 	}
 
