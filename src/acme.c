@@ -2033,7 +2033,7 @@ retry:
 		task->expire = tick_add(now_ms, delay * 1000);
 
 	} else {
-		send_log(NULL, LOG_NOTICE,"acme: %s: %s, aborting. (%d/%d)\n", ctx->store->path, errmsg ? errmsg : "", ACME_RETRY-ctx->retries, ACME_RETRY);
+		send_log(NULL, LOG_NOTICE,"acme: %s: %s Aborting. (%d/%d)\n", ctx->store->path, errmsg ? errmsg : "", ACME_RETRY-ctx->retries, ACME_RETRY);
 		goto end;
 	}
 
@@ -2043,7 +2043,7 @@ retry:
 	return task;
 
 abort:
-	send_log(NULL, LOG_NOTICE,"acme: %s: %s, aborting.\n", ctx->store->path, errmsg ? errmsg : "");
+	send_log(NULL, LOG_NOTICE,"acme: %s: %s Aborting.\n", ctx->store->path, errmsg ? errmsg : "");
 	ha_free(&errmsg);
 
 end:
@@ -2133,7 +2133,7 @@ struct task *acme_scheduler(struct task *task, void *context, unsigned int state
 
 			if (acme_will_expire(store)) {
 				if (acme_start_task(store, &errmsg) != 0) {
-					send_log(NULL, LOG_NOTICE,"acme: %s: %s, aborting.\n", store->path, errmsg ? errmsg : "");
+					send_log(NULL, LOG_NOTICE,"acme: %s: %s Aborting.\n", store->path, errmsg ? errmsg : "");
 					ha_free(&errmsg);
 				}
 			}
@@ -2262,7 +2262,7 @@ static int acme_start_task(struct ckch_store *store, char **errmsg)
 	EVP_PKEY *pkey = NULL;
 
 	if (store->acme_task != NULL) {
-		memprintf(errmsg, "An ACME task is already running for certificate '%s'.\n", store->path);
+		memprintf(errmsg, "An ACME task is already running for certificate '%s'.", store->path);
 		goto err;
 	}
 
@@ -2273,13 +2273,13 @@ static int acme_start_task(struct ckch_store *store, char **errmsg)
 
 	cfg = get_acme_cfg(store->conf.acme.id);
 	if (!cfg) {
-		memprintf(errmsg, "No ACME configuration found for file '%s'.\n", store->path);
+		memprintf(errmsg, "No ACME configuration found for file '%s'.", store->path);
 		goto err;
 	}
 
 	newstore = ckchs_dup(store);
 	if (!newstore) {
-		memprintf(errmsg, "Out of memory.\n");
+		memprintf(errmsg, "Out of memory.");
 		goto err;
 	}
 
@@ -2297,7 +2297,7 @@ static int acme_start_task(struct ckch_store *store, char **errmsg)
 	/* XXX: following init part could be done in the task */
 	ctx = calloc(1, sizeof *ctx);
 	if (!ctx) {
-		memprintf(errmsg, "Out of memory.\n");
+		memprintf(errmsg, "Out of memory.");
 		goto err;
 	}
 
@@ -2313,7 +2313,7 @@ static int acme_start_task(struct ckch_store *store, char **errmsg)
 
 	ctx->req = acme_x509_req(newstore->data->key, store->conf.acme.domains);
 	if (!ctx->req) {
-		memprintf(errmsg, "%sCan't generate a CSR.\n", *errmsg ? *errmsg : "");
+		memprintf(errmsg, "%sCan't generate a CSR.", *errmsg ? *errmsg : "");
 		goto err;
 	}
 
@@ -2334,7 +2334,7 @@ err:
 	EVP_PKEY_free(pkey);
 	ckch_store_free(newstore);
 	acme_ctx_destroy(ctx);
-	memprintf(errmsg, "%sCan't start the ACME client.\n", *errmsg ? *errmsg : "");
+	memprintf(errmsg, "%sCan't start the ACME client.", *errmsg ? *errmsg : "");
 	return 1;
 }
 
