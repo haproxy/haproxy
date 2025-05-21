@@ -8,6 +8,16 @@
 #include <haproxy/buf-t.h>
 #include <haproxy/chunk.h>
 
+static inline int quic_stream_is_uni(uint64_t id)
+{
+	return id & QCS_ID_DIR_BIT;
+}
+
+static inline int quic_stream_is_bidi(uint64_t id)
+{
+	return !quic_stream_is_uni(id);
+}
+
 static inline void bdata_ctr_init(struct bdata_ctr *ctr)
 {
 	ctr->tot  = 0;

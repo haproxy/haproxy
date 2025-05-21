@@ -9,6 +9,7 @@
 #include <haproxy/mux_quic.h>
 #include <haproxy/qmux_http.h>
 #include <haproxy/qmux_trace.h>
+#include <haproxy/quic_utils.h>
 #include <haproxy/trace.h>
 
 static ssize_t hq_interop_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)

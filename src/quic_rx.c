@@ -31,6 +31,7 @@
 #include <haproxy/quic_token.h>
 #include <haproxy/quic_trace.h>
 #include <haproxy/quic_tx.h>
+#include <haproxy/quic_utils.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/trace.h>
 

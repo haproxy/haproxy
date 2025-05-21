@@ -62,6 +62,7 @@
 #include <haproxy/quic_trace.h>
 #include <haproxy/quic_tune.h>
 #include <haproxy/quic_tx.h>
+#include <haproxy/quic_utils.h>
 #include <haproxy/proto_quic.h>
 #include <haproxy/quic_tls.h>
 #include <haproxy/ssl_sock.h>

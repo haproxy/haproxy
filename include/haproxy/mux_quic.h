@@ -82,16 +82,6 @@ static inline int quic_stream_is_remote(struct qcc *qcc, uint64_t id)
 	return !quic_stream_is_local(qcc, id);
 }
 
-static inline int quic_stream_is_uni(uint64_t id)
-{
-	return id & QCS_ID_DIR_BIT;
-}
-
-static inline int quic_stream_is_bidi(uint64_t id)
-{
-	return !quic_stream_is_uni(id);
-}
-
 static inline char *qcs_st_to_str(enum qcs_state st)
 {
 	switch (st) {
