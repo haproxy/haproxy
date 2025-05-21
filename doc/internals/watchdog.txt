@@ -21,7 +21,7 @@ falls back to CLOCK_REALTIME. The former is more accurate as it really counts
 the time spent in the process, while the latter might also account for time
 stuck on paging in etc.
 
-Then wdt_ping() is called to arm the timer. t's set to trigger every
+Then wdt_ping() is called to arm the timer. It's set to trigger every
 <wdt_warn_blocked_traffic_ns> interval. It is also called by wdt_handler()
 to reprogram a new wakeup after it has ticked.
 
@@ -37,15 +37,18 @@ If the thread was not marked as stuck, it's verified that no progress was made
 for at least one second, in which case the TH_FL_STUCK flag is set. The lack of
 progress is measured by the distance between the thread's current cpu_time and
 its prev_cpu_time. If the lack of progress is at least as large as the warning
-threshold and no context switch happened since last call, ha_stuck_warning() is
-called to emit a warning about that thread. In any case the context switch
-counter for that thread is updated.
+threshold, then the signal is bounced to the faulty thread if it's not the
+current one. Since this bounce is based on the time spent without update, it
+already doesn't happen often.
 
-If the thread was already marked as stuck, then the thread is considered as
-definitely stuck. Then ha_panic() is directly called if the thread is the
-current one, otherwise ha_kill() is used to resend the signal directly to the
-target thread, which will in turn go through this handler and handle the panic
-itself.
+Once on the faulty thread, two checks are performed:
+  1) if the thread was already marked as stuck, then the thread is considered
+     as definitely stuck, and ha_panic() is called. It will not return.
+
+  2) a check is made to verify if the scheduler is still ticking, by reading
+     and setting a variable that only the scheduler can clear when leaving a
+     task. If the scheduler didn't make any progress, ha_stuck_warning() is
+     called to emit a warning about that thread.
 
 Most of the time there's no panic of course, and a wdt_ping() is performed
 before leaving the handler to reprogram a check for that thread.
@@ -61,12 +64,12 @@ set TAINTED_WARN_BLOCKED_TRAFFIC.
 
 ha_panic() uses the current thread's trash buffer to produce the messages, as
 we don't care about its contents since that thread will never return. However
-ha_stuck_warning() instead uses a local 4kB buffer in the thread's stack.
+ha_stuck_warning() instead uses a local 8kB buffer in the thread's stack.
 ha_panic() will call ha_thread_dump_fill() for each thread, to complete the
 buffer being filled with each thread's dump messages. ha_stuck_warning() only
-calls the function for the current thread. In both cases the message is then
-directly sent to fd #2 (stderr) and ha_thread_dump_one() is called to release
-the dumped thread.
+calls ha_thread_dump_one(), which works on the current thread. In both cases
+the message is then directly sent to fd #2 (stderr) and ha_thread_dump_done()
+is called to release the dumped thread.
 
 Both print a few extra messages, but ha_panic() just ends by looping on abort()
 until the process dies.
@@ -110,13 +113,19 @@ ha_dump_backtrace() before returning.
 ha_dump_backtrace() produces a backtrace into a local buffer (100 entries max),
 then dumps the code bytes nearby the crashing instrution, dumps pointers and
 tries to resolve function names, and sends all of that into the target buffer.
+On some architectures (x86_64, arm64), it will also try to detect and decode
+call instructions and resolve them to called functions.
 
 3. Improvements
 ---------------
 
 The symbols resolution is extremely expensive, particularly for the warnings
 which should be fast. But we need it, it's just unfortunate that it strikes at
-the wrong moment.
+the wrong moment. At least ha_dump_backtrace() does disable signals while it's
+resolving, in order to avoid unwanted re-entrance. In addition, the called
+function resolve_sym_name() uses some locking and refrains from calling the
+dladdr family of functions in a re-entrant way (in the worst case only well
+known symbols will be resolved)..
 
 In an ideal case, ha_dump_backtrace() would dump the pointers to a local array,
 which would then later be resolved asynchronously in a tasklet. This can work
