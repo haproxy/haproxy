@@ -2394,7 +2394,7 @@ static int cli_acme_status_io_handler(struct appctx *appctx)
 			char *state;
 			time_t notAfter = 0;
 			time_t sched = 0;
-			time_t remain = 0;
+			ullong remain = 0;
 			int running = !!store->acme_task;
 
 			if (global_ssl.acme_scheduler)
@@ -2413,7 +2413,7 @@ static int cli_acme_status_io_handler(struct appctx *appctx)
 				remain = notAfter - date.tv_sec;
 			strftime(str, sizeof(str), "%Y-%m-%dT%H:%M:%SZ", gmtime(&notAfter));
 			chunk_appendf(&trash, "%s\t", str);
-			chunk_appendf(&trash, "%lud %luh%02lum%02lus\t", remain / 86400, (remain % 86400) / 3600, (remain % 3600) / 60, (remain % 60));
+			chunk_appendf(&trash, "%llud %lluh%02llum%02llus\t", remain / 86400, (remain % 86400) / 3600, (remain % 3600) / 60, (remain % 60));
 
 			/* Scheduled time */
 			remain = 0;
@@ -2424,7 +2424,7 @@ static int cli_acme_status_io_handler(struct appctx *appctx)
 			strftime(str, sizeof(str), "%Y-%m-%dT%H:%M:%SZ", gmtime(&sched));
 			chunk_appendf(&trash, "%s\t", sched ? str : "-");
 			if (sched)
-				chunk_appendf(&trash, "%lud %luh%02lum%02lus\n", remain / 86400, (remain % 86400) / 3600, (remain % 3600) / 60, (remain % 60));
+				chunk_appendf(&trash, "%llud %lluh%02llum%02llus\n", remain / 86400, (remain % 86400) / 3600, (remain % 3600) / 60, (remain % 60));
 			else
 				chunk_appendf(&trash, "%s\n", "-");
 
