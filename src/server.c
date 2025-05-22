@@ -5813,11 +5813,40 @@ int srv_init_per_thr(struct server *srv)
 	return 0;
 }
 
-/* Parse a "add server" command
- * Returns 0 if the server has been successfully initialized, 1 on failure.
+/* Distinguish between "add server" default usage or one of its sub-commands. */
+enum add_srv_mode {
+	ADD_SRV_MODE_DEF,  /* default mode, IO handler should be skipped by parser. */
+};
+
+/* Context for "add server" CLI. */
+struct add_srv_ctx {
+	enum add_srv_mode mode;
+	void *obj1;
+	void *obj2;
+};
+
+/* Handler for "add server" command. Should be reserved to extra sub-commands. */
+int cli_io_handler_add_server(struct appctx *appctx)
+{
+	struct add_srv_ctx *ctx = appctx->svcctx;
+
+	switch (ctx->mode) {
+	case ADD_SRV_MODE_DEF:
+		/* Add srv parser must return 1 to prevent I/O handler execution in default mode. */
+		ABORT_NOW();
+		break;
+	}
+
+	return 1;
+}
+
+/* Parse a "add server" command.
+ *
+ * Returns 1 to skip I/O handler processing, unless a sub-command is executed.
  */
 static int cli_parse_add_server(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct add_srv_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	struct proxy *be;
 	struct server *srv;
 	char *be_name, *sv_name;
@@ -5832,6 +5861,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 
 	++args;
 
+	ctx->mode = ADD_SRV_MODE_DEF;
 	sv_name = be_name = args[1];
 	/* split backend/server arg */
 	while (*sv_name && *(++sv_name)) {
@@ -6063,9 +6093,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		ha_warning("Ignoring cookie as HTTP mode is disabled.\n");
 
 	ha_notice("New server registered.\n");
-	cli_umsg(appctx, LOG_INFO);
-
-	return 0;
+	return cli_umsg(appctx, LOG_INFO);
 
 out:
 	if (srv) {
@@ -6336,7 +6364,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "server", NULL },             "set server <bk>/<srv> [opts]            : change a server's state, weight, address or ssl",             cli_parse_set_server },
 	{ { "get", "weight", NULL },             "get weight <bk>/<srv>                   : report a server's current weight",                            cli_parse_get_weight },
 	{ { "set", "weight", NULL },             "set weight <bk>/<srv>  (DEPRECATED)     : change a server's weight (use 'set server' instead)",         cli_parse_set_weight },
-	{ { "add", "server", NULL },             "add server <bk>/<srv>                   : create a new server",                                         cli_parse_add_server, NULL },
+	{ { "add", "server", NULL },             "add server <bk>/<srv>                   : create a new server",                                         cli_parse_add_server, cli_io_handler_add_server },
 	{ { "del", "server", NULL },             "del server <bk>/<srv>                   : remove a dynamically added server",                           cli_parse_delete_server, NULL },
 	{{},}
 }};
