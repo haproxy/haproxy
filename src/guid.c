@@ -75,7 +75,8 @@ int guid_insert(enum obj_type *objt, const char *uid, char **errmsg)
 	return 0;
 
  err:
-	ha_free(&guid->node.key);
+	if (guid)
+		ha_free(&guid->node.key);
 	ha_free(&dup_name);
 	return 1;
 }
