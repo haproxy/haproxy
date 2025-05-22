@@ -1094,10 +1094,13 @@ static int srv_parse_tls_method_minmax(char **args, int *cur_arg, struct proxy *
 	return parse_tls_method_minmax(args, *cur_arg, &newsrv->ssl_ctx.methods, err);
 }
 
-/* parse the "no-tls-tickets" bind keyword */
+/* parse the "no-tls-tickets" and "tls-tickets" bind keywords */
 static int bind_parse_no_tls_tickets(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	conf->ssl_options |= BC_SSL_O_NO_TLS_TICKETS;
+	if (strncmp(args[cur_arg], "no-", 3) == 0)
+		conf->ssl_options |= BC_SSL_O_NO_TLS_TICKETS;
+	else
+		conf->ssl_options &= ~BC_SSL_O_NO_TLS_TICKETS;
 	return 0;
 }
 
@@ -2030,6 +2033,8 @@ static int ssl_parse_default_bind_options(char **args, int section_type, struct 
 	while (*(args[i])) {
 		if (strcmp(args[i], "no-tls-tickets") == 0)
 			global_ssl.listen_default_ssloptions |= BC_SSL_O_NO_TLS_TICKETS;
+		else if (strcmp(args[i], "tls-tickets") == 0)
+			global_ssl.listen_default_ssloptions &= ~BC_SSL_O_NO_TLS_TICKETS;
 		else if (strcmp(args[i], "prefer-client-ciphers") == 0)
 			global_ssl.listen_default_ssloptions |= BC_SSL_O_PREF_CLIE_CIPH;
 		else if (strcmp(args[i], "strict-sni") == 0)
@@ -2464,6 +2469,7 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "ssl-min-ver",           bind_parse_tls_method_minmax,  1 }, /* minimum version */
 	{ "ssl-max-ver",           bind_parse_tls_method_minmax,  1 }, /* maximum version */
 	{ "strict-sni",            bind_parse_strict_sni,         0 }, /* refuse negotiation if sni doesn't match a certificate */
+	{ "tls-tickets",           bind_parse_no_tls_tickets,     0 }, /* enable session resumption tickets */
 	{ "tls-ticket-keys",       bind_parse_tls_ticket_keys,    1 }, /* set file to load TLS ticket keys from */
 	{ "verify",                bind_parse_verify,             1 }, /* set SSL verify method */
 	{ "npn",                   bind_parse_npn,                1 }, /* set NPN supported protocols */

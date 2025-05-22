@@ -17106,6 +17106,13 @@ thread [<thread-group>/]<thread-set>[,...]
   to specify a thread set which spans across several thread groups for such a
   listener as this may caused "nbconn" to not work as intended.
 
+tls-tickets
+  This setting is only available when support for OpenSSL was built in. It
+  enables the stateless session resumption (RFC 5077 TLS Ticket extension). It
+  is the default, but it may be needed to selectively re-enable the feature on
+  a "bind" line if it had been globaly disabled via "no-tls-tickets" mentioned
+  in "ssl-default-bind-options". See also the "no-tls-tickets" bind keyword.
+
 tls-ticket-keys <keyfile>
   Sets the TLS ticket keys file to load the keys from. The keys need to be 48
   or 80 bytes long, depending if aes128 or aes256 is used, encoded with base64
