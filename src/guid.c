@@ -30,7 +30,6 @@ int guid_insert(enum obj_type *objt, const char *uid, char **errmsg)
 	struct guid_node *guid = NULL;
 	struct guid_node *dup;
 	struct ebpt_node *node;
-	char *key = NULL;
 	char *dup_name = NULL;
 
 	if (!guid_is_valid_fmt(uid, errmsg))
@@ -55,13 +54,11 @@ int guid_insert(enum obj_type *objt, const char *uid, char **errmsg)
 		return 0;
 	}
 
-	key = strdup(uid);
-	if (!key) {
+	guid->node.key = strdup(uid);
+	if (!guid->node.key) {
 		memprintf(errmsg, "key alloc failure");
 		goto err;
 	}
-
-	guid->node.key = key;
 
 	HA_RWLOCK_WRLOCK(GUID_LOCK, &guid_lock);
 	node = ebis_insert(&guid_tree, &guid->node);
@@ -78,7 +75,7 @@ int guid_insert(enum obj_type *objt, const char *uid, char **errmsg)
 	return 0;
 
  err:
-	ha_free(&key);
+	ha_free(&guid->node.key);
 	ha_free(&dup_name);
 	return 1;
 }
