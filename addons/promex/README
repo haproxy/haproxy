@@ -389,6 +389,9 @@ listed below. Metrics from extra counters are not listed.
 | haproxy_server_max_connect_time_seconds            |
 | haproxy_server_max_response_time_seconds           |
 | haproxy_server_max_total_time_seconds              |
+| haproxy_server_agent_status                        |
+| haproxy_server_agent_code                          |
+| haproxy_server_agent_duration_seconds              |
 | haproxy_server_internal_errors_total               |
 | haproxy_server_unsafe_idle_connections_current     |
 | haproxy_server_safe_idle_connections_current       |

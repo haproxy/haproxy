@@ -173,6 +173,8 @@ const struct ist promex_st_metric_desc[ST_I_PX_MAX] = {
 	[ST_I_PX_CTIME]          = IST("Avg. connect time for last 1024 successful connections."),
 	[ST_I_PX_RTIME]          = IST("Avg. response time for last 1024 successful connections."),
 	[ST_I_PX_TTIME]          = IST("Avg. total time for last 1024 successful connections."),
+	[ST_I_PX_AGENT_STATUS]   = IST("Status of last agent check, per state label value."),
+	[ST_I_PX_AGENT_DURATION] = IST("Total duration of the latest server agent check, in seconds."),
 	[ST_I_PX_QT_MAX]         = IST("Maximum observed time spent in the queue"),
 	[ST_I_PX_CT_MAX]         = IST("Maximum observed time spent waiting for a connection to complete"),
 	[ST_I_PX_RT_MAX]         = IST("Maximum observed time spent waiting for a server response"),
@@ -1342,6 +1344,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 						secs = (double)sv->check.duration / 1000.0;
 						val = mkf_flt(FN_DURATION, secs);
 						break;
+
 					case ST_I_PX_REQ_TOT:
 						if (px->mode != PR_MODE_HTTP) {
 							sv = NULL;
@@ -1362,6 +1365,36 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 							ctx->flags &= ~PROMEX_FL_METRIC_HDR;
 						labels[lb_idx+1].name = ist("code");
 						labels[lb_idx+1].value = promex_hrsp_code[ctx->field_num - ST_I_PX_HRSP_1XX];
+						break;
+
+					case ST_I_PX_AGENT_STATUS:
+						if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) != CHK_ST_ENABLED)
+							goto next_sv;
+
+						for (; ctx->obj_state < HCHK_STATUS_SIZE; ctx->obj_state++) {
+							if (get_check_status_result(ctx->obj_state) < CHK_RES_FAILED)
+								continue;
+							val = mkf_u32(FO_STATUS, sv->agent.status == ctx->obj_state);
+							check_state = get_check_status_info(ctx->obj_state);
+							labels[lb_idx+1].name = ist("state");
+							labels[lb_idx+1].value = ist(check_state);
+							if (!promex_dump_ts(appctx, prefix, name, desc,
+									    type,
+									    &val, labels, &out, max))
+								goto full;
+						}
+						ctx->obj_state = 0;
+						goto next_sv;
+					case ST_I_PX_AGENT_CODE:
+						if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) != CHK_ST_ENABLED)
+							goto next_sv;
+						val = mkf_u32(FN_OUTPUT, (sv->agent.status < HCHK_STATUS_L57DATA) ? 0 : sv->agent.code);
+						break;
+					case ST_I_PX_AGENT_DURATION:
+						if (sv->agent.status < HCHK_STATUS_CHECKED)
+						    goto next_sv;
+						secs = (double)sv->agent.duration / 1000.0;
+						val = mkf_flt(FN_DURATION, secs);
 						break;
 
 					default:
