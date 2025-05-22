@@ -5816,6 +5816,7 @@ int srv_init_per_thr(struct server *srv)
 /* Distinguish between "add server" default usage or one of its sub-commands. */
 enum add_srv_mode {
 	ADD_SRV_MODE_DEF,  /* default mode, IO handler should be skipped by parser. */
+	ADD_SRV_MODE_HELP, /* help mode to list supported keywords */
 };
 
 /* Context for "add server" CLI. */
@@ -5825,12 +5826,45 @@ struct add_srv_ctx {
 	void *obj2;
 };
 
-/* Handler for "add server" command. Should be reserved to extra sub-commands. */
+/* Handler for "add server" command. Should be reserved to extra sub-commands
+ * such as "help".
+ */
 int cli_io_handler_add_server(struct appctx *appctx)
 {
 	struct add_srv_ctx *ctx = appctx->svcctx;
+	struct srv_kw_list *kwl = ctx->obj1;
+	struct srv_kw *kw;
 
 	switch (ctx->mode) {
+	case ADD_SRV_MODE_HELP:
+		if (!kwl) {
+			/* first invocation */
+			if (applet_putstr(appctx, "List of keywords supported for dynamic server:\n") < 0)
+				return cli_err(appctx, "output error");
+
+			kwl = LIST_NEXT(&srv_keywords.list, struct srv_kw_list *, list);
+			ctx->obj1 = kwl;
+			ctx->obj2 = kwl->kw;
+		}
+
+		while (kwl != &srv_keywords) {
+			for (kw = ctx->obj2; kw->kw; ++kw) {
+				if (!kw->dynamic_ok)
+					continue;
+
+				ctx->obj2 = kw;
+				chunk_reset(&trash);
+				chunk_printf(&trash, "%s\n", kw->kw);
+				if (applet_putchk(appctx, &trash) == -1)
+					goto full;
+			}
+
+			kwl = LIST_NEXT(&kwl->list, struct srv_kw_list *, list);
+			ctx->obj1 = kwl;
+			ctx->obj2 = kwl->kw;
+		}
+		break;
+
 	case ADD_SRV_MODE_DEF:
 		/* Add srv parser must return 1 to prevent I/O handler execution in default mode. */
 		ABORT_NOW();
@@ -5838,6 +5872,9 @@ int cli_io_handler_add_server(struct appctx *appctx)
 	}
 
 	return 1;
+
+ full:
+	return 0;
 }
 
 /* Parse a "add server" command.
@@ -5860,6 +5897,12 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		return 1;
 
 	++args;
+
+	if (strcmp(args[1], "help") == 0) {
+		ctx->mode = ADD_SRV_MODE_HELP;
+		ctx->obj2 = ctx->obj1 = NULL;
+		return 0;
+	}
 
 	ctx->mode = ADD_SRV_MODE_DEF;
 	sv_name = be_name = args[1];
