@@ -43,6 +43,7 @@
 #include <haproxy/stats.h>
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
+#include <haproxy/stress.h>
 #include <haproxy/task.h>
 #include <haproxy/tcpcheck.h>
 #include <haproxy/time.h>
@@ -5855,8 +5856,10 @@ int cli_io_handler_add_server(struct appctx *appctx)
 				ctx->obj2 = kw;
 				chunk_reset(&trash);
 				chunk_printf(&trash, "%s\n", kw->kw);
-				if (applet_putchk(appctx, &trash) == -1)
+				if (STRESS_RUN1(applet_putchk_stress(appctx, &trash) == -1,
+				                applet_putchk(appctx, &trash) == -1)) {
 					goto full;
+				}
 			}
 
 			kwl = LIST_NEXT(&kwl->list, struct srv_kw_list *, list);
