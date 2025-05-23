@@ -4700,8 +4700,8 @@ void cfg_restore_sections(struct list *backup_sections)
 /* dumps all registered keywords by section on stdout */
 void cfg_dump_registered_keywords()
 {
-	/*                             CFG_GLOBAL, CFG_LISTEN, CFG_USERLIST, CFG_PEERS, CFG_CRTLIST */
-	const char* sect_names[] = { "", "global", "listen", "userlist", "peers", "crt-list", 0 };
+	/*                             CFG_GLOBAL, CFG_LISTEN, CFG_USERLIST, CFG_PEERS, CFG_CRTLIST, CFG_CRTSTORE, CFG_TRACES, CFG_ACME */
+	const char* sect_names[] = { "", "global", "listen", "userlist", "peers", "crt-list", "crt-store", "traces", "acme", 0 };
 	int section;
 	int index;
 
