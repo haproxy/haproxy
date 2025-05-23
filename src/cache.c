@@ -493,7 +493,7 @@ static struct eb32_node *insert_entry(struct cache *cache, struct cache_tree *tr
 			if (last_clear_ts == date.tv_sec) {
 				/* Too many entries for this primary key, clear the
 				 * one that was inserted. */
-				release_entry_locked(tree, entry);
+				release_entry_locked(tree, new_entry);
 				return NULL;
 			}
 
@@ -503,7 +503,7 @@ static struct eb32_node *insert_entry(struct cache *cache, struct cache_tree *tr
 				 * the newly inserted one. */
 				entry = container_of(prev, struct cache_entry, eb);
 				entry->last_clear_ts = date.tv_sec;
-				release_entry_locked(tree, entry);
+				release_entry_locked(tree, new_entry);
 				return NULL;
 			}
 		}
