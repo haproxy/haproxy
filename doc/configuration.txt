@@ -30040,7 +30040,7 @@ Example:
         load crt "site4.crt" key "site4.key"
 
     frontend in2
-        bind *:443 ssl crt "@web/site1" crt "site2.crt"  crt "@web/site3" crt "@web/site4.crt"
+        bind *:443 ssl crt "@/site1" crt "site2.crt"  crt "@web/site3" crt "@web/site4.crt"
 
 12.7.1. Load options
 --------------------
