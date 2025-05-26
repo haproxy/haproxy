@@ -710,7 +710,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		/* we've drained everything and are configured to wait for more
 		 * data or an event (keypress, close)
 		 */
-		if (!b_data(&appctx->inbuf)) {
+		if (!b_data(&appctx->inbuf) && !se_fl_test(appctx->sedesc, SE_FL_SHW)) {
 			/* let's be woken up once new data arrive */
 			MT_LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 			ofs = ring_tail(ring);
