@@ -28041,18 +28041,41 @@ wrong cookie to a client, leading to session crossing.
         # capture the first cookie whose name is exactly "vgnvisitor"
         capture cookie vgnvisitor= len 32
 
+It is possible to perform more advanced captures using "http-request" and
+"http-response" rules to assign cookies to variables of scope "txn". The cookie
+values may then be extracted from the request or response using the "req.cook"
+and "res.cook" sample fetch functions (see section 7.3.6) and assigned to a
+variable using the "set-var" or "set-var-fmt" actions (see section 4.3). A
+custom log-format will then permit to present these variables where desired
+(see section 8.2.6).
 
-8.8. Capturing HTTP headers
----------------------------
+
+8.8. Capturing HTTP headers (legacy)
+------------------------------------
 
 Header captures are useful to track unique request identifiers set by an upper
 proxy, virtual host names, user-agents, POST content-length, referrers, etc. In
 the response, one can search for information about the response length, how the
 server asked the cache to behave, or an object location during a redirection.
 
-Header captures are performed using the "capture request header" and "capture
-response header" statements in the frontend. Please consult their definition in
-section 4.2 for more details.
+There are two ways to perform header captures. The modern one involves setting
+variables from the headers to be captured, or from composite samples returned
+by "req.hdr_names", "req.hdrs", "res.hdr_names", "res.hdrs" (see section 7.3.6)
+for all possibilities. These can be assigned to variables of scope "txn" using
+the "set-var" and "set-var-fmt" actions from the "http-request" and
+"http-response" rulesets (see section 4.3), which can then be referenced from
+custom log formats (see section 8.2.6). This is the recommended way to capture
+HTTP headers.
+
+There is also the legacy method which predates the http-request rules and
+variables, which does not involve adjusting the log format, and which has also
+long been used both for logging and as an artificial way to convey request
+information all along the HTTP transaction, using the older "capture" rulesets.
+This is what is described in this section.
+
+Legacy header captures are performed using the "capture request header" and
+"capture response header" statements in the frontend. Please consult their
+definition in section 4.2 for more details.
 
 It is possible to include both request headers and response headers at the same
 time. Non-existent headers are logged as empty strings, and if one header
