@@ -21726,8 +21726,8 @@ Summary of sample fetch methods in this section and their respective types:
 
   keyword                                          output type
 -------------------------------------------------+-------------
-act_conn                                           integer
 acl([!]<name>[,...])                               boolean
+act_conn                                           integer
 always_false                                       boolean
 always_true                                        boolean
 avg_queue([<backend>])                             integer
@@ -21757,9 +21757,9 @@ lat_ns_avg                                         integer
 lat_ns_tot                                         integer
 meth(<method>)                                     method
 nbsrv([<backend>])                                 integer
+pid                                                integer
 prio_class                                         integer
 prio_offset                                        integer
-pid                                                integer
 proc                                               integer
 queue([<backend>])                                 integer
 quic_enabled                                       boolean
@@ -21767,9 +21767,9 @@ rand([<range>])                                    integer
 srv_conn([<backend>/]<server>)                     integer
 srv_conn_free([<backend>/]<server>)                integer
 srv_is_up([<backend>/]<server>)                    boolean
+srv_iweight([<backend>/]<server>)                  integer
 srv_queue([<backend>/]<server>)                    integer
 srv_sess_rate([<backend>/]<server>)                integer
-srv_iweight([<backend>/]<server>)                  integer
 srv_uweight([<backend>/]<server>)                  integer
 srv_weight([<backend>/]<server>)                   integer
 stopping                                           boolean
@@ -21780,6 +21780,7 @@ term_events                                        string
 thread                                             integer
 txn.id32                                           integer
 txn.sess_term_state                                string
+uptime                                             integer
 uuid([<version>])                                  string
 var(<var-name>[,<default>])                        undefined
 wait_end                                           boolean
@@ -21787,9 +21788,6 @@ waiting_entity                                     string
 -------------------------------------------------+-------------
 
 Detailed list:
-
-act_conn : integer
-  Returns the total number of active concurrent connections on the process.
 
 acl([!]<name>[,...]) : boolean
   Returns true if the evaluation of all the named ACL(s) is true, otherwise
@@ -21799,6 +21797,9 @@ acl([!]<name>[,...]) : boolean
   Note that HAProxy does not perform any validation checks on the referenced
   ACLs, such as whether an ACL which uses a http request sample is used in
   response context. This behavior may be changed in the future.
+
+act_conn : integer
+  Returns the total number of active concurrent connections on the process.
 
 always_false : boolean
   Always returns the boolean "false" value. It may be used with ACLs as a
@@ -22129,6 +22130,10 @@ nbsrv([<backend>]) : integer
   to handle some load. It is useful to report a failure when combined with
   "monitor fail".
 
+pid : integer
+  Return the PID of the current process. In most cases this is the PID of the
+  worker process.
+
 prio_class : integer
   Returns the priority class of the current stream for http mode or connection
   for tcp mode. The value will be that set by the last call to "http-request
@@ -22139,10 +22144,6 @@ prio_offset : integer
   connection for tcp mode. The value will be that set by the last call to
   "http-request set-priority-offset" or "tcp-request content
   set-priority-offset".
-
-pid : integer
-  Return the PID of the current process. In most cases this is the PID of the
-  worker process.
 
 proc : integer
   Always returns value 1 (historically it would return the calling process
@@ -22200,6 +22201,11 @@ srv_is_up([<backend>/]<server>) : boolean
   using dummy servers as boolean variables that can be enabled or disabled from
   the CLI, so that rules depending on those ACLs can be tweaked in realtime.
 
+srv_iweight([<backend>/]<server>) : integer
+  Returns an integer corresponding to the server's initial weight. If <backend>
+  is omitted, then the server is looked up in the current backend. See also
+  "srv_weight" and "srv_uweight".
+
 srv_queue([<backend>/]<server>) : integer
   Returns an integer value corresponding to the number of connections currently
   pending in the designated server's queue. If <backend> is omitted, then the
@@ -22222,11 +22228,6 @@ srv_sess_rate([<backend>/]<server>) : integer
         acl srv1_full srv_sess_rate(be1/srv1) gt 50
         acl srv2_full srv_sess_rate(be1/srv2) gt 50
         use_backend be2 if srv1_full or srv2_full
-
-srv_iweight([<backend>/]<server>) : integer
-  Returns an integer corresponding to the server's initial weight. If <backend>
-  is omitted, then the server is looked up in the current backend. See also
-  "srv_weight" and "srv_uweight".
 
 srv_uweight([<backend>/]<server>) : integer
   Returns an integer corresponding to the user visible server's weight. If
