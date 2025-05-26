@@ -698,8 +698,9 @@ anymore, and is not recommended.
 In modern configurations, some arguments require the use of some characters
 that were previously considered as pure delimiters. In order to make this
 possible, HAProxy supports character escaping by prepending a backslash ('\')
-in front of the character to be escaped, weak quoting within double quotes
-('"') and strong quoting within single quotes ("'").
+in front of the character to be escaped, weak quoting with double quotes ("")
+around a piece of text, and strong quoting with single quotes ('') around a
+piece of text.
 
 This is pretty similar to what is done in a number of programming languages and
 very close to what is commonly encountered in Bourne shell. The principle is
