@@ -22751,10 +22751,16 @@ be_tunnel_timeout : integer
   also the "cur_tunnel_timeout".
 
 bytes_in : integer
-  This returns the number of bytes uploaded from the client to the server.
+  This returns the number of bytes uploaded from the client to the server. The
+  value corresponds to what was received by HAProxy, including some headers and
+  some internal encoding overhead. Request compression does not affect the
+  value reported here.
 
 bytes_out : integer
-  This is the number of bytes transmitted from the server to the client.
+  This is the number of bytes transmitted from the server to the client. The
+  value corresponds to what was received by HAProxy, including some headers and
+  some internal encoding overhead. Response compression does not affect the
+  value reported here.
 
 cur_client_timeout : integer
   Returns the currently applied client timeout in millisecond for the stream.
@@ -29090,7 +29096,8 @@ Arguments:
              integer which counts the cumulative number of bytes received from
              clients which matched this entry. Headers are included in the
              count. This may be used to limit abuse of upload features on photo
-             or video servers.
+             or video servers. Note that the values are measured when the data
+             enter haproxy, thus the counts are not affected by compression.
 
   - bytes_in_rate(<period>) [12 bytes]
              This is a rate counter on bytes from the client to the server.
@@ -29110,7 +29117,8 @@ Arguments:
              integer which counts the cumulative number of bytes sent to
              clients which matched this entry. Headers are included in the
              count. This may be used to limit abuse of bots sucking the whole
-             site.
+             site. Note that the values are measured when the data enter
+             haproxy, thus the counts are not affected by compression.
 
   - bytes_out_rate(<period>) [12 bytes]
              This is a rate counter on bytes from the server to the client.
