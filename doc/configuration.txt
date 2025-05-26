@@ -22361,6 +22361,7 @@ waiting_entity : string
       # Log the waiting entity, if any, and only if an error is reported
       log-format "$HAPROXY_HTTP_LOG_FMT %{Q}[waiting_entity,when(error)]
 
+
 7.3.3. Fetching samples at Layer 4
 ----------------------------------
 
@@ -22395,21 +22396,21 @@ bc_glitches                                        integer
 bc_http_major                                      integer
 bc_nb_streams                                      integer
 bc_reused                                          boolean
+bc_rtt(<unit>)                                     integer
+bc_rttvar(<unit>)                                  integer
+bc_settings_streams_limit                          integer
 bc_src                                             ip
 bc_src_port                                        integer
 bc_srv_queue                                       integer
-bc_settings_streams_limit                          integer
 be_id                                              integer
 be_name                                            string
-bc_rtt(<unit>)                                     integer
-bc_rttvar(<unit>)                                  integer
 be_server_timeout                                  integer
 be_tunnel_timeout                                  integer
 bytes_in                                           integer
 bytes_out                                          integer
+cur_client_timeout                                 integer
 cur_server_timeout                                 integer
 cur_tunnel_timeout                                 integer
-cur_client_timeout                                 integer
 dst                                                ip
 dst_conn                                           integer
 dst_is_local                                       boolean
@@ -22428,145 +22429,145 @@ fc_http_major                                      integer
 fc_lost                                            integer
 fc_nb_streams                                      integer
 fc_pp_authority                                    string
-fc_pp_unique_id                                    string
 fc_pp_tlv(<id>)                                    string
+fc_pp_unique_id                                    string
 fc_rcvd_proxy                                      boolean
 fc_reordering                                      integer
 fc_retrans                                         integer
 fc_rtt(<unit>)                                     integer
 fc_rttvar(<unit>)                                  integer
 fc_sacked                                          integer
+fc_settings_streams_limit                          integer
 fc_src                                             ip
 fc_src_is_local                                    boolean
 fc_src_port                                        integer
-fc_settings_streams_limit                          integer
 fc_unacked                                         integer
+fe_client_timeout                                  integer
 fe_defbe                                           string
 fe_id                                              integer
 fe_name                                            string
-fe_client_timeout                                  integer
 res.timer.data                                     integer
-sc_bytes_in_rate(<ctr>[,<table>])                  integer
 sc0_bytes_in_rate([<table>])                       integer
-sc1_bytes_in_rate([<table>])                       integer
-sc2_bytes_in_rate([<table>])                       integer
-sc_bytes_out_rate(<ctr>[,<table>])                 integer
 sc0_bytes_out_rate([<table>])                      integer
+sc0_clr_gpc0([<table>])                            integer
+sc0_clr_gpc1([<table>])                            integer
+sc0_conn_cnt([<table>])                            integer
+sc0_conn_cur([<table>])                            integer
+sc0_conn_rate([<table>])                           integer
+sc0_get_gpc0([<table>])                            integer
+sc0_get_gpc1([<table>])                            integer
+sc0_get_gpt0([<table>])                            integer
+sc0_glitch_cnt([<table>])                          integer
+sc0_glitch_rate([<table>])                         integer
+sc0_gpc0_rate([<table>])                           integer
+sc0_gpc1_rate([<table>])                           integer
+sc0_http_err_cnt([<table>])                        integer
+sc0_http_err_rate([<table>])                       integer
+sc0_http_fail_cnt([<table>])                       integer
+sc0_http_fail_rate([<table>])                      integer
+sc0_http_req_cnt([<table>])                        integer
+sc0_http_req_rate([<table>])                       integer
+sc0_inc_gpc0([<table>])                            integer
+sc0_inc_gpc1([<table>])                            integer
+sc0_kbytes_in([<table>])                           integer
+sc0_kbytes_out([<table>])                          integer
+sc0_key                                            any
+sc0_sess_cnt([<table>])                            integer
+sc0_sess_rate([<table>])                           integer
+sc0_tracked([<table>])                             boolean
+sc0_trackers([<table>])                            integer
+sc1_bytes_in_rate([<table>])                       integer
 sc1_bytes_out_rate([<table>])                      integer
+sc1_clr_gpc0([<table>])                            integer
+sc1_clr_gpc1([<table>])                            integer
+sc1_conn_cnt([<table>])                            integer
+sc1_conn_cur([<table>])                            integer
+sc1_conn_rate([<table>])                           integer
+sc1_get_gpc0([<table>])                            integer
+sc1_get_gpc1([<table>])                            integer
+sc1_get_gpt0([<table>])                            integer
+sc1_glitch_cnt([<table>])                          integer
+sc1_glitch_rate([<table>])                         integer
+sc1_gpc0_rate([<table>])                           integer
+sc1_gpc1_rate([<table>])                           integer
+sc1_http_err_cnt([<table>])                        integer
+sc1_http_err_rate([<table>])                       integer
+sc1_http_fail_cnt([<table>])                       integer
+sc1_http_fail_rate([<table>])                      integer
+sc1_http_req_cnt([<table>])                        integer
+sc1_http_req_rate([<table>])                       integer
+sc1_inc_gpc0([<table>])                            integer
+sc1_inc_gpc1([<table>])                            integer
+sc1_kbytes_in([<table>])                           integer
+sc1_kbytes_out([<table>])                          integer
+sc1_key                                            any
+sc1_sess_cnt([<table>])                            integer
+sc1_sess_rate([<table>])                           integer
+sc1_tracked([<table>])                             boolean
+sc1_trackers([<table>])                            integer
+sc2_bytes_in_rate([<table>])                       integer
 sc2_bytes_out_rate([<table>])                      integer
+sc2_clr_gpc0([<table>])                            integer
+sc2_clr_gpc1([<table>])                            integer
+sc2_conn_cnt([<table>])                            integer
+sc2_conn_cur([<table>])                            integer
+sc2_conn_rate([<table>])                           integer
+sc2_get_gpc0([<table>])                            integer
+sc2_get_gpc1([<table>])                            integer
+sc2_get_gpt0([<table>])                            integer
+sc2_glitch_cnt([<table>])                          integer
+sc2_glitch_rate([<table>])                         integer
+sc2_gpc0_rate([<table>])                           integer
+sc2_gpc1_rate([<table>])                           integer
+sc2_http_err_cnt([<table>])                        integer
+sc2_http_err_rate([<table>])                       integer
+sc2_http_fail_cnt([<table>])                       integer
+sc2_http_fail_rate([<table>])                      integer
+sc2_http_req_cnt([<table>])                        integer
+sc2_http_req_rate([<table>])                       integer
+sc2_inc_gpc0([<table>])                            integer
+sc2_inc_gpc1([<table>])                            integer
+sc2_kbytes_in([<table>])                           integer
+sc2_kbytes_out([<table>])                          integer
+sc2_key                                            any
+sc2_sess_cnt([<table>])                            integer
+sc2_sess_rate([<table>])                           integer
+sc2_tracked([<table>])                             boolean
+sc2_trackers([<table>])                            integer
+sc_bytes_in_rate(<ctr>[,<table>])                  integer
+sc_bytes_out_rate(<ctr>[,<table>])                 integer
 sc_clr_gpc(<idx>,<ctr>[,<table>])                  integer
 sc_clr_gpc0(<ctr>[,<table>])                       integer
-sc0_clr_gpc0([<table>])                            integer
-sc1_clr_gpc0([<table>])                            integer
-sc2_clr_gpc0([<table>])                            integer
 sc_clr_gpc1(<ctr>[,<table>])                       integer
-sc0_clr_gpc1([<table>])                            integer
-sc1_clr_gpc1([<table>])                            integer
-sc2_clr_gpc1([<table>])                            integer
 sc_conn_cnt(<ctr>[,<table>])                       integer
-sc0_conn_cnt([<table>])                            integer
-sc1_conn_cnt([<table>])                            integer
-sc2_conn_cnt([<table>])                            integer
 sc_conn_cur(<ctr>[,<table>])                       integer
-sc0_conn_cur([<table>])                            integer
-sc1_conn_cur([<table>])                            integer
-sc2_conn_cur([<table>])                            integer
 sc_conn_rate(<ctr>[,<table>])                      integer
-sc0_conn_rate([<table>])                           integer
-sc1_conn_rate([<table>])                           integer
-sc2_conn_rate([<table>])                           integer
 sc_get_gpc(<idx>,<ctr>[,<table>])                  integer
 sc_get_gpc0(<ctr>[,<table>])                       integer
-sc0_get_gpc0([<table>])                            integer
-sc1_get_gpc0([<table>])                            integer
-sc2_get_gpc0([<table>])                            integer
 sc_get_gpc1(<ctr>[,<table>])                       integer
-sc0_get_gpc1([<table>])                            integer
-sc1_get_gpc1([<table>])                            integer
-sc2_get_gpc1([<table>])                            integer
 sc_get_gpt(<idx>,<ctr>[,<table>])                  integer
 sc_get_gpt0(<ctr>[,<table>])                       integer
-sc0_get_gpt0([<table>])                            integer
-sc1_get_gpt0([<table>])                            integer
-sc2_get_gpt0([<table>])                            integer
 sc_glitch_cnt(<ctr>[,<table>])                     integer
-sc0_glitch_cnt([<table>])                          integer
-sc1_glitch_cnt([<table>])                          integer
-sc2_glitch_cnt([<table>])                          integer
 sc_glitch_rate(<ctr>[,<table>])                    integer
-sc0_glitch_rate([<table>])                         integer
-sc1_glitch_rate([<table>])                         integer
-sc2_glitch_rate([<table>])                         integer
-sc_gpc_rate(<idx>,<ctr>[,<table>])                 integer
 sc_gpc0_rate(<ctr>[,<table>])                      integer
-sc0_gpc0_rate([<table>])                           integer
-sc1_gpc0_rate([<table>])                           integer
-sc2_gpc0_rate([<table>])                           integer
 sc_gpc1_rate(<ctr>[,<table>])                      integer
-sc0_gpc1_rate([<table>])                           integer
-sc1_gpc1_rate([<table>])                           integer
-sc2_gpc1_rate([<table>])                           integer
+sc_gpc_rate(<idx>,<ctr>[,<table>])                 integer
 sc_http_err_cnt(<ctr>[,<table>])                   integer
-sc0_http_err_cnt([<table>])                        integer
-sc1_http_err_cnt([<table>])                        integer
-sc2_http_err_cnt([<table>])                        integer
 sc_http_err_rate(<ctr>[,<table>])                  integer
-sc0_http_err_rate([<table>])                       integer
-sc1_http_err_rate([<table>])                       integer
-sc2_http_err_rate([<table>])                       integer
 sc_http_fail_cnt(<ctr>[,<table>])                  integer
-sc0_http_fail_cnt([<table>])                       integer
-sc1_http_fail_cnt([<table>])                       integer
-sc2_http_fail_cnt([<table>])                       integer
 sc_http_fail_rate(<ctr>[,<table>])                 integer
-sc0_http_fail_rate([<table>])                      integer
-sc1_http_fail_rate([<table>])                      integer
-sc2_http_fail_rate([<table>])                      integer
 sc_http_req_cnt(<ctr>[,<table>])                   integer
-sc0_http_req_cnt([<table>])                        integer
-sc1_http_req_cnt([<table>])                        integer
-sc2_http_req_cnt([<table>])                        integer
 sc_http_req_rate(<ctr>[,<table>])                  integer
-sc0_http_req_rate([<table>])                       integer
-sc1_http_req_rate([<table>])                       integer
-sc2_http_req_rate([<table>])                       integer
 sc_inc_gpc(<idx>,<ctr>[,<table>])                  integer
 sc_inc_gpc0(<ctr>[,<table>])                       integer
-sc0_inc_gpc0([<table>])                            integer
-sc1_inc_gpc0([<table>])                            integer
-sc2_inc_gpc0([<table>])                            integer
 sc_inc_gpc1(<ctr>[,<table>])                       integer
-sc0_inc_gpc1([<table>])                            integer
-sc1_inc_gpc1([<table>])                            integer
-sc2_inc_gpc1([<table>])                            integer
 sc_kbytes_in(<ctr>[,<table>])                      integer
-sc0_kbytes_in([<table>])                           integer
-sc1_kbytes_in([<table>])                           integer
-sc2_kbytes_in([<table>])                           integer
 sc_kbytes_out(<ctr>[,<table>])                     integer
-sc0_kbytes_out([<table>])                          integer
-sc1_kbytes_out([<table>])                          integer
-sc2_kbytes_out([<table>])                          integer
 sc_key(<ctr>)                                      any
-sc0_key                                            any
-sc1_key                                            any
-sc2_key                                            any
 sc_sess_cnt(<ctr>[,<table>])                       integer
-sc0_sess_cnt([<table>])                            integer
-sc1_sess_cnt([<table>])                            integer
-sc2_sess_cnt([<table>])                            integer
 sc_sess_rate(<ctr>[,<table>])                      integer
-sc0_sess_rate([<table>])                           integer
-sc1_sess_rate([<table>])                           integer
-sc2_sess_rate([<table>])                           integer
 sc_tracked(<ctr>[,<table>])                        boolean
-sc0_tracked([<table>])                             boolean
-sc1_tracked([<table>])                             boolean
-sc2_tracked([<table>])                             boolean
 sc_trackers(<ctr>[,<table>])                       integer
-sc0_trackers([<table>])                            integer
-sc1_trackers([<table>])                            integer
-sc2_trackers([<table>])                            integer
 so_id                                              integer
 so_name                                            string
 src                                                ip
@@ -22585,9 +22586,9 @@ src_get_gpt(<idx>[,<table>])                       integer
 src_get_gpt0([<table>])                            integer
 src_glitch_cnt([<table>])                          integer
 src_glitch_rate([<table>])                         integer
-src_gpc_rate(<idx>[,<table>])                      integer
 src_gpc0_rate([<table>])                           integer
 src_gpc1_rate([<table>])                           integer
+src_gpc_rate(<idx>[,<table>])                      integer
 src_http_err_cnt([<table>])                        integer
 src_http_err_rate([<table>])                       integer
 src_http_fail_cnt([<table>])                       integer
@@ -22690,38 +22691,6 @@ bc_nb_streams : integer
 bc_reused : boolean
   Returns true if the transfer was performed via a reused backend connection.
 
-bc_src : ip
-  This is the source ip address of the connection on the server side, which is
-  the server address HAProxy connected from. It is of type IP and works on both
-  IPv4 and IPv6 tables. On IPv6 tables, IPv4 addresses are mapped to their IPv6
-  equivalent, according to RFC 4291.
-
-bc_src_port : integer
-  Returns an integer value corresponding to the TCP source port of the
-  connection on the server side, which is the port HAProxy connected from.
-
-bc_srv_queue : integer
-  Number of streams de-queued while waiting for a connection slot on the
-  target server. This is the equivalent of %sq in the log-format.
-
-bc_settings_streams_limit : integer
-  Returns the maximum number of streams allowed on the backend connection. For
-  TCP and HTTP/1.1 connections, it is always 1. For other protocols, it depends
-  on the settings negotiated with the server.
-
-be_id : integer
-  Returns an integer containing the current backend's id. It can be used in
-  frontends with responses to check which backend processed the request. If
-  used in a frontend and no backend was used, it returns the current
-  frontend's id. It can also be used in a tcp-check or an http-check ruleset.
-
-be_name : string
-  Returns a string containing the current backend's name. It can be used in
-  frontends with responses to check which backend processed the request. If
-  used in a frontend and no backend was used, it returns the current
-  frontend's name. It can also be used in a tcp-check or an http-check
-  ruleset.
-
 bc_rtt(<unit>) : integer
   Returns the Round Trip Time (RTT) measured by the kernel for the backend
   connection. <unit> is facultative, by default the unit is milliseconds. <unit>
@@ -22737,6 +22706,38 @@ bc_rttvar(<unit>) : integer
   server connection is not established, if the connection is not TCP or if the
   operating system does not support TCP_INFO, for example Linux kernels before
   2.4, the sample fetch fails.
+
+bc_settings_streams_limit : integer
+  Returns the maximum number of streams allowed on the backend connection. For
+  TCP and HTTP/1.1 connections, it is always 1. For other protocols, it depends
+  on the settings negotiated with the server.
+
+bc_src : ip
+  This is the source ip address of the connection on the server side, which is
+  the server address HAProxy connected from. It is of type IP and works on both
+  IPv4 and IPv6 tables. On IPv6 tables, IPv4 addresses are mapped to their IPv6
+  equivalent, according to RFC 4291.
+
+bc_src_port : integer
+  Returns an integer value corresponding to the TCP source port of the
+  connection on the server side, which is the port HAProxy connected from.
+
+bc_srv_queue : integer
+  Number of streams de-queued while waiting for a connection slot on the
+  target server. This is the equivalent of %sq in the log-format.
+
+be_id : integer
+  Returns an integer containing the current backend's id. It can be used in
+  frontends with responses to check which backend processed the request. If
+  used in a frontend and no backend was used, it returns the current
+  frontend's id. It can also be used in a tcp-check or an http-check ruleset.
+
+be_name : string
+  Returns a string containing the current backend's name. It can be used in
+  frontends with responses to check which backend processed the request. If
+  used in a frontend and no backend was used, it returns the current
+  frontend's name. It can also be used in a tcp-check or an http-check
+  ruleset.
 
 be_server_timeout : integer
   Returns the configuration value in millisecond for the server timeout of the
@@ -22754,6 +22755,11 @@ bytes_in : integer
 bytes_out : integer
   This is the number of bytes transmitted from the server to the client.
 
+cur_client_timeout : integer
+  Returns the currently applied client timeout in millisecond for the stream.
+  In the default case, this will be equal to fe_client_timeout unless a
+  "set-timeout" rule has been applied. See also "fe_client_timeout".
+
 cur_server_timeout : integer
   Returns the currently applied server timeout in millisecond for the stream.
   In the default case, this will be equal to be_server_timeout unless a
@@ -22763,11 +22769,6 @@ cur_tunnel_timeout : integer
   Returns the currently applied tunnel timeout in millisecond for the stream.
   In the default case, this will be equal to be_tunnel_timeout unless a
   "set-timeout" rule has been applied. See also "be_tunnel_timeout".
-
-cur_client_timeout : integer
-  Returns the currently applied client timeout in millisecond for the stream.
-  In the default case, this will be equal to fe_client_timeout unless a
-  "set-timeout" rule has been applied. See also "fe_client_timeout".
 
 dst : ip
   This is the destination IP address of the connection on the client side,
@@ -22961,10 +22962,6 @@ fc_pp_authority : string
   Returns the first authority TLV sent by the client in the PROXY protocol
   header, if any.
 
-fc_pp_unique_id : string
-  Returns the first unique ID TLV sent by the client in the PROXY protocol
-  header, if any.
-
 fc_pp_tlv(<id>) : string
   Returns the TLV value for the given TLV ID. The ID must either be a numeric
   value between 0 and 255 or one of the following supported symbolic names
@@ -22987,6 +22984,10 @@ fc_pp_tlv(<id>) : string
   header. However, relying on duplicates should mostly be avoided as TLVs are
   typically assumed to be unique. Generally, finding duplicated TLV IDs
   indicates an error on the sender side of the PROXY protocol header.
+
+fc_pp_unique_id : string
+  Returns the first unique ID TLV sent by the client in the PROXY protocol
+  header, if any.
 
 fc_rcvd_proxy : boolean
   Returns true if the client initiated the connection with a PROXY protocol
@@ -23030,6 +23031,11 @@ fc_sacked : integer
   if the operating system does not support TCP_INFO, for example Linux kernels
   before 2.4, the sample fetch fails.
 
+fc_settings_streams_limit : integer
+  Returns the maximum number of streams allowed on the frontend connection. For
+  TCP and HTTP/1.1 connections, it is always 1. For other protocols, it depends
+  on the settings negotiated with the client.
+
 fc_src : ip
   This is the original source IP address of the connection on the client side
   Only "tcp-request connection" rules may alter this address. See "src" for
@@ -23041,21 +23047,19 @@ fc_src_is_local : boolean
   "src_is_local" for details.
 
 fc_src_port : integer
-
   Returns an integer value corresponding to the TCP source port of the
   connection on the client side. Only "tcp-request connection" rules may alter
   this address. See "src-port" for details.
-
-fc_settings_streams_limit : integer
-  Returns the maximum number of streams allowed on the frontend connection. For
-  TCP and HTTP/1.1 connections, it is always 1. For other protocols, it depends
-  on the settings negotiated with the client.
 
 fc_unacked : integer
   Returns the unacked counter measured by the kernel for the client connection.
   If the server connection is not established, if the connection is not TCP or
   if the operating system does not support TCP_INFO, for example Linux kernels
   before 2.4, the sample fetch fails.
+
+fe_client_timeout : integer
+  Returns the configuration value in millisecond for the client timeout of the
+  current frontend. This timeout can be overwritten by a "set-timeout" rule.
 
 fe_defbe : string
   Returns a string containing the frontend's default backend name. It can be
@@ -23070,10 +23074,6 @@ fe_name : string
   Returns a string containing the current frontend's name. It can be used in
   backends to check from which frontend it was called, or to stick all users
   coming via a same frontend to the same server.
-
-fe_client_timeout : integer
-  Returns the configuration value in millisecond for the client timeout of the
-  current frontend. This timeout can be overwritten by a "set-timeout" rule.
 
 res.timer.data : integer
   this is the total transfer time of the response payload till the last byte
@@ -23691,6 +23691,7 @@ txn.redispatched : boolean
   to "option redispatch" configuration. This value is subject to change while
   the connection is not fully established. For HTTP connections, the value may
   be affected by L7 retries.
+
 
 7.3.4. Fetching samples at Layer 5
 ----------------------------------
