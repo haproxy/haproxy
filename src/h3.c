@@ -777,6 +777,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	if (!istlen(scheme)) {
 		/* No scheme (CONNECT), use :authority only. */
 		uri = authority;
+		flags |= HTX_SL_F_HAS_AUTHORITY;
 	}
 	else if (isttest(authority)) {
 		/* Use absolute URI form as :authority is present. */
@@ -785,6 +786,20 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		istcat(&uri, authority, trash.size);
 		if (!isteq(path, ist("*")))
 			istcat(&uri, path, trash.size);
+
+		flags |= HTX_SL_F_HAS_AUTHORITY;
+		if (flags & (HTX_SL_F_SCHM_HTTP|HTX_SL_F_SCHM_HTTPS)) {
+			/* we don't know if it was originally an absolute or a
+			 * relative request because newer versions of HTTP use
+			 * the absolute URI format by default, which we call
+			 * the normalized URI format internally. This is the
+			 * strongly recommended way of sending a request for
+			 * a regular client, so we cannot distinguish this
+			 * from a request intended for a proxy. For other
+			 * schemes however there is no doubt.
+			 */
+			flags |= HTX_SL_F_NORMALIZED_URI;
+		}
 	}
 	else {
 		/* Use origin URI form. */
