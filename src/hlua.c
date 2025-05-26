@@ -5362,8 +5362,11 @@ __LJMP static int hlua_applet_tcp_recv_try(lua_State *L)
 	size_t len2;
 
 	/* Read the maximum amount of data available. */
-	if (luactx->appctx->flags & APPCTX_FL_INOUT_BUFS)
+	if (luactx->appctx->flags & APPCTX_FL_INOUT_BUFS) {
 		ret = b_getblk_nc(&luactx->appctx->inbuf, &blk1, &len1, &blk2, &len2, 0, b_data(&luactx->appctx->inbuf));
+		if (ret == 0 && se_fl_test(luactx->appctx->sedesc, SE_FL_SHW))
+			ret = -1;
+	}
 	else
 		ret = co_getblk_nc(sc_oc(sc), &blk1, &len1, &blk2, &len2);
 
