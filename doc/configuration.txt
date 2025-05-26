@@ -23718,24 +23718,24 @@ ssl_bc                                             boolean
 ssl_bc_alg_keysize                                 integer
 ssl_bc_alpn                                        string
 ssl_bc_cipher                                      string
-ssl_bc_client_random                               binary
 ssl_bc_client_early_traffic_secret                 string
 ssl_bc_client_handshake_traffic_secret             string
+ssl_bc_client_random                               binary
 ssl_bc_client_traffic_secret_0                     string
-ssl_bc_exporter_secret                             string
-ssl_bc_early_exporter_secret                       string
 ssl_bc_curve                                       string
+ssl_bc_early_exporter_secret                       string
 ssl_bc_err                                         integer
 ssl_bc_err_str                                     string
+ssl_bc_exporter_secret                             string
 ssl_bc_is_resumed                                  boolean
 ssl_bc_npn                                         string
 ssl_bc_protocol                                    string
-ssl_bc_unique_id                                   binary
 ssl_bc_server_handshake_traffic_secret             string
-ssl_bc_server_traffic_secret_0                     string
 ssl_bc_server_random                               binary
+ssl_bc_server_traffic_secret_0                     string
 ssl_bc_session_id                                  binary
 ssl_bc_session_key                                 binary
+ssl_bc_unique_id                                   binary
 ssl_bc_use_keysize                                 integer
 ssl_c_ca_err                                       integer
 ssl_c_ca_err_depth                                 integer
@@ -23773,18 +23773,18 @@ ssl_fc_cipherlist_bin([<filter_option>])           binary
 ssl_fc_cipherlist_hex([<filter_option>])           string
 ssl_fc_cipherlist_str([<filter_option>])           string
 ssl_fc_cipherlist_xxh                              integer
-ssl_fc_curve                                       string
-ssl_fc_ecformats_bin                               binary
-ssl_fc_eclist_bin([<filter_option>])               binary
-ssl_fc_extlist_bin([<filter_option>])              binary
-ssl_fc_client_random                               binary
 ssl_fc_client_early_traffic_secret                 string
 ssl_fc_client_handshake_traffic_secret             string
+ssl_fc_client_random                               binary
 ssl_fc_client_traffic_secret_0                     string
-ssl_fc_exporter_secret                             string
+ssl_fc_curve                                       string
 ssl_fc_early_exporter_secret                       string
+ssl_fc_ecformats_bin                               binary
+ssl_fc_eclist_bin([<filter_option>])               binary
 ssl_fc_err                                         integer
 ssl_fc_err_str                                     string
+ssl_fc_exporter_secret                             string
+ssl_fc_extlist_bin([<filter_option>])              binary
 ssl_fc_has_crt                                     boolean
 ssl_fc_has_early                                   boolean
 ssl_fc_has_sni                                     boolean
@@ -23792,22 +23792,22 @@ ssl_fc_is_resumed                                  boolean
 ssl_fc_npn                                         string
 ssl_fc_protocol                                    string
 ssl_fc_protocol_hello_id                           integer
-ssl_fc_unique_id                                   binary
 ssl_fc_server_handshake_traffic_secret             string
-ssl_fc_server_traffic_secret_0                     string
 ssl_fc_server_random                               binary
+ssl_fc_server_traffic_secret_0                     string
 ssl_fc_session_id                                  binary
 ssl_fc_session_key                                 binary
 ssl_fc_sigalgs_bin([<filter_option>])              binary
 ssl_fc_sni                                         string
 ssl_fc_supported_versions_bin([<filter_option>])   binary
+ssl_fc_unique_id                                   binary
 ssl_fc_use_keysize                                 integer
-ssl_s_der                                          binary
 ssl_s_chain_der                                    binary
+ssl_s_der                                          binary
+ssl_s_i_dn([<entry>[,<occ>[,<format>]]])           string
 ssl_s_key_alg                                      string
 ssl_s_notafter                                     string
 ssl_s_notbefore                                    string
-ssl_s_i_dn([<entry>[,<occ>[,<format>]]])           string
 ssl_s_s_dn([<entry>[,<occ>[,<format>]]])           string
 ssl_s_serial                                       binary
 ssl_s_sha1                                         binary
@@ -23871,12 +23871,6 @@ bs.rst_code : integer
   the server is returned. The sample fetch fails if no abort was received or if
   the server stream is not an H2/QUIC stream.
 
-ssl_bc : boolean
-  Returns true when the back connection was made via an SSL/TLS transport
-  layer and is locally deciphered. This means the outgoing connection was made
-  to a server with the "ssl" option. It can be used in a tcp-check or an
-  http-check ruleset.
-
 fs.aborted : boolean
   Returns true is an abort was received from the client for the current
   stream. Otherwise false is returned.
@@ -23914,6 +23908,12 @@ fs.rst_code : integer
   the client is returned. The sample fetch fails if no abort was received or
   if the client stream is not an H2/QUIC stream.
 
+ssl_bc : boolean
+  Returns true when the back connection was made via an SSL/TLS transport
+  layer and is locally deciphered. This means the outgoing connection was made
+  to a server with the "ssl" option. It can be used in a tcp-check or an
+  http-check ruleset.
+
 ssl_bc_alg_keysize : integer
   Returns the symmetric cipher key size supported in bits when the outgoing
   connection was made over an SSL/TLS transport layer. It can be used in a
@@ -23936,12 +23936,6 @@ ssl_bc_cipher : string
   over an SSL/TLS transport layer. It can be used in a tcp-check or an
   http-check ruleset.
 
-ssl_bc_client_random : binary
-  Returns the client random of the back connection when the incoming connection
-  was made over an SSL/TLS transport layer. It is useful to to decrypt traffic
-  sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or BoringSSL.
-  It can be used in a tcp-check or an http-check ruleset.
-
 ssl_bc_client_early_traffic_secret : string
   Return the CLIENT_EARLY_TRAFFIC_SECRET as an hexadecimal string for the
   back connection when the outgoing connection was made over a TLS 1.3
@@ -23960,27 +23954,15 @@ ssl_bc_client_handshake_traffic_secret : string
   activated with "tune.ssl.keylog on" in the global section. See also
   "tune.ssl.keylog"
 
+ssl_bc_client_random : binary
+  Returns the client random of the back connection when the incoming connection
+  was made over an SSL/TLS transport layer. It is useful to to decrypt traffic
+  sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or BoringSSL.
+  It can be used in a tcp-check or an http-check ruleset.
+
 ssl_bc_client_traffic_secret_0 : string
   Return the CLIENT_TRAFFIC_SECRET_0 as an hexadecimal string for the
   back connection when the outgoing connection was made over a TLS 1.3
-  transport layer.
-  Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
-  keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
-  activated with "tune.ssl.keylog on" in the global section. See also
-  "tune.ssl.keylog"
-
-ssl_bc_exporter_secret : string
-  Return the EXPORTER_SECRET as an hexadecimal string for the
-  back connection when the outgoing connection was made over a TLS 1.3
-  transport layer.
-  Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
-  keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
-  activated with "tune.ssl.keylog on" in the global section. See also
-  "tune.ssl.keylog"
-
-ssl_bc_early_exporter_secret : string
-  Return the EARLY_EXPORTER_SECRET as an hexadecimal string for the
-  back connection when the outgoing connection was made over an TLS 1.3
   transport layer.
   Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
   keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
@@ -23991,6 +23973,15 @@ ssl_bc_curve : string
   Returns the name of the curve used in the key agreement when the outgoing
   connection was made over an SSL/TLS transport layer. This requires
   OpenSSL >= 3.0.0.
+
+ssl_bc_early_exporter_secret : string
+  Return the EARLY_EXPORTER_SECRET as an hexadecimal string for the
+  back connection when the outgoing connection was made over an TLS 1.3
+  transport layer.
+  Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
+  keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
+  activated with "tune.ssl.keylog on" in the global section. See also
+  "tune.ssl.keylog"
 
 ssl_bc_err : integer
   When the outgoing connection was made over an SSL/TLS transport layer,
@@ -24007,6 +23998,15 @@ ssl_bc_err_str : string
   returns a string representation of the last error of the first error stack
   that was raised on the connection from the backend's perspective. See also
   "ssl_fc_err".
+
+ssl_bc_exporter_secret : string
+  Return the EXPORTER_SECRET as an hexadecimal string for the
+  back connection when the outgoing connection was made over a TLS 1.3
+  transport layer.
+  Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
+  keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
+  activated with "tune.ssl.keylog on" in the global section. See also
+  "tune.ssl.keylog"
 
 ssl_bc_is_resumed : boolean
   Returns true when the back connection was made over an SSL/TLS transport
@@ -24030,24 +24030,9 @@ ssl_bc_protocol : string
   over an SSL/TLS transport layer. It can be used in a tcp-check or an
   http-check ruleset.
 
-ssl_bc_unique_id : binary
-  When the outgoing connection was made over an SSL/TLS transport layer,
-  returns the TLS unique ID as defined in RFC5929 section 3. The unique id
-  can be encoded to base64 using the converter: "ssl_bc_unique_id,base64". It
-  can be used in a tcp-check or an http-check ruleset.
-
 ssl_bc_server_handshake_traffic_secret : string
   Return the SERVER_HANDSHAKE_TRAFFIC_SECRET as an hexadecimal string for the
   back connection when the outgoing connection was made over a TLS 1.3
-  transport layer.
-  Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
-  keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
-  activated with "tune.ssl.keylog on" in the global section. See also
-  "tune.ssl.keylog"
-
-ssl_bc_server_traffic_secret_0 : string
-  Return the SERVER_TRAFFIC_SECRET_0 as an hexadecimal string for the
-  back connection when the outgoing connection was made over an TLS 1.3
   transport layer.
   Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
   keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
@@ -24060,6 +24045,15 @@ ssl_bc_server_random : binary
   sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or BoringSSL.
   It can be used in a tcp-check or an http-check ruleset.
 
+ssl_bc_server_traffic_secret_0 : string
+  Return the SERVER_TRAFFIC_SECRET_0 as an hexadecimal string for the
+  back connection when the outgoing connection was made over an TLS 1.3
+  transport layer.
+  Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
+  keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
+  activated with "tune.ssl.keylog on" in the global section. See also
+  "tune.ssl.keylog"
+
 ssl_bc_session_id : binary
   Returns the SSL ID of the back connection when the outgoing connection was
   made over an SSL/TLS transport layer. It is useful to log if we want to know
@@ -24071,6 +24065,12 @@ ssl_bc_session_key : binary
   connection was made over an SSL/TLS transport layer. It is useful to decrypt
   traffic sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or
   BoringSSL. It can be used in a tcp-check or an http-check ruleset.
+
+ssl_bc_unique_id : binary
+  When the outgoing connection was made over an SSL/TLS transport layer,
+  returns the TLS unique ID as defined in RFC5929 section 3. The unique id
+  can be encoded to base64 using the converter: "ssl_bc_unique_id,base64". It
+  can be used in a tcp-check or an http-check ruleset.
 
 ssl_bc_use_keysize : integer
   Returns the symmetric cipher key size used in bits when the outgoing
@@ -24362,10 +24362,51 @@ ssl_fc_cipherlist_xxh : integer
   "tune.ssl.capture-buffer-size" is set greater than 0, however the hash take
   into account all the data of the cipher list.
 
+ssl_fc_client_early_traffic_secret : string
+  Return the CLIENT_EARLY_TRAFFIC_SECRET as an hexadecimal string for the
+  front connection when the incoming connection was made over a TLS 1.3
+  transport layer.
+  Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
+  keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
+  activated with "tune.ssl.keylog on" in the global section. See also
+  "tune.ssl.keylog"
+
+ssl_fc_client_handshake_traffic_secret : string
+  Return the CLIENT_HANDSHAKE_TRAFFIC_SECRET as an hexadecimal string for the
+  front connection when the incoming connection was made over a TLS 1.3
+  transport layer.
+  Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
+  keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
+  activated with "tune.ssl.keylog on" in the global section. See also
+  "tune.ssl.keylog"
+
+ssl_fc_client_random : binary
+  Returns the client random of the front connection when the incoming connection
+  was made over an SSL/TLS transport layer. It is useful to to decrypt traffic
+  sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or BoringSSL.
+
+ssl_fc_client_traffic_secret_0 : string
+  Return the CLIENT_TRAFFIC_SECRET_0 as an hexadecimal string for the
+  front connection when the incoming connection was made over a TLS 1.3
+  transport layer.
+  Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
+  keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
+  activated with "tune.ssl.keylog on" in the global section. See also
+  "tune.ssl.keylog"
+
 ssl_fc_curve : string
   Returns the name of the curve used in the key agreement when the incoming
   connection was made over an SSL/TLS transport layer. This requires
   OpenSSL >= 3.0.0.
+
+ssl_fc_early_exporter_secret : string
+  Return the EARLY_EXPORTER_SECRET as an hexadecimal string for the
+  front connection when the incoming connection was made over an TLS 1.3
+  transport layer.
+  Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
+  keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
+  activated with "tune.ssl.keylog on" in the global section. See also
+  "tune.ssl.keylog"
 
 ssl_fc_ecformats_bin : binary
   Return the binary form of the client hello supported elliptic curve point
@@ -24402,75 +24443,6 @@ ssl_fc_eclist_bin([<filter_option>]) : binary
       http-request set-header X-Malware True if is_malware
       http-request set-header X-Malware False if !is_malware
 
-ssl_fc_extlist_bin([<filter_option>]) : binary
-  Returns the binary form of the client hello extension list. The maximum
-  returned value length is limited by the shared capture buffer size
-  controlled by "tune.ssl.capture-buffer-size" setting. Setting
-  <filter_option> allows to filter returned data. Accepted values:
-    0 : return the full list of extensions (default)
-    1 : exclude GREASE (RFC8701) values from the output
-
-  Example:
-      http-request set-header X-SSL-JA3 %[ssl_fc_protocol_hello_id],\
-          %[ssl_fc_cipherlist_bin(1),be2dec(-,2)],\
-          %[ssl_fc_extlist_bin(1),be2dec(-,2)],\
-          %[ssl_fc_eclist_bin(1),be2dec(-,2)],\
-          %[ssl_fc_ecformats_bin,be2dec(-,1)]
-      acl is_malware req.fhdr(x-ssl-ja3),digest(md5),hex \
-          -f /path/to/file/with/malware-ja3.lst
-      http-request set-header X-Malware True if is_malware
-      http-request set-header X-Malware False if !is_malware
-
-ssl_fc_client_random : binary
-  Returns the client random of the front connection when the incoming connection
-  was made over an SSL/TLS transport layer. It is useful to to decrypt traffic
-  sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or BoringSSL.
-
-ssl_fc_client_early_traffic_secret : string
-  Return the CLIENT_EARLY_TRAFFIC_SECRET as an hexadecimal string for the
-  front connection when the incoming connection was made over a TLS 1.3
-  transport layer.
-  Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
-  keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
-  activated with "tune.ssl.keylog on" in the global section. See also
-  "tune.ssl.keylog"
-
-ssl_fc_client_handshake_traffic_secret : string
-  Return the CLIENT_HANDSHAKE_TRAFFIC_SECRET as an hexadecimal string for the
-  front connection when the incoming connection was made over a TLS 1.3
-  transport layer.
-  Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
-  keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
-  activated with "tune.ssl.keylog on" in the global section. See also
-  "tune.ssl.keylog"
-
-ssl_fc_client_traffic_secret_0 : string
-  Return the CLIENT_TRAFFIC_SECRET_0 as an hexadecimal string for the
-  front connection when the incoming connection was made over a TLS 1.3
-  transport layer.
-  Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
-  keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
-  activated with "tune.ssl.keylog on" in the global section. See also
-  "tune.ssl.keylog"
-
-ssl_fc_exporter_secret : string
-  Return the EXPORTER_SECRET as an hexadecimal string for the
-  front connection when the incoming connection was made over a TLS 1.3
-  transport layer.
-  Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
-  keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
-  activated with "tune.ssl.keylog on" in the global section. See also
-  "tune.ssl.keylog"
-
-ssl_fc_early_exporter_secret : string
-  Return the EARLY_EXPORTER_SECRET as an hexadecimal string for the
-  front connection when the incoming connection was made over an TLS 1.3
-  transport layer.
-  Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
-  keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
-  activated with "tune.ssl.keylog on" in the global section. See also
-  "tune.ssl.keylog"
-
 ssl_fc_err : integer
   When the incoming connection was made over an SSL/TLS transport layer,
   returns the ID of the last error of the first error stack raised on the
@@ -24492,6 +24464,34 @@ ssl_fc_err_str : string
   that was raised on the frontend side. Any error happening during the client's
   certificate verification process will not be raised through this fetch. See
   also "ssl_fc_err".
+
+ssl_fc_exporter_secret : string
+  Return the EXPORTER_SECRET as an hexadecimal string for the
+  front connection when the incoming connection was made over a TLS 1.3
+  transport layer.
+  Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
+  keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
+  activated with "tune.ssl.keylog on" in the global section. See also
+  "tune.ssl.keylog"
+
+ssl_fc_extlist_bin([<filter_option>]) : binary
+  Returns the binary form of the client hello extension list. The maximum
+  returned value length is limited by the shared capture buffer size
+  controlled by "tune.ssl.capture-buffer-size" setting. Setting
+  <filter_option> allows to filter returned data. Accepted values:
+    0 : return the full list of extensions (default)
+    1 : exclude GREASE (RFC8701) values from the output
+
+  Example:
+      http-request set-header X-SSL-JA3 %[ssl_fc_protocol_hello_id],\
+          %[ssl_fc_cipherlist_bin(1),be2dec(-,2)],\
+          %[ssl_fc_extlist_bin(1),be2dec(-,2)],\
+          %[ssl_fc_eclist_bin(1),be2dec(-,2)],\
+          %[ssl_fc_ecformats_bin,be2dec(-,1)]
+      acl is_malware req.fhdr(x-ssl-ja3),digest(md5),hex \
+          -f /path/to/file/with/malware-ja3.lst
+      http-request set-header X-Malware True if is_malware
+      http-request set-header X-Malware False if !is_malware
 
 ssl_fc_has_crt : boolean
   Returns true if a client certificate is present in an incoming connection over
@@ -24549,23 +24549,9 @@ ssl_fc_protocol_hello_id : integer
       http-request set-header X-Malware True if is_malware
       http-request set-header X-Malware False if !is_malware
 
-ssl_fc_unique_id : binary
-  When the incoming connection was made over an SSL/TLS transport layer,
-  returns the TLS unique ID as defined in RFC5929 section 3. The unique id
-  can be encoded to base64 using the converter: "ssl_fc_unique_id,base64".
-
 ssl_fc_server_handshake_traffic_secret : string
   Return the SERVER_HANDSHAKE_TRAFFIC_SECRET as an hexadecimal string for the
   front connection when the incoming connection was made over a TLS 1.3
-  transport layer.
-  Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
-  keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
-  activated with "tune.ssl.keylog on" in the global section. See also
-  "tune.ssl.keylog"
-
-ssl_fc_server_traffic_secret_0 : string
-  Return the SERVER_TRAFFIC_SECRET_0 as an hexadecimal string for the
-  front connection when the incoming connection was made over an TLS 1.3
   transport layer.
   Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
   keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
@@ -24576,6 +24562,15 @@ ssl_fc_server_random : binary
   Returns the server random of the front connection when the incoming connection
   was made over an SSL/TLS transport layer. It is useful to to decrypt traffic
   sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or BoringSSL.
+
+ssl_fc_server_traffic_secret_0 : string
+  Return the SERVER_TRAFFIC_SECRET_0 as an hexadecimal string for the
+  front connection when the incoming connection was made over an TLS 1.3
+  transport layer.
+  Require OpenSSL >= 1.1.1. This is one of the keys dumped by the OpenSSL
+  keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
+  activated with "tune.ssl.keylog on" in the global section. See also
+  "tune.ssl.keylog"
 
 ssl_fc_session_id : binary
   Returns the SSL ID of the front connection when the incoming connection was
@@ -24638,14 +24633,14 @@ ssl_fc_supported_versions_bin([<filter_option>]) : binary
   0 : return the full list of ciphers (default)
   1 : exclude GREASE (RFC8701) values from the output
 
+ssl_fc_unique_id : binary
+  When the incoming connection was made over an SSL/TLS transport layer,
+  returns the TLS unique ID as defined in RFC5929 section 3. The unique id
+  can be encoded to base64 using the converter: "ssl_fc_unique_id,base64".
+
 ssl_fc_use_keysize : integer
   Returns the symmetric cipher key size used in bits when the incoming
   connection was made over an SSL/TLS transport layer.
-
-ssl_s_der : binary
-  Returns the DER formatted certificate presented by the server when the
-  outgoing connection was made over an SSL/TLS transport layer. When used for
-  an ACL, the value(s) to match against can be passed in hexadecimal form.
 
 ssl_s_chain_der : binary
   Returns the DER formatted chain certificate presented by the server when the
@@ -24654,20 +24649,10 @@ ssl_s_chain_der : binary
   can parse the result with any lib accepting ASN.1 DER data. It currently
   does not support resumed sessions.
 
-ssl_s_key_alg : string
-  Returns the name of the algorithm used to generate the key of the certificate
-  presented by the server when the outgoing connection was made over an
-  SSL/TLS transport layer.
-
-ssl_s_notafter : string
-  Returns the end date presented by the server as a formatted string
-  YYMMDDhhmmss[Z] when the outgoing connection was made over an SSL/TLS
-  transport layer.
-
-ssl_s_notbefore : string
-  Returns the start date presented by the server as a formatted string
-  YYMMDDhhmmss[Z] when the outgoing connection was made over an SSL/TLS
-  transport layer.
+ssl_s_der : binary
+  Returns the DER formatted certificate presented by the server when the
+  outgoing connection was made over an SSL/TLS transport layer. When used for
+  an ACL, the value(s) to match against can be passed in hexadecimal form.
 
 ssl_s_i_dn([<entry>[,<occ>[,<format>]]]) : string
   When the outgoing connection was made over an SSL/TLS transport layer,
@@ -24683,6 +24668,21 @@ ssl_s_i_dn([<entry>[,<occ>[,<format>]]]) : string
   LDAP v3.
   If you'd like to modify the format only you can specify an empty string
   and zero for the first two parameters. Example: ssl_s_i_dn(,0,rfc2253)
+
+ssl_s_key_alg : string
+  Returns the name of the algorithm used to generate the key of the certificate
+  presented by the server when the outgoing connection was made over an
+  SSL/TLS transport layer.
+
+ssl_s_notafter : string
+  Returns the end date presented by the server as a formatted string
+  YYMMDDhhmmss[Z] when the outgoing connection was made over an SSL/TLS
+  transport layer.
+
+ssl_s_notbefore : string
+  Returns the start date presented by the server as a formatted string
+  YYMMDDhhmmss[Z] when the outgoing connection was made over an SSL/TLS
+  transport layer.
 
 ssl_s_s_dn([<entry>[,<occ>[,<format>]]]) : string
   When the outgoing connection was made over an SSL/TLS transport layer,
@@ -24723,6 +24723,7 @@ txn.timer.user : integer
   accepted it and the moment both ends were closed, without idle time.
   This is the equivalent of %Tu in the log-format and is reported in
   milliseconds (ms). For more details see Section 8.4 "Timing events"
+
 
 7.3.5. Fetching samples from buffer contents (Layer 6)
 ------------------------------------------------------
