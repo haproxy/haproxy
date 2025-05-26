@@ -19177,10 +19177,19 @@ data called patterns.
 7.1. ACL basics
 ---------------
 
-The use of Access Control Lists (ACL) provides a flexible solution to perform
-content switching and generally to take decisions based on content extracted
-from the request, the response or any environmental status. The principle is
-simple :
+Access Control Lists (ACL) consist in declaring a named method to compare any
+piece of information against a list of pre-defined patterns. They should be
+seen as practically equivalent to functions in most programming languages, in
+that their declaration makes them available to be later called when needed.
+Their evaluation only returns a match or a mismatch, which is comparable to
+booleans in many programming languages. Contrary to functions in programming
+languages, ACLs may be overloaded as many times as needed in order to define
+additional matching methods for the same name. In this case they will all be
+evaluated in their declaration order until one matches.
+
+The use of ACLs provides a flexible solution to perform content switching and
+generally to take decisions based on content extracted from the request, the
+response or any environmental status. The principle is simple :
 
   - extract a data sample from a stream, table or the environment
   - optionally apply some format conversion to the extracted sample
