@@ -25140,36 +25140,14 @@ capture.req.uri                                    string
 capture.req.ver                                    string
 capture.res.hdr(<idx>)                             string
 capture.res.ver                                    string
-req.body                                           binary
-req.body_param([<name>[,i]])                       string
-req.body_len                                       integer
-req.body_size                                      integer
-req.cook([<name>])                                 string
 cook([<name>])                                     string
-req.cook_cnt([<name>])                             integer
 cook_cnt([<name>])                                 integer
-req.cook_val([<name>])                             integer
 cook_val([<name>])                                 integer
-req.cook_names([<delim>])                          string
 cookie([<name>])                                   string
 hdr([<name>[,<occ>]])                              string
-request_date([<unit>])                             integer
-req.fhdr(<name>[,<occ>])                           string
-req.fhdr_cnt([<name>])                             integer
-req.hdr([<name>[,<occ>]])                          string
-req.hdr_cnt([<name>])                              integer
 hdr_cnt([<header>])                                integer
-req.hdr_ip([<name>[,<occ>]])                       ip
 hdr_ip([<name>[,<occ>]])                           ip
-req.hdr_val([<name>[,<occ>]])                      integer
 hdr_val([<name>[,<occ>]])                          integer
-req.hdrs                                           string
-req.hdrs_bin                                       binary
-req.timer.hdr                                      integer
-req.timer.idle                                     integer
-req.timer.queue                                    integer
-req.timer.tq                                       integer
-res.timer.hdr                                      integer
 http_auth(<userlist>)                              boolean
 http_auth_bearer([<header>])                       string
 http_auth_group(<userlist>)                        string
@@ -25181,9 +25159,30 @@ method                                             integer
 path                                               string
 pathq                                              string
 query([<options>])                                 string
+req.body                                           binary
+req.body_len                                       integer
+req.body_param([<name>[,i]])                       string
+req.body_size                                      integer
+req.cook([<name>])                                 string
+req.cook_cnt([<name>])                             integer
+req.cook_names([<delim>])                          string
+req.cook_val([<name>])                             integer
+req.fhdr(<name>[,<occ>])                           string
+req.fhdr_cnt([<name>])                             integer
+req.hdr([<name>[,<occ>]])                          string
+req.hdr_cnt([<name>])                              integer
+req.hdr_ip([<name>[,<occ>]])                       ip
 req.hdr_names([<delim>])                           string
+req.hdr_val([<name>[,<occ>]])                      integer
+req.hdrs                                           string
+req.hdrs_bin                                       binary
+req.timer.hdr                                      integer
+req.timer.idle                                     integer
+req.timer.queue                                    integer
+req.timer.tq                                       integer
 req.ver                                            string
 req_ver                                            string
+request_date([<unit>])                             integer
 res.body                                           binary
 res.body_len                                       integer
 res.body_size                                      integer
@@ -25192,41 +25191,42 @@ res.cache_name                                     string
 res.comp                                           boolean
 res.comp_algo                                      string
 res.cook([<name>])                                 string
-scook([<name>])                                    string
 res.cook_cnt([<name>])                             integer
-scook_cnt([<name>])                                integer
-res.cook_val([<name>])                             integer
-scook_val([<name>])                                integer
 res.cook_names([<delim>])                          string
+res.cook_val([<name>])                             integer
 res.fhdr([<name>[,<occ>]])                         string
 res.fhdr_cnt([<name>])                             integer
 res.hdr([<name>[,<occ>]])                          string
-shdr([<name>[,<occ>]])                             string
 res.hdr_cnt([<name>])                              integer
-shdr_cnt([<name>])                                 integer
 res.hdr_ip([<name>[,<occ>]])                       ip
-shdr_ip([<name>[,<occ>]])                          ip
 res.hdr_names([<delim>])                           string
 res.hdr_val([<name>[,<occ>]])                      integer
-shdr_val([<name>[,<occ>]])                         integer
 res.hdrs                                           string
 res.hdrs_bin                                       binary
+res.timer.hdr                                      integer
 res.ver                                            string
 resp_ver                                           string
+scook([<name>])                                    string
+scook_cnt([<name>])                                integer
+scook_val([<name>])                                integer
 server_status                                      integer
 set-cookie([<name>])                               string
+shdr([<name>[,<occ>]])                             string
+shdr_cnt([<name>])                                 integer
+shdr_ip([<name>[,<occ>]])                          ip
+shdr_val([<name>[,<occ>]])                         integer
 status                                             integer
 txn.status                                         integer
 txn.timer.total                                    integer
 unique-id                                          string
 url                                                string
-url_ip                                             ip
-url_port                                           integer
-urlp([<name>[,<delim>[,i]]])                       string
-url_param([<name>[,<delim>[,i]]])                  string
-urlp_val([<name>[,<delim>[,i]]])                   integer
 url32                                              integer
 url32+src                                          binary
+url_ip                                             ip
+url_param([<name>[,<delim>[,i]]])                  string
+url_port                                           integer
+urlp([<name>[,<delim>[,i]]])                       string
+urlp_val([<name>[,<delim>[,i]]])                   integer
 -------------------------------------------------+-------------
 
 Detailed list:
@@ -25303,73 +25303,6 @@ capture.res.ver : string
   "HTTP/1.1". Unlike "res.ver", it can be used in logs because it relies on a
   persistent flag.
 
-req.body : binary
-  This returns the HTTP request's available body as a block of data. It is
-  recommended to use "option http-buffer-request" to be sure to wait, as much
-  as possible, for the request's body.
-
-req.body_param([<name>[,i]]) : string
-  This fetch assumes that the body of the POST request is url-encoded. The user
-  can check if the "content-type" contains the value
-  "application/x-www-form-urlencoded". This extracts the first occurrence of the
-  parameter <name> in the body, which ends before '&'. The parameter name is
-  case-sensitive, unless "i" is added as a second argument. If no name is
-  given, any parameter will match, and the first one will be returned. The
-  result is a string corresponding to the value of the parameter <name> as
-  presented in the request body (no URL decoding is performed). Note that the
-  ACL version of this fetch iterates over multiple parameters and will
-  iteratively report all parameters values if no name is given.
-
-req.body_len : integer
-  This returns the length of the HTTP request's available body in bytes. It may
-  be lower than the advertised length if the body is larger than the buffer. It
-  is recommended to use "option http-buffer-request" to be sure to wait, as
-  much as possible, for the request's body.
-
-req.body_size : integer
-  This returns the advertised length of the HTTP request's body in bytes. It
-  will represent the advertised Content-Length header, or the size of the
-  available data in case of chunked encoding.
-
-req.cook([<name>]) : string
-cook([<name>]) : string (deprecated)
-  This extracts the last occurrence of the cookie name <name> on a "Cookie"
-  header line from the request, and returns its value as string. If no name is
-  specified, the first cookie value is returned. When used with ACLs, all
-  matching cookies are evaluated. Spaces around the name and the value are
-  ignored as requested by the Cookie header specification (RFC6265). The cookie
-  name is case-sensitive. Empty cookies are valid, so an empty cookie may very
-  well return an empty value if it is present. Use the "found" match to detect
-  presence. Use the res.cook() variant for response cookies sent by the server.
-
-  ACL derivatives :
-    req.cook([<name>])     : exact string match
-    req.cook_beg([<name>]) : prefix match
-    req.cook_dir([<name>]) : subdir match
-    req.cook_dom([<name>]) : domain match
-    req.cook_end([<name>]) : suffix match
-    req.cook_len([<name>]) : length match
-    req.cook_reg([<name>]) : regex match
-    req.cook_sub([<name>]) : substring match
-
-req.cook_cnt([<name>]) : integer
-cook_cnt([<name>]) : integer (deprecated)
-  Returns an integer value representing the number of occurrences of the cookie
-  <name> in the request, or all cookies if <name> is not specified.
-
-req.cook_val([<name>]) : integer
-cook_val([<name>]) : integer (deprecated)
-  This extracts the last occurrence of the cookie name <name> on a "Cookie"
-  header line from the request, and converts its value to an integer which is
-  returned. If no name is specified, the first cookie value is returned. When
-  used in ACLs, all matching names are iterated over until a value matches.
-
-req.cook_names([<delim>]) : string
-  This builds a string made from the concatenation of all cookie names as they
-  appear in the request (Cookie header) when the rule is evaluated. The default
-  delimiter is the comma (',') but it may be overridden as an optional argument
-  <delim>. In this case, only the first character of <delim> is considered.
-
 cookie([<name>]) : string (deprecated)
   This extracts the last occurrence of the cookie name <name> on a "Cookie"
   header line from the request, or a "Set-Cookie" header from the response, and
@@ -25387,158 +25320,6 @@ hdr([<name>[,<occ>]]) : string
   In case of doubt about the fetch direction, please use the explicit ones.
   Note that contrary to the hdr() sample fetch method, the hdr_* ACL keywords
   unambiguously apply to the request headers.
-
-request_date([<unit>]) : integer
-  This is the exact date when the first byte of the HTTP request was received
-  by HAProxy (log-format alias %tr). This is computed from accept_date +
-  handshake time (%Th) + idle time (%Ti).
-
-  Returns a value in number of seconds since epoch.
-
-  <unit> is facultative, and can be set to "s" for seconds (default behavior),
-  "ms" for  milliseconds or "us" for microseconds.
-  If unit is set, return value is an integer reflecting either seconds,
-  milliseconds or microseconds since epoch.
-  It is useful when a time resolution of less than a second is needed.
-
-req.fhdr(<name>[,<occ>]) : string
-  This returns the full value of the last occurrence of header <name> in an
-  HTTP request. It differs from req.hdr() in that any commas present in the
-  value are returned and are not used as delimiters. This is sometimes useful
-  with headers such as User-Agent.
-
-  When used from an ACL, all occurrences are iterated over until a match is
-  found.
-
-  Optionally, a specific occurrence might be specified as a position number.
-  Positive values indicate a position from the first occurrence, with 1 being
-  the first one. Negative values indicate positions relative to the last one,
-  with -1 being the last one.
-
-req.fhdr_cnt([<name>]) : integer
-  Returns an integer value representing the number of occurrences of request
-  header field name <name>, or the total number of header fields if <name> is
-  not specified. Like req.fhdr() it differs from res.hdr_cnt() by not splitting
-  headers at commas.
-
-req.hdr([<name>[,<occ>]]) : string
-  This returns the last comma-separated value of the header <name> in an HTTP
-  request. The fetch considers any comma as a delimiter for distinct values.
-  This is useful if you need to process headers that are defined to be a list
-  of values, such as Accept, or X-Forwarded-For. If full-line headers are
-  desired instead, use req.fhdr(). Please carefully check RFC 7231 to know how
-  certain headers are supposed to be parsed. Also, some of them are case
-  insensitive (e.g. Connection).
-
-  When used from an ACL, all occurrences are iterated over until a match is
-  found.
-
-  Optionally, a specific occurrence might be specified as a position number.
-  Positive values indicate a position from the first occurrence, with 1 being
-  the first one. Negative values indicate positions relative to the last one,
-  with -1 being the last one.
-
-  A typical use is with the X-Forwarded-For header once converted to IP,
-  associated with an IP stick-table.
-
-  ACL derivatives :
-    hdr([<name>[,<occ>]])     : exact string match
-    hdr_beg([<name>[,<occ>]]) : prefix match
-    hdr_dir([<name>[,<occ>]]) : subdir match
-    hdr_dom([<name>[,<occ>]]) : domain match
-    hdr_end([<name>[,<occ>]]) : suffix match
-    hdr_len([<name>[,<occ>]]) : length match
-    hdr_reg([<name>[,<occ>]]) : regex match
-    hdr_sub([<name>[,<occ>]]) : substring match
-
-req.hdr_cnt([<name>]) : integer
-hdr_cnt([<header>]) : integer (deprecated)
-  Returns an integer value representing the number of occurrences of request
-  header field name <name>, or the total number of header field values if
-  <name> is not specified. Like req.hdr() it counts each comma separated
-  part of the header's value. If counting of full-line headers is desired,
-  then req.fhdr_cnt() should be used instead.
-
-  With ACLs, it can be used to detect presence, absence or abuse of a specific
-  header, as well as to block request smuggling attacks by rejecting requests
-  which contain more than one of certain headers.
-
-  Refer to req.hdr() for more information on header matching.
-
-req.hdr_ip([<name>[,<occ>]]) : ip
-hdr_ip([<name>[,<occ>]]) : ip (deprecated)
-  This extracts the last occurrence of header <name> in an HTTP request,
-  converts it to an IPv4 or IPv6 address and returns this address. When used
-  with ACLs, all occurrences are checked, and if <name> is omitted, every value
-  of every header is checked. The parser strictly adheres to the format
-  described in RFC7239, with the extension that IPv4 addresses may optionally
-  be followed by a colon (':') and a valid decimal port number (0 to 65535),
-  which will be silently dropped. All other forms will not match and will
-  cause the address to be ignored.
-
-  The <occ> parameter is processed as with req.hdr().
-
-  A typical use is with the X-Forwarded-For and X-Client-IP headers.
-
-req.hdr_val([<name>[,<occ>]]) : integer
-hdr_val([<name>[,<occ>]]) : integer (deprecated)
-  This extracts the last occurrence of header <name> in an HTTP request, and
-  converts it to an integer value. When used with ACLs, all occurrences are
-  checked, and if <name> is omitted, every value of every header is checked.
-
-  The <occ> parameter is processed as with req.hdr().
-
-  A typical use is with the X-Forwarded-For header.
-
-req.hdrs : string
-  Returns the current request headers as string including the last empty line
-  separating headers from the request body. The last empty line can be used to
-  detect a truncated header block. This sample fetch is useful for some SPOE
-  headers analyzers and for advanced logging.
-
-req.hdrs_bin : binary
-  Returns the current request headers contained in preparsed binary form. This
-  is useful for offloading some processing with SPOE. Each string is described
-  by a length followed by the number of bytes indicated in the length. The
-  length is represented using the variable integer encoding detailed in the
-  SPOE documentation. The end of the list is marked by a couple of empty header
-  names and values (length of 0 for both).
-
-  *(<str:header-name><str:header-value>)<empty string><empty string>
-
-  int:  refer to the SPOE documentation for the encoding
-  str:  <int:length><bytes>
-
-req.timer.hdr : integer
-  Total time to get the client request (HTTP mode only). It's the time elapsed
-  between the first bytes received and the moment the proxy received the empty
-  line marking the end of the HTTP headers. This is reported in milliseconds
-  (ms) and is equivalent to %TR in log-format. See section 8.4 "Timing events"
-  for more details.
-
-req.timer.idle : integer
-  This is the idle time before the HTTP request (HTTP mode only). This timer
-  counts between the end of the handshakes and the first byte of the HTTP
-  request. This is reported in milliseconds and is equivalent to %Ti in
-  log-format. See section 8.4 "Timing events" for more details.
-
-req.timer.queue : integer
-  Total time spent in the queues waiting for a connection slot.
-  This is reported in milliseconds and is equivalent to %Tw in
-  log-format. See section 8.4 "Timing events" for more details.
-
-req.timer.tq : integer
-  total time to get the client request from the accept date or since the
-  emission of the last byte of the previous response.
-  This is reported in milliseconds and is equivalent to %Tq in
-  log-format. See section 8.4 "Timing events" for more details.
-
-res.timer.hdr : integer
-  It's the time elapsed between the moment the TCP connection was established
-  to the server and the moment the server sent its complete response headers.
-  This is reported in milliseconds and is equivalent to %Tr in log-format. See
-  section 8.4 "Timing events" for more details.
-
 
 http_auth(<userlist>) : boolean
   Returns a boolean indicating whether the authentication data received from
@@ -25655,11 +25436,210 @@ query([<options>]) : string
     - with_qm : Include the question mark at the beginning ot the query string,
                 if not empty.
 
+req.body : binary
+  This returns the HTTP request's available body as a block of data. It is
+  recommended to use "option http-buffer-request" to be sure to wait, as much
+  as possible, for the request's body.
+
+req.body_len : integer
+  This returns the length of the HTTP request's available body in bytes. It may
+  be lower than the advertised length if the body is larger than the buffer. It
+  is recommended to use "option http-buffer-request" to be sure to wait, as
+  much as possible, for the request's body.
+
+req.body_param([<name>[,i]]) : string
+  This fetch assumes that the body of the POST request is url-encoded. The user
+  can check if the "content-type" contains the value
+  "application/x-www-form-urlencoded". This extracts the first occurrence of the
+  parameter <name> in the body, which ends before '&'. The parameter name is
+  case-sensitive, unless "i" is added as a second argument. If no name is
+  given, any parameter will match, and the first one will be returned. The
+  result is a string corresponding to the value of the parameter <name> as
+  presented in the request body (no URL decoding is performed). Note that the
+  ACL version of this fetch iterates over multiple parameters and will
+  iteratively report all parameters values if no name is given.
+
+req.body_size : integer
+  This returns the advertised length of the HTTP request's body in bytes. It
+  will represent the advertised Content-Length header, or the size of the
+  available data in case of chunked encoding.
+
+req.cook([<name>]) : string
+cook([<name>]) : string (deprecated)
+  This extracts the last occurrence of the cookie name <name> on a "Cookie"
+  header line from the request, and returns its value as string. If no name is
+  specified, the first cookie value is returned. When used with ACLs, all
+  matching cookies are evaluated. Spaces around the name and the value are
+  ignored as requested by the Cookie header specification (RFC6265). The cookie
+  name is case-sensitive. Empty cookies are valid, so an empty cookie may very
+  well return an empty value if it is present. Use the "found" match to detect
+  presence. Use the res.cook() variant for response cookies sent by the server.
+
+  ACL derivatives :
+    req.cook([<name>])     : exact string match
+    req.cook_beg([<name>]) : prefix match
+    req.cook_dir([<name>]) : subdir match
+    req.cook_dom([<name>]) : domain match
+    req.cook_end([<name>]) : suffix match
+    req.cook_len([<name>]) : length match
+    req.cook_reg([<name>]) : regex match
+    req.cook_sub([<name>]) : substring match
+
+req.cook_cnt([<name>]) : integer
+cook_cnt([<name>]) : integer (deprecated)
+  Returns an integer value representing the number of occurrences of the cookie
+  <name> in the request, or all cookies if <name> is not specified.
+
+req.cook_names([<delim>]) : string
+  This builds a string made from the concatenation of all cookie names as they
+  appear in the request (Cookie header) when the rule is evaluated. The default
+  delimiter is the comma (',') but it may be overridden as an optional argument
+  <delim>. In this case, only the first character of <delim> is considered.
+
+req.cook_val([<name>]) : integer
+cook_val([<name>]) : integer (deprecated)
+  This extracts the last occurrence of the cookie name <name> on a "Cookie"
+  header line from the request, and converts its value to an integer which is
+  returned. If no name is specified, the first cookie value is returned. When
+  used in ACLs, all matching names are iterated over until a value matches.
+
+req.fhdr(<name>[,<occ>]) : string
+  This returns the full value of the last occurrence of header <name> in an
+  HTTP request. It differs from req.hdr() in that any commas present in the
+  value are returned and are not used as delimiters. This is sometimes useful
+  with headers such as User-Agent.
+
+  When used from an ACL, all occurrences are iterated over until a match is
+  found.
+
+  Optionally, a specific occurrence might be specified as a position number.
+  Positive values indicate a position from the first occurrence, with 1 being
+  the first one. Negative values indicate positions relative to the last one,
+  with -1 being the last one.
+
+req.fhdr_cnt([<name>]) : integer
+  Returns an integer value representing the number of occurrences of request
+  header field name <name>, or the total number of header fields if <name> is
+  not specified. Like req.fhdr() it differs from res.hdr_cnt() by not splitting
+  headers at commas.
+
+req.hdr([<name>[,<occ>]]) : string
+  This returns the last comma-separated value of the header <name> in an HTTP
+  request. The fetch considers any comma as a delimiter for distinct values.
+  This is useful if you need to process headers that are defined to be a list
+  of values, such as Accept, or X-Forwarded-For. If full-line headers are
+  desired instead, use req.fhdr(). Please carefully check RFC 7231 to know how
+  certain headers are supposed to be parsed. Also, some of them are case
+  insensitive (e.g. Connection).
+
+  When used from an ACL, all occurrences are iterated over until a match is
+  found.
+
+  Optionally, a specific occurrence might be specified as a position number.
+  Positive values indicate a position from the first occurrence, with 1 being
+  the first one. Negative values indicate positions relative to the last one,
+  with -1 being the last one.
+
+  A typical use is with the X-Forwarded-For header once converted to IP,
+  associated with an IP stick-table.
+
+  ACL derivatives :
+    hdr([<name>[,<occ>]])     : exact string match
+    hdr_beg([<name>[,<occ>]]) : prefix match
+    hdr_dir([<name>[,<occ>]]) : subdir match
+    hdr_dom([<name>[,<occ>]]) : domain match
+    hdr_end([<name>[,<occ>]]) : suffix match
+    hdr_len([<name>[,<occ>]]) : length match
+    hdr_reg([<name>[,<occ>]]) : regex match
+    hdr_sub([<name>[,<occ>]]) : substring match
+
+req.hdr_cnt([<name>]) : integer
+hdr_cnt([<header>]) : integer (deprecated)
+  Returns an integer value representing the number of occurrences of request
+  header field name <name>, or the total number of header field values if
+  <name> is not specified. Like req.hdr() it counts each comma separated
+  part of the header's value. If counting of full-line headers is desired,
+  then req.fhdr_cnt() should be used instead.
+
+  With ACLs, it can be used to detect presence, absence or abuse of a specific
+  header, as well as to block request smuggling attacks by rejecting requests
+  which contain more than one of certain headers.
+
+  Refer to req.hdr() for more information on header matching.
+
+req.hdr_ip([<name>[,<occ>]]) : ip
+hdr_ip([<name>[,<occ>]]) : ip (deprecated)
+  This extracts the last occurrence of header <name> in an HTTP request,
+  converts it to an IPv4 or IPv6 address and returns this address. When used
+  with ACLs, all occurrences are checked, and if <name> is omitted, every value
+  of every header is checked. The parser strictly adheres to the format
+  described in RFC7239, with the extension that IPv4 addresses may optionally
+  be followed by a colon (':') and a valid decimal port number (0 to 65535),
+  which will be silently dropped. All other forms will not match and will
+  cause the address to be ignored.
+
+  The <occ> parameter is processed as with req.hdr().
+
+  A typical use is with the X-Forwarded-For and X-Client-IP headers.
+
 req.hdr_names([<delim>]) : string
   This builds a string made from the concatenation of all header names as they
   appear in the request when the rule is evaluated. The default delimiter is
   the comma (',') but it may be overridden as an optional argument <delim>. In
   this case, only the first character of <delim> is considered.
+
+req.hdr_val([<name>[,<occ>]]) : integer
+hdr_val([<name>[,<occ>]]) : integer (deprecated)
+  This extracts the last occurrence of header <name> in an HTTP request, and
+  converts it to an integer value. When used with ACLs, all occurrences are
+  checked, and if <name> is omitted, every value of every header is checked.
+
+  The <occ> parameter is processed as with req.hdr().
+
+  A typical use is with the X-Forwarded-For header.
+
+req.hdrs : string
+  Returns the current request headers as string including the last empty line
+  separating headers from the request body. The last empty line can be used to
+  detect a truncated header block. This sample fetch is useful for some SPOE
+  headers analyzers and for advanced logging.
+
+req.hdrs_bin : binary
+  Returns the current request headers contained in preparsed binary form. This
+  is useful for offloading some processing with SPOE. Each string is described
+  by a length followed by the number of bytes indicated in the length. The
+  length is represented using the variable integer encoding detailed in the
+  SPOE documentation. The end of the list is marked by a couple of empty header
+  names and values (length of 0 for both).
+
+  *(<str:header-name><str:header-value>)<empty string><empty string>
+
+  int:  refer to the SPOE documentation for the encoding
+  str:  <int:length><bytes>
+
+req.timer.hdr : integer
+  Total time to get the client request (HTTP mode only). It's the time elapsed
+  between the first bytes received and the moment the proxy received the empty
+  line marking the end of the HTTP headers. This is reported in milliseconds
+  (ms) and is equivalent to %TR in log-format. See section 8.4 "Timing events"
+  for more details.
+
+req.timer.idle : integer
+  This is the idle time before the HTTP request (HTTP mode only). This timer
+  counts between the end of the handshakes and the first byte of the HTTP
+  request. This is reported in milliseconds and is equivalent to %Ti in
+  log-format. See section 8.4 "Timing events" for more details.
+
+req.timer.queue : integer
+  Total time spent in the queues waiting for a connection slot.
+  This is reported in milliseconds and is equivalent to %Tw in
+  log-format. See section 8.4 "Timing events" for more details.
+
+req.timer.tq : integer
+  total time to get the client request from the accept date or since the
+  emission of the last byte of the previous response.
+  This is reported in milliseconds and is equivalent to %Tq in
+  log-format. See section 8.4 "Timing events" for more details.
 
 req.ver : string
 req_ver : string (deprecated)
@@ -25675,6 +25655,19 @@ req_ver : string (deprecated)
 
   ACL derivatives :
     req.ver : exact string match
+
+request_date([<unit>]) : integer
+  This is the exact date when the first byte of the HTTP request was received
+  by HAProxy (log-format alias %tr). This is computed from accept_date +
+  handshake time (%Th) + idle time (%Ti).
+
+  Returns a value in number of seconds since epoch.
+
+  <unit> is facultative, and can be set to "s" for seconds (default behavior),
+  "ms" for  milliseconds or "us" for microseconds.
+  If unit is set, return value is an integer reflecting either seconds,
+  milliseconds or microseconds since epoch.
+  It is useful when a time resolution of less than a second is needed.
 
 res.body : binary
   This returns the HTTP response's available body as a block of data. Unlike
@@ -25737,20 +25730,20 @@ scook_cnt([<name>]) : integer (deprecated)
 
   It may be used in tcp-check based expect rules.
 
-res.cook_val([<name>]) : integer
-scook_val([<name>]) : integer (deprecated)
-  This extracts the last occurrence of the cookie name <name> on a "Set-Cookie"
-  header line from the response, and converts its value to an integer which is
-  returned. If no name is specified, the first cookie value is returned.
-
-  It may be used in tcp-check based expect rules.
-
 res.cook_names([<delim>]) : string
   This builds a string made from the concatenation of all cookie names as they
   appear in the response (Set-Cookie headers) when the rule is evaluated. The
   default delimiter is the comma (',') but it may be overridden as an optional
   argument <delim>. In this case, only the first character of <delim> is
   considered.
+
+  It may be used in tcp-check based expect rules.
+
+res.cook_val([<name>]) : integer
+scook_val([<name>]) : integer (deprecated)
+  This extracts the last occurrence of the cookie name <name> on a "Set-Cookie"
+  header line from the response, and converts its value to an integer which is
+  returned. If no name is specified, the first cookie value is returned.
 
   It may be used in tcp-check based expect rules.
 
@@ -25852,6 +25845,12 @@ res.hdrs_bin : binary
   int:  refer to the SPOE documentation for the encoding
   str:  <int:length><bytes>
 
+res.timer.hdr : integer
+  It's the time elapsed between the moment the TCP connection was established
+  to the server and the moment the server sent its complete response headers.
+  This is reported in milliseconds and is equivalent to %Tr in log-format. See
+  section 8.4 "Timing events" for more details.
+
 res.ver : string
 resp_ver : string (deprecated)
   Returns the version string from the HTTP response, for example "1.1". This
@@ -25926,6 +25925,18 @@ url : string
     url_reg : regex match
     url_sub : substring match
 
+url32 : integer
+  This returns a 32-bit hash of the value obtained by concatenating the first
+  Host header and the whole URL including parameters (not only the path part of
+  the request, as in the "base32" fetch above). This is useful to track per-URL
+  activity. A shorter hash is stored, saving a lot of memory. The output type
+  is an unsigned integer.
+
+url32+src : binary
+  This returns the concatenation of the "url32" fetch and the "src" fetch. The
+  resulting type is of type binary, with a size of 8 or 20 bytes depending on
+  the source address family. This can be used to track per-IP, per-URL counters.
+
 url_ip : ip
   This extracts the IP address from the request's URL when the host part is
   presented as an IP address. Its use is very limited. For instance, a
@@ -25972,18 +25983,6 @@ urlp_val([<name>[,<delim>[,i]]]) : integer
   See "urlp" above. This one extracts the URL parameter <name> in the request
   and converts it to an integer value. This can be used for session stickiness
   based on a user ID for example, or with ACLs to match a page number or price.
-
-url32 : integer
-  This returns a 32-bit hash of the value obtained by concatenating the first
-  Host header and the whole URL including parameters (not only the path part of
-  the request, as in the "base32" fetch above). This is useful to track per-URL
-  activity. A shorter hash is stored, saving a lot of memory. The output type
-  is an unsigned integer.
-
-url32+src : binary
-  This returns the concatenation of the "url32" fetch and the "src" fetch. The
-  resulting type is of type binary, with a size of 8 or 20 bytes depending on
-  the source address family. This can be used to track per-IP, per-URL counters.
 
 
 7.3.7. Fetching samples for developers
