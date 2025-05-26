@@ -24753,34 +24753,34 @@ distcc_body(<token>[,<occ>])                          binary
 distcc_param(<token>[,<occ>])                         integer
 payload(<offset>,<length>)                            binary
 payload_lv(<offset1>,<length>[,<offset2>])            binary
+rdp_cookie([<name>])                                  string
+rdp_cookie_cnt([name])                                integer
+rep_ssl_hello_type                                    integer
 req.len                                               integer
-req_len                                               integer
 req.payload(<offset>,<length>)                        binary
 req.payload_lv(<offset1>,<length>[,<offset2>])        binary
 req.proto_http                                        boolean
-req_proto_http                                        boolean
 req.rdp_cookie([<name>])                              string
-rdp_cookie([<name>])                                  string
 req.rdp_cookie_cnt([name])                            integer
-rdp_cookie_cnt([name])                                integer
 req.ssl_alpn                                          string
+req.ssl_cipherlist                                    binary
 req.ssl_ec_ext                                        boolean
 req.ssl_hello_type                                    integer
-req_ssl_hello_type                                    integer
-req.ssl_sni                                           string
-req_ssl_sni                                           string
-req.ssl_st_ext                                        integer
-req.ssl_ver                                           integer
-req_ssl_ver                                           integer
-req.ssl_cipherlist                                    binary
-req.ssl_sigalgs                                       binary
 req.ssl_keyshare_groups                               binary
+req.ssl_sigalgs                                       binary
+req.ssl_sni                                           string
+req.ssl_st_ext                                        integer
 req.ssl_supported_groups                              binary
+req.ssl_ver                                           integer
+req_len                                               integer
+req_proto_http                                        boolean
+req_ssl_hello_type                                    integer
+req_ssl_sni                                           string
+req_ssl_ver                                           integer
 res.len                                               integer
 res.payload(<offset>,<length>)                        binary
 res.payload_lv(<offset1>,<length>[,<offset2>])        binary
 res.ssl_hello_type                                    integer
-rep_ssl_hello_type                                    integer
 ----------------------------------------------------+-------------
 
 Detailed list:
@@ -24934,6 +24934,21 @@ req.ssl_alpn : string
      use_backend bk_acme if { req.ssl_alpn acme-tls/1 }
      default_backend bk_default
 
+req.ssl_cipherlist binary
+  Returns the binary form of the list of symmetric cipher options supported by
+  the client as reported in the contents of a TLS ClientHello. Note that this
+  only applies to raw contents found in the request buffer and not to contents
+  deciphered via an SSL data layer, so this will not work with "bind" lines
+  having the "ssl" option. Refer to "ssl_fc_cipherlist_bin" which is the SSL
+  bind equivalent that can be used when the "ssl" option is specified.
+
+  Examples :
+    # Wait for a client hello for at most 5 seconds
+    tcp-request inspect-delay 5s
+    tcp-request content accept if { req.ssl_hello_type 1 }
+    use-server fe3 if { req.ssl_cipherlist,be2hex(:,2),lower -m sub 1302:009f }
+    server fe3  ${htst_fe3_addr}:${htst_fe3_port}
+
 req.ssl_ec_ext : boolean
   Returns a boolean identifying if client sent the Supported Elliptic Curves
   Extension as defined in RFC4492, section 5.1. within the SSL ClientHello
@@ -24952,6 +24967,37 @@ req_ssl_hello_type : integer (deprecated)
   SSL data layer, so this will not work with "bind" lines having the "ssl"
   option. This is mostly used in ACL to detect presence of an SSL hello message
   that is supposed to contain an SSL session ID usable for stickiness.
+
+req.ssl_keyshare_groups binary
+  Return the binary format of the list of cryptographic parameters for key exchange
+  supported by the client as reported in the TLS ClientHello. In TLS v1.3, keyshare
+  is part of the ClientHello message and is the final client hello extension. Note
+  that this only applies to raw contents found in the request buffer and not to
+  contents deciphered via an  SSL data layer, so this will not work with "bind"
+  lines having the "ssl" option.
+
+  Examples :
+    # Wait for a client hello for at most 5 seconds
+    tcp-request inspect-delay 5s
+    tcp-request content accept if { req.ssl_hello_type 1 }
+    use-server fe3 if { req.ssl_keyshare_groups,be2hex(:,2),lower -m sub 001d  }
+    server fe3  ${htst_fe3_addr}:${htst_fe3_port}
+
+req.ssl_sigalgs binary
+  Returns the binary form of the list of signature algorithms supported by the
+  client as reported in the TLS ClientHello. This is available as a client hello
+  extension. Note that this only applies to raw contents found in the request
+  buffer and not to contents deciphered via an SSL data layer, so this will not
+  work with "bind" lines having the "ssl" option. Refer to "ssl_fc_sigalgs_bin"
+  which is the SSL bind equivalent that can be used when the "ssl" option is
+  specified.
+
+  Examples :
+    # Wait for a client hello for at most 5 seconds
+    tcp-request inspect-delay 5s
+    tcp-request content accept if { req.ssl_hello_type 1 }
+    use-server fe4 if { req.ssl_sigalgs,be2hex(:,2),lower -m sub 0403:0805 }
+    server fe4  ${htst_fe4_addr}:${htst_fe4_port}
 
 req.ssl_sni : string
 req_ssl_sni : string (deprecated)
@@ -24980,51 +25026,16 @@ req_ssl_sni : string (deprecated)
      use_backend bk_allow if { req.ssl_sni -f allowed_sites }
      default_backend bk_sorry_page
 
-req.ssl_cipherlist binary
-  Returns the binary form of the list of symmetric cipher options supported by
-  the client as reported in the contents of a TLS ClientHello. Note that this
-  only applies to raw contents found in the request buffer and not to contents
-  deciphered via an SSL data layer, so this will not work with "bind" lines
-  having the "ssl" option. Refer to "ssl_fc_cipherlist_bin" which is the SSL
-  bind equivalent that can be used when the "ssl" option is specified.
-
-  Examples :
-    # Wait for a client hello for at most 5 seconds
-    tcp-request inspect-delay 5s
-    tcp-request content accept if { req.ssl_hello_type 1 }
-    use-server fe3 if { req.ssl_cipherlist,be2hex(:,2),lower -m sub 1302:009f }
-    server fe3  ${htst_fe3_addr}:${htst_fe3_port}
-
-req.ssl_sigalgs binary
-  Returns the binary form of the list of signature algorithms supported by the
-  client as reported in the TLS ClientHello. This is available as a client hello
-  extension. Note that this only applies to raw contents found in the request
-  buffer and not to contents deciphered via an SSL data layer, so this will not
-  work with "bind" lines having the "ssl" option. Refer to "ssl_fc_sigalgs_bin"
-  which is the SSL bind equivalent that can be used when the "ssl" option is
-  specified.
-
-  Examples :
-    # Wait for a client hello for at most 5 seconds
-    tcp-request inspect-delay 5s
-    tcp-request content accept if { req.ssl_hello_type 1 }
-    use-server fe4 if { req.ssl_sigalgs,be2hex(:,2),lower -m sub 0403:0805 }
-    server fe4  ${htst_fe4_addr}:${htst_fe4_port}
-
-req.ssl_keyshare_groups binary
-  Return the binary format of the list of cryptographic parameters for key exchange
-  supported by the client as reported in the TLS ClientHello. In TLS v1.3, keyshare
-  is part of the ClientHello message and is the final client hello extension. Note
-  that this only applies to raw contents found in the request buffer and not to
-  contents deciphered via an  SSL data layer, so this will not work with "bind"
-  lines having the "ssl" option.
-
-  Examples :
-    # Wait for a client hello for at most 5 seconds
-    tcp-request inspect-delay 5s
-    tcp-request content accept if { req.ssl_hello_type 1 }
-    use-server fe3 if { req.ssl_keyshare_groups,be2hex(:,2),lower -m sub 001d  }
-    server fe3  ${htst_fe3_addr}:${htst_fe3_port}
+req.ssl_st_ext : integer
+  Returns 0 if the client didn't send a SessionTicket TLS Extension (RFC5077)
+  Returns 1 if the client sent SessionTicket TLS Extension
+  Returns 2 if the client also sent non-zero length TLS SessionTicket
+  Note that this only applies to raw contents found in the request buffer and
+  not to contents deciphered via an SSL data layer, so this will not work with
+  "bind" lines having the "ssl" option. This can for example be used to detect
+  whether the client sent a SessionTicket or not and stick it accordingly, if
+  no SessionTicket then stick on SessionID or don't stick as there's no server
+  side state is there when SessionTickets are in use.
 
 req.ssl_supported_groups binary
   Returns the binary form of the list of supported groups supported by the client
@@ -25041,17 +25052,6 @@ req.ssl_supported_groups binary
     tcp-request content accept if { req.ssl_hello_type 1 }
     use-server fe3 if { req.ssl_supported_groups, be2hex(:,2),lower -m sub 0017 }
     server fe3  ${htst_fe3_addr}:${htst_fe3_port}
-
-req.ssl_st_ext : integer
-  Returns 0 if the client didn't send a SessionTicket TLS Extension (RFC5077)
-  Returns 1 if the client sent SessionTicket TLS Extension
-  Returns 2 if the client also sent non-zero length TLS SessionTicket
-  Note that this only applies to raw contents found in the request buffer and
-  not to contents deciphered via an SSL data layer, so this will not work with
-  "bind" lines having the "ssl" option. This can for example be used to detect
-  whether the client sent a SessionTicket or not and stick it accordingly, if
-  no SessionTicket then stick on SessionID or don't stick as there's no server
-  side state is there when SessionTickets are in use.
 
 req.ssl_ver : integer
 req_ssl_ver : integer (deprecated)
