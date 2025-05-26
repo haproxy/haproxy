@@ -215,7 +215,7 @@ function handler(applet)
 
         local input = applet:receive(1, delay)
         if input then
-            if input == "q" then
+            if input == "" or input == "q" then
                 game_over = true
             elseif input == "\27" then
                 local a = applet:receive(1, delay)

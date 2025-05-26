@@ -3916,21 +3916,25 @@ AppletTCP class
   *size* is missing, the function tries to read all the content of the stream
   until the end. An optional timeout may be specified in milliseconds. In this
   case the function will return no longer than this delay, with the amount of
-  available data (possibly none).
+  available data, or nil if there is no data. An empty string is returned if the
+  connection is closed.
 
   :param class_AppletTCP applet: An :ref:`applettcp_class`
   :param integer size: the required read size.
-  :returns: always return a string, the string can be empty if the connection is
-   closed.
+  :returns: return nil if the timeout has expired and no data was available but
+   can still be received. Otherwise, a string is returned, possibly an empty
+   string if the connection is closed.
 
 .. js:function:: AppletTCP.try_receive(applet)
 
   Reads available data from the TCP stream and returns immediately. Returns a
-  string containing read bytes that may possibly be empty if no bytes are
-  available at that time.
+  string containing read bytes or nil if no bytes are available at that time. An
+  empty string is returned if the connection is closed.
 
   :param class_AppletTCP applet: An :ref:`applettcp_class`
-  :returns: always return a string, the string can be empty.
+  :returns: return nil if no data was available but can still be
+   received. Otherwise, a string is returned, possibly an empty string if the
+   connection is closed.
 
 .. js:function:: AppletTCP.send(appletmsg)
 

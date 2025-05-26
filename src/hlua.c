@@ -5405,7 +5405,7 @@ __LJMP static int hlua_applet_tcp_recv_try(lua_State *L)
 	if (ret == 0) {
 		if (tick_is_expired(exp_date, now_ms)) {
 			/* return the result. */
-			luaL_pushresult(&luactx->b);
+			lua_pushnil(L);
 			return 1;
 		}
 
@@ -5545,7 +5545,7 @@ __LJMP static int hlua_applet_tcp_try_recv(lua_State *L)
 	lua_pushinteger(L, -1);
 
 	/* set the expiration date (mandatory arg but not relevant here) */
-	lua_pushinteger(L, TICK_ETERNITY);
+	lua_pushinteger(L, now_ms);
 
 	/* Initialise the string catenation. */
 	luaL_buffinit(L, &luactx->b);
