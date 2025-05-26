@@ -16698,6 +16698,10 @@ interface <interface>
   client IP addresses need to be able to reach frontends hosted on different
   interfaces.
 
+label <label>
+  Sets an optional label for these sockets. It could be used group sockets by
+  label, independently of where the bind lines were declared.
+
 level <level>
   This setting is used with the stats sockets only to restrict the nature of
   the commands that can be issued on the socket. It is ignored by other

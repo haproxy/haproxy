@@ -391,6 +391,7 @@ void deinit_proxy(struct proxy *p)
 		LIST_DELETE(&l->by_fe);
 		LIST_DELETE(&l->by_bind);
 		free(l->name);
+		free(l->label);
 		free(l->per_thr);
 		free(l->counters);
 		task_destroy(l->rx.rhttp.task);

@@ -932,6 +932,11 @@ struct listener *clone_listener(struct listener *src)
 		if (!l->name)
 			goto oom2;
 	}
+	if (l->label) {
+		l->label = strdup(l->label);
+		if (!l->label)
+			goto oom3;
+	}
 
 	l->rx.owner = l;
 	l->rx.shard_info = NULL;
@@ -952,6 +957,8 @@ struct listener *clone_listener(struct listener *src)
 	global.maxsock++;
 	return l;
 
+ oom3:
+	free(l->name);
  oom2:
 	free(l);
  oom1:
@@ -2422,6 +2429,28 @@ static int bind_parse_name(char **args, int cur_arg, struct proxy *px, struct bi
 	return 0;
 }
 
+/* parse the "label" bind keyword */
+static int bind_parse_label(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	struct listener *l;
+
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' : missing label", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	list_for_each_entry(l, &conf->listeners, by_bind) {
+		free(l->label);
+		l->label = strdup(args[cur_arg + 1]);
+		if (!l->label) {
+			memprintf(err, "'%s %s' : out of memory", args[cur_arg], args[cur_arg + 1]);
+			return ERR_ALERT | ERR_FATAL;
+		}
+	}
+
+	return 0;
+}
+
 /* parse the "nbconn" bind keyword */
 static int bind_parse_nbconn(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -2628,6 +2657,7 @@ static struct bind_kw_list bind_kws = { "ALL", { }, {
 	{ "guid-prefix",  bind_parse_guid_prefix,  1, 1 }, /* set guid of listening socket */
 	{ "id",           bind_parse_id,           1, 1 }, /* set id of listening socket */
 	{ "idle-ping",    bind_parse_idle_ping,    1, 1 }, /* activate idle ping if mux support it */
+	{ "label",        bind_parse_label,        1, 1 }, /* set label of listening socket */
 	{ "maxconn",      bind_parse_maxconn,      1, 0 }, /* set maxconn of listening socket */
 	{ "name",         bind_parse_name,         1, 1 }, /* set name of listening socket */
 	{ "nbconn",       bind_parse_nbconn,       1, 1 }, /* set number of connection on active preconnect */
