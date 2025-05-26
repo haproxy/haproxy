@@ -355,8 +355,8 @@ client c9 -connect ${h1_mainfe_sock} {
 } -run
 
 client c10 -connect ${h1_mainfe_sock} {
-    txreq -url "/converter" -hdr "X-Cust: foobar"
+    txreq -url "/converter"  -hdr "User-Agent: c10" -hdr "X-Cust: foobar"
     rxresp
     expect resp.status == 200
-    expect resp.http.x-var == "proc.req_len=35 sess.x_cust=foobar"
+    expect resp.http.x-var == "proc.req_len=52 sess.x_cust=foobar"
 } -run
