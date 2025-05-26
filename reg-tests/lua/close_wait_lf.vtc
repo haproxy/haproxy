@@ -49,6 +49,7 @@ client c1 -connect ${h1_frt_sock} -repeat 100  {
 syslog Slog -wait
 
 shell {
+    set +e
     ss -pt | grep CLOSE-WAIT.*haproxy.*pid=${h1_pid}
     exit $((!$?))
 }

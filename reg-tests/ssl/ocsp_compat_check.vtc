@@ -47,6 +47,7 @@ listen ssl-lst
     server s1 127.0.0.1:80
 EOF
 
+    set +e
     haproxy_output="$($HAPROXY_PROGRAM -f ${tmpdir}/ocsp_compat_check.cfg -c 2>&1)"
     haproxy_ret=$?
     echo "==== test 1"
@@ -77,6 +78,7 @@ listen ssl-lst
     server s1 127.0.0.1:80
 EOF
 
+    set +e
     haproxy_output="$($HAPROXY_PROGRAM -f ${tmpdir}/ocsp_compat_check.cfg -c 2>&1)"
     haproxy_ret=$?
     echo "==== test 2"
@@ -107,6 +109,7 @@ listen ssl-lst
     server s1 127.0.0.1:80
 EOF
 
+    set +e
     haproxy_output="$($HAPROXY_PROGRAM -f ${tmpdir}/ocsp_compat_check.cfg -c 2>&1)"
     haproxy_ret=$?
     echo "==== test 3"
@@ -138,6 +141,7 @@ listen ssl-lst
     server s1 127.0.0.1:80
 EOF
 
+    set +e
     haproxy_output="$($HAPROXY_PROGRAM -f ${tmpdir}/ocsp_compat_check.cfg -c 2>&1)"
     haproxy_ret=$?
     echo "==== test 4"
@@ -169,6 +173,7 @@ listen ssl-lst
     server s1 127.0.0.1:80
 EOF
 
+    set +e
     haproxy_output="$($HAPROXY_PROGRAM -f ${tmpdir}/ocsp_compat_check.cfg -c 2>&1)"
     haproxy_ret=$?
     echo "==== test 5"
@@ -200,6 +205,7 @@ listen ssl-lst
     server s1 127.0.0.1:80
 EOF
 
+    set +e
     haproxy_output="$($HAPROXY_PROGRAM -f ${tmpdir}/ocsp_compat_check.cfg -c 2>&1)"
     haproxy_ret=$?
     echo "==== test 6"
@@ -232,6 +238,7 @@ listen ssl-lst
     server s1 127.0.0.1:80
 EOF
 
+    set +e
     haproxy_output="$($HAPROXY_PROGRAM -f ${tmpdir}/ocsp_compat_check.cfg -c 2>&1)"
     haproxy_ret=$?
     echo "==== test 7"
@@ -263,6 +270,7 @@ listen ssl-lst
     server s1 127.0.0.1:80
 EOF
 
+    set +e
     haproxy_output="$($HAPROXY_PROGRAM -f ${tmpdir}/ocsp_compat_check.cfg -c 2>&1)"
     haproxy_ret=$?
     echo "==== test 8"
@@ -295,6 +303,7 @@ listen ssl-lst
     server s1 127.0.0.1:80
 EOF
 
+    set +e
     haproxy_output="$($HAPROXY_PROGRAM -f ${tmpdir}/ocsp_compat_check.cfg -c 2>&1)"
     haproxy_ret=$?
     echo "==== test 9"
@@ -327,6 +336,7 @@ listen ssl-lst
     server s1 127.0.0.1:80
 EOF
 
+    set +e
     haproxy_output="$($HAPROXY_PROGRAM -f ${tmpdir}/ocsp_compat_check.cfg -c 2>&1)"
     haproxy_ret=$?
     echo "==== test 10"
@@ -359,6 +369,7 @@ listen ssl-lst
     server s1 127.0.0.1:80
 EOF
 
+    set +e
     haproxy_output="$($HAPROXY_PROGRAM -f ${tmpdir}/ocsp_compat_check.cfg -c 2>&1)"
     haproxy_ret=$?
     echo "==== test 11"
@@ -391,6 +402,7 @@ listen ssl-lst
     server s1 127.0.0.1:80
 EOF
 
+    set +e
     haproxy_output="$($HAPROXY_PROGRAM -f ${tmpdir}/ocsp_compat_check.cfg -c 2>&1)"
     haproxy_ret=$?
     echo "==== test 12"
