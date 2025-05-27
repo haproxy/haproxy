@@ -5307,7 +5307,35 @@ __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KC
 	size_t len2;
 
 	/* Read the maximum amount of data available. */
-	ret = co_getline_nc(sc_oc(sc), &blk1, &len1, &blk2, &len2);
+	if (luactx->appctx->flags & APPCTX_FL_INOUT_BUFS) {
+		size_t l;
+		int line_found = 0;
+
+		ret = b_getblk_nc(&luactx->appctx->inbuf, &blk1, &len1, &blk2, &len2, 0, b_data(&luactx->appctx->inbuf));
+		if (ret == 0 && se_fl_test(luactx->appctx->sedesc, SE_FL_SHW))
+			ret = -1;
+
+		if (ret >= 1) {
+			for (l = 0; l < len1 && blk1[l] != '\n'; l++);
+			if (l < len1 && blk1[l] == '\n') {
+				len1 = l + 1;
+				line_found = 1;
+			}
+		}
+
+		if (!line_found && ret >= 2) {
+			for (l = 0; l < len2 && blk2[l] != '\n'; l++);
+			if (l < len2 && blk2[l] == '\n') {
+				len2 = l + 1;
+				line_found = 1;
+			}
+		}
+
+		if (!line_found && !se_fl_test(luactx->appctx->sedesc, SE_FL_SHW))
+			ret = 0;
+	}
+	else
+		ret = co_getline_nc(sc_oc(sc), &blk1, &len1, &blk2, &len2);
 
 	/* Data not yet available. return yield. */
 	if (ret == 0) {
@@ -5329,8 +5357,11 @@ __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KC
 	luaL_addlstring(&luactx->b, blk1, len1);
 	luaL_addlstring(&luactx->b, blk2, len2);
 
-	/* Consume input channel output buffer data. */
-	co_skip(sc_oc(sc), len1 + len2);
+	if (luactx->appctx->flags & APPCTX_FL_INOUT_BUFS)
+		b_del(&luactx->appctx->inbuf, len1 + len2);
+	else
+		co_skip(sc_oc(sc), len1 + len2);
+
 	luaL_pushresult(&luactx->b);
 	return 1;
 }
