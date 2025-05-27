@@ -2289,6 +2289,8 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 	pos = dgram->buf;
 	end = pos + dgram->len;
 	do {
+		struct eb64_node *node;
+
 		pkt = pool_alloc(pool_head_quic_rx_packet);
 		if (!pkt) {
 			TRACE_ERROR("RX packet allocation failed", QUIC_EV_CONN_LPKT);
@@ -2347,9 +2349,12 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 			dgram->qc = qc;
 		}
 
-		/* Ensure quic_conn access only occurs on its attached thread. */
-		BUG_ON_HOT(((struct quic_connection_id *)
-		               eb64_entry(eb64_first(qc->cids), struct quic_connection_id, seq_num))->tid != tid);
+		/* For a QUIC client, this node is NULL for the first datagrams/packets */
+		node = eb64_first(qc->cids);
+		if (node)
+			/* Ensure quic_conn access only occurs on its attached thread. */
+			BUG_ON_HOT(((struct quic_connection_id *)
+			            eb64_entry(node, struct quic_connection_id, seq_num))->tid != tid);
 
 		/* Ensure thread connection migration is finalized ASAP. */
 		if (qc->flags & QUIC_FL_CONN_TID_REBIND)
