@@ -24,7 +24,7 @@ set -e
 # temporarily detect Apple Silicon (it's using /opt/homebrew instead of /usr/local)
 #
 if test -f /opt/homebrew/include/pcre2.h; then
-   make -j${CPUS} FLAGS="-O2 -s -Wall" INCS="-Isrc -Ilib -I/usr/local/include -I/opt/homebrew/include -pthread"
+   make -j${CPUS} FLAGS="-O2 -s -Wall" INCS="-I. -Isrc -Ilib -I/usr/local/include -I/opt/homebrew/include -pthread"
 else
    make -j${CPUS} FLAGS="-O2 -s -Wall"
 fi
