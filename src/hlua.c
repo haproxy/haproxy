@@ -8326,6 +8326,12 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 
 	hlua_hc = hlua_checkhttpclient(L, 1);
 
+	/* An HTTPclient instance must never process more that one request. So
+	 * at this stage, it must never have been started.
+	 */
+	if (httpclient_started(hlua_hc->hc))
+		WILL_LJMP(luaL_error(L, "httpclient instance cannot be reused. It must process at most one request"));
+
 	lua_pushnil(L);  /* first key */
 	while (lua_next(L, 2)) {
 		if (strcmp(lua_tostring(L, -2), "dst") == 0) {
