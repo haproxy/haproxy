@@ -14,7 +14,7 @@ See also: doc/regression-testing.txt
 
 * vtest compilation *
 
-    $ git clone https://github.com/vtest/VTest
+    $ git clone https://github.com/vtest/VTest2
 
     $ cd VTest
 

@@ -2,7 +2,7 @@
 
 set -eux
 
-curl -fsSL https://github.com/wlallemand/VTest/archive/refs/heads/haproxy-sd_notify.tar.gz -o VTest.tar.gz
+curl -fsSL https://github.com/vtest/VTest2/archive/main.tar.gz  -o VTest.tar.gz
 mkdir ../vtest
 tar xvf VTest.tar.gz -C ../vtest --strip-components=1
 # Special flags due to: https://github.com/vtest/VTest/issues/12
