@@ -4625,10 +4625,10 @@ HTTPMessage class
   added with the "chunked" value. In both cases, all existing "Content-Length"
   and "Transfer-Encoding" headers are removed.
 
-  This fnuction should be used in the filter context to be able to alter the
-  payload of the HTTP message. The internal state fo the HTTP message is updated
+  This function should be used in the filter context to be able to alter the
+  payload of the HTTP message. The internal state of the HTTP message is updated
   accordingly. :js:func:`HTTPMessage.add_header()` or
-  :js:func:`HTTPMessage.set_header()` functions must to be used in that case.
+  :js:func:`HTTPMessage.set_header()` functions must be used in that case.
 
   :param class_httpmessage http_msg: The manipulated HTTP message.
   :param type length: The new payload length to set. It can be an integer or
