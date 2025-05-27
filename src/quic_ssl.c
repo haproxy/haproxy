@@ -1070,7 +1070,8 @@ int quic_ssl_set_tls_cbs(SSL *ssl)
  * Return 0 if succeeded, -1 if not. If failed, sets the ->err_code member of <qc->conn> to
  * CO_ER_SSL_NO_MEM.
  */
-static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl)
+static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl,
+                            struct connection *conn, int server)
 {
 	int retry, ret = -1;
 
@@ -1088,6 +1089,7 @@ static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl)
 	}
 
 	if (!SSL_set_ex_data(*ssl, ssl_qc_app_data_index, qc) ||
+	    (!server && !SSL_set_ex_data(*ssl, ssl_app_data_index, conn)) ||
 	    !quic_ssl_set_tls_cbs(*ssl)) {
 		SSL_free(*ssl);
 		*ssl = NULL;
@@ -1178,7 +1180,7 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, struct connection *conn)
 	if (qc_is_listener(qc)) {
 		struct bind_conf *bc = qc->li->bind_conf;
 
-		if (qc_ssl_sess_init(qc, bc->initial_ctx, &ctx->ssl) == -1)
+		if (qc_ssl_sess_init(qc, bc->initial_ctx, &ctx->ssl, NULL, 1) == -1)
 		        goto err;
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L) && defined(HAVE_SSL_0RTT_QUIC)
 		/* Enabling 0-RTT */
@@ -1192,7 +1194,7 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, struct connection *conn)
 		int ssl_err;
 		struct server *srv = __objt_server(ctx->conn->target);
 
-		if (qc_ssl_sess_init(qc, srv->ssl_ctx.ctx, &ctx->ssl) == -1)
+		if (qc_ssl_sess_init(qc, srv->ssl_ctx.ctx, &ctx->ssl, conn, 0) == -1)
 			goto err;
 
 		if (!qc_ssl_set_quic_transport_params(ctx->ssl, qc, quic_version_1, 0))
