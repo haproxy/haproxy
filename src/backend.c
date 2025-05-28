@@ -2023,7 +2023,7 @@ int connect_server(struct stream *s)
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
 		if (!srv ||
 		    (srv->use_ssl != 1 || (!(srv->ssl_ctx.alpn_str) && !(srv->ssl_ctx.npn_str)) ||
-		     srv->mux_proto || !IS_HTX_STRM(s)))
+		     /*srv->mux_proto ||*/ !IS_HTX_STRM(s)))
 #endif
 			init_mux = 1;
 
