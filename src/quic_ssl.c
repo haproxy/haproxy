@@ -773,7 +773,7 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
  */
 SSL_CTX *ssl_quic_srv_new_ssl_ctx(void)
 {
-	SSL_CTX *ctx;
+	SSL_CTX *ctx = NULL;
 	/* XXX TODO: check this: XXX */
 	long options =
 		(SSL_OP_ALL & ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS) |
@@ -791,10 +791,19 @@ SSL_CTX *ssl_quic_srv_new_ssl_ctx(void)
 	SSL_CTX_set_options(ctx, options);
 	SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
 	SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
+#ifdef USE_QUIC_OPENSSL_COMPAT
+	if (!quic_tls_compat_init(NULL, ctx))
+		goto err;
+#endif
 
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_NEW);
 	return ctx;
+ err:
+	SSL_CTX_free(ctx);
+	ctx = NULL;
+	TRACE_DEVEL("leaving on error", QUIC_EV_CONN_NEW);
+	goto leave;
 }
 
 /* This function gives the detail of the SSL error. It is used only

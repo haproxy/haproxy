@@ -58,7 +58,7 @@ static int qc_ssl_compat_add_tps_cb(SSL *ssl, unsigned int ext_type, unsigned in
 int quic_tls_compat_init(struct bind_conf *bind_conf, SSL_CTX *ctx)
 {
 	/* Ignore non-QUIC connections */
-	if (bind_conf->xprt != xprt_get(XPRT_QUIC))
+	if (bind_conf && bind_conf->xprt != xprt_get(XPRT_QUIC))
 		return 1;
 
 	/* This callback is already registered if the TLS keylog is activated for
