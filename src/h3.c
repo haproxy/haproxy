@@ -510,6 +510,84 @@ static int h3_set_authority(struct qcs *qcs, struct ist *auth, const struct ist 
 	return 0;
 }
 
+/* Ensure pseudo-header <h> is valid as it does not contains any invalid character. */
+static int _h3_handle_phdr(struct qcs *qcs, const struct http_hdr *h)
+{
+	/* look for forbidden control characters in the pseudo-header value */
+	const char *ctl = ist_find_ctl(h->v);
+	if (unlikely(ctl) && http_header_has_forbidden_char(h->v, ctl)) {
+		TRACE_ERROR("control character present in pseudo-header value", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		goto err;
+	}
+
+	return 0;
+
+ err:
+	return 1;
+}
+
+/* Ensure header <hdr> is valid. */
+static int _h3_handle_hdr(struct qcs *qcs, const struct http_hdr *hdr)
+{
+	const struct ist name = hdr->n;
+	const struct ist value = hdr->v;
+	const char *ctl;
+	int i;
+
+	if (isteq(name, ist("")))
+		return 1;
+
+	if (istmatch(name, ist(":"))) {
+		TRACE_ERROR("pseudo-header field after fields", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		goto err;
+	}
+
+	for (i = 0; i < istlen(name); ++i) {
+		const char c = istptr(name)[i];
+		if ((uint8_t)(c - 'A') < 'Z' - 'A' || !HTTP_IS_TOKEN(c)) {
+			TRACE_ERROR("invalid characters in field name", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+			goto err;
+		}
+	}
+
+	/* RFC 9114 10.3 Intermediary-Encapsulation Attacks
+	 *
+	 * While most values that can be encoded will not alter field
+	 * parsing, carriage return (ASCII 0x0d), line feed (ASCII 0x0a),
+	 * and the null character (ASCII 0x00) might be exploited by an
+	 * attacker if they are translated verbatim. Any request or
+	 * response that contains a character not permitted in a field
+	 * value MUST be treated as malformed
+	 */
+
+	/* look for forbidden control characters in the header value */
+	ctl = ist_find_ctl(value);
+	if (unlikely(ctl) && http_header_has_forbidden_char(value, ctl)) {
+		TRACE_ERROR("control character present in header value", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		goto err;
+	}
+
+	return 0;
+
+ err:
+	return 1;
+}
+
+/* Remove any leading/trailing HTTP whitespace from <value>. Used to sanitize HTTP header values. */
+static struct ist _h3_trim_header(struct ist value)
+{
+	struct ist v;
+
+	for (v = value; v.len; v.len--) {
+		if (unlikely(HTTP_IS_LWS(*v.ptr)))
+			v.ptr++;
+		else if (!unlikely(HTTP_IS_LWS(v.ptr[v.len - 1])))
+			break;
+	}
+
+	return v;
+}
+
 /* Parse from buffer <buf> a H3 HEADERS frame of length <len>. Data are copied
  * in a local HTX buffer and transfer to the stream connector layer. <fin> must be
  * set if this is the last data to transfer from this stream.
@@ -518,8 +596,8 @@ static int h3_set_authority(struct qcs *qcs, struct ist *auth, const struct ist 
  * either the connection should be closed or the stream reset using codes
  * provided in h3c.err / h3s.err.
  */
-static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
-                                 uint64_t len, char fin)
+static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
+                                     uint64_t len, char fin)
 {
 	struct h3s *h3s = qcs->ctx;
 	struct h3c *h3c = h3s->h3c;
@@ -532,10 +610,8 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	struct ist meth = IST_NULL, path = IST_NULL;
 	struct ist scheme = IST_NULL, authority = IST_NULL;
 	struct ist uri;
-	struct ist v;
 	int hdr_idx, ret;
 	int cookie = -1, last_cookie = -1, i;
-	const char *ctl;
 	int relaxed = !!(h3c->qcc->proxy->options2 & PR_O2_REQBUG_OK);
 	int qpack_err;
 
@@ -613,10 +689,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		 * value MUST be treated as malformed
 		 */
 
-		/* look for forbidden control characters in the pseudo-header value */
-		ctl = ist_find_ctl(list[hdr_idx].v);
-		if (unlikely(ctl) && http_header_has_forbidden_char(list[hdr_idx].v, ctl)) {
-			TRACE_ERROR("control character present in pseudo-header value", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		if (_h3_handle_phdr(qcs, &list[hdr_idx])) {
 			h3s->err = H3_ERR_MESSAGE_ERROR;
 			qcc_report_glitch(h3c->qcc, 1);
 			len = -1;
@@ -658,7 +731,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 				/* we need to reject any control chars or '#' from the path,
 				 * unless option accept-unsafe-violations-in-http-request is set.
 				 */
-				ctl = ist_find_range(list[hdr_idx].v, 0, '#');
+				const char *ctl = ist_find_range(list[hdr_idx].v, 0, '#');
 				if (unlikely(ctl) && http_path_has_forbidden_char(list[hdr_idx].v, ctl)) {
 					TRACE_ERROR("forbidden character in ':path' pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 					h3s->err = H3_ERR_MESSAGE_ERROR;
@@ -842,40 +915,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		if (isteq(list[hdr_idx].n, ist("")))
 			break;
 
-		if (istmatch(list[hdr_idx].n, ist(":"))) {
-			TRACE_ERROR("pseudo-header field after fields", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-			h3s->err = H3_ERR_MESSAGE_ERROR;
-			qcc_report_glitch(h3c->qcc, 1);
-			len = -1;
-			goto out;
-		}
-
-		for (i = 0; i < list[hdr_idx].n.len; ++i) {
-			const char c = list[hdr_idx].n.ptr[i];
-			if ((uint8_t)(c - 'A') < 'Z' - 'A' || !HTTP_IS_TOKEN(c)) {
-				TRACE_ERROR("invalid characters in field name", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-				h3s->err = H3_ERR_MESSAGE_ERROR;
-				qcc_report_glitch(h3c->qcc, 1);
-				len = -1;
-				goto out;
-			}
-		}
-
-
-		/* RFC 9114 10.3 Intermediary-Encapsulation Attacks
-		 *
-		 * While most values that can be encoded will not alter field
-		 * parsing, carriage return (ASCII 0x0d), line feed (ASCII 0x0a),
-		 * and the null character (ASCII 0x00) might be exploited by an
-		 * attacker if they are translated verbatim. Any request or
-		 * response that contains a character not permitted in a field
-		 * value MUST be treated as malformed
-		 */
-
-		/* look for forbidden control characters in the header value */
-		ctl = ist_find_ctl(list[hdr_idx].v);
-		if (unlikely(ctl) && http_header_has_forbidden_char(list[hdr_idx].v, ctl)) {
-			TRACE_ERROR("control character present in header value", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		if (_h3_handle_hdr(qcs, &list[hdr_idx])) {
 			h3s->err = H3_ERR_MESSAGE_ERROR;
 			qcc_report_glitch(h3c->qcc, 1);
 			len = -1;
@@ -966,15 +1006,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			goto out;
 		}
 
-		/* trim leading/trailing LWS */
-		for (v = list[hdr_idx].v; v.len; v.len--) {
-			if (unlikely(HTTP_IS_LWS(*v.ptr)))
-				v.ptr++;
-			else if (!unlikely(HTTP_IS_LWS(v.ptr[v.len - 1])))
-				break;
-		}
-
-		if (!htx_add_header(htx, list[hdr_idx].n, v)) {
+		if (!htx_add_header(htx, list[hdr_idx].n, _h3_trim_header(list[hdr_idx].v))) {
 			len = -1;
 			goto out;
 		}
@@ -1148,7 +1180,7 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			}
 		}
 
-		/* forbidden HTTP/3 headers, cf h3_headers_to_htx() */
+		/* forbidden HTTP/3 headers, cf h3_req_headers_to_htx() */
 		if (isteq(list[hdr_idx].n, ist("host")) ||
 		    isteq(list[hdr_idx].n, ist("content-length")) ||
 		    isteq(list[hdr_idx].n, ist("connection")) ||
@@ -1522,7 +1554,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			break;
 		case H3_FT_HEADERS:
 			if (h3s->st_req == H3S_ST_REQ_BEFORE) {
-				ret = h3_headers_to_htx(qcs, b, flen, last_stream_frame);
+				ret = h3_req_headers_to_htx(qcs, b, flen, last_stream_frame);
 				h3s->st_req = H3S_ST_REQ_HEADERS;
 			}
 			else {
