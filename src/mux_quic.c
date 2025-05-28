@@ -3138,6 +3138,12 @@ static int qcc_wake_some_streams(struct qcc *qcc)
 			se_fl_set_error(qcs->sd);
 			qcs_alert(qcs);
 		}
+		else if (qcs->subs) {
+			qcs_notify_recv(qcs);
+		}
+		else {
+			qcs_sc(qcs)->app_ops->wake(qcs_sc(qcs));
+		}
 	}
 
 	return 0;

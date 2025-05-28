@@ -964,6 +964,14 @@ static int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 				goto leave;
 			}
 
+			ctx->conn->mux->wake(ctx->conn);
+			if (ctx->subs) {
+				fprintf(stderr, "WAKE UP\n");
+				tasklet_wakeup(ctx->subs->tasklet);
+				ctx->subs->events = 0;
+				ctx->subs = NULL;
+			}
+
 			qc->mux_state = QC_MUX_READY;
 		}
 
