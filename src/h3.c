@@ -531,6 +531,7 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	unsigned int flags = HTX_SL_F_NONE;
 	struct ist meth = IST_NULL, path = IST_NULL;
 	struct ist scheme = IST_NULL, authority = IST_NULL;
+	struct ist status = IST_NULL;
 	struct ist uri;
 	struct ist v;
 	int hdr_idx, ret;
@@ -706,6 +707,9 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 				goto out;
 			}
 		}
+		else if (isteq(list[hdr_idx].n, ist(":status"))) {
+			status = list[hdr_idx].v;
+		}
 		else {
 			TRACE_ERROR("unknown pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 			h3s->err = H3_ERR_MESSAGE_ERROR;
@@ -717,104 +721,115 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		++hdr_idx;
 	}
 
-	if (!istmatch(meth, ist("CONNECT"))) {
+	if (!istlen(status)) {
+		if (!istmatch(meth, ist("CONNECT"))) {
+			/* RFC 9114 4.3.1. Request Pseudo-Header Fields
+			 *
+			 * All HTTP/3 requests MUST include exactly one value for the :method,
+			 * :scheme, and :path pseudo-header fields, unless the request is a
+			 * CONNECT request; see Section 4.4.
+			 */
+			if (!isttest(meth) || !isttest(scheme) || !isttest(path)) {
+				TRACE_ERROR("missing mandatory pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+				h3s->err = H3_ERR_MESSAGE_ERROR;
+				qcc_report_glitch(h3c->qcc, 1);
+				len = -1;
+				goto out;
+			}
+		}
+
 		/* RFC 9114 4.3.1. Request Pseudo-Header Fields
 		 *
-		 * All HTTP/3 requests MUST include exactly one value for the :method,
-		 * :scheme, and :path pseudo-header fields, unless the request is a
-		 * CONNECT request; see Section 4.4.
+		 * This pseudo-header field MUST NOT be empty for "http" or "https"
+		 * URIs; "http" or "https" URIs that do not contain a path component
+		 * MUST include a value of / (ASCII 0x2f). An OPTIONS request that
+		 * does not include a path component includes the value * (ASCII
+		 * 0x2a) for the :path pseudo-header field; see Section 7.1 of
+		 * [HTTP].
 		 */
-		if (!isttest(meth) || !isttest(scheme) || !isttest(path)) {
-			TRACE_ERROR("missing mandatory pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		if ((isteqi(scheme, ist("http")) || isteqi(scheme, ist("https"))) &&
+		    (!istlen(path) ||
+		     (istptr(path)[0] != '/' && !isteq(path, ist("*"))))) {
+			TRACE_ERROR("invalid ':path' pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 			h3s->err = H3_ERR_MESSAGE_ERROR;
 			qcc_report_glitch(h3c->qcc, 1);
 			len = -1;
 			goto out;
 		}
-	}
 
-	flags |= HTX_SL_F_VER_11;
-	flags |= HTX_SL_F_XFER_LEN;
+		/* We're going to concatenate :authority with :path to form a URI. Some
+		 * characters must absolutely be avoided in :authority to make sure not
+		 * to result in a broken concatenation. See the following links for a
+		 * discussion on this topic:
+		 *   https://github.com/httpwg/http2-spec/pull/936
+		 *   https://github.com/haproxy/haproxy/issues/2941
+		 */
+		if (http_authority_has_forbidden_char(authority)) {
+			TRACE_ERROR("invalid character in authority", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+			h3s->err = H3_ERR_MESSAGE_ERROR;
+			qcc_report_glitch(h3c->qcc, 1);
+			len = -1;
+			goto out;
+		}
 
-	/* RFC 9114 4.3.1. Request Pseudo-Header Fields
-	 *
-	 * This pseudo-header field MUST NOT be empty for "http" or "https"
-	 * URIs; "http" or "https" URIs that do not contain a path component
-	 * MUST include a value of / (ASCII 0x2f). An OPTIONS request that
-	 * does not include a path component includes the value * (ASCII
-	 * 0x2a) for the :path pseudo-header field; see Section 7.1 of
-	 * [HTTP].
-	 */
-	if ((isteqi(scheme, ist("http")) || isteqi(scheme, ist("https"))) &&
-	    (!istlen(path) ||
-	     (istptr(path)[0] != '/' && !isteq(path, ist("*"))))) {
-		TRACE_ERROR("invalid ':path' pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		h3s->err = H3_ERR_MESSAGE_ERROR;
-		qcc_report_glitch(h3c->qcc, 1);
-		len = -1;
-		goto out;
-	}
+		if (!istlen(scheme)) {
+			/* No scheme (CONNECT), use :authority only. */
+			uri = authority;
+		}
+		else if (isttest(authority)) {
+			/* Use absolute URI form as :authority is present. */
+			uri = ist2bin(trash.area, scheme);
+			istcat(&uri, ist("://"), trash.size);
+			istcat(&uri, authority, trash.size);
+			if (!isteq(path, ist("*")))
+				istcat(&uri, path, trash.size);
+		}
+		else {
+			/* Use origin URI form. */
+			uri = path;
+		}
 
-	/* We're going to concatenate :authority with :path to form a URI. Some
-	 * characters must absolutely be avoided in :authority to make sure not
-	 * to result in a broken concatenation. See the following links for a
-	 * discussion on this topic:
-	 *   https://github.com/httpwg/http2-spec/pull/936
-	 *   https://github.com/haproxy/haproxy/issues/2941
-	 */
-	if (http_authority_has_forbidden_char(authority)) {
-		TRACE_ERROR("invalid character in authority", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		h3s->err = H3_ERR_MESSAGE_ERROR;
-		qcc_report_glitch(h3c->qcc, 1);
-		len = -1;
-		goto out;
-	}
+		/* Ensure that final URI does not contains LWS nor CTL characters. */
+		for (i = 0; i < uri.len; i++) {
+			unsigned char c = istptr(uri)[i];
+			if (HTTP_IS_LWS(c) || HTTP_IS_CTL(c)) {
+				TRACE_ERROR("invalid character in path", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+				h3s->err = H3_ERR_MESSAGE_ERROR;
+				qcc_report_glitch(h3c->qcc, 1);
+				len = -1;
+				goto out;
+			}
+		}
 
-	if (!istlen(scheme)) {
-		/* No scheme (CONNECT), use :authority only. */
-		uri = authority;
-	}
-	else if (isttest(authority)) {
-		/* Use absolute URI form as :authority is present. */
-		uri = ist2bin(trash.area, scheme);
-		istcat(&uri, ist("://"), trash.size);
-		istcat(&uri, authority, trash.size);
-		if (!isteq(path, ist("*")))
-			istcat(&uri, path, trash.size);
+		flags |= HTX_SL_F_VER_11;
+		flags |= HTX_SL_F_XFER_LEN;
+
+		sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth, uri, ist("HTTP/3.0"));
+		if (!sl) {
+			len = -1;
+			goto out;
+		}
+
+		if (fin)
+			sl->flags |= HTX_SL_F_BODYLESS;
+
+		sl->info.req.meth = find_http_meth(meth.ptr, meth.len);
+
+		if (isttest(authority)) {
+			if (!htx_add_header(htx, ist("host"), authority)) {
+				len = -1;
+				goto out;
+			}
+		}
 	}
 	else {
-		/* Use origin URI form. */
-		uri = path;
-	}
+		flags |= HTX_SL_F_VER_11;
+		flags |= HTX_SL_F_XFER_LEN;
 
-	/* Ensure that final URI does not contains LWS nor CTL characters. */
-	for (i = 0; i < uri.len; i++) {
-		unsigned char c = istptr(uri)[i];
-		if (HTTP_IS_LWS(c) || HTTP_IS_CTL(c)) {
-			TRACE_ERROR("invalid character in path", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-			h3s->err = H3_ERR_MESSAGE_ERROR;
-			qcc_report_glitch(h3c->qcc, 1);
-			len = -1;
-			goto out;
-		}
-	}
-
-	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth, uri, ist("HTTP/3.0"));
-	if (!sl) {
-		len = -1;
-		goto out;
-	}
-
-	if (fin)
-		sl->flags |= HTX_SL_F_BODYLESS;
-
-	sl->info.req.meth = find_http_meth(meth.ptr, meth.len);
-
-	if (isttest(authority)) {
-		if (!htx_add_header(htx, ist("host"), authority)) {
-			len = -1;
-			goto out;
-		}
+		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, ist("HTTP/3.0"), status, ist(""));
+		BUG_ON(!sl);
+		if (fin)
+			sl->flags |= HTX_SL_F_BODYLESS;
 	}
 
 	/* now treat standard headers */
@@ -961,19 +976,21 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		++hdr_idx;
 	}
 
-	/* RFC 9114 4.3.1. Request Pseudo-Header Fields
-	 *
-	 * If the :scheme pseudo-header field identifies a scheme that has a
-	 * mandatory authority component (including "http" and "https"), the
-	 * request MUST contain either an :authority pseudo-header field or a
-	 * Host header field.
-	 */
-	if (!isttest(authority)) {
-		TRACE_ERROR("missing mandatory pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		h3s->err = H3_ERR_MESSAGE_ERROR;
-		qcc_report_glitch(h3c->qcc, 1);
-		len = -1;
-		goto out;
+	if (!istlen(status)) {
+		/* RFC 9114 4.3.1. Request Pseudo-Header Fields
+		 *
+		 * If the :scheme pseudo-header field identifies a scheme that has a
+		 * mandatory authority component (including "http" and "https"), the
+		 * request MUST contain either an :authority pseudo-header field or a
+		 * Host header field.
+		 */
+		if (!isttest(authority)) {
+			TRACE_ERROR("missing mandatory pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+			h3s->err = H3_ERR_MESSAGE_ERROR;
+			qcc_report_glitch(h3c->qcc, 1);
+			len = -1;
+			goto out;
+		}
 	}
 
 	if (cookie >= 0) {
@@ -1000,9 +1017,17 @@ static ssize_t h3_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	htx_to_buf(htx, &htx_buf);
 	htx = NULL;
 
-	if (qcs_attach_sc(qcs, &htx_buf, fin)) {
-		len = -1;
-		goto out;
+	if (!istlen(status)) {
+		if (qcs_attach_sc(qcs, &htx_buf, fin)) {
+			len = -1;
+			goto out;
+		}
+	}
+	else {
+		struct buffer *appbuf;
+		appbuf = qcc_get_stream_rxbuf(qcs);
+		BUG_ON(!appbuf);
+		b_xfer(appbuf, &htx_buf, b_data(&htx_buf));
 	}
 
 	/* RFC 9114 5.2. Connection Shutdown
