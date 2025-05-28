@@ -975,6 +975,8 @@ static int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 				goto leave;
 			}
 
+			/* Wake up MUX after its creation. Operation similar to TLS+ALPN on TCP stack. */
+			ctx->conn->mux->wake(ctx->conn);
 			qc->mux_state = QC_MUX_READY;
 		}
 
