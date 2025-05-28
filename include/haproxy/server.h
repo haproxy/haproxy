@@ -182,8 +182,9 @@ const struct mux_ops *srv_get_ws_proto(struct server *srv);
 static inline void srv_inc_sess_ctr(struct server *s)
 {
 	_HA_ATOMIC_INC(&s->counters.shared->cum_sess);
+	update_freq_ctr(&s->counters.shared->sess_per_sec, 1);
 	HA_ATOMIC_UPDATE_MAX(&s->counters.sps_max,
-	                     update_freq_ctr(&s->counters.shared->sess_per_sec, 1));
+	                     update_freq_ctr(&s->counters._sess_per_sec, 1));
 }
 
 /* set the time of last session on the designated server */

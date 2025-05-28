@@ -88,10 +88,13 @@ struct fe_counters {
 
 	unsigned int cps_max;                   /* maximum of new connections received per second */
 	unsigned int sps_max;                   /* maximum of new connections accepted per second (sessions) */
+	struct freq_ctr _sess_per_sec;          /* sessions per second on this frontend, used to compute sps_max (internal use only) */
+	struct freq_ctr _conn_per_sec;          /* connections per second on this frontend, used to compute cps_max (internal use only) */
 
 	union {
 		struct {
 			unsigned int rps_max;   /* maximum of new HTTP requests second observed */
+			struct freq_ctr _req_per_sec; /* HTTP requests per second on the frontend, only used to compute rps_max */
 		} http;
 	} p;                                    /* protocol-specific stats */
 };
@@ -135,6 +138,8 @@ struct be_counters {
 	unsigned int sps_max;                   /* maximum of new connections accepted per second (sessions) */
 	unsigned int nbpend_max;                /* max number of pending connections with no server assigned yet */
 	unsigned int cur_sess_max;		/* max number of currently active sessions */
+
+	struct freq_ctr _sess_per_sec;          /* sessions per second on this frontend, used to compute sps_max (internal use only) */
 
 	unsigned int q_time, c_time, d_time, t_time; /* sums of conn_time, queue_time, data_time, total_time */
 	unsigned int qtime_max, ctime_max, dtime_max, ttime_max; /* maximum of conn_time, queue_time, data_time, total_time observed */
