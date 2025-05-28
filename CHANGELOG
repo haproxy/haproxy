@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2025/05/28 : 3.3-dev0
+    - MINOR: version: mention that it's development again
+
 2025/05/28 : 3.2.0
     - MINOR: promex: Add agent check status/code/duration metrics
     - MINOR: ssl: support strict-sni in ssl-default-bind-options
