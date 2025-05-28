@@ -1691,6 +1691,74 @@ static int h3_encode_header(struct buffer *buf,
 	return qpack_encode_header(buf, n, v_strip);
 }
 
+/* Convert a HTX start-line and associated headers stored in <htx> into a
+ * HTTP/3 HEADERS request frame. HTX blocks are removed up to end-of-trailer
+ * included.
+ *
+ * Returns the amount of consumed bytes from <htx> buffer or a negative error
+ * code.
+ */
+static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
+{
+	struct buffer outbuf;
+	struct buffer headers_buf = BUF_NULL;
+	struct buffer *res;
+	struct htx_blk *blk;
+	enum htx_blk_type type;
+	int frame_length_size;  /* size in bytes of frame length varint field */
+	int ret, err;
+
+	res = qcc_get_stream_txbuf(qcs, &err, 0);
+	BUG_ON(!res);
+
+	b_reset(&outbuf);
+	outbuf = b_make(b_tail(res), b_contig_space(res), 0, 0);
+	/* Start the headers after frame type + length */
+	headers_buf = b_make(b_head(res) + 5, b_size(res) - 5, 0, 0);
+
+	if (qpack_encode_field_section_line(&headers_buf))
+		goto err;
+
+	/* :method */
+	if (qpack_encode_method(&headers_buf, HTTP_METH_GET))
+		goto err;
+	/* :scheme */
+
+	if (qpack_encode_scheme(&headers_buf))
+		goto err;
+
+	if (qpack_encode_path(&headers_buf, ist('/')))
+		goto err;
+
+	/* :authority */
+	if (h3_encode_header(&headers_buf, ist(":authority"), ist("127.0.0.1:20443")))
+		goto err;
+
+	/* Now that all headers are encoded, we are certain that res buffer is
+	 * big enough
+	 */
+	frame_length_size = quic_int_getsize(b_data(&headers_buf));
+	res->head += 4 - frame_length_size;
+	b_putchr(res, 0x01); /* h3 HEADERS frame type */
+	b_quic_enc_int(res, b_data(&headers_buf), 0);
+	b_add(res, b_data(&headers_buf));
+
+	ret = 0;
+	blk = htx_get_head_blk(htx);
+	while (blk) {
+		type = htx_get_blk_type(blk);
+		ret += htx_get_blksz(blk);
+		blk = htx_remove_blk(htx, blk);
+		if (type == HTX_BLK_EOH)
+			break;
+	}
+
+	return ret;
+
+ err:
+	return -1;
+}
+
 /* Convert a HTX status-line and associated headers stored into <htx> into a
  * HTTP/3 HEADERS response frame. HTX blocks are removed up to end-of-trailer
  * included.
@@ -2191,6 +2259,16 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 		BUG_ON(btype == HTX_BLK_REQ_SL);
 
 		switch (btype) {
+		case HTX_BLK_REQ_SL:
+			ret = h3_req_headers_send(qcs, htx);
+			if (ret > 0) {
+				total += ret;
+				count -= ret;
+				if (ret < bsize)
+					goto out;
+			}
+			break;
+
 		case HTX_BLK_RES_SL:
 			/* start-line -> HEADERS h3 frame */
 			ret = h3_resp_headers_send(qcs, htx);

@@ -133,6 +133,63 @@ int qpack_encode_int_status(struct buffer *out, unsigned int status)
 }
 
 /* Returns 0 on success else non-zero. */
+int qpack_encode_method(struct buffer *out, enum http_meth_t meth)
+{
+	int size, idx = 0;
+
+	switch (meth) {
+	case HTTP_METH_GET: idx = 17; break;
+	default: ABORT_NOW();
+	}
+
+	if (idx) {
+		/* method present in QPACK static table
+		 * -> indexed field line
+		 */
+		size = qpack_get_prefix_int_size(idx, 6);
+		if (b_room(out) < size)
+			return 1;
+
+		qpack_encode_prefix_integer(out, idx, 6, 0xc0);
+	}
+	else {
+		ABORT_NOW();
+	}
+
+	return 0;
+}
+
+/* Encode pseudo-header scheme defined to https on <out> buffer.
+ *
+ * Returns 0 on success else non-zero.
+ */
+int qpack_encode_scheme(struct buffer *out)
+{
+	if (b_room(out) < 2)
+		return 1;
+
+	/* :scheme: https */
+	qpack_encode_prefix_integer(out, 23, 6, 0xc0);
+	return 0;
+}
+
+/* Returns 0 on success else non-zero. */
+int qpack_encode_path(struct buffer *out, const struct ist path)
+{
+	if (unlikely(isteq(path, ist("/")))) {
+		if (!b_room(out))
+			return 1;
+
+		qpack_encode_prefix_integer(out, 1, 6, 0xc0);
+		return 0;
+	}
+	else {
+		/* TODO */
+		ABORT_NOW();
+	}
+}
+
+/* Returns 0 on success else non-zero. */
 int qpack_encode_field_section_line(struct buffer *out)
 {
 	char qpack_field_section[] = {
