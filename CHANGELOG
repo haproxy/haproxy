@@ -1,6 +1,45 @@
 ChangeLog :
 ===========
 
+2025/05/28 : 3.2.0
+    - MINOR: promex: Add agent check status/code/duration metrics
+    - MINOR: ssl: support strict-sni in ssl-default-bind-options
+    - MINOR: ssl: also provide the "tls-tickets" bind option
+    - MINOR: server: define CLI I/O handler for "add server"
+    - MINOR: server: implement "add server help"
+    - MINOR: server: use stress mode for "add server help"
+    - BUG/MEDIUM: server: fix crash after duplicate GUID insertion
+    - BUG/MEDIUM: server: fix potential null-deref after previous fix
+    - MINOR: config: list recently added sections with -dKcfg
+    - BUG/MAJOR: cache: Crash because of wrong cache entry deleted
+    - DOC: configuration: fix the example in crt-store
+    - DOC: config: clarify the wording around single/double quotes
+    - DOC: config: clarify the legacy cookie and header captures
+    - DOC: config: fix alphabetical ordering of layer 7 sample fetch functions
+    - DOC: config: fix alphabetical ordering of layer 6 sample fetch functions
+    - DOC: config: fix alphabetical ordering of layer 5 sample fetch functions
+    - DOC: config: fix alphabetical ordering of layer 4 sample fetch functions
+    - DOC: config: fix alphabetical ordering of internal sample fetch functions
+    - BUG/MINOR: h3: Set HTX flags corresponding to the scheme found in the request
+    - BUG/MEDIUM: h3: Declare absolute URI as normalized when a :authority is found
+    - DOC: config: mention in bytes_in and bytes_out that they're read on input
+    - DOC: config: clarify the basics of ACLs (call point, multi-valued etc)
+    - REGTESTS: Make the script testing conditional set-var compatible with Vtest2
+    - REGTESTS: Explicitly allow failing shell commands in some scripts
+    - MINOR: listeners: Add support for a label on bind line
+    - BUG/MEDIUM: cli/ring: Properly handle shutdown in "show event" I/O handler
+    - BUG/MEDIUM: hlua: Properly detect shudowns for TCP applets based on the new API
+    - BUG/MEDIUM: hlua: Fix getline() for TCP applets to work with applet's buffers
+    - BUG/MEDIUM: hlua: Fix receive API for TCP applets to properly handle shutdowns
+    - CI: vtest: Rely on VTest2 to run regression tests
+    - CI: vtest: Fix the build script to properly work on MaOS
+    - CI: combine AWS-LC and AWS-LC-FIPS by template
+    - BUG/MEDIUM: httpclient: Throw an error if an lua httpclient instance is reused
+    - DOC: hlua: Add a note to warn user about httpclient object reuse
+    - DOC: hlua: fix a few typos in HTTPMessage.set_body_len() documentation
+    - DEV: patchbot: prepare for new version 3.3-dev
+    - MINOR: version: mention that it's 3.2 LTS now.
+
 2025/05/21 : 3.2-dev17
     - DOC: configuration: explicit multi-choice on bind shards option
     - BUG/MINOR: sink: detect and warn when using "send-proxy" options with ring servers
