@@ -2020,9 +2020,13 @@ int connect_server(struct stream *s)
 		srv_conn->ctx = s->scb;
 
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
+		/* Delay mux initialization if SSL and ALPN/NPN is set. Note
+		 * that this is skipped in TCP mode as we only want mux-pt
+		 * anyway.
+		 */
 		if (!srv ||
 		    (srv->use_ssl != 1 || (!(srv->ssl_ctx.alpn_str) && !(srv->ssl_ctx.npn_str)) ||
-		     srv->mux_proto || !IS_HTX_STRM(s)))
+		     !IS_HTX_STRM(s)))
 #endif
 			init_mux = 1;
 
