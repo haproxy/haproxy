@@ -165,15 +165,6 @@ static inline void quic_free_ncbuf(struct ncbuf *ncbuf)
 	*ncbuf = NCBUF_NULL;
 }
 
-/* Return the max_udp_payload_size transport parameter value of <qc> QUIC
- * connection.
- */
-static inline size_t qc_max_udp_payload_size(struct quic_conn *qc)
-{
-	return qc_is_listener(qc) ? qc->li->bind_conf->quic_params.max_udp_payload_size :
-		objt_server(qc->conn->target)->quic_params.max_udp_payload_size;
-}
-
 /* Return the address of the connection owner object type. */
 static inline enum obj_type *qc_owner_obj_type(struct quic_conn *qc)
 {

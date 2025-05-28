@@ -308,6 +308,7 @@ struct qcc_app_ops;
             /* Number of received bytes. */            \
             uint64_t rx;                               \
         } bytes;                                       \
+        size_t max_udp_payload;                        \
         /* First DCID used by client on its Initial packet. */                 \
         struct quic_cid odcid;                                                 \
         /* DCID of our endpoint - not updated when a new DCID is used */       \
