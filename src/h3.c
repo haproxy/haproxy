@@ -1707,6 +1707,7 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	enum htx_blk_type type;
 	struct htx_blk *blk;
 	struct htx_sl *sl;
+	struct ist meth;
 	int frame_length_size;  /* size in bytes of frame length varint field */
 	int ret, err, hdr;
 
@@ -1724,6 +1725,7 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 		case HTX_BLK_REQ_SL:
 			BUG_ON_HOT(sl); /* Only one start-line expected */
 			sl = htx_get_blk_ptr(htx, blk);
+			meth = htx_sl_req_meth(sl);
 			break;
 
 		case HTX_BLK_HDR:
@@ -1757,10 +1759,8 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	if (qpack_encode_field_section_line(&headers_buf))
 		goto err;
 
-	/* :method */
-	if (qpack_encode_method(&headers_buf, HTTP_METH_GET))
+	if (qpack_encode_method(&headers_buf, sl->info.req.meth, meth))
 		goto err;
-	/* :scheme */
 
 	if (qpack_encode_scheme(&headers_buf))
 		goto err;
