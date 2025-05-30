@@ -228,6 +228,25 @@ int qpack_encode_path(struct buffer *out, const struct ist path)
 	}
 }
 
+/* Encode pseudo-header authority defined to <auth> into <out> buffer.
+ *
+ * Returns 0 on success else non-zero.
+ */
+int qpack_encode_auth(struct buffer *out, const struct ist auth)
+{
+	size_t sz;
+
+	sz = 1 + qpack_get_prefix_int_size(istlen(auth), 7) + istlen(auth);
+	if (b_room(out) < sz)
+		return 1;
+
+	qpack_encode_prefix_integer(out, 0, 4, 0x50);
+	qpack_encode_prefix_integer(out, istlen(auth), 7, 0);
+	for (size_t i = 0; i < istlen(auth); ++i)
+		b_putchr(out, istptr(auth)[i]);
+	return 0;
+}
+
 /* Returns 0 on success else non-zero. */
 int qpack_encode_field_section_line(struct buffer *out)
 {

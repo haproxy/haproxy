@@ -1797,9 +1797,10 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	if (qpack_encode_path(&headers_buf, uri))
 		goto err;
 
-	/* :authority */
-	if (h3_encode_header(&headers_buf, ist(":authority"), ist("127.0.0.1:20443")))
-		goto err;
+	if (istlen(auth)) {
+		if (qpack_encode_auth(&headers_buf, auth))
+			goto err;
+	}
 
 	/* Encode every parsed headers, stop at empty one. */
 	for (hdr = 0; hdr < sizeof(list) / sizeof(list[0]); ++hdr) {
@@ -1829,6 +1830,10 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 				continue;
 			list[hdr].v = ist("trailers");
 		}
+
+		/* host only encoded if authority is not set */
+		if (istlen(auth) && isteq(list[hdr].n, ist("host")))
+			continue;
 
 		if (h3_encode_header(&headers_buf, list[hdr].n, list[hdr].v))
 			goto err;
