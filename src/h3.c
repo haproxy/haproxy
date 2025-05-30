@@ -1707,7 +1707,7 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	enum htx_blk_type type;
 	struct htx_blk *blk;
 	struct htx_sl *sl;
-	struct ist meth;
+	struct ist meth, uri, scheme = IST_NULL, auth = IST_NULL;
 	int frame_length_size;  /* size in bytes of frame length varint field */
 	int ret, err, hdr;
 
@@ -1726,6 +1726,7 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 			BUG_ON_HOT(sl); /* Only one start-line expected */
 			sl = htx_get_blk_ptr(htx, blk);
 			meth = htx_sl_req_meth(sl);
+			uri = htx_sl_req_uri(sl);
 			break;
 
 		case HTX_BLK_HDR:
@@ -1762,7 +1763,35 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	if (qpack_encode_method(&headers_buf, sl->info.req.meth, meth))
 		goto err;
 
-	if (qpack_encode_scheme(&headers_buf))
+	if (uri.ptr[0] != '/' && uri.ptr[0] != '*') {
+		int len = 1;
+
+		/* the URI seems to start with a scheme */
+		while (len < uri.len && uri.ptr[len] != ':')
+			len++;
+
+		if (len + 2 < uri.len && uri.ptr[len + 1] == '/' && uri.ptr[len + 2] == '/') {
+			/* make the uri start at the authority now */
+			scheme = ist2(uri.ptr, len);
+			uri = istadv(uri, len + 3);
+
+			/* find the auth part of the URI */
+			auth = ist2(uri.ptr, 0);
+			while (auth.len < uri.len && auth.ptr[auth.len] != '/')
+				auth.len++;
+
+			uri = istadv(uri, auth.len);
+		}
+	}
+
+	if (!istlen(scheme)) {
+		if ((sl->flags & (HTX_SL_F_HAS_SCHM|HTX_SL_F_SCHM_HTTP)) == (HTX_SL_F_HAS_SCHM|HTX_SL_F_SCHM_HTTP))
+			scheme = ist("http");
+		else
+			scheme = ist("https");
+	}
+
+	if (qpack_encode_scheme(&headers_buf, scheme))
 		goto err;
 
 	if (qpack_encode_path(&headers_buf, ist('/')))
