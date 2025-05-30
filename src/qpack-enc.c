@@ -206,6 +206,8 @@ int qpack_encode_scheme(struct buffer *out, const struct ist scheme)
 /* Returns 0 on success else non-zero. */
 int qpack_encode_path(struct buffer *out, const struct ist path)
 {
+	size_t sz;
+
 	if (unlikely(isteq(path, ist("/")))) {
 		if (!b_room(out))
 			return 1;
@@ -214,8 +216,15 @@ int qpack_encode_path(struct buffer *out, const struct ist path)
 		return 0;
 	}
 	else {
-		/* TODO */
-		ABORT_NOW();
+		sz = 1 + qpack_get_prefix_int_size(istlen(path), 7) + istlen(path);
+		if (b_room(out) < sz)
+			return 1;
+
+		qpack_encode_prefix_integer(out, 1, 4, 0x50);
+		qpack_encode_prefix_integer(out, istlen(path), 7, 0);
+		for (size_t i = 0; i < istlen(path); ++i)
+			b_putchr(out, istptr(path)[i]);
+		return 0;
 	}
 }
 

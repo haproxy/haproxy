@@ -1794,7 +1794,7 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	if (qpack_encode_scheme(&headers_buf, scheme))
 		goto err;
 
-	if (qpack_encode_path(&headers_buf, ist('/')))
+	if (qpack_encode_path(&headers_buf, uri))
 		goto err;
 
 	/* :authority */
