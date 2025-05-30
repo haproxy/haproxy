@@ -33,7 +33,7 @@ uint update_freq_ctr_period_slow(struct freq_ctr *ctr, uint period, uint inc)
 	 */
 	for (;; __ha_cpu_relax()) {
 		curr_tick  = HA_ATOMIC_LOAD(&ctr->curr_tick);
-		now_ms_tmp = HA_ATOMIC_LOAD(&global_now_ms);
+		now_ms_tmp = HA_ATOMIC_LOAD(global_now_ms);
 
 		if (now_ms_tmp - curr_tick < period)
 			return HA_ATOMIC_ADD_FETCH(&ctr->curr_ctr, inc);
@@ -81,7 +81,7 @@ ullong _freq_ctr_total_from_values(uint period, int pend,
 {
 	int remain;
 
-	remain = tick + period - HA_ATOMIC_LOAD(&global_now_ms);
+	remain = tick + period - HA_ATOMIC_LOAD(global_now_ms);
 	if (unlikely(remain < 0)) {
 		/* We're past the first period, check if we can still report a
 		 * part of last period or if we're too far away.
@@ -239,7 +239,7 @@ int freq_ctr_overshoot_period(const struct freq_ctr *ctr, uint period, uint freq
 		return 0;
 	}
 
-	elapsed = HA_ATOMIC_LOAD(&global_now_ms) - tick;
+	elapsed = HA_ATOMIC_LOAD(global_now_ms) - tick;
 	if (unlikely(elapsed < 0 || elapsed > period)) {
 		/* The counter is in the future or the elapsed time is higher than the period, there is no overshoot */
 		return 0;

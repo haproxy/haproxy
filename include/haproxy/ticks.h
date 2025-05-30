@@ -64,7 +64,7 @@
 
 /* currently updated and stored in time.c */
 extern THREAD_LOCAL unsigned int   now_ms;   /* internal date in milliseconds (may wrap) */
-extern volatile unsigned int global_now_ms;
+extern volatile unsigned int *global_now_ms;
 
 /* return 1 if tick is set, otherwise 0 */
 static inline int tick_isset(int expire)

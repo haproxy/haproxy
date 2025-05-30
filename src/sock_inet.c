@@ -491,11 +491,11 @@ int is_inet6_reachable(void)
 	int fd;
 
 	if (tick_isset(last_check) &&
-	    !tick_is_expired(tick_add(last_check, INET6_CONNECTIVITY_CACHE_TIME), HA_ATOMIC_LOAD(&global_now_ms)))
+	    !tick_is_expired(tick_add(last_check, INET6_CONNECTIVITY_CACHE_TIME), HA_ATOMIC_LOAD(global_now_ms)))
 		return HA_ATOMIC_LOAD(&sock_inet6_seems_reachable);
 
 	/* update the test date to ensure nobody else does it in parallel */
-	HA_ATOMIC_STORE(&last_inet6_check, HA_ATOMIC_LOAD(&global_now_ms));
+	HA_ATOMIC_STORE(&last_inet6_check, HA_ATOMIC_LOAD(global_now_ms));
 
 	fd = socket(AF_INET6, SOCK_DGRAM, 0);
 	if (fd >= 0) {
