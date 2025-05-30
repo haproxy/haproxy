@@ -1698,6 +1698,7 @@ static int h3_encode_header(struct buffer *buf,
  */
 static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 {
+	struct http_hdr list[global.tune.max_http_hdr * 2];
 	struct buffer outbuf;
 	struct buffer headers_buf = BUF_NULL;
 	struct buffer *res;
@@ -1706,8 +1707,9 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	struct htx_sl *sl;
 	struct ist meth, uri, scheme = IST_NULL, auth = IST_NULL;
 	int frame_length_size;  /* size in bytes of frame length varint field */
-	int ret, err;
+	int ret, err, hdr;
 
+	hdr = 0;
 	sl = NULL;
 	for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 		type = htx_get_blk_type(blk);
@@ -1725,6 +1727,16 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 			uri = htx_sl_req_uri(sl);
 			break;
 
+		case HTX_BLK_HDR:
+			if (unlikely(hdr >= sizeof(list) / sizeof(list[0]) - 1))
+				goto err;
+
+			list[hdr].n = htx_get_blk_name(htx, blk);
+			list[hdr].v = htx_get_blk_value(htx, blk);
+
+			++hdr;
+			break;
+
 		default:
 			break;
 		}
@@ -1732,6 +1744,8 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 
  end_loop:
 	BUG_ON_HOT(!sl); /* start-line must be present. */
+	/* marker for end of headers */
+	list[hdr].n = ist("");
 
 	res = qcc_get_stream_txbuf(qcs, &err, 0);
 	BUG_ON(!res);
@@ -1784,6 +1798,15 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	/* :authority */
 	if (h3_encode_header(&headers_buf, ist(":authority"), ist("127.0.0.1:20443")))
 		goto err;
+
+	/* Encode every parsed headers, stop at empty one. */
+	for (hdr = 0; hdr < sizeof(list) / sizeof(list[0]); ++hdr) {
+		if (isteq(list[hdr].n, ist("")))
+			break;
+
+		if (h3_encode_header(&headers_buf, list[hdr].n, list[hdr].v))
+			goto err;
+	}
 
 	/* Now that all headers are encoded, we are certain that res buffer is
 	 * big enough
