@@ -1701,10 +1701,36 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	struct buffer outbuf;
 	struct buffer headers_buf = BUF_NULL;
 	struct buffer *res;
-	struct htx_blk *blk;
 	enum htx_blk_type type;
+	struct htx_blk *blk;
+	struct htx_sl *sl;
+	struct ist meth;
 	int frame_length_size;  /* size in bytes of frame length varint field */
 	int ret, err;
+
+	sl = NULL;
+	for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
+		type = htx_get_blk_type(blk);
+
+		switch (type) {
+		case HTX_BLK_EOH:
+			goto end_loop;
+		case HTX_BLK_UNUSED:
+			break;
+
+		case HTX_BLK_REQ_SL:
+			BUG_ON_HOT(sl); /* Only one start-line expected */
+			sl = htx_get_blk_ptr(htx, blk);
+			meth = htx_sl_req_meth(sl);
+			break;
+
+		default:
+			break;
+		}
+	}
+
+ end_loop:
+	BUG_ON_HOT(!sl); /* start-line must be present. */
 
 	res = qcc_get_stream_txbuf(qcs, &err, 0);
 	BUG_ON(!res);
@@ -1717,10 +1743,8 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	if (qpack_encode_field_section_line(&headers_buf))
 		goto err;
 
-	/* :method */
-	if (qpack_encode_method(&headers_buf, HTTP_METH_GET))
+	if (qpack_encode_method(&headers_buf, sl->info.req.meth, meth))
 		goto err;
-	/* :scheme */
 
 	if (qpack_encode_scheme(&headers_buf))
 		goto err;
