@@ -172,17 +172,17 @@ int qpack_encode_method(struct buffer *out, enum http_meth_t meth, struct ist ot
 	return 0;
 }
 
-/* Returns 0 on success else non-zero. */
+/* Encode pseudo-header scheme defined to https on <out> buffer.
+ *
+ * Returns 0 on success else non-zero.
+ */
 int qpack_encode_scheme(struct buffer *out)
 {
-	int size, idx = 23;
-
-	size = qpack_get_prefix_int_size(idx, 6);
-	if (b_room(out) < size)
+	if (b_room(out) < 2)
 		return 1;
 
-	qpack_encode_prefix_integer(out, idx, 6, 0xc0);
-
+	/* :scheme: https */
+	qpack_encode_prefix_integer(out, 23, 6, 0xc0);
 	return 0;
 }
 
