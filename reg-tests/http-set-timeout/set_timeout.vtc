@@ -2,8 +2,6 @@ varnishtest "http-request set-timeout test"
 
 feature ignore_unknown_macro
 
-#REQUIRE_VERSION=2.4
-
 server srv_h1 -repeat 9 {
     rxreq
     txresp

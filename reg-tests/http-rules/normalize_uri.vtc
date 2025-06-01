@@ -1,5 +1,4 @@
 varnishtest "normalize-uri tests"
-#REQUIRE_VERSION=2.4
 
 # This reg-test tests the http-request normalize-uri action.
 

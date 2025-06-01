@@ -1,6 +1,5 @@
 varnishtest "Filtering test with several filters and random forwarding (via trace filter)"
 
-#REQUIRE_VERSION=2.4
 #REQUIRE_OPTION=ZLIB|SLZ
 #REGTEST_TYPE=slow
 

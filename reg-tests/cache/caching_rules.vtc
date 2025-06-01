@@ -2,8 +2,6 @@ varnishtest "Caching rules test"
 # A response will not be cached unless it has an explicit age (Cache-Control max-age of s-maxage, Expires) or a validator (Last-Modified, or ETag)
 # A response will not be cached either if it has an Age header that is either invalid (should be an integer) or greater than its max age.
 
-#REQUIRE_VERSION=2.4
-
 feature ignore_unknown_macro
 
 server s1 {

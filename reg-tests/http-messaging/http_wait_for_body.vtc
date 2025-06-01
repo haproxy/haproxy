@@ -1,7 +1,6 @@
 varnishtest "A test for the wait-for-body HTTP action"
 feature ignore_unknown_macro
 
-#REQUIRE_VERSION=2.4
 #REGTEST_TYPE=slow
 
 server s1 {

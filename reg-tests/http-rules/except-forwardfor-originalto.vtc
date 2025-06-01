@@ -1,5 +1,4 @@
 varnishtest "Test IPv4/IPv6 except param for the forwardfor and originalto options"
-#REQUIRE_VERSION=2.4
 
 # This config tests the except parameter for the HTTP forwardfor and originalto
 # options.

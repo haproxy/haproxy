@@ -1,7 +1,5 @@
 varnishtest "Test connection upgrades from TCP to HTTP"
 
-#REQUIRE_VERSION=2.4
-
 feature ignore_unknown_macro
 
 server s1 {

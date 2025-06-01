@@ -4,8 +4,6 @@ varnishtest "Test the proper interaction between http-reuse and dispatch mode"
 # reused for requests of the same session
 # This is similar to the http-reuse never mode
 
-#REQUIRE_VERSION=2.4
-
 feature ignore_unknown_macro
 
 haproxy h1 -conf {

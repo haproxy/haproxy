@@ -1,8 +1,6 @@
 varnishtest "Verify logging of relative/absolute URI path"
 feature ignore_unknown_macro
 
-#REQUIRE_VERSION=2.4
-
 server s1 {
     rxreq
     txresp  -hdr "Connection: close"

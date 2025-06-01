@@ -1,7 +1,5 @@
 varnishtest "ub64dec sample fetche Test"
 
-#REQUIRE_VERSION=2.4
-
 feature ignore_unknown_macro
 
 haproxy h1 -conf {

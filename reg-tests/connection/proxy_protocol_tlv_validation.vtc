@@ -1,7 +1,5 @@
 varnishtest "Check that the TLVs are properly validated"
 
-#REQUIRE_VERSION=2.4
-
 feature ignore_unknown_macro
 
 # We need one HAProxy for each test, because apparently the connection by

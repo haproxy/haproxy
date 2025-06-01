@@ -3,7 +3,6 @@ varnishtest "Set server ssl via CLI"
 feature ignore_unknown_macro
 
 # for "set server <srv> ssl"
-#REQUIRE_VERSION=2.4
 #REGTEST_TYPE=devel
 #REQUIRE_OPTIONS=OPENSSL
 

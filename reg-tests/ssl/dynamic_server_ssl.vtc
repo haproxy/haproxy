@@ -6,7 +6,6 @@ varnishtest "Delete server via cli and update certificates"
 
 feature ignore_unknown_macro
 
-#REQUIRE_VERSION=2.4
 #REQUIRE_OPTIONS=OPENSSL
 feature cmd "command -v socat"
 

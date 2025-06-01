@@ -1,6 +1,5 @@
 varnishtest "Lua: txn:get_priv() scope"
 #REQUIRE_OPTIONS=LUA,OPENSSL
-#REQUIRE_VERSION=2.4
 #REGTEST_TYPE=bug
 
 feature ignore_unknown_macro

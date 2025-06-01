@@ -12,8 +12,6 @@ varnishtest "WebSocket test"
 
 feature ignore_unknown_macro
 
-#REQUIRE_VERSION=2.4
-
 # valid websocket server
 server s1 {
 	rxreq

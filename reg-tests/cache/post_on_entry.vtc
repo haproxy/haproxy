@@ -1,7 +1,5 @@
 varnishtest "A successful unsafe method (POST for instance) on a cached entry must disable it."
 
-#REQUIRE_VERSION=2.4
-
 feature ignore_unknown_macro
 
 server s1 {

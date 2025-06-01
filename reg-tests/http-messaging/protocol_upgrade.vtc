@@ -8,8 +8,6 @@ varnishtest "h1/h2 support for protocol upgrade test"
 
 feature ignore_unknown_macro
 
-#REQUIRE_VERSION=2.4
-
 # http/1.1 server
 server srv_h1 {
 	rxreq

@@ -15,7 +15,6 @@
 # This should be backported to 1.8
 
 #REGTEST_TYPE=bug
-#REQUIRE_VERSION=2.4
 
 varnishtest "stick-tables: Test expirations when used with table_*"
 

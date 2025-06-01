@@ -1,5 +1,4 @@
 varnishtest "Test the http-reuse with special connection parameters"
-#REQUIRE_VERSION=2.4
 #REQUIRE_OPTIONS=OPENSSL
 
 feature ignore_unknown_macro

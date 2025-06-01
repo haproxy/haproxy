@@ -6,7 +6,6 @@ feature ignore_unknown_macro
 # The first health-checks passed tests are checked for all these servers
 # thanks to syslog messages.
 
-#REQUIRE_VERSION=2.4
 #EXCLUDE_TARGETS=freebsd
 #REGTEST_TYPE=slow
 

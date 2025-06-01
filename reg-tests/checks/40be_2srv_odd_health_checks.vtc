@@ -1,7 +1,6 @@
 varnishtest "Health-checks"
 feature ignore_unknown_macro
 
-#REQUIRE_VERSION=2.4
 #EXCLUDE_TARGETS=freebsd,osx,generic
 #REGTEST_TYPE=slow
 
