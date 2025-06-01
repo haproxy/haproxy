@@ -2,7 +2,7 @@ varnishtest "HTTP request tests: H1 request target parsing"
 
 feature ignore_unknown_macro
 
-#REQUIRE_VERSION=3.0
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.0-dev0)'"
 
 haproxy h1 -conf {
     global
