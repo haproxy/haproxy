@@ -1,7 +1,5 @@
 varnishtest "Expires support"
 
-#REQUIRE_VERSION=2.3
-
 feature ignore_unknown_macro
 
 server s1 {
