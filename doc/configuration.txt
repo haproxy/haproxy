@@ -1356,7 +1356,7 @@ the name format:
     of the name identifying the list. It means, for a given filename, Optional
     files and regular files reference the same list of pattern.
 
-  * Lists of pattern based on virtual files: The name is just an identified. It
+  * Lists of pattern based on virtual files: The name is just an identifier. It
     is not a reference to any file. "virt@" prefix must be used. It is part of
     the name. Thus it cannot be mixed with other kind of lists.
 
