@@ -283,7 +283,7 @@ write:
 		struct quic_tls_kp *nxt_rx = &qc->ku.nxt_rx;
 		struct quic_tls_kp *nxt_tx = &qc->ku.nxt_tx;
 
-#ifndef USE_QUIC_OPENSSL_COMPAT
+#if !defined(USE_QUIC_OPENSSL_COMPAT) && !defined(HAVE_OPENSSL_QUIC)
 		if (!qc_is_listener(qc)) {
 			const unsigned char *tp;
 			size_t tplen;
