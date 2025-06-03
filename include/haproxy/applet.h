@@ -318,9 +318,11 @@ static inline int _applet_putchk(struct appctx *appctx, struct buffer *chunk,
 	return ret;
 }
 
-/* writes chunk <chunk> into the input channel of the stream attached to this
- * appctx's endpoint, and marks the SC_FL_NEED_ROOM on a channel full error.
- * See ci_putchk() for the list of return codes.
+/* writes chunk <chunk> into the applet's output buffer if it uses its own
+ * bufferx or into the input channel of the stream attached to this applet.
+ *
+ * Returns the number of written bytes on success or -1 on error (lake of space,
+ * shutdown, invalid call...)
  */
 static inline int applet_putchk(struct appctx *appctx, struct buffer *chunk)
 {
@@ -333,9 +335,11 @@ static inline int applet_putchk_stress(struct appctx *appctx, struct buffer *chu
 	return _applet_putchk(appctx, chunk, 1);
 }
 
-/* writes <len> chars from <blk> into the input channel of the stream attached
- * to this appctx's endpoint, and marks the SC_FL_NEED_ROOM on a channel full
- * error. See ci_putblk() for the list of return codes.
+/* writes <len> chars from <blk> into the applet's output buffer if it uses its own
+ * bufferx or into the input channel of the stream attached to this applet.
+ *
+ * Returns the number of written bytes on success or -1 on error (lake of space,
+ * shutdown, invalid call...)
  */
 static inline int applet_putblk(struct appctx *appctx, const char *blk, int len)
 {
@@ -367,10 +371,12 @@ static inline int applet_putblk(struct appctx *appctx, const char *blk, int len)
 	return ret;
 }
 
-/* writes chars from <str> up to the trailing zero (excluded) into the input
- * channel of the stream attached to this appctx's endpoint, and marks the
- * SC_FL_NEED_ROOM on a channel full error. See ci_putstr() for the list of
- * return codes.
+/* writes chars from <str> up to the trailing zero (excluded) into the applet's
+ * output buffer if it uses its own bufferx or into the input channel of the
+ * stream attached to this applet.
+ *
+ * Returns the number of written bytes on success or -1 on error (lake of space,
+ * shutdown, invalid call...)
  */
 static inline int applet_putstr(struct appctx *appctx, const char *str)
 {
@@ -403,9 +409,11 @@ static inline int applet_putstr(struct appctx *appctx, const char *str)
 	return ret;
 }
 
-/* writes character <chr> into the input channel of the stream attached to this
- * appctx's endpoint, and marks the SC_FL_NEED_ROOM on a channel full error.
- * See ci_putchr() for the list of return codes.
+/* writes character <chr> into the applet's output buffer if it uses its own
+ * bufferx or into the input channel of the stream attached to this applet.
+ *
+ * Returns the number of written bytes on success or -1 on error (lake of space,
+ * shutdown, invalid call...)
  */
 static inline int applet_putchr(struct appctx *appctx, char chr)
 {
