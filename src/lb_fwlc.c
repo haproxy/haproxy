@@ -496,9 +496,9 @@ static void fwlc_srv_reposition(struct server *s)
 	 */
 	mt_list_unlock_full(&s->lb_mt_list, list);
 
-	HA_RWLOCK_RDUNLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
-
 	s->tree_elt = tree_elt;
+
+	HA_RWLOCK_RDUNLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
 
 	if (allocated_elt)
 		s->free_elt = allocated_elt;
