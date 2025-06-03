@@ -306,7 +306,7 @@ int quic_connect_server(struct connection *conn, int flags)
 	}
 
 	/* perform common checks on obtained socket FD, return appropriate Stream Error Flag in case of failure */
-	fd = conn->handle.fd = sock_create_server_socket(conn, be, &stream_err);
+	fd = conn->handle.fd = sock_create_server_socket(conn, be, PROTO_TYPE_DGRAM, SOCK_DGRAM, &stream_err);
 	if (fd == -1)
 		return stream_err;
 
