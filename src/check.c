@@ -194,10 +194,11 @@ static void check_trace(enum trace_level level, uint64_t mask,
 			      ((check->type == PR_O2_EXT_CHK) ? 'E' : (check->state & CHK_ST_AGENT ? 'A' : 'H')),
 			      srv->id);
 
-		chunk_appendf(&trace_buf, " status=%d/%d %s",
+		chunk_appendf(&trace_buf, " status=%d/%d %s exp=%d",
 			      (check->health >= check->rise) ? check->health - check->rise + 1 : check->health,
 			      (check->health >= check->rise) ? check->fall : check->rise,
-			      (check->health >= check->rise) ? (srv->uweight ? "UP" : "DRAIN") : "DOWN");
+			      (check->health >= check->rise) ? (srv->uweight ? "UP" : "DRAIN") : "DOWN",
+			      (check->task->expire ? TICKS_TO_MS(check->task->expire - now_ms) : 0));
 	}
 	else
 		chunk_appendf(&trace_buf, " : [EMAIL]");
