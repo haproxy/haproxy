@@ -1088,6 +1088,11 @@ int wake_srv_chk(struct stconn *sc)
 		ret = -1;
 		task_wakeup(check->task, TASK_WOKEN_IO);
 	}
+	else {
+		/* Check in progress. Queue it to eventually handle timeout
+		 * update */
+		task_queue(check->task);
+	}
 
 	if (check->server)
 		HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
