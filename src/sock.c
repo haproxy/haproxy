@@ -265,7 +265,8 @@ static int sock_handle_system_err(struct connection *conn, struct proxy *be)
  * upper level is set as SF_ERR_NONE; -1 on failure, stream_err is set to
  * appropriate value.
  */
-int sock_create_server_socket(struct connection *conn, struct proxy *be, int *stream_err)
+int sock_create_server_socket(struct connection *conn, struct proxy *be,
+                              enum proto_type proto_type, int sock_type, int *stream_err)
 {
 	const struct netns_entry *ns = NULL;
 	const struct protocol *proto;
@@ -279,9 +280,9 @@ int sock_create_server_socket(struct connection *conn, struct proxy *be, int *st
 			ns = __objt_server(conn->target)->netns;
 	}
 #endif
-	proto = protocol_lookup(conn->dst->ss_family, PROTO_TYPE_STREAM, conn->ctrl->sock_prot == IPPROTO_MPTCP);
+	proto = protocol_lookup(conn->dst->ss_family, proto_type , conn->ctrl->sock_prot == IPPROTO_MPTCP);
 	BUG_ON(!proto);
-	sock_fd = my_socketat(ns, proto->fam->sock_domain, SOCK_STREAM, proto->sock_prot);
+	sock_fd = my_socketat(ns, proto->fam->sock_domain, sock_type, proto->sock_prot);
 
 	/* at first, handle common to all proto families system limits and permission related errors */
 	if (sock_fd == -1) {

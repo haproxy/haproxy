@@ -28,9 +28,11 @@
 #include <haproxy/api.h>
 #include <haproxy/connection-t.h>
 #include <haproxy/listener-t.h>
+#include <haproxy/protocol-t.h>
 #include <haproxy/sock-t.h>
 
-int sock_create_server_socket(struct connection *conn, struct proxy *be, int *stream_err);
+int sock_create_server_socket(struct connection *conn, struct proxy *be,
+                              enum proto_type proto_type, int sock_type, int *stream_err);
 void sock_enable(struct receiver *rx);
 void sock_disable(struct receiver *rx);
 void sock_unbind(struct receiver *rx);
