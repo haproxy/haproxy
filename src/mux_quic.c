@@ -3114,10 +3114,10 @@ static void qcc_shutdown(struct qcc *qcc)
 	TRACE_LEAVE(QMUX_EV_QCC_END, qcc->conn);
 }
 
-/* Loop through all qcs from <qcc>. Report error on stream endpoint if
- * connection on error and wake them.
+/* Loop through all qcs from <qcc> and wake their associated data layer if
+ * still active. Also report error on it if connection is already in error.
  */
-static int qcc_wake_some_streams(struct qcc *qcc)
+static void qcc_wake_streams(struct qcc *qcc)
 {
 	struct qcs *qcs;
 	struct eb64_node *node;
@@ -3134,11 +3134,10 @@ static int qcc_wake_some_streams(struct qcc *qcc)
 		if (qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL)) {
 			TRACE_POINT(QMUX_EV_QCC_WAKE, qcc->conn, qcs);
 			se_fl_set_error(qcs->sd);
-			qcs_alert(qcs);
 		}
-	}
 
-	return 0;
+		qcs_alert(qcs);
+	}
 }
 
 /* Conduct operations which should be made for <qcc> connection after
@@ -3193,7 +3192,7 @@ static int qcc_io_process(struct qcc *qcc)
 
 	/* Report error if set on stream endpoint layer. */
 	if (qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL))
-		qcc_wake_some_streams(qcc);
+		qcc_wake_streams(qcc);
 
  out:
 	if (qcc_is_dead(qcc))
@@ -3942,7 +3941,11 @@ static int qmux_wake(struct connection *conn)
 		goto release;
 	}
 
-	qcc_wake_some_streams(qcc);
+	/* Wake all streams, unless an error is set as qcc_io_process() has
+	 * already woken them in this case.
+	 */
+	if (!(qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL)))
+		qcc_wake_streams(qcc);
 
 	qcc_refresh_timeout(qcc);
 
