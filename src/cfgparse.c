@@ -2087,8 +2087,8 @@ next_line:
 						/* sanitize input line in-place */
 						newpos = sanitize_for_printing(line, errptr - line, 80);
 						ha_warning("parsing [%s:%d]: argument number %d at position %d is empty and marks the end of the "
-							   "argument list; all subsequent arguments will be ignored:\n  %s\n  %*s\n",
-							   file, linenum, check_arg + 1, (int)(errptr - thisline + 1), line, (int)(newpos+1), "^");
+						           "argument list; all subsequent arguments will be ignored:\n  %s\n  %*s\n",
+						           file, linenum, check_arg, (int)(errptr - thisline + 1), line, (int)(newpos + 1), "^");
 						break;
 					}
 				}
