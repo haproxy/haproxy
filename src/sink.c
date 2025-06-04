@@ -1268,15 +1268,11 @@ struct sink *sink_new_from_logger(struct logger *logger)
 	HA_SPIN_INIT(&srv->lock);
 
 	if (sink_finalize(sink) & ERR_CODE)
-		goto error_final;
+		goto error;
 
 	return sink;
- error:
-	if (srv)
-		srv_detach(srv);
-	srv_drop(srv);
 
- error_final:
+ error:
 	sink_free(sink);
 
 	return NULL;
