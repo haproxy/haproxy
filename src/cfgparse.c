@@ -2066,28 +2066,31 @@ next_line:
 				goto next_line;
 			}
 
-			for (check_arg = 0; check_arg < arg; check_arg++) {
-				if (!*args[check_arg]) {
-					size_t newpos;
+			if ((global.mode & MODE_DISCOVERY)) {
+				/* Only print empty arg warning in discovery mode to prevent double display. */
+				for (check_arg = 0; check_arg < arg; check_arg++) {
+					if (!*args[check_arg]) {
+						size_t newpos;
 
-					/* if an empty arg was found, its pointer should be in <errptr>, except
-					 * for rare cases such as '\x00' etc. We need to check errptr in any case
-					 * and if it's not set, we'll fall back to args's position in the output
-					 * string instead (less accurate but still useful).
-					 */
-					if (!errptr) {
-						newpos = args[check_arg] - outline;
-						if (newpos >= strlen(line))
-							newpos = 0; // impossible to report anything, start at the beginning.
-						errptr = line + newpos;
+						/* if an empty arg was found, its pointer should be in <errptr>, except
+						 * for rare cases such as '\x00' etc. We need to check errptr in any case
+						 * and if it's not set, we'll fall back to args's position in the output
+						 * string instead (less accurate but still useful).
+						 */
+						if (!errptr) {
+							newpos = args[check_arg] - outline;
+							if (newpos >= strlen(line))
+								newpos = 0; // impossible to report anything, start at the beginning.
+							errptr = line + newpos;
+						}
+
+						/* sanitize input line in-place */
+						newpos = sanitize_for_printing(line, errptr - line, 80);
+						ha_warning("parsing [%s:%d]: argument number %d at position %d is empty and marks the end of the "
+							   "argument list; all subsequent arguments will be ignored:\n  %s\n  %*s\n",
+							   file, linenum, check_arg + 1, (int)(errptr - thisline + 1), line, (int)(newpos+1), "^");
+						break;
 					}
-
-					/* sanitize input line in-place */
-					newpos = sanitize_for_printing(line, errptr - line, 80);
-					ha_warning("parsing [%s:%d]: argument number %d at position %d is empty and marks the end of the "
-						   "argument list; all subsequent arguments will be ignored:\n  %s\n  %*s\n",
-						   file, linenum, check_arg + 1, (int)(errptr - thisline + 1), line, (int)(newpos+1), "^");
-					break;
 				}
 			}
 
