@@ -1260,7 +1260,8 @@ static struct spop_strm *spop_stconn_new(struct spop_conn *spop_conn, struct stc
 
   out:
 	TRACE_DEVEL("leaving on error", SPOP_EV_SPOP_STRM_NEW|SPOP_EV_SPOP_STRM_END|SPOP_EV_SPOP_STRM_ERR, spop_conn->conn);
-	spop_strm_destroy(spop_strm);
+	if (spop_strm)
+		spop_strm_destroy(spop_strm);
 	return NULL;
 }
 
