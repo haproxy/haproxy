@@ -1174,6 +1174,6 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc)
 
  err:
 	TRACE_DEVEL("leaving on error", QUIC_EV_CONN_NEW, qc);
-	pool_free(pool_head_quic_ssl_sock_ctx, ctx);
+	qc_free_ssl_sock_ctx(&ctx);
 	goto leave;
 }
