@@ -5299,7 +5299,6 @@ __LJMP static int hlua_applet_tcp_get_priv(lua_State *L)
 __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
-	struct stconn *sc = appctx_sc(luactx->appctx);
 	int ret;
 	const char *blk1;
 	size_t len1;
@@ -5307,35 +5306,7 @@ __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KC
 	size_t len2;
 
 	/* Read the maximum amount of data available. */
-	if (luactx->appctx->flags & APPCTX_FL_INOUT_BUFS) {
-		size_t l;
-		int line_found = 0;
-
-		ret = b_getblk_nc(&luactx->appctx->inbuf, &blk1, &len1, &blk2, &len2, 0, b_data(&luactx->appctx->inbuf));
-		if (ret == 0 && se_fl_test(luactx->appctx->sedesc, SE_FL_SHW))
-			ret = -1;
-
-		if (ret >= 1) {
-			for (l = 0; l < len1 && blk1[l] != '\n'; l++);
-			if (l < len1 && blk1[l] == '\n') {
-				len1 = l + 1;
-				line_found = 1;
-			}
-		}
-
-		if (!line_found && ret >= 2) {
-			for (l = 0; l < len2 && blk2[l] != '\n'; l++);
-			if (l < len2 && blk2[l] == '\n') {
-				len2 = l + 1;
-				line_found = 1;
-			}
-		}
-
-		if (!line_found && !se_fl_test(luactx->appctx->sedesc, SE_FL_SHW))
-			ret = 0;
-	}
-	else
-		ret = co_getline_nc(sc_oc(sc), &blk1, &len1, &blk2, &len2);
+	ret = applet_getline_nc(luactx->appctx, &blk1, &len1, &blk2, &len2);
 
 	/* Data not yet available. return yield. */
 	if (ret == 0) {
@@ -5357,11 +5328,7 @@ __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KC
 	luaL_addlstring(&luactx->b, blk1, len1);
 	luaL_addlstring(&luactx->b, blk2, len2);
 
-	if (luactx->appctx->flags & APPCTX_FL_INOUT_BUFS)
-		b_del(&luactx->appctx->inbuf, len1 + len2);
-	else
-		co_skip(sc_oc(sc), len1 + len2);
-
+	applet_skip_input(luactx->appctx, len1+len2);
 	luaL_pushresult(&luactx->b);
 	return 1;
 }
@@ -5383,7 +5350,6 @@ __LJMP static int hlua_applet_tcp_getline(lua_State *L)
 __LJMP static int hlua_applet_tcp_recv_try(lua_State *L)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
-	struct stconn *sc = appctx_sc(luactx->appctx);
 	size_t len = MAY_LJMP(luaL_checkinteger(L, 2));
 	int exp_date = MAY_LJMP(luaL_checkinteger(L, 3));
 	int ret;
@@ -5393,13 +5359,7 @@ __LJMP static int hlua_applet_tcp_recv_try(lua_State *L)
 	size_t len2;
 
 	/* Read the maximum amount of data available. */
-	if (luactx->appctx->flags & APPCTX_FL_INOUT_BUFS) {
-		ret = b_getblk_nc(&luactx->appctx->inbuf, &blk1, &len1, &blk2, &len2, 0, b_data(&luactx->appctx->inbuf));
-		if (ret == 0 && se_fl_test(luactx->appctx->sedesc, SE_FL_SHW))
-			ret = -1;
-	}
-	else
-		ret = co_getblk_nc(sc_oc(sc), &blk1, &len1, &blk2, &len2);
+	ret = applet_getblk_nc(luactx->appctx, &blk1, &len1, &blk2, &len2);
 
 	/* Data not yet available. return yield. */
 	if (ret == 0) {
@@ -5431,10 +5391,7 @@ __LJMP static int hlua_applet_tcp_recv_try(lua_State *L)
 		 */
 		luaL_addlstring(&luactx->b, blk1, len1);
 		luaL_addlstring(&luactx->b, blk2, len2);
-		if (luactx->appctx->flags & APPCTX_FL_INOUT_BUFS)
-			b_del(&luactx->appctx->inbuf, len1 + len2);
-		else
-			co_skip(sc_oc(sc), len1 + len2);
+		applet_skip_input(luactx->appctx, len1+len2);
 
 		if (tick_is_expired(exp_date, now_ms)) {
 			/* return the result. */
@@ -5459,10 +5416,7 @@ __LJMP static int hlua_applet_tcp_recv_try(lua_State *L)
 		luaL_addlstring(&luactx->b, blk2, len2);
 		len -= len2;
 
-		if (luactx->appctx->flags & APPCTX_FL_INOUT_BUFS)
-			b_del(&luactx->appctx->inbuf, len1 + len2);
-		else
-			co_skip(sc_oc(sc), len1 + len2);
+		applet_skip_input(luactx->appctx, len1+len2);
 
 		/* If there is no other data available, yield waiting for new data. */
 		if (len > 0 && !tick_is_expired(exp_date, now_ms)) {
@@ -5571,15 +5525,10 @@ __LJMP static int hlua_applet_tcp_send_yield(lua_State *L, int status, lua_KCont
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 	const char *str = MAY_LJMP(luaL_checklstring(L, 2, &len));
 	int l = MAY_LJMP(luaL_checkinteger(L, 3));
-	struct stconn *sc = appctx_sc(luactx->appctx);
-	struct channel *chn = sc_ic(sc);
 	int max;
 
 	/* Get the max amount of data which can be written */
-	if (luactx->appctx->flags & APPCTX_FL_INOUT_BUFS)
-		max = b_room(&luactx->appctx->outbuf);
-	else
-		max = channel_recv_max(chn);
+	max = applet_output_room(luactx->appctx);
 
 	if (max > (len - l))
 		max = len - l;
@@ -5596,10 +5545,7 @@ __LJMP static int hlua_applet_tcp_send_yield(lua_State *L, int status, lua_KCont
 	 * applet, and returns a yield.
 	 */
 	if (l < len) {
-		if (luactx->appctx->flags & APPCTX_FL_INOUT_BUFS)
-			applet_have_more_data(luactx->appctx);
-		else
-			sc_need_room(sc, channel_recv_max(chn) + 1);
+		applet_need_room(luactx->appctx, applet_output_room(luactx->appctx) + 1);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_send_yield, TICK_ETERNITY, 0));
 	}
 
@@ -11261,10 +11207,7 @@ out:
 	if (yield)
 		return;
 
-	if (ctx->flags & APPCTX_FL_INOUT_BUFS)
-		b_reset(&ctx->inbuf);
-	else
-		co_skip(sc_oc(sc), co_data(sc_oc(sc)));
+	applet_reset_input(ctx);
 	return;
 
 error:
