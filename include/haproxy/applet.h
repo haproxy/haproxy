@@ -282,6 +282,92 @@ static inline void applet_expect_data(struct appctx *appctx)
 	se_fl_clr(appctx->sedesc, SE_FL_EXP_NO_DATA);
 }
 
+/* Returns the buffer containing data pushed to the applet by the stream. For
+ * applets using its own buffers it is the appctx input buffer. For legacy
+ * applet, it is the output channel buffer.
+ */
+static inline struct buffer *applet_get_inbuf(struct appctx *appctx)
+{
+	if (appctx->flags & APPCTX_FL_INOUT_BUFS)
+		return &appctx->inbuf;
+	else
+		return sc_ob(appctx_sc(appctx));
+}
+
+/* Returns the buffer containing data pushed by the applets to the stream. For
+ * applets using its own buffer it is the appctx output buffer. For legacy
+ * applet, it is the input channel buffer.
+ */
+static inline struct buffer *applet_get_outbuf(struct appctx *appctx)
+{
+	if (appctx->flags & APPCTX_FL_INOUT_BUFS)
+		return &appctx->outbuf;
+	else
+		return sc_ib(appctx_sc(appctx));
+}
+
+/* Returns the amount of data in the input buffer (see applet_get_inbuf) */
+static inline size_t applet_input_data(const struct appctx *appctx)
+{
+	if (appctx->flags & APPCTX_FL_INOUT_BUFS)
+		return b_data(&appctx->inbuf);
+	else
+		return co_data(sc_oc(appctx_sc(appctx)));
+}
+
+/* Skips <len> bytes from the input buffer (see applet_get_inbuf).
+ *
+ * This is useful when data have been read directly from the buffer. It is
+ * illegal to call this function with <len> causing a wrapping at the end of the
+ * buffer. It's the caller's responsibility to ensure that <len> is never larger
+ * than available ouput data.
+ */
+static inline void applet_skip_input(struct appctx *appctx, size_t len)
+{
+	if (appctx->flags & APPCTX_FL_INOUT_BUFS)
+		b_del(&appctx->inbuf, len);
+	else
+		co_skip(sc_oc(appctx_sc(appctx)), len);
+}
+
+/* Removes all bytes from the input buffer (see applet_get_inbuf).
+ */
+static inline void applet_reset_input(struct appctx *appctx)
+{
+	if (appctx->flags & APPCTX_FL_INOUT_BUFS) {
+		b_reset(&appctx->inbuf);
+		applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
+	}
+	else
+		co_skip(sc_oc(appctx_sc(appctx)), co_data(sc_oc(appctx_sc(appctx))));
+}
+
+/* Returns the amout of space available at the output buffer (see applet_get_outbuf).
+ */
+static inline size_t applet_output_room(const struct appctx *appctx)
+{
+	if (appctx->flags & APPCTX_FL_INOUT_BUFS)
+		return b_room(&appctx->outbuf);
+	else
+		return channel_recv_max(sc_ic(appctx_sc(appctx)));
+}
+
+/*Indicates that the applet have more data to deliver and it needs more room in
+ * the output buffer to do so (see applet_get_outbuf).
+ *
+ * For applets using its own buffers, <room_needed> is not used and only
+ * <appctx> flags are updated. For legacy applets, the amount of free space
+ * required must be specified. In this last case, it is the caller
+ * responsibility to be sure <room_needed> is valid.
+ */
+static inline void applet_need_room(struct appctx *appctx, size_t room_needed)
+{
+	if (appctx->flags & APPCTX_FL_INOUT_BUFS)
+		applet_have_more_data(appctx);
+	else
+		sc_need_room(appctx_sc(appctx), room_needed);
+}
+
 /* Should only be used via wrappers applet_putchk() / applet_putchk_stress(). */
 static inline int _applet_putchk(struct appctx *appctx, struct buffer *chunk,
                                  int stress)
