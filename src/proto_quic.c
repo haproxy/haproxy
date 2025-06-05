@@ -431,6 +431,7 @@ int quic_connect_server(struct connection *conn, int flags)
 	fd_insert(fd, qc, quic_conn_sock_fd_iocb, tgid, ti->ltid_bit);
 	fd_want_recv(fd);
 
+	conn_ctrl_init(conn);
 	return SF_ERR_NONE;  /* connection is OK */
 }
 
