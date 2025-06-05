@@ -987,12 +987,18 @@ int cli_parse_cmdline(struct appctx *appctx)
 				continue;
 			}
 
+			if (!len)
+				goto process_cmdline;
+
 			/* The end of the command line was reached. Change the trailing \r, if any,
 			 * by a null byte. For the command line, the trailing \r and \n are removed,
 			 * but we conserve them for payload mode.
 			 */
-			if (str[len-1] == '\r')
+			if (str[len-1] == '\r') {
 				str[--len] = '\0';
+				if (!len)
+					goto process_cmdline;
+			}
 
 			/*
 			 * Look for the "payload start" pattern at the end of a
@@ -1055,6 +1061,7 @@ int cli_parse_cmdline(struct appctx *appctx)
 			}
 		}
 
+	  process_cmdline:
 		if (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)) {
 			appctx->st0 = CLI_ST_PROCESS_CMDLINE;
 			break;
