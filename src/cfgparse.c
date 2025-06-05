@@ -4115,6 +4115,13 @@ out_uri_auth_compat:
 			int mode = conn_pr_mode_to_proto_mode(curproxy->mode);
 			const struct mux_proto_list *mux_ent;
 
+			if (srv_is_quic(newsrv)) {
+				if (!newsrv->mux_proto) {
+					/* Force QUIC as mux-proto on server with quic addresses, similarly to bind on FE side. */
+					newsrv->mux_proto = get_mux_proto(ist("quic"));
+				}
+			}
+
 			if (!newsrv->mux_proto)
 				continue;
 
