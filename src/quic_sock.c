@@ -815,10 +815,8 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 int qc_rcv_buf(struct quic_conn *qc)
 {
 	struct sockaddr_storage saddr = {0}, daddr = {0};
-	struct quic_transport_params *params;
 	struct quic_dgram *new_dgram = NULL;
 	struct buffer buf = BUF_NULL;
-	size_t max_sz;
 	unsigned char *dgram_buf;
 	struct listener *l;
 	ssize_t ret = 0;
@@ -829,22 +827,19 @@ int qc_rcv_buf(struct quic_conn *qc)
 	TRACE_ENTER(QUIC_EV_CONN_RCV, qc);
 	l = qc->li;
 
-	params = &l->bind_conf->quic_params;
-	max_sz = params->max_udp_payload_size;
-
 	do {
 		if (!b_alloc(&buf, DB_MUX_RX))
 			break; /* TODO subscribe for memory again available. */
 
 		b_reset(&buf);
-		BUG_ON(b_contig_space(&buf) < max_sz);
+		BUG_ON(b_contig_space(&buf) < qc->max_udp_payload);
 
 		/* Allocate datagram on first loop or after requeuing. */
 		if (!new_dgram && !(new_dgram = pool_alloc(pool_head_quic_dgram)))
 			break; /* TODO subscribe for memory again available. */
 
 		dgram_buf = (unsigned char *)b_tail(&buf);
-		ret = quic_recv(qc->fd, dgram_buf, max_sz,
+		ret = quic_recv(qc->fd, dgram_buf, qc->max_udp_payload,
 		                (struct sockaddr *)&saddr, sizeof(saddr),
 		                (struct sockaddr *)&daddr, sizeof(daddr),
 		                get_net_port(&qc->local_addr));
