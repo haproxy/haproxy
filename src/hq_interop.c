@@ -12,8 +12,8 @@
 #include <haproxy/quic_utils.h>
 #include <haproxy/trace.h>
 
-/* Returns the amount of decoded bytes from <b> or a negative error code. */
-static ssize_t hq_interop_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
+/* HTTP/0.9 request -> HTX. */
+static ssize_t hq_interop_rcv_buf_req(struct qcs *qcs, struct buffer *b, int fin)
 {
 	struct htx *htx;
 	struct htx_sl *sl;
@@ -91,6 +91,66 @@ static ssize_t hq_interop_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 	b_free(&htx_buf);
 
 	return b_data(b);
+}
+
+/* HTTP/0.9 response -> HTX. */
+static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin)
+{
+	ssize_t ret = 0;
+	struct htx *htx;
+	struct htx_sl *sl;
+	struct buffer *htx_buf;
+	const struct stream *strm = __sc_strm(qcs->sd->sc);
+	const unsigned int flags = HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN;
+	size_t htx_sent;
+
+	htx_buf = qcc_get_stream_rxbuf(qcs);
+	BUG_ON(!htx_buf);
+	htx = htx_from_buf(htx_buf);
+
+	if (htx_is_empty(htx) && !strm->res.total) {
+		/* First data transfer, add HTX response start-line first. */
+		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags,
+		                    ist("HTTP/1.0"), ist("200"), ist(""));
+		BUG_ON(!sl);
+		if (fin && !b_data(b))
+			sl->flags |= HTX_SL_F_BODYLESS;
+		htx_add_endof(htx, HTX_BLK_EOH);
+	}
+
+	if (!b_data(b)) {
+		if (fin && quic_stream_is_bidi(qcs->id)) {
+			if (qcs_http_handle_standalone_fin(qcs)) {
+				htx_to_buf(htx, htx_buf);
+				return -1;
+			}
+		}
+	}
+	else {
+		BUG_ON(b_data(b) > htx_free_data_space(htx)); /* TODO */
+		BUG_ON(b_head(b) + b_data(b) > b_wrap(b));    /* TODO */
+
+		htx_sent = htx_add_data(htx, ist2(b_head(b), b_data(b)));
+		BUG_ON(htx_sent < b_data(b)); /* TODO */
+		ret = htx_sent;
+
+		if (fin && b_data(b) == htx_sent)
+			htx->flags |= HTX_FL_EOM;
+	}
+
+	htx_to_buf(htx, htx_buf);
+	return ret;
+}
+
+/* Returns the amount of decoded bytes from <b> or a negative error code. */
+static ssize_t hq_interop_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
+{
+	/* hq-interop parser does not support buffer wrapping. */
+	BUG_ON(b_data(b) != b_contig_data(b, 0));
+
+	return !(qcs->qcc->flags & QC_CF_IS_BACK) ?
+	  hq_interop_rcv_buf_req(qcs, b, fin) :
+	  hq_interop_rcv_buf_res(qcs, b, fin);
 }
 
 /* Returns the amount of consumed bytes from <buf>. */
