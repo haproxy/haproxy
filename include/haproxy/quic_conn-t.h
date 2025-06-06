@@ -319,7 +319,7 @@ struct qcc_app_ops;
          * with a connection                                                   \
          */                                                                    \
         struct eb_root *cids;                                                  \
-        struct listener *li; /* only valid for frontend connections */         \
+        enum obj_type *target;                                                 \
         /* Idle timer task */                                                  \
         struct task *idle_timer_task;                                          \
         unsigned int idle_expire;                                              \

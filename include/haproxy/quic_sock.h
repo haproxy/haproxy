@@ -33,6 +33,7 @@
 #include <haproxy/connection-t.h>
 #include <haproxy/fd-t.h>
 #include <haproxy/listener-t.h>
+#include <haproxy/obj_type.h>
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_sock-t.h>
 
@@ -78,7 +79,8 @@ static inline char qc_test_fd(struct quic_conn *qc)
  */
 static inline int qc_fd(struct quic_conn *qc)
 {
-	return qc_test_fd(qc) ? qc->fd : qc->li->rx.fd;
+	/* TODO: check this: For backends, qc->fd is always initialized */
+	return qc_test_fd(qc) ? qc->fd : __objt_listener(qc->target)->rx.fd;
 }
 
 /* Try to increment <l> handshake current counter. If listener limit is

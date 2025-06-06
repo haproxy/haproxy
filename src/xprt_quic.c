@@ -123,7 +123,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 		int ipv4 = conn->dst->ss_family == AF_INET;
 		struct server *srv = objt_server(conn->target);
 		qc = qc_new_conn(quic_version_1, ipv4, NULL, NULL, NULL,
-		                 NULL, NULL, &srv->addr, 0, 0, srv, conn);
+		                 NULL, NULL, &srv->addr, 0, srv, conn);
 	}
 
 	if (!qc)

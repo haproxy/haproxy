@@ -937,14 +937,16 @@ static int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 		 * provided by the stack. This happens after having received the peer
 		 * handshake level CRYPTO data which are validated by the TLS stack.
 		 */
-		if (qc->li->bind_conf->ssl_conf.early_data &&
-		    (!qc->ael || !qc->ael->tls_ctx.rx.secret)) {
-			TRACE_PROTO("SSL handshake in progress",
-			            QUIC_EV_CONN_IO_CB, qc, &state, &ssl_err);
-			goto out;
-		}
-		else {
-			TRACE_PROTO("SSL handshake OK", QUIC_EV_CONN_IO_CB, qc, &state);
+		if (qc_is_listener(qc)) {
+			if (__objt_listener(qc->target)->bind_conf->ssl_conf.early_data &&
+				(!qc->ael || !qc->ael->tls_ctx.rx.secret)) {
+				TRACE_PROTO("SSL handshake in progress",
+				            QUIC_EV_CONN_IO_CB, qc, &state, &ssl_err);
+				goto out;
+			}
+			else {
+				TRACE_PROTO("SSL handshake OK", QUIC_EV_CONN_IO_CB, qc, &state);
+			}
 		}
 #endif
 
@@ -957,6 +959,7 @@ static int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 
 		qc->flags |= QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS;
 		if (qc_is_listener(ctx->qc)) {
+			struct listener *l = __objt_listener(qc->target);
 			/* I/O callback switch */
 			qc->wait_event.tasklet->process = quic_conn_app_io_cb;
 			qc->state = QUIC_HS_ST_CONFIRMED;
@@ -972,8 +975,8 @@ static int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 				tasklet_wakeup(qc->wait_event.tasklet);
 			}
 
-			BUG_ON(qc->li->rx.quic_curr_handshake == 0);
-			HA_ATOMIC_DEC(&qc->li->rx.quic_curr_handshake);
+			BUG_ON(l->rx.quic_curr_handshake == 0);
+			HA_ATOMIC_DEC(&l->rx.quic_curr_handshake);
 		}
 		else {
 			qc->state = QUIC_HS_ST_COMPLETE;
@@ -1201,7 +1204,7 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, struct connection *conn)
 	ctx->qc = qc;
 
 	if (qc_is_listener(qc)) {
-		struct bind_conf *bc = qc->li->bind_conf;
+		struct bind_conf *bc = __objt_listener(qc->target)->bind_conf;
 
 		if (qc_ssl_sess_init(qc, bc->initial_ctx, &ctx->ssl, NULL, 1) == -1)
 		        goto err;

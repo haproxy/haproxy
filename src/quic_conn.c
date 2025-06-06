@@ -749,7 +749,7 @@ static struct quic_conn_closed *qc_new_cc_conn(struct quic_conn *qc)
 	cc_qc->dcid = qc->dcid;
 	cc_qc->scid = qc->scid;
 
-	cc_qc->li = qc->li;
+	cc_qc->target = qc->target;
 	cc_qc->cids = qc->cids;
 
 	cc_qc->idle_timer_task = qc->idle_timer_task;
@@ -1067,26 +1067,17 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
                               struct quic_connection_id *conn_id,
                               struct sockaddr_storage *local_addr,
                               struct sockaddr_storage *peer_addr,
-                              int server, int token, void *owner,
+                              int token, void *target,
                               struct connection *conn)
 {
 	struct quic_conn *qc = NULL;
-	struct listener *l = NULL;
-	struct server *srv = NULL;
-	struct proxy *prx = NULL;
+	struct listener *l = objt_listener(target);
+	struct server *srv = objt_server(target);
+	struct proxy *prx = l ? l->bind_conf->frontend : __objt_server(target)->proxy;
 	struct quic_cc_algo *cc_algo = NULL;
 	unsigned int next_actconn = 0, next_sslconn = 0, next_handshake = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_INIT);
-
-	if (server) {
-		l = owner;
-		prx = l->bind_conf->frontend;
-	}
-	else {
-		srv = owner;
-		prx = srv->proxy;
-	}
 
 	next_actconn = increment_actconn();
 	if (!next_actconn) {
@@ -1101,7 +1092,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		goto err;
 	}
 
-	if (server) {
+	if (l) {
 		next_handshake = quic_increment_curr_handshake(l);
 		if (!next_handshake) {
 			TRACE_STATE("max handshake reached", QUIC_EV_CONN_INIT);
@@ -1121,6 +1112,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		goto err;
 	}
 
+	qc->target = target;
 	*qc->cids = EB_ROOT;
 	/* Now that quic_conn instance is allocated, quic_conn_release() will
 	 * ensure global accounting is decremented.
@@ -1176,7 +1168,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe, &quic_stats_module);
 
 	/* QUIC Server (or listener). */
-	if (server) {
+	if (l) {
 		cc_algo = l->bind_conf->quic_cc_algo;
 
 		qc->flags = QUIC_FL_CONN_LISTENER;
@@ -1189,7 +1181,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		/* Copy the packet SCID to reuse it as DCID for sending */
 		qc->dcid = *scid;
 		qc->tx.buf = BUF_NULL;
-		qc->li = l;
 		conn_id->qc = qc;
 	}
 	/* QUIC Client (outgoing connection to servers) */
@@ -1218,7 +1209,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		conn_id = conn_cid;
 
 		qc->tx.buf = BUF_NULL;
-		qc->li = NULL;
 		qc->next_cid_seq_num = 1;
 		conn->handle.qc = qc;
 	}
@@ -1228,7 +1218,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	/* Listener only: if connection is instantiated due to an INITIAL packet with an
 	 * already checked token, consider the peer address as validated.
 	 */
-	if (server) {
+	if (l) {
 		if (token_odcid->len) {
 			TRACE_STATE("validate peer address due to initial token",
 						QUIC_EV_CONN_INIT, qc);
@@ -1301,7 +1291,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->max_ack_delay = 0;
 	/* Only one path at this time (multipath not supported) */
 	qc->path = &qc->paths[0];
-	quic_cc_path_init(qc->path, ipv4, server ? l->bind_conf->max_cwnd : 0,
+	quic_cc_path_init(qc->path, ipv4, l ? l->bind_conf->max_cwnd : 0,
 	                  cc_algo ? cc_algo : default_quic_cc_algo, qc);
 
 	if (local_addr)
@@ -1310,7 +1300,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		memset(&qc->local_addr, 0, sizeof(qc->local_addr));
 	memcpy(&qc->peer_addr, peer_addr, sizeof qc->peer_addr);
 
-	if (server) {
+	if (l) {
 		qc_lstnr_params_init(qc, &l->bind_conf->quic_params,
 		                     conn_id->stateless_reset_token,
 		                     qc->dcid.data, qc->dcid.len,
@@ -1344,7 +1334,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	    !quic_conn_init_idle_timer_task(qc, prx))
 		goto err;
 
-	if (!qc_new_isecs(qc, &qc->iel->tls_ctx, qc->original_version, dcid->data, dcid->len, server))
+	if (!qc_new_isecs(qc, &qc->iel->tls_ctx, qc->original_version, dcid->data, dcid->len, !!l))
 		goto err;
 
 	/* Counters initialization */
@@ -1395,7 +1385,7 @@ int qc_handle_conn_migration(struct quic_conn *qc,
 	 * used during the handshake, unless the endpoint has acted on a
 	 * preferred_address transport parameter from the peer.
 	 */
-	if (qc->li->bind_conf->quic_params.disable_active_migration) {
+	if (__objt_listener(qc->target)->bind_conf->quic_params.disable_active_migration) {
 		TRACE_ERROR("Active migration was disabled, datagram dropped", QUIC_EV_CONN_LPKT, qc);
 		goto err;
 	}
@@ -1525,8 +1515,8 @@ int quic_conn_release(struct quic_conn *qc)
 	 */
 	if (MT_LIST_INLIST(&qc->accept_list)) {
 		MT_LIST_DELETE(&qc->accept_list);
-		BUG_ON(qc->li->rx.quic_curr_accept == 0);
-		HA_ATOMIC_DEC(&qc->li->rx.quic_curr_accept);
+		BUG_ON(__objt_listener(qc->target)->rx.quic_curr_accept == 0);
+		HA_ATOMIC_DEC(&__objt_listener(qc->target)->rx.quic_curr_accept);
 	}
 
 	/* Substract last congestion window from global memory counter. */
@@ -1596,8 +1586,8 @@ int quic_conn_release(struct quic_conn *qc)
 	/* Connection released before handshake completion. */
 	if (unlikely(qc->state < QUIC_HS_ST_COMPLETE)) {
 		if (qc_is_listener(qc)) {
-			BUG_ON(qc->li->rx.quic_curr_handshake == 0);
-			HA_ATOMIC_DEC(&qc->li->rx.quic_curr_handshake);
+			BUG_ON(__objt_listener(qc->target)->rx.quic_curr_handshake == 0);
+			HA_ATOMIC_DEC(&__objt_listener(qc->target)->rx.quic_curr_handshake);
 		}
 	}
 
@@ -2005,8 +1995,8 @@ void qc_bind_tid_commit(struct quic_conn *qc, struct listener *new_li)
 	/* At this point no connection was accounted for yet on this
 	 * listener so it's OK to just swap the pointer.
 	 */
-	if (new_li && new_li != qc->li)
-		qc->li = new_li;
+	if (new_li && new_li != __objt_listener(qc->target))
+		qc->target = &new_li->obj_type;
 
 	/* Rebind the connection FD. */
 	if (qc_test_fd(qc)) {

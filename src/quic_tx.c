@@ -288,8 +288,10 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 	int ret = 0;
 	struct quic_conn *qc;
 	char skip_sendto = 0;
+	struct listener *l;
 
 	qc = ctx->qc;
+	l = objt_listener(qc->target);
 	TRACE_ENTER(QUIC_EV_CONN_SPPKTS, qc);
 	while (b_contig_data(buf, 0)) {
 		unsigned char *pos;
@@ -305,7 +307,11 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 
 		/* If datagram bigger than MTU, several ones were encoded for GSO usage. */
 		if (dglen > qc->path->mtu) {
-			if (likely(!(HA_ATOMIC_LOAD(&qc->li->flags) & LI_F_UDP_GSO_NOTSUPP))) {
+			/* TODO: note that at this time for connection to backends this
+			 * part is not run because no more than an MTU has been prepared for
+			 * such connections (dglen <= qc->path->mtu). So, here l is not NULL.
+			 */
+			if (likely(!(HA_ATOMIC_LOAD(&l->flags) & LI_F_UDP_GSO_NOTSUPP))) {
 				TRACE_PROTO("send multiple datagrams with GSO", QUIC_EV_CONN_SPPKTS, qc);
 				gso = qc->path->mtu;
 			}
@@ -327,11 +333,15 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 			int ret = qc_snd_buf(qc, &tmpbuf, tmpbuf.data, 0, gso);
 			if (ret < 0) {
 				if (gso && ret == -EIO) {
+					/* TODO: note that at this time for connection to backends this
+					 * part is not run because no more than an MTU has been
+					 * prepared for such connections (l is not NULL).
+					 */
 					/* Disable permanently UDP GSO for this listener.
 					 * Retry standard emission.
 					 */
 					TRACE_ERROR("mark listener UDP GSO as unsupported", QUIC_EV_CONN_SPPKTS, qc, first_pkt);
-					HA_ATOMIC_OR(&qc->li->flags, LI_F_UDP_GSO_NOTSUPP);
+					HA_ATOMIC_OR(&l->flags, LI_F_UDP_GSO_NOTSUPP);
 					continue;
 				}
 
@@ -576,6 +586,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 	int dgram_cnt = 0;
 	/* Restrict GSO emission to comply with sendmsg limitation. See QUIC_MAX_GSO_DGRAMS for more details. */
 	uchar gso_dgram_cnt = 0;
+	struct listener *l = objt_listener(qc->target);
 
 	TRACE_ENTER(QUIC_EV_CONN_IO_CB, qc);
 	/* Currently qc_prep_pkts() does not handle buffer wrapping so the
@@ -765,11 +776,13 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				prv_pkt = cur_pkt;
 			}
 			else if (!(quic_tune.options & QUIC_TUNE_NO_UDP_GSO) &&
-			         !(HA_ATOMIC_LOAD(&qc->li->flags) & LI_F_UDP_GSO_NOTSUPP) &&
 			         dglen == qc->path->mtu &&
 			         (char *)end < b_wrap(buf) &&
-			         ++gso_dgram_cnt < QUIC_MAX_GSO_DGRAMS) {
-
+			         ++gso_dgram_cnt < QUIC_MAX_GSO_DGRAMS &&
+			         l && !(HA_ATOMIC_LOAD(&l->flags) & LI_F_UDP_GSO_NOTSUPP)) {
+				/* TODO: note that for backends GSO is not used. No more than
+				 * an MTU is prepared.
+				 */
 				/* A datagram covering the full MTU has been
 				 * built, use GSO to built next entry. Do not
 				 * reserve extra space for datagram header.

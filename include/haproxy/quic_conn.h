@@ -69,7 +69,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
                               struct quic_connection_id *conn_id,
                               struct sockaddr_storage *local_addr,
                               struct sockaddr_storage *peer_addr,
-                              int server, int token, void *owner,
+                              int token, void *owner,
                               struct connection *conn);
 int quic_build_post_handshake_frames(struct quic_conn *qc);
 const struct quic_version *qc_supported_version(uint32_t version);
@@ -162,13 +162,6 @@ static inline void quic_free_ncbuf(struct ncbuf *ncbuf)
 	offer_buffers(NULL, 1);
 
 	*ncbuf = NCBUF_NULL;
-}
-
-/* Return the address of the connection owner object type. */
-static inline enum obj_type *qc_owner_obj_type(struct quic_conn *qc)
-{
-	return qc_is_listener(qc) ? &qc->li->obj_type :
-		&objt_server(qc->conn->target)->obj_type;
 }
 
 /* Return the address of the QUIC counters attached to the proxy of
