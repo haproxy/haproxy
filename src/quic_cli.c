@@ -4,7 +4,7 @@
 #include <haproxy/cli.h>
 #include <haproxy/list.h>
 #include <haproxy/mux_quic.h>
-#include <haproxy/quic_conn-t.h>
+#include <haproxy/quic_conn.h>
 #include <haproxy/quic_tp.h>
 #include <haproxy/quic_utils.h>
 #include <haproxy/tools.h>
@@ -181,9 +181,11 @@ static void dump_quic_oneline(struct show_quic_ctx *ctx, struct quic_conn *qc)
 	char bufaddr[INET6_ADDRSTRLEN], bufport[6];
 	int ret;
 	unsigned char cid_len;
+	struct listener *l = objt_listener(qc->target);
 
 	ret = chunk_appendf(&trash, "%p[%02u]/%-.12s ", qc, ctx->thr,
-	                    qc->li->bind_conf->frontend->id);
+	                    l ? l->bind_conf->frontend->id : __objt_server(qc->target)->id);
+
 	chunk_appendf(&trash, "%*s", 36 - ret, " "); /* align output */
 
 	/* State */

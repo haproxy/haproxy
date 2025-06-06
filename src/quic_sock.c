@@ -87,13 +87,13 @@ int quic_sock_get_dst(struct connection *conn, struct sockaddr *addr, socklen_t 
 		memcpy(addr, &qc->peer_addr, len);
 	} else {
 		struct sockaddr_storage *from;
+		struct listener *l = objt_listener(qc->target);
 
 		/* Return listener address if IP_PKTINFO or friends are not
 		 * supported by the socket.
 		 */
-		BUG_ON(!qc->li);
-		from = is_addr(&qc->local_addr) ? &qc->local_addr :
-		                                  &qc->li->rx.addr;
+		BUG_ON(!l);
+		from = is_addr(&qc->local_addr) ? &qc->local_addr : &l->rx.addr;
 		if (len > sizeof(*from))
 			len = sizeof(*from);
 		memcpy(addr, from, len);
@@ -819,6 +819,7 @@ int qc_rcv_buf(struct quic_conn *qc)
 	struct buffer buf = BUF_NULL;
 	unsigned char *dgram_buf;
 	ssize_t ret = 0;
+	struct listener *l = objt_listener(qc->target);
 
 	/* Do not call this if quic-conn FD is uninitialized. */
 	BUG_ON(qc->fd < 0);
@@ -869,7 +870,7 @@ int qc_rcv_buf(struct quic_conn *qc)
 			continue;
 		}
 
-		if (qc_is_listener(qc) && !qc_check_dcid(qc, new_dgram->dcid, new_dgram->dcid_len)) {
+		if (l && !qc_check_dcid(qc, new_dgram->dcid, new_dgram->dcid_len)) {
 			/* Datagram received by error on the connection FD, dispatch it
 			 * to its associated quic-conn.
 			 *
@@ -879,7 +880,6 @@ int qc_rcv_buf(struct quic_conn *qc)
 			struct quic_dgram *tmp_dgram;
 			unsigned char *rxbuf_tail;
 			size_t cspace;
-			struct listener *l = qc->li;
 
 			TRACE_STATE("datagram for other connection on quic-conn socket, requeue it", QUIC_EV_CONN_RCV, qc);
 
@@ -928,7 +928,7 @@ int qc_rcv_buf(struct quic_conn *qc)
 			continue;
 		}
 
-		quic_dgram_parse(new_dgram, qc, qc_owner_obj_type(qc));
+		quic_dgram_parse(new_dgram, qc, qc->target);
 		/* A datagram must always be consumed after quic_parse_dgram(). */
 		BUG_ON(new_dgram->buf);
 	} while (ret > 0);
@@ -950,11 +950,13 @@ int qc_rcv_buf(struct quic_conn *qc)
  *
  * Return the socket FD or a negative error code. On error, socket is marked as
  * uninitialized.
+ * Note: This function must not be run for backends connection.
  */
 void qc_alloc_fd(struct quic_conn *qc, const struct sockaddr_storage *src,
                  const struct sockaddr_storage *dst)
 {
-	struct bind_conf *bc = qc->li->bind_conf;
+	struct listener *l = __objt_listener(qc->target);
+	struct bind_conf *bc = l->bind_conf;
 	struct proxy *p = bc->frontend;
 	int fd = -1;
 	int ret;
@@ -1007,7 +1009,7 @@ void qc_alloc_fd(struct quic_conn *qc, const struct sockaddr_storage *src,
 			}
 
 			/* Fallback to listener socket for this receiver instance. */
-			HA_ATOMIC_STORE(&qc->li->rx.quic_mode, QUIC_SOCK_MODE_LSTNR);
+			HA_ATOMIC_STORE(&l->rx.quic_mode, QUIC_SOCK_MODE_LSTNR);
 		}
 		goto err;
 	}
@@ -1061,13 +1063,14 @@ struct quic_accept_queue *quic_accept_queues;
 void quic_accept_push_qc(struct quic_conn *qc)
 {
 	struct quic_accept_queue *queue = &quic_accept_queues[tid];
-	struct li_per_thread *lthr = &qc->li->per_thr[ti->ltid];
+	struct listener *l = __objt_listener(qc->target);
+	struct li_per_thread *lthr = &l->per_thr[ti->ltid];
 
 	/* A connection must only be accepted once per instance. */
 	BUG_ON(qc->flags & QUIC_FL_CONN_ACCEPT_REGISTERED);
 
 	BUG_ON(MT_LIST_INLIST(&qc->accept_list));
-	HA_ATOMIC_INC(&qc->li->rx.quic_curr_accept);
+	HA_ATOMIC_INC(&l->rx.quic_curr_accept);
 
 	qc->flags |= QUIC_FL_CONN_ACCEPT_REGISTERED;
 	/* 1. insert the listener in the accept queue
