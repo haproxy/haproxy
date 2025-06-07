@@ -50,6 +50,7 @@ struct eb32_node *eb32_lookup_le(struct eb_root *root, u32 x)
 {
 	struct eb32_node *node;
 	eb_troot_t *troot;
+	u32 y, z;
 
 	troot = root->b[EB_LEFT];
 	if (unlikely(troot == NULL))
@@ -72,6 +73,13 @@ struct eb32_node *eb32_lookup_le(struct eb_root *root, u32 x)
 		node = container_of(eb_untag(troot, EB_NODE),
 				    struct eb32_node, node.branches);
 
+		__builtin_prefetch(node->node.branches.b[0], 0);
+		__builtin_prefetch(node->node.branches.b[1], 0);
+
+		y = node->key;
+		z = 1U << (node->node.bit & 31);
+		troot = (x & z) ? node->node.branches.b[1] : node->node.branches.b[0];
+
 		if (node->node.bit < 0) {
 			/* We're at the top of a dup tree. Either we got a
 			 * matching value and we return the rightmost node, or
@@ -93,7 +101,7 @@ struct eb32_node *eb32_lookup_le(struct eb_root *root, u32 x)
 			break;
 		}
 
-		if (((x ^ node->key) >> node->node.bit) >= EB_NODE_BRANCHES) {
+		if ((x ^ y) & -(z << 1)) {
 			/* No more common bits at all. Either this node is too
 			 * small and we need to get its highest value, or it is
 			 * too large, and we need to get the prev value.
@@ -109,7 +117,6 @@ struct eb32_node *eb32_lookup_le(struct eb_root *root, u32 x)
 			troot = node->node.node_p;
 			break;
 		}
-		troot = node->node.branches.b[(x >> node->node.bit) & EB_NODE_BRANCH_MASK];
 	}
 
 	/* If we get here, it means we want to report previous node before the
@@ -138,6 +145,7 @@ struct eb32_node *eb32_lookup_ge(struct eb_root *root, u32 x)
 {
 	struct eb32_node *node;
 	eb_troot_t *troot;
+	u32 y, z;
 
 	troot = root->b[EB_LEFT];
 	if (unlikely(troot == NULL))
@@ -160,6 +168,13 @@ struct eb32_node *eb32_lookup_ge(struct eb_root *root, u32 x)
 		node = container_of(eb_untag(troot, EB_NODE),
 				    struct eb32_node, node.branches);
 
+		__builtin_prefetch(node->node.branches.b[0], 0);
+		__builtin_prefetch(node->node.branches.b[1], 0);
+
+		y = node->key;
+		z = 1U << (node->node.bit & 31);
+		troot = (x & z) ? node->node.branches.b[1] : node->node.branches.b[0];
+
 		if (node->node.bit < 0) {
 			/* We're at the top of a dup tree. Either we got a
 			 * matching value and we return the leftmost node, or
@@ -181,7 +196,7 @@ struct eb32_node *eb32_lookup_ge(struct eb_root *root, u32 x)
 			break;
 		}
 
-		if (((x ^ node->key) >> node->node.bit) >= EB_NODE_BRANCHES) {
+		if ((x ^ y) & -(z << 1)) {
 			/* No more common bits at all. Either this node is too
 			 * large and we need to get its lowest value, or it is too
 			 * small, and we need to get the next value.
@@ -197,7 +212,6 @@ struct eb32_node *eb32_lookup_ge(struct eb_root *root, u32 x)
 			troot = node->node.node_p;
 			break;
 		}
-		troot = node->node.branches.b[(x >> node->node.bit) & EB_NODE_BRANCH_MASK];
 	}
 
 	/* If we get here, it means we want to report next node after the

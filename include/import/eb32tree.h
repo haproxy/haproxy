@@ -119,7 +119,7 @@ static forceinline struct eb32_node *__eb32_lookup(struct eb_root *root, u32 x)
 {
 	struct eb32_node *node;
 	eb_troot_t *troot;
-	u32 y;
+	u32 y, z;
 	int node_bit;
 
 	troot = root->b[EB_LEFT];
@@ -137,9 +137,15 @@ static forceinline struct eb32_node *__eb32_lookup(struct eb_root *root, u32 x)
 		}
 		node = container_of(eb_untag(troot, EB_NODE),
 				    struct eb32_node, node.branches);
-		node_bit = node->node.bit;
 
+		__builtin_prefetch(node->node.branches.b[0], 0);
+		__builtin_prefetch(node->node.branches.b[1], 0);
+
+		node_bit = node->node.bit;
 		y = node->key ^ x;
+		z = 1U << (node_bit & 31);
+		troot = (x & z) ? node->node.branches.b[1] : node->node.branches.b[0];
+
 		if (!y) {
 			/* Either we found the node which holds the key, or
 			 * we have a dup tree. In the later case, we have to
@@ -157,8 +163,6 @@ static forceinline struct eb32_node *__eb32_lookup(struct eb_root *root, u32 x)
 
 		if ((y >> node_bit) >= EB_NODE_BRANCHES)
 			return NULL; /* no more common bits */
-
-		troot = node->node.branches.b[(x >> node_bit) & EB_NODE_BRANCH_MASK];
 	}
 }
 
@@ -171,7 +175,7 @@ static forceinline struct eb32_node *__eb32i_lookup(struct eb_root *root, s32 x)
 	struct eb32_node *node;
 	eb_troot_t *troot;
 	u32 key = x ^ 0x80000000;
-	u32 y;
+	u32 y, z;
 	int node_bit;
 
 	troot = root->b[EB_LEFT];
@@ -189,9 +193,15 @@ static forceinline struct eb32_node *__eb32i_lookup(struct eb_root *root, s32 x)
 		}
 		node = container_of(eb_untag(troot, EB_NODE),
 				    struct eb32_node, node.branches);
-		node_bit = node->node.bit;
 
+		__builtin_prefetch(node->node.branches.b[0], 0);
+		__builtin_prefetch(node->node.branches.b[1], 0);
+
+		node_bit = node->node.bit;
 		y = node->key ^ x;
+		z = 1U << (node_bit & 31);
+		troot = (key & z) ? node->node.branches.b[1] : node->node.branches.b[0];
+
 		if (!y) {
 			/* Either we found the node which holds the key, or
 			 * we have a dup tree. In the later case, we have to
@@ -209,8 +219,6 @@ static forceinline struct eb32_node *__eb32i_lookup(struct eb_root *root, s32 x)
 
 		if ((y >> node_bit) >= EB_NODE_BRANCHES)
 			return NULL; /* no more common bits */
-
-		troot = node->node.branches.b[(key >> node_bit) & EB_NODE_BRANCH_MASK];
 	}
 }
 
