@@ -161,7 +161,7 @@ static forceinline struct eb32_node *__eb32_lookup(struct eb_root *root, u32 x)
 			return node;
 		}
 
-		if ((y >> node_bit) >= EB_NODE_BRANCHES)
+		if (y & -(z << 1))
 			return NULL; /* no more common bits */
 	}
 }
@@ -217,7 +217,7 @@ static forceinline struct eb32_node *__eb32i_lookup(struct eb_root *root, s32 x)
 			return node;
 		}
 
-		if ((y >> node_bit) >= EB_NODE_BRANCHES)
+		if (y & -(z << 1))
 			return NULL; /* no more common bits */
 	}
 }

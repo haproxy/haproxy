@@ -159,7 +159,7 @@ static forceinline struct eb64_node *__eb64_lookup(struct eb_root *root, u64 x)
 			return node;
 		}
 
-		if ((y >> node->node.bit) >= EB_NODE_BRANCHES)
+		if (y & -(z << 1))
 			return NULL; /* no more common bits */
 	}
 }
@@ -213,7 +213,7 @@ static forceinline struct eb64_node *__eb64i_lookup(struct eb_root *root, s64 x)
 			return node;
 		}
 
-		if ((y >> node->node.bit) >= EB_NODE_BRANCHES)
+		if (y & -(z << 1))
 			return NULL; /* no more common bits */
 	}
 }
