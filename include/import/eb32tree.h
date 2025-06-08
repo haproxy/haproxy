@@ -120,7 +120,6 @@ static forceinline struct eb32_node *__eb32_lookup(struct eb_root *root, u32 x)
 	struct eb32_node *node;
 	eb_troot_t *troot;
 	u32 y, z;
-	int node_bit;
 
 	troot = root->b[EB_LEFT];
 	if (unlikely(troot == NULL))
@@ -141,9 +140,8 @@ static forceinline struct eb32_node *__eb32_lookup(struct eb_root *root, u32 x)
 		__builtin_prefetch(node->node.branches.b[0], 0);
 		__builtin_prefetch(node->node.branches.b[1], 0);
 
-		node_bit = node->node.bit;
 		y = node->key ^ x;
-		z = 1U << (node_bit & 31);
+		z = 1U << (node->node.bit & 31);
 		troot = (x & z) ? node->node.branches.b[1] : node->node.branches.b[0];
 
 		if (!y) {
@@ -151,7 +149,7 @@ static forceinline struct eb32_node *__eb32_lookup(struct eb_root *root, u32 x)
 			 * we have a dup tree. In the later case, we have to
 			 * walk it down left to get the first entry.
 			 */
-			if (node_bit < 0) {
+			if (node->node.bit < 0) {
 				troot = node->node.branches.b[EB_LEFT];
 				while (eb_gettag(troot) != EB_LEAF)
 					troot = (eb_untag(troot, EB_NODE))->b[EB_LEFT];
@@ -176,7 +174,6 @@ static forceinline struct eb32_node *__eb32i_lookup(struct eb_root *root, s32 x)
 	eb_troot_t *troot;
 	u32 key = x ^ 0x80000000;
 	u32 y, z;
-	int node_bit;
 
 	troot = root->b[EB_LEFT];
 	if (unlikely(troot == NULL))
@@ -197,9 +194,8 @@ static forceinline struct eb32_node *__eb32i_lookup(struct eb_root *root, s32 x)
 		__builtin_prefetch(node->node.branches.b[0], 0);
 		__builtin_prefetch(node->node.branches.b[1], 0);
 
-		node_bit = node->node.bit;
 		y = node->key ^ x;
-		z = 1U << (node_bit & 31);
+		z = 1U << (node->node.bit & 31);
 		troot = (key & z) ? node->node.branches.b[1] : node->node.branches.b[0];
 
 		if (!y) {
@@ -207,7 +203,7 @@ static forceinline struct eb32_node *__eb32i_lookup(struct eb_root *root, s32 x)
 			 * we have a dup tree. In the later case, we have to
 			 * walk it down left to get the first entry.
 			 */
-			if (node_bit < 0) {
+			if (node->node.bit < 0) {
 				troot = node->node.branches.b[EB_LEFT];
 				while (eb_gettag(troot) != EB_LEAF)
 					troot = (eb_untag(troot, EB_NODE))->b[EB_LEFT];
