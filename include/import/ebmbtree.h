@@ -184,6 +184,9 @@ static forceinline struct ebmb_node *__ebmb_lookup(struct eb_root *root, const v
 
 	pos = 0;
 	while (1) {
+		void *b0, *b1;
+		unsigned char k, b;
+
 		if (eb_gettag(troot) == EB_LEAF) {
 			node = container_of(eb_untag(troot, EB_LEAF),
 					    struct ebmb_node, node.branches);
@@ -234,11 +237,19 @@ static forceinline struct ebmb_node *__ebmb_lookup(struct eb_root *root, const v
 		 *   - more than the last bit differs => return NULL
 		 *   - walk down on side = (x[pos] >> node_bit) & 1
 		 */
-		side = *(unsigned char *)x >> node_bit;
-		if (((node->key[pos] >> node_bit) ^ side) > 1)
+		b = *(unsigned char *)x;
+		side = 1 << node_bit;
+
+		__builtin_prefetch(node->node.branches.b[0], 0);
+		__builtin_prefetch(node->node.branches.b[1], 0);
+
+		k = node->key[pos];
+		b0 = node->node.branches.b[0];
+		b1 = node->node.branches.b[1];
+		troot = (b & side) ? b1 : b0;
+
+		if ((k ^ b) & -(side << 1))
 			goto ret_null;
-		side &= 1;
-		troot = node->node.branches.b[side];
 	}
  walk_left:
 	troot = node->node.branches.b[EB_LEFT];
