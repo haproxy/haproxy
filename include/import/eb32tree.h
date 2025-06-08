@@ -126,7 +126,7 @@ static forceinline struct eb32_node *__eb32_lookup(struct eb_root *root, u32 x)
 		return NULL;
 
 	while (1) {
-		if ((eb_gettag(troot) == EB_LEAF)) {
+		if (unlikely(eb_gettag(troot) == EB_LEAF)) {
 			node = container_of(eb_untag(troot, EB_LEAF),
 					    struct eb32_node, node.branches);
 			if (node->key == x)
@@ -180,7 +180,7 @@ static forceinline struct eb32_node *__eb32i_lookup(struct eb_root *root, s32 x)
 		return NULL;
 
 	while (1) {
-		if ((eb_gettag(troot) == EB_LEAF)) {
+		if (unlikely(eb_gettag(troot) == EB_LEAF)) {
 			node = container_of(eb_untag(troot, EB_LEAF),
 					    struct eb32_node, node.branches);
 			if (node->key == (u32)x)

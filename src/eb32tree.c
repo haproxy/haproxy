@@ -57,7 +57,7 @@ struct eb32_node *eb32_lookup_le(struct eb_root *root, u32 x)
 		return NULL;
 
 	while (1) {
-		if ((eb_gettag(troot) == EB_LEAF)) {
+		if (unlikely(eb_gettag(troot) == EB_LEAF)) {
 			/* We reached a leaf, which means that the whole upper
 			 * parts were common. We will return either the current
 			 * node or its next one if the former is too small.
@@ -152,7 +152,7 @@ struct eb32_node *eb32_lookup_ge(struct eb_root *root, u32 x)
 		return NULL;
 
 	while (1) {
-		if ((eb_gettag(troot) == EB_LEAF)) {
+		if (unlikely(eb_gettag(troot) == EB_LEAF)) {
 			/* We reached a leaf, which means that the whole upper
 			 * parts were common. We will return either the current
 			 * node or its next one if the former is too small.
