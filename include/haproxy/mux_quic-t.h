@@ -202,7 +202,7 @@ struct qcc_app_ops {
 	/* Initialize <qcs> stream app context or leave it to NULL if rejected. */
 	int (*attach)(struct qcs *qcs, void *conn_ctx);
 
-	/* Convert received HTTP payload to HTX. */
+	/* Convert received HTTP payload to HTX. Returns amount of decoded bytes from <b> or a negative error code. */
 	ssize_t (*rcv_buf)(struct qcs *qcs, struct buffer *b, int fin);
 
 	/* Convert HTX to HTTP payload for sending. */

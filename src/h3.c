@@ -1385,9 +1385,13 @@ static ssize_t h3_parse_settings_frm(struct h3c *h3c, const struct buffer *buf,
 /* Transcode HTTP/3 payload received in buffer <b> to HTX data for stream
  * <qcs>. If <fin> is set, it indicates that no more data will arrive after.
  *
- * Returns the count of consumed bytes or a negative error code. If 0 is
- * returned, stream data is incomplete, decoding should be call again later
- * with more content.
+ * It may be necessary to call this function with an empty input buffer to
+ * signal a standalone FIN.
+ *
+ * Returns the amount of decoded bytes from <b> or a negative error code. A
+ * null value can be returned even if input buffer is not empty, meaning that
+ * transcoding cannot be performed due to partial HTTP/3 content. Receive
+ * operation may be called later with newer data available.
  */
 static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 {
@@ -1687,6 +1691,13 @@ static int h3_encode_header(struct buffer *buf,
 	return qpack_encode_header(buf, n, v_strip);
 }
 
+/* Convert a HTX status-line and associated headers stored into <htx> into a
+ * HTTP/3 HEADERS response frame. HTX blocks are removed up to end-of-trailer
+ * included.
+ *
+ * Returns the amount of consumed bytes from <htx> buffer or a negative error
+ * code.
+ */
 static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 {
 	int err;
@@ -1841,15 +1852,15 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 }
 
 /* Convert a series of HTX trailer blocks from <htx> buffer into <qcs> buffer
- * as a H3 HEADERS frame. H3 forbidden trailers are skipped. HTX trailer blocks
- * are removed from <htx> until EOT is found and itself removed.
+ * as a HTTP/3 HEADERS frame. Forbidden trailers are skipped. HTX trailer
+ * blocks are removed from <htx> up to end-of-trailer included.
  *
  * If only a EOT HTX block is present without trailer, no H3 frame is produced.
  * Caller is responsible to emit an empty QUIC STREAM frame to signal the end
  * of the stream.
  *
- * Returns the size of HTX blocks removed. A negative error code is returned in
- * case of a fatal error which should caused a connection closure.
+ * Returns the amount of consumed bytes from <htx> buffer or a negative error
+ * code.
  */
 static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 {
@@ -2021,9 +2032,9 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
  * underlying HTX area via <buf> as this will be used if zero-copy can be
  * performed.
  *
- * Returns the total bytes of encoded HTTP/3 payload. This corresponds to the
- * total bytes of HTX block removed. A negative error code is returned in case
- * of a fatal error which should caused a connection closure.
+ * Returns the amount of consumed bytes from <htx> buffer, which corresponds to
+ * the length sum of encoded frames payload. A negative error code is returned
+ * in case of a fatal error which should caused a connection closure.
  */
 static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
                              struct buffer *buf, size_t count)
@@ -2148,6 +2159,14 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
 	return -1;
 }
 
+/* Transcode HTX data from <buf> of length <count> into HTTP/3 frame for <qcs>
+ * stream instance. Successfully transcoded HTX blocks are removed from input
+ * buffer.
+ *
+ * Returns the amount of consumed bytes from <buf>. In case of error,
+ * connection is flagged and transcoding is interrupted. The returned value is
+ * unchanged though.
+ */
 static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 {
 	size_t total = 0;

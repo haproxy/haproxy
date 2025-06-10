@@ -12,6 +12,7 @@
 #include <haproxy/quic_utils.h>
 #include <haproxy/trace.h>
 
+/* Returns the amount of decoded bytes from <b> or a negative error code. */
 static ssize_t hq_interop_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 {
 	struct htx *htx;
@@ -92,6 +93,7 @@ static ssize_t hq_interop_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 	return b_data(b);
 }
 
+/* Returns the amount of consumed bytes from <buf>. */
 static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
                                  size_t count)
 {
