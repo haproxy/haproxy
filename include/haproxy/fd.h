@@ -499,6 +499,7 @@ static inline long fd_clr_running(int fd)
 static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), int tgid, unsigned long thread_mask)
 {
 	extern void sock_conn_iocb(int);
+	struct tgroup_info *tginfo = &ha_tgroup_info[tgid - 1];
 	int newstate;
 
 	/* conn_fd_handler should support edge-triggered FDs */
@@ -528,7 +529,7 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), int tgid
 	BUG_ON(fdtab[fd].state != 0);
 	BUG_ON(tgid < 1 || tgid > MAX_TGROUPS);
 
-	thread_mask &= tg->threads_enabled;
+	thread_mask &= tginfo->threads_enabled;
 	BUG_ON(thread_mask == 0);
 
 	fd_claim_tgid(fd, tgid);
