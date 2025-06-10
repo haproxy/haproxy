@@ -9077,11 +9077,14 @@ no option accept-unsafe-violations-in-http-request
 
     * In H1 only, NULL character in header value will be accepted;
 
-    * The list of characters allowed to appear in a URI is well defined by
-      RFC3986, and chars 0-31, 32 (space), 34 ('"'), 60 ('<'), 62 ('>'), 92
-      ('\'), 94 ('^'), 96 ('`'), 123 ('{'), 124 ('|'), 125 ('}'), 127 (delete)
-      and anything above are normally not allowed. But here, in H1 only,
-      HAProxy will only block a number of them (0..32, 127);
+    * In H1 only, characters above 127 in the URI will be accepted. The list of
+      characters allowed to appear in a URI is well defined by RFC3986, and
+      chars 0-31, 32 (space), 34 ('"'), 60 ('<'), 62 ('>'), 92 ('\'), 94 ('^'),
+      96 ('`'), 123 ('{'), 124 ('|'), 125 ('}'), 127 (delete) and anything
+      above are normally not allowed. In H1, all character between (0..32) and
+      127 will always be blocked. All characters above 127 (excluded) will also
+      be blocked, except when this option is enabled. Other characters
+      (33..126) will not be checked at all.
 
     * In H1 and H2, URLs containing fragment references ('#' after the path)
       will be accepted;
