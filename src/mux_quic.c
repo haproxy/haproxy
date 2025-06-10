@@ -3656,10 +3656,12 @@ static size_t qmux_strm_rcv_buf(struct stconn *sc, struct buffer *buf,
 			TRACE_STATE("report end-of-input", QMUX_EV_STRM_RECV, qcc->conn, qcs);
 			se_fl_set(qcs->sd, SE_FL_EOI);
 
-			/* If request EOM is reported to the upper layer, it means the
-			 * QCS now expects data from the opposite side.
-			 */
-			se_expect_data(qcs->sd);
+			if (!(qcc->flags & QC_CF_IS_BACK)) {
+				/* If request EOM is reported to the upper layer, it means the
+				 * QCS now expects data from the opposite side.
+				 */
+				se_expect_data(qcs->sd);
+			}
 		}
 
 		/* Set end-of-stream on read closed. */
