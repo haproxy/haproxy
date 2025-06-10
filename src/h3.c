@@ -1087,6 +1087,81 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	return len;
 }
 
+/* Parse from <buf> a H3 response HEADERS frame of length <len>. Data is
+ * transcoded into HTX buffer of <qcs> stream. <fin> must be set if this is the
+ * last data to transfer for this stream.
+ *
+ * Returns the number of consumed bytes or a negative error code.
+ */
+static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
+                                      uint64_t len, char fin)
+{
+	struct h3s *h3s = qcs->ctx;
+	struct buffer *appbuf = NULL;
+	struct htx *htx = NULL;
+	struct htx_sl *sl;
+	unsigned int flags = HTX_SL_F_NONE;
+	struct ist status = ist("200");
+
+	/* RFC 9114 4.1.2. Malformed Requests and Responses
+	 *
+	 * A malformed request or response is one that is an otherwise valid
+	 * sequence of frames but is invalid due to:
+	 * - the presence of prohibited fields or pseudo-header fields,
+	 * - the absence of mandatory pseudo-header fields,
+	 * - invalid values for pseudo-header fields,
+	 * - pseudo-header fields after fields,
+	 * - an invalid sequence of HTTP messages,
+	 * - the inclusion of uppercase field names, or
+	 * - the inclusion of invalid characters in field names or values.
+	 *
+	 * [...]
+	 *
+	 * Intermediaries that process HTTP requests or responses (i.e., any
+	 * intermediary not acting as a tunnel) MUST NOT forward a malformed
+	 * request or response. Malformed requests or responses that are
+	 * detected MUST be treated as a stream error of type H3_MESSAGE_ERROR.
+	 */
+
+	TRACE_ENTER(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+
+	appbuf = qcc_get_stream_rxbuf(qcs);
+	BUG_ON(!appbuf || b_data(appbuf)); /* TODO */
+	BUG_ON(!b_size(appbuf)); /* TODO */
+	htx = htx_from_buf(appbuf);
+
+	flags |= HTX_SL_F_VER_11;
+	flags |= HTX_SL_F_XFER_LEN;
+
+	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, ist("HTTP/3.0"), status, ist(""));
+	if (!sl) {
+		TRACE_ERROR("cannot allocate HTX start-line", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		h3s->err = H3_ERR_MESSAGE_ERROR;
+		len = -1;
+		goto out;
+	}
+
+	if (fin)
+		sl->flags |= HTX_SL_F_BODYLESS;
+
+	sl->info.res.status = 200;
+
+	if (!htx_add_endof(htx, HTX_BLK_EOH)) {
+		len = -1;
+		goto out;
+	}
+
+	if (fin)
+		htx->flags |= HTX_FL_EOM;
+
+ out:
+	if (appbuf)
+		htx_to_buf(htx, appbuf);
+
+	TRACE_LEAVE(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+	return len;
+}
+
 /* Parse from buffer <buf> a H3 HEADERS frame of length <len> used as trailers.
  * Data are copied in a local HTX buffer and transfer to the stream connector
  * layer. <fin> must be set if this is the last data to transfer from this
@@ -1554,7 +1629,9 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			break;
 		case H3_FT_HEADERS:
 			if (h3s->st_req == H3S_ST_REQ_BEFORE) {
-				ret = h3_req_headers_to_htx(qcs, b, flen, last_stream_frame);
+				ret = !conn_is_back(qcs->qcc->conn) ?
+				  h3_req_headers_to_htx(qcs, b, flen, last_stream_frame) :
+				  h3_resp_headers_to_htx(qcs, b, flen, last_stream_frame);
 				h3s->st_req = H3S_ST_REQ_HEADERS;
 			}
 			else {
@@ -2391,9 +2468,6 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 		blk = htx_get_blk(htx, idx);
 		btype = htx_get_blk_type(blk);
 		bsize = htx_get_blksz(blk);
-
-		/* Not implemented : QUIC on backend side */
-		BUG_ON(btype == HTX_BLK_REQ_SL);
 
 		switch (btype) {
 		case HTX_BLK_REQ_SL:
