@@ -4149,6 +4149,6 @@ void qcc_show_quic(struct qcc *qcc)
 }
 
 static struct mux_proto_list mux_proto_quic =
-  { .token = IST("quic"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_FE, .mux = &qmux_ops };
+  { .token = IST("quic"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_BOTH, .mux = &qmux_ops };
 
 INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_quic);
