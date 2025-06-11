@@ -134,6 +134,7 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 
 	qcs->stream = NULL;
 	qcs->qcc = qcc;
+	qcs->sd = NULL;
 	qcs->flags = QC_SF_NONE;
 	qcs->st = QC_SS_IDLE;
 	qcs->ctx = NULL;
@@ -3405,6 +3406,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 {
 	struct qcc *qcc;
 	struct quic_transport_params *lparams, *rparams;
+	void *conn_ctx = conn->ctx;
 
 	TRACE_ENTER(QMUX_EV_QCC_NEW);
 
@@ -3530,26 +3532,47 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	if (qcc->app_ops == &h3_ops && !conn_is_back(conn))
 		proxy_inc_fe_cum_sess_ver_ctr(sess->listener, prx, 3);
 
-	/* Register conn for idle front closing. This is done once everything is allocated. */
-	if (!conn_is_back(conn))
+	if (!conn_is_back(conn)) {
+		/* Register conn for idle front closing. */
 		LIST_APPEND(&mux_stopping_data[tid].list, &conn->stopping_list);
 
-	/* init read cycle */
-	tasklet_wakeup(qcc->wait_event.tasklet);
+		/* init read cycle */
+		tasklet_wakeup(qcc->wait_event.tasklet);
 
-	/* MUX is initialized before QUIC handshake completion if early data
-	 * received. Flag connection to delay stream processing if
-	 * wait-for-handshake is active.
-	 */
-	if (conn->handle.qc->state < QUIC_HS_ST_COMPLETE) {
-		if (!(conn->flags & CO_FL_EARLY_SSL_HS)) {
-			TRACE_STATE("flag connection with early data", QMUX_EV_QCC_WAKE, conn);
-			conn->flags |= CO_FL_EARLY_SSL_HS;
-			/* subscribe for handshake completion */
-			conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV,
-			                      &qcc->wait_event);
-			qcc->flags |= QC_CF_WAIT_HS;
+		/* MUX is initialized before QUIC handshake completion if early data
+		 * received. Flag connection to delay stream processing if
+		 * wait-for-handshake is active.
+		 */
+		if (conn->handle.qc->state < QUIC_HS_ST_COMPLETE) {
+			if (!(conn->flags & CO_FL_EARLY_SSL_HS)) {
+				TRACE_STATE("flag connection with early data", QMUX_EV_QCC_WAKE, conn);
+				conn->flags |= CO_FL_EARLY_SSL_HS;
+				/* subscribe for handshake completion */
+				conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV,
+				                      &qcc->wait_event);
+				qcc->flags |= QC_CF_WAIT_HS;
+			}
 		}
+	}
+	else {
+		/* Initiate backend side transfer by creating the first
+		 * bidirectional stream. MUX will then be woken up on QUIC
+		 * handshake completion so that stream layer can start the
+		 * transfer itself.
+		 */
+		struct qcs *qcs;
+		struct stconn *sc = conn_ctx;
+
+		qcs = qcc_init_stream_local(qcc, 1);
+		if (!qcs) {
+			TRACE_PROTO("Cannot allocate a new locally initiated streeam",
+			            QMUX_EV_QCC_NEW|QMUX_EV_QCC_ERR, conn);
+			goto err;
+		}
+
+		sc_attach_mux(sc, qcs, conn);
+		qcs->sd = sc->sedesc;
+		qcc->nb_sc++;
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCC_NEW, conn);
