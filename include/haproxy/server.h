@@ -343,6 +343,16 @@ static inline void srv_detach(struct server *srv)
 	}
 }
 
+static inline int srv_is_quic(const struct server *srv)
+{
+#ifdef USE_QUIC
+	return srv->addr_type.proto_type == PROTO_TYPE_DGRAM &&
+	       srv->addr_type.xprt_type == PROTO_TYPE_STREAM;
+#else
+	return 0;
+#endif
+}
+
 #endif /* _HAPROXY_SERVER_H */
 
 /*
