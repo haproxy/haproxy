@@ -1091,14 +1091,15 @@ void listener_accept(struct listener *l)
 #endif
 	if (p && p->fe_sps_lim) {
 		int max = 0;
+		int it;
 
-		for (int it = 0; it < global.nbtgroups; it++)
+		for (it = 0; it < global.nbtgroups; it++)
 			max += freq_ctr_remain(&p->fe_counters.shared->tg[it]->sess_per_sec, p->fe_sps_lim, 0);
 
 		if (unlikely(!max)) {
 			unsigned int min_wait = 0;
 
-			for (int it = 0; it < global.nbtgroups; it++) {
+			for (it = 0; it < global.nbtgroups; it++) {
 				unsigned int cur_wait = next_event_delay(&p->fe_counters.shared->tg[it]->sess_per_sec, p->fe_sps_lim, 0);
 				if (!it || cur_wait < min_wait)
 					min_wait = cur_wait;
