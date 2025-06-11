@@ -6,6 +6,7 @@
 #include <haproxy/dynbuf.h>
 #include <haproxy/htx.h>
 #include <haproxy/http.h>
+#include <haproxy/istbuf.h>
 #include <haproxy/mux_quic.h>
 #include <haproxy/qmux_http.h>
 #include <haproxy/qmux_trace.h>
@@ -160,6 +161,7 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 	enum htx_blk_type btype;
 	struct htx *htx = NULL;
 	struct htx_blk *blk;
+	struct htx_sl *sl = NULL;
 	int32_t idx;
 	uint32_t bsize, fsize;
 	struct buffer *res = NULL;
@@ -175,9 +177,25 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 		btype = htx_get_blk_type(blk);
 		fsize = bsize = htx_get_blksz(blk);
 
-		BUG_ON(btype == HTX_BLK_REQ_SL);
-
 		switch (btype) {
+		case HTX_BLK_REQ_SL:
+			res = qcc_get_stream_txbuf(qcs, &err, 0);
+			if (!res) {
+				BUG_ON(err); /* TODO */
+				goto end;
+			}
+
+			BUG_ON_HOT(sl); /* Only one start-line expected */
+			sl = htx_get_blk_ptr(htx, blk);
+
+			/* Only GET supported for HTTP/0.9. */
+			b_putist(res, ist("GET "));
+			b_putist(res, htx_sl_req_uri(sl));
+			b_putist(res, ist(" HTTP/0.9\r\n"));
+			htx_remove_blk(htx, blk);
+			total += fsize;
+			break;
+
 		case HTX_BLK_DATA:
 			res = qcc_get_stream_txbuf(qcs, &err, 0);
 			if (!res) {
