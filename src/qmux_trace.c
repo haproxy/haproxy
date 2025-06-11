@@ -145,7 +145,7 @@ void qmux_dump_qcc_info(struct buffer *msg, const struct qcc *qcc)
 {
 	const struct quic_conn *qc = qcc->conn->handle.qc;
 
-	chunk_appendf(msg, " qcc=%p(F)", qcc);
+	chunk_appendf(msg, " qcc=%p(%c)", qcc, (qcc->flags & QC_CF_IS_BACK) ? 'B' : 'F');
 	if (qcc->conn->handle.qc)
 		chunk_appendf(msg, " qc=%p", qcc->conn->handle.qc);
 	chunk_appendf(msg, " .st=%s .sc=%llu .hreq=%llu .flg=0x%04x",

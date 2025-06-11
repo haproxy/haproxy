@@ -3417,7 +3417,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	_qcc_init(qcc);
 	conn->ctx = qcc;
 	qcc->nb_hreq = qcc->nb_sc = 0;
-	qcc->flags = 0;
+	qcc->flags = conn_is_back(conn) ? QC_CF_IS_BACK : 0;
 	qcc->app_st = QCC_APP_ST_NULL;
 	qcc->glitches = 0;
 	qcc->err = quic_err_transport(QC_ERR_NO_ERROR);
