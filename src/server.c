@@ -3597,10 +3597,14 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		}
 
 #ifdef USE_QUIC
-		if (newsrv->addr_type.proto_type == PROTO_TYPE_DGRAM &&
-		    newsrv->addr_type.xprt_type == PROTO_TYPE_STREAM) {
-			ha_alert("QUIC protocol is unsupported on the backend side.\n");
-			goto out;
+		if (srv_is_quic(newsrv)) {
+			if (!experimental_directives_allowed) {
+				ha_alert("QUIC is experimental for server '%s',"
+				         " must be allowed via a global 'expose-experimental-directives'\n",
+				         newsrv->id);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
 		}
 #endif
 
