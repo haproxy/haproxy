@@ -1,6 +1,47 @@
 ChangeLog :
 ===========
 
+2025/06/11 : 3.3-dev1
+    - BUILD: tools: properly define ha_dump_backtrace() to avoid a build warning
+    - DOC: config: Fix a typo in 2.7 (Name format for maps and ACLs)
+    - REGTESTS: Do not use REQUIRE_VERSION for HAProxy 2.5+ (5)
+    - REGTESTS: Remove REQUIRE_VERSION=2.3 from all tests
+    - REGTESTS: Remove REQUIRE_VERSION=2.4 from all tests
+    - REGTESTS: Remove tests with REQUIRE_VERSION_BELOW=2.4
+    - REGTESTS: Remove support for REQUIRE_VERSION and REQUIRE_VERSION_BELOW
+    - MINOR: server: group postinit server tasks under _srv_postparse()
+    - MINOR: stats: add stat_col flags
+    - MINOR: stats: add ME_NEW_COMMON() helper
+    - MINOR: proxy: collect per-capability stat in proxy_cond_disable()
+    - MINOR: proxy: add a true list containing all proxies
+    - MINOR: log: only run postcheck_log_backend() checks on backend
+    - MEDIUM: proxy: use global proxy list for REGISTER_POST_PROXY_CHECK() hook
+    - MEDIUM: server: automatically add server to proxy list in new_server()
+    - MEDIUM: server: add and use srv_init() function
+    - BUG/MAJOR: leastconn: Protect tree_elt with the lbprm lock
+    - BUG/MEDIUM: check: Requeue healthchecks on I/O events to handle check timeout
+    - CLEANUP: applet: Update comment for applet_put* functions
+    - DEBUG: check: Add the healthcheck's expiration date in the trace messags
+    - BUG/MINOR: mux-spop: Fix null-pointer deref on SPOP stream allocation failure
+    - CLEANUP: sink: remove useless cleanup in sink_new_from_logger()
+    - MAJOR: counters: add shared counters base infrastructure
+    - MINOR: counters: add shared counters helpers to get and drop shared pointers
+    - MINOR: counters: add common struct and flags to {fe,be}_counters_shared
+    - MEDIUM: counters: manage shared counters using dedicated helpers
+    - CLEANUP: counters: merge some common counters between {fe,be}_counters_shared
+    - MINOR: counters: add local-only internal rates to compute some maxes
+    - MAJOR: counters: dispatch counters over thread groups
+    - BUG/MEDIUM: cli: Properly parse empty lines and avoid crashed
+    - BUG/MINOR: config: emit warning for empty args only in discovery mode
+    - BUG/MINOR: config: fix arg number reported on empty arg warning
+    - BUG/MINOR: quic: Missing SSL session object freeing
+    - MINOR: applet: Add API functions to manipulate input and output buffers
+    - MINOR: applet: Add API functions to get data from the input buffer
+    - CLEANUP: applet: Simplify a bit comments for applet_put* functions
+    - MEDIUM: hlua: Update TCP applet functions to use the new applet API
+    - BUG/MEDIUM: fd: Use the provided tgid in fd_insert() to get tgroup_info
+    - BUG/MINIR: h1: Fix doc of 'accept-unsafe-...-request' about URI parsing
+
 2025/05/28 : 3.3-dev0
     - MINOR: version: mention that it's development again
 
