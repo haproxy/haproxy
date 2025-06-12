@@ -1630,6 +1630,25 @@ static int srv_parse_check_sni(char **args, int *cur_arg, struct proxy *px, stru
 
 }
 
+/* parse the "renegotiate" server keyword */
+static int srv_parse_renegotiate(char **args, int *cur_arg, struct proxy *px,
+                                 struct server *newsrv, char **err)
+{
+
+#if !defined(OPENSSL_IS_AWSLC) && !defined(SSL_OP_NO_RENEGOTIATION)
+	memprintf(err, "'%s' not supported for your SSL library (%s), either SSL_OP_NO_RENEGOTIATION or SSL_set_renegotiate_mode() must be defined.",
+	          args[0], OPENSSL_VERSION_TEXT);
+	return -1;
+#endif
+
+	if (strncmp(*args, "no-", 3) == 0)
+		newsrv->ssl_ctx.renegotiate = SSL_RENEGOTIATE_OFF;
+	else
+		newsrv->ssl_ctx.renegotiate = SSL_RENEGOTIATE_ON;
+
+	return 0;
+}
+
 /* common function to init ssl_ctx */
 static int ssl_sock_init_srv(struct server *s)
 {
@@ -1674,6 +1693,9 @@ static int ssl_sock_init_srv(struct server *s)
 			return 1;
 	}
 #endif
+
+	if (global_ssl.renegotiate && !s->ssl_ctx.renegotiate)
+		s->ssl_ctx.renegotiate = global_ssl.renegotiate;
 
 	return 0;
 }
@@ -2078,6 +2100,15 @@ static int ssl_parse_default_server_options(char **args, int section_type, struc
 				memprintf(err, "%s on global statement '%s'.", *err, args[0]);
 				return -1;
 			}
+		}
+		else if (strcmp(args[i], "renegotiate") == 0 || strcmp(args[i], "no-renegotiate") == 0) {
+#if !defined(OPENSSL_IS_AWSLC) && !defined(SSL_OP_NO_RENEGOTIATION)
+			memprintf(err, "'%s' not supported for your SSL library (%s), either SSL_OP_NO_RENEGOTIATION or SSL_set_renegotiate_mode() must be defined.",
+				  args[i], OPENSSL_VERSION_TEXT);
+			return -1;
+#else
+			global_ssl.renegotiate = (*args[i] == 'n') ? SSL_RENEGOTIATE_OFF : SSL_RENEGOTIATE_ON;
+#endif
 		}
 		else if (parse_tls_method_options(args[i], &global_ssl.connect_default_sslmethods, err)) {
 			memprintf(err, "unknown option '%s' on global statement '%s'.", args[i], args[0]);
@@ -2505,6 +2536,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "force-tlsv12",            srv_parse_tls_method_options, 0, 1, 1 }, /* force TLSv12 */
 	{ "force-tlsv13",            srv_parse_tls_method_options, 0, 1, 1 }, /* force TLSv13 */
 	{ "no-check-ssl",            srv_parse_no_check_ssl,       0, 1, 0 }, /* disable SSL for health checks */
+	{ "no-renegotiate",          srv_parse_renegotiate,        0, 1, 1 }, /* Disable renegotiation */
 	{ "no-send-proxy-v2-ssl",    srv_parse_no_send_proxy_ssl,  0, 1, 0 }, /* do not send PROXY protocol header v2 with SSL info */
 	{ "no-send-proxy-v2-ssl-cn", srv_parse_no_send_proxy_cn,   0, 1, 0 }, /* do not send PROXY protocol header v2 with CN */
 	{ "no-ssl",                  srv_parse_no_ssl,             0, 1, 0 }, /* disable SSL processing */
@@ -2516,6 +2548,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "no-tlsv13",               srv_parse_tls_method_options, 0, 0, 1 }, /* disable TLSv13 */
 	{ "no-tls-tickets",          srv_parse_no_tls_tickets,     0, 1, 1 }, /* disable session resumption tickets */
 	{ "npn",                     srv_parse_npn,                1, 1, 1 }, /* Set NPN supported protocols */
+	{ "renegotiate",             srv_parse_renegotiate,        0, 1, 1 }, /* Allow secure renegotiation */
 	{ "send-proxy-v2-ssl",       srv_parse_send_proxy_ssl,     0, 1, 1 }, /* send PROXY protocol header v2 with SSL info */
 	{ "send-proxy-v2-ssl-cn",    srv_parse_send_proxy_cn,      0, 1, 1 }, /* send PROXY protocol header v2 with CN */
 	{ "sigalgs",                 srv_parse_sigalgs,            1, 1, 1 }, /* signature algorithms */

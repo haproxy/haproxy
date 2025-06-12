@@ -2719,7 +2719,7 @@ static void srv_ssl_settings_cpy(struct server *srv, const struct server *src)
 		srv->ssl_ctx.client_crt = strdup(src->ssl_ctx.client_crt);
 
 	srv->ssl_ctx.verify = src->ssl_ctx.verify;
-
+	srv->ssl_ctx.renegotiate = src->ssl_ctx.renegotiate;
 
 	if (src->ssl_ctx.verify_host != NULL)
 		srv->ssl_ctx.verify_host = strdup(src->ssl_ctx.verify_host);

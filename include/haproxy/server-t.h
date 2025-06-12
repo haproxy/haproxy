@@ -304,6 +304,13 @@ struct srv_pp_tlv_list {
 	unsigned char type;
 };
 
+/* Renegotiate mode */
+enum renegotiate_mode {
+	SSL_RENEGOTIATE_DFLT = 0,	/* Use the SSL library's default behavior */
+	SSL_RENEGOTIATE_OFF,		/* Disable secure renegotiation */
+	SSL_RENEGOTIATE_ON		/* Enable secure renegotiation */
+};
+
 struct proxy;
 struct server {
 	/* mostly config or admin stuff, doesn't change often */
@@ -477,6 +484,7 @@ struct server {
 		int npn_len;                    /* NPN protocol string length */
 		char *alpn_str;                 /* ALPN protocol string */
 		int alpn_len;                   /* ALPN protocol string length */
+		int renegotiate;		/* Renegotiate mode (SSL_RENEGOTIATE_ flag) */
 	} ssl_ctx;
 #ifdef USE_QUIC
 	struct quic_transport_params quic_params; /* QUIC transport parameters */

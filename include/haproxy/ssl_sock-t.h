@@ -320,6 +320,8 @@ struct global_ssl {
 #ifdef HAVE_ACME
 	int acme_scheduler;
 #endif
+
+	int renegotiate; /* Renegotiate mode (SSL_RENEGOTIATE_ flag) */
 };
 
 /* The order here matters for picking a default context,

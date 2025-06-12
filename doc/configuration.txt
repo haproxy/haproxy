@@ -18033,6 +18033,21 @@ no-check-ssl
   It may also be used as "default-server" setting to reset any previous
   "default-server" "check-ssl" setting.
 
+no-renegotiate
+  May be used in the following contexts: tcp, http, log
+
+  This setting is only available when support for OpenSSL was built in. It
+  disables the renegotiation mechanisms, be it the legacy unsafe one or the
+  more recent "secure renegotation" one (RFC 5746 TLS Renegotiation Indication
+  Extension) for the given SSL backend. This option is also available on global
+  statement "ssl-default-server-options".
+  Renegotiation is not posible anymore in TLS 1.3.
+  If neither "renegotiate" nor "no-renegotiate" is specified, the SSL library's
+  default behavior is kept.
+  Note that for instance OpenSSL library enables secure renegotiation by
+  default while AWS-LC disable it.
+  See also "renegotiate".
+
 no-send-proxy
   May be used in the following contexts: tcp, http
 
@@ -18360,6 +18375,21 @@ redir <prefix>
   loop between the client and HAProxy!
 
   Example :  server srv1 192.168.1.1:80 redir http://image1.mydomain.com check
+
+renegotiate
+  May be used in the following contexts: tcp, http, log
+
+  This option enables the secure renegotiation mechanism (RFC 5746 TLS
+  Renegotiation Indication Extension) for a given SSL backend. It does not mean
+  that renegotiation requests will be sent by the SSL client, it only allows
+  backends to renegotiate when servers request it. It still requires that the
+  underlying SSL library actually supports renegotiation.
+  This option is also available on global statement "ssl-default-server-options".
+  Renegotiation is not posible anymore in TLS 1.3.
+  If neither "renegotiate" nor "no-renegotiate" is specified, the SSL library's
+  default behavior is kept.
+  Note that for instance OpenSSL library enables secure renegotiation by
+  default while AWS-LC disable it.
 
 rise <count>
   May be used in the following contexts: tcp, http, log
