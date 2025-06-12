@@ -5327,7 +5327,8 @@ __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KC
 
 	/* don't check the max length read and don't check. */
 	luaL_addlstring(&luactx->b, blk1, len1);
-	luaL_addlstring(&luactx->b, blk2, len2);
+	if (len2)
+		luaL_addlstring(&luactx->b, blk2, len2);
 
 	applet_skip_input(luactx->appctx, len1+len2);
 	luaL_pushresult(&luactx->b);
@@ -5391,7 +5392,8 @@ __LJMP static int hlua_applet_tcp_recv_try(lua_State *L)
 		 * the end of data stream.
 		 */
 		luaL_addlstring(&luactx->b, blk1, len1);
-		luaL_addlstring(&luactx->b, blk2, len2);
+		if (len2)
+			luaL_addlstring(&luactx->b, blk2, len2);
 		applet_skip_input(luactx->appctx, len1+len2);
 
 		if (tick_is_expired(exp_date, now_ms)) {
@@ -5414,7 +5416,8 @@ __LJMP static int hlua_applet_tcp_recv_try(lua_State *L)
 		/* Copy the second block. */
 		if (len2 > len)
 			len2 = len;
-		luaL_addlstring(&luactx->b, blk2, len2);
+		if (len2)
+			luaL_addlstring(&luactx->b, blk2, len2);
 		len -= len2;
 
 		applet_skip_input(luactx->appctx, len1+len2);
