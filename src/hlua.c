@@ -5300,10 +5300,10 @@ __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KC
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 	int ret;
-	const char *blk1;
-	size_t len1;
-	const char *blk2;
-	size_t len2;
+	const char *blk1 = NULL;
+	size_t len1 = 0;
+	const char *blk2 = NULL;
+	size_t len2 = 0;
 
 	/* Read the maximum amount of data available. */
 	ret = applet_getline_nc(luactx->appctx, &blk1, &len1, &blk2, &len2);
@@ -5355,10 +5355,10 @@ __LJMP static int hlua_applet_tcp_recv_try(lua_State *L)
 	size_t len = MAY_LJMP(luaL_checkinteger(L, 2));
 	int exp_date = MAY_LJMP(luaL_checkinteger(L, 3));
 	int ret;
-	const char *blk1;
-	size_t len1;
-	const char *blk2;
-	size_t len2;
+	const char *blk1 = NULL;
+	size_t len1 = 0;
+	const char *blk2 =  NULL;
+	size_t len2 = 0;
 
 	/* Read the maximum amount of data available. */
 	ret = applet_getblk_nc(luactx->appctx, &blk1, &len1, &blk2, &len2);
@@ -5414,11 +5414,12 @@ __LJMP static int hlua_applet_tcp_recv_try(lua_State *L)
 		len -= len1;
 
 		/* Copy the second block. */
-		if (len2 > len)
-			len2 = len;
-		if (len2)
+		if (len2) {
+			if (len2 > len)
+				len2 = len;
 			luaL_addlstring(&luactx->b, blk2, len2);
-		len -= len2;
+			len -= len2;
+		}
 
 		applet_skip_input(luactx->appctx, len1+len2);
 
