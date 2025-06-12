@@ -780,13 +780,9 @@ SSL_CTX *ssl_quic_srv_new_ssl_ctx(void)
 		SSL_OP_SINGLE_ECDH_USE |
 		SSL_OP_CIPHER_SERVER_PREFERENCE;
 
-	TRACE_ENTER(QUIC_EV_CONN_NEW);
-
 	ctx = SSL_CTX_new(TLS_client_method());
-	if (!ctx) {
-		TRACE_ERROR("Could not allocate a new TLS context", QUIC_EV_CONN_NEW);
+	if (!ctx)
 		goto err;
-	}
 
 	SSL_CTX_set_options(ctx, options);
 	SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
@@ -797,12 +793,10 @@ SSL_CTX *ssl_quic_srv_new_ssl_ctx(void)
 #endif
 
  leave:
-	TRACE_LEAVE(QUIC_EV_CONN_NEW);
 	return ctx;
  err:
 	SSL_CTX_free(ctx);
 	ctx = NULL;
-	TRACE_DEVEL("leaving on error", QUIC_EV_CONN_NEW);
 	goto leave;
 }
 
