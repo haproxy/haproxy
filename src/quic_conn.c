@@ -1047,7 +1047,7 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 
 /* Allocate a new QUIC connection with <version> as QUIC version. <ipv4>
  * boolean is set to 1 for IPv4 connection, 0 for IPv6. <server> is set to 1
- * for QUIC servers (or haproxy listeners).
+ * for QUIC servers (or haproxy listeners), 0 for QUIC clients.
  * <dcid> is the destination connection ID, <scid> is the source connection ID.
  * This latter <scid> CID as the same value on the wire as the one for <conn_id>
  * which is the first CID of this connection but a different internal
@@ -1060,6 +1060,9 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
  * into the Retry token sent to the client before instantiated this connection.
  * Endpoints addresses are specified via <local_addr> and <peer_addr>.
  * Returns the connection if succeeded, NULL if not.
+ * For QUIC clients, <dcid>, <scid>, <token_odcid>, <conn_id> must be null,
+ * and <token> value must be 0. This is the responsability of the caller to ensure
+ * this is the case.
  */
 struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
                               struct quic_cid *dcid, struct quic_cid *scid,
