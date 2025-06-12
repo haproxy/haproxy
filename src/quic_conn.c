@@ -1351,7 +1351,15 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	return qc;
 
  err:
-	pool_free(pool_head_quic_connection_id, conn_id);
+	if (!l && !conn_id) {
+		/* For QUIC clients, <conn_id> is locally used and initialized to <conn_cid>
+		 * value as soon as this latter is attached to the CIDs tree. It must
+		 * be freed only if it has not been attached to this tree. This is
+		 * quic_conn_release() which free this CID when it is attached to the tree.
+		 */
+		pool_free(pool_head_quic_connection_id, conn_id);
+	}
+
 	quic_conn_release(qc);
 
 	/* Decrement global counters. Done only for errors happening before or
