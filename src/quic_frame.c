@@ -500,11 +500,19 @@ static int quic_parse_new_token_frame(struct quic_frame *frm, struct quic_conn *
 {
 	struct qf_new_token *new_token_frm = &frm->new_token;
 
-	if (!quic_dec_int(&new_token_frm->len, pos, end) || end - *pos < new_token_frm->len ||
-	    sizeof(new_token_frm->data) < new_token_frm->len)
+	if (!quic_dec_int(&new_token_frm->len, pos, end) || end - *pos < new_token_frm->len)
 		return 0;
 
+	/* TODO token length is unknown as it is dependent from the peer. Hence
+	 * dynamic allocation should be implemented for token storage, albeit
+	 * with constraint to ensure memory usage remains reasonable.
+	 */
+#if 0
+	if (sizeof(new_token_frm->data) < new_token_frm->len)
+		return 0;
 	memcpy(new_token_frm->data, *pos, new_token_frm->len);
+#endif
+
 	*pos += new_token_frm->len;
 
 	return 1;

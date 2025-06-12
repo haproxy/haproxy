@@ -949,7 +949,11 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				goto err;
 			}
 			else {
-				/* TODO */
+				/* TODO NEW_TOKEN not implemented on client side.
+				 * Note that for now token is not copied into <data> field
+				 * of qf_new_token frame. See quic_parse_new_token_frame()
+				 * for further explanations.
+				 */
 			}
 			break;
 		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
