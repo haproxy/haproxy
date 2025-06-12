@@ -572,8 +572,7 @@ static int ha_quic_ossl_got_transport_params(SSL *ssl, const unsigned char *para
 {
 	int ret = 0;
 	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
-	const struct quic_version *ver =
-		qc->negotiated_version ? qc->negotiated_version : qc->original_version;
+	struct listener *l = objt_listener(qc->target);
 
 	TRACE_ENTER(QUIC_EV_TRANSP_PARAMS, qc);
 
@@ -582,10 +581,8 @@ static int ha_quic_ossl_got_transport_params(SSL *ssl, const unsigned char *para
 		            QUIC_EV_TRANSP_PARAMS, qc);
 		ret = 1;
 	}
-	else {
-		if (!quic_transport_params_store(qc, 0, params, params + params_len) ||
-		    !qc_ssl_set_quic_transport_params(ssl, qc, ver, 1))
-			goto err;
+	else if (!quic_transport_params_store(qc, !l, params, params + params_len)) {
+		goto err;
 	}
 
 	ret = 1;
