@@ -785,7 +785,7 @@ SSL_CTX *ssl_quic_srv_new_ssl_ctx(void)
 	ctx = SSL_CTX_new(TLS_client_method());
 	if (!ctx) {
 		TRACE_ERROR("Could not allocate a new TLS context", QUIC_EV_CONN_NEW);
-		goto leave;
+		goto err;
 	}
 
 	SSL_CTX_set_options(ctx, options);
