@@ -270,6 +270,10 @@ __eb32_insert(struct eb_root *root, struct eb32_node *new) {
 		/* OK we're walking down this link */
 		old = container_of(eb_untag(troot, EB_NODE),
 				    struct eb32_node, node.branches);
+
+		__builtin_prefetch(old->node.branches.b[0], 0);
+		__builtin_prefetch(old->node.branches.b[1], 0);
+
 		old_node_bit = old->node.bit;
 
 		/* Stop going down when we don't have common bits anymore. We
@@ -289,9 +293,9 @@ __eb32_insert(struct eb_root *root, struct eb32_node *new) {
 		}
 
 		/* walk down */
-		root = &old->node.branches;
 		side = (newkey >> old_node_bit) & EB_NODE_BRANCH_MASK;
-		troot = root->b[side];
+		troot = side ? old->node.branches.b[1] : old->node.branches.b[0];
+		root = &old->node.branches;
 	}
 
 	new_left = eb_dotag(&new->node.branches, EB_LEFT);
@@ -403,6 +407,10 @@ __eb32i_insert(struct eb_root *root, struct eb32_node *new) {
 		/* OK we're walking down this link */
 		old = container_of(eb_untag(troot, EB_NODE),
 				    struct eb32_node, node.branches);
+
+		__builtin_prefetch(old->node.branches.b[0], 0);
+		__builtin_prefetch(old->node.branches.b[1], 0);
+
 		old_node_bit = old->node.bit;
 
 		/* Stop going down when we don't have common bits anymore. We
@@ -422,9 +430,9 @@ __eb32i_insert(struct eb_root *root, struct eb32_node *new) {
 		}
 
 		/* walk down */
-		root = &old->node.branches;
 		side = (newkey >> old_node_bit) & EB_NODE_BRANCH_MASK;
-		troot = root->b[side];
+		troot = side ? old->node.branches.b[1] : old->node.branches.b[0];
+		root = &old->node.branches;
 	}
 
 	new_left = eb_dotag(&new->node.branches, EB_LEFT);
