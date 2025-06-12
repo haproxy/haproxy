@@ -3836,6 +3836,15 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 		}
 	}
 
+#ifdef USE_QUIC
+	if (srv_is_quic(srv)) {
+		if (!srv->use_ssl) {
+			ha_alert("QUIC protocol detected without explicit SSL requirement. Use 'ssl' to fix this.\n");
+			return ERR_ALERT | ERR_FATAL;
+		}
+	}
+#endif
+
 	srv_lb_commit_status(srv);
 
 	return 0;
