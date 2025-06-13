@@ -2482,7 +2482,7 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 				/* look up the '?' */
 				do {
 					if (ptr == end)
-						return 0;
+						break;
 				} while (*ptr++ != '?');
 
 				if (ptr == end)
