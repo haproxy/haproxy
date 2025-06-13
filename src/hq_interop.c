@@ -97,13 +97,14 @@ static ssize_t hq_interop_rcv_buf_req(struct qcs *qcs, struct buffer *b, int fin
 /* HTTP/0.9 response -> HTX. */
 static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin)
 {
-	ssize_t ret = 0;
 	struct htx *htx;
 	struct htx_sl *sl;
 	struct buffer *htx_buf;
 	const struct stream *strm = __sc_strm(qcs->sd->sc);
 	const unsigned int flags = HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN;
-	size_t htx_sent;
+	size_t to_copy = b_data(b);
+	size_t htx_sent = 0;
+	uint32_t htx_space;
 
 	htx_buf = qcc_get_stream_rxbuf(qcs);
 	BUG_ON(!htx_buf);
@@ -114,12 +115,12 @@ static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin
 		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags,
 		                    ist("HTTP/1.0"), ist("200"), ist(""));
 		BUG_ON(!sl);
-		if (fin && !b_data(b))
+		if (fin && !to_copy)
 			sl->flags |= HTX_SL_F_BODYLESS;
 		htx_add_endof(htx, HTX_BLK_EOH);
 	}
 
-	if (!b_data(b)) {
+	if (!to_copy) {
 		if (fin && quic_stream_is_bidi(qcs->id)) {
 			if (qcs_http_handle_standalone_fin(qcs)) {
 				htx_to_buf(htx, htx_buf);
@@ -128,19 +129,23 @@ static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin
 		}
 	}
 	else {
-		BUG_ON(b_data(b) > htx_free_data_space(htx)); /* TODO */
-		BUG_ON(b_head(b) + b_data(b) > b_wrap(b));    /* TODO */
+		BUG_ON(b_head(b) + to_copy > b_wrap(b)); /* TODO */
 
-		htx_sent = htx_add_data(htx, ist2(b_head(b), b_data(b)));
-		BUG_ON(htx_sent < b_data(b)); /* TODO */
-		ret = htx_sent;
+		htx_space = htx_free_data_space(htx);
+		if (to_copy > htx_space) {
+			to_copy = htx_space;
+			fin = 0;
+		}
 
-		if (fin && b_data(b) == htx_sent)
+		htx_sent = htx_add_data(htx, ist2(b_head(b), to_copy));
+		BUG_ON(htx_sent < to_copy); /* TODO */
+
+		if (fin && to_copy == htx_sent)
 			htx->flags |= HTX_FL_EOM;
 	}
 
 	htx_to_buf(htx, htx_buf);
-	return ret;
+	return htx_sent;
 }
 
 /* Returns the amount of decoded bytes from <b> or a negative error code. */
