@@ -351,12 +351,16 @@ static struct quic_dgram *quic_rxbuf_purge_dgrams(struct quic_receiver_buf *rbuf
  * <to> will be set as AF_UNSPEC. The caller must specify <to_port> to ensure
  * that <to> address is completely filled.
  *
+ * Set <check_port> if communication with privileged port should be handle with
+ * constraint, which is desirable when interacting with QUIC clients on
+ * frontend side.
+ *
  * Returns value from recvmsg syscall.
  */
 static ssize_t quic_recv(int fd, void *out, size_t len,
                          struct sockaddr *from, socklen_t from_len,
                          struct sockaddr *to, socklen_t to_len,
-                         uint16_t dst_port)
+                         uint16_t dst_port, int check_port)
 {
 	union pktinfo {
 #ifdef IP_PKTINFO
@@ -398,7 +402,7 @@ static ssize_t quic_recv(int fd, void *out, size_t len,
 	if (ret < 0)
 		goto end;
 
-	if (unlikely(port_is_restricted((struct sockaddr_storage *)from, HA_PROTO_QUIC))) {
+	if (check_port && unlikely(port_is_restricted((struct sockaddr_storage *)from, HA_PROTO_QUIC))) {
 		ret = -1;
 		goto end;
 	}
@@ -535,7 +539,7 @@ void quic_lstnr_sock_fd_iocb(int fd)
 	ret = quic_recv(fd, dgram_buf, max_sz,
 	                (struct sockaddr *)&saddr, sizeof(saddr),
 	                (struct sockaddr *)&daddr, sizeof(daddr),
-	                get_net_port(&l->rx.addr));
+	                get_net_port(&l->rx.addr), 1);
 	if (ret <= 0)
 		goto out;
 
@@ -841,7 +845,7 @@ int qc_rcv_buf(struct quic_conn *qc)
 		ret = quic_recv(qc->fd, dgram_buf, qc->max_udp_payload,
 		                (struct sockaddr *)&saddr, sizeof(saddr),
 		                (struct sockaddr *)&daddr, sizeof(daddr),
-		                get_net_port(&qc->local_addr));
+		                get_net_port(&qc->local_addr), !!l);
 		if (ret <= 0) {
 			/* Subscribe FD for future reception. */
 			if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOTCONN)
