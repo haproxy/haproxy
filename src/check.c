@@ -825,9 +825,6 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	if (conn && errno)
 		retrieve_errno_from_socket(conn);
 
-	if (conn && !(conn->flags & CO_FL_ERROR) && !sc_ep_test(sc, SE_FL_ERROR) && !expired)
-		return;
-
 	TRACE_ENTER(CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check, 0, 0, (size_t[]){expired});
 
 	/* we'll try to build a meaningful error message depending on the
@@ -978,6 +975,11 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		    check->current_step->expect.tout_status != HCHK_STATUS_UNKNOWN)
 			tout = check->current_step->expect.tout_status;
 		set_server_check_status(check, tout, err_msg);
+	}
+
+	if (check->result == CHK_RES_UNKNOWN) {
+		/* No other reason found, report a socket error (may be an internal or a ressournce error) */
+		set_server_check_status(check, HCHK_STATUS_SOCKERR, err_msg);
 	}
 
 	TRACE_LEAVE(CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check);
