@@ -1086,10 +1086,9 @@ int cli_parse_cmdline(struct appctx *appctx)
  */
 void cli_io_handler(struct appctx *appctx)
 {
-	if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_ALLOC|APPCTX_FL_OUTBLK_FULL))
-		goto out;
-
-	if (!appctx_get_buf(appctx, &appctx->outbuf)) {
+	if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_ALLOC|APPCTX_FL_OUTBLK_FULL) ||
+	    !appctx_get_buf(appctx, &appctx->outbuf)) {
+                applet_wont_consume(appctx);
 		goto out;
 	}
 
@@ -1108,6 +1107,7 @@ void cli_io_handler(struct appctx *appctx)
 			break;
 		}
 		else if (appctx->st0 == CLI_ST_PARSE_CMDLINE) {
+			applet_will_consume(appctx);
 			if (cli_parse_cmdline(appctx) == 0) {
 				/* Now we close the output if we're not in interactive
 				 * mode and the request buffer is empty. This still
