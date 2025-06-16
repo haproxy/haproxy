@@ -1306,7 +1306,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	if (l) {
 		qc_lstnr_params_init(qc, &l->bind_conf->quic_params,
 		                     conn_id->stateless_reset_token,
-		                     qc->dcid.data, qc->dcid.len,
+		                     qc->odcid.data, qc->odcid.len,
 		                     qc->scid.data, qc->scid.len, token_odcid);
 	}
 	else {
