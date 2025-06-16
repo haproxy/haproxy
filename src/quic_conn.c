@@ -628,7 +628,7 @@ struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int sta
 	}
 
  out:
-	if ((qc->flags & QUIC_FL_CONN_CLOSING) && qc->mux_state != QC_MUX_READY) {
+	if ((qc->flags & QUIC_FL_CONN_CLOSING) && !qc->conn) {
 		if (quic_conn_release(qc))
 			t = NULL;
 		qc = NULL;
@@ -942,7 +942,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		quic_nictx_free(qc);
 	}
 
-	if ((qc->flags & QUIC_FL_CONN_CLOSING) && qc->mux_state != QC_MUX_READY) {
+	if ((qc->flags & QUIC_FL_CONN_CLOSING) && !qc->conn) {
 		if (quic_conn_release(qc))
 			t = NULL;
 		qc = NULL;
@@ -1494,8 +1494,8 @@ int quic_conn_release(struct quic_conn *qc)
 	/* Must not delete a quic_conn if thread affinity rebind in progress. */
 	BUG_ON(qc->flags & QUIC_FL_CONN_TID_REBIND);
 
-	/* We must not free the quic-conn if the MUX is still allocated. */
-	BUG_ON(qc->mux_state == QC_MUX_READY);
+	/* We must not free the quic-conn if upper conn is still allocated. */
+	BUG_ON(qc->conn);
 
 	cc_qc = NULL;
 	if ((qc->flags & QUIC_FL_CONN_CLOSING) && !(qc->flags & QUIC_FL_CONN_EXP_TIMER) &&
@@ -1760,7 +1760,7 @@ struct task *qc_idle_timer_task(struct task *t, void *ctx, unsigned int state)
 	 * responsible to call quic_close to release it.
 	 */
 	qc->flags |= QUIC_FL_CONN_EXP_TIMER;
-	if (qc->mux_state != QC_MUX_READY) {
+	if (!qc->conn) {
 		quic_conn_release(qc);
 		qc = NULL;
 	}

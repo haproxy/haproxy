@@ -251,7 +251,7 @@ extern const struct quic_version *quic_version_2;
 /* The maximum number of bytes of CRYPTO data in flight during handshakes. */
 #define QUIC_CRYPTO_IN_FLIGHT_MAX 4096
 
-/* Status of the connection/mux layer. This defines how to handle app data.
+/* Status of the MUX layer. This defines how to handle app data.
  *
  * During a standard quic_conn lifetime it transitions like this :
  * QC_MUX_NULL -> QC_MUX_READY -> QC_MUX_RELEASED
