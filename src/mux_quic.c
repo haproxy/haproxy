@@ -3570,7 +3570,13 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 			goto err;
 		}
 
-		sc_attach_mux(sc, qcs, conn);
+		if (sc_attach_mux(sc, qcs, conn)) {
+			TRACE_ERROR("Cannot attach backend first init stream",
+			            QMUX_EV_QCC_NEW|QMUX_EV_QCC_ERR, conn);
+			qcs_free(qcs);
+			goto err;
+		}
+
 		qcs->sd = sc->sedesc;
 		qcc->nb_sc++;
 	}
