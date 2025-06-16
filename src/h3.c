@@ -152,7 +152,7 @@ DECLARE_STATIC_POOL(pool_head_h3c, "h3c", sizeof(struct h3c));
 
 #define H3_SF_UNI_INIT  0x00000001  /* stream type not parsed for unidirectional stream */
 #define H3_SF_UNI_NO_H3 0x00000002  /* unidirectional stream does not carry H3 frames */
-#define H3_SF_HAVE_CLEN 0x00000004  /* content-length header is present */
+#define H3_SF_HAVE_CLEN 0x00000004  /* content-length header is present; relevant either for request or response depending on the side of the connection */
 
 struct h3s {
 	struct h3c *h3c;
@@ -1099,13 +1099,15 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	struct h3s *h3s = qcs->ctx;
 	struct h3c *h3c = h3s->h3c;
 	struct buffer *appbuf = NULL;
+	struct buffer *tmp = get_trash_chunk();
 	struct htx *htx = NULL;
 	struct htx_sl *sl;
 	struct http_hdr list[global.tune.max_http_hdr * 2];
 	unsigned int flags = HTX_SL_F_NONE;
 	struct ist status = IST_NULL;
 	unsigned char h, t, u;
-	int hdr_idx;
+	int hdr_idx, ret;
+	int qpack_err;
 
 	/* RFC 9114 4.1.2. Malformed Requests and Responses
 	 *
@@ -1128,6 +1130,20 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	 */
 
 	TRACE_ENTER(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+
+	/* TODO support buffer wrapping */
+	BUG_ON(b_head(buf) + len >= b_wrap(buf));
+	ret = qpack_decode_fs((const unsigned char *)b_head(buf), len, tmp,
+	                    list, sizeof(list) / sizeof(list[0]));
+	if (ret < 0) {
+		TRACE_ERROR("QPACK decoding error", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		if ((qpack_err = qpack_err_decode(ret)) >= 0) {
+			h3c->err = qpack_err;
+			qcc_report_glitch(qcs->qcc, 1);
+		}
+		len = -1;
+		goto out;
+	}
 
 	appbuf = qcc_get_stream_rxbuf(qcs);
 	BUG_ON(!appbuf || b_data(appbuf)); /* TODO */
@@ -1210,6 +1226,71 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		goto out;
 	}
 	sl->info.res.status = h * 100 + t * 10 + u;
+
+	/* now treat standard headers */
+	while (1) {
+		if (isteq(list[hdr_idx].n, ist("")))
+			break;
+
+		if (_h3_handle_hdr(qcs, &list[hdr_idx])) {
+			h3s->err = H3_ERR_MESSAGE_ERROR;
+			qcc_report_glitch(h3c->qcc, 1);
+			len = -1;
+			goto out;
+		}
+
+		if (isteq(list[hdr_idx].n, ist("connection")) ||
+		    isteq(list[hdr_idx].n, ist("proxy-connection")) ||
+		    isteq(list[hdr_idx].n, ist("keep-alive")) ||
+		    isteq(list[hdr_idx].n, ist("upgrade")) ||
+		    isteq(list[hdr_idx].n, ist("transfer-encoding"))) {
+			/* forbidden connection-specific fields */
+			TRACE_ERROR("invalid connection header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+			h3s->err = H3_ERR_MESSAGE_ERROR;
+			qcc_report_glitch(h3c->qcc, 1);
+			len = -1;
+			goto out;
+		}
+		else if (isteq(list[hdr_idx].n, ist("content-length"))) {
+			ret = http_parse_cont_len_header(&list[hdr_idx].v,
+			                                 &h3s->body_len,
+			                                 h3s->flags & H3_SF_HAVE_CLEN);
+			if (ret < 0) {
+				TRACE_ERROR("invalid content-length", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+				h3s->err = H3_ERR_MESSAGE_ERROR;
+				qcc_report_glitch(h3c->qcc, 1);
+				len = -1;
+				goto out;
+			}
+			else if (!ret) {
+				/* Skip duplicated value. */
+				++hdr_idx;
+				continue;
+			}
+
+			h3s->flags |= H3_SF_HAVE_CLEN;
+			sl->flags |= HTX_SL_F_CLEN;
+			/* This will fail if current frame is the last one and
+			 * content-length is not null.
+			 */
+			if (h3_check_body_size(qcs, fin)) {
+				len = -1;
+				goto out;
+			}
+		}
+
+		if (!htx_add_header(htx, list[hdr_idx].n, _h3_trim_header(list[hdr_idx].v))) {
+			len = -1;
+			goto out;
+		}
+		++hdr_idx;
+	}
+
+	/* Check the number of blocks against "tune.http.maxhdr" value before adding EOH block */
+	if (htx_nbblks(htx) > global.tune.max_http_hdr) {
+		len = -1;
+		goto out;
+	}
 
 	if (!htx_add_endof(htx, HTX_BLK_EOH)) {
 		len = -1;
