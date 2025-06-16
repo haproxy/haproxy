@@ -1097,11 +1097,15 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
                                       uint64_t len, char fin)
 {
 	struct h3s *h3s = qcs->ctx;
+	struct h3c *h3c = h3s->h3c;
 	struct buffer *appbuf = NULL;
 	struct htx *htx = NULL;
 	struct htx_sl *sl;
+	struct http_hdr list[global.tune.max_http_hdr * 2];
 	unsigned int flags = HTX_SL_F_NONE;
-	struct ist status = ist("200");
+	struct ist status = IST_NULL;
+	unsigned char h, t, u;
+	int hdr_idx;
 
 	/* RFC 9114 4.1.2. Malformed Requests and Responses
 	 *
@@ -1130,6 +1134,58 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	BUG_ON(!b_size(appbuf)); /* TODO */
 	htx = htx_from_buf(appbuf);
 
+	/* first treat pseudo-header to build the start line */
+	hdr_idx = 0;
+	while (1) {
+		/* RFC 9114 4.3. HTTP Control Data
+		 *
+		 * Endpoints MUST treat a request or response that contains
+		 * undefined or invalid pseudo-header fields as malformed.
+		 *
+		 * All pseudo-header fields MUST appear in the header section before
+		 * regular header fields. Any request or response that contains a
+		 * pseudo-header field that appears in a header section after a regular
+		 * header field MUST be treated as malformed.
+		 */
+
+		/* Stop at first non pseudo-header. */
+		if (!istmatch(list[hdr_idx].n, ist(":")))
+			break;
+
+		/* RFC 9114 10.3 Intermediary-Encapsulation Attacks
+		 *
+		 * While most values that can be encoded will not alter field
+		 * parsing, carriage return (ASCII 0x0d), line feed (ASCII 0x0a),
+		 * and the null character (ASCII 0x00) might be exploited by an
+		 * attacker if they are translated verbatim. Any request or
+		 * response that contains a character not permitted in a field
+		 * value MUST be treated as malformed
+		 */
+
+		if (_h3_handle_phdr(qcs, &list[hdr_idx])) {
+			h3s->err = H3_ERR_MESSAGE_ERROR;
+			qcc_report_glitch(h3c->qcc, 1);
+			len = -1;
+			goto out;
+		}
+
+		/* pseudo-header. Malformed name with uppercase character or
+		 * invalid token will be rejected in the else clause.
+		 */
+		if (isteq(list[hdr_idx].n, ist(":status"))) {
+			status = list[hdr_idx].v;
+		}
+		else {
+			TRACE_ERROR("unknown pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+			h3s->err = H3_ERR_MESSAGE_ERROR;
+			qcc_report_glitch(h3c->qcc, 1);
+			len = -1;
+			goto out;
+		}
+
+		++hdr_idx;
+	}
+
 	flags |= HTX_SL_F_VER_11;
 	flags |= HTX_SL_F_XFER_LEN;
 
@@ -1144,7 +1200,16 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	if (fin)
 		sl->flags |= HTX_SL_F_BODYLESS;
 
-	sl->info.res.status = 200;
+	h = status.ptr[0] - '0';
+	t = status.ptr[1] - '0';
+	u = status.ptr[2] - '0';
+	if (h > 9 || t > 9 || u > 9) {
+		TRACE_ERROR("invalid status code", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		h3s->err = H3_ERR_MESSAGE_ERROR;
+		len = -1;
+		goto out;
+	}
+	sl->info.res.status = h * 100 + t * 10 + u;
 
 	if (!htx_add_endof(htx, HTX_BLK_EOH)) {
 		len = -1;
