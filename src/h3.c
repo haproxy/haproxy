@@ -1700,13 +1700,51 @@ static int h3_encode_header(struct buffer *buf,
  */
 static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 {
+	struct http_hdr list[global.tune.max_http_hdr * 2];
 	struct buffer outbuf;
 	struct buffer headers_buf = BUF_NULL;
 	struct buffer *res;
-	struct htx_blk *blk;
 	enum htx_blk_type type;
+	struct htx_blk *blk;
+	struct htx_sl *sl;
 	int frame_length_size;  /* size in bytes of frame length varint field */
-	int ret, err;
+	int ret, err, hdr;
+
+	hdr = 0;
+	sl = NULL;
+	for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
+		type = htx_get_blk_type(blk);
+
+		switch (type) {
+		case HTX_BLK_EOH:
+			goto end_loop;
+		case HTX_BLK_UNUSED:
+			break;
+
+		case HTX_BLK_REQ_SL:
+			BUG_ON_HOT(sl); /* Only one start-line expected */
+			sl = htx_get_blk_ptr(htx, blk);
+			break;
+
+		case HTX_BLK_HDR:
+			if (unlikely(hdr >= sizeof(list) / sizeof(list[0]) - 1))
+				goto err;
+
+			list[hdr].n = htx_get_blk_name(htx, blk);
+			list[hdr].v = htx_get_blk_value(htx, blk);
+
+			++hdr;
+			break;
+
+		default:
+			break;
+		}
+	}
+
+ end_loop:
+	BUG_ON_HOT(!sl); /* start-line must be present. */
+	/* marker for end of headers */
+	list[hdr].n = ist("");
 
 	res = qcc_get_stream_txbuf(qcs, &err, 0);
 	BUG_ON(!res);
@@ -1733,6 +1771,39 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	/* :authority */
 	if (h3_encode_header(&headers_buf, ist(":authority"), ist("127.0.0.1:20443")))
 		goto err;
+
+	/* Encode every parsed headers, stop at empty one. */
+	for (hdr = 0; hdr < sizeof(list) / sizeof(list[0]); ++hdr) {
+		if (isteq(list[hdr].n, ist("")))
+			break;
+
+		/* RFC 9114 4.2. HTTP Fields
+		 *
+		 * An intermediary transforming an HTTP/1.x message to HTTP/3
+		 * MUST remove connection-specific header fields as discussed in
+		 * Section 7.6.1 of [HTTP], or their messages will be treated by
+		 * other HTTP/3 endpoints as malformed.
+		 */
+		if (isteq(list[hdr].n, ist("connection")) ||
+		    isteq(list[hdr].n, ist("proxy-connection")) ||
+		    isteq(list[hdr].n, ist("keep-alive")) ||
+		    isteq(list[hdr].n, ist("upgrade")) ||
+		    isteq(list[hdr].n, ist("transfer-encoding"))) {
+			continue;
+		}
+		else if (isteq(list[hdr].n, ist("te"))) {
+			/* "te" may only be sent with "trailers" if this value
+			 * is present, otherwise it must be deleted.
+			 */
+			const struct ist v = istist(list[hdr].v, ist("trailers"));
+			if (!isttest(v) || (v.len > 8 && v.ptr[8] != ','))
+				continue;
+			list[hdr].v = ist("trailers");
+		}
+
+		if (h3_encode_header(&headers_buf, list[hdr].n, list[hdr].v))
+			goto err;
+	}
 
 	/* Now that all headers are encoded, we are certain that res buffer is
 	 * big enough
