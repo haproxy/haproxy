@@ -2368,7 +2368,7 @@ static int spop_recv(struct spop_conn *spop_conn)
 	}
 
 	max = b_room(buf);
-	ret = max ? conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, max, 0) : 0;
+	ret = max ? conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, max, NULL, NULL, 0) : 0;
 
 	if (max && !ret && spop_recv_allowed(spop_conn)) {
 		TRACE_DATA("failed to receive data, subscribing", SPOP_EV_SPOP_CONN_RECV, conn);
@@ -2469,7 +2469,7 @@ static int spop_send(struct spop_conn *spop_conn)
 			if (b_data(buf)) {
 				int ret;
 
-				ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf), flags);
+				ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf), NULL, 0, flags);
 				if (!ret) {
 					done = 1;
 					break;
@@ -2808,7 +2808,7 @@ do_leave:
 		for (buf = br_head(spop_conn->mbuf); b_size(buf); buf = br_del_head(spop_conn->mbuf)) {
 			if (b_data(buf)) {
 				int ret = spop_conn->conn->xprt->snd_buf(spop_conn->conn, spop_conn->conn->xprt_ctx,
-									 buf, b_data(buf), 0);
+									 buf, b_data(buf), NULL, 0, 0);
 				if (!ret)
 					break;
 				b_del(buf, ret);

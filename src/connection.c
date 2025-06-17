@@ -908,7 +908,7 @@ int conn_ctrl_send(struct connection *conn, const void *buf, int len, int flags)
 	/* snd_buf() already takes care of updating conn->flags and handling
 	 * the FD polling status.
 	 */
-	ret = xprt->snd_buf(conn, NULL, &buffer, buffer.data, flags);
+	ret = xprt->snd_buf(conn, NULL, &buffer, buffer.data, NULL, 0, flags);
 	if (conn->flags & CO_FL_ERROR)
 		ret = -1;
 	return ret;

@@ -525,7 +525,7 @@ static size_t mux_pt_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count
 		goto end;
 	}
 	b_realign_if_empty(buf);
-	ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, count, flags);
+	ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, count, NULL, NULL, flags);
 	if (conn->flags & CO_FL_ERROR) {
 		mux_pt_report_term_evt(ctx, muxc_tevt_type_rcv_err);
 		se_fl_clr(ctx->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
@@ -554,7 +554,7 @@ static size_t mux_pt_snd_buf(struct stconn *sc, struct buffer *buf, size_t count
 
 	TRACE_ENTER(PT_EV_TX_DATA, conn, sc, buf, (size_t[]){count});
 
-	ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, count, flags);
+	ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, count, NULL, 0, flags);
 
 	if (ret > 0)
 		b_del(buf, ret);

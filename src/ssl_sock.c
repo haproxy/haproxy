@@ -269,7 +269,7 @@ static int ha_ssl_write(BIO *h, const char *buf, int num)
 	tmpbuf.data = num;
 	tmpbuf.head = 0;
 	flags = (ctx->xprt_st & SSL_SOCK_SEND_MORE) ? CO_SFL_MSG_MORE : 0;
-	ret = ctx->xprt->snd_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, num, flags);
+	ret = ctx->xprt->snd_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, num, NULL, 0, flags);
 	BIO_clear_retry_flags(h);
 	if (ret == 0 && !(ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH))) {
 		BIO_set_retry_write(h);
@@ -301,7 +301,7 @@ static int ha_ssl_read(BIO *h, char *buf, int size)
 	tmpbuf.area = buf;
 	tmpbuf.data = 0;
 	tmpbuf.head = 0;
-	ret = ctx->xprt->rcv_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, size, 0);
+	ret = ctx->xprt->rcv_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, size, NULL, NULL, 0);
 	BIO_clear_retry_flags(h);
 	if (ret == 0 && !(ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH))) {
 		BIO_set_retry_read(h);
@@ -5904,7 +5904,7 @@ leave:
  * avoiding the call if inappropriate. The function does not call the
  * connection's polling update function, so the caller is responsible for this.
  */
-static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct buffer *buf, size_t count, int flags)
+static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct buffer *buf, size_t count, void *msg_control, size_t *msg_controllen, int flags)
 {
 	struct ssl_sock_ctx *ctx = xprt_ctx;
 	ssize_t ret;
@@ -5914,6 +5914,8 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 
 	if (!ctx)
 		goto out_error;
+
+	BUG_ON_HOT(msg_control != NULL);
 
 #ifdef SSL_READ_EARLY_DATA_SUCCESS
 	if (b_data(&ctx->early_buf)) {
@@ -6054,7 +6056,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
  * caller to take care of this. It's up to the caller to update the buffer's
  * contents based on the return value.
  */
-static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const struct buffer *buf, size_t count, int flags)
+static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const struct buffer *buf, size_t count, void *msg_control, size_t msg_controllen, int flags)
 {
 	struct ssl_sock_ctx *ctx = xprt_ctx;
 	ssize_t ret;
@@ -6066,6 +6068,8 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 
 	if (!ctx)
 		goto out_error;
+
+	BUG_ON_HOT(msg_control != NULL);
 
 	if (conn->flags & (CO_FL_WAIT_XPRT | CO_FL_SSL_WAIT_HS | CO_FL_EARLY_SSL_HS)) {
 		/* a handshake was requested */

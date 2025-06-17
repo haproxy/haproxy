@@ -4754,7 +4754,7 @@ static int h2_recv(struct h2c *h2c)
 	else
 		max = b_room(buf);
 
-	ret = max ? conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, max, 0) : 0;
+	ret = max ? conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, max, NULL, NULL, 0) : 0;
 
 	if (max && !ret && h2_recv_allowed(h2c)) {
 		TRACE_DATA("failed to receive data, subscribing", H2_EV_H2C_RECV, h2c->conn);
@@ -4862,7 +4862,7 @@ static int h2_send(struct h2c *h2c)
 
 		for (buf = br_head(h2c->mbuf); b_size(buf); buf = br_del_head(h2c->mbuf)) {
 			if (b_data(buf)) {
-				int ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf),
+				int ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf), NULL, 0,
 							      flags | (to_send > 1 ? CO_SFL_MSG_MORE : 0));
 				if (!ret) {
 					done = 1;
@@ -5282,7 +5282,7 @@ do_leave:
 
 		for (buf = br_head(h2c->mbuf); b_size(buf); buf = br_del_head(h2c->mbuf)) {
 			if (b_data(buf)) {
-				int ret = h2c->conn->xprt->snd_buf(h2c->conn, h2c->conn->xprt_ctx, buf, b_data(buf), 0);
+				int ret = h2c->conn->xprt->snd_buf(h2c->conn, h2c->conn->xprt_ctx, buf, b_data(buf), NULL, 0, 0);
 				if (!ret)
 					break;
 				b_del(buf, ret);

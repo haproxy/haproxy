@@ -2844,7 +2844,7 @@ static int fcgi_recv(struct fcgi_conn *fconn)
 	else
 		max = b_room(buf);
 
-	ret = max ? conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, max, 0) : 0;
+	ret = max ? conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, max, NULL, NULL, 0) : 0;
 
 	if (max && !ret && fcgi_recv_allowed(fconn)) {
 		TRACE_DATA("failed to receive data, subscribing", FCGI_EV_FCONN_RECV, conn);
@@ -2948,7 +2948,7 @@ static int fcgi_send(struct fcgi_conn *fconn)
 			if (b_data(buf)) {
 				int ret;
 
-				ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf), flags);
+				ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf), NULL, 0, flags);
 				if (!ret) {
 					done = 1;
 					break;
@@ -3341,7 +3341,7 @@ do_leave:
 		for (buf = br_head(fconn->mbuf); b_size(buf); buf = br_del_head(fconn->mbuf)) {
 			if (b_data(buf)) {
 				int ret = fconn->conn->xprt->snd_buf(fconn->conn, fconn->conn->xprt_ctx,
-								     buf, b_data(buf), 0);
+								     buf, b_data(buf), NULL, 0, 0);
 				if (!ret)
 					break;
 				b_del(buf, ret);

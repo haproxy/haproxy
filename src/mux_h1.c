@@ -3931,7 +3931,7 @@ static int h1_recv(struct h1c *h1c)
 			 */
 			h1c->ibuf.head  = sizeof(struct htx);
 		}
-		ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, &h1c->ibuf, max, flags);
+		ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, &h1c->ibuf, max, NULL, 0, flags);
 		HA_ATOMIC_ADD(&h1c->px_counters->bytes_in, ret);
 	}
 
@@ -3993,7 +3993,7 @@ static int h1_send(struct h1c *h1c)
 	if (h1c->flags & H1C_F_CO_STREAMER)
 		flags |= CO_SFL_STREAMER;
 
-	ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, &h1c->obuf, b_data(&h1c->obuf), flags);
+	ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, &h1c->obuf, b_data(&h1c->obuf), NULL, 0, flags);
 	if (ret > 0) {
 		TRACE_DATA("data sent", H1_EV_H1C_SEND, h1c->conn, 0, 0, (size_t[]){ret});
 		if (h1c->flags & H1C_F_OUT_FULL) {
@@ -5097,7 +5097,7 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 #endif
 	if (!sdo->iobuf.pipe) {
 		b_add(sdo->iobuf.buf, sdo->iobuf.offset);
-		ret = h1c->conn->xprt->rcv_buf(h1c->conn, h1c->conn->xprt_ctx, sdo->iobuf.buf, try, flags);
+		ret = h1c->conn->xprt->rcv_buf(h1c->conn, h1c->conn->xprt_ctx, sdo->iobuf.buf, try, NULL, NULL, flags);
 		if (ret < try) {
 			TRACE_STATE("failed to receive data, subscribing", H1_EV_STRM_RECV, h1c->conn);
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);

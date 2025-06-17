@@ -235,7 +235,7 @@ int raw_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pip
  * errno is cleared before starting so that the caller knows that if it spots an
  * error without errno, it's pending and can be retrieved via getsockopt(SO_ERROR).
  */
-static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct buffer *buf, size_t count, int flags)
+static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct buffer *buf, size_t count, void *msg_control, size_t *msg_controllen, int flags)
 {
 	ssize_t ret;
 	size_t try, done = 0;
@@ -273,6 +273,9 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 	 * EINTR too.
 	 */
 	while (count > 0) {
+		struct msghdr msg;
+		struct iovec iov;
+
 		try = b_contig_space(buf);
 		if (!try)
 			break;
@@ -280,7 +283,17 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 		if (try > count)
 			try = count;
 
-		ret = recv(conn->handle.fd, b_tail(buf), try, 0);
+		memset(&msg, 0, sizeof(msg));
+		msg.msg_control = msg_control;
+		if (msg_controllen)
+			msg.msg_controllen = *msg_controllen;
+		iov.iov_base = b_tail(buf);
+		iov.iov_len = try;
+		msg.msg_iov = &iov;
+		msg.msg_iovlen = 1;
+		ret = recvmsg(conn->handle.fd, &msg, 0);
+		if (ret > 0 && msg_controllen != NULL)
+			*msg_controllen = msg.msg_controllen;
 
 		if (ret > 0) {
 			b_add(buf, ret);
@@ -367,7 +380,7 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
  * is responsible for this. It's up to the caller to update the buffer's contents
  * based on the return value.
  */
-static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const struct buffer *buf, size_t count, int flags)
+static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const struct buffer *buf, size_t count, void *msg_control, size_t msg_controllen, int flags)
 {
 	ssize_t ret;
 	size_t try, done;
@@ -405,15 +418,23 @@ static size_t raw_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 	 * in which case we accept to do it once again.
 	 */
 	while (count) {
+		struct msghdr msg;
+		struct iovec iov;
 		try = b_contig_data(buf, done);
 		if (try > count)
 			try = count;
 
 		send_flag = MSG_DONTWAIT | MSG_NOSIGNAL;
+		memset(&msg, 0, sizeof(msg));
+		msg.msg_control = msg_control;
+		msg.msg_controllen = msg_controllen;
+		iov.iov_base = b_peek(buf, done);
+		iov.iov_len = try;
+		msg.msg_iov = &iov;
+		msg.msg_iovlen = 1;
 		if (try < count || flags & CO_SFL_MSG_MORE)
 			send_flag |= MSG_MORE;
-
-		ret = send(conn->handle.fd, b_peek(buf, done), try, send_flag);
+		ret = sendmsg(conn->handle.fd, &msg, send_flag);
 
 		if (ret > 0) {
 			count -= ret;
