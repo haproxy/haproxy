@@ -449,8 +449,6 @@ struct mux_ops {
 	int (*unsubscribe)(struct stconn *sc, int event_type,  struct wait_event *es); /* Unsubscribe <es> from events */
 	int (*sctl)(struct stconn *sc, enum mux_sctl_type mux_sctl, void *arg); /* Provides information about the mux stream */
 	int (*avail_streams)(struct connection *conn); /* Returns the number of streams still available for a connection */
-	int (*avail_streams_bidi)(struct connection *conn); /* Returns the number of bidirectional streams still available for a connection */
-	int (*avail_streams_uni)(struct connection *conn); /* Returns the number of unidirectional streams still available for a connection */
 	int (*used_streams)(struct connection *conn);  /* Returns the number of streams in use on a connection. */
 	void (*destroy)(void *ctx); /* Let the mux know one of its users left, so it may have to disappear */
 	int (*ctl)(struct connection *conn, enum mux_ctl_type mux_ctl, void *arg); /* Provides information about the mux connection */
