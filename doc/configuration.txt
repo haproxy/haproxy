@@ -10639,8 +10639,23 @@ no option prefer-last-server
   desirable in these environments as well, to avoid redistributing the traffic
   after every other response.
 
-  If this option has been enabled in a "defaults" section, it can be disabled
-  in a specific instance by prepending the "no" keyword before it.
+  It may be useful to precise here, which load balancing algorithms are
+  considered deterministic. Deterministic algorithms will always select the same
+  server for a given client data, assuming the set of available servers has not
+  changed. In general, deterministic algorithms involve hasing or lookups on the
+  incoming requests to choose the target server. However, this is not always the
+  case; "static-rr", for example, can be also considered as deterministic because
+  the server choice is based on the server's static weight, making the selection
+  predictable. "sticky" algorithm provides deterministic routing for the
+  returning clients.
+
+  As for non-deterministic algorithms, these algorithms select a server based on
+  dynamic server state or simple rotation, so two consecutive requests are not
+  guaranteed to land on the same server. option prefer-last-server is designed
+  specifically for these. roundrobin, leastconn are examples of such algorithms.
+
+  If this option has been enabled in a "defaults" section, it can be
+  disabled in a specific instance by prepending the "no" keyword before it.
 
   See also: "option http-keep-alive"
 
