@@ -1978,7 +1978,7 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 			break;
 
 		case HTX_BLK_REQ_SL:
-			BUG_ON_HOT(sl); /* Only one start-line expected */
+			BUG_ON(sl); /* Only one start-line expected */
 			sl = htx_get_blk_ptr(htx, blk);
 			meth = htx_sl_req_meth(sl);
 			uri = htx_sl_req_uri(sl);
@@ -2000,7 +2000,7 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	}
 
  end_loop:
-	BUG_ON_HOT(!sl); /* start-line must be present. */
+	BUG_ON(!sl); /* start-line must be present. */
 	/* marker for end of headers */
 	list[hdr].n = ist("");
 
