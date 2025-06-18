@@ -3122,6 +3122,20 @@ static int qcc_io_recv(struct qcc *qcc)
 	return 0;
 }
 
+/* Calculate the number of bidirectional streams which can still be opened for
+ * <conn> connection. This depends on flow-control set by the peer.
+ *
+ * Returns the value which is a positive integer or 0 if no new stream
+ * currently available.
+ */
+static int qmux_avail_streams(struct connection *conn)
+{
+	struct server *srv = __objt_server(conn->target);
+	struct qcc *qcc = conn->ctx;
+
+	BUG_ON(srv->max_reuse >= 0); /* TODO ensure max-reuse is enforced. */
+	return qcc_fctl_avail_streams(qcc, 1);
+}
 
 /* Release all streams which have their transfer operation achieved. */
 static void qcc_purge_streams(struct qcc *qcc)
@@ -3687,6 +3701,37 @@ static void qmux_destroy(void *ctx)
 	TRACE_LEAVE(QMUX_EV_QCC_END);
 }
 
+static int qmux_strm_attach(struct connection *conn, struct sedesc *sd, struct session *sess)
+{
+	struct qcs *qcs;
+	struct qcc *qcc = conn->ctx;
+
+	TRACE_ENTER(QMUX_EV_QCS_NEW, conn);
+
+	/* Flow control limit on bidi streams should already have
+	 * been checked by a prior qmux_avail_streams() invokation.
+	 */
+	BUG_ON(!qcc_fctl_avail_streams(qcc, 1));
+
+	qcs = qcc_init_stream_local(qcc, 1);
+	if (!qcs) {
+		TRACE_DEVEL("leaving on error", QMUX_EV_QCS_NEW, qcc->conn);
+		return -1;
+	}
+
+	if (sc_attach_mux(sd->sc, qcs, conn)) {
+		TRACE_DEVEL("leaving on error", QMUX_EV_QCS_NEW, qcc->conn);
+		qcs_free(qcs);
+		return -1;
+	}
+
+	qcs->sd = sd->sc->sedesc;
+	qcc->nb_sc++;
+
+	TRACE_LEAVE(QMUX_EV_QCS_NEW, conn);
+	return 0;
+}
+
 static void qmux_strm_detach(struct sedesc *sd)
 {
 	struct qcs *qcs = sd->se;
@@ -4209,6 +4254,8 @@ static const struct mux_ops qmux_ops = {
 	.subscribe   = qmux_strm_subscribe,
 	.unsubscribe = qmux_strm_unsubscribe,
 	.wake        = qmux_wake,
+	.avail_streams = qmux_avail_streams,
+	.attach      = qmux_strm_attach,
 	.shut        = qmux_strm_shut,
 	.ctl         = qmux_ctl,
 	.sctl        = qmux_sctl,
