@@ -44,6 +44,7 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
              char fin, char *data);
 int qcc_recv_max_data(struct qcc *qcc, uint64_t max);
 int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max);
+int qcc_recv_max_streams(struct qcc *qcc, uint64_t max, int bidi);
 int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t final_size);
 int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err);
 

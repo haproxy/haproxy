@@ -1011,6 +1011,24 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			break;
 		case QUIC_FT_MAX_STREAMS_BIDI:
 		case QUIC_FT_MAX_STREAMS_UNI:
+			if (qc->mux_state == QC_MUX_READY) {
+				int bidi;
+				struct qf_max_streams *ms_frm;
+
+				if (frm->type == QUIC_FT_MAX_STREAMS_BIDI) {
+					bidi = 1;
+					ms_frm = &frm->max_streams_bidi;
+				}
+				else {
+					bidi = 0;
+					ms_frm = &frm->max_streams_uni;
+				}
+
+				if (qcc_recv_max_streams(qc->qcc, ms_frm->max_streams, bidi)) {
+					TRACE_ERROR("qcc_recv_max_streams() failed", QUIC_EV_CONN_PRSHPKT, qc);
+					goto err;
+				}
+			}
 			break;
 		case QUIC_FT_DATA_BLOCKED:
 			qc->cntrs.data_blocked++;

@@ -789,8 +789,9 @@ int _qcc_report_glitch(struct qcc *qcc, int inc)
 int qcc_fctl_avail_streams(const struct qcc *qcc, int bidi)
 {
 	if (bidi) {
-		/* TODO */
-		return 0;
+		const uint64_t next = qcc->next_bidi_l / 4;
+		BUG_ON(qcc->rfctl.ms_bidi < next);
+		return qcc->rfctl.ms_bidi - next;
 	}
 	else {
 		const uint64_t next = qcc->next_uni_l / 4;
@@ -2023,6 +2024,57 @@ int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max)
 
 	if (qcc_may_expire(qcc) && !qcc->nb_hreq)
 		qcc_refresh_timeout(qcc);
+
+	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
+	return 0;
+
+ err:
+	TRACE_DEVEL("leaving on error", QMUX_EV_QCC_RECV, qcc->conn);
+	return 1;
+}
+
+/* Handle a MAX_STREAMS frame. <max> must contains the cumulative number of
+ * streams that can be opened. <bidi> is a boolean set if this refers to
+ * bidirectional streams.
+ *
+ * Returns 0 on success else non-zero. On error, the received frame should not
+ * be acknowledged.
+ */
+int qcc_recv_max_streams(struct qcc *qcc, uint64_t max, int bidi)
+{
+	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
+
+	if (qcc->flags & QC_CF_ERRL) {
+		TRACE_DATA("connection on error", QMUX_EV_QCC_RECV, qcc->conn);
+		goto err;
+	}
+
+	/* RFC 9000 19.11. MAX_STREAMS Frames
+	 *
+	 *  This value cannot exceed 2^60, as it is not possible to
+	 *  encode stream IDs larger than 2^62-1. Receipt of a frame that
+	 *  permits opening of a stream larger than this limit MUST be treated
+	 *  as a connection error of type FRAME_ENCODING_ERROR.
+	 */
+	if (max > QUIC_VARINT_8_BYTE_MAX) {
+		TRACE_ERROR("invalid MAX_STREAMS value", QMUX_EV_QCC_RECV, qcc->conn);
+		qcc_set_error(qcc, QC_ERR_FRAME_ENCODING_ERROR, 0);
+		goto err;
+	}
+
+	TRACE_PROTO("receiving MAX_STREAMS", QMUX_EV_QCC_RECV, qcc->conn);
+	if (bidi) {
+		if (max > qcc->rfctl.ms_bidi) {
+			TRACE_DATA("increase remote max-streams-bidi", QMUX_EV_QCC_RECV, qcc->conn);
+			qcc->rfctl.ms_bidi = max;
+		}
+	}
+	else {
+		/* TODO no extra unidirectional streams open after connection
+		 * startup, so uni MAX_STREAMS flow-control is not necessary
+		 * for now.
+		 */
+	}
 
 	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
 	return 0;
@@ -3452,6 +3504,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	rparams = &conn->handle.qc->tx.params;
 	qfctl_init(&qcc->tx.fc, rparams->initial_max_data);
 	qcc->rfctl.ms_uni = rparams->initial_max_streams_uni;
+	qcc->rfctl.ms_bidi = rparams->initial_max_streams_bidi;
 	qcc->rfctl.msd_bidi_l = rparams->initial_max_stream_data_bidi_local;
 	qcc->rfctl.msd_bidi_r = rparams->initial_max_stream_data_bidi_remote;
 	qcc->rfctl.msd_uni_l = rparams->initial_max_stream_data_uni;
