@@ -815,6 +815,8 @@ struct qcs *qcc_init_stream_local(struct qcc *qcc, int bidi)
 	TRACE_ENTER(QMUX_EV_QCS_NEW, qcc->conn);
 
 	if (bidi) {
+		/* Caller must ensure that max-streams peer flow-control won't be violated. */
+		BUG_ON(qcc->rfctl.ms_bidi * 4 < qcc->next_bidi_l);
 		next = &qcc->next_bidi_l;
 		type = conn_is_back(qcc->conn) ? QCS_CLT_BIDI : QCS_SRV_BIDI;
 	}
@@ -3628,6 +3630,13 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 		 */
 		struct qcs *qcs;
 		struct stconn *sc = conn_ctx;
+
+		/* TODO how to properly handle initial value of max-bidi-stream set to 0 ? */
+		if (!qcc_fctl_avail_streams(qcc, 1)) {
+			TRACE_ERROR("peer does not allow any bidi stream, not yet supported",
+			            QMUX_EV_QCC_NEW|QMUX_EV_QCC_ERR, qcc->conn);
+			goto err;
+		}
 
 		qcs = qcc_init_stream_local(qcc, 1);
 		if (!qcs) {
