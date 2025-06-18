@@ -3030,6 +3030,21 @@ static int h3_finalize(void *ctx)
 	TRACE_ENTER(H3_EV_H3C_NEW, qcc->conn);
 
 	if (!qcs) {
+		/* RFC 9114 6.2. Unidirectional Streams
+		 *
+		 * Each endpoint needs to create at least one unidirectional stream for
+		 * the HTTP control stream. QPACK requires two additional unidirectional
+		 * streams, and other extensions might require further streams.
+		 * Therefore, the transport parameters sent by both clients and servers
+		 * MUST allow the peer to create at least three unidirectional streams.
+		 */
+		if (qcc_fctl_avail_streams(qcc, 0) < 3) {
+			TRACE_ERROR("peer flow-control limit does not allow control stream creation", H3_EV_H3C_NEW, qcc->conn);
+			qcc_set_error(qcc, H3_ERR_GENERAL_PROTOCOL_ERROR, 1);
+			qcc_report_glitch(qcc, 1);
+			goto err;
+		}
+
 		qcs = qcc_init_stream_local(qcc, 0);
 		if (!qcs) {
 			/* Error must be set by qcc_init_stream_local(). */

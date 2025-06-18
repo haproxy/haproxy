@@ -785,6 +785,20 @@ int _qcc_report_glitch(struct qcc *qcc, int inc)
 	return 0;
 }
 
+/* Returns the number of streams which can still be opened until flow-control limit. */
+int qcc_fctl_avail_streams(const struct qcc *qcc, int bidi)
+{
+	if (bidi) {
+		/* TODO */
+		return 0;
+	}
+	else {
+		const uint64_t next = qcc->next_uni_l / 4;
+		BUG_ON(qcc->rfctl.ms_uni < next);
+		return qcc->rfctl.ms_uni - next;
+	}
+}
+
 /* Open a locally initiated stream for the connection <qcc>. Set <bidi> for a
  * bidirectional stream, else an unidirectional stream is opened. The next
  * available ID on the connection will be used according to the stream type.
@@ -804,13 +818,10 @@ struct qcs *qcc_init_stream_local(struct qcc *qcc, int bidi)
 		type = conn_is_back(qcc->conn) ? QCS_CLT_BIDI : QCS_SRV_BIDI;
 	}
 	else {
+		BUG_ON(qcc->rfctl.ms_uni * 4 < qcc->next_uni_l);
 		next = &qcc->next_uni_l;
 		type = conn_is_back(qcc->conn) ? QCS_CLT_UNI : QCS_SRV_UNI;
 	}
-
-	/* TODO ensure that we won't overflow remote peer flow control limit on
-	 * streams. Else, we should emit a STREAMS_BLOCKED frame.
-	 */
 
 	qcs = qcs_new(qcc, *next, type);
 	if (!qcs) {
@@ -820,6 +831,7 @@ struct qcs *qcc_init_stream_local(struct qcc *qcc, int bidi)
 	}
 
 	TRACE_PROTO("opening local stream",  QMUX_EV_QCS_NEW, qcc->conn, qcs);
+	/* TODO emit STREAMS_BLOCKED if cannot create future streams. */
 	*next += 4;
 
 	TRACE_LEAVE(QMUX_EV_QCS_NEW, qcc->conn, qcs);
@@ -3439,6 +3451,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 
 	rparams = &conn->handle.qc->tx.params;
 	qfctl_init(&qcc->tx.fc, rparams->initial_max_data);
+	qcc->rfctl.ms_uni = rparams->initial_max_streams_uni;
 	qcc->rfctl.msd_bidi_l = rparams->initial_max_stream_data_bidi_local;
 	qcc->rfctl.msd_bidi_r = rparams->initial_max_stream_data_bidi_remote;
 	qcc->rfctl.msd_uni_l = rparams->initial_max_stream_data_uni;

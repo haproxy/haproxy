@@ -66,6 +66,8 @@ struct qcc {
 
 	/* flow-control fields set by the peer which we must respect. */
 	struct {
+		uint64_t ms_uni; /* max sub-ID of uni stream allowed by the peer */
+
 		uint64_t md; /* connection flow control limit updated on MAX_DATA frames reception */
 		uint64_t msd_bidi_l; /* initial max-stream-data from peer on local bidi streams */
 		uint64_t msd_bidi_r; /* initial max-stream-data from peer on remote bidi streams */
