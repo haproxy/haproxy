@@ -578,6 +578,11 @@ static inline unsigned long ERR_peek_error_func(const char **func)
 
 #endif /* HAVE_VANILLA_OPENSSL && OPENSSL_VERSION_NUMBER >= 0x3000000fL */
 
+#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
+#include <openssl/hkdf.h>
+#define HA_USE_KTLS
+#endif /* OPENSSL_IS_BORINGSSL || OPENSSL_IS_AWSLC */
+
 #endif /* USE_KTLS */
 
 #endif /* _HAPROXY_OPENSSL_COMPAT_H */
