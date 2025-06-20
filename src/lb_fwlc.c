@@ -806,6 +806,7 @@ redo:
                                                 break;
                                         }
 					avoided = s;
+					unusable++;
 				}
 				else
 					unusable++;
