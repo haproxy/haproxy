@@ -806,10 +806,8 @@ redo:
                                                 break;
                                         }
 					avoided = s;
-					unusable++;
 				}
-				else
-					unusable++;
+				unusable++;
 				i++;
 			} else if (mt_list.next == &tree_elt->srv_list[(i + orig_nb) % FWLC_LISTS_NB]) {
 				i++;
