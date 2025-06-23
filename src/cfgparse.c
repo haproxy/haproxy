@@ -3691,13 +3691,11 @@ out_uri_auth_compat:
 		}
 
 		/* Check that no server name conflicts. This causes trouble in the stats.
-		 * We only emit a warning for the first conflict affecting each server,
+		 * We only emit an error for the first conflict affecting each server,
 		 * in order to avoid combinatory explosion if all servers have the same
-		 * name. We do that only for servers which do not have an explicit ID,
-		 * because these IDs were made also for distinguishing them and we don't
-		 * want to annoy people who correctly manage them. Since servers names
-		 * are stored in a tree before landing here, we simply have to check for
-		 * the current server's duplicates to spot conflicts.
+		 * name. Since servers names are stored in a tree before landing here,
+		 * we simply have to check for the current server's duplicates to spot
+		 * conflicts.
 		 */
 		for (newsrv = curproxy->srv; newsrv; newsrv = newsrv->next) {
 			struct server *other_srv;
@@ -3711,19 +3709,12 @@ out_uri_auth_compat:
 			for (other_srv = newsrv;
 			     (other_srv = container_of_safe(ebpt_prev_dup(&other_srv->conf.name),
 			                                    struct server, conf.name)); ) {
-				if (!newsrv->puid && !other_srv->puid) {
-					ha_alert("parsing [%s:%d] : %s '%s', another server named '%s' was already defined at line %d, please use distinct names.\n",
-						   newsrv->conf.file, newsrv->conf.line,
-						   proxy_type_str(curproxy), curproxy->id,
-						   newsrv->id, other_srv->conf.line);
-					cfgerr++;
-					break;
-				}
-
-				ha_warning("parsing [%s:%d] : %s '%s', another server named '%s' was already defined at line %d. This is dangerous and will not be supported anymore in version 3.3. Please use distinct names.\n",
-					   newsrv->conf.file, newsrv->conf.line,
-					   proxy_type_str(curproxy), curproxy->id,
-					   newsrv->id, other_srv->conf.line);
+				ha_alert("parsing [%s:%d] : %s '%s', another server named '%s' was already defined at line %d, please use distinct names.\n",
+					 newsrv->conf.file, newsrv->conf.line,
+					 proxy_type_str(curproxy), curproxy->id,
+					 newsrv->id, other_srv->conf.line);
+				cfgerr++;
+				break;
 			}
 		}
 

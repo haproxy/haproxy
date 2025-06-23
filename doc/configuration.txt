@@ -11722,6 +11722,7 @@ server <name> <address>[:[port]] [param*]
     <name>    is the internal name assigned to this server. This name will
               appear in logs and alerts. If "http-send-name-header" is
               set, it will be added to the request header sent to the server.
+              This name must be unique within the backend section.
 
     <address> is the IPv4 or IPv6 address of the server. Alternatively, a
               resolvable hostname is supported, but this name will be resolved
