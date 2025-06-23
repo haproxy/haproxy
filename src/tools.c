@@ -6198,9 +6198,9 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 	if (arg < argsmax)
 		args[arg] = out;
 
+	arg_start = outpos;
 	while (1) {
 		prev_in_arg = in_arg;
-		arg_start = outpos;
 		curr_in = in;
 
 		if (*in >= '-' && *in != '\\') {
