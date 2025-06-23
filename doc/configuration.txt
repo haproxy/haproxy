@@ -5345,11 +5345,11 @@ All proxy names must be formed from upper and lower case letters, digits,
 '-' (dash), '_' (underscore) , '.' (dot) and ':' (colon). ACL names are
 case-sensitive, which means that "www" and "WWW" are two different proxies.
 
-Historically, all proxy names could overlap, it just caused troubles in the
-logs. Since the introduction of content switching, it is mandatory that two
-proxies with overlapping capabilities (frontend/backend) have different names.
-However, it is still permitted that a frontend and a backend share the same
-name, as this configuration seems to be commonly encountered.
+Historically, all proxy names could overlap when certain conditions were met
+(e.g. when not having the same frontend/backend capabilities), but it used to
+cause too many problems in the logs as well as confusion on CLI operations,
+stick-tables naming and stats retrieval. It is now mandatory that two proxies
+have different names, regardless of their respective capabilities.
 
 Right now, two major proxy modes are supported : "tcp", also known as layer 4,
 and "http", also known as layer 7. In layer 4 mode, HAProxy simply forwards

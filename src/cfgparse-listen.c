@@ -424,11 +424,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		if (curproxy) {
 			/* different capabilities but still same name: forbidden soon */
-			ha_warning("Parsing [%s:%d]: %s '%s' has the same name as %s '%s' declared at %s:%d."
-				   " This is dangerous and will not be supported anymore in version 3.3.\n",
+			ha_alert("Parsing [%s:%d]: %s '%s' has the same name as %s '%s' declared at %s:%d."
+				 " This is no longer supported as of 3.3. Please rename one or the other.\n",
 				   file, linenum, proxy_cap_str(rc), args[1], proxy_type_str(curproxy),
 				   curproxy->id, curproxy->conf.file, curproxy->conf.line);
-			err_code |= ERR_WARN;
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
 		}
 
 		if (rc & PR_CAP_DEF && strcmp(args[1], "from") == 0 && *args[2] && !*args[3]) {
