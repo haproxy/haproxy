@@ -421,7 +421,6 @@ const char *lock_label(enum lock_label label)
 	case SPOE_APPLET_LOCK:     return "SPOE_APPLET";
 	case DNS_LOCK:             return "DNS";
 	case PID_LIST_LOCK:        return "PID_LIST";
-	case EMAIL_ALERTS_LOCK:    return "EMAIL_ALERTS";
 	case PIPES_LOCK:           return "PIPES";
 	case TLSKEYS_REF_LOCK:     return "TLSKEYS_REF";
 	case AUTH_LOCK:            return "AUTH";

@@ -3,7 +3,7 @@
 -- Provides a pure lua alternative to tcpcheck mailers.
 --
 -- To be loaded using "lua-load" from haproxy configuration to handle
--- email-alerts directly from lua and disable legacy tcpcheck implementation.
+-- email-alerts directly from lua
 
 local SYSLOG_LEVEL = {
 	["EMERG"] = 0,
@@ -363,10 +363,6 @@ local function srv_event_add(event, data)
 	-- server still exists, check if it can be tracked for email alerts
 	mailers_track_server_events(data.reference)
 end
-
-
--- disable legacy email-alerts since email-alerts will be sent from lua directly
-core.disable_legacy_mailers()
 
 -- event subscriptions are purposely performed in an init function to prevent
 -- email alerts from being generated too early (when process is starting up)

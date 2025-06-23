@@ -190,19 +190,16 @@ static void check_trace(enum trace_level level, uint64_t mask,
 	if (!check || src->verbosity < CHK_VERB_CLEAN)
 		return;
 
-	if (srv) {
-		chunk_appendf(&trace_buf, " : [%c] SRV=%s",
-			      ((check->type == PR_O2_EXT_CHK) ? 'E' : (check->state & CHK_ST_AGENT ? 'A' : 'H')),
-			      srv->id);
+	BUG_ON(!srv);
+	chunk_appendf(&trace_buf, " : [%c] SRV=%s",
+		      ((check->type == PR_O2_EXT_CHK) ? 'E' : (check->state & CHK_ST_AGENT ? 'A' : 'H')),
+		      srv->id);
 
-		chunk_appendf(&trace_buf, " status=%d/%d %s exp=%d",
-			      (check->health >= check->rise) ? check->health - check->rise + 1 : check->health,
-			      (check->health >= check->rise) ? check->fall : check->rise,
-			      (check->health >= check->rise) ? (srv->uweight ? "UP" : "DRAIN") : "DOWN",
-			      (check->task->expire ? TICKS_TO_MS(check->task->expire - now_ms) : 0));
-	}
-	else
-		chunk_appendf(&trace_buf, " : [EMAIL]");
+	chunk_appendf(&trace_buf, " status=%d/%d %s exp=%d",
+		      (check->health >= check->rise) ? check->health - check->rise + 1 : check->health,
+		      (check->health >= check->rise) ? check->fall : check->rise,
+		      (check->health >= check->rise) ? (srv->uweight ? "UP" : "DRAIN") : "DOWN",
+		      (check->task->expire ? TICKS_TO_MS(check->task->expire - now_ms) : 0));
 
 	switch (check->result) {
 	case CHK_RES_NEUTRAL: res = "-";     break;
@@ -564,7 +561,6 @@ void set_server_check_status(struct check *check, short status, const char *desc
 
 		ha_warning("%s.\n", trash.area);
 		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.area);
-		send_email_alert(s, LOG_INFO, "%s", trash.area);
 	}
 }
 
@@ -1057,17 +1053,15 @@ int wake_srv_chk(struct stconn *sc)
 {
 	struct connection *conn;
 	struct check *check = __sc_check(sc);
-	struct email_alertq *q = container_of(check, typeof(*q), check);
 	int ret = 0;
+
+	BUG_ON(!check->server);
 
 	TRACE_ENTER(CHK_EV_HCHK_WAKE, check);
 	if (check->result != CHK_RES_UNKNOWN)
 		goto end;
 
-	if (check->server)
-		HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
-	else
-		HA_SPIN_LOCK(EMAIL_ALERTS_LOCK, &q->lock);
+	HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 
 	/* we may have to make progress on the TCP checks */
 	ret = tcpcheck_main(check);
@@ -1099,10 +1093,7 @@ int wake_srv_chk(struct stconn *sc)
 		task_queue(check->task);
 	}
 
-	if (check->server)
-		HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
-	else
-		HA_SPIN_UNLOCK(EMAIL_ALERTS_LOCK, &q->lock);
+	HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 
   end:
 	TRACE_LEAVE(CHK_EV_HCHK_WAKE, check);

@@ -2384,21 +2384,6 @@ __LJMP static int hlua_core_get_var(lua_State *L)
 	return MAY_LJMP(hlua_smp2lua(L, &smp));
 }
 
-/* This function disables the sending of email through the
- * legacy email sending function which is implemented using
- * checks.
- *
- * It may not be used during runtime.
- */
-__LJMP static int hlua_disable_legacy_mailers(lua_State *L)
-{
-	if (hlua_gethlua(L))
-		WILL_LJMP(luaL_error(L, "disable_legacy_mailers: "
-		                        "not available outside of init or body context"));
-	send_email_disabled = 1;
-	return 0;
-}
-
 /* A class is a lot of memory that contain data. This data can be a table,
  * an integer or user data. This data is associated with a metatable. This
  * metatable have an original version registered in the global context with
@@ -14123,7 +14108,6 @@ lua_State *hlua_init_state(int thread_num)
 	hlua_class_function(L, "Warning", hlua_log_warning);
 	hlua_class_function(L, "Alert", hlua_log_alert);
 	hlua_class_function(L, "done", hlua_done);
-	hlua_class_function(L, "disable_legacy_mailers", hlua_disable_legacy_mailers);
 	hlua_fcn_reg_core_fcn(L);
 
 	lua_setglobal(L, "core");

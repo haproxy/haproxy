@@ -6592,8 +6592,6 @@ static int _srv_update_status_op(struct server *s, enum srv_op_st_chg_cause caus
 			log_level = srv_was_stopping ? LOG_NOTICE : LOG_ALERT;
 			send_log(s->proxy, log_level, "%s.\n",
 				 tmptrash->area);
-			send_email_alert(s, log_level, "%s",
-					 tmptrash->area);
 			free_trash_chunk(tmptrash);
 		}
 	}
@@ -6657,8 +6655,6 @@ static int _srv_update_status_op(struct server *s, enum srv_op_st_chg_cause caus
 			ha_warning("%s.\n", tmptrash->area);
 			send_log(s->proxy, LOG_NOTICE, "%s.\n",
 				 tmptrash->area);
-			send_email_alert(s, LOG_NOTICE, "%s",
-					 tmptrash->area);
 			free_trash_chunk(tmptrash);
 		}
 	}
@@ -6918,8 +6914,6 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 					ha_warning("%s.\n", tmptrash->area);
 					send_log(s->proxy, LOG_NOTICE, "%s.\n",
 						 tmptrash->area);
-					send_email_alert(s, LOG_NOTICE, "%s",
-							 tmptrash->area);
 				}
 				free_trash_chunk(tmptrash);
 			}

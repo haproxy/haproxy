@@ -1089,19 +1089,6 @@ Core class
     perform the heavy job in a dedicated task and allow remaining events to be
     processed more quickly.
 
-.. js:function:: core.disable_legacy_mailers()
-
-  **LEGACY**
-
-  **context**: body, init
-
-  Disable the sending of email alerts through the legacy email sending
-  function when mailers are used in the configuration.
-
-  Use this when sending email alerts directly from lua.
-
-  :see: :js:func:`Proxy.get_mailers()`
-
 .. _proxy_class:
 
 Proxy class
@@ -1246,10 +1233,6 @@ ProxyMailers class
 .. js:class:: ProxyMailers
 
   This class provides mailers config for a given proxy.
-
-  If sending emails directly from lua, please consider
-  :js:func:`core.disable_legacy_mailers()` to disable the email sending from
-  haproxy. (Or email alerts will be sent twice...)
 
 .. js:attribute:: ProxyMailers.track_server_health
 
