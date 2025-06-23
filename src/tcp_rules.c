@@ -124,7 +124,7 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 		partial = SMP_OPT_FINAL;
 		/* Action may yield while the inspect_delay is not expired and there is no read error */
 		if ((s->scf->flags & SC_FL_ERROR) || !s->be->tcp_req.inspect_delay || tick_is_expired(s->rules_exp, now_ms))
-			act_opts |= ACT_OPT_FINAL;
+			act_opts |= ACT_OPT_FINAL | ACT_OPT_FINAL_EARLY;
 	}
 	else
 		partial = 0;
@@ -337,7 +337,7 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 		partial = SMP_OPT_FINAL;
 		/* Action may yield while the inspect_delay is not expired and there is no read error */
 		if ((s->scb->flags & SC_FL_ERROR) || !s->be->tcp_rep.inspect_delay || tick_is_expired(s->rules_exp, now_ms))
-			act_opts |= ACT_OPT_FINAL;
+			act_opts |= ACT_OPT_FINAL | ACT_OPT_FINAL_EARLY;
 	}
 	else
 		partial = 0;

@@ -2757,7 +2757,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 	if ((s->scf->flags & SC_FL_ERROR) ||
 	    ((s->scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
 	     (px->options & PR_O_ABRT_CLOSE)))
-		act_opts |= ACT_OPT_FINAL;
+		act_opts |= ACT_OPT_FINAL | ACT_OPT_FINAL_EARLY;
 
 	/* If "the current_rule_list" match the executed rule list, we are in
 	 * resume condition. If a resume is needed it is always in the action
@@ -2945,7 +2945,7 @@ static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct lis
 	if ((s->scf->flags & SC_FL_ERROR) ||
 	    ((s->scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
 	     (px->options & PR_O_ABRT_CLOSE)))
-		act_opts |= ACT_OPT_FINAL;
+		act_opts |= ACT_OPT_FINAL | ACT_OPT_FINAL_EARLY;
 
 	/* If "the current_rule_list" match the executed rule list, we are in
 	 * resume condition. If a resume is needed it is always in the action

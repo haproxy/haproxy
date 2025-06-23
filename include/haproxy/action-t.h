@@ -66,7 +66,8 @@ enum act_parse_ret {
 enum act_opt {
 	ACT_OPT_NONE  = 0x00000000,  /* no flag */
 	ACT_OPT_FINAL = 0x00000001,  /* last call, cannot yield */
-	ACT_OPT_FIRST = 0x00000002,  /* first call for this action */
+	ACT_OPT_FINAL_EARLY = 0x00000002, /* set in addition to ACT_OPT_FINAL if last call occurs earlier than normal due to unexpected IO/error */
+	ACT_OPT_FIRST = 0x00000004,  /* first call for this action */
 };
 
 /* Flags used to describe the action. */

@@ -11005,8 +11005,24 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	case HLUA_E_YIELD:
 	  err_yield:
 		act_ret = ACT_RET_CONT;
-		SEND_ERR(px, "Lua function '%s': yield not allowed.\n",
-		         rule->arg.hlua_rule->fcn->name);
+		if (flags & ACT_OPT_FINAL_EARLY) {
+			char *msg = NULL;
+
+			/* yield not allowed, but it is only caused because ruleset was ended earlier
+			 * than expected, so it is not a misuse of yield in the Lua script: simply emit
+			 * a log
+			 */
+			memprintf(&msg, "Lua function '%s': unable to yield, aborted Lua execution.\n",
+			          rule->arg.hlua_rule->fcn->name);
+			if (msg)
+				hlua_sendlog(px, LOG_WARNING, msg);
+			ha_free(&msg);
+		}
+		else {
+			/* invalid yield use */
+			SEND_ERR(px, "Lua function '%s': yield not allowed.\n",
+			         rule->arg.hlua_rule->fcn->name);
+		}
 		goto end;
 
 	case HLUA_E_ERR:
