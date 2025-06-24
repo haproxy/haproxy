@@ -33,6 +33,7 @@
 
 DECLARE_POOL(pool_head_quic_tx_packet, "quic_tx_packet", sizeof(struct quic_tx_packet));
 DECLARE_POOL(pool_head_quic_cc_buf, "quic_cc_buf", QUIC_MAX_CC_BUFSIZE);
+DECLARE_POOL(pool_head_quic_be_cc_buf, "quic_be_cc_buf", QUIC_BE_MAX_CC_BUFSIZE);
 
 static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned char *buf_end,
                                            struct quic_enc_level *qel, struct quic_tls_ctx *ctx,
@@ -129,16 +130,28 @@ struct buffer *qc_get_txb(struct quic_conn *qc)
 	struct buffer *buf;
 
 	if (qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE) {
+		struct pool_head *ph;
+		size_t psz;
+
+		if (objt_listener(qc->target)) {
+			ph = pool_head_quic_cc_buf;
+			psz = QUIC_MAX_CC_BUFSIZE;
+		}
+		else {
+			ph = pool_head_quic_be_cc_buf;
+			psz = QUIC_BE_MAX_CC_BUFSIZE;
+		}
+
 		TRACE_PROTO("Immediate close required", QUIC_EV_CONN_PHPKTS, qc);
 		buf = &qc->tx.cc_buf;
 		if (b_is_null(buf)) {
-			qc->tx.cc_buf_area = pool_alloc(pool_head_quic_cc_buf);
+			qc->tx.cc_buf_area = pool_alloc(ph);
 			if (!qc->tx.cc_buf_area)
 				goto err;
 		}
 
 		/* In every case, initialize ->tx.cc_buf */
-		qc->tx.cc_buf = b_make(qc->tx.cc_buf_area, QUIC_MAX_CC_BUFSIZE, 0, 0);
+		qc->tx.cc_buf = b_make(qc->tx.cc_buf_area, psz, 0, 0);
 	}
 	else {
 		buf = qc_txb_alloc(qc);
