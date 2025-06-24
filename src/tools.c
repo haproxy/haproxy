@@ -6189,6 +6189,7 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 	const char *curr_in = in; // <in> at the beginning of the loop
 	const char *begin_new_arg = NULL; // <in> at transition to new arg
 	const char *empty_arg_ptr = NULL; // pos of first empty arg if any (wrt in)
+	const char *unknown_var_name = NULL; // relative to in
 	int squote = 0;
 	int dquote = 0;
 	int arg = 0;
@@ -6413,6 +6414,7 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 					if (!*in)
 						goto no_brace;
 					*in = 0; // terminate the default value
+					unknown_var_name = NULL;
 				}
 				else if (*in != '}') {
 				no_brace:
@@ -6429,6 +6431,7 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 			}
 
 			if (value) {
+				unknown_var_name = NULL;
 				while (*value) {
 					/* expand as individual parameters on a space character */
 					if (word_expand && isspace((unsigned char)*value)) {
@@ -6472,6 +6475,9 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 				 * count as an argument.
 				 */
 				in_arg = 1;
+
+				if (!unknown_var_name)
+					unknown_var_name = var_name;
 			}
 			word_expand = NULL;
 		}
@@ -6491,7 +6497,7 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 
 		if (prev_in_arg && !in_arg) {
 			if (!empty_arg_ptr && outpos == arg_start)
-				empty_arg_ptr = begin_new_arg;
+				empty_arg_ptr = unknown_var_name ? unknown_var_name : begin_new_arg;
 			EMIT_CHAR(0);
 			arg++;
 			arg_start = outpos;
@@ -6501,7 +6507,7 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 	/* end of output string */
 	if (in_arg) {
 		if (!empty_arg_ptr && outpos == arg_start)
-			empty_arg_ptr = begin_new_arg;
+			empty_arg_ptr = unknown_var_name ? unknown_var_name : begin_new_arg;
 		EMIT_CHAR(0);
 		arg++;
 		arg_start = outpos;
