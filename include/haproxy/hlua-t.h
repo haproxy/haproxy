@@ -72,8 +72,8 @@ struct stream;
 #define HLUA_NOYIELD   0x00000020
 #define HLUA_BUSY      0x00000040
 
-#define HLUA_F_AS_STRING    0x01
-#define HLUA_F_MAY_USE_HTTP 0x02
+#define HLUA_F_AS_STRING             0x01
+#define HLUA_F_MAY_USE_CHANNELS_DATA 0x02
 
 /* HLUA TXN flags */
 #define HLUA_TXN_NOTERM   0x00000001

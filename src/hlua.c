@@ -4907,10 +4907,10 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	hsmp = MAY_LJMP(hlua_checkfetches(L, 1));
 
 	/* Check execution authorization. */
-	if (f->use & SMP_USE_HTTP_ANY &&
-	    !(hsmp->flags & HLUA_F_MAY_USE_HTTP)) {
-		lua_pushfstring(L, "the sample-fetch '%s' needs an HTTP parser which "
-		                   "is not available in Lua services", f->kw);
+	if ((f->use & (SMP_USE_L6REQ|SMP_USE_L6RES|SMP_USE_HTTP_ANY)) &&
+	    !(hsmp->flags & HLUA_F_MAY_USE_CHANNELS_DATA)) {
+		lua_pushfstring(L, "the sample-fetch '%s' needs to access data from channel's buffer which"
+				" is not available in Lua services", f->kw);
 		WILL_LJMP(lua_error(L));
 	}
 
@@ -8588,13 +8588,13 @@ __LJMP static int hlua_txn_new(lua_State *L, struct stream *s, struct proxy *p, 
 
 	/* Create the "f" field that contains a list of fetches. */
 	lua_pushstring(L, "f");
-	if (!hlua_fetches_new(L, htxn, HLUA_F_MAY_USE_HTTP))
+	if (!hlua_fetches_new(L, htxn, HLUA_F_MAY_USE_CHANNELS_DATA))
 		return 0;
 	lua_rawset(L, -3);
 
 	/* Create the "sf" field that contains a list of stringsafe fetches. */
 	lua_pushstring(L, "sf");
-	if (!hlua_fetches_new(L, htxn, HLUA_F_MAY_USE_HTTP | HLUA_F_AS_STRING))
+	if (!hlua_fetches_new(L, htxn, HLUA_F_MAY_USE_CHANNELS_DATA | HLUA_F_AS_STRING))
 		return 0;
 	lua_rawset(L, -3);
 
