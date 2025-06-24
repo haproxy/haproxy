@@ -2086,9 +2086,14 @@ next_line:
 
 						/* sanitize input line in-place */
 						newpos = sanitize_for_printing(line, errptr - line, 80);
-						ha_warning("parsing [%s:%d]: argument number %d at position %d is empty and marks the end of the "
-						           "argument list; all subsequent arguments will be ignored:\n  %s\n  %*s\n",
-						           file, linenum, check_arg, (int)(errptr - thisline + 1), line, (int)(newpos + 1), "^");
+						ha_alert("parsing [%s:%d]: argument number %d at position %d is empty and marks the end of the "
+						         "argument list:\n  %s\n  %*s\n"
+						         "Aborting to prevent all subsequent arguments from being silently ignored. "
+						         "If this is caused by an environment variable expansion, please have a look at section "
+						         "2.3 of the configuration manual to find solutions to address this.\n",
+						         file, linenum, check_arg, (int)(errptr - thisline + 1), line, (int)(newpos + 1), "^");
+						err_code |= ERR_ALERT | ERR_FATAL;
+						fatal++;
 						break;
 					}
 				}
