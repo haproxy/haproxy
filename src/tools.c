@@ -6606,20 +6606,20 @@ size_t sanitize_for_printing(char *line, size_t pos, size_t width)
 	return pos - shift;
 }
 
-/* Update array <fp> with the fingerprint of word <word> by counting the
- * transitions between characters. <fp> is a 1024-entries array indexed as
- * 32*from+to. Positions for 'from' and 'to' are:
+/* Update array <fp> with the fingerprint of word <word> for up to <len> chars
+ * by counting the transitions between characters. <fp> is a 1024-entries array
+ * indexed as 32*from+to. Positions for 'from' and 'to' are:
  *   1..26=letter, 27=digit, 28=other/begin/end.
  * Row "from=0" is used to mark the character's presence. Others unused.
  */
-void update_word_fingerprint(uint8_t *fp, const char *word)
+void update_word_fingerprint_with_len(uint8_t *fp, struct ist word)
 {
 	const char *p;
 	int from, to;
 	int c;
 
 	from = 28; // begin
-	for (p = word; *p; p++) {
+	for (p = word.ptr; p < word.ptr + word.len; p++) {
 		c = tolower((unsigned char)*p);
 		switch(c) {
 		case 'a'...'z': to = c - 'a' + 1; break;
@@ -6633,6 +6633,17 @@ void update_word_fingerprint(uint8_t *fp, const char *word)
 	}
 	to = 28; // end
 	fp[32 * from + to]++;
+}
+
+/* Update array <fp> with the fingerprint of word <word> by counting the
+ * transitions between characters. <fp> is a 1024-entries array indexed as
+ * 32*from+to. Positions for 'from' and 'to' are:
+ *   1..26=letter, 27=digit, 28=other/begin/end.
+ * Row "from=0" is used to mark the character's presence. Others unused.
+ */
+void update_word_fingerprint(uint8_t *fp, const char *word)
+{
+	return update_word_fingerprint_with_len(fp, ist(word));
 }
 
 /* This function hashes a word, scramble is the anonymizing key, returns
@@ -6762,6 +6773,17 @@ void make_word_fingerprint(uint8_t *fp, const char *word)
 {
 	memset(fp, 0, 1024);
 	update_word_fingerprint(fp, word);
+}
+
+/* Initialize array <fp> with the fingerprint of word <word> by counting the
+ * transitions between characters. <fp> is a 1024-entries array indexed as
+ * 32*from+to. Positions for 'from' and 'to' are:
+ *   0..25=letter, 26=digit, 27=other, 28=begin, 29=end, others unused.
+ */
+void make_word_fingerprint_with_len(uint8_t *fp, struct ist word)
+{
+	memset(fp, 0, 1024);
+	update_word_fingerprint_with_len(fp, word);
 }
 
 /* Return the distance between two word fingerprints created by function
