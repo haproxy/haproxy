@@ -2072,6 +2072,7 @@ next_line:
 				/* Only print empty arg warning in normal mode to prevent double display. */
 				for (check_arg = 0; check_arg < arg; check_arg++) {
 					if (!*args[check_arg]) {
+						static int warned_empty;
 						size_t newpos;
 
 						/* if an empty arg was found, its pointer should be in <errptr>, except
@@ -2088,10 +2089,16 @@ next_line:
 
 						/* sanitize input line in-place */
 						newpos = sanitize_for_printing(line, errptr - line, 80);
-						ha_warning("parsing [%s:%d]: argument number %d at position %d is empty and marks the end of the "
-						           "argument list; all subsequent arguments will be ignored:\n  %s\n  %*s\n",
-						           file, linenum, check_arg, (int)(errptr - thisline + 1), line, (int)(newpos + 1), "^");
-						break;
+						ha_alert("parsing [%s:%d]: argument number %d at position %d is empty and marks the end of the "
+						         "argument list:\n  %s\n  %*s\n%s",
+						         file, linenum, check_arg, (int)(errptr - thisline + 1), line, (int)(newpos + 1),
+						         "^", (warned_empty++) ? "" :
+						         ("Aborting to prevent all subsequent arguments from being silently ignored. "
+							  "If this is caused by an environment variable expansion, please have a look at section "
+							  "2.3 of the configuration manual to find solutions to address this.\n"));
+						err_code |= ERR_ALERT | ERR_FATAL;
+						fatal++;
+						goto next_line;
 					}
 				}
 			}
