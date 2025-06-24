@@ -6147,6 +6147,7 @@ int is_dir_present(const char *path_fmt, ...)
 		if (!err)					       \
 			out[outpos] = __c;			       \
 		outpos++;					       \
+		empty_quote = 0;				       \
 	} while (0)
 
 /* Parse <in>, copy it into <out> split into isolated words whose pointers
@@ -6194,6 +6195,7 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 	uint32_t err = 0;
 	int in_arg = 0;
 	int prev_in_arg = 0;
+	int empty_quote = 0;
 
 	*nbargs = 0;
 	*outlen = 0;
@@ -6223,26 +6225,30 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 			break;
 		}
 		else if (*in == '"' && !squote && (opts & PARSE_OPT_DQUOTE)) {  /* double quote outside single quotes */
-			in_arg = 1;
 			if (dquote) {
+				if (empty_quote) // force arg creation if empty
+					in_arg = 1;
 				dquote = 0;
 				quote = NULL;
 			}
 			else {
 				dquote = 1;
 				quote = in;
+				empty_quote = 1;
 			}
 			in++;
 		}
 		else if (*in == '\'' && !dquote && (opts & PARSE_OPT_SQUOTE)) { /* single quote outside double quotes */
-			in_arg = 1;
 			if (squote) {
+				if (empty_quote) // force arg creation if empty
+					in_arg = 1;
 				squote = 0;
 				quote = NULL;
 			}
 			else {
 				squote = 1;
 				quote = in;
+				empty_quote = 1;
 			}
 			in++;
 		}
@@ -6452,21 +6458,20 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 					arg_start = outpos;
 				}
 			}
+			else if (word_expand) {
+				/* An empty or unknown env variable was passed as an array.
+				 * This is permitted and results in not creating any arg and
+				 * dropping the surrounding quotes. Here we pretend the quotes
+				 * were not empty, which will be sufficient to avoid creating
+				 * a new arg.
+				 */
+				empty_quote = 0;
+			}
 			else {
-				/* An unmatched environment variable was parsed.
-				 * Let's skip the trailing double-quote character
-				 * and spaces.
+				/* An unmatched environment variable was parsed, it must
+				 * count as an argument.
 				 */
 				in_arg = 1;
-				if (likely(*var_name != '.') && *in == '"') {
-					in++;
-					while (isspace((unsigned char)*in))
-						in++;
-					if (dquote) {
-						dquote = 0;
-						quote = NULL;
-					}
-				}
 			}
 			word_expand = NULL;
 		}
