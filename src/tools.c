@@ -6667,6 +6667,43 @@ void update_word_fingerprint(uint8_t *fp, const char *word)
 	return update_word_fingerprint_with_len(fp, ist(word));
 }
 
+/* tries to find in the environment a similar looking variable name as the one
+ * in <word>, and returns it otherwise NULL. <word> may be NULL or empty.
+ */
+struct ist env_suggest(struct ist word)
+{
+	uint8_t word_sig[1024];
+	uint8_t name_sig[1024];
+	int dist, best_dist = INT_MAX;
+	char **curr_env;
+
+	struct ist curr_name, best_name = IST_NULL;
+
+	if (!isttest(word))
+		return IST_NULL;
+
+	make_word_fingerprint_with_len(word_sig, word);
+	for (curr_env = environ; *curr_env; curr_env++) {
+		curr_name = ist(*curr_env);
+		curr_name.len -= istfind(curr_name, '=').len;
+		make_word_fingerprint_with_len(name_sig, curr_name);
+		dist = word_fingerprint_distance(word_sig, name_sig);
+		if (dist < best_dist) {
+			best_dist = dist;
+			best_name = curr_name;
+		}
+	}
+
+	/* eliminate too different ones, with more tolerance for prefixes
+	 * when they're known to exist (not from extra list).
+	 */
+	if (isttest(best_name) &&
+	    (best_dist > 2 * istlen(word) || best_dist > 2 * istlen(best_name)))
+		best_name = IST_NULL;
+	return best_name;
+}
+
+
 /* This function hashes a word, scramble is the anonymizing key, returns
  * the hashed word when the key (scramble) != 0, else returns the word.
  * This function can be called NB_L_HASH_WORD times in a row, don't call
