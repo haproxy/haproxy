@@ -1022,6 +1022,7 @@ int my_unsetenv(const char *name);
  * some expansion is made.
  */
 char *env_expand(char *in);
+struct ist env_suggest(struct ist word);
 int is_path_mode(mode_t mode, const char *path_fmt, ...);
 int is_file_present(const char *path_fmt, ...);
 int is_dir_present(const char *path_fmt, ...);
