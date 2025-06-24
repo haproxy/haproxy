@@ -2071,6 +2071,7 @@ next_line:
 				for (check_arg = 0; check_arg < arg; check_arg++) {
 					if (!*args[check_arg]) {
 						size_t newpos;
+						int suggest = 0;
 
 						/* if an empty arg was found, its pointer should be in <errptr>, except
 						 * for rare cases such as '\x00' etc. We need to check errptr in any case
@@ -2082,6 +2083,9 @@ next_line:
 							if (newpos >= strlen(line))
 								newpos = 0; // impossible to report anything, start at the beginning.
 							errptr = line + newpos;
+						} else if (isalnum(*errptr) || *errptr == '_') {
+							/* looks like an environment variable */
+							suggest = 1;
 						}
 
 						/* sanitize input line in-place */
@@ -2092,6 +2096,21 @@ next_line:
 						         "If this is caused by an environment variable expansion, please have a look at section "
 						         "2.3 of the configuration manual to find solutions to address this.\n",
 						         file, linenum, check_arg, (int)(errptr - thisline + 1), line, (int)(newpos + 1), "^");
+
+						if (suggest) {
+							const char *end = errptr;
+							struct ist alt;
+
+							while (isalnum(*end) || *end == '_')
+								end++;
+
+							if (end > errptr) {
+								alt = env_suggest(ist2(errptr, end - errptr));
+								if (isttest(alt))
+									ha_notice("Hint: maybe you meant %.*s instead ?\n", (int)istlen(alt), istptr(alt));
+							}
+						}
+
 						err_code |= ERR_ALERT | ERR_FATAL;
 						fatal++;
 						break;
