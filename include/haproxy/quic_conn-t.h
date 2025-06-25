@@ -356,6 +356,10 @@ struct quic_conn {
 	 */
 	uint64_t hash64;
 
+	/* QUIC client only retry token received from servers RETRY packet */
+	unsigned char *retry_token;
+	size_t retry_token_len;
+
 	/* Initial encryption level */
 	struct quic_enc_level *iel;
 	/* 0-RTT encryption level */

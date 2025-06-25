@@ -1304,7 +1304,7 @@ int send_retry(int fd, struct sockaddr_storage *addr,
 	/* token integrity tag */
 	if ((sizeof(buf) - i < QUIC_TLS_TAG_LEN) ||
 	    !quic_tls_generate_retry_integrity_tag(pkt->dcid.data,
-	                                           pkt->dcid.len, buf, i, qv)) {
+	                                           pkt->dcid.len, buf, i, buf + i, qv)) {
 		TRACE_ERROR("quic_tls_generate_retry_integrity_tag() failed", QUIC_EV_CONN_TXPKT);
 		goto out;
 	}
@@ -1809,10 +1809,14 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 
 	/* Encode the token length (0) for an Initial packet. */
 	if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
-		if (end <= pos)
+		if (!quic_enc_int(&pos, end, qc->retry_token_len) ||
+		    end - pos <= qc->retry_token_len)
 			goto no_room;
 
-		*pos++ = 0;
+		if (qc->retry_token_len) {
+			memcpy(pos, qc->retry_token, qc->retry_token_len);
+			pos += qc->retry_token_len;
+		}
 	}
 
 	head_len = pos - beg;

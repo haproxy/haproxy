@@ -53,6 +53,7 @@
 #include <haproxy/quic_enc.h>
 #include <haproxy/quic_loss.h>
 #include <haproxy/quic_rx.h>
+#include <haproxy/quic_retry.h>
 #include <haproxy/quic_ssl.h>
 #include <haproxy/quic_sock.h>
 #include <haproxy/quic_stats.h>
@@ -841,7 +842,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	if (discard_hpktns) {
 		/* Discard the Handshake packet number space. */
 		TRACE_PROTO("discarding Handshake pktns", QUIC_EV_CONN_PHPKTS, qc);
-		quic_pktns_discard(qc->hel->pktns, qc);
+		quic_pktns_discard(qc->hel->pktns, qc, 0);
 		qc_set_timer(qc);
 		qc_el_rx_pkts_del(qc->hel);
 		qc_release_pktns_frms(qc, qc->hel->pktns);
@@ -921,7 +922,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	    qc->hpktns && qc->hpktns->tx.in_flight > 0) {
 		/* Discard the Initial packet number space. */
 		TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PRSHPKT, qc);
-		quic_pktns_discard(qc->ipktns, qc);
+		quic_pktns_discard(qc->ipktns, qc, 0);
 		qc_set_timer(qc);
 		qc_el_rx_pkts_del(qc->iel);
 		qc_release_pktns_frms(qc, qc->ipktns);
@@ -1167,6 +1168,8 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 #ifdef HAVE_OPENSSL_QUIC
 	qc->prot_level = OSSL_RECORD_PROTECTION_LEVEL_NONE;
 #endif
+	qc->retry_token = NULL;
+	qc->retry_token_len = 0;
 	/* Encryption levels */
 	qc->iel = qc->eel = qc->hel = qc->ael = NULL;
 	LIST_INIT(&qc->qel_list);
@@ -1198,8 +1201,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		qc->flags = QUIC_FL_CONN_PEER_VALIDATED_ADDR;
 		qc->state = QUIC_HS_ST_CLIENT_INITIAL;
 
-		memset(&qc->odcid, 0, sizeof qc->odcid);
-		qc->odcid.len = 0;
 		/* This is the original connection ID from the peer server
 		 * point of view.
 		 */
@@ -1207,6 +1208,9 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 			goto err;
 
 		qc->dcid.len = sizeof(qc->dcid.data);
+
+		memcpy(&qc->odcid, qc->dcid.data, sizeof(qc->dcid.data));
+		qc->odcid.len = qc->dcid.len;
 
 		conn_cid = new_quic_cid(qc->cids, qc, NULL, NULL);
 		if (!conn_cid)
@@ -1576,6 +1580,9 @@ int quic_conn_release(struct quic_conn *qc)
 		pool_free(pool_head_quic_tls_secret, actx->tx.secret);
 	}
 
+	pool_free(pool_head_quic_retry_token, qc->retry_token);
+	qc->retry_token = NULL;
+	qc->retry_token_len = 0;
 	qc_enc_level_free(qc, &qc->iel);
 	qc_enc_level_free(qc, &qc->eel);
 	qc_enc_level_free(qc, &qc->hel);

@@ -74,7 +74,8 @@ int quic_tls_decrypt(unsigned char *buf, size_t len,
                      const unsigned char *key, const unsigned char *iv);
 
 int quic_tls_generate_retry_integrity_tag(unsigned char *odcid, unsigned char odcid_len,
-                                          unsigned char *buf, size_t len,
+                                          const unsigned char *buf, size_t len,
+                                          unsigned char *tag,
                                           const struct quic_version *qv);
 
 int quic_tls_derive_keys(const QUIC_AEAD *aead, const EVP_CIPHER *hp,
@@ -536,7 +537,8 @@ static inline int quic_pktns_init(struct quic_conn *qc, struct quic_pktns **p)
 	return 1;
 }
 
-static inline void quic_pktns_tx_pkts_release(struct quic_pktns *pktns, struct quic_conn *qc)
+static inline void quic_pktns_tx_pkts_release(struct quic_pktns *pktns,
+                                              struct quic_conn *qc, int resend)
 {
 	struct eb64_node *node;
 
@@ -557,7 +559,11 @@ static inline void quic_pktns_tx_pkts_release(struct quic_pktns *pktns, struct q
 			qc_frm_unref(frm, qc);
 			LIST_DEL_INIT(&frm->list);
 			quic_tx_packet_refdec(frm->pkt);
-			qc_frm_free(qc, &frm);
+			if (!resend)
+				qc_frm_free(qc, &frm);
+			else
+				LIST_APPEND(&pktns->tx.frms, &frm->list);
+
 		}
 		eb64_delete(&pkt->pn_node);
 		quic_tx_packet_refdec(pkt);
@@ -572,9 +578,12 @@ static inline void quic_pktns_tx_pkts_release(struct quic_pktns *pktns, struct q
  * connection.
  * Note that all the non acknowledged TX packets and their frames are freed.
  * Always succeeds.
+ * <resend> boolean must be 1 to resend the frames which are in flight.
+ * This is only used to resend the Initial packet frames upon a RETRY
+ * packet receipt (backend only option).
  */
 static inline void quic_pktns_discard(struct quic_pktns *pktns,
-                                      struct quic_conn *qc)
+                                      struct quic_conn *qc, int resend)
 {
 	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, qc);
 
@@ -590,7 +599,7 @@ static inline void quic_pktns_discard(struct quic_pktns *pktns,
 	pktns->tx.loss_time = TICK_ETERNITY;
 	pktns->tx.pto_probe = 0;
 	pktns->tx.in_flight = 0;
-	quic_pktns_tx_pkts_release(pktns, qc);
+	quic_pktns_tx_pkts_release(pktns, qc, resend);
 
 	TRACE_LEAVE(QUIC_EV_CONN_PHPKTS, qc);
 }
