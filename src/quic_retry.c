@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include <haproxy/clock.h>
+#include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/quic_retry.h>
 #include <haproxy/quic_tls.h>
@@ -11,6 +12,9 @@
 
 /* Salt length used to derive retry token secret */
 #define QUIC_RETRY_TOKEN_SALTLEN       16 /* bytes */
+#define QUIC_RETRY_TOKEN_MAXLEN       256 /* bytes */
+
+struct pool_head *pool_head_quic_retry_token;
 
 /* Copy <saddr> socket address data into <buf> buffer.
  * This is the responsibility of the caller to check the output buffer is big
@@ -319,4 +323,71 @@ int quic_retry_token_check(struct quic_rx_packet *pkt,
 	goto leave;
 }
 
+/* QUIC client only function.
+ * Check the integrity tag of <pkt> retry packet received on <qc> connection
+ * with <beg> and <end> as packet payload delimiters. <pos> is the retry token position.
+ * Return 1 if succeeded, 0 if not.
+ */
+int quic_retry_packet_check(struct quic_conn *qc, struct quic_rx_packet *pkt,
+                            const unsigned char *beg, const unsigned char *end,
+                            const unsigned char *pos, size_t *retry_token_len)
+{
+	int ret = 0;
+	unsigned char tag[QUIC_TLS_TAG_LEN];
+	ssize_t toklen;
 
+	TRACE_ENTER(QUIC_EV_CONN_SPKT, qc);
+
+	if (!pkt->version) {
+		TRACE_PROTO("retry packet without version", QUIC_EV_CONN_SPKT);
+		goto err;
+	}
+
+	if (end - beg <= QUIC_LONG_PACKET_MINLEN +
+	    pkt->scid.len + pkt->dcid.len + QUIC_TLS_TAG_LEN ||
+	    end - pos <= QUIC_TLS_TAG_LEN) {
+		TRACE_PROTO("Too short retry packet", QUIC_EV_CONN_SPKT);
+		goto err;
+	}
+
+	if (!quic_tls_generate_retry_integrity_tag(qc->odcid.data, qc->odcid.len,
+	                                           beg, end - beg - QUIC_TLS_TAG_LEN,
+	                                           tag, pkt->version)) {
+		TRACE_PROTO("retry integrity tag faild", QUIC_EV_CONN_SPKT, qc);
+		goto err;
+	}
+
+	if (memcmp(tag, end - QUIC_TLS_TAG_LEN, QUIC_TLS_TAG_LEN) != 0) {
+		TRACE_PROTO("retry integrity tag mismatch", QUIC_EV_CONN_SPKT, qc);
+		goto err;
+	}
+
+	toklen = end - pos - QUIC_TLS_TAG_LEN;
+	if (toklen <= 0 || toklen > QUIC_RETRY_TOKEN_MAXLEN) {
+		TRACE_PROTO("wrong retry token size", QUIC_EV_CONN_SPKT, qc);
+		goto err;
+	}
+
+	*retry_token_len = (size_t)toklen;
+	ret = 1;
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_SPKT, qc);
+	return ret;
+ err:
+	TRACE_DEVEL("leaving on error", QUIC_EV_CONN_SPKT, qc);
+	goto leave;
+}
+
+static int create_quic_retry_token_pool(void)
+{
+    pool_head_quic_retry_token =
+	    create_pool("quic_retry_token", QUIC_RETRY_TOKEN_MAXLEN, MEM_F_SHARED|MEM_F_EXACT);
+    if (!pool_head_quic_retry_token) {
+        ha_warning("error on QUIC retry token buffer pool allocation.\n");
+        return ERR_FATAL|ERR_ABORT;
+    }
+
+    return ERR_NONE;
+}
+
+REGISTER_POST_CHECK(create_quic_retry_token_pool);

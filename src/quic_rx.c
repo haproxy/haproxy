@@ -1191,7 +1191,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			if (qc->ipktns && !quic_tls_pktns_is_dcd(qc, qc->ipktns)) {
 				/* Discard the handshake packet number space. */
 				TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PRSHPKT, qc);
-				quic_pktns_discard(qc->ipktns, qc);
+				quic_pktns_discard(qc->ipktns, qc, 0);
 				qc_set_timer(qc);
 				qc_el_rx_pkts_del(qc->iel);
 				qc_release_pktns_frms(qc, qc->ipktns);
@@ -1967,8 +1967,7 @@ static int quic_rx_pkt_parse(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		}
 
 		/* Retry of Version Negotiation packets are only sent by servers */
-		if (pkt->type == QUIC_PACKET_TYPE_RETRY ||
-		    (pkt->version && !pkt->version->num)) {
+		if (l && (pkt->type == QUIC_PACKET_TYPE_RETRY || (pkt->version && !pkt->version->num))) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto drop;
 		}
@@ -1987,10 +1986,10 @@ static int quic_rx_pkt_parse(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			goto drop_silent;
 		}
 
-		/* For Initial packets, and for servers (QUIC clients connections),
-		 * there is no Initial connection IDs storage.
-		 */
 		if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
+			/* For Initial packets, and for servers (QUIC clients connections),
+			 * there is no Initial connection IDs storage.
+			 */
 			uint64_t token_len;
 
 			if (!quic_dec_int(&token_len, (const unsigned char **)&pos, end) ||
@@ -2010,6 +2009,47 @@ static int quic_rx_pkt_parse(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			pkt->token = pos;
 			pkt->token_len = token_len;
 			pos += pkt->token_len;
+		}
+		else if (pkt->type == QUIC_PACKET_TYPE_RETRY) {
+			if (!quic_retry_packet_check(qc, pkt, beg, end, pos, &qc->retry_token_len))
+				/* TODO: should close the connection? */
+				goto drop;
+
+			qc->retry_token = pool_alloc(pool_head_quic_retry_token);
+			if (!qc->retry_token) {
+				TRACE_ERROR("retry token allocation failed", QUIC_EV_CONN_LPKT);
+			}
+			else {
+				memcpy(qc->retry_token, pos, qc->retry_token_len);
+				/* Save the peer Retry source connection ID into the connection ODCID.
+				 * This is also this connection DCID (or even the first ODCID value).
+				 * It can be erased because used only to check the retry integrity
+				 * tag. Then, it will be matched against the retry_source_connection_id
+				 * transport parameter which will be sent by the server.
+				 */
+				memcpy(qc->odcid.data, pkt->scid.data, pkt->scid.len);
+				qc->odcid.len = pkt->scid.len;
+				/* Copy the peer scid to be the destination of the next Initial packet */
+				memcpy(qc->dcid.data, pkt->scid.data, pkt->scid.len);
+				qc->dcid.len = pkt->scid.len;
+				/* Initial packet number space discarding without releasing
+				 * the existing frames (not already sent).
+				 */
+				quic_pktns_discard(qc->ipktns, qc, 1);
+				qc_set_timer(qc);
+				qc_el_rx_pkts_del(qc->iel);
+				/* Reset the DISCARDED flag for Initial packet number space */
+				qc->flags &= ~QUIC_FL_CONN_IPKTNS_DCD;
+				/* Change the Initial TLS cryptographic context */
+				quic_tls_ctx_secs_free(&qc->iel->tls_ctx);
+				if (!qc_new_isecs(qc, &qc->iel->tls_ctx, qc->original_version,
+				                  qc->dcid.data, qc->dcid.len, !!l))
+					goto drop_silent;
+
+				tasklet_wakeup(qc->wait_event.tasklet);
+			}
+
+			goto drop_silent;
 		}
 		else if (pkt->type != QUIC_PACKET_TYPE_0RTT) {
 			if (pkt->dcid.len != QUIC_HAP_CID_LEN) {

@@ -95,7 +95,7 @@ void quic_pktns_release(struct quic_conn *qc, struct quic_pktns **pktns)
 	if (!*pktns)
 		return;
 
-	quic_pktns_tx_pkts_release(*pktns, qc);
+	quic_pktns_tx_pkts_release(*pktns, qc, 0);
 	qc_release_pktns_frms(qc, *pktns);
 	quic_free_arngs(qc, &(*pktns)->rx.arngs);
 	LIST_DEL_INIT(&(*pktns)->list);
@@ -1005,14 +1005,15 @@ int quic_tls_derive_token_secret(const EVP_MD *md,
 }
 
 /* Generate the AEAD tag for the Retry packet <pkt> of <pkt_len> bytes and
- * write it to <tag>. The tag is written just after the <pkt> area. It should
+ * write it to <tag>. The tag is written at <tag> address. It should
  * be at least 16 bytes longs. <odcid> is the CID of the Initial packet
  * received which triggers the Retry.
  *
  * Returns non-zero on success else zero.
  */
 int quic_tls_generate_retry_integrity_tag(unsigned char *odcid, unsigned char odcid_len,
-                                          unsigned char *pkt, size_t pkt_len,
+                                          const unsigned char *pkt, size_t pkt_len,
+                                          unsigned char *tag,
                                           const struct quic_version *qv)
 {
 	const EVP_CIPHER *evp = EVP_aes_128_gcm();
@@ -1020,8 +1021,6 @@ int quic_tls_generate_retry_integrity_tag(unsigned char *odcid, unsigned char od
 
 	/* encryption buffer - not used as only AEAD tag generation is proceed */
 	unsigned char *out = NULL;
-	/* address to store the AEAD tag */
-	unsigned char *tag = pkt + pkt_len;
 	int outlen, ret = 0;
 
 	ctx = EVP_CIPHER_CTX_new();
