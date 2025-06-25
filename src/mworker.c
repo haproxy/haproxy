@@ -62,7 +62,7 @@ static void mworker_kill(int sig)
 
 	list_for_each_entry(child, &proc_list, list) {
 		/* careful there, we must be sure that the pid > 0, we don't want to emit a kill -1 */
-		if ((child->options & (PROC_O_TYPE_WORKER|PROC_O_TYPE_PROG)) && (child->pid > 0))
+		if ((child->options & PROC_O_TYPE_WORKER) && (child->pid > 0))
 			kill(child->pid, sig);
 	}
 }
@@ -84,7 +84,7 @@ int mworker_current_child(int pid)
 	struct mworker_proc *child;
 
 	list_for_each_entry(child, &proc_list, list) {
-		if ((child->options & (PROC_O_TYPE_WORKER|PROC_O_TYPE_PROG)) && (!(child->options & PROC_O_LEAVING)) && (child->pid == pid))
+		if ((child->options & PROC_O_TYPE_WORKER) && (!(child->options & PROC_O_LEAVING)) && (child->pid == pid))
 			return 1;
 	}
 	return 0;
@@ -100,7 +100,7 @@ int mworker_child_nb()
 	int ret = 0;
 
 	list_for_each_entry(child, &proc_list, list) {
-		if (child->options & (PROC_O_TYPE_WORKER|PROC_O_TYPE_PROG))
+		if (child->options & PROC_O_TYPE_WORKER)
 			ret++;
 	}
 
@@ -121,8 +121,6 @@ void mworker_proc_list_to_env()
 
 		if (child->options & PROC_O_TYPE_MASTER)
 			type = 'm';
-		else if (child->options & PROC_O_TYPE_PROG)
-			type = 'e';
 		else if (child->options &= PROC_O_TYPE_WORKER)
 			type = 'w';
 
@@ -197,8 +195,6 @@ int mworker_env_to_proc_list()
 				if (type == 'm') { /* we are in the master, assign it */
 					proc_self = child;
 					child->options |= PROC_O_TYPE_MASTER;
-				} else if (type == 'e') {
-					child->options |= PROC_O_TYPE_PROG;
 				} else if (type == 'w') {
 					child->options |= PROC_O_TYPE_WORKER;
 				}
@@ -594,8 +590,6 @@ restart_wait:
 					else
 						ha_alert("Current worker (%d) exited with code %d (%s)\n", exitpid, status, strsignal(status - 128));
 				}
-				else if (child->options & PROC_O_TYPE_PROG)
-					ha_alert("Current program '%s' (%d) exited with code %d (%s)\n", child->id, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 
 				if (status != 0 && status != 130 && status != 143) {
 					if (child->options & PROC_O_TYPE_WORKER) {
@@ -620,11 +614,6 @@ restart_wait:
 					/* Delete fd from poller fdtab, which will close it */
 					fd_delete(child->ipc_fd[0]);
 					delete_oldpid(exitpid);
-				} else if (child->options & PROC_O_TYPE_PROG) {
-					/* ipc_fd[0] and ipc_fd[1] are not used for PROC_O_TYPE_PROG and kept as -1,
-					 * thus they are never inserted in fdtab (otherwise, BUG_ON in fd_insert if fd <0)
-					 */
-					ha_warning("Former program '%s' (%d) exited with code %d (%s)\n", child->id, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 				}
 			}
 			mworker_free_child(child);
@@ -796,7 +785,6 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 	struct cli_showproc_ctx *ctx = appctx->svcctx;
 	char *uptime = NULL;
 	char *reloadtxt = NULL;
-	int program_nb = 0;
 
 	if (up < 0) /* must never be negative because of clock drift */
 		up = 0;
@@ -864,48 +852,6 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 		}
 		free(msg);
 	}
-
-	/* displays external process */
-	old = 0;
-	list_for_each_entry(child, &proc_list, list) {
-		up = date.tv_sec - child->timestamp;
-		if (up < 0) /* must never be negative because of clock drift */
-			up = 0;
-
-		if (!(child->options & PROC_O_TYPE_PROG))
-			continue;
-
-		if (child->options & PROC_O_LEAVING) {
-			old++;
-			continue;
-		}
-		if (program_nb == 0)
-			chunk_appendf(&trash, "# programs\n");
-		program_nb++;
-		memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
-		chunk_appendf(&trash, "%-15u %-15s %-15d %-15s %-15s\n", child->pid, child->id, child->reloads, uptime, "-");
-		ha_free(&uptime);
-	}
-
-	if (old) {
-		chunk_appendf(&trash, "# old programs\n");
-		list_for_each_entry(child, &proc_list, list) {
-			up = date.tv_sec - child->timestamp;
-			if (up < 0) /* must never be negative because of clock drift */
-				up = 0;
-
-			if (!(child->options & PROC_O_TYPE_PROG))
-				continue;
-
-			if (child->options & PROC_O_LEAVING) {
-				memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
-				chunk_appendf(&trash, "%-15u %-15s %-15d %-15s %-15s\n", child->pid, child->id, child->reloads, uptime, "-");
-				ha_free(&uptime);
-			}
-		}
-	}
-
-
 
 	if (applet_putchk(appctx, &trash) == -1)
 		return 0;

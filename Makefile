@@ -982,7 +982,7 @@ OBJS += src/mux_h2.o src/mux_h1.o src/mux_fcgi.o src/log.o		\
         src/cfgcond.o src/proto_udp.o src/lb_fwlc.o src/ebmbtree.o	\
         src/proto_uxdg.o src/cfgdiag.o src/sock_unix.o src/sha1.o	\
         src/lb_fas.o src/clock.o src/sock_inet.o src/ev_select.o	\
-        src/lb_map.o src/shctx.o src/mworker-prog.o src/hpack-dec.o	\
+        src/lb_map.o src/shctx.o src/hpack-dec.o	                \
         src/arg.o src/signal.o src/fix.o src/dynbuf.o src/guid.o	\
         src/cfgparse-tcp.o src/lb_ss.o src/chunk.o src/counters.o	\
         src/cfgparse-unix.o src/regex.o src/fcgi.o src/uri_auth.o	\

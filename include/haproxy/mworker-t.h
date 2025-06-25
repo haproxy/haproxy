@@ -21,7 +21,7 @@
 
 #define PROC_O_TYPE_MASTER           0x00000001
 #define PROC_O_TYPE_WORKER           0x00000002
-#define PROC_O_TYPE_PROG             0x00000004
+/* 0x00000004 unused */
 /* 0x00000008 unused */
 #define PROC_O_LEAVING               0x00000010  /* this process should be leaving */
 /* state of the newly forked worker process, which hasn't sent yet its READY message to master */

@@ -42,8 +42,6 @@ void mworker_cleanlisteners(void);
 
 int mworker_child_nb(void);
 
-int mworker_ext_launch_all(void);
-
 void mworker_kill_max_reloads(int sig);
 
 struct mworker_proc *mworker_proc_new();
