@@ -184,17 +184,17 @@ ullong freq_ctr_total_estimate(const struct freq_ctr *ctr, uint period, int pend
 	return _freq_ctr_total_from_values(period, pend, tick, past, curr);
 }
 
-/* Returns the excess of events (may be negative) over the current period for
- * target frequency <freq>. It returns 0 if the counter is in the future or if
- * the counter is empty. The result considers the position of the current time
- * within the current period.
+/* Returns the excess of events over the current period for target frequency
+ * <freq>. It returns 0 if the counter is in the future or if the counter is
+ * empty. The result considers the position of the current time within the
+ * current period.
  *
- * The caller may safely add new events if result is negative or null.
+ * The caller may safely add new events if result is zero.
  */
-int freq_ctr_overshoot_period(const struct freq_ctr *ctr, uint period, uint freq)
+uint freq_ctr_overshoot_period(const struct freq_ctr *ctr, uint period, uint freq)
 {
 	ullong curr, old_curr;
-	uint tick, old_tick;
+	uint tick, old_tick, linear_usage;
 	int elapsed;
 
 	tick = HA_ATOMIC_LOAD(&ctr->curr_tick);
@@ -245,7 +245,12 @@ int freq_ctr_overshoot_period(const struct freq_ctr *ctr, uint period, uint freq
 		return 0;
 	}
 
-	return curr - div64_32((uint64_t)elapsed * freq, period);
+	linear_usage = div64_32((uint64_t)elapsed * freq, period);
+	if (curr < linear_usage) {
+		/* The counter is below a uniform linear increase across the period, no overshoot */
+		return 0;
+	}
+	return curr - linear_usage;
 }
 
 /*

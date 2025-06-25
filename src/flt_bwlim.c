@@ -79,9 +79,9 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 	struct bwlim_state *st = filter->ctx;
 	struct freq_ctr *bytes_rate;
 	uint64_t remain;
-	unsigned int period, limit, tokens, users, factor;
+	unsigned int period, limit, tokens, users, factor, overshoot;
 	unsigned int wait = 0;
-	int overshoot, ret = 0;
+	int ret = 0;
 
 	/* Don't forward anything if there is nothing to forward or the waiting
 	 * time is not expired

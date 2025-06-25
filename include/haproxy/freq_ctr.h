@@ -31,7 +31,7 @@
 ullong _freq_ctr_total_from_values(uint period, int pend, uint tick, ullong past, ullong curr);
 ullong freq_ctr_total(const struct freq_ctr *ctr, uint period, int pend);
 ullong freq_ctr_total_estimate(const struct freq_ctr *ctr, uint period, int pend);
-int freq_ctr_overshoot_period(const struct freq_ctr *ctr, uint period, uint freq);
+uint freq_ctr_overshoot_period(const struct freq_ctr *ctr, uint period, uint freq);
 uint update_freq_ctr_period_slow(struct freq_ctr *ctr, uint period, uint inc);
 
 /* Only usable during single threaded startup phase. */
