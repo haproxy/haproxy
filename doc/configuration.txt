@@ -149,7 +149,6 @@ Summary
 12.7.     Certificate Storage
 12.7.1.      Load options
 12.8.     ACME
-12.9.     Programs (deprecated)
 
 
 1. Quick reminder about HTTP
@@ -941,8 +940,8 @@ existing variables, not empty ones.
       user "$HAPROXY_USER"
 
 Some variables are defined by HAProxy, they can be used in the configuration
-file, or could be inherited by a program (See 12.9. Programs). These variables
-are listed in the matrix below, and they are classified among four categories:
+file. These variables are listed in the matrix below, and they are classified
+among four categories:
 
   * usable: the variable is accessible from the configuration, either to be
     resolved as-is, or used within conditional blocks or predicates to enable
@@ -954,10 +953,6 @@ are listed in the matrix below, and they are classified among four categories:
 
   * listed: the variable is listed in CLI's "show env" command output,
     described in section 9.3 "Unix Sockets commands" of the management guide.
-
-  * exported: variable is exported to launch programs in a modified environment
-    (See section 12.9 "Programs"). Note that this does not apply to external
-    checks which have their own rules regarding exported variables.
 
 There also two subcategories "master" and "worker", respectively marked 'M' and
 'W' in the table below, showing the differences between the two processes when
@@ -993,23 +988,23 @@ within conditional blocks and not to reference them in the global section's
 The table below summaries the status of each variable for the different working
 modes:
 
-  +--------------------------+----------+---------+------------+-----------+
-  |        variable          | exported | usable  | modifiable |  listed   |
-  |                          |          +---------+------------+-----------+
-  |                          |          |  M | W  |   M  |  W  |  M  |  W  |
-  +--------------------------+----------+----+----+------+-----+-----+-----+
-  | HAPROXY_STARTUP_VERSION  |    X     |  X | X  |      |     |  X  |  X  |
-  | HAPROXY_BRANCH           |    X     |  X | X  |      |     |  X  |  X  |
-  | HAPROXY_CFGFILES         |    X     |    |    |      |     |  X  |  X  |
-  | HAPROXY_MWORKER          |    X     |    |    |      |     |  X  |  X  |
-  | HAPROXY_CLI              |          |    |    |      |     |     |  X  |
-  | HAPROXY_MASTER_CLI       |          |    |    |      |     |  X  |     |
-  | HAPROXY_LOCALPEER        |          |    | X  |      |     |     |  X  |
-  | HAPROXY_HTTP_LOG_FMT     |          |    | X  |      |  X  |     |     |
-  | HAPROXY_HTTP_CLF_LOG_FMT |          |    | X  |      |  X  |     |     |
-  | HAPROXY_HTTPS_LOG_FMT    |          |    | X  |      |  X  |     |     |
-  | HAPROXY_TCP_LOG_FMT      |          |    | X  |      |  X  |     |     |
-  +--------------------------+----------+----+----+------+-----+-----+-----+
+  +--------------------------+---------+------------+-----------+
+  |        variable          | usable  | modifiable |  listed   |
+  |                          +---------+------------+-----------+
+  |                          |  M | W  |   M  |  W  |  M  |  W  |
+  +--------------------------+----+----+------+-----+-----+-----+
+  | HAPROXY_STARTUP_VERSION  |  X | X  |      |     |  X  |  X  |
+  | HAPROXY_BRANCH           |  X | X  |      |     |  X  |  X  |
+  | HAPROXY_CFGFILES         |    |    |      |     |  X  |  X  |
+  | HAPROXY_MWORKER          |    |    |      |     |  X  |  X  |
+  | HAPROXY_CLI              |    |    |      |     |     |  X  |
+  | HAPROXY_MASTER_CLI       |    |    |      |     |  X  |     |
+  | HAPROXY_LOCALPEER        |    | X  |      |     |     |  X  |
+  | HAPROXY_HTTP_LOG_FMT     |    | X  |      |  X  |     |     |
+  | HAPROXY_HTTP_CLF_LOG_FMT |    | X  |      |  X  |     |     |
+  | HAPROXY_HTTPS_LOG_FMT    |    | X  |      |  X  |     |     |
+  | HAPROXY_TCP_LOG_FMT      |    | X  |      |  X  |     |     |
+  +--------------------------+----+----+------+-----+-----+-----+
 
 The variables in question are the following:
 
@@ -30406,59 +30401,6 @@ Example:
       keytype ECDSA
       curves P-384
       map virt@acme
-
-12.9. Programs (deprecated)
----------------------------
-
-This section is deprecated and should disappear with HAProxy 3.3. The section
-could be replaced easily by separated process managers. Systemd unit files or
-sysvinit scripts could replace this section as they are more reliable. In docker
-environments, some alternatives can also be found such as s6 or supervisord.
-
-In master-worker mode, it is possible to launch external binaries with the
-master, these processes are called programs. These programs are launched and
-managed the same way as the workers.
-
-Since version 3.1, the program section has a slightly different behavior, the
-section is parsed and the program is started from the master, but the rest of
-the configuration is loaded in the worker. This mean the program configuration
-is completely separated from the worker configuration, and a program could be
-reexecuted even if the worker configuration is wrong upon a reload.
-
-During a reload of HAProxy, those processes are dealing with the same
-sequence as a worker:
-
-  - the master is re-executed
-  - the master sends a SIGUSR1 signal to the program
-  - if "option start-on-reload" is not disabled, the master launches a new
-    instance of the program
-
-During a stop, or restart, a SIGTERM is sent to the programs.
-
-program <name>
-  This is a new program section, this section will create an instance <name>
-  which is visible in "show proc" on the master CLI. (See "9.4. Master CLI" in
-  the management guide).
-
-command <command> [arguments*]
-  Define the command to start with optional arguments. The command is looked
-  up in the current PATH if it does not include an absolute path. This is a
-  mandatory option of the program section. Arguments containing spaces must
-  be enclosed in quotes or double quotes or be prefixed by a backslash.
-
-user <user name>
-  Changes the executed command user ID to the <user name> from /etc/passwd.
-  See also "group".
-
-group <group name>
-  Changes the executed command group ID to the <group name> from /etc/group.
-  See also "user".
-
-option start-on-reload
-no option start-on-reload
-  Start (or not) a new instance of the program upon a reload of the master.
-  The default is to start a new instance. This option may only be used in a
-  program section.
 
 
 /*

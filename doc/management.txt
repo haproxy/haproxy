@@ -4536,9 +4536,6 @@ show proc [debug]
     1271            worker          1               0d00h00m00s     2.5-dev13
     # old workers
     1233            worker          3               0d00h00m43s     2.0-dev3-6019f6-289
-    # programs
-    1244            foo             0               0d00h00m00s     -
-    1255            bar             0               0d00h00m00s     -
 
   In this example, the master has been reloaded 5 times but one of the old
   worker is still running and survived 3 reloads. You could access the CLI of
