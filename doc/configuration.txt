@@ -16883,9 +16883,16 @@ prefer-client-ciphers
   Use the client's preference when selecting the cipher suite, by default
   the server's preference is enforced. This option is also available on
   global statement "ssl-default-bind-options".
+
   Note that with OpenSSL >= 1.1.1 ChaCha20-Poly1305 is reprioritized anyway
   (without setting this option), if a ChaCha20-Poly1305 cipher is at the top of
   the client cipher list.
+
+  When using a dual algorithms setup (RSA + ECDSA), the selection algorithm
+  will chose between RSA and ECDSA and will always prioritize ECDSA. Once the
+  right certificate is chosen, it will let the SSL library prioritize ciphers,
+  curves etc. Meaning this option can't be used to prioritize an RSA
+  certificate over an ECDSA one.
 
 proto <name>
   Forces the multiplexer's protocol to use for the incoming connections. It
