@@ -679,7 +679,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			 * datagrams carrying ack-eliciting Initial packets to at least the
 			 * smallest allowed maximum datagram size of 1200 bytes.
 			 */
-			if (qel == qc->iel && (!LIST_ISEMPTY(frms) || probe)) {
+			if (qel == qc->iel && (!l || !LIST_ISEMPTY(frms) || probe)) {
 				 /* Ensure that no ack-eliciting packets are sent into too small datagrams */
 				if (end - pos < QUIC_INITIAL_PACKET_MINLEN) {
 					TRACE_PROTO("No more enough room to build an Initial packet",
@@ -704,7 +704,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			 */
 			cur_pkt = qc_build_pkt(&pos, end, qel, tls_ctx, frms,
 			                       qc, ver, dglen, pkt_type, must_ack,
-			                       padding && !next_qel && (!probe || !LIST_ISEMPTY(frms)),
+			                       padding && (!l || (!next_qel && (!probe || !LIST_ISEMPTY(frms)))),
 			                       probe, cc, &err);
 			if (!cur_pkt) {
 				switch (err) {
