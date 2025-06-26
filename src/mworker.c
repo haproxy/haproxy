@@ -29,6 +29,7 @@
 #include <haproxy/list.h>
 #include <haproxy/log.h>
 #include <haproxy/listener.h>
+#include <haproxy/list.h>
 #include <haproxy/mworker.h>
 #include <haproxy/peers.h>
 #include <haproxy/proto_sockpair.h>
@@ -625,7 +626,13 @@ restart_wait:
 	}
 	/* Better rely on the system than on a list of process to check if it was the last one */
 	else if (exitpid == -1 && errno == ECHILD) {
+		struct post_deinit_fct *pdff;
+
 		ha_warning("All workers exited. Exiting... (%d)\n", (exitcode > 0) ? exitcode : EXIT_SUCCESS);
+
+		list_for_each_entry(pdff, &post_deinit_master_list, list)
+			pdff->fct();
+
 		atexit_flag = 0;
 		if (exitcode > 0)
 			exit(exitcode); /* parent must leave using the status code that provoked the exit */

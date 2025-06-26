@@ -14,6 +14,7 @@ extern struct list post_server_check_list;
 extern struct list per_thread_alloc_list;
 extern struct list per_thread_init_list;
 extern struct list post_deinit_list;
+extern struct list post_deinit_master_list;
 extern struct list proxy_deinit_list;
 extern struct list server_deinit_list;
 extern struct list per_thread_free_list;
@@ -24,6 +25,7 @@ void hap_register_post_check(int (*fct)());
 void hap_register_post_proxy_check(int (*fct)(struct proxy *));
 void hap_register_post_server_check(int (*fct)(struct server *));
 void hap_register_post_deinit(void (*fct)());
+void hap_register_post_deinit_master(void (*fct)());
 void hap_register_proxy_deinit(void (*fct)(struct proxy *));
 void hap_register_server_deinit(void (*fct)(struct server *));
 
@@ -62,6 +64,10 @@ void hap_register_unittest(const char *name, int (*fct)(int, char **));
 /* simplified way to declare a post-deinit callback in a file */
 #define REGISTER_POST_DEINIT(fct) \
 	INITCALL1(STG_REGISTER, hap_register_post_deinit, (fct))
+
+/* simplified way to declare a post-deinit (master process when launched in master/worker mode) callback in a file */
+#define REGISTER_POST_DEINIT_MASTER(fct) \
+	INITCALL1(STG_REGISTER, hap_register_post_deinit_master, (fct))
 
 /* simplified way to declare a proxy-deinit callback in a file */
 #define REGISTER_PROXY_DEINIT(fct) \

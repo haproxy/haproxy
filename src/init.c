@@ -57,6 +57,11 @@ struct list per_thread_init_list = LIST_HEAD_INIT(per_thread_init_list);
  */
 struct list post_deinit_list = LIST_HEAD_INIT(post_deinit_list);
 
+/* These functions after everything is stopped, right before exit(), for the master
+ * process when haproxy was started in master-worker mode. They don't return anything.
+ */
+struct list post_deinit_master_list = LIST_HEAD_INIT(post_deinit_master_list);
+
 /* These functions are called when freeing a proxy during the deinit, after
  * everything isg stopped. They don't return anything. They should not release
  * the proxy itself or any shared resources that are possibly used by other
@@ -158,6 +163,22 @@ void hap_register_post_deinit(void (*fct)())
 	}
 	b->fct = fct;
 	LIST_APPEND(&post_deinit_list, &b->list);
+}
+
+/* used to register some de-initialization functions to call after everything
+ * has stopped, but only for the master process (when started in master-worker mode).
+ */
+void hap_register_post_deinit_master(void (*fct)())
+{
+	struct post_deinit_fct *b;
+
+	b = calloc(1, sizeof(*b));
+	if (!b) {
+		fprintf(stderr, "out of memory\n");
+		exit(1);
+	}
+	b->fct = fct;
+	LIST_APPEND(&post_deinit_master_list, &b->list);
 }
 
 /* used to register some per proxy de-initialization functions to call after
