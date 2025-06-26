@@ -7147,7 +7147,7 @@ int backup_env(void)
  * doesn't contain "=" (the latter is mandatory format for strings kept in
  * **environ). This allows to terminate the process at the startup stage, if it
  * was launched in zero-warning mode and there are some problems with
- * environment.
+ * environment. It's not thread-safe as uses my_unsetenv, which is not thread-safe.
  */
 int clean_env(void)
 {
@@ -7172,9 +7172,8 @@ int clean_env(void)
 			return -1;
 		}
 
-		if (unsetenv(name) != 0)
-			ha_warning("unsetenv() fails for '%s': %s.\n",
-				   name, strerror(errno));
+		my_unsetenv(name);
+
 		free(name);
 	}
 
