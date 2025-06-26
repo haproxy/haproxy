@@ -399,6 +399,7 @@ if [ -d "${TESTDIR}" ]; then
     cat <<- EOF | tee -a "$TESTDIR/failedtests.log"
 $(echo "###### $(cat "$i/INFO") ######")
 $(echo "## test results in: \"$i\"")
+$(echo "## test log file: $i/LOG")
 $(grep -E -- "^(----|\*    diag)" "$i/LOG")
 EOF
   done' sh {} +
