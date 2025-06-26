@@ -5474,7 +5474,7 @@ default-server                            X          -         X         X
 default_backend                           X          X         X         -
 description                               -          X         X         X
 disabled                                  X          X         X         X
-dispatch                                  -          -         X         X
+dispatch                    (deprecated)  -          -         X         X
 email-alert from                          X          X         X         X
 email-alert level                         X          X         X         X
 email-alert mailers                       X          X         X         X
@@ -6818,7 +6818,7 @@ disabled
   See also : "enabled"
 
 
-dispatch <address>:<port>
+dispatch <address>:<port>   (deprecated)
   Set a default server address
 
   May be used in the following contexts: tcp, http
@@ -6841,6 +6841,27 @@ dispatch <address>:<port>
   persistent connections to an auxiliary load balancer. Due to its simple
   syntax, it has also been used for simple TCP relays. It is recommended not to
   use it for more clarity, and to use the "server" directive instead.
+
+  This keyword has been deprecated in 3.3 and will be removed in 3.5 due to
+  some internal limitations (no support for SSL nor idle connections etc).
+  Using it will emit a warning that may be silenced by enabling directive
+  "expose-deprecated-directives" in the global section.
+
+  The correct way to proceed without this directive is to simply declare a
+  server with the same address and port. If the "dispatch" directive was
+  mixed with other servers, then these servers should be configured with a
+  weight of zero in order never to be elected by the load balancing algorithm.
+
+  Example:
+     backend deprecated_setup
+         dispatch 192.168.100.100:80 # external load balancer's address
+         server s1 192.168.100.1:80 cookie S1 check
+         server s2 192.168.100.2:80 cookie S2 check
+
+     backend modern_setup
+         server external_lb 192.168.100.100:80
+         server s1 192.168.100.1:80 cookie S1 check weight 0
+         server s2 192.168.100.2:80 cookie S2 check weight 0
 
   See also : "server"
 

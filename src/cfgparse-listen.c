@@ -2664,6 +2664,18 @@ stats_error_parsing:
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 
+		if (!deprecated_directives_allowed) {
+			ha_warning("parsing [%s:%d]: '%s' is deprecated in 3.3 and will be removed in 3.5. "
+			           "The modern way to do the same is to create a server with the same address, and "
+				   "possibly to assign any extra server a weight of zero if any:\n"
+				   "    server dispatch %s\n"
+				   "Note that it is still possible to silence this warning by setting "
+				   "'expose-deprecated-directives' in the 'global' section, but do not wait to fix "
+				   "your configuration!\n",
+			           file, linenum, args[0], args[1]);
+			err_code |= ERR_WARN;
+		}
+
 		curproxy->dispatch_addr = *sk;
 		curproxy->options |= PR_O_DISPATCH;
 	}

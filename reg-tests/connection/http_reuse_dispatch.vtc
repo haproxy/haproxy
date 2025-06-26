@@ -7,16 +7,26 @@ varnishtest "Test the proper interaction between http-reuse and dispatch mode"
 feature ignore_unknown_macro
 
 haproxy h1 -conf {
+	global
+		nbthread 1
+
 	defaults
 		timeout client 30s
 		timeout server 30s
 		timeout connect 30s
 		mode http
 
-	listen sender
-		bind "fd@${feS}"
+	listen sender1
+		bind "fd@${feN}"
+		http-reuse never
 		http-request set-header client-id %[req.hdr(client-id)] if { req.hdr(client-id) -m found }
-		dispatch ${h1_feR_addr}:${h1_feR_port}
+		server dispatch ${h1_feR_addr}:${h1_feR_port}
+
+	listen sender2
+		bind "fd@${feA}"
+		http-reuse always
+		http-request set-header client-id %[req.hdr(client-id)] if { req.hdr(client-id) -m found }
+		server dispatch ${h1_feR_addr}:${h1_feR_port}
 
 	listen receiver
 		bind "fd@${feR}"
@@ -26,7 +36,8 @@ haproxy h1 -conf {
 		http-after-response set-header client-id %[var(sess.client_id)]
 } -start
 
-client c1 -connect ${h1_feS_sock} {
+### http-reuse never
+client c1 -connect ${h1_feN_sock} {
 	txreq \
 	  -hdr "client-id: c1"
 	rxresp
@@ -43,7 +54,7 @@ client c1 -connect ${h1_feS_sock} {
 	expect resp.http.client-id == "c1"
 } -run
 
-client c2 -connect ${h1_feS_sock} {
+client c2 -connect ${h1_feN_sock} {
 	txreq \
 	  -hdr "client-id: c2"
 	rxresp
@@ -61,7 +72,7 @@ client c2 -connect ${h1_feS_sock} {
 	expect resp.http.client-id == "c2"
 } -run
 
-client c3 -connect ${h1_feS_sock} {
+client c3 -connect ${h1_feN_sock} {
 	txreq \
 	  -hdr "client-id: c3"
 	rxresp
@@ -77,4 +88,58 @@ client c3 -connect ${h1_feS_sock} {
 	rxresp
 	expect resp.http.http_first_request == "0"
 	expect resp.http.client-id == "c3"
+} -run
+
+### http-reuse always
+client c4 -connect ${h1_feA_sock} {
+	txreq \
+	  -hdr "client-id: c4"
+	rxresp
+	expect resp.http.http_first_request == "1"
+
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c4"
+
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c4"
+} -run
+
+client c5 -connect ${h1_feA_sock} {
+	txreq \
+	  -hdr "client-id: c5"
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c5"
+
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c5"
+
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c5"
+} -run
+
+client c6 -connect ${h1_feA_sock} {
+	txreq \
+	  -hdr "client-id: c6"
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c6"
+
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c6"
+
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c6"
 } -run

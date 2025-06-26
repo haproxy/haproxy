@@ -12,6 +12,10 @@ server s2 {
 } -start
 
 haproxy h1 -conf {
+global
+    # this is needed since 3.3, and this test will be removed in 3.5.
+    expose-deprecated-directives
+
 defaults
     log global
     timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
