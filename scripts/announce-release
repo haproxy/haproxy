@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# prepares a template e-mail and HTML file to announce a new release
-# Copyright (c) 2006-2016 Willy Tarreau <w@1wt.eu>
+# prepares a template e-mail to announce a new release
+# Copyright (c) 2006-2025 Willy Tarreau <w@1wt.eu>
 #
 # In short :
 #   - requires git
 #   - wants that last commit is a release/tag
 #   - no restriction to master, uses last tag
 #   - creates mail-$version.txt
-#   - creates web-$version.html
 #   - indicates how to edit the mail and how to send it
 
 USAGE="Usage: ${0##*/} [-f] [-p] [-b branch] [-d date] [-o oldver] [-n newver]
@@ -22,7 +21,6 @@ PREPARE=
 FORCE=
 OUTPUT=
 BRANCH=
-HTML=
 DATE=
 YEAR=
 OLD=
@@ -159,16 +157,11 @@ fi
 YEAR="${DATE%%/*}"
 
 OUTPUT="$DIR/mail-haproxy-$NEWVER.txt"
-HTML="$DIR/web-haproxy-$NEWVER.html"
 
-[ -z "$FORCE" ] || rm -f "${OUTPUT}" "${HTML}"
+[ -z "$FORCE" ] || rm -f "${OUTPUT}"
 
 if [ -e "$OUTPUT" ]; then
 	die "${OUTPUT##*/} already exists, please remove it or retry with -f."
-fi
-
-if [ -e "$HTML" ]; then
-	die "$HTML already exists, please remove it or retry with -f."
 fi
 
 (
@@ -216,6 +209,7 @@ fi
  echo "   Discourse        : https://discourse.haproxy.org/"
  echo "   Slack channel    : https://slack.haproxy.org/"
  echo "   Issue tracker    : https://github.com/haproxy/haproxy/issues"
+ echo "   Q&A from devs    : https://github.com/orgs/haproxy/discussions"
  echo "   Sources          : https://www.haproxy.org/download/${BRANCH}/src/"
  echo "   Git repository   : https://git.haproxy.org/git/${gitdir}/"
  echo "   Git Web browsing : https://git.haproxy.org/?p=${gitdir}"
@@ -239,41 +233,8 @@ fi
 ) >> "$OUTPUT"
 
 
-# prepare the HTML update
-set -- $(date +%e -d "$DATE")
-case "$1" in
-	11|12|13) day="${1}th" ;;
-	*1)       day="${1}st" ;;
-	*2)       day="${2}nd" ;;
-	*3)       day="${1}rd" ;;
-	*)        day="${1}th" ;;
-esac
-
-humandate=$(date "+%B, $day, %Y" -d "$DATE")
-(echo "$humandate</b> : <i>$NEWVER</i>"
- echo "         <p>"
- echo "           <ul>"
- echo "<--------------------------- edit contents below --------------------------->"
- echo "- per tag :"
- git log --oneline --reverse --format="%s" "v$OLD".."$LASTCOM" | cut -f1 -d':' | sort | uniq -c
- echo
- echo "- per topic :"
- git log --oneline --reverse --format="%s" "v$OLD".."$LASTCOM" | cut -f2 -d':' | awk '{sub("s$","",$1); print $1}' | sort | uniq -c
- echo
- echo "major commits :"
- git log --oneline --reverse --format="  - %s" "v$OLD".."$LASTCOM" | grep MAJOR
- echo
- echo "<--------------------------------------------------------------------------->"
- echo "             Code and changelog are available <a href=\"/download/${BRANCH}/src/\">here</a> as usual."
- echo "           </ul>"
- echo "         <p>"
- echo "           <b>"
-) >> "$HTML"
-
 echo "The announce was emitted into file $OUTPUT."
 echo "You can edit it and send it this way :"
 echo
 echo "   mutt -H <(tail -n +4 ${OUTPUT##*/}) -s \"[ANNOUNCE] haproxy-$NEWVER\" haproxy@formilux.org"
-echo
-echo "The HTML block was emitted into $HTML and needs to be finished by hand."
 echo
