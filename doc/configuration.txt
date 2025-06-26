@@ -2174,7 +2174,7 @@ cpu-policy <policy>
 
   The "cpu-policy" directive chooses between a small number of allocation
   policies which one to use instead, when "cpu-map" is not used. The following
-  policies are currently supported:
+  policies are currently supported, with "performance" being the default one:
 
    - none               no particular post-selection is performed. All enabled
                         CPUs will be usable, and if the number of threads is
@@ -2202,8 +2202,7 @@ cpu-policy <policy>
                         node with enabled CPUs will be used, and this number of
                         CPUs will be used as the number of threads. A single
                         thread group will be enabled with all of them, within
-                        the limit of 32 or 64 depending on the system. This is
-                        the default policy.
+                        the limit of 32 or 64 depending on the system.
 
    - group-by-2-ccx     same as "group-by-ccx" below but create a group every
                         two CCX. This can make sense on CPUs having many CCX of
@@ -2299,7 +2298,7 @@ cpu-policy <policy>
                         such as network handling is much more effective. On
                         development systems, these can also be used to run
                         auxiliary tools such as load generators and monitoring
-                        tools.
+                        tools. This is the default policy.
 
    - resource           this is like "group-by-cluster" above, except that only
                         the smallest and most efficient CPU cluster will be
@@ -2904,18 +2903,15 @@ no-quic
   processed by haproxy. See also "quic_enabled" sample fetch.
 
 numa-cpu-mapping
-  When running on a NUMA-aware platform with the cpu-policy is set to
-  "first-usable-node" (the default one), HAProxy inspects on startup the CPU
-  topology of the machine. If a multi-socket machine is detected, the affinity
-  is automatically calculated to run on the CPUs of a single node. This is done
-  in order to not suffer from the performance penalties caused by the
-  inter-socket bus latency. However, if the applied binding is non optimal on a
-  particular architecture, it can be disabled with the statement 'no
-  numa-cpu-mapping'. This automatic binding is also not applied if a nbthread
-  statement is present in the configuration, if the affinity of the process is
-  already specified, for example via the 'cpu-map' directive or the taskset
-  utility, or if the cpu-policy is set to any other value. See also "cpu-map",
-  "cpu-policy", "cpu-set".
+  When running on a NUMA-aware platform, this enables the "cpu-policy"
+  directive to inspect the topology and figure the best set of CPUs to use and
+  the corresponding number of threads. However, if the applied binding is non
+  optimal on a particular architecture, it can be disabled with the statement
+  'no numa-cpu-mapping'. This automatic binding is also not applied if a
+  'nbthread' statement is present in the configuration, if the affinity of the
+  process is already specified, for example via the 'cpu-map' directive or the
+  taskset utility, or if the cpu-policy is set to any other value. See also
+  "cpu-map", "cpu-policy", "cpu-set".
 
 ocsp-update.disable [ on | off ]
   Disable completely the ocsp-update in HAProxy. Any ocsp-update configuration

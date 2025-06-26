@@ -60,7 +60,7 @@ static int cpu_policy_resource(int policy, int tmin, int tmax, int gmin, int gma
 
 static struct ha_cpu_policy ha_cpu_policy[] = {
 	{ .name = "none",               .desc = "use all available CPUs",                           .fct = NULL   },
-	{ .name = "first-usable-node",  .desc = "use only first usable node if nbthreads not set",  .fct = cpu_policy_first_usable_node, .arg = 0 },
+	{ .name = "performance",        .desc = "make one thread group per perf. core cluster",     .fct = cpu_policy_performance      , .arg = 0 },
 	{ .name = "group-by-ccx",       .desc = "make one thread group per CCX",                    .fct = cpu_policy_group_by_ccx ,     .arg = 1 },
 	{ .name = "group-by-2-ccx",     .desc = "make one thread group per 2 CCX",                  .fct = cpu_policy_group_by_ccx ,     .arg = 2 },
 	{ .name = "group-by-3-ccx",     .desc = "make one thread group per 3 CCX",                  .fct = cpu_policy_group_by_ccx ,     .arg = 3 },
@@ -69,9 +69,9 @@ static struct ha_cpu_policy ha_cpu_policy[] = {
 	{ .name = "group-by-2-clusters",.desc = "make one thread group per 2 core clusters",        .fct = cpu_policy_group_by_cluster , .arg = 2 },
 	{ .name = "group-by-3-clusters",.desc = "make one thread group per 3 core clusters",        .fct = cpu_policy_group_by_cluster , .arg = 3 },
 	{ .name = "group-by-4-clusters",.desc = "make one thread group per 4 core clusters",        .fct = cpu_policy_group_by_cluster , .arg = 4 },
-	{ .name = "performance",        .desc = "make one thread group per perf. core cluster",     .fct = cpu_policy_performance      , .arg = 0 },
 	{ .name = "efficiency",         .desc = "make one thread group per eff. core cluster",      .fct = cpu_policy_efficiency       , .arg = 0 },
 	{ .name = "resource",           .desc = "make one thread group from the smallest cluster",  .fct = cpu_policy_resource         , .arg = 0 },
+	{ .name = "first-usable-node",  .desc = "use only first usable node if nbthreads not set",  .fct = cpu_policy_first_usable_node, .arg = 0 },
 	{ 0 } /* end */
 };
 
