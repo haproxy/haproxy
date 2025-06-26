@@ -1,6 +1,122 @@
 ChangeLog :
 ===========
 
+2025/06/26 : 3.3-dev2
+    - BUG/MINOR: config/server: reject QUIC addresses
+    - MINOR: server: implement helper to identify QUIC servers
+    - MINOR: server: mark QUIC support as experimental
+    - MINOR: mux-quic-be: allow QUIC proto on backend side
+    - MINOR: quic-be: Correct Version Information transp. param encoding
+    - MINOR: quic-be: Version Information transport parameter check
+    - MINOR: quic-be: Call ->prepare_srv() callback at parsing time
+    - MINOR: quic-be: QUIC backend XPRT and transport parameters init during parsing
+    - MINOR: quic-be: QUIC server xprt already set when preparing their CTXs
+    - MINOR: quic-be: Add a function for the TLS context allocations
+    - MINOR: quic-be: Correct the QUIC protocol lookup
+    - MINOR: quic-be: ssl_sock contexts allocation and misc adaptations
+    - MINOR: quic-be: SSL sessions initializations
+    - MINOR: quic-be: Add a function to initialize the QUIC client transport parameters
+    - MINOR: sock: Add protocol and socket types parameters to sock_create_server_socket()
+    - MINOR: quic-be: ->connect() protocol callback adaptations
+    - MINOR: quic-be: QUIC connection allocation adaptation (qc_new_conn())
+    - MINOR: quic-be: xprt ->init() adapatations
+    - MINOR: quic-be: add field for max_udp_payload_size into quic_conn
+    - MINOR: quic-be: Do not redispatch the datagrams
+    - MINOR: quic-be: Datagrams and packet parsing support
+    - MINOR: quic-be: Handshake packet number space discarding
+    - MINOR: h3-be: Correctly retrieve h3 counters
+    - MINOR: quic-be: Store asap the DCID
+    - MINOR: quic-be: Build post handshake frames
+    - MINOR: quic-be: Add the conn object to the server SSL context
+    - MINOR: quic-be: Initial packet number space discarding.
+    - MINOR: quic-be: I/O handler switch adaptation
+    - MINOR: quic-be: Store the remote transport parameters asap
+    - MINOR: quic-be: Missing callbacks initializations (USE_QUIC_OPENSSL_COMPAT)
+    - MINOR: quic-be: Make the secret derivation works for QUIC backends (USE_QUIC_OPENSSL_COMPAT)
+    - MINOR: quic-be: SSL_get_peer_quic_transport_params() not defined by OpenSSL 3.5 QUIC API
+    - MINOR: quic-be: get rid of ->li quic_conn member
+    - MINOR: quic-be: Prevent the MUX to send/receive data
+    - MINOR: quic: define proper proto on QUIC servers
+    - MEDIUM: quic-be: initialize MUX on handshake completion
+    - BUG/MINOR: hlua: Don't forget the return statement after a hlua_yieldk()
+    - BUILD: hlua: Fix warnings about uninitialized variables
+    - BUILD: listener: fix 'for' loop inline variable declaration
+    - BUILD: hlua: Fix warnings about uninitialized variables (2)
+    - BUG/MEDIUM: mux-quic: adjust wakeup behavior
+    - MEDIUM: backend: delay MUX init with ALPN even if proto is forced
+    - MINOR: quic: mark ctrl layer as ready on quic_connect_server()
+    - MINOR: mux-quic: improve documentation for snd/rcv app-ops
+    - MINOR: mux-quic: define flag for backend side
+    - MINOR: mux-quic: set expect data only on frontend side
+    - MINOR: mux-quic: instantiate first stream on backend side
+    - MINOR: quic: wakeup backend MUX on handshake completed
+    - MINOR: hq-interop: decode response into HTX for backend side support
+    - MINOR: hq-interop: encode request from HTX for backend side support
+    - CLEANUP: quic-be: Add comments about qc_new_conn() usage
+    - BUG/MINOR: quic-be: CID double free upon qc_new_conn() failures
+    - MINOR: quic-be: Avoid SSL context unreachable code without USE_QUIC_OPENSSL_COMPAT
+    - BUG/MINOR: quic: prevent crash on startup with -dt
+    - MINOR: server: reject QUIC servers without explicit SSL
+    - BUG/MINOR: quic: work around NEW_TOKEN parsing error on backend side
+    - BUG/MINOR: http-ana: Properly handle keep-query redirect option if no QS
+    - BUG/MINOR: quic: don't restrict reception on backend privileged ports
+    - MINOR: hq-interop: handle HTX response forward if not enough space
+    - BUG/MINOR: quic: Fix OSSL_FUNC_SSL_QUIC_TLS_got_transport_params_fn callback (OpenSSL3.5)
+    - BUG/MINOR: quic: fix ODCID initialization on frontend side
+    - BUG/MEDIUM: cli: Don't consume data if outbuf is full or not available
+    - MINOR: cli: handle EOS/ERROR first
+    - BUG/MEDIUM: check: Set SOCKERR by default when a connection error is reported
+    - BUG/MINOR: mux-quic: check sc_attach_mux return value
+    - MINOR: h3: support basic HTX start-line conversion into HTTP/3 request
+    - MINOR: h3: encode request headers
+    - MINOR: h3: complete HTTP/3 request method encoding
+    - MINOR: h3: complete HTTP/3 request scheme encoding
+    - MINOR: h3: adjust path request encoding
+    - MINOR: h3: adjust auth request encoding or fallback to host
+    - MINOR: h3: prepare support for response parsing
+    - MINOR: h3: convert HTTP/3 response into HTX for backend side support
+    - MINOR: h3: complete response status transcoding
+    - MINOR: h3: transcode H3 response headers into HTX blocks
+    - MINOR: h3: use BUG_ON() on missing request start-line
+    - MINOR: h3: reject invalid :status in response
+    - DOC: config: prefer-last-server: add notes for non-deterministic algorithms
+    - CLEANUP: connection: remove unused mux-ops dedicated to QUIC
+    - BUG/MINOR: mux-quic/h3: properly handle too low peer fctl initial stream
+    - MINOR: mux-quic: support max bidi streams value set by the peer
+    - MINOR: mux-quic: abort conn if cannot create stream due to fctl
+    - MEDIUM: mux-quic: implement attach for new streams on backend side
+    - BUG/MAJOR: fwlc: Count an avoided server as unusable.
+    - MINOR: fwlc: Factorize code.
+    - BUG/MEDIUM: quic: do not release BE quic-conn prior to upper conn
+    - MAJOR: cfgparse: turn the same proxy name warning to an error
+    - MAJOR: cfgparse: make sure server names are unique within a backend
+    - BUG/MINOR: tools: only reset argument start upon new argument
+    - BUG/MINOR: stream: Avoid recursive evaluation for unique-id based on itself
+    - BUG/MINOR: log: Be able to use %ID alias at anytime of the stream's evaluation
+    - MINOR: hlua: emit a log instead of an alert for aborted actions due to unavailable yield
+    - MAJOR: mailers: remove native mailers support
+    - BUG/MEDIUM: ssl/clienthello: ECDSA with ssl-max-ver TLSv1.2 and no ECDSA ciphers
+    - DOC: configuration: add details on prefer-client-ciphers
+    - MINOR: ssl: Add "renegotiate" server option
+    - DOC: remove the program section from the documentation
+    - MAJOR: mworker: remove program section support
+    - BUG/MINOR: quic: wrong QUIC_FT_CONNECTION_CLOSE(0x1c) frame encoding
+    - MINOR: quic-be: add a "CC connection" backend TX buffer pool
+    - MINOR: quic: Useless TX buffer size reduction in closing state
+    - MINOR: quic-be: Allow sending 1200 bytes Initial datagrams
+    - MINOR: quic-be: address validation support implementation (RETRY)
+    - MEDIUM: proxy: deprecate the "transparent" and "option transparent" directives
+    - REGTESTS: update http_reuse_be_transparent with "transparent" deprecated
+    - REGTESTS: script: also add a line pointing to the log file
+    - DOC: config: explain how to deal with "transparent" deprecation
+    - MEDIUM: proxy: mark the "dispatch" directive as deprecated
+    - DOC: config: crt-list clarify default cert + cert-bundle
+    - MEDIUM: cpu-topo: switch to the "performance" cpu-policy by default
+    - SCRIPTS: drop the HTML generation from announce-release
+    - BUG/MINOR: tools: use my_unsetenv instead of unsetenv
+    - CLEANUP: startup: move comment about nbthread where it's more appropriate
+    - BUILD: qpack: fix a build issue on older compilers
+
 2025/06/11 : 3.3-dev1
     - BUILD: tools: properly define ha_dump_backtrace() to avoid a build warning
     - DOC: config: Fix a typo in 2.7 (Name format for maps and ACLs)
