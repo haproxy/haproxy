@@ -11211,8 +11211,8 @@ option tcplog [clf]
   See also :  "option httplog", and section 8 about logging.
 
 
-option transparent
-no option transparent
+option transparent        (deprecated)
+no option transparent     (deprecated)
   Enable client-side transparent proxying
 
   May be used in the following contexts: tcp, http
@@ -11233,6 +11233,19 @@ no option transparent
 
   Note that contrary to a common belief, this option does NOT make HAProxy
   present the client's IP to the server when establishing the connection.
+
+  As of 3.3, this option is now deprecated because it used to suffer from a
+  number of internal technical limitations. Using it will emit a warning, which
+  can be avoided if really needed via the "expose-deprecated-directives" global
+  keyword.
+
+  The correct approach is to declare a server on address 0.0.0.0, which will
+  take care of connecting to the expected destination address. A server will
+  also properly handle idle connections to the target servers.
+
+  Example:
+       # option transparent  ## before 3.3
+       server transparent 0.0.0.0
 
   See also: the "usesrc" argument of the "source" keyword, and the
             "transparent" option of the "bind" keyword.
