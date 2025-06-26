@@ -364,6 +364,11 @@ void clock_adjust_now_offset(void)
 	HA_ATOMIC_STORE(&now_offset, now_ns - tv_to_ns(&date));
 }
 
+void clock_set_now_offset(llong ofs)
+{
+	HA_ATOMIC_STORE(&now_offset, ofs);
+}
+
 /* must be called once per thread to initialize their thread-local variables.
  * Note that other threads might also be initializing and running in parallel.
  */
