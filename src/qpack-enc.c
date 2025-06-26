@@ -136,6 +136,7 @@ int qpack_encode_int_status(struct buffer *out, unsigned int status)
 int qpack_encode_method(struct buffer *out, enum http_meth_t meth, struct ist other)
 {
 	int sz, idx = 0;
+	size_t i;
 
 	switch (meth) {
 	case HTTP_METH_CONNECT: idx = 15; break;
@@ -165,7 +166,7 @@ int qpack_encode_method(struct buffer *out, enum http_meth_t meth, struct ist ot
 		/* literal field line with name ref */
 		qpack_encode_prefix_integer(out, 15, 4, 0x50);
 		qpack_encode_prefix_integer(out, istlen(other), 7, 0);
-		for (size_t i = 0; i < istlen(other); ++i)
+		for (i = 0; i < istlen(other); ++i)
 			b_putchr(out, istptr(other)[i]);
 	}
 
@@ -175,6 +176,7 @@ int qpack_encode_method(struct buffer *out, enum http_meth_t meth, struct ist ot
 /* Returns 0 on success else non-zero. */
 int qpack_encode_scheme(struct buffer *out, const struct ist scheme)
 {
+	size_t i;
 	int sz;
 
 	if (unlikely(!isteq(scheme, ist("https"))) && !isteq(scheme, ist("http"))) {
@@ -185,7 +187,7 @@ int qpack_encode_scheme(struct buffer *out, const struct ist scheme)
 		/* literal field line with name ref */
 		qpack_encode_prefix_integer(out, 23, 4, 0x50);
 		qpack_encode_prefix_integer(out, istlen(scheme), 7, 0);
-		for (size_t i = 0; i < istlen(scheme); ++i)
+		for (i = 0; i < istlen(scheme); ++i)
 			b_putchr(out, istptr(scheme)[i]);
 	}
 	else {
@@ -206,7 +208,7 @@ int qpack_encode_scheme(struct buffer *out, const struct ist scheme)
 /* Returns 0 on success else non-zero. */
 int qpack_encode_path(struct buffer *out, const struct ist path)
 {
-	size_t sz;
+	size_t sz, i;
 
 	if (unlikely(isteq(path, ist("/")))) {
 		if (!b_room(out))
@@ -222,7 +224,7 @@ int qpack_encode_path(struct buffer *out, const struct ist path)
 
 		qpack_encode_prefix_integer(out, 1, 4, 0x50);
 		qpack_encode_prefix_integer(out, istlen(path), 7, 0);
-		for (size_t i = 0; i < istlen(path); ++i)
+		for (i = 0; i < istlen(path); ++i)
 			b_putchr(out, istptr(path)[i]);
 		return 0;
 	}
@@ -234,7 +236,7 @@ int qpack_encode_path(struct buffer *out, const struct ist path)
  */
 int qpack_encode_auth(struct buffer *out, const struct ist auth)
 {
-	size_t sz;
+	size_t sz, i;
 
 	sz = 1 + qpack_get_prefix_int_size(istlen(auth), 7) + istlen(auth);
 	if (b_room(out) < sz)
@@ -242,7 +244,7 @@ int qpack_encode_auth(struct buffer *out, const struct ist auth)
 
 	qpack_encode_prefix_integer(out, 0, 4, 0x50);
 	qpack_encode_prefix_integer(out, istlen(auth), 7, 0);
-	for (size_t i = 0; i < istlen(auth); ++i)
+	for (i = 0; i < istlen(auth); ++i)
 		b_putchr(out, istptr(auth)[i]);
 	return 0;
 }
