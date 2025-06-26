@@ -29,7 +29,8 @@
 struct timeval                   start_date;      /* the process's start date in wall-clock time */
 struct timeval                   ready_date;      /* date when the process was considered ready */
 ullong                           start_time_ns;   /* the process's start date in internal monotonic time (ns) */
-volatile ullong                  global_now_ns;   /* common monotonic date between all threads, in ns (wraps every 585 yr) */
+volatile ullong                  _global_now_ns;   /* locally stored common monotonic date between all threads, in ns (wraps every 585 yr) */
+volatile ullong			*global_now_ns;    /* common monotonic date, may point to _global_now_ns or shared memory */
 volatile uint                    _global_now_ms;   /* locally stored common monotonic date in milliseconds (may wrap) */
 volatile uint			*global_now_ms;    /* common monotonic date in milliseconds (may wrap), may point to _global_now_ms or shared memory */
 
@@ -239,7 +240,7 @@ void clock_update_local_date(int max_wait, int interrupted)
 			now_ns += ms_to_ns(max_wait);
 
 		/* consider the most recent known date */
-		now_ns = MAX(now_ns, HA_ATOMIC_LOAD(&global_now_ns));
+		now_ns = MAX(now_ns, HA_ATOMIC_LOAD(global_now_ns));
 
 		/* this event is rare, but it requires proper handling because if
 		 * we just left now_ns where it was, the date will not be updated
@@ -270,7 +271,7 @@ void clock_update_global_date()
 	 * realistic regarding the global date, which only moves forward,
 	 * otherwise catch up.
 	 */
-	old_now_ns = _HA_ATOMIC_LOAD(&global_now_ns);
+	old_now_ns = _HA_ATOMIC_LOAD(global_now_ns);
 	old_now_ms = _HA_ATOMIC_LOAD(global_now_ms);
 
 	do {
@@ -300,7 +301,7 @@ void clock_update_global_date()
 		/* let's try to update the global_now_ns (both in nanoseconds
 		 * and ms forms) or loop again.
 		 */
-	} while ((!_HA_ATOMIC_CAS(&global_now_ns, &old_now_ns, now_ns) ||
+	} while ((!_HA_ATOMIC_CAS(global_now_ns, &old_now_ns, now_ns) ||
 		  (now_ms  != old_now_ms && !_HA_ATOMIC_CAS(global_now_ms, &old_now_ms, now_ms))) &&
 		 __ha_cpu_relax());
 
@@ -323,10 +324,10 @@ void clock_init_process_date(void)
 	th_ctx->prev_mono_time = th_ctx->curr_mono_time = before_poll_mono_ns;
 	gettimeofday(&date, NULL);
 	after_poll = before_poll = date;
-	global_now_ns = th_ctx->curr_mono_time;
-	if (!global_now_ns) // CLOCK_MONOTONIC not supported
-		global_now_ns = tv_to_ns(&date);
-	now_ns = global_now_ns;
+	_global_now_ns = th_ctx->curr_mono_time;
+	if (!_global_now_ns) // CLOCK_MONOTONIC not supported
+		_global_now_ns = tv_to_ns(&date);
+	now_ns = _global_now_ns;
 
 	_global_now_ms = ns_to_ms(now_ns);
 
@@ -337,8 +338,8 @@ void clock_init_process_date(void)
 	 * match and continue from this shifted date.
 	 */
 	now_offset = sec_to_ns((uint)((uint)(-_global_now_ms) / 1000U - BOOT_TIME_WRAP_SEC));
-	global_now_ns += now_offset;
-	now_ns = global_now_ns;
+	_global_now_ns += now_offset;
+	now_ns = _global_now_ns;
 	now_ms = ns_to_ms(now_ns);
 	/* correct for TICK_ETNERITY (0) */
 	if (now_ms == TICK_ETERNITY)
@@ -347,6 +348,8 @@ void clock_init_process_date(void)
 
 	/* for now global_now_ms points to the process-local _global_now_ms */
 	global_now_ms = &_global_now_ms;
+	/* same goes for global_ns_ns */
+	global_now_ns = &_global_now_ns;
 
 	th_ctx->idle_pct = 100;
 	clock_update_date(0, 1);
@@ -369,7 +372,7 @@ void clock_init_thread_date(void)
 	gettimeofday(&date, NULL);
 	after_poll = before_poll = date;
 
-	now_ns = _HA_ATOMIC_LOAD(&global_now_ns);
+	now_ns = _HA_ATOMIC_LOAD(global_now_ns);
 	th_ctx->idle_pct = 100;
 	th_ctx->prev_cpu_time  = now_cpu_time();
 	th_ctx->prev_mono_time = now_mono_time();
