@@ -5578,7 +5578,7 @@ option tcp-smart-accept              (*)  X          X         X         -
 option tcp-smart-connect             (*)  X          -         X         X
 option tcpka                              X          X         X         X
 option tcplog                             X          X         X         -
-option transparent                   (*)  X          -         X         X
+option transparent      (deprecated) (*)  X          -         X         X
 option idle-close-on-response        (*)  X          X         X         -
 external-check command                    X          -         X         X
 external-check path                       X          -         X         X

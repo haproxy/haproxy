@@ -2054,8 +2054,19 @@ stats_error_parsing:
 		/* try to match option within cfg_opts */
 		if (cfg_parse_listen_match_option(file, linenum, kwm, cfg_opts, &err_code, args,
 		                                  PR_MODES, PR_CAP_NONE,
-		                                  &curproxy->options, &curproxy->no_options))
+		                                  &curproxy->options, &curproxy->no_options)) {
+			if (strcmp(args[1], "transparent") == 0) {
+				if (!deprecated_directives_allowed) {
+					ha_warning("parsing [%s:%d]: option '%s' is deprecated in 3.3 and will be removed in 3.5. "
+					           "The modern way to do the same is to create a server with address 0.0.0.0. It is "
+					           "still possible to silence this warning by setting 'expose-deprecated-directives' "
+					           "in the 'global' section, but do not wait to fix your configuration!\n",
+					           file, linenum, args[1]);
+					err_code |= ERR_WARN;
+				}
+			}
 			goto out;
+		}
 		if (err_code & ERR_CODE)
 			goto out;
 
@@ -2574,6 +2585,14 @@ stats_error_parsing:
 		curproxy->options |= PR_O_TRANSP;
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
+		if (!deprecated_directives_allowed) {
+			ha_warning("parsing [%s:%d]: '%s' is deprecated in 3.3 and will be removed in 3.5. "
+			           "The modern way to do the same is to create a server with address 0.0.0.0. It is "
+			           "still possible to silence this warning by setting 'expose-deprecated-directives' "
+			           "in the 'global' section, but do not wait to fix your configuration!\n",
+			           file, linenum, args[0]);
+			err_code |= ERR_WARN;
+		}
 	}
 #endif
 	else if (strcmp(args[0], "maxconn") == 0) {  /* maxconn */
