@@ -16583,6 +16583,10 @@ crt-list <file>
     configuration, the default certificates could be explicited (with a '*'
     filter) at the beginning of the list, so an implicit default is not added
     before.
+    Due to multi-cert bundles being duplicated for each algorithm in the
+    crt-list, only one algorithm will occupy the first line in the crt-list and
+    be considered as default. Either specify the entire bundle as default by
+    declaring '*' as the filter or setting it on the bind line.
 
     The "show ssl sni" command on the stats socket could be used to debug your
     configuration. (See "show ssl sni" in the management guide)
