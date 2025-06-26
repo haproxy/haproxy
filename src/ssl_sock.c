@@ -6032,6 +6032,44 @@ static int ssl_remove_xprt(struct connection *conn, void *xprt_ctx, void *toremo
 }
 
 #ifdef HA_USE_KTLS
+#if defined(OPENSSL_IS_AWSLC) && AWSLC_API_VERSION >= 34 & !defined(HA_DISABLE_AWSLC_TLS13)
+static int ssl_sock_hkdf_expand_label(struct ssl_sock_ctx *ctx, uint8_t *secret, size_t secret_len, uint8_t *label, size_t label_len, uint8_t *out, size_t out_len)
+{
+	SSL *ssl = ctx->ssl;
+	/* 2 for length, 1 for the string length, label_len + 6 ("tls13 ") + 1 for the empty context string. */
+	int buf_len = 2 + 1 + label_len + 6 + 1;
+	/*
+	 * As we only labels we use are "salt" or "key", consider label_len
+	 * can only be 4 max.
+	 */
+	unsigned char buf[2 + 1 + 4 + 6 + 1];
+	const EVP_MD *digest;
+	uint16_t len = htons(out_len);
+
+	digest = SSL_CIPHER_get_handshake_digest(SSL_get_current_cipher(ssl));
+
+	BUG_ON(label_len > 4);
+	if (digest == NULL)
+		return -1;
+	/*
+	 * The label looks like :
+	 * 2 bytes for the length (in big engian)
+	 * 1 byte for the label length, and then the string
+	 * 1 byte for the context length, and then the context (we have no
+	 * context so it will always be 0
+	 */
+	memcpy(buf, &len, sizeof(len));
+	len = label_len + 6;
+	memcpy(&buf[2], &len, 1);
+	memcpy(&buf[3], "tls13 ", 6);
+	memcpy(&buf[9], label, label_len);
+	len = 0;
+	memcpy(&buf[9 + label_len], &len, 1);
+
+	return (HKDF_expand(out, out_len, digest, secret, secret_len, buf, buf_len) == 1 ? 0 : - 1);
+}
+#endif
+
 #if defined(OPENSSL_IS_AWSLC) || defined(OPENSSL_IS_BORINGSSL)
 static void ssl_sock_setup_ktls(struct ssl_sock_ctx *ctx)
 {
@@ -6093,6 +6131,20 @@ static void ssl_sock_setup_ktls(struct ssl_sock_ctx *ctx)
 		case TLS_1_2_VERSION:
 			is_tls_12 = 1;
 			break;
+#if defined(OPENSSL_IS_AWSLC) && AWSLC_API_VERSION >= 34 & !defined(HA_DISABLE_AWSLC_TLS13)
+		/*
+		 * For now only AWS-LC >= 1.54 supports the API to export
+		 * TLS 1.3 secrets.
+		 * Unfortunately, AWSLC_API_VERSION hasn't been bumped when
+		 * those were added, so use the latest one. It will match
+		 * AWS-LC 1.52 and 1.53 too, but there's not much we
+		 * can do about it, one can define HA_DISABLE_AWSLC_TLS13
+		 * to build with AWS-LC 1.52 or 1.53.
+		 */
+		case TLS_1_3_VERSION:
+			is_tls_12 = 0;
+			break;
+#endif
 		default:
 			ctx->flags &= ~SSL_SOCK_F_KTLS_ENABLED;
 			return;
@@ -6213,6 +6265,88 @@ static void ssl_sock_setup_ktls(struct ssl_sock_ctx *ctx)
 			goto out;
 		}
 		ctx->flags |= SSL_SOCK_F_KTLS_SEND | SSL_SOCK_F_KTLS_RECV;
+	} else {
+#if defined(OPENSSL_IS_AWSLC) && AWSLC_API_VERSION >= 34 & !defined(HA_DISABLE_AWSLC_TLS13)
+		unsigned char iv[12];
+		size_t len;
+
+		/*
+		 * 12 is the maximum size for iv + salt currently supported
+		 * in Linux, if a new cipher is added that expands that,
+		 * then the buffer should be expanded.
+		 */
+		BUG_ON(iv_size + salt_size > sizeof(iv));
+		if (SSL_get_read_traffic_secret(ctx->ssl, NULL, &len) != 1) {
+			ctx->flags &= ~SSL_SOCK_F_KTLS_ENABLED;
+			goto out;
+		}
+		/*
+		 * We may have to increase buf size if a new cipher is
+		 * added and its secret size is too big.
+		 */
+		BUG_ON(len > sizeof(buf));
+
+		if (SSL_get_read_traffic_secret(ctx->ssl, buf, &len) != 1) {
+			ctx->flags &= ~SSL_SOCK_F_KTLS_ENABLED;
+			goto out;
+		}
+
+		if (ssl_sock_hkdf_expand_label(ctx, buf, len, (unsigned char *)"key", 3, &info.buf[iv_size], key_size) != 0) {
+			ctx->flags &= ~SSL_SOCK_F_KTLS_ENABLED;
+			goto out;
+		}
+		if (ssl_sock_hkdf_expand_label(ctx, buf, len, (unsigned char *)"iv", 2, iv, iv_size + salt_size) != 0) {
+			ctx->flags &= ~SSL_SOCK_F_KTLS_ENABLED;
+			goto out;
+		}
+		/*
+		 * iv contains both what should go to "iv" and "salt",
+		 * salt first, then iv.
+		 */
+		memcpy(&info.buf[0], iv + salt_size, iv_size);
+		memcpy(&info.buf[iv_size + key_size], iv, salt_size);
+		seq = SSL_get_read_sequence(ssl);
+		seq = my_htonll(seq);
+		memcpy(&info.buf[iv_size + key_size + salt_size], &seq, seq_size);
+		if (ktls_set_key(ctx, &info, info_size, 0) != 0) {
+			ctx->flags &= ~SSL_SOCK_F_KTLS_ENABLED;
+			goto out;
+		}
+		if (SSL_get_write_traffic_secret(ctx->ssl, NULL, &len) != 1) {
+			ctx->flags &= ~SSL_SOCK_F_KTLS_ENABLED;
+			goto out;
+		}
+		BUG_ON(len > sizeof(buf));
+
+		if (SSL_get_write_traffic_secret(ctx->ssl, buf, &len) != 1) {
+			ctx->flags &= ~SSL_SOCK_F_KTLS_ENABLED;
+			goto out;
+		}
+
+		if (ssl_sock_hkdf_expand_label(ctx, buf, len, (unsigned char *)"key", 3, &info.buf[iv_size], key_size) != 0) {
+			ctx->flags &= ~SSL_SOCK_F_KTLS_ENABLED;
+			goto out;
+		}
+		if (ssl_sock_hkdf_expand_label(ctx, buf, len, (unsigned char *)"iv", 2, iv, iv_size + salt_size) != 0) {
+			ctx->flags &= ~SSL_SOCK_F_KTLS_ENABLED;
+			goto out;
+		}
+		/*
+		 * iv contains both what should go to "iv" and "salt",
+		 * salt first, then iv.
+		 */
+		memcpy(&info.buf[0], iv + salt_size, iv_size);
+		memcpy(&info.buf[iv_size + key_size], iv, salt_size);
+		seq = SSL_get_write_sequence(ssl);
+		seq = my_htonll(seq);
+		memcpy(&info.buf[iv_size + key_size + salt_size], &seq, seq_size);
+		if (ktls_set_key(ctx, &info, info_size, 1) != 0) {
+			ctx->flags &= ~SSL_SOCK_F_KTLS_ENABLED;
+			goto out;
+		}
+		ctx->flags |= SSL_SOCK_F_KTLS_RECV | SSL_SOCK_F_KTLS_SEND;
+#endif
+
 	}
 out:
 	return;
