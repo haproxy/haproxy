@@ -364,6 +364,10 @@ local function srv_event_add(event, data)
 	mailers_track_server_events(data.reference)
 end
 
+-- tell haproxy that we do use the legacy native "mailers" config section
+-- which allows us to retrieve mailers configuration using Proxy:get_mailers()
+core.use_native_mailers_config()
+
 -- event subscriptions are purposely performed in an init function to prevent
 -- email alerts from being generated too early (when process is starting up)
 core.register_init(function()

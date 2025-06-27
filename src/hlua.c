@@ -86,6 +86,8 @@ static uint hlua_log_opts = HLUA_LOG_LOGGERS_ON | HLUA_LOG_STDERR_AUTO;
 
 /* set to 1 once some lua was loaded already */
 static uint8_t hlua_loaded = 0;
+/* set to 1 during body evaluation (very early lua file loading), then 0 */
+static uint8_t hlua_body = 1;
 
 #define HLUA_BOOL_SAMPLE_CONVERSION_UNK     0x0
 #define HLUA_BOOL_SAMPLE_CONVERSION_NORMAL  0x1
@@ -2382,6 +2384,20 @@ __LJMP static int hlua_core_get_var(lua_State *L)
 	}
 
 	return MAY_LJMP(hlua_smp2lua(L, &smp));
+}
+
+/* This function informs haproxy that native mailers config section is
+ * actually being used from Lua.
+ *
+ * It may not be used outside of body context.
+ */
+__LJMP static int hlua_use_native_mailers_config(lua_State *L)
+{
+	if (!hlua_body)
+		WILL_LJMP(luaL_error(L, "use_native_mailers_config: "
+	        "not available outside of body context"));
+	mailers_used_from_lua = 1;
+	return 0;
 }
 
 /* A class is a lot of memory that contain data. This data can be a table,
@@ -13811,6 +13827,8 @@ int hlua_post_init()
 	struct hlua_function *fcn;
 	struct hlua_reg_filter *reg_flt;
 
+	hlua_body = 0;
+
 #if defined(USE_OPENSSL)
 	/* Initialize SSL server. */
 	if (socket_ssl->xprt->prepare_srv) {
@@ -14108,6 +14126,7 @@ lua_State *hlua_init_state(int thread_num)
 	hlua_class_function(L, "Warning", hlua_log_warning);
 	hlua_class_function(L, "Alert", hlua_log_alert);
 	hlua_class_function(L, "done", hlua_done);
+	hlua_class_function(L, "use_native_mailers_config", hlua_use_native_mailers_config);
 	hlua_fcn_reg_core_fcn(L);
 
 	lua_setglobal(L, "core");

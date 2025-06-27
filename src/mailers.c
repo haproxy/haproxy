@@ -23,6 +23,7 @@
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 
+int mailers_used_from_lua = 0;
 
 struct mailers *mailers = NULL;
 
@@ -48,3 +49,19 @@ void free_email_alert(struct proxy *p)
 	ha_free(&p->email_alert.to);
 	ha_free(&p->email_alert.myhostname);
 }
+
+static int mailers_post_check(void)
+{
+	struct mailers *cur;
+
+	for (cur = mailers; cur != NULL; cur = cur->next) {
+		if (cur->users && !mailers_used_from_lua) {
+			ha_warning("mailers '%s' is referenced on at least one proxy but Lua "
+			           "mailers are not configured so the setting will be ignored. "
+			           "Use 'examples/lua/mailers.lua' file for basic mailers support.\n", cur->id);
+			return ERR_WARN;
+		}
+	}
+	return ERR_NONE;
+}
+REGISTER_POST_CHECK(mailers_post_check);

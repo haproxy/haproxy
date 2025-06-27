@@ -31,6 +31,7 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 
+extern int mailers_used_from_lua;
 extern struct mailers *mailers;
 
 int init_email_alert(struct mailers *mailers, struct proxy *p, char **err);
