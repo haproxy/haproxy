@@ -3398,6 +3398,14 @@ static int _srv_check_proxy_mode(struct server *srv, char postparse)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}
+
+	if (srv->proxy->mode != PR_MODE_TCP && srv->proxy->mode != PR_MODE_HTTP &&
+	    srv->pp_opts) {
+		srv->pp_opts = 0;
+		ha_warning("'send-proxy*' server option is unsupported there, ignoring it\n");
+		err_code |= ERR_WARN;
+	}
+
  out:
 	if (srv->conf.file)
 		reset_usermsgs_ctx();

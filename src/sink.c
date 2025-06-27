@@ -1092,16 +1092,6 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 
 		if (err_code & ERR_CODE)
 			goto err;
-
-		/* FIXME: ideally this check should be performed during server postparsing
-		 * for all proxies where this option is unsupported, but for now we lack
-		 * server postparsing rules for sinks so let's put that here
-		 */
-		if (cfg_sink->forward_px->srv && cfg_sink->forward_px->srv->pp_opts) {
-			cfg_sink->forward_px->srv->pp_opts = 0;
-			ha_warning("parsing [%s:%d] : 'send-proxy*' server option is unsupported there, ignoring it\n", file, linenum);
-			err_code |= ERR_WARN;
-		}
 	}
 	else if (strcmp(args[0],"timeout") == 0) {
 		if (!cfg_sink || !cfg_sink->forward_px) {
