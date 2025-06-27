@@ -400,6 +400,7 @@ static int cli_parse_show_events(char **args, char *payload, struct appctx *appc
 /* Pre-configures a ring proxy to emit connections */
 void sink_setup_proxy(struct proxy *px)
 {
+	px->mode = PR_MODE_SYSLOG;
 	px->maxconn = 0;
 	px->conn_retries = 1; /* FIXME ignored since 91e785ed
 	                       * ("MINOR: stream: Rely on a per-stream max connection retries value")
