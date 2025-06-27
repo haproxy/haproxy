@@ -3680,14 +3680,6 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 	}
 
 	free(fqdn);
-	if (!(curproxy->cap & PR_CAP_LB)) {
-		/* No need to wait for effective proxy mode, it is already known:
-		 * Only general purpose user-declared proxies ("listen", "frontend", "backend")
-		 * offer the possibility to configure the mode of the proxy. Hopefully for us,
-		 * they have the PR_CAP_LB set.
-		 */
-		return _srv_check_proxy_mode(newsrv, 0);
-	}
 	return 0;
 
 out:
@@ -3844,6 +3836,15 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 		}
 	}
 #endif
+
+	if (!(srv->proxy->cap & PR_CAP_LB)) {
+		/* No need to wait for effective proxy mode, it is already known:
+		 * Only general purpose user-declared proxies ("listen", "frontend", "backend")
+		 * offer the possibility to configure the mode of the proxy. Hopefully for us,
+		 * they have the PR_CAP_LB set.
+		 */
+		return _srv_check_proxy_mode(srv, 0);
+	}
 
 	srv_lb_commit_status(srv);
 
