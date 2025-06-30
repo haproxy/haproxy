@@ -15,6 +15,10 @@ server s1 -repeat 84 {
 
 haproxy h1 -conf {
    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
       # forced to 1 here, because there is a cached session per thread
       nbthread 1
 

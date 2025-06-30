@@ -42,6 +42,11 @@ server s1 {
 } -start
 
 haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         timeout client 30s
         timeout server 30s

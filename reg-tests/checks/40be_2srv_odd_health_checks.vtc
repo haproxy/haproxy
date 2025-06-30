@@ -238,6 +238,11 @@ server s37 {} -start
 server s39 {} -start
 
 haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
         timeout server "${HAPROXY_TEST_TIMEOUT-5s}"

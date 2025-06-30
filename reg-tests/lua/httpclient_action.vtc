@@ -12,6 +12,10 @@ feature ignore_unknown_macro
 haproxy h1 -conf {
 
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
         tune.lua.bool-sample-conversion normal
         lua-load ${testdir}/httpclient_action.lua
     defaults

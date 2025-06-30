@@ -25,13 +25,17 @@ syslog Slog -level info -repeat 100 {
 } -start
 
 haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+        tune.lua.bool-sample-conversion normal
+        lua-load ${testdir}/close_wait_lf.lua
+
     defaults
         timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
-
-    global
-        tune.lua.bool-sample-conversion normal
-        lua-load ${testdir}/close_wait_lf.lua
 
     frontend frt
         log ${Slog_addr}:${Slog_port} local0 debug err

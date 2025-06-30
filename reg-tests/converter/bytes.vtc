@@ -11,6 +11,11 @@ server s1 {
 } -repeat 1 -start
 
 haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
 	defaults
 		mode http
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -98,6 +103,11 @@ client c1 -connect ${h1_fe_sock} {
 # TEST - 2
 # negative starting index causes startup failure
 haproxy h2 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
 	defaults
 		mode http
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -118,6 +128,11 @@ haproxy h2 -conf {
 # TEST - 3
 # negative length causes startup failure
 haproxy h3 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
 	defaults
 		mode http
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -138,6 +153,11 @@ haproxy h3 -conf {
 # TEST - 4
 # 0 length causes startup failure
 haproxy h4 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
 	defaults
 		mode http
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"

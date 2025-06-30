@@ -13,6 +13,10 @@ server s2 {
 
 haproxy h1 -conf {
 global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     # this is needed since 3.3, and this test will be removed in 3.5.
     expose-deprecated-directives
 

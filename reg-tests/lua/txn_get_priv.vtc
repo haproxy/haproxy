@@ -6,6 +6,10 @@ feature ignore_unknown_macro
 
 haproxy h1 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
         tune.lua.bool-sample-conversion normal
         lua-load ${testdir}/txn_get_priv.lua
         lua-load ${testdir}/txn_get_priv-print_r.lua

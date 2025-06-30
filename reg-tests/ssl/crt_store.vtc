@@ -11,6 +11,11 @@ feature ignore_unknown_macro
 
 
 haproxy h1 -arg -V -conf-OK {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     crt-store
        load crt "${testdir}/common.crt" key "${testdir}/common.key"
 

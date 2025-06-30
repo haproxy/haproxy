@@ -18,6 +18,10 @@ server s1 -repeat 3 {
 
 haproxy h1 -conf {
 	global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
 		stats socket "${tmpdir}/h1/stats" level admin
 
 	defaults

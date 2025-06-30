@@ -3,6 +3,11 @@ varnishtest "Check that generic TLV IDs are sent properly"
 feature ignore_unknown_macro
 
 haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         mode http
         log global
@@ -42,6 +47,11 @@ client c1 -connect ${h1_feS_sock} {
 
 # Ensure that we achieve the same via a default-server.
 haproxy h2 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         mode http
         log global

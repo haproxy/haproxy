@@ -15,6 +15,11 @@ server s1 {
 
 
 haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         mode tcp
         timeout client "${HAPROXY_TEST_TIMEOUT-5s}"

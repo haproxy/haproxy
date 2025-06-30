@@ -10,6 +10,10 @@ server s1 {
 
 haproxy h_edge -conf {
 global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
 	expose-experimental-directives
 
 defaults
@@ -33,6 +37,10 @@ backend be-reverse
 
 haproxy h_dev -conf {
 global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
 	expose-experimental-directives
 
 defaults

@@ -22,6 +22,10 @@ syslog S1 -level info {
 
 haproxy h1 -Ws -S -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
 	log ${S1_addr}:${S1_port} local0 info
 
     defaults

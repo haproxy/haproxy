@@ -35,6 +35,10 @@ syslog Slog {
 
 haproxy h1 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
         tune.lua.bool-sample-conversion normal
         lua-load ${testdir}/bad_http_clt_req_duration.lua
 

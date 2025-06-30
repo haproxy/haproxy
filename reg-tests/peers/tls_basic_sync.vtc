@@ -5,6 +5,11 @@ feature ignore_unknown_macro
 #REGTEST_TYPE=slow
 
 haproxy h1 -arg "-L A" -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -29,6 +34,11 @@ haproxy h1 -arg "-L A" -conf {
 }
 
 haproxy h2 -arg "-L B" -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         mode http
         timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -53,6 +63,11 @@ haproxy h2 -arg "-L B" -conf {
 }
 
 haproxy h3 -arg "-L C" -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         mode http
         timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -77,6 +92,11 @@ haproxy h3 -arg "-L C" -conf {
 }
 
 haproxy h4 -arg "-L D" -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         mode http
         timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"

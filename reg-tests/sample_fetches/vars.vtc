@@ -5,6 +5,10 @@ feature ignore_unknown_macro
 
 haproxy h1 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
         # note below, str60 is purposely not defined so that the default is used
         set-var proc.int12 int(12)
         set-var proc.int5  var(proc.str60,60),div(proc.int12)

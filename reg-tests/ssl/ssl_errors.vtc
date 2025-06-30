@@ -168,6 +168,10 @@ syslog Slg_bcknd_fe -level info {
 
 haproxy h1 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
     .endif
@@ -227,7 +231,7 @@ haproxy h1 -conf {
         server wrong_ciphers2 "${tmpdir}/wrong_ciphers_ssl.sock" ssl verify none crt ${testdir}/client1.pem ca-file ${testdir}/ca-auth.crt force-tlsv12 ciphers "aECDSA" sni str(foo.com)
 .else
         server wrong_ciphers_tls13 "${tmpdir}/wrong_ciphers_tls13_ssl.sock" ssl verify none crt ${testdir}/client1.pem ca-file ${testdir}/ca-auth.crt ciphersuites "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256" force-tlsv13 sni str(foo.com)
-.endif
+    .endif
 
 
 
@@ -293,7 +297,7 @@ haproxy h1 -conf {
     listen wrong_ciphers_tls13_ssl_lst from bknd_err_dflt
         bind "${tmpdir}/wrong_ciphers_tls13_ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/ca-auth.crt verify none force-tlsv13 ciphersuites "TLS_AES_128_GCM_SHA256"
         server s1 ${s1_addr}:${s1_port}
-.endif
+    .endif
 
 } -start
 

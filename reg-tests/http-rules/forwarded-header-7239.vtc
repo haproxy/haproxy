@@ -8,6 +8,10 @@ feature ignore_unknown_macro
 #test: converters, parsing and header injection logic
 haproxy h1 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
         # WT: limit false-positives causing "HTTP header incomplete" due to
         # idle server connections being randomly used and randomly expiring
         # under us.
@@ -55,6 +59,10 @@ haproxy h1 -conf {
 #test: "default" and "no option forwarded"
 haproxy h2 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
         # WT: limit false-positives causing "HTTP header incomplete" due to
         # idle server connections being randomly used and randomly expiring
         # under us.

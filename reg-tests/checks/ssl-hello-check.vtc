@@ -24,6 +24,10 @@ syslog S3 -level notice {
 
 haproxy htst -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
     .endif

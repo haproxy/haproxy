@@ -7,37 +7,72 @@ feature ignore_unknown_macro
 # anonymous defaults section cannot define TCP/HTTP rules
 #
 haproxy h1 -conf-BAD {} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         http-request set-header X-Hdr 1
 }
 
 haproxy h2 -conf-BAD {} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         http-response set-header X-Hdr 1
 }
 
 haproxy h3 -conf-BAD {} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         http-after-request set-header X-Hdr 1
 }
 
 haproxy h4 -conf-BAD {} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         tcp-request connection accept
 }
 
 haproxy h5 -conf-BAD {} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         tcp-request session accept
 }
 
 haproxy h6 -conf-BAD {} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         tcp-request inspect-delay 5s
         tcp-request content accept
 }
 
 haproxy h7 -conf-BAD {} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         tcp-response inspect-delay 5s
         tcp-response content accept
@@ -48,6 +83,11 @@ haproxy h7 -conf-BAD {} {
 # defaults section
 #
 haproxy h8 -conf-BAD {} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults invalid
         tcp-response inspect-delay 5s
         tcp-response content accept
@@ -61,6 +101,11 @@ haproxy h8 -conf-BAD {} {
 # section
 #
 haproxy h9 -conf-BAD {} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults invalid
         tcp-request inspect-delay 5s
         tcp-request content accept
@@ -77,6 +122,11 @@ haproxy h9 -conf-BAD {} {
 #
 #
 haproxy h10 -conf-BAD {} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults invalid
         tcp-request inspect-delay 5s
         tcp-request content accept
@@ -96,6 +146,11 @@ haproxy h10 -conf-BAD {} {
 # rules cannot be used to init backend sections
 #
 haproxy h11 -conf-BAD {} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults invalid
         tcp-request connection accept
 
@@ -105,6 +160,11 @@ haproxy h11 -conf-BAD {} {
 }
 
 haproxy h12 -conf-BAD {} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults invalid
         tcp-request session accept
 
@@ -118,6 +178,11 @@ haproxy h12 -conf-BAD {} {
 # a frontend section
 #
 haproxy h13 -conf-BAD {} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults invalid
         tcp-response inspect-delay 5s
         tcp-response content accept
@@ -128,6 +193,11 @@ haproxy h13 -conf-BAD {} {
 }
 
 haproxy h14 -arg -V -conf-OK {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults tcp
 	timeout client 30s
 	timeout server 30s
@@ -146,6 +216,11 @@ haproxy h14 -arg -V -conf-OK {
 #
 
 haproxy h15 -conf-BAD {} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults invalid
         mode http
         http-request set-header x-test "%[srv_conn(www)]"
@@ -155,6 +230,11 @@ haproxy h15 -conf-BAD {} {
 }
 
 haproxy h16 -conf-BAD {} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults invalid
         mode http
         http-request track-sc0 src
@@ -166,6 +246,11 @@ haproxy h16 -conf-BAD {} {
 }
 
 haproxy h17 -arg -V -conf-OK {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults common
 	timeout client 30s
 	timeout server 30s

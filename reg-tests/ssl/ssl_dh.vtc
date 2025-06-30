@@ -31,6 +31,10 @@ server s1 -repeat 8 {
 
 haproxy h1 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
         stats socket "${tmpdir}/h1/stats" level admin
 
     defaults
@@ -67,9 +71,17 @@ haproxy h1 -conf {
 
 haproxy h2 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
         stats socket "${tmpdir}/h2/stats" level admin
 
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
         tune.ssl.default-dh-param 4096
 
     defaults
@@ -94,9 +106,17 @@ haproxy h2 -conf {
 
 haproxy h3 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
         stats socket "${tmpdir}/h3/stats" level admin
 
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
         ssl-dh-param-file ${testdir}/common.4096.dh
 
     defaults

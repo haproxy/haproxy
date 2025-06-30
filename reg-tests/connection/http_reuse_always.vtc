@@ -4,6 +4,11 @@ varnishtest "Test the http-reuse always mode"
 feature ignore_unknown_macro
 
 haproxy h1 -Ws -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
 	defaults
 		timeout client 30s
 		timeout server 30s

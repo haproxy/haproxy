@@ -16,6 +16,10 @@ syslog S_ok -level notice {
 
 haproxy htst -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
         ssl-default-bind-options ssl-min-ver TLSv1.2 ssl-max-ver TLSv1.3
 
     defaults

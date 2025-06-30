@@ -8,6 +8,10 @@ barrier b1 cond 2
 
 haproxy h_edge -conf {
 global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
 	expose-experimental-directives
 
 defaults

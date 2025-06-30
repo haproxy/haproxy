@@ -13,6 +13,11 @@ syslog Slg1 -level info {
 } -repeat 50 -start
 
 haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
 	defaults
 		mode http
 		option httplog

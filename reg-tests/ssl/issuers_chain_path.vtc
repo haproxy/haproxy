@@ -9,6 +9,10 @@ feature ignore_unknown_macro
 
 haproxy h1 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
         stats socket "${tmpdir}/h1/stats" level admin
         issuers-chain-path "${testdir}/issuers-chain-path/ca/"
         crt-base "${testdir}/issuers-chain-path"

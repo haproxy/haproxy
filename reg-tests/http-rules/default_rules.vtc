@@ -18,6 +18,11 @@ server s2 {
 }  -start
 
 haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
   defaults common
       mode http
       timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -58,6 +63,11 @@ haproxy h1 -conf {
 
 
 haproxy h2 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
   defaults common
       mode http
       timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -93,6 +103,11 @@ haproxy h2 -conf {
 } -start
 
 haproxy h3 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
   defaults base-http
       mode http
       timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"

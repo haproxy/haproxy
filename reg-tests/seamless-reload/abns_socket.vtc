@@ -25,6 +25,10 @@ feature cmd "command -v grep"
 
 haproxy h1 -Ws -S -conf {
   global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     stats socket "${tmpdir}/h1/stats" level admin expose-fd listeners
 
   defaults

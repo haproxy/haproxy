@@ -34,6 +34,10 @@ syslog S1 -level notice {
 
 haproxy h1 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
     .endif
@@ -85,6 +89,10 @@ syslog S6 -level notice {
 
 haproxy h2 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
     .endif

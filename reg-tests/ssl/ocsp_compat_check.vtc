@@ -36,6 +36,10 @@ EOF
 
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     crt-base ${testdir}/ocsp_update/multicert
 #    ocsp-update.mode on
 
@@ -67,6 +71,10 @@ EOF
 
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     crt-base ${testdir}/ocsp_update/multicert
     ocsp-update.mode on
 
@@ -98,6 +106,10 @@ EOF
 
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     crt-base ${testdir}/ocsp_update/multicert
     ocsp-update.mode off
 
@@ -129,6 +141,10 @@ EOF
 
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     crt-base ${testdir}/ocsp_update/multicert
 #    ocsp-update.mode off
 
@@ -161,6 +177,10 @@ EOF
 
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     crt-base ${testdir}/ocsp_update/multicert
     ocsp-update.mode on
 
@@ -193,6 +213,10 @@ EOF
 
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     crt-base ${testdir}/ocsp_update/multicert
     ocsp-update.mode off
 
@@ -227,6 +251,10 @@ EOF
 
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     crt-base ${testdir}/ocsp_update/multicert
 #    ocsp-update.mode off
 
@@ -259,6 +287,10 @@ EOF
 
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     crt-base ${testdir}/ocsp_update/multicert
 #    ocsp-update.mode off
 
@@ -292,6 +324,10 @@ EOF
 
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     crt-base ${testdir}/ocsp_update/multicert
     ocsp-update.mode on
 
@@ -325,6 +361,10 @@ EOF
 
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     crt-base ${testdir}/ocsp_update/multicert
     ocsp-update.mode on
 
@@ -358,6 +398,10 @@ EOF
 
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     crt-base ${testdir}/ocsp_update/multicert
     ocsp-update.mode off
 
@@ -391,6 +435,10 @@ EOF
 
     cat << EOF > ${tmpdir}/ocsp_compat_check.cfg
 global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     crt-base ${testdir}/ocsp_update/multicert
     ocsp-update.mode off
 

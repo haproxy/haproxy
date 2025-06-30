@@ -111,6 +111,11 @@ syslog Slg6 -level info {
 } -start
 
 haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
 	defaults
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
 		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"

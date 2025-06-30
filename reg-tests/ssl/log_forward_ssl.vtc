@@ -15,6 +15,10 @@ syslog Slg1 -level info {
 
 haproxy h1 -conf {
 	global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
 		insecure-fork-wanted
 	defaults
 		mode http

@@ -10,6 +10,11 @@ server s1 {
 } -start
 
 haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
 	timeout client 30s
 	timeout server 30s
@@ -52,6 +57,11 @@ server s2 {
 } -start
 
 haproxy h2 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
 	timeout client 30s
 	timeout server 30s
@@ -84,6 +94,11 @@ server s3 {
 } -start
 
 haproxy h3 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
 	timeout client 30s
 	timeout server 30s
@@ -119,6 +134,11 @@ server s4 {
 } -start
 
 haproxy h4 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
 	timeout client 30s
 	timeout server 30s

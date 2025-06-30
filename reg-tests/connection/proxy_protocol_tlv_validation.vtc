@@ -6,6 +6,11 @@ feature ignore_unknown_macro
 # the client is reused, leading to connection resets.
 
 haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         mode http
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -39,6 +44,11 @@ client c1 -connect ${h1_fe1_sock} {
 } -run
 
 haproxy h2 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         mode http
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -76,6 +86,11 @@ client c2 -connect ${h2_fe1_sock} {
 } -run
 
 haproxy h3 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         mode http
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -108,6 +123,11 @@ client c3 -connect ${h3_fe1_sock} {
 } -run
 
 haproxy h4 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         mode http
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"

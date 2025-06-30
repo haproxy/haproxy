@@ -53,6 +53,11 @@ syslog Slog9 -level info {
 } -start
 
 haproxy hap -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     defaults
         timeout connect 5s
         timeout client 5s

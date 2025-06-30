@@ -43,6 +43,10 @@ server s1 -repeat 2 {
 
 haproxy h1 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
         tune.lua.bool-sample-conversion normal
         lua-load ${testdir}/wrong_types_usage.lua
 

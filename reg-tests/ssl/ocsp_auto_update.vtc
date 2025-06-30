@@ -47,6 +47,10 @@ feature ignore_unknown_macro
 
 haproxy h1 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
     .endif
@@ -117,6 +121,10 @@ syslog Syslog_ocsp -level notice {
 
 haproxy h2 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
     .endif
@@ -186,6 +194,10 @@ syslog Syslog_ocsp3 -level notice {
 
 haproxy h3 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
     .endif
@@ -260,6 +272,10 @@ syslog Syslog_ocsp4 -level notice {
 
 haproxy h4 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
     .endif
@@ -376,6 +392,10 @@ syslog Syslog_ocsp5 -level notice {
 
 haproxy h5 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
     .endif
@@ -460,6 +480,10 @@ syslog Syslog_ocsp6 -level notice {
 
 haproxy h6 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
     .endif
@@ -538,6 +562,10 @@ syslog Syslog_ocsp7 -level notice {
 
 haproxy h7 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
     .endif
@@ -603,6 +631,10 @@ process p7 -wait
 
 haproxy h8 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
     .endif
@@ -699,6 +731,10 @@ syslog Syslog_ocsp9 -level notice {
 
 haproxy h9 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
     .endif

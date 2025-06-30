@@ -64,6 +64,10 @@ syslog S1 -level notice {
 
 haproxy h1 -conf {
 	global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
 		stats socket "${tmpdir}/h1/stats" level admin
 
 	defaults

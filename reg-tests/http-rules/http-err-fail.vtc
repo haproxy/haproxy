@@ -26,6 +26,10 @@ server s5 {
 
 haproxy h1 -conf {
     global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
 	http-err-codes  220 +300-499 -300-399  # only 220, 400-499 remain
 	http-fail-codes -550-580 +555,599,556-566
 

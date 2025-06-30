@@ -5,6 +5,10 @@ feature ignore_unknown_macro
 
 haproxy h1 -conf {
 	global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
 		stats-file ${testdir}/sample-stats-file
 
 	defaults
