@@ -73,6 +73,8 @@ struct ckch_conf {
 	} acme;
 };
 
+struct jwt_cert_tree_entry;
+
 /*
  * this is used to store 1 to SSL_SOCK_NUM_KEYTYPES cert_key_and_chain and
  * metadata.
@@ -88,6 +90,7 @@ struct ckch_store {
 	struct list crtlist_entry; /* list of entries which use this store */
 	struct ckch_conf conf;
 	struct task *acme_task;
+	struct jwt_cert_tree_entry *jwt_entry;
 	struct ebmb_node node;
 	char path[VAR_ARRAY];
 };

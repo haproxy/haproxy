@@ -10,6 +10,8 @@
  * 2 of the License, or (at your option) any later version.
  */
 
+#include <sys/stat.h>
+
 #include <import/ebmbtree.h>
 #include <import/ebsttree.h>
 
@@ -19,11 +21,16 @@
 #include <haproxy/base64.h>
 #include <haproxy/jwt.h>
 #include <haproxy/buf.h>
+#include <haproxy/ssl_ckch.h>
+#include <haproxy/ssl_sock.h>
 
 
 #ifdef USE_OPENSSL
+
 /* Tree into which the public certificates used to validate JWTs will be stored. */
-static struct eb_root jwt_cert_tree = EB_ROOT_UNIQUE;
+struct eb_root jwt_cert_tree = EB_ROOT_UNIQUE;
+__decl_rwlock(jwt_tree_lock);
+
 
 /*
  * The possible algorithm strings that can be found in a JWS's JOSE header are
@@ -125,14 +132,24 @@ int jwt_tokenize(const struct buffer *jwt, struct jwt_item *items, unsigned int 
 
 /*
  * Parse a public certificate and insert it into the jwt_cert_tree.
+ * This function can only be called during configuration parsing so we do not
+ * need to lock the jwt certificate tree.
  * Returns 0 in case of success.
  */
-int jwt_tree_load_cert(char *path, int pathlen, char **err)
+int jwt_tree_load_cert(char *path, int pathlen, const char *file, int line, char **err)
 {
 	int retval = -1;
 	struct jwt_cert_tree_entry *entry = NULL;
 	EVP_PKEY *pubkey = NULL;
 	BIO *bio = NULL;
+	struct stat buf;
+	struct ebmb_node *eb = NULL;
+	struct ckch_store *store = NULL;
+
+	eb = ebst_lookup(&jwt_cert_tree, path);
+
+	if (eb)
+		return 0; /* Entry already in the tree, nothing to do. */
 
 	entry = calloc(1, sizeof(*entry) + pathlen + 1);
 	if (!entry) {
@@ -140,30 +157,89 @@ int jwt_tree_load_cert(char *path, int pathlen, char **err)
 		return -1;
 	}
 	memcpy(entry->path, path, pathlen + 1);
+	entry->type = JWT_ENTRY_DFLT;
 
 	if (ebst_insert(&jwt_cert_tree, &entry->node) != &entry->node) {
+		/* Should never happen since we checked if the entry already
+		 * existed previously.
+		 */
 		free(entry);
-		return 0; /* Entry already in the tree */
+		return 0;
 	}
 
-	bio = BIO_new(BIO_s_file());
-	if (!bio) {
-		memprintf(err, "%sunable to allocate memory (BIO).\n", err && *err ? *err : "");
-		goto end;
-	}
-
-	if (BIO_read_filename(bio, path) == 1) {
-
-		pubkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
-
-		if (!pubkey) {
-			memprintf(err, "%sfile not found (%s)\n", err && *err ? *err : "", path);
+	if (stat(path, &buf) == 0) {
+		bio = BIO_new(BIO_s_file());
+		if (!bio) {
+			memprintf(err, "%sunable to allocate memory (BIO).\n", err && *err ? *err : "");
 			goto end;
 		}
 
-		entry->pubkey = pubkey;
-		retval = 0;
+		if (BIO_read_filename(bio, path) == 1) {
+			pubkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+
+			/* The file might exist but not contain a public key if
+			 * we were given an actual certificate path (or a
+			 * named crt-store).
+			 */
+			if (pubkey) {
+				entry->type = JWT_ENTRY_PKEY;
+				entry->pubkey = pubkey;
+				retval = 0;
+				goto end;
+			}
+		}
 	}
+
+	/* Look for an actual certificate or crt-store with the given name.
+	 * If the path corresponds to an actual certificate that was not loaded
+	 * yet we will create the corresponding ckch_store. */
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		goto end;
+
+	store = ckchs_lookup(path);
+	if (!store) {
+		struct ckch_conf conf = {};
+		int err_code = 0;
+
+		/* Create a new store with the given path */
+		store = ckch_store_new(path);
+		if (!store) {
+			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+			goto end;
+		}
+
+		conf.crt = path;
+
+		err_code = ckch_store_load_files(&conf, store,  0, file, line, err);
+		if (err_code & ERR_FATAL) {
+			ckch_store_free(store);
+
+			/* If we are in this case we are in the conf
+			 * parsing phase and this case might happen if
+			 * we were provided an HMAC secret or a variable
+			 * name.
+			 */
+			retval = 0;
+			ha_free(err);
+			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+			goto end;
+		}
+
+		if (ebst_insert(&ckchs_tree, &store->node) != &store->node) {
+			ckch_store_free(store);
+			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+			goto end;
+		}
+	}
+
+	retval = 0;
+
+	BUG_ON(store->jwt_entry != NULL);
+	entry->type = JWT_ENTRY_STORE;
+	entry->ckch_store = store;
+	entry->pubkey = X509_get_pubkey(store->data->cert);
+	store->jwt_entry = entry;
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 
 end:
 	if (retval) {
@@ -174,7 +250,65 @@ end:
 		free(entry);
 	}
 	BIO_free(bio);
+
 	return retval;
+}
+
+
+/* Try to look for an already existing ckch_store in the store tree with the
+ * path found in the jwt_entry. Keep a reference to its pubkey if it exists.
+ * Return 0 in case of success.
+ */
+static int jwt_tree_tryload_store(struct jwt_cert_tree_entry *jwt_entry)
+{
+	struct ckch_store *store = NULL;
+	int retval = 1;
+
+	if (!jwt_entry)
+		return 1;
+
+	/* We might have been given a 'crt-store' name */
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return 1;
+
+	store = ckchs_lookup(jwt_entry->path);
+	if (!store || store->jwt_entry)
+		goto end;
+
+	store->jwt_entry = jwt_entry;
+
+	BUG_ON(jwt_entry->pubkey != NULL);
+	jwt_entry->pubkey = X509_get_pubkey(store->data->cert);
+
+	retval = 0;
+
+end:
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return retval;
+
+}
+
+/* Update the ckch_store and public key reference of a jwt_entry. This is only
+ * useful whne updating a certificate from the CLI if it was being used for JWT
+ * validation.
+ */
+void jwt_replace_ckch_store(struct ckch_store *old_ckchs, struct ckch_store *new_ckchs)
+{
+	struct jwt_cert_tree_entry *entry = old_ckchs->jwt_entry;
+
+	HA_RWLOCK_WRLOCK(JWT_LOCK, &jwt_tree_lock);
+
+	if (entry == NULL)
+		goto end;
+
+	old_ckchs->jwt_entry->ckch_store = new_ckchs;
+	new_ckchs->jwt_entry = old_ckchs->jwt_entry;
+
+	EVP_PKEY_free(entry->pubkey);
+	entry->pubkey = X509_get_pubkey(new_ckchs->data->cert);
+
+end:
+	HA_RWLOCK_WRUNLOCK(JWT_LOCK, &jwt_tree_lock);
 }
 
 /*
@@ -277,10 +411,12 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signat
 	EVP_MD_CTX *evp_md_ctx;
 	EVP_PKEY_CTX *pkey_ctx = NULL;
 	enum jwt_vrfy_status retval = JWT_VRFY_KO;
-	struct ebmb_node *eb;
+	struct ebmb_node *eb = NULL;
 	struct jwt_cert_tree_entry *entry = NULL;
 	int is_ecdsa = 0;
 	int padding = RSA_PKCS1_PADDING;
+	EVP_PKEY *pubkey = NULL;
+	int lock_iswrlock = 0;
 
 	switch(ctx->alg) {
 	case JWS_ALG_RS256:
@@ -325,19 +461,71 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signat
 	if (!evp_md_ctx)
 		return JWT_VRFY_OUT_OF_MEMORY;
 
+	HA_RWLOCK_RDLOCK(JWT_LOCK, &jwt_tree_lock);
+
 	eb = ebst_lookup(&jwt_cert_tree, ctx->key);
 
 	if (!eb) {
-		retval = JWT_VRFY_UNKNOWN_CERT;
-		goto end;
+		HA_RWLOCK_RDUNLOCK(JWT_LOCK, &jwt_tree_lock);
+
+		/* Create new entry and insert it in the jwt cert tree if we
+		 * could find a corresponding ckch_store.
+		 */
+		entry = calloc(1, sizeof(*entry) + ctx->key_length + 1);
+		if (!entry) {
+			retval = JWT_VRFY_OUT_OF_MEMORY;
+			goto end;
+		}
+		memcpy(entry->path, ctx->key, ctx->key_length);
+
+		/* The ckch_lock will be taken in jwt_tree_tryload_store so we
+		 * can't hold the lock on the jwt_cert_tree here because the lock
+		 * order is different when updating a certificate from the CLI,
+		 * where the ckch_lock is taken first and then the JWT one is
+		 * taken in jwt_replace_ckch_store.
+		 * If no corresponding ckch_store was found, we still try to
+		 * insert the entry in the tree so that next calls to jwt_verify
+		 * with the same 'key' path do not perform the lookup in the
+		 * ckch_store anymore. */
+		entry->type = (jwt_tree_tryload_store(entry) == 0) ? JWT_ENTRY_STORE : JWT_ENTRY_INVALID;
+
+		HA_RWLOCK_WRLOCK(JWT_LOCK, &jwt_tree_lock);
+		if (ebst_insert(&jwt_cert_tree, &entry->node) != &entry->node) {
+			/* This rather unlikely case can only happen if the tree was
+			 * modified between the previous read unlock and here.
+			 */
+			retval = JWT_VRFY_INTERNAL_ERR;
+			free(entry);
+			entry = NULL;
+			HA_RWLOCK_WRUNLOCK(JWT_LOCK, &jwt_tree_lock);
+			goto end;
+		}
+		lock_iswrlock = 1;
+	} else {
+		entry = ebmb_entry(eb, struct jwt_cert_tree_entry, node);
 	}
 
-	entry = ebmb_entry(eb, struct jwt_cert_tree_entry, node);
-
-	if (!entry->pubkey) {
+	/* We tried looking for a ckch_store but could not find it */
+	switch (entry->type) {
+	case JWT_ENTRY_PKEY:
+	case JWT_ENTRY_STORE:
+		pubkey = entry->pubkey;
+		if (pubkey)
+			EVP_PKEY_up_ref(pubkey);
+		break;
+	case JWT_ENTRY_DFLT:
+	case JWT_ENTRY_INVALID:
 		retval = JWT_VRFY_UNKNOWN_CERT;
-		goto end;
+		break;
 	}
+
+	if (lock_iswrlock)
+		HA_RWLOCK_WRUNLOCK(JWT_LOCK, &jwt_tree_lock);
+	else
+		HA_RWLOCK_RDUNLOCK(JWT_LOCK, &jwt_tree_lock);
+
+	if (!pubkey)
+		goto end;
 
 	/*
 	 * ECXXX signatures are a direct concatenation of the (R, S) pair and
@@ -352,7 +540,7 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signat
 		}
 	}
 
-	if (EVP_DigestVerifyInit(evp_md_ctx, &pkey_ctx, evp, NULL, entry->pubkey) == 1) {
+	if (EVP_DigestVerifyInit(evp_md_ctx, &pkey_ctx, evp, NULL, pubkey) == 1) {
 		if (is_ecdsa || EVP_PKEY_CTX_set_rsa_padding(pkey_ctx, padding) > 0) {
 			if (EVP_DigestVerifyUpdate(evp_md_ctx, (const unsigned char*)ctx->jose.start,
 						   ctx->jose.length + ctx->claims.length + 1) == 1 &&
@@ -371,6 +559,7 @@ end:
 		 */
 		ERR_clear_error();
 	}
+	EVP_PKEY_free(pubkey);
 	return retval;
 }
 
@@ -470,6 +659,8 @@ static void jwt_deinit(void)
 	struct ebmb_node *node = NULL;
 	struct jwt_cert_tree_entry *entry = NULL;
 
+	HA_RWLOCK_WRLOCK(JWT_LOCK, &jwt_tree_lock);
+
 	node = ebmb_first(&jwt_cert_tree);
 	while (node) {
 		entry = ebmb_entry(node, struct jwt_cert_tree_entry, node);
@@ -478,6 +669,8 @@ static void jwt_deinit(void)
 		ha_free(&entry);
 		node = ebmb_first(&jwt_cert_tree);
 	}
+
+	HA_RWLOCK_WRUNLOCK(JWT_LOCK, &jwt_tree_lock);
 }
 REGISTER_POST_DEINIT(jwt_deinit);
 

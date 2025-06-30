@@ -28,10 +28,13 @@
 #ifdef USE_OPENSSL
 enum jwt_alg jwt_parse_alg(const char *alg_str, unsigned int alg_len);
 int jwt_tokenize(const struct buffer *jwt, struct jwt_item *items, unsigned int *item_num);
-int jwt_tree_load_cert(char *path, int pathlen, char **err);
+int jwt_tree_load_cert(char *path, int pathlen, const char *file, int line, char **err);
 
 enum jwt_vrfy_status jwt_verify(const struct buffer *token, const struct buffer *alg,
 				const struct buffer *key);
+
+void jwt_replace_ckch_store(struct ckch_store *old_ckchs, struct ckch_store *new_ckchs);
+
 #endif /* USE_OPENSSL */
 
 #endif /* _HAPROXY_JWT_H */

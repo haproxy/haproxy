@@ -437,6 +437,7 @@ const char *lock_label(enum lock_label label)
 	case QC_CID_LOCK:          return "QC_CID";
 	case CACHE_LOCK:           return "CACHE";
 	case GUID_LOCK:            return "GUID";
+	case JWT_LOCK:             return "JWT";
 	case OTHER_LOCK:           return "OTHER";
 	case DEBUG1_LOCK:          return "DEBUG1";
 	case DEBUG2_LOCK:          return "DEBUG2";

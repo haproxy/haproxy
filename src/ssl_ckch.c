@@ -41,6 +41,7 @@
 #include <haproxy/ssl_utils.h>
 #include <haproxy/stconn.h>
 #include <haproxy/tools.h>
+#include <haproxy/jwt.h>
 
 /* Uncommitted CKCH transaction */
 
@@ -2728,6 +2729,8 @@ void ckch_store_replace(struct ckch_store *old_ckchs, struct ckch_store *new_ckc
 	list_for_each_entry_safe(ckchi, ckchis, &old_ckchs->ckch_inst, by_ckchs) {
 		__ckch_inst_free_locked(ckchi);
 	}
+
+	jwt_replace_ckch_store(old_ckchs, new_ckchs);
 
 	ckch_store_free(old_ckchs);
 	ebst_insert(&ckchs_tree, &new_ckchs->node);

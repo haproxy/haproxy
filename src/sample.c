@@ -4457,6 +4457,7 @@ static int sample_conv_jwt_verify_check(struct arg *args, struct sample_conv *co
 					const char *file, int line, char **err)
 {
 	enum jwt_alg alg = JWT_ALG_DEFAULT;
+	int retval = 0;
 
 	vars_check_arg(&args[0], NULL);
 	vars_check_arg(&args[1], NULL);
@@ -4476,14 +4477,22 @@ static int sample_conv_jwt_verify_check(struct arg *args, struct sample_conv *co
 			JWS_ALG_HS384:
 			JWS_ALG_HS512:
 			/* don't try to load a file with HMAC algorithms */
+				retval = 1;
 				break;
 			default:
-				jwt_tree_load_cert(args[1].data.str.area, args[1].data.str.data, err);
+				retval = (jwt_tree_load_cert(args[1].data.str.area, args[1].data.str.data,
+				                             file, line, err) == 0);
 				break;
 		}
+	} else if (args[1].type == ARGT_VAR) {
+		/* We will try to resolve the var during runtime because the
+		 * processing might work if it actually points to an already
+		 * existing ckch_store.
+		 */
+		retval = 1;
 	}
 
-	return 1;
+	return retval;
 }
 
 /* Check that a JWT's signature is correct */

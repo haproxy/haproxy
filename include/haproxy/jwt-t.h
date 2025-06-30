@@ -64,8 +64,17 @@ enum jwt_elt {
 	JWT_ELT_MAX
 };
 
+enum jwt_entry_type {
+	JWT_ENTRY_DFLT,
+	JWT_ENTRY_STORE,
+	JWT_ENTRY_PKEY,
+	JWT_ENTRY_INVALID, /* already tried looking into ckch_store tree (unsuccessful) */
+};
+
 struct jwt_cert_tree_entry {
 	EVP_PKEY *pubkey;
+	struct ckch_store *ckch_store;
+	int type;	/* jwt_entry_type */
 	struct ebmb_node node;
 	char path[VAR_ARRAY];
 };
@@ -78,7 +87,8 @@ enum jwt_vrfy_status {
 	JWT_VRFY_UNMANAGED_ALG = -2,
 	JWT_VRFY_INVALID_TOKEN = -3,
 	JWT_VRFY_OUT_OF_MEMORY = -4,
-	JWT_VRFY_UNKNOWN_CERT  = -5
+	JWT_VRFY_UNKNOWN_CERT  = -5,
+	JWT_VRFY_INTERNAL_ERR  = -6
 };
 
 #endif /* USE_OPENSSL */
