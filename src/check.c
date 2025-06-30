@@ -994,7 +994,7 @@ int httpchk_build_status_header(struct server *s, struct buffer *buf)
 				      "UP %d/%d", "UP",
 				      "NOLB %d/%d", "NOLB",
 				      "no check" };
-	unsigned long last_change = COUNTERS_SHARED_LAST(s->counters.shared->tg, last_change);
+	unsigned long last_change = s->last_change;
 
 	if (!(s->check.state & CHK_ST_ENABLED))
 		sv_state = 6;

@@ -144,12 +144,10 @@ const char *srv_op_st_chg_cause(enum srv_op_st_chg_cause cause)
 
 int srv_downtime(const struct server *s)
 {
-	unsigned long last_change = COUNTERS_SHARED_LAST(s->counters.shared->tg, last_change);
-
-	if ((s->cur_state != SRV_ST_STOPPED) || last_change >= ns_to_sec(now_ns))		// ignore negative time
+	if ((s->cur_state != SRV_ST_STOPPED) || s->last_change >= ns_to_sec(now_ns))		// ignore negative time
 		return s->down_time;
 
-	return ns_to_sec(now_ns) - last_change + s->down_time;
+	return ns_to_sec(now_ns) - s->last_change + s->down_time;
 }
 
 int srv_getinter(const struct check *check)
@@ -2460,11 +2458,10 @@ INITCALL1(STG_REGISTER, srv_register_keywords, &srv_kws);
  */
 void server_recalc_eweight(struct server *sv, int must_update)
 {
-	unsigned long last_change = COUNTERS_SHARED_LAST(sv->counters.shared->tg, last_change);
 	struct proxy *px = sv->proxy;
 	unsigned w;
 
-	if (ns_to_sec(now_ns) < last_change || ns_to_sec(now_ns) >= last_change + sv->slowstart) {
+	if (ns_to_sec(now_ns) < sv->last_change || ns_to_sec(now_ns) >= sv->last_change + sv->slowstart) {
 		/* go to full throttle if the slowstart interval is reached unless server is currently down */
 		if ((sv->cur_state != SRV_ST_STOPPED) && (sv->next_state == SRV_ST_STARTING))
 			sv->next_state = SRV_ST_RUNNING;
@@ -2476,7 +2473,7 @@ void server_recalc_eweight(struct server *sv, int must_update)
 	if ((sv->cur_state == SRV_ST_STOPPED) && (sv->next_state == SRV_ST_STARTING) && (px->lbprm.algo & BE_LB_PROP_DYN))
 		w = 1;
 	else if ((sv->next_state == SRV_ST_STARTING) && (px->lbprm.algo & BE_LB_PROP_DYN))
-		w = (px->lbprm.wdiv * (ns_to_sec(now_ns) - last_change) + sv->slowstart) / sv->slowstart;
+		w = (px->lbprm.wdiv * (ns_to_sec(now_ns) - sv->last_change) + sv->slowstart) / sv->slowstart;
 	else
 		w = px->lbprm.wdiv;
 
@@ -3047,6 +3044,7 @@ struct server *new_server(struct proxy *proxy)
 	srv->rid = 0; /* rid defaults to 0 */
 
 	srv->next_state = SRV_ST_RUNNING; /* early server setup */
+	srv->last_change = ns_to_sec(now_ns);
 
 	srv->check.obj_type = OBJ_TYPE_CHECK;
 	srv->check.status = HCHK_STATUS_INI;
@@ -5782,7 +5780,7 @@ static int srv_alloc_lb(struct server *sv, struct proxy *be)
 
 /* updates the server's weight during a warmup stage. Once the final weight is
  * reached, the task automatically stops. Note that any server status change
- * must have updated s->counters.last_change accordingly.
+ * must have updated server last_change accordingly.
  */
 static struct task *server_warmup(struct task *t, void *context, unsigned int state)
 {
@@ -5838,7 +5836,7 @@ static int init_srv_slowstart(struct server *srv)
 		if (srv->next_state == SRV_ST_STARTING) {
 			task_schedule(srv->warmup,
 			              tick_add(now_ms,
-			                       MS_TO_TICKS(MAX(1000, (ns_to_sec(now_ns) - COUNTERS_SHARED_LAST(srv->counters.shared->tg, last_change))) / 20)));
+			                       MS_TO_TICKS(MAX(1000, (ns_to_sec(now_ns) - srv->last_change)) / 20)));
 		}
 	}
 
@@ -7035,11 +7033,9 @@ static void srv_update_status(struct server *s, int type, int cause)
 	/* check if server stats must be updated due the the server state change */
 	if (srv_prev_state != s->cur_state) {
 		if (srv_prev_state == SRV_ST_STOPPED) {
-			unsigned long last_change = COUNTERS_SHARED_LAST(s->counters.shared->tg, last_change);
-
 			/* server was down and no longer is */
-			if (last_change < ns_to_sec(now_ns))                        // ignore negative times
-				s->down_time += ns_to_sec(now_ns) - last_change;
+			if (s->last_change < ns_to_sec(now_ns))                        // ignore negative times
+				s->down_time += ns_to_sec(now_ns) - s->last_change;
 			_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_UP, cb_data.common, s);
 		}
 		else if (s->cur_state == SRV_ST_STOPPED) {
@@ -7056,6 +7052,7 @@ static void srv_update_status(struct server *s, int type, int cause)
 			HA_ATOMIC_STORE(&s->proxy->ready_srv, NULL);
 
 		HA_ATOMIC_STORE(&s->counters.shared->tg[tgid - 1]->last_change, ns_to_sec(now_ns));
+		s->last_change = ns_to_sec(now_ns);
 
 		/* publish the state change */
 		_srv_event_hdl_prepare_state(&cb_data.state,

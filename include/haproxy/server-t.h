@@ -355,6 +355,7 @@ struct server {
 	short onmarkedup;			/* what to do when marked up: one of HANA_ONMARKEDUP_* */
 	int slowstart;				/* slowstart time in seconds (ms in the conf) */
 	int idle_ping;				/* MUX idle-ping interval in ms */
+	unsigned long last_change;              /* internal use only (not for stats purpose): last time the server state was changed, doesn't change often, not updated atomically on purpose */
 
 	char *id;				/* just for identification */
 	uint32_t rid;				/* revision: if id has been reused for a new server, rid won't match */

@@ -104,7 +104,6 @@ DECLARE_POOL(pool_head_pendconn, "pendconn", sizeof(struct pendconn));
 unsigned int srv_dynamic_maxconn(const struct server *s)
 {
 	unsigned int max;
-	unsigned long last_change;
 
 	if (s->proxy->beconn >= s->proxy->fullconn)
 		/* no fullconn or proxy is full */
@@ -115,13 +114,11 @@ unsigned int srv_dynamic_maxconn(const struct server *s)
 	else max = MAX(s->minconn,
 		       s->proxy->beconn * s->maxconn / s->proxy->fullconn);
 
-	last_change = COUNTERS_SHARED_LAST(s->counters.shared->tg, last_change);
-
 	if ((s->cur_state == SRV_ST_STARTING) &&
-	    ns_to_sec(now_ns) < last_change + s->slowstart &&
-	    ns_to_sec(now_ns) >= last_change) {
+	    ns_to_sec(now_ns) < s->last_change + s->slowstart &&
+	    ns_to_sec(now_ns) >= s->last_change) {
 		unsigned int ratio;
-		ratio = 100 * (ns_to_sec(now_ns) - last_change) / s->slowstart;
+		ratio = 100 * (ns_to_sec(now_ns) - s->last_change) / s->slowstart;
 		max = MAX(1, max * ratio / 100);
 	}
 	return max;
