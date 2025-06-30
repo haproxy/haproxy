@@ -220,7 +220,7 @@ jwt_jwsverify_hmac(const struct jwt_ctx *ctx, const struct buffer *decoded_signa
  * verification functions.
  * Returns 0 in case of success.
  */
-static int convert_ecdsa_sig(const struct jwt_ctx *ctx, EVP_PKEY *pubkey, struct buffer *signature)
+static int convert_ecdsa_sig(const struct jwt_ctx *ctx, struct buffer *signature)
 {
 	int retval = 0;
 	ECDSA_SIG *ecdsa_sig = NULL;
@@ -345,7 +345,7 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signat
 	 * work with OpenSSL.
 	 */
 	if (is_ecdsa) {
-		int conv_retval = convert_ecdsa_sig(ctx, entry->pubkey, decoded_signature);
+		int conv_retval = convert_ecdsa_sig(ctx, decoded_signature);
 		if (conv_retval != 0) {
 			retval = conv_retval;
 			goto end;
