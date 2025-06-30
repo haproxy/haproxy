@@ -16,7 +16,7 @@ feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 feature cmd "command -v socat"
 feature ignore_unknown_macro
 
-server s1 -repeat 24 {
+server s1 -repeat 26 {
   rxreq
   txresp
 } -start
@@ -450,4 +450,58 @@ client c24 -connect ${h1_mainfe_sock} {
     rxresp
     expect resp.status == 200
     expect resp.http.x-jwt-token == ""
+} -run
+
+
+shell {
+    printf "set ssl cert ${testdir}/cert.ecdsa.pem <<\n$(cat ${testdir}/cert.rsa.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert ${testdir}/cert.ecdsa.pem" | socat "${tmpdir}/h1/stats" -
+}
+
+# Same request as in client c9, the converter using the pubkey should still
+# validate the token while the one using the certificate that was just modified
+# will not.
+client c25 -connect ${h1_mainfe_sock} {
+    # Token content : {"alg":"ES256","typ":"JWT"}
+    #                 {"sub":"1234567890","name":"John Doe","iat":1516239022}
+    # Key gen process : openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out es256-private.pem; openssl ec -in es256-private.pem -pubout -out es256-public.pem
+    # Token creation : ./build_token.py ES256 '{"sub":"1234567890","name":"John Doe","iat":1516239022}' es256-private.pem
+    txreq -url "/es256" -hdr "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.pNI_c5mHE3mLV0YDpstlP4l3t5XARLl6OmcKLuvF5r60m-C63mbgfKWdPjmJPMTCmX_y50YW_v2SKw0ju0tJHw"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-jwt-alg == "ES256"
+    expect resp.http.x-jwt-verify-ES256 == "1"
+    expect resp.http.x-jwt-verify-ES256-var == "0"
+} -run
+
+
+
+shell {
+    printf "set ssl cert ${testdir}/cert.rsa.pem <<\n$(cat ${testdir}/cert.ecdsa.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert ${testdir}/cert.rsa.pem" | socat "${tmpdir}/h1/stats" -
+
+    printf "set ssl cert @named_store${testdir}/cert.rsa.pem <<\n$(cat ${testdir}/cert.ecdsa.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert @named_store${testdir}/cert.rsa.pem" | socat "${tmpdir}/h1/stats" -
+}
+
+# Same request as in client c5, the converter using the pubkey should still
+# validate the token while the one using the certificate or named crt-store
+# that was just modified will not.
+client c26 -connect ${h1_mainfe_sock} {
+    # Token content : {"alg":"RS256","typ":"JWT"}
+    #                 {"sub":"1234567890","name":"John Doe","iat":1516239022}
+    # OpenSSL cmd : openssl dgst -sha256 -sign rsa-private.pem data.txt | base64 | tr -d '=\n' | tr '/+' '_-'
+
+    txreq -url "/rs256" -hdr "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.hRqFM87JzV_YinYhdERp2E9BLhl6s7I5J37GTXAeT5fixJx-OCjTFvwKssyVo7fWAFcQMdQU7vGEXDOiWbNaMUFGIsMxx0Uflk0BeNwk6pWvNGk8KZGMtiqOv-IuPdAiaSW_xhxLHIk7eOwVefvBfk8j2hgU9yoHN87AYnl8oEnzrkzwWvEt-x-P2zB4s_VwhF0gbL1G4FsP5hxWL1HWmSFLBpvWaL5Lx3OJE7mLRLRf8TpMwEe4ROakzMpiv9Xk1H3mZth6d2a91F5Bm65MIJpJ7P2kEL3tdS62VRx8DM_SlsFuWcsqryO3CDQquMbwzAvfRgLPy8PBLRLT64wM3mZtue5GI2KUlqSYsSwKwK580b4drosLvAS75l_4jJwdwuQEvVd8Gry3DWS2mKJSMefmGfD-cdty1vvszs5sUa96Gf7Ro5DvkgXtVCKYk8KJLI62YgZd5S3M0ucP5NLBc_flUi4A2B_aSkd7NDM0ELddk0y48pcF95tejcvliGIy1GRRwevdqensXXQrFweFSZVvuKo8c9pcCBVfKTSllgL0lFGyI_vz6dUYt69I1gqWBDeGcA2XQUBJqfX3o9nkhZspA7b7QxMESatoATsM_XmfhbwsyY-sTq25XIGC4awaZHViZr1YFVD6BwNZWBCEBvW5zObiD5h5A5AgWoBv14E"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-jwt-alg == "RS256"
+    expect resp.http.x-jwt-verify-RS256 == "1"
+
+    expect resp.http.x-jwt-verify-RS256-cert == "0"
+    expect resp.http.x-jwt-verify-RS256-cert-named == "0"
+
+    expect resp.http.x-jwt-verify-RS256-var1 == "0"
+    expect resp.http.x-jwt-verify-RS256-var2 == "0"
+
 } -run
