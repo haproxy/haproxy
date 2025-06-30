@@ -4139,8 +4139,11 @@ static void h2_process_demux(struct h2c *h2c)
 	if (unlikely(h2c->st0 < H2_CS_FRAME_H)) {
 		if (h2c->st0 == H2_CS_PREFACE) {
 			TRACE_STATE("expecting preface", H2_EV_RX_PREFACE, h2c->conn);
-			if (h2c->flags & H2_CF_IS_BACK)
-				goto out;
+			if (h2c->flags & H2_CF_IS_BACK) {
+				if (h2c->conn->flags & CO_FL_ERROR)
+					h2c_error(h2c, H2_ERR_REFUSED_STREAM);
+				goto done;
+			}
 
 			if (unlikely(h2c_frt_recv_preface(h2c) <= 0)) {
 				/* RFC7540#3.5: a GOAWAY frame MAY be omitted */
