@@ -1722,6 +1722,7 @@ int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char *
 	}
 
 	px->cap = cap;
+	px->last_change = ns_to_sec(now_ns);
 
 	if (name && !(cap & PR_CAP_INT))
 		proxy_store_name(px);

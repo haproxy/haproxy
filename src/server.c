@@ -7064,13 +7064,14 @@ static void srv_update_status(struct server *s, int type, int cause)
 	if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
 		set_backend_down(s->proxy); /* backend going down */
 	else if (!prev_srv_count && (s->proxy->srv_bck || s->proxy->srv_act)) {
-		unsigned long last_change = COUNTERS_SHARED_LAST(s->proxy->be_counters.shared->tg, last_change);
+		unsigned long last_change = s->proxy->last_change;
 
 		/* backend was down and is back up again:
 		 * no helper function, updating last_change and backend downtime stats
 		 */
 		if (last_change < ns_to_sec(now_ns))         // ignore negative times
 			s->proxy->down_time += ns_to_sec(now_ns) - last_change;
+		s->proxy->last_change = ns_to_sec(now_ns);
 		HA_ATOMIC_STORE(&s->proxy->be_counters.shared->tg[tgid - 1]->last_change, ns_to_sec(now_ns));
 	}
 }

@@ -2894,6 +2894,7 @@ void back_handle_st_rdy(struct stream *s)
  */
 void set_backend_down(struct proxy *be)
 {
+	be->last_change = ns_to_sec(now_ns);
 	HA_ATOMIC_STORE(&be->be_counters.shared->tg[tgid - 1]->last_change, ns_to_sec(now_ns));
 	_HA_ATOMIC_INC(&be->be_counters.shared->tg[tgid - 1]->down_trans);
 
@@ -2967,12 +2968,10 @@ no_cookie:
 }
 
 int be_downtime(struct proxy *px) {
-	unsigned long last_change = COUNTERS_SHARED_LAST(px->be_counters.shared->tg, last_change);
-
-	if (px->lbprm.tot_weight && last_change < ns_to_sec(now_ns))  // ignore negative time
+	if (px->lbprm.tot_weight && px->last_change < ns_to_sec(now_ns))  // ignore negative time
 		return px->down_time;
 
-	return ns_to_sec(now_ns) - last_change + px->down_time;
+	return ns_to_sec(now_ns) - px->last_change + px->down_time;
 }
 
 /*

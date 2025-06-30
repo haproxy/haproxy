@@ -311,7 +311,7 @@ struct proxy {
 	char flags;                             /* bit field PR_FL_* */
 	enum pr_mode mode;                      /* mode = PR_MODE_TCP, PR_MODE_HTTP, ... */
 	char cap;                               /* supported capabilities (PR_CAP_*) */
-	/* 4-bytes hole */
+	unsigned long last_change;              /* internal use only: last time the proxy state was changed */
 
 	struct list global_list;                /* list member for global proxy list */
 
