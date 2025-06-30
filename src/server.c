@@ -144,7 +144,7 @@ const char *srv_op_st_chg_cause(enum srv_op_st_chg_cause cause)
 
 int srv_downtime(const struct server *s)
 {
-	unsigned long last_change = COUNTERS_SHARED_LAST(s->proxy->be_counters.shared->tg, last_change);
+	unsigned long last_change = COUNTERS_SHARED_LAST(s->counters.shared->tg, last_change);
 
 	if ((s->cur_state != SRV_ST_STOPPED) || last_change >= ns_to_sec(now_ns))		// ignore negative time
 		return s->down_time;
@@ -2460,7 +2460,7 @@ INITCALL1(STG_REGISTER, srv_register_keywords, &srv_kws);
  */
 void server_recalc_eweight(struct server *sv, int must_update)
 {
-	unsigned long last_change = COUNTERS_SHARED_LAST(sv->proxy->be_counters.shared->tg, last_change);
+	unsigned long last_change = COUNTERS_SHARED_LAST(sv->counters.shared->tg, last_change);
 	struct proxy *px = sv->proxy;
 	unsigned w;
 
@@ -5838,7 +5838,7 @@ static int init_srv_slowstart(struct server *srv)
 		if (srv->next_state == SRV_ST_STARTING) {
 			task_schedule(srv->warmup,
 			              tick_add(now_ms,
-			                       MS_TO_TICKS(MAX(1000, (ns_to_sec(now_ns) - COUNTERS_SHARED_LAST(srv->proxy->be_counters.shared->tg, last_change))) / 20)));
+			                       MS_TO_TICKS(MAX(1000, (ns_to_sec(now_ns) - COUNTERS_SHARED_LAST(srv->counters.shared->tg, last_change))) / 20)));
 		}
 	}
 
@@ -7035,7 +7035,7 @@ static void srv_update_status(struct server *s, int type, int cause)
 	/* check if server stats must be updated due the the server state change */
 	if (srv_prev_state != s->cur_state) {
 		if (srv_prev_state == SRV_ST_STOPPED) {
-			unsigned long last_change = COUNTERS_SHARED_LAST(s->proxy->be_counters.shared->tg, last_change);
+			unsigned long last_change = COUNTERS_SHARED_LAST(s->counters.shared->tg, last_change);
 
 			/* server was down and no longer is */
 			if (last_change < ns_to_sec(now_ns))                        // ignore negative times
