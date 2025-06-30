@@ -131,7 +131,7 @@ int jwt_tree_load_cert(char *path, int pathlen, char **err)
 {
 	int retval = -1;
 	struct jwt_cert_tree_entry *entry = NULL;
-	EVP_PKEY *pkey = NULL;
+	EVP_PKEY *pubkey = NULL;
 	BIO *bio = NULL;
 
 	entry = calloc(1, sizeof(*entry) + pathlen + 1);
@@ -154,20 +154,20 @@ int jwt_tree_load_cert(char *path, int pathlen, char **err)
 
 	if (BIO_read_filename(bio, path) == 1) {
 
-		pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+		pubkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
 
-		if (!pkey) {
+		if (!pubkey) {
 			memprintf(err, "%sfile not found (%s)\n", err && *err ? *err : "", path);
 			goto end;
 		}
 
-		entry->pkey = pkey;
+		entry->pubkey = pubkey;
 		retval = 0;
 	}
 
 end:
 	if (retval) {
-		/* Some error happened during pkey parsing, remove the already
+		/* Some error happened during pubkey parsing, remove the already
 		 * inserted node from the tree and free it.
 		 */
 		ebmb_delete(&entry->node);
@@ -220,7 +220,7 @@ jwt_jwsverify_hmac(const struct jwt_ctx *ctx, const struct buffer *decoded_signa
  * verification functions.
  * Returns 0 in case of success.
  */
-static int convert_ecdsa_sig(const struct jwt_ctx *ctx, EVP_PKEY *pkey, struct buffer *signature)
+static int convert_ecdsa_sig(const struct jwt_ctx *ctx, EVP_PKEY *pubkey, struct buffer *signature)
 {
 	int retval = 0;
 	ECDSA_SIG *ecdsa_sig = NULL;
@@ -334,7 +334,7 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signat
 
 	entry = ebmb_entry(eb, struct jwt_cert_tree_entry, node);
 
-	if (!entry->pkey) {
+	if (!entry->pubkey) {
 		retval = JWT_VRFY_UNKNOWN_CERT;
 		goto end;
 	}
@@ -345,14 +345,14 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signat
 	 * work with OpenSSL.
 	 */
 	if (is_ecdsa) {
-		int conv_retval = convert_ecdsa_sig(ctx, entry->pkey, decoded_signature);
+		int conv_retval = convert_ecdsa_sig(ctx, entry->pubkey, decoded_signature);
 		if (conv_retval != 0) {
 			retval = conv_retval;
 			goto end;
 		}
 	}
 
-	if (EVP_DigestVerifyInit(evp_md_ctx, &pkey_ctx, evp, NULL, entry->pkey) == 1) {
+	if (EVP_DigestVerifyInit(evp_md_ctx, &pkey_ctx, evp, NULL, entry->pubkey) == 1) {
 		if (is_ecdsa || EVP_PKEY_CTX_set_rsa_padding(pkey_ctx, padding) > 0) {
 			if (EVP_DigestVerifyUpdate(evp_md_ctx, (const unsigned char*)ctx->jose.start,
 						   ctx->jose.length + ctx->claims.length + 1) == 1 &&
@@ -474,7 +474,7 @@ static void jwt_deinit(void)
 	while (node) {
 		entry = ebmb_entry(node, struct jwt_cert_tree_entry, node);
 		ebmb_delete(node);
-		EVP_PKEY_free(entry->pkey);
+		EVP_PKEY_free(entry->pubkey);
 		ha_free(&entry);
 		node = ebmb_first(&jwt_cert_tree);
 	}

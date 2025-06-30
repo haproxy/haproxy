@@ -65,7 +65,7 @@ enum jwt_elt {
 };
 
 struct jwt_cert_tree_entry {
-	EVP_PKEY *pkey;
+	EVP_PKEY *pubkey;
 	struct ebmb_node node;
 	char path[VAR_ARRAY];
 };
