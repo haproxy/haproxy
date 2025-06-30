@@ -379,9 +379,11 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 				continue;
 
 			/* check if this cipher is available in haproxy configuration */
-#if defined(OPENSSL_IS_AWSLC)
+
+#if defined(OPENSSL_IS_AWSLC) && AWSLC_API_VERSION <= 32
                         /* because AWS-LC does not provide the TLSv1.3 ciphersuites (which are NID_auth_any) in ha_ciphers,
-                         * does not check if it's available when it's an NID_auth_any
+                         * does not check if it's available when it's an NID_auth_any.
+                         * This was fixed in v1.46.0, API version changed in v1.50.0
                          */
                         if (sk_SSL_CIPHER_find(ha_ciphers, cipher) == -1 && SSL_CIPHER_get_auth_nid(cipher) != NID_auth_any)
 				continue;
