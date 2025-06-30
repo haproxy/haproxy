@@ -3192,6 +3192,9 @@ static int cli_parse_del_cert(char **args, char *payload, struct appctx *appctx,
 	if (!LIST_ISEMPTY(&store->ckch_inst)) {
 		memprintf(&err, "certificate '%s' in use, can't be deleted!\n", filename);
 		goto error;
+	} else if (store->jwt_entry) {
+		memprintf(&err, "certificate '%s' in use for JWT validation, can't be deleted!\n", filename);
+		goto error;
 	}
 
 	ebmb_delete(&store->node);
