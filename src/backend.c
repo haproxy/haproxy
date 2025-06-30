@@ -2895,7 +2895,7 @@ void back_handle_st_rdy(struct stream *s)
 void set_backend_down(struct proxy *be)
 {
 	be->last_change = ns_to_sec(now_ns);
-	HA_ATOMIC_STORE(&be->be_counters.shared->tg[tgid - 1]->last_change, ns_to_sec(now_ns));
+	HA_ATOMIC_STORE(&be->be_counters.shared->tg[tgid - 1]->last_state_change, be->last_change);
 	_HA_ATOMIC_INC(&be->be_counters.shared->tg[tgid - 1]->down_trans);
 
 	if (!(global.mode & MODE_STARTING)) {

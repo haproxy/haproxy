@@ -35,7 +35,7 @@
 	};
 #define COUNTERS_SHARED_TG                                                           \
 	struct {                                                                     \
-		unsigned long last_change;              /* last time, when the state was changed */\
+		unsigned long last_state_change;        /* last time, when the state was changed */\
 		long long srv_aborts;                   /* aborted responses during DATA phase caused by the server */\
 		long long cli_aborts;                   /* aborted responses during DATA phase caused by the client */\
 		long long internal_errors;              /* internal processing errors */\

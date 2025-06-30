@@ -61,7 +61,6 @@ void counters_be_shared_drop(struct be_counters_shared *counters)
 static void*_counters_shared_get(const struct guid_node *guid, size_t size)
 {
 	struct counters_shared *shared;
-	uint last_change;
 	int it = 0;
 
 	/* no shared memory for now, simply allocate a memory block
@@ -80,10 +79,11 @@ static void*_counters_shared_get(const struct guid_node *guid, size_t size)
 		}
 		it += 1;
 	}
-	last_change = ns_to_sec(now_ns);
 
-	/* only set one group, only latest value is considered */
-	HA_ATOMIC_STORE(&shared->tg[0]->last_change, last_change);
+	/* initial values:
+	 *   only set one group, only latest value is considered
+	 */
+	HA_ATOMIC_STORE(&shared->tg[0]->last_state_change, ns_to_sec(now_ns));
 	return shared;
 }
 
