@@ -45,6 +45,12 @@ haproxy h1 -conf {
         use_backend auth_bearer_be if { path /auth_bearer }
         default_backend dflt_be
 
+    # Unnamed crt-store
+    crt-store
+        load crt "${testdir}/cert.ecdsa.pem"
+
+    crt-store named_store
+        load crt "${testdir}/cert.rsa.pem"
 
     backend hsXXX_be
         http-request set-var(txn.bearer) http_auth_bearer
@@ -72,6 +78,20 @@ haproxy h1 -conf {
         http-response set-header x-jwt-verify-RS256 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/rsa-public.pem")] if { var(txn.jwt_alg) -m str "RS256" }
         http-response set-header x-jwt-verify-RS384 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/rsa-public.pem")] if { var(txn.jwt_alg) -m str "RS384" }
         http-response set-header x-jwt-verify-RS512 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/rsa-public.pem")] if { var(txn.jwt_alg) -m str "RS512" }
+
+        # Pure certificate (not predefined in crt-store)
+        http-response set-header x-jwt-verify-RS256-cert %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/cert.rsa.pem")] if { var(txn.jwt_alg) -m str "RS256" }
+        # Named crt-store
+        http-response set-header x-jwt-verify-RS256-cert-named %[var(txn.bearer),jwt_verify(txn.jwt_alg,"@named_store${testdir}/cert.rsa.pem")] if { var(txn.jwt_alg) -m str "RS256" }
+
+        # Variables
+        # This first case only works because the certificate
+        # is already explicitely used in a previous jwt_verify call.
+        http-response set-var(txn.cert) str("${testdir}/cert.rsa.pem")
+        http-response set-header x-jwt-verify-RS256-var1 %[var(txn.bearer),jwt_verify(txn.jwt_alg,txn.cert)] if { var(txn.jwt_alg) -m str "RS256" }
+        http-response set-var(txn.cert) str("@named_store${testdir}/cert.rsa.pem")
+        http-response set-header x-jwt-verify-RS256-var2 %[var(txn.bearer),jwt_verify(txn.jwt_alg,txn.cert)] if { var(txn.jwt_alg) -m str "RS256" }
+
         server s1 ${s1_addr}:${s1_port}
 
     backend esXXX_be
@@ -86,6 +106,11 @@ haproxy h1 -conf {
         http-response set-header x-jwt-verify-ES256 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/es256-public.pem")] if { var(txn.jwt_alg) -m str "ES256" }
         http-response set-header x-jwt-verify-ES384 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/es384-public.pem")] if { var(txn.jwt_alg) -m str "ES384" }
         http-response set-header x-jwt-verify-ES512 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/es512-public.pem")] if { var(txn.jwt_alg) -m str "ES512" }
+
+        # Variables and real certificate
+        http-response set-var(txn.cert) str("${testdir}/cert.ecdsa.pem")
+        http-response set-header x-jwt-verify-ES256-var %[var(txn.bearer),jwt_verify(txn.jwt_alg,txn.cert)] if { var(txn.jwt_alg) -m str "ES256" }
+
         server s1 ${s1_addr}:${s1_port}
 
     backend psXXX_be
@@ -192,6 +217,13 @@ client c5 -connect ${h1_mainfe_sock} {
     expect resp.status == 200
     expect resp.http.x-jwt-alg == "RS256"
     expect resp.http.x-jwt-verify-RS256 == "1"
+
+    expect resp.http.x-jwt-verify-RS256-cert == "1"
+    expect resp.http.x-jwt-verify-RS256-cert-named == "1"
+
+    expect resp.http.x-jwt-verify-RS256-var1 == "1"
+    expect resp.http.x-jwt-verify-RS256-var2 == "1"
+
 } -run
 
 client c6 -connect ${h1_mainfe_sock} {
@@ -244,6 +276,7 @@ client c9 -connect ${h1_mainfe_sock} {
     expect resp.status == 200
     expect resp.http.x-jwt-alg == "ES256"
     expect resp.http.x-jwt-verify-ES256 == "1"
+    expect resp.http.x-jwt-verify-ES256-var == "1"
 } -run
 
 client c10 -connect ${h1_mainfe_sock} {
