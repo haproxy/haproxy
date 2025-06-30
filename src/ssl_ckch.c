@@ -2879,13 +2879,8 @@ static int cli_parse_commit_cert(char **args, char *payload, struct appctx *appc
 		goto error;
 	}
 
-	/* if a certificate is here, a private key must be here too */
-	if (ckchs_transaction.new_ckchs->data->cert && !ckchs_transaction.new_ckchs->data->key) {
-		memprintf(&err, "The transaction must contain at least a certificate and a private key!\n");
-		goto error;
-	}
-
-	if (!X509_check_private_key(ckchs_transaction.new_ckchs->data->cert, ckchs_transaction.new_ckchs->data->key)) {
+	if (ckchs_transaction.new_ckchs->data->key &&
+	    !X509_check_private_key(ckchs_transaction.new_ckchs->data->cert, ckchs_transaction.new_ckchs->data->key)) {
 		memprintf(&err, "inconsistencies between private key and certificate loaded '%s'.\n", ckchs_transaction.path);
 		goto error;
 	}
