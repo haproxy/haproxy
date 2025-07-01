@@ -67,6 +67,11 @@
 
 #ifdef HAVE_SSL_OCSP
 
+#define HC_OCSP_RES_STLINE     0x01
+#define HC_OCSP_RES_HDR        0x02
+#define HC_OCSP_RES_BODY       0x04
+#define HC_OCSP_RES_END        0x08
+
 /* ***** READ THIS before adding code here! *****
  *
  * Due to API incompatibilities between multiple OpenSSL versions and their
@@ -1114,7 +1119,7 @@ void ocsp_update_response_stline_cb(struct httpclient *hc)
 	if (!task)
 		return;
 
-	ssl_ocsp_task_ctx.flags |= HC_F_RES_STLINE;
+	ssl_ocsp_task_ctx.flags |= HC_OCSP_RES_STLINE;
 	task_wakeup(task, TASK_WOKEN_MSG);
 }
 
@@ -1125,7 +1130,7 @@ void ocsp_update_response_headers_cb(struct httpclient *hc)
 	if (!task)
 		return;
 
-	ssl_ocsp_task_ctx.flags |= HC_F_RES_HDR;
+	ssl_ocsp_task_ctx.flags |= HC_OCSP_RES_HDR;
 	task_wakeup(task, TASK_WOKEN_MSG);
 }
 
@@ -1136,7 +1141,7 @@ void ocsp_update_response_body_cb(struct httpclient *hc)
 	if (!task)
 		return;
 
-	ssl_ocsp_task_ctx.flags |= HC_F_RES_BODY;
+	ssl_ocsp_task_ctx.flags |= HC_OCSP_RES_BODY;
 	task_wakeup(task, TASK_WOKEN_MSG);
 }
 
@@ -1147,7 +1152,7 @@ void ocsp_update_response_end_cb(struct httpclient *hc)
 	if (!task)
 		return;
 
-	ssl_ocsp_task_ctx.flags |= HC_F_RES_END;
+	ssl_ocsp_task_ctx.flags |= HC_OCSP_RES_END;
 	task_wakeup(task, TASK_WOKEN_MSG);
 }
 
@@ -1225,15 +1230,15 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 		/* An update is in process */
 		ocsp = ctx->cur_ocsp;
 		hc = ctx->hc;
-		if (ctx->flags & HC_F_RES_STLINE) {
+		if (ctx->flags & HC_OCSP_RES_STLINE) {
 			if (hc->res.status != 200) {
 				ctx->update_status = OCSP_UPDT_ERR_HTTP_STATUS;
 				goto http_error;
 			}
-			ctx->flags &= ~HC_F_RES_STLINE;
+			ctx->flags &= ~HC_OCSP_RES_STLINE;
 		}
 
-		if (ctx->flags & HC_F_RES_HDR) {
+		if (ctx->flags & HC_OCSP_RES_HDR) {
 			struct http_hdr *hdr;
 			int found = 0;
 			/* Look for "Content-Type" header which should have
@@ -1249,19 +1254,19 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 				ctx->update_status = OCSP_UPDT_ERR_HTTP_HDR;
 				goto http_error;
 			}
-			ctx->flags &= ~HC_F_RES_HDR;
+			ctx->flags &= ~HC_OCSP_RES_HDR;
 		}
 
-		/* If the HC_F_RES_BODY is set, we still need for the
-		 * HC_F_RES_END flag to be set as well in order to be sure that
+		/* If the HC_OCSP_RES_BODY is set, we still need for the
+		 * HC_OCSP_RES_END flag to be set as well in order to be sure that
 		 * the body is complete. */
 
 		/* we must close only if F_RES_END is the last flag */
-		if (ctx->flags & HC_F_RES_END) {
+		if (ctx->flags & HC_OCSP_RES_END) {
 
 			/* Process the body that must be complete since
-			 * HC_F_RES_END is set. */
-			if (ctx->flags & HC_F_RES_BODY) {
+			 * HC_OCSP_RES_END is set. */
+			if (ctx->flags & HC_OCSP_RES_BODY) {
 				if (ssl_ocsp_check_response(ocsp->chain, ocsp->issuer, &hc->res.buf, &err)) {
 					ctx->update_status = OCSP_UPDT_ERR_CHECK;
 					goto http_error;
@@ -1272,10 +1277,10 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 					goto http_error;
 				}
 
-				ctx->flags &= ~HC_F_RES_BODY;
+				ctx->flags &= ~HC_OCSP_RES_BODY;
 			}
 
-			ctx->flags &= ~HC_F_RES_END;
+			ctx->flags &= ~HC_OCSP_RES_END;
 
 			++ocsp->num_success;
 			ocsp->last_update = date.tv_sec;
@@ -1304,7 +1309,7 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 			goto leave;
 		}
 
-		/* We did not receive the HC_F_RES_END flag yet, wait for it
+		/* We did not receive the HC_OCSP_RES_END flag yet, wait for it
 		 * before trying to update a new ocsp response. */
 		goto wait;
 	} else {
