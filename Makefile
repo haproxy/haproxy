@@ -992,7 +992,7 @@ OBJS += src/mux_h2.o src/mux_h1.o src/mux_fcgi.o src/log.o		\
         src/ebsttree.o src/freq_ctr.o src/systemd.o src/init.o		\
         src/http_acl.o src/dict.o src/dgram.o src/pipe.o		\
         src/hpack-huff.o src/hpack-enc.o src/ebtree.o src/hash.o	\
-        src/version.o
+        src/httpclient_cli.o src/version.o
 
 ifneq ($(TRACE),)
   OBJS += src/calltrace.o
