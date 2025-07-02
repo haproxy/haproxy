@@ -3,7 +3,9 @@ DeviceAtlas Device Detection
 
 In order to add DeviceAtlas Device Detection support, you would need to download
 the API source code from https://deviceatlas.com/deviceatlas-haproxy-module.
-Once extracted :
+Once extracted, two modes are supported :
+
+1/ Build HAProxy and DeviceAtlas in one command
 
     $ make TARGET=<target> USE_DEVICEATLAS=1 DEVICEATLAS_SRC=<path to the API root folder>
 
@@ -14,10 +16,6 @@ directory. Also, in the case the api cache support is not needed and/or a C++ to
 
     $ make TARGET=<target> USE_DEVICEATLAS=1 DEVICEATLAS_SRC=<path to the API root folder> DEVICEATLAS_NOCACHE=1
 
-However, if the API had been installed beforehand, DEVICEATLAS_SRC
-can be omitted. Note that the DeviceAtlas C API version supported is from the 3.x
-releases series (3.2.1 minimum recommended).
-
 For HAProxy developers who need to verify that their changes didn't accidentally
 break the DeviceAtlas code, it is possible to build a dummy library provided in
 the addons/deviceatlas/dummy directory and to use it as an alternative for the
@@ -26,6 +24,29 @@ haproxy to start with a deviceatlas configuration, which generally is enough to
 validate API changes :
 
     $ make TARGET=<target> USE_DEVICEATLAS=1 DEVICEATLAS_SRC=$PWD/addons/deviceatlas/dummy
+
+2/ Build and install DeviceAtlas according to https://docs.deviceatlas.com/apis/enterprise/c/<release version>/README.html
+
+For example :
+In the deviceatlas library folder :
+    $ cmake .
+    $ make
+    $ sudo make install
+
+In the HAProxy folder :
+    $ make TARGET=<target> USE_DEVICEATLAS=1
+
+Note that if the -DCMAKE_INSTALL_PREFIX cmake option had been used, it is necessary to set as well DEVICEATLAS_LIB and
+DEVICEATLAS_INC as follow :
+    $ make TARGET=<target> USE_DEVICEATLAS=1 DEVICEATLAS_INC=<CMAKE_INSTALL_PREFIX value>/include DEVICEATLAS_LIB=<CMAKE_INSTALL_PREFIX value>/lib
+
+For example :
+    $ cmake -DCMAKE_INSTALL_PREFIX=/opt/local
+    $ make
+    $ sudo make install
+    $ make TARGET=<target> USE_DEVICEATLAS=1 DEVICEATLAS_INC=/opt/local/include DEVICEATLAS_LIB=/opt/local/lib
+
+Note that DEVICEATLAS_SRC is omitted in this case.
 
 These are supported DeviceAtlas directives (see doc/configuration.txt) :
   - deviceatlas-json-file <path to the DeviceAtlas JSON data file>.
