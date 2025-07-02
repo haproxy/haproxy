@@ -11,6 +11,14 @@
 #include <haproxy/trace.h>
 
 DECLARE_POOL(pool_head_quic_ssl_sock_ctx, "quic_ssl_sock_ctx", sizeof(struct ssl_sock_ctx));
+const char *quic_ciphers = "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384"
+                           ":TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_CCM_SHA256";
+#ifdef HAVE_OPENSSL_QUIC
+const char *quic_groups = "X25519:P-256:P-384:P-521:X25519MLKEM768";
+#else
+const char *quic_groups = "X25519:P-256:P-384:P-521";
+#endif
+
 
 /* Set the encoded version of the transport parameter into the TLS
  * stack depending on <ver> QUIC version and <server> boolean which must
@@ -732,6 +740,26 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 	SSL_CTX_set_mode(ctx, SSL_MODE_RELEASE_BUFFERS);
 	SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
 	SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
+	if (SSL_CTX_set_ciphersuites(ctx, quic_ciphers) != 1) {
+		ha_warning("Binding [%s:%d] for %s %s: default QUIC cipher"
+		           " suites setting failed.\n",
+		           bind_conf->file, bind_conf->line,
+		           proxy_type_str(bind_conf->frontend),
+		           bind_conf->frontend->id);
+		cfgerr++;
+	}
+
+#ifndef HAVE_OPENSSL_QUICTLS
+	/* TODO: this should also work with QUICTLS */
+	if (SSL_CTX_set1_groups_list(ctx, quic_groups) != 1) {
+		ha_warning("Binding [%s:%d] for %s %s: default QUIC cipher"
+		           " groups setting failed.\n",
+		           bind_conf->file, bind_conf->line,
+		           proxy_type_str(bind_conf->frontend),
+		           bind_conf->frontend->id);
+		cfgerr++;
+	}
+#endif
 
 	if (bind_conf->ssl_conf.early_data) {
 #if !defined(HAVE_SSL_0RTT_QUIC)
@@ -771,19 +799,19 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 SSL_CTX *ssl_quic_srv_new_ssl_ctx(void)
 {
 	SSL_CTX *ctx = NULL;
-	/* XXX TODO: check this: XXX */
-	long options =
-		(SSL_OP_ALL & ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS) |
-		SSL_OP_SINGLE_ECDH_USE |
-		SSL_OP_CIPHER_SERVER_PREFERENCE;
 
 	ctx = SSL_CTX_new(TLS_client_method());
 	if (!ctx)
 		goto err;
 
-	SSL_CTX_set_options(ctx, options);
 	SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
 	SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
+	if (SSL_CTX_set_ciphersuites(ctx, quic_ciphers) != 1)
+		goto err;
+
+	if (SSL_CTX_set1_groups_list(ctx, quic_groups) != 1)
+		goto err;
+
 #ifdef USE_QUIC_OPENSSL_COMPAT
 	if (!quic_tls_compat_init(NULL, ctx))
 		goto err;
