@@ -47,6 +47,7 @@
 #ifdef USE_QUIC_OPENSSL_COMPAT
 #include <haproxy/quic_openssl_compat.h>
 #else
+#define HAVE_OPENSSL_QUIC_CLIENT_SUPPORT
 #if defined(OSSL_FUNC_SSL_QUIC_TLS_CRYPTO_SEND)
 /* This macro is defined by the new OpenSSL 3.5.0 QUIC TLS API and it is not
  * defined by quictls.
