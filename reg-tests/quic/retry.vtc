@@ -1,0 +1,68 @@
+varnishtest "Two simple h3 tests (with and without QUIC RETRY)"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.3-dev2)'"
+# QUIC backend are not supported with USE_QUIC_OPENSSL_COMPAT
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    txresp
+} -repeat 2 -start
+
+haproxy h1 -conf {
+    global
+        expose-experimental-directives
+        .if feature(THREAD)
+            thread-groups 1
+        .endif
+
+    # Uncomment these lines to get some debug traces
+    # ring buf1
+    #    size 1048576
+    #    format timed
+    #    backing-file ${tmpdir}/quic.traces
+    # traces
+    #    trace quic sink buf1 level developer start now
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen quic_lstnr
+        bind "quic+fd@${fe_quic}" ssl crt ${testdir}/common.pem
+        server srv ${s1_addr}:${s1_port}
+
+    listen quic_lstnr_retry
+        bind "quic+fd@${fe_quic_retry}" ssl crt ${testdir}/common.pem quic-force-retry
+        server srv ${s1_addr}:${s1_port}
+
+    backend quic_be
+        server quic quic4@${h1_fe_quic_addr}:${h1_fe_quic_port} ssl verify none
+
+    backend quic_be_retry
+        server quic_retry quic4@${h1_fe_quic_retry_addr}:${h1_fe_quic_retry_port} ssl verify none
+
+    frontend fe_wo_retry
+        bind "fd@${fe}"
+        use_backend quic_be
+
+    frontend fe_with_retry
+        bind "fd@${fe_retry}"
+        use_backend quic_be_retry
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c2 -connect ${h1_fe_retry_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
