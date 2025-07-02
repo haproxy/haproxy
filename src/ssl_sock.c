@@ -5792,12 +5792,10 @@ static int ssl_remove_xprt(struct connection *conn, void *xprt_ctx, void *toremo
 struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 {
 	struct tasklet *tl = (struct tasklet *)t;
-	struct ssl_sock_ctx *ctx = context;
+	struct ssl_sock_ctx *ctx;
 	struct connection *conn;
 	int conn_in_list;
 	int ret = 0;
-
-	TRACE_ENTER(SSL_EV_CONN_IO_CB, ctx->conn);
 
 	if (state & TASK_F_USR1) {
 		/* the tasklet was idling on an idle connection, it might have
@@ -5809,15 +5807,19 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 			tasklet_free(tl);
 			return NULL;
 		}
+		ctx = context;
 		conn = ctx->conn;
 		conn_in_list = conn->flags & CO_FL_LIST_MASK;
 		if (conn_in_list)
 			conn_delete_from_tree(conn);
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	} else {
+		ctx = context;
 		conn = ctx->conn;
 		conn_in_list = 0;
 	}
+
+	TRACE_ENTER(SSL_EV_CONN_IO_CB, ctx->conn);
 
 	/* First if we're doing an handshake, try that */
 	if (ctx->conn->flags & CO_FL_SSL_WAIT_HS) {
