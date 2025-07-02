@@ -63,6 +63,9 @@ enum ssl_encryption_level_t {
 	ssl_encryption_application
 };
 
+#else
+/* QUIC TLS API */
+#define HAVE_OPENSSL_QUICTLS
 #endif
 #endif /* USE_QUIC_OPENSSL_COMPAT */
 
