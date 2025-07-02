@@ -3610,6 +3610,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		}
 
 #ifdef USE_QUIC
+#ifdef HAVE_OPENSSL_QUIC_CLIENT_SUPPORT
 		if (srv_is_quic(newsrv)) {
 			if (!experimental_directives_allowed) {
 				ha_alert("QUIC is experimental for server '%s',"
@@ -3622,6 +3623,14 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 			newsrv->xprt = xprt_get(XPRT_QUIC);
 			quic_transport_params_init(&newsrv->quic_params, 0);
 		}
+#else
+		if (srv_is_quic(newsrv)) {
+			ha_alert("The SSL stack does not provide a support for QUIC server '%s'",
+			         newsrv->id);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+#endif
 #endif
 
 		if (!port1 || !port2) {
