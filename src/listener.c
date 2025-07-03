@@ -2073,6 +2073,8 @@ struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *file,
 
 	bind_conf->rhttp_srvname = NULL;
 
+	bind_conf->tcp_md5sig = NULL;
+
 	return bind_conf;
 
   err:

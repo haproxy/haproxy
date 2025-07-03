@@ -1,0 +1,60 @@
+varnishtest "Test the support for tcp-md5sig option (linux only)"
+
+feature ignore_unknown_macro
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.3-dev1)'"
+
+#EXCLUDE_TARGETS=solaris,freebsd,freebsd-glibc,dragonfly,openbsd,netbsd,cygwin,haiku,aix51,aix52,aix72-gcc,osx,generic,custom
+
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-100ms}"
+	retries 0
+        log global
+
+    listen internal
+        bind "fd@${md5_int}" tcp-md5sig mypass
+        bind "fd@${nomd5_int}"
+        http-request return status 200
+
+    listen fe
+        bind "fd@${fe}"
+
+        use-server s1 if { path /s1 }
+        use-server s2 if { path /s2 }
+        use-server s3 if { path /s3 }
+        use-server s4 if { path /s4 }
+
+        server s1 ${h1_md5_int_addr}:${h1_md5_int_port} tcp-md5sig mypass
+        server s2 ${h1_md5_int_addr}:${h1_md5_int_port} tcp-md5sig badpass
+        server s3 ${h1_nomd5_int_addr}:${h1_nomd5_int_port}
+        server s4 ${h1_nomd5_int_addr}:${h1_nomd5_int_port} tcp-md5sig mypass
+
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -req "GET" -url "/s1"
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c2 -connect ${h1_fe_sock} {
+    txreq -req "GET" -url "/s2"
+    rxresp
+    expect resp.status == 503
+} -run
+
+client c3 -connect ${h1_fe_sock} {
+    txreq -req "GET" -url "/s3"
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c4 -connect ${h1_fe_sock} {
+    txreq -req "GET" -url "/s4"
+    rxresp
+    expect resp.status == 503
+} -run

@@ -17079,6 +17079,16 @@ strict-sni
   disabled on a "bind" line using "no-strict-sni". See the "crt" option for
   more information. See "add ssl crt-list" command in the management guide.
 
+tcp-md5sig <password>
+  Enables the TCP MD5 signature (RFC 2385 Protection of BGP Sessions via the
+  TCP MD5 Signature Option) for all incoming connections instantiated from this
+  listening socket. This option is only available on Linux. When enabled,
+  <password> string is used to sign every TCP segments with a 16-byte MD5
+  digest. This will protect the TCP connection against spoofing. The primary
+  use case for this option is to allow BGP to protect itself against the
+  introduction of spoofed TCP segments into the connection stream. But it can
+  be useful for any very long-lived TCP connections.
+
 tcp-ut <delay>
   Sets the TCP User Timeout for all incoming connections instantiated from this
   listening socket. This option is available on Linux since version 2.6.37. It
@@ -18765,6 +18775,18 @@ socks4 <addr>:<port>
   This option enables upstream socks4 tunnel for outgoing connections to the
   server. Using this option won't force the health check to go via socks4 by
   default. You will have to use the keyword "check-via-socks4" to enable it.
+
+tcp-md5sig <password>
+  May be used in the following contexts: tcp, http, log, peers, ring
+
+  Enables the TCP MD5 signature (RFC 2385 Protection of BGP Sessions via the
+  TCP MD5 Signature Option) for all outgoing connections to this server. This
+  option is only available on Linux. When enabled, <password> string is used to
+  sign every TCP segments with a 16-byte MD5 digest. This will protect the TCP
+  connection against spoofing. The primary use case for this option is to allow
+  BGP to protect itself against the introduction of spoofed TCP segments into
+  the connection stream. But it can be useful for any very long-lived TCP
+  connections.
 
 tcp-ut <delay>
   May be used in the following contexts: tcp, http, log, peers, ring

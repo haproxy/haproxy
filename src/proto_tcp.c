@@ -531,6 +531,25 @@ int tcp_connect_server(struct connection *conn, int flags)
                 setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &zero, sizeof(zero));
 #endif
 
+#if defined(__linux__) && defined(TCP_MD5SIG)
+	/* if it fails, the connection will fail, so reported an error */
+	if (srv && srv->tcp_md5sig) {
+		struct tcp_md5sig md5;
+
+		if (conn->dst->ss_family == AF_INET)
+			memcpy(&md5.tcpm_addr, (struct sockaddr_in *)conn->dst, sizeof(struct sockaddr_in));
+		else
+			memcpy(&md5.tcpm_addr, (struct sockaddr_in6 *)conn->dst, sizeof(struct sockaddr_in6));
+
+		strlcpy2((char*)md5.tcpm_key, srv->tcp_md5sig, sizeof(md5.tcpm_key));
+		md5.tcpm_keylen = strlen(srv->tcp_md5sig);
+		if (setsockopt(fd, IPPROTO_TCP, TCP_MD5SIG, &md5, sizeof(md5)) < 0) {
+			conn->flags |= CO_FL_ERROR;
+			return SF_ERR_SRVCL;
+		}
+	}
+#endif
+
 #ifdef TCP_USER_TIMEOUT
 	/* there is not much more we can do here when it fails, it's still minor */
 	if (srv && srv->tcp_ut)
@@ -709,6 +728,24 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 			chunk_appendf(msg, "%scannot set MSS to %d, (%s)", msg->data ? ", " : "", defaultmss,
 				      strerror(errno));
 			err |= ERR_WARN;
+		}
+	}
+#endif
+#if defined(__linux__) && defined(TCP_MD5SIG)
+	if (listener->bind_conf->tcp_md5sig) {
+		struct tcp_md5sig md5;
+
+		if (listener->rx.addr.ss_family == AF_INET)
+			memcpy(&md5.tcpm_addr, (struct sockaddr_in *)&listener->rx.addr, sizeof(struct sockaddr_in));
+		else
+			memcpy(&md5.tcpm_addr, (struct sockaddr_in6 *)&listener->rx.addr, sizeof(struct sockaddr_in6));
+
+		strlcpy2((char*)md5.tcpm_key, listener->bind_conf->tcp_md5sig, sizeof(md5.tcpm_key));
+		md5.tcpm_keylen = strlen(listener->bind_conf->tcp_md5sig);
+		if (setsockopt(fd, IPPROTO_TCP, TCP_MD5SIG, &md5, sizeof(md5)) < 0) {
+			chunk_appendf(msg, "%scannot set TCP MD5 signature, (%s)", msg->data ? ", " : "",
+				      strerror(errno));
+			err = ERR_ALERT | ERR_ABORT;
 		}
 	}
 #endif

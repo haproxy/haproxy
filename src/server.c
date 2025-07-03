@@ -2972,6 +2972,10 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 #if defined(USE_OPENSSL)
 	srv_ssl_settings_cpy(srv, src);
 #endif
+#ifdef TCP_MD5SIG
+	if (src->tcp_md5sig != NULL)
+		srv->tcp_md5sig = strdup(src->tcp_md5sig);
+#endif
 #ifdef TCP_USER_TIMEOUT
 	srv->tcp_ut = src->tcp_ut;
 #endif
@@ -3114,6 +3118,7 @@ void srv_free_params(struct server *srv)
 	free(srv->pool_conn_name);
 	release_sample_expr(srv->pool_conn_name_expr);
 	free(srv->resolvers_id);
+	free(srv->tcp_md5sig);
 	free(srv->addr_node.key);
 	free(srv->lb_nodes);
 	counters_be_shared_drop(srv->counters.shared);

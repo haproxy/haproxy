@@ -193,6 +193,7 @@ struct bind_conf {
 	unsigned int analysers;    /* bitmap of required protocol analysers */
 	int maxseg;                /* for TCP, advertised MSS */
 	int tcp_ut;                /* for TCP, user timeout */
+	char *tcp_md5sig;          /* TCP MD5 signature password (RFC2385) */
 	int idle_ping;             /* MUX idle-ping interval in ms */
 	int maxaccept;             /* if set, max number of connections accepted at once (-1 when disabled) */
 	unsigned int backlog;      /* if set, listen backlog */

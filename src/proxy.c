@@ -418,6 +418,7 @@ void deinit_proxy(struct proxy *p)
 		LIST_DELETE(&bind_conf->by_fe);
 		free(bind_conf->guid_prefix);
 		free(bind_conf->rhttp_srvname);
+		free(bind_conf->tcp_md5sig);
 #ifdef USE_QUIC
 		free(bind_conf->quic_cc_algo);
 #endif

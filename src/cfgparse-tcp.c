@@ -100,6 +100,31 @@ static int bind_parse_mss(char **args, int cur_arg, struct proxy *px, struct bin
 }
 #endif
 
+#if defined(__linux__) && defined(TCP_MD5SIG)
+/* parse the "tcp-md5sig" bind keyword */
+static int bind_parse_tcp_md5sig(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' : missing TCP MD5 signature password", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	ha_free(&conf->tcp_md5sig);
+	if (strlen(args[cur_arg + 1]) > TCP_MD5SIG_MAXKEYLEN) {
+		memprintf(err, "'%s' : password too long (at most %d characters expected)",
+			  args[cur_arg], TCP_MD5SIG_MAXKEYLEN);
+		return ERR_ALERT | ERR_ABORT;
+	}
+	conf->tcp_md5sig = strdup(args[cur_arg + 1]);
+	if (!conf->tcp_md5sig) {
+		memprintf(err, "'%s %s' : out of memory", args[cur_arg], args[cur_arg + 1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+}
+#endif
+
 #ifdef TCP_USER_TIMEOUT
 /* parse the "tcp-ut" bind keyword */
 static int bind_parse_tcp_ut(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
@@ -178,6 +203,32 @@ static int bind_parse_namespace(char **args, int cur_arg, struct proxy *px, stru
 }
 #endif
 
+#if defined(__linux__) && defined(TCP_MD5SIG)
+/* parse the "tcp-md5sig" server keyword */
+static int srv_parse_tcp_md5sig(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	if (!*args[*cur_arg + 1]) {
+		memprintf(err, "'%s' : missing TCP MD5 signature password", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (newsrv->addr.ss_family == AF_INET || newsrv->addr.ss_family == AF_INET6) {
+		ha_free(&newsrv->tcp_md5sig);
+		if (strlen(args[*cur_arg + 1]) > TCP_MD5SIG_MAXKEYLEN) {
+			memprintf(err, "'%s' : password too long (at most %d characters expected)",
+				  args[*cur_arg], TCP_MD5SIG_MAXKEYLEN);
+			return ERR_ALERT | ERR_ABORT;
+		}
+		newsrv->tcp_md5sig = strdup(args[*cur_arg + 1]);
+		if (!newsrv->tcp_md5sig) {
+			memprintf(err, "'%s %s' : out of memory", args[*cur_arg], args[*cur_arg + 1]);
+			return ERR_ALERT | ERR_FATAL;
+		}
+	}
+	return 0;
+}
+#endif
+
 #ifdef TCP_USER_TIMEOUT
 /* parse the "tcp-ut" server keyword */
 static int srv_parse_tcp_ut(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
@@ -235,6 +286,9 @@ static struct bind_kw_list bind_kws = { "TCP", { }, {
 #ifdef TCP_MAXSEG
 	{ "mss",           bind_parse_mss,          1 }, /* set MSS of listening socket */
 #endif
+#if defined(__linux__) && defined(TCP_MD5SIG)
+	{ "tcp-md5sig",    bind_parse_tcp_md5sig,   1 }, /* set TCP MD5 signature password */
+#endif
 #ifdef TCP_USER_TIMEOUT
 	{ "tcp-ut",        bind_parse_tcp_ut,       1 }, /* set User Timeout on listening socket */
 #endif
@@ -264,6 +318,9 @@ static struct bind_kw_list bind_kws = { "TCP", { }, {
 INITCALL1(STG_REGISTER, bind_register_keywords, &bind_kws);
 
 static struct srv_kw_list srv_kws = { "TCP", { }, {
+#if defined(__linux__) && defined(TCP_MD5SIG)
+	{ "tcp-md5sig",    srv_parse_tcp_md5sig,    1,  1,  0 }, /* set TCP MD5 signature password on server */
+#endif
 #ifdef TCP_USER_TIMEOUT
 	{ "tcp-ut",        srv_parse_tcp_ut,        1,  1,  0 }, /* set TCP user timeout on server */
 #endif
