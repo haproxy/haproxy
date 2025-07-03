@@ -204,6 +204,7 @@ enum srv_init_state {
 #define SRV_SSL_O_NO_TLS_TICKETS 0x0100 /* disable session resumption tickets */
 #define SRV_SSL_O_NO_REUSE       0x200  /* disable session reuse */
 #define SRV_SSL_O_EARLY_DATA     0x400  /* Allow using early data */
+#define SRV_SSL_O_KTLS           0x800  /* Use kTLS if available */
 
 /* log servers ring's protocols options */
 enum srv_log_proto {
