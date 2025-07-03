@@ -43,6 +43,7 @@
 #include <haproxy/sc_strm.h>
 #include <haproxy/server.h>
 #include <haproxy/stats.h>
+#include <haproxy/ssl_sock.h>
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
 #include <haproxy/stress.h>
@@ -3852,6 +3853,12 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 	if (srv_is_quic(srv)) {
 		if (!srv->use_ssl) {
 			ha_alert("QUIC protocol detected without explicit SSL requirement. Use 'ssl' to fix this.\n");
+			return ERR_ALERT | ERR_FATAL;
+		}
+
+		if (!srv->ssl_ctx.alpn_str &&
+		    ssl_sock_parse_alpn("h3", &srv->ssl_ctx.alpn_str,
+		                        &srv->ssl_ctx.alpn_len, &errmsg) != 0) {
 			return ERR_ALERT | ERR_FATAL;
 		}
 	}
