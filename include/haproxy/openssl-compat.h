@@ -554,4 +554,30 @@ static inline unsigned long ERR_peek_error_func(const char **func)
 #endif
 
 #endif /* USE_OPENSSL */
+
+#ifdef USE_KTLS
+
+#ifdef __linux__
+#include <linux/tls.h>
+#endif
+
+#if defined(HAVE_VANILLA_OPENSSL) && (OPENSSL_VERSION_NUMBER >= 0x3000000fL)
+#define HA_USE_KTLS
+/*
+ * Only provided by internal/bio.h, but we need it
+ */
+#ifndef BIO_CTRL_SET_KTLS
+#define BIO_CTRL_SET_KTLS	72
+#endif
+#ifndef BIO_CTRL_SET_KTLS_TX_SEND_CTRL_MSG
+#define BIO_CTRL_SET_KTLS_TX_SEND_CTRL_MSG 74
+#endif
+#ifndef BIO_CTRL_CLEAR_KTLS_TX_CTRL_MSG
+#define BIO_CTRL_CLEAR_KTLS_TX_CTRL_MSG 75
+#endif
+
+#endif /* HAVE_VANILLA_OPENSSL && OPENSSL_VERSION_NUMBER >= 0x3000000fL */
+
+#endif /* USE_KTLS */
+
 #endif /* _HAPROXY_OPENSSL_COMPAT_H */

@@ -258,19 +258,44 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag);
 /* Methods to implement OpenSSL BIO */
 static int ha_ssl_write(BIO *h, const char *buf, int num)
 {
+#ifdef HA_USE_KTLS
+#ifdef HAVE_VANILLA_OPENSSL
+	unsigned char cbuf[CMSG_SPACE(sizeof(unsigned char))];
+#endif
+#endif
 	struct buffer tmpbuf;
 	struct ssl_sock_ctx *ctx;
+	void *msg_control = NULL;
+	size_t msg_controllen = 0;
 	uint flags;
 	int ret;
 
 	ctx = BIO_get_data(h);
+#ifdef HA_USE_KTLS
+#ifdef HAVE_VANILLA_OPENSSL
+	if (ctx->flags & SSL_SOCK_F_CTRL_SEND) {
+		struct cmsghdr *cmsg = (void *)cbuf;
+
+		cmsg->cmsg_level = SOL_TLS;
+		cmsg->cmsg_type = TLS_SET_RECORD_TYPE;
+		cmsg->cmsg_len = CMSG_LEN(sizeof(unsigned char));
+		*((unsigned char *)CMSG_DATA(cmsg)) = ctx->record_type;
+		msg_controllen = cmsg->cmsg_len;
+		msg_control = cmsg;
+	}
+#endif
+#endif
 	tmpbuf.size = num;
 	tmpbuf.area = (void *)(uintptr_t)buf;
 	tmpbuf.data = num;
 	tmpbuf.head = 0;
 	flags = (ctx->xprt_st & SSL_SOCK_SEND_MORE) ? CO_SFL_MSG_MORE : 0;
-	ret = ctx->xprt->snd_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, num, NULL, 0, flags);
+	ret = ctx->xprt->snd_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, num, msg_control, msg_controllen, flags);
 	BIO_clear_retry_flags(h);
+#ifdef HA_USE_KTLS
+	if (ret > 0)
+		ctx->flags &= ~SSL_SOCK_F_CTRL_SEND;
+#endif
 	if (ret == 0 && !(ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH))) {
 		BIO_set_retry_write(h);
 		ret = -1;
@@ -292,33 +317,186 @@ static int ha_ssl_puts(BIO *h, const char *str)
 
 static int ha_ssl_read(BIO *h, char *buf, int size)
 {
+#ifdef HA_USE_KTLS
+#ifdef HAVE_VANILLA_OPENSSL
+	struct cmsghdr *cmsg;
+	union {
+		struct cmsghdr hdr;
+		char buf[CMSG_SPACE(sizeof(unsigned char))];
+	} cmsgbuf;
+	size_t msg_controllen;
+#endif
+#endif
 	struct buffer tmpbuf;
 	struct ssl_sock_ctx *ctx;
+	void *msg_control = NULL;
+	size_t *msg_controllenp = NULL;
 	int ret;
 
 	ctx = BIO_get_data(h);
-	tmpbuf.size = size;
-	tmpbuf.area = buf;
+#ifdef HA_USE_KTLS
+#ifdef HAVE_VANILLA_OPENSSL
+	if (ctx->flags & SSL_SOCK_F_KTLS_RECV) {
+		msg_control = &cmsgbuf;
+		msg_controllen = sizeof(cmsgbuf);
+		msg_controllenp = &msg_controllen;
+		tmpbuf.size = size - (SSL3_RT_HEADER_LENGTH + EVP_GCM_TLS_TAG_LEN);
+		tmpbuf.area = buf + SSL3_RT_HEADER_LENGTH;
+	} else
+#endif
+#endif
+	{
+		tmpbuf.size = size;
+		tmpbuf.area = buf;
+	}
 	tmpbuf.data = 0;
 	tmpbuf.head = 0;
-	ret = ctx->xprt->rcv_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, size, NULL, NULL, 0);
+	ret = ctx->xprt->rcv_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, size, msg_control, msg_controllenp, 0);
 	BIO_clear_retry_flags(h);
 	if (ret == 0 && !(ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH))) {
 		BIO_set_retry_read(h);
 		ret = -1;
 	}
+#ifdef HA_USE_KTLS
+#ifdef HAVE_VANILLA_OPENSSL
+	if (ret > 0 && msg_controllen > 0) {
+		cmsg = (void *)&cmsgbuf;
 
+		if (cmsg->cmsg_type == TLS_GET_RECORD_TYPE) {
+			/*
+			 * The kernel strips the TLS record header, but openssl
+			 * expects them back, so bring them back.
+			 */
+			buf[0] = *((unsigned char *)CMSG_DATA(cmsg));
+			buf[1] = TLS_1_2_VERSION_MAJOR;
+			buf[2] = TLS_1_2_VERSION_MINOR;
+			buf[3] = (ret >> 8) & 0xff;
+			buf[4] = ret & 0xff;
+			ret += SSL3_RT_HEADER_LENGTH;
+		}
+	}
+#endif
+#endif
 	return ret;
 }
 
+#ifdef HA_USE_KTLS
+/* Returns 0 on success, -1 on failure */
+static int ktls_set_key(struct ssl_sock_ctx *ctx, void *info, size_t info_len, int is_tx)
+{
+	int opt_to_use = is_tx ? TLS_TX : TLS_RX;
+
+	return setsockopt(ctx->conn->handle.fd, SOL_TLS, opt_to_use, info, info_len);
+}
+#endif
+
 static long ha_ssl_ctrl(BIO *h, int cmd, long arg1, void *arg2)
 {
+	struct ssl_sock_ctx *ctx __maybe_unused = BIO_get_data(h);
 	int ret = 0;
+
 	switch (cmd) {
 	case BIO_CTRL_DUP:
 	case BIO_CTRL_FLUSH:
 		ret = 1;
 		break;
+#ifdef HA_USE_KTLS
+#ifdef HAVE_VANILLA_OPENSSL
+	case BIO_CTRL_GET_KTLS_SEND:
+		if (ctx->flags & SSL_SOCK_F_KTLS_SEND)
+			return 1;
+		return 0;
+	case BIO_CTRL_GET_KTLS_RECV:
+		if (ctx->flags & SSL_SOCK_F_KTLS_RECV)
+			return 1;
+		return 0;
+	case BIO_CTRL_SET_KTLS_TX_SEND_CTRL_MSG:
+		ctx->flags |= SSL_SOCK_F_CTRL_SEND;
+		ctx->record_type = (unsigned char)arg1;
+		ret = 0;
+		break;
+	case BIO_CTRL_CLEAR_KTLS_TX_CTRL_MSG:
+		ctx->flags &= ~SSL_SOCK_F_CTRL_SEND;
+		ret = 0;
+		break;
+
+	case BIO_CTRL_SET_KTLS:
+	{
+		size_t info_len;
+		struct tls_crypto_info *info = arg2;
+
+		if (!(ctx->flags & SSL_SOCK_F_KTLS_ENABLED))
+			return 0;
+		/*
+		 * As OpenSSL doesn't export struct tls_crypto_info_all,
+		 * and it puts the size at the end of the struct,
+		 * we don't know where to look for it, so we have
+		 * to calculate the size depending on the algorithm
+		 * again. Of course, that means that if new algorithms
+		 * are added, they have to be added there too.
+		 */
+		switch (info->cipher_type) {
+			default:
+				/*
+				 * Unknown cipher, we don't support it
+				 */
+				return 0;
+#ifdef TLS_CIPHER_AES_GCM_128
+			case TLS_CIPHER_AES_GCM_128:
+				info_len = sizeof(struct tls12_crypto_info_aes_gcm_128);
+				break;
+#endif
+
+#ifdef TLS_CIPHER_AES_GCM_256
+			case TLS_CIPHER_AES_GCM_256:
+				info_len = sizeof(struct tls12_crypto_info_aes_gcm_256);
+				break;
+#endif
+
+#ifdef TLS_CIPHER_AES_CCM_128
+			case TLS_CIPHER_AES_CCM_128:
+				info_len = sizeof(struct tls12_crypto_info_aes_ccm_128);
+				break;
+#endif
+
+#ifdef TLS_CIPHER_CHACHA20_POLY1305
+			case TLS_CIPHER_CHACHA20_POLY1305:
+				info_len = sizeof(struct tls12_crypto_info_chacha20_poly1305);
+				break;
+#endif
+
+#ifdef TLS_CIPHER_SM4_GCM
+			case TLS_CIPHER_SM4_GCM:
+				info_len = sizeof(struct tls12_crypto_info_sm4_gcm);
+				break;
+#endif
+
+#ifdef TLS_CIPHER_SM4_CCM
+			case TLS_CIPHER_SM4_CCM:
+				info_len = sizeof(struct tls12_crypto_info_sm4_ccm);
+				break;
+#endif
+
+#ifdef TLS_CIPHER_ARIA_GCM_128
+			case TLS_CIPHER_ARIA_GCM_128:
+				info_len = sizeof(struct tls12_crypto_info_aria_gcm_128);
+				break;
+#endif
+
+#ifdef TLS_CIPHER_ARIA_GCM_256
+			case TLS_CIPHER_ARIA_GCM_256:
+				info_len = sizeof(struct tls12_crypto_info_aria_gcm_256);
+				break;
+#endif
+			}
+		if (ktls_set_key(ctx, info, info_len, arg1) == 0) {
+			ctx->flags |= arg1 ? SSL_SOCK_F_KTLS_SEND : SSL_SOCK_F_KTLS_RECV;
+			ret = 1;
+		}
+	}
+	break;
+#endif
+#endif
 	}
 	return ret;
 }
@@ -5037,6 +5215,14 @@ static int ssl_sock_start(struct connection *conn, void *xprt_ctx)
 		if (ret < 0)
 			return ret;
 	}
+#ifdef HA_USE_KTLS
+	/*
+	 * Make the socket usable for kTLS. That does not mean that we will
+	 * use kTLS, though, just that the socket will be able to do it.
+	 */
+	if ((ctx->flags & SSL_SOCK_F_KTLS_ENABLED) && setsockopt(conn->handle.fd, SOL_TCP, TCP_ULP, "tls", sizeof("tls")) != 0)
+		ctx->flags &= ~SSL_SOCK_F_KTLS_ENABLED;
+#endif
 	tasklet_wakeup(ctx->wait_event.tasklet);
 
 	return 0;
@@ -5105,6 +5291,9 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 	ctx->xprt_ctx = NULL;
 	ctx->error_code = 0;
 	ctx->flags = SSL_SOCK_F_EARLY_ENABLED;
+#ifdef HA_USE_KTLS
+	ctx->record_type = 0;
+#endif
 
 	next_sslconn = increment_sslconn();
 	if (!next_sslconn) {
@@ -5200,6 +5389,14 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		}
 		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.lock);
 
+#ifdef HA_USE_KTLS
+		if (srv->ssl_ctx.options & SRV_SSL_O_KTLS) {
+#ifdef HAVE_VANILLA_OPENSSL
+			SSL_set_options(ctx->ssl, SSL_OP_ENABLE_KTLS);
+#endif
+			ctx->flags |= SSL_SOCK_F_KTLS_ENABLED;
+		}
+#endif
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
 
@@ -5237,6 +5434,14 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			conn->flags |= CO_FL_EARLY_SSL_HS;
 #endif
 
+#ifdef HA_USE_KTLS
+		if (bc->ssl_conf.ktls) {
+#ifdef HAVE_VANILLA_OPENSSL
+			SSL_set_options(ctx->ssl, SSL_OP_ENABLE_KTLS);
+#endif
+			ctx->flags |= SSL_SOCK_F_KTLS_ENABLED;
+		}
+#endif
 		_HA_ATOMIC_INC(&global.totalsslconns);
 		*xprt_ctx = ctx;
 
