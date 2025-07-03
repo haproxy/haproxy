@@ -12178,6 +12178,7 @@ ssl-f-use [<sslbindconf> ...]*
     - crl-file
     - curves
     - ecdhe
+    - ktls
     - no-alpn
     - no-ca-names
     - npn
@@ -16752,6 +16753,11 @@ interface <interface>
   client IP addresses need to be able to reach frontends hosted on different
   interfaces.
 
+ktls <on|off> [ EXPERIMENTAL ]
+  Enables or disables ktls for those sockets. If enabled, kTLS will be used
+  if the kernel supports it and the cipher is compatible.
+  This is only available on linux.
+
 label <label>
   Sets an optional label for these sockets. It could be used group sockets by
   label, independently of where the bind lines were declared.
@@ -17924,6 +17930,13 @@ init-state { fully-up | up | down | fully-down }
         server srv2 google.com:80 check init-state fully-down rise 3
 
 See also: "option tcp-check", "option httpchk"
+
+ktls <on|off> [ EXPERIMENTAL ]
+  May be used in the following contexts: tcp, http, log, peers, ring
+
+  Enables or disables ktls for those sockets. If enabled, kTLS will be used
+  if the kernel supports it and the cipher is compatible.
+  This is only available on Linux.
 
 log-bufsize <bufsize>
   May be used in the following contexts: log

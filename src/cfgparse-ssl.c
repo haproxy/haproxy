@@ -874,6 +874,36 @@ static int bind_parse_curves(char **args, int cur_arg, struct proxy *px, struct 
 	return ssl_bind_parse_curves(args, cur_arg, px, &conf->ssl_conf, 0, err);
 }
 
+/* parse the "ktls" bind keyword */
+static int ssl_bind_parse_ktls(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
+{
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' expects \"on\" or \"off\" as an argument.",
+			  args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	if (!experimental_directives_allowed) {
+		memprintf(err, "'%s' directive is experimental, must be allowed via a global 'expose-experimental-directive'", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	if (!strcasecmp(args[cur_arg + 1], "on")) {
+		conf->ktls = 1;
+	} else if (!strcasecmp(args[cur_arg + 1], "off")) {
+		conf->ktls = 0;
+	} else {
+		memprintf(err, "'%s' expects \"on\" or \"off\" as an argument, got '%s'.",
+			  args[cur_arg], args[cur_arg + 1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	return 0;
+
+}
+
+static int bind_parse_ktls(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	return ssl_bind_parse_ktls(args, cur_arg, px, &conf->ssl_conf, 0, err);
+}
+
 /* parse the "sigalgs" bind keyword */
 static int ssl_bind_parse_sigalgs(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
 {
@@ -1890,6 +1920,32 @@ static int srv_parse_no_ssl(char **args, int *cur_arg, struct proxy *px, struct 
 	return 0;
 }
 
+/* parse the "ktls" server keywod */
+static int srv_parse_ktls(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	if (!*args[*cur_arg + 1]) {
+		memprintf(err, "'%s' expects \"on\" or \"off\" as an argument.",
+			  args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (!experimental_directives_allowed) {
+		memprintf(err, "'%s' directive is experimental, must be allowed via a global 'expose-experimental-directive'", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (!strcasecmp(args[*cur_arg + 1], "on")) {
+		newsrv->ssl_ctx.options |= SRV_SSL_O_KTLS;
+	} else if (!strcasecmp(args[*cur_arg + 1], "off")) {
+		newsrv->ssl_ctx.options &= ~SRV_SSL_O_KTLS;
+	} else {
+		memprintf(err, "'%s' expects \"on\" or \"off\" as an argument, got '%s'.",
+			  args[*cur_arg], args[*cur_arg + 1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	return 0;
+}
+
 /* parse the "allow-0rtt" server keyword */
 static int srv_parse_allow_0rtt(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
@@ -2450,6 +2506,7 @@ struct ssl_crtlist_kw ssl_crtlist_kws[] = {
 	{ "crl-file",              ssl_bind_parse_crl_file,         1 }, /* set certificate revocation list file use on client cert verify */
 	{ "curves",                ssl_bind_parse_curves,           1 }, /* set SSL curve suite */
 	{ "ecdhe",                 ssl_bind_parse_ecdhe,            1 }, /* defines named curve for elliptic curve Diffie-Hellman */
+	{ "ktls",                  ssl_bind_parse_ktls,             1 }, /* enables or disables kTLS */
 	{ "no-alpn",               ssl_bind_parse_no_alpn,          0 }, /* disable sending ALPN */
 	{ "no-ca-names",           ssl_bind_parse_no_ca_names,      0 }, /* do not send ca names to clients (ca_file related) */
 	{ "npn",                   ssl_bind_parse_npn,              1 }, /* set NPN supported protocols */
@@ -2486,6 +2543,7 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "force-tlsv12",          bind_parse_tls_method_options, 0 }, /* force TLSv12 */
 	{ "force-tlsv13",          bind_parse_tls_method_options, 0 }, /* force TLSv13 */
 	{ "generate-certificates", bind_parse_generate_certs,     0 }, /* enable the server certificates generation */
+	{ "ktls",                  bind_parse_ktls,               1 }, /* enable or disable kTLS */
 	{ "no-alpn",               bind_parse_no_alpn,            0 }, /* disable sending ALPN */
 	{ "no-ca-names",           bind_parse_no_ca_names,        0 }, /* do not send ca names to clients (ca_file related) */
 	{ "no-sslv3",              bind_parse_tls_method_options, 0 }, /* disable SSLv3 */
@@ -2535,6 +2593,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "force-tlsv11",            srv_parse_tls_method_options, 0, 1, 1 }, /* force TLSv11 */
 	{ "force-tlsv12",            srv_parse_tls_method_options, 0, 1, 1 }, /* force TLSv12 */
 	{ "force-tlsv13",            srv_parse_tls_method_options, 0, 1, 1 }, /* force TLSv13 */
+	{ "ktls",                    srv_parse_ktls,               1, 1, 1 }, /* enable or disable kTLS */
 	{ "no-check-ssl",            srv_parse_no_check_ssl,       0, 1, 0 }, /* disable SSL for health checks */
 	{ "no-renegotiate",          srv_parse_renegotiate,        0, 1, 1 }, /* Disable renegotiation */
 	{ "no-send-proxy-v2-ssl",    srv_parse_no_send_proxy_ssl,  0, 1, 0 }, /* do not send PROXY protocol header v2 with SSL info */
