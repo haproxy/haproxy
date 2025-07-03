@@ -250,6 +250,10 @@ struct ssl_keylog {
  * ssl_sock_ctx flags
  */
 #define SSL_SOCK_F_EARLY_ENABLED	(1 << 0) /* We did not start the handshake yet so we can send early data */
+#define SSL_SOCK_F_KTLS_ENABLED         (1 << 1) /* We can use KTLS on that socket */
+#define SSL_SOCK_F_KTLS_SEND            (1 << 2) /* kTLS send is configured on that socket */
+#define SSL_SOCK_F_KTLS_RECV            (1 << 3) /* kTLS receive is configure on that socket */
+#define SSL_SOCK_F_CTRL_SEND            (1 << 4) /* We want to send a kTLS control message for that socket */
 
 struct ssl_sock_ctx {
 	struct connection *conn;
@@ -264,6 +268,9 @@ struct ssl_sock_ctx {
 	struct buffer early_buf;      /* buffer to store the early data received */
 	int sent_early_data;          /* Amount of early data we sent so far */
 	int flags;                    /* Various flags for the ssl_sock_ctx */
+#ifdef HA_USE_KTLS
+	char record_type;             /* Record type to use if not just sending application data */
+#endif
 
 #ifdef USE_QUIC
 	struct quic_conn *qc;
