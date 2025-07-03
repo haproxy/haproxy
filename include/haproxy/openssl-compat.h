@@ -128,6 +128,11 @@ enum ssl_encryption_level_t {
 #define HAVE_CRYPTO_memcmp
 #endif
 
+#if !defined(USE_OPENSSL_WOLFSSL) && !defined(OPENSSL_IS_AWSLC) && !defined(OPENSSL_IS_BORINGSSL) && !defined(LIBRESSL_VERSION_NUMBER)
+/* Defined if our SSL lib is really OpenSSL */
+#define HAVE_VANILLA_OPENSSL
+#endif
+
 #if (defined(SN_ct_cert_scts) && !defined(OPENSSL_NO_TLSEXT))
 #define HAVE_SSL_SCTL
 #endif
