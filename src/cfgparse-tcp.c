@@ -10,6 +10,7 @@
  *
  */
 
+#define _GNU_SOURCE // for TCP_MD5SIG_MAXKEYLEN
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
