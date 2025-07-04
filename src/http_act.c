@@ -1822,8 +1822,12 @@ static enum act_parse_ret parse_http_pause(const char **args, int *orig_arg, str
                 memprintf(err, "null value is not valid for a 'pause' rule");
                 return ACT_RET_PRS_ERR;
         }
+	else {
+		/* a time volue was successfully parsed */
+		cur_arg++;
+	}
 
-	*orig_arg = cur_arg + 1;
+	*orig_arg = cur_arg;
 	return ACT_RET_PRS_OK;
 }
 
