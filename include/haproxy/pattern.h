@@ -33,6 +33,9 @@
 extern const char *const pat_match_names[PAT_MATCH_NUM];
 extern int const pat_match_types[PAT_MATCH_NUM];
 
+extern unsigned long long patterns_added;
+extern unsigned long long patterns_freed;
+
 extern int (*const pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, int, char **);
 extern int (*const pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, char **);
 extern void (*const pat_prune_fcts[PAT_MATCH_NUM])(struct pattern_expr *);

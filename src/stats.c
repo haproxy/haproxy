@@ -45,7 +45,7 @@
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
 #include <haproxy/map-t.h>
-#include <haproxy/pattern-t.h>
+#include <haproxy/pattern.h>
 #include <haproxy/pipe.h>
 #include <haproxy/pool.h>
 #include <haproxy/proxy.h>
@@ -172,6 +172,8 @@ const struct stat_col stat_cols_info[ST_I_INF_MAX] = {
 	[ST_I_INF_CURR_STRM]                      = { .name = "CurrStreams",                 .alt_name = NULL,                            .desc = "Current number of streams on this worker process" },
 	[ST_I_INF_CUM_STRM]                       = { .name = "CumStreams",                  .alt_name = NULL,                            .desc = "Total number of streams created on this worker process since started" },
 	[ST_I_INF_WARN_BLOCKED]                   = { .name = "BlockedTrafficWarnings",      .alt_name = NULL,                            .desc = "Total number of warnings issued about traffic being blocked by too slow a task" },
+	[ST_I_INF_PATTERNS_ADDED]                 = { .name = "PatternsAdded",               .alt_name = "patterns_added_total",          .desc = "Total number of patterns added (acl/map entries)" },
+	[ST_I_INF_PATTERNS_FREED]                 = { .name = "PatternsFreed",               .alt_name = "patterns_freed_total",          .desc = "Total number of patterns freed (acl/map entries)" },
 };
 
 /* one line of info */
@@ -836,6 +838,8 @@ int stats_fill_info(struct field *line, int len, uint flags)
 	line[ST_I_INF_CURR_STRM]                      = mkf_u64(0, glob_curr_strms);
 	line[ST_I_INF_CUM_STRM]                       = mkf_u64(0, glob_cum_strms);
 	line[ST_I_INF_WARN_BLOCKED]                   = mkf_u32(0, warn_blocked_issued);
+	line[ST_I_INF_PATTERNS_ADDED]                 = mkf_u64(0, patterns_added);
+	line[ST_I_INF_PATTERNS_FREED]                 = mkf_u64(0, patterns_freed);
 
 	return 1;
 }

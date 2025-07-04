@@ -337,6 +337,8 @@ enum stat_idx_info {
 	ST_I_INF_CURR_STRM,
 	ST_I_INF_CUM_STRM,
 	ST_I_INF_WARN_BLOCKED,
+	ST_I_INF_PATTERNS_ADDED,
+	ST_I_INF_PATTERNS_FREED,
 
 	/* must always be the last one */
 	ST_I_INF_MAX

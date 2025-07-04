@@ -143,6 +143,9 @@ struct list pattern_reference = LIST_HEAD_INIT(pattern_reference);
 static THREAD_LOCAL struct lru64_head *pat_lru_tree;
 static unsigned long long pat_lru_seed __read_mostly;
 
+unsigned long long patterns_added = 0;
+unsigned long long patterns_freed = 0;
+
 /*
  *
  * The following functions are not exported and are used by internals process
@@ -1590,6 +1593,7 @@ void pat_ref_delete_by_ptr(struct pat_ref *ref, struct pat_ref_elt *elt)
 	ebmb_delete(&elt->node);
 	free(elt->sample);
 	free(elt);
+	HA_ATOMIC_INC(&patterns_freed);
 }
 
 /* This function removes the pattern matching the pointer <refelt> from
@@ -2001,6 +2005,7 @@ struct pat_ref_elt *pat_ref_append(struct pat_ref *ref, const char *pattern, con
 	/* Even if calloc()'ed, ensure this node is not linked to a tree. */
 	elt->node.node.leaf_p = NULL;
 	ebst_insert(&ref->ebmb_root, &elt->node);
+	HA_ATOMIC_INC(&patterns_added);
 	return elt;
  fail:
 	free(elt);
@@ -2176,6 +2181,7 @@ int pat_ref_purge_range(struct pat_ref *ref, uint from, uint to, int budget)
 		ebmb_delete(&elt->node);
 		free(elt->sample);
 		free(elt);
+		HA_ATOMIC_INC(&patterns_freed);
 	}
 
 	list_for_each_entry(expr, &ref->pat, list)
