@@ -536,6 +536,7 @@ int tcp_connect_server(struct connection *conn, int flags)
 	if (srv && srv->tcp_md5sig) {
 		struct tcp_md5sig md5;
 
+		memset(&md5, 0, sizeof(md5));
 		if (conn->dst->ss_family == AF_INET)
 			memcpy(&md5.tcpm_addr, (struct sockaddr_in *)conn->dst, sizeof(struct sockaddr_in));
 		else
@@ -735,6 +736,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (listener->bind_conf->tcp_md5sig) {
 		struct tcp_md5sig md5;
 
+		memset(&md5, 0, sizeof(md5));
 		if (listener->rx.addr.ss_family == AF_INET)
 			memcpy(&md5.tcpm_addr, (struct sockaddr_in *)&listener->rx.addr, sizeof(struct sockaddr_in));
 		else
