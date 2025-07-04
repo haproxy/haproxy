@@ -22,7 +22,7 @@
 #include <haproxy/ssl_gencert.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/trace.h>
-#include <haproxy/ssl_trace-t.h>
+#include <haproxy/ssl_trace.h>
 
 static void ssl_sock_switchctx_set(SSL *ssl, SSL_CTX *ctx)
 {

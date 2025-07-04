@@ -63,7 +63,7 @@
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 #include <haproxy/trace.h>
-#include <haproxy/ssl_trace-t.h>
+#include <haproxy/ssl_trace.h>
 
 #ifdef HAVE_SSL_OCSP
 

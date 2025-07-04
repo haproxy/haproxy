@@ -88,7 +88,7 @@
 #include <haproxy/istbuf.h>
 #include <haproxy/ssl_ocsp.h>
 #include <haproxy/trace.h>
-#include <haproxy/ssl_trace-t.h>
+#include <haproxy/ssl_trace.h>
 
 
 /* ***** READ THIS before adding code here! *****

@@ -1,18 +1,7 @@
-/*
- * include/haproxy/ssl_trace-t.h
- * Definitions for SSL traces internal types, constants and flags.
- *
- * Copyright (C) 2025
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version
- * 2 of the License, or (at your option) any later version.
- *
- */
+/* SPDX-License-Identifier: LGPL-2.1-or-later */
 
-#ifndef _HAPROXY_SSL_TRACE_T_H
-#define _HAPROXY_SSL_TRACE_T_H
+#ifndef _HAPROXY_SSL_TRACE_H
+#define _HAPROXY_SSL_TRACE_H
 
 #include <haproxy/trace-t.h>
 
@@ -36,4 +25,4 @@ extern struct trace_source trace_ssl;
 
 #define TRACE_SOURCE &trace_ssl
 
-#endif /* _HAPROXY_SSL_TRACE_T_H */
+#endif /* _HAPROXY_SSL_TRACE_H */

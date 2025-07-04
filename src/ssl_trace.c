@@ -15,7 +15,7 @@
 #include <haproxy/api-t.h>
 #include <haproxy/chunk.h>
 #include <haproxy/trace.h>
-#include <haproxy/ssl_trace-t.h>
+#include <haproxy/ssl_trace.h>
 #include <haproxy/connection.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/ssl_sock-t.h>
