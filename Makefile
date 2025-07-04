@@ -63,6 +63,7 @@
 #   USE_LIBATOMIC           : force to link with/without libatomic. Automatic.
 #   USE_PTHREAD_EMULATION   : replace pthread's rwlocks with ours
 #   USE_SHM_OPEN            : use shm_open() for features that can make use of shared memory
+#   USE_KTLS                : use kTLS.(requires at least Linux 4.17).
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string). The list of enabled and disabled options for a
@@ -346,7 +347,8 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER USE_POLL                        \
            USE_THREAD_DUMP USE_EVPORTS USE_OT USE_QUIC USE_PROMEX             \
            USE_MEMORY_PROFILING USE_SHM_OPEN                                  \
            USE_STATIC_PCRE USE_STATIC_PCRE2                                   \
-           USE_PCRE USE_PCRE_JIT USE_PCRE2 USE_PCRE2_JIT USE_QUIC_OPENSSL_COMPAT
+           USE_PCRE USE_PCRE_JIT USE_PCRE2 USE_PCRE2_JIT                      \
+           USE_QUIC_OPENSSL_COMPAT USE_KTLS
 
 # preset all variables for all supported build options among use_opts
 $(reset_opts_vars)
