@@ -4492,6 +4492,10 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 #endif
 	X509_STORE *store = SSL_CTX_get_cert_store(ctx);
 
+	/* QUIC supports only TLS 1.3. Skip these TLS versions settings. */
+	if (srv_is_quic(srv))
+		goto options;
+
 	if (conf_ssl_methods->flags && (conf_ssl_methods->min || conf_ssl_methods->max))
 		ha_warning("no-sslv3/no-tlsv1x are ignored for this server. "
 			   "Use only 'ssl-min-ver' and 'ssl-max-ver' to fix.\n");
@@ -4549,6 +4553,7 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
         methodVersions[max].ctx_set_version(ctx, SET_MAX);
 #endif
 
+ options:
 	if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLS_TICKETS)
 		options |= SSL_OP_NO_TICKET;
 
