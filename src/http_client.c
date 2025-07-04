@@ -136,13 +136,20 @@ int httpclient_req_gen(struct httpclient *hc, const struct ist url, enum http_me
 			goto error;
 	}
 
+	if (isttest(payload) && istlen(payload)) {
+		/* add the Content-Length of the payload when not using the callback */
+
+		if (!htx_add_header(htx, ist("Content-Length"), ist(ultoa(istlen(payload)))))
+			goto error;
+
+	}
 
 	if (!htx_add_endof(htx, HTX_BLK_EOH))
 		goto error;
 
 	if (isttest(payload) && istlen(payload)) {
-		/* add the payload if it can feat in the buffer, no need to set
-		 * the Content-Length, the data will be sent chunked */
+		/* add the payload if it can feat in the buffer, Content-Length was added before */
+
 		if (!htx_add_data_atonce(htx, payload))
 			goto error;
 	}
