@@ -38,7 +38,7 @@ jobs:
     - name: Build with Coverity build tool
       run: |
         export PATH=`pwd`/coverity_tool/bin:$PATH
-        cov-build --dir cov-int make CC=clang TARGET=linux-glibc USE_ZLIB=1 USE_PCRE2=1 USE_PCRE2_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_QUIC=1 USE_WURFL=1 WURFL_INC=addons/wurfl/dummy WURFL_LIB=addons/wurfl/dummy USE_DEVICEATLAS=1 DEVICEATLAS_SRC=addons/deviceatlas/dummy USE_51DEGREES=1 51DEGREES_SRC=addons/51degrees/dummy/pattern ADDLIB=\"-Wl,-rpath,$HOME/opt/lib/\" SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include DEBUG+=-DDEBUG_STRICT=1 DEBUG+=-DDEBUG_USE_ABORT=1
+        cov-build --dir cov-int make CC=clang TARGET=linux-glibc USE_ZLIB=1 USE_PCRE2=1 USE_PCRE2_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_QUIC=1 USE_WURFL=1 WURFL_INC=addons/wurfl/dummy WURFL_LIB=addons/wurfl/dummy USE_DEVICEATLAS=1 DEVICEATLAS_SRC=addons/deviceatlas/dummy USE_51DEGREES=1 51DEGREES_SRC=addons/51degrees/dummy/pattern ADDLIB=\"-Wl,-rpath,$HOME/opt/lib/\" SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include DEBUG+=-DDEBUG_STRICT=2 DEBUG+=-DDEBUG_USE_ABORT=1
     - name: Submit build result to Coverity Scan
       run: |
         tar czvf cov.tar.gz cov-int
