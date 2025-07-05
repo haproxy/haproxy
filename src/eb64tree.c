@@ -73,8 +73,8 @@ struct eb64_node *eb64_lookup_le(struct eb_root *root, u64 x)
 		node = container_of(eb_untag(troot, EB_NODE),
 				    struct eb64_node, node.branches);
 
-		__builtin_prefetch(node->node.branches.b[0], 0);
-		__builtin_prefetch(node->node.branches.b[1], 0);
+		eb_prefetch(node->node.branches.b[0], 0);
+		eb_prefetch(node->node.branches.b[1], 0);
 
 		y = node->key;
 		z = 1ULL << (node->node.bit & 63);
@@ -168,8 +168,8 @@ struct eb64_node *eb64_lookup_ge(struct eb_root *root, u64 x)
 		node = container_of(eb_untag(troot, EB_NODE),
 				    struct eb64_node, node.branches);
 
-		__builtin_prefetch(node->node.branches.b[0], 0);
-		__builtin_prefetch(node->node.branches.b[1], 0);
+		eb_prefetch(node->node.branches.b[0], 0);
+		eb_prefetch(node->node.branches.b[1], 0);
 
 		y = node->key;
 		z = 1ULL << (node->node.bit & 63);

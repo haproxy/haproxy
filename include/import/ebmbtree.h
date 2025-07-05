@@ -240,8 +240,8 @@ static forceinline struct ebmb_node *__ebmb_lookup(struct eb_root *root, const v
 		b = *(unsigned char *)x;
 		side = 1 << node_bit;
 
-		__builtin_prefetch(node->node.branches.b[0], 0);
-		__builtin_prefetch(node->node.branches.b[1], 0);
+		eb_prefetch(node->node.branches.b[0], 0);
+		eb_prefetch(node->node.branches.b[1], 0);
 
 		k = node->key[pos];
 		b0 = node->node.branches.b[0];

@@ -137,8 +137,8 @@ static forceinline struct eb64_node *__eb64_lookup(struct eb_root *root, u64 x)
 		node = container_of(eb_untag(troot, EB_NODE),
 				    struct eb64_node, node.branches);
 
-		__builtin_prefetch(node->node.branches.b[0], 0);
-		__builtin_prefetch(node->node.branches.b[1], 0);
+		eb_prefetch(node->node.branches.b[0], 0);
+		eb_prefetch(node->node.branches.b[1], 0);
 
 		y = node->key ^ x;
 		z = 1ULL << (node->node.bit & 63);
@@ -191,8 +191,8 @@ static forceinline struct eb64_node *__eb64i_lookup(struct eb_root *root, s64 x)
 		node = container_of(eb_untag(troot, EB_NODE),
 				    struct eb64_node, node.branches);
 
-		__builtin_prefetch(node->node.branches.b[0], 0);
-		__builtin_prefetch(node->node.branches.b[1], 0);
+		eb_prefetch(node->node.branches.b[0], 0);
+		eb_prefetch(node->node.branches.b[1], 0);
 
 		y = node->key ^ x;
 		z = 1ULL << (node->node.bit & 63);
@@ -317,8 +317,8 @@ __eb64_insert(struct eb_root *root, struct eb64_node *new) {
 		old = container_of(eb_untag(troot, EB_NODE),
 				    struct eb64_node, node.branches);
 
-		__builtin_prefetch(old->node.branches.b[0], 0);
-		__builtin_prefetch(old->node.branches.b[1], 0);
+		eb_prefetch(old->node.branches.b[0], 0);
+		eb_prefetch(old->node.branches.b[1], 0);
 
 		old_node_bit = old->node.bit;
 
@@ -503,8 +503,8 @@ __eb64i_insert(struct eb_root *root, struct eb64_node *new) {
 		old = container_of(eb_untag(troot, EB_NODE),
 				    struct eb64_node, node.branches);
 
-		__builtin_prefetch(old->node.branches.b[0], 0);
-		__builtin_prefetch(old->node.branches.b[1], 0);
+		eb_prefetch(old->node.branches.b[0], 0);
+		eb_prefetch(old->node.branches.b[1], 0);
 
 		old_node_bit = old->node.bit;
 
