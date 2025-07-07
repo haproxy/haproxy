@@ -58,7 +58,7 @@ extern void *__elf_aux_vector;
 #include <sys/prctl.h>
 #endif
 
-#include <import/cebus_tree.h>
+#include <import/cebs_tree.h>
 #include <import/eb32sctree.h>
 #include <import/eb32tree.h>
 #include <import/ebmbtree.h>
@@ -127,7 +127,7 @@ int build_is_static = 0;
 
 /* known file names, made of file_name_node, to be used with file_name_*() */
 struct {
-	struct ceb_node *root; // file names tree, used with cebus_*()
+	struct ceb_root *root; // file names tree, used with cebus_*()
 	__decl_thread(HA_RWLOCK_T lock);
 } file_names = { 0 };
 
@@ -7254,7 +7254,7 @@ const char *copy_file_name(const char *name)
 		return NULL;
 
 	HA_RWLOCK_RDLOCK(OTHER_LOCK, &file_names.lock);
-	node = cebus_lookup(&file_names.root, name);
+	node = cebus_imm_lookup(&file_names.root, name);
 	HA_RWLOCK_RDUNLOCK(OTHER_LOCK, &file_names.lock);
 
 	if (node) {
@@ -7269,7 +7269,7 @@ const char *copy_file_name(const char *name)
 
 	memcpy(file->name, name, len + 1);
 	HA_RWLOCK_WRLOCK(OTHER_LOCK, &file_names.lock);
-	node = cebus_insert(&file_names.root, &file->node);
+	node = cebus_imm_insert(&file_names.root, &file->node);
 	HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &file_names.lock);
 
 	if (node != &file->node) {
@@ -7288,9 +7288,9 @@ void free_all_file_names()
 
 	HA_RWLOCK_WRLOCK(OTHER_LOCK, &file_names.lock);
 
-	while ((node = cebus_first(&file_names.root))) {
+	while ((node = cebus_imm_first(&file_names.root))) {
 		file = container_of(node, struct file_name_node, node);
-		cebus_delete(&file_names.root, node);
+		cebus_imm_delete(&file_names.root, node);
 		free(file);
 	}
 

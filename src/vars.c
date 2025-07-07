@@ -20,7 +20,7 @@
 #include <haproxy/vars.h>
 #include <haproxy/xxhash.h>
 
-#include <import/cebu64_tree.h>
+#include <import/ceb64_tree.h>
 
 
 /* This contains a pool of struct vars */
@@ -190,7 +190,7 @@ unsigned int var_clear(struct vars *vars, struct var *var, int force)
 	var->data.type = SMP_T_ANY;
 
 	if (!(var->flags & VF_PERMANENT) || force) {
-		cebu64_delete(&vars->name_root[var->name_hash % VAR_NAME_ROOTS], &var->node);
+		cebu64_imm_delete(&vars->name_root[var->name_hash % VAR_NAME_ROOTS], &var->node);
 		pool_free(var_pool, var);
 		size += sizeof(struct var);
 	}
@@ -208,7 +208,7 @@ void vars_prune_per_sess(struct vars *vars)
 	int i;
 
 	for (i = 0; i < VAR_NAME_ROOTS; i++) {
-		while ((node = cebu64_first(&vars->name_root[i]))) {
+		while ((node = cebu64_imm_first(&vars->name_root[i]))) {
 			var = container_of(node, struct var, node);
 			size += var_clear(vars, var, 1);
 		}
@@ -336,7 +336,7 @@ static struct var *var_get(struct vars *vars, uint64_t name_hash)
 {
 	struct ceb_node *node;
 
-	node = cebu64_lookup(&vars->name_root[name_hash % VAR_NAME_ROOTS], name_hash);
+	node = cebu64_imm_lookup(&vars->name_root[name_hash % VAR_NAME_ROOTS], name_hash);
 	if (node)
 		return container_of(node, struct var, node);
 
@@ -439,7 +439,7 @@ int var_set(const struct var_desc *desc, struct sample *smp, uint flags)
 		var->name_hash = desc->name_hash;
 		var->flags = flags & VF_PERMANENT;
 		var->data.type = SMP_T_ANY;
-		cebu64_insert(&vars->name_root[var->name_hash % VAR_NAME_ROOTS], &var->node);
+		cebu64_imm_insert(&vars->name_root[var->name_hash % VAR_NAME_ROOTS], &var->node);
 	}
 
 	/* A variable of type SMP_T_ANY is considered as unset (either created
