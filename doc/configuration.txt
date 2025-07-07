@@ -2436,7 +2436,8 @@ dns-accept-family <family>[,...]
 
   When a single family is used, no request will be sent to resolvers for the
   other family, and any response for the othe family will be ignored. The
-  default value is "ipv4,ipv6", which effectively enables both families.
+  default value since 3.3 is "auto", which effectively enables both families
+  only once IPv6 has been proven to be routable, otherwise sticks to IPv4.
   See also: "resolve-prefer", "do-resolve"
 
 expose-deprecated-directives

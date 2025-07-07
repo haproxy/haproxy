@@ -70,7 +70,7 @@ DECLARE_POOL(resolv_requester_pool,  "resolv_requester",  sizeof(struct resolv_r
 
 static unsigned int resolution_uuid = 1;
 unsigned int resolv_failed_resolutions = 0;
-uint resolv_accept_families = RSLV_ACCEPT_IPV4 | RSLV_ACCEPT_IPV6;
+uint resolv_accept_families = RSLV_AUTO_FAMILY;
 
 struct task *process_resolvers(struct task *t, void *context, unsigned int state);
 static void resolv_free_resolution(struct resolv_resolution *resolution);
