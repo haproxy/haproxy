@@ -218,6 +218,7 @@ def main(ref_name):
             "stock",
             "OPENSSL_VERSION=1.0.2u",
             "OPENSSL_VERSION=1.1.1s",
+            "OPENSSL_VERSION=3.5.0",
             "QUICTLS=yes",
             "WOLFSSL_VERSION=5.7.0",
             "AWS_LC_VERSION=1.39.0",
