@@ -454,7 +454,8 @@ struct server {
 	char *lastaddr;				/* the address string provided by the server-state file */
 	struct resolv_options resolv_opts;
 	int hostname_dn_len;			/* string length of the server hostname in Domain Name format */
-	char *hostname_dn;			/* server hostname in Domain Name format (name is lower cased) */
+	char *hostname_dn;			/* server hostname in Domain Name format (name is lower cased), key to host_dn below */
+
 	char *hostname;				/* server hostname */
 	struct sockaddr_storage init_addr;	/* plain IP address specified on the init-addr line */
 	unsigned int init_addr_methods;		/* initial address setting, 3-bit per method, ends at 0, enough to store 10 entries */
@@ -505,7 +506,7 @@ struct server {
 	struct resolv_srvrq *srvrq;		/* Pointer representing the DNS SRV requeest, if any */
 	struct list srv_rec_item;		/* to attach server to a srv record item */
 	struct list ip_rec_item;		/* to attach server to a A or AAAA record item */
-	struct ebpt_node host_dn;		/* hostdn store for srvrq and state file matching*/
+	struct ceb_node host_dn;		/* hostdn store for srvrq and state file matching (uses hostname_dn above) */
 	struct list pp_tlvs;			/* to send out PROXY protocol v2 TLVs */
 	struct task *srvrq_check;               /* Task testing SRV record expiration date for this server */
 	struct {

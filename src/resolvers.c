@@ -18,7 +18,7 @@
 
 #include <sys/types.h>
 
-#include <import/ebistree.h>
+#include <import/cebis_tree.h>
 
 #include <haproxy/action.h>
 #include <haproxy/api.h>
@@ -308,7 +308,7 @@ struct resolv_srvrq *new_resolv_srvrq(struct server *srv, char *fqdn)
 		goto err;
 	}
 	LIST_INIT(&srvrq->attached_servers);
-	srvrq->named_servers = EB_ROOT;
+	srvrq->named_servers = NULL;
 	LIST_APPEND(&resolv_srvrq_list, &srvrq->list);
 	return srvrq;
 
@@ -744,8 +744,7 @@ static void resolv_srvrq_cleanup_srv(struct server *srv)
 	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	srvrq_set_srv_down(srv);
 
-	ebpt_delete(&srv->host_dn);
-	srv->host_dn.key = NULL;
+	cebis_item_delete(&srv->srvrq->named_servers, host_dn, hostname_dn, srv);
 
 	ha_free(&srv->hostname);
 	ha_free(&srv->hostname_dn);
@@ -836,7 +835,6 @@ static void resolv_check_response(struct resolv_resolution *res)
 
 		/* Now process SRV records */
 		list_for_each_entry(req, &res->requesters, list) {
-			struct ebpt_node *node;
 			char target[DNS_MAX_NAME_SIZE+1];
 
 			int i;
@@ -856,7 +854,7 @@ static void resolv_check_response(struct resolv_resolution *res)
 			/* If not empty we try to match a server
 			 * in server state file tree with the same hostname
 			 */
-			if (!eb_is_empty(&srvrq->named_servers)) {
+			if (!srvrq->named_servers) {
 				srv = NULL;
 
 				/* convert the key to lookup in lower case */
@@ -864,9 +862,8 @@ static void resolv_check_response(struct resolv_resolution *res)
 					target[i] = tolower((unsigned char)item->data.target[i]);
 				target[i] = 0;
 
-				node = ebis_lookup(&srvrq->named_servers, target);
-				if (node) {
-					srv = ebpt_entry(node, struct server, host_dn);
+				srv = cebis_item_lookup(&srvrq->named_servers, host_dn, hostname_dn, target, struct server);
+				if (srv) {
 					HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 
 					/* an entry was found with the same hostname
@@ -877,18 +874,16 @@ static void resolv_check_response(struct resolv_resolution *res)
 					while (1) {
 						if (srv->svc_port == item->port) {
 							/* server found, we remove it from tree */
-							ebpt_delete(node);
-							srv->host_dn.key = NULL;
+							cebis_item_delete(&srvrq->named_servers, host_dn, hostname_dn, srv);
 							goto srv_found;
 						}
 
 						HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 
-						node = ebpt_next(node);
-						if (!node)
+						srv = cebis_item_next(&srvrq->named_servers, host_dn, hostname_dn, srv);
+						if (!srv)
 							break;
 
-						srv = ebpt_entry(node, struct server, host_dn);
 						HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 
 						if ((item->data_len != srv->hostname_dn_len)
