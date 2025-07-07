@@ -125,7 +125,7 @@ def main(ref_name):
     # Ubuntu
 
     if "haproxy-" in ref_name:
-        os = "ubuntu-22.04" # stable branch
+        os = "ubuntu-24.04" # stable branch
     else:
         os = "ubuntu-24.04" # development branch
 
