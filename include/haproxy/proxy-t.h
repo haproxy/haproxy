@@ -463,7 +463,7 @@ struct proxy {
 		int line;			/* line where the section appears */
 		struct eb_root used_listener_id;/* list of listener IDs in use */
 		struct eb_root used_server_id;	/* list of server IDs in use */
-		struct eb_root used_server_name; /* list of server names in use */
+		struct ceb_root *used_server_name; /* list of server names in use */
 		struct list bind;		/* list of bind settings */
 		struct list listeners;		/* list of listeners belonging to this frontend */
 		struct list errors;             /* list of all custom error files */
