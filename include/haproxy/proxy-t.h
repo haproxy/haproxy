@@ -476,7 +476,7 @@ struct proxy {
 		unsigned int refcount;          /* refcount on this proxy (only used for default proxy for now) */
 	} conf;					/* config information */
 	struct http_ext *http_ext;	        /* http ext options */
-	struct eb_root used_server_addr;        /* list of server addresses in use */
+	struct ceb_root *used_server_addr;      /* list of server addresses in use */
 	void *parent;				/* parent of the proxy when applicable */
 	struct comp *comp;			/* http compression */
 
