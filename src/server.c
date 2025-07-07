@@ -3131,6 +3131,8 @@ void srv_free_params(struct server *srv)
 
 	if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->destroy_srv)
 		xprt_get(XPRT_SSL)->destroy_srv(srv);
+	else if (xprt_get(XPRT_QUIC) && xprt_get(XPRT_QUIC)->destroy_srv)
+		xprt_get(XPRT_QUIC)->destroy_srv(srv);
 
 	while (!LIST_ISEMPTY(&srv->pp_tlvs)) {
 		srv_tlv = LIST_ELEM(srv->pp_tlvs.n, struct srv_pp_tlv_list *, list);
@@ -6070,6 +6072,14 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	 */
 	srv->init_addr_methods = SRV_IADDR_NONE;
 
+	if (!srv->mux_proto && srv_is_quic(srv)) {
+		/* Force QUIC as mux-proto on server with quic addresses.
+		 * Incompatibilities with TCP proxy mode will be catch by the
+		 * next code block.
+		 */
+		srv->mux_proto = get_mux_proto(ist("quic"));
+	}
+
 	if (srv->mux_proto) {
 		int proto_mode = conn_pr_mode_to_proto_mode(be->mode);
 		const struct mux_proto_list *mux_ent;
@@ -6079,6 +6089,16 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		if (!mux_ent || !isteq(mux_ent->token, srv->mux_proto->token)) {
 			ha_alert("MUX protocol is not usable for server.\n");
 			goto out;
+		}
+		else {
+			if ((mux_ent->mux->flags & MX_FL_FRAMED) && !srv_is_quic(srv)) {
+				ha_alert("MUX protocol is incompatible with stream transport used by server.\n");
+				goto out;
+			}
+			else if (!(mux_ent->mux->flags & MX_FL_FRAMED) && srv_is_quic(srv)) {
+				ha_alert("MUX protocol is incompatible with framed transport used by server.\n");
+				goto out;
+			}
 		}
 	}
 
@@ -6101,6 +6121,10 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	    srv->check.use_ssl == 1) {
 		if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->prepare_srv) {
 			if (xprt_get(XPRT_SSL)->prepare_srv(srv))
+				goto out;
+		}
+		else if (xprt_get(XPRT_QUIC) && xprt_get(XPRT_QUIC)->prepare_srv) {
+			if (xprt_get(XPRT_QUIC)->prepare_srv(srv))
 				goto out;
 		}
 	}
