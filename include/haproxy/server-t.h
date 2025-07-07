@@ -368,6 +368,7 @@ struct server {
 	unsigned long last_change;              /* internal use only (not for stats purpose): last time the server state was changed, doesn't change often, not updated atomically on purpose */
 
 	char *id;				/* just for identification */
+
 	uint32_t rid;				/* revision: if id has been reused for a new server, rid won't match */
 	unsigned iweight,uweight, cur_eweight;	/* initial weight, user-specified weight, and effective weight */
 	unsigned wscore;			/* weight score, used during srv map computation */
@@ -510,7 +511,7 @@ struct server {
 	struct {
 		const char *file;		/* file where the section appears */
 		struct eb32_node id;		/* place in the tree of used IDs */
-		struct ebpt_node name;		/* place in the tree of used names */
+		struct ceb_node name_node;	/* place in the tree of used names, indexes <id> above, not unique, indexed in px->used_server_name */
 		int line;			/* line where the section appears */
 	} conf;					/* config information */
 
