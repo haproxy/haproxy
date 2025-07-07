@@ -393,8 +393,6 @@ static void srv_state_srv_update(struct server *srv, int version, char **params)
 	 */
 	else if (fqdn && !srv->hostname && srvrecord) {
 		int res;
-		int i;
-		char *tmp;
 
 		/* we can't apply previous state if SRV record has changed */
 		if (!srv->srvrq) {
@@ -417,13 +415,7 @@ static void srv_state_srv_update(struct server *srv, int version, char **params)
 		 * since this server has an hostname
 		 */
 		LIST_DEL_INIT(&srv->srv_rec_item);
-		srv->host_dn.key = tmp = strdup(srv->hostname_dn);
-
-		/* convert the key in lowercase because tree
-		 * lookup is case sensitive but we don't care
-		 */
-		for (i = 0; tmp[i]; i++)
-			tmp[i] = tolower((unsigned char)tmp[i]);
+		srv->host_dn.key = strdup(srv->hostname_dn);
 
 		/* insert in tree and set the srvrq expiration date */
 		ebis_insert(&srv->srvrq->named_servers, &srv->host_dn);
