@@ -13,7 +13,7 @@
 #include <errno.h>
 
 #include <import/eb64tree.h>
-#include <import/ebistree.h>
+#include <import/cebis_tree.h>
 
 #include <haproxy/api.h>
 #include <haproxy/backend.h>
@@ -415,10 +415,9 @@ static void srv_state_srv_update(struct server *srv, int version, char **params)
 		 * since this server has an hostname
 		 */
 		LIST_DEL_INIT(&srv->srv_rec_item);
-		srv->host_dn.key = srv->hostname_dn;
 
 		/* insert in tree and set the srvrq expiration date */
-		ebis_insert(&srv->srvrq->named_servers, &srv->host_dn);
+		cebis_item_insert(&srv->srvrq->named_servers, host_dn, hostname_dn, srv);
 		task_schedule(srv->srvrq_check, tick_add(now_ms, srv->srvrq->resolvers->timeout.resolve +
 							 srv->srvrq->resolvers->resolve_retries *
 							 srv->srvrq->resolvers->timeout.retry));
