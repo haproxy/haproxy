@@ -741,6 +741,10 @@ static void resolv_srvrq_cleanup_srv(struct server *srv)
 	_resolv_unlink_resolution(srv->resolv_requester);
 	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 	srvrq_set_srv_down(srv);
+
+	ebpt_delete(&srv->host_dn);
+	srv->host_dn.key = NULL;
+
 	ha_free(&srv->hostname);
 	ha_free(&srv->hostname_dn);
 	srv->hostname_dn_len = 0;
@@ -748,9 +752,6 @@ static void resolv_srvrq_cleanup_srv(struct server *srv)
 	/* unset server's addr AND port */
 	server_set_inetaddr(srv, &srv_addr, SERVER_INETADDR_UPDATER_NONE, NULL);
 	srv->flags |= SRV_F_NO_RESOLUTION;
-
-	ebpt_delete(&srv->host_dn);
-	ha_free(&srv->host_dn.key);
 
 	HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	LIST_DEL_INIT(&srv->srv_rec_item);
@@ -873,7 +874,7 @@ static void resolv_check_response(struct resolv_resolution *res)
 						if (srv->svc_port == item->port) {
 							/* server found, we remove it from tree */
 							ebpt_delete(node);
-							ha_free(&srv->host_dn.key);
+							srv->host_dn.key = NULL;
 							goto srv_found;
 						}
 

@@ -415,7 +415,7 @@ static void srv_state_srv_update(struct server *srv, int version, char **params)
 		 * since this server has an hostname
 		 */
 		LIST_DEL_INIT(&srv->srv_rec_item);
-		srv->host_dn.key = strdup(srv->hostname_dn);
+		srv->host_dn.key = srv->hostname_dn;
 
 		/* insert in tree and set the srvrq expiration date */
 		ebis_insert(&srv->srvrq->named_servers, &srv->host_dn);
