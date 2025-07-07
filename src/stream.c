@@ -1439,7 +1439,7 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 		if (t->server_key_type == STKTABLE_SRV_NAME)
 			key = __objt_server(s->target)->id;
 		else if (t->server_key_type == STKTABLE_SRV_ADDR)
-			key = __objt_server(s->target)->addr_node.key;
+			key = __objt_server(s->target)->addr_key;
 		else
 			key = NULL;
 

@@ -1471,7 +1471,7 @@ void init_new_proxy(struct proxy *p)
 
 	p->conf.used_listener_id = EB_ROOT;
 	p->conf.used_server_id   = EB_ROOT;
-	p->used_server_addr      = EB_ROOT_UNIQUE;
+	p->used_server_addr      = NULL;
 
 	/* Timeouts are defined as -1 */
 	proxy_reset_timeouts(p);

@@ -16,6 +16,7 @@
 #include <ctype.h>
 #include <errno.h>
 
+#include <import/cebis_tree.h>
 #include <import/ebmbtree.h>
 
 #include <haproxy/api.h>
@@ -729,25 +730,25 @@ static void srv_set_addr_desc(struct server *s, int reattach)
 
 	key = sa2str(&s->addr, s->svc_port, s->flags & SRV_F_MAPPORTS);
 
-	if (s->addr_node.key) {
-		if (key && strcmp(key, s->addr_node.key) == 0) {
+	if (s->addr_key) {
+		if (key && strcmp(key, s->addr_key) == 0) {
 			free(key);
 			return;
 		}
 
 		HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->lock);
-		ebpt_delete(&s->addr_node);
+		cebuis_item_delete(&p->used_server_addr, addr_node, addr_key, s);
 		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->lock);
 
-		free(s->addr_node.key);
+		free(s->addr_key);
 	}
 
-	s->addr_node.key = key;
+	s->addr_key = key;
 
 	if (reattach) {
-		if (s->addr_node.key) {
+		if (s->addr_key) {
 			HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->lock);
-			ebis_insert(&p->used_server_addr, &s->addr_node);
+			cebuis_item_insert(&p->used_server_addr, addr_node, addr_key, s);
 			HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->lock);
 		}
 	}
@@ -3152,7 +3153,7 @@ void srv_free_params(struct server *srv)
 	release_sample_expr(srv->pool_conn_name_expr);
 	free(srv->resolvers_id);
 	free(srv->tcp_md5sig);
-	free(srv->addr_node.key);
+	free(srv->addr_key);
 	free(srv->lb_nodes);
 	counters_be_shared_drop(&srv->counters.shared);
 	if (srv->log_target) {
@@ -3203,7 +3204,7 @@ struct server *srv_drop(struct server *srv)
 	/* This BUG_ON() is invalid for now as server released on deinit will
 	 * trigger it as they are not properly removed from their tree.
 	 */
-	//BUG_ON(srv->addr_node.node.leaf_p ||
+	//BUG_ON(ceb_intree(&srv->addr_node) ||
 	//       srv->idle_node.node.leaf_p ||
 	//       srv->conf.id.node.leaf_p ||
 	//       srv->conf.name.node.leaf_p);
@@ -4059,12 +4060,10 @@ struct server *server_find_by_name(struct proxy *px, const char *name)
  */
 struct server *server_find_by_addr(struct proxy *px, const char *addr)
 {
-	struct ebpt_node *node;
 	struct server *cursrv;
 
 	HA_RWLOCK_RDLOCK(PROXY_LOCK, &px->lock);
-	node = ebis_lookup(&px->used_server_addr, addr);
-	cursrv = node ? container_of(node, struct server, addr_node) : NULL;
+	cursrv = cebuis_item_lookup(&px->used_server_addr, addr_node, addr_key, addr, struct server);
 	HA_RWLOCK_RDUNLOCK(PROXY_LOCK, &px->lock);
 	return cursrv;
 }
@@ -6250,9 +6249,9 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	/* insert the server in the backend trees */
 	eb32_insert(&be->conf.used_server_id, &srv->conf.id);
 	ebis_insert(&be->conf.used_server_name, &srv->conf.name);
-	/* addr_node.key could be NULL if FQDN resolution is postponed (ie: add server from cli) */
-	if (srv->addr_node.key)
-		ebis_insert(&be->used_server_addr, &srv->addr_node);
+	/* addr_key could be NULL if FQDN resolution is postponed (ie: add server from cli) */
+	if (srv->addr_key)
+		cebuis_item_insert(&be->used_server_addr, addr_node, addr_key, srv);
 
 	/* check if LSB bit (odd bit) is set for reuse_cnt */
 	if (srv_id_reuse_cnt & 1) {
@@ -6469,7 +6468,7 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	/* remove srv from addr_node tree */
 	eb32_delete(&srv->conf.id);
 	ebpt_delete(&srv->conf.name);
-	ebpt_delete(&srv->addr_node);
+	cebuis_item_delete(&be->used_server_addr, addr_node, addr_key, srv);
 
 	/* remove srv from idle_node tree for idle conn cleanup */
 	eb32_delete(&srv->idle_node);
