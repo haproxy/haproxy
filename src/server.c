@@ -3207,7 +3207,7 @@ struct server *srv_drop(struct server *srv)
 	//BUG_ON(ceb_intree(&srv->addr_node) ||
 	//       srv->idle_node.node.leaf_p ||
 	//       srv->conf.id.node.leaf_p ||
-	//       srv->conf.name.node.leaf_p);
+	//       ceb_intree(&srv->name_node));
 
 	guid_remove(&srv->guid);
 
@@ -3359,8 +3359,7 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 
 	/* Set the first server's ID. */
 	_srv_parse_set_id_from_prefix(srv, srv->tmpl_info.prefix, srv->tmpl_info.nb_low);
-	srv->conf.name.key = srv->id;
-	ebis_insert(&curproxy->conf.used_server_name, &srv->conf.name);
+	cebis_item_insert(&curproxy->conf.used_server_name, conf.name_node, id, srv);
 
 	/* then create other servers from this one */
 	for (i = srv->tmpl_info.nb_low + 1; i <= srv->tmpl_info.nb_high; i++) {
@@ -3384,8 +3383,7 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 		/* Set this new server ID. */
 		_srv_parse_set_id_from_prefix(newsrv, srv->tmpl_info.prefix, i);
 
-		newsrv->conf.name.key = newsrv->id;
-		ebis_insert(&curproxy->conf.used_server_name, &newsrv->conf.name);
+		cebis_item_insert(&curproxy->conf.used_server_name, conf.name_node, id, newsrv);
 	}
 
 	return i - srv->tmpl_info.nb_low;
@@ -3993,8 +3991,7 @@ int parse_server(const char *file, int linenum, char **args,
 		_srv_parse_tmpl_init(newsrv, curproxy);
 	}
 	else if (!(parse_flags & SRV_PARSE_DEFAULT_SERVER)) {
-		newsrv->conf.name.key = newsrv->id;
-		ebis_insert(&curproxy->conf.used_server_name, &newsrv->conf.name);
+		cebis_item_insert(&curproxy->conf.used_server_name, conf.name_node, id, newsrv);
 	}
 
 	/* If the server id is fixed, insert it in the proxy used_id tree.
@@ -4042,15 +4039,10 @@ struct server *server_find_by_id_unique(struct proxy *bk, int id, uint32_t rid)
  */
 struct server *server_find_by_name(struct proxy *px, const char *name)
 {
-	struct ebpt_node *node;
-	struct server *cursrv;
-
 	if (!px)
 		return NULL;
 
-	node = ebis_lookup(&px->conf.used_server_name, name);
-	cursrv = node ? container_of(node, struct server, conf.name) : NULL;
-	return cursrv;
+	return cebis_item_lookup(&px->conf.used_server_name, conf.name_node, id, name, struct server);
 }
 
 /*
@@ -6244,11 +6236,10 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 
 		srv->conf.id.key = srv->puid = next_id;
 	}
-	srv->conf.name.key = srv->id;
 
 	/* insert the server in the backend trees */
 	eb32_insert(&be->conf.used_server_id, &srv->conf.id);
-	ebis_insert(&be->conf.used_server_name, &srv->conf.name);
+	cebis_item_insert(&be->conf.used_server_name, conf.name_node, id, srv);
 	/* addr_key could be NULL if FQDN resolution is postponed (ie: add server from cli) */
 	if (srv->addr_key)
 		cebuis_item_insert(&be->used_server_addr, addr_node, addr_key, srv);
@@ -6467,7 +6458,7 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 
 	/* remove srv from addr_node tree */
 	eb32_delete(&srv->conf.id);
-	ebpt_delete(&srv->conf.name);
+	cebis_item_delete(&be->conf.used_server_name, conf.name_node, id, srv);
 	cebuis_item_delete(&be->used_server_addr, addr_node, addr_key, srv);
 
 	/* remove srv from idle_node tree for idle conn cleanup */

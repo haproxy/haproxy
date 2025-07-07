@@ -36,6 +36,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <import/cebis_tree.h>
+
 #include <haproxy/acl.h>
 #include <haproxy/action.h>
 #include <haproxy/api.h>
@@ -3702,12 +3704,11 @@ out_uri_auth_compat:
 			/* Note: internal servers are not always registered and
 			 * they do not conflict.
 			 */
-			if (!newsrv->conf.name.node.leaf_p)
+			if (!ceb_intree(&newsrv->conf.name_node))
 				continue;
 
 			for (other_srv = newsrv;
-			     (other_srv = container_of_safe(ebpt_prev_dup(&other_srv->conf.name),
-			                                    struct server, conf.name)); ) {
+			     (other_srv = cebis_item_prev_dup(&curproxy->conf.used_server_name, conf.name_node, id, other_srv)); ) {
 				ha_alert("parsing [%s:%d] : %s '%s', another server named '%s' was already defined at line %d, please use distinct names.\n",
 					 newsrv->conf.file, newsrv->conf.line,
 					 proxy_type_str(curproxy), curproxy->id,
