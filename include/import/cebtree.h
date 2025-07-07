@@ -28,12 +28,54 @@
 #define _CEBTREE_H
 
 #include <stddef.h>
-#include "ebtree.h"
+
+/* offsetof() is provided as a builtin starting with gcc-4.1 */
+#ifndef offsetof
+# if (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1))
+#  define offsetof(type, field)  __builtin_offsetof(type, field)
+# else
+#  define offsetof(type, field) ((__size_t)(__uintptr_t)((const volatile void *)&((type *)0)->field))
+# endif
+#endif
+
+/* Linux-like "container_of". It returns a pointer to the structure of type
+ * <type> which has its member <name> stored at address <ptr>.
+ */
+#ifndef container_of
+#define container_of(ptr, type, name) ((type *)(((char *)(ptr)) - offsetof(type, name)))
+#endif
+
+/* returns a pointer to the structure of type <type> which has its member <name>
+ * stored at address <ptr>, unless <ptr> is 0, in which case 0 is returned.
+ */
+#ifndef container_of_safe
+#define container_of_safe(ptr, type, name) \
+	({ void *__p = (ptr); \
+	   __p ? container_of(__p, type, name) : (type *)0; \
+	})
+#endif
+
+/* This is what a tagged pointer points to, as found on the root or any branch.
+ * It's only a forward declaration so that it is never directly dereferenced.
+ */
+struct ceb_root;
 
 /* Standard node when using absolute pointers */
 struct ceb_node {
-	struct ceb_node *b[2]; /* branches: 0=left, 1=right */
+	struct ceb_root *b[2]; /* branches: 0=left, 1=right */
 };
+
+/* initializes a root as an empty tree */
+static inline void ceb_init_root(struct ceb_root **root)
+{
+	*root = NULL;
+}
+
+/* initializes a node as not belonging to a tree */
+static inline void ceb_init_node(struct ceb_node *node)
+{
+	node->b[0] = NULL;
+}
 
 /* indicates whether a valid node is in a tree or not */
 static inline int ceb_intree(const struct ceb_node *node)
@@ -41,43 +83,28 @@ static inline int ceb_intree(const struct ceb_node *node)
 	return !!node->b[0];
 }
 
-/* tag an untagged pointer */
-static inline struct ceb_node *__ceb_dotag(const struct ceb_node *node)
+/* indicates whether a root is empty or not */
+static inline int ceb_isempty(struct ceb_root * const*root)
 {
-	return (struct ceb_node *)((size_t)node + 1);
+	return !*root;
 }
 
-/* untag a tagged pointer */
-static inline struct ceb_node *__ceb_untag(const struct ceb_node *node)
+/* returns a pointer to the key from the node and offset, where node is
+ * assumed to be non-null.
+ */
+static inline void *_ceb_key_ptr(const struct ceb_node *node, ptrdiff_t kofs)
 {
-	return (struct ceb_node *)((size_t)node - 1);
+	return (void*)((char *)node + kofs);
 }
 
-/* clear a pointer's tag */
-static inline struct ceb_node *__ceb_clrtag(const struct ceb_node *node)
+/* returns a pointer to the key from the node and offset if node is non-null,
+ * otherwise null. I.e. this is made to safely return a pointer to the key
+ * location from the return of a lookup operation.
+ */
+static inline void *ceb_key_ptr(const struct ceb_node *node, ptrdiff_t kofs)
 {
-	return (struct ceb_node *)((size_t)node & ~((size_t)1));
+	return node ? _ceb_key_ptr(node, kofs) : NULL;
 }
 
-/* returns whether a pointer is tagged */
-static inline int __ceb_tagged(const struct ceb_node *node)
-{
-	return !!((size_t)node & 1);
-}
-
-/* returns an integer equivalent of the pointer */
-static inline size_t __ceb_intptr(struct ceb_node *tree)
-{
-	return (size_t)tree;
-}
-
-///* returns true if at least one of the branches is a subtree node, indicating
-// * that the current node is at the top of a duplicate sub-tree and that all
-// * values below it are the same.
-// */
-//static inline int __ceb_is_dup(const struct ceb_node *node)
-//{
-//	return __ceb_tagged((struct ceb_node *)(__ceb_intptr(node->l) | __ceb_intptr(node->r)));
-//}
 
 #endif /* _CEBTREE_H */

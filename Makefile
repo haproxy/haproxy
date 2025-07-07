@@ -962,15 +962,15 @@ OBJS += src/mux_h2.o src/mux_h1.o src/mux_fcgi.o src/log.o		\
         src/cache.o src/stconn.o src/http_htx.o src/debug.o		\
         src/check.o src/stats-html.o src/haproxy.o src/listener.o	\
         src/applet.o src/pattern.o src/cfgparse-listen.o		\
-        src/flt_spoe.o src/cebuis_tree.o src/http_ext.o			\
-        src/http_act.o src/http_fetch.o src/cebus_tree.o		\
-        src/cebuib_tree.o src/http_client.o src/dns.o			\
-        src/cebub_tree.o src/vars.o src/event_hdl.o src/tcp_rules.o	\
+        src/flt_spoe.o src/cebis_tree.o src/http_ext.o			\
+        src/http_act.o src/http_fetch.o src/cebs_tree.o			\
+        src/cebib_tree.o src/http_client.o src/dns.o			\
+        src/cebb_tree.o src/vars.o src/event_hdl.o src/tcp_rules.o	\
         src/trace.o src/stats-proxy.o src/pool.o src/stats.o		\
         src/cfgparse-global.o src/filters.o src/mux_pt.o		\
         src/flt_http_comp.o src/sock.o src/h1.o src/sink.o		\
-        src/cebua_tree.o src/session.o src/payload.o src/htx.o		\
-        src/cebul_tree.o src/cebu32_tree.o src/cebu64_tree.o		\
+        src/ceba_tree.o src/session.o src/payload.o src/htx.o		\
+        src/cebl_tree.o src/ceb32_tree.o src/ceb64_tree.o		\
         src/server_state.o src/proto_rhttp.o src/flt_trace.o src/fd.o	\
         src/task.o src/map.o src/fcgi-app.o src/h2.o src/mworker.o	\
         src/tcp_sample.o src/mjson.o src/h1_htx.o src/tcp_act.o		\

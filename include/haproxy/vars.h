@@ -22,7 +22,7 @@
 #ifndef _HAPROXY_VARS_H
 #define _HAPROXY_VARS_H
 
-#include <import/cebu64_tree.h>
+#include <import/ceb64_tree.h>
 
 #include <haproxy/api-t.h>
 #include <haproxy/session-t.h>
@@ -86,7 +86,7 @@ static inline void vars_prune(struct vars *vars, struct session *sess, struct st
 	int i;
 
 	for (i = 0; i < VAR_NAME_ROOTS; i++) {
-		while ((node = cebu64_first(&vars->name_root[i]))) {
+		while ((node = cebu64_imm_first(&vars->name_root[i]))) {
 			var = container_of(node, struct var, node);
 			size += var_clear(vars, var, 1);
 		}
