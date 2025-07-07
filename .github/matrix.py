@@ -233,6 +233,7 @@ def main(ref_name):
 
         for ssl in ssl_versions:
             flags = ["USE_OPENSSL=1"]
+            skipdup=0
             if "WOLFSSL" in ssl:
                 flags.append("USE_OPENSSL_WOLFSSL=1")
             if "AWS_LC" in ssl:
@@ -242,8 +243,14 @@ def main(ref_name):
                 flags.append("SSL_INC=${HOME}/opt/include")
             if "LIBRESSL" in ssl and "latest" in ssl:
                 ssl = determine_latest_libressl(ssl)
+                skipdup=1
             if "OPENSSL" in ssl and "latest" in ssl:
                 ssl = determine_latest_openssl(ssl)
+                skipdup=1
+
+            # if "latest" equals a version already in the list
+            if ssl in ssl_versions and skipdup == 1:
+                continue
 
             openssl_supports_quic = False
             try:
