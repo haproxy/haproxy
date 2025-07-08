@@ -1,10 +1,7 @@
 varnishtest "Test the support for tcp-md5sig option (linux only)"
 
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(HAVE_TCP_MD5SIG)'"
 feature ignore_unknown_macro
-feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.3-dev1)'"
-
-#EXCLUDE_TARGETS=solaris,freebsd,freebsd-glibc,dragonfly,openbsd,netbsd,cygwin,haiku,aix51,aix52,aix72-gcc,osx,generic,custom
-
 
 haproxy h1 -conf {
     defaults
