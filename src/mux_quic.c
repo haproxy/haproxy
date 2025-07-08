@@ -325,8 +325,8 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 	 * processed if shutdown already one or connection is idle.
 	 */
 	if (!conn_is_back(qcc->conn)) {
-		if (qcc->nb_hreq && qcc->app_st < QCC_APP_ST_SHUT) {
-			TRACE_DEVEL("one or more requests still in progress", QMUX_EV_QCC_WAKE, qcc->conn);
+		if (!LIST_ISEMPTY(&qcc->send_list) || !LIST_ISEMPTY(&qcc->tx.frms)) {
+			TRACE_DEVEL("pending output data", QMUX_EV_QCC_WAKE, qcc->conn);
 			qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
 			task_queue(qcc->task);
 			goto leave;
