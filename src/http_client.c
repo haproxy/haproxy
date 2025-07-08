@@ -179,10 +179,11 @@ int httpclient_res_xfer(struct httpclient *hc, struct buffer *dst)
 	int ret;
 
 	ret = b_force_xfer(dst, &hc->res.buf, MIN(room, b_data(&hc->res.buf)));
+
 	/* call the client once we consumed all data */
 	if (!b_data(&hc->res.buf)) {
 		b_free(&hc->res.buf);
-		if (hc->appctx)
+		if (ret && hc->appctx)
 			appctx_wakeup(hc->appctx);
 	}
 	return ret;
@@ -211,11 +212,10 @@ int httpclient_req_xfer(struct httpclient *hc, struct ist src, int end)
 	if (!htx)
 		goto error;
 
-	if (hc->appctx)
-		appctx_wakeup(hc->appctx);
-
 	ret += htx_add_data(htx, src);
 
+	if (ret && hc->appctx)
+		appctx_wakeup(hc->appctx);
 
 	/* if we copied all the data and the end flag is set */
 	if ((istlen(src) == ret) && end) {
