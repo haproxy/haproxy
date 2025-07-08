@@ -10,20 +10,17 @@ server s1 {
     txresp
 } -repeat 2 -start
 
-haproxy h1 -conf {
+haproxy ha2 -conf {
     global
         expose-experimental-directives
         .if feature(THREAD)
             thread-groups 1
         .endif
 
-    # Uncomment these lines to get some debug traces
-    # ring buf1
-    #    size 1048576
-    #    format timed
-    #    backing-file ${tmpdir}/quic.traces
+    # Uncomment these lines to get some debug traces on stderr
     # traces
-    #    trace quic sink buf1 level developer start now
+    #    trace quic sink stderr level developer start now
+    #    trace ssl sink stderr level developer verbosity complete start now
 
     defaults
         mode http
@@ -38,12 +35,31 @@ haproxy h1 -conf {
     listen quic_lstnr_retry
         bind "quic+fd@${fe_quic_retry}" ssl crt ${testdir}/common.pem quic-force-retry
         server srv ${s1_addr}:${s1_port}
+} -start
+
+haproxy ha1 -conf {
+    global
+        expose-experimental-directives
+        .if feature(THREAD)
+            thread-groups 1
+        .endif
+
+    # Uncomment these lines to get some debug traces on stderr
+    # traces
+    #    trace quic sink stderr level developer start now
+    #    trace ssl sink stderr level developer verbosity complete start now
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     backend quic_be
-        server quic quic4@${h1_fe_quic_addr}:${h1_fe_quic_port} ssl verify none
+        server quic quic4@${ha2_fe_quic_addr}:${ha2_fe_quic_port} ssl verify none
 
     backend quic_be_retry
-        server quic_retry quic4@${h1_fe_quic_retry_addr}:${h1_fe_quic_retry_port} ssl verify none
+        server quic_retry quic4@${ha2_fe_quic_retry_addr}:${ha2_fe_quic_retry_port} ssl verify none
 
     frontend fe_wo_retry
         bind "fd@${fe}"
@@ -54,13 +70,13 @@ haproxy h1 -conf {
         use_backend quic_be_retry
 } -start
 
-client c1 -connect ${h1_fe_sock} {
+client c1 -connect ${ha1_fe_sock} {
     txreq
     rxresp
     expect resp.status == 200
 } -run
 
-client c2 -connect ${h1_fe_retry_sock} {
+client c2 -connect ${ha1_fe_retry_sock} {
     txreq
     rxresp
     expect resp.status == 200
