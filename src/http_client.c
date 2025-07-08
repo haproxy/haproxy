@@ -648,6 +648,23 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 				if (!sl || (!(sl->flags & HTX_SL_F_IS_RESP)))
 					goto out;
 
+				/* Skipp any 1XX interim responses */
+				if (sl->info.res.status < 200 &&
+				    (sl->info.res.status == 100 || sl->info.res.status >= 102)) {
+					while (blk) {
+						enum htx_blk_type type = htx_get_blk_type(blk);
+						uint32_t sz = htx_get_blksz(blk);
+
+						c_rew(res, sz);
+						blk = htx_remove_blk(htx, blk);
+						if (type == HTX_BLK_EOH) {
+							htx_to_buf(htx, &res->buf);
+							break;
+						}
+					}
+					break;
+				}
+
 				/* copy the status line in the httpclient */
 				hc->res.status = sl->info.res.status;
 				hc->res.vsn = istdup(htx_sl_res_vsn(sl));
