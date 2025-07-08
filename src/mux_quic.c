@@ -316,8 +316,8 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 	}
 
 	/* Frontend timeout management
-	 * - shutdown done -> timeout client-fin
 	 * - detached streams with data left to send -> default timeout
+	 * - shutdown done -> timeout client-fin
 	 * - stream waiting on incomplete request or no stream yet activated -> timeout http-request
 	 * - idle after stream processing -> timeout http-keep-alive
 	 *
@@ -329,8 +329,12 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 			TRACE_DEVEL("pending output data", QMUX_EV_QCC_WAKE, qcc->conn);
 			qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
 		}
-		else if ((!LIST_ISEMPTY(&qcc->opening_list) || unlikely(!qcc->largest_bidi_r)) &&
-		         qcc->app_st < QCC_APP_ST_SHUT) {
+		else if (qcc->app_st >= QCC_APP_ST_SHUT) {
+			TRACE_DEVEL("connection in closing", QMUX_EV_QCC_WAKE, qcc->conn);
+			qcc->task->expire = tick_add_ifset(now_ms,
+			                                   qcc->shut_timeout);
+		}
+		else if (!LIST_ISEMPTY(&qcc->opening_list) || unlikely(!qcc->largest_bidi_r)) {
 			int timeout = px->timeout.httpreq;
 			struct qcs *qcs = NULL;
 			int base_time;
@@ -346,18 +350,11 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 			qcc->task->expire = tick_add_ifset(base_time, timeout);
 		}
 		else {
-			if (qcc->app_st >= QCC_APP_ST_SHUT) {
-				TRACE_DEVEL("connection in closing", QMUX_EV_QCC_WAKE, qcc->conn);
-				qcc->task->expire = tick_add_ifset(now_ms,
-				                                   qcc->shut_timeout);
-			}
-			else {
-				/* Use http-request timeout if keep-alive timeout not set */
-				int timeout = tick_isset(px->timeout.httpka) ?
-				              px->timeout.httpka : px->timeout.httpreq;
-				TRACE_DEVEL("at least one request achieved but none currently in progress", QMUX_EV_QCC_WAKE, qcc->conn);
-				qcc->task->expire = tick_add_ifset(qcc->idle_start, timeout);
-			}
+			/* Use http-request timeout if keep-alive timeout not set */
+			int timeout = tick_isset(px->timeout.httpka) ?
+			              px->timeout.httpka : px->timeout.httpreq;
+			TRACE_DEVEL("at least one request achieved but none currently in progress", QMUX_EV_QCC_WAKE, qcc->conn);
+			qcc->task->expire = tick_add_ifset(qcc->idle_start, timeout);
 		}
 	}
 
