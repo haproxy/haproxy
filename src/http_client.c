@@ -649,8 +649,11 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 					goto out;
 
 				/* Skipp any 1XX interim responses */
-				if (sl->info.res.status < 200 &&
-				    (sl->info.res.status == 100 || sl->info.res.status >= 102)) {
+				if (sl->info.res.status < 200) {
+					/* Upgrade are not supported. Report an error */
+					if (sl->info.res.status == 101)
+						goto error;
+
 					while (blk) {
 						enum htx_blk_type type = htx_get_blk_type(blk);
 						uint32_t sz = htx_get_blksz(blk);
