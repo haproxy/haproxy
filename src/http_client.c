@@ -659,8 +659,6 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 				if (hc->ops.res_stline)
 					hc->ops.res_stline(hc);
 
-				htx_to_buf(htx, &res->buf);
-
 				/* if there is no HTX data anymore and the EOM flag is
 				 * set, leave (no body) */
 				if (htx_is_empty(htx) && htx->flags & HTX_FL_EOM)
@@ -668,6 +666,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 				else
 					appctx->st0 = HTTPCLIENT_S_RES_HDR;
 
+				htx_to_buf(htx, &res->buf);
 				break;
 
 			case HTTPCLIENT_S_RES_HDR:
@@ -697,7 +696,6 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 					if (htx->flags & HTX_FL_EOM)
 						hc_htx->flags |= HTX_FL_EOM;
 
-					htx_to_buf(htx, &res->buf);
 					htx_to_buf(hc_htx, &hc->res.buf);
 
 				} else {
@@ -730,7 +728,6 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 						}
 						blk = htx_remove_blk(htx, blk);
 					}
-					htx_to_buf(htx, &res->buf);
 
 					if (hdr_num) {
 						/* alloc and copy the headers in the httpclient struct */
@@ -752,6 +749,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 					appctx->st0 = HTTPCLIENT_S_RES_BODY;
 				}
 
+				htx_to_buf(htx, &res->buf);
 				break;
 
 			case HTTPCLIENT_S_RES_BODY:
@@ -841,16 +839,16 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 					}
 				}
 
+				/* if not finished, should be called again */
+				if ((htx_is_empty(htx) && (htx->flags & HTX_FL_EOM)))
+					appctx->st0 = HTTPCLIENT_S_RES_END;
+
 				htx_to_buf(htx, &res->buf);
 
 				/* the data must be processed by the caller in the receive phase */
 				if (hc->ops.res_payload)
 					hc->ops.res_payload(hc);
 
-				/* if not finished, should be called again */
-				if ((htx_is_empty(htx) && (htx->flags & HTX_FL_EOM)))
-					appctx->st0 = HTTPCLIENT_S_RES_END;
-				/* end of message, we should quit */
 				break;
 
 			case HTTPCLIENT_S_RES_END:
