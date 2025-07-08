@@ -328,12 +328,9 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 		if (!LIST_ISEMPTY(&qcc->send_list) || !LIST_ISEMPTY(&qcc->tx.frms)) {
 			TRACE_DEVEL("pending output data", QMUX_EV_QCC_WAKE, qcc->conn);
 			qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
-			task_queue(qcc->task);
-			goto leave;
 		}
-
-		if ((!LIST_ISEMPTY(&qcc->opening_list) || unlikely(!qcc->largest_bidi_r)) &&
-		    qcc->app_st < QCC_APP_ST_SHUT) {
+		else if ((!LIST_ISEMPTY(&qcc->opening_list) || unlikely(!qcc->largest_bidi_r)) &&
+		         qcc->app_st < QCC_APP_ST_SHUT) {
 			int timeout = px->timeout.httpreq;
 			struct qcs *qcs = NULL;
 			int base_time;
@@ -361,41 +358,40 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 				TRACE_DEVEL("at least one request achieved but none currently in progress", QMUX_EV_QCC_WAKE, qcc->conn);
 				qcc->task->expire = tick_add_ifset(qcc->idle_start, timeout);
 			}
+		}
+	}
 
-			/* If proxy soft-stop in progress and connection is
-			 * inactive, close the connection immediately. If a
-			 * close-spread-time is configured, randomly spread the
-			 * timer over a closing window.
+	/* If proxy soft-stop in progress and connection is inactive,
+	 * close the connection immediately. If a close-spread-time is
+	 * configured, randomly spread the timer over a closing window.
+	 */
+	if ((qcc->proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) &&
+	    !(global.tune.options & GTUNE_DISABLE_ACTIVE_CLOSE)) {
+
+		/* Wake timeout task immediately if window already expired. */
+		int remaining_window = tick_isset(global.close_spread_end) ?
+		  tick_remain(now_ms, global.close_spread_end) : 0;
+
+		TRACE_DEVEL("proxy disabled, prepare connection soft-stop", QMUX_EV_QCC_WAKE, qcc->conn);
+		if (remaining_window) {
+			/* We don't need to reset the expire if it would
+			 * already happen before the close window end.
 			 */
-			if ((qcc->proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) &&
-			    !(global.tune.options & GTUNE_DISABLE_ACTIVE_CLOSE)) {
-
-				/* Wake timeout task immediately if window already expired. */
-				int remaining_window = tick_isset(global.close_spread_end) ?
-				  tick_remain(now_ms, global.close_spread_end) : 0;
-
-				TRACE_DEVEL("proxy disabled, prepare connection soft-stop", QMUX_EV_QCC_WAKE, qcc->conn);
-				if (remaining_window) {
-					/* We don't need to reset the expire if it would
-					 * already happen before the close window end.
-					 */
-					if (!tick_isset(qcc->task->expire) ||
-					    tick_is_le(global.close_spread_end, qcc->task->expire)) {
-						/* Set an expire value shorter than the current value
-						 * because the close spread window end comes earlier.
-						 */
-						qcc->task->expire = tick_add(now_ms,
-						                             statistical_prng_range(remaining_window));
-					}
-				}
-				else {
-					/* We are past the soft close window end, wake the timeout
-					 * task up immediately.
-					 */
-					qcc->task->expire = tick_add(now_ms, 0);
-					task_wakeup(qcc->task, TASK_WOKEN_TIMER);
-				}
+			if (!tick_isset(qcc->task->expire) ||
+			    tick_is_le(global.close_spread_end, qcc->task->expire)) {
+				/* Set an expire value shorter than the current value
+				 * because the close spread window end comes earlier.
+				 */
+				qcc->task->expire = tick_add(now_ms,
+				                             statistical_prng_range(remaining_window));
 			}
+		}
+		else {
+			/* We are past the soft close window end, wake the timeout
+			 * task up immediately.
+			 */
+			qcc->task->expire = tick_add(now_ms, 0);
+			task_wakeup(qcc->task, TASK_WOKEN_TIMER);
 		}
 	}
 
