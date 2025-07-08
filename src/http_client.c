@@ -592,9 +592,11 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 							channel_add_input(req, data);
 						} else {
 							struct htx_ret ret;
+							size_t data = htx->data;
 
 							ret = htx_xfer_blks(htx, hc_htx, htx_used_space(hc_htx), HTX_BLK_UNUSED);
-							channel_add_input(req, ret.ret);
+							data = htx->data - data;
+							channel_add_input(req, data);
 
 							/* we must copy the EOM if we empty the buffer */
 							if (htx_is_empty(hc_htx)) {
