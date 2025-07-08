@@ -595,6 +595,10 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 							size_t data = htx->data;
 
 							ret = htx_xfer_blks(htx, hc_htx, htx_used_space(hc_htx), HTX_BLK_UNUSED);
+							if (!ret.ret) {
+								sc_need_room(sc, channel_htx_recv_max(req, htx) + 1);
+								goto out;
+							}
 							data = htx->data - data;
 							channel_add_input(req, data);
 
