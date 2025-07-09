@@ -191,10 +191,10 @@ int qpack_encode_scheme(struct buffer *out, const struct ist scheme)
 			b_putchr(out, istptr(scheme)[i]);
 	}
 	else {
-		int idx = 23;
+		const int idx = isteq(scheme, ist("https")) ?
+		  23 : /* :scheme: https */
+		  22;  /* :scheme: http */
 
-		if (unlikely(!isteq(scheme, ist("http"))))
-			idx = 22;
 		if (b_room(out) < 2)
 			return 1;
 
