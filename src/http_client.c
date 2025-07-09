@@ -567,9 +567,9 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 					se_fl_set(appctx->sedesc, SE_FL_EOI);
 					break;
 				}
-				else
-					appctx->st0 = HTTPCLIENT_S_REQ_BODY;
 
+				applet_have_more_data(appctx);
+				appctx->st0 = HTTPCLIENT_S_REQ_BODY;
 				goto out; /* we need to leave the IO handler once we wrote the request */
 				break;
 
@@ -642,6 +642,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 						break;
 					}
 
+					applet_have_more_data(appctx);
 					goto process_data; /* we need to leave the IO handler once we wrote the request */
 				}
 				break;
