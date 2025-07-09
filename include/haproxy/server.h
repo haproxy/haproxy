@@ -59,7 +59,6 @@ const char *srv_update_addr_port(struct server *s, const char *addr, const char 
 const char *server_inetaddr_updater_by_to_str(enum server_inetaddr_updater_by by);
 const char *srv_update_check_addr_port(struct server *s, const char *addr, const char *port);
 const char *srv_update_agent_addr_port(struct server *s, const char *addr, const char *port);
-struct server *server_find_by_id(struct proxy *bk, int id);
 struct server *server_find_by_id_unique(struct proxy *bk, int id, uint32_t rid);
 struct server *server_find_by_name(struct proxy *px, const char *name);
 struct server *server_find(struct proxy *bk, const char *name);
@@ -343,6 +342,18 @@ static inline void srv_detach(struct server *srv)
 		prev->next = srv->next;
 	}
 }
+
+/* Returns a pointer to the first server matching id <id> in backend <bk>.
+ * NULL is returned if no match is found.
+ */
+static inline struct server *server_find_by_id(struct proxy *bk, int id)
+{
+	struct eb32_node *eb32;
+
+	eb32 = eb32_lookup(&bk->conf.used_server_id, id);
+	return eb32 ? container_of(eb32, struct server, conf.id) : NULL;
+}
+
 
 static inline int srv_is_quic(const struct server *srv)
 {

@@ -3958,31 +3958,6 @@ int parse_server(const char *file, int linenum, char **args,
 	return err_code;
 }
 
-/* Returns a pointer to the first server matching either id <id>.
- * NULL is returned if no match is found.
- * the lookup is performed in the backend <bk>
- */
-struct server *server_find_by_id(struct proxy *bk, int id)
-{
-	struct eb32_node *eb32;
-	struct server *curserver;
-
-	if (!bk || (id ==0))
-		return NULL;
-
-	/* <bk> has no backend capabilities, so it can't have a server */
-	if (!(bk->cap & PR_CAP_BE))
-		return NULL;
-
-	curserver = NULL;
-
-	eb32 = eb32_lookup(&bk->conf.used_server_id, id);
-	if (eb32)
-		curserver = container_of(eb32, struct server, conf.id);
-
-	return curserver;
-}
-
 /*
  * This function finds a server with matching "<puid> x <rid>" within
  * selected backend <bk>.
