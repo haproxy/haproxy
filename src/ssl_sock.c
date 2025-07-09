@@ -6524,8 +6524,44 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 #ifdef HA_USE_KTLS
 #if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
 		if (ctx->flags & SSL_SOCK_F_KTLS_RECV) {
-			ret = ctx->xprt->rcv_buf(ctx->conn, ctx->xprt_ctx, buf, try, NULL, NULL, 0);
+			unsigned char *tmpbuf = (unsigned char *)b_tail(buf);
+			unsigned char cbuf[CMSG_SPACE(sizeof(unsigned char))];
+			size_t msg_controllen = CMSG_LEN(sizeof(unsigned char));
 
+			ret = ctx->xprt->rcv_buf(ctx->conn, ctx->xprt_ctx, buf, try, cbuf, &msg_controllen, CO_RFL_READ_ONCE);
+			if (ret > 0 && msg_controllen > 0) {
+				struct cmsghdr *cmsg = (void *)cbuf;
+
+				if (cmsg->cmsg_type == TLS_GET_RECORD_TYPE) {
+					unsigned char record_type = *(unsigned char *)CMSG_DATA(cmsg);
+					/*
+					 * If this is not application data,
+					 * there is not much we can do
+					 */
+					if (record_type == SSL3_RT_HANDSHAKE && tmpbuf[0] == SSL3_MT_NEW_SESSION_TICKET) {
+						/*
+						 * Just ignore new session tickets
+						 */
+						b_del(buf, ret);
+						continue;
+
+					} else if (record_type != SSL3_RT_APPLICATION_DATA) {
+						/*
+						 * Special case: TLS alert "close notify"
+						 * We just register that as a read0, any other message is considered fatal
+						 */
+						if (record_type == SSL3_RT_ALERT && ret == 2 &&
+						    tmpbuf[0] == SSL_TLSEXT_ERR_ALERT_WARNING && tmpbuf[1] == SSL_AD_CLOSE_NOTIFY) {
+							b_del(buf, ret);
+							goto read0;
+						} else {
+							conn->err_code = CO_ER_SSL_FATAL;
+							goto out_error;
+						}
+					}
+
+				}
+			}
 		} else
 #endif
 #endif
@@ -6941,8 +6977,29 @@ static void ssl_sock_shutw(struct connection *conn, void *xprt_ctx, int clean)
 
 #ifdef HA_USE_KTLS
 #if defined(OPENSSL_IS_AWSLC) || defined(OPENSSL_IS_BORINGSSL)
-	if (ctx->flags & (SSL_SOCK_F_KTLS_RECV | SSL_SOCK_F_KTLS_SEND))
+	if (ctx->flags & (SSL_SOCK_F_KTLS_RECV | SSL_SOCK_F_KTLS_SEND)) {
+		unsigned char cbuf[CMSG_SPACE(sizeof(unsigned char))];
+		struct buffer tmpbuf;
+		struct cmsghdr *cmsg;
+		char buf[2];
+		size_t msg_controllen = CMSG_LEN(sizeof(unsigned char));
+		/*
+		 * Send a TLS alert "notify close"
+		 */
+		cmsg = (void *)cbuf;
+		cmsg->cmsg_type = TLS_SET_RECORD_TYPE;
+		cmsg->cmsg_level = SOL_TLS;
+		cmsg->cmsg_len = msg_controllen;
+		*(unsigned char *)CMSG_DATA(cmsg) = SSL3_RT_ALERT;
+		buf[0] = SSL_TLSEXT_ERR_ALERT_WARNING; /* Warning */
+		buf[1] = SSL_AD_CLOSE_NOTIFY; /* notify close */
+		tmpbuf.size = sizeof(buf);
+		tmpbuf.area = buf;
+		tmpbuf.data = tmpbuf.size;
+		tmpbuf.head = 0;
+		ctx->xprt->snd_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, sizeof(buf), cmsg, msg_controllen, 0);
 		return;
+	}
 #endif
 #endif
 	if (conn->flags & (CO_FL_WAIT_XPRT | CO_FL_SSL_WAIT_HS))
