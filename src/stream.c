@@ -1250,10 +1250,10 @@ static inline void sticking_rule_find_target(struct stream *s,
                                              struct stktable *t, struct stksess *ts)
 {
 	struct proxy *px = s->be;
-	struct eb32_node *node;
 	struct dict_entry *de;
 	void *ptr;
 	struct server *srv;
+	int id;
 
 	/* Look for the server name previously stored in <t> stick-table */
 	HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
@@ -1282,13 +1282,13 @@ static inline void sticking_rule_find_target(struct stream *s,
 	/* Look for the server ID */
 	HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
 	ptr = __stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_ID);
-	node = eb32_lookup(&px->conf.used_server_id, stktable_data_cast(ptr, std_t_sint));
+	id = stktable_data_cast(ptr, std_t_sint);
 	HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
 
-	if (!node)
+	srv = server_find_by_id(px, id);
+	if (!srv)
 		return;
 
-	srv = container_of(node, struct server, conf.id);
  found:
 	if ((srv->cur_state != SRV_ST_STOPPED) ||
 	    (px->options & PR_O_PERSIST) || (s->flags & SF_FORCE_PRST)) {
