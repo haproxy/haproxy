@@ -710,7 +710,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 	else if (strcmp(args[0], "id") == 0) {
-		struct eb32_node *node;
+		struct proxy *conflict;
 
 		if (curproxy->cap & PR_CAP_DEF) {
 			ha_alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n",
@@ -740,12 +740,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		node = eb32_lookup(&used_proxy_id, curproxy->uuid);
-		if (node) {
-			struct proxy *target = container_of(node, struct proxy, conf.id);
+		conflict = proxy_find_by_id(curproxy->uuid, 0, 0);
+		if (conflict) {
 			ha_alert("parsing [%s:%d]: %s %s reuses same custom id as %s %s (declared at %s:%d).\n",
 				 file, linenum, proxy_type_str(curproxy), curproxy->id,
-				 proxy_type_str(target), target->id, target->conf.file, target->conf.line);
+				 proxy_type_str(conflict), conflict->id, conflict->conf.file, conflict->conf.line);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
