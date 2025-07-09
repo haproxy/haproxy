@@ -29,9 +29,6 @@ static void ssl_sock_switchctx_set(SSL *ssl, SSL_CTX *ctx)
 	SSL_set_verify(ssl, SSL_CTX_get_verify_mode(ctx), ssl_sock_bind_verifycbk);
 	SSL_set_client_CA_list(ssl, SSL_dup_CA_list(SSL_CTX_get_client_CA_list(ctx)));
 	SSL_set_SSL_CTX(ssl, ctx);
-#if defined(USE_QUIC) && defined(HAVE_OPENSSL_QUIC)
-	quic_ssl_set_tls_cbs(ssl);
-#endif
 }
 
 /*

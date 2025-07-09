@@ -1121,14 +1121,8 @@ int qc_ssl_provide_all_quic_data(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 }
 
 /* Simple helper to set the specifig OpenSSL/quictls QUIC API callbacks */
-int quic_ssl_set_tls_cbs(SSL *ssl)
+static int quic_ssl_set_tls_cbs(SSL *ssl)
 {
-	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
-
-	/* Ignore the TCP connections */
-	if (!qc)
-		return 1;
-
 #ifdef HAVE_OPENSSL_QUIC
 	return SSL_set_quic_tls_cbs(ssl, ha_quic_dispatch, NULL);
 #else

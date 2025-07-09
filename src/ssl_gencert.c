@@ -285,12 +285,8 @@ SSL_CTX *ssl_sock_assign_generated_cert(unsigned int key, struct bind_conf *bind
 		HA_RWLOCK_WRLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 		lru = lru64_lookup(key, ssl_ctx_lru_tree, bind_conf->ca_sign_ckch->cert, 0);
 		if (lru && lru->domain) {
-			if (ssl) {
+			if (ssl)
 				SSL_set_SSL_CTX(ssl, (SSL_CTX *)lru->data);
-#if defined(USE_QUIC) && defined(HAVE_OPENSSL_QUIC)
-				quic_ssl_set_tls_cbs(ssl);
-#endif
-			}
 			HA_RWLOCK_WRUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 			return (SSL_CTX *)lru->data;
 		}
@@ -359,18 +355,12 @@ int ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind
 			lru64_commit(lru, ssl_ctx, cacert, 0, (void (*)(void *))SSL_CTX_free);
 		}
 		SSL_set_SSL_CTX(ssl, ssl_ctx);
-#if defined(USE_QUIC) && defined(HAVE_OPENSSL_QUIC)
-		quic_ssl_set_tls_cbs(ssl);
-#endif
 		HA_RWLOCK_WRUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 		return 1;
 	}
 	else {
 		ssl_ctx = ssl_sock_do_create_cert(servername, bind_conf, ssl);
 		SSL_set_SSL_CTX(ssl, ssl_ctx);
-#if defined(USE_QUIC) && defined(HAVE_OPENSSL_QUIC)
-		quic_ssl_set_tls_cbs(ssl);
-#endif
 		/* No LRU cache, this CTX will be released as soon as the session dies */
 		SSL_CTX_free(ssl_ctx);
 		return 1;
