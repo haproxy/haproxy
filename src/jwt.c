@@ -289,7 +289,7 @@ end:
 }
 
 /* Update the ckch_store and public key reference of a jwt_entry. This is only
- * useful whne updating a certificate from the CLI if it was being used for JWT
+ * useful when updating a certificate from the CLI if it was being used for JWT
  * validation.
  */
 void jwt_replace_ckch_store(struct ckch_store *old_ckchs, struct ckch_store *new_ckchs)

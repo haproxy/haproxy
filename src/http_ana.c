@@ -1022,7 +1022,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		/* request errors are most likely due to the server aborting the
 		 * transfer. But handle server aborts only if the response was
 		 * not received yet. Otherwise, let the response analyzer the
-		 * responsability to handle the error. It is especially
+		 * responsibility to handle the error. It is especially
 		 * important to properly handle L7-retries but also K/A silent close.
 		 */
 		if (txn->rsp.msg_state >= HTTP_MSG_BODY && htx_is_empty(htxbuf(&s->res.buf)))
@@ -1065,7 +1065,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	/* waiting for the last bits to leave the buffer */
 	if (s->scb->flags & SC_FL_SHUT_DONE) {
 		/* Handle server aborts only if the response was not received
-		 * yet. Otherwise, let the response analyzer the responsability
+		 * yet. Otherwise, let the response analyzer the responsibility
 		 * to handle the error. It is especially important to properly
 		 * handle L7-retries but also K/A silent close.
 		 */

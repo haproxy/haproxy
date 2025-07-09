@@ -3022,7 +3022,7 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	}
 }
 
-/* allocate a server, attachs it to the global servers_list
+/* Allocates a server, attaches it to the global servers_list
  * and adds it to <proxy> server list. Before deleting the server with
  * srv_drop(), srv_detach() must be called to remove it from the parent
  * proxy list

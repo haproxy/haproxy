@@ -1705,7 +1705,7 @@ void proxy_unref_defaults(struct proxy *px)
 /* prepares a new proxy <name> of type <cap> from the provided <px>
  * pointer.
  * <px> is assumed to be freshly allocated
- * <name> may be NULL: proxy id assigment will be skipped.
+ * <name> may be NULL: proxy id assignment will be skipped.
  *
  * Returns a 1 on success or 0 on failure (in which case errmsg must be checked
  * then freed).

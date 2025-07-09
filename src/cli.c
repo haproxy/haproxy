@@ -789,7 +789,7 @@ static int cli_process_cmdline(struct appctx *appctx)
 		i++;
 	}
 	/* Pass the payload to the last command. It happens when the end of the
-	 * commend is just before the payload pattern.
+	 * command is just before the payload pattern.
 	 */
 	if (appctx->cli_ctx.payload && appctx->cli_ctx.payload == end + strlen(appctx->cli_ctx.payload_pat) + 3) {
 		appctx->st1 |= APPCTX_CLI_ST1_LASTCMD;
@@ -1030,7 +1030,7 @@ int cli_parse_cmdline(struct appctx *appctx)
 					appctx->cli_ctx.payload_pat[sizeof(appctx->cli_ctx.payload_pat)-1] = '\0';
 
 					/* The last command finishes before the payload pattern.
-					 * Dont' strip trailing spaces to be sure to detect when
+					 * Don't strip trailing spaces to be sure to detect when
 					 * the payload should be used.
 					 */
 					*last_arg = '\0';
@@ -1049,7 +1049,7 @@ int cli_parse_cmdline(struct appctx *appctx)
 			str[len] = '\0';
 
 			/* look for a pattern at the end of the payload
-			 * (take care to exclue last character because it is a \n)
+			 * (take care to exclude the last character because it is a \n)
 			 */
 			if (len-1 == strlen(appctx->cli_ctx.payload_pat)) {
 				if (strncmp(str, appctx->cli_ctx.payload_pat, len-1) == 0) {

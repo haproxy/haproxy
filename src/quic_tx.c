@@ -711,7 +711,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			 * conditions are verified (see qc_do_build_pkt()).
 			 *
 			 * For clients:
-			 * <padding> must be set to 1 only the current packet cannot be coalesed,
+			 * <padding> must be set to 1 only the current packet cannot be coalesced,
 			 * i.e. if the next qel is not present or empty.
 			 */
 			cur_pkt = qc_build_pkt(&pos, end, qel, tls_ctx, frms,

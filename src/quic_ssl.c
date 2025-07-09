@@ -1120,7 +1120,7 @@ int qc_ssl_provide_all_quic_data(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 	return ret;
 }
 
-/* Simple helper to set the specifig OpenSSL/quictls QUIC API callbacks */
+/* Simple helper to set the specific OpenSSL/quictls QUIC API callbacks */
 static int quic_ssl_set_tls_cbs(SSL *ssl)
 {
 #ifdef HAVE_OPENSSL_QUIC

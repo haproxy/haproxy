@@ -1067,7 +1067,7 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
  * Endpoints addresses are specified via <local_addr> and <peer_addr>.
  * Returns the connection if succeeded, NULL if not.
  * For QUIC clients, <dcid>, <scid>, <token_odcid>, <conn_id> must be null,
- * and <token> value must be 0. This is the responsability of the caller to ensure
+ * and <token> value must be 0. This is the responsibility of the caller to ensure
  * this is the case.
  */
 struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
@@ -1539,7 +1539,7 @@ int quic_conn_release(struct quic_conn *qc)
 		HA_ATOMIC_DEC(&__objt_listener(qc->target)->rx.quic_curr_accept);
 	}
 
-	/* Substract last congestion window from global memory counter. */
+	/* Subtract last congestion window from global memory counter. */
 	if (qc->path) {
 		cshared_add(&quic_mem_diff, -qc->path->cwnd);
 		qc->path->cwnd = 0;

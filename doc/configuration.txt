@@ -2280,7 +2280,7 @@ cpu-policy <policy>
                         respected. This is recommended on multi-socket and NUMA
                         systems, as well as CPUs with bad inter-CCX latencies.
                         On most server machines, clusters and CCX are the same,
-                        but on heterogenous machines ("performance" vs
+                        but on heterogeneous machines ("performance" vs
                         "efficiency" or "big" vs "little"), a cluster will
                         generally be made of only a part of a CCX composed only
                         of very similar CPUs (same type, +/-5% frequency
@@ -2435,7 +2435,7 @@ dns-accept-family <family>[,...]
               The result of the last check is cached for 30 seconds.
 
   When a single family is used, no request will be sent to resolvers for the
-  other family, and any response for the othe family will be ignored. The
+  other family, and any response for the other family will be ignored. The
   default value since 3.3 is "auto", which effectively enables both families
   only once IPv6 has been proven to be routable, otherwise sticks to IPv4.
   See also: "resolve-prefer", "do-resolve"
@@ -9735,7 +9735,7 @@ no option http-drop-request-trailers
 
   RFC9110#section-6.5.1 stated that trailer fields could be merged into the
   header fields. It should be done on purpose, but it may be a problem for some
-  applications, espcially if malicious clients hide sensitive header fields in
+  applications, especially if malicious clients hide sensitive header fields in
   the trailers part and some intermediaries merge them with headers with no
   specific checks. In that case, this option can be enabled on the backend to
   drop any trailer fields found in requests before sending them to the server.
@@ -10655,7 +10655,7 @@ no option prefer-last-server
   It may be useful to precise here, which load balancing algorithms are
   considered deterministic. Deterministic algorithms will always select the same
   server for a given client data, assuming the set of available servers has not
-  changed. In general, deterministic algorithms involve hasing or lookups on the
+  changed. In general, deterministic algorithms involve hashing or lookups on the
   incoming requests to choose the target server. However, this is not always the
   case; "static-rr", for example, can be also considered as deterministic because
   the server choice is based on the server's static weight, making the selection
@@ -15141,7 +15141,7 @@ pause { <timeout> | <expr> }
   Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     - |          -  |   -  |   -  |   -  |          X |  X |  -
 
-  This suspends the message analysis for the sepcified number of milliseconds.
+  This suspends the message analysis for the specified number of milliseconds.
   The timeout can be specified in milliseconds or with any other unit if the
   number is suffixed by the unit as explained at the top of this document. It
   is also possible to write an expression which must return a number
@@ -16562,7 +16562,7 @@ crt-list <file>
     Server Name Indication field matching one of the SNI filters, or the CN and
     SAN of a <crtfile>. The matching algorithm first looks for a positive domain
     entry in the list, if not found it will try to look for a wildcard in the
-    list. If a wilcard match, haproxy checks for a negative filter from the
+    list. If a wildcard match, haproxy checks for a negative filter from the
     same line and unmatch if necessary. In case of multiple key algorithms
     (RSA,ECDSA,DSA), HAProxy will try to match one certificate per type and
     chose the right one depending on what is supported by the client.
@@ -16577,7 +16577,7 @@ crt-list <file>
     certificate, either from crt or crt-list option.
     It is also possible to declare a '*' filter, which will add this
     certificate to the list of default certificates. To clarify the
-    configuration, the default certificates could be explicited (with a '*'
+    configuration, the default certificates could be explicit (with a '*'
     filter) at the beginning of the list, so an implicit default is not added
     before.
     Due to multi-cert bundles being duplicated for each algorithm in the
@@ -17181,7 +17181,7 @@ tls-tickets
   This setting is only available when support for OpenSSL was built in. It
   enables the stateless session resumption (RFC 5077 TLS Ticket extension). It
   is the default, but it may be needed to selectively re-enable the feature on
-  a "bind" line if it had been globaly disabled via "no-tls-tickets" mentioned
+  a "bind" line if it had been globally disabled via "no-tls-tickets" mentioned
   in "ssl-default-bind-options". See also the "no-tls-tickets" bind keyword.
 
 tls-ticket-keys <keyfile>
@@ -18078,10 +18078,10 @@ no-renegotiate
 
   This setting is only available when support for OpenSSL was built in. It
   disables the renegotiation mechanisms, be it the legacy unsafe one or the
-  more recent "secure renegotation" one (RFC 5746 TLS Renegotiation Indication
+  more recent "secure renegotiation" one (RFC 5746 TLS Renegotiation Indication
   Extension) for the given SSL backend. This option is also available on global
   statement "ssl-default-server-options".
-  Renegotiation is not posible anymore in TLS 1.3.
+  Renegotiation is not possible anymore in TLS 1.3.
   If neither "renegotiate" nor "no-renegotiate" is specified, the SSL library's
   default behavior is kept.
   Note that for instance OpenSSL library enables secure renegotiation by
@@ -18425,7 +18425,7 @@ renegotiate
   backends to renegotiate when servers request it. It still requires that the
   underlying SSL library actually supports renegotiation.
   This option is also available on global statement "ssl-default-server-options".
-  Renegotiation is not posible anymore in TLS 1.3.
+  Renegotiation is not possible anymore in TLS 1.3.
   If neither "renegotiate" nor "no-renegotiate" is specified, the SSL library's
   default behavior is kept.
   Note that for instance OpenSSL library enables secure renegotiation by
@@ -29690,7 +29690,7 @@ table <tablename> type {ip | integer | string [len <length>] | binary [len <leng
 The sections described below are less commonly used and usually support only a
 few parameters. There is no implicit relation between any of them. They're all
 started using a single keyword. None of them is permitted before a "global"
-section. The support for some of them might be conditionned by build options
+section. The support for some of them might be conditioned by build options
 (e.g. anything SSL-related).
 
 12.1. Traces

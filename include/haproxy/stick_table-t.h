@@ -226,7 +226,7 @@ struct stktable {
 	unsigned int update;      /* uses updt_lock */
 	unsigned int localupdate; /* uses updt_lock */
 	unsigned int commitupdate;/* used to identify the latest local updates pending for sync, uses updt_lock */
-	struct tasklet *updt_task;/* tasklet responsable for pushing the pending updates into the tree */
+	struct tasklet *updt_task;/* tasklet responsible for pushing the pending updates into the tree */
 
 	THREAD_ALIGN(64);
 	/* this lock is heavily used and must be on its own cache line */

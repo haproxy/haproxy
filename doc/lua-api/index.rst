@@ -935,7 +935,7 @@ Core class
   Give back the hand at the HAProxy scheduler. Unlike :js:func:`core.yield`
   the task will not be woken up automatically to resume as fast as possible.
   Instead, it will wait for an event to wake the task. If milliseconds argument
-  is provided then the Lua excecution will be automatically resumed passed this
+  is provided then the Lua execution will be automatically resumed passed this
   delay even if no event caused the task to wake itself up.
 
   :param integer milliseconds: automatic wakeup passed this delay. (optional)
@@ -945,7 +945,7 @@ Core class
   **context**: task, action
 
   Give back the hand at the HAProxy scheduler. It is used when the LUA
-  processing consumes a lot of processing time. Lua excecution will be resumed
+  processing consumes a lot of processing time. Lua execution will be resumed
   automatically (automatic reschedule).
 
 .. js:function:: core.parse_addr(address)

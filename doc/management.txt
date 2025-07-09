@@ -2371,7 +2371,7 @@ prompt [help | n | i | p | timed]*
 
   Without any option, this will cycle through prompt mode then non-interactive
   mode. In non-interactive mode, the connection is closed after the last
-  command of the current line compltes. In interactive mode, the connection is
+  command of the current line completes. In interactive mode, the connection is
   not closed after a command completes, so that a new one can be entered. In
   prompt mode, the interactive mode is still in use, and a prompt will appear
   at the beginning of the line, indicating to the user that the interpreter is

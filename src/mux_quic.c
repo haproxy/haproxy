@@ -3709,7 +3709,7 @@ static int qmux_strm_attach(struct connection *conn, struct sedesc *sd, struct s
 	TRACE_ENTER(QMUX_EV_QCS_NEW, conn);
 
 	/* Flow control limit on bidi streams should already have
-	 * been checked by a prior qmux_avail_streams() invokation.
+	 * been checked by a prior qmux_avail_streams() invocation.
 	 */
 	BUG_ON(!qcc_fctl_avail_streams(qcc, 1));
 

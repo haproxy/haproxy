@@ -193,7 +193,7 @@ static int cfg_parse_acme(const char *file, int linenum, char **args, int kwm)
 
 		/* first check if the ID was already used */
 		if (cur_acme->linenum > 0) {
-			/* an unitialized section is created when parsing the "acme" keyword in a crt-store, with a
+			/* an uninitialized section is created when parsing the "acme" keyword in a crt-store, with a
 			 * linenum <= 0, however, when the linenum > 0, it means we already created a section with this
 			 * name */
 			err_code |= ERR_ALERT | ERR_FATAL;

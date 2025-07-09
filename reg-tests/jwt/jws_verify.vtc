@@ -90,7 +90,7 @@ haproxy h1 -conf {
 
         # Variables
         # This first case only works because the certificate
-        # is already explicitely used in a previous jwt_verify call.
+        # is already explicitly used in a previous jwt_verify call.
         http-response set-var(txn.cert) str("${testdir}/cert.rsa.pem")
         http-response set-header x-jwt-verify-RS256-var1 %[var(txn.bearer),jwt_verify(txn.jwt_alg,txn.cert)] if { var(txn.jwt_alg) -m str "RS256" }
         http-response set-var(txn.cert) str("@named_store${testdir}/cert.rsa.pem")

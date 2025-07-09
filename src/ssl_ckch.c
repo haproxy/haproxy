@@ -1046,7 +1046,7 @@ struct ckch_store *ckchs_dup(const struct ckch_store *src)
 	dst->conf.ocsp_update_mode = src->conf.ocsp_update_mode;
 
         /* copy ckch_conf
-	 * XXX: could be automated for each fiedl with the
+	 * XXX: could be automated for each field with the
          * ckch_conf array used for parsing */
 
         if (src->conf.crt)
