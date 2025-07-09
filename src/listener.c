@@ -1856,7 +1856,7 @@ int bind_complete_thread_setup(struct bind_conf *bind_conf, int *err_code)
 					new_li->luid = new_li->conf.id.key = tmp_li->luid;
 					tmp_li->luid = 0;
 					eb32_delete(&tmp_li->conf.id);
-					if (tmp_li->luid)
+					if (new_li->luid)
 						eb32_insert(&fe->conf.used_listener_id, &new_li->conf.id);
 					new_li = tmp_li;
 				}
@@ -1880,7 +1880,7 @@ int bind_complete_thread_setup(struct bind_conf *bind_conf, int *err_code)
 			new_li->luid = new_li->conf.id.key = li->luid;
 			li->luid = 0;
 			eb32_delete(&li->conf.id);
-			if (li->luid)
+			if (new_li->luid)
 				eb32_insert(&fe->conf.used_listener_id, &new_li->conf.id);
 		}
 	}
