@@ -123,8 +123,20 @@ int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe,
 				/* splice not supported on this end, disable it.
 				 * We can safely return -1 since there is no
 				 * chance that any data has been piped yet.
+				 * EINVAL, however, is a bit special.
+				 * If we're trying to splice from a KTLS
+				 * socket, the kernel may return EINVAL
+				 * to signal that the current TLS record
+				 * is not application data, and that we
+				 * have to call recvmsg() to get it.
+				 * This is not really an error, and doesn't
+				 * mean we won't be able to splice later.
+				 * Choosing EINVAL there is a bit unfortunate,
+				 * because it can mean many things, but we
+				 * should not get it for any other reason.
 				 */
-				retval = -1;
+				if (errno != EINVAL)
+					retval = -1;
 				goto leave;
 			}
 			else if (errno == EINTR) {
@@ -132,9 +144,11 @@ int raw_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe,
 				continue;
 			}
 			/* here we have another error */
-			conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_rcv_err);
-			conn->flags |= CO_FL_ERROR;
-			conn_set_errno(conn, errno);
+			if (errno != EINVAL) {
+				conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_rcv_err);
+				conn->flags |= CO_FL_ERROR;
+				conn_set_errno(conn, errno);
+			}
 			break;
 		} /* ret <= 0 */
 
