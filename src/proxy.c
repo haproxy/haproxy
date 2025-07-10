@@ -386,7 +386,10 @@ void deinit_proxy(struct proxy *p)
 	/* also free default-server parameters since some of them might have
 	 * been dynamically allocated (e.g.: config hints, cookies, ssl..)
 	 */
-	srv_free_params(&p->defsrv);
+	if (p->defsrv) {
+		srv_free_params(p->defsrv);
+		ha_free(&p->defsrv);
+	}
 
 	if (p->lbprm.proxy_deinit)
 		p->lbprm.proxy_deinit(p);
@@ -1477,7 +1480,6 @@ void init_new_proxy(struct proxy *p)
 
 	MT_LIST_INIT(&p->lbprm.lb_free_list);
 
-	p->defsrv.id = "default-server";
 	p->conf.used_listener_id = EB_ROOT;
 	p->conf.used_server_id   = EB_ROOT;
 	p->used_server_addr      = EB_ROOT_UNIQUE;
@@ -1531,8 +1533,6 @@ void proxy_preset_defaults(struct proxy *defproxy)
 		defproxy->options2 |= PR_O2_INDEPSTR;
 	defproxy->max_out_conns = MAX_SRV_LIST;
 
-	srv_settings_init(&defproxy->defsrv);
-
 	lf_expr_init(&defproxy->logformat);
 	lf_expr_init(&defproxy->logformat_sd);
 	lf_expr_init(&defproxy->format_unique_id);
@@ -1557,8 +1557,9 @@ void proxy_free_defaults(struct proxy *defproxy)
 	proxy_free_common(defproxy);
 
 	/* default proxy specific cleanup */
-	ha_free((char **)&defproxy->defsrv.conf.file);
+	ha_free((char **)&defproxy->defsrv->conf.file);
 	ha_free(&defproxy->defbe.name);
+	ha_free(&defproxy->defsrv);
 
 	h = defproxy->req_cap;
 	while (h) {
@@ -1683,6 +1684,16 @@ int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char *
 {
 	init_new_proxy(px);
 
+	/* allocate the default server section */
+	px->defsrv = calloc(1, sizeof(*px->defsrv));
+	if (!px->defsrv) {
+		memprintf(errmsg, "out of memory");
+		goto fail;
+	}
+
+	px->defsrv->id = "default-server";
+	srv_settings_init(px->defsrv);
+
 	if (name) {
 		px->id = strdup(name);
 		if (!px->id) {
@@ -1706,6 +1717,7 @@ int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char *
 	if (name)
 		memprintf(errmsg, "proxy '%s': %s", name, *errmsg);
 
+	ha_free(&px->defsrv);
 	ha_free(&px->id);
 	counters_fe_shared_drop(px->fe_counters.shared);
 	counters_be_shared_drop(px->be_counters.shared);
@@ -1736,6 +1748,8 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, char **errmsg)
 	 * but its not worth trying to unroll everything here just before
 	 * quitting.
 	 */
+	if (curproxy)
+		free(curproxy->defsrv);
 	free(curproxy);
 	return NULL;
 }
@@ -1792,7 +1806,7 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 	struct eb32_node *node;
 
 	/* set default values from the specified default proxy */
-	srv_settings_cpy(&curproxy->defsrv, &defproxy->defsrv, 0);
+	srv_settings_cpy(curproxy->defsrv, defproxy->defsrv, 0);
 
 	curproxy->flags = (defproxy->flags & PR_FL_DISABLED); /* Only inherit from disabled flag */
 	curproxy->options = defproxy->options;

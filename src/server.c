@@ -2706,7 +2706,7 @@ static void srv_ssl_settings_cpy(struct server *srv, const struct server *src)
 	/* <src> is the current proxy's default server and SSL is enabled */
 	BUG_ON(src->ssl_ctx.ctx != NULL); /* the SSL_CTX must never be initialized in a default-server */
 
-	if (srv->proxy && src == &srv->proxy->defsrv && src->use_ssl == 1)
+	if (srv->proxy && src == srv->proxy->defsrv && src->use_ssl == 1)
 		srv->flags |= SRV_F_DEFSRV_USE_SSL;
 
 	if (src->ssl_ctx.ca_file != NULL)
@@ -3692,13 +3692,13 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
  skip_addr:
 		if (!(parse_flags & SRV_PARSE_DYNAMIC)) {
 			/* Copy default server settings to new server */
-			srv_settings_cpy(newsrv, &curproxy->defsrv, 0);
+			srv_settings_cpy(newsrv, curproxy->defsrv, 0);
 		} else
 			srv_settings_init(newsrv);
 		HA_SPIN_INIT(&newsrv->lock);
 	}
 	else {
-		*srv = newsrv = &curproxy->defsrv;
+		*srv = newsrv = curproxy->defsrv;
 		*cur_arg = 1;
 	}
 

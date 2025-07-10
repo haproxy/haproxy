@@ -1145,7 +1145,7 @@ struct proxy *httpclient_create_proxy(const char *id)
 		goto err;
 	}
 
-	srv_settings_cpy(srv_raw, &px->defsrv, 0);
+	srv_settings_cpy(srv_raw, px->defsrv, 0);
 	srv_raw->iweight = 0;
 	srv_raw->uweight = 0;
 	srv_raw->xprt = xprt_get(XPRT_RAW);
@@ -1165,7 +1165,7 @@ struct proxy *httpclient_create_proxy(const char *id)
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto err;
 	}
-	srv_settings_cpy(srv_ssl, &px->defsrv, 0);
+	srv_settings_cpy(srv_ssl, px->defsrv, 0);
 	srv_ssl->iweight = 0;
 	srv_ssl->uweight = 0;
 	srv_ssl->xprt = xprt_get(XPRT_SSL);
