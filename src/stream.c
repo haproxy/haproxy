@@ -1265,11 +1265,9 @@ static inline void sticking_rule_find_target(struct stream *s,
 		struct ebpt_node *node;
 
 		if (t->server_key_type == STKTABLE_SRV_NAME) {
-			node = ebis_lookup(&px->conf.used_server_name, de->value.key);
-			if (node) {
-				srv = container_of(node, struct server, conf.name);
+			srv = server_find_by_name(px, de->value.key);
+			if (srv)
 				goto found;
-			}
 		} else if (t->server_key_type == STKTABLE_SRV_ADDR) {
 			HA_RWLOCK_RDLOCK(PROXY_LOCK, &px->lock);
 			node = ebis_lookup(&px->used_server_addr, de->value.key);

@@ -4039,11 +4039,7 @@ struct server *server_find(struct proxy *bk, const char *name)
 		curserver = server_find_by_id(bk, atoi(name + 1));
 	}
 	else {
-		struct ebpt_node *node;
-
-		node = ebis_lookup(&bk->conf.used_server_name, name);
-		if (node)
-			curserver = container_of(node, struct server, conf.name);
+		curserver = server_find_by_name(bk, name);
 	}
 
 	return curserver;
