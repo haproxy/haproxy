@@ -61,7 +61,6 @@ void proxy_store_name(struct proxy *px);
 struct proxy *proxy_find_by_id(int id, int cap, int table);
 struct proxy *proxy_find_by_name(const char *name, int cap, int table);
 struct proxy *proxy_find_best_match(int cap, const char *name, int id, int *diff);
-struct server *findserver(const struct proxy *px, const char *name);
 int proxy_cfg_ensure_no_http(struct proxy *curproxy);
 int proxy_cfg_ensure_no_log(struct proxy *curproxy);
 void init_new_proxy(struct proxy *p);

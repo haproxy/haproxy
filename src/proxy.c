@@ -1377,26 +1377,6 @@ struct proxy *proxy_find_best_match(int cap, const char *name, int id, int *diff
 	return NULL;
 }
 
-/*
- * This function returns the server with a matching name within selected proxy,
- * or NULL if not found.
- */
-
-struct server *findserver(const struct proxy *px, const char *name)
-{
-	struct server *cursrv;
-
-	if (!px)
-		return NULL;
-
-	for (cursrv = px->srv; cursrv; cursrv = cursrv->next) {
-		if (strcmp(cursrv->id, name) == 0)
-			return cursrv;
-	}
-
-	return NULL;
-}
-
 /* This function checks that the designated proxy has no http directives
  * enabled. It will output a warning if there are, and will fix some of them.
  * It returns the number of fatal errors encountered. This should be called
