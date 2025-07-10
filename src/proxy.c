@@ -1557,7 +1557,8 @@ void proxy_free_defaults(struct proxy *defproxy)
 	proxy_free_common(defproxy);
 
 	/* default proxy specific cleanup */
-	ha_free((char **)&defproxy->defsrv->conf.file);
+	if (defproxy->defsrv)
+		ha_free((char **)&defproxy->defsrv->conf.file);
 	ha_free(&defproxy->defbe.name);
 	ha_free(&defproxy->defsrv);
 
@@ -1806,7 +1807,8 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 	struct eb32_node *node;
 
 	/* set default values from the specified default proxy */
-	srv_settings_cpy(curproxy->defsrv, defproxy->defsrv, 0);
+	if (curproxy->defsrv)
+		srv_settings_cpy(curproxy->defsrv, defproxy->defsrv, 0);
 
 	curproxy->flags = (defproxy->flags & PR_FL_DISABLED); /* Only inherit from disabled flag */
 	curproxy->options = defproxy->options;

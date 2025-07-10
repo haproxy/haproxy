@@ -2855,7 +2855,11 @@ void srv_settings_init(struct server *srv)
 
 /*
  * Copy <src> server settings to <srv> server allocating
- * everything needed.
+ * everything needed. This is used to pre-initialize a server from
+ * default-server settings. If the source is NULL (i.e. no defsrv)
+ * then we fall back to srv_settings_init() to pre-initialize a
+ * clean new server.
+ *
  * This function is not supposed to be called at any time, but only
  * during server settings parsing or during server allocations from
  * a server template, and just after having calloc()'ed a new server.
@@ -2867,6 +2871,11 @@ void srv_settings_init(struct server *srv)
 void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl)
 {
 	struct srv_pp_tlv_list *srv_tlv = NULL, *new_srv_tlv = NULL;
+
+	if (!src) {
+		srv_settings_init(srv);
+		return;
+	}
 
 	/* Connection source settings copy */
 	srv_conn_src_cpy(srv, src);
@@ -3698,7 +3707,23 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		HA_SPIN_INIT(&newsrv->lock);
 	}
 	else {
-		*srv = newsrv = curproxy->defsrv;
+		/* This is a "default-server" line. Let's make certain the
+		 * current proxy's default server exists, otherwise it's
+		 * time to allocate it now.
+		 */
+		newsrv = curproxy->defsrv;
+		if (!newsrv) {
+			newsrv = calloc(1, sizeof(*newsrv));
+			if (!newsrv) {
+				ha_alert("out of memory.\n");
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+			newsrv->id = "default-server";
+			srv_settings_init(newsrv);
+			curproxy->defsrv = newsrv;
+		}
+		*srv = newsrv;
 		*cur_arg = 1;
 	}
 
