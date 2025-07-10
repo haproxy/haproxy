@@ -1117,6 +1117,75 @@ int h1_format_htx_data(const struct ist data, struct buffer *chk, int chunked)
 	return 0;
 }
 
+/* Format the htx message into its H1 representation. It returns 1 on success or
+ * 0 if <outbuf> is full or not emtpy. No check are preformed on the message, it must be
+ * valid. Trailers are silently ignored if the message is not chunked.
+ */
+int h1_format_htx_msg(const struct htx *htx, struct buffer *outbuf)
+{
+	const struct htx_sl *sl;
+        const struct htx_blk *blk;
+	struct ist n, v;
+	enum htx_blk_type type;
+	uint32_t flags;
+	int has_eod = 0;
+
+	if (b_data(outbuf))
+		return 0;
+
+	for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
+		type = htx_get_blk_type(blk);
+		if (type == HTX_BLK_REQ_SL) {
+			sl = htx_get_blk_ptr(htx, blk);
+			flags = sl->flags;
+			if (!h1_format_htx_reqline(sl, outbuf))
+				goto full;
+		}
+		else if (type == HTX_BLK_RES_SL) {
+			sl = htx_get_blk_ptr(htx, blk);
+			flags = sl->flags;
+			if (!h1_format_htx_stline(sl, outbuf))
+				goto full;
+		}
+		else if (type == HTX_BLK_HDR) {
+			n = htx_get_blk_name(htx, blk);
+			v = htx_get_blk_value(htx, blk);
+
+			if (!h1_format_htx_hdr(n, v, outbuf))
+				goto full;
+		}
+		else if (type == HTX_BLK_EOH) {
+			if (!b_putblk(outbuf, "\r\n", 2))
+				goto full;
+		}
+		else if (type == HTX_BLK_DATA) {
+			v = htx_get_blk_value(htx, blk);
+			if (!h1_format_htx_data(v, outbuf, (flags & HTX_SL_F_CHNK)))
+				goto full;
+		}
+		else if (type == HTX_BLK_TLR) {
+			if ((flags & HTX_SL_F_CHNK) && has_eod == 0 && !b_putblk(outbuf, "0\r\n", 3))
+				goto full;
+			has_eod = 1;
+			n = htx_get_blk_name(htx, blk);
+			v = htx_get_blk_value(htx, blk);
+
+			if (!h1_format_htx_hdr(n, v, outbuf))
+				goto full;
+		}
+		else if (type == HTX_BLK_EOT)
+			break;
+	}
+
+	if ((flags & HTX_SL_F_CHNK) && has_eod == 0 && !b_putblk(outbuf, "0\r\n\r\n", 5))
+		goto full;
+
+	return 1;
+  full:
+	b_reset(outbuf);
+	return 0;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

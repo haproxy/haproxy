@@ -65,6 +65,7 @@ int h1_format_htx_reqline(const struct htx_sl *sl, struct buffer *chk);
 int h1_format_htx_stline(const struct htx_sl *sl, struct buffer *chk);
 int h1_format_htx_hdr(const struct ist n, const struct ist v, struct buffer *chk);
 int h1_format_htx_data(const struct ist data, struct buffer *chk, int chunked);
+int h1_format_htx_msg(const struct htx *htx, struct buffer *outbuf);
 
 #endif /* _HAPROXY_H1_HTX_H */
 
