@@ -1252,7 +1252,7 @@ static inline void sticking_rule_find_target(struct stream *s,
 	struct proxy *px = s->be;
 	struct dict_entry *de;
 	void *ptr;
-	struct server *srv;
+	struct server *srv = NULL;
 	int id;
 
 	/* Look for the server name previously stored in <t> stick-table */
@@ -1262,21 +1262,13 @@ static inline void sticking_rule_find_target(struct stream *s,
 	HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
 
 	if (de) {
-		struct ebpt_node *node;
-
-		if (t->server_key_type == STKTABLE_SRV_NAME) {
+		if (t->server_key_type == STKTABLE_SRV_NAME)
 			srv = server_find_by_name(px, de->value.key);
-			if (srv)
-				goto found;
-		} else if (t->server_key_type == STKTABLE_SRV_ADDR) {
-			HA_RWLOCK_RDLOCK(PROXY_LOCK, &px->lock);
-			node = ebis_lookup(&px->used_server_addr, de->value.key);
-			HA_RWLOCK_RDUNLOCK(PROXY_LOCK, &px->lock);
-			if (node) {
-				srv = container_of(node, struct server, addr_node);
-				goto found;
-			}
-		}
+		else if (t->server_key_type == STKTABLE_SRV_ADDR)
+			srv = server_find_by_addr(px, de->value.key);
+
+		if (srv)
+			goto found;
 	}
 
 	/* Look for the server ID */
