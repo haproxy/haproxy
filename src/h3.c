@@ -2613,7 +2613,7 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
  * connection is flagged and transcoding is interrupted. The returned value is
  * unchanged though.
  */
-static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
+static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, char *fin)
 {
 	size_t total = 0;
 	enum htx_blk_type btype;
@@ -2625,6 +2625,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 
 	TRACE_ENTER(H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
+	*fin = 0;
 	htx = htx_from_buf(buf);
 
 	while (count && !htx_is_empty(htx) && qcc_stream_can_send(qcs) && ret >= 0) {
@@ -2726,6 +2727,8 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 #endif
 
  out:
+	if (htx->flags & HTX_FL_EOM && htx_is_empty(htx))
+		*fin = 1;
 	htx_to_buf(htx, buf);
 
 	TRACE_LEAVE(H3_EV_STRM_SEND, qcs->qcc->conn, qcs);

@@ -161,7 +161,7 @@ static ssize_t hq_interop_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 
 /* Returns the amount of consumed bytes from <buf>. */
 static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
-                                 size_t count)
+                                 size_t count, char *fin)
 {
 	enum htx_blk_type btype;
 	struct htx *htx = NULL;
@@ -173,6 +173,7 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 	size_t total = 0;
 	int err;
 
+	*fin = 0;
 	htx = htx_from_buf(buf);
 
 	while (count && !htx_is_empty(htx) && qcc_stream_can_send(qcs)) {
@@ -266,6 +267,8 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 	}
 
  end:
+	if (htx->flags & HTX_FL_EOM && htx_is_empty(htx))
+		*fin = 1;
 	htx_to_buf(htx, buf);
 
 	return total;

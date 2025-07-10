@@ -209,7 +209,7 @@ struct qcc_app_ops {
 	ssize_t (*rcv_buf)(struct qcs *qcs, struct buffer *b, int fin);
 
 	/* Convert HTX to HTTP payload for sending. */
-	size_t (*snd_buf)(struct qcs *qcs, struct buffer *b, size_t count);
+	size_t (*snd_buf)(struct qcs *qcs, struct buffer *b, size_t count, char *fin);
 
 	/* Negotiate and commit fast-forward data from opposite MUX. */
 	size_t (*nego_ff)(struct qcs *qcs, size_t count);

@@ -94,7 +94,6 @@ size_t qcs_http_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count,
 {
 	struct htx *htx;
 	size_t ret;
-	int eom = 0;
 
 	TRACE_ENTER(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
@@ -108,9 +107,7 @@ size_t qcs_http_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count,
 	if (htx->extra && htx->extra == HTX_UNKOWN_PAYLOAD_LENGTH)
 		qcs->flags |= QC_SF_UNKNOWN_PL_LENGTH;
 
-	eom = (htx->flags & HTX_FL_EOM);
-	ret = qcs->qcc->app_ops->snd_buf(qcs, buf, count);
-	*fin = (eom && !b_data(buf));
+	ret = qcs->qcc->app_ops->snd_buf(qcs, buf, count, fin);
 
 	TRACE_LEAVE(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
