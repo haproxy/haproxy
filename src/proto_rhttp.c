@@ -355,7 +355,7 @@ int rhttp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		snprintf(errmsg, errlen, "No such backend: '%s'.", name);
 		goto err;
 	}
-	if (!(srv = server_find_by_name(be, ist0(sv_name)))) {
+	if (!(srv = server_find(be, ist0(sv_name)))) {
 		snprintf(errmsg, errlen, "No such server: '%s/%s'.", ist0(be_name), ist0(sv_name));
 		goto err;
 	}

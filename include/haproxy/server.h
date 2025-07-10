@@ -62,8 +62,8 @@ const char *srv_update_agent_addr_port(struct server *s, const char *addr, const
 struct server *server_find_by_id(struct proxy *bk, int id);
 struct server *server_find_by_id_unique(struct proxy *bk, int id, uint32_t rid);
 struct server *findserver(struct proxy *px, const char *name);
-struct server *server_find_by_name(struct proxy *bk, const char *name);
-struct server *server_find_by_name_unique(struct proxy *bk, const char *name, uint32_t rid);
+struct server *server_find(struct proxy *bk, const char *name);
+struct server *server_find_unique(struct proxy *bk, const char *name, uint32_t rid);
 struct server *server_find_best_match(struct proxy *bk, char *name, int id, int *diff);
 void apply_server_state(void);
 void srv_compute_all_admin_states(struct proxy *px);

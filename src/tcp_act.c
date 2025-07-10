@@ -508,7 +508,7 @@ static int tcp_check_attach_srv(struct act_rule *rule, struct proxy *px, char **
 		memprintf(err, "attach-srv rule: no such backend '%s/%s'", ist0(be_name), ist0(sv_name));
 		return 0;
 	}
-	if (!(srv = server_find_by_name(be, ist0(sv_name)))) {
+	if (!(srv = server_find(be, ist0(sv_name)))) {
 		memprintf(err, "attach-srv rule: no such server '%s/%s'", ist0(be_name), ist0(sv_name));
 		return 0;
 	}

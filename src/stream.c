@@ -3850,7 +3850,7 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 			if (!(be = proxy_be_by_name(ist0(be_name))))
 				return cli_err(appctx, "No such backend.\n");
 
-			if (!(sv = server_find_by_name(be, ist0(sv_name))))
+			if (!(sv = server_find(be, ist0(sv_name))))
 				return cli_err(appctx, "No such server.\n");
 			ctx->flags |= CLI_SHOWSESS_F_SERVER;
 			ctx->filter = sv;

@@ -4023,7 +4023,7 @@ struct server *findserver(struct proxy *px, const char *name)
  * if <name> starts with a '#'. NULL is returned if no match is found.
  * the lookup is performed in the backend <bk>
  */
-struct server *server_find_by_name(struct proxy *bk, const char *name)
+struct server *server_find(struct proxy *bk, const char *name)
 {
 	struct server *curserver;
 
@@ -4066,11 +4066,11 @@ struct server *server_find_by_name(struct proxy *bk, const char *name)
  * a different server from the one we were expecting to match against at a given
  * time.
  */
-struct server *server_find_by_name_unique(struct proxy *bk, const char *name, uint32_t rid)
+struct server *server_find_unique(struct proxy *bk, const char *name, uint32_t rid)
 {
 	struct server *curserver;
 
-	curserver = server_find_by_name(bk, name);
+	curserver = server_find(bk, name);
 	if (!curserver || curserver->rid != rid)
 		return NULL;
 	return curserver;
@@ -4090,7 +4090,7 @@ struct server *server_find_best_match(struct proxy *bk, char *name, int id, int 
 	byname = byid = NULL;
 
 	if (name) {
-		byname = server_find_by_name(bk, name);
+		byname = server_find(bk, name);
 		if (byname && (!id || byname->puid == id))
 			return byname;
 	}
@@ -5334,7 +5334,7 @@ struct server *cli_find_server(struct appctx *appctx, char *arg)
 		cli_err(appctx, "No such backend.\n");
 		return NULL;
 	}
-	if (!(sv = server_find_by_name(px, ist0(sv_name)))) {
+	if (!(sv = server_find(px, ist0(sv_name)))) {
 		cli_err(appctx, "No such server.\n");
 		return NULL;
 	}
@@ -5584,7 +5584,7 @@ static int cli_parse_get_weight(char **args, char *payload, struct appctx *appct
 
 	if (!(be = proxy_be_by_name(ist0(be_name))))
 		return cli_err(appctx, "No such backend.\n");
-	if (!(sv = server_find_by_name(be, ist0(sv_name))))
+	if (!(sv = server_find(be, ist0(sv_name))))
 		return cli_err(appctx, "No such server.\n");
 
 	/* return server's effective weight at the moment */
@@ -6060,7 +6060,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	/*
 	 * If a server with the same name is found, reject the new one.
 	 */
-	if (server_find_by_name(be, sv_name)) {
+	if (server_find(be, sv_name)) {
 		thread_release();
 		cli_err(appctx, "Already exists a server with the same name in backend.\n");
 		return 1;
@@ -6291,7 +6291,7 @@ int srv_check_for_deletion(const char *bename, const char *svname, struct proxy 
 		goto leave;
 	}
 
-	if (!(srv = server_find_by_name(be, svname))) {
+	if (!(srv = server_find(be, svname))) {
 		msg = "No such server.";
 		goto leave;
 	}

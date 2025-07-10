@@ -1863,7 +1863,7 @@ int hlua_listable_servers_index(lua_State *L)
 	name = luaL_checkstring(L, 2);
 
 	/* Perform a server lookup in px list */
-	srv = server_find_by_name(hlua_srv->px, name);
+	srv = server_find(hlua_srv->px, name);
 	if (srv == NULL) {
 		lua_pushnil(L);
 		return 1;

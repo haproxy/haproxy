@@ -3716,7 +3716,7 @@ sample_conv_srv_queue(const struct arg *args, struct sample *smp, void *private)
 		px = smp->px;
 	}
 
-	srv = server_find_by_name(px, smp->data.u.str.area);
+	srv = server_find(px, smp->data.u.str.area);
 	if (!srv)
 		return 0;
 
