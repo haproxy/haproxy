@@ -2635,11 +2635,14 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
  * stream instance. Successfully transcoded HTX blocks are removed from input
  * buffer.
  *
+ * <fin> is used as an output boolean. It will be set if the last blocks of the
+ * HTX message were encoded, which should trigger a FIN STREAM emission.
+ *
  * Returns the amount of consumed bytes from <buf>. In case of error,
  * connection is flagged and transcoding is interrupted. The returned value is
  * unchanged though.
  */
-static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
+static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, char *fin)
 {
 	size_t total = 0;
 	enum htx_blk_type btype;
@@ -2647,11 +2650,15 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 	struct htx_blk *blk;
 	uint32_t bsize;
 	int32_t idx;
+	char eom;
 	int ret = 0;
 
 	TRACE_ENTER(H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
+	*fin = 0;
 	htx = htx_from_buf(buf);
+	/* EOM is saved here, useful if 0-copy is performed with HTX buf. */
+	eom = htx->flags & HTX_FL_EOM;
 
 	while (count && !htx_is_empty(htx) && qcc_stream_can_send(qcs) && ret >= 0) {
 		idx = htx_get_head(htx);
@@ -2752,6 +2759,10 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 #endif
 
  out:
+	if (eom && htx_is_empty(htx)) {
+		TRACE_USER("transcoding last HTX message", H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
+		*fin = 1;
+	}
 	htx_to_buf(htx, buf);
 
 	TRACE_LEAVE(H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
