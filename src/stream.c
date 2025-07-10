@@ -1220,7 +1220,7 @@ static int process_server_rules(struct stream *s, struct channel *req, int an_bi
 				if (!build_logline(s, tmp->area, tmp->size, &rule->expr))
 					break;
 
-				srv = findserver(s->be, tmp->area);
+				srv = server_find_by_name(s->be, tmp->area);
 				if (!srv)
 					break;
 			}

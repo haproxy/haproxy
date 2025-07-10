@@ -4006,7 +4006,7 @@ struct server *server_find_by_id_unique(struct proxy *bk, int id, uint32_t rid)
  * This function returns the server with a matching name within selected proxy,
  * or NULL if not found.
  */
-struct server *findserver(struct proxy *px, const char *name)
+struct server *server_find_by_name(struct proxy *px, const char *name)
 {
 	struct ebpt_node *node;
 	struct server *cursrv;
@@ -6553,7 +6553,7 @@ int srv_apply_track(struct server *srv, struct proxy *curproxy)
 		px = curproxy;
 	}
 
-	strack = findserver(px, sname);
+	strack = server_find_by_name(px, sname);
 	if (!strack) {
 		ha_alert("unable to find required server '%s' for tracking.\n",
 		         sname);

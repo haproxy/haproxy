@@ -1440,7 +1440,7 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 				sname = argp[idx].data.str.area;
 				px = p;
 			}
-			argp[idx].data.srv = findserver(px, sname);
+			argp[idx].data.srv = server_find_by_name(px, sname);
 			if (!argp[idx].data.srv) {
 				msg = "server doesn't exist";
 				goto error;

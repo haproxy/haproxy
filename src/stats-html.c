@@ -1791,7 +1791,7 @@ static int stats_process_http_post(struct stconn *sc)
 					}
 					reprocess = 1;
 				}
-				else if ((sv = findserver(px, value)) != NULL) {
+				else if ((sv = server_find_by_name(px, value)) != NULL) {
 					HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 					switch (action) {
 					case ST_ADM_ACTION_DISABLE:

@@ -1498,7 +1498,7 @@ int smp_resolve_args(struct proxy *p, char **err)
 				sname = arg->data.str.area;
 			}
 
-			srv = findserver(px, sname);
+			srv = server_find_by_name(px, sname);
 			if (!srv) {
 				memprintf(err, "%sparsing [%s:%d]: unable to find server '%s' in proxy '%s', referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
 					 *err ? *err : "", cur->file, cur->line, sname, pname,

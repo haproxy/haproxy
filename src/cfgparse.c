@@ -3313,7 +3313,7 @@ init_proxies_list_stage1:
 
 			srule->dynamic = 0;
 			srule->srv.name = server_name;
-			target = findserver(curproxy, srule->srv.name);
+			target = server_find_by_name(curproxy, srule->srv.name);
 			err_code |= warnif_tcp_http_cond(curproxy, srule->cond);
 
 			if (!target) {
