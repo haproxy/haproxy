@@ -1127,7 +1127,7 @@ int h1_format_htx_msg(const struct htx *htx, struct buffer *outbuf)
         const struct htx_blk *blk;
 	struct ist n, v;
 	enum htx_blk_type type;
-	uint32_t flags;
+	uint32_t flags = 0;
 	int has_eod = 0;
 
 	if (b_data(outbuf))
