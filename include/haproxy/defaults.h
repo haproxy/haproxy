@@ -115,6 +115,10 @@
 // via standard input.
 #define MAX_CFG_SIZE	10485760
 
+// may be handy for some system config files, where we just need to find
+// some specific values (read with fgets)
+#define MAX_LINES_TO_READ 32
+
 // max # args on a configuration line
 #define MAX_LINE_ARGS   64
 
