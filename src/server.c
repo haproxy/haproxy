@@ -4006,20 +4006,17 @@ struct server *server_find_by_id_unique(struct proxy *bk, int id, uint32_t rid)
  * This function returns the server with a matching name within selected proxy,
  * or NULL if not found.
  */
-
-struct server *findserver(const struct proxy *px, const char *name)
+struct server *findserver(struct proxy *px, const char *name)
 {
+	struct ebpt_node *node;
 	struct server *cursrv;
 
 	if (!px)
 		return NULL;
 
-	for (cursrv = px->srv; cursrv; cursrv = cursrv->next) {
-		if (strcmp(cursrv->id, name) == 0)
-			return cursrv;
-	}
-
-	return NULL;
+	node = ebis_lookup(&px->conf.used_server_name, name);
+	cursrv = node ? container_of(node, struct server, conf.name) : NULL;
+	return cursrv;
 }
 
 /* Returns a pointer to the first server matching either name <name>, or id
