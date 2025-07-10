@@ -1378,34 +1378,23 @@ struct proxy *proxy_find_best_match(int cap, const char *name, int id, int *diff
 }
 
 /*
- * This function finds a server with matching name within selected proxy.
- * It also checks if there are more matching servers with
- * requested name as this often leads into unexpected situations.
+ * This function returns the server with a matching name within selected proxy,
+ * or NULL if not found.
  */
 
-struct server *findserver(const struct proxy *px, const char *name) {
-
-	struct server *cursrv, *target = NULL;
+struct server *findserver(const struct proxy *px, const char *name)
+{
+	struct server *cursrv;
 
 	if (!px)
 		return NULL;
 
 	for (cursrv = px->srv; cursrv; cursrv = cursrv->next) {
-		if (strcmp(cursrv->id, name) != 0)
-			continue;
-
-		if (!target) {
-			target = cursrv;
-			continue;
-		}
-
-		ha_alert("Refusing to use duplicated server '%s' found in proxy: %s!\n",
-			 name, px->id);
-
-		return NULL;
+		if (strcmp(cursrv->id, name) == 0)
+			return cursrv;
 	}
 
-	return target;
+	return NULL;
 }
 
 /* This function checks that the designated proxy has no http directives
