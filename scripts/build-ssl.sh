@@ -190,9 +190,23 @@ download_quictls () {
 
 build_quictls () {
     cd ${BUILDSSL_TMPDIR}/quictls
-    ./config shared no-tests ${QUICTLS_EXTRA_ARGS:-} --prefix="${BUILDSSL_DESTDIR}" --openssldir="${BUILDSSL_DESTDIR}" --libdir=lib -DPURIFY
-    make -j$(nproc) build_sw
-    make install_sw
+    if [ ! -f ./config ]; then
+        cmake .
+        make
+
+        rm -rf ${BUILDSSL_DESTDIR}/lib || exit 0
+        rm -rf ${BUILDSSL_DESTDIR}/include || exit 0
+
+        mkdir -p ${BUILDSSL_DESTDIR}/lib
+        cp libcrypto.so libssl.so ${BUILDSSL_DESTDIR}/lib
+
+        mkdir -p ${BUILDSSL_DESTDIR}/include
+        cp -r include/* ${BUILDSSL_DESTDIR}/include
+    else
+        ./config shared no-tests ${QUICTLS_EXTRA_ARGS:-} --prefix="${BUILDSSL_DESTDIR}" --openssldir="${BUILDSSL_DESTDIR}" --libdir=lib -DPURIFY
+        make -j$(nproc) build_sw
+        make install_sw
+    fi
 }
 
 download_wolfssl () {
