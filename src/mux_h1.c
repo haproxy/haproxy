@@ -3661,20 +3661,23 @@ static void h1_alert(struct h1s *h1s)
 */
 static int h1_send_error(struct h1c *h1c)
 {
+	struct buffer *errmsg = NULL;
 	int rc = http_get_status_idx(h1c->errcode);
 	int ret = 0;
 
 	TRACE_ENTER(H1_EV_H1C_ERR, h1c->conn, 0, 0, (size_t[]){h1c->errcode});
 
-	/* Verify if the error is mapped on /dev/null or any empty file */
-	/// XXX: do a function !
+	/* Get the error file, if any */
 	if (h1c->px->replies[rc] &&
 	    h1c->px->replies[rc]->type == HTTP_REPLY_ERRMSG &&
-	    h1c->px->replies[rc]->body.errmsg &&
-	    b_is_null(h1c->px->replies[rc]->body.errmsg)) {
-		/* Empty error, so claim a success */
-		ret = 1;
-		goto out_abort;
+	    h1c->px->replies[rc]->body.errmsg) {
+		/* Verify if the error is mapped on /dev/null or any empty file */
+		if (b_is_null(h1c->px->replies[rc]->body.errmsg)) {
+			/* Empty error, so claim a success */
+			ret = 1;
+			goto out_abort;
+		}
+		errmsg = h1c->px->replies[rc]->body.errmsg;
 	}
 
 	if (h1c->flags & (H1C_F_OUT_ALLOC|H1C_F_OUT_FULL)) {
@@ -3687,7 +3690,10 @@ static int h1_send_error(struct h1c *h1c)
 		TRACE_STATE("waiting for h1c obuf allocation", H1_EV_H1C_ERR|H1_EV_H1C_BLK, h1c->conn);
 		goto out;
 	}
-	ret = b_istput(&h1c->obuf, ist(http_err_msgs[rc]));
+	if (errmsg)
+		ret = h1_format_htx_msg(htxbuf(errmsg), &h1c->obuf);
+	else
+		ret = b_istput(&h1c->obuf, ist(http_err_msgs[rc]));
 	if (unlikely(ret <= 0)) {
 		if (!ret) {
 			h1c->flags |= (H1C_F_OUT_FULL|H1C_F_ABRT_PENDING);
