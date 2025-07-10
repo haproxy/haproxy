@@ -3994,6 +3994,23 @@ struct server *server_find_by_name(struct proxy *px, const char *name)
 	return cursrv;
 }
 
+/*
+ * This function returns the server with a matching address within selected
+ * proxy, or NULL if not found. The proxy lock is taken for reads during this
+ * operation since we don't want the address to change under us.
+ */
+struct server *server_find_by_addr(struct proxy *px, const char *addr)
+{
+	struct ebpt_node *node;
+	struct server *cursrv;
+
+	HA_RWLOCK_RDLOCK(PROXY_LOCK, &px->lock);
+	node = ebis_lookup(&px->used_server_addr, addr);
+	cursrv = node ? container_of(node, struct server, addr_node) : NULL;
+	HA_RWLOCK_RDUNLOCK(PROXY_LOCK, &px->lock);
+	return cursrv;
+}
+
 /* Returns a pointer to the first server matching either name <name>, or id
  * if <name> starts with a '#'. NULL is returned if no match is found.
  * the lookup is performed in the backend <bk>
