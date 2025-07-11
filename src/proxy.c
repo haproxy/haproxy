@@ -2818,6 +2818,30 @@ void proxy_adjust_all_maxconn()
 	}
 }
 
+/* releases what's no longer needed after a proxy section covering <curproxy>.
+ * Returns an error code made of ERR_*, or 0 on success.
+ */
+static int post_section_px_cleanup()
+{
+	if ((curproxy->cap & PR_CAP_LISTEN) && !(curproxy->cap & PR_CAP_DEF)) {
+		/* This is a regular proxy (not defaults). It doesn't need
+		 * to keep a default-server section if it still had one. We
+		 * want to keep it for defaults however, obviously.
+		 */
+
+		if (curproxy->defsrv) {
+			ha_free((char **)&curproxy->defsrv->conf.file);
+			ha_free(&curproxy->defsrv);
+		}
+	}
+	return 0;
+}
+
+REGISTER_CONFIG_POST_SECTION("frontend", post_section_px_cleanup);
+REGISTER_CONFIG_POST_SECTION("backend",  post_section_px_cleanup);
+REGISTER_CONFIG_POST_SECTION("listen",   post_section_px_cleanup);
+REGISTER_CONFIG_POST_SECTION("defaults", post_section_px_cleanup);
+
 /* Config keywords below */
 
 static struct cfg_kw_list cfg_kws = {ILH, {
