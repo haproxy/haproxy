@@ -1,6 +1,88 @@
 ChangeLog :
 ===========
 
+2025/07/11 : 3.3-dev3
+    - BUG/MINOR: quic-be: Wrong retry_source_connection_id check
+    - MEDIUM: sink: change the sink mode type to PR_MODE_SYSLOG
+    - MEDIUM: server: move _srv_check_proxy_mode() checks from server init to finalize
+    - MINOR: server: move send-proxy* incompatibility check in _srv_check_proxy_mode()
+    - MINOR: mailers: warn if mailers are configured but not actually used
+    - BUG/MEDIUM: counters/server: fix server and proxy last_change mixup
+    - MEDIUM: server: add and use a separate last_change variable for internal use
+    - MEDIUM: proxy: add and use a separate last_change variable for internal use
+    - MINOR: counters: rename last_change counter to last_state_change
+    - MINOR: ssl: check TLS1.3 ciphersuites again in clienthello with recent AWS-LC
+    - BUG/MEDIUM: hlua: Forbid any L6/L7 sample fetche functions from lua services
+    - BUG/MEDIUM: mux-h2: Properly handle connection error during preface sending
+    - BUG/MINOR: jwt: Copy input and parameters in dedicated buffers in jwt_verify converter
+    - DOC: Fix 'jwt_verify' converter doc
+    - MINOR: jwt: Rename pkey to pubkey in jwt_cert_tree_entry struct
+    - MINOR: jwt: Remove unused parameter in convert_ecdsa_sig
+    - MAJOR: jwt: Allow certificate instead of public key in jwt_verify converter
+    - MINOR: ssl: Allow 'commit ssl cert' with no privkey
+    - MINOR: ssl: Prevent delete on certificate used by jwt_verify
+    - REGTESTS: jwt: Add test with actual certificate passed to jwt_verify
+    - REGTESTS: jwt: Test update of certificate used in jwt_verify
+    - DOC: 'jwt_verify' converter now supports certificates
+    - REGTESTS: restrict execution to a single thread group
+    - MINOR: ssl: Introduce new smp_client_hello_parse() function
+    - MEDIUM: stats: add persistent state to typed output format
+    - BUG/MINOR: httpclient: wrongly named httpproxy flag
+    - MINOR: ssl/ocsp: stop using the flags from the httpclient CLI
+    - MEDIUM: httpclient: split the CLI from the actual httpclient API
+    - MEDIUM: httpclient: implement a way to use directly htx data
+    - MINOR: httpclient/cli: add --htx option
+    - BUILD: dev/phash: remove the accidentally committed a.out file
+    - BUG/MINOR: ssl: crash in ssl_sock_io_cb() with SSL traces and idle connections
+    - BUILD/MEDIUM: deviceatlas: fix when installed in custom locations.
+    - DOC: deviceatlas build clarifications
+    - BUG/MINOR: ssl/ocsp: fix definition discrepancies with ocsp_update_init()
+    - MINOR: proto-tcp: Add support for TCP MD5 signature for listeners and servers
+    - BUILD: cfgparse-tcp: Add _GNU_SOURCE for TCP_MD5SIG_MAXKEYLEN
+    - BUG/MINOR: proto-tcp: Take care to initialized tcp_md5sig structure
+    - BUG/MINOR: http-act: Fix parsing of the expression argument for pause action
+    - MEDIUM: httpclient: add a Content-Length when the payload is known
+    - CLEANUP: ssl: Rename ssl_trace-t.h to ssl_trace.h
+    - MINOR: pattern: add a counter of added/freed patterns
+    - CI: set DEBUG_STRICT=2 for coverity scan
+    - CI: enable USE_QUIC=1 for OpenSSL versions >= 3.5.0
+    - CI: github: add an OpenSSL 3.5.0 job
+    - CI: github: update the stable CI to ubuntu-24.04
+    - BUG/MEDIUM: quic: SSL/TCP handshake failures with OpenSSL 3.5
+    - CI: github: update to OpenSSL 3.5.1
+    - BUG/MINOR: quic: Missing TLS 1.3 QUIC cipher suites and groups inits (OpenSSL 3.5 QUIC API)
+    - BUG/MINOR: quic-be: Malformed coalesced Initial packets
+    - MINOR: quic: Prevent QUIC backend use with the OpenSSL QUIC compatibility module (USE_OPENSS_COMPAT)
+    - MINOR: reg-tests: first QUIC+H3 reg tests (QUIC address validation)
+    - MINOR: quic-be: Set the backend alpn if not set by conf
+    - MINOR: quic-be: TLS version restriction to 1.3
+    - MINOR: cfgparse: enforce QUIC MUX compat on server line
+    - MINOR: server: support QUIC for dynamic servers
+    - CI: github: skip a ssl library version when latest is already in the list
+    - MEDIUM: resolvers: switch dns-accept-family to "auto" by default
+    - BUG/MINOR: resolvers: don't lower the case of binary DNS format
+    - MINOR: resolvers: do not duplicate the hostname_dn field
+    - MINOR: proto-tcp: Register a feature to report TCP MD5 signature support
+    - BUG/MINOR: listener: really assign distinct IDs to shards
+    - MINOR: quic: Prevent QUIC build with OpenSSL 3.5 new QUIC API version < 3.5.1
+    - BUG/MEDIUM: quic: Crash after QUIC server callbacks restoration (OpenSSL 3.5)
+    - REGTESTS: use two haproxy instances to distinguish the QUIC traces
+    - BUG/MEDIUM: http-client: Don't wake http-client applet if nothing was xferred
+    - BUG/MEDIUM: http-client: Properly inc input data when HTX blocks are xferred
+    - BUG/MEDIUM: http-client: Ask for more room when request data cannot be xferred
+    - BUG/MEDIUM: http-client: Test HTX_FL_EOM flag before commiting the HTX buffer
+    - BUG/MINOR: http-client: Ignore 1XX interim responses in non-HTX mode
+    - BUG/MINOR: http-client: Reject any 101-switching-protocols response
+    - BUG/MEDIUM: http-client: Drain the request if an early response is received
+    - BUG/MEDIUM: http-client: Notify applet has more data to deliver until the EOM
+    - BUG/MINOR: h3: fix https scheme request encoding for BE side
+    - MINOR: h1-htx: Add function to format an HTX message in its H1 representation
+    - BUG/MINOR: mux-h1: Use configured error files if possible for early H1 errors
+    - BUG/MINOR: h1-htx: Don't forget to init flags in h1_format_htx_msg function
+    - CLEANUP: assorted typo fixes in the code, commits and doc
+    - BUILD: adjust scripts/build-ssl.sh to modern CMake system of QuicTLS
+    - MINOR: debug: add distro name and version in postmortem
+
 2025/06/26 : 3.3-dev2
     - BUG/MINOR: config/server: reject QUIC addresses
     - MINOR: server: implement helper to identify QUIC servers
