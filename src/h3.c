@@ -153,7 +153,7 @@ DECLARE_STATIC_POOL(pool_head_h3c, "h3c", sizeof(struct h3c));
 #define H3_SF_UNI_INIT     0x00000001  /* stream type not parsed for unidirectional stream */
 #define H3_SF_UNI_NO_H3    0x00000002  /* unidirectional stream does not carry H3 frames */
 #define H3_SF_HAVE_CLEN    0x00000004  /* content-length header is present; relevant either for request or response depending on the side of the connection */
-#define H3_SF_INTERIM_RESP 0x00000008  /* last response sent is 1xx interim */
+#define H3_SF_INTERIM_RESP 0x00000008  /* last response handled is 1xx interim (FE side: on HTX -> H3 sent; BE side: on H3 -> HTX rcv) */
 
 struct h3s {
 	struct h3c *h3c;
