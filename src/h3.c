@@ -153,7 +153,7 @@ DECLARE_STATIC_POOL(pool_head_h3c, "h3c", sizeof(struct h3c));
 #define H3_SF_UNI_INIT     0x00000001  /* stream type not parsed for unidirectional stream */
 #define H3_SF_UNI_NO_H3    0x00000002  /* unidirectional stream does not carry H3 frames */
 #define H3_SF_HAVE_CLEN    0x00000004  /* content-length header is present; relevant either for request or response depending on the side of the connection */
-#define H3_SF_INTERIM_SENT 0x00000008  /* last response sent is 1xx interim */
+#define H3_SF_INTERIM_RESP 0x00000008  /* last response sent is 1xx interim */
 
 struct h3s {
 	struct h3c *h3c;
@@ -2199,11 +2199,11 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 			status = sl->info.res.status;
 			if (status >= 100 && status < 200) {
 				TRACE_USER("handling interim HTX response", H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
-				h3s->flags |= H3_SF_INTERIM_SENT;
+				h3s->flags |= H3_SF_INTERIM_RESP;
 			}
 			else {
 				TRACE_USER("handling final HTX response", H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
-				h3s->flags &= ~H3_SF_INTERIM_SENT;
+				h3s->flags &= ~H3_SF_INTERIM_RESP;
 			}
 		}
 		else if (type == HTX_BLK_HDR) {
@@ -2758,7 +2758,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, char
 #endif
 
  out:
-	if ((htx->flags & HTX_FL_EOM) && htx_is_empty(htx) && !(h3s->flags & H3_SF_INTERIM_SENT)) {
+	if ((htx->flags & HTX_FL_EOM) && htx_is_empty(htx) && !(h3s->flags & H3_SF_INTERIM_RESP)) {
 		TRACE_USER("transcoding last HTX message", H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
 		*fin = 1;
 	}
