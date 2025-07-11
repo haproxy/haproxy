@@ -1685,16 +1685,6 @@ int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char *
 {
 	init_new_proxy(px);
 
-	/* allocate the default server section */
-	px->defsrv = calloc(1, sizeof(*px->defsrv));
-	if (!px->defsrv) {
-		memprintf(errmsg, "out of memory");
-		goto fail;
-	}
-
-	px->defsrv->id = "default-server";
-	srv_settings_init(px->defsrv);
-
 	if (name) {
 		px->id = strdup(name);
 		if (!px->id) {
@@ -1807,8 +1797,24 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 	struct eb32_node *node;
 
 	/* set default values from the specified default proxy */
-	if (curproxy->defsrv)
+
+	if (defproxy->defsrv) {
+		if (!curproxy->defsrv) {
+			/* there's a default-server in the defaults proxy but
+			 * none allocated yet in the current proxy so we have
+			 * to allocate and pre-initialize it right now.
+			 */
+			curproxy->defsrv = calloc(1, sizeof(*curproxy->defsrv));
+			if (!curproxy->defsrv) {
+				memprintf(errmsg, "proxy '%s': out of memory allocating default-server", curproxy->id);
+				return 1;
+			}
+
+			curproxy->defsrv->id = "default-server";
+			srv_settings_init(curproxy->defsrv);
+		}
 		srv_settings_cpy(curproxy->defsrv, defproxy->defsrv, 0);
+	}
 
 	curproxy->flags = (defproxy->flags & PR_FL_DISABLED); /* Only inherit from disabled flag */
 	curproxy->options = defproxy->options;
