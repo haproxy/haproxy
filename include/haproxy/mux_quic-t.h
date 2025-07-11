@@ -275,6 +275,7 @@ static forceinline char *qcc_show_flags(char *buf, size_t len, const char *delim
 #define QC_SF_TO_STOP_SENDING   0x00000200  /* a STOP_SENDING must be sent */
 #define QC_SF_UNKNOWN_PL_LENGTH 0x00000400  /* HTX EOM may be missing from the stream layer */
 #define QC_SF_RECV_RESET        0x00000800  /* a RESET_STREAM was received */
+#define QC_SF_EOI_SUSPENDED     0x00001000  /* EOI must not be reported even if HTX EOM is present - useful when transferring HTTP interim responses */
 
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
