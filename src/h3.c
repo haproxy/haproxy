@@ -154,6 +154,7 @@ DECLARE_STATIC_POOL(pool_head_h3c, "h3c", sizeof(struct h3c));
 #define H3_SF_UNI_NO_H3    0x00000002  /* unidirectional stream does not carry H3 frames */
 #define H3_SF_HAVE_CLEN    0x00000004  /* content-length header is present; relevant either for request or response depending on the side of the connection */
 #define H3_SF_SENT_INTERIM 0x00000008  /* last response sent is 1xx interim. Used on FE side only. */
+#define H3_SF_RECV_INTERIM 0x00000010  /* last response sent is 1xx interim. Used on BE side only. */
 
 struct h3s {
 	struct h3c *h3c;
@@ -1092,6 +1093,9 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
  * transcoded into HTX buffer of <qcs> stream. <fin> must be set if this is the
  * last data to transfer for this stream.
  *
+ * If the response handled was an interim one (1xx code), H3_SF_RECV_INTERIM
+ * flag will be set on h3 stream instance.
+ *
  * Returns the number of consumed bytes or a negative error code.
  */
 static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
@@ -1241,10 +1245,9 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		goto out;
 	}
 
-	if (fin)
-		sl->flags |= HTX_SL_F_BODYLESS;
-
 	sl->info.res.status = h * 100 + t * 10 + u;
+	if (fin || (sl->info.res.status >= 100 && sl->info.res.status < 200))
+		sl->flags |= HTX_SL_F_BODYLESS;
 
 	/* now treat standard headers */
 	while (1) {
@@ -1318,6 +1321,17 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 	if (fin)
 		htx->flags |= HTX_FL_EOM;
+
+	/* Detect if an interim or final response was handled. */
+	if (sl->info.res.status >= 100 && sl->info.res.status < 200) {
+		TRACE_USER("receiving interim response", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		BUG_ON(!conn_is_back(qcs->qcc->conn)); /* H3_SF_RECV_INTERIM is BE side only. */
+		h3s->flags |= H3_SF_RECV_INTERIM;
+	}
+	else {
+		TRACE_USER("receiving final response", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		h3s->flags &= ~H3_SF_RECV_INTERIM;
+	}
 
  out:
 	if (appbuf)
@@ -1794,10 +1808,24 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			break;
 		case H3_FT_HEADERS:
 			if (h3s->st_req == H3S_ST_REQ_BEFORE) {
-				ret = !conn_is_back(qcs->qcc->conn) ?
-				  h3_req_headers_to_htx(qcs, b, flen, last_stream_frame) :
-				  h3_resp_headers_to_htx(qcs, b, flen, last_stream_frame);
-				h3s->st_req = H3S_ST_REQ_HEADERS;
+				if (!conn_is_back(qcs->qcc->conn)) {
+					ret = h3_req_headers_to_htx(qcs, b, flen, last_stream_frame);
+					h3s->st_req = H3S_ST_REQ_HEADERS;
+				}
+				else {
+					ret = h3_resp_headers_to_htx(qcs, b, flen, last_stream_frame);
+
+					/* Check if an interim or final response was parsed. */
+					if (h3s->flags & H3_SF_RECV_INTERIM) {
+						/* Interim resp: do not advance <st_req>. */
+						qcs->flags |= QC_SF_EOI_SUSPENDED;
+					}
+					else {
+						/* Final resp: mark <st_req> as headers received. */
+						h3s->st_req = H3S_ST_REQ_HEADERS;
+						qcs->flags &= ~QC_SF_EOI_SUSPENDED;
+					}
+				}
 			}
 			else {
 				ret = h3_trailers_to_htx(qcs, b, flen, last_stream_frame);

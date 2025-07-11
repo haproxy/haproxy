@@ -33,8 +33,10 @@ size_t qcs_http_rcv_buf(struct qcs *qcs, struct buffer *buf, size_t count,
 	cs_htx = htx_from_buf(buf);
 	if (htx_is_empty(cs_htx) && htx_used_space(qcs_htx) <= count) {
 		/* EOM will be copied to cs_htx via b_xfer(). */
-		if (qcs_htx->flags & HTX_FL_EOM)
+		if ((qcs_htx->flags & HTX_FL_EOM) &&
+		    !(qcs->flags & QC_SF_EOI_SUSPENDED)) {
 			*fin = 1;
+		}
 
 		htx_to_buf(cs_htx, buf);
 		htx_to_buf(qcs_htx, &qcs->rx.app_buf);
@@ -48,7 +50,8 @@ size_t qcs_http_rcv_buf(struct qcs *qcs, struct buffer *buf, size_t count,
 	/* Copy EOM from src to dst buffer if all data copied. */
 	if (htx_is_empty(qcs_htx) && (qcs_htx->flags & HTX_FL_EOM)) {
 		cs_htx->flags |= HTX_FL_EOM;
-		*fin = 1;
+		if (!(qcs->flags & QC_SF_EOI_SUSPENDED))
+			*fin = 1;
 	}
 
 	cs_htx->extra = qcs_htx->extra ? (qcs_htx->data + qcs_htx->extra) : 0;
