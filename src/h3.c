@@ -150,9 +150,10 @@ struct h3c {
 
 DECLARE_STATIC_POOL(pool_head_h3c, "h3c", sizeof(struct h3c));
 
-#define H3_SF_UNI_INIT  0x00000001  /* stream type not parsed for unidirectional stream */
-#define H3_SF_UNI_NO_H3 0x00000002  /* unidirectional stream does not carry H3 frames */
-#define H3_SF_HAVE_CLEN 0x00000004  /* content-length header is present; relevant either for request or response depending on the side of the connection */
+#define H3_SF_UNI_INIT     0x00000001  /* stream type not parsed for unidirectional stream */
+#define H3_SF_UNI_NO_H3    0x00000002  /* unidirectional stream does not carry H3 frames */
+#define H3_SF_HAVE_CLEN    0x00000004  /* content-length header is present; relevant either for request or response depending on the side of the connection */
+#define H3_SF_SENT_INTERIM 0x00000008  /* last response sent is 1xx interim. Used on FE side only. */
 
 struct h3s {
 	struct h3c *h3c;
@@ -2146,6 +2147,7 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
  */
 static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 {
+	struct h3s *h3s = qcs->ctx;
 	int err;
 	struct buffer outbuf;
 	struct buffer headers_buf = BUF_NULL;
@@ -2181,6 +2183,15 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 			if (status < 100 || status > 999) {
 				TRACE_ERROR("invalid response status code", H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
 				goto err;
+			}
+			else if (status >= 100 && status < 200) {
+				TRACE_USER("handling interim HTX response", H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
+				BUG_ON(conn_is_back(qcs->qcc->conn)); /* H3_SF_SENT_INTERIM is FE side only. */
+				h3s->flags |= H3_SF_SENT_INTERIM;
+			}
+			else {
+				TRACE_USER("handling final HTX response", H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
+				h3s->flags &= ~H3_SF_SENT_INTERIM;
 			}
 		}
 		else if (type == HTX_BLK_HDR) {
@@ -2644,6 +2655,7 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
  */
 static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, char *fin)
 {
+	struct h3s *h3s = qcs->ctx;
 	size_t total = 0;
 	enum htx_blk_type btype;
 	struct htx *htx;
@@ -2678,7 +2690,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, char
 			break;
 
 		case HTX_BLK_RES_SL:
-			/* start-line -> HEADERS h3 frame */
+			/* start-line -> HEADERS h3 frame (FE side) */
 			ret = h3_resp_headers_send(qcs, htx);
 			if (ret > 0) {
 				total += ret;
@@ -2759,7 +2771,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, char
 #endif
 
  out:
-	if (eom && htx_is_empty(htx)) {
+	if (eom && htx_is_empty(htx) && !(h3s->flags & H3_SF_SENT_INTERIM)) {
 		TRACE_USER("transcoding last HTX message", H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
 		*fin = 1;
 	}
