@@ -23,6 +23,7 @@
 #ifndef _HAPROXY_STICK_TABLE_T_H
 #define _HAPROXY_STICK_TABLE_T_H
 
+#include <import/cebtree.h>
 #include <import/ebtree-t.h>
 
 #include <haproxy/api-t.h>
@@ -166,13 +167,13 @@ struct stksess {
 
 /* stick table */
 struct stktable {
-	char *id;		  /* local table id name. */
-	size_t idlen;	  /* local table id name length. */
+	char *id;		  /* local table id name, indexed by <id_node> below. */
+	size_t idlen;		  /* local table id name length. */
 	char *nid;		  /* table id name sent over the network with peers protocol. */
 	struct stktable *next;    /* The stick-table may be linked when belonging to
 	                           * the same configuration section.
 	                           */
-	struct ebpt_node name;    /* Stick-table are lookup by name here. */
+	struct ceb_node  id_node; /* Stick-table are lookup by name here, indexes <id> above. */
 	struct pool_head *pool;   /* pool used to allocate sticky sessions */
 	struct task *exp_task;    /* expiration task */
 	struct task *sync_task;   /* sync task */
