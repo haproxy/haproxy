@@ -16,8 +16,8 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 
+#include <import/cebis_tree.h>
 #include <import/eb32tree.h>
-#include <import/ebistree.h>
 
 #include <haproxy/acl.h>
 #include <haproxy/api.h>
@@ -62,8 +62,8 @@ int listeners;	/* # of proxy listeners, set by cfgparse */
 struct proxy *proxies_list  = NULL;     /* list of main proxies */
 struct list proxies = LIST_HEAD_INIT(proxies); /* list of all proxies */
 struct eb_root used_proxy_id = EB_ROOT;	/* list of proxy IDs in use */
-struct eb_root proxy_by_name = EB_ROOT; /* tree of proxies sorted by name */
-struct eb_root defproxy_by_name = EB_ROOT; /* tree of default proxies sorted by name (dups possible) */
+struct ceb_root *proxy_by_name = NULL; /* tree of proxies sorted by name */
+struct ceb_root *defproxy_by_name = NULL; /* tree of default proxies sorted by name (dups possible) */
 struct proxy *orphaned_default_proxies = NULL; /* deleted ones with refcount != 0 */
 unsigned int error_snapshot_id = 0;     /* global ID assigned to each error then incremented */
 
@@ -217,7 +217,7 @@ static inline void proxy_free_common(struct proxy *px)
 	struct lf_expr *lf, *lfb;
 
 	/* note that the node's key points to p->id */
-	ebpt_delete(&px->conf.by_name);
+	cebis_item_delete((px->cap & PR_CAP_DEF) ? &defproxy_by_name : &proxy_by_name, conf.name_node, id, px);
 	ha_free(&px->id);
 	LIST_DEL_INIT(&px->global_list);
 	drop_file_name(&px->conf.file);
@@ -1172,10 +1172,9 @@ static int proxy_parse_guid(char **args, int section_type, struct proxy *curpx,
  */
 void proxy_store_name(struct proxy *px)
 {
-	struct eb_root *root = (px->cap & PR_CAP_DEF) ? &defproxy_by_name : &proxy_by_name;
+	struct ceb_root **root = (px->cap & PR_CAP_DEF) ? &defproxy_by_name : &proxy_by_name;
 
-	px->conf.by_name.key = px->id;
-	ebis_insert(root, &px->conf.by_name);
+	cebis_item_insert(root, conf.name_node, id, px);
 }
 
 /* Returns a pointer to the first proxy matching capabilities <cap> and id
@@ -1219,16 +1218,11 @@ struct proxy *proxy_find_by_name(const char *name, int cap, int table)
 			return curproxy;
 	}
 	else {
-		struct eb_root *root;
-		struct ebpt_node *node;
+		struct ceb_root **root;
 
 		root = (cap & PR_CAP_DEF) ? &defproxy_by_name : &proxy_by_name;
-		for (node = ebis_lookup(root, name); node; node = ebpt_next(node)) {
-			curproxy = container_of(node, struct proxy, conf.by_name);
-
-			if (strcmp(curproxy->id, name) != 0)
-				break;
-
+		for (curproxy = cebis_item_lookup(root, conf.name_node, id, name, struct proxy);
+		     curproxy; curproxy = cebis_item_next_dup(root, conf.name_node, id, curproxy)) {
 			if ((curproxy->cap & cap) != cap)
 				continue;
 
@@ -1583,7 +1577,8 @@ void proxy_destroy_defaults(struct proxy *px)
 	if (!(px->cap & PR_CAP_DEF))
 		return;
 	BUG_ON(px->conf.refcount != 0);
-	ebpt_delete(&px->conf.by_name);
+	cebis_item_delete((px->cap & PR_CAP_DEF) ? &defproxy_by_name : &proxy_by_name,
+			  conf.name_node, id, px);
 	proxy_free_defaults(px);
 	free(px);
 }
@@ -1593,14 +1588,11 @@ void proxy_destroy_defaults(struct proxy *px)
  */
 void proxy_destroy_all_unref_defaults()
 {
-	struct ebpt_node *n;
 	struct proxy *px, *nx;
 
-	n = ebpt_first(&defproxy_by_name);
-	while (n) {
-		px = container_of(n, struct proxy, conf.by_name);
+	for (px = cebis_item_first(&defproxy_by_name, conf.name_node, id, struct proxy); px; px = nx) {
 		BUG_ON(!(px->cap & PR_CAP_DEF));
-		n = ebpt_next(n);
+		nx = cebis_item_next(&defproxy_by_name, conf.name_node, id, px);
 		if (!px->conf.refcount)
 			proxy_destroy_defaults(px);
 	}
@@ -1624,7 +1616,7 @@ void proxy_unref_or_destroy_defaults(struct proxy *px)
 	if (!px || !(px->cap & PR_CAP_DEF))
 		return;
 
-	ebpt_delete(&px->conf.by_name);
+	cebis_item_delete((px->cap & PR_CAP_DEF) ? &defproxy_by_name : &proxy_by_name, conf.name_node, id, px);
 	if (px->conf.refcount) {
 		/* still referenced just append it to the orphaned list */
 		px->next = orphaned_default_proxies;

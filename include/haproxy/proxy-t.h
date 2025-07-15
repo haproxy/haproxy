@@ -396,7 +396,8 @@ struct proxy {
 	} timeout;
 	__decl_thread(HA_RWLOCK_T lock);        /* may be taken under the server's lock */
 
-	char *id, *desc;			/* proxy id (name) and description */
+	char *id;				/* proxy id (name), indexed by <conf.name_node> below */
+	char *desc;				/* proxy description */
 	struct proxy_per_tgroup *per_tgrp;	/* array of per-tgroup stuff such as queues */
 	unsigned int queueslength;		/* Sum of the length of each queue */
 	int totpend;				/* total number of pending connections on this instance (for stats) */
@@ -468,7 +469,7 @@ struct proxy {
 		struct list listeners;		/* list of listeners belonging to this frontend */
 		struct list errors;             /* list of all custom error files */
 		struct arg_list args;           /* sample arg list that need to be resolved */
-		struct ebpt_node by_name;       /* proxies are stored sorted by name here */
+		struct ceb_node name_node;	/* proxies are stored sorted by name here; indexes <id> below */
 		struct list lf_checks;          /* list of logformats found in the proxy section that needs to be checked during postparse */
 		struct log_steps log_steps;     /* bitfield of log origins where log should be generated during request handling */
 		const char *file_prev;          /* file of the previous instance found with the same name, or NULL */
