@@ -2294,6 +2294,20 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 	return ret;
 
  err_full:
+	if (b_data(res)) {
+		/* Output buffer already contains data : this may happens after
+		 * HTTP interim response encoding. Try to release buffer to be
+		 * able to encode newer interim or final response.
+		 */
+		if (qcc_release_stream_txbuf(qcs)) {
+			TRACE_DEVEL("cannot release buf", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+			return 0;
+		}
+
+		TRACE_DEVEL("retry after buf release", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+		goto retry;
+	}
+
 	if (smallbuf) {
 		TRACE_DEVEL("retry with a full buffer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 		smallbuf = 0;
