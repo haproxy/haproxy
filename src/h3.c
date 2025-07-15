@@ -2177,7 +2177,6 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 {
 	struct h3s *h3s = qcs->ctx;
 	int err;
-	struct buffer outbuf;
 	struct buffer headers_buf = BUF_NULL;
 	struct buffer *res;
 	struct http_hdr list[global.tune.max_http_hdr * 2];
@@ -2268,8 +2267,6 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 		goto err_full;
 	}
 
-	b_reset(&outbuf);
-	outbuf = b_make(b_tail(res), b_contig_space(res), 0, 0);
 	/* Start the headers after frame type + length */
 	headers_buf = b_make(b_tail(res) + 5, b_contig_space(res) - 5, 0, 0);
 
