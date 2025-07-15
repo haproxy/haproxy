@@ -215,6 +215,8 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 		}
 	}
 
+#ifdef HAVE_SSL_CLIENT_HELLO_CB
+
 	if (mask & SSL_EV_CONN_SIGALG_EXT && src->verbosity >= SSL_VERB_ADVANCED) {
 		if (a2 && a3) {
 			const uint16_t *extension_data = a2;
@@ -306,5 +308,6 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 			}
 		}
 	}
+#endif /* HAVE_SSL_CLIENT_HELLO_CB */
 }
 
