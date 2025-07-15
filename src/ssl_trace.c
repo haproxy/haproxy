@@ -202,7 +202,7 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 		}
 	}
 
-	if (mask & SSL_EV_CONN_CHOOSE_SNI_CTX && src->verbosity > SSL_VERB_ADVANCED) {
+	if (mask & SSL_EV_CONN_CHOOSE_SNI_CTX && src->verbosity >= SSL_VERB_ADVANCED) {
 		if (a2) {
 			const char *servername = a2;
 			chunk_appendf(&trace_buf, " : servername=\"%s\"", servername);
@@ -215,7 +215,7 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 		}
 	}
 
-	if (mask & SSL_EV_CONN_SIGALG_EXT && src->verbosity > SSL_VERB_ADVANCED) {
+	if (mask & SSL_EV_CONN_SIGALG_EXT && src->verbosity >= SSL_VERB_ADVANCED) {
 		if (a2 && a3) {
 			const uint16_t *extension_data = a2;
 			size_t extension_len = *((size_t*)a3);
@@ -245,7 +245,7 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 		}
 	}
 
-	if (mask & SSL_EV_CONN_CIPHERS_EXT && src->verbosity > SSL_VERB_ADVANCED) {
+	if (mask & SSL_EV_CONN_CIPHERS_EXT && src->verbosity >= SSL_VERB_ADVANCED) {
 		if (a2 && a3 && a4) {
 			SSL *ssl = (SSL*)a2;
 			const uint16_t *extension_data = a3;
@@ -277,7 +277,7 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 		}
 	}
 
-	if (mask & SSL_EV_CONN_CURVES_EXT && src->verbosity > SSL_VERB_ADVANCED) {
+	if (mask & SSL_EV_CONN_CURVES_EXT && src->verbosity >= SSL_VERB_ADVANCED) {
 		if (a2 && a3) {
 			const uint16_t *extension_data = a2;
 			size_t extension_len = *((size_t*)a3);

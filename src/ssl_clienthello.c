@@ -346,7 +346,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		has_rsa_sig = 1;
 	}
 
-	if ((TRACE_SOURCE)->verbosity > SSL_VERB_ADVANCED) {
+	if ((TRACE_SOURCE)->verbosity >= SSL_VERB_ADVANCED) {
 		if (TRACE_ENABLED(TRACE_LEVEL_DATA, SSL_EV_CONN_CIPHERS_EXT, conn, 0, 0, 0)) {
 			const uint8_t *cipher_suites;
 			size_t len;
