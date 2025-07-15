@@ -345,6 +345,21 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		TRACE_DEVEL("Sigalg parsing: has_rsa_sig (default)", SSL_EV_CONN_SWITCHCTX_CB, conn);
 		has_rsa_sig = 1;
 	}
+
+	if ((TRACE_SOURCE)->verbosity > SSL_VERB_ADVANCED &&
+	    TRACE_ENABLED(TRACE_LEVEL_DATA, SSL_EV_CONN_CIPHERS_EXT, conn, 0, 0, 0)) {
+		const uint8_t *cipher_suites;
+		size_t len;
+
+#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
+		len = ctx->cipher_suites_len;
+		cipher_suites = ctx->cipher_suites;
+#else
+		len = SSL_client_hello_get0_ciphers(ssl, &cipher_suites);
+#endif
+		TRACE_DATA("Ciphers value", SSL_EV_CONN_CIPHERS_EXT, conn, ssl, cipher_suites, &len);
+	}
+
 	if (has_ecdsa_sig) {  /* in very rare case: has ecdsa sign but not a ECDSA cipher */
 		const SSL_CIPHER *cipher;
 		STACK_OF(SSL_CIPHER) *ha_ciphers; /* haproxy side ciphers */

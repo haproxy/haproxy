@@ -41,6 +41,7 @@ static const struct trace_event ssl_trace_events[] = {
 	{ .mask = SSL_EV_CONN_SWITCHCTX_CB,   .name = "sslc_switchctx_cb",   .desc = "SSL switchctx callback"},
 	{ .mask = SSL_EV_CONN_CHOOSE_SNI_CTX, .name = "sslc_choose_sni_ctx", .desc = "SSL choose sni context"},
 	{ .mask = SSL_EV_CONN_SIGALG_EXT,     .name = "sslc_sigalg_ext",     .desc = "SSL sigalg extension parsing"},
+	{ .mask = SSL_EV_CONN_CIPHERS_EXT,    .name = "sslc_ciphers_ext",    .desc = "SSL ciphers extension parsing"},
 	{ }
 };
 
@@ -53,15 +54,10 @@ static const struct name_desc ssl_trace_lockon_args[4] = {
 };
 
 static const struct name_desc ssl_trace_decoding[] = {
-#define SSL_VERB_CLEAN    1
 	{ .name="clean",    .desc="only user-friendly stuff, generally suitable for level \"user\"" },
-#define SSL_VERB_MINIMAL  2
 	{ .name="minimal",  .desc="report only conn, no real decoding" },
-#define SSL_VERB_SIMPLE   3
 	{ .name="simple",   .desc="add error messages" },
-#define SSL_VERB_ADVANCED 4
 	{ .name="advanced", .desc="add handshake-related details" },
-#define SSL_VERB_COMPLETE 5
 	{ .name="complete", .desc="add full data dump when available" },
 	{ /* end */ }
 };
@@ -239,6 +235,38 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 						      ((uint8_t*)extension_data)[0],
 						      ((uint8_t*)extension_data)[1]);
 				}
+
+				first = 0;
+
+				extension_len-=sizeof(*extension_data);
+				++extension_data;
+			}
+		}
+	}
+
+	if (mask & SSL_EV_CONN_CIPHERS_EXT && src->verbosity > SSL_VERB_ADVANCED) {
+		if (a2 && a3 && a4) {
+			SSL *ssl = (SSL*)a2;
+			const uint16_t *extension_data = a3;
+			size_t extension_len = *((size_t*)a4);
+			int first = 1;
+
+			chunk_appendf(&trace_buf, " value=");
+
+			while (extension_len > 1) {
+				const char *str;
+				const SSL_CIPHER *cipher;
+				uint16_t id = ntohs(*extension_data);
+#if defined(OPENSSL_IS_BORINGSSL)
+				cipher = SSL_get_cipher_by_value(id);
+#else
+				cipher = SSL_CIPHER_find(ssl, (unsigned char*)extension_data);
+#endif
+				str = SSL_CIPHER_get_name(cipher);
+				if (!str || strcmp(str, "(NONE)") == 0)
+					chunk_appendf(&trace_buf, "%sUNKNOWN(%04x)", first ? "" : ",", id);
+				else
+					chunk_appendf(&trace_buf, "%s%s", first ? "" : ",", str);
 
 				first = 0;
 

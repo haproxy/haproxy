@@ -22,6 +22,14 @@ extern struct trace_source trace_ssl;
 #define SSL_EV_CONN_SWITCHCTX_CB   (1ULL << 12)
 #define SSL_EV_CONN_CHOOSE_SNI_CTX (1ULL << 13)
 #define SSL_EV_CONN_SIGALG_EXT     (1ULL << 14)
+#define SSL_EV_CONN_CIPHERS_EXT    (1ULL << 15)
+
+
+#define SSL_VERB_CLEAN    1
+#define SSL_VERB_MINIMAL  2
+#define SSL_VERB_SIMPLE   3
+#define SSL_VERB_ADVANCED 4
+#define SSL_VERB_COMPLETE 5
 
 #define TRACE_SOURCE &trace_ssl
 
