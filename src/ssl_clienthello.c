@@ -346,18 +346,35 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		has_rsa_sig = 1;
 	}
 
-	if ((TRACE_SOURCE)->verbosity > SSL_VERB_ADVANCED &&
-	    TRACE_ENABLED(TRACE_LEVEL_DATA, SSL_EV_CONN_CIPHERS_EXT, conn, 0, 0, 0)) {
-		const uint8_t *cipher_suites;
-		size_t len;
+	if ((TRACE_SOURCE)->verbosity > SSL_VERB_ADVANCED) {
+		if (TRACE_ENABLED(TRACE_LEVEL_DATA, SSL_EV_CONN_CIPHERS_EXT, conn, 0, 0, 0)) {
+			const uint8_t *cipher_suites;
+			size_t len;
 
 #if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
-		len = ctx->cipher_suites_len;
-		cipher_suites = ctx->cipher_suites;
+			len = ctx->cipher_suites_len;
+			cipher_suites = ctx->cipher_suites;
 #else
-		len = SSL_client_hello_get0_ciphers(ssl, &cipher_suites);
+			len = SSL_client_hello_get0_ciphers(ssl, &cipher_suites);
 #endif
-		TRACE_DATA("Ciphers value", SSL_EV_CONN_CIPHERS_EXT, conn, ssl, cipher_suites, &len);
+			TRACE_DATA("Ciphers value", SSL_EV_CONN_CIPHERS_EXT, conn, ssl, cipher_suites, &len);
+		}
+
+		if (TRACE_ENABLED(TRACE_LEVEL_DATA, SSL_EV_CONN_CURVES_EXT, conn, 0, 0, 0)) {
+			const uint8_t *extension_data;
+			size_t extension_len;
+
+#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
+			if (SSL_early_callback_ctx_extension_get(ctx, TLSEXT_TYPE_supported_groups,
+								 &extension_data, &extension_len)) {
+#else
+			if (SSL_client_hello_get0_ext(ssl, TLSEXT_TYPE_elliptic_curves,
+			                              &extension_data, &extension_len)) {
+#endif
+				if (extension_len)
+					TRACE_DATA("Elliptic curves", SSL_EV_CONN_CURVES_EXT, conn, extension_data, &extension_len);
+			}
+		}
 	}
 
 	if (has_ecdsa_sig) {  /* in very rare case: has ecdsa sign but not a ECDSA cipher */

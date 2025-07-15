@@ -42,6 +42,7 @@ static const struct trace_event ssl_trace_events[] = {
 	{ .mask = SSL_EV_CONN_CHOOSE_SNI_CTX, .name = "sslc_choose_sni_ctx", .desc = "SSL choose sni context"},
 	{ .mask = SSL_EV_CONN_SIGALG_EXT,     .name = "sslc_sigalg_ext",     .desc = "SSL sigalg extension parsing"},
 	{ .mask = SSL_EV_CONN_CIPHERS_EXT,    .name = "sslc_ciphers_ext",    .desc = "SSL ciphers extension parsing"},
+	{ .mask = SSL_EV_CONN_CURVES_EXT,     .name = "sslc_curves_ext",     .desc = "SSL curves extension parsing"},
 	{ }
 };
 
@@ -267,6 +268,36 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 					chunk_appendf(&trace_buf, "%sUNKNOWN(%04x)", first ? "" : ",", id);
 				else
 					chunk_appendf(&trace_buf, "%s%s", first ? "" : ",", str);
+
+				first = 0;
+
+				extension_len-=sizeof(*extension_data);
+				++extension_data;
+			}
+		}
+	}
+
+	if (mask & SSL_EV_CONN_CURVES_EXT && src->verbosity > SSL_VERB_ADVANCED) {
+		if (a2 && a3) {
+			const uint16_t *extension_data = a2;
+			size_t extension_len = *((size_t*)a3);
+			int first = 1;
+
+			chunk_appendf(&trace_buf, " value=");
+
+			while (extension_len > 1) {
+				const char *curve_name = curveid2str(ntohs(*extension_data));
+
+				if (curve_name) {
+					chunk_appendf(&trace_buf, "%s%s(0x%02X%02X)", first ? "" : ":", curve_name,
+						      ((uint8_t*)extension_data)[0],
+						      ((uint8_t*)extension_data)[1]);
+				} else {
+					chunk_appendf(&trace_buf, "%s0x%02X%02X",
+						      first ? "" : ":",
+						      ((uint8_t*)extension_data)[0],
+						      ((uint8_t*)extension_data)[1]);
+				}
 
 				first = 0;
 
