@@ -55,6 +55,7 @@ time_t x509_get_notbefore_time_t(X509 *cert);
 int curves2nid(const char *curve);
 const char *nid2nist(int nid);
 const char *sigalg2str(int sigalg);
+const char *curveid2str(int curve_id);
 
 #endif /* _HAPROXY_SSL_UTILS_H */
 #endif /* USE_OPENSSL */

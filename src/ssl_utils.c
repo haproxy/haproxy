@@ -799,35 +799,6 @@ error:
 }
 #endif
 
-/* https://datatracker.ietf.org/doc/html/rfc8422#appendix-A */
-/* SECG to NIST curves name */
-static struct curves { char *name; int nid; } curves_list [] =
-{
-	{ "secp256r1",  NID_X9_62_prime256v1 },
-	{ "prime256v1", NID_X9_62_prime256v1 },
-	{ "P-256",      NID_X9_62_prime256v1 },
-
-	{ "secp384r1",  NID_secp384r1 },
-	{ "P-384",      NID_secp384r1 },
-
-	{ "secp521r1",  NID_secp521r1 },
-	{ "P-521",      NID_secp521r1 },
-	{ NULL,         0 },
-};
-
-/* convert a curves name to a openssl NID */
-int curves2nid(const char *curve)
-{
-	struct curves *curves = curves_list;
-
-	while (curves->name) {
-		if (strcmp(curve, curves->name) == 0)
-			return curves->nid;
-		curves++;
-	}
-	return -1;
-}
-
 /* convert an OpenSSL NID to a NIST curves name */
 const char *nid2nist(int nid)
 {
@@ -936,5 +907,134 @@ const char *sigalg2str(int sigalg)
 	}
 
 	return NULL;
+}
+
+
+/*
+ * Like in x509_v_codes array, the following macros enable to use some NIDs that
+ * can be undefined depending on the SSL library type or version. Those NIDs
+ * will be converted to their numerical value when possible in
+ * "init_curves_tab" function (called during init).
+ */
+#undef _Q
+#define _Q(x) (#x)
+#undef V
+#define V(w, x, y, z) { .curve_id = w, .nid = -1, .nid_val_str = _Q(x), .name = y, .nist = z }
+
+/*
+ * Curve identifier to curve name mapping table. We use the actual identifiers
+ * as defined in https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-8
+ * as well as NIDs, special identifiers used in SSL libraries such as OpenSSL.
+ * The names used are the standard SECG ones as well as the NIST ones.
+ */
+static struct curve {
+	int curve_id;
+	int nid;
+	char *nid_val_str;
+	const char *name;
+	const char *nist;
+} curves_list[] = {
+	V( 1,      NID_sect163k1,                            "sect163k1",             "K-163"    ),
+	V( 2,      NID_sect163r1,                            "sect163r1",             NULL       ),
+	V( 3,      NID_sect163r2,                            "sect163r2",             "B-163"    ),
+	V( 4,      NID_sect193r1,                            "sect193r1",             NULL       ),
+	V( 5,      NID_sect193r2,                            "sect193r2",             NULL       ),
+	V( 6,      NID_sect233k1,                            "sect233k1",             "K-233"    ),
+	V( 7,      NID_sect233r1,                            "sect233r1",             "B-233"    ),
+	V( 8,      NID_sect239k1,                            "sect239k1",             NULL       ),
+	V( 9,      NID_sect283k1,                            "sect283k1",             "K-283"    ),
+	V( 10,     NID_sect283r1,                            "sect283r1",             "B-283"    ),
+	V( 11,     NID_sect409k1,                            "sect409k1",             "K-409"    ),
+	V( 12,     NID_sect409r1,                            "sect409r1",             "B-409"    ),
+	V( 13,     NID_sect571k1,                            "sect571k1",             "K-571"    ),
+	V( 14,     NID_sect571r1,                            "sect571r1",             "B-571"    ),
+	V( 15,     NID_secp160k1,                            "secp160k1",             NULL       ),
+	V( 16,     NID_secp160r1,                            "secp160r1",             NULL       ),
+	V( 17,     NID_secp160r2,                            "secp160r2",             NULL       ),
+	V( 18,     NID_secp192k1,                            "secp192k1",             NULL       ),
+	V( 19,     NID_X9_62_prime192v1,                     "secp192r1",             "P-192"    ),
+	V( 20,     NID_secp224k1,                            "secp224k1",             NULL       ),
+	V( 21,     NID_secp224r1,                            "secp224r1",             "P-224"    ),
+	V( 22,     NID_secp256k1,                            "secp256k1",             NULL       ),
+	V( 23,     NID_X9_62_prime256v1,                     "secp256r1",             "P-256"    ),
+	V( 24,     NID_secp384r1,                            "secp384r1",             "P-384"    ),
+	V( 25,     NID_secp521r1,                            "secp521r1",             "P-521"    ),
+	V( 26,     NID_brainpoolP256r1,                      "brainpoolP256r1",       NULL       ),
+	V( 27,     NID_brainpoolP384r1,                      "brainpoolP384r1",       NULL       ),
+	V( 28,     NID_brainpoolP512r1,                      "brainpoolP512r1",       NULL       ),
+	V( 29,     EVP_PKEY_X25519,                          "ecdh_x25519",           NULL       ),
+	V( 30,     EVP_PKEY_X448,                            "ecdh_x448",             NULL       ),
+	V( 31,     NID_brainpoolP256r1tls13,                 "brainpoolP256r1tls13",  NULL       ),
+	V( 32,     NID_brainpoolP384r1tls13,                 "brainpoolP384r1tls13",  NULL       ),
+	V( 33,     NID_brainpoolP512r1tls13,                 "brainpoolP512r1tls13",  NULL       ),
+	V( 34,     NID_id_tc26_gost_3410_2012_256_paramSetA, "GC256A",                NULL       ),
+	V( 35,     NID_id_tc26_gost_3410_2012_256_paramSetB, "GC256B",                NULL       ),
+	V( 36,     NID_id_tc26_gost_3410_2012_256_paramSetC, "GC256C",                NULL       ),
+	V( 37,     NID_id_tc26_gost_3410_2012_256_paramSetD, "GC256D",                NULL       ),
+	V( 38,     NID_id_tc26_gost_3410_2012_512_paramSetA, "GC512A",                NULL       ),
+	V( 39,     NID_id_tc26_gost_3410_2012_512_paramSetB, "GC512B",                NULL       ),
+	V( 40,     NID_id_tc26_gost_3410_2012_512_paramSetC, "GC512C",                NULL       ),
+	V( 256,    NID_ffdhe2048,                            "ffdhe2048",             NULL       ),
+	V( 257,    NID_ffdhe3072,                            "ffdhe3072",             NULL       ),
+	V( 258,    NID_ffdhe4096,                            "ffdhe4096",             NULL       ),
+	V( 259,    NID_ffdhe6144,                            "ffdhe6144",             NULL       ),
+	V( 260,    NID_ffdhe8192,                            "ffdhe8192",             NULL       ),
+
+
+	/* The following curves are defined in the IANA list as well as in an
+	 * OpenSSL internal array but they don't have any corresponding NID.
+	 */
+	V( 25497,  -1,                                       "X25519Kyber768Draft00",           NULL ),
+	V( 25498,  -1,                                       "SecP256r1Kyber768Draft00",        NULL ),
+	V( 0xFF01, -1,                                       "arbitrary_explicit_prime_curves", NULL ),
+	V( 0xFF02, -1,                                       "arbitrary_explicit_char2_curves", NULL ),
+	{ 0, 0, NULL, NULL, NULL }
+};
+
+void init_curves_tab(void)
+{
+	int i;
+
+	for (i = 0; curves_list[i].nid_val_str; i++) {
+		char *endptr = NULL;
+		long value = 0;
+
+		errno = 0;
+		value = strtol(curves_list[i].nid_val_str, &endptr, 10);
+
+		if (!errno && endptr > curves_list[i].nid_val_str)
+			curves_list[i].nid = value;
+	}
+}
+
+INITCALL0(STG_REGISTER, init_curves_tab);
+
+/* Convert a curve identifier (2 bytes) to name */
+const char *curveid2str(int curve_id)
+{
+	struct curve *item = curves_list;
+
+	while (item->name) {
+		if (item->curve_id == curve_id)
+			return item->name;
+
+		++item;
+	}
+
+	return NULL;
+}
+
+/* convert a curves name to a openssl NID */
+int curves2nid(const char *curve)
+{
+	struct curve *curves = curves_list;
+
+	while (curves->curve_id) {
+		if ((curves->name && strcmp(curve, curves->name) == 0) ||
+		    (curves->nist && strcmp(curve, curves->nist) == 0))
+			return curves->nid;
+		curves++;
+	}
+	return -1;
 }
 
