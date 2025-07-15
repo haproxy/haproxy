@@ -14,9 +14,9 @@
 #include <string.h>
 #include <errno.h>
 
+#include <import/cebis_tree.h>
 #include <import/ebmbtree.h>
 #include <import/ebsttree.h>
-#include <import/ebistree.h>
 
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
@@ -64,7 +64,7 @@ static THREAD_LOCAL struct stktable_key static_table_key;
 static int (*smp_fetch_src)(const struct arg *, struct sample *, const char *, void *);
 struct pool_head *pool_head_stk_ctr __read_mostly = NULL;
 struct stktable *stktables_list;
-struct eb_root stktable_by_name = EB_ROOT;
+struct ceb_root *stktable_by_name = NULL;
 
 #define round_ptr_size(i) (((i) + (sizeof(void *) - 1)) &~ (sizeof(void *) - 1))
 
@@ -74,23 +74,12 @@ struct eb_root stktable_by_name = EB_ROOT;
  */
 void stktable_store_name(struct stktable *t)
 {
-	t->name.key = t->id;
-	ebis_insert(&stktable_by_name, &t->name);
+	cebis_item_insert(&stktable_by_name, id_node, id, t);
 }
 
 struct stktable *stktable_find_by_name(const char *name)
 {
-	struct ebpt_node *node;
-	struct stktable *t;
-
-	node = ebis_lookup(&stktable_by_name, name);
-	if (node) {
-		t = container_of(node, struct stktable, name);
-		if (strcmp(t->id, name) == 0)
-			return t;
-	}
-
-	return NULL;
+	return cebis_item_lookup(&stktable_by_name, id_node, id, name, struct stktable);
 }
 
 /*
