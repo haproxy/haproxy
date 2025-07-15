@@ -771,7 +771,26 @@ void ha_panic()
 		return;
 	}
 
-	chunk_printf(&trash, "Thread %u is about to kill the process.\n", tid + 1);
+	chunk_printf(&trash, "\nPANIC! Thread %u is about to kill the process.\n", tid + 1);
+
+	/* dump a few of the post-mortem info */
+	chunk_appendf(&trash, "\nHAProxy info:\n  version: %s\n  features: %s\n",
+		      haproxy_version, build_features);
+
+	chunk_appendf(&trash, "\nOperating system info:\n");
+	if (*post_mortem.platform.virt_techno)
+		chunk_appendf(&trash, "  virtual machine: %s\n", post_mortem.platform.virt_techno);
+	if (*post_mortem.platform.cont_techno)
+		chunk_appendf(&trash, "  container: %s\n", post_mortem.platform.cont_techno);
+	if (*post_mortem.platform.utsname.sysname || *post_mortem.platform.utsname.release ||
+	    *post_mortem.platform.utsname.version || *post_mortem.platform.utsname.machine)
+		chunk_appendf(&trash, "  kernel: %s %s %s %s\n",
+			      post_mortem.platform.utsname.sysname, post_mortem.platform.utsname.release,
+			      post_mortem.platform.utsname.version, post_mortem.platform.utsname.machine);
+	if (*post_mortem.platform.distro)
+		chunk_appendf(&trash, "  userland: %s\n", post_mortem.platform.distro);
+
+	chunk_appendf(&trash, "\n");
 	DISGUISE(write(2, trash.area, trash.data));
 
 	for (thr = 0; thr < global.nbthread; thr++) {
