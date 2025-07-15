@@ -2177,8 +2177,11 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 			/* start-line -> HEADERS h3 frame */
 			BUG_ON(sl);
 			sl = htx_get_blk_ptr(htx, blk);
-			/* TODO should be on h3 layer */
 			status = sl->info.res.status;
+			if (status < 100 || status > 999) {
+				TRACE_ERROR("invalid response status code", H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
+				goto err;
+			}
 		}
 		else if (type == HTX_BLK_HDR) {
 			if (unlikely(hdr >= sizeof(list) / sizeof(list[0]) - 1)) {
@@ -2196,6 +2199,9 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 		}
 	}
 
+	/* Current function expects HTX start-line to be present. This also
+	 * ensures <status> conformance has been checked prior to encoding it.
+	 */
 	BUG_ON(!sl);
 
 	list[hdr].n = ist("");
@@ -2233,7 +2239,6 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 	if (qpack_encode_field_section_line(&headers_buf))
 		goto err_full;
 	if (qpack_encode_int_status(&headers_buf, status)) {
-		/* TODO handle invalid status code VS no buf space left */
 		TRACE_ERROR("error during status code encoding", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 		goto err_full;
 	}
