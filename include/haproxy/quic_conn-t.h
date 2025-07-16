@@ -448,7 +448,7 @@ struct quic_conn_closed {
 #define QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED  (1U << 0)
 #define QUIC_FL_CONN_SPIN_BIT                    (1U << 1) /* Spin bit set by remote peer */
 #define QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS    (1U << 2) /* HANDSHAKE_DONE must be sent */
-#define QUIC_FL_CONN_LISTENER                    (1U << 3)
+/* gap here */
 #define QUIC_FL_CONN_ACCEPT_REGISTERED           (1U << 4)
 /* gap here */
 #define QUIC_FL_CONN_IDLE_TIMER_RESTARTED_AFTER_READ (1U << 6)
@@ -488,7 +488,6 @@ static forceinline char *qc_show_flags(char *buf, size_t len, const char *delim,
 	_(QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED,
 	_(QUIC_FL_CONN_SPIN_BIT,
 	_(QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS,
-	_(QUIC_FL_CONN_LISTENER,
 	_(QUIC_FL_CONN_ACCEPT_REGISTERED,
 	_(QUIC_FL_CONN_IDLE_TIMER_RESTARTED_AFTER_READ,
 	_(QUIC_FL_CONN_RETRANS_NEEDED,
@@ -508,7 +507,7 @@ static forceinline char *qc_show_flags(char *buf, size_t len, const char *delim,
 	_(QUIC_FL_CONN_EXP_TIMER,
 	_(QUIC_FL_CONN_CLOSING,
 	_(QUIC_FL_CONN_DRAINING,
-	_(QUIC_FL_CONN_IMMEDIATE_CLOSE))))))))))))))))))))))));
+	_(QUIC_FL_CONN_IMMEDIATE_CLOSE)))))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;

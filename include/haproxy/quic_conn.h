@@ -82,11 +82,6 @@ void qc_check_close_on_released_mux(struct quic_conn *qc);
 int quic_stateless_reset_token_cpy(unsigned char *pos, size_t len,
                                    const unsigned char *salt, size_t saltlen);
 
-static inline int qc_is_listener(struct quic_conn *qc)
-{
-	return qc->flags & QUIC_FL_CONN_LISTENER;
-}
-
 /* Free the CIDs attached to <conn> QUIC connection. */
 static inline void free_quic_conn_cids(struct quic_conn *conn)
 {

@@ -920,7 +920,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				break;
 
 			case QUIC_RX_RET_FRM_DUP:
-				if (qc_is_listener(qc) && qel == qc->iel &&
+				if (objt_listener(qc->target) && qel == qc->iel &&
 				    !(qc->flags & QUIC_FL_CONN_HANDSHAKE_SPEED_UP)) {
 					fast_retrans = 1;
 				}
@@ -936,7 +936,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 
 			break;
 		case QUIC_FT_NEW_TOKEN:
-			if (qc_is_listener(qc)) {
+			if (objt_listener(qc->target)) {
 				TRACE_ERROR("reject NEW_TOKEN frame emitted by client",
 				            QUIC_EV_CONN_PRSHPKT, qc);
 
@@ -1096,7 +1096,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			}
 			break;
 		case QUIC_FT_HANDSHAKE_DONE:
-			if (qc_is_listener(qc)) {
+			if (objt_listener(qc->target)) {
 				TRACE_ERROR("non accepted QUIC_FT_HANDSHAKE_DONE frame",
 				            QUIC_EV_CONN_PRSHPKT, qc);
 
@@ -1186,7 +1186,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	 * has successfully parse a Handshake packet. The Initial encryption must also
 	 * be discarded.
 	 */
-	if (pkt->type == QUIC_PACKET_TYPE_HANDSHAKE && qc_is_listener(qc)) {
+	if (pkt->type == QUIC_PACKET_TYPE_HANDSHAKE && objt_listener(qc->target)) {
 	    if (qc->state >= QUIC_HS_ST_SERVER_INITIAL) {
 			if (qc->ipktns && !quic_tls_pktns_is_dcd(qc, qc->ipktns)) {
 				/* Discard the handshake packet number space. */
@@ -1225,7 +1225,7 @@ static inline void qc_handle_spin_bit(struct quic_conn *qc, struct quic_rx_packe
 	    pkt->pn <= largest_pn)
 		return;
 
-	if (qc_is_listener(qc)) {
+	if (objt_listener(qc->target)) {
 		if (pkt->flags & QUIC_FL_RX_PACKET_SPIN_BIT)
 			qc->flags |= QUIC_FL_CONN_SPIN_BIT;
 		else
@@ -1248,7 +1248,7 @@ static void qc_rm_hp_pkts(struct quic_conn *qc, struct quic_enc_level *el)
 
 	TRACE_ENTER(QUIC_EV_CONN_ELRMHP, qc);
 	/* A server must not process incoming 1-RTT packets before the handshake is complete. */
-	if (el == qc->ael && qc_is_listener(qc) && qc->state < QUIC_HS_ST_COMPLETE) {
+	if (el == qc->ael && objt_listener(qc->target) && qc->state < QUIC_HS_ST_COMPLETE) {
 		TRACE_PROTO("RX hp not removed (handshake not completed)",
 		            QUIC_EV_CONN_ELRMHP, qc);
 		goto out;

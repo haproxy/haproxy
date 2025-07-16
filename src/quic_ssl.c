@@ -232,7 +232,7 @@ static int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t 
 	 * listener and if a token was received. Note that a listener derives only RX
 	 * secrets for this level.
 	 */
-	if (qc_is_listener(qc) && level == ssl_encryption_early_data) {
+	if (objt_listener(qc->target) && level == ssl_encryption_early_data) {
 		if (qc->flags & QUIC_FL_CONN_NO_TOKEN_RCVD) {
 			/* Leave a chance to the address validation to be completed by the
 			 * handshake without starting the mux: one does not want to process
@@ -281,7 +281,7 @@ write:
 	}
 
 	/* Set the transport parameters in the TLS stack. */
-	if (level == ssl_encryption_handshake && qc_is_listener(qc) &&
+	if (level == ssl_encryption_handshake && objt_listener(qc->target) &&
 	    !qc_ssl_set_quic_transport_params(qc->xprt_ctx->ssl, qc, ver, 1))
 		goto leave;
 
@@ -292,7 +292,7 @@ write:
 		struct quic_tls_kp *nxt_tx = &qc->ku.nxt_tx;
 
 #if !defined(USE_QUIC_OPENSSL_COMPAT) && !defined(HAVE_OPENSSL_QUIC)
-		if (!qc_is_listener(qc)) {
+		if (objt_server(qc->target)) {
 			const unsigned char *tp;
 			size_t tplen;
 
@@ -956,7 +956,7 @@ static int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 		 * provided by the stack. This happens after having received the peer
 		 * handshake level CRYPTO data which are validated by the TLS stack.
 		 */
-		if (qc_is_listener(qc)) {
+		if (objt_listener(qc->target)) {
 			if (__objt_listener(qc->target)->bind_conf->ssl_conf.early_data &&
 				(!qc->ael || !qc->ael->tls_ctx.rx.secret)) {
 				TRACE_PROTO("SSL handshake in progress",
@@ -970,7 +970,7 @@ static int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 #endif
 
 		/* Check the alpn could be negotiated */
-		if (qc_is_listener(qc)) {
+		if (objt_listener(qc->target)) {
 			if (!qc->app_ops) {
 				TRACE_ERROR("No negotiated ALPN", QUIC_EV_CONN_IO_CB, qc, &state);
 				quic_set_tls_alert(qc, SSL_AD_NO_APPLICATION_PROTOCOL);
@@ -1000,7 +1000,7 @@ static int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 		}
 
 		qc->flags |= QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS;
-		if (qc_is_listener(ctx->qc)) {
+		if (objt_listener(ctx->qc->target)) {
 			struct listener *l = __objt_listener(qc->target);
 			/* I/O callback switch */
 			qc->wait_event.tasklet->process = quic_conn_app_io_cb;
@@ -1245,7 +1245,7 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, struct connection *conn)
 	ctx->sent_early_data = 0;
 	ctx->qc = qc;
 
-	if (qc_is_listener(qc)) {
+	if (objt_listener(qc->target)) {
 		struct bind_conf *bc = __objt_listener(qc->target)->bind_conf;
 
 		if (qc_ssl_sess_init(qc, bc->initial_ctx, &ctx->ssl, NULL, 1) == -1)

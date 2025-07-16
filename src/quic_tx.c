@@ -663,7 +663,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			 * to stay under MTU limit.
 			 */
 			if (!dglen) {
-				if (!quic_peer_validated_addr(qc) && qc_is_listener(qc))
+				if (!quic_peer_validated_addr(qc) && objt_listener(qc->target))
 					end = pos + QUIC_MIN(qc->path->mtu, quic_may_send_bytes(qc));
 				else
 					end = pos + qc->path->mtu;

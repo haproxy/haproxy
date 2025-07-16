@@ -151,7 +151,7 @@ static int quic_conn_init_idle_timer_task(struct quic_conn *qc, struct proxy *px
 /* Returns 1 if the peer has validated <qc> QUIC connection address, 0 if not. */
 int quic_peer_validated_addr(struct quic_conn *qc)
 {
-	if (!qc_is_listener(qc))
+	if (objt_server(qc->target))
 		return 1;
 
 	if (qc->flags & QUIC_FL_CONN_PEER_VALIDATED_ADDR)
@@ -478,7 +478,7 @@ int quic_build_post_handshake_frames(struct quic_conn *qc)
 
 	qel = qc->ael;
 	/* Only servers must send a HANDSHAKE_DONE frame. */
-	if (qc_is_listener(qc)) {
+	if (objt_listener(qc->target)) {
 		size_t new_token_frm_len;
 
 		frm = qc_frm_alloc(QUIC_FT_HANDSHAKE_DONE);
@@ -830,7 +830,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 
 	st = qc->state;
 
-	if (qc_is_listener(qc)) {
+	if (objt_listener(qc->target)) {
 		if (st >= QUIC_HS_ST_COMPLETE && !quic_tls_pktns_is_dcd(qc, qc->hpktns))
 			discard_hpktns = 1;
 	}
@@ -846,13 +846,13 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		qc_set_timer(qc);
 		qc_el_rx_pkts_del(qc->hel);
 		qc_release_pktns_frms(qc, qc->hel->pktns);
-		if (!qc_is_listener(qc)) {
+		if (objt_server(qc->target)) {
 			/* I/O callback switch */
 			qc->wait_event.tasklet->process = quic_conn_app_io_cb;
 		}
 	}
 
-	if (qc_is_listener(qc) && st >= QUIC_HS_ST_COMPLETE) {
+	if (objt_listener(qc->target) && st >= QUIC_HS_ST_COMPLETE) {
 		/* Note: if no token for address validation was received
 		 * for a 0RTT connection, some 0RTT packet could still be
 		 * waiting for HP removal AFTER the successful handshake completion.
@@ -918,7 +918,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	 * discard Initial keys when it first sends a Handshake packet...
 	 */
 
-	if (!qc_is_listener(qc) && !quic_tls_pktns_is_dcd(qc, qc->ipktns) &&
+	if (objt_server(qc->target) && !quic_tls_pktns_is_dcd(qc, qc->ipktns) &&
 	    qc->hpktns && qc->hpktns->tx.in_flight > 0) {
 		/* Discard the Initial packet number space. */
 		TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PRSHPKT, qc);
@@ -1034,7 +1034,7 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 			}
 		}
 	}
-	else if (!qc_is_listener(qc) && qc->state <= QUIC_HS_ST_COMPLETE) {
+	else if (objt_server(qc->target) && qc->state <= QUIC_HS_ST_COMPLETE) {
 		if (quic_tls_has_tx_sec(qc->hel))
 			qc->hel->pktns->tx.pto_probe = 1;
 		if (quic_tls_has_tx_sec(qc->iel))
@@ -1182,7 +1182,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	if (l) {
 		cc_algo = l->bind_conf->quic_cc_algo;
 
-		qc->flags = QUIC_FL_CONN_LISTENER;
+		qc->flags = 0;
 		/* Mark this connection as having not received any token when 0-RTT is enabled. */
 		if (l->bind_conf->ssl_conf.early_data && !token)
 			qc->flags |= QUIC_FL_CONN_NO_TOKEN_RCVD;
@@ -1608,7 +1608,7 @@ int quic_conn_release(struct quic_conn *qc)
 
 	/* Connection released before handshake completion. */
 	if (unlikely(qc->state < QUIC_HS_ST_COMPLETE)) {
-		if (qc_is_listener(qc)) {
+		if (objt_listener(qc->target)) {
 			BUG_ON(__objt_listener(qc->target)->rx.quic_curr_handshake == 0);
 			HA_ATOMIC_DEC(&__objt_listener(qc->target)->rx.quic_curr_handshake);
 		}

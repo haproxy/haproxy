@@ -150,22 +150,22 @@ void quic_tls_compat_keylog_callback(const SSL *ssl, const char *line)
 	if (sizeof(QUIC_OPENSSL_COMPAT_CLIENT_HANDSHAKE) - 1 == n &&
 	    !strncmp(start, QUIC_OPENSSL_COMPAT_CLIENT_HANDSHAKE, n)) {
 		level = ssl_encryption_handshake;
-		write = qc_is_listener(qc) ? 0 : 1;
+		write = objt_listener(qc->target) ? 0 : 1;
 	}
 	else if (sizeof(QUIC_OPENSSL_COMPAT_SERVER_HANDSHAKE) - 1 == n &&
 	         !strncmp(start, QUIC_OPENSSL_COMPAT_SERVER_HANDSHAKE, n)) {
 		level = ssl_encryption_handshake;
-		write = qc_is_listener(qc) ? 1 : 0;
+		write = objt_listener(qc->target) ? 1 : 0;
 	}
 	else if (sizeof(QUIC_OPENSSL_COMPAT_CLIENT_APPLICATION) - 1 == n &&
 	         !strncmp(start, QUIC_OPENSSL_COMPAT_CLIENT_APPLICATION, n)) {
 		level = ssl_encryption_application;
-		write = qc_is_listener(qc) ? 0 : 1;
+		write = objt_listener(qc->target) ? 0 : 1;
 	}
 	else if (sizeof(QUIC_OPENSSL_COMPAT_SERVER_APPLICATION) - 1 == n &&
 	         !strncmp(start, QUIC_OPENSSL_COMPAT_SERVER_APPLICATION, n)) {
 		level = ssl_encryption_application;
-		write = qc_is_listener(qc) ? 1 : 0;
+		write = objt_listener(qc->target) ? 1 : 0;
 	}
 	else
 		goto leave;

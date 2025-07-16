@@ -166,7 +166,7 @@ void qc_prep_fast_retrans(struct quic_conn *qc,
 	/* When building a packet from another one, the field which may increase the
 	 * packet size is the packet number. And the maximum increase is 4 bytes.
 	 */
-	if (!quic_peer_validated_addr(qc) && qc_is_listener(qc) &&
+	if (!quic_peer_validated_addr(qc) && objt_listener(qc->target) &&
 	    pkt->len + 4 > quic_may_send_bytes(qc)) {
 		qc->flags |= QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED;
 		TRACE_PROTO("anti-amplification limit would be reached", QUIC_EV_CONN_SPPKTS, qc, pkt);
@@ -230,7 +230,7 @@ void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 	/* When building a packet from another one, the field which may increase the
 	 * packet size is the packet number. And the maximum increase is 4 bytes.
 	 */
-	if (!quic_peer_validated_addr(qc) && qc_is_listener(qc)) {
+	if (!quic_peer_validated_addr(qc) && objt_listener(qc->target)) {
 		size_t dglen = pkt->len + 4;
 		size_t may_send;
 
