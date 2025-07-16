@@ -5533,6 +5533,9 @@ __LJMP static int hlua_applet_tcp_send_yield(lua_State *L, int status, lua_KCont
 	int l = MAY_LJMP(luaL_checkinteger(L, 3));
 	int max;
 
+	if (!applet_get_outbuf(luactx->appctx))
+		goto wait;
+
 	/* Get the max amount of data which can be written */
 	max = applet_output_room(luactx->appctx);
 
@@ -5551,7 +5554,8 @@ __LJMP static int hlua_applet_tcp_send_yield(lua_State *L, int status, lua_KCont
 	 * applet, and returns a yield.
 	 */
 	if (l < len) {
-		applet_need_room(luactx->appctx, applet_output_room(luactx->appctx) + 1);
+	  wait:
+		applet_have_more_data(luactx->appctx);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_send_yield, TICK_ETERNITY, 0));
 	}
 
@@ -11160,7 +11164,7 @@ void hlua_applet_tcp_fct(struct appctx *ctx)
 	struct hlua *hlua = tcp_ctx->hlua;
 	int yield = 0;
 
-	if (unlikely(se_fl_test(ctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW))))
+	if (unlikely(applet_fl_test(ctx, APPCTX_FL_EOS|APPCTX_FL_ERROR)))
 		goto out;
 
 	/* The applet execution is already done. */
@@ -11172,7 +11176,7 @@ void hlua_applet_tcp_fct(struct appctx *ctx)
 	/* finished. */
 	case HLUA_E_OK:
 		tcp_ctx->flags |= APPLET_DONE;
-		se_fl_set(ctx->sedesc, SE_FL_EOI|SE_FL_EOS);
+		applet_set_eos(ctx);
 		break;
 
 	/* yield. */
@@ -11805,6 +11809,8 @@ static enum act_parse_ret action_register_service_tcp(const char **args, int *cu
 	rule->applet.obj_type = OBJ_TYPE_APPLET;
 	rule->applet.name = fcn->name;
 	rule->applet.init = hlua_applet_tcp_init;
+	rule->applet.rcv_buf = appctx_raw_rcv_buf;
+	rule->applet.snd_buf = appctx_raw_snd_buf;
 	rule->applet.fct = hlua_applet_tcp_fct;
 	rule->applet.release = hlua_applet_tcp_release;
 	rule->applet.timeout = hlua_timeout_applet;
