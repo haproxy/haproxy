@@ -68,6 +68,50 @@ struct ssl_sock_ctx;
  * conn_cond_update_polling().
  */
 
+/* A bit of explanation is required for backend connection reuse. A connection
+ * may be shared between multiple streams of the same thread (e.g. h2, fcgi,
+ * quic) and may be reused by subsequent streams of a different thread if it
+ * is totally idle (i.e. not used at all). In order to permit other streams
+ * to find a connection, it has to appear in lists and/or trees that reflect
+ * its current state. If the connection is full and cannot be shared anymore,
+ * it is not in any of such places. The various states are the following:
+ *
+ * - private: a private connection is not visible to other threads. It is
+ *   attached via its <idle_list> member to the <conn_list> head of a
+ *   sess_priv_conns struct specific to the server, itself attached to the
+ *   session. Only other streams of the same session may find this connection.
+ *   Such connections include totally idle connections as well as connections
+ *   with available slots left. The <hash_node> part is still used to store
+ *   the hash key but the tree node part is otherwise left unused.
+ *
+ * - avail: an available connection is a connection that has at least one
+ *   stream in use and at least one slot available for a new stream. Such a
+ *   connection is indexed in the server's <avail_conns> member based on the
+ *   key of the hash_node. It cannot be used by other threads, and is not
+ *   present in the server's <idle_conn_list>, so its <idle_list> member is
+ *   always empty. Since this connection is in use by a single thread and
+ *   cannot be taken over, it doesn't require any locking to enter/leave the
+ *   tree.
+ *
+ * - safe: a safe connection is an idle connection that has proven that it
+ *   could reliably be reused. Such a connection may be taken over at any
+ *   instant by other threads, and must only be manipulated under the server's
+ *   <idle_lock>. It is indexed in the server's <safe_conns> member based on
+ *   the key of the hash_node. It is attached to the server's <idle_conn_list>
+ *   via its <idle_list> member. It may be purged after too long inactivity,
+ *   though the thread responsible for doing this will first take it over. Such
+ *   a connection has (conn->flags & CO_FL_LIST_MASK) = CO_FL_SAFE_LIST.
+ *
+ * - idle: a purely idle connection has not yet proven that it could reliably
+ *   be reused. Such a connection may be taken over at any instant by other
+ *   threads, and must only be manipulated under the server's <idle_lock>. It
+ *   is indexed in the server's <idle_conns> member based on the key of the
+ *   hash_node. It is attached to the server's <idle_conn_list> via its
+ *   <idle_list> member. It may be purged after too long inactivity, though the
+ *   thread responsible for doing this will first take it over. Such a
+ *   connection has (conn->flags & CO_FL_LIST_MASK) = CO_FL_IDLE_LIST.
+ */
+
 /* flags for use in connection->flags. Please also update the conn_show_flags()
  * function below in case of changes.
  */
