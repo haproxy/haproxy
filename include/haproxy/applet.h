@@ -116,7 +116,7 @@ static inline int appctx_init(struct appctx *appctx)
 	 * the appctx will be fully initialized. The session and the stream will
 	 * eventually be created. The affinity must be set now !
 	 */
-	BUG_ON(appctx->t->tid != tid);
+	BUG_ON(appctx->t->tid != -1 && appctx->t->tid != tid);
 	task_set_thread(appctx->t, tid);
 
 	if (appctx->applet->init)
