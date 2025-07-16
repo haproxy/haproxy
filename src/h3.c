@@ -2011,6 +2011,7 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	struct htx_sl *sl;
 	struct ist meth, uri, scheme = IST_NULL, auth = IST_NULL;
 	int frame_length_size;  /* size in bytes of frame length varint field */
+	int smallbuf = 1;
 	int ret, err, hdr;
 
 	hdr = 0;
@@ -2051,19 +2052,27 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	/* marker for end of headers */
 	list[hdr].n = ist("");
 
-	res = qcc_get_stream_txbuf(qcs, &err, 0);
-	BUG_ON(!res);
+ retry:
+	res = smallbuf ? qcc_get_stream_txbuf(qcs, &err, 1) :
+	                 qcc_realloc_stream_txbuf(qcs);
+	if (!res) {
+		if (err)
+			goto err;
 
-	b_reset(&outbuf);
-	outbuf = b_make(b_tail(res), b_contig_space(res), 0, 0);
+		goto end;
+	}
+
+	if (unlikely(b_contig_space(res) < 5))
+		goto err_full;
+
 	/* Start the headers after frame type + length */
-	headers_buf = b_make(b_head(res) + 5, b_size(res) - 5, 0, 0);
+	headers_buf = b_make(b_tail(res) + 5, b_contig_space(res) - 5, 0, 0);
 
 	if (qpack_encode_field_section_line(&headers_buf))
-		goto err;
+		goto err_full;
 
 	if (qpack_encode_method(&headers_buf, sl->info.req.meth, meth))
-		goto err;
+		goto err_full;
 
 	if (uri.ptr[0] != '/' && uri.ptr[0] != '*') {
 		int len = 1;
@@ -2094,14 +2103,14 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	}
 
 	if (qpack_encode_scheme(&headers_buf, scheme))
-		goto err;
+		goto err_full;
 
 	if (qpack_encode_path(&headers_buf, uri))
-		goto err;
+		goto err_full;
 
 	if (istlen(auth)) {
 		if (qpack_encode_auth(&headers_buf, auth))
-			goto err;
+			goto err_full;
 	}
 
 	/* Encode every parsed headers, stop at empty one. */
@@ -2138,7 +2147,7 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 			continue;
 
 		if (h3_encode_header(&headers_buf, list[hdr].n, list[hdr].v))
-			goto err;
+			goto err_full;
 	}
 
 	/* Now that all headers are encoded, we are certain that res buffer is
@@ -2160,8 +2169,14 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 			break;
 	}
 
+ end:
 	return ret;
 
+ err_full:
+	if (smallbuf) {
+		smallbuf = 0;
+		goto retry;
+	}
  err:
 	return -1;
 }
