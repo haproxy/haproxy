@@ -1,0 +1,19 @@
+# show non-null memprofile entries with method, alloc/free counts/tot and caller
+
+define memprof_dump
+  set $i = 0
+  set $meth={ "UNKN", "MALL", "CALL", "REAL", "STRD", "FREE", "P_AL", "P_FR", "STND", "VALL", "ALAL", "PALG", "MALG", "PVAL" }
+  while $i < sizeof(memprof_stats) / sizeof(memprof_stats[0])
+    if memprof_stats[$i].alloc_calls || memprof_stats[$i].free_calls
+      set $m = memprof_stats[$i].method
+      printf "m:%s ac:%u fc:%u at:%u ft:%u ", $meth[$m], \
+           memprof_stats[$i].alloc_calls, memprof_stats[$i].free_calls, \
+           memprof_stats[$i].alloc_tot, memprof_stats[$i].free_tot
+      output/a memprof_stats[$i].caller
+      printf "\n"
+    end
+    set $i = $i + 1
+  end
+end
+
+
