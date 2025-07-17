@@ -1213,6 +1213,7 @@ int pthread_rwlock_unlock(pthread_rwlock_t *rwlock)
 }
 #endif // defined(USE_PTHREAD_EMULATION)
 
+#ifndef __APPLE__
 /* Depending on the platform and how libpthread was built, pthread_exit() may
  * involve some code in libgcc_s that would be loaded on exit for the first
  * time, causing aborts if the process is chrooted. It's harmless bit very
@@ -1233,12 +1234,15 @@ static inline void preload_libgcc_s(void)
 	if (pthread_create(&dummy_thread, NULL, dummy_thread_function, NULL) == 0)
 		pthread_join(dummy_thread, NULL);
 }
+#endif
 
 static void __thread_init(void)
 {
 	char *ptr = NULL;
 
+#ifndef __APPLE__
 	preload_libgcc_s();
+#endif
 
 	thread_cpus_enabled_at_boot = thread_cpus_enabled();
 	thread_cpus_enabled_at_boot = MIN(thread_cpus_enabled_at_boot, MAX_THREADS);
