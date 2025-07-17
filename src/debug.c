@@ -651,14 +651,14 @@ static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *a
 	chunk_reset(&trash);
 
 	chunk_appendf(&trash, "HAProxy version %s\n", haproxy_version);
-	chunk_appendf(&trash, "Features\n  %s\n", build_features);
+	chunk_appendf(&trash, "Features:\n  %s\n", build_features);
 
-	chunk_appendf(&trash, "Build options\n");
+	chunk_appendf(&trash, "Build options:\n");
 	for (build_opt = NULL; (build_opt = hap_get_next_build_opt(build_opt)); )
 		if (append_prefixed_str(&trash, *build_opt, "  ", '\n', 0) == 0)
 			chunk_strcat(&trash, "\n");
 
-	chunk_appendf(&trash, "Platform info\n");
+	chunk_appendf(&trash, "Platform info:\n");
 	if (*post_mortem.platform.hw_vendor)
 		chunk_appendf(&trash, "  machine vendor: %s\n", post_mortem.platform.hw_vendor);
 	if (*post_mortem.platform.hw_family)
@@ -692,7 +692,7 @@ static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *a
 	if (*post_mortem.platform.distro)
 		chunk_appendf(&trash, "  distro pretty name: %s\n", HA_ANON_CLI(post_mortem.platform.distro));
 
-	chunk_appendf(&trash, "Process info\n");
+	chunk_appendf(&trash, "Process info:\n");
 	chunk_appendf(&trash, "  pid: %d\n", post_mortem.process.pid);
 	chunk_appendf(&trash, "  cmdline: ");
 	for (i = 0; i < post_mortem.process.argc; i++)
