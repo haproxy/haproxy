@@ -651,12 +651,7 @@ static void quic_release_cc_conn(struct quic_conn_closed *cc_qc)
 	free_quic_conn_cids(qc);
 	pool_free(pool_head_quic_cids, cc_qc->cids);
 	cc_qc->cids = NULL;
-	if (objt_listener(cc_qc->target)) {
-		pool_free(pool_head_quic_cc_buf, cc_qc->cc_buf_area);
-	}
-	else {
-		pool_free(pool_head_quic_be_cc_buf, cc_qc->cc_buf_area);
-	}
+	pool_free(pool_head_quic_cc_buf, cc_qc->cc_buf_area);
 	cc_qc->cc_buf_area = NULL;
 	/* free the SSL sock context */
 	pool_free(pool_head_quic_conn_closed, cc_qc);
@@ -1519,10 +1514,7 @@ int quic_conn_release(struct quic_conn *qc)
 		free_quic_conn_cids(qc);
 		pool_free(pool_head_quic_cids, qc->cids);
 		qc->cids = NULL;
-		if (objt_listener(qc->target))
-			pool_free(pool_head_quic_cc_buf, qc->tx.cc_buf_area);
-		else
-			pool_free(pool_head_quic_be_cc_buf, qc->tx.cc_buf_area);
+		pool_free(pool_head_quic_cc_buf, qc->tx.cc_buf_area);
 		qc->tx.cc_buf_area = NULL;
 		ret = 1;
 	}
