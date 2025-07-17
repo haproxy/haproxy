@@ -1481,7 +1481,7 @@ int thread_map_to_groups()
 		cpu_reorder_by_index(ha_cpu_topo, cpu_topo_maxcpus);
 		cpu_topo_debug(ha_cpu_topo);
 		chunk_reset(&trash);
-		cpu_topo_dump_summary(ha_cpu_topo);
+		cpu_topo_dump_summary(ha_cpu_topo, &trash);
 		printf("%s\n", trash.area);
 	}
 #endif

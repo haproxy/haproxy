@@ -269,21 +269,21 @@ void cpu_topo_debug(const struct ha_cpu_topo *topo)
 /* Dump the summary of CPU topology <topo>: clusters info and thread-cpu
  * bindings.
  */
-void cpu_topo_dump_summary(const struct ha_cpu_topo *topo)
+void cpu_topo_dump_summary(const struct ha_cpu_topo *topo, struct buffer *trash)
 {
 	int cpu, grp, thr;
 
-	printf("CPU clusters:\n");
+	chunk_appendf(trash, "CPU clusters:\n");
 	for (cpu = 0; cpu < cpu_topo_maxcpus; cpu++) {
 		if (!ha_cpu_clusters[cpu].nb_cpu)
 			continue;
-		printf("  %3u  cpus=%3u cores=%3u capa=%u\n",
-		       cpu, ha_cpu_clusters[cpu].nb_cpu,
-		       ha_cpu_clusters[cpu].nb_cores,
-		       ha_cpu_clusters[cpu].capa);
+		chunk_appendf(trash, "  %3u  cpus=%3u cores=%3u capa=%u\n",
+			      cpu, ha_cpu_clusters[cpu].nb_cpu,
+			      ha_cpu_clusters[cpu].nb_cores,
+			      ha_cpu_clusters[cpu].capa);
 	}
 
-	printf("Thread CPU Bindings:\n  Tgrp/Thr  Tid        CPU set\n");
+	chunk_appendf(trash, "Thread CPU Bindings:\n  Tgrp/Thr  Tid        CPU set\n");
 	for (grp = 0; grp < global.nbtgroups; grp++) {
 		int first, last;
 		int min, max;
@@ -338,7 +338,7 @@ void cpu_topo_dump_summary(const struct ha_cpu_topo *topo)
 				else if (len2 == 0)
 					snprintf(str + len, sizeof(str) - len, "<all>");
 
-				printf("  %s\n", str);
+				chunk_appendf(trash, "  %s\n", str);
 				min = max = -1;
 			}
 		}

@@ -61,7 +61,7 @@ void cpu_topo_debug(const struct ha_cpu_topo *topo);
 /* Dump the summary of CPU topology <topo>, i.e. clusters info and thread-cpu
  * bindings.
  */
-void cpu_topo_dump_summary(const struct ha_cpu_topo *topo);
+void cpu_topo_dump_summary(const struct ha_cpu_topo *topo, struct buffer *trash);
 
 /* re-order a CPU topology array by locality to help form groups. */
 void cpu_reorder_by_locality(struct ha_cpu_topo *topo, int entries);
