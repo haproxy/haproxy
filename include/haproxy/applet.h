@@ -315,6 +315,15 @@ static inline size_t applet_input_data(const struct appctx *appctx)
 		return co_data(sc_oc(appctx_sc(appctx)));
 }
 
+/* Returns the amount of HTX data in the input buffer (see applet_get_inbuf) */
+static inline size_t applet_htx_input_data(const struct appctx *appctx)
+{
+	if (appctx->flags & APPCTX_FL_INOUT_BUFS)
+		return htx_used_space(htxbuf(&appctx->inbuf));
+	else
+		return co_data(sc_oc(appctx_sc(appctx)));
+}
+
 /* Skips <len> bytes from the input buffer (see applet_get_inbuf).
  *
  * This is useful when data have been read directly from the buffer. It is
@@ -350,6 +359,16 @@ static inline size_t applet_output_room(const struct appctx *appctx)
 {
 	if (appctx->flags & APPCTX_FL_INOUT_BUFS)
 		return b_room(&appctx->outbuf);
+	else
+		return channel_recv_max(sc_ic(appctx_sc(appctx)));
+}
+
+/* Returns the amout of space available at the HTX output buffer (see applet_get_outbuf).
+ */
+static inline size_t applet_htx_output_room(const struct appctx *appctx)
+{
+	if (appctx->flags & APPCTX_FL_INOUT_BUFS)
+		return htx_free_data_space(htxbuf(&appctx->outbuf));
 	else
 		return channel_recv_max(sc_ic(appctx_sc(appctx)));
 }
