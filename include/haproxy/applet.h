@@ -288,8 +288,11 @@ static inline void applet_expect_data(struct appctx *appctx)
  */
 static inline struct buffer *applet_get_inbuf(struct appctx *appctx)
 {
-	if (appctx->flags & APPCTX_FL_INOUT_BUFS)
+	if (appctx->flags & APPCTX_FL_INOUT_BUFS) {
+		if (applet_fl_test(appctx, APPCTX_FL_INBLK_ALLOC) || !appctx_get_buf(appctx, &appctx->inbuf))
+			return NULL;
 		return &appctx->inbuf;
+	}
 	else
 		return sc_ob(appctx_sc(appctx));
 }
@@ -300,8 +303,12 @@ static inline struct buffer *applet_get_inbuf(struct appctx *appctx)
  */
 static inline struct buffer *applet_get_outbuf(struct appctx *appctx)
 {
-	if (appctx->flags & APPCTX_FL_INOUT_BUFS)
+	if (appctx->flags & APPCTX_FL_INOUT_BUFS) {
+		if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_ALLOC|APPCTX_FL_OUTBLK_FULL) ||
+		    !appctx_get_buf(appctx, &appctx->outbuf))
+			return NULL;
 		return &appctx->outbuf;
+	}
 	else
 		return sc_ib(appctx_sc(appctx));
 }
