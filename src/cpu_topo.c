@@ -218,11 +218,10 @@ int cpu_map_configured(void)
 /* Dump the CPU topology <topo> for up to cpu_topo_maxcpus CPUs for
  * debugging purposes. Offline CPUs are skipped.
  */
-void cpu_dump_topology(const struct ha_cpu_topo *topo)
+void cpu_topo_debug(const struct ha_cpu_topo *topo)
 {
 	int has_smt = 0;
 	int cpu, lvl;
-	int grp, thr;
 
 	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++) {
 		if (ha_cpu_topo[cpu].th_cnt > 1) {
@@ -265,6 +264,14 @@ void cpu_dump_topology(const struct ha_cpu_topo *topo)
 		}
 		putchar('\n');
 	}
+}
+
+/* Dump the summary of CPU topology <topo>: clusters info and thread-cpu
+ * bindings.
+ */
+void cpu_topo_dump_summary(const struct ha_cpu_topo *topo)
+{
+	int cpu, grp, thr;
 
 	printf("CPU clusters:\n");
 	for (cpu = 0; cpu < cpu_topo_maxcpus; cpu++) {

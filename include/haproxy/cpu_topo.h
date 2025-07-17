@@ -2,6 +2,7 @@
 #define _HAPROXY_CPU_TOPO_H
 
 #include <haproxy/api.h>
+#include <haproxy/chunk.h>
 #include <haproxy/cpuset-t.h>
 #include <haproxy/cpu_topo-t.h>
 
@@ -55,7 +56,12 @@ int cpu_map_configured(void);
 /* Dump the CPU topology <topo> for up to cpu_topo_maxcpus CPUs for
  * debugging purposes. Offline CPUs are skipped.
  */
-void cpu_dump_topology(const struct ha_cpu_topo *topo);
+void cpu_topo_debug(const struct ha_cpu_topo *topo);
+
+/* Dump the summary of CPU topology <topo>, i.e. clusters info and thread-cpu
+ * bindings.
+ */
+void cpu_topo_dump_summary(const struct ha_cpu_topo *topo);
 
 /* re-order a CPU topology array by locality to help form groups. */
 void cpu_reorder_by_locality(struct ha_cpu_topo *topo, int entries);

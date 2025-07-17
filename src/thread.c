@@ -1479,7 +1479,10 @@ int thread_map_to_groups()
 #if defined(USE_THREAD) && defined(USE_CPU_AFFINITY)
 	if (global.tune.debug & GDBG_CPU_AFFINITY) {
 		cpu_reorder_by_index(ha_cpu_topo, cpu_topo_maxcpus);
-		cpu_dump_topology(ha_cpu_topo);
+		cpu_topo_debug(ha_cpu_topo);
+		chunk_reset(&trash);
+		cpu_topo_dump_summary(ha_cpu_topo);
+		printf("%s\n", trash.area);
 	}
 #endif
 	return 0;
