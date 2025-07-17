@@ -1519,7 +1519,10 @@ int quic_conn_release(struct quic_conn *qc)
 		free_quic_conn_cids(qc);
 		pool_free(pool_head_quic_cids, qc->cids);
 		qc->cids = NULL;
-		pool_free(pool_head_quic_cc_buf, qc->tx.cc_buf_area);
+		if (objt_listener(qc->target))
+			pool_free(pool_head_quic_cc_buf, qc->tx.cc_buf_area);
+		else
+			pool_free(pool_head_quic_be_cc_buf, qc->tx.cc_buf_area);
 		qc->tx.cc_buf_area = NULL;
 		ret = 1;
 	}
