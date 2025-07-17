@@ -5599,16 +5599,8 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 {
 	struct hlua_http_ctx *http_ctx = ctx->svcctx;
 	struct hlua_appctx *luactx;
-	struct hlua_txn htxn;
 	struct stream *s = appctx_strm(ctx);
 	struct proxy *px = s->be;
-	struct htx *htx;
-	struct htx_blk *blk;
-	struct htx_sl *sl;
-	struct ist path;
-	unsigned long long len = 0;
-	int32_t pos;
-	struct http_uri_parser parser;
 
 	/* Check stack size. */
 	if (!lua_checkstack(L, 3))
@@ -5649,78 +5641,6 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 	lua_pushstring(L, "sc");
 	if (!hlua_converters_new(L, &luactx->htxn, HLUA_F_AS_STRING))
 		return 0;
-	lua_settable(L, -3);
-
-	htx = htxbuf(&s->req.buf);
-	blk = htx_get_first_blk(htx);
-	BUG_ON(!blk || htx_get_blk_type(blk) != HTX_BLK_REQ_SL);
-	sl = htx_get_blk_ptr(htx, blk);
-
-	/* Stores the request method. */
-	lua_pushstring(L, "method");
-	lua_pushlstring(L, HTX_SL_REQ_MPTR(sl), HTX_SL_REQ_MLEN(sl));
-	lua_settable(L, -3);
-
-	/* Stores the http version. */
-	lua_pushstring(L, "version");
-	lua_pushlstring(L, HTX_SL_REQ_VPTR(sl), HTX_SL_REQ_VLEN(sl));
-	lua_settable(L, -3);
-
-	/* creates an array of headers. hlua_http_get_headers() crates and push
-	 * the array on the top of the stack.
-	 */
-	lua_pushstring(L, "headers");
-	htxn.s = s;
-	htxn.p = px;
-	htxn.dir = SMP_OPT_DIR_REQ;
-	if (!hlua_http_get_headers(L, &htxn.s->txn->req))
-		return 0;
-	lua_settable(L, -3);
-
-	parser = http_uri_parser_init(htx_sl_req_uri(sl));
-	path = http_parse_path(&parser);
-	if (isttest(path)) {
-		char *p, *q, *end;
-
-		p = path.ptr;
-		end = istend(path);
-		q = p;
-		while (q < end && *q != '?')
-			q++;
-
-		/* Stores the request path. */
-		lua_pushstring(L, "path");
-		lua_pushlstring(L, p, q - p);
-		lua_settable(L, -3);
-
-		/* Stores the query string. */
-		lua_pushstring(L, "qs");
-		if (*q == '?')
-			q++;
-		lua_pushlstring(L, q, end - q);
-		lua_settable(L, -3);
-	}
-
-	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
-		struct htx_blk *blk = htx_get_blk(htx, pos);
-		enum htx_blk_type type = htx_get_blk_type(blk);
-
-		if (type == HTX_BLK_TLR || type == HTX_BLK_EOT)
-			break;
-		if (type == HTX_BLK_DATA)
-			len += htx_get_blksz(blk);
-	}
-	if (htx->extra != HTX_UNKOWN_PAYLOAD_LENGTH)
-		len += htx->extra;
-
-	/* Stores the request path. */
-	lua_pushstring(L, "length");
-	lua_pushinteger(L, len);
-	lua_settable(L, -3);
-
-	/* Create an empty array of HTTP request headers. */
-	lua_pushstring(L, "response");
-	lua_newtable(L);
 	lua_settable(L, -3);
 
 	/* Pop a class stream metatable and affect it to the table. */
@@ -11371,6 +11291,7 @@ void hlua_applet_http_fct(struct appctx *ctx)
 	struct proxy *px = strm->be;
 	struct hlua *hlua = http_ctx->hlua;
 	struct htx *req_htx, *res_htx;
+	const char *error;
 	int yield = 0;
 
 	res_htx = htx_from_buf(&res->buf);
@@ -11389,12 +11310,103 @@ void hlua_applet_http_fct(struct appctx *ctx)
 	}
 
 	/* Set the currently running flag. */
-	if (!HLUA_IS_RUNNING(hlua) &&
-	    !(http_ctx->flags & APPLET_DONE)) {
+	if (!HLUA_IS_RUNNING(hlua)) {
+		struct htx_blk *blk;
+		struct htx_sl *sl;
+		struct ist path;
+		unsigned long long len = 0;
+		int32_t pos;
+		struct http_uri_parser parser;
+		int app_idx = 1 - hlua->nargs; /* index of the HTTP applet object in the lua stask */
+
 		if (!co_data(req)) {
 			applet_need_more_data(ctx);
 			goto out;
 		}
+
+		if (!SET_SAFE_LJMP(hlua)) {
+			hlua_lock(hlua);
+			if (lua_type(hlua->T, -1) == LUA_TSTRING)
+				error = hlua_tostring_safe(hlua->T, -1);
+			else
+				error = "critical error";
+			SEND_ERR(NULL, "Lua applet HTTP: %s.\n", error);
+			hlua_unlock(hlua);
+			goto error;
+		}
+
+		req_htx = htx_from_buf(&req->buf);
+
+		blk = htx_get_first_blk(req_htx);
+		BUG_ON(!blk || htx_get_blk_type(blk) != HTX_BLK_REQ_SL);
+		sl = htx_get_blk_ptr(req_htx, blk);
+
+		/* Stores the request method. */
+		lua_pushstring(hlua->T, "method");
+		lua_pushlstring(hlua->T, HTX_SL_REQ_MPTR(sl), HTX_SL_REQ_MLEN(sl));
+		lua_settable(hlua->T, app_idx - 3);
+
+		/* Stores the http version. */
+		lua_pushstring(hlua->T, "version");
+		lua_pushlstring(hlua->T, HTX_SL_REQ_VPTR(sl), HTX_SL_REQ_VLEN(sl));
+		lua_settable(hlua->T, app_idx - 3);
+
+		/* creates an array of headers. hlua_http_get_headers() crates and push
+		 * the array on the top of the stack.
+		 */
+		lua_pushstring(hlua->T, "headers");
+		if (!hlua_http_get_headers(hlua->T, &strm->txn->req))
+			goto error;
+		lua_settable(hlua->T, app_idx - 3);
+
+		parser = http_uri_parser_init(htx_sl_req_uri(sl));
+		path = http_parse_path(&parser);
+		if (isttest(path)) {
+			char *p, *q, *end;
+
+			p = path.ptr;
+			end = istend(path);
+			q = p;
+			while (q < end && *q != '?')
+				q++;
+
+			/* Stores the request path. */
+			lua_pushstring(hlua->T, "path");
+			lua_pushlstring(hlua->T, p, q - p);
+			lua_settable(hlua->T, app_idx - 3);
+
+			/* Stores the query string. */
+			lua_pushstring(hlua->T, "qs");
+			if (*q == '?')
+				q++;
+			lua_pushlstring(hlua->T, q, end - q);
+			lua_settable(hlua->T, app_idx - 3);
+		}
+
+		for (pos = htx_get_first(req_htx); pos != -1; pos = htx_get_next(req_htx, pos)) {
+			struct htx_blk *blk = htx_get_blk(req_htx, pos);
+			enum htx_blk_type type = htx_get_blk_type(blk);
+
+			if (type == HTX_BLK_TLR || type == HTX_BLK_EOT)
+				break;
+			if (type == HTX_BLK_DATA)
+				len += htx_get_blksz(blk);
+		}
+		if (req_htx->extra != HTX_UNKOWN_PAYLOAD_LENGTH)
+			len += req_htx->extra;
+
+		/* Stores the request path. */
+		lua_pushstring(hlua->T, "length");
+		lua_pushinteger(hlua->T, len);
+		lua_settable(hlua->T, app_idx - 3);
+
+		/* Create an empty array of HTTP request headers. */
+		lua_pushstring(hlua->T, "response");
+		lua_newtable(hlua->T);
+		lua_settable(hlua->T, app_idx - 3);
+
+		/* At this point the execution is safe. */
+		RESET_SAFE_LJMP(hlua);
 	}
 
 	/* Execute the function. */
