@@ -707,7 +707,7 @@ __LJMP static int hlua_smp2lua(lua_State *L, struct sample *smp);
 __LJMP static int hlua_smp2lua_str(lua_State *L, struct sample *smp);
 static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp);
 
-__LJMP static int hlua_http_get_headers(lua_State *L, struct http_msg *msg);
+__LJMP static int hlua_http_get_headers(lua_State *L, struct buffer *buf);
 
 struct prepend_path {
 	struct list l;
@@ -6423,7 +6423,7 @@ __LJMP static int hlua_http_get_stline(lua_State *L, struct htx_sl *sl)
  * This function does not fails. It is used as wrapper with the
  * 2 following functions.
  */
-__LJMP static int hlua_http_get_headers(lua_State *L, struct http_msg *msg)
+__LJMP static int hlua_http_get_headers(lua_State *L, struct buffer *buf)
 {
 	struct htx *htx;
 	int32_t pos;
@@ -6494,7 +6494,7 @@ __LJMP static int hlua_http_req_get_headers(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_REQ || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
-	return hlua_http_get_headers(L, &htxn->s->txn->req);
+	return hlua_http_get_headers(L, &htxn->s->req.buf);
 }
 
 __LJMP static int hlua_http_res_get_headers(lua_State *L)
@@ -6507,7 +6507,7 @@ __LJMP static int hlua_http_res_get_headers(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_RES || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
-	return hlua_http_get_headers(L, &htxn->s->txn->rsp);
+	return hlua_http_get_headers(L, &htxn->s->res.buf);
 }
 
 /* This function replace full header, or just a value in
@@ -6898,7 +6898,7 @@ __LJMP static int hlua_http_msg_get_headers(lua_State *L)
 	if (msg->msg_state > HTTP_MSG_BODY)
 		WILL_LJMP(lua_error(L));
 
-	return hlua_http_get_headers(L, msg);
+	return hlua_http_get_headers(L, &msg->chn->buf);
 }
 
 /* Deletes all occurrences of an header in the HTTP message matching on its
@@ -11355,7 +11355,7 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		 * the array on the top of the stack.
 		 */
 		lua_pushstring(hlua->T, "headers");
-		if (!hlua_http_get_headers(hlua->T, &strm->txn->req))
+		if (!hlua_http_get_headers(hlua->T, &strm->req.buf))
 			goto error;
 		lua_settable(hlua->T, app_idx - 3);
 
