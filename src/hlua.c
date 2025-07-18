@@ -3232,6 +3232,7 @@ hlua_socket_write_yield_return:
 		WILL_LJMP(luaL_error(L, "out of memory"));
 	}
 	xref_unlock(&socket->xref, peer);
+	sc_need_room(sc, channel_recv_max(&s->req) + 1);
 	MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_write_yield, TICK_ETERNITY, 0));
 	return 0;
 }
