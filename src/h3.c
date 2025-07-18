@@ -2014,6 +2014,8 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	int smallbuf = 1;
 	int ret, err, hdr;
 
+	TRACE_ENTER(H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+
 	hdr = 0;
 	sl = NULL;
 	for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
@@ -2033,8 +2035,10 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 			break;
 
 		case HTX_BLK_HDR:
-			if (unlikely(hdr >= sizeof(list) / sizeof(list[0]) - 1))
+			if (unlikely(hdr >= sizeof(list) / sizeof(list[0]) - 1)) {
+				TRACE_ERROR("too many headers", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 				goto err;
+			}
 
 			list[hdr].n = htx_get_blk_name(htx, blk);
 			list[hdr].v = htx_get_blk_value(htx, blk);
@@ -2056,9 +2060,12 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	res = smallbuf ? qcc_get_stream_txbuf(qcs, &err, 1) :
 	                 qcc_realloc_stream_txbuf(qcs);
 	if (!res) {
-		if (err)
+		if (err) {
+			TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 			goto err;
+		}
 
+		TRACE_STATE("buf window full", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 		goto end;
 	}
 
@@ -2068,6 +2075,8 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	/* Start the headers after frame type + length */
 	headers_buf = b_make(b_tail(res) + 5, b_contig_space(res) - 5, 0, 0);
 
+	TRACE_DATA("encoding HEADERS frame", H3_EV_TX_FRAME|H3_EV_TX_HDR,
+	           qcs->qcc->conn, qcs);
 	if (qpack_encode_field_section_line(&headers_buf))
 		goto err_full;
 
@@ -2170,14 +2179,17 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	}
 
  end:
+	TRACE_LEAVE(H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 	return ret;
 
  err_full:
 	if (smallbuf) {
+		TRACE_DEVEL("retry with a full buffer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 		smallbuf = 0;
 		goto retry;
 	}
  err:
+	TRACE_DEVEL("leaving on error", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 	return -1;
 }
 
