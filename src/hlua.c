@@ -5783,18 +5783,17 @@ __LJMP static int hlua_applet_http_get_priv(lua_State *L)
 __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct stconn *sc = appctx_sc(luactx->appctx);
-	struct channel *req = sc_oc(sc);
+	struct buffer *inbuf = applet_get_inbuf(luactx->appctx);
 	struct htx *htx;
 	struct htx_blk *blk;
-	size_t count;
 	int stop = 0;
 
-	htx = htx_from_buf(&req->buf);
-	count = co_data(req);
-	blk = htx_get_first_blk(htx);
+	if (!inbuf)
+		goto wait;
 
-	while (count && !stop && blk) {
+	htx = htx_from_buf(inbuf);
+	blk = htx_get_first_blk(htx);
+	while (!stop && blk) {
 		enum htx_blk_type type = htx_get_blk_type(blk);
 		uint32_t sz = htx_get_blksz(blk);
 		struct ist v;
@@ -5802,19 +5801,13 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 		char *nl;
 
 		vlen = sz;
-		if (vlen > count) {
-			if (type != HTX_BLK_DATA)
-				break;
-			vlen = count;
-		}
-
 		switch (type) {
 			case HTX_BLK_UNUSED:
 				break;
 
 			case HTX_BLK_DATA:
 				v = htx_get_blk_value(htx, blk);
-				v.len = vlen;
+				vlen = v.len;
 				nl = istchr(v, '\n');
 				if (nl != NULL) {
 					stop = 1;
@@ -5832,8 +5825,6 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 				break;
 		}
 
-		c_rew(req, vlen);
-		count -= vlen;
 		if (sz == vlen)
 			blk = htx_remove_blk(htx, blk);
 		else {
@@ -5845,11 +5836,12 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 	/* The message was fully consumed and no more data are expected
 	 * (EOM flag set).
 	 */
-	if (htx_is_empty(htx) && (sc_opposite(sc)->flags & SC_FL_EOI))
+	if (htx_is_empty(htx) && (htx->flags & HTX_FL_EOM))
 		stop = 1;
 
-	htx_to_buf(htx, &req->buf);
+	htx_to_buf(htx, inbuf);
 	if (!stop) {
+	  wait:
 		applet_need_more_data(luactx->appctx);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_getline_yield, TICK_ETERNITY, 0));
 	}
@@ -5878,38 +5870,33 @@ __LJMP static int hlua_applet_http_getline(lua_State *L)
 __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct stconn *sc = appctx_sc(luactx->appctx);
-	struct channel *req = sc_oc(sc);
+	struct buffer *inbuf = applet_get_inbuf(luactx->appctx);
 	struct htx *htx;
 	struct htx_blk *blk;
-	size_t count;
 	int len;
 
-	htx = htx_from_buf(&req->buf);
+	if (!inbuf)
+		goto wait;
+
+	htx = htx_from_buf(inbuf);
 	len = MAY_LJMP(luaL_checkinteger(L, 2));
-	count = co_data(req);
 	blk = htx_get_head_blk(htx);
-	while (count && len && blk) {
+	while (len && blk) {
 		enum htx_blk_type type = htx_get_blk_type(blk);
 		uint32_t sz = htx_get_blksz(blk);
 		struct ist v;
 		uint32_t vlen;
 
 		vlen = sz;
-		if (len > 0 && vlen > len)
-			vlen = len;
-		if (vlen > count) {
-			if (type != HTX_BLK_DATA)
-				break;
-			vlen = count;
-		}
-
 		switch (type) {
 			case HTX_BLK_UNUSED:
 				break;
 
 			case HTX_BLK_DATA:
 				v = htx_get_blk_value(htx, blk);
+				vlen = v.len;
+				if (len > 0 && vlen > len)
+					vlen = len;
 				luaL_addlstring(&luactx->b, v.ptr, vlen);
 				if (len > 0)
 					len -= vlen;
@@ -5924,8 +5911,6 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 				break;
 		}
 
-		c_rew(req, vlen);
-		count -= vlen;
 		if (sz == vlen)
 			blk = htx_remove_blk(htx, blk);
 		else {
@@ -5937,10 +5922,11 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 	/* The message was fully consumed and no more data are expected
 	 * (EOM flag set).
 	 */
-	if (htx_is_empty(htx) && (sc_opposite(sc)->flags & SC_FL_EOI))
+	if (htx_is_empty(htx) && (htx->flags & HTX_FL_EOM))
 		len = 0;
 
-	htx_to_buf(htx, &req->buf);
+	htx_to_buf(htx, inbuf);
+	applet_fl_clr(luactx->appctx, APPCTX_FL_INBLK_FULL);
 
 	/* If we are no other data available, yield waiting for new data. */
 	if (len) {
@@ -5948,9 +5934,13 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 			lua_pushinteger(L, len);
 			lua_replace(L, 2);
 		}
+	  wait:
 		applet_need_more_data(luactx->appctx);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_recv_yield, TICK_ETERNITY, 0));
 	}
+
+	/* Stop to consume until the next receive or the end of the response */
+	applet_wont_consume(luactx->appctx);
 
 	/* return the result. */
 	luaL_pushresult(&luactx->b);
@@ -5973,9 +5963,11 @@ __LJMP static int hlua_applet_http_recv(lua_State *L)
 
 	lua_pushinteger(L, len);
 
+	/* Restart to consume - could have been disabled by a previous receive */
+	applet_will_consume(luactx->appctx);
+
 	/* Initialise the string catenation. */
 	luaL_buffinit(L, &luactx->b);
-
 	return MAY_LJMP(hlua_applet_http_recv_yield(L, 0, 0));
 }
 
@@ -5987,18 +5979,23 @@ __LJMP static int hlua_applet_http_recv(lua_State *L)
 __LJMP static int hlua_applet_http_send_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct stconn *sc = appctx_sc(luactx->appctx);
-	struct channel *res = sc_ic(sc);
-	struct htx *htx = htx_from_buf(&res->buf);
+	struct buffer *outbuf;
+	struct htx *htx;
 	const char *data;
 	size_t len;
 	int l = MAY_LJMP(luaL_checkinteger(L, 3));
 	int max;
 
-	max = htx_get_max_blksz(htx, channel_htx_recv_max(res, htx));
+	outbuf = applet_get_outbuf(luactx->appctx);
+	if (!outbuf)
+		goto snd_yield;
+
+	/* Get the max amount of data which can be written */
+	max = applet_htx_output_room(luactx->appctx);
 	if (!max)
 		goto snd_yield;
 
+	htx = htx_from_buf(outbuf);
 	data = MAY_LJMP(luaL_checklstring(L, 2, &len));
 
 	/* Get the max amount of data which can write as input in the channel. */
@@ -6007,7 +6004,6 @@ __LJMP static int hlua_applet_http_send_yield(lua_State *L, int status, lua_KCon
 
 	/* Copy data. */
 	max = htx_add_data(htx, ist2(data + l, max));
-	channel_add_input(res, max);
 
 	/* update counters. */
 	l += max;
@@ -6018,13 +6014,14 @@ __LJMP static int hlua_applet_http_send_yield(lua_State *L, int status, lua_KCon
 	 * applet, and returns a yield.
 	 */
 	if (l < len) {
+		applet_fl_set(luactx->appctx, APPCTX_FL_OUTBLK_FULL);
 	  snd_yield:
-		htx_to_buf(htx, &res->buf);
-		sc_need_room(sc, channel_recv_max(res) + 1);
+		applet_have_more_data(luactx->appctx);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_send_yield, TICK_ETERNITY, 0));
+		return 0;
 	}
 
-	htx_to_buf(htx, &res->buf);
+	htx_to_buf(htx, outbuf);
 	return 1;
 }
 
@@ -6124,8 +6121,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 	struct hlua_http_ctx *http_ctx = luactx->appctx->svcctx;
-	struct stconn *sc = appctx_sc(luactx->appctx);
-	struct channel *res = sc_ic(sc);
+	struct buffer *outbuf;
 	struct htx *htx;
 	struct htx_sl *sl;
 	struct h1m h1m;
@@ -6134,8 +6130,11 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 	size_t nlen, vlen;
         unsigned int flags;
 
+	/* outbuf is already allocated in hlua_applet_http_start_response() */
+	outbuf = DISGUISE(applet_get_outbuf(luactx->appctx));
+
 	/* Send the message at once. */
-	htx = htx_from_buf(&res->buf);
+	htx = htx_from_buf(outbuf);
 	h1m_init_res(&h1m);
 
 	/* Use the same http version than the request. */
@@ -6302,20 +6301,19 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 		WILL_LJMP(lua_error(L));
 	}
 
-	if (htx_used_space(htx) > b_size(&res->buf) - global.tune.maxrewrite) {
-		b_reset(&res->buf);
+	if (htx_used_space(htx) > b_size(outbuf) - global.tune.maxrewrite) {
+		b_reset(outbuf);
 		hlua_pusherror(L, "Lua: 'start_response': response header block too big");
 		WILL_LJMP(lua_error(L));
 	}
 
-	htx_to_buf(htx, &res->buf);
-	channel_add_input(res, htx->data);
+	htx_to_buf(htx, outbuf);
 
 	/* Headers sent, set the flag. */
 	http_ctx->flags |= APPLET_HDR_SENT;
 	return 0;
-
 }
+
 /* We will build the status line and the headers of the HTTP response.
  * We will try send at once if its not possible, we give back the hand
  * waiting for more room.
@@ -6323,11 +6321,9 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 __LJMP static int hlua_applet_http_start_response_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct stconn *sc = appctx_sc(luactx->appctx);
-	struct channel *res = sc_ic(sc);
 
-	if (co_data(res)) {
-		sc_need_room(sc, -1);
+	if (!applet_get_outbuf(luactx->appctx)) {
+		applet_have_more_data(luactx->appctx);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_start_response_yield, TICK_ETERNITY, 0));
 	}
 	return MAY_LJMP(hlua_applet_http_send_response(L));
@@ -6432,7 +6428,7 @@ __LJMP static int hlua_http_get_headers(lua_State *L, struct buffer *buf)
 	lua_newtable(L);
 
 
-	htx = htxbuf(&msg->chn->buf);
+	htx = htxbuf(buf);
 	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 		struct htx_blk *blk = htx_get_blk(htx, pos);
 		enum htx_blk_type type = htx_get_blk_type(blk);
@@ -11157,7 +11153,7 @@ out:
 	return;
 
 error:
-	se_fl_set(ctx->sedesc, SE_FL_ERROR);
+	applet_set_error(ctx);
 	tcp_ctx->flags |= APPLET_DONE;
 	goto out;
 }
@@ -11286,31 +11282,32 @@ void hlua_applet_http_fct(struct appctx *ctx)
 	struct hlua_http_ctx *http_ctx = ctx->svcctx;
 	struct stconn *sc = appctx_sc(ctx);
 	struct stream *strm = __sc_strm(sc);
-	struct channel *req = sc_oc(sc);
-	struct channel *res = sc_ic(sc);
 	struct proxy *px = strm->be;
 	struct hlua *hlua = http_ctx->hlua;
-	struct htx *req_htx, *res_htx;
+	struct buffer *outbuf;
+	struct htx *res_htx;
 	const char *error;
 	int yield = 0;
 
-	res_htx = htx_from_buf(&res->buf);
 
-	if (unlikely(se_fl_test(ctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW))))
+	if (unlikely(applet_fl_test(ctx, APPCTX_FL_EOS|APPCTX_FL_ERROR)))
 		goto out;
 
 	/* The applet execution is already done. */
 	if (http_ctx->flags & APPLET_DONE)
 		goto out;
 
-	/* Check if the input buffer is available. */
-	if (!b_size(&res->buf)) {
-		sc_need_room(sc, 0);
+	outbuf = applet_get_outbuf(ctx);
+	if (!outbuf) {
+		applet_have_more_data(ctx);
+		yield = 1;
 		goto out;
 	}
 
 	/* Set the currently running flag. */
 	if (!HLUA_IS_RUNNING(hlua)) {
+		struct buffer *inbuf;
+		struct htx *req_htx;
 		struct htx_blk *blk;
 		struct htx_sl *sl;
 		struct ist path;
@@ -11319,8 +11316,10 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		struct http_uri_parser parser;
 		int app_idx = 1 - hlua->nargs; /* index of the HTTP applet object in the lua stask */
 
-		if (!co_data(req)) {
+		inbuf = applet_get_inbuf(ctx);
+		if (!inbuf) {
 			applet_need_more_data(ctx);
+			yield = 1;
 			goto out;
 		}
 
@@ -11335,7 +11334,7 @@ void hlua_applet_http_fct(struct appctx *ctx)
 			goto error;
 		}
 
-		req_htx = htx_from_buf(&req->buf);
+		req_htx = htx_from_buf(inbuf);
 
 		blk = htx_get_first_blk(req_htx);
 		BUG_ON(!blk || htx_get_blk_type(blk) != HTX_BLK_REQ_SL);
@@ -11355,7 +11354,7 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		 * the array on the top of the stack.
 		 */
 		lua_pushstring(hlua->T, "headers");
-		if (!hlua_http_get_headers(hlua->T, &strm->req.buf))
+		if (!hlua_http_get_headers(hlua->T, inbuf))
 			goto error;
 		lua_settable(hlua->T, app_idx - 3);
 
@@ -11414,6 +11413,9 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		/* finished. */
 		case HLUA_E_OK:
 			http_ctx->flags |= APPLET_DONE;
+
+			/* Restart to consume to drain the request */
+			applet_will_consume(ctx);
 			break;
 
 		/* yield. */
@@ -11475,34 +11477,28 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		 * this case) to have something to send. It is important to be
 		 * sure the EOM flags will be handled by the endpoint.
 		 */
-		if (htx_is_empty(res_htx) && (strm->txn->rsp.flags & (HTTP_MSGF_XFER_LEN|HTTP_MSGF_CNT_LEN)) == HTTP_MSGF_XFER_LEN) {
+		res_htx = htx_from_buf(outbuf);
+		if (htx_is_empty(res_htx)) {
 			if (!htx_add_endof(res_htx, HTX_BLK_EOT)) {
-				sc_need_room(sc, sizeof(struct htx_blk)+1);
+				applet_have_more_data(ctx);
+				yield = 1;
 				goto out;
 			}
-			channel_add_input(res, 1);
 		}
-
 		res_htx->flags |= HTX_FL_EOM;
-		se_fl_set(ctx->sedesc, SE_FL_EOI|SE_FL_EOS);
-		strm->txn->status = http_ctx->status;
+		htx_to_buf(res_htx, outbuf);
+		applet_set_eoi(ctx);
 		http_ctx->flags |= APPLET_RSP_SENT;
 	}
 
   out:
-	htx_to_buf(res_htx, &res->buf);
-
 	/* eat the whole request unless yield was requested which means
 	 * we are not done yet
 	 */
 	if (yield)
 		return;
 
-	if (co_data(req)) {
-		req_htx = htx_from_buf(&req->buf);
-		co_htx_skip(req, req_htx, co_data(req));
-		htx_to_buf(req_htx, &req->buf);
-	}
+	applet_reset_input(ctx);
 	return;
 
   error:
@@ -11515,15 +11511,16 @@ void hlua_applet_http_fct(struct appctx *ctx)
 	if (!(http_ctx->flags & APPLET_HDR_SENT)) {
 		struct buffer *err = &http_err_chunks[HTTP_ERR_500];
 
-		channel_erase(res);
-		res->buf.data = b_data(err);
-                memcpy(res->buf.area, b_head(err), b_data(err));
-                res_htx = htx_from_buf(&res->buf);
-		channel_add_input(res, res_htx->data);
-		se_fl_set(ctx->sedesc, SE_FL_EOI|SE_FL_EOS);
+		res_htx = htx_from_buf(outbuf);
+		htx_reset(res_htx);
+		outbuf->data = b_data(err);
+		memcpy(ctx->outbuf.area, b_head(err), b_data(err));
+		res_htx = htx_from_buf(outbuf);
+		applet_set_eoi(ctx);
+		applet_set_eos(ctx);
 	}
 	else
-		se_fl_set(ctx->sedesc, SE_FL_ERROR);
+		applet_set_error(ctx);
 
 	if (!(strm->flags & SF_ERR_MASK))
 		strm->flags |= SF_ERR_RESOURCE;
@@ -11636,6 +11633,8 @@ static enum act_parse_ret action_register_service_http(const char **args, int *c
 	rule->applet.obj_type = OBJ_TYPE_APPLET;
 	rule->applet.name = fcn->name;
 	rule->applet.init = hlua_applet_http_init;
+	rule->applet.rcv_buf = appctx_htx_rcv_buf;
+	rule->applet.snd_buf = appctx_htx_snd_buf;
 	rule->applet.fct = hlua_applet_http_fct;
 	rule->applet.release = hlua_applet_http_release;
 	rule->applet.timeout = hlua_timeout_applet;
