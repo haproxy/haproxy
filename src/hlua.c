@@ -2969,7 +2969,16 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	}
 
 	/* Consume data. */
-	co_skip(oc, len + skip_at_end);
+	if (len + skip_at_end) {
+		co_skip(oc, len + skip_at_end);
+		oc->flags |= CF_WRITE_EVENT | CF_WROTE_DATA;
+		if (s->scb->room_needed < 0 || channel_recv_max(oc) >= s->scb->room_needed)
+			sc_have_room(s->scb);
+		sc_ep_report_send_activity(s->scf);
+	}
+	else if (!s->scb->room_needed)
+		sc_have_room(s->scb);
+
 
 	/* Don't wait anything. */
 	applet_will_consume(appctx);
