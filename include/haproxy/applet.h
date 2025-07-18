@@ -324,8 +324,10 @@ static inline size_t applet_input_data(const struct appctx *appctx)
  */
 static inline void applet_skip_input(struct appctx *appctx, size_t len)
 {
-	if (appctx->flags & APPCTX_FL_INOUT_BUFS)
+	if (appctx->flags & APPCTX_FL_INOUT_BUFS) {
 		b_del(&appctx->inbuf, len);
+		applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
+	}
 	else
 		co_skip(sc_oc(appctx_sc(appctx)), len);
 }
