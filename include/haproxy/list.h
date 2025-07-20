@@ -97,7 +97,7 @@
  * since it's used only once.
  * Example: LIST_ELEM(cur_node->args.next, struct node *, args)
  */
-#define LIST_ELEM(lh, pt, el) ((pt)(((const char *)(lh)) - ((size_t)&((pt)NULL)->el)))
+#define LIST_ELEM(lh, pt, el) ((pt)(((const char *)(lh)) - offsetof(typeof(*(pt)NULL), el)))
 
 /* checks if the list head <lh> is empty or not */
 #define LIST_ISEMPTY(lh) ((lh)->n == (lh))
