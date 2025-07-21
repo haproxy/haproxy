@@ -34,7 +34,9 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
 #include <haproxy/clock.h>
+#ifdef USE_CPU_AFFINITY
 #include <haproxy/cpu_topo.h>
+#endif
 #include <haproxy/debug.h>
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
@@ -751,8 +753,9 @@ static int debug_parse_cli_show_dev(char **args, char *payload, struct appctx *a
 	chunk_appendf(&trash, "  %-22s  %-11s  %-11s \n", "    ram limit (hard):",
 		LIM2A(normalize_rlim((ulong)post_mortem.process.boot_lim_ram.rlim_max), "unlimited"),
 		LIM2A(normalize_rlim((ulong)post_mortem.process.run_lim_ram.rlim_max), "unlimited"));
-
+#ifdef USE_CPU_AFFINITY
 	cpu_topo_dump_summary(ha_cpu_topo, &trash);
+#endif
 
 	ha_free(&err);
 
