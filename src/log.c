@@ -6837,7 +6837,7 @@ static int px_parse_log_steps(char **args, int section_type, struct proxy *curpx
 
 	while (str[0]) {
 		struct eb32_node *cur_step;
-		enum log_orig_id cur_id;
+		enum log_orig_id cur_id = LOG_ORIG_UNSPEC;
 
 		cur_sep = strcspn(str, ",");
 
@@ -6862,14 +6862,16 @@ static int px_parse_log_steps(char **args, int section_type, struct proxy *curpx
 				}
 			}
 
-			memprintf(err,
-			          "invalid log step name (%.*s). Expected values are: "
-			          "accept, request, connect, response, close",
-			          (int)cur_sep, str);
-                        list_for_each_entry(cur, &log_origins, list)
-				memprintf(err, "%s, %s", *err, cur->name);
+			if (cur_id == LOG_ORIG_UNSPEC) {
+				memprintf(err,
+				          "invalid log step name (%.*s). Expected values are: "
+				          "accept, request, connect, response, close",
+				          (int)cur_sep, str);
+				list_for_each_entry(cur, &log_origins, list)
+					memprintf(err, "%s, %s", *err, cur->name);
 
-			goto end;
+				goto end;
+			}
 		}
 
 		cur_step = malloc(sizeof(*cur_step));
