@@ -832,6 +832,7 @@ static int dns_session_init(struct appctx *appctx)
 
 	applet_expect_no_data(appctx);
 	ds->appctx = appctx;
+	appctx->t->expire = TICK_ETERNITY;
 	return 0;
 
   error:
