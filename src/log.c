@@ -5838,14 +5838,19 @@ static void syslog_io_handler(struct appctx *appctx)
 	struct stream *s = __sc_strm(sc);
 	struct proxy *frontend = strm_fe(s);
 	struct listener *l = strm_li(s);
-	struct buffer *buf = get_trash_chunk();
+	struct buffer *inbuf, *buf = get_trash_chunk();
 	struct connection *conn;
 	int max_accept;
 	int to_skip;
 
-	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR)))) {
-		co_skip(sc_oc(sc), co_data(sc_oc(sc)));
+	if (unlikely(applet_fl_test(appctx, APPCTX_FL_EOS|APPCTX_FL_ERROR))) {
+		applet_reset_input(appctx);
 		goto out;
+	}
+
+	inbuf = applet_get_inbuf(appctx);
+	if (inbuf == NULL || !applet_input_data(appctx)) {
+		goto missing_data;
 	}
 
 	max_accept = l->bind_conf->maxaccept ? l->bind_conf->maxaccept : 1;
@@ -5857,7 +5862,7 @@ static void syslog_io_handler(struct appctx *appctx)
 			goto missing_budget;
 		max_accept--;
 
-		to_skip = co_getchar(sc_oc(sc), &c);
+		to_skip = applet_getchar(appctx, &c);
 		if (!to_skip)
 			goto missing_data;
 		else if (to_skip < 0)
@@ -5867,7 +5872,7 @@ static void syslog_io_handler(struct appctx *appctx)
 			/* rfc-6587, Non-Transparent-Framing: messages separated by
 			 * a trailing LF or CR LF
 			 */
-			to_skip = co_getline(sc_oc(sc), buf->area, buf->size);
+			to_skip = applet_getline(appctx, buf->area, buf->size);
 			if (!to_skip)
 				goto missing_data;
 			else if (to_skip < 0)
@@ -5891,7 +5896,7 @@ static void syslog_io_handler(struct appctx *appctx)
 			char *p = NULL;
 			int msglen;
 
-			to_skip = co_getword(sc_oc(sc), buf->area, buf->size, ' ');
+			to_skip = applet_getword(appctx, buf->area, buf->size, ' ');
 			if (!to_skip)
 				goto missing_data;
 			else if (to_skip < 0)
@@ -5908,7 +5913,7 @@ static void syslog_io_handler(struct appctx *appctx)
 			if (msglen > buf->size)
 				goto parse_error;
 
-			msglen = co_getblk(sc_oc(sc), buf->area, msglen, to_skip);
+			msglen = applet_getblk(appctx, buf->area, msglen, to_skip);
 			if (!msglen)
 				goto missing_data;
 			else if (msglen < 0)
@@ -5921,7 +5926,7 @@ static void syslog_io_handler(struct appctx *appctx)
 		else
 			goto parse_error;
 
-		co_skip(sc_oc(sc), to_skip);
+		applet_skip_input(appctx, to_skip);
 
 		conn = sc_conn(s->scf);
 		if (conn && conn_get_src(conn))
@@ -5953,7 +5958,8 @@ cli_abort:
 	_HA_ATOMIC_INC(&frontend->fe_counters.shared->tg[tgid - 1]->cli_aborts);
 
 error:
-	se_fl_set(appctx->sedesc, SE_FL_ERROR);
+	applet_set_eos(appctx);
+	applet_set_error(appctx);
 
 out:
 	return;
@@ -5963,6 +5969,8 @@ static struct applet syslog_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<SYSLOG>", /* used for logging */
 	.fct = syslog_io_handler,
+	.rcv_buf = appctx_raw_rcv_buf,
+	.snd_buf = appctx_raw_snd_buf,
 	.release = NULL,
 };
 
