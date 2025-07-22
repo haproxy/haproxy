@@ -3751,6 +3751,7 @@ static void qmux_strm_detach(struct sedesc *sd)
 	struct qcs *qcs = sd->se;
 	struct qcc *qcc = qcs->qcc;
 	struct connection *conn = qcc->conn;
+	struct session *sess = qcs->sess;
 
 	TRACE_ENTER(QMUX_EV_STRM_END, conn, qcs);
 
@@ -3780,7 +3781,32 @@ static void qmux_strm_detach(struct sedesc *sd)
 	/* Backend connection can be reused unless it is already on error/closed. */
 	if ((qcc->flags & QC_CF_IS_BACK) && !qcc_is_dead(qcc) &&
 	    qcc->app_st == QCC_APP_ST_INIT) {
-		if (!(conn->flags & CO_FL_PRIVATE)) {
+		if (conn->flags & CO_FL_PRIVATE) {
+			TRACE_DEVEL("handle private connection reuse", QMUX_EV_STRM_END, conn);
+
+			/* Add connection into session. If an error occured,
+			 * conn will be closed if idle, or insert will be
+			 * retried on next detach.
+			 */
+			if (!session_add_conn(sess, conn, conn->target)) {
+				TRACE_ERROR("error during connection insert into session list", QMUX_EV_STRM_END, conn);
+				conn->owner = NULL;
+				if (!qcc->nb_sc) {
+					qcc_shutdown(qcc);
+					goto end;
+				}
+			}
+
+			/* If conn is idle, check if session can keep it. Conn is freed if this is not the case.
+			 * TODO graceful shutdown should be preferable instead of plain mux->destroy().
+			 */
+			if (!qcc->nb_sc && session_check_idle_conn(sess, conn)) {
+				TRACE_DEVEL("idle conn rejected by session", QMUX_EV_STRM_END);
+				conn = NULL;
+				goto end;
+			}
+		}
+		else {
 			if (!qcc->nb_sc) {
 				TRACE_DEVEL("prepare for idle connection reuse", QMUX_EV_STRM_END, conn);
 				if (!srv_add_to_idle_list(objt_server(conn->target), conn, 1)) {
