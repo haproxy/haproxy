@@ -654,13 +654,10 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 				if (!co_data(res))
 					goto out;
 				htx = htxbuf(&res->buf);
-				if (htx_is_empty(htx))
-					goto out;
-				blk = htx_get_head_blk(htx);
-				if (blk && (htx_get_blk_type(blk) == HTX_BLK_RES_SL))
-					sl = htx_get_blk_ptr(htx, blk);
-				if (!sl || (!(sl->flags & HTX_SL_F_IS_RESP)))
-					goto out;
+				if (htx_get_first_type(htx) != HTX_BLK_RES_SL)
+					goto error;
+				blk = DISGUISE(htx_get_head_blk(htx));
+                                sl = htx_get_blk_ptr(htx, blk);
 
 				/* Skipp any 1XX interim responses */
 				if (sl->info.res.status < 200) {
