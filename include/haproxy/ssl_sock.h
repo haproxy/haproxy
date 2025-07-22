@@ -70,6 +70,7 @@ int ssl_sock_get_alpn(const struct connection *conn, void *xprt_ctx,
                       const char **str, int *len);
 int ssl_bio_and_sess_init(struct connection *conn, SSL_CTX *ssl_ctx,
                           SSL **ssl, BIO **bio, BIO_METHOD *bio_meth, void *ctx);
+void ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv);
 const char *ssl_sock_get_sni(struct connection *conn);
 const char *ssl_sock_get_cert_sig(struct connection *conn);
 const char *ssl_sock_get_cipher_name(struct connection *conn);
