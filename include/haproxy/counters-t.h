@@ -92,7 +92,7 @@ struct fe_counters_shared {
 };
 
 struct fe_counters {
-	struct fe_counters_shared *shared;      /* shared counters */
+	struct fe_counters_shared shared;       /* shared counters */
 	unsigned int conn_max;                  /* max # of active sessions */
 
 	unsigned int cps_max;                   /* maximum of new connections received per second */
@@ -145,7 +145,7 @@ struct be_counters_shared {
 
 /* counters used by servers and backends */
 struct be_counters {
-	struct be_counters_shared *shared;      /* shared counters */
+	struct be_counters_shared shared;       /* shared counters */
 	unsigned int conn_max;                  /* max # of active sessions */
 
 	unsigned int cps_max;                   /* maximum of new connections received per second */

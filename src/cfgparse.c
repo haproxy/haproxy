@@ -4281,8 +4281,7 @@ init_proxies_list_stage2:
 			if (curproxy->options2 & PR_O2_SOCKSTAT) {
 				listener->counters = calloc(1, sizeof(*listener->counters));
 				if (listener->counters) {
-					listener->counters->shared = counters_fe_shared_get(&listener->guid);
-					if (!listener->counters->shared) {
+					if (!counters_fe_shared_prepare(&listener->counters->shared, &listener->guid)) {
 						ha_free(&listener->counters);
 						ha_alert("config: %s '%s': out of memory.\n",
 							 proxy_type_str(curproxy), curproxy->id);

@@ -222,8 +222,8 @@ static inline void proxy_free_common(struct proxy *px)
 	ha_free(&px->id);
 	LIST_DEL_INIT(&px->global_list);
 	drop_file_name(&px->conf.file);
-	counters_fe_shared_drop(px->fe_counters.shared);
-	counters_be_shared_drop(px->be_counters.shared);
+	counters_fe_shared_drop(&px->fe_counters.shared);
+	counters_be_shared_drop(&px->be_counters.shared);
 	ha_free(&px->check_command);
 	ha_free(&px->check_path);
 	ha_free(&px->cookie_name);
@@ -402,7 +402,7 @@ void deinit_proxy(struct proxy *p)
 		free(l->label);
 		free(l->per_thr);
 		if (l->counters) {
-			counters_fe_shared_drop(l->counters->shared);
+			counters_fe_shared_drop(&l->counters->shared);
 			free(l->counters);
 		}
 		task_destroy(l->rx.rhttp.task);
@@ -1710,8 +1710,8 @@ int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char *
 
 	ha_free(&px->defsrv);
 	ha_free(&px->id);
-	counters_fe_shared_drop(px->fe_counters.shared);
-	counters_be_shared_drop(px->be_counters.shared);
+	counters_fe_shared_drop(&px->fe_counters.shared);
+	counters_be_shared_drop(&px->be_counters.shared);
 
 	return 0;
 }
@@ -1756,8 +1756,7 @@ static int proxy_postcheck(struct proxy *px)
 	 * proxy postparsing, see proxy_postparse()
 	 */
 	if (px->cap & PR_CAP_FE) {
-		px->fe_counters.shared = counters_fe_shared_get(&px->guid);
-		if (!px->fe_counters.shared) {
+		if (!counters_fe_shared_prepare(&px->fe_counters.shared, &px->guid)) {
 			ha_alert("out of memory while setting up shared counters for %s %s\n",
 			         proxy_type_str(px), px->id);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -1769,8 +1768,7 @@ static int proxy_postcheck(struct proxy *px)
 		 * be_counters may be used even if the proxy lacks the backend
 		 * capability
 		 */
-		px->be_counters.shared = counters_be_shared_get(&px->guid);
-		if (!px->be_counters.shared) {
+		if (!counters_be_shared_init(&px->be_counters.shared, &px->guid)) {
 			ha_alert("out of memory while setting up shared counters for %s %s\n",
 			         proxy_type_str(px), px->id);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -2124,9 +2122,9 @@ void proxy_cond_disable(struct proxy *p)
 	 * the data plane but on the control plane.
 	 */
 	if (p->cap & PR_CAP_FE)
-		cum_conn = COUNTERS_SHARED_TOTAL(p->fe_counters.shared->tg, cum_conn, HA_ATOMIC_LOAD);
+		cum_conn = COUNTERS_SHARED_TOTAL(p->fe_counters.shared.tg, cum_conn, HA_ATOMIC_LOAD);
 	if (p->cap & PR_CAP_BE)
-		cum_sess = COUNTERS_SHARED_TOTAL(p->be_counters.shared->tg, cum_sess, HA_ATOMIC_LOAD);
+		cum_sess = COUNTERS_SHARED_TOTAL(p->be_counters.shared.tg, cum_sess, HA_ATOMIC_LOAD);
 
 	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP || p->mode == PR_MODE_SYSLOG || p->mode == PR_MODE_SPOP) && !(p->cap & PR_CAP_INT))
 		ha_warning("Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
@@ -2221,7 +2219,7 @@ struct task *manage_proxy(struct task *t, void *context, unsigned int state)
 		goto out;
 
 	if (p->fe_sps_lim &&
-	    (wait = COUNTERS_SHARED_TOTAL_ARG2(p->fe_counters.shared->tg, sess_per_sec, next_event_delay, p->fe_sps_lim, 0))) {
+	    (wait = COUNTERS_SHARED_TOTAL_ARG2(p->fe_counters.shared.tg, sess_per_sec, next_event_delay, p->fe_sps_lim, 0))) {
 
 		/* we're blocking because a limit was reached on the number of
 		 * requests/s on the frontend. We want to re-check ASAP, which

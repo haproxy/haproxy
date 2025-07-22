@@ -135,10 +135,10 @@ static inline void proxy_reset_timeouts(struct proxy *proxy)
 /* increase the number of cumulated connections received on the designated frontend */
 static inline void proxy_inc_fe_conn_ctr(struct listener *l, struct proxy *fe)
 {
-	_HA_ATOMIC_INC(&fe->fe_counters.shared->tg[tgid - 1]->cum_conn);
+	_HA_ATOMIC_INC(&fe->fe_counters.shared.tg[tgid - 1]->cum_conn);
 	if (l && l->counters)
-		_HA_ATOMIC_INC(&l->counters->shared->tg[tgid - 1]->cum_conn);
-	update_freq_ctr(&fe->fe_counters.shared->tg[tgid - 1]->conn_per_sec, 1);
+		_HA_ATOMIC_INC(&l->counters->shared.tg[tgid - 1]->cum_conn);
+	update_freq_ctr(&fe->fe_counters.shared.tg[tgid - 1]->conn_per_sec, 1);
 	HA_ATOMIC_UPDATE_MAX(&fe->fe_counters.cps_max,
 	                     update_freq_ctr(&fe->fe_counters._conn_per_sec, 1));
 }
@@ -147,10 +147,10 @@ static inline void proxy_inc_fe_conn_ctr(struct listener *l, struct proxy *fe)
 static inline void proxy_inc_fe_sess_ctr(struct listener *l, struct proxy *fe)
 {
 
-	_HA_ATOMIC_INC(&fe->fe_counters.shared->tg[tgid - 1]->cum_sess);
+	_HA_ATOMIC_INC(&fe->fe_counters.shared.tg[tgid - 1]->cum_sess);
 	if (l && l->counters)
-		_HA_ATOMIC_INC(&l->counters->shared->tg[tgid - 1]->cum_sess);
-	update_freq_ctr(&fe->fe_counters.shared->tg[tgid - 1]->sess_per_sec, 1);
+		_HA_ATOMIC_INC(&l->counters->shared.tg[tgid - 1]->cum_sess);
+	update_freq_ctr(&fe->fe_counters.shared.tg[tgid - 1]->sess_per_sec, 1);
 	HA_ATOMIC_UPDATE_MAX(&fe->fe_counters.sps_max,
 			     update_freq_ctr(&fe->fe_counters._sess_per_sec, 1));
 }
@@ -162,19 +162,19 @@ static inline void proxy_inc_fe_cum_sess_ver_ctr(struct listener *l, struct prox
                                                  unsigned int http_ver)
 {
 	if (http_ver == 0 ||
-	    http_ver > sizeof(fe->fe_counters.shared->tg[tgid - 1]->cum_sess_ver) / sizeof(*fe->fe_counters.shared->tg[tgid - 1]->cum_sess_ver))
+	    http_ver > sizeof(fe->fe_counters.shared.tg[tgid - 1]->cum_sess_ver) / sizeof(*fe->fe_counters.shared.tg[tgid - 1]->cum_sess_ver))
 	    return;
 
-	_HA_ATOMIC_INC(&fe->fe_counters.shared->tg[tgid - 1]->cum_sess_ver[http_ver - 1]);
+	_HA_ATOMIC_INC(&fe->fe_counters.shared.tg[tgid - 1]->cum_sess_ver[http_ver - 1]);
 	if (l && l->counters)
-		_HA_ATOMIC_INC(&l->counters->shared->tg[tgid - 1]->cum_sess_ver[http_ver - 1]);
+		_HA_ATOMIC_INC(&l->counters->shared.tg[tgid - 1]->cum_sess_ver[http_ver - 1]);
 }
 
 /* increase the number of cumulated streams on the designated backend */
 static inline void proxy_inc_be_ctr(struct proxy *be)
 {
-	_HA_ATOMIC_INC(&be->be_counters.shared->tg[tgid - 1]->cum_sess);
-	update_freq_ctr(&be->be_counters.shared->tg[tgid - 1]->sess_per_sec, 1);
+	_HA_ATOMIC_INC(&be->be_counters.shared.tg[tgid - 1]->cum_sess);
+	update_freq_ctr(&be->be_counters.shared.tg[tgid - 1]->sess_per_sec, 1);
 	HA_ATOMIC_UPDATE_MAX(&be->be_counters.sps_max,
 			     update_freq_ctr(&be->be_counters._sess_per_sec, 1));
 }
@@ -186,13 +186,13 @@ static inline void proxy_inc_be_ctr(struct proxy *be)
 static inline void proxy_inc_fe_req_ctr(struct listener *l, struct proxy *fe,
                                         unsigned int http_ver)
 {
-	if (http_ver >= sizeof(fe->fe_counters.shared->tg[tgid - 1]->p.http.cum_req) / sizeof(*fe->fe_counters.shared->tg[tgid - 1]->p.http.cum_req))
+	if (http_ver >= sizeof(fe->fe_counters.shared.tg[tgid - 1]->p.http.cum_req) / sizeof(*fe->fe_counters.shared.tg[tgid - 1]->p.http.cum_req))
 	    return;
 
-	_HA_ATOMIC_INC(&fe->fe_counters.shared->tg[tgid - 1]->p.http.cum_req[http_ver]);
+	_HA_ATOMIC_INC(&fe->fe_counters.shared.tg[tgid - 1]->p.http.cum_req[http_ver]);
 	if (l && l->counters)
-		_HA_ATOMIC_INC(&l->counters->shared->tg[tgid - 1]->p.http.cum_req[http_ver]);
-	update_freq_ctr(&fe->fe_counters.shared->tg[tgid - 1]->req_per_sec, 1);
+		_HA_ATOMIC_INC(&l->counters->shared.tg[tgid - 1]->p.http.cum_req[http_ver]);
+	update_freq_ctr(&fe->fe_counters.shared.tg[tgid - 1]->req_per_sec, 1);
 	HA_ATOMIC_UPDATE_MAX(&fe->fe_counters.p.http.rps_max,
 	                     update_freq_ctr(&fe->fe_counters.p.http._req_per_sec, 1));
 }

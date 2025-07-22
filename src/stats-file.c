@@ -281,7 +281,7 @@ static int parse_stat_line(struct ist line,
 			if (!(px->cap & PR_CAP_FE))
 				return 0; /* silently ignored fe/be mismatch */
 
-			base_off_shared = (char *)px->fe_counters.shared->tg[0];
+			base_off_shared = (char *)px->fe_counters.shared.tg[0];
 			base_off = (char *)&px->fe_counters;
 
 			off = 0;
@@ -290,7 +290,7 @@ static int parse_stat_line(struct ist line,
 			if (!(px->cap & PR_CAP_BE))
 				return 0; /* silently ignored fe/be mismatch */
 
-			base_off_shared = (char *)px->be_counters.shared->tg[0];
+			base_off_shared = (char *)px->be_counters.shared.tg[0];
 			base_off = (char *)&px->be_counters;
 
 			off = 1;
@@ -310,7 +310,7 @@ static int parse_stat_line(struct ist line,
 		if (!li->counters)
 			return 0;
 
-		base_off_shared = (char *)li->counters->shared->tg[0];
+		base_off_shared = (char *)li->counters->shared.tg[0];
 		base_off = (char *)li->counters;
 
 		off = 0;
@@ -321,7 +321,7 @@ static int parse_stat_line(struct ist line,
 			goto err;
 
 		srv = __objt_server(node->obj_type);
-		base_off_shared = (char *)srv->counters.shared->tg[0];
+		base_off_shared = (char *)srv->counters.shared.tg[0];
 		base_off = (char *)&srv->counters;
 
 		off = 1;

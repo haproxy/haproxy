@@ -819,7 +819,7 @@ static void sig_dump_state(struct sig_handler *sh)
 			             "SIGHUP: Server %s/%s is %s. Conn: %d act, %d pend, %llu tot.",
 			             p->id, s->id,
 			             (s->cur_state != SRV_ST_STOPPED) ? "UP" : "DOWN",
-			             s->cur_sess, s->queueslength, (ullong)COUNTERS_SHARED_TOTAL(s->counters.shared->tg, cum_sess, HA_ATOMIC_LOAD));
+			             s->cur_sess, s->queueslength, (ullong)COUNTERS_SHARED_TOTAL(s->counters.shared.tg, cum_sess, HA_ATOMIC_LOAD));
 			ha_warning("%s\n", trash.area);
 			send_log(p, LOG_NOTICE, "%s\n", trash.area);
 			s = s->next;
@@ -830,19 +830,19 @@ static void sig_dump_state(struct sig_handler *sh)
 			chunk_printf(&trash,
 			             "SIGHUP: Proxy %s has no servers. Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %llu+%llu.",
 			             p->id,
-			             p->feconn, p->beconn, p->totpend, p->queueslength, (ullong)COUNTERS_SHARED_TOTAL(p->fe_counters.shared->tg, cum_conn, HA_ATOMIC_LOAD), (ullong)COUNTERS_SHARED_TOTAL(p->be_counters.shared->tg, cum_sess, HA_ATOMIC_LOAD));
+			             p->feconn, p->beconn, p->totpend, p->queueslength, (ullong)COUNTERS_SHARED_TOTAL(p->fe_counters.shared.tg, cum_conn, HA_ATOMIC_LOAD), (ullong)COUNTERS_SHARED_TOTAL(p->be_counters.shared.tg, cum_sess, HA_ATOMIC_LOAD));
 		} else if (p->srv_act == 0) {
 			chunk_printf(&trash,
 			             "SIGHUP: Proxy %s %s ! Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %llu+%llu.",
 			             p->id,
 			             (p->srv_bck) ? "is running on backup servers" : "has no server available",
-			             p->feconn, p->beconn, p->totpend, p->queueslength, (ullong)COUNTERS_SHARED_TOTAL(p->fe_counters.shared->tg, cum_conn, HA_ATOMIC_LOAD), (ullong)COUNTERS_SHARED_TOTAL(p->be_counters.shared->tg, cum_sess, HA_ATOMIC_LOAD));
+			             p->feconn, p->beconn, p->totpend, p->queueslength, (ullong)COUNTERS_SHARED_TOTAL(p->fe_counters.shared.tg, cum_conn, HA_ATOMIC_LOAD), (ullong)COUNTERS_SHARED_TOTAL(p->be_counters.shared.tg, cum_sess, HA_ATOMIC_LOAD));
 		} else {
 			chunk_printf(&trash,
 			             "SIGHUP: Proxy %s has %d active servers and %d backup servers available."
 			             " Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %llu+%llu.",
 			             p->id, p->srv_act, p->srv_bck,
-			             p->feconn, p->beconn, p->totpend, p->queueslength, (ullong)COUNTERS_SHARED_TOTAL(p->fe_counters.shared->tg, cum_conn, HA_ATOMIC_LOAD), (ullong)COUNTERS_SHARED_TOTAL(p->be_counters.shared->tg, cum_sess, HA_ATOMIC_LOAD));
+			             p->feconn, p->beconn, p->totpend, p->queueslength, (ullong)COUNTERS_SHARED_TOTAL(p->fe_counters.shared.tg, cum_conn, HA_ATOMIC_LOAD), (ullong)COUNTERS_SHARED_TOTAL(p->be_counters.shared.tg, cum_sess, HA_ATOMIC_LOAD));
 		}
 		ha_warning("%s\n", trash.area);
 		send_log(p, LOG_NOTICE, "%s\n", trash.area);

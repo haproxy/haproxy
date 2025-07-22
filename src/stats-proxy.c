@@ -246,9 +246,9 @@ static int stcol_hide(enum stat_idx_px idx, enum obj_type *objt)
 
 	case ST_I_PX_LASTSESS:
 		if (srv)
-			return !COUNTERS_SHARED_LAST(srv->counters.shared->tg, last_sess);
+			return !COUNTERS_SHARED_LAST(srv->counters.shared.tg, last_sess);
 		else if (px)
-			return !COUNTERS_SHARED_LAST(px->be_counters.shared->tg, last_sess);
+			return !COUNTERS_SHARED_LAST(px->be_counters.shared.tg, last_sess);
 		else
 			return 0;
 
@@ -284,7 +284,7 @@ static struct field me_generate_field(const struct stat_col *col,
 	case STATS_PX_CAP_FE:
 	case STATS_PX_CAP_LI:
 		if (col->flags & STAT_COL_FL_SHARED) {
-			counter = (char *)&((struct fe_counters *)counters)->shared->tg;
+			counter = (char *)&((struct fe_counters *)counters)->shared.tg;
 			offset = col->metric.offset[0];
 		}
 		else
@@ -295,7 +295,7 @@ static struct field me_generate_field(const struct stat_col *col,
 	case STATS_PX_CAP_BE:
 	case STATS_PX_CAP_SRV:
 		if (col->flags & STAT_COL_FL_SHARED) {
-			counter = (char *)&((struct be_counters *)counters)->shared->tg;
+			counter = (char *)&((struct be_counters *)counters)->shared.tg;
 			offset = col->metric.offset[1];
 		}
 		else
@@ -315,13 +315,13 @@ static struct field me_generate_field(const struct stat_col *col,
 	if (idx == ST_I_PX_REQ_TOT && cap == STATS_PX_CAP_FE && !stat_file) {
 		struct proxy *px = __objt_proxy(objt);
 		const size_t nb_reqs =
-		  sizeof(px->fe_counters.shared->tg[0]->p.http.cum_req) /
-		  sizeof(*px->fe_counters.shared->tg[0]->p.http.cum_req);
+		  sizeof(px->fe_counters.shared.tg[0]->p.http.cum_req) /
+		  sizeof(*px->fe_counters.shared.tg[0]->p.http.cum_req);
 		uint64_t total_req = 0;
 		int i;
 
 		for (i = 0; i < nb_reqs; i++)
-			total_req += COUNTERS_SHARED_TOTAL(px->fe_counters.shared->tg, p.http.cum_req[i], HA_ATOMIC_LOAD);
+			total_req += COUNTERS_SHARED_TOTAL(px->fe_counters.shared.tg, p.http.cum_req[i], HA_ATOMIC_LOAD);
 		return mkf_u64(FN_COUNTER, total_req);
 	}
 
@@ -488,11 +488,11 @@ int stats_fill_fe_line(struct proxy *px, int flags, struct field *line, int len,
 				int i;
 				uint64_t total_sess;
 				size_t nb_sess =
-					sizeof(px->fe_counters.shared->tg[0]->cum_sess_ver) / sizeof(*px->fe_counters.shared->tg[0]->cum_sess_ver);
+					sizeof(px->fe_counters.shared.tg[0]->cum_sess_ver) / sizeof(*px->fe_counters.shared.tg[0]->cum_sess_ver);
 
-				total_sess = COUNTERS_SHARED_TOTAL(px->fe_counters.shared->tg, cum_sess, HA_ATOMIC_LOAD);
+				total_sess = COUNTERS_SHARED_TOTAL(px->fe_counters.shared.tg, cum_sess, HA_ATOMIC_LOAD);
 				for (i = 0; i < nb_sess; i++)
-					total_sess -= COUNTERS_SHARED_TOTAL(px->fe_counters.shared->tg, cum_sess_ver[i], HA_ATOMIC_LOAD);
+					total_sess -= COUNTERS_SHARED_TOTAL(px->fe_counters.shared.tg, cum_sess_ver[i], HA_ATOMIC_LOAD);
 
 				total_sess = (int64_t)total_sess < 0 ? 0 : total_sess;
 				field = mkf_u64(FN_COUNTER, total_sess);
@@ -828,7 +828,7 @@ int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
 	if (index == NULL || *index == ST_I_PX_QTIME ||
 	    *index == ST_I_PX_CTIME || *index == ST_I_PX_RTIME ||
 	    *index == ST_I_PX_TTIME) {
-		srv_samples_counter = (px->mode == PR_MODE_HTTP) ? COUNTERS_SHARED_TOTAL(sv->counters.shared->tg, p.http.cum_req, HA_ATOMIC_LOAD) : COUNTERS_SHARED_TOTAL(sv->counters.shared->tg, cum_lbconn, HA_ATOMIC_LOAD);
+		srv_samples_counter = (px->mode == PR_MODE_HTTP) ? COUNTERS_SHARED_TOTAL(sv->counters.shared.tg, p.http.cum_req, HA_ATOMIC_LOAD) : COUNTERS_SHARED_TOTAL(sv->counters.shared.tg, cum_lbconn, HA_ATOMIC_LOAD);
 		if (srv_samples_counter < TIME_STATS_SAMPLES && srv_samples_counter > 0)
 			srv_samples_window = srv_samples_counter;
 	}
@@ -1207,7 +1207,7 @@ int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
 	if (!index || *index == ST_I_PX_QTIME ||
 	    *index == ST_I_PX_CTIME || *index == ST_I_PX_RTIME ||
 	    *index == ST_I_PX_TTIME) {
-		be_samples_counter = (px->mode == PR_MODE_HTTP) ? COUNTERS_SHARED_TOTAL(px->be_counters.shared->tg, p.http.cum_req, HA_ATOMIC_LOAD) : COUNTERS_SHARED_TOTAL(px->be_counters.shared->tg, cum_lbconn, HA_ATOMIC_LOAD);
+		be_samples_counter = (px->mode == PR_MODE_HTTP) ? COUNTERS_SHARED_TOTAL(px->be_counters.shared.tg, p.http.cum_req, HA_ATOMIC_LOAD) : COUNTERS_SHARED_TOTAL(px->be_counters.shared.tg, cum_lbconn, HA_ATOMIC_LOAD);
 		if (be_samples_counter < TIME_STATS_SAMPLES && be_samples_counter > 0)
 			be_samples_window = be_samples_counter;
 	}

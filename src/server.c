@@ -3131,7 +3131,7 @@ void srv_free_params(struct server *srv)
 	free(srv->tcp_md5sig);
 	free(srv->addr_node.key);
 	free(srv->lb_nodes);
-	counters_be_shared_drop(srv->counters.shared);
+	counters_be_shared_drop(&srv->counters.shared);
 	if (srv->log_target) {
 		deinit_log_target(srv->log_target);
 		free(srv->log_target);
@@ -3450,8 +3450,7 @@ int srv_init(struct server *srv)
 	if (err_code & ERR_CODE)
 		goto out;
 
-	srv->counters.shared = counters_be_shared_get(&srv->guid);
-	if (!srv->counters.shared) {
+	if (!counters_be_shared_init(&srv->counters.shared, &srv->guid)) {
 		ha_alert("memory error while setting up shared counters for %s/%s server\n", srv->proxy->id, srv->id);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
@@ -7115,7 +7114,7 @@ static void srv_update_status(struct server *s, int type, int cause)
 		}
 		else if (s->cur_state == SRV_ST_STOPPED) {
 			/* server was up and is currently down */
-			HA_ATOMIC_INC(&s->counters.shared->tg[tgid - 1]->down_trans);
+			HA_ATOMIC_INC(&s->counters.shared.tg[tgid - 1]->down_trans);
 			_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_DOWN, cb_data.common, s);
 		}
 
@@ -7127,7 +7126,7 @@ static void srv_update_status(struct server *s, int type, int cause)
 			HA_ATOMIC_STORE(&s->proxy->ready_srv, NULL);
 
 		s->last_change = ns_to_sec(now_ns);
-		HA_ATOMIC_STORE(&s->counters.shared->tg[tgid - 1]->last_state_change, s->last_change);
+		HA_ATOMIC_STORE(&s->counters.shared.tg[tgid - 1]->last_state_change, s->last_change);
 
 		/* publish the state change */
 		_srv_event_hdl_prepare_state(&cb_data.state,
@@ -7147,7 +7146,7 @@ static void srv_update_status(struct server *s, int type, int cause)
 		if (last_change < ns_to_sec(now_ns))         // ignore negative times
 			s->proxy->down_time += ns_to_sec(now_ns) - last_change;
 		s->proxy->last_change = ns_to_sec(now_ns);
-		HA_ATOMIC_STORE(&s->proxy->be_counters.shared->tg[tgid - 1]->last_state_change, s->proxy->last_change);
+		HA_ATOMIC_STORE(&s->proxy->be_counters.shared.tg[tgid - 1]->last_state_change, s->proxy->last_change);
 	}
 }
 

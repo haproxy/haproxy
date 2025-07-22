@@ -38,7 +38,6 @@ static void _counters_shared_drop(void *counters)
 		free(shared->tg[it]);
 		it += 1;
 	}
-	free(counters);
 }
 
 /* release a shared fe counters struct */
@@ -58,24 +57,20 @@ void counters_be_shared_drop(struct be_counters_shared *counters)
  * if <guid> is not set, then sharing is disabled
  * Returns the pointer on success or NULL on failure
  */
-static void*_counters_shared_get(const struct guid_node *guid, size_t size)
+static int _counters_shared_init(struct counters_shared *shared, const struct guid_node *guid, size_t size)
 {
-	struct counters_shared *shared;
 	int it = 0;
 
 	/* no shared memory for now, simply allocate a memory block
 	 * for the counters (zero-initialized), ignore guid
 	 */
-	shared = calloc(1, sizeof(*shared));
-	if (!shared)
-		return NULL;
 	if (!guid->node.key)
 		shared->flags |= COUNTERS_SHARED_F_LOCAL;
 	while (it < global.nbtgroups) {
 		shared->tg[it] = calloc(1, size);
 		if (!shared->tg[it]) {
 			_counters_shared_drop(shared);
-			return NULL;
+			return 0;
 		}
 		it += 1;
 	}
@@ -84,17 +79,17 @@ static void*_counters_shared_get(const struct guid_node *guid, size_t size)
 	 *   only set one group, only latest value is considered
 	 */
 	HA_ATOMIC_STORE(&shared->tg[0]->last_state_change, ns_to_sec(now_ns));
-	return shared;
+	return 1;
 }
 
-/* retrieve shared fe counters pointer for a given <guid> object */
-struct fe_counters_shared *counters_fe_shared_get(const struct guid_node *guid)
+/* prepare shared fe counters pointer for a given <guid> object */
+int counters_fe_shared_prepare(struct fe_counters_shared *shared, const struct guid_node *guid)
 {
-	return _counters_shared_get(guid, sizeof(struct fe_counters_shared_tg));
+	return _counters_shared_init((struct counters_shared *)shared, guid, sizeof(struct fe_counters_shared_tg));
 }
 
-/* retrieve shared be counters pointer for a given <guid> object */
-struct be_counters_shared *counters_be_shared_get(const struct guid_node *guid)
+/* prepare shared be counters pointer for a given <guid> object */
+int counters_be_shared_init(struct be_counters_shared *shared, const struct guid_node *guid)
 {
-	return _counters_shared_get(guid, sizeof(struct be_counters_shared_tg));
+	return _counters_shared_init((struct counters_shared *)shared, guid, sizeof(struct be_counters_shared_tg));
 }
