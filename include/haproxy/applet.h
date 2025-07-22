@@ -645,7 +645,7 @@ static inline int applet_getword(const struct appctx *appctx, char *str, int len
 	}
 
 	p = b_head(buf);
-
+	ret = 0;
 	while (max) {
 		*str++ = *p;
 		ret++;
