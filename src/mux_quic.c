@@ -3133,6 +3133,15 @@ static int qmux_avail_streams(struct connection *conn)
 	return qcc_fctl_avail_streams(qcc, 1);
 }
 
+/* Returns the number of streams currently attached into <conn> connection.
+ * Used to determine if a connection can be considered as idle or not.
+ */
+static int qmux_used_streams(struct connection *conn)
+{
+	struct qcc *qcc = conn->ctx;
+	return qcc->nb_sc;
+}
+
 /* Release all streams which have their transfer operation achieved. */
 static void qcc_purge_streams(struct qcc *qcc)
 {
@@ -3734,8 +3743,9 @@ static void qmux_strm_detach(struct sedesc *sd)
 {
 	struct qcs *qcs = sd->se;
 	struct qcc *qcc = qcs->qcc;
+	struct connection *conn = qcc->conn;
 
-	TRACE_ENTER(QMUX_EV_STRM_END, qcc->conn, qcs);
+	TRACE_ENTER(QMUX_EV_STRM_END, conn, qcs);
 
 	/* TODO this BUG_ON_HOT() is not correct as the stconn layer may detach
 	 * from the stream even if it is not closed remotely at the QUIC layer.
@@ -3750,7 +3760,7 @@ static void qmux_strm_detach(struct sedesc *sd)
 
 	if (!qcs_is_close_local(qcs) &&
 	    !(qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL))) {
-		TRACE_STATE("remaining data, detaching qcs", QMUX_EV_STRM_END, qcc->conn, qcs);
+		TRACE_STATE("remaining data, detaching qcs", QMUX_EV_STRM_END, conn, qcs);
 		qcs->flags |= QC_SF_DETACH;
 		qcc_refresh_timeout(qcc);
 
@@ -3760,16 +3770,38 @@ static void qmux_strm_detach(struct sedesc *sd)
 
 	qcs_destroy(qcs);
 
+	/* Backend connection can be reused unless it is already on error/closed. */
+	if (qcc->flags & QC_CF_IS_BACK && !qcc_is_dead(qcc)) {
+		if (!(conn->flags & CO_FL_PRIVATE)) {
+			if (!qcc->nb_sc) {
+				TRACE_DEVEL("prepare for idle connection reuse", QMUX_EV_STRM_END, conn);
+				if (!srv_add_to_idle_list(objt_server(conn->target), conn, 1)) {
+					/* Idle conn insert failure, gracefully close the connection. */
+					TRACE_DEVEL("idle connection cannot be kept on the server", QMUX_EV_STRM_END, conn);
+					qcc_shutdown(qcc);
+				}
+				goto end;
+			}
+			else if (!conn->hash_node->node.node.leaf_p &&
+			         qmux_avail_streams(conn) &&
+			         objt_server(conn->target)) {
+				TRACE_DEVEL("mark connection as available for reuse", QMUX_EV_STRM_END, conn);
+				srv_add_to_avail_list(__objt_server(conn->target), conn);
+			}
+		}
+	}
+
 	if (qcc_is_dead(qcc)) {
-		TRACE_STATE("killing dead connection", QMUX_EV_STRM_END, qcc->conn);
+		TRACE_STATE("killing dead connection", QMUX_EV_STRM_END, conn);
 		goto release;
 	}
 	else {
-		TRACE_DEVEL("refreshing connection's timeout", QMUX_EV_STRM_END, qcc->conn);
+		TRACE_DEVEL("refreshing connection's timeout", QMUX_EV_STRM_END, conn);
 		qcc_refresh_timeout(qcc);
 	}
 
-	TRACE_LEAVE(QMUX_EV_STRM_END, qcc->conn);
+ end:
+	TRACE_LEAVE(QMUX_EV_STRM_END, conn);
 	return;
 
  release:
@@ -4253,6 +4285,8 @@ static const struct mux_ops qmux_ops = {
 	.unsubscribe = qmux_strm_unsubscribe,
 	.wake        = qmux_wake,
 	.avail_streams = qmux_avail_streams,
+	.used_streams = qmux_used_streams,
+	.takeover    = NULL,  /* QUIC takeover support not implemented yet */
 	.attach      = qmux_strm_attach,
 	.shut        = qmux_strm_shut,
 	.ctl         = qmux_ctl,
