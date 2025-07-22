@@ -499,7 +499,6 @@ soft_close:
 	 * soft_close will result in the port staying in TIME_WAIT state:
 	 * don't abuse from soft_close!
 	 */
-	applet_set_eoi(appctx);
 	applet_set_eos(appctx);
 
 	/* if required, hard_close could be achieve by using SE_FL_EOS|SE_FL_ERROR
