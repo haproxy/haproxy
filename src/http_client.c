@@ -508,26 +508,18 @@ int httpclient_set_proxy(struct httpclient *hc, struct proxy *px)
 void httpclient_applet_io_handler(struct appctx *appctx)
 {
 	struct httpclient *hc = appctx->svcctx;
-	struct stconn *sc = appctx_sc(appctx);
-	struct stream *s = __sc_strm(sc);
-	struct channel *req = &s->req;
-	struct channel *res = &s->res;
+	struct buffer *outbuf, *inbuf;
 	struct htx_blk *blk = NULL;
 	struct htx *htx;
 	struct htx_sl *sl = NULL;
 	uint32_t hdr_num;
-	uint32_t sz;
-	int count = 0;
 	int ret;
 
-	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR)))) {
-		if (co_data(res)) {
-			htx = htx_from_buf(&res->buf);
-			co_htx_skip(res, htx, co_data(res));
-			htx_to_buf(htx, &res->buf);
-		}
+	if (unlikely(applet_fl_test(appctx, APPCTX_FL_EOS|APPCTX_FL_ERROR))) {
+		applet_reset_input(appctx);
 		goto out;
 	}
+
 	/* The IO handler could be called after the release, so we need to
 	 * check if hc is still there to run the IO handler */
 	if (!hc)
@@ -539,31 +531,34 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 			goto error;
 
 		switch(appctx->st0) {
-
 			case HTTPCLIENT_S_REQ:
+				outbuf = applet_get_outbuf(appctx);
+				if (outbuf == NULL) {
+					applet_have_more_data(appctx);
+					goto out;
+				}
+
 				/* we know that the buffer is empty here, since
 				 * it's the first call, we can freely copy the
 				 * request from the httpclient buffer */
-				ret = b_xfer(&req->buf, &hc->req.buf, b_data(&hc->req.buf));
+				ret = b_xfer(outbuf, &hc->req.buf, b_data(&hc->req.buf));
 				if (!ret) {
-					sc_need_room(sc, 0);
+					applet_have_more_data(appctx);
 					goto out;
 				}
 
 				if (!b_data(&hc->req.buf))
 					b_free(&hc->req.buf);
 
-				htx = htx_from_buf(&req->buf);
-				if (!htx) {
-					sc_need_room(sc, 0);
+				htx = htxbuf(outbuf);
+				if (htx_is_empty(htx)) {
+					applet_have_more_data(appctx);
 					goto out;
 				}
 
-				channel_add_input(req, htx->data);
-
 				if (htx->flags & HTX_FL_EOM) { /* check if a body need to be added */
 					appctx->st0 = HTTPCLIENT_S_RES_STLINE;
-					se_fl_set(appctx->sedesc, SE_FL_EOI);
+					applet_set_eoi(appctx);
 					goto out; /* we need to leave the IO handler once we wrote the request */
 				}
 
@@ -572,16 +567,22 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 				__fallthrough;
 
 			case HTTPCLIENT_S_REQ_BODY:
+				outbuf = applet_get_outbuf(appctx);
+				if (outbuf == NULL) {
+					applet_have_more_data(appctx);
+					goto out;
+				}
+
 				/* call the payload callback */
 				if (hc->ops.req_payload) {
 					struct htx *hc_htx;
 
-					if (co_data(res)) {
+					if (applet_input_data(appctx)) {
 						/* A response was received but we are still process the request.
 						 * It is unexpected and not really supported with the current API.
 						 * So lets drain the request to avoid any issue.
 						 */
-						b_reset(&hc->req.buf);
+						b_reset(outbuf);
 						hc->flags |= HTTPCLIENT_FA_DRAIN_REQ;
 						appctx->st0 = HTTPCLIENT_S_RES_STLINE;
 						break;
@@ -594,70 +595,68 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 					if (htx_is_empty(hc_htx))
 						goto out;
 
-					htx = htx_from_buf(&req->buf);
+					htx = htx_from_buf(outbuf);
 					if (htx_is_empty(htx)) {
-						size_t data = hc_htx->data;
-
 						/* Here htx_to_buf() will set buffer data to 0 because
 						 * the HTX is empty, and allow us to do an xfer.
 						 */
 						htx_to_buf(hc_htx, &hc->req.buf);
-						htx_to_buf(htx, &req->buf);
-						b_xfer(&req->buf, &hc->req.buf, b_data(&hc->req.buf));
-						channel_add_input(req, data);
+						htx_to_buf(htx, outbuf);
+						b_xfer(outbuf, &hc->req.buf, b_data(&hc->req.buf));
 					} else {
 						struct htx_ret ret;
-						size_t data = htx->data;
 
 						ret = htx_xfer_blks(htx, hc_htx, htx_used_space(hc_htx), HTX_BLK_UNUSED);
 						if (!ret.ret) {
-							sc_need_room(sc, channel_htx_recv_max(req, htx) + 1);
+							applet_have_more_data(appctx);
 							goto out;
 						}
-						data = htx->data - data;
-						channel_add_input(req, data);
 
 						/* we must copy the EOM if we empty the buffer */
 						if (htx_is_empty(hc_htx)) {
 							htx->flags |= (hc_htx->flags & HTX_FL_EOM);
 						}
-						htx_to_buf(htx, &req->buf);
+						htx_to_buf(htx, outbuf);
 						htx_to_buf(hc_htx, &hc->req.buf);
 					}
-
 
 					if (!b_data(&hc->req.buf))
 						b_free(&hc->req.buf);
 				}
 
-				htx = htxbuf(&req->buf);
+				htx = htxbuf(outbuf);
 
 				/* if the request contains the HTX_FL_EOM, we finished the request part. */
 				if (htx->flags & HTX_FL_EOM) {
 					appctx->st0 = HTTPCLIENT_S_RES_STLINE;
-					se_fl_set(appctx->sedesc, SE_FL_EOI);
-					goto out;  /* we need to leave the IO handler once we wrote the request */
+					applet_set_eoi(appctx);
+					goto out; /* we need to leave the IO handler once we wrote the request */
 				}
 
 				applet_have_more_data(appctx);
-				goto process_data;
+				goto out;
 
 			case HTTPCLIENT_S_RES_STLINE:
+				applet_will_consume(appctx);
+				inbuf = applet_get_inbuf(appctx);
+				if (inbuf == NULL || !applet_input_data(appctx)) {
+					applet_need_more_data(appctx);
+					goto out;
+				}
+
 				/* in HTX mode, don't try to copy the stline
 				 * alone, we must copy the headers with it */
                                 if (hc->options & HTTPCLIENT_O_RES_HTX) {
 					appctx->st0 = HTTPCLIENT_S_RES_HDR;
-					goto out;
+					break;
 				}
 
 				/* copy the start line in the hc structure,then remove the htx block */
-				if (!co_data(res))
-					goto out;
-				htx = htxbuf(&res->buf);
+				htx = htxbuf(inbuf);
 				if (htx_get_first_type(htx) != HTX_BLK_RES_SL)
 					goto error;
 				blk = DISGUISE(htx_get_head_blk(htx));
-                                sl = htx_get_blk_ptr(htx, blk);
+				sl = htx_get_blk_ptr(htx, blk);
 
 				/* Skipp any 1XX interim responses */
 				if (sl->info.res.status < 200) {
@@ -667,12 +666,10 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 
 					while (blk) {
 						enum htx_blk_type type = htx_get_blk_type(blk);
-						uint32_t sz = htx_get_blksz(blk);
 
-						c_rew(res, sz);
 						blk = htx_remove_blk(htx, blk);
 						if (type == HTX_BLK_EOH) {
-							htx_to_buf(htx, &res->buf);
+							htx_to_buf(htx, inbuf);
 							break;
 						}
 					}
@@ -683,9 +680,8 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 				hc->res.status = sl->info.res.status;
 				hc->res.vsn = istdup(htx_sl_res_vsn(sl));
 				hc->res.reason = istdup(htx_sl_res_reason(sl));
-				sz = htx_get_blksz(blk);
-				c_rew(res, sz);
 				htx_remove_blk(htx, blk);
+
 				/* caller callback */
 				if (hc->ops.res_stline)
 					hc->ops.res_stline(hc);
@@ -697,32 +693,40 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 				else
 					appctx->st0 = HTTPCLIENT_S_RES_HDR;
 
-				htx_to_buf(htx, &res->buf);
+				applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
+				htx_to_buf(htx, inbuf);
 				break;
 
 			case HTTPCLIENT_S_RES_HDR:
-				if (!co_data(res))
+				applet_will_consume(appctx);
+				inbuf = applet_get_inbuf(appctx);
+				if (inbuf == NULL || !applet_input_data(appctx)) {
+					applet_need_more_data(appctx);
 					goto out;
-				htx = htxbuf(&res->buf);
-				if (htx_is_empty(htx))
-					goto out;
+				}
+
+				htx = htxbuf(inbuf);
+				BUG_ON(htx_is_empty(htx));
 
 				if (hc->options & HTTPCLIENT_O_RES_HTX) {
 					/* HTX mode transfers the header to the hc buffer */
 					struct htx *hc_htx;
 					struct htx_ret ret;
 
-					if (!b_alloc(&hc->res.buf, DB_MUX_TX))
+					if (!b_alloc(&hc->res.buf, DB_MUX_TX)) {
+						applet_wont_consume(appctx);
 						goto out;
+					}
 					hc_htx = htxbuf(&hc->res.buf);
 
 					/* xfer the headers */
-					count = htx->data;
 					ret = htx_xfer_blks(hc_htx, htx, htx_used_space(htx), HTX_BLK_EOH);
-					if (ret.ret <= 0)
+					if (!ret.ret) {
+						applet_need_more_data(appctx);
 						goto out;
-					count -= htx->data;
-					c_rew(res, count);
+					}
+					else
+						applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
 
 					if (htx->flags & HTX_FL_EOM)
 						hc_htx->flags |= HTX_FL_EOM;
@@ -741,9 +745,6 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 					blk = htx_get_head_blk(htx);
 					while (blk) {
 						enum htx_blk_type type = htx_get_blk_type(blk);
-						uint32_t sz = htx_get_blksz(blk);
-
-						c_rew(res, sz);
 
 						if (type == HTX_BLK_HDR) {
 							hdrs[hdr_num].n = istdup(htx_get_blk_name(htx, blk));
@@ -766,6 +767,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 						if (!hc->res.hdrs)
 							goto error;
 						memcpy(hc->res.hdrs, hdrs, sizeof(struct http_hdr) * (hdr_num + 1));
+						applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
 					}
 				}
 				/* caller callback */
@@ -780,26 +782,31 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 					appctx->st0 = HTTPCLIENT_S_RES_BODY;
 				}
 
-				htx_to_buf(htx, &res->buf);
+				htx_to_buf(htx, inbuf);
 				break;
 
 			case HTTPCLIENT_S_RES_BODY:
+				applet_will_consume(appctx);
+				inbuf = applet_get_inbuf(appctx);
+				if (inbuf == NULL || !applet_input_data(appctx)) {
+					applet_need_more_data(appctx);
+					goto out;
+				}
+
 				/*
 				 * The IO handler removes the htx blocks in the response buffer and
 				 * push them in the hc->res.buf buffer in a raw format.
 				 */
-				if (!co_data(res))
+				htx = htxbuf(inbuf);
+				if (htx_is_empty(htx)) {
+					applet_need_more_data(appctx);
 					goto out;
+				}
 
-				htx = htxbuf(&res->buf);
-				if (htx_is_empty(htx))
+				if (!b_alloc(&hc->res.buf, DB_MUX_TX)) {
+					applet_wont_consume(appctx);
 					goto out;
-
-				if (!b_alloc(&hc->res.buf, DB_MUX_TX))
-					goto out;
-
-				if (b_full(&hc->res.buf))
-					goto process_data;
+				}
 
 				if (hc->options & HTTPCLIENT_O_RES_HTX) {
 					/* HTX mode transfers the header to the hc buffer */
@@ -808,15 +815,13 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 
 					hc_htx = htxbuf(&hc->res.buf);
 
-					/* xfer the status line to the res buffer */
-					count = htx->data;
 					ret = htx_xfer_blks(hc_htx, htx, htx_used_space(htx), HTX_BLK_UNUSED);
-					if (ret.ret <= 0)
-						goto process_data;
-					count -= htx->data;
-					c_rew(res, count);
+					if (!ret.ret)
+						applet_wont_consume(appctx);
+					else
+						applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
 
-					if (htx->flags & HTX_FL_EOM)
+					if (htx_is_empty(htx) && (htx->flags & HTX_FL_EOM))
 						hc_htx->flags |= HTX_FL_EOM;
 
 					htx_to_buf(hc_htx, &hc->res.buf);
@@ -826,78 +831,61 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 					blk = htx_get_head_blk(htx);
 					while (blk) {
 						enum htx_blk_type type = htx_get_blk_type(blk);
-						size_t count = co_data(res);
-						uint32_t blksz = htx_get_blksz(blk);
-						uint32_t room = b_room(&hc->res.buf);
-						uint32_t vlen;
 
 						/* we should try to copy the maximum output data in a block, which fit
 						 * the destination buffer */
-						vlen = MIN(count, blksz);
-						vlen = MIN(vlen, room);
-
-						if (vlen == 0) {
-							htx_to_buf(htx, &res->buf);
-							goto process_data;
-						}
-
 						if (type == HTX_BLK_DATA) {
 							struct ist v = htx_get_blk_value(htx, blk);
+							uint32_t room = b_room(&hc->res.buf);
+							uint32_t vlen;
 
+							vlen = MIN(v.len, room);
 							__b_putblk(&hc->res.buf, v.ptr, vlen);
-							c_rew(res, vlen);
 
-							if (vlen == blksz)
+							if (vlen == v.len)
 								blk = htx_remove_blk(htx, blk);
-							else
+							else {
 								htx_cut_data_blk(htx, blk, vlen);
-
-							/* cannot copy everything, need to process */
-							if (vlen != blksz) {
-								htx_to_buf(htx, &res->buf);
-								goto process_data;
+								/* cannot copy everything, need to process */
+								applet_wont_consume(appctx);
+								break;
 							}
 						} else {
-							if (vlen != blksz) {
-								htx_to_buf(htx, &res->buf);
-								goto process_data;
-							}
-
 							/* remove any block which is not a data block */
-							c_rew(res, blksz);
 							blk = htx_remove_blk(htx, blk);
 						}
 					}
 				}
 
-				/* if not finished, should be called again */
-				if ((htx_is_empty(htx) && (htx->flags & HTX_FL_EOM)))
-					appctx->st0 = HTTPCLIENT_S_RES_END;
-
-				htx_to_buf(htx, &res->buf);
+				applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
 
 				/* the data must be processed by the caller in the receive phase */
 				if (hc->ops.res_payload)
 					hc->ops.res_payload(hc);
 
-				break;
+				/* if not finished, should be called again */
+				if ((htx_is_empty(htx) && (htx->flags & HTX_FL_EOM))) {
+					appctx->st0 = HTTPCLIENT_S_RES_END;
+					htx_to_buf(htx, inbuf);
+					break;
+				}
+
+				htx_to_buf(htx, inbuf);
+				applet_need_more_data(appctx);
+				goto out;
 
 			case HTTPCLIENT_S_RES_END:
-				se_fl_set(appctx->sedesc, SE_FL_EOS);
+				applet_set_eos(appctx);
 				goto out;
-				break;
 		}
 	}
 
 out:
 	return;
 
-process_data:
-	sc_will_read(sc);
-	goto out;
-
 error:
-	se_fl_set(appctx->sedesc, SE_FL_ERROR);
+	applet_set_eos(appctx);
+	applet_set_error(appctx);
 	goto out;
 }
 
@@ -993,7 +981,7 @@ int httpclient_applet_init(struct appctx *appctx)
 		appctx->st0 = HTTPCLIENT_S_REQ_BODY;
 	else {
 		appctx->st0 =  HTTPCLIENT_S_RES_STLINE;
-		se_fl_set(appctx->sedesc, SE_FL_EOI);
+		applet_set_eoi(appctx);
 	}
 	return 0;
 
@@ -1033,6 +1021,8 @@ static struct applet httpclient_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<HTTPCLIENT>",
 	.fct = httpclient_applet_io_handler,
+	.rcv_buf = appctx_htx_rcv_buf,
+	.snd_buf = appctx_htx_snd_buf,
 	.init = httpclient_applet_init,
 	.release = httpclient_applet_release,
 };
