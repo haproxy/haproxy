@@ -223,15 +223,11 @@ static int hc_cli_io_handler(struct appctx *appctx)
 	}
 
 	if (ctx->is_htx && hc_htx) {
-		struct htx_blk *blk = NULL;
-
 		chunk_reset(&trash);
 		htx_dump(&trash, hc_htx, 1);
 		if (applet_putchk(appctx, &trash) == -1)
 			goto more;
-		blk = htx_get_head_blk(hc_htx);
-		while (blk)
-			blk = htx_remove_blk(hc_htx, blk);
+		htx_reset(hc_htx);
 		htx_to_buf(hc_htx, &hc->res.buf);
 
 	}
