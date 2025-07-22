@@ -18,6 +18,7 @@
 #include <haproxy/quic_pacing-t.h>
 #include <haproxy/quic_stream-t.h>
 #include <haproxy/quic_utils-t.h>
+#include <haproxy/session-t.h>
 #include <haproxy/stconn-t.h>
 #include <haproxy/task-t.h>
 #include <haproxy/time-t.h>
@@ -146,6 +147,7 @@ struct qc_stream_rxbuf {
 
 struct qcs {
 	struct qcc *qcc;
+	struct session *sess; /* only set for backend conns */
 	struct sedesc *sd;
 	uint32_t flags;      /* QC_SF_* */
 	enum qcs_state st;   /* QC_SS_* state */

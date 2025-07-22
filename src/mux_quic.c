@@ -134,6 +134,7 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 
 	qcs->stream = NULL;
 	qcs->qcc = qcc;
+	qcs->sess = NULL;
 	qcs->sd = NULL;
 	qcs->flags = QC_SF_NONE;
 	qcs->st = QC_SS_IDLE;
@@ -3661,6 +3662,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 			goto err;
 		}
 
+		qcs->sess = sess;
 		qcs->sd = sc->sedesc;
 		qcc->nb_sc++;
 	}
@@ -3720,6 +3722,7 @@ static int qmux_strm_attach(struct connection *conn, struct sedesc *sd, struct s
 		return -1;
 	}
 
+	qcs->sess = sess;
 	qcs->sd = sd->sc->sedesc;
 	qcc->nb_sc++;
 
