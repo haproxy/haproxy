@@ -2002,8 +2002,8 @@ static int h3_encode_header(struct buffer *buf,
  */
 static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 {
+	int err;
 	struct http_hdr list[global.tune.max_http_hdr * 2];
-	struct buffer outbuf;
 	struct buffer headers_buf = BUF_NULL;
 	struct buffer *res;
 	enum htx_blk_type type;
@@ -2012,7 +2012,8 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	struct ist meth, uri, scheme = IST_NULL, auth = IST_NULL;
 	int frame_length_size;  /* size in bytes of frame length varint field */
 	int smallbuf = 1;
-	int ret, err, hdr;
+	int ret = 0;
+	int hdr;
 
 	TRACE_ENTER(H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 
