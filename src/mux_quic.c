@@ -315,26 +315,26 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 		goto leave;
 	}
 
-	/* Frontend timeout management
+	/* Timeout management
 	 * - detached streams with data left to send -> default timeout
 	 * - shutdown done -> timeout client-fin
-	 * - stream waiting on incomplete request or no stream yet activated -> timeout http-request
-	 * - idle after stream processing -> timeout http-keep-alive
+	 * - (FE only) stream waiting on incomplete request or no stream yet activated -> timeout http-request
+	 * - (FE only) idle after stream processing -> timeout http-keep-alive
 	 *
 	 * If proxy stop-stop in progress, immediate or spread close will be
 	 * processed if shutdown already one or connection is idle.
 	 */
-	if (!conn_is_back(qcc->conn)) {
-		if (!LIST_ISEMPTY(&qcc->send_list) || !LIST_ISEMPTY(&qcc->tx.frms)) {
-			TRACE_DEVEL("pending output data", QMUX_EV_QCC_WAKE, qcc->conn);
-			qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
-		}
-		else if (qcc->app_st >= QCC_APP_ST_SHUT) {
-			TRACE_DEVEL("connection in closing", QMUX_EV_QCC_WAKE, qcc->conn);
-			qcc->task->expire = tick_add_ifset(now_ms,
-			                                   qcc->shut_timeout);
-		}
-		else if (!LIST_ISEMPTY(&qcc->opening_list) || unlikely(!qcc->largest_bidi_r)) {
+	if (!LIST_ISEMPTY(&qcc->send_list) || !LIST_ISEMPTY(&qcc->tx.frms)) {
+		TRACE_DEVEL("pending output data", QMUX_EV_QCC_WAKE, qcc->conn);
+		qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
+	}
+	else if (qcc->app_st >= QCC_APP_ST_SHUT) {
+		TRACE_DEVEL("connection in closing", QMUX_EV_QCC_WAKE, qcc->conn);
+		qcc->task->expire = tick_add_ifset(now_ms,
+		                                   qcc->shut_timeout);
+	}
+	else if (!conn_is_back(qcc->conn)) {
+		if (!LIST_ISEMPTY(&qcc->opening_list) || unlikely(!qcc->largest_bidi_r)) {
 			int timeout = px->timeout.httpreq;
 			struct qcs *qcs = NULL;
 			int base_time;
@@ -355,6 +355,12 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 			              px->timeout.httpka : px->timeout.httpreq;
 			TRACE_DEVEL("at least one request achieved but none currently in progress", QMUX_EV_QCC_WAKE, qcc->conn);
 			qcc->task->expire = tick_add_ifset(qcc->idle_start, timeout);
+		}
+
+		/* Fallback to client timeout if specific value not set. */
+		if (!tick_isset(qcc->task->expire)) {
+			TRACE_DEVEL("fallback to default timeout", QMUX_EV_QCC_WAKE, qcc->conn);
+			qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
 		}
 	}
 
@@ -390,14 +396,6 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 			qcc->task->expire = tick_add(now_ms, 0);
 			task_wakeup(qcc->task, TASK_WOKEN_TIMER);
 		}
-	}
-
-	/* fallback to default timeout if frontend specific undefined or for
-	 * backend connections.
-	 */
-	if (!tick_isset(qcc->task->expire)) {
-		TRACE_DEVEL("fallback to default timeout", QMUX_EV_QCC_WAKE, qcc->conn);
-		qcc->task->expire = tick_add_ifset(now_ms, qcc->timeout);
 	}
 
 	task_queue(qcc->task);
