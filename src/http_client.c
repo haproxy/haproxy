@@ -564,13 +564,12 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 				if (htx->flags & HTX_FL_EOM) { /* check if a body need to be added */
 					appctx->st0 = HTTPCLIENT_S_RES_STLINE;
 					se_fl_set(appctx->sedesc, SE_FL_EOI);
-					break;
+					goto out; /* we need to leave the IO handler once we wrote the request */
 				}
 
 				applet_have_more_data(appctx);
 				appctx->st0 = HTTPCLIENT_S_REQ_BODY;
-				goto out; /* we need to leave the IO handler once we wrote the request */
-				break;
+				__fallthrough;
 
 			case HTTPCLIENT_S_REQ_BODY:
 				/* call the payload callback */
@@ -637,11 +636,11 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 				if (htx->flags & HTX_FL_EOM) {
 					appctx->st0 = HTTPCLIENT_S_RES_STLINE;
 					se_fl_set(appctx->sedesc, SE_FL_EOI);
-					break;
+					goto out;  /* we need to leave the IO handler once we wrote the request */
 				}
 
 				applet_have_more_data(appctx);
-				goto process_data; /* we need to leave the IO handler once we wrote the request */
+				goto process_data;
 
 			case HTTPCLIENT_S_RES_STLINE:
 				/* in HTX mode, don't try to copy the stline
