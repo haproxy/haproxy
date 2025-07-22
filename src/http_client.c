@@ -534,7 +534,6 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 		goto out;
 
 	while (1) {
-
 		/* required to stop */
 		if (hc->flags & HTTPCLIENT_FA_STOP)
 			goto error;
@@ -575,77 +574,74 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 
 			case HTTPCLIENT_S_REQ_BODY:
 				/* call the payload callback */
-				{
-					if (hc->ops.req_payload) {
-						struct htx *hc_htx;
+				if (hc->ops.req_payload) {
+					struct htx *hc_htx;
 
-						if (co_data(res)) {
-							/* A response was received but we are still process the request.
-							 * It is unexpected and not really supported with the current API.
-							 * So lets drain the request to avoid any issue.
-							 */
-							b_reset(&hc->req.buf);
-							hc->flags |= HTTPCLIENT_FA_DRAIN_REQ;
-							appctx->st0 = HTTPCLIENT_S_RES_STLINE;
-							break;
-						}
-
-						/* call the request callback */
-						hc->ops.req_payload(hc);
-
-						hc_htx = htxbuf(&hc->req.buf);
-						if (htx_is_empty(hc_htx))
-							goto out;
-
-						htx = htx_from_buf(&req->buf);
-						if (htx_is_empty(htx)) {
-							size_t data = hc_htx->data;
-
-							/* Here htx_to_buf() will set buffer data to 0 because
-							 * the HTX is empty, and allow us to do an xfer.
-							 */
-							htx_to_buf(hc_htx, &hc->req.buf);
-							htx_to_buf(htx, &req->buf);
-							b_xfer(&req->buf, &hc->req.buf, b_data(&hc->req.buf));
-							channel_add_input(req, data);
-						} else {
-							struct htx_ret ret;
-							size_t data = htx->data;
-
-							ret = htx_xfer_blks(htx, hc_htx, htx_used_space(hc_htx), HTX_BLK_UNUSED);
-							if (!ret.ret) {
-								sc_need_room(sc, channel_htx_recv_max(req, htx) + 1);
-								goto out;
-							}
-							data = htx->data - data;
-							channel_add_input(req, data);
-
-							/* we must copy the EOM if we empty the buffer */
-							if (htx_is_empty(hc_htx)) {
-								htx->flags |= (hc_htx->flags & HTX_FL_EOM);
-							}
-							htx_to_buf(htx, &req->buf);
-							htx_to_buf(hc_htx, &hc->req.buf);
-						}
-
-
-						if (!b_data(&hc->req.buf))
-							b_free(&hc->req.buf);
-					}
-
-					htx = htxbuf(&req->buf);
-
-					/* if the request contains the HTX_FL_EOM, we finished the request part. */
-					if (htx->flags & HTX_FL_EOM) {
+					if (co_data(res)) {
+						/* A response was received but we are still process the request.
+						 * It is unexpected and not really supported with the current API.
+						 * So lets drain the request to avoid any issue.
+						 */
+						b_reset(&hc->req.buf);
+						hc->flags |= HTTPCLIENT_FA_DRAIN_REQ;
 						appctx->st0 = HTTPCLIENT_S_RES_STLINE;
-						se_fl_set(appctx->sedesc, SE_FL_EOI);
 						break;
 					}
 
-					applet_have_more_data(appctx);
-					goto process_data; /* we need to leave the IO handler once we wrote the request */
+					/* call the request callback */
+					hc->ops.req_payload(hc);
+
+					hc_htx = htxbuf(&hc->req.buf);
+					if (htx_is_empty(hc_htx))
+						goto out;
+
+					htx = htx_from_buf(&req->buf);
+					if (htx_is_empty(htx)) {
+						size_t data = hc_htx->data;
+
+						/* Here htx_to_buf() will set buffer data to 0 because
+						 * the HTX is empty, and allow us to do an xfer.
+						 */
+						htx_to_buf(hc_htx, &hc->req.buf);
+						htx_to_buf(htx, &req->buf);
+						b_xfer(&req->buf, &hc->req.buf, b_data(&hc->req.buf));
+						channel_add_input(req, data);
+					} else {
+						struct htx_ret ret;
+						size_t data = htx->data;
+
+						ret = htx_xfer_blks(htx, hc_htx, htx_used_space(hc_htx), HTX_BLK_UNUSED);
+						if (!ret.ret) {
+							sc_need_room(sc, channel_htx_recv_max(req, htx) + 1);
+							goto out;
+						}
+						data = htx->data - data;
+						channel_add_input(req, data);
+
+						/* we must copy the EOM if we empty the buffer */
+						if (htx_is_empty(hc_htx)) {
+							htx->flags |= (hc_htx->flags & HTX_FL_EOM);
+						}
+						htx_to_buf(htx, &req->buf);
+						htx_to_buf(hc_htx, &hc->req.buf);
+					}
+
+
+					if (!b_data(&hc->req.buf))
+						b_free(&hc->req.buf);
 				}
-				break;
+
+				htx = htxbuf(&req->buf);
+
+				/* if the request contains the HTX_FL_EOM, we finished the request part. */
+				if (htx->flags & HTX_FL_EOM) {
+					appctx->st0 = HTTPCLIENT_S_RES_STLINE;
+					se_fl_set(appctx->sedesc, SE_FL_EOI);
+					break;
+				}
+
+				applet_have_more_data(appctx);
+				goto process_data; /* we need to leave the IO handler once we wrote the request */
 
 			case HTTPCLIENT_S_RES_STLINE:
 				/* in HTX mode, don't try to copy the stline
