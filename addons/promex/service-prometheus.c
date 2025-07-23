@@ -427,9 +427,8 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 	static struct ist prefix = IST("haproxy_process_");
 	struct promex_ctx *ctx = appctx->svcctx;
 	struct field val;
-	struct channel *chn = sc_ic(appctx_sc(appctx));
 	struct ist name, desc, out = ist2(trash.area, 0);
-	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
+	size_t max = htx_get_max_blksz(htx, applet_htx_output_room(appctx));
 	int ret = 1;
 
 	if (!stats_fill_info(stat_line_info, ST_I_INF_MAX, 0))
@@ -495,7 +494,6 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 	if (out.len) {
 		if (!htx_add_data_atonce(htx, out))
 			return -1; /* Unexpected and unrecoverable error */
-		channel_add_input(chn, out.len);
 	}
 	return ret;
   full:
@@ -512,9 +510,8 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 	struct proxy *px = ctx->p[0];
 	struct stats_module *mod = ctx->p[1];
 	struct field val;
-	struct channel *chn = sc_ic(appctx_sc(appctx));
 	struct ist name, desc, out = ist2(trash.area, 0);
-	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
+	size_t max = htx_get_max_blksz(htx, applet_htx_output_room(appctx));
 	struct field *stats = stat_lines[STATS_DOMAIN_PROXY];
 	int ret = 1;
 	enum promex_front_state state;
@@ -694,7 +691,6 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 	if (out.len) {
 		if (!htx_add_data_atonce(htx, out))
 			return -1; /* Unexpected and unrecoverable error */
-		channel_add_input(chn, out.len);
 	}
 
 	/* Save pointers (0=current proxy, 1=current stats module) of the current context */
@@ -716,9 +712,8 @@ static int promex_dump_listener_metrics(struct appctx *appctx, struct htx *htx)
 	struct listener *li = ctx->p[1];
 	struct stats_module *mod = ctx->p[2];
 	struct field val;
-	struct channel *chn = sc_ic(appctx_sc(appctx));
 	struct ist name, desc, out = ist2(trash.area, 0);
-	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
+	size_t max = htx_get_max_blksz(htx, applet_htx_output_room(appctx));
 	struct field *stats = stat_lines[STATS_DOMAIN_PROXY];
 	int ret = 1;
 	enum li_status status;
@@ -899,7 +894,6 @@ static int promex_dump_listener_metrics(struct appctx *appctx, struct htx *htx)
 	if (out.len) {
 		if (!htx_add_data_atonce(htx, out))
 			return -1; /* Unexpected and unrecoverable error */
-		channel_add_input(chn, out.len);
 	}
 	/* Save pointers (0=current proxy, 1=current listener, 2=current stats module) of the current context */
 	ctx->p[0] = px;
@@ -921,9 +915,8 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 	struct stats_module *mod = ctx->p[1];
 	struct server *sv;
 	struct field val;
-	struct channel *chn = sc_ic(appctx_sc(appctx));
 	struct ist name, desc, out = ist2(trash.area, 0);
-	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
+	size_t max = htx_get_max_blksz(htx, applet_htx_output_room(appctx));
 	struct field *stats = stat_lines[STATS_DOMAIN_PROXY];
 	int ret = 1;
 	double secs;
@@ -1185,7 +1178,6 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 	if (out.len) {
 		if (!htx_add_data_atonce(htx, out))
 			return -1; /* Unexpected and unrecoverable error */
-		channel_add_input(chn, out.len);
 	}
 	/* Save pointers (0=current proxy, 1=current stats module) of the current context */
 	ctx->p[0] = px;
@@ -1206,9 +1198,8 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 	struct server *sv = ctx->p[1];
 	struct stats_module *mod = ctx->p[2];
 	struct field val;
-	struct channel *chn = sc_ic(appctx_sc(appctx));
 	struct ist name, desc, out = ist2(trash.area, 0);
-	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
+	size_t max = htx_get_max_blksz(htx, applet_htx_output_room(appctx));
 	struct field *stats = stat_lines[STATS_DOMAIN_PROXY];
 	int ret = 1;
 	double secs;
@@ -1507,7 +1498,6 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 	if (out.len) {
 		if (!htx_add_data_atonce(htx, out))
 			return -1; /* Unexpected and unrecoverable error */
-		channel_add_input(chn, out.len);
 	}
 
 	/* Decrement server refcount if it was saved through ctx.p[1]. */
@@ -1603,9 +1593,8 @@ static int promex_dump_ref_modules_metrics(struct appctx *appctx, struct htx *ht
 {
 	struct promex_ctx *ctx = appctx->svcctx;
 	struct promex_module_ref *ref = ctx->p[0];
-	struct channel *chn = sc_ic(appctx_sc(appctx));
 	struct ist out = ist2(trash.area, 0);
-	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
+	size_t max = htx_get_max_blksz(htx, applet_htx_output_room(appctx));
 	int ret = 1;
 
 	if (!ref) {
@@ -1629,7 +1618,6 @@ static int promex_dump_ref_modules_metrics(struct appctx *appctx, struct htx *ht
 	if (out.len) {
 		if (!htx_add_data_atonce(htx, out))
 			return -1; /* Unexpected and unrecoverable error */
-		channel_add_input(chn, out.len);
 	}
 	ctx->p[0] = ref;
 	return ret;
@@ -1644,9 +1632,8 @@ static int promex_dump_all_modules_metrics(struct appctx *appctx, struct htx *ht
 {
 	struct promex_ctx *ctx = appctx->svcctx;
 	struct promex_module *mod = ctx->p[0];
-	struct channel *chn = sc_ic(appctx_sc(appctx));
 	struct ist out = ist2(trash.area, 0);
-	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
+	size_t max = htx_get_max_blksz(htx, applet_htx_output_room(appctx));
 	int ret = 1;
 
 	if (!mod) {
@@ -1670,7 +1657,6 @@ static int promex_dump_all_modules_metrics(struct appctx *appctx, struct htx *ht
 	if (out.len) {
 		if (!htx_add_data_atonce(htx, out))
 			return -1; /* Unexpected and unrecoverable error */
-		channel_add_input(chn, out.len);
 	}
 	ctx->p[0] = mod;
 	return ret;
@@ -1685,7 +1671,7 @@ static int promex_dump_all_modules_metrics(struct appctx *appctx, struct htx *ht
  * Uses <appctx.ctx.stats.px> as a pointer to the current proxy and <sv>/<li>
  * as pointers to the current server/listener respectively.
  */
-static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct htx *htx)
+static int promex_dump_metrics(struct appctx *appctx, struct htx *htx)
 {
 	struct promex_ctx *ctx = appctx->svcctx;
 	int ret;
@@ -1809,7 +1795,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 	return 1;
 
   full:
-	sc_need_room(sc, channel_htx_recv_max(sc_ic(appctx_sc(appctx)), htx) + 1);
+	applet_have_more_data(appctx);
 	return 0;
   error:
 	/* unrecoverable error */
@@ -1822,12 +1808,11 @@ static int promex_dump_metrics(struct appctx *appctx, struct stconn *sc, struct 
 
 /* Parse the query string of request URI to filter the metrics. It returns 1 on
  * success and -1 on error. */
-static int promex_parse_uri(struct appctx *appctx, struct stconn *sc)
+static int promex_parse_uri(struct appctx *appctx)
 {
 	struct promex_ctx *ctx = appctx->svcctx;
-	struct channel *req = sc_oc(sc);
-	struct channel *res = sc_ic(sc);
-	struct htx *req_htx, *res_htx;
+	struct buffer *outbuf;
+	struct htx *req_htx;
 	struct htx_sl *sl;
 	char *p, *key, *value;
 	const char *end;
@@ -1837,10 +1822,13 @@ static int promex_parse_uri(struct appctx *appctx, struct stconn *sc)
 	int len;
 
 	/* Get the query-string */
-	req_htx = htxbuf(&req->buf);
+	req_htx = htxbuf(DISGUISE(applet_get_inbuf(appctx)));
 	sl = http_get_stline(req_htx);
 	if (!sl)
-		goto error;
+		goto bad_req_error;
+	if (sl->info.req.meth == HTTP_METH_HEAD)
+		ctx->flags |= PROMEX_FL_BODYLESS_RESP;
+
 	p = http_find_param_list(HTX_SL_REQ_UPTR(sl), HTX_SL_REQ_ULEN(sl), '?');
 	if (!p)
 		goto end;
@@ -1873,27 +1861,27 @@ static int promex_parse_uri(struct appctx *appctx, struct stconn *sc)
 			*p = 0;
 		len = url_decode(key, 1);
 		if (len == -1)
-			goto error;
+			goto bad_req_error;
 
 		/* decode value */
 		if (value) {
 			while (p < end && *p != '=' && *p != '&' && *p != '#')
 				++p;
 			if (*p == '=')
-				goto error;
+				goto bad_req_error;
 			if (*p == '&')
 				*(p++) = 0;
 			else if (*p == '#')
 				*p = 0;
 			len = url_decode(value, 1);
 			if (len == -1)
-				goto error;
+				goto bad_req_error;
 		}
 
 		if (strcmp(key, "scope") == 0) {
 			default_scopes = 0; /* at least a scope defined, unset default scopes */
 			if (!value)
-				goto error;
+				goto bad_req_error;
 			else if (*value == 0)
 				ctx->flags &= ~PROMEX_FL_SCOPE_ALL;
 			else if (*value == '*' && *(value+1) == 0)
@@ -1924,14 +1912,14 @@ static int promex_parse_uri(struct appctx *appctx, struct stconn *sc)
 					}
 				}
 				if (!(ctx->flags & PROMEX_FL_SCOPE_MODULE))
-					goto error;
+					goto bad_req_error;
 			}
 		}
 		else if (strcmp(key, "metrics") == 0) {
 			struct ist args;
 
 			if (!value)
-				goto error;
+				goto bad_req_error;
 
 			for (args = ist(value); istlen(args); args = istadv(istfind(args, ','), 1)) {
 				struct eb32_node *node;
@@ -1982,30 +1970,28 @@ static int promex_parse_uri(struct appctx *appctx, struct stconn *sc)
 	ctx->flags |= (default_scopes | default_metrics_filter);
 	return 1;
 
-  error:
+  bad_req_error:
 	err = &http_err_chunks[HTTP_ERR_400];
-	channel_erase(res);
-	res->buf.data = b_data(err);
-	memcpy(res->buf.area, b_head(err), b_data(err));
-	res_htx = htx_from_buf(&res->buf);
-	channel_add_input(res, res_htx->data);
-	return -1;
+	goto error;
 
   internal_error:
-	err = &http_err_chunks[HTTP_ERR_400];
-	channel_erase(res);
-	res->buf.data = b_data(err);
-	memcpy(res->buf.area, b_head(err), b_data(err));
-	res_htx = htx_from_buf(&res->buf);
-	channel_add_input(res, res_htx->data);
+	err = &http_err_chunks[HTTP_ERR_500];
+	goto error;
+
+  error:
+	outbuf = DISGUISE(applet_get_outbuf(appctx));
+	b_reset(outbuf);
+	outbuf->data = b_data(err);
+	memcpy(outbuf->area, b_head(err), b_data(err));
+	applet_set_eoi(appctx);
+	applet_set_eos(appctx);
 	return -1;
 }
 
 /* Send HTTP headers of the response. It returns 1 on success and 0 if <htx> is
  * full. */
-static int promex_send_headers(struct appctx *appctx, struct stconn *sc, struct htx *htx)
+static int promex_send_headers(struct appctx *appctx, struct htx *htx)
 {
-	struct channel *chn = sc_ic(sc);
 	struct htx_sl *sl;
 	unsigned int flags;
 
@@ -2020,11 +2006,10 @@ static int promex_send_headers(struct appctx *appctx, struct stconn *sc, struct 
 	    !htx_add_endof(htx, HTX_BLK_EOH))
 		goto full;
 
-	channel_add_input(chn, htx->data);
 	return 1;
   full:
 	htx_reset(htx);
-	sc_need_room(sc, 0);
+	applet_have_more_data(appctx);
 	return 0;
 }
 
@@ -2078,52 +2063,51 @@ static void promex_appctx_release(struct appctx *appctx)
 /* The main I/O handler for the promex applet. */
 static void promex_appctx_handle_io(struct appctx *appctx)
 {
-	struct stconn *sc = appctx_sc(appctx);
-	struct stream *s = __sc_strm(sc);
-	struct channel *req = sc_oc(sc);
-	struct channel *res = sc_ic(sc);
-	struct htx *req_htx, *res_htx;
+	struct promex_ctx *ctx = appctx->svcctx;
+	struct buffer *outbuf;
+	struct htx *res_htx;
 	int ret;
 
-	res_htx = htx_from_buf(&res->buf);
-
-	if (unlikely(se_fl_test(appctx->sedesc, (SE_FL_EOS|SE_FL_ERROR|SE_FL_SHR|SE_FL_SHW))))
+	if (unlikely(applet_fl_test(appctx, APPCTX_FL_EOS|APPCTX_FL_ERROR)))
 		goto out;
 
 	/* Check if the input buffer is available. */
-	if (!b_size(&res->buf)) {
-		sc_need_room(sc, 0);
+	outbuf = applet_get_outbuf(appctx);
+	if (outbuf == NULL) {
+		applet_have_more_data(appctx);
 		goto out;
 	}
+	res_htx = htx_from_buf(outbuf);
 
 	switch (appctx->st0) {
 		case PROMEX_ST_INIT:
-			if (!co_data(req)) {
+			if (!applet_get_inbuf(appctx) || !applet_htx_input_data(appctx)) {
 				applet_need_more_data(appctx);
-				goto out;
+				break;
 			}
-			ret = promex_parse_uri(appctx, sc);
+
+			ret = promex_parse_uri(appctx);
 			if (ret <= 0) {
 				if (ret == -1)
-					goto error;
-				goto out;
+					applet_set_error(appctx);
+				break;
 			}
 			appctx->st0 = PROMEX_ST_HEAD;
 			appctx->st1 = PROMEX_DUMPER_INIT;
 			__fallthrough;
 
 		case PROMEX_ST_HEAD:
-			if (!promex_send_headers(appctx, sc, res_htx))
-				goto out;
-			appctx->st0 = ((s->txn->meth == HTTP_METH_HEAD) ? PROMEX_ST_DONE : PROMEX_ST_DUMP);
+			if (!promex_send_headers(appctx, res_htx))
+				break;
+			appctx->st0 = ((ctx->flags & PROMEX_FL_BODYLESS_RESP) ? PROMEX_ST_DONE : PROMEX_ST_DUMP);
 			__fallthrough;
 
 		case PROMEX_ST_DUMP:
-			ret = promex_dump_metrics(appctx, sc, res_htx);
+			ret = promex_dump_metrics(appctx, res_htx);
 			if (ret <= 0) {
 				if (ret == -1)
-					goto error;
-				goto out;
+					applet_set_error(appctx);
+				break;
 			}
 			appctx->st0 = PROMEX_ST_DONE;
 			__fallthrough;
@@ -2137,33 +2121,25 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 			 */
 			if (htx_is_empty(res_htx)) {
 				if (!htx_add_endof(res_htx, HTX_BLK_EOT)) {
-					sc_need_room(sc, sizeof(struct htx_blk) + 1);
-					goto out;
+					applet_have_more_data(appctx);
+					break;
 				}
-				channel_add_input(res, 1);
 			}
 		        res_htx->flags |= HTX_FL_EOM;
-			se_fl_set(appctx->sedesc, SE_FL_EOI);
+			applet_set_eoi(appctx);
 			appctx->st0 = PROMEX_ST_END;
 			__fallthrough;
 
 		case PROMEX_ST_END:
-			se_fl_set(appctx->sedesc, SE_FL_EOS);
+			applet_set_eos(appctx);
 	}
+
+	htx_to_buf(res_htx, outbuf);
 
   out:
-	htx_to_buf(res_htx, &res->buf);
-
 	/* eat the whole request */
-	if (co_data(req)) {
-		req_htx = htx_from_buf(&req->buf);
-		co_htx_skip(req, req_htx, co_data(req));
-	}
+	applet_reset_input(appctx);
 	return;
-
-  error:
-	se_fl_set(appctx->sedesc, SE_FL_ERROR);
-	goto out;
 }
 
 struct applet promex_applet = {
@@ -2172,6 +2148,8 @@ struct applet promex_applet = {
 	.init = promex_appctx_init,
 	.release = promex_appctx_release,
 	.fct = promex_appctx_handle_io,
+	.rcv_buf = appctx_htx_rcv_buf,
+	.snd_buf = appctx_htx_snd_buf,
 };
 
 static enum act_parse_ret service_parse_prometheus_exporter(const char **args, int *cur_arg, struct proxy *px,
