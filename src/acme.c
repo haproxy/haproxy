@@ -639,9 +639,9 @@ static void acme_ctx_destroy(struct acme_ctx *ctx)
 	if (!ctx)
 		return;
 
-	istfree(&ctx->ressources.newNonce);
-	istfree(&ctx->ressources.newAccount);
-	istfree(&ctx->ressources.newOrder);
+	istfree(&ctx->resources.newNonce);
+	istfree(&ctx->resources.newAccount);
+	istfree(&ctx->resources.newOrder);
 	istfree(&ctx->nonce);
 	istfree(&ctx->kid);
 	istfree(&ctx->order);
@@ -1456,10 +1456,10 @@ int acme_req_neworder(struct task *task, struct acme_ctx *ctx, char **errmsg)
 	chunk_appendf(req_in, " ] }");
 
 
-	if (acme_jws_payload(req_in, ctx->nonce, ctx->ressources.newOrder, ctx->cfg->account.pkey, ctx->kid, req_out, errmsg) != 0)
+	if (acme_jws_payload(req_in, ctx->nonce, ctx->resources.newOrder, ctx->cfg->account.pkey, ctx->kid, req_out, errmsg) != 0)
 		goto error;
 
-	if (acme_http_req(task, ctx, ctx->ressources.newOrder, HTTP_METH_POST, hdrs, ist2(req_out->area, req_out->data)))
+	if (acme_http_req(task, ctx, ctx->resources.newOrder, HTTP_METH_POST, hdrs, ist2(req_out->area, req_out->data)))
 		goto error;
 
 	ret = 0;
@@ -1610,10 +1610,10 @@ int acme_req_account(struct task *task, struct acme_ctx *ctx, int newaccount, ch
 	else
 		chunk_printf(req_in, "%s", accountreq);
 
-	if (acme_jws_payload(req_in, ctx->nonce, ctx->ressources.newAccount, ctx->cfg->account.pkey, ctx->kid, req_out, errmsg) != 0)
+	if (acme_jws_payload(req_in, ctx->nonce, ctx->resources.newAccount, ctx->cfg->account.pkey, ctx->kid, req_out, errmsg) != 0)
 		goto error;
 
-	if (acme_http_req(task, ctx, ctx->ressources.newAccount, HTTP_METH_POST, hdrs, ist2(req_out->area, req_out->data)))
+	if (acme_http_req(task, ctx, ctx->resources.newAccount, HTTP_METH_POST, hdrs, ist2(req_out->area, req_out->data)))
 		goto error;
 
 	ret = 0;
@@ -1747,8 +1747,8 @@ int acme_directory(struct task *task, struct acme_ctx *ctx, char **errmsg)
 		memprintf(errmsg, "couldn't get newNonce URL from the directory URL");
 		goto error;
 	}
-	ctx->ressources.newNonce = istdup(ist2(trash.area, ret));
-	if (!isttest(ctx->ressources.newNonce)) {
+	ctx->resources.newNonce = istdup(ist2(trash.area, ret));
+	if (!isttest(ctx->resources.newNonce)) {
 		memprintf(errmsg, "couldn't get newNonce URL from the directory URL");
 		goto error;
 	}
@@ -1757,8 +1757,8 @@ int acme_directory(struct task *task, struct acme_ctx *ctx, char **errmsg)
 		memprintf(errmsg, "couldn't get newAccount URL from the directory URL");
 		goto error;
 	}
-	ctx->ressources.newAccount = istdup(ist2(trash.area, ret));
-	if (!isttest(ctx->ressources.newAccount)) {
+	ctx->resources.newAccount = istdup(ist2(trash.area, ret));
+	if (!isttest(ctx->resources.newAccount)) {
 		memprintf(errmsg, "couldn't get newAccount URL from the directory URL");
 		goto error;
 	}
@@ -1766,8 +1766,8 @@ int acme_directory(struct task *task, struct acme_ctx *ctx, char **errmsg)
 		memprintf(errmsg, "couldn't get newOrder URL from the directory URL");
 		goto error;
 	}
-	ctx->ressources.newOrder = istdup(ist2(trash.area, ret));
-	if (!isttest(ctx->ressources.newOrder)) {
+	ctx->resources.newOrder = istdup(ist2(trash.area, ret));
+	if (!isttest(ctx->resources.newOrder)) {
 		memprintf(errmsg, "couldn't get newOrder URL from the directory URL");
 		goto error;
 	}
@@ -1776,7 +1776,7 @@ int acme_directory(struct task *task, struct acme_ctx *ctx, char **errmsg)
 	ctx->hc = NULL;
 
 //	fprintf(stderr, "newNonce: %s\nnewAccount: %s\nnewOrder: %s\n",
-//	        ctx->ressources.newNonce.ptr, ctx->ressources.newAccount.ptr, ctx->ressources.newOrder.ptr);
+//	        ctx->resources.newNonce.ptr, ctx->resources.newAccount.ptr, ctx->resources.newOrder.ptr);
 
 	return 0;
 
@@ -1784,9 +1784,9 @@ error:
 	httpclient_destroy(hc);
 	ctx->hc = NULL;
 
-	istfree(&ctx->ressources.newNonce);
-	istfree(&ctx->ressources.newAccount);
-	istfree(&ctx->ressources.newOrder);
+	istfree(&ctx->resources.newNonce);
+	istfree(&ctx->resources.newAccount);
+	istfree(&ctx->resources.newOrder);
 
 	return 1;
 }
@@ -1808,7 +1808,7 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 re:
 
 	switch (st) {
-		case ACME_RESSOURCES:
+		case ACME_RESOURCES:
 			if (http_st == ACME_HTTP_REQ) {
 				if (acme_http_req(task, ctx, ist(ctx->cfg->directory), HTTP_METH_GET, NULL, IST_NULL) != 0)
 					goto retry;
@@ -1824,7 +1824,7 @@ re:
 		break;
 		case ACME_NEWNONCE:
 			if (http_st == ACME_HTTP_REQ) {
-				if (acme_http_req(task, ctx, ctx->ressources.newNonce, HTTP_METH_HEAD, NULL, IST_NULL) != 0)
+				if (acme_http_req(task, ctx, ctx->resources.newNonce, HTTP_METH_HEAD, NULL, IST_NULL) != 0)
 					goto retry;
 			}
 			if (http_st == ACME_HTTP_RES) {

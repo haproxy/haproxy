@@ -31,7 +31,7 @@ struct acme_cfg {
 };
 
 enum acme_st {
-	ACME_RESSOURCES = 0,
+	ACME_RESOURCES = 0,
 	ACME_NEWNONCE,
 	ACME_CHKACCOUNT,
 	ACME_NEWACCOUNT,
@@ -70,7 +70,7 @@ struct acme_ctx {
 		struct ist newNonce;
 		struct ist newAccount;
 		struct ist newOrder;
-	} ressources;
+	} resources;
 	struct ist nonce;
 	struct ist kid;
 	struct ist order;
