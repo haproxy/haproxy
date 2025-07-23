@@ -1230,7 +1230,7 @@ enum acme_ret acme_res_challenge(struct task *task, struct acme_ctx *ctx, struct
 	}
 	trash.data = res;
 
-	if (strncasecmp("pending", trash.area, trash.data) == 0) {
+	if (strncasecmp("pending", trash.area, trash.data) == 0 || strncasecmp("processing", trash.area, trash.data) == 0) {
 		if (chk) { /* during challenge chk */
 			memprintf(errmsg, "challenge status: %.*s", (int)trash.data, trash.area);
 			ret = ACME_RET_RETRY;
@@ -1241,14 +1241,8 @@ enum acme_ret acme_res_challenge(struct task *task, struct acme_ctx *ctx, struct
 		}
 	}
 
-	/* during challenge check */
 	if (strncasecmp("valid", trash.area, trash.data) == 0) {
 		ret = ACME_RET_OK;
-		goto out;
-	}
-	if (strncasecmp("processing", trash.area, trash.data) == 0) {
-		memprintf(errmsg, "challenge status: %.*s", (int)trash.data, trash.area);
-		ret = ACME_RET_RETRY;
 		goto out;
 	}
 
