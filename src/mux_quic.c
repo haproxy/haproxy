@@ -3195,6 +3195,10 @@ static void qcc_shutdown(struct qcc *qcc)
 	if (!(qcc->conn->handle.qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE))
 		qcc->conn->handle.qc->err = qcc->err;
 
+	/* A connection is not reusable if app layer is closed. */
+	if (qcc->flags & QC_CF_IS_BACK)
+		conn_delete_from_tree(qcc->conn);
+
  out:
 	qcc->app_st = QCC_APP_ST_SHUT;
 	TRACE_LEAVE(QMUX_EV_QCC_END, qcc->conn);
@@ -3719,6 +3723,9 @@ static int qmux_strm_attach(struct connection *conn, struct sedesc *sd, struct s
 	 */
 	BUG_ON(!qcc_fctl_avail_streams(qcc, 1));
 
+	/* Connnection should not be reused if already on error/closed. */
+	BUG_ON(qcc->flags & QC_CF_ERRL || qcc->app_st >= QCC_APP_ST_SHUT);
+
 	qcs = qcc_init_stream_local(qcc, 1);
 	if (!qcs) {
 		TRACE_DEVEL("leaving on error", QMUX_EV_QCS_NEW, qcc->conn);
@@ -3771,7 +3778,8 @@ static void qmux_strm_detach(struct sedesc *sd)
 	qcs_destroy(qcs);
 
 	/* Backend connection can be reused unless it is already on error/closed. */
-	if (qcc->flags & QC_CF_IS_BACK && !qcc_is_dead(qcc)) {
+	if ((qcc->flags & QC_CF_IS_BACK) && !qcc_is_dead(qcc) &&
+	    qcc->app_st == QCC_APP_ST_INIT) {
 		if (!(conn->flags & CO_FL_PRIVATE)) {
 			if (!qcc->nb_sc) {
 				TRACE_DEVEL("prepare for idle connection reuse", QMUX_EV_STRM_END, conn);
