@@ -173,8 +173,7 @@ static inline void session_unown_conn(struct session *sess, struct connection *c
 
 /* Add the connection <conn> to the private conns list of session <sess>. This
  * function is called only if the connection is private. Nothing is performed
- * if the connection is already in the session list or if the session does not
- * owned the connection.
+ * if the connection is already in the session list.
  */
 static inline int session_add_conn(struct session *sess, struct connection *conn, void *target)
 {
@@ -184,8 +183,11 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 
 	BUG_ON(objt_listener(conn->target));
 
-	/* Already attach to the session or not the connection owner */
-	if (!LIST_ISEMPTY(&conn->sess_el) || (conn->owner && conn->owner != sess))
+	/* A connection cannot be attached already to another session. */
+	BUG_ON(conn->owner && conn->owner != sess);
+
+	/* Already attach to the session */
+	if (!LIST_ISEMPTY(&conn->sess_el))
 		return 1;
 
 	list_for_each_entry(pconns, &sess->priv_conns, sess_el) {
@@ -224,8 +226,11 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
  */
 static inline int session_check_idle_conn(struct session *sess, struct connection *conn)
 {
-	/* Another session owns this connection */
-	if (conn->owner != sess)
+	/* A connection cannot be attached to multiple sessions. */
+	BUG_ON(conn->owner && conn->owner != sess);
+
+	/* Connection is not attached to a session. */
+	if (!conn->owner)
 		return 0;
 
 	if (sess->idle_conns >= sess->fe->max_out_conns) {
