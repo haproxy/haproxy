@@ -32,7 +32,7 @@
 
 /* Prometheus exporter flags (ctx->flags) */
 #define PROMEX_FL_METRIC_HDR        0x00000001
-/* unused: 0x00000002 */
+#define PROMEX_FL_BODYLESS_RESP     0x00000002
 /* unused: 0x00000004 */
 /* unused: 0x00000008 */
 /* unused: 0x00000010 */
