@@ -1318,16 +1318,6 @@ end:
 	return ret;
 }
 
-
-/*
- * Get an Auth URL
- */
-int acme_req_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *auth, char **errmsg)
-{
-	return acme_post_as_get(task, ctx, auth->auth, errmsg);
-
-}
-
 int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *auth, char **errmsg)
 {
 	struct httpclient *hc;
@@ -1898,7 +1888,7 @@ re:
 		break;
 		case ACME_AUTH:
 			if (http_st == ACME_HTTP_REQ) {
-				if (acme_req_auth(task, ctx, ctx->next_auth, &errmsg) != 0)
+				if (acme_post_as_get(task, ctx, ctx->next_auth->auth, &errmsg) != 0)
 					goto retry;
 			}
 			if (http_st == ACME_HTTP_RES) {
