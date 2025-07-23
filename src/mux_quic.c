@@ -760,6 +760,10 @@ int _qcc_report_glitch(struct qcc *qcc, int inc)
 {
 	const int max = global.tune.quic_frontend_glitches_threshold;
 
+	/* TODO add a BE limit for glitch counter */
+	if (qcc->flags & QC_CF_IS_BACK)
+		return 0;
+
 	qcc->glitches += inc;
 	if (max && qcc->glitches >= max && !(qcc->flags & QC_CF_ERRL) &&
 	    (th_ctx->idle_pct <= global.tune.glitch_kill_maxidle)) {
@@ -1333,7 +1337,7 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 	if (!(qcs->flags & QC_SF_READ_ABORTED)) {
 		ret = qcc->app_ops->rcv_buf(qcs, &b, fin);
 
-		if (qcc->glitches != prev_glitches)
+		if (qcc->glitches != prev_glitches && !(qcc->flags & QC_CF_IS_BACK))
 			session_add_glitch_ctr(qcc->conn->owner, qcc->glitches - prev_glitches);
 
 		if (ret < 0) {
@@ -2150,7 +2154,7 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 	}
 
  out:
-	if (qcc->glitches != prev_glitches)
+	if (qcc->glitches != prev_glitches && !(qcc->flags & QC_CF_IS_BACK))
 		session_add_glitch_ctr(qcc->conn->owner, qcc->glitches - prev_glitches);
 
 	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
@@ -2256,7 +2260,7 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 		qcc_refresh_timeout(qcc);
 
  out:
-	if (qcc->glitches != prev_glitches)
+	if (qcc->glitches != prev_glitches && !(qcc->flags & QC_CF_IS_BACK))
 		session_add_glitch_ctr(qcc->conn->owner, qcc->glitches - prev_glitches);
 
 	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
