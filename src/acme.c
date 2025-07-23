@@ -1274,11 +1274,8 @@ out:
 	return ret;
 }
 
-
-/*
- * Get an Auth URL
- */
-int acme_req_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *auth, char **errmsg)
+/* generate a POST-as-GET request */
+int acme_post_as_get(struct task *task, struct acme_ctx *ctx, struct ist url, char **errmsg)
 {
 	struct buffer *req_in = NULL;
 	struct buffer *req_out = NULL;
@@ -1289,25 +1286,45 @@ int acme_req_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 	int ret = 1;
 
         if ((req_in = alloc_trash_chunk()) == NULL)
-		goto error;
+		goto error_alloc;
         if ((req_out = alloc_trash_chunk()) == NULL)
-		goto error;
+		goto error_alloc;
 
 	/* empty payload */
-	if (acme_jws_payload(req_in, ctx->nonce, auth->auth, ctx->cfg->account.pkey, ctx->kid, req_out, errmsg) != 0)
-		goto error;
+	if (acme_jws_payload(req_in, ctx->nonce, url, ctx->cfg->account.pkey, ctx->kid, req_out, errmsg) != 0)
+		goto error_jws;
 
-	if (acme_http_req(task, ctx, auth->auth, HTTP_METH_POST, hdrs, ist2(req_out->area, req_out->data)))
-		goto error;
+	if (acme_http_req(task, ctx, url, HTTP_METH_POST, hdrs, ist2(req_out->area, req_out->data)))
+		goto error_http;
 
 	ret = 0;
-error:
-	memprintf(errmsg, "couldn't generate the Authorizations request");
 
+error_jws:
+	memprintf(errmsg, "couldn't generate the JWS token: %s", errmsg ? *errmsg : "");
+	goto end;
+
+error_http:
+	memprintf(errmsg, "couldn't generate the http request");
+	goto end;
+
+error_alloc:
+	memprintf(errmsg, "couldn't allocate memory");
+	goto end;
+
+end:
 	free_trash_chunk(req_in);
 	free_trash_chunk(req_out);
 
 	return ret;
+}
+
+
+/*
+ * Get an Auth URL
+ */
+int acme_req_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *auth, char **errmsg)
+{
+	return acme_post_as_get(task, ctx, auth->auth, errmsg);
 
 }
 
@@ -1922,7 +1939,7 @@ re:
 		break;
 		case ACME_CHKCHALLENGE:
 			if (http_st == ACME_HTTP_REQ) {
-				if (acme_http_req(task, ctx, ctx->next_auth->chall, HTTP_METH_GET, NULL, IST_NULL) != 0)
+				if (acme_post_as_get(task, ctx, ctx->next_auth->chall, &errmsg) != 0)
 					goto retry;
 			}
 			if (http_st == ACME_HTTP_RES) {
@@ -1957,7 +1974,7 @@ re:
 		break;
 		case ACME_CHKORDER:
 			if (http_st == ACME_HTTP_REQ) {
-				if (acme_http_req(task, ctx, ctx->order, HTTP_METH_GET, NULL, IST_NULL) != 0)
+				if (acme_post_as_get(task, ctx, ctx->order, &errmsg) != 0)
 					goto retry;
 			}
 			if (http_st == ACME_HTTP_RES) {
@@ -1970,7 +1987,7 @@ re:
 		break;
 		case ACME_CERTIFICATE:
 			if (http_st == ACME_HTTP_REQ) {
-				if (acme_http_req(task, ctx, ctx->certificate, HTTP_METH_GET, NULL, IST_NULL) != 0)
+				if (acme_post_as_get(task, ctx, ctx->certificate, &errmsg) != 0)
 					goto retry;
 			}
 			if (http_st == ACME_HTTP_RES) {
