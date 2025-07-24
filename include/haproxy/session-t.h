@@ -61,6 +61,8 @@ struct session {
 	struct list priv_conns;         /* list of private conns */
 	struct sockaddr_storage *src; /* source address (pool), when known, otherwise NULL */
 	struct sockaddr_storage *dst; /* destination address (pool), when known, otherwise NULL */
+	struct fe_counters_shared_tg *fe_tgcounters; /* pointer to current thread group shared frontend counters */
+	struct fe_counters_shared_tg *li_tgcounters; /* pointer to current thread group shared listener counters */
 };
 
 /*

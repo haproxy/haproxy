@@ -5947,15 +5947,15 @@ missing_budget:
 
 parse_error:
 	if (l->counters)
-		_HA_ATOMIC_INC(&l->counters->shared.tg[tgid - 1]->failed_req);
-	_HA_ATOMIC_INC(&frontend->fe_counters.shared.tg[tgid - 1]->failed_req);
+		_HA_ATOMIC_INC(&s->sess->li_tgcounters->failed_req);
+	_HA_ATOMIC_INC(&s->sess->fe_tgcounters->failed_req);
 
 	goto error;
 
 cli_abort:
 	if (l->counters)
-		_HA_ATOMIC_INC(&l->counters->shared.tg[tgid - 1]->cli_aborts);
-	_HA_ATOMIC_INC(&frontend->fe_counters.shared.tg[tgid - 1]->cli_aborts);
+		_HA_ATOMIC_INC(&s->sess->li_tgcounters->cli_aborts);
+	_HA_ATOMIC_INC(&s->sess->fe_tgcounters->cli_aborts);
 
 error:
 	applet_set_eos(appctx);

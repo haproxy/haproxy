@@ -2727,7 +2727,7 @@ static int hlua_socket_init(struct appctx *appctx)
 
 	/* Force destination server. */
 	s->flags |= SF_DIRECT | SF_ASSIGNED | SF_BE_ASSIGNED;
-	s->target = &csk_ctx->srv->obj_type;
+	stream_set_srv_target(s, csk_ctx->srv);
 
 	if (csk_ctx->timeout) {
 		s->sess->fe->timeout.connect = csk_ctx->timeout;
@@ -8922,7 +8922,7 @@ __LJMP static int hlua_txn_done(lua_State *L)
 		/* let's log the request time */
 		s->logs.request_ts = now_ns;
 		if (s->sess->fe == s->be) /* report it if the request was intercepted by the frontend */
-			_HA_ATOMIC_INC(&s->sess->fe->fe_counters.shared.tg[tgid - 1]->intercepted_req);
+			_HA_ATOMIC_INC(&s->sess->fe_tgcounters->intercepted_req);
 	}
 
   done:

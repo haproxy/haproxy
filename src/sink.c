@@ -565,7 +565,7 @@ static int sink_forward_session_init(struct appctx *appctx)
 	s->scb->dst = addr;
 	s->scb->flags |= (SC_FL_RCV_ONCE);
 
-	s->target = &sft->srv->obj_type;
+	stream_set_srv_target(s, sft->srv);
 	s->flags = SF_ASSIGNED;
 
 	s->do_log = NULL;

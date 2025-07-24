@@ -833,7 +833,7 @@ static int dns_session_init(struct appctx *appctx)
 	s = appctx_strm(appctx);
 	s->scb->dst = addr;
 	s->scb->flags |= (SC_FL_RCV_ONCE|SC_FL_NOLINGER);
-	s->target = &ds->dss->srv->obj_type;
+	stream_set_srv_target(s, ds->dss->srv);
 	s->flags = SF_ASSIGNED;
 
 	s->do_log = NULL;

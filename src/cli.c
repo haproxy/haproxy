@@ -3364,6 +3364,8 @@ read_again:
 				target_pid = s->pcli_next_pid;
 			/* we can connect now */
 			s->target = pcli_pid_to_server(target_pid);
+			if (objt_server(s->target))
+				s->sv_tgcounters = __objt_server(s->target)->counters.shared.tg[tgid - 1];
 
 			if (!s->target)
 				goto server_disconnect;

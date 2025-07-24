@@ -362,8 +362,8 @@ static inline void stream_choose_redispatch(struct stream *s)
 		s->scb->state = SC_ST_REQ;
 	} else {
 		if (objt_server(s->target))
-			_HA_ATOMIC_INC(&__objt_server(s->target)->counters.shared.tg[tgid - 1]->retries);
-		_HA_ATOMIC_INC(&s->be->be_counters.shared.tg[tgid - 1]->retries);
+			_HA_ATOMIC_INC(&s->sv_tgcounters->retries);
+		_HA_ATOMIC_INC(&s->be_tgcounters->retries);
 		s->scb->state = SC_ST_ASS;
 	}
 
@@ -432,6 +432,11 @@ static inline void stream_report_term_evt(struct stconn *sc, enum strm_term_even
 	sc->term_evts_log = tevt_report_event(sc->term_evts_log, loc, type);
 }
 
+static inline void stream_set_srv_target(struct stream *s, struct server *srv)
+{
+	s->target = &srv->obj_type;
+	s->sv_tgcounters = srv->counters.shared.tg[tgid - 1];
+}
 
 int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout);
 void stream_retnclose(struct stream *s, const struct buffer *msg);

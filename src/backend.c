@@ -660,7 +660,7 @@ int assign_server(struct stream *s)
 				list_for_each_entry(conn, &pconns->conn_list, sess_el) {
 					if (!(conn->flags & CO_FL_WAIT_XPRT)) {
 						srv = tmpsrv;
-						s->target = &srv->obj_type;
+						stream_set_srv_target(s, srv);
 						if (conn->flags & CO_FL_SESS_IDLE) {
 							conn->flags &= ~CO_FL_SESS_IDLE;
 							s->sess->idle_conns--;
@@ -825,10 +825,10 @@ int assign_server(struct stream *s)
 			goto out;
 		}
 		else if (srv != prev_srv) {
-			_HA_ATOMIC_INC(&s->be->be_counters.shared.tg[tgid - 1]->cum_lbconn);
+			_HA_ATOMIC_INC(&s->be_tgcounters->cum_lbconn);
 			_HA_ATOMIC_INC(&srv->counters.shared.tg[tgid - 1]->cum_lbconn);
 		}
-		s->target = &srv->obj_type;
+		stream_set_srv_target(s, srv);
 	}
 	else if (s->be->options & (PR_O_DISPATCH | PR_O_TRANSP)) {
 		s->target = &s->be->obj_type;
@@ -1001,10 +1001,10 @@ int assign_server_and_queue(struct stream *s)
 				}
 				s->flags |= SF_REDISP;
 				_HA_ATOMIC_INC(&prev_srv->counters.shared.tg[tgid - 1]->redispatches);
-				_HA_ATOMIC_INC(&s->be->be_counters.shared.tg[tgid - 1]->redispatches);
+				_HA_ATOMIC_INC(&s->be_tgcounters->redispatches);
 			} else {
 				_HA_ATOMIC_INC(&prev_srv->counters.shared.tg[tgid - 1]->retries);
-				_HA_ATOMIC_INC(&s->be->be_counters.shared.tg[tgid - 1]->retries);
+				_HA_ATOMIC_INC(&s->be_tgcounters->retries);
 			}
 		}
 	}
@@ -1154,7 +1154,8 @@ int assign_server_and_queue(struct stream *s)
 					pool_free(pool_head_pendconn, p);
 
 					s->flags |= SF_ASSIGNED;
-					s->target = &newserv->obj_type;
+					stream_set_srv_target(s, newserv);
+
 					s->pend_pos = NULL;
 					sess_change_server(s, newserv);
 					return SRV_STATUS_OK;
@@ -2091,13 +2092,13 @@ int connect_server(struct stream *s)
 		s->scb->flags |= SC_FL_NOLINGER;
 
 	if (s->flags & SF_SRV_REUSED) {
-		_HA_ATOMIC_INC(&s->be->be_counters.shared.tg[tgid - 1]->reuse);
+		_HA_ATOMIC_INC(&s->be_tgcounters->reuse);
 		if (srv)
-			_HA_ATOMIC_INC(&srv->counters.shared.tg[tgid - 1]->reuse);
+			_HA_ATOMIC_INC(&s->sv_tgcounters->reuse);
 	} else {
-		_HA_ATOMIC_INC(&s->be->be_counters.shared.tg[tgid - 1]->connect);
+		_HA_ATOMIC_INC(&s->be_tgcounters->connect);
 		if (srv)
-			_HA_ATOMIC_INC(&srv->counters.shared.tg[tgid - 1]->connect);
+			_HA_ATOMIC_INC(&s->sv_tgcounters->connect);
 	}
 
 	err = do_connect_server(s, srv_conn);
@@ -2286,8 +2287,8 @@ int srv_redispatch_connect(struct stream *s)
 			s->conn_err_type = STRM_ET_QUEUE_ERR;
 		}
 
-		_HA_ATOMIC_INC(&srv->counters.shared.tg[tgid - 1]->failed_conns);
-		_HA_ATOMIC_INC(&s->be->be_counters.shared.tg[tgid - 1]->failed_conns);
+		_HA_ATOMIC_INC(&s->sv_tgcounters->failed_conns);
+		_HA_ATOMIC_INC(&s->be_tgcounters->failed_conns);
 		return 1;
 
 	case SRV_STATUS_NOSRV:
@@ -2296,7 +2297,7 @@ int srv_redispatch_connect(struct stream *s)
 			s->conn_err_type = STRM_ET_CONN_ERR;
 		}
 
-		_HA_ATOMIC_INC(&s->be->be_counters.shared.tg[tgid - 1]->failed_conns);
+		_HA_ATOMIC_INC(&s->be_tgcounters->failed_conns);
 		return 1;
 
 	case SRV_STATUS_QUEUED:
@@ -2325,8 +2326,8 @@ int srv_redispatch_connect(struct stream *s)
 		if (srv)
 			srv_set_sess_last(srv);
 		if (srv)
-			_HA_ATOMIC_INC(&srv->counters.shared.tg[tgid - 1]->failed_conns);
-		_HA_ATOMIC_INC(&s->be->be_counters.shared.tg[tgid - 1]->failed_conns);
+			_HA_ATOMIC_INC(&s->sv_tgcounters->failed_conns);
+		_HA_ATOMIC_INC(&s->be_tgcounters->failed_conns);
 
 		/* release other streams waiting for this server */
 		if (may_dequeue_tasks(srv, s->be))
@@ -2400,8 +2401,8 @@ void back_try_conn_req(struct stream *s)
 			if (srv)
 				srv_set_sess_last(srv);
 			if (srv)
-				_HA_ATOMIC_INC(&srv->counters.shared.tg[tgid - 1]->failed_conns);
-			_HA_ATOMIC_INC(&s->be->be_counters.shared.tg[tgid - 1]->failed_conns);
+				_HA_ATOMIC_INC(&s->sv_tgcounters->failed_conns);
+			_HA_ATOMIC_INC(&s->be_tgcounters->failed_conns);
 
 			/* release other streams waiting for this server */
 			sess_change_server(s, NULL);
@@ -2467,8 +2468,8 @@ void back_try_conn_req(struct stream *s)
 			pendconn_cond_unlink(s->pend_pos);
 
 			if (srv)
-				_HA_ATOMIC_INC(&srv->counters.shared.tg[tgid - 1]->failed_conns);
-			_HA_ATOMIC_INC(&s->be->be_counters.shared.tg[tgid - 1]->failed_conns);
+				_HA_ATOMIC_INC(&s->sv_tgcounters->failed_conns);
+			_HA_ATOMIC_INC(&s->be_tgcounters->failed_conns);
 			sc_abort(sc);
 			sc_shutdown(sc);
 			req->flags |= CF_WRITE_TIMEOUT;
@@ -2723,8 +2724,8 @@ void back_handle_st_cer(struct stream *s)
 		}
 
 		if (objt_server(s->target))
-			_HA_ATOMIC_INC(&objt_server(s->target)->counters.shared.tg[tgid - 1]->failed_conns);
-		_HA_ATOMIC_INC(&s->be->be_counters.shared.tg[tgid - 1]->failed_conns);
+			_HA_ATOMIC_INC(&s->sv_tgcounters->failed_conns);
+		_HA_ATOMIC_INC(&s->be_tgcounters->failed_conns);
 		sess_change_server(s, NULL);
 		if (may_dequeue_tasks(objt_server(s->target), s->be))
 			process_srv_queue(objt_server(s->target));
@@ -2756,8 +2757,8 @@ void back_handle_st_cer(struct stream *s)
 			s->conn_err_type = STRM_ET_CONN_OTHER;
 
 		if (objt_server(s->target))
-			_HA_ATOMIC_INC(&objt_server(s->target)->counters.shared.tg[tgid - 1]->internal_errors);
-		_HA_ATOMIC_INC(&s->be->be_counters.shared.tg[tgid - 1]->internal_errors);
+			_HA_ATOMIC_INC(&s->sv_tgcounters->internal_errors);
+		_HA_ATOMIC_INC(&s->be_tgcounters->internal_errors);
 		sess_change_server(s, NULL);
 		if (may_dequeue_tasks(objt_server(s->target), s->be))
 			process_srv_queue(objt_server(s->target));
@@ -2953,7 +2954,7 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 			if ((srv->cur_state != SRV_ST_STOPPED) || (px->options & PR_O_PERSIST)) {
 				/* we found the server and it is usable */
 				s->flags |= SF_DIRECT | SF_ASSIGNED;
-				s->target = &srv->obj_type;
+				stream_set_srv_target(s, srv);
 				break;
 			}
 		}

@@ -340,6 +340,8 @@ struct stream {
 		int hostname_dn_len;            /* size of hostname_dn */
 		/* 4 unused bytes here, recoverable via packing if needed */
 	} resolv_ctx;                           /* context information for DNS resolution */
+	struct be_counters_shared_tg *be_tgcounters; /* pointer to current thread group shared backend counters */
+	struct be_counters_shared_tg *sv_tgcounters; /* pointer to current thread group shared server counters */
 };
 
 #endif /* _HAPROXY_STREAM_T_H */
