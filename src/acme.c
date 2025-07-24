@@ -2457,8 +2457,13 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
-
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
+
+static void __acme_init(void)
+{
+	hap_register_feature("ACME");
+}
+INITCALL0(STG_REGISTER, __acme_init);
 
 #endif /* ! HAVE_ACME */
 
