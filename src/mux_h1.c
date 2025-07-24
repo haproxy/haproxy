@@ -1150,8 +1150,8 @@ static int h1s_finish_detach(struct h1s *h1s)
 			 */
 			HA_ATOMIC_OR(&h1c->wait_event.tasklet->state, TASK_F_USR1);
 			if (session_check_idle_conn(sess, h1c->conn)) {
-				/* The connection got destroyed, let's leave */
-				TRACE_DEVEL("outgoing connection killed", H1_EV_STRM_END|H1_EV_H1C_END);
+				TRACE_DEVEL("outgoing connection rejected", H1_EV_STRM_END|H1_EV_H1C_END, h1c->conn);
+				h1c->conn->mux->destroy(h1c);
 				goto released;
 			}
 		}

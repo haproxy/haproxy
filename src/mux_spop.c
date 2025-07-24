@@ -2991,7 +2991,7 @@ static void spop_detach(struct sedesc *sd)
 				 */
 				HA_ATOMIC_OR(&spop_conn->wait_event.tasklet->state, TASK_F_USR1);
 				if (session_check_idle_conn(spop_conn->conn->owner, spop_conn->conn) != 0) {
-					/* At this point either the connection is destroyed, or it's been added to the server idle list, just stop */
+					spop_conn->conn->mux->destroy(spop_conn);
 					TRACE_DEVEL("leaving without reusable idle connection", SPOP_EV_STRM_END);
 					return;
 				}

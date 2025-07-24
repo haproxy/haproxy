@@ -225,8 +225,12 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 	return 1;
 }
 
-/* Returns 0 if the session can keep the idle conn, -1 if it was destroyed. The
- * connection must be private.
+/* Check that session <sess> is able to keep idle connection <conn>. This must
+ * be called after insertion of a private connection into session unless
+ * connection is or will be soon active.
+ *
+ * Returns 0 if the connection is kept or is not attached to the session, else
+ * non-zero if the connection was explicitely removed from session.
  */
 static inline int session_check_idle_conn(struct session *sess, struct connection *conn)
 {
@@ -243,7 +247,6 @@ static inline int session_check_idle_conn(struct session *sess, struct connectio
 	if (sess->idle_conns >= sess->fe->max_out_conns) {
 		session_unown_conn(sess, conn);
 		conn->owner = NULL;
-		conn->mux->destroy(conn->ctx);
 		return -1;
 	}
 	else {

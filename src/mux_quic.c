@@ -3784,24 +3784,24 @@ static void qmux_strm_detach(struct sedesc *sd)
 		if (conn->flags & CO_FL_PRIVATE) {
 			TRACE_DEVEL("handle private connection reuse", QMUX_EV_STRM_END, conn);
 
-			/* Add connection into session. If an error occured,
-			 * conn will be closed if idle, or insert will be
-			 * retried on next detach.
+			/* Ensure conn is attached into session. Most of the times
+			 * this is already done during connect so this is a no-op.
 			 */
 			if (!session_add_conn(sess, conn)) {
 				TRACE_ERROR("error during connection insert into session list", QMUX_EV_STRM_END, conn);
 				conn->owner = NULL;
+
+				/* Session insert failure. Close conn if idle,
+				 * else insert will be retry on next detach.
+				 */
 				if (!qcc->nb_sc)
 					goto release;
 			}
 
-			/* If conn is idle, check if session can keep it. Conn is freed if this is not the case.
-			 * TODO graceful shutdown should be preferable instead of plain mux->destroy().
-			 */
+			/* If conn is idle, check if session can keep it. Conn is closed if this is not the case. */
 			if (!qcc->nb_sc && session_check_idle_conn(sess, conn)) {
-				TRACE_DEVEL("idle conn rejected by session", QMUX_EV_STRM_END);
-				conn = NULL;
-				goto end;
+				TRACE_DEVEL("idle conn rejected by session", QMUX_EV_STRM_END, conn);
+				goto release;
 			}
 		}
 		else {

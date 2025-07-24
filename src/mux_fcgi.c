@@ -3738,7 +3738,7 @@ static void fcgi_detach(struct sedesc *sd)
 				 */
 				HA_ATOMIC_OR(&fconn->wait_event.tasklet->state, TASK_F_USR1);
 				if (session_check_idle_conn(fconn->conn->owner, fconn->conn) != 0) {
-					/* The connection is destroyed, let's leave */
+					fconn->conn->mux->destroy(fconn);
 					TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);
 					return;
 				}
