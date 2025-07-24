@@ -3788,7 +3788,7 @@ static void qmux_strm_detach(struct sedesc *sd)
 			 * conn will be closed if idle, or insert will be
 			 * retried on next detach.
 			 */
-			if (!session_add_conn(sess, conn, conn->target)) {
+			if (!session_add_conn(sess, conn)) {
 				TRACE_ERROR("error during connection insert into session list", QMUX_EV_STRM_END, conn);
 				conn->owner = NULL;
 				if (!qcc->nb_sc)

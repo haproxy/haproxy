@@ -5533,7 +5533,7 @@ static void h2_detach(struct sedesc *sd)
 
 			if (h2c->conn->flags & CO_FL_PRIVATE) {
 				/* Add the connection in the session server list, if not already done */
-				if (!session_add_conn(sess, h2c->conn, h2c->conn->target)) {
+				if (!session_add_conn(sess, h2c->conn)) {
 					h2c->conn->owner = NULL;
 					if (eb_is_empty(&h2c->streams_by_id)) {
 						h2c->conn->mux->destroy(h2c);

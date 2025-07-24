@@ -171,17 +171,21 @@ static inline void session_unown_conn(struct session *sess, struct connection *c
 	}
 }
 
-/* Add the connection <conn> to the private conns list of session <sess>. This
- * function is called only if the connection is private. Nothing is performed
- * if the connection is already in the session list.
+/* Add the connection <conn> to the private conns list of session <sess>. Each
+ * connection is indexed by their respective target in the session. Nothing is
+ * performed if the connection is already in the session list.
+ *
+ * Returns true if conn is inserted or already present else false if a failure
+ * occurs during insertion.
  */
-static inline int session_add_conn(struct session *sess, struct connection *conn, void *target)
+static inline int session_add_conn(struct session *sess, struct connection *conn)
 {
 	struct sess_priv_conns *pconns = NULL;
 	struct server *srv = objt_server(conn->target);
 	int found = 0;
 
-	BUG_ON(objt_listener(conn->target));
+	/* Connection target is used to index it in the session. Only BE conns are expected in session list. */
+	BUG_ON(!conn->target || objt_listener(conn->target));
 
 	/* A connection cannot be attached already to another session. */
 	BUG_ON(conn->owner && conn->owner != sess);
@@ -191,7 +195,7 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 		return 1;
 
 	list_for_each_entry(pconns, &sess->priv_conns, sess_el) {
-		if (pconns->target == target) {
+		if (pconns->target == conn->target) {
 			found = 1;
 			break;
 		}
@@ -201,7 +205,7 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 		pconns = pool_alloc(pool_head_sess_priv_conns);
 		if (!pconns)
 			return 0;
-		pconns->target = target;
+		pconns->target = conn->target;
 		LIST_INIT(&pconns->conn_list);
 		LIST_APPEND(&sess->priv_conns, &pconns->sess_el);
 

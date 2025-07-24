@@ -117,7 +117,7 @@ int conn_create_mux(struct connection *conn, int *closed_connection)
 		}
 		else if (conn->flags & CO_FL_PRIVATE) {
 			/* If it fail now, the same will be done in mux->detach() callback */
-			session_add_conn(sess, conn, conn->target);
+			session_add_conn(sess, conn);
 		}
 		return 0;
 fail:

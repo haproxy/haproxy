@@ -3723,7 +3723,7 @@ static void fcgi_detach(struct sedesc *sd)
 	    (fconn->flags & FCGI_CF_KEEP_CONN)) {
 		if (fconn->conn->flags & CO_FL_PRIVATE) {
 			/* Add the connection in the session serverlist, if not already done */
-			if (!session_add_conn(sess, fconn->conn, fconn->conn->target)) {
+			if (!session_add_conn(sess, fconn->conn)) {
 				fconn->conn->owner = NULL;
 				if (eb_is_empty(&fconn->streams_by_id)) {
 					/* let's kill the connection right away */

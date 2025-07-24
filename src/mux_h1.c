@@ -1138,7 +1138,7 @@ static int h1s_finish_detach(struct h1s *h1s)
 
 		if (h1c->conn->flags & CO_FL_PRIVATE) {
 			/* Add the connection in the session server list, if not already done */
-			if (!session_add_conn(sess, h1c->conn, h1c->conn->target)) {
+			if (!session_add_conn(sess, h1c->conn)) {
 				h1c->conn->owner = NULL;
 				h1c->conn->mux->destroy(h1c);
 				goto released;

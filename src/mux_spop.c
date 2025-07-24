@@ -2977,7 +2977,7 @@ static void spop_detach(struct sedesc *sd)
 	if (!(spop_conn->flags & (SPOP_CF_RCVD_SHUT|SPOP_CF_ERR_PENDING|SPOP_CF_ERROR))) {
 		if (spop_conn->conn->flags & CO_FL_PRIVATE) {
 			/* Add the connection in the session server list, if not already done */
-			if (!session_add_conn(sess, spop_conn->conn, spop_conn->conn->target)) {
+			if (!session_add_conn(sess, spop_conn->conn)) {
 				spop_conn->conn->owner = NULL;
 				if (eb_is_empty(&spop_conn->streams_by_id)) {
 					spop_conn->conn->mux->destroy(spop_conn);

@@ -1425,7 +1425,7 @@ check_tgid:
 		if (reuse_mode == PR_O_REUSE_SAFE && conn->mux->flags & MX_FL_HOL_RISK) {
 			/* attach the connection to the session private list */
 			conn->owner = sess;
-			session_add_conn(sess, conn, conn->target);
+			session_add_conn(sess, conn);
 		}
 		else {
 			srv_add_to_avail_list(srv, conn);
@@ -2159,7 +2159,7 @@ int connect_server(struct stream *s)
 			         (reuse_mode == PR_O_REUSE_SAFE &&
 			          srv_conn->mux->flags & MX_FL_HOL_RISK)) {
 				/* If it fail now, the same will be done in mux->detach() callback */
-				session_add_conn(s->sess, srv_conn, srv_conn->target);
+				session_add_conn(s->sess, srv_conn);
 			}
 		}
 	}
