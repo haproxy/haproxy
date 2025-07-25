@@ -3437,6 +3437,7 @@ static int hlua_socket_getsockname(struct lua_State *L)
 /* This struct define the applet. */
 static struct applet update_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
+	.flags = APPLET_FL_NEW_API,
 	.name = "<LUA_TCP>",
 	.fct = hlua_socket_handler,
 	.rcv_buf = appctx_raw_rcv_buf,
@@ -11610,6 +11611,7 @@ static enum act_parse_ret action_register_service_http(const char **args, int *c
 
 	/* Add applet pointer in the rule. */
 	rule->applet.obj_type = OBJ_TYPE_APPLET;
+	rule->applet.flags = APPLET_FL_NEW_API;
 	rule->applet.name = fcn->name;
 	rule->applet.init = hlua_applet_http_init;
 	rule->applet.rcv_buf = appctx_htx_rcv_buf;
@@ -11797,6 +11799,7 @@ static enum act_parse_ret action_register_service_tcp(const char **args, int *cu
 
 	/* Add applet pointer in the rule. */
 	rule->applet.obj_type = OBJ_TYPE_APPLET;
+	rule->applet.flags = APPLET_FL_NEW_API;
 	rule->applet.name = fcn->name;
 	rule->applet.init = hlua_applet_tcp_init;
 	rule->applet.rcv_buf = appctx_raw_rcv_buf;

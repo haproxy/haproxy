@@ -538,6 +538,7 @@ static void spoe_handle_appctx(struct appctx *appctx)
 
 struct applet spoe_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
+	.flags = APPLET_FL_NEW_API,
 	.name = "<SPOE>", /* used for logging */
 	.fct = spoe_handle_appctx,
 	.init = spoe_init_appctx,

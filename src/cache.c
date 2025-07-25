@@ -3139,6 +3139,7 @@ INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_actions);
 
 struct applet http_cache_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
+	.flags = APPLET_FL_NEW_API,
 	.name = "<CACHE>", /* used for logging */
 	.fct = http_cache_io_handler,
 	.rcv_buf = appctx_htx_rcv_buf,

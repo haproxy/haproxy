@@ -3899,6 +3899,7 @@ error:
 
 static struct applet cli_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
+	.flags = APPLET_FL_NEW_API,
 	.name = "<CLI>", /* used for logging */
 	.fct = cli_io_handler,
 	.rcv_buf = appctx_raw_rcv_buf,
@@ -3909,6 +3910,7 @@ static struct applet cli_applet = {
 /* master CLI */
 static struct applet mcli_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
+	.flags = APPLET_FL_NEW_API,
 	.name = "<MCLI>", /* used for logging */
 	.fct = cli_io_handler,
 	.rcv_buf = appctx_raw_rcv_buf,

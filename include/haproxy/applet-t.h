@@ -81,9 +81,12 @@ static forceinline char *appctx_show_flags(char *buf, size_t len, const char *de
 #undef _
 }
 
+#define APPLET_FL_NEW_API 0x00000001 /* Set if the applet is based on the new API (using applet's buffers) */
+
 /* Applet descriptor */
 struct applet {
 	enum obj_type obj_type;            /* object type = OBJ_TYPE_APPLET */
+	unsigned int flags;                /* APPLET_FL_* flags */
 	/* 3 unused bytes here */
 	char *name;                        /* applet's name to report in logs */
 	int (*init)(struct appctx *);      /* callback to init resources, may be NULL.

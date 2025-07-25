@@ -3228,6 +3228,7 @@ out:
 
 static struct applet peer_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
+	.flags = APPLET_FL_NEW_API,
 	.name = "<PEER>", /* used for logging */
 	.fct = peer_io_handler,
 	.rcv_buf = appctx_raw_rcv_buf,

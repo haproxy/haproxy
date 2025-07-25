@@ -2103,6 +2103,7 @@ static void http_stats_release(struct appctx *appctx)
 
 struct applet http_stats_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
+	.flags = APPLET_FL_NEW_API,
 	.name = "<STATS>", /* used for logging */
 	.fct = http_stats_io_handler,
 	.rcv_buf = appctx_htx_rcv_buf,

@@ -2144,6 +2144,7 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 
 struct applet promex_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
+	.flags = APPLET_FL_NEW_API,
 	.name = "<PROMEX>", /* used for logging */
 	.init = promex_appctx_init,
 	.release = promex_appctx_release,

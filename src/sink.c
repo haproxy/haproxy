@@ -600,6 +600,7 @@ static void sink_forward_session_release(struct appctx *appctx)
 
 static struct applet sink_forward_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
+	.flags = APPLET_FL_NEW_API,
 	.name = "<SINKFWD>", /* used for logging */
 	.fct = sink_forward_io_handler,
 	.rcv_buf = appctx_raw_rcv_buf,
@@ -610,6 +611,7 @@ static struct applet sink_forward_applet = {
 
 static struct applet sink_forward_oc_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
+	.flags = APPLET_FL_NEW_API,
 	.name = "<SINKFWDOC>", /* used for logging */
 	.fct = sink_forward_oc_io_handler,
 	.rcv_buf = appctx_raw_rcv_buf,

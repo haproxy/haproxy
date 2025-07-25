@@ -5967,6 +5967,7 @@ out:
 
 static struct applet syslog_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
+	.flags = APPLET_FL_NEW_API,
 	.name = "<SYSLOG>", /* used for logging */
 	.fct = syslog_io_handler,
 	.rcv_buf = appctx_raw_rcv_buf,

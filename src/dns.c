@@ -952,6 +952,7 @@ static void dns_session_release(struct appctx *appctx)
 /* DNS tcp session applet */
 static struct applet dns_session_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
+	.flags = APPLET_FL_NEW_API,
 	.name = "<STRMDNS>", /* used for logging */
 	.fct = dns_session_io_handler,
 	.rcv_buf = appctx_raw_rcv_buf,
