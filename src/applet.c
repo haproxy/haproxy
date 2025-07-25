@@ -19,6 +19,7 @@
 #include <haproxy/channel.h>
 #include <haproxy/htx.h>
 #include <haproxy/list.h>
+#include <haproxy/log.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
@@ -231,6 +232,13 @@ struct appctx *appctx_new_on(struct applet *applet, struct sedesc *sedesc, int t
 	BUG_ON(thr != tid && sedesc);
 
 	TRACE_ENTER(APPLET_EV_NEW);
+
+	if (unlikely(!(applet->flags & (APPLET_FL_NEW_API|APPLET_FL_WARNED)))) {
+		send_log(NULL, LOG_WARNING,
+			 "Applet '%s' is based on a deprecated API. Please report this error to developers\n",
+			 applet->name);
+		applet->flags |= APPLET_FL_WARNED;
+	}
 
 	appctx = pool_zalloc(pool_head_appctx);
 	if (unlikely(!appctx)) {
