@@ -1080,7 +1080,7 @@ static int peer_session_init(struct appctx *appctx)
 	s->scb->dst = addr;
 	s->scb->flags |= (SC_FL_RCV_ONCE|SC_FL_NOLINGER);
 	s->flags = SF_ASSIGNED;
-	s->target = peer_session_target(peer, s);
+	s->target = &peer->srv->obj_type;
 
 	s->do_log = NULL;
 	s->uniq_id = 0;

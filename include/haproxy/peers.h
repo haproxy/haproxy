@@ -40,10 +40,5 @@ int peers_register_table(struct peers *, struct stktable *table);
 void peers_setup_frontend(struct proxy *fe);
 void peers_register_keywords(struct peers_kw_list *pkwl);
 
-static inline enum obj_type *peer_session_target(struct peer *p, struct stream *s)
-{
-	return &p->srv->obj_type;
-}
-
 #endif /* _HAPROXY_PEERS_H */
 
