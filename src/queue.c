@@ -747,7 +747,7 @@ int pendconn_dequeue(struct stream *strm)
 
 	if (p->target) {
 		/* a server picked this pendconn, it must skip LB */
-		strm->target = &p->target->obj_type;
+		stream_set_srv_target(strm, p->target);
 		strm->flags |= SF_ASSIGNED;
 	}
 
