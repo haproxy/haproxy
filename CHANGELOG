@@ -1,6 +1,106 @@
 ChangeLog :
 ===========
 
+2025/07/26 : 3.3-dev4
+    - CLEANUP: server: do not check for duplicates anymore in findserver()
+    - REORG: server: move findserver() from proxy.c to server.c
+    - MINOR: server: use the tree to look up the server name in findserver()
+    - CLEANUP: server: rename server_find_by_name() to server_find()
+    - CLEANUP: server: rename findserver() to server_find_by_name()
+    - CLEANUP: server: use server_find_by_name() where relevant
+    - CLEANUP: cfgparse: lookup proxy ID using existing functions
+    - CLEANUP: stream: lookup server ID using standard functions
+    - CLEANUP: server: simplify server_find_by_id()
+    - CLEANUP: server: add server_find_by_addr()
+    - CLEANUP: stream: use server_find_by_addr() in sticking_rule_find_target()
+    - CLEANUP: server: be sure never to compare src against a non-existing defsrv
+    - MEDIUM: proxy: take the defsrv out of the struct proxy
+    - MINOR: proxy: add checks for defsrv's validity
+    - MEDIUM: proxy: no longer allocate the default-server entry by default
+    - MEDIUM: proxy: register a post-section cleanup function
+    - MINOR: debug: report haproxy and operating system info in panic dumps
+    - BUG/MEDIUM: h3: do not overwrite interim with final response
+    - BUG/MINOR: h3: properly realloc buffer after interim response encoding
+    - BUG/MINOR: h3: ensure that invalid status code are not encoded (FE side)
+    - MINOR: qmux: change API for snd_buf FIN transmission
+    - BUG/MEDIUM: h3: handle interim response properly on FE side
+    - BUG/MINOR: h3: properly handle interim response on BE side
+    - BUG/MINOR: quic: Wrong source address use on FreeBSD
+    - MINOR: h3: remove unused outbuf in h3_resp_headers_send()
+    - BUG/MINOR: applet: Don't trigger BUG_ON if the tid is not on appctx init
+    - DEV: gdb: add a memprofile decoder to the debug tools
+    - MINOR: quic: Get rid of qc_is_listener()
+    - DOC: connection: explain the rules for idle/safe/avail connections
+    - BUG/MEDIUM: quic-be: CC buffer released from wrong pool
+    - BUG/MINOR: halog: exit with error when some output filters are set simultaneosly
+    - MINOR: cpu-topo: split cpu_dump_topology() to show its summary in show dev
+    - MINOR: cpu-topo: write thread-cpu bindings into trash buffer
+    - MINOR: debug: align output style of debug_parse_cli_show_dev with cpu_dump_topology
+    - MINOR: debug: add thread-cpu bindings info in 'show dev' output
+    - MINOR: quic: Remove pool_head_quic_be_cc_buf pool
+    - BUILD: debug: add missed guard USE_CPU_AFFINITY to show cpu bindings
+    - BUG/MEDIUM: threads: Disable the workaround to load libgcc_s on macOS
+    - BUG/MINOR: logs: fix log-steps extra log origins selection
+    - BUG/MINOR: hq-interop: fix FIN transmission
+    - MINOR: ssl: Add ciphers in ssl traces
+    - MINOR: ssl: Add curve id to curve name table and mapping functions
+    - MINOR: ssl: Add curves in ssl traces
+    - MINOR: ssl: Dump ciphers and sigalgs details in trace with 'advanced' verbosity
+    - MINOR: ssl: Remove ClientHello specific traces if !HAVE_SSL_CLIENT_HELLO_CB
+    - MINOR: h3: use smallbuf for request header emission
+    - MINOR: h3: add traces to h3_req_headers_send()
+    - BUG/MINOR: h3: fix uninitialized value in h3_req_headers_send()
+    - MINOR: log: explicitly ignore "log-steps" on backends
+    - BUG/MEDIUM: acme: use POST-as-GET instead of GET for resources
+    - BUG/MINOR mux-quic: apply correctly timeout on output pending data
+    - BUG/MINOR: mux-quic: ensure close-spread-time is properly applied
+    - MINOR: mux-quic: refactor timeout code
+    - MINOR: mux-quic: correctly implement backend timeout
+    - MINOR: mux-quic: disable glitch on backend side
+    - MINOR: mux-quic: store session in QCS instance
+    - MEDIUM: mux-quic: implement be connection reuse
+    - MINOR: mux-quic: do not reuse connection if app already shut
+    - MEDIUM: mux-quic: support backend private connection
+    - MINOR: acme: remove acme_req_auth() and use acme_post_as_get() instead
+    - BUG/MINOR: acme: allow "processing" in challenge requests
+    - CLEANUP: acme: fix wrong spelling of "resources"
+    - CLEANUP: ssl: Use only NIDs in curve name to id table
+    - MINOR: acme: add ACME to the haproxy -vv feature list
+    - BUG/MINOR: hlua: Skip headers when a receive is performed on an HTTP applet
+    - BUG/MEDIUM: applet: State inbuf is no longer full if input data are skipped
+    - BUG/MEDIUM: stconn: Fix conditions to know an applet can get data from stream
+    - BUG/MINOR: applet: Fix applet_getword() to not return one extra byte
+    - BUG/MEDIUM: Remove sync sends from streams to applets
+    - MINOR: applet: Add HTX versions for applet_input_data() and applet_output_room()
+    - MINOR: applet: Improve applet API to take care of inbuf/outbuf alloc failures
+    - MEDIUM: hlua: Update the tcp applet to use its own buffers
+    - MINOR: hlua: Fill the request array on the first HTTP applet run
+    - MINOR: hlua: Use the buffer instead of the HTTP message to get HTTP headers
+    - MEDIUM: hlua: Update the http applet to use its own buffers
+    - BUG/MEDIUM: hlua: Report to SC when data were consumed on a lua socket
+    - BUG/MEDIUM: hlua: Report to SC when output data are blocked on a lua socket
+    - MEDIUM: hlua: Update the socket applet to use its own buffers
+    - BUG/MEDIUM: dns: Reset reconnect tempo when connection is finally established
+    - MEDIUM: dns: Update the dns_session applet to use its own buffers
+    - CLEANUP: http-client: Remove useless indentation when sending request body
+    - MINOR: http-client: Try to send request body with headers if possible
+    - MINOR: http-client: Trigger an error if first response block isn't a start-line
+    - BUG/MINOR: httpclient-cli: Don't try to dump raw headers in HTX mode
+    - MINOR: httpclient-cli: Reset httpclient HTX buffer instead of removing blocks
+    - MEDIUM: http-client: Update the http-client applet to use its own buffers
+    - MEDIUM: log: Update the log applet to use its own buffers
+    - MEDIUM: sink: Update the sink applets to use their own buffers
+    - MEDIUM: peers: Update the peer applet to use its own buffers
+    - MEDIUM: promex: Update the promex applet to use their own buffers
+    - MINOR: applet: Add support for flags on applets with a flag about the new API
+    - MEDIUM: applet: Emit a warning when a legacy applet is spawned
+    - BUG/MEDIUM: logs: fix sess_build_logline_orig() recursion with options
+    - MEDIUM: stats: avoid 1 indirection by storing the shared stats directly in counters struct
+    - CLEANUP: compiler: prefer char * over void * for pointer arithmetic
+    - CLEANUP: include: replace hand-rolled offsetof to avoid UB
+    - CLEANUP: peers: remove unused peer_session_target()
+    - OPTIM: stats: store fast sharded counters pointers at session and stream level
+
 2025/07/11 : 3.3-dev3
     - BUG/MINOR: quic-be: Wrong retry_source_connection_id check
     - MEDIUM: sink: change the sink mode type to PR_MODE_SYSLOG
