@@ -13363,7 +13363,24 @@ static int hlua_load_per_thread(char **args, int section_type, struct proxy *cur
 		return -1;
 	}
 	for (i = 1; *(args[i]) != 0; i++) {
-		per_thread_load[len][i - 1] = strdup(args[i]);
+		/* first arg is filename */
+		if (i == 1 && args[1][0] != '/') {
+			char *curpath;
+			char *fullpath = NULL;
+
+			/* filename is provided using relative path, store the absolute path
+			 * to take current chdir into account for other threads file load
+			 * which occur later
+			 */
+			curpath = getcwd(trash.area, trash.size);
+			if (!curpath) {
+				memprintf(err, "failed to retrieve cur path");
+				return -1;
+			}
+			per_thread_load[len][i - 1] = memprintf(&fullpath, "%s/%s", curpath, args[1]);
+		}
+		else
+			per_thread_load[len][i - 1] = strdup(args[i]);
 		if (per_thread_load[len][i - 1] == NULL) {
 			memprintf(err, "out of memory error");
 			return -1;
