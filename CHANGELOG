@@ -1,6 +1,10 @@
 ChangeLog :
 ===========
 
+2025/07/28 : 3.3-dev5
+    - BUG/MEDIUM: queue/stats: also use stream_set_srv_target() for pendconns
+    - DOC: list missing global QUIC settings
+
 2025/07/26 : 3.3-dev4
     - CLEANUP: server: do not check for duplicates anymore in findserver()
     - REORG: server: move findserver() from proxy.c to server.c
