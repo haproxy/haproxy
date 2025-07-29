@@ -1768,7 +1768,7 @@ static int proxy_postcheck(struct proxy *px)
 		 * be_counters may be used even if the proxy lacks the backend
 		 * capability
 		 */
-		if (!counters_be_shared_init(&px->be_counters.shared, &px->guid)) {
+		if (!counters_be_shared_prepare(&px->be_counters.shared, &px->guid)) {
 			ha_alert("out of memory while setting up shared counters for %s %s\n",
 			         proxy_type_str(px), px->id);
 			err_code |= ERR_ALERT | ERR_FATAL;

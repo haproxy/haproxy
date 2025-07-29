@@ -3450,7 +3450,7 @@ int srv_init(struct server *srv)
 	if (err_code & ERR_CODE)
 		goto out;
 
-	if (!counters_be_shared_init(&srv->counters.shared, &srv->guid)) {
+	if (!counters_be_shared_prepare(&srv->counters.shared, &srv->guid)) {
 		ha_alert("memory error while setting up shared counters for %s/%s server\n", srv->proxy->id, srv->id);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;

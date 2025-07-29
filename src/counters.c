@@ -52,12 +52,12 @@ void counters_be_shared_drop(struct be_counters_shared *counters)
 	_counters_shared_drop(counters);
 }
 
-/* retrieved shared counters pointer for a given <guid> object
+/* prepare shared counters pointer for a given <guid> object
  * <size> hint is expected to reflect the actual tg member size (fe/be)
  * if <guid> is not set, then sharing is disabled
  * Returns the pointer on success or NULL on failure
  */
-static int _counters_shared_init(struct counters_shared *shared, const struct guid_node *guid, size_t size)
+static int _counters_shared_prepare(struct counters_shared *shared, const struct guid_node *guid, size_t size)
 {
 	int it = 0;
 
@@ -85,11 +85,11 @@ static int _counters_shared_init(struct counters_shared *shared, const struct gu
 /* prepare shared fe counters pointer for a given <guid> object */
 int counters_fe_shared_prepare(struct fe_counters_shared *shared, const struct guid_node *guid)
 {
-	return _counters_shared_init((struct counters_shared *)shared, guid, sizeof(struct fe_counters_shared_tg));
+	return _counters_shared_prepare((struct counters_shared *)shared, guid, sizeof(struct fe_counters_shared_tg));
 }
 
 /* prepare shared be counters pointer for a given <guid> object */
-int counters_be_shared_init(struct be_counters_shared *shared, const struct guid_node *guid)
+int counters_be_shared_prepare(struct be_counters_shared *shared, const struct guid_node *guid)
 {
-	return _counters_shared_init((struct counters_shared *)shared, guid, sizeof(struct be_counters_shared_tg));
+	return _counters_shared_prepare((struct counters_shared *)shared, guid, sizeof(struct be_counters_shared_tg));
 }
