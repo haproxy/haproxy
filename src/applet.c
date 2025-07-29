@@ -274,12 +274,9 @@ struct appctx *appctx_new_on(struct applet *applet, struct sedesc *sedesc, int t
 	appctx->outbuf = BUF_NULL;
 	appctx->to_forward = 0;
 
-	if (applet->rcv_buf != NULL && applet->snd_buf != NULL) {
-		appctx->t->process = task_process_applet;
-		applet_fl_set(appctx, APPCTX_FL_INOUT_BUFS);
-	}
-	else
-		appctx->t->process = task_run_applet;
+	appctx->t->process = ((applet->flags & APPLET_FL_NEW_API)
+			      ? task_process_applet
+			      : task_run_applet);
 	appctx->t->context = appctx;
 
 	LIST_INIT(&appctx->buffer_wait.list);
