@@ -1022,7 +1022,7 @@ void httpclient_applet_release(struct appctx *appctx)
 /* HTTP client applet */
 static struct applet httpclient_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
-	.flags = APPLET_FL_NEW_API,
+	.flags = APPLET_FL_NEW_API|APPLET_FL_HTX,
 	.name = "<HTTPCLIENT>",
 	.fct = httpclient_applet_io_handler,
 	.rcv_buf = appctx_htx_rcv_buf,

@@ -83,6 +83,7 @@ static forceinline char *appctx_show_flags(char *buf, size_t len, const char *de
 
 #define APPLET_FL_NEW_API 0x00000001 /* Set if the applet is based on the new API (using applet's buffers) */
 #define APPLET_FL_WARNED  0x00000002 /* Set when warning was already emitted about a legacy applet */
+#define APPLET_FL_HTX     0x00000004 /* Set if the applet is using HTX buffers */
 
 /* Applet descriptor */
 struct applet {

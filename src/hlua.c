@@ -11611,7 +11611,7 @@ static enum act_parse_ret action_register_service_http(const char **args, int *c
 
 	/* Add applet pointer in the rule. */
 	rule->applet.obj_type = OBJ_TYPE_APPLET;
-	rule->applet.flags = APPLET_FL_NEW_API;
+	rule->applet.flags = APPLET_FL_NEW_API|APPLET_FL_HTX;
 	rule->applet.name = fcn->name;
 	rule->applet.init = hlua_applet_http_init;
 	rule->applet.rcv_buf = appctx_htx_rcv_buf;
