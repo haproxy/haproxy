@@ -274,9 +274,20 @@ struct appctx *appctx_new_on(struct applet *applet, struct sedesc *sedesc, int t
 	appctx->outbuf = BUF_NULL;
 	appctx->to_forward = 0;
 
-	appctx->t->process = ((applet->flags & APPLET_FL_NEW_API)
-			      ? task_process_applet
-			      : task_run_applet);
+	if (applet->flags & APPLET_FL_NEW_API) {
+		appctx->t->process = task_process_applet;
+		/* Automatically set .rcv_buf and .snd_buf callback functions on default ones if not set */
+		if (applet->rcv_buf == NULL)
+			applet->rcv_buf = (applet->flags & APPLET_FL_HTX
+					   ? appctx_htx_rcv_buf
+					   : appctx_raw_rcv_buf);
+		if (applet->snd_buf == NULL)
+			applet->snd_buf = (applet->flags & APPLET_FL_HTX
+					   ? appctx_htx_snd_buf
+					   : appctx_raw_snd_buf);
+	}
+	else
+		appctx->t->process = task_run_applet;
 	appctx->t->context = appctx;
 
 	LIST_INIT(&appctx->buffer_wait.list);
