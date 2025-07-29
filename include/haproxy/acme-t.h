@@ -81,4 +81,20 @@ struct acme_ctx {
 	struct ist certificate;
 	struct mt_list el;
 };
+
+#define ACME_EV_SCHED              (1ULL <<  0)  /* scheduling wakeup */
+#define ACME_EV_NEW                (1ULL <<  1)  /* new task */
+#define ACME_EV_TASK               (1ULL <<  2)  /* Task handler */
+#define ACME_EV_REQ                (1ULL <<  3)  /* HTTP Request */
+#define ACME_EV_RES                (1ULL <<  4)  /* HTTP Response */
+
+#define ACME_VERB_CLEAN    1
+#define ACME_VERB_MINIMAL  2
+#define ACME_VERB_SIMPLE   3
+#define ACME_VERB_ADVANCED 4
+#define ACME_VERB_COMPLETE 5
+
+#define TRACE_SOURCE &trace_acme
+
+
 #endif

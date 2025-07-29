@@ -34,9 +34,109 @@
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
 #include <haproxy/tools.h>
+#include <haproxy/trace.h>
 
 #if defined(HAVE_ACME)
 
+static void acme_trace(enum trace_level level, uint64_t mask, const struct trace_source *src,
+                       const struct ist where, const struct ist func,
+                       const void *a1, const void *a2, const void *a3, const void *a4);
+
+static const struct trace_event acme_trace_events[] = {
+	{ .mask = ACME_EV_SCHED,            .name = "acme_sched",            .desc = "Wakeup scheduled ACME task" },
+	{ .mask = ACME_EV_NEW,              .name = "acme_new",              .desc = "New ACME task" },
+	{ .mask = ACME_EV_TASK,             .name = "acme_task",             .desc = "ACME task" },
+	{ }
+};
+
+
+static const struct name_desc acme_trace_lockon_args[4] = {
+	/* arg1 */ { .name="acme_ctx", .desc="ACME context" },
+	/* arg2 */ { },
+	/* arg3 */ { },
+	/* arg4 */ { }
+};
+
+static const struct name_desc acme_trace_decoding[] = {
+	{ .name="clean",    .desc="only user-friendly stuff, generally suitable for level \"user\"" },
+	{ .name="minimal",  .desc="report only conn, no real decoding" },
+	{ .name="simple",   .desc="add error messages" },
+	{ .name="advanced", .desc="add handshake-related details" },
+	{ .name="complete", .desc="add full data dump when available" },
+	{ /* end */ }
+};
+
+
+struct trace_source trace_acme = {
+	.name = IST("acme"),
+	.desc = "ACME",
+	.arg_def = TRC_ARG_PRIV,
+	.default_cb = acme_trace,
+	.known_events = acme_trace_events,
+	.lockon_args = acme_trace_lockon_args,
+	.decoding = acme_trace_decoding,
+	.report_events = ~0,  /* report everything by default */
+};
+
+INITCALL1(STG_REGISTER, trace_register_source, &trace_acme);
+
+static void acme_trace(enum trace_level level, uint64_t mask, const struct trace_source *src,
+                      const struct ist where, const struct ist func,
+                      const void *a1, const void *a2, const void *a3, const void *a4)
+{
+	const struct acme_ctx *ctx = a1;
+
+	if (src->verbosity <= ACME_VERB_CLEAN)
+		return;
+
+	chunk_appendf(&trace_buf, " :");
+
+	if (mask >= ACME_EV_NEW)
+		chunk_appendf(&trace_buf, " acme_ctx=%p", ctx);
+
+
+	if (mask == ACME_EV_NEW)
+		chunk_appendf(&trace_buf, ", crt=%s", ctx->store->path);
+
+	if (mask >= ACME_EV_TASK) {
+
+		switch (ctx->http_state) {
+			case ACME_HTTP_REQ:
+				chunk_appendf(&trace_buf, ", http_st: ACME_HTTP_REQ");
+			break;
+			case ACME_HTTP_RES:
+				chunk_appendf(&trace_buf, ", http_st: ACME_HTTP_RES");
+			break;
+		}
+		chunk_appendf(&trace_buf, ", st: ");
+		switch (ctx->state) {
+			case ACME_RESOURCES:      chunk_appendf(&trace_buf, "ACME_RESOURCES");    break;
+			case ACME_NEWNONCE:       chunk_appendf(&trace_buf, "ACME_NEWNONCE");     break;
+			case ACME_CHKACCOUNT:     chunk_appendf(&trace_buf, "ACME_CHKACCOUNT");   break;
+			case ACME_NEWACCOUNT:     chunk_appendf(&trace_buf, "ACME_NEWACCOUNT");   break;
+			case ACME_NEWORDER:       chunk_appendf(&trace_buf, "ACME_NEWORDER");     break;
+			case ACME_AUTH:           chunk_appendf(&trace_buf, "ACME_AUTH");         break;
+			case ACME_CHALLENGE:      chunk_appendf(&trace_buf, "ACME_CHALLENGE");    break;
+			case ACME_CHKCHALLENGE:   chunk_appendf(&trace_buf, "ACME_CHKCHALLENGE"); break;
+			case ACME_FINALIZE:       chunk_appendf(&trace_buf, "ACME_FINALIZE");     break;
+			case ACME_CHKORDER:       chunk_appendf(&trace_buf, "ACME_CHKORDER");     break;
+			case ACME_CERTIFICATE:    chunk_appendf(&trace_buf, "ACME_CERTIFICATE");  break;
+			case ACME_END:            chunk_appendf(&trace_buf, "ACME_END");          break;
+		}
+	}
+	if (mask & (ACME_EV_REQ|ACME_EV_RES)) {
+		const struct ist *url = a2;
+		const struct buffer *buf = a3;
+
+		if (mask & ACME_EV_REQ)
+			chunk_appendf(&trace_buf, " url: %.*s", (int)url->len, url->ptr);
+
+		if (src->verbosity >= ACME_VERB_COMPLETE && level >= TRACE_LEVEL_DATA) {
+			chunk_appendf(&trace_buf, " Buffer Dump:\n");
+			chunk_appendf(&trace_buf, "%.*s", (int)buf->data, buf->area);
+		}
+	}
+}
 
 struct mt_list acme_tasks = MT_LIST_HEAD_INIT(acme_tasks);
 
@@ -930,6 +1030,8 @@ int acme_res_certificate(struct task *task, struct acme_ctx *ctx, char **errmsg)
 		}
 	}
 
+	TRACE_DATA(__FUNCTION__, ACME_EV_RES, ctx, NULL, &hc->res.buf);
+
 	if (hc->res.status < 200 || hc->res.status >= 300) {
 		if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.detail", t1->area, t1->size)) > -1)
 			t1->data = ret;
@@ -1000,6 +1102,8 @@ int acme_res_chkorder(struct task *task, struct acme_ctx *ctx, char **errmsg)
 			ctx->retryafter = atol(hdr->v.ptr);
 		}
 	}
+
+	TRACE_DATA(__FUNCTION__, ACME_EV_RES, ctx, NULL, &hc->res.buf);
 
 	if (hc->res.status < 200 || hc->res.status >= 300) {
 		if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.detail", t1->area, t1->size)) > -1)
@@ -1130,6 +1234,8 @@ int acme_res_finalize(struct task *task, struct acme_ctx *ctx, char **errmsg)
 		}
 	}
 
+	TRACE_DATA(__FUNCTION__, ACME_EV_RES, ctx, NULL, &hc->res.buf);
+
 	if (hc->res.status < 200 || hc->res.status >= 300) {
 		if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.detail", t1->area, t1->size)) > -1)
 			t1->data = ret;
@@ -1174,8 +1280,12 @@ int acme_req_challenge(struct task *task, struct acme_ctx *ctx, struct acme_auth
 
 	chunk_printf(req_in, "{}");
 
+	TRACE_DATA("REQ challenge dec", ACME_EV_REQ, ctx, &auth->chall, req_in);
+
 	if (acme_jws_payload(req_in, ctx->nonce, auth->chall, ctx->cfg->account.pkey, ctx->kid, req_out, errmsg) != 0)
 		goto error;
+
+	TRACE_DATA("REQ challenge enc", ACME_EV_REQ, ctx, &auth->chall, req_out);
 
 	if (acme_http_req(task, ctx, auth->chall, HTTP_METH_POST, hdrs, ist2(req_out->area, req_out->data)))
 		goto error;
@@ -1210,6 +1320,8 @@ enum acme_ret acme_res_challenge(struct task *task, struct acme_ctx *ctx, struct
 		goto out;
 
 	hdrs = hc->res.hdrs;
+
+	TRACE_DATA(__FUNCTION__, ACME_EV_RES, ctx, NULL, &hc->res.buf);
 
 	for (hdr = hdrs; isttest(hdr->v); hdr++) {
 		if (isteqi(hdr->n, ist("Replay-Nonce"))) {
@@ -1284,9 +1396,13 @@ int acme_post_as_get(struct task *task, struct acme_ctx *ctx, struct ist url, ch
         if ((req_out = alloc_trash_chunk()) == NULL)
 		goto error_alloc;
 
+	TRACE_USER("POST-as-GET    ", ACME_EV_REQ, ctx, &url);
+
 	/* empty payload */
 	if (acme_jws_payload(req_in, ctx->nonce, url, ctx->cfg->account.pkey, ctx->kid, req_out, errmsg) != 0)
 		goto error_jws;
+
+	TRACE_DATA("POST-as-GET enc", ACME_EV_REQ, ctx, &url, req_out);
 
 	if (acme_http_req(task, ctx, url, HTTP_METH_POST, hdrs, ist2(req_out->area, req_out->data)))
 		goto error_http;
@@ -1342,6 +1458,7 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 		}
 
 	}
+	TRACE_DATA(__FUNCTION__, ACME_EV_RES, ctx, NULL, &hc->res.buf);
 
 	if (hc->res.status < 200 || hc->res.status >= 300) {
 		/* XXX: need a generic URN error parser */
@@ -1455,10 +1572,13 @@ int acme_req_neworder(struct task *task, struct acme_ctx *ctx, char **errmsg)
 
 	chunk_appendf(req_in, " ] }");
 
+	TRACE_DATA("NewOrder Decode", ACME_EV_REQ, ctx, &ctx->resources.newOrder, req_in);
+
 
 	if (acme_jws_payload(req_in, ctx->nonce, ctx->resources.newOrder, ctx->cfg->account.pkey, ctx->kid, req_out, errmsg) != 0)
 		goto error;
 
+	TRACE_DATA("NewOrder JWS    ", ACME_EV_REQ, ctx, &ctx->resources.newOrder, req_out);
 	if (acme_http_req(task, ctx, ctx->resources.newOrder, HTTP_METH_POST, hdrs, ist2(req_out->area, req_out->data)))
 		goto error;
 
@@ -1507,6 +1627,7 @@ int acme_res_neworder(struct task *task, struct acme_ctx *ctx, char **errmsg)
 			ctx->order = istdup(hdr->v);
 		}
 	}
+	TRACE_DATA(__FUNCTION__, ACME_EV_RES, ctx, NULL, &hc->res.buf);
 
 	if (hc->res.status < 200 || hc->res.status >= 300) {
 		if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.detail", t1->area, t1->size)) > -1)
@@ -1610,6 +1731,8 @@ int acme_req_account(struct task *task, struct acme_ctx *ctx, int newaccount, ch
 	else
 		chunk_printf(req_in, "%s", accountreq);
 
+	TRACE_DATA("newAccount Decoded", ACME_EV_REQ, ctx, &ctx->resources.newAccount, req_in);
+
 	if (acme_jws_payload(req_in, ctx->nonce, ctx->resources.newAccount, ctx->cfg->account.pkey, ctx->kid, req_out, errmsg) != 0)
 		goto error;
 
@@ -1659,6 +1782,8 @@ int acme_res_account(struct task *task, struct acme_ctx *ctx, int newaccount, ch
 		}
 	}
 
+	TRACE_DATA(__FUNCTION__, ACME_EV_RES, ctx, NULL, &hc->res.buf);
+
 	if (hc->res.status < 200 || hc->res.status >= 300) {
 		if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.detail", t1->area, t1->size)) > -1)
 			t1->data = ret;
@@ -1705,6 +1830,8 @@ int acme_nonce(struct task *task, struct acme_ctx *ctx, char **errmsg)
 		goto error;
 	}
 
+	TRACE_DATA(__FUNCTION__, ACME_EV_RES, ctx, NULL, &hc->res.buf);
+
 	hdrs = hc->res.hdrs;
 
 	for (hdr = hdrs; isttest(hdr->v); hdr++) {
@@ -1742,6 +1869,8 @@ int acme_directory(struct task *task, struct acme_ctx *ctx, char **errmsg)
 		memprintf(errmsg, "invalid HTTP status code %d when getting directory URL", hc->res.status);
 		goto error;
 	}
+
+	TRACE_DATA(__FUNCTION__, ACME_EV_RES, ctx, NULL, &hc->res.buf);
 
 	if ((ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.newNonce", trash.area, trash.size)) <= 0) {
 		memprintf(errmsg, "couldn't get newNonce URL from the directory URL");
@@ -1806,6 +1935,7 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 	struct mt_list tmp = MT_LIST_LOCK_FULL(&ctx->el);
 
 re:
+	TRACE_USER("ACME Task Handle", ACME_EV_TASK, ctx, &st);
 
 	switch (st) {
 		case ACME_RESOURCES:
@@ -1999,6 +2129,8 @@ nextreq:
 	/* this is called when changing step in the state machine */
 	http_st = ACME_HTTP_REQ;
 	ctx->retries = ACME_RETRY; /* reinit the retries */
+	ctx->http_state = http_st;
+	ctx->state = st;
 
 	if (ctx->retryafter == 0)
 		goto re; /* optimize by not leaving the task for the next httpreq to init */
@@ -2006,8 +2138,6 @@ nextreq:
 	/* if we have a retryafter, wait before next request (usually finalize) */
 	task->expire = tick_add(now_ms, ctx->retryafter * 1000);
 	ctx->retryafter = 0;
-	ctx->http_state = http_st;
-	ctx->state = st;
 
 	MT_LIST_UNLOCK_FULL(&ctx->el, tmp);
 	return task;
@@ -2133,6 +2263,7 @@ struct task *acme_scheduler(struct task *task, void *context, unsigned int state
 		if (store->conf.acme.id) {
 
 			if (acme_will_expire(store)) {
+				TRACE_USER("ACME Scheduling start", ACME_EV_SCHED);
 				if (acme_start_task(store, &errmsg) != 0) {
 					send_log(NULL, LOG_NOTICE,"acme: %s: %s Aborting.\n", store->path, errmsg ? errmsg : "");
 					ha_free(&errmsg);
@@ -2327,6 +2458,7 @@ static int acme_start_task(struct ckch_store *store, char **errmsg)
 
 	send_log(NULL, LOG_NOTICE, "acme: %s: Starting update of the certificate.\n", ctx->store->path);
 
+	TRACE_USER("ACME Task start", ACME_EV_NEW, ctx);
 	task_wakeup(task, TASK_WOKEN_INIT);
 
 	return 0;
