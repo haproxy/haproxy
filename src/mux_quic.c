@@ -1721,7 +1721,8 @@ void qcc_send_stream(struct qcs *qcs, int urg, int count)
 	if (count) {
 		qfctl_sinc(&qcc->tx.fc, count);
 		qfctl_sinc(&qcs->tx.fc, count);
-		bdata_ctr_add(&qcs->stream->data, count);
+		if (qcs->stream)
+			bdata_ctr_add(&qcs->stream->data, count);
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCS_SEND, qcc->conn, qcs);
@@ -4965,6 +4966,7 @@ static int qmux_qos_init(struct connection *conn, struct proxy *prx,
 	qcc->lfctl.offsets_recv = qcc->lfctl.offsets_consume = 0;
 
 	qfctl_init(&qcc->tx.fc, 0);
+	qcc->rfctl.ms_uni = 3;
 
 	qcc->tx.buf_in_flight = 0;
 
