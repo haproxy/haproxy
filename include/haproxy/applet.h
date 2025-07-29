@@ -319,20 +319,23 @@ static inline struct buffer *applet_get_outbuf(struct appctx *appctx)
 		return sc_ib(appctx_sc(appctx));
 }
 
-/* Returns the amount of data in the input buffer (see applet_get_inbuf) */
-static inline size_t applet_input_data(const struct appctx *appctx)
-{
-	if (appctx_app_test(appctx, APPLET_FL_NEW_API))
-		return b_data(&appctx->inbuf);
-	else
-		return co_data(sc_oc(appctx_sc(appctx)));
-}
-
 /* Returns the amount of HTX data in the input buffer (see applet_get_inbuf) */
 static inline size_t applet_htx_input_data(const struct appctx *appctx)
 {
 	if (appctx_app_test(appctx, APPLET_FL_NEW_API))
 		return htx_used_space(htxbuf(&appctx->inbuf));
+	else
+		return co_data(sc_oc(appctx_sc(appctx)));
+}
+
+/* Returns the amount of data in the input buffer (see applet_get_inbuf) */
+static inline size_t applet_input_data(const struct appctx *appctx)
+{
+	if (appctx_app_test(appctx, APPLET_FL_HTX))
+		return applet_htx_input_data(appctx);
+
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API))
+		return b_data(&appctx->inbuf);
 	else
 		return co_data(sc_oc(appctx_sc(appctx)));
 }
@@ -343,6 +346,8 @@ static inline size_t applet_htx_input_data(const struct appctx *appctx)
  * illegal to call this function with <len> causing a wrapping at the end of the
  * buffer. It's the caller's responsibility to ensure that <len> is never larger
  * than available ouput data.
+ *
+ * This function is not HTX aware.
  */
 static inline void applet_skip_input(struct appctx *appctx, size_t len)
 {
@@ -366,22 +371,25 @@ static inline void applet_reset_input(struct appctx *appctx)
 		co_skip(sc_oc(appctx_sc(appctx)), co_data(sc_oc(appctx_sc(appctx))));
 }
 
-/* Returns the amout of space available at the output buffer (see applet_get_outbuf).
- */
-static inline size_t applet_output_room(const struct appctx *appctx)
-{
-	if (appctx_app_test(appctx, APPLET_FL_NEW_API))
-		return b_room(&appctx->outbuf);
-	else
-		return channel_recv_max(sc_ic(appctx_sc(appctx)));
-}
-
 /* Returns the amout of space available at the HTX output buffer (see applet_get_outbuf).
  */
 static inline size_t applet_htx_output_room(const struct appctx *appctx)
 {
 	if (appctx_app_test(appctx, APPLET_FL_NEW_API))
 		return htx_free_data_space(htxbuf(&appctx->outbuf));
+	else
+		return channel_recv_max(sc_ic(appctx_sc(appctx)));
+}
+
+/* Returns the amout of space available at the output buffer (see applet_get_outbuf).
+ */
+static inline size_t applet_output_room(const struct appctx *appctx)
+{
+	if (appctx_app_test(appctx, APPLET_FL_HTX))
+		return applet_htx_output_room(appctx);
+
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API))
+		return b_room(&appctx->outbuf);
 	else
 		return channel_recv_max(sc_ic(appctx_sc(appctx)));
 }
