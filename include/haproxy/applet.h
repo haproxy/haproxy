@@ -62,6 +62,12 @@ ssize_t applet_append_line(void *ctx, struct ist v1, struct ist v2, size_t ofs, 
 static forceinline void applet_fl_set(struct appctx *appctx, uint on);
 static forceinline void applet_fl_clr(struct appctx *appctx, uint off);
 
+
+static forceinline uint appctx_app_test(const struct appctx *appctx, uint test)
+{
+	return (appctx->applet->flags & test);
+}
+
 static inline struct appctx *appctx_new_here(struct applet *applet, struct sedesc *sedesc)
 {
 	return appctx_new_on(applet, sedesc, tid);
@@ -288,7 +294,7 @@ static inline void applet_expect_data(struct appctx *appctx)
  */
 static inline struct buffer *applet_get_inbuf(struct appctx *appctx)
 {
-	if (appctx->applet->flags & APPLET_FL_NEW_API) {
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API)) {
 		if (applet_fl_test(appctx, APPCTX_FL_INBLK_ALLOC) || !appctx_get_buf(appctx, &appctx->inbuf))
 			return NULL;
 		return &appctx->inbuf;
@@ -303,7 +309,7 @@ static inline struct buffer *applet_get_inbuf(struct appctx *appctx)
  */
 static inline struct buffer *applet_get_outbuf(struct appctx *appctx)
 {
-	if (appctx->applet->flags & APPLET_FL_NEW_API) {
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API)) {
 		if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_ALLOC|APPCTX_FL_OUTBLK_FULL) ||
 		    !appctx_get_buf(appctx, &appctx->outbuf))
 			return NULL;
@@ -316,7 +322,7 @@ static inline struct buffer *applet_get_outbuf(struct appctx *appctx)
 /* Returns the amount of data in the input buffer (see applet_get_inbuf) */
 static inline size_t applet_input_data(const struct appctx *appctx)
 {
-	if (appctx->applet->flags & APPLET_FL_NEW_API)
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API))
 		return b_data(&appctx->inbuf);
 	else
 		return co_data(sc_oc(appctx_sc(appctx)));
@@ -325,7 +331,7 @@ static inline size_t applet_input_data(const struct appctx *appctx)
 /* Returns the amount of HTX data in the input buffer (see applet_get_inbuf) */
 static inline size_t applet_htx_input_data(const struct appctx *appctx)
 {
-	if (appctx->applet->flags & APPLET_FL_NEW_API)
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API))
 		return htx_used_space(htxbuf(&appctx->inbuf));
 	else
 		return co_data(sc_oc(appctx_sc(appctx)));
@@ -340,7 +346,7 @@ static inline size_t applet_htx_input_data(const struct appctx *appctx)
  */
 static inline void applet_skip_input(struct appctx *appctx, size_t len)
 {
-	if (appctx->applet->flags & APPLET_FL_NEW_API) {
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API)) {
 		b_del(&appctx->inbuf, len);
 		applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
 	}
@@ -352,7 +358,7 @@ static inline void applet_skip_input(struct appctx *appctx, size_t len)
  */
 static inline void applet_reset_input(struct appctx *appctx)
 {
-	if (appctx->applet->flags & APPLET_FL_NEW_API) {
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API)) {
 		b_reset(&appctx->inbuf);
 		applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
 	}
@@ -364,7 +370,7 @@ static inline void applet_reset_input(struct appctx *appctx)
  */
 static inline size_t applet_output_room(const struct appctx *appctx)
 {
-	if (appctx->applet->flags & APPLET_FL_NEW_API)
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API))
 		return b_room(&appctx->outbuf);
 	else
 		return channel_recv_max(sc_ic(appctx_sc(appctx)));
@@ -374,7 +380,7 @@ static inline size_t applet_output_room(const struct appctx *appctx)
  */
 static inline size_t applet_htx_output_room(const struct appctx *appctx)
 {
-	if (appctx->applet->flags & APPLET_FL_NEW_API)
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API))
 		return htx_free_data_space(htxbuf(&appctx->outbuf));
 	else
 		return channel_recv_max(sc_ic(appctx_sc(appctx)));
@@ -390,7 +396,7 @@ static inline size_t applet_htx_output_room(const struct appctx *appctx)
  */
 static inline void applet_need_room(struct appctx *appctx, size_t room_needed)
 {
-	if (appctx->applet->flags & APPLET_FL_NEW_API)
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API))
 		applet_have_more_data(appctx);
 	else
 		sc_need_room(appctx_sc(appctx), room_needed);
@@ -402,7 +408,7 @@ static inline int _applet_putchk(struct appctx *appctx, struct buffer *chunk,
 {
 	int ret;
 
-	if (appctx->applet->flags & APPLET_FL_NEW_API) {
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API)) {
 		if (unlikely(stress) ?
 		    b_data(&appctx->outbuf) :
 		    b_data(chunk) > b_room(&appctx->outbuf)) {
@@ -457,7 +463,7 @@ static inline int applet_putblk(struct appctx *appctx, const char *blk, int len)
 {
 	int ret;
 
-	if (appctx->applet->flags & APPLET_FL_NEW_API) {
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API)) {
 		if (len > b_room(&appctx->outbuf)) {
 			applet_fl_set(appctx, APPCTX_FL_OUTBLK_FULL);
 			ret = -1;
@@ -493,7 +499,7 @@ static inline int applet_putstr(struct appctx *appctx, const char *str)
 {
 	int ret;
 
-	if (appctx->applet->flags & APPLET_FL_NEW_API) {
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API)) {
 		int len = strlen(str);
 
 		if (len > b_room(&appctx->outbuf)) {
@@ -529,7 +535,7 @@ static inline int applet_putchr(struct appctx *appctx, char chr)
 {
 	int ret;
 
-	if (appctx->applet->flags & APPLET_FL_NEW_API) {
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API)) {
 		if (b_full(&appctx->outbuf)) {
 			applet_fl_set(appctx, APPCTX_FL_OUTBLK_FULL);
 			ret = -1;
@@ -558,7 +564,7 @@ static inline int applet_putchr(struct appctx *appctx, char chr)
 
 static inline int applet_may_get(const struct appctx *appctx, size_t len)
 {
-	if (appctx->applet->flags & APPLET_FL_NEW_API) {
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API)) {
 		if (len > b_data(&appctx->inbuf)) {
 			if (se_fl_test(appctx->sedesc, SE_FL_SHW))
 				return -1;
@@ -593,7 +599,7 @@ static inline int applet_getchar(const struct appctx *appctx, char *c)
 	ret = applet_may_get(appctx, 1);
 	if (ret <= 0)
 		return ret;
-	*c = ((appctx->applet->flags & APPLET_FL_NEW_API)
+	*c = ((appctx_app_test(appctx, APPLET_FL_NEW_API))
 	      ? *(b_head(&appctx->inbuf))
 	      : *(co_head(sc_oc(appctx_sc(appctx)))));
 
@@ -622,7 +628,7 @@ static inline int applet_getblk(const struct appctx *appctx, char *blk, int len,
 	if (ret <= 0)
 		return ret;
 
-	buf = ((appctx->applet->flags & APPLET_FL_NEW_API)
+	buf = ((appctx_app_test(appctx, APPLET_FL_NEW_API))
 	       ? &appctx->inbuf
 	       : sc_ob(appctx_sc(appctx)));
 	return b_getblk(buf, blk, len, offset);
@@ -654,7 +660,7 @@ static inline int applet_getword(const struct appctx *appctx, char *str, int len
 	if (ret <= 0)
 		goto out;
 
-	if (appctx->applet->flags & APPLET_FL_NEW_API) {
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API)) {
 		buf = &appctx->inbuf;
 		input = b_data(buf);
 	}
@@ -681,7 +687,7 @@ static inline int applet_getword(const struct appctx *appctx, char *str, int len
 		p = b_next(buf, p);
 	}
 
-	if (appctx->applet->flags & APPLET_FL_NEW_API) {
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API)) {
 		if (ret < len && (ret < input || b_room(buf)) &&
 		    !se_fl_test(appctx->sedesc, SE_FL_SHW))
 			ret = 0;
@@ -741,7 +747,7 @@ static inline int applet_getblk_nc(const struct appctx *appctx, const char **blk
 	if (ret <= 0)
 		return ret;
 
-	if (appctx->applet->flags & APPLET_FL_NEW_API) {
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API)) {
 		buf = &appctx->inbuf;
 		max = b_data(buf);
 	}
@@ -797,7 +803,7 @@ static inline int applet_getword_nc(const struct appctx *appctx, const char **bl
 	 * the resulting string is made of the concatenation of the pending
 	 * blocks (1 or 2).
 	 */
-	if (appctx->applet->flags & APPLET_FL_NEW_API) {
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API)) {
 		if (b_full(&appctx->inbuf) || se_fl_test(appctx->sedesc, SE_FL_SHW))
 			return ret;
 	}

@@ -2194,7 +2194,7 @@ int sc_applet_recv(struct stconn *sc)
  */
 int sc_applet_sync_recv(struct stconn *sc)
 {
-	if (!(__sc_appctx(sc)->applet->flags & APPLET_FL_NEW_API))
+	if (!appctx_app_test(__sc_appctx(sc), APPLET_FL_NEW_API))
 		return 0;
 
 	if (!sc_state_in(sc->state, SC_SB_RDY|SC_SB_EST))
@@ -2295,7 +2295,7 @@ void sc_applet_sync_send(struct stconn *sc)
 
 	oc->flags &= ~CF_WRITE_EVENT;
 
-	if (!(__sc_appctx(sc)->applet->flags & APPLET_FL_NEW_API))
+	if (!appctx_app_test(__sc_appctx(sc), APPLET_FL_NEW_API))
 		return;
 
 	if (sc->flags & SC_FL_SHUT_DONE)
