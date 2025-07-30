@@ -39,6 +39,7 @@
 #include <haproxy/net_helper.h>
 #include <haproxy/protobuf.h>
 #include <haproxy/proxy.h>
+#include <haproxy/quic_tune.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
@@ -5226,13 +5227,13 @@ smp_fetch_uptime(const struct arg *args, struct sample *smp, const char *kw, voi
 }
 
 
-/* Check if QUIC support was compiled and was not disabled by "no-quic" global option */
+/* Check if QUIC support was compiled and was not disabled by "tune.quic.listen" global option */
 static int smp_fetch_quic_enabled(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.type = SMP_T_BOOL;
 	smp->flags = 0;
 #ifdef USE_QUIC
-	smp->data.u.sint = !(global.tune.options & GTUNE_NO_QUIC);
+	smp->data.u.sint = !(quic_tune.fe.opts & QUIC_TUNE_FE_LISTEN_OFF);
 #else
 	smp->data.u.sint = 0;
 #endif

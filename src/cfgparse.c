@@ -4312,7 +4312,7 @@ init_proxies_list_stage2:
 
 # ifdef USE_QUIC_OPENSSL_COMPAT
 				/* store the last checked bind_conf in bind_conf */
-				if (!(global.tune.options & GTUNE_NO_QUIC) &&
+				if (!(global.tune.options & GTUNE_QUIC_LISTEN_OFF) &&
 				    !(global.tune.options & GTUNE_LIMITED_QUIC) &&
 				    listener->bind_conf != bind_conf) {
 					bind_conf = listener->bind_conf;

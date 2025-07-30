@@ -1759,7 +1759,6 @@ The following keywords are supported in the "global" section :
    - lua-prepend-path
    - mworker-max-reloads
    - nbthread
-   - no-quic
    - node
    - numa-cpu-mapping
    - ocsp-update.disable
@@ -1900,6 +1899,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.frontend.max-tx-mem
    - tune.quic.frontend.stream-data-ratio
    - tune.quic.frontend.default-max-window-size
+   - tune.quic.listen
    - tune.quic.max-frame-loss
    - tune.quic.reorder-ratio
    - tune.quic.retry-threshold
@@ -2926,11 +2926,6 @@ nbthread <number>
   Otherwise, this value defaults to 1. The default value is reported in the
   output of "haproxy -vv". Note that values set here or automatically detected
   are subject to the limit set by "thread-hard-limit" (if set).
-
-no-quic
-  Disable QUIC transport protocol. All the QUIC listeners will still be created.
-  But they will not bind their addresses. Hence, no QUIC traffic will be
-  processed by haproxy. See also "quic_enabled" sample fetch.
 
 numa-cpu-mapping
   When running on a NUMA-aware platform, this enables the "cpu-policy"
@@ -4825,6 +4820,17 @@ tune.quic.frontend.default-max-window-size <size>
   The default value is 480k.
 
   See also the "quic-cc-algo" bind option.
+
+tune.quic.listen { on | off }
+  Disable QUIC transport protocol on the frontend side. All the QUIC listeners
+  will still be created, but they won't listen for incoming datagrams. Hence,
+  no QUIC traffic will be processed by haproxy on the frontend side.
+
+  The default value is "on". If an issue is suspected with QUIC traffic, this
+  option can be used to easily toggle QUIC listeners without messing with each
+  individual config lines.
+
+  See also "quic_enabled" sample fetch.
 
 tune.quic.max-frame-loss <number>
   Sets the limit for which a single QUIC frame can be marked as lost. If
@@ -22641,9 +22647,9 @@ queue([<backend>]) : integer
   also the "avg_queue", "be_conn", and "be_sess_rate" fetches.
 
 quic_enabled : boolean
-  Return true when the support for QUIC transport protocol was compiled and
-  if this protocol was not disabled by "no-quic" global option. See also "no-quic"
-  global option.
+  Return true when the support for QUIC transport protocol was compiled and if
+  QUIC listeners are not disabled by "tune.quic.listen" global option. See also
+  "tune.quic.listen" global option.
 
 rand([<range>]) : integer
   Returns a random integer value within a range of <range> possible values,

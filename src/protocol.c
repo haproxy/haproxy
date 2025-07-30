@@ -21,6 +21,7 @@
 #include <haproxy/proto_quic.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
+#include <haproxy/quic_tune.h>
 #include <haproxy/sock.h>
 #include <haproxy/tools.h>
 
@@ -126,9 +127,7 @@ int protocol_supports_flag(struct protocol *proto, uint flag)
  */
 static inline int protocol_may_bind_quic(struct listener *l)
 {
-	if (global.tune.options & GTUNE_NO_QUIC)
-		return 0;
-	return 1;
+	return !(quic_tune.fe.opts & QUIC_TUNE_FE_LISTEN_OFF);
 }
 #endif
 

@@ -6,6 +6,8 @@
 #error "Must define USE_OPENSSL"
 #endif
 
+#define QUIC_TUNE_FE_LISTEN_OFF    0x00000001
+
 #define QUIC_TUNE_NO_PACING     0x00000001
 #define QUIC_TUNE_NO_UDP_GSO    0x00000002
 #define QUIC_TUNE_SOCK_PER_CONN 0x00000004
@@ -13,6 +15,7 @@
 
 struct quic_tune {
 	struct {
+		uint opts;    /* QUIC_TUNE_FE_* options specific to FE side */
 		uint fb_opts; /* QUIC_TUNE_FB_* options shared by both side */
 	} fe;
 

@@ -412,6 +412,12 @@ static int cfg_parse_quic_tune_on_off(char **args, int section_type, struct prox
 	}
 
 	suffix = args[0] + prefix_len;
+	if (strcmp(suffix, "listen") == 0 ) {
+		if (on)
+			quic_tune.fe.opts &= ~QUIC_TUNE_FE_LISTEN_OFF;
+		else
+			quic_tune.fe.opts |= QUIC_TUNE_FE_LISTEN_OFF;
+	}
 	if (strcmp(suffix, "zero-copy-fwd-send") == 0 ) {
 		if (on)
 			global.tune.no_zero_copy_fwd &= ~NO_ZERO_COPY_FWD_QUIC_SND;
@@ -429,6 +435,7 @@ static int cfg_parse_quic_tune_on_off(char **args, int section_type, struct prox
 }
 
 static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "tune.quic.listen", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.socket-owner", cfg_parse_quic_tune_socket_owner },
 	{ CFG_GLOBAL, "tune.quic.cc-hystart", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.cc.cubic.min-losses", cfg_parse_quic_tune_setting },
