@@ -226,16 +226,15 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 }
 
 /* Check that session <sess> is able to keep idle connection <conn>. This must
- * be called after insertion of a private connection into session unless
- * connection is or will be soon active.
+ * be called each time a connection stored in a session becomes idle.
  *
- * Returns 0 if the connection is kept or is not attached to the session, else
- * non-zero if the connection was explicitely removed from session.
+ * Returns 0 if the connection is kept, else non-zero if the connection was
+ * explicitely removed from session.
  */
 static inline int session_check_idle_conn(struct session *sess, struct connection *conn)
 {
-	/* A connection cannot be attached to multiple sessions. */
-	BUG_ON(conn->owner && conn->owner != sess);
+	/* Connection must be attached to session prior to this function call. */
+	BUG_ON(!conn->owner || conn->owner != sess);
 
 	/* Connection is not attached to a session. */
 	if (!conn->owner)
