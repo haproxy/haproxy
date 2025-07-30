@@ -3791,10 +3791,8 @@ static void qmux_strm_detach(struct sedesc *sd)
 			if (!session_add_conn(sess, conn, conn->target)) {
 				TRACE_ERROR("error during connection insert into session list", QMUX_EV_STRM_END, conn);
 				conn->owner = NULL;
-				if (!qcc->nb_sc) {
-					qcc_shutdown(qcc);
-					goto end;
-				}
+				if (!qcc->nb_sc)
+					goto release;
 			}
 
 			/* If conn is idle, check if session can keep it. Conn is freed if this is not the case.
@@ -3812,8 +3810,9 @@ static void qmux_strm_detach(struct sedesc *sd)
 				if (!srv_add_to_idle_list(objt_server(conn->target), conn, 1)) {
 					/* Idle conn insert failure, gracefully close the connection. */
 					TRACE_DEVEL("idle connection cannot be kept on the server", QMUX_EV_STRM_END, conn);
-					qcc_shutdown(qcc);
+					goto release;
 				}
+
 				goto end;
 			}
 			else if (!conn->hash_node->node.node.leaf_p &&
