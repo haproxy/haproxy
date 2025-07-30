@@ -3790,18 +3790,19 @@ static void qmux_strm_detach(struct sedesc *sd)
 			if (!session_add_conn(sess, conn)) {
 				TRACE_ERROR("error during connection insert into session list", QMUX_EV_STRM_END, conn);
 				conn->owner = NULL;
-
-				/* Session insert failure. Close conn if idle,
-				 * else insert will be retry on next detach.
-				 */
-				if (!qcc->nb_sc)
-					goto release;
 			}
 
-			/* If conn is idle, check if session can keep it. Conn is closed if this is not the case. */
-			if (!qcc->nb_sc && session_check_idle_conn(sess, conn)) {
-				TRACE_DEVEL("idle conn rejected by session", QMUX_EV_STRM_END, conn);
-				goto release;
+			if (!qcc->nb_sc) {
+				if (!conn->owner) {
+					/* Session insertion above has failed and connection is idle, remove it. */
+					goto release;
+				}
+
+				/* Ensure session can keep a new idle connection. */
+				if (session_check_idle_conn(sess, conn)) {
+					TRACE_DEVEL("idle conn rejected by session", QMUX_EV_STRM_END, conn);
+					goto release;
+				}
 			}
 		}
 		else {

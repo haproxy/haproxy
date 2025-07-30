@@ -1139,16 +1139,20 @@ static int h1s_finish_detach(struct h1s *h1s)
 		if (h1c->conn->flags & CO_FL_PRIVATE) {
 			/* Add the connection in the session server list, if not already done */
 			if (!session_add_conn(sess, h1c->conn)) {
+				/* HTTP/1.1 conn is always idle after detach, can be removed if session insert failed. */
 				h1c->conn->owner = NULL;
 				h1c->conn->mux->destroy(h1c);
 				goto released;
 			}
-			/* Always idle at this step */
+
+			/* HTTP/1.1 conn is always idle after detach. */
 
 			/* mark that the tasklet may lose its context to another thread and
 			 * that the handler needs to check it under the idle conns lock.
 			 */
 			HA_ATOMIC_OR(&h1c->wait_event.tasklet->state, TASK_F_USR1);
+
+			/* Ensure session can keep a new idle connection. */
 			if (session_check_idle_conn(sess, h1c->conn)) {
 				TRACE_DEVEL("outgoing connection rejected", H1_EV_STRM_END|H1_EV_H1C_END, h1c->conn);
 				h1c->conn->mux->destroy(h1c);

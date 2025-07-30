@@ -3723,21 +3723,24 @@ static void fcgi_detach(struct sedesc *sd)
 	    (fconn->flags & FCGI_CF_KEEP_CONN)) {
 		if (fconn->conn->flags & CO_FL_PRIVATE) {
 			/* Add the connection in the session serverlist, if not already done */
-			if (!session_add_conn(sess, fconn->conn)) {
+			if (!session_add_conn(sess, fconn->conn))
 				fconn->conn->owner = NULL;
-				if (eb_is_empty(&fconn->streams_by_id)) {
-					/* let's kill the connection right away */
+
+			if (eb_is_empty(&fconn->streams_by_id)) {
+				if (!fconn->conn->owner) {
+					/* Session insertion above has failed and connection is idle, remove it. */
 					fconn->conn->mux->destroy(fconn);
 					TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);
 					return;
 				}
-			}
-			if (eb_is_empty(&fconn->streams_by_id)) {
+
 				/* mark that the tasklet may lose its context to another thread and
 				 * that the handler needs to check it under the idle conns lock.
 				 */
 				HA_ATOMIC_OR(&fconn->wait_event.tasklet->state, TASK_F_USR1);
-				if (session_check_idle_conn(fconn->conn->owner, fconn->conn) != 0) {
+
+				/* Ensure session can keep a new idle connection. */
+				if (session_check_idle_conn(sess, fconn->conn) != 0) {
 					fconn->conn->mux->destroy(fconn);
 					TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);
 					return;

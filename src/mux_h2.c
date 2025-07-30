@@ -5533,20 +5533,24 @@ static void h2_detach(struct sedesc *sd)
 
 			if (h2c->conn->flags & CO_FL_PRIVATE) {
 				/* Add the connection in the session server list, if not already done */
-				if (!session_add_conn(sess, h2c->conn)) {
+				if (!session_add_conn(sess, h2c->conn))
 					h2c->conn->owner = NULL;
-					if (eb_is_empty(&h2c->streams_by_id)) {
+
+				if (eb_is_empty(&h2c->streams_by_id)) {
+					if (!h2c->conn->owner) {
+						/* Session insertion above has failed and connection is idle, remove it. */
 						h2c->conn->mux->destroy(h2c);
 						TRACE_DEVEL("leaving on error after killing outgoing connection", H2_EV_STRM_END|H2_EV_H2C_ERR);
 						return;
 					}
-				}
-				if (eb_is_empty(&h2c->streams_by_id)) {
+
 					/* mark that the tasklet may lose its context to another thread and
 					 * that the handler needs to check it under the idle conns lock.
 					 */
 					HA_ATOMIC_OR(&h2c->wait_event.tasklet->state, TASK_F_USR1);
-					if (session_check_idle_conn(h2c->conn->owner, h2c->conn) != 0) {
+
+					/* Ensure session can keep a new idle connection. */
+					if (session_check_idle_conn(sess, h2c->conn) != 0) {
 						h2c->conn->mux->destroy(h2c);
 						TRACE_DEVEL("leaving without reusable idle connection", H2_EV_STRM_END);
 						return;
