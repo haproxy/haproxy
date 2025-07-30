@@ -2824,10 +2824,9 @@ int check_config_validity()
 	 * as some of the fields may be accessed soon
 	 */
 	MT_LIST_FOR_EACH_ENTRY_LOCKED(newsrv, &servers_list, global_list, back) {
-		if (srv_init(newsrv) & ERR_CODE) {
-			cfgerr++;
-			continue;
-		}
+		err_code |= srv_init(newsrv);
+		if (err_code & ERR_CODE)
+			goto out;
 	}
 
 	/* starting to initialize the main proxies list */
