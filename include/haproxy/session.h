@@ -237,16 +237,20 @@ static inline int session_check_idle_conn(struct session *sess, struct connectio
 	if (!conn->owner)
 		return 0;
 
+	/* Ensure conn is not already accounted as idle to prevent sess idle count excess increment. */
+	BUG_ON(conn->flags & CO_FL_SESS_IDLE);
+
 	if (sess->idle_conns >= sess->fe->max_out_conns) {
 		session_unown_conn(sess, conn);
 		conn->owner = NULL;
-		conn->flags &= ~CO_FL_SESS_IDLE;
 		conn->mux->destroy(conn->ctx);
 		return -1;
-	} else {
+	}
+	else {
 		conn->flags |= CO_FL_SESS_IDLE;
 		sess->idle_conns++;
 	}
+
 	return 0;
 }
 
