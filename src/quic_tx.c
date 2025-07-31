@@ -810,7 +810,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				/* Everything sent. Continue within the same datagram. */
 				prv_pkt = cur_pkt;
 			}
-			else if (!(quic_tune.options & QUIC_TUNE_NO_UDP_GSO) &&
+			else if (quic_tune_test(QUIC_TUNE_FB_TX_UDP_GSO, qc) &&
 			         !(qc->flags & QUIC_FL_CONN_UDP_GSO_EIO) &&
 			         dglen == qc->path->mtu &&
 			         (char *)end < b_wrap(buf) &&

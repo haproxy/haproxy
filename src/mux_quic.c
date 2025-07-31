@@ -43,7 +43,7 @@ static void qmux_ctrl_room(struct qc_stream_desc *, uint64_t room);
 /* Returns true if pacing should be used for <conn> connection. */
 static int qcc_is_pacing_active(const struct connection *conn)
 {
-	return !(quic_tune.options & QUIC_TUNE_NO_PACING);
+	return quic_tune_conn_test(QUIC_TUNE_FB_TX_PACING, conn);
 }
 
 /* Free <rxbuf> instance and its inner data storage attached to <qcs> stream. */

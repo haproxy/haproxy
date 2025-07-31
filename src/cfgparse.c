@@ -2978,7 +2978,7 @@ init_proxies_list_stage1:
 				  bind_conf->quic_cc_algo : default_quic_cc_algo;
 
 				if (!(cc_algo->flags & QUIC_CC_ALGO_FL_OPT_PACING) &&
-				    quic_tune.options & QUIC_TUNE_NO_PACING) {
+				    !(quic_tune.fe.fb_opts & QUIC_TUNE_FB_TX_PACING)) {
 					ha_warning("Binding [%s:%d] for %s %s: using the selected congestion algorithm without pacing may cause slowdowns or high loss rates during transfers.\n",
 					           bind_conf->file, bind_conf->line,
 					           proxy_type_str(curproxy), curproxy->id);

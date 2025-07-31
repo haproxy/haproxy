@@ -1893,16 +1893,19 @@ The following keywords are supported in the "global" section :
    - tune.quic.be.cc.max-frame-loss
    - tune.quic.be.cc.reorder-ratio
    - tune.quic.be.sec.glitches-threshold
+   - tune.quic.be.tx.pacing
+   - tune.quic.be.tx.udp-gso
    - tune.quic.cc.cubic.min-losses (deprecated)
    - tune.quic.cc-hystart (deprecated)
-   - tune.quic.disable-tx-pacing
-   - tune.quic.disable-udp-gso
+   - tune.quic.disable-tx-pacing (deprecated)
+   - tune.quic.disable-udp-gso (deprecated)
    - tune.quic.fe.cc.cubic-min-losses
    - tune.quic.fe.cc.hystart
    - tune.quic.fe.cc.max-frame-loss
    - tune.quic.fe.cc.reorder-ratio
    - tune.quic.fe.sec.glitches-threshold
-   - tune.quic.frontend.glitches-threshold (deprecated)
+   - tune.quic.fe.tx.pacing
+   - tune.quic.fe.tx.udp-gso
    - tune.quic.frontend.max-data-size
    - tune.quic.frontend.max-idle-timeout
    - tune.quic.frontend.max-streams-bidi
@@ -4697,22 +4700,6 @@ tune.pt.zero-copy-forwarding { on | off }
   See also: tune.disable-zero-copy-forwarding, option splice-auto,
             option splice-request and option splice-response
 
-tune.quic.disable-tx-pacing
-  Disables pacing support for QUIC emission. The purpose of pacing is to smooth
-  emission of data to reduce network losses. In most scenario, it will
-  significantly improve network throughput by avoiding retransmissions.
-  However, it can be useful to deactivate it for networks with very high
-  bandwidth/low latency characteristics to prevent unwanted delay and reduce
-  CPU consumption.
-
-  See also the "quic-cc-algo" bind option.
-
-tune.quic.disable-udp-gso
-  Disable UDP GSO emission. This kernel feature allows to emit multiple
-  datagrams via a single system call which is more efficient for large
-  transfer. It may be useful to disable it on developers suggestion when
-  suspecting an issue on emission.
-
 tune.quic.be.cc.cubic-min-losses <number>
 tune.quic.fe.cc.cubic-min-losses <number>
   Defines how many lost packets are needed for the Cubic congestion control
@@ -4789,6 +4776,35 @@ tune.quic.fe.sec.glitches-threshold <number>
   See also: fc_glitches, tune.glitches.kill.cpu-usage
 
 tune.quic.frontend.glitches-threshold <number> (deprecated)
+  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
+  part of the streamlining process apply on QUIC configuration. If used, this
+  setting will only be applied on frontend connections.
+
+tune.quic.be.tx.pacing { on | off }
+tune.quic.fe.tx.pacing { on | off }
+  Enables ('on') or disables ('off') pacing support for QUIC emission. By
+  default, it is active. The purpose of pacing is to smooth emission of data to
+  reduce network losses. In most scenario, it will significantly improve
+  network throughput by avoiding retransmissions. However, it can be useful to
+  deactivate it for networks with very high bandwidth/low latency
+  characteristics to prevent unwanted delay and reduce CPU consumption.
+
+  See also the "quic-cc-algo" bind option.
+
+tune.quic.disable-tx-pacing (deprecated)
+  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
+  part of the streamlining process apply on QUIC configuration. If used, this
+  setting will only be applied on frontend connections.
+
+tune.quic.be.tx.udp-gso { on | off }
+tune.quic.fe.tx.udp-gso { on | off }
+  Enables ('on') or disables ('off') UDP GSO support for QUIC emission. By
+  default, it is active. This kernel feature allows to emit multiple datagrams
+  via a single system call which is more efficient for large transfer. It may
+  be useful to disable it on developers suggestion when suspecting an issue on
+  emission.
+
+tune.quic.disable-udp-gso (deprecated)
   This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
   part of the streamlining process apply on QUIC configuration. If used, this
   setting will only be applied on frontend connections.
@@ -17110,10 +17126,10 @@ quic-cc-algo { cubic | newreno | bbr | nocc }[(<args,...>)]
   similar to those used by TCP.
 
   Pacing is activated on top of the congestion algorithm to reduce loss and
-  improve throughput. It can be turned off via "tune.quic.disable-tx-pacing"
-  global keyword. In most cases, pacing should remain activated, especially
-  when using BBR as it relies on it to work as expected. Using BBR without
-  pacing may cause slowdowns or high loss rates during transfers.
+  improve throughput. It can be turned off via "tune.quic.fe.tx.pacing" global
+  keyword. In most cases, pacing should remain activated, especially when using
+  BBR as it relies on it to work as expected. Using BBR without pacing may
+  cause slowdowns or high loss rates during transfers.
 
   Default value: cubic
 

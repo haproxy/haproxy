@@ -780,7 +780,8 @@ static int quic_test_socketopts(void)
 	}
 
 	/* Check for UDP GSO support. */
-	if (!(quic_tune.options & QUIC_TUNE_NO_UDP_GSO)) {
+	if ((quic_tune.fe.fb_opts & QUIC_TUNE_FB_TX_UDP_GSO) ||
+	    (quic_tune.be.fb_opts & QUIC_TUNE_FB_TX_UDP_GSO)) {
 		ret = quic_test_gso();
 		if (ret < 0) {
 			goto err;
@@ -788,7 +789,8 @@ static int quic_test_socketopts(void)
 		else if (!ret) {
 			ha_diag_warning("Your platform does not support UDP GSO. "
 			                "This will be automatically disabled for QUIC transfer.\n");
-			quic_tune.options |= QUIC_TUNE_NO_UDP_GSO;
+			quic_tune.fe.fb_opts &= ~QUIC_TUNE_FB_TX_UDP_GSO;
+			quic_tune.be.fb_opts &= ~QUIC_TUNE_FB_TX_UDP_GSO;
 		}
 	}
 

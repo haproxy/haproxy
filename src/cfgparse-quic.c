@@ -27,10 +27,12 @@ struct quic_tune quic_tune = {
 	.fe = {
 		.cc_max_frame_loss = QUIC_DFLT_CC_MAX_FRAME_LOSS,
 		.cc_reorder_ratio  = QUIC_DFLT_CC_REORDER_RATIO,
+		.fb_opts = QUIC_TUNE_FB_TX_PACING|QUIC_TUNE_FB_TX_UDP_GSO,
 	},
 	.be = {
 		.cc_max_frame_loss = QUIC_DFLT_CC_MAX_FRAME_LOSS,
 		.cc_reorder_ratio  = QUIC_DFLT_CC_REORDER_RATIO,
+		.fb_opts = QUIC_TUNE_FB_TX_PACING|QUIC_TUNE_FB_TX_UDP_GSO,
 	},
 };
 
@@ -420,6 +422,7 @@ static int cfg_parse_quic_tune_setting0(char **args, int section_type,
                                         const struct proxy *defpx,
                                         const char *file, int line, char **err)
 {
+	int ret = 0;
 	int prefix_len = strlen("tune.quic.");
 	const char *suffix;
 
@@ -428,17 +431,23 @@ static int cfg_parse_quic_tune_setting0(char **args, int section_type,
 
 	suffix = args[0] + prefix_len;
 	if (strcmp(suffix, "disable-tx-pacing") == 0) {
-		quic_tune.options |= QUIC_TUNE_NO_PACING;
+		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
+		               "Please use the newer keyword syntax 'tune.quic.fe.tx.pacing'.", args[0]);
+		quic_tune.fe.fb_opts &= ~QUIC_TUNE_FB_TX_PACING;
+		ret = 1;
 	}
 	else if (strcmp(suffix, "disable-udp-gso") == 0) {
-		quic_tune.options |= QUIC_TUNE_NO_UDP_GSO;
+		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
+		               "Please use the newer keyword syntax 'tune.quic.fe.tx.udp-gso'.", args[0]);
+		quic_tune.fe.fb_opts &= ~QUIC_TUNE_FB_TX_UDP_GSO;
+		ret = 1;
 	}
 	else {
 		memprintf(err, "'%s' keyword unhandled (please report this bug).", args[0]);
 		return -1;
 	}
 
-	return 0;
+	return ret;
 }
 
 /* config parser for global "tune.quic.* {on|off}" */
@@ -485,6 +494,24 @@ static int cfg_parse_quic_tune_on_off(char **args, int section_type, struct prox
 		else
 			*ptr &= ~QUIC_TUNE_FB_CC_HYSTART;
 	}
+	else if (strcmp(suffix, "be.tx.pacing") == 0 ||
+	         strcmp(suffix, "fe.tx.pacing") == 0) {
+		uint *ptr = (suffix[0] == 'b') ? &quic_tune.be.fb_opts :
+		                                 &quic_tune.fe.fb_opts;
+		if (on)
+			*ptr |= QUIC_TUNE_FB_TX_PACING;
+		else
+			*ptr &= ~QUIC_TUNE_FB_TX_PACING;
+	}
+	else if (strcmp(suffix, "be.tx.udp-gso") == 0 ||
+	         strcmp(suffix, "fe.tx.udp-gso") == 0) {
+		uint *ptr = (suffix[0] == 'b') ? &quic_tune.be.fb_opts :
+		                                 &quic_tune.fe.fb_opts;
+		if (on)
+			*ptr |= QUIC_TUNE_FB_TX_UDP_GSO;
+		else
+			*ptr &= ~QUIC_TUNE_FB_TX_UDP_GSO;
+	}
 	else if (strcmp(suffix, "cc-hystart") == 0) {
 		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
 		               "Please use the newer keyword syntax 'tune.quic.fe.cc.hystart'.", args[0]);
@@ -508,8 +535,6 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.frontend.default-max-window-size", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.stream-data-ratio", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.retry-threshold", cfg_parse_quic_tune_setting },
-	{ CFG_GLOBAL, "tune.quic.disable-tx-pacing", cfg_parse_quic_tune_setting0 },
-	{ CFG_GLOBAL, "tune.quic.disable-udp-gso", cfg_parse_quic_tune_setting0 },
 	{ CFG_GLOBAL, "tune.quic.zero-copy-fwd-send", cfg_parse_quic_tune_on_off },
 
 	{ CFG_GLOBAL, "tune.quic.fe.cc.cubic-min-losses", cfg_parse_quic_tune_setting },
@@ -517,16 +542,22 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.fe.cc.max-frame-loss", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.fe.cc.reorder-ratio", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.fe.sec.glitches-threshold", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.fe.tx.pacing", cfg_parse_quic_tune_on_off },
+	{ CFG_GLOBAL, "tune.quic.fe.tx.udp-gso", cfg_parse_quic_tune_on_off },
 
 	{ CFG_GLOBAL, "tune.quic.be.cc.cubic-min-losses", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.be.cc.hystart", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.be.cc.max-frame-loss", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.be.cc.reorder-ratio", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.be.sec.glitches-threshold", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.be.tx.pacing", cfg_parse_quic_tune_on_off },
+	{ CFG_GLOBAL, "tune.quic.be.tx.udp-gso", cfg_parse_quic_tune_on_off },
 
 	/* legacy options */
 	{ CFG_GLOBAL, "tune.quic.cc-hystart", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.cc.cubic.min-losses", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.disable-tx-pacing", cfg_parse_quic_tune_setting0 },
+	{ CFG_GLOBAL, "tune.quic.disable-udp-gso", cfg_parse_quic_tune_setting0 },
 	{ CFG_GLOBAL, "tune.quic.frontend.glitches-threshold", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.max-frame-loss", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.reorder-ratio", cfg_parse_quic_tune_setting },
