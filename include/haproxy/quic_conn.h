@@ -81,6 +81,9 @@ void qc_idle_timer_rearm(struct quic_conn *qc, int read, int arm_ack);
 void qc_check_close_on_released_mux(struct quic_conn *qc);
 int quic_stateless_reset_token_cpy(unsigned char *pos, size_t len,
                                    const unsigned char *salt, size_t saltlen);
+int quic_reuse_srv_params(struct quic_conn *qc,
+                          const unsigned char *alpn,
+                          const struct quic_early_transport_params *etps);
 
 /* Returns true if <qc> is used on the backed side (as a client). */
 static inline int qc_is_back(const struct quic_conn *qc)
