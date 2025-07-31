@@ -759,11 +759,7 @@ void qcc_set_error(struct qcc *qcc, int err, int app)
  */
 int _qcc_report_glitch(struct qcc *qcc, int inc)
 {
-	const int max = global.tune.quic_frontend_glitches_threshold;
-
-	/* TODO add a BE limit for glitch counter */
-	if (qcc->flags & QC_CF_IS_BACK)
-		return 0;
+	const int max = QUIC_TUNE_FB_CONN_GET(sec_glitches_threshold, qcc->conn);
 
 	qcc->glitches += inc;
 	if (max && qcc->glitches >= max && !(qcc->flags & QC_CF_ERRL) &&

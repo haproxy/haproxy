@@ -15,11 +15,13 @@
 
 struct quic_tune {
 	struct {
+		uint sec_glitches_threshold;
 		uint opts;    /* QUIC_TUNE_FE_* options specific to FE side */
 		uint fb_opts; /* QUIC_TUNE_FB_* options shared by both side */
 	} fe;
 
 	struct {
+		uint sec_glitches_threshold;
 		uint fb_opts; /* QUIC_TUNE_FB_* options shared by both side */
 	} be;
 

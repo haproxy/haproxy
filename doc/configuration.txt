@@ -1888,11 +1888,13 @@ The following keywords are supported in the "global" section :
    - tune.pool-high-fd-ratio
    - tune.pool-low-fd-ratio
    - tune.pt.zero-copy-forwarding
+   - tune.quic.be.sec.glitches-threshold
    - tune.quic.cc-hystart
    - tune.quic.cc.cubic.min-losses
    - tune.quic.disable-tx-pacing
    - tune.quic.disable-udp-gso
-   - tune.quic.frontend.glitches-threshold
+   - tune.quic.fe.sec.glitches-threshold
+   - tune.quic.frontend.glitches-threshold (deprecated)
    - tune.quic.frontend.max-data-size
    - tune.quic.frontend.max-idle-timeout
    - tune.quic.frontend.max-streams-bidi
@@ -4079,8 +4081,8 @@ tune.glitches.kill.cpu-usage <number>
   twice the usually observed CPU usage, or the commonly observed CPU usage plus
   half the idle one (i.e. if CPU commonly reaches 60%, setting 80 here can make
   sense). This parameter has no effect without tune.h2.fe.glitches-threshold or
-  tune.quic.frontend.glitches-threshold. See also the global parameters
-  "tune.h2.fe.glitches-threshold" and "tune.quic.frontend.glitches-threshold".
+  tune.quic.fe.sec.glitches-threshold. See also the global parameters
+  "tune.h2.fe.glitches-threshold" and "tune.quic.fe.sec.glitches-threshold".
 
 tune.h1.zero-copy-fwd-recv { on | off }
   Enables ('on') of disabled ('off') the zero-copy receives of data for the H1
@@ -4727,19 +4729,25 @@ tune.quic.disable-udp-gso
   transfer. It may be useful to disable it on developers suggestion when
   suspecting an issue on emission.
 
-tune.quic.frontend.glitches-threshold <number>
-  Sets the threshold for the number of glitches on a frontend connection, where
-  that connection will automatically be killed. This allows to automatically
-  kill misbehaving connections without having to write explicit rules for them.
-  The default value is zero, indicating that no threshold is set so that no
-  event will cause a connection to be closed. Beware that some QUIC clients may
-  occasionally cause a few glitches over long lasting connection, so any non-
-  zero value here should probably be in the hundreds or thousands to be
-  effective without affecting slightly bogus clients. It is also possible to
-  only kill connections when the CPU usage crosses a certain level, by using
-  "tune.glitches.kill.cpu-usage".
+tune.quic.be.sec.glitches-threshold <number>
+tune.quic.fe.sec.glitches-threshold <number>
+  Sets the threshold for the number of glitches per connection either on
+  frontend or backend side, where that connection will automatically be killed.
+  This allows to automatically kill misbehaving connections without having to
+  write explicit rules for them. The default value is zero, indicating that no
+  threshold is set so that no event will cause a connection to be closed.
+  Beware that some QUIC clients may occasionally cause a few glitches over long
+  lasting connection, so any non- zero value here should probably be in the
+  hundreds or thousands to be effective without affecting slightly bogus
+  clients. It is also possible to only kill connections when the CPU usage
+  crosses a certain level, by using "tune.glitches.kill.cpu-usage".
 
   See also: fc_glitches, tune.glitches.kill.cpu-usage
+
+tune.quic.frontend.glitches-threshold <number> (deprecated)
+  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
+  part of the streamlining process apply on QUIC configuration. If used, this
+  setting will only be applied on frontend connections.
 
 tune.quic.frontend.max-data-size <size>
   This setting is the hard limit for the number of data bytes in flight over a

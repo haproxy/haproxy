@@ -217,7 +217,6 @@ struct global {
 #ifdef USE_QUIC
 		unsigned int quic_backend_max_idle_timeout;
 		unsigned int quic_frontend_max_idle_timeout;
-		unsigned int quic_frontend_glitches_threshold;
 		unsigned int quic_frontend_max_data;
 		unsigned int quic_frontend_max_streams_bidi;
 		uint64_t quic_frontend_max_tx_mem;

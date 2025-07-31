@@ -281,6 +281,7 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
                                        const struct proxy *defpx,
                                        const char *file, int line, char **err)
 {
+	int ret = 0;
 	unsigned int arg = 0;
 	int prefix_len = strlen("tune.quic.");
 	const char *suffix, *errptr;
@@ -299,8 +300,12 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 	suffix = args[0] + prefix_len;
 	if (strcmp(suffix, "cc.cubic.min-losses") == 0)
 		global.tune.quic_cubic_loss_tol = arg - 1;
-	else if (strcmp(suffix, "frontend.glitches-threshold") == 0)
-		global.tune.quic_frontend_glitches_threshold = arg;
+	else if (strcmp(suffix, "be.sec.glitches-threshold") == 0 ||
+	         strcmp(suffix, "fe.sec.glitches-threshold") == 0) {
+		uint *ptr = (suffix[0] == 'b') ? &quic_tune.be.sec_glitches_threshold :
+		                                 &quic_tune.fe.sec_glitches_threshold;
+		*ptr = arg;
+	}
 	else if (strcmp(suffix, "frontend.max-data-size") == 0) {
 		if ((errptr = parse_size_err(args[1], &arg))) {
 			memprintf(err, "'%s': unexpected character '%c' in size argument '%s'.",
@@ -356,12 +361,20 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 	}
 	else if (strcmp(suffix, "retry-threshold") == 0)
 		global.tune.quic_retry_threshold = arg;
+
+	/* legacy options */
+	else if (strcmp(suffix, "frontend.glitches-threshold") == 0) {
+		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
+		               "Please use the newer keyword syntax 'tune.quic.fe.sec.glitches-threshold'.", args[0]);
+		quic_tune.fe.sec_glitches_threshold = arg;
+		ret = 1;
+	}
 	else {
 		memprintf(err, "'%s' keyword not unhandled (please report this bug).", args[0]);
 		return -1;
 	}
 
-	return 0;
+	return ret;
 }
 
 static int cfg_parse_quic_tune_setting0(char **args, int section_type,
@@ -439,7 +452,6 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.socket-owner", cfg_parse_quic_tune_socket_owner },
 	{ CFG_GLOBAL, "tune.quic.cc-hystart", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.cc.cubic.min-losses", cfg_parse_quic_tune_setting },
-	{ CFG_GLOBAL, "tune.quic.frontend.glitches-threshold", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-data-size", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-streams-bidi", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-idle-timeout", cfg_parse_quic_time },
@@ -452,6 +464,14 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.disable-tx-pacing", cfg_parse_quic_tune_setting0 },
 	{ CFG_GLOBAL, "tune.quic.disable-udp-gso", cfg_parse_quic_tune_setting0 },
 	{ CFG_GLOBAL, "tune.quic.zero-copy-fwd-send", cfg_parse_quic_tune_on_off },
+
+	{ CFG_GLOBAL, "tune.quic.fe.sec.glitches-threshold", cfg_parse_quic_tune_setting },
+
+	{ CFG_GLOBAL, "tune.quic.be.sec.glitches-threshold", cfg_parse_quic_tune_setting },
+
+	/* legacy options */
+	{ CFG_GLOBAL, "tune.quic.frontend.glitches-threshold", cfg_parse_quic_tune_setting },
+
 	{ 0, NULL, NULL }
 }};
 
