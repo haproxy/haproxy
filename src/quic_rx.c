@@ -30,6 +30,7 @@
 #include <haproxy/quic_tls.h>
 #include <haproxy/quic_token.h>
 #include <haproxy/quic_trace.h>
+#include <haproxy/quic_tune.h>
 #include <haproxy/quic_tx.h>
 #include <haproxy/quic_utils.h>
 #include <haproxy/ssl_sock.h>
@@ -404,7 +405,9 @@ int qc_handle_frms_of_lost_pkt(struct quic_conn *qc,
 			qc_frm_free(qc, &frm);
 		}
 		else {
-			if (++frm->loss_count >= global.tune.quic_max_frame_loss) {
+			const uint max_frame_loss = QUIC_TUNE_FB_GET(cc_max_frame_loss, qc);
+
+			if (++frm->loss_count >= max_frame_loss) {
 				TRACE_ERROR("retransmission limit reached, closing the connection", QUIC_EV_CONN_PRSAFRM, qc);
 				quic_set_connection_close(qc, quic_err_transport(QC_ERR_INTERNAL_ERROR));
 				qc_notify_err(qc);

@@ -1888,11 +1888,19 @@ The following keywords are supported in the "global" section :
    - tune.pool-high-fd-ratio
    - tune.pool-low-fd-ratio
    - tune.pt.zero-copy-forwarding
+   - tune.quic.be.cc.cubic-min-losses
+   - tune.quic.be.cc.hystart
+   - tune.quic.be.cc.max-frame-loss
+   - tune.quic.be.cc.reorder-ratio
    - tune.quic.be.sec.glitches-threshold
-   - tune.quic.cc-hystart
-   - tune.quic.cc.cubic.min-losses
+   - tune.quic.cc.cubic.min-losses (deprecated)
+   - tune.quic.cc-hystart (deprecated)
    - tune.quic.disable-tx-pacing
    - tune.quic.disable-udp-gso
+   - tune.quic.fe.cc.cubic-min-losses
+   - tune.quic.fe.cc.hystart
+   - tune.quic.fe.cc.max-frame-loss
+   - tune.quic.fe.cc.reorder-ratio
    - tune.quic.fe.sec.glitches-threshold
    - tune.quic.frontend.glitches-threshold (deprecated)
    - tune.quic.frontend.max-data-size
@@ -1902,8 +1910,8 @@ The following keywords are supported in the "global" section :
    - tune.quic.frontend.stream-data-ratio
    - tune.quic.frontend.default-max-window-size
    - tune.quic.listen
-   - tune.quic.max-frame-loss
-   - tune.quic.reorder-ratio
+   - tune.quic.max-frame-loss (deprecated)
+   - tune.quic.reorder-ratio (deprecated)
    - tune.quic.retry-threshold
    - tune.quic.socket-owner
    - tune.quic.zero-copy-fwd-send
@@ -4689,12 +4697,24 @@ tune.pt.zero-copy-forwarding { on | off }
   See also: tune.disable-zero-copy-forwarding, option splice-auto,
             option splice-request and option splice-response
 
-tune.quic.cc-hystart { on | off }
-  Enables ('on') or disabled ('off') the HyStart++ (RFC 9406) algorithm for
-  QUIC connections used as a replacement for the slow start phase of congestion
-  control algorithms which may cause high packet loss. It is disabled by default.
+tune.quic.disable-tx-pacing
+  Disables pacing support for QUIC emission. The purpose of pacing is to smooth
+  emission of data to reduce network losses. In most scenario, it will
+  significantly improve network throughput by avoiding retransmissions.
+  However, it can be useful to deactivate it for networks with very high
+  bandwidth/low latency characteristics to prevent unwanted delay and reduce
+  CPU consumption.
 
-tune.quic.cc.cubic.min-losses <number>
+  See also the "quic-cc-algo" bind option.
+
+tune.quic.disable-udp-gso
+  Disable UDP GSO emission. This kernel feature allows to emit multiple
+  datagrams via a single system call which is more efficient for large
+  transfer. It may be useful to disable it on developers suggestion when
+  suspecting an issue on emission.
+
+tune.quic.be.cc.cubic-min-losses <number>
+tune.quic.fe.cc.cubic-min-losses <number>
   Defines how many lost packets are needed for the Cubic congestion control
   algorithm to really consider a loss event. Normally, any loss event is
   considered as the result of a congestion and is sufficient for Cubic to
@@ -4713,21 +4733,45 @@ tune.quic.cc.cubic.min-losses <number>
   compare some metrics. Never go beyond 2 without an expert's prior analysis of
   the situation. The default and minimum value is 1. Always use 1.
 
-tune.quic.disable-tx-pacing
-  Disables pacing support for QUIC emission. The purpose of pacing is to smooth
-  emission of data to reduce network losses. In most scenario, it will
-  significantly improve network throughput by avoiding retransmissions.
-  However, it can be useful to deactivate it for networks with very high
-  bandwidth/low latency characteristics to prevent unwanted delay and reduce
-  CPU consumption.
+tune.quic.cc.cubic.min-losses <number> (deprecated)
+  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
+  part of the streamlining process apply on QUIC configuration. If used, this
+  setting will only be applied on frontend connections.
 
-  See also the "quic-cc-algo" bind option.
+tune.quic.be.cc.hystart { on | off }
+tune.quic.fe.cc.hystart { on | off }
+  Enables ('on') or disabled ('off') the HyStart++ (RFC 9406) algorithm for
+  QUIC connections used as a replacement for the slow start phase of congestion
+  control algorithms which may cause high packet loss. It is disabled by default.
 
-tune.quic.disable-udp-gso
-  Disable UDP GSO emission. This kernel feature allows to emit multiple
-  datagrams via a single system call which is more efficient for large
-  transfer. It may be useful to disable it on developers suggestion when
-  suspecting an issue on emission.
+tune.quic.cc-hystart { on | off } (deprecated)
+  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
+  part of the streamlining process apply on QUIC configuration. If used, this
+  setting will only be applied on frontend connections.
+
+tune.quic.be.cc.max-frame-loss <number>
+tune.quic.fe.cc.max-frame-loss <number>
+  Sets the limit for which a single QUIC frame can be marked as lost. If
+  exceeded, the connection is considered as failing and is closed immediately.
+
+  The default value is 10.
+
+tune.quic.max-frame-loss <number> (deprecated)
+  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
+  part of the streamlining process apply on QUIC configuration. If used, this
+  setting will only be applied on frontend connections.
+
+tune.quic.be.cc.reorder-ratio <0..100, in percent>
+tune.quic.fe.cc.reorder-ratio <0..100, in percent>
+  The ratio applied to the packet reordering threshold calculated. It may
+  trigger a high packet loss detection when too small.
+
+  The default value is 50.
+
+tune.quic.reorder-ratio <0..100, in percent> (deprecated)
+  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
+  part of the streamlining process apply on QUIC configuration. If used, this
+  setting will only be applied on frontend connections.
 
 tune.quic.be.sec.glitches-threshold <number>
 tune.quic.fe.sec.glitches-threshold <number>
@@ -4839,18 +4883,6 @@ tune.quic.listen { on | off }
   individual config lines.
 
   See also "quic_enabled" sample fetch.
-
-tune.quic.max-frame-loss <number>
-  Sets the limit for which a single QUIC frame can be marked as lost. If
-  exceeded, the connection is considered as failing and is closed immediately.
-
-  The default value is 10.
-
-tune.quic.reorder-ratio <0..100, in percent>
-  The ratio applied to the packet reordering threshold calculated. It may
-  trigger a high packet loss detection when too small.
-
-  The default value is 50.
 
 tune.quic.retry-threshold <number>
   Dynamically enables the Retry feature for all the configured QUIC listeners

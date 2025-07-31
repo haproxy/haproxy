@@ -5,6 +5,7 @@
 #include <haproxy/quic_loss.h>
 #include <haproxy/quic_tls.h>
 #include <haproxy/quic_trace.h>
+#include <haproxy/quic_tune.h>
 
 #include <haproxy/atomic.h>
 #include <haproxy/list.h>
@@ -159,6 +160,7 @@ void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
 	struct quic_loss *ql;
 	unsigned int loss_delay;
 	uint64_t pktthresh;
+	int reorder_ratio;
 
 	TRACE_ENTER(QUIC_EV_CONN_PKTLOSS, qc);
 	TRACE_PROTO("TX loss", QUIC_EV_CONN_PKTLOSS, qc, pktns);
@@ -192,8 +194,9 @@ void qc_packet_loss_lookup(struct quic_pktns *pktns, struct quic_conn *qc,
 	 * flight before loss detection.
 	 */
 	pktthresh = pktns->tx.next_pn - 1 - eb64_entry(node, struct quic_tx_packet, pn_node)->pn_node.key;
+	reorder_ratio = QUIC_TUNE_FB_GET(cc_reorder_ratio, qc);
 	/* Apply a ratio to this threshold and add it to QUIC_LOSS_PACKET_THRESHOLD. */
-	pktthresh = pktthresh * global.tune.quic_reorder_ratio / 100 + QUIC_LOSS_PACKET_THRESHOLD;
+	pktthresh = pktthresh * reorder_ratio / 100 + QUIC_LOSS_PACKET_THRESHOLD;
 	while (node) {
 		struct quic_tx_packet *pkt;
 		int64_t largest_acked_pn;

@@ -223,9 +223,6 @@ struct global {
 		size_t quic_frontend_max_window_size;
 		unsigned int quic_frontend_stream_data_ratio;
 		unsigned int quic_retry_threshold;
-		unsigned int quic_reorder_ratio;
-		unsigned int quic_max_frame_loss;
-		unsigned int quic_cubic_loss_tol;
 #endif /* USE_QUIC */
 	} tune;
 	struct {
