@@ -100,5 +100,6 @@ struct quic_rx_crypto_frm {
 #define           QUIC_EV_CONN_SSL_COMPAT (1ULL << 51)
 #define           QUIC_EV_CONN_BIND_TID  (1ULL << 52)
 #define           QUIC_EV_CONN_RELEASE_RCD (1ULL << 53)
+#define           QUIC_EV_EARLY_TRANSP_PARAMS (1ULL << 54)
 
 #endif /* _HAPROXY_QUIC_TRACE_T_H */
