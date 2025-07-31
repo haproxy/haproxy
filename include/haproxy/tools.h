@@ -1178,6 +1178,80 @@ static inline void *my_realloc2(void *ptr, size_t size)
 	return ret;
 }
 
+/* portable memalign(): tries to accommodate OS specificities, and may fall
+ * back to plain malloc() if not supported, meaning that alignment guarantees
+ * are only a performance bonus but not granted. The caller is responsible for
+ * guaranteeing that the requested alignment is at least sizeof(void*) and a
+ * power of two. If uncertain, use ha_aligned_alloc() instead. The pointer
+ * needs to be passed to ha_aligned_free() for freeing (due to cygwin). Please
+ * use ha_aligned_alloc() instead (which does perform accounting).
+ */
+static inline void *_ha_aligned_alloc(size_t alignment, size_t size)
+{
+	/* let's consider that most OSes have posix_memalign() and make the
+	 * exception for the other ones. This way if an OS fails to build,
+	 * we'll know about it and handle it as a new exception instead of
+	 * relying on old fallbacks that may break (e.g. most BSDs have
+	 * dropped memalign()).
+	 */
+
+#if defined(_WIN32)
+	/* MINGW (Cygwin) uses _aligned_malloc() */
+	return _aligned_malloc(size, alignment);
+#elif _POSIX_VERSION < 200112L || defined(__sun)
+	/* Old OSes or Solaris */
+	return memalign(alignment, size);
+#else
+	void *ret;
+
+	/* most BSD, Linux since glibc 2.2, Solaris 11 */
+	if (posix_memalign(&ret, alignment, size) == 0)
+		return ret;
+	else
+		return NULL;
+#endif
+}
+
+/* portable memalign(): tries to accommodate OS specificities, and may fall
+ * back to plain malloc() if not supported, meaning that alignment guarantees
+ * are only a performance bonus but not granted. The size will automatically be
+ * rounded up to the next power of two and set to a minimum of sizeof(void*).
+ * The checks are cheap and generally optimized away by the compiler since most
+ * input arguments are build time constants. The pointer needs to be passed to
+ * ha_aligned_free() for freeing (due to cygwin). Please use
+ * ha_aligned_alloc_safe() instead (which does perform accounting).
+ */
+static inline void *_ha_aligned_alloc_safe(size_t alignment, size_t size)
+{
+	if (unlikely(alignment < sizeof(void*)))
+		alignment = sizeof(void*);
+	else if (unlikely(alignment & (alignment - 1))) {
+		/* not power of two! round up to next power of two by filling
+		 * all LSB in O(log(log(N))) then increment the result.
+		 */
+		int shift = 1;
+		do {
+			alignment |= alignment >> shift;
+			shift *= 2;
+		} while (unlikely(alignment & (alignment + 1)));
+		alignment++;
+	}
+	return _ha_aligned_alloc(alignment, size);
+}
+
+/* To be used to free a pointer returned by _ha_aligned_alloc() or
+ * _ha_aligned_alloc_safe(). Please use ha_aligned_free() instead
+ * (which does perform accounting).
+ */
+static inline void _ha_aligned_free(void *ptr)
+{
+#if defined(_WIN32)
+	return _aligned_free(ptr);
+#else
+	free(ptr);
+#endif
+}
+
 int parse_dotted_uints(const char *s, unsigned int **nums, size_t *sz);
 
 /* PRNG */

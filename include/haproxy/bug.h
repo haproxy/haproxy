@@ -620,9 +620,92 @@ struct mem_stats {
 	_HA_ATOMIC_ADD(&_.size, __y);					\
 	strdup(__x);							\
 })
+
+#undef ha_aligned_alloc
+#define ha_aligned_alloc(a,s)  ({					\
+	size_t __a = (a);						\
+	size_t __s = (s);						\
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
+		.caller = {						\
+			.file = __FILE__, .line = __LINE__,		\
+			.what = MEM_STATS_TYPE_MALLOC,			\
+			.func = __func__,				\
+		},							\
+	};								\
+	HA_WEAK(__start_mem_stats);					\
+	HA_WEAK(__stop_mem_stats);					\
+	_HA_ATOMIC_INC(&_.calls);					\
+	_HA_ATOMIC_ADD(&_.size, __s);					\
+	_ha_aligned_alloc(__a, __s);					\
+})
+
+#undef ha_aligned_alloc_safe
+#define ha_aligned_alloc_safe(a,s)  ({					\
+	size_t __a = (a);						\
+	size_t __s = (s);						\
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
+		.caller = {						\
+			.file = __FILE__, .line = __LINE__,		\
+			.what = MEM_STATS_TYPE_MALLOC,			\
+			.func = __func__,				\
+		},							\
+	};								\
+	HA_WEAK(__start_mem_stats);					\
+	HA_WEAK(__stop_mem_stats);					\
+	_HA_ATOMIC_INC(&_.calls);					\
+	_HA_ATOMIC_ADD(&_.size, __s);					\
+	_ha_aligned_alloc_safe(__a, __s);				\
+})
+
+#undef ha_aligned_free
+#define ha_aligned_free(x)  ({							\
+	typeof(x) __x = (x);						\
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
+		.caller = {						\
+			.file = __FILE__, .line = __LINE__,		\
+			.what = MEM_STATS_TYPE_FREE,			\
+			.func = __func__,				\
+		},							\
+	};								\
+	HA_WEAK(__start_mem_stats);					\
+	HA_WEAK(__stop_mem_stats);					\
+	if (__builtin_constant_p((x))) {  \
+		HA_LINK_ERROR(call_to_ha_aligned_free_attempts_to_free_a_constant); \
+	}								\
+	if (__x)							\
+		_HA_ATOMIC_INC(&_.calls);				\
+	_ha_aligned_free(__x);						\
+})
+
+#undef ha_aligned_free_size
+#define ha_aligned_free_size(p,s)  ({					\
+	void *__p = (p); size_t __s = (s);				\
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
+		.caller = {						\
+			.file = __FILE__, .line = __LINE__,		\
+			.what = MEM_STATS_TYPE_FREE,			\
+			.func = __func__,				\
+		},							\
+	};								\
+	HA_WEAK(__start_mem_stats);					\
+	HA_WEAK(__stop_mem_stats);					\
+	if (__builtin_constant_p((p))) {  \
+		HA_LINK_ERROR(call_to_ha_aligned_free_attempts_to_free_a_constant); \
+	}								\
+	if (__p) {							\
+		_HA_ATOMIC_INC(&_.calls);				\
+		_HA_ATOMIC_ADD(&_.size, __s);				\
+	}								\
+	_ha_aligned_free(__p);						\
+})
+
 #else // DEBUG_MEM_STATS
 
 #define will_free(x, y) do { } while (0)
+#define ha_aligned_alloc(a,s) _ha_aligned_alloc(a, s)
+#define ha_aligned_alloc_safe(a,s) _ha_aligned_alloc_safe(a, s)
+#define ha_aligned_free(p) _ha_aligned_free(p)
+#define ha_aligned_free_size(p,s) _ha_aligned_free(p)
 
 #endif /* DEBUG_MEM_STATS*/
 
