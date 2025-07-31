@@ -5100,9 +5100,23 @@ int increment_sslconn()
 /* Try to restore the SSL session (SSL_SESSION object) into <ctx> from them
  * which have been stored by thread ID for <srv> server by the callback set by
  * SSL_CTX_sess_set_new_cb().
+ * Return 1 if succeeded, 0 if not. Always succeeds for TCP socket. May fail
+ * for QUIC sockets.
  */
-void ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
+int ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
 {
+#ifdef USE_QUIC
+	struct quic_conn *qc = ctx->qc;
+	/* Default status for QUIC sockets + 0-RTT is failure(0). The status will
+	 * be set to success(1) only if the QUIC connection parameters
+	 * (transport parameters and ALPN) are successfully reused.
+	 */
+	int ret = qc && (srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) ? 0 : 1;
+#else
+	/* Always succeeds for TCP sockets. */
+	int ret = 1;
+#endif
+
 	HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.lock);
 	if (srv->ssl_ctx.reused_sess[tid].ptr) {
 		/* let's recreate a session from (ptr,size) and assign
@@ -5121,6 +5135,9 @@ void ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
 			SSL_SESSION_free(sess);
 			HA_RWLOCK_WRLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
 			ha_free(&srv->ssl_ctx.reused_sess[tid].ptr);
+#ifdef USE_QUIC
+			ha_free(&srv->ssl_ctx.reused_sess[tid].alpn);
+#endif
 			HA_RWLOCK_WRTORD(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
 			if (srv->ssl_ctx.reused_sess[tid].sni)
 				SSL_set_tlsext_host_name(ctx->ssl, srv->ssl_ctx.reused_sess[tid].sni);
@@ -5131,6 +5148,18 @@ void ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
 			HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
 			if (srv->ssl_ctx.reused_sess[tid].sni)
 				SSL_set_tlsext_host_name(ctx->ssl, srv->ssl_ctx.reused_sess[tid].sni);
+#ifdef USE_QUIC
+			if (qc && srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) {
+				const unsigned char *alpn =
+					(unsigned char *)srv->ssl_ctx.reused_sess[tid].alpn;
+				struct quic_early_transport_params *etps =
+					&srv->ssl_ctx.reused_sess[tid].tps;
+
+				if (quic_reuse_srv_params(qc, alpn, etps))
+					/* Success */
+				    ret = 1;
+			}
+#endif
 			HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
 		}
 	} else {
@@ -5153,6 +5182,18 @@ void ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
 				if (sess) {
 					if (!SSL_set_session(ctx->ssl, sess))
 						HA_ATOMIC_CAS(&srv->ssl_ctx.last_ssl_sess_tid, &old_tid, 0); // no more valid
+#ifdef USE_QUIC
+					else if (qc && srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) {
+						const unsigned char *alpn =
+							(unsigned char *)srv->ssl_ctx.reused_sess[old_tid-1].alpn;
+						struct quic_early_transport_params *etps =
+							&srv->ssl_ctx.reused_sess[old_tid-1].tps;
+
+						if (quic_reuse_srv_params(qc, alpn, etps))
+							/* Success */
+							ret = 1;
+					}
+#endif
 					SSL_SESSION_free(sess);
 				}
 			}
@@ -5164,6 +5205,8 @@ void ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
 		}
 	}
 	HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.lock);
+
+	return ret;
 }
 
 /*
@@ -5208,6 +5251,9 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 	ctx->xprt_ctx = NULL;
 	ctx->error_code = 0;
 	ctx->can_send_early_data = 1;
+#ifdef USE_QUIC
+	ctx->qc = NULL;
+#endif
 
 	next_sslconn = increment_sslconn();
 	if (!next_sslconn) {
