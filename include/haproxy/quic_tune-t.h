@@ -12,6 +12,14 @@
 #define QUIC_TUNE_CC_HYSTART    0x00000008
 
 struct quic_tune {
+	struct {
+		uint fb_opts; /* QUIC_TUNE_FB_* options shared by both side */
+	} fe;
+
+	struct {
+		uint fb_opts; /* QUIC_TUNE_FB_* options shared by both side */
+	} be;
+
 	uint options;
 };
 
