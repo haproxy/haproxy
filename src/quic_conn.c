@@ -485,22 +485,22 @@ int quic_stateless_reset_token_cpy(unsigned char *pos, size_t len,
 	return ret;
 }
 
-/* Build all the frames which must be sent just after the handshake have succeeded.
+/* Build all the frames which must be sent just after the handshake have succeeded
+ * for server, or asap for client (0-RTT).
  * This is essentially NEW_CONNECTION_ID frames. A QUIC server must also send
  * a HANDSHAKE_DONE frame.
  * Return 1 if succeeded, 0 if not.
  */
-int quic_build_post_handshake_frames(struct quic_conn *qc)
+int quic_build_post_handshake_frames(struct quic_conn *qc,
+                                     struct list *to_frm_list)
 {
 	int ret = 0, max = 0;
-	struct quic_enc_level *qel;
 	struct quic_frame *frm, *frmbak;
 	struct list frm_list = LIST_HEAD_INIT(frm_list);
 	struct eb64_node *node;
 
 	TRACE_ENTER(QUIC_EV_CONN_IO_CB, qc);
 
-	qel = qc->ael;
 	/* Only servers must send a HANDSHAKE_DONE frame. */
 	if (!qc_is_back(qc)) {
 		size_t new_token_frm_len;
@@ -575,7 +575,7 @@ int quic_build_post_handshake_frames(struct quic_conn *qc)
 		LIST_APPEND(&frm_list, &frm->list);
 	}
 
-	LIST_SPLICE(&qel->pktns->tx.frms, &frm_list);
+	LIST_SPLICE(to_frm_list, &frm_list);
 	qc->flags &= ~QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS;
 
 	ret = 1;
@@ -626,7 +626,7 @@ struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int sta
 	 */
 	if ((qc->flags & QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS) && qc->conn &&
 	    qc->state >= QUIC_HS_ST_COMPLETE) {
-		quic_build_post_handshake_frames(qc);
+		quic_build_post_handshake_frames(qc, &qc->ael->pktns->tx.frms);
 	}
 
 	/* Retranmissions */

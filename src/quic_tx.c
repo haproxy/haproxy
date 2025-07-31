@@ -528,7 +528,7 @@ enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms,
 	/* Try to send post handshake frames first unless on 0-RTT. */
 	if ((qc->flags & QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS) &&
 	    qc->state >= QUIC_HS_ST_COMPLETE) {
-		quic_build_post_handshake_frames(qc);
+		quic_build_post_handshake_frames(qc, &qc->ael->pktns->tx.frms);
 		qel_register_send(&send_list, qc->ael, &qc->ael->pktns->tx.frms);
 		qc_send(qc, 0, &send_list, 0);
 	}
