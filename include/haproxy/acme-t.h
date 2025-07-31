@@ -94,7 +94,4 @@ struct acme_ctx {
 #define ACME_VERB_ADVANCED 4
 #define ACME_VERB_COMPLETE 5
 
-#define TRACE_SOURCE &trace_acme
-
-
 #endif

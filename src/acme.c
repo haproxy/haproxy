@@ -36,6 +36,8 @@
 #include <haproxy/tools.h>
 #include <haproxy/trace.h>
 
+#define TRACE_SOURCE &trace_acme
+
 #if defined(HAVE_ACME)
 
 static void acme_trace(enum trace_level level, uint64_t mask, const struct trace_source *src,
