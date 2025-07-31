@@ -69,6 +69,7 @@ static const struct trace_event quic_trace_events[] = {
 	{ .mask = QUIC_EV_CONN_FRMLIST,  .name = "frm_list",         .desc = "frame list"},
 	{ .mask = QUIC_EV_STATELESS_RST, .name = "stateless_reset",  .desc = "stateless reset sent"},
 	{ .mask = QUIC_EV_TRANSP_PARAMS, .name = "transport_params", .desc = "transport parameters"},
+	{ .mask = QUIC_EV_EARLY_TRANSP_PARAMS, .name = "early_transport_params", .desc = "early transport parameters"},
 	{ .mask = QUIC_EV_CONN_IDLE_TIMER, .name = "idle_timer",     .desc = "idle timer task"},
 	{ .mask = QUIC_EV_CONN_SUB,      .name = "xprt_sub",         .desc = "RX/TX subscription or unsubscription to QUIC xprt"},
 	{ .mask = QUIC_EV_CONN_RCV,      .name = "conn_recv",        .desc = "RX on connection" },
@@ -139,6 +140,13 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 
 			if (p)
 				quic_transport_params_dump(&trace_buf, qc, p);
+		}
+
+		if (mask & QUIC_EV_EARLY_TRANSP_PARAMS) {
+			const struct quic_early_transport_params *p = a2;
+
+			if (p)
+				quic_early_transport_params_dump(&trace_buf, qc, p);
 		}
 
 		if (mask & QUIC_EV_CONN_ADDDATA) {
