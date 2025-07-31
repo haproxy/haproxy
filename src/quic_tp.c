@@ -863,3 +863,36 @@ void qc_srv_params_init(struct quic_conn *qc,
 	rx_params->initial_source_connection_id.len = scidlen;
 	TRACE_PROTO("\nRX(local) transp. params.", QUIC_EV_TRANSP_PARAMS, qc, rx_params);
 }
+
+/* Copy the 0-RTT transport parameters to be saved from <p> to <e> */
+void qc_early_transport_params_cpy(struct quic_conn *qc,
+                                   struct quic_early_transport_params *e,
+                                   struct quic_transport_params *p)
+{
+	e->max_udp_payload_size = p->max_udp_payload_size;
+	e->initial_max_data = p->initial_max_data;
+	e->initial_max_stream_data_bidi_local = p->initial_max_stream_data_bidi_local;
+	e->initial_max_stream_data_bidi_remote = p->initial_max_stream_data_bidi_remote;
+	e->initial_max_stream_data_uni = p->initial_max_stream_data_uni;
+	e->initial_max_streams_bidi = p->initial_max_streams_bidi;
+	e->initial_max_streams_uni = p->initial_max_streams_uni;
+	e->active_connection_id_limit = p->active_connection_id_limit;
+	TRACE_PROTO("\nTX(remote) saved early transp. params.", QUIC_EV_EARLY_TRANSP_PARAMS, qc, e);
+}
+
+/* Copy <e> 0-RTT transport parameters to <p> transport parameter for <qc> connection. */
+void qc_early_transport_params_reuse(struct quic_conn *qc,
+                                     struct quic_transport_params *p,
+                                     const struct quic_early_transport_params *e)
+{
+	p->max_udp_payload_size = e->max_udp_payload_size;
+	p->initial_max_data = e->initial_max_data;
+	p->initial_max_stream_data_bidi_local = e->initial_max_stream_data_bidi_local;
+	p->initial_max_stream_data_bidi_remote = e->initial_max_stream_data_bidi_remote;
+	p->initial_max_stream_data_uni = e->initial_max_stream_data_uni;
+	p->initial_max_streams_bidi = e->initial_max_streams_bidi;
+	p->initial_max_streams_uni = e->initial_max_streams_uni;
+	p->active_connection_id_limit = e->active_connection_id_limit;
+	TRACE_PROTO("\nTX(remote) reuse early transp. params.", QUIC_EV_EARLY_TRANSP_PARAMS, qc, e);
+	TRACE_PROTO("\nTX(remote) transp. params.", QUIC_EV_TRANSP_PARAMS, qc, p);
+}

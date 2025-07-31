@@ -112,6 +112,18 @@ struct quic_transport_params {
 	struct tp_version_information version_information;
 };
 
+/* Transport parameters to be saved for 0-RTT sessions. */
+struct quic_early_transport_params {
+	uint64_t max_udp_payload_size;
+	uint64_t active_connection_id_limit;
+	uint64_t initial_max_data;
+	uint64_t initial_max_stream_data_bidi_local;
+	uint64_t initial_max_stream_data_bidi_remote;
+	uint64_t initial_max_stream_data_uni;
+	uint64_t initial_max_streams_bidi;
+	uint64_t initial_max_streams_uni;
+};
+
 /* Return type for QUIC TP decode function */
 enum quic_tp_dec_err {
 	QUIC_TP_DEC_ERR_NONE = 0,  /* no error */

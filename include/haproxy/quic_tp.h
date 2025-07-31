@@ -19,6 +19,12 @@ int quic_transport_params_encode(unsigned char *buf,
 int quic_transport_params_store(struct quic_conn *conn, int server,
                                 const unsigned char *buf,
                                 const unsigned char *end);
+void qc_early_transport_params_cpy(struct quic_conn *qc,
+                                   struct quic_early_transport_params *e,
+                                   struct quic_transport_params *p);
+void qc_early_transport_params_reuse(struct quic_conn *qc,
+                                     struct quic_transport_params *p,
+                                     const struct quic_early_transport_params *e);
 
 int qc_lstnr_params_init(struct quic_conn *qc,
                          const struct quic_transport_params *listener_params,
@@ -121,6 +127,24 @@ static inline void quic_transport_params_dump(struct buffer *b,
 	}
 
 	quic_tp_version_info_dump(b, &p->version_information, local);
+}
+
+static inline void quic_early_transport_params_dump(struct buffer *b,
+                                                    const struct quic_conn *qc,
+                                                    const struct quic_early_transport_params *p)
+{
+	chunk_appendf(b, " mudp_payload_sz=%llu", (ull)p->max_udp_payload_size);
+	chunk_appendf(b, " act_cid_limit=%llu\n", (ull)p->active_connection_id_limit);
+
+	chunk_appendf(b, "    md=%llu", (ull)p->initial_max_data);
+	chunk_appendf(b, " msd_bidi_l=%llu",
+	              (ull)p->initial_max_stream_data_bidi_local);
+	chunk_appendf(b, " msd_bidi_r=%llu",
+	              (ull)p->initial_max_stream_data_bidi_remote);
+	chunk_appendf(b, " msd_uni=%llu",
+	              (ull)p->initial_max_stream_data_uni);
+	chunk_appendf(b, " ms_bidi=%llu", (ull)p->initial_max_streams_bidi);
+	chunk_appendf(b, " ms_uni=%llu\n", (ull)p->initial_max_streams_uni);
 }
 
 #endif /* USE_QUIC */
