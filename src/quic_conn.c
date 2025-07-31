@@ -284,6 +284,30 @@ int quic_set_app_ops(struct quic_conn *qc, const unsigned char *alpn, size_t alp
 	return 1;
 }
 
+/* Try to reuse <alpn> ALPN and <etps> early transport parameters.
+ * Return 1 if succeeded, 0 if not.
+ */
+int quic_reuse_srv_params(struct quic_conn *qc,
+                          const unsigned char *alpn,
+                          const struct quic_early_transport_params *etps)
+{
+	int ret = 0;
+
+	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
+
+	if (!alpn || !quic_set_app_ops(qc, alpn, strlen((char *)alpn)))
+		goto err;
+
+	qc_early_transport_params_reuse(qc, &qc->tx.params, etps);
+	ret = 1;
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_NEW, qc);
+	return ret;
+ err:
+	TRACE_DEVEL("leaving on error", QUIC_EV_CONN_NEW, qc);
+	goto leave;
+}
+
 /* Schedule a CONNECTION_CLOSE emission on <qc> if the MUX has been released
  * and all STREAM data are acknowledged. The MUX is responsible to have set
  * <qc.err> before as it is reused for the CONNECTION_CLOSE frame.
