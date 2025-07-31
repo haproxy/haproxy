@@ -4181,6 +4181,9 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 		int len;
 		unsigned char *ptr;
 		const char *sni;
+#ifdef USE_QUIC
+		struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
+#endif
 
 		/* determine the required len to store this new session */
 		len = i2d_SSL_SESSION(sess, NULL);
@@ -4233,6 +4236,29 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 			/* if there wasn't an old sni but there is a new one */
 			s->ssl_ctx.reused_sess[tid].sni = strdup(sni);
 		}
+#ifdef USE_QUIC
+		/* The selected ALPN is not stored without SSL session. */
+		if (qc && (s->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) &&
+		    s->ssl_ctx.reused_sess[tid].ptr) {
+			const char *alpn = NULL;
+			int len;
+
+			if (ssl_sock_get_alpn(conn, qc->xprt_ctx, &alpn, &len)) {
+				struct quic_early_transport_params *etps = &s->path_params.tps;
+
+				if (len < sizeof(s->path_params.nego_alpn) &&
+				    (len != strlen(s->path_params.nego_alpn) ||
+				     memcmp(&s->path_params.nego_alpn, alpn, len) != 0)) {
+					HA_RWLOCK_WRLOCK(SERVER_LOCK, &s->path_params.param_lock);
+					memcpy(&s->path_params.nego_alpn, alpn, len);
+					s->path_params.nego_alpn[len] = 0;
+					/* The transport parameters are not stored without ALPN */
+					qc_early_transport_params_cpy(qc, etps, &qc->tx.params);
+					HA_RWLOCK_WRUNLOCK(SERVER_LOCK, &s->path_params.param_lock);
+				}
+			}
+		}
+#endif
 		HA_RWLOCK_WRUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.reused_sess[tid].sess_lock);
 		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
 	} else {
