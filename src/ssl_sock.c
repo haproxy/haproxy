@@ -3660,6 +3660,9 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 		int len;
 		unsigned char *ptr;
 		const char *sni;
+#ifdef USE_QUIC
+		struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
+#endif
 
 		/* determine the required len to store this new session */
 		len = i2d_SSL_SESSION(sess, NULL);
@@ -3712,6 +3715,31 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 			/* if there wasn't an old sni but there is a new one */
 			s->ssl_ctx.reused_sess[tid].sni = strdup(sni);
 		}
+#ifdef USE_QUIC
+		/* The selected ALPN is not stored without SSL session. */
+		if (qc && (s->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) &&
+		    s->ssl_ctx.reused_sess[tid].ptr) {
+			const char *alpn = NULL;
+			int alpn_len;
+
+			if (ssl_sock_get_alpn(conn, qc->xprt_ctx, &alpn, &alpn_len)) {
+				char **alpn_addr = &s->ssl_ctx.reused_sess[tid].alpn;
+				struct quic_early_transport_params *etps =
+					&s->ssl_ctx.reused_sess[tid].tps;
+
+				/* <*alpn_addr> is a NULL terminated string */
+				if (*alpn_addr == NULL ||
+				    alpn_len != strlen(*alpn_addr) ||
+				    memcmp(*alpn_addr, alpn, alpn_len) != 0) {
+					ha_free(alpn_addr);
+					*alpn_addr = my_strndup((const char *)alpn, alpn_len);
+					/* The transport parameters are not stored without ALPN */
+					if (*alpn_addr)
+						qc_early_transport_params_cpy(qc, etps, &qc->tx.params);
+				}
+			}
+		}
+#endif
 		HA_RWLOCK_WRUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.reused_sess[tid].sess_lock);
 		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
 	} else {
@@ -3720,6 +3748,9 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 		if (s->ssl_ctx.reused_sess[tid].ptr) {
 			HA_RWLOCK_WRLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.reused_sess[tid].sess_lock);
 			ha_free(&s->ssl_ctx.reused_sess[tid].ptr);
+#ifdef USE_QUIC
+			ha_free(&s->ssl_ctx.reused_sess[tid].alpn);
+#endif
 			HA_RWLOCK_WRUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.reused_sess[tid].sess_lock);
 		}
 
@@ -4876,6 +4907,9 @@ void ssl_sock_free_srv_ctx(struct server *srv)
 		for (i = 0; i < global.nbthread; i++) {
 			ha_free(&srv->ssl_ctx.reused_sess[i].ptr);
 			ha_free(&srv->ssl_ctx.reused_sess[i].sni);
+#ifdef USE_QUIC
+			ha_free(&srv->ssl_ctx.reused_sess[i].alpn);
+#endif
 		}
 		ha_free(&srv->ssl_ctx.reused_sess);
 	}

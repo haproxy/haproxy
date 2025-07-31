@@ -462,6 +462,10 @@ struct server {
 			int size;
 			int allocated_size;
 			char *sni; /* SNI used for the session */
+#ifdef USE_QUIC
+			struct quic_early_transport_params tps;
+			char *alpn;
+#endif
 			__decl_thread(HA_RWLOCK_T sess_lock);
 		} * reused_sess;
 		uint last_ssl_sess_tid;         /* last tid+1 having updated reused_sess (0=none, >0=tid+1) */
