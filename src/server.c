@@ -6328,9 +6328,12 @@ int srv_check_for_deletion(const char *bename, const char *svname, struct proxy 
 	/* Second, conditions that may change over time */
 	ret = 0;
 
-	/* Ensure that there is no active/pending connection on the server. */
+	/* Ensure that there is no active/pending/idle connection on the server.
+	 * Note that idle conns scheduled for purging are still accounted in idle counter.
+	 */
 	if (_HA_ATOMIC_LOAD(&srv->curr_used_conns) ||
-	    _HA_ATOMIC_LOAD(&srv->queueslength) || srv_has_streams(srv)) {
+	    _HA_ATOMIC_LOAD(&srv->queueslength) || srv_has_streams(srv) ||
+	    _HA_ATOMIC_LOAD(&srv->curr_idle_conns) || !MT_LIST_ISEMPTY(&srv->sess_conns)) {
 		msg = "Server still has connections attached to it, cannot remove it.";
 		goto leave;
 	}
@@ -6355,11 +6358,9 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	struct proxy *be;
 	struct server *srv;
 	struct ist be_name, sv_name;
-	struct mt_list back;
-	struct sess_priv_conns *sess_conns = NULL;
 	struct watcher *srv_watch;
 	const char *msg;
-	int ret, i;
+	int ret;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
@@ -6386,60 +6387,6 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 		/* failure (recoverable or not) */
 		cli_err(appctx, msg);
 		goto out;
-	}
-
-	/* Close idle connections attached to this server. */
-	for (i = tid;;) {
-		struct list *list = &srv->per_thr[i].idle_conn_list;
-		struct connection *conn;
-
-		while (!LIST_ISEMPTY(list)) {
-			conn = LIST_ELEM(list->n, struct connection *, idle_list);
-			if (i != tid) {
-				if (conn->mux && conn->mux->takeover)
-					conn->mux->takeover(conn, i, 1);
-				else if (conn->xprt && conn->xprt->takeover)
-					conn->xprt->takeover(conn, conn->ctx, i, 1);
-			}
-			conn_release(conn);
-		}
-
-		/* Manually free all purged conns as some of them may still reference the currently deleted server. */
-		while ((conn = MT_LIST_POP(&idle_conns[i].purged_list,
-		                           struct connection *, purge_el))) {
-			conn_release(conn);
-		}
-
-		if ((i = ((i + 1 == global.nbthread) ? 0 : i + 1)) == tid)
-			break;
-	}
-
-	/* All idle connections should be removed now. */
-	BUG_ON(srv->curr_idle_conns);
-
-	/* Close idle private connections attached to this server. */
-	MT_LIST_FOR_EACH_ENTRY_LOCKED(sess_conns, &srv->sess_conns, srv_el, back) {
-		struct connection *conn, *conn_back;
-		list_for_each_entry_safe(conn, conn_back, &sess_conns->conn_list, sess_el) {
-
-			/* Only idle connections should be present if srv_check_for_deletion() is true. */
-			BUG_ON(!(conn->flags & CO_FL_SESS_IDLE));
-
-			LIST_DEL_INIT(&conn->sess_el);
-			conn->owner = NULL;
-			conn->flags &= ~CO_FL_SESS_IDLE;
-			if (sess_conns->tid != tid) {
-				if (conn->mux && conn->mux->takeover)
-					conn->mux->takeover(conn, sess_conns->tid, 1);
-				else if (conn->xprt && conn->xprt->takeover)
-					conn->xprt->takeover(conn, conn->ctx, sess_conns->tid, 1);
-			}
-			conn_release(conn);
-		}
-
-		LIST_DELETE(&sess_conns->sess_el);
-		pool_free(pool_head_sess_priv_conns, sess_conns);
-		sess_conns = NULL;
 	}
 
 	/* removing cannot fail anymore when we reach this:
