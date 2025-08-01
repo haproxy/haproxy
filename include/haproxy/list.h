@@ -284,10 +284,11 @@ static __inline void watcher_attach(struct watcher *w, void *target)
 		MT_LIST_APPEND(list, &w->el);
 }
 
-/* Untracks target via <w> watcher. Invalid if <w> is not attached first. */
+/* Untracks target via <w> watcher. Does nothing if <w> is not attached */
 static __inline void watcher_detach(struct watcher *w)
 {
-	BUG_ON_HOT(!MT_LIST_INLIST(&w->el));
+	if (!MT_LIST_INLIST(&w->el))
+		return;
 	*w->pptr = NULL;
 	MT_LIST_DELETE(&w->el);
 }
