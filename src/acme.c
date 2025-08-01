@@ -1580,9 +1580,27 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 
 		/* compute a response for the TXT entry */
 		if (strcasecmp(ctx->cfg->challenge, "DNS-01") == 0) {
+			struct sink *dpapi;
+			struct ist line[7];
+
+
 			trash.data = acme_txt_record(ist(ctx->cfg->account.thumbprint), auth->token, &trash);
 			send_log(NULL, LOG_NOTICE,"acme: %s: DNS-01 requires to set the \"acme-challenge.%.*s\" TXT record to \"%.*s\"\n",
 			                                             ctx->store->path, (int)auth->dns.len, auth->dns.ptr, (int)trash.data, trash.area);
+
+			/* dump to the "dpapi" sink */
+
+			line[0] = ist("acme deploy ");
+			line[1] = ist(ctx->store->path);
+			line[2] = ist(" thumbprint ");
+			line[3] = ist(ctx->cfg->account.thumbprint);
+			line[4] = ist("\n");
+			line[5] = ist2( hc->res.buf.area, hc->res.buf.data); /* dump the HTTP response */
+			line[6] = ist("\n\0");
+
+			dpapi = sink_find("dpapi");
+			if (dpapi)
+				sink_write(dpapi, LOG_HEADER_NONE, 0, line, 7);
 		}
 
 		/* only useful for HTTP-01 */
