@@ -755,6 +755,7 @@ static void acme_ctx_destroy(struct acme_ctx *ctx)
 		istfree(&auth->auth);
 		istfree(&auth->chall);
 		istfree(&auth->token);
+		istfree(&auth->token);
 		next = auth->next;
 		free(auth);
 		auth = next;
@@ -889,6 +890,42 @@ error:
 	return 1;
 
 }
+
+/*
+ * compute a TXT record for DNS-01 challenge
+ *  base64url(sha256(token || '.' || base64url(Thumbprint(accountKey))))
+ *
+ *  https://datatracker.ietf.org/doc/html/rfc8555/#section-8.4
+ *
+ */
+int acme_txt_record(const struct ist thumbprint, const struct ist token, struct buffer *output)
+{
+	unsigned char md[EVP_MAX_MD_SIZE];
+	struct buffer *tmp = NULL;
+	unsigned int size;
+	int ret = 0;
+
+
+	if ((tmp = alloc_trash_chunk()) == NULL)
+		goto out;
+
+	chunk_istcat(tmp, token);
+	chunk_appendf(tmp, ".");
+	chunk_istcat(tmp, thumbprint);
+
+	if (EVP_Digest(tmp->area, tmp->data, md, &size, EVP_sha256(), NULL) == 0)
+		goto out;
+
+	ret = a2base64url((const char *)md, size, output->area, output->size);
+
+	output->data = ret;
+
+out:
+	free_trash_chunk(tmp);
+
+	return ret;
+}
+
 
 int acme_jws_payload(struct buffer *req, struct ist nonce, struct ist url, EVP_PKEY *pkey, struct ist kid, struct buffer *output, char **errmsg)
 {
@@ -1475,6 +1512,23 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 		goto error;
 	}
 
+	/* check and save the DNS entry */
+	ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.identifier.type", t1->area, t1->size);
+	if (ret == -1) {
+		memprintf(errmsg, "couldn't get a type \"dns\" from Authorization URL \"%s\"", auth->auth.ptr);
+		goto error;
+	}
+	t1->data = ret;
+
+	ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.identifier.value", t2->area, t2->size);
+	if (ret == -1) {
+		memprintf(errmsg, "couldn't get a type \"dns\" from Authorization URL \"%s\"", auth->auth.ptr);
+		goto error;
+	}
+	t2->data = ret;
+
+	auth->dns = istdup(ist2(t2->area, t2->data));
+
 	/* get the multiple challenges and select the one from the configuration */
 	for (i = 0; ; i++) {
 		int ret;
@@ -1524,6 +1578,14 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 			goto error;
 		}
 
+		/* compute a response for the TXT entry */
+		if (strcasecmp(ctx->cfg->challenge, "DNS-01") == 0) {
+			trash.data = acme_txt_record(ist(ctx->cfg->account.thumbprint), auth->token, &trash);
+			send_log(NULL, LOG_NOTICE,"acme: %s: DNS-01 requires to set the \"acme-challenge.%.*s\" TXT record to \"%.*s\"\n",
+			                                             ctx->store->path, (int)auth->dns.len, auth->dns.ptr, (int)trash.data, trash.area);
+		}
+
+		/* only useful for HTTP-01 */
 		if (acme_add_challenge_map(ctx->cfg->map, auth->token.ptr, ctx->cfg->account.thumbprint, errmsg) != 0) {
 			memprintf(errmsg, "couldn't add the token to the '%s' map: %s", ctx->cfg->map, *errmsg);
 			goto error;

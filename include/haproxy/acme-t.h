@@ -51,6 +51,7 @@ enum http_st {
 };
 
 struct acme_auth {
+       struct ist dns;    /* dns entry */
        struct ist auth;   /* auth URI */
        struct ist chall;  /* challenge URI */
        struct ist token;  /* token */
