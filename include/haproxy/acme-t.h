@@ -55,6 +55,7 @@ struct acme_auth {
        struct ist auth;   /* auth URI */
        struct ist chall;  /* challenge URI */
        struct ist token;  /* token */
+       int ready;         /* is the challenge ready ? */
        void *next;
 };
 
@@ -80,6 +81,7 @@ struct acme_ctx {
 	X509_REQ *req;
 	struct ist finalize;
 	struct ist certificate;
+	struct task *task;
 	struct mt_list el;
 };
 

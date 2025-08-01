@@ -1753,6 +1753,11 @@ int acme_res_neworder(struct task *task, struct acme_ctx *ctx, char **errmsg)
 			goto error;
 		}
 
+                /* if the challenge is not DNS-01, consider that the challenge
+                 * is ready because computed by HAProxy */
+                if (strcasecmp(ctx->cfg->challenge, "DNS-01") != 0)
+			auth->ready = 1;
+
 		auth->next = ctx->auths;
 		ctx->auths = auth;
 		ctx->next_auth = auth;
@@ -2111,6 +2116,11 @@ re:
 		break;
 		case ACME_CHALLENGE:
 			if (http_st == ACME_HTTP_REQ) {
+
+				/* if the challenge is not ready, wait to be wakeup */
+				if (!ctx->next_auth->ready)
+					goto wait;
+
 				if (acme_req_challenge(task, ctx, ctx->next_auth, &errmsg) != 0)
 					goto retry;
 			}
@@ -2267,8 +2277,16 @@ end:
 	task = NULL;
 
 	return task;
-}
 
+wait:
+	/* wait for a task_wakeup */
+	ctx->http_state = ACME_HTTP_REQ;
+	ctx->state = st;
+	task->expire = TICK_ETERNITY;
+
+	MT_LIST_UNLOCK_FULL(&ctx->el, tmp);
+	return task;
+}
 /*
  * Return 1 if the certificate must be regenerated
  * Check if the notAfter date will append in (validity period / 12) or 7 days per default
@@ -2534,6 +2552,7 @@ static int acme_start_task(struct ckch_store *store, char **errmsg)
 	ctx->store = newstore;
 	ctx->cfg = cfg;
 	task->context = ctx;
+	ctx->task = task;
 
 	MT_LIST_INIT(&ctx->el);
 	MT_LIST_APPEND(&acme_tasks, &ctx->el);
@@ -2583,6 +2602,55 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 	return 0;
 err:
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return cli_dynerr(appctx, errmsg);
+}
+
+static int cli_acme_chall_ready_parse(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	char *errmsg = NULL;
+	const char *crt;
+	const char *dns;
+	struct mt_list back;
+	struct acme_ctx *ctx;
+	struct acme_auth *auth;
+	int found = 0;
+
+	if (!*args[2] && !*args[3] && !*args[4]) {
+		memprintf(&errmsg, ": not enough parameters\n");
+		goto err;
+	}
+
+	crt = args[2];
+	dns = args[4];
+
+
+	MT_LIST_FOR_EACH_ENTRY_LOCKED(ctx, &acme_tasks, el, back) {
+
+		if (strcmp(ctx->store->path, crt) != 0)
+			continue;
+
+		auth = ctx->auths;
+		while (auth) {
+			if (strncmp(dns, auth->dns.ptr, auth->dns.len) == 0) {
+				if (!auth->ready) {
+					auth->ready = 1;
+					task_wakeup(ctx->task, TASK_WOKEN_MSG);
+					found = 1;
+				} else {
+					memprintf(&errmsg, "ACME challenge for crt \"%s\" and dns \"%s\" was already READY !\n", crt, dns);
+				}
+				break;
+			}
+			auth = auth->next;
+		}
+	}
+	if (!found) {
+		memprintf(&errmsg, "Couldn't find the ACME task using crt \"%s\" and dns \"%s\" !\n", crt, dns);
+		goto err;
+	}
+
+	return cli_msg(appctx, LOG_INFO, "Challenge Ready!");
+err:
 	return cli_dynerr(appctx, errmsg);
 }
 
@@ -2668,6 +2736,7 @@ static int cli_acme_ps(char **args, char *payload, struct appctx *appctx, void *
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "acme", "renew", NULL },           "acme renew <certfile>                   : renew a certificate using the ACME protocol", cli_acme_renew_parse, NULL, NULL, NULL, 0 },
 	{ { "acme", "status", NULL },          "acme status                             : show status of certificates configured with ACME", cli_acme_ps, cli_acme_status_io_handler, NULL, NULL, 0 },
+	{ { "acme", "challenge_ready", NULL }, "acme challenge_ready <certfile> domain <domain> : show status of certificates configured with ACME", cli_acme_chall_ready_parse, NULL, NULL, NULL, 0 },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
