@@ -2085,11 +2085,19 @@ del ssl crt-list <filename> <certfile[:line]>
   numbers, use "show ssl crt-list -n <crtlist>".
 
 del server <backend>/<server>
-  Remove a server attached to the backend <backend>. All servers are eligible,
-  except servers which are referenced by other configuration elements. The
-  server must be put in maintenance mode prior to its deletion.  The operation
-  is cancelled if the server still has active or idle connection or its
-  connection queue is not empty.
+  Delete a removable server attached to the backend <backend>. A removable
+  server is the server which satisfies all of these conditions :
+  - not referenced by other configuration elements
+  - must already be in maintenance (see "disable server")
+  - must not have any active or idle connections
+
+  If any of these conditions is not met, the command will fail.
+
+  Active connections are those with at least one ongoing request. It is
+  possible to speed up their termination using "shutdown sessions server". It
+  is highly recommended to use "wait srv-removable" before "del server" to
+  ensure that all active or idle connections are closed and that the command
+  succeeds.
 
 disable agent <backend>/<server>
   Mark the auxiliary agent check as temporarily stopped.
@@ -4097,6 +4105,10 @@ shutdown sessions server <backend>/<server>
   maintenance mode, for instance. Such terminated streams are reported with a
   'K' flag in the logs.
 
+  Backend connections are left in idle state, unless the server is already in
+  maintenance mode, in which case they will be immediately scheduled for
+  deletion.
+
 trace
   The "trace" command alone lists the trace sources, their current status, and
   their brief descriptions. It is only meant as a menu to enter next levels,
@@ -4311,12 +4323,13 @@ wait { -h | <delay> } [<condition> [<args>...]]
   unsatisfied for the whole <delay> duration. The supported conditions are:
 
   - srv-removable <proxy>/<server> : this will wait for the specified server to
-    be removable, i.e. be in maintenance and no longer have any connection on
-    it.  Some conditions will never be accepted (e.g. not in maintenance) and
-    will cause the report of a specific error message indicating what condition
-    is not met. The server might even have been removed in parallel and no
-    longer exit. If everything is OK before the delay, a success is returned
-    and the operation is terminated.
+    be removable by the "del server" command, i.e. be in maintenance and no
+    longer have any connection on it (neither active or idle). Some conditions
+    will never be accepted (e.g. not in maintenance) and will cause the report
+    of a specific error message indicating what condition is not met. The
+    server might even have been removed in parallel and no longer exit. If
+    everything is OK before the delay, a success is returned and the operation
+    is terminated.
 
   The default unit for the delay is milliseconds, though other units are
   accepted if suffixed with the usual timer units (us, ms, s, m, h, d). When
