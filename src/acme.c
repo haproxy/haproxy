@@ -1585,7 +1585,7 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 
 
 			trash.data = acme_txt_record(ist(ctx->cfg->account.thumbprint), auth->token, &trash);
-			send_log(NULL, LOG_NOTICE,"acme: %s: DNS-01 requires to set the \"acme-challenge.%.*s\" TXT record to \"%.*s\"\n",
+			send_log(NULL, LOG_NOTICE,"acme: %s: DNS-01 requires to set the \"_acme-challenge.%.*s\" TXT record to \"%.*s\" and use the \"acme challenge_ready\" command over the CLI\n",
 			                                             ctx->store->path, (int)auth->dns.len, auth->dns.ptr, (int)trash.data, trash.area);
 
 			/* dump to the "dpapi" sink */
