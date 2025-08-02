@@ -606,7 +606,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 		struct quic_enc_level *next_qel;
 		int probe, must_ack;
 
-		if (qel == qc->eel) {
+		if (objt_listener(qc->target) && qel == qc->eel) {
 			/* Next encryption level */
 			continue;
 		}
