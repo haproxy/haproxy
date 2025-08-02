@@ -516,6 +516,8 @@ enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms,
 	struct list send_list = LIST_HEAD_INIT(send_list);
 	enum quic_tx_err ret = QUIC_TX_ERR_NONE;
 	int max_dgram = 0, sent;
+	struct quic_enc_level *qel = !qc_is_back(qc) ? qc->ael :
+		qc->eel ? qc->eel : qc->ael;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 
@@ -524,6 +526,10 @@ enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms,
 		TRACE_DEVEL("connection on error", QUIC_EV_CONN_TXPKT, qc);
 		return QUIC_TX_ERR_FATAL;
 	}
+
+	/* The QUIC client may need to send Initial CRYPTO data before early data. */
+	if (qc_is_back(qc) && qel == qc->eel && qel_need_sending(qc->iel, qc))
+		qel_register_send(&send_list, qc->iel, &qc->iel->pktns->tx.frms);
 
 	/* Try to send post handshake frames first unless on 0-RTT. */
 	if ((qc->flags & QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS) &&
@@ -539,7 +545,7 @@ enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms,
 	}
 
 	TRACE_STATE("preparing data (from MUX)", QUIC_EV_CONN_TXPKT, qc);
-	qel_register_send(&send_list, qc->ael, frms);
+	qel_register_send(&send_list, qel, frms);
 	sent = qc_send(qc, 0, &send_list, max_dgram);
 
 	if (pacer && qc->path->cc.algo->check_app_limited)
