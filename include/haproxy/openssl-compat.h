@@ -77,7 +77,8 @@ enum ssl_encryption_level_t {
 
 #if defined(OPENSSL_IS_AWSLC)
 #define OPENSSL_NO_DH
-#define SSL_CTX_set1_sigalgs_list SSL_CTX_set1_sigalgs_list
+#define SSL_CTX_set1_sigalgs_list       SSL_CTX_set1_sigalgs_list
+#define SSL_set_quic_early_data_enabled SSL_set_early_data_enabled
 #endif
 
 
