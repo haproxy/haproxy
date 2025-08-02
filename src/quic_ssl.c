@@ -292,6 +292,19 @@ write:
 		struct quic_tls_kp *nxt_rx = &qc->ku.nxt_rx;
 		struct quic_tls_kp *nxt_tx = &qc->ku.nxt_tx;
 
+		/* RFC 9000
+		 * 4.9.3. Discarding 0-RTT Keys 0-RTT and 1-RTT packets share the same
+		 * packet number space, and clients do not send 0-RTT packets after
+		 * sending a 1-RTT packet (Section 5.6).
+		 *
+		 * Therefore, a client SHOULD discard 0-RTT keys as soon as it installs
+		 * 1-RTT keys as they have no use after that moment.
+		 */
+		if (qc_is_back(qc) && qc->eel) {
+			TRACE_PROTO("discarding Early Data keys", QUIC_EV_CONN_PHPKTS, qc);
+			qc_enc_level_free(qc, &qc->eel);
+		}
+
 #if !defined(USE_QUIC_OPENSSL_COMPAT) && !defined(HAVE_OPENSSL_QUIC)
 		if (qc_is_back(qc)) {
 			const unsigned char *tp;
