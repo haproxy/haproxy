@@ -898,7 +898,7 @@ error:
  *  https://datatracker.ietf.org/doc/html/rfc8555/#section-8.4
  *
  */
-int acme_txt_record(const struct ist thumbprint, const struct ist token, struct buffer *output)
+unsigned int acme_txt_record(const struct ist thumbprint, const struct ist token, struct buffer *output)
 {
 	unsigned char md[EVP_MAX_MD_SIZE];
 	struct buffer *tmp = NULL;
@@ -917,7 +917,8 @@ int acme_txt_record(const struct ist thumbprint, const struct ist token, struct 
 		goto out;
 
 	ret = a2base64url((const char *)md, size, output->area, output->size);
-
+	if (ret < 0)
+		ret = 0;
 	output->data = ret;
 
 out:
@@ -1583,8 +1584,11 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 			struct sink *dpapi;
 			struct ist line[7];
 
+			if (acme_txt_record(ist(ctx->cfg->account.thumbprint), auth->token, &trash) == 0) {
+				memprintf(errmsg, "couldn't compute the DNS-01 challenge");
+				goto error;
+			}
 
-			trash.data = acme_txt_record(ist(ctx->cfg->account.thumbprint), auth->token, &trash);
 			send_log(NULL, LOG_NOTICE,"acme: %s: DNS-01 requires to set the \"_acme-challenge.%.*s\" TXT record to \"%.*s\" and use the \"acme challenge_ready\" command over the CLI\n",
 			                                             ctx->store->path, (int)auth->dns.len, auth->dns.ptr, (int)trash.data, trash.area);
 
