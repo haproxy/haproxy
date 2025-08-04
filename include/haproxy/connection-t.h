@@ -623,7 +623,7 @@ struct connection {
 	struct wait_event *subs; /* Task to wake when awaited events are ready */
 	union {
 		struct list    idle_list; /* list element for idle connection in server idle list */
-		struct mt_list toremove_list; /* list element when idle connection is ready to be purged */
+		struct mt_list purge_el; /* list element when idle connection is ready to be purged */
 	};
 	union {
 		struct list sess_el;       /* used by private backend conns, list elem into session */
@@ -787,11 +787,11 @@ union mux_sctl_dbg_str_ctx {
  * accessible from foreign threads.
  */
 struct idle_conns {
-	struct mt_list toremove_conns;
-	struct task *cleanup_task;
-	__decl_thread(HA_SPINLOCK_T idle_conns_lock);
-} THREAD_ALIGNED(64);
+	struct mt_list purged_list;
+	struct task *task_free_purged;
 
+	__decl_thread(HA_SPINLOCK_T lock);
+} THREAD_ALIGNED(64);
 
 /* Termination events logs:
  * Each event is stored on 8 bits: 4 bits bor the event location and

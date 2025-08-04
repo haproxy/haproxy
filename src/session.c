@@ -134,7 +134,7 @@ void session_free(struct session *sess)
 	if (conn != NULL && conn->mux)
 		conn->mux->destroy(conn->ctx);
 
-	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 	list_for_each_entry_safe(pconns, pconns_back, &sess->priv_conns, sess_el) {
 		list_for_each_entry_safe(conn, conn_back, &pconns->conn_list, sess_el) {
 			LIST_DEL_INIT(&conn->sess_el);
@@ -144,7 +144,7 @@ void session_free(struct session *sess)
 		MT_LIST_DELETE(&pconns->srv_el);
 		pool_free(pool_head_sess_priv_conns, pconns);
 	}
-	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 
 	/* Release connections outside of idle lock. */
 	while (!LIST_ISEMPTY(&conn_tmp_list)) {
@@ -668,7 +668,7 @@ int session_add_conn(struct session *sess, struct connection *conn)
 	 */
 	BUG_ON(conn->owner && conn->owner != sess);
 
-	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 
 	/* Already attach to the session */
 	if (!LIST_ISEMPTY(&conn->sess_el))
@@ -688,11 +688,11 @@ int session_add_conn(struct session *sess, struct connection *conn)
 	conn->owner = sess;
 
  out:
-	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 	return 1;
 
  err:
-	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 	return 0;
 }
 
@@ -709,7 +709,7 @@ int session_reinsert_idle_conn(struct session *sess, struct connection *conn)
 	/* This function is reserved for idle private connections. */
 	BUG_ON(!(conn->flags & CO_FL_SESS_IDLE));
 
-	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 
 	pconns = sess_get_sess_conns(sess, conn->target);
 	if (!pconns) {
@@ -721,11 +721,11 @@ int session_reinsert_idle_conn(struct session *sess, struct connection *conn)
 	LIST_APPEND(&pconns->conn_list, &conn->sess_el);
 	++sess->idle_conns;
 
-	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 	return 1;
 
  err:
-	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 	return 0;
 }
 
@@ -778,7 +778,7 @@ struct connection *session_get_conn(struct session *sess, void *target, int64_t 
 	struct sess_priv_conns *pconns;
 	struct server *srv;
 
-	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 
 	pconns = sess_get_sess_conns(sess, target);
 	if (!pconns)
@@ -804,7 +804,7 @@ struct connection *session_get_conn(struct session *sess, void *target, int64_t 
 	}
 
   end:
-	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 	return res;
 }
 
@@ -817,7 +817,7 @@ void session_unown_conn(struct session *sess, struct connection *conn)
 
 	BUG_ON(objt_listener(conn->target));
 
-	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 
 	/* WT: this currently is a workaround for an inconsistency between
 	 * the link status of the connection in the session list and the
@@ -843,7 +843,7 @@ void session_unown_conn(struct session *sess, struct connection *conn)
 	}
 
  out:
-	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 }
 
 /* Remove <conn> connection from <sess> session. Contrary to session_unown_conn(),
@@ -881,7 +881,7 @@ void session_detach_idle_conn(struct session *sess, struct connection *conn)
  *
  * Returns the number of connections moved to purge list.
  */
-int sess_conns_cleanup_all_idle(struct sess_priv_conns *sess_conns)
+int sess_conns_purge_idle(struct sess_priv_conns *sess_conns)
 {
 	struct connection *conn, *back;
 	int conn_tid = sess_conns->tid;
@@ -895,8 +895,8 @@ int sess_conns_cleanup_all_idle(struct sess_priv_conns *sess_conns)
 		--((struct session *)conn->owner)->idle_conns;
 
 		LIST_DEL_INIT(&conn->sess_el);
-		MT_LIST_APPEND(&idle_conns[conn_tid].toremove_conns,
-		               &conn->toremove_list);
+		MT_LIST_APPEND(&idle_conns[conn_tid].purged_list,
+		               &conn->purge_el);
 		++i;
 	}
 

@@ -3048,13 +3048,13 @@ struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned int state)
 		/* the tasklet was idling on an idle connection, it might have
 		 * been stolen, let's be careful!
 		 */
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 		if (tl->context == NULL) {
 			/* The connection has been taken over by another thread,
 			 * we're no longer responsible for it, so just free the
 			 * tasklet, and do nothing.
 			 */
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			tasklet_free(tl);
 			return NULL;
 		}
@@ -3069,7 +3069,7 @@ struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned int state)
 				conn_delete_from_tree(conn);
 		}
 
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 	} else {
 		/* we're certain the connection was not in an idle list */
 		conn = fconn->conn;
@@ -3103,9 +3103,9 @@ struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned int state)
 				}
 			}
 			else {
-				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 				_srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
-				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			}
 		}
 		else {
@@ -3304,19 +3304,19 @@ struct task *fcgi_timeout_task(struct task *t, void *context, unsigned int state
 	TRACE_ENTER(FCGI_EV_FCONN_WAKE, (fconn ? fconn->conn : NULL));
 
 	if (fconn) {
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 
 		/* Somebody already stole the connection from us, so we should not
 		 * free it, we just have to free the task.
 		 */
 		if (!t->context) {
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			fconn = NULL;
 			goto do_leave;
 		}
 
 		if (!expired) {
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			TRACE_DEVEL("leaving (not expired)", FCGI_EV_FCONN_WAKE, fconn->conn);
 			return t;
 		}
@@ -3329,7 +3329,7 @@ struct task *fcgi_timeout_task(struct task *t, void *context, unsigned int state
 		else if (fconn->conn->flags & CO_FL_SESS_IDLE)
 			session_detach_idle_conn(fconn->conn->owner, fconn->conn);
 
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 
 		fcgi_conn_report_term_evt(fconn, muxc_tevt_type_tout);
 	}

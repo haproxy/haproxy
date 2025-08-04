@@ -1310,7 +1310,7 @@ struct connection *conn_backend_get(int reuse_mode,
 	 * to end up with two threads using the same connection.
 	 */
 	i = tid;
-	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 	conn = srv_lookup_conn(is_safe ? &srv->per_thr[tid].safe_conns : &srv->per_thr[tid].idle_conns, hash);
 	if (conn)
 		conn_delete_from_tree(conn);
@@ -1325,7 +1325,7 @@ struct connection *conn_backend_get(int reuse_mode,
 			is_safe = 1;
 		}
 	}
-	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 
 	/* If we found a connection in our own list, and we don't have to
 	 * steal one from another thread, then we're done.
@@ -1364,7 +1364,7 @@ check_tgid:
 		if (!srv->curr_idle_thr[i] || i == tid)
 			continue;
 
-		if (HA_SPIN_TRYLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock) != 0)
+		if (HA_SPIN_TRYLOCK(IDLE_CONNS_LOCK, &idle_conns[i].lock) != 0)
 			continue;
 		conn = srv_lookup_conn(is_safe ? &srv->per_thr[i].safe_conns : &srv->per_thr[i].idle_conns, hash);
 		while (conn) {
@@ -1392,7 +1392,7 @@ check_tgid:
 				conn = srv_lookup_conn_next(conn);
 			}
 		}
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].lock);
 	} while (!found && (i = (i + 1 == curtg->base + curtg->count) ? curtg->base : i + 1) != stop);
 
 	if (!found && (global.tune.tg_takeover == FULL_THREADGROUP_TAKEOVER ||
@@ -1517,12 +1517,12 @@ kill_random_idle_conn(struct server *srv)
 	for (i = 0; i < global.nbthread; i++) {
 		curtid = (i + tid) % global.nbthread;
 
-		if (HA_SPIN_TRYLOCK(IDLE_CONNS_LOCK, &idle_conns[curtid].idle_conns_lock) != 0)
+		if (HA_SPIN_TRYLOCK(IDLE_CONNS_LOCK, &idle_conns[curtid].lock) != 0)
 			continue;
 		conn = takeover_random_idle_conn(&srv->per_thr[curtid].idle_conns, curtid);
 		if (!conn)
 			conn = takeover_random_idle_conn(&srv->per_thr[curtid].safe_conns, curtid);
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[curtid].idle_conns_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[curtid].lock);
 		if (conn)
 			break;
 	}
@@ -1744,9 +1744,9 @@ int be_reuse_connection(int64_t hash, struct session *sess,
 
 			if (avail <= 1) {
 				/* no more streams available, remove it from the list */
-				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 				conn_delete_from_tree(srv_conn);
-				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			}
 
 			if (avail >= 1) {
@@ -1848,11 +1848,11 @@ int connect_server(struct stream *s)
 		/* We have more FDs than deemed acceptable, attempt to kill an idling connection. */
 		struct connection *tokill_conn = NULL;
 		/* First, try from our own idle list */
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 		if (!LIST_ISEMPTY(&srv->per_thr[tid].idle_conn_list)) {
 			tokill_conn = LIST_ELEM(srv->per_thr[tid].idle_conn_list.n, struct connection *, idle_list);
 			conn_delete_from_tree(tokill_conn);
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 
 			/* Release the idle lock before calling mux->destroy.
 			 * It will in turn call srv_release_conn through
@@ -1861,7 +1861,7 @@ int connect_server(struct stream *s)
 			tokill_conn->mux->destroy(tokill_conn->ctx);
 		}
 		else {
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 		}
 
 		/* If not, iterate over other thread's idling pool, and try to grab one */
@@ -1875,21 +1875,20 @@ int connect_server(struct stream *s)
 				// see it possibly larger.
 				ALREADY_CHECKED(i);
 
-				if (HA_SPIN_TRYLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock) != 0)
+				if (HA_SPIN_TRYLOCK(IDLE_CONNS_LOCK, &idle_conns[i].lock) != 0)
 					continue;
 
 				if (!LIST_ISEMPTY(&srv->per_thr[i].idle_conn_list)) {
 					tokill_conn = LIST_ELEM(srv->per_thr[i].idle_conn_list.n, struct connection *, idle_list);
 					conn_delete_from_tree(tokill_conn);
 				}
-				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
+				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].lock);
 
 				if (tokill_conn) {
 					/* We got one, put it into the concerned thread's to kill list, and wake it's kill task */
-
-					MT_LIST_APPEND(&idle_conns[i].toremove_conns,
-					               &tokill_conn->toremove_list);
-					task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
+					MT_LIST_APPEND(&idle_conns[i].purged_list,
+					               &tokill_conn->purge_el);
+					task_wakeup(idle_conns[i].task_free_purged, TASK_WOKEN_OTHER);
 					break;
 				}
 

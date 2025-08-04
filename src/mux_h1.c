@@ -4290,13 +4290,13 @@ struct task *h1_io_cb(struct task *t, void *ctx, unsigned int state)
 		/* the tasklet was idling on an idle connection, it might have
 		 * been stolen, let's be careful!
 		 */
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 		if (tl->context == NULL) {
 			/* The connection has been taken over by another thread,
 			 * we're no longer responsible for it, so just free the
 			 * tasklet, and do nothing.
 			 */
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			tasklet_free(tl);
 			return NULL;
 		}
@@ -4314,7 +4314,7 @@ struct task *h1_io_cb(struct task *t, void *ctx, unsigned int state)
 				conn_delete_from_tree(conn);
 		}
 
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 	} else {
 		/* we're certain the connection was not in an idle list */
 		conn = h1c->conn;
@@ -4348,9 +4348,9 @@ struct task *h1_io_cb(struct task *t, void *ctx, unsigned int state)
 				}
 			}
 			else {
-				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 				_srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
-				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			}
 		}
 		else {
@@ -4395,19 +4395,19 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state)
 
 	if (h1c) {
 		 /* Make sure nobody stole the connection from us */
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 
 		/* Somebody already stole the connection from us, so we should not
 		 * free it, we just have to free the task.
 		 */
 		if (!t->context) {
 			h1c = NULL;
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			goto do_leave;
 		}
 
 		if (!expired) {
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			TRACE_DEVEL("leaving (not expired)", H1_EV_H1C_WAKE, h1c->conn, h1c->h1s);
 			return t;
 		}
@@ -4416,7 +4416,7 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state)
 		 * stream's timeout
 		 */
 		if (h1c->state == H1_CS_RUNNING) {
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			t->expire = TICK_ETERNITY;
 			TRACE_DEVEL("leaving (SC still attached)", H1_EV_H1C_WAKE, h1c->conn, h1c->h1s);
 			return t;
@@ -4429,7 +4429,7 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state)
 				h1_send(h1c);
 			if (b_data(&h1c->obuf) || (h1c->flags & H1C_F_ABRT_PENDING)) {
 				h1_refresh_timeout(h1c);
-				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 				return t;
 			}
 		}
@@ -4440,7 +4440,7 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state)
 			se_fl_set(h1c->h1s->sd, SE_FL_EOS | SE_FL_ERROR);
 			h1_alert(h1c->h1s);
 			h1_refresh_timeout(h1c);
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			TRACE_DEVEL("waiting to release the SC before releasing the connection", H1_EV_H1C_WAKE);
 			return t;
 		}
@@ -4451,7 +4451,7 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state)
 		if (h1c->conn->flags & CO_FL_LIST_MASK)
 			conn_delete_from_tree(h1c->conn);
 
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 
 		h1c_report_term_evt(h1c, muxc_tevt_type_tout);
 	}
