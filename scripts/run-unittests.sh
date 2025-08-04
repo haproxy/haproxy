@@ -11,12 +11,8 @@ result=0
 echo ""
 echo "########################## Preparing to run unit tests ##########################"
 
-preparefailed=
 if ! [ -x "$(command -v $HAPROXY_PROGRAM)" ]; then
 	echo "haproxy not found in path, please specify HAPROXY_PROGRAM environment variable"
-	preparefailed=1
-fi
-if [ $preparefailed ]; then
 	exit 1
 fi
 
