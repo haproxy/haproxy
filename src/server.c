@@ -57,7 +57,7 @@
 
 static void srv_update_status(struct server *s, int type, int cause);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
-static void srv_cleanup_connections(struct server *srv);
+static void srv_purge_all_idle_conns(struct server *srv);
 
 /* extra keywords used as value for other arguments. They are used as
  * suggestions for mistyped words.
@@ -73,9 +73,11 @@ struct srv_kw_list srv_keywords = {
 	.list = LIST_HEAD_INIT(srv_keywords.list)
 };
 
-__decl_thread(HA_SPINLOCK_T idle_conn_srv_lock);
-struct eb_root idle_conn_srv = EB_ROOT;
-struct task *idle_conn_task __read_mostly = NULL;
+/* Periodic idle conns purge elements. */
+__decl_thread(HA_SPINLOCK_T purge_conns_lock);
+struct eb_root servers_purge_tree = EB_ROOT;
+struct task *task_purge_servers __read_mostly = NULL;
+
 struct mt_list servers_list = MT_LIST_HEAD_INIT(servers_list);
 static struct task *server_atomic_sync_task = NULL;
 static event_hdl_async_equeue server_atomic_sync_queue;
@@ -318,7 +320,7 @@ static struct task *server_atomic_sync(struct task *task, void *context, unsigne
 					send_log(srv->proxy, LOG_NOTICE, "%s.\n", trash.area);
 				}
 			}
-			srv_cleanup_connections(srv);
+			srv_purge_all_idle_conns(srv);
 			srv_set_dyncookie(srv);
 			srv_set_addr_desc(srv, 1);
 		}
@@ -5567,7 +5569,7 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 			cli_err(appctx, "'set server <srv> ssl' expects 'on' or 'off'.\n");
 			goto out;
 		}
-		srv_cleanup_connections(sv);
+		srv_purge_all_idle_conns(sv);
 		HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 		cli_msg(appctx, LOG_NOTICE, "server ssl setting updated.\n");
 #else
@@ -6401,11 +6403,9 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 			conn_release(conn);
 		}
 
-		/* Also remove all purgeable conns as some of them may still
-		 * reference the currently deleted server.
-		 */
-		while ((conn = MT_LIST_POP(&idle_conns[i].toremove_conns,
-		                           struct connection *, toremove_list))) {
+		/* Manually free all purged conns as some of them may still reference the currently deleted server. */
+		while ((conn = MT_LIST_POP(&idle_conns[i].purged_list,
+		                           struct connection *, purge_el))) {
 			conn_release(conn);
 		}
 
@@ -6476,8 +6476,8 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	ebpt_delete(&srv->conf.name);
 	ebpt_delete(&srv->addr_node);
 
-	/* remove srv from idle_node tree for idle conn cleanup */
-	eb32_delete(&srv->idle_node);
+	/* remove srv from purge tree for idle conn cleanup */
+	eb32_delete(&srv->purge_node);
 
 	/* flag the server as deleted
 	 * (despite the server being removed from primary server list,
@@ -6794,7 +6794,7 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 				srv_shutdown_streams(s, SF_ERR_DOWN);
 
 			/* force connection cleanup on the given server */
-			srv_cleanup_connections(s);
+			srv_purge_all_idle_conns(s);
 			/* we might have streams queued on this server and waiting for
 			 * a connection. Those which are redispatchable will be queued
 			 * to another server or to the proxy itself.
@@ -7150,46 +7150,39 @@ static void srv_update_status(struct server *s, int type, int cause)
 	}
 }
 
-struct task *srv_cleanup_toremove_conns(struct task *task, void *context, unsigned int state)
-{
-	struct connection *conn;
-
-	while ((conn = MT_LIST_POP(&idle_conns[tid].toremove_conns,
-	                               struct connection *, toremove_list)) != NULL) {
-		conn->mux->destroy(conn->ctx);
-	}
-
-	return task;
-}
-
-/* Move <toremove_nb> count connections from <list> storage to <toremove_list>
- * list storage. -1 means moving all of them.
+/* Move <count> connections attached on a server from <conns> list into the
+ * purgeable list of <t> thread. If <count> is negative, <conns> is emptied.
+ *
+ * Must be called with IDLE_CONNS_LOCK held.
  *
  * Returns the number of connections moved.
- *
- * Must be called with idle_conns_lock held.
  */
-static int srv_migrate_conns_to_remove(struct list *list, struct mt_list *toremove_list, int toremove_nb)
+static int srv_purge_conns(struct list *conns, int t, int count)
 {
 	struct connection *conn;
 	int i = 0;
 
-	while (!LIST_ISEMPTY(list)) {
-		if (toremove_nb != -1 && i >= toremove_nb)
+	while (!LIST_ISEMPTY(conns)) {
+		if (count >= 0 && i >= count)
 			break;
 
-		conn = LIST_ELEM(list->n, struct connection *, idle_list);
+		conn = LIST_ELEM(conns->n, struct connection *, idle_list);
 		conn_delete_from_tree(conn);
-		MT_LIST_APPEND(toremove_list, &conn->toremove_list);
+		MT_LIST_APPEND(&idle_conns[t].purged_list, &conn->purge_el);
 		i++;
 	}
 
 	return i;
 }
-/* cleanup connections for a given server
- * might be useful when going on forced maintenance or live changing ip/port
+
+/* Mark as purgeable all idle backend connections on <srv> server. Purge task
+ * is immediately scheduled on necessary threads to remove them.
+ *
+ * This operation is useful when the server is going on forced maintenance or
+ * some of its network configuration such as IP/port are updated during
+ * runtime.
  */
-static void srv_cleanup_connections(struct server *srv)
+static void srv_purge_all_idle_conns(struct server *srv)
 {
 	int did_remove;
 	int i;
@@ -7201,12 +7194,12 @@ static void srv_cleanup_connections(struct server *srv)
 	/* check all threads starting with ours */
 	for (i = tid;;) {
 		did_remove = 0;
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
-		if (srv_migrate_conns_to_remove(&srv->per_thr[i].idle_conn_list, &idle_conns[i].toremove_conns, -1) > 0)
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].lock);
+		if (srv_purge_conns(&srv->per_thr[i].idle_conn_list, i, -1) > 0)
 			did_remove = 1;
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].lock);
 		if (did_remove)
-			task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
+			task_wakeup(idle_conns[i].task_free_purged, TASK_WOKEN_OTHER);
 
 		if ((i = ((i + 1 == global.nbthread) ? 0 : i + 1)) == tid)
 			break;
@@ -7233,10 +7226,10 @@ void srv_release_conn(struct server *srv, struct connection *conn)
 
 	/* Remove the connection from any tree (safe, idle or available) */
 	if (conn->hash_node) {
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 		conn_delete_from_tree(conn);
 		conn->flags &= ~CO_FL_LIST_MASK;
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 	}
 }
 
@@ -7284,7 +7277,7 @@ struct connection *srv_lookup_conn_next(struct connection *conn)
  * on it before reinserting it with this function. In other context, prefer to
  * use the full feature srv_add_to_idle_list().
  *
- * Must be called with idle_conns_lock.
+ * Must be called with IDLE_CONNS_LOCK.
  */
 void _srv_add_idle(struct server *srv, struct connection *conn, int is_safe)
 {
@@ -7330,7 +7323,7 @@ int srv_add_to_idle_list(struct server *srv, struct connection *conn, int is_saf
 		}
 		_HA_ATOMIC_DEC(&srv->curr_used_conns);
 
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 		conn_delete_from_tree(conn);
 
 		if (is_safe) {
@@ -7342,24 +7335,28 @@ int srv_add_to_idle_list(struct server *srv, struct connection *conn, int is_saf
 			_srv_add_idle(srv, conn, 0);
 			_HA_ATOMIC_INC(&srv->curr_idle_nb);
 		}
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 		_HA_ATOMIC_INC(&srv->curr_idle_thr[tid]);
 
 		__ha_barrier_full();
-		if ((volatile void *)srv->idle_node.node.leaf_p == NULL) {
-			HA_SPIN_LOCK(OTHER_LOCK, &idle_conn_srv_lock);
-			if ((volatile void *)srv->idle_node.node.leaf_p == NULL) {
-				srv->idle_node.key = tick_add(srv->pool_purge_delay,
-				                              now_ms);
-				eb32_insert(&idle_conn_srv, &srv->idle_node);
-				if (!task_in_wq(idle_conn_task) && !
-				    task_in_rq(idle_conn_task)) {
-					task_schedule(idle_conn_task,
-					              srv->idle_node.key);
+
+		/* Register server for purge if not already the case. */
+		if ((volatile void *)srv->purge_node.node.leaf_p == NULL) {
+			HA_SPIN_LOCK(OTHER_LOCK, &purge_conns_lock);
+			if ((volatile void *)srv->purge_node.node.leaf_p == NULL) {
+				srv->purge_node.key = tick_add(srv->pool_purge_delay,
+				                               now_ms);
+				eb32_insert(&servers_purge_tree, &srv->purge_node);
+
+				/* Schedule task_purge_servers if needed. */
+				if (!task_in_wq(task_purge_servers) &&
+				    !task_in_rq(task_purge_servers)) {
+					task_schedule(task_purge_servers,
+					              srv->purge_node.key);
 				}
 
 			}
-			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conn_srv_lock);
+			HA_SPIN_UNLOCK(OTHER_LOCK, &purge_conns_lock);
 		}
 		return 1;
 	}
@@ -7376,7 +7373,10 @@ void srv_add_to_avail_list(struct server *srv, struct connection *conn)
 	eb64_insert(&srv->per_thr[tid].avail_conns, &conn->hash_node->node);
 }
 
-struct task *srv_cleanup_idle_conns(struct task *task, void *context, unsigned int state)
+/* Handler for <task_purge_servers>. Loop over registered servers and purge it
+ * if expired : detach some idle conns to reach current estimated needed level.
+ */
+struct task *do_servers_purge(struct task *task, void *context, unsigned int state)
 {
 	struct server *srv;
 	struct eb32_node *eb;
@@ -7384,20 +7384,20 @@ struct task *srv_cleanup_idle_conns(struct task *task, void *context, unsigned i
 	unsigned int next_wakeup;
 
 	next_wakeup = TICK_ETERNITY;
-	HA_SPIN_LOCK(OTHER_LOCK, &idle_conn_srv_lock);
+	HA_SPIN_LOCK(OTHER_LOCK, &purge_conns_lock);
 	while (1) {
 		int exceed_conns;
 		int to_kill;
 		int curr_idle;
 
-		eb = eb32_lookup_ge(&idle_conn_srv, now_ms - TIMER_LOOK_BACK);
+		eb = eb32_lookup_ge(&servers_purge_tree, now_ms - TIMER_LOOK_BACK);
 		if (!eb) {
 			/* we might have reached the end of the tree, typically because
 			 * <now_ms> is in the first half and we're first scanning the last
 			* half. Let's loop back to the beginning of the tree now.
 			*/
 
-			eb = eb32_first(&idle_conn_srv);
+			eb = eb32_first(&servers_purge_tree);
 			if (likely(!eb))
 				break;
 		}
@@ -7406,7 +7406,7 @@ struct task *srv_cleanup_idle_conns(struct task *task, void *context, unsigned i
 			next_wakeup = eb->key;
 			break;
 		}
-		srv = eb32_entry(eb, struct server, idle_node);
+		srv = eb32_entry(eb, struct server, purge_node);
 
 		/* Calculate how many idle connections we want to kill :
 		 * we want to remove half the difference between the total
@@ -7437,31 +7437,31 @@ struct task *srv_cleanup_idle_conns(struct task *task, void *context, unsigned i
 			max_conn = (exceed_conns * srv->curr_idle_thr[i]) /
 			           curr_idle + 1;
 
-			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
-			j = srv_migrate_conns_to_remove(&srv->per_thr[i].idle_conn_list, &idle_conns[i].toremove_conns, max_conn);
+			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].lock);
+			j = srv_purge_conns(&srv->per_thr[i].idle_conn_list, i, max_conn);
 			if (j > 0)
 				did_remove = 1;
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].lock);
 
 			if (did_remove)
-				task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
+				task_wakeup(idle_conns[i].task_free_purged, TASK_WOKEN_OTHER);
 
 			if ((i = ((i + 1 == global.nbthread) ? 0 : i + 1)) == tid)
 				break;
 		}
 remove:
-		eb32_delete(&srv->idle_node);
+		eb32_delete(&srv->purge_node);
 
 		if (srv->curr_idle_conns) {
 			/* There are still more idle connections, add the
 			 * server back in the tree.
 			 */
-			srv->idle_node.key = tick_add(srv->pool_purge_delay, now_ms);
-			eb32_insert(&idle_conn_srv, &srv->idle_node);
-			next_wakeup = tick_first(next_wakeup, srv->idle_node.key);
+			srv->purge_node.key = tick_add(srv->pool_purge_delay, now_ms);
+			eb32_insert(&servers_purge_tree, &srv->purge_node);
+			next_wakeup = tick_first(next_wakeup, srv->purge_node.key);
 		}
 	}
-	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conn_srv_lock);
+	HA_SPIN_UNLOCK(OTHER_LOCK, &purge_conns_lock);
 
 	task->expire = next_wakeup;
 	return task;
@@ -7557,6 +7557,20 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 }};
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
+int alloc_servers_purge_task(void)
+{
+	task_purge_servers = task_new_anywhere();
+	if (!task_purge_servers) {
+		ha_alert("Failed to allocate purge servers global task.\n");
+		return ERR_FATAL|ERR_ABORT;
+	}
+
+	task_purge_servers->process = do_servers_purge;
+	task_purge_servers->context = NULL;
+	return ERR_NONE;
+}
+REGISTER_POST_CHECK(alloc_servers_purge_task);
 
 /*
  * Local variables:

@@ -38,9 +38,9 @@
 #include <haproxy/tools.h>
 
 
-__decl_thread(extern HA_SPINLOCK_T idle_conn_srv_lock);
-extern struct idle_conns idle_conns[MAX_THREADS];
-extern struct task *idle_conn_task;
+__decl_thread(extern HA_SPINLOCK_T purge_conns_lock);
+extern struct task *task_purge_servers;
+
 extern struct mt_list servers_list;
 extern struct dict server_key_dict;
 
@@ -98,7 +98,6 @@ struct connection *srv_lookup_conn_next(struct connection *conn);
 void _srv_add_idle(struct server *srv, struct connection *conn, int is_safe);
 int srv_add_to_idle_list(struct server *srv, struct connection *conn, int is_safe);
 void srv_add_to_avail_list(struct server *srv, struct connection *conn);
-struct task *srv_cleanup_toremove_conns(struct task *task, void *context, unsigned int state);
 
 int srv_apply_track(struct server *srv, struct proxy *curproxy);
 

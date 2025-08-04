@@ -203,9 +203,9 @@ int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake)
 		struct server *srv = objt_server(conn->target);
 
 		if (conn_in_list) {
-			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			conn_delete_from_tree(conn);
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 		}
 
 		ret = conn->mux->wake(conn);
@@ -213,9 +213,9 @@ int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake)
 			goto done;
 
 		if (conn_in_list) {
-			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			_srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 		}
 	}
  done:
@@ -467,7 +467,7 @@ void conn_init(struct connection *conn, void *target)
 	conn->target = target;
 	conn->destroy_cb = NULL;
 	conn->proxy_netns = NULL;
-	MT_LIST_INIT(&conn->toremove_list);
+	MT_LIST_INIT(&conn->purge_el);
 	if (conn_is_back(conn))
 		LIST_INIT(&conn->sess_el);
 	else
@@ -565,13 +565,13 @@ void conn_free(struct connection *conn)
 	if (conn_is_back(conn))
 		conn_backend_deinit(conn);
 
-	/* Remove the conn from toremove_list.
+	/* Remove the conn from purge list.
 	 *
 	 * This is needed to prevent a double-free in case the connection was
 	 * already scheduled from cleaning but is freed before via another
 	 * call.
 	 */
-	MT_LIST_DELETE(&conn->toremove_list);
+	MT_LIST_DELETE(&conn->purge_el);
 
 	sockaddr_free(&conn->src);
 	sockaddr_free(&conn->dst);
@@ -2985,6 +2985,21 @@ int conn_reverse(struct connection *conn)
 	return 0;
 }
 
+/* Handler for task_free_purged of idle_conns. Free all connections registered
+ * in the purge list of the current thread.
+ */
+static struct task *free_purged_conns(struct task *task, void *context, unsigned int state)
+{
+	struct connection *conn;
+
+	while ((conn = MT_LIST_POP(&idle_conns[tid].purged_list,
+	                           struct connection *, purge_el)) != NULL) {
+		conn->mux->destroy(conn->ctx);
+	}
+
+	return task;
+}
+
 /* Handler of the task of mux_stopping_data.
  * Called on soft-stop.
  */
@@ -3023,12 +3038,28 @@ static int deallocate_mux_cleanup(void)
 }
 REGISTER_PER_THREAD_FREE(deallocate_mux_cleanup);
 
-static void deinit_idle_conns(void)
+static int allocate_idle_conns(void)
+{
+	idle_conns[tid].task_free_purged = task_new_on(tid);
+	if (!idle_conns[tid].task_free_purged) {
+		ha_alert("Failed to allocate idle connection tasks for thread '%d'.\n", tid);
+		return 0;
+	}
+
+	idle_conns[tid].task_free_purged->process = free_purged_conns;
+	idle_conns[tid].task_free_purged->context = NULL;
+	HA_SPIN_INIT(&idle_conns[tid].lock);
+	MT_LIST_INIT(&idle_conns[tid].purged_list);
+
+	return 1;
+}
+REGISTER_PER_THREAD_ALLOC(allocate_idle_conns);
+
+static void deinit_gc_purged_conns(void)
 {
 	int i;
 
-	for (i = 0; i < global.nbthread; i++) {
-		task_destroy(idle_conns[i].cleanup_task);
-	}
+	for (i = 0; i < global.nbthread; i++)
+		task_destroy(idle_conns[i].task_free_purged);
 }
-REGISTER_POST_DEINIT(deinit_idle_conns);
+REGISTER_POST_DEINIT(deinit_gc_purged_conns);

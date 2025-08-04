@@ -4201,30 +4201,6 @@ out_uri_auth_compat:
 	/* At this point, target names have already been resolved. */
 	/***********************************************************/
 
-	idle_conn_task = task_new_anywhere();
-	if (!idle_conn_task) {
-		ha_alert("parsing : failed to allocate global idle connection task.\n");
-		cfgerr++;
-	}
-	else {
-		idle_conn_task->process = srv_cleanup_idle_conns;
-		idle_conn_task->context = NULL;
-
-		for (i = 0; i < global.nbthread; i++) {
-			idle_conns[i].cleanup_task = task_new_on(i);
-			if (!idle_conns[i].cleanup_task) {
-				ha_alert("parsing : failed to allocate idle connection tasks for thread '%d'.\n", i);
-				cfgerr++;
-				break;
-			}
-
-			idle_conns[i].cleanup_task->process = srv_cleanup_toremove_conns;
-			idle_conns[i].cleanup_task->context = NULL;
-			HA_SPIN_INIT(&idle_conns[i].idle_conns_lock);
-			MT_LIST_INIT(&idle_conns[i].toremove_conns);
-		}
-	}
-
 	/* perform the final checks before creating tasks */
 
 	/* starting to initialize the main proxies list */

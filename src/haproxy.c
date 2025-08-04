@@ -2707,8 +2707,8 @@ void deinit(void)
 	ha_free(&global.server_state_base);
 	ha_free(&global.server_state_file);
 	ha_free(&global.stats_file);
-	task_destroy(idle_conn_task);
-	idle_conn_task = NULL;
+	task_destroy(task_purge_servers);
+	task_purge_servers = NULL;
 
 	list_for_each_entry_safe(log, logb, &global.loggers, list) {
 		LIST_DEL_INIT(&log->list);

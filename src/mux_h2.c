@@ -4946,13 +4946,13 @@ struct task *h2_io_cb(struct task *t, void *ctx, unsigned int state)
 		/* the tasklet was idling on an idle connection, it might have
 		 * been stolen, let's be careful!
 		 */
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 		if (t->context == NULL) {
 			/* The connection has been taken over by another thread,
 			 * we're no longer responsible for it, so just free the
 			 * tasklet, and do nothing.
 			 */
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			tasklet_free(tl);
 			t = NULL;
 			goto leave;
@@ -4967,7 +4967,7 @@ struct task *h2_io_cb(struct task *t, void *ctx, unsigned int state)
 		if (conn_in_list)
 			conn_delete_from_tree(conn);
 
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 	} else {
 		/* we're certain the connection was not in an idle list */
 		conn = h2c->conn;
@@ -4996,9 +4996,9 @@ struct task *h2_io_cb(struct task *t, void *ctx, unsigned int state)
 	if (!ret && conn_in_list) {
 		struct server *srv = __objt_server(conn->target);
 
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 		_srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 	}
 
 leave:
@@ -5115,17 +5115,17 @@ static int h2_process(struct h2c *h2c)
 
 		/* connections in error must be removed from the idle lists */
 		if (conn->flags & CO_FL_LIST_MASK) {
-			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			conn_delete_from_tree(conn);
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 		}
 	}
 	else if (h2c->st0 == H2_CS_ERROR) {
 		/* connections in error must be removed from the idle lists */
 		if (conn->flags & CO_FL_LIST_MASK) {
-			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			conn_delete_from_tree(conn);
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 		}
 	}
 
@@ -5186,20 +5186,20 @@ struct task *h2_timeout_task(struct task *t, void *context, unsigned int state)
 
 	if (h2c) {
 		 /* Make sure nobody stole the connection from us */
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 
 		/* Somebody already stole the connection from us, so we should not
 		 * free it, we just have to free the task.
 		 */
 		if (!t->context) {
 			h2c = NULL;
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			goto do_leave;
 		}
 
 
 		if (!expired) {
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			TRACE_DEVEL("leaving (not expired)", H2_EV_H2C_WAKE, h2c->conn);
 			return t;
 		}
@@ -5208,7 +5208,7 @@ struct task *h2_timeout_task(struct task *t, void *context, unsigned int state)
 			/* we do still have streams but all of them are idle, waiting
 			 * for the data layer, so we must not enforce the timeout here.
 			 */
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			t->expire = TICK_ETERNITY;
 			return t;
 		}
@@ -5218,7 +5218,7 @@ struct task *h2_timeout_task(struct task *t, void *context, unsigned int state)
 			tasklet_wakeup(h2c->wait_event.tasklet);
 			TRACE_DEVEL("leaving (idle ping)", H2_EV_H2C_WAKE, h2c->conn);
 			t->expire = conn_idle_ping(h2c->conn);
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			return t;
 		}
 
@@ -5228,7 +5228,7 @@ struct task *h2_timeout_task(struct task *t, void *context, unsigned int state)
 		if (h2c->conn->flags & CO_FL_LIST_MASK)
 			conn_delete_from_tree(h2c->conn);
 
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 
 		if (h2c->flags & H2_CF_IDL_PING_SENT) {
 			TRACE_STATE("expired on idle ping", H2_EV_H2C_WAKE, h2c->conn);
@@ -5305,9 +5305,9 @@ do_leave:
 
 	/* in any case this connection must not be considered idle anymore */
 	if (h2c->conn->flags & CO_FL_LIST_MASK) {
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 		conn_delete_from_tree(h2c->conn);
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 	}
 
 	/* either we can release everything now or it will be done later once

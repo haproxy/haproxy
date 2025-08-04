@@ -2541,13 +2541,13 @@ static struct task *spop_io_cb(struct task *t, void *ctx, unsigned int state)
 		/* the tasklet was idling on an idle connection, it might have
 		 * been stolen, let's be careful!
 		 */
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 		if (tl->context == NULL) {
 			/* The connection has been taken over by another thread,
 			 * we're no longer responsible for it, so just free the
 			 * tasklet, and do nothing.
 			 */
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			tasklet_free(tl);
 			return NULL;
 		}
@@ -2558,7 +2558,7 @@ static struct task *spop_io_cb(struct task *t, void *ctx, unsigned int state)
 		if (conn_in_list)
 			conn_delete_from_tree(conn);
 
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 	} else {
 		/* we're certain the connection was not in an idle list */
 		conn = spop_conn->conn;
@@ -2584,9 +2584,9 @@ static struct task *spop_io_cb(struct task *t, void *ctx, unsigned int state)
 	if (!ret && conn_in_list) {
 		struct server *srv = __objt_server(conn->target);
 
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 		_srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 	}
 	return t;
 }
@@ -2646,9 +2646,9 @@ static int spop_process(struct spop_conn *spop_conn)
 
 		/* connections in error must be removed from the idle lists */
 		if (conn->flags & CO_FL_LIST_MASK) {
-			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			conn_delete_from_tree(conn);
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 		}
 	}
 
@@ -2749,19 +2749,19 @@ static struct task *spop_timeout_task(struct task *t, void *context, unsigned in
 	TRACE_ENTER(SPOP_EV_SPOP_CONN_WAKE, (spop_conn ? spop_conn->conn : NULL));
 
 	if (spop_conn) {
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 
 		/* Somebody already stole the connection from us, so we should not
 		 * free it, we just have to free the task.
 		 */
 		if (!t->context) {
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			spop_conn = NULL;
 			goto do_leave;
 		}
 
 		if (!expired) {
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 			TRACE_DEVEL("leaving (not expired)", SPOP_EV_SPOP_CONN_WAKE, spop_conn->conn);
 			return t;
 		}
@@ -2772,7 +2772,7 @@ static struct task *spop_timeout_task(struct task *t, void *context, unsigned in
 		if (spop_conn->conn->flags & CO_FL_LIST_MASK)
 			conn_delete_from_tree(spop_conn->conn);
 
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].lock);
 
 		spop_conn_report_term_evt(spop_conn, muxc_tevt_type_tout);
 	}
