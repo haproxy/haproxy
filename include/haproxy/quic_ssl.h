@@ -81,7 +81,12 @@ static inline const char *quic_ssl_early_data_status_str(const SSL *ssl)
 	}
 #endif
 }
-#else
+#else /* !HAVE_SSL_0RTT_QUIC */
+static inline int qc_ssl_eary_data_accepted(const SSL *ssl)
+{
+	return 0;
+}
+
 static inline const char *quic_ssl_early_data_status_str(const SSL *ssl)
 {
 	return "NOT_SUPPORTED";
