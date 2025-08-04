@@ -206,7 +206,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		}
 
 		if (!quic_transport_params_store(qc, 0, extension_data,
-		                                 extension_data + extension_len))
+		                                 extension_data + extension_len, 0))
 			goto abort;
 
 		qc->flags |= QUIC_FL_CONN_TX_TP_RECEIVED;
@@ -565,7 +565,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 		}
 
 		if (!quic_transport_params_store(qc, 0, extension_data,
-		                                 extension_data + extension_len))
+		                                 extension_data + extension_len, 0))
 			return SSL_TLSEXT_ERR_NOACK;
 
 		qc->flags |= QUIC_FL_CONN_TX_TP_RECEIVED;

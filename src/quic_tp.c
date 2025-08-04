@@ -12,6 +12,10 @@
 
 #define QUIC_MAX_UDP_PAYLOAD_SIZE     2048
 
+static int qc_early_tranport_params_validate(struct quic_conn *qc,
+                                             struct quic_transport_params *p,
+                                             struct quic_early_transport_params *e);
+
 /* This is the values of some QUIC transport parameters when absent.
  * Should be used to initialize any transport parameters (local or remote)
  * before updating them with customized values.
@@ -734,17 +738,25 @@ quic_transport_params_decode(struct quic_transport_params *p, int server,
  *
  * Returns 1 on success, or 0 if parsing is interrupted on a truncated field.
  * Note that if invalid values are used, success is returned by this function
- * but the connection is scheduled for CONNECTION_CLOSE emission.
+ * but the connection is scheduled for CONNECTION_CLOSE emission. This is also
+ * the case when the early transport parameters could not be validated.
  */
 int quic_transport_params_store(struct quic_conn *qc, int server,
                                 const unsigned char *buf,
-                                const unsigned char *end)
+                                const unsigned char *end, int edata_accepted)
 {
 	enum quic_tp_dec_err err;
 	struct quic_transport_params *tx_params = &qc->tx.params;
 	struct quic_transport_params *rx_params = &qc->rx.params;
 	/* Initial source connection ID */
 	struct tp_cid *iscid;
+	struct quic_early_transport_params etps;
+
+	BUG_ON(edata_accepted && !qc_is_back(qc));
+	if (edata_accepted) {
+		/* Local copy of early transport parameters */
+		qc_early_transport_params_cpy(qc, &etps, tx_params);
+	}
 
 	/* initialize peer TPs to RFC default value */
 	quic_dflt_transport_params_cpy(tx_params);
@@ -758,6 +770,12 @@ int quic_transport_params_store(struct quic_conn *qc, int server,
 	else if (err == QUIC_TP_DEC_ERR_TRUNC) {
 		TRACE_ERROR("error on transport parameters decoding", QUIC_EV_TRANSP_PARAMS, qc);
 		return 0;
+	}
+
+	if (edata_accepted && !qc_early_tranport_params_validate(qc, tx_params, &etps)) {
+		TRACE_ERROR("could not validate early transport parameters", QUIC_EV_TRANSP_PARAMS, qc);
+		quic_set_connection_close(qc, quic_err_transport(QC_ERR_PROTOCOL_VIOLATION));
+		return 1;
 	}
 
 	if (server && qc->retry_token) {
@@ -895,4 +913,35 @@ void qc_early_transport_params_reuse(struct quic_conn *qc,
 	p->active_connection_id_limit = e->active_connection_id_limit;
 	TRACE_PROTO("\nTX(remote) reuse early transp. params.", QUIC_EV_EARLY_TRANSP_PARAMS, qc, e);
 	TRACE_PROTO("\nTX(remote) transp. params.", QUIC_EV_TRANSP_PARAMS, qc, p);
+}
+
+static int qc_early_tranport_params_validate(struct quic_conn *qc,
+                                             struct quic_transport_params *p,
+                                             struct quic_early_transport_params *e)
+{
+	/* RFC 9000
+	 * 7.4.1. Values of Transport Parameters for 0-RTT
+	 * If 0-RTT data is accepted by the server, the server MUST NOT reduce any
+	 * limits or alter any values that might be violated by the client with its
+	 * 0-RTT data. In particular, a server that accepts 0-RTT data MUST NOT set
+	 * values for the following parameters (Section 18.2) that are smaller than
+	 * the remembered values of the parameters.
+	 * - active_connection_id_limit
+	 * - initial_max_data
+	 * - initial_max_stream_data_bidi_local
+	 * - initial_max_stream_data_bidi_remote
+	 * - initial_max_stream_data_uni
+	 * - initial_max_streams_bidi
+	 * - initial_max_streams_uni
+	 */
+	if (e->active_connection_id_limit > p->active_connection_id_limit ||
+	    e->initial_max_data > p->initial_max_data ||
+	    e->initial_max_stream_data_bidi_local > p->initial_max_stream_data_bidi_local ||
+	    e->initial_max_stream_data_bidi_remote > p->initial_max_stream_data_bidi_remote ||
+	    e->initial_max_stream_data_uni > p->initial_max_stream_data_uni ||
+	    e->initial_max_streams_bidi > p->initial_max_streams_bidi ||
+	    e->initial_max_streams_uni > p->initial_max_streams_uni)
+		return 0;
+
+	return 1;
 }

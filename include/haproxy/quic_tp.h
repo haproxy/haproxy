@@ -18,7 +18,7 @@ int quic_transport_params_encode(unsigned char *buf,
 
 int quic_transport_params_store(struct quic_conn *conn, int server,
                                 const unsigned char *buf,
-                                const unsigned char *end);
+                                const unsigned char *end, int edata_accepted);
 void qc_early_transport_params_cpy(struct quic_conn *qc,
                                    struct quic_early_transport_params *e,
                                    struct quic_transport_params *p);
