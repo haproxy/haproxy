@@ -293,8 +293,10 @@ static int mem_should_fail(const struct pool_head *pool)
  * The name must be a stable pointer during all the program's life time.
  * The file and line are passed to store the registration location in the
  * registration struct. Use create_pool() instead which does it for free.
+ * The alignment will be stored as-is in the registration.
  */
-struct pool_head *create_pool_with_loc(const char *name, unsigned int size, unsigned int flags,
+struct pool_head *create_pool_with_loc(const char *name, unsigned int size,
+				       unsigned int align, unsigned int flags,
 				       const char *file, unsigned int line)
 {
 	struct pool_registration *reg;
@@ -309,7 +311,7 @@ struct pool_head *create_pool_with_loc(const char *name, unsigned int size, unsi
 	reg->line = line;
 	reg->size = size;
 	reg->flags = flags;
-	reg->align = 0;
+	reg->align = align;
 
 	pool = create_pool_from_reg(name, reg);
 	if (!pool)

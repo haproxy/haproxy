@@ -33,36 +33,52 @@
 /* This creates a pool_reg registers a call to create_pool_callback(ptr) with it.
  * Do not use this one, use REGISTER_POOL() instead.
  */
-#define __REGISTER_POOL(_line, _ptr, _name, _size)	       \
+#define __REGISTER_POOL(_line, _ptr, _name, _size, _align)     \
 	static struct pool_registration __pool_reg_##_line = { \
 		.name = _name,				       \
 		.file = __FILE__,			       \
 		.line = __LINE__,			       \
 		.size = _size,				       \
 		.flags = MEM_F_STATREG,			       \
-		.align = 0,				       \
+		.align = _align,			       \
 	};						       \
 	INITCALL3(STG_POOL, create_pool_callback, (_ptr), (_name), &__pool_reg_##_line);
 
 /* intermediary level for line number resolution, do not use this one, use
  * REGISTER_POOL() instead.
  */
-#define _REGISTER_POOL(line, ptr, name, size)		\
-	__REGISTER_POOL(line, ptr, name, size)
+#define _REGISTER_POOL(line, ptr, name, size, align)	\
+	__REGISTER_POOL(line, ptr, name, size, align)
 
 /* This registers a call to create_pool_callback(ptr) with these args */
 #define REGISTER_POOL(ptr, name, size)  \
-	_REGISTER_POOL(__LINE__, ptr, name, size)
+	_REGISTER_POOL(__LINE__, ptr, name, size, 0)
 
 /* This macro declares a pool head <ptr> and registers its creation */
 #define DECLARE_POOL(ptr, name, size)   \
 	struct pool_head *(ptr) __read_mostly = NULL; \
-	_REGISTER_POOL(__LINE__, &ptr, name, size)
+	_REGISTER_POOL(__LINE__, &ptr, name, size, 0)
 
 /* This macro declares a static pool head <ptr> and registers its creation */
 #define DECLARE_STATIC_POOL(ptr, name, size) \
 	static struct pool_head *(ptr) __read_mostly; \
-	_REGISTER_POOL(__LINE__, &ptr, name, size)
+	_REGISTER_POOL(__LINE__, &ptr, name, size, 0)
+
+/*** below are the aligned pool macros, taking one extra arg for alignment ***/
+
+/* This registers a call to create_pool_callback(ptr) with these args */
+#define REGISTER_ALIGNED_POOL(ptr, name, size, align)	\
+	_REGISTER_POOL(__LINE__, ptr, name, size, align)
+
+/* This macro declares an aligned pool head <ptr> and registers its creation */
+#define DECLARE_ALIGNED_POOL(ptr, name, size, align)	      \
+	struct pool_head *(ptr) __read_mostly = NULL; \
+	_REGISTER_POOL(__LINE__, &ptr, name, size, align)
+
+/* This macro declares a static aligned pool head <ptr> and registers its creation */
+#define DECLARE_STATIC_ALIGNED_POOL(ptr, name, size, align) \
+	static struct pool_head *(ptr) __read_mostly; \
+	_REGISTER_POOL(__LINE__, &ptr, name, size, align)
 
 /* By default, free objects are linked by a pointer stored at the beginning of
  * the memory area. When DEBUG_MEMORY_POOLS is set, the allocated area is
@@ -143,7 +159,8 @@ unsigned long long pool_total_allocated(void);
 unsigned long long pool_total_used(void);
 void pool_flush(struct pool_head *pool);
 void pool_gc(struct pool_head *pool_ctx);
-struct pool_head *create_pool_with_loc(const char *name, unsigned int size, unsigned int flags, const char *file, unsigned int line);
+struct pool_head *create_pool_with_loc(const char *name, unsigned int size, unsigned int align,
+                                       unsigned int flags, const char *file, unsigned int line);
 struct pool_head *create_pool_from_reg(const char *name, struct pool_registration *reg);
 void create_pool_callback(struct pool_head **ptr, char *name, struct pool_registration *reg);
 void *pool_destroy(struct pool_head *pool);
@@ -153,7 +170,10 @@ void __pool_free(struct pool_head *pool, void *ptr);
 void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item, const void *caller, ssize_t ofs);
 
 #define create_pool(name, size, flags) \
-	create_pool_with_loc(name, size, flags, __FILE__, __LINE__)
+	create_pool_with_loc(name, size, 0, flags, __FILE__, __LINE__)
+
+#define create_aligned_pool(name, size, align, flags)			\
+	create_pool_with_loc(name, size, align, flags, __FILE__, __LINE__)
 
 
 /****************** Thread-local cache management ******************/
