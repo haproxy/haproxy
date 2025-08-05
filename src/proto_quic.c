@@ -667,7 +667,7 @@ static int quic_deallocate_dghdlrs(void)
 }
 REGISTER_POST_DEINIT(quic_deallocate_dghdlrs);
 
-/* Checks that connection socket-owner mode is supported.
+/* Checks that connection sock-per-conn mode is supported.
  * Returns 1 if it is, 0 if not. A negative error code is used for an unknown
  * error which leaves support status as unknown.
  */
@@ -688,7 +688,7 @@ static int quic_test_conn_socket_owner(void)
 		goto end;
 	}
 
-	/* Connection socket-owner mode relies on several system features :
+	/* Connection sock-per-conn mode relies on several system features :
 	 * - IP_PKTINFO or equivalent, to retrieve peer address for connect()
 	 * - support for multiple UDP sockets bound on the same source address
 	 */
@@ -766,8 +766,8 @@ static int quic_test_socketopts(void)
 {
 	int ret;
 
-	/* Check for connection socket-owner mode support. */
-	if (quic_tune.options & QUIC_TUNE_SOCK_PER_CONN) {
+	/* Check for connection sock-per-conn mode support. */
+	if (quic_tune.fe.opts & QUIC_TUNE_FE_SOCK_PER_CONN) {
 		ret = quic_test_conn_socket_owner();
 		if (ret < 0) {
 			goto err;
@@ -775,7 +775,7 @@ static int quic_test_socketopts(void)
 		else if (!ret) {
 			ha_diag_warning("Your platform does not seem to support UDP source address retrieval through IP_PKTINFO or an alternative flag. "
 			                "QUIC connections will use listener socket.\n");
-			quic_tune.options &= ~QUIC_TUNE_SOCK_PER_CONN;
+			quic_tune.fe.opts &= ~QUIC_TUNE_FE_SOCK_PER_CONN;
 		}
 	}
 
@@ -808,7 +808,7 @@ static void quic_register_build_options(void)
 	int ret;
 
 	ret = quic_test_conn_socket_owner();
-	memprintf(&ptr, "QUIC: connection socket-owner mode support : ");
+	memprintf(&ptr, "QUIC: connection sock-per-conn mode support : ");
 	memprintf(&ptr, "%s%s\n", ptr, ret > 0 ? "yes" :
 	                               !ret ? "no" : "unknown");
 

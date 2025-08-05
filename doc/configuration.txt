@@ -1905,6 +1905,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.fe.cc.reorder-ratio
    - tune.quic.fe.sec.glitches-threshold
    - tune.quic.fe.sec.retry-threshold
+   - tune.quic.fe.sock-per-conn
    - tune.quic.fe.tx.pacing
    - tune.quic.fe.tx.udp-gso
    - tune.quic.frontend.max-data-size
@@ -1918,7 +1919,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.mem.tx-max
    - tune.quic.reorder-ratio (deprecated)
    - tune.quic.retry-threshold (deprecated)
-   - tune.quic.socket-owner
+   - tune.quic.socket-owner (deprecated)
    - tune.quic.zero-copy-fwd-send
    - tune.renice.runtime
    - tune.renice.startup
@@ -3101,24 +3102,24 @@ set-var-fmt <var-name> <fmt>
 
 setcap <name>[,<name>...]
   Sets a list of capabilities that must be preserved when starting and running
-  either as a non-root user (uid > 0), or when starting with uid 0 (root)
-  and switching then to a non-root. By default all permissions are
-  lost by the uid switch, but some are often needed when trying to connect to
-  a server from a foreign address during transparent proxying, or when binding
-  to a port below 1024, e.g. when using "tune.quic.socket-owner connection",
-  resulting in setups running entirely under uid 0. Setting capabilities
-  generally is a safer alternative, as only the required capabilities will be
-  preserved. The feature is OS-specific and only enabled on Linux when
-  USE_LINUX_CAP=1 is set at build time. The list of supported capabilities also
-  depends on the OS and is enumerated by the error message displayed when an
-  invalid capability name or an empty one is passed. Multiple capabilities may
-  be passed, delimited by commas. Among those commonly used, "cap_net_raw"
-  allows to transparently bind to a foreign address, and "cap_net_bind_service"
-  allows to bind to a privileged port and may be used by QUIC. If the process
-  is started and run under the same non-root user, needed capabilities should
-  be set on haproxy binary file with setcap along with this keyword. For more
-  details about setting capabilities on haproxy binary, please see chapter
-  13.1 Linux capabilities support in the Management guide.
+  either as a non-root user (uid > 0), or when starting with uid 0 (root) and
+  switching then to a non-root. By default all permissions are lost by the uid
+  switch, but some are often needed when trying to connect to a server from a
+  foreign address during transparent proxying, or when binding to a port below
+  1024, e.g. when using "tune.quic.fe.sock-per-conn default-on", resulting in
+  setups running entirely under uid 0. Setting capabilities generally is a
+  safer alternative, as only the required capabilities will be preserved. The
+  feature is OS-specific and only enabled on Linux when USE_LINUX_CAP=1 is set
+  at build time. The list of supported capabilities also depends on the OS and
+  is enumerated by the error message displayed when an invalid capability name
+  or an empty one is passed. Multiple capabilities may be passed, delimited by
+  commas. Among those commonly used, "cap_net_raw" allows to transparently bind
+  to a foreign address, and "cap_net_bind_service" allows to bind to a
+  privileged port and may be used by QUIC. If the process is started and run
+  under the same non-root user, needed capabilities should be set on haproxy
+  binary file with setcap along with this keyword. For more details about
+  setting capabilities on haproxy binary, please see chapter 13.1 Linux
+  capabilities support in the Management guide.
 
   Example:
       global
@@ -4801,6 +4802,41 @@ tune.quic.retry-threshold <number> (deprecated)
   part of the streamlining process apply on QUIC configuration. If used, this
   setting will only be applied on frontend connections.
 
+tune.quic.fe.sock-per-conn { default-on | force-off }
+  Specifies globally how QUIC frontend connections will use socket for
+  receive/send operations. Connections can share listener socket or each
+  connection can allocate its own socket.
+
+  The default value is "default-on". This is used to allocate a dedicated
+  socket for every QUIC connections. This option is the preferred one to
+  achieve the best performance with a large QUIC traffic. This is also the only
+  way to ensure soft-stop is conducted properly without data loss for QUIC
+  connections and cases of transient errors during sendto() operation are
+  handled efficiently. However, this relies on some advanced features from the
+  UDP network stack. If your platform is deemed not compatible, haproxy will
+  automatically switch to "force-off" mode on startup. Please note that QUIC
+  listeners running on privileged ports may require to run as uid 0, or some
+  OS-specific tuning to permit the target uid to bind such ports, such as
+  system capabilities. See also the "setcap" global directive.
+
+  The "force-off" value indicates that QUIC transfers will occur on the shared
+  listener socket. This option can be a good compromise for small traffic as it
+  allows to reduce FD consumption. However, performance won't be optimal due to
+  a higher CPU usage if listeners are shared across a lot of threads or a large
+  number of QUIC connections can be used simultaneously.
+
+  This setting is applied in conjunction with each "quic-socket" bind options.
+  If "default-on" mode is used on global tuning, it will be activated for each
+  listener, except for the ones with "quic-socket listener". However, if
+  "force-off" is used globally, it will be applied on every listener instance,
+  regardless of their individual configuration.
+
+tune.quic.socket-owner { connection | listener } (deprecated)
+  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
+  part of the streamlining process apply on QUIC configuration. The newer
+  option is named "tune.quic.fe.sock-per-conn", with legacy value "connection"
+  corresponding to "default-on" and "listener" to "force-off".
+
 tune.quic.be.tx.pacing { on | off }
 tune.quic.fe.tx.pacing { on | off }
   Enables ('on') or disables ('off') pacing support for QUIC emission. By
@@ -4829,6 +4865,7 @@ tune.quic.disable-udp-gso (deprecated)
   This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
   part of the streamlining process apply on QUIC configuration. If used, this
   setting will only be applied on frontend connections.
+
 tune.quic.frontend.max-data-size <size>
   This setting is the hard limit for the number of data bytes in flight over a
   QUIC frontend connection. It is reused as the value for the initial_max_data
@@ -4924,35 +4961,6 @@ tune.quic.frontend.max-tx-mem <size> (deprecated)
   This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
   part of the streamlining process apply on QUIC configuration. If used, this
   setting will only be applied on frontend connections.
-
-tune.quic.socket-owner { connection | listener }
-  Specifies globally how QUIC connections will use socket for receive/send
-  operations. Connections can share listener socket or each connection can
-  allocate its own socket.
-
-  When default "connection" value is set, a dedicated socket will be allocated
-  by every QUIC connections. This option is the preferred one to achieve the
-  best performance with a large QUIC traffic. This is also the only way to
-  ensure soft-stop is conducted properly without data loss for QUIC connections
-  and cases of transient errors during sendto() operation are handled
-  efficiently. However, this relies on some advanced features from the UDP
-  network stack. If your platform is deemed not compatible, haproxy will
-  automatically switch to "listener" mode on startup. Please note that QUIC
-  listeners running on privileged ports may require to run as uid 0, or some
-  OS-specific tuning to permit the target uid to bind such ports, such as
-  system capabilities. See also the "setcap" global directive.
-
-  The "listener" value indicates that QUIC transfers will occur on the shared
-  listener socket. This option can be a good compromise for small traffic as it
-  allows to reduce FD consumption. However, performance won't be optimal due to
-  a higher CPU usage if listeners are shared across a lot of threads or a
-  large number of QUIC connections can be used simultaneously.
-
-  This setting is applied in conjunction with each "quic-socket" bind options.
-  If "connection" mode is used on global tuning, it will be activated for each
-  listener, unless its bind option is set to "listener". However, if "listener"
-  is used globally, it will be forced on every listener instance, regardless of
-  their individual configuration.
 
 tune.quic.zero-copy-fwd-send { on | off }
   Enables ('on') of disabled ('off') the zero-copy sends of data for the QUIC
@@ -6232,8 +6240,8 @@ bind /<path> [, ...] [param*]
                       was the FD of an accept(). Should be used carefully.
                     - 'quic4@' -> address is resolved as IPv4 and protocol UDP
                       is used. Note that to achieve the best performance with a
-                      large traffic you should keep "tune.quic.socket-owner" on
-                      connection. Else QUIC connections will be multiplexed
+                      large traffic you should keep "tune.quic.fe.sock-per-conn
+                      default-on". Else QUIC connections will be multiplexed
                       over the listener socket. Another alternative would be to
                       duplicate QUIC listener instances over several threads,
                       for example using "shards" keyword to at least reduce
@@ -17180,8 +17188,15 @@ quic-force-retry
 
 quic-socket [ connection | listener ]
   This QUIC specific setting allows to define the socket allocation mode for
-  the specific listeners. See "tune.quic.socket-owner" for a full description
-  of its usage.
+  the specific listeners. See "tune.quic.fe.sock-per-conn" for a full
+  description of the pros and cons of each mode.
+
+  This setting is applied in conjunction with the global
+  "tune.quic.fe.sock-per-conn" option. If "default-on" mode is active on the
+  global tuning (this is the default value), each QUIC connection will use its
+  owned socket, except for listeners with "quic-socket listener". However, if
+  the global mode is set to "force-off", individual listener configuration will
+  be ignored.
 
 severity-output <format>
   This setting is used with the stats sockets only to configure severity

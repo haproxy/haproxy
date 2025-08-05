@@ -29,6 +29,7 @@ struct quic_tune quic_tune = {
 		.cc_reorder_ratio  = QUIC_DFLT_CC_REORDER_RATIO,
 		.sec_retry_threshold = QUIC_DFLT_SEC_RETRY_THRESHOLD,
 		.fb_opts = QUIC_TUNE_FB_TX_PACING|QUIC_TUNE_FB_TX_UDP_GSO,
+		.opts = QUIC_TUNE_FE_SOCK_PER_CONN,
 	},
 	.be = {
 		.cc_max_frame_loss = QUIC_DFLT_CC_MAX_FRAME_LOSS,
@@ -216,6 +217,29 @@ static struct bind_kw_list bind_kws = { "QUIC", { }, {
 
 INITCALL1(STG_REGISTER, bind_register_keywords, &bind_kws);
 
+/* parse "tune.quic.fe.sock-per-conn", accepts "default-on" or "force-off" */
+static int cfg_parse_quic_tune_sock_per_conn(char **args, int section_type,
+                                             struct proxy *curpx,
+                                             const struct proxy *defpx,
+                                             const char *file, int line, char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "default-on") == 0) {
+		quic_tune.fe.opts |= QUIC_TUNE_FE_SOCK_PER_CONN;
+	}
+	else if (strcmp(args[1], "force-off") == 0) {
+		quic_tune.fe.opts &= ~QUIC_TUNE_FE_SOCK_PER_CONN;
+	}
+	else {
+		memprintf(err, "'%s' expects either 'default-on' or 'force-off' but got '%s'.", args[0], args[1]);
+		return -1;
+	}
+
+	return 0;
+}
+
 /* parse "tune.quic.socket-owner", accepts "listener" or "connection" */
 static int cfg_parse_quic_tune_socket_owner(char **args, int section_type,
                                             struct proxy *curpx,
@@ -225,18 +249,22 @@ static int cfg_parse_quic_tune_socket_owner(char **args, int section_type,
 	if (too_many_args(1, args, err, NULL))
 		return -1;
 
+	memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
+	               "Please use the newer keyword syntax 'tune.quic.fe.sock-per-conn'.", args[0]);
+
 	if (strcmp(args[1], "connection") == 0) {
-		quic_tune.options |= QUIC_TUNE_SOCK_PER_CONN;
+		quic_tune.fe.opts |= QUIC_TUNE_FE_SOCK_PER_CONN;
 	}
 	else if (strcmp(args[1], "listener") == 0) {
-		quic_tune.options &= ~QUIC_TUNE_SOCK_PER_CONN;
+		quic_tune.fe.opts &= ~QUIC_TUNE_FE_SOCK_PER_CONN;
 	}
 	else {
 		memprintf(err, "'%s' expects either 'listener' or 'connection' but got '%s'.", args[0], args[1]);
 		return -1;
 	}
 
-	return 0;
+	/* Returns 1 to ensure deprecated warning is displayed. */
+	return 1;
 }
 
 /* Must be used to parse tune.quic.* setting which requires a time
@@ -552,7 +580,6 @@ static int cfg_parse_quic_tune_on_off(char **args, int section_type, struct prox
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.listen", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.mem.tx-max", cfg_parse_quic_tune_setting },
-	{ CFG_GLOBAL, "tune.quic.socket-owner", cfg_parse_quic_tune_socket_owner },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-data-size", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-streams-bidi", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-idle-timeout", cfg_parse_quic_time },
@@ -566,6 +593,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.fe.cc.reorder-ratio", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.fe.sec.glitches-threshold", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.fe.sec.retry-threshold", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.fe.sock-per-conn", cfg_parse_quic_tune_sock_per_conn },
 	{ CFG_GLOBAL, "tune.quic.fe.tx.pacing", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.fe.tx.udp-gso", cfg_parse_quic_tune_on_off },
 
@@ -587,6 +615,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.max-frame-loss", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.reorder-ratio", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.retry-threshold", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.socket-owner", cfg_parse_quic_tune_socket_owner },
 
 	{ 0, NULL, NULL }
 }};

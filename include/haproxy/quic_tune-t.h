@@ -16,8 +16,7 @@
 
 
 #define QUIC_TUNE_FE_LISTEN_OFF    0x00000001
-
-#define QUIC_TUNE_SOCK_PER_CONN 0x00000004
+#define QUIC_TUNE_FE_SOCK_PER_CONN 0x00000002
 
 #define QUIC_TUNE_FB_TX_PACING  0x00000001
 #define QUIC_TUNE_FB_TX_UDP_GSO 0x00000002
@@ -43,7 +42,6 @@ struct quic_tune {
 	} be;
 
 	uint64_t mem_tx_max;
-	uint options;
 };
 
 #endif /* USE_QUIC */

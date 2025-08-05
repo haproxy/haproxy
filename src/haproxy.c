@@ -1488,10 +1488,6 @@ static void init_args(int argc, char **argv)
 	/* Use zero-copy forwarding by default */
 	global.tune.no_zero_copy_fwd = 0;
 
-#ifdef USE_QUIC
-	quic_tune.options |= QUIC_TUNE_SOCK_PER_CONN;
-#endif
-
 	/* keep a copy of original arguments for the master process */
 	old_argv = copy_argv(argc, argv);
 	if (!old_argv) {
