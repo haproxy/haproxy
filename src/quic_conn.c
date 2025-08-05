@@ -496,14 +496,14 @@ int quic_build_post_handshake_frames(struct quic_conn *qc)
 		}
 
 		new_token_frm_len =
-			quic_generate_token(frm->new_token.data,
-			                    sizeof(frm->new_token.data), &qc->peer_addr);
+			quic_generate_token(frm->new_token.w_data,
+			                    sizeof(frm->new_token.w_data), &qc->peer_addr);
 		if (!new_token_frm_len) {
 			TRACE_ERROR("token generation failed", QUIC_EV_CONN_IO_CB, qc);
 			goto err;
 		}
 
-		BUG_ON(new_token_frm_len != sizeof(frm->new_token.data));
+		BUG_ON(new_token_frm_len != sizeof(frm->new_token.w_data));
 		frm->new_token.len = new_token_frm_len;
 		LIST_APPEND(&frm_list, &frm->list);
 	}
