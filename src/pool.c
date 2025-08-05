@@ -318,19 +318,37 @@ struct pool_head *create_pool_with_loc(const char *name, unsigned int size, unsi
 }
 
 /* create a pool from a pool registration. All configuration is taken from
- * there.
+ * there. The alignment will automatically be raised to sizeof(void*) or the
+ * next power of two so that it's always possible to lazily pass alignof() or
+ * sizeof(). Alignments are always respected when merging pools.
  */
 struct pool_head *create_pool_from_reg(const char *name, struct pool_registration *reg)
 {
 	unsigned int extra_mark, extra_caller, extra;
 	unsigned int flags = reg->flags;
 	unsigned int size = reg->size;
+	unsigned int alignment = reg->align;
 	struct pool_head *pool = NULL;
 	struct pool_head *entry;
 	struct list *start;
 	unsigned int align;
 	unsigned int best_diff;
 	int thr __maybe_unused;
+
+	/* extend alignment if needed */
+	if (alignment < sizeof(void*))
+		alignment = sizeof(void*);
+	else if (alignment & (alignment - 1)) {
+		/* not power of two! round up to next power of two by filling
+		 * all LSB in O(log(log(N))) then increment the result.
+		 */
+		int shift = 1;
+		do {
+			alignment |= alignment >> shift;
+			shift *= 2;
+		} while (alignment & (alignment + 1));
+		alignment++;
+	}
 
 	extra_mark = (pool_debugging & POOL_DBG_TAG) ? POOL_EXTRA_MARK : 0;
 	extra_caller = (pool_debugging & POOL_DBG_CALLER) ? POOL_EXTRA_CALLER : 0;
@@ -427,6 +445,7 @@ struct pool_head *create_pool_from_reg(const char *name, struct pool_registratio
 			strlcpy2(pool->name, name, sizeof(pool->name));
 		pool->alloc_sz = size + extra;
 		pool->size = size;
+		pool->align = alignment;
 		pool->flags = flags;
 		LIST_APPEND(start, &pool->list);
 		LIST_INIT(&pool->regs);
@@ -446,6 +465,8 @@ struct pool_head *create_pool_from_reg(const char *name, struct pool_registratio
 			pool->size = size;
 			pool->alloc_sz = size + extra;
 		}
+		if (alignment > pool->align)
+			pool->align = alignment;
 		DPRINTF(stderr, "Sharing %s with %s\n", name, pool->name);
 	}
 
@@ -1310,10 +1331,10 @@ void dump_pools_to_trash(int how, int max, const char *pfx)
 	chunk_appendf(&trash, ". Use SIGQUIT to flush them.\n");
 
 	for (i = 0; i < nbpools && i < max; i++) {
-		chunk_appendf(&trash, "  - Pool %s (%lu bytes) : %lu allocated (%lu bytes), %lu used"
+		chunk_appendf(&trash, "  - Pool %s (%u bytes/%u) : %lu allocated (%lu bytes), %lu used"
 			      " (~%lu by thread caches)"
 			      ", needed_avg %lu, %lu failures, %u users, @%p%s\n",
-		              pool_info[i].entry->name, (ulong)pool_info[i].entry->size,
+		              pool_info[i].entry->name, pool_info[i].entry->size, pool_info[i].entry->align,
 			      pool_info[i].alloc_items, pool_info[i].alloc_bytes,
 			      pool_info[i].used_items, pool_info[i].cached_items,
 			      pool_info[i].need_avg, pool_info[i].failed_items,

@@ -128,6 +128,7 @@ struct pool_head {
 	unsigned int minavail;	/* how many chunks are expected to be used */
 	unsigned int size;	/* chunk size */
 	unsigned int flags;	/* MEM_F_* */
+	unsigned int align;     /* alignment size */
 	unsigned int users;	/* number of pools sharing this zone */
 	unsigned int alloc_sz;	/* allocated size (includes hidden fields) */
 	unsigned int sum_size;	/* sum of all registered users' size */
