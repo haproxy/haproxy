@@ -289,10 +289,8 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 	int ret = 0;
 	struct quic_conn *qc;
 	char skip_sendto = 0;
-	struct listener *l;
 
 	qc = ctx->qc;
-	l = objt_listener(qc->target);
 	TRACE_ENTER(QUIC_EV_CONN_SPPKTS, qc);
 	while (b_contig_data(buf, 0)) {
 		unsigned char *pos;
@@ -333,15 +331,19 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 					/* GSO must not be used if already disabled. */
 					BUG_ON(qc->flags & QUIC_FL_CONN_UDP_GSO_EIO);
 
-					/* TODO: note that at this time for connection to backends this
-					 * part is not run because no more than an MTU has been
-					 * prepared for such connections (l is not NULL).
-					 */
-					/* Disable permanently UDP GSO for this listener.
-					 * Retry standard emission.
-					 */
-					TRACE_ERROR("mark listener UDP GSO as unsupported", QUIC_EV_CONN_SPPKTS, qc, first_pkt);
-					HA_ATOMIC_OR(&l->flags, LI_F_UDP_GSO_NOTSUPP);
+					/* Permanently disable UDP GSO for future conns which use current listener/server instance. */
+					if (!qc_is_back(qc)) {
+						struct listener *l = __objt_listener(qc->target);
+						TRACE_ERROR("mark listener UDP GSO as unsupported", QUIC_EV_CONN_SPPKTS, qc, first_pkt);
+						HA_ATOMIC_OR(&l->flags, LI_F_UDP_GSO_NOTSUPP);
+					}
+					else if (qc->conn) {
+						struct server *srv = __objt_server(qc->conn->target);
+						TRACE_ERROR("mark server UDP GSO as unsupported", QUIC_EV_CONN_SPPKTS, qc, first_pkt);
+						HA_ATOMIC_OR(&srv->flags, SRV_F_UDP_GSO_NOTSUPP);
+					}
+
+					/* Retry emission without GSO. */
 					qc->flags |= QUIC_FL_CONN_UDP_GSO_EIO;
 					continue;
 				}
@@ -813,9 +815,6 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			         dglen == qc->path->mtu &&
 			         (char *)end < b_wrap(buf) &&
 			         ++gso_dgram_cnt < QUIC_MAX_GSO_DGRAMS) {
-				/* TODO: note that for backends GSO is not used. No more than
-				 * an MTU is prepared.
-				 */
 				/* A datagram covering the full MTU has been
 				 * built, use GSO to built next entry. Do not
 				 * reserve extra space for datagram header.

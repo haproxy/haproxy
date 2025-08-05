@@ -1197,6 +1197,10 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		struct quic_connection_id *conn_cid = NULL;
 
 		qc->flags = QUIC_FL_CONN_IS_BACK|QUIC_FL_CONN_PEER_VALIDATED_ADDR;
+		/* Duplicate GSO status on server to connection */
+		if (HA_ATOMIC_LOAD(&srv->flags) & SRV_F_UDP_GSO_NOTSUPP)
+			qc->flags |= QUIC_FL_CONN_UDP_GSO_EIO;
+
 		qc->state = QUIC_HS_ST_CLIENT_INITIAL;
 
 		/* This is the original connection ID from the peer server

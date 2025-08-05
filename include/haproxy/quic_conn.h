@@ -47,6 +47,7 @@
 #include <haproxy/quic_loss.h>
 #include <haproxy/quic_pacing.h>
 #include <haproxy/quic_rx.h>
+#include <haproxy/quic_tune.h>
 #include <haproxy/mux_quic.h>
 
 #include <openssl/rand.h>
