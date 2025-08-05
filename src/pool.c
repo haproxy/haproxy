@@ -293,24 +293,38 @@ static int mem_should_fail(const struct pool_head *pool)
  */
 struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 {
-	unsigned int extra_mark, extra_caller, extra;
 	struct pool_registration *reg;
 	struct pool_head *pool;
-	struct pool_head *entry;
-	struct list *start;
-	unsigned int align;
-	unsigned int best_diff;
-	int thr __maybe_unused;
 
-	pool = NULL;
 	reg = calloc(1, sizeof(*reg));
 	if (!reg)
-		goto fail;
+		return NULL;
 
 	strlcpy2(reg->name, name, sizeof(reg->name));
 	reg->size = size;
 	reg->flags = flags;
 	reg->align = 0;
+
+	pool = create_pool_from_reg(name, reg);
+	if (!pool)
+		free(reg);
+	return pool;
+}
+
+/* create a pool from a pool registration. All configuration is taken from
+ * there.
+ */
+struct pool_head *create_pool_from_reg(char *name, struct pool_registration *reg)
+{
+	unsigned int extra_mark, extra_caller, extra;
+	unsigned int flags = reg->flags;
+	unsigned int size = reg->size;
+	struct pool_head *pool = NULL;
+	struct pool_head *entry;
+	struct list *start;
+	unsigned int align;
+	unsigned int best_diff;
+	int thr __maybe_unused;
 
 	extra_mark = (pool_debugging & POOL_DBG_TAG) ? POOL_EXTRA_MARK : 0;
 	extra_caller = (pool_debugging & POOL_DBG_CALLER) ? POOL_EXTRA_CALLER : 0;
@@ -433,10 +447,8 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	pool->users++;
 	pool->sum_size += size;
 
-	return pool;
  fail:
-	free(reg);
-	return NULL;
+	return pool;
 }
 
 /* Tries to allocate an object for the pool <pool> using the system's allocator

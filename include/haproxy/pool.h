@@ -124,6 +124,7 @@ unsigned long long pool_total_used(void);
 void pool_flush(struct pool_head *pool);
 void pool_gc(struct pool_head *pool_ctx);
 struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags);
+struct pool_head *create_pool_from_reg(char *name, struct pool_registration *reg);
 void create_pool_callback(struct pool_head **ptr, char *name, unsigned int size);
 void *pool_destroy(struct pool_head *pool);
 void pool_destroy_all(void);
