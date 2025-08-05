@@ -11,6 +11,8 @@
 #define QUIC_DFLT_CC_MAX_FRAME_LOSS       10
 /* Default ratio value applied to a dynamic Packet reorder threshold. */
 #define QUIC_DFLT_CC_REORDER_RATIO        50 /* in percent */
+/* Default Retry threshold */
+#define QUIC_DFLT_SEC_RETRY_THRESHOLD     100 /* in connection openings */
 
 
 #define QUIC_TUNE_FE_LISTEN_OFF    0x00000001
@@ -27,6 +29,7 @@ struct quic_tune {
 		uint cc_max_frame_loss;
 		uint cc_reorder_ratio;
 		uint sec_glitches_threshold;
+		uint sec_retry_threshold;
 		uint opts;    /* QUIC_TUNE_FE_* options specific to FE side */
 		uint fb_opts; /* QUIC_TUNE_FB_* options shared by both side */
 	} fe;

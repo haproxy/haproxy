@@ -1904,6 +1904,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.fe.cc.max-frame-loss
    - tune.quic.fe.cc.reorder-ratio
    - tune.quic.fe.sec.glitches-threshold
+   - tune.quic.fe.sec.retry-threshold
    - tune.quic.fe.tx.pacing
    - tune.quic.fe.tx.udp-gso
    - tune.quic.frontend.max-data-size
@@ -1916,7 +1917,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.max-frame-loss (deprecated)
    - tune.quic.mem.tx-max
    - tune.quic.reorder-ratio (deprecated)
-   - tune.quic.retry-threshold
+   - tune.quic.retry-threshold (deprecated)
    - tune.quic.socket-owner
    - tune.quic.zero-copy-fwd-send
    - tune.renice.runtime
@@ -4781,6 +4782,25 @@ tune.quic.frontend.glitches-threshold <number> (deprecated)
   part of the streamlining process apply on QUIC configuration. If used, this
   setting will only be applied on frontend connections.
 
+tune.quic.fe.sec.retry-threshold <number>
+  Dynamically enables the Retry feature for all the configured QUIC listeners
+  as soon as this number of half open connections is reached. A half open
+  connection is a connection whose handshake has not already successfully
+  completed or failed. To be functional this setting needs a cluster secret to
+  be set, if not it will be silently ignored (see "cluster-secret" setting).
+  This setting will be also silently ignored if the use of QUIC Retry was
+  forced (see "quic-force-retry").
+
+  The default value is 100.
+
+  See https://www.rfc-editor.org/rfc/rfc9000.html#section-8.1.2 for more
+  information about QUIC retry.
+
+tune.quic.retry-threshold <number> (deprecated)
+  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
+  part of the streamlining process apply on QUIC configuration. If used, this
+  setting will only be applied on frontend connections.
+
 tune.quic.be.tx.pacing { on | off }
 tune.quic.fe.tx.pacing { on | off }
   Enables ('on') or disables ('off') pacing support for QUIC emission. By
@@ -4809,7 +4829,6 @@ tune.quic.disable-udp-gso (deprecated)
   This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
   part of the streamlining process apply on QUIC configuration. If used, this
   setting will only be applied on frontend connections.
-
 tune.quic.frontend.max-data-size <size>
   This setting is the hard limit for the number of data bytes in flight over a
   QUIC frontend connection. It is reused as the value for the initial_max_data
@@ -4905,20 +4924,6 @@ tune.quic.frontend.max-tx-mem <size> (deprecated)
   This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
   part of the streamlining process apply on QUIC configuration. If used, this
   setting will only be applied on frontend connections.
-
-tune.quic.retry-threshold <number>
-  Dynamically enables the Retry feature for all the configured QUIC listeners
-  as soon as this number of half open connections is reached. A half open
-  connection is a connection whose handshake has not already successfully
-  completed or failed. To be functional this setting needs a cluster secret to
-  be set, if not it will be silently ignored (see "cluster-secret" setting).
-  This setting will be also silently ignored if the use of QUIC Retry was
-  forced (see "quic-force-retry").
-
-  The default value is 100.
-
-  See https://www.rfc-editor.org/rfc/rfc9000.html#section-8.1.2 for more
-  information about QUIC retry.
 
 tune.quic.socket-owner { connection | listener }
   Specifies globally how QUIC connections will use socket for receive/send
@@ -17165,7 +17170,7 @@ quic-force-retry
   contains a token. This token must be sent back to the Retry packet sender,
   this latter being the only one to be able to validate the token. Note that QUIC
   Retry will always be used even if a Retry threshold was set (see
-  "tune.quic.retry-threshold" setting).
+  "tune.quic.fe.sec.retry-threshold" setting).
 
   This setting requires the cluster secret to be set or else an error will be
   reported on startup (see "cluster-secret").

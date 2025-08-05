@@ -205,7 +205,6 @@ struct global global = {
 		.quic_frontend_max_streams_bidi = QUIC_TP_DFLT_FRONT_MAX_STREAMS_BIDI,
 		.quic_frontend_max_window_size = QUIC_DFLT_MAX_WINDOW_SIZE,
 		.quic_frontend_stream_data_ratio = QUIC_DFLT_FRONT_STREAM_DATA_RATIO,
-		.quic_retry_threshold = QUIC_DFLT_RETRY_THRESHOLD,
 #endif /* USE_QUIC */
 	},
 #ifdef USE_OPENSSL

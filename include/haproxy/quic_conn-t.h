@@ -91,8 +91,6 @@ typedef unsigned long long ull;
 #define  QUIC_TOKEN_FMT_NEW  0xb7
 /* Retry token duration */
 #define QUIC_RETRY_DURATION_SEC       10
-/* Default Retry threshold */
-#define QUIC_DFLT_RETRY_THRESHOLD     100 /* in connection openings */
 /* Default congestion window size. 480 kB, equivalent to the legacy value which was 30*bufsize */
 #define QUIC_DFLT_MAX_WINDOW_SIZE  491520
 

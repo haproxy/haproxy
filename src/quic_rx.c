@@ -1703,7 +1703,7 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 			/* No need to emit Retry if connection is refused. */
 			if (!pkt->token_len && !(dgram->flags & QUIC_DGRAM_FL_REJECT)) {
 				if ((l->bind_conf->options & BC_O_QUIC_FORCE_RETRY) ||
-				    HA_ATOMIC_LOAD(&prx_counters->half_open_conn) >= global.tune.quic_retry_threshold ||
+				    HA_ATOMIC_LOAD(&prx_counters->half_open_conn) >= quic_tune.fe.sec_retry_threshold ||
 				    (dgram->flags & QUIC_DGRAM_FL_SEND_RETRY)) {
 
 					TRACE_PROTO("Initial without token, sending retry",
