@@ -1049,7 +1049,8 @@ void *pool_destroy(struct pool_head *pool)
 
 			list_for_each_entry_safe(reg, back, &pool->regs, list) {
 				LIST_DELETE(&reg->list);
-				free(reg);
+				if (!(reg->flags & MEM_F_STATREG))
+					free(reg);
 			}
 
 			LIST_DELETE(&pool->list);
