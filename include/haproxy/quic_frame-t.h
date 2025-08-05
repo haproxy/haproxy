@@ -161,7 +161,10 @@ struct qf_crypto {
 
 struct qf_new_token {
 	uint64_t len;
-	unsigned char data[QUIC_TOKEN_LEN];
+	/* Used only to send data */
+	unsigned char w_data[QUIC_TOKEN_LEN];
+	/* Used only to receive data */
+	const unsigned char *r_data;
 };
 
 struct qf_stream {
