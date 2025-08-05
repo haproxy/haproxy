@@ -34,6 +34,7 @@ struct quic_tune quic_tune = {
 		.cc_reorder_ratio  = QUIC_DFLT_CC_REORDER_RATIO,
 		.fb_opts = QUIC_TUNE_FB_TX_PACING|QUIC_TUNE_FB_TX_UDP_GSO,
 	},
+	.mem_tx_max = QUIC_MAX_TX_MEM,
 };
 
 static int bind_parse_quic_force_retry(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
@@ -309,8 +310,19 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 	}
 
 	suffix = args[0] + prefix_len;
-	if (strcmp(suffix, "be.cc.cubic-min-losses") == 0 ||
-	    strcmp(suffix, "fe.cc.cubic-min-losses") == 0) {
+	if (strcmp(suffix, "mem.tx-max") == 0) {
+		ullong mem_max;
+
+		if ((errptr = parse_size_err(args[1], &mem_max))) {
+			memprintf(err, "'%s': unexpected character '%c' in size argument '%s'.",
+			          args[0], *errptr, args[1]);
+			return -1;
+		}
+
+		quic_tune.mem_tx_max = mem_max;
+	}
+	else if (strcmp(suffix, "be.cc.cubic-min-losses") == 0 ||
+	         strcmp(suffix, "fe.cc.cubic-min-losses") == 0) {
 		uint *ptr = (suffix[0] == 'b') ? &quic_tune.be.cc_cubic_min_losses :
 		                                 &quic_tune.fe.cc_cubic_min_losses;
 		*ptr = arg - 1;
@@ -344,17 +356,6 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 	}
 	else if (strcmp(suffix, "frontend.max-streams-bidi") == 0)
 		global.tune.quic_frontend_max_streams_bidi = arg;
-	else if (strcmp(suffix, "frontend.max-tx-mem") == 0) {
-		ullong max_mem;
-
-		if ((errptr = parse_size_err(args[1], &max_mem))) {
-			memprintf(err, "'%s': unexpected character '%c' in size argument '%s'.",
-			          args[0], *errptr, args[1]);
-			return -1;
-		}
-
-		global.tune.quic_frontend_max_tx_mem = max_mem;
-	}
 	else if (strcmp(suffix, "frontend.default-max-window-size") == 0) {
 		unsigned long cwnd;
 		char *end_opt;
@@ -390,6 +391,21 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
 		               "Please use the newer keyword syntax 'tune.quic.fe.sec.glitches-threshold'.", args[0]);
 		quic_tune.fe.sec_glitches_threshold = arg;
+		ret = 1;
+	}
+	else if (strcmp(suffix, "frontend.max-tx-mem") == 0) {
+		ullong max_mem;
+
+		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
+		               "Please use the newer keyword syntax 'tune.quic.mem.tx-max'.", args[0]);
+
+		if ((errptr = parse_size_err(args[1], &max_mem))) {
+			memprintf(err, "'%s': unexpected character '%c' in size argument '%s'.",
+			          args[0], *errptr, args[1]);
+			return -1;
+		}
+
+		quic_tune.mem_tx_max = max_mem;
 		ret = 1;
 	}
 	else if (strcmp(suffix, "max-frame-loss") == 0) {
@@ -527,11 +543,11 @@ static int cfg_parse_quic_tune_on_off(char **args, int section_type, struct prox
 
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.listen", cfg_parse_quic_tune_on_off },
+	{ CFG_GLOBAL, "tune.quic.mem.tx-max", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.socket-owner", cfg_parse_quic_tune_socket_owner },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-data-size", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-streams-bidi", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-idle-timeout", cfg_parse_quic_time },
-	{ CFG_GLOBAL, "tune.quic.frontend.max-tx-mem", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.default-max-window-size", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.stream-data-ratio", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.retry-threshold", cfg_parse_quic_tune_setting },
@@ -559,6 +575,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.disable-tx-pacing", cfg_parse_quic_tune_setting0 },
 	{ CFG_GLOBAL, "tune.quic.disable-udp-gso", cfg_parse_quic_tune_setting0 },
 	{ CFG_GLOBAL, "tune.quic.frontend.glitches-threshold", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.frontend.max-tx-mem", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.max-frame-loss", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.reorder-ratio", cfg_parse_quic_tune_setting },
 

@@ -39,6 +39,7 @@ struct quic_tune {
 		uint fb_opts; /* QUIC_TUNE_FB_* options shared by both side */
 	} be;
 
+	uint64_t mem_tx_max;
 	uint options;
 };
 

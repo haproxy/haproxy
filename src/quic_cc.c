@@ -24,6 +24,7 @@
 #include <haproxy/proto_quic.h>
 #include <haproxy/quic_cc.h>
 #include <haproxy/quic_pacing.h>
+#include <haproxy/quic_tune.h>
 #include <haproxy/thread.h>
 
 struct quic_cc_algo *default_quic_cc_algo = &quic_cc_algo_cubic;
@@ -85,11 +86,11 @@ static int quic_cc_max_win_ratio(void)
 	uint64_t tot, free = 0;
 	int ratio = 100;
 
-	if (global.tune.quic_frontend_max_tx_mem) {
+	if (quic_tune.mem_tx_max) {
 		tot = cshared_read(&quic_mem_diff);
-		if (global.tune.quic_frontend_max_tx_mem > tot)
-			free = global.tune.quic_frontend_max_tx_mem - tot;
-		ratio = free * 100 / global.tune.quic_frontend_max_tx_mem;
+		if (quic_tune.mem_tx_max > tot)
+			free = quic_tune.mem_tx_max - tot;
+		ratio = free * 100 / quic_tune.mem_tx_max;
 	}
 
 	return ratio;
