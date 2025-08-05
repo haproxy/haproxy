@@ -290,8 +290,9 @@ static int mem_should_fail(const struct pool_head *pool)
  * is available for a new creation. Two flags are supported :
  *   - MEM_F_SHARED to indicate that the pool may be shared with other users
  *   - MEM_F_EXACT to indicate that the size must not be rounded up
+ * The name must be a stable pointer during all the program's life time.
  */
-struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
+struct pool_head *create_pool(const char *name, unsigned int size, unsigned int flags)
 {
 	struct pool_registration *reg;
 	struct pool_head *pool;
@@ -300,7 +301,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	if (!reg)
 		return NULL;
 
-	strlcpy2(reg->name, name, sizeof(reg->name));
+	reg->name = name;
 	reg->size = size;
 	reg->flags = flags;
 	reg->align = 0;
@@ -314,7 +315,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 /* create a pool from a pool registration. All configuration is taken from
  * there.
  */
-struct pool_head *create_pool_from_reg(char *name, struct pool_registration *reg)
+struct pool_head *create_pool_from_reg(const char *name, struct pool_registration *reg)
 {
 	unsigned int extra_mark, extra_caller, extra;
 	unsigned int flags = reg->flags;

@@ -70,7 +70,7 @@ struct pool_cache_head {
  */
 struct pool_registration {
 	struct list list;    /* link element */
-	char name[12];       /* name of the pool */
+	const char *name;    /* name of the pool */
 	unsigned int size;   /* expected object size */
 	unsigned int flags;  /* MEM_F_* */
 	unsigned int align;  /* expected alignment; 0=unspecified */
