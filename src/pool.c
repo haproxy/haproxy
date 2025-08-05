@@ -1536,12 +1536,12 @@ static int cli_io_handler_dump_pools(struct appctx *appctx)
  * resulting pointer into <ptr>. If the allocation fails, it quits with after
  * emitting an error message.
  */
-void create_pool_callback(struct pool_head **ptr, char *name, unsigned int size)
+void create_pool_callback(struct pool_head **ptr, char *name, struct pool_registration *reg)
 {
-	*ptr = create_pool(name, size, MEM_F_SHARED);
+	*ptr = create_pool_from_reg(name, reg);
 	if (!*ptr) {
 		ha_alert("Failed to allocate pool '%s' of size %u : %s. Aborting.\n",
-			 name, size, strerror(errno));
+			 name, reg->size, strerror(errno));
 		exit(1);
 	}
 }

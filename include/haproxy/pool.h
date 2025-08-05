@@ -30,19 +30,37 @@
 #include <haproxy/pool-t.h>
 #include <haproxy/thread.h>
 
-/* This registers a call to create_pool_callback(ptr, name, size) */
+/* This creates a pool_reg registers a call to create_pool_callback(ptr) with it.
+ * Do not use this one, use REGISTER_POOL() instead.
+ */
+#define __REGISTER_POOL(_line, _ptr, _name, _size)	       \
+	static struct pool_registration __pool_reg_##_line = { \
+		.name = _name,				       \
+		.size = _size,				       \
+		.flags = MEM_F_STATREG,			       \
+		.align = 0,				       \
+	};						       \
+	INITCALL3(STG_POOL, create_pool_callback, (_ptr), (_name), &__pool_reg_##_line);
+
+/* intermediary level for line number resolution, do not use this one, use
+ * REGISTER_POOL() instead.
+ */
+#define _REGISTER_POOL(line, ptr, name, size)		\
+	__REGISTER_POOL(line, ptr, name, size)
+
+/* This registers a call to create_pool_callback(ptr) with these args */
 #define REGISTER_POOL(ptr, name, size)  \
-	INITCALL3(STG_POOL, create_pool_callback, (ptr), (name), (size))
+	_REGISTER_POOL(__LINE__, ptr, name, size)
 
 /* This macro declares a pool head <ptr> and registers its creation */
 #define DECLARE_POOL(ptr, name, size)   \
 	struct pool_head *(ptr) __read_mostly = NULL; \
-	REGISTER_POOL(&ptr, name, size)
+	_REGISTER_POOL(__LINE__, &ptr, name, size)
 
 /* This macro declares a static pool head <ptr> and registers its creation */
 #define DECLARE_STATIC_POOL(ptr, name, size) \
 	static struct pool_head *(ptr) __read_mostly; \
-	REGISTER_POOL(&ptr, name, size)
+	_REGISTER_POOL(__LINE__, &ptr, name, size)
 
 /* By default, free objects are linked by a pointer stored at the beginning of
  * the memory area. When DEBUG_MEMORY_POOLS is set, the allocated area is
@@ -125,7 +143,7 @@ void pool_flush(struct pool_head *pool);
 void pool_gc(struct pool_head *pool_ctx);
 struct pool_head *create_pool(const char *name, unsigned int size, unsigned int flags);
 struct pool_head *create_pool_from_reg(const char *name, struct pool_registration *reg);
-void create_pool_callback(struct pool_head **ptr, char *name, unsigned int size);
+void create_pool_callback(struct pool_head **ptr, char *name, struct pool_registration *reg);
 void *pool_destroy(struct pool_head *pool);
 void pool_destroy_all(void);
 void *__pool_alloc(struct pool_head *pool, unsigned int flags);
