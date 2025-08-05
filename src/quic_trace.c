@@ -115,8 +115,9 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 	if (qc) {
 		const struct quic_tls_ctx *tls_ctx;
 
-		chunk_appendf(&trace_buf, " : qc@%p idle_timer_task@%p flags=0x%x",
-		              qc, qc->idle_timer_task, qc->flags);
+		chunk_appendf(&trace_buf, " : qc@%p(%c) idle_timer_task@%p flags=0x%x",
+		              qc, (qc->flags & QUIC_FL_CONN_IS_BACK) ? 'B' : 'F',
+		              qc->idle_timer_task, qc->flags);
 		if (mask & QUIC_EV_CONN_NEW) {
 			const int *ssl_err = a2;
 
