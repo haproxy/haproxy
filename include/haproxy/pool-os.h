@@ -25,6 +25,7 @@
 #include <sys/mman.h>
 #include <stdlib.h>
 #include <haproxy/api.h>
+#include <haproxy/tools.h>
 
 
 /************* normal allocator *************/
@@ -32,9 +33,9 @@
 /* allocates an area of size <size> and returns it. The semantics are similar
  * to those of malloc().
  */
-static forceinline void *pool_alloc_area(size_t size)
+static forceinline void *pool_alloc_area(size_t size, size_t align)
 {
-	return malloc(size);
+	return ha_aligned_alloc(align, size);
 }
 
 /* frees an area <area> of size <size> allocated by pool_alloc_area(). The
@@ -43,8 +44,7 @@ static forceinline void *pool_alloc_area(size_t size)
  */
 static forceinline void pool_free_area(void *area, size_t __maybe_unused size)
 {
-	will_free(area, size);
-	free(area);
+	ha_aligned_free_size(area, size);
 }
 
 /************* use-after-free allocator *************/
@@ -52,14 +52,15 @@ static forceinline void pool_free_area(void *area, size_t __maybe_unused size)
 /* allocates an area of size <size> and returns it. The semantics are similar
  * to those of malloc(). However the allocation is rounded up to 4kB so that a
  * full page is allocated. This ensures the object can be freed alone so that
- * future dereferences are easily detected. The returned object is always
- * 16-bytes aligned to avoid issues with unaligned structure objects. In case
- * some padding is added, the area's start address is copied at the end of the
- * padding to help detect underflows.
+ * future dereferences are easily detected. The returned object is always at
+ * least 16-bytes aligned to avoid issues with unaligned structure objects, and
+ * in any case, is always at least aligned as required by the pool, though no
+ * more than 4096. In case some padding is added, the area's start address is
+ * copied at the end of the padding to help detect underflows.
  */
-static inline void *pool_alloc_area_uaf(size_t size)
+static inline void *pool_alloc_area_uaf(size_t size, size_t align)
 {
-	size_t pad = (4096 - size) & 0xFF0;
+	size_t pad = (4096 - size) & 0xFF0 & -align;
 	void *ret;
 
 	ret = mmap(NULL, (size + 4095) & -4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);

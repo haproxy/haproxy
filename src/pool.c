@@ -490,9 +490,9 @@ void *pool_get_from_os_noinc(struct pool_head *pool)
 		void *ptr;
 
 		if ((pool_debugging & POOL_DBG_UAF) || (pool->flags & MEM_F_UAF))
-			ptr = pool_alloc_area_uaf(pool->alloc_sz);
+			ptr = pool_alloc_area_uaf(pool->alloc_sz, pool->align);
 		else
-			ptr = pool_alloc_area(pool->alloc_sz);
+			ptr = pool_alloc_area(pool->alloc_sz, pool->align);
 		if (ptr)
 			return ptr;
 		_HA_ATOMIC_INC(&pool->buckets[pool_tbucket()].failed);
