@@ -299,11 +299,6 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 	suffix = args[0] + prefix_len;
 	if (strcmp(suffix, "cc.cubic.min-losses") == 0)
 		global.tune.quic_cubic_loss_tol = arg - 1;
-	else if (strcmp(suffix, "frontend.conn-tx-buffers.limit") == 0) {
-		memprintf(err, "'%s' keyword is now obsolete and has no effect. "
-		               "Use 'tune.quic.frontend.default-max-window-size' to limit Tx buffer allocation per connection.", args[0]);
-		return 1;
-	}
 	else if (strcmp(suffix, "frontend.glitches-threshold") == 0)
 		global.tune.quic_frontend_glitches_threshold = arg;
 	else if (strcmp(suffix, "frontend.max-data-size") == 0) {
@@ -437,7 +432,6 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.socket-owner", cfg_parse_quic_tune_socket_owner },
 	{ CFG_GLOBAL, "tune.quic.cc-hystart", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.cc.cubic.min-losses", cfg_parse_quic_tune_setting },
-	{ CFG_GLOBAL, "tune.quic.frontend.conn-tx-buffers.limit", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.glitches-threshold", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-data-size", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-streams-bidi", cfg_parse_quic_tune_setting },
