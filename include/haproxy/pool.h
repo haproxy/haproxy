@@ -80,6 +80,22 @@
 	static struct pool_head *(ptr) __read_mostly; \
 	_REGISTER_POOL(__LINE__, &ptr, name, size, align)
 
+/*** below are the typed pool macros, taking a type and an extra size ***/
+
+/* This registers a call to create_pool_callback(ptr) with these args */
+#define REGISTER_TYPED_POOL(ptr, name, type, extra)	\
+	_REGISTER_POOL(__LINE__, ptr, name, sizeof(type) + extra, __alignof__(type))
+
+/* This macro declares an aligned pool head <ptr> and registers its creation */
+#define DECLARE_TYPED_POOL(ptr, name, type, extra)	      \
+	struct pool_head *(ptr) __read_mostly = NULL; \
+	_REGISTER_POOL(__LINE__, &ptr, name, sizeof(type) + extra, __alignof__(type))
+
+/* This macro declares a static aligned pool head <ptr> and registers its creation */
+#define DECLARE_STATIC_TYPED_POOL(ptr, name, type, extra)   \
+	static struct pool_head *(ptr) __read_mostly; \
+	_REGISTER_POOL(__LINE__, &ptr, name, sizeof(type) + extra, __alignof__(type))
+
 /* By default, free objects are linked by a pointer stored at the beginning of
  * the memory area. When DEBUG_MEMORY_POOLS is set, the allocated area is
  * inflated by the size of a pointer so that the link is placed at the end
