@@ -1,6 +1,44 @@
 ChangeLog :
 ===========
 
+2025/08/06 : 3.3-dev6
+    - MINOR: acme: implement traces
+    - BUG/MINOR: hlua: take default-path into account with lua-load-per-thread
+    - CLEANUP: counters: rename counters_be_shared_init to counters_be_shared_prepare
+    - MINOR: clock: make global_now_ms a pointer
+    - MINOR: clock: make global_now_ns a pointer as well
+    - MINOR: mux-quic: release conn after shutdown on BE reuse failure
+    - MINOR: session: strengthen connection attach to session
+    - MINOR: session: remove redundant target argument from session_add_conn()
+    - MINOR: session: strengthen idle conn limit check
+    - MINOR: session: do not release conn in session_check_idle_conn()
+    - MINOR: session: streamline session_check_idle_conn() usage
+    - MINOR: muxes: refactor private connection detach
+    - BUG/MEDIUM: mux-quic: ensure Early-data header is set
+    - BUILD: acme: avoid declaring TRACE_SOURCE in acme-t.h
+    - MINOR: acme: emit a log for DNS-01 challenge response
+    - MINOR: acme: emit the DNS-01 challenge details on the dpapi sink
+    - MEDIUM: acme: allow to wait and restart the task for DNS-01
+    - MINOR: acme: update the log for DNS-01
+    - BUG/MINOR: acme: possible integer underflow in acme_txt_record()
+    - BUG/MEDIUM: hlua_fcn: ensure systematic watcher cleanup for server list iterator
+    - MINOR: sample: Add le2dec (little endian to decimal) sample fetch
+    - BUILD: fcgi: fix the struct name of fcgi_flt_ctx
+    - BUILD: compat: provide relaxed versions of the MIN/MAX macros
+    - BUILD: quic: use _MAX() to avoid build issues in pools declarations
+    - BUILD: compat: always set _POSIX_VERSION to ease comparisons
+    - MINOR: implement ha_aligned_alloc() to return aligned memory areas
+    - MINOR: pools: support creating a pool from a pool registration
+    - MINOR: pools: add a new flag to declare static registrations
+    - MINOR: pools: force the name at creation time to be a const.
+    - MEDIUM: pools: change the static pool creation to pass a registration
+    - DEBUG: pools: store the pool registration file name and line number
+    - DEBUG: pools: also retrieve file and line for direct callers of create_pool()
+    - MEDIUM: pools: add an alignment property
+    - MINOR: pools: add macros to register aligned pools
+    - MINOR: pools: add macros to declare pools based on a struct type
+    - MEDIUM: pools: respect pool alignment in allocations
+
 2025/07/28 : 3.3-dev5
     - BUG/MEDIUM: queue/stats: also use stream_set_srv_target() for pendconns
     - DOC: list missing global QUIC settings
