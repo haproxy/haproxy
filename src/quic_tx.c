@@ -307,11 +307,7 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 
 		/* If datagram bigger than MTU, several ones were encoded for GSO usage. */
 		if (dglen > qc->path->mtu) {
-			/* TODO: note that at this time for connection to backends this
-			 * part is not run because no more than an MTU has been prepared for
-			 * such connections (dglen <= qc->path->mtu). So, here l is not NULL.
-			 */
-			if (likely(!(HA_ATOMIC_LOAD(&l->flags) & LI_F_UDP_GSO_NOTSUPP))) {
+			if (likely(!(qc->flags & QUIC_FL_CONN_UDP_GSO_EIO))) {
 				TRACE_PROTO("send multiple datagrams with GSO", QUIC_EV_CONN_SPPKTS, qc);
 				gso = qc->path->mtu;
 			}
@@ -333,6 +329,9 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 			int ret = qc_snd_buf(qc, &tmpbuf, tmpbuf.data, 0, gso);
 			if (ret < 0) {
 				if (gso && ret == -EIO) {
+					/* GSO must not be used if already disabled. */
+					BUG_ON(qc->flags & QUIC_FL_CONN_UDP_GSO_EIO);
+
 					/* TODO: note that at this time for connection to backends this
 					 * part is not run because no more than an MTU has been
 					 * prepared for such connections (l is not NULL).
@@ -342,6 +341,7 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 					 */
 					TRACE_ERROR("mark listener UDP GSO as unsupported", QUIC_EV_CONN_SPPKTS, qc, first_pkt);
 					HA_ATOMIC_OR(&l->flags, LI_F_UDP_GSO_NOTSUPP);
+					qc->flags |= QUIC_FL_CONN_UDP_GSO_EIO;
 					continue;
 				}
 
@@ -788,10 +788,10 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				prv_pkt = cur_pkt;
 			}
 			else if (!(quic_tune.options & QUIC_TUNE_NO_UDP_GSO) &&
+			         !(qc->flags & QUIC_FL_CONN_UDP_GSO_EIO) &&
 			         dglen == qc->path->mtu &&
 			         (char *)end < b_wrap(buf) &&
-			         ++gso_dgram_cnt < QUIC_MAX_GSO_DGRAMS &&
-			         l && !(HA_ATOMIC_LOAD(&l->flags) & LI_F_UDP_GSO_NOTSUPP)) {
+			         ++gso_dgram_cnt < QUIC_MAX_GSO_DGRAMS) {
 				/* TODO: note that for backends GSO is not used. No more than
 				 * an MTU is prepared.
 				 */

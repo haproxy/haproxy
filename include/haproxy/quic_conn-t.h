@@ -450,7 +450,7 @@ struct quic_conn_closed {
 #define QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS    (1U << 2) /* HANDSHAKE_DONE must be sent */
 /* gap here */
 #define QUIC_FL_CONN_ACCEPT_REGISTERED           (1U << 4)
-/* gap here */
+#define QUIC_FL_CONN_UDP_GSO_EIO                 (1U << 5) /* GSO disabled due to a EIO occured on same listener */
 #define QUIC_FL_CONN_IDLE_TIMER_RESTARTED_AFTER_READ (1U << 6)
 #define QUIC_FL_CONN_RETRANS_NEEDED              (1U << 7)
 #define QUIC_FL_CONN_RETRANS_OLD_DATA            (1U << 8) /* retransmission in progress for probing with already sent data */
@@ -489,6 +489,7 @@ static forceinline char *qc_show_flags(char *buf, size_t len, const char *delim,
 	_(QUIC_FL_CONN_SPIN_BIT,
 	_(QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS,
 	_(QUIC_FL_CONN_ACCEPT_REGISTERED,
+	_(QUIC_FL_CONN_UDP_GSO_EIO,
 	_(QUIC_FL_CONN_IDLE_TIMER_RESTARTED_AFTER_READ,
 	_(QUIC_FL_CONN_RETRANS_NEEDED,
 	_(QUIC_FL_CONN_RETRANS_OLD_DATA,
@@ -507,7 +508,7 @@ static forceinline char *qc_show_flags(char *buf, size_t len, const char *delim,
 	_(QUIC_FL_CONN_EXP_TIMER,
 	_(QUIC_FL_CONN_CLOSING,
 	_(QUIC_FL_CONN_DRAINING,
-	_(QUIC_FL_CONN_IMMEDIATE_CLOSE)))))))))))))))))))))));
+	_(QUIC_FL_CONN_IMMEDIATE_CLOSE))))))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;

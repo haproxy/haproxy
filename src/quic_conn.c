@@ -1178,6 +1178,11 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		cc_algo = l->bind_conf->quic_cc_algo;
 
 		qc->flags = 0;
+
+		/* Duplicate GSO status on listener to connection */
+		if (HA_ATOMIC_LOAD(&l->flags) & LI_F_UDP_GSO_NOTSUPP)
+			qc->flags |= QUIC_FL_CONN_UDP_GSO_EIO;
+
 		/* Mark this connection as having not received any token when 0-RTT is enabled. */
 		if (l->bind_conf->ssl_conf.early_data && !token)
 			qc->flags |= QUIC_FL_CONN_NO_TOKEN_RCVD;
@@ -2013,8 +2018,15 @@ void qc_bind_tid_commit(struct quic_conn *qc, struct listener *new_li)
 	/* At this point no connection was accounted for yet on this
 	 * listener so it's OK to just swap the pointer.
 	 */
-	if (new_li && new_li != __objt_listener(qc->target))
+	if (new_li && new_li != __objt_listener(qc->target)) {
 		qc->target = &new_li->obj_type;
+
+		/* Update GSO conn support based on new listener status. */
+		if (HA_ATOMIC_LOAD(&new_li->flags) & LI_F_UDP_GSO_NOTSUPP)
+			qc->flags |= QUIC_FL_CONN_UDP_GSO_EIO;
+		else
+			qc->flags &= ~QUIC_FL_CONN_UDP_GSO_EIO;
+	}
 
 	/* Rebind the connection FD. */
 	if (qc_test_fd(qc)) {
