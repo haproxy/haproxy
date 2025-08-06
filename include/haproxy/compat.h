@@ -94,11 +94,21 @@ typedef struct { } empty_t;
 # endif
 #endif
 
+/* unsafe ones for use with constant macros needed in initializers */
+#ifndef _MIN
+#define _MIN(a, b) ((a < b) ? a : b)
+#endif
+
+#ifndef _MAX
+#define _MAX(a, b) ((a > b) ? a : b)
+#endif
+
+/* safe versions for use anywhere except in initializers */
 #ifndef MIN
 #define MIN(a, b) ({				\
 	typeof(a) _a = (a);			\
 	typeof(a) _b = (b);			\
-	((_a < _b) ? _a : _b);			\
+	_MIN(_a, _b);				\
 })
 #endif
 
@@ -106,7 +116,7 @@ typedef struct { } empty_t;
 #define MAX(a, b) ({				\
 	typeof(a) _a = (a);			\
 	typeof(a) _b = (b);			\
-	((_a > _b) ? _a : _b);			\
+	_MAX(_a, _b);				\
 })
 #endif
 
