@@ -290,7 +290,7 @@ static int fcgi_flt_start(struct stream *s, struct filter *filter)
 
 static void fcgi_flt_stop(struct stream *s, struct filter *filter)
 {
-	struct flt_fcgi_ctx *fcgi_ctx = filter->ctx;
+	struct fcgi_flt_ctx *fcgi_ctx = filter->ctx;
 
 	if (!fcgi_ctx)
 		return;
