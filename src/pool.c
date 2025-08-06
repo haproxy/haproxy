@@ -291,8 +291,11 @@ static int mem_should_fail(const struct pool_head *pool)
  *   - MEM_F_SHARED to indicate that the pool may be shared with other users
  *   - MEM_F_EXACT to indicate that the size must not be rounded up
  * The name must be a stable pointer during all the program's life time.
+ * The file and line are passed to store the registration location in the
+ * registration struct. Use create_pool() instead which does it for free.
  */
-struct pool_head *create_pool(const char *name, unsigned int size, unsigned int flags)
+struct pool_head *create_pool_with_loc(const char *name, unsigned int size, unsigned int flags,
+				       const char *file, unsigned int line)
 {
 	struct pool_registration *reg;
 	struct pool_head *pool;
@@ -302,6 +305,8 @@ struct pool_head *create_pool(const char *name, unsigned int size, unsigned int 
 		return NULL;
 
 	reg->name = name;
+	reg->file = file;
+	reg->line = line;
 	reg->size = size;
 	reg->flags = flags;
 	reg->align = 0;

@@ -143,7 +143,7 @@ unsigned long long pool_total_allocated(void);
 unsigned long long pool_total_used(void);
 void pool_flush(struct pool_head *pool);
 void pool_gc(struct pool_head *pool_ctx);
-struct pool_head *create_pool(const char *name, unsigned int size, unsigned int flags);
+struct pool_head *create_pool_with_loc(const char *name, unsigned int size, unsigned int flags, const char *file, unsigned int line);
 struct pool_head *create_pool_from_reg(const char *name, struct pool_registration *reg);
 void create_pool_callback(struct pool_head **ptr, char *name, struct pool_registration *reg);
 void *pool_destroy(struct pool_head *pool);
@@ -151,6 +151,9 @@ void pool_destroy_all(void);
 void *__pool_alloc(struct pool_head *pool, unsigned int flags);
 void __pool_free(struct pool_head *pool, void *ptr);
 void pool_inspect_item(const char *msg, struct pool_head *pool, const void *item, const void *caller, ssize_t ofs);
+
+#define create_pool(name, size, flags) \
+	create_pool_with_loc(name, size, flags, __FILE__, __LINE__)
 
 
 /****************** Thread-local cache management ******************/
