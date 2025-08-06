@@ -3,7 +3,7 @@
 
 #define QUIC_MIN_CC_PKTSIZE  128
 #define QUIC_DGRAM_HEADLEN  (sizeof(uint16_t) + sizeof(void *))
-#define QUIC_MAX_CC_BUFSIZE MAX(QUIC_INITIAL_IPV6_MTU, QUIC_INITIAL_IPV4_MTU)
+#define QUIC_MAX_CC_BUFSIZE _MAX(QUIC_INITIAL_IPV6_MTU, QUIC_INITIAL_IPV4_MTU)
 
 /* Sendmsg input buffer cannot be bigger than 65535 bytes. This comes from UDP
  * header which uses a 2-bytes length field. QUIC datagrams are limited to 1252
