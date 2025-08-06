@@ -586,7 +586,6 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 	int dgram_cnt = 0;
 	/* Restrict GSO emission to comply with sendmsg limitation. See QUIC_MAX_GSO_DGRAMS for more details. */
 	uchar gso_dgram_cnt = 0;
-	struct listener *l = objt_listener(qc->target);
 
 	TRACE_ENTER(QUIC_EV_CONN_IO_CB, qc);
 	/* Currently qc_prep_pkts() does not handle buffer wrapping so the
@@ -650,7 +649,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			 * to stay under MTU limit.
 			 */
 			if (!dglen) {
-				if (!quic_peer_validated_addr(qc) && objt_listener(qc->target))
+				if (!quic_peer_validated_addr(qc) && !qc_is_back(qc))
 					end = pos + QUIC_MIN(qc->path->mtu, quic_may_send_bytes(qc));
 				else
 					end = pos + qc->path->mtu;
@@ -672,7 +671,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			 * datagrams carrying ack-eliciting Initial packets to at least the
 			 * smallest allowed maximum datagram size of 1200 bytes.
 			 */
-			if (qel == qc->iel && (!l || !LIST_ISEMPTY(frms) || probe)) {
+			if (qel == qc->iel && (qc_is_back(qc) || !LIST_ISEMPTY(frms) || probe)) {
 				 /* Ensure that no Initial packets are sent into too small datagrams */
 				if (end - pos < QUIC_INITIAL_PACKET_MINLEN) {
 					TRACE_PROTO("No more enough room to build an Initial packet",
@@ -704,8 +703,8 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			cur_pkt = qc_build_pkt(&pos, end, qel, tls_ctx, frms,
 			                       qc, ver, dglen, pkt_type, must_ack,
 			                       padding &&
-			                       ((!l && (!next_qel || LIST_ISEMPTY(next_qel->send_frms))) ||
-			                        (l && !next_qel && (!probe || !LIST_ISEMPTY(frms)))),
+			                       ((qc_is_back(qc) && (!next_qel || LIST_ISEMPTY(next_qel->send_frms))) ||
+			                        (!qc_is_back(qc) && !next_qel && (!probe || !LIST_ISEMPTY(frms)))),
 			                       probe, cc, &err);
 			if (!cur_pkt) {
 				switch (err) {
