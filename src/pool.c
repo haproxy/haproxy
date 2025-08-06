@@ -1321,8 +1321,12 @@ void dump_pools_to_trash(int how, int max, const char *pfx)
 
 		if (detailed) {
 			struct pool_registration *reg;
-			list_for_each_entry(reg, &pool_info[i].entry->regs, list)
-				chunk_appendf(&trash, "      >  %-12s: size=%u flags=%#x align=%u\n", reg->name, reg->size, reg->flags, reg->align);
+			list_for_each_entry(reg, &pool_info[i].entry->regs, list) {
+				chunk_appendf(&trash, "      >  %-12s: size=%u flags=%#x align=%u", reg->name, reg->size, reg->flags, reg->align);
+				if (reg->file && reg->line)
+					chunk_appendf(&trash, " [%s:%u]", reg->file, reg->line);
+				chunk_appendf(&trash, "\n");
+			}
 		}
 	}
 

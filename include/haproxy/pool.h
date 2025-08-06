@@ -36,6 +36,8 @@
 #define __REGISTER_POOL(_line, _ptr, _name, _size)	       \
 	static struct pool_registration __pool_reg_##_line = { \
 		.name = _name,				       \
+		.file = __FILE__,			       \
+		.line = __LINE__,			       \
 		.size = _size,				       \
 		.flags = MEM_F_STATREG,			       \
 		.align = 0,				       \
