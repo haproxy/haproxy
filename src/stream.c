@@ -62,7 +62,7 @@
 #include <haproxy/vars.h>
 
 
-DECLARE_POOL(pool_head_stream, "stream", sizeof(struct stream));
+DECLARE_TYPED_POOL(pool_head_stream, "stream", struct stream);
 DECLARE_POOL(pool_head_uniqueid, "uniqueid", UNIQUEID_LEN);
 
 /* incremented by each "show sess" to fix a delimiter between streams */

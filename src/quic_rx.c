@@ -36,8 +36,8 @@
 #include <haproxy/trace.h>
 
 DECLARE_POOL(pool_head_quic_conn_rxbuf, "quic_conn_rxbuf", QUIC_CONN_RX_BUFSZ);
-DECLARE_POOL(pool_head_quic_dgram, "quic_dgram", sizeof(struct quic_dgram));
-DECLARE_POOL(pool_head_quic_rx_packet, "quic_rx_packet", sizeof(struct quic_rx_packet));
+DECLARE_TYPED_POOL(pool_head_quic_dgram, "quic_dgram", struct quic_dgram);
+DECLARE_TYPED_POOL(pool_head_quic_rx_packet, "quic_rx_packet", struct quic_rx_packet);
 
 /* Decode an expected packet number from <truncated_on> its truncated value,
  * depending on <largest_pn> the largest received packet number, and <pn_nbits>

@@ -15,15 +15,15 @@
 #include <haproxy/quic_stream.h>
 
 
-DECLARE_POOL(pool_head_quic_enc_level,  "quic_enc_level",  sizeof(struct quic_enc_level));
-DECLARE_POOL(pool_head_quic_pktns,      "quic_pktns",      sizeof(struct quic_pktns));
-DECLARE_POOL(pool_head_quic_tls_ctx,    "quic_tls_ctx",    sizeof(struct quic_tls_ctx));
+DECLARE_TYPED_POOL(pool_head_quic_enc_level,  "quic_enc_level",  struct quic_enc_level);
+DECLARE_TYPED_POOL(pool_head_quic_pktns,      "quic_pktns",      struct quic_pktns);
+DECLARE_TYPED_POOL(pool_head_quic_tls_ctx,    "quic_tls_ctx",    struct quic_tls_ctx);
 DECLARE_POOL(pool_head_quic_tls_secret, "quic_tls_secret", QUIC_TLS_SECRET_LEN);
 DECLARE_POOL(pool_head_quic_tls_iv,     "quic_tls_iv",     QUIC_TLS_IV_LEN);
 DECLARE_POOL(pool_head_quic_tls_key,    "quic_tls_key",    QUIC_TLS_KEY_LEN);
 
-DECLARE_POOL(pool_head_quic_crypto_buf, "quic_crypto_buf", sizeof(struct quic_crypto_buf));
-DECLARE_STATIC_POOL(pool_head_quic_cstream, "quic_cstream", sizeof(struct quic_cstream));
+DECLARE_TYPED_POOL(pool_head_quic_crypto_buf, "quic_crypto_buf", struct quic_crypto_buf);
+DECLARE_STATIC_TYPED_POOL(pool_head_quic_cstream, "quic_cstream", struct quic_cstream);
 
 /* Initial salt depending on QUIC version to derive client/server initial secrets.
  * This one is for draft-29 QUIC version.

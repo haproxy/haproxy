@@ -448,10 +448,10 @@ static struct stats_module h2_stats_module = {
 INITCALL1(STG_REGISTER, stats_register_module, &h2_stats_module);
 
 /* the h2c connection pool */
-DECLARE_STATIC_POOL(pool_head_h2c, "h2c", sizeof(struct h2c));
+DECLARE_STATIC_TYPED_POOL(pool_head_h2c, "h2c", struct h2c);
 
 /* the h2s stream pool */
-DECLARE_STATIC_POOL(pool_head_h2s, "h2s", sizeof(struct h2s));
+DECLARE_STATIC_TYPED_POOL(pool_head_h2s, "h2s", struct h2s);
 
 /* the shared rx_bufs pool */
 struct pool_head *pool_head_h2_rx_bufs __read_mostly = NULL;

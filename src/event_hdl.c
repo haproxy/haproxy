@@ -58,10 +58,10 @@ struct event_hdl_async_task_default_ctx
 };
 
 /* memory pools declarations */
-DECLARE_STATIC_POOL(pool_head_sub, "ehdl_sub", sizeof(struct event_hdl_sub));
-DECLARE_STATIC_POOL(pool_head_sub_event, "ehdl_sub_e", sizeof(struct event_hdl_async_event));
-DECLARE_STATIC_POOL(pool_head_sub_event_data, "ehdl_sub_ed", sizeof(struct event_hdl_async_event_data));
-DECLARE_STATIC_POOL(pool_head_sub_taskctx, "ehdl_sub_tctx", sizeof(struct event_hdl_async_task_default_ctx));
+DECLARE_STATIC_TYPED_POOL(pool_head_sub, "ehdl_sub", struct event_hdl_sub);
+DECLARE_STATIC_TYPED_POOL(pool_head_sub_event, "ehdl_sub_e", struct event_hdl_async_event);
+DECLARE_STATIC_TYPED_POOL(pool_head_sub_event_data, "ehdl_sub_ed", struct event_hdl_async_event_data);
+DECLARE_STATIC_TYPED_POOL(pool_head_sub_taskctx, "ehdl_sub_tctx", struct event_hdl_async_task_default_ctx);
 
 /* global event_hdl tunables (public variable) */
 struct event_hdl_tune event_hdl_tune;

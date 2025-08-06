@@ -245,8 +245,8 @@ int curpxopts;
 int curpxopts2;
 
 /* Pools used to allocate SPOE structs */
-DECLARE_STATIC_POOL(pool_head_spoe_ctx,    "spoe_ctx",    sizeof(struct spoe_context));
-DECLARE_STATIC_POOL(pool_head_spoe_appctx, "spoe_appctx", sizeof(struct spoe_appctx));
+DECLARE_STATIC_TYPED_POOL(pool_head_spoe_ctx,    "spoe_ctx",    struct spoe_context);
+DECLARE_STATIC_TYPED_POOL(pool_head_spoe_appctx, "spoe_appctx", struct spoe_appctx);
 
 struct flt_ops spoe_ops;
 

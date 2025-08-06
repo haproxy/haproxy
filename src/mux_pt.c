@@ -27,7 +27,7 @@ struct mux_pt_ctx {
 	struct wait_event wait_event;
 };
 
-DECLARE_STATIC_POOL(pool_head_pt_ctx, "mux_pt", sizeof(struct mux_pt_ctx));
+DECLARE_STATIC_TYPED_POOL(pool_head_pt_ctx, "mux_pt", struct mux_pt_ctx);
 
 /* trace source and events */
 static void pt_trace(enum trace_level level, uint64_t mask,

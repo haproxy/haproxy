@@ -517,7 +517,7 @@ struct hlua_queue_item {
 
 /* This is the memory pool containing struct hlua_queue_item (queue items)
  */
-DECLARE_STATIC_POOL(pool_head_hlua_queue, "hlua_queue", sizeof(struct hlua_queue_item));
+DECLARE_STATIC_TYPED_POOL(pool_head_hlua_queue, "hlua_queue", struct hlua_queue_item);
 
 static struct hlua_queue *hlua_check_queue(lua_State *L, int ud)
 {

@@ -39,8 +39,8 @@
 
 static THREAD_LOCAL char *dns_msg_trash;
 
-DECLARE_STATIC_POOL(dns_session_pool, "dns_session", sizeof(struct dns_session));
-DECLARE_STATIC_POOL(dns_query_pool, "dns_query", sizeof(struct dns_query));
+DECLARE_STATIC_TYPED_POOL(dns_session_pool, "dns_session", struct dns_session);
+DECLARE_STATIC_TYPED_POOL(dns_query_pool, "dns_query", struct dns_query);
 DECLARE_STATIC_POOL(dns_msg_buf, "dns_msg_buf", DNS_TCP_MSG_RING_MAX_SIZE);
 
 /* Opens an UDP socket on the namesaver's IP/Port, if required. Returns 0 on

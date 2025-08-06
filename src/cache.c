@@ -229,7 +229,7 @@ static struct list caches = LIST_HEAD_INIT(caches);
 static struct list caches_config = LIST_HEAD_INIT(caches_config); /* cache config to init */
 static struct cache *tmp_cache_config = NULL;
 
-DECLARE_STATIC_POOL(pool_head_cache_st, "cache_st", sizeof(struct cache_st));
+DECLARE_STATIC_TYPED_POOL(pool_head_cache_st, "cache_st", struct cache_st);
 
 static struct eb32_node *insert_entry(struct cache *cache, struct cache_tree *tree, struct cache_entry *new_entry);
 static void delete_entry(struct cache_entry *del_entry);

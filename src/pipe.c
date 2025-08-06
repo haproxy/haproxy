@@ -20,7 +20,7 @@
 #include <haproxy/thread.h>
 
 
-DECLARE_STATIC_POOL(pool_head_pipe, "pipe", sizeof(struct pipe));
+DECLARE_STATIC_TYPED_POOL(pool_head_pipe, "pipe", struct pipe);
 
 struct pipe *pipes_live = NULL; /* pipes which are still ready to use */
 

@@ -65,7 +65,7 @@ struct bwlim_state {
 
 
 /* Pools used to allocate comp_state structs */
-DECLARE_STATIC_POOL(pool_head_bwlim_state, "bwlim_state", sizeof(struct bwlim_state));
+DECLARE_STATIC_TYPED_POOL(pool_head_bwlim_state, "bwlim_state", struct bwlim_state);
 
 
 /* Apply the bandwidth limitation of the filter <filter>. <len> is the maximum

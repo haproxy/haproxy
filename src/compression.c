@@ -156,7 +156,7 @@ int comp_append_algo(struct comp_algo **algos, const char *algo)
 }
 
 #if defined(USE_ZLIB) || defined(USE_SLZ)
-DECLARE_STATIC_POOL(pool_comp_ctx, "comp_ctx", sizeof(struct comp_ctx));
+DECLARE_STATIC_TYPED_POOL(pool_comp_ctx, "comp_ctx", struct comp_ctx);
 
 /*
  * Alloc the comp_ctx

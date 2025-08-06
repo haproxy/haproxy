@@ -5294,7 +5294,7 @@ void http_set_term_flags(struct stream *s)
 }
 
 
-DECLARE_POOL(pool_head_http_txn, "http_txn", sizeof(struct http_txn));
+DECLARE_TYPED_POOL(pool_head_http_txn, "http_txn", struct http_txn);
 
 /*
  * Local variables:

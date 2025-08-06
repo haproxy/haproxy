@@ -285,8 +285,8 @@ static struct trace_source trace_fcgi __read_mostly = {
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
 /* FCGI connection and stream pools */
-DECLARE_STATIC_POOL(pool_head_fcgi_conn, "fcgi_conn", sizeof(struct fcgi_conn));
-DECLARE_STATIC_POOL(pool_head_fcgi_strm, "fcgi_strm", sizeof(struct fcgi_strm));
+DECLARE_STATIC_TYPED_POOL(pool_head_fcgi_conn, "fcgi_conn", struct fcgi_conn);
+DECLARE_STATIC_TYPED_POOL(pool_head_fcgi_strm, "fcgi_strm", struct fcgi_strm);
 
 struct task *fcgi_timeout_task(struct task *t, void *context, unsigned int state);
 static int fcgi_process(struct fcgi_conn *fconn);

@@ -27,13 +27,13 @@
 extern struct task *process_stream(struct task *t, void *context, unsigned int state);
 extern void stream_update_timings(struct task *t, uint64_t lat, uint64_t cpu);
 
-DECLARE_POOL(pool_head_task,    "task",    sizeof(struct task));
-DECLARE_POOL(pool_head_tasklet, "tasklet", sizeof(struct tasklet));
+DECLARE_TYPED_POOL(pool_head_task,    "task",    struct task);
+DECLARE_TYPED_POOL(pool_head_tasklet, "tasklet", struct tasklet);
 
 /* This is the memory pool containing all the signal structs. These
  * struct are used to store each required signal between two tasks.
  */
-DECLARE_POOL(pool_head_notification, "notification", sizeof(struct notification));
+DECLARE_TYPED_POOL(pool_head_notification, "notification", struct notification);
 
 /* The lock protecting all wait queues at once. For now we have no better
  * alternative since a task may have to be removed from a queue and placed

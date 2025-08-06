@@ -10,7 +10,7 @@
 #include <haproxy/ssl_sock.h>
 #include <haproxy/trace.h>
 
-DECLARE_POOL(pool_head_quic_ssl_sock_ctx, "quic_ssl_sock_ctx", sizeof(struct ssl_sock_ctx));
+DECLARE_TYPED_POOL(pool_head_quic_ssl_sock_ctx, "quic_ssl_sock_ctx", struct ssl_sock_ctx);
 const char *quic_ciphers = "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384"
                            ":TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_CCM_SHA256";
 #ifdef HAVE_OPENSSL_QUIC

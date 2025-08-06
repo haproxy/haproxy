@@ -92,7 +92,7 @@ s *     queue's lock.
 #define KEY_CLASS_OFFSET_BOUNDARY(key) (KEY_CLASS(key) | NOW_OFFSET_BOUNDARY())
 #define MAKE_KEY(class, offset)        (((u32)(class + 0x7ff) << 20) | ((u32)(now_ms + offset) & 0xfffff))
 
-DECLARE_POOL(pool_head_pendconn, "pendconn", sizeof(struct pendconn));
+DECLARE_TYPED_POOL(pool_head_pendconn, "pendconn", struct pendconn);
 
 /* returns the effective dynamic maxconn for a server, considering the minconn
  * and the proxy's usage relative to its dynamic connections limit. It is

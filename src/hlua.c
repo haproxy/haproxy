@@ -456,7 +456,7 @@ struct hlua_cli_ctx {
 	struct hlua_function *fcn;
 };
 
-DECLARE_STATIC_POOL(pool_head_hlua_flt_ctx, "hlua_flt_ctx", sizeof(struct hlua_flt_ctx));
+DECLARE_STATIC_TYPED_POOL(pool_head_hlua_flt_ctx, "hlua_flt_ctx", struct hlua_flt_ctx);
 
 static int hlua_filter_from_payload(struct filter *filter);
 
@@ -469,7 +469,7 @@ static struct list referenced_filters = LIST_HEAD_INIT(referenced_filters);
 /* This is the memory pool containing struct lua for applets
  * (including cli).
  */
-DECLARE_STATIC_POOL(pool_head_hlua, "hlua", sizeof(struct hlua));
+DECLARE_STATIC_TYPED_POOL(pool_head_hlua, "hlua", struct hlua);
 
 /* Used for Socket connection. */
 static struct proxy *socket_proxy;
@@ -692,7 +692,7 @@ struct hlua_event_sub {
 /* This is the memory pool containing struct hlua_event_sub
  * for event subscriptions from lua
  */
-DECLARE_STATIC_POOL(pool_head_hlua_event_sub, "hlua_esub", sizeof(struct hlua_event_sub));
+DECLARE_STATIC_TYPED_POOL(pool_head_hlua_event_sub, "hlua_esub", struct hlua_event_sub);
 
 /* These functions converts types between HAProxy internal args or
  * sample and LUA types. Another function permits to check if the

@@ -138,11 +138,10 @@ const struct quic_version *preferred_version;
  */
 const struct quic_version quic_version_VN_reserved = { .num = 0, };
 
-DECLARE_STATIC_POOL(pool_head_quic_conn, "quic_conn", sizeof(struct quic_conn));
-DECLARE_STATIC_POOL(pool_head_quic_conn_closed, "quic_conn_closed", sizeof(struct quic_conn_closed));
-DECLARE_STATIC_POOL(pool_head_quic_cids, "quic_cids", sizeof(struct eb_root));
-DECLARE_POOL(pool_head_quic_connection_id,
-             "quic_connection_id", sizeof(struct quic_connection_id));
+DECLARE_STATIC_TYPED_POOL(pool_head_quic_conn, "quic_conn", struct quic_conn);
+DECLARE_STATIC_TYPED_POOL(pool_head_quic_conn_closed, "quic_conn_closed", struct quic_conn_closed);
+DECLARE_STATIC_TYPED_POOL(pool_head_quic_cids, "quic_cids", struct eb_root);
+DECLARE_TYPED_POOL(pool_head_quic_connection_id, "quic_connection_id", struct quic_connection_id);
 
 struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state);
 static int quic_conn_init_timer(struct quic_conn *qc);

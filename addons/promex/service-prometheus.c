@@ -242,8 +242,8 @@ void promex_register_module(struct promex_module *m)
 }
 
 /* Pools used to allocate ref on Promex modules and filters */
-DECLARE_STATIC_POOL(pool_head_promex_mod_ref,    "promex_module_ref",  sizeof(struct promex_module_ref));
-DECLARE_STATIC_POOL(pool_head_promex_metric_flt, "promex_metric_filter", sizeof(struct promex_metric_filter));
+DECLARE_STATIC_TYPED_POOL(pool_head_promex_mod_ref,    "promex_module_ref",  struct promex_module_ref);
+DECLARE_STATIC_TYPED_POOL(pool_head_promex_metric_flt, "promex_metric_filter", struct promex_metric_filter);
 
 /* Return the server status. */
 enum promex_srv_state promex_srv_status(struct server *sv)

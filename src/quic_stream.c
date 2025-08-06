@@ -12,12 +12,9 @@
 #include <haproxy/quic_utils.h>
 #include <haproxy/task.h>
 
-DECLARE_STATIC_POOL(pool_head_quic_stream_desc, "qc_stream_desc",
-                    sizeof(struct qc_stream_desc));
-DECLARE_STATIC_POOL(pool_head_quic_stream_buf, "qc_stream_buf",
-                    sizeof(struct qc_stream_buf));
-DECLARE_STATIC_POOL(pool_head_quic_stream_ack, "qc_stream_ack",
-                    sizeof(struct qc_stream_ack));
+DECLARE_STATIC_TYPED_POOL(pool_head_quic_stream_desc, "qc_stream_desc", struct qc_stream_desc);
+DECLARE_STATIC_TYPED_POOL(pool_head_quic_stream_buf, "qc_stream_buf", struct qc_stream_buf);
+DECLARE_STATIC_TYPED_POOL(pool_head_quic_stream_ack, "qc_stream_ack", struct qc_stream_ack);
 
 static struct pool_head *pool_head_sbuf;
 

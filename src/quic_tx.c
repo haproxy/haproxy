@@ -31,7 +31,7 @@
 #include <haproxy/quic_tune.h>
 #include <haproxy/ssl_sock-t.h>
 
-DECLARE_POOL(pool_head_quic_tx_packet, "quic_tx_packet", sizeof(struct quic_tx_packet));
+DECLARE_TYPED_POOL(pool_head_quic_tx_packet, "quic_tx_packet", struct quic_tx_packet);
 DECLARE_POOL(pool_head_quic_cc_buf, "quic_cc_buf", QUIC_MAX_CC_BUFSIZE);
 
 static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned char *buf_end,

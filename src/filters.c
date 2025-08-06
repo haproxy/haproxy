@@ -30,7 +30,7 @@
 #define TRACE_SOURCE &trace_strm
 
 /* Pool used to allocate filters */
-DECLARE_STATIC_POOL(pool_head_filter, "filter", sizeof(struct filter));
+DECLARE_STATIC_TYPED_POOL(pool_head_filter, "filter", struct filter);
 
 static int handle_analyzer_result(struct stream *s, struct channel *chn, unsigned int an_bit, int ret);
 

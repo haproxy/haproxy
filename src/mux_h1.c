@@ -333,8 +333,8 @@ INITCALL1(STG_REGISTER, stats_register_module, &h1_stats_module);
 
 
 /* the h1c and h1s pools */
-DECLARE_STATIC_POOL(pool_head_h1c, "h1c", sizeof(struct h1c));
-DECLARE_STATIC_POOL(pool_head_h1s, "h1s", sizeof(struct h1s));
+DECLARE_STATIC_TYPED_POOL(pool_head_h1c, "h1c", struct h1c);
+DECLARE_STATIC_TYPED_POOL(pool_head_h1s, "h1s", struct h1s);
 
 static int h1_recv(struct h1c *h1c);
 static int h1_send(struct h1c *h1c);

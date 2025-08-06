@@ -38,11 +38,11 @@
 #include <haproxy/xxhash.h>
 
 
-DECLARE_POOL(pool_head_connection,     "connection",     sizeof(struct connection));
-DECLARE_POOL(pool_head_conn_hash_node, "conn_hash_node", sizeof(struct conn_hash_node));
-DECLARE_POOL(pool_head_sockaddr,       "sockaddr",       sizeof(struct sockaddr_storage));
-DECLARE_POOL(pool_head_pp_tlv_128,     "pp_tlv_128",     sizeof(struct conn_tlv_list) + HA_PP2_TLV_VALUE_128);
-DECLARE_POOL(pool_head_pp_tlv_256,     "pp_tlv_256",     sizeof(struct conn_tlv_list) + HA_PP2_TLV_VALUE_256);
+DECLARE_TYPED_POOL(pool_head_connection,     "connection",     struct connection);
+DECLARE_TYPED_POOL(pool_head_conn_hash_node, "conn_hash_node", struct conn_hash_node);
+DECLARE_TYPED_POOL(pool_head_sockaddr,       "sockaddr",       struct sockaddr_storage);
+DECLARE_TYPED_POOL(pool_head_pp_tlv_128,     "pp_tlv_128",     struct conn_tlv_list, HA_PP2_TLV_VALUE_128);
+DECLARE_TYPED_POOL(pool_head_pp_tlv_256,     "pp_tlv_256",     struct conn_tlv_list, HA_PP2_TLV_VALUE_256);
 
 struct idle_conns idle_conns[MAX_THREADS] = { };
 struct xprt_ops *registered_xprt[XPRT_ENTRIES] = { NULL, };

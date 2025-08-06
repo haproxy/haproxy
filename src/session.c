@@ -28,9 +28,8 @@
 #include <haproxy/vars.h>
 
 
-DECLARE_POOL(pool_head_session, "session", sizeof(struct session));
-DECLARE_POOL(pool_head_sess_priv_conns, "session priv conns list",
-             sizeof(struct sess_priv_conns));
+DECLARE_TYPED_POOL(pool_head_session, "session", struct session);
+DECLARE_TYPED_POOL(pool_head_sess_priv_conns, "session priv conns list", struct sess_priv_conns);
 
 int conn_complete_session(struct connection *conn);
 

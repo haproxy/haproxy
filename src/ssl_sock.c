@@ -155,7 +155,7 @@ struct global_ssl global_ssl = {
 
 static BIO_METHOD *ha_meth;
 
-DECLARE_STATIC_POOL(ssl_sock_ctx_pool, "ssl_sock_ctx", sizeof(struct ssl_sock_ctx));
+DECLARE_STATIC_TYPED_POOL(ssl_sock_ctx_pool, "ssl_sock_ctx", struct ssl_sock_ctx);
 
 DECLARE_POOL(ssl_sock_client_sni_pool, "ssl_sock_client_sni", TLSEXT_MAXLEN_host_name + 1);
 

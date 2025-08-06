@@ -72,7 +72,7 @@
 struct eb_root shared_tcpchecks = EB_ROOT;
 
 
-DECLARE_POOL(pool_head_tcpcheck_rule, "tcpcheck_rule", sizeof(struct tcpcheck_rule));
+DECLARE_TYPED_POOL(pool_head_tcpcheck_rule, "tcpcheck_rule", struct tcpcheck_rule);
 
 /**************************************************************************/
 /*************** Init/deinit tcp-check rules and ruleset ******************/

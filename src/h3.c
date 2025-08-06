@@ -148,7 +148,7 @@ struct h3c {
 	struct h3_counters *prx_counters;
 };
 
-DECLARE_STATIC_POOL(pool_head_h3c, "h3c", sizeof(struct h3c));
+DECLARE_STATIC_TYPED_POOL(pool_head_h3c, "h3c", struct h3c);
 
 #define H3_SF_UNI_INIT     0x00000001  /* stream type not parsed for unidirectional stream */
 #define H3_SF_UNI_NO_H3    0x00000002  /* unidirectional stream does not carry H3 frames */
@@ -171,7 +171,7 @@ struct h3s {
 	int err; /* used for stream reset */
 };
 
-DECLARE_STATIC_POOL(pool_head_h3s, "h3s", sizeof(struct h3s));
+DECLARE_STATIC_TYPED_POOL(pool_head_h3s, "h3s", struct h3s);
 
 /* Initialize an uni-stream <qcs> by reading its type from <b>.
  *

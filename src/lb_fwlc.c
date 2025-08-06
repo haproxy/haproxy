@@ -25,7 +25,7 @@ struct fwlc_tree_elt {
 	unsigned int elements;
 };
 
-DECLARE_STATIC_POOL(pool_head_fwlc_elt, "fwlc_tree_elt", sizeof(struct fwlc_tree_elt));
+DECLARE_STATIC_TYPED_POOL(pool_head_fwlc_elt, "fwlc_tree_elt", struct fwlc_tree_elt);
 
 #define FWLC_LBPRM_SEQ(lbprm)		((lbprm) & 0xffffffff)
 #define FWLC_LBPRM_SMALLEST(lbprm)	((lbprm) >> 32)

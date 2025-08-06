@@ -64,9 +64,9 @@ static THREAD_LOCAL unsigned int recurse = 0; /* counter to track calls to publi
 static THREAD_LOCAL uint64_t resolv_query_id_seed = 0; /* random seed */
 struct resolvers *curr_resolvers = NULL;
 
-DECLARE_STATIC_POOL(resolv_answer_item_pool, "resolv_answer_item", sizeof(struct resolv_answer_item));
-DECLARE_STATIC_POOL(resolv_resolution_pool,  "resolv_resolution",  sizeof(struct resolv_resolution));
-DECLARE_POOL(resolv_requester_pool,  "resolv_requester",  sizeof(struct resolv_requester));
+DECLARE_STATIC_TYPED_POOL(resolv_answer_item_pool, "resolv_answer_item", struct resolv_answer_item);
+DECLARE_STATIC_TYPED_POOL(resolv_resolution_pool,  "resolv_resolution",  struct resolv_resolution);
+DECLARE_TYPED_POOL(resolv_requester_pool,  "resolv_requester",  struct resolv_requester);
 
 static unsigned int resolution_uuid = 1;
 unsigned int resolv_failed_resolutions = 0;

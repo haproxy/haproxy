@@ -33,9 +33,9 @@
 #include <haproxy/trace.h>
 #include <haproxy/xref.h>
 
-DECLARE_POOL(pool_head_qcc, "qcc", sizeof(struct qcc));
-DECLARE_POOL(pool_head_qcs, "qcs", sizeof(struct qcs));
-DECLARE_STATIC_POOL(pool_head_qc_stream_rxbuf, "qc_stream_rxbuf", sizeof(struct qc_stream_rxbuf));
+DECLARE_TYPED_POOL(pool_head_qcc, "qcc", struct qcc);
+DECLARE_TYPED_POOL(pool_head_qcs, "qcs", struct qcs);
+DECLARE_STATIC_TYPED_POOL(pool_head_qc_stream_rxbuf, "qc_stream_rxbuf", struct qc_stream_rxbuf);
 
 static void qmux_ctrl_send(struct qc_stream_desc *, uint64_t data, uint64_t offset);
 static void qmux_ctrl_room(struct qc_stream_desc *, uint64_t room);

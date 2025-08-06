@@ -29,7 +29,7 @@
 
 unsigned int nb_applets = 0;
 
-DECLARE_POOL(pool_head_appctx,  "appctx",  sizeof(struct appctx));
+DECLARE_TYPED_POOL(pool_head_appctx,  "appctx",  struct appctx);
 
 
 /* trace source and events */

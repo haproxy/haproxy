@@ -7,7 +7,7 @@
 #include <haproxy/quic_trace.h>
 #include <haproxy/trace.h>
 
-DECLARE_STATIC_POOL(pool_head_quic_arng, "quic_arng", sizeof(struct quic_arng_node));
+DECLARE_STATIC_TYPED_POOL(pool_head_quic_arng, "quic_arng", struct quic_arng_node);
 
 /* Deallocate <l> list of ACK ranges. */
 void quic_free_arngs(struct quic_conn *qc, struct quic_arngs *arngs)

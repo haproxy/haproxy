@@ -24,8 +24,8 @@
 #include <haproxy/stconn.h>
 #include <haproxy/xref.h>
 
-DECLARE_POOL(pool_head_connstream, "stconn", sizeof(struct stconn));
-DECLARE_POOL(pool_head_sedesc, "sedesc", sizeof(struct sedesc));
+DECLARE_TYPED_POOL(pool_head_connstream, "stconn", struct stconn);
+DECLARE_TYPED_POOL(pool_head_sedesc, "sedesc", struct sedesc);
 
 /* functions used by default on a detached stream connector */
 static void sc_app_abort(struct stconn *sc);

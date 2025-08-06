@@ -35,9 +35,9 @@ static struct fcgi_app *fcgi_apps = NULL;
 struct flt_ops fcgi_flt_ops;
 const char *fcgi_flt_id = "FCGI filter";
 
-DECLARE_STATIC_POOL(pool_head_fcgi_flt_ctx, "fcgi_flt_ctx", sizeof(struct fcgi_flt_ctx));
-DECLARE_STATIC_POOL(pool_head_fcgi_param_rule, "fcgi_param_rule", sizeof(struct fcgi_param_rule));
-DECLARE_STATIC_POOL(pool_head_fcgi_hdr_rule, "fcgi_hdr_rule", sizeof(struct fcgi_hdr_rule));
+DECLARE_STATIC_TYPED_POOL(pool_head_fcgi_flt_ctx, "fcgi_flt_ctx", struct fcgi_flt_ctx);
+DECLARE_STATIC_TYPED_POOL(pool_head_fcgi_param_rule, "fcgi_param_rule", struct fcgi_param_rule);
+DECLARE_STATIC_TYPED_POOL(pool_head_fcgi_hdr_rule, "fcgi_hdr_rule", struct fcgi_hdr_rule);
 
 /**************************************************************************/
 /***************************** Uitls **************************************/

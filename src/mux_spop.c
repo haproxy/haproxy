@@ -210,8 +210,8 @@ static struct trace_source trace_spop __read_mostly = {
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
 /* SPOP connection and stream pools */
-DECLARE_STATIC_POOL(pool_head_spop_conn, "spop_conn", sizeof(struct spop_conn));
-DECLARE_STATIC_POOL(pool_head_spop_strm, "spop_strm", sizeof(struct spop_strm));
+DECLARE_STATIC_TYPED_POOL(pool_head_spop_conn, "spop_conn", struct spop_conn);
+DECLARE_STATIC_TYPED_POOL(pool_head_spop_strm, "spop_strm", struct spop_strm);
 
 
 const struct ist spop_err_reasons[SPOP_ERR_ENTRIES] = {

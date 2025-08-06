@@ -42,7 +42,7 @@ struct comp_state {
 };
 
 /* Pools used to allocate comp_state structs */
-DECLARE_STATIC_POOL(pool_head_comp_state, "comp_state", sizeof(struct comp_state));
+DECLARE_STATIC_TYPED_POOL(pool_head_comp_state, "comp_state", struct comp_state);
 
 static THREAD_LOCAL struct buffer tmpbuf;
 static THREAD_LOCAL struct buffer zbuf;

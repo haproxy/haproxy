@@ -24,7 +24,7 @@
 
 
 /* This contains a pool of struct vars */
-DECLARE_STATIC_POOL(var_pool, "vars", sizeof(struct var));
+DECLARE_STATIC_TYPED_POOL(var_pool, "vars", struct var);
 
 /* list of variables for the process scope. */
 struct vars proc_vars THREAD_ALIGNED(64);

@@ -30,7 +30,7 @@ struct signal_descriptor signal_state[MAX_SIGNAL];
 sigset_t blocked_sig;
 int signal_pending = 0; /* non-zero if t least one signal remains unprocessed */
 
-DECLARE_STATIC_POOL(pool_head_sig_handlers, "sig_handlers", sizeof(struct sig_handler));
+DECLARE_STATIC_TYPED_POOL(pool_head_sig_handlers, "sig_handlers", struct sig_handler);
 
 /* Common signal handler, used by all signals. Received signals are queued.
  * Signal number zero has a specific status, as it cannot be delivered by the
