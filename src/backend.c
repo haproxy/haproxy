@@ -1793,7 +1793,7 @@ int connect_server(struct stream *s)
 	struct server *srv;
 	int reuse_mode;
 	int reuse __maybe_unused = 0;
-	int init_mux = 0;
+	int may_start_mux_now = 0; // are we allowed to start the mux now ?
 	int err;
 	struct sockaddr_storage *bind_addr = NULL;
 	int64_t hash = 0;
@@ -2029,7 +2029,7 @@ int connect_server(struct stream *s)
 		    (srv->use_ssl != 1 || (!(srv->ssl_ctx.alpn_str) && !(srv->ssl_ctx.npn_str)) ||
 		     !IS_HTX_STRM(s)))
 #endif
-			init_mux = 1;
+			may_start_mux_now = 1;
 
 		/* process the case where the server requires the PROXY protocol to be sent */
 		srv_conn->send_proxy_ofs = 0;
@@ -2134,7 +2134,7 @@ int connect_server(struct stream *s)
 	 * initialized, or any attempt to recv during the mux init may
 	 * fail, and flag the connection as CO_FL_ERROR.
 	 */
-	if (init_mux) {
+	if (may_start_mux_now) {
 		const struct mux_ops *alt_mux =
 		  likely(!(s->flags & SF_WEBSOCKET)) ? NULL : srv_get_ws_proto(srv);
 		if (conn_install_mux_be(srv_conn, s->scb, s->sess, alt_mux) < 0) {
