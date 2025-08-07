@@ -88,9 +88,13 @@ struct connection *sock_accept_conn(struct listener *l, int *status)
 	 * the legacy accept() + fcntl().
 	 */
 	if (unlikely(accept4_broken) ||
+	    /* Albeit it appears it does not make sense to carry on with accept
+	     * if we encounter EPERM, some old embedded ARM Linux 2.6.x sets as
+	     * such instead of ENOSYS.
+	     */
 	    (((cfd = accept4(l->rx.fd, (struct sockaddr*)addr, &laddr,
 	                     SOCK_NONBLOCK | (master ? SOCK_CLOEXEC : 0))) == -1) &&
-	     (errno == ENOSYS || errno == EINVAL || errno == EBADF) &&
+	     (errno == ENOSYS || errno == EINVAL || errno == EBADF || errno == EPERM) &&
 	     ((accept4_broken = 1))))
 #endif
 	{
