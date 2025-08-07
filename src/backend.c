@@ -1793,6 +1793,7 @@ int connect_server(struct stream *s)
 	struct server *srv;
 	int reuse_mode;
 	int reuse __maybe_unused = 0;
+	int may_use_early_data __maybe_unused = 1; // are we allowed to use early data ?
 	int may_start_mux_now = 1; // are we allowed to start the mux now ?
 	int err;
 	struct sockaddr_storage *bind_addr = NULL;
@@ -1987,6 +1988,35 @@ int connect_server(struct stream *s)
 	if (!srv_conn)
 		return SF_ERR_RESOURCE;
 
+#if defined(HAVE_SSL_0RTT)
+	/* We may be allowed to use 0-RTT involving early data, to send
+	 * the request. This may only be done in the following conditions:
+	 *   - the SSL ctx does not support early data
+	 *   - the connection was not reused (it must be a new one)
+	 *   - the client already used early data, or we have L7 retries on
+	 *   - 0rtt is configured on the server line and we have not yet failed
+	 *     any connection attempt on this stream (in order to avoid failing
+	 *     multiple times in a row)
+	 *   - there are data to be sent
+	 * otherwise we cannot make use of early data. Let's first eliminate
+	 * the cases which don't match this above. The conditions will tighten
+	 * later in the function when needed.
+	 */
+
+	if (!srv || !(srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA))
+		may_use_early_data = 0;
+
+	if (reuse)
+		may_use_early_data = 0;
+
+	if (!(cli_conn && cli_conn->flags & CO_FL_EARLY_DATA) &&
+	    (!(s->be->retry_type & PR_RE_EARLY_ERROR) || s->conn_retries > 0))
+		may_use_early_data = 0;
+
+	if (!co_data(sc_oc(s->scb)))
+		may_use_early_data = 0;
+#endif
+
 	/* Copy network namespace from client connection */
 	srv_conn->proxy_netns = cli_conn ? cli_conn->proxy_netns : NULL;
 
@@ -2165,16 +2195,19 @@ int connect_server(struct stream *s)
 	}
 
 #if defined(HAVE_SSL_0RTT)
-	if (!reuse && cli_conn && srv && srv_conn->mux &&
-	    (srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) &&
-	    /* Only attempt to use early data if either the client sent
-	     * early data, so that we know it can handle a 425, or if
-	     * we are allowed to retry requests on early data failure, and
-	     * it's our first try
-	     */
-	    ((cli_conn->flags & CO_FL_EARLY_DATA) ||
-	     ((s->be->retry_type & PR_RE_EARLY_ERROR) && !s->conn_retries)) &&
-	    co_data(sc_oc(s->scb)) &&
+	/* The flags change below deserve some explanation: when we want to
+	 * use early data, we first want to make sure that a mux is installed
+	 * (otherwise we'll have nothing to send), and then we'll temporarily
+	 * pretend that we're done with the SSL handshake. This way the data
+	 * layer of the stack will be able to start sending data. The xprt
+	 * layer will notice that these data are sent in the context of 0-rtt,
+	 * and will produce early data, and then immediately restore these
+	 * flags to say "I was lying, the SSL layer is not ready in fact". This
+	 * effectively allows early data to be sent with the very first SSL
+	 * communication with the server, while still having the ability to
+	 * later wait for the end of the handshake.
+	 */
+	if (may_use_early_data && srv && srv_conn->mux &&
 	    srv_conn->flags & CO_FL_SSL_WAIT_HS)
 		srv_conn->flags &= ~(CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN);
 #endif
