@@ -50,6 +50,7 @@ void clock_leaving_poll(int timeout, int interrupted);
 void clock_entering_poll(void);
 void clock_adjust_now_offset(void);
 void clock_set_now_offset(llong ofs);
+llong clock_get_now_offset(void);
 
 static inline void clock_update_date(int max_wait, int interrupted)
 {

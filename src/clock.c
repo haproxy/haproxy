@@ -369,6 +369,11 @@ void clock_set_now_offset(llong ofs)
 	HA_ATOMIC_STORE(&now_offset, ofs);
 }
 
+llong clock_get_now_offset(void)
+{
+	return HA_ATOMIC_LOAD(&now_offset);
+}
+
 /* must be called once per thread to initialize their thread-local variables.
  * Note that other threads might also be initializing and running in parallel.
  */
