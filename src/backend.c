@@ -1793,7 +1793,7 @@ int connect_server(struct stream *s)
 	struct server *srv;
 	int reuse_mode;
 	int reuse __maybe_unused = 0;
-	int may_start_mux_now = 0; // are we allowed to start the mux now ?
+	int may_start_mux_now = 1; // are we allowed to start the mux now ?
 	int err;
 	struct sockaddr_storage *bind_addr = NULL;
 	int64_t hash = 0;
@@ -1841,6 +1841,7 @@ int connect_server(struct stream *s)
 		if (err == SF_ERR_NONE) {
 			srv_conn = sc_conn(s->scb);
 			reuse = 1;
+			may_start_mux_now = 0;
 		}
 	}
 
@@ -2025,11 +2026,10 @@ int connect_server(struct stream *s)
 		 * that this is skipped in TCP mode as we only want mux-pt
 		 * anyway.
 		 */
-		if (!srv ||
-		    (srv->use_ssl != 1 || (!(srv->ssl_ctx.alpn_str) && !(srv->ssl_ctx.npn_str)) ||
-		     !IS_HTX_STRM(s)))
+		if (IS_HTX_STRM(s) && srv && srv->use_ssl &&
+		    (srv->ssl_ctx.alpn_str || srv->ssl_ctx.npn_str))
+			may_start_mux_now = 0;
 #endif
-			may_start_mux_now = 1;
 
 		/* process the case where the server requires the PROXY protocol to be sent */
 		srv_conn->send_proxy_ofs = 0;
