@@ -2164,8 +2164,7 @@ int connect_server(struct stream *s)
 		}
 	}
 
-#if defined(USE_OPENSSL) && (defined(OPENSSL_IS_BORINGSSL) || (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L))
-
+#if defined(HAVE_SSL_0RTT)
 	if (!reuse && cli_conn && srv && srv_conn->mux &&
 	    (srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) &&
 	    /* Only attempt to use early data if either the client sent
