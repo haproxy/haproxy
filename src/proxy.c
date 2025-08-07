@@ -2823,6 +2823,8 @@ void proxy_adjust_all_maxconn()
  */
 static int post_section_px_cleanup()
 {
+	if (!curproxy)
+		return 0; // nothing to do
 	if ((curproxy->cap & PR_CAP_LISTEN) && !(curproxy->cap & PR_CAP_DEF)) {
 		/* This is a regular proxy (not defaults). It doesn't need
 		 * to keep a default-server section if it still had one. We
