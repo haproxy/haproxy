@@ -124,6 +124,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 		struct server *srv = objt_server(conn->target);
 		qc = qc_new_conn(quic_version_1, ipv4, NULL, NULL, NULL,
 		                 NULL, NULL, &srv->addr, 0, srv, conn);
+		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
 	}
 
 	if (!qc)
@@ -155,13 +156,9 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 	qc = conn->handle.qc;
 	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
 
-	if (objt_listener(conn->target)) {
-		/* mux-quic can now be considered ready. */
+	/* mux-quic can now be considered ready. */
+	if (objt_listener(qc->target))
 		qc->mux_state = QC_MUX_READY;
-	}
-	else {
-		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
-	}
 
 	/* Schedule quic-conn to ensure post handshake frames are emitted. This
 	 * is not done for 0-RTT as xprt->start happens before handshake
