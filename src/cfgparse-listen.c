@@ -367,8 +367,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		if ((*args[2] && (!*args[3] || strcmp(args[2], "from") != 0)) ||
 		    alertif_too_many_args(3, file, linenum, args, &err_code)) {
-			if (rc & PR_CAP_FE)
+			if (rc & PR_CAP_FE) {
+				err_code |= ERR_ALERT | ERR_FATAL;
 				ha_alert("parsing [%s:%d] : please use the 'bind' keyword for listening addresses.\n", file, linenum);
+			}
 			goto out;
 		}
 	}
