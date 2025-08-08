@@ -5596,18 +5596,21 @@ static int h1_takeover(struct connection *conn, int orig_tid, int release)
 	struct task *new_task = NULL;
 	struct tasklet *new_tasklet = NULL;
 
+	/* If the connection is attached to a buffer_wait (extremely rare),
+	 * it will be woken up at any instant by its own thread and we can't
+	 * undo it anyway, so let's give up on this one. It's not interesting
+	 * at least for reuse anyway since it's not usable right now.
+	 *
+	 * TODO if takeover is used to free conn (release == 1), buf_wait may
+	 * prevent this which is not desirable.
+	 */
+	if (LIST_INLIST(&h1c->buf_wait.list))
+		goto fail;
+
 	/* Pre-allocate tasks so that we don't have to roll back after the xprt
 	 * has been migrated.
 	 */
 	if (!release) {
-		/* If the connection is attached to a buffer_wait (extremely
-		 * rare), it will be woken up at any instant by its own thread
-		 * and we can't undo it anyway, so let's give up on this one.
-		 * It's not interesting anyway since it's not usable right now.
-		 */
-		if (LIST_INLIST(&h1c->buf_wait.list))
-			goto fail;
-
 		new_task = task_new_here();
 		new_tasklet = tasklet_new();
 		if (!new_task || !new_tasklet)
@@ -5662,20 +5665,6 @@ static int h1_takeover(struct connection *conn, int orig_tid, int release)
 		h1c->wait_event.tasklet->context = h1c;
 		h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx,
 		                           SUB_RETRY_RECV, &h1c->wait_event);
-	}
-
-	if (release) {
-		/* we're being called for a server deletion and are running
-		 * under thread isolation. That's the only way we can
-		 * unregister a possible subscription of the original
-		 * connection from its owner thread's queue, as this involves
-		 * manipulating thread-unsafe areas. Note that it is not
-		 * possible to just call b_dequeue() here as it would update
-		 * the current thread's bufq_map and not the original one.
-		 */
-		BUG_ON(!thread_isolated());
-		if (LIST_INLIST(&h1c->buf_wait.list))
-			_b_dequeue(&h1c->buf_wait, orig_tid);
 	}
 
 	if (new_task)
