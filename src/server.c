@@ -3363,7 +3363,7 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
  * This function is expected to be called after _srv_parse_init() initialization
  * but only when the effective server's proxy mode is known, which is not always
  * the case during parsing time, in which case the function will be called during
- * postparsing thanks to the srv_init() below.
+ * postparsing thanks to the srv_postinit() below.
  *
  * Returns ERR_NONE on success else a combination or ERR_CODE.
  */
@@ -3427,7 +3427,27 @@ static int _srv_check_proxy_mode(struct server *srv, char postparse)
 
 	return err_code;
 }
-/* Finish initializing the server after parsing
+
+/* Finish initializing the server after parsing and before config checks
+ *
+ * Returns ERR_NONE on success else a combination or ERR_CODE.
+ */
+static int srv_init_per_thr(struct server *srv);
+int srv_preinit(struct server *srv)
+{
+	int err_code = ERR_NONE;
+
+	if (srv_init_per_thr(srv) == -1) {
+		ha_alert("error during per-thread init for %s/%s server\n", srv->proxy->id, srv->id);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+ out:
+	return err_code;
+}
+
+/* Finish initializing the server after parsing and config checks
  *
  * We must be careful that checks / postinits performed within this function
  * don't depend or conflict with other postcheck functions that are registered
@@ -3437,13 +3457,9 @@ static int _srv_check_proxy_mode(struct server *srv, char postparse)
  */
 static int init_srv_requeue(struct server *srv);
 static int init_srv_slowstart(struct server *srv);
-static int srv_init_per_thr(struct server *srv);
-int srv_init(struct server *srv)
+int srv_postinit(struct server *srv)
 {
 	int err_code = ERR_NONE;
-
-	if (srv->flags & SRV_F_CHECKED)
-		return ERR_NONE; // nothing to do
 
 	err_code |= _srv_check_proxy_mode(srv, 1);
 
@@ -3474,12 +3490,6 @@ int srv_init(struct server *srv)
 	if (err_code & ERR_CODE)
 		goto out;
 
-	if (srv_init_per_thr(srv) == -1) {
-		ha_alert("error during per-thread init for %s/%s server\n", srv->proxy->id, srv->id);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-
 	/* initialize idle conns lists */
 	if (srv->max_idle_conns != 0) {
 		srv->curr_idle_thr = ha_aligned_zalloc(64, global.nbthread * sizeof(*srv->curr_idle_thr));
@@ -3492,11 +3502,9 @@ int srv_init(struct server *srv)
 	}
 
  out:
-	if (!(err_code & ERR_CODE))
-		srv->flags |= SRV_F_CHECKED;
 	return err_code;
 }
-REGISTER_POST_SERVER_CHECK(srv_init);
+REGISTER_POST_SERVER_CHECK(srv_postinit);
 
 /* Allocate a new server pointed by <srv> and try to parse the first arguments
  * in <args> as an address for a server or an address-range for a template or
@@ -6181,7 +6189,10 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		srv->agent.state &= ~CHK_ST_ENABLED;
 	}
 
-	errcode = srv_init(srv);
+	errcode = srv_preinit(srv);
+	if (errcode)
+		goto out;
+	errcode = srv_postinit(srv);
 	if (errcode)
 		goto out;
 
