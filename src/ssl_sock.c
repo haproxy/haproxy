@@ -5104,6 +5104,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 	ctx->xprt_st = 0;
 	ctx->xprt_ctx = NULL;
 	ctx->error_code = 0;
+	ctx->can_send_early_data = 1;
 
 	next_sslconn = increment_sslconn();
 	if (!next_sslconn) {
@@ -5458,6 +5459,7 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 		/* read some data: consider handshake completed */
 		goto reneg_ok;
 	}
+	ctx->can_send_early_data = 0;
 	ret = SSL_do_handshake(ctx->ssl);
 check_error:
 	if (ret != 1) {
@@ -5929,10 +5931,10 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 #endif
 
 	/*
-	 * We have to check SSL_in_before() here, as the handshake flags
+	 * We have to check can_send_early_data here, as the handshake flags
 	 * may have been removed in case we want to try to send early data.
 	 */
-	if (SSL_in_before(ctx->ssl) ||
+	if (ctx->can_send_early_data ||
 	    (conn->flags & (CO_FL_WAIT_XPRT | CO_FL_SSL_WAIT_HS))) {
 		/* a handshake was requested */
 		TRACE_LEAVE(SSL_EV_CONN_RECV, conn);
@@ -6106,7 +6108,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 			ctx->xprt_st &= ~SSL_SOCK_SEND_MORE;
 
 #ifdef SSL_READ_EARLY_DATA_SUCCESS
-		if (SSL_in_before(ctx->ssl) && conn_is_back(conn)) {
+		if (ctx->can_send_early_data && conn_is_back(conn)) {
 			unsigned int max_early;
 
 			if (objt_listener(conn->target))
