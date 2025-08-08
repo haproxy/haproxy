@@ -23,6 +23,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/session.h>
 #include <haproxy/tcp_rules.h>
+#include <haproxy/thread.h>
 #include <haproxy/tools.h>
 #include <haproxy/trace.h>
 #include <haproxy/vars.h>
@@ -115,6 +116,7 @@ void session_free(struct session *sess)
 {
 	struct connection *conn, *conn_back;
 	struct sess_priv_conns *pconns, *pconns_back;
+	struct list conn_tmp_list = LIST_HEAD_INIT(conn_tmp_list);
 
 	TRACE_ENTER(SESS_EV_END);
 	TRACE_STATE("releasing session", SESS_EV_END, sess);
@@ -131,16 +133,28 @@ void session_free(struct session *sess)
 	conn = objt_conn(sess->origin);
 	if (conn != NULL && conn->mux)
 		conn->mux->destroy(conn->ctx);
+
+	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	list_for_each_entry_safe(pconns, pconns_back, &sess->priv_conns, sess_el) {
 		list_for_each_entry_safe(conn, conn_back, &pconns->conn_list, sess_el) {
 			LIST_DEL_INIT(&conn->sess_el);
 			conn->owner = NULL;
 			conn->flags &= ~CO_FL_SESS_IDLE;
-			conn_release(conn);
+			LIST_APPEND(&conn_tmp_list, &conn->sess_el);
 		}
 		MT_LIST_DELETE(&pconns->srv_el);
 		pool_free(pool_head_sess_priv_conns, pconns);
 	}
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+
+	/* Release connections outside of idle lock. */
+	while (!LIST_ISEMPTY(&conn_tmp_list)) {
+		conn = LIST_ELEM(conn_tmp_list.n, struct connection *, sess_el);
+		/* Del-init sess_el to prevent session_unown_conn() via conn_backend_deinit(). */
+		LIST_DEL_INIT(&conn->sess_el);
+		conn_release(conn);
+	}
+
 	sockaddr_free(&sess->src);
 	sockaddr_free(&sess->dst);
 	pool_free(pool_head_session, sess);
@@ -640,6 +654,7 @@ static struct sess_priv_conns *sess_get_sess_conns(struct session *sess,
 int session_add_conn(struct session *sess, struct connection *conn)
 {
 	struct sess_priv_conns *pconns;
+	int ret = 0;
 
 	/* Connection target is used to index it in the session. Only BE conns are expected in session list. */
 	BUG_ON(!conn->target || objt_listener(conn->target));
@@ -655,15 +670,19 @@ int session_add_conn(struct session *sess, struct connection *conn)
 	 */
 	BUG_ON(conn->owner && conn->owner != sess);
 
+	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+
 	/* Already attach to the session */
-	if (!LIST_ISEMPTY(&conn->sess_el))
-		return 1;
+	if (!LIST_ISEMPTY(&conn->sess_el)) {
+		ret = 1;
+		goto out;
+	}
 
 	pconns = sess_get_sess_conns(sess, conn->target);
 	if (!pconns) {
 		pconns = sess_alloc_sess_conns(sess, conn->target);
 		if (!pconns)
-			return 0;
+			goto out;
 	}
 
 	LIST_APPEND(&pconns->conn_list, &conn->sess_el);
@@ -671,8 +690,11 @@ int session_add_conn(struct session *sess, struct connection *conn)
 	 * prior on after a session_add_conn() failure.
 	 */
 	conn->owner = sess;
+	ret = 1;
 
-	return 1;
+ out:
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	return ret;
 }
 
 /* Check that session <sess> is able to keep idle connection <conn>. This must
@@ -715,6 +737,8 @@ struct connection *session_get_conn(struct session *sess, void *target, int64_t 
 	struct connection *srv_conn, *res = NULL;
 	struct sess_priv_conns *pconns;
 
+	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+
 	pconns = sess_get_sess_conns(sess, target);
 	if (!pconns)
 		goto end;
@@ -736,6 +760,7 @@ struct connection *session_get_conn(struct session *sess, void *target, int64_t 
 	}
 
   end:
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	return res;
 }
 
@@ -748,6 +773,8 @@ void session_unown_conn(struct session *sess, struct connection *conn)
 
 	BUG_ON(objt_listener(conn->target));
 
+	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+
 	/* WT: this currently is a workaround for an inconsistency between
 	 * the link status of the connection in the session list and the
 	 * connection's owner. This should be removed as soon as all this
@@ -756,7 +783,7 @@ void session_unown_conn(struct session *sess, struct connection *conn)
 	 * element is not linked.
 	 */
 	if (!LIST_INLIST(&conn->sess_el))
-		return;
+		goto out;
 
 	if (conn->flags & CO_FL_SESS_IDLE)
 		sess->idle_conns--;
@@ -770,6 +797,9 @@ void session_unown_conn(struct session *sess, struct connection *conn)
 		MT_LIST_DELETE(&pconns->srv_el);
 		pool_free(pool_head_sess_priv_conns, pconns);
 	}
+
+ out:
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 }
 
 
