@@ -1487,7 +1487,7 @@ takeover_random_idle_conn(struct eb_root *root, int curtid)
 	while (node) {
 		hash_node = eb64_entry(node, struct conn_hash_node, node);
 		conn = hash_node->conn;
-		if (conn && conn->mux->takeover && conn->mux->takeover(conn, curtid, 0) == 0) {
+		if (conn && conn->mux->takeover && conn->mux->takeover(conn, curtid, 1) == 0) {
 			conn_delete_from_tree(conn);
 			return conn;
 		}
