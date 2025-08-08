@@ -7327,6 +7327,7 @@ int srv_add_to_idle_list(struct server *srv, struct connection *conn, int is_saf
 	 */
 	if (!(conn->flags & CO_FL_PRIVATE) &&
 	    srv && srv->pool_purge_delay > 0 &&
+	    !(srv->cur_admin & SRV_ADMF_MAINT) &&
 	    ((srv->proxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
 	    ha_used_fds < global.tune.pool_high_count &&
 	    (srv->max_idle_conns == -1 || srv->max_idle_conns > srv->curr_idle_conns) &&

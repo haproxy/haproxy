@@ -3091,11 +3091,21 @@ struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned int state)
 	if (!ret && conn_in_list) {
 		struct server *srv = __objt_server(conn->target);
 
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		_srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		if (!(srv->cur_admin & SRV_ADMF_MAINT)) {
+			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			_srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		}
+		else {
+			/* Do not store an idle conn if server in maintenance. */
+			goto release;
+		}
 	}
 	return t;
+
+ release:
+	fcgi_release(fconn);
+	return NULL;
 }
 
 /* callback called on any event by the connection handler.
