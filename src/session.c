@@ -874,6 +874,34 @@ int session_detach_idle_conn(struct session *sess, struct connection *conn)
 	return 1;
 }
 
+/* Remove every idle backend connections stored in <sess_conns> and move them
+ * into the purge list. If <sess_conns> is empty it is also removed from the
+ * session and freed.
+ *
+ * Returns the number of connections moved to purge list.
+ */
+int sess_conns_cleanup_all_idle(struct sess_priv_conns *sess_conns)
+{
+	struct connection *conn, *back;
+	int conn_tid = sess_conns->tid;
+	int i = 0;
+
+	list_for_each_entry_safe(conn, back, &sess_conns->conn_list, sess_el) {
+		if (!(conn->flags & CO_FL_SESS_IDLE))
+			continue;
+
+		/* Decrement session idle counter. */
+		--((struct session *)conn->owner)->idle_conns;
+
+		LIST_DEL_INIT(&conn->sess_el);
+		MT_LIST_APPEND(&idle_conns[conn_tid].toremove_conns,
+		               &conn->toremove_list);
+		++i;
+	}
+
+	return i;
+}
+
 
 /*
  * Local variables:

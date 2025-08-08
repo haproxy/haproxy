@@ -49,6 +49,7 @@ int session_check_idle_conn(struct session *sess, struct connection *conn);
 struct connection *session_get_conn(struct session *sess, void *target, int64_t hash);
 void session_unown_conn(struct session *sess, struct connection *conn);
 int session_detach_idle_conn(struct session *sess, struct connection *conn);
+int sess_conns_cleanup_all_idle(struct sess_priv_conns *sess_conns);
 
 /* Remove the refcount from the session to the tracked counters, and clear the
  * pointer to ensure this is only performed once. The caller is responsible for

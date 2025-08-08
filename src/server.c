@@ -7210,6 +7210,7 @@ static int srv_migrate_conns_to_remove(struct list *list, struct mt_list *toremo
  */
 static void srv_cleanup_connections(struct server *srv)
 {
+	struct sess_priv_conns *sess_conns;
 	int did_remove;
 	int i;
 
@@ -7221,8 +7222,23 @@ static void srv_cleanup_connections(struct server *srv)
 	for (i = tid;;) {
 		did_remove = 0;
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
+
+		/* idle connections */
 		if (srv_migrate_conns_to_remove(&srv->per_thr[i].idle_conn_list, &idle_conns[i].toremove_conns, -1) > 0)
 			did_remove = 1;
+
+		/* session attached connections */
+		while ((sess_conns = MT_LIST_POP(&srv->per_thr[i].sess_conns, struct sess_priv_conns *, srv_el))) {
+			if (sess_conns_cleanup_all_idle(sess_conns)) {
+				did_remove = 1;
+
+				if (LIST_ISEMPTY(&sess_conns->conn_list)) {
+					LIST_DELETE(&sess_conns->sess_el);
+					pool_free(pool_head_sess_priv_conns, sess_conns);
+				}
+			}
+		}
+
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 		if (did_remove)
 			task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
