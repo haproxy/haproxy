@@ -3100,6 +3100,34 @@ setenv <name> <value>
   the configuration file sees the new value. See also "presetenv", "resetenv",
   and "unsetenv".
 
+shm-stats-file <name> [ EXPERIMENTAL ]
+  When this directive is set, it enables the use of shared memory for storing
+  stats counters. <name> is used as argument to shm_open() to open the shared
+  memory at a unique location. It also means that the directive is only
+  available on systems which support shm_open(). When SHM is used for stats, all
+  shareable counters for frontends, backends, listeners and servers will be
+  stored in the SHM, provided that they have a GUID set. When reloading haproxy,
+  new process will try to scan the SHM for objects that could be associated to
+  objects defined in the configuration based on GUID and type, the goal is to be
+  able to preserve some counters' values upon reload. On the other hand, when
+  haproxy is properly stopped, the SHM objects are released, which means counters
+  are effectively reset. It is also possible to manually remove the file before
+  starting a fresh process to force a reset.
+
+  See also "guid", "guid-prefix" and "shm-stats-file-max-objects"
+
+shm-stats-file-max-objects <number> [ EXPERIMENTAL ]
+  This setting defines the maximum number of objects the shared memory used
+  for shared counters will be able to store per thread group. It is directly
+  related to the maximum memory size of the shm and is used to "premap" the
+  shm to a given size in order to avoid runtime re-mapping. It defaults to 2k,
+  which should suit for most setups without risking unsuitable memory usage,
+  but can be easily changed if needed. haproxy will complain during startup if
+  this value is to low to register objects that are expected to be stored in
+  the shared memory. It is only relevant when "shm-stats-file" was defined.
+
+  See also "thread-groups"
+
 ssl-default-bind-ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. It sets
   the default string describing the list of cipher algorithms ("cipher suite")
@@ -7323,7 +7351,7 @@ guid <string>
   types. Format is left unspecified to allow the user to select its naming
   policy. The only restriction is its length which cannot be greater than
   127 characters. All alphanumerical values and '.', ':', '-' and '_'
-  characters are valid.
+  characters are valid. See also "shm-stats-file".
 
 
 hash-balance-factor <factor>
@@ -16733,6 +16761,7 @@ guid-prefix <string>
   allocated on this bind line. Prefix will be concatenated to listeners
   position index on the current bind line, with character '-' as separator. See
   "guid" proxy keyword description for more information on its format.
+  See also "shm-stats-file".
 
 id <id>
   Fixes the socket ID. By default, socket IDs are automatically assigned, but
@@ -17782,7 +17811,8 @@ guid <string>
 
   Specify a case-sensitive global unique ID for this server. This must be
   unique across all haproxy configuration on every object types. See "guid"
-  proxy keyword description for more information on its format.
+  proxy keyword description for more information on its format. See also
+  "shm-stats-file".
 
 hash-key <key>
   May be used in the following contexts: tcp, http, log
