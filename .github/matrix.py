@@ -125,9 +125,11 @@ def main(ref_name):
     # Ubuntu
 
     if "haproxy-" in ref_name:
-        os = "ubuntu-24.04" # stable branch
+        os = "ubuntu-24.04"         # stable branch
+        os_arm = "ubuntu-24.04-arm" # stable branch
     else:
-        os = "ubuntu-24.04" # development branch
+        os = "ubuntu-24.04"         # development branch
+        os_arm = "ubuntu-24.04-arm" # development branch
 
     TARGET = "linux-glibc"
     for CC in ["gcc", "clang"]:
@@ -172,36 +174,37 @@ def main(ref_name):
 
         # ASAN
 
-        matrix.append(
-            {
-                "name": "{}, {}, ASAN, all features".format(os, CC),
-                "os": os,
-                "TARGET": TARGET,
-                "CC": CC,
-                "FLAGS": [
-                    "USE_OBSOLETE_LINKER=1",
-                    'ARCH_FLAGS="-g -fsanitize=address"',
-                    'OPT_CFLAGS="-O1"',
-                    "USE_ZLIB=1",
-                    "USE_OT=1",
-                    "OT_INC=${HOME}/opt-ot/include",
-                    "OT_LIB=${HOME}/opt-ot/lib",
-                    "OT_RUNPATH=1",
-                    "USE_PCRE2=1",
-                    "USE_PCRE2_JIT=1",
-                    "USE_LUA=1",
-                    "USE_OPENSSL=1",
-                    "USE_WURFL=1",
-                    "WURFL_INC=addons/wurfl/dummy",
-                    "WURFL_LIB=addons/wurfl/dummy",
-                    "USE_DEVICEATLAS=1",
-                    "DEVICEATLAS_SRC=addons/deviceatlas/dummy",
-                    "USE_PROMEX=1",
-                    "USE_51DEGREES=1",
-                    "51DEGREES_SRC=addons/51degrees/dummy/pattern",
-                ],
-            }
-        )
+        for os_asan in [os, os_arm]:
+            matrix.append(
+                {
+                    "name": "{}, {}, ASAN, all features".format(os_asan, CC),
+                    "os": os_asan,
+                    "TARGET": TARGET,
+                    "CC": CC,
+                    "FLAGS": [
+                        "USE_OBSOLETE_LINKER=1",
+                        'ARCH_FLAGS="-g -fsanitize=address"',
+                        'OPT_CFLAGS="-O1"',
+                        "USE_ZLIB=1",
+                        "USE_OT=1",
+                        "OT_INC=${HOME}/opt-ot/include",
+                        "OT_LIB=${HOME}/opt-ot/lib",
+                        "OT_RUNPATH=1",
+                        "USE_PCRE2=1",
+                        "USE_PCRE2_JIT=1",
+                        "USE_LUA=1",
+                        "USE_OPENSSL=1",
+                        "USE_WURFL=1",
+                        "WURFL_INC=addons/wurfl/dummy",
+                        "WURFL_LIB=addons/wurfl/dummy",
+                        "USE_DEVICEATLAS=1",
+                        "DEVICEATLAS_SRC=addons/deviceatlas/dummy",
+                        "USE_PROMEX=1",
+                        "USE_51DEGREES=1",
+                        "51DEGREES_SRC=addons/51degrees/dummy/pattern",
+                    ],
+                }
+            )
 
         for compression in ["USE_ZLIB=1"]:
             matrix.append(
