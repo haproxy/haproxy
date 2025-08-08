@@ -44,6 +44,7 @@ struct task *session_expire_embryonic(struct task *t, void *context, unsigned in
 void __session_add_glitch_ctr(struct session *sess, uint inc);
 void session_embryonic_build_legacy_err(struct session *sess, struct buffer *out);
 
+int session_detach_sess_conns(struct sess_priv_conns *sess_conns);
 
 /* Remove the refcount from the session to the tracked counters, and clear the
  * pointer to ensure this is only performed once. The caller is responsible for
@@ -217,6 +218,7 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 		pconns = pool_alloc(pool_head_sess_priv_conns);
 		if (!pconns)
 			goto err;
+		pconns->sess = sess;
 		pconns->target = conn->target;
 		LIST_INIT(&pconns->conn_list);
 		LIST_APPEND(&sess->priv_conns, &pconns->sess_el);

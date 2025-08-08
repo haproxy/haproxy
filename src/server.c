@@ -7185,6 +7185,7 @@ static int srv_purge_conns(struct list *conns, int t, int count)
  */
 static void srv_purge_all_idle_conns(struct server *srv)
 {
+	struct sess_priv_conns *sess_conns;
 	int did_remove;
 	int i;
 
@@ -7205,6 +7206,15 @@ static void srv_purge_all_idle_conns(struct server *srv)
 		if ((i = ((i + 1 == global.nbthread) ? 0 : i + 1)) == tid)
 			break;
 	}
+
+	HA_SPIN_LOCK(SERVER_SESS_LOCK, &srv->sess_lock);
+	while ((sess_conns = MT_LIST_POP(&srv->sess_conns, struct sess_priv_conns *, srv_el))) {
+		if (session_detach_sess_conns(sess_conns))
+			task_wakeup(idle_conns[sess_conns->tid].task_free_purged, TASK_WOKEN_OTHER);
+		LIST_DELETE(&sess_conns->sess_el);
+		pool_free(pool_head_sess_priv_conns, sess_conns);
+	}
+	HA_SPIN_UNLOCK(SERVER_SESS_LOCK, &srv->sess_lock);
 }
 
 /* removes an idle conn after updating the server idle conns counters */

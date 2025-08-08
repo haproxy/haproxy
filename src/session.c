@@ -584,6 +584,40 @@ void __session_add_glitch_ctr(struct session *sess, uint inc)
 		stkctr_add_glitch_ctr(&sess->stkctr[i], inc);
 }
 
+int session_detach_sess_conns(struct sess_priv_conns *sess_conns)
+{
+	/* Only a server has the ability to purge sess connections. */
+	struct server *srv = __objt_server(sess_conns->target);
+	struct connection *conn;
+	int conn_tid = sess_conns->tid;
+	int i = 0;
+
+	while (!LIST_ISEMPTY(&sess_conns->conn_list)) {
+		conn = LIST_ELEM(sess_conns->conn_list.n, struct connection *, sess_el);
+
+		/* Connection will be purged. Account it on the server as an idle conn. */
+		conn->flags &= ~CO_FL_PRIVATE;
+		conn->flags |= CO_FL_IDLE_LIST;
+
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[conn_tid].lock);
+		++srv->curr_idle_conns;
+		++srv->curr_idle_nb;
+		++srv->curr_idle_thr[conn_tid];
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[conn_tid].lock);
+
+		/* Decrement session idle counter if needed. */
+		if (conn->flags & CO_FL_SESS_IDLE)
+			sess_conns->sess->idle_conns--;
+
+		LIST_DEL_INIT(&conn->sess_el);
+		MT_LIST_APPEND(&idle_conns[conn_tid].purged_list,
+		               &conn->purge_el);
+		i++;
+	}
+
+	return i;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

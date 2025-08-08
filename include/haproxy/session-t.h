@@ -70,6 +70,7 @@ struct session {
  * Stored both into the session and server instances
  */
 struct sess_priv_conns {
+	struct session *sess;
 	void *target;                   /* Server or dispatch used for indexing */
 	struct list conn_list;          /* Head of the connections list */
 
