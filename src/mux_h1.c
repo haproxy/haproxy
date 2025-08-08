@@ -4410,7 +4410,7 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state)
 			se_fl_set(h1c->h1s->sd, SE_FL_EOS | SE_FL_ERROR);
 			h1_alert(h1c->h1s);
 			h1_refresh_timeout(h1c);
-			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].idle_conns_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 			TRACE_DEVEL("waiting to release the SC before releasing the connection", H1_EV_H1C_WAKE);
 			return t;
 		}
