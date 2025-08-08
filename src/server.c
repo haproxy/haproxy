@@ -3076,6 +3076,7 @@ struct server *new_server(struct proxy *proxy)
 
 	HA_SPIN_INIT(&srv->sess_lock);
 	MT_LIST_INIT(&srv->sess_conns);
+	srv->curr_sess_conns = 0;
 
 	guid_init(&srv->guid);
 	MT_LIST_INIT(&srv->watcher_list);

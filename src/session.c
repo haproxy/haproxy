@@ -142,6 +142,9 @@ void session_free(struct session *sess)
 			conn->owner = NULL;
 			conn->flags &= ~CO_FL_SESS_IDLE;
 			conn_release(conn);
+
+			if (srv)
+				--srv->curr_sess_conns;
 		}
 		if (srv)
 			HA_SPIN_UNLOCK(SERVER_SESS_LOCK, &srv->sess_lock);
@@ -600,6 +603,7 @@ int session_detach_sess_conns(struct sess_priv_conns *sess_conns)
 		conn->flags |= CO_FL_IDLE_LIST;
 
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[conn_tid].lock);
+		--srv->curr_sess_conns;
 		++srv->curr_idle_conns;
 		++srv->curr_idle_nb;
 		++srv->curr_idle_thr[conn_tid];

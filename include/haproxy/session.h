@@ -165,6 +165,9 @@ static inline void session_unown_conn(struct session *sess, struct connection *c
 		sess->idle_conns--;
 	LIST_DEL_INIT(&conn->sess_el);
 	conn->owner = NULL;
+	if (srv)
+		--srv->curr_sess_conns;
+
 	list_for_each_entry(pconns, &sess->priv_conns, sess_el) {
 		if (pconns->target == conn->target) {
 			if (LIST_ISEMPTY(&pconns->conn_list)) {
@@ -224,8 +227,10 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 		LIST_APPEND(&sess->priv_conns, &pconns->sess_el);
 
 		MT_LIST_INIT(&pconns->srv_el);
-		if (srv)
+		if (srv) {
 			MT_LIST_APPEND(&srv->sess_conns, &pconns->srv_el);
+			++srv->curr_sess_conns;
+		}
 
 		pconns->tid = tid;
 	}

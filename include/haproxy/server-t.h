@@ -389,6 +389,7 @@ struct server {
 
 	HA_SPINLOCK_T sess_lock;
 	struct mt_list sess_conns;		/* list of private conns managed by a session on this server */
+	unsigned int curr_sess_conns;
 
 	/* Element below are usd by LB algorithms and must be doable in
 	 * parallel to other threads reusing connections above.
