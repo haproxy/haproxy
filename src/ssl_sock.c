@@ -5928,7 +5928,12 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 	}
 #endif
 
-	if (conn->flags & (CO_FL_WAIT_XPRT | CO_FL_SSL_WAIT_HS)) {
+	/*
+	 * We have to check SSL_in_before() here, as the handshake flags
+	 * may have been removed in case we want to try to send early data.
+	 */
+	if (SSL_in_before(ctx->ssl) ||
+	    (conn->flags & (CO_FL_WAIT_XPRT | CO_FL_SSL_WAIT_HS))) {
 		/* a handshake was requested */
 		TRACE_LEAVE(SSL_EV_CONN_RECV, conn);
 		return 0;
@@ -6101,7 +6106,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 			ctx->xprt_st &= ~SSL_SOCK_SEND_MORE;
 
 #ifdef SSL_READ_EARLY_DATA_SUCCESS
-		if (!SSL_is_init_finished(ctx->ssl) && conn_is_back(conn)) {
+		if (SSL_in_before(ctx->ssl) && conn_is_back(conn)) {
 			unsigned int max_early;
 
 			if (objt_listener(conn->target))
