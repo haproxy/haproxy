@@ -3074,6 +3074,7 @@ struct server *new_server(struct proxy *proxy)
 	srv->agent.proxy = proxy;
 	srv->xprt  = srv->check.xprt = srv->agent.xprt = xprt_get(XPRT_RAW);
 
+	HA_SPIN_INIT(&srv->sess_lock);
 	MT_LIST_INIT(&srv->sess_conns);
 
 	guid_init(&srv->guid);

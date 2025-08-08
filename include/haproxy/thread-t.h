@@ -218,6 +218,7 @@ enum lock_label {
 	CACHE_LOCK,
 	GUID_LOCK,
 	JWT_LOCK,
+	SERVER_SESS_LOCK,
 	OTHER_LOCK,
 	/* WT: make sure never to use these ones outside of development,
 	 * we need them for lock profiling!

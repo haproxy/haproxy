@@ -438,6 +438,7 @@ const char *lock_label(enum lock_label label)
 	case CACHE_LOCK:           return "CACHE";
 	case GUID_LOCK:            return "GUID";
 	case JWT_LOCK:             return "JWT";
+	case SERVER_SESS_LOCK:     return "SERVER_SESS_LOCK";
 	case OTHER_LOCK:           return "OTHER";
 	case DEBUG1_LOCK:          return "DEBUG1";
 	case DEBUG2_LOCK:          return "DEBUG2";

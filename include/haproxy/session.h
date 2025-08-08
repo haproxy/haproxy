@@ -30,6 +30,7 @@
 #include <haproxy/server.h>
 #include <haproxy/session-t.h>
 #include <haproxy/stick_table.h>
+#include <haproxy/thread.h>
 
 extern struct pool_head *pool_head_session;
 extern struct pool_head *pool_head_sess_priv_conns;
@@ -142,8 +143,12 @@ static inline void session_add_glitch_ctr(struct session *sess, uint inc)
 static inline void session_unown_conn(struct session *sess, struct connection *conn)
 {
 	struct sess_priv_conns *pconns = NULL;
+	struct server *srv = objt_server(conn->target);
 
 	BUG_ON(objt_listener(conn->target));
+
+	if (srv)
+		HA_SPIN_LOCK(SERVER_SESS_LOCK, &srv->sess_lock);
 
 	/* WT: this currently is a workaround for an inconsistency between
 	 * the link status of the connection in the session list and the
@@ -153,7 +158,7 @@ static inline void session_unown_conn(struct session *sess, struct connection *c
 	 * element is not linked.
 	 */
 	if (!LIST_INLIST(&conn->sess_el))
-		return;
+		goto out;
 
 	if (conn->flags & CO_FL_SESS_IDLE)
 		sess->idle_conns--;
@@ -169,6 +174,10 @@ static inline void session_unown_conn(struct session *sess, struct connection *c
 			break;
 		}
 	}
+
+ out:
+	if (srv)
+		HA_SPIN_UNLOCK(SERVER_SESS_LOCK, &srv->sess_lock);
 }
 
 /* Add the connection <conn> to the private conns list of session <sess>. Each
@@ -190,9 +199,12 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 	/* A connection cannot be attached already to another session. */
 	BUG_ON(conn->owner && conn->owner != sess);
 
+	if (srv)
+		HA_SPIN_LOCK(SERVER_SESS_LOCK, &srv->sess_lock);
+
 	/* Already attach to the session */
 	if (!LIST_ISEMPTY(&conn->sess_el))
-		return 1;
+		goto out;
 
 	list_for_each_entry(pconns, &sess->priv_conns, sess_el) {
 		if (pconns->target == conn->target) {
@@ -204,7 +216,7 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 		/* The session has no connection for the server, create a new entry */
 		pconns = pool_alloc(pool_head_sess_priv_conns);
 		if (!pconns)
-			return 0;
+			goto err;
 		pconns->target = conn->target;
 		LIST_INIT(&pconns->conn_list);
 		LIST_APPEND(&sess->priv_conns, &pconns->sess_el);
@@ -222,7 +234,15 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 	 */
 	conn->owner = sess;
 
+ out:
+	if (srv)
+		HA_SPIN_UNLOCK(SERVER_SESS_LOCK, &srv->sess_lock);
 	return 1;
+
+ err:
+	if (srv)
+		HA_SPIN_UNLOCK(SERVER_SESS_LOCK, &srv->sess_lock);
+	return 0;
 }
 
 /* Check that session <sess> is able to keep idle connection <conn>. This must

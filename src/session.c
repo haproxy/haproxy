@@ -116,6 +116,7 @@ void session_free(struct session *sess)
 {
 	struct connection *conn, *conn_back;
 	struct sess_priv_conns *pconns, *pconns_back;
+	struct server *srv;
 
 	TRACE_ENTER(SESS_EV_END);
 	TRACE_STATE("releasing session", SESS_EV_END, sess);
@@ -133,12 +134,17 @@ void session_free(struct session *sess)
 	if (conn != NULL && conn->mux)
 		conn->mux->destroy(conn->ctx);
 	list_for_each_entry_safe(pconns, pconns_back, &sess->priv_conns, sess_el) {
+		srv = objt_server(pconns->target);
+		if (srv)
+			HA_SPIN_LOCK(SERVER_SESS_LOCK, &srv->sess_lock);
 		list_for_each_entry_safe(conn, conn_back, &pconns->conn_list, sess_el) {
 			LIST_DEL_INIT(&conn->sess_el);
 			conn->owner = NULL;
 			conn->flags &= ~CO_FL_SESS_IDLE;
 			conn_release(conn);
 		}
+		if (srv)
+			HA_SPIN_UNLOCK(SERVER_SESS_LOCK, &srv->sess_lock);
 		MT_LIST_DELETE(&pconns->srv_el);
 		pool_free(pool_head_sess_priv_conns, pconns);
 	}
