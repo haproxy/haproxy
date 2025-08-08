@@ -76,7 +76,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: '~/opt-ot/'
-        key: ot-${{ matrix.CC }}-${{ env.OT_CPP_VERSION }}-${{ contains(matrix.name, 'ASAN') }}
+        key: ${{ matrix.os }}-ot-${{ matrix.CC }}-${{ env.OT_CPP_VERSION }}-${{ contains(matrix.name, 'ASAN') }}
     - name: Install apt dependencies
       if: ${{ startsWith(matrix.os, 'ubuntu-') }}
       run: |
