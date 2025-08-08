@@ -540,10 +540,9 @@ static void conn_backend_deinit(struct connection *conn)
 	if (obj_type(conn->target) == OBJ_TYPE_SERVER) {
 		struct server *srv = __objt_server(conn->target);
 
-		/* If the connection is not private, it is accounted by the server. */
-		if (!(conn->flags & CO_FL_PRIVATE)) {
+		if (!(conn->flags & CO_FL_PRIVATE) || (conn->flags & CO_FL_SESS_IDLE))
 			srv_release_conn(srv, conn);
-		}
+
 		if (srv->flags & SRV_F_STRICT_MAXCONN)
 			_HA_ATOMIC_DEC(&srv->curr_total_conns);
 	}

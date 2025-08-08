@@ -388,6 +388,7 @@ struct server {
 	unsigned int curr_total_conns;          /* Current number of total connections to the server, used or idle, only calculated if strict-maxconn is used */
 	unsigned int max_used_conns;            /* Max number of used connections (the counter is reset at each connection purges */
 	unsigned int est_need_conns;            /* Estimate on the number of needed connections (max of curr and previous max_used) */
+	unsigned int curr_sess_idle_conns;      /* Current number of idle connections attached to a session instead of idle/safe trees. */
 
 	/* Element below are usd by LB algorithms and must be doable in
 	 * parallel to other threads reusing connections above.

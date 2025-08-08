@@ -7251,7 +7251,11 @@ static void srv_cleanup_connections(struct server *srv)
 /* removes an idle conn after updating the server idle conns counters */
 void srv_release_conn(struct server *srv, struct connection *conn)
 {
-	if (conn->flags & CO_FL_LIST_MASK) {
+	if (conn->flags & CO_FL_SESS_IDLE) {
+		_HA_ATOMIC_DEC(&srv->curr_sess_idle_conns);
+		conn->flags &= ~CO_FL_SESS_IDLE;
+	}
+	else if (conn->flags & CO_FL_LIST_MASK) {
 		/* The connection is currently in the server's idle list, so tell it
 		 * there's one less connection available in that list.
 		 */

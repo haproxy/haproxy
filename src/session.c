@@ -139,7 +139,6 @@ void session_free(struct session *sess)
 		list_for_each_entry_safe(conn, conn_back, &pconns->conn_list, sess_el) {
 			LIST_DEL_INIT(&conn->sess_el);
 			conn->owner = NULL;
-			conn->flags &= ~CO_FL_SESS_IDLE;
 			LIST_APPEND(&conn_tmp_list, &conn->sess_el);
 		}
 		MT_LIST_DELETE(&pconns->srv_el);
@@ -732,6 +731,9 @@ int session_reinsert_idle_conn(struct session *sess, struct connection *conn)
 /* Check that session <sess> is able to keep idle connection <conn>. This must
  * be called each time a connection stored in a session becomes idle.
  *
+ * If <conn> can be kept as idle in the session, idle sess conn counter of its
+ * target server will be incremented.
+ *
  * Returns 0 if the connection is kept, else non-zero if the connection was
  * explicitely removed from session.
  */
@@ -758,6 +760,8 @@ int session_check_idle_conn(struct session *sess, struct connection *conn)
 	else {
 		conn->flags |= CO_FL_SESS_IDLE;
 		sess->idle_conns++;
+		if (srv)
+			HA_ATOMIC_INC(&srv->curr_sess_idle_conns);
 	}
 
 	return 0;
@@ -771,6 +775,7 @@ struct connection *session_get_conn(struct session *sess, void *target, int64_t 
 {
 	struct connection *srv_conn, *res = NULL;
 	struct sess_priv_conns *pconns;
+	struct server *srv;
 
 	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
@@ -787,6 +792,10 @@ struct connection *session_get_conn(struct session *sess, void *target, int64_t 
 			if (srv_conn->flags & CO_FL_SESS_IDLE) {
 				srv_conn->flags &= ~CO_FL_SESS_IDLE;
 				sess->idle_conns--;
+
+				srv = objt_server(srv_conn->target);
+				if (srv)
+					HA_ATOMIC_DEC(&srv->curr_sess_idle_conns);
 			}
 
 			res = srv_conn;
