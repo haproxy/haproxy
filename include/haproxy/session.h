@@ -255,6 +255,8 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
  */
 static inline int session_check_idle_conn(struct session *sess, struct connection *conn)
 {
+	struct server *srv = objt_server(conn->target);
+
 	/* Connection must be attached to session prior to this function call. */
 	BUG_ON(!conn->owner || conn->owner != sess);
 
@@ -265,7 +267,8 @@ static inline int session_check_idle_conn(struct session *sess, struct connectio
 	/* Ensure conn is not already accounted as idle to prevent sess idle count excess increment. */
 	BUG_ON(conn->flags & CO_FL_SESS_IDLE);
 
-	if (sess->idle_conns >= sess->fe->max_out_conns) {
+	if (sess->idle_conns >= sess->fe->max_out_conns &&
+	    (srv && (srv->cur_admin & (SRV_ADMF_MAINT|SRV_ADMF_FDRAIN)))) {
 		session_unown_conn(sess, conn);
 		conn->owner = NULL;
 		return -1;
