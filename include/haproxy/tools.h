@@ -1212,6 +1212,16 @@ static inline void *_ha_aligned_alloc(size_t alignment, size_t size)
 #endif
 }
 
+/* Like above but zeroing the area */
+static inline void *_ha_aligned_zalloc(size_t alignment, size_t size)
+{
+	void *ret = _ha_aligned_alloc(alignment, size);
+
+	if (ret)
+		memset(ret, 0, size);
+	return ret;
+}
+
 /* portable memalign(): tries to accommodate OS specificities, and may fall
  * back to plain malloc() if not supported, meaning that alignment guarantees
  * are only a performance bonus but not granted. The size will automatically be
@@ -1237,6 +1247,16 @@ static inline void *_ha_aligned_alloc_safe(size_t alignment, size_t size)
 		alignment++;
 	}
 	return _ha_aligned_alloc(alignment, size);
+}
+
+/* Like above but zeroing the area */
+static inline void *_ha_aligned_zalloc_safe(size_t alignment, size_t size)
+{
+	void *ret = _ha_aligned_alloc_safe(alignment, size);
+
+	if (ret)
+		memset(ret, 0, size);
+	return ret;
 }
 
 /* To be used to free a pointer returned by _ha_aligned_alloc() or
