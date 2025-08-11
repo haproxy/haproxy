@@ -83,19 +83,27 @@
 
 /*** below are the typed pool macros, taking a type and an extra size ***/
 
-/* This registers a call to create_pool_callback(ptr) with these args */
-#define REGISTER_TYPED_POOL(ptr, name, type, extra)	\
-	_REGISTER_POOL(__LINE__, ptr, name, sizeof(type) + extra, __alignof__(type), __alignof__(type))
+/* This is only used by REGISTER_TYPED_POOL below */
+#define _REGISTER_TYPED_POOL(ptr, name, type, extra, align, ...)		\
+	_REGISTER_POOL(__LINE__, ptr, name, sizeof(type) + extra, __alignof__(type), align)
+
+/* This registers a call to create_pool_callback(ptr) with these args.
+ * It supports two optional args:
+ *  - extra: the extra size to be allocated at the end of the type. Def: 0.
+ *  - align: the desired alignment on the type. Def: 0 = same as type.
+ */
+#define REGISTER_TYPED_POOL(ptr, name, type, args...)	\
+	_REGISTER_TYPED_POOL(ptr, name, type, ##args, 0, 0)
 
 /* This macro declares an aligned pool head <ptr> and registers its creation */
-#define DECLARE_TYPED_POOL(ptr, name, type, extra)	      \
+#define DECLARE_TYPED_POOL(ptr, name, type, args...)	      \
 	struct pool_head *(ptr) __read_mostly = NULL; \
-	_REGISTER_POOL(__LINE__, &ptr, name, sizeof(type) + extra, __alignof__(type), __alignof__(type))
+	_REGISTER_TYPED_POOL(&ptr, name, type, ##args, 0, 0)
 
 /* This macro declares a static aligned pool head <ptr> and registers its creation */
-#define DECLARE_STATIC_TYPED_POOL(ptr, name, type, extra)   \
+#define DECLARE_STATIC_TYPED_POOL(ptr, name, type, args...)   \
 	static struct pool_head *(ptr) __read_mostly; \
-	_REGISTER_POOL(__LINE__, &ptr, name, sizeof(type) + extra, __alignof__(type), __alignof__(type))
+	_REGISTER_TYPED_POOL(&ptr, name, type, ##args, 0, 0)
 
 /* By default, free objects are linked by a pointer stored at the beginning of
  * the memory area. When DEBUG_MEMORY_POOLS is set, the allocated area is
