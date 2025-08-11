@@ -32,7 +32,7 @@ int init_buffer()
 	int done;
 	int i;
 
-	pool_head_buffer = create_pool("buffer", global.tune.bufsize, MEM_F_SHARED|MEM_F_EXACT);
+	pool_head_buffer = create_aligned_pool("buffer", global.tune.bufsize, 64, MEM_F_SHARED|MEM_F_EXACT);
 	if (!pool_head_buffer)
 		return 0;
 
