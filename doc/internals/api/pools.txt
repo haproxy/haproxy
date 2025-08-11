@@ -1,4 +1,4 @@
-2022-02-24 - Pools structure and API
+2025-08-11 - Pools structure and API
 
 1. Background
 -------------
@@ -239,10 +239,6 @@ currently in use:
           +------------+          +------------+ /   is set at build time
                                                      or -dMtag at boot time
 
-Right now no provisions are made to return objects aligned on larger boundaries
-than those currently covered by malloc() (i.e. two pointers). This need appears
-from time to time and the layout above might evolve a little bit if needed.
-
 
 4. Storage in the process-wide shared pool
 ------------------------------------------
@@ -344,6 +340,22 @@ The following functions are public and available for user code:
 
 struct pool_head *create_pool(char *name, uint size, uint flags)
         Create a new pool named <name> for objects of size <size> bytes. Pool
+        names are truncated to their first 11 characters. Pools of very similar
+        size will usually be merged if both have set the flag MEM_F_SHARED in
+        <flags>. When DEBUG_DONT_SHARE_POOLS was set at build time, or
+        "-dMno-merge" is passed on the executable's command line, the pools
+        also need to have the exact same name to be merged. In addition, unless
+        MEM_F_EXACT is set in <flags>, the object size will usually be rounded
+        up to the size of pointers (16 or 32 bytes). MEM_F_UAF may be set on a
+        per-pool basis to enable the UAF detection only for this specific pool,
+        saving the massive overhead of global usage. The name that will appear
+        in the pool upon merging is the name of the first created pool. The
+        returned pointer is the new (or reused) pool head, or NULL upon error.
+        Pools created this way must be destroyed using pool_destroy().
+
+struct pool_head *create_aligned_pool(char *name, uint size, uint align, uint flags)
+        Create a new pool named <name> for objects of size <size> bytes and
+        aligned to <align> bytes (0 meaning use the platform's default). Pool
         names are truncated to their first 11 characters. Pools of very similar
         size will usually be merged if both have set the flag MEM_F_SHARED in
         <flags>. When DEBUG_DONT_SHARE_POOLS was set at build time, or
@@ -470,6 +482,20 @@ complicate maintenance.
 
 A few macros exist to ease the declaration of pools:
 
+DECLARE_ALIGNED_POOL(ptr, name, size, align)
+        Placed at the top level of a file, this declares a global memory pool
+        as variable <ptr>, name <name> and size <size> bytes per element, all
+        of which will be aligned to <align> bytes. The alignment will be
+        rounded up to the next power of two and will be at least as large as a
+        word on the platform. This is made via a call to REGISTER_ALIGNED_POOL()
+        and by assigning the resulting pointer to variable <ptr>. <ptr> will be
+        created of type "struct pool_head *". If the pool needs to be visible
+        outside of the function (which is likely), it will also need to be
+        declared somewhere as "extern struct pool_head *<ptr>;". It is
+        recommended to place such declarations very early in the source file so
+        that the variable is already known to all subsequent functions which
+        may use it.
+
 DECLARE_POOL(ptr, name, size)
         Placed at the top level of a file, this declares a global memory pool
         as variable <ptr>, name <name> and size <size> bytes per element. This
@@ -481,6 +507,17 @@ DECLARE_POOL(ptr, name, size)
         declarations very early in the source file so that the variable is
         already known to all subsequent functions which may use it.
 
+DECLARE_STATIC_ALIGNED_POOL(ptr, name, size, align)
+        Placed at the top level of a file, this declares a global memory pool
+        as variable <ptr>, name <name> and size <size> bytes per element, all
+        of which will be aligned to <align> bytes. The alignment will be
+        rounded up to the next power of two and will be at least as large as a
+        word on the platform. This is made via a call to REGISTER_ALIGNED_POOL()
+        and by assigning the resulting pointer to local variable <ptr>. <ptr>
+        will be created of type "static struct pool_head *". It is recommended
+        to place such declarations very early in the source file so that the
+        variable is already known to all subsequent functions which may use it.
+
 DECLARE_STATIC_POOL(ptr, name, size)
         Placed at the top level of a file, this declares a static memory pool
         as variable <ptr>, name <name> and size <size> bytes per element. This
@@ -489,6 +526,42 @@ DECLARE_STATIC_POOL(ptr, name, size)
         struct pool_head *". It is recommended to place such declarations very
         early in the source file so that the variable is already known to all
         subsequent functions which may use it.
+
+DECLARE_STATIC_TYPED_POOL(ptr, name, type[, extra[, align]])
+        Placed at the top level of a file, this declares a global memory pool
+        as variable <ptr>, name <name>, and configured to allocate objects of
+        type <type>. It is optionally possible to grow these objects by <extra>
+        bytes (e.g. if they contain some variable length data at the end), and
+        to force them to be aligned to <align> bytes. If only alignment is
+        desired without extra data, pass 0 as <extra>. Alignment must be at
+        least as large as the type's, and a control is enforced at declaration
+        time so that objects cannot be less aligned than what is promised to
+        the compiler. The default alignment of zero indicates that the default
+        one (from the type) should be used. This is made via a call to
+        REGISTER_ALIGNED_POOL() and by assigning the resulting pointer to local
+        variable <ptr>. <ptr> will be created of type "static struct pool_head
+        *". It is recommended to place such declarations very early in the
+        source file so that the variable is already known to all subsequent
+        functions which may use it.
+
+DECLARE_TYPED_POOL(ptr, name, type[, extra[, align]])
+        Placed at the top level of a file, this declares a global memory pool
+        as variable <ptr>, name <name>, and configured to allocate objects of
+        type <type>. It is optionally possible to grow these objects by <extra>
+        bytes (e.g. if they contain some variable length data at the end), and
+        to force them to be aligned to <align> bytes. If only alignment is
+        desired without extra data, pass 0 as <extra>. Alignment must be at
+        least as large as the type's, and a control is enforced at declaration
+        time so that objects cannot be less aligned than what is promised to
+        the compiler. The default alignment of zero indicates that the default
+        one (from the type) should be used. This is made via a call to
+        REGISTER_ALIGNED_POOL() and by assigning the resulting pointer to
+        variable <ptr>. <ptr> will be created of type "struct pool_head *". If
+        the pool needs to be visible outside of the function (which is likely),
+        it will also need to be declared somewhere as "extern struct pool_head
+        *<ptr>;". It is recommended to place such declarations very early in
+        the source file so that the variable is already known to all subsequent
+        functions which may use it.
 
 
 6. Build options
