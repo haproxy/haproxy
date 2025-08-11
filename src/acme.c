@@ -190,7 +190,7 @@ struct acme_cfg *new_acme_cfg(const char *name)
 	/* 0 on the linenum just mean it was not initialized yet */
 	ret->linenum = 0;
 
-	ret->challenge = strdup("HTTP-01"); /* default value */
+	ret->challenge = strdup("http-01"); /* default value */
 
 	/* The default generated keys are EC-384 */
 	ret->key.type = EVP_PKEY_EC;
@@ -408,8 +408,8 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 			goto out;
 		}
 	} else if (strcmp(args[0], "challenge") == 0) {
-		if ((!*args[1]) ||  (strcmp("HTTP-01", args[1]) != 0 && (strcmp("DNS-01", args[1]) != 0))) {
-			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires a challenge type: HTTP-01 or DNS-01\n", file, linenum, args[0], cursection);
+		if ((!*args[1]) ||  (strcasecmp("http-01", args[1]) != 0 && (strcasecmp("dns-01", args[1]) != 0))) {
+			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires a challenge type: http-01 or dns-01\n", file, linenum, args[0], cursection);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -892,7 +892,7 @@ error:
 }
 
 /*
- * compute a TXT record for DNS-01 challenge
+ * compute a TXT record for dns-01 challenge
  *  base64url(sha256(token || '.' || base64url(Thumbprint(accountKey))))
  *
  *  https://datatracker.ietf.org/doc/html/rfc8555/#section-8.4
@@ -1580,16 +1580,16 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 		}
 
 		/* compute a response for the TXT entry */
-		if (strcasecmp(ctx->cfg->challenge, "DNS-01") == 0) {
+		if (strcasecmp(ctx->cfg->challenge, "dns-01") == 0) {
 			struct sink *dpapi;
 			struct ist line[7];
 
 			if (acme_txt_record(ist(ctx->cfg->account.thumbprint), auth->token, &trash) == 0) {
-				memprintf(errmsg, "couldn't compute the DNS-01 challenge");
+				memprintf(errmsg, "couldn't compute the dns-01 challenge");
 				goto error;
 			}
 
-			send_log(NULL, LOG_NOTICE,"acme: %s: DNS-01 requires to set the \"_acme-challenge.%.*s\" TXT record to \"%.*s\" and use the \"acme challenge_ready\" command over the CLI\n",
+			send_log(NULL, LOG_NOTICE,"acme: %s: dns-01 requires to set the \"_acme-challenge.%.*s\" TXT record to \"%.*s\" and use the \"acme challenge_ready\" command over the CLI\n",
 			                                             ctx->store->path, (int)auth->dns.len, auth->dns.ptr, (int)trash.data, trash.area);
 
 			/* dump to the "dpapi" sink */
@@ -1607,7 +1607,7 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 				sink_write(dpapi, LOG_HEADER_NONE, 0, line, 7);
 		}
 
-		/* only useful for HTTP-01 */
+		/* only useful for http-01 */
 		if (acme_add_challenge_map(ctx->cfg->map, auth->token.ptr, ctx->cfg->account.thumbprint, errmsg) != 0) {
 			memprintf(errmsg, "couldn't add the token to the '%s' map: %s", ctx->cfg->map, *errmsg);
 			goto error;
@@ -1757,9 +1757,9 @@ int acme_res_neworder(struct task *task, struct acme_ctx *ctx, char **errmsg)
 			goto error;
 		}
 
-                /* if the challenge is not DNS-01, consider that the challenge
+                /* if the challenge is not dns-01, consider that the challenge
                  * is ready because computed by HAProxy */
-                if (strcasecmp(ctx->cfg->challenge, "DNS-01") != 0)
+                if (strcasecmp(ctx->cfg->challenge, "dns-01") != 0)
 			auth->ready = 1;
 
 		auth->next = ctx->auths;

@@ -30432,8 +30432,8 @@ bits <number>
   but blocking the traffic too long could trigger the watchdog.)
 
 challenge <string>
-  Takes a challenge type as parameter, this must be HTTP-01 or DNS-01. When not
-  used the default is HTTP-01.
+  Takes a challenge type as parameter, this must be http-01 or dns-01. When not
+  used the default is http-01.
 
 contact <string>
   The contact email that will be associated to the account key in the CA.
@@ -30476,7 +30476,7 @@ Example:
       directory https://acme-staging-v02.api.letsencrypt.org/directory
       account-key /etc/haproxy/letsencrypt.account.key
       contact john.doe@example.com
-      challenge HTTP-01
+      challenge http-01
       keytype RSA
       bits 2048
       map virt@acme
@@ -30485,7 +30485,7 @@ Example:
       directory https://acme-staging-v02.api.letsencrypt.org/directory
       account-key /etc/haproxy/letsencrypt.account.key
       contact john.doe@example.com
-      challenge HTTP-01
+      challenge http-01
       keytype ECDSA
       curves P-384
       map virt@acme
