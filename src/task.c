@@ -27,8 +27,8 @@
 extern struct task *process_stream(struct task *t, void *context, unsigned int state);
 extern void stream_update_timings(struct task *t, uint64_t lat, uint64_t cpu);
 
-DECLARE_TYPED_POOL(pool_head_task,    "task",    struct task);
-DECLARE_TYPED_POOL(pool_head_tasklet, "tasklet", struct tasklet);
+DECLARE_TYPED_POOL(pool_head_task,    "task",    struct task, 0, 64);
+DECLARE_TYPED_POOL(pool_head_tasklet, "tasklet", struct tasklet, 0, 64);
 
 /* This is the memory pool containing all the signal structs. These
  * struct are used to store each required signal between two tasks.
