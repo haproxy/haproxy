@@ -200,6 +200,12 @@ list of options is :
   -c : only performs a check of the configuration files and exits before trying
     to bind. The exit status is zero if everything is OK, or non-zero if an
     error is encountered. Presence of warnings will be reported if any.
+    By default this option does not report a success message. Combined with
+    "-V" this will print the message "Configuration file is valid" upon
+    success.
+
+    Scripts must use the exit status to dertermine the success of the
+    command.
 
   -cc : evaluates a condition as used within a conditional block of the
     configuration. The exit status is zero if the condition is true, 1 if the
