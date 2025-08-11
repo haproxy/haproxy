@@ -1390,24 +1390,6 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 		goto error;
 	}
 
-	if (eb_gettag(crtlist->entries.b[EB_RGHT])) {
-		char *slash;
-
-		slash = strrchr(cert_path, '/');
-		if (!slash) {
-			memprintf(&err, "'%s' is a directory, certificate path '%s' must contain the directory path", (char *)crtlist->node.key, cert_path);
-			goto error;
-		}
-		/* temporary replace / by 0 to do an strcmp */
-		*slash = '\0';
-		if (strcmp(cert_path, (char*)crtlist->node.key) != 0) {
-			*slash = '/';
-			memprintf(&err, "'%s' is a directory, certificate path '%s' must contain the directory path", (char *)crtlist->node.key, cert_path);
-			goto error;
-		}
-		*slash = '/';
-	}
-
 	if (*cert_path != '@' && *cert_path != '/' && global_ssl.crt_base) {
 		if ((strlen(global_ssl.crt_base) + 1 + strlen(cert_path)) > sizeof(path) ||
 		    snprintf(path, sizeof(path), "%s/%s",  global_ssl.crt_base, cert_path) > sizeof(path)) {
