@@ -352,6 +352,13 @@ struct pool_head *create_pool_from_reg(const char *name, struct pool_registratio
 		alignment++;
 	}
 
+	if (reg->type_align && alignment < reg->type_align) {
+		ha_alert("BUG in the code: at %s:%u, requested creation of pool '%s' aligned to %u "
+			 "while type requires alignment of %u! Please report to developers. Aborting.\n",
+			 reg->file, reg->line, name, alignment, reg->type_align);
+		return NULL;
+	}
+
 	extra_mark = (pool_debugging & POOL_DBG_TAG) ? POOL_EXTRA_MARK : 0;
 	extra_caller = (pool_debugging & POOL_DBG_CALLER) ? POOL_EXTRA_CALLER : 0;
 	extra = extra_mark + extra_caller;
