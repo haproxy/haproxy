@@ -2215,19 +2215,6 @@ static void step_init_2(int argc, char** argv)
 	if (global.mode & MODE_DUMP_CFG)
 		deinit_and_exit(0);
 
-#ifdef USE_OPENSSL
-
-	/* Initialize SSL random generator. Must be called before chroot for
-	 * access to /dev/urandom, and before ha_random_boot() which may use
-	 * RAND_bytes().
-	 */
-	if (!ssl_initialize_random()) {
-		ha_alert("OpenSSL random data generator initialization failed.\n");
-		exit(EXIT_FAILURE);
-	}
-#endif
-	ha_random_boot(argv); // the argv pointer brings some kernel-fed entropy
-
 	/* now we know the buffer size, we can initialize the channels and buffers */
 	init_buffer();
 
@@ -3153,6 +3140,19 @@ int main(int argc, char **argv)
 		limit.rlim_max = limit.rlim_cur;
 	rlim_fd_cur_at_boot = limit.rlim_cur;
 	rlim_fd_max_at_boot = limit.rlim_max;
+
+#ifdef USE_OPENSSL
+
+	/* Initialize SSL random generator. Must be called before chroot for
+	 * access to /dev/urandom, and before ha_random_boot() which may use
+	 * RAND_bytes().
+	 */
+	if (!ssl_initialize_random()) {
+		ha_alert("OpenSSL random data generator initialization failed.\n");
+		exit(EXIT_FAILURE);
+	}
+#endif
+	ha_random_boot(argv); // the argv pointer brings some kernel-fed entropy
 
 	/* process all initcalls in order of potential dependency */
 	RUN_INITCALLS(STG_PREPARE);
