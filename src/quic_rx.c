@@ -802,6 +802,35 @@ static inline unsigned int quic_ack_delay_ms(struct qf_ack *ack_frm,
 	return (ack_frm->ack_delay << conn->tx.params.ack_delay_exponent) / 1000;
 }
 
+/* Client only.
+ * Do its best to store <tok> token received from a NEW_TOKEN frame into <s>
+ * server cache for tokens to reuse.
+ */
+static inline void qc_try_store_new_token(struct server *s,
+                                          const unsigned char *tok,
+                                          size_t len)
+{
+	struct ist *stok;
+	char *stok_ptr;
+
+	stok = &s->per_thr[tid].quic_retry_token;
+	stok_ptr = istptr(*stok);
+	if (len > istlen(*stok)) {
+		stok_ptr = realloc(stok_ptr, len);
+		if (stok_ptr)
+			s->per_thr[tid].quic_retry_token.ptr = stok_ptr;
+		else {
+			memset(istptr(*stok), 0, istlen(*stok));
+			istfree(stok);
+		}
+	}
+
+	if (stok_ptr) {
+		memcpy(stok_ptr, tok, len);
+		stok->len = len;
+	}
+}
+
 /* Parse all the frames of <pkt> QUIC packet for QUIC connection <qc> and <qel>
  * as encryption level.
  * Returns 1 if succeeded, 0 if failed.
@@ -906,11 +935,16 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				goto err;
 			}
 			else {
-				/* TODO NEW_TOKEN not implemented on client side.
-				 * Note that for now token is not copied into <data> field
-				 * of qf_new_token frame. See quic_parse_new_token_frame()
-				 * for further explanations.
-				 */
+				struct qf_new_token *new_tok_frm = &frm->new_token;
+
+				if (!qc->conn) {
+					TRACE_ERROR("reject NEW_TOKEN frame (connection closed",
+					            QUIC_EV_CONN_PRSHPKT, qc);
+					goto err;
+				}
+
+				qc_try_store_new_token(__objt_server(qc->conn->target),
+				                       new_tok_frm->r_data, new_tok_frm->len);
 			}
 			break;
 		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:

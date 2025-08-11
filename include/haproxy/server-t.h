@@ -276,6 +276,9 @@ struct srv_per_thread {
 	struct ceb_root *idle_conns;            /* Shareable idle connections */
 	struct ceb_root *safe_conns;            /* Safe idle connections */
 	struct ceb_root *avail_conns;           /* Connections in use, but with still new streams available */
+#ifdef USE_QUIC
+	struct ist quic_retry_token;
+#endif
 };
 
 /* Each server will have one occurrence of this structure per thread group */
