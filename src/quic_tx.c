@@ -671,6 +671,12 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			 * datagrams carrying ack-eliciting Initial packets to at least the
 			 * smallest allowed maximum datagram size of 1200 bytes.
 			 */
+
+			/* Padding is activated as soon as Initial data is
+			 * present in the datagram. The only exception is on
+			 * server side if Initial content is not ack-eliciting
+			 * (e.g. a single ACK frame sent as Initial).
+			 */
 			if (qel == qc->iel && (qc_is_back(qc) || !LIST_ISEMPTY(frms) || probe)) {
 				 /* Ensure that no Initial packets are sent into too small datagrams */
 				if (end - pos < QUIC_INITIAL_PACKET_MINLEN) {
@@ -689,22 +695,9 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			}
 
 			pkt_type = quic_enc_level_pkt_type(qc, qel);
-			/* For listeners:
-			 * <paddding> parameter for qc_build_pkt() must not be set to 1 when
-			 * building PING only Initial datagram (a datagram with an Initial
-			 * packet inside containing only a PING frame as ack-eliciting
-			 * frame). This is the case when both <probe> and LIST_EMPTY(<frms>)
-			 * conditions are verified (see qc_do_build_pkt()).
-			 *
-			 * For clients:
-			 * <padding> must be set to 1 only the current packet cannot be coalesced,
-			 * i.e. if the next qel is not present or empty.
-			 */
 			cur_pkt = qc_build_pkt(&pos, end, qel, tls_ctx, frms,
 			                       qc, ver, dglen, pkt_type, must_ack,
-			                       padding &&
-			                       ((qc_is_back(qc) && (!next_qel || LIST_ISEMPTY(next_qel->send_frms))) ||
-			                        (!qc_is_back(qc) && !next_qel && (!probe || !LIST_ISEMPTY(frms)))),
+			                       padding && !next_qel,
 			                       probe, cc, &err);
 			if (!cur_pkt) {
 				switch (err) {
@@ -1737,19 +1730,14 @@ static inline uint64_t quic_compute_ack_delay_us(unsigned int time_received,
  * number field in this packet. <pn_len> will also have the packet number
  * length as value.
  *
+ * Caller must set <padding> when building the last packet of a datagram which
+ * must be at least 1.200 bytes long. Note that padding can also be added
+ * automatically to ensure packet size is big enough for header protection
+ * sampling.
+ *
  * NOTE: This function does not build all the possible combinations of packets
  * depending on its list of parameters. In most cases, <frms> frame list is
  * not empty. So, this function first tries to build this list of frames.
- * Then some padding is added to this packet if <padding> boolean is set true.
- * The unique case one wants to do that is when a first Initial packet was
- * previously built into the same datagram as the currently built one and when
- * this packet is supposed to pad the datagram, if needed, to build an at
- * least 1200 bytes long Initial datagram.
- * If <padding> is not true, if the packet is too short, the packet is also
- * padded. This is very often the case when no frames are provided by <frms>
- * and when probing with only a PING frame.
- * Finally, if <frms> was empty, if <probe> boolean is true this function builds
- * a PING only packet handling also the cases where it must be padded.
  *
  * Return 1 if succeeded (enough room to buile this packet), O if not.
  */
@@ -1932,6 +1920,21 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		dglen += len_sz;
 	}
 
+	if (qel->pktns->tx.pto_probe && LIST_ISEMPTY(&frm_list) && !cc) {
+		/* Send PING if probing required but no frame avail for sending. */
+		add_ping_frm = 1;
+		len += 1;
+		dglen += 1;
+
+		/* Ensure packet is big enough so that header protection sample
+		 * decryption can be performed. Note that +1 is for the PING
+		 * frame.
+		 */
+		if (!padding && *pn_len + 1 < QUIC_PACKET_PN_MAXLEN)
+			len += padding_len = QUIC_PACKET_PN_MAXLEN - *pn_len - 1;
+	}
+
+	/* Handle Initial packet padding if necessary. */
 	if (padding && dglen < QUIC_INITIAL_PACKET_MINLEN) {
 		padding_len = QUIC_INITIAL_PACKET_MINLEN - dglen;
 
@@ -1949,34 +1952,10 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	else if (len_frms && len_frms < QUIC_PACKET_PN_MAXLEN) {
 		len += padding_len = QUIC_PACKET_PN_MAXLEN - len_frms;
 	}
-	else if (LIST_ISEMPTY(&frm_list) && !cc) {
-		if (qel->pktns->tx.pto_probe) {
-			/* If we cannot send a frame, we send a PING frame. */
-			add_ping_frm = 1;
-			len += 1;
-			dglen += 1;
-			/* Note that only we are in the case where this Initial packet
-			 * is not coalesced to an Handshake packet. We must directly
-			 * pad the datragram.
-			 */
-			if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
-				if (dglen < QUIC_INITIAL_PACKET_MINLEN) {
-					padding_len = QUIC_INITIAL_PACKET_MINLEN - dglen;
-					padding_len -= quic_int_getsize(len + padding_len) - len_sz;
-					len += padding_len;
-				}
-			}
-			else {
-				/* Note that +1 is for the PING frame */
-				if (*pn_len + 1 < QUIC_PACKET_PN_MAXLEN)
-					len += padding_len = QUIC_PACKET_PN_MAXLEN - *pn_len - 1;
-			}
-		}
-		else {
-			/* If there is no frame at all to follow, add at least a PADDING frame. */
-			if (!ack_frm_len)
-				len += padding_len = QUIC_PACKET_PN_MAXLEN - *pn_len;
-		}
+	else if (LIST_ISEMPTY(&frm_list) && !cc && !qel->pktns->tx.pto_probe) {
+		/* If there is no frame at all to follow, add at least a PADDING frame. */
+		if (!ack_frm_len)
+			len += padding_len = QUIC_PACKET_PN_MAXLEN - *pn_len;
 	}
 
 	if (pkt->type != QUIC_PACKET_TYPE_SHORT && !quic_enc_int(&pos, end, len))
