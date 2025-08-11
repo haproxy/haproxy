@@ -630,6 +630,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			enum quic_pkt_type pkt_type;
 			struct quic_tx_packet *cur_pkt;
 			enum qc_build_pkt_err err;
+			int final_packet = 0;
 
 			TRACE_PROTO("TX prep pkts", QUIC_EV_CONN_PHPKTS, qc, qel);
 
@@ -694,10 +695,19 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				padding = 1;
 			}
 
+
+			/* TODO currently it's not possible to emit an ACK and probing data simultaneously (see qc_do_build_pkt()).
+			 * As a side-effect, this could cause coalescing of two packets of the same type which should be avoided.
+			 * To implement this, a new datagram is forced by invokation of qc_txb_store(). This must then be checked
+			 * if padding is required as in this case this will be the last packet of the current datagram.
+			 */
+			if (probe && (must_ack || (qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED)))
+				final_packet = 1;
+
 			pkt_type = quic_enc_level_pkt_type(qc, qel);
 			cur_pkt = qc_build_pkt(&pos, end, qel, tls_ctx, frms,
 			                       qc, ver, dglen, pkt_type, must_ack,
-			                       padding && !next_qel,
+			                       padding && (!next_qel || final_packet),
 			                       probe, cc, &err);
 			if (!cur_pkt) {
 				switch (err) {
@@ -775,7 +785,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			if (probe && qel == qc->ael)
 				break;
 
-			if (LIST_ISEMPTY(frms)) {
+			if (LIST_ISEMPTY(frms) && !final_packet) {
 				/* Everything sent. Continue within the same datagram. */
 				prv_pkt = cur_pkt;
 			}
