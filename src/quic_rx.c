@@ -813,6 +813,42 @@ static inline unsigned int quic_ack_delay_ms(struct qf_ack *ack_frm,
 	return (ack_frm->ack_delay << conn->tx.params.ack_delay_exponent) / 1000;
 }
 
+/* Client only.
+ * Do its best to store <tok> token received from a NEW_TOKEN frame into <s>
+ * server SSL cache for sessions to reuse.
+ */
+static inline void qc_try_store_new_token(struct server *s,
+                                          const unsigned char *tok,
+                                          size_t len)
+{
+	/* Cached token */
+	unsigned char *stok;
+
+	HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
+
+	stok = s->ssl_ctx.reused_sess[tid].tok;
+
+	HA_RWLOCK_WRLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.reused_sess[tid].sess_lock);
+	if (len > s->ssl_ctx.reused_sess[tid].toklen) {
+		stok = realloc(stok, len);
+		if (stok) {
+			s->ssl_ctx.reused_sess[tid].tok = stok;
+		}
+		else {
+			free(s->ssl_ctx.reused_sess[tid].tok);
+			s->ssl_ctx.reused_sess[tid].toklen = 0;
+		}
+	}
+
+	if (stok) {
+		memcpy(stok, tok, len);
+		s->ssl_ctx.reused_sess[tid].toklen = len;
+	}
+
+	HA_RWLOCK_WRUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.reused_sess[tid].sess_lock);
+	HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
+}
+
 /* Parse all the frames of <pkt> QUIC packet for QUIC connection <qc> and <qel>
  * as encryption level.
  * Returns 1 if succeeded, 0 if failed.
@@ -949,11 +985,10 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				goto err;
 			}
 			else {
-				/* TODO NEW_TOKEN not implemented on client side.
-				 * Note that for now token is not copied into <data> field
-				 * of qf_new_token frame. See quic_parse_new_token_frame()
-				 * for further explanations.
-				 */
+				struct qf_new_token *new_tok_frm = &frm->new_token;
+
+				qc_try_store_new_token(__objt_server(qc->target),
+				                       new_tok_frm->r_data, new_tok_frm->len);
 			}
 			break;
 		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
