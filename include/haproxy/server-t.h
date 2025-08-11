@@ -474,6 +474,8 @@ struct server {
 #ifdef USE_QUIC
 			struct quic_early_transport_params tps;
 			char *alpn;
+			unsigned char *tok;
+			size_t toklen;
 #endif
 			__decl_thread(HA_RWLOCK_T sess_lock);
 		} * reused_sess;

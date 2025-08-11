@@ -1752,6 +1752,79 @@ static inline uint64_t quic_compute_ack_delay_us(unsigned int time_received,
 	return ((now_ms - time_received) * 1000) >> conn->tx.params.ack_delay_exponent;
 }
 
+
+/* Encode the <tok> token data field made of <toklen> bytes at <pos> buffer
+ * address. <end> points to the byte following the end of <*pos> buffer.
+ * Note that the type of the frame which embed this token is not encoded.
+ * Return 1 if succeeded, 0 if not.
+ */
+static inline int quic_do_enc_token(unsigned char **pos, const unsigned char *end,
+                                    const unsigned char *tok, size_t toklen)
+{
+	if (!quic_enc_int(pos, end, toklen) || end - *pos <= toklen)
+		return 0;
+
+	if (toklen) {
+		memcpy(*pos, tok, toklen);
+		*pos += toklen;
+	}
+
+	return 1;
+}
+
+/* Encode a token depending on <qc> connection type (listener or not).
+ * For listeners, ony a null byte is encoded (no token).
+ * For clients, if a RETRY token has been received, it is encoded, if not, if a
+ * new token has been received (from NEW_TOKEN frame) and could be retrieved
+ * from cache, it is encoded, if not a null byte is encoded (no token).
+ */
+static inline int quic_enc_token(struct quic_conn *qc,
+                                 unsigned char **pos, const unsigned char *end)
+{
+	int ret = 0;
+	const unsigned char *tok;
+	size_t toklen;
+
+	if (!qc_is_back(qc)) {
+		ret = quic_do_enc_token(pos, end, NULL, 0);
+	}
+	else if (qc->retry_token) {
+		tok = qc->retry_token;
+		toklen = qc->retry_token_len;
+		ret = quic_do_enc_token(pos, end, tok, toklen);
+	}
+	else if (!qc->conn) {
+		TRACE_ERROR("connection closed", QUIC_EV_CONN_TXPKT, qc);
+		goto out;
+	}
+	else {
+		struct server *s = __objt_server(qc->conn->target);
+
+		HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
+		if (s->ssl_ctx.reused_sess[tid].tok) {
+			tok = s->ssl_ctx.reused_sess[tid].tok;
+			toklen = s->ssl_ctx.reused_sess[tid].toklen;
+			ret = quic_do_enc_token(pos, end, tok, toklen);
+		}
+		else {
+			uint old_tid = HA_ATOMIC_LOAD(&s->ssl_ctx.last_ssl_sess_tid);
+			if (old_tid) {
+				HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.reused_sess[old_tid-1].sess_lock);
+				tok = s->ssl_ctx.reused_sess[old_tid-1].tok;
+				toklen = s->ssl_ctx.reused_sess[old_tid-1].toklen;
+				ret = quic_do_enc_token(pos, end, tok, toklen);
+				HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.reused_sess[old_tid-1].sess_lock);
+			}
+			else
+				ret = quic_do_enc_token(pos, end, NULL, 0);
+		}
+		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
+	}
+
+ out:
+	return ret;
+}
+
 /* This function builds a clear packet from <pkt> information (its type)
  * into a buffer with <pos> as position pointer and <qel> as QUIC TLS encryption
  * level for <conn> QUIC connection and <qel> as QUIC TLS encryption level,
@@ -1835,14 +1908,8 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 
 	/* Encode the token length (0) for an Initial packet. */
 	if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
-		if (!quic_enc_int(&pos, end, qc->retry_token_len) ||
-		    end - pos <= qc->retry_token_len)
+		if (!quic_enc_token(qc, &pos, end))
 			goto no_room;
-
-		if (qc->retry_token_len) {
-			memcpy(pos, qc->retry_token, qc->retry_token_len);
-			pos += qc->retry_token_len;
-		}
 	}
 
 	head_len = pos - beg;
