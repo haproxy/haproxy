@@ -1937,6 +1937,9 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		dglen += 1;
 	}
 
+	/* Caller must not try to build an empty packet. */
+	BUG_ON(LIST_ISEMPTY(&frm_list) && !add_ping_frm && !ack_frm_len && !cc);
+
 	/* Handle Initial packet padding if necessary. */
 	if (padding && dglen < QUIC_INITIAL_PACKET_MINLEN) {
 		padding_len = QUIC_INITIAL_PACKET_MINLEN - dglen;
