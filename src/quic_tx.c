@@ -1949,7 +1949,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	else if (len_frms && len_frms < QUIC_PACKET_PN_MAXLEN) {
 		len += padding_len = QUIC_PACKET_PN_MAXLEN - len_frms;
 	}
-	else if (LIST_ISEMPTY(&frm_list)) {
+	else if (LIST_ISEMPTY(&frm_list) && !cc) {
 		if (qel->pktns->tx.pto_probe) {
 			/* If we cannot send a frame, we send a PING frame. */
 			add_ping_frm = 1;
@@ -1974,7 +1974,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		}
 		else {
 			/* If there is no frame at all to follow, add at least a PADDING frame. */
-			if (!ack_frm_len && !cc)
+			if (!ack_frm_len)
 				len += padding_len = QUIC_PACKET_PN_MAXLEN - *pn_len;
 		}
 	}
@@ -2049,7 +2049,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		goto no_room;
 	}
 
-	BUG_ON(qel->pktns->tx.pto_probe &&
+	BUG_ON(qel->pktns->tx.pto_probe && !cc &&
 	       !(pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING));
 	/* If this packet is ack-eliciting and we are probing let's
 	 * decrement the PTO probe counter.
