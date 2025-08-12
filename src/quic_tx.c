@@ -818,7 +818,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 				 */
 				prv_pkt = cur_pkt;
 				dglen = 0;
-
+				padding = 0;
 			}
 			else {
 				/* Finalize current datagram if not all frames sent. */
