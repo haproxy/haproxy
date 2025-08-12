@@ -1856,6 +1856,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	/* Build an ACK frame if required. */
 	ack_frm_len = 0;
 	/* Do not ack and probe at the same time. */
+	/* TODO qc_do_build_pkt() must rely on its <probe> argument instead of using QEL <pto_probe> field. */
 	if ((must_ack || (qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED)) && !qel->pktns->tx.pto_probe) {
 		struct quic_arngs *arngs = &qel->pktns->rx.arngs;
 		BUG_ON(eb_is_empty(&qel->pktns->rx.arngs.root));
@@ -1902,6 +1903,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 				goto comp_pkt_len;
 			}
 
+			/* TODO qc_do_build_pkt() must rely on its <probe> argument instead of using QEL <pto_probe> field. */
 			if (qel->pktns->tx.pto_probe) {
 				/* If a probing packet was asked and could not be built,
 				 * this is not because there was not enough room, but due to
@@ -1967,7 +1969,8 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	else if (len_frms && len_frms < QUIC_PACKET_PN_MAXLEN) {
 		len += padding_len = QUIC_PACKET_PN_MAXLEN - len_frms;
 	}
-	else if (LIST_ISEMPTY(&frm_list)) {
+	else if (LIST_ISEMPTY(&frm_list) && !cc) {
+		/* TODO qc_do_build_pkt() must rely on its <probe> argument instead of using QEL <pto_probe> field. */
 		if (qel->pktns->tx.pto_probe) {
 			/* If we cannot send a frame, we send a PING frame. */
 			add_ping_frm = 1;
@@ -1992,7 +1995,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		}
 		else {
 			/* If there is no frame at all to follow, add at least a PADDING frame. */
-			if (!ack_frm_len && !cc)
+			if (!ack_frm_len)
 				len += padding_len = QUIC_PACKET_PN_MAXLEN - *pn_len;
 		}
 	}
@@ -2067,7 +2070,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		goto no_room;
 	}
 
-	BUG_ON(qel->pktns->tx.pto_probe &&
+	BUG_ON(qel->pktns->tx.pto_probe && !cc &&
 	       !(pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING));
 	/* If this packet is ack-eliciting and we are probing let's
 	 * decrement the PTO probe counter.
