@@ -1935,13 +1935,6 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		add_ping_frm = 1;
 		len += 1;
 		dglen += 1;
-
-		/* Ensure packet is big enough so that header protection sample
-		 * decryption can be performed. Note that +1 is for the PING
-		 * frame.
-		 */
-		if (!padding && *pn_len + 1 < QUIC_PACKET_PN_MAXLEN)
-			len += padding_len = QUIC_PACKET_PN_MAXLEN - *pn_len - 1;
 	}
 
 	/* Handle Initial packet padding if necessary. */
@@ -1959,13 +1952,29 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 			}
 		}
 	}
-	else if (len_frms && len_frms < QUIC_PACKET_PN_MAXLEN) {
-		len += padding_len = QUIC_PACKET_PN_MAXLEN - len_frms;
-	}
-	else if (LIST_ISEMPTY(&frm_list) && !cc && !qel->pktns->tx.pto_probe) {
-		/* If there is no frame at all to follow, add at least a PADDING frame. */
-		if (!ack_frm_len)
-			len += padding_len = QUIC_PACKET_PN_MAXLEN - *pn_len;
+
+	/* RFC 9001 5.4.2. Header Protection Sample
+	 *
+	 * To ensure that sufficient data is available for sampling, packets are
+	 * padded so that the combined lengths of the encoded packet number and
+	 * protected payload is at least 4 bytes longer than the sample required
+	 * for header protection. The cipher suites defined in [TLS13] -- other
+	 * than TLS_AES_128_CCM_8_SHA256, for which a header protection scheme
+	 * is not defined in this document -- have 16-byte expansions and 16-
+	 * byte header protection samples. This results in needing at least 3
+	 * bytes of frames in the unprotected payload if the packet number is
+	 * encoded on a single byte, or 2 bytes of frames for a 2-byte packet
+	 * number encoding.
+	 */
+
+	/* Add padding if packet is too small for HP sampling as specified
+	 * above. QUIC TLS algos relies on 16 bytes sample extracted 4 bytes
+	 * after PN offset. Thus, pn and payload must be at least 4 bytes long,
+	 * so that the sample will be extracted as the AEAD tag.
+	 */
+	if (*pn_len + len < QUIC_PACKET_PN_MAXLEN + QUIC_HP_SAMPLE_LEN) {
+		padding_len = QUIC_PACKET_PN_MAXLEN + QUIC_HP_SAMPLE_LEN - (*pn_len + len);
+		len += padding_len;
 	}
 
 	if (pkt->type != QUIC_PACKET_TYPE_SHORT && !quic_enc_int(&pos, end, len))

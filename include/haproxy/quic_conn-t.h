@@ -145,6 +145,9 @@ enum quic_pkt_type {
 #define QUIC_PACKET_PNL_BITMASK      0x03
 #define QUIC_PACKET_PN_MAXLEN        4
 
+/* TLS algo supported by QUIC uses a 16-bytes sample for HP. */
+#define QUIC_HP_SAMPLE_LEN           16
+
 /*
  *  0                   1                   2                   3
  *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
