@@ -12142,9 +12142,9 @@ stats admin { if | unless } <cond>
     # statistics admin level depends on the authenticated user
     userlist stats-auth
         group admin    users admin
-        user  admin    insecure-password AdMiN123
+        user  admin    insecure-password 'AdMiN123'
         group readonly users haproxy
-        user  haproxy  insecure-password haproxy
+        user  haproxy  insecure-password 'haproxy'
 
     backend stats_auth
         stats enable
@@ -29799,22 +29799,26 @@ user <username> [password|insecure-password <password>]
   slower than their glibc counterparts when calculating hashes, so you might
   want to consider this aspect too.
 
+  All passwords are considered normal arguments and are therefor subject to
+  regular section 2.2 Quoting and escaping. Single quoting passwords is
+  therefor recommended.
+
   Example:
         userlist L1
           group G1 users tiger,scott
           group G2 users xdb,scott
 
           user tiger password $6$k6y3o.eP$JlKBx9za9667qe4(...)xHSwRv6J.C0/D7cV91
-          user scott insecure-password elgato
-          user xdb insecure-password hello
+          user scott insecure-password 'elgato'
+          user xdb insecure-password 'hello'
 
         userlist L2
           group G1
           group G2
 
           user tiger password $6$k6y3o.eP$JlKBx(...)xHSwRv6J.C0/D7cV91 groups G1
-          user scott insecure-password elgato groups G1,G2
-          user xdb insecure-password hello groups G2
+          user scott insecure-password 'elgato' groups G1,G2
+          user xdb insecure-password 'hello' groups G2
 
   Please note that both lists are functionally identical.
 
