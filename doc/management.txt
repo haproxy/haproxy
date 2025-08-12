@@ -204,7 +204,7 @@ list of options is :
     "-V" this will print the message "Configuration file is valid" upon
     success.
 
-    Scripts must use the exit status to dertermine the success of the
+    Scripts must use the exit status to determine the success of the
     command.
 
   -cc : evaluates a condition as used within a conditional block of the
