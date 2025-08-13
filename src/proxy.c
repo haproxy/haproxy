@@ -388,7 +388,7 @@ void deinit_proxy(struct proxy *p)
 	 */
 	if (p->defsrv) {
 		srv_free_params(p->defsrv);
-		ha_free(&p->defsrv);
+		srv_free(&p->defsrv);
 	}
 
 	if (p->lbprm.proxy_deinit)
@@ -1560,7 +1560,7 @@ void proxy_free_defaults(struct proxy *defproxy)
 	if (defproxy->defsrv)
 		ha_free((char **)&defproxy->defsrv->conf.file);
 	ha_free(&defproxy->defbe.name);
-	ha_free(&defproxy->defsrv);
+	srv_free(&defproxy->defsrv);
 
 	h = defproxy->req_cap;
 	while (h) {
@@ -1708,7 +1708,7 @@ int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char *
 	if (name)
 		memprintf(errmsg, "proxy '%s': %s", name, *errmsg);
 
-	ha_free(&px->defsrv);
+	srv_free(&px->defsrv);
 	ha_free(&px->id);
 	counters_fe_shared_drop(&px->fe_counters.shared);
 	counters_be_shared_drop(&px->be_counters.shared);
@@ -1740,7 +1740,7 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, char **errmsg)
 	 * quitting.
 	 */
 	if (curproxy)
-		free(curproxy->defsrv);
+		srv_free(&curproxy->defsrv);
 	free(curproxy);
 	return NULL;
 }
@@ -1802,7 +1802,7 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 			 * none allocated yet in the current proxy so we have
 			 * to allocate and pre-initialize it right now.
 			 */
-			curproxy->defsrv = calloc(1, sizeof(*curproxy->defsrv));
+			curproxy->defsrv = srv_alloc();
 			if (!curproxy->defsrv) {
 				memprintf(errmsg, "proxy '%s': out of memory allocating default-server", curproxy->id);
 				return 1;
@@ -2833,7 +2833,7 @@ static int post_section_px_cleanup()
 
 		if (curproxy->defsrv) {
 			ha_free((char **)&curproxy->defsrv->conf.file);
-			ha_free(&curproxy->defsrv);
+			srv_free(&curproxy->defsrv);
 		}
 	}
 	return 0;

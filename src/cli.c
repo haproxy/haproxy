@@ -3726,7 +3726,7 @@ error:
 	list_for_each_entry(child, &proc_list, list) {
 		free((char *)child->srv->conf.file); /* cast because of const char *  */
 		free(child->srv->id);
-		ha_free(&child->srv);
+		srv_free(&child->srv);
 	}
 	free(msg);
 

@@ -3042,7 +3042,7 @@ struct server *new_server(struct proxy *proxy)
 {
 	struct server *srv;
 
-	srv = calloc(1, sizeof *srv);
+	srv = srv_alloc();
 	if (!srv)
 		return NULL;
 
@@ -3202,7 +3202,7 @@ struct server *srv_drop(struct server *srv)
 
 	EXTRA_COUNTERS_FREE(srv->extra_counters);
 
-	ha_free(&srv);
+	srv_free(&srv);
 
  end:
 	return next;
@@ -3354,7 +3354,7 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 		free_check(&newsrv->check);
 		MT_LIST_DELETE(&newsrv->global_list);
 	}
-	free(newsrv);
+	srv_free(&newsrv);
 	return i - srv->tmpl_info.nb_low;
 }
 
@@ -3712,7 +3712,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		 */
 		newsrv = curproxy->defsrv;
 		if (!newsrv) {
-			newsrv = calloc(1, sizeof(*newsrv));
+			newsrv = srv_alloc();
 			if (!newsrv) {
 				ha_alert("out of memory.\n");
 				err_code |= ERR_ALERT | ERR_ABORT;

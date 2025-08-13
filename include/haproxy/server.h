@@ -179,6 +179,23 @@ void srv_set_dyncookie(struct server *s);
 int srv_check_reuse_ws(struct server *srv);
 const struct mux_ops *srv_get_ws_proto(struct server *srv);
 
+/* allocate a new server and return it (or NULL on failure). The structure is
+ * zeroed.
+ */
+static inline struct server *srv_alloc(void)
+{
+	struct server *srv;
+
+	srv = calloc(1, sizeof(*srv));
+	return srv;
+}
+
+/* free a previously allocated server an nullifies the pointer */
+static inline void srv_free(struct server **srv_ptr)
+{
+	ha_free(srv_ptr);
+}
+
 /* increase the number of cumulated streams on the designated server */
 static inline void srv_inc_sess_ctr(struct server *s)
 {
