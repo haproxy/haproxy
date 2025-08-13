@@ -83,12 +83,12 @@ struct ring *ring_make_from_area(void *area, size_t size, int reset)
 	if (size < sizeof(*ring->storage) + 2)
 		return NULL;
 
-	ring = malloc(sizeof(*ring));
+	ring = ha_aligned_alloc_typed(1, typeof(*ring));
 	if (!ring)
 		goto fail;
 
 	if (!area)
-		area = malloc(size);
+		area = ha_aligned_alloc(__alignof__(*ring->storage), size);
 	else
 		flags |= RING_FL_MAPPED;
 
@@ -99,7 +99,7 @@ struct ring *ring_make_from_area(void *area, size_t size, int reset)
 	ring->flags |= flags;
 	return ring;
  fail:
-	free(ring);
+	ha_aligned_free(ring);
 	return NULL;
 }
 
@@ -125,7 +125,7 @@ struct ring *ring_resize(struct ring *ring, size_t size)
 		return ring;
 
 	old = ring->storage;
-	new = malloc(size);
+	new = ha_aligned_alloc(__alignof__(*ring->storage), size);
 	if (!new)
 		return NULL;
 
@@ -150,7 +150,7 @@ struct ring *ring_resize(struct ring *ring, size_t size)
 	thread_release();
 
 	/* free the unused one */
-	free(new);
+	ha_aligned_free(new);
 	return ring;
 }
 
@@ -162,8 +162,8 @@ void ring_free(struct ring *ring)
 
 	/* make sure it was not allocated by ring_make_from_area */
 	if (!(ring->flags & RING_FL_MAPPED))
-		free(ring->storage);
-	free(ring);
+		ha_aligned_free(ring->storage);
+	ha_aligned_free(ring);
 }
 
 /* Tries to send <npfx> parts from <prefix> followed by <nmsg> parts from <msg>
