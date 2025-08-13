@@ -4856,16 +4856,35 @@ static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 	 *       supported to mix data.
 	 */
 	if (!b_data(input) && !b_data(&h1c->obuf) && (flags & NEGO_FF_FL_MAY_SPLICE)) {
+		int can_splice = XPRT_CONN_CAN_NOT_SPLICE;
 #if defined(USE_LINUX_SPLICE)
-		if (h1c->conn->xprt->snd_pipe && (h1s->sd->iobuf.pipe || (pipes_used < global.maxpipes && (h1s->sd->iobuf.pipe = get_pipe())))) {
+
+		if (h1c->conn->xprt->snd_pipe &&
+		    h1c->conn->xprt->get_capability &&
+		    h1c->conn->xprt->get_capability(h1c->conn, h1c->conn->xprt_ctx, XPRT_CAN_SPLICE, &can_splice) == 0 &&
+		    can_splice == XPRT_CONN_CAN_SPLICE &&
+		    (h1s->sd->iobuf.pipe || (pipes_used < global.maxpipes && (h1s->sd->iobuf.pipe = get_pipe())))) {
 			h1s->sd->iobuf.offset = 0;
 			h1s->sd->iobuf.data = 0;
 			ret = count;
 			goto out;
 		}
 #endif
-		h1s->sd->iobuf.flags |= IOBUF_FL_NO_SPLICING;
-		TRACE_DEVEL("Unable to allocate pipe for splicing, fallback to buffer", H1_EV_STRM_SEND, h1c->conn, h1s);
+		/*
+		 * If can_splice is XPRT_CONN_COULD_SPLICE, it means
+		 * that it can not splice right now, but it may at a later
+		 * time, so don't disable it completely, just do not attempt
+		 * to splice right now. If we got that, then no pipe has
+		 * been allowed, so we should not try to splice.
+		 * Set CO_FL_WANT_SPLICING to let the upper layers know that
+		 * we would love to be able to use splicing if possible.
+		 */
+		if (can_splice == XPRT_CONN_COULD_SPLICE) {
+			h1c->conn->flags |= CO_FL_WANT_SPLICING;
+		} else {
+			h1s->sd->iobuf.flags |= IOBUF_FL_NO_SPLICING;
+			TRACE_DEVEL("Unable to allocate pipe for splicing, fallback to buffer", H1_EV_STRM_SEND, h1c->conn, h1s);
+		}
 	}
 
   no_splicing:
@@ -5048,8 +5067,16 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 		count = h1m->curr_len;
 	}
 
-	if (h1c->conn->xprt->rcv_pipe && !!(flags & CO_RFL_MAY_SPLICE) && !(sdo->iobuf.flags & IOBUF_FL_NO_SPLICING))
-		nego_flags |= NEGO_FF_FL_MAY_SPLICE;
+	if (h1c->conn->xprt->rcv_pipe && !!(flags & CO_RFL_MAY_SPLICE) && !(sdo->iobuf.flags & IOBUF_FL_NO_SPLICING)) {
+		int can_splice = XPRT_CONN_CAN_NOT_SPLICE;
+
+		if (h1c->conn->xprt->get_capability &&
+		    h1c->conn->xprt->get_capability(h1c->conn, h1c->conn->xprt_ctx, XPRT_CAN_SPLICE, &can_splice) == 0 &&
+		    can_splice == XPRT_CONN_CAN_SPLICE)
+			nego_flags |= NEGO_FF_FL_MAY_SPLICE;
+		else if (can_splice == XPRT_CONN_COULD_SPLICE)
+			h1c->conn->flags |= CO_FL_WANT_SPLICING;
+	}
 
 	try = se_nego_ff(sdo, &h1c->ibuf, count, nego_flags);
 	if (b_room(&h1c->ibuf) && (h1c->flags & H1C_F_IN_FULL)) {
