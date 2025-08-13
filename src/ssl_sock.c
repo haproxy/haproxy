@@ -255,6 +255,26 @@ struct show_keys_ctx {
 struct task *ssl_sock_io_cb(struct task *, void *, unsigned int);
 static int ssl_sock_handshake(struct connection *conn, unsigned int flag);
 
+#if defined(USE_LINUX_SPLICE) && defined(HA_USE_KTLS)
+static int ssl_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe, unsigned int count)
+{
+	struct ssl_sock_ctx *ctx = xprt_ctx;
+
+	if (!(ctx->flags & SSL_SOCK_F_KTLS_RECV))
+		return -1;
+	return ctx->xprt->snd_pipe(conn, ctx->xprt_ctx, pipe, count);
+}
+
+static int ssl_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe, unsigned int count)
+{
+	struct ssl_sock_ctx *ctx = xprt_ctx;
+
+	if (!(ctx->flags & SSL_SOCK_F_KTLS_SEND))
+		return -1;
+	return ctx->xprt->rcv_pipe(conn, ctx->xprt_ctx, pipe, count);
+}
+#endif /* USE_LINUX_SPLICE && HA_USE_KTLS */
+
 /* Methods to implement OpenSSL BIO */
 static int ha_ssl_write(BIO *h, const char *buf, int num)
 {
@@ -337,6 +357,16 @@ static int ha_ssl_read(BIO *h, char *buf, int size)
 #ifdef HA_USE_KTLS
 #ifdef HAVE_VANILLA_OPENSSL
 	if (ctx->flags & SSL_SOCK_F_KTLS_RECV) {
+		if (ctx->conn->flags & CO_FL_WANT_SPLICING) {
+			/*
+			 * We want to use splicing at this point, so
+			 * pretend we had nothing to read with the hope
+			 * OpenSSL will empty its buffers, and we can
+			 * finally start splicing
+			 */
+			BIO_set_retry_read(h);
+			return -1;
+		}
 		msg_control = &cmsgbuf;
 		msg_controllen = sizeof(cmsgbuf);
 		msg_controllenp = &msg_controllen;
@@ -7188,14 +7218,35 @@ yield:
 
 static int ssl_sock_get_capability(struct connection *conn, void *xprt_ctx, enum xprt_capabilities cap, void *arg)
 {
+#ifdef HA_USE_KTLS
+	struct ssl_sock_ctx *ctx = xprt_ctx;
 	int *ret;
 
 	switch (cap) {
 		case XPRT_CAN_SPLICE:
 			ret = arg;
-			*ret = XPRT_CONN_CAN_NOT_SPLICE;
+			if ((ctx->flags & (SSL_SOCK_F_KTLS_RECV | SSL_SOCK_F_KTLS_SEND)) ==
+			                  (SSL_SOCK_F_KTLS_RECV | SSL_SOCK_F_KTLS_SEND)) {
+#ifdef USE_VANILLA_OPENSSL
+				/*
+				 * We can splice yet if there's still
+				 * data in OpenSSL internal buffers
+				 */
+				if (SSL_has_pending(ctx->ssl))
+					*ret = XPRT_CONN_COULD_SPLICE;
+				else
+#endif
+				{
+					ctx->conn->flags &= ~CO_FL_WANT_SPLICING;
+					*ret = XPRT_CONN_CAN_SPLICE;
+				}
+			} else if (ctx->flags & SSL_SOCK_F_KTLS_ENABLED)
+				*ret = XPRT_CONN_COULD_SPLICE;
+			else
+				*ret = XPRT_CONN_CAN_NOT_SPLICE;
 			return 0;
 	}
+#endif
 	return -1;
 }
 
@@ -7221,8 +7272,10 @@ struct xprt_ops ssl_sock = {
 	.unsubscribe = ssl_unsubscribe,
 	.remove_xprt = ssl_remove_xprt,
 	.add_xprt = ssl_add_xprt,
-	.rcv_pipe = NULL,
-	.snd_pipe = NULL,
+#if defined(HA_USE_KTLS) && defined(USE_LINUX_SPLICE)
+	.rcv_pipe = ssl_sock_from_pipe,
+	.snd_pipe = ssl_sock_to_pipe,
+#endif
 	.shutr    = NULL,
 	.shutw    = ssl_sock_shutw,
 	.close    = ssl_sock_close,
