@@ -708,6 +708,9 @@ static void usage(char *name)
 		"        -dF disable fast-forward\n"
 		"        -dI enable insecure fork\n"
 		"        -dZ disable zero-copy forwarding\n"
+#if defined(HA_USE_KTLS)
+		"        -dT disable kTLS\n"
+#endif
 		"        -sf/-st [pid ]* finishes/terminates old pids.\n"
 		"        -x <unix_socket> get listening sockets from a unix socket\n"
 		"        -S <bind>[,<bind options>...] new master CLI\n"
@@ -1588,6 +1591,11 @@ static void init_args(int argc, char **argv)
 					trace_parse_cmd(NULL, NULL);
 				}
 			}
+#ifdef HA_USE_KTLS
+			else if (*flag == 'd' && flag[1] == 'T') {
+				global.tune.options |= GTUNE_NO_KTLS;
+			}
+#endif
 			else if (*flag == 'd')
 				arg_mode |= MODE_DEBUG;
 			else if (*flag == 'c' && flag[1] == 'c') {

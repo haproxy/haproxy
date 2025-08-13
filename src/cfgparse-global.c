@@ -990,6 +990,21 @@ static int cfg_parse_global_mode(char **args, int section_type,
 	return 0;
 }
 
+static int cfg_parse_global_disable_ktls(char **args, int section_type,
+					 struct proxy *curpx, const struct proxy *defpx,
+					 const char *file, int line, char **err)
+{
+	if (!(global.mode & MODE_DISCOVERY))
+                return 0;
+
+	if (too_many_args(0, args, err, NULL))
+		return -1;
+
+	global.tune.options |= GTUNE_NO_KTLS;
+
+	return 0;
+}
+
 /* Disable certain poller if set */
 static int cfg_parse_global_disable_poller(char **args, int section_type,
 					   struct proxy *curpx, const struct proxy *defpx,
@@ -1767,6 +1782,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "noepoll", cfg_parse_global_disable_poller, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "noevports", cfg_parse_global_disable_poller, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "nokqueue", cfg_parse_global_disable_poller, KWF_DISCOVERY },
+	{ CFG_GLOBAL, "noktls", cfg_parse_global_disable_ktls, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "nopoll", cfg_parse_global_disable_poller, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "pidfile", cfg_parse_global_pidfile, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "prealloc-fd", cfg_parse_prealloc_fd },
