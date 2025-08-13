@@ -187,7 +187,15 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 	/* Connection target is used to index it in the session. Only BE conns are expected in session list. */
 	BUG_ON(!conn->target || objt_listener(conn->target));
 
-	/* A connection cannot be attached already to another session. */
+	/* A connection cannot be attached already to another session.
+	 *
+	 * This is safe as BE connections are flagged as private immediately
+	 * after being created during connect_server(). The only potential
+	 * issue would be if a connection is turned private later on during its
+	 * lifetime. Currently, this happens only on NTLM headers detection,
+	 * however this case is only implemented with HTTP/1.1 which cannot
+	 * multiplex several streams on the same connection.
+	 */
 	BUG_ON(conn->owner && conn->owner != sess);
 
 	/* Already attach to the session */
