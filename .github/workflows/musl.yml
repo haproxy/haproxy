@@ -20,7 +20,7 @@ jobs:
         run: |
           ulimit -c unlimited
           echo '/tmp/core/core.%h.%e.%t' > /proc/sys/kernel/core_pattern
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install dependencies
         run: apk add gcc gdb make tar git python3 libc-dev linux-headers pcre-dev pcre2-dev openssl-dev lua5.3-dev grep socat curl musl-dbg lua5.3-dbg jose
       - name: Install VTest

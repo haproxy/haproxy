@@ -24,7 +24,7 @@ jobs:
     container:
       image: fedora:rawhide
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: Install dependencies
       run: |
         dnf -y install awk diffutils git pcre-devel zlib-devel pcre2-devel 'perl(FindBin)' perl-IPC-Cmd 'perl(File::Copy)' 'perl(File::Compare)' lua-devel socat findutils systemd-devel clang
