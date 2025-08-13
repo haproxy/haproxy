@@ -144,8 +144,7 @@ enum {
 	 */
 	CO_FL_WAIT_ROOM     = 0x00000800,  /* data sink is full */
 
-	/* These flags are used to report whether the from/to addresses are set or not */
-	/* unused: 0x00001000 */
+	CO_FL_WANT_SPLICING = 0x00001000,  /* we wish to use splicing on the connection when possible */
 	/* unused: 0x00002000 */
 
 	CO_FL_EARLY_SSL_HS  = 0x00004000,  /* We have early data pending, don't start SSL handshake yet */
