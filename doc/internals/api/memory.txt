@@ -1,0 +1,86 @@
+2025-08-13 - Memory allocation in HAProxy 3.3
+
+The vast majority of dynamic memory allocations are performed from pools. Pools
+are optimized to store pre-calibrated objects of the right size for a given
+usage, try to favor locality and hot objects as much as possible, and are
+heavily instrumented to detect and help debug a wide class of bugs including
+buffer overflows, use-after-free, etc.
+
+For objects of random sizes, or those used only at configuration time, pools
+are not suited, and the regular malloc/free family is available, in addition of
+a few others.
+
+The standard allocation calls are intercepted at the code level (#define) when
+the code is compiled with -DDEBUG_MEM_STATS. For this reason, these calls are
+redefined as macros in "bug.h", and one must not try to use the pointers to
+such functions, as this may break DEBUG_MEM_STATS. This provides fine-grained
+stats about allocation/free per line of source code using locally implemented
+counters that can be consulted by "debug dev memstats". The calls are
+categorized into one of "calloc", "free", "malloc", "realloc", "strdup",
+"p_alloc", "p_free", the latter two designating pools. Extra calls such as
+memalign() and similar are also intercepted and counted as malloc.
+
+Due to the nature of this replacement, DEBUG_MEM_STATS cannot see operations
+performed in libraries or dependencies.
+
+In addition to DEBUG_MEM_STATS, when haproxy is built with USE_MEMORY_PROFILING
+the standard functions are wrapped by new ones defined in "activity.c", which
+also hold counters by call place. These ones are able to trace activity in
+libraries because the functions check the return pointer to figure where the
+call was made. The approach is different and relies on a large hash table. The
+files, function names and line numbers are not know, but by passing the pointer
+to dladdr(), we can often resolve most of these symbols. These operations are
+consulted via "show profiling memory". It must first be enabled either in the
+global config "profiling.memory on" or the CLI using "set profiling memory on".
+Memory profiling can also track pool allocations and frees thanks to knowing
+the size of the element and knowing a place where to store it. Some future
+evolutions might consider making this possible as well for pure malloc/free
+too by leveraging malloc_usable_size() a bit more.
+
+Finally, 3.3 brought aligned allocations. These are made available via a new
+family of functions around ha_aligned_alloc() that simply map to either
+posix_memalign(), memalign() or _aligned_malloc() for CYGWIN, depending on
+which one is available. This latter one requires to pass the pointer to
+_aligned_free() instead of free(), so for this reason, all aligned allocations
+have to be released using ha_aligned_free(). Since this mostly happens on
+configuration elements, in practice it's not as inconvenient as it can sound.
+These functions are in reality macros handled in "bug.h" like the previous
+ones in order to deal with DEBUG_MEM_STATS. All "alloc" variants are reported
+in memstats as "malloc". All "zalloc" variants are reported in memstats as
+"calloc".
+
+The currently available allocators are the following:
+
+  - void *ha_aligned_alloc(size_t align, size_t size)
+  - void *ha_aligned_zalloc(size_t align, size_t size)
+
+    Equivalent of malloc() but aligned to <align> bytes. The alignment MUST be
+    at least as large as one word and MUST be a power of two. The "zalloc"
+    variant also zeroes the area on success. Both return NULL on failure.
+
+  - void *ha_aligned_alloc_safe(size_t align, size_t size)
+  - void *ha_aligned_zalloc_safe(size_t align, size_t size)
+
+    Equivalent of malloc() but aligned to <align> bytes. The alignment is
+    automatically adjusted to the nearest larger power of two that is at least
+    as large as a word. The "zalloc" variant also zeroes the area on
+    success. Both return NULL on failure.
+
+  - (type *)ha_aligned_alloc_typed(size_t count, type)
+    (type *)ha_aligned_zalloc_typed(size_t count, type)
+
+    This macro returns an area aligned to the required alignment for type
+    <type>, large enough for <count> objects of this type, and the result is a
+    pointer of this type. The goal is to ease allocation of known structures
+    whose alignment is not necessarily known to the developer (and to avoid
+    encouraging to hard-code alignment). The cast in return also provides a
+    last-minute control in case a wrong type is mistakenly used due to a poor
+    copy-paste or an extra "*" after the type. When DEBUG_MEM_STATS is in use,
+    the type is stored as a string in the ".extra" field so that it can be
+    displayed in "debug dev memstats". The "zalloc" variant also zeroes the
+    area on success. Both return NULL on failure.
+
+  - void ha_aligned_free(void *ptr)
+
+    Frees the area pointed to by ptr. It is the equivalent of free() but for
+    objects allocated using one of the functions above.

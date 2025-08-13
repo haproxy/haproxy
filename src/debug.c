@@ -2253,9 +2253,9 @@ static int debug_iohandler_memstats(struct appctx *appctx)
 		func = ptr->caller.func;
 
 		switch (ptr->caller.what) {
-		case MEM_STATS_TYPE_CALLOC:  type = "CALLOC";  direction =  1; break;
+		case MEM_STATS_TYPE_CALLOC:  type = "CALLOC";  direction =  1; if (ptr->extra) info = (const char *)ptr->extra; break;
 		case MEM_STATS_TYPE_FREE:    type = "FREE";    direction = -1; break;
-		case MEM_STATS_TYPE_MALLOC:  type = "MALLOC";  direction =  1; break;
+		case MEM_STATS_TYPE_MALLOC:  type = "MALLOC";  direction =  1; if (ptr->extra) info = (const char *)ptr->extra; break;
 		case MEM_STATS_TYPE_REALLOC: type = "REALLOC"; break;
 		case MEM_STATS_TYPE_STRDUP:  type = "STRDUP";  direction =  1; break;
 		case MEM_STATS_TYPE_P_ALLOC: type = "P_ALLOC"; direction =  1; if (ptr->extra) info = ((const struct pool_head *)ptr->extra)->name; break;

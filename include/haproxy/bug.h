@@ -646,7 +646,7 @@ struct mem_stats {
 	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
 		.caller = {						\
 			.file = __FILE__, .line = __LINE__,		\
-			.what = MEM_STATS_TYPE_MALLOC,			\
+			.what = MEM_STATS_TYPE_CALLOC,			\
 			.func = __func__,				\
 		},							\
 	};								\
@@ -682,7 +682,7 @@ struct mem_stats {
 	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
 		.caller = {						\
 			.file = __FILE__, .line = __LINE__,		\
-			.what = MEM_STATS_TYPE_MALLOC,			\
+			.what = MEM_STATS_TYPE_CALLOC,			\
 			.func = __func__,				\
 		},							\
 	};								\
@@ -691,6 +691,46 @@ struct mem_stats {
 	_HA_ATOMIC_INC(&_.calls);					\
 	_HA_ATOMIC_ADD(&_.size, __s);					\
 	_ha_aligned_zalloc_safe(__a, __s);				\
+})
+
+// Since the type is known, the .extra field will contain its name
+#undef ha_aligned_alloc_typed
+#define ha_aligned_alloc_typed(cnt,type)  ({				\
+	size_t __a = __alignof__(type);					\
+	size_t __s = ((size_t)cnt) * sizeof(type);			\
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
+		.caller = {						\
+			.file = __FILE__, .line = __LINE__,		\
+			.what = MEM_STATS_TYPE_MALLOC,			\
+			.func = __func__,				\
+		},							\
+		.extra = #type,						\
+	};								\
+	HA_WEAK(__start_mem_stats);					\
+	HA_WEAK(__stop_mem_stats);					\
+	_HA_ATOMIC_INC(&_.calls);					\
+	_HA_ATOMIC_ADD(&_.size, __s);					\
+	(type*)_ha_aligned_alloc(__a, __s);				\
+})
+
+// Since the type is known, the .extra field will contain its name
+#undef ha_aligned_zalloc_typed
+#define ha_aligned_zalloc_typed(cnt,type)  ({				\
+	size_t __a = __alignof__(type);					\
+	size_t __s = ((size_t)cnt) * sizeof(type);			\
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"),__aligned__(sizeof(void*)))) = { \
+		.caller = {						\
+			.file = __FILE__, .line = __LINE__,		\
+			.what = MEM_STATS_TYPE_CALLOC,			\
+			.func = __func__,				\
+		},							\
+		.extra = #type,						\
+	};								\
+	HA_WEAK(__start_mem_stats);					\
+	HA_WEAK(__stop_mem_stats);					\
+	_HA_ATOMIC_INC(&_.calls);					\
+	_HA_ATOMIC_ADD(&_.size, __s);					\
+	(type*)_ha_aligned_zalloc_safe(__a, __s);			\
 })
 
 #undef ha_aligned_free
@@ -742,6 +782,8 @@ struct mem_stats {
 #define ha_aligned_zalloc(a,s) _ha_aligned_zalloc(a, s)
 #define ha_aligned_alloc_safe(a,s) _ha_aligned_alloc_safe(a, s)
 #define ha_aligned_zalloc_safe(a,s) _ha_aligned_zalloc_safe(a, s)
+#define ha_aligned_alloc_typed(cnt,type) ((type*)_ha_aligned_alloc(__alignof__(type), ((size_t)cnt) * sizeof(type)))
+#define ha_aligned_zalloc_typed(cnt,type) ((type*)_ha_aligned_zalloc(__alignof__(type), ((size_t)cnt) * sizeof(type)))
 #define ha_aligned_free(p) _ha_aligned_free(p)
 #define ha_aligned_free_size(p,s) _ha_aligned_free(p)
 
