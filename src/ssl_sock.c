@@ -6981,6 +6981,18 @@ yield:
 }
 #endif
 
+static int ssl_sock_get_capability(struct connection *conn, void *xprt_ctx, enum xprt_capabilities cap, void *arg)
+{
+	int *ret;
+
+	switch (cap) {
+		case XPRT_CAN_SPLICE:
+			ret = arg;
+			*ret = XPRT_CONN_CAN_NOT_SPLICE;
+			return 0;
+	}
+	return -1;
+}
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
@@ -7011,6 +7023,7 @@ struct xprt_ops ssl_sock = {
 	.close    = ssl_sock_close,
 	.init     = ssl_sock_init,
 	.start    = ssl_sock_start,
+	.get_capability = ssl_sock_get_capability,
 	.prepare_bind_conf = ssl_sock_prepare_bind_conf,
 	.destroy_bind_conf = ssl_sock_destroy_bind_conf,
 	.prepare_srv = ssl_sock_prepare_srv_ctx,

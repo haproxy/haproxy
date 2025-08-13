@@ -433,6 +433,16 @@ union conn_handle {
 	int fd;                 /* file descriptor, for regular sockets (CO_FL_FDLESS=0) */
 };
 
+enum xprt_capabilities {
+	XPRT_CAN_SPLICE,
+};
+
+enum xprt_splice_cap {
+	XPRT_CONN_CAN_NOT_SPLICE, /* This connection can't, and won't ever be able to splice */
+	XPRT_CONN_COULD_SPLICE, /* This connection can't splice, but may later */
+	XPRT_CONN_CAN_SPLICE /* This connection can splice */
+};
+
 /* xprt_ops describes transport-layer operations for a connection. They
  * generally run over a socket-based control layer, but not always. Some
  * of them are used for data transfer with the upper layer (rcv_*, snd_*)
@@ -464,6 +474,12 @@ struct xprt_ops {
 	struct ssl_sock_ctx *(*get_ssl_sock_ctx)(struct connection *); /* retrieve the ssl_sock_ctx in use, or NULL if none */
 	int (*show_fd)(struct buffer *, const struct connection *, const void *ctx); /* append some data about xprt for "show fd"; returns non-zero if suspicious */
 	void (*dump_info)(struct buffer *, const struct connection *);
+	/*
+	 * Returns the value for various capabilities.
+	 * Returns 0 if the capability is known, iwth the actual value in arg,
+	 * or -1 otherwise
+	 */
+	int (*get_capability)(struct connection *connection, void *xprt_ctx, enum xprt_capabilities, void *arg);
 };
 
 /* mux_ops describes the mux operations, which are to be performed at the

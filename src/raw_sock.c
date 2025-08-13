@@ -506,6 +506,19 @@ static int raw_sock_remove_xprt(struct connection *conn, void *xprt_ctx, void *t
 	return -1;
 }
 
+static int raw_sock_get_capability(struct connection *conn, void *xprt_ctx, enum xprt_capabilities cap, void *arg)
+{
+	int *ret;
+
+	switch (cap) {
+		case XPRT_CAN_SPLICE:
+			ret = arg;
+			*ret = XPRT_CONN_CAN_SPLICE;
+			return 0;
+	}
+	return -1;
+}
+
 /* transport-layer operations for RAW sockets */
 static struct xprt_ops raw_sock = {
 	.snd_buf  = raw_sock_from_buf,
@@ -517,6 +530,7 @@ static struct xprt_ops raw_sock = {
 	.rcv_pipe = raw_sock_to_pipe,
 	.snd_pipe = raw_sock_from_pipe,
 #endif
+	.get_capability = raw_sock_get_capability,
 	.shutr    = NULL,
 	.shutw    = NULL,
 	.close    = raw_sock_close,
