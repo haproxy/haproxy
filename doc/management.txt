@@ -390,6 +390,10 @@ list of options is :
     using strace to see the forwarded data (which do not appear when using
     splice()).
 
+  -dT : disable the use of ktls. It is equivalent to the "global" section's
+   keyword "noktls". It is mostly useful when suspecting a bug related to
+   ktls.
+
   -dV : disable SSL verify on the server side. It is equivalent to having
     "ssl-server-verify none" in the "global" section. This is useful when
     trying to reproduce production issues out of the production

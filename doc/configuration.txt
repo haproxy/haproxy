@@ -1819,6 +1819,7 @@ The following keywords are supported in the "global" section :
    - noevports
    - nogetaddrinfo
    - nokqueue
+   - noktls
    - nopoll
    - noreuseport
    - nosplice
@@ -3790,6 +3791,10 @@ nokqueue
   Disables the use of the "kqueue" event polling system on BSD. It is
   equivalent to the command-line argument "-dk". The next polling system
   used will generally be "poll". See also "nopoll".
+
+noktls
+  Disables the use of ktls. It is equivalent to the command line argument
+  "-dT".
 
 nopoll
   Disables the use of the "poll" event polling system. It is equivalent to the

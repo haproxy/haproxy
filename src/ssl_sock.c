@@ -5420,7 +5420,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.lock);
 
 #ifdef HA_USE_KTLS
-		if (srv->ssl_ctx.options & SRV_SSL_O_KTLS) {
+		if ((srv->ssl_ctx.options & SRV_SSL_O_KTLS) && !(global.tune.options & GTUNE_NO_KTLS)) {
 #ifdef HAVE_VANILLA_OPENSSL
 			SSL_set_options(ctx->ssl, SSL_OP_ENABLE_KTLS);
 #endif
@@ -5465,7 +5465,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 #endif
 
 #ifdef HA_USE_KTLS
-		if (bc->ssl_conf.ktls) {
+		if (bc->ssl_conf.ktls && !(global.tune.options & GTUNE_NO_KTLS)) {
 #ifdef HAVE_VANILLA_OPENSSL
 			SSL_set_options(ctx->ssl, SSL_OP_ENABLE_KTLS);
 #endif
