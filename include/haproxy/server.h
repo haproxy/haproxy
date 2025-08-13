@@ -184,16 +184,14 @@ const struct mux_ops *srv_get_ws_proto(struct server *srv);
  */
 static inline struct server *srv_alloc(void)
 {
-	struct server *srv;
-
-	srv = calloc(1, sizeof(*srv));
-	return srv;
+	return ha_aligned_zalloc_typed(1, struct server);
 }
 
 /* free a previously allocated server an nullifies the pointer */
 static inline void srv_free(struct server **srv_ptr)
 {
-	ha_free(srv_ptr);
+	ha_aligned_free(*srv_ptr);
+	*srv_ptr = NULL;
 }
 
 /* increase the number of cumulated streams on the designated server */
