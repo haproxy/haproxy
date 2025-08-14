@@ -850,7 +850,7 @@ static forceinline void qc_ssl_dump_errors(struct connection *conn)
  * connection for servers or start the mux for clients.
  * Return 1 if succeeded, 0 if not.
  */
-static int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
+int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 {
 	int ret, ssl_err, state;
 
@@ -1041,6 +1041,7 @@ static int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 	goto leave;
 }
 
+#ifndef HAVE_OPENSSL_QUIC
 /* Provide CRYPTO data to the TLS stack found at <data> with <len> as length
  * from <qel> encryption level with <ctx> as QUIC connection context.
  * Remaining parameter are there for debugging purposes.
@@ -1061,13 +1062,11 @@ static int qc_ssl_provide_quic_data(struct ncbuf *ncbuf,
 
 	TRACE_ENTER(QUIC_EV_CONN_SSLDATA, qc);
 
-#ifndef HAVE_OPENSSL_QUIC
 	if (SSL_provide_quic_data(ctx->ssl, level, data, len) != 1) {
 		TRACE_ERROR("SSL_provide_quic_data() error",
 		            QUIC_EV_CONN_SSLDATA, qc, NULL, NULL, ctx->ssl);
 		goto leave;
 	}
-#endif
 
 	if (!qc_ssl_do_hanshake(qc, ctx))
 		goto leave;
@@ -1141,6 +1140,7 @@ int qc_ssl_provide_all_quic_data(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 	TRACE_LEAVE(QUIC_EV_CONN_PHPKTS, qc);
 	return ret;
 }
+#endif
 
 /* Simple helper to set the specific OpenSSL/quictls QUIC API callbacks */
 static int quic_ssl_set_tls_cbs(SSL *ssl)

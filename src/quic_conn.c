@@ -785,7 +785,11 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 
 	/* TASK_HEAVY is set when received CRYPTO data have to be handled. */
 	if (HA_ATOMIC_LOAD(&tl->state) & TASK_HEAVY) {
+#ifdef HAVE_OPENSSL_QUIC
+		qc_ssl_do_hanshake(qc, qc->xprt_ctx);
+#else
 		qc_ssl_provide_all_quic_data(qc, qc->xprt_ctx);
+#endif
 		HA_ATOMIC_AND(&tl->state, ~TASK_HEAVY);
 	}
 
