@@ -3072,8 +3072,6 @@ struct server *new_server(struct proxy *proxy)
 	srv->agent.proxy = proxy;
 	srv->xprt  = srv->check.xprt = srv->agent.xprt = xprt_get(XPRT_RAW);
 
-	MT_LIST_INIT(&srv->sess_conns);
-
 	guid_init(&srv->guid);
 	MT_LIST_INIT(&srv->watcher_list);
 
@@ -5935,6 +5933,7 @@ static int srv_init_per_thr(struct server *srv)
 		srv->per_thr[i].idle_conns = EB_ROOT;
 		srv->per_thr[i].safe_conns = EB_ROOT;
 		srv->per_thr[i].avail_conns = EB_ROOT;
+		MT_LIST_INIT(&srv->per_thr[i].sess_conns);
 		MT_LIST_INIT(&srv->per_thr[i].streams);
 
 		LIST_INIT(&srv->per_thr[i].idle_conn_list);
@@ -6428,29 +6427,34 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	BUG_ON(srv->curr_idle_conns);
 
 	/* Close idle private connections attached to this server. */
-	MT_LIST_FOR_EACH_ENTRY_LOCKED(sess_conns, &srv->sess_conns, srv_el, back) {
-		struct connection *conn, *conn_back;
-		list_for_each_entry_safe(conn, conn_back, &sess_conns->conn_list, sess_el) {
+	for (i = tid;;) {
+		MT_LIST_FOR_EACH_ENTRY_LOCKED(sess_conns, &srv->per_thr[i].sess_conns, srv_el, back) {
+			struct connection *conn, *conn_back;
+			list_for_each_entry_safe(conn, conn_back, &sess_conns->conn_list, sess_el) {
 
-			/* Only idle connections should be present if srv_check_for_deletion() is true. */
-			BUG_ON(!(conn->flags & CO_FL_SESS_IDLE));
-			--((struct session *)conn->owner)->idle_conns;
+				/* Only idle connections should be present if srv_check_for_deletion() is true. */
+				BUG_ON(!(conn->flags & CO_FL_SESS_IDLE));
+				--((struct session *)conn->owner)->idle_conns;
 
-			LIST_DEL_INIT(&conn->sess_el);
-			conn->owner = NULL;
+				LIST_DEL_INIT(&conn->sess_el);
+				conn->owner = NULL;
 
-			if (sess_conns->tid != tid) {
-				if (conn->mux && conn->mux->takeover)
-					conn->mux->takeover(conn, sess_conns->tid, 1);
-				else if (conn->xprt && conn->xprt->takeover)
-					conn->xprt->takeover(conn, conn->ctx, sess_conns->tid, 1);
+				if (sess_conns->tid != tid) {
+					if (conn->mux && conn->mux->takeover)
+						conn->mux->takeover(conn, sess_conns->tid, 1);
+					else if (conn->xprt && conn->xprt->takeover)
+						conn->xprt->takeover(conn, conn->ctx, sess_conns->tid, 1);
+				}
+				conn_release(conn);
 			}
-			conn_release(conn);
+
+			LIST_DELETE(&sess_conns->sess_el);
+			pool_free(pool_head_sess_priv_conns, sess_conns);
+			sess_conns = NULL;
 		}
 
-		LIST_DELETE(&sess_conns->sess_el);
-		pool_free(pool_head_sess_priv_conns, sess_conns);
-		sess_conns = NULL;
+		if ((i = ((i + 1 == global.nbthread) ? 0 : i + 1)) == tid)
+			break;
 	}
 
 	/* removing cannot fail anymore when we reach this:

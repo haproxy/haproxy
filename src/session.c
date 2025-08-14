@@ -617,7 +617,7 @@ static struct sess_priv_conns *sess_alloc_sess_conns(struct session *sess,
 	MT_LIST_INIT(&pconns->srv_el);
 	/* If <target> endpoint is a server, also attach storage element into it. */
 	if ((srv = objt_server(target)))
-		MT_LIST_APPEND(&srv->sess_conns, &pconns->srv_el);
+		MT_LIST_APPEND(&srv->per_thr[tid].sess_conns, &pconns->srv_el);
 
 	pconns->tid = tid;
 
