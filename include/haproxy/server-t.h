@@ -266,6 +266,7 @@ struct srv_per_thread {
 	struct eb_root idle_conns;              /* Shareable idle connections */
 	struct eb_root safe_conns;              /* Safe idle connections */
 	struct eb_root avail_conns;             /* Connections in use, but with still new streams available */
+	struct mt_list sess_conns;              /* Connections attached to a session which cannot be shared across clients */
 
 	/* Secondary idle conn storage used in parallel to idle/safe trees.
 	 * Used to sort them by last usage and purge them in reverse order.
@@ -387,8 +388,6 @@ struct server {
 	unsigned int curr_total_conns;          /* Current number of total connections to the server, used or idle, only calculated if strict-maxconn is used */
 	unsigned int max_used_conns;            /* Max number of used connections (the counter is reset at each connection purges */
 	unsigned int est_need_conns;            /* Estimate on the number of needed connections (max of curr and previous max_used) */
-
-	struct mt_list sess_conns;		/* list of private conns managed by a session on this server */
 
 	/* Element below are usd by LB algorithms and must be doable in
 	 * parallel to other threads reusing connections above.
