@@ -6403,9 +6403,21 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 		}
 		ctx = context;
 		conn = ctx->conn;
-		conn_in_list = conn->flags & CO_FL_LIST_MASK;
-		if (conn_in_list)
-			conn_delete_from_tree(conn);
+
+		/* Remove the connection from the list, to be sure nobody attempts
+		 * to use it while we handle the I/O events
+		 */
+		conn_in_list = conn->flags & (CO_FL_LIST_MASK|CO_FL_SESS_IDLE);
+		if (conn_in_list) {
+			if (conn->flags & CO_FL_SESS_IDLE) {
+				if (!session_detach_idle_conn(conn->owner, conn))
+					conn_in_list = 0;
+			}
+			else {
+				conn_delete_from_tree(conn);
+			}
+		}
+
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	} else {
 		ctx = context;

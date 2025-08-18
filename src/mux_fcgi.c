@@ -3061,9 +3061,16 @@ struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned int state)
 		conn = fconn->conn;
 		TRACE_POINT(FCGI_EV_FCONN_WAKE, conn);
 
-		conn_in_list = conn->flags & CO_FL_LIST_MASK;
-		if (conn_in_list)
-			conn_delete_from_tree(conn);
+		conn_in_list = conn->flags & (CO_FL_LIST_MASK|CO_FL_SESS_IDLE);
+		if (conn_in_list) {
+			if (conn->flags & CO_FL_SESS_IDLE) {
+				if (!session_detach_idle_conn(conn->owner, conn))
+					conn_in_list = 0;
+			}
+			else {
+				conn_delete_from_tree(conn);
+			}
+		}
 
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	} else {
@@ -3322,6 +3329,8 @@ struct task *fcgi_timeout_task(struct task *t, void *context, unsigned int state
 		 */
 		if (fconn->conn->flags & CO_FL_LIST_MASK)
 			conn_delete_from_tree(fconn->conn);
+		else if (fconn->conn->flags & CO_FL_SESS_IDLE)
+			session_detach_idle_conn(fconn->conn->owner, fconn->conn);
 
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 

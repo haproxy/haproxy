@@ -199,12 +199,18 @@ int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake)
 	     ((conn->flags ^ old_flags) & CO_FL_NOTIFY_DONE) ||
 	     ((old_flags & CO_FL_WAIT_XPRT) && !(conn->flags & CO_FL_WAIT_XPRT))) &&
 	    conn->mux && conn->mux->wake) {
-		uint conn_in_list = conn->flags & CO_FL_LIST_MASK;
+		uint conn_in_list = conn->flags & (CO_FL_LIST_MASK|CO_FL_SESS_IDLE);
 		struct server *srv = objt_server(conn->target);
 
 		if (conn_in_list) {
 			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-			conn_delete_from_tree(conn);
+			if (conn->flags & CO_FL_SESS_IDLE) {
+				if (!session_detach_idle_conn(conn->owner, conn))
+					conn_in_list = 0;
+			}
+			else {
+				conn_delete_from_tree(conn);
+			}
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		}
 
