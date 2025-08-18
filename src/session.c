@@ -838,6 +838,35 @@ void session_unown_conn(struct session *sess, struct connection *conn)
 	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 }
 
+/* Remove <conn> connection from <sess> session. Contrary to session_unown_conn(),
+ * this function is not protected by a lock, so the caller is responsible to
+ * properly use idle_conns_lock prior to calling it. A notable difference is
+ * also that <owner> member of <conn> is not reset.
+ *
+ * This function should be reserved for idle connections temporarily removal
+ * for protection against other thread access. It is generally coupled with a
+ * call to session_reinsert_idle_conn() performed before task scheduling.
+ */
+void session_detach_idle_conn(struct session *sess, struct connection *conn)
+{
+	struct sess_priv_conns *pconns;
+
+	/* This function is reserved for idle private connections. */
+	BUG_ON(!(conn->flags & CO_FL_SESS_IDLE));
+
+	sess->idle_conns--;
+	LIST_DEL_INIT(&conn->sess_el);
+
+	pconns = sess_get_sess_conns(sess, conn->target);
+	BUG_ON(!pconns); /* if conn is attached to session, its sess_conn must exists. */
+	if (LIST_ISEMPTY(&pconns->conn_list)) {
+		/* Remove sess_conn element as no connection left in it. */
+		LIST_DELETE(&pconns->sess_el);
+		MT_LIST_DELETE(&pconns->srv_el);
+		pool_free(pool_head_sess_priv_conns, pconns);
+	}
+}
+
 
 /*
  * Local variables:

@@ -4962,9 +4962,13 @@ struct task *h2_io_cb(struct task *t, void *ctx, unsigned int state)
 		/* Remove the connection from the list, to be sure nobody attempts
 		 * to use it while we handle the I/O events
 		 */
-		conn_in_list = conn->flags & CO_FL_LIST_MASK;
-		if (conn_in_list)
-			conn_delete_from_tree(conn);
+		conn_in_list = conn->flags & (CO_FL_LIST_MASK|CO_FL_SESS_IDLE);
+		if (conn_in_list) {
+			if (conn->flags & CO_FL_SESS_IDLE)
+				session_detach_idle_conn(h2c->conn->owner, h2c->conn);
+			else
+				conn_delete_from_tree(conn);
+		}
 
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	} else {
@@ -5245,6 +5249,8 @@ struct task *h2_timeout_task(struct task *t, void *context, unsigned int state)
 		 */
 		if (h2c->conn->flags & CO_FL_LIST_MASK)
 			conn_delete_from_tree(h2c->conn);
+		else if (h2c->conn->flags & CO_FL_SESS_IDLE)
+			session_detach_idle_conn(h2c->conn->owner, h2c->conn);
 
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
