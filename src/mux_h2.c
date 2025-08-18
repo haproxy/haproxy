@@ -5558,6 +5558,7 @@ static void h2_detach(struct sedesc *sd)
 					 * that the handler needs to check it under the idle conns lock.
 					 */
 					HA_ATOMIC_OR(&h2c->wait_event.tasklet->state, TASK_F_USR1);
+					xprt_set_idle(h2c->conn, h2c->conn->xprt, h2c->conn->xprt_ctx);
 
 					/* Ensure session can keep a new idle connection. */
 					if (session_check_idle_conn(sess, h2c->conn) != 0) {
@@ -5565,6 +5566,13 @@ static void h2_detach(struct sedesc *sd)
 						TRACE_DEVEL("leaving without reusable idle connection", H2_EV_STRM_END);
 						return;
 					}
+
+					/* At this point, the connection is inserted into
+					 * session list and marked as idle, so it may already
+					 * have been purged from another thread.
+					 */
+					TRACE_DEVEL("private connection marked as idle", H2_EV_STRM_END);
+					return;
 				}
 			}
 			else {
