@@ -44,6 +44,7 @@ void __session_add_glitch_ctr(struct session *sess, uint inc);
 void session_embryonic_build_legacy_err(struct session *sess, struct buffer *out);
 
 int session_add_conn(struct session *sess, struct connection *conn);
+int session_reinsert_idle_conn(struct session *sess, struct connection *conn);
 int session_check_idle_conn(struct session *sess, struct connection *conn);
 struct connection *session_get_conn(struct session *sess, void *target, int64_t hash);
 void session_unown_conn(struct session *sess, struct connection *conn);
