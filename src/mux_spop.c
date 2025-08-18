@@ -3005,6 +3005,7 @@ static void spop_detach(struct sedesc *sd)
 				 * that the handler needs to check it under the idle conns lock.
 				 */
 				HA_ATOMIC_OR(&spop_conn->wait_event.tasklet->state, TASK_F_USR1);
+				xprt_set_idle(spop_conn->conn, spop_conn->conn->xprt, spop_conn->conn->xprt_ctx);
 
 				/* Ensure session can keep a new idle connection. */
 				if (session_check_idle_conn(sess, spop_conn->conn) != 0) {
@@ -3012,6 +3013,13 @@ static void spop_detach(struct sedesc *sd)
 					TRACE_DEVEL("leaving without reusable idle connection", SPOP_EV_STRM_END);
 					return;
 				}
+
+				/* At this point, the connection is inserted into
+				 * session list and marked as idle, so it may already
+				 * have been purged from another thread.
+				 */
+				TRACE_DEVEL("private connection marked as idle", SPOP_EV_STRM_END);
+				return;
 			}
 		}
 		else {

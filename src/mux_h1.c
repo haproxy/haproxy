@@ -1151,6 +1151,8 @@ static int h1s_finish_detach(struct h1s *h1s)
 			 * that the handler needs to check it under the idle conns lock.
 			 */
 			HA_ATOMIC_OR(&h1c->wait_event.tasklet->state, TASK_F_USR1);
+			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+			xprt_set_idle(h1c->conn, h1c->conn->xprt, h1c->conn->xprt_ctx);
 
 			/* Ensure session can keep a new idle connection. */
 			if (session_check_idle_conn(sess, h1c->conn)) {
@@ -1158,6 +1160,12 @@ static int h1s_finish_detach(struct h1s *h1s)
 				h1c->conn->mux->destroy(h1c);
 				goto released;
 			}
+
+			/* At this point, the connection is inserted into
+			 * session list and marked as idle, so it may already
+			 * have been purged from another thread.
+			 */
+			goto end;
 		}
 		else {
 			if (h1c->conn->owner == sess)
