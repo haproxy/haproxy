@@ -213,16 +213,25 @@ int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake)
 			goto done;
 
 		if (conn_in_list) {
-			if (srv->cur_admin & SRV_ADMF_MAINT) {
+			if (srv && (srv->cur_admin & SRV_ADMF_MAINT)) {
 				/* Do not store an idle conn if server in maintenance. */
 				conn->mux->destroy(conn->ctx);
 				ret = -1;
 				goto done;
 			}
 
-			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-			_srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			if (conn->flags & CO_FL_SESS_IDLE) {
+				if (!session_reinsert_idle_conn(conn->owner, conn)) {
+					/* session add conn failure */
+					conn->mux->destroy(conn->ctx);
+					ret = -1;
+				}
+			}
+			else {
+				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+				_srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
+				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			}
 		}
 	}
  done:

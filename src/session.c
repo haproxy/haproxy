@@ -697,6 +697,38 @@ int session_add_conn(struct session *sess, struct connection *conn)
 	return ret;
 }
 
+/* Reinsert a backend connection <conn> into <sess> session. This function is
+ * reserved for idle conns which were previously temporarily removed from
+ * session to protect it against other threads.
+ *
+ * Returns true on success else false.
+ */
+int session_reinsert_idle_conn(struct session *sess, struct connection *conn)
+{
+	struct sess_priv_conns *pconns;
+	int ret = 0;
+
+	/* This function is reserved for idle private connections. */
+	BUG_ON(!(conn->flags & CO_FL_SESS_IDLE));
+
+	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+
+	pconns = sess_get_sess_conns(sess, conn->target);
+	if (!pconns) {
+		pconns = sess_alloc_sess_conns(sess, conn->target);
+		if (!pconns)
+			goto out;
+	}
+
+	LIST_APPEND(&pconns->conn_list, &conn->sess_el);
+	++sess->idle_conns;
+	ret = 1;
+
+ out:
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	return ret;
+}
+
 /* Check that session <sess> is able to keep idle connection <conn>. This must
  * be called each time a connection stored in a session becomes idle.
  *

@@ -4334,12 +4334,20 @@ struct task *h1_io_cb(struct task *t, void *ctx, unsigned int state)
 		t = NULL;
 
 	if (!ret && conn_in_list) {
-		struct server *srv = __objt_server(conn->target);
+		struct server *srv = objt_server(conn->target);
 
-		if (!(srv->cur_admin & SRV_ADMF_MAINT)) {
-			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-			_srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		if (!srv || !(srv->cur_admin & SRV_ADMF_MAINT)) {
+			if (conn->flags & CO_FL_SESS_IDLE) {
+				if (!session_reinsert_idle_conn(conn->owner, conn)) {
+					/* session add conn failure */
+					goto release;
+				}
+			}
+			else {
+				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+				_srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
+				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			}
 		}
 		else {
 			/* Do not store an idle conn if server in maintenance. */
