@@ -3377,11 +3377,49 @@ static void qcc_release(struct qcc *qcc)
 	TRACE_LEAVE(QMUX_EV_QCC_END);
 }
 
-struct task *qcc_io_cb(struct task *t, void *ctx, unsigned int status)
+struct task *qcc_io_cb(struct task *t, void *ctx, unsigned int state)
 {
 	struct qcc *qcc = ctx;
+	struct connection *conn;
+	int conn_in_list;
 
-	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc->conn);
+	if (state & TASK_F_USR1) {
+		/* the tasklet was idling on an idle connection, it might have
+		 * been stolen, let's be careful!
+		 */
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		if (t->context == NULL) {
+			/* The connection has been taken over by another thread,
+			 * we're no longer responsible for it, so just free the
+			 * tasklet, and do nothing.
+			 */
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			tasklet_free((struct tasklet *)t);
+			t = NULL;
+			TRACE_LEAVE(QMUX_EV_QCC_WAKE);
+			return NULL;
+		}
+		conn = qcc->conn;
+		TRACE_ENTER(QMUX_EV_QCC_WAKE, conn);
+
+		/* Remove the connection from the list, to be sure nobody attempts
+		 * to use it while we handle the I/O events
+		 */
+		conn_in_list = conn->flags & (CO_FL_LIST_MASK|CO_FL_SESS_IDLE);
+		if (conn_in_list) {
+			if (conn->flags & CO_FL_SESS_IDLE)
+				session_detach_idle_conn(conn->owner, conn);
+			else
+				conn_delete_from_tree(conn);
+		}
+
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	} else {
+		/* we're certain the connection was not in an idle list */
+		conn = qcc->conn;
+		TRACE_ENTER(QMUX_EV_QCC_WAKE, conn);
+		conn_in_list = 0;
+	}
 
 	if (!(qcc->wait_event.events & SUB_RETRY_SEND))
 		qcc_io_send(qcc);
@@ -3389,19 +3427,43 @@ struct task *qcc_io_cb(struct task *t, void *ctx, unsigned int status)
 	qcc_io_recv(qcc);
 
 	if (qcc_io_process(qcc)) {
-		TRACE_STATE("releasing dead connection", QMUX_EV_QCC_WAKE, qcc->conn);
+		TRACE_STATE("releasing dead connection", QMUX_EV_QCC_WAKE, conn);
 		goto release;
 	}
 
 	qcc_refresh_timeout(qcc);
 
 	/* Trigger pacing task is emission should be retried after some delay. */
-	if (qcc_is_pacing_active(qcc->conn)) {
+	if (qcc_is_pacing_active(conn)) {
 		if (tick_isset(qcc->pacing_task->expire))
 			task_queue(qcc->pacing_task);
 	}
 
-	TRACE_LEAVE(QMUX_EV_QCC_WAKE, qcc->conn);
+	if (conn_in_list) {
+		struct server *srv = __objt_server(conn->target);
+
+		if (srv->cur_admin & SRV_ADMF_MAINT) {
+			/* Do not store an idle conn if server in maintenance. */
+			goto release;
+		}
+
+		if (conn->flags & CO_FL_SESS_IDLE) {
+			if (!session_reinsert_idle_conn(conn->owner, conn)) {
+				/* session add conn failure */
+				goto release;
+			}
+		}
+		else {
+			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			_srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		}
+
+		/* Do not access conn without protection as soon as it is reinserted in idle list. */
+		conn = NULL;
+	}
+
+	TRACE_LEAVE(QMUX_EV_QCC_WAKE, conn);
 
 	return t;
 
@@ -3443,16 +3505,40 @@ static struct task *qcc_timeout_task(struct task *t, void *ctx, unsigned int sta
 	TRACE_ENTER(QMUX_EV_QCC_WAKE, qcc ? qcc->conn : NULL);
 
 	if (qcc) {
+		 /* Make sure nobody stole the connection from us */
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+
+		/* Somebody already stole the connection from us, so we should
+		 * not free it, we just have to free the task.
+		 */
+		if (!t->context) {
+			qcc = NULL;
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			goto out;
+		}
+
 		if (!expired) {
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 			TRACE_DEVEL("not expired", QMUX_EV_QCC_WAKE, qcc->conn);
 			goto requeue;
 		}
 
 		if (!qcc_may_expire(qcc)) {
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 			TRACE_DEVEL("cannot expired", QMUX_EV_QCC_WAKE, qcc->conn);
 			t->expire = TICK_ETERNITY;
 			goto requeue;
 		}
+
+		/* We're about to destroy the connection, so make sure nobody
+		 * attempts to steal it from us.
+		 */
+		if (qcc->conn->flags & CO_FL_LIST_MASK)
+			conn_delete_from_tree(qcc->conn);
+		else if (qcc->conn->flags & CO_FL_SESS_IDLE)
+			session_unown_conn(qcc->conn->owner, qcc->conn);
+
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
 
 	task_destroy(t);
@@ -3750,6 +3836,10 @@ static int qmux_strm_attach(struct connection *conn, struct sedesc *sd, struct s
 	qcs->sd = sd->sc->sedesc;
 	qcc->nb_sc++;
 
+	/* the connection is not idle anymore, let's mark this */
+	HA_ATOMIC_AND(&qcc->wait_event.tasklet->state, ~TASK_F_USR1);
+	xprt_set_used(qcc->conn, qcc->conn->xprt, qcc->conn->xprt_ctx);
+
 	TRACE_LEAVE(QMUX_EV_QCS_NEW, conn);
 	return 0;
 }
@@ -3806,16 +3896,35 @@ static void qmux_strm_detach(struct sedesc *sd)
 					goto release;
 				}
 
+				/* mark that the tasklet may lose its context to another thread and
+				 * that the handler needs to check it under the idle conns lock.
+				 */
+				HA_ATOMIC_OR(&qcc->wait_event.tasklet->state, TASK_F_USR1);
+				xprt_set_idle(qcc->conn, qcc->conn->xprt, qcc->conn->xprt_ctx);
+
 				/* Ensure session can keep a new idle connection. */
 				if (session_check_idle_conn(sess, conn)) {
 					TRACE_DEVEL("idle conn rejected by session", QMUX_EV_STRM_END, conn);
 					goto release;
 				}
+				/* At this point, the connection is inserted into
+				 * session list and marked as idle, so it may already
+				 * have been purged from another thread.
+				 */
+				conn = NULL;
+				goto end;
 			}
 		}
 		else {
 			if (!qcc->nb_sc) {
 				TRACE_DEVEL("prepare for idle connection reuse", QMUX_EV_STRM_END, conn);
+
+				/* mark that the tasklet may lose its context to another thread and
+				 * that the handler needs to check it under the idle conns lock.
+				 */
+				HA_ATOMIC_OR(&qcc->wait_event.tasklet->state, TASK_F_USR1);
+				xprt_set_idle(qcc->conn, qcc->conn->xprt, qcc->conn->xprt_ctx);
+
 				if (!srv_add_to_idle_list(objt_server(conn->target), conn, 1)) {
 					/* Idle conn insert failure, gracefully close the connection. */
 					TRACE_DEVEL("idle connection cannot be kept on the server", QMUX_EV_STRM_END, conn);
