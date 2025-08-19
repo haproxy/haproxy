@@ -3289,9 +3289,12 @@ show servers conn [<backend>]
      port                  Server's port (or zero if none)
      -                     Unused field, serves as a visual delimiter
      purge_delay           Interval between connection purges, in milliseconds
+     served                Number of connections currently in use
      used_cur              Number of connections currently in use
+                           note that this excludes conns attached to a session
      used_max              Highest value of used_cur since the process started
      need_est              Floating estimate of total needed connections
+     idle_sess             Number of idle connections flagged as private
      unsafe_nb             Number of idle connections considered as "unsafe"
      safe_nb               Number of idle connections considered as "safe"
      idle_lim              Configured maximum number of idle connections

@@ -3038,11 +3038,13 @@ static int dump_servers_state(struct appctx *appctx)
 			int thr;
 
 			chunk_printf(&trash,
-			             "%s/%s %d/%d %s %u - %u %u %u %u %u %u %d %u",
+			             "%s/%s %d/%d %s %u - %u %u %u %u %u %u %u %u %d %u",
 			             HA_ANON_CLI(px->id), HA_ANON_CLI(srv->id),
 			             px->uuid, srv->puid, hash_ipanon(appctx->cli_ctx.anon_key, srv_addr, 0),
 			             srv->svc_port, srv->pool_purge_delay,
+			             srv->served,
 			             srv->curr_used_conns, srv->max_used_conns, srv->est_need_conns,
+			             srv->curr_sess_idle_conns,
 			             srv->curr_idle_nb, srv->curr_safe_nb, (int)srv->max_idle_conns, srv->curr_idle_conns);
 
 			for (thr = 0; thr < global.nbthread && srv->curr_idle_thr; thr++)
@@ -3072,7 +3074,7 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 			chunk_printf(&trash, "%d\n# %s\n", SRV_STATE_FILE_VERSION, SRV_STATE_FILE_FIELD_NAMES);
 		else
 			chunk_printf(&trash,
-			             "# bkname/svname bkid/svid addr port - purge_delay used_cur used_max need_est unsafe_nb safe_nb idle_lim idle_cur idle_per_thr[%d]\n",
+			             "# bkname/svname bkid/svid addr port - purge_delay served used_cur used_max need_est idle_sess unsafe_nb safe_nb idle_lim idle_cur idle_per_thr[%d]\n",
 			             global.nbthread);
 
 		if (applet_putchk(appctx, &trash) == -1)
