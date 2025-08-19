@@ -2163,7 +2163,7 @@ static int cli_io_handler_wait(struct appctx *appctx)
 
 	if (ctx->cond == CLI_WAIT_COND_SRV_UNUSED) {
 		/* check if the server in args[0]/args[1] can be released now */
-		ret = srv_check_for_deletion(ctx->args[0], ctx->args[1], NULL, NULL, NULL);
+		ret = srv_check_for_deletion(ctx->args[0], ctx->args[1], NULL, NULL, &ctx->msg);
 
 		if (ret < 0) {
 			/* unrecoverable failure */
@@ -2215,23 +2215,23 @@ static int cli_io_handler_wait(struct appctx *appctx)
 static void cli_release_wait(struct appctx *appctx)
 {
 	struct cli_wait_ctx *ctx = appctx->svcctx;
-	const char *msg;
+	char *msg = NULL;
 	int i;
 
 	switch (ctx->error) {
-	case CLI_WAIT_ERR_EXP:      msg = "Wait delay expired.\n"; break;
-	case CLI_WAIT_ERR_INTR:     msg = "Interrupted.\n"; break;
-	case CLI_WAIT_ERR_FAIL:     msg = ctx->msg ? ctx->msg : "Failed.\n"; break;
-	default:                    msg = "Done.\n"; break;
+	case CLI_WAIT_ERR_EXP:  memprintf(&msg, "Wait delay expired. %s\n", ctx->msg); break;
+	case CLI_WAIT_ERR_INTR: memprintf(&msg, "Interrupted. %s\n", ctx->msg); break;
+	case CLI_WAIT_ERR_FAIL: memprintf(&msg, "Failed. %s\n", ctx->msg); break;
+	default:                memprintf(&msg, "Done.\n"); break;
 	}
 
 	for (i = 0; i < sizeof(ctx->args) / sizeof(ctx->args[0]); i++)
 		ha_free(&ctx->args[i]);
 
 	if (ctx->error == CLI_WAIT_ERR_DONE)
-		cli_msg(appctx, LOG_INFO, msg);
+		cli_dynmsg(appctx, LOG_INFO, msg);
 	else
-		cli_err(appctx, msg);
+		cli_dynerr(appctx, msg);
 }
 
 /* parse the "expose-fd" argument on the bind lines */
