@@ -6434,10 +6434,11 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 
 			/* Only idle connections should be present if srv_check_for_deletion() is true. */
 			BUG_ON(!(conn->flags & CO_FL_SESS_IDLE));
+			--((struct session *)conn->owner)->idle_conns;
 
 			LIST_DEL_INIT(&conn->sess_el);
 			conn->owner = NULL;
-			conn->flags &= ~CO_FL_SESS_IDLE;
+
 			if (sess_conns->tid != tid) {
 				if (conn->mux && conn->mux->takeover)
 					conn->mux->takeover(conn, sess_conns->tid, 1);
