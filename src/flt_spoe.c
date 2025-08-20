@@ -647,13 +647,14 @@ static int spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 	struct spoe_config  *conf = FLT_CONF(ctx->filter);
 	struct spoe_agent   *agent = conf->agent;
 	struct spoe_message *msg;
-	char   *p, *end;
+	char   *p, *start, *end;
 
 	p   = b_head(&ctx->buffer);
 	end =  p + agent->max_frame_size - SPOP_FRAME_HDR_SIZE;
 
 	/* Set Frame type */
 	*p++ = SPOP_FRM_T_HAPROXY_NOTIFY;
+	start = p;
 
 	if (type == SPOE_MSGS_BY_EVENT) { /* Loop on messages by event */
 		list_for_each_entry(msg, messages, by_evt) {
@@ -673,7 +674,7 @@ static int spoe_encode_messages(struct stream *s, struct spoe_context *ctx,
 
 
 	/* nothing has been encoded */
-	if (p == b_head(&ctx->buffer))
+	if (p == start)
 		goto skip;
 
 	b_set_data(&ctx->buffer, p - b_head(&ctx->buffer));
