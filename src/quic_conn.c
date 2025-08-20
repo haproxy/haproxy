@@ -1113,14 +1113,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		goto err;
 	}
 
-	qc->cids = pool_alloc(pool_head_quic_cids);
-	if (!qc->cids) {
-		TRACE_ERROR("Could not allocate a new CID tree", QUIC_EV_CONN_INIT, qc);
-		goto err;
-	}
-
 	qc->target = target;
-	*qc->cids = EB_ROOT;
 	/* Now that quic_conn instance is allocated, quic_conn_release() will
 	 * ensure global accounting is decremented.
 	 */
@@ -1138,6 +1131,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->streams_by_id = EB_ROOT_UNIQUE;
 
 	/* Required to call free_quic_conn_cids() from quic_conn_release() */
+	qc->cids = NULL;
 	qc->tx.cc_buf_area = NULL;
 	qc_init_fd(qc);
 
@@ -1194,7 +1188,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		qc->odcid = *dcid;
 		/* Copy the packet SCID to reuse it as DCID for sending */
 		qc->dcid = *scid;
-		qc->tx.buf = BUF_NULL;
 		conn_id->qc = qc;
 	}
 	/* QUIC Client (outgoing connection to servers) */
@@ -1215,7 +1208,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		memcpy(&qc->odcid, qc->dcid.data, sizeof(qc->dcid.data));
 		qc->odcid.len = qc->dcid.len;
 
-		conn_cid = new_quic_cid(qc->cids, qc, NULL, NULL);
+		conn_cid = new_quic_cid(NULL, qc, NULL, NULL);
 		if (!conn_cid)
 			goto err;
 
@@ -1223,7 +1216,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		dcid = &qc->dcid;
 		conn_id = conn_cid;
 
-		qc->tx.buf = BUF_NULL;
 		qc->next_cid_seq_num = 1;
 		conn->handle.qc = qc;
 	}
@@ -1251,10 +1243,21 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		goto err;
 	}
 
-	/* Listener only */
-	if (l && HA_ATOMIC_LOAD(&l->rx.quic_mode) == QUIC_SOCK_MODE_CONN &&
+	qc->cids = pool_alloc(pool_head_quic_cids);
+	if (!qc->cids) {
+		TRACE_ERROR("Could not allocate a new CID tree", QUIC_EV_CONN_INIT, qc);
+		goto err;
+	}
+
+	*qc->cids = EB_ROOT;
+	if (!l) {
+		/* Attach the current CID to the connection */
+		eb64_insert(qc->cids, &conn_id->seq_num);
+	}
+	else if (HA_ATOMIC_LOAD(&l->rx.quic_mode) == QUIC_SOCK_MODE_CONN &&
 	    (quic_tune.options & QUIC_TUNE_SOCK_PER_CONN) &&
 	    is_addr(local_addr)) {
+		/* Listener only */
 		TRACE_USER("Allocate a socket for QUIC connection", QUIC_EV_CONN_INIT, qc);
 		qc_alloc_fd(qc, local_addr, peer_addr);
 
