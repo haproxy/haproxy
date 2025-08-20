@@ -1145,7 +1145,8 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->idle_timer_task = NULL;
 
 	qc->xprt_ctx = NULL;
-	qc->conn = conn;
+	 /* We must not free the quic-conn if upper conn is still allocated. */
+	qc->conn = NULL;
 	qc->qcc = NULL;
 	qc->app_ops = NULL;
 	qc->path = NULL;
@@ -1355,6 +1356,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	if (!qc_new_isecs(qc, &qc->iel->tls_ctx, qc->original_version, dcid->data, dcid->len, !!l))
 		goto err;
 
+	qc->conn = conn;
 	/* Counters initialization */
 	memset(&qc->cntrs, 0, sizeof qc->cntrs);
 
