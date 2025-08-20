@@ -104,6 +104,20 @@ struct sni_ctx *ssl_sock_chose_sni_ctx(struct bind_conf *s, struct connection *c
 			}
 		}
 	}
+
+	/* try to use the client cipher prefer order */
+	if (s->ssl_options & BC_SSL_O_PREF_CLIE_CIPH) {
+		/* have_{rsa,ecdsa}_sig store the position of the sig, if the position
+		 * of the RSA sig is lower than the position of the ecdsa, we should
+		 * use the RSA in priority in this case
+		 */
+		if ((node_ecdsa && node_rsa) && (have_rsa_sig && have_ecdsa_sig) && (have_rsa_sig < have_ecdsa_sig)) {
+			TRACE_STATE("RSA node picked (client cipher order)", SSL_EV_CONN_CHOOSE_SNI_CTX, conn, servername, node);
+			node = node_rsa;
+			goto end;
+		}
+	}
+
 	/* Once the certificates are found, select them depending on what is
 	 * supported in the client and by key_signature priority order: EDSA >
 	 * RSA > DSA */
@@ -123,7 +137,7 @@ struct sni_ctx *ssl_sock_chose_sni_ctx(struct bind_conf *s, struct connection *c
 		node = node_rsa;        /* no rsa signature case (far far away) */
 		TRACE_STATE("RSA node picked (fallback)", SSL_EV_CONN_CHOOSE_SNI_CTX, conn, servername, node);
 	}
-
+end:
 	if (node) {
 		TRACE_LEAVE(SSL_EV_CONN_CHOOSE_SNI_CTX, conn);
 		return container_of(node, struct sni_ctx, name);
@@ -314,11 +328,11 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 			switch (sign) {
 			case TLSEXT_signature_rsa:
 				TRACE_DEVEL("Sigalg parsing: has_rsa_sig", SSL_EV_CONN_SWITCHCTX_CB, conn);
-				has_rsa_sig = 1;
+				has_rsa_sig = has_rsa_sig ? has_rsa_sig : (extension_len - len) / 2 + 1;
 				break;
 			case TLSEXT_signature_ecdsa:
 				TRACE_DEVEL("Sigalg parsing: has_ecdsa_sig", SSL_EV_CONN_SWITCHCTX_CB, conn);
-				has_ecdsa_sig = 1;
+				has_ecdsa_sig =  has_ecdsa_sig ? has_ecdsa_sig : (extension_len - len) / 2 + 1;
 				break;
 			case 0x04:
 			case 0x05:
@@ -331,7 +345,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 				 */
 				if (hash == 0x08) {
 					TRACE_DEVEL("Sigalg parsing: has_rsa_sig (RSA-PSS)", SSL_EV_CONN_SWITCHCTX_CB, conn);
-					has_rsa_sig = 1;
+					has_rsa_sig = has_rsa_sig ? has_rsa_sig : (extension_len - len) / 2 + 1;
 				}
 				break;
 			default:
@@ -386,13 +400,16 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 
 		ha_ciphers = SSL_get_ciphers(ssl);
 		has_ecdsa_sig = 0;
+		has_rsa_sig = 0;
 
 #if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
-		len = ctx->cipher_suites_len;
+		extension_len = ctx->cipher_suites_len;
 		cipher_suites = ctx->cipher_suites;
 #else
-		len = SSL_client_hello_get0_ciphers(ssl, &cipher_suites);
+		extension_len = SSL_client_hello_get0_ciphers(ssl, &cipher_suites);
 #endif
+		len = extension_len;
+
 		if (len % 2 != 0) {
 			TRACE_ERROR("Ciphers parsing error (not even)", SSL_EV_CONN_SWITCHCTX_CB, conn);
 			goto abort;
@@ -406,6 +423,9 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 #endif
 			if (!cipher)
 				continue;
+
+			if (has_ecdsa_sig && has_rsa_sig)
+				break;
 
 			/* check if this cipher is available in haproxy configuration */
 
@@ -428,18 +448,27 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 				continue;
 
 			if (SSL_CIPHER_get_auth_nid(cipher) == NID_auth_ecdsa) {
-				has_ecdsa_sig = 1;
-				break;
+				has_ecdsa_sig = has_ecdsa_sig ? has_ecdsa_sig : (extension_len - len) / 2 + 1;
+				continue;
 			}
+
+			if (SSL_CIPHER_get_auth_nid(cipher) == NID_auth_rsa) {
+				has_rsa_sig = has_rsa_sig ? has_rsa_sig : (extension_len - len) / 2 + 1;
+				continue;
+			}
+
 			if (SSL_CIPHER_get_auth_nid(cipher) == NID_auth_any &&
 			    s->ssl_conf.ssl_methods.max >= CONF_TLSV13) {
 				/* Checking for TLSv1.3 ciphersuites require to check that we allow TLSv1.3, otherwise it would
 				 * chose an ECDSA cipher because of the TLS13 ciphersuites, but the TLS12 ciphers could
 				 * lack ECDSA capabilities.
 				 */
-				has_ecdsa_sig = 1;
-				break;
+				has_ecdsa_sig = has_ecdsa_sig ? has_ecdsa_sig : (extension_len - len) / 2 + 1;
+				has_rsa_sig = has_rsa_sig ? has_rsa_sig : (extension_len - len) / 2 + 1;
+				continue;
+
 			}
+
 		}
 	}
 
