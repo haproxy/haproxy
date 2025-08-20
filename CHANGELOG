@@ -1,6 +1,72 @@
 ChangeLog :
 ===========
 
+2025/08/20 : 3.3-dev7
+    - MINOR: quic: duplicate GSO unsupp status from listener to conn
+    - MINOR: quic: define QUIC_FL_CONN_IS_BACK flag
+    - MINOR: quic: prefer qc_is_back() usage over qc->target
+    - BUG/MINOR: cfgparse: immediately stop after hard error in srv_init()
+    - BUG/MINOR: cfgparse-listen: update err_code for fatal error on proxy directive
+    - BUG/MINOR: proxy: avoid NULL-deref in post_section_px_cleanup()
+    - MINOR: guid: add guid_get() helper
+    - MINOR: guid: add guid_count() function
+    - MINOR: clock: add clock_set_now_offset() helper
+    - MINOR: clock: add clock_get_now_offset() helper
+    - MINOR: init: add REGISTER_POST_DEINIT_MASTER() hook
+    - BUILD: restore USE_SHM_OPEN build option
+    - BUG/MINOR: stick-table: cap sticky counter idx with tune.nb_stk_ctr instead of MAX_SESS_STKCTR
+    - MINOR: sock: update broken accept4 detection for older hardwares.
+    - CI: vtest: add os name to OT cache key
+    - CI: vtest: add Ubuntu arm64 builds
+    - BUG/MEDIUM: ssl: Fix 0rtt to the server
+    - BUG/MEDIUM: ssl: fix build with AWS-LC
+    - MEDIUM: acme: use lowercase for challenge names in configuration
+    - BUG/MINOR: init: Initialize random seed earlier in the init process
+    - DOC: management: clarify usage of -V with -c
+    - MEDIUM: ssl/cli: relax crt insertion in crt-list of type directory
+    - MINOR: tools: implement ha_aligned_zalloc()
+    - CLEANUP: fd: make use of ha_aligned_alloc() for the fdtab
+    - MINOR: pools: distinguish the requested alignment from the type-specific one
+    - MINOR: pools: permit to optionally specify extra size and alignment
+    - MINOR: pools: always check that requested alignment matches the type's
+    - DOC: api: update the pools API with the alignment and typed declarations
+    - MEDIUM: tree-wide: replace most DECLARE_POOL with DECLARE_TYPED_POOL
+    - OPTIM: tasks: align task and tasklet pools to 64
+    - OPTIM: buffers: align the buffer pool to 64
+    - OPTIM: queue: align the pendconn pools to 64
+    - OPTIM: connection: align connection pools to 64
+    - OPTIM: server: start to use aligned allocs in server
+    - DOC: management: fix typo in commit f4f93c56
+    - DOC: config: recommend single quoting passwords
+    - MINOR: tools: also implement ha_aligned_alloc_typed()
+    - MEDIUM: server: introduce srv_alloc()/srv_free() to alloc/free a server
+    - MINOR: server: align server struct to 64 bytes
+    - MEDIUM: ring: always allocate properly aligned ring structures
+    - CI: Update to actions/checkout@v5
+    - MINOR: quic: implement qc_ssl_do_hanshake()
+    - BUG/MEDIUM: quic: listener connection stuck during handshakes (OpenSSL 3.5)
+    - BUG/MINOR: mux-h1: fix wrong lock label
+    - MEDIUM: dns: don't call connect to dest socket for AF_INET*
+    - BUG/MINOR: spoe: Properly detect and skip empty NOTIFY frames
+    - BUG/MEDIUM: cli: Report inbuf is no longer full when a line is consumed
+    - BUG/MEDIUM: quic: crash after quic_conn allocation failures
+    - BUG/MEDIUM: quic-be: do not initialize ->conn too early
+    - BUG/MEDIUM: mworker: more verbose error upon loading failure
+    - MINOR: xprt: Add recvmsg() and sendmsg() parameters to rcv_buf() and snd_buf().
+    - MINOR: ssl: Add a "flags" field to ssl_sock_ctx.
+    - MEDIUM: xprt: Add a "get_capability" method.
+    - MEDIUM: mux_h1/mux_pt: Use XPRT_CAN_SPLICE to decide if we should splice
+    - MINOR: cfgparse: Add a new "ktls" option to bind and server.
+    - MINOR: ssl: Define HAVE_VANILLA_OPENSSL if openssl is used.
+    - MINOR: build: Add a new option, USE_KTLS.
+    - MEDIUM: ssl: Add kTLS support for OpenSSL.
+    - MEDIUM: splice: Don't consider EINVAL to be a fatal error
+    - MEDIUM: ssl: Add splicing with SSL.
+    - MEDIUM: ssl: Add ktls support for AWS-LC.
+    - MEDIUM: ssl: Add support for ktls on TLS 1.3 with AWS-LC
+    - MEDIUM: ssl: Handle non-Application data record with AWS-LC
+    - MINOR: ssl: Add a way to globally disable ktls.
+
 2025/08/06 : 3.3-dev6
     - MINOR: acme: implement traces
     - BUG/MINOR: hlua: take default-path into account with lua-load-per-thread
