@@ -974,6 +974,7 @@ int cli_parse_cmdline(struct appctx *appctx)
 
 		b_del(&appctx->inbuf, len);
 		b_add(appctx->cli_ctx.cmdline,  len);
+		applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
 
 		if (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)) {
 			char *last_arg;
