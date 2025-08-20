@@ -246,6 +246,11 @@ struct ssl_keylog {
 };
 #endif
 
+/*
+ * ssl_sock_ctx flags
+ */
+#define SSL_SOCK_F_EARLY_ENABLED	(1 << 0) /* We did not start the handshake yet so we can send early data */
+
 struct ssl_sock_ctx {
 	struct connection *conn;
 	SSL *ssl;
@@ -258,7 +263,7 @@ struct ssl_sock_ctx {
 	unsigned long error_code;     /* last error code of the error stack */
 	struct buffer early_buf;      /* buffer to store the early data received */
 	int sent_early_data;          /* Amount of early data we sent so far */
-	int can_send_early_data;      /* We did not start the handshake yet so we can send early data */
+	int flags;                    /* Various flags for the ssl_sock_ctx */
 
 #ifdef USE_QUIC
 	struct quic_conn *qc;
