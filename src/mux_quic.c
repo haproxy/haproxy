@@ -3822,6 +3822,11 @@ static void qmux_strm_detach(struct sedesc *sd)
 					goto release;
 				}
 
+				/* At this point, the connection has been added to the
+				 * server idle list, so another thread may already have
+				 * hijacked it, so we can't do anything with it.
+				 */
+				conn = NULL;
 				goto end;
 			}
 			else if (!conn->hash_node->node.node.leaf_p &&
