@@ -577,6 +577,170 @@ void __session_add_glitch_ctr(struct session *sess, uint inc)
 		stkctr_add_glitch_ctr(&sess->stkctr[i], inc);
 }
 
+
+/* Session management of backend connections. */
+
+/* Add the connection <conn> to the private conns list of session <sess>. Each
+ * connection is indexed by their respective target in the session. Nothing is
+ * performed if the connection is already in the session list.
+ *
+ * Returns true if conn is inserted or already present else false if a failure
+ * occurs during insertion.
+ */
+int session_add_conn(struct session *sess, struct connection *conn)
+{
+	struct sess_priv_conns *pconns = NULL;
+	struct server *srv = objt_server(conn->target);
+	int found = 0;
+
+	/* Connection target is used to index it in the session. Only BE conns are expected in session list. */
+	BUG_ON(!conn->target || objt_listener(conn->target));
+
+	/* A connection cannot be attached already to another session.
+	 *
+	 * This is safe as BE connections are flagged as private immediately
+	 * after being created during connect_server(). The only potential
+	 * issue would be if a connection is turned private later on during its
+	 * lifetime. Currently, this happens only on NTLM headers detection,
+	 * however this case is only implemented with HTTP/1.1 which cannot
+	 * multiplex several streams on the same connection.
+	 */
+	BUG_ON(conn->owner && conn->owner != sess);
+
+	/* Already attach to the session */
+	if (!LIST_ISEMPTY(&conn->sess_el))
+		return 1;
+
+	list_for_each_entry(pconns, &sess->priv_conns, sess_el) {
+		if (pconns->target == conn->target) {
+			found = 1;
+			break;
+		}
+	}
+	if (!found) {
+		/* The session has no connection for the server, create a new entry */
+		pconns = pool_alloc(pool_head_sess_priv_conns);
+		if (!pconns)
+			return 0;
+		pconns->target = conn->target;
+		LIST_INIT(&pconns->conn_list);
+		LIST_APPEND(&sess->priv_conns, &pconns->sess_el);
+
+		MT_LIST_INIT(&pconns->srv_el);
+		if (srv)
+			MT_LIST_APPEND(&srv->sess_conns, &pconns->srv_el);
+
+		pconns->tid = tid;
+	}
+	LIST_APPEND(&pconns->conn_list, &conn->sess_el);
+
+	/* Ensure owner is set for connection. It could have been reset
+	 * prior on after a session_add_conn() failure.
+	 */
+	conn->owner = sess;
+
+	return 1;
+}
+
+/* Check that session <sess> is able to keep idle connection <conn>. This must
+ * be called each time a connection stored in a session becomes idle.
+ *
+ * Returns 0 if the connection is kept, else non-zero if the connection was
+ * explicitely removed from session.
+ */
+int session_check_idle_conn(struct session *sess, struct connection *conn)
+{
+	/* Connection must be attached to session prior to this function call. */
+	BUG_ON(!conn->owner || conn->owner != sess);
+
+	/* Connection is not attached to a session. */
+	if (!conn->owner)
+		return 0;
+
+	/* Ensure conn is not already accounted as idle to prevent sess idle count excess increment. */
+	BUG_ON(conn->flags & CO_FL_SESS_IDLE);
+
+	if (sess->idle_conns >= sess->fe->max_out_conns) {
+		session_unown_conn(sess, conn);
+		conn->owner = NULL;
+		return -1;
+	}
+	else {
+		conn->flags |= CO_FL_SESS_IDLE;
+		sess->idle_conns++;
+	}
+
+	return 0;
+}
+
+/* Look for an available connection matching the target <target> in the server
+ * list of the session <sess>. It returns a connection if found. Otherwise it
+ * returns NULL.
+ */
+struct connection *session_get_conn(struct session *sess, void *target, int64_t hash)
+{
+	struct connection *srv_conn = NULL;
+	struct sess_priv_conns *pconns;
+
+	list_for_each_entry(pconns, &sess->priv_conns, sess_el) {
+		if (pconns->target == target) {
+			list_for_each_entry(srv_conn, &pconns->conn_list, sess_el) {
+				if ((srv_conn->hash_node && srv_conn->hash_node->node.key == hash) &&
+				    srv_conn->mux &&
+				    (srv_conn->mux->avail_streams(srv_conn) > 0) &&
+				    !(srv_conn->flags & CO_FL_WAIT_XPRT)) {
+					if (srv_conn->flags & CO_FL_SESS_IDLE) {
+						srv_conn->flags &= ~CO_FL_SESS_IDLE;
+						sess->idle_conns--;
+					}
+					goto end;
+				}
+			}
+			srv_conn = NULL; /* No available connection found */
+			goto end;
+		}
+	}
+
+  end:
+	return srv_conn;
+}
+
+/* Remove the connection from the session list, and destroy sess_priv_conns
+ * element if it's now empty.
+ */
+void session_unown_conn(struct session *sess, struct connection *conn)
+{
+	struct sess_priv_conns *pconns = NULL;
+
+	BUG_ON(objt_listener(conn->target));
+
+	/* WT: this currently is a workaround for an inconsistency between
+	 * the link status of the connection in the session list and the
+	 * connection's owner. This should be removed as soon as all this
+	 * is addressed. Right now it's possible to enter here with a non-null
+	 * conn->owner that points to a dead session, but in this case the
+	 * element is not linked.
+	 */
+	if (!LIST_INLIST(&conn->sess_el))
+		return;
+
+	if (conn->flags & CO_FL_SESS_IDLE)
+		sess->idle_conns--;
+	LIST_DEL_INIT(&conn->sess_el);
+	conn->owner = NULL;
+	list_for_each_entry(pconns, &sess->priv_conns, sess_el) {
+		if (pconns->target == conn->target) {
+			if (LIST_ISEMPTY(&pconns->conn_list)) {
+				LIST_DELETE(&pconns->sess_el);
+				MT_LIST_DELETE(&pconns->srv_el);
+				pool_free(pool_head_sess_priv_conns, pconns);
+			}
+			break;
+		}
+	}
+}
+
+
 /*
  * Local variables:
  *  c-indent-level: 8
