@@ -580,6 +580,56 @@ void __session_add_glitch_ctr(struct session *sess, uint inc)
 
 /* Session management of backend connections. */
 
+/* Allocate a storage element into <sess> session which refers to <target>
+ * endpoint. This storage can be used to attach new connections
+ * to the session.
+ *
+ * Returns the allocated element or NULL on failure.
+ */
+static struct sess_priv_conns *sess_alloc_sess_conns(struct session *sess,
+                                                     enum obj_type *target)
+{
+	struct sess_priv_conns *pconns;
+	struct server *srv;
+
+	pconns = pool_alloc(pool_head_sess_priv_conns);
+	if (!pconns)
+		return NULL;
+
+	pconns->target = target;
+	LIST_INIT(&pconns->conn_list);
+	LIST_APPEND(&sess->priv_conns, &pconns->sess_el);
+
+	MT_LIST_INIT(&pconns->srv_el);
+	/* If <target> endpoint is a server, also attach storage element into it. */
+	if ((srv = objt_server(target)))
+		MT_LIST_APPEND(&srv->sess_conns, &pconns->srv_el);
+
+	pconns->tid = tid;
+
+	return pconns;
+}
+
+/* Retrieve the backend connections storage element from <sess> session which
+ * refers to <target> endpoint.
+ *
+ * This function usage must be protected with idle_conns lock.
+ *
+ * Returns the storage element or NULL if not found;
+ */
+static struct sess_priv_conns *sess_get_sess_conns(struct session *sess,
+                                                   enum obj_type *target)
+{
+	struct sess_priv_conns *pconns;
+
+	list_for_each_entry(pconns, &sess->priv_conns, sess_el) {
+		if (pconns->target == target)
+			return pconns;
+	}
+
+	return NULL;
+}
+
 /* Add the connection <conn> to the private conns list of session <sess>. Each
  * connection is indexed by their respective target in the session. Nothing is
  * performed if the connection is already in the session list.
@@ -589,9 +639,7 @@ void __session_add_glitch_ctr(struct session *sess, uint inc)
  */
 int session_add_conn(struct session *sess, struct connection *conn)
 {
-	struct sess_priv_conns *pconns = NULL;
-	struct server *srv = objt_server(conn->target);
-	int found = 0;
+	struct sess_priv_conns *pconns;
 
 	/* Connection target is used to index it in the session. Only BE conns are expected in session list. */
 	BUG_ON(!conn->target || objt_listener(conn->target));
@@ -611,29 +659,14 @@ int session_add_conn(struct session *sess, struct connection *conn)
 	if (!LIST_ISEMPTY(&conn->sess_el))
 		return 1;
 
-	list_for_each_entry(pconns, &sess->priv_conns, sess_el) {
-		if (pconns->target == conn->target) {
-			found = 1;
-			break;
-		}
-	}
-	if (!found) {
-		/* The session has no connection for the server, create a new entry */
-		pconns = pool_alloc(pool_head_sess_priv_conns);
+	pconns = sess_get_sess_conns(sess, conn->target);
+	if (!pconns) {
+		pconns = sess_alloc_sess_conns(sess, conn->target);
 		if (!pconns)
 			return 0;
-		pconns->target = conn->target;
-		LIST_INIT(&pconns->conn_list);
-		LIST_APPEND(&sess->priv_conns, &pconns->sess_el);
-
-		MT_LIST_INIT(&pconns->srv_el);
-		if (srv)
-			MT_LIST_APPEND(&srv->sess_conns, &pconns->srv_el);
-
-		pconns->tid = tid;
 	}
-	LIST_APPEND(&pconns->conn_list, &conn->sess_el);
 
+	LIST_APPEND(&pconns->conn_list, &conn->sess_el);
 	/* Ensure owner is set for connection. It could have been reset
 	 * prior on after a session_add_conn() failure.
 	 */
@@ -679,30 +712,31 @@ int session_check_idle_conn(struct session *sess, struct connection *conn)
  */
 struct connection *session_get_conn(struct session *sess, void *target, int64_t hash)
 {
-	struct connection *srv_conn = NULL;
+	struct connection *srv_conn, *res = NULL;
 	struct sess_priv_conns *pconns;
 
-	list_for_each_entry(pconns, &sess->priv_conns, sess_el) {
-		if (pconns->target == target) {
-			list_for_each_entry(srv_conn, &pconns->conn_list, sess_el) {
-				if ((srv_conn->hash_node && srv_conn->hash_node->node.key == hash) &&
-				    srv_conn->mux &&
-				    (srv_conn->mux->avail_streams(srv_conn) > 0) &&
-				    !(srv_conn->flags & CO_FL_WAIT_XPRT)) {
-					if (srv_conn->flags & CO_FL_SESS_IDLE) {
-						srv_conn->flags &= ~CO_FL_SESS_IDLE;
-						sess->idle_conns--;
-					}
-					goto end;
-				}
+	pconns = sess_get_sess_conns(sess, target);
+	if (!pconns)
+		goto end;
+
+	/* Search into pconns for a connection with matching params and available streams. */
+	list_for_each_entry(srv_conn, &pconns->conn_list, sess_el) {
+		if ((srv_conn->hash_node && srv_conn->hash_node->node.key == hash) &&
+		    srv_conn->mux &&
+		    (srv_conn->mux->avail_streams(srv_conn) > 0) &&
+		    !(srv_conn->flags & CO_FL_WAIT_XPRT)) {
+			if (srv_conn->flags & CO_FL_SESS_IDLE) {
+				srv_conn->flags &= ~CO_FL_SESS_IDLE;
+				sess->idle_conns--;
 			}
-			srv_conn = NULL; /* No available connection found */
-			goto end;
+
+			res = srv_conn;
+			break;
 		}
 	}
 
   end:
-	return srv_conn;
+	return res;
 }
 
 /* Remove the connection from the session list, and destroy sess_priv_conns
@@ -728,15 +762,13 @@ void session_unown_conn(struct session *sess, struct connection *conn)
 		sess->idle_conns--;
 	LIST_DEL_INIT(&conn->sess_el);
 	conn->owner = NULL;
-	list_for_each_entry(pconns, &sess->priv_conns, sess_el) {
-		if (pconns->target == conn->target) {
-			if (LIST_ISEMPTY(&pconns->conn_list)) {
-				LIST_DELETE(&pconns->sess_el);
-				MT_LIST_DELETE(&pconns->srv_el);
-				pool_free(pool_head_sess_priv_conns, pconns);
-			}
-			break;
-		}
+
+	pconns = sess_get_sess_conns(sess, conn->target);
+	BUG_ON(!pconns); /* if conn is attached to session, its sess_conn must exists. */
+	if (LIST_ISEMPTY(&pconns->conn_list)) {
+		LIST_DELETE(&pconns->sess_el);
+		MT_LIST_DELETE(&pconns->srv_el);
+		pool_free(pool_head_sess_priv_conns, pconns);
 	}
 }
 
