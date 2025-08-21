@@ -1134,7 +1134,8 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->cids = NULL;
 	qc->tx.cc_buf_area = NULL;
 	qc_init_fd(qc);
-
+	/* Required to call pool_free() from quic_conn_release() */
+	qc->rx.buf.area = NULL;
 	LIST_INIT(&qc->back_refs);
 	LIST_INIT(&qc->el_th_ctx);
 
