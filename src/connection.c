@@ -2962,7 +2962,6 @@ int conn_reverse(struct connection *conn)
 		srv_use_conn(srv, conn);
 
 		/* Free the session after detaching the connection from it. */
-		session_unown_conn(sess, conn);
 		sess->origin = NULL;
 		session_free(sess);
 		conn_set_owner(conn, NULL, NULL);
