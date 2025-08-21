@@ -443,6 +443,24 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 			if (pkt->in_flight_len)
 				qc_set_timer(qc);
 			TRACE_PROTO("TX pkt", QUIC_EV_CONN_SPPKTS, qc, pkt);
+			if (pkt->type == QUIC_PACKET_TYPE_HANDSHAKE && qc_is_back(qc) &&
+			    qc->ipktns && !quic_tls_pktns_is_dcd(qc, qc->ipktns)) {
+				/* RFC 9000
+				 * 4.9.1. Discarding Initial Keys
+				 * The successful use of Handshake packets indicates that no more
+				 * Initial packets need to be exchanged, as these keys can only
+				 * be produced after receiving all CRYPTO frames from Initial packets.
+				 * Thus, a client MUST discard Initial keys when it first sends a
+				 * Handshake packet...
+				 *
+				 * Discard the Initial packet number space.
+				 */
+				TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PRSHPKT, qc);
+				quic_pktns_discard(qc->ipktns, qc, 0);
+				qc_set_timer(qc);
+				qc_el_rx_pkts_del(qc->iel);
+				qc_release_pktns_frms(qc, qc->ipktns);
+			}
 			next_pkt = pkt->next;
 			quic_tx_packet_refinc(pkt);
 			eb64_insert(&pkt->pktns->tx.pkts, &pkt->pn_node);
