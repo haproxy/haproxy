@@ -924,7 +924,6 @@ static void h2c_update_timeout(struct h2c *h2c)
 					else if (h2c->flags & H2_CF_IDL_PING_SENT) {
 						/* timer other than ping selected, remove ping flag to allow GOAWAY on expiration. */
 						h2c->flags &= ~H2_CF_IDL_PING_SENT;
-						ABORT_NOW();
 					}
 				}
 			}
