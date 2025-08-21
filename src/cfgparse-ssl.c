@@ -2442,14 +2442,12 @@ static int post_section_frontend_crt_init()
 			goto error;
 		}
 
-		/* look for "ssl" bind lines without any crt nor crt-line */
+		/* look for "ssl" bind lines */
 		list_for_each_entry(b, &curproxy->conf.bind, by_fe) {
 			if (b->options & BC_O_USE_SSL) {
-				if (eb_is_empty(&b->sni_ctx) && eb_is_empty(&b->sni_w_ctx)) {
-					err_code |= ssl_sock_load_cert_list_file(crtlist_name, 0, b, curproxy, &err);
-					if (err_code & ERR_CODE)
-						goto error;
-				}
+				err_code |= ssl_sock_load_cert_list_file(crtlist_name, 0, b, curproxy, &err);
+				if (err_code & ERR_CODE)
+					goto error;
 			}
 		}
 	}

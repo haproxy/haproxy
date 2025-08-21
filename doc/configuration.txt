@@ -12205,8 +12205,9 @@ ssl-f-use [<sslbindconf> ...]*
   Assignate a certificate <crtname> to a crt-list created automatically with the
   frontend name and prefixed by @ (ex: '@frontend1').
 
-  This implicit crt-list will be assigned to every "ssl" bind lines in a
-  frontend that does not already have the "crt" or the "crt-list" line.
+  This implicit crt-list will be assigned to every "ssl" bind lines in the
+  current frontend.
+
   crt-list commands from the stats socket are effective with this crt-list, so
   one could replace, remove or add certificates and SSL options to it.
 
