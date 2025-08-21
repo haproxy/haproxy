@@ -2067,7 +2067,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 		rq_prod_last = scf->state;
 		rq_cons_last = scb->state;
-		req->flags &= ~CF_WAKE_ONCE;
+		req->flags &= ~(CF_WAKE_ONCE|CF_READ_EVENT|CF_WRITE_EVENT);
 		rqf_last = req->flags;
 		scf_flags = (scf_flags & ~(SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) | (scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED));
 		scb_flags = (scb_flags & ~(SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) | (scb->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED));
@@ -2142,7 +2142,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 		rp_cons_last = scf->state;
 		rp_prod_last = scb->state;
-		res->flags &= ~CF_WAKE_ONCE;
+		res->flags &= ~(CF_WAKE_ONCE|CF_READ_EVENT|CF_WRITE_EVENT);
 		rpf_last = res->flags;
 		scb_flags = (scb_flags & ~(SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED)) | (scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE|SC_FL_ABRT_WANTED));
 		scf_flags = (scf_flags & ~(SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) | (scf->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED));
