@@ -77,6 +77,7 @@ static int dns_connect_nameserver(struct dns_nameserver *ns)
 			send_log(NULL, LOG_WARNING,
 				 "DNS : section '%s': can't bind socket for nameserver '%s' on 0.0.0.0:0.\n",
 				 ns->counters->pid, ns->id);
+			close(fd);
 			return -1;
 		}
 		break;
@@ -93,6 +94,7 @@ static int dns_connect_nameserver(struct dns_nameserver *ns)
 			send_log(NULL, LOG_WARNING,
 				 "DNS : section '%s': can't bind socket for nameserver '%s' on :::0.\n",
 				 ns->counters->pid, ns->id);
+			close(fd);
 			return -1;
 		}
 		break;
@@ -110,6 +112,7 @@ static int dns_connect_nameserver(struct dns_nameserver *ns)
 		}
 		break;
 	default:
+		close(fd);
 		BUG_ON(1, "DNS: Unsupported address family.");
 	}
 
