@@ -2979,7 +2979,7 @@ static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct lis
 		if (s->rules_bcount++ >= global.tune.max_rules_at_once && !(act_opts & ACT_OPT_FINAL)) {
 			s->current_rule = rule;
 			s->flags |= SF_RULE_FYIELD;
-			rule_ret = HTTP_RULE_RES_YIELD;
+			rule_ret = HTTP_RULE_RES_FYIELD;
 			task_wakeup(s->task, TASK_WOKEN_MSG);
 			goto end;
 		}
