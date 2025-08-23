@@ -25,8 +25,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <import/eb32tree.h>
+
 #include <haproxy/api.h>
 #include <haproxy/listener-t.h>
+#include <haproxy/proxy-t.h>
 
 struct proxy;
 struct task;
@@ -235,6 +238,12 @@ enum li_status get_li_status(struct listener *l);
 
 /* number of times an accepted connection resulted in maxconn being reached */
 extern ullong maxconn_reached;
+
+/* index listener <li>'s id into proxy <px>'s used_listener_id */
+static inline void listener_index_id(struct proxy *px, struct listener *li)
+{
+	eb32_insert(&px->conf.used_listener_id, &li->conf.id);
+}
 
 static inline uint accept_queue_ring_len(const struct accept_queue_ring *ring)
 {

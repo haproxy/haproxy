@@ -1874,7 +1874,7 @@ int bind_complete_thread_setup(struct bind_conf *bind_conf, int *err_code)
 					tmp_li->luid = 0;
 					eb32_delete(&tmp_li->conf.id);
 					if (new_li->luid)
-						eb32_insert(&fe->conf.used_listener_id, &new_li->conf.id);
+						listener_index_id(fe, new_li);
 					new_li = tmp_li;
 				}
 			}
@@ -1898,7 +1898,7 @@ int bind_complete_thread_setup(struct bind_conf *bind_conf, int *err_code)
 			li->luid = 0;
 			eb32_delete(&li->conf.id);
 			if (new_li->luid)
-				eb32_insert(&fe->conf.used_listener_id, &new_li->conf.id);
+				listener_index_id(fe, new_li);
 		}
 	}
 
@@ -2256,7 +2256,7 @@ static int bind_parse_id(char **args, int cur_arg, struct proxy *px, struct bind
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	eb32_insert(&px->conf.used_listener_id, &new->conf.id);
+	listener_index_id(px, new);
 	return 0;
 }
 
