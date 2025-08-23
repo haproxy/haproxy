@@ -2850,7 +2850,7 @@ init_proxies_list_stage1:
 			 * build or config options and we don't want them to
 			 * possibly reuse existing IDs.
 			 */
-			next_pxid = get_next_id(&used_proxy_id, next_pxid);
+			next_pxid = proxy_get_next_id(next_pxid);
 			curproxy->conf.id.key = curproxy->uuid = next_pxid;
 			eb32_insert(&used_proxy_id, &curproxy->conf.id);
 		}
