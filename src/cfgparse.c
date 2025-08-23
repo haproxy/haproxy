@@ -4290,7 +4290,7 @@ init_proxies_list_stage2:
 					if (prev_li->luid)
 						next_id = prev_li->luid + 1;
 				}
-				next_id = get_next_id(&curproxy->conf.used_listener_id, next_id);
+				next_id = listener_get_next_id(curproxy, next_id);
 				listener->conf.id.key = listener->luid = next_id;
 				eb32_insert(&curproxy->conf.used_listener_id, &listener->conf.id);
 			}
