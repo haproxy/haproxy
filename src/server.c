@@ -866,6 +866,23 @@ static const char *srv_find_best_kw(const char *word)
 	return best_ptr;
 }
 
+/* This function returns the first unused server ID greater than or equal to
+ * <from> in the proxy <px>. Zero is returned if no spare one is found (should
+ * never happen).
+ */
+uint server_get_next_id(const struct proxy *px, uint from)
+{
+	const struct eb32_node *used;
+
+	do {
+		used = eb32_lookup_ge((struct eb_root *)&px->conf.used_server_id, from);
+		if (!used || used->key > from)
+			return from; /* available */
+		from++;
+	} while (from);
+	return from;
+}
+
 /* Parse the "backup" server keyword */
 static int srv_parse_backup(char **args, int *cur_arg,
                             struct proxy *curproxy, struct server *newsrv, char **err)
@@ -6228,7 +6245,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 
 	/* generate the server id if not manually specified */
 	if (!srv->puid) {
-		next_id = get_next_id(&be->conf.used_server_id, 1);
+		next_id = server_get_next_id(be, 1);
 		if (!next_id) {
 			ha_alert("Cannot attach server : no id left in proxy\n");
 			goto out;
