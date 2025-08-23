@@ -538,6 +538,23 @@ const char *proxy_find_best_option(const char *word, const char **extra)
 	return best_ptr;
 }
 
+/* This function returns the first unused proxy ID greater than or equal to
+ * <from> in used_proxy_id. Zero is returned if no spare one is found (should
+ * never happen).
+ */
+uint proxy_get_next_id(uint from)
+{
+	struct eb32_node *used;
+
+	do {
+		used = eb32_lookup_ge(&used_proxy_id, from);
+		if (!used || used->key > from)
+			return from; /* available */
+		from++;
+	} while (from);
+	return from;
+}
+
 /* This function parses a "timeout" statement in a proxy section. It returns
  * -1 if there is any error, 1 for a warning, otherwise zero. If it does not
  * return zero, it will write an error or warning message into a preallocated
