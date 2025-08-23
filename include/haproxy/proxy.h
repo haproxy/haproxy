@@ -57,6 +57,7 @@ void free_proxy(struct proxy *p);
 const char *proxy_cap_str(int cap);
 const char *proxy_mode_str(int mode);
 const char *proxy_find_best_option(const char *word, const char **extra);
+uint proxy_get_next_id(uint from);
 void proxy_store_name(struct proxy *px);
 struct proxy *proxy_find_by_id(int id, int cap, int table);
 struct proxy *proxy_find_by_name(const char *name, int cap, int table);
