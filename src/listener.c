@@ -399,6 +399,23 @@ void stop_listener(struct listener *l, int lpx, int lpr, int lli)
 		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &px->lock);
 }
 
+/* This function returns the first unused listener ID greater than or equal to
+ * <from> in the proxy <px>. Zero is returned if no spare one is found (should
+ * never happen).
+ */
+uint listener_get_next_id(const struct proxy *px, uint from)
+{
+	const struct eb32_node *used;
+
+	do {
+		used = eb32_lookup_ge((struct eb_root*)&px->conf.used_listener_id, from);
+		if (!used || used->key > from)
+			return from; /* available */
+		from++;
+	} while (from);
+	return from;
+}
+
 /* This function adds the specified <listener> to the protocol <proto>. It
  * does nothing if the protocol was already added. The listener's state is
  * automatically updated from LI_INIT to LI_ASSIGNED. The number of listeners
