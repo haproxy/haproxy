@@ -466,7 +466,7 @@ static struct proxy *cli_alloc_fe(const char *name, const char *file, int line)
 	fe->default_target = &cli_applet.obj_type;
 
 	/* the stats frontend is the only one able to assign ID #0 */
-	fe->conf.id.key = fe->uuid = 0;
+	fe->uuid = 0;
 	proxy_index_id(fe);
 	return fe;
 }

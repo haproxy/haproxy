@@ -732,7 +732,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		curproxy->uuid = atol(args[1]);
-		curproxy->conf.id.key = curproxy->uuid;
 		curproxy->options |= PR_O_FORCED_ID;
 
 		if (curproxy->uuid <= 0) {
