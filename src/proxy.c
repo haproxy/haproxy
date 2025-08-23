@@ -61,7 +61,7 @@
 int listeners;	/* # of proxy listeners, set by cfgparse */
 struct proxy *proxies_list  = NULL;     /* list of main proxies */
 struct list proxies = LIST_HEAD_INIT(proxies); /* list of all proxies */
-struct eb_root used_proxy_id = EB_ROOT;	/* list of proxy IDs in use */
+struct ceb_root *used_proxy_id = NULL; /* list of proxy IDs in use */
 struct ceb_root *proxy_by_name = NULL; /* tree of proxies sorted by name */
 struct ceb_root *defproxy_by_name = NULL; /* tree of default proxies sorted by name (dups possible) */
 struct proxy *orphaned_default_proxies = NULL; /* deleted ones with refcount != 0 */
@@ -544,11 +544,11 @@ const char *proxy_find_best_option(const char *word, const char **extra)
  */
 uint proxy_get_next_id(uint from)
 {
-	struct eb32_node *used;
+	const struct proxy *px;
 
 	do {
-		used = eb32_lookup_ge(&used_proxy_id, from);
-		if (!used || used->key > from)
+		px = ceb32_item_lookup_ge(&used_proxy_id, conf.uuid_node, uuid, from, struct proxy);
+		if (!px || px->uuid > from)
 			return from; /* available */
 		from++;
 	} while (from);
@@ -1200,14 +1200,10 @@ void proxy_store_name(struct proxy *px)
  */
 struct proxy *proxy_find_by_id(int id, int cap, int table)
 {
-	struct eb32_node *n;
+	struct proxy *px;
 
-	for (n = eb32_lookup(&used_proxy_id, id); n; n = eb32_next(n)) {
-		struct proxy *px = container_of(n, struct proxy, conf.id);
-
-		if (px->uuid != id)
-			break;
-
+	for (px = ceb32_item_lookup(&used_proxy_id, conf.uuid_node, uuid, id, struct proxy);
+	     px ; px = ceb32_item_next_dup(&used_proxy_id, conf.uuid_node, uuid, px)) {
 		if ((px->cap & cap) != cap)
 			continue;
 

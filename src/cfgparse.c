@@ -2851,7 +2851,7 @@ init_proxies_list_stage1:
 			 * possibly reuse existing IDs.
 			 */
 			next_pxid = proxy_get_next_id(next_pxid);
-			curproxy->conf.id.key = curproxy->uuid = next_pxid;
+			curproxy->uuid = next_pxid;
 			proxy_index_id(curproxy);
 		}
 

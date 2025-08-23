@@ -22,7 +22,7 @@
 #ifndef _HAPROXY_PROXY_H
 #define _HAPROXY_PROXY_H
 
-#include <import/eb32tree.h>
+#include <import/ceb32_tree.h>
 
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
@@ -36,7 +36,7 @@
 
 extern struct proxy *proxies_list;
 extern struct list proxies;
-extern struct eb_root used_proxy_id;	/* list of proxy IDs in use */
+extern struct ceb_root *used_proxy_id;  /* list of proxy IDs in use */
 extern unsigned int error_snapshot_id;  /* global ID assigned to each error then incremented */
 extern struct ceb_root *proxy_by_name;    /* tree of proxies sorted by name */
 
@@ -125,7 +125,7 @@ static inline struct proxy *proxy_be_by_name(const char *name)
 /* index proxy <px>'s id into used_proxy_id */
 static inline void proxy_index_id(struct proxy *px)
 {
-	eb32_insert(&used_proxy_id, &px->conf.id);
+	ceb32_item_insert(&used_proxy_id, conf.uuid_node, uuid, px);
 }
 
 /* this function initializes all timeouts for proxy p */

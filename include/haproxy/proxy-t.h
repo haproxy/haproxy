@@ -441,7 +441,7 @@ struct proxy {
 	char *check_path;			/* PATH environment to use for external agent checks */
 	struct http_reply *replies[HTTP_ERR_SIZE]; /* HTTP replies for known errors */
 	unsigned int log_count;			/* number of logs produced by the frontend */
-	int uuid;				/* universally unique proxy ID, used for SNMP */
+	int uuid;				/* universally unique proxy ID, used for SNMP, indexed by conf.uuid_node below */
 	unsigned int backlog;			/* force the frontend's listen backlog */
 	unsigned int li_all;                    /* total number of listeners attached to this proxy */
 	unsigned int li_paused;                 /* total number of listeners paused (LI_PAUSED) */
@@ -460,7 +460,7 @@ struct proxy {
 
 	struct {
 		const char *file;		/* file where the section appears */
-		struct eb32_node id;		/* place in the tree of used IDs */
+		struct ceb_node uuid_node;	/* place in the tree of used IDs, indexes <uuid> above */
 		int line;			/* line where the section appears */
 		struct eb_root used_listener_id;/* list of listener IDs in use */
 		struct eb_root used_server_id;	/* list of server IDs in use */
