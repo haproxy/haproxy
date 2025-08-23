@@ -66,6 +66,7 @@ struct server *server_find_by_addr(struct proxy *px, const char *addr);
 struct server *server_find(struct proxy *bk, const char *name);
 struct server *server_find_unique(struct proxy *bk, const char *name, uint32_t rid);
 struct server *server_find_best_match(struct proxy *bk, char *name, int id, int *diff);
+uint server_get_next_id(const struct proxy *px, uint from);
 void apply_server_state(void);
 void srv_compute_all_admin_states(struct proxy *px);
 int srv_set_addr_via_libc(struct server *srv, int *err_code);
