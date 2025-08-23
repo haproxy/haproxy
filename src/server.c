@@ -1302,7 +1302,7 @@ static int srv_parse_pool_max_conn(char **args, int *cur_arg, struct proxy *curp
 /* parse the "id" server keyword */
 static int srv_parse_id(char **args, int *cur_arg, struct proxy *curproxy, struct server *newsrv, char **err)
 {
-	struct eb32_node *node;
+	struct server *target;
 
 	if (!*args[*cur_arg + 1]) {
 		memprintf(err, "'%s' : expects an integer argument", args[*cur_arg]);
@@ -1317,9 +1317,8 @@ static int srv_parse_id(char **args, int *cur_arg, struct proxy *curproxy, struc
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	node = eb32_lookup(&curproxy->conf.used_server_id, newsrv->puid);
-	if (node) {
-		struct server *target = container_of(node, struct server, conf.id);
+	target = server_find_by_id(curproxy, newsrv->puid);
+	if (target) {
 		memprintf(err, "'%s' : custom id %d already used at %s:%d ('server %s')",
 		          args[*cur_arg], newsrv->puid, target->conf.file, target->conf.line,
 		          target->id);
