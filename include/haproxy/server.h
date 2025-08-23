@@ -196,6 +196,12 @@ static inline void srv_free(struct server **srv_ptr)
 	*srv_ptr = NULL;
 }
 
+/* index server <srv>'s id into proxy <px>'s used_server_id */
+static inline void server_index_id(struct proxy *px, struct server *srv)
+{
+	eb32_insert(&px->conf.used_server_id, &srv->conf.id);
+}
+
 /* increase the number of cumulated streams on the designated server */
 static inline void srv_inc_sess_ctr(struct server *s)
 {
