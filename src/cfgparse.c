@@ -3726,7 +3726,7 @@ out_uri_auth_compat:
 				/* server ID not set, use automatic numbering with first
 				 * spare entry starting with next_svid.
 				 */
-				next_id = get_next_id(&curproxy->conf.used_server_id, next_id);
+				next_id = server_get_next_id(curproxy, next_id);
 				newsrv->conf.id.key = newsrv->puid = next_id;
 				eb32_insert(&curproxy->conf.used_server_id, &newsrv->conf.id);
 			}
