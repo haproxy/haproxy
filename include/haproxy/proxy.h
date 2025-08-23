@@ -22,6 +22,8 @@
 #ifndef _HAPROXY_PROXY_H
 #define _HAPROXY_PROXY_H
 
+#include <import/eb32tree.h>
+
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
 #include <haproxy/freq_ctr.h>
@@ -118,6 +120,12 @@ static inline struct proxy *proxy_fe_by_name(const char *name)
 static inline struct proxy *proxy_be_by_name(const char *name)
 {
 	return proxy_find_by_name(name, PR_CAP_BE, 0);
+}
+
+/* index proxy <px>'s id into used_proxy_id */
+static inline void proxy_index_id(struct proxy *px)
+{
+	eb32_insert(&used_proxy_id, &px->conf.id);
 }
 
 /* this function initializes all timeouts for proxy p */
