@@ -2852,7 +2852,7 @@ init_proxies_list_stage1:
 			 */
 			next_pxid = proxy_get_next_id(next_pxid);
 			curproxy->conf.id.key = curproxy->uuid = next_pxid;
-			eb32_insert(&used_proxy_id, &curproxy->conf.id);
+			proxy_index_id(curproxy);
 		}
 
 		if (curproxy->mode == PR_MODE_HTTP && global.tune.bufsize >= (256 << 20) && ONLY_ONCE()) {

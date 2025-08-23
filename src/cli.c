@@ -467,7 +467,7 @@ static struct proxy *cli_alloc_fe(const char *name, const char *file, int line)
 
 	/* the stats frontend is the only one able to assign ID #0 */
 	fe->conf.id.key = fe->uuid = 0;
-	eb32_insert(&used_proxy_id, &fe->conf.id);
+	proxy_index_id(fe);
 	return fe;
 }
 
