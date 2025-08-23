@@ -750,7 +750,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		eb32_insert(&used_proxy_id, &curproxy->conf.id);
+		proxy_index_id(curproxy);
 	}
 	else if (strcmp(args[0], "description") == 0) {
 		int i, len=0;
