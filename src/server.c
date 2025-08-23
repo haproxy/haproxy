@@ -4017,7 +4017,7 @@ int parse_server(const char *file, int linenum, char **args,
 	 * check_config_validity.
 	 */
 	if (newsrv->flags & SRV_F_FORCED_ID)
-		eb32_insert(&curproxy->conf.used_server_id, &newsrv->conf.id);
+		server_index_id(curproxy, newsrv);
 
 	HA_DIAG_WARNING_COND((curproxy->cap & PR_CAP_LB) && !newsrv->uweight,
 	                     "configured with weight of 0 will never be selected by load balancing algorithms\n");
@@ -6254,7 +6254,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	}
 
 	/* insert the server in the backend trees */
-	eb32_insert(&be->conf.used_server_id, &srv->conf.id);
+	server_index_id(be, srv);
 	cebis_item_insert(&be->conf.used_server_name, conf.name_node, id, srv);
 	/* addr_key could be NULL if FQDN resolution is postponed (ie: add server from cli) */
 	if (srv->addr_key)
