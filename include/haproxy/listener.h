@@ -82,6 +82,12 @@ int relax_listener(struct listener *l, int lpx, int lli);
  */
 void stop_listener(struct listener *l, int lpx, int lpr, int lli);
 
+/* This function returns the first unused listener ID greater than or equal to
+ * <from> in the proxy <px>. Zero is returned if no spare one is found (should
+ * never happen).
+ */
+uint listener_get_next_id(const struct proxy *px, uint from);
+
 /* This function adds the specified listener's file descriptor to the polling
  * lists if it is in the LI_LISTEN state. The listener enters LI_READY or
  * LI_FULL state depending on its number of connections. In daemon mode, we
