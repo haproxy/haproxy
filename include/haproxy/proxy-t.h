@@ -311,6 +311,7 @@ struct proxy {
 	char flags;                             /* bit field PR_FL_* */
 	enum pr_mode mode;                      /* mode = PR_MODE_TCP, PR_MODE_HTTP, ... */
 	char cap;                               /* supported capabilities (PR_CAP_*) */
+	int to_log;				/* things to be logged (LW_*), special value LW_LOGSTEPS == follow log-steps */
 	unsigned long last_change;              /* internal use only: last time the proxy state was changed */
 
 	struct list global_list;                /* list member for global proxy list */
@@ -378,6 +379,7 @@ struct proxy {
 	int srvtcpka_cnt;                       /* The maximum number of keepalive probes TCP should send before dropping the connection. (server side) */
 	int srvtcpka_idle;                      /* The time (in seconds) the connection needs to remain idle before TCP starts sending keepalive probes. (server side) */
 	int srvtcpka_intvl;                     /* The time (in seconds) between individual keepalive probes. (server side) */
+	unsigned int tot_fe_maxconn;		/* #maxconn of frontends linked to that backend, it is used to compute fullconn */
 	struct ist monitor_uri;			/* a special URI to which we respond with HTTP/200 OK */
 	struct list mon_fail_cond;              /* list of conditions to fail monitoring requests (chained) */
 	struct {				/* WARNING! check proxy_reset_timeouts() in proxy.h !!! */
@@ -404,7 +406,6 @@ struct proxy {
 	unsigned int feconn, beconn;		/* # of active frontend and backends streams */
 	unsigned int fe_sps_lim;		/* limit on new sessions per second on the frontend */
 	unsigned int fullconn;			/* #conns on backend above which servers are used at full load */
-	unsigned int tot_fe_maxconn;		/* #maxconn of frontends linked to that backend, it is used to compute fullconn */
 	struct ist server_id_hdr_name;                   /* the header to use to send the server id (name) */
 	int conn_retries;			/* maximum number of connect retries */
 	unsigned int retry_type;                /* Type of retry allowed */
@@ -423,7 +424,6 @@ struct proxy {
 	struct buffer log_tag;                   /* override default syslog tag */
 	struct ist header_unique_id; 		/* unique-id header */
 	struct lf_expr format_unique_id;        /* unique-id format */
-	int to_log;				/* things to be logged (LW_*), special value LW_LOGSTEPS == follow log-steps */
 	int nb_req_cap, nb_rsp_cap;		/* # of headers to be captured */
 	struct cap_hdr *req_cap;		/* chained list of request headers to be captured */
 	struct cap_hdr *rsp_cap;		/* chained list of response headers to be captured */
