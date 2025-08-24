@@ -359,7 +359,6 @@ struct server {
 	struct server *trackers;                /* the list of servers tracking us, if any */
 	struct server *tracknext;               /* next server tracking <track> in <track>'s trackers list */
 	char *trackit;				/* temporary variable to make assignment deferrable */
-	int consecutive_errors_limit;		/* number of consecutive errors that triggers an event */
 	short observe, onerror;			/* observing mode: one of HANA_OBS_*; what to do on error: on of ANA_ONERR_* */
 	short onmarkeddown;			/* what to do when marked down: one of HANA_ONMARKEDDOWN_* */
 	short onmarkedup;			/* what to do when marked up: one of HANA_ONMARKEDUP_* */
@@ -399,6 +398,10 @@ struct server {
 	unsigned int est_need_conns;            /* Estimate on the number of needed connections (max of curr and previous max_used) */
 	unsigned int curr_sess_idle_conns;      /* Current number of idle connections attached to a session instead of idle/safe trees. */
 
+	/* elements only used during boot, do not perturb and plug the hole */
+	struct guid_node guid;			/* GUID global tree node */
+	int puid;				/* proxy-unique server ID, used for SNMP, and "first" LB algo, indexed via puid_node below */
+
 	/* Element below are usd by LB algorithms and must be doable in
 	 * parallel to other threads reusing connections above.
 	 */
@@ -420,6 +423,7 @@ struct server {
 	int cur_sess;				/* number of currently active sessions (including syn_sent) */
 	int served;				/* # of active sessions currently being served (ie not pending) */
 	int consecutive_errors;			/* current number of consecutive errors */
+	int consecutive_errors_limit;		/* number of consecutive errors that triggers an event */
 	struct be_counters counters;		/* statistics counters */
 
 	/* Below are some relatively stable settings, only changed under the lock */
@@ -439,7 +443,6 @@ struct server {
 	unsigned int svc_port;                  /* the port to connect to (for relevant families) */
 	unsigned down_time;			/* total time the server was down */
 
-	int puid;				/* proxy-unique server ID, used for SNMP, and "first" LB algo, indexed via puid_node below */
 	int tcp_ut;                             /* for TCP, user timeout */
 	char *tcp_md5sig;                       /* TCP MD5 signature password (RFC2385) */
 
@@ -475,14 +478,14 @@ struct server {
 			char *sni; /* SNI used for the session */
 			__decl_thread(HA_RWLOCK_T sess_lock);
 		} * reused_sess;
-		uint last_ssl_sess_tid;         /* last tid+1 having updated reused_sess (0=none, >0=tid+1) */
 
 		struct ckch_inst *inst; /* Instance of the ckch_store in which the certificate was loaded (might be null if server has no certificate) */
 		__decl_thread(HA_RWLOCK_T lock); /* lock the cache and SSL_CTX during commit operations */
 
 		char *ciphers;			/* cipher suite to use if non-null */
-		char *ciphersuites;			/* TLS 1.3 cipher suite to use if non-null */
-		char *curves;                    /* TLS curves list */
+		char *ciphersuites;		/* TLS 1.3 cipher suite to use if non-null */
+		char *curves;			/* TLS curves list */
+		uint last_ssl_sess_tid;         /* last tid+1 having updated reused_sess (0=none, >0=tid+1) */
 		int options;			/* ssl options */
 		int verify;			/* verify method (set of SSL_VERIFY_* flags) */
 		struct tls_version_filter methods;	/* ssl methods */
@@ -494,8 +497,8 @@ struct server {
 		char *client_sigalgs;           /* Client Signature algorithms */
 		struct sample_expr *sni;        /* sample expression for SNI */
 		char *npn_str;                  /* NPN protocol string */
-		int npn_len;                    /* NPN protocol string length */
 		char *alpn_str;                 /* ALPN protocol string */
+		int npn_len;                    /* NPN protocol string length */
 		int alpn_len;                   /* ALPN protocol string length */
 		int renegotiate;		/* Renegotiate mode (SSL_RENEGOTIATE_ flag) */
 	} ssl_ctx;
@@ -530,8 +533,6 @@ struct server {
 	} tmpl_info;
 
 	event_hdl_sub_list e_subs;		/* event_hdl: server's subscribers list (atomically updated) */
-
-	struct guid_node guid;			/* GUID global tree node */
 
 	/* warning, these structs are huge, keep them at the bottom */
 	struct conn_src conn_src;               /* connection source settings */
