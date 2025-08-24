@@ -405,11 +405,11 @@ void stop_listener(struct listener *l, int lpx, int lpr, int lli)
  */
 uint listener_get_next_id(const struct proxy *px, uint from)
 {
-	const struct eb32_node *used;
+	const struct listener *li;
 
 	do {
-		used = eb32_lookup_ge((struct eb_root*)&px->conf.used_listener_id, from);
-		if (!used || used->key > from)
+		li = ceb32_item_lookup_ge(&px->conf.used_listener_id, luid_node, luid, from, struct listener);
+		if (!li || li->luid > from)
 			return from; /* available */
 		from++;
 	} while (from);
@@ -1870,9 +1870,9 @@ int bind_complete_thread_setup(struct bind_conf *bind_conf, int *err_code)
 						return cfgerr;
 					}
 					/* assign the ID to the first one only */
-					new_li->luid = new_li->conf.id.key = tmp_li->luid;
+					ceb32_item_delete(&fe->conf.used_listener_id, luid_node, luid, tmp_li);
+					new_li->luid = tmp_li->luid;
 					tmp_li->luid = 0;
-					eb32_delete(&tmp_li->conf.id);
 					if (new_li->luid)
 						listener_index_id(fe, new_li);
 					new_li = tmp_li;
@@ -1894,9 +1894,9 @@ int bind_complete_thread_setup(struct bind_conf *bind_conf, int *err_code)
 				return cfgerr;
 			}
 			/* assign the ID to the first one only */
-			new_li->luid = new_li->conf.id.key = li->luid;
+			ceb32_item_delete(&fe->conf.used_listener_id, luid_node, luid, li);
+			new_li->luid = li->luid;
 			li->luid = 0;
-			eb32_delete(&li->conf.id);
 			if (new_li->luid)
 				listener_index_id(fe, new_li);
 		}
@@ -2220,7 +2220,6 @@ static int bind_parse_guid_prefix(char **args, int cur_arg, struct proxy *px, st
 /* parse the "id" bind keyword */
 static int bind_parse_id(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	struct eb32_node *node;
 	struct listener *l, *new;
 	char *error;
 
@@ -2240,16 +2239,14 @@ static int bind_parse_id(char **args, int cur_arg, struct proxy *px, struct bind
 		memprintf(err, "'%s' : expects an integer argument, found '%s'", args[cur_arg], args[cur_arg + 1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
-	new->conf.id.key = new->luid;
 
 	if (new->luid <= 0) {
 		memprintf(err, "'%s' : custom id has to be > 0", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	node = eb32_lookup(&px->conf.used_listener_id, new->luid);
-	if (node) {
-		l = container_of(node, struct listener, conf.id);
+	l = ceb32_item_lookup(&px->conf.used_listener_id, luid_node, luid, new->luid, struct listener);
+	if (l) {
 		memprintf(err, "'%s' : custom id %d already used at %s:%d ('bind %s')",
 		          args[cur_arg], l->luid, l->bind_conf->file, l->bind_conf->line,
 		          l->bind_conf->arg);

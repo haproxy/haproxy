@@ -4291,7 +4291,7 @@ init_proxies_list_stage2:
 						next_id = prev_li->luid + 1;
 				}
 				next_id = listener_get_next_id(curproxy, next_id);
-				listener->conf.id.key = listener->luid = next_id;
+				listener->luid = next_id;
 				listener_index_id(curproxy, listener);
 			}
 			next_id++;
