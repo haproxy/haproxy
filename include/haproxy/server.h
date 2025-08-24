@@ -24,6 +24,8 @@
 
 #include <unistd.h>
 
+#include <import/ceb32_tree.h>
+
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
 #include <haproxy/arg-t.h>
@@ -198,7 +200,7 @@ static inline void srv_free(struct server **srv_ptr)
 /* index server <srv>'s id into proxy <px>'s used_server_id */
 static inline void server_index_id(struct proxy *px, struct server *srv)
 {
-	eb32_insert(&px->conf.used_server_id, &srv->conf.id);
+	ceb32_item_insert(&px->conf.used_server_id, conf.puid_node, puid, srv);
 }
 
 /* increase the number of cumulated streams on the designated server */
@@ -371,10 +373,7 @@ static inline void srv_detach(struct server *srv)
  */
 static inline struct server *server_find_by_id(struct proxy *bk, int id)
 {
-	struct eb32_node *eb32;
-
-	eb32 = eb32_lookup(&bk->conf.used_server_id, id);
-	return eb32 ? container_of(eb32, struct server, conf.id) : NULL;
+	return ceb32_item_lookup(&bk->conf.used_server_id, conf.puid_node, puid, id, struct server);
 }
 
 

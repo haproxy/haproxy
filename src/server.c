@@ -868,11 +868,11 @@ static const char *srv_find_best_kw(const char *word)
  */
 uint server_get_next_id(const struct proxy *px, uint from)
 {
-	const struct eb32_node *used;
+	const struct server *sv;
 
 	do {
-		used = eb32_lookup_ge((struct eb_root *)&px->conf.used_server_id, from);
-		if (!used || used->key > from)
+		sv = ceb32_item_lookup_ge(&px->conf.used_server_id, conf.puid_node, puid, from, struct server);
+		if (!sv || sv->puid > from)
 			return from; /* available */
 		from++;
 	} while (from);
@@ -1306,7 +1306,6 @@ static int srv_parse_id(char **args, int *cur_arg, struct proxy *curproxy, struc
 	}
 
 	newsrv->puid = atol(args[*cur_arg + 1]);
-	newsrv->conf.id.key = newsrv->puid;
 
 	if (newsrv->puid <= 0) {
 		memprintf(err, "'%s' : custom id has to be > 0", args[*cur_arg]);
@@ -6200,7 +6199,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 			goto out;
 		}
 
-		srv->conf.id.key = srv->puid = next_id;
+		srv->puid = next_id;
 	}
 
 	/* insert the server in the backend trees */
@@ -6478,7 +6477,7 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	srv_detach(srv);
 
 	/* remove srv from addr_node tree */
-	eb32_delete(&srv->conf.id);
+	ceb32_item_delete(&be->conf.used_server_id, conf.puid_node, puid, srv);
 	cebis_item_delete(&be->conf.used_server_name, conf.name_node, id, srv);
 	cebuis_item_delete(&be->used_server_addr, addr_node, addr_key, srv);
 
