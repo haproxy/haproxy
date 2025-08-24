@@ -250,6 +250,9 @@ enum logformat_alias_type {
 	LOG_FMT_HOSTNAME,
 	LOG_FMT_UNIQUEID,
 	LOG_FMT_SSL_CIPHER,
+#ifdef USE_ECH
+    LOG_FMT_SSL_ECHSTAT,
+#endif
 	LOG_FMT_SSL_VERSION,
 };
 
@@ -315,6 +318,9 @@ static const struct logformat_alias logformat_aliases[] = {
 	{ "sp", LOG_FMT_SERVERPORT, PR_MODE_TCP, LW_SVIP, NULL }, /* server destination port */
 	{ "sq", LOG_FMT_SRVQUEUE, PR_MODE_TCP, LW_BYTES, NULL  }, /* srv_queue */
 	{ "sslc", LOG_FMT_SSL_CIPHER, PR_MODE_TCP, LW_XPRT, NULL }, /* client-side SSL ciphers */
+#ifdef USE_ECH
+	{ "sslech", LOG_FMT_SSL_ECHSTAT, PR_MODE_TCP, LW_XPRT, NULL }, /* client-side SSL ECH status */
+#endif
 	{ "sslv", LOG_FMT_SSL_VERSION, PR_MODE_TCP, LW_XPRT, NULL }, /* client-side SSL protocol version */
 	{ "t", LOG_FMT_DATE, PR_MODE_TCP, LW_INIT, NULL },      /* date */
 	{ "tr", LOG_FMT_tr, PR_MODE_HTTP, LW_INIT, NULL },      /* date of start of request */
@@ -4470,6 +4476,26 @@ int sess_build_logline_orig(struct session *sess, struct stream *s,
 					goto out;
 				tmplog = ret;
 				break;
+#ifdef USE_ECH
+            case LOG_FMT_SSL_ECHSTAT: // %sslech
+                src = NULL;
+                conn = objt_conn(sess->origin);
+                if (conn) {
+                    int rv = 0;
+                    char *echstr = NULL;
+                    rv = ssl_sock_get_ech_status(conn, &echstr);
+                    if (rv == 1) {
+                        src = echstr;
+				        ret = lf_text(tmplog, src, dst + maxsize - tmplog, ctx);
+                        free(echstr);
+                        if (ret == NULL)
+                            goto out;
+                    }
+                 }
+                tmplog = ret;
+                last_isspace = 0;
+                break;
+#endif
 #endif
 			case LOG_FMT_BACKEND: // %b
 				src = be->id;
