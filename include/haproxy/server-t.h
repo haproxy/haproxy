@@ -439,7 +439,7 @@ struct server {
 	unsigned int svc_port;                  /* the port to connect to (for relevant families) */
 	unsigned down_time;			/* total time the server was down */
 
-	int puid;				/* proxy-unique server ID, used for SNMP, and "first" LB algo */
+	int puid;				/* proxy-unique server ID, used for SNMP, and "first" LB algo, indexed via puid_node below */
 	int tcp_ut;                             /* for TCP, user timeout */
 	char *tcp_md5sig;                       /* TCP MD5 signature password (RFC2385) */
 
@@ -511,7 +511,7 @@ struct server {
 	struct task *srvrq_check;               /* Task testing SRV record expiration date for this server */
 	struct {
 		const char *file;		/* file where the section appears */
-		struct eb32_node id;		/* place in the tree of used IDs */
+		struct ceb_node puid_node;	/* place in the tree of used IDs, indexes <puid> above */
 		struct ceb_node name_node;	/* place in the tree of used names, indexes <id> above, not unique, indexed in px->used_server_name */
 		int line;			/* line where the section appears */
 	} conf;					/* config information */
