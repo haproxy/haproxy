@@ -3727,7 +3727,7 @@ out_uri_auth_compat:
 				 * spare entry starting with next_svid.
 				 */
 				next_id = server_get_next_id(curproxy, next_id);
-				newsrv->conf.id.key = newsrv->puid = next_id;
+				newsrv->puid = next_id;
 				server_index_id(curproxy, newsrv);
 			}
 
