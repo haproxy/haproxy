@@ -383,6 +383,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	struct redirect_rule *rule;
 	enum rule_result verdict;
 	struct connection *conn = objt_conn(sess->origin);
+	int stats_rules = 0;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, msg);
 
@@ -396,11 +397,21 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	def_rules = ((px->defpx && (an_bit == AN_REQ_HTTP_PROCESS_FE || px != sess->fe)) ? &px->defpx->http_req_rules : NULL);
 	rules = &px->http_req_rules;
 
+	verdict = HTTP_RULE_RES_CONT;
+
+	if (s->current_rule_list == &px->uri_auth->http_req_rules)
+		stats_rules = 1;
+
+	/* resume stats http-request rules if needed */
+	if (stats_rules)
+		verdict = http_req_get_intercept_rule(px, NULL, &px->uri_auth->http_req_rules, s);
 	/* evaluate http-request rules */
-	if ((def_rules && !LIST_ISEMPTY(def_rules)) || !LIST_ISEMPTY(rules)) {
+	else if ((def_rules && !LIST_ISEMPTY(def_rules)) || !LIST_ISEMPTY(rules))
 		verdict = http_req_get_intercept_rule(px, def_rules, rules, s);
 
-		switch (verdict) {
+ rule_verdict:
+
+	switch (verdict) {
 		case HTTP_RULE_RES_YIELD: /* some data miss, call the function later. */
 			goto return_prx_yield;
 
@@ -428,8 +439,10 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 		case HTTP_RULE_RES_ERROR: /* failed with a bad request */
 			goto return_int_err;
-		}
 	}
+
+	if (stats_rules)
+		goto resume_stats_rules;
 
 	if (px->options2 & (PR_O2_RSTRICT_REQ_HDR_NAMES_BLK|PR_O2_RSTRICT_REQ_HDR_NAMES_DEL)) {
 		verdict = http_req_restrict_header_names(s, htx, px);
@@ -466,22 +479,11 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		/* parse the whole stats request and extract the relevant information */
 		http_handle_stats(s, req, px);
 		verdict = http_req_get_intercept_rule(px, NULL, &px->uri_auth->http_req_rules, s);
-		/* not all actions implemented: deny, allow, auth */
-
-		if (verdict == HTTP_RULE_RES_DENY) /* stats http-request deny */
-			goto deny;
-
-		if (verdict == HTTP_RULE_RES_ABRT) { /* stats auth / stats http-request auth */
-			stream_report_term_evt(s->scf, strm_tevt_type_intercepted);
-			goto return_prx_cond;
-		}
-
-		if (verdict == HTTP_RULE_RES_BADREQ) /* failed with a bad request */
-			goto return_bad_req;
-
-		if (verdict == HTTP_RULE_RES_ERROR) /* failed with a bad request */
-			goto return_int_err;
+		stats_rules = 1;
+		goto rule_verdict;
 	}
+
+ resume_stats_rules:
 
 	/* Proceed with the applets now. */
 	if (unlikely(objt_applet(s->target))) {
