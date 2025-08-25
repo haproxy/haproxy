@@ -49,10 +49,6 @@ haproxy h1 -conf {
         use_backend auth_bearer_be if { path /auth_bearer }
         default_backend dflt_be
 
-    # Unnamed crt-store
-    crt-store
-        load crt "${testdir}/cert.ecdsa.pem"
-
     crt-store named_store
         load crt "${testdir}/cert.rsa.pem"
 
@@ -268,6 +264,11 @@ client c8 -connect ${h1_mainfe_sock} {
 } -run
 
 
+shell {
+    echo "new ssl cert ${testdir}/cert.ecdsa.pem" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl cert ${testdir}/cert.ecdsa.pem <<\n$(cat ${testdir}/cert.ecdsa.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert ${testdir}/cert.ecdsa.pem" | socat "${tmpdir}/h1/stats" -
+}
 
 client c9 -connect ${h1_mainfe_sock} {
     # Token content : {"alg":"ES256","typ":"JWT"}
