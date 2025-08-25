@@ -712,10 +712,13 @@ static int spop_init(struct connection *conn, struct proxy *px, struct session *
 	sdo = spop_strm_opposite_sd(spop_strm);
 	if (sdo) {
 		spop_conn->agent = spoe_appctx_agent(sc_appctx(sdo->sc));
+		if (!spop_conn->agent) {
+			TRACE_ERROR("not a SPOP stream", SPOP_EV_SPOP_CONN_NEW|SPOP_EV_SPOP_CONN_END|SPOP_EV_SPOP_CONN_ERR, spop_conn->conn);
+			goto fail;
+		}
 		spop_conn->max_frame_size = spop_conn->agent->max_frame_size;
 		if (spop_conn->agent->flags & SPOE_FL_PIPELINING)
 			spop_conn->streams_limit = 20;
-		BUG_ON(!spop_conn->agent);
 	}
 
 	/* Repare to read something */
