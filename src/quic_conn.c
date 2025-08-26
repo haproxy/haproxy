@@ -916,7 +916,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	 * discard Initial keys when it first sends a Handshake packet...
 	 */
 
-	if (qc_is_back(qc) && !quic_tls_pktns_is_dcd(qc, qc->ipktns) &&
+	if (qc_is_back(qc) && qc->ipktns && !quic_tls_pktns_is_dcd(qc, qc->ipktns) &&
 	    qc->hpktns && qc->hpktns->tx.in_flight > 0) {
 		/* Discard the Initial packet number space. */
 		TRACE_PROTO("discarding Initial pktns", QUIC_EV_CONN_PRSHPKT, qc);
