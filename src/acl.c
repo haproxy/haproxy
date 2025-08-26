@@ -164,7 +164,6 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 
 	if (al) {
 		al->ctx  = ARGC_ACL;   // to report errors while resolving args late
-		al->kw   = *args;
 		al->conv = NULL;
 	}
 
@@ -172,6 +171,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	if (aclkw) {
 		/* OK we have a real ACL keyword */
 
+		al->kw = aclkw->kw;
 		/* build new sample expression for this ACL */
 		smp = calloc(1, sizeof(*smp));
 		if (!smp) {
