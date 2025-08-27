@@ -366,6 +366,13 @@
 #define STATS_VERSION_STRING " version " HAPROXY_VERSION ", released " HAPROXY_DATE
 #endif
 
+/* specifies the default max number of object per thread group that the shm stats file
+ * will be able to handle
+ */
+#ifndef SHM_STATS_FILE_MAX_OBJECTS
+#define SHM_STATS_FILE_MAX_OBJECTS 2000
+#endif
+
 /* This is the default statistics URI */
 #ifdef CONFIG_STATS_DEFAULT_URI
 #define STATS_DEFAULT_URI CONFIG_STATS_DEFAULT_URI

@@ -1,13 +1,18 @@
 #include <haproxy/stats-file.h>
 
+#include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 
 #include <import/ebmbtree.h>
 #include <import/ebsttree.h>
 #include <import/ist.h>
 #include <haproxy/api.h>
+#include <haproxy/atomic.h>
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
 #include <haproxy/clock.h>
@@ -21,7 +26,13 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 #include <haproxy/stats.h>
+#include <haproxy/task.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
+
+struct shm_stats_file_hdr *shm_stats_file_hdr = NULL;
+static int shm_stats_file_fd = -1;
+int shm_stats_file_max_objects = -1;
 
 /* Dump all fields from <stats> into <out> for stats-file. */
 int stats_dump_fields_file(struct buffer *out,
@@ -441,3 +452,109 @@ void apply_stats_file(void)
 	ha_free(&line);
 	fclose(file);
 }
+
+/* returns 1 if <hdr> shm version is compatible with current version
+ * defined in stats-file-t.h or 0 if it is not compatible.
+ */
+static int shm_stats_file_check_ver(struct shm_stats_file_hdr *hdr)
+{
+	/* for now we don't even support minor version difference but this may
+	 * change later
+	 */
+	if (hdr->version.major != SHM_STATS_FILE_VER_MAJOR ||
+	    hdr->version.minor != SHM_STATS_FILE_VER_MINOR)
+		return 0;
+	return 1;
+}
+
+/* since shm file was opened using O_APPEND flag, let's grow
+ * the file by <bytes> in an atomic manner (O_APPEND offers such guarantee),
+ * so that even if multiple processes try to grow the file simultaneously,
+ * the file can only grow bigger and never shrink
+ *
+ * We do this way because ftruncate() between multiple processes
+ * could result in the file being shrunk if one of the process
+ * is not aware that the file was already expanded in the meantime
+ *
+ * Returns 1 on success and 0 on failure
+ */
+static int shm_file_grow(unsigned int bytes)
+{
+	char buf[1024] = {0};
+	ssize_t ret;
+
+	while (bytes) {
+		ret = write(shm_stats_file_fd, buf, MIN(sizeof(buf), bytes));
+		if (ret <= 0)
+			return 0;
+		bytes -= ret;
+	}
+	return 1;
+}
+
+/* prepare and and initialize shm stats memory file as needed */
+int shm_stats_file_prepare(void)
+{
+	int first = 0; // process responsible for initializing the shm memory
+
+	/* do nothing if master process or shm_stats_file not configured */
+	if (master || !global.shm_stats_file)
+		return ERR_NONE;
+
+	/* compute final shm_stats_file_max_objects value */
+	if (shm_stats_file_max_objects == -1)
+		shm_stats_file_max_objects = SHM_STATS_FILE_MAX_OBJECTS * global.nbtgroups;
+	else
+		shm_stats_file_max_objects = shm_stats_file_max_objects * global.nbtgroups;
+
+	shm_stats_file_fd = open(global.shm_stats_file, O_RDWR | O_APPEND | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
+	if (shm_stats_file_fd == -1) {
+		shm_stats_file_fd = open(global.shm_stats_file, O_RDWR | O_APPEND, S_IRUSR | S_IWUSR);
+		if (shm_stats_file_fd == -1) {
+			ha_alert("config: cannot open shm stats file '%s': %s\n", global.shm_stats_file, strerror(errno));
+			return ERR_ALERT | ERR_FATAL;
+		}
+	}
+	else {
+		first = 1;
+		if (shm_file_grow(sizeof(*shm_stats_file_hdr)) == 0) {
+			ha_alert("config: unable to resize shm stats file '%s'\n", global.shm_stats_file);
+			return ERR_ALERT | ERR_FATAL;
+		}
+	}
+	/* mmap maximum contiguous address space for expected objects even if the backing shm is
+	 * smaller: it will allow for on the fly shm resizing without having to remap
+	 */
+	shm_stats_file_hdr = mmap(NULL,
+	                          SHM_STATS_FILE_MAPPING_SIZE(shm_stats_file_max_objects),
+	                          PROT_READ | PROT_WRITE, MAP_SHARED, shm_stats_file_fd, 0);
+	if (shm_stats_file_hdr == MAP_FAILED || shm_stats_file_hdr == NULL) {
+		ha_alert("config: failed to map shm stats file '%s'\n", global.shm_stats_file);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (first) {
+		/* let's init some members */
+		memset(shm_stats_file_hdr, 0, sizeof(*shm_stats_file_hdr));
+		shm_stats_file_hdr->version.major = SHM_STATS_FILE_VER_MAJOR;
+		shm_stats_file_hdr->version.minor = SHM_STATS_FILE_VER_MINOR;
+	}
+	else if (!shm_stats_file_check_ver(shm_stats_file_hdr))
+		goto err_version;
+
+ end:
+	return ERR_NONE;
+
+ err_version:
+		ha_warning("config: incompatible map shm stats file version '%s'\n", global.shm_stats_file);
+	return ERR_WARN;
+}
+
+static void cleanup_shm_stats_file(void)
+{
+	if (shm_stats_file_hdr) {
+		munmap(shm_stats_file_hdr, SHM_STATS_FILE_MAPPING_SIZE(shm_stats_file_max_objects));
+		close(shm_stats_file_fd);
+	}
+}
+REGISTER_POST_DEINIT(cleanup_shm_stats_file);

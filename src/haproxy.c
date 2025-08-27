@@ -2105,6 +2105,13 @@ static void step_init_2(int argc, char** argv)
 		exit(1);
 	}
 
+	/* now that config was parsed and checked
+	 * prepare and preload shm-stats-file (if set)
+	 */
+	err_code |= shm_stats_file_prepare();
+	if (err_code & (ERR_ABORT|ERR_FATAL))
+		exit(1);
+
 	/* update the ready date to also account for the check time */
 	clock_update_date(0, 1);
 	clock_adjust_now_offset();

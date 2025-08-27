@@ -24,6 +24,7 @@
 #include <haproxy/log.h>
 #include <haproxy/peers.h>
 #include <haproxy/protocol.h>
+#include <haproxy/stats-file.h>
 #include <haproxy/stress.h>
 #include <haproxy/tools.h>
 
@@ -1599,6 +1600,52 @@ static int cfg_parse_global_env_opts(char **args, int section_type,
 	return 0;
 }
 
+static int cfg_parse_global_shm_stats_file(char **args, int section_type,
+				           struct proxy *curpx, const struct proxy *defpx,
+				           const char *file, int line, char **err)
+{
+	if (!experimental_directives_allowed) {
+		memprintf(err, "'%s' directive is experimental, must be allowed via a global 'expose-experimental-directives'", args[0]);
+		return -1;
+	}
+
+	if (global.shm_stats_file != NULL) {
+		memprintf(err, "'%s' already specified.\n", args[0]);
+		return -1;
+	}
+
+	if (!*(args[1])) {
+		memprintf(err, "'%s' expect one argument: a file path.\n", args[0]);
+		return -1;
+	}
+
+	global.shm_stats_file = strdup(args[1]);
+	return 0;
+}
+
+static int cfg_parse_global_shm_stats_file_max_objects(char **args, int section_type,
+				                       struct proxy *curpx, const struct proxy *defpx,
+				                       const char *file, int line, char **err)
+{
+	if (!experimental_directives_allowed) {
+		memprintf(err, "'%s' directive is experimental, must be allowed via a global 'expose-experimental-directives'", args[0]);
+		return -1;
+	}
+
+	if (shm_stats_file_max_objects != -1) {
+		memprintf(err, "'%s' already specified.\n", args[0]);
+		return -1;
+	}
+
+	if (!*(args[1])) {
+		memprintf(err, "'%s' expect one argument: max objects number.\n", args[0]);
+		return -1;
+	}
+
+	shm_stats_file_max_objects = atoi(args[1]);
+	return 0;
+}
+
 static int cfg_parse_global_parser_pause(char **args, int section_type,
                                          struct proxy *curpx, const struct proxy *defpx,
                                          const char *file, int line, char **err)
@@ -1809,6 +1856,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "quiet", cfg_parse_global_mode, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "resetenv", cfg_parse_global_env_opts, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "setenv", cfg_parse_global_env_opts, KWF_DISCOVERY },
+	{ CFG_GLOBAL, "shm-stats-file", cfg_parse_global_shm_stats_file },
+	{ CFG_GLOBAL, "shm-stats-file-max-objects", cfg_parse_global_shm_stats_file_max_objects },
 	{ CFG_GLOBAL, "stress-level", cfg_parse_global_stress_level },
 	{ CFG_GLOBAL, "tune.bufsize", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.chksize", cfg_parse_global_unsupported_opts },
