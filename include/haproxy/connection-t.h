@@ -622,12 +622,14 @@ struct connection {
 	/* second cache line */
 	struct wait_event *subs; /* Task to wake when awaited events are ready */
 	union {
-		struct list    idle_list; /* list element for idle connection in server idle list */
-		struct mt_list toremove_list; /* list element when idle connection is ready to be purged */
-	};
-	union {
-		struct list sess_el;       /* used by private backend conns, list elem into session */
-		struct list stopping_list; /* used by frontend conns, attach point in mux stopping list */
+		/* Backend connections only */
+		struct {
+			struct mt_list toremove_list; /* list element when idle connection is ready to be purged */
+			struct list    idle_list;     /* list element for idle connection in server idle list */
+			struct list    sess_el;       /* used by private connections, list elem into session */
+		};
+		/* Frontend connections only */
+		struct list stopping_list; /* attach point in mux stopping list */
 	};
 	union conn_handle handle;     /* connection handle at the socket layer */
 	const struct netns_entry *proxy_netns;
