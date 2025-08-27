@@ -473,6 +473,16 @@ static inline int shm_hb_is_stale(int hb)
 	return (hb == TICK_ETERNITY || tick_is_expired(hb, now_ms));
 }
 
+/* returns 1 if the slot <id> is free in <hdr>, else 0
+ */
+static int shm_stats_file_slot_isfree(struct shm_stats_file_hdr *hdr, int id)
+{
+	int hb;
+
+	hb = HA_ATOMIC_LOAD(&hdr->slots[id].heartbeat);
+	return shm_hb_is_stale(hb);
+}
+
 /* returns free slot id on success or -1 if no more slots are available
  * on success, the free slot is already reserved for the process pid
  */
@@ -524,6 +534,147 @@ static int shm_file_grow(unsigned int bytes)
 	return 1;
 }
 
+/* returns NULL if no free object or pointer to existing object if
+ * object can be reused
+ */
+static struct shm_stats_file_object *shm_stats_file_reuse_object(void)
+{
+	int it = 0;
+	int objects;
+	struct shm_stats_file_object *free_obj;
+
+	BUG_ON(!shm_stats_file_hdr);
+	objects = HA_ATOMIC_LOAD(&shm_stats_file_hdr->objects);
+	if (!objects)
+		return NULL;
+	while (it < objects) {
+		uint64_t users;
+		int free = 0;
+
+		free_obj = SHM_STATS_FILE_OBJECT(shm_stats_file_hdr, it);
+		users = HA_ATOMIC_LOAD(&free_obj->users);
+		if (!users)
+			free = 1; // no doubt, no user using this object
+		else {
+			int slot = 0;
+
+			/* if one or multiple users crashed or forgot to remove their bit
+			 * from obj->users but aren't making use of it anymore, we can detect
+			 * it by checking if the process related to "used" users slot are still
+			 * effectively active
+			 */
+			free = 1; // consider all users are inactive for now
+
+			while (slot < sizeof(shm_stats_file_hdr->slots) / sizeof(shm_stats_file_hdr->slots[0])) {
+				if ((users & (1 << slot)) &&
+				    !shm_stats_file_slot_isfree(shm_stats_file_hdr, slot)) {
+					/* user still alive, so supposedly making use of it */
+					free = 0;
+					break;
+				}
+				slot++;
+			}
+		}
+		if (free) {
+			uint64_t nusers = (1ULL << shm_stats_file_slot);
+
+			/* we use CAS here because we want to make sure that we are the only
+			 * process who exclusively owns the object as we are about to reset it.
+			 * In case of failure, we also don't expect our bit to be set, so
+			 * CAS is the best fit here. First we set the obj's users bits to 0
+			 * to make sure no other process will try to preload it (it may hold
+			 * garbage content) as we are about to reset it with our data, then
+			 * we do another CAS to confirm we are the owner of the object
+			 */
+			if (HA_ATOMIC_CAS(&free_obj->users, &users, 0)) {
+				/* we set obj tgid to 0 so it can't be looked up in
+				 * shm_stats_file_preload (tgid 0 is invalid)
+				 */
+				HA_ATOMIC_STORE(&free_obj->tgid, 0);
+
+				/* now we finally try to acquire the object */
+				users = 0;
+				if (HA_ATOMIC_CAS(&free_obj->users, &users, nusers))
+					return free_obj;
+			}
+			/* failed to CAS because of concurrent access, give up on this one */
+		}
+		it += 1;
+	}
+	return NULL;
+}
+
+/* returns pointer to new object in case of success and NULL in case
+ * of failure (if adding the maximum number of objects is already
+ * reached)
+ *
+ * <errmsg> will be set in case of failure to give more hints about the
+ * error, it must be freed accordingly
+ */
+struct shm_stats_file_object *shm_stats_file_add_object(char **errmsg)
+{
+	struct shm_stats_file_object *new_obj;
+	uint64_t expected_users;
+	int objects, objects_slots;
+
+	new_obj = shm_stats_file_reuse_object();
+	if (new_obj) {
+		return new_obj;
+	}
+
+ add:
+	objects = HA_ATOMIC_LOAD(&shm_stats_file_hdr->objects);
+
+	if (objects >= shm_stats_file_max_objects) {
+		memprintf(errmsg, "Cannot add additionnal object to '%s' file, maximum number already reached (%d). "
+		           "Adjust \"shm-stats-file-max-objects\" directive if needed.",
+		           global.shm_stats_file, shm_stats_file_max_objects / global.nbtgroups);
+		return NULL;
+	}
+
+	objects_slots = HA_ATOMIC_LOAD(&shm_stats_file_hdr->objects_slots);
+	/* we increase objects slots by following half power of two curve to
+	 * reduce waste while ensuring we don't grow the shm file (costly)
+	 * too often
+	 */
+	if (objects + 1 > objects_slots) {
+		int nobjects_slots;
+
+		if (objects_slots < 2)
+			nobjects_slots = objects_slots + 1;
+		else if ((objects_slots & (objects_slots - 1)) == 0)
+			nobjects_slots = objects_slots + objects_slots / 2;
+		else
+			nobjects_slots = (objects_slots & (objects_slots - 1)) * 2;
+
+		if (shm_file_grow((nobjects_slots - objects_slots) * sizeof(struct shm_stats_file_object)) == 0) {
+			memprintf(errmsg, "Error when trying to increase shm stats file size for '%s': %s",
+			          global.shm_stats_file, strerror(errno));
+			return NULL;
+		}
+		HA_ATOMIC_ADD(&shm_stats_file_hdr->objects_slots, nobjects_slots - objects_slots);
+	}
+
+	/* try to use this new slot */
+	new_obj = SHM_STATS_FILE_OBJECT(shm_stats_file_hdr, objects);
+	memset(new_obj, 0, sizeof(*new_obj)); // ensure object is reset before using it
+
+	if (HA_ATOMIC_FETCH_ADD(&shm_stats_file_hdr->objects, 1) != objects) {
+		/* a concurrent shm_stats_file_add_object stole our slot, retry */
+		__ha_cpu_relax();
+		goto add;
+	}
+
+	expected_users = 0;
+	if (!HA_ATOMIC_CAS(&new_obj->users, &expected_users, (1ULL << shm_stats_file_slot))) {
+		/* a parallel reuse stole us the object, retry */
+		__ha_cpu_relax();
+		goto add;
+	}
+
+	return new_obj;
+};
+
 static struct task *shm_stats_file_hb(struct task *task, void *context, unsigned int state)
 {
 	if (stopping)
@@ -545,12 +696,98 @@ static struct task *shm_stats_file_hb(struct task *task, void *context, unsigned
 	return task;
 }
 
+/* loads shm_stats_file content and tries to associate existing objects from
+ * the shared memory (if any) to objects defined in current haproxy config
+ * based on GUIDs
+ */
+static void shm_stats_file_preload(void)
+{
+	int it = 0;
+	int objects;
+	struct shm_stats_file_object *curr_obj;
+
+	BUG_ON(!shm_stats_file_hdr);
+	objects = HA_ATOMIC_LOAD(&shm_stats_file_hdr->objects);
+	if (!objects)
+		return; // nothing to do
+
+	while (it < objects) {
+		struct guid_node *node;
+		uint64_t users;
+		uint8_t obj_tgid;
+
+		curr_obj = SHM_STATS_FILE_OBJECT(shm_stats_file_hdr, it);
+
+		users = HA_ATOMIC_FETCH_OR(&curr_obj->users, (1ULL << shm_stats_file_slot));
+
+		/* ignore object if not used by anyone: when a process properly deinits,
+		 * it removes its user bit from the object, thus an object without any
+		 * bit should be considered as empty object
+		*/
+		if (!users)
+			goto release;
+
+		obj_tgid = HA_ATOMIC_LOAD(&curr_obj->tgid);
+
+		/* ignore object if greater than our max tgid */
+		if (obj_tgid <= global.nbtgroups &&
+		    (node = guid_lookup(curr_obj->guid))) {
+			switch (*node->obj_type) {
+				case OBJ_TYPE_LISTENER:
+				{
+					struct listener *li;
+
+					BUG_ON(curr_obj->type != SHM_STATS_FILE_OBJECT_TYPE_FE);
+					li = __objt_listener(node->obj_type);
+					if (li->counters) // counters are optional for listeners
+						li->counters->shared.tg[obj_tgid - 1] = &curr_obj->data.fe;
+					break;
+				}
+				case OBJ_TYPE_SERVER:
+				{
+					struct server *sv;
+
+					BUG_ON(curr_obj->type != SHM_STATS_FILE_OBJECT_TYPE_BE);
+					sv = __objt_server(node->obj_type);
+					sv->counters.shared.tg[obj_tgid - 1] = &curr_obj->data.be;
+					break;
+				}
+				case OBJ_TYPE_PROXY:
+				{
+					struct proxy *px;
+
+					px = __objt_proxy(node->obj_type);
+					if (curr_obj->type == SHM_STATS_FILE_OBJECT_TYPE_FE)
+						px->fe_counters.shared.tg[obj_tgid - 1] = &curr_obj->data.fe;
+					else if (curr_obj->type == SHM_STATS_FILE_OBJECT_TYPE_BE)
+						px->be_counters.shared.tg[obj_tgid - 1] = &curr_obj->data.be;
+					else
+						goto release; // not supported
+					break;
+				}
+				default:
+					/* not supported */
+					goto release;
+			}
+			/* success */
+			goto next;
+		}
+
+release:
+		/* we don't use this object, remove ourselves from object's users */
+		HA_ATOMIC_AND(&curr_obj->users, ~(1ULL << shm_stats_file_slot));
+next:
+		it += 1;
+	}
+}
+
 /* prepare and and initialize shm stats memory file as needed */
 int shm_stats_file_prepare(void)
 {
 	struct task *heartbeat_task;
 	int first = 0; // process responsible for initializing the shm memory
 	int slot;
+	int objects;
 
 	/* do nothing if master process or shm_stats_file not configured */
 	if (master || !global.shm_stats_file)
@@ -637,6 +874,34 @@ int shm_stats_file_prepare(void)
 	/* sync local and global clocks, so all clocks are consistent */
 	clock_update_date(0, 1);
 
+	/* check if the map is outdated and must be reset:
+	 * let's consider the map is outdated unless we find an occupied slot
+	 */
+ check_outdated:
+	if (first)
+		goto skip_check_outdated; // not needed
+	first = 1;
+	slot = 0;
+	objects = HA_ATOMIC_LOAD(&shm_stats_file_hdr->objects);
+	while (slot < sizeof(shm_stats_file_hdr->slots) / sizeof(shm_stats_file_hdr->slots[0])) {
+		if (!shm_stats_file_slot_isfree(shm_stats_file_hdr, slot)) {
+			first = 0;
+			break;
+		}
+		slot += 1;
+	}
+	if (first) {
+		/* no more slots occupied, let's reset the map but take some precautions
+		 * to ensure another reset doesn't occur in parallel
+		 */
+		if (!HA_ATOMIC_CAS(&shm_stats_file_hdr->objects, &objects, 0)) {
+			__ha_cpu_relax();
+			goto check_outdated;
+		}
+	}
+
+ skip_check_outdated:
+
 	/* reserve our slot */
 	slot = shm_stats_file_get_free_slot(shm_stats_file_hdr);
 	if (slot == -1) {
@@ -655,6 +920,9 @@ int shm_stats_file_prepare(void)
 	}
 	heartbeat_task->process = shm_stats_file_hb;
 	task_schedule(heartbeat_task, tick_add(now_ms, 1000));
+
+	/* try to preload existing objects in the shm (if any) */
+	shm_stats_file_preload();
 
  end:
 	return ERR_NONE;

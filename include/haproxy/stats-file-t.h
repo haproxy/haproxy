@@ -43,11 +43,28 @@ struct shm_stats_file_hdr {
 		pid_t pid;
 		int heartbeat; // last activity of this process + heartbeat timeout, in ticks
 	} slots[64];
+	int objects; /* actual number of objects stored in the shm */
+	int objects_slots; /* total available objects slots unless map is resized */
 };
 
+#define SHM_STATS_FILE_OBJECT_TYPE_FE 0x0
+#define SHM_STATS_FILE_OBJECT_TYPE_BE 0x1
+
 struct shm_stats_file_object {
+	char guid[GUID_MAX_LEN + 1];
+	uint8_t tgid; // thread group ID from 1 to 64
+	uint8_t type; // SHM_STATS_FILE_OBJECT_TYPE_* to know how to handle object.data
+	uint64_t users; // bitfield that corresponds to users of the object (see shm_stats_file_hdr slots)
+	/* as the struct may hold any of the types described here, let's make it
+	 * so it may store up to the heaviest one using an union
+	 */
+	union {
+		struct fe_counters_shared_tg fe;
+		struct be_counters_shared_tg be;
+	} data;
 };
 
 #define SHM_STATS_FILE_MAPPING_SIZE(obj) (sizeof(struct shm_stats_file_hdr) + (obj) * sizeof(struct shm_stats_file_object))
+#define SHM_STATS_FILE_OBJECT(mem, it) (struct shm_stats_file_object *)((char *)mem + sizeof(struct shm_stats_file_hdr) + (it) * sizeof(struct shm_stats_file_object))
 
 #endif /* _HAPROXY_STATS_FILE_T_H */
