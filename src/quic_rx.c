@@ -820,13 +820,12 @@ static inline unsigned int quic_ack_delay_ms(struct qf_ack *ack_frm,
 static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
                              struct quic_enc_level *qel)
 {
-	struct list retry_frms = LIST_HEAD_INIT(retry_frms);
-	struct quic_frame *frm = NULL, *frm_tmp;
+	struct eb_root cf_frms_tree = EB_ROOT;
+	struct eb64_node *node;
+	struct quic_frame *frm = NULL;
 	const unsigned char *pos, *end;
 	enum quic_rx_ret_frm ret;
 	int fast_retrans = 0;
-	/* parsing may be rerun multiple times, but no more than <iter>. */
-	int iter = 3, parsing_stage = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
 	/* Skip the AAD */
@@ -904,36 +903,9 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			break;
 		}
 		case QUIC_FT_CRYPTO:
-			ret = qc_handle_crypto_frm(qc, &frm->crypto, pkt, qel);
-			switch (ret) {
-			case QUIC_RX_RET_FRM_FATAL:
-				goto err;
-
-			case QUIC_RX_RET_FRM_AGAIN:
-				if (parsing_stage == 0) {
-					TRACE_STATE("parsing stage set to 1 (AGAIN encountered)", QUIC_EV_CONN_PRSHPKT, qc);
-					++parsing_stage;
-				}
-				/* Save frame in temp list to reparse it later. A new instance must be used for next packet frames. */
-				LIST_APPEND(&retry_frms, &frm->list);
-				frm = NULL;
-				break;
-
-			case QUIC_RX_RET_FRM_DUP:
-				if (!qc_is_back(qc) && qel == qc->iel &&
-				    !(qc->flags & QUIC_FL_CONN_HANDSHAKE_SPEED_UP)) {
-					fast_retrans = 1;
-				}
-				break;
-
-			case QUIC_RX_RET_FRM_DONE:
-				if (parsing_stage == 1) {
-					TRACE_STATE("parsing stage set to 2 (DONE after AGAIN)", QUIC_EV_CONN_PRSHPKT, qc);
-					++parsing_stage;
-				}
-				break;
-			}
-
+			frm->crypto.offset_node.key = frm->crypto.offset;
+			eb64_insert(&cf_frms_tree, &frm->crypto.offset_node);
+			frm = NULL;
 			break;
 		case QUIC_FT_NEW_TOKEN:
 			if (!qc_is_back(qc)) {
@@ -1121,57 +1093,39 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	if (frm)
 		qc_frm_free(qc, &frm);
 
-	while (!LIST_ISEMPTY(&retry_frms)) {
-		if (--iter <= 0) {
-			TRACE_ERROR("interrupt parsing due to max iteration reached",
-			            QUIC_EV_CONN_PRSHPKT, qc);
+	node = eb64_first(&cf_frms_tree);
+	while (node) {
+		frm = eb64_entry(node, struct quic_frame, crypto.offset_node);
+		/* only CRYPTO frames may be reparsed for now */
+		BUG_ON(frm->type != QUIC_FT_CRYPTO);
+		node = eb64_next(node);
+		ret = qc_handle_crypto_frm(qc, &frm->crypto, pkt, qel);
+		switch (ret) {
+		case QUIC_RX_RET_FRM_FATAL:
 			goto err;
-		}
-		else if (parsing_stage <= 1) {
-			TRACE_ERROR("interrupt parsing due to buffering blocked on gap size limit",
-			            QUIC_EV_CONN_PRSHPKT, qc);
+
+		case QUIC_RX_RET_FRM_AGAIN:
+			TRACE_STATE("AGAIN encountered", QUIC_EV_CONN_PRSHPKT, qc);
 			goto err;
-		}
 
-		parsing_stage = 0;
-		list_for_each_entry_safe(frm, frm_tmp, &retry_frms, list) {
-			/* only CRYPTO frames may be reparsed for now */
-			BUG_ON(frm->type != QUIC_FT_CRYPTO);
-			ret = qc_handle_crypto_frm(qc, &frm->crypto, pkt, qel);
-			switch (ret) {
-			case QUIC_RX_RET_FRM_FATAL:
-				goto err;
+		case QUIC_RX_RET_FRM_DONE:
+			TRACE_PROTO("frame handled", QUIC_EV_CONN_PRSAFRM, qc, frm);
+			break;
 
-			case QUIC_RX_RET_FRM_AGAIN:
-				if (parsing_stage == 0) {
-					TRACE_STATE("parsing stage set to 1 (AGAIN encountered)", QUIC_EV_CONN_PRSHPKT, qc);
-					++parsing_stage;
-				}
-				break;
-
-			case QUIC_RX_RET_FRM_DONE:
-				TRACE_PROTO("frame handled after a new parsing iteration",
-				            QUIC_EV_CONN_PRSAFRM, qc, frm);
-				if (parsing_stage == 1) {
-					TRACE_STATE("parsing stage set to 2 (DONE after AGAIN)", QUIC_EV_CONN_PRSHPKT, qc);
-					++parsing_stage;
-				}
-				__fallthrough;
-			case QUIC_RX_RET_FRM_DUP:
-				qc_frm_free(qc, &frm);
-				break;
+		case QUIC_RX_RET_FRM_DUP:
+			if (!qc_is_back(qc) && qel == qc->iel &&
+				!(qc->flags & QUIC_FL_CONN_HANDSHAKE_SPEED_UP)) {
+				fast_retrans = 1;
 			}
+			break;
 		}
 
-		/* Always reset <frm> as it may be dangling after
-		 * list_for_each_entry_safe() usage. Especially necessary to
-		 * prevent a crash if loop is interrupted on max iteration.
-		 */
-		frm = NULL;
+		eb64_delete(&frm->crypto.offset_node);
+		qc_frm_free(qc, &frm);
 	}
 
 	/* Error should be returned if some frames cannot be parsed. */
-	BUG_ON(!LIST_ISEMPTY(&retry_frms));
+	BUG_ON(!eb_is_empty(&cf_frms_tree));
 
 	if (fast_retrans && qc->iel && qc->hel) {
 		struct quic_enc_level *iqel = qc->iel;
@@ -1207,7 +1161,11 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
  err:
 	if (frm)
 		qc_frm_free(qc, &frm);
-	list_for_each_entry_safe(frm, frm_tmp, &retry_frms, list) {
+	node = eb64_first(&cf_frms_tree);
+	while (node) {
+		frm = eb64_entry(node, struct quic_frame, crypto.offset_node);
+		node = eb64_next(node);
+		eb64_delete(&frm->crypto.offset_node);
 		qc_frm_free(qc, &frm);
 	}
 
