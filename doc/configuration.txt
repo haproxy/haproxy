@@ -16611,9 +16611,13 @@ crt-list <file>
 
 default-crt <cert>
   This option does the same as the "crt" option, with the difference that this
-  certificate will be used as a default one. It is possible to add multiple
-  default certificates to have an ECDSA and an RSA one, having more is not
-  really useful.
+  certificate will be used as a default one as well. It is possible to add
+  multiple default certificates to have an ECDSA and an RSA one, having more is
+  not really useful.
+
+  This option does not disable implicit default certificates, if a 'crt'
+  certificate is declared first before any 'default-crt' or other 'crt' it will
+  still be used as a default certificate.
 
   A default certificate is used when no "strict-sni" option is used on the bind
   line. A default certificate is provided when the servername extension was not
@@ -16622,7 +16626,11 @@ default-crt <cert>
 
   Example:
 
+     # this bind line has 2 default certificates
      bind *:443 default-crt foobar.pem.rsa default-crt foobar.pem.ecdsa crt website.pem.rsa
+
+     # this bind line has 3 default certificates
+     bind *:443 crt website.pem.rsa default-crt foobar.pem.rsa default-crt foobar.pem.ecdsa
 
   See also the "crt" keyword.
 
