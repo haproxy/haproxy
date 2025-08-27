@@ -5048,7 +5048,7 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 		}
 
 		if (is_default ==  CKCH_INST_EXPL_DEFAULT) {
-			ha_diag_warning("Proxy '%s': both 'default-crt' and 'strict-sni' keywords are used in bind '%s' at [%s:%d], certificates won't be used as fallback (use 'crt' instead).\n",
+			ha_warning("Proxy '%s': both 'default-crt' and 'strict-sni' keywords are used in bind '%s' at [%s:%d], certificates won't be used as fallback (use 'crt' instead).\n",
 				   px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 		}
 
