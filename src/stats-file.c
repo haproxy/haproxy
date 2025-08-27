@@ -538,9 +538,49 @@ int shm_stats_file_prepare(void)
 		memset(shm_stats_file_hdr, 0, sizeof(*shm_stats_file_hdr));
 		shm_stats_file_hdr->version.major = SHM_STATS_FILE_VER_MAJOR;
 		shm_stats_file_hdr->version.minor = SHM_STATS_FILE_VER_MINOR;
+
+		/* set global clock for the first time */
+		shm_stats_file_hdr->global_now_ms = *global_now_ms;
+		shm_stats_file_hdr->global_now_ns = *global_now_ns;
+		shm_stats_file_hdr->now_offset = clock_get_now_offset();
 	}
 	else if (!shm_stats_file_check_ver(shm_stats_file_hdr))
 		goto err_version;
+
+	/* from now on use the shared global time */
+	global_now_ms = &shm_stats_file_hdr->global_now_ms;
+	global_now_ns = &shm_stats_file_hdr->global_now_ns;
+
+	if (!first) {
+		llong adjt_offset;
+
+		/* set adjusted offset which corresponds to the corrected offset
+		 * relative to the initial offset stored in the shared memory instead
+		 * of our process-local one
+		 */
+		adjt_offset = -clock_get_now_offset() + shm_stats_file_hdr->now_offset;
+
+		/* we now rely on global_now_* from the shm, so the boot
+		 * offset that was initially applied in clock_init_process_date()
+		 * is no longer relevant. So we fix it by applying the one from the
+		 * initial process instead
+		 */
+		now_ns = now_ns + adjt_offset;
+		start_time_ns = start_time_ns + adjt_offset;
+		clock_set_now_offset(shm_stats_file_hdr->now_offset);
+
+		/* ensure global_now_* is consistent before continuing */
+		clock_update_global_date();
+	}
+
+	/* now that global_now_ns is accurate, recompute precise now_offset
+	 * if needed (in case it is dynamic when monotonic clock not available)
+	 */
+	if (!th_ctx->curr_mono_time)
+		clock_set_now_offset(HA_ATOMIC_LOAD(global_now_ns) - tv_to_ns(&date));
+
+	/* sync local and global clocks, so all clocks are consistent */
+	clock_update_date(0, 1);
 
  end:
 	return ERR_NONE;

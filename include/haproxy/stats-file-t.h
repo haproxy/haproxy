@@ -24,6 +24,9 @@ struct shm_stats_file_hdr {
 		uint8_t major;
 		uint8_t minor;
 	} version;
+	uint global_now_ms;   /* global monotonic date (ms) common to all processes using the shm */
+	ullong global_now_ns; /* global monotonic date (ns) common to all processes using the shm */
+	llong now_offset;     /* offset applied to global monotonic date on startup */
 };
 
 struct shm_stats_file_object {
