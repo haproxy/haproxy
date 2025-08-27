@@ -3211,7 +3211,7 @@ int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct 
 	 */
 
 	if (is_default) {
-		ckch_inst->is_default = 1;
+		ckch_inst->is_default = is_default;
 
 		/* insert an empty SNI which will be used to lookup default certificate */
 		order = ckch_inst_add_cert_sni(ctx, ckch_inst, bind_conf, ssl_conf, kinfo, "*", order);
@@ -3447,14 +3447,14 @@ int ssl_sock_load_cert_list_file(char *file, int dir, struct bind_conf *bind_con
 	list_for_each_entry(entry, &crtlist->ord_entries, by_crtlist) {
 		struct ckch_store *store;
 		struct ckch_inst *ckch_inst = NULL;
-		int is_default = 0;
+		int is_default = CKCH_INST_NO_DEFAULT;
 
 		store = entry->node.key;
 
 		/* if the SNI trees were empty the first "crt" become a default certificate,
 		 * it can be applied on multiple certificates if it's a bundle */
 		if (eb_is_empty(&bind_conf->sni_ctx) && eb_is_empty(&bind_conf->sni_w_ctx))
-			is_default = 1;
+			is_default = CKCH_INST_IMPL_DEFAULT;
 
 
 		cfgerr |= ssl_sock_load_ckchs(store->path, store, bind_conf, entry->ssl_conf, entry->filters, entry->fcount, is_default, &ckch_inst, err);
@@ -3509,9 +3509,9 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, int is_default, 
 
 	/* if the SNI trees were empty the first "crt" become a default certificate,
 	 * it can be applied on multiple certificates if it's a bundle */
-	if (is_default == 0) {
+	if (is_default == CKCH_INST_NO_DEFAULT) {
 		if (eb_is_empty(&bind_conf->sni_ctx) && eb_is_empty(&bind_conf->sni_w_ctx))
-			is_default = 1;
+			is_default = CKCH_INST_IMPL_DEFAULT;
 	}
 
 	if ((ckchs = ckchs_lookup(path))) {
@@ -5026,6 +5026,34 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 			return -1;
 		}
 	}
+
+	/* check that we didn't use "strict-sni" and "default-crt" together */
+	if (bind_conf->ssl_options & BC_SSL_O_STRICT_SNI) {
+		struct ebmb_node *node, *n;
+		const char *wildp = "";
+		int is_default = CKCH_INST_NO_DEFAULT;
+
+		node = ebst_lookup(&bind_conf->sni_w_ctx, wildp);
+		for (n = node; n; n = ebmb_next_dup(n)) {
+			struct sni_ctx *sni;
+
+			sni = container_of(n, struct sni_ctx, name);
+			if (!sni->neg) {
+
+				if (sni->ckch_inst->is_default == CKCH_INST_EXPL_DEFAULT) {
+					is_default = CKCH_INST_EXPL_DEFAULT;
+					break;
+				}
+			}
+		}
+
+		if (is_default ==  CKCH_INST_EXPL_DEFAULT) {
+			ha_diag_warning("Proxy '%s': both 'default-crt' and 'strict-sni' keywords are used in bind '%s' at [%s:%d], certificates won't be used as fallback (use 'crt' instead).\n",
+				   px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+		}
+
+	}
+
 
 	if ((bind_conf->options & BC_O_GENERATE_CERTS)) {
 		struct sni_ctx *sni_ctx;

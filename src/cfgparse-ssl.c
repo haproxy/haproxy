@@ -789,7 +789,7 @@ static int bind_parse_ciphersuites(char **args, int cur_arg, struct proxy *px, s
 static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	char path[MAXPATHLEN];
-	int default_crt = *args[cur_arg] == 'd' ? 1 : 0;
+	int default_crt = *args[cur_arg] == 'd' ? CKCH_INST_EXPL_DEFAULT : CKCH_INST_NO_DEFAULT;
 
 	if (!*args[cur_arg + 1]) {
 		memprintf(err, "'%s' : missing certificate location", args[cur_arg]);

@@ -116,6 +116,11 @@ struct ckch_inst_link_ref {
        struct list list;
 };
 
+
+#define CKCH_INST_NO_DEFAULT          0   /* not the default instance */
+#define CKCH_INST_IMPL_DEFAULT        1   /* implicit default instance (declaration order) */
+#define CKCH_INST_EXPL_DEFAULT        2   /* explicit default instance (default-crt) */
+
 /*
  * This structure describe a ckch instance. An instance is generated for each
  * bind_conf.  The instance contains a linked list of the sni ctx which uses
@@ -128,7 +133,7 @@ struct ckch_inst {
 	struct crtlist_entry *crtlist_entry; /* pointer to the crtlist_entry used, or NULL */
 	struct server *server; /* pointer to the server if is_server_instance is set, NULL otherwise */
 	SSL_CTX *ctx; /* pointer to the SSL context used by this instance */
-	unsigned int is_default:1;      /* This instance is used as the default ctx for this bind_conf */
+	unsigned int is_default:2;      /* This instance is used as the default ctx for this bind_conf (1: implicit default, 2: explicit default) */
 	unsigned int is_server_instance:1; /* This instance is used by a backend server */
 	/* space for more flag there */
 	struct list sni_ctx; /* list of sni_ctx using this ckch_inst */
