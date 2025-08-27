@@ -149,7 +149,7 @@ static int qc_ssl_crypto_data_cpy(struct quic_conn *qc, struct quic_enc_level *q
 				goto leave;
 			}
 
-			frm->crypto.offset = cf_offset;
+			frm->crypto.offset_node.key = cf_offset;
 			frm->crypto.len = cf_len;
 			frm->crypto.qel = qel;
 			LIST_APPEND(&qel->pktns->tx.frms, &frm->list);

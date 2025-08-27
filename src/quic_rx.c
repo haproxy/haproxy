@@ -662,7 +662,7 @@ static enum quic_rx_ret_frm qc_handle_crypto_frm(struct quic_conn *qc,
 	enum quic_rx_ret_frm ret = QUIC_RX_RET_FRM_DONE;
 	/* XXX TO DO: <cfdebug> is used only for the traces. */
 	struct quic_rx_crypto_frm cfdebug = {
-		.offset_node.key = crypto_frm->offset,
+		.offset_node.key = crypto_frm->offset_node.key,
 		.len = crypto_frm->len,
 	};
 	struct quic_cstream *cstream = qel->cstream;
@@ -671,10 +671,10 @@ static enum quic_rx_ret_frm qc_handle_crypto_frm(struct quic_conn *qc,
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
 
-	if (unlikely(crypto_frm->offset < cstream->rx.offset)) {
+	if (unlikely(crypto_frm->offset_node.key < cstream->rx.offset)) {
 		size_t diff;
 
-		if (crypto_frm->offset + crypto_frm->len <= cstream->rx.offset) {
+		if (crypto_frm->offset_node.key + crypto_frm->len <= cstream->rx.offset) {
 			/* Nothing to do */
 			TRACE_PROTO("Already received CRYPTO data",
 			            QUIC_EV_CONN_RXPKT, qc, pkt, &cfdebug);
@@ -685,10 +685,10 @@ static enum quic_rx_ret_frm qc_handle_crypto_frm(struct quic_conn *qc,
 		TRACE_PROTO("Partially already received CRYPTO data",
 		            QUIC_EV_CONN_RXPKT, qc, pkt, &cfdebug);
 
-		diff = cstream->rx.offset - crypto_frm->offset;
+		diff = cstream->rx.offset - crypto_frm->offset_node.key;
 		crypto_frm->len -= diff;
 		crypto_frm->data += diff;
-		crypto_frm->offset = cstream->rx.offset;
+		crypto_frm->offset_node.key = cstream->rx.offset;
 	}
 
 	if (!quic_get_ncbuf(ncbuf) || ncb_is_null(ncbuf)) {
@@ -697,7 +697,7 @@ static enum quic_rx_ret_frm qc_handle_crypto_frm(struct quic_conn *qc,
 	}
 
 	/* crypto_frm->offset > cstream-trx.offset */
-	off_rel = crypto_frm->offset - cstream->rx.offset;
+	off_rel = crypto_frm->offset_node.key - cstream->rx.offset;
 
 	/* RFC 9000 7.5. Cryptographic Message Buffering
 	 *
@@ -903,7 +903,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			break;
 		}
 		case QUIC_FT_CRYPTO:
-			frm->crypto.offset_node.key = frm->crypto.offset;
+			frm->crypto.offset_node.key = frm->crypto.offset_node.key;
 			eb64_insert(&cf_frms_tree, &frm->crypto.offset_node);
 			frm = NULL;
 			break;

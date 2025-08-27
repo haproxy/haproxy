@@ -86,7 +86,7 @@ static inline size_t qc_frm_len(struct quic_frame *frm)
 	}
 	case QUIC_FT_CRYPTO: {
 		struct qf_crypto *f = &frm->crypto;
-		len += 1 + quic_int_getsize(f->offset) + quic_int_getsize(f->len) + f->len;
+		len += 1 + quic_int_getsize(f->offset_node.key) + quic_int_getsize(f->len) + f->len;
 		break;
 	}
 	case QUIC_FT_NEW_TOKEN: {
