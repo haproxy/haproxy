@@ -3466,14 +3466,16 @@ static int init_srv_slowstart(struct server *srv);
 int srv_postinit(struct server *srv)
 {
 	int err_code = ERR_NONE;
+	char *errmsg = NULL;
 
 	err_code |= _srv_check_proxy_mode(srv, 1);
 
 	if (err_code & ERR_CODE)
 		goto out;
 
-	if (!counters_be_shared_prepare(&srv->counters.shared, &srv->guid)) {
-		ha_alert("memory error while setting up shared counters for %s/%s server\n", srv->proxy->id, srv->id);
+	if (!counters_be_shared_prepare(&srv->counters.shared, &srv->guid, &errmsg)) {
+		ha_alert("memory error while setting up shared counters for %s/%s server : %s\n", srv->proxy->id, srv->id, errmsg);
+		ha_free(&errmsg);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}

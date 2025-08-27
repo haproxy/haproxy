@@ -27,8 +27,8 @@
 #include <haproxy/counters-t.h>
 #include <haproxy/guid-t.h>
 
-int counters_fe_shared_prepare(struct fe_counters_shared *counters, const struct guid_node *guid);
-int counters_be_shared_prepare(struct be_counters_shared *counters, const struct guid_node *guid);
+int counters_fe_shared_prepare(struct fe_counters_shared *counters, const struct guid_node *guid, char **errmsg);
+int counters_be_shared_prepare(struct be_counters_shared *counters, const struct guid_node *guid, char **errmsg);
 
 void counters_fe_shared_drop(struct fe_counters_shared *counters);
 void counters_be_shared_drop(struct be_counters_shared *counters);

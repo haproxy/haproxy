@@ -1749,6 +1749,7 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, char **errmsg)
 static int proxy_postcheck(struct proxy *px)
 {
 	struct listener *listener;
+	char *errmsg = NULL;
 	int err_code = ERR_NONE;
 
 	/* allocate private memory for shared counters: used as a fallback
@@ -1757,9 +1758,10 @@ static int proxy_postcheck(struct proxy *px)
 	 * proxy postparsing, see proxy_postparse()
 	 */
 	if (px->cap & PR_CAP_FE) {
-		if (!counters_fe_shared_prepare(&px->fe_counters.shared, &px->guid)) {
-			ha_alert("out of memory while setting up shared counters for %s %s\n",
-			         proxy_type_str(px), px->id);
+		if (!counters_fe_shared_prepare(&px->fe_counters.shared, &px->guid, &errmsg)) {
+			ha_alert("out of memory while setting up shared counters for %s %s : %s\n",
+			         proxy_type_str(px), px->id, errmsg);
+			ha_free(&errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -1769,9 +1771,10 @@ static int proxy_postcheck(struct proxy *px)
 		 * be_counters may be used even if the proxy lacks the backend
 		 * capability
 		 */
-		if (!counters_be_shared_prepare(&px->be_counters.shared, &px->guid)) {
-			ha_alert("out of memory while setting up shared counters for %s %s\n",
-			         proxy_type_str(px), px->id);
+		if (!counters_be_shared_prepare(&px->be_counters.shared, &px->guid, &errmsg)) {
+			ha_alert("out of memory while setting up shared counters for %s %s : %s\n",
+			         proxy_type_str(px), px->id, errmsg);
+			ha_free(&errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -1780,10 +1783,11 @@ static int proxy_postcheck(struct proxy *px)
 
 	list_for_each_entry(listener, &px->conf.listeners, by_fe) {
 		if (listener->counters) {
-			if (!counters_fe_shared_prepare(&listener->counters->shared, &listener->guid)) {
+			if (!counters_fe_shared_prepare(&listener->counters->shared, &listener->guid, &errmsg)) {
 				ha_free(&listener->counters);
-				ha_alert("out of memory while setting up shared listener counters for %s %s\n",
-				         proxy_type_str(px), px->id);
+				ha_alert("out of memory while setting up shared listener counters for %s %s : %s\n",
+				         proxy_type_str(px), px->id, errmsg);
+				ha_free(&errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}

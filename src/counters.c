@@ -24,6 +24,7 @@
 #include <haproxy/counters.h>
 #include <haproxy/global.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 
 static void _counters_shared_drop(void *counters)
 {
@@ -55,9 +56,11 @@ void counters_be_shared_drop(struct be_counters_shared *counters)
 /* prepare shared counters pointer for a given <guid> object
  * <size> hint is expected to reflect the actual tg member size (fe/be)
  * if <guid> is not set, then sharing is disabled
- * Returns the pointer on success or NULL on failure
+ * Returns the pointer on success or NULL on failure, in which case
+ * <errmsg> will contain additional hints about the error and must be freed accordingly
  */
-static int _counters_shared_prepare(struct counters_shared *shared, const struct guid_node *guid, size_t size)
+static int _counters_shared_prepare(struct counters_shared *shared,
+                                    const struct guid_node *guid, size_t size, char **errmsg)
 {
 	int it = 0;
 
@@ -69,6 +72,7 @@ static int _counters_shared_prepare(struct counters_shared *shared, const struct
 	while (it < global.nbtgroups) {
 		shared->tg[it] = calloc(1, size);
 		if (!shared->tg[it]) {
+			memprintf(errmsg, "memory error, calloc failed");
 			_counters_shared_drop(shared);
 			return 0;
 		}
@@ -83,13 +87,13 @@ static int _counters_shared_prepare(struct counters_shared *shared, const struct
 }
 
 /* prepare shared fe counters pointer for a given <guid> object */
-int counters_fe_shared_prepare(struct fe_counters_shared *shared, const struct guid_node *guid)
+int counters_fe_shared_prepare(struct fe_counters_shared *shared, const struct guid_node *guid, char **errmsg)
 {
-	return _counters_shared_prepare((struct counters_shared *)shared, guid, sizeof(struct fe_counters_shared_tg));
+	return _counters_shared_prepare((struct counters_shared *)shared, guid, sizeof(struct fe_counters_shared_tg), errmsg);
 }
 
 /* prepare shared be counters pointer for a given <guid> object */
-int counters_be_shared_prepare(struct be_counters_shared *shared, const struct guid_node *guid)
+int counters_be_shared_prepare(struct be_counters_shared *shared, const struct guid_node *guid, char **errmsg)
 {
-	return _counters_shared_prepare((struct counters_shared *)shared, guid, sizeof(struct be_counters_shared_tg));
+	return _counters_shared_prepare((struct counters_shared *)shared, guid, sizeof(struct be_counters_shared_tg), errmsg);
 }
