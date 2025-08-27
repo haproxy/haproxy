@@ -6799,6 +6799,9 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 				}
 				free_trash_chunk(tmptrash);
 			}
+
+			/* force connection cleanup on the given server */
+			srv_cleanup_connections(s);
 		}
 		else {	/* server was still running */
 			s->check.health = 0; /* failure */
