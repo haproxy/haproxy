@@ -17,6 +17,10 @@ enum stfile_domain {
 #define SHM_STATS_FILE_VER_MAJOR         1
 #define SHM_STATS_FILE_VER_MINOR         0
 
+#define SHM_STATS_FILE_HEARTBEAT_TIMEOUT 60 /* passed this delay (seconds) process which has not
+                                             * sent heartbeat will be considered down
+                                             */
+
 /* header for shm stats file ("shm-stats-file") */
 struct shm_stats_file_hdr {
 	/* to check if the header is compatible with current haproxy version */
@@ -27,6 +31,18 @@ struct shm_stats_file_hdr {
 	uint global_now_ms;   /* global monotonic date (ms) common to all processes using the shm */
 	ullong global_now_ns; /* global monotonic date (ns) common to all processes using the shm */
 	llong now_offset;     /* offset applied to global monotonic date on startup */
+	/* each process uses one slot and is identified using its pid, max 64 in order
+	 * to be able to use bitmask to refer to a process and then look its pid in the
+	 * "slots.pid" map
+	 * "heartbeat"is used to store the last activity + timeout of the process to check
+	 * whether it should be considered as alive or dead
+	 * no thread safety mechanism is employed, we assume co-processes are not started
+	 * simultaneously
+	 */
+	struct {
+		pid_t pid;
+		int heartbeat; // last activity of this process + heartbeat timeout, in ticks
+	} slots[64];
 };
 
 struct shm_stats_file_object {

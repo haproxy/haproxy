@@ -32,6 +32,7 @@
 
 struct shm_stats_file_hdr *shm_stats_file_hdr = NULL;
 static int shm_stats_file_fd = -1;
+int shm_stats_file_slot = -1;
 int shm_stats_file_max_objects = -1;
 
 /* Dump all fields from <stats> into <out> for stats-file. */
@@ -467,6 +468,37 @@ static int shm_stats_file_check_ver(struct shm_stats_file_hdr *hdr)
 	return 1;
 }
 
+static inline int shm_hb_is_stale(int hb)
+{
+	return (hb == TICK_ETERNITY || tick_is_expired(hb, now_ms));
+}
+
+/* returns free slot id on success or -1 if no more slots are available
+ * on success, the free slot is already reserved for the process pid
+ */
+int shm_stats_file_get_free_slot(struct shm_stats_file_hdr *hdr)
+{
+	int it = 0;
+	int hb;
+
+	while (it < sizeof(hdr->slots) / sizeof(hdr->slots[0])) {
+		hb = HA_ATOMIC_LOAD(&hdr->slots[it].heartbeat);
+		/* try to own a stale entry */
+		while (shm_hb_is_stale(hb)) {
+			int new_hb = tick_add(now_ms, MS_TO_TICKS(SHM_STATS_FILE_HEARTBEAT_TIMEOUT * 1000));
+
+			if (HA_ATOMIC_CAS(&hdr->slots[it].heartbeat, &hb, new_hb)) {
+				shm_stats_file_hdr->slots[it].pid = getpid();
+				return it;
+			}
+			/* another process was faster than us */
+			__ha_cpu_relax();
+		}
+		it += 1;
+	}
+	return -1;
+}
+
 /* since shm file was opened using O_APPEND flag, let's grow
  * the file by <bytes> in an atomic manner (O_APPEND offers such guarantee),
  * so that even if multiple processes try to grow the file simultaneously,
@@ -492,10 +524,33 @@ static int shm_file_grow(unsigned int bytes)
 	return 1;
 }
 
+static struct task *shm_stats_file_hb(struct task *task, void *context, unsigned int state)
+{
+	if (stopping)
+		return NULL;
+
+	/* only update the heartbeat if it hasn't expired. Else it means the slot could have
+	 * been reused and it isn't safe to use anymore.
+	 * If this happens, raise a warning and stop using it
+	 */
+	if (tick_is_expired(HA_ATOMIC_LOAD(&shm_stats_file_hdr->slots[shm_stats_file_slot].heartbeat), now_ms)) {
+		ha_warning("shm_stats_file: heartbeat for the current process slot already expired, it is not safe to use it anymore\n");
+		task->expire = TICK_ETERNITY;
+		return task;
+	}
+	HA_ATOMIC_STORE(&shm_stats_file_hdr->slots[shm_stats_file_slot].heartbeat,
+	                tick_add(now_ms, MS_TO_TICKS(SHM_STATS_FILE_HEARTBEAT_TIMEOUT * 1000)));
+	task->expire = tick_add(now_ms, 1000); // next update in 1 sec
+
+	return task;
+}
+
 /* prepare and and initialize shm stats memory file as needed */
 int shm_stats_file_prepare(void)
 {
+	struct task *heartbeat_task;
 	int first = 0; // process responsible for initializing the shm memory
+	int slot;
 
 	/* do nothing if master process or shm_stats_file not configured */
 	if (master || !global.shm_stats_file)
@@ -582,6 +637,25 @@ int shm_stats_file_prepare(void)
 	/* sync local and global clocks, so all clocks are consistent */
 	clock_update_date(0, 1);
 
+	/* reserve our slot */
+	slot = shm_stats_file_get_free_slot(shm_stats_file_hdr);
+	if (slot == -1) {
+		ha_warning("config: failed to get shm stats file slot for '%s', all slots are occupied\n", global.shm_stats_file);
+		munmap(shm_stats_file_hdr, sizeof(*shm_stats_file_hdr));
+		return ERR_WARN;
+	}
+
+	shm_stats_file_slot = slot;
+
+	/* start the task responsible for updating the heartbeat */
+	heartbeat_task = task_new_anywhere();
+	if (!heartbeat_task) {
+		ha_alert("config: failed to create the heartbeat task for shm stats file '%s'\n", global.shm_stats_file);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	heartbeat_task->process = shm_stats_file_hb;
+	task_schedule(heartbeat_task, tick_add(now_ms, 1000));
+
  end:
 	return ERR_NONE;
 
@@ -593,6 +667,10 @@ int shm_stats_file_prepare(void)
 static void cleanup_shm_stats_file(void)
 {
 	if (shm_stats_file_hdr) {
+		/* mark the process slot we occupied as unused */
+		HA_ATOMIC_STORE(&shm_stats_file_hdr->slots[shm_stats_file_slot].heartbeat, TICK_ETERNITY);
+		shm_stats_file_hdr->slots[shm_stats_file_slot].pid = -1;
+
 		munmap(shm_stats_file_hdr, SHM_STATS_FILE_MAPPING_SIZE(shm_stats_file_max_objects));
 		close(shm_stats_file_fd);
 	}
