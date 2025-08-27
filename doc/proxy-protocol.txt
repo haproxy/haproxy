@@ -654,7 +654,7 @@ of the used cipher, for example "ECDHE-RSA-AES128-GCM-SHA256".
 The second level TLV PP2_SUBTYPE_SSL_SIG_ALG provides the US-ASCII string name
 of the algorithm used to sign the certificate presented by the frontend when
 the incoming connection was made over an SSL/TLS transport layer, for example
-"SHA256".
+"RSA-SHA256".
 
 The second level TLV PP2_SUBTYPE_SSL_KEY_ALG provides the US-ASCII string name
 of the algorithm used to generate the key of the certificate presented by the
