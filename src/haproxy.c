@@ -2061,12 +2061,12 @@ static void step_init_2(int argc, char** argv)
 	/* destroy unreferenced defaults proxies  */
 	proxy_destroy_all_unref_defaults();
 
-	list_for_each_entry(prcf, &pre_check_list, list)
+	list_for_each_entry(prcf, &pre_check_list, list) {
 		err_code |= prcf->fct();
-
-	if (err_code & (ERR_ABORT|ERR_FATAL)) {
-		ha_alert("Fatal errors found in configuration.\n");
-		exit(1);
+		if (err_code & (ERR_ABORT|ERR_FATAL)) {
+			ha_alert("Fatal errors found in configuration.\n");
+			exit(1);
+		}
 	}
 
 	/* update the ready date that will be used to count the startup time
@@ -2119,16 +2119,23 @@ static void step_init_2(int argc, char** argv)
 			continue;
 
 		list_for_each_entry(pscf, &post_server_check_list, list) {
-			for (srv = px->srv; srv; srv = srv->next)
+			for (srv = px->srv; srv; srv = srv->next) {
 				err_code |= pscf->fct(srv);
+				if (err_code & (ERR_ABORT|ERR_FATAL)) {
+					ha_alert("Fatal errors found in configuration.\n");
+					exit(1);
+				}
+			}
 		}
-		list_for_each_entry(ppcf, &post_proxy_check_list, list)
+		list_for_each_entry(ppcf, &post_proxy_check_list, list) {
 			err_code |= ppcf->fct(px);
+			if (err_code & (ERR_ABORT|ERR_FATAL)) {
+				ha_alert("Fatal errors found in configuration.\n");
+				exit(1);
+			}
+
+		}
 		px->flags |= PR_FL_CHECKED;
-	}
-	if (err_code & (ERR_ABORT|ERR_FATAL)) {
-		ha_alert("Fatal errors found in configuration.\n");
-		exit(1);
 	}
 
 	err_code |= pattern_finalize_config();
