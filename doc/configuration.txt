@@ -16693,8 +16693,12 @@ generate-certificates
   name mismatch on the certificate presented to the client. With this option
   enabled, HAProxy will try to forge a certificate using the SNI hostname
   indicated by the client. This is done only if no certificate matches the SNI
-  hostname (see 'crt-list'). If an error occurs, the default certificate is
-  used, else the 'strict-sni' option is set.
+  hostname (see 'crt-list').
+
+  In the event of a certificate generation error, the connection will fall back
+  on the default certificate. When using 'strict-sni', the default certificate
+  will not be used and the connection will result in a handshake failure.
+
   It can also be used when HAProxy is configured as a reverse proxy to ease the
   deployment of an architecture with many backends.
 
