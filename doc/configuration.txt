@@ -1514,6 +1514,11 @@ socket type and the transport method.
                the FD from the unix socket and uses it as if it were the FD
                of an accept(). Should be used carefully.
 
+               Bugs: This protocol is known to be unreliable on macOS because
+               of an issue in the macOS sendmsg(2) implementation. The
+               connection might not be accepted correctly.
+
+
 'unix@<path>'  following string is considered as a UNIX socket <path>. this
                prefix is useful to declare an UNIX socket path which don't
                start by slash '/'.

@@ -4380,6 +4380,11 @@ Example:
   case the full command ends at the end of line or semi-colon like any regular
   command.
 
+  Bugs: the sockpair@ protocol used to implement communication between the
+  master and the worker is known to not be reliable on macOS because of an
+  issue in the macOS sendmsg(2) implementation. A command might end up without
+  response because of that.
+
   Examples:
 
     $ socat /var/run/haproxy-master.sock readline
@@ -4445,6 +4450,11 @@ Example:
   closing the connection or by quitting the worker process (using the "quit"
   command). In this case, the prompt mode of the master socket (interactive,
   prompt, timed) is propagated into the worker process.
+
+  Bugs: the sockpair@ protocol used to implement communication between the
+  master and the worker is known to not be reliable on macOS because of an
+  issue in the macOS sendmsg(2) implementation. A command might end up without
+  response because of that.
 
   Examples:
     # gracefully close connections and delete a server once idle (wait max 10s)
