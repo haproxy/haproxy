@@ -3706,7 +3706,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 		conn->ctx = NULL;
 	}
 
-	TRACE_DEVEL("leaving on error", QMUX_EV_QCC_NEW, conn);
+	TRACE_DEVEL("leaving on error", QMUX_EV_QCC_NEW, qcc ? conn : NULL);
 	return -1;
 }
 
