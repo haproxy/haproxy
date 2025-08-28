@@ -1337,6 +1337,10 @@ Here is the list of static fields using the proxy statistics domain:
  97. used_conn_cur [...S]: current number of connections in use
  98. need_conn_est [...S]: estimated needed number of connections
  99. uweight [..BS]: total user weight (backend), server user weight (server)
+ 100. agg_server_status [..B.]: backend aggregated gauge of server's status
+ 101. agg_server_status_check [..B.]: (deprecated)
+ 102. agg_check_status [..B.]: backend aggregated gauge of server's state check
+      status
 
 For all other statistics domains, the presence or the order of the fields are
 not guaranteed. In this case, the header line should always be used to parse
