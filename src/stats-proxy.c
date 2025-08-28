@@ -191,6 +191,7 @@ const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
 	[ST_I_PX_H2REQ]         = ME_NEW_FE_SHARED("h2req",         NULL,                            FN_COUNTER, FF_U64, p.http.cum_req[2],      STATS_PX_CAP__F__, "Total number of hTTP/2 sessions processed by this object since the worker process started"),
 	[ST_I_PX_H3REQ]         = ME_NEW_FE_SHARED("h3req",         NULL,                            FN_COUNTER, FF_U64, p.http.cum_req[3],      STATS_PX_CAP__F__, "Total number of HTTP/3 sessions processed by this object since the worker process started"),
 	[ST_I_PX_PROTO]                         = { .name = "proto",                       .alt_name = NULL,                              .desc = "Protocol" },
+	[ST_I_PX_PRIV_IDLE_CUR]                 = { .name = "priv_idle_cur",               .alt_name = "private_idle_connections_current",.desc = "Current number of private idle connections", .cap = STATS_PX_CAP____S},
 };
 
 /* Returns true if column at <idx> should be hidden.
@@ -1088,6 +1089,9 @@ int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
 			case ST_I_PX_COOKIE:
 				if (flags & STAT_F_SHLGNDS && sv->cookie)
 					field = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, sv->cookie);
+				break;
+			case ST_I_PX_PRIV_IDLE_CUR:
+				field = mkf_u32(0, sv->curr_sess_idle_conns);
 				break;
 			default:
 				/* not used for servers. If a specific field

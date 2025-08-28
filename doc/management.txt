@@ -1356,6 +1356,7 @@ Here is the list of static fields using the proxy statistics domain:
  111. h3req [.F..]: total number of HTTP/3 sessions processed by this object
       since the worker process started
  112. proto [L...]: protocol
+ 113. priv_idle_cur [...S]: current number of private idle connections
 
 For all other statistics domains, the presence or the order of the fields are
 not guaranteed. In this case, the header line should always be used to parse
