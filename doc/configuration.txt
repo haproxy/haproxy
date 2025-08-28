@@ -1272,8 +1272,8 @@ Four other directives are provided to report some status:
   - .warning "message" : emit this message at level WARNING
   - .alert "message"   : emit this message at level ALERT
 
-Messages emitted at level WARNING may cause the process to fail to start if the
-"strict-mode" is enabled. Messages emitted at level ALERT will always cause a
+Messages emitted at level WARNING may cause the process to fail to start if
+"zero-warning" is enabled. Messages emitted at level ALERT will always cause a
 fatal error. These can be used to detect some inappropriate conditions and
 provide advice to the user.
 
