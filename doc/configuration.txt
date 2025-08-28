@@ -8366,14 +8366,8 @@ http-send-name-header [<header>]
   very late in the connection setup, it may have unexpected effects on already
   modified headers. For example using it with transport-level header such as
   connection, content-length, transfer-encoding and so on will likely result in
-  invalid requests being sent to the server. Additionally it has been reported
-  that this directive is currently being used as a way to overwrite the Host
-  header field in outgoing requests; while this trick has been known to work
-  as a side effect of the feature for some time, it is not officially supported
-  and might possibly not work anymore in a future version depending on the
-  technical difficulties this feature induces. A long-term solution instead
-  consists in fixing the application which required this trick so that it binds
-  to the correct host name.
+  invalid requests being sent to the server. This is why following header names
+  are forbidden: host, content-length, transfer-encoding and connection.
 
   See also : "server"
 

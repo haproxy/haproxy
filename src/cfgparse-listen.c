@@ -1476,6 +1476,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+		if (strcasecmp(args[1], "host") == 0 ||
+		    strcasecmp(args[1], "content-length") == 0 ||
+		    strcasecmp(args[1], "transfer-encoding") == 0 ||
+		    strcasecmp(args[1], "connection") == 0) {
+			ha_alert("parsing [%s:%d] : '%s' cannot be used as header name for '%s' directive.\n",
+				 file, linenum, args[1], args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
 
 		/* set the desired header name, in lower case */
 		istfree(&curproxy->server_id_hdr_name);
