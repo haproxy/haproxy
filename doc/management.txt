@@ -1341,6 +1341,21 @@ Here is the list of static fields using the proxy statistics domain:
  101. agg_server_status_check [..B.]: (deprecated)
  102. agg_check_status [..B.]: backend aggregated gauge of server's state check
       status
+ 103. srid [...S]: server id revision
+ 104. sess_other [.F..]: total number of sessions other than HTTP since process
+      started
+ 105. h1_sess [.F..]: total number of HTTP/1 sessions since process started
+ 106. h2_sess [.F..]: total number of HTTP/2 sessions since process started
+ 107. h3_sess [.F..]: total number of HTTP/3 sessions since process started
+ 108. req_other [.F..]: total number of sessions other than HTTP processed by
+      this object since the worker process started
+ 109. h1req [.F..]: total number of HTTP/1 sessions processed by this object
+      since the worker process started
+ 110. h2req [.F..]: total number of hTTP/2 sessions processed by this object
+      since the worker process started
+ 111. h3req [.F..]: total number of HTTP/3 sessions processed by this object
+      since the worker process started
+ 112. proto [L...]: protocol
 
 For all other statistics domains, the presence or the order of the fields are
 not guaranteed. In this case, the header line should always be used to parse
