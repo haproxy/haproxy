@@ -3590,6 +3590,7 @@ int main(int argc, char **argv)
 		struct mworker_proc *proc;
 		int sock_pair[2];
 		char *msg = NULL;
+		char c;
 
 		if (socketpair(PF_UNIX, SOCK_STREAM, 0, sock_pair) == -1) {
 			ha_alert("[%s.main()] Cannot create socketpair to update the new worker state\n",
@@ -3611,7 +3612,6 @@ int main(int argc, char **argv)
 
 			exit(1);
 		}
-		close(sock_pair[0]);
 
 		memprintf(&msg, "_send_status READY %d\n", getpid());
 		if (send(sock_pair[1], msg, strlen(msg), 0) != strlen(msg)) {
@@ -3619,7 +3619,17 @@ int main(int argc, char **argv)
 
 			exit(1);
 		}
+
+		/* in macOS, the sock_pair[0] might be received in the master
+		 * process after it was closed in the worker, which is a
+		 * documented bug in sendmsg(2). We need to close the fd only
+		 * after confirming receipt of the "\n" from the CLI applet, so
+		 * we make sure that the fd is received correctly.
+		 */
+                shutdown(sock_pair[1], SHUT_WR);
+		read(sock_pair[1], &c, 1);
 		close(sock_pair[1]);
+		close(sock_pair[0]);
 		ha_free(&msg);
 
 		/* at this point the worker must have his own startup_logs buffer */
