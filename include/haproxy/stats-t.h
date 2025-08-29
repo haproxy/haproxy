@@ -488,6 +488,7 @@ enum stat_idx_px {
 	ST_I_PX_H2REQ,
 	ST_I_PX_H3REQ,
 	ST_I_PX_PROTO,
+	ST_I_PX_PRIV_IDLE_CUR,
 
 	/* must always be the last one */
 	ST_I_PX_MAX
