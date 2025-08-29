@@ -215,7 +215,6 @@ static inline void proxy_free_common(struct proxy *px)
 	struct acl *acl, *aclb;
 	struct logger *log, *logb;
 	struct lf_expr *lf, *lfb;
-	struct eb32_node *node;
 
 	/* note that the node's key points to p->id */
 	ebpt_delete(&px->conf.by_name);
@@ -277,16 +276,6 @@ static inline void proxy_free_common(struct proxy *px)
 		LIST_DEL_INIT(&lf->list);
 
 	chunk_destroy(&px->log_tag);
-
-	node = eb32_first(&px->conf.log_steps);
-	while (node) {
-		struct eb32_node *prev_node = node;
-
-		/* log steps directly use the node key as id, they are not encapsulated */
-		node = eb32_next(node);
-		eb32_delete(prev_node);
-		free(prev_node);
-	}
 
 	free_email_alert(px);
 	stats_uri_auth_drop(px->uri_auth);
@@ -1483,7 +1472,6 @@ void init_new_proxy(struct proxy *p)
 	p->conf.used_listener_id = EB_ROOT;
 	p->conf.used_server_id   = EB_ROOT;
 	p->used_server_addr      = EB_ROOT_UNIQUE;
-	p->conf.log_steps        = EB_ROOT_UNIQUE;
 
 	/* Timeouts are defined as -1 */
 	proxy_reset_timeouts(p);
@@ -1808,7 +1796,6 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 {
 	struct logger *tmplogger;
 	char *tmpmsg = NULL;
-	struct eb32_node *node = NULL;
 
 	/* set default values from the specified default proxy */
 
@@ -2037,25 +2024,8 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 	curproxy->email_alert.level = defproxy->email_alert.level;
 	curproxy->email_alert.flags = defproxy->email_alert.flags;
 
-	/* defproxy is const pointer, so we need to typecast log_steps to
-	 * drop the const in order to use EB tree API, please note however
-	 * that the operations performed below should theoretically be read-only
-	 */
 	if (curproxy->cap & PR_CAP_FE) // don't inherit on backends
-		node = eb32_first((struct eb_root *)&defproxy->conf.log_steps);
-	while (node) {
-		struct eb32_node *new_node;
-
-		new_node = malloc(sizeof(*new_node));
-		if (!new_node) {
-			memprintf(errmsg, "proxy '%s': out of memory for log_steps option", curproxy->id);
-			return 1;
-		}
-
-		new_node->key = node->key;
-		eb32_insert(&curproxy->conf.log_steps, new_node);
-		node = eb32_next(node);
-	}
+		curproxy->conf.log_steps = defproxy->conf.log_steps;
 
 	return 0;
 }

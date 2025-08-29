@@ -470,7 +470,7 @@ struct proxy {
 		struct arg_list args;           /* sample arg list that need to be resolved */
 		struct ebpt_node by_name;       /* proxies are stored sorted by name here */
 		struct list lf_checks;          /* list of logformats found in the proxy section that needs to be checked during postparse */
-		struct eb_root log_steps;       /* tree of log origins where log should be generated during request handling */
+		struct log_steps log_steps;     /* bitfield of log origins where log should be generated during request handling */
 		const char *file_prev;          /* file of the previous instance found with the same name, or NULL */
 		int line_prev;                  /* line of the previous instance found with the same name, or 0 */
 		unsigned int refcount;          /* refcount on this proxy (only used for default proxy for now) */

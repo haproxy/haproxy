@@ -137,8 +137,8 @@ const char *log_orig_to_str(enum log_orig_id orig)
  */
 int log_orig_proxy(enum log_orig_id orig, struct proxy *px)
 {
-	if (eb_is_empty(&px->conf.log_steps)) {
-		/* empty tree means all log steps are enabled, thus
+	if (px->conf.log_steps.steps_1 == 0) {
+		/* logstep bitmasks to 0 means all log steps are enabled, thus
 		 * all log origins are considered
 		 */
 		return 1;
@@ -146,7 +146,7 @@ int log_orig_proxy(enum log_orig_id orig, struct proxy *px)
 	/* selectively check if the current log origin is referenced in
 	 * proxy log-steps
 	 */
-	return !!eb32_lookup(&px->conf.log_steps, orig);
+	return (px->conf.log_steps.steps_1 & (1ULL << orig));
 }
 
 /*
@@ -6893,7 +6893,8 @@ static int px_parse_log_steps(char **args, int section_type, struct proxy *curpx
 			goto end;
 		}
 		cur_step->key = cur_id;
-		eb32_insert(&curpx->conf.log_steps, cur_step);
+		BUG_ON(cur_id > 64); // for now we don't support more than 64 log origins
+		curpx->conf.log_steps.steps_1 |= (1ULL << cur_id);
  next:
 		if (str[cur_sep])
 			str += cur_sep + 1;

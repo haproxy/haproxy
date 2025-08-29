@@ -335,6 +335,13 @@ struct log_profile {
 	struct eb_root extra;           // extra log profile steps (if any)
 };
 
+/* add additional bitmasks in this struct if needed but don't
+ * forget to update px_parse_log_steps() and log_orig_proxy() accordingly
+ */
+struct log_steps {
+	uint64_t steps_1; // first 64 steps
+};
+
 #endif /* _HAPROXY_LOG_T_H */
 
 /*
