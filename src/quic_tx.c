@@ -1008,15 +1008,15 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 
 			qc_prep_hdshk_fast_retrans(qc, &ifrms, &hfrms);
 			TRACE_DEVEL("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &ifrms);
-			TRACE_DEVEL("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &hfrms);
 			if (!LIST_ISEMPTY(&ifrms)) {
 				ipktns->tx.pto_probe = 1;
-				if (!LIST_ISEMPTY(&hfrms))
-					hpktns->tx.pto_probe = 1;
-
 				qel_register_send(&send_list, qc->iel, &ifrms);
-				if (qc->hel)
+
+				if (!LIST_ISEMPTY(&hfrms)) {
+					TRACE_DEVEL("Avail. ack eliciting frames", QUIC_EV_CONN_FRMLIST, qc, &hfrms);
+					hpktns->tx.pto_probe = 1;
 					qel_register_send(&send_list, qc->hel, &hfrms);
+				}
 
 				sret = qc_send(qc, 1, &send_list, 0);
 				qc_free_frm_list(qc, &ifrms);
