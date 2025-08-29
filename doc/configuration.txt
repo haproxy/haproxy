@@ -19466,7 +19466,10 @@ obvious matching method (e.g. string or binary). When "-m" is specified and
 followed by a pattern matching method name, this method is used instead of the
 default one for the criterion. This makes it possible to match contents in ways
 that were not initially planned, or with sample fetch methods which return a
-string. The matching method also affects the way the patterns are parsed.
+string. The matching method also affects the way the patterns are parsed. So,
+it must not be used with sample fetches with a matching suffix (_beg, _end,
+_sub...). In addition, specifying several "-m" pattern matching methods is now
+allowed.
 
 The "-n" flag forbids the dns resolutions. It is used with the load of ip files.
 By default, if the parser cannot parse ip address it considers that the parsed
@@ -25442,6 +25445,9 @@ base : string
     base_reg : regex match
     base_sub : substring match
 
+  Note: ACL derivatives must not be used followed by a converter or in ACLs
+        with a "-m" pattern matching method.
+
 base32 : integer
   This returns a 32-bit hash of the value returned by the "base" fetch method
   above. This is useful to track per-URL activity on high traffic sites without
@@ -25600,6 +25606,9 @@ path : string
     path_reg : regex match
     path_sub : substring match
 
+  Note: ACL derivatives must not be used followed by a converter or in ACLs
+        with a "-m" pattern matching method.
+
 pathq : string
   This extracts the request's URL path with the query-string, which starts at
   the first slash. This sample fetch is pretty handy to always retrieve a
@@ -25676,6 +25685,9 @@ cook([<name>]) : string (deprecated)
     req.cook_reg([<name>]) : regex match
     req.cook_sub([<name>]) : substring match
 
+  Note: ACL derivatives must not be used followed by a converter or in ACLs
+        with a "-m" pattern matching method.
+
 req.cook_cnt([<name>]) : integer
 cook_cnt([<name>]) : integer (deprecated)
   Returns an integer value representing the number of occurrences of the cookie
@@ -25743,6 +25755,9 @@ req.hdr([<name>[,<occ>]]) : string
     hdr_len([<name>[,<occ>]]) : length match
     hdr_reg([<name>[,<occ>]]) : regex match
     hdr_sub([<name>[,<occ>]]) : substring match
+
+  Note: ACL derivatives must not be used followed by a converter or in ACLs
+        with a "-m" pattern matching method.
 
 req.hdr_cnt([<name>]) : integer
 hdr_cnt([<header>]) : integer (deprecated)
@@ -25978,6 +25993,9 @@ shdr([<name>[,<occ>]]) : string (deprecated)
     res.hdr_reg([<name>[,<occ>]]) : regex match
     res.hdr_sub([<name>[,<occ>]]) : substring match
 
+  Note: ACL derivatives must not be used followed by a converter or in ACLs
+        with a "-m" pattern matching method.
+
 res.hdr_cnt([<name>]) : integer
 shdr_cnt([<name>]) : integer (deprecated)
   This fetch works like the req.hdr_cnt() fetch with the difference that it
@@ -26116,6 +26134,9 @@ url : string
     url_reg : regex match
     url_sub : substring match
 
+  Note: ACL derivatives must not be used followed by a converter or in ACLs
+        with a "-m" pattern matching method.
+
 url32 : integer
   This returns a 32-bit hash of the value obtained by concatenating the first
   Host header and the whole URL including parameters (not only the path part of
@@ -26163,6 +26184,8 @@ url_param([<name>[,<delim>[,i]]]) : string
     urlp_reg(<name>[,<delim>]) : regex match
     urlp_sub(<name>[,<delim>]) : substring match
 
+  Note: ACL derivatives must not be used followed by a converter or in ACLs
+        with a "-m" pattern matching method.
 
   Example :
       # match http://example.com/foo?PHPSESSIONID=some_id

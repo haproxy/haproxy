@@ -406,6 +406,15 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		goto out_free_expr;
 	}
 
+	if (aclkw) {
+		if (((aclkw->match_type == PAT_MATCH_BEG || aclkw->match_type == PAT_MATCH_DIR || aclkw->match_type == PAT_MATCH_DOM ||
+		     aclkw->match_type == PAT_MATCH_DOM || aclkw->match_type == PAT_MATCH_END || aclkw->match_type == PAT_MATCH_LEN ||
+		     aclkw->match_type == PAT_MATCH_REG) && expr->pat.match != pat_match_fcts[aclkw->match_type]) ||
+		    (aclkw->match && expr->pat.match != pat_match_fcts[aclkw->match_type]))
+			ha_warning("parsing [%s:%d] : original matching method '%s' was overwritten and will not be applied as expected.\n",
+				   file, line, aclkw->kw);
+	}
+
 	/* Create displayed reference */
 	snprintf(trash.area, trash.size, "acl '%s' file '%s' line %d",
 		 expr->kw, file, line);
