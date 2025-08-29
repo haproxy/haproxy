@@ -616,11 +616,24 @@ struct shm_stats_file_object *shm_stats_file_add_object(char **errmsg)
 	struct shm_stats_file_object *new_obj;
 	uint64_t expected_users;
 	int objects, objects_slots;
+	static uint last_failed_attempt = TICK_ETERNITY;
+
+	/* if previous object reuse failed, don't try a new opportunistic
+	 * reuse immediately because chances are high the new reuse attempt
+	 * will also fail, and repeated failed reuse attempts could be costly
+	 * with large number of objects
+	 */
+	if (last_failed_attempt != TICK_ETERNITY &&
+	    !tick_is_expired(last_failed_attempt + MS_TO_TICKS(50), now_ms))
+		goto add;
 
 	new_obj = shm_stats_file_reuse_object();
 	if (new_obj) {
+		last_failed_attempt = TICK_ETERNITY;
 		return new_obj;
 	}
+	else
+		last_failed_attempt = now_ms;
 
  add:
 	objects = HA_ATOMIC_LOAD(&shm_stats_file_hdr->objects);
