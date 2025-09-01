@@ -830,6 +830,11 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 
 	if (proxy->comp == NULL) {
 		comp = calloc(1, sizeof(*comp));
+		if (unlikely(!comp)) {
+			memprintf(err, "'%s': out of memory.", args[0]);
+			ret = -1;
+			goto end;
+		}
 		/* Always default to compress responses */
 		comp->flags = COMP_FL_DIR_RES;
 		proxy->comp = comp;
