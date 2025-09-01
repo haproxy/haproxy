@@ -1571,6 +1571,10 @@ void filter_count_srv_status(const char *accept_field, const char *time_field, s
 	if (!srv_node) {
 		/* server not yet in the tree, let's create it */
 		srv = (void *)calloc(1, sizeof(struct srv_st) + e - b + 1);
+		if (unlikely(!srv)) {
+			fprintf(stderr, "%s: not enough memory\n", __FUNCTION__);
+			exit(1);
+		}
 		srv_node = &srv->node;
 		memcpy(&srv_node->key, b, e - b);
 		srv_node->key[e - b] = '\0';
@@ -1680,6 +1684,10 @@ void filter_count_url(const char *accept_field, const char *time_field, struct t
 	 */
 	if (unlikely(!ustat))
 		ustat = calloc(1, sizeof(*ustat));
+		if (unlikely(!ustat)) {
+			fprintf(stderr, "%s: not enough memory\n", __FUNCTION__);
+			exit(1);
+		}
 
 	ustat->nb_err = err;
 	ustat->nb_req = 1;
