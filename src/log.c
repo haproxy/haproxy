@@ -573,11 +573,11 @@ int add_to_logformat_list(char *start, char *end, int type, struct lf_expr *lf_e
 
 	if (type == LF_TEXT) { /* type text */
 		struct logformat_node *node = calloc(1, sizeof(*node));
-		if (!node) {
+		str = calloc(1, end - start + 1);
+		if (unlikely(!node || !str)) {
 			memprintf(err, "out of memory error");
 			return 0;
 		}
-		str = calloc(1, end - start + 1);
 		strncpy(str, start, end - start);
 		str[end - start] = '\0';
 		node->arg = str;
@@ -1558,7 +1558,8 @@ struct logger *dup_logger(struct logger *def)
 
 	BUG_ON(def->flags & LOGGER_FL_RESOLVED);
 	cpy = malloc(sizeof(*cpy));
-
+	if (unlikely(!cpy))
+		return NULL;
 	/* copy everything that can be easily copied */
 	memcpy(cpy, def, sizeof(*cpy));
 
