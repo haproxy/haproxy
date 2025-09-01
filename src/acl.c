@@ -410,7 +410,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		if (((aclkw->match_type == PAT_MATCH_BEG || aclkw->match_type == PAT_MATCH_DIR || aclkw->match_type == PAT_MATCH_DOM ||
 		     aclkw->match_type == PAT_MATCH_DOM || aclkw->match_type == PAT_MATCH_END || aclkw->match_type == PAT_MATCH_LEN ||
 		     aclkw->match_type == PAT_MATCH_REG) && expr->pat.match != pat_match_fcts[aclkw->match_type]) ||
-		    (aclkw->match && expr->pat.match != pat_match_fcts[aclkw->match_type]))
+		    (aclkw->match && expr->pat.match != aclkw->match))
 			ha_warning("parsing [%s:%d] : original matching method '%s' was overwritten and will not be applied as expected.\n",
 				   file, line, aclkw->kw);
 	}
