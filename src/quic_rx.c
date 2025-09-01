@@ -1101,10 +1101,14 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		ret = qc_handle_crypto_frm(qc, &frm->crypto, pkt, qel);
 		switch (ret) {
 		case QUIC_RX_RET_FRM_FATAL:
+			/* avoid freeing without eb_delete() */
+			frm = NULL;
 			goto err;
 
 		case QUIC_RX_RET_FRM_AGAIN:
 			TRACE_STATE("AGAIN encountered", QUIC_EV_CONN_PRSHPKT, qc);
+			/* avoid freeing without eb_delete() */
+			frm = NULL;
 			goto err;
 
 		case QUIC_RX_RET_FRM_DONE:
