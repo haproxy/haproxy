@@ -1651,6 +1651,7 @@ static int srv_parse_check_sni(char **args, int *cur_arg, struct proxy *px, stru
 		return ERR_ALERT | ERR_FATAL;
 	}
 
+	free(newsrv->check.sni);
 	newsrv->check.sni = strdup(args[*cur_arg + 1]);
 	if (!newsrv->check.sni) {
 		memprintf(err, "'%s' : failed to allocate memory", args[*cur_arg]);

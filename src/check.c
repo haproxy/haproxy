@@ -1574,6 +1574,7 @@ void free_check(struct check *check)
 	}
 
 	ha_free(&check->pool_conn_name);
+	ha_free(&check->sni);
 	ha_free(&check->alpn_str);
 	task_destroy(check->task);
 
