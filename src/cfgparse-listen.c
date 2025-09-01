@@ -2029,6 +2029,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					len += strlen(args[i]) + 1;
 
 				desc = d = calloc(1, len);
+				if (unlikely(!d)) {
+					ha_alert("parsing [%s:%d]: '%s %s' : memory allocation failed\n",
+							 file, linenum, args[0], args[1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
 
 				d += snprintf(d, desc + len - d, "%s", args[2]);
 				for (i = 3; *args[i]; i++)
