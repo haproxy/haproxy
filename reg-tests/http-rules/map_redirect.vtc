@@ -6,21 +6,21 @@ feature ignore_unknown_macro
 server s1 {
    rxreq
    expect req.method == "GET"
-   expect req.http.host == "test1.example.com"
+   expect req.http.host == "test1.example.com:1234"
    txresp -body "test1 ok"
 } -start
 
 server s2 {
    rxreq
    expect req.method == "GET"
-   expect req.http.host == "test2.example.com"
+   expect req.http.host == "test2.example.com:1234"
    txresp -body "test2 ok"
 } -start
 
 server s3 {
    rxreq
    expect req.method == "GET"
-   expect req.http.host == "test3.example.com"
+   expect req.http.host == "test3.example.com:1234"
    txresp -body "test3 ok"
 } -start
 
@@ -60,10 +60,10 @@ haproxy h1 -conf {
     use_backend %[req.hdr(Host),lower,map_dom(${testdir}/map_redirect-be.map)] if { hdr_dom(Host) -i test1.example.com || hdr_dom(Host) -i test2.example.com }
 
     # use map to select backend with default value(test3_be)
-    use_backend %[req.hdr(Host),lower,map_dom(${testdir}/map_redirect-be.map,test3_be)] if { hdr_dom(Host) -m end -i example.com }
+    use_backend %[req.hdr(Host),lower,map_dom(${testdir}/map_redirect-be.map,test3_be)] if { hdr(Host),host_only -m end -i example.com }
 
     # use map(after del map test1.example.com) default value(test4_be)
-    use_backend %[req.hdr(Host),lower,map_dom(${testdir}/map_redirect-be.map,test4_be)] if { hdr_dom(Host) -m end -i example.invalid }
+    use_backend %[req.hdr(Host),lower,map_dom(${testdir}/map_redirect-be.map,test4_be)] if { hdr(Host),host_only -m end -i example.invalid }
 
     default_backend be1
 
@@ -139,17 +139,17 @@ client c6 -connect ${h1_fe1_sock} {
 
 # Check map backend selection
 client c7 -connect ${h1_fe1_sock} {
-    txreq -hdr "Host: test1.example.com"
+    txreq -hdr "Host: test1.example.com:1234"
     rxresp
     expect resp.status == 200
     expect resp.body == "test1 ok"
 
-    txreq -hdr "Host: test2.example.com"
+    txreq -hdr "Host: test2.example.com:1234"
     rxresp
     expect resp.status == 200
     expect resp.body == "test2 ok"
 
-    txreq -hdr "Host: test3.example.com"
+    txreq -hdr "Host: test3.example.com:1234"
     rxresp
     expect resp.status == 200
     expect resp.body == "test3 ok"
