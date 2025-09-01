@@ -6505,6 +6505,7 @@ leave:
 				}
 			}
 			else {
+				ASSUME_NONNULL(srv); /* srv is guaranteed by CO_FL_LIST_MASK */
 				TRACE_DEVEL("adding conn back to idle list", SSL_EV_CONN_IO_CB, conn);
 				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 				_srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
