@@ -903,7 +903,6 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			break;
 		}
 		case QUIC_FT_CRYPTO:
-			frm->crypto.offset_node.key = frm->crypto.offset_node.key;
 			eb64_insert(&cf_frms_tree, &frm->crypto.offset_node);
 			frm = NULL;
 			break;
