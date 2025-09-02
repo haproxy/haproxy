@@ -616,6 +616,42 @@ void display_version()
 	}
 }
 
+/* display_mode:
+ * 0 = short version (e.g., "3.3.1")
+ * 1 = full version (e.g., "3.3.1-dev5-1bb975-71")
+ * 2 = branch version (e.g., "3.3")
+ */
+void display_version_plain(int display_mode)
+{
+	char out[30] = "";
+	int dots = 0;
+	int i;
+
+	if (display_mode == 1) {
+		printf("%s\n", haproxy_version);
+		return;
+	}
+
+	for (i = 0; i < sizeof(out) - 1 && haproxy_version[i]; i++) {
+		if (display_mode == 2) {
+			if (haproxy_version[i] == '.') dots++;
+			if (dots == 2 || haproxy_version[i] == '-') {
+				out[i] = '\0';
+				break;
+			}
+		} else {
+			if ((haproxy_version[i] < '0' || haproxy_version[i] > '9') && haproxy_version[i] != '.') {
+				out[i] = '\0';
+				break;
+			}
+		}
+		out[i] = haproxy_version[i];
+		out[i+1] = '\0';
+	}
+
+	printf("%s\n", out);
+}
+
 static void display_build_opts()
 {
 	const char **opt;
@@ -658,6 +694,7 @@ static void usage(char *name)
 		"D ] [ -n <maxconn> ] [ -N <maxpconn> ]\n"
 		"        [ -p <pidfile> ] [ -m <max megs> ] [ -C <dir> ] [-- <cfgfile>*]\n"
 		"        -v displays version ; -vv shows known build options.\n"
+		"        -vq/-vqs/-vqb only displays version, short version, branch.\n"
 		"        -d enters debug mode ; -db only disables background mode.\n"
 		"        -dM[<byte>,help,...] debug memory (default: poison with <byte>/0x50)\n"
 		"        -dt activate traces on stderr\n"
@@ -1477,10 +1514,24 @@ static void init_args(int argc, char **argv)
 
 			/* 1 arg */
 			if (*flag == 'v') {
-				display_version();
-				if (flag[1] == 'v')  /* -vv */
-					display_build_opts();
-				deinit_and_exit(0);
+				if (flag[1] == 'q' && flag[2] == 's' && flag[3] == '\0') {
+					display_version_plain(0);  // -vqs
+					deinit_and_exit(0);
+				}
+				else if (flag[1] == 'q' && flag[2] == 'b' && flag[3] == '\0') {
+					display_version_plain(2);  // -vqb
+					deinit_and_exit(0);
+				}
+				else if (flag[1] == 'q' && flag[2] == '\0') {
+					display_version_plain(1);  // -vq
+					deinit_and_exit(0);
+				}
+				else {
+					display_version();
+					if (flag[1] == 'v')  // -vv
+						display_build_opts();
+					deinit_and_exit(0);
+				}
 			}
 #if defined(USE_EPOLL)
 			else if (*flag == 'd' && flag[1] == 'e')
