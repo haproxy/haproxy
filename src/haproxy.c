@@ -2858,7 +2858,11 @@ void run_poll_loop()
 				wake = 0;
 		}
 
-		if (!wake) {
+		/* Note below: threads only check the quit condition when idle,
+		 * but for tid>0 we also need to skip that if the signal queue
+		 * is non-empty otherwise we risk quitting too early.
+		 */
+		if (!wake && !signal_queue_len) {
 			int i;
 
 			if (stopping) {
