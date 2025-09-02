@@ -159,13 +159,14 @@ struct buffer *qc_get_txb(struct quic_conn *qc)
  * Caller is responsible that there is enough space in the buffer.
  */
 static void qc_txb_store(struct buffer *buf, uint16_t length,
-                         struct quic_tx_packet *first_pkt)
+                         struct quic_tx_packet *first_pkt,
+                         const struct quic_conn *qc)
 {
 	BUG_ON_HOT(b_contig_space(buf) < QUIC_DGRAM_HEADLEN); /* this must not happen */
 
 	/* If first packet is INITIAL, ensure datagram is sufficiently padded. */
 	BUG_ON(first_pkt->type == QUIC_PACKET_TYPE_INITIAL &&
-	       (first_pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING) &&
+	       (qc_is_back(qc) || (first_pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING)) &&
 	       length < QUIC_INITIAL_PACKET_MINLEN);
 
 	write_u16(b_tail(buf), length);
@@ -743,7 +744,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 					 */
 					if (first_pkt && (first_pkt->type != QUIC_PACKET_TYPE_INITIAL ||
 					                  wrlen >= QUIC_INITIAL_PACKET_MINLEN)) {
-						qc_txb_store(buf, wrlen, first_pkt);
+						qc_txb_store(buf, wrlen, first_pkt, qc);
 					}
 					TRACE_PROTO("could not prepare anymore packet", QUIC_EV_CONN_PHPKTS, qc, qel);
 					break;
@@ -825,7 +826,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			}
 			else {
 				/* Finalize current datagram if not all frames sent. */
-				qc_txb_store(buf, wrlen, first_pkt);
+				qc_txb_store(buf, wrlen, first_pkt, qc);
 				first_pkt = NULL;
 				wrlen = dglen = 0;
 				padding = 0;
@@ -844,7 +845,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 
  out:
 	if (first_pkt)
-		qc_txb_store(buf, wrlen, first_pkt);
+		qc_txb_store(buf, wrlen, first_pkt, qc);
 
 	if (cc && total) {
 		BUG_ON(buf != &qc->tx.cc_buf);
