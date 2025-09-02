@@ -715,6 +715,12 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 			 */
 			if (probe && (must_ack || (qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED)))
 				final_packet = 1;
+			/* If CONNECTION_CLOSE is emitted only a single QEL is considered while the others are dismissed. This
+			 * must be taken into account if padding is required on QUIC client side. Note that this is irrelevant
+			 * for server side as CONNECTION_CLOSE is not ack-eliciting.
+			 */
+			else if (qc_is_back(qc) && cc)
+				final_packet = 1;
 
 			pkt_type = quic_enc_level_pkt_type(qc, qel);
 			cur_pkt = qc_build_pkt(&pos, end, qel, tls_ctx, frms,
