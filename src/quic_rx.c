@@ -1533,7 +1533,7 @@ static int qc_try_rm_hp(struct quic_conn *qc, struct quic_rx_packet *pkt,
 
 	ret = 1;
  out:
-	TRACE_LEAVE(QUIC_EV_CONN_TRMHP, qc);
+	TRACE_LEAVE(QUIC_EV_CONN_TRMHP, qc, pkt);
 	return ret;
 }
 
