@@ -506,13 +506,15 @@ static forceinline char *qc_show_flags(char *buf, size_t len, const char *delim,
 	_(QUIC_FL_CONN_IPKTNS_DCD,
 	_(QUIC_FL_CONN_HPKTNS_DCD,
 	_(QUIC_FL_CONN_PEER_VALIDATED_ADDR,
+	_(QUIC_FL_CONN_NO_TOKEN_RCVD,
+	_(QUIC_FL_CONN_SCID_RECEIVED,
 	_(QUIC_FL_CONN_TO_KILL,
 	_(QUIC_FL_CONN_TX_TP_RECEIVED,
 	_(QUIC_FL_CONN_FINALIZED,
 	_(QUIC_FL_CONN_EXP_TIMER,
 	_(QUIC_FL_CONN_CLOSING,
 	_(QUIC_FL_CONN_DRAINING,
-	_(QUIC_FL_CONN_IMMEDIATE_CLOSE)))))))))))))))))))))))));
+	_(QUIC_FL_CONN_IMMEDIATE_CLOSE)))))))))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
