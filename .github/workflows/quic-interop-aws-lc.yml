@@ -35,7 +35,7 @@ jobs:
           context: https://github.com/haproxytech/haproxy-qns.git
           push: true
           build-args: |
-            SSLLIB: AWS-LC
+            SSLLIB=AWS-LC
           tags: ghcr.io/${{ github.repository }}:aws-lc
 
       - name: Cleanup registry
