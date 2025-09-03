@@ -21,7 +21,12 @@ enum stfile_domain {
                                              * sent heartbeat will be considered down
                                              */
 
-/* header for shm stats file ("shm-stats-file") */
+/* header for shm stats file ("shm-stats-file")
+ *
+ * exported struct:
+ * any change in size or ordering would represent breaking change and
+ * should cause a version change
+ */
 struct shm_stats_file_hdr {
 	/* to check if the header is compatible with current haproxy version */
 	struct {
@@ -46,11 +51,17 @@ struct shm_stats_file_hdr {
 	} slots[64];
 	int objects; /* actual number of objects stored in the shm */
 	int objects_slots; /* total available objects slots unless map is resized */
+	ALWAYS_PAD(128); // reserve 128 bytes for future usage
 };
 
 #define SHM_STATS_FILE_OBJECT_TYPE_FE 0x0
 #define SHM_STATS_FILE_OBJECT_TYPE_BE 0x1
 
+/*
+ * exported struct:
+ * any change in size or ordering would represent breaking change and
+ * should cause a version change
+ */
 struct shm_stats_file_object {
 	char guid[GUID_MAX_LEN + 1];
 	uint8_t tgid; // thread group ID from 1 to 64
@@ -64,6 +75,7 @@ struct shm_stats_file_object {
 		struct fe_counters_shared_tg fe;
 		struct be_counters_shared_tg be;
 	} data;
+	ALWAYS_PAD(64); // reserve 64 bytes for future usage
 };
 
 #define SHM_STATS_FILE_MAPPING_SIZE(obj) (sizeof(struct shm_stats_file_hdr) + (obj) * sizeof(struct shm_stats_file_object))
