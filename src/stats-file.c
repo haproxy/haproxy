@@ -802,6 +802,13 @@ int shm_stats_file_prepare(void)
 	int slot;
 	int objects;
 
+	BUG_ON(sizeof(struct shm_stats_file_hdr) != 672, "shm_stats_file_hdr struct size changed, "
+	       "it is part of the exported API: ensure all precautions were taken (ie: shm_stats_file "
+	       "version change) before adjusting this");
+	BUG_ON(sizeof(struct shm_stats_file_object) != 544, "shm_stats_file_object struct size changed, "
+	       "is is part of the exported API: ensure all precautions were taken (ie: shm_stats_file "
+	       "version change) before adjusting this");
+
 	/* do nothing if master process or shm_stats_file not configured */
 	if (master || !global.shm_stats_file)
 		return ERR_NONE;
