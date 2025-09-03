@@ -1221,6 +1221,17 @@ static inline int tcpcheck_use_nondefault_connect(const struct check *check,
 	  (connect->options & TCPCHK_MASK_OPTS_CONNECT);
 }
 
+/* Returns true if the connect rule uses SSL. */
+static inline int tcpcheck_connect_use_ssl(const struct check *check,
+					   const struct tcpcheck_connect *connect)
+{
+	if (connect->options & TCPCHK_OPT_SSL)
+		return 1;
+	if (connect->options & TCPCHK_OPT_DEFAULT_CONNECT)
+		return (check->xprt == xprt_get(XPRT_SSL));
+	return 0;
+}
+
 /* Evaluates a TCPCHK_ACT_CONNECT rule. Returns TCPCHK_EVAL_WAIT to wait the
  * connection establishment, TCPCHK_EVAL_CONTINUE to evaluate the next rule or
  * TCPCHK_EVAL_STOP if an error occurred.
@@ -1276,10 +1287,12 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 
 		if (check->pool_conn_name)
 			pool_conn_name = ist(check->pool_conn_name);
-		else if (connect->sni)
-			pool_conn_name = ist(connect->sni);
-		else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && check->sni)
-			pool_conn_name = ist(check->sni);
+		else if (tcpcheck_connect_use_ssl(check, connect)) {
+			if (connect->sni)
+				pool_conn_name = ist(connect->sni);
+			else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && check->sni)
+				pool_conn_name = ist(check->sni);
+		}
 
 		if (!(s->flags & SRV_F_RHTTP)) {
 			dst_tmp = s->addr;
