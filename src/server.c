@@ -3288,6 +3288,38 @@ static inline void _srv_parse_set_id_from_prefix(struct server *srv,
 	srv->id = strdup(trash.area);
 }
 
+/* Parse the sni and pool-conn-name expressions. Returns 0 on success and non-zero on
+ * error. */
+static inline int _srv_parse_exprs(struct server *srv, struct proxy *px, char **errmsg)
+{
+	int ret = 0;
+
+	/* Use sni as fallback if pool_conn_name isn't set */
+	if (!srv->pool_conn_name && srv->sni_expr) {
+		srv->pool_conn_name = strdup(srv->sni_expr);
+		if (!srv->pool_conn_name) {
+			memprintf(errmsg, "cannot duplicate sni expression (out of memory)");
+			ret = ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
+
+	if (srv->sni_expr) {
+		ret = parse_srv_expr(srv->sni_expr, &srv->ssl_ctx.sni, px, errmsg);
+		if (ret)
+			goto out;
+	}
+
+	if (srv->pool_conn_name) {
+		ret = parse_srv_expr(srv->pool_conn_name, &srv->pool_conn_name_expr, px, errmsg);
+		if (ret)
+			goto out;
+	}
+
+  out:
+	return ret;
+}
+
 /* Initialize as much as possible servers from <srv> server template.
  * Note that a server template is a special server with
  * a few different parameters than a server which has
@@ -3321,24 +3353,8 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 		srv_settings_cpy(newsrv, srv, 1);
 		srv_prepare_for_resolution(newsrv, srv->hostname);
 
-		/* Use sni as fallback if pool_conn_name isn't set */
-		if (!newsrv->pool_conn_name && newsrv->sni_expr) {
-			newsrv->pool_conn_name = strdup(newsrv->sni_expr);
-			if (!newsrv->pool_conn_name)
-				goto err;
-		}
-
-		if (newsrv->pool_conn_name) {
-			newsrv->pool_conn_name_expr = _parse_srv_expr(srv->pool_conn_name, &px->conf.args, NULL, 0, NULL);
-			if (!newsrv->pool_conn_name_expr)
-				goto err;
-		}
-
-		if (newsrv->sni_expr) {
-			newsrv->ssl_ctx.sni = _parse_srv_expr(srv->sni_expr, &px->conf.args, NULL, 0, NULL);
-			if (!newsrv->ssl_ctx.sni)
-				goto err;
-		}
+	        if (_srv_parse_exprs(newsrv, px, NULL))
+			goto err;
 
 		/* append to list of servers available to receive an hostname */
 		if (newsrv->srvrq)
@@ -3844,27 +3860,9 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if ((ret = parse_srv_expr(srv->sni_expr, &srv->ssl_ctx.sni, px, &errmsg))) {
+	if ((ret = _srv_parse_exprs(srv, px, &errmsg))) {
 		if (errmsg) {
-			ha_alert("error detected while parsing sni expression : %s.\n", errmsg);
-			free(errmsg);
-		}
-		return ret;
-	}
-
-	/* Use sni as fallback if pool_conn_name isn't set */
-	if (!srv->pool_conn_name && srv->sni_expr) {
-		srv->pool_conn_name = strdup(srv->sni_expr);
-		if (!srv->pool_conn_name) {
-			ha_alert("out of memory\n");
-			return ERR_ALERT | ERR_FATAL;
-		}
-	}
-
-	if ((ret = parse_srv_expr(srv->pool_conn_name, &srv->pool_conn_name_expr,
-	                          px, &errmsg))) {
-		if (errmsg) {
-			ha_alert("error detected while parsing pool-conn-name expression : %s.\n", errmsg);
+			ha_alert("error detected while parsing sni or pool-conn-name expressions : %s.\n", errmsg);
 			free(errmsg);
 		}
 		return ret;
