@@ -1426,15 +1426,17 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	conn->ctx = check->sc;
 
 #ifdef USE_OPENSSL
-	if (connect->sni)
-		ssl_sock_set_servername(conn, connect->sni);
-	else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s && s->check.sni)
-		ssl_sock_set_servername(conn, s->check.sni);
+	if (conn_is_ssl(conn)) {
+		if (connect->sni)
+			ssl_sock_set_servername(conn, connect->sni);
+		else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s && s->check.sni)
+			ssl_sock_set_servername(conn, s->check.sni);
 
-	if (connect->alpn)
-		ssl_sock_set_alpn(conn, (unsigned char *)connect->alpn, connect->alpn_len);
-	else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s && s->check.alpn_str)
-		ssl_sock_set_alpn(conn, (unsigned char *)s->check.alpn_str, s->check.alpn_len);
+		if (connect->alpn)
+			ssl_sock_set_alpn(conn, (unsigned char *)connect->alpn, connect->alpn_len);
+		else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s && s->check.alpn_str)
+			ssl_sock_set_alpn(conn, (unsigned char *)s->check.alpn_str, s->check.alpn_len);
+	}
 #endif
 
 	if (conn_ctrl_ready(conn) && (connect->options & TCPCHK_OPT_LINGER) && !(conn->flags & CO_FL_FDLESS)) {
