@@ -28,6 +28,7 @@ struct shm_stats_file_hdr {
 		uint8_t major;
 		uint8_t minor;
 	} version;
+	/* 2 bytes hole */
 	uint global_now_ms;   /* global monotonic date (ms) common to all processes using the shm */
 	ullong global_now_ns; /* global monotonic date (ns) common to all processes using the shm */
 	llong now_offset;     /* offset applied to global monotonic date on startup */
@@ -54,6 +55,7 @@ struct shm_stats_file_object {
 	char guid[GUID_MAX_LEN + 1];
 	uint8_t tgid; // thread group ID from 1 to 64
 	uint8_t type; // SHM_STATS_FILE_OBJECT_TYPE_* to know how to handle object.data
+	ALWAYS_PAD(6); // 6 bytes hole, ensure it remains the same size 32 vs 64 bits arch
 	uint64_t users; // bitfield that corresponds to users of the object (see shm_stats_file_hdr slots)
 	/* as the struct may hold any of the types described here, let's make it
 	 * so it may store up to the heaviest one using an union
