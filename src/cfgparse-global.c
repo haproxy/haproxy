@@ -226,6 +226,15 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT;
 			goto out;
 		}
+
+		if (build_is_static) {
+			ha_warning("parsing [%s:%d] : haproxy is built statically, the "
+			              "libc might crash when resolving \"user %s\", "
+			              "please use \"uid\" instead\n",
+			               file, linenum, args[1]);
+			err_code |= ERR_WARN;
+		}
+
 		errno = 0;
 		ha_user = getpwnam(args[1]);
 		if (ha_user != NULL) {
@@ -245,6 +254,16 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT;
 			goto out;
 		}
+
+		if (build_is_static) {
+			ha_warning("parsing [%s:%d] : haproxy is built statically, the "
+			              "libc might crash when resolving \"group %s\", "
+			              "please use \"gid\" instead\n",
+			               file, linenum, args[1]);
+			err_code |= ERR_WARN;
+		}
+
+
 		errno = 0;
 		ha_group = getgrnam(args[1]);
 		if (ha_group != NULL) {
