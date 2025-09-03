@@ -2107,7 +2107,7 @@ int connect_server(struct stream *s)
 
 #ifdef USE_OPENSSL
 	/* Set socket SNI unless connection is reused. */
-	if (srv && srv->ssl_ctx.sni && !(s->flags & SF_SRV_REUSED)) {
+	if (conn_is_ssl(srv_conn) && srv && srv->ssl_ctx.sni && !(s->flags & SF_SRV_REUSED)) {
 		struct sample *sni_smp = NULL;
 
 		sni_smp = sample_fetch_as_type(s->be, s->sess, s,
