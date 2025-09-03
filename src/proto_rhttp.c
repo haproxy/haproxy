@@ -98,7 +98,7 @@ static struct connection *new_reverse_conn(struct listener *l, struct server *sr
 		goto err;
 
 #ifdef USE_OPENSSL
-	if (srv->ssl_ctx.sni) {
+	if (conn_is_ssl(conn) && srv->ssl_ctx.sni) {
 		struct sample *sni_smp = NULL;
 		/* TODO remove NULL session which can cause crash depending on the SNI sample expr used. */
 		sni_smp = sample_fetch_as_type(srv->proxy, sess, NULL,
