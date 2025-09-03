@@ -943,6 +943,15 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 			if (HA_ATOMIC_LOAD(&ts->ref_cnt) != 0)
 				continue;
 
+			if (updt_locked == 1) {
+				expired++;
+				if (expired == STKTABLE_MAX_UPDATES_AT_ONCE) {
+					need_resched = 1;
+					exp_next = TICK_ETERNITY;
+					goto out_unlock;
+				}
+			}
+
 			eb32_delete(&ts->exp);
 
 			if (!tick_is_expired(ts->expire, now_ms)) {
@@ -968,14 +977,6 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 				continue;
 			}
 
-			if (updt_locked == 1) {
-				expired++;
-				if (expired == STKTABLE_MAX_UPDATES_AT_ONCE) {
-					need_resched = 1;
-					exp_next = TICK_ETERNITY;
-					goto out_unlock;
-				}
-			}
 			/* if the entry is in the update list, we must be extremely careful
 			 * because peers can see it at any moment and start to use it. Peers
 			 * will take the table's updt_lock for reading when doing that, and
