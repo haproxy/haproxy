@@ -898,24 +898,24 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 	struct stktable *t = context;
 	struct stksess *ts;
 	struct eb32_node *eb;
-	int need_resched = 0;
 	int updt_locked;
-	int expired;
+	int to_visit = STKTABLE_MAX_UPDATES_AT_ONCE;
 	int looped;
 	int exp_next;
 	int task_exp;
-	int shard;
+	int shard, init_shard;
 
 	task_exp = TICK_ETERNITY;
 
-	for (shard = 0; shard < CONFIG_HAP_TBL_BUCKETS; shard++) {
+	/* start from a random shard number to avoid starvation in the last ones */
+	shard = init_shard = statistical_prng_range(CONFIG_HAP_TBL_BUCKETS - 1);
+	do {
 		updt_locked = 0;
 		looped = 0;
 		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 		eb = eb32_lookup_ge(&t->shards[shard].exps, now_ms - TIMER_LOOK_BACK);
-		expired = 0;
 
-		while (1) {
+		while (to_visit >= 0) {
 			if (unlikely(!eb)) {
 				/* we might have reached the end of the tree, typically because
 				 * <now_ms> is in the first half and we're first scanning the last
@@ -936,18 +936,11 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 				goto out_unlock;
 			}
 
+			to_visit--;
+
 			/* timer looks expired, detach it from the queue */
 			ts = eb32_entry(eb, struct stksess, exp);
 			eb = eb32_next(eb);
-
-			if (updt_locked == 1) {
-				expired++;
-				if (expired == STKTABLE_MAX_UPDATES_AT_ONCE) {
-					need_resched = 1;
-					exp_next = TICK_ETERNITY;
-					goto out_unlock;
-				}
-			}
 
 			/* This entry's key is expired, we must delete it. It
 			 * may be properly requeued if the element is still in
@@ -1011,9 +1004,13 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 
 		task_exp = tick_first(task_exp, exp_next);
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
-	}
 
-	if (need_resched) {
+		shard++;
+		if (shard >= CONFIG_HAP_TBL_BUCKETS)
+			shard = 0;
+	} while (to_visit > 0 && shard != init_shard);
+
+	if (to_visit <= 0) {
 		task_wakeup(task, TASK_WOKEN_OTHER);
 	} else {
 		/* Reset the task's expiration. We do this under the lock so as not
