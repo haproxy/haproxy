@@ -1265,8 +1265,10 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	check_release_buf(check, &check->bo);
 
 	if (!(check->state & CHK_ST_AGENT) && check->reuse_pool &&
-	    !tcpcheck_use_nondefault_connect(check, connect)) {
+	    !tcpcheck_use_nondefault_connect(check, connect) &&
+	    !srv_is_transparent(s)) {
 		struct ist pool_conn_name = IST_NULL;
+		struct sockaddr_storage *dst, dst_tmp;
 		int64_t hash;
 		int conn_err;
 
@@ -1279,7 +1281,17 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && check->sni)
 			pool_conn_name = ist(check->sni);
 
-		hash = be_calculate_conn_hash(s, NULL, check->sess, NULL, NULL, pool_conn_name);
+		if (!(s->flags & SRV_F_RHTTP)) {
+			dst_tmp = s->addr;
+			set_host_port(&dst_tmp, s->svc_port);
+			dst = &dst_tmp;
+		}
+		else {
+			/* For reverse HTTP, destination address is unknown. */
+			dst = NULL;
+		}
+
+		hash = be_calculate_conn_hash(s, NULL, check->sess, NULL, dst, pool_conn_name);
 		conn_err = be_reuse_connection(hash, check->sess, s->proxy, s,
 		                               check->sc, &s->obj_type, 0);
 		if (conn_err == SF_ERR_INTERNAL) {
@@ -1330,6 +1342,9 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	/* connect to the connect rule addr if specified, otherwise the check
 	 * addr if specified on the server. otherwise, use the server addr (it
 	 * MUST exist at this step).
+	 * TODO server address may be unset if server is transparent. In this
+	 * case and if there is no address configured via a check statement,
+	 * an error should be returned immediately.
 	 */
 	*conn->dst = (is_addr(&connect->addr)
 		      ? connect->addr
