@@ -341,13 +341,14 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 			ts = eb32_entry(eb, struct stksess, exp);
 			eb = eb32_next(eb);
 
-			/* don't delete an entry which is currently referenced */
-			if (HA_ATOMIC_LOAD(&ts->ref_cnt) != 0)
-				continue;
-
+			/* This entry's key is expired, we must delete it. It
+			 * may be properly requeued if the element is still in
+			 * use or not really expired though.
+			 */
 			eb32_delete(&ts->exp);
 
-			if (ts->expire != ts->exp.key) {
+			if (ts->expire != ts->exp.key || HA_ATOMIC_LOAD(&ts->ref_cnt) != 0) {
+			requeue:
 				if (!tick_isset(ts->expire))
 					continue;
 
@@ -385,7 +386,7 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 			 * existing ones already have the ref_cnt.
 			 */
 			if (HA_ATOMIC_LOAD(&ts->ref_cnt))
-				continue;
+				goto requeue;
 
 			/* session expired, trash it */
 			ebmb_delete(&ts->key);
@@ -939,10 +940,6 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 			ts = eb32_entry(eb, struct stksess, exp);
 			eb = eb32_next(eb);
 
-			/* don't delete an entry which is currently referenced */
-			if (HA_ATOMIC_LOAD(&ts->ref_cnt) != 0)
-				continue;
-
 			if (updt_locked == 1) {
 				expired++;
 				if (expired == STKTABLE_MAX_UPDATES_AT_ONCE) {
@@ -952,9 +949,14 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 				}
 			}
 
+			/* This entry's key is expired, we must delete it. It
+			 * may be properly requeued if the element is still in
+			 * use or not really expired though.
+			 */
 			eb32_delete(&ts->exp);
 
-			if (!tick_is_expired(ts->expire, now_ms)) {
+			if (!tick_is_expired(ts->expire, now_ms) || HA_ATOMIC_LOAD(&ts->ref_cnt) != 0) {
+			requeue:
 				if (!tick_isset(ts->expire))
 					continue;
 
@@ -991,7 +993,7 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 			 * existing ones already have the ref_cnt.
 			 */
 			if (HA_ATOMIC_LOAD(&ts->ref_cnt))
-				continue;
+				goto requeue;
 
 			/* session expired, trash it */
 			ebmb_delete(&ts->key);
