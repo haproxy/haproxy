@@ -75,7 +75,7 @@ void srv_take(struct server *srv);
 struct server *srv_drop(struct server *srv);
 void srv_free_params(struct server *srv);
 int srv_preinit(struct server *srv);
-void srv_set_ssl(struct server *s, int use_ssl);
+int srv_set_ssl(struct server *s, int use_ssl);
 const char *srv_adm_st_chg_cause(enum srv_adm_st_chg_cause cause);
 const char *srv_op_st_chg_cause(enum srv_op_st_chg_cause cause);
 void srv_event_hdl_publish_check(struct server *srv, struct check *check);

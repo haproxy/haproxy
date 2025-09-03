@@ -440,8 +440,12 @@ static void srv_state_srv_update(struct server *srv, int version, char **params)
 		use_ssl = strtol(params[16], &p, 10);
 
 		/* configure ssl if connection has been initiated at startup */
-		if (srv->ssl_ctx.ctx != NULL)
-			srv_set_ssl(srv, use_ssl);
+		if (srv->ssl_ctx.ctx != NULL) {
+			if (srv_set_ssl(srv, use_ssl)) {
+				chunk_appendf(msg, ", failed to %s ssl for server '%s'", (use_ssl ? "enable" : "disable"), srv->id);
+				goto out;
+			}
+		}
 #endif
 	}
 

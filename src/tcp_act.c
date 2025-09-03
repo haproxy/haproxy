@@ -514,12 +514,12 @@ static int tcp_check_attach_srv(struct act_rule *rule, struct proxy *px, char **
 	}
 
 	if (rule->arg.attach_srv.name) {
-		if (!srv->pool_conn_name) {
+		if (!srv->pool_conn_name_expr) {
 			memprintf(err, "attach-srv rule has a name argument while server '%s/%s' does not use pool-conn-name; either reconfigure the server or remove the name argument from this attach-srv rule", ist0(be_name), ist0(sv_name));
 			return 0;
 		}
 	} else {
-		if (srv->pool_conn_name) {
+		if (srv->pool_conn_name_expr) {
 			memprintf(err, "attach-srv rule has no name argument while server '%s/%s' uses pool-conn-name; either add a name argument to the attach-srv rule or reconfigure the server", ist0(be_name), ist0(sv_name));
 			return 0;
 		}
