@@ -1556,6 +1556,7 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 {
 	int ret, new_pushed, use_timed;
 	int updates_sent = 0;
+	int failed_once = 0;
 
 	ret = 1;
 	use_timed = 0;
@@ -1598,7 +1599,25 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 		HA_RWLOCK_RDUNLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
 
 		ret = peer_send_updatemsg(st, appctx, ts, updateid, new_pushed, use_timed);
-		HA_RWLOCK_RDLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
+
+		if (HA_RWLOCK_TRYRDLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock) != 0) {
+			if (failed_once) {
+				/* we've already faced contention twice in this
+				 * loop, this is getting serious, do not insist
+				 * anymore and come back later
+				 */
+				HA_ATOMIC_DEC(&ts->ref_cnt);
+				applet_have_more_data(appctx);
+				ret = -1;
+				goto out_unlocked;
+			}
+			/* OK contention happens, for this one we'll wait on the
+			 * lock, but only once.
+			 */
+			failed_once++;
+			HA_RWLOCK_RDLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
+		}
+
 		HA_ATOMIC_DEC(&ts->ref_cnt);
 		if (ret <= 0)
 			break;
@@ -1628,6 +1647,7 @@ static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 
  out:
 	HA_RWLOCK_RDUNLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
+ out_unlocked:
 	return ret;
 }
 
