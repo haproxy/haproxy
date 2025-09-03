@@ -936,7 +936,8 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 				goto out_unlock;
 			}
 
-			to_visit--;
+			/* Let's quit earlier if we currently hold the update lock */
+			to_visit -= 1 + 3 * updt_locked;
 
 			/* timer looks expired, detach it from the queue */
 			ts = eb32_entry(eb, struct stksess, exp);
