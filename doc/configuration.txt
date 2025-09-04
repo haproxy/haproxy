@@ -17635,6 +17635,28 @@ check-proto <name>
   protocol for health-check connections established to this server.
   If not defined, the server one will be used, if set.
 
+check-sni-auto
+  May be used in the following contexts: tcp, http, log
+
+  This option enables the automatic SNI selection when doing health checks over
+  SSL, if no value was already set. It is enabled by default but this parameter
+  may be used as "server" setting to reset any "no-check-sni-auto" setting
+  which would have been inherited from "default-server" directive as default
+  value. It may also be used as "default-server" setting to reset any previous
+  "default-server" "no-check-sni-auto" setting.
+
+  For HTTPS connections, the SNI is automatically selected but only if there is
+  no "http-check connect" rule. In that case, the selected SNI is based on the
+  host header value, specified via the "option httpchk" directive or a
+  "http-check send" rule. There is no automatic selection for "http-check
+  connect" rules. For other protocols, the option is ignored.
+
+  If the automatic selection of the SNI is used for health-checks, the value is
+  assigned to the connection name if "check-reuse-pool" setting is set, unless
+  overridden by the "check-pool-conn-name" server keyword.
+
+  See "sni-auto" option to enable automatic SNI selection for proxied traffic.
+
 check-sni <sni>
   May be used in the following contexts: tcp, http, log
 
@@ -18129,6 +18151,15 @@ no-check-reuse-pool
   This option reverts any previous "check-reuse-pool" possibly inherited from a
   "default-server". Any checks will be conducted on its dedicated connection.
 
+no-check-sni-auto
+  May be used in the following contexts: tcp, http, log
+
+  This option may be used as "server" setting to disable the automatic SNI
+  selection for SSL health checks which is enabled by default.
+
+  See "no-sni-auto" option to disable automatic SNI selection for proxied
+  traffic.
+
 no-check-ssl
   May be used in the following contexts: tcp, http, log
 
@@ -18194,6 +18225,9 @@ no-sni-auto
 
   This option may be used as "server" setting to disable the automatic SNI
   selection which is enabled by default.
+
+  See "no-check-sni-auto" option to disable automatic SNI selection for SSL
+  health checks.
 
 no-ssl
   May be used in the following contexts: tcp, http, log, peers, ring
@@ -18779,6 +18813,9 @@ sni-auto
   If the automatic selection of the SNI is used, the value is assigned to the
   connection name for "http-reuse", unless overridden by the "pool-conn-name"
   server keyword.
+
+  See "check-sni-auto" option to enable automatic SNI selection for SSL health
+  checks.
 
 source <addr>[:<pl>[-<ph>]] [usesrc { <addr2>[:<port2>] | client | clientip } ]
 source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | hdr_ip(<hdr>[,<occ>]) } ]

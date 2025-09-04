@@ -1878,6 +1878,20 @@ static int srv_parse_crt(char **args, int *cur_arg, struct proxy *px, struct ser
 	return 0;
 }
 
+/* parse the "check-sni-auto" server keyword */
+static int srv_parse_check_sni_auto(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->flags &= ~SRV_F_CHK_NO_AUTO_SNI;
+	return 0;
+}
+
+/* parse the "no-check-sni-auto" server keyword */
+static int srv_parse_no_check_sni_auto(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->flags |= SRV_F_CHK_NO_AUTO_SNI;
+	return 0;
+}
+
 /* parse the "no-check-ssl" server keyword */
 static int srv_parse_no_check_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
@@ -2594,6 +2608,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "ca-file",                 srv_parse_ca_file,            1, 1, 1 }, /* set CAfile to process verify server cert */
 	{ "check-alpn",              srv_parse_check_alpn,         1, 1, 1 }, /* Set ALPN used for checks */
 	{ "check-sni",               srv_parse_check_sni,          1, 1, 1 }, /* set SNI */
+	{ "check-sni-auto",          srv_parse_check_sni_auto,     0, 1, 0 }, /* enable automatic SNI selection for health checks */
 	{ "check-ssl",               srv_parse_check_ssl,          0, 1, 1 }, /* enable SSL for health checks */
 	{ "ciphers",                 srv_parse_ciphers,            1, 1, 1 }, /* select the cipher suite */
 	{ "ciphersuites",            srv_parse_ciphersuites,       1, 1, 1 }, /* select the cipher suite */
@@ -2607,6 +2622,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "force-tlsv12",            srv_parse_tls_method_options, 0, 1, 1 }, /* force TLSv12 */
 	{ "force-tlsv13",            srv_parse_tls_method_options, 0, 1, 1 }, /* force TLSv13 */
 	{ "ktls",                    srv_parse_ktls,               1, 1, 1 }, /* enable or disable kTLS */
+	{ "no-check-sni-auto",       srv_parse_no_check_sni_auto,  0, 1, 0 }, /* disable automatic SNI selection for health checks */
 	{ "no-check-ssl",            srv_parse_no_check_ssl,       0, 1, 0 }, /* disable SSL for health checks */
 	{ "no-renegotiate",          srv_parse_renegotiate,        0, 1, 1 }, /* Disable renegotiation */
 	{ "no-send-proxy-v2-ssl",    srv_parse_no_send_proxy_ssl,  0, 1, 0 }, /* do not send PROXY protocol header v2 with SSL info */
