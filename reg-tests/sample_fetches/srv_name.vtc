@@ -31,6 +31,7 @@ haproxy h1 -conf {
         default_backend be
 
     backend be
+        balance roundrobin
         server srv1 ${s1_addr}:${s1_port}
         server srv2 ${s2_addr}:${s2_port}
 } -start

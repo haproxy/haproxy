@@ -36,6 +36,7 @@ haproxy h1 -conf {
 		default_backend test
 
 	backend test
+		balance roundrobin
 		server s1 ${s1_addr}:${s1_port}
 } -start
 
