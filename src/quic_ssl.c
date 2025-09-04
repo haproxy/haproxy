@@ -1281,7 +1281,6 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, struct connection *conn)
 		SSL_set_accept_state(ctx->ssl);
 	}
 	else {
-		int ssl_err;
 		struct server *srv = __objt_server(ctx->conn->target);
 
 		if (qc_ssl_sess_init(qc, srv->ssl_ctx.ctx, &ctx->ssl, conn, 0) == -1)
@@ -1291,24 +1290,6 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, struct connection *conn)
 			goto err;
 
 		SSL_set_connect_state(ctx->ssl);
-		ssl_err = SSL_do_handshake(ctx->ssl);
-		TRACE_PROTO("SSL_do_handshake() called", QUIC_EV_CONN_NEW, qc, &ssl_err);
-		if (ssl_err != 1) {
-			ssl_err = SSL_get_error(ctx->ssl, ssl_err);
-			if (ssl_err == SSL_ERROR_WANT_READ || ssl_err == SSL_ERROR_WANT_WRITE) {
-				TRACE_PROTO("SSL handshake in progress", QUIC_EV_CONN_NEW, qc, &ssl_err);
-			}
-			else {
-				TRACE_ERROR("SSL handshake error", QUIC_EV_CONN_NEW, qc, &ssl_err);
-				HA_ATOMIC_INC(&qc->prx_counters->hdshk_fail);
-				qc_ssl_dump_errors(ctx->conn);
-				ERR_clear_error();
-				goto err;
-			}
-		}
-
-		/* Wakeup the handshake I/O handler tasklet asap to send data */
-		tasklet_wakeup(qc->wait_event.tasklet);
 	}
 
 	ctx->xprt = xprt_get(XPRT_QUIC);
