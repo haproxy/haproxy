@@ -3018,9 +3018,9 @@ const char *backend_lb_algo_str(int algo) {
 int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 {
 	if (!*(args[0])) {
-		/* if no option is set, use round-robin by default */
+		/* if no option is set, use random by default */
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
-		curproxy->lbprm.algo |= BE_LB_ALGO_RR;
+		curproxy->lbprm.algo |= BE_LB_ALGO_RND;
 		return 0;
 	}
 

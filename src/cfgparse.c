@@ -3064,10 +3064,10 @@ init_proxies_list_stage1:
 			else if (!(curproxy->options & (PR_O_TRANSP | PR_O_DISPATCH))) {
 				/* If no LB algo is set in a backend, and we're not in
 				 * transparent mode, dispatch mode nor proxy mode, we
-				 * want to use balance roundrobin by default.
+				 * want to use balance random by default.
 				 */
 				curproxy->lbprm.algo &= ~BE_LB_ALGO;
-				curproxy->lbprm.algo |= BE_LB_ALGO_RR;
+				curproxy->lbprm.algo |= BE_LB_ALGO_RND;
 			}
 		}
 

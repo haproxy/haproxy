@@ -6010,7 +6010,7 @@ balance url_param <param> [check_post]
                 algorithms. Right now, only "url_param", "uri" and "log-hash"
                 support an optional argument.
 
-  The load balancing algorithm of a backend is set to roundrobin when no other
+  The load balancing algorithm of a backend is set to "random" when no other
   algorithm, mode nor option have been set. The algorithm may only be set once
   for each backend.
 
