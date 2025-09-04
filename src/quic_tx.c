@@ -2231,6 +2231,65 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 	TRACE_DEVEL("leaving on error", QUIC_EV_CONN_TXPKT, qc);
 	return NULL;
 }
+
+int quic_tx_unittest(int argc, char **argv)
+{
+	struct quic_conn qc;
+	struct quic_cc_path path;
+	struct quic_pktns pktns;
+	struct quic_enc_level qel;
+	struct quic_tx_packet pkt;
+
+	unsigned char area[1024];
+	unsigned char *end = area + 1024;
+
+	unsigned char *buf_pn;
+	size_t pn_len;
+
+	struct list frms = LIST_HEAD_INIT(frms);
+	struct quic_frame frm;
+
+	/* Minimal quic_conn init and linked elements to be able to use
+	 * qc_do_build_pkt() safely.
+	 */
+	qc.dcid.len = 8;
+	qc.scid.len = 8;
+
+	qc.path = &path;
+	path.prep_in_flight = 0;
+	path.cwnd = 16384;
+
+	qel.pktns = &pktns;
+	pktns.rx.largest_acked_pn = 0;
+	pktns.tx.pto_probe = 0;
+	pktns.flags = 0;
+
+	/* short header packet */
+	pkt.type = QUIC_PACKET_TYPE_SHORT;
+	LIST_INIT(&pkt.frms);
+
+	/* payload frames content */
+	frm.type = QUIC_FT_MAX_STREAMS_BIDI;
+	frm.max_streams_bidi.max_streams = 4;
+	LIST_APPEND(&frms, &frm.list);
+
+	/* Built a small packet with a single MAX_STREAMS frame. Padding must
+	 * be added so that PN decoding can be performed by the peer.
+	 */
+	qc_do_build_pkt(area, end, 0, &pkt, 0, &pn_len, &buf_pn,
+	                0, 0, 0, 1,
+	                &qel, &qc, NULL, &frms);
+
+	/* Ensure padding has been added to packet.
+	 * packet length = 1 (short hdlen) + 8 (DCID len) + 1 (PN len) + 3 (payload)
+	 * payload       = 2 (MAX_STREAMS frm) + 1 (PADDING)
+	 */
+	BUG_ON(pkt.len != 13 || pn_len  != 1);
+
+	return 0;
+}
+REGISTER_UNITTEST("quic_tx", quic_tx_unittest);
+
 /*
  * Local variables:
  *  c-indent-level: 8

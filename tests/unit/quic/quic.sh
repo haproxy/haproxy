@@ -6,6 +6,7 @@ check() {
 
 run() {
 	${HAPROXY_PROGRAM} -U quic_enc
+	${HAPROXY_PROGRAM} -U quic_tx
 }
 
 case "$1" in
