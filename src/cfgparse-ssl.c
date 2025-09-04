@@ -2033,6 +2033,20 @@ static int srv_parse_sni(char **args, int *cur_arg, struct proxy *px, struct ser
 #endif
 }
 
+/* parse the "sni-auto" server keyword */
+static int srv_parse_sni_auto(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->ssl_ctx.options &= ~SRV_SSL_O_NO_AUTO_SNI;
+	return 0;
+}
+
+/* parse the "no-sni-auto" server keyword */
+static int srv_parse_no_sni_auto(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->ssl_ctx.options |= SRV_SSL_O_NO_AUTO_SNI;
+	return 0;
+}
+
 /* parse the "ssl" server keyword */
 static int srv_parse_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
@@ -2597,6 +2611,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "no-renegotiate",          srv_parse_renegotiate,        0, 1, 1 }, /* Disable renegotiation */
 	{ "no-send-proxy-v2-ssl",    srv_parse_no_send_proxy_ssl,  0, 1, 0 }, /* do not send PROXY protocol header v2 with SSL info */
 	{ "no-send-proxy-v2-ssl-cn", srv_parse_no_send_proxy_cn,   0, 1, 0 }, /* do not send PROXY protocol header v2 with CN */
+	{ "no-sni-auto",             srv_parse_no_sni_auto,        0, 1, 0 }, /* disable automatic SNI selection */
 	{ "no-ssl",                  srv_parse_no_ssl,             0, 1, 0 }, /* disable SSL processing */
 	{ "no-ssl-reuse",            srv_parse_no_ssl_reuse,       0, 1, 1 }, /* disable session reuse */
 	{ "no-sslv3",                srv_parse_tls_method_options, 0, 0, 1 }, /* disable SSLv3 */
@@ -2611,6 +2626,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "send-proxy-v2-ssl-cn",    srv_parse_send_proxy_cn,      0, 1, 1 }, /* send PROXY protocol header v2 with CN */
 	{ "sigalgs",                 srv_parse_sigalgs,            1, 1, 1 }, /* signature algorithms */
 	{ "sni",                     srv_parse_sni,                1, 1, 1 }, /* send SNI extension */
+	{ "sni-auto",                srv_parse_sni_auto,           0, 1, 0 }, /* enable automatic SNI selection */
 	{ "ssl",                     srv_parse_ssl,                0, 1, 1 }, /* enable SSL processing */
 	{ "ssl-min-ver",             srv_parse_tls_method_minmax,  1, 1, 1 }, /* minimum version */
 	{ "ssl-max-ver",             srv_parse_tls_method_minmax,  1, 1, 1 }, /* maximum version */

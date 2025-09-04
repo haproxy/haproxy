@@ -54,7 +54,6 @@
 #include <haproxy/xxhash.h>
 #include <haproxy/event_hdl.h>
 
-static inline int _srv_parse_exprs(struct server *srv, struct proxy *px, char **errmsg);
 static void srv_update_status(struct server *s, int type, int cause);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
 static void srv_cleanup_connections(struct server *srv);
@@ -2768,7 +2767,7 @@ int srv_set_ssl(struct server *s, int use_ssl)
 
 	s->use_ssl = use_ssl;
 	if (s->use_ssl) {
-		if (_srv_parse_exprs(s, s->proxy, NULL))
+		if (server_parse_exprs(s, s->proxy, NULL))
 			return -1;
 		s->xprt = xprt_get(XPRT_SSL);
 	}
@@ -3303,7 +3302,7 @@ static inline void _srv_parse_set_id_from_prefix(struct server *srv,
 
 /* Parse the sni and pool-conn-name expressions. Returns 0 on success and non-zero on
  * error. */
-static inline int _srv_parse_exprs(struct server *srv, struct proxy *px, char **errmsg)
+int server_parse_exprs(struct server *srv, struct proxy *px, char **errmsg)
 {
 	int ret = 0;
 
@@ -3369,7 +3368,7 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 		srv_settings_cpy(newsrv, srv, 1);
 		srv_prepare_for_resolution(newsrv, srv->hostname);
 
-	        if (_srv_parse_exprs(newsrv, px, NULL))
+	        if (server_parse_exprs(newsrv, px, NULL))
 			goto err;
 
 		/* append to list of servers available to receive an hostname */
@@ -3876,7 +3875,7 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if ((ret = _srv_parse_exprs(srv, px, &errmsg))) {
+	if ((ret = server_parse_exprs(srv, px, &errmsg))) {
 		if (errmsg) {
 			ha_alert("error detected while parsing sni or pool-conn-name expressions : %s.\n", errmsg);
 			free(errmsg);

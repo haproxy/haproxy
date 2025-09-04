@@ -52,7 +52,7 @@ haproxy h1 -conf {
 
     listen clear-lst
         bind "fd@${clearlst}"
-        server s1 "${tmpdir}/ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt crl-file ${testdir}/interCA2_crl_empty.pem verify required
+        server s1 "${tmpdir}/ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt crl-file ${testdir}/interCA2_crl_empty.pem verify required no-sni-auto
 
     listen ssl-lst
         # crt: certificate of the server

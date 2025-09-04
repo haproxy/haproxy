@@ -51,11 +51,11 @@ haproxy h1 -conf {
         bind "fd@${clearlst}"
        # dummy bind used to test a change when the same crt is used as server and bind
         bind "fd@${foobarlst}" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA1.crt verify none
-        server s1 "${tmpdir}/ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA1.crt verify none
+        server s1 "${tmpdir}/ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA1.crt verify none no-sni-auto
 
     listen clear-verified-lst
         bind "fd@${clearverifiedlst}"
-        server s1 "${tmpdir}/ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA1.crt verify required
+        server s1 "${tmpdir}/ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA1.crt verify required no-sni-auto
 
     listen ssl-lst
         # crt: certificate of the server

@@ -201,6 +201,7 @@ enum srv_init_state {
 
 /* server ssl options */
 #define SRV_SSL_O_NONE           0x0000
+#define SRV_SSL_O_NO_AUTO_SNI   0x0001  /* disable automatic SNI */
 #define SRV_SSL_O_NO_TLS_TICKETS 0x0100 /* disable session resumption tickets */
 #define SRV_SSL_O_NO_REUSE       0x200  /* disable session reuse */
 #define SRV_SSL_O_EARLY_DATA     0x400  /* Allow using early data */

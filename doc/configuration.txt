@@ -18189,6 +18189,12 @@ no-send-proxy-v2-ssl-cn
   It may also be used as "default-server" setting to reset any previous
   "default-server" "send-proxy-v2-ssl-cn" setting.
 
+no-sni-auto
+  May be used in the following contexts: tcp, http, log, peers, ring
+
+  This option may be used as "server" setting to disable the automatic SNI
+  selection which is enabled by default.
+
 no-ssl
   May be used in the following contexts: tcp, http, log, peers, ring
 
@@ -18755,6 +18761,24 @@ sni <expression>
 
   By default, the SNI is assigned to the connection name for "http-reuse",
   unless overridden by the "pool-conn-name" server keyword.
+
+sni-auto
+  May be used in the following contexts: tcp, http, log, peers, ring
+
+  The "sni-auto" parameter enables the automatic SNI selection, if no value was
+  already set. It is enabled by default but this parameter may be used as
+  "server" setting to reset any "no-sni-auto" setting which would have been
+  inherited from "default-server" directive as default value.  It may also be
+  used as "default-server" setting to reset any previous "default-server"
+  "no-sni-auto" setting.
+
+  For HTTPS connections, the selected SNI is based on the request host header
+  value, if found. Otherwise it remains unset. For other protocols, the option
+  is ignored.
+
+  If the automatic selection of the SNI is used, the value is assigned to the
+  connection name for "http-reuse", unless overridden by the "pool-conn-name"
+  server keyword.
 
 source <addr>[:<pl>[-<ph>]] [usesrc { <addr2>[:<port2>] | client | clientip } ]
 source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | hdr_ip(<hdr>[,<occ>]) } ]

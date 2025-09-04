@@ -3761,6 +3761,25 @@ out_uri_auth_compat:
 					cfgerr += xprt_get(XPRT_QUIC)->prepare_srv(newsrv);
 			}
 
+			if (newsrv->use_ssl == 1 || ((newsrv->flags & SRV_F_DEFSRV_USE_SSL) && newsrv->use_ssl != 1)) {
+				/* In HTTP only, if the SNI not set and we can realy on the host
+				 * header value, fill the sni expression accordingly
+				 */
+				if (newsrv->proxy->mode == PR_MODE_HTTP && !(newsrv->ssl_ctx.options & SRV_SSL_O_NO_AUTO_SNI)) {
+					newsrv->sni_expr = strdup("req.hdr(host),field(1,:)");
+
+					err = NULL;
+					if (server_parse_exprs(newsrv, curproxy, &err)) {
+						ha_alert("parsing [%s:%d]: failed to parse auto SNI expression: %s\n",
+							 newsrv->conf.file, newsrv->conf.line, err);
+						free(err);
+						++cfgerr;
+						goto next_srv;
+					}
+				}
+			}
+
+
 			if ((newsrv->flags & SRV_F_FASTOPEN) &&
 			    ((curproxy->retry_type & (PR_RE_DISCONNECTED | PR_RE_TIMEOUT)) !=
 			     (PR_RE_DISCONNECTED | PR_RE_TIMEOUT)))

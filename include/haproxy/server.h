@@ -52,6 +52,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 int srv_update_addr(struct server *s, void *ip, int ip_sin_family, struct server_inetaddr_updater updater);
 struct sample_expr *_parse_srv_expr(char *expr, struct arg_list *args_px,
                                     const char *file, int linenum, char **err);
+int server_parse_exprs(struct server *srv, struct proxy *px, char **err);
 int server_set_inetaddr(struct server *s, const struct server_inetaddr *inetaddr, struct server_inetaddr_updater updater, struct buffer *msg);
 int server_set_inetaddr_warn(struct server *s, const struct server_inetaddr *inetaddr, struct server_inetaddr_updater updater);
 void server_get_inetaddr(struct server *s, struct server_inetaddr *inetaddr);
