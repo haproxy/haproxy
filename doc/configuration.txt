@@ -19962,6 +19962,7 @@ aes_gcm_dec(bits,nonce,key,aead_tag)               binary       binary
 aes_gcm_enc(bits,nonce,key,aead_tag)               binary       binary
 and(value)                                         integer      integer
 b64dec                                             string       binary
+base2                                              binary       string
 base64                                             binary       string
 be2dec(separator,chunk_size[,truncate])            binary       string
 le2dec(separator,chunk_size[,truncate])            binary       string
@@ -20185,6 +20186,12 @@ b64dec
   representation. It performs the inverse operation of base64().
   For base64url("URL and Filename Safe Alphabet" (RFC 4648)) variant
   see "ub64dec".
+
+base2
+  Converts a binary input sample to a binary string containing eight binary
+  digits per input byte. It is used to be able to perform longest prefix match
+  on types where the native representation does not allow prefix matching, for
+  example IP prefixes.
 
 base64
   Converts a binary input sample to a base64 string. It is used to log or

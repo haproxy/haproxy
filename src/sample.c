@@ -2151,6 +2151,25 @@ static int sample_conv_bin2hex(const struct arg *arg_p, struct sample *smp, void
 	return 1;
 }
 
+static int sample_conv_bin2base2(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct buffer *trash = get_trash_chunk();
+	unsigned char c;
+	int ptr = 0;
+	int bit = 0;
+
+	trash->data = 0;
+	while (ptr < smp->data.u.str.data && trash->data <= trash->size - 8) {
+		c = smp->data.u.str.area[ptr++];
+                for (bit = 7; bit >= 0; bit--)
+                        trash->area[trash->data++] = c & (1 << bit) ? '1' : '0';
+	}
+	smp->data.u.str = *trash;
+	smp->data.type = SMP_T_STR;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
 static int sample_conv_hex2int(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	long long int n = 0;
@@ -5441,6 +5460,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "upper",   sample_conv_str2upper,    0,                     NULL,                     SMP_T_STR,  SMP_T_STR  },
 	{ "lower",   sample_conv_str2lower,    0,                     NULL,                     SMP_T_STR,  SMP_T_STR  },
 	{ "length",  sample_conv_length,       0,                     NULL,                     SMP_T_STR,  SMP_T_SINT },
+	{ "base2",   sample_conv_bin2base2,    0,                     NULL,                     SMP_T_BIN,  SMP_T_STR  },
 	{ "be2dec",  sample_conv_be2dec,       ARG3(1,STR,SINT,SINT), sample_conv_2dec_check,   SMP_T_BIN,  SMP_T_STR  },
 	{ "le2dec",  sample_conv_le2dec,       ARG3(1,STR,SINT,SINT), sample_conv_2dec_check,   SMP_T_BIN,  SMP_T_STR  },
 	{ "be2hex",  sample_conv_be2hex,       ARG3(1,STR,SINT,SINT), sample_conv_be2hex_check, SMP_T_BIN,  SMP_T_STR  },
