@@ -2961,6 +2961,8 @@ int conn_reverse(struct connection *conn)
 		struct server *srv = objt_server(conn->reverse.target);
 		BUG_ON(!srv);
 
+		LIST_DEL_INIT(&conn->stopping_list);
+
 		if (conn_backend_init(conn))
 			return 1;
 
