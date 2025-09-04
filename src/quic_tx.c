@@ -1996,6 +1996,10 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	 */
 	if (*pn_len + len < QUIC_PACKET_PN_MAXLEN + QUIC_HP_SAMPLE_LEN) {
 		padding_len = QUIC_PACKET_PN_MAXLEN + QUIC_HP_SAMPLE_LEN - (*pn_len + len);
+		TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QUIC_EV_CONN_PHPKTS, qc, 0, 0, 0,
+		             "adding padding pn=%llu padding_len=%zu *pn_len=%zu"
+		             " len=%zu len_frms=%zu",
+		             (ull)pn, padding_len, *pn_len, len, len_frms);
 		len += padding_len;
 	}
 
