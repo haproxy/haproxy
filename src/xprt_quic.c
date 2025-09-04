@@ -14,6 +14,7 @@
 #include <haproxy/buf.h>
 #include <haproxy/connection.h>
 #include <haproxy/quic_conn.h>
+#include <haproxy/quic_ssl.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/quic_trace.h>
 #include <haproxy/trace.h>
@@ -124,6 +125,8 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 		struct server *srv = objt_server(conn->target);
 		qc = qc_new_conn(quic_version_1, ipv4, NULL, NULL, NULL,
 		                 NULL, NULL, &srv->addr, 0, srv, conn);
+		if (qc)
+			conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
 	}
 
 	if (!qc)
@@ -160,14 +163,18 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 		qc->mux_state = QC_MUX_READY;
 	}
 	else {
-		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
+		/* This has as side effet to create a SSL_SESSION object attached to
+		 * the SSL object.
+		 */
+		if (!qc_ssl_do_hanshake(qc, ctx))
+			goto out;
 	}
 
 	/* Schedule quic-conn to ensure post handshake frames are emitted. This
 	 * is not done for 0-RTT as xprt->start happens before handshake
 	 * completion.
 	 */
-	if (qc->flags & QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS)
+	if (qc_is_back(qc) || (qc->flags & QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS))
 		tasklet_wakeup(qc->wait_event.tasklet);
 
 	ret = 1;
