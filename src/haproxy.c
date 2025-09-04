@@ -157,6 +157,8 @@ static unsigned long stopping_tgroup_mask; /* Thread groups acknowledging stoppi
 
 /* global options */
 struct global global = {
+	.uid = -1, // not set
+	.gid = -1, // not set
 	.hard_stop_after = TICK_ETERNITY,
 	.close_spread_time = TICK_ETERNITY,
 	.close_spread_end = TICK_ETERNITY,
@@ -3084,7 +3086,7 @@ static void set_identity(const char *program_name)
 {
 	int from_uid __maybe_unused = geteuid();
 
-	if (global.gid) {
+	if (global.gid > 0) {
 		if (getgroups(0, NULL) > 0 && setgroups(0, NULL) == -1)
 			ha_warning("[%s.main()] Failed to drop supplementary groups. Using 'gid'/'group'"
 				   " without 'uid'/'user' is generally useless.\n", program_name);
@@ -3104,7 +3106,7 @@ static void set_identity(const char *program_name)
 	}
 #endif
 
-	if (global.uid && setuid(global.uid) == -1) {
+	if (global.uid > 0 && setuid(global.uid) == -1) {
 		ha_alert("[%s.main()] Cannot set uid %d.\n", program_name, global.uid);
 		protocol_unbind_all();
 		exit(1);
@@ -3463,7 +3465,7 @@ int main(int argc, char **argv)
 		 * and ruid by set_identity() just above, so it's better to
 		 * remind the user to fix uncoherent settings.
 		 */
-		if (global.uid) {
+		if (global.uid > 0) {
 			ha_alert("[%s.main()] Some configuration options require full "
 				 "privileges, so global.uid cannot be changed.\n", argv[0]);
 #if defined(USE_LINUX_CAP)
@@ -3481,6 +3483,22 @@ int main(int argc, char **argv)
 		ha_warning("[%s.main()] Some options which require full privileges"
 			   " might not work well.\n", argv[0]);
 	}
+
+	if (global.uid < 0 && geteuid() == 0)
+		ha_warning("[%s.main()] HAProxy was started as the root user and does "
+			   "not make use of 'user' nor 'uid' global options to drop the "
+			   "privileges. This is generally considered as a bad practice "
+			   "security-wise. If running as root is intentional, please make "
+			   "it explicit using 'uid 0' or 'user root', and also please "
+			   "consider using the 'chroot' directive to isolate the process "
+			   "into a totally empty and read-only directory if possible."
+#if defined(USE_LINUX_CAP)
+			   " Also, since your operating system supports it, always prefer "
+			   "relying on capabilities with unprivileged users than running "
+			   "with full privileges (look for 'setcap' in the configuration"
+			   "manual)."
+#endif
+			   "\n", argv[0]);
 
 	/*
 	 * This is only done in daemon mode because we might want the

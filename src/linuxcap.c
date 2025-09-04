@@ -94,7 +94,7 @@ int prepare_caps_from_permitted_set(int from_uid, int to_uid)
 		return 0;
 
 	/* will change ruid and euid later in set_identity() */
-	if (to_uid)
+	if (to_uid > 0)
 		return 0;
 
 	/* first, let's check if CAP_NET_ADMIN or CAP_NET_RAW is already in
@@ -167,7 +167,7 @@ int prepare_caps_for_setuid(int from_uid, int to_uid)
 	if (from_uid != 0)
 		return 0;
 
-	if (!to_uid)
+	if (to_uid <= 0)
 		return 0;
 
 	if (!caplist)
@@ -216,7 +216,7 @@ int finalize_caps_after_setuid(int from_uid, int to_uid)
 	if (from_uid != 0)
 		return 0;
 
-	if (!to_uid)
+	if (to_uid <= 0)
 		return 0;
 
 	if (!caplist)

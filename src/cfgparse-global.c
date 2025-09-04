@@ -169,7 +169,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "uid") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
-		if (global.uid != 0) {
+		if (global.uid >= 0) {
 			ha_alert("parsing [%s:%d] : user/uid already specified. Continuing.\n", file, linenum);
 			err_code |= ERR_ALERT;
 			goto out;
@@ -189,7 +189,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "gid") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
-		if (global.gid != 0) {
+		if (global.gid >= 0) {
 			ha_alert("parsing [%s:%d] : group/gid already specified. Continuing.\n", file, linenum);
 			err_code |= ERR_ALERT;
 			goto out;
@@ -222,7 +222,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		struct passwd *ha_user;
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
-		if (global.uid != 0) {
+		if (global.uid >= 0) {
 			ha_alert("parsing [%s:%d] : user/uid already specified. Continuing.\n", file, linenum);
 			err_code |= ERR_ALERT;
 			goto out;
@@ -250,7 +250,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		struct group *ha_group;
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
-		if (global.gid != 0) {
+		if (global.gid >= 0) {
 			ha_alert("parsing [%s:%d] : gid/group was already specified. Continuing.\n", file, linenum);
 			err_code |= ERR_ALERT;
 			goto out;
