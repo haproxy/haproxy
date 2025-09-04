@@ -1516,9 +1516,6 @@ static void h2_release(struct h2c *h2c)
 	pool_free(pool_head_h2c, h2c);
 
 	if (conn) {
-		if (!conn_is_back(conn))
-			LIST_DEL_INIT(&conn->stopping_list);
-
 		conn->mux = NULL;
 		conn->ctx = NULL;
 		TRACE_DEVEL("freeing conn", H2_EV_H2C_END, conn);

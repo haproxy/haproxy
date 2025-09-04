@@ -3360,8 +3360,6 @@ static void qcc_release(struct qcc *qcc)
 	pool_free(pool_head_qcc, qcc);
 
 	if (conn) {
-		LIST_DEL_INIT(&conn->stopping_list);
-
 		conn->mux = NULL;
 		conn->ctx = NULL;
 

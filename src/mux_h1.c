@@ -1412,9 +1412,6 @@ static void h1_release(struct h1c *h1c)
 	pool_free(pool_head_h1c, h1c);
 
 	if (conn) {
-		if (!conn_is_back(conn))
-			LIST_DEL_INIT(&conn->stopping_list);
-
 		conn->mux = NULL;
 		conn->ctx = NULL;
 		TRACE_DEVEL("freeing conn", H1_EV_H1C_END, conn);

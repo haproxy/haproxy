@@ -555,6 +555,18 @@ static void conn_backend_deinit(struct connection *conn)
 	pool_free(pool_head_conn_hash_node, conn->hash_node);
 	conn->hash_node = NULL;
 
+	/* Remove from BE purge list. Necessary if conn already scheduled for
+	 * purge but finally freed before by another code path.
+	 */
+	MT_LIST_DELETE(&conn->toremove_list);
+}
+
+/* Ensure <conn> frontend connection is removed from its lists. This must be
+ * performed before freeing or reversing a connection.
+ */
+static void conn_frontend_deinit(struct connection *conn)
+{
+	LIST_DEL_INIT(&conn->stopping_list);
 }
 
 /* Tries to allocate a new connection and initialized its main fields. The
@@ -594,14 +606,8 @@ void conn_free(struct connection *conn)
 
 	if (conn_is_back(conn))
 		conn_backend_deinit(conn);
-
-	/* Remove the conn from toremove_list.
-	 *
-	 * This is needed to prevent a double-free in case the connection was
-	 * already scheduled from cleaning but is freed before via another
-	 * call.
-	 */
-	MT_LIST_DELETE(&conn->toremove_list);
+	else
+		conn_frontend_deinit(conn);
 
 	sockaddr_free(&conn->src);
 	sockaddr_free(&conn->dst);
@@ -2961,7 +2967,7 @@ int conn_reverse(struct connection *conn)
 		struct server *srv = objt_server(conn->reverse.target);
 		BUG_ON(!srv);
 
-		LIST_DEL_INIT(&conn->stopping_list);
+		conn_frontend_deinit(conn);
 
 		if (conn_backend_init(conn))
 			return 1;
