@@ -379,13 +379,13 @@ ifeq ($(TARGET),haiku)
   set_target_defaults = $(call default_opts,USE_POLL USE_TPROXY USE_OBSOLETE_LINKER)
 endif
 
-# For linux >= 2.6.28 and glibc
+# For linux >= 4.17 and glibc
 ifeq ($(TARGET),linux-glibc)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
     USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_LINUX_TPROXY USE_LINUX_CAP      \
     USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL USE_THREAD_DUMP USE_NS USE_TFO     \
-    USE_GETADDRINFO USE_BACKTRACE USE_SHM_OPEN)
+    USE_GETADDRINFO USE_BACKTRACE USE_SHM_OPEN USE_KTLS)
   INSTALL = install -v
 endif
 
@@ -398,13 +398,13 @@ ifeq ($(TARGET),linux-glibc-legacy)
   INSTALL = install -v
 endif
 
-# For linux >= 2.6.28 and musl
+# For linux >= 4.17 and musl
 ifeq ($(TARGET),linux-musl)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
     USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_LINUX_TPROXY USE_LINUX_CAP      \
     USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL USE_THREAD_DUMP USE_NS USE_TFO     \
-    USE_GETADDRINFO USE_BACKTRACE USE_SHM_OPEN)
+    USE_GETADDRINFO USE_BACKTRACE USE_SHM_OPEN USE_KTLS)
   INSTALL = install -v
 endif
 

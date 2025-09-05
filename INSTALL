@@ -559,9 +559,9 @@ It goes into more details with the main options.
 To build haproxy, you have to choose your target OS amongst the following ones
 and assign it to the TARGET variable :
 
-  - linux-glibc         for Linux kernel 2.6.28 and above
+  - linux-glibc         for Linux kernel 4.17 and above
   - linux-glibc-legacy  for Linux kernel 2.6.28 and above without new features
-  - linux-musl          for Linux kernel 2.6.28 and above with musl libc
+  - linux-musl          for Linux kernel 4.17 and above with musl libc
   - solaris             for Solaris 10 and above
   - freebsd             for FreeBSD 10 and above
   - dragonfly           for DragonFlyBSD 4.3 and above
