@@ -2178,6 +2178,13 @@ static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
                                           unsigned int server_len, void *arg)
 {
 	struct ssl_bind_conf *conf = arg;
+	struct connection *conn;
+	struct ssl_sock_ctx *ctx;
+
+	conn = SSL_get_ex_data(s, ssl_app_data_index);
+	ctx = __conn_get_ssl_sock_ctx(conn);
+
+
 #ifdef USE_QUIC
 	struct quic_conn *qc = SSL_get_ex_data(s, ssl_qc_app_data_index);
 #endif
@@ -2198,6 +2205,7 @@ static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
 	}
 #endif
 
+	ctx->flags |= SSL_SOCK_F_HAS_ALPN;
 	return SSL_TLSEXT_ERR_OK;
 }
 #endif
