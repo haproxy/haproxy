@@ -697,7 +697,7 @@ static void usage(char *name)
 		"        -vq/-vqs/-vqb only displays version, short version, branch.\n"
 		"        -d enters debug mode ; -db only disables background mode.\n"
 		"        -dM[<byte>,help,...] debug memory (default: poison with <byte>/0x50)\n"
-		"        -dt activate traces on stderr\n"
+		"        -dt activate traces on stderr; see '-dt help'\n"
 		"        -V enters verbose mode (disables quiet mode)\n"
 		"        -D goes daemon ; -C changes to <dir> before loading files.\n"
 		"        -W master-worker mode.\n"
@@ -1624,24 +1624,26 @@ static void init_args(int argc, char **argv)
 				kwd_dump = flag + 2;
 			}
 			else if (*flag == 'd' && flag[1] == 't') {
-				if (argc > 1 && argv[1][0] != '-') {
-					int ret = trace_parse_cmd(argv[1], &err_msg);
-					if (ret <= -1) {
-						if (ret < -1) {
-							ha_alert("-dt: %s.\n", err_msg);
-							ha_free(&err_msg);
-							exit(EXIT_FAILURE);
-						}
-						else {
-							printf("%s\n", err_msg);
-							ha_free(&err_msg);
-							exit(0);
-						}
-					}
+				char *arg = flag + 2;
+				int ret;
+
+				if (!*arg && argc > 1 && argv[1][0] != '-') {
+					arg = argv[1];
 					argc--; argv++;
 				}
-				else {
-					trace_parse_cmd(NULL, NULL);
+
+				ret = trace_parse_cmd(arg, &err_msg);
+				if (ret <= -1) {
+					if (ret < -1) {
+						ha_alert("-dt: %s.\n", err_msg);
+						ha_free(&err_msg);
+						exit(EXIT_FAILURE);
+					}
+					else {
+						printf("%s\n", err_msg);
+						ha_free(&err_msg);
+						exit(0);
+					}
 				}
 			}
 #ifdef HA_USE_KTLS

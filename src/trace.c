@@ -1008,7 +1008,7 @@ int trace_parse_cmd(const char *arg_src, char **errmsg)
 	char *arg, *oarg;
 	char *saveptr;
 
-	if (!arg_src) {
+	if (!arg_src || !*arg_src) {
 		/* No trace specification, activate all sources on error level. */
 		struct trace_source *src = NULL;
 
