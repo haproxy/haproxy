@@ -1990,12 +1990,16 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	 */
 
 	/* Add padding if packet is too small for HP sampling as specified
-	 * above. QUIC TLS algos relies on 16 bytes sample extracted 4 bytes
-	 * after PN offset. Thus, pn and payload must be at least 4 bytes long,
-	 * so that the sample will be extracted as the AEAD tag.
+	 * above. QUIC TLS algos relies on 16 bytes sample extracted
+	 * QUIC_PACKET_PN_MAXLEN(4) bytes after the PN offset Thus, pn and payload
+	 * must be at least QUIC_PACKET_PN_MAXLEN(4) bytes long, so that the sample
+	 * will be extracted as the AEAD tag.
+	 *
+	 * Note that from here, <len> includes <*pn_len>, the total frame lenghts,
+	 * and QUIC_TLS_TAG_LEN(16).
 	 */
-	if (*pn_len + len < QUIC_PACKET_PN_MAXLEN + QUIC_HP_SAMPLE_LEN) {
-		padding_len = QUIC_PACKET_PN_MAXLEN + QUIC_HP_SAMPLE_LEN - (*pn_len + len);
+	if (len < QUIC_PACKET_PN_MAXLEN + QUIC_TLS_TAG_LEN) {
+		padding_len = QUIC_PACKET_PN_MAXLEN + QUIC_TLS_TAG_LEN - len;
 		TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QUIC_EV_CONN_PHPKTS, qc, 0, 0, 0,
 		             "adding padding pn=%llu padding_len=%zu *pn_len=%zu"
 		             " len=%zu len_frms=%zu",
