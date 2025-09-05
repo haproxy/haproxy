@@ -1,6 +1,132 @@
 ChangeLog :
 ===========
 
+2025/09/05 : 3.3-dev8
+    - BUG/MEDIUM: mux-h2: fix crash on idle-ping due to unwanted ABORT_NOW
+    - BUG/MINOR: quic-be: missing Initial packet number space discarding
+    - BUG/MEDIUM: quic-be: crash after backend CID allocation failures
+    - BUG/MEDIUM: ssl: apply ssl-f-use on every "ssl" bind
+    - BUG/MAJOR: stream: Remove READ/WRITE events on channels after analysers eval
+    - MINOR: dns: dns_connect_nameserver: fix fd leak at error path
+    - BUG/MEDIUM: quic: reset padding when building GSO datagrams
+    - BUG/MINOR: quic: do not emit probe data if CONNECTION_CLOSE requested
+    - BUG/MAJOR: quic: fix INITIAL padding with probing packet only
+    - BUG/MINOR: quic: don't coalesce probing and ACK packet of same type
+    - MINOR: quic: centralize padding for HP sampling on packet building
+    - MINOR: http_ana: fix typo in http_res_get_intercept_rule
+    - BUG/MEDIUM: http_ana: handle yield for "stats http-request" evaluation
+    - MINOR: applet: Rely on applet flag to detect the new api
+    - MINOR: applet: Add function to test applet flags from the appctx
+    - MINOR: applet: Add a flag to know an applet is using HTX buffers
+    - MINOR: applet: Make some applet functions HTX aware
+    - MEDIUM: applet: Set .rcv_buf and .snd_buf functions on default ones if not set
+    - BUG/MEDIUM: mux-spop: Reject connection attempts from a non-spop frontend
+    - REGTESTS: jwt: create dynamically "cert.ecdsa.pem"
+    - BUG/MEDIUM: spoe: Improve error detection in SPOE applet on client abort
+    - MINOR: haproxy: abort config parsing on fatal errors for post parsing hooks
+    - MEDIUM: server: split srv_init() in srv_preinit() + srv_postinit()
+    - MINOR: proxy: handle shared listener counters preparation from proxy_postcheck()
+    - DOC: configuration: reword 'generate-certificates'
+    - BUG/MEDIUM: quic-be: avoid crashes when releasing Initial pktns
+    - BUG/MINOR: quic: reorder fragmented RX CRYPTO frames by their offsets
+    - MINOR: ssl: diagnostic warning when both 'default-crt' and 'strict-sni' are used
+    - MEDIUM: ssl: convert diag to warning for strict-sni + default-crt
+    - DOC: configuration: clarify 'default-crt' and implicit default certificates
+    - MINOR: quic: remove ->offset qf_crypto struct field
+    - BUG/MINOR: mux-quic: trace with non initialized qcc
+    - BUG/MINOR: acl: set arg_list->kw to aclkw->kw string literal if aclkw is found
+    - BUG/MEDIUM: mworker: fix startup and reload on macOS
+    - BUG/MINOR: connection: rearrange union list members
+    - BUG/MINOR: connection: remove extra session_unown_conn() on reverse
+    - MINOR: cli: display failure reason on wait command
+    - BUG/MINOR: server: decrement session idle_conns on del server
+    - BUG/MINOR: mux-quic: do not access conn after idle list insert
+    - MINOR: session: document explicitely that session_add_conn() is safe
+    - MINOR: session: uninline functions related to BE conns management
+    - MINOR: session: refactor alloc/lookup of sess_conns elements
+    - MEDIUM: session: protect sess conns list by idle_conns_lock
+    - MINOR: server: shard by thread sess_conns member
+    - MEDIUM: server: close new idle conns if server in maintenance
+    - MEDIUM: session: close new idle conns if server in maintenance
+    - MINOR: server: cleanup idle conns for server in maint already stopped
+    - MINOR: muxes: enforce thread-safety for private idle conns
+    - MEDIUM: conn/muxes/ssl: reinsert BE priv conn into sess on IO completion
+    - MEDIUM: conn/muxes/ssl: remove BE priv idle conn from sess on IO
+    - MEDIUM: mux-quic: enforce thread-safety of backend idle conns
+    - MAJOR: server: implement purging of private idle connections
+    - MEDIUM: session: account on server idle conns attached to session
+    - MAJOR: server: do not remove idle conns in del server
+    - BUILD: mworker: fix ignoring return value of ‘read’
+    - DOC: unreliable sockpair@ on macOS
+    - MINOR: muxes: adjust takeover with buf_wait interaction
+    - OPTIM: backend: set release on takeover for strict maxconn
+    - DOC: configuration: confuse "strict-mode" with "zero-warning"
+    - MINOR: doc: add missing statistics column
+    - MINOR: doc: add missing statistics column
+    - MINOR: stats: display new curr_sess_idle_conns server counter
+    - MINOR: proxy: extend "show servers conn" output
+    - MEDIUM: proxy: Reject some header names for 'http-send-name-header' directive
+    - BUG/BUILD: stats: fix build due to missing stat enum definition
+    - DOC: proxy-protocol: Make example for PP2_SUBTYPE_SSL_SIG_ALG accurate
+    - CLEANUP: quic: remove a useless CRYPTO frame variable assignment
+    - BUG/MEDIUM: quic: CRYPTO frame freeing without eb_delete()
+    - BUG/MAJOR: mux-quic: fix crash on reload during emission
+    - MINOR: conn/muxes/ssl: add ASSUME_NONNULL() prior to _srv_add_idle
+    - REG-TESTS: map_redirect: Don't use hdr_dom in ACLs with "-m end" matching method
+    - MINOR: acl: Only allow one '-m' matching method
+    - MINOR: acl; Warn when matching method based on a suffix is overwritten
+    - BUG/MEDIUM: server: Duplicate healthcheck's alpn inherited from default server
+    - BUG/MINOR: server: Duplicate healthcheck's sni inherited from default server
+    - BUG/MINOR: acl: Properly detect overwritten matching method
+    - BUG/MINOR: halog: Add OOM checks for calloc() in filter_count_srv_status() and filter_count_url()
+    - BUG/MINOR: log: Add OOM checks for calloc() and malloc() in logformat parser and dup_logger()
+    - BUG/MINOR: acl: Add OOM check for calloc() in smp_fetch_acl_parse()
+    - BUG/MINOR: cfgparse: Add OOM check for calloc() in cfg_parse_listen()
+    - BUG/MINOR: compression: Add OOM check for calloc() in parse_compression_options()
+    - BUG/MINOR: tools: Add OOM check for malloc() in indent_msg()
+    - BUG/MINOR: quic: ignore AGAIN ncbuf err when parsing CRYPTO frames
+    - MINOR: quic/flags: complete missing flags
+    - BUG/MINOR: quic: fix room check if padding requested
+    - BUG/MINOR: quic: fix padding issue on INITIAL retransmit
+    - BUG/MINOR: quic: pad Initial pkt with CONNECTION_CLOSE on client
+    - MEDIUM: quic: strengthen BUG_ON() for unpad Initial packet on client
+    - DOC: configuration: rework the jwt_verify keyword documentation
+    - BUG/MINOR: haproxy: be sure not to quit too early on soft stop
+    - BUILD: acl: silence a possible null deref warning in parse_acl_expr()
+    - MINOR: quic: Add more information about RX packets
+    - CI: fix syntax of Quic Interop pipelines
+    - MEDIUM: cfgparse: warn when using user/group when built statically
+    - BUG/MEDIUM: stick-tables: don't leave the expire loop with elements deleted
+    - BUG/MINOR: stick-tables: never leave used entries without expiration
+    - BUG/MEDIUM: peers: don't fail twice to grab the update lock
+    - MINOR: stick-tables: limit the number of visited nodes during expiration
+    - OPTIM: stick-tables: exit expiry faster when the update lock is held
+    - MINOR: counters: retrieve detailed errmsg upon failure with counters_{fe,be}_shared_prepare()
+    - MINOR: stats-file: introduce shm-stats-file directive
+    - MEDIUM: stats-file: processes share the same clock source from shm-stats-file
+    - MINOR: stats-file: add process slot management for shm stats file
+    - MEDIUM: stats-file/counters: store and preload stats counters as shm file objects
+    - DOC: config: document "shm-stats-file" directive
+    - OPTIM: stats-file: don't unnecessarily die hard on shm_stats_file_reuse_object()
+    - MINOR: compiler: add ALWAYS_PAD() macro
+    - BUILD: stats-file: fix aligment issues
+    - MINOR: stats-file: reserve some bytes in exported structs
+    - MEDIUM: stats-file: add some BUG_ON() guards to ensure exported structs are not changed by accident
+    - BUG/MINOR: check: ensure check-reuse is compatible with SSL
+    - BUG/MINOR: check: fix dst address when reusing a connection
+    - REGTESTS: explicitly use "balance roundrobin" where RR is needed
+    - MAJOR: backend: switch the default balancing algo to "random"
+    - BUG/MEDIUM: conn: fix UAF on connection after reversal on edge
+    - BUG/MINOR: connection: streamline conn detach from lists
+    - BUG/MEDIUM: quic-be: too early SSL_SESSION initialization
+    - BUG/MINOR: log: fix potential memory leak upon error in add_to_logformat_list()
+    - MEDIUM: init: always warn when running as root without being asked to
+    - MINOR: sample: Add base2 converter
+    - MINOR: version: add -vq, -vqb, and -vqs flags for concise version output
+    - BUILD: trace: silence a bogus build warning at -Og
+    - MINOR: trace: accept trace spec right after "-dt" on the command line
+    - BUILD: makefile: bump the default minimum linux version to 4.17
+
 2025/08/20 : 3.3-dev7
     - MINOR: quic: duplicate GSO unsupp status from listener to conn
     - MINOR: quic: define QUIC_FL_CONN_IS_BACK flag
