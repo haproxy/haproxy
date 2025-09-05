@@ -364,7 +364,8 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 				goto out_free_expr;
 			}
 			if (match_forced) {
-				memprintf(err, "only one explicit matching method can be defined with '*m' parameter");
+				memprintf(err, "only one explicit matching method can be defined with '-m' parameter."
+					  " if migrating from an old version, just keep the last one");
 				goto out_free_expr;
 			}
 
