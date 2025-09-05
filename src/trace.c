@@ -1008,33 +1008,6 @@ int trace_parse_cmd(const char *arg_src, char **errmsg)
 	char *arg, *oarg;
 	char *saveptr;
 
-	if (arg_src) {
-		if (strcmp(arg_src, "help") == 0) {
-			memprintf(errmsg,
-			  "-dt activates traces on stderr output via the command-line.\n"
-			  "Without argument, all registered trace sources are activated with error level as filter.\n"
-			  "A list can be specified as argument to configure several trace sources with comma as separator.\n"
-			  "Each entry can contains the trace name, a log level and a verbosity using colon as separator.\n"
-			  "Every fields are optional and can be left empty, or with a colon to specify the next one.\n\n"
-			  "An empty name or the alias 'all' will activate all registered sources.\n"
-			  "Verbosity cannot be configured in this case except 'quiet' as their values are specific to each source.\n\n"
-			  "Examples:\n"
-			  "-dt           activate every sources on error level\n"
-			  "-dt all:user  activate every sources on user level\n"
-			  "-dt h1        activate HTTP/1 traces on error level\n"
-			  "-dt h2:data   activate HTTP/2 traces on data level\n"
-			  "-dt quic::clean,qmux::minimal\n    activate both QUIC transport and MUX traces on error level with their custom verbosity\n");
-			return -1;
-		}
-
-		/* keep a copy of the ptr for strtok */
-		oarg = arg = strdup(arg_src);
-		if (!arg) {
-			memprintf(errmsg, "Can't allocate !");
-			return -2;
-		}
-	}
-
 	if (!arg_src) {
 		/* No trace specification, activate all sources on error level. */
 		struct trace_source *src = NULL;
@@ -1042,6 +1015,31 @@ int trace_parse_cmd(const char *arg_src, char **errmsg)
 		list_for_each_entry(src, &trace_sources, source_link)
 			_trace_parse_cmd(src, -1, -1);
 		return 0;
+	}
+
+	if (strcmp(arg_src, "help") == 0) {
+		memprintf(errmsg,
+		          "-dt activates traces on stderr output via the command-line.\n"
+		          "Without argument, all registered trace sources are activated with error level as filter.\n"
+		          "A list can be specified as argument to configure several trace sources with comma as separator.\n"
+		          "Each entry can contains the trace name, a log level and a verbosity using colon as separator.\n"
+		          "Every fields are optional and can be left empty, or with a colon to specify the next one.\n\n"
+		          "An empty name or the alias 'all' will activate all registered sources.\n"
+		          "Verbosity cannot be configured in this case except 'quiet' as their values are specific to each source.\n\n"
+		          "Examples:\n"
+		          "-dt           activate every sources on error level\n"
+		          "-dt all:user  activate every sources on user level\n"
+		          "-dt h1        activate HTTP/1 traces on error level\n"
+		          "-dt h2:data   activate HTTP/2 traces on data level\n"
+		          "-dt quic::clean,qmux::minimal\n    activate both QUIC transport and MUX traces on error level with their custom verbosity\n");
+		return -1;
+	}
+
+	/* keep a copy of the ptr for strtok */
+	oarg = arg = strdup(arg_src);
+	if (!arg) {
+		memprintf(errmsg, "Can't allocate trace source!");
+		return -2;
 	}
 
 	while ((str = strtok_r(arg, ",", &saveptr))) {
