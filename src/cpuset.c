@@ -77,7 +77,10 @@ int ha_cpuset_isset(const struct hap_cpuset *set, int cpu)
 		return 0;
 
 #if defined(CPUSET_USE_CPUSET) || defined(CPUSET_USE_FREEBSD_CPUSET)
-	return CPU_ISSET(cpu, &set->cpuset);
+	/* Turn to boolean because musl directly returns the mask as a
+	 * a long instead of an int, hence loses bits 32+.
+	 */
+	return !!CPU_ISSET(cpu, &set->cpuset);
 
 #elif defined(CPUSET_USE_ULONG)
 	return !!(set->cpuset & (0x1 << cpu));
