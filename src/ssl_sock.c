@@ -5616,22 +5616,9 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				goto check_error;
 			}
 			if (read_data > 0) {
-				const char *alpn;
-				int len;
-
 				TRACE_DEVEL("Early data read", SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
 				conn->flags |= CO_FL_EARLY_DATA;
 				b_add(&ctx->early_buf, read_data);
-				if (ssl_sock_get_alpn(conn, ctx, &alpn, &len) != 0) {
-					/*
-					 * We have an ALPN set already, so we
-					 * know which mux to use, and we have
-					 * early data, let's create the mux
-					 * now.
-					 */
-					if (!conn->mux)
-						conn_create_mux(conn, NULL);
-				}
 			}
 			if (ret == SSL_READ_EARLY_DATA_FINISH) {
 				conn->flags &= ~CO_FL_EARLY_SSL_HS;
@@ -6475,7 +6462,13 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 	 * we can't be sure conn_fd_handler() will be called again.
 	 */
 	if ((ctx->conn->flags & CO_FL_ERROR) ||
-	    !(ctx->conn->flags & CO_FL_SSL_WAIT_HS)) {
+	    !(ctx->conn->flags & CO_FL_SSL_WAIT_HS)
+#ifdef SSL_READ_EARLY_DATA_SUCCESS
+	    || (b_data(&ctx->early_buf) && (ctx->flags & SSL_SOCK_F_HAS_ALPN ||
+	               (objt_listener(conn->target) &&
+		        __objt_listener(conn->target)->bind_conf->mux_proto)))
+#endif
+	    ) {
 		int woke = 0;
 
 		/* On error, wake any waiter */
