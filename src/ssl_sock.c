@@ -344,7 +344,7 @@ static int ha_ssl_read(BIO *h, char *buf, int size)
 		struct cmsghdr hdr;
 		char buf[CMSG_SPACE(sizeof(unsigned char))];
 	} cmsgbuf;
-	size_t msg_controllen;
+	size_t msg_controllen = 0;
 #endif
 #endif
 	struct buffer tmpbuf;
