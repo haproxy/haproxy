@@ -1,5 +1,3 @@
-#REGTEST_TYPE=slow
-
 # This teg-test verifies that automatic SNI selection for server conncetions and
 # health checks.
 
@@ -70,6 +68,7 @@ haproxy h1 -conf {
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
         timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
         timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        default-server inter 100ms
 
     frontend fe_ssl
         bind "fd@${fe_ssl}" ssl crt ${testdir}/common.pem
@@ -137,9 +136,9 @@ haproxy h1 -conf {
 
 } -start
 
-client c1 -connect ${h1_li_sock} {
-    barrier b1 sync
+barrier b1 sync
 
+client c1 -connect ${h1_li_sock} {
     txreq -url "/test1" -hdr "host: www.test1.org:443"
     rxresp
     expect resp.status == 200
