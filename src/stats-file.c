@@ -566,7 +566,7 @@ static struct shm_stats_file_object *shm_stats_file_reuse_object(void)
 			free = 1; // consider all users are inactive for now
 
 			while (slot < sizeof(shm_stats_file_hdr->slots) / sizeof(shm_stats_file_hdr->slots[0])) {
-				if ((users & (1 << slot)) &&
+				if ((users & (1ULL << slot)) &&
 				    !shm_stats_file_slot_isfree(shm_stats_file_hdr, slot)) {
 					/* user still alive, so supposedly making use of it */
 					free = 0;
