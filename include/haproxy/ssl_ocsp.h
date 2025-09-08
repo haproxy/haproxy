@@ -53,7 +53,7 @@ int ssl_ocsp_check_response(STACK_OF(X509) *chain, X509 *issuer,
 int ssl_create_ocsp_update_task(char **err);
 void ssl_destroy_ocsp_update_task(void);
 
-int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp);
+int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp, int needs_locking);
 
 int ocsp_update_init(void *value, char *buf, struct ckch_data *d, int cli, const char *filename, int linenum, char **err);
 
