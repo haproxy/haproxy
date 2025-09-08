@@ -2137,10 +2137,12 @@ void proxy_cond_disable(struct proxy *p)
 	 * peers, etc) we must not report them at all as they're not really on
 	 * the data plane but on the control plane.
 	 */
-	if (p->cap & PR_CAP_FE)
-		cum_conn = COUNTERS_SHARED_TOTAL(p->fe_counters.shared.tg, cum_conn, HA_ATOMIC_LOAD);
-	if (p->cap & PR_CAP_BE)
-		cum_sess = COUNTERS_SHARED_TOTAL(p->be_counters.shared.tg, cum_sess, HA_ATOMIC_LOAD);
+	if (!(global.mode & MODE_STARTING)) {
+		if (p->cap & PR_CAP_FE)
+			cum_conn = COUNTERS_SHARED_TOTAL(p->fe_counters.shared.tg, cum_conn, HA_ATOMIC_LOAD);
+		if (p->cap & PR_CAP_BE)
+			cum_sess = COUNTERS_SHARED_TOTAL(p->be_counters.shared.tg, cum_sess, HA_ATOMIC_LOAD);
+	}
 
 	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP || p->mode == PR_MODE_SYSLOG || p->mode == PR_MODE_SPOP) && !(p->cap & PR_CAP_INT))
 		ha_warning("Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
