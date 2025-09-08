@@ -1289,6 +1289,7 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, struct connection *conn)
 		if (!qc_ssl_set_quic_transport_params(ctx->ssl, qc, quic_version_1, 0))
 			goto err;
 
+		ssl_sock_srv_try_reuse_sess(ctx, srv);
 		SSL_set_connect_state(ctx->ssl);
 	}
 

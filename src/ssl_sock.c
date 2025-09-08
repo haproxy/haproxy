@@ -5307,6 +5307,74 @@ int increment_sslconn()
 	return next_sslconn;
 }
 
+/* Try to reuse an SSL session (SSL_SESSION object) for <srv> server with <ctx>
+ * as SSL socket context.
+ */
+void ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
+{
+	HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.lock);
+	if (srv->ssl_ctx.reused_sess[tid].ptr) {
+		/* let's recreate a session from (ptr,size) and assign
+		 * it to ctx->ssl. Its refcount will be updated by the
+		 * creation and by the assignment, so after assigning
+		 * it or failing to, we must always free it to decrement
+		 * the refcount.
+		 */
+		const unsigned char *ptr = srv->ssl_ctx.reused_sess[tid].ptr;
+		SSL_SESSION *sess = d2i_SSL_SESSION(NULL, &ptr, srv->ssl_ctx.reused_sess[tid].size);
+
+		if (sess && !SSL_set_session(ctx->ssl, sess)) {
+			uint old_tid = HA_ATOMIC_LOAD(&srv->ssl_ctx.last_ssl_sess_tid); // 0=none, >0 = tid + 1
+			if (old_tid == tid + 1)
+				HA_ATOMIC_CAS(&srv->ssl_ctx.last_ssl_sess_tid, &old_tid, 0); // no more valid
+			SSL_SESSION_free(sess);
+			HA_RWLOCK_WRLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
+			ha_free(&srv->ssl_ctx.reused_sess[tid].ptr);
+			HA_RWLOCK_WRTORD(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
+			if (srv->ssl_ctx.reused_sess[tid].sni)
+				SSL_set_tlsext_host_name(ctx->ssl, srv->ssl_ctx.reused_sess[tid].sni);
+			HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
+		} else if (sess) {
+			/* already assigned, not needed anymore */
+			SSL_SESSION_free(sess);
+			HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
+			if (srv->ssl_ctx.reused_sess[tid].sni)
+				SSL_set_tlsext_host_name(ctx->ssl, srv->ssl_ctx.reused_sess[tid].sni);
+			HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
+		}
+	} else {
+		/* No session available yet, let's see if we can pick one
+		 * from another thread. If old_tid is non-null, it designates
+		 * the index of a recently updated thread that might still have
+		 * a usable session. All threads are collectively responsible
+		 * for resetting the index if it fails.
+		 */
+		const unsigned char *ptr;
+		SSL_SESSION *sess;
+		uint old_tid = HA_ATOMIC_LOAD(&srv->ssl_ctx.last_ssl_sess_tid); // 0=none, >0 = tid + 1
+
+		if (old_tid) {
+			HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[old_tid-1].sess_lock);
+
+			ptr = srv->ssl_ctx.reused_sess[old_tid-1].ptr;
+			if (ptr) {
+				sess = d2i_SSL_SESSION(NULL, &ptr, srv->ssl_ctx.reused_sess[old_tid-1].size);
+				if (sess) {
+					if (!SSL_set_session(ctx->ssl, sess))
+						HA_ATOMIC_CAS(&srv->ssl_ctx.last_ssl_sess_tid, &old_tid, 0); // no more valid
+					SSL_SESSION_free(sess);
+				}
+			}
+
+			if (srv->ssl_ctx.reused_sess[old_tid-1].sni)
+				SSL_set_tlsext_host_name(ctx->ssl, srv->ssl_ctx.reused_sess[old_tid-1].sni);
+
+			HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[old_tid-1].sess_lock);
+		}
+	}
+	HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.lock);
+}
+
 /*
  * This function is called if SSL * context is not yet allocated. The function
  * is designed to be called before any other data-layer operation and sets the
@@ -5384,68 +5452,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		if (srv->ssl_ctx.renegotiate == SSL_RENEGOTIATE_ON)
 			SSL_set_renegotiate_mode(ctx->ssl, ssl_renegotiate_freely);
 #endif
-
-		HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.lock);
-		if (srv->ssl_ctx.reused_sess[tid].ptr) {
-			/* let's recreate a session from (ptr,size) and assign
-			 * it to ctx->ssl. Its refcount will be updated by the
-			 * creation and by the assignment, so after assigning
-			 * it or failing to, we must always free it to decrement
-			 * the refcount.
-			 */
-			const unsigned char *ptr = srv->ssl_ctx.reused_sess[tid].ptr;
-			SSL_SESSION *sess = d2i_SSL_SESSION(NULL, &ptr, srv->ssl_ctx.reused_sess[tid].size);
-
-			if (sess && !SSL_set_session(ctx->ssl, sess)) {
-				uint old_tid = HA_ATOMIC_LOAD(&srv->ssl_ctx.last_ssl_sess_tid); // 0=none, >0 = tid + 1
-				if (old_tid == tid + 1)
-					HA_ATOMIC_CAS(&srv->ssl_ctx.last_ssl_sess_tid, &old_tid, 0); // no more valid
-				SSL_SESSION_free(sess);
-				HA_RWLOCK_WRLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
-				ha_free(&srv->ssl_ctx.reused_sess[tid].ptr);
-				HA_RWLOCK_WRTORD(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
-				if (srv->ssl_ctx.reused_sess[tid].sni)
-					SSL_set_tlsext_host_name(ctx->ssl, srv->ssl_ctx.reused_sess[tid].sni);
-				HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
-			} else if (sess) {
-				/* already assigned, not needed anymore */
-				SSL_SESSION_free(sess);
-				HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
-				if (srv->ssl_ctx.reused_sess[tid].sni)
-					SSL_set_tlsext_host_name(ctx->ssl, srv->ssl_ctx.reused_sess[tid].sni);
-				HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
-			}
-		} else {
-			/* No session available yet, let's see if we can pick one
-			 * from another thread. If old_tid is non-null, it designates
-			 * the index of a recently updated thread that might still have
-			 * a usable session. All threads are collectively responsible
-			 * for resetting the index if it fails.
-			 */
-			const unsigned char *ptr;
-			SSL_SESSION *sess;
-			uint old_tid = HA_ATOMIC_LOAD(&srv->ssl_ctx.last_ssl_sess_tid); // 0=none, >0 = tid + 1
-
-			if (old_tid) {
-				HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[old_tid-1].sess_lock);
-
-				ptr = srv->ssl_ctx.reused_sess[old_tid-1].ptr;
-				if (ptr) {
-					sess = d2i_SSL_SESSION(NULL, &ptr, srv->ssl_ctx.reused_sess[old_tid-1].size);
-					if (sess) {
-						if (!SSL_set_session(ctx->ssl, sess))
-							HA_ATOMIC_CAS(&srv->ssl_ctx.last_ssl_sess_tid, &old_tid, 0); // no more valid
-						SSL_SESSION_free(sess);
-					}
-				}
-
-				if (srv->ssl_ctx.reused_sess[old_tid-1].sni)
-					SSL_set_tlsext_host_name(ctx->ssl, srv->ssl_ctx.reused_sess[old_tid-1].sni);
-
-				HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[old_tid-1].sess_lock);
-			}
-		}
-		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.lock);
+		ssl_sock_srv_try_reuse_sess(ctx, srv);
 
 #ifdef HA_USE_KTLS
 		if ((srv->ssl_ctx.options & SRV_SSL_O_KTLS) && !(global.tune.options & GTUNE_NO_KTLS)) {
