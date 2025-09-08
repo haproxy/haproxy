@@ -2057,7 +2057,8 @@ int connect_server(struct stream *s)
 		 * anyway.
 		 */
 		if (IS_HTX_STRM(s) && srv && srv->use_ssl &&
-		    (srv->ssl_ctx.alpn_str || srv->ssl_ctx.npn_str))
+		    (srv->ssl_ctx.alpn_str || srv->ssl_ctx.npn_str) &&
+		    srv->path_params.nego_alpn[0] == 0)
 			may_start_mux_now = 0;
 #endif
 

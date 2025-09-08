@@ -355,7 +355,12 @@ int conn_install_mux_be(struct connection *conn, void *ctx, struct session *sess
 		int alpn_len = 0;
 		int mode = conn_pr_mode_to_proto_mode(prx->mode);
 
-		conn_get_alpn(conn, &alpn_str, &alpn_len);
+		if (!conn_get_alpn(conn, &alpn_str, &alpn_len)) {
+			if (srv && srv->path_params.nego_alpn[0]) {
+				alpn_str = srv->path_params.nego_alpn;
+				alpn_len = strlen(alpn_str);
+			}
+		}
 		mux_proto = ist2(alpn_str, alpn_len);
 
 		mux_ops = conn_get_best_mux(conn, mux_proto, PROTO_SIDE_BE, mode);
