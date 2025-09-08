@@ -895,8 +895,7 @@ static void sig_dump_state(struct sig_handler *sh)
 
 static void dump(struct sig_handler *sh)
 {
-	/* dump memory usage then free everything possible */
-	dump_pools();
+	/* free everything possible */
 	pool_gc(NULL);
 }
 

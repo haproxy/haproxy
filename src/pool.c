@@ -1348,11 +1348,11 @@ static int get_show_pools_info(struct show_pools_ctx *ctx)
 	return 0;
 }
 
-/* This function dumps information about pools found in the context <ctx>. If
- * <appctx> is NULL, it dumps it on stderr. Otherwise the applet is used.
+/* This function dumps information about pools found in the applet context.
  */
-int dump_pools_info(struct appctx *appctx, struct show_pools_ctx *ctx)
+int dump_pools_info(struct appctx *appctx)
 {
+	struct show_pools_ctx *ctx = appctx->svcctx;
 	int i;
 
 	if (ctx->pool_idx == -1) {
@@ -1361,9 +1361,7 @@ int dump_pools_info(struct appctx *appctx, struct show_pools_ctx *ctx)
 			chunk_appendf(&trash, " (limited to the first %u entries)", ctx->maxcnt);
 		chunk_appendf(&trash, ". Use SIGQUIT to flush them.\n");
 
-		if (!appctx)
-			qfprintf(stderr, "%s", trash.area);
-		else if (applet_putchk(appctx, &trash) == -1)
+		if (applet_putchk(appctx, &trash) == -1)
 			return 0;
 
 		ctx->pool_idx = 0;
@@ -1391,9 +1389,7 @@ int dump_pools_info(struct appctx *appctx, struct show_pools_ctx *ctx)
 			}
 		}
 
-		if (!appctx)
-			qfprintf(stderr, "%s", trash.area);
-		else if (applet_putchk(appctx, &trash) == -1) {
+		if (applet_putchk(appctx, &trash) == -1) {
 			ctx->pool_idx = i;
 			return 0;
 		}
@@ -1404,25 +1400,10 @@ int dump_pools_info(struct appctx *appctx, struct show_pools_ctx *ctx)
 		     ".\n",
 		     ctx->nbpools, ctx->allocated, ctx->used, ctx->cached_bytes
 		);
-	if (!appctx)
-		qfprintf(stderr, "%s", trash.area);
-	else  if (applet_putchk(appctx, &trash) == -1)
+	if (applet_putchk(appctx, &trash) == -1)
 		return 0;
 
 	return 1;
-}
-
-/* Dump statistics on pools usage. */
-void dump_pools(void)
-{
-	struct show_pools_ctx ctx;
-
-	memset(&ctx, 0, sizeof(ctx));
-
-	if (get_show_pools_info(&ctx) == -1) {
-		qfprintf(stderr, "Failed to get info about pools.\n");
-	}
-	dump_pools_info(NULL, &ctx);
 }
 
 /* This function returns the total number of failed pool allocations */
@@ -1613,9 +1594,7 @@ static void cli_release_show_pools(struct appctx *appctx)
  */
 static int cli_io_handler_dump_pools(struct appctx *appctx)
 {
-	struct show_pools_ctx *ctx = appctx->svcctx;
-
-	return dump_pools_info(appctx, ctx);
+	return dump_pools_info(appctx);
 }
 
 /* callback used to create early pool <name> of size <size> and store the
