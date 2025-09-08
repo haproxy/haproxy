@@ -137,6 +137,11 @@ static const char *srv_op_st_chg_cause_str[] = {
 	[SRV_OP_STCHGC_STATEFILE] = "changed from server-state after a reload"
 };
 
+static void srv_reset_path_parameters(struct server *s)
+{
+	s->path_params.nego_alpn[0] = 0;
+}
+
 const char *srv_op_st_chg_cause(enum srv_op_st_chg_cause cause)
 {
 	return srv_op_st_chg_cause_str[cause];
@@ -6642,6 +6647,7 @@ static int _srv_update_status_op(struct server *s, enum srv_op_st_chg_cause caus
 		if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
 			srv_shutdown_streams(s, SF_ERR_DOWN);
 
+		srv_reset_path_parameters(s);
 		/* we might have streams queued on this server and waiting for
 		 * a connection. Those which are redispatchable will be queued
 		 * to another server or to the proxy itself.
@@ -6669,6 +6675,7 @@ static int _srv_update_status_op(struct server *s, enum srv_op_st_chg_cause caus
 	else if ((s->cur_state != SRV_ST_STOPPING) && (s->next_state == SRV_ST_STOPPING)) {
 		srv_lb_propagate(s);
 
+		srv_reset_path_parameters(s);
 		/* we might have streams queued on this server and waiting for
 		 * a connection. Those which are redispatchable will be queued
 		 * to another server or to the proxy itself.
@@ -6782,6 +6789,8 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 
 			s->next_state = SRV_ST_STOPPED;
 			srv_lb_propagate(s);
+
+			srv_reset_path_parameters(s);
 
 			if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
 				srv_shutdown_streams(s, SF_ERR_DOWN);

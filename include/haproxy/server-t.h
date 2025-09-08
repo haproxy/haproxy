@@ -315,6 +315,12 @@ enum renegotiate_mode {
 	SSL_RENEGOTIATE_ON		/* Enable secure renegotiation */
 };
 
+#define MAX_ALPN_SIZE 16
+
+struct path_parameters {
+	char nego_alpn[MAX_ALPN_SIZE];
+};
+
 struct proxy;
 struct server {
 	/* mostly config or admin stuff, doesn't change often */
@@ -494,6 +500,7 @@ struct server {
 #ifdef USE_QUIC
 	struct quic_transport_params quic_params; /* QUIC transport parameters */
 #endif
+	struct path_parameters path_params;     /* Connection parameters for that server */
 	struct resolv_srvrq *srvrq;		/* Pointer representing the DNS SRV requeest, if any */
 	struct list srv_rec_item;		/* to attach server to a srv record item */
 	struct list ip_rec_item;		/* to attach server to a A or AAAA record item */
