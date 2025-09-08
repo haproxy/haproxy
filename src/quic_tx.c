@@ -203,7 +203,7 @@ static int qc_may_build_pkt(struct quic_conn *qc, struct list *frms,
 		 (force_ack || nb_aepkts_since_last_ack >= QUIC_MAX_RX_AEPKTS_SINCE_LAST_ACK));
 
 	TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QUIC_EV_CONN_PHPKTS, qc, 0, 0, 0,
-	             "%c has_sec=%d cc=%d probe=%d must_ack=%d frms=%d prep_in_fligh=%llu cwnd=%llu",
+	             "%c has_sec=%d cc=%d probe=%d must_ack=%d frms=%d prep_in_flight=%llu cwnd=%llu",
 	             quic_enc_level_char_from_qel(qel, qc),
 	             quic_tls_has_tx_sec(qel), cc, probe, *must_ack, LIST_ISEMPTY(frms),
 	             (ullong)qc->path->prep_in_flight, (ullong)qc->path->cwnd);
