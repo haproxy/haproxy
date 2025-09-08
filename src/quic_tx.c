@@ -1998,8 +1998,8 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	 * Note that from here, <len> includes <*pn_len>, the total frame lenghts,
 	 * and QUIC_TLS_TAG_LEN(16).
 	 */
-	if (len < QUIC_PACKET_PN_MAXLEN + QUIC_TLS_TAG_LEN) {
-		padding_len = QUIC_PACKET_PN_MAXLEN + QUIC_TLS_TAG_LEN - len;
+	if (len < QUIC_PACKET_PN_MAXLEN + QUIC_HP_SAMPLE_LEN) {
+		padding_len = QUIC_PACKET_PN_MAXLEN + QUIC_HP_SAMPLE_LEN - len;
 		TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QUIC_EV_CONN_PHPKTS, qc, 0, 0, 0,
 		             "adding padding pn=%llu padding_len=%zu *pn_len=%zu"
 		             " len=%zu len_frms=%zu",
