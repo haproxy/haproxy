@@ -926,6 +926,8 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 	int exp_next;
 	int task_exp;
 	int shard, init_shard;
+	int failed_once = 0;
+	int purged = 0;
 
 	task_exp = TICK_ETERNITY;
 
@@ -934,7 +936,18 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 	do {
 		updt_locked = 0;
 		looped = 0;
-		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
+
+		if (HA_RWLOCK_TRYWRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock) != 0) {
+			if (purged || failed_once) {
+				/* already purged or second failed lock, yield and come back later */
+				to_visit = 0;
+				break;
+			}
+			/* make sure we succeed at least once */
+			failed_once = 1;
+			HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
+		}
+
 		eb = eb32_lookup_ge(&t->shards[shard].exps, now_ms - TIMER_LOOK_BACK);
 
 		while (to_visit >= 0) {
@@ -1016,6 +1029,7 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 			MT_LIST_DELETE(&ts->pend_updts);
 			eb32_delete(&ts->upd);
 			__stksess_free(t, ts);
+			purged++;
 		}
 
 		/* We have found no task to expire in any tree */
