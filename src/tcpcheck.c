@@ -1511,7 +1511,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	 * is no alpn.
 	 */
 	if (!s || ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && check->mux_proto) ||
-	    connect->mux_proto || (!connect->alpn && !check->alpn_str)) {
+	    connect->mux_proto ||
+	    (!conn_is_ssl(conn) || (!connect->alpn && !check->alpn_str))) {
 		const struct mux_ops *mux_ops;
 
 		TRACE_DEVEL("try to install mux now", CHK_EV_TCPCHK_CONN, check);
