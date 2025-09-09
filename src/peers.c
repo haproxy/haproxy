@@ -637,7 +637,7 @@ static inline void peer_set_update_msg_type(char *msg_type, int use_identifier, 
  * If function returns 0, the caller should consider we were unable to encode this message (TODO:
  * check size)
  */
-static int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_params *p)
+int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_params *p)
 {
 	uint32_t netinteger;
 	unsigned short datalen;
@@ -1550,9 +1550,9 @@ static inline struct stksess *peer_teach_stage2_stksess_lookup(struct shared_tab
  * If it returns 0 or -1, this function leave <st> locked if already locked when entering this function
  * unlocked if not already locked when entering this function.
  */
-static inline int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
-                                      struct stksess *(*peer_stksess_lookup)(struct shared_table *),
-                                      struct shared_table *st)
+int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
+                        struct stksess *(*peer_stksess_lookup)(struct shared_table *),
+                        struct shared_table *st)
 {
 	int ret, new_pushed, use_timed;
 	int updates_sent = 0;
@@ -1714,8 +1714,8 @@ static inline int peer_send_teach_stage2_msgs(struct appctx *appctx, struct peer
  * update ID.
  * <totl> is the length of the stick-table update message computed upon receipt.
  */
-static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt, int exp,
-                                char **msg_cur, char *msg_end, int msg_len, int totl)
+int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt, int exp,
+                         char **msg_cur, char *msg_end, int msg_len, int totl)
 {
 	struct shared_table *st = p->remote_table;
 	struct stktable *table;
@@ -2628,8 +2628,8 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
  * only reset at the end. In the mean time, it always point on a table.
  */
 
-static inline int peer_send_msgs(struct appctx *appctx,
-                                 struct peer *peer, struct peers *peers)
+int peer_send_msgs(struct appctx *appctx,
+                   struct peer *peer, struct peers *peers)
 {
 	int repl;
 
@@ -2918,7 +2918,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 /*
  * IO Handler to handle message exchange with a peer
  */
-static void peer_io_handler(struct appctx *appctx)
+void peer_io_handler(struct appctx *appctx)
 {
 	struct peer *curpeer = NULL;
 	int reql = 0;
