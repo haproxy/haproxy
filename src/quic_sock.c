@@ -87,7 +87,7 @@ int quic_sock_get_dst(struct connection *conn, struct sockaddr *addr, socklen_t 
 		memcpy(addr, &qc->peer_addr, len);
 	} else {
 		struct sockaddr_storage *from;
-		struct listener *l = objt_listener(qc->target);
+		struct listener *l = qc->li;
 
 		/* Return listener address if IP_PKTINFO or friends are not
 		 * supported by the socket.
@@ -701,7 +701,7 @@ static int qc_may_use_saddr(struct quic_conn *qc)
 	 * possible. This is not useful if the listening socket is bound to
 	 * a specific address. It is even prohibited on FreeBSD.
 	 */
-	return (!is_addr(&__objt_listener(qc->target)->rx.addr) &&
+	return (!is_addr(&qc->li->rx.addr) &&
 	        is_addr(&qc->local_addr));
 }
 
@@ -839,7 +839,7 @@ int qc_rcv_buf(struct quic_conn *qc)
 	struct buffer buf = BUF_NULL;
 	unsigned char *dgram_buf;
 	ssize_t ret = 0;
-	struct listener *l = objt_listener(qc->target);
+	struct listener *l = qc->li;
 
 	/* Do not call this if quic-conn FD is uninitialized. */
 	BUG_ON(qc->fd < 0);
@@ -948,7 +948,8 @@ int qc_rcv_buf(struct quic_conn *qc)
 			continue;
 		}
 
-		quic_dgram_parse(new_dgram, qc, qc->target);
+		quic_dgram_parse(new_dgram, qc, l ? &l->obj_type :
+		                 (qc->conn ? &__objt_server(qc->conn->target)->obj_type : NULL));
 		/* A datagram must always be consumed after quic_parse_dgram(). */
 		BUG_ON(new_dgram->buf);
 	} while (ret > 0);
@@ -975,7 +976,7 @@ int qc_rcv_buf(struct quic_conn *qc)
 void qc_alloc_fd(struct quic_conn *qc, const struct sockaddr_storage *src,
                  const struct sockaddr_storage *dst)
 {
-	struct listener *l = __objt_listener(qc->target);
+	struct listener *l = qc->li;
 	struct bind_conf *bc = l->bind_conf;
 	struct proxy *p = bc->frontend;
 	int fd = -1;
@@ -1083,7 +1084,7 @@ struct quic_accept_queue *quic_accept_queues;
 void quic_accept_push_qc(struct quic_conn *qc)
 {
 	struct quic_accept_queue *queue = &quic_accept_queues[tid];
-	struct listener *l = __objt_listener(qc->target);
+	struct listener *l = qc->li;
 	struct li_per_thread *lthr = &l->per_thr[ti->ltid];
 
 	/* A connection must only be accepted once per instance. */

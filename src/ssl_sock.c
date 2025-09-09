@@ -1135,7 +1135,7 @@ static int ssl_tlsext_ticket_key_cb(SSL *s, unsigned char key_name[16], unsigned
 		ref  = __objt_listener(conn->target)->bind_conf->keys_ref;
 #ifdef USE_QUIC
 	else if (qc)
-		ref =  __objt_listener(qc->target)->bind_conf->keys_ref;
+		ref =  qc->li->bind_conf->keys_ref;
 #endif
 
 	if (!ref) {
@@ -1691,7 +1691,7 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 	else {
 		qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
 		BUG_ON(!qc); /* Must never happen */
-		bind_conf = __objt_listener(qc->target)->bind_conf;
+		bind_conf = qc->li->bind_conf;
 		ctx = qc->xprt_ctx;
 	}
 #endif

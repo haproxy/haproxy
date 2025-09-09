@@ -174,7 +174,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		s = __objt_listener(conn->target)->bind_conf;
 #ifdef USE_QUIC
 	else if (qc)
-		s = __objt_listener(qc->target)->bind_conf;
+		s = qc->li->bind_conf;
 #endif /* USE_QUIC */
 
 	if (!s) {

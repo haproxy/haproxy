@@ -938,7 +938,7 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 		 * handshake level CRYPTO data which are validated by the TLS stack.
 		 */
 		if (!qc_is_back(qc)) {
-			if (__objt_listener(qc->target)->bind_conf->ssl_conf.early_data &&
+			if (qc->li->bind_conf->ssl_conf.early_data &&
 				(!qc->ael || !qc->ael->tls_ctx.rx.secret)) {
 				TRACE_PROTO("SSL handshake in progress",
 				            QUIC_EV_CONN_IO_CB, qc, &state, &ssl_err);
@@ -982,7 +982,7 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 
 		qc->flags |= QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS;
 		if (!qc_is_back(qc)) {
-			struct listener *l = __objt_listener(qc->target);
+			struct listener *l = qc->li;
 			/* I/O callback switch */
 			qc->wait_event.tasklet->process = quic_conn_app_io_cb;
 			qc->state = QUIC_HS_ST_CONFIRMED;
@@ -1268,7 +1268,7 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, struct connection *conn)
 	ctx->qc = qc;
 
 	if (!qc_is_back(qc)) {
-		struct bind_conf *bc = __objt_listener(qc->target)->bind_conf;
+		struct bind_conf *bc = qc->li->bind_conf;
 
 		if (qc_ssl_sess_init(qc, bc->initial_ctx, &ctx->ssl, NULL, 1) == -1)
 		        goto err;

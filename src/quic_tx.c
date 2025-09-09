@@ -333,7 +333,7 @@ static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
 
 					/* Permanently disable UDP GSO for future conns which use current listener/server instance. */
 					if (!qc_is_back(qc)) {
-						struct listener *l = __objt_listener(qc->target);
+						struct listener *l = qc->li;
 						TRACE_ERROR("mark listener UDP GSO as unsupported", QUIC_EV_CONN_SPPKTS, qc, first_pkt);
 						HA_ATOMIC_OR(&l->flags, LI_F_UDP_GSO_NOTSUPP);
 					}

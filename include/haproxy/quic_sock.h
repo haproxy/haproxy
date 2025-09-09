@@ -79,8 +79,8 @@ static inline char qc_test_fd(struct quic_conn *qc)
  */
 static inline int qc_fd(struct quic_conn *qc)
 {
-	/* TODO: check this: For backends, qc->fd is always initialized */
-	return qc_test_fd(qc) ? qc->fd : __objt_listener(qc->target)->rx.fd;
+	/* For backends, qc->fd is always initialized */
+	return qc_test_fd(qc) ? qc->fd : qc->li->rx.fd;
 }
 
 /* Try to increment <l> handshake current counter. If listener limit is

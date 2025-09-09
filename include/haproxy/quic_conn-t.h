@@ -322,7 +322,7 @@ struct qcc_app_ops;
          * with a connection                                                   \
          */                                                                    \
         struct eb_root *cids;                                                  \
-        enum obj_type *target;                                                 \
+        struct listener *li;                                                   \
         /* Idle timer task */                                                  \
         struct task *idle_timer_task;                                          \
         unsigned int idle_expire;                                              \

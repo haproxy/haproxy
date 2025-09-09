@@ -173,9 +173,14 @@ static inline void quic_free_ncbuf(struct ncbuf *ncbuf)
 static inline void *qc_counters(enum obj_type *o, const struct stats_module *m)
 {
 	struct proxy *p;
-	struct listener *l = objt_listener(o);
-	struct server *s = objt_server(o);
+	struct listener *l;
+	struct server *s;
 
+	if (!o)
+		return NULL;
+
+	l = objt_listener(o);
+	s = objt_server(o);
 	p = l ? l->bind_conf->frontend :
 		s ? s->proxy : NULL;
 

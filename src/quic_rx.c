@@ -1674,7 +1674,9 @@ static inline int quic_token_validate(struct quic_rx_packet *pkt,
 	goto leave;
 }
 
-/* Find the associated connection to the packet <pkt> or create a new one if
+/* Listener only function.
+ *
+ * Find the associated connection to the packet <pkt> or create a new one if
  * this is an Initial packet. <dgram> is the datagram containing the packet and
  * <l> is the listener instance on which it was received.
  *
@@ -2112,7 +2114,8 @@ static int quic_rx_pkt_parse(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	return 0;
 
  drop:
-	HA_ATOMIC_INC(&prx_counters->dropped_pkt);
+	if (prx_counters)
+		HA_ATOMIC_INC(&prx_counters->dropped_pkt);
  drop_silent:
 	if (!pkt->len)
 		pkt->len = end - beg;
@@ -2307,6 +2310,9 @@ static void qc_rx_pkt_handle(struct quic_conn *qc, struct quic_rx_packet *pkt,
  * If datagram has been received on a receiver FD, <from_qc> will be NULL. This
  * function will thus retrieve the connection from the CID tree or allocate a
  * new one if possible. <li> is the listener attached to the receiver.
+ *
+ * Note that for a QUIC backend, <from_qc> is never NULL. <o> is never NULL
+ * for a QUIC frontend.
  *
  * Returns 0 on success else non-zero. If an error happens, some packets from
  * the datagram may not have been parsed.

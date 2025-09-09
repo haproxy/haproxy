@@ -181,10 +181,11 @@ static void dump_quic_oneline(struct show_quic_ctx *ctx, struct quic_conn *qc)
 	char bufaddr[INET6_ADDRSTRLEN], bufport[6];
 	int ret;
 	unsigned char cid_len;
-	struct listener *l = objt_listener(qc->target);
+	struct listener *l = qc->li;
 
 	ret = chunk_appendf(&trash, "%p[%02u]/%-.12s ", qc, ctx->thr,
-	                    l ? l->bind_conf->frontend->id : __objt_server(qc->target)->id);
+	                    l ? l->bind_conf->frontend->id :
+	                    qc->conn ? __objt_server(qc->conn->target)->id : "UNKNOWN");
 
 	chunk_appendf(&trash, "%*s", 36 - ret, " "); /* align output */
 

@@ -749,7 +749,7 @@ static struct quic_conn_closed *qc_new_cc_conn(struct quic_conn *qc)
 	cc_qc->dcid = qc->dcid;
 	cc_qc->scid = qc->scid;
 
-	cc_qc->target = qc->target;
+	cc_qc->li = qc->li;
 	cc_qc->cids = qc->cids;
 
 	cc_qc->idle_timer_task = qc->idle_timer_task;
@@ -1113,7 +1113,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		goto err;
 	}
 
-	qc->target = target;
+	qc->li = l;
 	/* Now that quic_conn instance is allocated, quic_conn_release() will
 	 * ensure global accounting is decremented.
 	 */
@@ -1418,7 +1418,7 @@ int qc_handle_conn_migration(struct quic_conn *qc,
 	 * used during the handshake, unless the endpoint has acted on a
 	 * preferred_address transport parameter from the peer.
 	 */
-	if (__objt_listener(qc->target)->bind_conf->quic_params.disable_active_migration) {
+	if (qc->li->bind_conf->quic_params.disable_active_migration) {
 		TRACE_ERROR("Active migration was disabled, datagram dropped", QUIC_EV_CONN_LPKT, qc);
 		goto err;
 	}
@@ -1548,8 +1548,8 @@ int quic_conn_release(struct quic_conn *qc)
 	 */
 	if (MT_LIST_INLIST(&qc->accept_list)) {
 		MT_LIST_DELETE(&qc->accept_list);
-		BUG_ON(__objt_listener(qc->target)->rx.quic_curr_accept == 0);
-		HA_ATOMIC_DEC(&__objt_listener(qc->target)->rx.quic_curr_accept);
+		BUG_ON(qc->li->rx.quic_curr_accept == 0);
+		HA_ATOMIC_DEC(&qc->li->rx.quic_curr_accept);
 	}
 
 	/* Subtract last congestion window from global memory counter. */
@@ -1622,8 +1622,8 @@ int quic_conn_release(struct quic_conn *qc)
 	/* Connection released before handshake completion. */
 	if (unlikely(qc->state < QUIC_HS_ST_COMPLETE)) {
 		if (!qc_is_back(qc)) {
-			BUG_ON(__objt_listener(qc->target)->rx.quic_curr_handshake == 0);
-			HA_ATOMIC_DEC(&__objt_listener(qc->target)->rx.quic_curr_handshake);
+			BUG_ON(qc->li->rx.quic_curr_handshake == 0);
+			HA_ATOMIC_DEC(&qc->li->rx.quic_curr_handshake);
 		}
 	}
 
@@ -2031,8 +2031,8 @@ void qc_bind_tid_commit(struct quic_conn *qc, struct listener *new_li)
 	/* At this point no connection was accounted for yet on this
 	 * listener so it's OK to just swap the pointer.
 	 */
-	if (new_li && new_li != __objt_listener(qc->target)) {
-		qc->target = &new_li->obj_type;
+	if (new_li && new_li != qc->li) {
+		qc->li = new_li;
 
 		/* Update GSO conn support based on new listener status. */
 		if (HA_ATOMIC_LOAD(&new_li->flags) & LI_F_UDP_GSO_NOTSUPP)

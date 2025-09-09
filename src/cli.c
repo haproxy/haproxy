@@ -1425,8 +1425,8 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 #if defined(USE_QUIC)
 		else if (fdt.iocb == quic_conn_sock_fd_iocb) {
 			qc = fdtab[fd].owner;
-			li = qc ? objt_listener(qc->target) : NULL;
-			sv = qc ? objt_server(qc->target) : NULL;
+			li = qc ? qc->li : NULL;
+			sv = qc ? (qc->conn ? objt_server(qc->conn->target) : NULL) : NULL;
 			xprt_ctx   = qc ? qc->xprt_ctx : NULL;
 			conn = qc ? qc->conn : NULL;
 			xprt = conn ? conn->xprt : NULL; // in fact it's &ssl_quic

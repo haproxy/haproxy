@@ -132,7 +132,7 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 		struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
 
 		/* null if not a listener */
-		li = objt_listener(qc->target);
+		li = qc->li;
 	}
 #endif
 
