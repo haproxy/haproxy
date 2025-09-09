@@ -1574,7 +1574,12 @@ int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 	/* We force new pushed to 1 to force identifier in update message */
 	new_pushed = 1;
 
-	HA_RWLOCK_RDLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
+	if (HA_RWLOCK_TRYRDLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock) != 0) {
+		/* just don't engage here if there is any contention */
+		applet_have_more_data(appctx);
+		ret = -1;
+		goto out_unlocked;
+	}
 
 	while (1) {
 		struct stksess *ts;
