@@ -71,7 +71,7 @@ struct stkctr *smp_create_src_stkctr(struct session *sess, struct stream *strm, 
 int stktable_compatible_sample(struct sample_expr *expr, unsigned long table_type);
 int stktable_register_data_store(int idx, const char *name, int std_type, int arg_type);
 int stktable_get_data_type(char *name);
-int stktable_trash_oldest(struct stktable *t, int to_batch);
+int stktable_trash_oldest(struct stktable *t);
 int __stksess_kill(struct stktable *t, struct stksess *ts);
 
 /************************* Composite address manipulation *********************

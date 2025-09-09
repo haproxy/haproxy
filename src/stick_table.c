@@ -286,12 +286,12 @@ static struct stksess *__stksess_init(struct stktable *t, struct stksess * ts)
 }
 
 /*
- * Trash oldest <to_batch> sticky sessions from table <t>
- * Returns number of trashed sticky sessions. It may actually trash less
- * than expected if finding these requires too long a search time (e.g.
- * most of them have ts->ref_cnt>0). This function locks the table.
+ * Trash up to STKTABLE_MAX_UPDATES_AT_ONCE oldest sticky sessions from table
+ * <t>. Returns non-null if it managed to release at least one entry. It will
+ * avoid waiting on a lock if it managed to release at least one object. It
+ * tries hard to limit the time spent evicting objects.
  */
-int stktable_trash_oldest(struct stktable *t, int to_batch)
+int stktable_trash_oldest(struct stktable *t)
 {
 	struct stksess *ts;
 	struct eb32_node *eb;
@@ -299,24 +299,34 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 	int max_per_shard;
 	int done_per_shard;
 	int batched = 0;
+	int to_batch;
 	int updt_locked;
+	int failed_once = 0;
 	int looped;
 	int shard;
+	int init_shard;
 
-	shard = 0;
+	/* start from a random shard number to avoid starvation in the last ones */
+	shard = init_shard = statistical_prng_range(CONFIG_HAP_TBL_BUCKETS - 1);
 
-	if (to_batch > STKTABLE_MAX_UPDATES_AT_ONCE)
-		to_batch = STKTABLE_MAX_UPDATES_AT_ONCE;
+	to_batch = STKTABLE_MAX_UPDATES_AT_ONCE;
 
 	max_search = to_batch * 2; // no more than 50% misses
 	max_per_shard = (to_batch + CONFIG_HAP_TBL_BUCKETS - 1) / CONFIG_HAP_TBL_BUCKETS;
 
-	while (batched < to_batch) {
+	do {
 		done_per_shard = 0;
 		looped = 0;
 		updt_locked = 0;
 
-		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
+		if (HA_RWLOCK_TRYWRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock) != 0) {
+			if (batched)
+				break; // no point insisting, we have or made some room
+			if (failed_once)
+				break; // already waited once, that's enough
+			failed_once = 1;
+			HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
+		}
 
 		eb = eb32_lookup_ge(&t->shards[shard].exps, now_ms - TIMER_LOOK_BACK);
 		while (batched < to_batch && done_per_shard < max_per_shard) {
@@ -349,8 +359,12 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 
 			if (ts->expire != ts->exp.key || HA_ATOMIC_LOAD(&ts->ref_cnt) != 0) {
 			requeue:
-				if (!tick_isset(ts->expire))
+				if (!tick_isset(ts->expire)) {
+					/* don't waste more time here it we're not alone */
+					if (failed_once)
+						break;
 					continue;
+				}
 
 				ts->exp.key = ts->expire;
 				eb32_insert(&t->shards[shard].exps, &ts->exp);
@@ -369,6 +383,9 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 				if (!eb || tick_is_lt(ts->exp.key, eb->key))
 					eb = &ts->exp;
 
+				/* don't waste more time here it we're not alone */
+				if (failed_once)
+					break;
 				continue;
 			}
 
@@ -395,6 +412,10 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 			__stksess_free(t, ts);
 			batched++;
 			done_per_shard++;
+
+			/* don't waste more time here it we're not alone */
+			if (failed_once)
+				break;
 		}
 
 		if (updt_locked)
@@ -402,13 +423,10 @@ int stktable_trash_oldest(struct stktable *t, int to_batch)
 
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 
-		if (max_search <= 0)
-			break;
-
-		shard = (shard + 1) % CONFIG_HAP_TBL_BUCKETS;
-		if (!shard)
-			break;
-	}
+		shard++;
+		if (shard >= CONFIG_HAP_TBL_BUCKETS)
+			shard = 0;
+	} while (max_search > 0 && shard != init_shard);
 
 	return batched;
 }
@@ -438,7 +456,7 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 		 * locking contention but it's not a problem in practice,
 		 * these will be recovered later.
 		 */
-		stktable_trash_oldest(t, (t->size >> 8) + 1);
+		stktable_trash_oldest(t);
 	}
 
 	ts = pool_alloc(t->pool);
