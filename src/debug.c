@@ -324,7 +324,7 @@ void ha_thread_dump_one(struct buffer *buf, int is_caller)
 
 	chunk_appendf(buf,
 	              "%c%cThread %-2u: id=0x%llx act=%d glob=%d wq=%d rq=%d tl=%d tlsz=%d rqsz=%d\n"
-	              "     %2u/%-2u   stuck=%d prof=%d",
+	              "     %2u/%-2u   loops=%u ctxsw=%u stuck=%d prof=%d",
 	              (is_caller) ? '*' : ' ', stuck ? '>' : ' ', tid + 1,
 		      ha_get_pthread_id(tid),
 		      thread_has_tasks(),
@@ -338,6 +338,7 @@ void ha_thread_dump_one(struct buffer *buf, int is_caller)
 	              th_ctx->tasks_in_list,
 	              th_ctx->rq_total,
 		      ti->tgid, ti->ltid + 1,
+		      activity[tid].loops, activity[tid].ctxsw,
 	              stuck,
 	              !!(th_ctx->flags & TH_FL_TASK_PROFILING));
 
