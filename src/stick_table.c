@@ -430,11 +430,15 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 
 	if (unlikely(current >= t->size)) {
 		/* the table was already full, we may have to purge entries */
-		if ((t->flags & STK_FL_NOPURGE) ||
-		    !stktable_trash_oldest(t, (t->size >> 8) + 1)) {
+		if (t->flags & STK_FL_NOPURGE) {
 			HA_ATOMIC_DEC(&t->current);
 			return NULL;
 		}
+		/* note that it may fail to find any releasable slot due to
+		 * locking contention but it's not a problem in practice,
+		 * these will be recovered later.
+		 */
+		stktable_trash_oldest(t, (t->size >> 8) + 1);
 	}
 
 	ts = pool_alloc(t->pool);
