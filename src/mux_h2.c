@@ -7949,7 +7949,8 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	}
 
 	/* RST are sent similarly to frame acks */
-	if (h2s->st == H2_SS_ERROR || h2s->flags & H2_SF_RST_RCVD) {
+	if (h2s->st == H2_SS_ERROR || h2s->flags & H2_SF_RST_RCVD ||
+	    ((h2s->h2c->flags & H2_CF_END_REACHED) && (h2s->flags & (H2_SF_BLK_SFCTL|H2_SF_BLK_MFCTL)))) {
 		TRACE_DEVEL("reporting RST/error to the app-layer stream", H2_EV_H2S_SEND|H2_EV_H2S_ERR|H2_EV_STRM_ERR, h2s->h2c->conn, h2s);
 		se_fl_set_error(h2s->sd);
 		se_report_term_evt(h2s->sd, se_tevt_type_snd_err);
@@ -8124,7 +8125,8 @@ static size_t h2_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 		h2s->flags &= ~H2_SF_NOTIFIED;
 
 	/* RST are sent similarly to frame acks */
-	if (h2s->st == H2_SS_ERROR || h2s->flags & H2_SF_RST_RCVD) {
+	if (h2s->st == H2_SS_ERROR || h2s->flags & H2_SF_RST_RCVD ||
+	    ((h2c->flags & H2_CF_END_REACHED) && (h2s->flags & (H2_SF_BLK_SFCTL|H2_SF_BLK_MFCTL)))) {
 		TRACE_DEVEL("reporting RST/error to the app-layer stream", H2_EV_H2S_SEND|H2_EV_H2S_ERR|H2_EV_STRM_ERR, h2s->h2c->conn, h2s);
 		se_fl_set_error(h2s->sd);
 		se_report_term_evt(h2s->sd, se_tevt_type_snd_err);
