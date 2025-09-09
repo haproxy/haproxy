@@ -809,9 +809,12 @@ static struct task *stktable_add_pend_updates(struct task *t, void *ctx, unsigne
 {
 	struct stktable *table = ctx;
 	struct eb32_node *eb;
-	int i, is_local, cur_tgid = tgid - 1, empty_tgid = 0;
+	int i = 0, is_local, cur_tgid = tgid - 1, empty_tgid = 0;
 
-	HA_RWLOCK_WRLOCK(STK_TABLE_UPDT_LOCK, &table->updt_lock);
+	/* we really don't want to wait on this one */
+	if (HA_RWLOCK_TRYWRLOCK(STK_TABLE_LOCK, &table->updt_lock) != 0)
+		goto leave;
+
 	for (i = 0; i < STKTABLE_MAX_UPDATES_AT_ONCE; i++) {
 		struct stksess *stksess = MT_LIST_POP(&table->pend_updts[cur_tgid], typeof(stksess), pend_updts);
 
@@ -854,6 +857,7 @@ static struct task *stktable_add_pend_updates(struct task *t, void *ctx, unsigne
 
 	HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &table->updt_lock);
 
+leave:
 	/* There's more to do, let's schedule another session */
 	if (empty_tgid < global.nbtgroups)
 		tasklet_wakeup(table->updt_task);
