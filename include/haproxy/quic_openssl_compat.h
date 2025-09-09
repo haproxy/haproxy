@@ -7,6 +7,11 @@
 #include <haproxy/listener-t.h>
 #include <haproxy/quic_openssl_compat-t.h>
 
+/* Warn about native support in OpenSSL. */
+#if (OPENSSL_VERSION_NUMBER >= 0x30500020L)
+# pragma message "QUIC OpenSSL compat layer is unnecessary starting from OpenSSL 3.5.2 and newer."
+#endif
+
 #define QUIC_OPENSSL_COMPAT_SSL_TP_EXT           0x39
 
 /* Used by keylog */
