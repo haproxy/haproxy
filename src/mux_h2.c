@@ -1012,7 +1012,7 @@ h2c_is_dead(const struct h2c *h2c)
  */
 static inline int h2_recv_allowed(const struct h2c *h2c)
 {
-	if ((h2c->flags & (H2_CF_RCVD_SHUT|H2_CF_ERROR)) || h2c->st0 >= H2_CS_ERROR)
+	if (h2c->flags & (H2_CF_RCVD_SHUT|H2_CF_ERROR))
 		return 0;
 
 	if ((h2c->wait_event.events & SUB_RETRY_RECV))
