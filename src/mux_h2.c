@@ -8122,6 +8122,16 @@ static size_t h2_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
  end:
 	if (h2s->sd->iobuf.flags & IOBUF_FL_FF_BLOCKED)
 		h2s->flags &= ~H2_SF_NOTIFIED;
+
+	/* RST are sent similarly to frame acks */
+	if (h2s->st == H2_SS_ERROR || h2s->flags & H2_SF_RST_RCVD) {
+		TRACE_DEVEL("reporting RST/error to the app-layer stream", H2_EV_H2S_SEND|H2_EV_H2S_ERR|H2_EV_STRM_ERR, h2s->h2c->conn, h2s);
+		se_fl_set_error(h2s->sd);
+		se_report_term_evt(h2s->sd, se_tevt_type_snd_err);
+		if (h2s_send_rst_stream(h2s->h2c, h2s) > 0)
+			h2s_close(h2s);
+	}
+
 	TRACE_LEAVE(H2_EV_H2S_SEND|H2_EV_STRM_SEND, h2s->h2c->conn, h2s);
 	return ret;
 }
