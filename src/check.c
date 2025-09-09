@@ -1854,6 +1854,27 @@ int init_srv_check(struct server *srv)
 
 	/* validate <srv> server health-check settings */
 
+	if (srv_is_quic(srv)) {
+		if (srv->check.mux_proto && srv->check.mux_proto != get_mux_proto(ist("quic"))) {
+			ha_alert("config: %s '%s': QUIC server '%s' uses an incompatible MUX protocol for checks.\n",
+			         proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
+			ret |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (srv->check.use_ssl < 0) {
+			ha_alert("config: %s '%s': SSL is mandatory for checks on QUIC server '%s'.\n",
+			         proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
+			ret |= ERR_ALERT | ERR_FATAL;
+		}
+
+		if (srv->check.send_proxy) {
+			ha_alert("config: %s '%s': cannot use PROXY protocol for checks on QUIC server '%s'.\n",
+			         proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
+			ret |= ERR_ALERT | ERR_FATAL;
+		}
+	}
+
 	/* We need at least a service port, a check port or the first tcp-check
 	 * rule must be a 'connect' one when checking an IPv4/IPv6 server.
 	 */
