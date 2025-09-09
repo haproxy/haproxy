@@ -424,7 +424,7 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 
 	s->lat_time = s->cpu_time = 0;
 	s->call_rate.curr_tick = s->call_rate.curr_ctr = s->call_rate.prev_ctr = 0;
-	s->passes_stconn = s->passes_reqana = s->passes_resana = s->passes_propag = 0;
+	s->passes_connect = s->passes_stconn = s->passes_reqana = s->passes_resana = s->passes_propag = 0;
 	s->pcli_next_pid = 0;
 	s->pcli_flags = 0;
 	s->unique_id = IST_NULL;
@@ -2359,6 +2359,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		}
 
 		do {
+			s->passes_connect++;
+
 			/* nb: step 1 might switch from QUE to ASS, but we first want
 			 * to give a chance to step 2 to perform a redirect if needed.
 			 */
@@ -3378,8 +3380,8 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 		     strm->conn_err_type, strm->srv_conn, strm->pend_pos,
 		     LIST_INLIST(&strm->buffer_wait.list), strm->stream_epoch);
 
-	chunk_appendf(buf, "%s  p_stc=%u p_req=%u p_res=%u p_prp=%u\n", pfx,
-		      strm->passes_stconn, strm->passes_reqana, strm->passes_resana, strm->passes_propag);
+	chunk_appendf(buf, "%s  p_con=%u p_stc=%u p_req=%u p_res=%u p_prp=%u\n", pfx,
+		      strm->passes_connect, strm->passes_stconn, strm->passes_reqana, strm->passes_resana, strm->passes_propag);
 
 	chunk_appendf(buf,
 		     "%s  frontend=%s (id=%u mode=%s), listener=%s (id=%u)", pfx,
