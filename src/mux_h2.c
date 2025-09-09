@@ -5037,6 +5037,7 @@ static int h2_process(struct h2c *h2c)
 {
 	struct connection *conn = h2c->conn;
 	int extra_reads = MIN(MAX(bl_avail(h2c->shared_rx_bufs), 1) - 1, 12);
+	int was_blocked = 0;
 
 	TRACE_ENTER(H2_EV_H2C_WAKE, conn);
 
@@ -5071,6 +5072,7 @@ static int h2_process(struct h2c *h2c)
 		if (h2c->st0 >= H2_CS_ERROR || (h2c->flags & H2_CF_ERROR))
 			b_reset(&h2c->dbuf);
 	}
+	was_blocked |= !!(h2c->flags & H2_CF_DEM_MROOM);
 	h2_send(h2c);
 
 	if (unlikely(h2c->proxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) && !(h2c->flags & H2_CF_IS_BACK)) {
@@ -5163,7 +5165,13 @@ static int h2_process(struct h2c *h2c)
 		h2_release_mbuf(h2c);
 
 	h2c_update_timeout(h2c);
+
+	was_blocked |= !!(h2c->flags & H2_CF_DEM_MROOM);
 	h2_send(h2c);
+
+	if (was_blocked && !(h2c->flags & H2_CF_DEM_MROOM))
+		h2c_restart_reading(h2c, 1);
+
 	TRACE_LEAVE(H2_EV_H2C_WAKE, conn);
 	return 0;
 }
