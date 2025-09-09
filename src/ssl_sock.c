@@ -5608,9 +5608,22 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				goto check_error;
 			}
 			if (read_data > 0) {
+				const char *alpn;
+				int len;
+
 				TRACE_DEVEL("Early data read", SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
 				conn->flags |= CO_FL_EARLY_DATA;
 				b_add(&ctx->early_buf, read_data);
+				if (ssl_sock_get_alpn(conn, ctx, &alpn, &len) != 0) {
+					/*
+					 * We have an ALPN set already, so we
+					 * know which mux to use, and we have
+					 * early data, let's create the mux
+					 * now.
+					 */
+					if (!conn->mux)
+						conn_create_mux(conn, NULL);
+				}
 			}
 			if (ret == SSL_READ_EARLY_DATA_FINISH) {
 				conn->flags &= ~CO_FL_EARLY_SSL_HS;
