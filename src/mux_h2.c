@@ -4800,7 +4800,7 @@ static int h2_send(struct h2c *h2c)
 		TRACE_DEVEL("leaving on error", H2_EV_H2C_SEND, h2c->conn);
 		if (h2c->flags & H2_CF_END_REACHED)
 			h2c->flags |= H2_CF_ERROR;
-		b_reset(br_tail(h2c->mbuf));
+		h2_release_mbuf(h2c);
 		h2c->idle_start = now_ms;
 		return 1;
 	}
@@ -4899,7 +4899,7 @@ static int h2_send(struct h2c *h2c)
 		h2c_report_term_evt(h2c, muxc_tevt_type_snd_err);
 		if (h2c->flags & H2_CF_END_REACHED)
 			h2c->flags |= H2_CF_ERROR;
-		b_reset(br_tail(h2c->mbuf));
+		h2_release_mbuf(h2c);
 	}
 
 	/* We're not full anymore, so we can wake any task that are waiting
