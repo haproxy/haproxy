@@ -352,6 +352,18 @@ void ha_thread_dump_one(struct buffer *buf, int is_caller)
 	chunk_appendf(buf, "\n");
 	chunk_appendf(buf, "             cpu_ns: poll=%llu now=%llu diff=%llu\n", p, n, n-p);
 
+	/* also try to indicate for how long we've entered the current task.
+	 * Note that the task's wake date only contains the 32 lower bits of
+	 * the current time.
+	 */
+	if (th_ctx->current && tick_isset(th_ctx->sched_wake_date)) {
+		unsigned long long now = now_mono_time();
+
+		chunk_appendf(buf, "             current call: wake=%u ns ago, call=%llu ns ago\n",
+			      (uint)(now - th_ctx->sched_wake_date),
+			      (now - th_ctx->sched_call_date));
+	}
+
 	/* this is the end of what we can dump from outside the current thread */
 
 	chunk_appendf(buf, "             curr_task=");

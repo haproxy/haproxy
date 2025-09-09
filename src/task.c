@@ -682,6 +682,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			HA_ATOMIC_ADD(&profile_entry->cpu_time, (uint32_t)(now_mono_time() - th_ctx->sched_call_date));
 	}
 	th_ctx->current_queue = -1;
+	th_ctx->sched_wake_date = TICK_ETERNITY;
 
 	return done;
 }
