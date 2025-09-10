@@ -2179,13 +2179,17 @@ static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
 {
 	struct ssl_bind_conf *conf = arg;
 	struct connection *conn;
-	struct ssl_sock_ctx *ctx;
+	struct ssl_sock_ctx *ctx = NULL;
 
 #ifdef USE_QUIC
 	struct quic_conn *qc = SSL_get_ex_data(s, ssl_qc_app_data_index);
+	if (qc)
+		ctx = qc->xprt_ctx;
 #endif
-	conn = SSL_get_ex_data(s, ssl_app_data_index);
-	ctx = __conn_get_ssl_sock_ctx(conn);
+	if (!ctx) {
+		conn = SSL_get_ex_data(s, ssl_app_data_index);
+		ctx = __conn_get_ssl_sock_ctx(conn);
+	}
 
 	if (SSL_select_next_proto((unsigned char**) out, outlen, (const unsigned char *)conf->alpn_str,
 	                          conf->alpn_len, server, server_len) != OPENSSL_NPN_NEGOTIATED) {
@@ -2203,7 +2207,8 @@ static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
 	}
 #endif
 
-	ctx->flags |= SSL_SOCK_F_HAS_ALPN;
+	if (ctx)
+		ctx->flags |= SSL_SOCK_F_HAS_ALPN;
 	return SSL_TLSEXT_ERR_OK;
 }
 #endif
