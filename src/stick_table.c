@@ -988,8 +988,17 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 			 */
 			eb32_delete(&ts->exp);
 
-			if (!tick_is_expired(ts->expire, now_ms) || HA_ATOMIC_LOAD(&ts->ref_cnt) != 0) {
+			if (HA_ATOMIC_LOAD(&ts->ref_cnt) != 0) {
 			requeue:
+				/* we can't trash this entry yet because it's in use,
+				 * so we must refresh it with the table's lifetime to
+				 * postpone its expiration.
+				 */
+				if (tick_is_expired(ts->expire, now_ms))
+					ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
+			}
+
+			if (!tick_is_expired(ts->expire, now_ms)) {
 				if (!tick_isset(ts->expire))
 					continue;
 
