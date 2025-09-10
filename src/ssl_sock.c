@@ -2181,13 +2181,11 @@ static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
 	struct connection *conn;
 	struct ssl_sock_ctx *ctx;
 
-	conn = SSL_get_ex_data(s, ssl_app_data_index);
-	ctx = __conn_get_ssl_sock_ctx(conn);
-
-
 #ifdef USE_QUIC
 	struct quic_conn *qc = SSL_get_ex_data(s, ssl_qc_app_data_index);
 #endif
+	conn = SSL_get_ex_data(s, ssl_app_data_index);
+	ctx = __conn_get_ssl_sock_ctx(conn);
 
 	if (SSL_select_next_proto((unsigned char**) out, outlen, (const unsigned char *)conf->alpn_str,
 	                          conf->alpn_len, server, server_len) != OPENSSL_NPN_NEGOTIATED) {
