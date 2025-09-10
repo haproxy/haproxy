@@ -1179,7 +1179,6 @@ static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl,
 	}
 
 	if (!SSL_set_ex_data(*ssl, ssl_qc_app_data_index, qc) ||
-	    (!server && !SSL_set_ex_data(*ssl, ssl_app_data_index, conn)) ||
 	    !quic_ssl_set_tls_cbs(*ssl)) {
 		SSL_free(*ssl);
 		*ssl = NULL;

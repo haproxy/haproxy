@@ -1121,27 +1121,17 @@ static int ssl_hmac_init(MAC_CTX *hctx, unsigned char *key, int key_len, const E
 
 static int ssl_tlsext_ticket_key_cb(SSL *s, unsigned char key_name[16], unsigned char *iv, EVP_CIPHER_CTX *ectx, MAC_CTX *hctx, int enc)
 {
-	struct tls_keys_ref *ref = NULL;
 	union tls_sess_key *keys;
 	int head;
 	int i;
 	int ret = -1; /* error by default */
-	struct connection *conn = SSL_get_ex_data(s, ssl_app_data_index);
-#ifdef USE_QUIC
-	struct quic_conn *qc = SSL_get_ex_data(s, ssl_qc_app_data_index);
-#endif
+	struct listener *l;
+	struct tls_keys_ref *ref;
 
-	if (conn)
-		ref  = __objt_listener(conn->target)->bind_conf->keys_ref;
-#ifdef USE_QUIC
-	else if (qc)
-		ref =  qc->li->bind_conf->keys_ref;
-#endif
-
-	if (!ref) {
-		/* must never happen */
-		ABORT_NOW();
-	}
+	l = ssl_sock_get_listener(s);
+	BUG_ON(!l);
+	ref = l->bind_conf->keys_ref;
+	BUG_ON(!ref);
 
 	HA_RWLOCK_RDLOCK(TLSKEYS_REF_LOCK, &ref->lock);
 
@@ -1613,28 +1603,16 @@ out:
 
 void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 {
-	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
-#ifdef USE_QUIC
-	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
-#endif /* USE_QUIC */
+	struct connection *conn;
 	struct ssl_sock_ctx *ctx = NULL;
 
 	BIO *write_bio;
 	(void)ret; /* shut gcc stupid warning */
+	(void)conn;
 
-	if (conn)
-		ctx = conn_get_ssl_sock_ctx(conn);
-#ifdef USE_QUIC
-	else if (qc)
-		ctx = qc->xprt_ctx;
-#endif /* USE_QUIC */
-
-	if (!ctx) {
-		/* must never happen */
-		ABORT_NOW();
-		return;
-	}
-
+	conn = ssl_sock_get_conn(ssl, &ctx);
+	/* must never happen */
+	BUG_ON(!ctx);
 #ifndef SSL_OP_NO_RENEGOTIATION
 	/* Please note that BoringSSL defines this macro to zero so don't
 	 * change this to #if and do not assign a default value to this macro!
@@ -2128,7 +2106,7 @@ static void ssl_init_keylog(struct connection *conn, int write_p, int version,
 /* Callback is called for ssl protocol analyse */
 void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf, size_t len, SSL *ssl, void *arg)
 {
-	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
+	struct connection *conn = ssl_sock_get_conn(ssl, NULL);
 	struct ssl_sock_msg_callback *cbk;
 
 	/* Try to call all callback functions that were registered by using
@@ -3862,10 +3840,11 @@ static int sh_ssl_sess_store(unsigned char *s_id, unsigned char *data, int data_
 /* SSL callback used when a new session is created while connecting to a server */
 static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 {
-	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
+	struct connection *conn = ssl_sock_get_conn(ssl, NULL);
 	struct server *s;
 	uint old_tid;
 
+	BUG_ON(!conn);
 	s = __objt_server(conn->target);
 
 	/* RWLOCK: only read lock the SSL cache even when writing in it because there is
@@ -4548,7 +4527,8 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 		return ok;
 
 	ssl = X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx());
-	conn = SSL_get_ex_data(ssl, ssl_app_data_index);
+	conn = ssl_sock_get_conn(ssl, NULL);
+	BUG_ON(!conn);
 	ssl_ctx = __conn_get_ssl_sock_ctx(conn);
 
 	/* We're checking if the provided hostnames match the desired one. The
