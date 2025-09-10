@@ -58,10 +58,9 @@ void quic_transport_params_init(struct quic_transport_params *p, int server)
 	 * QUIC_TP_DFLT_MAX_UDP_PAYLOAD_SIZE
 	 */
 	p->max_udp_payload_size = QUIC_MAX_UDP_PAYLOAD_SIZE;
-	if (server)
-		p->max_idle_timeout = global.tune.quic_frontend_max_idle_timeout;
-	else
-		p->max_idle_timeout = global.tune.quic_backend_max_idle_timeout;
+
+	p->max_idle_timeout = server ? quic_tune.fe.max_idle_timeout :
+	                               quic_tune.be.max_idle_timeout;
 
 	/* Set limit on number of concurrently opened streams. */
 	p->initial_max_streams_bidi = max_streams_bidi;

@@ -1892,6 +1892,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.be.cc.hystart
    - tune.quic.be.cc.max-frame-loss
    - tune.quic.be.cc.reorder-ratio
+   - tune.quic.be.max-idle-timeout
    - tune.quic.be.sec.glitches-threshold
    - tune.quic.be.tx.pacing
    - tune.quic.be.tx.udp-gso
@@ -1903,13 +1904,14 @@ The following keywords are supported in the "global" section :
    - tune.quic.fe.cc.hystart
    - tune.quic.fe.cc.max-frame-loss
    - tune.quic.fe.cc.reorder-ratio
+   - tune.quic.fe.max-idle-timeout
    - tune.quic.fe.sec.glitches-threshold
    - tune.quic.fe.sec.retry-threshold
    - tune.quic.fe.sock-per-conn
    - tune.quic.fe.tx.pacing
    - tune.quic.fe.tx.udp-gso
    - tune.quic.frontend.max-data-size
-   - tune.quic.frontend.max-idle-timeout
+   - tune.quic.frontend.max-idle-timeout (deprecated)
    - tune.quic.frontend.max-streams-bidi
    - tune.quic.frontend.max-tx-mem (deprecated)
    - tune.quic.frontend.stream-data-ratio
@@ -4763,6 +4765,24 @@ tune.quic.reorder-ratio <0..100, in percent> (deprecated)
   part of the streamlining process apply on QUIC configuration. If used, this
   setting will only be applied on frontend connections.
 
+tune.quic.be.max-idle-timeout <timeout>
+tune.quic.fe.max-idle-timeout <timeout>
+  Sets the QUIC max_idle_timeout transport parameters on either frontend or
+  backend side. It follows the HAProxy time format and is expressed in
+  milliseconds. This determines the period of time after which a connection is
+  silently closed if it has remained inactive during an effective period of
+  time. Both endpoints relies on the same negotiated value :
+    - the minimum of the two parameters if both are not null,
+    - the maximum if only one of them is not null,
+    - if both parameters are null, this feature is disabled.
+
+  The default value is 30s.
+
+tune.quic.frontend.max-idle-timeout <timeout> (deprecated)
+  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
+  part of the streamlining process apply on QUIC configuration. If used, this
+  setting will only be applied on frontend connections.
+
 tune.quic.be.sec.glitches-threshold <number>
 tune.quic.fe.sec.glitches-threshold <number>
   Sets the threshold for the number of glitches per connection either on
@@ -4880,17 +4900,6 @@ tune.quic.frontend.max-data-size <size>
 
   See also: "tune.quic.frontend.max-streams-bidi",
             "tune.quic.frontend.stream-data-ratio"
-
-tune.quic.frontend.max-idle-timeout <timeout>
-  Sets the QUIC max_idle_timeout transport parameters in milliseconds for
-  frontends which determines the period of time after which a connection silently
-  closes if it has remained inactive during an effective period of time deduced
-  from the two max_idle_timeout values announced by the two endpoints:
-    - the minimum of the two values if both are not null,
-    - the maximum if only one of them is not null,
-    - if both values are null, this feature is disabled.
-
-  The default value is 30000.
 
 tune.quic.frontend.max-streams-bidi <number>
   Sets the QUIC initial_max_streams_bidi transport parameter for frontends.

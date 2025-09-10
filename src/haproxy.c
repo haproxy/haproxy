@@ -199,8 +199,6 @@ struct global global = {
 		.nb_stk_ctr = MAX_SESS_STKCTR,
 		.default_shards = -2, /* by-group */
 #ifdef USE_QUIC
-		.quic_backend_max_idle_timeout = QUIC_TP_DFLT_BACK_MAX_IDLE_TIMEOUT,
-		.quic_frontend_max_idle_timeout = QUIC_TP_DFLT_FRONT_MAX_IDLE_TIMEOUT,
 		.quic_frontend_max_data = 0,
 		.quic_frontend_max_streams_bidi = QUIC_TP_DFLT_FRONT_MAX_STREAMS_BIDI,
 		.quic_frontend_max_window_size = QUIC_DFLT_MAX_WINDOW_SIZE,

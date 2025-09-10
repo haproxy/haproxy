@@ -27,6 +27,7 @@ struct quic_tune quic_tune = {
 	.fe = {
 		.cc_max_frame_loss = QUIC_DFLT_CC_MAX_FRAME_LOSS,
 		.cc_reorder_ratio  = QUIC_DFLT_CC_REORDER_RATIO,
+		.max_idle_timeout  = QUIC_DFLT_FE_MAX_IDLE_TIMEOUT,
 		.sec_retry_threshold = QUIC_DFLT_SEC_RETRY_THRESHOLD,
 		.fb_opts = QUIC_TUNE_FB_TX_PACING|QUIC_TUNE_FB_TX_UDP_GSO,
 		.opts = QUIC_TUNE_FE_SOCK_PER_CONN,
@@ -34,6 +35,7 @@ struct quic_tune quic_tune = {
 	.be = {
 		.cc_max_frame_loss = QUIC_DFLT_CC_MAX_FRAME_LOSS,
 		.cc_reorder_ratio  = QUIC_DFLT_CC_REORDER_RATIO,
+		.max_idle_timeout  = QUIC_DFLT_BE_MAX_IDLE_TIMEOUT,
 		.fb_opts = QUIC_TUNE_FB_TX_PACING|QUIC_TUNE_FB_TX_UDP_GSO,
 	},
 	.mem_tx_max = QUIC_MAX_TX_MEM,
@@ -276,9 +278,11 @@ static int cfg_parse_quic_time(char **args, int section_type,
                                const struct proxy *defpx,
                                const char *file, int line, char **err)
 {
+	int ret = 0;
 	unsigned int time;
 	const char *res, *name, *value;
-	int prefix_len = strlen("tune.quic.");
+	const int prefix_len = strlen("tune.quic.");
+	const char *suffix;
 
 	if (too_many_args(1, args, err, NULL))
 		return -1;
@@ -301,16 +305,26 @@ static int cfg_parse_quic_time(char **args, int section_type,
 		return -1;
 	}
 
-	if (strcmp(name + prefix_len, "frontend.max-idle-timeout") == 0)
-		global.tune.quic_frontend_max_idle_timeout = time;
-	else if (strcmp(name + prefix_len, "backend.max-idle-timeout") == 0)
-		global.tune.quic_backend_max_idle_timeout = time;
+	suffix = name + prefix_len;
+	if (strcmp(suffix, "be.max-idle-timeout") == 0 ||
+	    strcmp(suffix, "fe.max-idle-timeout") == 0) {
+		uint *ptr = (suffix[0] == 'b') ? &quic_tune.be.max_idle_timeout :
+		                                 &quic_tune.fe.max_idle_timeout;
+		*ptr = time;
+	}
+	/* legacy options */
+	else if (strcmp(name + prefix_len, "frontend.max-idle-timeout") == 0) {
+		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
+		               "Please use the newer keyword syntax 'tune.quic.fe.max-idle-timeout'.", args[0]);
+		quic_tune.fe.max_idle_timeout = time;
+		ret = 1;
+	}
 	else {
 		memprintf(err, "'%s' keyword not unhandled (please report this bug).", args[0]);
-		return -1;
+		ret = -1;
 	}
 
-	return 0;
+	return ret;
 }
 
 /* Parse any tune.quic.* setting with strictly positive integer values.
@@ -582,7 +596,6 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.mem.tx-max", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-data-size", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-streams-bidi", cfg_parse_quic_tune_setting },
-	{ CFG_GLOBAL, "tune.quic.frontend.max-idle-timeout", cfg_parse_quic_time },
 	{ CFG_GLOBAL, "tune.quic.frontend.default-max-window-size", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.stream-data-ratio", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.zero-copy-fwd-send", cfg_parse_quic_tune_on_off },
@@ -591,6 +604,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.fe.cc.hystart", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.fe.cc.max-frame-loss", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.fe.cc.reorder-ratio", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.fe.max-idle-timeout", cfg_parse_quic_time },
 	{ CFG_GLOBAL, "tune.quic.fe.sec.glitches-threshold", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.fe.sec.retry-threshold", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.fe.sock-per-conn", cfg_parse_quic_tune_sock_per_conn },
@@ -601,6 +615,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.be.cc.hystart", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.be.cc.max-frame-loss", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.be.cc.reorder-ratio", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.be.max-idle-timeout", cfg_parse_quic_time },
 	{ CFG_GLOBAL, "tune.quic.be.sec.glitches-threshold", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.be.tx.pacing", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.be.tx.udp-gso", cfg_parse_quic_tune_on_off },
@@ -611,6 +626,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.disable-tx-pacing", cfg_parse_quic_tune_setting0 },
 	{ CFG_GLOBAL, "tune.quic.disable-udp-gso", cfg_parse_quic_tune_setting0 },
 	{ CFG_GLOBAL, "tune.quic.frontend.glitches-threshold", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.frontend.max-idle-timeout", cfg_parse_quic_time },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-tx-mem", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.max-frame-loss", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.reorder-ratio", cfg_parse_quic_tune_setting },

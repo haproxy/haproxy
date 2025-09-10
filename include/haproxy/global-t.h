@@ -215,8 +215,6 @@ struct global {
 		uint ring_queues;   /* if >0, #ring queues, otherwise equals #thread groups */
 		enum threadgroup_takeover tg_takeover; /* Policy for threadgroup takeover */
 #ifdef USE_QUIC
-		unsigned int quic_backend_max_idle_timeout;
-		unsigned int quic_frontend_max_idle_timeout;
 		unsigned int quic_frontend_max_data;
 		unsigned int quic_frontend_max_streams_bidi;
 		size_t quic_frontend_max_window_size;
