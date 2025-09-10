@@ -2665,6 +2665,7 @@ static int resolvers_finalize_config(void)
 	const struct protocol *proto;
 	struct resolvers *resolvers;
 	struct proxy	     *px;
+	static int operating_thread = 0;
 	int err_code = 0;
 
 	enter_resolver_code();
@@ -2703,12 +2704,17 @@ static int resolvers_finalize_config(void)
 			}
 		}
 
-		/* Create the task associated to the resolvers section */
-		if ((t = task_new_anywhere()) == NULL) {
+		/* Create the task associated to the resolvers section.
+		 * We try to bind each resolvers section to a different thread
+		 * in order to avoid expensive multi-threading tasks and make
+		 * sure that the same thread deals with DNS I/O and scheduling.
+		 */
+		if ((t = task_new_on(operating_thread)) == NULL) {
 			ha_alert("resolvers '%s' : out of memory.\n", resolvers->id);
 			err_code |= (ERR_ALERT|ERR_ABORT);
 			goto err;
 		}
+		operating_thread = (operating_thread + 1) % global.nbthread;
 
 		/* Update task's parameters */
 		t->process   = process_resolvers;
