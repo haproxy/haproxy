@@ -3783,13 +3783,18 @@ struct task *process_peer_sync(struct task * task, void *context, unsigned int s
  */
 int peers_init_sync(struct peers *peers)
 {
+	static uint operating_thread = 0;
 	struct peer * curpeer;
 
 	for (curpeer = peers->remote; curpeer; curpeer = curpeer->next) {
 		peers->peers_fe->maxconn += 3;
 	}
 
-	peers->sync_task = task_new_anywhere();
+	/* go backwards so as to distribute the load to other threads
+	 * than the ones operating the stick-tables for small confs.
+	 */
+	operating_thread = (operating_thread - 1) % global.nbthread;
+	peers->sync_task = task_new_on(operating_thread);
 	if (!peers->sync_task)
 		return 0;
 
