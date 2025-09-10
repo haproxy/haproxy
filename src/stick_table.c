@@ -740,9 +740,11 @@ void stktable_requeue_exp(struct stktable *t, const struct stksess *ts)
 		new_exp = tick_first(expire, old_exp);
 	}
 
-	task_queue(t->exp_task);
-
 	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
+
+	/* the timer was advanced, only the task can update it */
+	if (!tick_isset(old_exp) || tick_is_lt(new_exp, old_exp))
+		task_wakeup(t->exp_task, TASK_WOKEN_OTHER);
 }
 
 /* Returns a valid or initialized stksess for the specified stktable_key in the
@@ -1087,6 +1089,7 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
  */
 int stktable_init(struct stktable *t, char **err_msg)
 {
+	static int operating_thread = 0;
 	int peers_retval = 0;
 	int shard;
 	int i;
@@ -1106,9 +1109,11 @@ int stktable_init(struct stktable *t, char **err_msg)
 		t->pool = create_pool("sticktables", sizeof(struct stksess) + round_ptr_size(t->data_size) + t->key_size, MEM_F_SHARED);
 
 		if ( t->expire ) {
-			t->exp_task = task_new_anywhere();
+			t->exp_task = task_new_on(operating_thread);
 			if (!t->exp_task)
 				goto mem_error;
+			operating_thread = (operating_thread + 1) % global.nbthread;
+
 			t->exp_task->process = process_table_expire;
 			t->exp_task->context = (void *)t;
 		}
