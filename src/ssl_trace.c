@@ -84,6 +84,7 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
                       const struct ist where, const struct ist func,
                       const void *a1, const void *a2, const void *a3, const void *a4)
 {
+	const char *errstr = NULL;
 	struct connection *conn = (struct connection*)a1;
 
 	if (src->verbosity <= SSL_VERB_CLEAN)
@@ -93,6 +94,8 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 		struct proxy *px = conn_get_proxy(conn);
 		chunk_appendf(&trace_buf, " : [%c(%s)] conn=%p(0x%08x)", conn_is_back(conn) ? 'B' : 'F',
 			      px ? px->id : "", conn, conn->flags);
+
+		errstr = conn_err_code_str(conn);
 	}
 
 	if (src->verbosity <= SSL_VERB_MINIMAL)
@@ -150,7 +153,7 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 			 * error we had. */
 			if (a3) {
 				const unsigned int *err_code = a3;
-				chunk_appendf(&trace_buf, " err_code=%u err_str=\"%s\"", *err_code, conn_err_code_str(conn));
+				chunk_appendf(&trace_buf, " err_code=%u err_str=\"%s\"", *err_code, errstr);
 			}
 
 			if (a4) {
@@ -165,7 +168,7 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 		if (mask & SSL_EV_CONN_ERR) {
 			if (a3) {
 				const unsigned int *err_code = a3;
-				chunk_appendf(&trace_buf, " err_code=%u err_str=\"%s\"", *err_code, conn_err_code_str(conn));
+				chunk_appendf(&trace_buf, " err_code=%u err_str=\"%s\"", *err_code, errstr);
 			}
 			if (a4) {
 				const unsigned int *ssl_err_code = a4;
@@ -186,7 +189,7 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 		if (mask & SSL_EV_CONN_ERR) {
 			if (a3) {
 				const unsigned int *err_code = a3;
-				chunk_appendf(&trace_buf, " err_code=%u err_str=\"%s\"", *err_code, conn_err_code_str(conn));
+				chunk_appendf(&trace_buf, " err_code=%u err_str=\"%s\"", *err_code, errstr);
 			}
 		} else if (src->verbosity > SSL_VERB_SIMPLE) {
 			if (a3) {
