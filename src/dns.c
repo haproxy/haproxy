@@ -121,7 +121,13 @@ static int dns_connect_nameserver(struct dns_nameserver *ns)
 
 	/* Add the fd in the fd list and update its parameters */
 	dgram->t.sock.fd = fd;
-	fd_insert(fd, dgram, dgram_fd_handler, tgid, tg->threads_enabled);
+
+	/* let's stick the FD to the initiator thread, this will ensure that
+	 * most of the time, a resolver will not try to access its structure
+	 * at the same time as a response is processed, and will eliminate
+	 * locking contention.
+	 */
+	fd_insert(fd, dgram, dgram_fd_handler, tgid, ti->ltid_bit);
 	fd_want_recv(fd);
 	return 0;
 }
