@@ -805,7 +805,7 @@ struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *
 	return ts;
 }
 
-static struct task *stktable_add_pend_updates(struct task *t, void *ctx, unsigned int state)
+struct task *stktable_add_pend_updates(struct task *t, void *ctx, unsigned int state)
 {
 	struct stktable *table = ctx;
 	struct eb32_node *eb;
