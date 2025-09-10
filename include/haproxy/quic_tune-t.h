@@ -18,6 +18,11 @@
 #define QUIC_DFLT_BE_MAX_IDLE_TIMEOUT   30000 /* milliseconds */
 /* Default Retry threshold */
 #define QUIC_DFLT_SEC_RETRY_THRESHOLD     100 /* in connection openings */
+/* Default settings related to flow-control */
+#define QUIC_DFLT_FE_STREAM_DATA_RATIO     90
+#define QUIC_DFLT_BE_STREAM_DATA_RATIO     90
+#define QUIC_DFLT_FE_STREAM_MAX_CONCURRENT 100
+#define QUIC_DFLT_BE_STREAM_MAX_CONCURRENT 100
 
 
 #define QUIC_TUNE_FE_LISTEN_OFF    0x00000001
@@ -36,6 +41,9 @@ struct quic_tune {
 		uint max_idle_timeout;
 		uint sec_glitches_threshold;
 		uint sec_retry_threshold;
+		uint stream_data_ratio;
+		uint stream_max_concurrent;
+		uint stream_rxbuf;
 		uint opts;    /* QUIC_TUNE_FE_* options specific to FE side */
 		uint fb_opts; /* QUIC_TUNE_FB_* options shared by both side */
 	} fe;
@@ -47,6 +55,9 @@ struct quic_tune {
 		uint cc_reorder_ratio;
 		uint max_idle_timeout;
 		uint sec_glitches_threshold;
+		uint stream_data_ratio;
+		uint stream_max_concurrent;
+		uint stream_rxbuf;
 		uint fb_opts; /* QUIC_TUNE_FB_* options shared by both side */
 	} be;
 

@@ -100,9 +100,6 @@
 #include <haproxy/namespace.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/openssl-compat.h>
-#include <haproxy/quic_conn.h>
-#include <haproxy/quic_tp-t.h>
-#include <haproxy/quic_tune.h>
 #include <haproxy/pattern.h>
 #include <haproxy/peers.h>
 #include <haproxy/pool.h>
@@ -198,11 +195,6 @@ struct global global = {
 #endif
 		.nb_stk_ctr = MAX_SESS_STKCTR,
 		.default_shards = -2, /* by-group */
-#ifdef USE_QUIC
-		.quic_frontend_max_data = 0,
-		.quic_frontend_max_streams_bidi = QUIC_TP_DFLT_FRONT_MAX_STREAMS_BIDI,
-		.quic_frontend_stream_data_ratio = QUIC_DFLT_FRONT_STREAM_DATA_RATIO,
-#endif /* USE_QUIC */
 	},
 #ifdef USE_OPENSSL
 #ifdef DEFAULT_MAXSSLCONN

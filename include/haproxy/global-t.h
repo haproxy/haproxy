@@ -214,11 +214,6 @@ struct global {
 		uint max_checks_per_thread; /* if >0, no more than this concurrent checks per thread */
 		uint ring_queues;   /* if >0, #ring queues, otherwise equals #thread groups */
 		enum threadgroup_takeover tg_takeover; /* Policy for threadgroup takeover */
-#ifdef USE_QUIC
-		unsigned int quic_frontend_max_data;
-		unsigned int quic_frontend_max_streams_bidi;
-		unsigned int quic_frontend_stream_data_ratio;
-#endif /* USE_QUIC */
 	} tune;
 	struct {
 		char *prefix;           /* path prefix of unix bind socket */

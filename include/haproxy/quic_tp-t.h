@@ -41,7 +41,6 @@ struct tp_version_information {
 /* These ones are our implementation default values when not set
  * by configuration
  */
-#define QUIC_TP_DFLT_FRONT_MAX_STREAMS_BIDI        100
 #define QUIC_TP_DFLT_FRONT_STREAM_DATA_RATIO        90
 
 /* Types of QUIC transport parameters */

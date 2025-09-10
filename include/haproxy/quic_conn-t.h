@@ -92,9 +92,6 @@ typedef unsigned long long ull;
 /* Retry token duration */
 #define QUIC_RETRY_DURATION_SEC       10
 
-/* Default ratio applied for max-stream-data-bidi-remote derived from max-data */
-#define QUIC_DFLT_FRONT_STREAM_DATA_RATIO 90
-
 /*
  *  0                   1                   2                   3
  *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1

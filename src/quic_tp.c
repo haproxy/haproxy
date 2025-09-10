@@ -47,7 +47,10 @@ static void quic_dflt_transport_params_cpy(struct quic_transport_params *dst)
 void quic_transport_params_init(struct quic_transport_params *p, int server)
 {
 	const uint64_t stream_rx_bufsz = qmux_stream_rx_bufsz();
-	const int max_streams_bidi = global.tune.quic_frontend_max_streams_bidi;
+	const uint stream_rxbuf = server ?
+	  quic_tune.fe.stream_rxbuf : quic_tune.be.stream_rxbuf;
+	const int max_streams_bidi = server ?
+	  quic_tune.fe.stream_max_concurrent : quic_tune.be.stream_max_concurrent;
 	/* TODO value used to conform with HTTP/3, should be derived from app_ops */
 	const int max_streams_uni = 3;
 
@@ -70,16 +73,15 @@ void quic_transport_params_init(struct quic_transport_params *p, int server)
 	 * or automatically calculated from max number of concurrently opened
 	 * streams.
 	 */
-	if (global.tune.quic_frontend_max_data)
-		p->initial_max_data = global.tune.quic_frontend_max_data;
-	else
-		p->initial_max_data = max_streams_bidi * stream_rx_bufsz;
+	p->initial_max_data = stream_rxbuf ?
+	  stream_rxbuf : max_streams_bidi * stream_rx_bufsz;
 
 	/* Set remote streams flow-control data limit. This is calculated as a
 	 * ratio from max-data, then rounded up to bufsize.
 	 */
-	p->initial_max_stream_data_bidi_remote =
-	  p->initial_max_data * global.tune.quic_frontend_stream_data_ratio / 100;
+	p->initial_max_stream_data_bidi_remote = server ?
+	  p->initial_max_data * quic_tune.fe.stream_data_ratio / 100 :
+	  p->initial_max_data * quic_tune.be.stream_data_ratio / 100;
 	p->initial_max_stream_data_bidi_remote =
 	  stream_rx_bufsz * ((p->initial_max_stream_data_bidi_remote + (stream_rx_bufsz - 1)) / stream_rx_bufsz);
 

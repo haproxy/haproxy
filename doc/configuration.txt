@@ -1895,6 +1895,9 @@ The following keywords are supported in the "global" section :
    - tune.quic.be.cc.reorder-ratio
    - tune.quic.be.max-idle-timeout
    - tune.quic.be.sec.glitches-threshold
+   - tune.quic.be.stream.data-ratio
+   - tune.quic.be.stream.max-concurrent
+   - tune.quic.be.stream.rxbuf
    - tune.quic.be.tx.pacing
    - tune.quic.be.tx.udp-gso
    - tune.quic.cc.cubic.min-losses (deprecated)
@@ -1910,13 +1913,16 @@ The following keywords are supported in the "global" section :
    - tune.quic.fe.sec.glitches-threshold
    - tune.quic.fe.sec.retry-threshold
    - tune.quic.fe.sock-per-conn
+   - tune.quic.fe.stream.data-ratio
+   - tune.quic.fe.stream.max-concurrent
+   - tune.quic.fe.stream.rxbuf
    - tune.quic.fe.tx.pacing
    - tune.quic.fe.tx.udp-gso
-   - tune.quic.frontend.max-data-size
+   - tune.quic.frontend.max-data-size (deprecated)
    - tune.quic.frontend.max-idle-timeout (deprecated)
-   - tune.quic.frontend.max-streams-bidi
+   - tune.quic.frontend.max-streams-bidi (deprecated)
    - tune.quic.frontend.max-tx-mem (deprecated)
-   - tune.quic.frontend.stream-data-ratio
+   - tune.quic.frontend.stream-data-ratio (deprecated)
    - tune.quic.frontend.default-max-window-size (deprecated)
    - tune.quic.listen
    - tune.quic.max-frame-loss (deprecated)
@@ -4879,6 +4885,74 @@ tune.quic.socket-owner { connection | listener } (deprecated)
   option is named "tune.quic.fe.sock-per-conn", with legacy value "connection"
   corresponding to "default-on" and "listener" to "force-off".
 
+tune.quic.be.stream.data-ratio <0..100, in percent>
+tune.quic.fe.stream.data-ratio <0..100, in percent>
+  This setting allows to configure the hard limit of the number of data bytes
+  in flight over each stream. It is expressed as a percentage relative to the
+  QUIC stream rxbuf connection setting, with the result rounded up to bufsize.
+
+  The default value is 90. This is suitable with the most frequent web
+  scenario, where uploads is performed only for one or a few streams, whereas
+  the rest are used for download only. If the stream rxbuf connection limit
+  remains at a reasonable level, it ensures that only a portion of opened
+  streams can allocate to their maximum capacity.
+
+  In the case of an application using many uploading streams in parallel and
+  suffering from unfairness between these streams, it can make sense to reduce
+  this ratio, to increase fairness and reduce the per-stream bandwidth.
+
+  See also: "tune.quic.be.stream.rxbuf", "tune.quic.fe.stream.rxbuf",
+            "tune.quic.be.stream.max-concurrent",
+            "tune.quic.fe.stream.max-concurrent"
+
+tune.quic.frontend.stream-data-ratio  <0..100, in percent> (deprecated)
+  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
+  part of the streamlining process apply on QUIC configuration. If used, this
+  setting will only be applied on frontend connections.
+
+tune.quic.be.stream.max-concurrent <number>
+tune.quic.fe.stream.max-concurrent <number>
+  Sets the QUIC initial_max_streams_bidi transport parameter either on frontend
+  or backend side. This is the maximum number of bidirectional streams that the
+  remote peer will be authorized to open concurrently during the connection
+  lifetime. On frontend side, this limits the number of concurrent HTTP/3
+  client requests.
+
+  The default value is 100. Note that if you reduces it, it can restrict the
+  buffering capabilities of streams on receive, which would result in poor
+  upload throughput. It can be corrected by increasing the QUIC stream rxbuf
+  connection setting.
+
+  See also: "tune.quic.be.stream.rxbuf", "tune.quic.fe.stream.rxbuf",
+            "tune.quic.be.stream.data-ratio", "tune.quic.fe.stream.data-ratio"
+
+tune.quic.frontend.max-streams-bidi <number> (deprecated)
+  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
+  part of the streamlining process apply on QUIC configuration. If used, this
+  setting will only be applied on frontend connections.
+
+tune.quic.be.stream.rxbuf <size>
+tune.quic.fe.stream.rxbuf <size>
+  This setting is the hard limit for the number of data bytes in flight over a
+  QUIC frontend connection. It is reused as the value for the initial_max_data
+  transport parameter. It directly impacts the upload bandwidth for the peer
+  depending on the latency and the per-connection memory consumption in
+  haproxy.
+
+  By default, the value is set to 0, which indicates that it must be
+  automatically generated as the product between max-concurrent and bufsize.
+  This can be increased for example if a backend application relies on massive
+  uploads over high latency networks.
+
+  See also: "tune.quic.be.stream.max-concurrent",
+            "tune.quic.fe.stream.max-concurrent",
+            "tune.quic.be.stream.data-ratio", "tune.quic.fe.stream.data-ratio"
+
+tune.quic.frontend.max-data-size <size> (deprecated)
+  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
+  part of the streamlining process apply on QUIC configuration. If used, this
+  setting will only be applied on frontend connections.
+
 tune.quic.be.tx.pacing { on | off }
 tune.quic.fe.tx.pacing { on | off }
   Enables ('on') or disables ('off') pacing support for QUIC emission. By
@@ -4907,54 +4981,6 @@ tune.quic.disable-udp-gso (deprecated)
   This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
   part of the streamlining process apply on QUIC configuration. If used, this
   setting will only be applied on frontend connections.
-
-tune.quic.frontend.max-data-size <size>
-  This setting is the hard limit for the number of data bytes in flight over a
-  QUIC frontend connection. It is reused as the value for the initial_max_data
-  transport parameter. It directly impacts the upload bandwidth for the peer
-  depending on the latency and the per-connection memory consumption in
-  haproxy.
-
-  By default, the value is set to 0, which indicates that it must be
-  automatically generated as the product between max-streams-bidi and bufsize.
-  This can be increased for example if a backend application relies on massive
-  uploads over high latency networks.
-
-  See also: "tune.quic.frontend.max-streams-bidi",
-            "tune.quic.frontend.stream-data-ratio"
-
-tune.quic.frontend.max-streams-bidi <number>
-  Sets the QUIC initial_max_streams_bidi transport parameter for frontends.
-  This is the initial maximum number of bidirectional streams the remote peer
-  will be authorized to open. This determines the number of concurrent client
-  requests.
-
-  The default value is 100. Note that if you reduces it, it can restrict the
-  buffering capabilities of streams on receive, which would result in poor
-  upload throughput. It can be corrected by increasing
-  tune.quic.frontend.max-data-size setting.
-
-  See also: "tune.quic.frontend.max-data-size",
-            "tune.quic.frontend.stream-data-ratio"
-
-tune.quic.frontend.stream-data-ratio  <0..100, in percent>
-  This setting allows to configure the hard limit of the number of data bytes
-  in flight over each stream. It is expressed as a percentage relative to
-  "tune.quic.frontend.max-data-size" setting, with the result rounded up to
-  bufsize.
-
-  The default value is 90. This is suitable with the most frequent web
-  scenario, where uploads is performed only for one or a few streams, whereas
-  the rest are used for download only. If max-data-size connection limit
-  remains at a reasonable level, it ensures that only a portion of opened
-  streams can allocate to their maximum capacity.
-
-  In the case of an application using many uploading streams in parallel and
-  suffering from unfairness between these streams, it can make sense to reduce
-  this ratio, to increase fairness and reduce the per-stream bandwidth.
-
-  See also: "tune.quic.frontend.max-data-size",
-            "tune.quic.frontend.max-streams-bidi"
 
 tune.quic.listen { on | off }
   Disable QUIC transport protocol on the frontend side. All the QUIC listeners
