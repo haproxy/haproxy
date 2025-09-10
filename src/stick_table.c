@@ -724,14 +724,18 @@ void stktable_requeue_exp(struct stktable *t, const struct stksess *ts)
 	old_exp = HA_ATOMIC_LOAD(&t->exp_task->expire);
 	new_exp = tick_first(expire, old_exp);
 
-	/* let's not go further if we're already up to date */
-	if (new_exp == old_exp)
+	/* let's not go further if we're already up to date. We have
+	 * to make sure the compared date doesn't change under us.
+	 */
+	if (new_exp == old_exp &&
+	    HA_ATOMIC_CAS(&t->exp_task->expire, &old_exp, new_exp))
 		return;
 
 	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
 
-	while (new_exp != old_exp &&
-	       !HA_ATOMIC_CAS(&t->exp_task->expire, &old_exp, new_exp)) {
+	while (!HA_ATOMIC_CAS(&t->exp_task->expire, &old_exp, new_exp)) {
+		if (new_exp == old_exp)
+			break;
 		__ha_cpu_relax();
 		new_exp = tick_first(expire, old_exp);
 	}
