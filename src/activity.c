@@ -1296,7 +1296,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 	const struct task *t;
 	uint64_t now_ns, lat;
 	struct eb32_node *rqnode;
-	uint64_t tot_calls;
+	uint64_t tot_calls, tot_cpu;
 	int thr, queue;
 	int i, max;
 
@@ -1309,7 +1309,9 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 	 * reflect the latency when set. We prefer to take the time before
 	 * calling thread_isolate() so that the wait time doesn't impact the
 	 * measurement accuracy. However this requires to take care of negative
-	 * times since tasks might be queued after we retrieve it.
+	 * times since tasks might be queued after we retrieve it. The cpu_time
+	 * will store the total number of calls per task, allowing to sort out
+	 * the most vs least busy ones.
 	 */
 
 	now_ns = now_mono_time();
@@ -1331,6 +1333,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 				if ((int64_t)lat > 0)
 					entry->lat_time += lat;
 			}
+			entry->cpu_time += t->calls;
 			entry->calls++;
 			rqnode = eb32_next(rqnode);
 		}
@@ -1348,6 +1351,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 				if ((int64_t)lat > 0)
 					entry->lat_time += lat;
 			}
+			entry->cpu_time += t->calls;
 			entry->calls++;
 			rqnode = eb32_next(rqnode);
 		}
@@ -1361,6 +1365,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 				if ((int64_t)lat > 0)
 					entry->lat_time += lat;
 			}
+			entry->cpu_time += t->calls;
 			entry->calls++;
 		}
 
@@ -1374,6 +1379,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 					if ((int64_t)lat > 0)
 						entry->lat_time += lat;
 				}
+				entry->cpu_time += t->calls;
 				entry->calls++;
 			}
 		}
@@ -1384,14 +1390,17 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 
 	chunk_reset(&trash);
 
-	tot_calls = 0;
-	for (i = 0; i < SCHED_ACT_HASH_BUCKETS; i++)
+	tot_calls = tot_cpu = 0;
+	for (i = 0; i < SCHED_ACT_HASH_BUCKETS; i++) {
 		tot_calls += tmp_activity[i].calls;
+		tot_cpu += tmp_activity[i].cpu_time;
+	}
+	tot_cpu = tot_cpu ? tot_cpu : 1; // prepare for the divide
 
 	qsort(tmp_activity, SCHED_ACT_HASH_BUCKETS, sizeof(tmp_activity[0]), cmp_sched_activity_calls);
 
 	chunk_appendf(&trash, "Running tasks: %d (%d threads)\n"
-		      "  function                     places     %%    lat_tot   lat_avg\n",
+		      "  function                     places     %%    lat_tot   lat_avg  calls_tot  calls_avg calls%%\n",
 		      (int)tot_calls, global.nbthread);
 
 	for (i = 0; i < SCHED_ACT_HASH_BUCKETS && tmp_activity[i].calls; i++) {
@@ -1413,7 +1422,11 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 		              (int)(100ULL * tmp_activity[i].calls / tot_calls),
 		              (int)((1000ULL * tmp_activity[i].calls / tot_calls)%10));
 		print_time_short(&trash, "   ", tmp_activity[i].lat_time, "");
-		print_time_short(&trash, "   ", tmp_activity[i].lat_time / tmp_activity[i].calls, "\n");
+		print_time_short(&trash, "   ", tmp_activity[i].lat_time / tmp_activity[i].calls, "");
+		chunk_appendf(&trash, " %10llu %10llu  %3d.%1d\n",
+			      (ullong)tmp_activity[i].cpu_time, (ullong)tmp_activity[i].cpu_time / tmp_activity[i].calls,
+		              (int)(100ULL * tmp_activity[i].cpu_time / tot_cpu),
+		              (int)((1000ULL * tmp_activity[i].cpu_time / tot_cpu)%10));
 	}
 
 	if (applet_putchk(appctx, &trash) == -1) {
