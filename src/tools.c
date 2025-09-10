@@ -5699,7 +5699,9 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 	 * may have a close match. Otherwise we report an offset relative to main.
 	 */
 	if (best_idx >= 0) {
-		chunk_appendf(buf, "%s+%#lx", fcts[best_idx].name, (long)best_dist);
+		chunk_appendf(buf, "%s", fcts[best_idx].name);
+		if (best_dist)
+			chunk_appendf(buf, "+%#lx", (long)best_dist);
 		return best_dist == 0 ? addr : NULL;
 	}
 	else if ((void*)addr < (void*)main)
