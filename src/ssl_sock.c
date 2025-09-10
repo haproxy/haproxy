@@ -6500,7 +6500,7 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 				 * already, and immediately know which mux
 				 * to use, in case we want to use 0RTT.
 				 */
-				if (conn_is_back(conn)) {
+				if (ret >= 0 && conn_is_back(conn)) {
 					struct server *srv;
 					const char *alpn;
 					int len;
