@@ -5909,7 +5909,7 @@ reneg_ok:
 	if (!conn->err_code)
 		conn->err_code = CO_ER_SSL_HANDSHAKE;
 
-	TRACE_ERROR("handshake error", SSL_EV_CONN_HNDSHK|SSL_EV_CONN_ERR, conn, ctx->ssl, &conn->err_code, &ctx->error_code);
+	TRACE_ERROR("handshake error", SSL_EV_CONN_HNDSHK|SSL_EV_CONN_ERR, conn, ctx->ssl, &conn->err_code, (ctx ? &ctx->error_code : NULL));
 	return 0;
 }
 
