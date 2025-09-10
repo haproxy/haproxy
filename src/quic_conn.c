@@ -1320,7 +1320,8 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->max_ack_delay = 0;
 	/* Only one path at this time (multipath not supported) */
 	qc->path = &qc->paths[0];
-	quic_cc_path_init(qc->path, ipv4, l ? l->bind_conf->max_cwnd : 0,
+	quic_cc_path_init(qc->path, ipv4,
+	                  l ? l->bind_conf->max_cwnd : quic_tune.be.cc_max_win_size,
 	                  cc_algo ? cc_algo : default_quic_cc_algo, qc);
 
 	if (local_addr)

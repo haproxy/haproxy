@@ -35,6 +35,7 @@
 #include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
 #include <haproxy/quic_tp.h>
+#include <haproxy/quic_tune.h>
 #include <haproxy/sample.h>
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
@@ -2081,7 +2082,7 @@ struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *file,
 #ifdef USE_QUIC
 	/* Use connection socket for QUIC by default. */
 	bind_conf->quic_mode = QUIC_SOCK_MODE_CONN;
-	bind_conf->max_cwnd = global.tune.quic_frontend_max_window_size;
+	bind_conf->max_cwnd = quic_tune.fe.cc_max_win_size;
 #endif
 	LIST_INIT(&bind_conf->listeners);
 

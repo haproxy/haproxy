@@ -217,7 +217,6 @@ struct global {
 #ifdef USE_QUIC
 		unsigned int quic_frontend_max_data;
 		unsigned int quic_frontend_max_streams_bidi;
-		size_t quic_frontend_max_window_size;
 		unsigned int quic_frontend_stream_data_ratio;
 #endif /* USE_QUIC */
 	} tune;

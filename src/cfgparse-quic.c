@@ -26,6 +26,7 @@
 struct quic_tune quic_tune = {
 	.fe = {
 		.cc_max_frame_loss = QUIC_DFLT_CC_MAX_FRAME_LOSS,
+		.cc_max_win_size   = QUIC_DFLT_CC_MAX_WIN_SIZE,
 		.cc_reorder_ratio  = QUIC_DFLT_CC_REORDER_RATIO,
 		.max_idle_timeout  = QUIC_DFLT_FE_MAX_IDLE_TIMEOUT,
 		.sec_retry_threshold = QUIC_DFLT_SEC_RETRY_THRESHOLD,
@@ -34,6 +35,7 @@ struct quic_tune quic_tune = {
 	},
 	.be = {
 		.cc_max_frame_loss = QUIC_DFLT_CC_MAX_FRAME_LOSS,
+		.cc_max_win_size   = QUIC_DFLT_CC_MAX_WIN_SIZE,
 		.cc_reorder_ratio  = QUIC_DFLT_CC_REORDER_RATIO,
 		.max_idle_timeout  = QUIC_DFLT_BE_MAX_IDLE_TIMEOUT,
 		.fb_opts = QUIC_TUNE_FB_TX_PACING|QUIC_TUNE_FB_TX_UDP_GSO,
@@ -376,6 +378,23 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 		                                 &quic_tune.fe.cc_max_frame_loss;
 		*ptr = arg;
 	}
+	else if (strcmp(suffix, "be.cc.max-win-size") == 0 ||
+	         strcmp(suffix, "fe.cc.max-win-size") == 0) {
+		size_t *ptr = (suffix[0] == 'b') ? &quic_tune.be.cc_max_win_size :
+		                                   &quic_tune.fe.cc_max_win_size;
+		unsigned long cwnd;
+		char *end_opt;
+
+		cwnd = parse_window_size(args[0], args[1], &end_opt, err);
+		if (!cwnd)
+			return -1;
+		if (*end_opt != '\0') {
+			memprintf(err, "'%s' : expects an integer value with an optional suffix 'k', 'm' or 'g'", args[0]);
+			return -1;
+		}
+
+		*ptr = cwnd;
+	}
 	else if (strcmp(suffix, "be.cc.reorder-ratio") == 0 ||
 	         strcmp(suffix, "fe.cc.reorder-ratio") == 0) {
 		uint *ptr = (suffix[0] == 'b') ? &quic_tune.be.cc_reorder_ratio :
@@ -402,20 +421,6 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 	}
 	else if (strcmp(suffix, "frontend.max-streams-bidi") == 0)
 		global.tune.quic_frontend_max_streams_bidi = arg;
-	else if (strcmp(suffix, "frontend.default-max-window-size") == 0) {
-		unsigned long cwnd;
-		char *end_opt;
-
-		cwnd = parse_window_size(args[0], args[1], &end_opt, err);
-		if (!cwnd)
-			return -1;
-		if (*end_opt != '\0') {
-			memprintf(err, "'%s' : expects an integer value with an optional suffix 'k', 'm' or 'g'", args[0]);
-			return -1;
-		}
-
-		global.tune.quic_frontend_max_window_size = cwnd;
-	}
 	else if (strcmp(suffix, "frontend.stream-data-ratio") == 0) {
 		if (arg < 1 || arg > 100) {
 			memprintf(err, "'%s' expects an integer argument between 1 and 100.", args[0]);
@@ -429,6 +434,24 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
 		               "Please use the newer keyword syntax 'tune.quic.fe.cc.cubic-min-losses'.", args[0]);
 		quic_tune.fe.cc_cubic_min_losses = arg - 1;
+		ret = 1;
+	}
+	else if (strcmp(suffix, "frontend.default-max-window-size") == 0) {
+		unsigned long cwnd;
+		char *end_opt;
+
+		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
+		               "Please use the newer keyword syntax 'tune.quic.fe.cc.max-win-size'.", args[0]);
+
+		cwnd = parse_window_size(args[0], args[1], &end_opt, err);
+		if (!cwnd)
+			return -1;
+		if (*end_opt != '\0') {
+			memprintf(err, "'%s' : expects an integer value with an optional suffix 'k', 'm' or 'g'", args[0]);
+			return -1;
+		}
+
+		quic_tune.fe.cc_max_win_size = cwnd;
 		ret = 1;
 	}
 	else if (strcmp(suffix, "frontend.glitches-threshold") == 0) {
@@ -596,13 +619,13 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.mem.tx-max", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-data-size", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-streams-bidi", cfg_parse_quic_tune_setting },
-	{ CFG_GLOBAL, "tune.quic.frontend.default-max-window-size", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.stream-data-ratio", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.zero-copy-fwd-send", cfg_parse_quic_tune_on_off },
 
 	{ CFG_GLOBAL, "tune.quic.fe.cc.cubic-min-losses", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.fe.cc.hystart", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.fe.cc.max-frame-loss", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.fe.cc.max-win-size", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.fe.cc.reorder-ratio", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.fe.max-idle-timeout", cfg_parse_quic_time },
 	{ CFG_GLOBAL, "tune.quic.fe.sec.glitches-threshold", cfg_parse_quic_tune_setting },
@@ -614,6 +637,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.be.cc.cubic-min-losses", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.be.cc.hystart", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.be.cc.max-frame-loss", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.be.cc.max-win-size", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.be.cc.reorder-ratio", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.be.max-idle-timeout", cfg_parse_quic_time },
 	{ CFG_GLOBAL, "tune.quic.be.sec.glitches-threshold", cfg_parse_quic_tune_setting },
@@ -625,6 +649,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.cc.cubic.min-losses", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.disable-tx-pacing", cfg_parse_quic_tune_setting0 },
 	{ CFG_GLOBAL, "tune.quic.disable-udp-gso", cfg_parse_quic_tune_setting0 },
+	{ CFG_GLOBAL, "tune.quic.frontend.default-max-window-size", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.glitches-threshold", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-idle-timeout", cfg_parse_quic_time },
 	{ CFG_GLOBAL, "tune.quic.frontend.max-tx-mem", cfg_parse_quic_tune_setting },

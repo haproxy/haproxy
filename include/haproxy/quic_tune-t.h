@@ -9,6 +9,8 @@
 
 /* Default limit of loss detection on a single frame. If exceeded, connection is closed. */
 #define QUIC_DFLT_CC_MAX_FRAME_LOSS       10
+/* Default congestion window size. 480 kB, equivalent to the legacy value which was 30*bufsize */
+#define QUIC_DFLT_CC_MAX_WIN_SIZE  491520
 /* Default ratio value applied to a dynamic Packet reorder threshold. */
 #define QUIC_DFLT_CC_REORDER_RATIO        50 /* in percent */
 /* Default max-idle-timeout advertised via TP */
@@ -29,6 +31,7 @@ struct quic_tune {
 	struct {
 		uint cc_cubic_min_losses;
 		uint cc_max_frame_loss;
+		size_t cc_max_win_size;
 		uint cc_reorder_ratio;
 		uint max_idle_timeout;
 		uint sec_glitches_threshold;
@@ -40,6 +43,7 @@ struct quic_tune {
 	struct {
 		uint cc_cubic_min_losses;
 		uint cc_max_frame_loss;
+		size_t cc_max_win_size;
 		uint cc_reorder_ratio;
 		uint max_idle_timeout;
 		uint sec_glitches_threshold;

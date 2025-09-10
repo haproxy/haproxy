@@ -1891,6 +1891,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.be.cc.cubic-min-losses
    - tune.quic.be.cc.hystart
    - tune.quic.be.cc.max-frame-loss
+   - tune.quic.be.cc.max-win-size
    - tune.quic.be.cc.reorder-ratio
    - tune.quic.be.max-idle-timeout
    - tune.quic.be.sec.glitches-threshold
@@ -1903,6 +1904,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.fe.cc.cubic-min-losses
    - tune.quic.fe.cc.hystart
    - tune.quic.fe.cc.max-frame-loss
+   - tune.quic.fe.cc.max-win-size
    - tune.quic.fe.cc.reorder-ratio
    - tune.quic.fe.max-idle-timeout
    - tune.quic.fe.sec.glitches-threshold
@@ -1915,7 +1917,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.frontend.max-streams-bidi
    - tune.quic.frontend.max-tx-mem (deprecated)
    - tune.quic.frontend.stream-data-ratio
-   - tune.quic.frontend.default-max-window-size
+   - tune.quic.frontend.default-max-window-size (deprecated)
    - tune.quic.listen
    - tune.quic.max-frame-loss (deprecated)
    - tune.quic.mem.tx-max
@@ -4753,6 +4755,26 @@ tune.quic.max-frame-loss <number> (deprecated)
   part of the streamlining process apply on QUIC configuration. If used, this
   setting will only be applied on frontend connections.
 
+tune.quic.be.cc.max-win-size <size>
+tune.quic.fe.cc.max-win-size <size>
+  Sets the default maximum window size for the congestion controller of a
+  single QUIC connection either on frontend or backend side. The value must be
+  written as an integer with an optional suffix 'k', 'm' or 'g'. It must be
+  between 10k and 4g.
+
+  QUIC multiplexer also uses the current congestion window size to determine if
+  it can allocate new stream buffers on data emission. As such, the maximum
+  congestion window size also serves as a limit on this allocator.
+
+  The default value is 480k.
+
+  See also the "quic-cc-algo" bind option.
+
+tune.quic.frontend.default-max-window-size <size> (deprecated)
+  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
+  part of the streamlining process apply on QUIC configuration. If used, this
+  setting will only be applied on frontend connections.
+
 tune.quic.be.cc.reorder-ratio <0..100, in percent>
 tune.quic.fe.cc.reorder-ratio <0..100, in percent>
   The ratio applied to the packet reordering threshold calculated. It may
@@ -4933,19 +4955,6 @@ tune.quic.frontend.stream-data-ratio  <0..100, in percent>
 
   See also: "tune.quic.frontend.max-data-size",
             "tune.quic.frontend.max-streams-bidi"
-
-tune.quic.frontend.default-max-window-size <size>
-  Sets the default maximum window size for the congestion controller of a
-  single QUIC connection. The value must be written as an integer with an
-  optional suffix 'k', 'm' or 'g'. It must be between 10k and 4g.
-
-  QUIC multiplexer also uses the current congestion window size to determine if
-  it can allocate new stream buffers on data emission. As such, the maximum
-  congestion window size also serves as a limit on this allocator.
-
-  The default value is 480k.
-
-  See also the "quic-cc-algo" bind option.
 
 tune.quic.listen { on | off }
   Disable QUIC transport protocol on the frontend side. All the QUIC listeners
@@ -17166,7 +17175,7 @@ quic-cc-algo { cubic | newreno | bbr | nocc }[(<args,...>)]
   comma. Each argument is optional and can be empty if needed. Here is the
   mandatory order of each parameters :
   - maximum window size in bytes. It must be greater than 10k and smaller than
-    4g. By default "tune.quic.frontend.default-max-window-size" value is used.
+    4g. By default "tune.quic.fe.cc.max-win-size" value is used.
 
   Example:
       # newreno congestion control algorithm
