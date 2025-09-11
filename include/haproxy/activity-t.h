@@ -145,6 +145,7 @@ struct sched_activity {
 	uint64_t lat_time;
 	uint64_t lkw_time; /* lock waiting time */
 	uint64_t lkd_time; /* locked time */
+	uint64_t mem_time; /* memory ops wait time */
 };
 
 #endif /* _HAPROXY_ACTIVITY_T_H */

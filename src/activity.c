@@ -759,6 +759,7 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 			HA_ATOMIC_STORE(&sched_activity[i].lat_time, 0);
 			HA_ATOMIC_STORE(&sched_activity[i].lkw_time, 0);
 			HA_ATOMIC_STORE(&sched_activity[i].lkd_time, 0);
+			HA_ATOMIC_STORE(&sched_activity[i].mem_time, 0);
 			HA_ATOMIC_STORE(&sched_activity[i].func, NULL);
 			HA_ATOMIC_STORE(&sched_activity[i].caller, NULL);
 		}
@@ -982,6 +983,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 				tmp_activity[i].lat_time += tmp_activity[j].lat_time;
 				tmp_activity[i].lkw_time += tmp_activity[j].lkw_time;
 				tmp_activity[i].lkd_time += tmp_activity[j].lkd_time;
+				tmp_activity[i].mem_time += tmp_activity[j].mem_time;
 				tmp_activity[j].calls = 0;
 			}
 		}
@@ -994,7 +996,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 
 	if (!ctx->linenum)
 		chunk_appendf(&trash, "Tasks activity over %.3f sec till %.3f sec ago:\n"
-		                      "  function                      calls   cpu_tot   cpu_avg   lkw_avg   lkd_avg   lat_avg\n",
+		                      "  function                      calls   cpu_tot   cpu_avg   lkw_avg   lkd_avg   mem_avg   lat_avg\n",
 			      (prof_task_start_ns ? (prof_task_stop_ns ? prof_task_stop_ns : now_ns) - prof_task_start_ns : 0) / 1000000000.0,
 			      (prof_task_stop_ns ? now_ns - prof_task_stop_ns : 0) / 1000000000.0);
 
@@ -1033,6 +1035,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		print_time_short(&trash, "   ", tmp_activity[i].cpu_time / tmp_activity[i].calls, "");
 		print_time_short(&trash, "   ", tmp_activity[i].lkw_time / tmp_activity[i].calls, "");
 		print_time_short(&trash, "   ", tmp_activity[i].lkd_time / tmp_activity[i].calls, "");
+		print_time_short(&trash, "   ", tmp_activity[i].mem_time / tmp_activity[i].calls, "");
 		print_time_short(&trash, "   ", tmp_activity[i].lat_time / tmp_activity[i].calls, "");
 
 		if (caller && !ctx->aggr && caller->what <= WAKEUP_TYPE_APPCTX_WAKEUP)
