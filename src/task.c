@@ -569,6 +569,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		process = t->process;
 		t->calls++;
 
+		th_ctx->lock_wait_total = 0;
 		th_ctx->sched_wake_date = t->wake_date;
 		if (th_ctx->sched_wake_date || (t->state & TASK_F_WANTS_TIME)) {
 			/* take the most accurate clock we have, either
@@ -678,8 +679,11 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		__ha_barrier_store();
 
 		/* stats are only registered for non-zero wake dates */
-		if (unlikely(th_ctx->sched_wake_date))
+		if (unlikely(th_ctx->sched_wake_date)) {
 			HA_ATOMIC_ADD(&profile_entry->cpu_time, (uint32_t)(now_mono_time() - th_ctx->sched_call_date));
+			if (th_ctx->lock_wait_total)
+				HA_ATOMIC_ADD(&profile_entry->lkw_time, th_ctx->lock_wait_total);
+		}
 	}
 	th_ctx->current_queue = -1;
 	th_ctx->sched_wake_date = TICK_ETERNITY;

@@ -360,7 +360,15 @@ static inline unsigned long thread_isolated()
 	} while (0)
 
 #define _lock_wait(_LK_, lbl, expr) do {				\
+		uint64_t lock_start = 0;				\
+		extern uint64_t now_mono_time(void);			\
+		if (_LK_ != _LK_UN) {					\
+			if (unlikely(th_ctx->flags & TH_FL_TASK_PROFILING)) \
+				lock_start = now_mono_time();		\
+		}							\
 		(void)(expr);						\
+		if (_LK_ != _LK_UN && unlikely(lock_start))		\
+			th_ctx->lock_wait_total += now_mono_time() - lock_start; \
 		if (lbl != OTHER_LOCK)					\
 			_lock_wait_common(_LK_, lbl);			\
 	} while (0)

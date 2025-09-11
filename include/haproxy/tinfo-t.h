@@ -161,13 +161,16 @@ struct thread_ctx {
 
 	uint32_t sched_wake_date;           /* current task/tasklet's wake date in 32-bit ns or 0 if not supported */
 	uint64_t sched_call_date;           /* current task/tasklet's call date in ns */
+	uint64_t lock_wait_total;           /* total time in ns spent waiting for a lock (task prof) */
 
 	uint64_t prev_mono_time;            /* previous system wide monotonic time (leaving poll) */
 	uint64_t curr_mono_time;            /* latest system wide monotonic time (leaving poll) */
 
 	ulong lock_history;                 /* history of used locks, see thread.h for more details */
 
-	// third cache line here on 64 bits: accessed mostly using atomic ops
+	/* around 56 unused bytes here */
+
+	// fourth cache line here on 64 bits: accessed mostly using atomic ops
 	ALWAYS_ALIGN(64);
 	struct mt_list shared_tasklet_list; /* Tasklet to be run, woken up by other threads */
 	unsigned int rqueue_ticks;          /* Insertion counter for the run queue */
