@@ -953,7 +953,7 @@ void pool_gc(struct pool_head *pool_ctx)
 	uint64_t mem_wait_start = 0;
 	int isolated = thread_isolated();
 
-	if (th_ctx->flags & TH_FL_TASK_PROFILING)
+	if (unlikely(th_ctx->flags & TH_FL_TASK_PROFILING))
 		mem_wait_start = now_mono_time();
 
 	if (!isolated)
@@ -1031,6 +1031,8 @@ void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 			struct memprof_stats *bin;
 
 			bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_P_ALLOC);
+			if (unlikely(th_ctx->lock_level & 0x7F))
+				_HA_ATOMIC_ADD(&bin->locked_calls, 1);
 			_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
 			_HA_ATOMIC_ADD(&bin->alloc_tot, pool->size);
 			_HA_ATOMIC_STORE(&bin->info, pool);
@@ -1069,6 +1071,8 @@ void __pool_free(struct pool_head *pool, void *ptr)
 		struct memprof_stats *bin;
 
 		bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_P_FREE);
+		if (unlikely(th_ctx->lock_level & 0x7F))
+			_HA_ATOMIC_ADD(&bin->locked_calls, 1);
 		_HA_ATOMIC_ADD(&bin->free_calls, 1);
 		_HA_ATOMIC_ADD(&bin->free_tot, pool->size);
 		_HA_ATOMIC_STORE(&bin->info, pool);

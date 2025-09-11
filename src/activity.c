@@ -342,6 +342,8 @@ void *malloc(size_t size)
 	size = malloc_usable_size(ret) + sizeof(void *);
 
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_MALLOC);
+	if (unlikely(th_ctx->lock_level & 0x7F))
+		_HA_ATOMIC_ADD(&bin->locked_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
 	return ret;
@@ -367,6 +369,8 @@ void *calloc(size_t nmemb, size_t size)
 	size = malloc_usable_size(ret) + sizeof(void *);
 
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_CALLOC);
+	if (unlikely(th_ctx->lock_level & 0x7F))
+		_HA_ATOMIC_ADD(&bin->locked_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
 	return ret;
@@ -400,6 +404,8 @@ void *realloc(void *ptr, size_t size)
 		size += sizeof(void *);
 
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_REALLOC);
+	if (unlikely(th_ctx->lock_level & 0x7F))
+		_HA_ATOMIC_ADD(&bin->locked_calls, 1);
 	if (size > size_before) {
 		_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
 		_HA_ATOMIC_ADD(&bin->alloc_tot, size - size_before);
@@ -431,6 +437,8 @@ char *strdup(const char *s)
 	size = malloc_usable_size(ret) + sizeof(void *);
 
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_STRDUP);
+	if (unlikely(th_ctx->lock_level & 0x7F))
+		_HA_ATOMIC_ADD(&bin->locked_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
 	return ret;
@@ -461,6 +469,8 @@ void free(void *ptr)
 	memprof_free_handler(ptr);
 
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_FREE);
+	if (unlikely(th_ctx->lock_level & 0x7F))
+		_HA_ATOMIC_ADD(&bin->locked_calls, 1);
 	_HA_ATOMIC_ADD(&bin->free_calls, 1);
 	_HA_ATOMIC_ADD(&bin->free_tot, size_before);
 }
@@ -481,6 +491,8 @@ char *strndup(const char *s, size_t size)
 
 	size = malloc_usable_size(ret) + sizeof(void *);
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_STRNDUP);
+	if (unlikely(th_ctx->lock_level & 0x7F))
+		_HA_ATOMIC_ADD(&bin->locked_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
 	return ret;
@@ -500,6 +512,8 @@ void *valloc(size_t size)
 
 	size = malloc_usable_size(ret) + sizeof(void *);
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_VALLOC);
+	if (unlikely(th_ctx->lock_level & 0x7F))
+		_HA_ATOMIC_ADD(&bin->locked_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
 	return ret;
@@ -519,6 +533,8 @@ void *pvalloc(size_t size)
 
 	size = malloc_usable_size(ret) + sizeof(void *);
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_PVALLOC);
+	if (unlikely(th_ctx->lock_level & 0x7F))
+		_HA_ATOMIC_ADD(&bin->locked_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
 	return ret;
@@ -538,6 +554,8 @@ void *memalign(size_t align, size_t size)
 
 	size = malloc_usable_size(ret) + sizeof(void *);
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_MEMALIGN);
+	if (unlikely(th_ctx->lock_level & 0x7F))
+		_HA_ATOMIC_ADD(&bin->locked_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
 	return ret;
@@ -557,6 +575,8 @@ void *aligned_alloc(size_t align, size_t size)
 
 	size = malloc_usable_size(ret) + sizeof(void *);
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_ALIGNED_ALLOC);
+	if (unlikely(th_ctx->lock_level & 0x7F))
+		_HA_ATOMIC_ADD(&bin->locked_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
 	return ret;
@@ -579,6 +599,8 @@ int posix_memalign(void **ptr, size_t align, size_t size)
 
 	size = malloc_usable_size(*ptr) + sizeof(void *);
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_POSIX_MEMALIGN);
+	if (unlikely(th_ctx->lock_level & 0x7F))
+		_HA_ATOMIC_ADD(&bin->locked_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
 	return ret;
@@ -715,6 +737,7 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 
 			/* also flush current profiling stats */
 			for (i = 0; i < sizeof(memprof_stats) / sizeof(memprof_stats[0]); i++) {
+				HA_ATOMIC_STORE(&memprof_stats[i].locked_calls, 0);
 				HA_ATOMIC_STORE(&memprof_stats[i].alloc_calls, 0);
 				HA_ATOMIC_STORE(&memprof_stats[i].free_calls, 0);
 				HA_ATOMIC_STORE(&memprof_stats[i].alloc_tot, 0);
@@ -1123,6 +1146,15 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 			/* that's a pool name */
 			const struct pool_head *pool = entry->info;
 			chunk_appendf(&trash," [pool=%s]", pool->name);
+		}
+
+		if (entry->locked_calls) {
+			unsigned long long tot_calls = entry->alloc_calls + entry->free_calls;
+
+			chunk_appendf(&trash," [locked=%llu (%d.%1d %%)]",
+				      entry->locked_calls,
+				      (int)(100ULL * entry->locked_calls / tot_calls),
+				      (int)((1000ULL * entry->locked_calls / tot_calls) % 10));
 		}
 
 		chunk_appendf(&trash, "\n");
