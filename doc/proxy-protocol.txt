@@ -28,7 +28,8 @@ Revision history
                 string encoding. With contributions from Andriy Palamarchuk
                 (Amazon.com).
    2020/03/05 - added the unique ID TLV type (Tim Düsterhus)
-
+   2025/09/09 - added SSL-related TLVs for key exchange group and signature
+                scheme (Steven Collison)
 
 1. Background
 
@@ -535,18 +536,20 @@ the information they choose to publish.
 
 The following types have already been registered for the <type> field :
 
-        #define PP2_TYPE_ALPN           0x01
-        #define PP2_TYPE_AUTHORITY      0x02
-        #define PP2_TYPE_CRC32C         0x03
-        #define PP2_TYPE_NOOP           0x04
-        #define PP2_TYPE_UNIQUE_ID      0x05
-        #define PP2_TYPE_SSL            0x20
-        #define PP2_SUBTYPE_SSL_VERSION 0x21
-        #define PP2_SUBTYPE_SSL_CN      0x22
-        #define PP2_SUBTYPE_SSL_CIPHER  0x23
-        #define PP2_SUBTYPE_SSL_SIG_ALG 0x24
-        #define PP2_SUBTYPE_SSL_KEY_ALG 0x25
-        #define PP2_TYPE_NETNS          0x30
+        #define PP2_TYPE_ALPN              0x01
+        #define PP2_TYPE_AUTHORITY         0x02
+        #define PP2_TYPE_CRC32C            0x03
+        #define PP2_TYPE_NOOP              0x04
+        #define PP2_TYPE_UNIQUE_ID         0x05
+        #define PP2_TYPE_SSL               0x20
+        #define PP2_SUBTYPE_SSL_VERSION    0x21
+        #define PP2_SUBTYPE_SSL_CN         0x22
+        #define PP2_SUBTYPE_SSL_CIPHER     0x23
+        #define PP2_SUBTYPE_SSL_SIG_ALG    0x24
+        #define PP2_SUBTYPE_SSL_KEY_ALG    0x25
+        #define PP2_SUBTYPE_SSL_GROUP      0x26
+        #define PP2_SUBTYPE_SSL_SIG_SCHEME 0x27
+        #define PP2_TYPE_NETNS             0x30
 
 
 2.2.1 PP2_TYPE_ALPN
@@ -660,6 +663,14 @@ The second level TLV PP2_SUBTYPE_SSL_KEY_ALG provides the US-ASCII string name
 of the algorithm used to generate the key of the certificate presented by the
 frontend when the incoming connection was made over an SSL/TLS transport layer,
 for example "RSA2048".
+
+The second level TLV PP2_SUBTYPE_SSL_GROUP provides the US-ASCII string name of
+the key exchange algorithm used for the frontend TLS connection, for example
+"secp256r1".
+
+The second level TLV PP2_SUBTYPE_SSL_SIG_SCHEME provides the US-ASCII string
+name of the algorithm the frontend used to sign the ServerKeyExchange or
+CertificateVerify message, for example "rsa_pss_rsae_sha256".
 
 In all cases, the string representation (in UTF8) of the Common Name field
 (OID: 2.5.4.3) of the client certificate's Distinguished Name, is appended
