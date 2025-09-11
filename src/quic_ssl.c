@@ -978,7 +978,7 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 				goto err;
 			}
 		}
-		else {
+		else if (qc->mux_state != QC_MUX_READY) {
 			const unsigned char *alpn;
 			size_t alpn_len;
 
