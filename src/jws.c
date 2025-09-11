@@ -18,7 +18,7 @@
  *
  * Return the size of the data dumped in <dst>
  */
-int bn2base64url(const BIGNUM *bn, char *dst, size_t dsize)
+size_t bn2base64url(const BIGNUM *bn, char *dst, size_t dsize)
 {
 	struct buffer *bin;
 	int binlen;
@@ -36,7 +36,9 @@ int bn2base64url(const BIGNUM *bn, char *dst, size_t dsize)
 
 	ret = a2base64url(bin->area, binlen, dst, dsize);
 out:
-	return ret;
+	if (ret > 0)
+		return ret;
+	return 0;
 }
 
 /*
@@ -45,7 +47,7 @@ out:
  *
  * Return the size of the data or 0
  */
-static int EVP_PKEY_EC_to_pub_jwk(EVP_PKEY *pkey, char *dst, size_t dsize)
+static size_t EVP_PKEY_EC_to_pub_jwk(EVP_PKEY *pkey, char *dst, size_t dsize)
 {
 	BIGNUM *x = NULL, *y = NULL;
 	struct buffer *str_x = NULL, *str_y = NULL;
@@ -125,7 +127,9 @@ out:
 	BN_free(x);
 	BN_free(y);
 
-	return ret;
+	if (ret > 0)
+		return ret;
+	return 0;
 }
 
 /*
@@ -134,7 +138,7 @@ out:
  *
  * Return the size of the data or 0
  */
-static int EVP_PKEY_RSA_to_pub_jwk(EVP_PKEY *pkey, char *dst, size_t dsize)
+static size_t EVP_PKEY_RSA_to_pub_jwk(EVP_PKEY *pkey, char *dst, size_t dsize)
 {
 	BIGNUM *n = NULL, *e = NULL;
 	struct buffer *str_n = NULL, *str_e = NULL;
@@ -184,7 +188,9 @@ out:
 	free_trash_chunk(str_n);
 	free_trash_chunk(str_e);
 
-	return ret;
+	if (ret > 0)
+		return ret;
+	return 0;
 }
 
 /* Convert an EVP_PKEY to a public key JWK
@@ -192,9 +198,9 @@ out:
  *
  * Return the size of the data or 0
  */
-int EVP_PKEY_to_pub_jwk(EVP_PKEY *pkey, char *dst, size_t dsize)
+size_t EVP_PKEY_to_pub_jwk(EVP_PKEY *pkey, char *dst, size_t dsize)
 {
-	int ret = 0;
+	size_t ret = 0;
 
 	switch (EVP_PKEY_base_id(pkey)) {
 		case EVP_PKEY_RSA:
@@ -217,8 +223,8 @@ int EVP_PKEY_to_pub_jwk(EVP_PKEY *pkey, char *dst, size_t dsize)
  * Return the size of the data or 0
  */
 
-int jws_b64_protected(enum jwt_alg alg, char *kid, char *jwk, char *nonce, char *url,
-                      char *dst, size_t dsize)
+size_t jws_b64_protected(enum jwt_alg alg, char *kid, char *jwk, char *nonce, char *url,
+                         char *dst, size_t dsize)
 {
 	char *acc;
 	char *acctype;
@@ -262,7 +268,9 @@ int jws_b64_protected(enum jwt_alg alg, char *kid, char *jwk, char *nonce, char 
 	ret = a2base64url(json->area, json->data, dst, dsize);
 out:
 	free_trash_chunk(json);
-	return ret;
+	if (ret > 0)
+		return ret;
+	return 0;
 }
 
 /*
@@ -271,13 +279,15 @@ out:
  * Return the size of the data or 0
  */
 
-int jws_b64_payload(char *payload, char *dst, size_t dsize)
+size_t jws_b64_payload(char *payload, char *dst, size_t dsize)
 {
 	int ret = 0;
 
 	ret = a2base64url(payload, strlen(payload), dst, dsize);
 
-	return ret;
+	if (ret > 0)
+		return ret;
+	return 0;
 }
 
 /*
@@ -344,7 +354,7 @@ out:
  *
  *  Return the size of the data or 0
  */
-int jws_b64_signature(EVP_PKEY *pkey, enum jwt_alg alg, char *b64protected, char *b64payload, char *dst, size_t dsize)
+size_t jws_b64_signature(EVP_PKEY *pkey, enum jwt_alg alg, char *b64protected, char *b64payload, char *dst, size_t dsize)
 {
 	EVP_MD_CTX *ctx;
 	const EVP_MD *evp_md = NULL;
@@ -442,8 +452,9 @@ int jws_b64_signature(EVP_PKEY *pkey, enum jwt_alg alg, char *b64protected, char
 out:
 	free_trash_chunk(sign);
 
-	return ret;
-
+	if (ret > 0)
+		return ret;
+	return 0;
 }
 
 /*
@@ -451,7 +462,7 @@ out:
  *
  * Return the size of the data or 0
  */
-int jws_thumbprint(EVP_PKEY *pkey, char *dst, size_t dsize)
+size_t jws_thumbprint(EVP_PKEY *pkey, char *dst, size_t dsize)
 {
 	int ret = 0;
 	struct buffer *jwk = NULL;
@@ -480,11 +491,13 @@ int jws_thumbprint(EVP_PKEY *pkey, char *dst, size_t dsize)
 
 out:
 	free_trash_chunk(jwk);
-	return ret;
+	if (ret > 0)
+		return ret;
+	return 0;
 }
 
 
-int jws_flattened(char *protected, char *payload, char *signature, char *dst, size_t dsize)
+size_t jws_flattened(char *protected, char *payload, char *signature, char *dst, size_t dsize)
 {
 	int ret = 0;
 
@@ -497,7 +510,10 @@ int jws_flattened(char *protected, char *payload, char *signature, char *dst, si
 
 	if (ret >= dsize)
 		ret = 0;
-	return ret;
+
+	if (ret > 0)
+		return ret;
+	return 0;
 }
 
 
