@@ -681,6 +681,7 @@ static int cfg_postparser_acme()
 		if (!task) {
 			ret++;
 			ha_alert("acme: couldn't start the scheduler!\n");
+			goto end;
 		}
 		task->nice = 0;
 		task->process = acme_scheduler;
@@ -688,6 +689,7 @@ static int cfg_postparser_acme()
 		task_wakeup(task, TASK_WOKEN_INIT);
 	}
 
+end:
 	return ret;
 }
 
