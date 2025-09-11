@@ -143,6 +143,7 @@ struct sched_activity {
 	uint64_t calls;
 	uint64_t cpu_time;
 	uint64_t lat_time;
+	uint64_t lkw_time; /* lock waiting time */
 };
 
 #endif /* _HAPROXY_ACTIVITY_T_H */
