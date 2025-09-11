@@ -20,6 +20,7 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
+#include <haproxy/clock.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/list.h>
@@ -787,10 +788,18 @@ void pool_put_to_cache(struct pool_head *pool, void *ptr, const void *caller)
 	pool_cache_bytes += pool->size;
 
 	if (unlikely(pool_cache_bytes > global.tune.pool_cache_size * 3 / 4)) {
+		uint64_t mem_wait_start = 0;
+
+		if (unlikely(th_ctx->flags & TH_FL_TASK_PROFILING))
+			mem_wait_start = now_mono_time();
+
 		if (ph->count >= 16 + pool_cache_count / 8 + CONFIG_HAP_POOL_CLUSTER_SIZE)
 			pool_evict_from_local_cache(pool, 0);
 		if (pool_cache_bytes > global.tune.pool_cache_size)
 			pool_evict_from_local_caches();
+
+		if (unlikely(mem_wait_start))
+			th_ctx->mem_wait_total += now_mono_time() - mem_wait_start;
 	}
 }
 
@@ -941,7 +950,11 @@ void pool_flush(struct pool_head *pool)
 void pool_gc(struct pool_head *pool_ctx)
 {
 	struct pool_head *entry;
+	uint64_t mem_wait_start = 0;
 	int isolated = thread_isolated();
+
+	if (th_ctx->flags & TH_FL_TASK_PROFILING)
+		mem_wait_start = now_mono_time();
 
 	if (!isolated)
 		thread_isolate();
@@ -975,6 +988,9 @@ void pool_gc(struct pool_head *pool_ctx)
 
 	if (!isolated)
 		thread_release();
+
+	if (mem_wait_start)
+		th_ctx->mem_wait_total += now_mono_time() - mem_wait_start;
 }
 
 /*
@@ -995,8 +1011,18 @@ void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 	if (likely(!(pool_debugging & POOL_DBG_NO_CACHE)) && !p)
 		p = pool_get_from_cache(pool, caller);
 
-	if (unlikely(!p))
+	if (unlikely(!p)) {
+		/* count allocation time only for cache misses */
+		uint64_t mem_wait_start = 0;
+
+		if (unlikely(th_ctx->flags & TH_FL_TASK_PROFILING))
+			mem_wait_start = now_mono_time();
+
 		p = pool_alloc_nocache(pool, caller);
+
+		if (unlikely(mem_wait_start))
+			th_ctx->mem_wait_total += now_mono_time() - mem_wait_start;
+	}
 
 	if (likely(p)) {
 #ifdef USE_MEMORY_PROFILING
@@ -1061,11 +1087,20 @@ void __pool_free(struct pool_head *pool, void *ptr)
 	if (unlikely((pool_debugging & POOL_DBG_NO_CACHE) ||
 	             (pool->flags & MEM_F_UAF) ||
 		     global.tune.pool_cache_size < pool->size)) {
-		pool_free_nocache(pool, ptr);
-		return;
-	}
+		uint64_t mem_wait_start = 0;
 
-	pool_put_to_cache(pool, ptr, caller);
+		if (unlikely(th_ctx->flags & TH_FL_TASK_PROFILING))
+			mem_wait_start = now_mono_time();
+
+		pool_free_nocache(pool, ptr);
+
+		if (unlikely(mem_wait_start))
+			th_ctx->mem_wait_total += now_mono_time() - mem_wait_start;
+	}
+	else {
+		/* this one will count its own time itself */
+		pool_put_to_cache(pool, ptr, caller);
+	}
 }
 
 /*

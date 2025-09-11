@@ -570,6 +570,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		t->calls++;
 
 		th_ctx->lock_wait_total = 0;
+		th_ctx->mem_wait_total = 0;
 		th_ctx->locked_total = 0;
 		th_ctx->sched_wake_date = t->wake_date;
 		if (th_ctx->sched_wake_date || (t->state & TASK_F_WANTS_TIME)) {
@@ -684,6 +685,8 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			HA_ATOMIC_ADD(&profile_entry->cpu_time, (uint32_t)(now_mono_time() - th_ctx->sched_call_date));
 			if (th_ctx->lock_wait_total)
 				HA_ATOMIC_ADD(&profile_entry->lkw_time, th_ctx->lock_wait_total);
+			if (th_ctx->mem_wait_total)
+				HA_ATOMIC_ADD(&profile_entry->mem_time, th_ctx->mem_wait_total);
 			if (th_ctx->locked_total)
 				HA_ATOMIC_ADD(&profile_entry->lkd_time, th_ctx->locked_total);
 		}
