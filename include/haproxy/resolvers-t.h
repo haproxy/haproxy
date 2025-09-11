@@ -133,6 +133,7 @@ struct resolv_answer_item {
 struct resolv_response {
 	struct dns_header header;
 	struct eb_root    answer_tree;
+	struct eb32_node *next; /* node to start eval on the next lookup to perform a round robin selection on entries (may be NULL) */
 	/* authority ignored for now */
 };
 

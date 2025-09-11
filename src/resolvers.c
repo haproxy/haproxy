@@ -1614,7 +1614,7 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
                              struct server *owner)
 {
 	struct resolv_answer_item *record, *found_record = NULL;
-	struct eb32_node *eb32;
+	struct eb32_node *eb32, *end;
 	int family_priority;
 	int currentip_found;
 	unsigned char *newip4, *newip6;
@@ -1647,10 +1647,15 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 	 *  1 - current ip.
 	 * The result with the biggest score is returned.
 	 */
-
-	for (eb32 = eb32_first(&r_res->answer_tree); eb32 != NULL;  eb32 = eb32_next(eb32)) {
+	eb32 = (!r_res->next) ? eb32_first(&r_res->answer_tree) : r_res->next;
+	end = r_res->next;
+	r_res->next = eb32_next(eb32); /* get node for the next lookup */
+	do {
 		void *ip;
 		unsigned char ip_type;
+
+		if (eb32 == NULL)
+			eb32 = eb32_first(&r_res->answer_tree);
 
 		record = eb32_entry(eb32, typeof(*record), link);
 		if (record->type == DNS_RTYPE_A && (resolv_active_families() & RSLV_ACCEPT_IPV4)) {
@@ -1662,7 +1667,7 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 			ip = &record->data.in6.sin6_addr;
 		}
 		else
-			continue;
+			goto next;
 		score = 0;
 
 		/* Check for preferred ip protocol. */
@@ -1674,7 +1679,7 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 
 			/* Compare only the same addresses class. */
 			if (resolv_opts->pref_net[j].family != ip_type)
-				continue;
+				goto next;
 
 			if ((ip_type == AF_INET &&
 			     in_net_ipv4(ip,
@@ -1698,7 +1703,7 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 
 			list_for_each_entry(srv, &record->attached_servers, ip_rec_item) {
 				if (srv == owner)
-					continue;
+					goto next;
 				if (srv->proxy == owner->proxy) {
 					already_used = 1;
 					break;
@@ -1706,7 +1711,7 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 			}
 			if (already_used) {
 				if (!allowed_duplicated_ip) {
-					continue;
+					goto next;
 				}
 			}
 			else {
@@ -1748,7 +1753,9 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 			}
 			max_score = score;
 		}
-	} /* list for each record entries */
+	  next:
+		eb32 = eb32_next(eb32);
+	} while (eb32 != end); /* list for each record entries */
 
 	/* No IP found in the response */
 	if (!newip4 && !newip6)
@@ -1792,15 +1799,6 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 	if (owner && found_record) {
 		LIST_DEL_INIT(&owner->ip_rec_item);
 		LIST_APPEND(&found_record->attached_servers, &owner->ip_rec_item);
-	}
-
-	eb32 = eb32_first(&r_res->answer_tree);
-	if (eb32) {
-		/* Move the first record to the end of the list, for internal
-		 * round robin.
-		 */
-		eb32_delete(eb32);
-		eb32_insert(&r_res->answer_tree, eb32);
 	}
 
 	return (currentip_found ? RSLV_UPD_NO : RSLV_UPD_SRVIP_NOT_FOUND);
@@ -1973,6 +1971,7 @@ static struct resolv_resolution *resolv_pick_resolution(struct resolvers *resolv
 
 		LIST_INIT(&res->requesters);
 		res->response.answer_tree = EB_ROOT;
+		res->response.next = NULL;
 
 		res->prefered_query_type = query_type;
 		res->query_type          = query_type;
