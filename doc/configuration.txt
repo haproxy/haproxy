@@ -2772,11 +2772,21 @@ key-base <dir>
   ignore "key-base". This option only works with a crt-store load line.
 
 limited-quic
-  This setting must be used to explicitly enable the QUIC listener bindings when
-  haproxy is compiled against a TLS/SSL stack without QUIC support, typically
-  OpenSSL. It has no effect when haproxy is compiled against a TLS/SSL stack
-  with QUIC support, quictls for instance. Note that QUIC 0-RTT is not supported
-  when this setting is set.
+  This setting must be used to explicitly enable the QUIC listener bindings
+  when haproxy is compiled with a version of OpenSSL without QUIC support. It
+  activates an haproxy internal compatibility layer which must have been
+  selected at build time with USE_QUIC_OPENSSL_COMPAT=1. This compatibility
+  layer supports most of the necessary TLS operations, albeit without QUIC
+  0-RTT capability.
+
+  This feature is primarily targetted for OpenSSL prior to version 3.5.2, where
+  QUIC API was not implemented or only partially. The compatibility layer can
+  still be activated for version 3.5.2 and above, but this is probably
+  unnecessary.
+
+  If limited-quic is set but the compatibility layer was not selected at build
+  time, the option is silently ignored and QUIC TLS operations rely on the TLS
+  library.
 
 localpeer <name>
   Sets the local instance's peer name. It will be ignored if the "-L"
