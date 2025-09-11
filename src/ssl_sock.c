@@ -1569,7 +1569,7 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *
 
 int sctl_ex_index = -1;
 
-static int ssl_sock_sctl_add_cbk(SSL *ssl, unsigned ext_type, const unsigned char **out, size_t *outlen, int *al, void *add_arg)
+static __maybe_unused int ssl_sock_sctl_add_cbk(SSL *ssl, unsigned ext_type, const unsigned char **out, size_t *outlen, int *al, void *add_arg)
 {
 	struct buffer *sctl = add_arg;
 
@@ -1579,7 +1579,7 @@ static int ssl_sock_sctl_add_cbk(SSL *ssl, unsigned ext_type, const unsigned cha
 	return 1;
 }
 
-static int ssl_sock_sctl_parse_cbk(SSL *s, unsigned int ext_type, const unsigned char *in, size_t inlen, int *al, void *parse_arg)
+static __maybe_unused int ssl_sock_sctl_parse_cbk(SSL *s, unsigned int ext_type, const unsigned char *in, size_t inlen, int *al, void *parse_arg)
 {
 	return 1;
 }
@@ -2104,7 +2104,7 @@ static void ssl_init_keylog(struct connection *conn, int write_p, int version,
 #endif
 
 /* Callback is called for ssl protocol analyse */
-static void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf, size_t len, SSL *ssl, void *arg)
+static __maybe_unused void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf, size_t len, SSL *ssl, void *arg)
 {
 	struct connection *conn = ssl_sock_get_conn(ssl, NULL);
 	struct ssl_sock_msg_callback *cbk;
