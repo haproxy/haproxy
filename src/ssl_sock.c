@@ -1569,7 +1569,7 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *
 
 int sctl_ex_index = -1;
 
-int ssl_sock_sctl_add_cbk(SSL *ssl, unsigned ext_type, const unsigned char **out, size_t *outlen, int *al, void *add_arg)
+static int ssl_sock_sctl_add_cbk(SSL *ssl, unsigned ext_type, const unsigned char **out, size_t *outlen, int *al, void *add_arg)
 {
 	struct buffer *sctl = add_arg;
 
@@ -1579,7 +1579,7 @@ int ssl_sock_sctl_add_cbk(SSL *ssl, unsigned ext_type, const unsigned char **out
 	return 1;
 }
 
-int ssl_sock_sctl_parse_cbk(SSL *s, unsigned int ext_type, const unsigned char *in, size_t inlen, int *al, void *parse_arg)
+static int ssl_sock_sctl_parse_cbk(SSL *s, unsigned int ext_type, const unsigned char *in, size_t inlen, int *al, void *parse_arg)
 {
 	return 1;
 }
@@ -1601,7 +1601,7 @@ out:
 
 #endif
 
-void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
+static void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 {
 	struct connection *conn;
 	struct ssl_sock_ctx *ctx = NULL;
@@ -2104,7 +2104,7 @@ static void ssl_init_keylog(struct connection *conn, int write_p, int version,
 #endif
 
 /* Callback is called for ssl protocol analyse */
-void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf, size_t len, SSL *ssl, void *arg)
+static void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf, size_t len, SSL *ssl, void *arg)
 {
 	struct connection *conn = ssl_sock_get_conn(ssl, NULL);
 	struct ssl_sock_msg_callback *cbk;
@@ -3933,7 +3933,7 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 
 
 /* SSL callback used on new session creation */
-int sh_ssl_sess_new_cb(SSL *ssl, SSL_SESSION *sess)
+static int sh_ssl_sess_new_cb(SSL *ssl, SSL_SESSION *sess)
 {
 	unsigned char encsess[SHSESS_MAX_DATA_LEN];           /* encoded session  */
 	unsigned char encid[SSL_MAX_SSL_SESSION_ID_LENGTH];   /* encoded id */
@@ -3987,7 +3987,7 @@ err:
 }
 
 /* SSL callback used on lookup an existing session cause none found in internal cache */
-SSL_SESSION *sh_ssl_sess_get_cb(SSL *ssl, __OPENSSL_110_CONST__ unsigned char *key, int key_len, int *do_copy)
+static SSL_SESSION *sh_ssl_sess_get_cb(SSL *ssl, __OPENSSL_110_CONST__ unsigned char *key, int key_len, int *do_copy)
 {
 	struct sh_ssl_sess_hdr *sh_ssl_sess;
 	unsigned char data[SHSESS_MAX_DATA_LEN], *p;
@@ -4040,7 +4040,7 @@ SSL_SESSION *sh_ssl_sess_get_cb(SSL *ssl, __OPENSSL_110_CONST__ unsigned char *k
 
 
 /* SSL callback used to signal session is no more used in internal cache */
-void sh_ssl_sess_remove_cb(SSL_CTX *ctx, SSL_SESSION *sess)
+static void sh_ssl_sess_remove_cb(SSL_CTX *ctx, SSL_SESSION *sess)
 {
 	struct sh_ssl_sess_hdr *sh_ssl_sess;
 	unsigned char tmpkey[SSL_MAX_SSL_SESSION_ID_LENGTH];
@@ -4072,7 +4072,7 @@ void sh_ssl_sess_remove_cb(SSL_CTX *ctx, SSL_SESSION *sess)
 /* Set session cache mode to server and disable openssl internal cache.
  * Set shared cache callbacks on an ssl context.
  * Shared context MUST be firstly initialized */
-void ssl_set_shctx(SSL_CTX *ctx)
+static void ssl_set_shctx(SSL_CTX *ctx)
 {
 	SSL_CTX_set_session_id_context(ctx, (const unsigned char *)SHCTX_APPNAME, strlen(SHCTX_APPNAME));
 
@@ -4100,7 +4100,7 @@ void ssl_set_shctx(SSL_CTX *ctx)
  */
 
 #ifdef HAVE_SSL_KEYLOG
-void SSL_CTX_keylog(const SSL *ssl, const char *line)
+static void SSL_CTX_keylog(const SSL *ssl, const char *line)
 {
 	struct ssl_keylog *keylog;
 	char *lastarg = NULL;
@@ -5164,7 +5164,7 @@ void ssl_sock_free_all_ctx(struct bind_conf *bind_conf)
 }
 
 
-void ssl_sock_deinit()
+static void ssl_sock_deinit()
 {
 	crtlist_deinit(); /* must be free'd before the ckchs */
 	ckch_deinit();
@@ -6973,7 +6973,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 	goto leave;
 }
 
-void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
+static void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 
 	struct ssl_sock_ctx *ctx = xprt_ctx;
 
@@ -7843,7 +7843,7 @@ struct xprt_ops ssl_sock = {
 	.show_fd  = ssl_sock_show_fd,
 };
 
-enum act_return ssl_action_wait_for_hs(struct act_rule *rule, struct proxy *px,
+static enum act_return ssl_action_wait_for_hs(struct act_rule *rule, struct proxy *px,
                                        struct session *sess, struct stream *s, int flags)
 {
 	struct connection *conn;
