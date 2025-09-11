@@ -1076,7 +1076,7 @@ int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp)
  * for instance). This ensures that the entry does not get reinserted at the
  * beginning of the tree every time.
  */
-int ssl_ocsp_update_insert_after_error(struct certificate_ocsp *ocsp)
+static int ssl_ocsp_update_insert_after_error(struct certificate_ocsp *ocsp)
 {
 	int replay_delay = 0;
 
@@ -1113,7 +1113,7 @@ int ssl_ocsp_update_insert_after_error(struct certificate_ocsp *ocsp)
 	return 0;
 }
 
-void ocsp_update_response_stline_cb(struct httpclient *hc)
+static void ocsp_update_response_stline_cb(struct httpclient *hc)
 {
 	struct task *task = hc->caller;
 
@@ -1124,7 +1124,7 @@ void ocsp_update_response_stline_cb(struct httpclient *hc)
 	task_wakeup(task, TASK_WOKEN_MSG);
 }
 
-void ocsp_update_response_headers_cb(struct httpclient *hc)
+static void ocsp_update_response_headers_cb(struct httpclient *hc)
 {
 	struct task *task = hc->caller;
 
@@ -1135,7 +1135,7 @@ void ocsp_update_response_headers_cb(struct httpclient *hc)
 	task_wakeup(task, TASK_WOKEN_MSG);
 }
 
-void ocsp_update_response_body_cb(struct httpclient *hc)
+static void ocsp_update_response_body_cb(struct httpclient *hc)
 {
 	struct task *task = hc->caller;
 
@@ -1146,7 +1146,7 @@ void ocsp_update_response_body_cb(struct httpclient *hc)
 	task_wakeup(task, TASK_WOKEN_MSG);
 }
 
-void ocsp_update_response_end_cb(struct httpclient *hc)
+static void ocsp_update_response_end_cb(struct httpclient *hc)
 {
 	struct task *task = hc->caller;
 
@@ -2092,7 +2092,7 @@ int ocsp_update_init(void *value, char *buf, struct ckch_data *d, int cli, const
 	return ret;
 }
 
-int ocsp_update_postparser_init()
+static int ocsp_update_postparser_init()
 {
 	int ret = 0;
 	char *err = NULL;
