@@ -161,6 +161,8 @@ struct thread_ctx {
 	uint32_t sched_wake_date;           /* current task/tasklet's wake date in 32-bit ns or 0 if not supported */
 	uint64_t sched_call_date;           /* current task/tasklet's call date in ns */
 	uint64_t lock_wait_total;           /* total time in ns spent waiting for a lock (task prof) */
+	uint64_t lock_start_date;           /* date when first locked was obtained (task prof) */
+	uint64_t locked_total;              /* total time in ns spent with at least one lock held (task prof) */
 
 	uint64_t prev_mono_time;            /* previous system wide monotonic time (leaving poll) */
 	uint64_t curr_mono_time;            /* latest system wide monotonic time (leaving poll) */
