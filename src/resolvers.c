@@ -818,6 +818,8 @@ static void resolv_check_response(struct resolv_resolution *res)
 					resolv_srvrq_cleanup_srv(srv);
 			}
 
+			if (eb32 == res->response.next)
+				res->response.next = NULL;
 			eb32_delete(&item->link);
 			if (item->ar_item) {
 				pool_free(resolv_answer_item_pool, item->ar_item);
@@ -1627,6 +1629,10 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 	if (owner && LIST_INLIST(&owner->ip_rec_item))
 		return RSLV_UPD_NO;
 
+	/* there is no record in the answer tree */
+	if (eb_is_empty(&r_res->answer_tree))
+		return RSLV_UPD_NO_IP_FOUND;
+
 	family_priority   = resolv_opts->family_prio;
 	allowed_duplicated_ip = resolv_opts->accept_duplicate_ip;
 	*newip = newip4   = newip6 = NULL;
@@ -1992,6 +1998,7 @@ static void resolv_purge_resolution_answer_records(struct resolv_resolution *res
 	struct eb32_node *eb32, *eb32_back;
 	struct resolv_answer_item *item;
 
+	resolution->response.next = NULL;
 	for (eb32 = eb32_first(&resolution->response.answer_tree);
 	     eb32 && (eb32_back = eb32_next(eb32), 1);
 	     eb32 = eb32_back) {
