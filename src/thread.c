@@ -139,6 +139,7 @@ void thread_isolate()
 	 * 1) reset isolated_thread to ~0;
 	 * 2) decrement rdv_requests.
 	 */
+	th_ctx->lock_level += 128;
 }
 
 /* Isolates the current thread : request the ability to work while all other
@@ -212,6 +213,7 @@ void thread_isolate_full()
 	 * 1) reset isolated_thread to ~0;
 	 * 2) decrement rdv_requests.
 	 */
+	th_ctx->lock_level += 128;
 }
 
 /* Cancels the effect of thread_isolate() by resetting the ID of the isolated
@@ -224,6 +226,7 @@ void thread_release()
 {
 	HA_ATOMIC_STORE(&isolated_thread, ~0U);
 	HA_ATOMIC_DEC(&rdv_requests);
+	th_ctx->lock_level -= 128;
 }
 
 /* Sets up threads, signals and masks, and starts threads 2 and above.

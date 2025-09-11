@@ -348,6 +348,9 @@ void ha_thread_dump_one(struct buffer *buf, int is_caller)
 	              !!(_HA_ATOMIC_LOAD(&tg_ctx->threads_harmless) & ti->ltid_bit),
 		      isolated_thread == tid);
 #endif
+#if (DEBUG_THREAD > 0) || defined(DEBUG_FULL)
+	chunk_appendf(buf, " locks=%d", th_ctx->lock_level);
+#endif
 
 	chunk_appendf(buf, "\n");
 	chunk_appendf(buf, "             cpu_ns: poll=%llu now=%llu diff=%llu\n", p, n, n-p);
