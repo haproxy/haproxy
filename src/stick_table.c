@@ -5335,10 +5335,11 @@ struct show_table_ctx {
 /* Processes a single table entry <ts>.
  * returns 0 if it wants to be called again, 1 if has ended processing.
  */
-static int table_process_entry(struct appctx *appctx, struct stksess *ts, char **args)
+static int table_process_entry(struct appctx *appctx, struct stksess **tsptr, char **args)
 {
 	struct show_table_ctx *ctx = appctx->svcctx;
 	struct stktable *t = ctx->target;
+	struct stksess *ts = *tsptr;
 	long long value;
 	int data_type;
 	int cur_arg;
@@ -5375,20 +5376,22 @@ static int table_process_entry(struct appctx *appctx, struct stksess *ts, char *
 	case STK_CLI_ACT_SHOW:
 		chunk_reset(&trash);
 		if (!table_dump_head_to_buffer(&trash, appctx, t, t)) {
-			stktable_release(t, ts);
 			return 0;
 		}
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
 		if (!table_dump_entry_to_buffer(&trash, appctx, t, ts)) {
 			HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-			stktable_release(t, ts);
 			return 0;
 		}
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-		stktable_release(t, ts);
 		break;
 
 	case STK_CLI_ACT_CLR:
+		/*
+		 * Now matter if we managed to kill the stksess or not,
+		 * the ref_cnt will be decremented, so let the caller know.
+		 */
+		*tsptr = NULL;
 		if (!stksess_kill(t, ts)) {
 			/* don't delete an entry which is currently referenced */
 			return cli_err(appctx, "Entry currently in use, cannot remove\n");
@@ -5403,7 +5406,7 @@ static int table_process_entry(struct appctx *appctx, struct stksess *ts, char *
 			if (strncmp(args[cur_arg], "data.", 5) != 0) {
 				cli_err(appctx, "\"data.<type>\" followed by a value expected\n");
 				HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-				stktable_touch_local(t, ts, 1);
+				stktable_touch_local(t, ts, 0);
 				return 1;
 			}
 
@@ -5411,21 +5414,21 @@ static int table_process_entry(struct appctx *appctx, struct stksess *ts, char *
 			if (data_type < 0) {
 				cli_err(appctx, "Unknown data type\n");
 				HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-				stktable_touch_local(t, ts, 1);
+				stktable_touch_local(t, ts, 0);
 				return 1;
 			}
 
 			if (!t->data_ofs[data_type]) {
 				cli_err(appctx, "Data type not stored in this table\n");
 				HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-				stktable_touch_local(t, ts, 1);
+				stktable_touch_local(t, ts, 0);
 				return 1;
 			}
 
 			if (!*args[cur_arg+1] || strl2llrc(args[cur_arg+1], strlen(args[cur_arg+1]), &value) != 0) {
 				cli_err(appctx, "Require a valid integer value to store\n");
 				HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-				stktable_touch_local(t, ts, 1);
+				stktable_touch_local(t, ts, 0);
 				return 1;
 			}
 
@@ -5434,7 +5437,7 @@ static int table_process_entry(struct appctx *appctx, struct stksess *ts, char *
 				if (!ptr) {
 					cli_err(appctx, "index out of range in this data array\n");
 					HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-					stktable_touch_local(t, ts, 1);
+					stktable_touch_local(t, ts, 0);
 					return 1;
 				}
 			}
@@ -5469,7 +5472,7 @@ static int table_process_entry(struct appctx *appctx, struct stksess *ts, char *
 			}
 		}
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-		stktable_touch_local(t, ts, 1);
+		stktable_touch_local(t, ts, 0);
 		break;
 
 	default:
@@ -5488,6 +5491,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 	struct stktable *t = ctx->target;
 	struct stksess *ts;
 	struct sample key;
+	int ret;
 
 	if (!*args[4])
 		return cli_err(appctx, "Key value expected\n");
@@ -5525,7 +5529,10 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 	} else
 		ts = stktable_lookup_key(t, &static_table_key);
 
-	return table_process_entry(appctx, ts, args);
+	ret = table_process_entry(appctx, &ts, args);
+	if (ts)
+		stktable_release(t, ts);
+	return ret;
 }
 
 /* Processes a single table entry matching a specific ptr passed in argument.
@@ -5538,6 +5545,7 @@ static int table_process_entry_per_ptr(struct appctx *appctx, char **args)
 	ulong ptr;
 	char *error;
 	struct stksess *ts;
+	int ret;
 
 	if (!*args[4] || args[4][0] != '0' || args[4][1] != 'x')
 		return cli_err(appctx, "Pointer expected (0xffff notation)\n");
@@ -5551,7 +5559,10 @@ static int table_process_entry_per_ptr(struct appctx *appctx, char **args)
 	if (!ts)
 		return cli_err(appctx, "No entry can be found matching ptr.\n");
 
-	return table_process_entry(appctx, ts, args);
+	ret = table_process_entry(appctx, &ts, args);
+	if (ts)
+		stktable_release(t, ts);
+	return ret;
 }
 
 /* Prepares the appctx fields with the data-based filters from the command line.
