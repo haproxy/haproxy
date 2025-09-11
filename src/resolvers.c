@@ -370,7 +370,7 @@ static inline uint16_t resolv_rnd16(void)
 
 static inline int resolv_resolution_timeout(struct resolv_resolution *res)
 {
-	return res->resolvers->timeout.resolve;
+	return (!LIST_ISEMPTY(&res->requesters) ? res->resolvers->timeout.resolve : res->resolvers->hold.valid);
 }
 
 /* Updates a resolvers' task timeout for next wake up and queue it */
@@ -2205,7 +2205,19 @@ static void _resolv_unlink_resolution(struct resolv_requester *requester)
 	if (!LIST_ISEMPTY(&res->requesters))
 		req = LIST_NEXT(&res->requesters, struct resolv_requester *, list);
 	else {
-		abort_resolution(res);
+		/* If the last requester was a stream and the resolution was a
+		 * success, keep it to use it as a cache for <hold.valid>
+		 * milliseconds.
+		 */
+		if (obj_type(requester->owner) != OBJ_TYPE_STREAM ||
+		    res->status != RSLV_STATUS_VALID ||
+		    res->resolvers->hold.valid == 0)
+			abort_resolution(res);
+		else {
+			if (!tick_isset(res->last_resolution))
+				res->last_resolution = now_ms;
+			resolv_update_resolvers_timeout(res->resolvers);
+		}
 		return;
 	}
 
@@ -2549,7 +2561,12 @@ struct task *process_resolvers(struct task *t, void *context, unsigned int state
 		}
 
 		if (LIST_ISEMPTY(&res->requesters)) {
-			abort_resolution(res);
+			/* Abort inactive resolution only if expired */
+			exp = tick_add(res->last_resolution, resolvers->hold.valid);
+			if (!tick_isset(res->last_resolution) || tick_is_expired(exp, now_ms)) {
+				abort_resolution(res);
+				res = resback;
+			}
 			continue;
 		}
 
