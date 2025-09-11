@@ -57,6 +57,7 @@
 #include <haproxy/shctx.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_ocsp-t.h>
+#include <haproxy/ssl_ocsp.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
 #include <haproxy/task.h>
@@ -2075,7 +2076,7 @@ static int ocsp_update_parse_global_http_proxy(char **args, int section_type, st
 	return 0;
 }
 
-int ocsp_update_init(void *value, char *buf, struct ckch_data *d, int cli, char *filename, int linenum, char **err)
+int ocsp_update_init(void *value, char *buf, struct ckch_data *d, int cli, const char *filename, int linenum, char **err)
 {
 	int ocsp_update_mode = *(int *)value;
 	int ret = 0;
