@@ -990,7 +990,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 
 	if (!ctx->linenum)
 		chunk_appendf(&trash, "Tasks activity over %.3f sec till %.3f sec ago:\n"
-		                      "  function                      calls   cpu_tot   cpu_avg   lat_tot   lat_avg\n",
+		                      "  function                      calls   cpu_tot   cpu_avg   lat_avg\n",
 			      (prof_task_start_ns ? (prof_task_stop_ns ? prof_task_stop_ns : now_ns) - prof_task_start_ns : 0) / 1000000000.0,
 			      (prof_task_stop_ns ? now_ns - prof_task_stop_ns : 0) / 1000000000.0);
 
@@ -1027,7 +1027,6 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 
 		print_time_short(&trash, "   ", tmp_activity[i].cpu_time, "");
 		print_time_short(&trash, "   ", tmp_activity[i].cpu_time / tmp_activity[i].calls, "");
-		print_time_short(&trash, "   ", tmp_activity[i].lat_time, "");
 		print_time_short(&trash, "   ", tmp_activity[i].lat_time / tmp_activity[i].calls, "");
 
 		if (caller && !ctx->aggr && caller->what <= WAKEUP_TYPE_APPCTX_WAKEUP)
