@@ -7461,19 +7461,16 @@ struct task *srv_cleanup_idle_conns(struct task *task, void *context, unsigned i
 		/* check all threads starting with ours */
 		for (i = tid;;) {
 			int max_conn;
-			int j;
-			int did_remove = 0;
+			int removed;
 
 			max_conn = (exceed_conns * srv->curr_idle_thr[i]) /
 			           curr_idle + 1;
 
 			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
-			j = srv_migrate_conns_to_remove(srv, i, max_conn);
-			if (j > 0)
-				did_remove = 1;
+			removed = srv_migrate_conns_to_remove(srv, i, max_conn);
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 
-			if (did_remove)
+			if (removed)
 				task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
 
 			if ((i = ((i + 1 == global.nbthread) ? 0 : i + 1)) == tid)
