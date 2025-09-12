@@ -265,15 +265,17 @@ struct tree_occ {
 /* Each server will have one occurrence of this structure per thread */
 struct srv_per_thread {
 	struct mt_list streams;                 /* streams using this server (used by "shutdown server sessions") */
-	struct eb_root idle_conns;              /* Shareable idle connections */
-	struct eb_root safe_conns;              /* Safe idle connections */
-	struct eb_root avail_conns;             /* Connections in use, but with still new streams available */
 	struct mt_list sess_conns;              /* Connections attached to a session which cannot be shared across clients */
 
 	/* Secondary idle conn storage used in parallel to idle/safe trees.
 	 * Used to sort them by last usage and purge them in reverse order.
 	 */
 	struct list idle_conn_list;
+
+	/* connection trees to look them up by name */
+	struct ceb_root *idle_conns;            /* Shareable idle connections */
+	struct ceb_root *safe_conns;            /* Safe idle connections */
+	struct ceb_root *avail_conns;           /* Connections in use, but with still new streams available */
 };
 
 /* Each server will have one occurrence of this structure per thread group */

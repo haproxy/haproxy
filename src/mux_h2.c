@@ -5630,7 +5630,7 @@ static void h2_detach(struct sedesc *sd)
 					return;
 
 				}
-				else if (!h2c->conn->hash_node->node.node.leaf_p &&
+				else if (!ceb_intree(&h2c->conn->hash_node->node) &&
 					 h2_avail_streams(h2c->conn) > 0 && objt_server(h2c->conn->target) &&
 					 !LIST_INLIST(&h2c->conn->sess_el)) {
 					srv_add_to_avail_list(__objt_server(h2c->conn->target), h2c->conn);

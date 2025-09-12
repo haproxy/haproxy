@@ -28,7 +28,7 @@
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
 
-#include <import/ebtree-t.h>
+#include <import/cebtree.h>
 #include <import/ist.h>
 
 #include <haproxy/api-t.h>
@@ -566,7 +566,7 @@ enum conn_hash_params_t {
 #define CONN_HASH_PARAMS_TYPE_COUNT 7
 
 #define CONN_HASH_PAYLOAD_LEN \
-	(((sizeof(((struct conn_hash_node *)0)->node.key)) * 8) - CONN_HASH_PARAMS_TYPE_COUNT)
+	(((sizeof(((struct conn_hash_node *)0)->key)) * 8) - CONN_HASH_PARAMS_TYPE_COUNT)
 
 #define CONN_HASH_GET_PAYLOAD(hash) \
 	(((hash) << CONN_HASH_PARAMS_TYPE_COUNT) >> CONN_HASH_PARAMS_TYPE_COUNT)
@@ -660,7 +660,8 @@ struct connection {
  * A connection is identified by a hash generated from its specific parameters
  */
 struct conn_hash_node {
-	struct eb64_node node;   /* contains the hashing key */
+	struct ceb_node node;    /* indexes the hashing key for safe/idle/avail */
+	uint64_t key;            /* the hashing key, also used by session-owned */
 	struct connection *conn; /* connection owner of the node */
 };
 
