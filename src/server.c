@@ -17,7 +17,7 @@
 #include <errno.h>
 
 #include <import/cebis_tree.h>
-#include <import/ebmbtree.h>
+#include <import/eb64tree.h>
 
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
@@ -7278,7 +7278,7 @@ struct connection *srv_lookup_conn(struct eb_root *tree, uint64_t hash)
 
 	node = eb64_lookup(tree, hash);
 	if (node) {
-		hash_node = ebmb_entry(node, struct conn_hash_node, node);
+		hash_node = eb64_entry(node, struct conn_hash_node, node);
 		conn = hash_node->conn;
 	}
 
@@ -7518,8 +7518,8 @@ static void srv_close_idle_conns(struct server *srv)
 
 		for (cleaned_tree = conn_trees; *cleaned_tree; ++cleaned_tree) {
 			while (!eb_is_empty(*cleaned_tree)) {
-				struct ebmb_node *node = ebmb_first(*cleaned_tree);
-				struct conn_hash_node *conn_hash_node = ebmb_entry(node, struct conn_hash_node, node);
+				struct eb64_node *node = eb64_first(*cleaned_tree);
+				struct conn_hash_node *conn_hash_node = eb64_entry(node, struct conn_hash_node, node);
 				struct connection *conn = conn_hash_node->conn;
 
 				if (conn->ctrl->ctrl_close)
