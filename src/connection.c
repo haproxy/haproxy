@@ -73,12 +73,13 @@ struct conn_tlv_list *conn_get_tlv(struct connection *conn, int type)
 	return NULL;
 }
 
-/* Remove <conn> idle connection from its attached tree (idle, safe or avail).
- * If also present in the secondary server idle list, conn is removed from it.
+/* Remove <conn> idle connection from its attached tree (idle, safe or avail)
+ * for the server in the connection's target and thread <thr>. If also present
+ * in the secondary server idle list, conn is removed from it.
  *
  * Must be called with idle_conns_lock held.
  */
-void conn_delete_from_tree(struct connection *conn)
+void conn_delete_from_tree(struct connection *conn, int thr)
 {
 	LIST_DEL_INIT(&conn->idle_list);
 	eb64_delete(&conn->hash_node->node);
@@ -209,7 +210,7 @@ int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake)
 					conn_in_list = 0;
 			}
 			else {
-				conn_delete_from_tree(conn);
+				conn_delete_from_tree(conn, tid);
 			}
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		}

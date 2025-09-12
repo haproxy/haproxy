@@ -7188,7 +7188,7 @@ static int srv_migrate_conns_to_remove(struct server *srv, int thr, int toremove
 			break;
 
 		conn = LIST_ELEM(srv->per_thr[thr].idle_conn_list.n, struct connection *, idle_list);
-		conn_delete_from_tree(conn);
+		conn_delete_from_tree(conn, thr);
 		MT_LIST_APPEND(&idle_conns[thr].toremove_conns, &conn->toremove_list);
 		i++;
 	}
@@ -7263,7 +7263,7 @@ void srv_release_conn(struct server *srv, struct connection *conn)
 	/* Remove the connection from any tree (safe, idle or available) */
 	if (conn->hash_node) {
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		conn_delete_from_tree(conn);
+		conn_delete_from_tree(conn, tid);
 		conn->flags &= ~CO_FL_LIST_MASK;
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
@@ -7361,7 +7361,7 @@ int srv_add_to_idle_list(struct server *srv, struct connection *conn, int is_saf
 		_HA_ATOMIC_DEC(&srv->curr_used_conns);
 
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		conn_delete_from_tree(conn);
+		conn_delete_from_tree(conn, tid);
 
 		if (is_safe) {
 			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_SAFE_LIST;
@@ -7523,7 +7523,7 @@ static void srv_close_idle_conns(struct server *srv)
 
 				if (conn->ctrl->ctrl_close)
 					conn->ctrl->ctrl_close(conn);
-				conn_delete_from_tree(conn);
+				conn_delete_from_tree(conn, i);
 			}
 		}
 	}

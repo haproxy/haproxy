@@ -2564,7 +2564,7 @@ static struct task *spop_io_cb(struct task *t, void *ctx, unsigned int state)
 					conn_in_list = 0;
 			}
 			else {
-				conn_delete_from_tree(conn);
+				conn_delete_from_tree(conn, tid);
 			}
 		}
 
@@ -2676,7 +2676,7 @@ static int spop_process(struct spop_conn *spop_conn)
 		/* connections in error must be removed from the idle lists */
 		if (conn->flags & CO_FL_LIST_MASK) {
 			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-			conn_delete_from_tree(conn);
+			conn_delete_from_tree(conn, tid);
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		}
 	}
@@ -2799,7 +2799,7 @@ static struct task *spop_timeout_task(struct task *t, void *context, unsigned in
 		 * to steal it from us.
 		 */
 		if (spop_conn->conn->flags & CO_FL_LIST_MASK)
-			conn_delete_from_tree(spop_conn->conn);
+			conn_delete_from_tree(spop_conn->conn, tid);
 		else if (spop_conn->conn->flags & CO_FL_SESS_IDLE)
 			session_detach_idle_conn(spop_conn->conn->owner, spop_conn->conn);
 
