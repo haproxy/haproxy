@@ -16,6 +16,7 @@
 #include <ctype.h>
 #include <errno.h>
 
+#include <import/ceb64_tree.h>
 #include <import/cebis_tree.h>
 #include <import/eb64tree.h>
 
@@ -5976,9 +5977,9 @@ static int srv_init_per_thr(struct server *srv)
 		return -1;
 
 	for (i = 0; i < global.nbthread; i++) {
-		srv->per_thr[i].idle_conns = EB_ROOT;
-		srv->per_thr[i].safe_conns = EB_ROOT;
-		srv->per_thr[i].avail_conns = EB_ROOT;
+		srv->per_thr[i].idle_conns = NULL;
+		srv->per_thr[i].safe_conns = NULL;
+		srv->per_thr[i].avail_conns = NULL;
 		MT_LIST_INIT(&srv->per_thr[i].sess_conns);
 		MT_LIST_INIT(&srv->per_thr[i].streams);
 
@@ -7272,17 +7273,14 @@ void srv_release_conn(struct server *srv, struct connection *conn)
 /* retrieve a connection from its <hash> in <tree>
  * returns NULL if no connection found
  */
-struct connection *srv_lookup_conn(struct eb_root *tree, uint64_t hash)
+struct connection *srv_lookup_conn(struct ceb_root **tree, uint64_t hash)
 {
-	struct eb64_node *node = NULL;
+	struct conn_hash_node *hash_node;
 	struct connection *conn = NULL;
-	struct conn_hash_node *hash_node = NULL;
 
-	node = eb64_lookup(tree, hash);
-	if (node) {
-		hash_node = eb64_entry(node, struct conn_hash_node, node);
+	hash_node = ceb64_item_lookup(tree, node, key, hash, struct conn_hash_node);
+	if (hash_node)
 		conn = hash_node->conn;
-	}
 
 	return conn;
 }
@@ -7290,19 +7288,15 @@ struct connection *srv_lookup_conn(struct eb_root *tree, uint64_t hash)
 /* retrieve the next connection sharing the same hash as <conn>
  * returns NULL if no connection found
  */
-struct connection *srv_lookup_conn_next(struct connection *conn)
+struct connection *srv_lookup_conn_next(struct ceb_root **tree, struct connection *conn)
 {
-	struct eb64_node *node = NULL;
-	struct connection *next_conn = NULL;
-	struct conn_hash_node *hash_node = NULL;
+	struct conn_hash_node *hash_node;
 
-	node = eb64_next_dup(&conn->hash_node->node);
-	if (node) {
-		hash_node = eb64_entry(node, struct conn_hash_node, node);
-		next_conn = hash_node->conn;
-	}
+	hash_node = ceb64_item_next_dup(tree, node, key, conn->hash_node);
+	if (hash_node)
+		conn = hash_node->conn;
 
-	return next_conn;
+	return conn;
 }
 
 /* Add <conn> in <srv> idle trees. Set <is_safe> if connection is deemed safe
@@ -7317,11 +7311,11 @@ struct connection *srv_lookup_conn_next(struct connection *conn)
  */
 void _srv_add_idle(struct server *srv, struct connection *conn, int is_safe)
 {
-	struct eb_root *tree = is_safe ? &srv->per_thr[tid].safe_conns :
+	struct ceb_root **tree = is_safe ? &srv->per_thr[tid].safe_conns :
 	                                 &srv->per_thr[tid].idle_conns;
 
 	/* first insert in idle or safe tree. */
-	eb64_insert(tree, &conn->hash_node->node);
+	ceb64_item_insert(tree, node, key, conn->hash_node);
 
 	/* insert in list sorted by connection usage. */
 	LIST_APPEND(&srv->per_thr[tid].idle_conn_list, &conn->idle_list);
@@ -7344,8 +7338,8 @@ int srv_add_to_idle_list(struct server *srv, struct connection *conn, int is_saf
 	    ((srv->proxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
 	    ha_used_fds < global.tune.pool_high_count &&
 	    (srv->max_idle_conns == -1 || srv->max_idle_conns > srv->curr_idle_conns) &&
-	    ((eb_is_empty(&srv->per_thr[tid].safe_conns) &&
-	      (is_safe || eb_is_empty(&srv->per_thr[tid].idle_conns))) ||
+	    ((ceb_isempty(&srv->per_thr[tid].safe_conns) &&
+	      (is_safe || ceb_isempty(&srv->per_thr[tid].idle_conns))) ||
 	     (ha_used_fds < global.tune.pool_low_count &&
 	      (srv->curr_used_conns + srv->curr_idle_conns <=
 	       MAX(srv->curr_used_conns, srv->est_need_conns) + srv->low_idle_conns ||
@@ -7403,7 +7397,7 @@ void srv_add_to_avail_list(struct server *srv, struct connection *conn)
 {
 	/* connection cannot be in idle list if used as an avail idle conn. */
 	BUG_ON(LIST_INLIST(&conn->idle_list));
-	eb64_insert(&srv->per_thr[tid].avail_conns, &conn->hash_node->node);
+	ceb64_item_insert(&srv->per_thr[tid].avail_conns, node, key, conn->hash_node);
 }
 
 struct task *srv_cleanup_idle_conns(struct task *task, void *context, unsigned int state)
@@ -7504,11 +7498,11 @@ remove:
  */
 static void srv_close_idle_conns(struct server *srv)
 {
-	struct eb_root **cleaned_tree;
+	struct ceb_root ***cleaned_tree;
 	int i;
 
 	for (i = 0; i < global.nbthread; ++i) {
-		struct eb_root *conn_trees[] = {
+		struct ceb_root **conn_trees[] = {
 			&srv->per_thr[i].idle_conns,
 			&srv->per_thr[i].safe_conns,
 			&srv->per_thr[i].avail_conns,
@@ -7516,11 +7510,10 @@ static void srv_close_idle_conns(struct server *srv)
 		};
 
 		for (cleaned_tree = conn_trees; *cleaned_tree; ++cleaned_tree) {
-			while (!eb_is_empty(*cleaned_tree)) {
-				struct eb64_node *node = eb64_first(*cleaned_tree);
-				struct conn_hash_node *conn_hash_node = eb64_entry(node, struct conn_hash_node, node);
-				struct connection *conn = conn_hash_node->conn;
+			while (!ceb_isempty(*cleaned_tree)) {
+				struct connection *conn;
 
+				conn = ceb64_item_first(*cleaned_tree, node, key, struct conn_hash_node)->conn;
 				if (conn->ctrl->ctrl_close)
 					conn->ctrl->ctrl_close(conn);
 				conn_delete_from_tree(conn, i);

@@ -3069,7 +3069,7 @@ static void spop_detach(struct sedesc *sd)
 				TRACE_DEVEL("reusable idle connection", SPOP_EV_STRM_END);
 				return;
 			}
-			else if (!spop_conn->conn->hash_node->node.node.leaf_p &&
+			else if (!ceb_intree(&spop_conn->conn->hash_node->node) &&
 				 spop_avail_streams(spop_conn->conn) > 0 && objt_server(spop_conn->conn->target) &&
 				 !LIST_INLIST(&spop_conn->conn->sess_el)) {
 				srv_add_to_avail_list(__objt_server(spop_conn->conn->target), spop_conn->conn);

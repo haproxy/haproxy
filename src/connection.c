@@ -12,7 +12,7 @@
 
 #include <errno.h>
 
-#include <import/ebmbtree.h>
+#include <import/ceb64_tree.h>
 
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
@@ -81,8 +81,26 @@ struct conn_tlv_list *conn_get_tlv(struct connection *conn, int type)
  */
 void conn_delete_from_tree(struct connection *conn, int thr)
 {
-	LIST_DEL_INIT(&conn->idle_list);
-	eb64_delete(&conn->hash_node->node);
+	struct ceb_root **conn_tree;
+	struct server *srv = __objt_server(conn->target);
+
+	/* We need to determine where the connection is attached, if at all.
+	 *  - if it's in a tree and not in the idle_list, it's the avail_tree
+	 *  - if it's in a tree and has CO_FL_SAFE_LIST, it's the safe_tree
+	 *  - if it's in a tree and has CO_FL_IDLE_LIST, it's the idle_tree
+	 *  - if it's not in a tree and has CO_FL_SESS_IDLE, it's in the
+	 *    session's list (but we don't care here).
+	 */
+	if (LIST_INLIST(&conn->idle_list)) {
+		LIST_DEL_INIT(&conn->idle_list);
+		conn_tree = (conn->flags & CO_FL_SAFE_LIST) ?
+			&srv->per_thr[thr].safe_conns :
+			&srv->per_thr[thr].idle_conns;
+	} else {
+		conn_tree = &srv->per_thr[thr].avail_conns;
+	}
+
+	ceb64_item_delete(conn_tree, node, key, conn->hash_node);
 }
 
 int conn_create_mux(struct connection *conn, int *closed_connection)
@@ -556,7 +574,7 @@ static void conn_backend_deinit(struct connection *conn)
 
 	/* Make sure the connection is not left in the idle connection tree */
 	if (conn->hash_node != NULL)
-		BUG_ON(conn->hash_node->node.node.leaf_p != NULL);
+		BUG_ON(ceb_intree(&conn->hash_node->node));
 
 	pool_free(pool_head_conn_hash_node, conn->hash_node);
 	conn->hash_node = NULL;
@@ -2992,7 +3010,7 @@ int conn_reverse(struct connection *conn)
 		}
 
 		hash = conn_calculate_hash(&hash_params);
-		conn->hash_node->node.key = hash;
+		conn->hash_node->key = hash;
 
 		conn->target = &srv->obj_type;
 		srv_use_conn(srv, conn);

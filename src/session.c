@@ -785,7 +785,7 @@ struct connection *session_get_conn(struct session *sess, void *target, int64_t 
 
 	/* Search into pconns for a connection with matching params and available streams. */
 	list_for_each_entry(srv_conn, &pconns->conn_list, sess_el) {
-		if ((srv_conn->hash_node && srv_conn->hash_node->node.key == hash) &&
+		if ((srv_conn->hash_node && srv_conn->hash_node->key == hash) &&
 		    srv_conn->mux &&
 		    (srv_conn->mux->avail_streams(srv_conn) > 0) &&
 		    !(srv_conn->flags & CO_FL_WAIT_XPRT)) {

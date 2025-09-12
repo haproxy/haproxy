@@ -18,7 +18,7 @@
 #include <ctype.h>
 #include <sys/types.h>
 
-#include <import/ebmbtree.h>
+#include <import/ceb64_tree.h>
 
 #include <haproxy/api.h>
 #include <haproxy/acl.h>
@@ -1365,7 +1365,7 @@ check_tgid:
 		 * tree; unsafe requests are looked up in the safe conns tree.
 		 */
 		int search_tree = is_safe ? 1 : 0; // 0 = idle, 1 = safe
-		struct eb_root *tree;
+		struct ceb_root **tree;
 
 		if (!srv->curr_idle_thr[i] || i == tid)
 			continue;
@@ -1387,7 +1387,7 @@ check_tgid:
 					found = 1;
 					break;
 				}
-				conn = srv_lookup_conn_next(conn);
+				conn = srv_lookup_conn_next(tree, conn);
 			}
 		} while (!found && ++search_tree <= 1);
 
@@ -1477,20 +1477,19 @@ static int do_connect_server(struct stream *s, struct connection *conn)
  * if any.
  */
 static struct connection *
-takeover_random_idle_conn(struct eb_root *root, int curtid)
+takeover_random_idle_conn(struct ceb_root **root, int curtid)
 {
 	struct conn_hash_node *hash_node;
 	struct connection *conn = NULL;
-	struct eb64_node *node = eb64_first(root);
 
-	while (node) {
-		hash_node = eb64_entry(node, struct conn_hash_node, node);
+	hash_node = ceb64_item_first(root, node, key, struct conn_hash_node);
+	while (hash_node) {
 		conn = hash_node->conn;
-		if (conn && conn->mux->takeover && conn->mux->takeover(conn, curtid, 1) == 0) {
+		if (conn->mux->takeover && conn->mux->takeover(conn, curtid, 1) == 0) {
 			conn_delete_from_tree(conn, curtid);
 			return conn;
 		}
-		node = eb64_next(node);
+		hash_node = ceb64_item_next(root, node, key, hash_node);
 	}
 
 	return NULL;
@@ -1696,7 +1695,7 @@ int be_reuse_connection(int64_t hash, struct session *sess,
 		 * Idle conns are necessarily looked up on the same thread so
 		 * that there is no concurrency issues.
 		 */
-		if (!eb_is_empty(&srv->per_thr[tid].avail_conns)) {
+		if (!ceb_isempty(&srv->per_thr[tid].avail_conns)) {
 			srv_conn = srv_lookup_conn(&srv->per_thr[tid].avail_conns, hash);
 			if (srv_conn) {
 				/* connection cannot be in idle list if used as an avail idle conn. */
@@ -1975,7 +1974,7 @@ int connect_server(struct stream *s)
 				srv_conn->flags |= CO_FL_OPT_TOS;
 			}
 
-			srv_conn->hash_node->node.key = hash;
+			srv_conn->hash_node->key = hash;
 		} else if (srv && (srv->flags & SRV_F_STRICT_MAXCONN))
 			_HA_ATOMIC_DEC(&srv->curr_total_conns);
 	}
