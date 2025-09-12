@@ -1361,37 +1361,36 @@ struct connection *conn_backend_get(int reuse_mode,
 check_tgid:
 	i = stop;
 	do {
+		/* safe requests looked up conns in idle tree first, then safe
+		 * tree; unsafe requests are looked up in the safe conns tree.
+		 */
+		int search_tree = is_safe ? 1 : 0; // 0 = idle, 1 = safe
+		struct eb_root *tree;
+
 		if (!srv->curr_idle_thr[i] || i == tid)
 			continue;
 
 		if (HA_SPIN_TRYLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock) != 0)
 			continue;
-		conn = srv_lookup_conn(is_safe ? &srv->per_thr[i].safe_conns : &srv->per_thr[i].idle_conns, hash);
-		while (conn) {
-			if (conn->mux->takeover && conn->mux->takeover(conn, i, 0) == 0) {
-				conn_delete_from_tree(conn);
-				_HA_ATOMIC_INC(&activity[tid].fd_takeover);
-				found = 1;
-				break;
-			}
 
-			conn = srv_lookup_conn_next(conn);
-		}
+		do {
+			if ((search_tree && !srv->curr_safe_nb) ||
+			    (!search_tree && !srv->curr_idle_nb))
+				continue;
 
-		if (!found && !is_safe && srv->curr_safe_nb > 0) {
-			conn = srv_lookup_conn(&srv->per_thr[i].safe_conns, hash);
+			tree = search_tree ? &srv->per_thr[i].safe_conns : &srv->per_thr[i].idle_conns;
+			conn = srv_lookup_conn(tree, hash);
 			while (conn) {
 				if (conn->mux->takeover && conn->mux->takeover(conn, i, 0) == 0) {
 					conn_delete_from_tree(conn);
 					_HA_ATOMIC_INC(&activity[tid].fd_takeover);
 					found = 1;
-					is_safe = 1;
 					break;
 				}
-
 				conn = srv_lookup_conn_next(conn);
 			}
-		}
+		} while (!found && ++search_tree <= 1);
+
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 	} while (!found && (i = (i + 1 == curtg->base + curtg->count) ? curtg->base : i + 1) != stop);
 
