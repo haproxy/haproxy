@@ -3812,7 +3812,7 @@ static void fcgi_detach(struct sedesc *sd)
 				TRACE_DEVEL("reusable idle connection", FCGI_EV_STRM_END, fconn->conn);
 				return;
 			}
-			else if (!ceb_intree(&fconn->conn->hash_node->node) &&
+			else if (!ceb_intree(&fconn->conn->hash_node.node) &&
 				 fcgi_avail_streams(fconn->conn) > 0 && objt_server(fconn->conn->target) &&
 				 !LIST_INLIST(&fconn->conn->sess_el)) {
 				srv_add_to_avail_list(__objt_server(fconn->conn->target), fconn->conn);

@@ -39,7 +39,6 @@
 
 
 DECLARE_TYPED_POOL(pool_head_connection,     "connection",     struct connection, 0, 64);
-DECLARE_TYPED_POOL(pool_head_conn_hash_node, "conn_hash_node", struct conn_hash_node);
 DECLARE_TYPED_POOL(pool_head_sockaddr,       "sockaddr",       struct sockaddr_storage);
 DECLARE_TYPED_POOL(pool_head_pp_tlv_128,     "pp_tlv_128",     struct conn_tlv_list, HA_PP2_TLV_VALUE_128);
 DECLARE_TYPED_POOL(pool_head_pp_tlv_256,     "pp_tlv_256",     struct conn_tlv_list, HA_PP2_TLV_VALUE_256);
@@ -100,7 +99,7 @@ void conn_delete_from_tree(struct connection *conn, int thr)
 		conn_tree = &srv->per_thr[thr].avail_conns;
 	}
 
-	ceb64_item_delete(conn_tree, node, key, conn->hash_node);
+	ceb64_item_delete(conn_tree, hash_node.node, hash_node.key, conn);
 }
 
 int conn_create_mux(struct connection *conn, int *closed_connection)
@@ -518,7 +517,8 @@ void conn_init(struct connection *conn, void *target)
 	conn->subs = NULL;
 	conn->src = NULL;
 	conn->dst = NULL;
-	conn->hash_node = NULL;
+	conn->hash_node.key = 0;
+	ceb_init_node(&conn->hash_node.node);
 	conn->xprt = NULL;
 	conn->reverse.target = NULL;
 	conn->reverse.name = BUF_NULL;
@@ -535,10 +535,6 @@ static int conn_backend_init(struct connection *conn)
 	MT_LIST_INIT(&conn->toremove_list);
 
 	if (!sockaddr_alloc(&conn->dst, 0, 0))
-		return 1;
-
-	conn->hash_node = conn_alloc_hash_node(conn);
-	if (unlikely(!conn->hash_node))
 		return 1;
 
 	return 0;
@@ -573,11 +569,7 @@ static void conn_backend_deinit(struct connection *conn)
 	}
 
 	/* Make sure the connection is not left in the idle connection tree */
-	if (conn->hash_node != NULL)
-		BUG_ON(ceb_intree(&conn->hash_node->node));
-
-	pool_free(pool_head_conn_hash_node, conn->hash_node);
-	conn->hash_node = NULL;
+	BUG_ON(ceb_intree(&conn->hash_node.node));
 
 	/* Remove from BE purge list. Necessary if conn already scheduled for
 	 * purge but finally freed before by another code path.
@@ -676,19 +668,6 @@ void conn_release(struct connection *conn)
 			conn->destroy_cb(conn);
 		conn_free(conn);
 	}
-}
-
-struct conn_hash_node *conn_alloc_hash_node(struct connection *conn)
-{
-	struct conn_hash_node *hash_node = NULL;
-
-	hash_node = pool_zalloc(pool_head_conn_hash_node);
-	if (unlikely(!hash_node))
-		return NULL;
-
-	hash_node->conn = conn;
-
-	return hash_node;
 }
 
 /* Allocates a struct sockaddr from the pool if needed, assigns it to *sap and
@@ -3010,7 +2989,7 @@ int conn_reverse(struct connection *conn)
 		}
 
 		hash = conn_calculate_hash(&hash_params);
-		conn->hash_node->key = hash;
+		conn->hash_node.key = hash;
 
 		conn->target = &srv->obj_type;
 		srv_use_conn(srv, conn);

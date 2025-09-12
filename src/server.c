@@ -7262,7 +7262,7 @@ void srv_release_conn(struct server *srv, struct connection *conn)
 	}
 
 	/* Remove the connection from any tree (safe, idle or available) */
-	if (conn->hash_node) {
+	if (ceb_intree(&conn->hash_node.node)) {
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		conn_delete_from_tree(conn, tid);
 		conn->flags &= ~CO_FL_LIST_MASK;
@@ -7275,14 +7275,7 @@ void srv_release_conn(struct server *srv, struct connection *conn)
  */
 struct connection *srv_lookup_conn(struct ceb_root **tree, uint64_t hash)
 {
-	struct conn_hash_node *hash_node;
-	struct connection *conn = NULL;
-
-	hash_node = ceb64_item_lookup(tree, node, key, hash, struct conn_hash_node);
-	if (hash_node)
-		conn = hash_node->conn;
-
-	return conn;
+	return ceb64_item_lookup(tree, hash_node.node, hash_node.key, hash, struct connection);
 }
 
 /* retrieve the next connection sharing the same hash as <conn>
@@ -7290,13 +7283,7 @@ struct connection *srv_lookup_conn(struct ceb_root **tree, uint64_t hash)
  */
 struct connection *srv_lookup_conn_next(struct ceb_root **tree, struct connection *conn)
 {
-	struct conn_hash_node *hash_node;
-
-	hash_node = ceb64_item_next_dup(tree, node, key, conn->hash_node);
-	if (hash_node)
-		conn = hash_node->conn;
-
-	return conn;
+	return ceb64_item_next_dup(tree, hash_node.node, hash_node.key, conn);
 }
 
 /* Add <conn> in <srv> idle trees. Set <is_safe> if connection is deemed safe
@@ -7315,7 +7302,7 @@ void _srv_add_idle(struct server *srv, struct connection *conn, int is_safe)
 	                                 &srv->per_thr[tid].idle_conns;
 
 	/* first insert in idle or safe tree. */
-	ceb64_item_insert(tree, node, key, conn->hash_node);
+	ceb64_item_insert(tree, hash_node.node, hash_node.key, conn);
 
 	/* insert in list sorted by connection usage. */
 	LIST_APPEND(&srv->per_thr[tid].idle_conn_list, &conn->idle_list);
@@ -7397,7 +7384,7 @@ void srv_add_to_avail_list(struct server *srv, struct connection *conn)
 {
 	/* connection cannot be in idle list if used as an avail idle conn. */
 	BUG_ON(LIST_INLIST(&conn->idle_list));
-	ceb64_item_insert(&srv->per_thr[tid].avail_conns, node, key, conn->hash_node);
+	ceb64_item_insert(&srv->per_thr[tid].avail_conns, hash_node.node, hash_node.key, conn);
 }
 
 struct task *srv_cleanup_idle_conns(struct task *task, void *context, unsigned int state)
@@ -7499,6 +7486,7 @@ remove:
 static void srv_close_idle_conns(struct server *srv)
 {
 	struct ceb_root ***cleaned_tree;
+	struct connection *conn;
 	int i;
 
 	for (i = 0; i < global.nbthread; ++i) {
@@ -7510,10 +7498,8 @@ static void srv_close_idle_conns(struct server *srv)
 		};
 
 		for (cleaned_tree = conn_trees; *cleaned_tree; ++cleaned_tree) {
-			while (!ceb_isempty(*cleaned_tree)) {
-				struct connection *conn;
-
-				conn = ceb64_item_first(*cleaned_tree, node, key, struct conn_hash_node)->conn;
+			while ((conn = ceb64_item_first(*cleaned_tree, hash_node.node,
+							hash_node.key, struct connection))) {
 				if (conn->ctrl->ctrl_close)
 					conn->ctrl->ctrl_close(conn);
 				conn_delete_from_tree(conn, i);

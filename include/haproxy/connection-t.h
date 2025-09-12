@@ -598,6 +598,14 @@ struct conn_tlv_list {
 } __attribute__((packed));
 
 
+/* node for backend connection in the idle trees for http-reuse
+ * A connection is identified by a hash generated from its specific parameters
+ */
+struct conn_hash_node {
+	struct ceb_node node;    /* indexes the hashing key for safe/idle/avail */
+	uint64_t key;            /* the hashing key, also used by session-owned */
+};
+
 /* This structure describes a connection with its methods and data.
  * A connection may be performed to proxy or server via a local or remote
  * socket, and can also be made to an internal applet. It can support
@@ -643,7 +651,7 @@ struct connection {
 	/* used to identify a backend connection for http-reuse,
 	 * thus only present if conn.target is of type OBJ_TYPE_SERVER
 	 */
-	struct conn_hash_node *hash_node;
+	struct conn_hash_node hash_node;
 
 	/* Members used if connection must be reversed. */
 	struct {
@@ -654,15 +662,6 @@ struct connection {
 	uint32_t term_evts_log;        /* Termination events log: first 4 events reported from fd, handshake or xprt */
 	uint32_t mark;                 /* set network mark, if CO_FL_OPT_MARK is set */
 	uint8_t tos;                   /* set ip tos, if CO_FL_OPT_TOS is set */
-};
-
-/* node for backend connection in the idle trees for http-reuse
- * A connection is identified by a hash generated from its specific parameters
- */
-struct conn_hash_node {
-	struct ceb_node node;    /* indexes the hashing key for safe/idle/avail */
-	uint64_t key;            /* the hashing key, also used by session-owned */
-	struct connection *conn; /* connection owner of the node */
 };
 
 struct mux_proto_list {
