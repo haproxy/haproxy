@@ -6422,7 +6422,7 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 					conn_in_list = 0;
 			}
 			else {
-				conn_delete_from_tree(conn);
+				conn_delete_from_tree(conn, tid);
 			}
 		}
 
