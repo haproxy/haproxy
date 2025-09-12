@@ -3936,7 +3936,7 @@ static void qmux_strm_detach(struct sedesc *sd)
 				conn = NULL;
 				goto end;
 			}
-			else if (!ceb_intree(&conn->hash_node->node) &&
+			else if (!ceb_intree(&conn->hash_node.node) &&
 			         qmux_avail_streams(conn) &&
 			         objt_server(conn->target)) {
 				TRACE_DEVEL("mark connection as available for reuse", QMUX_EV_STRM_END, conn);

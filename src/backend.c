@@ -1479,17 +1479,15 @@ static int do_connect_server(struct stream *s, struct connection *conn)
 static struct connection *
 takeover_random_idle_conn(struct ceb_root **root, int curtid)
 {
-	struct conn_hash_node *hash_node;
 	struct connection *conn = NULL;
 
-	hash_node = ceb64_item_first(root, node, key, struct conn_hash_node);
-	while (hash_node) {
-		conn = hash_node->conn;
+	conn = ceb64_item_first(root, hash_node.node, hash_node.key, struct connection);
+	while (conn) {
 		if (conn->mux->takeover && conn->mux->takeover(conn, curtid, 1) == 0) {
 			conn_delete_from_tree(conn, curtid);
 			return conn;
 		}
-		hash_node = ceb64_item_next(root, node, key, hash_node);
+		conn = ceb64_item_next(root, hash_node.node, hash_node.key, conn);
 	}
 
 	return NULL;
@@ -1974,7 +1972,7 @@ int connect_server(struct stream *s)
 				srv_conn->flags |= CO_FL_OPT_TOS;
 			}
 
-			srv_conn->hash_node->key = hash;
+			srv_conn->hash_node.key = hash;
 		} else if (srv && (srv->flags & SRV_F_STRICT_MAXCONN))
 			_HA_ATOMIC_DEC(&srv->curr_total_conns);
 	}

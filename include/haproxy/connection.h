@@ -39,7 +39,6 @@
 #include <haproxy/task-t.h>
 
 extern struct pool_head *pool_head_connection;
-extern struct pool_head *pool_head_conn_hash_node;
 extern struct pool_head *pool_head_sockaddr;
 extern struct pool_head *pool_head_pp_tlv_128;
 extern struct pool_head *pool_head_pp_tlv_256;
@@ -91,7 +90,6 @@ struct connection *conn_new(void *target);
 void conn_free(struct connection *conn);
 void conn_release(struct connection *conn);
 void conn_set_errno(struct connection *conn, int err);
-struct conn_hash_node *conn_alloc_hash_node(struct connection *conn);
 struct sockaddr_storage *sockaddr_alloc(struct sockaddr_storage **sap, const struct sockaddr_storage *orig, socklen_t len);
 void sockaddr_free(struct sockaddr_storage **sap);
 
