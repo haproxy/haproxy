@@ -7169,25 +7169,27 @@ struct task *srv_cleanup_toremove_conns(struct task *task, void *context, unsign
 	return task;
 }
 
-/* Move <toremove_nb> count connections from <list> storage to <toremove_list>
- * list storage. -1 means moving all of them.
+/* Move <toremove_nb> count connections from server <srv> list storage
+ * ->idle_conn_list to the idle_conns list 'toremove_conns' for thread <thr>.
+ * -1 means moving all of them.
  *
  * Returns the number of connections moved.
  *
  * Must be called with idle_conns_lock held.
  */
-static int srv_migrate_conns_to_remove(struct list *list, struct mt_list *toremove_list, int toremove_nb)
+
+static int srv_migrate_conns_to_remove(struct server *srv, int thr, int toremove_nb)
 {
 	struct connection *conn;
 	int i = 0;
 
-	while (!LIST_ISEMPTY(list)) {
+	while (!LIST_ISEMPTY(&srv->per_thr[thr].idle_conn_list)) {
 		if (toremove_nb != -1 && i >= toremove_nb)
 			break;
 
-		conn = LIST_ELEM(list->n, struct connection *, idle_list);
+		conn = LIST_ELEM(srv->per_thr[thr].idle_conn_list.n, struct connection *, idle_list);
 		conn_delete_from_tree(conn);
-		MT_LIST_APPEND(toremove_list, &conn->toremove_list);
+		MT_LIST_APPEND(&idle_conns[thr].toremove_conns, &conn->toremove_list);
 		i++;
 	}
 
@@ -7212,7 +7214,7 @@ static void srv_cleanup_connections(struct server *srv)
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 
 		/* idle connections */
-		if (srv_migrate_conns_to_remove(&srv->per_thr[i].idle_conn_list, &idle_conns[i].toremove_conns, -1) > 0)
+		if (srv_migrate_conns_to_remove(srv, i, -1) > 0)
 			did_remove = 1;
 
 		/* session attached connections */
@@ -7466,7 +7468,7 @@ struct task *srv_cleanup_idle_conns(struct task *task, void *context, unsigned i
 			           curr_idle + 1;
 
 			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
-			j = srv_migrate_conns_to_remove(&srv->per_thr[i].idle_conn_list, &idle_conns[i].toremove_conns, max_conn);
+			j = srv_migrate_conns_to_remove(srv, i, max_conn);
 			if (j > 0)
 				did_remove = 1;
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
