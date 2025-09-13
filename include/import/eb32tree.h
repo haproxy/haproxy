@@ -309,9 +309,6 @@ __eb32_insert(struct eb_root *root, struct eb32_node *new) {
 	 * would sit on different branches).
 	 */
 
-	// note that if EB_NODE_BITS > 1, we should check that it's still >= 0
-	new->node.bit = flsnz(new->key ^ old->key) - EB_NODE_BITS;
-
 	if (new->key == old->key) {
 		new->node.bit = -1; /* mark as new dup tree, just in case */
 
@@ -329,6 +326,10 @@ __eb32_insert(struct eb_root *root, struct eb32_node *new) {
 			return container_of(ret, struct eb32_node, node);
 		}
 		/* otherwise fall through */
+	}
+	else {
+		/* note that if EB_NODE_BITS > 1, we should check that it's still >= 0 */
+		new->node.bit = flsnz(new->key ^ old->key) - EB_NODE_BITS;
 	}
 
 	if (new->key >= old->key) {
@@ -446,9 +447,6 @@ __eb32i_insert(struct eb_root *root, struct eb32_node *new) {
 	 * would sit on different branches).
 	 */
 
-	// note that if EB_NODE_BITS > 1, we should check that it's still >= 0
-	new->node.bit = flsnz(new->key ^ old->key) - EB_NODE_BITS;
-
 	if (new->key == old->key) {
 		new->node.bit = -1; /* mark as new dup tree, just in case */
 
@@ -466,6 +464,10 @@ __eb32i_insert(struct eb_root *root, struct eb32_node *new) {
 			return container_of(ret, struct eb32_node, node);
 		}
 		/* otherwise fall through */
+	}
+	else {
+		/* note that if EB_NODE_BITS > 1, we should check that it's still >= 0 */
+		new->node.bit = flsnz(new->key ^ old->key) - EB_NODE_BITS;
 	}
 
 	if ((s32)new->key >= (s32)old->key) {
