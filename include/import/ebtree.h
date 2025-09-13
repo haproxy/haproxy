@@ -379,7 +379,7 @@ static inline unsigned int flsnz64(unsigned long long x)
  * <type> which has its member <name> stored at address <ptr>.
  */
 #ifndef container_of
-#define container_of(ptr, type, name) ((type *)(((void *)(ptr)) - ((long)&((type *)0)->name)))
+#define container_of(ptr, type, name) ((type *)(((char *)(ptr)) - offsetof(type, name)))
 #endif
 
 /* returns a pointer to the structure of type <type> which has its member <name>
@@ -388,7 +388,7 @@ static inline unsigned int flsnz64(unsigned long long x)
 #ifndef container_of_safe
 #define container_of_safe(ptr, type, name) \
 	({ void *__p = (ptr); \
-		__p ? (type *)(__p - ((long)&((type *)0)->name)) : (type *)0; \
+	   __p ? container_of(__p, type, name) : (type *)0; \
 	})
 #endif
 
