@@ -246,6 +246,7 @@
 #ifndef _EBTREE_H
 #define _EBTREE_H
 
+#include <stddef.h>
 #include <stdlib.h>
 #include <import/ebtree-t.h>
 #include <haproxy/api.h>
@@ -364,6 +365,15 @@ static inline unsigned int flsnz64(unsigned long long x)
 
 #define fls64(x) flsnz64(x)
 #define fls_auto(x) ((x) ? flsnz(x) : 0)
+
+/* offsetof() is provided as a builtin starting with gcc-4.1 */
+#ifndef offsetof
+# if (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1))
+#  define offsetof(type, field)  __builtin_offsetof(type, field)
+# else
+#  define offsetof(type, field) ((__size_t)(__uintptr_t)((const volatile void *)&((type *)0)->field))
+# endif
+#endif
 
 /* Linux-like "container_of". It returns a pointer to the structure of type
  * <type> which has its member <name> stored at address <ptr>.
