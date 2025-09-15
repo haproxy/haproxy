@@ -399,7 +399,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 	verdict = HTTP_RULE_RES_CONT;
 
-	if (s->current_rule_list == &px->uri_auth->http_req_rules)
+	if (px->uri_auth && s->current_rule_list == &px->uri_auth->http_req_rules)
 		stats_rules = 1;
 
 	/* resume stats http-request rules if needed */
