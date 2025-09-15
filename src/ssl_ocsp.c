@@ -1047,8 +1047,9 @@ static inline void ssl_ocsp_set_next_update(struct certificate_ocsp *ocsp)
  * the system too much (in theory). Likewise, a minimum 5 minutes interval is
  * defined in order to avoid updating too often responses that have a really
  * short expire time or even no 'Next Update' at all.
+ * The ocsp_update_tree lock must be taken by the caller.
  */
-int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp)
+int __ssl_ocsp_update_insert_unlocked(struct certificate_ocsp *ocsp)
 {
 	/* Set next_update based on current time and the various OCSP
 	 * minimum/maximum update times.
@@ -1057,13 +1058,23 @@ int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp)
 
 	ocsp->fail_count = 0;
 
-	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
 	ocsp->updating = 0;
 	/* An entry with update_once set to 1 was only supposed to be updated
 	 * once, it does not need to be reinserted into the update tree.
 	 */
 	if (!ocsp->update_once)
 		eb64_insert(&ocsp_update_tree, &ocsp->next_update);
+
+	return 0;
+}
+
+/*
+ * Insert a certificate_ocsp structure into the ocsp_update_tree tree.
+ */
+int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp)
+{
+	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
+	__ssl_ocsp_update_insert_unlocked(ocsp);
 	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 
 	return 0;

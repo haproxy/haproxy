@@ -1517,18 +1517,28 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_store 
 		 * prior to the activation of the ocsp auto update and in such a
 		 * case we must "force" insertion in the auto update tree.
 		 */
+		HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
 		if (iocsp->next_update.node.leaf_p == NULL) {
-			ssl_ocsp_update_insert(iocsp);
-			/* If we are during init the update task is not
-			 * scheduled yet so a wakeup won't do anything.
-			 * Otherwise, if the OCSP was added through the CLI, we
-			 * wake the task up to manage the case of a new entry
-			 * that needs to be updated before the previous first
-			 * entry.
+			/* We might be facing an entry that is currently being
+			 * updated, which can take some time (especially if the
+			 * ocsp responder is unreachable).
+			 * The entry will be reinserted by the update task, it
+			 * mustn't be reinserted here.
 			 */
-			if (ocsp_update_task)
-				task_wakeup(ocsp_update_task, TASK_WOKEN_MSG);
+			if (!iocsp->updating) {
+				__ssl_ocsp_update_insert_unlocked(iocsp);
+				/* If we are during init the update task is not
+				 * scheduled yet so a wakeup won't do anything.
+				 * Otherwise, if the OCSP was added through the CLI, we
+				 * wake the task up to manage the case of a new entry
+				 * that needs to be updated before the previous first
+				 * entry.
+				 */
+				if (ocsp_update_task)
+					task_wakeup(ocsp_update_task, TASK_WOKEN_MSG);
+			}
 		}
+		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 	}
 
 out:
