@@ -1048,7 +1048,7 @@ static inline void ssl_ocsp_set_next_update(struct certificate_ocsp *ocsp)
  * defined in order to avoid updating too often responses that have a really
  * short expire time or even no 'Next Update' at all.
  */
-int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp, int needs_locking)
+int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp)
 {
 	/* Set next_update based on current time and the various OCSP
 	 * minimum/maximum update times.
@@ -1057,16 +1057,14 @@ int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp, int needs_locking)
 
 	ocsp->fail_count = 0;
 
-	if (needs_locking)
-		HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
+	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
 	ocsp->updating = 0;
 	/* An entry with update_once set to 1 was only supposed to be updated
 	 * once, it does not need to be reinserted into the update tree.
 	 */
 	if (!ocsp->update_once)
 		eb64_insert(&ocsp_update_tree, &ocsp->next_update);
-	if (needs_locking)
-		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
+	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 
 	return 0;
 }
@@ -1294,7 +1292,7 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 			ssl_ocsp_send_log();
 
 			/* Reinsert the entry into the update list so that it can be updated later */
-			ssl_ocsp_update_insert(ocsp, 0);
+			ssl_ocsp_update_insert(ocsp);
 			/* Release the reference kept on the updated ocsp response. */
 			ssl_sock_free_ocsp_instance(ctx->cur_ocsp);
 			ctx->cur_ocsp = NULL;
