@@ -2227,7 +2227,7 @@ static void _resolv_unlink_resolution(struct resolv_requester *requester)
 		else {
 			if (!tick_isset(res->last_resolution))
 				res->last_resolution = now_ms;
-			resolv_update_resolvers_timeout(res->resolvers);
+			task_wakeup(res->resolvers->t, TASK_WOKEN_OTHER);
 		}
 		return;
 	}
