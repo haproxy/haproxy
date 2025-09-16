@@ -1626,18 +1626,18 @@ int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
  */
 int pat_ref_gen_delete(struct pat_ref *ref, unsigned int gen_id, const char *key)
 {
-	struct pat_ref_elt *elt, *next;
+	struct pat_ref_elt *elt, *elt2;
 	int found = 0;
 
 	/* delete pattern from reference */
 	elt = cebs_item_lookup(&ref->ceb_root, node, pattern, key, struct pat_ref_elt);
 	while (elt) {
-		if (elt->gen_id != gen_id)
-			continue;
-		next = cebs_item_next_dup(&ref->ceb_root, node, pattern, elt);
-		pat_ref_delete_by_ptr(ref, elt);
-		found = 1;
-		elt = next;
+		elt2 = cebs_item_next_dup(&ref->ceb_root, node, pattern, elt);
+		if (elt->gen_id == gen_id) {
+			pat_ref_delete_by_ptr(ref, elt);
+			found = 1;
+		}
+		elt = elt2;
 	}
 
 	if (found)
@@ -1787,12 +1787,14 @@ int pat_ref_set_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt, const cha
 static int pat_ref_set_from_elt(struct pat_ref *ref, struct pat_ref_elt *elt, const char *value, char **err)
 {
 	unsigned int gen;
+	struct pat_ref_elt *elt2;
 	int first = 1;
 	int found = 0;
 
-	while (elt) {
+	for (; elt; elt = elt2) {
 		char *tmp_err = NULL;
 
+		elt2 = cebs_item_next_dup(&ref->ceb_root, node, pattern, elt);
 		if (first)
 			gen = elt->gen_id;
 		else if (elt->gen_id != gen) {
@@ -1809,7 +1811,6 @@ static int pat_ref_set_from_elt(struct pat_ref *ref, struct pat_ref_elt *elt, co
 		}
 		found = 1;
 		first = 0;
-		elt = cebs_item_next_dup(&ref->ceb_root, node, pattern, elt);
 	}
 
 	if (!found) {
