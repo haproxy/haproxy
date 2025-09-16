@@ -1626,18 +1626,16 @@ int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
  */
 int pat_ref_gen_delete(struct pat_ref *ref, unsigned int gen_id, const char *key)
 {
-	struct pat_ref_elt *elt, *next;
+	struct pat_ref_elt *elt;
 	int found = 0;
 
 	/* delete pattern from reference */
-	elt = cebs_item_lookup(&ref->ceb_root, node, pattern, key, struct pat_ref_elt);
-	while (elt) {
+	for (elt = cebs_item_lookup(&ref->ceb_root, node, pattern, key, struct pat_ref_elt);
+	     elt; elt = cebs_item_next_dup(&ref->ceb_root, node, pattern, elt)) {
 		if (elt->gen_id != gen_id)
 			continue;
-		next = cebs_item_next_dup(&ref->ceb_root, node, pattern, elt);
 		pat_ref_delete_by_ptr(ref, elt);
 		found = 1;
-		elt = next;
 	}
 
 	if (found)
@@ -1797,7 +1795,7 @@ static int pat_ref_set_from_elt(struct pat_ref *ref, struct pat_ref_elt *elt, co
 			gen = elt->gen_id;
 		else if (elt->gen_id != gen) {
 			/* only consider duplicate elements from the same gen! */
-			continue;
+			goto skip;
 		}
 
 		if (!pat_ref_set_elt(ref, elt, value, &tmp_err)) {
@@ -1809,6 +1807,7 @@ static int pat_ref_set_from_elt(struct pat_ref *ref, struct pat_ref_elt *elt, co
 		}
 		found = 1;
 		first = 0;
+	skip:
 		elt = cebs_item_next_dup(&ref->ceb_root, node, pattern, elt);
 	}
 
