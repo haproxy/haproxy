@@ -1,0 +1,53 @@
+2025/09/16 - SHM stats file storage description and hints
+
+Shm stats file (used to share thread-groupable statistics over multiple
+process through the "shm-stats-file" directive) is made of:
+
+- a main header which describes the file version, the processes making
+  use of it, the common clock source and hints about the number of
+  objects that are currently stored or provisionned in the file.
+- an indefinite number of "objects" blocks coming right after the
+  main header, all blocks have the same size which is the size of the
+  maximum underlying object that may be stored. The main header tells
+  how many objects are stored in the file.
+
+File header looks like this (32/64 bits systems):
+
+0       8        16                32                  48                  64
++-------+---------+----------------+-------------------+-------------------+
+|    VERSION      |      2 bytes   | global_now_ms (global mono date in ms)|
+|MAJOR  |   MINOR |       hole     |                                       |
++----------------------------------+---------------------------------------+
+|                  global_now_ns (global mono date in ns)                  |
++--------------------------------------------------------------------------+
+|              now_offset (offset applied to global monotonic date         |
+|              on startup)                                                 |
++--------------------------------------------------------------------------+
+|                            Process slot :                                | 1byte x 64
+|            pid                   |          heartbeat (ticks)            |
++----------------------------------+---------------------------------------+
+|               objects            |          objects slots                |
+|            (used objects)        |       (available for use)             |
++----------------------------------+---------------------------------------+
+|                       padding (for future use)                           | 128 bytes
++--------------------------------------------------------------------------+
+
+Object block looks like this:
+
+0       8        16                32                  48                  64
++-------+---------+----------------+-------------------+-------------------+
+|                               GUID                                       | 128 bytes
++                            (zero terminated)                             +
+|                                                                          |
++-------+---------+--------------------------------------------------------+
+| tgid  |  type   |                   padding                              |
++-------+---------+--------------------------------------------------------+
+|         users (bitmask of process slots making use of the obj)           |
++--------------------------------------------------------------------------+
+|                           object data                                    |
+|                      (version dependent)                                 |
+|                   struct be_counters_shared_tg or                        |
+|                   struct fe_counters_shared_tg                           |
++--------------------------------------------------------------------------+
+|                    padding (to anticipate evolutions)                    | 64 bytes
++--------------------------------------------------------------------------+
