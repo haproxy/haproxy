@@ -1283,6 +1283,8 @@ unit-tests:
 # options for all commits within RANGE. RANGE may be either a git range
 # such as ref1..ref2 or a single commit, in which case all commits from
 # the master branch to this one will be tested.
+# Will execute TEST_CMD for each commit if defined, and will stop in case of
+# failure.
 
 range:
 	$(Q)[ -d .git/. ] || { echo "## Fatal: \"make $@\" may only be used inside a Git repository."; exit 1; }
@@ -1308,6 +1310,7 @@ range:
 			echo "[ $$index/$$count ]   $$commit #############################"; \
 			git checkout -q $$commit || die 1; \
 			$(MAKE) all || die 1; \
+			[ -z "$(TEST_CMD)" ] || $(TEST_CMD) || die 1; \
 			index=$$((index + 1)); \
 		done; \
 		echo;echo "Done! $${count} commit(s) built successfully for RANGE $${RANGE}" ; \
