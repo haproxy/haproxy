@@ -641,11 +641,6 @@ ifneq ($(USE_OPENSSL:0=),)
                   src/ssl_trace.o
 endif
 
-# For Encrypted Client Hello (ECH)
-ifneq ($(USE_ECH),)
-	SSL_CFLAGS      := -DUSE_ECH
-endif
-
 ifneq ($(USE_ENGINE:0=),)
   # OpenSSL 3.0 emits loud deprecation warnings by default when building with
   # engine support, and this option is made to silence them. Better use it
@@ -1007,6 +1002,7 @@ OBJS += src/mux_h2.o src/mux_h1.o src/mux_fcgi.o src/log.o		\
 ifneq ($(TRACE),)
   OBJS += src/calltrace.o
 endif
+
 # Used only for forced dependency checking. May be cleared during development.
 INCLUDES = $(wildcard include/*/*.h)
 DEP = $(INCLUDES) .build_opts

@@ -90,6 +90,7 @@
 #include <haproxy/trace.h>
 #include <haproxy/ssl_trace.h>
 #ifdef USE_ECH
+#include <haproxy/ech-t.h>
 #include <haproxy/ech.h>
 #endif
 
@@ -252,19 +253,6 @@ struct show_keys_ctx {
 		SHOW_KEYS_DONE,
 	} state;                       /* phase of the current dump */
 };
-
-#ifdef USE_ECH
-struct show_ech_ctx {
-    struct proxy * pp;
-    int fd;
-    SSL_CTX *specific_ctx;
-    char *specific_name;
-    enum {
-        SHOW_ECH_FD = 0,
-        SHOW_ECH_SPECIFIC,
-    } state;                       /* phase of the current dump */
-};
-#endif
 
 /* ssl_sock_io_cb is exported to see it resolved in "show fd" */
 struct task *ssl_sock_io_cb(struct task *, void *, unsigned int);
@@ -3676,17 +3664,17 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
     if (!ctx) {
         cfgerr += 1;
     }
-    if (!cfgerr && bind_conf->ech_filedir) {
+    if (!cfgerr && bind_conf->ssl_conf.ech_filedir) {
         int loaded = 0;
 
-        if (load_echkeys(ctx, bind_conf->ech_filedir, &loaded) != 1) {
+        if (load_echkeys(ctx, bind_conf->ssl_conf.ech_filedir, &loaded) != 1) {
 		    cfgerr += 1;
 		    ha_alert("Proxy '%s': failed to load ECH key s from %s for '%s' at [%s:%d].\n",
-			    bind_conf->frontend->id, bind_conf->ech_filedir,
+			    bind_conf->frontend->id, bind_conf->ssl_conf.ech_filedir,
                 bind_conf->arg, bind_conf->file, bind_conf->line);
         }
 		ha_notice("Proxy '%s': loaded %d ECH keys from %s for bind '%s' at [%s:%d]\n",
-			   bind_conf->frontend->id, loaded, bind_conf->ech_filedir,
+			   bind_conf->frontend->id, loaded, bind_conf->ssl_conf.ech_filedir,
                bind_conf->arg, bind_conf->file, bind_conf->line);
     }
 #endif
@@ -5057,7 +5045,7 @@ int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf)
 		}
 		else {
 #ifdef USE_ECH
-            if (!bind_conf->ech_filedir) {
+            if (!bind_conf->ssl_conf.ech_filedir) {
 #endif
 			ha_alert("Proxy '%s': no SSL certificate specified for bind '%s' at [%s:%d] (use 'crt').\n",
 				 px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
@@ -7246,10 +7234,10 @@ int ssl_sock_get_ech_status(struct connection *conn, char **logstr)
       default:                       str = "ECH status unknown";        break;
     }
 #undef s
-    if (sni_ech == NULL) sni_ech = "";
-    if (sni_clr == NULL) sni_clr = "";
     lstr = malloc(1000);
-    snprintf(lstr, 1000, "%s/%s/%s", str, sni_clr, sni_ech);
+    snprintf(lstr, 1000, "%s/%s/%s", str,
+             sni_clr == NULL ? "" : sni_clr,
+             sni_ech == NULL ? "" : sni_ech);
     *logstr = lstr;
     OPENSSL_free(sni_ech);
     OPENSSL_free(sni_clr);
@@ -7775,6 +7763,8 @@ static int cli_parse_set_tlskeys(char **args, char *payload, struct appctx *appc
 
 #ifdef USE_ECH
 /*
+ * TODO: move most or all of this to src/ech.c
+ *
  * ECH key management
  *
  * "show" syntax: "show ssl ech [name]" where name is a frontend.

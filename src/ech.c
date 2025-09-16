@@ -1,19 +1,9 @@
-/*
- * ECH utility functions
- *
- * Copyright 2023 Stephen Farrell <stephen.farrell@cs.tcd.ie>
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version
- * 2 of the License, or (at your option) any later version.
- *
- */
-
+/* SPDX-License-Identifier: LGPL-2.1-or-later */
 #ifdef USE_ECH
 
 # include <haproxy/buf-t.h>
 # include <haproxy/ech.h>
+
 # include <openssl/err.h>
 # include <dirent.h>
 # include <sys/stat.h>
@@ -31,8 +21,9 @@ int load_echkeys(SSL_CTX *ctx, char *dirname, int *loaded)
      * to have to be checked in a directory, but if there were a
      * reason then you could change this I guess or make it a 
      * config setting.
+     * TODO: revisit this limit
      */
-    int rv = 0, i, nrv, somekeyworked = 0, maxkeyfiles=1024;
+    int rv = 0, i, nrv, somekeyworked = 0, maxkeyfiles = 1024;
     char *den = NULL, *last4 = NULL, privname[PATH_MAX];
     size_t elen = 0, nlen = 0;
     OSSL_ECHSTORE * const es = OSSL_ECHSTORE_new(NULL, NULL);
@@ -82,4 +73,5 @@ end:
     OSSL_ECHSTORE_free(es);
     return rv;
 }
-#endif /* USE_ECH */
+
+#endif

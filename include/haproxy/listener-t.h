@@ -183,9 +183,6 @@ struct bind_conf {
 	char *ca_sign_pass;        /* CAKey passphrase */
 
 	struct ckch_data *ca_sign_ckch;	/* CA and possible certificate chain for ca generation */
-#ifdef USE_ECH
-    char *ech_filedir;         /* ECH config, file/directory name */
-#endif
 #endif
 #ifdef USE_QUIC
 	struct quic_transport_params quic_params; /* QUIC transport parameters. */

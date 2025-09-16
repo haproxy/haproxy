@@ -1295,15 +1295,15 @@ static int bind_parse_alpn(char **args, int cur_arg, struct proxy *px, struct bi
 #ifdef USE_ECH
 static int ssl_bind_parse_ech(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
 {
-    if (conf->ech_filedir) free(conf->ech_filedir);
-    conf->ech_filedir=strdup(args[cur_arg+1]);
+    free(conf->ech_filedir);
+    conf->ech_filedir = strdup(args[cur_arg+1]);
     return 0;
 }
 
 static int bind_parse_ech(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-    if (conf->ech_filedir) free(conf->ech_filedir);
-    conf->ech_filedir=strdup(args[cur_arg+1]);
+    free(conf->ssl_conf.ech_filedir);
+    conf->ssl_conf.ech_filedir = strdup(args[cur_arg+1]);
     return 0;
 }
 #endif
