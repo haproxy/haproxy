@@ -15,6 +15,7 @@ int cli_parse_set_ech(char **args, char *payload,
                       struct appctx *appctx, void *private);
 int cli_parse_del_ech(char **args, char *payload,
                       struct appctx *appctx, void *private);
+int conn_get_ech_status(struct connection *conn, char **logstr);
 
 # endif /* USE_ECH */
 #endif /* _HAPROXY_ECH_H */

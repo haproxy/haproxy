@@ -4,6 +4,7 @@
 #include <haproxy/buf-t.h>
 #include <haproxy/applet-t.h>
 #include <haproxy/global-t.h>
+#include <haproxy/ssl_sock-t.h>
 #include <haproxy/ech-t.h>
 #include <haproxy/global.h>
 #include <haproxy/fd.h>
@@ -26,13 +27,6 @@ int load_echkeys(SSL_CTX *ctx, char *dirname, int *loaded)
 {
     struct dirent **de_list = NULL;
     struct stat thestat;
-    /*
-     * I really can't see a reason to want >1024 private key files
-     * to have to be checked in a directory, but if there were a
-     * reason then you could change this I guess or make it a 
-     * config setting.
-     * TODO: revisit this limit
-     */
     int rv = 0, i, nrv, somekeyworked = 0;
     char *den = NULL, *last4 = NULL, privname[PATH_MAX];
     size_t elen = 0, nlen = 0;
@@ -409,6 +403,38 @@ int cli_parse_del_ech(char **args, char *payload,
         snprintf(success_message, ECH_SUCCESS_MSG_MAX,
                  "deleted ECH configs older than %ld seconds from %s", age, args[3]);
     return cli_msg(appctx, LOG_INFO, success_message);
+}
+
+int conn_get_ech_status(struct connection *conn, char **logstr)
+{
+	struct ssl_sock_ctx *ctx = conn_get_ssl_sock_ctx(conn);
+    char *sni_ech = NULL;
+    char *sni_clr = NULL;
+    const char *str;
+    char *lstr = NULL;
+
+	if (!ctx)
+		return 0;
+#define s(x) #x
+    switch (SSL_ech_get1_status(ctx->ssl, &sni_ech, &sni_clr)) {
+      case SSL_ECH_STATUS_SUCCESS:   str = s(SSL_ECH_STATUS_SUCCESS);   break;
+      case SSL_ECH_STATUS_NOT_TRIED: str = s(SSL_ECH_STATUS_NOT_TRIED); break;
+      case SSL_ECH_STATUS_FAILED:    str = s(SSL_ECH_STATUS_FAILED);    break;
+      case SSL_ECH_STATUS_BAD_NAME:  str = s(SSL_ECH_STATUS_BAD_NAME);  break;
+      case SSL_ECH_STATUS_BAD_CALL:  str = s(SSL_ECH_STATUS_BAD_CALL);  break;
+      case SSL_ECH_STATUS_GREASE:    str = s(SSL_ECH_STATUS_GREASE);    break;
+      case SSL_ECH_STATUS_BACKEND:   str = s(SSL_ECH_STATUS_BACKEND);   break;
+      default:                       str = "ECH status unknown";        break;
+    }
+#undef s
+    lstr = malloc(1000);
+    snprintf(lstr, 1000, "%s/%s/%s", str,
+             sni_clr == NULL ? "" : sni_clr,
+             sni_ech == NULL ? "" : sni_ech);
+    *logstr = lstr;
+    OPENSSL_free(sni_ech);
+    OPENSSL_free(sni_clr);
+    return 1;
 }
 
 #endif

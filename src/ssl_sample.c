@@ -33,6 +33,9 @@
 #include <haproxy/stconn.h>
 #include <haproxy/tools.h>
 #include <haproxy/vars.h>
+#ifdef USE_ECH
+#include <haproxy/ech.h>
+#endif
 
 
 /***** Below are some sample fetching functions for ACL/patterns *****/
@@ -1853,6 +1856,31 @@ smp_fetch_ssl_fc_sni(const struct arg *args, struct sample *smp, const char *kw,
 #endif
 }
 
+#ifdef USE_ECH
+static int
+smp_fetch_ssl_fc_ech(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn;
+    int echrv;
+    char *echstr = NULL;
+
+	smp->flags = SMP_F_VOL_SESS | SMP_F_CONST;
+	smp->data.type = SMP_T_STR;
+
+	conn = objt_conn(smp->sess->origin);
+    if (!conn)
+        return 0;
+    echrv = conn_get_ech_status(conn, &echstr);
+    if (echrv == 1) {
+	    smp->data.u.str.area = echstr;
+        free(echstr);
+    }
+	smp->data.u.str.data = strlen(smp->data.u.str.area);
+
+	return 1;
+}
+#endif
+
 /* binary, returns tls client hello cipher list.
  * Arguments: filter_option (0,1)
  */
@@ -2543,6 +2571,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 #endif
 
 	{ "ssl_fc_sni",             smp_fetch_ssl_fc_sni,         0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+#ifdef USE_ECH
+	{ "ssl_fc_ech",             smp_fetch_ssl_fc_ech,         0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+#endif
 	{ "ssl_fc_cipherlist_bin",  smp_fetch_ssl_fc_cl_bin,      ARG1(0,SINT),        NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_fc_cipherlist_hex",  smp_fetch_ssl_fc_cl_hex,      ARG1(0,SINT),        NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_fc_cipherlist_str",  smp_fetch_ssl_fc_cl_str,      ARG1(0,SINT),        NULL,    SMP_T_STR,  SMP_USE_L5CLI },

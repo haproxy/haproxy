@@ -7211,40 +7211,6 @@ const char *ssl_sock_get_proto_version(struct connection *conn)
 	return SSL_get_version(ctx->ssl);
 }
 
-#ifdef USE_ECH
-int ssl_sock_get_ech_status(struct connection *conn, char **logstr)
-{
-	struct ssl_sock_ctx *ctx = conn_get_ssl_sock_ctx(conn);
-    char *sni_ech = NULL;
-    char *sni_clr = NULL;
-    const char *str;
-    char *lstr = NULL;
-
-	if (!ctx)
-		return 0;
-#define s(x) #x
-    switch (SSL_ech_get1_status(ctx->ssl, &sni_ech, &sni_clr)) {
-      case SSL_ECH_STATUS_SUCCESS:   str = s(SSL_ECH_STATUS_SUCCESS);   break;
-      case SSL_ECH_STATUS_NOT_TRIED: str = s(SSL_ECH_STATUS_NOT_TRIED); break;
-      case SSL_ECH_STATUS_FAILED:    str = s(SSL_ECH_STATUS_FAILED);    break;
-      case SSL_ECH_STATUS_BAD_NAME:  str = s(SSL_ECH_STATUS_BAD_NAME);  break;
-      case SSL_ECH_STATUS_BAD_CALL:  str = s(SSL_ECH_STATUS_BAD_CALL);  break;
-      case SSL_ECH_STATUS_GREASE:    str = s(SSL_ECH_STATUS_GREASE);    break;
-      case SSL_ECH_STATUS_BACKEND:   str = s(SSL_ECH_STATUS_BACKEND);   break;
-      default:                       str = "ECH status unknown";        break;
-    }
-#undef s
-    lstr = malloc(1000);
-    snprintf(lstr, 1000, "%s/%s/%s", str,
-             sni_clr == NULL ? "" : sni_clr,
-             sni_ech == NULL ? "" : sni_ech);
-    *logstr = lstr;
-    OPENSSL_free(sni_ech);
-    OPENSSL_free(sni_clr);
-    return 1;
-}
-#endif
-
 void ssl_sock_set_alpn(struct connection *conn, const unsigned char *alpn, int len)
 {
 #ifdef TLSEXT_TYPE_application_layer_protocol_negotiation

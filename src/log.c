@@ -4476,34 +4476,6 @@ int sess_build_logline_orig(struct session *sess, struct stream *s,
 					goto out;
 				tmplog = ret;
 				break;
-#ifdef USE_ECH
-            /*
-             * TODO: Address maintainer comment below:
-             * We try not to add new log tags, because they are the legacy
-             * way to do this, it would be better to implement a sample
-             * fetch instead, which can be used in more contexts than logs,
-             * you can take a look at src/ssl_sample.c for examples. The
-             * sample fetches use the %[] syntax.
-             */
-            case LOG_FMT_SSL_ECHSTAT: // %sslech
-                src = NULL;
-                conn = objt_conn(sess->origin);
-                if (conn) {
-                    int rv = 0;
-                    char *echstr = NULL;
-                    rv = ssl_sock_get_ech_status(conn, &echstr);
-                    if (rv == 1) {
-                        src = echstr;
-				        ret = lf_text(tmplog, src, dst + maxsize - tmplog, ctx);
-                        free(echstr);
-                        if (ret == NULL)
-                            goto out;
-                    }
-                 }
-                tmplog = ret;
-                last_isspace = 0;
-                break;
-#endif
 #endif
 			case LOG_FMT_BACKEND: // %b
 				src = be->id;
