@@ -6848,7 +6848,6 @@ static int px_parse_log_steps(char **args, int section_type, struct proxy *curpx
 	str = args[1];
 
 	while (str[0]) {
-		struct eb32_node *cur_step;
 		enum log_orig_id cur_id = LOG_ORIG_UNSPEC;
 
 		cur_sep = strcspn(str, ",");
@@ -6886,13 +6885,6 @@ static int px_parse_log_steps(char **args, int section_type, struct proxy *curpx
 			}
 		}
 
-		cur_step = malloc(sizeof(*cur_step));
-		if (!cur_step) {
-			memprintf(err, "memory failure when trying to configure log-step (%.*s)",
-			          (int)cur_sep, str);
-			goto end;
-		}
-		cur_step->key = cur_id;
 		BUG_ON(cur_id > 64); // for now we don't support more than 64 log origins
 		curpx->conf.log_steps.steps_1 |= (1ULL << cur_id);
  next:
