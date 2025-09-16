@@ -6,6 +6,15 @@
 #  include <openssl/ech.h>
 
 int load_echkeys(SSL_CTX *ctx, char *dirname, int *loaded);
+int cli_parse_show_ech(char **args, char *payload,
+                       struct appctx *appctx, void *private);
+int cli_io_handler_ech_details(struct appctx *appctx);
+int cli_parse_add_ech(char **args, char *payload, struct appctx *appctx,
+                      void *private);
+int cli_parse_set_ech(char **args, char *payload,
+                      struct appctx *appctx, void *private);
+int cli_parse_del_ech(char **args, char *payload,
+                      struct appctx *appctx, void *private);
 
 # endif /* USE_ECH */
 #endif /* _HAPROXY_ECH_H */

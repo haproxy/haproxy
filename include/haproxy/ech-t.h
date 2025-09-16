@@ -3,6 +3,8 @@
 # define _HAPROXY_ECH_T_H
 
 #ifdef USE_ECH
+#include <openssl/ssl.h>
+
 struct show_ech_ctx {
     struct proxy * pp;
     int fd;
