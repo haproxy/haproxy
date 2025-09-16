@@ -136,7 +136,6 @@ build_boringssl () {
 
 download_aws_lc () {
     if [ ! -f "${BUILDSSL_TMPDIR}/aws-lc-${AWS_LC_VERSION}.tar.gz" ]; then
-        mkdir -p "${BUILDSSL_TMPDIR}"
         wget -q -O "${BUILDSSL_TMPDIR}/aws-lc-${AWS_LC_VERSION}.tar.gz" \
           "https://github.com/aws/aws-lc/archive/refs/tags/v${AWS_LC_VERSION}.tar.gz"
     fi
@@ -162,7 +161,6 @@ build_aws_lc () {
 
 download_aws_lc_fips () {
     if [ ! -f "${BUILDSSL_TMPDIR}/aws-lc-${AWS_LC_FIPS_VERSION}.tar.gz" ]; then
-        mkdir -p "${BUILDSSL_TMPDIR}"
         wget -q -O "${BUILDSSL_TMPDIR}/aws-lc-fips-${AWS_LC_FIPS_VERSION}.tar.gz" \
           "https://github.com/aws/aws-lc/archive/refs/tags/AWS-LC-FIPS-${AWS_LC_FIPS_VERSION}.tar.gz"
     fi
@@ -222,7 +220,6 @@ build_quictls () {
 
 download_wolfssl () {
     if [ ! -f "${BUILDSSL_TMPDIR}/wolfssl-${WOLFSSL_VERSION}.tar.gz" ]; then
-      mkdir -p ${BUILDSSL_TMPDIR}
       if [ "${WOLFSSL_VERSION%%-*}" != "git" ]; then
         wget -q -O "${BUILDSSL_TMPDIR}/wolfssl-${WOLFSSL_VERSION}.tar.gz" \
              "https://github.com/wolfSSL/wolfssl/archive/refs/tags/v${WOLFSSL_VERSION}-stable.tar.gz"
@@ -255,7 +252,7 @@ build_wolfssl () {
 }
 
 mkdir -p "${BUILDSSL_DESTDIR}"
-
+mkdir -p "${BUILDSSL_TMPDIR}"
 
 if [ ! -z ${LIBRESSL_VERSION+x} ]; then
 	download_libressl
