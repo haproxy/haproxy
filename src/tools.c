@@ -7247,20 +7247,18 @@ int restore_env(void)
 const char *copy_file_name(const char *name)
 {
 	struct file_name_node *file;
-	struct ceb_node *node;
+	struct file_name_node *file2;
 	size_t len;
 
 	if (!name)
 		return NULL;
 
 	HA_RWLOCK_RDLOCK(OTHER_LOCK, &file_names.lock);
-	node = cebus_imm_lookup(&file_names.root, name);
+	file = cebus_item_lookup(&file_names.root, node, name, name, struct file_name_node);
 	HA_RWLOCK_RDUNLOCK(OTHER_LOCK, &file_names.lock);
 
-	if (node) {
-		file = container_of(node, struct file_name_node, node);
+	if (file)
 		return file->name;
-	}
 
 	len = strlen(name);
 	file = malloc(sizeof(struct file_name_node) + len + 1);
@@ -7269,13 +7267,13 @@ const char *copy_file_name(const char *name)
 
 	memcpy(file->name, name, len + 1);
 	HA_RWLOCK_WRLOCK(OTHER_LOCK, &file_names.lock);
-	node = cebus_imm_insert(&file_names.root, &file->node);
+	file2 = cebus_item_insert(&file_names.root, node, name, file);
 	HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &file_names.lock);
 
-	if (node != &file->node) {
+	if (file2 != file) {
 		/* the node was created in between */
 		free(file);
-		file = container_of(node, struct file_name_node, node);
+		file = file2;
 	}
 	return file->name;
 }
@@ -7284,13 +7282,11 @@ const char *copy_file_name(const char *name)
 void free_all_file_names()
 {
 	struct file_name_node *file;
-	struct ceb_node *node;
 
 	HA_RWLOCK_WRLOCK(OTHER_LOCK, &file_names.lock);
 
-	while ((node = cebus_imm_first(&file_names.root))) {
-		file = container_of(node, struct file_name_node, node);
-		cebus_imm_delete(&file_names.root, node);
+	while ((file = cebus_item_first(&file_names.root, node, name, struct file_name_node))) {
+		cebus_item_delete(&file_names.root, node, name, file);
 		free(file);
 	}
 
