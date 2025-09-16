@@ -190,7 +190,8 @@ unsigned int var_clear(struct vars *vars, struct var *var, int force)
 	var->data.type = SMP_T_ANY;
 
 	if (!(var->flags & VF_PERMANENT) || force) {
-		cebu64_imm_delete(&vars->name_root[var->name_hash % VAR_NAME_ROOTS], &var->node);
+		cebu64_item_delete(&vars->name_root[var->name_hash % VAR_NAME_ROOTS],
+				   name_node, name_hash, var);
 		pool_free(var_pool, var);
 		size += sizeof(struct var);
 	}
@@ -202,16 +203,13 @@ unsigned int var_clear(struct vars *vars, struct var *var, int force)
  */
 void vars_prune_per_sess(struct vars *vars)
 {
-	struct ceb_node *node;
 	struct var *var;
 	unsigned int size = 0;
 	int i;
 
 	for (i = 0; i < VAR_NAME_ROOTS; i++) {
-		while ((node = cebu64_imm_first(&vars->name_root[i]))) {
-			var = container_of(node, struct var, node);
+		while ((var = cebu64_item_first(&vars->name_root[i], name_node, name_hash, struct var)))
 			size += var_clear(vars, var, 1);
-		}
 	}
 
 	if (!size)
@@ -334,13 +332,8 @@ static int vars_fill_desc(const char *name, int len, struct var_desc *desc, char
  */
 static struct var *var_get(struct vars *vars, uint64_t name_hash)
 {
-	struct ceb_node *node;
-
-	node = cebu64_imm_lookup(&vars->name_root[name_hash % VAR_NAME_ROOTS], name_hash);
-	if (node)
-		return container_of(node, struct var, node);
-
-	return NULL;
+	return cebu64_item_lookup(&vars->name_root[name_hash % VAR_NAME_ROOTS],
+				  name_node, name_hash, name_hash, struct var);
 }
 
 /* Returns 0 if fails, else returns 1. */
@@ -439,7 +432,7 @@ int var_set(const struct var_desc *desc, struct sample *smp, uint flags)
 		var->name_hash = desc->name_hash;
 		var->flags = flags & VF_PERMANENT;
 		var->data.type = SMP_T_ANY;
-		cebu64_imm_insert(&vars->name_root[var->name_hash % VAR_NAME_ROOTS], &var->node);
+		cebu64_item_insert(&vars->name_root[var->name_hash % VAR_NAME_ROOTS], name_node, name_hash, var);
 	}
 
 	/* A variable of type SMP_T_ANY is considered as unset (either created

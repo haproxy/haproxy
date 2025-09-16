@@ -80,16 +80,13 @@ static inline void vars_rdunlock(struct vars *vars)
  */
 static inline void vars_prune(struct vars *vars, struct session *sess, struct stream *strm)
 {
-	struct ceb_node *node;
 	struct var *var;
 	unsigned int size = 0;
 	int i;
 
 	for (i = 0; i < VAR_NAME_ROOTS; i++) {
-		while ((node = cebu64_imm_first(&vars->name_root[i]))) {
-			var = container_of(node, struct var, node);
+		while ((var = cebu64_item_first(&vars->name_root[i], name_node, name_hash, struct var)))
 			size += var_clear(vars, var, 1);
-		}
 	}
 
 	if (!size)
