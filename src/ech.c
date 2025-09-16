@@ -33,7 +33,7 @@ int load_echkeys(SSL_CTX *ctx, char *dirname, int *loaded)
      * config setting.
      * TODO: revisit this limit
      */
-    int rv = 0, i, nrv, somekeyworked = 0, maxkeyfiles = 1024;
+    int rv = 0, i, nrv, somekeyworked = 0;
     char *den = NULL, *last4 = NULL, privname[PATH_MAX];
     size_t elen = 0, nlen = 0;
     OSSL_ECHSTORE * const es = OSSL_ECHSTORE_new(NULL, NULL);
@@ -55,8 +55,6 @@ int load_echkeys(SSL_CTX *ctx, char *dirname, int *loaded)
             if ((elen + 1 + nlen + 1) >= PATH_MAX)
                 goto ignore_entry;
             snprintf(privname, PATH_MAX,"%s/%s", dirname, den);
-            if (!--maxkeyfiles) /* just so we don't loop forever, ever */
-                return 0;
             if (stat(privname, &thestat) == 0) {
                 BIO *in = BIO_new_file(privname, "r");
                 const int is_retry_config = OSSL_ECH_FOR_RETRY;
