@@ -109,6 +109,9 @@ void sedesc_init(struct sedesc *sedesc)
 	sedesc->iobuf.buf = NULL;
 	sedesc->iobuf.offset = sedesc->iobuf.data = 0;
 	sedesc->iobuf.flags = IOBUF_FL_NONE;
+
+	sedesc->kip = 0;
+	sedesc->kop = 0;
 }
 
 /* Tries to alloc an endpoint and initialize it. Returns NULL on failure. */

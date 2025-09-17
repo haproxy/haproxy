@@ -148,6 +148,12 @@ static inline struct sedesc *se_opposite(struct sedesc *se)
 	return seo;
 }
 
+static inline void se_fwd_kip(struct sedesc *se)
+{
+	se->kop += se->kip;
+	se->kip = 0;
+}
+
 /* stream connector version */
 static forceinline void sc_ep_zero(struct stconn *sc)
 {

@@ -311,6 +311,27 @@ struct se_abort_info {
  * NOTE: <lra> and <fsb> must only be used via the SC api to compute read/write
  *       expiration date.
  *
+ * <kip> is the known input payload length. It is set by the stream endpoint
+ *       that produce data and decremented once consumed by the app
+ *       loyer. Depending on the enpoint, this value may be unset. It may be set
+ *       only once if the payload lenght is fully known from the begining (a
+ *       HTTP message with a content-length for instance), or incremented
+ *       periodically when more data are expected (a chunk-encoded HTTP message
+ *       for instance). On the app side, this value is decremented when data are
+ *       scheduled to be forwarded to the other side and <kop> is incremented
+ *       accordingly.
+ *
+ * <kop> is the known output payload length still expected from the app
+ *       layer. It is set by the app layer, when data are forwarded to the
+ *       stream endpoint and decremented when the endpoint the value was
+ *       processed (for instance when a size of the next chunk is emitted).
+ *
+ * NOTE: <kip> and <kop> act like communicating vessels and are just used as an
+ *       information from the producer side to allow optimisations on the
+ *       consumer side. These value may be unset by the producer or just never
+ *       used by the consumer. When set, these values reflect the data already
+ *       present in the channel buffer, and those which will come soon.
+ *
  */
 struct sedesc {
 	void *se;                  /* the stream endpoint, i.e. the mux stream or the appctx */
@@ -323,6 +344,9 @@ struct sedesc {
 	unsigned int lra;          /* the last read activity */
 	unsigned int fsb;          /* the first send blocked */
 	struct xref xref;          /* cross reference with the opposite SC */
+
+	unsigned long long kip;    /* Known input payload length (see above) */
+	unsigned long long kop;    /* Known outgoing payload length (see above) */
 };
 
 /* sc_app_ops describes the application layer's operations and notification
