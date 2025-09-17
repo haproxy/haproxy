@@ -320,7 +320,7 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 
 	vp_ring_to_data(&v1, &v2, ring_area, ring_size, head_ofs, tail_ofs);
 
-	while (vp_size(v1, v2) > ring_size - needed - 1 - 1) {
+	while (vp_size(v1, v2) + needed + 1 + 1 > ring_size) {
 		/* we need to delete the oldest message (from the end),
 		 * and we have to stop if there's a reader stuck there.
 		 * Unless there's corruption in the buffer it's guaranteed
@@ -339,7 +339,7 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 
 	/* now let's update the buffer with the new tail if our message will fit */
 	new_tail_ofs = tail_ofs;
-	if (vp_size(v1, v2) <= ring_size - needed - 1 - 1) {
+	if (vp_size(v1, v2) + needed + 1 + 1 <= ring_size) {
 		vp_data_to_ring(v1, v2, ring_area, ring_size, &head_ofs, &tail_ofs);
 
 		/* update the new space in the buffer */
