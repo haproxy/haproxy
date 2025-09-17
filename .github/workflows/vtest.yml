@@ -48,12 +48,6 @@ jobs:
       with:
         fetch-depth: 100
 
-    - name: Setup coredumps
-      if: ${{ startsWith(matrix.os, 'ubuntu-') }}
-      run: |
-        sudo sysctl -w fs.suid_dumpable=1
-        sudo sysctl kernel.core_pattern=/tmp/core.%h.%e.%t
-
 #
 # Github Action cache key cannot contain comma, so we calculate it based on job name
 #
@@ -93,9 +87,7 @@ jobs:
       run: |
         brew install socat
         brew install lua
-    - name: Install VTest
-      run: |
-        scripts/build-vtest.sh
+    - uses: ./.github/actions/setup-vtest
     - name: Install SSL ${{ matrix.ssl }}
       if: ${{ matrix.ssl && matrix.ssl != 'stock' && steps.cache_ssl.outputs.cache-hit != 'true' }}
       run: env ${{ matrix.ssl }} scripts/build-ssl.sh
@@ -136,16 +128,9 @@ jobs:
         echo "::endgroup::"
         haproxy -vv
         echo "version=$(haproxy -v |awk 'NR==1{print $3}')" >> $GITHUB_OUTPUT
-    - name: Install problem matcher for VTest
-      # This allows one to more easily see which tests fail.
-      run: echo "::add-matcher::.github/vtest.json"
     - name: Run VTest for HAProxy ${{ steps.show-version.outputs.version }}
       id: vtest
       run: |
-        # This is required for macOS which does not actually allow to increase
-        # the '-n' soft limit to the hard limit, thus failing to run.
-        ulimit -n 65536
-        ulimit -c unlimited
         make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
     - name: Show VTest results
       if: ${{ failure() && steps.vtest.outcome == 'failure' }}

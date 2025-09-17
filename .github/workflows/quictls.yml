@@ -18,9 +18,6 @@ jobs:
     if: ${{ github.repository_owner == 'haproxy' || github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v5
-      - name: Install VTest
-        run: |
-          scripts/build-vtest.sh
       - name: Install apt dependencies
         run: |
           sudo apt-get update -o Acquire::Languages=none -o Acquire::Translation=none
@@ -42,16 +39,10 @@ jobs:
           ldd $(which haproxy)
           haproxy -vv
           echo "version=$(haproxy -v |awk 'NR==1{print $3}')" >> $GITHUB_OUTPUT
-      - name: Install problem matcher for VTest
-        run: echo "::add-matcher::.github/vtest.json"
+      - uses: ./.github/actions/setup-vtest
       - name: Run VTest for HAProxy
         id: vtest
         run: |
-          # This is required for macOS which does not actually allow to increase
-          # the '-n' soft limit to the hard limit, thus failing to run.
-          ulimit -n 65536
-          # allow to catch coredumps
-          ulimit -c unlimited
           make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
       - name: Show VTest results
         if: ${{ failure() && steps.vtest.outcome == 'failure' }}

@@ -1,0 +1,34 @@
+name: 'setup VTest'
+description: 'ssss'
+
+runs:
+  using: "composite"
+  steps:
+
+    - name: Setup coredumps
+      if: ${{ startsWith(matrix.os, 'ubuntu-') }}
+      shell: bash
+      run: |
+        sudo sysctl -w fs.suid_dumpable=1
+        sudo sysctl kernel.core_pattern=/tmp/core.%h.%e.%t
+
+    - name: Setup ulimit for core dumps
+      shell: bash
+      run: |
+        # This is required for macOS which does not actually allow to increase
+        # the '-n' soft limit to the hard limit, thus failing to run.
+        ulimit -n 65536
+        ulimit -c unlimited
+
+    - name: Install VTest
+      shell: bash
+      run: |
+        scripts/build-vtest.sh
+
+    - name: Install problem matcher for VTest
+      shell: bash
+      # This allows one to more easily see which tests fail.
+      run: echo "::add-matcher::.github/vtest.json"
+
+
+

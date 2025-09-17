@@ -23,9 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v5
-    - name: Install VTest
-      run: |
-        scripts/build-vtest.sh
+    - uses: ./.github/actions/setup-vtest
     - name: Compile HAProxy
       run: |
         make DEFINE="-DOPENSSL_API_COMPAT=0x10100000L -DOPENSSL_NO_DEPRECATED" -j3 CC=gcc ERR=1 TARGET=linux-glibc USE_OPENSSL=1

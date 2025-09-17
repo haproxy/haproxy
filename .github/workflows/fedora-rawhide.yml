@@ -29,8 +29,7 @@ jobs:
       run: |
         dnf -y install awk diffutils git pcre-devel zlib-devel pcre2-devel 'perl(FindBin)' perl-IPC-Cmd 'perl(File::Copy)' 'perl(File::Compare)' lua-devel socat findutils systemd-devel clang
         dnf -y install 'perl(FindBin)' 'perl(File::Compare)' perl-IPC-Cmd 'perl(File::Copy)' glibc-devel.i686 lua-devel.i686 lua-devel.x86_64 systemd-devel.i686 zlib-ng-compat-devel.i686 pcre-devel.i686 libatomic.i686
-    - name: Install VTest
-      run: scripts/build-vtest.sh
+    - uses: ./.github/actions/setup-vtest
     - name: Install QuicTLS
       run: QUICTLS=yes QUICTLS_EXTRA_ARGS="${{ matrix.platform.QUICTLS_EXTRA_ARGS }}" scripts/build-ssl.sh
     - name: Build contrib tools
