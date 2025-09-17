@@ -75,6 +75,10 @@ static forceinline struct ebmb_node *__ebst_lookup(struct eb_root *root, const v
 		}
 		node = container_of(eb_untag(troot, EB_NODE),
 				    struct ebmb_node, node.branches);
+
+		eb_prefetch(node->node.branches.b[0], 0);
+		eb_prefetch(node->node.branches.b[1], 0);
+
 		node_bit = node->node.bit;
 
 		if (node_bit < 0) {
@@ -237,6 +241,10 @@ __ebst_insert(struct eb_root *root, struct ebmb_node *new)
 		/* OK we're walking down this link */
 		old = container_of(eb_untag(troot, EB_NODE),
 				   struct ebmb_node, node.branches);
+
+		eb_prefetch(old->node.branches.b[0], 0);
+		eb_prefetch(old->node.branches.b[1], 0);
+
 		old_node_bit = old->node.bit;
 
 		/* Stop going down when we don't have common bits anymore. We
