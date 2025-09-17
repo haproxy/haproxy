@@ -29,7 +29,7 @@ jobs:
       - name: Compile HAProxy
         run: |
           make -j$(nproc) ERR=1 CC=gcc TARGET=linux-glibc \
-            USE_QUIC=1 USE_OPENSSL=1 \
+            USE_QUIC=1 USE_OPENSSL=1 USE_ECH=1 \
             SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include \
             DEBUG="-DDEBUG_POOL_INTEGRITY -DDEBUG_UNIT" \
             ADDLIB="-Wl,-rpath,/usr/local/lib/ -Wl,-rpath,$HOME/opt/lib/" \
