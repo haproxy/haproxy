@@ -3028,6 +3028,8 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	if (src->tcp_md5sig != NULL)
 		srv->tcp_md5sig = strdup(src->tcp_md5sig);
 #endif
+	if (src->cc_algo != NULL)
+		srv->cc_algo = strdup(src->cc_algo);
 #ifdef TCP_USER_TIMEOUT
 	srv->tcp_ut = src->tcp_ut;
 #endif
@@ -3168,6 +3170,7 @@ void srv_free_params(struct server *srv)
 	free(srv->pool_conn_name);
 	release_sample_expr(srv->pool_conn_name_expr);
 	free(srv->resolvers_id);
+	free(srv->cc_algo);
 	free(srv->tcp_md5sig);
 	free(srv->addr_key);
 	free(srv->lb_nodes);

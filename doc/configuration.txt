@@ -16396,7 +16396,7 @@ cc <algo>
   capability might be required (see "setcap" in the global section). In case of
   failure to configure a specific congestion control algorithm, the default one
   will remain unchanged and a warning will be emitted to report the problem.
-  Example:
+  See also: the "cc" server keyword (section 5.2). Example:
 
     frontend public
         bind :443 cc bbr   # use the BBR algorithm for high bandwidths
@@ -17534,6 +17534,22 @@ ca-file <cafile>
   In order to use the trusted CAs of your system, the "@system-ca" parameter
   could be used in place of the cafile. The location of this directory could be
   overwritten by setting the SSL_CERT_DIR environment variable.
+
+cc <algo>
+  May be used in the following contexts: tcp, http, log, peers, ring
+
+  This setting is only available on systems which define TCP_CONGESTION, and
+  was validated on Linux and FreeBSD. It takes the name of a TCP congestion
+  control algorithm and configures outgoing connections to use this algorithm.
+  Typical names include "reno" or "cubic" and will depend on the operating
+  system. On some systems, special permissions may be required to configure
+  certain algorithms. On Linux, available algorithms are listed in sysctl
+  "net.ipv4.tcp_available_congestion_control", and those permitted without
+  privileges are in "net.ipv4.tcp_allowed_congestion_control". In order to
+  access algorithms requiring extra permissions, the "cap_net_admin" capability
+  might be required (see "setcap" in the global section). In case of failure to
+  configure a specific congestion control algorithm, the default one remains
+  unchanged. See also: the "cc" bind keyword (section 5.1).
 
 check
   May be used in the following contexts: tcp, http, log

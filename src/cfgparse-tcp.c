@@ -224,6 +224,25 @@ static int bind_parse_namespace(char **args, int cur_arg, struct proxy *px, stru
 }
 #endif
 
+#if defined(TCP_CONGESTION)
+/* parse the "cc" server keyword */
+static int srv_parse_cc(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	if (!*args[*cur_arg + 1]) {
+		memprintf(err, "'%s' : missing TCP congestion control algorithm", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	ha_free(&newsrv->cc_algo);
+	newsrv->cc_algo = strdup(args[*cur_arg + 1]);
+	if (!newsrv->cc_algo) {
+		memprintf(err, "'%s %s' : out of memory", args[*cur_arg], args[*cur_arg + 1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	return 0;
+}
+#endif
+
 #if defined(__linux__) && defined(TCP_MD5SIG)
 /* parse the "tcp-md5sig" server keyword */
 static int srv_parse_tcp_md5sig(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
@@ -342,6 +361,9 @@ static struct bind_kw_list bind_kws = { "TCP", { }, {
 INITCALL1(STG_REGISTER, bind_register_keywords, &bind_kws);
 
 static struct srv_kw_list srv_kws = { "TCP", { }, {
+#if defined(TCP_CONGESTION)
+	{ "cc",            srv_parse_cc,            1,  1,  0 }, /* set TCP congestion control algorithm */
+#endif
 #if defined(__linux__) && defined(TCP_MD5SIG)
 	{ "tcp-md5sig",    srv_parse_tcp_md5sig,    1,  1,  0 }, /* set TCP MD5 signature password on server */
 #endif

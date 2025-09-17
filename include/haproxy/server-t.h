@@ -447,6 +447,7 @@ struct server {
 
 	int tcp_ut;                             /* for TCP, user timeout */
 	char *tcp_md5sig;                       /* TCP MD5 signature password (RFC2385) */
+	char *cc_algo;                          /* TCP congestion control algorithm ("cc" argument) */
 
 	int do_check;                           /* temporary variable used during parsing to denote if health checks must be enabled */
 	int do_agent;                           /* temporary variable used during parsing to denote if an auxiliary agent check must be enabled */

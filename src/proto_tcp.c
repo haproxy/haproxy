@@ -531,6 +531,17 @@ int tcp_connect_server(struct connection *conn, int flags)
                 setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &zero, sizeof(zero));
 #endif
 
+#if defined(TCP_CONGESTION)
+	if (srv && srv->cc_algo) {
+		/* Changing congestion control might fail due to loaded
+		 * algorithms or permission. In this case the default algorithm
+		 * remains active so we silently ignore it. Note: it would be
+		 * nice to have warning counters on servers.
+		 */
+		setsockopt(fd, IPPROTO_TCP, TCP_CONGESTION, srv->cc_algo, strlen(srv->cc_algo));
+	}
+#endif
+
 #if defined(__linux__) && defined(TCP_MD5SIG)
 	/* if it fails, the connection will fail, so reported an error */
 	if (srv && srv->tcp_md5sig) {
