@@ -21,8 +21,11 @@ jobs:
         run: |
           sudo apt-get update -o Acquire::Languages=none -o Acquire::Translation=none
           sudo apt-get --no-install-recommends -y install socat gdb
+          sudo apt-get --no-install-recommends -y install libpsl-dev
       - name: Install OpenSSL+ECH
         run: env OPENSSL_VERSION="git-feature/ech" GIT_TYPE="branch" scripts/build-ssl.sh
+      - name: Install curl+ECH
+        run: env SSL_LIB=${HOME}/opt/ scripts/build-curl.sh
       - name: Compile HAProxy
         run: |
           make -j$(nproc) ERR=1 CC=gcc TARGET=linux-glibc \
