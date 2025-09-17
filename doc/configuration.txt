@@ -16382,6 +16382,25 @@ ca-verify-file <cafile>
   be defined with intermediate certificates, and "ca-verify-file" with
   certificates to ending the chain, like root CA.
 
+cc <algo>
+  This setting is only available on systems which define TCP_CONGESTION, and
+  was validated on Linux and FreeBSD. It takes the name of a TCP congestion
+  control algorithm and configures the listener to use this algorithm on all
+  connections that are accepted from this listener. Typical names include
+  "reno", "cubic" and will depend on the operating system. On some systems,
+  special permissions may be required to configure certain algorithms. On
+  Linux, the list of available algorithms may be found in the sysctl
+  "net.ipv4.tcp_available_congestion_control", and the list of those permitted
+  without privileges is in "net.ipv4.tcp_allowed_congestion_control". In order
+  to access algorithms requiring extra permissions, the "cap_net_admin"
+  capability might be required (see "setcap" in the global section). In case of
+  failure to configure a specific congestion control algorithm, the default one
+  will remain unchanged and a warning will be emitted to report the problem.
+  Example:
+
+    frontend public
+        bind :443 cc bbr   # use the BBR algorithm for high bandwidths
+
 ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. It sets
   the string describing the list of cipher algorithms ("cipher suite") that are

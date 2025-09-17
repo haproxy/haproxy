@@ -732,6 +732,22 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		}
 	}
 #endif
+
+#if defined(TCP_CONGESTION)
+	if (listener->bind_conf->cc_algo) {
+		/* Changing congestion control might fail due to loaded
+		 * algorithms or permission. In this case the default algorithm
+		 * remains active, but we can emit a warning about it to give a
+		 * chance to the user to fix it.
+		 */
+		if (setsockopt(fd, IPPROTO_TCP, TCP_CONGESTION, listener->bind_conf->cc_algo, strlen(listener->bind_conf->cc_algo)) < 0) {
+			chunk_appendf(msg, "%scannot set TCP congestion control algorithm, (%s)", msg->data ? ", " : "",
+				      strerror(errno));
+			err |= ERR_WARN;
+		}
+	}
+#endif
+
 #if defined(__linux__) && defined(TCP_MD5SIG)
 	if (listener->bind_conf->tcp_md5sig) {
 		struct tcp_md5sig md5;

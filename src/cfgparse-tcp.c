@@ -61,6 +61,26 @@ static int bind_parse_transparent(char **args, int cur_arg, struct proxy *px, st
 }
 #endif
 
+#if defined(TCP_CONGESTION)
+/* parse the "cc" bind keyword */
+static int bind_parse_cc(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' : missing TCP congestion control algorithm", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	ha_free(&conf->cc_algo);
+	conf->cc_algo = strdup(args[cur_arg + 1]);
+	if (!conf->cc_algo) {
+		memprintf(err, "'%s %s' : out of memory", args[cur_arg], args[cur_arg + 1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+}
+#endif
+
 #if defined(TCP_DEFER_ACCEPT) || defined(SO_ACCEPTFILTER)
 /* parse the "defer-accept" bind keyword */
 static int bind_parse_defer_accept(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
@@ -278,6 +298,9 @@ static int srv_parse_tcp_ut(char **args, int *cur_arg, struct proxy *px, struct 
  * not enabled.
  */
 static struct bind_kw_list bind_kws = { "TCP", { }, {
+#if defined(TCP_CONGESTION)
+	{ "cc",            bind_parse_cc,           1 }, /* set TCP congestion control algorithm */
+#endif
 #if defined(TCP_DEFER_ACCEPT) || defined(SO_ACCEPTFILTER)
 	{ "defer-accept",  bind_parse_defer_accept, 0 }, /* wait for some data for 1 second max before doing accept */
 #endif
