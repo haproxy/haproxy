@@ -3550,6 +3550,8 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	h2s->st = H2_SS_OPEN;
 	h2s->flags |= flags;
 	h2s->body_len = body_len;
+	if (h2s->flags & H2_SF_DATA_CLEN)
+		h2s->sd->kip = h2s->body_len;
 	h2s_propagate_term_flags(h2c, h2s);
 
  done:
@@ -3684,6 +3686,9 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		HA_ATOMIC_INC(&h2c->px_counters->strm_proto_err);
 		goto fail;
 	}
+
+	if (h2s->flags & H2_SF_DATA_CLEN)
+		h2s->sd->kip = h2s->body_len;
 
 	if (se_fl_test(h2s->sd, SE_FL_ERROR) && h2s->st < H2_SS_ERROR)
 		h2s->st = H2_SS_ERROR;
@@ -7711,6 +7716,7 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	struct htx_ret htxret;
 	size_t ret = 0;
 	uint prev_h2c_flags = h2c->flags;
+	unsigned long long prev_body_len = h2s->body_len;
 
 	TRACE_ENTER(H2_EV_STRM_RECV, h2c->conn, h2s);
 
@@ -7760,6 +7766,10 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	ret -= h2s_htx->data;
 
   end:
+	/* If ther is no content-length, take care to update <kip> field */
+	if (!(h2s->flags & H2_SF_DATA_CLEN))
+		h2s->sd->kip += prev_body_len - h2s->body_len;
+
 	/* release the rxbuf if it's not used anymore */
 	if (rxbuf && !b_data(rxbuf) && b_size(rxbuf)) {
 		BUG_ON_HOT(rxbuf != _h2s_rxbuf_head(h2s));
