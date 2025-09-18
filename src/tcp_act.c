@@ -396,7 +396,7 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 		stream_abort(strm);
 		strm->req.analysers &= AN_REQ_FLT_END;
 		strm->res.analysers &= AN_RES_FLT_END;
-		if (strm->flags & SF_BE_ASSIGNED)
+		if ((strm->flags & SF_BE_ASSIGNED) && strm->be_tgcounters)
 			_HA_ATOMIC_INC(&strm->be_tgcounters->denied_req);
 		if (!(strm->flags & SF_ERR_MASK))
 			strm->flags |= SF_ERR_PRXCOND;
@@ -404,8 +404,9 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 			strm->flags |= SF_FINST_R;
 	}
 
-	_HA_ATOMIC_INC(&sess->fe_tgcounters->denied_req);
-	if (sess->listener && sess->listener->counters)
+	if (sess->fe_tgcounters)
+		_HA_ATOMIC_INC(&sess->fe_tgcounters->denied_req);
+	if (sess->li_tgcounters)
 		_HA_ATOMIC_INC(&sess->li_tgcounters->denied_req);
 
 	return ACT_RET_ABRT;

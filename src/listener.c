@@ -1110,7 +1110,7 @@ void listener_accept(struct listener *l)
 		int max = 0;
 		int it;
 
-		for (it = 0; it < global.nbtgroups; it++)
+		for (it = 0; (it < global.nbtgroups && p->fe_counters.shared.tg[it]); it++)
 			max += freq_ctr_remain(&p->fe_counters.shared.tg[it]->sess_per_sec, p->fe_sps_lim, 0);
 
 		if (unlikely(!max)) {

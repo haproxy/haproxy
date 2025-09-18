@@ -5949,16 +5949,18 @@ missing_budget:
 	return;
 
 parse_error:
-	if (l->counters)
+	if (s->sess->li_tgcounters)
 		_HA_ATOMIC_INC(&s->sess->li_tgcounters->failed_req);
-	_HA_ATOMIC_INC(&s->sess->fe_tgcounters->failed_req);
+	if (s->sess->fe_tgcounters)
+		_HA_ATOMIC_INC(&s->sess->fe_tgcounters->failed_req);
 
 	goto error;
 
 cli_abort:
-	if (l->counters)
+	if (s->sess->li_tgcounters)
 		_HA_ATOMIC_INC(&s->sess->li_tgcounters->cli_aborts);
-	_HA_ATOMIC_INC(&s->sess->fe_tgcounters->cli_aborts);
+	if (s->sess->fe_tgcounters)
+		_HA_ATOMIC_INC(&s->sess->fe_tgcounters->cli_aborts);
 
 error:
 	applet_set_eos(appctx);

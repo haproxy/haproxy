@@ -294,6 +294,9 @@ static int parse_stat_line(struct ist line,
 				return 0; /* silently ignored fe/be mismatch */
 
 			base_off_shared = (char *)px->fe_counters.shared.tg[0];
+			if (!base_off_shared)
+				return 0; // not allocated
+
 			base_off = (char *)&px->fe_counters;
 
 			off = 0;
@@ -303,6 +306,9 @@ static int parse_stat_line(struct ist line,
 				return 0; /* silently ignored fe/be mismatch */
 
 			base_off_shared = (char *)px->be_counters.shared.tg[0];
+			if (!base_off_shared)
+				return 0; // not allocated
+
 			base_off = (char *)&px->be_counters;
 
 			off = 1;
@@ -323,6 +329,9 @@ static int parse_stat_line(struct ist line,
 			return 0;
 
 		base_off_shared = (char *)li->counters->shared.tg[0];
+		if (!base_off_shared)
+			return 0; // not allocated
+
 		base_off = (char *)li->counters;
 
 		off = 0;
@@ -334,6 +343,9 @@ static int parse_stat_line(struct ist line,
 
 		srv = __objt_server(node->obj_type);
 		base_off_shared = (char *)srv->counters.shared.tg[0];
+		if (!base_off_shared)
+			return 0; // not allocated
+
 		base_off = (char *)&srv->counters;
 
 		off = 1;
@@ -752,7 +764,8 @@ static void shm_stats_file_preload(void)
 
 					BUG_ON(curr_obj->type != SHM_STATS_FILE_OBJECT_TYPE_FE);
 					li = __objt_listener(node->obj_type);
-					if (li->counters) // counters are optional for listeners
+					// counters are optional for listeners
+					if (li->counters && li->counters->shared.tg[obj_tgid - 1])
 						li->counters->shared.tg[obj_tgid - 1] = &curr_obj->data.fe;
 					break;
 				}
@@ -762,7 +775,8 @@ static void shm_stats_file_preload(void)
 
 					BUG_ON(curr_obj->type != SHM_STATS_FILE_OBJECT_TYPE_BE);
 					sv = __objt_server(node->obj_type);
-					sv->counters.shared.tg[obj_tgid - 1] = &curr_obj->data.be;
+					if (sv->counters.shared.tg[obj_tgid - 1])
+						sv->counters.shared.tg[obj_tgid - 1] = &curr_obj->data.be;
 					break;
 				}
 				case OBJ_TYPE_PROXY:
@@ -770,9 +784,11 @@ static void shm_stats_file_preload(void)
 					struct proxy *px;
 
 					px = __objt_proxy(node->obj_type);
-					if (curr_obj->type == SHM_STATS_FILE_OBJECT_TYPE_FE)
+					if (curr_obj->type == SHM_STATS_FILE_OBJECT_TYPE_FE &&
+					    px->fe_counters.shared.tg[obj_tgid - 1])
 						px->fe_counters.shared.tg[obj_tgid - 1] = &curr_obj->data.fe;
-					else if (curr_obj->type == SHM_STATS_FILE_OBJECT_TYPE_BE)
+					else if (curr_obj->type == SHM_STATS_FILE_OBJECT_TYPE_BE &&
+					        px->be_counters.shared.tg[obj_tgid - 1])
 						px->be_counters.shared.tg[obj_tgid - 1] = &curr_obj->data.be;
 					else
 						goto release; // not supported

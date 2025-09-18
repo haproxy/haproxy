@@ -47,7 +47,7 @@ void counters_be_shared_drop(struct be_counters_shared *counters);
 	unsigned long now_seconds = ns_to_sec(now_ns);                        \
 	int it;                                                               \
                                                                               \
-	for (it = 1; it < global.nbtgroups; it++) {                           \
+	for (it = 1; (it < global.nbtgroups && scounters[it]); it++) {        \
 		unsigned long cur = HA_ATOMIC_LOAD((type *)((char *)scounters[it] + offset));\
 		if ((now_seconds - cur) < (now_seconds - last))               \
 			last = cur;                                           \
@@ -74,7 +74,7 @@ void counters_be_shared_drop(struct be_counters_shared *counters);
 	uint64_t __ret = 0;                                                   \
         int it;                                                               \
                                                                               \
-	for (it = 0; it < global.nbtgroups; it++)                             \
+	for (it = 0; (it < global.nbtgroups && scounters[it]); it++)          \
 		__ret += rfunc((type *)((char *)scounters[it] + offset));     \
 	__ret;                                                                \
 })
@@ -94,7 +94,7 @@ void counters_be_shared_drop(struct be_counters_shared *counters);
 	uint64_t __ret = 0;                                                   \
 	int it;                                                               \
                                                                               \
-	for (it = 0; it < global.nbtgroups; it++)                             \
+	for (it = 0; (it < global.nbtgroups && scounters[it]); it++)          \
 		__ret += rfunc(&scounters[it]->elem, arg1, arg2);             \
 	__ret;                                                                \
 })

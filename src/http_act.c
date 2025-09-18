@@ -116,12 +116,13 @@ static enum act_return http_action_set_req_line(struct act_rule *rule, struct pr
 	goto leave;
 
   fail_rewrite:
-	_HA_ATOMIC_INC(&sess->fe_tgcounters->failed_rewrites);
-	if (s->flags & SF_BE_ASSIGNED)
+	if (sess->fe_tgcounters)
+		_HA_ATOMIC_INC(&sess->fe_tgcounters->failed_rewrites);
+	if ((s->flags & SF_BE_ASSIGNED) && s->be_tgcounters)
 		_HA_ATOMIC_INC(&s->be_tgcounters->failed_rewrites);
-	if (sess->listener && sess->listener->counters)
+	if (sess->li_tgcounters)
 		_HA_ATOMIC_INC(&sess->li_tgcounters->failed_rewrites);
-	if (objt_server(s->target))
+	if (s->sv_tgcounters)
 		_HA_ATOMIC_INC(&s->sv_tgcounters->failed_rewrites);
 
 	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW)) {
@@ -386,12 +387,13 @@ static enum act_return http_action_normalize_uri(struct act_rule *rule, struct p
 	goto leave;
 
   fail_rewrite:
-	_HA_ATOMIC_ADD(&sess->fe_tgcounters->failed_rewrites, 1);
-	if (s->flags & SF_BE_ASSIGNED)
+	if (sess->fe_tgcounters)
+		_HA_ATOMIC_ADD(&sess->fe_tgcounters->failed_rewrites, 1);
+	if ((s->flags & SF_BE_ASSIGNED) && s->be_tgcounters)
 		_HA_ATOMIC_ADD(&s->be_tgcounters->failed_rewrites, 1);
-	if (sess->listener && sess->listener->counters)
+	if (sess->li_tgcounters)
 		_HA_ATOMIC_ADD(&sess->li_tgcounters->failed_rewrites, 1);
-	if (objt_server(s->target))
+	if (s->sv_tgcounters)
 		_HA_ATOMIC_ADD(&s->sv_tgcounters->failed_rewrites, 1);
 
 	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW)) {
@@ -562,12 +564,13 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 	goto leave;
 
   fail_rewrite:
-	_HA_ATOMIC_INC(&sess->fe_tgcounters->failed_rewrites);
-	if (s->flags & SF_BE_ASSIGNED)
+	if (sess->fe_tgcounters)
+		_HA_ATOMIC_INC(&sess->fe_tgcounters->failed_rewrites);
+	if ((s->flags & SF_BE_ASSIGNED) && s->be_tgcounters)
 		_HA_ATOMIC_INC(&s->be_tgcounters->failed_rewrites);
-	if (sess->listener && sess->listener->counters)
+	if (sess->li_tgcounters)
 		_HA_ATOMIC_INC(&sess->li_tgcounters->failed_rewrites);
-	if (objt_server(s->target))
+	if (s->sv_tgcounters)
 		_HA_ATOMIC_INC(&s->sv_tgcounters->failed_rewrites);
 
 	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW)) {
@@ -642,12 +645,13 @@ static enum act_return action_http_set_status(struct act_rule *rule, struct prox
                                               struct session *sess, struct stream *s, int flags)
 {
 	if (http_res_set_status(rule->arg.http.i, rule->arg.http.str, s) == -1) {
-		_HA_ATOMIC_INC(&sess->fe_tgcounters->failed_rewrites);
-		if (s->flags & SF_BE_ASSIGNED)
+		if (sess->fe_tgcounters)
+			_HA_ATOMIC_INC(&sess->fe_tgcounters->failed_rewrites);
+		if ((s->flags & SF_BE_ASSIGNED) && s->be_tgcounters)
 			_HA_ATOMIC_INC(&s->be_tgcounters->failed_rewrites);
-		if (sess->listener && sess->listener->counters)
+		if (sess->li_tgcounters)
 			_HA_ATOMIC_INC(&sess->li_tgcounters->failed_rewrites);
-		if (objt_server(s->target))
+		if (s->sv_tgcounters)
 			_HA_ATOMIC_INC(&s->sv_tgcounters->failed_rewrites);
 
 		if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW)) {
@@ -717,9 +721,11 @@ static enum act_return http_action_reject(struct act_rule *rule, struct proxy *p
 	s->req.analysers &= AN_REQ_FLT_END;
 	s->res.analysers &= AN_RES_FLT_END;
 
-	_HA_ATOMIC_INC(&s->be_tgcounters->denied_req);
-	_HA_ATOMIC_INC(&sess->fe_tgcounters->denied_req);
-	if (sess->listener && sess->listener->counters)
+	if (s->be_tgcounters)
+		_HA_ATOMIC_INC(&s->be_tgcounters->denied_req);
+	if (sess->fe_tgcounters)
+		_HA_ATOMIC_INC(&sess->fe_tgcounters->denied_req);
+	if (sess->li_tgcounters)
 		_HA_ATOMIC_INC(&sess->li_tgcounters->denied_req);
 
 	if (!(s->flags & SF_ERR_MASK))
@@ -1280,7 +1286,8 @@ static enum act_return http_action_auth(struct act_rule *rule, struct proxy *px,
 	s->logs.request_ts = now_ns;
 	req->analysers &= AN_REQ_FLT_END;
 
-	if (s->sess->fe == s->be) /* report it if the request was intercepted by the frontend */
+	/* report it if the request was intercepted by the frontend */
+	if (s->sess->fe == s->be && s->sess->fe_tgcounters)
 		_HA_ATOMIC_INC(&s->sess->fe_tgcounters->intercepted_req);
 
 	if (!(s->flags & SF_ERR_MASK))
@@ -1449,12 +1456,13 @@ static enum act_return http_action_set_header(struct act_rule *rule, struct prox
 	goto leave;
 
   fail_rewrite:
-	_HA_ATOMIC_INC(&sess->fe_tgcounters->failed_rewrites);
-	if (s->flags & SF_BE_ASSIGNED)
+	if (sess->fe_tgcounters)
+		_HA_ATOMIC_INC(&sess->fe_tgcounters->failed_rewrites);
+	if ((s->flags & SF_BE_ASSIGNED) && s->be_tgcounters)
 		_HA_ATOMIC_INC(&s->be_tgcounters->failed_rewrites);
-	if (sess->listener && sess->listener->counters)
+	if (sess->li_tgcounters)
 		_HA_ATOMIC_INC(&sess->li_tgcounters->failed_rewrites);
-	if (objt_server(s->target))
+	if (s->sv_tgcounters)
 		_HA_ATOMIC_INC(&s->sv_tgcounters->failed_rewrites);
 
 	if (!(msg->flags & HTTP_MSGF_SOFT_RW)) {
@@ -1581,12 +1589,13 @@ static enum act_return http_action_replace_header(struct act_rule *rule, struct 
 	goto leave;
 
   fail_rewrite:
-	_HA_ATOMIC_INC(&sess->fe_tgcounters->failed_rewrites);
-	if (s->flags & SF_BE_ASSIGNED)
+	if (sess->fe_tgcounters)
+		_HA_ATOMIC_INC(&sess->fe_tgcounters->failed_rewrites);
+	if ((s->flags & SF_BE_ASSIGNED) && s->be_tgcounters)
 		_HA_ATOMIC_INC(&s->be_tgcounters->failed_rewrites);
-	if (sess->listener && sess->listener->counters)
+	if (sess->li_tgcounters)
 		_HA_ATOMIC_INC(&sess->li_tgcounters->failed_rewrites);
-	if (objt_server(s->target))
+	if (s->sv_tgcounters)
 		_HA_ATOMIC_INC(&s->sv_tgcounters->failed_rewrites);
 
 	if (!(msg->flags & HTTP_MSGF_SOFT_RW)) {
@@ -2318,7 +2327,8 @@ static enum act_return http_action_return(struct act_rule *rule, struct proxy *p
 		s->logs.request_ts = now_ns;
 		req->analysers &= AN_REQ_FLT_END;
 
-		if (s->sess->fe == s->be) /* report it if the request was intercepted by the frontend */
+		/* report it if the request was intercepted by the frontend */
+		if (s->sess->fe == s->be && s->sess->fe_tgcounters)
 			_HA_ATOMIC_INC(&s->sess->fe_tgcounters->intercepted_req);
 	}
 

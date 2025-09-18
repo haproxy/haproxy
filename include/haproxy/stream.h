@@ -361,9 +361,10 @@ static inline void stream_choose_redispatch(struct stream *s)
 		s->flags &= ~(SF_DIRECT | SF_ASSIGNED);
 		s->scb->state = SC_ST_REQ;
 	} else {
-		if (objt_server(s->target))
+		if (s->sv_tgcounters)
 			_HA_ATOMIC_INC(&s->sv_tgcounters->retries);
-		_HA_ATOMIC_INC(&s->be_tgcounters->retries);
+		if (s->be_tgcounters)
+			_HA_ATOMIC_INC(&s->be_tgcounters->retries);
 		s->scb->state = SC_ST_ASS;
 	}
 

@@ -7125,7 +7125,8 @@ static void srv_update_status(struct server *s, int type, int cause)
 		}
 		else if (s->cur_state == SRV_ST_STOPPED) {
 			/* server was up and is currently down */
-			HA_ATOMIC_INC(&s->counters.shared.tg[tgid - 1]->down_trans);
+			if (s->counters.shared.tg[tgid - 1])
+				HA_ATOMIC_INC(&s->counters.shared.tg[tgid - 1]->down_trans);
 			_srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_DOWN, cb_data.common, s);
 		}
 
@@ -7137,7 +7138,8 @@ static void srv_update_status(struct server *s, int type, int cause)
 			HA_ATOMIC_STORE(&s->proxy->ready_srv, NULL);
 
 		s->last_change = ns_to_sec(now_ns);
-		HA_ATOMIC_STORE(&s->counters.shared.tg[tgid - 1]->last_state_change, s->last_change);
+		if (s->counters.shared.tg[tgid - 1])
+			HA_ATOMIC_STORE(&s->counters.shared.tg[tgid - 1]->last_state_change, s->last_change);
 
 		/* publish the state change */
 		_srv_event_hdl_prepare_state(&cb_data.state,
@@ -7157,7 +7159,8 @@ static void srv_update_status(struct server *s, int type, int cause)
 		if (last_change < ns_to_sec(now_ns))         // ignore negative times
 			s->proxy->down_time += ns_to_sec(now_ns) - last_change;
 		s->proxy->last_change = ns_to_sec(now_ns);
-		HA_ATOMIC_STORE(&s->proxy->be_counters.shared.tg[tgid - 1]->last_state_change, s->proxy->last_change);
+		if (s->proxy->be_counters.shared.tg[tgid - 1])
+			HA_ATOMIC_STORE(&s->proxy->be_counters.shared.tg[tgid - 1]->last_state_change, s->proxy->last_change);
 	}
 }
 

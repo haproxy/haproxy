@@ -2132,10 +2132,14 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 	if (s->txn->flags & TX_CACHE_IGNORE)
 		return ACT_RET_CONT;
 
-	if (px == strm_fe(s))
-		_HA_ATOMIC_INC(&px->fe_counters.shared.tg[tgid - 1]->p.http.cache_lookups);
-	else
-		_HA_ATOMIC_INC(&px->be_counters.shared.tg[tgid - 1]->p.http.cache_lookups);
+	if (px == strm_fe(s)) {
+		if (px->fe_counters.shared.tg[tgid - 1])
+			_HA_ATOMIC_INC(&px->fe_counters.shared.tg[tgid - 1]->p.http.cache_lookups);
+	}
+	else {
+		if (px->be_counters.shared.tg[tgid - 1])
+			_HA_ATOMIC_INC(&px->be_counters.shared.tg[tgid - 1]->p.http.cache_lookups);
+	}
 
 	cache_tree = get_cache_tree_from_hash(cache, read_u32(s->txn->cache_hash));
 
@@ -2221,10 +2225,14 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			ctx->send_notmodified =
                                 should_send_notmodified_response(cache, htxbuf(&s->req.buf), res);
 
-			if (px == strm_fe(s))
-				_HA_ATOMIC_INC(&px->fe_counters.shared.tg[tgid - 1]->p.http.cache_hits);
-			else
-				_HA_ATOMIC_INC(&px->be_counters.shared.tg[tgid - 1]->p.http.cache_hits);
+			if (px == strm_fe(s)) {
+				if (px->fe_counters.shared.tg[tgid - 1])
+					_HA_ATOMIC_INC(&px->fe_counters.shared.tg[tgid - 1]->p.http.cache_hits);
+			}
+			else {
+				if (px->be_counters.shared.tg[tgid - 1])
+					_HA_ATOMIC_INC(&px->be_counters.shared.tg[tgid - 1]->p.http.cache_hits);
+			}
 			return ACT_RET_CONT;
 		} else {
 			s->target = NULL;

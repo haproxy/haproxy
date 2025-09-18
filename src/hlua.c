@@ -8921,7 +8921,8 @@ __LJMP static int hlua_txn_done(lua_State *L)
 	if (htxn->dir == SMP_OPT_DIR_REQ) {
 		/* let's log the request time */
 		s->logs.request_ts = now_ns;
-		if (s->sess->fe == s->be) /* report it if the request was intercepted by the frontend */
+		/* report it if the request was intercepted by the frontend */
+		if (s->sess->fe == s->be && s->sess->fe_tgcounters)
 			_HA_ATOMIC_INC(&s->sess->fe_tgcounters->intercepted_req);
 	}
 

@@ -102,6 +102,8 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		sess->fe_tgcounters = sess->fe->fe_counters.shared.tg[tgid - 1];
 		if (sess->listener && sess->listener->counters)
 			sess->li_tgcounters = sess->listener->counters->shared.tg[tgid - 1];
+		else
+			sess->li_tgcounters = NULL;
 		TRACE_STATE("new session", SESS_EV_NEW, sess);
 	}
 	TRACE_LEAVE(SESS_EV_NEW);

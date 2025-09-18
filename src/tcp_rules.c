@@ -264,15 +264,17 @@ resume_execution:
 	return 0;
 
  deny:
-	_HA_ATOMIC_INC(&sess->fe_tgcounters->denied_req);
-	if (sess->listener && sess->listener->counters)
+	if (sess->fe_tgcounters)
+		_HA_ATOMIC_INC(&sess->fe_tgcounters->denied_req);
+	if (sess->li_tgcounters)
 		_HA_ATOMIC_INC(&sess->li_tgcounters->denied_req);
 	stream_report_term_evt(s->scf, strm_tevt_type_intercepted);
 	goto reject;
 
  internal:
-	_HA_ATOMIC_INC(&sess->fe_tgcounters->internal_errors);
-	if (sess->listener && sess->listener->counters)
+	if (sess->fe_tgcounters)
+		_HA_ATOMIC_INC(&sess->fe_tgcounters->internal_errors);
+	if (sess->li_tgcounters)
 		_HA_ATOMIC_INC(&sess->li_tgcounters->internal_errors);
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_INTERNAL;
@@ -280,8 +282,9 @@ resume_execution:
 	goto reject;
 
  invalid:
-	_HA_ATOMIC_INC(&sess->fe_tgcounters->failed_req);
-	if (sess->listener && sess->listener->counters)
+	if (sess->fe_tgcounters)
+		_HA_ATOMIC_INC(&sess->fe_tgcounters->failed_req);
+	if (sess->li_tgcounters)
 		_HA_ATOMIC_INC(&sess->li_tgcounters->failed_req);
 	stream_report_term_evt(s->scf, strm_tevt_type_proto_err);
 
@@ -486,21 +489,25 @@ resume_execution:
 	return 0;
 
   deny:
-	_HA_ATOMIC_INC(&s->sess->fe_tgcounters->denied_resp);
-	_HA_ATOMIC_INC(&s->be_tgcounters->denied_resp);
-	if (s->sess->listener && s->sess->listener->counters)
+	if (s->sess->fe_tgcounters)
+		_HA_ATOMIC_INC(&s->sess->fe_tgcounters->denied_resp);
+	if (s->be_tgcounters)
+		_HA_ATOMIC_INC(&s->be_tgcounters->denied_resp);
+	if (s->sess->li_tgcounters)
 		_HA_ATOMIC_INC(&s->sess->li_tgcounters->denied_resp);
-	if (objt_server(s->target))
+	if (s->sv_tgcounters)
 		_HA_ATOMIC_INC(&s->sv_tgcounters->denied_resp);
 	stream_report_term_evt(s->scb, strm_tevt_type_intercepted);
 	goto reject;
 
  internal:
-	_HA_ATOMIC_INC(&s->sess->fe_tgcounters->internal_errors);
-	_HA_ATOMIC_INC(&s->be_tgcounters->internal_errors);
-	if (s->sess->listener && s->sess->listener->counters)
+	if (s->sess->fe_tgcounters)
+		_HA_ATOMIC_INC(&s->sess->fe_tgcounters->internal_errors);
+	if (s->be_tgcounters)
+		_HA_ATOMIC_INC(&s->be_tgcounters->internal_errors);
+	if (s->sess->li_tgcounters)
 		_HA_ATOMIC_INC(&s->sess->li_tgcounters->internal_errors);
-	if (objt_server(s->target))
+	if (s->sv_tgcounters)
 		_HA_ATOMIC_INC(&s->sv_tgcounters->internal_errors);
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_INTERNAL;
@@ -508,8 +515,9 @@ resume_execution:
 	goto reject;
 
  invalid:
-	_HA_ATOMIC_INC(&s->be_tgcounters->failed_resp);
-	if (objt_server(s->target))
+	if (s->be_tgcounters)
+		_HA_ATOMIC_INC(&s->be_tgcounters->failed_resp);
+	if (s->sv_tgcounters)
 		_HA_ATOMIC_INC(&s->sv_tgcounters->failed_resp);
 	stream_report_term_evt(s->scf, strm_tevt_type_proto_err);
 
@@ -585,8 +593,9 @@ int tcp_exec_l4_rules(struct session *sess)
 			goto end;
 		}
 		else if (rule->action == ACT_ACTION_DENY) {
-			_HA_ATOMIC_INC(&sess->fe_tgcounters->denied_conn);
-			if (sess->listener && sess->listener->counters)
+			if (sess->fe_tgcounters)
+				_HA_ATOMIC_INC(&sess->fe_tgcounters->denied_conn);
+			if (sess->li_tgcounters)
 				_HA_ATOMIC_INC(&sess->li_tgcounters->denied_conn);
 
 			result = 0;
@@ -673,8 +682,9 @@ int tcp_exec_l5_rules(struct session *sess)
 			goto end;
 		}
 		else if (rule->action == ACT_ACTION_DENY) {
-			_HA_ATOMIC_INC(&sess->fe_tgcounters->denied_sess);
-			if (sess->listener && sess->listener->counters)
+			if (sess->fe_tgcounters)
+				_HA_ATOMIC_INC(&sess->fe_tgcounters->denied_sess);
+			if (sess->li_tgcounters)
 				_HA_ATOMIC_INC(&sess->li_tgcounters->denied_sess);
 
 			result = 0;
