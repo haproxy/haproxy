@@ -54,8 +54,11 @@ static inline ssize_t sink_write(struct sink *sink, struct log_header hdr,
                                  size_t maxlen, const struct ist msg[], size_t nmsg)
 {
 	ssize_t sent = 0;
+	uint dropped = HA_ATOMIC_LOAD(&sink->ctx.dropped);
 
-	if (unlikely(HA_ATOMIC_LOAD(&sink->ctx.dropped) > 0)) {
+	if (unlikely(dropped > 0)) {
+		if (dropped & 1) // another thread on it.
+			goto fail;
 		sent = sink_announce_dropped(sink, hdr);
 
 		if (!sent) {
