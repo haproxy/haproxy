@@ -2123,6 +2123,15 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 			goto err_full;
 	}
 
+	if (!(sl->flags & HTX_SL_F_XFER_LEN)) {
+		/* Extra care required for HTTP/1 responses without Content-Length nor
+		 * chunked encoding. In this case, shutw callback will be use to signal
+		 * the end of the message. QC_SF_UNKNOWN_PL_LENGTH is set to prevent a
+		 * RESET_STREAM emission in this case.
+		 */
+		qcs->flags |= QC_SF_UNKNOWN_PL_LENGTH;
+	}
+
 	/* Encode every parsed headers, stop at empty one. */
 	for (hdr = 0; hdr < sizeof(list) / sizeof(list[0]); ++hdr) {
 		if (isteq(list[hdr].n, ist("")))
@@ -2305,6 +2314,15 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 	if (qpack_encode_int_status(&headers_buf, status)) {
 		TRACE_ERROR("error during status code encoding", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 		goto err_full;
+	}
+
+	if (!(sl->flags & HTX_SL_F_XFER_LEN)) {
+		/* Extra care required for HTTP/1 responses without Content-Length nor
+		 * chunked encoding. In this case, shutw callback will be use to signal
+		 * the end of the message. QC_SF_UNKNOWN_PL_LENGTH is set to prevent a
+		 * RESET_STREAM emission in this case.
+		 */
+		qcs->flags |= QC_SF_UNKNOWN_PL_LENGTH;
 	}
 
 	for (hdr = 0; hdr < sizeof(list) / sizeof(list[0]); ++hdr) {
