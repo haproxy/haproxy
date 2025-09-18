@@ -842,8 +842,11 @@ static struct sink *sink_new_ringbuf(const char *id, const char *description,
 	struct sink *sink;
 	struct proxy *p = NULL; // forward_px
 
-	/* allocate new proxy to handle forwards */
-	p = alloc_new_proxy(id, PR_CAP_BE, err_msg);
+	/* allocate new proxy to handle forwards, mark it as internal proxy
+	 * because we don't want haproxy to do the automatic syslog backend
+	 * init, instead we will manage it by hand
+	 */
+	p = alloc_new_proxy(id, PR_CAP_BE|PR_CAP_INT, err_msg);
 	if (!p)
 		goto err;
 

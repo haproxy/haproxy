@@ -1350,8 +1350,8 @@ static int postcheck_log_backend(struct proxy *be)
 	int err_code = ERR_NONE;
 	int target_type = -1; // -1 is unused in log_tgt enum
 
-	if (!(be->cap & PR_CAP_BE) || be->mode != PR_MODE_SYSLOG ||
-	    (be->flags & (PR_FL_DISABLED|PR_FL_STOPPED)))
+	if ((be->cap & PR_CAP_INT) || !(be->cap & PR_CAP_BE) ||
+	    be->mode != PR_MODE_SYSLOG || (be->flags & (PR_FL_DISABLED|PR_FL_STOPPED)))
 		return ERR_NONE; /* nothing to do */
 
 	err_code |= _postcheck_log_backend_compat(be);
