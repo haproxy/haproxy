@@ -275,7 +275,18 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 	 */
 
 	while (1) {
-		if ((curr_cell = HA_ATOMIC_LOAD(ring_queue_ptr)) != &cell)
+#if defined(__x86_64__)
+		/* read using a CAS on x86, as it will keep the cache line
+		 * in exclusive state for a few more cycles that will allow
+		 * us to release the queue without waiting after the loop.
+		 */
+		curr_cell = &cell;
+		HA_ATOMIC_CAS(ring_queue_ptr, &curr_cell, curr_cell);
+#else
+		curr_cell = HA_ATOMIC_LOAD(ring_queue_ptr);
+#endif
+		/* give up if another thread took the leadership of the queue */
+		if (curr_cell != &cell)
 			goto wait_for_flush;
 
 		/* OK the queue is locked, let's attempt to get the tail lock.
