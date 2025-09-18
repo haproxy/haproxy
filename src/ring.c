@@ -274,6 +274,7 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 	 * threads check the tail.
 	 */
 
+	tail_ofs = 0;
 	while (1) {
 #if defined(__x86_64__)
 		/* read using a CAS on x86, as it will keep the cache line
@@ -300,11 +301,9 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 		if (!(tail_ofs & RING_TAIL_LOCK))
 			break;
 #else
-		tail_ofs = HA_ATOMIC_LOAD(tail_ptr);
-		if (likely(!(tail_ofs & RING_TAIL_LOCK))) {
-			if (HA_ATOMIC_CAS(tail_ptr, &tail_ofs, tail_ofs | RING_TAIL_LOCK))
-				break;
-		}
+		if (HA_ATOMIC_CAS(tail_ptr, &tail_ofs, tail_ofs | RING_TAIL_LOCK))
+			break;
+		tail_ofs &= ~RING_TAIL_LOCK;
 #endif
 		__ha_cpu_relax();
 	}
