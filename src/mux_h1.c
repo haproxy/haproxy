@@ -2983,10 +2983,8 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 	    htx_get_blk_type(blk) == HTX_BLK_DATA &&
 	    htx_get_blk_value(htx, blk).len == count) {
 		void *old_area;
-		uint64_t extra;
 		int eom = (htx->flags & HTX_FL_EOM);
 
-		extra = htx->extra;
 		old_area = h1c->obuf.area;
 		h1c->obuf.area = buf->area;
 		h1c->obuf.head = sizeof(struct htx) + blk->addr;
@@ -2997,7 +2995,6 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 
 		htx = (struct htx *)buf->area;
 		htx_reset(htx);
-		htx->extra = extra;
 
 		if (h1m->flags & H1_MF_CLEN) {
 			if (count > h1m->curr_len) {
@@ -3030,7 +3027,8 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 						    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 					goto error;
 				}
-				h1m->curr_len = count + (htx->extra != HTX_UNKOWN_PAYLOAD_LENGTH ? htx->extra : 0);
+				h1m->curr_len = (h1s->sd->kop ? h1s->sd->kop : count);
+				h1s->sd->kop = 0;
 
 				/* Because chunk meta-data are prepended, the chunk size of the current chunk
 				 * must be handled before the end of the previous chunk.
@@ -3117,11 +3115,12 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 			if (h1m->flags & H1_MF_CHNK) {
 				/* If is a new chunk, prepend the chunk size */
 				if (h1m->state == H1_MSG_CHUNK_SIZE) {
-					h1m->curr_len = (htx->extra && htx->extra != HTX_UNKOWN_PAYLOAD_LENGTH ? htx->data + htx->extra : vlen);
+					h1m->curr_len = (h1s->sd->kop ? h1s->sd->kop : vlen);
 					if (!h1_append_chunk_size(&outbuf, h1m->curr_len)) {
 						h1m->curr_len = 0;
 						goto full;
 					}
+					h1s->sd->kop = 0;
 					h1m->state = H1_MSG_DATA;
 				}
 
