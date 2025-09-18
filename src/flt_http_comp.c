@@ -138,8 +138,6 @@ comp_prepare_compress_request(struct comp_state *st, struct stream *s, struct ht
 	struct http_hdr_ctx ctx;
 	struct comp_type *comp_type;
 	unsigned int comp_minsize = 0;
-	int32_t pos;
-	unsigned long long len = 0;
 
 	ctx.blk = NULL;
 	/* Already compressed, don't bother */
@@ -154,19 +152,8 @@ comp_prepare_compress_request(struct comp_state *st, struct stream *s, struct ht
 	if (((msg->flags & HTTP_MSGF_CNT_LEN) || (htx->flags & HTX_FL_EOM)) &&
 	    ((s->be->comp && (comp_minsize = s->be->comp->minsize_req)) ||
 	     (strm_fe(s)->comp && (comp_minsize = strm_fe(s)->comp->minsize_req)))) {
-		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
-			struct htx_blk *blk = htx_get_blk(htx, pos);
-			enum htx_blk_type type = htx_get_blk_type(blk);
-
-			if (type == HTX_BLK_TLR || type == HTX_BLK_EOT)
-				break;
-			if (type == HTX_BLK_DATA)
-				len += htx_get_blksz(blk);
-		}
-		if (htx->extra != HTX_UNKOWN_PAYLOAD_LENGTH)
-			len += htx->extra;
 		/* small requests should not be compressed */
-		if (len < comp_minsize)
+		if (chn_prod(msg->chn)->sedesc->kip < comp_minsize)
 			goto fail;
 	}
 
@@ -656,8 +643,6 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 	struct http_hdr_ctx ctx;
 	struct comp_type *comp_type;
 	unsigned int comp_minsize = 0;
-	int32_t pos;
-	unsigned long long len = 0;
 
 	/* no common compression algorithm was found in request header */
 	if (st->comp_algo[COMP_DIR_RES] == NULL)
@@ -688,19 +673,8 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 	if (((msg->flags & HTTP_MSGF_CNT_LEN) || (htx->flags & HTX_FL_EOM)) &&
 	    ((s->be->comp && (comp_minsize = s->be->comp->minsize_res)) ||
 	     (strm_fe(s)->comp && (comp_minsize = strm_fe(s)->comp->minsize_res)))) {
-		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
-			struct htx_blk *blk = htx_get_blk(htx, pos);
-			enum htx_blk_type type = htx_get_blk_type(blk);
-
-			if (type == HTX_BLK_TLR || type == HTX_BLK_EOT)
-				break;
-			if (type == HTX_BLK_DATA)
-				len += htx_get_blksz(blk);
-		}
-		if (htx->extra != HTX_UNKOWN_PAYLOAD_LENGTH)
-			len += htx->extra;
 		/* small responses should not be compressed */
-		if (len < comp_minsize)
+		if (chn_prod(msg->chn)->sedesc->kip < comp_minsize)
 			goto fail;
 	}
 
