@@ -285,7 +285,7 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 	tnum[1] = '0' + tid % 10;
 	tnum[2] = '|';
 	tnum[3] = 0;
-	line[words++] = ist(tnum);
+	line[words++] = ist2(tnum, 3);
 	line[words++] = src->name;
 	line[words++] = ist("|");
 	line[words++] = ist2("012345" + level, 1); // "0" to "5"
