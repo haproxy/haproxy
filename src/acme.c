@@ -439,6 +439,42 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 			goto out;
 		}
+	} else if (strcmp(args[0], "acme-vars") == 0) {
+		/* save acme-vars */
+		char *src = args[1];
+		char *dst = NULL;
+		int i = 0;
+		int len;
+
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires an argument\n", file, linenum, args[0], cursection);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
+		len = strlen(src);
+		dst = realloc(dst, len + 1);
+
+		/* escape the " character */
+		while (*src) {
+			if (*src == '"') {
+				len++;
+				dst = realloc(dst, len + 1);
+				dst[i++] = '\\'; /* add escaping */
+			}
+			dst[i++] = *src;
+			src++;
+		}
+		dst[i] = '\0';
+
+		cur_acme->vars = dst;
+		if (!cur_acme->vars) {
+			err_code |= ERR_ALERT | ERR_FATAL;
+			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			goto out;
+		}
 	} else if (*args[0] != 0) {
 		ha_alert("parsing [%s:%d]: unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
 		err_code |= ERR_ALERT | ERR_FATAL;
@@ -707,6 +743,7 @@ void deinit_acme()
 		ha_free(&acme_cfgs->account.contact);
 		ha_free(&acme_cfgs->account.file);
 		ha_free(&acme_cfgs->account.thumbprint);
+		ha_free(&acme_cfgs->vars);
 
 		free(acme_cfgs);
 		acme_cfgs = next;
@@ -722,6 +759,7 @@ static struct cfg_kw_list cfg_kws_acme = {ILH, {
 	{ CFG_ACME, "bits",  cfg_parse_acme_cfg_key },
 	{ CFG_ACME, "curves",  cfg_parse_acme_cfg_key },
 	{ CFG_ACME, "map",  cfg_parse_acme_kws },
+	{ CFG_ACME, "acme-vars",  cfg_parse_acme_kws },
 	{ CFG_GLOBAL, "acme.scheduler", cfg_parse_global_acme_sched },
 	{ 0, NULL, NULL },
 }};
@@ -1584,7 +1622,8 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 		/* compute a response for the TXT entry */
 		if (strcasecmp(ctx->cfg->challenge, "dns-01") == 0) {
 			struct sink *dpapi;
-			struct ist line[7];
+			struct ist line[10];
+			int nmsg = 0;
 
 			if (acme_txt_record(ist(ctx->cfg->account.thumbprint), auth->token, &trash) == 0) {
 				memprintf(errmsg, "couldn't compute the dns-01 challenge");
@@ -1595,18 +1634,23 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 			                                             ctx->store->path, (int)auth->dns.len, auth->dns.ptr, (int)trash.data, trash.area);
 
 			/* dump to the "dpapi" sink */
+			line[nmsg++] = ist("acme deploy ");
+			line[nmsg++] = ist(ctx->store->path);
+			line[nmsg++] = ist(" thumbprint ");
+			line[nmsg++] = ist(ctx->cfg->account.thumbprint);
+			line[nmsg++] = ist("\n");
 
-			line[0] = ist("acme deploy ");
-			line[1] = ist(ctx->store->path);
-			line[2] = ist(" thumbprint ");
-			line[3] = ist(ctx->cfg->account.thumbprint);
-			line[4] = ist("\n");
-			line[5] = ist2( hc->res.buf.area, hc->res.buf.data); /* dump the HTTP response */
-			line[6] = ist("\n\0");
+			if (ctx->cfg->vars) {
+				line[nmsg++] = ist("acme-vars \"");
+				line[nmsg++] = ist(ctx->cfg->vars);
+				line[nmsg++] = ist("\"\n");
+			}
+			line[nmsg++] = ist2( hc->res.buf.area, hc->res.buf.data); /* dump the HTTP response */
+			line[nmsg++] = ist("\n\0");
 
 			dpapi = sink_find("dpapi");
 			if (dpapi)
-				sink_write(dpapi, LOG_HEADER_NONE, 0, line, 7);
+				sink_write(dpapi, LOG_HEADER_NONE, 0, line, nmsg);
 		}
 
 		/* only useful for http-01 */

@@ -27,6 +27,7 @@ struct acme_cfg {
 		int curves;                 /* NID of curves */
 	} key;
 	char *challenge;            /* HTTP-01, DNS-01, etc */
+	char *vars;                 /* variables put in the dpapi sink */
 	struct acme_cfg *next;
 };
 
