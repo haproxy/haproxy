@@ -1270,7 +1270,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 
 	/* Do not cache too big objects. */
 	if ((msg->flags & HTTP_MSGF_CNT_LEN) && shctx->max_obj_size > 0 &&
-	    htx->data + htx->extra > shctx->max_obj_size)
+	    s->scb->sedesc->kip > shctx->max_obj_size)
 		goto out;
 
 	/* Only a subset of headers are supported in our Vary implementation. If
