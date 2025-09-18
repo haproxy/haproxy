@@ -118,7 +118,8 @@ struct h2s {
 	enum h2_err errcode; /* H2 err code (H2_ERR_*) */
 	enum h2_ss st;
 	uint16_t status;     /* HTTP response status */
-	unsigned long long body_len; /* remaining body length according to content-length if H2_SF_DATA_CLEN */
+	unsigned long long curr_len; /* remaining body length according to content-length if H2_SF_DATA_CLEN (0 otherwise) */
+	unsigned long long body_len; /* total known size of the body length */
 	uint64_t curr_rx_ofs;  /* stream offset at which next FC-data will arrive (includes padding) */
 	uint64_t last_adv_ofs; /* stream offset corresponding to last emitted WU */
 	uint64_t next_max_ofs; /* max stream offset that next WU must permit (curr_rx_ofs+rx_win) */
@@ -1981,6 +1982,7 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 	h2s->errcode   = H2_ERR_NO_ERROR;
 	h2s->st        = H2_SS_IDLE;
 	h2s->status    = 0;
+	h2s->curr_len  = 0;
 	h2s->body_len  = 0;
 	h2s->rx_tail   = 0;
 	h2s->rx_head   = 0;
@@ -3053,7 +3055,7 @@ static int h2c_update_strm_rx_win(struct h2c *h2c)
 			 * the default window (or we don't know how much we expect).
 			 */
 			if ((h2s->flags & H2_SF_EXPECT_RXDATA) &&
-			    (!(h2s->flags & H2_SF_DATA_CLEN) || h2s->body_len > (ullong)win)) {
+			    (!(h2s->flags & H2_SF_DATA_CLEN) || h2s->curr_len > (ullong)win)) {
 				non_rx = MAX((int)(h2c->nb_sc - h2c->receiving_streams), 0);
 				allocatable = MAX((int)(bl_size(h2c->shared_rx_bufs) - non_rx), 0);
 				reserved = (h2c->streams_limit - h2c->nb_sc + 7) / 8;
@@ -3549,7 +3551,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 
 	h2s->st = H2_SS_OPEN;
 	h2s->flags |= flags;
-	h2s->body_len = body_len;
+	h2s->curr_len = h2s->body_len = body_len;
 	h2s_propagate_term_flags(h2c, h2s);
 
  done:
@@ -3685,6 +3687,7 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		goto fail;
 	}
 
+	h2s->curr_len = h2s->body_len;
 	if (se_fl_test(h2s->sd, SE_FL_ERROR) && h2s->st < H2_SS_ERROR)
 		h2s->st = H2_SS_ERROR;
 	else if (h2s->flags & H2_SF_ES_RCVD) {
@@ -3766,7 +3769,7 @@ static int h2c_handle_data(struct h2c *h2c, struct h2s *h2s)
 		HA_ATOMIC_INC(&h2c->px_counters->strm_proto_err);
 		goto strm_err_wu;
 	}
-	if ((h2s->flags & H2_SF_DATA_CLEN) && (h2c->dfl - h2c->dpl) > h2s->body_len) {
+	if ((h2s->flags & H2_SF_DATA_CLEN) && (h2c->dfl - h2c->dpl) > h2s->curr_len) {
 		/* RFC7540#8.1.2 */
 		h2c_report_glitch(h2c, 1, "DATA frame larger than content-length");
 		TRACE_ERROR("DATA frame larger than content-length", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
@@ -3826,7 +3829,7 @@ static int h2c_handle_data(struct h2c *h2c, struct h2s *h2s)
 		else
 			h2s_close(h2s);
 
-		if (h2s->flags & H2_SF_DATA_CLEN && h2s->body_len) {
+		if (h2s->flags & H2_SF_DATA_CLEN && h2s->curr_len) {
 			/* RFC7540#8.1.2 */
 			h2c_report_glitch(h2c, 1, "ES on DATA frame before content-length");
 			TRACE_ERROR("ES on DATA frame before content-length", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
@@ -6323,10 +6326,10 @@ try_again:
 	h2c->rcvd_c += sent;
 	h2c->rcvd_s += sent;  // warning, this can also affect the closed streams!
 
-	if (h2s->flags & H2_SF_DATA_CLEN) {
-		h2s->body_len -= sent;
-		htx->extra = h2s->body_len;
-	}
+	if (h2s->flags & H2_SF_DATA_CLEN)
+		h2s->curr_len -= sent;
+	else
+		h2s->body_len += sent;
 
 	if (sent < flen) {
 		if (h2s_get_rxbuf(h2s))
