@@ -908,6 +908,7 @@ size_t h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 		sz = b_data(srcbuf) - ofs;
 		sz = h1_copy_msg_data(dsthtx, srcbuf, ofs, sz, max, htxbuf);
 		total += sz;
+		h1m->body_len += sz;
 	}
 
 	return total;
