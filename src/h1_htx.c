@@ -226,11 +226,6 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		http_scheme_based_normalize(htx);
 	}
 
-	/* If body length cannot be determined, set htx->extra to
-	 * HTX_UNKOWN_PAYLOAD_LENGTH. This value is impossible in other cases.
-	 */
-	htx->extra = ((h1m->flags & H1_MF_XFER_LEN) ? h1m->curr_len : HTX_UNKOWN_PAYLOAD_LENGTH);
-
   end:
 	return 1;
   output_full:
@@ -350,11 +345,6 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 	if (!sl || !htx_add_all_headers(htx, hdrs))
 		goto error;
 	sl->info.res.status = code;
-
-	/* If body length cannot be determined, set htx->extra to
-	 * HTX_UNKOWN_PAYLOAD_LENGTH. This value is impossible in other cases.
-	 */
-	htx->extra = ((h1m->flags & H1_MF_XFER_LEN) ? h1m->curr_len : HTX_UNKOWN_PAYLOAD_LENGTH);
 
   end:
 	return 1;
@@ -611,8 +601,6 @@ static size_t h1_parse_chunk(struct h1m *h1m, struct htx **dsthtx,
 		total = 0;
 	}
 
-	/* Don't forget to update htx->extra */
-	(*dsthtx)->extra = h1m->curr_len;
 	*max = lmax;
 	return total;
 }
@@ -765,7 +753,6 @@ static size_t h1_parse_full_contig_chunks(struct h1m *h1m, struct htx **dsthtx,
 			h1m->curr_len = chksz;
 			h1m->body_len += chksz;
 			h1m->state = H1_MSG_DATA;
-			(*dsthtx)->extra = h1m->curr_len;
 			save = ridx;
 			goto end_parsing;
 		}
@@ -885,7 +872,6 @@ size_t h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 			sz = h1m->curr_len;
 		sz = h1_copy_msg_data(dsthtx, srcbuf, ofs, sz, max, htxbuf);
 		h1m->curr_len -= sz;
-		(*dsthtx)->extra = h1m->curr_len;
 		total += sz;
 		if (!h1m->curr_len) {
 			h1m->state = H1_MSG_DONE;
