@@ -79,37 +79,37 @@
  * TRACE_ENABLED() reports whether or not trace is enabled for the current
  * source, level, mask and arguments.
  */
-#define TRACE_ENABLED(level, mask, args...) (_trace_enabled((level), (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, ##args))
+#define TRACE_ENABLED(level, mask, args...) (_trace_enabled((level), (mask), TRACE_SOURCE, ist(TRC_LOC), ist(__FUNCTION__), ##args))
 
 #define TRACE(msg, mask, args...)    \
-	_trace(TRACE_LEVEL,           (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
+	_trace(TRACE_LEVEL,           (mask), TRACE_SOURCE, ist(TRC_LOC), IST_NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
 #define TRACE_ERROR(msg, mask, args...)			\
-	_trace(TRACE_LEVEL_ERROR,     (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
+	_trace(TRACE_LEVEL_ERROR,     (mask), TRACE_SOURCE, ist(TRC_LOC), IST_NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
 #define TRACE_USER(msg, mask, args...)			\
-	_trace(TRACE_LEVEL_USER,      (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
+	_trace(TRACE_LEVEL_USER,      (mask), TRACE_SOURCE, ist(TRC_LOC), IST_NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
 #define TRACE_DATA(msg, mask, args...)  \
-	_trace(TRACE_LEVEL_DATA,   (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
+	_trace(TRACE_LEVEL_DATA,   (mask), TRACE_SOURCE, ist(TRC_LOC), IST_NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
 #define TRACE_PROTO(msg, mask, args...)    \
-	_trace(TRACE_LEVEL_PROTO,     (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
+	_trace(TRACE_LEVEL_PROTO,     (mask), TRACE_SOURCE, ist(TRC_LOC), IST_NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
 #define TRACE_STATE(msg, mask, args...)    \
-	_trace(TRACE_LEVEL_STATE,     (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
+	_trace(TRACE_LEVEL_STATE,     (mask), TRACE_SOURCE, ist(TRC_LOC), IST_NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
 #define TRACE_DEVEL(msg, mask, args...)    \
-	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
+	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), ist(__FUNCTION__), TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
 #define TRACE_ENTER(mask, args...)  \
-	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist("entering"))
+	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), ist(__FUNCTION__), TRC_5ARGS(0,##args,0,0,0,0,0), ist("entering"))
 
 #define TRACE_LEAVE(mask, args...)  \
-	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist("leaving"))
+	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), ist(__FUNCTION__), TRC_5ARGS(0,##args,0,0,0,0,0), ist("leaving"))
 
 #define TRACE_POINT(mask, args...)  \
-	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist("in"))
+	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), ist(__FUNCTION__), TRC_5ARGS(0,##args,0,0,0,0,0), ist("in"))
 
 /* This produces a printf-like trace at level <level> for event mask <mask> and
  * trace arguments <a1..a4>. All args mandatory, but may be zero. No output
@@ -134,8 +134,8 @@
 			_msg_len = snprintf(_msg, sizeof(_msg), (fmt), ##args);	\
 			if (_msg_len >= sizeof(_msg))				\
 				_msg_len = sizeof(_msg) - 1;			\
-			_trace((level), (mask), TRACE_SOURCE,	\
-			       trc_loc, func, a1, a2, a3, a4,			\
+			_trace((level), (mask), TRACE_SOURCE,			\
+			       trc_loc, ist(func), a1, a2, a3, a4,		\
 			       &trace_no_cb, ist2(_msg, _msg_len));		\
 		}								\
 	} while (0)
@@ -172,12 +172,12 @@ extern struct list trace_sources;
 extern THREAD_LOCAL struct buffer trace_buf;
 
 int __trace_enabled(enum trace_level level, uint64_t mask, struct trace_source *src,
-		    const struct ist where, const char *func,
+		    const struct ist where, const struct ist ist_func,
 		    const void *a1, const void *a2, const void *a3, const void *a4,
 		    const void **plockptr);
 
 void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
-             const struct ist where, const char *func,
+             const struct ist where, const struct ist ist_func,
              const void *a1, const void *a2, const void *a3, const void *a4,
              void (*cb)(enum trace_level level, uint64_t mask, const struct trace_source *src,
                         const struct ist where, const struct ist func,

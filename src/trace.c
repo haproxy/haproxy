@@ -87,7 +87,7 @@ static inline const void *trace_pick_arg(uint32_t arg_def, const void *a1, const
  * and check if the result is >0.
  */
 int __trace_enabled(enum trace_level level, uint64_t mask, struct trace_source *src,
-		    const struct ist where, const char *func,
+		    const struct ist where, const struct ist ist_func,
 		    const void *a1, const void *a2, const void *a3, const void *a4,
 		    const void **plockptr)
 {
@@ -252,7 +252,7 @@ int __trace_enabled(enum trace_level level, uint64_t mask, struct trace_source *
 
 /* write a message for the given trace source */
 void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
-             const struct ist where, const char *func,
+             const struct ist where, const struct ist ist_func,
              const void *a1, const void *a2, const void *a3, const void *a4,
              void (*cb)(enum trace_level level, uint64_t mask, const struct trace_source *src,
                         const struct ist where, const struct ist func,
@@ -260,14 +260,13 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
              const struct ist msg)
 {
 	const void *lockon_ptr;
-	struct ist ist_func = ist(func);
 	char tnum[4];
 	struct ist line[12];
 	int words = 0;
 	int ret;
 
 	lockon_ptr = NULL;
-	ret = __trace_enabled(level, mask, src, where, func, a1, a2, a3, a4, &lockon_ptr);
+	ret = __trace_enabled(level, mask, src, where, ist_func, a1, a2, a3, a4, &lockon_ptr);
 	if (lockon_ptr)
 		HA_ATOMIC_STORE(&src->lockon_ptr, lockon_ptr);
 
