@@ -738,6 +738,7 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 	htx->flags |= HTX_FL_ALTERED_PAYLOAD;
 	if (msg->flags & HTTP_MSGF_XFER_LEN)
 		htx->extra = 0;
+	chn_prod(msg->chn)->sedesc->kip = 0;
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 	return ret;
 }
@@ -1019,6 +1020,7 @@ flt_tcp_payload(struct stream *s, struct channel *chn, unsigned int len)
 		*strm_off += ret;
 	}
  end:
+	chn_prod(chn)->sedesc->kip = 0;
 	DBG_TRACE_LEAVE(STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
 	return ret;
 }
