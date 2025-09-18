@@ -7763,6 +7763,10 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	ret -= h2s_htx->data;
 
   end:
+	/* Notify SD of the known body length and reset it for the next time */
+	h2s->sd->kip_len += h2s->body_len;
+	h2s->body_len = 0;
+
 	/* release the rxbuf if it's not used anymore */
 	if (rxbuf && !b_data(rxbuf) && b_size(rxbuf)) {
 		BUG_ON_HOT(rxbuf != _h2s_rxbuf_head(h2s));
