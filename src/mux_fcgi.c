@@ -3542,7 +3542,9 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
 	struct htx *htx;
 	struct h1m *h1m = &fstrm->h1m;
 	size_t ret, data, total = 0;
+	uint64_t prev_body_len;
 
+	prev_body_len = h1m->body_len;
 	htx = htx_from_buf(buf);
 	TRACE_ENTER(FCGI_EV_RSP_DATA, fconn->conn, fstrm, htx, (size_t[]){count});
 
@@ -3626,6 +3628,7 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
 	}
 
 	b_del(&fstrm->rxbuf, total);
+	fstrm->sd->kip += (h1m->body_len - prev_body_len);
 
   end:
 	htx_to_buf(htx, buf);
