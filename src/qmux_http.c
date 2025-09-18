@@ -54,7 +54,6 @@ size_t qcs_http_rcv_buf(struct qcs *qcs, struct buffer *buf, size_t count,
 			*fin = 1;
 	}
 
-	cs_htx->extra = qcs_htx->extra ? (qcs_htx->data + qcs_htx->extra) : 0;
 	htx_to_buf(cs_htx, buf);
 	htx_to_buf(qcs_htx, &qcs->rx.app_buf);
 	ret -= qcs_htx->data;

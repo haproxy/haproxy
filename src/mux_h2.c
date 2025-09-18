@@ -6146,7 +6146,6 @@ next_frame:
 		/* a payload is present */
 		if (msgf & H2_MSGF_BODY_CL) {
 			*flags |= H2_SF_DATA_CLEN;
-			htx->extra = *body_len;
 		}
 	}
 	if (msgf & H2_MSGF_BODYLESS_RSP)
@@ -6327,11 +6326,7 @@ try_again:
 	h2c->dfl    -= sent;
 	h2c->rcvd_c += sent;
 	h2c->rcvd_s += sent;  // warning, this can also affect the closed streams!
-
 	h2s->body_len -= sent;
-	if (h2s->flags & H2_SF_DATA_CLEN)
-		htx->extra = h2s->body_len;
-
 
 	if (sent < flen) {
 		if (h2s_get_rxbuf(h2s))
@@ -7760,7 +7755,6 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 		buf_htx->flags |= (h2s_htx->flags & HTX_FL_EOM);
 	}
 
-	buf_htx->extra = (h2s_htx->extra ? (h2s_htx->data + h2s_htx->extra) : 0);
 	htx_to_buf(buf_htx, buf);
 	htx_to_buf(h2s_htx, rxbuf);
 	ret -= h2s_htx->data;

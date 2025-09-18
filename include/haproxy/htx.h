@@ -30,11 +30,6 @@
 #include <haproxy/http-t.h>
 #include <haproxy/htx-t.h>
 
-/* ->extra field value when the payload length is unknown (non-chunked message
- * with no "Content-length" header)
- */
-#define HTX_UNKOWN_PAYLOAD_LENGTH ULLONG_MAX
-
 extern struct htx htx_empty;
 
 struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t info);
@@ -660,7 +655,6 @@ static inline void htx_reset(struct htx *htx)
 	htx->tail = htx->head  = htx->first = -1;
 	htx->data = 0;
 	htx->tail_addr = htx->head_addr = htx->end_addr = 0;
-	htx->extra = 0;
 	htx->flags = HTX_FL_NONE;
 }
 
@@ -700,8 +694,6 @@ static inline struct htx *htxbuf(const struct buffer *buf)
 		htx->size = buf->size - sizeof(*htx);
 		htx_reset(htx);
 	}
-	if (htx->flags & HTX_FL_ALTERED_PAYLOAD)
-		htx->extra = 0;
 	return htx;
 }
 
@@ -837,10 +829,10 @@ static inline void htx_dump(struct buffer *chunk, const struct htx *htx, int ful
 {
 	int32_t pos;
 
-	chunk_appendf(chunk, " htx=%p(size=%u,data=%u,used=%u,wrap=%s,flags=0x%08x,extra=%llu,"
+	chunk_appendf(chunk, " htx=%p(size=%u,data=%u,used=%u,wrap=%s,flags=0x%08x,"
 		      "first=%d,head=%d,tail=%d,tail_addr=%d,head_addr=%d,end_addr=%d)",
 		      htx, htx->size, htx->data, htx_nbblks(htx), (!htx->head_addr) ? "NO" : "YES",
-		      htx->flags, (unsigned long long)htx->extra, htx->first, htx->head, htx->tail,
+		      htx->flags, htx->first, htx->head, htx->tail,
 		      htx->tail_addr, htx->head_addr, htx->end_addr);
 
 	if (!full || !htx_nbblks(htx))

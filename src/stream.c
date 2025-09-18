@@ -3690,10 +3690,9 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 		struct htx *htx = htxbuf(&strm->req.buf);
 
 		chunk_appendf(buf,
-			      "%s      htx=%p flags=0x%x size=%u data=%u used=%u wrap=%s extra=%llu\n", pfx,
+			      "%s      htx=%p flags=0x%x size=%u data=%u used=%u wrap=%s\n", pfx,
 			      htx, htx->flags, htx->size, htx->data, htx_nbblks(htx),
-			      (htx->tail >= htx->head) ? "NO" : "YES",
-			      (unsigned long long)htx->extra);
+			      (htx->tail >= htx->head) ? "NO" : "YES");
 	}
 	if (HAS_FILTERS(strm) && strm->strm_flt.current[0]) {
 		const struct filter *flt = strm->strm_flt.current[0];
@@ -3723,10 +3722,9 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 		struct htx *htx = htxbuf(&strm->res.buf);
 
 		chunk_appendf(buf,
-			      "%s      htx=%p flags=0x%x size=%u data=%u used=%u wrap=%s extra=%llu\n", pfx,
+			      "%s      htx=%p flags=0x%x size=%u data=%u used=%u wrap=%s\n", pfx,
 			      htx, htx->flags, htx->size, htx->data, htx_nbblks(htx),
-			      (htx->tail >= htx->head) ? "NO" : "YES",
-			      (unsigned long long)htx->extra);
+			      (htx->tail >= htx->head) ? "NO" : "YES");
 	}
 
 	if (HAS_FILTERS(strm) && strm->strm_flt.current[1]) {

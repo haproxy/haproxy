@@ -3571,7 +3571,6 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
 					break;
 				sl = htx_get_blk_ptr(htx, blk);
 				sl->flags |= HTX_SL_F_XFER_LEN;
-				htx->extra = 0;
 			}
 		}
 		else if (h1m->state < H1_MSG_TRAILERS) {

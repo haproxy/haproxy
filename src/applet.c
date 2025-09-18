@@ -517,7 +517,6 @@ size_t appctx_htx_rcv_buf(struct appctx *appctx, struct buffer *buf, size_t coun
 	if (htx_is_empty(appctx_htx)) {
 		buf_htx->flags |= (appctx_htx->flags & HTX_FL_EOM);
 	}
-	buf_htx->extra = (appctx_htx->extra ? (appctx_htx->data + appctx_htx->extra) : 0);
 	htx_to_buf(buf_htx, buf);
 	htx_to_buf(appctx_htx, &appctx->outbuf);
 	ret -= appctx_htx->data;
@@ -605,7 +604,6 @@ size_t appctx_htx_snd_buf(struct appctx *appctx, struct buffer *buf, size_t coun
 		appctx_htx->flags |= (buf_htx->flags & HTX_FL_EOM);
 	}
 
-	appctx_htx->extra = (buf_htx->extra ? (buf_htx->data + buf_htx->extra) : 0);
 	htx_to_buf(appctx_htx, &appctx->outbuf);
 	htx_to_buf(buf_htx, buf);
 	ret -= buf_htx->data;
