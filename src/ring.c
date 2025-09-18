@@ -295,7 +295,7 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 				break;
 		}
 #endif
-		__ha_cpu_relax_for_read();
+		__ha_cpu_relax();
 	}
 
 	/* Here we own the tail. We can go on if we're still the leader,
@@ -459,7 +459,7 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 	 */
 	do {
 		next_cell = HA_ATOMIC_LOAD(&cell.next);
-	} while (next_cell != &cell && __ha_cpu_relax_for_read());
+	} while (next_cell != &cell && __ha_cpu_relax());
 
 	/* OK our message was queued. Retrieving the sent size in the ring cell
 	 * allows another leader thread to zero it if it finally couldn't send
