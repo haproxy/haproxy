@@ -118,7 +118,7 @@ struct h2s {
 	enum h2_err errcode; /* H2 err code (H2_ERR_*) */
 	enum h2_ss st;
 	uint16_t status;     /* HTTP response status */
-	unsigned long long body_len; /* remaining body length according to content-length if H2_SF_DATA_CLEN */
+	unsigned long long body_len; /* remaining body length (start with content-length value if found, or ULLONG_MAX otherwise) */
 	uint64_t curr_rx_ofs;  /* stream offset at which next FC-data will arrive (includes padding) */
 	uint64_t last_adv_ofs; /* stream offset corresponding to last emitted WU */
 	uint64_t next_max_ofs; /* max stream offset that next WU must permit (curr_rx_ofs+rx_win) */
@@ -1981,7 +1981,7 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 	h2s->errcode   = H2_ERR_NO_ERROR;
 	h2s->st        = H2_SS_IDLE;
 	h2s->status    = 0;
-	h2s->body_len  = 0;
+	h2s->body_len  = ULLONG_MAX;
 	h2s->rx_tail   = 0;
 	h2s->rx_head   = 0;
 	h2s->rx_count  = 0;
@@ -3396,7 +3396,7 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 {
 	struct buffer rxbuf = BUF_NULL;
-	unsigned long long body_len = 0;
+	unsigned long long body_len = ULLONG_MAX;
 	uint32_t flags = 0;
 	int error;
 
@@ -3617,7 +3617,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 {
 	struct buffer rxbuf = BUF_NULL;
-	unsigned long long body_len = 0;
+	unsigned long long body_len = ULLONG_MAX;
 	uint32_t flags = 0;
 	int error;
 
@@ -6323,10 +6323,10 @@ try_again:
 	h2c->rcvd_c += sent;
 	h2c->rcvd_s += sent;  // warning, this can also affect the closed streams!
 
-	if (h2s->flags & H2_SF_DATA_CLEN) {
-		h2s->body_len -= sent;
+	h2s->body_len -= sent;
+	if (h2s->flags & H2_SF_DATA_CLEN)
 		htx->extra = h2s->body_len;
-	}
+
 
 	if (sent < flen) {
 		if (h2s_get_rxbuf(h2s))
