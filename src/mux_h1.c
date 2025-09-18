@@ -2128,11 +2128,13 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 	size_t data;
 	size_t ret = 0;
 	size_t total = 0;
+	uint64_t prev_body_len;
 
 	htx = htx_from_buf(buf);
 	TRACE_ENTER(H1_EV_RX_DATA, h1c->conn, h1s, htx, (size_t[]){count});
 
 	h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->req : &h1s->res);
+	prev_body_len = h1m->body_len;
 	data = htx->data;
 
 	if (h1s->flags & H1S_F_DEMUX_ERROR)
@@ -2257,6 +2259,7 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 	}
 
 	b_del(&h1c->ibuf, total);
+	h1s->sd->kip += (h1m->body_len - prev_body_len);
 
 	TRACE_DEVEL("incoming data parsed", H1_EV_RX_DATA, h1c->conn, h1s, htx, (size_t[]){ret});
 
