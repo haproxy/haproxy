@@ -50,6 +50,9 @@ static THREAD_LOCAL char *static_raw_htx_buf;
 #define SMP_REQ_CHN(smp) (smp->strm ? &smp->strm->req : NULL)
 #define SMP_RES_CHN(smp) (smp->strm ? &smp->strm->res : NULL)
 
+#define SMP_REQ_SC(smp) (smp->strm ? smp->strm->scf : NULL)
+#define SMP_RES_SC(smp) (smp->strm ? smp->strm->scb : NULL)
+
 /* This function returns the static htx chunk, where raw connections get
  * converted to HTX as needed for samplxsing.
  */
@@ -694,26 +697,14 @@ static int smp_fetch_body_len(const struct arg *args, struct sample *smp, const 
 static int smp_fetch_body_size(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	/* possible keywords: req.body_size, res.body_size */
-	struct channel *chn = ((kw[2] == 'q') ? SMP_REQ_CHN(smp) : SMP_RES_CHN(smp));
+	struct stconn *sc = ((kw[2] == 'q') ? SMP_REQ_SC(smp) : SMP_RES_SC(smp));
 	struct check *check = ((kw[2] == 's') ? objt_check(smp->sess->origin) : NULL);
-	struct htx *htx = smp_prefetch_htx(smp, chn, check, 1);
-	int32_t pos;
+	struct htx *htx = smp_prefetch_htx(smp, (sc ? sc_ic(sc) : NULL), check, 1);
 	unsigned long long len = 0;
 
 	if (!htx)
 		return 0;
-
-	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
-		struct htx_blk *blk = htx_get_blk(htx, pos);
-		enum htx_blk_type type = htx_get_blk_type(blk);
-
-		if (type == HTX_BLK_TLR || type == HTX_BLK_EOT)
-			break;
-		if (type == HTX_BLK_DATA)
-			len += htx_get_blksz(blk);
-	}
-	if (htx->extra != HTX_UNKOWN_PAYLOAD_LENGTH)
-		len += htx->extra;
+	len = (sc ? sc->sedesc->kip : check->sc->sedesc->kip);
 
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = len;

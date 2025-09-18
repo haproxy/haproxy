@@ -11293,7 +11293,6 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		struct htx_sl *sl;
 		struct ist path;
 		unsigned long long len = 0;
-		int32_t pos;
 		struct http_uri_parser parser;
 		int app_idx = 1 - hlua->nargs; /* index of the HTTP applet object in the lua stask */
 
@@ -11363,19 +11362,8 @@ void hlua_applet_http_fct(struct appctx *ctx)
 			lua_settable(hlua->T, app_idx - 3);
 		}
 
-		for (pos = htx_get_first(req_htx); pos != -1; pos = htx_get_next(req_htx, pos)) {
-			struct htx_blk *blk = htx_get_blk(req_htx, pos);
-			enum htx_blk_type type = htx_get_blk_type(blk);
-
-			if (type == HTX_BLK_TLR || type == HTX_BLK_EOT)
-				break;
-			if (type == HTX_BLK_DATA)
-				len += htx_get_blksz(blk);
-		}
-		if (req_htx->extra != HTX_UNKOWN_PAYLOAD_LENGTH)
-			len += req_htx->extra;
-
 		/* Stores the request path. */
+		len = ctx->sedesc->kip;
 		lua_pushstring(hlua->T, "length");
 		lua_pushinteger(hlua->T, len);
 		lua_settable(hlua->T, app_idx - 3);
