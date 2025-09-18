@@ -151,8 +151,9 @@ comp_prepare_compress_request(struct comp_state *st, struct stream *s, struct ht
 	comp_type = NULL;
 
 	/* compress only if body size is >= than the min size */
-	if ((s->be->comp && (comp_minsize = s->be->comp->minsize_req)) ||
-		(strm_fe(s)->comp && (comp_minsize = strm_fe(s)->comp->minsize_req))) {
+	if (((msg->flags & HTTP_MSGF_CNT_LEN) || (htx->flags & HTX_FL_EOM)) &&
+	    ((s->be->comp && (comp_minsize = s->be->comp->minsize_req)) ||
+	     (strm_fe(s)->comp && (comp_minsize = strm_fe(s)->comp->minsize_req)))) {
 		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
@@ -684,8 +685,9 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 		goto fail;
 
 	/* compress only if body size is >= than the min size */
-	if ((s->be->comp && (comp_minsize = s->be->comp->minsize_res)) ||
-		(strm_fe(s)->comp && (comp_minsize = strm_fe(s)->comp->minsize_res))) {
+	if (((msg->flags & HTTP_MSGF_CNT_LEN) || (htx->flags & HTX_FL_EOM)) &&
+	    ((s->be->comp && (comp_minsize = s->be->comp->minsize_res)) ||
+	     (strm_fe(s)->comp && (comp_minsize = strm_fe(s)->comp->minsize_res)))) {
 		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
