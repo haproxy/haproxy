@@ -653,7 +653,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 
 				/* copy the start line in the hc structure,then remove the htx block */
 				htx = htxbuf(inbuf);
-				if (htx_get_first_type(htx) != HTX_BLK_RES_SL)
+				if (htx_get_head_type(htx) != HTX_BLK_RES_SL)
 					goto error;
 				blk = DISGUISE(htx_get_head_blk(htx));
 				sl = htx_get_blk_ptr(htx, blk);
