@@ -455,20 +455,29 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 			goto out;
 
 		len = strlen(src);
-		dst = realloc(dst, len + 1);
+		dst = malloc(len + 1);
+		if (!dst)
+			goto vars_end;
 
 		/* escape the " character */
 		while (*src) {
 			if (*src == '"') {
+				char *dst2 = NULL;
+
 				len++;
-				dst = realloc(dst, len + 1);
+				dst2 = realloc(dst, len + 1);
+				if (!dst2) {
+					ha_free(&dst);
+					goto vars_end;
+				}
+				dst = dst2;
 				dst[i++] = '\\'; /* add escaping */
 			}
 			dst[i++] = *src;
 			src++;
 		}
 		dst[i] = '\0';
-
+vars_end:
 		cur_acme->vars = dst;
 		if (!cur_acme->vars) {
 			err_code |= ERR_ALERT | ERR_FATAL;
