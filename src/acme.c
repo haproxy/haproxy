@@ -2795,7 +2795,7 @@ static int cli_acme_ps(char **args, char *payload, struct appctx *appctx, void *
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "acme", "renew", NULL },           "acme renew <certfile>                   : renew a certificate using the ACME protocol", cli_acme_renew_parse, NULL, NULL, NULL, 0 },
 	{ { "acme", "status", NULL },          "acme status                             : show status of certificates configured with ACME", cli_acme_ps, cli_acme_status_io_handler, NULL, NULL, 0 },
-	{ { "acme", "challenge_ready", NULL }, "acme challenge_ready <certfile> domain <domain> : show status of certificates configured with ACME", cli_acme_chall_ready_parse, NULL, NULL, NULL, 0 },
+	{ { "acme", "challenge_ready", NULL }, "acme challenge_ready <certfile> domain <domain> : notify HAProxy that the ACME challenge is ready", cli_acme_chall_ready_parse, NULL, NULL, NULL, 0 },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
