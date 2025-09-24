@@ -3764,6 +3764,23 @@ static struct server *sample_conv_srv(struct sample *smp)
 }
 
 static int
+sample_conv_srv_is_up(const struct arg *args, struct sample *smp, void *private)
+{
+	struct server *srv = sample_conv_srv(smp);
+
+	if (!srv)
+		return 0;
+
+	smp->data.type = SMP_T_BOOL;
+	if (!(srv->cur_admin & SRV_ADMF_MAINT) &&
+	    (!(srv->check.state & CHK_ST_CONFIGURED) || (srv->cur_state != SRV_ST_STOPPED)))
+		smp->data.u.sint = 1;
+	else
+		smp->data.u.sint = 0;
+	return 1;
+}
+
+static int
 sample_conv_srv_queue(const struct arg *args, struct sample *smp, void *private)
 {
 	struct server *srv = sample_conv_srv(smp);
@@ -3809,6 +3826,7 @@ INITCALL1(STG_REGISTER, sample_register_fetches, &smp_kws);
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "nbsrv",     sample_conv_nbsrv,     0, NULL, SMP_T_STR, SMP_T_SINT },
+	{ "srv_is_up", sample_conv_srv_is_up, 0, NULL, SMP_T_STR, SMP_T_BOOL },
 	{ "srv_queue", sample_conv_srv_queue, 0, NULL, SMP_T_STR, SMP_T_SINT },
 	{ /* END */ },
 }};

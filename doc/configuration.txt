@@ -20144,6 +20144,7 @@ secure_memcmp(var)                                 string       boolean
 set-var(var[,cond...])                              any          same
 sha1                                               binary       binary
 sha2([bits])                                       binary       binary
+srv_is_up                                          string       boolean
 srv_queue                                          string       integer
 strcmp(var)                                        string       boolean
 sub(value)                                         integer      integer
@@ -21404,6 +21405,16 @@ sha2([<bits>])
 
   Please note that this converter is only available when HAProxy has been
   compiled with USE_OPENSSL.
+
+srv_is_up
+  Takes an input value of type string, either a server name or <backend>/<server>
+  format and returns true when the designated server is currently UP. Can be used
+  in places where we want to look up a server status from a dynamic name, like a
+  cookie value (e.g. req.cook(SRVID),srv_is_up) and then make a decision to
+  direct a request elsewhere. Before using this, please keep in mind that using
+  this converter on uncontrolled data might allow an external observer to query
+  the state of any server in the whole configuration, which might possibly not
+  be acceptable in some environments.
 
 srv_queue
   Takes an input value of type string, either a server name or <backend>/<server>
