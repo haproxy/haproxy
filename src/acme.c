@@ -2346,41 +2346,12 @@ wait:
 	MT_LIST_UNLOCK_FULL(&ctx->el, tmp);
 	return task;
 }
-/*
- * Return 1 if the certificate must be regenerated
- * Check if the notAfter date will append in (validity period / 12) or 7 days per default
- */
-int acme_will_expire(struct ckch_store *store)
-{
-	time_t diff = 0;
-	time_t notAfter = 0;
-	time_t notBefore = 0;
-
-	/* compute the validity period of the leaf certificate */
-	if (!store->data || !store->data->cert)
-		return 0;
-
-	notAfter = x509_get_notafter_time_t(store->data->cert);
-	notBefore = x509_get_notbefore_time_t(store->data->cert);
-
-	if ((notAfter >= 0 && notBefore >= 0)
-	   && (notAfter > notBefore)) {
-		diff = (notAfter - notBefore) / 12; /* validity period / 12 */
-	} else {
-		diff = 7 * 24 * 60 * 60; /* default to 7 days */
-	}
-
-	if (notAfter - diff <= date.tv_sec)
-		return 1;
-
-	return 0;
-}
 
 /*
  * Return when the next task is scheduled
  * Check if the notAfter date will happen in (validity period / 12) or 7 days per default
  */
-time_t acme_schedule_date(struct ckch_store *store)
+static time_t acme_schedule_date(struct ckch_store *store)
 {
 	time_t diff = 0;
 	time_t notAfter = 0;
@@ -2404,6 +2375,26 @@ time_t acme_schedule_date(struct ckch_store *store)
 	}
 
 	return (notAfter - diff);
+}
+
+/*
+ * Return 1 if the certificate must be regenerated
+ * Check if the notAfter date will append in (validity period / 12) or 7 days per default
+ */
+static int acme_will_expire(struct ckch_store *store)
+{
+	time_t notAfter = 0;
+
+	/* compute the validity period of the leaf certificate */
+	if (!store->data || !store->data->cert)
+		return 0;
+
+	notAfter = acme_schedule_date(store);
+
+	if (notAfter <= date.tv_sec)
+		return 1;
+
+	return 0;
 }
 
 /* Does the scheduling of the ACME tasks
