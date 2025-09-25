@@ -46,10 +46,10 @@ static void flt_ot_vars_scope_dump(struct vars *vars, const char *scope)
 
 	vars_rdlock(vars);
 	for (i = 0; i < VAR_NAME_ROOTS; i++) {
-		struct ceb_node *node = cebu64_first(&(vars->name_root[i]));
+		struct ceb_node *node = cebu64_imm_first(&(vars->name_root[i]));
 
-		for ( ; node != NULL; node = cebu64_next(&(vars->name_root[i]), node)) {
-			struct var *var = container_of(node, struct var, node);
+		for ( ; node != NULL; node = cebu64_imm_next(&(vars->name_root[i]), node)) {
+			struct var *var = container_of(node, struct var, name_node);
 
 			FLT_OT_DBG(2, "'%s.%016" PRIx64 "' -> '%.*s'", scope, var->name_hash, (int)b_data(&(var->data.u.str)), b_orig(&(var->data.u.str)));
 		}
