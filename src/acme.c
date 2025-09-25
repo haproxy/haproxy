@@ -2352,7 +2352,7 @@ wait:
  */
 int acme_will_expire(struct ckch_store *store)
 {
-	int diff = 0;
+	time_t diff = 0;
 	time_t notAfter = 0;
 	time_t notBefore = 0;
 
@@ -2363,13 +2363,14 @@ int acme_will_expire(struct ckch_store *store)
 	notAfter = x509_get_notafter_time_t(store->data->cert);
 	notBefore = x509_get_notbefore_time_t(store->data->cert);
 
-	if (notAfter >= 0 && notBefore >= 0) {
+	if ((notAfter >= 0 && notBefore >= 0)
+	   && (notAfter > notBefore)) {
 		diff = (notAfter - notBefore) / 12; /* validity period / 12 */
 	} else {
 		diff = 7 * 24 * 60 * 60; /* default to 7 days */
 	}
 
-	if (date.tv_sec + diff > notAfter)
+	if (notAfter - diff <= date.tv_sec)
 		return 1;
 
 	return 0;
