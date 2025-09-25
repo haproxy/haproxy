@@ -1537,9 +1537,11 @@ struct pat_ref *pat_ref_lookup(const char *reference)
 {
 	struct pat_ref *ref;
 
-	/* Skip file@ prefix, it is the default case. Can be mixed with ref omitting the prefix */
+	/* Skip file@ or opt@ prefix, it is the default case. Can be mixed with ref omitting the prefix */
 	if (strlen(reference) > 5 && strncmp(reference, "file@", 5) == 0)
 		reference += 5;
+	else if (strlen(reference) > 4 && strncmp(reference, "opt@", 4) == 0)
+		reference += 4;
 
 	list_for_each_entry(ref, &pattern_reference, list)
 		if (ref->reference && strcmp(reference, ref->reference) == 0)
