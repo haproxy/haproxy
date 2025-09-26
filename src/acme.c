@@ -439,56 +439,77 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 			goto out;
 		}
-	} else if (strcmp(args[0], "acme-vars") == 0) {
-		/* save acme-vars */
-		char *src = args[1];
-		char *dst = NULL;
-		int i = 0;
-		int len;
-
-		if (!*args[1]) {
-			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires an argument\n", file, linenum, args[0], cursection);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-
-		len = strlen(src);
-		dst = malloc(len + 1);
-		if (!dst)
-			goto vars_end;
-
-		/* escape the " character */
-		while (*src) {
-			if (*src == '"') {
-				char *dst2 = NULL;
-
-				len++;
-				dst2 = realloc(dst, len + 1);
-				if (!dst2) {
-					ha_free(&dst);
-					goto vars_end;
-				}
-				dst = dst2;
-				dst[i++] = '\\'; /* add escaping */
-			}
-			dst[i++] = *src;
-			src++;
-		}
-		dst[i] = '\0';
-vars_end:
-		cur_acme->vars = dst;
-		if (!cur_acme->vars) {
-			err_code |= ERR_ALERT | ERR_FATAL;
-			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
-			goto out;
-		}
 	} else if (*args[0] != 0) {
 		ha_alert("parsing [%s:%d]: unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
+out:
+	free(errmsg);
+	return err_code;
+}
+
+
+/* parsing "acme-provider" and "acme-vars" and add escaping of double quotes */
+static int cfg_parse_acme_vars_provider(char **args, int section_type, struct proxy *curpx, const struct proxy *defpx,
+                                        const char *file, int linenum, char **err)
+{
+	int err_code = 0;
+	char *errmsg = NULL;
+	char **dst = NULL;
+	char *src = args[1];
+	char *tmp = NULL;
+	int i = 0;
+	int len;
+
+	if (strcmp(args[0], "acme-vars") == 0) {
+		dst = &cur_acme->vars;
+	} else if (strcmp(args[0], "provider-name") == 0) {
+		dst = &cur_acme->provider;
+	}
+
+	free(*dst);
+
+	if (!*args[1]) {
+		ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires an argument\n", file, linenum, args[0], cursection);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+	if (alertif_too_many_args(1, file, linenum, args, &err_code))
+		goto out;
+
+	len = strlen(src);
+	tmp = malloc(len + 1);
+	if (!tmp)
+		goto vars_end;
+
+	/* escape the " character */
+	while (*src) {
+		if (*src == '"') {
+			char *tmp2 = NULL;
+
+			len++;
+			tmp2 = realloc(tmp, len + 1);
+			if (!tmp2) {
+				ha_free(&tmp);
+				goto vars_end;
+			}
+			tmp = tmp2;
+			tmp[i++] = '\\'; /* add escaping */
+		}
+		tmp[i++] = *src;
+		src++;
+	}
+	tmp[i] = '\0';
+
+vars_end:
+	*dst = tmp;
+	if (!*dst) {
+		err_code |= ERR_ALERT | ERR_FATAL;
+		ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+		goto out;
+	}
+
 out:
 	free(errmsg);
 	return err_code;
@@ -753,6 +774,7 @@ void deinit_acme()
 		ha_free(&acme_cfgs->account.file);
 		ha_free(&acme_cfgs->account.thumbprint);
 		ha_free(&acme_cfgs->vars);
+		ha_free(&acme_cfgs->provider);
 
 		free(acme_cfgs);
 		acme_cfgs = next;
@@ -768,7 +790,8 @@ static struct cfg_kw_list cfg_kws_acme = {ILH, {
 	{ CFG_ACME, "bits",  cfg_parse_acme_cfg_key },
 	{ CFG_ACME, "curves",  cfg_parse_acme_cfg_key },
 	{ CFG_ACME, "map",  cfg_parse_acme_kws },
-	{ CFG_ACME, "acme-vars",  cfg_parse_acme_kws },
+	{ CFG_ACME, "acme-vars",  cfg_parse_acme_vars_provider },
+	{ CFG_ACME, "provider-name",  cfg_parse_acme_vars_provider },
 	{ CFG_GLOBAL, "acme.scheduler", cfg_parse_global_acme_sched },
 	{ 0, NULL, NULL },
 }};
@@ -1631,7 +1654,7 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 		/* compute a response for the TXT entry */
 		if (strcasecmp(ctx->cfg->challenge, "dns-01") == 0) {
 			struct sink *dpapi;
-			struct ist line[10];
+			struct ist line[13];
 			int nmsg = 0;
 
 			if (acme_txt_record(ist(ctx->cfg->account.thumbprint), auth->token, &trash) == 0) {
@@ -1649,6 +1672,11 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 			line[nmsg++] = ist(ctx->cfg->account.thumbprint);
 			line[nmsg++] = ist("\n");
 
+			if (ctx->cfg->provider) {
+				line[nmsg++] = ist("provider-name \"");
+				line[nmsg++] = ist(ctx->cfg->provider);
+				line[nmsg++] = ist("\"\n");
+			}
 			if (ctx->cfg->vars) {
 				line[nmsg++] = ist("acme-vars \"");
 				line[nmsg++] = ist(ctx->cfg->vars);

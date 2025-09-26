@@ -28,6 +28,7 @@ struct acme_cfg {
 	} key;
 	char *challenge;            /* HTTP-01, DNS-01, etc */
 	char *vars;                 /* variables put in the dpapi sink */
+	char *provider;             /* DNS provider put in the dpapi sink */
 	struct acme_cfg *next;
 };
 
