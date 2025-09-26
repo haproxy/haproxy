@@ -1526,8 +1526,6 @@ int __ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_
 			for (i= 0; i < n; i++) {
 				char *end;
 				struct dirent *de = de_list[i];
-				BIO *in = NULL;
-				X509 *ca = NULL;;
 
 				ERR_clear_error();
 
@@ -1547,34 +1545,16 @@ int __ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_
 					free(de);
 					continue;
 				}
-				in = BIO_new(BIO_s_file());
-				if (in == NULL)
-					goto scandir_err;
 
 				chunk_printf(&trash, "%s/%s", dir, de->d_name);
-
-				if (BIO_read_filename(in, trash.area) == 0)
+				if (!X509_STORE_load_locations(store, trash.area, NULL))
 					goto scandir_err;
 
-				if (PEM_read_bio_X509_AUX(in, &ca, NULL, NULL) == NULL)
-					goto scandir_err;
-
-				if (X509_STORE_add_cert(store, ca) == 0) {
-					/* only exits on error if the error is not about duplicate certificates */
-					 if (!(ERR_GET_REASON(ERR_get_error()) == X509_R_CERT_ALREADY_IN_HASH_TABLE)) {
-						 goto scandir_err;
-					 }
-				}
-
-				X509_free(ca);
-				BIO_free(in);
 				free(de);
 				continue;
 
 scandir_err:
 				e = ERR_get_error();
-				X509_free(ca);
-				BIO_free(in);
 				free(de);
 				/* warn if it can load one of the files, but don't abort */
 				if (!shuterror)
