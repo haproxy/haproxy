@@ -152,6 +152,9 @@ struct ssl_bind_conf {
 	char *client_sigalgs;      /* Client Signature algorithms */
 	struct tls_version_filter ssl_methods_cfg; /* original ssl methods found in configuration */
 	struct tls_version_filter ssl_methods; /* actual ssl methods used at runtime */
+#ifdef USE_ECH
+	char *ech_filedir;         /* ECH config, file/directory name */
+#endif
 #endif
 };
 
