@@ -3738,11 +3738,9 @@ static int sample_conv_nbsrv(const struct arg *args, struct sample *smp, void *p
 	return 1;
 }
 
-static int
-sample_conv_srv_queue(const struct arg *args, struct sample *smp, void *private)
+static struct server *sample_conv_srv(struct sample *smp)
 {
 	struct proxy *px;
-	struct server *srv;
 	char *bksep;
 
 	if (!smp_make_safe(smp))
@@ -3754,15 +3752,22 @@ sample_conv_srv_queue(const struct arg *args, struct sample *smp, void *private)
 		*bksep = '\0';
 		px = proxy_find_by_name(smp->data.u.str.area, PR_CAP_BE, 0);
 		if (!px)
-			return 0;
+			return NULL;
 		smp->data.u.str.area = bksep + 1;
 	} else {
 		if (!(smp->px->cap & PR_CAP_BE))
-			return 0;
+			return NULL;
 		px = smp->px;
 	}
 
-	srv = server_find(px, smp->data.u.str.area);
+	return server_find(px, smp->data.u.str.area);
+}
+
+static int
+sample_conv_srv_queue(const struct arg *args, struct sample *smp, void *private)
+{
+	struct server *srv = sample_conv_srv(smp);
+
 	if (!srv)
 		return 0;
 

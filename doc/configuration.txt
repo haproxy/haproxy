@@ -21410,7 +21410,10 @@ srv_queue
   format and returns the number of queued streams on that server. Can be used
   in places where we want to look up queued streams from a dynamic name, like a
   cookie value (e.g. req.cook(SRVID),srv_queue) and then make a decision to break
-  persistence or direct a request elsewhere.
+  persistence or direct a request elsewhere. Before using this, please keep in
+  mind that using this converter on uncontrolled data might allow an external
+  observer to query the state of any server in the whole configuration, which
+  might possibly not be acceptable in some environments.
 
 strcmp(<var>)
   Compares the contents of <var> with the input value of type string. Returns
