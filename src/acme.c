@@ -466,9 +466,14 @@ static int cfg_parse_acme_vars_provider(char **args, int section_type, struct pr
 		dst = &cur_acme->vars;
 	} else if (strcmp(args[0], "provider-name") == 0) {
 		dst = &cur_acme->provider;
+	} else {
+		err_code |= ERR_ALERT | ERR_FATAL;
+		ha_alert("parsing [%s:%d]: unsupported keyword '%s'.\n", file, linenum, args[0]);
+		goto out;
 	}
 
-	free(*dst);
+	if (dst)
+		free(*dst);
 
 	if (!*args[1]) {
 		ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires an argument\n", file, linenum, args[0], cursection);
