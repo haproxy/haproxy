@@ -90,6 +90,7 @@
 #include <haproxy/trace.h>
 #include <haproxy/ssl_trace.h>
 #ifdef USE_ECH
+#include <haproxy/ech-t.h>
 #include <haproxy/ech.h>
 #endif
 
@@ -7867,6 +7868,16 @@ static struct cli_kw_list cli_kws = {{ },{
 #endif
 #ifdef HAVE_SSL_PROVIDERS
 	{ { "show", "ssl", "providers", NULL },    "show ssl providers                      : show loaded SSL providers", NULL, cli_io_handler_show_providers },
+#endif
+#ifdef USE_ECH
+    { { "show", "ssl", "ech", NULL},           "show ssl ech [<name>]                   : display a named ECH configuation or all",
+        cli_parse_show_ech, cli_io_handler_ech_details },
+    { { "add", "ssl", "ech", NULL },           "add ssl ech <name> <payload>            : add a new PEM-formatted ECH config and key ",
+        cli_parse_add_ech, NULL, NULL },
+    { { "set", "ssl", "ech", NULL },           "set ssl ech <name> <payload>            : replace all ECH configs with that provided",
+        cli_parse_set_ech, NULL, NULL },
+    { { "del", "ssl", "ech", NULL },           "del ssl ech <name>                      : delete ECH configs",
+        cli_parse_del_ech, NULL, NULL },
 #endif
 	{ { NULL }, NULL, NULL, NULL }
 }};
