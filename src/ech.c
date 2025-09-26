@@ -74,6 +74,58 @@ end:
 	return rv;
 }
 
+/*
+ * Place an ECH status string into a trash buffer
+ * ECH status string examples:
+ *      SSL_ECH_STATUS_GREASE
+ *      SSL_ECH_STATUS_NOT_TRIED
+ *      SSL_ECH_STATUS_SUCCESS
+ * The status values are those defined in <openssl/ech.h>
+ * as the define'd returns from `SSL_ech_get1_status()`
+ */
+int conn_get_ech_status(struct connection *conn, struct buffer *buf)
+{
+	struct ssl_sock_ctx *ctx = conn_get_ssl_sock_ctx(conn);
+	char *sni_ech = NULL;
+	char *sni_clr = NULL;
+	const char *lstr = NULL;
+
+	if (!ctx)
+		return 0;
+#define s(x) #x
+	switch (SSL_ech_get1_status(ctx->ssl, &sni_ech, &sni_clr)) {
+		case SSL_ECH_STATUS_SUCCESS:   lstr = s(SSL_ECH_STATUS_SUCCESS);   break;
+		case SSL_ECH_STATUS_NOT_TRIED: lstr = s(SSL_ECH_STATUS_NOT_TRIED); break;
+		case SSL_ECH_STATUS_FAILED:    lstr = s(SSL_ECH_STATUS_FAILED);    break;
+		case SSL_ECH_STATUS_BAD_NAME:  lstr = s(SSL_ECH_STATUS_BAD_NAME);  break;
+		case SSL_ECH_STATUS_BAD_CALL:  lstr = s(SSL_ECH_STATUS_BAD_CALL);  break;
+		case SSL_ECH_STATUS_GREASE:    lstr = s(SSL_ECH_STATUS_GREASE);    break;
+		case SSL_ECH_STATUS_BACKEND:   lstr = s(SSL_ECH_STATUS_BACKEND);   break;
+		default:                       lstr = "";                         break;
+	}
+#undef s
+	chunk_printf(buf, "%s", lstr);
+	OPENSSL_free(sni_ech);
+	OPENSSL_free(sni_clr);
+	return 1;
+}
+
+/* If ECH succeeded, return the outer SNI value seen */
+int conn_get_ech_outer_sni(struct connection *conn, struct buffer *buf)
+{
+	struct ssl_sock_ctx *ctx = conn_get_ssl_sock_ctx(conn);
+	char *sni_ech = NULL;
+	char *sni_clr = NULL;
+
+	if (!ctx)
+		return 0;
+	if (SSL_ech_get1_status(ctx->ssl, &sni_ech, &sni_clr)
+	    == SSL_ECH_STATUS_SUCCESS && sni_clr != NULL)
+		chunk_printf(buf, "%s", sni_clr);
+	OPENSSL_free(sni_ech);
+	OPENSSL_free(sni_clr);
+	return 1;
+}
 
 static int bind_parse_ech(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -97,4 +149,5 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 
 
 INITCALL1(STG_REGISTER, bind_register_keywords, &bind_kws);
+
 #endif

@@ -33,6 +33,9 @@
 #include <haproxy/stconn.h>
 #include <haproxy/tools.h>
 #include <haproxy/vars.h>
+#ifdef USE_ECH
+#include <haproxy/ech.h>
+#endif
 
 
 /***** Below are some sample fetching functions for ACL/patterns *****/
@@ -1880,6 +1883,48 @@ smp_fetch_ssl_fc_sni(const struct arg *args, struct sample *smp, const char *kw,
 #endif
 }
 
+#ifdef USE_ECH
+static int
+smp_fetch_ssl_fc_ech_status(const struct arg *args, struct sample *smp,
+                            const char *kw, void *private)
+{
+	struct buffer *smp_trash;
+	struct connection *conn;
+
+	smp->flags = SMP_F_VOL_SESS | SMP_F_CONST;
+	smp->data.type = SMP_T_STR;
+	conn = objt_conn(smp->sess->origin);
+	if (!conn)
+		return 0;
+	smp_trash = get_trash_chunk();
+	if (conn_get_ech_status(conn, smp_trash) == 1) {
+		smp->data.u.str.area = smp_trash->area;
+		smp->data.u.str.data = smp_trash->data;
+	}
+	return 1;
+}
+
+static int
+smp_fetch_ssl_fc_ech_outer_sni(const struct arg *args, struct sample *smp,
+                               const char *kw, void *private)
+{
+	struct buffer *smp_trash;
+	struct connection *conn;
+
+	smp->flags = SMP_F_VOL_SESS | SMP_F_CONST;
+	smp->data.type = SMP_T_STR;
+	conn = objt_conn(smp->sess->origin);
+	if (!conn)
+		return 0;
+	smp_trash = get_trash_chunk();
+	if (conn_get_ech_outer_sni(conn, smp_trash) == 1) {
+		smp->data.u.str.area = smp_trash->area;
+		smp->data.u.str.data = smp_trash->data;
+	}
+	return 1;
+}
+#endif
+
 /* binary, returns tls client hello cipher list.
  * Arguments: filter_option (0,1)
  */
@@ -2572,6 +2617,10 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 #endif
 
 	{ "ssl_fc_sni",             smp_fetch_ssl_fc_sni,         0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+#ifdef USE_ECH
+	{ "ssl_fc_ech_status",      smp_fetch_ssl_fc_ech_status,  0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_fc_ech_outer_sni",   smp_fetch_ssl_fc_ech_outer_sni, 0,                 NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+#endif
 	{ "ssl_fc_cipherlist_bin",  smp_fetch_ssl_fc_cl_bin,      ARG1(0,SINT),        NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_fc_cipherlist_hex",  smp_fetch_ssl_fc_cl_hex,      ARG1(0,SINT),        NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_fc_cipherlist_str",  smp_fetch_ssl_fc_cl_str,      ARG1(0,SINT),        NULL,    SMP_T_STR,  SMP_USE_L5CLI },
