@@ -114,6 +114,15 @@ jobs:
           ${{ join(matrix.FLAGS, ' ') }} \
           ADDLIB="-Wl,-rpath,/usr/local/lib/ -Wl,-rpath,$HOME/opt/lib/"
         sudo make install
+    - name: Compile admin/halog/halog
+      run: |
+        make -j$(nproc) admin/halog/halog \
+          ERR=1 \
+          TARGET=${{ matrix.TARGET }} \
+          CC=${{ matrix.CC }} \
+          DEBUG="-DDEBUG_POOL_INTEGRITY -DDEBUG_UNIT" \
+          ${{ join(matrix.FLAGS, ' ') }} \
+          ADDLIB="-Wl,-rpath,/usr/local/lib/ -Wl,-rpath,$HOME/opt/lib/"
     - name: Show HAProxy version
       id: show-version
       run: |
