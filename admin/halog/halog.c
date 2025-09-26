@@ -1684,10 +1684,10 @@ void filter_count_url(const char *accept_field, const char *time_field, struct t
 	 */
 	if (unlikely(!ustat))
 		ustat = calloc(1, sizeof(*ustat));
-		if (unlikely(!ustat)) {
-			fprintf(stderr, "%s: not enough memory\n", __FUNCTION__);
-			exit(1);
-		}
+	if (unlikely(!ustat)) {
+		fprintf(stderr, "%s: not enough memory\n", __FUNCTION__);
+		exit(1);
+	}
 
 	ustat->nb_err = err;
 	ustat->nb_req = 1;
