@@ -845,7 +845,6 @@ static void acme_ctx_destroy(struct acme_ctx *ctx)
 
 	X509_REQ_free(ctx->req);
 
-	MT_LIST_DELETE(&ctx->el);
 
 	free(ctx);
 }
@@ -2362,8 +2361,10 @@ abort:
 	ha_free(&errmsg);
 
 end:
-	MT_LIST_UNLOCK_FULL(&ctx->el, tmp);
 	acme_del_acme_ctx_map(ctx);
+	/* unlink ctx from the mtlist then destroy */
+	mt_list_unlock_link(tmp);
+	mt_list_unlock_self(&ctx->el);
 	acme_ctx_destroy(ctx);
 	task_destroy(task);
 	task = NULL;
