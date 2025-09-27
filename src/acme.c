@@ -616,7 +616,6 @@ error:
 /* Initialize stuff once the section is parsed */
 static int cfg_postsection_acme()
 {
-	struct acme_cfg *cur_acme = acme_cfgs;
 	struct ckch_store *store;
 	EVP_PKEY *key = NULL;
 	BIO *bio = NULL;
