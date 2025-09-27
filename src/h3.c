@@ -546,7 +546,7 @@ static int _h3_handle_hdr(struct qcs *qcs, const struct http_hdr *hdr)
 
 	for (i = 0; i < istlen(name); ++i) {
 		const char c = istptr(name)[i];
-		if ((uint8_t)(c - 'A') < 'Z' - 'A' || !HTTP_IS_TOKEN(c)) {
+		if ((uint8_t)(c - 'A') <= 'Z' - 'A' || !HTTP_IS_TOKEN(c)) {
 			TRACE_ERROR("invalid characters in field name", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 			goto err;
 		}
@@ -1425,7 +1425,7 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 		for (i = 0; i < list[hdr_idx].n.len; ++i) {
 			const char c = list[hdr_idx].n.ptr[i];
-			if ((uint8_t)(c - 'A') < 'Z' - 'A' || !HTTP_IS_TOKEN(c)) {
+			if ((uint8_t)(c - 'A') <= 'Z' - 'A' || !HTTP_IS_TOKEN(c)) {
 				TRACE_ERROR("invalid characters in field name", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 				h3s->err = H3_ERR_MESSAGE_ERROR;
 				qcc_report_glitch(h3c->qcc, 1);
