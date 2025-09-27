@@ -349,7 +349,7 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 			phdr = h2_str_to_phdr(list[idx].n);
 
 			for (i = !!phdr; i < list[idx].n.len; i++)
-				if ((uint8_t)(list[idx].n.ptr[i] - 'A') < 'Z' - 'A' || !HTTP_IS_TOKEN(list[idx].n.ptr[i]))
+				if ((uint8_t)(list[idx].n.ptr[i] - 'A') <= 'Z' - 'A' || !HTTP_IS_TOKEN(list[idx].n.ptr[i]))
 					goto fail;
 		}
 
@@ -665,7 +665,7 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 			phdr = h2_str_to_phdr(list[idx].n);
 
 			for (i = !!phdr; i < list[idx].n.len; i++)
-				if ((uint8_t)(list[idx].n.ptr[i] - 'A') < 'Z' - 'A' || !HTTP_IS_TOKEN(list[idx].n.ptr[i]))
+				if ((uint8_t)(list[idx].n.ptr[i] - 'A') <= 'Z' - 'A' || !HTTP_IS_TOKEN(list[idx].n.ptr[i]))
 					goto fail;
 		}
 
@@ -828,7 +828,7 @@ int h2_make_htx_trailers(struct http_hdr *list, struct htx *htx)
 		 * also catches pseudo-headers which are forbidden in trailers.
 		 */
 		for (i = 0; i < list[idx].n.len; i++)
-			if ((uint8_t)(list[idx].n.ptr[i] - 'A') < 'Z' - 'A' || !HTTP_IS_TOKEN(list[idx].n.ptr[i]))
+			if ((uint8_t)(list[idx].n.ptr[i] - 'A') <= 'Z' - 'A' || !HTTP_IS_TOKEN(list[idx].n.ptr[i]))
 				goto fail;
 
 		/* these ones are forbidden in trailers (RFC7540#8.1.2.2) */
