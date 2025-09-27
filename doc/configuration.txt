@@ -30699,6 +30699,19 @@ map <map>
   account used. The acme task will add entries before validating the challenge
   and will remove the entries at the end of the task.
 
+reuse-key { on | off }
+  If set to "on", HAProxy won't generate a new private key and will keep the
+  previous one. Rotating private keys is recommended, when enabling this option
+  it is recommended to regenerate manually the keys regularly.
+
+  This option might be useful when using RSA keys bigger than 2048 that can
+  take time to generate and might slow down one thread doing so.
+
+  Using the same key can be useful when using the cache of your ACME server, it
+  can help to retrieve a valid certificate corresponding to the current key.
+
+  The default setting is "off".
+
 Example:
 
   global

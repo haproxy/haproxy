@@ -12,6 +12,7 @@ struct acme_cfg {
 	char *filename;             /* config filename */
 	int linenum;                /* config linenum */
 	char *name;                 /* section name */
+	int reuse_key;              /* do we need to renew the private key */
 	char *directory;            /* directory URL */
 	char *map;                  /* storage for tokens + thumbprint */
 	struct {

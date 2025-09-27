@@ -439,6 +439,24 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 			goto out;
 		}
+	} else if (strcmp(args[0], "reuse-key") == 0) {
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires an argument\n", file, linenum, args[0], cursection);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
+		if (strcmp(args[1], "on") == 0) {
+			cur_acme->reuse_key = 1;
+		} else if (strcmp(args[1], "off") == 0) {
+			cur_acme->reuse_key = 0;
+		} else {
+			err_code |= ERR_ALERT | ERR_FATAL;
+			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires either the 'on' or 'off' parameter\n", file, linenum, args[0], cursection);
+			goto out;
+		}
 	} else if (*args[0] != 0) {
 		ha_alert("parsing [%s:%d]: unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
 		err_code |= ERR_ALERT | ERR_FATAL;
@@ -794,6 +812,7 @@ static struct cfg_kw_list cfg_kws_acme = {ILH, {
 	{ CFG_ACME, "bits",  cfg_parse_acme_cfg_key },
 	{ CFG_ACME, "curves",  cfg_parse_acme_cfg_key },
 	{ CFG_ACME, "map",  cfg_parse_acme_kws },
+	{ CFG_ACME, "reuse-key",  cfg_parse_acme_kws },
 	{ CFG_ACME, "acme-vars",  cfg_parse_acme_vars_provider },
 	{ CFG_ACME, "provider-name",  cfg_parse_acme_vars_provider },
 	{ CFG_GLOBAL, "acme.scheduler", cfg_parse_global_acme_sched },
@@ -2621,12 +2640,14 @@ static int acme_start_task(struct ckch_store *store, char **errmsg)
 	/* set the number of remaining retries when facing an error */
 	ctx->retries = ACME_RETRY;
 
-	if ((pkey = acme_EVP_PKEY_gen(cfg->key.type, cfg->key.curves, cfg->key.bits, errmsg)) == NULL)
-		goto err;
+	if (!cfg->reuse_key) {
+		if ((pkey = acme_EVP_PKEY_gen(cfg->key.type, cfg->key.curves, cfg->key.bits, errmsg)) == NULL)
+			goto err;
 
-	EVP_PKEY_free(newstore->data->key);
-	newstore->data->key = pkey;
-	pkey = NULL;
+		EVP_PKEY_free(newstore->data->key);
+		newstore->data->key = pkey;
+		pkey = NULL;
+	}
 
 	ctx->req = acme_x509_req(newstore->data->key, store->conf.acme.domains);
 	if (!ctx->req) {
