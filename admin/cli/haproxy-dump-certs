@@ -12,6 +12,7 @@ export DRY_RUN=0
 export DEBUG=
 export VERBOSE=
 export M="@1 "
+export TMP
 
 vecho() {
 
@@ -77,37 +78,41 @@ cmp_certkey() {
 
 dump_certificate() {
 	name=$1
-	crt_filename=$2
-	key_filename=$3
-
-	tmp="tmp.${RANDOM}"
+	prev_crt=$2
+	prev_key=$3
+	r="tmp.${RANDOM}"
 	d="old.$(date +%s)"
+	new_crt="$TMP/$(basename "$prev_crt").${r}"
+	new_key="$TMP/$(basename "$prev_key").${r}"
 
-	if ! touch "${crt_filename}.${tmp}" || ! touch "${key_filename}.${tmp}"; then
+	if ! touch "${new_crt}" || ! touch "${new_key}"; then
 		echo "error: can't dump \"$name\", can't create tmp files" >&2
 		return 1
 	fi
 
-	echo "${M}dump ssl cert ${name}" | socat "${SOCKET}" - | openssl pkey >> "${key_filename}.${tmp}"
+	echo "${M}dump ssl cert ${name}" | socat "${SOCKET}" - | openssl pkey >> "${new_key}"
 	# use crl2pkcs7 as a way to dump multiple x509, storeutl could be used in modern versions of openssl
-	echo "${M}dump ssl cert ${name}" | socat "${SOCKET}" - | openssl crl2pkcs7 -nocrl -certfile /dev/stdin | openssl pkcs7 -print_certs  >> "${crt_filename}.${tmp}"
+	echo "${M}dump ssl cert ${name}" | socat "${SOCKET}" - | openssl crl2pkcs7 -nocrl -certfile /dev/stdin | openssl pkcs7 -print_certs  >> "${new_crt}"
 
-	if ! cmp -s <(openssl x509 -in "${crt_filename}.${tmp}" -pubkey -noout) <(openssl pkey -in "${key_filename}.${tmp}" -pubout); then
-		echo "Error: Private key \"${key_filename}.${tmp}\"  and public key \"${crt_filename}.${tmp}\" don't match" >&2
+	if ! cmp -s <(openssl x509 -in "${new_crt}" -pubkey -noout) <(openssl pkey -in "${new_key}" -pubout); then
+		echo "Error: Private key \"${new_key}\"  and public key \"${new_crt}\" don't match" >&2
 		return 1
 	fi
 
-	if cmp_certkey "${crt_filename}" "${crt_filename}.${tmp}"; then
-		echo "notice: ${crt_filename} is already up to date"
+	if cmp_certkey "${prev_crt}" "${new_crt}"; then
+		echo "notice: ${crt_filename} is already up to date" >&2
 		return 0
 	fi
 
 	# move the current certificates to ".old.timestamp"
-	mv "${crt_filename}" "${crt_filename}.${d}"
-	[ "${crt_filename}" != "${key_filename}" ] && mv "${key_filename}" "${key_filename}.${d}"
+	if [ -f "${prev_crt}" ] && [ -f "${prev_key}" ]; then
+		mv "${prev_crt}" "${prev_crt}.${d}"
+		[ "${prev_crt}" != "${prev_key}" ] && mv "${prev_key}" "${prev_key}.${d}"
+	fi
 
-	mv "${crt_filename}.${tmp}" "${crt_filename}"
-	[ "${crt_filename}" != "${key_filename}" ] && mv "${key_filename}.${tmp}" "${key_filename}"
+	# move the new certificates to old place
+	mv "${new_crt}" "${prev_crt}"
+	[ "${prev_crt}" != "${prev_key}" ] && mv "${new_key}" "${prev_key}"
 
 	return 0
 }
@@ -202,6 +207,7 @@ main() {
 		set -x
 	fi
 
+	TMP=${TMP:-$(mktemp -d)}
 
 	if [ -z "$1" ]; then
 		dump_all_certificates
@@ -215,4 +221,5 @@ main() {
 	fi
 }
 
+trap 'rm -rf -- "$TMP"' EXIT
 main "$@"
