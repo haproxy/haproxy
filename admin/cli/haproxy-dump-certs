@@ -169,7 +169,7 @@ main() {
 				shift 2
 				;;
 			-p|--path)
-				BASEPATH="$2"
+				BASEPATH="$2/"
 				shift 2
 				;;
 			-n|--dry-run)
