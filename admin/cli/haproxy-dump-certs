@@ -60,6 +60,21 @@ read_certificate() {
 	return 0
 }
 
+cmp_certkey() {
+	prev=$1
+	new=$2
+
+	if [ ! -f "$prev" ]; then
+		return 1;
+	fi
+
+	if ! cmp -s <(openssl x509 -in "$prev" -noout -fingerprint -sha256) <(openssl x509 -in "$new" -noout -fingerprint -sha256); then
+		return 1
+	fi
+
+	return 0
+}
+
 dump_certificate() {
 	name=$1
 	crt_filename=$2
@@ -80,6 +95,11 @@ dump_certificate() {
 	if ! cmp -s <(openssl x509 -in "${crt_filename}.${tmp}" -pubkey -noout) <(openssl pkey -in "${key_filename}.${tmp}" -pubout); then
 		echo "Error: Private key \"${key_filename}.${tmp}\"  and public key \"${crt_filename}.${tmp}\" don't match" >&2
 		return 1
+	fi
+
+	if cmp_certkey "${crt_filename}" "${crt_filename}.${tmp}"; then
+		echo "notice: ${crt_filename} is already up to date"
+		return 0
 	fi
 
 	# move the current certificates to ".old.timestamp"
