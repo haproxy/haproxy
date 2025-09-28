@@ -2,9 +2,17 @@
 
 set -e
 
+export VERBOSE=1
 export TIMEOUT=90
 export MASTER_SOCKET=${MASTER_SOCKET:-/var/run/haproxy-master.sock}
 export RET=
+
+alert() {
+	if [ "$VERBOSE" -ge "1" ]; then
+		echo "[ALERT] $*" >&2
+	fi
+}
+
 
 reload() {
 	while read -r line; do
@@ -14,13 +22,19 @@ reload() {
 		elif [ "$line" = "Success=1" ]; then
 			RET=0
 		elif [ "$line" = "Another reload is still in progress." ]; then
-			echo "[ALERT] Another reload is still in progress." >&2
+			alert "$line"
+		elif [ "$line" = "--" ]; then
+			continue;
+		else
+			if [ "$RET" = 1 ] && [ "$VERBOSE" = "2" ]; then
+				echo "$line" >&2
+			fi
 		fi
 
 	done < <(echo "reload" | socat -t"${TIMEOUT}" "${MASTER_SOCKET}" -)
 
 	if [ -z "$RET" ]; then
-		echo "[ALERT] Couldn't finish the reload before the timeout (${TIMEOUT})." >&2
+		alert "Couldn't finish the reload before the timeout (${TIMEOUT})."
 		return 1
 	fi
 
@@ -39,7 +53,8 @@ usage() {
 	echo "  -S, --master-socket <path>   Use the master socket at <path> (default: ${MASTER_SOCKET})"
 	echo "  -d, --debug                  Debug mode, set -x"
 	echo "  -t, --timeout                Timeout (socat -t) (default: ${TIMEOUT})"
-	echo "  -v, --verbose                Verbose mode"
+	echo "  -s, --silent                 Slient mode (no output)"
+	echo "  -v, --verbose                Verbose mode (output from haproxy)"
 	echo "  -h, --help                   This help"
 	echo ""
 	echo "Examples:"
@@ -57,6 +72,14 @@ main() {
 			-t|--timeout)
 				TIMEOUT="$2"
 				shift 2
+				;;
+			-s|--silent)
+				VERBOSE=0
+				shift
+				;;
+			-v|--verbose)
+				VERBOSE=2
+				shift
 				;;
 			-d|--debug)
 				DEBUG=1
