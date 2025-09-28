@@ -42,7 +42,6 @@ read_certificate() {
 	IFS=$OFS
 
 	if [ -z "$crt_filename" ] || [ -z "$key_filename" ]; then
-		echo "error: can't dump \"$name\", crt/key filename details not found in \"show ssl cert\"" >&2
 		return 1
 	fi
 
@@ -86,7 +85,7 @@ dump_certificate() {
 	new_key="$TMP/$(basename "$prev_key").${r}"
 
 	if ! touch "${new_crt}" || ! touch "${new_key}"; then
-		echo "error: can't dump \"$name\", can't create tmp files" >&2
+		echo "[ALERT] ($$) : can't dump \"$name\", can't create tmp files" >&2
 		return 1
 	fi
 
@@ -95,12 +94,12 @@ dump_certificate() {
 	echo "${M}dump ssl cert ${name}" | socat "${SOCKET}" - | openssl crl2pkcs7 -nocrl -certfile /dev/stdin | openssl pkcs7 -print_certs  >> "${new_crt}"
 
 	if ! cmp -s <(openssl x509 -in "${new_crt}" -pubkey -noout) <(openssl pkey -in "${new_key}" -pubout); then
-		echo "Error: Private key \"${new_key}\"  and public key \"${new_crt}\" don't match" >&2
+		echo "[ALERT] ($$) : Private key \"${new_key}\"  and public key \"${new_crt}\" don't match" >&2
 		return 1
 	fi
 
 	if cmp_certkey "${prev_crt}" "${new_crt}"; then
-		echo "notice: ${crt_filename} is already up to date" >&2
+		echo "[NOTICE] ($$) : ${crt_filename} is already up to date" >&2
 		return 0
 	fi
 
@@ -125,7 +124,10 @@ dump_all_certificates() {
 
 		if read_certificate "$line"; then
 			[ "${DRY_RUN}" = "0" ] && dump_certificate "$NAME" "$CRT_FILENAME" "$KEY_FILENAME"
+		else
+			echo "[WARNING] ($$) : can't dump \"$name\", crt/key filename details not found in \"show ssl cert\"" >&2
 		fi
+
 	done
 }
 
@@ -193,7 +195,7 @@ main() {
 				break
 				;;
 			-*)
-				echo "error: Unknown option '$1'" >&2
+				echo "[ALERT] ($$) : Unknown option '$1'" >&2
 				usage "$@"
 				exit 1
 				;;
@@ -214,7 +216,10 @@ main() {
 	else
 		# compute the certificates names at the end of the command
 		while [ -n "$1" ]; do
-			read_certificate "$1"
+			if ! read_certificate "$1"; then
+				echo "[ALERT] ($$) : can't dump \"$1\", crt/key filename details not found in \"show ssl cert\"" >&2
+				exit 1
+			fi
 			[ "${DRY_RUN}" = "0" ] && dump_certificate "$NAME" "$CRT_FILENAME" "$KEY_FILENAME"
 			shift
 		done
