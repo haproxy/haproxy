@@ -1,0 +1,83 @@
+#!/bin/bash
+
+set -e
+
+export TIMEOUT=90
+export MASTER_SOCKET=${MASTER_SOCKET:-/var/run/haproxy-master.sock}
+export RET=
+
+reload() {
+	while read -r line; do
+
+		if [ "$line" = "Success=0" ]; then
+			RET=1
+		elif [ "$line" = "Success=1" ]; then
+			RET=0
+		elif [ "$line" = "Another reload is still in progress." ]; then
+			echo "[ALERT] Another reload is still in progress." >&2
+		fi
+
+	done < <(echo "reload" | socat -t"${TIMEOUT}" "${MASTER_SOCKET}" -)
+
+	if [ -z "$RET" ]; then
+		echo "[ALERT] Couldn't finish the reload before the timeout (${TIMEOUT})." >&2
+		return 1
+	fi
+
+	return "$RET"
+}
+
+usage() {
+	echo "Usage:"
+	echo " $0 [options]*"
+	echo ""
+	echo " Trigger a reload from the master socket"
+	echo " Require socat"
+	echo " EXPERIMENTAL script!"
+	echo ""
+	echo "Options:"
+	echo "  -S, --master-socket <path>   Use the master socket at <path> (default: ${MASTER_SOCKET})"
+	echo "  -d, --debug                  Debug mode, set -x"
+	echo "  -t, --timeout                Timeout (socat -t) (default: ${TIMEOUT})"
+	echo "  -v, --verbose                Verbose mode"
+	echo "  -h, --help                   This help"
+	echo ""
+	echo "Examples:"
+	echo "  $0 -S ${MASTER_SOCKET} -d ${TIMEOUT}"
+}
+
+
+main() {
+	while [ -n "$1" ]; do
+		case "$1" in
+			-S|--master-socket)
+				MASTER_SOCKET="$2"
+				shift 2
+				;;
+			-t|--timeout)
+				TIMEOUT="$2"
+				shift 2
+				;;
+			-d|--debug)
+				DEBUG=1
+				shift
+				;;
+			-h|--help)
+				usage "$@"
+				exit 0
+				;;
+			*)
+				echo "[ALERT] ($$) : Unknown option '$1'" >&2
+				usage "$@"
+				exit 1
+				;;
+		esac
+	done
+
+	if [ -n "$DEBUG" ]; then
+		set -x
+	fi
+}
+
+main "$@"
+reload
