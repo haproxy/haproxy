@@ -1821,18 +1821,20 @@ int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt, int ex
 
 	expire = MS_TO_TICKS(table->expire);
 
-	if (updt) {
-		if (msg_len < sizeof(update)) {
-			TRACE_ERROR("malformed update message: message too small", PEERS_EV_SESS_IO|PEERS_EV_RX_MSG|PEERS_EV_PROTO_ERR, appctx, p, st);
-			goto malformed_exit;
-		}
+	if (p->learnstate != PEER_LR_ST_PROCESSING) {
+		if (updt) {
+			if (msg_len < sizeof(update)) {
+				TRACE_ERROR("malformed update message: message too small", PEERS_EV_SESS_IO|PEERS_EV_RX_MSG|PEERS_EV_PROTO_ERR, appctx, p, st);
+				goto malformed_exit;
+			}
 
-		memcpy(&update, *msg_cur, sizeof(update));
-		*msg_cur += sizeof(update);
-		st->last_get = htonl(update);
-	}
-	else {
-		st->last_get++;
+			memcpy(&update, *msg_cur, sizeof(update));
+			*msg_cur += sizeof(update);
+			st->last_get = htonl(update);
+		}
+		else {
+			st->last_get++;
+		}
 	}
 
 	if (exp) {
