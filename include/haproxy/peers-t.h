@@ -106,7 +106,8 @@ static forceinline char *peers_show_flags(char *buf, size_t len, const char *del
 #define PEER_F_ALIVE                0x00000020 /* Used to flag a peer a alive. */
 #define PEER_F_HEARTBEAT            0x00000040 /* Heartbeat message to send. */
 #define PEER_F_DWNGRD               0x00000080 /* When this flag is enabled, we must downgrade the supported version announced during peer sessions. */
-/* unused 0x00000100..0x00080000 */
+#define PEER_F_SYNCHED              0x00000100 /* Remote peer is synchronized with the local peer */
+/* unused 0x00000200..0x00080000 */
 #define PEER_F_DBG_RESYNC_REQUESTED 0x00100000 /* A resnyc was explicitly requested at least once (for debugging purpose) */
 
 #define PEER_TEACH_FLAGS            (PEER_F_TEACH_PROCESS|PEER_F_TEACH_FINISHED)
@@ -124,7 +125,7 @@ static forceinline char *peer_show_flags(char *buf, size_t len, const char *deli
 	_(PEER_F_TEACH_PROCESS, _(PEER_F_TEACH_FINISHED, _(PEER_F_LOCAL_TEACH_COMPLETE,
         _(PEER_F_LEARN_NOTUP2DATE, _(PEER_F_WAIT_SYNCTASK_ACK,
         _(PEER_F_ALIVE, _(PEER_F_HEARTBEAT, _(PEER_F_DWNGRD,
-	_(PEER_F_DBG_RESYNC_REQUESTED)))))))));
+	_(PEER_F_SYNCHED ,_(PEER_F_DBG_RESYNC_REQUESTED))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
@@ -174,6 +175,10 @@ struct peer {
 	struct shared_table *last_local_table; /* Last table that emit update messages during a teach process */
 	struct shared_table *stop_local_table; /* last evaluated table, used as restart point for the next teach process */
 	struct shared_table *tables;
+	struct {
+		struct shared_table *table;
+		unsigned int id;
+	} last;
 	struct server *srv;
 	struct dcache *dcache;        /* dictionary cache */
 	struct peers *peers;          /* associated peer section */
