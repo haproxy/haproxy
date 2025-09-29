@@ -1821,6 +1821,9 @@ int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt, int ex
 		st->last_get++;
 	}
 
+	if (p->learnstate == PEER_LR_ST_PROCESSING)
+		st->last_acked = st->last_get;
+
 	if (exp) {
 		size_t expire_sz = sizeof expire;
 
