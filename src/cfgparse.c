@@ -636,6 +636,7 @@ static struct peer *cfg_peers_add_peer(struct peers *peers,
 	/* the peers are linked backwards first */
 	peers->count++;
 	p->peers = peers;
+	p->flags |= PEER_F_SYNCHED;
 	p->next = peers->remote;
 	peers->remote = p;
 	p->conf.file = strdup(file);

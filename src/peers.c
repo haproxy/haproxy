@@ -1693,6 +1693,9 @@ int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 			break;
 
 		st->last_pushed = updateid;
+		p->last.table = st;
+		p->last.id = updateid;
+		p->flags &= ~PEER_F_SYNCHED;
 
 		/* identifier may not needed in next update message */
 		new_pushed = 0;
@@ -2236,6 +2239,10 @@ static inline int peer_treat_ackmsg(struct appctx *appctx, struct peer *p,
 			break;
 		}
 	}
+	if (table_id == p->last.table->local_id && update == p->last.id) {
+		TRACE_STATE("Peer synched again", PEERS_EV_SESS_IO|PEERS_EV_RX_MSG|PEERS_EV_PROTO_ACK, appctx, p);
+		p->flags |= PEER_F_SYNCHED;
+	}
 
   end:
 	TRACE_LEAVE(PEERS_EV_SESS_IO|PEERS_EV_RX_MSG|PEERS_EV_PROTO_ACK, appctx, p, st);
@@ -2618,6 +2625,7 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 				TRACE_STATE("process stopping, stop any resync", PEERS_EV_SESS_IO|PEERS_EV_RX_MSG|PEERS_EV_PROTO_CTRL, appctx, peer);
 				return 0;
 			}
+			peer->flags |= PEER_F_SYNCHED;
 			for (st = peer->tables; st; st = st->next) {
 				st->update = st->last_pushed = st->teaching_origin;
 				st->flags = 0;
@@ -2964,8 +2972,10 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 		 * Here a partial fix consist to set st->update at
 		 * the max past value.
 		 */
-		if ((int)(st->table->localupdate - st->update) < 0)
+		if (!(peer->flags & PEER_F_SYNCHED) || (int)(st->table->localupdate - st->update) < 0) {
 			st->update = st->table->localupdate + (2147483648U);
+			peer->flags &= ~PEER_F_SYNCHED;
+		}
 		st->teaching_origin = st->last_pushed = st->update;
 		st->flags = 0;
 
@@ -2986,6 +2996,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 		 * on the frontend side), flag it to start to teach lesson.
 		 */
                 peer->flags |= PEER_F_TEACH_PROCESS;
+		peer->flags &= ~PEER_F_SYNCHED;
 		TRACE_STATE("peer elected to teach lesson to lacal peer", PEERS_EV_SESS_NEW, NULL, peer);
 	}
 
