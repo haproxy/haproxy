@@ -1533,7 +1533,7 @@ static inline struct stksess *peer_teach_process_stksess_lookup(struct shared_ta
 	if (!eb) {
 		eb = eb32_first(&st->table->updates);
 		if (!eb || (eb->key == st->last_pushed)) {
-			st->table->commitupdate = st->last_pushed = st->table->localupdate;
+			st->last_pushed = st->table->localupdate;
 			return NULL;
 		}
 	}
@@ -1543,7 +1543,7 @@ static inline struct stksess *peer_teach_process_stksess_lookup(struct shared_ta
 	 * this means we are beyond localupdate.
 	 */
 	if ((eb->key - st->last_pushed) > (st->table->localupdate - st->last_pushed)) {
-		st->table->commitupdate = st->last_pushed = st->table->localupdate;
+		st->last_pushed = st->table->localupdate;
 		return NULL;
 	}
 
@@ -1693,16 +1693,6 @@ int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 			break;
 
 		st->last_pushed = updateid;
-
-		if (peer_stksess_lookup == peer_teach_process_stksess_lookup) {
-			uint commitid = _HA_ATOMIC_LOAD(&st->table->commitupdate);
-
-			while ((int)(updateid - commitid) > 0) {
-				if (_HA_ATOMIC_CAS(&st->table->commitupdate, &commitid, updateid))
-					break;
-				__ha_cpu_relax();
-			}
-		}
 
 		/* identifier may not needed in next update message */
 		new_pushed = 0;
@@ -2963,8 +2953,6 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 
 	/* Init cursors */
 	for (st = peer->tables; st ; st = st->next) {
-		uint updateid, commitid;
-
 		st->last_get = st->last_acked = 0;
 		HA_RWLOCK_WRLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
 		/* if st->update appears to be in future it means
@@ -2980,15 +2968,6 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 			st->update = st->table->localupdate + (2147483648U);
 		st->teaching_origin = st->last_pushed = st->update;
 		st->flags = 0;
-
-		updateid = st->last_pushed;
-		commitid = _HA_ATOMIC_LOAD(&st->table->commitupdate);
-
-		while ((int)(updateid - commitid) > 0) {
-			if (_HA_ATOMIC_CAS(&st->table->commitupdate, &commitid, updateid))
-				break;
-			__ha_cpu_relax();
-		}
 
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
 	}
@@ -4329,11 +4308,9 @@ static int peers_dump_peer(struct buffer *msg, struct appctx *appctx, struct pee
 			              st->flags, (unsigned long long)st->remote_data);
 			chunk_appendf(&trash, "\n              last_acked=%u last_pushed=%u last_get=%u"
 			              " teaching_origin=%u update=%u",
-			              st->last_acked, st->last_pushed, st->last_get,
-			              st->teaching_origin, st->update);
-			chunk_appendf(&trash, "\n              table:%p id=%s update=%u localupdate=%u"
-			              " commitupdate=%u refcnt=%u",
-			              t, t->id, t->update, t->localupdate, _HA_ATOMIC_LOAD(&t->commitupdate), t->refcnt);
+			              st->last_acked, st->last_pushed, st->last_get, st->teaching_origin, st->update);
+			chunk_appendf(&trash, "\n              table:%p id=%s update=%u localupdate=%u refcnt=%u",
+			              t, t->id, t->update, t->localupdate, t->refcnt);
 			if (flags & PEERS_SHOW_F_DICT) {
 				chunk_appendf(&trash, "\n        TX dictionary cache:");
 				count = 0;
