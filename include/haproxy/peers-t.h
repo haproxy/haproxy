@@ -143,7 +143,6 @@ struct shared_table {
 	unsigned int last_pushed;
 	unsigned int last_get;
 	unsigned int teaching_origin;
-	unsigned int update;
 	struct shared_table *next;    /* next shared table in list */
 };
 
