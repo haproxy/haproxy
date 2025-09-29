@@ -767,11 +767,13 @@ static double mystrtod(const char *str, char **end) {
 
   /* exponential part */
   if ((*p == 'E') || (*p == 'e')) {
+    double exp, f;
     int i, e = 0, neg = 0;
     p++;
     if (*p == '-') p++, neg++;
     if (*p == '+') p++;
     while (is_digit(*p)) e = e * 10 + *p++ - '0';
+    i = e;
     if (neg) e = -e;
 #if 0
     if (d == 2.2250738585072011 && e == -308) {
@@ -785,8 +787,16 @@ static double mystrtod(const char *str, char **end) {
       goto done;
     }
 #endif
-    for (i = 0; i < e; i++) d *= 10;
-    for (i = 0; i < -e; i++) d /= 10;
+    /* calculate f = 10^i */
+    exp = 10;
+    f = 1;
+    while (i > 0) {
+      if (i & 1) f *= exp;
+      exp *= exp;
+      i >>= 1;
+    }
+    if (e > 0) d *= f;
+    else if (e < 0) d /= f;
     a = p;
   } else if (p > str && !is_digit(*(p - 1))) {
     a = str;
