@@ -175,7 +175,6 @@ struct stktable {
 	                           */
 	struct ceb_node  id_node; /* Stick-table are lookup by name here, indexes <id> above. */
 	struct pool_head *pool;   /* pool used to allocate sticky sessions */
-	struct task *exp_task;    /* expiration task */
 	struct task *sync_task;   /* sync task */
 
 	uint64_t hash_seed;      /* hash seed used by shards */
@@ -212,7 +211,11 @@ struct stktable {
 	struct {
 		struct eb_root keys;      /* head of sticky session tree */
 		struct eb_root exps;      /* head of sticky session expiration tree */
+		struct eb32_node in_bucket; /* Each bucket maintains a tree, ordered by expiration date, this does not require sh_lock as only one task will ever modify it */
+		struct mt_list in_bucket_toadd; /* To add to the bucket tree */
+
 		__decl_thread(HA_RWLOCK_T sh_lock); /* for the trees above */
+		int next_exp;    /* Next expiration for this table */
 	} shards[CONFIG_HAP_TBL_BUCKETS];
 
 	unsigned int refcnt;     /* number of local peer over all peers sections
@@ -239,6 +242,13 @@ struct stktable {
 		const char *file;     /* The file where the stick-table is declared (global name). */
 		int line;             /* The line in this <file> the stick-table is declared. */
 	} conf;
+};
+
+struct stk_per_bucket {
+	struct eb_root tables;
+	struct mt_list toadd_tables;
+	__decl_thread(HA_SPINLOCK_T lock); /* Should not have any contention, only there in case a table gets destroyed, which should happen very rarely */
+	struct task *exp_task; /* Expiration task */
 };
 
 extern struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES];
