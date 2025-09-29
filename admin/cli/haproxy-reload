@@ -28,6 +28,8 @@ reload() {
 		else
 			if [ "$RET" = 1 ] && [ "$VERBOSE" = "2" ]; then
 				echo "$line" >&2
+			elif [ "$VERBOSE" = "3" ]; then
+				echo "$line" >&2
 			fi
 		fi
 
@@ -50,12 +52,13 @@ usage() {
 	echo " EXPERIMENTAL script!"
 	echo ""
 	echo "Options:"
-	echo "  -S, --master-socket <path>   Use the master socket at <path> (default: ${MASTER_SOCKET})"
-	echo "  -d, --debug                  Debug mode, set -x"
-	echo "  -t, --timeout                Timeout (socat -t) (default: ${TIMEOUT})"
-	echo "  -s, --silent                 Slient mode (no output)"
-	echo "  -v, --verbose                Verbose mode (output from haproxy)"
-	echo "  -h, --help                   This help"
+	echo "  -S,  --master-socket <path>   Use the master socket at <path> (default: ${MASTER_SOCKET})"
+	echo "  -d,  --debug                  Debug mode, set -x"
+	echo "  -t,  --timeout                Timeout (socat -t) (default: ${TIMEOUT})"
+	echo "  -s,  --silent                 Slient mode (no output)"
+	echo "  -v,  --verbose                Verbose output (output from haproxy on failure)"
+	echo "  -vv                           Even more verbose output (output from haproxy on success and failure)"
+	echo "  -h,  --help                   This help"
 	echo ""
 	echo "Examples:"
 	echo "  $0 -S ${MASTER_SOCKET} -d ${TIMEOUT}"
@@ -79,6 +82,10 @@ main() {
 				;;
 			-v|--verbose)
 				VERBOSE=2
+				shift
+				;;
+			-vv|--verbose)
+				VERBOSE=3
 				shift
 				;;
 			-d|--debug)
