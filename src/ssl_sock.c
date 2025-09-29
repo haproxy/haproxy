@@ -351,6 +351,7 @@ static int ha_ssl_read(BIO *h, char *buf, int size)
 	struct ssl_sock_ctx *ctx;
 	void *msg_control = NULL;
 	size_t *msg_controllenp = NULL;
+	int detect_shutr;
 	int ret;
 
 	ctx = BIO_get_data(h);
@@ -381,7 +382,18 @@ static int ha_ssl_read(BIO *h, char *buf, int size)
 	}
 	tmpbuf.data = 0;
 	tmpbuf.head = 0;
-	ret = ctx->xprt->rcv_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, size, msg_control, msg_controllenp, 0);
+
+	if (ctx->conn->flags & CO_FL_SSL_WAIT_HS &&
+	    !conn_is_back(ctx->conn) &&
+	    ((struct session *)ctx->conn->owner)->fe->options & PR_O_ABRT_CLOSE)
+		detect_shutr = 1;
+	else
+		detect_shutr = 0;
+
+	ret = ctx->xprt->rcv_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, size, msg_control, msg_controllenp, detect_shutr ? CO_RFL_TRY_HARDER : 0);
+	if (detect_shutr && ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH)) {
+		ret = -1;
+	}
 	BIO_clear_retry_flags(h);
 	if (ret == 0 && !(ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH))) {
 		BIO_set_retry_read(h);
