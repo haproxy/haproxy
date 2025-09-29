@@ -329,6 +329,7 @@ enum {
 	CO_RFL_KEEP_RECV     = 0x0008,    /* Instruct the mux to still wait for read events  */
 	CO_RFL_BUF_NOT_STUCK = 0x0010,    /* Buffer is not stuck. Optims are possible during data copy */
 	CO_RFL_MAY_SPLICE    = 0x0020,    /* The producer can use the kernel splicing */
+	CO_RFL_TRY_HARDER    = 0x0040,    /* Try to read till READ0 even on short reads */
 };
 
 /* flags that can be passed to xprt->snd_buf() and mux->snd_buf() */

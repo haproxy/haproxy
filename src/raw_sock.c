@@ -330,9 +330,11 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 					goto read0;
 				}
 
-				if (!(fdtab[conn->handle.fd].state & FD_LINGER_RISK) ||
-				    (cur_poller.flags & HAP_POLL_F_RDHUP)) {
-					break;
+				if (!(flags & CO_RFL_TRY_HARDER)) {
+					if (!(fdtab[conn->handle.fd].state & FD_LINGER_RISK) ||
+					    (cur_poller.flags & HAP_POLL_F_RDHUP)) {
+						break;
+					}
 				}
 			}
 			count -= ret;
@@ -359,6 +361,31 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 
 	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && done)
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
+
+	if (unlikely((flags & CO_RFL_TRY_HARDER) &&
+		     !(conn->flags & CO_FL_SOCK_RD_SH) &&
+		     !count)) {
+		/* we've read exactly what was being asked for, which is loewr
+		 * than a full buffer, and the caller wants us to really check
+		 * if there's something after. This happens in the context of
+		 * SSL where the lib reads in tiny chunks without offering the
+		 * ability to detect a pending close. Let's just check using
+		 * MSG_PEEK so that we don't pull bytes we shouldn't.
+		 */
+		char c;
+
+		ret = recv(conn->handle.fd, &c, 1, MSG_PEEK);
+		if (ret == 0) {
+			conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_shutr);
+			goto read0;
+		}
+		else if (ret < 0 &&
+			 (errno != EAGAIN && errno != EWOULDBLOCK && errno != ENOTCONN && errno != EINTR)) {
+			conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_rcv_err);
+			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
+			conn_set_errno(conn, errno);
+		}
+	}
 
  leave:
 	return done;
