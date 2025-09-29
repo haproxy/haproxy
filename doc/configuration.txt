@@ -24111,6 +24111,7 @@ ssl_bc_server_random                               binary
 ssl_bc_server_traffic_secret_0                     string
 ssl_bc_session_id                                  binary
 ssl_bc_session_key                                 binary
+ssl_bc_sni                                         string
 ssl_bc_unique_id                                   binary
 ssl_bc_use_keysize                                 integer
 ssl_c_ca_err                                       integer
@@ -24441,6 +24442,13 @@ ssl_bc_session_key : binary
   connection was made over an SSL/TLS transport layer. It is useful to decrypt
   traffic sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or
   BoringSSL. It can be used in a tcp-check or an http-check ruleset.
+
+ssl_bc_sni : string
+  This retrieves the Server Name Indication TLS extension (SNI) field that was
+  used on the connection to the server. The result (when present) typically is
+  a string matching the HTTPS host name (253 chars or less). The main use case
+  is for logging and debugging purposes (e.g. figure what SNI was used when the
+  connection was established to match it against what the server has seen).
 
 ssl_bc_unique_id : binary
   When the outgoing connection was made over an SSL/TLS transport layer,
