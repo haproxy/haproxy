@@ -245,6 +245,30 @@ mt_list_pop(l)
     #=========#
 
 
+mt_list_pop_locked(l)
+    Removes the list's first element, returns it locked. If the list was empty,
+    NULL is returned. A macro MT_LIST_POP_LOCKED() is provided for a
+    more convenient use; instead of returning the list element, it will return
+    the structure holding the element, taking care of preserving the NULL.
+
+  before:
+       +---+     +---+     +---+     +---+     +---+     +---+     +---+
+    #=>| L |<===>| A |<===>| B |<===>| C |<===>| D |<===>| E |<===>| F |<=#
+    #  +---+     +---+     +---+     +---+     +---+     +---+     +---+  #
+    #=====================================================================#
+
+  after:
+       +---+     +---+     +---+     +---+     +---+     +---+
+    #=>| L |<===>| B |<===>| C |<===>| D |<===>| E |<===>| F |<=#
+    #  +---+     +---+     +---+     +---+     +---+     +---+  #
+    #===========================================================#
+
+       +---+
+    # x| A |x #
+    #  +---+  #
+    #=========#
+
+
 _mt_list_lock_next(elt)
     Locks the link that starts at the next pointer of the designated element.
     The link is replaced by two locked pointers, and a pointer to the next

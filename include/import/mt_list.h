@@ -128,6 +128,19 @@ struct mt_list {
 		(_n ? MT_LIST_ELEM(_n, t, m) : NULL);			\
 	})
 
+/* Returns a pointer of type <t> to the structure containing a member of type
+ * mt_list called <m> that comes from the first element in list <l>, that is
+ * atomically locked. If the list is empty, NULL is returned instead.
+ * Example:
+ *
+ *   while ((conn = MT_LIST_POP_LOCKED(queue, struct conn *, list))) ...
+ */
+#define MT_LIST_POP_LOCKED(lh, t, m)						\
+	({								\
+		struct mt_list *_n = mt_list_pop_locked(lh);		\
+		(_n ? MT_LIST_ELEM(_n, t, m) : NULL);			\
+	})
+
 /* Iterates <item> through a list of items of type "typeof(*item)" which are
  * linked via a "struct mt_list" member named <member>. A pointer to the head
  * of the list is passed in <list_head>.
@@ -633,10 +646,10 @@ static MT_INLINE long mt_list_delete(struct mt_list *el)
 }
 
 
-/* Removes the first element from the list <lh>, and returns it in detached
+/* Removes the first element from the list <lh>, and returns it in locked
  * form. If the list is already empty, NULL is returned instead.
  */
-static MT_INLINE struct mt_list *mt_list_pop(struct mt_list *lh)
+static MT_INLINE struct mt_list *mt_list_pop_locked(struct mt_list *lh)
 {
 	struct mt_list *n, *n2;
 	struct mt_list *p, *p2;
@@ -687,13 +700,24 @@ static MT_INLINE struct mt_list *mt_list_pop(struct mt_list *lh)
 		n2->prev = lh;
 		__atomic_thread_fence(__ATOMIC_RELEASE);
 
-		n->prev = n->next = n;
-		__atomic_thread_fence(__ATOMIC_RELEASE);
-
 		/* return n */
 		break;
 	}
 	return n;
+}
+
+/* Removes the first element from the list <lh>, and returns it in detached
+ * form. If the list is already empty, NULL is returned instead.
+ */
+static MT_INLINE struct mt_list *mt_list_pop(struct mt_list *lh)
+{
+	struct mt_list *ret = mt_list_pop_locked(lh);
+
+	if (ret) {
+		ret->prev = ret->next = ret;
+		__atomic_thread_fence(__ATOMIC_RELEASE);
+	}
+	return ret;
 }
 
 
