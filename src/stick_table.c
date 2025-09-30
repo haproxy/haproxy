@@ -811,7 +811,7 @@ struct task *stktable_add_pend_updates(struct task *t, void *ctx, unsigned int s
 		goto leave;
 
 	for (i = 0; i < STKTABLE_MAX_UPDATES_AT_ONCE; i++) {
-		struct stksess *stksess = MT_LIST_POP(&table->pend_updts[cur_tgid], typeof(stksess), pend_updts);
+		struct stksess *stksess = MT_LIST_POP_LOCKED(&table->pend_updts[cur_tgid], typeof(stksess), pend_updts);
 
 		if (!stksess) {
 			empty_tgid++;
@@ -848,6 +848,13 @@ struct task *stktable_add_pend_updates(struct task *t, void *ctx, unsigned int s
 			eb32_delete(eb);
 			eb32_insert(&table->updates, &stksess->upd);
 		}
+		/*
+		 * Now that we're done inserting the stksess, unlock it.
+		 * It is kept locked here to prevent a race condition
+		 * when stksess_kill() could free() it after we removed
+		 * it from the list, but before we inserted it into the tree
+		 */
+		MT_LIST_INIT(&stksess->pend_updts);
 	}
 
 	HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &table->updt_lock);
