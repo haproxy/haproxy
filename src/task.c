@@ -43,7 +43,9 @@ DECLARE_TYPED_POOL(pool_head_notification, "notification", struct notification);
 __decl_aligned_rwlock(wq_lock);
 
 /* used to detect if the scheduler looks stuck (for warnings) */
-static THREAD_LOCAL int sched_stuck;
+static struct {
+	int sched_stuck ALIGNED(64);
+} sched_ctx[MAX_THREADS];
 
 /* Flags the task <t> for immediate destruction and puts it into its first
  * thread's shared tasklet list if not yet queued/running. This will bypass
@@ -677,7 +679,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		done++;
 	next:
 		th_ctx->current = NULL;
-		sched_stuck = 0; // scheduler is not stuck (don't warn)
+		sched_ctx[tid].sched_stuck = 0; // scheduler is not stuck (don't warn)
 		__ha_barrier_store();
 
 		/* stats are only registered for non-zero wake dates */
@@ -914,11 +916,11 @@ void process_runnable_tasks()
  */
 int is_sched_alive(void)
 {
-	if (sched_stuck)
+	if (sched_ctx[tid].sched_stuck)
 		return 0;
 
 	/* next time we'll know if any progress was made */
-	sched_stuck = 1;
+	sched_ctx[tid].sched_stuck = 1;
 	return 1;
 }
 
