@@ -123,11 +123,11 @@ void wake_expired_tasks(void);
  */
 int next_timer_expiry(void);
 
-/* Pings the scheduler to verify that tasks continue running.
- * Returns 1 if the scheduler made progress since last call,
- * 0 if it looks stuck.
+/* Pings the scheduler to verify that tasks continue running for thread <thr>.
+ * Returns 1 if the scheduler made progress since last call, 0 if it looks
+ * stuck. It marks it as stuck for next visit.
  */
-int is_sched_alive(void);
+int is_sched_alive(int thr);
 
 /*
  * Delete every tasks before running the master polling loop

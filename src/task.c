@@ -910,18 +910,13 @@ void process_runnable_tasks()
 		activity[tid].long_rq++;
 }
 
-/* Pings the scheduler to verify that tasks continue running.
- * Returns 1 if the scheduler made progress since last call,
- * 0 if it looks stuck.
+/* Pings the scheduler to verify that tasks continue running for thread <thr>.
+ * Returns 1 if the scheduler made progress since last call, 0 if it looks
+ * stuck. It marks it as stuck for next visit.
  */
-int is_sched_alive(void)
+int is_sched_alive(int thr)
 {
-	if (sched_ctx[tid].sched_stuck)
-		return 0;
-
-	/* next time we'll know if any progress was made */
-	sched_ctx[tid].sched_stuck = 1;
-	return 1;
+	return !HA_ATOMIC_XCHG(&sched_ctx[thr].sched_stuck, 1);
 }
 
 /*

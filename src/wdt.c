@@ -189,7 +189,7 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_STUCK)
 		ha_panic();
 
-	if (!is_sched_alive())
+	if (!is_sched_alive(thr))
 		ha_stuck_warning();
 
 	/* let's go on */
