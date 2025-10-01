@@ -348,51 +348,6 @@ int mjson_get_hex(const char *s, int len, const char *x, char *to, int n) {
   return j;
 }
 
-#if MJSON_ENABLE_BASE64
-static int mjson_base64rev(int c) {
-  if (c >= 'A' && c <= 'Z') {
-    return c - 'A';
-  } else if (c >= 'a' && c <= 'z') {
-    return c + 26 - 'a';
-  } else if (c >= '0' && c <= '9') {
-    return c + 52 - '0';
-  } else if (c == '+') {
-    return 62;
-  } else if (c == '/') {
-    return 63;
-  } else {
-    return 64;
-  }
-}
-
-int mjson_base64_dec(const char *src, int n, char *dst, int dlen) {
-  const char *end = src + n;
-  int len = 0;
-  while (src + 3 < end && len < dlen) {
-    int a = mjson_base64rev(src[0]), b = mjson_base64rev(src[1]),
-        c = mjson_base64rev(src[2]), d = mjson_base64rev(src[3]);
-    dst[len++] = (a << 2) | (b >> 4);
-    if (src[2] != '=' && len < dlen) {
-      dst[len++] = (b << 4) | (c >> 2);
-      if (src[3] != '=' && len < dlen) {
-        dst[len++] = (c << 6) | d;
-      }
-    }
-    src += 4;
-  }
-  if (len < dlen) dst[len] = '\0';
-  return len;
-}
-
-int mjson_get_base64(const char *s, int len, const char *path, char *to,
-                     int n) {
-  const char *p;
-  int sz;
-  if (mjson_find(s, len, path, &p, &sz) != MJSON_TOK_STRING) return 0;
-  return mjson_base64_dec(p + 1, sz - 2, to, n);
-}
-#endif  // MJSON_ENABLE_BASE64
-
 static int is_digit(int c) {
   return c >= '0' && c <= '9';
 }
