@@ -329,15 +329,6 @@ static void fwlc_srv_reposition(struct server *s)
 		return;
 	}
 
-	/*
-	 * We're not in the tree, the server is probably down, don't
-	 * do anything.
-	 */
-	if (unlikely(!s->tree_elt)) {
-		HA_RWLOCK_RDUNLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
-		_HA_ATOMIC_STORE(&s->lb_lock, 0);
-		return;
-	}
 	node = eb32_lookup(s->lb_tree, new_key);
 	if (node)
 		tree_elt = container_of(node, struct fwlc_tree_elt, lb_node);
@@ -347,7 +338,7 @@ static void fwlc_srv_reposition(struct server *s)
 		 * check again now that we acquired it, and if we're using
 		 * the right element, do nothing.
 		 */
-	if (tree_elt == s->tree_elt) {
+	if (s->tree_elt && tree_elt == s->tree_elt) {
 		HA_RWLOCK_RDUNLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
 		_HA_ATOMIC_STORE(&s->lb_lock, 0);
 		fwlc_check_srv_key(s, new_key);
@@ -470,26 +461,29 @@ static void fwlc_srv_reposition(struct server *s)
 
 	__ha_barrier_store();
 
-	_HA_ATOMIC_DEC(&s->tree_elt->elements);
+	if (likely(s->tree_elt)) {
+		_HA_ATOMIC_DEC(&s->tree_elt->elements);
 
-	/*
-	 * Now lock the existing element, and its target list.
-	 * To prevent a deadlock, we always lock the one
-	 * with the lowest key first.
-	 */
-	if (new_key < s->tree_elt->lb_node.key) {
-		to_unlock = mt_list_lock_full(&s->lb_mt_list);
-		list = fwlc_lock_target_list(tree_elt);
-	} else {
-		list = fwlc_lock_target_list(tree_elt);
-		to_unlock = mt_list_lock_full(&s->lb_mt_list);
-	}
+		/*
+		 * Now lock the existing element, and its target list.
+		 * To prevent a deadlock, we always lock the one
+		 * with the lowest key first.
+		 */
+		if (new_key < s->tree_elt->lb_node.key) {
+			to_unlock = mt_list_lock_full(&s->lb_mt_list);
+			list = fwlc_lock_target_list(tree_elt);
+		} else {
+			list = fwlc_lock_target_list(tree_elt);
+			to_unlock = mt_list_lock_full(&s->lb_mt_list);
+		}
 
-	/*
-	 * Unlock the old list, the element is now
-	 * no longer in it.
-	 */
-	mt_list_unlock_link(to_unlock);
+		/*
+		 * Unlock the old list, the element is now
+		 * no longer in it.
+		 */
+		mt_list_unlock_link(to_unlock);
+	} else
+		list = fwlc_lock_target_list(tree_elt);
 
 	/*
 	 * Add the element to the new list, and unlock it.
