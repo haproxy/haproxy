@@ -20,19 +20,8 @@
 // SOFTWARE.
 
 #include <float.h>
-#include <math.h>
 
 #include <import/mjson.h>
-
-#if defined(_MSC_VER)
-#define alloca(x) _alloca(x)
-#endif
-
-#if defined(_MSC_VER) && _MSC_VER < 1700
-#define va_copy(x, y) (x) = (y)
-#define isinf(x) !_finite(x)
-#define isnan(x) _isnan(x)
-#endif
 
 static double mystrtod(const char *str, char **end);
 
