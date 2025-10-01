@@ -98,11 +98,6 @@ int mjson_get_bool(const char *s, int len, const char *path, int *v);
 int mjson_get_string(const char *s, int len, const char *path, char *to, int n);
 int mjson_get_hex(const char *s, int len, const char *path, char *to, int n);
 
-#if MJSON_ENABLE_NEXT
-int mjson_next(const char *s, int n, int off, int *koff, int *klen, int *voff,
-               int *vlen, int *vtype);
-#endif
-
 #if MJSON_ENABLE_BASE64
 int mjson_get_base64(const char *s, int len, const char *path, char *to, int n);
 int mjson_base64_dec(const char *src, int n, char *dst, int dlen);
