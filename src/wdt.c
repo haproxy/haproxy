@@ -41,6 +41,7 @@
  */
 static struct {
 	timer_t timer;
+	uint64_t stuck_start; /* cpu time when the scheduler's stuck was last set */
 } per_thread_wd_ctx[MAX_THREADS];
 
 /* warn about stuck tasks after this delay (ns) */
@@ -89,14 +90,6 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 
 		tgrp = ha_thread_info[thr].tgid;
 		thr_bit = ha_thread_info[thr].ltid_bit;
-		p = ha_thread_ctx[thr].prev_cpu_time;
-		n = now_cpu_time_thread(thr);
-
-		/* not yet reached the deadline of 1 sec,
-		 * or p wasn't initialized yet
-		 */
-		if (!p)
-			goto update_and_leave;
 
 		if ((_HA_ATOMIC_LOAD(&ha_thread_ctx[thr].flags) & TH_FL_SLEEPING) ||
 		    (_HA_ATOMIC_LOAD(&ha_tgroup_ctx[tgrp-1].threads_harmless) & thr_bit)) {
@@ -109,38 +102,21 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 			goto update_and_leave;
 		}
 
-		/* So the thread indeed appears locked up. In order to be
-		 * certain that we're not witnessing an exceptional spike of
-		 * CPU usage due to a configuration issue (like running tens
-		 * of thousands of tasks in a single loop), we'll check if the
-		 * scheduler is still alive by setting the TH_FL_STUCK flag
-		 * that the scheduler clears when switching to the next task.
-		 * If it's already set, then it's our second call with no
-		 * progress and the thread is dead. However, if we figure
-		 * that the scheduler made no progress since last time, we'll
-		 * at least emit a warning.
+		/* check whether the scheduler is still running. The first time
+		 * we check, we mark it as possibly stuck to challenge it, we
+		 * store the last date where we did this, and we quit. On next
+		 * wakeup, if it has not moved, we'll wake up the suspicious
+		 * thread which will perform its own date checks. This way we
+		 * avoid complex computations in a possibly unrelated thread
+		 * and don't wake another thread up as long as everything's OK.
 		 */
-		if (!(_HA_ATOMIC_LOAD(&ha_thread_ctx[thr].flags) & TH_FL_STUCK)) {
-			/* after one second it's clear that we're stuck */
-			if (n - p >= 1000000000ULL) {
-				_HA_ATOMIC_OR(&ha_thread_ctx[thr].flags, TH_FL_STUCK);
-				goto update_and_leave;
-			}
-			else if (n - p < (ullong)wdt_warn_blocked_traffic_ns) {
-				/* if we haven't crossed the warning boundary,
-				 * let's just refresh the reporting thread's timer.
-				 */
-				goto update_and_leave;
-			}
+		if (is_sched_alive(thr)) {
+			n = now_cpu_time_thread(thr);
+			_HA_ATOMIC_STORE(&per_thread_wd_ctx[thr].stuck_start, n);
+			goto update_and_leave;
 		}
 
-		/* OK so we've crossed the warning boundary and possibly the
-		 * panic one as well. This may only be reported by the original
-		 * thread. Let's fall back to the common code below which will
-		 * possibly bounce to the reporting thread, which will then
-		 * check the ctxsw count and decide whether to do nothing, to
-		 * warn, or either panic.
-		 */
+		/* Suspiciously didn't change: fall through target thread signaling */
 		break;
 
 #if defined(USE_THREAD) && defined(SI_TKILL) /* Linux uses this */
@@ -165,8 +141,8 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 	}
 
 	/* Right here, we either got a bounce from another thread's WDT to
-	 * report a crossed period, or we noticed it for the current thread.
-	 * For other threads, we're bouncing.
+	 * report a suspciously stuck scheduler, or we noticed it for the
+	 * current thread. For other threads, we're bouncing.
 	 */
 #ifdef USE_THREAD
 	if (thr != tid) {
@@ -175,23 +151,52 @@ void wdt_handler(int sig, siginfo_t *si, void *arg)
 	}
 #endif
 
-	/* Now the interesting things begin. We're on the thread of interest.
-	 * Its timer was at least as large as the warning threshold since poll
-	 * was left. If it was at least as high as the panic threshold, we also
-	 * have TH_FL_STUCK, which now proves that nothing is happening since
-	 * the scheduler clears it for each task. We can still recheck whether
-	 * the scheduler looks alive and get away with all of this if we've got
-	 * a proof that it's making forward progress. If stuck, we have to die,
-	 * otherwise we just send a warning. In short, is_sched_alive() serves
-	 * as a ping to detect the warning condition while TH_FL_STUCK works
-	 * the same but for a panic condition.
+	/* OK here we're on the target thread (thr==tid). It was reported that
+	 * the scheduler was not moving. This might have changed since, if we
+	 * got that from another thread. Otherwise we'll run time checks to
+	 * verify the situation, and possibly the need to warn or panic.
+	 */
+	n = now_cpu_time();
+
+	if (is_sched_alive(thr)) {
+		_HA_ATOMIC_STORE(&per_thread_wd_ctx[thr].stuck_start, n);
+		goto update_and_leave;
+	}
+
+	/* check when we saw last activity (in CPU time) */
+	p = ha_thread_ctx[thr].prev_cpu_time;
+
+	/* p not yet initialized (e.g. signal received during early boot) */
+	if (!p)
+		goto update_and_leave;
+
+	/* check the most recent known activity */
+	if (p < per_thread_wd_ctx[thr].stuck_start)
+		p = per_thread_wd_ctx[thr].stuck_start;
+
+	/* if we haven't crossed the warning boundary, let's just refresh the
+	 * reporting thread's timer.
+	 */
+	if (n - p < (ullong)wdt_warn_blocked_traffic_ns)
+		goto update_and_leave;
+
+	/* The thread indeed appears locked up, it hasn't made any progress
+	 * for at least the configured warning time. If it crosses the second,
+	 * we'll mark it with TH_FL_STUCK so that the next call will panic.
+	 * Doing so still permits exceptionally long operations to mark
+	 * themselves as under control and not stuck to avoid the panic.
+	 * Otherwise we just emit a warning, and this one doesn't consider
+	 * TH_FL_STUCK (i.e. a slow code path must always be reported to the
+	 * user, even if under control).
 	 */
 	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_STUCK)
 		ha_panic();
 
-	if (!is_sched_alive(thr))
-		ha_stuck_warning();
+	/* after one second it's clear that we're stuck */
+	if (n - p >= 1000000000ULL)
+		_HA_ATOMIC_OR(&ha_thread_ctx[thr].flags, TH_FL_STUCK);
 
+	ha_stuck_warning();
 	/* let's go on */
 
  update_and_leave:
