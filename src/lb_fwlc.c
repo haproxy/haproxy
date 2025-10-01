@@ -165,9 +165,11 @@ static struct fwlc_tree_elt *fwlc_alloc_tree_elt(struct proxy *p, struct fwlc_tr
 				break;
 		}
 	}
-	if (!allocated_elt)
+	if (!allocated_elt) {
 		tree_elt = pool_alloc(pool_head_fwlc_elt);
-	else
+		if (!tree_elt)
+			return NULL;
+	} else
 		tree_elt = allocated_elt;
 
 	for (i = 0; i < FWLC_LISTS_NB; i++) {
@@ -195,6 +197,8 @@ static struct fwlc_tree_elt *fwlc_get_tree_elt(struct server *s, u32 key)
 	if (!tree_elt) {
 		/* No element available, we have to allocate one */
 		tree_elt = fwlc_alloc_tree_elt(s->proxy, NULL);
+		if (!tree_elt)
+			return NULL;
 		tree_elt->lb_node.key = key;
 		eb32_insert(s->lb_tree, &tree_elt->lb_node);
 	}
@@ -228,6 +232,17 @@ static inline void fwlc_queue_srv(struct server *s, unsigned int eweight)
 
 	key = inflight ? (inflight + 1) * SRV_EWGHT_MAX / eweight : 0;
 	tree_elt = fwlc_get_tree_elt(s, key);
+	if (tree_elt == NULL) {
+		/*
+		 * We failed to allocate memory for the tree_elt, just stop
+		 * now and schedule the requeue tasklet which will take care
+		 * of the queueing later.
+		 * If the tasklet doesn't exist yet, then there is nothing to
+		 * do, as it will be eventually scheduled after being created.
+		 */
+		tasklet_wakeup(s->requeue_tasklet);
+		return;
+	}
 	list_nb = statistical_prng_range(FWLC_LISTS_NB);
 	MT_LIST_APPEND(&tree_elt->srv_list[list_nb], &s->lb_mt_list);
 	s->tree_elt = tree_elt;
@@ -420,6 +435,14 @@ static void fwlc_srv_reposition(struct server *s)
 		 * allocate one and insert it into the tree
 		 */
 		tree_elt = fwlc_alloc_tree_elt(s->proxy, allocated_elt);
+		if (tree_elt == NULL) {
+			/* We failed to allocate memory, just try again later */
+			HA_RWLOCK_RDUNLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
+			_HA_ATOMIC_STORE(&s->lb_lock, 0);
+			if (s->requeue_tasklet)
+				tasklet_wakeup(s->requeue_tasklet);
+			return;
+		}
 		if (tree_elt == allocated_elt)
 			allocated_elt = NULL;
 		tree_elt->lb_node.key = new_key;
