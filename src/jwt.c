@@ -405,10 +405,13 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signat
 		if (!HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock)) {
 
 			store = ckchs_lookup(ctx->key);
-			if (store && store->conf.jwt) {
-				pubkey = X509_get_pubkey(store->data->cert);
-				if (pubkey)
-					EVP_PKEY_up_ref(pubkey);
+			if (store) {
+				if (store->conf.jwt) {
+					pubkey = X509_get_pubkey(store->data->cert);
+					if (pubkey)
+						EVP_PKEY_up_ref(pubkey);
+				} else
+					retval = JWT_VRFY_UNAVAIL_CERT;
 			}
 			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 		}
@@ -426,7 +429,8 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signat
 	}
 
 	if (!pubkey) {
-		retval = JWT_VRFY_UNKNOWN_CERT;
+		if (!retval)
+			retval = JWT_VRFY_UNKNOWN_CERT;
 		goto end;
 	}
 
