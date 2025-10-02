@@ -701,7 +701,7 @@ static struct task *process_sink_forward(struct task * task, void *context, unsi
 			 * establishment attempt per second.
 			 */
 			if (!sft->appctx) {
-				uint tempo = sft->last_conn + MS_TO_TICKS(1000);
+				int tempo = tick_add(sft->last_conn, MS_TO_TICKS(1000));
 
 				if (sft->last_conn == TICK_ETERNITY || tick_is_expired(tempo, now_ms))
 					sft->appctx = sink_forward_session_create(sink, sft);
