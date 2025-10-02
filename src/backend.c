@@ -1844,7 +1844,8 @@ int connect_server(struct stream *s)
 		if (err == SF_ERR_NONE) {
 			srv_conn = sc_conn(s->scb);
 			reuse = 1;
-			may_start_mux_now = 0;
+			if (srv_conn && srv_conn->mux)
+				may_start_mux_now = 0;
 		}
 	}
 
