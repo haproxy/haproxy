@@ -64,17 +64,8 @@ enum jwt_elt {
 	JWT_ELT_MAX
 };
 
-enum jwt_entry_type {
-	JWT_ENTRY_DFLT,
-	JWT_ENTRY_STORE,
-	JWT_ENTRY_PKEY,
-	JWT_ENTRY_INVALID, /* already tried looking into ckch_store tree (unsuccessful) */
-};
-
 struct jwt_cert_tree_entry {
 	EVP_PKEY *pubkey;
-	struct ckch_store *ckch_store;
-	int type;	/* jwt_entry_type */
 	struct ebmb_node node;
 	char path[VAR_ARRAY];
 };

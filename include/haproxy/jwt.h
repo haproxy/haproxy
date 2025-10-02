@@ -33,8 +33,6 @@ int jwt_tree_load_cert(char *path, int pathlen, const char *file, int line, char
 enum jwt_vrfy_status jwt_verify(const struct buffer *token, const struct buffer *alg,
 				const struct buffer *key);
 
-void jwt_replace_ckch_store(struct ckch_store *old_ckchs, struct ckch_store *new_ckchs);
-
 #endif /* USE_OPENSSL */
 
 #endif /* _HAPROXY_JWT_H */
