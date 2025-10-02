@@ -31,7 +31,7 @@ int jwt_tokenize(const struct buffer *jwt, struct jwt_item *items, unsigned int 
 int jwt_tree_load_cert(char *path, int pathlen, const char *file, int line, char **err);
 
 enum jwt_vrfy_status jwt_verify(const struct buffer *token, const struct buffer *alg,
-				const struct buffer *key);
+				const struct buffer *key, int is_x509);
 
 #endif /* USE_OPENSSL */
 

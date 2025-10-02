@@ -141,6 +141,7 @@ int jwt_tree_load_cert(char *path, int pathlen, const char *file, int line, char
 	BIO *bio = NULL;
 	struct stat buf;
 	struct ebmb_node *eb = NULL;
+	struct ckch_store *store = NULL;
 
 	eb = ebst_lookup(&jwt_cert_tree, path);
 
@@ -181,6 +182,52 @@ int jwt_tree_load_cert(char *path, int pathlen, const char *file, int line, char
 		}
 	}
 
+	/* Look for an actual certificate or crt-store with the given name.
+	 * If the path corresponds to an actual certificate that was not loaded
+	 * yet we will create the corresponding ckch_store. */
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		goto end;
+
+	store = ckchs_lookup(path);
+	if (!store) {
+		struct ckch_conf conf = {};
+		int err_code = 0;
+
+		/* Create a new store with the given path */
+		store = ckch_store_new(path);
+		if (!store) {
+			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+			goto end;
+		}
+
+		conf.crt = path;
+
+		err_code = ckch_store_load_files(&conf, store,  0, file, line, err);
+		if (err_code & ERR_FATAL) {
+			ckch_store_free(store);
+
+			/* If we are in this case we are in the conf
+			 * parsing phase and this case might happen if
+			 * we were provided an HMAC secret or a variable
+			 * name.
+			 */
+			retval = 0;
+			ha_free(err);
+			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+			goto end;
+		}
+
+		if (ebst_insert(&ckchs_tree, &store->node) != &store->node) {
+			ckch_store_free(store);
+			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+			goto end;
+		}
+	}
+
+	retval = 0;
+
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+
 end:
 	if (retval) {
 		/* Some error happened during pubkey parsing, remove the already
@@ -208,6 +255,10 @@ jwt_jwsverify_hmac(const struct jwt_ctx *ctx, const struct buffer *decoded_signa
 	unsigned int signature_length = 0;
 	unsigned char *hmac_res = NULL;
 	enum jwt_vrfy_status retval = JWT_VRFY_KO;
+
+	if (ctx->is_x509) {
+		return JWT_VRFY_UNMANAGED_ALG;
+	}
 
 	switch(ctx->alg) {
 	case JWS_ALG_HS256:
@@ -344,15 +395,29 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signat
 	if (!evp_md_ctx)
 		return JWT_VRFY_OUT_OF_MEMORY;
 
-	/* Look for a public key in the JWT tree */
-	eb = ebst_lookup(&jwt_cert_tree, ctx->key);
+	if (ctx->is_x509) {
+		struct ckch_store *store = NULL;
+		if (!HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock)) {
 
-	if (eb) {
-		entry = ebmb_entry(eb, struct jwt_cert_tree_entry, node);
+			store = ckchs_lookup(ctx->key);
+			if (store) {
+				pubkey = X509_get_pubkey(store->data->cert);
+				if (pubkey)
+					EVP_PKEY_up_ref(pubkey);
+			}
+			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+		}
+	} else {
+		/* Look for a public key in the JWT tree */
+		eb = ebst_lookup(&jwt_cert_tree, ctx->key);
 
-		pubkey = entry->pubkey;
-		if (pubkey)
-			EVP_PKEY_up_ref(pubkey);
+		if (eb) {
+			entry = ebmb_entry(eb, struct jwt_cert_tree_entry, node);
+
+			pubkey = entry->pubkey;
+			if (pubkey)
+				EVP_PKEY_up_ref(pubkey);
+		}
 	}
 
 	if (!pubkey) {
@@ -400,10 +465,12 @@ end:
  * Check that the <token> that was signed via algorithm <alg> using the <key>
  * (either an HMAC secret or the path to a public certificate) has a valid
  * signature.
+ * <key> is either a HMAC secret or a public key path if <is_509_path> is 0,
+ * otherwise <key> is an X509 certificate path.
  * Returns 1 in case of success.
  */
 enum jwt_vrfy_status jwt_verify(const struct buffer *token, const struct buffer *alg,
-				const struct buffer *key)
+				const struct buffer *key, int is_x509_path)
 {
 	struct jwt_item items[JWT_ELT_MAX] = { { 0 } };
 	unsigned int item_num = JWT_ELT_MAX;
@@ -450,6 +517,7 @@ enum jwt_vrfy_status jwt_verify(const struct buffer *token, const struct buffer 
 	decoded_sig->data = ret;
 	ctx.key = key->area;
 	ctx.key_length = key->data;
+	ctx.is_x509 = is_x509_path;
 
 	/* We have all three sections, signature calculation can begin. */
 

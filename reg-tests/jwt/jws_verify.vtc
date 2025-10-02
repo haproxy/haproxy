@@ -80,17 +80,17 @@ haproxy h1 -conf {
         http-response set-header x-jwt-verify-RS512 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/rsa-public.pem")] if { var(txn.jwt_alg) -m str "RS512" }
 
         # Pure certificate (not predefined in crt-store)
-        http-response set-header x-jwt-verify-RS256-cert %[var(txn.bearer),jwt_verify(txn.jwt_alg,"${testdir}/cert.rsa.pem")] if { var(txn.jwt_alg) -m str "RS256" }
+        http-response set-header x-jwt-verify-RS256-cert %[var(txn.bearer),jwt_verify_cert(txn.jwt_alg,"${testdir}/cert.rsa.pem")] if { var(txn.jwt_alg) -m str "RS256" }
         # Named crt-store
-        http-response set-header x-jwt-verify-RS256-cert-named %[var(txn.bearer),jwt_verify(txn.jwt_alg,"@named_store${testdir}/cert.rsa.pem")] if { var(txn.jwt_alg) -m str "RS256" }
+        http-response set-header x-jwt-verify-RS256-cert-named %[var(txn.bearer),jwt_verify_cert(txn.jwt_alg,"@named_store${testdir}/cert.rsa.pem")] if { var(txn.jwt_alg) -m str "RS256" }
 
         # Variables
         # This first case only works because the certificate
         # is already explicitly used in a previous jwt_verify call.
         http-response set-var(txn.cert) str("${testdir}/cert.rsa.pem")
-        http-response set-header x-jwt-verify-RS256-var1 %[var(txn.bearer),jwt_verify(txn.jwt_alg,txn.cert)] if { var(txn.jwt_alg) -m str "RS256" }
+        http-response set-header x-jwt-verify-RS256-var1 %[var(txn.bearer),jwt_verify_cert(txn.jwt_alg,txn.cert)] if { var(txn.jwt_alg) -m str "RS256" }
         http-response set-var(txn.cert) str("@named_store${testdir}/cert.rsa.pem")
-        http-response set-header x-jwt-verify-RS256-var2 %[var(txn.bearer),jwt_verify(txn.jwt_alg,txn.cert)] if { var(txn.jwt_alg) -m str "RS256" }
+        http-response set-header x-jwt-verify-RS256-var2 %[var(txn.bearer),jwt_verify_cert(txn.jwt_alg,txn.cert)] if { var(txn.jwt_alg) -m str "RS256" }
 
         server s1 ${s1_addr}:${s1_port}
 
@@ -109,7 +109,7 @@ haproxy h1 -conf {
 
         # Variables and real certificate
         http-response set-var(txn.cert) str("${testdir}/cert.ecdsa.pem")
-        http-response set-header x-jwt-verify-ES256-var %[var(txn.bearer),jwt_verify(txn.jwt_alg,txn.cert)] if { var(txn.jwt_alg) -m str "ES256" }
+        http-response set-header x-jwt-verify-ES256-var %[var(txn.bearer),jwt_verify_cert(txn.jwt_alg,txn.cert)] if { var(txn.jwt_alg) -m str "ES256" }
 
         server s1 ${s1_addr}:${s1_port}
 

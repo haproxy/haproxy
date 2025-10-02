@@ -4527,6 +4527,53 @@ static int sample_conv_jwt_verify_check(struct arg *args, struct sample_conv *co
 			default:
 				retval = (jwt_tree_load_cert(args[1].data.str.area, args[1].data.str.data,
 				                             file, line, err) == 0);
+				/* The second arg might be an HMAC secret but
+				 * the 'alg' is stored in a var */
+				if (!retval && args[0].type == ARGT_VAR)
+					retval = 1;
+				break;
+		}
+	} else if (args[1].type == ARGT_VAR) {
+		/* We will try to resolve the var during runtime because the
+		 * processing might work if it actually points to an already
+		 * existing ckch_store.
+		 */
+		retval = 1;
+	}
+
+	return retval;
+}
+
+static int sample_conv_jwt_verify_cert_check(struct arg *args, struct sample_conv *conv,
+                                             const char *file, int line, char **err)
+{
+	enum jwt_alg alg = JWT_ALG_DEFAULT;
+	int retval = 0;
+
+	vars_check_arg(&args[0], NULL);
+	vars_check_arg(&args[1], NULL);
+
+	if (args[0].type == ARGT_STR) {
+		alg = jwt_parse_alg(args[0].data.str.area, args[0].data.str.data);
+
+		if (alg == JWT_ALG_DEFAULT) {
+			memprintf(err, "unknown JWT algorithm: %s", args[0].data.str.area);
+			return 0;
+		}
+	}
+
+	if (args[1].type == ARGT_STR) {
+		switch (alg) {
+			case JWS_ALG_HS256:
+			case JWS_ALG_HS384:
+			case JWS_ALG_HS512:
+				/* We can't have a certificate as second parameter for
+				 * HMAC-signed JWT tokens */
+				memprintf(err, "HMAC-signed tokens can't be processed by this converter");
+				break;
+			default:
+				retval = (jwt_tree_load_cert(args[1].data.str.area, args[1].data.str.data,
+				                             file, line, err) == 0);
 				break;
 		}
 	} else if (args[1].type == ARGT_VAR) {
@@ -4580,7 +4627,60 @@ static int sample_conv_jwt_verify(const struct arg *args, struct sample *smp, vo
 	if (chunk_printf(key, "%.*s", (int)b_data(&key_smp.data.u.str), b_orig(&key_smp.data.u.str)) <= 0)
 		goto end;
 
-	ret = jwt_verify(input, alg, key);
+	ret = jwt_verify(input, alg, key, 0);
+
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = ret;
+
+	retval = 1;
+
+end:
+	free_trash_chunk(input);
+	free_trash_chunk(alg);
+	free_trash_chunk(key);
+	return retval;
+}
+
+static int sample_conv_jwt_verify_cert(const struct arg *args, struct sample *smp, void *private)
+{
+	struct sample alg_smp, key_smp;
+	enum jwt_vrfy_status ret;
+	struct buffer *input = NULL;
+	struct buffer *alg = NULL;
+	struct buffer *key = NULL;
+	int retval = 0;
+
+	/* The two following calls to 'sample_conv_var2smp_str' will both make
+	 * use of the preallocated trash buffer (via get_trash_chunk call in
+	 * smp_dup) which would end up erasing the contents of the 'smp' input
+	 * buffer.
+	 */
+	input = alloc_trash_chunk();
+	if (!input)
+		return 0;
+	alg = alloc_trash_chunk();
+	if (!alg)
+		goto end;
+	key = alloc_trash_chunk();
+	if (!key)
+		goto end;
+
+	if (!chunk_cpy(input, &smp->data.u.str))
+		goto end;
+
+	smp_set_owner(&alg_smp, smp->px, smp->sess, smp->strm, smp->opt);
+	if (!sample_conv_var2smp_str(&args[0], &alg_smp))
+		goto end;
+	if (chunk_printf(alg, "%.*s", (int)b_data(&alg_smp.data.u.str), b_orig(&alg_smp.data.u.str)) <= 0)
+		goto end;
+
+	smp_set_owner(&key_smp, smp->px, smp->sess, smp->strm, smp->opt);
+	if (!sample_conv_var2smp_str(&args[1], &key_smp))
+		goto end;
+	if (chunk_printf(key, "%.*s", (int)b_data(&key_smp.data.u.str), b_orig(&key_smp.data.u.str)) <= 0)
+		goto end;
+
+	ret = jwt_verify(input, alg, key, 1);
 
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = ret;
@@ -5532,6 +5632,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "jwt_header_query",  sample_conv_jwt_header_query,  ARG2(0,STR,STR), sample_conv_jwt_query_check,   SMP_T_BIN, SMP_T_ANY },
 	{ "jwt_payload_query", sample_conv_jwt_payload_query, ARG2(0,STR,STR), sample_conv_jwt_query_check,   SMP_T_BIN, SMP_T_ANY },
 	{ "jwt_verify",        sample_conv_jwt_verify,        ARG2(2,STR,STR), sample_conv_jwt_verify_check,  SMP_T_BIN, SMP_T_SINT },
+	{ "jwt_verify_cert",   sample_conv_jwt_verify_cert,   ARG2(2,STR,STR), sample_conv_jwt_verify_cert_check,  SMP_T_BIN, SMP_T_SINT },
 #endif
 	{ "when",              sample_conv_when,              ARG3(1,STR,STR,STR), check_when_cond,               SMP_T_ANY, SMP_T_ANY  },
 	{ NULL, NULL, 0, 0, 0 },

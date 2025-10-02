@@ -55,6 +55,7 @@ struct jwt_ctx {
 	struct jwt_item signature;
 	char *key;
 	unsigned int key_length;
+	int is_x509;	/* 1 if 'key' field is a certificate, 0 otherwise */
 };
 
 enum jwt_elt {
