@@ -20699,6 +20699,12 @@ json_query(<json_path>[,<output_type>])
   <json_path> must be a valid JSON Path string as defined in
   https://datatracker.ietf.org/doc/draft-ietf-jsonpath-base/
 
+  Note: depending on the context and the underlying implementation, extraction
+        of duplicate JSON keys is undefined and might return the first, last,
+        or any other occurrence of the same key from the input content, and if
+        key names are passed encoded, they might not always be matched. In
+        short, this converter is not suitable for content sanitization.
+
   Example:
      # get a integer value from the request body
      # "{"integer":4}" => 5
