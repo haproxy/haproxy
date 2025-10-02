@@ -4526,7 +4526,7 @@ static int sample_conv_jwt_verify_check(struct arg *args, struct sample_conv *co
 				break;
 			default:
 				retval = (jwt_tree_load_cert(args[1].data.str.area, args[1].data.str.data,
-				                             file, line, err) == 0);
+				                             0, file, line, err) == 0);
 				/* The second arg might be an HMAC secret but
 				 * the 'alg' is stored in a var */
 				if (!retval && args[0].type == ARGT_VAR)
@@ -4573,7 +4573,7 @@ static int sample_conv_jwt_verify_cert_check(struct arg *args, struct sample_con
 				break;
 			default:
 				retval = (jwt_tree_load_cert(args[1].data.str.area, args[1].data.str.data,
-				                             file, line, err) == 0);
+				                             1, file, line, err) == 0);
 				break;
 		}
 	} else if (args[1].type == ARGT_VAR) {

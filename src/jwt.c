@@ -133,7 +133,7 @@ int jwt_tokenize(const struct buffer *jwt, struct jwt_item *items, unsigned int 
  * Parse a public certificate and insert it into the jwt_cert_tree.
  * Returns 0 in case of success.
  */
-int jwt_tree_load_cert(char *path, int pathlen, const char *file, int line, char **err)
+int jwt_tree_load_cert(char *path, int pathlen, int tryload_cert, const char *file, int line, char **err)
 {
 	int retval = -1;
 	struct jwt_cert_tree_entry *entry = NULL;
@@ -181,6 +181,9 @@ int jwt_tree_load_cert(char *path, int pathlen, const char *file, int line, char
 			}
 		}
 	}
+
+	if (!tryload_cert)
+		goto end;
 
 	/* Look for an actual certificate or crt-store with the given name.
 	 * If the path corresponds to an actual certificate that was not loaded
