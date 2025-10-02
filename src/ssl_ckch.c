@@ -88,6 +88,11 @@ struct show_cert_ctx {
 	int transaction;
 };
 
+/* CLI context used by "show ssl jwt" */
+struct show_jwt_ctx {
+	struct ckch_store *cur_ckchs;
+};
+
 #define SHOW_SNI_OPT_1FRONTEND  (1 << 0) /* show only the selected frontend */
 #define SHOW_SNI_OPT_NOTAFTER   (1 << 1) /* show certificates that are [A]fter the notAfter date */
 
@@ -2444,6 +2449,113 @@ error:
 	return cli_err(appctx, "Can't display the certificate: Not found or the certificate is a bundle!\n");
 }
 
+static inline int cli_set_ssl_jwt(char **args, struct appctx *appctx, int value)
+{
+	struct ckch_store *ckchs;
+	char *err = NULL;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return cli_err(appctx, "Can't allocate memory!\n");
+
+	/* check if there is a certificate to lookup */
+	if (!*args[3])
+		return cli_dynerr(appctx, memprintf(&err, "'%s ssl cert' expects a filename\n", args[0]));
+
+	/* The operations on the CKCH architecture are locked so we can
+	 * manipulate ckch_store and ckch_inst */
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't show!\nOperations on certificates are currently locked!\n");
+
+	if ((ckchs = ckchs_lookup(args[3])) == NULL)
+		goto error;
+
+	ckchs->conf.jwt = value;
+
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return 0;
+
+error:
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return cli_err(appctx, "Can't display the certificate: Not found or the certificate is a bundle!\n");
+}
+
+/* parsing function for 'add ssl jwt <certfile>' */
+static int cli_parse_add_jwt(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	return cli_set_ssl_jwt(args, appctx, 1);
+}
+
+/* parsing function for 'del ssl jwt <certfile>' */
+static int cli_parse_del_jwt(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	return cli_set_ssl_jwt(args, appctx, 0);
+}
+
+/* parsing function for 'show ssl jwt <certfile>' */
+static int cli_parse_show_jwt(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct show_jwt_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return cli_err(appctx, "Can't allocate memory!\n");
+
+	/* The operations on the CKCH architecture are locked so we can
+	 * manipulate ckch_store and ckch_inst */
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't show!\nOperations on certificates are currently locked!\n");
+
+	return 0;
+
+error:
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return cli_err(appctx, "Can't display the certificate: Not found or the certificate is a bundle!\n");
+}
+
+/* IO handler of "show ssl jwt".
+ * It makes use of a show_jwt_ctx context.
+ */
+static int cli_io_handler_show_jwt(struct appctx *appctx)
+{
+	struct show_jwt_ctx *ctx = appctx->svcctx;
+	struct buffer *trash = alloc_trash_chunk();
+	struct ebmb_node *node;
+	struct ckch_store *ckchs = NULL;
+
+	if (trash == NULL)
+		return 1;
+
+	if (!ctx->cur_ckchs) {
+		chunk_appendf(trash, "# filename\n");
+		node = ebmb_first(&ckchs_tree);
+	} else {
+		node = &ctx->cur_ckchs->node;
+	}
+	while (node) {
+		ckchs = ebmb_entry(node, struct ckch_store, node);
+		if (ckchs->conf.jwt)
+			chunk_appendf(trash, "%s\n", ckchs->path);
+
+		node = ebmb_next(node);
+		if (applet_putchk(appctx, trash) == -1)
+			goto yield;
+	}
+
+	ctx->cur_ckchs = NULL;
+	free_trash_chunk(trash);
+	return 1;
+yield:
+
+	free_trash_chunk(trash);
+	ctx->cur_ckchs = ckchs;
+	return 0; /* should come back */
+}
+
+/* release function of the 'show ssl jwt' command */
+static void cli_release_show_jwt(struct appctx *appctx)
+{
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+}
+
 
 /*
  * Dump a CKCH in PEM format over the CLI
@@ -4569,6 +4681,10 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "del", "ssl", "cert", NULL },       "del ssl cert <certfile>                 : delete an unused certificate file",                                     cli_parse_del_cert, NULL, NULL },
 	{ { "show", "ssl", "cert", NULL },      "show ssl cert [<certfile>]              : display the SSL certificates used in memory, or the details of a file", cli_parse_show_cert, cli_io_handler_show_cert, cli_release_show_cert },
 	{ { "dump", "ssl", "cert", NULL },      "dump ssl cert <certfile>                : dump the SSL certificates in PEM format",                               cli_parse_dump_cert, cli_io_handler_dump_cert, cli_release_dump_cert },
+
+	{ { "add", "ssl", "jwt", NULL },        "add ssl jwt <certfile>                  : add certificate to list of certificates used for JWT validation",       cli_parse_add_jwt, NULL, NULL },
+	{ { "del", "ssl", "jwt", NULL },        "del ssl jwt <certfile>                  : remove certificate from list of certificates used for JWT validation",  cli_parse_del_jwt, NULL, NULL },
+	{ { "show", "ssl", "jwt", NULL },       "show ssl jwt                            : show list of certificates used for JWT validation",                     cli_parse_show_jwt, cli_io_handler_show_jwt, cli_release_show_jwt },
 
 
 	{ { "new", "ssl", "ca-file", NULL },    "new ssl ca-file <cafile>                : create a new CA file to be used in a crt-list",                         cli_parse_new_cafile, NULL, NULL },

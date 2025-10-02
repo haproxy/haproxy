@@ -1834,6 +1834,13 @@ add ssl crt-list <crtlist> <payload>
     $ echo -e 'add ssl crt-list certlist1 <<\nfoobar.pem [allow-0rtt] foo.bar.com
     !test1.com\n' | socat /tmp/sock1 -
 
+add ssl jwt <filename>
+  Add an already loaded certificate to the list of certificates that can be
+  used for JWT validation (see "jwt_verify_cert" converter). This command does
+  not work on ongoing transactions.
+  See also "del ssl jwt" and "show ssl jwt" commands.
+  See "jwt" certificate option for more information.
+
 clear counters
   Clear the max values of the statistics counters in each proxy (frontend &
   backend) and in each server. The accumulated counters are not affected. The
@@ -2102,6 +2109,13 @@ del ssl crt-list <filename> <certfile[:line]>
   entry in the frontends. If a certificate is used several time in a crt-list,
   you will need to provide which line you want to delete. To display the line
   numbers, use "show ssl crt-list -n <crtlist>".
+
+del ssl jwt <filename>
+  Remove an already loaded certificate to the list of certificates that can be
+  used for JWT validation (see "jwt_verify_cert" converter). This command does
+  not work on ongoing transactions.
+  See also "add ssl jwt" and "show ssl jwt" commands.
+  See "jwt" certificate option for more information.
 
 del server <backend>/<server>
   Delete a removable server attached to the backend <backend>. A removable
@@ -3778,6 +3792,16 @@ show ssl crt-list [-n] [<filename>]
     common.pem:2
     ecdsa.pem:3 [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3] localhost !www.test1.com
     ecdsa.pem:4 [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3]
+
+show ssl jwt
+  Display the list of certificates that can be used for JWT validation.
+  See also "add ssl jwt" and "del ssl jwt" commands.
+  See "jwt" certificate option for more information.
+
+  Example:
+    echo "show ssl jwt"  | socat /tmp/sock1 -
+    #filename
+    jwt.pem
 
 show ssl ocsp-response [[text|base64] <id|path>]
   Display the IDs of the OCSP tree entries corresponding to all the OCSP

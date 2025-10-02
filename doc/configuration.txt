@@ -30742,6 +30742,9 @@ jwt [ off | on ]
   not work. In order to be deleted, a certificate must not be used, either for
   SSL handshakes or JWT validation.
 
+  This option can be changed during runtime via the "add ssl jwt" and "del ssl
+  jwt" CLI commands. See also "show ssl jwt" CLI command.
+
 12.8. ACME
 ----------
 
