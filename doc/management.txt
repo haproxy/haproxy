@@ -2085,10 +2085,11 @@ del ssl ca-file <cafile>
   the "ca-file" or "ca-verify-file" directives in the configuration.
 
 del ssl cert <certfile>
-  Delete a certificate store from HAProxy. The certificate must be unused and
-  removed from any crt-list or directory. "show ssl cert" displays the status
-  of the certificate. The deletion doesn't work with a certificate referenced
-  directly with the "crt" directive in the configuration.
+  Delete a certificate store from HAProxy. The certificate must be unused
+  (included for JWT validation) and removed from any crt-list or directory.
+  "show ssl cert" displays the status of the certificate. The deletion doesn't
+  work with a certificate referenced directly with the "crt" directive in the
+  configuration.
 
 del ssl crl-file <crlfile>
   Delete a CRL file tree entry from HAProxy. The CRL file must be unused and

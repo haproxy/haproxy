@@ -20125,6 +20125,7 @@ jwt_header_query([json_path[,output_type]])        string       string
 jwt_payload_query([json_path[,output_type]])       string       string
 -- keyword -------------------------------------+- input type + output type -
 jwt_verify(alg,key)                                string       integer
+jwt_verify_cert(alg,cert)                          string       integer
 language(value[,default])                          string       string
 length                                             string       integer
 lower                                              string       string
@@ -20794,24 +20795,104 @@ jwt_verify(<alg>,<key>)
    +--------------+---------------------------------------------------------+
 
   - <key> can be either a string or a variable name (See also "set-var") that
-    holds a secret, a public key path or a certificate path.
+    holds a secret or a public key path.
 
     Secrets are only applicable when using HMAC algorithms.
 
     Public keys must be in either the PKCS#1 format (for RSA keys, starting
     with BEGIN RSA PUBLIC KEY) or SPKI format (Subject Public Key Info,
     starting with BEGIN PUBLIC KEY). Public keys must be available during the
-    configuration parsing and cannot be updated or loaded at runtime unlike
+    configuration parsing and cannot be updated or loaded at runtime. See
+    "jwt_verify_cert" converter for JWT token validation based on full-on PEM
     certificates.
 
-    Certificates must be standard PEM certificates (starting with BEGIN
-    CERTIFICATE). When using a certificate its path can be passed directly to
-    the converter or referenced via a variable. Certificates can be either
-    declared in a crt-store, or dynamically loaded via the stats socket.
+    All the public keys that might be used to verify JWTs must be known during
+    init in order to be added into a dedicated cache so that no disk access is
+    required during runtime.
 
-    All the public keys and certificates that might be used to verify JWTs must
-    be known during init in order to be added into a dedicated cache so that no
-    disk access is required during runtime.
+  Returns 1 in case of verification success, 0 in case of verification failure
+  and a strictly negative value for any other error. Because of all those
+  non-null error return values, the result of this converter should never be
+  converted to a boolean. See below for a full list of the possible return
+  values.
+
+  The possible return values are the following :
+
+  +----+----------------------------------------------------------------------+
+  | ID | message                                                              |
+  +----+----------------------------------------------------------------------+
+  |  1 | "Verification success"                                               |
+  |  0 | "Verification failure"                                               |
+  | -1 | "Unknown algorithm (not mentioned in RFC7518)"                       |
+  | -2 | "Unmanaged algorithm"                                                |
+  | -3 | "Invalid token"                                                      |
+  | -4 | "Out of memory"                                                      |
+  | -5 | "Unknown pubkey/certificate"                                         |
+  | -6 | "Internal error"                                                     |
+  +----+----------------------------------------------------------------------+
+
+  Please note that this converter is only available when HAProxy has been
+  compiled with USE_OPENSSL.
+
+  Example:
+     # Get a JWT from the authorization header, extract the "alg" field of its
+     # JOSE header and use a public key to verify a signature
+     http-request set-var(txn.bearer) http_auth_bearer
+     http-request set-var(txn.jwt_alg) var(txn.bearer),jwt_header_query('$.alg')
+     http-request deny unless { var(txn.jwt_alg) -m str "RS256" }
+     http-request deny unless { var(txn.bearer),jwt_verify(txn.jwt_alg,"/path/to/pubkey.pem") 1 }
+
+jwt_verify_cert(<alg>,<cert>)
+
+  Performs a signature verification for the JSON Web Token (JWT) given in input
+  by using the <alg> algorithm and the <cert> parameter.
+  For now, only JWS tokens using the Compact Serialization format can be
+  processed (three dot-separated base64-url encoded strings).
+  This converter only verifies the signature of the token and does not perform
+  a full JWT validation as specified in section 7.2 of RFC7519. We do not
+  ensure that the header and payload contents are fully valid JSONs once
+  decoded for instance, and no checks are performed regarding their respective
+  contents.
+
+  - <alg> can be either a string or a variable name (See also "set-var") that
+    holds the name of the algorithm used to verify. Unlike the "jwt_verify"
+    converter, this converter only expects a certificate as second parameter so
+    it should not be used for tokens using HMAC algorithms.
+
+    Algorithms mentioned in section 3.1 of RFC7518 are managed (apart from HMAC
+    ones):
+
+   +--------------+---------------------------------------------------------+
+   | "alg" Param  | Digital Signature or MAC Algorithm                      |
+   | Value        |                                                         |
+   +--------------+---------------------------------------------------------+
+   | RS256        | RSASSA-PKCS1-v1_5 using SHA-256                         |
+   | RS384        | RSASSA-PKCS1-v1_5 using SHA-384                         |
+   | RS512        | RSASSA-PKCS1-v1_5 using SHA-512                         |
+   | ES256        | ECDSA using P-256 and SHA-256                           |
+   | ES384        | ECDSA using P-384 and SHA-384                           |
+   | ES512        | ECDSA using P-521 and SHA-512                           |
+   | PS256        | RSASSA-PSS using SHA-256 and MGF1 with SHA-256          |
+   | PS384        | RSASSA-PSS using SHA-384 and MGF1 with SHA-384          |
+   | PS512        | RSASSA-PSS using SHA-512 and MGF1 with SHA-512          |
+   | none         | No digital signature or MAC performed                   |
+   +--------------+---------------------------------------------------------+
+
+  - <key> can be either a string or a variable name (See also "set-var") that
+    holds a certificate path.
+
+    Certificates must be standard PEM certificates (starting with BEGIN
+    CERTIFICATE). Their path can be passed directly to the converter or
+    referenced via a variable. If a variable is used, the corresponding
+    certificates can either be declared in a crt-store or dynamically loaded
+    via the stats socket.
+    When a path is given directly, if the corresponding certificate was not
+    loaded yet in the internal certificate store, it will be loaded during
+    configuration parsing and it thus must already exist otherwise an error
+    will be raised.
+
+    Only certificates that are explicitly defined as usable for JWT validation
+    can be used. See "jwt" crt-store option.
 
     It is possible to update certificates dynamically and add new certificates
     using the stats socket. See also "set ssl cert" and "new ssl cert" in the
@@ -20834,8 +20915,9 @@ jwt_verify(<alg>,<key>)
   | -2 | "Unmanaged algorithm"                                                |
   | -3 | "Invalid token"                                                      |
   | -4 | "Out of memory"                                                      |
-  | -5 | "Unknown certificate"                                                |
+  | -5 | "Unknown pubkey/certificate"                                         |
   | -6 | "Internal error"                                                     |
+  | -7 | "Unavailable certificate" (see "jwt")                                |
   +----+----------------------------------------------------------------------+
 
   Please note that this converter is only available when HAProxy has been
@@ -20847,7 +20929,7 @@ jwt_verify(<alg>,<key>)
      http-request set-var(txn.bearer) http_auth_bearer
      http-request set-var(txn.jwt_alg) var(txn.bearer),jwt_header_query('$.alg')
      http-request deny unless { var(txn.jwt_alg) -m str "RS256" }
-     http-request deny unless { var(txn.bearer),jwt_verify(txn.jwt_alg,"/path/to/cert.pem") 1 }
+     http-request deny unless { var(txn.bearer),jwt_verify_cert(txn.jwt_alg,"/path/to/cert.pem") 1 }
 
 language(<value>[,<default>])
   Returns the value with the highest q-factor from a list as extracted from the
@@ -30651,6 +30733,14 @@ ocsp-update [ off | on ]
   A more precise error message might also be displayed between parenthesis
   after the "generic" error message. It can happen for "OCSP response check
   failure" or "Error during insertion" errors.
+
+jwt [ off | on ]
+  Allow for this certificate to be used for JWT validation via the
+  "jwt_verify_cert" converter when set to 'on'. Its value default to 'off'.
+
+  When set to 'on' for a given certificate, the CLI command "del ssl cert" will
+  not work. In order to be deleted, a certificate must not be used, either for
+  SSL handshakes or JWT validation.
 
 12.8. ACME
 ----------
