@@ -1043,6 +1043,7 @@ struct ckch_store *ckchs_dup(const struct ckch_store *src)
 
 
 	dst->conf.ocsp_update_mode = src->conf.ocsp_update_mode;
+	dst->conf.jwt = src->conf.jwt;
 
         /* copy ckch_conf
 	 * XXX: could be automated for each field with the
@@ -2251,6 +2252,8 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 		chunk_appendf(out, "Empty\n");
 	else if (ckchs == ckchs_transaction.new_ckchs)
 		chunk_appendf(out, "Uncommitted\n");
+	else if (ckchs->conf.jwt)
+		chunk_appendf(out, "Used for JWT verification\n");
 	else if (LIST_ISEMPTY(&ckchs->ckch_inst))
 		chunk_appendf(out, "Unused\n");
 	else
@@ -3165,6 +3168,12 @@ static int cli_parse_del_cert(char **args, char *payload, struct appctx *appctx,
 		memprintf(&err, "certificate '%s' doesn't exist!\n", filename);
 		goto error;
 	}
+
+	if (store->conf.jwt) {
+		memprintf(&err, "certificate '%s' in use for JWT validation, can't be deleted!\n", filename);
+		goto error;
+	}
+
 	if (!LIST_ISEMPTY(&store->ckch_inst)) {
 		memprintf(&err, "certificate '%s' in use, can't be deleted!\n", filename);
 		goto error;
@@ -4601,6 +4610,7 @@ struct ckch_conf_kws ckch_conf_kws[] = {
 #if defined(HAVE_SSL_OCSP)
 	{ "ocsp-update",  offsetof(struct ckch_conf, ocsp_update_mode), PARSE_TYPE_ONOFF, ocsp_update_init,               },
 #endif
+	{ "jwt",          offsetof(struct ckch_conf, jwt),              PARSE_TYPE_ONOFF, NULL,                           },
 #if defined(HAVE_ACME)
 	{ "acme",         offsetof(struct ckch_conf, acme.id),          PARSE_TYPE_STR,   ckch_conf_acme_init,            },
 #endif

@@ -67,6 +67,7 @@ struct ckch_conf {
 	char *issuer;
 	char *sctl;
 	int ocsp_update_mode;
+	int jwt;      /* info stored here for now but should be in a dedicated jwt instance */
 	struct {
 		char *id;
 		char **domains;

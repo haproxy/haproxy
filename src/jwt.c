@@ -227,6 +227,8 @@ int jwt_tree_load_cert(char *path, int pathlen, int tryload_cert, const char *fi
 		}
 	}
 
+	store->conf.jwt = 1;
+
 	retval = 0;
 
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
@@ -403,7 +405,7 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signat
 		if (!HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock)) {
 
 			store = ckchs_lookup(ctx->key);
-			if (store) {
+			if (store && store->conf.jwt) {
 				pubkey = X509_get_pubkey(store->data->cert);
 				if (pubkey)
 					EVP_PKEY_up_ref(pubkey);
