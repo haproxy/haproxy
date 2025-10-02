@@ -2246,6 +2246,9 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 		chunk_appendf(out, "SCTL filename: ");
 		chunk_appendf(out, "%s\n", ckchs->conf.sctl);
 	}
+	chunk_appendf(out, "Option: ocsp-update %s\n",
+	              ckchs->conf.ocsp_update_mode ? "on": "off");
+	chunk_appendf(out, "Option: jwt %s\n", ckchs->conf.jwt ? "on": "off");
 
 	chunk_appendf(out, "Status: ");
 	if (ckchs->data->cert == NULL)
