@@ -16,7 +16,7 @@ feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 feature cmd "command -v socat"
 feature ignore_unknown_macro
 
-server s1 -repeat 26 {
+server s1 -repeat 27 {
   rxreq
   txresp
 } -start
@@ -50,7 +50,7 @@ haproxy h1 -conf {
         default_backend dflt_be
 
     crt-store named_store
-        load crt "${testdir}/cert.rsa.pem"
+        load crt "${testdir}/cert.rsa.pem" jwt on
 
     backend hsXXX_be
         http-request set-var(txn.bearer) http_auth_bearer
@@ -268,6 +268,7 @@ shell {
     echo "new ssl cert ${testdir}/cert.ecdsa.pem" | socat "${tmpdir}/h1/stats" -
     printf "set ssl cert ${testdir}/cert.ecdsa.pem <<\n$(cat ${testdir}/cert.ecdsa.pem)\n\n" | socat "${tmpdir}/h1/stats" -
     echo "commit ssl cert ${testdir}/cert.ecdsa.pem" | socat "${tmpdir}/h1/stats" -
+    echo "add ssl jwt ${testdir}/cert.ecdsa.pem" | socat "${tmpdir}/h1/stats" -
 }
 
 client c9 -connect ${h1_mainfe_sock} {
@@ -508,5 +509,36 @@ client c26 -connect ${h1_mainfe_sock} {
 
     expect resp.http.x-jwt-verify-RS256-var1 == "0"
     expect resp.http.x-jwt-verify-RS256-var2 == "0"
+
+} -run
+
+shell {
+    # Restore certificates that were changed for previous test
+    printf "set ssl cert ${testdir}/cert.rsa.pem <<\n$(cat ${testdir}/cert.rsa.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert ${testdir}/cert.rsa.pem" | socat "${tmpdir}/h1/stats" -
+
+    printf "set ssl cert @named_store${testdir}/cert.rsa.pem <<\n$(cat ${testdir}/cert.rsa.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert @named_store${testdir}/cert.rsa.pem" | socat "${tmpdir}/h1/stats" -
+
+    # Remove ${testdir}/cert.rsa.pem from JWT list
+    echo "del ssl jwt ${testdir}/cert.rsa.pem" | socat "${tmpdir}/h1/stats" -
+}
+
+client c27 -connect ${h1_mainfe_sock} {
+    # Token content : {"alg":"RS256","typ":"JWT"}
+    #                 {"sub":"1234567890","name":"John Doe","iat":1516239022}
+    # OpenSSL cmd : openssl dgst -sha256 -sign rsa-private.pem data.txt | base64 | tr -d '=\n' | tr '/+' '_-'
+
+    txreq -url "/rs256" -hdr "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.hRqFM87JzV_YinYhdERp2E9BLhl6s7I5J37GTXAeT5fixJx-OCjTFvwKssyVo7fWAFcQMdQU7vGEXDOiWbNaMUFGIsMxx0Uflk0BeNwk6pWvNGk8KZGMtiqOv-IuPdAiaSW_xhxLHIk7eOwVefvBfk8j2hgU9yoHN87AYnl8oEnzrkzwWvEt-x-P2zB4s_VwhF0gbL1G4FsP5hxWL1HWmSFLBpvWaL5Lx3OJE7mLRLRf8TpMwEe4ROakzMpiv9Xk1H3mZth6d2a91F5Bm65MIJpJ7P2kEL3tdS62VRx8DM_SlsFuWcsqryO3CDQquMbwzAvfRgLPy8PBLRLT64wM3mZtue5GI2KUlqSYsSwKwK580b4drosLvAS75l_4jJwdwuQEvVd8Gry3DWS2mKJSMefmGfD-cdty1vvszs5sUa96Gf7Ro5DvkgXtVCKYk8KJLI62YgZd5S3M0ucP5NLBc_flUi4A2B_aSkd7NDM0ELddk0y48pcF95tejcvliGIy1GRRwevdqensXXQrFweFSZVvuKo8c9pcCBVfKTSllgL0lFGyI_vz6dUYt69I1gqWBDeGcA2XQUBJqfX3o9nkhZspA7b7QxMESatoATsM_XmfhbwsyY-sTq25XIGC4awaZHViZr1YFVD6BwNZWBCEBvW5zObiD5h5A5AgWoBv14E"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-jwt-alg == "RS256"
+    expect resp.http.x-jwt-verify-RS256 == "1"
+
+    expect resp.http.x-jwt-verify-RS256-cert == "-7"
+    expect resp.http.x-jwt-verify-RS256-cert-named == "1"
+
+    expect resp.http.x-jwt-verify-RS256-var1 == "-7"
+    expect resp.http.x-jwt-verify-RS256-var2 == "1"
 
 } -run
