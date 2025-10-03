@@ -1,6 +1,226 @@
 ChangeLog :
 ===========
 
+2025/10/03 : 3.3-dev9
+    - BUG/MINOR: acl: Fix error message about several '-m' parameters
+    - MINOR: server: Parse sni and pool-conn-name expressions in a dedicated function
+    - BUG/MEDIUM: server: Use sni as pool connection name for SSL server only
+    - BUG/MINOR: server: Update healthcheck when server settings are changed via CLI
+    - OPTIM: backend: Don't set SNI for non-ssl connections
+    - OPTIM: proto_rhttp: Don't set SNI for non-ssl connections
+    - OPTIM: tcpcheck: Don't set SNI and ALPN for non-ssl connections
+    - BUG/MINOR: tcpcheck: Don't use sni as pool-conn-name for non-SSL connections
+    - MEDIUM: server/ssl: Base the SNI value to the HTTP host header by default
+    - MEDIUM: httpcheck/ssl: Base the SNI value on the HTTP host header by default
+    - OPTIM: tcpcheck: Reorder tcpchek_connect structure fields to fill holes
+    - REGTESTS: ssl: Add a script to test the automatic SNI selection
+    - MINOR: quic: add useful trace about padding params values
+    - BUG/MINOR: quic: too short PADDING frame for too short packets
+    - BUG/MINOR: cpu_topo: work around a small bug in musl's CPU_ISSET()
+    - BUG/MEDIUM: ssl: Properly initialize msg_controllen.
+    - MINOR: quic: SSL session reuse for QUIC
+    - BUG/MEDIUM: proxy: fix crash with stop_proxy() called during init
+    - MINOR: stats-file: use explicit unsigned integer bitshift for user slots
+    - CLEANUP: quic: fix typo in quic_tx trace
+    - TESTS: quic: add unit-tests for QUIC TX part
+    - MINOR: quic: restore QUIC_HP_SAMPLE_LEN constant
+    - REGTESTS: ssl: Fix the script about automatic SNI selection
+    - BUG/MINOR: pools: Fix the dump of pools info to deal with buffers limitations
+    - MINOR: pools: Don't dump anymore info about pools when purge is forced
+    - BUG/MINOR: quic: properly support GSO on backend side
+    - BUG/MEDIUM: mux-h2: Reset MUX blocking flags when a send error is caught
+    - BUG/MEDIUM: mux-h2; Don't block reveives in H2_CS_ERROR and H2_CS_ERROR2 states
+    - BUG/MEDIUM: mux-h2: Restart reading when mbuf ring is no longer full
+    - BUG/MINOR: mux-h2: Remove H2_CF_DEM_DFULL flags when the demux buffer is reset
+    - BUG/MEDIUM: mux-h2: Report RST/error to app-layer stream during 0-copy fwding
+    - BUG/MEDIUM: mux-h2: Reinforce conditions to report an error to app-layer stream
+    - BUG/MINOR: hq-interop: adjust parsing/encoding on backend side
+    - OPTIM: check: do not delay MUX for ALPN if SSL not active
+    - BUG/MEDIUM: checks: fix ALPN inheritance from server
+    - BUG/MINOR: check: ensure checks are compatible with QUIC servers
+    - MINOR: check: reject invalid check config on a QUIC server
+    - MINOR: debug: report the process id in warnings and panics
+    - DEBUG: stream: count the number of passes in the connect loop
+    - MINOR: debug: report the number of loops and ctxsw for each thread
+    - MINOR: debug: report the time since last wakeup and call
+    - DEBUG: peers: export functions that use locks
+    - MINOR: stick-table: permit stksess_new() to temporarily allocate more entries
+    - MEDIUM: stick-tables: relax stktable_trash_oldest() to only purge what is needed
+    - MEDIUM: stick-tables: give up on lock contention in process_table_expire()
+    - MEDIUM: stick-tables: don't wait indefinitely in stktable_add_pend_updates()
+    - MEDIUM: peers: don't even try to process updates under contention
+    - BUG/MEDIUM: h1: Allow reception if we have early data
+    - BUG/MEDIUM: ssl: create the mux immediately on early data
+    - MINOR: ssl: Add a flag to let it known we have an ALPN negociated
+    - MINOR: ssl: Use the new flag to know when the ALPN has been set.
+    - MEDIUM: server: Introduce the concept of path parameters
+    - CLEANUP: backend: clarify the role of the init_mux variable in connect_server()
+    - CLEANUP: backend: invert the condition to start the mux in connect_server()
+    - CLEANUP: backend: simplify the complex ifdef related to 0RTT in connect_server()
+    - CLEANUP: backend: clarify the cases where we want to use early data
+    - MEDIUM: server: Make use of the stored ALPN stored in the server
+    - BUILD: ssl: address a recent build warning when QUIC is enabled
+    - BUG/MINOR: activity: fix reporting of task latency
+    - MINOR: activity: indicate the number of calls on "show tasks"
+    - MINOR: tools: don't emit "+0" for symbol names which exactly match known ones
+    - BUG/MEDIUM: stick-tables: don't loop on non-expirable entries
+    - DEBUG: stick-tables: export stktable_add_pend_updates() for better reporting
+    - BUG/MEDIUM: ssl: Fix a crash when using QUIC
+    - BUG/MEDIUM: ssl: Fix a crash if we failed to create the mux
+    - MEDIUM: dns: bind the nameserver sockets to the initiating thread
+    - MEDIUM: resolvers: make the process_resolvers() task single-threaded
+    - BUG/MINOR: stick-table: make sure never to miss a process_table_expire update
+    - MEDIUM: stick-table: move process_table_expire() to a single thread
+    - MEDIUM: peers: move process_peer_sync() to a single thread
+    - BUG/MAJOR: stream: Force channel analysis on successful synchronous send
+    - MINOR: quic: get rid of ->target quic_conn struct member
+    - MINOR: quic-be: make SSL/QUIC objects use their own indexes (ssl_qc_app_data_index)
+    - MINOR: quic: display build warning for compat layer on recent OpenSSL
+    - DOC: quic: clarifies limited-quic support
+    - BUG/MINOR: acme: null pointer dereference upon allocation failure
+    - BUG/MEDIUM: jws: return size_t in JWS functions
+    - BUG/MINOR: ssl: Potential NULL deref in trace macro
+    - BUG/MINOR: ssl: Fix potential NULL deref in trace callback
+    - BUG/MINOR: ocsp: prototype inconsistency
+    - MINOR: ocsp: put internal functions as static ones
+    - MINOR: ssl: set functions as static when no protypes in the .h
+    - BUILD: ssl: functions defined but not used
+    - BUG/MEDIUM: resolvers: Properly cache do-resolv resolution
+    - BUG/MINOR: resolvers: Restore round-robin selection on records in DNS answers
+    - MINOR: activity: don't report the lat_tot column for show profiling tasks
+    - MINOR: activity: add a new lkw_avg column to show profiling stats
+    - MINOR: activity: collect time spent waiting on a lock for each task
+    - MINOR: thread: add a lock level information in the thread_ctx
+    - MINOR: activity: add a new lkd_avg column to show profiling stats
+    - MINOR: activity: collect time spent with a lock held for each task
+    - MINOR: activity: add a new mem_avg column to show profiling stats
+    - MINOR: activity: collect CPU time spent on memory allocations for each task
+    - MINOR: activity/memory: count allocations performed under a lock
+    - DOC: proxy-protocol: Add TLS group and sig scheme TLVs
+    - BUG/MEDIUM: resolvers: Test for empty tree when getting a record from DNS answer
+    - BUG/MEDIUM: resolvers: Make resolution owns its hostname_dn value
+    - BUG/MEDIUM: resolvers: Accept to create resolution without hostname
+    - BUG/MEDIUM: resolvers: Wake resolver task up whne unlinking a stream requester
+    - BUG/MINOR: ocsp: Crash when updating CA during ocsp updates
+    - Revert "BUG/MINOR: ocsp: Crash when updating CA during ocsp updates"
+    - BUG/MEDIUM: http_ana: fix potential NULL deref in http_process_req_common()
+    - MEDIUM: log/proxy: store log-steps selection using a bitmask, not an eb tree
+    - BUG/MINOR: ocsp: Crash when updating CA during ocsp updates
+    - BUG/MINOR: resolvers: always normalize FQDN from response
+    - BUILD: makefile: implement support for running a command in range
+    - IMPORT: cebtree: import version 0.5.0 to support duplicates
+    - MEDIUM: migrate the patterns reference to cebs_tree
+    - MEDIUM: guid: switch guid to more compact cebuis_tree
+    - MEDIUM: server: switch addr_node to cebis_tree
+    - MEDIUM: server: switch conf.name to cebis_tree
+    - MEDIUM: server: switch the host_dn member to cebis_tree
+    - MEDIUM: proxy: switch conf.name to cebis_tree
+    - MEDIUM: stktable: index table names using compact trees
+    - MINOR: proxy: add proxy_get_next_id() to find next free proxy ID
+    - MINOR: listener: add listener_get_next_id() to find next free listener ID
+    - MINOR: server: add server_get_next_id() to find next free server ID
+    - CLEANUP: server: use server_find_by_id() when looking for already used IDs
+    - MINOR: server: add server_index_id() to index a server by its ID
+    - MINOR: listener: add listener_index_id() to index a listener by its ID
+    - MINOR: proxy: add proxy_index_id() to index a proxy by its ID
+    - MEDIUM: proxy: index proxy ID using compact trees
+    - MEDIUM: listener: index listener ID using compact trees
+    - MEDIUM: server: index server ID using compact trees
+    - CLEANUP: server: slightly reorder fields in the struct to plug holes
+    - CLEANUP: proxy: slightly reorganize fields to plug some holes
+    - CLEANUP: backend: factor the connection lookup loop
+    - CLEANUP: server: use eb64_entry() not ebmb_entry() to convert an eb64
+    - MINOR: server: pass the server and thread to srv_migrate_conns_to_remove()
+    - CLEANUP: backend: use a single variable for removed in srv_cleanup_idle_conns()
+    - MINOR: connection: pass the thread number to conn_delete_from_tree()
+    - MEDIUM: connection: move idle connection trees to ceb64
+    - MEDIUM: connection: reintegrate conn_hash_node into connection
+    - CLEANUP: tools: use the item API for the file names tree
+    - CLEANUP: vars: use the item API for the variables trees
+    - BUG/MEDIUM: pattern: fix possible infinite loops on deletion
+    - CI: scripts: add support for git in openssl builds
+    - CI: github: add an OpenSSL + ECH job
+    - CI: scripts: mkdir BUILDSSL_TMPDIR
+    - Revert "BUG/MEDIUM: pattern: fix possible infinite loops on deletion"
+    - BUG/MEDIUM: pattern: fix possible infinite loops on deletion (try 2)
+    - CLEANUP: log: remove deadcode in px_parse_log_steps()
+    - MINOR: counters: document that tg shared counters are tied to shm-stats-file mapping
+    - DOC: internals: document the shm-stats-file format/mapping
+    - IMPORT: ebtree: delete unusable ebpttree.c
+    - IMPORT: eb32/eb64: reorder the lookup loop for modern CPUs
+    - IMPORT: eb32/eb64: use a more parallelizable check for lack of common bits
+    - IMPORT: eb32: drop the now useless node_bit variable
+    - IMPORT: eb32/eb64: place an unlikely() on the leaf test
+    - IMPORT: ebmb: optimize the lookup for modern CPUs
+    - IMPORT: eb32/64: optimize insert for modern CPUs
+    - IMPORT: ebtree: only use __builtin_prefetch() when supported
+    - IMPORT: ebst: use prefetching in lookup() and insert()
+    - IMPORT: ebtree: Fix UB from clz(0)
+    - IMPORT: ebtree: add a definition of offsetof()
+    - IMPORT: ebtree: replace hand-rolled offsetof to avoid UB
+    - MINOR: listener: add the "cc" bind keyword to set the TCP congestion controller
+    - MINOR: server: add the "cc" keyword to set the TCP congestion controller
+    - BUG/MEDIUM: ring: invert the length check to avoid an int overflow
+    - MINOR: trace: don't call strlen() on the thread-id numeric encoding
+    - MINOR: trace: don't call strlen() on the function's name
+    - OPTIM: sink: reduce contention on sink_announce_dropped()
+    - OPTIM: sink: don't waste time calling sink_announce_dropped() if busy
+    - CLEANUP: ring: rearrange the wait loop in ring_write()
+    - OPTIM: ring: always relax in the ring lock and leader wait loop
+    - OPTIM: ring: check the queue's owner using a CAS on x86
+    - OPTIM: ring: avoid reloading the tail_ofs value before the CAS in ring_write()
+    - BUG/MEDIUM: sink: fix unexpected double postinit of sink backend
+    - MEDIUM: stats: consider that shared stats pointers may be NULL
+    - BUG/MEDIUM: http-client: Fix the test on the response start-line
+    - MINOR: acme: acme-vars allow to pass data to the dpapi sink
+    - MINOR: acme: check acme-vars allocation during escaping
+    - BUG/MINOR: acme/cli: wrong description for "acme challenge_ready"
+    - CI: move VTest preparation & friends to dedicated composite action
+    - BUG/MEDIUM: stick-tables: Don't let table_process_entry() handle refcnt
+    - BUG/MINOR: compression: Test payload size only if content-length is specified
+    - BUG/MINOR: pattern: Properly flag virtual maps as using samples
+    - BUG/MINOR: acme: possible overflow on scheduling computation
+    - BUG/MINOR: acme: possible overflow in acme_will_expire()
+    - CLEANUP: acme: acme_will_expire() uses acme_schedule_date()
+    - BUG/MINOR: pattern: Fix pattern lookup for map with opt@ prefix
+    - CI: scripts: build curl with ECH support
+    - CI: github: add curl+ech build into openssl-ech job
+    - BUG/MEDIUM: ssl: ca-file directory mode must read every certificates of a file
+    - MINOR: acme: provider-name for dpapi sink
+    - BUILD: acme: fix false positive null pointer dereference
+    - MINOR: backend: srv_queue helper
+    - MINOR: backend: srv_is_up converter
+    - BUILD: halog: misleading indentation in halog.c
+    - CI: github: build halog on the vtest job
+    - BUG/MINOR: acme: don't unlink from acme_ctx_destroy()
+    - BUG/MEDIUM: acme: cfg_postsection_acme() don't init correctly acme sections
+    - MINOR: acme: implement "reuse-key" option
+    - ADMIN: haproxy-dump-certs: implement a certificate dumper
+    - ADMIN: dump-certs: don't update the file if it's up to date
+    - ADMIN: dump-certs: create files in a tmpdir
+    - ADMIN: dump-certs: fix lack of / in -p
+    - ADMIN: dump-certs: use same error format as haproxy
+    - ADMIN: reload: add a synchronous reload helper
+    - BUG/MEDIUM: acme: free() of i2d_X509_REQ() with AWS-LC
+    - ADMIN: reload: introduce verbose and silent mode
+    - ADMIN: reload: introduce -vv mode
+    - MINOR: mt_list: Implement MT_LIST_POP_LOCKED()
+    - BUG/MEDIUM: stick-tables: Make sure not to free a pending entry
+    - MINOR: sched: let's permit to share the local ctx between threads
+    - MINOR: sched: pass the thread number to is_sched_alive()
+    - BUG/MEDIUM: wdt: improve stuck task detection accuracy
+    - MINOR: ssl: add the ssl_bc_sni sample fetch function to retrieve backend SNI
+    - MINOR: rawsock: introduce CO_RFL_TRY_HARDER to detect closures on complete reads
+    - MEDIUM: ssl: don't always process pending handshakes on closed connections
+    - MEDIUM: servers: Schedule the server requeue target on creation
+    - MEDIUM: fwlc: Make it so fwlc_srv_reposition works with unqueued srv
+    - BUG/MEDIUM: fwlc: Handle memory allocation failures.
+    - DOC: config: clarify some known limitations of the json_query() converter
+    - BUG/CRITICAL: mjson: fix possible DoS when parsing numbers
+    - BUG/MINOR: h2: forbid 'Z' as well in header field names checks
+    - BUG/MINOR: h3: forbid 'Z' as well in header field names checks
+    - BUG/MEDIUM: resolvers: break an infinite loop in resolv_get_ip_from_response()
+
 2025/09/05 : 3.3-dev8
     - BUG/MEDIUM: mux-h2: fix crash on idle-ping due to unwanted ABORT_NOW
     - BUG/MINOR: quic-be: missing Initial packet number space discarding
