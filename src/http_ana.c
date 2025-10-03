@@ -4320,6 +4320,8 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 	}
 
   end:
+	if (ret != HTTP_RULE_RES_YIELD)
+		chn->analyse_exp = TICK_ETERNITY;
 	return ret;
 
   abort:
