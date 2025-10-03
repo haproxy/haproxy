@@ -108,36 +108,6 @@ int mjson_get_base64(const char *s, int len, const char *path, char *to, int n);
 int mjson_base64_dec(const char *src, int n, char *dst, int dlen);
 #endif
 
-#if MJSON_ENABLE_PRINT
-typedef int (*mjson_print_fn_t)(const char *buf, int len, void *userdata);
-typedef int (*mjson_vprint_fn_t)(mjson_print_fn_t, void *, va_list *);
-
-struct mjson_fixedbuf {
-  char *ptr;
-  int size, len;
-};
-
-int mjson_printf(mjson_print_fn_t, void *, const char *fmt, ...);
-int mjson_vprintf(mjson_print_fn_t, void *, const char *fmt, va_list ap);
-int mjson_print_str(mjson_print_fn_t, void *, const char *s, int len);
-int mjson_print_int(mjson_print_fn_t, void *, int value, int is_signed);
-int mjson_print_long(mjson_print_fn_t, void *, long value, int is_signed);
-int mjson_print_buf(mjson_print_fn_t fn, void *, const char *buf, int len);
-
-int mjson_print_null(const char *ptr, int len, void *userdata);
-int mjson_print_fixed_buf(const char *ptr, int len, void *userdata);
-int mjson_print_dynamic_buf(const char *ptr, int len, void *userdata);
-
-#if MJSON_ENABLE_PRETTY
-int mjson_pretty(const char *, int, const char *, mjson_print_fn_t, void *);
-#endif
-
-#if MJSON_ENABLE_MERGE
-int mjson_merge(const char *, int, const char *, int, mjson_print_fn_t, void *);
-#endif
-
-#endif  // MJSON_ENABLE_PRINT
-
 #ifdef __cplusplus
 }
 #endif
