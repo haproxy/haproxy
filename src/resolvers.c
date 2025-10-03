@@ -1651,14 +1651,11 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 	 * The result with the biggest score is returned.
 	 */
 	eb32 = (!r_res->next) ? eb32_first(&r_res->answer_tree) : r_res->next;
-	end = r_res->next;
+	end = eb32;
 	r_res->next = eb32_next(eb32); /* get node for the next lookup */
 	do {
 		void *ip;
 		unsigned char ip_type;
-
-		if (eb32 == NULL)
-			eb32 = eb32_first(&r_res->answer_tree);
 
 		record = eb32_entry(eb32, typeof(*record), link);
 		if (record->type == DNS_RTYPE_A && (resolv_active_families() & RSLV_ACCEPT_IPV4)) {
@@ -1758,6 +1755,8 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 		}
 	  next:
 		eb32 = eb32_next(eb32);
+		if (eb32 == NULL)
+			eb32 = eb32_first(&r_res->answer_tree);
 	} while (eb32 != end); /* list for each record entries */
 
 	/* No IP found in the response */
