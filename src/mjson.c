@@ -20,6 +20,7 @@
 // SOFTWARE.
 
 #include <float.h>
+#include <string.h>
 
 #include <import/mjson.h>
 

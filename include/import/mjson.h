@@ -22,50 +22,6 @@
 #ifndef MJSON_H
 #define MJSON_H
 
-#include <stdarg.h>
-#include <stdlib.h>
-#include <string.h>
-
-#ifndef MJSON_ENABLE_PRINT
-#define MJSON_ENABLE_PRINT 1
-#endif
-
-#ifndef MJSON_ENABLE_RPC
-#define MJSON_ENABLE_RPC 1
-#endif
-
-#ifndef MJSON_ENABLE_BASE64
-#define MJSON_ENABLE_BASE64 1
-#endif
-
-#ifndef MJSON_ENABLE_MERGE
-#define MJSON_ENABLE_MERGE 0
-#elif MJSON_ENABLE_MERGE
-#define MJSON_ENABLE_NEXT 1
-#endif
-
-#ifndef MJSON_ENABLE_PRETTY
-#define MJSON_ENABLE_PRETTY 0
-#elif MJSON_ENABLE_PRETTY
-#define MJSON_ENABLE_NEXT 1
-#endif
-
-#ifndef MJSON_ENABLE_NEXT
-#define MJSON_ENABLE_NEXT 0
-#endif
-
-#ifndef MJSON_RPC_LIST_NAME
-#define MJSON_RPC_LIST_NAME "rpc.list"
-#endif
-
-#ifndef MJSON_DYNBUF_CHUNK
-#define MJSON_DYNBUF_CHUNK 256  // Allocation granularity for print_dynamic_buf
-#endif
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 enum {
   MJSON_ERROR_INVALID_INPUT = -1,
   MJSON_ERROR_TOO_DEEP = -2,
@@ -98,7 +54,4 @@ int mjson_get_bool(const char *s, int len, const char *path, int *v);
 int mjson_get_string(const char *s, int len, const char *path, char *to, int n);
 int mjson_get_hex(const char *s, int len, const char *path, char *to, int n);
 
-#ifdef __cplusplus
-}
-#endif
 #endif  // MJSON_H
