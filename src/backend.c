@@ -2387,7 +2387,7 @@ static int back_may_abort_req(struct channel *req, struct stream *s)
 {
 	return ((s->scf->flags & SC_FL_ERROR) ||
 	        ((s->scb->flags & (SC_FL_SHUT_WANTED|SC_FL_SHUT_DONE)) &&  /* empty and client aborted */
-	         (!co_data(req) || (s->be->options & PR_O_ABRT_CLOSE))));
+	         (!co_data(req) || proxy_abrt_close(s->be))));
 }
 
 /* Update back stream connector status for input states SC_ST_ASS, SC_ST_QUE,
@@ -2679,7 +2679,7 @@ void back_handle_st_con(struct stream *s)
 	/* the client might want to abort */
 	if ((s->scf->flags & SC_FL_SHUT_DONE) ||
 	    ((s->scb->flags & SC_FL_SHUT_WANTED) &&
-	     (!co_data(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
+	     (!co_data(req) || proxy_abrt_close(s->be)))) {
 		sc->flags |= SC_FL_NOLINGER;
 		sc_shutdown(sc);
 		s->conn_err_type |= STRM_ET_CONN_ABRT;
@@ -2904,7 +2904,7 @@ void back_handle_st_rdy(struct stream *s)
 		/* client abort ? */
 		if ((s->scf->flags & SC_FL_SHUT_DONE) ||
 		    ((s->scb->flags & SC_FL_SHUT_WANTED) &&
-		     (!co_data(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
+		     (!co_data(req) || proxy_abrt_close(s->be)))) {
 			/* give up */
 			sc->flags |= SC_FL_NOLINGER;
 			sc_shutdown(sc);

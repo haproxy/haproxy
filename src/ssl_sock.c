@@ -385,7 +385,7 @@ static int ha_ssl_read(BIO *h, char *buf, int size)
 
 	if (ctx->conn->flags & CO_FL_SSL_WAIT_HS &&
 	    !conn_is_back(ctx->conn) &&
-	    ((struct session *)ctx->conn->owner)->fe->options & PR_O_ABRT_CLOSE)
+	    proxy_abrt_close(((struct session *)ctx->conn->owner)->fe))
 		detect_shutr = 1;
 	else
 		detect_shutr = 0;

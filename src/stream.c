@@ -2355,7 +2355,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 				    !(s->txn->flags & TX_D_L7_RETRY))
 					s->txn->flags |= TX_L7_RETRY;
 
-				if (s->be->options & PR_O_ABRT_CLOSE) {
+				if (proxy_abrt_close(s->be)) {
 					struct connection *conn = sc_conn(scf);
 
 					se_have_more_data(scf->sedesc);
@@ -2425,7 +2425,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	 */
 	if (unlikely((req->flags & CF_AUTO_CLOSE) && (scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
 		     !(scb->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) &&
-		     (scb->state != SC_ST_CON || (s->be->options & PR_O_ABRT_CLOSE)))) {
+		     (scb->state != SC_ST_CON || proxy_abrt_close(s->be)))) {
 		sc_schedule_shutdown(scb);
 	}
 

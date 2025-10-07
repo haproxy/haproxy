@@ -1055,7 +1055,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	 * server, which will decide whether to close or to go on processing the
 	 * request. We only do that in tunnel mode, and not in other modes since
 	 * it can be abused to exhaust source ports. */
-	if (s->be->options & PR_O_ABRT_CLOSE) {
+	if (proxy_abrt_close(s->be)) {
 		channel_auto_read(req);
 		if ((s->scf->flags & (SC_FL_ABRT_DONE|SC_FL_EOS)) && !(txn->flags & TX_CON_WANT_TUN))
 			s->scb->flags |= SC_FL_NOLINGER;
@@ -2806,7 +2806,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 
 	if ((s->scf->flags & SC_FL_ERROR) ||
 	    ((s->scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
-	     (px->options & PR_O_ABRT_CLOSE)))
+	     proxy_abrt_close(px)))
 		act_opts |= ACT_OPT_FINAL | ACT_OPT_FINAL_EARLY;
 
 	/* If "the current_rule_list" match the executed rule list, we are in
@@ -2994,7 +2994,7 @@ static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct lis
 		act_opts |= ACT_OPT_FINAL;
 	if ((s->scf->flags & SC_FL_ERROR) ||
 	    ((s->scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
-	     (px->options & PR_O_ABRT_CLOSE)))
+	     proxy_abrt_close(px)))
 		act_opts |= ACT_OPT_FINAL | ACT_OPT_FINAL_EARLY;
 
 	/* If "the current_rule_list" match the executed rule list, we are in
@@ -4457,7 +4457,7 @@ static void http_end_request(struct stream *s)
 		 * buffers, otherwise a close could cause an RST on some systems
 		 * (eg: Linux).
 		 */
-		if (!(s->be->options & PR_O_ABRT_CLOSE) && txn->meth != HTTP_METH_POST)
+		if (!proxy_abrt_close(s->be) && txn->meth != HTTP_METH_POST)
 			channel_dont_read(chn);
 
 		/* if the server closes the connection, we want to immediately react
@@ -4536,7 +4536,7 @@ static void http_end_request(struct stream *s)
 		if (txn->rsp.flags & HTTP_MSGF_XFER_LEN)
 			s->scb->flags |= SC_FL_NOLINGER;  /* we want to close ASAP */
 		/* see above in MSG_DONE why we only do this in these states */
-		if (!(s->be->options & PR_O_ABRT_CLOSE))
+		if (!proxy_abrt_close(s->be))
 			channel_dont_read(chn);
 		goto end;
 	}

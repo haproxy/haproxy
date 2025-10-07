@@ -19,6 +19,7 @@
 #include <haproxy/http_ana.h>
 #include <haproxy/pipe.h>
 #include <haproxy/pool.h>
+#include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/stconn.h>
@@ -1387,7 +1388,7 @@ int sc_conn_recv(struct stconn *sc)
 	/* Instruct the mux it must subscribed for read events */
 	if (!(sc->flags & SC_FL_ISBACK) &&                         /* for frontend conns only */
 	    (sc_opposite(sc)->state != SC_ST_INI) &&               /* before backend connection setup */
-	    (__sc_strm(sc)->be->options & PR_O_ABRT_CLOSE))        /* if abortonclose option is set for the current backend */
+	    proxy_abrt_close(__sc_strm(sc)->be))                   /* if abortonclose option is set for the current backend */
 		flags |= CO_RFL_KEEP_RECV;
 
 	/* Important note : if we're called with POLL_IN|POLL_HUP, it means the read polling

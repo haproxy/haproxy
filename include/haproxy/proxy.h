@@ -141,6 +141,12 @@ static inline void proxy_reset_timeouts(struct proxy *proxy)
 	proxy->timeout.tunnel = TICK_ETERNITY;
 }
 
+/* return proxy's abortonclose status: 0=off, non-zero=on */
+static inline int proxy_abrt_close(const struct proxy *px)
+{
+	return !!(px->options & PR_O_ABRT_CLOSE);
+}
+
 /* increase the number of cumulated connections received on the designated frontend */
 static inline void proxy_inc_fe_conn_ctr(struct listener *l, struct proxy *fe)
 {
