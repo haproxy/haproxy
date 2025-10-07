@@ -169,6 +169,8 @@ client c6-host-authority -connect ${hap_fe3_sock} {
 		  -url "/" \
 		  -hdr ":authority" "hostname" \
 		  -hdr "host" "other_host"
+		rxhdrs
+		expect resp.status == 200
 	} -run
 } -run
 
