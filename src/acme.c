@@ -2425,8 +2425,10 @@ static time_t acme_schedule_date(struct ckch_store *store)
 	} else {
 		diff = 7 * 24 * 60 * 60; /* default to 7 days */
 	}
-
-	return (notAfter - diff);
+	if (notAfter > diff) /* avoid overflow */
+		return (notAfter - diff);
+	else
+		return 1; /* epoch+1 is long way expired */
 }
 
 /*
