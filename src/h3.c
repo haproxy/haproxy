@@ -1684,6 +1684,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 	struct h3s *h3s = qcs->ctx;
 	struct h3c *h3c = h3s->h3c;
 	ssize_t total = 0, ret = 0;
+	uint64_t prev_data_len = ((h3s->flags & H3_SF_HAVE_CLEN) ? h3s->body_len : h3s->data_len);
 
 	TRACE_ENTER(H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 
@@ -1892,6 +1893,8 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 	 */
 
  done:
+	qcs->sd->kip += ((h3s->flags & H3_SF_HAVE_CLEN) ? h3s->body_len : h3s->data_len) - prev_data_len;
+
 	TRACE_LEAVE(H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 	return total;
 
