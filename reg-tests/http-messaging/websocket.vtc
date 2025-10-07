@@ -190,8 +190,10 @@ client c4 -connect ${hap_fe3_sock} {
 		  -scheme "http" \
 		  -url "/" \
 		  -hdr ":authority" "127.0.0.1" \
-		  -hdr ":protocol" "websocket"
+		  -hdr ":protocol" "websocket" \
+		  -nostrend
 
+		rxwinup
 		rxhdrs
 		expect resp.status == 200
 	} -run
@@ -216,8 +218,10 @@ client c5 -connect ${hap_fe4_sock} {
 		  -scheme "http" \
 		  -url "/" \
 		  -hdr ":authority" "127.0.0.1" \
-		  -hdr ":protocol" "websocket"
+		  -hdr ":protocol" "websocket" \
+		  -nostrend
 
+		rxwinup
 		rxhdrs
 		expect resp.status == 502
 	} -run
