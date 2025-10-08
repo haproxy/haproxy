@@ -141,18 +141,26 @@ static inline void proxy_reset_timeouts(struct proxy *proxy)
 	proxy->timeout.tunnel = TICK_ETERNITY;
 }
 
-/* return proxy's abortonclose status: 0=off, non-zero=on.
- * Considers the proxy's mode when neither on/off was set,
- * and HTTP mode defaults to on.
+/* Return proxy's abortonclose status: 0=off, non-zero=on, with a default to
+ * <def> when neither choice was forced.
  */
-static inline int proxy_abrt_close(const struct proxy *px)
+static inline int proxy_abrt_close_def(const struct proxy *px, int def)
 {
 	if (px->options & PR_O_ABRT_CLOSE)
 		return 1;
 	else if (px->no_options & PR_O_ABRT_CLOSE)
 		return 0;
 	/* When unset: 1 for HTTP, 0 for TCP */
-	return px->mode == PR_MODE_HTTP;
+	return def;
+}
+
+/* return proxy's abortonclose status: 0=off, non-zero=on.
+ * Considers the proxy's mode when neither on/off was set,
+ * and HTTP mode defaults to on.
+ */
+static inline int proxy_abrt_close(const struct proxy *px)
+{
+	return proxy_abrt_close_def(px, px->mode == PR_MODE_HTTP);
 }
 
 /* increase the number of cumulated connections received on the designated frontend */
