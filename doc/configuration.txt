@@ -5571,7 +5571,7 @@ maxconn                                   X          X         X         -
 mode                                      X          X         X         X
 monitor fail                              -          X         X         -
 monitor-uri                               X          X         X         -
-option abortonclose                  (*)  X          -         X         X
+option abortonclose                  (*)  X          X         X         X
 option allbackups                    (*)  X          -         X         X
 option checkcache                    (*)  X          -         X         X
 option clitcpka                      (*)  X          X         X         -
@@ -9044,46 +9044,56 @@ monitor-uri <uri>
 
 option abortonclose
 no option abortonclose
-  Enable or disable early dropping of aborted requests pending in queues.
+  Enable or disable early abortion of not started processing when client closes
 
   May be used in the following contexts: tcp, http
 
   May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |     no   |   yes  |   yes
+                                 yes   |    yes   |   yes  |   yes
 
   Arguments : none
 
-  In presence of very high loads, the servers will take some time to respond.
-  The per-instance connection queue will inflate, and the response time will
-  increase respective to the size of the queue times the average per-stream
-  response time. When clients will wait for more than a few seconds, they will
-  often hit the "STOP" button on their browser, leaving a useless request in
-  the queue, and slowing down other users, and the servers as well, because the
-  request will eventually be served, then aborted at the first error
-  encountered while delivering the response.
+  TCP connections support being closed independently in each direction, and a
+  connection with only one direction closed is often said to be "half-closed".
+  Originally when the HTTP ecosystem was mostly made of the "close mode", with
+  only one request and one response per connection before closing, it was
+  pretty frequent to see scripted clients send their request, close the sending
+  side, wait for the response, receive the close indication and be done with
+  this. But with the arrival of keep-alive and more advanced protocols, this
+  practice has practically disappeared and the only cases where a client closes
+  before receiving its response is essentially when the user wants to abort a
+  transfer, or when a timeout strikes and the connection is closed.
 
-  As there is no way to distinguish between a full STOP and a simple output
-  close on the client side, HTTP agents should be conservative and consider
-  that the client might only have closed its output channel while waiting for
-  the response. However, this introduces risks of congestion when lots of users
-  do the same, and is completely useless nowadays because probably no client at
-  all will close the stream while waiting for the response. Some HTTP agents
-  support this behavior (Squid, Apache, HAProxy), and others do not (TUX, most
-  hardware-based load balancers). So the probability for a closed input channel
-  to represent a user hitting the "STOP" button is close to 100%, and the risk
-  of being the single component to break rare but valid traffic is extremely
-  low, which adds to the temptation to be able to abort a stream early while
-  still not served and not pollute the servers.
+  These two situations (half-closed vs abort) are undistinguishable from the
+  server side (here the HAProxy listener). This is a problem because leaving
+  the connection alive and continuing to process a request when clients abort
+  can cost a lot of resources, particularly if the closure is the result of a
+  user hitting the "reload" button, as it means new requests are queued without
+  the previous ones being aborted. And conversely, systematically aborting when
+  facing such a half-close situation would break a number of TCP applications
+  and even some HTTP ones on internal networks interacting with legacy agents.
 
-  In HAProxy, the user can choose the desired behavior using the option
-  "abortonclose". By default (without the option) the behavior is HTTP
-  compliant and aborted requests will be served. But when the option is
-  specified, a stream with an incoming channel closed will be aborted while
-  it is still possible, either pending in the queue for a connection slot, or
-  during the connection establishment if the server has not yet acknowledged
-  the connection request. This considerably reduces the queue size and the load
-  on saturated servers when users are tempted to click on STOP, which in turn
-  reduces the response time for other users.
+  The "abortonclose" option permits to choose the desired behavior:
+    - when present in a frontend, it will avoid processing TLS handshakes which
+      are pending on a half-closed connection. This can be the result of a user
+      hitting "reload" during an HTTPS request under high load such as a VRRP
+      fail-over between an active HAProxy node and the backup one: all clients
+      reconnect at the same time to the new node, and all have to perform a
+      costly, full TLS handshake. If it takes more than a few seconds, it's
+      likely that some users will give up, and it's pointless to waste CPU
+      cycles on their handshakes. Given the CPU cost of TLS handshakes, it is
+      recommended to leave this option enabled on internet-facing frontends.
+
+    - when present in a backend, it will cause half-closed connections to try
+      to abort a request that was not yet sent to a server (i.e. when it's
+      pending in the queue or when trying to connect). If the request is
+      already being served by a server, then the connection to the server is
+      in turn switched to half-close to indicate the same condition to the
+      server, which will then decide how to proceed.
+
+  The recommendation is to enable this option on internet-facing TLS endpoints
+  and HTTP services, and to disable it for pure TCP ones as well as unexposed
+  legacy environments.
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.

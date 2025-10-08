@@ -82,7 +82,7 @@ struct show_srv_ctx {
 /* proxy->options */
 const struct cfg_opt cfg_opts[] =
 {
-	{ "abortonclose", PR_O_ABRT_CLOSE, PR_CAP_BE, 0, 0 },
+	{ "abortonclose", PR_O_ABRT_CLOSE, PR_CAP_BE|PR_CAP_FE, 0, 0 },
 	{ "allbackups",   PR_O_USE_ALL_BK, PR_CAP_BE, 0, 0 },
 	{ "checkcache",   PR_O_CHK_CACHE,  PR_CAP_BE, 0, PR_MODE_HTTP },
 	{ "clitcpka",     PR_O_TCP_CLI_KA, PR_CAP_FE, 0, 0 },
