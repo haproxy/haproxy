@@ -22,7 +22,8 @@ STABLE=$(cd "$HAPROXY_DIR" && git describe --tags "v${BRANCH}-dev0^" |cut -f1,2 
 PATCHES_DIR="$PATCHES_PFX"-"$BRANCH"
 
 (cd "$HAPROXY_DIR"
- git pull
+ # avoid git pull, it chokes on forced push
+ git remote update origin; git reset origin/master;git checkout -f
  last_file=$(ls -1 "$PATCHES_DIR"/*.patch 2>/dev/null | tail -n1)
  if [ -n "$last_file" ]; then
 	restart=$(head -n1 "$last_file" | cut -f2 -d' ')
