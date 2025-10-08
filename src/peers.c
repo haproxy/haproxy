@@ -715,9 +715,8 @@ int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_params *p)
 	/* construct message */
 
 	/* check if we need to send the update identifier */
-	if (!st->last_pushed || updateid < st->last_pushed || ((updateid - st->last_pushed) != 1)) {
+	if (!peer->last.table || updateid < peer->last.id || (updateid - peer->last.id) != 1)
 		use_identifier = 1;
-	}
 
 	/* encode update identifier if needed */
 	if (use_identifier)  {
@@ -1648,7 +1647,7 @@ int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 
 	while (1) {
 		struct stksess *ts;
-		unsigned updateid;
+		unsigned last_pushed;
 
 		/* push local updates */
 		ts = peer_stksess_lookup(st);
@@ -1657,10 +1656,10 @@ int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 			break;
 		}
 
-		updateid = ts->upd.key;
+		last_pushed = ts->upd.key;
 		if (p->srv->shard && ts->shard != p->srv->shard) {
 			/* Skip this entry */
-			st->last_pushed = updateid;
+			st->last_pushed = last_pushed;
 			new_pushed = 1;
 			continue;
 		}
@@ -1668,7 +1667,7 @@ int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 		HA_ATOMIC_INC(&ts->ref_cnt);
 		HA_RWLOCK_RDUNLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
 
-		ret = peer_send_updatemsg(st, appctx, ts, updateid, new_pushed, use_timed);
+		ret = peer_send_updatemsg(st, appctx, ts, st->update_id, new_pushed, use_timed);
 
 		if (HA_RWLOCK_TRYRDLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock) != 0) {
 			if (failed_once) {
@@ -1692,9 +1691,10 @@ int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 		if (ret <= 0)
 			break;
 
-		st->last_pushed = updateid;
+		st->last_pushed = last_pushed;
 		p->last.table = st;
-		p->last.id = updateid;
+		p->last.id = st->update_id;
+		st->update_id++;
 		p->flags &= ~PEER_F_SYNCHED;
 
 		/* identifier may not needed in next update message */

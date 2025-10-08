@@ -137,6 +137,7 @@ struct shared_table {
 	int local_id;
 	int remote_id;
 	int flags;
+	unsigned int update_id;
 	uint64_t remote_data;
 	unsigned int remote_data_nbelem[STKTABLE_DATA_TYPES];
 	unsigned int last_acked;
