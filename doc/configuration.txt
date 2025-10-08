@@ -9083,6 +9083,7 @@ no option abortonclose
       likely that some users will give up, and it's pointless to waste CPU
       cycles on their handshakes. Given the CPU cost of TLS handshakes, it is
       recommended to leave this option enabled on internet-facing frontends.
+      This is the default for incoming TLS connections.
 
     - when present in a backend, it will cause half-closed connections to try
       to abort a request that was not yet sent to a server (i.e. when it's
@@ -9096,7 +9097,10 @@ no option abortonclose
   and HTTP services, and to disable it for pure TCP ones as well as unexposed
   legacy environments. It is enabled by default in HTTP backends, and may be
   forcefully disabled by prepending the "no" keyword before it, either in the
-  backend section itself, or in the "defaults" section it inherits from.
+  backend section itself, or in the "defaults" section it inherits from. It is
+  also enabled by default for TLS listeners and may be forcefully disabled as
+  well by specifying "no option abortonclose" in the frontend or in the
+  "defaults" section it inherits from.
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
