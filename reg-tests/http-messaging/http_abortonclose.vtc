@@ -126,6 +126,7 @@ haproxy h2 -conf {
 
     defaults
         mode http
+        no option abortonclose
         retries 1
         timeout client  10s
         timeout server  10s

@@ -9089,11 +9089,14 @@ no option abortonclose
       pending in the queue or when trying to connect). If the request is
       already being served by a server, then the connection to the server is
       in turn switched to half-close to indicate the same condition to the
-      server, which will then decide how to proceed.
+      server, which will then decide how to proceed. This is the default for
+      HTTP-mode backends.
 
   The recommendation is to enable this option on internet-facing TLS endpoints
   and HTTP services, and to disable it for pure TCP ones as well as unexposed
-  legacy environments.
+  legacy environments. It is enabled by default in HTTP backends, and may be
+  forcefully disabled by prepending the "no" keyword before it, either in the
+  backend section itself, or in the "defaults" section it inherits from.
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
