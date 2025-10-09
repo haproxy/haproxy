@@ -112,6 +112,15 @@ enum {
 #define STKCTR_TRACK_BACKEND 1
 #define STKCTR_TRACK_CONTENT 2
 
+/* type of the sticky session in the updates tree */
+enum {
+	STKSESS_UPDT_NONE = 0, /* unset, only if table is not used by the peers */
+	STKSESS_UPDT_LOCAL,    /* the sticky session is locally updated */
+	STKSESS_UPDT_REMOTE,   /* the sticky session is remotely updated */
+	STKSESS_UPDT_MARKER,   /* not a true sticky session, only used a marker*/
+};
+
+
 /* stick_table extra data. This is mainly used for casting or size computation */
 union stktable_data {
 	/* standard types for easy casting */
@@ -153,7 +162,7 @@ struct stksess {
 	struct eb32_node exp;     /* ebtree node used to hold the session in expiration tree */
 	struct eb32_node upd;     /* ebtree node used to hold the update sequence tree */
 	struct mt_list pend_updts;/* list of entries to be inserted/moved in the update sequence tree */
-	int updt_is_local;        /* is the update a local one ? */
+	unsigned int updt_type;   /* One of STKSESS_UPDT_* value */
 	struct ebmb_node key;     /* ebtree node used to hold the session in table */
 	/* WARNING! do not put anything after <keys>, it's used by the key */
 };

@@ -270,6 +270,7 @@ static struct stksess *__stksess_init(struct stktable *t, struct stksess * ts)
 	ts->key.node.leaf_p = NULL;
 	ts->exp.node.leaf_p = NULL;
 	ts->upd.node.leaf_p = NULL;
+	ts->updt_type = STKSESS_UPDT_NONE;
 	MT_LIST_INIT(&ts->pend_updts);
 	ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
 	HA_RWLOCK_INIT(&ts->lock);
@@ -639,13 +640,13 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 			 * scheduled for at least one peer.
 			 */
 			if (!ts->upd.node.leaf_p || _HA_ATOMIC_LOAD(&ts->seen)) {
-				_HA_ATOMIC_STORE(&ts->updt_is_local, 1);
+				_HA_ATOMIC_STORE(&ts->updt_type, STKSESS_UPDT_LOCAL);
 				did_append = MT_LIST_TRY_APPEND(&t->pend_updts[tgid - 1], &ts->pend_updts);
 			}
 		}
 		else {
 			if (!ts->upd.node.leaf_p) {
-				_HA_ATOMIC_STORE(&ts->updt_is_local, 0);
+				_HA_ATOMIC_STORE(&ts->updt_type, STKSESS_UPDT_REMOTE);
 				did_append = MT_LIST_TRY_APPEND(&t->pend_updts[tgid - 1], &ts->pend_updts);
 			}
 		}
@@ -856,7 +857,7 @@ struct task *stktable_add_pend_updates(struct task *t, void *ctx, unsigned int s
 		empty_tgid = 0;
 		if (cur_tgid == global.nbtgroups)
 			cur_tgid = 0;
-		is_local = stksess->updt_is_local;
+		is_local = (stksess->updt_type == STKSESS_UPDT_LOCAL);
 		stksess->seen = 0;
 		if (is_local) {
 			stksess->upd.key = ++table->update;
