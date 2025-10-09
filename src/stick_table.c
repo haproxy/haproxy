@@ -732,16 +732,12 @@ void stktable_requeue_exp(struct stktable *t, const struct stksess *ts)
 		return;
 	}
 
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->lock);
-
 	while (!HA_ATOMIC_CAS(&t->shards[bucket].next_exp, &old_exp, new_exp)) {
 		if (new_exp == old_exp)
 			break;
 		__ha_cpu_relax();
 		new_exp = tick_first(expire, old_exp);
 	}
-
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->lock);
 
 	if (t->type == SMP_T_STR)
 		len = strlen((const char *)ts->key.key);
@@ -1166,7 +1162,6 @@ int stktable_init(struct stktable *t, char **err_msg)
 		}
 
 		t->updates = EB_ROOT_UNIQUE;
-		HA_RWLOCK_INIT(&t->lock);
 
 		t->pool = create_pool("sticktables", sizeof(struct stksess) + round_ptr_size(t->data_size) + t->key_size, MEM_F_SHARED);
 
