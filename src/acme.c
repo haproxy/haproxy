@@ -304,7 +304,8 @@ static int cfg_parse_acme(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		cur_acme->filename = (char *)file;
+		ha_free(&cur_acme->filename);
+		cur_acme->filename = strdup(file);
 		cur_acme->linenum = linenum;
 
 		goto out;
@@ -369,6 +370,7 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 		}
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
+		ha_free(&cur_acme->directory);
 		cur_acme->directory = strdup(args[1]);
 		if (!cur_acme->directory) {
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -385,6 +387,7 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 
+		ha_free(&cur_acme->account.contact);
 		cur_acme->account.contact = strdup(args[1]);
 		if (!cur_acme->account.contact) {
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -401,6 +404,7 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 		if (alertif_too_many_args(2, file, linenum, args, &err_code))
 			goto out;
 
+		ha_free(&cur_acme->account.file);
 		cur_acme->account.file = strdup(args[1]);
 		if (!cur_acme->account.file) {
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -417,6 +421,7 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 		if (alertif_too_many_args(2, file, linenum, args, &err_code))
 			goto out;
 
+		ha_free(&cur_acme->challenge);
 		cur_acme->challenge = strdup(args[1]);
 		if (!cur_acme->challenge) {
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -433,6 +438,7 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 
+		ha_free(&cur_acme->map);
 		cur_acme->map = strdup(args[1]);
 		if (!cur_acme->map) {
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -789,18 +795,24 @@ void deinit_acme()
 	while (acme_cfgs) {
 
 		next = acme_cfgs->next;
+		ha_free(&acme_cfgs->filename);
 		ha_free(&acme_cfgs->name);
 		ha_free(&acme_cfgs->directory);
 		ha_free(&acme_cfgs->account.contact);
 		ha_free(&acme_cfgs->account.file);
 		ha_free(&acme_cfgs->account.thumbprint);
+		EVP_PKEY_free(acme_cfgs->account.pkey);
 		ha_free(&acme_cfgs->vars);
 		ha_free(&acme_cfgs->provider);
+		ha_free(&acme_cfgs->challenge);
+		ha_free(&acme_cfgs->map);
 
 		free(acme_cfgs);
 		acme_cfgs = next;
 	}
 }
+
+REGISTER_POST_DEINIT(deinit_acme);
 
 static struct cfg_kw_list cfg_kws_acme = {ILH, {
 	{ CFG_ACME, "directory",  cfg_parse_acme_kws },
