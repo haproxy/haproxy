@@ -734,8 +734,7 @@ static int cfg_postsection_acme()
 		goto out;
 	}
 
-	/* insert into the ckchs tree */
-	ebst_insert(&ckchs_tree, &store->node);
+	ckch_store_free(store);
 
 out:
 	EVP_PKEY_free(key);
