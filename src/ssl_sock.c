@@ -1938,7 +1938,17 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 	if (msg + rec_len > end || msg + rec_len < msg)
 		return;
 
-	capture = pool_zalloc(pool_head_ssl_capture);
+	/* BEWARE below! one could believe that there's a single client hello
+	 * per connection, but captures show that a second one may happen,
+	 * logged as "Change Cipher Client Hello" in wireshark, that can be
+	 * triggered for example by the presence of "curves" or "ecdhe" on the
+	 * "bind" line. The core below MUST NOT assume that it's called for the
+	 * first time and must first verify if the capture field had already
+	 * been allocated before trying to allocate a new one.
+	 */
+	capture = SSL_get_ex_data(ssl, ssl_capture_ptr_index);
+	if (!capture)
+		capture = pool_zalloc(pool_head_ssl_capture);
 	if (!capture)
 		return;
 	/* Compute the xxh64 of the ciphersuite. */
