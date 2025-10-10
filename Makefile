@@ -598,6 +598,10 @@ ifneq ($(USE_BACKTRACE:0=),)
   BACKTRACE_CFLAGS  = -fno-omit-frame-pointer
 endif
 
+ifneq ($(USE_MEMORY_PROFILING:0=),)
+  MEMORY_PROFILING_CFLAGS  = -fno-optimize-sibling-calls
+endif
+
 ifneq ($(USE_CPU_AFFINITY:0=),)
   OPTIONS_OBJS   += src/cpuset.o
   OPTIONS_OBJS   += src/cpu_topo.o
