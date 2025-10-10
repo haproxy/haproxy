@@ -2247,6 +2247,8 @@ int sc_applet_send(struct stconn *sc)
 	if (se_fl_test(sc->sedesc, SE_FL_ORPHAN))
 		return 0;
 
+	sc_ep_fwd_kip(sco, sc);
+
 	/* TODO: Splicing is not supported, so it is not possible to have FF data stuck into the I/O buf */
 	BUG_ON(sc_ep_have_ff_data(sc));
 

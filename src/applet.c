@@ -834,6 +834,8 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 
 	channel_check_idletimer(ic);
 
+	sc_ep_fwd_kip(sco, sc);
+
 	input  = ic->total;
 	output = co_data(oc);
 	app->applet->fct(app);
