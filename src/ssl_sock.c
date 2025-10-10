@@ -7962,6 +7962,41 @@ static void ssl_sock_clt_sni_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *
 	pool_free(ssl_sock_client_sni_pool, ptr);
 }
 
+static void ssl_free_global(void)
+{
+	ha_free(&global_ssl.crt_base);
+	ha_free(&global_ssl.ca_base);
+
+	ha_free(&global_ssl.issuers_chain_path);
+
+	if (global_ssl.listen_default_ciphers != LISTEN_DEFAULT_CIPHERS)
+		ha_free(&global_ssl.listen_default_ciphers);
+
+	if (global_ssl.connect_default_ciphers != CONNECT_DEFAULT_CIPHERS)
+		ha_free(&global_ssl.connect_default_ciphers);
+
+#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
+	if (global_ssl.listen_default_ciphersuites != LISTEN_DEFAULT_CIPHERSUITES)
+		ha_free(&global_ssl.listen_default_ciphersuites);
+
+	if (global_ssl.connect_default_ciphersuites != CONNECT_DEFAULT_CIPHERSUITES)
+		ha_free(&global_ssl.connect_default_ciphersuites);
+#endif
+
+#if defined(SSL_CTX_set1_curves_list)
+	ha_free(&global_ssl.listen_default_curves);
+	ha_free(&global_ssl.connect_default_curves);
+#endif
+
+#if defined(SSL_CTX_set1_sigalgs_list)
+	ha_free(&global_ssl.listen_default_sigalgs);
+	ha_free(&global_ssl.connect_default_sigalgs);
+
+	ha_free(&global_ssl.listen_default_client_sigalgs);
+	ha_free(&global_ssl.connect_default_client_sigalgs);
+#endif
+}
+
 static void __ssl_sock_init(void)
 {
 #if (!defined(OPENSSL_NO_COMP) && !defined(SSL_OP_NO_COMPRESSION))
@@ -8068,6 +8103,8 @@ static void __ssl_sock_init(void)
 	 * ssl_sock_register_msg_callback().
 	 */
 	hap_register_post_deinit(ssl_sock_unregister_msg_callbacks);
+
+	hap_register_post_deinit(ssl_free_global);
 }
 INITCALL0(STG_REGISTER, __ssl_sock_init);
 
