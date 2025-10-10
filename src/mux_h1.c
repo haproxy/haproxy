@@ -430,7 +430,8 @@ static void h1_trace(enum trace_level level, uint64_t mask, const struct trace_s
 	if (h1s) {
 		chunk_appendf(&trace_buf, " h1s=%p(0x%08x)", h1s, h1s->flags);
 		if (h1s->sd)
-			chunk_appendf(&trace_buf, " sd=%p(0x%08x)", h1s->sd, se_fl_get(h1s->sd));
+			chunk_appendf(&trace_buf, " sd=%p(0x%08x, kip=%llu, kop=%llu)",
+				      h1s->sd, se_fl_get(h1s->sd), h1s->sd->kip, h1s->sd->kop);
 		if (h1s->sd && h1s_sc(h1s))
 			chunk_appendf(&trace_buf, " sc=%p(0x%08x)", h1s_sc(h1s), h1s_sc(h1s)->flags);
 	}
@@ -5490,7 +5491,9 @@ static int h1_dump_h1s_info(struct buffer *msg, const struct h1s *h1s, const cha
 		      method, h1s->status);
 
 	if (h1s->sd) {
-		chunk_appendf(msg, " .sd.flg=0x%08x .sd.evts=%s", se_fl_get(h1s->sd), tevt_evts2str(h1s->sd->term_evts_log));
+		chunk_appendf(msg, " .sd.flg=0x%08x .sd.evts=%s .sd.kip=%llu sd.kop=%llu",
+			      se_fl_get(h1s->sd), tevt_evts2str(h1s->sd->term_evts_log),
+			      h1s->sd->kip, h1s->sd->kop);
 		if (!se_fl_test(h1s->sd, SE_FL_ORPHAN)) {
 			chunk_appendf(msg, " .sc.flg=0x%08x .sc.app=%p .sc.evts=%s",
 				      h1s_sc(h1s)->flags, h1s_sc(h1s)->app, tevt_evts2str(h1s_sc(h1s)->term_evts_log));
