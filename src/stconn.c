@@ -1643,7 +1643,7 @@ int sc_conn_send(struct stconn *sc)
 	if (!conn->mux)
 		return 0;
 
-	se_fwd_kip(sc->sedesc);
+	sc_ep_fwd_kip(sco, sc);
 
 	if (sc_ep_have_ff_data(sc)) {
 		unsigned int send_flag = 0;
