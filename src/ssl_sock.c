@@ -7965,6 +7965,7 @@ static void ssl_sock_clt_sni_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *
 static void ssl_free_global(void)
 {
 	ha_free(&global_ssl.crt_base);
+	ha_free(&global_ssl.key_base);
 	ha_free(&global_ssl.ca_base);
 
 	ha_free(&global_ssl.issuers_chain_path);
