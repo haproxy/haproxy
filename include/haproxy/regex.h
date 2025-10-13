@@ -30,6 +30,10 @@
 
 extern THREAD_LOCAL regmatch_t pmatch[MAX_MATCH];
 
+#if defined(USE_PCRE2)
+extern THREAD_LOCAL pcre2_match_data *local_pcre2_match;
+#endif
+
 /* "str" is the string that contain the regex to compile.
  * "regex" is preallocated memory. After the execution of this function, this
  *         struct contain the compiled regex.
@@ -58,13 +62,10 @@ static inline int regex_exec(const struct my_regex *preg, char *subject)
 		return 0;
 	return 1;
 #elif defined(USE_PCRE2)
-	pcre2_match_data *pm;
 	int ret;
 
-	pm = pcre2_match_data_create_from_pattern(preg->reg, NULL);
 	ret = preg->mfn(preg->reg, (PCRE2_SPTR)subject, (PCRE2_SIZE)strlen(subject),
-		0, 0, pm, NULL);
-	pcre2_match_data_free(pm);
+		0, 0, local_pcre2_match, NULL);
 	if (ret < 0)
 		return 0;
 	return 1;
@@ -90,13 +91,10 @@ static inline int regex_exec2(const struct my_regex *preg, char *subject, int le
 		return 0;
 	return 1;
 #elif defined(USE_PCRE2)
-	pcre2_match_data *pm;
 	int ret;
 
-	pm = pcre2_match_data_create_from_pattern(preg->reg, NULL);
 	ret = preg->mfn(preg->reg, (PCRE2_SPTR)subject, (PCRE2_SIZE)length,
-		0, 0, pm, NULL);
-	pcre2_match_data_free(pm);
+		0, 0, local_pcre2_match, NULL);
 	if (ret < 0)
 		return 0;
 	return 1;

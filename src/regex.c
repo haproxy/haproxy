@@ -23,6 +23,11 @@
 /* regex trash buffer used by various regex tests */
 THREAD_LOCAL regmatch_t pmatch[MAX_MATCH];  /* rm_so, rm_eo for regular expressions */
 
+#if defined(USE_PCRE2)
+/* avoid alloc/free cycles */
+THREAD_LOCAL pcre2_match_data *local_pcre2_match = NULL;
+#endif
+
 int exp_replace(char *dst, unsigned int dst_size, char *src, const char *str, const regmatch_t *matches)
 {
 	char *old_dst = dst;
@@ -134,7 +139,6 @@ int regex_exec_match(const struct my_regex *preg, const char *subject,
 	int ret;
 #ifdef USE_PCRE2
 	PCRE2_SIZE *matches;
-	pcre2_match_data *pm;
 #else
 	int matches[MAX_MATCH * 3];
 #endif
@@ -169,15 +173,12 @@ int regex_exec_match(const struct my_regex *preg, const char *subject,
 	 * space in the matches array.
 	 */
 #ifdef USE_PCRE2
-	pm = pcre2_match_data_create_from_pattern(preg->reg, NULL);
-	ret = preg->mfn(preg->reg, (PCRE2_SPTR)subject, (PCRE2_SIZE)strlen(subject), 0, options, pm, NULL);
+	ret = preg->mfn(preg->reg, (PCRE2_SPTR)subject, (PCRE2_SIZE)strlen(subject), 0, options, local_pcre2_match, NULL);
 
-	if (ret < 0) {
-		pcre2_match_data_free(pm);
+	if (ret < 0)
 		return 0;
-	}
 
-	matches = pcre2_get_ovector_pointer(pm);
+	matches = pcre2_get_ovector_pointer(local_pcre2_match);
 #else
 	ret = pcre_exec(preg->reg, preg->extra, subject, strlen(subject), 0, options, matches, enmatch * 3);
 
@@ -199,9 +200,6 @@ int regex_exec_match(const struct my_regex *preg, const char *subject,
 		pmatch[i].rm_so = -1;
 		pmatch[i].rm_eo = -1;
 	}
-#ifdef USE_PCRE2
-	pcre2_match_data_free(pm);
-#endif
 	return 1;
 #else
 	int match;
@@ -228,7 +226,6 @@ int regex_exec_match2(const struct my_regex *preg, char *subject, int length,
 	int ret;
 #ifdef USE_PCRE2
 	PCRE2_SIZE *matches;
-	pcre2_match_data *pm;
 #else
 	int matches[MAX_MATCH * 3];
 #endif
@@ -262,15 +259,11 @@ int regex_exec_match2(const struct my_regex *preg, char *subject, int length,
 	 * space in the matches array.
 	 */
 #ifdef USE_PCRE2
-	pm = pcre2_match_data_create_from_pattern(preg->reg, NULL);
-	ret = preg->mfn(preg->reg, (PCRE2_SPTR)subject, (PCRE2_SIZE)length, 0, options, pm, NULL);
-
-	if (ret < 0) {
-		pcre2_match_data_free(pm);
+	ret = preg->mfn(preg->reg, (PCRE2_SPTR)subject, (PCRE2_SIZE)length, 0, options, local_pcre2_match, NULL);
+	if (ret < 0)
 		return 0;
-	}
 
-	matches = pcre2_get_ovector_pointer(pm);
+	matches = pcre2_get_ovector_pointer(local_pcre2_match);
 #else
 	ret = pcre_exec(preg->reg, preg->extra, subject, length, 0, options, matches, enmatch * 3);
 	if (ret < 0)
@@ -291,9 +284,6 @@ int regex_exec_match2(const struct my_regex *preg, char *subject, int length,
 		pmatch[i].rm_so = -1;
 		pmatch[i].rm_eo = -1;
 	}
-#ifdef USE_PCRE2
-	pcre2_match_data_free(pm);
-#endif
 	return 1;
 #else
 	char old_char = subject[length];
@@ -450,6 +440,26 @@ static void regex_register_build_options(void)
 }
 
 INITCALL0(STG_REGISTER, regex_register_build_options);
+
+#ifdef USE_PCRE2
+static int init_pcre2_per_thread(void)
+{
+	local_pcre2_match = pcre2_match_data_create(MAX_MATCH - 1, NULL);
+	if (!local_pcre2_match) {
+		ha_alert("Failed to allocate PCRE2 match data context for thread %u.\n", tid);
+		return 0;
+	}
+	return 1;
+}
+
+static void deinit_pcre2_per_thread(void)
+{
+	pcre2_match_data_free(local_pcre2_match);
+}
+
+REGISTER_PER_THREAD_INIT(init_pcre2_per_thread);
+REGISTER_PER_THREAD_DEINIT(deinit_pcre2_per_thread);
+#endif
 
 /*
  * Local variables:
