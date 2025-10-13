@@ -460,7 +460,10 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 				      "in_flight infl_p lost_p         "
 				      "Local Address           Foreign Address      "
 				      "local & remote CIDs\n");
-			applet_putchk(appctx, &trash);
+			if (applet_putchk(appctx, &trash) == -1) {
+				/* Trash buf too short without any data emitted yet, should never happen. */
+				goto done;
+			}
 		}
 	}
 
