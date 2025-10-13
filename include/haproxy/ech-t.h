@@ -6,14 +6,14 @@
 #include <openssl/ssl.h>
 
 struct show_ech_ctx {
-    struct proxy * pp;
-    int fd;
-    SSL_CTX *specific_ctx;
-    char *specific_name;
-    enum {
-        SHOW_ECH_FD = 0,
-        SHOW_ECH_SPECIFIC,
-    } state;                       /* phase of the current dump */
+	struct proxy * pp;
+	int fd;
+	SSL_CTX *specific_ctx;
+	char *specific_name;
+	enum {
+		SHOW_ECH_FD = 0,
+		SHOW_ECH_SPECIFIC,
+	} state;                       /* phase of the current dump */
 };
 #endif
 
