@@ -1870,16 +1870,16 @@ smp_fetch_ssl_fc_ech_status(const struct arg *args, struct sample *smp,
 	struct buffer *smp_trash;
 	struct connection *conn;
 
-    smp->flags = SMP_F_VOL_SESS | SMP_F_CONST;
-    smp->data.type = SMP_T_STR;
-    conn = objt_conn(smp->sess->origin);
-    if (!conn)
-        return 0;
-    smp_trash = get_trash_chunk();
-    if (conn_get_ech_status(conn, smp_trash) == 1) {
-        smp->data.u.str.area = smp_trash->area;
-        smp->data.u.str.data = smp_trash->data;
-    }
+	smp->flags = SMP_F_VOL_SESS | SMP_F_CONST;
+	smp->data.type = SMP_T_STR;
+	conn = objt_conn(smp->sess->origin);
+	if (!conn)
+		return 0;
+	smp_trash = get_trash_chunk();
+	if (conn_get_ech_status(conn, smp_trash) == 1) {
+		smp->data.u.str.area = smp_trash->area;
+		smp->data.u.str.data = smp_trash->data;
+	}
 	return 1;
 }
 
@@ -1890,16 +1890,16 @@ smp_fetch_ssl_fc_ech_outer_sni(const struct arg *args, struct sample *smp,
 	struct buffer *smp_trash;
 	struct connection *conn;
 
-    smp->flags = SMP_F_VOL_SESS | SMP_F_CONST;
-    smp->data.type = SMP_T_STR;
-    conn = objt_conn(smp->sess->origin);
-    if (!conn)
-        return 0;
-    smp_trash = get_trash_chunk();
-    if (conn_get_ech_outer_sni(conn, smp_trash) == 1) {
-        smp->data.u.str.area = smp_trash->area;
-        smp->data.u.str.data = smp_trash->data;
-    }
+	smp->flags = SMP_F_VOL_SESS | SMP_F_CONST;
+	smp->data.type = SMP_T_STR;
+	conn = objt_conn(smp->sess->origin);
+	if (!conn)
+		return 0;
+	smp_trash = get_trash_chunk();
+	if (conn_get_ech_outer_sni(conn, smp_trash) == 1) {
+		smp->data.u.str.area = smp_trash->area;
+		smp->data.u.str.data = smp_trash->data;
+	}
 	return 1;
 }
 #endif
