@@ -86,7 +86,7 @@ static inline void *pool_alloc_area_uaf(size_t size, size_t align)
  */
 static inline void pool_free_area_uaf(void *area, size_t size)
 {
-	size_t pad = (4096 - size) & 0xFF0;
+	size_t pad = (uintptr_t)area & 4095;
 
 	/* This object will be released for real in order to detect a use after
 	 * free. We also force a write to the area to ensure we crash on double
