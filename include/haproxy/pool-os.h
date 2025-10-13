@@ -97,7 +97,8 @@ static inline void pool_free_area_uaf(void *area, size_t size)
 	if (pad >= sizeof(void *) && *(void **)(area - sizeof(void *)) != area)
 		ABORT_NOW();
 
-	munmap(area - pad, (size + 4095) & -4096);
+	/* better know immediately if an address calculation was wrong! */
+	BUG_ON(munmap(area - pad, (size + 4095) & -4096) == -1);
 }
 
 #endif /* _HAPROXY_POOL_OS_H */
