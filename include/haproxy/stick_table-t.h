@@ -160,8 +160,8 @@ struct stksess {
 	int shard;                /* shard number used by peers */
 	int seen;                 /* 0 only when no peer has seen this entry yet */
 	struct eb32_node exp;     /* ebtree node used to hold the session in expiration tree */
-	struct eb32_node upd;     /* ebtree node used to hold the update sequence tree */
-	struct mt_list pend_updts;/* list of entries to be inserted/moved in the update sequence tree */
+	struct mt_list upd;       /* entry in the table's update sequence list */
+	struct mt_list pend_updts;/* entry in list of pending updates  */
 	unsigned int updt_type;   /* One of STKSESS_UPDT_* value */
 	struct ebmb_node key;     /* ebtree node used to hold the session in table */
 	/* WARNING! do not put anything after <keys>, it's used by the key */
@@ -232,17 +232,11 @@ struct stktable {
 	unsigned int current;     /* number of sticky sessions currently in table */
 	THREAD_ALIGN(64);
 
-	struct eb_root updates;   /* head of sticky updates sequence tree, uses updt_lock */
-	struct mt_list *pend_updts; /* list of updates to be added to the update sequence tree, one per thread-group */
-	unsigned int update;      /* uses updt_lock */
-	unsigned int localupdate; /* uses updt_lock */
+	struct mt_list updates;     /* list of sticky updates sequence */
+	struct mt_list *pend_updts; /* list of updates to be added to the update sequence list, one per thread-group */
 	struct tasklet *updt_task;/* tasklet responsible for pushing the pending updates into the tree */
 
-	THREAD_ALIGN(64);
-	/* this lock is heavily used and must be on its own cache line */
-	__decl_thread(HA_RWLOCK_T updt_lock); /* lock protecting the updates part */
-
-	/* rarely used config stuff below (should not interfere with updt_lock) */
+	/* rarely used config stuff below */
 	struct proxy *proxies_list; /* The list of proxies which reference this stick-table. */
 	struct {
 		const char *file;     /* The file where the stick-table is declared (global name). */
