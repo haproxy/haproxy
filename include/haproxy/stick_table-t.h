@@ -157,12 +157,14 @@ struct stksess {
 	unsigned int expire;      /* session expiration date */
 	unsigned int ref_cnt;     /* reference count, can only purge when zero */
 	__decl_thread(HA_RWLOCK_T lock); /* lock related to the table entry */
-	int shard;                /* shard number used by peers */
-	int seen;                 /* 0 only when no peer has seen this entry yet */
+
+	unsigned short shard;     /* shard number used by peers */ // TODO: rename
+	unsigned char seen;       /* 0 only when no peer has seen this entry yet */
+	unsigned char updt_type;  /* One of STKSESS_UPDT_* value */
+
 	struct eb32_node exp;     /* ebtree node used to hold the session in expiration tree */
 	struct mt_list upd;       /* entry in the table's update sequence list */
 	struct mt_list pend_updts;/* entry in list of pending updates  */
-	unsigned int updt_type;   /* One of STKSESS_UPDT_* value */
 	struct ebmb_node key;     /* ebtree node used to hold the session in table */
 	/* WARNING! do not put anything after <keys>, it's used by the key */
 };
