@@ -164,6 +164,7 @@ struct peer {
 	unsigned int heartbeat;       /* next heartbeat timer */
 	unsigned int confirm;         /* confirm message counter */
 	unsigned int last_hdshk;      /* Date of the last handshake. */
+	unsigned int last_update;     /* Date of last update sent */
 	uint32_t rx_hbt;              /* received heartbeats counter */
 	uint32_t tx_hbt;              /* transmitted heartbeats counter */
 	uint32_t no_hbt;              /* no received heartbeat counter */

@@ -1634,6 +1634,7 @@ int peer_send_teachmsgs(struct appctx *appctx, struct peer *p, struct shared_tab
 		p->last.id = st->update_id;
 		st->update_id++;
 		p->flags &= ~PEER_F_SYNCHED;
+		p->last_update = now_ms;
 
 		/* identifier may not needed in next update message */
 		new_pushed = 0;
@@ -3521,18 +3522,9 @@ static void __process_running_peer_sync(struct task *task, struct peers *peers, 
 
 					/* Awake session if there is data to push */
 					for (st = peer->tables; st ; st = st->next) {
-						struct stksess *ts;
-						struct mt_list back;
+						if (tick_is_le(peer->last_update, st->table->last_update))
+							update_to_push = 1;
 
-						// TODO: may be handled via an atomic flags ?
-						MT_LIST_FOR_EACH_ENTRY_LOCKED(ts, &st->last->upd, upd, back) {
-							if (&ts->upd == &st->table->updates)
-								break;
-							if (&ts->upd != &st->table->updates && ts->updt_type == STKSESS_UPDT_LOCAL) {
-								update_to_push = 1;
-								break;
-							}
-						}
 						if (update_to_push == 1) {
 							/* wake up the peer handler to push local updates */
 							/* There is no need to send a heartbeat message
@@ -3721,17 +3713,7 @@ static void __process_stopping_peer_sync(struct task *task, struct peers *peers,
 		/* current peer connection is active and established
 		 * wake up all peer handlers to push remaining local updates */
 		for (st = peer->tables; st ; st = st->next) {
-			struct stksess *ts;
-			struct mt_list back;
-			int wakeup = 0;
-
-			MT_LIST_FOR_EACH_ENTRY_LOCKED(ts, &st->last->upd, upd, back) {
-				if (&ts->upd != &st->table->updates && ts->updt_type == STKSESS_UPDT_LOCAL) {
-					wakeup = 1;
-					break;
-				}
-			}
-			if (wakeup) {
+			if (tick_is_le(peer->last_update, st->table->last_update)) {
 				appctx_wakeup(peer->appctx);
 				break;
 			}
