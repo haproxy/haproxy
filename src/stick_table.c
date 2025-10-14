@@ -136,10 +136,6 @@ int __stksess_kill(struct stktable *t, struct stksess *ts)
 	/* make sure we're no longer in the updates list */
 	MT_LIST_DELETE(&ts->pend_updts);
 
-	/* ... and that nobody added us in between */
-	if (HA_ATOMIC_LOAD(&ts->ref_cnt))
-		return 0;
-
 	/* ... and that we didn't leave the update list for the tree */
 	if (MT_LIST_INLIST(&ts->upd)) {
 		link = mt_list_lock_full(&ts->upd);
