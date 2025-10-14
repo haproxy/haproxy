@@ -15,6 +15,53 @@
 # define BUG_ON_HOT(x) if (x) { fprintf(stderr, "CRASH ON %s:%d\n", __func__, __LINE__); abort(); }
 #endif /* DEBUG_STRICT */
 
+/* ******** internal API ******** */
+
+static char *ncbmb_peek(const struct ncbmbuf *buf, ncb_sz_t off)
+{
+	char *ptr = ncbmb_head(buf) + off;
+	if (ptr >= buf->area + buf->size)
+		ptr -= buf->size;
+	return ptr;
+}
+
+static void ncbmb_set_bitmap(struct ncbmbuf *buf, ncb_sz_t off, ncb_sz_t len)
+{
+	const ncb_sz_t sz = ncbmb_size(buf);
+	ncb_sz_t off_abs;
+	unsigned char mod;
+	unsigned char *b;
+
+	off_abs = off < sz ? off : off - sz;
+	b = buf->bitmap + (off_abs / 8);
+
+	mod = off_abs % 8;
+	if (mod) {
+		/* adjust first bitmap byte bit by bit if not aligned on 8 */
+		unsigned char to_copy = len < 8 - mod ? len : 8 - mod;
+		*b |= (unsigned char)(0xff << (8 - to_copy)) >> mod;
+		len -= to_copy;
+		++b;
+	}
+
+	if (len) {
+		size_t to_copy = len / 8;
+		/* bulk set bitmap as many as possible */
+		if (to_copy) {
+			memset(b, 0xff, to_copy);
+			len -= 8 * to_copy;
+			b += to_copy;
+		}
+
+		if (len) {
+			/* adjust last bitmap byte shifted by remaining len */
+			*b |= 0xff << (8 - len);
+		}
+	}
+}
+
+/* ******** public API ******** */
+
 /* Initialize or reset <buf> by clearing all data. Its size is untouched.
  * Buffer is positioned to <head> offset. Use 0 to realign it. <buf> must not
  * be NCBUF_NULL.
@@ -87,10 +134,34 @@ ncb_sz_t ncbmb_data(const struct ncbmbuf *buf, ncb_sz_t off)
 	return 0;
 }
 
+/* Add a new block at <data> of size <len> in <buf> at offset <off>. Note that
+ * currently only NCB_ADD_OVERWRT mode is supported.
+ *
+ * Always returns NCB_RET_OK as this operation cannot fail.
+ */
 enum ncb_ret ncbmb_add(struct ncbmbuf *buf, ncb_sz_t off,
                        const char *data, ncb_sz_t len, enum ncb_add_mode mode)
 {
-	/* TODO */
+	char *ptr = ncbmb_peek(buf, off);
+
+	BUG_ON_HOT(mode != NCB_ADD_OVERWRT);
+
+	BUG_ON_HOT(off + len > buf->size);
+
+	if (ptr + len >= ncbmb_wrap(buf)) {
+		ncb_sz_t sz1 = ncbmb_wrap(buf) - ptr;
+
+		memcpy(ptr, data, sz1);
+		ncbmb_set_bitmap(buf, buf->head + off, sz1);
+
+		memcpy(ncbmb_orig(buf), data + sz1, len - sz1);
+		ncbmb_set_bitmap(buf, 0, len - sz1);
+	}
+	else {
+		memcpy(ptr, data, len);
+		ncbmb_set_bitmap(buf, buf->head + off, len);
+	}
+
 	return NCB_RET_OK;
 }
 
