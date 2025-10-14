@@ -1591,11 +1591,8 @@ int peer_send_teachmsgs(struct appctx *appctx, struct peer *p, struct shared_tab
 			applet_have_more_data(appctx);
 			ret = -1;
 		}
-		else {
-			HA_ATOMIC_INC(&ts->ref_cnt);
+		else
 			ret = peer_send_updatemsg(st, appctx, ts, st->update_id, new_pushed, use_timed);
-			HA_ATOMIC_DEC(&ts->ref_cnt);
-		}
 
 		if (ret <= 0) {
 			/* Insert <last> marker before <ts> to process it again
