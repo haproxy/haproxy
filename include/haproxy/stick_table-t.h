@@ -231,7 +231,7 @@ struct stktable {
 				    attached to this table */
 	unsigned int current;     /* number of sticky sessions currently in table */
 	THREAD_ALIGN(64);
-
+	unsigned int   last_update; /* Date of the last update inserted in the list */
 	struct mt_list updates;     /* list of sticky updates sequence */
 	struct mt_list *pend_updts; /* list of updates to be added to the update sequence list, one per thread-group */
 	struct tasklet *updt_task;/* tasklet responsible for pushing the pending updates into the tree */

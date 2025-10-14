@@ -868,6 +868,7 @@ struct task *stktable_add_pend_updates(struct task *t, void *ctx, unsigned int s
 
 	if (i > 0) {
 		/* We did at least one update, let's wake the sync task */
+		table->last_update = now_ms;
 		task_wakeup(table->sync_task, TASK_WOKEN_MSG);
 	}
 	return t;
@@ -1187,6 +1188,7 @@ int stktable_init(struct stktable *t, char **err_msg)
 	for (i = 0; i < global.nbtgroups; i++)
 		MT_LIST_INIT(&t->pend_updts[i]);
 	t->updt_task = tasklet_new();
+	t->last_update = TICK_ETERNITY;
 	if (!t->updt_task)
 		goto mem_error;
 	t->updt_task->context = t;
