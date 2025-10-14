@@ -443,11 +443,13 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 			HA_ATOMIC_DEC(&t->current);
 			return NULL;
 		}
-		/* note that it may fail to find any releasable slot due to
-		 * locking contention but it's not a problem in practice,
-		 * these will be recovered later.
-		 */
-		stktable_trash_oldest(t);
+		if (stktable_trash_oldest(t) < 1) {
+			/*
+			 * If we did not manage to purge any entry, give up.
+			 */
+			HA_ATOMIC_DEC(&t->current);
+			return NULL;
+		}
 	}
 
 	ts = pool_alloc(t->pool);
