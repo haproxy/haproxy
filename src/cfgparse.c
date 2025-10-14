@@ -1010,8 +1010,8 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (!curpeers->nb_shards) {
-			ha_alert("parsing [%s:%d] : '%s' : expects a strictly positive integer argument\n",
+		if (!curpeers->nb_shards || curpeers->nb_shards > 65535) {
+			ha_alert("parsing [%s:%d] : '%s' : expects a integer argument between 1 and 65535\n",
 			         file, linenum, args[0]);
 			err_code |= ERR_FATAL;
 			goto out;
