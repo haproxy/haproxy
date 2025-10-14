@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#include <haproxy/bug.h>
+
 /* ******** internal API ******** */
 
 struct itbmap {
@@ -89,9 +91,10 @@ struct ncbuf2 ncb2_make(char *area, ncb2_sz_t size, ncb2_sz_t head)
 	ncb2_sz_t bitmap_sz;
 
 	bitmap_sz = (size + 8) / 9;
+	buf.bitmap_sz = bitmap_sz;
 
 	buf.area = area;
-	buf.bitmap = area + size - bitmap_sz;
+	buf.bitmap = area + (size - bitmap_sz);
 	buf.size = size - bitmap_sz;
 	buf.head = head;
 
@@ -131,10 +134,35 @@ ncb2_sz_t ncb2_data(const struct ncbuf2 *buf, ncb2_sz_t off)
 }
 
 enum ncb_ret ncb2_add(struct ncbuf2 *buf, ncb2_sz_t off,
-                       const char *data, ncb2_sz_t len, enum ncb_add_mode mode)
+                      const char *data, ncb2_sz_t len, enum ncb_add_mode mode)
 {
-	/* TODO */
-	return NCB_RET_OK;
+	char *b;
+
+	BUG_ON_HOT(off + len > buf->size);
+	/* first copy data into buffer */
+	memcpy(&buf->area[off], data, len);
+
+	/* adjust bitmap to reflect newly filled content */
+	b = buf->bitmap + (off / 8);
+	if (off % 8) {
+		size_t to_copy = len < 8 - (off % 8) ? len : 8 - (off % 8);
+		/* adjust first bitmap byte relative shifted by offset */
+		*b++ |= ((unsigned char)(0xff << (8 - to_copy))) >> (off % 8);
+		len -= to_copy;
+	}
+
+	if (len) {
+		size_t to_copy = len / 8;
+		/* bulk set bitmap as many as possible */
+		memset(b, 0xff, to_copy);
+		len -= 8 * to_copy;
+		b += to_copy;
+
+		if (len) {
+			/* adjust last bitmap byte shifted by remaining len */
+			*b |= 0xff << (8 - len);
+		}
+	}
 }
 
 enum ncb_ret ncb2_advance(struct ncbuf2 *buf, ncb2_sz_t adv)

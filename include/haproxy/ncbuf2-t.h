@@ -11,6 +11,7 @@ struct ncbuf2 {
 	char *area;
 	char *bitmap;
 	ncb2_sz_t size;
+	ncb2_sz_t bitmap_sz;
 	ncb2_sz_t head;
 };
 
