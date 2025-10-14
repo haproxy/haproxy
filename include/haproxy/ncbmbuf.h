@@ -21,4 +21,7 @@ static inline ncb_sz_t ncbmb_size(const struct ncbmbuf *buf)
 	return buf->size;
 }
 
+enum ncb_ret ncbmb_add(struct ncbmbuf *buf, ncb_sz_t off,
+                      const char *data, ncb_sz_t len, enum ncb_add_mode mode);
+
 #endif /* _HAPROXY_NCBMBUF_H */

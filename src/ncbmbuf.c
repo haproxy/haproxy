@@ -108,9 +108,10 @@ struct ncbmbuf ncbmb_make(char *area, ncb_sz_t size, ncb_sz_t head)
 	ncb_sz_t bitmap_sz;
 
 	bitmap_sz = (size + 8) / 9;
+	buf.bitmap_sz = bitmap_sz;
 
 	buf.area = area;
-	buf.bitmap = area + size - bitmap_sz;
+	buf.bitmap = area + (size - bitmap_sz);
 	buf.size = size - bitmap_sz;
 	buf.head = head;
 
@@ -149,10 +150,46 @@ ncb_sz_t ncbmb_data(const struct ncbmbuf *buf, ncb_sz_t off)
 	return 0;
 }
 
+/* Add a new block at <data> of size <len> in <buf> at offset <off>. Note that
+ * currently only NCB_ADD_OVERWRT mode is supported.
+ *
+ * Always returns NCB_RET_OK as this operation cannot fail.
+ */
 enum ncb_ret ncbmb_add(struct ncbmbuf *buf, ncb_sz_t off,
                        const char *data, ncb_sz_t len, enum ncb_add_mode mode)
 {
-	/* TODO */
+	char *b;
+
+	BUG_ON_HOT(mode != NCB_ADD_OVERWRT);
+
+	BUG_ON_HOT(off + len > buf->size);
+	/* first copy data into buffer */
+	memcpy(&buf->area[off], data, len);
+
+	/* adjust bitmap to reflect newly filled content */
+	b = buf->bitmap + (off / 8);
+	if (off % 8) {
+		size_t to_copy = len < 8 - (off % 8) ? len : 8 - (off % 8);
+		/* adjust first bitmap byte relative shifted by offset */
+		*b++ |= ((unsigned char)(0xff << (8 - to_copy))) >> (off % 8);
+		len -= to_copy;
+	}
+
+	if (len) {
+		size_t to_copy = len / 8;
+		/* bulk set bitmap as many as possible */
+		if (to_copy) {
+			memset(b, 0xff, to_copy);
+			len -= 8 * to_copy;
+			b += to_copy;
+		}
+
+		if (len) {
+			/* adjust last bitmap byte shifted by remaining len */
+			*b |= 0xff << (8 - len);
+		}
+	}
+
 	return NCB_RET_OK;
 }
 
