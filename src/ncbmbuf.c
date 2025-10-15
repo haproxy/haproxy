@@ -17,6 +17,49 @@
 
 /* ******** internal API ******** */
 
+static char *ncbmb_peek(const struct ncbmbuf *buf, ncb_sz_t off)
+{
+	char *ptr = ncbmb_head(buf) + off;
+	if (ptr >= buf->area + buf->size)
+		ptr -= buf->size;
+	return ptr;
+}
+
+static void ncbmb_set_bitmap(struct ncbmbuf *buf, ncb_sz_t off, ncb_sz_t len)
+{
+	const ncb_sz_t sz = ncbmb_size(buf);
+	ncb_sz_t off_abs;
+	unsigned char mod;
+	char *b;
+
+	off_abs = off < sz ? off : off - sz;
+	b = buf->bitmap + (off_abs / 8);
+
+	mod = off_abs % 8;
+	if (mod) {
+		/* adjust first bitmap byte bit by bit if not aligned on 8 */
+		unsigned char to_copy = len < 8 - mod ? len : 8 - mod;
+		*b |= (unsigned char)(0xff << (8 - to_copy)) >> mod;
+		len -= to_copy;
+		++b;
+	}
+
+	if (len) {
+		size_t to_copy = len / 8;
+		/* bulk set bitmap as many as possible */
+		if (to_copy) {
+			memset(b, 0xff, to_copy);
+			len -= 8 * to_copy;
+			b += to_copy;
+		}
+
+		if (len) {
+			/* adjust last bitmap byte shifted by remaining len */
+			*b |= 0xff << (8 - len);
+		}
+	}
+}
+
 /* Type representing a bitmap byte. */
 struct itbmap {
 	char *b;
@@ -158,36 +201,24 @@ ncb_sz_t ncbmb_data(const struct ncbmbuf *buf, ncb_sz_t off)
 enum ncb_ret ncbmb_add(struct ncbmbuf *buf, ncb_sz_t off,
                        const char *data, ncb_sz_t len, enum ncb_add_mode mode)
 {
-	char *b;
+	char *ptr = ncbmb_peek(buf, off);
 
 	BUG_ON_HOT(mode != NCB_ADD_OVERWRT);
 
 	BUG_ON_HOT(off + len > buf->size);
-	/* first copy data into buffer */
-	memcpy(&buf->area[off], data, len);
 
-	/* adjust bitmap to reflect newly filled content */
-	b = buf->bitmap + (off / 8);
-	if (off % 8) {
-		size_t to_copy = len < 8 - (off % 8) ? len : 8 - (off % 8);
-		/* adjust first bitmap byte relative shifted by offset */
-		*b++ |= ((unsigned char)(0xff << (8 - to_copy))) >> (off % 8);
-		len -= to_copy;
+	if (ptr + len >= ncbmb_wrap(buf)) {
+		ncb_sz_t sz1 = ncbmb_wrap(buf) - ptr;
+
+		memcpy(ptr, data, sz1);
+		ncbmb_set_bitmap(buf, buf->head + off, sz1);
+
+		memcpy(ncbmb_orig(buf), data + sz1, len - sz1);
+		ncbmb_set_bitmap(buf, 0, len - sz1);
 	}
-
-	if (len) {
-		size_t to_copy = len / 8;
-		/* bulk set bitmap as many as possible */
-		if (to_copy) {
-			memset(b, 0xff, to_copy);
-			len -= 8 * to_copy;
-			b += to_copy;
-		}
-
-		if (len) {
-			/* adjust last bitmap byte shifted by remaining len */
-			*b |= 0xff << (8 - len);
-		}
+	else {
+		memcpy(ptr, data, len);
+		ncbmb_set_bitmap(buf, buf->head + off, len);
 	}
 
 	return NCB_RET_OK;
