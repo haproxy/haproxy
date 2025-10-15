@@ -224,7 +224,7 @@ struct stktable {
 		struct eb_root keys;      /* head of sticky session tree */
 		struct eb_root exps;      /* head of sticky session expiration tree */
 		__decl_thread(HA_RWLOCK_T sh_lock); /* for the trees above */
-	} shards[CONFIG_HAP_TBL_BUCKETS];
+	} buckets[CONFIG_HAP_TBL_BUCKETS];
 
 	unsigned int refcnt;     /* number of local peer over all peers sections
 				    attached to this table */
