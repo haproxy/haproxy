@@ -9,7 +9,6 @@ int quic_enc_unittest(int argc, char **argv)
 	uint64_t val = 0;
 	struct buffer b;
 	char area[12];
-	size_t len;
 
 	int ret = 1;
 
@@ -20,7 +19,7 @@ int quic_enc_unittest(int argc, char **argv)
 	BUG_ON(b_data(&b) != b_contig_data(&b, b_head_ofs(&b)));
 
 	/* test that b_quic_dec_int() can decode a wrapping value */
-	b_quic_dec_int(&val, &b, &len);
+	b_quic_dec_int(&val, &b, NULL);
 	if (val != init)
 		goto out;
 
