@@ -414,6 +414,14 @@ int stktable_trash_oldest(struct stktable *t)
 
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
 
+		/*
+		 * There is not much point in trying to purge more entries,
+		 * it will be as costly to acquire the lock for the next shard,
+		 * as it would be for the next session creation, so if we
+		 * managed to purge at least one entry, give up now.
+		 */
+		if (batched > 0)
+			break;
 		shard++;
 		if (shard >= CONFIG_HAP_TBL_BUCKETS)
 			shard = 0;
