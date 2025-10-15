@@ -193,11 +193,11 @@ static inline void *stktable_data_ptr_idx(struct stktable *t, struct stksess *ts
 	return __stktable_data_ptr(t, ts, type) + idx*stktable_type_size(stktable_data_types[type].std_type);
 }
 
-/* return a shard number for key <key> of len <len> present in table <t>, for
+/* return a bucket number for key <key> of len <len> present in table <t>, for
  * use with the tree indexing. The value will be from 0 to
  * CONFIG_HAP_TBL_BUCKETS-1.
  */
-static inline uint stktable_calc_shard_num(const struct stktable *t, const void *key, size_t len)
+static inline uint stktable_calc_bucket_num(const struct stktable *t, const void *key, size_t len)
 {
 #if CONFIG_HAP_TBL_BUCKETS > 1
 	return XXH32(key, len, t->hash_seed) % CONFIG_HAP_TBL_BUCKETS;
@@ -219,13 +219,13 @@ static inline int __stksess_kill_if_expired(struct stktable *t, struct stksess *
  * Decrease the refcount of a stksess and release it if the refcount falls to 0
  * _AND_ if the session expired. Note,, the refcount is always decremented.
  *
- * This function locks the corresponding table shard to proceed. When this
+ * This function locks the corresponding table bucket to proceed. When this
  * function is called, the caller must be sure it owns a reference on the
  * stksess (refcount >= 1).
  */
 static inline void stksess_kill_if_expired(struct stktable *t, struct stksess *ts)
 {
-	uint shard;
+	uint bucket;
 	size_t len;
 
 	if (t->expire != TICK_ETERNITY && tick_is_expired(ts->expire, now_ms)) {
@@ -234,15 +234,15 @@ static inline void stksess_kill_if_expired(struct stktable *t, struct stksess *t
 		else
 			len = t->key_size;
 
-		shard = stktable_calc_shard_num(t, ts->key.key, len);
+		bucket = stktable_calc_bucket_num(t, ts->key.key, len);
 
-		/* make the compiler happy when shard is not used without threads */
-		ALREADY_CHECKED(shard);
+		/* make the compiler happy when bucket is not used without threads */
+		ALREADY_CHECKED(bucket);
 
-		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
+		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->buckets[bucket].sh_lock);
 		if (!HA_ATOMIC_SUB_FETCH(&ts->ref_cnt, 1))
 			__stksess_kill_if_expired(t, ts);
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->buckets[bucket].sh_lock);
 	}
 	else
 		HA_ATOMIC_SUB_FETCH(&ts->ref_cnt, 1);
