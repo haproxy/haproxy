@@ -169,8 +169,30 @@ int ncb2_is_fragmented(const struct ncbuf2 *buf)
 
 ncb2_sz_t ncb2_data(const struct ncbuf2 *buf, ncb2_sz_t off)
 {
-	/* TODO */
-	return 0;
+	struct itbmap it = itbmap_get(buf, off);
+	unsigned char value;
+	ncb2_sz_t count = 0;
+
+	while (itbmap_is_full(&it)) {
+		count += it.bitcount;
+		it = itbmap_next(buf, &it);
+	}
+
+	if (it.b) {
+		value = *it.b & it.mask;
+		while (it.mask && !(it.mask & 0x80)) {
+			it.mask <<= 1;
+			value <<= 1;
+		}
+
+		while (it.mask && (it.mask & 0x80) && (value & 0x80)) {
+			it.mask <<= 1;
+			value <<= 1;
+			++count;
+		}
+	}
+
+	return count;
 }
 
 enum ncb_ret ncb2_add(struct ncbuf2 *buf, ncb2_sz_t off,
