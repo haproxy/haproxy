@@ -2505,10 +2505,6 @@ static int cli_parse_show_jwt(char **args, char *payload, struct appctx *appctx,
 		return cli_err(appctx, "Can't show!\nOperations on certificates are currently locked!\n");
 
 	return 0;
-
-error:
-	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
-	return cli_err(appctx, "Can't display the certificate: Not found or the certificate is a bundle!\n");
 }
 
 /* IO handler of "show ssl jwt".
