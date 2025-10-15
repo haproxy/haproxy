@@ -360,7 +360,7 @@ struct trace_source trace_peers = {
 };
 
 /* Return peer control message types as strings (only for debugging purpose). */
-static inline char *ctrl_msg_type_str(unsigned int type)
+static inline __maybe_unused char *ctrl_msg_type_str(unsigned int type)
 {
 	switch (type) {
 	case PEER_MSG_CTRL_RESYNCREQ:
