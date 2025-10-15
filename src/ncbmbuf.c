@@ -69,7 +69,7 @@ struct itbmap {
 };
 
 /* Returns true if all bits masked in <it> are set. */
-static __attribute__((unused)) int itbmap_is_full(const struct itbmap *it)
+static int itbmap_is_full(const struct itbmap *it)
 {
 	if (!it->b)
 		return 0;
@@ -77,8 +77,8 @@ static __attribute__((unused)) int itbmap_is_full(const struct itbmap *it)
 	return (*it->b & it->mask) == it->mask;
 }
 
-static __attribute__((unused)) void itbmap_load(struct itbmap *it, ncb_sz_t off,
-                                                const struct ncbmbuf *buf)
+static void itbmap_load(struct itbmap *it, ncb_sz_t off,
+                        const struct ncbmbuf *buf)
 {
 	const ncb_sz_t sz = ncbmb_size(buf);
 	ncb_sz_t off_abs;
@@ -117,7 +117,7 @@ static __attribute__((unused)) void itbmap_load(struct itbmap *it, ncb_sz_t off,
 /* Returns an iterator on the bitmap byte corresponding to <off> offset
  * relative to <buf> head.
  */
-static __attribute__((unused)) struct itbmap itbmap_get(const struct ncbmbuf *buf, ncb_sz_t off)
+static struct itbmap itbmap_get(const struct ncbmbuf *buf, ncb_sz_t off)
 {
 	struct itbmap it;
 
@@ -128,8 +128,8 @@ static __attribute__((unused)) struct itbmap itbmap_get(const struct ncbmbuf *bu
 }
 
 /* Returns the next bitmap byte relative to <prev> iterator. */
-static __attribute__((unused)) struct itbmap itbmap_next(const struct ncbmbuf *buf,
-                                                         const struct itbmap *prev)
+static struct itbmap itbmap_next(const struct ncbmbuf *buf,
+                                 const struct itbmap *prev)
 {
 	const ncb_sz_t off_next = prev->off + prev->bits;
 	struct itbmap next;
@@ -215,10 +215,36 @@ int ncbmb_is_fragmented(const struct ncbmbuf *buf)
 	return 0;
 }
 
+/* Returns the number of bytes of data available in <buf> starting at offset
+ * <off> until the next gap or the buffer end. The counted data may wrapped if
+ * the buffer storage is not aligned.
+ */
 ncb_sz_t ncbmb_data(const struct ncbmbuf *buf, ncb_sz_t off)
 {
-	/* TODO */
-	return 0;
+	struct itbmap it = itbmap_get(buf, off);
+	unsigned char value;
+	ncb_sz_t count = 0;
+
+	while (itbmap_is_full(&it)) {
+		count += it.bits;
+		it = itbmap_next(buf, &it);
+	}
+
+	if (it.b) {
+		value = *it.b & it.mask;
+		while (it.mask && !(it.mask & 0x80)) {
+			it.mask <<= 1;
+			value <<= 1;
+		}
+
+		while (it.mask && (it.mask & 0x80) && (value & 0x80)) {
+			it.mask <<= 1;
+			value <<= 1;
+			++count;
+		}
+	}
+
+	return count;
 }
 
 /* Add a new block at <data> of size <len> in <buf> at offset <off>. Note that

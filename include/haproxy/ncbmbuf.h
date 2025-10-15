@@ -42,6 +42,8 @@ static inline ncb_sz_t ncbmb_size(const struct ncbmbuf *buf)
 
 int ncbmb_is_empty(const struct ncbmbuf *buf);
 
+ncb_sz_t ncbmb_data(const struct ncbmbuf *buf, ncb_sz_t offset);
+
 enum ncb_ret ncbmb_add(struct ncbmbuf *buf, ncb_sz_t off,
                        const char *data, ncb_sz_t len, enum ncb_add_mode mode);
 
