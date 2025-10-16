@@ -23,6 +23,7 @@ struct ncbmbuf {
 	char *area;
 	char *bitmap;
 	ncb_sz_t size;
+	ncb_sz_t bitmap_sz;
 	ncb_sz_t head;
 };
 
