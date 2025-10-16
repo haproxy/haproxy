@@ -38,5 +38,6 @@ ncb2_sz_t ncb2_data(const struct ncbuf2 *buf, ncb2_sz_t offset);
 
 enum ncb_ret ncb2_add(struct ncbuf2 *buf, ncb2_sz_t off,
                       const char *data, ncb2_sz_t len, enum ncb_add_mode mode);
+enum ncb_ret ncb2_advance(struct ncbuf2 *buf, ncb2_sz_t adv);
 
 #endif /* _HAPROXY_NCBUF2_H */

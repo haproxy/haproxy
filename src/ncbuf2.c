@@ -123,6 +123,13 @@ static struct itbmap itbmap_next(const struct ncbuf2 *buf, const struct itbmap *
 	return next;
 }
 
+/* ******** bit set/unset utilities ******** */
+
+static void bit_unset(unsigned char *value, char i)
+{
+	*value &= ~(1 << (8 - i));
+}
+
 /* ******** public API ******** */
 
 struct ncbuf2 ncb2_make(char *area, ncb2_sz_t size, ncb2_sz_t head)
@@ -221,6 +228,37 @@ enum ncb_ret ncb2_add(struct ncbuf2 *buf, ncb2_sz_t off,
 
 enum ncb_ret ncb2_advance(struct ncbuf2 *buf, ncb2_sz_t adv)
 {
-	/* TODO */
+	struct itbmap it;
+
+	BUG_ON_HOT(adv > ncb2_size(buf));
+
+	while (adv) {
+		it = itbmap_get(buf, 0);
+		if (it.bitcount <= adv) {
+			adv -= it.bitcount;
+			*it.b &= ~it.mask;
+			buf->head += it.bitcount;
+		}
+		else {
+			unsigned char mask = 0xff;
+			int i = 1;
+
+			while (!(it.mask & 0x80)) {
+				it.mask <<= 1;
+				++i;
+			}
+
+			while (adv && (it.mask & 0x80)) {
+				bit_unset(&mask, i);
+				--adv;
+				++i;
+				++buf->head;
+			}
+
+			BUG_ON(adv);
+			*it.b &= mask;
+		}
+	}
+
 	return NCB_RET_OK;
 }
