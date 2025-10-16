@@ -143,7 +143,7 @@ struct quic_cstream *quic_cstream_new(struct quic_conn *qc)
 	}
 
 	cs->rx.offset = 0;
-	cs->rx.ncbuf = NCBUF_NULL;
+	cs->rx.ncbuf = NCBMBUF_NULL;
 	cs->rx.offset = 0;
 
 	cs->tx.offset = 0;

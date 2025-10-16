@@ -16,7 +16,7 @@
 
 #include <haproxy/h3.h>
 #include <haproxy/list.h>
-#include <haproxy/ncbuf.h>
+#include <haproxy/ncbmbuf.h>
 #include <haproxy/proto_quic.h>
 #include <haproxy/quic_ack.h>
 #include <haproxy/quic_cc_drs.h>
@@ -666,7 +666,7 @@ static enum quic_rx_ret_frm qc_handle_crypto_frm(struct quic_conn *qc,
 		.len = crypto_frm->len,
 	};
 	struct quic_cstream *cstream = qel->cstream;
-	struct ncbuf *ncbuf = &qel->cstream->rx.ncbuf;
+	struct ncbmbuf *ncbuf = &qel->cstream->rx.ncbuf;
 	uint64_t off_rel;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
@@ -691,7 +691,7 @@ static enum quic_rx_ret_frm qc_handle_crypto_frm(struct quic_conn *qc,
 		crypto_frm->offset_node.key = cstream->rx.offset;
 	}
 
-	if (!quic_get_ncbuf(ncbuf) || ncb_is_null(ncbuf)) {
+	if (!quic_get_ncbuf(ncbuf) || ncbmb_is_null(ncbuf)) {
 		TRACE_ERROR("CRYPTO ncbuf allocation failed", QUIC_EV_CONN_PRSHPKT, qc);
 		goto err;
 	}
@@ -707,31 +707,18 @@ static enum quic_rx_ret_frm qc_handle_crypto_frm(struct quic_conn *qc,
 	 * handshake. If an endpoint does not expand its buffer, it MUST close
 	 * the connection with a CRYPTO_BUFFER_EXCEEDED error code.
 	 */
-	if (off_rel + crypto_frm->len > ncb_size(ncbuf)) {
+	if (off_rel + crypto_frm->len > ncbmb_size(ncbuf)) {
 		TRACE_ERROR("CRYPTO frame too large", QUIC_EV_CONN_PRSHPKT, qc);
 		quic_set_connection_close(qc, quic_err_transport(QC_ERR_CRYPTO_BUFFER_EXCEEDED));
 		goto err;
 	}
 
-	ncb_ret = ncb_add(ncbuf, off_rel, (const char *)crypto_frm->data,
-	                  crypto_frm->len, NCB_ADD_COMPARE);
-	if (ncb_ret != NCB_RET_OK) {
-		if (ncb_ret == NCB_RET_DATA_REJ) {
-			TRACE_ERROR("overlapping data rejected", QUIC_EV_CONN_PRSHPKT, qc);
-			quic_set_connection_close(qc, quic_err_transport(QC_ERR_PROTOCOL_VIOLATION));
-			qc_notify_err(qc);
-			goto err;
-		}
-		else if (ncb_ret == NCB_RET_GAP_SIZE) {
-			TRACE_DATA("cannot bufferize frame due to gap size limit",
-			           QUIC_EV_CONN_PRSHPKT, qc);
-			ret = QUIC_RX_RET_FRM_AGAIN;
-			goto done;
-		}
-	}
+	ncb_ret = ncbmb_add(ncbuf, off_rel, (const char *)crypto_frm->data,
+	                    crypto_frm->len, NCB_ADD_OVERWRT);
+	BUG_ON(ncb_ret != NCB_RET_OK);
 
 	/* Reschedule with TASK_HEAVY if CRYPTO data ready for decoding. */
-	if (ncb_data(ncbuf, 0)) {
+	if (ncbmb_data(ncbuf, 0)) {
 		HA_ATOMIC_OR(&qc->wait_event.tasklet->state, TASK_HEAVY);
 		tasklet_wakeup(qc->wait_event.tasklet);
 	}

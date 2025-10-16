@@ -32,7 +32,7 @@
 
 #include <haproxy/chunk.h>
 #include <haproxy/dynbuf.h>
-#include <haproxy/ncbuf.h>
+#include <haproxy/ncbmbuf.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/ticks.h>
@@ -135,35 +135,35 @@ static inline void quic_conn_mv_cids_to_cc_conn(struct quic_conn_closed *cc_conn
  *
  * Returns the buffer instance or NULL on allocation failure.
  */
-static inline struct ncbuf *quic_get_ncbuf(struct ncbuf *ncbuf)
+static inline struct ncbmbuf *quic_get_ncbuf(struct ncbmbuf *ncbuf)
 {
 	struct buffer buf = BUF_NULL;
 
-	if (!ncb_is_null(ncbuf))
+	if (!ncbmb_is_null(ncbuf))
 		return ncbuf;
 
 	if (!b_alloc(&buf, DB_MUX_RX))
 		return NULL;
 
-	*ncbuf = ncb_make(buf.area, buf.size, 0);
-	ncb_init(ncbuf, 0);
+	*ncbuf = ncbmb_make(buf.area, buf.size, 0);
+	ncbmb_init(ncbuf, 0);
 
 	return ncbuf;
 }
 
 /* Release the underlying memory use by <ncbuf> non-contiguous buffer */
-static inline void quic_free_ncbuf(struct ncbuf *ncbuf)
+static inline void quic_free_ncbuf(struct ncbmbuf *ncbuf)
 {
 	struct buffer buf;
 
-	if (ncb_is_null(ncbuf))
+	if (ncbmb_is_null(ncbuf))
 		return;
 
 	buf = b_make(ncbuf->area, ncbuf->size, 0, 0);
 	b_free(&buf);
 	offer_buffers(NULL, 1);
 
-	*ncbuf = NCBUF_NULL;
+	*ncbuf = NCBMBUF_NULL;
 }
 
 /* Return the address of the QUIC counters attached to the proxy of
