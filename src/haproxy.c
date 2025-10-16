@@ -3378,6 +3378,7 @@ int main(int argc, char **argv)
 	 */
 	step_init_2(argc, argv);
 
+	RUN_INITCALLS(STG_INIT_2);
 	/* Late init step: register signals for worker and standalon modes, apply
 	 * nofile and memory limits, apply capabilities from binary, if any.
 	 */

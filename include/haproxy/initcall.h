@@ -67,6 +67,7 @@ enum init_stage {
 	STG_ALLOC,            // allocate required structures
 	STG_POOL,             // create pools
 	STG_INIT,             // subsystems normal initialization
+	STG_INIT_2,           // runs after step_init_2, to have global.nbthread
 	STG_SIZE              // size of the stages array, must be last
 };
 
@@ -202,6 +203,7 @@ DECLARE_INIT_SECTION(STG_REGISTER);
 DECLARE_INIT_SECTION(STG_ALLOC);
 DECLARE_INIT_SECTION(STG_POOL);
 DECLARE_INIT_SECTION(STG_INIT);
+DECLARE_INIT_SECTION(STG_INIT_2);
 
 // for use in the main haproxy.c file
 #define DECLARE_INIT_STAGES asm("")

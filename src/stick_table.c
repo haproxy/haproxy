@@ -5901,10 +5901,10 @@ static void stkt_late_init(void)
 	f = find_sample_fetch("src", strlen("src"));
 	if (f)
 		smp_fetch_src = f->process;
-	hap_register_post_check(stkt_create_stk_ctr_pool);
+	stkt_create_stk_ctr_pool();
 }
 
-INITCALL0(STG_INIT, stkt_late_init);
+INITCALL0(STG_INIT_2, stkt_late_init);
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
