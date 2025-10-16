@@ -132,6 +132,15 @@ static void bit_unset(unsigned char *value, char i)
 
 /* ******** public API ******** */
 
+void ncb2_init(struct ncbuf2 *buf, ncb2_sz_t head)
+{
+	BUG_ON_HOT(ncb2_is_null(buf));
+
+	BUG_ON_HOT(head >= buf->size);
+	buf->head = head;
+	memset(buf->bitmap, 0, buf->bitmap_sz);
+}
+
 struct ncbuf2 ncb2_make(char *area, ncb2_sz_t size, ncb2_sz_t head)
 {
 	struct ncbuf2 buf;
@@ -158,8 +167,17 @@ ncb2_sz_t ncb2_total_data(const struct ncbuf2 *buf)
 
 int ncb2_is_empty(const struct ncbuf2 *buf)
 {
-	/* TODO */
-	return 0;
+	size_t i = 0;
+
+	if (ncb2_is_null(buf))
+		return 1;
+
+	for (i = 0; i < buf->bitmap_sz; ++i) {
+		if (buf->bitmap[i])
+			return 0;
+	}
+
+	return 1;
 }
 
 int ncb2_is_full(const struct ncbuf2 *buf)

@@ -9,6 +9,7 @@ static inline int ncb2_is_null(const struct ncbuf2 *buf)
 	return buf->size == 0;
 }
 
+void ncb2_init(struct ncbuf2 *buf, ncb2_sz_t head);
 struct ncbuf2 ncb2_make(char *area, ncb2_sz_t size, ncb2_sz_t head);
 
 static inline char *ncb2_orig(const struct ncbuf2 *buf)
@@ -33,6 +34,8 @@ static inline ncb2_sz_t ncb2_size(const struct ncbuf2 *buf)
 
 	return buf->size;
 }
+
+int ncb2_is_empty(const struct ncbuf2 *buf);
 
 ncb2_sz_t ncb2_data(const struct ncbuf2 *buf, ncb2_sz_t offset);
 
