@@ -2,6 +2,10 @@
 
 #include <string.h>
 
+#ifdef STANDALONE
+#include <stdio.h>
+#endif /* STANDALONE */
+
 #ifdef DEBUG_STRICT
 # include <haproxy/bug.h>
 #else
@@ -321,3 +325,220 @@ enum ncb_ret ncbmb_advance(struct ncbmbuf *buf, ncb_sz_t adv)
 
 	return NCB_RET_OK;
 }
+
+#ifdef STANDALONE
+
+static void ncbmbuf_print_buf(struct ncbmbuf *b)
+{
+	ncb_sz_t data;
+	int i;
+
+	for (i = 0; i < b->size; ++i) {
+		if (i && !(i % 8)) fprintf(stderr, " ");
+		else if (i && !(i % 4)) fprintf(stderr, ".");
+		fprintf(stderr, "%02x", (unsigned char)b->area[i]);
+	}
+
+	fprintf(stderr, " [");
+	for (i = 0; i < b->bitmap_sz; ++i)
+		fprintf(stderr, "%02x", (unsigned char)b->bitmap[i]);
+	fprintf(stderr, "]\n");
+}
+
+static void itbmap_print(const struct ncbmbuf *buf, const struct itbmap *it)
+{
+	struct itbmap i = *it;
+
+	while (1) {
+		if (!i.b) {
+			fprintf(stderr, "it %p\n", (unsigned char)i.b);
+			break;
+		}
+
+		fprintf(stderr, "it %p:%zu mask %02x bitcount %d\n", (unsigned char)i.b, i.off, i.mask, i.bitcount);
+		i = itbmap_next(buf, &i);
+	}
+}
+
+#define NCB2_DATA_EQ(buf, off, data) \
+  BUG_ON(ncbmb_data((buf), (off)) != (data));
+
+#if 1
+int main(int argc, char **argv)
+{
+	char *area = calloc(16384, 1);
+	char *data = calloc(16384, 1);
+	struct ncbmbuf buf;
+	struct itbmap it;
+
+	memset(data, 0x11, 16384);
+
+	buf = ncbmb_make(area, 8, 0);
+	ncbmbuf_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 0, 0);
+
+	ncbmb_add(&buf, 1, data, 3, NCB_ADD_OVERWRT);
+	ncbmbuf_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 1, 3);
+	ncbmb_advance(&buf, 2);
+	ncbmbuf_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 0, 2);
+	ncbmb_advance(&buf, 2);
+
+	buf = ncbmb_make(area, 8, 0);
+	ncbmbuf_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 0, 0);
+	ncbmb_add(&buf, 0, data, 2, NCB_ADD_OVERWRT);
+	ncbmbuf_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 0, 2);
+	ncbmb_add(&buf, 4, data, 2, NCB_ADD_OVERWRT);
+	ncbmbuf_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 0, 2);
+	NCB2_DATA_EQ(&buf, 4, 2);
+	fprintf(stderr, "\n");
+
+	buf = ncbmb_make(area, 10, 0);
+	ncbmbuf_print_buf(&buf);
+
+	ncbmb_add(&buf, 1, data, 6, NCB_ADD_OVERWRT);
+	ncbmbuf_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 1, 6);
+	ncbmb_add(&buf, 7, data, 1, NCB_ADD_OVERWRT);
+	ncbmbuf_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 1, 7);
+	fprintf(stderr, "\n");
+
+	buf = ncbmb_make(area, 30, 15);
+	ncbmbuf_print_buf(&buf);
+
+	ncbmb_add(&buf, 0, data, 17, NCB_ADD_OVERWRT);
+	ncbmbuf_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 0, 17);
+	ncbmb_add(&buf, 17, data, 1, NCB_ADD_OVERWRT);
+	ncbmbuf_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 0, 18);
+	ncbmb_add(&buf, 20, data, 6, NCB_ADD_OVERWRT);
+	ncbmbuf_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 20, 6);
+	ncbmb_add(&buf, 18, data, 2, NCB_ADD_OVERWRT);
+	ncbmbuf_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 0, 26);
+	NCB2_DATA_EQ(&buf, 1, 25);
+	ncbmb_advance(&buf, 15);
+	NCB2_DATA_EQ(&buf, 0, 11);
+	ncbmbuf_print_buf(&buf);
+	fprintf(stderr, "\n");
+
+	buf = ncbmb_make(area, 8, 0); ncbmbuf_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 0); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	buf = ncbmb_make(area, 8, 0); ncbmbuf_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 1); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	buf = ncbmb_make(area, 9, 0); ncbmbuf_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 0); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	buf = ncbmb_make(area, 9, 0); ncbmbuf_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 6); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	buf = ncbmb_make(area, 9, 0); ncbmbuf_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 7); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	//buf = ncbmb_make(area, 9, 0); ncbmbuf_print_buf(&buf);
+	//fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	//it = itbmap_get(&buf, 8); itbmap_print(&buf, &it);
+	//fprintf(stderr, "\n");
+
+	buf = ncbmb_make(area, 12, 4); ncbmbuf_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 0); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	buf = ncbmb_make(area, 12, 4); ncbmbuf_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 3); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	buf = ncbmb_make(area, 12, 4); ncbmbuf_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 4); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	buf = ncbmb_make(area, 12, 4); ncbmbuf_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 5); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	buf = ncbmb_make(area, 24, 0); ncbmbuf_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 0); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	buf = ncbmb_make(area, 16384, 0);
+	ncbmb_add(&buf, 371, data, 14, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 371, 14);
+	ncbmb_add(&buf, 430, data, 59, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 430, 59);
+	ncbmb_add(&buf, 607, data, 472, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 607, 472);
+	ncbmb_add(&buf, 489, data, 118, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 489, 590);
+	ncbmb_add(&buf, 66, data, 67, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 66, 67);
+	ncbmb_add(&buf, 385, data, 15, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 385, 15);
+	ncbmb_add(&buf, 135, data, 118, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 135, 118);
+	ncbmb_add(&buf, 0, data, 66, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 0, 133);
+	ncbmb_add(&buf, 400, data, 15, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 400, 15);
+	ncbmb_add(&buf, 253, data, 118, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 253, 162);
+	ncbmb_add(&buf, 415, data, 15, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 400, 679);
+	ncbmb_add(&buf, 133, data, 1, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 0, 134);
+	ncbmb_add(&buf, 134, data, 1, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 0, 1079);
+
+	ncbmb_add(&buf, 1265, data, 187, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 1265, 187);
+	ncbmb_add(&buf, 1218, data, 47, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 1218, 234);
+	ncbmb_add(&buf, 1192, data, 3, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 1192, 3);
+	ncbmb_add(&buf, 1177, data, 3, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 1177, 3);
+	ncbmb_add(&buf, 1125, data, 47, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 1125, 47);
+	ncbmb_add(&buf, 1172, data, 5, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 1125, 55);
+	ncbmb_add(&buf, 1079, data, 46, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 0, 1180);
+	ncbmb_add(&buf, 1195, data, 23, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 1192, 260);
+	ncbmb_add(&buf, 1183, data, 6, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 1183, 6);
+	ncbmb_add(&buf, 1180, data, 3, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 0, 1189);
+	ncbmb_add(&buf, 1189, data, 3, NCB_ADD_OVERWRT);
+	NCB2_DATA_EQ(&buf, 0, 1452);
+
+	free(area); free(data);
+
+	return 0;
+}
+#endif
+
+#endif /* STANDALONE */
