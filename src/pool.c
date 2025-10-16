@@ -1399,7 +1399,7 @@ int dump_pools_info(struct appctx *appctx)
 
 	if (ctx->pool_idx == -1) {
 		chunk_printf(&trash, "Dumping pools usage");
-		if (ctx->nbpools >= ctx->maxcnt)
+		if (ctx->nbpools > ctx->maxcnt)
 			chunk_appendf(&trash, " (limited to the first %u entries)", ctx->maxcnt);
 		chunk_appendf(&trash, ". Use SIGQUIT to flush them.\n");
 
