@@ -151,6 +151,19 @@ static void bit_unset(unsigned char *value, char i)
 
 /* ******** public API ******** */
 
+/* Initialize or reset <buf> by clearing all data. Its size is untouched.
+ * Buffer is positioned to <head> offset. Use 0 to realign it. <buf> must not
+ * be NCBUF_NULL.
+ */
+void ncbmb_init(struct ncbmbuf *buf, ncb_sz_t head)
+{
+	BUG_ON_HOT(ncbmb_is_null(buf));
+
+	BUG_ON_HOT(head >= buf->size);
+	buf->head = head;
+	memset(buf->bitmap, 0, buf->bitmap_sz);
+}
+
 /* Construct a ncbmbuf with all its parameters. */
 struct ncbmbuf ncbmb_make(char *area, ncb_sz_t size, ncb_sz_t head)
 {
@@ -178,8 +191,17 @@ ncb_sz_t ncbmb_total_data(const struct ncbmbuf *buf)
 
 int ncbmb_is_empty(const struct ncbmbuf *buf)
 {
-	/* TODO */
-	return 0;
+	size_t i = 0;
+
+	if (ncbmb_is_null(buf))
+		return 1;
+
+	for (i = 0; i < buf->bitmap_sz; ++i) {
+		if (buf->bitmap[i])
+			return 0;
+	}
+
+	return 1;
 }
 
 int ncbmb_is_full(const struct ncbmbuf *buf)

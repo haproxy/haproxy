@@ -8,29 +8,30 @@ static inline int ncbmb_is_null(const struct ncbmbuf *buf)
 	return buf->size == 0;
 }
 
+void ncbmb_init(struct ncbmbuf *buf, ncb_sz_t head);
 struct ncbmbuf ncbmb_make(char *area, ncb_sz_t size, ncb_sz_t head);
 
-<<<<<<< HEAD
-/* Returns the usable size of <buf> for data storage. This is the size of the
- * allocated buffer without the bitmap space.
- */
-=======
+/* Returns start of allocated buffer area. */
 static inline char *ncbmb_orig(const struct ncbmbuf *buf)
 {
 	return buf->area;
 }
 
+/* Returns current head pointer into buffer area. */
 static inline char *ncbmb_head(const struct ncbmbuf *buf)
 {
 	return buf->area + buf->head;
 }
 
+/* Returns the first byte after the allocated buffer area. */
 static inline char *ncbmb_wrap(const struct ncbmbuf *buf)
 {
 	return buf->area + buf->size;
 }
 
->>>>>>> 932ad4878 (MINOR: ncbmbuf: support wrapping during add operation)
+/* Returns the usable size of <buf> for data storage. This is the size of the
+ * allocated buffer without the bitmap space.
+ */
 static inline ncb_sz_t ncbmb_size(const struct ncbmbuf *buf)
 {
 	if (ncbmb_is_null(buf))
@@ -38,6 +39,8 @@ static inline ncb_sz_t ncbmb_size(const struct ncbmbuf *buf)
 
 	return buf->size;
 }
+
+int ncbmb_is_empty(const struct ncbmbuf *buf);
 
 ncb_sz_t ncbmb_data(const struct ncbmbuf *buf, ncb_sz_t offset);
 
