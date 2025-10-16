@@ -147,6 +147,13 @@ static struct itbmap itbmap_next(const struct ncbmbuf *buf,
 	return next;
 }
 
+/* ******** bit set/unset utilities ******** */
+
+static void bit_unset(unsigned char *value, char i)
+{
+	*value &= ~(1 << (8 - i));
+}
+
 /* ******** public API ******** */
 
 /* Initialize or reset <buf> by clearing all data. Its size is untouched.
@@ -278,8 +285,51 @@ enum ncb_ret ncbmb_add(struct ncbmbuf *buf, ncb_sz_t off,
 	return NCB_RET_OK;
 }
 
+/* Advance the head of <buf> to the offset <adv>. Data at the start of buffer
+ * will be lost while some space will be formed at the end to be able to insert
+ * new data.
+ *
+ * Always returns NCB_RET_OK as this operation cannot fail.
+ */
 enum ncb_ret ncbmb_advance(struct ncbmbuf *buf, ncb_sz_t adv)
 {
-	/* TODO */
+	struct itbmap it;
+
+	BUG_ON_HOT(adv > ncbmb_size(buf));
+
+	while (adv) {
+		it = itbmap_get(buf, 0);
+		if (it.bits <= adv) {
+			adv -= it.bits;
+			/* Reset all bits in current bitmap byte. */
+			*it.b &= ~it.mask;
+			buf->head += it.bits;
+		}
+		else {
+			int i = 1;
+
+			while (!(it.mask & 0x80)) {
+				it.mask <<= 1;
+				++i;
+			}
+
+			/* Last bitmap byte to adjust, unset each bit
+			 * individually until new offset is reached.
+			 */
+			while (adv) {
+				bit_unset(it.b, i);
+				--adv;
+				++i;
+				++buf->head;
+			}
+		}
+
+		/* Adjust head if pointer has wrapped. */
+		if (buf->head >= ncbmb_size(buf)) {
+			BUG_ON_HOT(buf->head >= ncbmb_size(buf) * 2);
+			buf->head -= ncbmb_size(buf);
+		}
+	}
+
 	return NCB_RET_OK;
 }
