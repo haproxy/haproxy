@@ -26,7 +26,7 @@
 #include <import/ebtree.h>
 
 #include <haproxy/buf-t.h>
-#include <haproxy/ncbuf-t.h>
+#include <haproxy/ncbmbuf-t.h>
 #include <haproxy/quic_ack-t.h>
 
 /* Use EVP_CIPHER or EVP_AEAD API depending on the library */
@@ -255,7 +255,7 @@ struct quic_crypto_buf {
 struct quic_cstream {
 	struct {
 		uint64_t offset;       /* absolute current base offset of ncbuf */
-		struct ncbuf ncbuf;    /* receive buffer - can handle out-of-order offset frames */
+		struct ncbmbuf ncbuf;  /* receive buffer - can handle out-of-order offset frames */
 	} rx;
 	struct {
 		uint64_t offset;      /* last offset of data ready to be sent */
