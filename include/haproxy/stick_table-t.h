@@ -164,7 +164,6 @@ struct stksess {
 
 	struct eb32_node exp;     /* ebtree node used to hold the session in expiration tree */
 	struct mt_list upd;       /* entry in the table's update sequence list */
-	struct mt_list pend_updts;/* entry in list of pending updates  */
 	struct ebmb_node key;     /* ebtree node used to hold the session in table */
 	/* WARNING! do not put anything after <keys>, it's used by the key */
 };
@@ -234,8 +233,6 @@ struct stktable {
 	THREAD_ALIGN(64);
 	unsigned int   last_update; /* Date of the last update inserted in the list */
 	struct mt_list updates;     /* list of sticky updates sequence */
-	struct mt_list *pend_updts; /* list of updates to be added to the update sequence list, one per thread-group */
-	struct tasklet *updt_task;/* tasklet responsible for pushing the pending updates into the tree */
 
 	/* rarely used config stuff below */
 	struct proxy *proxies_list; /* The list of proxies which reference this stick-table. */

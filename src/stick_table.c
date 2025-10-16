@@ -133,9 +133,6 @@ int __stksess_kill(struct stktable *t, struct stksess *ts)
 	if (HA_ATOMIC_LOAD(&ts->ref_cnt))
 		return 0;
 
-	/* make sure we're no longer in the updates list */
-	MT_LIST_DELETE(&ts->pend_updts);
-
 	/* ... and that we didn't leave the update list for the tree */
 	if (MT_LIST_INLIST(&ts->upd)) {
 		link = mt_list_try_lock_full(&ts->upd);
@@ -268,7 +265,6 @@ static struct stksess *__stksess_init(struct stktable *t, struct stksess * ts)
 	ts->exp.node.leaf_p = NULL;
 	ts->updt_type = STKSESS_UPDT_NONE;
 	MT_LIST_INIT(&ts->upd);
-	MT_LIST_INIT(&ts->pend_updts);
 	ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
 	HA_RWLOCK_INIT(&ts->lock);
 	return ts;
@@ -384,8 +380,6 @@ int stktable_trash_oldest(struct stktable *t)
 			 * because peers can see it at any moment and start to use it. In this case,
 			 * Peers will lock the element. So to the same here to avoid any conflict
 			 */
-			MT_LIST_DELETE(&ts->pend_updts);
-
 			if (MT_LIST_INLIST(&ts->upd)) {
 				link = mt_list_try_lock_full(&ts->upd);
 				if (link.next == NULL)
@@ -626,20 +620,28 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 			 */
 			if (!MT_LIST_INLIST(&ts->upd) || _HA_ATOMIC_LOAD(&ts->seen)) {
 				_HA_ATOMIC_STORE(&ts->updt_type, STKSESS_UPDT_LOCAL);
-				did_append = MT_LIST_TRY_APPEND(&t->pend_updts[tgid - 1], &ts->pend_updts);
+				MT_LIST_DELETE(&ts->upd);
+				MT_LIST_TRY_APPEND(&t->updates, &ts->upd);
+				_HA_ATOMIC_STORE(&ts->seen, 0);
+				did_append = 1;
 			}
 		}
 		else {
 			if (!MT_LIST_INLIST(&ts->upd)) {
 				_HA_ATOMIC_STORE(&ts->updt_type, STKSESS_UPDT_REMOTE);
-				did_append = MT_LIST_TRY_APPEND(&t->pend_updts[tgid - 1], &ts->pend_updts);
+				MT_LIST_DELETE(&ts->upd);
+				MT_LIST_TRY_APPEND(&t->updates, &ts->upd);
+				_HA_ATOMIC_STORE(&ts->seen, 0);
+				did_append = 1;
 			}
 		}
 
+		if (did_append) {
+			/* We did at least one update, let's wake the sync task */
+			t->last_update = now_ms;
+			task_wakeup(t->sync_task, TASK_WOKEN_MSG);
+		}
 	}
-
-	if (did_append)
-		tasklet_wakeup(t->updt_task);
 
 	if (decrefcnt)
 		HA_ATOMIC_DEC(&ts->ref_cnt);
@@ -799,53 +801,6 @@ struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *
 	return ts;
 }
 
-struct task *stktable_add_pend_updates(struct task *t, void *ctx, unsigned int state)
-{
-	struct stktable *table = ctx;
-	int i = 0, cur_tgid = tgid - 1, empty_tgid = 0;
-
-	for (i = 0; i < STKTABLE_MAX_UPDATES_AT_ONCE; i++) {
-		struct stksess *stksess = MT_LIST_POP_LOCKED(&table->pend_updts[cur_tgid], typeof(stksess), pend_updts);
-
-		if (!stksess) {
-			empty_tgid++;
-			cur_tgid++;
-			if (cur_tgid == global.nbtgroups)
-				cur_tgid = 0;
-
-			if (empty_tgid == global.nbtgroups)
-				break;
-			continue;
-		}
-		cur_tgid++;
-		empty_tgid = 0;
-		if (cur_tgid == global.nbtgroups)
-			cur_tgid = 0;
-		stksess->seen = 0;
-		MT_LIST_DELETE(&stksess->upd);
-		MT_LIST_APPEND(&table->updates, &stksess->upd);
-
-		/*
-		 * Now that we're done inserting the stksess, unlock it.
-		 * It is kept locked here to prevent a race condition
-		 * when stksess_kill() could free() it after we removed
-		 * it from the list, but before we inserted it into the tree
-		 */
-		MT_LIST_INIT(&stksess->pend_updts);
-	}
-
-	/* There's more to do, let's schedule another session */
-	if (empty_tgid < global.nbtgroups)
-		tasklet_wakeup(table->updt_task);
-
-	if (i > 0) {
-		/* We did at least one update, let's wake the sync task */
-		table->last_update = now_ms;
-		task_wakeup(table->sync_task, TASK_WOKEN_MSG);
-	}
-	return t;
-}
-
 /* Lookup for an entry with the same key and store the submitted
  * stksess if not found. This function locks the table either shared or
  * exclusively, and the refcount of the entry is increased.
@@ -1003,7 +958,6 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 			 * because peers can see it at any moment and start to use it. In this case,
 			 * Peers will lock the element. So to the same here to avoid any conflict
 			 */
-			MT_LIST_DELETE(&ts->pend_updts);
 			if (MT_LIST_INLIST(&ts->upd)) {
 				link = mt_list_try_lock_full(&ts->upd);
 				if (link.next == NULL)
@@ -1060,7 +1014,6 @@ int stktable_init(struct stktable *t, char **err_msg)
 	static int operating_thread = 0;
 	int peers_retval = 0;
 	int bucket;
-	int i;
 
 	t->hash_seed = XXH64(t->id, t->idlen, 0);
 
@@ -1122,17 +1075,7 @@ int stktable_init(struct stktable *t, char **err_msg)
 
 		t->write_to.t = table;
 	}
-	t->pend_updts = calloc(global.nbtgroups, sizeof(*t->pend_updts));
-	if (!t->pend_updts)
-		goto mem_error;
-	for (i = 0; i < global.nbtgroups; i++)
-		MT_LIST_INIT(&t->pend_updts[i]);
-	t->updt_task = tasklet_new();
 	t->last_update = TICK_ETERNITY;
-	if (!t->updt_task)
-		goto mem_error;
-	t->updt_task->context = t;
-	t->updt_task->process = stktable_add_pend_updates;
 	return 1;
 
  mem_error:
@@ -1151,8 +1094,6 @@ void stktable_deinit(struct stktable *t)
 	if (!t)
 		return;
 	task_destroy(t->exp_task);
-	tasklet_free(t->updt_task);
-	ha_free(&t->pend_updts);
 	pool_destroy(t->pool);
 }
 
