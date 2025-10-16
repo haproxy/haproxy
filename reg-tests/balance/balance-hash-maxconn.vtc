@@ -9,13 +9,13 @@ barrier b2 cond 2
 
 server s0 {
     rxreq
+    barrier b2 sync
     barrier b1 sync
     txresp -hdr "Server: s0"
 } -start
 
 server s1 {
     rxreq
-    barrier b2 sync
     barrier b1 sync
     txresp -hdr "Server: s1"
 } -start
@@ -47,7 +47,7 @@ client c1 -connect ${h1_px_sock} {
     txreq -url "/test-url"
     rxresp
     expect resp.status == 200
-    expect resp.http.Server ~ s1
+    expect resp.http.Server ~ s0
 }  -start
 
 barrier b2 sync
@@ -57,7 +57,7 @@ client c2 -connect ${h1_px_sock} {
     txreq -url "/test-url"
     rxresp
     expect resp.status == 200
-    expect resp.http.Server ~ s0
+    expect resp.http.Server ~ s1
 } -start
 
 client c1 -wait
