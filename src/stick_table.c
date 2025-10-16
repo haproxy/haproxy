@@ -140,7 +140,9 @@ int __stksess_kill(struct stktable *t, struct stksess *ts)
 
 	/* ... and that we didn't leave the update list for the tree */
 	if (MT_LIST_INLIST(&ts->upd)) {
-		link = mt_list_lock_full(&ts->upd);
+		link = mt_list_try_lock_full(&ts->upd);
+		if (link.next == NULL)
+			goto out;
 		if (HA_ATOMIC_LOAD(&ts->ref_cnt)) {
 			mt_list_unlock_full(&ts->upd, link);
 			goto out;
@@ -387,7 +389,9 @@ int stktable_trash_oldest(struct stktable *t)
 			MT_LIST_DELETE(&ts->pend_updts);
 
 			if (MT_LIST_INLIST(&ts->upd)) {
-				link = mt_list_lock_full(&ts->upd);
+				link = mt_list_try_lock_full(&ts->upd);
+				if (link.next == NULL)
+					goto requeue;
 				if (HA_ATOMIC_LOAD(&ts->ref_cnt)) {
 					mt_list_unlock_full(&ts->upd, link);
 					goto requeue;
@@ -1046,7 +1050,9 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 			 */
 			MT_LIST_DELETE(&ts->pend_updts);
 			if (MT_LIST_INLIST(&ts->upd)) {
-				link = mt_list_lock_full(&ts->upd);
+				link = mt_list_try_lock_full(&ts->upd);
+				if (link.next == NULL)
+					goto requeue;
 				if (HA_ATOMIC_LOAD(&ts->ref_cnt)) {
 					mt_list_unlock_full(&ts->upd, link);
 					goto requeue;
