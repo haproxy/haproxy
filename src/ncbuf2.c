@@ -2,6 +2,22 @@
 
 #include <string.h>
 
+#ifdef STANDALONE
+#include <stdio.h>
+#endif /* STANDALONE */
+
+#ifdef DEBUG_STRICT
+# include <haproxy/bug.h>
+#else
+# include <stdio.h>
+# include <stdlib.h>
+
+# undef  BUG_ON
+# define BUG_ON(x)     if (x) { fprintf(stderr, "CRASH ON %s:%d\n", __func__, __LINE__); abort(); }
+
+# undef  BUG_ON_HOT
+# define BUG_ON_HOT(x) if (x) { fprintf(stderr, "CRASH ON %s:%d\n", __func__, __LINE__); abort(); }
+#endif /* DEBUG_DEV */
 
 /* ******** internal API ******** */
 
@@ -280,3 +296,158 @@ enum ncb_ret ncb2_advance(struct ncbuf2 *buf, ncb2_sz_t adv)
 
 	return NCB_RET_OK;
 }
+
+#ifdef STANDALONE
+
+static void ncbuf2_print_buf(struct ncbuf2 *b)
+{
+	ncb2_sz_t data;
+	int i;
+
+	for (i = 0; i < b->size; ++i) {
+		if (i && !(i % 8)) fprintf(stderr, " ");
+		else if (i && !(i % 4)) fprintf(stderr, ".");
+		fprintf(stderr, "%02x", (unsigned char)b->area[i]);
+	}
+
+	fprintf(stderr, " [");
+	for (i = 0; i < b->bitmap_sz; ++i)
+		fprintf(stderr, "%02x", (unsigned char)b->bitmap[i]);
+	fprintf(stderr, "]\n");
+}
+
+static void itbmap_print(const struct ncbuf2 *buf, const struct itbmap *it)
+{
+	struct itbmap i = *it;
+
+	while (1) {
+		if (!i.b) {
+			fprintf(stderr, "it %p\n", (unsigned char)i.b);
+			break;
+		}
+
+		fprintf(stderr, "it %p:%zu mask %02x bitcount %d\n", (unsigned char)i.b, i.off, i.mask, i.bitcount);
+		i = itbmap_next(buf, &i);
+	}
+}
+
+#define NCB2_DATA_EQ(buf, off, data) \
+  BUG_ON(ncb2_data((buf), (off)) != (data));
+
+#if 1
+int main(int argc, char **argv)
+{
+	char area[1024];
+	char data[1024];
+	struct ncbuf2 buf;
+	struct itbmap it;
+
+	memset(data, 0x11, 1024);
+
+	buf = ncb2_make(area, 8, 0);
+	ncbuf2_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 0, 0);
+
+	ncb2_add(&buf, 1, data, 3, NCB_ADD_COMPARE);
+	ncbuf2_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 1, 3);
+	ncb2_advance(&buf, 2);
+	ncbuf2_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 0, 2);
+	ncb2_advance(&buf, 2);
+	ncbuf2_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 0, 0);
+	fprintf(stderr, "\n");
+
+	buf = ncb2_make(area, 10, 0);
+	ncbuf2_print_buf(&buf);
+
+	ncb2_add(&buf, 1, data, 6, NCB_ADD_COMPARE);
+	ncbuf2_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 1, 6);
+	ncb2_add(&buf, 7, data, 1, NCB_ADD_COMPARE);
+	ncbuf2_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 1, 7);
+	fprintf(stderr, "\n");
+
+	buf = ncb2_make(area, 30, 15);
+	ncbuf2_print_buf(&buf);
+
+	ncb2_add(&buf, 0, data, 17, NCB_ADD_COMPARE);
+	ncbuf2_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 0, 17);
+	ncb2_add(&buf, 17, data, 1, NCB_ADD_COMPARE);
+	ncbuf2_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 0, 18);
+	ncb2_add(&buf, 20, data, 6, NCB_ADD_COMPARE);
+	ncbuf2_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 20, 6);
+	ncb2_add(&buf, 18, data, 2, NCB_ADD_COMPARE);
+	ncbuf2_print_buf(&buf);
+	NCB2_DATA_EQ(&buf, 0, 26);
+	NCB2_DATA_EQ(&buf, 1, 25);
+	ncb2_advance(&buf, 15);
+	NCB2_DATA_EQ(&buf, 0, 11);
+	ncbuf2_print_buf(&buf);
+	fprintf(stderr, "\n");
+
+	buf = ncb2_make(area, 8, 0); ncbuf2_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 0); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	buf = ncb2_make(area, 8, 0); ncbuf2_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 1); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	buf = ncb2_make(area, 9, 0); ncbuf2_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 0); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	buf = ncb2_make(area, 9, 0); ncbuf2_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 6); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	buf = ncb2_make(area, 9, 0); ncbuf2_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 7); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	//buf = ncb2_make(area, 9, 0); ncbuf2_print_buf(&buf);
+	//fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	//it = itbmap_get(&buf, 8); itbmap_print(&buf, &it);
+	//fprintf(stderr, "\n");
+
+	buf = ncb2_make(area, 12, 4); ncbuf2_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 0); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	buf = ncb2_make(area, 12, 4); ncbuf2_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 3); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	buf = ncb2_make(area, 12, 4); ncbuf2_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 4); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	buf = ncb2_make(area, 12, 4); ncbuf2_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 5); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	buf = ncb2_make(area, 24, 0); ncbuf2_print_buf(&buf);
+	fprintf(stderr, "bm %p\n", (unsigned char)buf.bitmap);
+	it = itbmap_get(&buf, 0); itbmap_print(&buf, &it);
+	fprintf(stderr, "\n");
+
+	return 0;
+}
+#endif
+
+#endif /* STANDALONE */
