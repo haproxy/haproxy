@@ -762,6 +762,27 @@ static MT_INLINE struct mt_list mt_list_lock_next(struct mt_list *lh)
 	return el;
 }
 
+/*
+ * Same as mt_list_lock_next(), except it doesn't wait if the next
+ * is locked already, and just returns { NULL, NULL }
+ */
+static MT_INLINE struct mt_list mt_list_try_lock_next(struct mt_list *lh)
+{
+	struct mt_list el;
+	struct mt_list missed = { NULL, NULL };
+
+	el.next = __atomic_exchange_n(&lh->next, MT_LIST_BUSY, __ATOMIC_RELAXED);
+	if (el.next == MT_LIST_BUSY)
+		return missed;
+
+	el.prev = __atomic_exchange_n(&el.next->prev, MT_LIST_BUSY, __ATOMIC_RELAXED);
+	if (el.prev == MT_LIST_BUSY) {
+		lh->next = el.next;
+		__atomic_thread_fence(__ATOMIC_RELEASE);
+		return missed;
+	}
+	return el;
+}
 
 /* Opens the list just before <lh> which usually is the list's head, but not
  * necessarily. The link between <lh> and its prev element is cut and replaced
@@ -848,6 +869,28 @@ static MT_INLINE struct mt_list mt_list_lock_elem(struct mt_list *el)
 			continue;
 		}
 		break;
+	}
+	return ret;
+}
+
+/*
+ * Same as mt_list_lock_elem(), except it doesn't wait if the element
+ * is locked already, and just returns { NULL, NULL }
+ */
+static MT_INLINE struct mt_list mt_list_try_lock_elem(struct mt_list *el)
+{
+	struct mt_list ret;
+	struct mt_list missed = { NULL, NULL };
+
+	ret.next = __atomic_exchange_n(&el->next, MT_LIST_BUSY, __ATOMIC_RELAXED);
+	if (ret.next == MT_LIST_BUSY)
+		return missed;
+
+	ret.prev = __atomic_exchange_n(&el->prev, MT_LIST_BUSY, __ATOMIC_RELAXED);
+	if (ret.prev == MT_LIST_BUSY) {
+		el->next = ret.next;
+		__atomic_thread_fence(__ATOMIC_RELEASE);
+		return missed;
 	}
 	return ret;
 }
@@ -939,6 +982,51 @@ static MT_INLINE struct mt_list mt_list_lock_full(struct mt_list *el)
 			}
 		}
 		break;
+	}
+	return ret;
+}
+
+/*
+ * Same as mt_list_lock_full(), except it doesn't wait if the element
+ * is locked already, and just returns { NULL, NULL }
+ */
+static MT_INLINE struct mt_list mt_list_try_lock_full(struct mt_list *el)
+{
+	struct mt_list *n2;
+	struct mt_list *p2;
+	struct mt_list ret;
+	struct mt_list missed = { NULL, NULL };
+
+	p2 = NULL;
+	ret.next = __atomic_exchange_n(&el->next, MT_LIST_BUSY, __ATOMIC_RELAXED);
+	if (ret.next == MT_LIST_BUSY)
+		return missed;
+
+	ret.prev = __atomic_exchange_n(&el->prev, MT_LIST_BUSY, __ATOMIC_RELAXED);
+	if (ret.prev == MT_LIST_BUSY) {
+		el->next = ret.next;
+		__atomic_thread_fence(__ATOMIC_RELEASE);
+		return missed;
+	}
+
+	if (ret.prev != el) {
+		p2 = __atomic_exchange_n(&ret.prev->next, MT_LIST_BUSY, __ATOMIC_RELAXED);
+		if (p2 == MT_LIST_BUSY) {
+			*el = ret;
+			__atomic_thread_fence(__ATOMIC_RELEASE);
+			return missed;
+		}
+	}
+
+	if (ret.next != el) {
+		n2 = __atomic_exchange_n(&ret.next->prev, MT_LIST_BUSY, __ATOMIC_RELAXED);
+		if (n2 == MT_LIST_BUSY) {
+			if (p2 != NULL)
+				ret.prev->next = p2;
+			*el = ret;
+			__atomic_thread_fence(__ATOMIC_RELEASE);
+			return missed;
+		}
 	}
 	return ret;
 }
