@@ -60,6 +60,93 @@ static void ncbmb_set_bitmap(struct ncbmbuf *buf, ncb_sz_t off, ncb_sz_t len)
 	}
 }
 
+/* Type representing a bitmap byte. */
+struct itbmap {
+	unsigned char *b;
+	ncb_sz_t off; /* offset relative to buf head */
+	unsigned char mask; /* usable bits depending on <off> and buf data storage */
+	unsigned char bits; /* count of bits set in <mask> */
+};
+
+/* Returns true if all bits masked in <it> are set. */
+static __attribute__((unused)) int itbmap_is_full(const struct itbmap *it)
+{
+	if (!it->b)
+		return 0;
+
+	return (*it->b & it->mask) == it->mask;
+}
+
+static __attribute__((unused)) void itbmap_load(struct itbmap *it, ncb_sz_t off,
+                                                const struct ncbmbuf *buf)
+{
+	const ncb_sz_t sz = ncbmb_size(buf);
+	ncb_sz_t off_abs;
+	ncb_sz_t off_bmap;
+
+	off_abs = buf->head + off;
+	if (off_abs >= sz)
+		off_abs -= sz;
+	off_bmap = off_abs / 8;
+	BUG_ON_HOT(off_bmap >= buf->size_bm);
+
+	it->b = buf->bitmap + off_bmap;
+	it->off = off;
+	it->mask = 0xff;
+	it->bits = 8;
+
+	/* Adjust mask for last bitmap byte. */
+	if (off_bmap == buf->size_bm - 1 && (sz % 8)) {
+		it->mask <<= 8 - (sz % 8);
+		it->bits -= 8 - (sz % 8);
+	}
+
+	/* Adjust mask if iterator starts unaligned. */
+	if (off_abs % 8) {
+		it->mask &= (0xff >> (off_abs % 8));
+		it->bits -= off_abs % 8;
+	}
+
+	/* Adjust mask if iterator ends unaligned. */
+	if (it->off + it->bits > sz) {
+		it->mask &= (0xff << (it->off + it->bits - sz));
+		it->bits -= it->off + it->bits - sz;
+	}
+}
+
+/* Returns an iterator on the bitmap byte corresponding to <off> offset
+ * relative to <buf> head.
+ */
+static __attribute__((unused)) struct itbmap itbmap_get(const struct ncbmbuf *buf, ncb_sz_t off)
+{
+	struct itbmap it;
+
+	BUG_ON(off >= ncbmb_size(buf));
+
+	itbmap_load(&it, off, buf);
+	return it;
+}
+
+/* Returns the next bitmap byte relative to <prev> iterator. */
+static __attribute__((unused)) struct itbmap itbmap_next(const struct ncbmbuf *buf,
+                                                         const struct itbmap *prev)
+{
+	const ncb_sz_t off_next = prev->off + prev->bits;
+	struct itbmap next;
+
+	BUG_ON_HOT(off_next > ncbmb_size(buf));
+
+	if (off_next == ncbmb_size(buf)) {
+		next.b = NULL;
+		next.off = off_next;
+	}
+	else {
+		itbmap_load(&next, prev->off + prev->bits, buf);
+	}
+
+	return next;
+}
+
 /* ******** public API ******** */
 
 /* Initialize or reset <buf> by clearing all data. Its size is untouched.
