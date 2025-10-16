@@ -1374,6 +1374,9 @@ static int get_show_pools_info(struct show_pools_ctx *ctx)
 		n++;
 	}
 
+	/* adjust the number of entries to be dumped */
+	ctx->nbpools = n;
+
 	if (by_what == 1)  /* sort by name */
 		qsort(ctx->pool_info, ctx->nbpools, sizeof(*ctx->pool_info), cmp_dump_pools_name);
 	else if (by_what == 2)  /* sort by item size */
