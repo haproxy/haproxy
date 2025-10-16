@@ -142,6 +142,13 @@ static struct itbmap itbmap_next(const struct ncbmbuf *buf, const struct itbmap 
 	return next;
 }
 
+/* ******** bit set/unset utilities ******** */
+
+static void bit_unset(unsigned char *value, char i)
+{
+	*value &= ~(1 << (8 - i));
+}
+
 /* ******** public API ******** */
 
 /* Construct a ncbmbuf with all its parameters. */
@@ -250,8 +257,45 @@ enum ncb_ret ncbmb_add(struct ncbmbuf *buf, ncb_sz_t off,
 	return NCB_RET_OK;
 }
 
+/* Advance the head of <buf> to the offset <adv>. Data at the start of buffer
+ * will be lost while some space will be formed at the end to be able to insert
+ * new data.
+ *
+ * Always returns NCB_RET_OK as this operation cannot fail.
+ */
 enum ncb_ret ncbmb_advance(struct ncbmbuf *buf, ncb_sz_t adv)
 {
-	/* TODO */
+	struct itbmap it;
+
+	BUG_ON_HOT(adv > ncbmb_size(buf));
+
+	while (adv) {
+		it = itbmap_get(buf, 0);
+		if (it.bitcount <= adv) {
+			adv -= it.bitcount;
+			*it.b &= ~it.mask;
+			buf->head += it.bitcount;
+		}
+		else {
+			unsigned char mask = 0xff;
+			int i = 1;
+
+			while (!(it.mask & 0x80)) {
+				it.mask <<= 1;
+				++i;
+			}
+
+			while (adv && (it.mask & 0x80)) {
+				bit_unset(&mask, i);
+				--adv;
+				++i;
+				++buf->head;
+			}
+
+			BUG_ON(adv);
+			*it.b &= mask;
+		}
+	}
+
 	return NCB_RET_OK;
 }
