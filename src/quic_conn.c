@@ -724,7 +724,10 @@ static struct quic_conn_closed *qc_new_cc_conn(struct quic_conn *qc)
 
 	quic_conn_mv_cids_to_cc_conn(cc_qc, qc);
 
-	qc_init_fd((struct quic_conn *)cc_qc);
+	if (qc_is_back(qc))
+		cc_qc->fd = qc->fd;
+	else
+		qc_init_fd((struct quic_conn *)cc_qc);
 
 	cc_qc->flags = qc->flags;
 	cc_qc->err = qc->err;
