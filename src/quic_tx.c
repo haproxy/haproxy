@@ -2234,7 +2234,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 int quic_tx_unittest(int argc, char **argv)
 {
 	struct quic_conn qc;
-	struct quic_cc_path path;
+	struct quic_cc_path path = { .mtu = QUIC_INITIAL_IPV4_MTU };
 	struct quic_pktns pktns;
 	struct quic_enc_level qel;
 	struct quic_tx_packet pkt;
