@@ -7970,18 +7970,12 @@ static void ssl_free_global(void)
 
 	ha_free(&global_ssl.issuers_chain_path);
 
-	if (global_ssl.listen_default_ciphers != LISTEN_DEFAULT_CIPHERS)
-		ha_free(&global_ssl.listen_default_ciphers);
-
-	if (global_ssl.connect_default_ciphers != CONNECT_DEFAULT_CIPHERS)
-		ha_free(&global_ssl.connect_default_ciphers);
+	ha_free(&global_ssl.listen_default_ciphers);
+	ha_free(&global_ssl.connect_default_ciphers);
 
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
-	if (global_ssl.listen_default_ciphersuites != LISTEN_DEFAULT_CIPHERSUITES)
-		ha_free(&global_ssl.listen_default_ciphersuites);
-
-	if (global_ssl.connect_default_ciphersuites != CONNECT_DEFAULT_CIPHERSUITES)
-		ha_free(&global_ssl.connect_default_ciphersuites);
+	ha_free(&global_ssl.listen_default_ciphersuites);
+	ha_free(&global_ssl.connect_default_ciphersuites);
 #endif
 
 #if defined(SSL_CTX_set1_curves_list)
