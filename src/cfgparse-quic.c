@@ -125,6 +125,7 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 		algo = QUIC_CC_NO_CC_STR;
 		*cc_algo = quic_cc_algo_nocc;
 		arg += strlen(QUIC_CC_NO_CC_STR);
+		mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
 	}
 	else {
 		memprintf(err, "'%s' : unknown control congestion algorithm", args[cur_arg + 1]);

@@ -264,6 +264,7 @@ static int cfg_parse_acme(const char *file, int linenum, char **args, int kwm)
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
+	mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
 
 	if (strcmp(args[0], "acme") == 0) {
 		struct acme_cfg *tmp_acme = acme_cfgs;

@@ -1613,6 +1613,7 @@ static int cfg_parse_global_shm_stats_file(char **args, int section_type,
 		return -1;
 	}
 
+	mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
 	global.shm_stats_file = strdup(args[1]);
 	return 0;
 }
@@ -1636,6 +1637,7 @@ static int cfg_parse_global_shm_stats_file_max_objects(char **args, int section_
 		return -1;
 	}
 
+	mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
 	shm_stats_file_max_objects = atoi(args[1]);
 	return 0;
 }

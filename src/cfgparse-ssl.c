@@ -895,6 +895,7 @@ static int ssl_bind_parse_ktls(char **args, int cur_arg, struct proxy *px, struc
 			  args[cur_arg], args[cur_arg + 1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
+	mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
 	return 0;
 
 }
@@ -1958,6 +1959,7 @@ static int srv_parse_ktls(char **args, int *cur_arg, struct proxy *px, struct se
 			  args[*cur_arg], args[*cur_arg + 1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
+	mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
 	return 0;
 }
 

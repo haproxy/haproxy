@@ -3701,6 +3701,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 				goto out;
 			}
 
+			mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
 			newsrv->xprt = xprt_get(XPRT_QUIC);
 			quic_transport_params_init(&newsrv->quic_params, 0);
 		}
