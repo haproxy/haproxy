@@ -1585,14 +1585,20 @@ int peer_send_teachmsgs(struct appctx *appctx, struct peer *p, struct shared_tab
 			ret = -1;
 			break;
 		}
-		el2 = mt_list_lock_next(el1.next);
-		/* el2 = mt_list_try_lock_next(el1.next); */
-		/* if (el2.next == NULL) { */
-		/* 	mt_list_unlock_full(&st->last->upd, el1); */
-		/* 	applet_have_more_data(appctx); */
-		/* 	ret = -1; */
-		/* 	break; */
-		/* } */
+
+		if (el1.next == &st->end->upd || el1.next == &st->table->updates) {
+			mt_list_unlock_full(&st->last->upd, el1);
+			break;
+		}
+
+		/* el2 = mt_list_lock_next(el1.next); */
+		el2 = mt_list_try_lock_next(el1.next);
+		if (el2.next == NULL) {
+			mt_list_unlock_full(&st->last->upd, el1);
+			applet_have_more_data(appctx);
+			ret = -1;
+			break;
+		}
 
 		ts = MT_LIST_ELEM(el1.next, typeof(ts), upd);
 		HA_ATOMIC_INC(&ts->ref_cnt);
@@ -1636,7 +1642,7 @@ int peer_send_teachmsgs(struct appctx *appctx, struct peer *p, struct shared_tab
 		updates_sent++;
 	}
 
-	if (ret == 1)
+	if (ret == 1 && MT_LIST_INLIST(&st->end->upd))
 		MT_LIST_DELETE(&st->end->upd);
   end:
 	TRACE_LEAVE(PEERS_EV_SESS_IO, appctx, p, st);
@@ -2452,9 +2458,11 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 			TRACE_PROTO("Resync request message received", PEERS_EV_SESS_IO|PEERS_EV_RX_MSG|PEERS_EV_PROTO_CTRL, appctx, peer);
 			/* prepare tables for a global push */
 			for (st = peer->tables; st; st = st->next) {
-				MT_LIST_DELETE(&st->last->upd);
+				if (MT_LIST_INLIST(&st->last->upd))
+					MT_LIST_DELETE(&st->last->upd);
 				MT_LIST_INSERT(&st->table->updates, &st->last->upd);
-				MT_LIST_DELETE(&st->end->upd);
+				if (MT_LIST_INLIST(&st->end->upd))
+					MT_LIST_DELETE(&st->end->upd);
 				MT_LIST_APPEND(&st->table->updates, &st->end->upd);
 				st->flags = 0;
 			}
@@ -2499,8 +2507,10 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 				return 0;
 			}
 			peer->flags |= PEER_F_SYNCHED;
-			for (st = peer->tables; st; st = st->next)
-				MT_LIST_DELETE(&st->end->upd);
+			for (st = peer->tables; st; st = st->next) {
+				if (MT_LIST_INLIST(&st->end->upd))
+					MT_LIST_DELETE(&st->end->upd);
+			}
 
 			/* reset teaching flags to 0 */
 			peer->flags &= ~PEER_TEACH_FLAGS;
@@ -2816,11 +2826,14 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 		st->last_get = st->last_acked = 0;
 		st->flags = 0;
 
-		if (!MT_LIST_INLIST(&st->last->upd) || !(peer->flags & PEER_F_SYNCHED)) {
+		if (!MT_LIST_INLIST(&st->last->upd))
+			MT_LIST_INSERT(&st->table->updates, &st->last->upd);
+		else if (!(peer->flags & PEER_F_SYNCHED)) {
 			MT_LIST_DELETE(&st->last->upd);
 			MT_LIST_INSERT(&st->table->updates, &st->last->upd);
 		}
-		MT_LIST_DELETE(&st->end->upd);
+		if (MT_LIST_INLIST(&st->end->upd))
+			MT_LIST_DELETE(&st->end->upd);
 	}
 
 	/* Awake main task to ack the new peer state */
