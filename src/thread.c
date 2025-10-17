@@ -1459,6 +1459,23 @@ int thread_map_to_groups()
 		ha_thread_info[t].ltid_bit = 1UL << ha_thread_info[t].ltid;
 	}
 
+	/* limit thread groups to existing threads only */
+	for (g = 0; g < global.nbtgroups; g++) {
+		if (ha_tgroup_info[g].base >= global.nbthread) {
+			ha_alert("Thread-group %d only references non-existing threads (max=%d, requested %d-%d)\n",
+			         g + 1, global.nbthread, ha_tgroup_info[g].base + 1, ha_tgroup_info[g].base + ha_tgroup_info[g].count);
+			return -1;
+		}
+
+		if (ha_tgroup_info[g].base + ha_tgroup_info[g].count > global.nbthread) {
+			ha_warning("Reducing thread-group %d to %d threads (requested %d-%d, using %d-%d)\n",
+			           g + 1, global.nbthread - ha_tgroup_info[g].base,
+			           ha_tgroup_info[g].base + 1, ha_tgroup_info[g].base + ha_tgroup_info[g].count,
+			           ha_tgroup_info[g].base + 1, global.nbthread);
+			ha_tgroup_info[g].count = global.nbthread - ha_tgroup_info[g].base;
+		}
+	}
+
 	m = 0;
 	for (g = 0; g < global.nbtgroups; g++) {
 		ha_tgroup_info[g].threads_enabled = nbits(ha_tgroup_info[g].count);
