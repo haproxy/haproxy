@@ -2464,7 +2464,10 @@ expose-experimental-directives
   breaking them but with no guarantee. For these reasons, these features are
   not expected to be supported beyond the release of the next LTS release.
   Users who want to try experimental features are expected to upgrade quickly
-  to benefit from the improvements made to that feature.
+  to benefit from the improvements made to that feature. In order to know if
+  this directive is still needed, it's easy: if it is enabled without being
+  used by any such feature, a warning will be emitted suggesting to turn it
+  off. So without any warning, it means it's still needed.
 
 external-check [preserve-env]
   Allows the use of an external agent to perform health checks. This is

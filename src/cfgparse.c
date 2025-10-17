@@ -4609,6 +4609,14 @@ init_proxies_list_stage2:
 			cfgerr += postparser->func();
 	}
 
+	if (experimental_directives_allowed &&
+	    !(get_tainted() & TAINTED_CONFIG_EXP_KW_DECLARED)) {
+		ha_warning("Option 'expose-experimental-directives' is set in the global section but is "
+		           "no longer used. It is strongly recommended to remove it in order to avoid "
+		           "using an experimental directive by accident in the future.\n");
+		err_code |= ERR_WARN;
+	}
+
 	if (cfgerr > 0)
 		err_code |= ERR_ALERT | ERR_FATAL;
  out:
