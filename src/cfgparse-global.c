@@ -1473,12 +1473,6 @@ static int cfg_parse_global_tune_forward_opts(char **args, int section_type,
 		return -1;
 
 	if (strcmp(args[0], "tune.disable-fast-forward") == 0) {
-		if (!experimental_directives_allowed) {
-			memprintf(err, "'%s' directive is experimental, must be allowed via a global 'expose-experimental-directives'",
-				 args[0]);
-			return -1;
-		}
-		mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
 		global.tune.options &= ~GTUNE_USE_FAST_FWD;
 	}
 	else if (strcmp(args[0], "tune.disable-zero-copy-forwarding") == 0) {

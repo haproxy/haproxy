@@ -3996,16 +3996,14 @@ tune.comp.maxlevel <number>
   Each stream using compression initializes the compression algorithm with
   this value. The default value is 1.
 
-tune.disable-fast-forward [ EXPERIMENTAL ]
+tune.disable-fast-forward
   Disables the data fast-forwarding. It is a mechanism to optimize the data
   forwarding by passing data directly from a side to the other one without
   waking the stream up. Thanks to this directive, it is possible to disable
   this optimization. Note it also disable any kernel tcp splicing but also the
   zero-copy forwarding. This command is not meant for regular use, it will
   generally only be suggested by developers along complex debugging
-  sessions. For this reason it is internally marked as experimental, meaning
-  that "expose-experimental-directives" must appear on a line before this
-  directive.
+  sessions.
 
 tune.disable-zero-copy-forwarding
   Globally disables the zero-copy forwarding of data. It is a mechanism to
