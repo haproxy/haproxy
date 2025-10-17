@@ -86,6 +86,9 @@ int ssl_sock_get_remote_common_name(struct connection *conn,
 				    struct buffer *out);
 int ssl_sock_get_pkey_algo(struct connection *conn, struct buffer *out);
 unsigned int ssl_sock_get_verify_result(struct connection *conn);
+void ssl_sock_update_counters(SSL *ssl,
+                              struct ssl_counters *counters,
+                              struct ssl_counters *counters_px, int backend);
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 int ssl_sock_update_tlskey_ref(struct tls_keys_ref *ref,
 				struct buffer *tlskey);

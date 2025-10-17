@@ -8,6 +8,7 @@
 #include <haproxy/quic_tp.h>
 #include <haproxy/quic_trace.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/stats.h>
 #include <haproxy/trace.h>
 
 DECLARE_TYPED_POOL(pool_head_quic_ssl_sock_ctx, "quic_ssl_sock_ctx", struct ssl_sock_ctx);
@@ -853,12 +854,28 @@ static forceinline void qc_ssl_dump_errors(struct connection *conn)
 int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 {
 	int ret, ssl_err, state;
+	struct ssl_counters *counters = NULL;
+	struct ssl_counters *counters_px = NULL;
 
 	TRACE_ENTER(QUIC_EV_CONN_SSLDATA, qc);
 
 	ret = 0;
 	ssl_err = SSL_ERROR_NONE;
 	state = qc->state;
+
+	if (!qc_is_back(qc)) {
+		counters = EXTRA_COUNTERS_GET(qc->li->extra_counters, &ssl_stats_module);
+		counters_px = EXTRA_COUNTERS_GET(qc->li->bind_conf->frontend->extra_counters_fe,
+		                                 &ssl_stats_module);
+	}
+	else if (ctx->conn) {
+		struct server *srv = __objt_server(ctx->conn->target);
+
+		counters = EXTRA_COUNTERS_GET(srv->extra_counters, &ssl_stats_module);
+		counters_px = EXTRA_COUNTERS_GET(srv->proxy->extra_counters_be,
+		                                 &ssl_stats_module);
+	}
+
 	if (state < QUIC_HS_ST_COMPLETE) {
 		ssl_err = SSL_do_handshake(ctx->ssl);
 		TRACE_PROTO("SSL_do_handshake() called", QUIC_EV_CONN_IO_CB, qc, NULL, NULL, ctx->ssl);
@@ -928,6 +945,7 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 
 #ifndef HAVE_OPENSSL_QUIC
 		TRACE_PROTO("SSL handshake OK", QUIC_EV_CONN_IO_CB, qc, &state);
+		ssl_sock_update_counters(ctx->ssl, counters, counters_px, qc_is_back(qc));
 #else
 		/* Hack to support O-RTT with the OpenSSL 3.5 QUIC API.
 		 * SSL_do_handshake() succeeds at the first call. Why? |-(
@@ -946,6 +964,7 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 			}
 			else {
 				TRACE_PROTO("SSL handshake OK", QUIC_EV_CONN_IO_CB, qc, &state);
+				ssl_sock_update_counters(ctx->ssl, counters, counters_px, qc_is_back(qc));
 			}
 		}
 #endif

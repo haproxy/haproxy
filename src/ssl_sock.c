@@ -5550,6 +5550,37 @@ err:
 	return -1;
 }
 
+/* Update <counters> counters and <counters_px> proxy counters of frontends or
+ * backends with <ssl> as SSL connection object, depending on <backend> boolean
+ * value.
+ */
+void ssl_sock_update_counters(SSL *ssl,
+                              struct ssl_counters *counters,
+                              struct ssl_counters *counters_px,
+                              int backend)
+{
+	if (!SSL_session_reused(ssl)) {
+		if (backend) {
+			update_freq_ctr(&global.ssl_be_keys_per_sec, 1);
+			if (global.ssl_be_keys_per_sec.curr_ctr > global.ssl_be_keys_max)
+				global.ssl_be_keys_max = global.ssl_be_keys_per_sec.curr_ctr;
+		}
+		else {
+			update_freq_ctr(&global.ssl_fe_keys_per_sec, 1);
+			if (global.ssl_fe_keys_per_sec.curr_ctr > global.ssl_fe_keys_max)
+				global.ssl_fe_keys_max = global.ssl_fe_keys_per_sec.curr_ctr;
+		}
+
+		if (counters) {
+			HA_ATOMIC_INC(&counters->sess);
+			HA_ATOMIC_INC(&counters_px->sess);
+		}
+	}
+	else if (counters) {
+		HA_ATOMIC_INC(&counters->reused_sess);
+		HA_ATOMIC_INC(&counters_px->reused_sess);
+	}
+}
 
 /* This is the callback which is used when an SSL handshake is pending. It
  * updates the FD status if it wants some polling before being called again.
@@ -5564,7 +5595,7 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 	struct ssl_counters *counters = NULL;
 	struct ssl_counters *counters_px = NULL;
 	struct listener *li;
-	struct server *srv;
+	struct server *srv = NULL;
 	socklen_t lskerr;
 	int skerr;
 
@@ -5883,27 +5914,7 @@ reneg_ok:
 		SSL_clear_mode(ctx->ssl, SSL_MODE_ASYNC);
 #endif
 	/* Handshake succeeded */
-	if (!SSL_session_reused(ctx->ssl)) {
-		if (objt_server(conn->target)) {
-			update_freq_ctr(&global.ssl_be_keys_per_sec, 1);
-			if (global.ssl_be_keys_per_sec.curr_ctr > global.ssl_be_keys_max)
-				global.ssl_be_keys_max = global.ssl_be_keys_per_sec.curr_ctr;
-		}
-		else {
-			update_freq_ctr(&global.ssl_fe_keys_per_sec, 1);
-			if (global.ssl_fe_keys_per_sec.curr_ctr > global.ssl_fe_keys_max)
-				global.ssl_fe_keys_max = global.ssl_fe_keys_per_sec.curr_ctr;
-		}
-
-		if (counters) {
-			HA_ATOMIC_INC(&counters->sess);
-			HA_ATOMIC_INC(&counters_px->sess);
-		}
-	}
-	else if (counters) {
-		HA_ATOMIC_INC(&counters->reused_sess);
-		HA_ATOMIC_INC(&counters_px->reused_sess);
-	}
+	ssl_sock_update_counters(ctx->ssl, counters, counters_px, !!srv);
 
 	TRACE_LEAVE(SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
 
