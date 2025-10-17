@@ -12,7 +12,6 @@ server s1 {
 
 haproxy ha2 -conf {
     global
-        expose-experimental-directives
         .if feature(THREAD)
             thread-groups 1
         .endif
