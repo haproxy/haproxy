@@ -2457,7 +2457,14 @@ expose-deprecated-directives
 
 expose-experimental-directives
   This statement must appear before using directives tagged as experimental or
-  the config file will be rejected.
+  the config file will be rejected. Please note that features covered by this
+  option are not guaranteed to work well and may break during the maintenance
+  cycle. Developers will maintain them in best effort mode while the next
+  version is being worked on, and will deploy any reasonable effort to avoid
+  breaking them but with no guarantee. For these reasons, these features are
+  not expected to be supported beyond the release of the next LTS release.
+  Users who want to try experimental features are expected to upgrade quickly
+  to benefit from the improvements made to that feature.
 
 external-check [preserve-env]
   Allows the use of an external agent to perform health checks. This is

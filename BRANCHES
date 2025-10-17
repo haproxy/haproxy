@@ -171,7 +171,17 @@ feedback for developers:
     as the previous releases that had 6 months to stabilize. In terms of
     stability it really means that the point zero version already accumulated
     6 months of fixes and that it is much safer to use even just after it is
-    released.
+    released. There is one exception though, features marked as "experimental"
+    are not guaranteed to be maintained beyond the release of the next LTS
+    branch. The rationale here is that the experimental status is made to
+    expose an early preview of a feature, that is often incomplete, not always
+    in its definitive form regarding configuration, and for which developers
+    are seeking feedback from the users. It is even possible that changes will
+    be brought within the stable branch and it may happen that the feature
+    breaks. It is not imaginable to always be able to backport bug fixes too
+    far in this context since the code and configuration may change quite a
+    bit. Users who want to try experimental features are expected to upgrade
+    quickly to benefit from the improvements made to that feature.
 
   - for developers, given that the odd versions are solely used by highly
     skilled users, it's easier to get advanced traces and captures, and there
