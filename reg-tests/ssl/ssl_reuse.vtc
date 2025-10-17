@@ -13,8 +13,14 @@ server s1 -repeat 84 {
     txresp
 } -start
 
+setenv -ifunset VTC_SOCK_TYPE stream
+
 haproxy h1 -conf {
    global
+    .if streq("$VTC_SOCK_TYPE",quic)
+        # required for backend connections
+        expose-experimental-directives
+    .endif
     .if feature(THREAD)
         thread-groups 1
     .endif
@@ -45,19 +51,19 @@ haproxy h1 -conf {
 
     listen clst3
         bind "fd@${clst3}"
-        server s1 "${h1_fe3_addr}:${h1_fe3_port}" ssl verify none  sni str(www.test1.com)
+        server s1 "${VTC_SOCK_TYPE}+${h1_fe3_addr}:${h1_fe3_port}" ssl verify none  sni str(www.test1.com)
         http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
 
     listen clst4
         bind "fd@${clst4}"
-        server s1 "${h1_fe4_addr}:${h1_fe4_port}" ssl verify none  sni str(www.test1.com)
+        server s1 "${VTC_SOCK_TYPE}+${h1_fe4_addr}:${h1_fe4_port}" ssl verify none  sni str(www.test1.com)
         http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
 
     listen ssl
         bind "fd@${fe1}" ssl crt ${testdir}/common.pem ssl-max-ver TLSv1.2
         bind "fd@${fe2}" ssl crt ${testdir}/common.pem ssl-max-ver TLSv1.2 no-tls-tickets
-        bind "fd@${fe3}" ssl crt ${testdir}/common.pem ssl-min-ver TLSv1.3
-        bind "fd@${fe4}" ssl crt ${testdir}/common.pem ssl-min-ver TLSv1.3 no-tls-tickets
+        bind "${VTC_SOCK_TYPE}+fd@${fe3}" ssl crt ${testdir}/common.pem ssl-min-ver TLSv1.3
+        bind "${VTC_SOCK_TYPE}+fd@${fe4}" ssl crt ${testdir}/common.pem ssl-min-ver TLSv1.3 no-tls-tickets
 
         http-response add-header x-ssl-resumed %[ssl_fc_is_resumed]
         server s1 ${s1_addr}:${s1_port}
