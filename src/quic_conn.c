@@ -745,6 +745,7 @@ static struct quic_conn_closed *qc_new_cc_conn(struct quic_conn *qc)
 	cc_qc->bytes.tx = qc->bytes.tx;
 	cc_qc->bytes.rx = qc->bytes.rx;
 
+	cc_qc->max_udp_payload = qc->max_udp_payload;
 	cc_qc->odcid = qc->odcid;
 	cc_qc->dcid = qc->dcid;
 	cc_qc->scid = qc->scid;
@@ -757,6 +758,7 @@ static struct quic_conn_closed *qc_new_cc_conn(struct quic_conn *qc)
 	cc_qc->idle_timer_task->context = cc_qc;
 	cc_qc->idle_expire = qc->idle_expire;
 
+	cc_qc->cntrs = qc->cntrs;
 	cc_qc->conn = qc->conn;
 	qc->conn = NULL;
 
