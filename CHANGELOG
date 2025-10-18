@@ -1,6 +1,85 @@
 ChangeLog :
 ===========
 
+2025/10/18 : 3.3-dev10
+    - BUG/MEDIUM: connections: Only avoid creating a mux if we have one
+    - BUG/MINOR: sink: retry attempt for sft server may never occur
+    - CLEANUP: mjson: remove MJSON_ENABLE_RPC code
+    - CLEANUP: mjson: remove MJSON_ENABLE_PRINT code
+    - CLEANUP: mjson: remove MJSON_ENABLE_NEXT code
+    - CLEANUP: mjson: remove MJSON_ENABLE_BASE64 code
+    - CLEANUP: mjson: remove unused defines and math.h
+    - BUG/MINOR: http-ana: Reset analyse_exp date after 'wait-for-body' action
+    - CLEANUP: mjson: remove unused defines from mjson.h
+    - BUG/MINOR: acme: avoid overflow when diff > notAfter
+    - DEV: patchbot: use git reset+checkout instead of pull
+    - MINOR: proxy: explicitly permit abortonclose on frontends and clarify the doc
+    - REGTESTS: fix h2_desync_attacks to wait for the response
+    - REGTESTS: http-messaging: fix the websocket and upgrade tests not to close early
+    - MINOR: proxy: only check abortonclose through a dedicated function
+    - MAJOR: proxy: enable abortonclose by default on HTTP proxies
+    - MINOR: proxy: introduce proxy_abrt_close_def() to pass the desired default
+    - MAJOR: proxy: enable abortonclose by default on TLS listeners
+    - MINOR: h3/qmux: Set QC_SF_UNKNOWN_PL_LENGTH flag on QCS when headers are sent
+    - MINOR: stconn: Add two fields in sedesc to replace the HTX extra value
+    - MINOR: h1-htx: Increment body len when parsing a payload with no xfer length
+    - MINOR: mux-h1: Set known input payload length during demux
+    - MINOR: mux-fcgi: Set known input payload length during demux
+    - MINOR: mux-h2: Use <body_len> H2S field for payload without content-length
+    - MINOR: mux-h2: Set known input payload length of the sedesc
+    - MINOR: h3: Set known input payload length of the sedesc
+    - MINOR: stconn: Move data from kip to kop when data are sent to the consumer
+    - MINOR: filters: Reset knwon input payload length if a data filter is used
+    - MINOR: hlua/http-fetch: Use <kip> instead of HTX extra field to get body size
+    - MINOR: cache: Use the <kip> value to check too big objects
+    - MINOR: compression: Use the <kip> value to check body size
+    - MEDIUM: mux-h1: Stop to use HTX extra value when formatting message
+    - MEDIUM: htx: Remove the HTX extra field
+    - MEDIUM: acme: don't insert acme account key in ckchs_tree
+    - BUG/MINOR: acme: memory leak from the config parser
+    - CI: cirrus-ci: bump FreeBSD image to 14-3
+    - BUG/MEDIUM: ssl: take care of second client hello
+    - BUG/MINOR: ssl: always clear the remains of the first hello for the second one
+    - BUG/MEDIUM: stconn: Properly forward kip to the opposite SE descriptor
+    - MEDIUM: applet: Forward <kip> to applets
+    - DEBUG: mux-h1: Dump <kip> and <kop> values with sedesc info
+    - BUG/MINOR: ssl: leak in ssl-f-use
+    - BUG/MINOR: ssl: leak crtlist_name in ssl-f-use
+    - BUILD: makefile: disable tail calls optimizations with memory profiling
+    - BUG/MEDIUM: apppet: Improve spinning loop detection with the new API
+    - BUG/MINOR: ssl: Free global_ssl structure contents during deinit
+    - BUG/MINOR: ssl: Free key_base from global_ssl structure during deinit
+    - MEDIUM: jwt: Remove certificate support in jwt_verify converter
+    - MINOR: jwt: Add new jwt_verify_cert converter
+    - MINOR: jwt: Do not look into ckch_store for jwt_verify converter
+    - MINOR: jwt: Add new "jwt" certificate option
+    - MINOR: jwt: Add specific error code for known but unavailable certificate
+    - DOC: jwt: Add doc about "jwt_verify_cert" converter
+    - MINOR: ssl: Dump options in "show ssl cert"
+    - MINOR: jwt: Add new "add/del/show ssl jwt" CLI commands
+    - REGTEST: jwt: Test new CLI commands
+    - BUG/MINOR: ssl: Potential NULL deref in trace macro
+    - MINOR: regex: use a thread-local match pointer for pcre2
+    - BUG/MEDIUM: pools: fix bad freeing of aligned pools in UAF mode
+    - MEDIUM: pools: detect() when munmap() fails in UAF mode
+    - TESTS: quic: useless param for b_quic_dec_int()
+    - BUG/MEDIUM: pools: fix crash on filtered "show pools" output
+    - BUG/MINOR: pools: don't report "limited to the first X entries" by default
+    - BUG/MAJOR: lb-chash: fix key calculation when using default hash-key id
+    - BUG/MEDIUM: stick-tables: Don't forget to dec count on failure.
+    - BUG/MINOR: quic: check applet_putchk() for 'show quic' first line
+    - TESTS: quic: fix uninit of quic_cc_path const member
+    - BUILD: ssl: can't build when using -DLISTEN_DEFAULT_CIPHERS
+    - BUG/MAJOR: quic: uninitialized quic_conn_closed struct members
+    - BUG/MAJOR: quic: do not reset QUIC backends fds in closing state
+    - BUG/MINOR: quic: SSL counters not handled
+    - DOC: clarify the experimental status for certain features
+    - MINOR: config: remove experimental status on tune.disable-fast-forward
+    - MINOR: tree-wide: add missing TAINTED flags for some experimental directives
+    - MEDIUM: config: warn when expose-experimental-directives is used for no reason
+    - BUG/MEDIUM: threads/config: drop absent threads from thread groups
+    - REGTESTS: remove experimental from quic/retry.vtc
+
 2025/10/03 : 3.3-dev9
     - BUG/MINOR: acl: Fix error message about several '-m' parameters
     - MINOR: server: Parse sni and pool-conn-name expressions in a dedicated function
