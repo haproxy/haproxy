@@ -635,8 +635,17 @@ static MT_INLINE long mt_list_delete(struct mt_list *el)
 		p->next = n;
 		__atomic_thread_fence(__ATOMIC_RELEASE);
 
-		el->prev = el->next = el;
-		__atomic_thread_fence(__ATOMIC_RELEASE);
+		/*
+		 * If the element was not in the list, then n and p
+		 * pointed to it already, and it is unlocked.
+		 * If this is the case, we don't want to do it again,
+		 * because at this point it has been unlocked and
+		 * somebody may be using it already.
+		 */
+		if (el != n) {
+			el->prev = el->next = el;
+			__atomic_thread_fence(__ATOMIC_RELEASE);
+		}
 
 		if (p != el && n != el)
 			ret = 1;
