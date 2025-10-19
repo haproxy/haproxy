@@ -7,4 +7,7 @@ int sd_notifyf(int unset_environment, const char *format, ...);
 int sd_listen_fds_with_names(int unset_environment, char ***names);
 int sd_listen_fds(int unset_environment);
 
+void setenv_listen_fds();
+void unsetenv_listen_fds();
+
 #endif

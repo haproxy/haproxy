@@ -26,6 +26,7 @@
 #include <haproxy/protocol.h>
 #include <haproxy/stats-file.h>
 #include <haproxy/stress.h>
+#include <haproxy/systemd.h>
 #include <haproxy/tools.h>
 
 int cluster_secret_isset;
@@ -1594,6 +1595,33 @@ static int cfg_parse_global_env_opts(char **args, int section_type,
 	return 0;
 }
 
+static int cfg_parse_global_listen_fds(char **args, int section_type,
+                                       struct proxy *curpx, const struct proxy *defpx,
+                                       const char *file, int line, char **err)
+{
+	if (strcmp(args[0], "setenv-sd-listen-fds") == 0) {
+		if (too_many_args(1, args, err, NULL))
+			return -1;
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects a 'on' or 'off' argument.\n",
+					args[0]);
+			return -1;
+		}
+
+		if (strcmp(args[1], "on") == 0) {
+			setenv_listen_fds();
+		} else if (strcmp(args[1], "off") == 0) {
+			unsetenv_listen_fds();
+		} else {
+			memprintf(err, "'%s' expects 'on' or 'off' as argument.\n", args[0]);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+
 static int cfg_parse_global_shm_stats_file(char **args, int section_type,
 				           struct proxy *curpx, const struct proxy *defpx,
 				           const char *file, int line, char **err)
@@ -1852,6 +1880,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "quiet", cfg_parse_global_mode, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "resetenv", cfg_parse_global_env_opts, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "setenv", cfg_parse_global_env_opts, KWF_DISCOVERY },
+	{ CFG_GLOBAL, "setenv-sd-listen-fds", cfg_parse_global_listen_fds },
 	{ CFG_GLOBAL, "shm-stats-file", cfg_parse_global_shm_stats_file },
 	{ CFG_GLOBAL, "shm-stats-file-max-objects", cfg_parse_global_shm_stats_file_max_objects },
 	{ CFG_GLOBAL, "stress-level", cfg_parse_global_stress_level },

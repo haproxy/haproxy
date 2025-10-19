@@ -1775,6 +1775,7 @@ The following keywords are supported in the "global" section :
    - set-dumpable
    - set-var
    - setenv
+   - setenv-sd-listen-fds
    - ssl-default-bind-ciphers
    - ssl-default-bind-ciphersuites
    - ssl-default-bind-client-sigalgs
@@ -3119,6 +3120,49 @@ setenv <name> <value>
   is overwritten. The changes immediately take effect so that the next line in
   the configuration file sees the new value. See also "presetenv", "resetenv",
   and "unsetenv".
+
+setenv-sd-listen-fds [ on | off ]
+  Sets environment variables automatically using the LISTEN_FDS and
+  LISTEN_FDNAMES environment variables described in the systemd documentation.
+
+  These 2 variables are set by systemd.socket. Systemd is able to listen to a
+  TCP socket by itself and pass the socket to the service using the
+  ListenStream keyword. When using FileDescriptorName, it is possible to assign
+  a name to the corresponding FD which will be inherited by haproxy.
+
+  When set to "on", environment variables are created with the prefix "FD_",
+  followed by the uppercase version of FileDescriptorName from systemd.
+
+  When set to off, the FD_ environment variables derived from
+  FileDescriptorName are unset.
+
+  Limitations:
+     - FileDescriptorName may contain alphanumerical characters and underscores.
+     - variables name cannot exceed 254 characters
+
+  This feature is particularly useful when running HAProxy in a container, as
+  it allows you to avoid constraints from NATing or start containers without
+  network access.
+
+  Example:
+
+  haproxy.socket:
+    [Socket]
+        ListenStream=80
+        FileDescriptorName=http1
+
+        ListenStream=443
+        FileDescriptorName=https1
+
+  haproxy.cfg:
+    global
+      setenv-sd-listen-fds on
+
+    frontend
+      bind fd@${FD_HTTP1}
+      bind fd@${FD_HTTPS1} ssl ...
+
+  Default value is off.
 
 shm-stats-file <name> [ EXPERIMENTAL ]
   When this directive is set, it enables the use of shared memory for storing

@@ -255,3 +255,63 @@ end:
 	return ret;
 }
 
+/*
+ * Automatically sets environment variables based on LISTEN_FDS and LISTEN_FDNAMES.
+ *
+ * When cleanup is set, unset those environment variables instead.
+ */
+static void __setenv_listen_fds(int cleanup)
+{
+	char **names = NULL;
+	char **p;
+	char d[255] = "FD_";
+	int fd = 3;
+	const char *fdstr = NULL;
+	int i;
+
+	sd_listen_fds_with_names(0, &names);
+
+	p = names;
+	while (names && *names) {
+		char *n;
+
+		/* start to write after FD_ (i = 3) */
+		for (n = *names, i = 3; *n && i < sizeof(d); i++, n++) {
+			if (!isalnum((int)*n) && *n != '_')
+				break;
+			d[i] = toupper(*n);
+		}
+		d[i] = '\0';
+
+		if (!cleanup)
+			fdstr = ultoa(fd);
+
+		if (cleanup)
+			unsetenv(d);
+		else
+			setenv(d, fdstr, 1);
+		names++;
+		fd++;
+	}
+
+	/* free names allocated by sd_listen_fds_with_names() */
+	names = p;
+	while (names && *names) {
+		free(*names);
+		names++;
+	}
+	free(p);
+}
+
+
+/* Automatically sets environment variables based on LISTEN_FDS and LISTEN_FDNAMES. */
+void setenv_listen_fds()
+{
+	__setenv_listen_fds(0);
+}
+
+/* Automatically UNsets environment variables based on LISTEN_FDS and LISTEN_FDNAMES. */
+void unsetenv_listen_fds()
+{
+	__setenv_listen_fds(1);
+}
