@@ -138,3 +138,120 @@ end:
 	return r;
 }
 
+/*
+ *  standalone reimplementation of sd_listen_fd() from the libsystemd
+ *  Return value:
+ *     -errno in case of error
+ *     =0 $LISTEN_FDS was not set
+ *     >0 the number of file descriptors passed
+ *
+ * When unset_environement is set, unsetenv LISTEN_FDS, LISTEN_PID, LISTEN_FDNAMES.
+ */
+int sd_listen_fds(int unset_environment)
+{
+	long int nfds;
+	const char *env;
+	int ret = 0;
+	char *end;
+
+	env = getenv("LISTEN_FDS");
+	if (!env)
+		goto end;
+
+	nfds = strtol(env, &end, 10);
+	if (*end) {
+		ret = -EINVAL;
+		goto end;
+	}
+	if (nfds > INT_MAX) {
+		ret = -ERANGE;
+		goto end;
+	}
+
+	ret = nfds;
+
+end:
+	if (unset_environment) {
+		unsetenv("LISTEN_FDS");
+		unsetenv("LISTEN_PID");
+		unsetenv("LISTEN_FDNAMES");
+	}
+	return ret;
+}
+
+/*
+ *  standalone reimplementation of sd_listen_fd_with_names from the libsystemd
+ *  might differ from official libsystemd one
+ *  Return value:
+ *     -errno in case of error
+ *     =0 $LISTEN_FDS was not set
+ *     >0 the number of file descriptor passed
+ *
+ * When unset_environement is set, unsetenv LISTEN_FDS, LISTEN_PID, LISTEN_FDNAMES.
+ * If names is non NULL, allocate a char ** array which is NULL-terminated and needs to be freed.
+ * Allocate sd_listen_fds()+1 elements in the array.
+ */
+int sd_listen_fds_with_names(int unset_environment, char ***names)
+{
+	const char *env;
+	long int nfds;
+	int ret = 0;
+	char **n = NULL, **p;
+	int i = 0;
+	const char *s = NULL, *e;
+
+	nfds = sd_listen_fds(0);
+	env = getenv("LISTEN_FDNAMES");
+	if (!env || nfds <= 0) {
+		ret = nfds;
+		goto end;
+	}
+
+	n = calloc(nfds + 1, sizeof(*n));
+	if (!n) {
+		ret = -ENOMEM;
+		goto end;
+	}
+
+	while (1) {
+		if (s == NULL)
+			s = env;
+
+		if (*env == ':' || *env == '\0') {
+			e = env;
+			n[i] = calloc(e - s + 1, sizeof(**names));
+			if (!n[i]) {
+				ret = -ENOMEM;
+				goto end;
+			}
+			memcpy(n[i], s, e - s);
+			i++;
+			/* must never be more than nfds */
+			if (i >= nfds || e == NULL)
+				break;
+			s = e = NULL;
+		}
+		env++;
+	}
+
+	/* n is free upon error so set it to NULL */
+	*names = n;
+	n = NULL;
+
+end:
+	/* free the array */
+	p = n;
+	while (n && *n) {
+		free(*n);
+		n++;
+	}
+	free(p);
+
+	if (unset_environment) {
+		unsetenv("LISTEN_FDS");
+		unsetenv("LISTEN_PID");
+		unsetenv("LISTEN_FDNAMES");
+	}
+	return ret;
+}
+
