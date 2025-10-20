@@ -977,7 +977,7 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 				goto err;
 			}
 		}
-		else {
+		else if (ctx->conn) {
 			const unsigned char *alpn;
 			size_t alpn_len;
 
@@ -997,6 +997,9 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 			/* Wake up MUX after its creation. Operation similar to TLS+ALPN on TCP stack. */
 			ctx->conn->mux->wake(ctx->conn);
 			qc->mux_state = QC_MUX_READY;
+		}
+		else {
+			TRACE_PROTO("could not start the mux", QUIC_EV_CONN_IO_CB, qc);
 		}
 
 		qc->flags |= QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS;
