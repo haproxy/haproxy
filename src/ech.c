@@ -163,7 +163,7 @@ static int cli_find_ech_specific_ctx(char *name, SSL_CTX **sctx)
 }
 
 /* parsing function for 'show ssl ech [echfile]' */
-int cli_parse_show_ech(char **args, char *payload,
+static int cli_parse_show_ech(char **args, char *payload,
 		struct appctx *appctx, void *private)
 {
 	struct show_ech_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
@@ -252,7 +252,7 @@ end:
  * is kind of re-entrant.
  */
 
-int cli_io_handler_ech_details(struct appctx *appctx)
+static int cli_io_handler_ech_details(struct appctx *appctx)
 {
 	struct buffer *trash = get_trash_chunk();
 	struct show_ech_ctx *ctx = appctx->svcctx;
@@ -317,7 +317,7 @@ end:
  */
 
 /* add ssl ech <name> <pemesni> */
-int cli_parse_add_ech(char **args, char *payload, struct appctx *appctx, void *private)
+static int cli_parse_add_ech(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	SSL_CTX *sctx = NULL;
 	char success_message[ECH_SUCCESS_MSG_MAX];
@@ -344,7 +344,7 @@ int cli_parse_add_ech(char **args, char *payload, struct appctx *appctx, void *p
 }
 
 /* set ssl ech <name> <pemesni> */
-int cli_parse_set_ech(char **args, char *payload, struct appctx *appctx, void *private)
+static int cli_parse_set_ech(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	SSL_CTX *sctx = NULL;
 	char success_message[ECH_SUCCESS_MSG_MAX];
@@ -371,7 +371,7 @@ int cli_parse_set_ech(char **args, char *payload, struct appctx *appctx, void *p
 }
 
 /* del ssl ech <name> [<age-in-secs>] */
-int cli_parse_del_ech(char **args, char *payload, struct appctx *appctx, void *private)
+static int cli_parse_del_ech(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	SSL_CTX *sctx = NULL;
 	time_t age = 0;
@@ -400,6 +400,19 @@ int cli_parse_del_ech(char **args, char *payload, struct appctx *appctx, void *p
 				"deleted ECH configs older than %ld seconds from %s", age, args[3]);
 	return cli_msg(appctx, LOG_INFO, success_message);
 }
+
+static struct cli_kw_list cli_kws = {{ },{
+    { { "show", "ssl", "ech", NULL},  "show ssl ech [<name>]                   : display a named ECH configuation or all",
+        cli_parse_show_ech, cli_io_handler_ech_details },
+    { { "add", "ssl", "ech", NULL },  "add ssl ech <name> <payload>            : add a new PEM-formatted ECH config and key ",
+        cli_parse_add_ech, NULL, NULL },
+    { { "set", "ssl", "ech", NULL },  "set ssl ech <name> <payload>            : replace all ECH configs with that provided",
+        cli_parse_set_ech, NULL, NULL },
+    { { "del", "ssl", "ech", NULL },   "del ssl ech <name>                      : delete ECH configs",
+        cli_parse_del_ech, NULL, NULL },
+}};
+
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 /*
  * Place an ECH status string into a trash buffer
@@ -453,5 +466,7 @@ int conn_get_ech_outer_sni(struct connection *conn, struct buffer *buf)
 	OPENSSL_free(sni_clr);
 	return 1;
 }
+
+
 
 #endif
