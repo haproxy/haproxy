@@ -644,22 +644,21 @@ static int qc_handle_strm_frm(struct quic_rx_packet *pkt,
 	return !ret;
 }
 
-/* Parse <frm> CRYPTO frame coming with <pkt> packet at <qel> <qc> connection.
+/* Parse <crypto_frm> CRYPTO frame coming with <pkt> packet at <qel> <qc>
+ * connection.
  *
- * Returns 0 on success or a negative error code. A positive value is used to
- * indicate that the current frame cannot be handled immediately, but it could
- * be solved by running a new packet parsing iteration.
+ * Returns 0 on success or a negative error code.
  *
  * Also set <*fast_retrans> as output parameter to 1 if the speed up handshake
  * completion may be run after having received duplicated CRYPTO data.
  */
-static enum quic_rx_ret_frm qc_handle_crypto_frm(struct quic_conn *qc,
-                                                 struct qf_crypto *crypto_frm,
-                                                 struct quic_rx_packet *pkt,
-                                                 struct quic_enc_level *qel)
+static int qc_handle_crypto_frm(struct quic_conn *qc,
+                                struct qf_crypto *crypto_frm,
+                                struct quic_rx_packet *pkt,
+                                struct quic_enc_level *qel,
+                                int *fast_retrans)
 {
 	enum ncb_ret ncb_ret;
-	enum quic_rx_ret_frm ret = QUIC_RX_RET_FRM_DONE;
 	/* XXX TO DO: <cfdebug> is used only for the traces. */
 	struct quic_rx_crypto_frm cfdebug = {
 		.offset_node.key = crypto_frm->offset_node.key,
@@ -678,7 +677,7 @@ static enum quic_rx_ret_frm qc_handle_crypto_frm(struct quic_conn *qc,
 			/* Nothing to do */
 			TRACE_PROTO("Already received CRYPTO data",
 			            QUIC_EV_CONN_RXPKT, qc, pkt, &cfdebug);
-			ret = QUIC_RX_RET_FRM_DUP;
+			*fast_retrans = 1;
 			goto done;
 		}
 
@@ -725,11 +724,11 @@ static enum quic_rx_ret_frm qc_handle_crypto_frm(struct quic_conn *qc,
 
  done:
 	TRACE_LEAVE(QUIC_EV_CONN_PRSHPKT, qc);
-	return ret;
+	return 0;
 
  err:
 	TRACE_DEVEL("leaving on error", QUIC_EV_CONN_PRSHPKT, qc);
-	return QUIC_RX_RET_FRM_FATAL;
+	return -1;
 }
 
 /* Handle RETIRE_CONNECTION_ID frame from <frm> frame.
@@ -807,12 +806,9 @@ static inline unsigned int quic_ack_delay_ms(struct qf_ack *ack_frm,
 static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
                              struct quic_enc_level *qel)
 {
-	struct eb_root cf_frms_tree = EB_ROOT;
-	struct eb64_node *node;
 	struct quic_frame *frm = NULL;
 	const unsigned char *pos, *end;
-	enum quic_rx_ret_frm ret;
-	int fast_retrans = 0, cf_err = 0;
+	int fast_retrans = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
 	/* Skip the AAD */
@@ -890,8 +886,8 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			break;
 		}
 		case QUIC_FT_CRYPTO:
-			eb64_insert(&cf_frms_tree, &frm->crypto.offset_node);
-			frm = NULL;
+			if (qc_handle_crypto_frm(qc, &frm->crypto, pkt, qel, &fast_retrans))
+				goto err;
 			break;
 		case QUIC_FT_NEW_TOKEN:
 			if (!qc_is_back(qc)) {
@@ -1079,46 +1075,6 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	if (frm)
 		qc_frm_free(qc, &frm);
 
-	node = eb64_first(&cf_frms_tree);
-	while (node) {
-		frm = eb64_entry(node, struct quic_frame, crypto.offset_node);
-		/* only CRYPTO frames may be reparsed for now */
-		BUG_ON(frm->type != QUIC_FT_CRYPTO);
-		node = eb64_next(node);
-		ret = qc_handle_crypto_frm(qc, &frm->crypto, pkt, qel);
-		switch (ret) {
-		case QUIC_RX_RET_FRM_FATAL:
-			/* avoid freeing without eb_delete() */
-			frm = NULL;
-			goto err;
-
-		case QUIC_RX_RET_FRM_AGAIN:
-			TRACE_STATE("AGAIN encountered", QUIC_EV_CONN_PRSHPKT, qc);
-			cf_err = 1;
-			break;
-
-		case QUIC_RX_RET_FRM_DONE:
-			TRACE_PROTO("frame handled", QUIC_EV_CONN_PRSAFRM, qc, frm);
-			break;
-
-		case QUIC_RX_RET_FRM_DUP:
-			if (!qc_is_back(qc) && qel == qc->iel &&
-				!(qc->flags & QUIC_FL_CONN_HANDSHAKE_SPEED_UP)) {
-				fast_retrans = 1;
-			}
-			break;
-		}
-
-		eb64_delete(&frm->crypto.offset_node);
-		qc_frm_free(qc, &frm);
-	}
-
-	if (cf_err)
-		goto err;
-
-	/* Error should be returned if some frames cannot be parsed. */
-	BUG_ON(!eb_is_empty(&cf_frms_tree));
-
 	if (fast_retrans && qc->iel && qc->hel) {
 		struct quic_enc_level *iqel = qc->iel;
 		struct quic_enc_level *hqel = qc->hel;
@@ -1153,13 +1109,6 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
  err:
 	if (frm)
 		qc_frm_free(qc, &frm);
-	node = eb64_first(&cf_frms_tree);
-	while (node) {
-		frm = eb64_entry(node, struct quic_frame, crypto.offset_node);
-		node = eb64_next(node);
-		eb64_delete(&frm->crypto.offset_node);
-		qc_frm_free(qc, &frm);
-	}
 
 	TRACE_DEVEL("leaving on error", QUIC_EV_CONN_PRSHPKT, qc);
 	return 0;
