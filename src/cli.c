@@ -1310,6 +1310,8 @@ void cli_io_handler(struct appctx *appctx)
  */
 static void cli_release_handler(struct appctx *appctx)
 {
+	free_trash_chunk(appctx->cli_ctx.cmdline);
+
 	if (appctx->cli_ctx.io_release) {
 		appctx->cli_ctx.io_release(appctx);
 		appctx->cli_ctx.io_release = NULL;
