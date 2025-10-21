@@ -322,10 +322,11 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 
 		h1m->flags |= H1_MF_XFER_LEN;
 		h1m->curr_len = h1m->body_len = 0;
-		if (code >= 200)
+		if (code >= 200) {
 			flags |= HTX_SL_F_BODYLESS_RESP;
+			htx->flags |= HTX_FL_EOM;
+		}
 		h1m->state = H1_MSG_DONE;
-		htx->flags |= HTX_FL_EOM;
 	}
 	else {
 		if (h1m->flags & (H1_MF_CLEN|H1_MF_CHNK)) {
