@@ -2363,10 +2363,23 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 	/* Now that all headers are encoded, we are certain that res buffer is
 	 * big enough
 	 */
-	frame_length_size = quic_int_getsize(b_data(&headers_buf));
-	res->head += 4 - frame_length_size;
-	b_putchr(res, 0x01); /* h3 HEADERS frame type */
-	b_quic_enc_int(res, b_data(&headers_buf), 0);
+
+	/* Encode H3 HEADERS frame type + frame length. If buffer is empty,
+	 * length is encoded on min varint size and buf head is realigned.
+	 * However, if it still contains a previously encoded interim response
+	 * not yet emitted, buf head must not be adjusted and frame length is
+	 * encoded as a 4-bytes varint so that responses are contiguous.
+	 */
+	if (!b_data(res)) {
+		frame_length_size = quic_int_getsize(b_data(&headers_buf));
+		res->head += 4 - frame_length_size;
+		b_putchr(res, 0x01); /* h3 HEADERS frame type */
+		b_quic_enc_int(res, b_data(&headers_buf), 0);
+	}
+	else {
+		b_putchr(res, 0x01); /* h3 HEADERS frame type */
+		b_quic_enc_int(res, b_data(&headers_buf), 4);
+	}
 	b_add(res, b_data(&headers_buf));
 
 	ret = 0;
