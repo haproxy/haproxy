@@ -3691,19 +3691,16 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 		SSL_CTX_set_security_level(ctx, global_ssl.security_level);
 
 #ifdef USE_ECH
-    if (!ctx) {
-        cfgerr += 1;
-    }
-    if (!cfgerr && bind_conf->ssl_conf.ech_filedir) {
-        int loaded = 0;
+	if (bind_conf->ssl_conf.ech_filedir) {
+		int loaded = 0;
 
-        if (load_echkeys(ctx, bind_conf->ssl_conf.ech_filedir, &loaded) != 1) {
-		    cfgerr += 1;
-		    ha_alert("Proxy '%s': failed to load ECH key s from %s for '%s' at [%s:%d].\n",
-			    bind_conf->frontend->id, bind_conf->ssl_conf.ech_filedir,
-                bind_conf->arg, bind_conf->file, bind_conf->line);
-        }
-    }
+		if (load_echkeys(ctx, bind_conf->ssl_conf.ech_filedir, &loaded) != 1) {
+			cfgerr += 1;
+			ha_alert("Proxy '%s': failed to load ECH keys from %s for '%s' at [%s:%d].\n",
+			         bind_conf->frontend->id, bind_conf->ssl_conf.ech_filedir,
+			         bind_conf->arg, bind_conf->file, bind_conf->line);
+		}
+	}
 #endif
 
 	if (conf_ssl_methods->flags && (conf_ssl_methods->min || conf_ssl_methods->max))
