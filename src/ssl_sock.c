@@ -3696,9 +3696,6 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 			    bind_conf->frontend->id, bind_conf->ssl_conf.ech_filedir,
                 bind_conf->arg, bind_conf->file, bind_conf->line);
         }
-		ha_notice("Proxy '%s': loaded %d ECH keys from %s for bind '%s' at [%s:%d]\n",
-			   bind_conf->frontend->id, loaded, bind_conf->ssl_conf.ech_filedir,
-               bind_conf->arg, bind_conf->file, bind_conf->line);
     }
 #endif
 
