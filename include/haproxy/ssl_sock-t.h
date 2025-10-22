@@ -336,6 +336,8 @@ struct global_ssl {
 #endif
 
 	int renegotiate; /* Renegotiate mode (SSL_RENEGOTIATE_ flag) */
+	char **passphrase_cmd;
+	int passphrase_cmd_args_cnt;
 };
 
 /* The order here matters for picking a default context,
@@ -353,6 +355,11 @@ struct ssl_counters {
 	long long failed_handshake;
 	long long ocsp_staple;
 	long long failed_ocsp_staple;
+};
+
+struct passphrase_cb_data {
+	const char *path;
+	int passphrase_idx;
 };
 
 #endif /* USE_OPENSSL */
