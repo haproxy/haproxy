@@ -1688,10 +1688,13 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 		/* compute a response for the TXT entry */
 		if (strcasecmp(ctx->cfg->challenge, "dns-01") == 0) {
 			struct sink *dpapi;
-			struct ist line[13];
+			struct ist line[16];
 			int nmsg = 0;
+			struct buffer *dns_record = NULL;
 
-			if (acme_txt_record(ist(ctx->cfg->account.thumbprint), auth->token, &trash) == 0) {
+			dns_record = get_trash_chunk();
+
+			if (acme_txt_record(ist(ctx->cfg->account.thumbprint), auth->token, dns_record) == 0) {
 				memprintf(errmsg, "couldn't compute the dns-01 challenge");
 				goto error;
 			}
@@ -1716,6 +1719,12 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 				line[nmsg++] = ist(ctx->cfg->vars);
 				line[nmsg++] = ist("\"\n");
 			}
+			if (auth->dns.ptr) {
+				line[nmsg++] = ist("dns-01-record \"");
+				line[nmsg++] = ist2(dns_record->area, dns_record->data);
+				line[nmsg++] = ist("\"\n");
+			}
+
 			line[nmsg++] = ist2( hc->res.buf.area, hc->res.buf.data); /* dump the HTTP response */
 			line[nmsg++] = ist("\n\0");
 
