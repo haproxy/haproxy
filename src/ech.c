@@ -173,7 +173,7 @@ static int cli_find_ech_specific_ctx(char *name, SSL_CTX **sctx)
 
 /* parsing function for 'show ssl ech [echfile]' */
 static int cli_parse_show_ech(char **args, char *payload,
-		struct appctx *appctx, void *private)
+                              struct appctx *appctx, void *private)
 {
 	struct show_ech_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 
