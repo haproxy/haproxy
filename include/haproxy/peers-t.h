@@ -138,12 +138,13 @@ struct shared_table {
 	int remote_id;
 	int flags;
 	unsigned int update_id;
+	struct stksess *last;
+	struct stksess *end;
 	uint64_t remote_data;
 	unsigned int remote_data_nbelem[STKTABLE_DATA_TYPES];
+	unsigned int last_update;     /* the counter of the last local update sent */
 	unsigned int last_acked;
-	unsigned int last_pushed;
 	unsigned int last_get;
-	unsigned int teaching_origin;
 	struct shared_table *next;    /* next shared table in list */
 };
 

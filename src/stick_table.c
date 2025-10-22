@@ -142,15 +142,15 @@ int __stksess_kill(struct stktable *t, struct stksess *ts)
 	if (HA_ATOMIC_LOAD(&ts->ref_cnt))
 		return 0;
 
-	/* ... and that we didn't leave the update list for the tree */
-	if (ts->upd.node.leaf_p) {
+	/* ... and that we didn't leave the update list */
+	if (LIST_INLIST(&ts->upd)) {
 		updt_locked = 1;
 		HA_RWLOCK_WRLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
 		if (HA_ATOMIC_LOAD(&ts->ref_cnt))
 			goto out_unlock;
 	}
 	eb32_delete(&ts->exp);
-	eb32_delete(&ts->upd);
+	LIST_DEL_INIT(&ts->upd);
 	ebmb_delete(&ts->key);
 	__stksess_free(t, ts);
 
@@ -269,7 +269,7 @@ static struct stksess *__stksess_init(struct stktable *t, struct stksess * ts)
 	ts->seen = 0;
 	ts->key.node.leaf_p = NULL;
 	ts->exp.node.leaf_p = NULL;
-	ts->upd.node.leaf_p = NULL;
+	LIST_INIT(&ts->upd);
 	ts->updt_type = STKSESS_UPDT_NONE;
 	MT_LIST_INIT(&ts->pend_updts);
 	ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
@@ -400,7 +400,7 @@ int stktable_trash_oldest(struct stktable *t)
 			/* session expired, trash it */
 			ebmb_delete(&ts->key);
 			MT_LIST_DELETE(&ts->pend_updts);
-			eb32_delete(&ts->upd);
+			LIST_DEL_INIT(&ts->upd);
 			__stksess_free(t, ts);
 			batched++;
 			done_per_shard++;
@@ -618,7 +618,7 @@ struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
 
 /* Update the expiration timer for <ts> but do not touch its expiration node.
  * The table's expiration timer is updated if set.
- * The node will be also inserted into the update tree if needed, at a position
+ * The node will be also inserted into the update list if needed, at a position
  * depending if the update is a local or coming from a remote node.
  * If <decrefcnt> is set, the ts entry's ref_cnt will be decremented. The table's
  * updt_lock may be taken for writes.
@@ -639,13 +639,13 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 			/* Check if this entry is not in the tree or not
 			 * scheduled for at least one peer.
 			 */
-			if (!ts->upd.node.leaf_p || _HA_ATOMIC_LOAD(&ts->seen)) {
+			if (!LIST_INLIST(&ts->upd) || _HA_ATOMIC_LOAD(&ts->seen)) {
 				_HA_ATOMIC_STORE(&ts->updt_type, STKSESS_UPDT_LOCAL);
 				did_append = MT_LIST_TRY_APPEND(&t->pend_updts[tgid - 1], &ts->pend_updts);
 			}
 		}
 		else {
-			if (!ts->upd.node.leaf_p) {
+			if (!LIST_INLIST(&ts->upd)) {
 				_HA_ATOMIC_STORE(&ts->updt_type, STKSESS_UPDT_REMOTE);
 				did_append = MT_LIST_TRY_APPEND(&t->pend_updts[tgid - 1], &ts->pend_updts);
 			}
@@ -836,8 +836,7 @@ struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *
 struct task *stktable_add_pend_updates(struct task *t, void *ctx, unsigned int state)
 {
 	struct stktable *table = ctx;
-	struct eb32_node *eb;
-	int i = 0, is_local, cur_tgid = tgid - 1, empty_tgid = 0;
+	int i = 0, cur_tgid = tgid - 1, empty_tgid = 0;
 
 	/* we really don't want to wait on this one */
 	if (HA_RWLOCK_TRYWRLOCK(STK_TABLE_LOCK, &table->updt_lock) != 0)
@@ -860,27 +859,12 @@ struct task *stktable_add_pend_updates(struct task *t, void *ctx, unsigned int s
 		empty_tgid = 0;
 		if (cur_tgid == global.nbtgroups)
 			cur_tgid = 0;
-		is_local = (stksess->updt_type == STKSESS_UPDT_LOCAL);
 		stksess->seen = 0;
-		if (is_local) {
-			stksess->upd.key = ++table->update;
-			table->localupdate = table->update;
-			eb32_delete(&stksess->upd);
-		} else {
-			stksess->upd.key = (++table->update) + (2147483648U);
-		}
+		if (stksess->updt_type == STKSESS_UPDT_LOCAL)
+			table->last_update++;
+		LIST_DEL_INIT(&stksess->upd);
+		LIST_APPEND(&table->updates, &stksess->upd);
 
-		/* even though very unlikely, it seldom happens that the entry
-		 * is already in the tree (both for local and remote ones). We
-		 * must dequeue it and requeue it at its new position (e.g. it
-		 * might already have been seen by some peers).
-		 */
-		eb32_delete(&stksess->upd);
-		eb = eb32_insert(&table->updates, &stksess->upd);
-		if (eb != &stksess->upd)  {
-			eb32_delete(eb);
-			eb32_insert(&table->updates, &stksess->upd);
-		}
 		/*
 		 * Now that we're done inserting the stksess, unlock it.
 		 * It is kept locked here to prevent a race condition
@@ -1092,7 +1076,7 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 			/* session expired, trash it */
 			ebmb_delete(&ts->key);
 			MT_LIST_DELETE(&ts->pend_updts);
-			eb32_delete(&ts->upd);
+			LIST_DEL_INIT(&ts->upd);
 			__stksess_free(t, ts);
 		}
 
@@ -1175,7 +1159,7 @@ int stktable_init(struct stktable *t, char **err_msg)
 			MT_LIST_INIT(&t->shards[shard].in_bucket_toadd);
 		}
 
-		t->updates = EB_ROOT_UNIQUE;
+		LIST_INIT(&t->updates);
 
 		t->pool = create_pool("sticktables", sizeof(struct stksess) + round_ptr_size(t->data_size) + t->key_size, MEM_F_SHARED);
 
@@ -1222,6 +1206,7 @@ int stktable_init(struct stktable *t, char **err_msg)
 	for (i = 0; i < global.nbtgroups; i++)
 		MT_LIST_INIT(&t->pend_updts[i]);
 	t->updt_task = tasklet_new();
+	t->last_update = 0;
 	if (!t->updt_task)
 		goto mem_error;
 	t->updt_task->context = t;
