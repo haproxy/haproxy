@@ -213,7 +213,8 @@ UNIT_TEST_SCRIPT=./scripts/run-unittests.sh
 # undefined behavior to silently produce invalid code. For this reason we have
 # to use -fwrapv or -fno-strict-overflow to guarantee the intended behavior.
 # It is preferable not to change this option in order to avoid breakage.
-STD_CFLAGS  := $(call cc-opt-alt,-fwrapv,-fno-strict-overflow)
+STD_CFLAGS  := $(call cc-opt-alt,-fwrapv,-fno-strict-overflow)                \
+               $(call cc-opt,-fvect-cost-model=very-cheap)
 
 #### Compiler-specific flags to enable certain classes of warnings.
 # Some are hard-coded, others are enabled only if supported.
