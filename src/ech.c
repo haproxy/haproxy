@@ -13,6 +13,7 @@
 #include <haproxy/cli.h>
 #include <haproxy/proxy.h>
 #include <haproxy/log.h>
+#include <haproxy/listener.h>
 #include <haproxy/ech.h>
 
 #include <openssl/ssl.h>
@@ -468,5 +469,19 @@ int conn_get_ech_outer_sni(struct connection *conn, struct buffer *buf)
 }
 
 
+static int bind_parse_ech(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+    free(conf->ssl_conf.ech_filedir);
+    conf->ssl_conf.ech_filedir = strdup(args[cur_arg+1]);
+    return 0;
+}
 
+
+static struct bind_kw_list bind_kws = { "SSL", { }, {
+	{ "ech",    bind_parse_ech,     1 }, /* set ECH PEM file */
+	{ 0, NULL, 0 },
+}};
+
+
+INITCALL1(STG_REGISTER, bind_register_keywords, &bind_kws);
 #endif
