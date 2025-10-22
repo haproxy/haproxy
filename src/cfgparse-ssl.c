@@ -1293,13 +1293,6 @@ static int bind_parse_alpn(char **args, int cur_arg, struct proxy *px, struct bi
 }
 
 #ifdef USE_ECH
-static int ssl_bind_parse_ech(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
-{
-    free(conf->ech_filedir);
-    conf->ech_filedir = strdup(args[cur_arg+1]);
-    return 0;
-}
-
 static int bind_parse_ech(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
     free(conf->ssl_conf.ech_filedir);
@@ -2562,9 +2555,6 @@ struct ssl_crtlist_kw ssl_crtlist_kws[] = {
 	{ "ssl-min-ver",           ssl_bind_parse_tls_method_minmax,1 }, /* minimum version */
 	{ "ssl-max-ver",           ssl_bind_parse_tls_method_minmax,1 }, /* maximum version */
 	{ "verify",                ssl_bind_parse_verify,           1 }, /* set SSL verify method */
-#ifdef USE_ECH
-	{ "ech",                   ssl_bind_parse_ech,              1 }, /* set ECH PEM file */
-#endif
 	{ NULL, NULL, 0 },
 };
 
