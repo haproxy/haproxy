@@ -344,6 +344,10 @@ struct pool_head *create_pool_from_reg(const char *name, struct pool_registratio
 	unsigned int best_diff;
 	int thr __maybe_unused;
 
+	/* alignment of zero means type alignment */
+	if (!alignment)
+		alignment = reg->type_align;
+
 	/* extend alignment if needed */
 	if (alignment < sizeof(void*))
 		alignment = sizeof(void*);
