@@ -160,7 +160,7 @@ struct stksess {
 	int shard;                /* shard number used by peers */
 	int seen;                 /* 0 only when no peer has seen this entry yet */
 	struct eb32_node exp;     /* ebtree node used to hold the session in expiration tree */
-	struct eb32_node upd;     /* ebtree node used to hold the update sequence tree */
+	struct list upd;          /* entry in the table's update sequence list */
 	struct mt_list pend_updts;/* list of entries to be inserted/moved in the update sequence tree */
 	unsigned int updt_type;   /* One of STKSESS_UPDT_* value */
 	struct ebmb_node key;     /* ebtree node used to hold the session in table */
@@ -232,10 +232,9 @@ struct stktable {
 	unsigned int current;     /* number of sticky sessions currently in table */
 	THREAD_ALIGN(64);
 
-	struct eb_root updates;   /* head of sticky updates sequence tree, uses updt_lock */
+	unsigned int last_update; /* a counter representing the update inserted in the list (will wrap) */
+	struct list updates;   /* head of sticky updates sequence list, uses updt_lock */
 	struct mt_list *pend_updts; /* list of updates to be added to the update sequence tree, one per thread-group */
-	unsigned int update;      /* uses updt_lock */
-	unsigned int localupdate; /* uses updt_lock */
 	struct tasklet *updt_task;/* tasklet responsible for pushing the pending updates into the tree */
 
 	THREAD_ALIGN(64);
