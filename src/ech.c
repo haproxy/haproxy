@@ -154,6 +154,8 @@ static int cli_find_ech_specific_ctx(char *name, SSL_CTX **sctx)
 	if (!name || !sctx)
 		return 0;
 	/* check fd's for frontend cases */
+
+	/* XXX: looping on the FDs cost too much (imagine 2M FDs)*/
 	while (!found && fd < global.maxsock) {
 		fdt = &fdtab[fd++];
 		if (!fdt->owner)
@@ -274,6 +276,7 @@ static int cli_io_handler_ech_details(struct appctx *appctx)
 	 * isolate the threads once per round. We're limited to a buffer worth
 	 * of output anyway, it cannot last very long.
 	 */
+	/* XXX: thread_isolate cost too much, and looping on the FDs also (imagine 2M FDs)*/
 	thread_isolate();
 
 	if (ctx->state == SHOW_ECH_SPECIFIC) {
