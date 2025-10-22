@@ -53,6 +53,7 @@ extern char *progname;
 extern char **old_argv;
 extern const char *old_unixsocket;
 extern int daemon_fd[2];
+extern int devnullfd;
 
 struct proxy;
 struct server;

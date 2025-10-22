@@ -152,6 +152,7 @@ int  pid;			/* current process id */
 char **init_env;		/* to keep current process env variables backup */
 int  pidfd = -1;		/* FD to keep PID */
 int daemon_fd[2] = {-1, -1};	/* pipe to communicate with parent process */
+int devnullfd = -1;
 
 static unsigned long stopping_tgroup_mask; /* Thread groups acknowledging stopping */
 
@@ -2511,7 +2512,7 @@ static void step_init_4(void)
 	} else {
 		if ((global.mode & MODE_QUIET) && !(global.mode & MODE_VERBOSE)) {
 			/* detach from the tty */
-			stdio_quiet(-1);
+			stdio_quiet(devnullfd);
 		}
 	}
 
@@ -2611,7 +2612,7 @@ static void run_master_in_recovery_mode(int argc, char **argv)
 		(global.mode & MODE_DAEMON)) {
 		/* detach from the tty, this is required to properly daemonize. */
 		if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL))
-			stdio_quiet(-1);
+			stdio_quiet(devnullfd);
 		global.mode &= ~MODE_VERBOSE;
 		global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
 	}
@@ -3175,7 +3176,6 @@ static void set_identity(const char *program_name)
 
 int main(int argc, char **argv)
 {
-	int devnullfd = -1;
 	struct rlimit limit;
 	int intovf = (unsigned char)argc + 1; /* let the compiler know it's strictly positive */
 	struct cfgfile *cfg, *cfg_tmp;
@@ -3328,6 +3328,18 @@ int main(int argc, char **argv)
 		mworker_apply_master_worker_mode();
 	}
 
+	/* We might need to use this devnullfd during configuration parsing. */
+	devnullfd = open("/dev/null", O_RDWR, 0);
+	if (devnullfd < 0) {
+		ha_alert("Cannot open /dev/null\n");
+		exit(EXIT_FAILURE);
+	}
+	if (fcntl(devnullfd, FD_CLOEXEC) != 0) {
+		ha_alert("Cannot make /dev/null CLOEXEC\n");
+		close(devnullfd);
+		exit(EXIT_FAILURE);
+	}
+
 	/* Worker, daemon, foreground modes read the rest of the config */
 	if (!master) {
 		usermsgs_clr("config");
@@ -3443,18 +3455,6 @@ int main(int argc, char **argv)
 	}
 
 	/* End of initialization for standalone and worker modes */
-	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
-		devnullfd = open("/dev/null", O_RDWR, 0);
-		if (devnullfd < 0) {
-			ha_alert("Cannot open /dev/null\n");
-			exit(EXIT_FAILURE);
-		}
-		if (fcntl(devnullfd, FD_CLOEXEC) != 0) {
-			ha_alert("Cannot make /dev/null CLOEXEC\n");
-			close(devnullfd);
-			exit(EXIT_FAILURE);
-		}
-	}
 
         /* applies the renice value in the worker or standalone after configuration parsing
          * but before changing identity */
