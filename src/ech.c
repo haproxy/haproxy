@@ -5,7 +5,6 @@
 #include <haproxy/applet-t.h>
 #include <haproxy/global-t.h>
 #include <haproxy/ssl_sock-t.h>
-#include <haproxy/ech-t.h>
 #include <haproxy/global.h>
 #include <haproxy/fd.h>
 #include <haproxy/obj_type.h>
@@ -19,6 +18,17 @@
 #include <openssl/ssl.h>
 #include <dirent.h>
 #include <sys/stat.h>
+
+struct show_ech_ctx {
+	struct proxy *pp;
+	int fd;
+	SSL_CTX *specific_ctx;
+	char *specific_name;
+	enum {
+		SHOW_ECH_FD = 0,
+		SHOW_ECH_SPECIFIC,
+	} state;                       /* phase of the current dump */
+};
 
 /*
  * load any key files called <name>.ech we find in the named

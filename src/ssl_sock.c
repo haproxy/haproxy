@@ -90,7 +90,6 @@
 #include <haproxy/trace.h>
 #include <haproxy/ssl_trace.h>
 #ifdef USE_ECH
-#include <haproxy/ech-t.h>
 #include <haproxy/ech.h>
 #endif
 
