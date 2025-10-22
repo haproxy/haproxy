@@ -1688,7 +1688,7 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 		/* compute a response for the TXT entry */
 		if (strcasecmp(ctx->cfg->challenge, "dns-01") == 0) {
 			struct sink *dpapi;
-			struct ist line[13];
+			struct ist line[16];
 			int nmsg = 0;
 
 			if (acme_txt_record(ist(ctx->cfg->account.thumbprint), auth->token, &trash) == 0) {
@@ -1716,6 +1716,12 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 				line[nmsg++] = ist(ctx->cfg->vars);
 				line[nmsg++] = ist("\"\n");
 			}
+			if (auth->dns.ptr) {
+				line[nmsg++] = ist("dns-01-record \"");
+				line[nmsg++] = ist2(trash.area, trash.data);
+				line[nmsg++] = ist("\"\n");
+			}
+
 			line[nmsg++] = ist2( hc->res.buf.area, hc->res.buf.data); /* dump the HTTP response */
 			line[nmsg++] = ist("\n\0");
 
