@@ -359,6 +359,7 @@ struct ssl_counters {
 
 struct passphrase_cb_data {
 	const char *path;
+	struct ckch_conf *ckch_conf;
 	int passphrase_idx;
 };
 

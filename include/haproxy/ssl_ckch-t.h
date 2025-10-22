@@ -72,6 +72,7 @@ struct ckch_conf {
 		char *id;
 		char **domains;
 	} acme;
+	int encrypted_privkey;
 };
 
 /*
