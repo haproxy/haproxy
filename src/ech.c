@@ -162,8 +162,8 @@ static int cli_find_ech_specific_ctx(char *name, SSL_CTX **sctx)
 			continue;
 		li = objt_listener(fdt->owner);
 		if (li && li->bind_conf && li->bind_conf->initial_ctx
-				&& li->bind_conf->frontend
-				&& !strcmp(li->bind_conf->frontend->id, name)) {
+		    && li->bind_conf->frontend
+		    && !strcmp(li->bind_conf->frontend->id, name)) {
 			found = 1;
 			res = li->bind_conf->initial_ctx;
 		}
@@ -213,7 +213,7 @@ static void cli_print_ech_info(SSL_CTX *ctx, struct buffer *trash)
 		return;
 	}
 	if ((es = SSL_CTX_get1_echstore(ctx)) == NULL
-			|| OSSL_ECHSTORE_num_entries(es, &oi_cnt) != 1) {
+	    || OSSL_ECHSTORE_num_entries(es, &oi_cnt) != 1) {
 		chunk_appendf(trash, "error accessing ECH store\n");
 		goto end;
 	}
@@ -230,15 +230,15 @@ static void cli_print_ech_info(SSL_CTX *ctx, struct buffer *trash)
 			goto end;
 		}
 		if (OSSL_ECHSTORE_get1_info(es, oi_ind, &secs, &pn, &ec,
-					&has_priv, &for_retry) != 1) {
+		                            &has_priv, &for_retry) != 1) {
 			chunk_appendf(trash, "error printing ECH Info\n");
 			OPENSSL_free(pn); /* just in case */
 			OPENSSL_free(ec);
 			goto end;
 		}
 		BIO_printf(out, "ECH entry: %d public_name: %s age: %lld%s\n",
-				oi_ind, pn, (long long)secs,
-				has_priv ? " (has private key)" : "");
+		           oi_ind, pn, (long long)secs,
+		           has_priv ? " (has private key)" : "");
 		BIO_printf(out, "\t%s\n", ec);
 		OPENSSL_free(pn);
 		OPENSSL_free(ec);
@@ -350,7 +350,7 @@ static int cli_parse_add_ech(char **args, char *payload, struct appctx *appctx, 
 	OSSL_ECHSTORE_free(es);
 	BIO_free_all(es_in);
 	snprintf(success_message, ECH_SUCCESS_MSG_MAX,
-			"added a new ECH config to %s", args[3]);
+	         "added a new ECH config to %s", args[3]);
 	return cli_msg(appctx, LOG_INFO, success_message);
 }
 
@@ -377,7 +377,7 @@ static int cli_parse_set_ech(char **args, char *payload, struct appctx *appctx, 
 	OSSL_ECHSTORE_free(es);
 	BIO_free_all(es_in);
 	snprintf(success_message, ECH_SUCCESS_MSG_MAX,
-			"set new ECH configs for %s", args[3]);
+	         "set new ECH configs for %s", args[3]);
 	return cli_msg(appctx, LOG_INFO, success_message);
 }
 
@@ -405,10 +405,10 @@ static int cli_parse_del_ech(char **args, char *payload, struct appctx *appctx, 
 	memset(success_message, 0, ECH_SUCCESS_MSG_MAX);
 	if (!age)
 		snprintf(success_message, ECH_SUCCESS_MSG_MAX,
-				"deleted all ECH configs from %s", args[3]);
+		         "deleted all ECH configs from %s", args[3]);
 	else
 		snprintf(success_message, ECH_SUCCESS_MSG_MAX,
-				"deleted ECH configs older than %ld seconds from %s", age, args[3]);
+		         "deleted ECH configs older than %ld seconds from %s", age, args[3]);
 	return cli_msg(appctx, LOG_INFO, success_message);
 }
 
@@ -469,7 +469,7 @@ int conn_get_ech_outer_sni(struct connection *conn, struct buffer *buf)
 	if (!ctx)
 		return 0;
 	if (SSL_ech_get1_status(ctx->ssl, &sni_ech, &sni_clr)
-			== SSL_ECH_STATUS_SUCCESS && sni_clr != NULL)
+	    == SSL_ECH_STATUS_SUCCESS && sni_clr != NULL)
 		chunk_printf(buf, "%s", sni_clr);
 	OPENSSL_free(sni_ech);
 	OPENSSL_free(sni_clr);
@@ -479,9 +479,9 @@ int conn_get_ech_outer_sni(struct connection *conn, struct buffer *buf)
 
 static int bind_parse_ech(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-    free(conf->ssl_conf.ech_filedir);
-    conf->ssl_conf.ech_filedir = strdup(args[cur_arg+1]);
-    return 0;
+	free(conf->ssl_conf.ech_filedir);
+	conf->ssl_conf.ech_filedir = strdup(args[cur_arg+1]);
+	return 0;
 }
 
 
