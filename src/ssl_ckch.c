@@ -3584,6 +3584,7 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 
 				list_for_each_entry_from(ckchi_link, &old_cafile_entry->ckch_inst_link, list) {
 					struct ckch_inst *new_inst;
+					struct ckch_store *ckch_store = ckchi_link->ckch_inst->ckch_store;
 
 					/* save the next ckchi to compute */
 					ctx->next_ckchi_link = ckchi_link;
@@ -3601,10 +3602,13 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 					/* Rebuild a new ckch instance that uses the same ckch_store
 					 * than a reference ckchi instance but will use a new CA file. */
 					ctx->err = NULL;
-					if (ckch_inst_rebuild(ckchi_link->ckch_inst->ckch_store, ckchi_link->ckch_inst, &new_inst, &ctx->err)) {
+					if (ckch_inst_rebuild(ckch_store, ckchi_link->ckch_inst, &new_inst, &ctx->err)) {
 						ctx->state = CACRL_ST_ERROR;
 						goto error;
 					}
+
+					/* link the new ckch_inst to the duplicate */
+					LIST_APPEND(&ckch_store->ckch_inst, &new_inst->by_ckchs);
 
 					y++;
 				}
