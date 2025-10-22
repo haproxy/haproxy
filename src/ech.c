@@ -1,23 +1,21 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #ifdef USE_ECH
 
-#include <haproxy/buf-t.h>
-#include <haproxy/applet-t.h>
-#include <haproxy/global-t.h>
-#include <haproxy/ssl_sock-t.h>
-#include <haproxy/global.h>
-#include <haproxy/fd.h>
-#include <haproxy/obj_type.h>
-#include <haproxy/applet.h>
-#include <haproxy/cli.h>
-#include <haproxy/proxy.h>
-#include <haproxy/log.h>
-#include <haproxy/listener.h>
-#include <haproxy/ech.h>
 
-#include <openssl/ssl.h>
 #include <dirent.h>
 #include <sys/stat.h>
+
+#include <haproxy/applet.h>
+#include <haproxy/cli.h>
+#include <haproxy/ech.h>
+#include <haproxy/fd.h>
+#include <haproxy/global.h>
+#include <haproxy/listener.h>
+#include <haproxy/log.h>
+#include <haproxy/obj_type.h>
+#include <haproxy/openssl-compat.h>
+#include <haproxy/proxy.h>
+#include <haproxy/ssl_sock-t.h>
 
 struct show_ech_ctx {
 	struct proxy *pp;
