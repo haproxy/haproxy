@@ -40,22 +40,23 @@
  */
 #define COUNTERS_SHARED_TG                                                           \
 	struct {                                                                     \
-		unsigned long last_state_change;        /* last time, when the state was changed */\
-		long long srv_aborts;                   /* aborted responses during DATA phase caused by the server */\
-		long long cli_aborts;                   /* aborted responses during DATA phase caused by the client */\
-		long long internal_errors;              /* internal processing errors */\
-		long long failed_rewrites;              /* failed rewrites (warning) */\
-		long long bytes_out;                    /* number of bytes transferred from the server to the client */\
-		long long bytes_in;                     /* number of bytes transferred from the client to the server */\
-		long long denied_resp;                  /* blocked responses because of security concerns */\
-		long long denied_req;                   /* blocked requests because of security concerns */\
-		long long    cum_sess;                  /* cumulated number of accepted connections */\
+		FIXED_SIZE(8, unsigned long, last_state_change); /* last time, when the state was changed */\
+		FIXED_SIZE(8, long long, srv_aborts);            /* aborted responses during DATA phase caused by the server */\
+		FIXED_SIZE(8, long long, cli_aborts);            /* aborted responses during DATA phase caused by the client */\
+		FIXED_SIZE(8, long long, internal_errors);       /* internal processing errors */\
+		FIXED_SIZE(8, long long, failed_rewrites);       /* failed rewrites (warning) */\
+		FIXED_SIZE(8, long long, bytes_out);             /* number of bytes transferred from the server to the client */\
+		FIXED_SIZE(8, long long, bytes_in);              /* number of bytes transferred from the client to the server */\
+		FIXED_SIZE(8, long long, denied_resp);           /* blocked responses because of security concerns */\
+		FIXED_SIZE(8, long long, denied_req);            /* blocked requests because of security concerns */\
+		FIXED_SIZE(8, long long, cum_sess);              /* cumulated number of accepted connections */\
 		/* compression counters, index 0 for requests, 1 for responses */\
-		long long comp_in[2];                   /* input bytes fed to the compressor */\
-		long long comp_out[2];                  /* output bytes emitted by the compressor */\
-		long long comp_byp[2];                  /* input bytes that bypassed the compressor (cpu/ram/bw limitation) */\
-		struct freq_ctr sess_per_sec;           /* sessions per second on this server */\
-	}
+		FIXED_SIZE_ARRAY(8, 2, long long, comp_in);      /* input bytes fed to the compressor */\
+		FIXED_SIZE_ARRAY(8, 2, long long, comp_out);     /* output bytes emitted by the compressor */\
+		FIXED_SIZE_ARRAY(8, 2, long long, comp_byp);     /* input bytes that bypassed the compressor (cpu/ram/bw limitation) */\
+		struct freq_ctr sess_per_sec;                    /* sessions per second on this server */\
+		ALWAYS_PAD(4);                                   /* ensure 4 bytes hole is consistent 32bits vs 64 bits systems */\
+	};
 
 // for convenience (generic pointer)
 struct counters_shared {
@@ -69,30 +70,32 @@ struct counters_shared {
  * /!\ any change performed here will impact shm-stats-file mapping because the
  * struct is embedded in shm_stats_file_object struct, so proceed with caution
  * and change shm stats file version if needed
+ *
+ * fixed width integers should be used
  */
 struct fe_counters_shared_tg {
 	COUNTERS_SHARED_TG;
 
-	long long denied_sess;                  /* denied session requests (tcp-req-sess rules) */
-	long long denied_conn;                  /* denied connection requests (tcp-req-conn rules) */
-	long long intercepted_req;              /* number of monitoring or stats requests intercepted by the frontend */
-	long long    cum_conn;                  /* cumulated number of received connections */
-	struct freq_ctr conn_per_sec;           /* received connections per second on the frontend */
+	FIXED_SIZE(8, long long, denied_sess);                      /* denied session requests (tcp-req-sess rules) */
+	FIXED_SIZE(8, long long, denied_conn);                      /* denied connection requests (tcp-req-conn rules) */
+	FIXED_SIZE(8, long long, intercepted_req);                  /* number of monitoring or stats requests intercepted by the frontend */
+	FIXED_SIZE(8, long long, cum_conn);                         /* cumulated number of received connections */
+	struct freq_ctr conn_per_sec;                               /* received connections per second on the frontend */
 
-	struct freq_ctr req_per_sec;            /* HTTP requests per second on the frontend */
+	struct freq_ctr req_per_sec;                                /* HTTP requests per second on the frontend */
 
-	long long    cum_sess_ver[3];           /* cumulated number of h1/h2/h3 sessions */
+	FIXED_SIZE_ARRAY(8, 3, long long, cum_sess_ver);            /* cumulated number of h1/h2/h3 sessions */
 	union {
 		struct {
-			long long cum_req[4];   /* cumulated number of processed other/h1/h2/h3 requests */
-			long long cache_hits;   /* cache hits */
-			long long cache_lookups;/* cache lookups */
-			long long comp_rsp;     /* number of compressed responses */
-			long long rsp[6];       /* http response codes */
+			FIXED_SIZE_ARRAY(8, 4, long long, cum_req); /* cumulated number of processed other/h1/h2/h3 requests */
+			FIXED_SIZE(8, long long, cache_hits);       /* cache hits */
+			FIXED_SIZE(8, long long, cache_lookups);    /* cache lookups */
+			FIXED_SIZE(8, long long, comp_rsp);         /* number of compressed responses */
+			FIXED_SIZE_ARRAY(8, 6, long long, rsp);     /* http response codes */
 		} http;
-	} p;                                    /* protocol-specific stats */
+	} p;                                                        /* protocol-specific stats */
 
-	long long failed_req;                   /* failed requests (eg: invalid or timeout) */
+	FIXED_SIZE(8, long long, failed_req);                       /* failed requests (eg: invalid or timeout) */
 };
 
 struct fe_counters_shared {
@@ -121,35 +124,36 @@ struct fe_counters {
 /* /!\ any change performed here will impact shm-stats-file mapping because the
  * struct is embedded in shm_stats_file_object struct, so proceed with caution
  * and change shm stats file version if needed
+ *
+ * fixed width integer types should be used
  */
 struct be_counters_shared_tg {
 	COUNTERS_SHARED_TG;
 
-	long long  cum_lbconn;                  /* cumulated number of sessions processed by load balancing (BE only) */
+	FIXED_SIZE(8, long long, cum_lbconn);                   /* cumulated number of sessions processed by load balancing (BE only) */
 
-	long long connect;                      /* number of connection establishment attempts */
-	long long reuse;                        /* number of connection reuses */
-	unsigned long last_sess;                /* last session time */
+	FIXED_SIZE(8, long long, connect);                      /* number of connection establishment attempts */
+	FIXED_SIZE(8, long long, reuse);                        /* number of connection reuses */
+	FIXED_SIZE(8, unsigned long, last_sess);                /* last session time */
 
-	long long failed_checks, failed_hana;	/* failed health checks and health analyses for servers */
-	long long down_trans;			/* up->down transitions */
+	FIXED_SIZE(8, long long, failed_checks);                /* failed health checks */
+	FIXED_SIZE(8, long long, failed_hana);                  /* failed health analyses */
+	FIXED_SIZE(8, long long, down_trans);                   /* up->down transitions */
 
 	union {
 		struct {
-			long long cum_req;      /* cumulated number of processed HTTP requests */
-
-			long long cache_hits;   /* cache hits */
-			long long cache_lookups;/* cache lookups */
-			long long comp_rsp;     /* number of compressed responses */
-			long long rsp[6];       /* http response codes */
-
+			FIXED_SIZE(8, long long, cum_req);      /* cumulated number of processed HTTP requests */
+			FIXED_SIZE(8, long long, cache_hits);   /* cache hits */
+			FIXED_SIZE(8, long long, cache_lookups);/* cache lookups */
+			FIXED_SIZE(8, long long, comp_rsp);     /* number of compressed responses */
+			FIXED_SIZE_ARRAY(8, 6, long long, rsp); /* http response codes */
 		} http;
-	} p;                                    /* protocol-specific stats */
+	} p;                                                    /* protocol-specific stats */
 
-	long long redispatches;                 /* retried and redispatched connections (BE only) */
-	long long retries;                      /* retried and redispatched connections (BE only) */
-	long long failed_resp;                  /* failed responses (BE only) */
-	long long failed_conns;                 /* failed connect() attempts (BE only) */
+	FIXED_SIZE(8, long long, redispatches);                 /* retried and redispatched connections (BE only) */
+	FIXED_SIZE(8, long long, retries);                      /* retried and redispatched connections (BE only) */
+	FIXED_SIZE(8, long long, failed_resp);                  /* failed responses (BE only) */
+	FIXED_SIZE(8, long long, failed_conns);                 /* failed connect() attempts (BE only) */
 };
 
 struct be_counters_shared {
