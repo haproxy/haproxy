@@ -31,13 +31,13 @@
 /* cert_key_and_chain functions */
 
 int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, struct ckch_conf *conf, char **err);
-int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct ckch_data *datackch , char **err);
+int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct ckch_data *datackch, struct ckch_conf *conf, char **err);
 void ssl_sock_free_cert_key_and_chain_contents(struct ckch_data *data);
 
-int ssl_sock_load_key_into_ckch(const char *path, char *buf, struct ckch_data *data , char **err);
-int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, char *buf, struct ckch_data *data, char **err);
-int ssl_sock_load_sctl_from_file(const char *sctl_path, char *buf, struct ckch_data *data, char **err);
-int ssl_sock_load_issuer_file_into_ckch(const char *path, char *buf, struct ckch_data *data, char **err);
+int ssl_sock_load_key_into_ckch(const char *path, char *buf, struct ckch_data *data, struct ckch_conf *conf, char **err);
+int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, char *buf, struct ckch_data *data, struct ckch_conf *conf, char **err);
+int ssl_sock_load_sctl_from_file(const char *sctl_path, char *buf, struct ckch_data *data, struct ckch_conf *conf, char **err);
+int ssl_sock_load_issuer_file_into_ckch(const char *path, char *buf, struct ckch_data *data, struct ckch_conf *conf, char **err);
 
 /* ckch_store functions */
 struct ckch_store *ckch_store_new_load_files_path(char *path, char **err);
@@ -90,7 +90,7 @@ extern int (*ssl_commit_crlfile_cb)(const char *path, X509_STORE *ctx, char **er
  *
  */
 #define DECLARE_CKCH_CONF_LOAD(name, base, callback)                                                                                           \
-static inline int ckch_conf_load_##name(void *value, char *buf, struct ckch_data *d, int cli, const char *filename, int linenum, char **err)   \
+static inline int ckch_conf_load_##name(void *value, char *buf, struct ckch_data *d, struct ckch_conf *conf, int cli, const char *filename, int linenum, char **err)   \
 {                                                                                                                                              \
 	char path[PATH_MAX];                                                                                                                   \
 	int err_code = 0;                                                                                                                      \
@@ -99,7 +99,7 @@ static inline int ckch_conf_load_##name(void *value, char *buf, struct ckch_data
 	err_code |= path_base(value, (base), path, err);                                                                                       \
 	if (err_code & ERR_CODE)                                                                                                               \
 		goto out;                                                                                                                      \
-	err_code |= (callback)(path, buf, d, err);                                                                                             \
+	err_code |= (callback)(path, buf, d, conf, err);                                                                                       \
 out:                                                                                                                                           \
 	return err_code;                                                                                                                       \
 };

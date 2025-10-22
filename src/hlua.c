@@ -13591,6 +13591,7 @@ __LJMP static int hlua_ckch_set(lua_State *L)
 	struct cert_exts *cert_ext = NULL;
 	char *filename;
 	struct ckch_data *data;
+	struct ckch_conf *conf;
 	int ret;
 
 	if (lua_type(L, -1) != LUA_TTABLE)
@@ -13636,6 +13637,7 @@ __LJMP static int hlua_ckch_set(lua_State *L)
 	}
 
 	data = new_ckchs->data;
+	conf = &new_ckchs->conf;
 
 	/* loop on the field in the table, which have the same name as the
 	 * possible extensions of files */
@@ -13672,7 +13674,7 @@ __LJMP static int hlua_ckch_set(lua_State *L)
 		}
 #endif
 		/* apply the change on the duplicate */
-		if (cert_ext->load(filename, payload, data, &err) != 0) {
+		if (cert_ext->load(filename, payload, data, conf, &err) != 0) {
 			memprintf(&err, "%sCan't load the payload for '%s'", err ? err : "", cert_ext->ext);
 			errcode |= ERR_ALERT | ERR_FATAL;
 			goto end;

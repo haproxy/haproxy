@@ -206,7 +206,8 @@ out:
 /* Try to load a sctl from a buffer <buf> if not NULL, or read the file <sctl_path>
  * It fills the ckch->sctl buffer
  * return 0 on success or != 0 on failure */
-int ssl_sock_load_sctl_from_file(const char *sctl_path, char *buf, struct ckch_data *data, char **err)
+int ssl_sock_load_sctl_from_file(const char *sctl_path, char *buf, struct ckch_data *data,
+                                 struct ckch_conf *conf, char **err)
 {
 	int fd = -1;
 	int r = 0;
@@ -269,7 +270,8 @@ end:
  *
  * Returns 0 on success, 1 in error case.
  */
-int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, char *buf, struct ckch_data *data, char **err)
+int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, char *buf, struct ckch_data *data,
+                                          struct ckch_conf *conf, char **err)
 {
 	int fd = -1;
 	int r = 0;
@@ -365,7 +367,7 @@ int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, stru
 	struct stat st;
 
 	/* try to load the PEM */
-	if (ssl_sock_load_pem_into_ckch(path, NULL, data , err) != 0) {
+	if (ssl_sock_load_pem_into_ckch(path, NULL, data, conf, err) != 0) {
 		goto end;
 	}
 
@@ -429,7 +431,7 @@ int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, stru
 		}
 
 		if (stat(fp->area, &st) == 0) {
-			if (ssl_sock_load_key_into_ckch(fp->area, NULL, data, err)) {
+			if (ssl_sock_load_key_into_ckch(fp->area, NULL, data, conf, err)) {
 				memprintf(err, "%s '%s' is present but cannot be read or parsed'.\n",
 					  err && *err ? *err : "", fp->area);
 				goto end;
@@ -473,7 +475,7 @@ int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, stru
 		}
 
 		if (stat(fp->area, &st) == 0) {
-			if (ssl_sock_load_sctl_from_file(fp->area, NULL, data, err)) {
+			if (ssl_sock_load_sctl_from_file(fp->area, NULL, data, conf, err)) {
 				memprintf(err, "%s '%s.sctl' is present but cannot be read or parsed'.\n",
 					  err && *err ? *err : "", fp->area);
 				ret = 1;
@@ -507,7 +509,7 @@ int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, stru
 		}
 
 		if (stat(fp->area, &st) == 0) {
-			if (ssl_sock_load_ocsp_response_from_file(fp->area, NULL, data, err)) {
+			if (ssl_sock_load_ocsp_response_from_file(fp->area, NULL, data, conf, err)) {
 				ret = 1;
 				goto end;
 			}
@@ -538,7 +540,7 @@ int ssl_sock_load_files_into_ckch(const char *path, struct ckch_data *data, stru
 			}
 
 			if (stat(fp->area, &st) == 0) {
-				if (ssl_sock_load_issuer_file_into_ckch(fp->area, NULL, data, err)) {
+				if (ssl_sock_load_issuer_file_into_ckch(fp->area, NULL, data, conf, err)) {
 					ret = 1;
 					goto end;
 				}
@@ -588,7 +590,8 @@ end:
  *
  *  Return 0 on success or != 0 on failure
  */
-int ssl_sock_load_key_into_ckch(const char *path, char *buf, struct ckch_data *data , char **err)
+int ssl_sock_load_key_into_ckch(const char *path, char *buf, struct ckch_data *data,
+                                struct ckch_conf *conf, char **err)
 {
 	BIO *in = NULL;
 	int ret = 1;
@@ -644,7 +647,8 @@ end:
  *
  *  Return 0 on success or != 0 on failure
  */
-int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct ckch_data *data , char **err)
+int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct ckch_data *data,
+                                struct ckch_conf *conf, char **err)
 {
 	BIO *in = NULL;
 	int ret = 1;
@@ -922,7 +926,8 @@ error:
 /*
  * return 0 on success or != 0 on failure
  */
-int ssl_sock_load_issuer_file_into_ckch(const char *path, char *buf, struct ckch_data *data, char **err)
+int ssl_sock_load_issuer_file_into_ckch(const char *path, char *buf, struct ckch_data *data,
+					struct ckch_conf *conf, char **err)
 {
 	int ret = 1;
 	BIO *in = NULL;
@@ -3013,6 +3018,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	char *end;
 	struct cert_exts *cert_ext = &cert_exts[0]; /* default one, PEM */
 	struct ckch_data *data;
+	struct ckch_conf *conf;
 	struct buffer *buf;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
@@ -3125,9 +3131,10 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	}
 #endif
 	data = new_ckchs->data;
+	conf = &new_ckchs->conf;
 
 	/* apply the change on the duplicate */
-	if (cert_ext->load(buf->area, payload, data, &err) != 0) {
+	if (cert_ext->load(buf->area, payload, data, conf, &err) != 0) {
 		memprintf(&err, "%sCan't load the payload\n", err ? err : "");
 		errcode |= ERR_ALERT | ERR_FATAL;
 		goto end;
@@ -4745,6 +4752,7 @@ int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, int cli, co
 	int err_code = 0;
 	int rc = 1;
 	struct ckch_data *d = c->data;
+	struct ckch_conf *conf = &c->conf;
 
 	for (i = 0; ckch_conf_kws[i].name; i++) {
 		void *src = NULL;
@@ -4766,7 +4774,7 @@ int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, int cli, co
 				if (!v)
 					goto next;
 
-				rc = ckch_conf_kws[i].func(v, NULL, d, cli, file, linenum, err);
+				rc = ckch_conf_kws[i].func(v, NULL, d, conf, cli, file, linenum, err);
 				if (rc) {
 					err_code |= ERR_ALERT | ERR_FATAL;
 					memprintf(err, "%s '%s' cannot be read or parsed.", err && *err ? *err : "", v);
@@ -4779,7 +4787,8 @@ int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, int cli, co
 			case PARSE_TYPE_ONOFF:
 			{
 				int v = *(int *)src;
-				rc = ckch_conf_kws[i].func(&v, NULL, d, cli, file, linenum, err);
+				rc = ckch_conf_kws[i].func(&v, NULL, d, conf, cli, file, linenum, err);
+
 				if (rc) {
 					err_code |= ERR_ALERT | ERR_FATAL;
 					memprintf(err, "%s '%d' cannot be read or parsed.", err && *err ? *err : "", v);

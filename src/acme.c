@@ -209,7 +209,7 @@ out:
 /*
  * ckch_conf acme parser
  */
-int ckch_conf_acme_init(void *value, char *buf, struct ckch_data *d, int cli, const char *filename, int linenum, char **err)
+int ckch_conf_acme_init(void *value, char *buf, struct ckch_data *d, struct ckch_conf *, int cli, const char *filename, int linenum, char **err)
 {
 	int err_code = 0;
 	struct acme_cfg *cfg;
@@ -690,7 +690,7 @@ static int cfg_postsection_acme()
 
 	/* tries to open the account key  */
 	if (stat(path, &st) == 0) {
-		if (ssl_sock_load_key_into_ckch(path, NULL, store->data, &errmsg)) {
+		if (ssl_sock_load_key_into_ckch(path, NULL, store->data, &store->conf, &errmsg)) {
 			memprintf(&errmsg, "%s'%s' is present but cannot be read or parsed.\n", errmsg && *errmsg ? errmsg : NULL, path);
 			if (errmsg && *errmsg)
 				indent_msg(&errmsg, 8);
@@ -1196,7 +1196,7 @@ int acme_res_certificate(struct task *task, struct acme_ctx *ctx, char **errmsg)
 	ctx->store->data->key = NULL;
 
 	/* XXX: might need a function dedicated to this, which does not read a private key */
-	if (ssl_sock_load_pem_into_ckch(ctx->store->path, hc->res.buf.area, ctx->store->data , errmsg) != 0)
+	if (ssl_sock_load_pem_into_ckch(ctx->store->path, hc->res.buf.area, ctx->store->data, &ctx->store->conf, errmsg) != 0)
 		goto error;
 
 	/* restore the key */
