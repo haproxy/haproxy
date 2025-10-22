@@ -3942,6 +3942,13 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 	const int default_min_ver = CONF_TLSV12;
 
 	ctx = SSL_CTX_new(SSLv23_server_method());
+	if (!ctx) {
+		cfgerr += 1;
+		ha_alert("Proxy '%s': failed to create an SSL context for bind '%s' at [%s:%d].\n",
+		         bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+		goto end;
+	}
+
 	bind_conf->initial_ctx = ctx;
 
 	if (global_ssl.security_level > -1)
@@ -4067,6 +4074,7 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 # endif
 	SSL_CTX_set_tlsext_servername_arg(ctx, bind_conf);
 #endif /* ! SSL_CTRL_SET_TLSEXT_HOSTNAME */
+end:
 	return cfgerr;
 }
 
