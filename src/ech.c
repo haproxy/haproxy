@@ -448,7 +448,7 @@ int conn_get_ech_status(struct connection *conn, struct buffer *buf)
 		case SSL_ECH_STATUS_BAD_CALL:  lstr = s(SSL_ECH_STATUS_BAD_CALL);  break;
 		case SSL_ECH_STATUS_GREASE:    lstr = s(SSL_ECH_STATUS_GREASE);    break;
 		case SSL_ECH_STATUS_BACKEND:   lstr = s(SSL_ECH_STATUS_BACKEND);   break;
-		default:                       lstr = "ECH status unknown";        break;
+		default:                       lstr = "";                         break;
 	}
 #undef s
 	chunk_printf(buf, "%s", lstr);
