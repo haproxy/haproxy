@@ -19,6 +19,7 @@
 
 struct show_ech_ctx {
 	struct proxy *pp;
+	struct bind_conf *b;
 	int fd;
 	SSL_CTX *specific_ctx;
 	char *specific_name;
@@ -194,6 +195,7 @@ static int cli_parse_show_ech(char **args, char *payload,
 		ctx->specific_name = NULL;
 		ctx->specific_ctx = NULL;
 		ctx->pp = proxies_list;
+		ctx->b = NULL;
 		ctx->fd = 0;
 		ctx->state = SHOW_ECH_FD;
 	}
@@ -267,17 +269,15 @@ static int cli_io_handler_ech_details(struct appctx *appctx)
 {
 	struct buffer *trash = get_trash_chunk();
 	struct show_ech_ctx *ctx = appctx->svcctx;
-	struct listener *li = NULL;
 	int ret = 0;
-
+	struct proxy *p;
+	struct bind_conf *bind_conf;
 	if (!ctx) return 1;
 
 	/*
 	 * isolate the threads once per round. We're limited to a buffer worth
 	 * of output anyway, it cannot last very long.
 	 */
-	/* XXX: thread_isolate cost too much, and looping on the FDs also (imagine 2M FDs)*/
-	thread_isolate();
 
 	if (ctx->state == SHOW_ECH_SPECIFIC) {
 		chunk_appendf(trash, "***\nECH for %s ", ctx->specific_name);
@@ -289,30 +289,42 @@ static int cli_io_handler_ech_details(struct appctx *appctx)
 	}
 
 	if (ctx->state == SHOW_ECH_FD) {
-		struct fdtab *fdt = NULL;
 
-		/* not sure of right limit */
-		while (ctx->fd < global.maxsock) {
-			fdt = &fdtab[ctx->fd++];
-			if (fdt->owner) {
-				li = objt_listener(fdt->owner);
-				if (li && li->bind_conf && li->bind_conf->initial_ctx) {
+		bind_conf = ctx->b;
+		p = ctx->pp;
+
+		for (; p; p = p->next) {
+
+			if (!(p->cap & PR_CAP_FE) || LIST_ISEMPTY(&p->conf.bind))
+				continue;
+
+			if (!bind_conf) {
+				bind_conf = LIST_ELEM(p->conf.bind.n, typeof(bind_conf), by_fe);
+				chunk_appendf(trash, "***\nfrontend %s\n", bind_conf->frontend->id);
+			}
+
+			/* loop on binds */
+			list_for_each_entry_from(bind_conf, &p->conf.bind, by_fe) {
+
+				if (bind_conf->initial_ctx) {
 					/* print stuff */
-					if (li->bind_conf->frontend)
-						chunk_appendf(trash, "***\nfrontend: %s ", li->bind_conf->frontend->id);
-					else
-						chunk_appendf(trash, "***\nfrontend fd; %d ", ctx->fd-1);
-					cli_print_ech_info(li->bind_conf->initial_ctx, trash);
-					if (applet_putchk(appctx, trash) == -1)
+
+					chunk_appendf(trash, "\nfrontend %s bind %s [%s:%d]\n", bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+					cli_print_ech_info(bind_conf->initial_ctx, trash);
+					if (applet_putchk(appctx, trash) == -1) {
 						goto end;
+					}
 				}
 			}
+			bind_conf =  NULL;
 		}
+		p = NULL;
 		ret = 1; /* we're all done */
 	}
 
 end:
-	thread_release();
+	ctx->pp = p;
+	ctx->b = bind_conf;
 	return ret;
 }
 
