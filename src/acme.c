@@ -1699,8 +1699,8 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 				goto error;
 			}
 
-			send_log(NULL, LOG_NOTICE,"acme: %s: dns-01 requires to set the \"_acme-challenge.%.*s\" TXT record to \"%.*s\" and use the \"acme challenge_ready\" command over the CLI\n",
-			                                             ctx->store->path, (int)auth->dns.len, auth->dns.ptr, (int)trash.data, trash.area);
+			send_log(NULL, LOG_NOTICE,"acme: %s: dns-01 requires to set the \"_acme-challenge.%.*s\" TXT record to \"%.*s\" and use the \"acme challenge_ready %s domain %.*s\" command over the CLI\n",
+			                                             ctx->store->path, (int)auth->dns.len, auth->dns.ptr, (int)trash.data, trash.area, ctx->store->path, (int)auth->dns.len, auth->dns.ptr);
 
 			/* dump to the "dpapi" sink */
 			line[nmsg++] = ist("acme deploy ");
