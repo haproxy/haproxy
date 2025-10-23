@@ -264,7 +264,8 @@ static inline __attribute__((always_inline)) unsigned long mt_list_cpu_relax(uns
  */
 static inline struct mt_list *mt_list_init(struct mt_list *el)
 {
-	el->next = el->prev = el;
+	el->next = el;
+	el->prev = el;
 	return el;
 }
 
@@ -490,7 +491,8 @@ static MT_INLINE struct mt_list *mt_list_behead(struct mt_list *lh)
 			break;
 		}
 
-		lh->next = lh->prev = lh;
+		lh->next = lh;
+		lh->prev = lh;
 		__atomic_thread_fence(__ATOMIC_RELEASE);
 
 		n->prev = p;
@@ -643,7 +645,8 @@ static MT_INLINE long mt_list_delete(struct mt_list *el)
 		 * somebody may be using it already.
 		 */
 		if (el != n) {
-			el->prev = el->next = el;
+			el->prev = el;
+			el->next = el;
 			__atomic_thread_fence(__ATOMIC_RELEASE);
 		}
 
