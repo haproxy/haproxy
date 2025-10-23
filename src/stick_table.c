@@ -1135,7 +1135,7 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 		table_eb = tmpnode;
 	}
 
-	if (tick_is_le(task_exp, now_ms)) {
+	if (tick_isset(task_exp) && tick_is_le(task_exp, now_ms)) {
 		/*
 		 * More to do, we should wake up immediately.
 		 */
