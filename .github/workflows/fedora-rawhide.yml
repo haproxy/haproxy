@@ -18,6 +18,7 @@ jobs:
           { name: x86, cc: gcc,   QUICTLS_EXTRA_ARGS: "-m32 linux-generic32", ADDLIB_ATOMIC: "-latomic", ARCH_FLAGS: "-m32" },
           { name: x86, cc: clang, QUICTLS_EXTRA_ARGS: "-m32 linux-generic32", ADDLIB_ATOMIC: "-latomic", ARCH_FLAGS: "-m32" }
         ]
+      fail-fast: false
     name: ${{ matrix.platform.cc }}.${{ matrix.platform.name }}
     runs-on: ubuntu-latest
     if: ${{ github.repository_owner == 'haproxy' || github.event_name == 'workflow_dispatch' }}
