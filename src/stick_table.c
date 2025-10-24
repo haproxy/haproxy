@@ -703,7 +703,10 @@ struct stksess *__stktable_store(struct stktable *t, struct stksess *ts, uint sh
 {
 	struct ebmb_node *eb;
 
-	eb = ebmb_insert(&t->shards[shard].keys, &ts->key, t->key_size);
+	if (t->type == SMP_T_STR)
+		eb = ebst_insert(&t->shards[shard].keys, &ts->key);
+	else
+		eb = ebmb_insert(&t->shards[shard].keys, &ts->key, t->key_size);
 	if (likely(eb == &ts->key)) {
 		ts->exp.key = ts->expire;
 		eb32_insert(&t->shards[shard].exps, &ts->exp);
