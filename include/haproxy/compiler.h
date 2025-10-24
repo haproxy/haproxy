@@ -515,28 +515,6 @@
 #  define ALWAYS_PAD(x)      _ALWAYS_PAD(x, __LINE__)
 #endif
 
-/* force the struct member named <name> handled as <type> to be stored using
- * <size> bytes, even if the type used is actually smaller than the
- * expected <size>.
- *
- * This can be useful to ensure struct mapping consistency between
- * platforms for which native types may differ in size.
- *
- * /!\ you must ensure <size> cannot be smaller than actual member size
- * on supported platforms, because it would result in undefined behaviors
- * on such systems.
- */
-#ifndef FIXED_SIZE
-#  define _FIXED_SIZE(size, type, name) union { char __fixed_##name[size]; type name; };
-#  define FIXED_SIZE(size, type, name) _FIXED_SIZE(size, type, name)
-#endif
-
-/* same as FIXED_SIZE_ARRAY but for arrays */
-#ifndef FIXED_SIZE_ARRAY
-#  define _FIXED_SIZE_ARRAY(size, number, type, name) union { char __fixed_##name[size * number]; type name[number]; };
-#  define FIXED_SIZE_ARRAY(size, number, type, name) _FIXED_SIZE_ARRAY(size, number, type, name)
-#endif
-
 /* The THREAD_LOCAL type attribute defines thread-local storage and is defined
  * to __thread when threads are enabled or empty when disabled.
  */
