@@ -28,16 +28,11 @@
  * period has to be known by the user. The period is measured in ticks and
  * must be at least 2 ticks long. This form is slightly more CPU intensive for
  * reads than the per-second form as it involves a divide.
- *
- * /!\ any change performed here will impact shm-stats-file mapping because the
- * struct is embedded in shm_stats_file_object struct, so proceed with caution
- * and change shm stats file version if needed. Also, fixed width integer types
- * should be used (for portability)
  */
 struct freq_ctr {
-	FIXED_SIZE(4, unsigned int, curr_tick); /* start date of current period (wrapping ticks) */
-	FIXED_SIZE(4, unsigned int, curr_ctr);  /* cumulated value for current period */
-	FIXED_SIZE(4, unsigned int, prev_ctr);  /* value for last period */
+	unsigned int curr_tick; /* start date of current period (wrapping ticks) */
+	unsigned int curr_ctr; /* cumulated value for current period */
+	unsigned int prev_ctr; /* value for last period */
 };
 
 #endif /* _HAPROXY_FREQ_CTR_T_H */
