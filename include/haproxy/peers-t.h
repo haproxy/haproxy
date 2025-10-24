@@ -136,10 +136,14 @@ struct shared_table {
 	struct stktable *table;       /* stick table to sync */
 	int local_id;
 	int remote_id;
-	int flags;
 	unsigned int update_id;
-	struct stksess *last;
-	struct stksess *end;
+	unsigned int bucket;
+	struct {
+		struct stksess *last;
+		struct stksess *end;
+		int flags;
+	} buckets[CONFIG_HAP_TBL_BUCKETS];
+
 	uint64_t remote_data;
 	unsigned int remote_data_nbelem[STKTABLE_DATA_TYPES];
 	unsigned int last_update;     /* the counter of the last local update sent */
@@ -257,4 +261,3 @@ struct peers_kw_list {
 };
 
 #endif /* _HAPROXY_PEERS_T_H */
-

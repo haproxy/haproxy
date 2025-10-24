@@ -130,6 +130,7 @@ void stksess_free(struct stktable *t, struct stksess *ts)
  */
 int __stksess_kill(struct stktable *t, struct stksess *ts)
 {
+	uint bucket = 0;
 	int updt_locked = 0;
 
 	if (HA_ATOMIC_LOAD(&ts->ref_cnt))
@@ -138,11 +139,12 @@ int __stksess_kill(struct stktable *t, struct stksess *ts)
 	/* make sure we're no longer in the updates list */
 	MT_LIST_DELETE(&ts->pend_updts);
 
-
 	/* ... and that we didn't leave the update list */
 	if (LIST_INLIST(&ts->upd)) {
+		bucket = stktable_calc_bucket_num(t, ts->key.key,
+						  ((t->type == SMP_T_STR) ? strlen((const char *)ts->key.key) : t->key_size));
 		updt_locked = 1;
-		HA_RWLOCK_WRLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
+		HA_RWLOCK_WRLOCK(STK_TABLE_UPDT_LOCK, &t->buckets[bucket].updt_lock);
 		if (HA_ATOMIC_LOAD(&ts->ref_cnt))
 			goto out_unlock;
 	}
@@ -153,7 +155,7 @@ int __stksess_kill(struct stktable *t, struct stksess *ts)
 
   out_unlock:
 	if (updt_locked)
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &t->buckets[bucket].updt_lock);
 	return 1;
 }
 
@@ -386,7 +388,7 @@ int stktable_trash_oldest(struct stktable *t)
 			 */
 			if (!updt_locked) {
 				updt_locked = 1;
-				HA_RWLOCK_WRLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
+				HA_RWLOCK_WRLOCK(STK_TABLE_UPDT_LOCK, &t->buckets[bucket].updt_lock);
 			}
 			/* now we're locked, new peers can't grab it anymore,
 			 * existing ones already have the ref_cnt.
@@ -408,7 +410,7 @@ int stktable_trash_oldest(struct stktable *t)
 		}
 
 		if (updt_locked)
-			HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
+			HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &t->buckets[bucket].updt_lock);
 
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->buckets[bucket].sh_lock);
 
@@ -632,19 +634,22 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 
 	/* If sync is enabled */
 	if (t->sync_task) {
+		uint bucket = stktable_calc_bucket_num(t, ts->key.key,
+						       ((t->type == SMP_T_STR) ? strlen((const char *)ts->key.key) : t->key_size));
+
 		if (local) {
 			/* Check if this entry is not in the tree or not
 			 * scheduled for at least one peer.
 			 */
 			if (!LIST_INLIST(&ts->upd) || _HA_ATOMIC_LOAD(&ts->seen)) {
 				_HA_ATOMIC_STORE(&ts->updt_type, STKSESS_UPDT_LOCAL);
-				did_append = MT_LIST_TRY_APPEND(&t->pend_updts[tgid - 1], &ts->pend_updts);
+				did_append = MT_LIST_TRY_APPEND(&t->buckets[bucket].pend_updts[tgid - 1], &ts->pend_updts);
 			}
 		}
 		else {
 			if (!LIST_INLIST(&ts->upd)) {
 				_HA_ATOMIC_STORE(&ts->updt_type, STKSESS_UPDT_REMOTE);
-				did_append = MT_LIST_TRY_APPEND(&t->pend_updts[tgid - 1], &ts->pend_updts);
+				did_append = MT_LIST_TRY_APPEND(&t->buckets[bucket].pend_updts[tgid - 1], &ts->pend_updts);
 			}
 		}
 
@@ -833,52 +838,66 @@ struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *
 struct task *stktable_add_pend_updates(struct task *t, void *ctx, unsigned int state)
 {
 	struct stktable *table = ctx;
-	int i = 0, cur_tgid = tgid - 1, empty_tgid = 0;
+	unsigned int bucket;
+	int i = 0, n = 0;
 
-	/* we really don't want to wait on this one */
-	if (HA_RWLOCK_TRYWRLOCK(STK_TABLE_LOCK, &table->updt_lock) != 0)
-		goto leave;
+	for (bucket = 0; bucket < CONFIG_HAP_TBL_BUCKETS; bucket++) {
+		int cur_tgid = tgid - 1, empty_tgid = 0;
 
-	for (i = 0; i < STKTABLE_MAX_UPDATES_AT_ONCE; i++) {
-		struct stksess *stksess = MT_LIST_POP_LOCKED(&table->pend_updts[cur_tgid], typeof(stksess), pend_updts);
+		/* we really don't want to wait on this one */
+		if (HA_RWLOCK_TRYWRLOCK(STK_TABLE_LOCK, &table->buckets[bucket].updt_lock) != 0)
+			continue;
 
-		if (!stksess) {
-			empty_tgid++;
+		while (1) {
+			struct stksess *stksess = NULL;
+
+			if (i >= STKTABLE_MAX_UPDATES_AT_ONCE)
+				break;
+			i++;
+
+			stksess = MT_LIST_POP_LOCKED(&table->buckets[bucket].pend_updts[cur_tgid], typeof(stksess), pend_updts);
+			if (!stksess) {
+				empty_tgid++;
+				cur_tgid++;
+				if (cur_tgid == global.nbtgroups)
+					cur_tgid = 0;
+
+				if (empty_tgid == global.nbtgroups)
+					break;
+
+				continue;
+			}
+
 			cur_tgid++;
+			empty_tgid = 0;
 			if (cur_tgid == global.nbtgroups)
 				cur_tgid = 0;
-
-			if (empty_tgid == global.nbtgroups)
-				break;
-			continue;
+			stksess->seen = 0;
+			if (stksess->updt_type == STKSESS_UPDT_LOCAL)
+				table->last_update++;
+			LIST_DEL_INIT(&stksess->upd);
+			LIST_APPEND(&table->buckets[bucket].updates, &stksess->upd);
+			n++;
+			/*
+			 * Now that we're done inserting the stksess, unlock it.
+			 * It is kept locked here to prevent a race condition
+			 * when stksess_kill() could free() it after we removed
+			 * it from the list, but before we inserted it into the tree
+			 */
+			MT_LIST_INIT(&stksess->pend_updts);
 		}
-		cur_tgid++;
-		empty_tgid = 0;
-		if (cur_tgid == global.nbtgroups)
-			cur_tgid = 0;
-		stksess->seen = 0;
-		if (stksess->updt_type == STKSESS_UPDT_LOCAL)
-			table->last_update++;
-		LIST_DEL_INIT(&stksess->upd);
-		LIST_APPEND(&table->updates, &stksess->upd);
 
-		/*
-		 * Now that we're done inserting the stksess, unlock it.
-		 * It is kept locked here to prevent a race condition
-		 * when stksess_kill() could free() it after we removed
-		 * it from the list, but before we inserted it into the tree
-		 */
-		MT_LIST_INIT(&stksess->pend_updts);
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &table->buckets[bucket].updt_lock);
+
+		/* There's more to do, let's schedule another session */
+		if (empty_tgid < global.nbtgroups)
+			tasklet_wakeup(table->updt_task);
+
+		if (i >= STKTABLE_MAX_UPDATES_AT_ONCE)
+			break;
 	}
 
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &table->updt_lock);
-
-leave:
-	/* There's more to do, let's schedule another session */
-	if (empty_tgid < global.nbtgroups)
-		tasklet_wakeup(table->updt_task);
-
-	if (i > 0) {
+	if (n > 0) {
 		/* We did at least one update, let's wake the sync task */
 		task_wakeup(table->sync_task, TASK_WOKEN_MSG);
 	}
@@ -1062,7 +1081,7 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 			 */
 			if (!updt_locked) {
 				updt_locked = 1;
-				HA_RWLOCK_WRLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
+				HA_RWLOCK_WRLOCK(STK_TABLE_UPDT_LOCK, &t->buckets[bucket].updt_lock);
 			}
 			/* now we're locked, new peers can't grab it anymore,
 			 * existing ones already have the ref_cnt.
@@ -1078,7 +1097,7 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 		}
 
 		if (updt_locked)
-			HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
+			HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &t->buckets[bucket].updt_lock);
 
 		/*
 		 * Now find the first element, so that we can reposition
@@ -1154,9 +1173,9 @@ int stktable_init(struct stktable *t, char **err_msg)
 			memset(&t->buckets[bucket].exps, 0, sizeof(t->buckets[bucket].exps));
 			HA_RWLOCK_INIT(&t->buckets[bucket].sh_lock);
 			MT_LIST_INIT(&t->buckets[bucket].in_bucket_toadd);
+			LIST_INIT(&t->buckets[bucket].updates);
+			HA_RWLOCK_INIT(&t->buckets[bucket].updt_lock);
 		}
-
-		LIST_INIT(&t->updates);
 
 		t->pool = create_pool("sticktables", sizeof(struct stksess) + round_ptr_size(t->data_size) + t->key_size, MEM_F_SHARED);
 
@@ -1197,15 +1216,18 @@ int stktable_init(struct stktable *t, char **err_msg)
 
 		t->write_to.t = table;
 	}
-	t->pend_updts = calloc(global.nbtgroups, sizeof(*t->pend_updts));
-	if (!t->pend_updts)
-		goto mem_error;
-	for (i = 0; i < global.nbtgroups; i++)
-		MT_LIST_INIT(&t->pend_updts[i]);
+
+	for (bucket = 0; bucket < CONFIG_HAP_TBL_BUCKETS; bucket++) {
+		t->buckets[bucket].pend_updts = calloc(global.nbtgroups, sizeof(*t->buckets[bucket].pend_updts));
+		if (!t->buckets[bucket].pend_updts)
+			goto mem_error;
+		for (i = 0; i < global.nbtgroups; i++)
+			MT_LIST_INIT(&t->buckets[bucket].pend_updts[i]);
+	}
 	t->updt_task = tasklet_new();
-	t->last_update = 0;
 	if (!t->updt_task)
 		goto mem_error;
+	t->last_update = 0;
 	t->updt_task->context = t;
 	t->updt_task->process = stktable_add_pend_updates;
 	return 1;
@@ -1232,9 +1254,10 @@ void stktable_deinit(struct stktable *t)
 		eb32_delete(&t->buckets[i].in_bucket);
 		MT_LIST_DELETE(&t->buckets[i].in_bucket_toadd);
 		HA_SPIN_UNLOCK(OTHER_LOCK, &per_bucket[i].lock);
+
+		ha_free(&t->buckets[i].pend_updts);
 	}
 	tasklet_free(t->updt_task);
-	ha_free(&t->pend_updts);
 	pool_destroy(t->pool);
 }
 

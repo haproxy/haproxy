@@ -435,7 +435,7 @@ static void peers_trace(enum trace_level level, uint64_t mask,
 						       : "<NEVER>"));
 
 	if (st)
-		chunk_appendf(&trace_buf, "st=(.id=%s, .fl=0x%08x) ", st->table->id, st->flags);
+		chunk_appendf(&trace_buf, "st=(.id=%s) ", st->table->id);
 
 	if (src->verbosity == PEERS_VERB_MINIMAL)
 		return;
@@ -1544,7 +1544,7 @@ int peer_send_teachmsgs(struct appctx *appctx, struct peer *p, struct shared_tab
 {
 	int ret, new_pushed, use_timed;
 	int updates_sent = 0;
-	int locked = 0;
+	uint bucket;
 
 	TRACE_ENTER(PEERS_EV_SESS_IO, appctx, p, st);
 
@@ -1559,95 +1559,111 @@ int peer_send_teachmsgs(struct appctx *appctx, struct peer *p, struct shared_tab
 		p->last_local_table = st;
 	}
 
-	if (st->flags & SHTABLE_F_RESET_SYNCHED) {
-		if (HA_RWLOCK_TRYWRLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock) != 0) {
-			/* just don't engage here if there is any contention */
-			applet_have_more_data(appctx);
-			ret = -1;
-			goto out;
-		}
-		locked = 1;
-		LIST_DEL_INIT(&st->last->upd);
-		LIST_INSERT(&st->table->updates, &st->last->upd);
-		if (p->flags & PEER_F_TEACH_PROCESS) {
-			LIST_DEL_INIT(&st->end->upd);
-			LIST_APPEND(&st->table->updates, &st->end->upd);
-		}
-		st->flags &= ~SHTABLE_F_RESET_SYNCHED;
-	}
-
 	/* We force new pushed to 1 to force identifier in update message */
 	new_pushed = 1;
 
-	while (1) {
-		struct stksess *ts;
+	bucket = st->bucket;
+	do {
+		int locked = 0;
 
-		if (locked == 0 && HA_RWLOCK_TRYWRLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock) != 0) {
-			/* just don't engage here if there is any contention */
-			applet_have_more_data(appctx);
-			ret = -1;
-			break;
-		}
-		locked = 1;
-
-		BUG_ON(!LIST_INLIST(&st->last->upd));
-
-		ts = LIST_NEXT(&st->last->upd, typeof(ts), upd);
-
-		if (&ts->upd == &st->table->updates)
-			break;
-		if (ts == st->end) {
-			LIST_DEL_INIT(&st->end->upd);
-			break;
-		}
-
-		LIST_DEL_INIT(&st->last->upd);
-		LIST_INSERT(&ts->upd, &st->last->upd);
-
-		if ((!(p->flags & PEER_F_TEACH_PROCESS) && ts->updt_type != STKSESS_UPDT_LOCAL) ||
-		    (ts->updt_type != STKSESS_UPDT_LOCAL && ts->updt_type != STKSESS_UPDT_REMOTE) ||
-		    (p->srv->shard && ts->shard != p->srv->shard) ||
-		    ts->updt_type == STKSESS_UPDT_MARKER) {
-			// TODO: INC updates_sent ?
-			continue;
+		if (st->buckets[bucket].flags & SHTABLE_F_RESET_SYNCHED) {
+			if (HA_RWLOCK_TRYWRLOCK(STK_TABLE_UPDT_LOCK, &st->table->buckets[bucket].updt_lock) != 0) {
+				/* just don't engage here if there is any contention */
+				applet_have_more_data(appctx);
+				ret = -1;
+				goto out;
+			}
+			locked = 1;
+			LIST_DEL_INIT(&st->buckets[bucket].last->upd);
+			LIST_INSERT(&st->table->buckets[bucket].updates, &st->buckets[bucket].last->upd);
+			if (p->flags & PEER_F_TEACH_PROCESS) {
+				LIST_DEL_INIT(&st->buckets[bucket].end->upd);
+				LIST_APPEND(&st->table->buckets[bucket].updates, &st->buckets[bucket].end->upd);
+			}
+			st->buckets[bucket].flags &= ~SHTABLE_F_RESET_SYNCHED;
 		}
 
-		HA_ATOMIC_INC(&ts->ref_cnt);
+		while (1) {
+			struct stksess *ts;
 
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
-		locked = 0;
+			if (locked == 0 && HA_RWLOCK_TRYWRLOCK(STK_TABLE_UPDT_LOCK, &st->table->buckets[bucket].updt_lock) != 0) {
+				/* just don't engage here if there is any contention */
+				applet_have_more_data(appctx);
+				ret = -1;
+				break;
+			}
+			locked = 1;
 
-		if (!_HA_ATOMIC_LOAD(&ts->seen))
-			_HA_ATOMIC_STORE(&ts->seen, 1);
+			BUG_ON(!LIST_INLIST(&st->buckets[bucket].last->upd));
 
-		ret = peer_send_updatemsg(st, appctx, ts, st->update_id, new_pushed, use_timed);
+			ts = LIST_NEXT(&st->buckets[bucket].last->upd, typeof(ts), upd);
 
-		HA_ATOMIC_DEC(&ts->ref_cnt);
+			if (&ts->upd == &st->table->buckets[bucket].updates)
+				break;
+			if (ts == st->buckets[bucket].end) {
+				LIST_DEL_INIT(&st->buckets[bucket].end->upd);
+				break;
+			}
+
+			LIST_DEL_INIT(&st->buckets[bucket].last->upd);
+			LIST_INSERT(&ts->upd, &st->buckets[bucket].last->upd);
+
+			if ((!(p->flags & PEER_F_TEACH_PROCESS) && ts->updt_type != STKSESS_UPDT_LOCAL) ||
+			    (ts->updt_type != STKSESS_UPDT_LOCAL && ts->updt_type != STKSESS_UPDT_REMOTE) ||
+			    (p->srv->shard && ts->shard != p->srv->shard) ||
+			    ts->updt_type == STKSESS_UPDT_MARKER) {
+				// TODO: INC updates_sent ?
+				continue;
+			}
+
+			HA_ATOMIC_INC(&ts->ref_cnt);
+
+			HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &st->table->buckets[bucket].updt_lock);
+			locked = 0;
+
+			if (!_HA_ATOMIC_LOAD(&ts->seen))
+				_HA_ATOMIC_STORE(&ts->seen, 1);
+
+			ret = peer_send_updatemsg(st, appctx, ts, st->update_id, new_pushed, use_timed);
+
+			HA_ATOMIC_DEC(&ts->ref_cnt);
+			if (ret <= 0)
+				break;
+
+			p->last.table = st;
+			p->last.id = st->update_id;
+			st->update_id++;
+			p->flags &= ~PEER_F_SYNCHED;
+
+			/* identifier may not needed in next update message */
+			new_pushed = 0;
+
+			updates_sent++;
+			if (updates_sent >= peers_max_updates_at_once) {
+				applet_have_more_data(appctx);
+				ret = -1;
+				break;
+			}
+		}
+
+		if (locked)
+			HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &st->table->buckets[bucket].updt_lock);
+
 		if (ret <= 0)
 			break;
 
-		p->last.table = st;
-		p->last.id = st->update_id;
-		st->update_id++;
-		p->flags &= ~PEER_F_SYNCHED;
-
-		/* identifier may not needed in next update message */
-		new_pushed = 0;
-
-		updates_sent++;
-		if (updates_sent >= peers_max_updates_at_once) {
-			applet_have_more_data(appctx);
-			ret = -1;
-			break;
-		}
-	}
-
-	if (locked) {
-		st->last_update = st->table->last_update;
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
-	}
+		bucket++;
+		if (bucket >= CONFIG_HAP_TBL_BUCKETS)
+			bucket = 0;
+	} while (bucket != st->bucket);
 
  out:
+	if (ret > 0) {
+		TRACE_PROTO("peer up-to-date", PEERS_EV_SESS_IO|PEERS_EV_TX_MSG|PEERS_EV_PROTO_UPDATE, appctx, NULL, st);
+		st->last_update = st->table->last_update;
+		st->bucket = statistical_prng_range(CONFIG_HAP_TBL_BUCKETS - 1);
+	}
+
 	TRACE_LEAVE(PEERS_EV_SESS_IO, appctx, p, st);
 	return ret;
 }
@@ -2462,8 +2478,13 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 			TRACE_PROTO("Resync request message received", PEERS_EV_SESS_IO|PEERS_EV_RX_MSG|PEERS_EV_PROTO_CTRL, appctx, peer);
 
 			/* prepare tables for a global push */
-			for (st = peer->tables; st; st = st->next)
-				st->flags |= SHTABLE_F_RESET_SYNCHED;
+			for (st = peer->tables; st; st = st->next) {
+				int i;
+
+				st->bucket = statistical_prng_range(CONFIG_HAP_TBL_BUCKETS - 1);
+				for (i = 0; i < CONFIG_HAP_TBL_BUCKETS; i++)
+					st->buckets[i].flags |= SHTABLE_F_RESET_SYNCHED;
+			}
 
 			/* reset teaching flags to 0 */
 			peer->flags &= ~(PEER_F_SYNCHED|PEER_TEACH_FLAGS);
@@ -2818,8 +2839,13 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 	for (st = peer->tables; st ; st = st->next) {
 		st->last_get = st->last_acked = 0;
 
-		if (!(peer->flags & PEER_F_SYNCHED) || (peer->flags & PEER_F_TEACH_PROCESS))
-			st->flags |= SHTABLE_F_RESET_SYNCHED;
+		if (!(peer->flags & PEER_F_SYNCHED) || (peer->flags & PEER_F_TEACH_PROCESS)) {
+			int i;
+
+			st->bucket = statistical_prng_range(CONFIG_HAP_TBL_BUCKETS - 1);
+			for (i = 0; i < CONFIG_HAP_TBL_BUCKETS; i++)
+				st->buckets[i].flags |= SHTABLE_F_RESET_SYNCHED;
+		}
 	}
 
 	/* Awake main task to ack the new peer state */
@@ -3907,6 +3933,8 @@ int peers_register_table(struct peers *peers, struct stktable *table)
 	int retval = 0;
 
 	for (curpeer = peers->remote; curpeer; curpeer = curpeer->next) {
+		int i;
+
 		st = calloc(1,sizeof(*st));
 		if (!st) {
 			retval = 1;
@@ -3918,14 +3946,17 @@ int peers_register_table(struct peers *peers, struct stktable *table)
 			id = curpeer->tables->local_id;
 		st->local_id = id + 1;
 
-		st->last = calloc(1, sizeof(*st->last));
-		st->last->updt_type = STKSESS_UPDT_MARKER;
-		LIST_INIT(&st->last->upd);
-		LIST_APPEND(&table->updates, &st->last->upd);
+		st->bucket = statistical_prng_range(CONFIG_HAP_TBL_BUCKETS - 1);
+		for (i = 0; i < CONFIG_HAP_TBL_BUCKETS; i++) {
+			st->buckets[i].last = calloc(1, sizeof(*st->buckets[i].last));
+			st->buckets[i].last->updt_type = STKSESS_UPDT_MARKER;
+			LIST_INIT(&st->buckets[i].last->upd);
+			LIST_APPEND(&table->buckets[i].updates, &st->buckets[i].last->upd);
 
-		st->end = calloc(1, sizeof(*st->end));
-		st->end->updt_type = STKSESS_UPDT_MARKER;
-		LIST_INIT(&st->end->upd);
+			st->buckets[i].end = calloc(1, sizeof(*st->buckets[i].end));
+			st->buckets[i].end->updt_type = STKSESS_UPDT_MARKER;
+			LIST_INIT(&st->buckets[i].end->upd);
+		}
 
 		/* If peer is local we inc table
 		 * refcnt to protect against flush
@@ -4136,9 +4167,9 @@ static int peers_dump_peer(struct buffer *msg, struct appctx *appctx, struct pee
 			dcache = peer->dcache;
 
 			chunk_appendf(&trash, "\n          %p local_id=%d remote_id=%d "
-			              "flags=0x%x remote_data=0x%llx",
+			              "remote_data=0x%llx",
 			              st, st->local_id, st->remote_id,
-			              st->flags, (unsigned long long)st->remote_data);
+			              (unsigned long long)st->remote_data);
 			chunk_appendf(&trash, "\n              last_acked=%u last_get=%u",
 			              st->last_acked, st->last_get);
 			chunk_appendf(&trash, "\n              table:%p id=%s refcnt=%u",
