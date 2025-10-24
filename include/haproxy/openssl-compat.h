@@ -553,8 +553,6 @@ static inline unsigned long ERR_peek_error_func(const char **func)
 	*(cb) = (void (*) (void))ctx->tlsext_status_cb
 #endif
 
-#endif /* USE_OPENSSL */
-
 #ifdef USE_KTLS
 
 #ifdef __linux__
@@ -584,5 +582,7 @@ static inline unsigned long ERR_peek_error_func(const char **func)
 #endif /* OPENSSL_IS_BORINGSSL || OPENSSL_IS_AWSLC */
 
 #endif /* USE_KTLS */
+
+#endif /* USE_OPENSSL */
 
 #endif /* _HAPROXY_OPENSSL_COMPAT_H */
