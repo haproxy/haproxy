@@ -36,11 +36,11 @@
 
 /* /!\ any change performed here will impact shm-stats-file mapping because the
  * struct is embedded in shm_stats_file_object struct, so proceed with caution
- * and change shm stats file version if needed
+ * and change shm stats file version if needed. Also please always keep this
+ * struct 64b-aligned.
  */
 #define COUNTERS_SHARED_TG                                                           \
 	struct {                                                                     \
-		unsigned long last_state_change;        /* last time, when the state was changed */\
 		long long srv_aborts;                   /* aborted responses during DATA phase caused by the server */\
 		long long cli_aborts;                   /* aborted responses during DATA phase caused by the client */\
 		long long internal_errors;              /* internal processing errors */\
@@ -54,7 +54,9 @@
 		long long comp_in[2];                   /* input bytes fed to the compressor */\
 		long long comp_out[2];                  /* output bytes emitted by the compressor */\
 		long long comp_byp[2];                  /* input bytes that bypassed the compressor (cpu/ram/bw limitation) */\
-		struct freq_ctr sess_per_sec;           /* sessions per second on this server */\
+		struct freq_ctr sess_per_sec;           /* sessions per second on this server (3x32b) */\
+		unsigned int last_state_change;         /* last time, when the state was changed (32b) */\
+		/* we're still 64b-aligned here */ \
 	}
 
 // for convenience (generic pointer)
@@ -93,7 +95,7 @@ struct fe_counters_shared_tg {
 	} p;                                    /* protocol-specific stats */
 
 	long long failed_req;                   /* failed requests (eg: invalid or timeout) */
-};
+} ALIGNED(8);
 
 struct fe_counters_shared {
 	COUNTERS_SHARED;
@@ -120,7 +122,8 @@ struct fe_counters {
 
 /* /!\ any change performed here will impact shm-stats-file mapping because the
  * struct is embedded in shm_stats_file_object struct, so proceed with caution
- * and change shm stats file version if needed
+ * and change shm stats file version if needed. Pay attention to keeping the
+ * struct 64b-aligned.
  */
 struct be_counters_shared_tg {
 	COUNTERS_SHARED_TG;
@@ -129,7 +132,6 @@ struct be_counters_shared_tg {
 
 	long long connect;                      /* number of connection establishment attempts */
 	long long reuse;                        /* number of connection reuses */
-	unsigned long last_sess;                /* last session time */
 
 	long long failed_checks, failed_hana;	/* failed health checks and health analyses for servers */
 	long long down_trans;			/* up->down transitions */
@@ -150,7 +152,9 @@ struct be_counters_shared_tg {
 	long long retries;                      /* retried and redispatched connections (BE only) */
 	long long failed_resp;                  /* failed responses (BE only) */
 	long long failed_conns;                 /* failed connect() attempts (BE only) */
-};
+	unsigned int last_sess;                 /* last session time */
+	/* 32-bit hole here */
+} ALIGNED(8);
 
 struct be_counters_shared {
 	COUNTERS_SHARED;
