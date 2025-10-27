@@ -47,6 +47,7 @@
 #define APPCTX_CLI_ST1_INTER   (1 << 3) /* interactive mode (i.e. don't close after 1st cmd) */
 #define APPCTX_CLI_ST1_PROMPT  (1 << 4) /* display prompt */
 #define APPCTX_CLI_ST1_TIMED   (1 << 5) /* display timer in prompt */
+#define APPCTX_CLI_ST1_YIELD   (1 << 6) /* forced yield between commands */
 
 #define CLI_PREFIX_KW_NB 5
 #define CLI_MAX_MATCHES 5

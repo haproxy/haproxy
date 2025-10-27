@@ -1087,6 +1087,7 @@ int cli_parse_cmdline(struct appctx *appctx)
  */
 void cli_io_handler(struct appctx *appctx)
 {
+	appctx->st1 &= ~APPCTX_CLI_ST1_YIELD;
 
 	if (unlikely(applet_fl_test(appctx, APPCTX_FL_EOS|APPCTX_FL_ERROR))) {
 		appctx->st0 = CLI_ST_END;
@@ -1282,8 +1283,10 @@ void cli_io_handler(struct appctx *appctx)
 				}
 			}
 
-			if ((b_data(&appctx->inbuf) && appctx->st0 == CLI_ST_PARSE_CMDLINE) || appctx->st0 == CLI_ST_PROCESS_CMDLINE)
+			if ((b_data(&appctx->inbuf) && appctx->st0 == CLI_ST_PARSE_CMDLINE) || appctx->st0 == CLI_ST_PROCESS_CMDLINE) {
+				appctx->st1 |= APPCTX_CLI_ST1_YIELD;
 				appctx_wakeup(appctx);
+			}
 
 			/* this forces us to yield between pipelined commands and
 			 * avoid extremely long latencies (e.g. "del map" etc). In
@@ -3904,6 +3907,10 @@ error:
 
 size_t cli_raw_rcv_buf(struct appctx *appctx, struct buffer *buf, size_t count, unsigned int flags)
 {
+	/* don't send partial responses, we're just yielding to avoid CPU spikes */
+	if (appctx->st1 & APPCTX_CLI_ST1_YIELD)
+		return 0;
+
 	return b_xfer(buf, &appctx->outbuf, MIN(count, b_data(&appctx->outbuf)));
 }
 
