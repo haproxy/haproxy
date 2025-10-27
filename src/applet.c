@@ -556,8 +556,18 @@ size_t appctx_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 		applet_fl_clr(appctx, APPCTX_FL_OUTBLK_FULL);
 
 	if (b_data(&appctx->outbuf)) {
-		se_fl_set(appctx->sedesc, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
-		TRACE_STATE("waiting for more room", APPLET_EV_RECV|APPLET_EV_BLK, appctx);
+		se_fl_set(appctx->sedesc, SE_FL_RCV_MORE);
+		if (b_data(buf)) {
+			/* some data left with other data in the buffer often
+			 * means the applet couldn't write a block at once.
+			 */
+			se_fl_set(appctx->sedesc, SE_FL_WANT_ROOM);
+			TRACE_STATE("waiting for more room", APPLET_EV_RECV|APPLET_EV_BLK, appctx);
+		} else {
+			/* the applet just doesn't want to give us partial data */
+			se_fl_clr(appctx->sedesc, SE_FL_WANT_ROOM);
+			TRACE_STATE("waiting for more data from applet", APPLET_EV_RECV|APPLET_EV_BLK, appctx);
+		}
 	}
 	else {
 		se_fl_clr(appctx->sedesc, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
