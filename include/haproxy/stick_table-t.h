@@ -166,7 +166,6 @@ struct stksess {
 
 	struct eb32_node exp;     /* ebtree node used to hold the session in expiration tree */
 	struct list upd;          /* entry in the table's update sequence list */
-	struct mt_list pend_updts;/* list of entries to be inserted/moved in the update sequence tree */
 	struct ebmb_node key;     /* ebtree node used to hold the session in table */
 	/* WARNING! do not put anything after <keys>, it's used by the key */
 };
@@ -228,7 +227,6 @@ struct stktable {
 		struct mt_list in_bucket_toadd; /* To add to the bucket tree */
 
 		struct list updates;        /* head of sticky updates sequence list, uses updt_lock */
-		struct mt_list *pend_updts; /* list of updates to be added to the update sequence tree, one per thread-group */
 		/* this lock is heavily used and must be on its own cache line */
 		__decl_thread(HA_RWLOCK_T updt_lock); /* lock protecting the updates part */
 		__decl_thread(HA_RWLOCK_T sh_lock); /* for the trees above */
@@ -238,10 +236,7 @@ struct stktable {
 	unsigned int refcnt;     /* number of local peer over all peers sections
 				    attached to this table */
 	unsigned int current;     /* number of sticky sessions currently in table */
-	THREAD_ALIGN(64);
-
 	unsigned int last_update;   /* a counter representing the update inserted in the list (will wrap) */
-	struct tasklet *updt_task;/* tasklet responsible for pushing the pending updates into the tree */
 
 	/* rarely used config stuff below (should not interfere with updt_lock) */
 	struct proxy *proxies_list; /* The list of proxies which reference this stick-table. */

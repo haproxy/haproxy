@@ -136,9 +136,6 @@ int __stksess_kill(struct stktable *t, struct stksess *ts)
 	if (HA_ATOMIC_LOAD(&ts->ref_cnt))
 		return 0;
 
-	/* make sure we're no longer in the updates list */
-	MT_LIST_DELETE(&ts->pend_updts);
-
 	/* ... and that we didn't leave the update list */
 	if (LIST_INLIST(&ts->upd)) {
 		bucket = stktable_calc_bucket_num(t, ts->key.key,
@@ -270,7 +267,6 @@ static struct stksess *__stksess_init(struct stktable *t, struct stksess * ts)
 	ts->exp.node.leaf_p = NULL;
 	LIST_INIT(&ts->upd);
 	ts->updt_type = STKSESS_UPDT_NONE;
-	MT_LIST_INIT(&ts->pend_updts);
 	ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
 	HA_RWLOCK_INIT(&ts->lock);
 	return ts;
@@ -398,7 +394,6 @@ int stktable_trash_oldest(struct stktable *t)
 
 			/* session expired, trash it */
 			ebmb_delete(&ts->key);
-			MT_LIST_DELETE(&ts->pend_updts);
 			LIST_DEL_INIT(&ts->upd);
 			__stksess_free(t, ts);
 			batched++;
@@ -624,7 +619,7 @@ struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
  */
 void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, int expire, int decrefcnt)
 {
-	int did_append = 0;
+	int locked = 0, do_wakeup = 0;
 
 	if (expire != HA_ATOMIC_LOAD(&ts->expire)) {
 		/* we'll need to set the expiration and to wake up the expiration timer .*/
@@ -642,21 +637,34 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 			 * scheduled for at least one peer.
 			 */
 			if (!LIST_INLIST(&ts->upd) || _HA_ATOMIC_LOAD(&ts->seen)) {
-				_HA_ATOMIC_STORE(&ts->updt_type, STKSESS_UPDT_LOCAL);
-				did_append = MT_LIST_TRY_APPEND(&t->buckets[bucket].pend_updts[tgid - 1], &ts->pend_updts);
+				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->buckets[bucket].updt_lock);
+				locked = 1;
+
+				ts->updt_type = STKSESS_UPDT_LOCAL;
+				ts->seen = 0;
+				t->last_update++;
+				LIST_DEL_INIT(&ts->upd);
+				LIST_APPEND(&t->buckets[bucket].updates, &ts->upd);
+				do_wakeup = 1;
 			}
 		}
 		else {
 			if (!LIST_INLIST(&ts->upd)) {
-				_HA_ATOMIC_STORE(&ts->updt_type, STKSESS_UPDT_REMOTE);
-				did_append = MT_LIST_TRY_APPEND(&t->buckets[bucket].pend_updts[tgid - 1], &ts->pend_updts);
+				HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->buckets[bucket].updt_lock);
+				locked = 1;
+				ts->updt_type = STKSESS_UPDT_REMOTE;
+				ts->seen = 0;
+				LIST_DEL_INIT(&ts->upd);
+				LIST_APPEND(&t->buckets[bucket].updates, &ts->upd);
 			}
 		}
 
+		if (locked)
+			HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->buckets[bucket].updt_lock);
 	}
 
-	if (did_append)
-		tasklet_wakeup(t->updt_task);
+	if (do_wakeup)
+		task_wakeup(t->sync_task, TASK_WOKEN_MSG);
 
 	if (decrefcnt)
 		HA_ATOMIC_DEC(&ts->ref_cnt);
@@ -833,75 +841,6 @@ struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *
 
 	stktable_requeue_exp(table, ts);
 	return ts;
-}
-
-struct task *stktable_add_pend_updates(struct task *t, void *ctx, unsigned int state)
-{
-	struct stktable *table = ctx;
-	unsigned int bucket;
-	int i = 0, n = 0;
-
-	for (bucket = 0; bucket < CONFIG_HAP_TBL_BUCKETS; bucket++) {
-		int cur_tgid = tgid - 1, empty_tgid = 0;
-
-		/* we really don't want to wait on this one */
-		if (HA_RWLOCK_TRYWRLOCK(STK_TABLE_LOCK, &table->buckets[bucket].updt_lock) != 0)
-			continue;
-
-		while (1) {
-			struct stksess *stksess = NULL;
-
-			if (i >= STKTABLE_MAX_UPDATES_AT_ONCE)
-				break;
-			i++;
-
-			stksess = MT_LIST_POP_LOCKED(&table->buckets[bucket].pend_updts[cur_tgid], typeof(stksess), pend_updts);
-			if (!stksess) {
-				empty_tgid++;
-				cur_tgid++;
-				if (cur_tgid == global.nbtgroups)
-					cur_tgid = 0;
-
-				if (empty_tgid == global.nbtgroups)
-					break;
-
-				continue;
-			}
-
-			cur_tgid++;
-			empty_tgid = 0;
-			if (cur_tgid == global.nbtgroups)
-				cur_tgid = 0;
-			stksess->seen = 0;
-			if (stksess->updt_type == STKSESS_UPDT_LOCAL)
-				table->last_update++;
-			LIST_DEL_INIT(&stksess->upd);
-			LIST_APPEND(&table->buckets[bucket].updates, &stksess->upd);
-			n++;
-			/*
-			 * Now that we're done inserting the stksess, unlock it.
-			 * It is kept locked here to prevent a race condition
-			 * when stksess_kill() could free() it after we removed
-			 * it from the list, but before we inserted it into the tree
-			 */
-			MT_LIST_INIT(&stksess->pend_updts);
-		}
-
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &table->buckets[bucket].updt_lock);
-
-		/* There's more to do, let's schedule another session */
-		if (empty_tgid < global.nbtgroups)
-			tasklet_wakeup(table->updt_task);
-
-		if (i >= STKTABLE_MAX_UPDATES_AT_ONCE)
-			break;
-	}
-
-	if (n > 0) {
-		/* We did at least one update, let's wake the sync task */
-		task_wakeup(table->sync_task, TASK_WOKEN_MSG);
-	}
-	return t;
 }
 
 /* Lookup for an entry with the same key and store the submitted
@@ -1091,7 +1030,6 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 
 			/* session expired, trash it */
 			ebmb_delete(&ts->key);
-			MT_LIST_DELETE(&ts->pend_updts);
 			LIST_DEL_INIT(&ts->upd);
 			__stksess_free(t, ts);
 		}
@@ -1163,7 +1101,6 @@ int stktable_init(struct stktable *t, char **err_msg)
 {
 	int peers_retval = 0;
 	int bucket;
-	int i;
 
 	t->hash_seed = XXH64(t->id, t->idlen, 0);
 
@@ -1217,19 +1154,6 @@ int stktable_init(struct stktable *t, char **err_msg)
 		t->write_to.t = table;
 	}
 
-	for (bucket = 0; bucket < CONFIG_HAP_TBL_BUCKETS; bucket++) {
-		t->buckets[bucket].pend_updts = calloc(global.nbtgroups, sizeof(*t->buckets[bucket].pend_updts));
-		if (!t->buckets[bucket].pend_updts)
-			goto mem_error;
-		for (i = 0; i < global.nbtgroups; i++)
-			MT_LIST_INIT(&t->buckets[bucket].pend_updts[i]);
-	}
-	t->updt_task = tasklet_new();
-	if (!t->updt_task)
-		goto mem_error;
-	t->last_update = 0;
-	t->updt_task->context = t;
-	t->updt_task->process = stktable_add_pend_updates;
 	return 1;
 
  mem_error:
@@ -1254,10 +1178,7 @@ void stktable_deinit(struct stktable *t)
 		eb32_delete(&t->buckets[i].in_bucket);
 		MT_LIST_DELETE(&t->buckets[i].in_bucket_toadd);
 		HA_SPIN_UNLOCK(OTHER_LOCK, &per_bucket[i].lock);
-
-		ha_free(&t->buckets[i].pend_updts);
 	}
-	tasklet_free(t->updt_task);
 	pool_destroy(t->pool);
 }
 
