@@ -3788,11 +3788,17 @@ int ssl_sock_passwd_cb(char *buf, int size, int rwflag, void *userdata)
 	int wstatus = 0;
 	int fd[2];
 	char *bufstart = buf;
+	struct ckch_data *ckch_data = NULL;
 
 	struct passphrase_cb_data *data = userdata;
 
 	if (!data || data->passphrase_idx == -1)
 		return -1;
+
+	ckch_data = data->ckch_data;
+
+	if (ckch_data)
+		ckch_data->encrypted_privkey = 1;
 
 	if (!global_ssl.passphrase_cmd) {
 		data->passphrase_idx = -1;

@@ -56,6 +56,7 @@ struct ckch_data {
 	X509 *ocsp_issuer;
 	OCSP_CERTID *ocsp_cid;
 	struct issuer_chain *extra_chain; /* chain from 'issuers-chain-path' */
+	int encrypted_privkey;            /* 1 if 'key' is encrypted, 0 otherwise */
 };
 
 /* configuration for the ckch_store */

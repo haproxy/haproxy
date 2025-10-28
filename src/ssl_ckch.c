@@ -593,7 +593,7 @@ int ssl_sock_load_key_into_ckch(const char *path, char *buf, struct ckch_data *d
 	BIO *in = NULL;
 	int ret = 1;
 	EVP_PKEY *key = NULL;
-	struct passphrase_cb_data cb_data = { path, 0 };
+	struct passphrase_cb_data cb_data = { path, data, 0 };
 
 	if (buf) {
 		/* reading from a buffer */
@@ -612,6 +612,9 @@ int ssl_sock_load_key_into_ckch(const char *path, char *buf, struct ckch_data *d
 		if (BIO_read_filename(in, path) <= 0)
 			goto end;
 	}
+
+	/* We don't know yet if the private key requires a password. */
+	data->encrypted_privkey = 0;
 
 	/* Read Private Key
 	 * Since multiple private keys might have different passphrases that are
@@ -2446,6 +2449,12 @@ static int cli_parse_dump_cert(char **args, char *payload, struct appctx *appctx
 			if ((ckchs = ckchs_lookup(args[3])) == NULL)
 				goto error;
 
+		}
+
+		/* Do not dump encrypted private keys */
+		if (ckchs->data->encrypted_privkey) {
+			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+			return cli_err(appctx, "Can't display the contents of an encrypted certificate!\n");
 		}
 
 		ctx->ckchs = ckchs;
