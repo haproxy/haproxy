@@ -149,6 +149,7 @@ int  pid;			/* current process id */
 char **init_env;		/* to keep current process env variables backup */
 int  pidfd = -1;		/* FD to keep PID */
 int daemon_fd[2] = {-1, -1};	/* pipe to communicate with parent process */
+int devnullfd = -1;
 
 static unsigned long stopping_tgroup_mask; /* Thread groups acknowledging stopping */
 
@@ -3159,7 +3160,6 @@ static void set_identity(const char *program_name)
 
 int main(int argc, char **argv)
 {
-	int devnullfd = -1;
 	struct rlimit limit;
 	int intovf = (unsigned char)argc + 1; /* let the compiler know it's strictly positive */
 	struct cfgfile *cfg, *cfg_tmp;
@@ -3288,6 +3288,18 @@ int main(int argc, char **argv)
 	 * preparation steps and then let's apply all discovered modes.
 	 */
 	set_verbosity();
+
+	/* We might need to use this devnullfd during configuration parsing. */
+	devnullfd = open("/dev/null", O_RDWR, 0);
+	if (devnullfd < 0) {
+		ha_alert("Cannot open /dev/null\n");
+		exit(EXIT_FAILURE);
+	}
+	if (fcntl(devnullfd, FD_CLOEXEC) != 0) {
+		ha_alert("Cannot make /dev/null CLOEXEC\n");
+		close(devnullfd);
+		exit(EXIT_FAILURE);
+	}
 
 	/* Add entries for master and worker in proc_list, create sockpair,
 	 * that will be copied to both processes after master-worker fork to
@@ -3427,18 +3439,6 @@ int main(int argc, char **argv)
 	}
 
 	/* End of initialization for standalone and worker modes */
-	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
-		devnullfd = open("/dev/null", O_RDWR, 0);
-		if (devnullfd < 0) {
-			ha_alert("Cannot open /dev/null\n");
-			exit(EXIT_FAILURE);
-		}
-		if (fcntl(devnullfd, FD_CLOEXEC) != 0) {
-			ha_alert("Cannot make /dev/null CLOEXEC\n");
-			close(devnullfd);
-			exit(EXIT_FAILURE);
-		}
-	}
 
         /* applies the renice value in the worker or standalone after configuration parsing
          * but before changing identity */
