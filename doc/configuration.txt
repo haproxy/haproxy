@@ -3339,6 +3339,18 @@ ssl-dh-param-file <file>
   "openssl dhparam <size>", where size should be at least 2048, as 1024-bit DH
   parameters should not be considered secure anymore.
 
+ssl-passphrase-cmd <cmd> <args> ...
+  This settings is only available when support for OpenSSL was built in. It
+  allows to define a full command line that will be called when an encrypted
+  certificate is loaded during init. The command could be a script or any other
+  program. It will be provided with the encrypted private key path as first
+  parameter and the user-defined "args" parameters then and should dump the
+  passphrase that allows to decode the encrypted private key on the standard
+  output.
+  For every new encrypted private key loaded during init, HAProxy will first
+  try every other already known passphrase to decode the private key and will
+  ultimately call the passphrase command again if none works.
+
 ssl-propquery <query>
   This setting is only available when support for OpenSSL was built in and when
   OpenSSL's version is at least 3.0. It allows to define a default property

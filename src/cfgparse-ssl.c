@@ -676,6 +676,65 @@ static int ssl_parse_global_extra_noext(char **args, int section_type, struct pr
 }
 
 
+/* parse 'ssl-passphrase-cmd' */
+static int ssl_parse_global_passphrase_cmd(char **args, int section_type, struct proxy *curpx,
+					   const struct proxy *defpx, const char *file, int line,
+					   char **err)
+{
+	int arg_cnt = 0;
+	int i;
+
+	if (!*args[1]) {
+		memprintf(err, "global statement '%s' expects a command line to a passphrase-providing tool (script/binary...) and its arguments.", args[0]);
+		return 1;
+	}
+
+	for (; *args[arg_cnt + 2]; ++arg_cnt)
+		;
+
+	/* The first argument, by convention, should point to the filename
+	 * associated with the file being executed. The array of pointers must
+	 * be terminated by a null pointer.
+	 * The certificate path will also be passed as first arg so we must
+	 * leave enough space .
+	 */
+	global_ssl.passphrase_cmd_args_cnt = arg_cnt + 1 + 1 + 1;
+
+	global_ssl.passphrase_cmd = calloc(global_ssl.passphrase_cmd_args_cnt, sizeof(*global_ssl.passphrase_cmd));
+	if (!global_ssl.passphrase_cmd) {
+		memprintf(err, "'%s' : Could not allocate memory", args[0]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	global_ssl.passphrase_cmd[0] = strdup(args[1]);
+
+	if (!global_ssl.passphrase_cmd[0]) {
+		memprintf(err, "'%s' : Could not allocate memory", args[0]);
+		goto err_alloc;
+	}
+
+	for (i = 0; i < arg_cnt; ++i) {
+		/* The first two slots have a special use, they will contain the
+		 * command path and the certificate path. */
+		global_ssl.passphrase_cmd[i + 2] = strdup(args[i + 2]);
+		if (!global_ssl.passphrase_cmd[i + 2]) {
+			memprintf(err, "'%s' : Could not allocate memory (command line)", args[0]);
+			goto err_alloc;
+		}
+	}
+
+	return 0;
+
+err_alloc:
+	for (i = 0; i < arg_cnt; ++i) {
+		ha_free(&global_ssl.passphrase_cmd[i]);
+	}
+	ha_free(&global_ssl.passphrase_cmd);
+
+	return ERR_ALERT | ERR_FATAL;
+}
+
+
 /***************************** Bind keyword Parsing ********************************************/
 
 /* for ca-file and ca-verify-file */
@@ -2714,6 +2773,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "ssl-load-extra-del-ext", ssl_parse_global_extra_noext },
 
 	{ CFG_LISTEN, "ssl-f-use", proxy_parse_ssl_f_use },
+
+	{ CFG_GLOBAL, "ssl-passphrase-cmd", ssl_parse_global_passphrase_cmd },
 
 	{ 0, NULL, NULL },
 }};

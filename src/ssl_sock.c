@@ -36,6 +36,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <netdb.h>
 #include <netinet/tcp.h>
 
@@ -150,6 +151,8 @@ struct global_ssl global_ssl = {
 	.acme_scheduler = 1,
 #endif
 	.renegotiate = SSL_RENEGOTIATE_DFLT,
+	.passphrase_cmd = NULL,
+	.passphrase_cmd_args_cnt = 0,
 
 };
 
@@ -3649,6 +3652,93 @@ int ssl_sock_load_srv_cert(char *path, struct server *server, int create_if_none
 out:
 	return cfgerr;
 }
+
+/*
+ * Certificate password callback. The password will be provided by the external
+ * program defined in global section (see 'ssl-passphrase-cmd'). It will be
+ * called in a separate fork and it should dump the password on standard output.
+ */
+int ssl_sock_passwd_cb(char *buf, int size, int rwflag, void *userdata)
+{
+	int pass_len;
+	int read_len;
+	pid_t pid = -1;
+	int wstatus = 0;
+
+	int fd[2];
+
+	struct passphrase_cb_data *data = userdata;
+
+	if (!data)
+		return -1;
+
+	if (!global_ssl.passphrase_cmd) {
+		ha_alert("Trying to load a passphrase-protected private key without an 'ssl-passphrase-cmd' defined.");
+		return -1;
+	}
+
+	/* From execvp manpage : "The first argument, by convention, should
+	 * point to the filename associated with the file being executed."
+	 * The second argument will be the certificate key path.
+	 */
+	ha_free(&global_ssl.passphrase_cmd[1]);
+	global_ssl.passphrase_cmd[1] = strdup(data->path);
+
+	if (!global_ssl.passphrase_cmd[1]) {
+		ha_alert("ssl_sock_passwd_cb: allocation failure\n");
+		return -1;
+	}
+
+	if (pipe(fd) < 0) {
+		ha_alert("ssl_sock_passwd_cb: pipe error");
+		return -1;
+	}
+
+	pid = fork();
+
+	switch(pid) {
+	case -1:
+		ha_alert("ssl_sock_passwd_cb: could not fork");
+		goto error;
+	case 0:
+		/* In child process, need to call external tool via execv to get
+		 * passphrase */
+		close(0);
+		dup2(fd[1], 1);
+
+		execvp(global_ssl.passphrase_cmd[0], global_ssl.passphrase_cmd);
+		exit(1);
+		break;
+	default:
+		/* in parent */
+		/* Close write side of pipe, it won't be used by the parent */
+		close(fd[1]);
+
+		while (1) {
+			read_len = read(fd[0], buf, size);
+			if (read_len <= 0)
+				break;
+			pass_len = read_len;
+		}
+
+		/* Close read side of pipe */
+		close(fd[0]);
+		waitpid(pid, &wstatus, 0);
+		if (WEXITSTATUS(wstatus) != 0) {
+			ha_alert("ssl_sock_passwd_cb: external tool error (%d)\n", WEXITSTATUS(wstatus));
+			return -1;
+		}
+	}
+
+	return pass_len;
+
+error:
+	close(fd[0]);
+	close(fd[1]);
+	return -1;
+
+}
+
 
 /* Create an initial CTX used to start the SSL connection before switchctx */
 static int
@@ -8001,6 +8091,14 @@ static void ssl_free_global(void)
 	ha_free(&global_ssl.listen_default_client_sigalgs);
 	ha_free(&global_ssl.connect_default_client_sigalgs);
 #endif
+
+	if (global_ssl.passphrase_cmd) {
+		int i = 0;
+		for (; i < global_ssl.passphrase_cmd_args_cnt; ++i) {
+			ha_free(&global_ssl.passphrase_cmd[i]);
+		}
+		ha_free(&global_ssl.passphrase_cmd);
+	}
 }
 
 static void __ssl_sock_init(void)

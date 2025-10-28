@@ -132,6 +132,7 @@ struct issuer_chain* ssl_get0_issuer_chain(X509 *cert);
 int ssl_load_global_issuer_from_BIO(BIO *in, char *fp, char **err);
 int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, int is_default, char **err);
 int ssl_sock_load_srv_cert(char *path, struct server *server, int create_if_none, char **err);
+int ssl_sock_passwd_cb(char *buf, int size, int rwflag, void *userdata);
 void ssl_free_global_issuers(void);
 int ssl_initialize_random(void);
 int ssl_sock_load_cert_list_file(char *file, int dir, struct bind_conf *bind_conf, struct proxy *curproxy, char **err);

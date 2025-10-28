@@ -593,6 +593,7 @@ int ssl_sock_load_key_into_ckch(const char *path, char *buf, struct ckch_data *d
 	BIO *in = NULL;
 	int ret = 1;
 	EVP_PKEY *key = NULL;
+	struct passphrase_cb_data cb_data = { path, 0 };
 
 	if (buf) {
 		/* reading from a buffer */
@@ -613,7 +614,7 @@ int ssl_sock_load_key_into_ckch(const char *path, char *buf, struct ckch_data *d
 	}
 
 	/* Read Private Key */
-	key = PEM_read_bio_PrivateKey(in, NULL, NULL, NULL);
+	key = PEM_read_bio_PrivateKey(in, NULL, ssl_sock_passwd_cb, &cb_data);
 	if (key == NULL) {
 		memprintf(err, "%sunable to load private key from file '%s'.\n",
 		          err && *err ? *err : "", path);
