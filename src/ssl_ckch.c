@@ -613,8 +613,17 @@ int ssl_sock_load_key_into_ckch(const char *path, char *buf, struct ckch_data *d
 			goto end;
 	}
 
-	/* Read Private Key */
-	key = PEM_read_bio_PrivateKey(in, NULL, ssl_sock_passwd_cb, &cb_data);
+	/* Read Private Key
+	 * Since multiple private keys might have different passphrases that are
+	 * stored in a local cache, we want to try all the already known
+	 * passphrases first before raising an error. The passphrase_idx field
+	 * of the cb_data parameter will be modified in the callback and set to
+	 * -1 after the external passphrase tool is called.
+	 */
+	do {
+		key = PEM_read_bio_PrivateKey(in, NULL, ssl_sock_passwd_cb, &cb_data);
+	} while (!key && cb_data.passphrase_idx != -1);
+
 	if (key == NULL) {
 		memprintf(err, "%sunable to load private key from file '%s'.\n",
 		          err && *err ? *err : "", path);

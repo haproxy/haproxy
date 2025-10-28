@@ -3653,6 +3653,128 @@ out:
 	return cfgerr;
 }
 
+#define DFLT_PASSPHRASES_CNT 4
+static struct ist *passphrase_cache;
+static uint64_t *passphrase_randoms;
+static int passphrase_cache_size;
+static int passphrase_idx;
+
+/*
+ * Create a passphrase cache of size DFLT_PASSPHRASES_CNT and a random number
+ * cache of the same size. Each entry of the passphrase cache will be obfuscated
+ * thanks to the corresponding entry in the random cache.
+ */
+static int ssl_sock_create_passphrase_cache(void)
+{
+	int idx;
+
+	passphrase_cache_size = DFLT_PASSPHRASES_CNT;
+	passphrase_cache = calloc(passphrase_cache_size,  sizeof(*passphrase_cache));
+
+	if (!passphrase_cache)
+		goto end;
+
+	passphrase_randoms = calloc(passphrase_cache_size, sizeof(*passphrase_randoms));
+
+	if (!passphrase_randoms)
+		goto end;
+
+	for (idx = 0; idx < passphrase_cache_size; ++idx) {
+		passphrase_randoms[idx] = ha_random64();
+	}
+
+	return 0;
+
+end:
+	ha_alert("ssl_sock_passwd_cb: passphrase data allocation failure");
+	ha_free(&passphrase_cache);
+	ha_free(&passphrase_randoms);
+	passphrase_cache_size = 0;
+
+	return -1;
+}
+
+/*
+ * When the passphrase cache is too small we resize it to double its size.
+ */
+static void ssl_sock_resize_passphrase_cache(void)
+{
+	int idx;
+	int new_size = passphrase_cache_size << 1;
+
+	passphrase_randoms = realloc(passphrase_randoms, sizeof(*passphrase_randoms) * (new_size));
+	if (!passphrase_randoms) {
+		ha_alert("ssl_sock_passwd_cb: passphrase randoms realloc failed");
+		passphrase_idx = -1;
+		passphrase_cache_size = 0;
+	} else {
+		/* Create the new randoms in the second half of the random
+		 * cache.
+		 */
+		for (idx = passphrase_cache_size; idx < new_size; ++idx) {
+			passphrase_randoms[idx] = ha_random64();
+		}
+	}
+
+	if (passphrase_cache_size) {
+		passphrase_cache_size = new_size;
+		passphrase_cache = realloc(passphrase_cache, sizeof(*passphrase_cache) * passphrase_cache_size);
+		if (!passphrase_cache) {
+			ha_alert("ssl_sock_passwd_cb: passphrase cache realloc failed");
+			passphrase_idx = -1;
+			passphrase_cache_size = 0;
+		}
+	}
+}
+
+static int ssl_sock_clear_passphrase_cache(void)
+{
+	int idx = 0;
+
+	if (passphrase_cache) {
+		for (; idx < passphrase_cache_size; ++idx) {
+			if (!isttest(passphrase_cache[idx]))
+				break;
+
+			/* Erase stored passphrases just in case some memory
+			 * ends up leaking */
+			memset(passphrase_cache[idx].ptr, 0, passphrase_cache[idx].len);
+			istfree(&passphrase_cache[idx]);
+		}
+		ha_free(&passphrase_cache);
+		passphrase_cache_size = 0;
+		passphrase_idx = -1;
+	}
+
+	ha_free(&passphrase_randoms);
+
+	return 0;
+}
+
+REGISTER_POST_CHECK(ssl_sock_clear_passphrase_cache);
+
+/*
+ * Obfuscate cleartext passphrases by XORing it with an 8 bytes random number.
+ * The same random will be used for the whole string.
+ */
+static void obfuscate_str(char *string, int len, uint8_t *random, int random_len)
+{
+	int idx = 0;
+	int subidx = 0;
+
+	while (idx < len) {
+
+		for (subidx = 0; subidx < random_len && idx < len ; ++subidx, ++idx) {
+			string[idx] ^= random[subidx];
+		}
+	}
+}
+
+static inline void deobfuscate_str(char *string, int len, uint8_t *random, int random_len)
+{
+	obfuscate_str(string, len, random, random_len);
+}
+
 /*
  * Certificate password callback. The password will be provided by the external
  * program defined in global section (see 'ssl-passphrase-cmd'). It will be
@@ -3660,19 +3782,20 @@ out:
  */
 int ssl_sock_passwd_cb(char *buf, int size, int rwflag, void *userdata)
 {
-	int pass_len;
+	int pass_len = 0;
 	int read_len;
 	pid_t pid = -1;
 	int wstatus = 0;
-
 	int fd[2];
+	char *bufstart = buf;
 
 	struct passphrase_cb_data *data = userdata;
 
-	if (!data)
+	if (!data || data->passphrase_idx == -1)
 		return -1;
 
 	if (!global_ssl.passphrase_cmd) {
+		data->passphrase_idx = -1;
 		ha_alert("Trying to load a passphrase-protected private key without an 'ssl-passphrase-cmd' defined.");
 		return -1;
 	}
@@ -3689,6 +3812,31 @@ int ssl_sock_passwd_cb(char *buf, int size, int rwflag, void *userdata)
 		return -1;
 	}
 
+	if (!passphrase_cache)
+		if (ssl_sock_create_passphrase_cache())
+			return -1;
+
+	/* Try all the already known passphrases first. */
+	if (data->passphrase_idx < passphrase_idx) {
+		struct ist tmp = istdup(passphrase_cache[data->passphrase_idx]);
+		int length = 0;
+		if (isttest(tmp)) {
+			deobfuscate_str(istptr(tmp), istlen(tmp),
+					(uint8_t *)&passphrase_randoms[data->passphrase_idx],
+					sizeof(passphrase_randoms[data->passphrase_idx]));
+			strncpy(buf, istptr(tmp), size);
+			length = istlen(tmp);
+			istfree(&tmp);
+
+			++data->passphrase_idx;
+			return MIN(length, size);
+		}
+	}
+
+	/* If we get to this point, we must have tried all the known passphrases
+	 * without success, we must call the external passphrase command. */
+	data->passphrase_idx = -1;
+
 	if (pipe(fd) < 0) {
 		ha_alert("ssl_sock_passwd_cb: pipe error");
 		return -1;
@@ -3703,7 +3851,7 @@ int ssl_sock_passwd_cb(char *buf, int size, int rwflag, void *userdata)
 	case 0:
 		/* In child process, need to call external tool via execv to get
 		 * passphrase */
-		close(0);
+		dup2(devnullfd, 0);
 		dup2(fd[1], 1);
 
 		execvp(global_ssl.passphrase_cmd[0], global_ssl.passphrase_cmd);
@@ -3714,11 +3862,33 @@ int ssl_sock_passwd_cb(char *buf, int size, int rwflag, void *userdata)
 		/* Close write side of pipe, it won't be used by the parent */
 		close(fd[1]);
 
-		while (1) {
+		while (size > 0) {
 			read_len = read(fd[0], buf, size);
 			if (read_len <= 0)
 				break;
-			pass_len = read_len;
+			buf += read_len;
+			size -= read_len;
+			pass_len += read_len;
+		}
+		if (pass_len) {
+			/* Copy passphrase in passphrase "cache" (after
+			 * obfuscating it). */
+			if (passphrase_idx == passphrase_cache_size - 1) {
+				ssl_sock_resize_passphrase_cache();
+			}
+			if (passphrase_idx >= 0) {
+				passphrase_cache[passphrase_idx] = istdup(ist2(bufstart, pass_len));
+				if (!isttest(passphrase_cache[passphrase_idx])) {
+					ha_alert("ssl_sock_passwd_cb: passphrase strdup failed");
+					passphrase_idx = -1;
+				} else {
+					obfuscate_str(istptr(passphrase_cache[passphrase_idx]),
+						      istlen(passphrase_cache[passphrase_idx]),
+						      (uint8_t *)&passphrase_randoms[passphrase_idx],
+						      sizeof(passphrase_randoms[passphrase_idx]));
+					++passphrase_idx;
+				}
+			}
 		}
 
 		/* Close read side of pipe */
