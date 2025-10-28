@@ -893,8 +893,11 @@ static void dump(struct sig_handler *sh)
  */
 void stdio_quiet(int fd)
 {
-	if (fd < 0)
+	int close_fd = 0;
+	if (fd < 0) {
 		fd = open("/dev/null", O_RDWR, 0);
+		close_fd = 1;
+	}
 
 	if (fd > -1) {
 		fclose(stdin);
@@ -904,7 +907,7 @@ void stdio_quiet(int fd)
 		dup2(fd, 0);
 		dup2(fd, 1);
 		dup2(fd, 2);
-		if (fd > 2)
+		if (fd > 2 && close_fd)
 			close(fd);
 		return;
 	}
