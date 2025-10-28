@@ -2496,7 +2496,7 @@ static void step_init_4(void)
 	} else {
 		if ((global.mode & MODE_QUIET) && !(global.mode & MODE_VERBOSE)) {
 			/* detach from the tty */
-			stdio_quiet(-1);
+			stdio_quiet(devnullfd);
 		}
 	}
 
@@ -2596,7 +2596,7 @@ static void run_master_in_recovery_mode(int argc, char **argv)
 		(global.mode & MODE_DAEMON)) {
 		/* detach from the tty, this is required to properly daemonize. */
 		if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL))
-			stdio_quiet(-1);
+			stdio_quiet(devnullfd);
 		global.mode &= ~MODE_VERBOSE;
 		global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
 	}
@@ -3551,9 +3551,9 @@ int main(int argc, char **argv)
 		stdio_quiet(devnullfd);
 		global.mode &= ~MODE_VERBOSE;
 		global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
-		close(devnullfd);
-		devnullfd = -1;
 	}
+	close(devnullfd);
+	devnullfd = -1;
 	pid = getpid(); /* update pid */
 
 	/* This call is expensive, as it creates a new poller, scans and tries
