@@ -65,6 +65,19 @@ static void srv_diag_cookies(int *ret, struct server *srv, struct eb_root *cooki
 	}
 }
 
+/* Reports a diag if check-reuse-pool is active while backend check ruleset is
+ * non HTTP.
+ */
+static void srv_diag_check_reuse(int *ret, struct server *srv, struct proxy *px)
+{
+	if (srv->do_check && srv->check.reuse_pool) {
+		if ((px->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) != TCPCHK_RULES_HTTP_CHK) {
+			diag_warning(ret, "parsing [%s:%d] : 'server %s': check-reuse-pool is ineffective for non http-check rulesets.\n",
+			             srv->conf.file, srv->conf.line, srv->id);
+		}
+	}
+}
+
 /* Perform a series of diagnostics on every servers from the configuration. */
 static void run_servers_diag(int *ret)
 {
@@ -74,8 +87,10 @@ static void run_servers_diag(int *ret)
 	struct server *srv;
 
 	for (px = proxies_list; px; px = px->next) {
-		for (srv = px->srv; srv; srv = srv->next)
+		for (srv = px->srv; srv; srv = srv->next) {
 			srv_diag_cookies(ret, srv, &cookies_tree);
+			srv_diag_check_reuse(ret, srv, px);
+		}
 
 		/* clear the cookies tree before passing to the next proxy */
 		while ((cookie_node = ebpt_first(&cookies_tree))) {

@@ -17829,11 +17829,12 @@ check-reuse-pool
   This option permits checks to reuse idle connections if available instead of
   opening a dedicated one. The connection is reinserted in the pool on check
   completion. The main objective is to limit the number of connections opening
-  and closure on a specific server.
+  and closure on a specific server. This feature is compatible only with
+  http-check rulesets. It is silently ignored for other check types.
 
-  Note that for configuration simplicity, this option is silently ignored if
-  any specific check connect option is defined, either on the server line or
-  via a custom tcp-check connect rule.
+  For configuration simplicity, this option is silently ignored if any specific
+  check connect option is defined, either on the server line or via a custom
+  tcp-check connect rule.
 
   This option is automatically enabled for servers acting as passive reverse
   HTTP gateway, as for those servers connect is only supported through reuse.
