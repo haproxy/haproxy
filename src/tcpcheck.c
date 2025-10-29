@@ -1213,7 +1213,8 @@ enum tcpcheck_eval_ret tcpcheck_agent_expect_reply(struct check *check, struct t
 static inline int tcpcheck_use_nondefault_connect(const struct check *check,
                                                   const struct tcpcheck_connect *connect)
 {
-	return check->mux_proto || connect->mux_proto ||
+	return (check->mux_proto && check->mux_proto != check->server->mux_proto) ||
+	  connect->mux_proto ||
 	  is_addr(&check->addr) || is_addr(&connect->addr) ||
 	  check->port || connect->port || connect->port_expr ||
 	  check->use_ssl || check->alpn_len || connect->alpn_len ||
