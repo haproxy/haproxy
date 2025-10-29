@@ -1647,7 +1647,6 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 	 */
 	eb32 = (!r_res->next) ? eb32_first(&r_res->answer_tree) : r_res->next;
 	end = eb32;
-	r_res->next = eb32_next(eb32); /* get node for the next lookup */
 	do {
 		void *ip;
 		unsigned char ip_type;
@@ -1733,6 +1732,7 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 		 * break the parsing. Implicitly, this score is reached the ip
 		 * selected is the current ip. */
 		if (score > max_score) {
+			r_res->next = eb32_next(eb32); /* get node for the next lookup */
 			if (ip_type == AF_INET)
 				newip4 = ip;
 			else
