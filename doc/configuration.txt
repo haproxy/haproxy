@@ -19761,7 +19761,7 @@ default one for the criterion. This makes it possible to match contents in ways
 that were not initially planned, or with sample fetch methods which return a
 string. The matching method also affects the way the patterns are parsed. So,
 it must not be used with sample fetches with a matching suffix (_beg, _end,
-_sub...). In addition, specifying several "-m" pattern matching methods is now
+_sub...). In addition, specifying several "-m" pattern matching methods is not
 allowed.
 
 The "-n" flag forbids the dns resolutions. It is used with the load of ip files.
