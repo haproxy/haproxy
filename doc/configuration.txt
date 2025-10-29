@@ -25131,9 +25131,9 @@ ssl_fc_has_crt : boolean
   current SSL session uses a client certificate.
 
 ssl_fc_has_early : boolean
-  Returns true if early data were sent, and the handshake didn't happen yet. As
-  it has security implications, it is useful to be able to refuse those, or
-  wait until the handshake happened.
+  Returns true if early data were sent, and the handshake didn't complete yet.
+  As it has security implications, it is useful to be able to refuse those, or
+  wait until the handshake completes (via the "wait-for-handshake" action).
 
 ssl_fc_has_sni : boolean
   This checks for the presence of a Server Name Indication TLS extension (SNI)
