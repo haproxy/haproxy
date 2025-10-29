@@ -16,6 +16,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <import/ist.h>
+
 #include <haproxy/acl.h>
 #include <haproxy/api.h>
 #include <haproxy/activity.h>
@@ -1942,6 +1944,63 @@ int bind_generate_guid(struct bind_conf *bind_conf)
 	}
 
 	return 0;
+}
+
+/* Returns a pointer to the first bind_conf matching either name <name>, or
+ * filename:linenum <name> if <name> begins with a '@'. NULL is returned if no
+ * match is found.
+ */
+struct bind_conf *bind_conf_find_by_name(struct proxy *front, const char *name)
+{
+	struct bind_conf *bind_conf = NULL;
+	int linenum = -1;
+	struct ist filename = IST_NULL;
+
+	if (*name == '@') {
+		/* handle @filename:linenum */
+		char *endptr = NULL;
+		const char *p = name + 1;
+
+		filename.ptr = (char *)p;
+
+		while (*p != '\0' && *p != ':')
+			p++;
+
+		filename.len = p - filename.ptr;
+
+		if (*p)
+			p++;
+
+		linenum = strtol(p, &endptr, 10);
+		if (*endptr != '\0' || endptr == p) {
+			linenum = -1;
+			/* parsing error */
+		}
+		/* we're not using name for the next steps */
+		name = NULL;
+	}
+
+	/* loop on binds */
+	list_for_each_entry(bind_conf, &front->conf.bind, by_fe) {
+
+		/* if we are using a name, look at the name of the first listener,
+		 * because bind_parse_name() sets the name on all listeners */
+		if (name) {
+			struct listener *l;
+
+			list_for_each_entry(l, &bind_conf->listeners, by_bind) {
+				if (l->name && strcmp(l->name, name) == 0)
+					return bind_conf;
+				/* we just need the first one */
+				break;
+			}
+		} else {
+			if ((strncmp(bind_conf->file, filename.ptr, filename.len) == 0)
+			    && bind_conf->line == linenum)
+				return bind_conf;
+		}
+	}
+	return NULL;
 }
 
 /*
