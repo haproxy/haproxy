@@ -82,6 +82,23 @@ static void check_server_cookies(int *ret)
 	}
 }
 
+static void check_check_reuse(int *ret)
+{
+	struct proxy *px;
+	struct server *srv;
+
+	for (px = proxies_list; px; px = px->next) {
+		if ((px->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) != TCPCHK_RULES_HTTP_CHK) {
+			for (srv = px->srv; srv; srv = srv->next) {
+				if (srv->do_check && srv->check.reuse_pool) {
+					diag_warning(ret, "parsing [%s:%d] : 'server %s': check-reuse is ineffective for non http-check rulesets.\n",
+					             srv->conf.file, srv->conf.line, srv->id);
+				}
+			}
+		}
+	}
+}
+
 /* Placeholder to execute various diagnostic checks after the configuration file
  * has been fully parsed. It will output a warning for each diagnostic found.
  *
@@ -92,6 +109,7 @@ int cfg_run_diagnostics()
 	int ret = 0;
 
 	check_server_cookies(&ret);
+	check_check_reuse(&ret);
 
 	return ret;
 }
