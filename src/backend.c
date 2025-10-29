@@ -1584,7 +1584,7 @@ int64_t be_calculate_conn_hash(struct server *srv, struct stream *strm,
                                struct session *sess,
                                struct sockaddr_storage *src,
                                struct sockaddr_storage *dst,
-                               struct ist name)
+                               struct ist name, char **debug_str)
 {
 	struct conn_hash_params hash_params;
 
@@ -1596,18 +1596,42 @@ int64_t be_calculate_conn_hash(struct server *srv, struct stream *strm,
 
 	/* 1. target */
 	hash_params.target = srv ? &srv->obj_type : strm->target;
+	if (debug_str)
+		memprintf(debug_str, "target=%p", hash_params.target);
 
 	/* 2. pool-conn-name */
 	if (istlen(name)) {
 		hash_params.name_prehash =
 		  conn_hash_prehash(istptr(name), istlen(name));
+		if (debug_str) {
+			if (*debug_str) memprintf(debug_str, "%s name=%s", *debug_str, ist0(name));
+			else            memprintf(debug_str, "name=%s",                ist0(name));
+		}
 	}
 
 	/* 3. destination address */
 	hash_params.dst_addr = dst;
+	if (dst && debug_str) {
+		char dstbuf[INET6_ADDRSTRLEN];
+		ushort dstport;
+
+		addr_to_str(dst, dstbuf, sizeof(dstbuf));
+		dstport = get_host_port(dst);
+		if (*debug_str) memprintf(debug_str, "%s dst=%s:%hu", *debug_str, dstbuf, dstport);
+		else            memprintf(debug_str, "dst=%s:%hu",                dstbuf, dstport);
+	}
 
 	/* 4. source address */
 	hash_params.src_addr = src;
+	if (src && debug_str) {
+		char srcbuf[INET6_ADDRSTRLEN];
+		ushort srcport;
+
+		addr_to_str(src, srcbuf, sizeof(srcbuf));
+		srcport = get_host_port(src);
+		if (*debug_str) memprintf(debug_str, "%s src=%s:%hu", *debug_str, srcbuf, srcport);
+		else            memprintf(debug_str, "src=%s:%hu",                srcbuf, srcport);
+	}
 
 	/* 5. proxy protocol */
 	if (strm && srv && srv->pp_opts & SRV_PP_ENABLED) {
