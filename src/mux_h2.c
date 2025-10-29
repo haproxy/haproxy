@@ -7867,6 +7867,16 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	}
 	h2s->flags &= ~H2_SF_NOTIFIED;
 
+	if (unlikely(h2s->h2c->st0 < H2_CS_SETTINGS1 && (h2s->h2c->flags & H2_CF_IS_BACK))) {
+		/* The preface and settings were not sent yet. Let's just push
+		 * them now instead of doing a wakeup dance. This function will
+		 * possibly do nothing, or update the state to H2_CS_SETTINGS1
+		 * on success, or H2_CS_ERROR* on error. Let's merge this path
+		 * with the common checks below.
+		 */
+		h2c_bck_send_preface_and_settings(h2s->h2c);
+	}
+
 	if (h2s->h2c->st0 < ((h2s->h2c->flags & H2_CF_SETTINGS_NEEDED) ? H2_CS_FRAME_H : H2_CS_SETTINGS1)) {
 		TRACE_DEVEL("connection not ready, leaving", H2_EV_H2S_SEND|H2_EV_H2S_BLK, h2s->h2c->conn, h2s);
 		return 0;
