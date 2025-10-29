@@ -62,6 +62,7 @@
 #define H2_CF_RCVD_SHUT         0x00020000  // a recv() attempt already failed on a shutdown
 #define H2_CF_END_REACHED       0x00040000  // pending data too short with RCVD_SHUT present
 
+#define H2_CF_SETTINGS_NEEDED   0x00080000  // can't proceed without knowing settings (frontend or extensions)
 #define H2_CF_RCVD_RFC8441      0x00100000  // settings from RFC8441 has been received indicating support for Extended CONNECT
 #define H2_CF_SHTS_UPDATED      0x00200000  // SETTINGS_HEADER_TABLE_SIZE updated
 #define H2_CF_DTSU_EMITTED      0x00400000  // HPACK Dynamic Table Size Update opcode emitted

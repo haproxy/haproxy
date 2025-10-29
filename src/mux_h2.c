@@ -1315,6 +1315,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 		                                      &h2_stats_module);
 	} else {
 		h2c->flags = H2_CF_NONE;
+		h2c->flags |= H2_CF_SETTINGS_NEEDED;
 		h2c->shut_timeout = h2c->timeout = prx->timeout.client;
 		if (tick_isset(prx->timeout.clientfin))
 			h2c->shut_timeout = prx->timeout.clientfin;
@@ -2847,6 +2848,7 @@ static int h2c_handle_settings(struct h2c *h2c)
 
 	/* need to ACK this frame now */
 	h2c->st0 = H2_CS_FRAME_A;
+	h2c->flags &= ~H2_CF_SETTINGS_NEEDED;
  done:
 	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_SETTINGS, h2c->conn);
 	return 1;
@@ -4648,7 +4650,7 @@ static int h2_process_mux(struct h2c *h2c)
 {
 	TRACE_ENTER(H2_EV_H2C_WAKE, h2c->conn);
 
-	if (unlikely(h2c->st0 < H2_CS_FRAME_H)) {
+	if (unlikely(h2c->st0 < (h2c->flags & H2_CF_SETTINGS_NEEDED ? H2_CS_FRAME_H : H2_CS_SETTINGS1))) {
 		if (unlikely(h2c->st0 == H2_CS_PREFACE && (h2c->flags & H2_CF_IS_BACK))) {
 			if (unlikely(h2c_bck_send_preface(h2c) <= 0)) {
 				/* RFC7540#3.5: a GOAWAY frame MAY be omitted */
@@ -4659,7 +4661,7 @@ static int h2_process_mux(struct h2c *h2c)
 			h2c->st0 = H2_CS_SETTINGS1;
 		}
 		/* need to wait for the other side */
-		if (h2c->st0 < H2_CS_FRAME_H)
+		if (h2c->st0 < (h2c->flags & H2_CF_SETTINGS_NEEDED ? H2_CS_FRAME_H : H2_CS_SETTINGS1))
 			goto done;
 	}
 
@@ -6698,6 +6700,14 @@ static size_t h2s_snd_bhdrs(struct h2s *h2s, struct htx *htx)
 				/* rfc 7230 #6.1 Connection = list of tokens */
 				struct ist connection_ist = list[hdr].v;
 
+				if (h2c->st0 < H2_CS_FRAME_H) {
+					/* this feature is negotiated, can't proceed without
+					 * the server's settings.
+					 */
+					h2c->flags |= H2_CF_SETTINGS_NEEDED;
+					goto end;
+				}
+
 				if (!(sl->flags & HTX_SL_F_BODYLESS)) {
 					TRACE_STATE("cannot convert upgrade for request with payload", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
 					goto fail;
@@ -7845,7 +7855,7 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	}
 	h2s->flags &= ~H2_SF_NOTIFIED;
 
-	if (h2s->h2c->st0 < H2_CS_FRAME_H) {
+	if (h2s->h2c->st0 < ((h2s->h2c->flags & H2_CF_SETTINGS_NEEDED) ? H2_CS_FRAME_H : H2_CS_SETTINGS1)) {
 		TRACE_DEVEL("connection not ready, leaving", H2_EV_H2S_SEND|H2_EV_H2S_BLK, h2s->h2c->conn, h2s);
 		return 0;
 	}
@@ -7893,6 +7903,10 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 					count -= ret;
 					if (ret < bsize)
 						goto done;
+				}
+				else if ((h2s->h2c->flags & H2_CF_SETTINGS_NEEDED) && h2s->h2c->st0 < H2_CS_FRAME_H) {
+					/* cannot proceed further */
+					goto done;
 				}
 				break;
 
