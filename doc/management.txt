@@ -1834,6 +1834,28 @@ add ssl crt-list <crtlist> <payload>
     $ echo -e 'add ssl crt-list certlist1 <<\nfoobar.pem [allow-0rtt] foo.bar.com
     !test1.com\n' | socat /tmp/sock1 -
 
+add ssl ech <bind> <payload>
+  Add an ECH key to a <bind> line. The payload must be in the PEM for ECH format.
+  (https://datatracker.ietf.org/doc/html/draft-farrell-tls-pemesni)
+
+  The bind line format is <frontend>/@<filename>:<linenum> (Example:
+  frontend1/@haproxy.conf:19) or <frontend>/<name> if the bind line was named
+  with the "name" keyword.
+
+  Necessitates an OpenSSL version that supports ECH, and HAProxy must be
+  compiled with USE_ECH=1. This command is only supported on a CLI connection
+  running in experimental mode (see "experimental-mode on").
+
+  See also "show ssl ech" and "ech" in the Section 5.1 of the configuration
+  manual.
+
+  Example:
+
+    $ openssl ech -public_name foobar.com -out foobar3.com.ech
+    $ echo -e "experimental-mode on; add ssl ech frontend1/@haproxy.conf:19 <<%EOF%\n$(cat foobar3.com.ech)\n%EOF%\n" | \
+      socat /tmp/haproxy.sock -
+    added a new ECH config to frontend1
+
 add ssl jwt <filename>
   Add an already loaded certificate to the list of certificates that can be
   used for JWT validation (see "jwt_verify_cert" converter). This command does
@@ -2109,6 +2131,25 @@ del ssl crt-list <filename> <certfile[:line]>
   entry in the frontends. If a certificate is used several time in a crt-list,
   you will need to provide which line you want to delete. To display the line
   numbers, use "show ssl crt-list -n <crtlist>".
+
+det ssl ech <bind>
+  Delete the ECH keys of a bind line.
+
+  The bind line format is <frontend>/@<filename>:<linenum> (Example:
+  frontend1/@haproxy.conf:19) or <frontend>/<name> if the bind line was named
+  with the "name" keyword.
+
+  Necessitates an OpenSSL version that supports ECH, and HAProxy must be
+  compiled with USE_ECH=1. This command is only supported on a CLI connection
+  running in experimental mode (see "experimental-mode on").
+
+  See also "show ssl ech", "add ssl ech" and "ech" in the Section 5.1 of the
+  configuration manual.
+
+  Example:
+
+    $ echo "experimental-mode on; del ssl ech frontend1/@haproxy.conf:19" | socat /tmp/haproxy.sock -
+    deleted all ECH configs from frontend1/@haproxy.conf:19
 
 del ssl jwt <filename>
   Remove an already loaded certificate to the list of certificates that can be
@@ -2657,6 +2698,28 @@ set ssl crl-file <crlfile> <payload>
     echo -e "set ssl crl-file crlfile.pem <<\n$(cat rootCRL.pem)\n" | \
     socat /var/run/haproxy.stat -
     echo "commit ssl crl-file crlfile.pem" | socat /var/run/haproxy.stat -
+
+set ssl ech <bind> <payload>
+  Replace the ECH keys of a bind line with this one. The payload must be in the
+  PEM for ECH format.
+  (https://datatracker.ietf.org/doc/html/draft-farrell-tls-pemesni)
+
+  The bind line format is <frontend>/@<filename>:<linenum> (Example:
+  frontend1/@haproxy.conf:19) or <frontend>/<name> if the bind line was named
+  with the "name" keyword.
+
+  Necessitates an OpenSSL version that supports ECH, and HAProxy must be
+  compiled with USE_ECH=1. This command is only supported on a CLI connection
+  running in experimental mode (see "experimental-mode on").
+
+  See also "show ssl ech", "add ssl ech" and "ech" in the Section 5.1 of the
+  configuration manual.
+
+    $ openssl ech -public_name foobar.com -out foobar3.com.ech
+    $ echo -e "experimental-mode on;
+               set ssl ech frontend1/@haproxy.conf:19 <<%EOF%\n$(cat foobar3.com.ech)\n%EOF%\n" | \
+      socat /tmp/haproxy.sock -
+    set new ECH configs for frontend1/@haproxy.conf:19
 
 set ssl ocsp-response <response | payload>
   This command is used to update an OCSP Response for a certificate (see "crt"
@@ -3792,6 +3855,56 @@ show ssl crt-list [-n] [<filename>]
     common.pem:2
     ecdsa.pem:3 [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3] localhost !www.test1.com
     ecdsa.pem:4 [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3]
+
+show ssl ech [<name>]
+  Display the list of ECH keys loaded in the HAProxy process.
+
+  When <name> is specified, displays the keys for a specific bind line. The
+  bind line format is <frontend>/@<filename>:<linenum> (Example:
+  frontend1/@haproxy.conf:19) or <frontend>/<name> if the bind line was named
+  with the "name" keyword.
+
+  The 'age' entry represents the time, in seconds, since the key was loaded in
+  the bind line. This value is reset when HAProxy is started, reloaded, or
+  restarted.
+
+  Necessitates an OpenSSL version that supports ECH, and HAProxy must be
+  compiled with USE_ECH=1.
+  This command is only supported on a CLI connection running in experimental
+  mode (see "experimental-mode on").
+
+  See also "ech" in the Section 5.1 of the configuration manual.
+
+  Example:
+
+  $ echo "experimental-mode on; show ssl ech" | socat /tmp/haproxy.sock -
+   ***
+   frontend: frontend1
+
+   bind: frontend1/@haproxy.conf:19
+
+   ECH entry: 0 public_name: example.com age: 557 (has private key)
+        [fe0d,94,example.com,[0020,0001,0001],c39285b774bf61c071864181c5292a012b30adaf767e39369a566af05573ef2b,00,00]
+
+   ECH entry: 1 public_name: example.com age: 557 (has private key)
+        [fe0d,ee,example.com,[0020,0001,0001],6572191131b5cabba819f8cacf2d2e06fa0b87b30d9b793644daba7b8866d511,00,00]
+
+   bind: frontend1/@haproxy.conf:20
+
+   ECH entry: 0 public_name: example.com age: 557 (has private key)
+        [fe0d,94,example.com,[0020,0001,0001],c39285b774bf61c071864181c5292a012b30adaf767e39369a566af05573ef2b,00,00]
+
+   ECH entry: 1 public_name: example.com age: 557 (has private key)
+        [fe0d,ee,example.com,[0020,0001,0001],6572191131b5cabba819f8cacf2d2e06fa0b87b30d9b793644daba7b8866d511,00,00]
+
+  $ echo "experimental-mode on; show ssl ech frontend1/@haproxy.conf:19" | socat /tmp/haproxy.sock -
+  ***
+  ECH for frontend1/@haproxy.conf:19
+  ECH entry: 0 public_name: example.com age: 786 (has private key)
+        [fe0d,94,example.com,[0020,0001,0001],c39285b774bf61c071864181c5292a012b30adaf767e39369a566af05573ef2b,00,00]
+
+  ECH entry: 1 public_name: example.com age: 786 (has private key)
+        [fe0d,ee,example.com,[0020,0001,0001],6572191131b5cabba819f8cacf2d2e06fa0b87b30d9b793644daba7b8866d511,00,00]
 
 show ssl jwt
   Display the list of certificates that can be used for JWT validation.
