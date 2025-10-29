@@ -555,7 +555,7 @@ struct ceb_node *_ceb_descend(struct ceb_root **root,
 	/* the parent will be the (possibly virtual) node so that
 	 * &lparent->l == root, i.e. container_of(root, struct ceb_node, b[0]).
 	 */
-	lparent = (struct ceb_node *)((char *)root - (long)&((struct ceb_node *)0)->b[0]);
+	lparent = (struct ceb_node *)((char *)root - offsetof(struct ceb_node, b));
 	gparent = lparent;
 	if (ret_nparent)
 		*ret_nparent = NULL;
