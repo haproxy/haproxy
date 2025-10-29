@@ -25028,6 +25028,15 @@ ssl_fc_curve : string
   connection was made over an SSL/TLS transport layer. This requires
   OpenSSL >= 3.0.0.
 
+ssl_fc_early_rcvd : boolean
+  Returns true if early data were seen over that connection, regardless of the
+  fact that the handshake has since completed. It has no practical use case for
+  traffic processing, however it's about the only way to "see" that a client
+  used 0-RTT to send early data, and is sometimes useful when debugging, since
+  the only other alternatives are network traffic captures or logging the front
+  connection's flags and matching them in the code. It may also be useful to
+  get statistics on clients' capabilities. See also "ssl_fc_has_early".
+
 ssl_fc_early_exporter_secret : string
   Return the EARLY_EXPORTER_SECRET as an hexadecimal string for the
   front connection when the incoming connection was made over an TLS 1.3
@@ -25133,7 +25142,8 @@ ssl_fc_has_crt : boolean
 ssl_fc_has_early : boolean
   Returns true if early data were sent, and the handshake didn't complete yet.
   As it has security implications, it is useful to be able to refuse those, or
-  wait until the handshake completes (via the "wait-for-handshake" action).
+  wait until the handshake completes (via the "wait-for-handshake" action). See
+  also "ssl_fc_early_rcvd".
 
 ssl_fc_has_sni : boolean
   This checks for the presence of a Server Name Indication TLS extension (SNI)

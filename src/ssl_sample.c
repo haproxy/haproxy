@@ -574,6 +574,27 @@ smp_fetch_ssl_fc_has_early(const struct arg *args, struct sample *smp, const cha
 	return 1;
 }
 
+static int
+smp_fetch_ssl_fc_early_rcvd(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	SSL *ssl;
+	struct connection *conn;
+
+	conn = objt_conn(smp->sess->origin);
+	ssl = ssl_sock_get_ssl_object(conn);
+	if (!ssl)
+		return 0;
+
+	smp->flags = 0;
+	smp->data.type = SMP_T_BOOL;
+#ifdef OPENSSL_IS_BORINGSSL
+	smp->data.u.sint = SSL_early_data_accepted(ssl);
+#else
+	smp->data.u.sint = !!(conn->flags & CO_FL_EARLY_DATA);
+#endif
+	return 1;
+}
+
 /* boolean, returns true if client cert was present */
 static int
 smp_fetch_ssl_fc_has_crt(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -2515,6 +2536,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL)
         { "ssl_fc_curve",           smp_fetch_ssl_fc_ec,          0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 #endif
+	{ "ssl_fc_early_rcvd",      smp_fetch_ssl_fc_early_rcvd,  0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
 	{ "ssl_fc_has_crt",         smp_fetch_ssl_fc_has_crt,     0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
 	{ "ssl_fc_has_early",       smp_fetch_ssl_fc_has_early,   0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
 	{ "ssl_fc_has_sni",         smp_fetch_ssl_fc_has_sni,     0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
