@@ -1213,7 +1213,14 @@ enum tcpcheck_eval_ret tcpcheck_agent_expect_reply(struct check *check, struct t
 static inline int tcpcheck_use_nondefault_connect(const struct check *check,
                                                   const struct tcpcheck_connect *connect)
 {
-	return check->mux_proto || connect->mux_proto ||
+	/* special rule for check-proto: if explicitely set but identical to
+	 * the server configuration, consider that the check does not relies on
+	 * a specific option. This is necessary as check <mux_proto> may be
+	 * automatically set via init_srv_check() despite no explicit user
+	 * configuration.
+	 */
+	return (check->mux_proto && check->mux_proto != check->server->mux_proto) ||
+	  connect->mux_proto ||
 	  is_addr(&check->addr) || is_addr(&connect->addr) ||
 	  check->port || connect->port || connect->port_expr ||
 	  check->use_ssl || check->alpn_len || connect->alpn_len ||
