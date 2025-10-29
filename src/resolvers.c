@@ -1480,31 +1480,26 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 			goto invalid_resp;
 
 		/* Analyzing record content */
-		switch (answer_record->type) {
-			case DNS_RTYPE_A:
-				/* ipv4 is stored on 4 bytes */
-				if (answer_record->data_len != 4)
-					goto invalid_resp;
-
-				answer_record->data.in4.sin_family = AF_INET;
-				memcpy(&answer_record->data.in4.sin_addr, reader, answer_record->data_len);
-				break;
-
-			case DNS_RTYPE_AAAA:
-				/* ipv6 is stored on 16 bytes */
-				if (answer_record->data_len != 16)
-					goto invalid_resp;
-
-				answer_record->data.in6.sin6_family = AF_INET6;
-				memcpy(&answer_record->data.in6.sin6_addr, reader, answer_record->data_len);
-				break;
-
-			default:
-				pool_free(resolv_answer_item_pool, answer_record);
-				answer_record = NULL;
-				continue;
-
-		} /* switch (record type) */
+		if (answer_record->type == DNS_RTYPE_A && (resolv_active_families() & RSLV_ACCEPT_IPV4)) {
+			/* ipv4 is stored on 4 bytes */
+			if (answer_record->data_len != 4)
+				goto invalid_resp;
+			answer_record->data.in4.sin_family = AF_INET;
+			memcpy(&answer_record->data.in4.sin_addr, reader, answer_record->data_len);
+		}
+		else if (answer_record->type == DNS_RTYPE_AAAA && (resolv_active_families() & RSLV_ACCEPT_IPV6)) {
+			/* ipv6 is stored on 16 bytes */
+			if (answer_record->data_len != 16)
+				goto invalid_resp;
+			answer_record->data.in6.sin6_family = AF_INET6;
+			memcpy(&answer_record->data.in6.sin6_addr, reader, answer_record->data_len);
+			break;
+		}
+		else {
+			pool_free(resolv_answer_item_pool, answer_record);
+			answer_record = NULL;
+			continue;
+		}
 
 		/* Increment the counter for number of records saved into our
 		 * local response */
