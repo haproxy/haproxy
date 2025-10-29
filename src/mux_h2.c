@@ -4643,6 +4643,23 @@ static inline void h2_remove_from_list(struct h2s *h2s)
 	}
 }
 
+/* Sends the preface and the settings on a backend connection, and updates the
+ * connection's state to H2_CS_SETTINGS1. May only be called when the state is
+ * below H2_CS_SETTINGS1. It returns < 0 on error with the error set, otherwise
+ * >= 0.
+ */
+static int h2c_bck_send_preface_and_settings(struct h2c *h2c)
+{
+	if (unlikely(h2c_bck_send_preface(h2c) <= 0)) {
+		/* RFC7540#3.5: a GOAWAY frame MAY be omitted */
+		if (h2c->st0 == H2_CS_ERROR)
+			h2c->st0 = H2_CS_ERROR2;
+		return -1;
+	}
+	h2c->st0 = H2_CS_SETTINGS1;
+	return 0;
+}
+
 /* process Tx frames from streams to be multiplexed. Returns > 0 if it reached
  * the end.
  */
@@ -4652,13 +4669,8 @@ static int h2_process_mux(struct h2c *h2c)
 
 	if (unlikely(h2c->st0 < (h2c->flags & H2_CF_SETTINGS_NEEDED ? H2_CS_FRAME_H : H2_CS_SETTINGS1))) {
 		if (unlikely(h2c->st0 == H2_CS_PREFACE && (h2c->flags & H2_CF_IS_BACK))) {
-			if (unlikely(h2c_bck_send_preface(h2c) <= 0)) {
-				/* RFC7540#3.5: a GOAWAY frame MAY be omitted */
-				if (h2c->st0 == H2_CS_ERROR)
-					h2c->st0 = H2_CS_ERROR2;
+			if (h2c_bck_send_preface_and_settings(h2c) < 0)
 				goto fail;
-			}
-			h2c->st0 = H2_CS_SETTINGS1;
 		}
 		/* need to wait for the other side */
 		if (h2c->st0 < (h2c->flags & H2_CF_SETTINGS_NEEDED ? H2_CS_FRAME_H : H2_CS_SETTINGS1))
