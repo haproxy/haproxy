@@ -258,6 +258,12 @@ static inline uint accept_queue_ring_len(const struct accept_queue_ring *ring)
 	return len;
 }
 
+/* Returns a pointer to the first bind_conf matching either name <name>, or
+ * filename:linenum in <name> if <name> begins with a '@'. NULL is returned if
+ * no match is found.
+ */
+struct bind_conf *bind_conf_find_by_name(struct proxy *front, const char *name);
+
 #endif /* _HAPROXY_LISTENER_H */
 
 /*
