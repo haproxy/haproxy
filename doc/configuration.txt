@@ -16878,6 +16878,31 @@ ecdhe <named curve>
   the named curve (RFC 4492) used to generate ECDH ephemeral keys. By default,
   used named curve is prime256v1.
 
+ech <dir> [ EXPERIMENTAL ]
+  Apply all ECH keys from <dir> to the bind line.
+  The files must have the .ech extension and must use the PEM file format for
+  ECH. ( https://datatracker.ietf.org/doc/draft-farrell-tls-pemesni/ )
+
+  This keyword enables ECH in shared-mode. with HAProxy acting as both the TLS
+  endpoint and the ECH endpoint.
+  See https://datatracker.ietf.org/doc/draft-ietf-tls-esni/
+
+  This is an experimental feature, which requires the
+  "expose-experimental-directives" option in the global section. It also
+  necessitates an OpenSSL version that supports ECH, and HAProxy must be
+  compiled with USE_ECH=1.
+
+  Example:
+    $ openssl ech -public_name foobar.com -out /etc/haproxy/echkeydir/foobar.com.ech
+
+    $ cat haproxy.cfg
+    [...]
+    bind :443 ech /etc/haproxy/echkeydir/ ssl crt example.com.pem
+
+    // Use the ECHCONFIG section of your .ech file
+    $ openssl s_client -tls1_3 -connect example.com:443 -servername example.com \
+    -ech_config_list AD3+DQA5cwAgACB6ybtgtFYoM5r8nJSotus4c7K0EG..9vYmFyLmNvbQAA
+
 expose-fd listeners
   This option is only usable with the stats socket. It gives your stats socket
   the capability to pass listeners FD to another HAProxy process.
