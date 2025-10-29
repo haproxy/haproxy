@@ -1332,8 +1332,21 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	/* prepare to read something */
 	if (b_data(&h1c->ibuf))
 		tasklet_wakeup(h1c->wait_event.tasklet);
-	else if (h1_recv_allowed(h1c))
-		h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+	else if (h1_recv_allowed(h1c)) {
+		if (!conn_is_back(conn)) {
+			/*
+			 * We may have data immediately available,
+			 * especially if we're using 0RTT.
+			 */
+			if (h1_recv(h1c))
+				tasklet_wakeup(h1c->wait_event.tasklet);
+		} else {
+			h1c->conn->xprt->subscribe(h1c->conn,
+					           h1c->conn->xprt_ctx,
+						   SUB_RETRY_RECV,
+						   &h1c->wait_event);
+		}
+	}
 
 	if (!conn_is_back(conn))
 		proxy_inc_fe_cum_sess_ver_ctr(sess->listener, proxy, 1);
