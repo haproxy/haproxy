@@ -3793,6 +3793,56 @@ show ssl crt-list [-n] [<filename>]
     ecdsa.pem:3 [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3] localhost !www.test1.com
     ecdsa.pem:4 [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3]
 
+show ssl ech [<name>]
+  Display the list of ECH keys loaded in the HAProxy process.
+
+  When <name> is specified, displays the keys for a specific bind line. The
+  bind line format is <frontend>/@<filename>:<linenum> (Example:
+  frontend1/@haproxy.conf:19) or <frontend>/<name> if the bind line was named
+  with the "name" keyword.
+
+  The 'age' entry represents the time, in seconds, since the key was loaded in
+  the bind line. This value is reset when HAProxy is started, reloaded, or
+  restarted.
+
+  Necessitates an OpenSSL version that supports ECH, and HAProxy must be
+  compiled with USE_ECH=1.
+  This command is only supported on a CLI connection running in experimental
+  mode (see "experimental-mode on").
+
+  See also "ech" in the Section 5.1 of the configuration manual.
+
+  Example:
+
+  $ echo "experimental-mode on; show ssl ech" | socat /tmp/haproxy.sock -
+   ***
+   frontend: frontend1
+
+   bind: frontend1/@haproxy.conf:19
+
+   ECH entry: 0 public_name: example.com age: 557 (has private key)
+        [fe0d,94,example.com,[0020,0001,0001],c39285b774bf61c071864181c5292a012b30adaf767e39369a566af05573ef2b,00,00]
+
+   ECH entry: 1 public_name: example.com age: 557 (has private key)
+        [fe0d,ee,example.com,[0020,0001,0001],6572191131b5cabba819f8cacf2d2e06fa0b87b30d9b793644daba7b8866d511,00,00]
+
+   bind: frontend1/@haproxy.conf:20
+
+   ECH entry: 0 public_name: example.com age: 557 (has private key)
+        [fe0d,94,example.com,[0020,0001,0001],c39285b774bf61c071864181c5292a012b30adaf767e39369a566af05573ef2b,00,00]
+
+   ECH entry: 1 public_name: example.com age: 557 (has private key)
+        [fe0d,ee,example.com,[0020,0001,0001],6572191131b5cabba819f8cacf2d2e06fa0b87b30d9b793644daba7b8866d511,00,00]
+
+  $ echo "experimental-mode on; show ssl ech frontend1/@haproxy.conf:19" | socat /tmp/haproxy.sock -
+  ***
+  ECH for frontend1/@haproxy.conf:19
+  ECH entry: 0 public_name: example.com age: 786 (has private key)
+        [fe0d,94,example.com,[0020,0001,0001],c39285b774bf61c071864181c5292a012b30adaf767e39369a566af05573ef2b,00,00]
+
+  ECH entry: 1 public_name: example.com age: 786 (has private key)
+        [fe0d,ee,example.com,[0020,0001,0001],6572191131b5cabba819f8cacf2d2e06fa0b87b30d9b793644daba7b8866d511,00,00]
+
 show ssl jwt
   Display the list of certificates that can be used for JWT validation.
   See also "add ssl jwt" and "del ssl jwt" commands.
