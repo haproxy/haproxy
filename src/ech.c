@@ -84,25 +84,27 @@ end:
 	return rv;
 }
 
-/*
+/* find a named SSL_CTX, returns 1 if found
+ *
  * <name> should be in the format "frontend/@<filename>:<linenum>"
  * Example:
  *   "http1/@haproxy.cfg:1234"
- *
  */
-
-/* find a named SSL_CTX, returns 1 if found */
-static int cli_find_ech_specific_ctx(char *name, SSL_CTX **sctx)
+static int cli_find_ech_specific_ctx(const char *name, SSL_CTX **sctx)
 {
 	struct proxy *p;
 	struct bind_conf *bind_conf;
 	char *pname; /* proxy name */
 	char *bname; /* bind_name */
+	struct buffer *tmp = get_trash_chunk();
 
 	if (!name || !sctx)
 		return 0;
 
-	for (pname = bname = name; *bname != '\0' && *bname != '/'; bname++)
+
+	b_putblk(tmp, name, strlen(name) + 1);
+
+	for (pname = bname = tmp->area; *bname != '\0' && *bname != '/'; bname++)
 		;
 
 	if (*bname) {
