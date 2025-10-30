@@ -20260,8 +20260,8 @@ The following keywords are supported:
 51d.single(prop[,prop*])                           string       string
 add(value)                                         integer      integer
 add_item(delim[,var[,suff]])                       string       string
-aes_gcm_dec(bits,nonce,key,aead_tag)               binary       binary
-aes_gcm_enc(bits,nonce,key,aead_tag)               binary       binary
+aes_gcm_dec(bits,nonce,key,aead_tag[,aad])         binary       binary
+aes_gcm_enc(bits,nonce,key,aead_tag[,aad])         binary       binary
 and(value)                                         integer      integer
 b64dec                                             string       binary
 base2                                              binary       string
@@ -20456,25 +20456,27 @@ add_item(<delim>[,<var>[,<suff>]])
     http-request set-var(req.tagged) 'var(req.tagged),add_item(",",req.score1),add_item(",",req.score2)'
     http-request set-var(req.tagged) 'var(req.tagged),add_item(",",,(site1))' if src,in_table(site1)
 
-aes_gcm_dec(<bits>,<nonce>,<key>,<aead_tag>)
-  Decrypts the raw byte input using the AES128-GCM, AES192-GCM or
-  AES256-GCM algorithm, depending on the <bits> parameter. All other parameters
-  need to be base64 encoded and the returned result is in raw byte format.
-  If the <aead_tag> validation fails, the converter doesn't return any data.
-  The <nonce>, <key> and <aead_tag> can either be strings or variables. This
-  converter requires at least OpenSSL 1.0.1.
+aes_gcm_dec(<bits>,<nonce>,<key>,<aead_tag>[,<aad>])
+  Decrypts the raw byte input using the AES128-GCM, AES192-GCM or AES256-GCM
+  algorithm, depending on the <bits> parameter. All other parameters need to be
+  base64 encoded and the returned result is in raw byte format. If the
+  <aead_tag> or <aad> validation fails, the converter doesn't return any data.
+  The <aad> parameter is optional. The <nonce>, <key>, <aead_tag> and <aad> can
+  either be strings or variables. This converter requires at least OpenSSL
+  1.0.1.
 
   Example:
     http-response set-header X-Decrypted-Text %[var(txn.enc),\
       aes_gcm_dec(128,txn.nonce,Zm9vb2Zvb29mb29wZm9vbw==,txn.aead_tag)]
 
-aes_gcm_enc(<bits>,<nonce>,<key>,<aead_tag>)
+aes_gcm_enc(<bits>,<nonce>,<key>,<aead_tag>[,<aad>])
   Encrypts the raw byte input using the AES128-GCM, AES192-GCM or
-  AES256-GCM algorithm, depending on the <bits> parameter. <nonce> and <key>
-  parameters must be base64 encoded. Last parameter, <aead_tag>, must be a
-  variable. The AEAD tag will be stored base64 encoded into that variable.
-  The returned result is in raw byte format. The <nonce> and <key> can either
-  be strings or variables. This converter requires at least OpenSSL 1.0.1.
+  AES256-GCM algorithm, depending on the <bits> parameter. <nonce>, <key> and
+  <aad> parameters must be base64 encoded. Parameter <aead_tag> must be a
+  variable. The AEAD tag will be stored base64 encoded into that variable. The
+  <aad> parameter is optional. The returned result is in raw byte format. The
+  <nonce>, <key> and <aad> can either be strings or variables. This converter
+  requires at least OpenSSL 1.0.1.
 
   Example:
     http-response set-header X-Encrypted-Text %[var(txn.plain),\

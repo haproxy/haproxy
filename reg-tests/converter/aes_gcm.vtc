@@ -1,0 +1,78 @@
+varnishtest "aes_gcm converter Test"
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp -hdr "Connection: close"
+} -repeat 2 -start
+
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+        # WT: limit false-positives causing "HTTP header incomplete" due to
+        # idle server connections being randomly used and randomly expiring
+        # under us.
+        tune.idle-pool.shared off
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+
+        http-request set-var(txn.plain) str("Hello from HAProxy AES-GCM")
+        http-request set-var(txn.nonce) str("MTIzNDU2Nzg5MDEy")
+        http-request set-var(txn.key) str("Zm9vb2Zvb29mb29vb29vbw==")
+
+        # AES-GCM enc wth vars + dec with strings
+        http-request set-var(txn.encrypted1) var(txn.plain),aes_gcm_enc(128,txn.nonce,txn.key,txn.aead_tag1),base64
+        http-after-response set-header X-Encrypted1 %[var(txn.encrypted1)]
+        http-after-response set-header X-AEAD-Tag1 %[var(txn.aead_tag1)]
+        http-request set-var(txn.decrypted1) var(txn.encrypted1),b64dec,aes_gcm_dec(128,"MTIzNDU2Nzg5MDEy","Zm9vb2Zvb29mb29vb29vbw==",txn.aead_tag1)
+        http-after-response set-header X-Decrypted1 %[var(txn.decrypted1)]
+
+        # AES-GCM enc wth strings + dec with vars
+        http-request set-var(txn.encrypted2) var(txn.plain),aes_gcm_enc(128,"MTIzNDU2Nzg5MDEy","Zm9vb2Zvb29mb29vb29vbw==",txn.aead_tag2),base64
+        http-after-response set-header X-Encrypted2 %[var(txn.encrypted2)]
+        http-after-response set-header X-AEAD-Tag2 %[var(txn.aead_tag2)]
+        http-request set-var(txn.decrypted2) var(txn.encrypted2),b64dec,aes_gcm_dec(128,txn.nonce,txn.key,txn.aead_tag2)
+        http-after-response set-header X-Decrypted2 %[var(txn.decrypted2)]
+
+        # AES-GCM + AAD enc wth vars + dec with strings
+        http-request set-var(txn.aad) str("dGVzdAo=")
+        http-request set-var(txn.encrypted3) var(txn.plain),aes_gcm_enc(128,txn.nonce,txn.key,txn.aead_tag3,txn.aad),base64
+        http-after-response set-header X-Encrypted3 %[var(txn.encrypted3)]
+        http-after-response set-header X-AEAD-Tag3 %[var(txn.aead_tag3)]
+        http-request set-var(txn.decrypted3) var(txn.encrypted3),b64dec,aes_gcm_dec(128,"MTIzNDU2Nzg5MDEy","Zm9vb2Zvb29mb29vb29vbw==",txn.aead_tag3,"dGVzdAo=")
+        http-after-response set-header X-Decrypted3 %[var(txn.decrypted3)]
+
+        # AES-GCM + AAD enc wth strings + enc with strings
+        http-request set-var(txn.encrypted4) var(txn.plain),aes_gcm_enc(128,"MTIzNDU2Nzg5MDEy","Zm9vb2Zvb29mb29vb29vbw==",txn.aead_tag4,"dGVzdAo="),base64
+        http-after-response set-header X-Encrypted4 %[var(txn.encrypted4)]
+        http-after-response set-header X-AEAD-Tag4 %[var(txn.aead_tag4)]
+        http-request set-var(txn.decrypted4) var(txn.encrypted4),b64dec,aes_gcm_dec(128,txn.nonce,txn.key,txn.aead_tag3,txn.aad)
+        http-after-response set-header X-Decrypted4 %[var(txn.decrypted4)]
+
+       default_backend be
+
+    backend be
+        server s1 ${s1_addr}:${s1_port}
+
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq
+    rxresp
+    expect resp.http.x-decrypted1 == "Hello from HAProxy AES-GCM"
+    expect resp.http.x-decrypted2 == "Hello from HAProxy AES-GCM"
+    expect resp.http.x-decrypted3 == "Hello from HAProxy AES-GCM"
+    expect resp.http.x-decrypted4 == "Hello from HAProxy AES-GCM"
+} -run

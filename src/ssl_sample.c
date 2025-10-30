@@ -250,7 +250,12 @@ static int check_aes_gcm(struct arg *args, struct sample_conv *conv,
 		memprintf(err, "failed to parse aead_tag : %s", *err);
 		return 0;
 	}
-
+	if (args[4].type) {
+		if (!sample_check_arg_base64(&args[4], err)) {
+			memprintf(err, "failed to parse aad : %s", *err);
+			return 0;
+		}
+	}
 	return 1;
 }
 
@@ -281,8 +286,8 @@ static int check_aes_gcm(struct arg *args, struct sample_conv *conv,
 /* Arguments: AES size in bits, nonce, key, tag. The last three arguments are base64 encoded */
 static int sample_conv_aes_gcm(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct sample nonce, key, aead_tag;
-	struct buffer *smp_trash = NULL, *smp_trash_alloc = NULL;
+	struct sample nonce, key, aead_tag, aad;
+	struct buffer *smp_trash = NULL, *smp_trash_alloc = NULL, *aad_trash = NULL;
 	EVP_CIPHER_CTX *ctx = NULL;
 	int size, ret, dec;
 
@@ -355,6 +360,33 @@ static int sample_conv_aes_gcm(const struct arg *arg_p, struct sample *smp, void
 	if (!sample_conv_aes_gcm_init(dec, ctx, NULL, NULL, (unsigned char *) key.data.u.str.area, NULL))
 		goto err;
 
+	/* if there's an AAD parameter */
+	if (arg_p[4].type) {
+		smp_set_owner(&aad, smp->px, smp->sess, smp->strm, smp->opt);
+
+		if (!sample_conv_var2smp_str(&arg_p[4], &aad))
+			goto err;
+		/* if stored in a variable, the base64 decode was not done in check_aes_gcm() */
+		if (arg_p[4].type == ARGT_VAR) {
+			int aad_len;
+
+
+			aad_trash = alloc_trash_chunk();
+			if (!aad_trash)
+				return 0;
+
+			aad_len = base64dec(aad.data.u.str.area, aad.data.u.str.data, aad_trash->area, aad_trash->size);
+			if (aad_len < 0)
+				goto err;
+			aad_trash->data = aad_len;
+			aad.data.u.str = *aad_trash;
+		}
+
+		if (!sample_conv_aes_gcm_update(dec, ctx, NULL, (int *)&smp_trash->data,
+		                                (unsigned char *)aad.data.u.str.area, (int)aad.data.u.str.data))
+			goto err;
+	}
+
 	if (!sample_conv_aes_gcm_update(dec, ctx, (unsigned char *) smp_trash->area, (int *) &smp_trash->data,
 	                                (unsigned char *) smp_trash_alloc->area, (int) smp_trash_alloc->data))
 		goto err;
@@ -409,12 +441,14 @@ static int sample_conv_aes_gcm(const struct arg *arg_p, struct sample *smp, void
 	smp_dup(smp);
 	free_trash_chunk(smp_trash_alloc);
 	free_trash_chunk(smp_trash);
+	free_trash_chunk(aad_trash);
 	EVP_CIPHER_CTX_free(ctx);
 	return 1;
 
 err:
 	free_trash_chunk(smp_trash_alloc);
 	free_trash_chunk(smp_trash);
+	free_trash_chunk(aad_trash);
 	EVP_CIPHER_CTX_free(ctx);
 	return 0;
 }
@@ -2655,8 +2689,8 @@ INITCALL1(STG_REGISTER, sample_register_fetches, &sample_fetch_keywords);
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "sha2",               sample_conv_sha2,             ARG1(0, SINT),            smp_check_sha2,          SMP_T_BIN,  SMP_T_BIN  },
 #ifdef EVP_CIPH_GCM_MODE
-	{ "aes_gcm_enc",        sample_conv_aes_gcm,          ARG4(4,SINT,STR,STR,STR), check_aes_gcm,           SMP_T_BIN,  SMP_T_BIN  },
-	{ "aes_gcm_dec",        sample_conv_aes_gcm,          ARG4(4,SINT,STR,STR,STR), check_aes_gcm,           SMP_T_BIN,  SMP_T_BIN  },
+	{ "aes_gcm_enc",        sample_conv_aes_gcm,          ARG5(4,SINT,STR,STR,STR,STR), check_aes_gcm,           SMP_T_BIN,  SMP_T_BIN  },
+	{ "aes_gcm_dec",        sample_conv_aes_gcm,          ARG5(4,SINT,STR,STR,STR,STR), check_aes_gcm,           SMP_T_BIN,  SMP_T_BIN  },
 #endif
 	{ "x509_v_err_str",     sample_conv_x509_v_err,       0,                        NULL,                    SMP_T_SINT, SMP_T_STR },
 	{ "digest",             sample_conv_crypto_digest,    ARG1(1,STR),              check_crypto_digest,     SMP_T_BIN,  SMP_T_BIN  },
