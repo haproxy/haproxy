@@ -18,8 +18,15 @@ server s1 -repeat 2 {
     txresp
 } -start
 
+setenv -ifunset VTC_SOCK_TYPE stream
+
 haproxy h1 -conf {
     global
+    .if streq("$VTC_SOCK_TYPE",quic)
+        # required for backend connections
+        expose-experimental-directives
+    .endif
+
     .if feature(THREAD)
         thread-groups 1
     .endif
@@ -31,6 +38,10 @@ haproxy h1 -conf {
         crt-base ${testdir}
         stats socket "${tmpdir}/h1/stats" level admin
         ssl-default-bind-options strict-sni
+
+#traces
+#trace quic sink stderr level developer start now
+#trace ssl sink stderr level developer verbosity complete start now
 
     defaults
         mode http
@@ -47,19 +58,19 @@ haproxy h1 -conf {
         bind "fd@${clearlst}"
         balance roundrobin
         http-response set-header X-SSL-Server-SHA1 %[ssl_s_sha1,hex]
-        server s1 "${tmpdir}/first-ssl.sock" ssl verify none sni str(record2.bug940.domain.tld)
-        server s2 "${tmpdir}/first-ssl.sock" ssl verify none sni str(record3.bug940.domain.tld)
-        server s3 "${tmpdir}/first-ssl.sock" ssl verify none sni str(record2.bug940.domain.tld)
+        server s1 "${VTC_SOCK_TYPE}+${h1_ssl_addr}:${h1_ssl_port}" ssl verify none sni str(record2.bug940.domain.tld)
+        server s2 "${VTC_SOCK_TYPE}+${h1_ssl_addr}:${h1_ssl_port}" ssl verify none sni str(record3.bug940.domain.tld)
+        server s3 "${VTC_SOCK_TYPE}+${h1_ssl_addr}:${h1_ssl_port}" ssl verify none sni str(record2.bug940.domain.tld)
 
     listen first-ssl-fe
         # note: strict-sni is enforced from ssl-default-bind-options above
         mode http
-        bind "${tmpdir}/first-ssl.sock" ssl crt-list ${testdir}/simple.crt-list
+        bind "${VTC_SOCK_TYPE}+fd@${ssl}" ssl crt-list ${testdir}/simple.crt-list
         server s1 ${s1_addr}:${s1_port}
 
     listen second-ssl-fe
         mode http
-        bind "${tmpdir}/second-ssl.sock" ssl no-strict-sni crt-list ${testdir}/localhost.crt-list
+        bind "fd@${secondssl}" ssl no-strict-sni crt-list ${testdir}/localhost.crt-list
         server s1 ${s1_addr}:${s1_port}
 } -start
 
