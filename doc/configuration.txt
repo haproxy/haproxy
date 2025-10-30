@@ -17918,10 +17918,16 @@ check-proto <name>
     fcgi : mode=HTTP  side=BE     mux=FCGI  flags=HTX|HOL_RISK|NO_UPG
     h1   : mode=HTTP  side=FE|BE  mux=H1    flags=HTX|NO_UPG
     none : mode=TCP   side=FE|BE  mux=PASS  flags=NO_UPG
+    quic : mode=HTTP  side=FE|BE  mux=QUIC  flags=HTX|NO_UPG|FRAMED
 
   Idea behind this option is to bypass the selection of the best multiplexer's
   protocol for health-check connections established to this server.
   If not defined, the server one will be used, if set.
+
+  QUIC check configuration is not fully implemented yet. First, QUIC checks may
+  only be performed for QUIC servers. Second, if one or more check specific
+  connection parameters is specified on a QUIC server, check protocol will
+  fallback to TCP usage.
 
 check-sni-auto
   May be used in the following contexts: tcp, http, log

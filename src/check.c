@@ -1876,6 +1876,14 @@ int init_srv_check(struct server *srv)
 			ret |= ERR_ALERT | ERR_FATAL;
 		}
 	}
+	else {
+		if (srv->check.mux_proto == get_mux_proto(ist("quic"))) {
+			ha_alert("config: %s '%s': QUIC checks on non-QUIC server '%s' is not yet supported.\n",
+			         proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
+			ret |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
 
 	/* We need at least a service port, a check port or the first tcp-check
 	 * rule must be a 'connect' one when checking an IPv4/IPv6 server.
