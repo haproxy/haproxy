@@ -1234,8 +1234,10 @@ static inline int tcpcheck_connect_use_ssl(const struct check *check,
 {
 	if (connect->options & TCPCHK_OPT_SSL)
 		return 1;
-	if (connect->options & TCPCHK_OPT_DEFAULT_CONNECT)
-		return (check->xprt == xprt_get(XPRT_SSL));
+	if (connect->options & TCPCHK_OPT_DEFAULT_CONNECT) {
+		return (check->xprt == xprt_get(XPRT_SSL) ||
+		        check->xprt == xprt_get(XPRT_QUIC));
+	}
 	return 0;
 }
 
