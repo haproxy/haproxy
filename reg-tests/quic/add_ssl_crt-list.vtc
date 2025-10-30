@@ -1,0 +1,10 @@
+#REGTEST_TYPE=devel
+
+# Same test as ssl/add_ssl_crt-list.vtc, but with QUIC connections where applicable (only for TLSv3)
+
+varnishtest "Test the 'add ssl crt-list' feature of the CLI"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
+
+setenv VTC_SOCK_TYPE quic
+include ${testdir}/../ssl/add_ssl_crt-list.vtc

@@ -20,8 +20,15 @@ server s1 -repeat 2 {
     txresp
 } -start
 
+setenv -ifunset VTC_SOCK_TYPE stream
+
 haproxy h1 -conf {
     global
+    .if streq("$VTC_SOCK_TYPE",quic)
+        # required for backend connections
+        expose-experimental-directives
+    .endif
+
     .if feature(THREAD)
         thread-groups 1
     .endif
@@ -46,13 +53,13 @@ haproxy h1 -conf {
     listen clear-lst
         bind "fd@${clearlst}"
         balance roundrobin
-        server s1 "${tmpdir}/ssl.sock" ssl verify none sni str(www.test1.com)
-        server s2 "${tmpdir}/ssl.sock" ssl verify none sni str(localhost)
+        server s1 "${VTC_SOCK_TYPE}+${h1_ssl_lst_addr}:${h1_ssl_lst_port}" ssl verify none sni str(www.test1.com)
+        server s2 "${VTC_SOCK_TYPE}+${h1_ssl_lst_addr}:${h1_ssl_lst_port}" ssl verify none sni str(localhost)
 
 
     listen ssl-lst
         mode http
-        bind "${tmpdir}/ssl.sock" ssl strict-sni crt-list ${testdir}/localhost.crt-list
+        bind "${VTC_SOCK_TYPE}+fd@${ssl_lst}" ssl strict-sni crt-list ${testdir}/localhost.crt-list
 
         server s1 ${s1_addr}:${s1_port}
         server s2 ${s1_addr}:${s1_port} ssl crt "${testdir}/common.pem" weight 0 verify none
