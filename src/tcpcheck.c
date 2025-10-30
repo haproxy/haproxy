@@ -1508,12 +1508,10 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		goto fail_check;
 	}
 
-	/* The mux may be initialized now if there isn't server attached to the
-	 * check (email alerts) or if there is a mux proto specified or if there
-	 * is no alpn.
+	/* MUX may be initialized now if there isn't server attached to the
+	 * check (email alerts) or if it does not rely on SSL ALPN negotiation.
 	 */
-	if (!s || ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && check->mux_proto) ||
-	    connect->mux_proto ||
+	if (!s ||
 	    (!conn_is_ssl(conn) || (!connect->alpn && !check->alpn_str && !s->ssl_ctx.alpn_str))) {
 		const struct mux_ops *mux_ops;
 
