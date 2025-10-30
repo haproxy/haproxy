@@ -1405,9 +1405,27 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	*conn->dst = (is_addr(&connect->addr)
 		      ? connect->addr
 		      : (is_addr(&check->addr) ? check->addr : s->addr));
-	proto = s ?
-	  protocol_lookup(conn->dst->ss_family, s->addr_type.proto_type, s->alt_proto) :
-	  protocol_lookup(conn->dst->ss_family, PROTO_TYPE_STREAM, 0);
+
+	if (s && srv_is_quic(s)) {
+		/* For QUIC servers, checks are performed using QUIC only if no
+		 * check connection parameters is specified. Fallback to TCP in
+		 * this case.
+		 */
+		if (tcpcheck_use_nondefault_connect(check, connect)) {
+			proto = protocol_lookup(conn->dst->ss_family, PROTO_TYPE_STREAM, 0);
+			/* Also reset MUX protocol if set to QUIC. */
+			if (check->mux_proto == s->mux_proto)
+				check->mux_proto = NULL;
+		}
+		else {
+			proto = protocol_lookup(conn->dst->ss_family, s->addr_type.proto_type, s->alt_proto);
+		}
+	}
+	else {
+		proto = s ?
+		  protocol_lookup(conn->dst->ss_family, s->addr_type.proto_type, s->alt_proto) :
+		  protocol_lookup(conn->dst->ss_family, PROTO_TYPE_STREAM, 0);
+	}
 
 	port = 0;
 	if (connect->port)
