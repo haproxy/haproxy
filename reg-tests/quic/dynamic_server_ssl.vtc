@@ -1,0 +1,10 @@
+#REGTEST_TYPE=devel
+
+# Same test as ssl/dynamic_server_ssl.vtc, but with QUIC connections where applicable (only for TLSv3)
+
+varnishtest "Delete server via cli and update certificates"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
+
+setenv VTC_SOCK_TYPE quic
+include ${testdir}/../ssl/dynamic_server_ssl.vtc
