@@ -60,12 +60,15 @@ haproxy h1 -conf {
         http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
 
     listen ssl
-        bind "fd@${fe1}" ssl crt ${testdir}/common.pem ssl-max-ver TLSv1.2
-        bind "fd@${fe2}" ssl crt ${testdir}/common.pem ssl-max-ver TLSv1.2 no-tls-tickets
-        bind "${VTC_SOCK_TYPE}+fd@${fe3}" ssl crt ${testdir}/common.pem ssl-min-ver TLSv1.3
-        bind "${VTC_SOCK_TYPE}+fd@${fe4}" ssl crt ${testdir}/common.pem ssl-min-ver TLSv1.3 no-tls-tickets
+        # Note: 0-RTT must have no effect on TLSv1.2
+        bind "fd@${fe1}" ssl crt ${testdir}/common.pem ssl-max-ver TLSv1.2 allow-0rtt
+        bind "fd@${fe2}" ssl crt ${testdir}/common.pem ssl-max-ver TLSv1.2 allow-0rtt no-tls-tickets
+        bind "${VTC_SOCK_TYPE}+fd@${fe3}" ssl crt ${testdir}/common.pem ssl-min-ver TLSv1.3 allow-0rtt
+        bind "${VTC_SOCK_TYPE}+fd@${fe4}" ssl crt ${testdir}/common.pem ssl-min-ver TLSv1.3 allow-0rtt no-tls-tickets
 
+        http-request set-var(txn.early) ssl_fc_early_rcvd #has_early
         http-response add-header x-ssl-resumed %[ssl_fc_is_resumed]
+        http-response add-header x-ssl-early-data %[var(txn.early)]
         server s1 ${s1_addr}:${s1_port}
 } -start
 
@@ -77,6 +80,7 @@ client c1 -connect ${h1_clst1_sock} {
     rxresp
     expect resp.status == 200
     expect resp.http.x-ssl-resumed == 0
+    expect resp.http.x-ssl-early-data == 0
 } -run
 # the next 20 connections are resumed
 client c1 -connect ${h1_clst1_sock} -repeat 20 {
@@ -84,6 +88,7 @@ client c1 -connect ${h1_clst1_sock} -repeat 20 {
     rxresp
     expect resp.status == 200
     expect resp.http.x-ssl-resumed == 1
+    expect resp.http.x-ssl-early-data == 0
 } -run
 
 # second bind
@@ -92,6 +97,7 @@ client c2 -connect ${h1_clst2_sock} {
     rxresp
     expect resp.status == 200
     expect resp.http.x-ssl-resumed == 0
+    expect resp.http.x-ssl-early-data == 0
 } -run
 
 client c2 -connect ${h1_clst2_sock} -repeat 20 {
@@ -99,6 +105,7 @@ client c2 -connect ${h1_clst2_sock} -repeat 20 {
     rxresp
     expect resp.status == 200
     expect resp.http.x-ssl-resumed == 1
+    expect resp.http.x-ssl-early-data == 0
 } -run
 
 # third bind
@@ -107,6 +114,7 @@ client c3 -connect ${h1_clst3_sock} {
     rxresp
     expect resp.status == 200
     expect resp.http.x-ssl-resumed == 0
+    expect resp.http.x-ssl-early-data == 0
 } -run
 
 client c3 -connect ${h1_clst3_sock} -repeat 20 {
@@ -114,6 +122,7 @@ client c3 -connect ${h1_clst3_sock} -repeat 20 {
     rxresp
     expect resp.status == 200
     expect resp.http.x-ssl-resumed == 1
+    expect resp.http.x-ssl-early-data == 0
 } -run
 
 # fourth bind
@@ -122,6 +131,7 @@ client c4 -connect ${h1_clst4_sock} {
     rxresp
     expect resp.status == 200
     expect resp.http.x-ssl-resumed == 0
+    expect resp.http.x-ssl-early-data == 0
 } -run
 
 client c4 -connect ${h1_clst4_sock} -repeat 20 {
@@ -129,6 +139,7 @@ client c4 -connect ${h1_clst4_sock} -repeat 20 {
     rxresp
     expect resp.status == 200
     expect resp.http.x-ssl-resumed == 1
+    expect resp.http.x-ssl-early-data == 0
 } -run
 
 
