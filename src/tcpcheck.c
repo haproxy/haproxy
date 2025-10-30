@@ -1273,6 +1273,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	struct tcpcheck_rule *next;
 	struct buffer *auto_sni = NULL;
 	int status, port;
+	char *hash_debug = NULL;
 	int check_type;
 
 	TRACE_ENTER(CHK_EV_TCPCHK_CONN, check);
@@ -1324,7 +1325,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		int64_t hash;
 		int conn_err;
 
-		TRACE_DEVEL("trying connection reuse for check", CHK_EV_TCPCHK_CONN, check);
+		TRACE_USER("trying connection reuse for check", CHK_EV_TCPCHK_CONN, check);
 
 		if (check->pool_conn_name)
 			pool_conn_name = ist(check->pool_conn_name);
@@ -1347,25 +1348,29 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 			dst = NULL;
 		}
 
-		hash = be_calculate_conn_hash(s, NULL, check->sess, NULL, dst, pool_conn_name);
+		hash = be_calculate_conn_hash(s, NULL, check->sess, NULL, dst, pool_conn_name, &hash_debug);
 		conn_err = be_reuse_connection(hash, check->sess, s->proxy, s,
 		                               check->sc, &s->obj_type, 0);
+		fprintf(stderr, "check hash 0x%llx [%s]\n", (ullong)hash, hash_debug);
 		if (conn_err == SF_ERR_INTERNAL) {
-			TRACE_ERROR("error during connection reuse", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
+			TRACE_USER("error during connection reuse", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
 			set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.area);
 			ret = TCPCHK_EVAL_STOP;
 			goto out;
 		}
 		else if (conn_err == SF_ERR_NONE) {
-			TRACE_STATE("check performed with connection reuse", CHK_EV_TCPCHK_CONN, check);
+			TRACE_USER("check performed with connection reuse", CHK_EV_TCPCHK_CONN, check);
 			conn = __sc_conn(check->sc);
 			conn_set_owner(conn, check->sess, NULL);
 			/* connection will be reinsert in idle conn pool due to missing conn_set_private(). */
 			status = SF_ERR_NONE;
 			goto skip_connect;
 		}
+
+		TRACE_USER("no connection eligible", CHK_EV_TCPCHK_CONN, check);
 	}
 
+	TRACE_USER("init a new connection", CHK_EV_TCPCHK_CONN, check);
 	/* No connection, prepare a new one */
 	conn = conn_new((s ? &s->obj_type : &proxy->obj_type));
 	if (!conn) {

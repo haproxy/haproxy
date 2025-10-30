@@ -1824,6 +1824,7 @@ int connect_server(struct stream *s)
 	int err;
 	struct sockaddr_storage *bind_addr = NULL;
 	int64_t hash = 0;
+	char *hash_debug = NULL;
 
 	/* in standard configuration, srv will be valid
 	 * it can be NULL for dispatch mode or transparent backend */
@@ -1859,9 +1860,10 @@ int connect_server(struct stream *s)
 			}
 		}
 
-		hash = be_calculate_conn_hash(srv, s, s->sess, bind_addr, s->scb->dst, name);
+		hash = be_calculate_conn_hash(srv, s, s->sess, bind_addr, s->scb->dst, name, &hash_debug);
 		err = be_reuse_connection(hash, s->sess, s->be, srv, s->scb,
 		                          s->target, not_first_req);
+		fprintf(stderr, "connection hash 0x%llx [%s]\n", (ullong)hash, hash_debug);
 		if (err == SF_ERR_INTERNAL)
 			return err;
 
