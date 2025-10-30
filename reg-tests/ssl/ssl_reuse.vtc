@@ -8,7 +8,7 @@ varnishtest "Test if the SSL session/ticket reuse work correctly"
 feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL_WOLFSSL) || feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1)'"
 feature ignore_unknown_macro
 
-server s1 -repeat 84 {
+server s1 -repeat 400 {
     rxreq
     txresp
 } -start
@@ -59,6 +59,86 @@ haproxy h1 -conf {
         server s1 "${VTC_SOCK_TYPE}+${h1_fe4_addr}:${h1_fe4_port}" ssl verify none  sni str(www.test1.com)
         http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
 
+    listen clst11
+        # must not do 0-rtt since not allowed by server (TLSv1.2)
+        bind "fd@${clst11}"
+        retry-on 0rtt-rejected
+        server s1 "${h1_fe1_addr}:${h1_fe1_port}" ssl verify none  sni str(www.test1.com) allow-0rtt
+        http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
+
+    listen clst12
+        # must not do 0-rtt since not allowed by server (TLSv1.2)
+        bind "fd@${clst12}"
+        retry-on 0rtt-rejected
+        server s1 "${h1_fe2_addr}:${h1_fe2_port}" ssl verify none  sni str(www.test1.com) allow-0rtt
+        http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
+
+    listen clst13a
+        # must not do 0-rtt since not allowed by client nor by config
+        bind "fd@${clst13a}"
+        server s1 "${VTC_SOCK_TYPE}+${h1_fe3_addr}:${h1_fe3_port}" ssl verify none  sni str(www.test1.com) allow-0rtt
+        http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
+
+    listen clst13b
+        # must do 0-rtt since allowed by config (retry-on)
+        bind "fd@${clst13b}"
+        retry-on 0rtt-rejected
+        server s1 "${VTC_SOCK_TYPE}+${h1_fe3_addr}:${h1_fe3_port}" ssl verify none  sni str(www.test1.com) allow-0rtt
+        http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
+
+    listen clst14a
+        # must not do 0-rtt since not allowed by client nor by config
+        bind "fd@${clst14a}"
+        server s1 "${VTC_SOCK_TYPE}+${h1_fe4_addr}:${h1_fe4_port}" ssl verify none  sni str(www.test1.com) allow-0rtt
+        http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
+
+    listen clst14b
+        # must do 0-rtt since allowed by config (retry-on)
+        bind "fd@${clst14b}"
+        retry-on 0rtt-rejected
+        server s1 "${VTC_SOCK_TYPE}+${h1_fe4_addr}:${h1_fe4_port}" ssl verify none  sni str(www.test1.com) allow-0rtt
+        http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
+
+    listen clst21
+        # must not do 0-rtt since not allowed by server (TLSv1.2)
+        bind "fd@${clst21}"
+        retry-on 0rtt-rejected
+        server s1 "${h1_fe1_addr}:${h1_fe1_port}" ssl verify none  sni str(www.test1.com) alpn h2 proto h2 allow-0rtt
+        http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
+
+    listen clst22
+        # must not do 0-rtt since not allowed by server (TLSv1.2)
+        bind "fd@${clst22}"
+        retry-on 0rtt-rejected
+        server s1 "${h1_fe2_addr}:${h1_fe2_port}" ssl verify none  sni str(www.test1.com) alpn h2 allow-0rtt
+        http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
+
+    listen clst23a
+        # must not do 0-rtt since not allowed by client nor by config
+        bind "fd@${clst23a}"
+        server s1 "${VTC_SOCK_TYPE}+${h1_fe3_addr}:${h1_fe3_port}" ssl verify none  sni str(www.test1.com) alpn h2 allow-0rtt
+        http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
+
+    listen clst23b
+        # must do 0-rtt since allowed by config (retry-on)
+        bind "fd@${clst23b}"
+        retry-on 0rtt-rejected
+        server s1 "${VTC_SOCK_TYPE}+${h1_fe3_addr}:${h1_fe3_port}" ssl verify none  sni str(www.test1.com) alpn h2 allow-0rtt
+        http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
+
+    listen clst24a
+        # must not do 0-rtt since not allowed by client nor config
+        bind "fd@${clst24a}"
+        server s1 "${VTC_SOCK_TYPE}+${h1_fe4_addr}:${h1_fe4_port}" ssl verify none  sni str(www.test1.com) alpn h2 allow-0rtt
+        http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
+
+    listen clst24b
+        # must do 0-rtt since allowed by config (retry-on)
+        bind "fd@${clst24b}"
+        retry-on 0rtt-rejected
+        server s1 "${VTC_SOCK_TYPE}+${h1_fe4_addr}:${h1_fe4_port}" ssl verify none  sni str(www.test1.com) alpn h2 allow-0rtt
+        http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
+
     listen ssl
         # Note: 0-RTT must have no effect on TLSv1.2
         bind "fd@${fe1}" ssl crt ${testdir}/common.pem ssl-max-ver TLSv1.2 allow-0rtt
@@ -72,6 +152,7 @@ haproxy h1 -conf {
         server s1 ${s1_addr}:${s1_port}
 } -start
 
+### tests without 0-rtt ###
 
 # first bind
 # the first connection is not resumed
@@ -140,6 +221,220 @@ client c4 -connect ${h1_clst4_sock} -repeat 20 {
     expect resp.status == 200
     expect resp.http.x-ssl-resumed == 1
     expect resp.http.x-ssl-early-data == 0
+} -run
+
+### tests with 0-rtt using HTTP/1 ###
+
+# first bind
+# the first connection is not resumed
+client c11 -connect ${h1_clst11_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 0
+    expect resp.http.x-ssl-early-data == 0
+} -run
+# the next 20 connections are resumed
+client c11 -connect ${h1_clst11_sock} -repeat 20 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 1
+    expect resp.http.x-ssl-early-data == 0
+} -run
+
+# second bind
+client c12 -connect ${h1_clst12_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 0
+    expect resp.http.x-ssl-early-data == 0
+} -run
+
+client c12 -connect ${h1_clst12_sock} -repeat 20 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 1
+    expect resp.http.x-ssl-early-data == 0
+} -run
+
+# third bind
+client c13a -connect ${h1_clst13a_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 0
+    expect resp.http.x-ssl-early-data == 0
+} -run
+
+client c13a -connect ${h1_clst13a_sock} -repeat 20 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 1
+    expect resp.http.x-ssl-early-data == 0
+} -run
+
+# third bind
+client c13b -connect ${h1_clst13b_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 0
+    expect resp.http.x-ssl-early-data == 0
+} -run
+
+client c13b -connect ${h1_clst13b_sock} -repeat 20 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 1
+    expect resp.http.x-ssl-early-data == 1
+} -run
+
+# fourth bind
+client c14a -connect ${h1_clst14a_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 0
+    expect resp.http.x-ssl-early-data == 0
+} -run
+
+client c14a -connect ${h1_clst14a_sock} -repeat 20 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 1
+    expect resp.http.x-ssl-early-data == 0
+} -run
+
+# fourth bind
+client c14b -connect ${h1_clst14b_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 0
+    expect resp.http.x-ssl-early-data == 0
+} -run
+
+client c14b -connect ${h1_clst14b_sock} -repeat 20 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 1
+    expect resp.http.x-ssl-early-data == 1
+} -run
+
+### 0-RTT with H2 ###
+
+# first bind
+# the first connection is not resumed
+client c21 -connect ${h1_clst21_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 0
+    expect resp.http.x-ssl-early-data == 0
+} -run
+
+# the next 20 connections are resumed, no 0-rtt in TLSv1.2
+client c21 -connect ${h1_clst21_sock} -repeat 20 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 1
+    expect resp.http.x-ssl-early-data == 0
+} -run
+
+# second bind
+client c22 -connect ${h1_clst22_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 0
+    expect resp.http.x-ssl-early-data == 0
+} -run
+
+# no 0-rtt in TLSv1.2
+client c22 -connect ${h1_clst22_sock} -repeat 20 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 1
+    expect resp.http.x-ssl-early-data == 0
+} -run
+
+# third bind
+client c23a -connect ${h1_clst23a_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 0
+    expect resp.http.x-ssl-early-data == 0
+} -run
+
+# no 0-rtt (not permitted by conf)
+client c23a -connect ${h1_clst23a_sock} -repeat 20 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 1
+    expect resp.http.x-ssl-early-data == 0
+} -run
+
+client c23b -connect ${h1_clst23b_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 0
+    expect resp.http.x-ssl-early-data == 0
+} -run
+
+# 0-rtt (permitted by retry-on)
+client c23b -connect ${h1_clst23b_sock} -repeat 20 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 1
+    expect resp.http.x-ssl-early-data == 1
+} -run
+
+# fourth bind
+# no 0-rtt (not permitted by conf)
+client c24a -connect ${h1_clst24a_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 0
+    expect resp.http.x-ssl-early-data == 0
+} -run
+
+client c24a -connect ${h1_clst24a_sock} -repeat 20 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 1
+    expect resp.http.x-ssl-early-data == 0
+} -run
+
+# 0-rtt (permitted by retry-on)
+client c24b -connect ${h1_clst24b_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 0
+    expect resp.http.x-ssl-early-data == 0
+} -run
+
+client c24b -connect ${h1_clst24b_sock} -repeat 20 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-resumed == 1
+    expect resp.http.x-ssl-early-data == 1
 } -run
 
 
