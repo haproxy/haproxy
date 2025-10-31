@@ -3931,8 +3931,8 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 #ifdef USE_QUIC
 	if (srv_is_quic(srv)) {
 		if (!srv->use_ssl) {
-			ha_alert("QUIC protocol detected without explicit SSL requirement. Use 'ssl' to fix this.\n");
-			return ERR_ALERT | ERR_FATAL;
+			srv->use_ssl = 1;
+			ha_warning("QUIC protocol detected, enabling ssl. Use 'ssl' to shut this warning.\n");
 		}
 
 		if (!srv->ssl_ctx.alpn_str &&
