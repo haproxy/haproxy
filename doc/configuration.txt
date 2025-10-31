@@ -17696,7 +17696,9 @@ alpn <protocols>
   delimited list of protocol names, for instance: "http/1.1,http/1.0" (without
   quotes). This requires that the SSL library is built with support for TLS
   extensions enabled (check with haproxy -vv). The ALPN extension replaces the
-  initial NPN extension. ALPN is required to connect to HTTP/2 servers.
+  initial NPN extension. ALPN is required to connect to HTTP/2 servers. It is
+  also required to be able to use HTTP/3 via a QUIC server, "h3" serves as a
+  default value for QUIC servers without "alpn" setting.
   Versions of OpenSSL prior to 1.0.2 didn't support ALPN and only supposed the
   now obsolete NPN extension.
   If both HTTP/2 and HTTP/1.1 are expected to be supported, both versions can

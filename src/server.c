@@ -3935,10 +3935,13 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 			ha_warning("QUIC protocol detected, enabling ssl. Use 'ssl' to shut this warning.\n");
 		}
 
-		if (!srv->ssl_ctx.alpn_str &&
-		    ssl_sock_parse_alpn("h3", &srv->ssl_ctx.alpn_str,
-		                        &srv->ssl_ctx.alpn_len, &errmsg) != 0) {
-			return ERR_ALERT | ERR_FATAL;
+		if (!srv->ssl_ctx.alpn_str) {
+			srv->ssl_ctx.alpn_str = strdup("\002h3");
+			if (!srv->ssl_ctx.alpn_str) {
+				ha_alert("out of memory while trying to allocate a default alpn string.\n");
+				return ERR_ALERT | ERR_FATAL;
+			}
+			srv->ssl_ctx.alpn_len = strlen(srv->ssl_ctx.alpn_str);
 		}
 #else
 		ha_alert("QUIC protocol selected but support not compiled in (check build options).\n");
