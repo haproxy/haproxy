@@ -1,6 +1,90 @@
 ChangeLog :
 ===========
 
+2025/10/31 : 3.3-dev11
+    - BUG/MEDIUM: mt_list: Make sure not to unlock the element twice
+    - BUG/MINOR: quic-be: unchecked connections during handshakes
+    - BUG/MEDIUM: cli: also free the trash chunk on the error path
+    - MINOR: initcalls: Add a new initcall stage, STG_INIT_2
+    - MEDIUM: stick-tables: Use a per-shard expiration task
+    - MEDIUM: stick-tables: Remove the table lock
+    - MEDIUM: stick-tables: Stop if stktable_trash_oldest() fails.
+    - MEDIUM: stick-tables: Stop as soon as stktable_trash_oldest succeeds.
+    - BUG/MEDIUM: h1-htx: Don't set HTX_FL_EOM flag on 1xx informational messages
+    - BUG/MEDIUM: h3: properly encode response after interim one in same buf
+    - BUG/MAJOR: pools: fix default pool alignment
+    - MINOR: ncbuf: extract common types
+    - MINOR: ncbmbuf: define new ncbmbuf type
+    - MINOR: ncbmbuf: implement add
+    - MINOR: ncbmbuf: implement iterator bitmap utilities functions
+    - MINOR: ncbmbuf: implement ncbmb_data()
+    - MINOR: ncbmbuf: implement advance operation
+    - MINOR: ncbmbuf: add tests as standalone mode
+    - BUG/MAJOR: quic: use ncbmbuf for CRYPTO handling
+    - MINOR: quic: remove received CRYPTO temporary tree storage
+    - MINOR: stats-file: fix typo in shm-stats-file object struct size detection
+    - MINOR: compiler: add FIXED_SIZE(size, type, name) macro
+    - MEDIUM: freq-ctr: use explicit-size types for freq-ctr struct
+    - BUG/MAJOR: stats-file: ensure shm_stats_file_object struct mapping consistency
+    - BUG/MEDIUM: build: limit excessive and counter-productive gcc-15 vectorization
+    - BUG/MEDIUM: stick-tables: Don't loop if there's nothing left
+    - MINOR: acme: add the dns-01-record field to the sink
+    - MINOR: acme: display the complete challenge_ready command in the logs
+    - BUG/MEDIUM: mt_lists: Avoid el->prev = el->next = el
+    - MINOR: quic: remove unused conn-tx-buffers limit keyword
+    - MINOR: quic: prepare support for options on FE/BE side
+    - MINOR: quic: rename "no-quic" to "tune.quic.listen"
+    - MINOR: quic: duplicate glitches FE option on BE side
+    - MINOR: quic: split congestion controler options for FE/BE usage
+    - MINOR: quic: split Tx options for FE/BE usage
+    - MINOR: quic: rename max Tx mem setting
+    - MINOR: quic: rename retry-threshold setting
+    - MINOR: quic: rename frontend sock-per-conn setting
+    - BUG/MINOR: quic: split max-idle-timeout option for FE/BE usage
+    - BUG/MINOR: quic: split option for congestion max window size
+    - BUG/MINOR: quic: rename and duplicate stream settings
+    - BUG/MEDIUM: applet: Improve again spinning loops detection with the new API
+    - Revert "BUG/MAJOR: stats-file: ensure shm_stats_file_object struct mapping consistency"
+    - Revert "MEDIUM: freq-ctr: use explicit-size types for freq-ctr struct"
+    - Revert "MINOR: compiler: add FIXED_SIZE(size, type, name) macro"
+    - BUG/MAJOR: stats-file: ensure shm_stats_file_object struct mapping consistency (2nd attempt)
+    - BUG/MINOR: stick-tables: properly index string-type keys
+    - BUILD: openssl-compat: fix build failure with OPENSSL=0 and KTLS=1
+    - BUG/MEDIUM: mt_list: Use atomic operations to prevent compiler optims
+    - MEDIUM: quic: Fix build with openssl-compat
+    - MINOR: applet: do not put SE_FL_WANT_ROOM on rcv_buf() if the channel is empty
+    - MINOR: cli: create cli_raw_rcv_buf() from the generic applet_raw_rcv_buf()
+    - BUG/MEDIUM: cli: do not return ACKs one char at a time
+    - BUG/MEDIUM: ssl: Crash because of dangling ckch_store reference in a ckch instance
+    - BUG/MINOR: ssl: Remove unreachable code in CLI function
+    - BUG/MINOR: acl: warn if "_sub" derivative used with an explicit match
+    - DOC: config: fix confusing typo about ACL -m ("now" vs "not")
+    - DOC: config: slightly clarify the ssl_fc_has_early() behavior
+    - MINOR: ssl-sample: add ssl_fc_early_rcvd() to detect use of early data
+    - CI: disable fail-fast on fedora rawhide builds
+    - MINOR: http: fix 405,431,501 default errorfile
+    - BUG/MINOR: init: Do not close previously created fd in stdio_quiet
+    - MINOR: init: Make devnullfd global and create it earlier in init
+    - MINOR: init: Use devnullfd in stdio_quiet calls instead of recreating a fd everytime
+    - MEDIUM: ssl: Add certificate password callback that calls external command
+    - MEDIUM: ssl: Add local passphrase cache
+    - MINOR: ssl: Do not dump decrypted privkeys in 'dump ssl cert'
+    - BUG/MINOR: resolvers: Apply dns-accept-family setting on additional records
+    - MEDIUM: h1: Immediately try to read data for frontend
+    - REGTEST: quic: add ssl_reuse.vtc new QUIC test
+    - BUG/MINOR: ssl: returns when SSL_CTX_new failed during init
+    - MEDIUM: ssl/ech: config and load keys
+    - MINOR: ssl/ech: add logging and sample fetches for ECH status and outer SNI
+    - MINOR: listener: implement bind_conf_find_by_name()
+    - MINOR: ssl/ech: key management via stats socket
+    - CI: github: add USE_ECH=1 to haproxy for openssl-ech job
+    - DOC: configuration: "ech" for bind lines
+    - BUG/MINOR: ech: non destructive parsing in cli_find_ech_specific_ctx()
+    - DOC: management: document ECH CLI commands
+    - MEDIUM: mux-h2: do not needlessly refrain from sending data early
+    - MINOR: mux-h2: extract the code to send preface+settings into its own function
+    - BUG/MINOR: mux-h2: send the preface along with the first request if needed
+
 2025/10/18 : 3.3-dev10
     - BUG/MEDIUM: connections: Only avoid creating a mux if we have one
     - BUG/MINOR: sink: retry attempt for sft server may never occur
