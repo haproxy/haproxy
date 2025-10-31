@@ -1,4 +1,6 @@
 varnishtest "aes_gcm converter Test"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.3-dev11)'"
 
 feature ignore_unknown_macro
 
