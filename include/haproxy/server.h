@@ -383,12 +383,8 @@ static inline struct server *server_find_by_id(struct proxy *bk, int id)
 
 static inline int srv_is_quic(const struct server *srv)
 {
-#ifdef USE_QUIC
 	return srv->addr_type.proto_type == PROTO_TYPE_DGRAM &&
 	       srv->addr_type.xprt_type == PROTO_TYPE_STREAM;
-#else
-	return 0;
-#endif
 }
 
 #endif /* _HAPROXY_SERVER_H */

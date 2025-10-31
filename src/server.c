@@ -3928,8 +3928,8 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 		}
 	}
 
-#ifdef USE_QUIC
 	if (srv_is_quic(srv)) {
+#ifdef USE_QUIC
 		if (!srv->use_ssl) {
 			srv->use_ssl = 1;
 			ha_warning("QUIC protocol detected, enabling ssl. Use 'ssl' to shut this warning.\n");
@@ -3940,8 +3940,11 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 		                        &srv->ssl_ctx.alpn_len, &errmsg) != 0) {
 			return ERR_ALERT | ERR_FATAL;
 		}
-	}
+#else
+		ha_alert("QUIC protocol selected but support not compiled in (check build options).\n");
+		return ERR_ALERT | ERR_FATAL;
 #endif
+	}
 
 	if (!(srv->proxy->cap & PR_CAP_LB)) {
 		/* No need to wait for effective proxy mode, it is already known:
