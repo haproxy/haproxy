@@ -356,7 +356,8 @@ struct proxy {
 	struct server *srv, *defsrv;		/* known servers; default server configuration */
 	struct lbprm lbprm;			/* load-balancing parameters */
 	int srv_act, srv_bck;			/* # of servers eligible for LB (UP|!checked) AND (enabled+weight!=0) */
-	int served;				/* # of active sessions currently being served */
+	int load_server_state_from_file;	/* location of the file containing server state.
+						 * flag PR_SRV_STATE_FILE_* */
 	int  cookie_len;			/* strlen(cookie_name), computed only once */
 	struct server *ready_srv;		/* a server being ready to serve requests */
 	char *cookie_domain;			/* domain used to insert the cookie */
@@ -401,9 +402,6 @@ struct proxy {
 	char *id;				/* proxy id (name), indexed by <conf.name_node> below */
 	char *desc;				/* proxy description */
 	struct proxy_per_tgroup *per_tgrp;	/* array of per-tgroup stuff such as queues */
-	unsigned int queueslength;		/* Sum of the length of each queue */
-	int totpend;				/* total number of pending connections on this instance (for stats) */
-	unsigned int feconn, beconn;		/* # of active frontend and backends streams */
 	unsigned int fe_sps_lim;		/* limit on new sessions per second on the frontend */
 	unsigned int fullconn;			/* #conns on backend above which servers are used at full load */
 	struct ist server_id_hdr_name;                   /* the header to use to send the server id (name) */
@@ -495,8 +493,6 @@ struct proxy {
 		struct email_alertq *queues;	/* per-mailer alerts queues */
 	} email_alert;
 
-	int load_server_state_from_file;	/* location of the file containing server state.
-						 * flag PR_SRV_STATE_FILE_* */
 	char *server_state_file_name;		/* used when load_server_state_from_file is set to
 						 * PR_SRV_STATE_FILE_LOCAL. Give a specific file name for
 						 * this backend. If not specified or void, then the backend
@@ -508,6 +504,12 @@ struct proxy {
 
 	EXTRA_COUNTERS(extra_counters_fe);
 	EXTRA_COUNTERS(extra_counters_be);
+
+	THREAD_ALIGN(64);
+	unsigned int queueslength;		/* Sum of the length of each queue */
+	int served;				/* # of active sessions currently being served */
+	int totpend;				/* total number of pending connections on this instance (for stats) */
+	unsigned int feconn, beconn;		/* # of active frontend and backends streams */
 };
 
 struct switching_rule {
