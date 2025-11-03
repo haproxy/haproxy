@@ -167,6 +167,12 @@ void set_backend_down(struct proxy *be);
 
 unsigned int gen_hash(const struct proxy* px, const char* key, unsigned long len);
 
+/* Returns true if connection reuse is supported by <be> backend. */
+static inline int be_supports_conn_reuse(const struct proxy *be)
+{
+	return be->mode == PR_MODE_HTTP || be->mode == PR_MODE_SPOP;
+}
+
 #endif /* _HAPROXY_BACKEND_H */
 
 /*

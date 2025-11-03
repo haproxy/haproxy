@@ -1664,6 +1664,10 @@ int64_t be_calculate_conn_hash(struct server *srv, struct stream *strm,
  * conducted on <sess> session. This allows to use a connection not yet
  * labelled as safe under http-reuse safe policy.
  *
+ * This function should only be called for backends which supports connection
+ * reuse. It may be necessary to extend be_supports_conn_reuse() when
+ * implementing a new proxy mode.
+ *
  * Returns SF_ERR_NONE if a connection has been reused. The connection instance
  * can be retrieve via <sc> stconn. SF_ERR_RESOURCE is returned if no matching
  * connection found. SF_ERR_INTERNAL is used on internal error.
@@ -1814,6 +1818,9 @@ int connect_server(struct stream *s)
 	if (err != SRV_STATUS_OK)
 		return SF_ERR_INTERNAL;
 
+	if (!be_supports_conn_reuse(s->be))
+		goto skip_reuse;
+
 	/* disable reuse if websocket stream and the protocol to use is not the
 	 * same as the main protocol of the server.
 	 */
@@ -1904,6 +1911,7 @@ int connect_server(struct stream *s)
 		}
 	}
 
+ skip_reuse:
 	/* no reuse or failed to reuse the connection above, pick a new one */
 	if (!srv_conn) {
 		unsigned int total_conns;
