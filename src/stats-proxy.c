@@ -376,12 +376,12 @@ static struct field me_generate_field(const struct stat_col *col,
 			value = mkf_u32(FN_RATE, read_freq_ctr(counter));
 	}
 	else if (fn == FN_AGE) {
-		unsigned long age;
+		unsigned int age;
 
 		if (col->flags & STAT_COL_FL_SHARED)
-			age = COUNTERS_SHARED_LAST_OFFSET(((char **)counter), unsigned long, offset);
+			age = COUNTERS_SHARED_LAST_OFFSET(((char **)counter), unsigned int, offset);
 		else
-			age = *(unsigned long *)counter;
+			age = *(unsigned int *)counter;
 
 		if (age)
 			age = ns_to_sec(now_ns) - age;
