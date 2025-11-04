@@ -1998,13 +1998,13 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 
 	/* if the user wants to log as soon as possible, without counting
 	 * bytes from the server, then this is the right moment. We have
-	 * to temporarily assign bytes_out to log what we currently have.
+	 * to temporarily assign req_in to log what we currently have.
 	 */
 	if (do_log) {
 		s->logs.t_close = s->logs.t_data; /* to get a valid end date */
-		s->logs.res_in = s->logs.bytes_out = htx->data;
+		s->logs.res_in = htx->data;
 		s->do_log(s, log_orig(LOG_ORIG_TXN_RESPONSE, LOG_ORIG_FL_NONE));
-		s->logs.res_in = s->logs.bytes_out = 0;
+		s->logs.res_in = 0;
 	}
 
  done:

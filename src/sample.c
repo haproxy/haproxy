@@ -5449,7 +5449,7 @@ static int smp_fetch_bytes(const struct arg *args, struct sample *smp, const cha
 	if (kw[2] == 's') /* res.in or res.out */
 		smp->data.u.sint = (kw[4] == 'i') ? logs->res_in : logs->res_out;
 	else /* bytes_in or bytes_out */
-		smp->data.u.sint = (kw[6] == 'i') ? logs->bytes_in : logs->bytes_out;
+		smp->data.u.sint = (kw[6] == 'i') ? logs->req_in : logs->res_in;
 
 	return 1;
 }

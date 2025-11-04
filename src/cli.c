@@ -3486,8 +3486,6 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		stream_process_counters(s);
 
 		/* don't count other requests' data */
-		s->logs.bytes_in  -= ci_data(&s->req);
-		s->logs.bytes_out -= ci_data(&s->res);
 		s->logs.req_in -= ci_data(&s->req);
 		s->logs.res_in -= ci_data(&s->res);
 
@@ -3524,8 +3522,6 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->logs.prx_queue_pos = 0;  /* we get the number of pending conns before us */
 		s->logs.srv_queue_pos = 0; /* we will get this number soon */
 
-		s->logs.bytes_in = s->req.total = ci_data(&s->req);
-		s->logs.bytes_out = s->res.total = ci_data(&s->res);
 		s->logs.req_in = s->scf->bytes_in = ci_data(&s->req);
 		s->logs.res_in = s->scb->bytes_in = ci_data(&s->res);
 

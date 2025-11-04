@@ -3933,8 +3933,8 @@ int sess_build_logline_orig(struct session *sess, struct stream *s,
 		tmp_strm_log.t_connect = -1;
 		tmp_strm_log.t_data = -1;
 		tmp_strm_log.t_close = ns_to_ms(now_ns - sess->accept_ts);
-		tmp_strm_log.bytes_in = 0;
-		tmp_strm_log.bytes_out = 0;
+		tmp_strm_log.req_in = tmp_strm_log.req_out = 0;
+		tmp_strm_log.res_in = tmp_strm_log.res_out = 0;
 		tmp_strm_log.prx_queue_pos = 0;
 		tmp_strm_log.srv_queue_pos = 0;
 
@@ -4629,14 +4629,14 @@ int sess_build_logline_orig(struct session *sess, struct stream *s,
 			case LOG_FMT_BYTES: // %B
 				if (!(fe->to_log & LW_BYTES))
 					LOGMETACHAR('+');
-				ret = lf_int(tmplog, dst + maxsize - tmplog, logs->bytes_out, ctx, LF_INT_LLTOA);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, logs->req_in, ctx, LF_INT_LLTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
 
 			case LOG_FMT_BYTES_UP: // %U
-				ret = lf_int(tmplog, dst + maxsize - tmplog, logs->bytes_in, ctx, LF_INT_LLTOA);
+				ret = lf_int(tmplog, dst + maxsize - tmplog, logs->res_out, ctx, LF_INT_LLTOA);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;

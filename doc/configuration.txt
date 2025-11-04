@@ -23424,16 +23424,10 @@ be_tunnel_timeout : integer
   also the "cur_tunnel_timeout".
 
 bytes_in : integer
-  This returns the number of bytes uploaded from the client to the server. The
-  value corresponds to what was received by HAProxy, including some headers and
-  some internal encoding overhead. Request compression does not affect the
-  value reported here.
+  See "req.in".
 
 bytes_out : integer
-  This is the number of bytes transmitted from the server to the client. The
-  value corresponds to what was received by HAProxy, including some headers and
-  some internal encoding overhead. Response compression does not affect the
-  value reported here.
+  See "res.in".
 
 cur_client_timeout : integer
   Returns the currently applied client timeout in millisecond for the stream.
@@ -27851,7 +27845,7 @@ Please refer to the table below for currently defined aliases :
   |                          Others                                           |
   +---+------+------------------------------------------------------+---------+
   |   | %B   | bytes_read           (from server to client)         | numeric |
-  |   |      | %[bytes_out]                                         |         |
+  |   |      | %[res_in]                                            |         |
   +---+------+------------------------------------------------------+---------+
   | H | %CC  | captured_request_cookie                              | string  |
   +---+------+------------------------------------------------------+---------+
@@ -27882,7 +27876,7 @@ Please refer to the table below for currently defined aliases :
   |   |      | %[txn.status]                                        |         |
   +---+------+------------------------------------------------------+---------+
   |   | %U   | bytes_uploaded       (from client to server)         | numeric |
-  |   |      | %[bytes_in]                                          |         |
+  |   |      | %[req_in]                                            |         |
   +---+------+------------------------------------------------------+---------+
   |   | %ac  | actconn                                              |         |
   |   |      | %[act_conn]                                          | numeric |

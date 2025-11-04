@@ -370,7 +370,6 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 	s->logs.t_close = 0;
 	s->logs.req_in = s->logs.req_out = 0;
 	s->logs.res_in = s->logs.res_out = 0;
-	s->logs.bytes_in = s->logs.bytes_out = 0;
 	s->logs.prx_queue_pos = 0;  /* we get the number of pending conns before us */
 	s->logs.srv_queue_pos = 0; /* we will get this number soon */
 	s->obj_type = OBJ_TYPE_STREAM;
@@ -827,59 +826,32 @@ void stream_process_counters(struct stream *s)
 	unsigned long long bytes;
 	int i;
 
-	bytes = s->req.total - s->logs.bytes_in;
-	s->logs.bytes_in = s->req.total;
+	bytes = s->scf->bytes_in - s->logs.req_in;
+	s->logs.req_in = s->scf->bytes_in;
 	if (bytes) {
-		if (sess->fe_tgcounters)
+		if (sess->fe_tgcounters) {
 			_HA_ATOMIC_ADD(&sess->fe_tgcounters->bytes_in, bytes);
-		if (s->be_tgcounters)
-			_HA_ATOMIC_ADD(&s->be_tgcounters->bytes_in,    bytes);
+			_HA_ATOMIC_ADD(&sess->fe_tgcounters->req_in, bytes);
+		}
+		if (s->be_tgcounters) {
+			_HA_ATOMIC_ADD(&s->be_tgcounters->bytes_in, bytes);
+			_HA_ATOMIC_ADD(&s->be_tgcounters->req_in, bytes);
+		}
 
-		if (s->sv_tgcounters)
+		if (s->sv_tgcounters) {
 			_HA_ATOMIC_ADD(&s->sv_tgcounters->bytes_in, bytes);
+			_HA_ATOMIC_ADD(&s->sv_tgcounters->req_in, bytes);
+		}
 
-		if (sess->li_tgcounters)
+		if (sess->li_tgcounters) {
 			_HA_ATOMIC_ADD(&sess->li_tgcounters->bytes_in, bytes);
+			_HA_ATOMIC_ADD(&sess->li_tgcounters->req_in, bytes);
+		}
 
 		for (i = 0; i < global.tune.nb_stk_ctr; i++) {
 			if (!stkctr_inc_bytes_in_ctr(&s->stkctr[i], bytes))
 				stkctr_inc_bytes_in_ctr(&sess->stkctr[i], bytes);
 		}
-	}
-
-	bytes = s->res.total - s->logs.bytes_out;
-	s->logs.bytes_out = s->res.total;
-	if (bytes) {
-		if (sess->fe_tgcounters)
-			_HA_ATOMIC_ADD(&sess->fe_tgcounters->bytes_out, bytes);
-		if (s->be_tgcounters)
-			_HA_ATOMIC_ADD(&s->be_tgcounters->bytes_out,    bytes);
-
-		if (s->sv_tgcounters)
-			_HA_ATOMIC_ADD(&s->sv_tgcounters->bytes_out, bytes);
-
-		if (sess->li_tgcounters)
-			_HA_ATOMIC_ADD(&sess->li_tgcounters->bytes_out, bytes);
-
-		for (i = 0; i < global.tune.nb_stk_ctr; i++) {
-			if (!stkctr_inc_bytes_out_ctr(&s->stkctr[i], bytes))
-				stkctr_inc_bytes_out_ctr(&sess->stkctr[i], bytes);
-		}
-	}
-
-	bytes = s->scf->bytes_in - s->logs.req_in;
-	s->logs.req_in = s->scf->bytes_in;
-	if (bytes) {
-		if (sess->fe_tgcounters)
-			_HA_ATOMIC_ADD(&sess->fe_tgcounters->req_in, bytes);
-		if (s->be_tgcounters)
-			_HA_ATOMIC_ADD(&s->be_tgcounters->req_in, bytes);
-
-		if (s->sv_tgcounters)
-			_HA_ATOMIC_ADD(&s->sv_tgcounters->req_in, bytes);
-
-		if (sess->li_tgcounters)
-			_HA_ATOMIC_ADD(&sess->li_tgcounters->req_in, bytes);
 	}
 
 	bytes = s->scb->bytes_out - s->logs.req_out;
@@ -900,16 +872,29 @@ void stream_process_counters(struct stream *s)
 	bytes = s->scb->bytes_in - s->logs.res_in;
 	s->logs.res_in = s->scb->bytes_in;
 	if (bytes) {
-		if (sess->fe_tgcounters)
+		if (sess->fe_tgcounters) {
+			_HA_ATOMIC_ADD(&sess->fe_tgcounters->bytes_out, bytes);
 			_HA_ATOMIC_ADD(&sess->fe_tgcounters->res_in, bytes);
-		if (s->be_tgcounters)
+		}
+		if (s->be_tgcounters) {
+			_HA_ATOMIC_ADD(&s->be_tgcounters->bytes_out, bytes);
 			_HA_ATOMIC_ADD(&s->be_tgcounters->res_in, bytes);
+		}
 
-		if (s->sv_tgcounters)
+		if (s->sv_tgcounters) {
+			_HA_ATOMIC_ADD(&s->sv_tgcounters->bytes_out, bytes);
 			_HA_ATOMIC_ADD(&s->sv_tgcounters->res_in, bytes);
+		}
 
-		if (sess->li_tgcounters)
+		if (sess->li_tgcounters) {
+			_HA_ATOMIC_ADD(&sess->li_tgcounters->bytes_out, bytes);
 			_HA_ATOMIC_ADD(&sess->li_tgcounters->res_in, bytes);
+		}
+
+		for (i = 0; i < global.tune.nb_stk_ctr; i++) {
+			if (!stkctr_inc_bytes_out_ctr(&s->stkctr[i], bytes))
+				stkctr_inc_bytes_out_ctr(&sess->stkctr[i], bytes);
+		}
 	}
 
 	bytes = s->scf->bytes_out - s->logs.res_out;

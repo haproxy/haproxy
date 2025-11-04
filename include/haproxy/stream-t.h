@@ -229,8 +229,6 @@ struct strm_logs {
 	long long req_out;              /* number of bytes sent to the server */
 	long long res_in;               /* number of bytes received from the server */
 	long long res_out;              /* number of bytes sent to the client */
-	long long bytes_in;             /* number of bytes transferred from the client to the server */
-	long long bytes_out;            /* number of bytes transferred from the server to the client */
 };
 
 struct stream {
