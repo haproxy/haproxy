@@ -859,6 +859,11 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 
 	TRACE_ENTER(QUIC_EV_CONN_SSLDATA, qc);
 
+	/* Note: qc->conn MUST only be used on backend side. It may be NULL if
+	 * connection is aborted prior to handshake completion. On frontend
+	 * side, connection is only registered after handshake completion.
+	 */
+
 	ret = 0;
 	ssl_err = SSL_ERROR_NONE;
 	state = qc->state;
@@ -868,8 +873,8 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 		counters_px = EXTRA_COUNTERS_GET(qc->li->bind_conf->frontend->extra_counters_fe,
 		                                 &ssl_stats_module);
 	}
-	else if (ctx->conn) {
-		struct server *srv = __objt_server(ctx->conn->target);
+	else if (qc->conn) {
+		struct server *srv = __objt_server(qc->conn->target);
 
 		counters = EXTRA_COUNTERS_GET(srv->extra_counters, &ssl_stats_module);
 		counters_px = EXTRA_COUNTERS_GET(srv->proxy->extra_counters_be,
@@ -904,7 +909,7 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 
 			TRACE_ERROR("SSL handshake error", QUIC_EV_CONN_IO_CB, qc, &state, &ssl_err);
 			HA_ATOMIC_INC(&qc->prx_counters->hdshk_fail);
-			qc_ssl_dump_errors(ctx->conn);
+			qc_ssl_dump_errors(qc->conn);
 			ERR_clear_error();
 			goto err;
 		}
@@ -977,25 +982,25 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 				goto err;
 			}
 		}
-		else if (ctx->conn) {
+		else if (qc->conn) {
 			const unsigned char *alpn;
 			size_t alpn_len;
 
-			ctx->conn->flags &= ~(CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN);
-			if (!ssl_sock_get_alpn(ctx->conn, ctx, (const char **)&alpn, (int *)&alpn_len) ||
+			qc->conn->flags &= ~(CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN);
+			if (!ssl_sock_get_alpn(qc->conn, ctx, (const char **)&alpn, (int *)&alpn_len) ||
 			    !quic_set_app_ops(qc, alpn, alpn_len)) {
 				TRACE_ERROR("No negotiated ALPN", QUIC_EV_CONN_IO_CB, qc, &state);
 				quic_set_tls_alert(qc, SSL_AD_NO_APPLICATION_PROTOCOL);
 				goto err;
 			}
 
-			if (conn_create_mux(ctx->conn, NULL) < 0) {
+			if (conn_create_mux(qc->conn, NULL) < 0) {
 				TRACE_ERROR("mux creation failed", QUIC_EV_CONN_IO_CB, qc, &state);
 				goto err;
 			}
 
 			/* Wake up MUX after its creation. Operation similar to TLS+ALPN on TCP stack. */
-			ctx->conn->mux->wake(ctx->conn);
+			qc->conn->mux->wake(qc->conn);
 			qc->mux_state = QC_MUX_READY;
 		}
 		else {
