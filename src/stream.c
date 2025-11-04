@@ -829,24 +829,16 @@ void stream_process_counters(struct stream *s)
 	bytes = s->scf->bytes_in - s->logs.req_in;
 	s->logs.req_in = s->scf->bytes_in;
 	if (bytes) {
-		if (sess->fe_tgcounters) {
-			_HA_ATOMIC_ADD(&sess->fe_tgcounters->bytes_in, bytes);
+		if (sess->fe_tgcounters)
 			_HA_ATOMIC_ADD(&sess->fe_tgcounters->req_in, bytes);
-		}
-		if (s->be_tgcounters) {
-			_HA_ATOMIC_ADD(&s->be_tgcounters->bytes_in, bytes);
+		if (s->be_tgcounters)
 			_HA_ATOMIC_ADD(&s->be_tgcounters->req_in, bytes);
-		}
 
-		if (s->sv_tgcounters) {
-			_HA_ATOMIC_ADD(&s->sv_tgcounters->bytes_in, bytes);
+		if (s->sv_tgcounters)
 			_HA_ATOMIC_ADD(&s->sv_tgcounters->req_in, bytes);
-		}
 
-		if (sess->li_tgcounters) {
-			_HA_ATOMIC_ADD(&sess->li_tgcounters->bytes_in, bytes);
+		if (sess->li_tgcounters)
 			_HA_ATOMIC_ADD(&sess->li_tgcounters->req_in, bytes);
-		}
 
 		for (i = 0; i < global.tune.nb_stk_ctr; i++) {
 			if (!stkctr_inc_bytes_in_ctr(&s->stkctr[i], bytes))
@@ -872,24 +864,16 @@ void stream_process_counters(struct stream *s)
 	bytes = s->scb->bytes_in - s->logs.res_in;
 	s->logs.res_in = s->scb->bytes_in;
 	if (bytes) {
-		if (sess->fe_tgcounters) {
-			_HA_ATOMIC_ADD(&sess->fe_tgcounters->bytes_out, bytes);
+		if (sess->fe_tgcounters)
 			_HA_ATOMIC_ADD(&sess->fe_tgcounters->res_in, bytes);
-		}
-		if (s->be_tgcounters) {
-			_HA_ATOMIC_ADD(&s->be_tgcounters->bytes_out, bytes);
+		if (s->be_tgcounters)
 			_HA_ATOMIC_ADD(&s->be_tgcounters->res_in, bytes);
-		}
 
-		if (s->sv_tgcounters) {
-			_HA_ATOMIC_ADD(&s->sv_tgcounters->bytes_out, bytes);
+		if (s->sv_tgcounters)
 			_HA_ATOMIC_ADD(&s->sv_tgcounters->res_in, bytes);
-		}
 
-		if (sess->li_tgcounters) {
-			_HA_ATOMIC_ADD(&sess->li_tgcounters->bytes_out, bytes);
+		if (sess->li_tgcounters)
 			_HA_ATOMIC_ADD(&sess->li_tgcounters->res_in, bytes);
-		}
 
 		for (i = 0; i < global.tune.nb_stk_ctr; i++) {
 			if (!stkctr_inc_bytes_out_ctr(&s->stkctr[i], bytes))
