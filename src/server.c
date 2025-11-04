@@ -6728,6 +6728,7 @@ static int _srv_update_status_op(struct server *s, enum srv_op_st_chg_cause caus
 		if (s->next_state == SRV_ST_STARTING && s->warmup)
 			task_schedule(s->warmup, tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20))));
 
+		srv_reset_path_parameters(s);
 		server_recalc_eweight(s, 0);
 		/* now propagate the status change to any LB algorithms */
 		srv_lb_propagate(s);
