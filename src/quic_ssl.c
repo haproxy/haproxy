@@ -968,10 +968,7 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 		}
 #endif
 
-#ifndef HAVE_OPENSSL_QUIC
-		TRACE_PROTO("SSL handshake OK", QUIC_EV_CONN_IO_CB, qc, &state);
-		ssl_sock_update_counters(ctx->ssl, counters, counters_px, qc_is_back(qc));
-#else
+#ifdef HAVE_OPENSSL_QUIC
 		/* Hack to support O-RTT with the OpenSSL 3.5 QUIC API.
 		 * SSL_do_handshake() succeeds at the first call. Why? |-(
 		 * This prevents the handshake CRYPTO data to be sent.
@@ -987,12 +984,10 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 				            QUIC_EV_CONN_IO_CB, qc, &state, &ssl_err);
 				goto out;
 			}
-			else {
-				TRACE_PROTO("SSL handshake OK", QUIC_EV_CONN_IO_CB, qc, &state);
-				ssl_sock_update_counters(ctx->ssl, counters, counters_px, qc_is_back(qc));
-			}
 		}
 #endif
+		TRACE_PROTO("SSL handshake OK", QUIC_EV_CONN_IO_CB, qc, &state);
+		ssl_sock_update_counters(ctx->ssl, counters, counters_px, qc_is_back(qc));
 
 		/* Check the alpn could be negotiated */
 		if (!qc_is_back(qc)) {
