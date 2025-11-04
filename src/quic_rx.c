@@ -1746,7 +1746,7 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 
 			qc = qc_new_conn(pkt->version, ipv4, &pkt->dcid, &pkt->scid, &token_odcid,
 			                 conn_id, &dgram->daddr, &pkt->saddr,
-			                 !!pkt->token_len, l, NULL);
+			                 !!pkt->token_len, l);
 			if (qc == NULL) {
 				pool_free(pool_head_quic_connection_id, conn_id);
 				goto err;

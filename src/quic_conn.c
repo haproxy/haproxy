@@ -1079,8 +1079,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
                               struct quic_connection_id *conn_id,
                               struct sockaddr_storage *local_addr,
                               struct sockaddr_storage *peer_addr,
-                              int token, void *target,
-                              struct connection *conn)
+                              int token, void *target)
 {
 	struct quic_conn *qc = NULL;
 	struct listener *l = objt_listener(target);
@@ -1151,7 +1150,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->idle_timer_task = NULL;
 
 	qc->xprt_ctx = NULL;
-	 /* We must not free the quic-conn if upper conn is still allocated. */
 	qc->conn = NULL;
 	qc->qcc = NULL;
 	qc->app_ops = NULL;
@@ -1228,7 +1226,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		conn_id = conn_cid;
 
 		qc->next_cid_seq_num = 1;
-		conn->handle.qc = qc;
 	}
 	qc->mux_state = QC_MUX_NULL;
 	qc->err = quic_err_transport(QC_ERR_NO_ERROR);
@@ -1367,7 +1364,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	if (!qc_new_isecs(qc, &qc->iel->tls_ctx, qc->original_version, dcid->data, dcid->len, !!l))
 		goto err;
 
-	qc->conn = conn;
 	/* Counters initialization */
 	memset(&qc->cntrs, 0, sizeof qc->cntrs);
 
