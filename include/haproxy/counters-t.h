@@ -45,6 +45,10 @@
 		long long cli_aborts;                   /* aborted responses during DATA phase caused by the client */\
 		long long internal_errors;              /* internal processing errors */\
 		long long failed_rewrites;              /* failed rewrites (warning) */\
+		long long req_in;                       /* number of bytes received from the client */\
+		long long req_out;                      /* number of bytes sent to the server */\
+		long long res_in;                       /* number of bytes received from the server */\
+		long long res_out;                      /* number of bytes sent to the client */\
 		long long bytes_out;                    /* number of bytes transferred from the server to the client */\
 		long long bytes_in;                     /* number of bytes transferred from the client to the server */\
 		long long denied_resp;                  /* blocked responses because of security concerns */\
