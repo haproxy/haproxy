@@ -6825,11 +6825,15 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 					const char *alpn;
 					int len;
 
-					if (ssl_sock_get_alpn(conn, ctx, &alpn, &len)) {
-						srv = objt_server(conn->target);
-						if (srv && len < sizeof(srv->path_params.nego_alpn)) {
+					srv = objt_server(conn->target);
+					if (srv && ssl_sock_get_alpn(conn, ctx, &alpn, &len)) {
+						if (len < sizeof(srv->path_params.nego_alpn) &&
+						    (len != strlen(srv->path_params.nego_alpn) ||
+						     memcmp(&srv->path_params.nego_alpn, alpn, len) != 0)) {
+							HA_RWLOCK_WRLOCK(SERVER_LOCK, &srv->path_params.param_lock);
 							memcpy(&srv->path_params.nego_alpn, alpn, len);
 							srv->path_params.nego_alpn[len] = 0;
+							HA_RWLOCK_WRUNLOCK(SERVER_LOCK, &srv->path_params.param_lock);
 						}
 					}
 				}

@@ -2067,10 +2067,14 @@ int connect_server(struct stream *s)
 		 * that this is skipped in TCP mode as we only want mux-pt
 		 * anyway.
 		 */
-		if (IS_HTX_STRM(s) && srv && srv->use_ssl &&
-		    (srv->ssl_ctx.alpn_str || srv->ssl_ctx.npn_str) &&
-		    srv->path_params.nego_alpn[0] == 0)
-			may_start_mux_now = 0;
+		if (srv) {
+			HA_RWLOCK_RDLOCK(SERVER_LOCK, &srv->path_params.param_lock);
+			if (IS_HTX_STRM(s) && srv->use_ssl &&
+			    (srv->ssl_ctx.alpn_str || srv->ssl_ctx.npn_str) &&
+			    srv->path_params.nego_alpn[0] == 0)
+				may_start_mux_now = 0;
+			HA_RWLOCK_RDUNLOCK(SERVER_LOCK, &srv->path_params.param_lock);
+		}
 #endif
 
 		/* process the case where the server requires the PROXY protocol to be sent */

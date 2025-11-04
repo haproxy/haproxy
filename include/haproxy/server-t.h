@@ -320,6 +320,7 @@ enum renegotiate_mode {
 #define MAX_ALPN_SIZE 16
 
 struct path_parameters {
+	__decl_thread(HA_RWLOCK_T param_lock);
 	char nego_alpn[MAX_ALPN_SIZE];
 };
 
