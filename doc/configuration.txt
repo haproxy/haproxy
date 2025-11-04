@@ -23116,6 +23116,10 @@ fe_client_timeout                                  integer
 fe_defbe                                           string
 fe_id                                              integer
 fe_name                                            string
+req.in                                             integer
+req.out                                            integer
+res.in                                             integer
+res.out                                            integer
 res.timer.data                                     integer
 sc0_bytes_in_rate([<table>])                       integer
 sc0_bytes_out_rate([<table>])                      integer
@@ -23750,6 +23754,28 @@ fe_name : string
   Returns a string containing the current frontend's name. It can be used in
   backends to check from which frontend it was called, or to stick all users
   coming via a same frontend to the same server.
+
+req.in : integer
+  This returns the number of bytes received from the client. The value
+  corresponds to what was received by HAProxy, including some headers and some
+  internal encoding overhead. Request compression does not affect the value
+  reported here.
+
+req.out : integer
+  This returns the number of bytes sent to the server. The value corresponds to
+  what was sent by HAProxy, including some headers and some internal encoding
+  overhead. Request compression affects the value reported here.
+
+res.in : integer
+  This returns the number of bytes received from the server. The value
+  corresponds to what was received by HAProxy, including some headers and some
+  internal encoding overhead. Response compression does not affect the value
+  reported here.
+
+res.out : integer
+  This returns the number of bytes sent to the client. The value corresponds to
+  what was sent by HAProxy, including some headers and some internal encoding
+  overhead. Response compression affects the value reported here.
 
 res.timer.data : integer
   this is the total transfer time of the response payload till the last byte

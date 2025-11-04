@@ -368,6 +368,8 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 	s->logs.t_connect = -1;
 	s->logs.t_data = -1;
 	s->logs.t_close = 0;
+	s->logs.req_in = s->logs.req_out = 0;
+	s->logs.res_in = s->logs.res_out = 0;
 	s->logs.bytes_in = s->logs.bytes_out = 0;
 	s->logs.prx_queue_pos = 0;  /* we get the number of pending conns before us */
 	s->logs.srv_queue_pos = 0; /* we will get this number soon */
@@ -864,6 +866,11 @@ void stream_process_counters(struct stream *s)
 				stkctr_inc_bytes_out_ctr(&sess->stkctr[i], bytes);
 		}
 	}
+
+	s->logs.req_in = s->scf->bytes_in;
+	s->logs.req_out = s->scb->bytes_out;
+	s->logs.res_in = s->scb->bytes_in;
+	s->logs.res_out = s->scf->bytes_out;
 }
 
 /* Abort processing on the both channels in same time */

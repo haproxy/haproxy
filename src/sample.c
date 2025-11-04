@@ -5444,11 +5444,12 @@ static int smp_fetch_bytes(const struct arg *args, struct sample *smp, const cha
 	if (!logs)
 		return 0;
 
-	if (kw[6] == 'i') { /* bytes_in */
-		smp->data.u.sint = logs->bytes_in;
-	} else { /* bytes_out */
-		smp->data.u.sint = logs->bytes_out;
-	}
+	if (kw[2] == 'q') /* req.in or req.out */
+		smp->data.u.sint = (kw[4] == 'i') ? logs->req_in : logs->req_out;
+	if (kw[2] == 's') /* res.in or res.out */
+		smp->data.u.sint = (kw[4] == 'i') ? logs->res_in : logs->res_out;
+	else /* bytes_in or bytes_out */
+		smp->data.u.sint = (kw[6] == 'i') ? logs->bytes_in : logs->bytes_out;
 
 	return 1;
 }
@@ -5496,10 +5497,14 @@ static struct sample_fetch_kw_list smp_logs_kws = {ILH, {
 	{ "fc.timer.handshake",   smp_fetch_conn_timers,  0,         NULL, SMP_T_SINT, SMP_USE_L4CLI }, /* "Th" */
 	{ "fc.timer.total",       smp_fetch_conn_timers,  0,         NULL, SMP_T_SINT, SMP_USE_SSFIN }, /* "Tt" */
 
+	{ "req.in",               smp_fetch_bytes,        0,         NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "req.out",              smp_fetch_bytes,        0,         NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "req.timer.idle",       smp_fetch_reX_timers,   0,         NULL, SMP_T_SINT, SMP_USE_HRQHV }, /* "Ti" */
 	{ "req.timer.tq",         smp_fetch_reX_timers,   0,         NULL, SMP_T_SINT, SMP_USE_HRQHV }, /* "Tq" */
 	{ "req.timer.hdr",        smp_fetch_reX_timers,   0,         NULL, SMP_T_SINT, SMP_USE_HRQHV }, /* "TR" */
 	{ "req.timer.queue",      smp_fetch_reX_timers,   0,         NULL, SMP_T_SINT, SMP_USE_L4SRV }, /* "Tw" */
+	{ "res.in",               smp_fetch_bytes,        0,         NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "res.out",              smp_fetch_bytes,        0,         NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "res.timer.data",       smp_fetch_reX_timers,   0,         NULL, SMP_T_SINT, SMP_USE_RSFIN }, /* "Td" */
 	{ "res.timer.hdr",        smp_fetch_reX_timers,   0,         NULL, SMP_T_SINT, SMP_USE_HRSHV }, /* "Tr" */
 	{ /* END */ },

@@ -2002,9 +2002,9 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	 */
 	if (do_log) {
 		s->logs.t_close = s->logs.t_data; /* to get a valid end date */
-		s->logs.bytes_out = htx->data;
+		s->logs.res_in = s->logs.bytes_out = htx->data;
 		s->do_log(s, log_orig(LOG_ORIG_TXN_RESPONSE, LOG_ORIG_FL_NONE));
-		s->logs.bytes_out = 0;
+		s->logs.res_in = s->logs.bytes_out = 0;
 	}
 
  done:

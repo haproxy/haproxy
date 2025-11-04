@@ -3488,6 +3488,8 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		/* don't count other requests' data */
 		s->logs.bytes_in  -= ci_data(&s->req);
 		s->logs.bytes_out -= ci_data(&s->res);
+		s->logs.req_in -= ci_data(&s->req);
+		s->logs.res_in -= ci_data(&s->res);
 
 		/* we may need to know the position in the queue */
 		pendconn_free(s);
@@ -3524,6 +3526,8 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		s->logs.bytes_in = s->req.total = ci_data(&s->req);
 		s->logs.bytes_out = s->res.total = ci_data(&s->res);
+		s->logs.req_in = s->scf->bytes_in = ci_data(&s->req);
+		s->logs.res_in = s->scb->bytes_in = ci_data(&s->res);
 
 		stream_del_srv_conn(s);
 		if (objt_server(s->target)) {
