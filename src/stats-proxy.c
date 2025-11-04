@@ -192,6 +192,11 @@ const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
 	[ST_I_PX_H3REQ]         = ME_NEW_FE_SHARED("h3req",         NULL,                            FN_COUNTER, FF_U64, p.http.cum_req[3],      STATS_PX_CAP__F__, "Total number of HTTP/3 sessions processed by this object since the worker process started"),
 	[ST_I_PX_PROTO]                         = { .name = "proto",                       .alt_name = NULL,                              .desc = "Protocol" },
 	[ST_I_PX_PRIV_IDLE_CUR]                 = { .name = "priv_idle_cur",               .alt_name = "private_idle_connections_current",.desc = "Current number of private idle connections", .cap = STATS_PX_CAP____S},
+	[ST_I_PX_REQ_IN]        = ME_NEW_PX_SHARED("reqin",        "req_in_total",                  FN_COUNTER, FF_U64, req_in,               STATS_PX_CAP_LFBS, "Total number of request bytes received since process started"),
+	[ST_I_PX_REQ_OUT]       = ME_NEW_PX_SHARED("reqout",       "req_out_total",                 FN_COUNTER, FF_U64, req_out,              STATS_PX_CAP_LFBS, "Total number of request bytes sent since process started"),
+	[ST_I_PX_RES_IN]        = ME_NEW_PX_SHARED("resin",        "res_in_total",                  FN_COUNTER, FF_U64, res_in,               STATS_PX_CAP_LFBS, "Total number of response bytes received since process started"),
+	[ST_I_PX_RES_OUT]       = ME_NEW_PX_SHARED("resout",       "res_out_total",                 FN_COUNTER, FF_U64, res_out,              STATS_PX_CAP_LFBS, "Total number of response bytes sent since process started"),
+
 };
 
 /* Returns true if column at <idx> should be hidden.

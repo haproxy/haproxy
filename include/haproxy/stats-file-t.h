@@ -15,7 +15,7 @@ enum stfile_domain {
 };
 
 #define SHM_STATS_FILE_VER_MAJOR         1
-#define SHM_STATS_FILE_VER_MINOR         0
+#define SHM_STATS_FILE_VER_MINOR         1
 
 #define SHM_STATS_FILE_HEARTBEAT_TIMEOUT 60 /* passed this delay (seconds) process which has not
                                              * sent heartbeat will be considered down
