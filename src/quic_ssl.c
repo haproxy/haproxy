@@ -1183,7 +1183,7 @@ static int quic_ssl_set_tls_cbs(SSL *ssl)
  * CO_ER_SSL_NO_MEM.
  */
 static int qc_ssl_sess_init(struct quic_conn *qc, SSL_CTX *ssl_ctx, SSL **ssl,
-                            struct connection *conn, int server)
+                            int server)
 {
 	int retry, ret = -1;
 
@@ -1263,10 +1263,12 @@ static int qc_set_quic_early_data_enabled(struct quic_conn *qc, SSL *ssl)
  *
  * Returns 0 on success else non-zero.
  */
-int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, struct connection *conn)
+int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, void *target)
 {
-	int ret = 0;
 	struct ssl_sock_ctx *ctx = NULL;
+	struct bind_conf *bc;
+	struct server *srv;
+	int ret = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
 
@@ -1276,7 +1278,7 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, struct connection *conn)
 		goto err;
 	}
 
-	ctx->conn = conn;
+	ctx->conn = NULL;
 	ctx->bio = NULL;
 	ctx->xprt = NULL;
 	ctx->xprt_ctx = NULL;
@@ -1289,9 +1291,8 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, struct connection *conn)
 	ctx->qc = qc;
 
 	if (!qc_is_back(qc)) {
-		struct bind_conf *bc = qc->li->bind_conf;
-
-		if (qc_ssl_sess_init(qc, bc->initial_ctx, &ctx->ssl, NULL, 1) == -1)
+		bc = __objt_listener(target)->bind_conf;
+		if (qc_ssl_sess_init(qc, bc->initial_ctx, &ctx->ssl, 1) == -1)
 		        goto err;
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L) && defined(HAVE_SSL_0RTT_QUIC)
 		/* Enabling 0-RTT */
@@ -1302,9 +1303,8 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, struct connection *conn)
 		SSL_set_accept_state(ctx->ssl);
 	}
 	else {
-		struct server *srv = __objt_server(ctx->conn->target);
-
-		if (qc_ssl_sess_init(qc, srv->ssl_ctx.ctx, &ctx->ssl, conn, 0) == -1)
+		srv = __objt_server(target);
+		if (qc_ssl_sess_init(qc, srv->ssl_ctx.ctx, &ctx->ssl, 0) == -1)
 			goto err;
 
 		if (!qc_ssl_set_quic_transport_params(ctx->ssl, qc, quic_version_1, 0))

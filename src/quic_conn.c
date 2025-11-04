@@ -1359,7 +1359,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	qc->wait_event.events = 0;
 	qc->subs = NULL;
 
-	if (qc_alloc_ssl_sock_ctx(qc, conn) ||
+	if (qc_alloc_ssl_sock_ctx(qc, target) ||
 	    !quic_conn_init_timer(qc) ||
 	    !quic_conn_init_idle_timer_task(qc, prx))
 		goto err;
