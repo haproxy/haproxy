@@ -1072,6 +1072,13 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 
 		TRACE_STATE("SSL post handshake succeeded", QUIC_EV_CONN_IO_CB, qc, &state);
 	}
+#else
+	else {
+		/* Poke to SSL state engine to give TLS record layer chance to handle
+		 * session tickets.
+		 */
+		SSL_read(ctx->ssl, NULL, 0);
+	}
 #endif
 
  out:
