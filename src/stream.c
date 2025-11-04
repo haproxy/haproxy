@@ -299,6 +299,7 @@ int stream_upgrade_from_sc(struct stconn *sc, struct buffer *input)
 		s->req.buf = *input;
 		*input = BUF_NULL;
 		s->req.total = (IS_HTX_STRM(s) ? htxbuf(&s->req.buf)->data : b_data(&s->req.buf));
+		s->scf->bytes_in = (IS_HTX_STRM(s) ? htxbuf(&s->req.buf)->data : b_data(&s->req.buf));
 		sc_ep_report_read_activity(s->scf);
 	}
 
@@ -573,6 +574,7 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 		s->req.buf = *input;
 		*input = BUF_NULL;
 		s->req.total = (IS_HTX_STRM(s) ? htxbuf(&s->req.buf)->data : b_data(&s->req.buf));
+		s->scf->bytes_in = (IS_HTX_STRM(s) ? htxbuf(&s->req.buf)->data : b_data(&s->req.buf));
 		sc_ep_report_read_activity(s->scf);
 	}
 

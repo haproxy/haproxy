@@ -211,6 +211,7 @@ static struct stconn *sc_new(struct sedesc *sedesc)
 	sc->app_ops = NULL;
 	sc->src = NULL;
 	sc->dst = NULL;
+	sc->bytes_in = sc->bytes_out = 0;
 	sc->wait_event.tasklet = NULL;
 	sc->wait_event.events = 0;
 
@@ -550,6 +551,7 @@ int sc_reset_endp(struct stconn *sc)
 	BUG_ON(sc->sedesc);
 	sc->sedesc = new_sd;
 	sc->sedesc->sc = sc;
+	sc->bytes_in = sc->bytes_out = 0;
 	sc_ep_set(sc, SE_FL_DETACHED);
 	return 0;
 }
@@ -1352,6 +1354,7 @@ int sc_conn_recv(struct stconn *sc)
 		else if (ret > 0) {
 			if (ic->to_forward != CHN_INFINITE_FORWARD)
 				ic->to_forward -= ret;
+			sc->bytes_in += ret;
 			ic->total += ret;
 			cur_read += ret;
 			ic->flags |= CF_READ_EVENT;
@@ -1454,6 +1457,7 @@ int sc_conn_recv(struct stconn *sc)
 		}
 
 		ic->flags |= CF_READ_EVENT;
+		sc->bytes_in += ret;
 		ic->total += ret;
 
 		/* End-of-input reached, we can leave. In this case, it is
@@ -1662,8 +1666,10 @@ int sc_conn_send(struct stconn *sc)
 			send_flag |= CO_SFL_STREAMER;
 
 		ret = conn->mux->resume_fastfwd(sc, send_flag);
-		if (ret > 0)
+		if (ret > 0) {
+			sc->bytes_out += ret;
 			did_send = 1;
+		}
 
 		if (sc_ep_have_ff_data(sc))
 			goto end;
@@ -1736,7 +1742,7 @@ int sc_conn_send(struct stconn *sc)
 			did_send = 1;
 			c_rew(oc, ret);
 			c_realign_if_empty(oc);
-
+			sc->bytes_out += ret;
 			if (!co_data(oc)) {
 				/* Always clear both flags once everything has been sent, they're one-shot */
 				sc->flags &= ~(SC_FL_SND_ASAP|SC_FL_SND_EXP_MORE);
@@ -2032,6 +2038,7 @@ int sc_applet_recv(struct stconn *sc)
 		else if (ret > 0) {
 			if (ic->to_forward != CHN_INFINITE_FORWARD)
 				ic->to_forward -= ret;
+			sc->bytes_in += ret;
 			ic->total += ret;
 			cur_read += ret;
 			ic->flags |= CF_READ_EVENT;
@@ -2115,6 +2122,7 @@ int sc_applet_recv(struct stconn *sc)
 	}
 
 	ic->flags |= CF_READ_EVENT;
+	sc->bytes_in += ret;
 	ic->total += ret;
 
 	/* End-of-input reached, we can leave. In this case, it is
@@ -2263,7 +2271,7 @@ int sc_applet_send(struct stconn *sc)
 			did_send = 1;
 			c_rew(oc, ret);
 			c_realign_if_empty(oc);
-
+			sc->bytes_out += ret;
 			if (!co_data(oc)) {
 				/* Always clear both flags once everything has been sent, they're one-shot */
 				sc->flags &= ~(SC_FL_SND_ASAP|SC_FL_SND_EXP_MORE);

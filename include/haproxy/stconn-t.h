@@ -377,6 +377,9 @@ struct stconn {
 					      *    -1   : the SC is waiting for room but not on a specific amount of data
 					      *    >= 0 : min free space required to progress. 0 means SC must be unblocked ASAP
 					      */
+	unsigned long long bytes_in;         /* total number of bytes received from the SE */
+	unsigned long long bytes_out;        /* total number of bytes sent to the SE */
+
 	struct wait_event wait_event;        /* We're in a wait list */
 	struct sedesc *sedesc;               /* points to the stream endpoint descriptor */
 	enum obj_type *app;                  /* points to the applicative point (stream or check) */
