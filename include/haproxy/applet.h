@@ -340,6 +340,27 @@ static inline size_t applet_input_data(const struct appctx *appctx)
 		return co_data(sc_oc(appctx_sc(appctx)));
 }
 
+/* Returns the amount of HTX data in the output buffer (see applet_get_outbuf) */
+static inline size_t applet_htx_output_data(const struct appctx *appctx)
+{
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API))
+		return htx_used_space(htxbuf(&appctx->outbuf));
+	else
+		return ci_data(sc_ic(appctx_sc(appctx)));
+}
+
+/* Returns the amount of data in the output buffer (see applet_get_outbuf) */
+static inline size_t applet_output_data(const struct appctx *appctx)
+{
+	if (appctx_app_test(appctx, APPLET_FL_HTX))
+		return applet_htx_output_data(appctx);
+
+	if (appctx_app_test(appctx, APPLET_FL_NEW_API))
+		return b_data(&appctx->outbuf);
+	else
+		return ci_data(sc_ic(appctx_sc(appctx)));
+}
+
 /* Skips <len> bytes from the input buffer (see applet_get_inbuf).
  *
  * This is useful when data have been read directly from the buffer. It is
