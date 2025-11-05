@@ -2912,8 +2912,11 @@ lua-prepend-path <string> [<type>]
   See https://www.lua.org/pil/8.1.html for the details within the Lua
   documentation.
 
-master-worker [no-exit-on-failure]
+master-worker (deprecated)
   Master-worker mode. It is equivalent to the command line "-W" argument.
+
+  This keyword is deprecated, please start in master-worker mode using "-W" or
+  "-Ws".
 
   This mode will launch a "master" which will fork a "worker" after reading the
   configuration to process the traffic. The master is used as a process manager
@@ -2934,6 +2937,18 @@ master-worker [no-exit-on-failure]
   this behavior, you must use the keyword "no-exit-on-failure".
 
   See also "-W" in the management guide.
+
+master-worker no-exit-on-failure
+  In master-worker mode, by default, if a worker exits with a bad return code,
+  in the case of a segfault for example, all workers will be killed, and the
+  master will leave. It is convenient to combine this behavior with
+  Restart=on-failure in a systemd unit file in order to relaunch the whole
+  process.
+
+  This keyword allows to keep the remaining processes alive when a worker
+  crashed instead of killing everything. This need to be used with caution as
+  it is only meant for debugging and could put the master process in an
+  abnormal state.
 
 mworker-max-reloads <number>
   In master-worker mode, this option limits the number of time a worker can
