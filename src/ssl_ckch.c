@@ -4729,16 +4729,70 @@ static char *current_crtbase = NULL;
 static char *current_keybase = NULL;
 static int crtstore_load = 0; /* did we already load in this crt-store */
 
+static int ckch_conf_load_pem_or_generate(void *value, char *buf, struct ckch_store *s, int cli, const char *filename, int linenum, char **err)
+{
+	char path[PATH_MAX];
+	int err_code = 0;
+	struct stat sb;
+
+	if (cli)
+		return 0;
+	err_code |= path_base(value, current_crtbase, path, err);
+	if (err_code & ERR_CODE)
+		goto out;
+
+	errno = 0;
+	/* if ACME is enabled and the file does not exists, generate the PEM */
+	if (s->conf.acme.id && (stat(path, &sb) == -1 && errno == ENOENT)) {
+		/* generate they key and the certificate */
+		ha_notice("No certificate available for '%s', generating a temporary key pair before getting the ACME certificate\n", path);
+		s->data->key = acme_gen_tmp_pkey();
+		s->data->cert = acme_gen_tmp_x509();
+		if (!s->data->key || !s->data->cert) {
+			memprintf(err, "Couldn't generate a temporary keypair for '%s'\n", path);
+			err_code |= ERR_FATAL;
+			goto out;
+		}
+
+	} else {
+		err_code |= ssl_sock_load_pem_into_ckch(path, buf, s->data, err);
+	}
+out:
+	return err_code;
+}
+static int ckch_conf_load_key_or_generate(void *value, char *buf, struct ckch_store *s, int cli, const char *filename, int linenum, char **err)
+{
+	char path[PATH_MAX];
+	int err_code = 0;
+	struct stat sb;
+
+	if (cli)
+		return 0;
+	err_code |= path_base(value, current_keybase, path, err);
+	if (err_code & ERR_CODE)
+		goto out;
+
+	errno = 0;
+	/* if ACME is enabled and the file does not exists, and no key was previously loaded generate the key */
+	if (s->conf.acme.id &&
+	    (stat(path, &sb) == -1 && errno == ENOENT) &&
+	    (!s->data->key)) {
+		s->data->key = acme_gen_tmp_pkey();
+	} else {
+		err_code |= ssl_sock_load_key_into_ckch(path, buf, s->data, err);
+	}
+out:
+	return err_code;
+}
+
 /* declare the ckch_conf_load_* wrapper functions */
-DECLARE_CKCH_CONF_LOAD(pem,           current_crtbase, ssl_sock_load_pem_into_ckch);
-DECLARE_CKCH_CONF_LOAD(key,           current_keybase, ssl_sock_load_key_into_ckch);
 DECLARE_CKCH_CONF_LOAD(ocsp_response, current_crtbase, ssl_sock_load_ocsp_response_from_file);
 DECLARE_CKCH_CONF_LOAD(ocsp_issuer,   current_crtbase, ssl_sock_load_issuer_file_into_ckch);
 DECLARE_CKCH_CONF_LOAD(sctl,          current_crtbase, ssl_sock_load_sctl_from_file);
 
 struct ckch_conf_kws ckch_conf_kws[] = {
 	{ "alias",        -1,                                           PARSE_TYPE_NONE,  NULL,                           },
-	{ "crt",          offsetof(struct ckch_conf, crt),              PARSE_TYPE_STR,   ckch_conf_load_pem,             },
+	{ "crt",          offsetof(struct ckch_conf, crt),              PARSE_TYPE_STR,   ckch_conf_load_pem_or_generate  },
 	{ "key",          offsetof(struct ckch_conf, key),              PARSE_TYPE_STR,   ckch_conf_load_key,             },
 #ifdef HAVE_SSL_OCSP
 	{ "ocsp",         offsetof(struct ckch_conf, ocsp),             PARSE_TYPE_STR,   ckch_conf_load_ocsp_response,   },
