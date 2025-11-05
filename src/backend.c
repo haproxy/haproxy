@@ -1319,7 +1319,7 @@ struct connection *conn_backend_get(int reuse_mode,
 	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	conn = srv_lookup_conn(is_safe ? &srv->per_thr[tid].safe_conns : &srv->per_thr[tid].idle_conns, hash);
 	if (conn)
-		conn_delete_from_tree(conn, tid);
+		conn_delete_from_tree(conn, tid, 0);
 
 	/* If we failed to pick a connection from the idle list, let's try again with
 	 * the safe list.
@@ -1327,7 +1327,7 @@ struct connection *conn_backend_get(int reuse_mode,
 	if (!conn && !is_safe && srv->curr_safe_nb > 0) {
 		conn = srv_lookup_conn(&srv->per_thr[tid].safe_conns, hash);
 		if (conn) {
-			conn_delete_from_tree(conn, tid);
+			conn_delete_from_tree(conn, tid, 0);
 			is_safe = 1;
 		}
 	}
@@ -1388,7 +1388,7 @@ check_tgid:
 			conn = srv_lookup_conn(tree, hash);
 			while (conn) {
 				if (conn->mux->takeover && conn->mux->takeover(conn, i, 0) == 0) {
-					conn_delete_from_tree(conn, i);
+					conn_delete_from_tree(conn, i, 0);
 					_HA_ATOMIC_INC(&activity[tid].fd_takeover);
 					found = 1;
 					break;
@@ -1490,7 +1490,7 @@ takeover_random_idle_conn(struct ceb_root **root, int curtid)
 	conn = ceb64_item_first(root, hash_node.node, hash_node.key, struct connection);
 	while (conn) {
 		if (conn->mux->takeover && conn->mux->takeover(conn, curtid, 1) == 0) {
-			conn_delete_from_tree(conn, curtid);
+			conn_delete_from_tree(conn, curtid, 0);
 			return conn;
 		}
 		conn = ceb64_item_next(root, hash_node.node, hash_node.key, conn);
@@ -1751,7 +1751,7 @@ int be_reuse_connection(int64_t hash, struct session *sess,
 			if (avail <= 1) {
 				/* no more streams available, remove it from the list */
 				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-				conn_delete_from_tree(srv_conn, tid);
+				conn_delete_from_tree(srv_conn, tid, 0);
 				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 			}
 
@@ -1863,7 +1863,7 @@ int connect_server(struct stream *s)
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		if (!LIST_ISEMPTY(&srv->per_thr[tid].idle_conn_list)) {
 			tokill_conn = LIST_ELEM(srv->per_thr[tid].idle_conn_list.n, struct connection *, idle_list);
-			conn_delete_from_tree(tokill_conn, tid);
+			conn_delete_from_tree(tokill_conn, tid, 1);
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
 			/* Release the idle lock before calling mux->destroy.
@@ -1892,7 +1892,7 @@ int connect_server(struct stream *s)
 
 				if (!LIST_ISEMPTY(&srv->per_thr[i].idle_conn_list)) {
 					tokill_conn = LIST_ELEM(srv->per_thr[i].idle_conn_list.n, struct connection *, idle_list);
-					conn_delete_from_tree(tokill_conn, i);
+					conn_delete_from_tree(tokill_conn, i, 1);
 				}
 				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 
