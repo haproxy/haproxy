@@ -294,7 +294,7 @@ void qc_check_close_on_released_mux(struct quic_conn *qc)
 {
 	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
 
-	if (qc->mux_state == QC_MUX_RELEASED && eb_is_empty(&qc->streams_by_id)) {
+	if ((qc->flags & QUIC_FL_CONN_XPRT_CLOSED) && eb_is_empty(&qc->streams_by_id)) {
 		/* Reuse errcode which should have been previously set by the MUX on release. */
 		quic_set_connection_close(qc, qc->err);
 		tasklet_wakeup(qc->wait_event.tasklet);
@@ -337,10 +337,11 @@ void quic_conn_closed_err_count_inc(struct quic_conn *qc, struct quic_frame *frm
 {
 	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
 
-	if (frm->type == QUIC_FT_CONNECTION_CLOSE)
+	if (frm->type == QUIC_FT_CONNECTION_CLOSE) {
 		quic_stats_transp_err_count_inc(qc->prx_counters, frm->connection_close.error_code);
+	}
 	else if (frm->type == QUIC_FT_CONNECTION_CLOSE_APP) {
-		if (qc->mux_state != QC_MUX_READY || !qc->qcc->app_ops->inc_err_cnt)
+		if (!qc_is_conn_ready(qc) || !qc->qcc->app_ops->inc_err_cnt)
 			goto out;
 
 		qc->qcc->app_ops->inc_err_cnt(qc->qcc->ctx, frm->connection_close_app.error_code);
@@ -1227,7 +1228,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 
 		qc->next_cid_seq_num = 1;
 	}
-	qc->mux_state = QC_MUX_NULL;
 	qc->err = quic_err_transport(QC_ERR_NO_ERROR);
 
 	/* Listener only: if connection is instantiated due to an INITIAL packet with an
@@ -1916,7 +1916,7 @@ int qc_notify_send(struct quic_conn *qc)
 	/* Wake up streams layer waiting for buffer. Useful after congestion
 	 * window increase.
 	 */
-	if (qc->mux_state == QC_MUX_READY && (qc->qcc->flags & QC_CF_CONN_FULL))
+	if (qc_is_conn_ready(qc) && (qc->qcc->flags & QC_CF_CONN_FULL))
 		qcc_notify_buf(qc->qcc, 0);
 
 	return 0;
@@ -1927,7 +1927,7 @@ void qc_notify_err(struct quic_conn *qc)
 {
 	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
 
-	if (qc->mux_state == QC_MUX_READY) {
+	if (qc_is_conn_ready(qc)) {
 		TRACE_STATE("error notified to mux", QUIC_EV_CONN_CLOSE, qc);
 
 		/* Mark socket as closed. */

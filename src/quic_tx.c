@@ -518,7 +518,6 @@ enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms,
 	int max_dgram = 0, sent;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
-	BUG_ON(qc->mux_state != QC_MUX_READY); /* Only MUX can uses this function so it must be ready. */
 
 	if (qc->conn->flags & CO_FL_SOCK_WR_SH) {
 		qc->conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH;

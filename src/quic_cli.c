@@ -311,9 +311,9 @@ static void dump_quic_full(struct show_quic_ctx *ctx, struct quic_conn *qc)
 	else
 		chunk_appendf(&trash, "  st=opened           ");
 
-	if (qc->mux_state == QC_MUX_NULL)
+	if (qc_wait_for_conn(qc))
 		chunk_appendf(&trash, "mux=null                                      ");
-	else if (qc->mux_state == QC_MUX_READY)
+	else if (qc_is_conn_ready(qc))
 		chunk_appendf(&trash, "mux=ready                                     ");
 	else
 		chunk_appendf(&trash, "mux=released                                  ");
@@ -428,7 +428,7 @@ static void dump_quic_full(struct show_quic_ctx *ctx, struct quic_conn *qc)
 	if (addnl)
 		chunk_appendf(&trash, "\n");
 
-	if (ctx->fields & QUIC_DUMP_FLD_MUX && qc->mux_state == QC_MUX_READY)
+	if ((ctx->fields & QUIC_DUMP_FLD_MUX) && qc_is_conn_ready(qc))
 		qcc_show_quic(qc->qcc);
 
 	chunk_appendf(&trash, "\n");

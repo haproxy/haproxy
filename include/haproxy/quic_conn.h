@@ -218,5 +218,9 @@ extern uint64_t (*quic_hash64_from_cid)(const unsigned char *cid, int size, cons
 /* Function pointer that can be used to derive a new CID from the previously computed hash */
 extern void (*quic_newcid_from_hash64)(unsigned char *cid, int size, uint64_t hash, const unsigned char *secret, size_t secretlen);
 
+/* QUIC xprt layer functions */
+int qc_wait_for_conn(const struct quic_conn *qc);
+int qc_is_conn_ready(const struct quic_conn *qc);
+
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_QUIC_CONN_H */

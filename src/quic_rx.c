@@ -871,7 +871,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			break;
 		}
 		case QUIC_FT_RESET_STREAM:
-			if (qc->mux_state == QC_MUX_READY) {
+			if (qc_is_conn_ready(qc)) {
 				struct qf_reset_stream *rs_frm = &frm->reset_stream;
 				qcc_recv_reset_stream(qc->qcc, rs_frm->id, rs_frm->app_error_code, rs_frm->final_size);
 			}
@@ -879,7 +879,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		case QUIC_FT_STOP_SENDING:
 		{
 			struct qf_stop_sending *ss_frm = &frm->stop_sending;
-			if (qc->mux_state == QC_MUX_READY) {
+			if (qc_is_conn_ready(qc)) {
 				if (qcc_recv_stop_sending(qc->qcc, ss_frm->id,
 				                          ss_frm->app_error_code)) {
 					TRACE_ERROR("qcc_recv_stop_sending() failed", QUIC_EV_CONN_PRSHPKT, qc);
@@ -921,7 +921,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			  qc->rx.stream_max_uni : qc->rx.stream_max_bidi;
 
 			/* The upper layer may not be allocated. */
-			if (qc->mux_state != QC_MUX_READY) {
+			if (!qc_is_conn_ready(qc)) {
 				if (strm_frm->id < max) {
 					TRACE_DATA("Already closed stream", QUIC_EV_CONN_PRSHPKT, qc);
 				}
@@ -951,13 +951,13 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			break;
 		}
 		case QUIC_FT_MAX_DATA:
-			if (qc->mux_state == QC_MUX_READY) {
+			if (qc_is_conn_ready(qc)) {
 				struct qf_max_data *md_frm = &frm->max_data;
 				qcc_recv_max_data(qc->qcc, md_frm->max_data);
 			}
 			break;
 		case QUIC_FT_MAX_STREAM_DATA:
-			if (qc->mux_state == QC_MUX_READY) {
+			if (qc_is_conn_ready(qc)) {
 				struct qf_max_stream_data *msd_frm = &frm->max_stream_data;
 				if (qcc_recv_max_stream_data(qc->qcc, msd_frm->id,
 				                              msd_frm->max_stream_data)) {
@@ -968,7 +968,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			break;
 		case QUIC_FT_MAX_STREAMS_BIDI:
 		case QUIC_FT_MAX_STREAMS_UNI:
-			if (qc->mux_state == QC_MUX_READY) {
+			if (qc_is_conn_ready(qc)) {
 				int bidi;
 				struct qf_max_streams *ms_frm;
 
@@ -1207,8 +1207,7 @@ static int qc_qel_may_rm_hp(struct quic_conn *qc, struct quic_enc_level *qel)
 	}
 
 	/* check if the connection layer is ready before using app level */
-	if ((qel == qc->ael || qel == qc->eel) &&
-	    qc->mux_state == QC_MUX_NULL) {
+	if ((qel == qc->ael || qel == qc->eel) && qc_wait_for_conn(qc)) {
 		TRACE_PROTO("connection layer not ready", QUIC_EV_CONN_TRMHP, qc);
 		goto cant_rm_hp;
 	}

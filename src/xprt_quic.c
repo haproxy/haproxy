@@ -19,6 +19,19 @@
 #include <haproxy/quic_trace.h>
 #include <haproxy/trace.h>
 
+/* Returns true if conn layer above <qc> has not been yet fully initialized, i.e. MUX is not yet opened. */
+int qc_wait_for_conn(const struct quic_conn *qc)
+{
+	return (!qc->conn || !qc->conn->mux) &&
+	  !(qc->flags & QUIC_FL_CONN_XPRT_CLOSED);
+}
+
+/* Returns true if conn layer above <qc> is fully initialized and available. */
+int qc_is_conn_ready(const struct quic_conn *qc)
+{
+	return qc->conn && qc->conn->mux;
+}
+
 static void quic_close(struct connection *conn, void *xprt_ctx)
 {
 	struct ssl_sock_ctx *conn_ctx = xprt_ctx;
@@ -26,10 +39,8 @@ static void quic_close(struct connection *conn, void *xprt_ctx)
 
 	TRACE_ENTER(QUIC_EV_CONN_CLOSE, qc);
 
+	qc->flags |= QUIC_FL_CONN_XPRT_CLOSED;
 	qc->conn = NULL;
-
-	/* Next application data can be dropped. */
-	qc->mux_state = QC_MUX_RELEASED;
 
 	/* If the quic-conn timer has already expired or if already in "connection close"
 	 * state, free the quic-conn.
@@ -161,17 +172,11 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 	qc = conn->handle.qc;
 	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
 
-	if (objt_listener(conn->target)) {
-		/* mux-quic can now be considered ready. */
-		qc->mux_state = QC_MUX_READY;
-	}
-	else {
-		/* This has as side effet to create a SSL_SESSION object attached to
-		 * the SSL object.
-		 */
-		if (!qc_ssl_do_hanshake(qc, ctx))
-			goto out;
-	}
+	/* This has as side effet to create a SSL_SESSION object attached to
+	 * the SSL object.
+	 */
+	if (qc_is_back(qc) && !qc_ssl_do_hanshake(qc, ctx))
+		goto out;
 
 	/* Schedule quic-conn to ensure post handshake frames are emitted. This
 	 * is not done for 0-RTT as xprt->start happens before handshake

@@ -243,17 +243,6 @@ extern const struct quic_version *quic_version_2;
 /* The maximum number of bytes of CRYPTO data in flight during handshakes. */
 #define QUIC_CRYPTO_IN_FLIGHT_MAX 4096
 
-/* Status of the MUX layer. This defines how to handle app data.
- *
- * During a standard quic_conn lifetime it transitions like this :
- * QC_MUX_NULL -> QC_MUX_READY -> QC_MUX_RELEASED
- */
-enum qc_mux_state {
-	QC_MUX_NULL,     /* not allocated, data should be buffered */
-	QC_MUX_READY,    /* allocated, ready to handle data */
-	QC_MUX_RELEASED, /* released, data can be dropped */
-};
-
 /* Counters at QUIC connection level */
 struct quic_conn_cntrs {
 	long long dropped_pkt;           /* total number of dropped packets */
@@ -333,7 +322,6 @@ struct quic_conn {
 	/* QUIC transport parameters TLS extension */
 	int tps_tls_ext;
 	int state;
-	enum qc_mux_state mux_state; /* status of the connection/mux layer */
 #ifdef HAVE_OPENSSL_QUIC
 	uint32_t prot_level;
 #endif
@@ -457,6 +445,7 @@ struct quic_conn_closed {
 #define QUIC_FL_CONN_PEER_VALIDATED_ADDR         (1U << 17) /* Peer address is considered as validated for this connection. */
 #define QUIC_FL_CONN_NO_TOKEN_RCVD               (1U << 18) /* Client dit not send any token */
 #define QUIC_FL_CONN_SCID_RECEIVED               (1U << 19) /* (client only: first Initial received. */
+#define QUIC_FL_CONN_XPRT_CLOSED                 (1U << 20) /* close callback of xprt layer already called */
 /* gap here */
 #define QUIC_FL_CONN_TO_KILL                     (1U << 24) /* Unusable connection, to be killed */
 #define QUIC_FL_CONN_TX_TP_RECEIVED              (1U << 25) /* Peer transport parameters have been received (used for the transmitting part) */
