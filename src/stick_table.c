@@ -986,7 +986,9 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 		t->shards[shard].in_bucket.key = next_exp;
 		eb32_insert(&ps->tables, &t->shards[shard].in_bucket);
 	}
-	table_eb = eb32_first(&ps->tables);
+	table_eb = eb32_lookup_ge(&ps->tables, now_ms - TIMER_LOOK_BACK);
+	if (!table_eb)
+		table_eb = eb32_first(&ps->tables);
 
 	while (table_eb) {
 		struct eb32_node *tmpnode;
