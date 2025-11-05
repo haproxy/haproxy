@@ -3564,10 +3564,10 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 	}
 
 	scf = strm->scf;
-	chunk_appendf(buf, "%s  scf=%p flags=0x%08x ioto=%s state=%s endp=%s,%p,0x%08x sub=%d", pfx,
+	chunk_appendf(buf, "%s  scf=%p flags=0x%08x ioto=%s state=%s endp=%s,%p,0x%08x sub=%d in=%llu out=%llu", pfx,
 		      scf, scf->flags, human_time(scf->ioto, TICKS_TO_MS(1000)), sc_state_str(scf->state),
 		      (sc_ep_test(scf, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scf, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
-		      scf->sedesc->se, sc_ep_get(scf), scf->wait_event.events);
+		      scf->sedesc->se, sc_ep_get(scf), scf->wait_event.events, scf->bytes_in, scf->bytes_out);
 	chunk_appendf(buf, " rex=%s",
 		      sc_ep_rcv_ex(scf) ? human_time(TICKS_TO_MS(sc_ep_rcv_ex(scf) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
 	chunk_appendf(buf, " wex=%s",
@@ -3626,10 +3626,10 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 	}
 
 	scb = strm->scb;
-	chunk_appendf(buf, "%s  scb=%p flags=0x%08x ioto=%s state=%s endp=%s,%p,0x%08x sub=%d", pfx,
+	chunk_appendf(buf, "%s  scb=%p flags=0x%08x ioto=%s state=%s endp=%s,%p,0x%08x sub=%d in=%llu out=%llu", pfx,
 		      scb, scb->flags, human_time(scb->ioto, TICKS_TO_MS(1000)), sc_state_str(scb->state),
 		      (sc_ep_test(scb, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scb, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
-		      scb->sedesc->se, sc_ep_get(scb), scb->wait_event.events);
+		      scb->sedesc->se, sc_ep_get(scb), scb->wait_event.events, scb->bytes_in, scb->bytes_out);
 	chunk_appendf(buf, " rex=%s",
 		      sc_ep_rcv_ex(scb) ? human_time(TICKS_TO_MS(sc_ep_rcv_ex(scb) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
 	chunk_appendf(buf, " wex=%s",
