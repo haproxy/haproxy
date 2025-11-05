@@ -397,7 +397,7 @@ int h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
 			goto error;
 		if (!ret && !ofs && !buf_room_for_htx_data(srcbuf)) {
 			if (!(h1m->flags & H1_MF_RESP))
-				h1m->err_code = (h1m->err_state < H1_MSG_HDR_FIRST) ? 414: 431;
+				h1m->err_code = (h1m->state < H1_MSG_HDR_FIRST) ? 414: 431;
 			goto error;
 		}
 		goto end;
