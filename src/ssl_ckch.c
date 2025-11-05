@@ -4785,7 +4785,7 @@ int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, int cli, co
 				if (!v)
 					goto next;
 
-				rc = ckch_conf_kws[i].func(v, NULL, d, cli, file, linenum, err);
+				rc = ckch_conf_kws[i].func(v, NULL, c, cli, file, linenum, err);
 				if (rc) {
 					err_code |= ERR_ALERT | ERR_FATAL;
 					memprintf(err, "%s '%s' cannot be read or parsed.", err && *err ? *err : "", v);
@@ -4798,7 +4798,7 @@ int ckch_store_load_files(struct ckch_conf *f, struct ckch_store *c, int cli, co
 			case PARSE_TYPE_ONOFF:
 			{
 				int v = *(int *)src;
-				rc = ckch_conf_kws[i].func(&v, NULL, d, cli, file, linenum, err);
+				rc = ckch_conf_kws[i].func(&v, NULL, c, cli, file, linenum, err);
 				if (rc) {
 					err_code |= ERR_ALERT | ERR_FATAL;
 					memprintf(err, "%s '%d' cannot be read or parsed.", err && *err ? *err : "", v);
@@ -5222,12 +5222,12 @@ static int crtstore_parse_load(char **args, int section_type, struct proxy *curp
 	if (!c)
 		goto alloc_error;
 
+	c->conf = f;
+	c->conf.used = CKCH_CONF_SET_CRTSTORE;
+
 	err_code |= ckch_store_load_files(&f, c,  0, file, linenum, err);
 	if (err_code & ERR_FATAL)
 		goto out;
-
-	c->conf = f;
-	c->conf.used = CKCH_CONF_SET_CRTSTORE;
 
 	if (ebst_insert(&ckchs_tree, &c->node) != &c->node) {
 		memprintf(err,"parsing [%s:%d] : '%s' in section 'crt-store': store '%s' was already defined.",

@@ -209,7 +209,7 @@ out:
 /*
  * ckch_conf acme parser
  */
-int ckch_conf_acme_init(void *value, char *buf, struct ckch_data *d, int cli, const char *filename, int linenum, char **err)
+int ckch_conf_acme_init(void *value, char *buf, struct ckch_store *s, int cli, const char *filename, int linenum, char **err)
 {
 	int err_code = 0;
 	struct acme_cfg *cfg;

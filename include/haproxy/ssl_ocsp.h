@@ -56,7 +56,7 @@ void ssl_destroy_ocsp_update_task(void);
 int ssl_ocsp_update_insert(struct certificate_ocsp *ocsp);
 int __ssl_ocsp_update_insert_unlocked(struct certificate_ocsp *ocsp);
 
-int ocsp_update_init(void *value, char *buf, struct ckch_data *d, int cli, const char *filename, int linenum, char **err);
+int ocsp_update_init(void *value, char *buf, struct ckch_store *s, int cli, const char *filename, int linenum, char **err);
 
 #endif /* (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) */
 

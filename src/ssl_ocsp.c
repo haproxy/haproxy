@@ -2087,7 +2087,7 @@ static int ocsp_update_parse_global_http_proxy(char **args, int section_type, st
 	return 0;
 }
 
-int ocsp_update_init(void *value, char *buf, struct ckch_data *d, int cli, const char *filename, int linenum, char **err)
+int ocsp_update_init(void *value, char *buf, struct ckch_store *s, int cli, const char *filename, int linenum, char **err)
 {
 	int ocsp_update_mode = *(int *)value;
 	int ret = 0;

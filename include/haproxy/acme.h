@@ -4,6 +4,6 @@
 
 #include <haproxy/ssl_ckch-t.h>
 
-int ckch_conf_acme_init(void *value, char *buf, struct ckch_data *d, int cli, const char *filename, int linenum, char **err);
+int ckch_conf_acme_init(void *value, char *buf, struct ckch_store *s, int cli, const char *filename, int linenum, char **err);
 
 #endif

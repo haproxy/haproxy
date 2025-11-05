@@ -90,10 +90,11 @@ extern int (*ssl_commit_crlfile_cb)(const char *path, X509_STORE *ctx, char **er
  *
  */
 #define DECLARE_CKCH_CONF_LOAD(name, base, callback)                                                                                           \
-static inline int ckch_conf_load_##name(void *value, char *buf, struct ckch_data *d, int cli, const char *filename, int linenum, char **err)   \
+static inline int ckch_conf_load_##name(void *value, char *buf, struct ckch_store *s, int cli, const char *filename, int linenum, char **err)   \
 {                                                                                                                                              \
 	char path[PATH_MAX];                                                                                                                   \
 	int err_code = 0;                                                                                                                      \
+	struct ckch_data *d = s->data;                                                                                                         \
 	if (cli)                                                                                                                               \
 		return 0;                                                                                                                      \
 	err_code |= path_base(value, (base), path, err);                                                                                       \
