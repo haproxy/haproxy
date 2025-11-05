@@ -962,6 +962,13 @@ static int cfg_parse_global_master_worker(char **args, int section_type,
 	if (too_many_args(1, args, err, NULL))
 		return -1;
 
+	if (!*args[1]) {
+		if (global.mode & MODE_MWORKER) {
+			ha_warning("master-worker mode is already configured.\n");
+		}
+		ha_warning("The '%s' keyword is deprecated in 3.3 and will be removed in 3.5. Use -W or -Ws in the startup script instead.\n", args[0]);
+	}
+
 	if (*args[1]) {
 		if (strcmp(args[1], "no-exit-on-failure") == 0)
 			global.tune.options |= GTUNE_NOEXIT_ONFAILURE;
