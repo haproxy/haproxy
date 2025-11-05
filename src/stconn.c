@@ -1355,7 +1355,6 @@ int sc_conn_recv(struct stconn *sc)
 			if (ic->to_forward != CHN_INFINITE_FORWARD)
 				ic->to_forward -= ret;
 			sc->bytes_in += ret;
-			ic->total += ret;
 			cur_read += ret;
 			ic->flags |= CF_READ_EVENT;
 		}
@@ -1458,7 +1457,6 @@ int sc_conn_recv(struct stconn *sc)
 
 		ic->flags |= CF_READ_EVENT;
 		sc->bytes_in += ret;
-		ic->total += ret;
 
 		/* End-of-input reached, we can leave. In this case, it is
 		 * important to break the loop to not block the SC because of
@@ -2039,7 +2037,6 @@ int sc_applet_recv(struct stconn *sc)
 			if (ic->to_forward != CHN_INFINITE_FORWARD)
 				ic->to_forward -= ret;
 			sc->bytes_in += ret;
-			ic->total += ret;
 			cur_read += ret;
 			ic->flags |= CF_READ_EVENT;
 		}
@@ -2123,7 +2120,6 @@ int sc_applet_recv(struct stconn *sc)
 
 	ic->flags |= CF_READ_EVENT;
 	sc->bytes_in += ret;
-	ic->total += ret;
 
 	/* End-of-input reached, we can leave. In this case, it is
 	 * important to break the loop to not block the SC because of

@@ -230,12 +230,12 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 			      res, res->flags, tick_isset(res->analyse_exp) ? TICKS_TO_MS(res->analyse_exp - now_ms) : TICK_ETERNITY);
 	}
 	else {
-		chunk_appendf(&trace_buf, " req=(%p .fl=0x%08x .ana=0x%08x .exp=%u .o=%lu .tot=%llu .to_fwd=%u)",
+		chunk_appendf(&trace_buf, " req=(%p .fl=0x%08x .ana=0x%08x .exp=%u .o=%lu .to_fwd=%u)",
 			      req, req->flags, req->analysers, req->analyse_exp,
-			      (long)req->output, req->total, req->to_forward);
-		chunk_appendf(&trace_buf, " res=(%p .fl=0x%08x .ana=0x%08x .exp=%u .o=%lu .tot=%llu .to_fwd=%u)",
+			      (long)req->output, req->to_forward);
+		chunk_appendf(&trace_buf, " res=(%p .fl=0x%08x .ana=0x%08x .exp=%u .o=%lu .to_fwd=%u)",
 			      res, res->flags, res->analysers, res->analyse_exp,
-			      (long)res->output, res->total, res->to_forward);
+			      (long)res->output, res->to_forward);
 	}
 
 	if (src->verbosity == STRM_VERB_SIMPLE ||
@@ -298,7 +298,6 @@ int stream_upgrade_from_sc(struct stconn *sc, struct buffer *input)
 		 */
 		s->req.buf = *input;
 		*input = BUF_NULL;
-		s->req.total = (IS_HTX_STRM(s) ? htxbuf(&s->req.buf)->data : b_data(&s->req.buf));
 		s->scf->bytes_in = (IS_HTX_STRM(s) ? htxbuf(&s->req.buf)->data : b_data(&s->req.buf));
 		sc_ep_report_read_activity(s->scf);
 	}
@@ -574,7 +573,6 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 		 */
 		s->req.buf = *input;
 		*input = BUF_NULL;
-		s->req.total = (IS_HTX_STRM(s) ? htxbuf(&s->req.buf)->data : b_data(&s->req.buf));
 		s->scf->bytes_in = (IS_HTX_STRM(s) ? htxbuf(&s->req.buf)->data : b_data(&s->req.buf));
 		sc_ep_report_read_activity(s->scf);
 	}
@@ -1554,7 +1552,6 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 		sc_conn_commit_endp_upgrade(sc);
 
 		s->req.flags &= ~(CF_READ_EVENT|CF_AUTO_CONNECT);
-		s->req.total = 0;
 		s->flags |= SF_IGNORE;
 		if (sc_ep_test(sc, SE_FL_DETACHED)) {
 			/* If stream connector is detached, it means it was not
@@ -2704,7 +2701,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 		if (do_log &&
 		    !(s->flags & SF_MONITOR) &&
-		    (!(sess->fe->options & PR_O_NULLNOLOG) || req->total)) {
+		    (!(sess->fe->options & PR_O_NULLNOLOG) || s->scf->bytes_in)) {
 			/* we may need to know the position in the queue */
 			pendconn_free(s);
 
@@ -3703,12 +3700,12 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 	}
 
 	chunk_appendf(buf,
-		     "%s  req=%p (f=0x%06x an=0x%x tofwd=%d total=%lld)\n"
+		     "%s  req=%p (f=0x%06x an=0x%x tofwd=%d)\n"
 		     "%s      an_exp=%s buf=%p data=%p o=%u p=%u i=%u size=%u\n",
 		     pfx,
 		     &strm->req,
 		     strm->req.flags, strm->req.analysers,
-		     strm->req.to_forward, strm->req.total,
+		     strm->req.to_forward,
 		     pfx,
 		     strm->req.analyse_exp ?
 		     human_time(TICKS_TO_MS(strm->req.analyse_exp - now_ms),
@@ -3735,12 +3732,12 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 	}
 
 	chunk_appendf(buf,
-		     "%s  res=%p (f=0x%06x an=0x%x tofwd=%d total=%lld)\n"
+		     "%s  res=%p (f=0x%06x an=0x%x tofwd=%d)\n"
 		     "%s      an_exp=%s buf=%p data=%p o=%u p=%u i=%u size=%u\n",
 		     pfx,
 		     &strm->res,
 		     strm->res.flags, strm->res.analysers,
-		     strm->res.to_forward, strm->res.total,
+		     strm->res.to_forward,
 		     pfx,
 		     strm->res.analyse_exp ?
 		     human_time(TICKS_TO_MS(strm->res.analyse_exp - now_ms),

@@ -98,7 +98,6 @@ int co_inject(struct channel *chn, const char *msg, int len)
 	memcpy(co_tail(chn), msg, len);
 	b_add(&chn->buf, len);
 	c_adv(chn, len);
-	chn->total += len;
 	return -1;
 }
 
@@ -127,7 +126,6 @@ int ci_putchr(struct channel *chn, char c)
 		c_adv(chn, 1);
 	}
 
-	chn->total++;
 	return 1;
 }
 

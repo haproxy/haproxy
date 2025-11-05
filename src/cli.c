@@ -3502,7 +3502,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		if (do_log &&
 		    !(s->flags & SF_MONITOR) &&
-		    (!(fe->options & PR_O_NULLNOLOG) || s->req.total)) {
+		    (!(fe->options & PR_O_NULLNOLOG) || s->scf->bytes_in)) {
 			s->do_log(s, log_orig(LOG_ORIG_TXN_CLOSE, LOG_ORIG_FL_NONE));
 		}
 

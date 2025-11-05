@@ -110,7 +110,7 @@ static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin
 	BUG_ON(!htx_buf);
 	htx = htx_from_buf(htx_buf);
 
-	if (htx_is_empty(htx) && !strm->res.total) {
+	if (htx_is_empty(htx) && !strm->scb->bytes_in) {
 		/* First data transfer, add HTX response start-line first. */
 		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags,
 		                    ist("HTTP/1.0"), ist("200"), ist(""));

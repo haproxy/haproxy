@@ -1215,7 +1215,6 @@ static __inline int do_l7_retry(struct stream *s, struct stconn *sc)
 	stream_choose_redispatch(s);
 	res->to_forward = 0;
 	res->analyse_exp = TICK_ETERNITY;
-	res->total = 0;
 
 	s->scb->flags &= ~(SC_FL_ERROR|SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED);
 	if (sc_reset_endp(s->scb) < 0) {
@@ -4707,7 +4706,6 @@ int http_forward_proxy_resp(struct stream *s, int final)
 	data = htx->data - co_data(res);
 	c_adv(res, data);
 	htx->first = -1;
-	res->total += data;
 	return 1;
 }
 

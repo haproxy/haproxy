@@ -167,12 +167,12 @@ static void applet_trace(enum trace_level level, uint64_t mask, const struct tra
 			      oc, oc->flags, tick_isset(oc->analyse_exp) ? TICKS_TO_MS(oc->analyse_exp - now_ms) : TICK_ETERNITY);
 	}
 	else {
-		chunk_appendf(&trace_buf, " ic=(%p .fl=0x%08x .ana=0x%08x .exp=%u .o=%lu .tot=%llu .to_fwd=%u)",
+		chunk_appendf(&trace_buf, " ic=(%p .fl=0x%08x .ana=0x%08x .exp=%u .o=%lu .to_fwd=%u)",
 			      ic, ic->flags, ic->analysers, ic->analyse_exp,
-			      (long)ic->output, ic->total, ic->to_forward);
-		chunk_appendf(&trace_buf, " oc=(%p .fl=0x%08x .ana=0x%08x .exp=%u .o=%lu .tot=%llu .to_fwd=%u)",
+			      (long)ic->output, ic->to_forward);
+		chunk_appendf(&trace_buf, " oc=(%p .fl=0x%08x .ana=0x%08x .exp=%u .o=%lu .to_fwd=%u)",
 			      oc, oc->flags, oc->analysers, oc->analyse_exp,
-			      (long)oc->output, oc->total, oc->to_forward);
+			      (long)oc->output, oc->to_forward);
 	}
 
 	if (src->verbosity == STRM_VERB_SIMPLE ||
@@ -846,7 +846,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 
 	sc_ep_fwd_kip(sco, sc);
 
-	input  = ic->total;
+	input  = applet_output_data(app);
 	output = co_data(oc);
 	app->applet->fct(app);
 
@@ -866,7 +866,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 			sc_have_room(sco);
 	}
 
-	input = ic->total - input;
+	input = applet_output_data(app) - input;
 	if (input) {
 		channel_check_xfer(ic, input);
 		sc_ep_report_read_activity(sc);

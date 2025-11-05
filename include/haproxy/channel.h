@@ -323,7 +323,6 @@ static inline void channel_init(struct channel *chn)
 	chn->to_forward = 0;
 	chn->last_read = now_ms;
 	chn->xfer_small = chn->xfer_large = 0;
-	chn->total = 0;
 	chn->analysers = 0;
 	chn->flags = 0;
 	chn->output = 0;
@@ -377,7 +376,6 @@ static inline void channel_add_input(struct channel *chn, unsigned int len)
 		c_adv(chn, fwd);
 	}
 	/* notify that some data was read */
-	chn->total += len;
 	chn->flags |= CF_READ_EVENT;
 }
 

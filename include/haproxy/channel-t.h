@@ -204,7 +204,6 @@ struct channel {
 	unsigned short last_read;       /* 16 lower bits of last read date (max pause=65s) */
 	unsigned char xfer_large;       /* number of consecutive large xfers */
 	unsigned char xfer_small;       /* number of consecutive small xfers */
-	unsigned long long total;       /* total data read */
 	int analyse_exp;                /* expiration date for current analysers (if set) */
 };
 
