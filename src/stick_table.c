@@ -1128,14 +1128,13 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 				HA_ATOMIC_CAS(&t->shards[shard].next_exp, &old_exp, next_exp_table);
 			}
 
-			eb32_delete(table_eb);
-			table_eb->key = TICK_ETERNITY;
 			/*
-			 * If there's more entry, just put it back into the list,
-			 * it'll go back into the tree the next time the task runs.
+			 * Move the table to its next expiration date, if any.
 			 */
+			eb32_delete(table_eb);
+			table_eb->key = next_exp_table;
 			if (next_exp_table != TICK_ETERNITY)
-				MT_LIST_TRY_APPEND(&per_bucket[shard].toadd_tables, &t->shards[shard].in_bucket_toadd);
+				eb32_insert(&ps->tables, table_eb);
 		}
 		table_eb = tmpnode;
 	}
