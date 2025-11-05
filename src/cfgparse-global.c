@@ -995,7 +995,11 @@ static int cfg_parse_global_mode(char **args, int section_type,
 		return -1;
 
 	if (strcmp(args[0], "daemon") == 0) {
-		global.mode |= MODE_DAEMON;
+		if (global.tune.options & GTUNE_USE_SYSTEMD) {
+			ha_warning("'%s' is not compatible with -Ws (master-worker mode for systemd), ignoring.\n", args[0]);
+		} else {
+			global.mode |= MODE_DAEMON;
+		}
 
 	} else if (strcmp(args[0], "quiet") == 0) {
 		global.mode |= MODE_QUIET;
