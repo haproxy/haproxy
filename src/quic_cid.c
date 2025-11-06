@@ -114,25 +114,17 @@ static struct quic_cid quic_derive_cid(const struct quic_cid *orig,
 	return cid;
 }
 
-/* Allocate a new CID and attach it to <root> ebtree.
+/* Allocate a quic_connection_id object and associate it with <qc> connection.
+ * The CID object is not yet inserted in any tree storage.
  *
- * If <orig> and <addr> params are non null, the new CID value is directly
- * derived from them. Else a random value is generated. The CID is then marked
- * with the current thread ID.
- *
- * Returns the new CID if succeeded, NULL if not.
+ * Returns the CID or NULL on allocation failure.
  */
-struct quic_connection_id *new_quic_cid(struct eb_root *root,
-                                        struct quic_conn *qc,
-                                        const struct quic_cid *orig,
-                                        const struct sockaddr_storage *addr)
+struct quic_connection_id *quic_cid_alloc(struct quic_conn *qc)
 {
 	struct quic_connection_id *conn_id;
 
+	/* TODO use a better trace scope */
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
-
-	/* Caller must set either none or both values. */
-	BUG_ON(!!orig != !!addr);
 
 	conn_id = pool_alloc(pool_head_quic_connection_id);
 	if (!conn_id) {
@@ -140,21 +132,40 @@ struct quic_connection_id *new_quic_cid(struct eb_root *root,
 		goto err;
 	}
 
+	conn_id->qc = qc;
+	HA_ATOMIC_STORE(&conn_id->tid, tid);
+
+	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
+	return conn_id;
+
+ err:
+	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
+	return NULL;
+}
+
+/* Generate the value of <conn_id> and its associated stateless token. The CID
+ * value is calculated from a random generator or via quic_newcid_from_hash64()
+ * external callback if defined with hash64 key from connection.
+ *
+ * Returns 0 on success else non-zero.
+ */
+int quic_cid_generate(struct quic_connection_id *conn_id)
+{
+	const struct quic_conn *qc = conn_id->qc;
+
+	/* TODO use a better trace scope */
+	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
+
 	conn_id->cid.len = QUIC_HAP_CID_LEN;
 
-	if (!orig) {
-		if (quic_newcid_from_hash64)
-			quic_newcid_from_hash64(conn_id->cid.data, conn_id->cid.len, qc->hash64,
-						global.cluster_secret, sizeof(global.cluster_secret));
-		else if (RAND_bytes(conn_id->cid.data, conn_id->cid.len) != 1) {
-			/* TODO: RAND_bytes() should be replaced */
-			TRACE_ERROR("RAND_bytes() failed", QUIC_EV_CONN_TXPKT, qc);
-			goto err;
-		}
+	if (quic_newcid_from_hash64) {
+		quic_newcid_from_hash64(conn_id->cid.data, conn_id->cid.len, qc->hash64,
+		                        global.cluster_secret, sizeof(global.cluster_secret));
 	}
-	else {
-		/* Derive the new CID value from original CID. */
-		conn_id->cid = quic_derive_cid(orig, addr);
+	else if (RAND_bytes(conn_id->cid.data, conn_id->cid.len) != 1) {
+		/* TODO: RAND_bytes() should be replaced */
+		TRACE_ERROR("RAND_bytes() failed", QUIC_EV_CONN_TXPKT, qc);
+		goto err;
 	}
 
 	if (quic_stateless_reset_token_init(conn_id) != 1) {
@@ -162,22 +173,69 @@ struct quic_connection_id *new_quic_cid(struct eb_root *root,
 		goto err;
 	}
 
-	conn_id->qc = qc;
-	HA_ATOMIC_STORE(&conn_id->tid, tid);
-
-	conn_id->seq_num.key = qc ? qc->next_cid_seq_num++ : 0;
-	conn_id->retire_prior_to = 0;
-	/* insert the allocated CID in the quic_conn tree */
-	if (root)
-		eb64_insert(root, &conn_id->seq_num);
-
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
-	return conn_id;
+	return 0;
 
  err:
-	pool_free(pool_head_quic_connection_id, conn_id);
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
-	return NULL;
+	return 1;
+}
+
+/* Generate the value of <conn_id> and its associated stateless token. The CID
+ * value is derived from client <orig> ODCID and <addr> address. This is an
+ * alternative method to quic_cid_generate() which is used for the first CID of
+ * a server connection in response to a client INITIAL packet.
+ *
+ * The benefit of this CID value is to skip storage of ODCIDs in the global
+ * CIDs tree. This is an optimization to reduce contention on the CIDs tree
+ * given that ODCIDs usage is quite limited during a connection lifetime.
+ * Client address is used to reduce the collision risk.
+ *
+ * Returns 0 on success else non-zero.
+ */
+int quic_cid_derive_from_odcid(struct quic_connection_id *conn_id,
+                               const struct quic_cid *orig,
+                               const struct sockaddr_storage *addr)
+{
+	/* TODO use a better trace scope */
+	TRACE_ENTER(QUIC_EV_CONN_TXPKT);
+
+	conn_id->cid.len = QUIC_HAP_CID_LEN;
+
+	/* Derive the new CID value from original CID. */
+	conn_id->cid = quic_derive_cid(orig, addr);
+
+	if (quic_stateless_reset_token_init(conn_id) != 1) {
+		TRACE_ERROR("quic_stateless_reset_token_init() failed", QUIC_EV_CONN_TXPKT);
+		goto err;
+	}
+
+	TRACE_LEAVE(QUIC_EV_CONN_TXPKT);
+	return 0;
+
+ err:
+	TRACE_LEAVE(QUIC_EV_CONN_TXPKT);
+	return 1;
+}
+
+/* Store <conn_id> CID into <qc> connection tree, associated with the next
+ * sequence number available. The CID should already be stored in the global
+ * tree to ensure there is no value collision.
+ */
+void quic_cid_register_seq_num(struct quic_connection_id *conn_id)
+{
+	struct quic_conn *qc = conn_id->qc;
+
+	/* TODO use a better trace scope */
+	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
+
+	conn_id->seq_num.key = qc->next_cid_seq_num;
+	conn_id->retire_prior_to = 0;
+	/* insert the allocated CID in the quic_conn tree */
+	eb64_insert(qc->cids, &conn_id->seq_num);
+	++qc->next_cid_seq_num;
+
+	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
 }
 
 /* Insert <conn_id> in global CID tree. It may fail if an identical value is

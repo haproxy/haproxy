@@ -1017,17 +1017,26 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			pool_free(pool_head_quic_connection_id, conn_id);
 			TRACE_PROTO("CID retired", QUIC_EV_CONN_PSTRM, qc);
 
-			conn_id = new_quic_cid(qc->cids, qc, NULL, NULL);
+			conn_id = quic_cid_alloc(qc);
 			if (!conn_id) {
 				TRACE_ERROR("CID allocation error", QUIC_EV_CONN_IO_CB, qc);
 				quic_set_connection_close(qc, quic_err_transport(QC_ERR_INTERNAL_ERROR));
 				qc_notify_err(qc);
 				goto err;
 			}
-			else {
-				_quic_cid_insert(conn_id);
-				qc_build_new_connection_id_frm(qc, conn_id);
+
+			if (quic_cid_generate(conn_id)) {
+				TRACE_ERROR("error on CID generation", QUIC_EV_CONN_PSTRM, qc);
+				quic_set_connection_close(qc, quic_err_transport(QC_ERR_INTERNAL_ERROR));
+				pool_free(pool_head_quic_connection_id, conn_id);
+				qc_notify_err(qc);
+				goto err;
 			}
+			_quic_cid_insert(conn_id);
+
+			quic_cid_register_seq_num(conn_id);
+
+			qc_build_new_connection_id_frm(qc, conn_id);
 			break;
 		}
 		case QUIC_FT_PATH_CHALLENGE:
@@ -1736,15 +1745,19 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 			pkt->saddr = dgram->saddr;
 			ipv4 = dgram->saddr.ss_family == AF_INET;
 
-			/* Generate the first connection CID. This is derived from the client
-			 * ODCID and address. This allows to retrieve the connection from the
-			 * ODCID without storing it in the CID tree. This is an interesting
-			 * optimization as the client is expected to stop using its ODCID in
-			 * favor of our generated value.
-			 */
-			conn_id = new_quic_cid(NULL, NULL, &pkt->dcid, &pkt->saddr);
-			if (!conn_id)
+			conn_id = quic_cid_alloc(NULL);
+			if (!conn_id) {
+				TRACE_ERROR("error on first CID allocation",
+				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
 				goto err;
+			}
+
+			if (quic_cid_derive_from_odcid(conn_id, &pkt->dcid, &pkt->saddr)) {
+				TRACE_ERROR("error on CID generation",
+				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
+				pool_free(pool_head_quic_connection_id, conn_id);
+				goto err;
+			}
 
 			qc = qc_new_conn(pkt->version, ipv4, &pkt->dcid, &pkt->scid, &token_odcid,
 			                 conn_id, &dgram->daddr, &pkt->saddr,
@@ -1754,24 +1767,26 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 				goto err;
 			}
 
+			conn_id->qc = qc;
 			/* Compute and store into the quic_conn the hash used to compute extra CIDs */
-			if (quic_hash64_from_cid)
+			if (quic_hash64_from_cid) {
 				qc->hash64 = quic_hash64_from_cid(conn_id->cid.data, conn_id->cid.len,
-								  global.cluster_secret, sizeof(global.cluster_secret));
+				                                  global.cluster_secret, sizeof(global.cluster_secret));
+			}
 
 			if (quic_cid_insert(conn_id, new_tid)) {
+				/* Collision during CID insertion. This may
+				 * happen when handling two Initial packets
+				 * from the same client on different threads.
+				 * <new_tid> will be set to redispatch the
+				 * current packet.
+				 */
 				pool_free(pool_head_quic_connection_id, conn_id);
 				quic_conn_release(qc);
 				qc = NULL;
 			}
 			else {
-				/* From here, <qc> is the correct connection for this <pkt> Initial
-				 * packet. <conn_id> must be inserted in the CIDs tree for this
-				 * connection.
-				 */
-				eb64_insert(qc->cids, &conn_id->seq_num);
-				/* Initialize the next CID sequence number to be used for this connection. */
-				qc->next_cid_seq_num = 1;
+				quic_cid_register_seq_num(conn_id);
 
 				if (dgram->flags & QUIC_DGRAM_FL_REJECT)
 					quic_set_connection_close(qc, quic_err_transport(QC_ERR_CONNECTION_REFUSED));
