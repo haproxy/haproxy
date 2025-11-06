@@ -2625,7 +2625,7 @@ X509 *acme_gen_tmp_x509()
 {
 	X509         *newcrt  = NULL;
 	X509_NAME    *name;
-	const EVP_MD *digest;
+	const EVP_MD *digest = NULL;
 	CONF         *ctmp    = NULL;
 	int 	      key_type;
 	EVP_PKEY *pkey = tmp_pkey;
@@ -2681,6 +2681,8 @@ X509 *acme_gen_tmp_x509()
 		digest = EVP_sha256();
 	else if (key_type == EVP_PKEY_EC)
 		digest = EVP_sha256();
+	else
+		goto mkcert_error;
 
 	if (!(X509_sign(newcrt, pkey, digest)))
 		goto mkcert_error;
