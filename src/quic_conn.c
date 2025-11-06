@@ -1176,6 +1176,13 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	LIST_INIT(&qc->pktns_list);
 	qc->prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe, &quic_stats_module);
 
+	qc->cids = pool_alloc(pool_head_quic_cids);
+	if (!qc->cids) {
+		TRACE_ERROR("Could not allocate a new CID tree", QUIC_EV_CONN_INIT, qc);
+		goto err;
+	}
+	*qc->cids = EB_ROOT;
+
 	/* QUIC Server (or listener). */
 	if (l) {
 		cc_algo = l->bind_conf->quic_cc_algo;
@@ -1251,13 +1258,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		goto err;
 	}
 
-	qc->cids = pool_alloc(pool_head_quic_cids);
-	if (!qc->cids) {
-		TRACE_ERROR("Could not allocate a new CID tree", QUIC_EV_CONN_INIT, qc);
-		goto err;
-	}
-
-	*qc->cids = EB_ROOT;
 	if (!l) {
 		/* Attach the current CID to the connection */
 		eb64_insert(qc->cids, &conn_id->seq_num);
