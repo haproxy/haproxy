@@ -2068,8 +2068,8 @@ next_line:
 				goto next_line;
 			}
 
-			if ((global.mode & MODE_DISCOVERY)) {
-				/* Only print empty arg warning in discovery mode to prevent double display. */
+			if (!(global.mode & MODE_DISCOVERY)) {
+				/* Only print empty arg warning in normal mode to prevent double display. */
 				for (check_arg = 0; check_arg < arg; check_arg++) {
 					if (!*args[check_arg]) {
 						size_t newpos;
