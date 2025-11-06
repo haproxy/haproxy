@@ -4733,7 +4733,7 @@ static int ckch_conf_load_pem_or_generate(void *value, char *buf, struct ckch_st
 {
 	char path[PATH_MAX];
 	int err_code = 0;
-	struct stat sb;
+	struct stat sb __maybe_unused;
 
 	if (cli)
 		return 0;
@@ -4741,6 +4741,7 @@ static int ckch_conf_load_pem_or_generate(void *value, char *buf, struct ckch_st
 	if (err_code & ERR_CODE)
 		goto out;
 
+#ifdef HAVE_ACME
 	errno = 0;
 	/* if ACME is enabled and the file does not exists, generate the PEM */
 	if (s->conf.acme.id && (stat(path, &sb) == -1 && errno == ENOENT)) {
@@ -4754,7 +4755,9 @@ static int ckch_conf_load_pem_or_generate(void *value, char *buf, struct ckch_st
 			goto out;
 		}
 
-	} else {
+	} else
+#endif
+	{
 		err_code |= ssl_sock_load_pem_into_ckch(path, buf, s->data, err);
 	}
 out:
@@ -4764,7 +4767,7 @@ static int ckch_conf_load_key_or_generate(void *value, char *buf, struct ckch_st
 {
 	char path[PATH_MAX];
 	int err_code = 0;
-	struct stat sb;
+	struct stat sb __maybe_unused;
 
 	if (cli)
 		return 0;
@@ -4772,13 +4775,16 @@ static int ckch_conf_load_key_or_generate(void *value, char *buf, struct ckch_st
 	if (err_code & ERR_CODE)
 		goto out;
 
+#ifdef HAVE_ACME
 	errno = 0;
 	/* if ACME is enabled and the file does not exists, and no key was previously loaded generate the key */
 	if (s->conf.acme.id &&
 	    (stat(path, &sb) == -1 && errno == ENOENT) &&
 	    (!s->data->key)) {
 		s->data->key = acme_gen_tmp_pkey();
-	} else {
+	} else
+#endif
+	{
 		err_code |= ssl_sock_load_key_into_ckch(path, buf, s->data, err);
 	}
 out:
