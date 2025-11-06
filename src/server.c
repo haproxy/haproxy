@@ -7151,8 +7151,10 @@ static void srv_update_status(struct server *s, int type, int cause)
 		 * If the server is no longer running, let's not pretend
 		 * it can handle requests.
 		 */
-		if (s->cur_state != SRV_ST_RUNNING && s->proxy->ready_srv == s)
-			HA_ATOMIC_STORE(&s->proxy->ready_srv, NULL);
+		if (s->cur_state != SRV_ST_RUNNING) {
+			struct server *srv = s;
+			HA_ATOMIC_CAS(&s->proxy->ready_srv, &srv, NULL);
+		}
 
 		s->last_change = ns_to_sec(now_ns);
 		if (s->counters.shared.tg[tgid - 1])

@@ -370,6 +370,8 @@ static inline void srv_detach(struct server *srv)
 
 		prev->next = srv->next;
 	}
+	/* reset the proxy's ready_srv if it was this one */
+	HA_ATOMIC_CAS(&px->ready_srv, &srv, NULL);
 }
 
 /* Returns a pointer to the first server matching id <id> in backend <bk>.
