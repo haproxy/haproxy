@@ -1005,6 +1005,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		case QUIC_FT_RETIRE_CONNECTION_ID:
 		{
 			struct quic_connection_id *conn_id = NULL;
+			int retry_rand_cid = 3; /* Number of random retries on CID collision. */
 
 			if (!qc_handle_retire_connection_id_frm(qc, frm, &pkt->dcid, &conn_id))
 				goto err;
@@ -1025,14 +1026,30 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				goto err;
 			}
 
-			if (quic_cid_generate(conn_id)) {
-				TRACE_ERROR("error on CID generation", QUIC_EV_CONN_PSTRM, qc);
+			while (retry_rand_cid--) {
+				if (quic_cid_generate(conn_id)) {
+					TRACE_ERROR("error on CID generation", QUIC_EV_CONN_PSTRM, qc);
+					quic_set_connection_close(qc, quic_err_transport(QC_ERR_INTERNAL_ERROR));
+					pool_free(pool_head_quic_connection_id, conn_id);
+					qc_notify_err(qc);
+					goto err;
+				}
+
+				if (quic_cid_insert(conn_id, NULL) == 0)
+					break;
+			}
+
+			if (retry_rand_cid < 0) {
+				/* Multiple collisions during CID random gen.
+				 * Prefer to close the connection in error
+				 * immediately.
+				 */
+				TRACE_ERROR("CID pool exhausted", QUIC_EV_CONN_IO_CB, qc);
 				quic_set_connection_close(qc, quic_err_transport(QC_ERR_INTERNAL_ERROR));
 				pool_free(pool_head_quic_connection_id, conn_id);
 				qc_notify_err(qc);
 				goto err;
 			}
-			_quic_cid_insert(conn_id);
 
 			quic_cid_register_seq_num(conn_id);
 

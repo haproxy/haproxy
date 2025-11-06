@@ -80,20 +80,6 @@ static inline uchar quic_cid_tree_idx(const struct quic_cid *cid)
 	return _quic_cid_tree_idx(cid->data);
 }
 
-/* Insert <conn_id> into global CID tree. Do not check if value is already
- * present in the tree. As such, it should not be used for the first DCID of a
- * connection instance.
- */
-static inline void _quic_cid_insert(struct quic_connection_id *conn_id)
-{
-	const uchar idx = quic_cid_tree_idx(&conn_id->cid);
-	struct quic_cid_tree *tree = &quic_cid_trees[idx];
-
-	HA_RWLOCK_WRLOCK(QC_CID_LOCK, &tree->lock);
-	ebmb_insert(&tree->root, &conn_id->node, conn_id->cid.len);
-	HA_RWLOCK_WRUNLOCK(QC_CID_LOCK, &tree->lock);
-}
-
 /* Remove <conn_id> from global CID tree as a thread-safe operation. */
 static inline void quic_cid_delete(struct quic_connection_id *conn_id)
 {

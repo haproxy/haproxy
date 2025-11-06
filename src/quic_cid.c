@@ -238,9 +238,12 @@ void quic_cid_register_seq_num(struct quic_connection_id *conn_id)
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
 }
 
-/* Insert <conn_id> in global CID tree. It may fail if an identical value is
- * already stored. In this case, <new_tid> will be filled with the thread ID of
- * the already stored CID.
+/* Insert <conn_id> in global CID tree. It may fail if a collision happens due
+ * to an identical CID already stored.
+ *
+ * If <new_tid> is non null, it will be used as an output parameter,
+ * initialized to -1 by default. In case of a CID collision, it will be set to
+ * the thread ID of the already stored CID.
  *
  * Returns 0 on insert success else non-zero.
  */
@@ -250,15 +253,17 @@ int quic_cid_insert(struct quic_connection_id *conn_id, int *new_tid)
 	struct quic_cid_tree *tree;
 	int ret;
 
-	*new_tid = -1;
+	if (new_tid)
+		*new_tid = -1;
 	tree = &quic_cid_trees[quic_cid_tree_idx(&conn_id->cid)];
 
 	HA_RWLOCK_WRLOCK(QC_CID_LOCK, &tree->lock);
 	node = ebmb_insert(&tree->root, &conn_id->node, conn_id->cid.len);
 	if (node != &conn_id->node) {
-		/* Node already inserted, may happen on thread contention. */
-		conn_id = ebmb_entry(node, struct quic_connection_id, node);
-		*new_tid = HA_ATOMIC_LOAD(&conn_id->tid);
+		if (new_tid) {
+			conn_id = ebmb_entry(node, struct quic_connection_id, node);
+			*new_tid = HA_ATOMIC_LOAD(&conn_id->tid);
+		}
 		ret = -1;
 	}
 	else {
