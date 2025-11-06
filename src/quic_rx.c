@@ -1020,6 +1020,9 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			conn_id = new_quic_cid(qc->cids, qc, NULL, NULL);
 			if (!conn_id) {
 				TRACE_ERROR("CID allocation error", QUIC_EV_CONN_IO_CB, qc);
+				quic_set_connection_close(qc, quic_err_transport(QC_ERR_INTERNAL_ERROR));
+				qc_notify_err(qc);
+				goto err;
 			}
 			else {
 				_quic_cid_insert(conn_id);
