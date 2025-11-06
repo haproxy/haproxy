@@ -182,7 +182,8 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 	 * is not done for 0-RTT as xprt->start happens before handshake
 	 * completion.
 	 */
-	if (qc_is_back(qc) || (qc->flags & QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS))
+	if ((qc_is_back(qc) && !qc_is_conn_ready(qc)) ||
+	    (qc->flags & QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS))
 		tasklet_wakeup(qc->wait_event.tasklet);
 
 	ret = 1;
