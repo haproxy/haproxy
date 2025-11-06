@@ -4779,9 +4779,9 @@ static int ckch_conf_load_key_or_generate(void *value, char *buf, struct ckch_st
 	errno = 0;
 	/* if ACME is enabled and the file does not exists, and no key was previously loaded generate the key */
 	if (s->conf.acme.id &&
-	    (stat(path, &sb) == -1 && errno == ENOENT) &&
-	    (!s->data->key)) {
-		s->data->key = acme_gen_tmp_pkey();
+	    (stat(path, &sb) == -1 && errno == ENOENT)) {
+		if (!s->data->key)
+			s->data->key = acme_gen_tmp_pkey();
 	} else
 #endif
 	{
