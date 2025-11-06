@@ -1014,13 +1014,15 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 				goto err;
 			}
 
-			if (conn_create_mux(qc->conn, NULL) < 0) {
-				TRACE_ERROR("mux creation failed", QUIC_EV_CONN_IO_CB, qc, &state);
-				goto err;
-			}
+			if (!qc_is_conn_ready(qc)) {
+				if (conn_create_mux(qc->conn, NULL) < 0) {
+					TRACE_ERROR("mux creation failed", QUIC_EV_CONN_IO_CB, qc, &state);
+					goto err;
+				}
 
-			/* Wake up MUX after its creation. Operation similar to TLS+ALPN on TCP stack. */
-			qc->conn->mux->wake(qc->conn);
+				/* Wake up MUX after its creation. Operation similar to TLS+ALPN on TCP stack. */
+				qc->conn->mux->wake(qc->conn);
+			}
 		}
 		else {
 			TRACE_PROTO("could not start the mux", QUIC_EV_CONN_IO_CB, qc);
