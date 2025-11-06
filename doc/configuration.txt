@@ -5288,15 +5288,16 @@ tune.stick-counters <number>
   connection or a request via "track-sc*" actions in "tcp-request" or
   "http-request" rules. The default value is set at build time by the macro
   MAX_SESS_STK_CTR, and defaults to 3. With this setting it is possible to
-  change the value and ignore the one passed at build time. Increasing this
-  value may be needed when porting complex configurations to haproxy, but users
-  are warned against the costs: each entry takes 16 bytes per connection and
-  16 bytes per request, all of which need to be allocated and zeroed for all
-  requests even when not used. As such a value of 10 will inflate the memory
-  consumption per request by 320 bytes and will cause this memory to be erased
-  for each request, which does have measurable CPU impacts. Conversely, when
-  no "track-sc" rules are used, the value may be lowered (0 being valid to
-  entirely disable stick-counters).
+  change the value and ignore the one passed at build time, but it cannot be
+  set to a value greater than 100. Increasing this value may be needed when
+  porting complex configurations to haproxy, but users are warned against the
+  costs: each entry takes 16 bytes per connection and 16 bytes per request, all
+  of which need to be allocated and zeroed for all requests even when not
+  used. As such a value of 10 will inflate the memory consumption per request
+  by 320 bytes and will cause this memory to be erased for each request, which
+  does have measurable CPU impacts. Conversely, when no "track-sc" rules are
+  used, the value may be lowered (0 being valid to entirely disable
+  stick-counters).
 
 tune.takeover-other-tg-connections <value>
   By default, we won't attempt to use idle connections from other thread groups.

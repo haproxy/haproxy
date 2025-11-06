@@ -5940,8 +5940,8 @@ static int stk_parse_stick_counters(char **args, int section_type, struct proxy 
 		return -1;
 	}
 
-	if (counters < 0) {
-		memprintf(err, "%s: the number of stick-counters may not be negative (was %d)", args[0], counters);
+	if (counters < 0 || counters > 100) {
+		memprintf(err, "%s: the number of stick-counters must be between 1 and 100 (was %d)", args[0], counters);
 		return -1;
 	}
 
