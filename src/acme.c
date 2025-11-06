@@ -2626,8 +2626,6 @@ X509 *acme_gen_tmp_x509()
 	X509         *newcrt  = NULL;
 	X509_NAME    *name;
 	const EVP_MD *digest;
-	X509V3_CTX    ctx;
-	unsigned int  i;
 	CONF         *ctmp    = NULL;
 	int 	      key_type;
 	EVP_PKEY *pkey = tmp_pkey;
@@ -2662,7 +2660,7 @@ X509 *acme_gen_tmp_x509()
 		goto mkcert_error;
 
 	/* Set the subject name using the servername but the CN */
-	if (X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, "expired",
+	if (X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (unsigned char *)"expired",
 				       -1, -1, 0) != 1) {
 		X509_NAME_free(name);
 		goto mkcert_error;
