@@ -30805,6 +30805,12 @@ acme <string>
   This is an experimental feature which needs the
   "expose-experimental-directives" keyword in the global section.
 
+  When using the "acme" keyword in a crt-store, it is possible to start without
+  an existing certificate on the disk. Instead, a temporary key pair will be
+  used until the ACME certificate is generated. This behavior is exclusives to
+  crt-stores, neither a crt-list line nor an ssl-f-use line can achieve the
+  same without declaring a crt-store first.
+
   See also Section 12.8 ("ACME") and "domains" in this section.
 
 alias <string>
