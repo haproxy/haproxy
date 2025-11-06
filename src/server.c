@@ -7318,7 +7318,7 @@ struct connection *srv_lookup_conn_next(struct ceb_root **tree, struct connectio
  *
  * Must be called with idle_conns_lock.
  */
-void _srv_add_idle(struct server *srv, struct connection *conn, int is_safe)
+static inline void _srv_add_idle(struct server *srv, struct connection *conn, int is_safe)
 {
 	struct ceb_root **tree = is_safe ? &srv->per_thr[tid].safe_conns :
 	                                 &srv->per_thr[tid].idle_conns;
@@ -7328,6 +7328,22 @@ void _srv_add_idle(struct server *srv, struct connection *conn, int is_safe)
 
 	/* insert in list sorted by connection usage. */
 	LIST_APPEND(&srv->per_thr[tid].idle_conn_list, &conn->idle_list);
+}
+
+/* Add <conn> in <srv> idle trees. Set <is_safe> if connection is deemed safe
+ * for reuse.
+ *
+ * This function is a simple wrapper for tree insert. It should only be used
+ * for internal usage or when removing briefly the connection to avoid takeover
+ * on it before reinserting it with this function. In other context, prefer to
+ * use the full feature srv_add_to_idle_list(). This function takes the idle
+ * conns lock for the current thread (thus the owner must not already have it).
+ */
+void srv_add_idle(struct server *srv, struct connection *conn, int is_safe)
+{
+	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	_srv_add_idle(srv, conn, is_safe);
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 }
 
 /* This adds an idle connection to the server's list if the connection is

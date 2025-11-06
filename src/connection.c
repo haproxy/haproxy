@@ -257,9 +257,7 @@ int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake)
 			}
 			else {
 				ASSUME_NONNULL(srv); /* srv is guaranteed by CO_FL_LIST_MASK */
-				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-				_srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
-				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+				srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
 			}
 		}
 	}
