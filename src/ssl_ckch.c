@@ -4793,7 +4793,7 @@ DECLARE_CKCH_CONF_LOAD(sctl,          current_crtbase, ssl_sock_load_sctl_from_f
 struct ckch_conf_kws ckch_conf_kws[] = {
 	{ "alias",        -1,                                           PARSE_TYPE_NONE,  NULL,                           },
 	{ "crt",          offsetof(struct ckch_conf, crt),              PARSE_TYPE_STR,   ckch_conf_load_pem_or_generate  },
-	{ "key",          offsetof(struct ckch_conf, key),              PARSE_TYPE_STR,   ckch_conf_load_key,             },
+	{ "key",          offsetof(struct ckch_conf, key),              PARSE_TYPE_STR,   ckch_conf_load_key_or_generate  },
 #ifdef HAVE_SSL_OCSP
 	{ "ocsp",         offsetof(struct ckch_conf, ocsp),             PARSE_TYPE_STR,   ckch_conf_load_ocsp_response,   },
 #endif
