@@ -1134,6 +1134,8 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 
 	}
 	else if (strcmp(args[0], "tune.maxpollevents") == 0) {
+		long max;
+
 		if (global.tune.maxpollevents != 0) {
 			memprintf(err, "'%s' already specified. Continuing.", args[0]);
 			return 1;
@@ -1142,8 +1144,12 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 			memprintf(err, "'%s' expects an integer argument.", args[0]);
 			return -1;
 		}
-		global.tune.maxpollevents = atol(args[1]);
-
+		max = atol(args[1]);
+		if (max > 1000000) {
+			memprintf(err, "'%s' expects an integer value lower than or equal to 1000000.", args[0]);
+			return -1;
+		}
+		global.tune.maxpollevents = max;
 		return 0;
 	}
 	else if (strcmp(args[0], "tune.max-rules-at-once") == 0) {

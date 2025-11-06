@@ -4612,7 +4612,8 @@ tune.maxpollevents <number>
   the polling system. The default value is adapted to the operating system. It
   has been noticed that reducing it below 200 tends to slightly decrease
   latency at the expense of network bandwidth, and increasing it above 200
-  tends to trade latency for slightly increased bandwidth.
+  tends to trade latency for slightly increased bandwidth. The configured value
+  must be lower than or equal to 1000000.
 
 tune.maxrewrite <number>
   Sets the reserved buffer space to this size in bytes. The reserved space is
