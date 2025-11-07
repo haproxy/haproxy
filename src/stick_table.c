@@ -638,7 +638,7 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 			/* Check if this entry is not in the tree or not
 			 * scheduled for at least one peer.
 			 */
-			if (!ts->upd.node.leaf_p || _HA_ATOMIC_LOAD(&ts->seen)) {
+			if (!ts->upd.node.leaf_p || _HA_ATOMIC_LOAD(&ts->seen) || !ts->updt_is_local) {
 				_HA_ATOMIC_STORE(&ts->updt_is_local, 1);
 				did_append = MT_LIST_TRY_APPEND(&t->pend_updts[tgid - 1], &ts->pend_updts);
 			}
