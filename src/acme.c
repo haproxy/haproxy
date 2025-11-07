@@ -2584,29 +2584,29 @@ static EVP_PKEY *acme_EVP_PKEY_gen(int keytype, int curves, int bits, char **err
 	EVP_PKEY *pkey = NULL;
 
 	if ((pkey_ctx = EVP_PKEY_CTX_new_id(keytype, NULL)) == NULL) {
-		memprintf(errmsg, "%sCan't generate a private key.\n", *errmsg ? *errmsg : "");
+		memprintf(errmsg, "%sCan't generate a private key.\n", errmsg && *errmsg ? *errmsg : "");
 		goto err;
 	}
 
 	if (EVP_PKEY_keygen_init(pkey_ctx) <= 0) {
-		memprintf(errmsg, "%sCan't generate a private key.\n", *errmsg ? *errmsg : "");
+		memprintf(errmsg, "%sCan't generate a private key.\n", errmsg && *errmsg ? *errmsg : "");
 		goto err;
 	}
 
 	if (keytype == EVP_PKEY_EC) {
 		if (EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pkey_ctx, curves) <= 0) {
-			memprintf(errmsg, "%sCan't set the curves on the new private key.\n", *errmsg ? *errmsg : "");
+			memprintf(errmsg, "%sCan't set the curves on the new private key.\n", errmsg && *errmsg ? *errmsg : "");
 			goto err;
 		}
 	} else if (keytype == EVP_PKEY_RSA) {
 		if (EVP_PKEY_CTX_set_rsa_keygen_bits(pkey_ctx, bits) <= 0) {
-			memprintf(errmsg, "%sCan't set the bits on the new private key.\n", *errmsg ? *errmsg : "");
+			memprintf(errmsg, "%sCan't set the bits on the new private key.\n", errmsg && *errmsg ? *errmsg : "");
 			goto err;
 		}
 	}
 
 	if (EVP_PKEY_keygen(pkey_ctx, &pkey) <= 0) {
-		memprintf(errmsg, "%sCan't generate a private key.\n", *errmsg ? *errmsg : "");
+		memprintf(errmsg, "%sCan't generate a private key.\n", errmsg && *errmsg ? *errmsg : "");
 		goto err;
 	}
 
