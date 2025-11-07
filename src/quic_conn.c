@@ -1108,9 +1108,9 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
  * into the Retry token sent to the client before instantiated this connection.
  * Endpoints addresses are specified via <local_addr> and <peer_addr>.
  * Returns the connection if succeeded, NULL if not.
- * For QUIC clients, <dcid>, <scid>, <token_odcid>, <conn_id> must be null,
- * and <token> value must be 0. This is the responsibility of the caller to ensure
- * this is the case.
+ * For QUIC clients, <dcid>, <scid> and <token_odcid> must be null, and <token>
+ * value must be 0. This is the responsibility of the caller to ensure this is
+ * the case.
  */
 struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
                               struct quic_cid *dcid, struct quic_cid *scid,
@@ -1243,8 +1243,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	}
 	/* QUIC Client (outgoing connection to servers) */
 	else {
-		struct quic_connection_id *conn_cid = NULL;
-
 		qc->flags = QUIC_FL_CONN_IS_BACK|QUIC_FL_CONN_PEER_VALIDATED_ADDR;
 		/* Duplicate GSO status on server to connection */
 		if (HA_ATOMIC_LOAD(&srv->flags) & SRV_F_UDP_GSO_NOTSUPP)
@@ -1263,26 +1261,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		memcpy(&qc->odcid, qc->dcid.data, sizeof(qc->dcid.data));
 		qc->odcid.len = qc->dcid.len;
 
-		conn_cid = quic_cid_alloc();
-		if (!conn_cid) {
-			TRACE_ERROR("error on CID allocation", QUIC_EV_CONN_INIT, qc);
-			goto err;
-		}
-
-		if (quic_cid_generate_random(conn_cid)) {
-			TRACE_ERROR("error on CID generation", QUIC_EV_CONN_INIT, qc);
-			pool_free(pool_head_quic_connection_id, conn_cid);
-			goto err;
-		}
-
-		if (quic_cid_insert(conn_cid, NULL)) {
-			pool_free(pool_head_quic_connection_id, conn_cid);
-			goto err;
-		}
-
-		quic_cid_register_seq_num(conn_cid, qc);
 		dcid = &qc->dcid;
-		conn_id = conn_cid;
 	}
 	qc->err = quic_err_transport(QC_ERR_NO_ERROR);
 
@@ -1420,15 +1399,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	return qc;
 
  err:
-	if (!l && !conn_id) {
-		/* For QUIC clients, <conn_id> is locally used and initialized to <conn_cid>
-		 * value as soon as this latter is attached to the CIDs tree. It must
-		 * be freed only if it has not been attached to this tree. This is
-		 * quic_conn_release() which free this CID when it is attached to the tree.
-		 */
-		pool_free(pool_head_quic_connection_id, conn_id);
-	}
-
 	quic_conn_release(qc);
 
 	/* Decrement global counters. Done only for errors happening before or

@@ -125,26 +125,56 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 {
 	int ret = -1;
 	struct quic_conn *qc = NULL;
+	struct quic_connection_id *conn_id;
 
 	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
 
 	if (objt_listener(conn->target)) {
 		qc = conn->handle.qc;
+		if (!qc)
+			goto out;
 	}
 	else {
+		int retry_rand_cid = 3; /* Number of random retries on CID collision. */
 		int ipv4 = conn->dst->ss_family == AF_INET;
 		struct server *srv = objt_server(conn->target);
-		qc = qc_new_conn(quic_version_1, ipv4, NULL, NULL, NULL,
-		                 NULL, NULL, &srv->addr, 0, srv);
-		if (qc) {
-			conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
-			conn->handle.qc = qc;
-			qc->conn = conn;
-		}
-	}
 
-	if (!qc)
-		goto out;
+		conn_id = quic_cid_alloc();
+		if (!conn_id) {
+			TRACE_ERROR("error on CID allocation", QUIC_EV_CONN_NEW);
+			goto out;
+		}
+
+		while (retry_rand_cid--) {
+			if (quic_cid_generate_random(conn_id)) {
+				TRACE_ERROR("error on CID generation", QUIC_EV_CONN_NEW);
+				pool_free(pool_head_quic_connection_id, conn_id);
+				goto out;
+			}
+
+			if (quic_cid_insert(conn_id, NULL) == 0)
+				break;
+		}
+
+		if (retry_rand_cid < 0) {
+			TRACE_ERROR("CID pool exhausted", QUIC_EV_CONN_NEW);
+			pool_free(pool_head_quic_connection_id, conn_id);
+			goto out;
+		}
+
+		qc = qc_new_conn(quic_version_1, ipv4, NULL, NULL, NULL,
+		                 conn_id, NULL, &srv->addr, 0, srv);
+		if (!qc) {
+			pool_free(pool_head_quic_connection_id, conn_id);
+			goto out;
+		}
+
+		quic_cid_register_seq_num(conn_id, qc);
+
+		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
+		conn->handle.qc = qc;
+		qc->conn = conn;
+	}
 
 	ret = 0;
 	/* Ensure thread connection migration is finalized ASAP. */
