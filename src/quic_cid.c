@@ -159,13 +159,17 @@ int quic_cid_generate(struct quic_connection_id *conn_id)
 	conn_id->cid.len = QUIC_HAP_CID_LEN;
 
 	if (quic_newcid_from_hash64) {
+		TRACE_DEVEL("calculate CID value from conn hash", QUIC_EV_CONN_TXPKT, qc);
 		quic_newcid_from_hash64(conn_id->cid.data, conn_id->cid.len, qc->hash64,
 		                        global.cluster_secret, sizeof(global.cluster_secret));
 	}
-	else if (RAND_bytes(conn_id->cid.data, conn_id->cid.len) != 1) {
-		/* TODO: RAND_bytes() should be replaced */
-		TRACE_ERROR("RAND_bytes() failed", QUIC_EV_CONN_TXPKT, qc);
-		goto err;
+	else {
+		TRACE_DEVEL("generate CID value from random generator", QUIC_EV_CONN_TXPKT, qc);
+		if (RAND_bytes(conn_id->cid.data, conn_id->cid.len) != 1) {
+			/* TODO: RAND_bytes() should be replaced */
+			TRACE_ERROR("RAND_bytes() failed", QUIC_EV_CONN_TXPKT, qc);
+			goto err;
+		}
 	}
 
 	if (quic_stateless_reset_token_init(conn_id) != 1) {
@@ -202,6 +206,7 @@ int quic_cid_derive_from_odcid(struct quic_connection_id *conn_id,
 
 	conn_id->cid.len = QUIC_HAP_CID_LEN;
 
+	TRACE_DEVEL("derive CID value from a client ODCID", QUIC_EV_CONN_TXPKT);
 	/* Derive the new CID value from original CID. */
 	conn_id->cid = quic_derive_cid(orig, addr);
 

@@ -1798,6 +1798,7 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 				 * <new_tid> will be set to redispatch the
 				 * current packet.
 				 */
+				TRACE_STATE("duplicate CID on Initial", QUIC_EV_CONN_LPKT);
 				pool_free(pool_head_quic_connection_id, conn_id);
 				quic_conn_release(qc);
 				qc = NULL;
@@ -2346,6 +2347,7 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 			 */
 			if (!qc) {
 				if (new_tid >= 0) {
+					TRACE_STATE("re-enqueue packet to conn thread", QUIC_EV_CONN_LPKT);
 					MT_LIST_APPEND(&quic_dghdlrs[new_tid].dgrams,
 					               &dgram->handler_list);
 					tasklet_wakeup(quic_dghdlrs[new_tid].task);
