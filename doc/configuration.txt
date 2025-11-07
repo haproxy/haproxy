@@ -23118,10 +23118,10 @@ fe_client_timeout                                  integer
 fe_defbe                                           string
 fe_id                                              integer
 fe_name                                            string
-req.in                                             integer
-req.out                                            integer
-res.in                                             integer
-res.out                                            integer
+req.bytes_in                                       integer
+req.bytes_out                                      integer
+res.bytes_in                                       integer
+res.bytes_out                                      integer
 res.timer.data                                     integer
 sc0_bytes_in_rate([<table>])                       integer
 sc0_bytes_out_rate([<table>])                      integer
@@ -23426,10 +23426,10 @@ be_tunnel_timeout : integer
   also the "cur_tunnel_timeout".
 
 bytes_in : integer
-  See "req.in".
+  See "req.bytes_in".
 
 bytes_out : integer
-  See "res.in".
+  See "res.bytes_in".
 
 cur_client_timeout : integer
   Returns the currently applied client timeout in millisecond for the stream.
@@ -23751,24 +23751,24 @@ fe_name : string
   backends to check from which frontend it was called, or to stick all users
   coming via a same frontend to the same server.
 
-req.in : integer
+req.bytes_in : integer
   This returns the number of bytes received from the client. The value
   corresponds to what was received by HAProxy, including some headers and some
   internal encoding overhead. Request compression does not affect the value
   reported here.
 
-req.out : integer
+req.bytes_out : integer
   This returns the number of bytes sent to the server. The value corresponds to
   what was sent by HAProxy, including some headers and some internal encoding
   overhead. Request compression affects the value reported here.
 
-res.in : integer
+res.bytes_in : integer
   This returns the number of bytes received from the server. The value
   corresponds to what was received by HAProxy, including some headers and some
   internal encoding overhead. Response compression does not affect the value
   reported here.
 
-res.out : integer
+res.bytes_out : integer
   This returns the number of bytes sent to the client. The value corresponds to
   what was sent by HAProxy, including some headers and some internal encoding
   overhead. Response compression affects the value reported here.
@@ -27847,7 +27847,7 @@ Please refer to the table below for currently defined aliases :
   |                          Others                                           |
   +---+------+------------------------------------------------------+---------+
   |   | %B   | bytes_read           (from server to client)         | numeric |
-  |   |      | %[res_in]                                            |         |
+  |   |      | %[req.bytes_in]                                      |         |
   +---+------+------------------------------------------------------+---------+
   | H | %CC  | captured_request_cookie                              | string  |
   +---+------+------------------------------------------------------+---------+
@@ -27878,7 +27878,7 @@ Please refer to the table below for currently defined aliases :
   |   |      | %[txn.status]                                        |         |
   +---+------+------------------------------------------------------+---------+
   |   | %U   | bytes_uploaded       (from client to server)         | numeric |
-  |   |      | %[req_in]                                            |         |
+  |   |      | %[req.bytes_in]                                      |         |
   +---+------+------------------------------------------------------+---------+
   |   | %ac  | actconn                                              |         |
   |   |      | %[act_conn]                                          | numeric |
