@@ -2175,7 +2175,6 @@ int connect_server(struct stream *s)
 			return SF_ERR_INTERNAL;
 		}
 	}
-	conn_xprt_start(srv_conn);
 
 	/* We have to defer the mux initialization until after si_connect()
 	 * has been called, as we need the xprt to have been properly
@@ -2211,6 +2210,14 @@ int connect_server(struct stream *s)
 			}
 		}
 	}
+
+	/*
+	 * Now that the mux may have been created, we can start the xprt.
+	 * We had to wait until then, because the xprt may behave differently
+	 * depending on if a mux already exists, and it can receive data
+	 * from the stream, or not.
+	 */
+	conn_xprt_start(srv_conn);
 
 #if defined(HAVE_SSL_0RTT)
 	/* The flags change below deserve some explanation: when we want to
