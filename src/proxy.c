@@ -1507,7 +1507,7 @@ int proxy_init_per_thr(struct proxy *px)
 {
 	int i;
 
-	px->per_tgrp = calloc(global.nbtgroups, sizeof(*px->per_tgrp));
+	px->per_tgrp = ha_aligned_zalloc_typed(global.nbtgroups, typeof(*px->per_tgrp));
 	for (i = 0; i < global.nbtgroups; i++)
 		queue_init(&px->per_tgrp[i].queue, px, NULL);
 
