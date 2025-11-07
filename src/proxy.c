@@ -1717,7 +1717,7 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, char **errmsg)
 {
 	struct proxy *curproxy;
 
-	if ((curproxy = calloc(1, sizeof(*curproxy))) == NULL) {
+	if ((curproxy = ha_aligned_zalloc_typed(1, typeof(*curproxy))) == NULL) {
 		memprintf(errmsg, "proxy '%s': out of memory", name);
 		goto fail;
 	}
