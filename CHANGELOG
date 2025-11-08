@@ -1,6 +1,75 @@
 ChangeLog :
 ===========
 
+2025/11/08 : 3.3-dev12
+    - MINOR: quic: enable SSL on QUIC servers automatically
+    - MINOR: quic: reject conf with QUIC servers if not compiled
+    - OPTIM: quic: adjust automatic ALPN setting for QUIC servers
+    - MINOR: sample: optional AAD parameter support to aes_gcm_enc/dec
+    - REGTESTS: converters: check USE_OPENSSL in aes_gcm.vtc
+    - BUG/MINOR: resolvers: ensure fair round robin iteration
+    - BUG/MAJOR: stats-file: fix crash on non-x86 platform caused by unaligned cast
+    - OPTIM: backend: skip conn reuse for incompatible proxies
+    - SCRIPTS: build-ssl: allow to build a FIPS version without FIPS
+    - OPTIM: proxy: move atomically access fields out of the read-only ones
+    - SCRIPTS: build-ssl: fix rpath in AWS-LC install for openssl and bssl bin
+    - CI: github: update to macos-26
+    - BUG/MINOR: quic: fix crash on client handshake abort
+    - MINOR: quic: do not set conn member if ssl_sock_ctx
+    - MINOR: quic: remove connection arg from qc_new_conn()
+    - BUG/MEDIUM: server: Add a rwlock to path parameter
+    - BUG/MEDIUM: server: Also call srv_reset_path_parameters() on srv up
+    - BUG/MEDIUM: mux-h1: fix 414 / 431 status code reporting
+    - BUG/MEDIUM: mux-h2: make sure not to move a dead connection to idle
+    - BUG/MEDIUM: connections: permit to permanently remove an idle conn
+    - MEDIUM: cfgparse: deprecate 'master-worker' keyword alone
+    - MEDIUM: cfgparse: 'daemon' not compatible with -Ws
+    - DOC: configuration: deprecate the master-worker keyword
+    - MINOR: quic: remove <mux_state> field
+    - BUG/MEDIUM: stick-tables: Make sure we handle expiration on all tables
+    - MEDIUM: stick-tables: Optimize the expiration process a bit.
+    - MEDIUM: ssl/ckch: use ckch_store instead of ckch_data for ckch_conf_kws
+    - MINOR: acme: generate a temporary key pair
+    - MEDIUM: acme: generate a key pair when no file are available
+    - BUILD: ssl/ckch: wrong function name in ckch_conf_kws
+    - BUILD: acme: acme_gen_tmp_x509() signedness and unused variables
+    - BUG/MINOR: acme: fix initialization issue in acme_gen_tmp_x509()
+    - BUILD: ssl/ckch: fix ckch_conf_kws parsing without ACME
+    - MINOR: server: move the lock inside srv_add_idle()
+    - DOC: acme: crt-store allows you to start without a certificate
+    - BUG/MINOR: acme: allow 'key' when generating cert
+    - MINOR: stconn: Add counters to SC to know number of bytes received and sent
+    - MINOR: stream: Add samples to get number of bytes received or sent on each side
+    - MINOR: counters: Add req_in/req_out/res_in/res_out counters for fe/be/srv/li
+    - MINOR: stream: Remove bytes_in and bytes_out counters from stream
+    - MINOR: counters: Remove bytes_in and bytes_out counter from fe/be/srv/li
+    - MINOR: stats: Add stats about request and response bytes received and sent
+    - MINOR: applet: Add function to get amount of data in the output buffer
+    - MINOR: channel: Remove total field from channels
+    - DEBUG: stream: Add bytes_in/bytes_out value for both SC in session dump
+    - MEDIUM: stktables: Limit the number of stick counters to 100
+    - BUG/MINOR: config: Limit "tune.maxpollevents" parameter to 1000000
+    - BUG/MEDIUM: server: close a race around ready_srv when deleting a server
+    - BUG/MINOR: config: emit warning for empty args when *not* in discovery mode
+    - BUG/MEDIUM: config: solve the empty argument problem again
+    - MEDIUM: config: now reject configs with empty arguments
+    - MINOR: tools: add support for ist to the word fingerprinting functions
+    - MINOR: tools: add env_suggest() to suggest alternate variable names
+    - MINOR: tools: have parse_line's error pointer point to unknown variable names
+    - MINOR: cfgparse: try to suggest correct variable names on errors
+    - IMPORT: cebtree: Replace offset calculation with offsetof to avoid UB
+    - BUG/MINOR: acme: wrong dns-01 challenge in the log
+    - MEDIUM: backend: Defer conn_xprt_start() after mux creation
+    - MINOR: peers: Improve traces for peers
+    - MEDIUM: peers: No longer ack updates during a full resync
+    - MEDIUM: peers: Remove commitupdate field on stick-tables
+    - BUG/MEDIUM: peers: Fix update message parsing during a full resync
+    - MINOR: sample/stats: Add "bytes" in req_{in,out} and res_{in,out} names
+    - BUG/MEDIUM: stick-tables: Make sure updates are seen as local
+    - BUG/MEDIUM: proxy: use aligned allocations for struct proxy
+    - BUG/MEDIUM: proxy: use aligned allocations for struct proxy_per_tgroup
+    - BUG/MINOR: acme: avoid a possible crash on error paths
+
 2025/10/31 : 3.3-dev11
     - BUG/MEDIUM: mt_list: Make sure not to unlock the element twice
     - BUG/MINOR: quic-be: unchecked connections during handshakes
