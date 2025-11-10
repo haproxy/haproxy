@@ -381,23 +381,26 @@ static struct field me_generate_field(const struct stat_col *col,
 			value = mkf_u32(FN_RATE, read_freq_ctr(counter));
 	}
 	else if (fn == FN_AGE) {
-		unsigned int age;
-
-		if (col->flags & STAT_COL_FL_SHARED)
-			age = COUNTERS_SHARED_LAST_OFFSET(((char **)counter), unsigned int, offset);
-		else
-			age = *(unsigned int *)counter;
-
-		if (age)
-			age = ns_to_sec(now_ns) - age;
-
 		switch (stcol_format(col)) {
 		case FF_U32:
-			value = mkf_u32(FN_AGE, age);
-			break;
 		case FF_S32:
-			value = mkf_s32(FN_AGE, age);
+		{
+			unsigned int age;
+
+			if (col->flags & STAT_COL_FL_SHARED)
+				age = COUNTERS_SHARED_LAST_OFFSET(((char **)counter), unsigned int, offset);
+			else
+				age = *(unsigned int *)counter;
+
+			if (age)
+				age = ns_to_sec(now_ns) - age;
+
+			if (stcol_format(col) == FF_U32)
+				value = mkf_u32(FN_AGE, age);
+			else
+				value = mkf_s32(FN_AGE, age);
 			break;
+		}
 		default:
 			/* only FF_U32/FF+S32 for age as generic stat column */
 			ABORT_NOW();
