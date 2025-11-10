@@ -542,6 +542,7 @@ int quic_build_post_handshake_frames(struct quic_conn *qc,
 	max = QUIC_MIN(qc->tx.params.active_connection_id_limit - 1, (uint64_t)3);
 	while (max--) {
 		struct quic_connection_id *conn_id;
+		int ret_cid;
 
 		frm = qc_frm_alloc(QUIC_FT_NEW_CONNECTION_ID);
 		if (!frm) {
@@ -556,7 +557,10 @@ int quic_build_post_handshake_frames(struct quic_conn *qc,
 			goto err;
 		}
 
-		if (quic_cid_generate(conn_id, qc->hash64)) {
+		ret_cid = !qc_is_back(qc) && quic_newcid_from_hash64 ?
+		  quic_cid_generate_from_hash(conn_id, qc->hash64) :
+		  quic_cid_generate_random(conn_id);
+		if (ret_cid) {
 			qc_frm_free(qc, &frm);
 			pool_free(pool_head_quic_connection_id, conn_id);
 			TRACE_ERROR("error on CID generation", QUIC_EV_CONN_IO_CB, qc);
@@ -1265,7 +1269,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 			goto err;
 		}
 
-		if (quic_cid_generate(conn_cid, qc->hash64)) {
+		if (quic_cid_generate_random(conn_cid)) {
 			TRACE_ERROR("error on CID generation", QUIC_EV_CONN_INIT, qc);
 			pool_free(pool_head_quic_connection_id, conn_cid);
 			goto err;

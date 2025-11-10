@@ -145,30 +145,22 @@ struct quic_connection_id *quic_cid_alloc(void)
 }
 
 /* Generate the value of <conn_id> and its associated stateless token. The CID
- * value is calculated from a random generator or via quic_newcid_from_hash64()
- * external callback if defined with <hash64> key.
+ * value is calculated from a random generator.
  *
  * Returns 0 on success else non-zero.
  */
-int quic_cid_generate(struct quic_connection_id *conn_id, uint64_t hash64)
+int quic_cid_generate_random(struct quic_connection_id *conn_id)
 {
 	/* TODO use a better trace scope */
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT);
 
 	conn_id->cid.len = QUIC_HAP_CID_LEN;
 
-	if (quic_newcid_from_hash64) {
-		TRACE_DEVEL("calculate CID value from conn hash", QUIC_EV_CONN_TXPKT);
-		quic_newcid_from_hash64(conn_id->cid.data, conn_id->cid.len, hash64,
-		                        global.cluster_secret, sizeof(global.cluster_secret));
-	}
-	else {
-		TRACE_DEVEL("generate CID value from random generator", QUIC_EV_CONN_TXPKT);
-		if (RAND_bytes(conn_id->cid.data, conn_id->cid.len) != 1) {
-			/* TODO: RAND_bytes() should be replaced */
-			TRACE_ERROR("RAND_bytes() failed", QUIC_EV_CONN_TXPKT);
-			goto err;
-		}
+	TRACE_DEVEL("generate CID value from random generator", QUIC_EV_CONN_TXPKT);
+	if (RAND_bytes(conn_id->cid.data, conn_id->cid.len) != 1) {
+		/* TODO: RAND_bytes() should be replaced */
+		TRACE_ERROR("RAND_bytes() failed", QUIC_EV_CONN_TXPKT);
+		goto err;
 	}
 
 	if (quic_stateless_reset_token_init(conn_id) != 1) {
@@ -185,9 +177,38 @@ int quic_cid_generate(struct quic_connection_id *conn_id, uint64_t hash64)
 }
 
 /* Generate the value of <conn_id> and its associated stateless token. The CID
+ * value is calculated via quic_newcid_from_hash64() external callback with
+ * <hash64> as input.
+ *
+ * Returns 0 on success else non-zero.
+ */
+int quic_cid_generate_from_hash(struct quic_connection_id *conn_id, uint64_t hash64)
+{
+	/* TODO use a better trace scope */
+	TRACE_ENTER(QUIC_EV_CONN_TXPKT);
+
+	conn_id->cid.len = QUIC_HAP_CID_LEN;
+	TRACE_DEVEL("calculate CID value from conn hash", QUIC_EV_CONN_TXPKT);
+	quic_newcid_from_hash64(conn_id->cid.data, conn_id->cid.len, hash64,
+	                        global.cluster_secret, sizeof(global.cluster_secret));
+
+	if (quic_stateless_reset_token_init(conn_id) != 1) {
+		TRACE_ERROR("quic_stateless_reset_token_init() failed", QUIC_EV_CONN_TXPKT);
+		goto err;
+	}
+
+	TRACE_LEAVE(QUIC_EV_CONN_TXPKT);
+	return 0;
+
+ err:
+	TRACE_LEAVE(QUIC_EV_CONN_TXPKT);
+	return 1;
+}
+
+/* Generate the value of <conn_id> and its associated stateless token. The CID
  * value is derived from client <orig> ODCID and <addr> address. This is an
- * alternative method to quic_cid_generate() which is used for the first CID of
- * a server connection in response to a client INITIAL packet.
+ * alternative method to other CID generation methods which is used for the
+ * first CID of a server connection in response to a client INITIAL packet.
  *
  * The benefit of this CID value is to skip storage of ODCIDs in the global
  * CIDs tree. This is an optimization to reduce contention on the CIDs tree

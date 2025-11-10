@@ -19,8 +19,8 @@ extern struct quic_cid_tree *quic_cid_trees;
 
 struct quic_connection_id *quic_cid_alloc(void);
 
-int quic_cid_generate(struct quic_connection_id *conn_id, uint64_t hash);
-
+int quic_cid_generate_random(struct quic_connection_id *conn_id);
+int quic_cid_generate_from_hash(struct quic_connection_id *conn_id, uint64_t hash64);
 int quic_cid_derive_from_odcid(struct quic_connection_id *conn_id,
                                const struct quic_cid *orig,
                                const struct sockaddr_storage *addr);

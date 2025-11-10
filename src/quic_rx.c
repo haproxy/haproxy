@@ -840,7 +840,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 {
 	struct quic_frame *frm = NULL;
 	const unsigned char *pos, *end;
-	int fast_retrans = 0;
+	int fast_retrans = 0, ret;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
 	/* Skip the AAD */
@@ -1061,7 +1061,11 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			}
 
 			while (retry_rand_cid--) {
-				if (quic_cid_generate(conn_id, qc->hash64)) {
+				ret = !qc_is_back(qc) && quic_newcid_from_hash64 ?
+				  quic_cid_generate_from_hash(conn_id, qc->hash64) :
+				  quic_cid_generate_random(conn_id);
+
+				if (ret) {
 					TRACE_ERROR("error on CID generation", QUIC_EV_CONN_PSTRM, qc);
 					quic_set_connection_close(qc, quic_err_transport(QC_ERR_INTERNAL_ERROR));
 					pool_free(pool_head_quic_connection_id, conn_id);
