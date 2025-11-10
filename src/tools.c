@@ -6430,6 +6430,15 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 				brace = NULL;
 			}
 
+			if (word_expand) {
+				/* If an empty or unknown env variable was passed as an array,
+				 * we pretend the quotes were not empty, which will be sufficient
+				 * to avoid creating a new arg. This is permitted and results
+				 * in not creating any arg and dropping the surrounding quotes.
+				 */
+				empty_quote = 0;
+			}
+
 			if (value) {
 				unknown_var_name = NULL;
 				while (*value) {
@@ -6461,16 +6470,7 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 					arg_start = outpos;
 				}
 			}
-			else if (word_expand) {
-				/* An empty or unknown env variable was passed as an array.
-				 * This is permitted and results in not creating any arg and
-				 * dropping the surrounding quotes. Here we pretend the quotes
-				 * were not empty, which will be sufficient to avoid creating
-				 * a new arg.
-				 */
-				empty_quote = 0;
-			}
-			else {
+			else if (!word_expand) {
 				/* An unmatched environment variable was parsed, it must
 				 * count as an argument.
 				 */
