@@ -1101,13 +1101,6 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 
 	TRACE_ENTER(QUIC_EV_CONN_INIT);
 
-	next_actconn = increment_actconn();
-	if (!next_actconn) {
-		_HA_ATOMIC_INC(&maxconn_reached);
-		TRACE_STATE("maxconn reached", QUIC_EV_CONN_INIT);
-		goto err;
-	}
-
 	next_sslconn = increment_sslconn();
 	if (!next_sslconn) {
 		TRACE_STATE("sslconn reached", QUIC_EV_CONN_INIT);
@@ -1115,6 +1108,13 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	}
 
 	if (l) {
+		next_actconn = increment_actconn();
+		if (!next_actconn) {
+			_HA_ATOMIC_INC(&maxconn_reached);
+			TRACE_STATE("maxconn reached", QUIC_EV_CONN_INIT);
+			goto err;
+		}
+
 		next_handshake = quic_increment_curr_handshake(l);
 		if (!next_handshake) {
 			TRACE_STATE("max handshake reached", QUIC_EV_CONN_INIT);
@@ -1638,9 +1638,17 @@ int quic_conn_release(struct quic_conn *qc)
 		HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
 	}
 
-	/* Connection released before handshake completion. */
-	if (unlikely(qc->state < QUIC_HS_ST_COMPLETE)) {
-		if (!qc_is_back(qc)) {
+	/* Decrement global counters when quic_conn is deallocated.
+	 * quic_conn_closed instances are not accounted as they run for a short
+	 * time with limited resources.
+	 */
+	_HA_ATOMIC_DEC(&global.sslconns);
+
+	if (!qc_is_back(qc)) {
+		_HA_ATOMIC_DEC(&actconn);
+
+		/* Connection released before handshake completion. */
+		if (unlikely(qc->state < QUIC_HS_ST_COMPLETE)) {
 			BUG_ON(qc->li->rx.quic_curr_handshake == 0);
 			HA_ATOMIC_DEC(&qc->li->rx.quic_curr_handshake);
 		}
@@ -1648,13 +1656,6 @@ int quic_conn_release(struct quic_conn *qc)
 
 	pool_free(pool_head_quic_conn, qc);
 	qc = NULL;
-
-	/* Decrement global counters when quic_conn is deallocated.
-	 * quic_conn_closed instances are not accounted as they run for a short
-	 * time with limited resources.
-	 */
-	_HA_ATOMIC_DEC(&actconn);
-	_HA_ATOMIC_DEC(&global.sslconns);
 
 	TRACE_PROTO("QUIC conn. freed", QUIC_EV_CONN_FREED, qc);
  leave:
