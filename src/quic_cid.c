@@ -114,74 +114,73 @@ static struct quic_cid quic_derive_cid(const struct quic_cid *orig,
 	return cid;
 }
 
-/* Allocate a quic_connection_id object and associate it with <qc> connection.
- * The CID object is not yet inserted in any tree storage.
+/* Allocate a quic_connection_id object and associate it to the current thread.
+ * The CID object is not yet associated to a connection or inserted in any tree
+ * storage.
  *
  * Returns the CID or NULL on allocation failure.
  */
-struct quic_connection_id *quic_cid_alloc(struct quic_conn *qc)
+struct quic_connection_id *quic_cid_alloc(void)
 {
 	struct quic_connection_id *conn_id;
 
 	/* TODO use a better trace scope */
-	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
+	TRACE_ENTER(QUIC_EV_CONN_TXPKT);
 
 	conn_id = pool_alloc(pool_head_quic_connection_id);
 	if (!conn_id) {
-		TRACE_ERROR("cid allocation failed", QUIC_EV_CONN_TXPKT, qc);
+		TRACE_ERROR("cid allocation failed", QUIC_EV_CONN_TXPKT);
 		goto err;
 	}
 
-	conn_id->qc = qc;
 	HA_ATOMIC_STORE(&conn_id->tid, tid);
+	conn_id->qc = NULL;
 
-	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
+	TRACE_LEAVE(QUIC_EV_CONN_TXPKT);
 	return conn_id;
 
  err:
-	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
+	TRACE_LEAVE(QUIC_EV_CONN_TXPKT);
 	return NULL;
 }
 
 /* Generate the value of <conn_id> and its associated stateless token. The CID
  * value is calculated from a random generator or via quic_newcid_from_hash64()
- * external callback if defined with hash64 key from connection.
+ * external callback if defined with <hash64> key.
  *
  * Returns 0 on success else non-zero.
  */
-int quic_cid_generate(struct quic_connection_id *conn_id)
+int quic_cid_generate(struct quic_connection_id *conn_id, uint64_t hash64)
 {
-	const struct quic_conn *qc = conn_id->qc;
-
 	/* TODO use a better trace scope */
-	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
+	TRACE_ENTER(QUIC_EV_CONN_TXPKT);
 
 	conn_id->cid.len = QUIC_HAP_CID_LEN;
 
 	if (quic_newcid_from_hash64) {
-		TRACE_DEVEL("calculate CID value from conn hash", QUIC_EV_CONN_TXPKT, qc);
-		quic_newcid_from_hash64(conn_id->cid.data, conn_id->cid.len, qc->hash64,
+		TRACE_DEVEL("calculate CID value from conn hash", QUIC_EV_CONN_TXPKT);
+		quic_newcid_from_hash64(conn_id->cid.data, conn_id->cid.len, hash64,
 		                        global.cluster_secret, sizeof(global.cluster_secret));
 	}
 	else {
-		TRACE_DEVEL("generate CID value from random generator", QUIC_EV_CONN_TXPKT, qc);
+		TRACE_DEVEL("generate CID value from random generator", QUIC_EV_CONN_TXPKT);
 		if (RAND_bytes(conn_id->cid.data, conn_id->cid.len) != 1) {
 			/* TODO: RAND_bytes() should be replaced */
-			TRACE_ERROR("RAND_bytes() failed", QUIC_EV_CONN_TXPKT, qc);
+			TRACE_ERROR("RAND_bytes() failed", QUIC_EV_CONN_TXPKT);
 			goto err;
 		}
 	}
 
 	if (quic_stateless_reset_token_init(conn_id) != 1) {
-		TRACE_ERROR("quic_stateless_reset_token_init() failed", QUIC_EV_CONN_TXPKT, qc);
+		TRACE_ERROR("quic_stateless_reset_token_init() failed", QUIC_EV_CONN_TXPKT);
 		goto err;
 	}
 
-	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
+	TRACE_LEAVE(QUIC_EV_CONN_TXPKT);
 	return 0;
 
  err:
-	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
+	TRACE_LEAVE(QUIC_EV_CONN_TXPKT);
 	return 1;
 }
 
@@ -227,13 +226,13 @@ int quic_cid_derive_from_odcid(struct quic_connection_id *conn_id,
  * sequence number available. The CID should already be stored in the global
  * tree to ensure there is no value collision.
  */
-void quic_cid_register_seq_num(struct quic_connection_id *conn_id)
+void quic_cid_register_seq_num(struct quic_connection_id *conn_id,
+                               struct quic_conn *qc)
 {
-	struct quic_conn *qc = conn_id->qc;
-
 	/* TODO use a better trace scope */
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 
+	conn_id->qc = qc;
 	conn_id->seq_num.key = qc->next_cid_seq_num;
 	conn_id->retire_prior_to = 0;
 	/* insert the allocated CID in the quic_conn tree */
@@ -413,6 +412,11 @@ struct quic_conn *retrieve_qc_conn_from_cid(struct quic_rx_packet *pkt,
 		*new_tid = conn_id_tid;
 		goto end;
 	}
+
+	/* Ensures that conn is always set if CID is found on its thread.
+	 * Necessary to prevent loop of re-enqueued Initial packets.
+	 */
+	BUG_ON(!conn_id->qc);
 	qc = conn_id->qc;
 	TRACE_DEVEL("found connection", QUIC_EV_CONN_RXPKT, qc);
 

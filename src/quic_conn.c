@@ -525,14 +525,14 @@ int quic_build_post_handshake_frames(struct quic_conn *qc)
 			goto err;
 		}
 
-		conn_id = quic_cid_alloc(qc);
+		conn_id = quic_cid_alloc();
 		if (!conn_id) {
 			qc_frm_free(qc, &frm);
 			TRACE_ERROR("CID allocation error", QUIC_EV_CONN_IO_CB, qc);
 			goto err;
 		}
 
-		if (quic_cid_generate(conn_id)) {
+		if (quic_cid_generate(conn_id, qc->hash64)) {
 			qc_frm_free(qc, &frm);
 			pool_free(pool_head_quic_connection_id, conn_id);
 			TRACE_ERROR("error on CID generation", QUIC_EV_CONN_IO_CB, qc);
@@ -546,7 +546,7 @@ int quic_build_post_handshake_frames(struct quic_conn *qc)
 			continue;
 		}
 
-		quic_cid_register_seq_num(conn_id);
+		quic_cid_register_seq_num(conn_id, qc);
 		quic_connection_id_to_frm_cpy(frm, conn_id);
 		LIST_APPEND(&frm_list, &frm->list);
 	}
@@ -1235,13 +1235,13 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 		memcpy(&qc->odcid, qc->dcid.data, sizeof(qc->dcid.data));
 		qc->odcid.len = qc->dcid.len;
 
-		conn_cid = quic_cid_alloc(qc);
+		conn_cid = quic_cid_alloc();
 		if (!conn_cid) {
 			TRACE_ERROR("error on CID allocation", QUIC_EV_CONN_INIT, qc);
 			goto err;
 		}
 
-		if (quic_cid_generate(conn_cid)) {
+		if (quic_cid_generate(conn_cid, qc->hash64)) {
 			TRACE_ERROR("error on CID generation", QUIC_EV_CONN_INIT, qc);
 			pool_free(pool_head_quic_connection_id, conn_cid);
 			goto err;
@@ -1252,7 +1252,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 			goto err;
 		}
 
-		quic_cid_register_seq_num(conn_cid);
+		quic_cid_register_seq_num(conn_cid, qc);
 		dcid = &qc->dcid;
 		conn_id = conn_cid;
 	}

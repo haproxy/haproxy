@@ -17,15 +17,16 @@
 
 extern struct quic_cid_tree *quic_cid_trees;
 
-struct quic_connection_id *quic_cid_alloc(struct quic_conn *qc);
+struct quic_connection_id *quic_cid_alloc(void);
 
-int quic_cid_generate(struct quic_connection_id *conn_id);
+int quic_cid_generate(struct quic_connection_id *conn_id, uint64_t hash);
 
 int quic_cid_derive_from_odcid(struct quic_connection_id *conn_id,
                                const struct quic_cid *orig,
                                const struct sockaddr_storage *addr);
 
-void quic_cid_register_seq_num(struct quic_connection_id *conn_id);
+void quic_cid_register_seq_num(struct quic_connection_id *conn_id,
+                               struct quic_conn *qc);
 
 int quic_cid_insert(struct quic_connection_id *conn_id, int *new_tid);
 int quic_cmp_cid_conn(const unsigned char *cid, size_t cid_len,
