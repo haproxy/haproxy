@@ -765,7 +765,7 @@ static void shm_stats_file_preload(void)
 					BUG_ON(curr_obj->type != SHM_STATS_FILE_OBJECT_TYPE_FE);
 					li = __objt_listener(node->obj_type);
 					// counters are optional for listeners
-					if (li->counters && li->counters->shared.tg[obj_tgid - 1])
+					if (li->counters)
 						li->counters->shared.tg[obj_tgid - 1] = &curr_obj->data.fe;
 					break;
 				}
@@ -775,8 +775,7 @@ static void shm_stats_file_preload(void)
 
 					BUG_ON(curr_obj->type != SHM_STATS_FILE_OBJECT_TYPE_BE);
 					sv = __objt_server(node->obj_type);
-					if (sv->counters.shared.tg[obj_tgid - 1])
-						sv->counters.shared.tg[obj_tgid - 1] = &curr_obj->data.be;
+					sv->counters.shared.tg[obj_tgid - 1] = &curr_obj->data.be;
 					break;
 				}
 				case OBJ_TYPE_PROXY:
@@ -784,11 +783,9 @@ static void shm_stats_file_preload(void)
 					struct proxy *px;
 
 					px = __objt_proxy(node->obj_type);
-					if (curr_obj->type == SHM_STATS_FILE_OBJECT_TYPE_FE &&
-					    px->fe_counters.shared.tg[obj_tgid - 1])
+					if (curr_obj->type == SHM_STATS_FILE_OBJECT_TYPE_FE)
 						px->fe_counters.shared.tg[obj_tgid - 1] = &curr_obj->data.fe;
-					else if (curr_obj->type == SHM_STATS_FILE_OBJECT_TYPE_BE &&
-					        px->be_counters.shared.tg[obj_tgid - 1])
+					else if (curr_obj->type == SHM_STATS_FILE_OBJECT_TYPE_BE)
 						px->be_counters.shared.tg[obj_tgid - 1] = &curr_obj->data.be;
 					else
 						goto release; // not supported
