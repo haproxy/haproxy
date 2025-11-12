@@ -101,8 +101,6 @@ void __stksess_free(struct stktable *t, struct stksess *ts)
  */
 void stksess_free(struct stktable *t, struct stksess *ts)
 {
-	uint shard;
-	size_t len;
 	void *data;
 
 	data = stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_KEY);
@@ -110,16 +108,6 @@ void stksess_free(struct stktable *t, struct stksess *ts)
 		dict_entry_unref(&server_key_dict, stktable_data_cast(data, std_t_dict));
 		stktable_data_cast(data, std_t_dict) = NULL;
 	}
-
-	if (t->type == SMP_T_STR)
-		len = strlen((const char *)ts->key.key);
-	else
-		len = t->key_size;
-
-	shard = stktable_calc_shard_num(t, ts->key.key, len);
-
-	/* make the compiler happy when shard is not used without threads */
-	ALREADY_CHECKED(shard);
 
 	__stksess_free(t, ts);
 }
