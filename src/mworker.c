@@ -1151,6 +1151,9 @@ void mworker_run_master(void)
 {
 	struct mworker_proc *child, *it;
 
+	close(devnullfd);
+	devnullfd = -1;
+
 	proc_self->failedreloads = 0; /* reset the number of failure */
 	mworker_loop();
 #if defined(USE_OPENSSL) && !defined(OPENSSL_NO_DH)
