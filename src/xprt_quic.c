@@ -162,8 +162,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 			goto out;
 		}
 
-		qc = qc_new_conn(quic_version_1, ipv4, NULL, NULL, NULL,
-		                 conn_id, NULL, &srv->addr, 0, srv);
+		qc = qc_new_conn(srv, ipv4, NULL, NULL, conn_id, NULL, &srv->addr);
 		if (!qc) {
 			pool_free(pool_head_quic_connection_id, conn_id);
 			goto out;

@@ -1093,32 +1093,32 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 	return task;
 }
 
-/* Allocate a new QUIC connection with <version> as QUIC version. <ipv4>
- * boolean is set to 1 for IPv4 connection, 0 for IPv6. <server> is set to 1
- * for QUIC servers (or haproxy listeners), 0 for QUIC clients.
- * <dcid> is the destination connection ID, <scid> is the source connection ID.
- * This latter <scid> CID as the same value on the wire as the one for <conn_id>
- * which is the first CID of this connection but a different internal
- * representation used to build
- * NEW_CONNECTION_ID frames. This is the responsibility of the caller to insert
- * <conn_id> in the CIDs tree for this connection (qc->cids).
- * <token> is a boolean denoting if a token was received for this connection
- * from an Initial packet.
- * <token_odcid> is the original destination connection ID which was embedded
- * into the Retry token sent to the client before instantiated this connection.
+/* Allocate a new QUIC connection. <target> represents the internal connection
+ * endpoint, either a listener for a server-side connection or a server on
+ * client side. <ipv4> boolean is set to 1 for IPv4 connection or 0 for IPv6.
+ *
+ * On server side, <initial_pkt> must points to the client INITIAL packet which
+ * initiate this connection allocation. It is used as a source to determine the
+ * QUIC version used and to populate the first set of CIDs. <token_odcid>
+ * represents the associated Retry token from the INITIAL packet.
+ *
+ * On client side, both <initial_pkt> and <token_odcid> must be NULL. In this
+ * case, the version is hardcoded to QUICv1. A random CID will be generated to
+ * be used as DCID of the first INITIAL packet sent to the server.
+ *
+ * Parameter <conn_id> must be set to the CID generated locally. It will serve
+ * to identify the connection when datagrams dispatch is performed.
+ *
  * Endpoints addresses are specified via <local_addr> and <peer_addr>.
- * Returns the connection if succeeded, NULL if not.
- * For QUIC clients, <dcid>, <scid> and <token_odcid> must be null, and <token>
- * value must be 0. This is the responsibility of the caller to ensure this is
- * the case.
+ *
+ * Returns the newly allocated quic_conn instance on success or NULL on error.
  */
-struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
-                              struct quic_cid *dcid, struct quic_cid *scid,
+struct quic_conn *qc_new_conn(void *target, int ipv4,
+                              const struct quic_rx_packet *initial_pkt,
                               const struct quic_cid *token_odcid,
                               struct quic_connection_id *conn_id,
                               struct sockaddr_storage *local_addr,
-                              struct sockaddr_storage *peer_addr,
-                              int token, void *target)
+                              struct sockaddr_storage *peer_addr)
 {
 	struct quic_conn *qc = NULL;
 	struct listener *l = objt_listener(target);
@@ -1221,6 +1221,7 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	}
 	*qc->cids = EB_ROOT;
 	qc->next_cid_seq_num = 0;
+	qc->scid = conn_id->cid;
 
 	/* QUIC Server (or listener). */
 	if (l) {
@@ -1233,13 +1234,13 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 			qc->flags |= QUIC_FL_CONN_UDP_GSO_EIO;
 
 		/* Mark this connection as having not received any token when 0-RTT is enabled. */
-		if (l->bind_conf->ssl_conf.early_data && !token)
+		if (l->bind_conf->ssl_conf.early_data && !initial_pkt->token_len)
 			qc->flags |= QUIC_FL_CONN_NO_TOKEN_RCVD;
 		qc->state = QUIC_HS_ST_SERVER_INITIAL;
 		/* Copy the client original DCID. */
-		qc->odcid = *dcid;
+		qc->odcid = initial_pkt->dcid;
 		/* Copy the packet SCID to reuse it as DCID for sending */
-		qc->dcid = *scid;
+		qc->dcid = initial_pkt->scid;
 	}
 	/* QUIC Client (outgoing connection to servers) */
 	else {
@@ -1250,19 +1251,16 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 
 		qc->state = QUIC_HS_ST_CLIENT_INITIAL;
 
-		/* This is the original connection ID from the peer server
-		 * point of view.
+		/* Randomly generate the first DCID used for the first INITIAL
+		 * packet sent by our endpoint as client and save it as ODCID.
+		 * It will be replaced by a peer chosen value.
 		 */
 		if (RAND_bytes(qc->dcid.data, sizeof(qc->dcid.data)) != 1)
 			goto err;
-
 		qc->dcid.len = sizeof(qc->dcid.data);
-
-		memcpy(&qc->odcid, qc->dcid.data, sizeof(qc->dcid.data));
-		qc->odcid.len = qc->dcid.len;
-
-		dcid = &qc->dcid;
+		qc->odcid = qc->dcid;
 	}
+
 	qc->err = quic_err_transport(QC_ERR_NO_ERROR);
 
 	/* Listener only: if connection is instantiated due to an INITIAL packet with an
@@ -1300,15 +1298,14 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 			_HA_ATOMIC_INC(&jobs);
 	}
 
-	/* Select our SCID which is the first CID with 0 as sequence number. */
-	qc->scid = conn_id->cid;
-
 	if (!qc_enc_level_alloc(qc, &qc->ipktns, &qc->iel, ssl_encryption_initial)) {
 		TRACE_ERROR("Could not initialize an encryption level", QUIC_EV_CONN_INIT, qc);
 		goto err;
 	}
 
-	qc->original_version = qv;
+	qc->original_version = initial_pkt ?
+	  initial_pkt->version : quic_version_1;
+
 	qc->negotiated_version = NULL;
 	qc->tps_tls_ext = (qc->original_version->num & 0xff000000) == 0xff000000 ?
 		TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS_DRAFT:
@@ -1385,7 +1382,10 @@ struct quic_conn *qc_new_conn(const struct quic_version *qv, int ipv4,
 	    !quic_conn_init_idle_timer_task(qc, prx))
 		goto err;
 
-	if (!qc_new_isecs(qc, &qc->iel->tls_ctx, qc->original_version, dcid->data, dcid->len, !!l))
+	/* INITIAL secrets are derived from the DCID of the INITIAL packet.
+	 * This corresponds to quic_conn <odcid> field.
+	 */
+	if (!qc_new_isecs(qc, &qc->iel->tls_ctx, qc->original_version, qc->odcid.data, qc->odcid.len, !!l))
 		goto err;
 
 	/* Counters initialization */
