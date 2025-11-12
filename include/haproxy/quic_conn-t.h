@@ -292,9 +292,13 @@ struct qcc_app_ops;
         size_t max_udp_payload;                        \
         /* First DCID used by client on its Initial packet. */                 \
         struct quic_cid odcid;                                                 \
-        /* DCID of our endpoint - not updated when a new DCID is used */       \
+        /* Peer chosen CID, used as dest for packets sent from our endpoint    \
+         * - not updated when a new DCID is used                               \
+         */                                                                    \
         struct quic_cid dcid;                                                  \
-        /* first SCID of our endpoint - not updated when a new SCID is used */ \
+        /* Local CID used to dispatch received datagrams to this endpoint      \
+         * - not updated when a new SCID is used                               \
+         */                                                                    \
         struct quic_cid scid;                                                  \
         /* tree of quic_connection_id - used to match a received packet DCID   \
          * with a connection                                                   \
