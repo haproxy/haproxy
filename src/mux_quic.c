@@ -3201,7 +3201,7 @@ static void qcc_shutdown(struct qcc *qcc)
 
 	/* A connection is not reusable if app layer is closed. */
 	if (qcc->flags & QC_CF_IS_BACK)
-		conn_delete_from_tree(qcc->conn, tid, 1);
+		conn_delete_from_tree(qcc->conn, tid);
 
  out:
 	qcc->app_st = QCC_APP_ST_SHUT;
@@ -3404,7 +3404,7 @@ struct task *qcc_io_cb(struct task *t, void *ctx, unsigned int state)
 			if (conn->flags & CO_FL_SESS_IDLE)
 				session_detach_idle_conn(conn->owner, conn);
 			else
-				conn_delete_from_tree(conn, tid, 0);
+				conn_delete_from_tree(conn, tid);
 		}
 
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
@@ -3526,7 +3526,7 @@ static struct task *qcc_timeout_task(struct task *t, void *ctx, unsigned int sta
 		 * attempts to steal it from us.
 		 */
 		if (qcc->conn->flags & CO_FL_LIST_MASK)
-			conn_delete_from_tree(qcc->conn, tid, 1);
+			conn_delete_from_tree(qcc->conn, tid);
 		else if (qcc->conn->flags & CO_FL_SESS_IDLE)
 			session_unown_conn(qcc->conn->owner, qcc->conn);
 

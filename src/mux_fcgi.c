@@ -3068,7 +3068,7 @@ struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned int state)
 					conn_in_list = 0;
 			}
 			else {
-				conn_delete_from_tree(conn, tid, 0);
+				conn_delete_from_tree(conn, tid);
 			}
 		}
 
@@ -3327,7 +3327,7 @@ struct task *fcgi_timeout_task(struct task *t, void *context, unsigned int state
 		 * to steal it from us.
 		 */
 		if (fconn->conn->flags & CO_FL_LIST_MASK)
-			conn_delete_from_tree(fconn->conn, tid, 0);
+			conn_delete_from_tree(fconn->conn, tid);
 		else if (fconn->conn->flags & CO_FL_SESS_IDLE)
 			session_detach_idle_conn(fconn->conn->owner, fconn->conn);
 

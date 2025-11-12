@@ -4349,7 +4349,7 @@ struct task *h1_io_cb(struct task *t, void *ctx, unsigned int state)
 					conn_in_list = 0;
 			}
 			else {
-				conn_delete_from_tree(conn, tid, 0);
+				conn_delete_from_tree(conn, tid);
 			}
 		}
 
@@ -4493,7 +4493,7 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned int state)
 		 * to steal it from us.
 		 */
 		if (h1c->conn->flags & CO_FL_LIST_MASK)
-			conn_delete_from_tree(h1c->conn, tid, 1);
+			conn_delete_from_tree(h1c->conn, tid);
 
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
