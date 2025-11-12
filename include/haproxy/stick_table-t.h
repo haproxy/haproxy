@@ -216,7 +216,7 @@ struct stktable {
 
 		__decl_thread(HA_RWLOCK_T sh_lock); /* for the trees above */
 		int next_exp;    /* Next expiration for this table */
-	} shards[CONFIG_HAP_TBL_BUCKETS];
+	} buckets[CONFIG_HAP_TBL_BUCKETS];
 
 	unsigned int refcnt;     /* number of local peer over all peers sections
 				    attached to this table */

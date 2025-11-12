@@ -154,13 +154,13 @@ int __stksess_kill(struct stktable *t, struct stksess *ts)
  * Decrease the refcount of a stksess and release it if the refcount falls to 0.
  * Returns non-zero if deleted, zero otherwise.
  *
- * This function locks the corresponding table shard to proceed. When this
+ * This function locks the corresponding table bucket to proceed. When this
  * function is called, the caller must be sure it owns a reference on the
  * stksess (refcount >= 1).
  */
 int stksess_kill(struct stktable *t, struct stksess *ts)
 {
-	uint shard;
+	uint bucket;
 	size_t len;
 	int ret = 0;
 
@@ -169,15 +169,15 @@ int stksess_kill(struct stktable *t, struct stksess *ts)
 	else
 		len = t->key_size;
 
-	shard = stktable_calc_shard_num(t, ts->key.key, len);
+	bucket = stktable_calc_bucket_num(t, ts->key.key, len);
 
-	/* make the compiler happy when shard is not used without threads */
-	ALREADY_CHECKED(shard);
+	/* make the compiler happy when bucket is not used without threads */
+	ALREADY_CHECKED(bucket);
 
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->buckets[bucket].sh_lock);
 	if (!HA_ATOMIC_SUB_FETCH(&ts->ref_cnt, 1))
 		ret = __stksess_kill(t, ts);
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->buckets[bucket].sh_lock);
 
 	return ret;
 }
@@ -277,40 +277,40 @@ int stktable_trash_oldest(struct stktable *t)
 	struct stksess *ts;
 	struct eb32_node *eb;
 	int max_search; // no more than 50% misses
-	int max_per_shard;
-	int done_per_shard;
+	int max_per_bucket;
+	int done_per_bucket;
 	int batched = 0;
 	int to_batch;
 	int updt_locked;
 	int failed_once = 0;
 	int looped;
-	int shard;
-	int init_shard;
+	int bucket;
+	int init_bucket;
 
-	/* start from a random shard number to avoid starvation in the last ones */
-	shard = init_shard = statistical_prng_range(CONFIG_HAP_TBL_BUCKETS - 1);
+	/* start from a random bucket number to avoid starvation in the last ones */
+	bucket = init_bucket = statistical_prng_range(CONFIG_HAP_TBL_BUCKETS - 1);
 
 	to_batch = STKTABLE_MAX_UPDATES_AT_ONCE;
 
 	max_search = to_batch * 2; // no more than 50% misses
-	max_per_shard = (to_batch + CONFIG_HAP_TBL_BUCKETS - 1) / CONFIG_HAP_TBL_BUCKETS;
+	max_per_bucket = (to_batch + CONFIG_HAP_TBL_BUCKETS - 1) / CONFIG_HAP_TBL_BUCKETS;
 
 	do {
-		done_per_shard = 0;
+		done_per_bucket = 0;
 		looped = 0;
 		updt_locked = 0;
 
-		if (HA_RWLOCK_TRYWRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock) != 0) {
+		if (HA_RWLOCK_TRYWRLOCK(STK_TABLE_LOCK, &t->buckets[bucket].sh_lock) != 0) {
 			if (batched)
 				break; // no point insisting, we have or made some room
 			if (failed_once)
 				break; // already waited once, that's enough
 			failed_once = 1;
-			HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
+			HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->buckets[bucket].sh_lock);
 		}
 
-		eb = eb32_lookup_ge(&t->shards[shard].exps, now_ms - TIMER_LOOK_BACK);
-		while (batched < to_batch && done_per_shard < max_per_shard) {
+		eb = eb32_lookup_ge(&t->buckets[bucket].exps, now_ms - TIMER_LOOK_BACK);
+		while (batched < to_batch && done_per_bucket < max_per_bucket) {
 			if (unlikely(!eb)) {
 				/* we might have reached the end of the tree, typically because
 				 * <now_ms> is in the first half and we're first scanning the last
@@ -320,7 +320,7 @@ int stktable_trash_oldest(struct stktable *t)
 				if (looped)
 					break;
 				looped = 1;
-				eb = eb32_first(&t->shards[shard].exps);
+				eb = eb32_first(&t->buckets[bucket].exps);
 				if (likely(!eb))
 					break;
 			}
@@ -348,7 +348,7 @@ int stktable_trash_oldest(struct stktable *t)
 				}
 
 				ts->exp.key = ts->expire;
-				eb32_insert(&t->shards[shard].exps, &ts->exp);
+				eb32_insert(&t->buckets[bucket].exps, &ts->exp);
 
 				/* the update might have jumped beyond the next element,
 				 * possibly causing a wrapping. We need to check whether
@@ -359,7 +359,7 @@ int stktable_trash_oldest(struct stktable *t)
 				 * use the current one.
 				 */
 				if (!eb)
-					eb = eb32_first(&t->shards[shard].exps);
+					eb = eb32_first(&t->buckets[bucket].exps);
 
 				if (!eb || tick_is_lt(ts->exp.key, eb->key))
 					eb = &ts->exp;
@@ -392,7 +392,7 @@ int stktable_trash_oldest(struct stktable *t)
 			eb32_delete(&ts->upd);
 			__stksess_free(t, ts);
 			batched++;
-			done_per_shard++;
+			done_per_bucket++;
 
 			/* don't waste more time here it we're not alone */
 			if (failed_once)
@@ -402,20 +402,20 @@ int stktable_trash_oldest(struct stktable *t)
 		if (updt_locked)
 			HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
 
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->buckets[bucket].sh_lock);
 
 		/*
 		 * There is not much point in trying to purge more entries,
-		 * it will be as costly to acquire the lock for the next shard,
+		 * it will be as costly to acquire the lock for the next bucket,
 		 * as it would be for the next session creation, so if we
 		 * managed to purge at least one entry, give up now.
 		 */
 		if (batched > 0)
 			break;
-		shard++;
-		if (shard >= CONFIG_HAP_TBL_BUCKETS)
-			shard = 0;
-	} while (max_search > 0 && shard != init_shard);
+		bucket++;
+		if (bucket >= CONFIG_HAP_TBL_BUCKETS)
+			bucket = 0;
+	} while (max_search > 0 && bucket != init_bucket);
 
 	return batched;
 }
@@ -465,17 +465,17 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 }
 
 /*
- * Looks in table <t> for a sticky session matching key <key> in shard <shard>.
+ * Looks in table <t> for a sticky session matching key <key> in bucket <bucket>.
  * Returns pointer on requested sticky session or NULL if none was found.
  */
-struct stksess *__stktable_lookup_key(struct stktable *t, struct stktable_key *key, uint shard)
+struct stksess *__stktable_lookup_key(struct stktable *t, struct stktable_key *key, uint bucket)
 {
 	struct ebmb_node *eb;
 
 	if (t->type == SMP_T_STR)
-		eb = ebst_lookup_len(&t->shards[shard].keys, key->key, key->key_len + 1 < t->key_size ? key->key_len : t->key_size - 1);
+		eb = ebst_lookup_len(&t->buckets[bucket].keys, key->key, key->key_len + 1 < t->key_size ? key->key_len : t->key_size - 1);
 	else
-		eb = ebmb_lookup(&t->shards[shard].keys, key->key, t->key_size);
+		eb = ebmb_lookup(&t->buckets[bucket].keys, key->key, t->key_size);
 
 	if (unlikely(!eb)) {
 		/* no session found */
@@ -494,7 +494,7 @@ struct stksess *__stktable_lookup_key(struct stktable *t, struct stktable_key *k
 struct stksess *stktable_lookup_key(struct stktable *t, struct stktable_key *key)
 {
 	struct stksess *ts;
-	uint shard;
+	uint bucket;
 	size_t len;
 
 	if (t->type == SMP_T_STR)
@@ -502,13 +502,13 @@ struct stksess *stktable_lookup_key(struct stktable *t, struct stktable_key *key
 	else
 		len = t->key_size;
 
-	shard = stktable_calc_shard_num(t, key->key, len);
+	bucket = stktable_calc_bucket_num(t, key->key, len);
 
-	HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
-	ts = __stktable_lookup_key(t, key, shard);
+	HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &t->buckets[bucket].sh_lock);
+	ts = __stktable_lookup_key(t, key, bucket);
 	if (ts)
 		HA_ATOMIC_INC(&ts->ref_cnt);
-	HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
+	HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &t->buckets[bucket].sh_lock);
 
 	return ts;
 }
@@ -523,15 +523,15 @@ struct stksess *stktable_lookup_ptr(struct stktable *t, void *ptr)
 {
 	struct stksess *ts = NULL;
 	struct ebmb_node *eb;
-	int shard;
+	int bucket;
 
-	for (shard = 0; shard < CONFIG_HAP_TBL_BUCKETS; shard++) {
-		HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
+	for (bucket = 0; bucket < CONFIG_HAP_TBL_BUCKETS; bucket++) {
+		HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &t->buckets[bucket].sh_lock);
 		/* linear search is performed, this could be optimized by adding
 		 * an eb node dedicated to ptr lookups into stksess struct to
 		 * leverage eb_lookup function instead.
 		 */
-		eb = ebmb_first(&t->shards[shard].keys);
+		eb = ebmb_first(&t->buckets[bucket].keys);
 		while (eb) {
 			struct stksess *cur;
 
@@ -544,7 +544,7 @@ struct stksess *stktable_lookup_ptr(struct stktable *t, void *ptr)
 		}
 		if (ts)
 			HA_ATOMIC_INC(&ts->ref_cnt);
-		HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
+		HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &t->buckets[bucket].sh_lock);
 		if (ts)
 			return ts;
 	}
@@ -559,14 +559,14 @@ struct stksess *stktable_lookup_ptr(struct stktable *t, void *ptr)
  * <ts> must originate from a table with same key type and length than <t>,
  * else it is undefined behavior.
  */
-struct stksess *__stktable_lookup(struct stktable *t, struct stksess *ts, uint shard)
+struct stksess *__stktable_lookup(struct stktable *t, struct stksess *ts, uint bucket)
 {
 	struct ebmb_node *eb;
 
 	if (t->type == SMP_T_STR)
-		eb = ebst_lookup(&t->shards[shard].keys, (char *)ts->key.key);
+		eb = ebst_lookup(&t->buckets[bucket].keys, (char *)ts->key.key);
 	else
-		eb = ebmb_lookup(&t->shards[shard].keys, ts->key.key, t->key_size);
+		eb = ebmb_lookup(&t->buckets[bucket].keys, ts->key.key, t->key_size);
 
 	if (unlikely(!eb))
 		return NULL;
@@ -586,7 +586,7 @@ struct stksess *__stktable_lookup(struct stktable *t, struct stksess *ts, uint s
 struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
 {
 	struct stksess *lts;
-	uint shard;
+	uint bucket;
 	size_t len;
 
 	if (t->type == SMP_T_STR)
@@ -594,13 +594,13 @@ struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
 	else
 		len = t->key_size;
 
-	shard = stktable_calc_shard_num(t, ts->key.key, len);
+	bucket = stktable_calc_bucket_num(t, ts->key.key, len);
 
-	HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
-	lts = __stktable_lookup(t, ts, shard);
+	HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &t->buckets[bucket].sh_lock);
+	lts = __stktable_lookup(t, ts, bucket);
 	if (lts)
 		HA_ATOMIC_INC(&lts->ref_cnt);
-	HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
+	HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &t->buckets[bucket].sh_lock);
 
 	return lts;
 }
@@ -689,17 +689,17 @@ static void stktable_release(struct stktable *t, struct stksess *ts)
  * is set. <ts> is returned if properly inserted, otherwise the one already
  * present if any.
  */
-struct stksess *__stktable_store(struct stktable *t, struct stksess *ts, uint shard)
+struct stksess *__stktable_store(struct stktable *t, struct stksess *ts, uint bucket)
 {
 	struct ebmb_node *eb;
 
 	if (t->type == SMP_T_STR)
-		eb = ebst_insert(&t->shards[shard].keys, &ts->key);
+		eb = ebst_insert(&t->buckets[bucket].keys, &ts->key);
 	else
-		eb = ebmb_insert(&t->shards[shard].keys, &ts->key, t->key_size);
+		eb = ebmb_insert(&t->buckets[bucket].keys, &ts->key, t->key_size);
 	if (likely(eb == &ts->key)) {
 		ts->exp.key = ts->expire;
-		eb32_insert(&t->shards[shard].exps, &ts->exp);
+		eb32_insert(&t->buckets[bucket].exps, &ts->exp);
 	}
 	return ebmb_entry(eb, struct stksess, key); // most commonly this is <ts>
 }
@@ -721,21 +721,21 @@ void stktable_requeue_exp(struct stktable *t, const struct stksess *ts)
 	else
 		len = t->key_size;
 
-	bucket = stktable_calc_shard_num(t, ts->key.key, len);
+	bucket = stktable_calc_bucket_num(t, ts->key.key, len);
 
 	/* set the task's expire to the newest expiration date. */
-	old_exp = HA_ATOMIC_LOAD(&t->shards[bucket].next_exp);
+	old_exp = HA_ATOMIC_LOAD(&t->buckets[bucket].next_exp);
 	new_exp = tick_first(expire, old_exp);
 
 	/* let's not go further if we're already up to date. We have
 	 * to make sure the compared date doesn't change under us.
 	 */
 	if (new_exp == old_exp &&
-	    HA_ATOMIC_CAS(&t->shards[bucket].next_exp, &old_exp, new_exp)) {
+	    HA_ATOMIC_CAS(&t->buckets[bucket].next_exp, &old_exp, new_exp)) {
 		return;
 	}
 
-	while (!HA_ATOMIC_CAS(&t->shards[bucket].next_exp, &old_exp, new_exp)) {
+	while (!HA_ATOMIC_CAS(&t->buckets[bucket].next_exp, &old_exp, new_exp)) {
 		if (new_exp == old_exp)
 			break;
 		__ha_cpu_relax();
@@ -752,7 +752,7 @@ void stktable_requeue_exp(struct stktable *t, const struct stksess *ts)
 	if (!tick_isset(old_exp) || tick_is_lt(new_exp, old_exp)) {
 		int ret;
 
-		ret = MT_LIST_TRY_APPEND(&per_bucket[bucket].toadd_tables, &t->shards[bucket].in_bucket_toadd);
+		ret = MT_LIST_TRY_APPEND(&per_bucket[bucket].toadd_tables, &t->buckets[bucket].in_bucket_toadd);
 		if (ret)
 			task_wakeup(per_bucket[bucket].exp_task, TASK_WOKEN_OTHER);
 	}
@@ -766,7 +766,7 @@ void stktable_requeue_exp(struct stktable *t, const struct stksess *ts)
 struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *key)
 {
 	struct stksess *ts, *ts2;
-	uint shard;
+	uint bucket;
 	size_t len;
 
 	if (!key)
@@ -777,13 +777,13 @@ struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *
 	else
 		len = table->key_size;
 
-	shard = stktable_calc_shard_num(table, key->key, len);
+	bucket = stktable_calc_bucket_num(table, key->key, len);
 
-	HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &table->shards[shard].sh_lock);
-	ts = __stktable_lookup_key(table, key, shard);
+	HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &table->buckets[bucket].sh_lock);
+	ts = __stktable_lookup_key(table, key, bucket);
 	if (ts)
 		HA_ATOMIC_INC(&ts->ref_cnt);
-	HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &table->shards[shard].sh_lock);
+	HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &table->buckets[bucket].sh_lock);
 	if (ts)
 		return ts;
 
@@ -803,12 +803,12 @@ struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *
 	 * one we find.
 	 */
 
-	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &table->shards[shard].sh_lock);
+	HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &table->buckets[bucket].sh_lock);
 
-	ts2 = __stktable_store(table, ts, shard);
+	ts2 = __stktable_store(table, ts, bucket);
 
 	HA_ATOMIC_INC(&ts2->ref_cnt);
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &table->shards[shard].sh_lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &table->buckets[bucket].sh_lock);
 
 	if (unlikely(ts2 != ts)) {
 		/* another entry was added in the mean time, let's
@@ -900,7 +900,7 @@ leave:
 struct stksess *stktable_set_entry(struct stktable *table, struct stksess *nts)
 {
 	struct stksess *ts;
-	uint shard;
+	uint bucket;
 	size_t len;
 
 	if (table->type == SMP_T_STR)
@@ -908,35 +908,35 @@ struct stksess *stktable_set_entry(struct stktable *table, struct stksess *nts)
 	else
 		len = table->key_size;
 
-	shard = stktable_calc_shard_num(table, nts->key.key, len);
+	bucket = stktable_calc_bucket_num(table, nts->key.key, len);
 
-	HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &table->shards[shard].sh_lock);
-	ts = __stktable_lookup(table, nts, shard);
+	HA_RWLOCK_RDLOCK(STK_TABLE_LOCK, &table->buckets[bucket].sh_lock);
+	ts = __stktable_lookup(table, nts, bucket);
 	if (ts) {
 		HA_ATOMIC_INC(&ts->ref_cnt);
-		HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &table->shards[shard].sh_lock);
+		HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &table->buckets[bucket].sh_lock);
 		return ts;
 	}
 
 	/* let's increment it before switching to exclusive */
 	HA_ATOMIC_INC(&nts->ref_cnt);
 
-	if (HA_RWLOCK_TRYRDTOSK(STK_TABLE_LOCK, &table->shards[shard].sh_lock) != 0) {
+	if (HA_RWLOCK_TRYRDTOSK(STK_TABLE_LOCK, &table->buckets[bucket].sh_lock) != 0) {
 		/* upgrade to seek lock failed, let's drop and take */
-		HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &table->shards[shard].sh_lock);
-		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &table->shards[shard].sh_lock);
+		HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &table->buckets[bucket].sh_lock);
+		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &table->buckets[bucket].sh_lock);
 	}
 	else
-		HA_RWLOCK_SKTOWR(STK_TABLE_LOCK, &table->shards[shard].sh_lock);
+		HA_RWLOCK_SKTOWR(STK_TABLE_LOCK, &table->buckets[bucket].sh_lock);
 
 	/* now we're write-locked */
 
-	ts = __stktable_store(table, nts, shard);
+	ts = __stktable_store(table, nts, bucket);
 	if (ts != nts) {
 		HA_ATOMIC_DEC(&nts->ref_cnt);
 		HA_ATOMIC_INC(&ts->ref_cnt);
 	}
-	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &table->shards[shard].sh_lock);
+	HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &table->buckets[bucket].sh_lock);
 
 	if (ts == nts)
 		stktable_requeue_exp(table, ts);
@@ -956,29 +956,29 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 	int updt_locked;
 	int to_visit;
 	int task_exp;
-	int shard;
+	int bucket;
 
 	task_exp = TICK_ETERNITY;
 
-	shard = (ps - &per_bucket[0]);
+	bucket = (ps - &per_bucket[0]);
 
 	to_visit = STKTABLE_MAX_UPDATES_AT_ONCE;
 
 	/*
 	 * First put all the tables to be added from the list to the tree
 	 */
-	while ((t = MT_LIST_POP(&ps->toadd_tables, struct stktable *, shards[shard].in_bucket_toadd)) != NULL) {
-		int next_exp = HA_ATOMIC_LOAD(&t->shards[shard].next_exp);
+	while ((t = MT_LIST_POP(&ps->toadd_tables, struct stktable *, buckets[bucket].in_bucket_toadd)) != NULL) {
+		int next_exp = HA_ATOMIC_LOAD(&t->buckets[bucket].next_exp);
 		/*
 		 * We're already in the tree
 		 */
-		if (tick_isset(t->shards[shard].in_bucket.key) &&
-		    tick_is_lt(t->shards[shard].in_bucket.key, next_exp))
+		if (tick_isset(t->buckets[bucket].in_bucket.key) &&
+		    tick_is_lt(t->buckets[bucket].in_bucket.key, next_exp))
 			continue;
 
-		eb32_delete(&t->shards[shard].in_bucket);
-		t->shards[shard].in_bucket.key = next_exp;
-		eb32_insert(&ps->tables, &t->shards[shard].in_bucket);
+		eb32_delete(&t->buckets[bucket].in_bucket);
+		t->buckets[bucket].in_bucket.key = next_exp;
+		eb32_insert(&ps->tables, &t->buckets[bucket].in_bucket);
 	}
 	table_eb = eb32_lookup_ge(&ps->tables, now_ms - TIMER_LOOK_BACK);
 	if (!table_eb)
@@ -988,7 +988,7 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 		struct eb32_node *tmpnode;
 		unsigned int next_exp_table = TICK_ETERNITY;
 
-		t = eb32_entry(table_eb, struct stktable, shards[shard].in_bucket);
+		t = eb32_entry(table_eb, struct stktable, buckets[bucket].in_bucket);
 		updt_locked = 0;
 
 		if (tick_is_lt(now_ms, table_eb->key)) {
@@ -999,9 +999,9 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 				task_exp = table_eb->key;
 			break;
 		}
-		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
+		HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &t->buckets[bucket].sh_lock);
 
-		eb = eb32_lookup_ge(&t->shards[shard].exps, now_ms - TIMER_LOOK_BACK);
+		eb = eb32_lookup_ge(&t->buckets[bucket].exps, now_ms - TIMER_LOOK_BACK);
 
 		while (to_visit >= 0) {
 			if (unlikely(!eb)) {
@@ -1010,7 +1010,7 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 				 * half. Let's loop back to the beginning of the tree now if we
 				 * have not yet visited it.
 				 */
-				eb = eb32_first(&t->shards[shard].exps);
+				eb = eb32_first(&t->buckets[bucket].exps);
 				if (likely(!eb))
 					break;
 			}
@@ -1050,7 +1050,7 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 					continue;
 
 				ts->exp.key = ts->expire;
-				eb32_insert(&t->shards[shard].exps, &ts->exp);
+				eb32_insert(&t->buckets[bucket].exps, &ts->exp);
 
 				/* the update might have jumped beyond the next element,
 				 * possibly causing a wrapping. We need to check whether
@@ -1061,7 +1061,7 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 				 * use the current one.
 				 */
 				if (!eb)
-					eb = eb32_first(&t->shards[shard].exps);
+					eb = eb32_first(&t->buckets[bucket].exps);
 
 				if (!eb || tick_is_lt(ts->exp.key, eb->key))
 					eb = &ts->exp;
@@ -1096,11 +1096,11 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 
 		/*
 		 * Now find the first element, so that we can reposition
-		 * the table in the shard tree.
+		 * the table in the bucket tree.
 		 */
-		eb = eb32_lookup_ge(&t->shards[shard].exps, now_ms - TIMER_LOOK_BACK);
+		eb = eb32_lookup_ge(&t->buckets[bucket].exps, now_ms - TIMER_LOOK_BACK);
 		if (!eb)
-			eb = eb32_first(&t->shards[shard].exps);
+			eb = eb32_first(&t->buckets[bucket].exps);
 
 		if (eb)
 			next_exp_table = eb->key;
@@ -1109,7 +1109,7 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 
 		if (!tick_isset(task_exp) || (tick_isset(next_exp_table) && tick_is_lt(next_exp_table, task_exp)))
 			task_exp = next_exp_table;
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->shards[shard].sh_lock);
+		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->buckets[bucket].sh_lock);
 		tmpnode = eb32_next(table_eb);
 
 		if (table_eb->key != next_exp_table) {
@@ -1117,9 +1117,9 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 			/*
 			 * We have to move the entry in the tree
 			 */
-			old_exp = HA_ATOMIC_LOAD(&t->shards[shard].next_exp);
+			old_exp = HA_ATOMIC_LOAD(&t->buckets[bucket].next_exp);
 			if (old_exp >= table_eb->key) {
-				HA_ATOMIC_CAS(&t->shards[shard].next_exp, &old_exp, next_exp_table);
+				HA_ATOMIC_CAS(&t->buckets[bucket].next_exp, &old_exp, next_exp_table);
 			}
 
 			/*
@@ -1156,17 +1156,17 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 int stktable_init(struct stktable *t, char **err_msg)
 {
 	int peers_retval = 0;
-	int shard;
+	int bucket;
 	int i;
 
 	t->hash_seed = XXH64(t->id, t->idlen, 0);
 
 	if (t->size) {
-		for (shard = 0; shard < CONFIG_HAP_TBL_BUCKETS; shard++) {
-			t->shards[shard].keys = EB_ROOT_UNIQUE;
-			memset(&t->shards[shard].exps, 0, sizeof(t->shards[shard].exps));
-			HA_RWLOCK_INIT(&t->shards[shard].sh_lock);
-			MT_LIST_INIT(&t->shards[shard].in_bucket_toadd);
+		for (bucket = 0; bucket < CONFIG_HAP_TBL_BUCKETS; bucket++) {
+			t->buckets[bucket].keys = EB_ROOT_UNIQUE;
+			memset(&t->buckets[bucket].exps, 0, sizeof(t->buckets[bucket].exps));
+			HA_RWLOCK_INIT(&t->buckets[bucket].sh_lock);
+			MT_LIST_INIT(&t->buckets[bucket].in_bucket_toadd);
 		}
 
 		t->updates = EB_ROOT_UNIQUE;
@@ -1241,8 +1241,8 @@ void stktable_deinit(struct stktable *t)
 		return;
 	for (i = 0; i < CONFIG_HAP_TBL_BUCKETS; i++) {
 		HA_SPIN_LOCK(OTHER_LOCK, &per_bucket[i].lock);
-		eb32_delete(&t->shards[i].in_bucket);
-		MT_LIST_DELETE(&t->shards[i].in_bucket_toadd);
+		eb32_delete(&t->buckets[i].in_bucket);
+		MT_LIST_DELETE(&t->buckets[i].in_bucket_toadd);
 		HA_SPIN_UNLOCK(OTHER_LOCK, &per_bucket[i].lock);
 	}
 	tasklet_free(t->updt_task);
@@ -5738,7 +5738,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 	struct ebmb_node *eb;
 	int skip_entry;
 	int show = ctx->action == STK_CLI_ACT_SHOW;
-	int shard = ctx->tree_head;
+	int bucket = ctx->tree_head;
 
 	/*
 	 * We have 3 possible states in ctx->state :
@@ -5764,30 +5764,30 @@ static int cli_io_handler_table(struct appctx *appctx)
 			}
 
 			if (ctx->t->size) {
-				if (show && !shard && !table_dump_head_to_buffer(&trash, appctx, ctx->t, ctx->target))
+				if (show && !bucket && !table_dump_head_to_buffer(&trash, appctx, ctx->t, ctx->target))
 					return 0;
 
 				if (ctx->target &&
 				    (strm_li(s)->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER) {
 					/* dump entries only if table explicitly requested */
-					HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &ctx->t->shards[shard].sh_lock);
-					eb = ebmb_first(&ctx->t->shards[shard].keys);
+					HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &ctx->t->buckets[bucket].sh_lock);
+					eb = ebmb_first(&ctx->t->buckets[bucket].keys);
 					if (eb) {
 						ctx->entry = ebmb_entry(eb, struct stksess, key);
 						HA_ATOMIC_INC(&ctx->entry->ref_cnt);
 						ctx->state = STATE_DUMP;
-						HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &ctx->t->shards[shard].sh_lock);
+						HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &ctx->t->buckets[bucket].sh_lock);
 						break;
 					}
-					HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &ctx->t->shards[shard].sh_lock);
+					HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &ctx->t->buckets[bucket].sh_lock);
 
-					/* we come here if we didn't find any entry in this shard */
-					shard = ++ctx->tree_head;
-					if (shard < CONFIG_HAP_TBL_BUCKETS)
-						break; // try again on new shard
+					/* we come here if we didn't find any entry in this bucket */
+					bucket = ++ctx->tree_head;
+					if (bucket < CONFIG_HAP_TBL_BUCKETS)
+						break; // try again on new bucket
 
 					/* fall through next table */
-					shard = ctx->tree_head = 0;
+					bucket = ctx->tree_head = 0;
 				}
 			}
 			ctx->t = ctx->t->next;
@@ -5873,7 +5873,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 
 			HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ctx->entry->lock);
 
-			HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &ctx->t->shards[shard].sh_lock);
+			HA_RWLOCK_WRLOCK(STK_TABLE_LOCK, &ctx->t->buckets[bucket].sh_lock);
 			HA_ATOMIC_DEC(&ctx->entry->ref_cnt);
 
 			eb = ebmb_next(&ctx->entry->key);
@@ -5885,7 +5885,7 @@ static int cli_io_handler_table(struct appctx *appctx)
 				else if (!skip_entry && !ctx->entry->ref_cnt)
 					__stksess_kill(ctx->t, old);
 				HA_ATOMIC_INC(&ctx->entry->ref_cnt);
-				HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &ctx->t->shards[shard].sh_lock);
+				HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &ctx->t->buckets[bucket].sh_lock);
 				break;
 			}
 
@@ -5895,11 +5895,11 @@ static int cli_io_handler_table(struct appctx *appctx)
 			else if (!skip_entry && !HA_ATOMIC_LOAD(&ctx->entry->ref_cnt))
 				__stksess_kill(ctx->t, ctx->entry);
 
-			HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &ctx->t->shards[shard].sh_lock);
+			HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &ctx->t->buckets[bucket].sh_lock);
 
-			shard = ++ctx->tree_head;
-			if (shard >= CONFIG_HAP_TBL_BUCKETS) {
-				shard = ctx->tree_head = 0;
+			bucket = ++ctx->tree_head;
+			if (bucket >= CONFIG_HAP_TBL_BUCKETS) {
+				bucket = ctx->tree_head = 0;
 				ctx->t = ctx->t->next;
 			}
 			ctx->state = STATE_NEXT;
@@ -5975,7 +5975,7 @@ static void stkt_late_init(void)
 		per_bucket[i].tables = EB_ROOT;
 		per_bucket[i].exp_task = task_new_on(i % global.nbthread);
 		if (per_bucket[i].exp_task == NULL) {
-			ha_alert("Failed to allocate per-shard task!\n");
+			ha_alert("Failed to allocate per-bucket task!\n");
 			exit(1);
 		}
 		per_bucket[i].exp_task->process = process_tables_expire;
