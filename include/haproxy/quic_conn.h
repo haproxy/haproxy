@@ -64,7 +64,7 @@ struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int sta
 
 void quic_conn_closed_err_count_inc(struct quic_conn *qc, struct quic_frame *frm);
 int qc_h3_request_reject(struct quic_conn *qc, uint64_t id);
-struct quic_conn *qc_new_conn(void *target, int ipv4,
+struct quic_conn *qc_new_conn(void *target,
                               const struct quic_rx_packet *initial_pkt,
                               const struct quic_cid *token_odcid,
                               struct quic_connection_id *conn_id,

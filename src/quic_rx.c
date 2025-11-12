@@ -1722,7 +1722,6 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 
 		if (!qc) {
 			struct quic_connection_id *conn_id;
-			int ipv4;
 
 			/* Reject INITIAL early if listener limits reached. */
 			if (unlikely(HA_ATOMIC_LOAD(&l->rx.quic_curr_handshake) >=
@@ -1798,7 +1797,6 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 			}
 
 			pkt->saddr = dgram->saddr;
-			ipv4 = dgram->saddr.ss_family == AF_INET;
 
 			conn_id = quic_cid_alloc();
 			if (!conn_id) {
@@ -1825,7 +1823,7 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 				pool_free(pool_head_quic_connection_id, conn_id);
 			}
 			else {
-				qc = qc_new_conn(l, ipv4, pkt, &token_odcid,
+				qc = qc_new_conn(l, pkt, &token_odcid,
 				                 conn_id, &dgram->daddr, &pkt->saddr);
 				if (qc == NULL) {
 					quic_cid_delete(conn_id); /* Removes CID from global tree as it points to a NULL qc. */

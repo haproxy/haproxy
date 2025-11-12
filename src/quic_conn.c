@@ -1095,7 +1095,7 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 
 /* Allocate a new QUIC connection. <target> represents the internal connection
  * endpoint, either a listener for a server-side connection or a server on
- * client side. <ipv4> boolean is set to 1 for IPv4 connection or 0 for IPv6.
+ * client side.
  *
  * On server side, <initial_pkt> must points to the client INITIAL packet which
  * initiate this connection allocation. It is used as a source to determine the
@@ -1113,7 +1113,7 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
  *
  * Returns the newly allocated quic_conn instance on success or NULL on error.
  */
-struct quic_conn *qc_new_conn(void *target, int ipv4,
+struct quic_conn *qc_new_conn(void *target,
                               const struct quic_rx_packet *initial_pkt,
                               const struct quic_cid *token_odcid,
                               struct quic_connection_id *conn_id,
@@ -1338,7 +1338,7 @@ struct quic_conn *qc_new_conn(void *target, int ipv4,
 	qc->max_ack_delay = 0;
 	/* Only one path at this time (multipath not supported) */
 	qc->path = &qc->paths[0];
-	quic_cc_path_init(qc->path, ipv4,
+	quic_cc_path_init(qc->path, peer_addr->ss_family == AF_INET,
 	                  l ? l->bind_conf->max_cwnd : quic_tune.be.cc_max_win_size,
 	                  cc_algo ? cc_algo : default_quic_cc_algo, qc);
 

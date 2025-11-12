@@ -136,7 +136,6 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 	}
 	else {
 		int retry_rand_cid = 3; /* Number of random retries on CID collision. */
-		int ipv4 = conn->dst->ss_family == AF_INET;
 		struct server *srv = objt_server(conn->target);
 
 		conn_id = quic_cid_alloc();
@@ -162,7 +161,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 			goto out;
 		}
 
-		qc = qc_new_conn(srv, ipv4, NULL, NULL, conn_id, NULL, &srv->addr);
+		qc = qc_new_conn(srv, NULL, NULL, conn_id, NULL, &srv->addr);
 		if (!qc) {
 			pool_free(pool_head_quic_connection_id, conn_id);
 			goto out;
