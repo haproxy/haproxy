@@ -3399,12 +3399,19 @@ struct task *qcc_io_cb(struct task *t, void *ctx, unsigned int state)
 		/* Remove the connection from the list, to be sure nobody attempts
 		 * to use it while we handle the I/O events
 		 */
-		conn_in_list = conn->flags & (CO_FL_LIST_MASK|CO_FL_SESS_IDLE);
-		if (conn_in_list) {
-			if (conn->flags & CO_FL_SESS_IDLE)
-				session_detach_idle_conn(conn->owner, conn);
-			else
-				conn_delete_from_tree(conn, tid);
+		if (LIST_INLIST(&conn->idle_list)) {
+			conn_in_list = 1;
+			BUG_ON(!(conn->flags & CO_FL_LIST_MASK));
+			conn_delete_from_tree(conn, tid);
+		}
+		else if (LIST_INLIST(&conn->sess_el)) {
+			conn_in_list = 1;
+			BUG_ON(!(conn->flags & CO_FL_SESS_IDLE));
+			/* session_detach_idle_conn cannot fail thanks to LIST_INLIST() above test */
+			session_detach_idle_conn(conn->owner, conn);
+		}
+		else {
+			conn_in_list = 0;
 		}
 
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
@@ -3448,7 +3455,7 @@ struct task *qcc_io_cb(struct task *t, void *ctx, unsigned int state)
 			}
 		}
 		else {
-			srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
+			srv_add_idle(srv, conn, (conn->flags & CO_FL_LIST_MASK) == CO_FL_SAFE_LIST);
 		}
 
 		/* Do not access conn without protection as soon as it is reinserted in idle list. */
