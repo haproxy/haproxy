@@ -2295,6 +2295,7 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 	struct quic_conn *qc = NULL;
 	unsigned char *pos, *end;
 	struct list *tasklist_head = NULL;
+	struct listener *li = objt_listener(o);
 
 	TRACE_ENTER(QUIC_EV_CONN_LPKT);
 
@@ -2336,7 +2337,6 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 		 */
 		if (!qc) {
 			int new_tid = -1;
-			struct listener *li = objt_listener(o);
 
 			qc = from_qc ? from_qc : quic_rx_pkt_retrieve_conn(pkt, dgram, li, &new_tid);
 			/* qc is NULL if receiving a non Initial packet for an
@@ -2375,7 +2375,7 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 		}
 
 		/* Detect QUIC connection migration. */
-		if (ipcmp(&qc->peer_addr, &dgram->saddr, 1)) {
+		if (li && ipcmp(&qc->peer_addr, &dgram->saddr, 1)) {
 			if (qc_handle_conn_migration(qc, &dgram->saddr, &dgram->daddr)) {
 				/* Skip the entire datagram. */
 				TRACE_ERROR("error during connection migration, datagram dropped", QUIC_EV_CONN_LPKT, qc);
