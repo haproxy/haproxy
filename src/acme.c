@@ -282,14 +282,6 @@ static int cfg_parse_acme(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (httpclient_acme_px == NULL) {
-			if (httpclient_acme_init() & ERR_FATAL) {
-				err_code |= ERR_ALERT | ERR_FATAL;
-				ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
-				goto out;
-			}
-		}
-
 		cur_acme = new_acme_cfg(args[1]);
 		if (!cur_acme) {
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -753,6 +745,21 @@ out:
 	ha_free(&errmsg);
 	return err_code;
 }
+
+/* initialize the httpclient just before check_config_validity() because it could create a defaults resolver if it
+ * doesn't exist. */
+static int cfg_precheck_acme()
+{
+	if (acme_cfgs) {
+		if (httpclient_acme_init() & ERR_FATAL) {
+			ha_alert("couldn't initialize the httpclient for ACME.\n");
+			return ERR_ABORT;
+
+		}
+	}
+	return ERR_NONE;
+}
+REGISTER_PRE_CHECK(cfg_precheck_acme);
 
 /* postparser function checks if the ACME section was declared */
 static int cfg_postparser_acme()
