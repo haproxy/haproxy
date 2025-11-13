@@ -1555,7 +1555,7 @@ kill_random_idle_conn(struct server *srv)
 /* Returns backend reuse policy depending on <be>. It can be forced to always
  * mode if <srv> is not NULL and uses reverse HTTP.
  */
-static int be_reuse_mode(struct proxy *be, struct server *srv)
+int be_reuse_mode(const struct proxy *be, const struct server *srv)
 {
 	if (srv && srv->flags & SRV_F_RHTTP) {
 		/* Override reuse-mode if reverse-connect is used. */

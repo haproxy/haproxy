@@ -17831,6 +17831,8 @@ check-reuse-pool
   completion. The main objective is to limit the number of connections opening
   and closure on a specific server. This feature is compatible only with
   http-check rulesets. It is silently ignored for other check types.
+  Furthermore, reuse policy should be set to aggressive on the backend as each
+  check attempt is performed over a dedicated session.
 
   For configuration simplicity, this option is silently ignored if any specific
   check connect option is defined, either on the server line or via a custom
