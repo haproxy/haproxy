@@ -24672,7 +24672,7 @@ ssl_bc_client_traffic_secret_0 : string
 ssl_bc_curve : string
   Returns the name of the curve used in the key agreement when the outgoing
   connection was made over an SSL/TLS transport layer. This requires
-  OpenSSL >= 3.0.0.
+  OpenSSL >= 3.0.0 or AWS-LC >= 1.57.0.
 
 ssl_bc_early_exporter_secret : string
   Return the EARLY_EXPORTER_SECRET as an hexadecimal string for the
