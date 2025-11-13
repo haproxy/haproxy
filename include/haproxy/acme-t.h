@@ -85,7 +85,8 @@ struct acme_ctx {
 	struct ist finalize;
 	struct ist certificate;
 	struct task *task;
-	struct mt_list el;
+	struct ebmb_node node;
+	char name[VAR_ARRAY];
 };
 
 #define ACME_EV_SCHED              (1ULL <<  0)  /* scheduling wakeup */

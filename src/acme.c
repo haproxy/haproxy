@@ -11,7 +11,6 @@
 
 #include <import/ebsttree.h>
 #include <import/mjson.h>
-#include <import/mt_list.h>
 
 #include <haproxy/acme-t.h>
 
@@ -144,7 +143,8 @@ static void acme_trace(enum trace_level level, uint64_t mask, const struct trace
 	}
 }
 
-struct mt_list acme_tasks = MT_LIST_HEAD_INIT(acme_tasks);
+struct eb_root acme_tasks = EB_ROOT_UNIQUE;
+__decl_thread(HA_RWLOCK_T acme_lock);
 
 static struct acme_cfg *acme_cfgs = NULL;
 static struct acme_cfg *cur_acme = NULL;
@@ -2153,7 +2153,6 @@ struct task *acme_process(struct task *task, void *context, unsigned int state)
 	enum acme_st st = ctx->state;
 	enum http_st http_st = ctx->http_state;
 	char *errmsg = NULL;
-	struct mt_list tmp = MT_LIST_LOCK_FULL(&ctx->el);
 
 re:
 	TRACE_USER("ACME Task Handle", ACME_EV_TASK, ctx, &st);
@@ -2345,7 +2344,6 @@ re:
 	}
 
 	/* this is called after initializing a request */
-	MT_LIST_UNLOCK_FULL(&ctx->el, tmp);
 	ctx->http_state = http_st;
 	ctx->state = st;
 	task->expire = TICK_ETERNITY;
@@ -2365,7 +2363,6 @@ nextreq:
 	task->expire = tick_add(now_ms, ctx->retryafter * 1000);
 	ctx->retryafter = 0;
 
-	MT_LIST_UNLOCK_FULL(&ctx->el, tmp);
 	return task;
 
 retry:
@@ -2396,7 +2393,6 @@ retry:
 
 	ha_free(&errmsg);
 
-	MT_LIST_UNLOCK_FULL(&ctx->el, tmp);
 	return task;
 
 abort:
@@ -2405,9 +2401,9 @@ abort:
 
 end:
 	acme_del_acme_ctx_map(ctx);
-	/* unlink ctx from the mtlist then destroy */
-	mt_list_unlock_link(tmp);
-	mt_list_unlock_self(&ctx->el);
+	HA_RWLOCK_WRLOCK(OTHER_LOCK, &acme_lock);
+	ebmb_delete(&ctx->node);
+	HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &acme_lock);
 	acme_ctx_destroy(ctx);
 	task_destroy(task);
 	task = NULL;
@@ -2419,8 +2415,6 @@ wait:
 	ctx->http_state = ACME_HTTP_REQ;
 	ctx->state = st;
 	task->expire = TICK_ETERNITY;
-
-	MT_LIST_UNLOCK_FULL(&ctx->el, tmp);
 	return task;
 }
 
@@ -2727,11 +2721,6 @@ static int acme_start_task(struct ckch_store *store, char **errmsg)
 	struct ckch_store *newstore = NULL;
 	EVP_PKEY *pkey = NULL;
 
-	if (store->acme_task != NULL) {
-		memprintf(errmsg, "An ACME task is already running for certificate '%s'.", store->path);
-		goto err;
-	}
-
 	if (!store->conf.acme.domains) {
 		memprintf(errmsg, "No 'domains' were configured for certificate. ");
 		goto err;
@@ -2755,17 +2744,22 @@ static int acme_start_task(struct ckch_store *store, char **errmsg)
 	task->nice = 0;
 	task->process = acme_process;
 
-        /* register the task in the store so we don't
-	 * have 2 tasks at the same time
-	 */
-        store->acme_task = task;
-
 	/* XXX: following init part could be done in the task */
-	ctx = calloc(1, sizeof *ctx);
+	ctx = calloc(1, sizeof *ctx + strlen(newstore->path) + 1);
 	if (!ctx) {
 		memprintf(errmsg, "Out of memory.");
 		goto err;
 	}
+
+	memcpy(ctx->name, newstore->path, strlen(newstore->path) + 1);
+
+	HA_RWLOCK_WRLOCK(OTHER_LOCK, &acme_lock);
+	if (ebst_insert(&acme_tasks, &ctx->node) != &ctx->node) {
+		memprintf(errmsg, "%sTask already exists for '%s' certificate.\n", *errmsg ? *errmsg : "", newstore->path);
+		HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &acme_lock);
+		goto err;
+	}
+	HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &acme_lock);
 
 	/* set the number of remaining retries when facing an error */
 	ctx->retries = ACME_RETRY;
@@ -2790,9 +2784,6 @@ static int acme_start_task(struct ckch_store *store, char **errmsg)
 	task->context = ctx;
 	ctx->task = task;
 
-	MT_LIST_INIT(&ctx->el);
-	MT_LIST_APPEND(&acme_tasks, &ctx->el);
-
 	send_log(NULL, LOG_NOTICE, "acme: %s: Starting update of the certificate.\n", ctx->store->path);
 
 	TRACE_USER("ACME Task start", ACME_EV_NEW, ctx);
@@ -2803,7 +2794,12 @@ static int acme_start_task(struct ckch_store *store, char **errmsg)
 err:
 	EVP_PKEY_free(pkey);
 	ckch_store_free(newstore);
-	acme_ctx_destroy(ctx);
+	if (ctx) {
+		HA_RWLOCK_WRLOCK(OTHER_LOCK, &acme_lock);
+		ebmb_delete(&ctx->node);
+		HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &acme_lock);
+		acme_ctx_destroy(ctx);
+	}
 	memprintf(errmsg, "%sCan't start the ACME client.", *errmsg ? *errmsg : "");
 	return 1;
 }
@@ -2846,10 +2842,10 @@ static int cli_acme_chall_ready_parse(char **args, char *payload, struct appctx 
 	char *errmsg = NULL;
 	const char *crt;
 	const char *dns;
-	struct mt_list back;
 	struct acme_ctx *ctx;
 	struct acme_auth *auth;
 	int found = 0;
+	struct ebmb_node *node = NULL;
 
 	if (!*args[2] && !*args[3] && !*args[4]) {
 		memprintf(&errmsg, ": not enough parameters\n");
@@ -2859,8 +2855,10 @@ static int cli_acme_chall_ready_parse(char **args, char *payload, struct appctx 
 	crt = args[2];
 	dns = args[4];
 
-
-	MT_LIST_FOR_EACH_ENTRY_LOCKED(ctx, &acme_tasks, el, back) {
+	HA_RWLOCK_RDLOCK(OTHER_LOCK, &acme_lock);
+	node = ebmb_first(&acme_tasks);
+	while (node) {
+		ctx = ebmb_entry(node, struct acme_ctx, node);
 
 		if (strcmp(ctx->store->path, crt) != 0)
 			continue;
@@ -2879,7 +2877,9 @@ static int cli_acme_chall_ready_parse(char **args, char *payload, struct appctx 
 			}
 			auth = auth->next;
 		}
+		node = ebmb_next(node);
 	}
+	HA_RWLOCK_RDUNLOCK(OTHER_LOCK, &acme_lock);
 	if (!found) {
 		memprintf(&errmsg, "Couldn't find the ACME task using crt \"%s\" and dns \"%s\" !\n", crt, dns);
 		goto err;
@@ -2919,7 +2919,11 @@ static int cli_acme_status_io_handler(struct appctx *appctx)
 			time_t notAfter = 0;
 			time_t sched = 0;
 			ullong remain = 0;
-			int running = !!store->acme_task;
+			int running = 0;
+
+			HA_RWLOCK_RDLOCK(OTHER_LOCK, &acme_lock);
+			running = !!ebst_lookup(&acme_tasks, store->path);
+			HA_RWLOCK_RDUNLOCK(OTHER_LOCK, &acme_lock);
 
 			if (global_ssl.acme_scheduler)
 				state = "Scheduled";
@@ -2981,6 +2985,7 @@ INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 static void __acme_init(void)
 {
 	hap_register_feature("ACME");
+	HA_RWLOCK_INIT(&acme_lock);
 }
 INITCALL0(STG_REGISTER, __acme_init);
 

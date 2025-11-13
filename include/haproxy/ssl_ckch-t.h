@@ -89,7 +89,6 @@ struct ckch_store {
 	struct list ckch_inst; /* list of ckch_inst which uses this ckch_node */
 	struct list crtlist_entry; /* list of entries which use this store */
 	struct ckch_conf conf;
-	struct task *acme_task;
 	struct ebmb_node node;
 	char path[VAR_ARRAY];
 };
