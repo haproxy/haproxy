@@ -449,9 +449,8 @@ static void peers_trace(enum trace_level level, uint64_t mask,
 		chunk_appendf(&trace_buf, "appctx=(%p, .fl=0x%08x, .st0=%d, .st1=%d) ",
 			      appctx, appctx->flags, appctx->st0, appctx->st1);
 
-	if (peers)
-		chunk_appendf(&trace_buf, "peers=(.fl=0x%08x, local=%s) ",
-			      peers->flags, peers->local->id);
+	chunk_appendf(&trace_buf, "peers=(.fl=0x%08x, local=%s) ",
+	              peers->flags, peers->local->id);
 
 	if (src->verbosity == PEERS_VERB_SIMPLE)
 		return;
