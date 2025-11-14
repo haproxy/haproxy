@@ -225,8 +225,8 @@ static int cli_io_handler_ech_details(struct appctx *appctx)
 	struct buffer *trash = get_trash_chunk();
 	struct show_ech_ctx *ctx = appctx->svcctx;
 	int ret = 0;
-	struct proxy *p;
-	struct bind_conf *bind_conf;
+	struct proxy *p = NULL;
+	struct bind_conf *bind_conf = NULL;
 	if (!ctx) return 1;
 
 	if (ctx->state == SHOW_ECH_SPECIFIC) {
