@@ -424,6 +424,20 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #  define COUNT_IF_HOT(cond, ...) DISGUISE(cond)
 #endif
 
+/* turn BUG_ON_STRESS() into a real statement when DEBUG_STRESS is set,
+ * otherwise simply ignore it, at the risk of failing to notice if the
+ * condition would build at all. We don't really care if BUG_ON_STRESS
+ * doesn't always build, because it's meant to be used only in certain
+ * scenarios, possibly requiring certain combinations of options. We
+ * just want to be certain that the condition is not implemented at all
+ * when not used, so as to encourage developers to put a lot of them at
+ * zero cost.
+ */
+#if DEBUG_STRESS > 0
+# define BUG_ON_STRESS(cond, ...)  BUG_ON(cond, __VA_ARGS__)
+#else
+# define BUG_ON_STRESS(cond, ...)  do { } while (0)
+#endif
 
 /* When not optimizing, clang won't remove that code, so only compile it in when optimizing */
 #if defined(__GNUC__) && defined(__OPTIMIZE__)
