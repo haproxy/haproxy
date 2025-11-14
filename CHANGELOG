@@ -1,6 +1,66 @@
 ChangeLog :
 ===========
 
+2025/11/14 : 3.3-dev13
+    - BUG/MEDIUM: config: for word expansion, empty or non-existing are the same
+    - BUG/MINOR: quic: close connection on CID alloc failure
+    - MINOR: quic: adjust CID conn tree alloc in qc_new_conn()
+    - MINOR: quic: split CID alloc/generation function
+    - BUG/MEDIUM: quic: handle collision on CID generation
+    - MINOR: quic: extend traces on CID allocation
+    - MEDIUM/OPTIM: quic: alloc quic_conn after CID collision check
+    - MINOR: stats-proxy: ensure future-proof FN_AGE manipulation in me_generate_field()
+    - BUG/MEDIUM: stats-file: fix shm-stats-file preload not working anymore
+    - BUG/MINOR: do not account backend connections into maxconn
+    - BUG/MEDIUM: init: 'devnullfd' not properly closed for master
+    - BUG/MINOR: acme: more explicit error when BIO_new_file()
+    - BUG/MEDIUM: quic-be: do not launch the connection migration process
+    - MINOR: quic-be: Parse the NEW_TOKEN frame
+    - MEDIUM: quic-be: Parse, store and reuse tokens provided by NEW_TOKEN
+    - MINOR: quic-be: helper functions to save/restore transport params (0-RTT)
+    - MINOR: quic-be: helper quic_reuse_srv_params() function to reuse server params (0-RTT)
+    - MINOR: quic-be: Save the backend 0-RTT parameters
+    - MEDIUM: quic-be: modify ssl_sock_srv_try_reuse_sess() to reuse backend sessions (0-RTT)
+    - MINOR: quic-be: allow the preparation of 0-RTT packets
+    - MINOR: quic-be: Send post handshake frames from list of frames (0-RTT)
+    - MEDIUM: quic-be: qc_send_mux() adaptation for 0-RTT
+    - MINOR: quic-be: discard the 0-RTT keys
+    - MEDIUM: quic-be: enable the use of 0-RTT
+    - MINOR: quic-be: validate the 0-RTT transport parameters
+    - MINOR: quic-be: do not create the mux after handshake completion (for 0-RTT)
+    - MINOR: quic-be: avoid a useless I/O callback wakeup for 0-RTT sessions
+    - BUG/MEDIUM: acme: move from mt_list to a rwlock + ebmbtree
+    - BUG/MINOR: acme: can't override the default resolver
+    - MINOR: ssl/sample: expose ssl_*c_curve for AWS-LC
+    - MINOR: check: delay MUX init when SSL ALPN is used
+    - MINOR: cfgdiag: adjust diag on servers
+    - BUG/MINOR: check: only try connection reuse for http-check rulesets
+    - BUG/MINOR: check: fix reuse-pool if MUX inherited from server
+    - MINOR: check: clarify check-reuse-pool interaction with reuse policy
+    - DOC: configuration: add missing ssllib_name_startswith()
+    - DOC: configuration: add missing openssl_version predicates
+    - MINOR: cfgcond: add "awslc_api_atleast" and "awslc_api_before"
+    - REGTESTS: ssl: activate ssl_curve_name.vtc for AWS-LC
+    - BUILD: ech: fix clang warnings
+    - BUG/MEDIUM: stick-tables: Always return the good stksess from stktable_set_entry
+    - BUG/MINOR: stick-tables: Fix return value for __stksess_kill()
+    - CLEANUP: stick-tables: Don't needlessly compute shard number in stksess_free()
+    - MINOR: h1: h1_release() should return if it destroyed the connection
+    - BUG/MEDIUM: h1: prevent a crash on HTTP/2 upgrade
+    - MINOR: check: use auto SNI for QUIC checks
+    - MINOR: check: ensure QUIC checks configuration coherency
+    - CLEANUP: peers: remove an unneeded null check
+    - Revert "BUG/MEDIUM: connections: permit to permanently remove an idle conn"
+    - BUG/MEDIUM: connection: do not reinsert a purgeable conn in idle list
+    - DEBUG: extend DEBUG_STRESS to ease testing and turn on extra checks
+    - DEBUG: add BUG_ON_STRESS(): a BUG_ON() implemented only when DEBUG_STRESS > 0
+    - DEBUG: servers: add a few checks for stress-testing idle conns
+    - BUG/MINOR: check: fix QUIC check test when QUIC disabled
+    - BUG/MINOR: quic-be: missing version negotiation
+    - CLEANUP: quic: Missing succesful SSL handshake backend trace (OpenSSL 3.5)
+    - BUG/MINOR: quic-be: backend SSL session reuse fix (OpenSSL 3.5)
+    - REGTEST: quic: quic/ssl_reuse.vtc supports OpenSSL 3.5 QUIC API
+
 2025/11/08 : 3.3-dev12
     - MINOR: quic: enable SSL on QUIC servers automatically
     - MINOR: quic: reject conf with QUIC servers if not compiled
