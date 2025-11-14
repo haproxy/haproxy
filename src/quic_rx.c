@@ -2077,6 +2077,28 @@ static int quic_rx_pkt_parse(struct quic_conn *qc, struct quic_rx_packet *pkt,
 					memcpy(qc->dcid.data, pkt->scid.data, pkt->scid.len);
 					qc->dcid.len = pkt->scid.len;
 				}
+
+				/* Identify the negotiated version, chosen and sent by the server */
+				if (qc_is_back(qc) && pkt->version != qc->original_version && !qc->nictx) {
+					qc->nictx = pool_alloc(pool_head_quic_tls_ctx);
+					if (!qc->nictx) {
+						TRACE_PROTO("Could not alloc a new Initial secrets TLS context",
+						            QUIC_EV_CONN_RXPKT, qc);
+						goto drop;
+					}
+
+					quic_tls_ctx_reset(qc->nictx);
+					if (!qc_new_isecs(qc, qc->nictx, pkt->version,
+					                  qc->odcid.data, qc->odcid.len, 0)) {
+						TRACE_PROTO("Could not derive Initial secrets for new version",
+						            QUIC_EV_CONN_RXPKT, qc);
+						goto drop;
+					}
+
+					TRACE_PROTO("new Initial secrets TLS context initialization done",
+					            QUIC_EV_CONN_RXPKT, qc);
+					qc->negotiated_version = pkt->version;
+				}
 			}
 		}
 		else if (pkt->type == QUIC_PACKET_TYPE_0RTT) {
