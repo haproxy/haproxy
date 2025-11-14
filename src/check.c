@@ -1877,7 +1877,7 @@ int init_srv_check(struct server *srv)
 		}
 	}
 	else {
-		if (srv->check.mux_proto == get_mux_proto(ist("quic"))) {
+		if (srv->check.mux_proto && srv->check.mux_proto == get_mux_proto(ist("quic"))) {
 			ha_alert("config: %s '%s': QUIC checks on non-QUIC server '%s' is not yet supported.\n",
 			         proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
 			ret |= ERR_ALERT | ERR_FATAL;
