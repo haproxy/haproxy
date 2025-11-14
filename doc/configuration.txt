@@ -1178,6 +1178,14 @@ operator, so that "A && B || C && D" evalues as "(A && B) || (C && D)".
 
 The list of currently supported predicates is the following:
 
+  - awslc_api_atleast(<ver>): returns true if the current awslc API number
+                            is at least as recent as <ver> otherwise false.
+                            Example: awslc_api_atleast(35)
+
+  - awslc_api_before(<ver>): returns true if the current awslc API number
+                            is strictly older than <ver> otherwise false.
+                            Example: awslc_api_before(26)
+
   - defined(<name>)       : returns true if an environment variable <name>
                             exists, regardless of its contents
 

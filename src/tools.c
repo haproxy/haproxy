@@ -6866,6 +6866,39 @@ int word_fingerprint_distance(const uint8_t *fp1, const uint8_t *fp2)
 }
 
 /*
+ * This function compares the loaded AWS-LC API number with a string <version>
+ * This function use the same return code as compare_current_version:
+ *
+ *  -1 : the version in argument is older than the current AWS-LC API
+ *   0 : the version in argument is the same as the current AWS-LC API
+ *   1 : the version in argument is newer than the current AWS-LC API
+ *
+ * Or some errors:
+ *  -2 : AWS-LC is not available on this process
+ *  -3 : the version in argument is not parsable
+ */
+int awslc_compare_current_api(const char *version)
+{
+#if defined(OPENSSL_IS_AWSLC) && defined(AWSLC_API_VERSION)
+	int numapi;
+	char *endptr;
+
+	numapi = strtol(version, &endptr, 10);
+	if (endptr == version || *endptr != '\0')
+		return -3;
+
+	if (numapi < AWSLC_API_VERSION)
+		return -1;
+	else if (numapi > AWSLC_API_VERSION)
+		return 1;
+	else
+		return 0;
+#else
+	return -2;
+#endif
+}
+
+/*
  * This function compares the loaded openssl version with a string <version>
  * This function use the same return code as compare_current_version:
  *

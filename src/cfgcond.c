@@ -29,6 +29,8 @@ const struct cond_pred_kw cond_predicates[] = {
 	{ "openssl_version_atleast", CFG_PRED_OSSL_VERSION_ATLEAST,   ARG1(1, STR)         },
 	{ "openssl_version_before",  CFG_PRED_OSSL_VERSION_BEFORE,    ARG1(1, STR)         },
 	{ "ssllib_name_startswith",  CFG_PRED_SSLLIB_NAME_STARTSWITH, ARG1(1, STR)         },
+	{ "awslc_api_atleast",       CFG_PRED_AWSLC_API_ATLEAST,      ARG1(1, STR)         },
+	{ "awslc_api_before",        CFG_PRED_AWSLC_API_BEFORE,       ARG1(1, STR)         },
 	{ "enabled",                 CFG_PRED_ENABLED,                ARG1(1, STR)         },
 	{ NULL, CFG_PRED_NONE, 0 }
 };
@@ -283,6 +285,24 @@ int cfg_eval_cond_term(const struct cfg_cond_term *term, char **err)
 				ret = -1;
 			else
 				ret = opensslret > 0;
+			break;
+		}
+		case CFG_PRED_AWSLC_API_ATLEAST: { // checks if the current AWSLC API is at least this one
+			int awslcret = awslc_compare_current_api(term->args[0].data.str.area);
+
+			if (awslcret < -1) /* can't parse the string or no AWS-LC available */
+				ret = -1;
+			else
+				ret = awslcret <= 0;
+			break;
+		}
+		case CFG_PRED_AWSLC_API_BEFORE: { // checks if the current AWSLC API is older than this one
+			int awslcret = awslc_compare_current_api(term->args[0].data.str.area);
+
+			if (awslcret < -1) /* can't parse the string or no AWS-LC available */
+				ret = -1;
+			else
+				ret = awslcret > 0;
 			break;
 		}
 		case CFG_PRED_SSLLIB_NAME_STARTSWITH: { // checks if the current SSL library's name starts with a specified string (can be used to distinguish OpenSSL from LibreSSL or BoringSSL)

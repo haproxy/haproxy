@@ -1413,7 +1413,8 @@ static inline int warn_if_lower(const char *text, long min)
 	value = atol(text);
 	return value && value < min;
 }
-
+/* compare the current AWS-LC API number to a string */
+int awslc_compare_current_api(const char *version);
 /* compare the current OpenSSL version to a string */
 int openssl_compare_current_version(const char *version);
 /* compare the current OpenSSL name to a string */
