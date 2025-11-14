@@ -7329,6 +7329,7 @@ static inline void _srv_add_idle(struct server *srv, struct connection *conn, in
 	/* first insert in idle or safe tree. */
 	ceb64_item_insert(tree, hash_node.node, hash_node.key, conn);
 
+	BUG_ON_STRESS(!mt_list_isempty(&conn->toremove_list));
 	/* insert in list sorted by connection usage. */
 	LIST_APPEND(&srv->per_thr[tid].idle_conn_list, &conn->idle_list);
 }
@@ -7394,6 +7395,8 @@ int srv_add_to_idle_list(struct server *srv, struct connection *conn, int is_saf
 			_srv_add_idle(srv, conn, 0);
 			_HA_ATOMIC_INC(&srv->curr_idle_nb);
 		}
+
+		BUG_ON_STRESS(!mt_list_isempty(&conn->toremove_list));
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		_HA_ATOMIC_INC(&srv->curr_idle_thr[tid]);
 
@@ -7409,7 +7412,7 @@ int srv_add_to_idle_list(struct server *srv, struct connection *conn, int is_saf
 					task_schedule(idle_conn_task,
 					              srv->idle_node.key);
 				}
-
+				BUG_ON_STRESS(!mt_list_isempty(&conn->toremove_list));
 			}
 			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conn_srv_lock);
 		}
@@ -7425,6 +7428,7 @@ void srv_add_to_avail_list(struct server *srv, struct connection *conn)
 {
 	/* connection cannot be in idle list if used as an avail idle conn. */
 	BUG_ON(LIST_INLIST(&conn->idle_list));
+	BUG_ON_STRESS(!mt_list_isempty(&conn->toremove_list));
 	ceb64_item_insert(&srv->per_thr[tid].avail_conns, hash_node.node, hash_node.key, conn);
 }
 

@@ -1489,6 +1489,7 @@ static void h2_release(struct h2c *h2c)
 
 	TRACE_ENTER(H2_EV_H2C_END);
 
+	BUG_ON_STRESS(LIST_INLIST(&conn->idle_list) && conn->flags & CO_FL_LIST_MASK);
 	hpack_dht_free(h2c->ddht);
 
 	b_dequeue(&h2c->buf_wait);
