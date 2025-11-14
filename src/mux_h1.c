@@ -1210,7 +1210,7 @@ static int h1s_finish_detach(struct h1s *h1s)
 			 * subscribe for reads waiting for new data
 			 */
 			if (unlikely(b_data(&h1c->ibuf))) {
-				if (h1_process(h1c) == -1) {
+				if (h1_process(h1c) < 0) {
 					/* h1c was released, don't reuse it anymore */
 					goto released;
 				}
@@ -4078,12 +4078,14 @@ static int h1_send(struct h1c *h1c)
 }
 
 /* callback called on any event by the connection handler.
- * It applies changes and returns zero, or < 0 if it wants immediate
- * destruction of the connection.
+ * It applies changes and returns zero, -1 if everything was destroyed,
+ * and -2 if the mux was destroyed, but the connection is still alive because
+ * it was upgraded to H2.
  */
 static int h1_process(struct h1c * h1c)
 {
 	struct connection *conn = h1c->conn;
+	int ret = -1;
 
 	TRACE_ENTER(H1_EV_H1C_WAKE, conn);
 
@@ -4296,11 +4298,20 @@ static int h1_process(struct h1c * h1c)
 		return 0;
 	}
 	else {
-		h1_release(h1c);
+		int relret;
+
+		relret = h1_release(h1c);
+		/*
+		 * Okay if we just released the mux, but the connection itself
+		 * is alive, because we upgraded to H2, we have to let the
+		 * caller know.
+		 */
+		if (relret == -1)
+			ret = -2;
 		TRACE_DEVEL("leaving after releasing the connection", H1_EV_H1C_WAKE);
 	}
   released:
-	return -1;
+	return ret;
 }
 
 struct task *h1_io_cb(struct task *t, void *ctx, unsigned int state)
@@ -4406,7 +4417,13 @@ static int h1_wake(struct connection *conn)
 
 		if (h1c->state == H1_CS_UPGRADING || h1c->state == H1_CS_RUNNING)
 			h1_alert(h1s);
-	}
+	/*
+	 * If we just destroyed the mux, but the connection is still alive,
+	 * because the mux has been upgraded to H2, then from the caller's
+	 * point of view, everything is okay, so return 0.
+	 */
+	} else if (ret == -2)
+		ret = 0;
 	return ret;
 }
 
@@ -4585,7 +4602,7 @@ static void h1_detach(struct sedesc *sd)
 		 * subscribe for reads waiting for new data
 		 */
 		if (unlikely(b_data(&h1c->ibuf))) {
-			if (h1_process(h1c) == -1)
+			if (h1_process(h1c) < 0)
 				goto end;
 		}
 		else
