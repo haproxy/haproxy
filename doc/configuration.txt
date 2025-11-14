@@ -1185,6 +1185,21 @@ The list of currently supported predicates is the following:
                             in the features list reported by "haproxy -vv"
                             (which means a <name> appears after a '+')
 
+  - openssl_version_atleast(<ver>) : returns true if the current openssl
+                            version is at least as recent as <ver> otherwise
+                            false.
+                            Libraries like LibreSSL, AWS-LC and WolfSSL also
+                            provide a pseudo OpenSSL version.
+                            Example:
+                              ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1)
+
+  - openssl_version_before(<ver>) : returns true if the current openssl
+                            version is strictly older than <ver> otherwise
+                            false.
+                            Libraries like LibreSSL, AWS-LC and WolfSSL also
+                            provide a pseudo OpenSSL version.
+                            Example: openssl_version_before(3.5.0)
+
   - ssllib_name_startswith(<name>)  : return true if the SSL library name
                             HAProxy was linked with, starts with <name>.
                             Example: ssllib_name_startswith(wolfSSL)
