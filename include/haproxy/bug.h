@@ -40,6 +40,23 @@
 #define DPRINTF(x...)
 #endif
 
+/* Let's make DEBUG_STRESS equal to zero if not set or not valid, or to
+ * 1 if set. This way it is always set and should be easy to use in "if ()"
+ * statements without requiring ifdefs, while remaining compatible with
+ * "#if DEBUG_STRESS > 0". We also force DEBUG_STRICT and DEBUG_STRICT_ACTION
+ * when stressed.
+ */
+#if !defined(DEBUG_STRESS)
+# define DEBUG_STRESS 0
+#elif DEBUG_STRESS != 0
+# undef DEBUG_STRESS
+# define DEBUG_STRESS 1        // make sure comparison >0 always works
+# undef DEBUG_STRICT
+# define DEBUG_STRICT 2        // enable BUG_ON
+# undef DEBUG_STRICT_ACTION
+# define DEBUG_STRICT_ACTION 3 // enable crash on match
+#endif
+
 #define DUMP_TRACE() do { extern void ha_backtrace_to_stderr(void); ha_backtrace_to_stderr(); } while (0)
 
 /* First, let's try to handle some arch-specific crashing methods. We prefer

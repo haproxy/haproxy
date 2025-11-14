@@ -1,7 +1,7 @@
 #ifndef _HAPROXY_STRESS_H
 #define _HAPROXY_STRESS_H
 
-#ifdef DEBUG_STRESS
+#if defined(DEBUG_STRESS) && (DEBUG_STRESS > 0)
 enum { mode_stress = 1 };
 #else
 enum { mode_stress = 0 };
