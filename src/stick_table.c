@@ -131,6 +131,7 @@ void stksess_free(struct stktable *t, struct stksess *ts)
 int __stksess_kill(struct stktable *t, struct stksess *ts)
 {
 	int updt_locked = 0;
+	int removed = 0;
 
 	if (HA_ATOMIC_LOAD(&ts->ref_cnt))
 		return 0;
@@ -153,11 +154,12 @@ int __stksess_kill(struct stktable *t, struct stksess *ts)
 	eb32_delete(&ts->upd);
 	ebmb_delete(&ts->key);
 	__stksess_free(t, ts);
+	removed = 1;
 
   out_unlock:
 	if (updt_locked)
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
-	return 1;
+	return removed;
 }
 
 /*
