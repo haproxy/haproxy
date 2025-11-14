@@ -1185,6 +1185,10 @@ The list of currently supported predicates is the following:
                             in the features list reported by "haproxy -vv"
                             (which means a <name> appears after a '+')
 
+  - ssllib_name_startswith(<name>)  : return true if the SSL library name
+                            HAProxy was linked with, starts with <name>.
+                            Example: ssllib_name_startswith(wolfSSL)
+
   - streq(<str1>,<str2>)  : returns true only if the two strings are equal
   - strneq(<str1>,<str2>) : returns true only if the two strings differ
   - strstr(<str1>,<str2>) : returns true only if the second string is found in
