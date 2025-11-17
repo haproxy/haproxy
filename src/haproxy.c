@@ -3165,7 +3165,6 @@ int main(int argc, char **argv)
 	struct cfgfile *cfg, *cfg_tmp;
 	struct ring *tmp_startup_logs = NULL;
 	struct mworker_proc *proc;
-	char *msg = "READY\n";
 
 	/* Catch broken toolchains */
 	if (sizeof(long) != sizeof(void *) || (intovf + 0x7FFFFFFF >= intovf)) {
@@ -3712,6 +3711,8 @@ int main(int argc, char **argv)
 	 * message received from the worker to the launching process, see _send_status().
 	 */
 	if ((global.mode & MODE_DAEMON) && !(global.mode & MODE_MWORKER)) {
+		const char *msg = "READY\n";
+
 		if (write(daemon_fd[1], msg, strlen(msg)) < 0) {
 			ha_alert("[%s.main()] Failed to write into pipe with parent process: %s\n", progname, strerror(errno));
 			exit(1);
