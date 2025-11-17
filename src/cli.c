@@ -2652,6 +2652,8 @@ static int _send_status(char **args, char *payload, struct appctx *appctx, void 
 	if (global.tune.options & GTUNE_USE_SYSTEMD)
 		sd_notifyf(0, "READY=1\nMAINPID=%lu\nSTATUS=Ready.\n", (unsigned long)getpid());
 
+	mworker_unblock_signals();
+
 	/* master and worker have successfully started, now we can set quiet mode
 	 * if MODE_DAEMON
 	 */

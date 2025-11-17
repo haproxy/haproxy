@@ -2601,6 +2601,7 @@ static void run_master_in_recovery_mode(int argc, char **argv)
 		global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
 	}
 
+	mworker_unblock_signals();
 	/* enter in master polling loop */
 	mworker_run_master();
 }

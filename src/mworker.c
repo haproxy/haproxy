@@ -278,8 +278,35 @@ void mworker_block_signals()
 	ha_sigmask(SIG_SETMASK, &set, NULL);
 }
 
+void mworker_unblock_sigchld()
+{
+	sigset_t set;
+
+	signal_register_fct(SIGCHLD, mworker_catch_sigchld, SIGCHLD);
+
+	sigemptyset(&set);
+	sigaddset(&set, SIGCHLD);
+
+	ha_sigmask(SIG_UNBLOCK, &set, NULL);
+}
+
 void mworker_unblock_signals()
 {
+	signal_unregister(SIGTTIN);
+	signal_unregister(SIGTTOU);
+	signal_unregister(SIGUSR1);
+	signal_unregister(SIGHUP);
+	signal_unregister(SIGQUIT);
+
+	signal_register_fct(SIGTERM, mworker_catch_sigterm, SIGTERM);
+	signal_register_fct(SIGUSR1, mworker_catch_sigterm, SIGUSR1);
+	signal_register_fct(SIGTTIN, mworker_broadcast_signal, SIGTTIN);
+	signal_register_fct(SIGTTOU, mworker_broadcast_signal, SIGTTOU);
+	signal_register_fct(SIGINT, mworker_catch_sigterm, SIGINT);
+	signal_register_fct(SIGHUP, mworker_catch_sighup, SIGHUP);
+	signal_register_fct(SIGUSR2, mworker_catch_sighup, SIGUSR2);
+	signal_register_fct(SIGCHLD, mworker_catch_sigchld, SIGCHLD);
+
 	haproxy_unblock_signals();
 }
 
@@ -1117,23 +1144,7 @@ static void mworker_loop()
 	/* Busy polling makes no sense in the master :-) */
 	global.tune.options &= ~GTUNE_BUSY_POLLING;
 
-
-	signal_unregister(SIGTTIN);
-	signal_unregister(SIGTTOU);
-	signal_unregister(SIGUSR1);
-	signal_unregister(SIGHUP);
-	signal_unregister(SIGQUIT);
-
-	signal_register_fct(SIGTERM, mworker_catch_sigterm, SIGTERM);
-	signal_register_fct(SIGUSR1, mworker_catch_sigterm, SIGUSR1);
-	signal_register_fct(SIGTTIN, mworker_broadcast_signal, SIGTTIN);
-	signal_register_fct(SIGTTOU, mworker_broadcast_signal, SIGTTOU);
-	signal_register_fct(SIGINT, mworker_catch_sigterm, SIGINT);
-	signal_register_fct(SIGHUP, mworker_catch_sighup, SIGHUP);
-	signal_register_fct(SIGUSR2, mworker_catch_sighup, SIGUSR2);
-	signal_register_fct(SIGCHLD, mworker_catch_sigchld, SIGCHLD);
-
-	mworker_unblock_signals();
+	mworker_unblock_sigchld();
 	mworker_cleantasks();
 
 	mworker_catch_sigchld(NULL); /* ensure we clean the children in case
