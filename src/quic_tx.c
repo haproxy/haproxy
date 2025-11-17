@@ -521,6 +521,16 @@ enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms,
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 
+	if (!qel) {
+		BUG_ON(!qc_is_back(qc) ||
+		       !(__objt_server(qc->conn->target)->ssl_ctx.options & SRV_SSL_O_EARLY_DATA));
+		/* This may happen when 0-RTT is enabled without early-data level secrets.
+		 * This always occurs when the server peer does not support 0-RTT.
+		 */
+		TRACE_DEVEL("cannot send at 0-RTT level", QUIC_EV_CONN_TXPKT, qc);
+		return QUIC_TX_ERR_NONE;
+	}
+
 	if (qc->conn->flags & CO_FL_SOCK_WR_SH) {
 		qc->conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH;
 		TRACE_DEVEL("connection on error", QUIC_EV_CONN_TXPKT, qc);

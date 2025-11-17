@@ -209,8 +209,11 @@ static int qc_xprt_start(struct connection *conn, void *ctx)
 	/* Schedule quic-conn to ensure post handshake frames are emitted. This
 	 * is not done for 0-RTT as xprt->start happens before handshake
 	 * completion.
+	 * Note that, when 0-RTT is enabled for backend connections, it is
+	 * possible that the ealy-data secrets could not be derived. This is the
+	 * case when the server does not support 0-RTT.
 	 */
-	if ((qc_is_back(qc) && !qc_is_conn_ready(qc)) ||
+	if ((qc_is_back(qc) && (!qc_is_conn_ready(qc) || !qc->eel)) ||
 	    (qc->flags & QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS))
 		tasklet_wakeup(qc->wait_event.tasklet);
 
