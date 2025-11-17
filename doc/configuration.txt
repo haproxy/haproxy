@@ -2984,6 +2984,8 @@ mworker-max-reloads <number>
   SIGTERM. This option helps to keep under control the number of workers.
   See also "show proc" in the Management Guide.
 
+  By default this value is set to 50.
+
 nbthread <number>
   This setting is only available when support for threads was built in. It
   makes HAProxy run on <number> threads. "nbthread" also works when HAProxy is
