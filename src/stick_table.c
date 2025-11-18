@@ -376,7 +376,7 @@ int stktable_trash_oldest(struct stktable *t)
 			 * with that lock held, will grab a ref_cnt before releasing the
 			 * lock. So we must take this lock as well and check the ref_cnt.
 			 */
-			if (!updt_locked) {
+			if (!updt_locked && ts->upd.node.leaf_p) {
 				updt_locked = 1;
 				HA_RWLOCK_WRLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
 			}
@@ -1063,7 +1063,7 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 			 * with that lock held, will grab a ref_cnt before releasing the
 			 * lock. So we must take this lock as well and check the ref_cnt.
 			 */
-			if (!updt_locked) {
+			if (!updt_locked && ts->upd.node.leaf_p) {
 				updt_locked = 1;
 				HA_RWLOCK_WRLOCK(STK_TABLE_UPDT_LOCK, &t->updt_lock);
 			}
