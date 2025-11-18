@@ -622,29 +622,20 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 		stktable_requeue_exp(t, ts);
 	}
 
-	/* If sync is enabled */
-	if (t->sync_task) {
-		if (local) {
-			/* Check if this entry is not in the tree or not
-			 * scheduled for at least one peer.
-			 */
-			if (!ts->upd.node.leaf_p || _HA_ATOMIC_LOAD(&ts->seen) || !ts->updt_is_local) {
-				_HA_ATOMIC_STORE(&ts->updt_is_local, 1);
-				did_append = MT_LIST_TRY_APPEND(&t->pend_updts[tgid - 1], &ts->pend_updts);
-			}
-		}
-		else {
-			if (!ts->upd.node.leaf_p) {
-				_HA_ATOMIC_STORE(&ts->updt_is_local, 0);
-				did_append = MT_LIST_TRY_APPEND(&t->pend_updts[tgid - 1], &ts->pend_updts);
-			}
+	/* If sync is enabled and the session is local */
+	if (t->sync_task && local) {
+		/* Check if this entry is not in the tree or not
+		 * scheduled for at least one peer.
+		 */
+		if (!ts->upd.node.leaf_p || _HA_ATOMIC_LOAD(&ts->seen) || !ts->updt_is_local) {
+			_HA_ATOMIC_STORE(&ts->updt_is_local, 1);
+			did_append = MT_LIST_TRY_APPEND(&t->pend_updts[tgid - 1], &ts->pend_updts);
 		}
 
-	}
-
-	if (did_append) {
-		HA_ATOMIC_INC(&ts->ref_cnt);
-		tasklet_wakeup(t->updt_task);
+		if (did_append) {
+			HA_ATOMIC_INC(&ts->ref_cnt);
+			tasklet_wakeup(t->updt_task);
+		}
 	}
 
 	if (decrefcnt)
@@ -828,7 +819,7 @@ struct task *stktable_add_pend_updates(struct task *t, void *ctx, unsigned int s
 {
 	struct stktable *table = ctx;
 	struct eb32_node *eb;
-	int i = 0, is_local, cur_tgid = tgid - 1, empty_tgid = 0;
+	int i = 0, cur_tgid = tgid - 1, empty_tgid = 0;
 
 	/* we really don't want to wait on this one */
 	if (HA_RWLOCK_TRYWRLOCK(STK_TABLE_LOCK, &table->updt_lock) != 0)
@@ -847,19 +838,15 @@ struct task *stktable_add_pend_updates(struct task *t, void *ctx, unsigned int s
 				break;
 			continue;
 		}
+		BUG_ON(!stksess->updt_is_local);
 		cur_tgid++;
 		empty_tgid = 0;
 		if (cur_tgid == global.nbtgroups)
 			cur_tgid = 0;
-		is_local = stksess->updt_is_local;
 		stksess->seen = 0;
-		if (is_local) {
-			stksess->upd.key = ++table->update;
-			table->localupdate = table->update;
-			eb32_delete(&stksess->upd);
-		} else {
-			stksess->upd.key = (++table->update) + (2147483648U);
-		}
+		stksess->upd.key = ++table->update;
+		table->localupdate = table->update;
+		eb32_delete(&stksess->upd);
 
 		/* even though very unlikely, it seldom happens that the entry
 		 * is already in the tree (both for local and remote ones). We
