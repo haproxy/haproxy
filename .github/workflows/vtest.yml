@@ -113,7 +113,7 @@ jobs:
           DEBUG="-DDEBUG_POOL_INTEGRITY -DDEBUG_UNIT" \
           ${{ join(matrix.FLAGS, ' ') }} \
           ADDLIB="-Wl,-rpath,/usr/local/lib/ -Wl,-rpath,$HOME/opt/lib/"
-        sudo make install
+        sudo make install-bin
     - name: Compile admin/halog/halog
       run: |
         make -j$(nproc) admin/halog/halog \
