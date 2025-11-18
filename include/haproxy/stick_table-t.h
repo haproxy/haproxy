@@ -226,7 +226,6 @@ struct stktable {
 	struct eb_root updates;   /* head of sticky updates sequence tree, uses updt_lock */
 	struct mt_list *pend_updts; /* list of updates to be added to the update sequence tree, one per thread-group */
 	unsigned int update;      /* uses updt_lock */
-	unsigned int localupdate; /* uses updt_lock */
 	struct tasklet *updt_task;/* tasklet responsible for pushing the pending updates into the tree */
 
 	THREAD_ALIGN(64);

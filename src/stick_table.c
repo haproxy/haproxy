@@ -845,7 +845,6 @@ struct task *stktable_add_pend_updates(struct task *t, void *ctx, unsigned int s
 			cur_tgid = 0;
 		stksess->seen = 0;
 		stksess->upd.key = ++table->update;
-		table->localupdate = table->update;
 		eb32_delete(&stksess->upd);
 
 		/* even though very unlikely, it seldom happens that the entry

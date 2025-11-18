@@ -1541,17 +1541,17 @@ static inline struct stksess *peer_update_stksess_lookup(struct shared_table *st
 	if (!eb) {
 		eb = eb32_first(&st->table->updates);
 		if (!eb || (eb->key == st->last_pushed)) {
-			st->last_pushed = st->table->localupdate;
+			st->last_pushed = st->table->update;
 			return NULL;
 		}
 	}
 
 	/* if distance between the last pushed and the retrieved key
-	 * is greater than the distance last_pushed and the local_update
-	 * this means we are beyond localupdate.
+	 * is greater than the distance last_pushed and the update
+	 * this means we are beyond update.
 	 */
-	if ((eb->key - st->last_pushed) > (st->table->localupdate - st->last_pushed)) {
-		st->last_pushed = st->table->localupdate;
+	if ((eb->key - st->last_pushed) > (st->table->update - st->last_pushed)) {
+		st->last_pushed = st->table->update;
 		return NULL;
 	}
 
@@ -2787,7 +2787,7 @@ int peer_send_msgs(struct appctx *appctx,
 					repl = -1;
 					goto end;
 				}
-				must_send = (peer->learnstate == PEER_LR_ST_NOTASSIGNED) && (st->last_pushed != st->table->localupdate);
+				must_send = (peer->learnstate == PEER_LR_ST_NOTASSIGNED) && (st->last_pushed != st->table->update);
 				HA_RWLOCK_RDUNLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
 
 				if (must_send) {
@@ -2982,21 +2982,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 	/* Init cursors */
 	for (st = peer->tables; st ; st = st->next) {
 		st->last_get = st->last_acked = 0;
-		HA_RWLOCK_WRLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
-		/* if st->update appears to be in future it means
-		 * that the last acked value is very old and we
-		 * remain unconnected a too long time to use this
-		 * acknowledgement as a reset.
-		 * We should update the protocol to be able to
-		 * signal the remote peer that it needs a full resync.
-		 * Here a partial fix consist to set st->update at
-		 * the max past value.
-		 */
-		if ((int)(st->table->localupdate - st->update) < 0)
-			st->update = st->table->localupdate + (2147483648U);
-		st->last_pushed = st->update;
-		HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
-
+		st->last_pushed = HA_ATOMIC_LOAD(&st->update);
 		st->ts = NULL;
 		st->bucket = 0;
 		st->resync_end = TICK_ETERNITY;
@@ -3701,7 +3687,7 @@ static void __process_running_peer_sync(struct task *task, struct peers *peers, 
 
 					/* Awake session if there is data to push */
 					for (st = peer->tables; st ; st = st->next) {
-						if (st->last_pushed != st->table->localupdate) {
+						if (st->last_pushed != st->table->update) {
 							/* wake up the peer handler to push local updates */
 							update_to_push = 1;
 							/* There is no need to send a heartbeat message
@@ -3890,7 +3876,7 @@ static void __process_stopping_peer_sync(struct task *task, struct peers *peers,
 		/* current peer connection is active and established
 		 * wake up all peer handlers to push remaining local updates */
 		for (st = peer->tables; st ; st = st->next) {
-			if (st->last_pushed != st->table->localupdate) {
+			if (st->last_pushed != st->table->update) {
 				appctx_wakeup(peer->appctx);
 				break;
 			}
@@ -4339,8 +4325,8 @@ static int peers_dump_peer(struct buffer *msg, struct appctx *appctx, struct pee
 			              st->flags, (unsigned long long)st->remote_data);
 			chunk_appendf(&trash, "\n              last_acked=%u last_pushed=%u last_get=%u update=%u",
 			              st->last_acked, st->last_pushed, st->last_get, st->update);
-			chunk_appendf(&trash, "\n              table:%p id=%s update=%u localupdate=%u refcnt=%u",
-			              t, t->id, t->update, t->localupdate, t->refcnt);
+			chunk_appendf(&trash, "\n              table:%p id=%s update=%u refcnt=%u",
+			              t, t->id, t->update, t->refcnt);
 			if (flags & PEERS_SHOW_F_DICT) {
 				chunk_appendf(&trash, "\n        TX dictionary cache:");
 				count = 0;
