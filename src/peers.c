@@ -52,10 +52,6 @@
 /***********************************/
 /* Current shared table sync state */
 /***********************************/
-#define SHTABLE_F_TEACH_STAGE1      0x00000001 /* Teach state 1 complete */
-#define SHTABLE_F_TEACH_STAGE2      0x00000002 /* Teach state 2 complete */
-
-
 #define PEER_RESYNC_TIMEOUT         5000 /* 5 seconds */
 #define PEER_RECONNECT_TIMEOUT      5000 /* 5 seconds */
 #define PEER_LOCAL_RECONNECT_TIMEOUT 500 /* 500ms */
@@ -1088,6 +1084,17 @@ void __peer_session_deinit(struct peer *peer)
 	if (!peers || !peer->appctx)
 		return;
 
+	if (peer->flags & PEER_F_TEACH_PROCESS) {
+		struct shared_table *st;
+
+		for (st = peer->tables; st ; st = st->next) {
+			if (st->ts) {
+				HA_ATOMIC_DEC(&st->ts->ref_cnt);
+				st->ts = NULL;
+			}
+		}
+	}
+
 	thr = peer->appctx->t->tid;
 	HA_ATOMIC_DEC(&peers->applet_count[thr]);
 
@@ -1270,7 +1277,6 @@ static inline int peer_send_msg(struct appctx *appctx,
 			appctx->st0 = PEER_SESS_ST_END;
 		}
 	}
-
 	TRACE_LEAVE(PEERS_EV_SESS_IO|PEERS_EV_TX_MSG, appctx);
 	return ret;
 }
@@ -1524,9 +1530,9 @@ static inline int peer_send_error_protomsg(struct appctx *appctx)
 
 /*
  * Function used to lookup for recent stick-table updates associated with
- * <st> shared stick-table when a lesson must be taught a peer (learn state is not PEER_LR_ST_NOTASSIGNED).
+ * shared stick-table <st>. No full resync is running when this happens.
  */
-static inline struct stksess *peer_teach_process_stksess_lookup(struct shared_table *st)
+static inline struct stksess *peer_update_stksess_lookup(struct shared_table *st)
 {
 	struct eb32_node *eb;
 	struct stksess *ret;
@@ -1556,68 +1562,138 @@ static inline struct stksess *peer_teach_process_stksess_lookup(struct shared_ta
 }
 
 /*
- * Function used to lookup for recent stick-table updates associated with
- * <st> shared stick-table during teach state 1 step.
+ * Function to lookup for sticky session in the table associated to the shared
+ * stick-table <st>. This hapens during a full resync only.
  */
-static inline struct stksess *peer_teach_stage1_stksess_lookup(struct shared_table *st)
+static inline struct stksess *peer_resync_stksess_lookup(struct shared_table *st)
 {
-	struct eb32_node *eb;
-	struct stksess *ret;
+	struct ebmb_node *eb;
+	struct stksess *ts = NULL;
 
-	eb = eb32_lookup_ge(&st->table->updates, st->last_pushed+1);
-	if (!eb) {
-		st->flags |= SHTABLE_F_TEACH_STAGE1;
-		eb = eb32_first(&st->table->updates);
-		if (eb)
-			st->last_pushed = eb->key - 1;
-		return NULL;
+	if (st->ts) {
+		eb = ebmb_next(&st->ts->key);
+		HA_ATOMIC_DEC(&st->ts->ref_cnt);
+		st->ts = NULL;
 	}
+	else
+		eb = ebmb_first(&st->table->buckets[st->bucket].keys);
 
-	ret = eb32_entry(eb, struct stksess, upd);
-	if (!_HA_ATOMIC_LOAD(&ret->seen))
-		_HA_ATOMIC_STORE(&ret->seen, 1);
-	return ret;
+	while (eb) {
+		ts = ebmb_entry(eb, struct stksess, key);
+		/* ignore session with an expire newer than <st->resync_end> */
+		if (tick_is_le(ts->expire, st->resync_end))
+			break;
+		eb = ebmb_next(eb);
+		ts = NULL;
+	}
+	return ts;
 }
 
 /*
- * Function used to lookup for recent stick-table updates associated with
- * <st> shared stick-table during teach state 2 step.
- */
-static inline struct stksess *peer_teach_stage2_stksess_lookup(struct shared_table *st)
-{
-	struct eb32_node *eb;
-	struct stksess *ret;
-
-	eb = eb32_lookup_ge(&st->table->updates, st->last_pushed+1);
-	if (!eb || eb->key > st->teaching_origin) {
-		st->flags |= SHTABLE_F_TEACH_STAGE2;
-		return NULL;
-	}
-
-	ret = eb32_entry(eb, struct stksess, upd);
-	if (!_HA_ATOMIC_LOAD(&ret->seen))
-		_HA_ATOMIC_STORE(&ret->seen, 1);
-	return ret;
-}
-
-/*
- * Generic function to emit update messages for <st> stick-table when a lesson must
- * be taught to the peer <p>.
+ * Function to emit "resync" update messages for <st> stick-table to the peer
+ * <p>, during a resynchro.
  *
- * This function temporary unlock/lock <st> when it sends stick-table updates or
- * when decrementing its refcount in case of any error when it sends this updates.
- * It must be called with the stick-table lock released.
+ * This function temporary get the lock on the current table bucket to get the
+ * entry to process.
  *
  * Return 0 if any message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
  * Returns -1 if there was not enough room left to send the message,
  * any other negative returned value must  be considered as an error with an appcxt st0
  * returned value equal to PEER_SESS_ST_END.
- * If it returns 0 or -1, this function leave <st> locked if already locked when entering this function
- * unlocked if not already locked when entering this function.
  */
-int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
-                        struct stksess *(*peer_stksess_lookup)(struct shared_table *),
-                        struct shared_table *st)
+int peer_send_resync_updates(struct appctx *appctx, struct peer *p, struct shared_table *st)
+{
+	int ret, new_pushed, use_timed;
+	int updates_sent = 0;
+	int failed_once = 0;
+	unsigned int updateid = 0;
+
+	TRACE_ENTER(PEERS_EV_SESS_IO, appctx, p, st);
+
+	ret = 1;
+	use_timed = !(p->flags & PEER_F_DWNGRD);
+	new_pushed = 1;
+
+	/* This stick-table was already fully sync */
+	if (st->bucket >= CONFIG_HAP_TBL_BUCKETS)
+		goto out;
+
+	/* Be sure to set the stop point to not resync infinitly */
+	if (!tick_isset(st->resync_end))
+		st->resync_end = tick_add(now_ms, st->table->expire);
+
+	while (1) {
+		if (HA_RWLOCK_TRYRDLOCK(STK_TABLE_LOCK, &st->table->buckets[st->bucket].sh_lock) != 0) {
+			/* just don't engage here if there is any contention */
+			applet_have_more_data(appctx);
+			ret = -1;
+			break;
+		}
+
+		/* Lookup for the next session to resync */
+		st->ts = peer_resync_stksess_lookup(st);
+		if (!st->ts) {
+			/* The bucket was fully teached. Unlock it and go to the next one */
+			HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &st->table->buckets[st->bucket].sh_lock);
+			st->bucket++;
+			if (st->bucket >= CONFIG_HAP_TBL_BUCKETS)
+				break;
+			goto next;
+		}
+
+		/* Increment the session ref_cnt to be sure it will never be released and unlock the bucket */
+		HA_ATOMIC_INC(&st->ts->ref_cnt);
+		HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &st->table->buckets[st->bucket].sh_lock);
+
+		if (st != p->last_local_table) {
+			/* There is a session to send but the table was not annonced yet, do it now */
+			ret = peer_send_switchmsg(st, appctx);
+			if (ret <= 0)
+				break;
+
+			p->last_local_table = st;
+			TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, PEERS_EV_PROTO_SWITCH, appctx, NULL, st, NULL,
+				     "table switch message sent (table=%s)", st->table->id);
+		}
+
+		ret = peer_send_updatemsg(st, appctx, st->ts, updateid++, new_pushed, use_timed);
+		if (ret <= 0)
+			break;
+		new_pushed = 0;
+
+		/* The session was sent, get the next one */
+		TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, PEERS_EV_PROTO_UPDATE, appctx, NULL, st, NULL,
+			     "resync update message sent (table=%s, bucket=%u, updateid=%u)", st->table->id, st->bucket, updateid);
+
+
+	  next:
+		/* identifier may not needed in next update message */
+		updates_sent++;
+		if (failed_once || updates_sent >= peers_max_updates_at_once) {
+			applet_have_more_data(appctx);
+			ret = -1;
+			break;
+		}
+	}
+
+  out:
+	TRACE_LEAVE(PEERS_EV_SESS_IO, appctx, p, st);
+	return ret;
+}
+
+/*
+ * Function to emit "regular" update messages for <st> stick-table to the peer
+ * <p>, outside of any resynchro.
+ *
+ * This function temporary get the lock on the stick-table update tree when to get
+ * the stick-table entry to process.
+ *
+ * Return 0 if any message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
+ * Returns -1 if there was not enough room left to send the message,
+ * any other negative returned value must  be considered as an error with an appcxt st0
+ * returned value equal to PEER_SESS_ST_END.
+ */
+static int peer_send_update_msgs(struct appctx *appctx, struct peer *p, struct shared_table *st)
 {
 	int ret, new_pushed, use_timed;
 	int updates_sent = 0;
@@ -1637,9 +1713,6 @@ int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 			     "table switch message sent (table=%s)", st->table->id);
 	}
 
-	if (peer_stksess_lookup != peer_teach_process_stksess_lookup)
-		use_timed = !(p->flags & PEER_F_DWNGRD);
-
 	/* We force new pushed to 1 to force identifier in update message */
 	new_pushed = 1;
 
@@ -1655,7 +1728,7 @@ int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 		unsigned updateid;
 
 		/* push local updates */
-		ts = peer_stksess_lookup(st);
+		ts = peer_update_stksess_lookup(st);
 		if (!ts) {
 			ret = 1; // done
 			break;
@@ -1717,60 +1790,6 @@ int peer_send_teachmsgs(struct appctx *appctx, struct peer *p,
 	TRACE_LEAVE(PEERS_EV_SESS_IO, appctx, p, st);
 	return ret;
 }
-
-/*
- * Function to emit update messages for <st> stick-table when a lesson must
- * be taught to the peer <p> (learn state is not PEER_LR_ST_NOTASSIGNED).
- *
- * Note that <st> shared stick-table is locked when calling this function, and
- * the lock is dropped then re-acquired.
- *
- * Return 0 if any message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
- * Returns -1 if there was not enough room left to send the message,
- * any other negative returned value must  be considered as an error with an appcxt st0
- * returned value equal to PEER_SESS_ST_END.
- */
-static inline int peer_send_teach_process_msgs(struct appctx *appctx, struct peer *p,
-                                               struct shared_table *st)
-{
-	TRACE_PROTO("send teach process messages", PEERS_EV_SESS_IO, appctx, p, st);
-	return peer_send_teachmsgs(appctx, p, peer_teach_process_stksess_lookup, st);
-}
-
-/*
- * Function to emit update messages for <st> stick-table when a lesson must
- * be taught to the peer <p> during teach state 1 step. It must be called with
- * the stick-table lock released.
- *
- * Return 0 if any message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
- * Returns -1 if there was not enough room left to send the message,
- * any other negative returned value must  be considered as an error with an appcxt st0
- * returned value equal to PEER_SESS_ST_END.
- */
-static inline int peer_send_teach_stage1_msgs(struct appctx *appctx, struct peer *p,
-                                              struct shared_table *st)
-{
-	TRACE_PROTO("send teach stage1 messages", PEERS_EV_SESS_IO, appctx, p, st);
-	return peer_send_teachmsgs(appctx, p, peer_teach_stage1_stksess_lookup, st);
-}
-
-/*
- * Function to emit update messages for <st> stick-table when a lesson must
- * be taught to the peer <p> during teach state 1 step. It must be called with
- * the stick-table lock released.
- *
- * Return 0 if any message could not be built modifying the appcxt st0 to PEER_SESS_ST_END value.
- * Returns -1 if there was not enough room left to send the message,
- * any other negative returned value must  be considered as an error with an appcxt st0
- * returned value equal to PEER_SESS_ST_END.
- */
-static inline int peer_send_teach_stage2_msgs(struct appctx *appctx, struct peer *p,
-                                              struct shared_table *st)
-{
-	TRACE_PROTO("send teach stage2 messages", PEERS_EV_SESS_IO, appctx, p, st);
-	return peer_send_teachmsgs(appctx, p, peer_teach_stage2_stksess_lookup, st);
-}
-
 
 /*
  * Function used to parse a stick-table update message after it has been received
@@ -2589,7 +2608,9 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 			TRACE_PROTO("Resync request message received", PEERS_EV_SESS_IO|PEERS_EV_RX_MSG|PEERS_EV_PROTO_CTRL, appctx, peer);
 			/* prepare tables for a global push */
 			for (st = peer->tables; st; st = st->next) {
-				st->teaching_origin = st->last_pushed = st->update;
+				st->ts = NULL;
+				st->bucket = 0;
+				st->resync_end = TICK_ETERNITY;
 				st->flags = 0;
 			}
 
@@ -2633,7 +2654,8 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 				return 0;
 			}
 			for (st = peer->tables; st; st = st->next) {
-				st->update = st->last_pushed = st->teaching_origin;
+				st->ts = NULL;
+				st->bucket = 0;
 				st->flags = 0;
 			}
 
@@ -2769,28 +2791,18 @@ int peer_send_msgs(struct appctx *appctx,
 				HA_RWLOCK_RDUNLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
 
 				if (must_send) {
-					repl = peer_send_teach_process_msgs(appctx, peer, st);
+					repl = peer_send_update_msgs(appctx, peer, st);
 					if (repl <= 0) {
 						peer->stop_local_table = peer->last_local_table;
 						goto end;
 					}
 				}
 			}
-			else if (!(peer->flags & PEER_F_TEACH_FINISHED)) {
-				if (!(st->flags & SHTABLE_F_TEACH_STAGE1)) {
-					repl = peer_send_teach_stage1_msgs(appctx, peer, st);
-					if (repl <= 0) {
-						peer->stop_local_table = peer->last_local_table;
-						goto end;
-					}
-				}
-
-				if (!(st->flags & SHTABLE_F_TEACH_STAGE2)) {
-					repl = peer_send_teach_stage2_msgs(appctx, peer, st);
-					if (repl <= 0) {
-						peer->stop_local_table = peer->last_local_table;
-						goto end;
-					}
+			else {
+				repl = peer_send_resync_updates(appctx, peer, st);
+				if (repl <= 0) {
+					peer->stop_local_table = peer->last_local_table;
+					goto end;
 				}
 			}
 
@@ -2982,10 +2994,13 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 		 */
 		if ((int)(st->table->localupdate - st->update) < 0)
 			st->update = st->table->localupdate + (2147483648U);
-		st->teaching_origin = st->last_pushed = st->update;
-		st->flags = 0;
-
+		st->last_pushed = st->update;
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &st->table->updt_lock);
+
+		st->ts = NULL;
+		st->bucket = 0;
+		st->resync_end = TICK_ETERNITY;
+		st->flags = 0;
 	}
 
 	/* Awake main task to ack the new peer state */
@@ -4322,9 +4337,8 @@ static int peers_dump_peer(struct buffer *msg, struct appctx *appctx, struct pee
 			              "flags=0x%x remote_data=0x%llx",
 			              st, st->local_id, st->remote_id,
 			              st->flags, (unsigned long long)st->remote_data);
-			chunk_appendf(&trash, "\n              last_acked=%u last_pushed=%u last_get=%u"
-			              " teaching_origin=%u update=%u",
-			              st->last_acked, st->last_pushed, st->last_get, st->teaching_origin, st->update);
+			chunk_appendf(&trash, "\n              last_acked=%u last_pushed=%u last_get=%u update=%u",
+			              st->last_acked, st->last_pushed, st->last_get, st->update);
 			chunk_appendf(&trash, "\n              table:%p id=%s update=%u localupdate=%u refcnt=%u",
 			              t, t->id, t->update, t->localupdate, t->refcnt);
 			if (flags & PEERS_SHOW_F_DICT) {
