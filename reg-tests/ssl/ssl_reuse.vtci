@@ -1,19 +1,11 @@
-#REGTEST_TYPE=devel
+# Uses VTC_SOCK_TYPE (quic / stream) TLSV (TLSv1.2 / TLSv1.3)
 
-# This reg-test tests 4 scenarios with and without resumption tickets, with TLSv1.3 and TLSv1.2
-# Each client will try to established a connection, then try to reconnect 20 times resuming.
-
-
-varnishtest "Test if the SSL session/ticket reuse work correctly"
-feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL_WOLFSSL) || feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1)'"
 feature ignore_unknown_macro
 
 server s1 -repeat 84 {
     rxreq
     txresp
 } -start
-
-setenv -ifunset VTC_SOCK_TYPE stream
 
 haproxy h1 -conf {
    global
@@ -39,16 +31,6 @@ haproxy h1 -conf {
         timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
         timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
-    listen clst1
-        bind "fd@${clst1}"
-        server s1 "${h1_fe1_addr}:${h1_fe1_port}" ssl verify none   sni str(www.test1.com)
-        http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
-
-    listen clst2
-        bind "fd@${clst2}"
-        server s1 "${h1_fe2_addr}:${h1_fe2_port}" ssl verify none  sni str(www.test1.com)
-        http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
-
     listen clst3
         bind "fd@${clst3}"
         server s1 "${VTC_SOCK_TYPE}+${h1_fe3_addr}:${h1_fe3_port}" ssl verify none  sni str(www.test1.com)
@@ -60,46 +42,13 @@ haproxy h1 -conf {
         http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
 
     listen ssl
-        bind "fd@${fe1}" ssl crt ${testdir}/common.pem ssl-max-ver TLSv1.2
-        bind "fd@${fe2}" ssl crt ${testdir}/common.pem ssl-max-ver TLSv1.2 no-tls-tickets
-        bind "${VTC_SOCK_TYPE}+fd@${fe3}" ssl crt ${testdir}/common.pem ssl-min-ver TLSv1.3
-        bind "${VTC_SOCK_TYPE}+fd@${fe4}" ssl crt ${testdir}/common.pem ssl-min-ver TLSv1.3 no-tls-tickets
+        bind "${VTC_SOCK_TYPE}+fd@${fe3}" ssl crt ${testdir}/common.pem ssl-min-ver "${TLSV}" ssl-max-ver "${TLSV}"
+        bind "${VTC_SOCK_TYPE}+fd@${fe4}" ssl crt ${testdir}/common.pem ssl-min-ver "${TLSV}" ssl-max-ver "${TLSV}" no-tls-tickets
 
         http-response add-header x-ssl-resumed %[ssl_fc_is_resumed]
         server s1 ${s1_addr}:${s1_port}
 } -start
 
-
-# first bind
-# the first connection is not resumed
-client c1 -connect ${h1_clst1_sock} {
-    txreq
-    rxresp
-    expect resp.status == 200
-    expect resp.http.x-ssl-resumed == 0
-} -run
-# the next 20 connections are resumed
-client c1 -connect ${h1_clst1_sock} -repeat 20 {
-    txreq
-    rxresp
-    expect resp.status == 200
-    expect resp.http.x-ssl-resumed == 1
-} -run
-
-# second bind
-client c2 -connect ${h1_clst2_sock} {
-    txreq
-    rxresp
-    expect resp.status == 200
-    expect resp.http.x-ssl-resumed == 0
-} -run
-
-client c2 -connect ${h1_clst2_sock} -repeat 20 {
-    txreq
-    rxresp
-    expect resp.status == 200
-    expect resp.http.x-ssl-resumed == 1
-} -run
 
 # third bind
 client c3 -connect ${h1_clst3_sock} {
@@ -148,4 +97,3 @@ haproxy h1 -cli {
     send "show info"
     expect ~ ".*SslFrontendSessionReuse_pct: 95.*"
 }
-

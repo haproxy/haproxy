@@ -1,0 +1,11 @@
+#REGTEST_TYPE=devel
+
+# This reg-test tests 2 scenarios with and without resumption tickets, with QUIC/TLSv1.3
+# Each client will try to established a connection, then try to reconnect 20 times resuming.
+
+varnishtest "Test if the SSL session/ticket reuse works correctly for QUIC"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1)'"
+
+setenv VTC_SOCK_TYPE quic
+setenv TLSV TLSv1.3
+include ${testdir}/../ssl/ssl_reuse.vtci
