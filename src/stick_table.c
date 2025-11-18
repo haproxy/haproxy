@@ -642,8 +642,10 @@ void stktable_touch_with_exp(struct stktable *t, struct stksess *ts, int local, 
 
 	}
 
-	if (did_append)
+	if (did_append) {
+		HA_ATOMIC_INC(&ts->ref_cnt);
 		tasklet_wakeup(t->updt_task);
+	}
 
 	if (decrefcnt)
 		HA_ATOMIC_DEC(&ts->ref_cnt);
@@ -877,6 +879,7 @@ struct task *stktable_add_pend_updates(struct task *t, void *ctx, unsigned int s
 		 * it from the list, but before we inserted it into the tree
 		 */
 		MT_LIST_INIT(&stksess->pend_updts);
+		HA_ATOMIC_DEC(&stksess->ref_cnt);
 	}
 
 	HA_RWLOCK_WRUNLOCK(STK_TABLE_UPDT_LOCK, &table->updt_lock);
