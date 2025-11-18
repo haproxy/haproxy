@@ -1123,6 +1123,12 @@ install-doc:
 		$(INSTALL) -m 644 doc/$$x.txt "$(DESTDIR)$(DOCDIR)" ; \
 	done
 
+install-admin: admin/halog/halog
+	$(Q)$(INSTALL) -d "$(DESTDIR)$(SBINDIR)"
+	$(Q)$(INSTALL) admin/halog/halog "$(DESTDIR)$(SBINDIR)"
+	$(Q)$(INSTALL) admin/cli/haproxy-dump-certs "$(DESTDIR)$(SBINDIR)"
+	$(Q)$(INSTALL) admin/cli/haproxy-reload "$(DESTDIR)$(SBINDIR)"
+
 install-bin:
 	$(Q)for i in haproxy $(EXTRA); do \
 		if ! [ -e "$$i" ]; then \
@@ -1133,7 +1139,7 @@ install-bin:
 	$(Q)$(INSTALL) -d "$(DESTDIR)$(SBINDIR)"
 	$(Q)$(INSTALL) haproxy $(EXTRA) "$(DESTDIR)$(SBINDIR)"
 
-install: install-bin install-man install-doc
+install: install-bin install-admin install-man install-doc
 
 uninstall:
 	$(Q)rm -f "$(DESTDIR)$(MANDIR)"/man1/haproxy.1
