@@ -134,7 +134,8 @@ static forceinline char *peer_show_flags(char *buf, size_t len, const char *deli
 struct shared_table {
 	struct stktable *table;       /* stick table to sync */
 	struct stksess *ts;           /* next sticky session to send (only during a full resync) */
-	unsigned int bucket;          /* current bucket explored (only during a full resync) */
+	unsigned int init_bucket;     /* starting bucket (only during a full resync) */
+	unsigned int bucket;          /* current bucket (only during a full resync) */
 	unsigned int resync_end;      /* date to stop resync (session with expiration beyond this date are ignored during resync) */
 	int local_id;
 	int remote_id;

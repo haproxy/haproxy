@@ -1615,7 +1615,7 @@ int peer_send_resync_updates(struct appctx *appctx, struct peer *p, struct share
 	new_pushed = 1;
 
 	/* This stick-table was already fully sync */
-	if (st->bucket >= CONFIG_HAP_TBL_BUCKETS)
+	if (st->ts == NULL && st->bucket == st->init_bucket && tick_isset(st->resync_end))
 		goto out;
 
 	/* Be sure to set the stop point to not resync infinitly */
@@ -1637,6 +1637,8 @@ int peer_send_resync_updates(struct appctx *appctx, struct peer *p, struct share
 			HA_RWLOCK_RDUNLOCK(STK_TABLE_LOCK, &st->table->buckets[st->bucket].sh_lock);
 			st->bucket++;
 			if (st->bucket >= CONFIG_HAP_TBL_BUCKETS)
+				st->bucket = 0;
+			if (st->bucket == st->init_bucket)
 				break;
 			goto next;
 		}
@@ -2610,7 +2612,7 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 			for (st = peer->tables; st; st = st->next) {
 				st->ts = NULL;
 				st->bucket = 0;
-				st->resync_end = TICK_ETERNITY;
+				st->bucket = st->init_bucket = statistical_prng_range(CONFIG_HAP_TBL_BUCKETS - 1);
 				st->flags = 0;
 			}
 
@@ -2984,7 +2986,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 		st->last_get = st->last_acked = 0;
 		st->last_pushed = HA_ATOMIC_LOAD(&st->update);
 		st->ts = NULL;
-		st->bucket = 0;
+		st->bucket = st->init_bucket = statistical_prng_range(CONFIG_HAP_TBL_BUCKETS - 1);
 		st->resync_end = TICK_ETERNITY;
 		st->flags = 0;
 	}
