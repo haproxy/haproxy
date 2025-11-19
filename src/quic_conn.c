@@ -1554,7 +1554,7 @@ int quic_conn_release(struct quic_conn *qc)
 		ret = 1;
 	}
 
-	if (qc_test_fd(qc))
+	if (!qc_is_back(qc) && qc_test_fd(qc))
 		_HA_ATOMIC_DEC(&jobs);
 
 	/* Close quic-conn socket fd. */
