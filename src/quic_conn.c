@@ -694,7 +694,7 @@ static void quic_release_cc_conn(struct quic_conn_closed *cc_qc)
 	/* free the SSL sock context */
 	pool_free(pool_head_quic_conn_closed, cc_qc);
 
-	TRACE_ENTER(QUIC_EV_CONN_IO_CB);
+	TRACE_LEAVE(QUIC_EV_CONN_IO_CB);
 }
 
 /* QUIC connection packet handler task used when in "closing connection" state. */
