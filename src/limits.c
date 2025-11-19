@@ -454,8 +454,19 @@ void apply_nofile_limit(void)
 				limit.rlim_cur = global.fd_hard_limit;
 
 			if (global.tune.options & GTUNE_STRICT_LIMITS) {
-				ha_alert("[%s.main()] Cannot raise FD limit to %d, limit is %d.\n",
-					 progname, global.rlimit_nofile, (int)limit.rlim_cur);
+				/* suggest roughly half of the limit minus used FDs for listeners, checks
+				 * etc. This will give roughly round numbers for 64k and above while
+				 * reserving enough listeners for small values such as 1024.
+				 */
+				ha_alert("[%s.main()] Cannot raise FD limit to %d, current "
+					 "limit is %d and hard limit is %d. You may prefer to let HAProxy "
+					 "adjust the limit by itself; for this, please just drop any 'maxconn' and "
+					 "'ulimit-n' from the global section, and possibly add 'fd-hard-limit' lower "
+					 "than this hard limit. You may also force a new 'maxconn' value that is a bit "
+					 "lower than half of the hard limit minus listeners and checks. This results in "
+					 "roughly %u here.\n",
+					 progname, global.rlimit_nofile, (int)limit.rlim_cur, (int)limit.rlim_max,
+					 round_2dig((uint)MAX(limit.rlim_max - global.est_fd_usage, 3) * 49ULL / 100));
 				exit(1);
 			}
 			else {
@@ -469,6 +480,16 @@ void apply_nofile_limit(void)
 
 				ha_warning("[%s.main()] Cannot raise FD limit to %d, limit is %d.\n",
 					   progname, global.rlimit_nofile, (int)limit.rlim_cur);
+
+				ha_warning("[%s.main()] Cannot raise FD limit to %d, current "
+					   "limit is %d and hard limit is %d. You may prefer to let HAProxy "
+					   "adjust the limit by itself; for this, please just drop any 'maxconn' and "
+					   "'ulimit-n' from the global section, and possibly add 'fd-hard-limit' lower "
+					   "than this hard limit. You may also force a new 'maxconn' value that is a bit "
+					   "lower than half of the hard limit minus listeners and checks. This results in "
+					   "roughly %u here.\n",
+					   progname, global.rlimit_nofile, (int)limit.rlim_cur, (int)limit.rlim_max,
+					   round_2dig((uint)MAX(limit.rlim_max - global.est_fd_usage, 3) * 49ULL / 100));
 				global.rlimit_nofile = limit.rlim_cur;
 			}
 		}
