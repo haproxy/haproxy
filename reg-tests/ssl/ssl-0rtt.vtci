@@ -1,0 +1,238 @@
+# Uses VTC_SOCK_TYPE (quic / stream) TLSV (TLSv1.2 / TLSv1.3)
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+   global
+    .if streq("$VTC_SOCK_TYPE",quic)
+        # required for backend connections
+        expose-experimental-directives
+    .endif
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+    .if streq("$TLSV",TLSv1.3)
+        setenv ZRTT_SUPP 1
+    .else
+        setenv ZRTT_SUPP 0
+    .endif
+
+      # forced to 1 here, because there is a cached session per thread
+      nbthread 1
+
+
+    defaults
+        mode http
+        option httplog
+        option logasap
+        log stderr local0 debug err
+        option httpclose
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    # combinations: cl_{1r,0r}_{sf,st}_{1r,0r}
+    # sf/st: stateful/stateless tickets
+    # 1r/0r: 1rtt/0rtt, left: client, right: server
+    # we force ALPN to "$ALPN" because the next layer's SSL listener needs it.
+    listen cl_1r_sf_1r
+        bind "fd@${cl_1r_sf_1r}"
+        retry-on 0rtt-rejected
+        http-request add-header x-from %[be_name]
+        server s1 "${VTC_SOCK_TYPE}+${h1_sv_sf_1r_sock}" ssl verify none alpn "${ALPN}" sni str(www.test1.com)
+        http-response add-header x-early-rcvd-test OK if !{ ssl_bc_is_resumed } { res.hdr(x-ssl-early-rcvd) 0 }
+        http-response add-header x-early-rcvd-test OK if  { ssl_bc_is_resumed } { res.hdr(x-ssl-early-rcvd) 0 }
+
+    listen cl_1r_sl_1r
+        bind "fd@${cl_1r_sl_1r}"
+        retry-on 0rtt-rejected
+        http-request add-header x-from %[be_name]
+        server s1 "${VTC_SOCK_TYPE}+${h1_sv_sl_1r_sock}" ssl verify none alpn "${ALPN}" sni str(www.test1.com)
+        http-response add-header x-early-rcvd-test OK if !{ ssl_bc_is_resumed } { res.hdr(x-ssl-early-rcvd) 0 }
+        http-response add-header x-early-rcvd-test OK if  { ssl_bc_is_resumed } { res.hdr(x-ssl-early-rcvd) 0 }
+
+    listen cl_1r_sf_0r
+        bind "fd@${cl_1r_sf_0r}"
+        retry-on 0rtt-rejected
+        http-request add-header x-from %[be_name]
+        server s1 "${VTC_SOCK_TYPE}+${h1_sv_sf_0r_sock}" ssl verify none alpn "${ALPN}" sni str(www.test1.com)
+        http-response add-header x-early-rcvd-test OK if !{ ssl_bc_is_resumed } { res.hdr(x-ssl-early-rcvd) 0 }
+        http-response add-header x-early-rcvd-test OK if  { ssl_bc_is_resumed } { res.hdr(x-ssl-early-rcvd) 0 }
+
+    listen cl_1r_sl_0r
+        bind "fd@${cl_1r_sl_0r}"
+        retry-on 0rtt-rejected
+        http-request add-header x-from %[be_name]
+        server s1 "${VTC_SOCK_TYPE}+${h1_sv_sl_0r_sock}" ssl verify none alpn "${ALPN}" sni str(www.test1.com)
+        http-response add-header x-early-rcvd-test OK if !{ ssl_bc_is_resumed } { res.hdr(x-ssl-early-rcvd) 0 }
+        http-response add-header x-early-rcvd-test OK if  { ssl_bc_is_resumed } { res.hdr(x-ssl-early-rcvd) 0 }
+
+    listen cl_0r_sf_1r
+        bind "fd@${cl_0r_sf_1r}"
+        retry-on 0rtt-rejected
+        http-request add-header x-from %[be_name]
+        server s1 "${VTC_SOCK_TYPE}+${h1_sv_sf_1r_sock}" ssl verify none alpn "${ALPN}" sni str(www.test1.com) allow-0rtt
+        http-response add-header x-early-rcvd-test OK if !{ ssl_bc_is_resumed } { res.hdr(x-ssl-early-rcvd) 0 }
+        http-response add-header x-early-rcvd-test OK if  { ssl_bc_is_resumed } { res.hdr(x-ssl-early-rcvd) 0 }
+
+    listen cl_0r_sl_1r
+        bind "fd@${cl_0r_sl_1r}"
+        retry-on 0rtt-rejected
+        http-request add-header x-from %[be_name]
+        server s1 "${VTC_SOCK_TYPE}+${h1_sv_sl_1r_sock}" ssl verify none alpn "${ALPN}" sni str(www.test1.com) allow-0rtt
+        http-response add-header x-early-rcvd-test OK if !{ ssl_bc_is_resumed } { res.hdr(x-ssl-early-rcvd) 0 }
+        http-response add-header x-early-rcvd-test OK if  { ssl_bc_is_resumed } { res.hdr(x-ssl-early-rcvd) 0 }
+
+    listen cl_0r_sf_0r
+        bind "fd@${cl_0r_sf_0r}"
+        retry-on 0rtt-rejected
+        http-request add-header x-from %[be_name]
+        server s1 "${VTC_SOCK_TYPE}+${h1_sv_sf_0r_sock}" ssl verify none alpn "${ALPN}" sni str(www.test1.com) allow-0rtt
+        http-response add-header x-early-rcvd-test OK if !{ ssl_bc_is_resumed } { res.hdr(x-ssl-early-rcvd) 0 }
+        http-response add-header x-early-rcvd-test OK if  { ssl_bc_is_resumed } { res.hdr(x-ssl-early-rcvd) "$ZRTT_SUPP" }
+
+    listen cl_0r_sl_0r
+        bind "fd@${cl_0r_sl_0r}"
+        retry-on 0rtt-rejected
+        http-request add-header x-from %[be_name]
+        server s1 "${VTC_SOCK_TYPE}+${h1_sv_sl_0r_sock}" ssl verify none alpn "${ALPN}" sni str(www.test1.com) allow-0rtt
+        http-response add-header x-early-rcvd-test OK if !{ ssl_bc_is_resumed } { res.hdr(x-ssl-early-rcvd) 0 }
+        http-response add-header x-early-rcvd-test OK if  { ssl_bc_is_resumed } { res.hdr(x-ssl-early-rcvd) "$ZRTT_SUPP" }
+
+    listen ssl
+        # socket names indicate their capabilities and are used below in regex
+        # (0r means 0rtt OK, 1r means 0rtt not accepted)
+        bind "${VTC_SOCK_TYPE}+fd@${sv_sf_1r}" name sf_1r ssl crt ${testdir}/common.pem ssl-min-ver "${TLSV}" ssl-max-ver "${TLSV}"
+        bind "${VTC_SOCK_TYPE}+fd@${sv_sl_1r}" name sl_1r ssl crt ${testdir}/common.pem ssl-min-ver "${TLSV}" ssl-max-ver "${TLSV}" no-tls-tickets
+        bind "${VTC_SOCK_TYPE}+fd@${sv_sf_0r}" name sf_0r ssl crt ${testdir}/common.pem ssl-min-ver "${TLSV}" ssl-max-ver "${TLSV}" allow-0rtt
+        bind "${VTC_SOCK_TYPE}+fd@${sv_sl_0r}" name sl_0r ssl crt ${testdir}/common.pem ssl-min-ver "${TLSV}" ssl-max-ver "${TLSV}" allow-0rtt no-tls-tickets
+
+        # this is the application server behind us
+        server s1 ${h1_srv_sock}
+
+        # this one is only set for debugging
+        http-response add-header x-ssl-early-rcvd %[ssl_fc_early_rcvd]
+
+    frontend srv
+        bind "fd@${srv}"
+        http-request return status 200
+} -start
+
+
+# 1r -> 1r
+client cl_1r_sf_1r -connect ${h1_cl_1r_sf_1r_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-early-rcvd-test == OK
+} -run
+
+client cl_1r_sf_1r -connect ${h1_cl_1r_sf_1r_sock} -repeat 10 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-early-rcvd-test == OK
+} -run
+
+client cl_1r_sl_1r -connect ${h1_cl_1r_sl_1r_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-early-rcvd-test == OK
+} -run
+
+client cl_1r_sl_1r -connect ${h1_cl_1r_sl_1r_sock} -repeat 10 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-early-rcvd-test == OK
+} -run
+
+
+# 1r -> 0r
+client cl_1r_sf_0r -connect ${h1_cl_1r_sf_0r_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-early-rcvd-test == OK
+} -run
+
+client cl_1r_sf_0r -connect ${h1_cl_1r_sf_0r_sock} -repeat 10 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-early-rcvd-test == OK
+} -run
+
+client cl_1r_sl_0r -connect ${h1_cl_1r_sl_0r_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-early-rcvd-test == OK
+} -run
+
+client cl_1r_sl_0r -connect ${h1_cl_1r_sl_0r_sock} -repeat 10 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-early-rcvd-test == OK
+} -run
+
+# 0r -> 1r
+client cl_0r_sf_1r -connect ${h1_cl_0r_sf_1r_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-early-rcvd-test == OK
+} -run
+
+client cl_0r_sf_1r -connect ${h1_cl_0r_sf_1r_sock} -repeat 10 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-early-rcvd-test == OK
+} -run
+
+client cl_0r_sl_1r -connect ${h1_cl_0r_sl_1r_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-early-rcvd-test == OK
+} -run
+
+client cl_0r_sl_1r -connect ${h1_cl_0r_sl_1r_sock} -repeat 10 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-early-rcvd-test == OK
+} -run
+
+
+# 0r -> 0r: must work for TLSv1.3
+client cl_0r_sf_0r -connect ${h1_cl_0r_sf_0r_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-early-rcvd-test == OK
+} -run
+
+client cl_0r_sf_0r -connect ${h1_cl_0r_sf_0r_sock} -repeat 10 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-early-rcvd-test == OK
+} -run
+
+client cl_0r_sl_0r -connect ${h1_cl_0r_sl_0r_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-early-rcvd-test == OK
+} -run
+
+client cl_0r_sl_0r -connect ${h1_cl_0r_sl_0r_sock} -repeat 10 {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-early-rcvd-test == OK
+} -run
