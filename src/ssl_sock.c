@@ -6852,9 +6852,7 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 	if ((ctx->conn->flags & CO_FL_ERROR) ||
 	    !(ctx->conn->flags & CO_FL_SSL_WAIT_HS)
 #ifdef SSL_READ_EARLY_DATA_SUCCESS
-	    || (b_data(&ctx->early_buf) && (ctx->flags & SSL_SOCK_F_HAS_ALPN ||
-	               (objt_listener(conn->target) &&
-		        __objt_listener(conn->target)->bind_conf->mux_proto)))
+	    || b_data(&ctx->early_buf)
 #endif
 	    ) {
 		int woke = 0;
