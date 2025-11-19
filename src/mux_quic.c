@@ -957,6 +957,7 @@ int qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin)
 	qcs->flags |= QC_SF_HREQ_RECV;
 	++qcc->nb_sc;
 	++qcc->nb_hreq;
+	++qcc->tot_sc;
 
 	/* TODO duplicated from mux_h2 */
 	sess->accept_date = date;
@@ -3132,9 +3133,18 @@ static int qmux_avail_streams(struct connection *conn)
 {
 	struct server *srv = __objt_server(conn->target);
 	struct qcc *qcc = conn->ctx;
+	int max_fctl, max_reuse = 0;
 
-	BUG_ON(srv->max_reuse >= 0); /* TODO ensure max-reuse is enforced. */
-	return qcc_fctl_avail_streams(qcc, 1);
+	max_fctl = qcc_fctl_avail_streams(qcc, 1);
+
+	if (srv->max_reuse >= 0) {
+		max_reuse = qcc->tot_sc <= srv->max_reuse ?
+		  srv->max_reuse - qcc->tot_sc + 1: 0;
+		return MIN(max_fctl, max_reuse);
+	}
+	else {
+		return max_fctl;
+	}
 }
 
 /* Returns the number of streams currently attached into <conn> connection.
@@ -3600,7 +3610,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 
 	_qcc_init(qcc);
 	conn->ctx = qcc;
-	qcc->nb_hreq = qcc->nb_sc = 0;
+	qcc->nb_hreq = qcc->nb_sc = qcc->tot_sc = 0;
 	qcc->flags = conn_is_back(conn) ? QC_CF_IS_BACK : 0;
 	qcc->app_st = QCC_APP_ST_NULL;
 	qcc->glitches = 0;
@@ -3771,6 +3781,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 		qcs->sess = sess;
 		qcs->sd = sc->sedesc;
 		qcc->nb_sc++;
+		qcc->tot_sc++;
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCC_NEW, conn);
@@ -3834,6 +3845,7 @@ static int qmux_strm_attach(struct connection *conn, struct sedesc *sd, struct s
 	qcs->sess = sess;
 	qcs->sd = sd->sc->sedesc;
 	qcc->nb_sc++;
+	qcc->tot_sc++;
 
 	/* the connection is not idle anymore, let's mark this */
 	HA_ATOMIC_AND(&qcc->wait_event.tasklet->state, ~TASK_F_USR1);

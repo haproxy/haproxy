@@ -41,6 +41,7 @@ struct qcc {
 	struct connection *conn;
 	uint64_t nb_sc; /* number of attached stream connectors */
 	uint64_t nb_hreq; /* number of in-progress http requests */
+	uint64_t tot_sc; /* total number of stream connectors seen since conn init */
 	uint32_t flags; /* QC_CF_* */
 	enum qcc_app_st app_st; /* application layer state */
 	int glitches;   /* total number of glitches on this connection */
