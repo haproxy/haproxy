@@ -7245,14 +7245,10 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 		if ((ctx->flags & SSL_SOCK_F_EARLY_ENABLED) && conn_is_back(conn)) {
 			unsigned int max_early;
 
-			if (objt_listener(conn->target))
-				max_early = SSL_get_max_early_data(ctx->ssl);
-			else {
-				if (SSL_get0_session(ctx->ssl))
-					max_early = SSL_SESSION_get_max_early_data(SSL_get0_session(ctx->ssl));
-				else
-					max_early = 0;
-			}
+			if (SSL_get0_session(ctx->ssl))
+				max_early = SSL_SESSION_get_max_early_data(SSL_get0_session(ctx->ssl));
+			else
+				max_early = 0;
 
 			if (try + ctx->sent_early_data > max_early) {
 				try -= (try + ctx->sent_early_data) - max_early;
