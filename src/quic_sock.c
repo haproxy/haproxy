@@ -580,6 +580,28 @@ void quic_conn_sock_fd_iocb(int fd)
 	TRACE_LEAVE(QUIC_EV_CONN_RCV, qc);
 }
 
+/* quic_conn_closed FD handler (only used on backend side) */
+void quic_conn_closed_sock_fd_iocb(int fd)
+{
+	struct quic_conn_closed *cc_qc = fdtab[fd].owner;
+
+	TRACE_ENTER(QUIC_EV_CONN_RCV, cc_qc);
+
+	if (fd_send_active(fd) && fd_send_ready(fd)) {
+		TRACE_DEVEL("send ready", QUIC_EV_CONN_RCV, cc_qc);
+		fd_stop_send(fd);
+		tasklet_wakeup_after(NULL, cc_qc->wait_event.tasklet);
+	}
+
+	if (fd_recv_ready(fd)) {
+		TRACE_DEVEL("recv ready", QUIC_EV_CONN_RCV, cc_qc);
+		tasklet_wakeup_after(NULL, cc_qc->wait_event.tasklet);
+		fd_stop_recv(fd);
+	}
+
+	TRACE_LEAVE(QUIC_EV_CONN_RCV, cc_qc);
+}
+
 static void cmsg_set_saddr(struct msghdr *msg, struct cmsghdr **cmsg,
                            struct sockaddr_storage *saddr)
 {

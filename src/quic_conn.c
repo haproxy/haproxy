@@ -683,6 +683,9 @@ static void quic_release_cc_conn(struct quic_conn_closed *cc_qc)
 
 	TRACE_ENTER(QUIC_EV_CONN_IO_CB, cc_qc);
 
+	if (qc_is_back(qc))
+		qc_release_fd(qc, 0);
+
 	task_destroy(cc_qc->idle_timer_task);
 	cc_qc->idle_timer_task = NULL;
 	tasklet_free(qc->wait_event.tasklet);
@@ -763,10 +766,14 @@ static struct quic_conn_closed *qc_new_cc_conn(struct quic_conn *qc)
 
 	quic_conn_mv_cids_to_cc_conn(cc_qc, qc);
 
-	if (qc_is_back(qc))
+	if (qc_is_back(qc)) {
 		cc_qc->fd = qc->fd;
-	else
+		fdtab[cc_qc->fd].iocb = quic_conn_closed_sock_fd_iocb;
+		fdtab[cc_qc->fd].owner = cc_qc;
+	}
+	else {
 		qc_init_fd((struct quic_conn *)cc_qc);
+	}
 
 	cc_qc->flags = qc->flags;
 	cc_qc->err = qc->err;
@@ -1557,8 +1564,14 @@ int quic_conn_release(struct quic_conn *qc)
 	if (!qc_is_back(qc) && qc_test_fd(qc))
 		_HA_ATOMIC_DEC(&jobs);
 
-	/* Close quic-conn socket fd. */
-	qc_release_fd(qc, 0);
+	/* Close quic-conn socket FD on the frontend side. Remaining exchanges
+	 * will be multiplexed on the listener socket. On backend side the FD
+	 * is reinitialized to cc_qc instance via qc_new_cc_conn().
+	 */
+	if (!qc_is_back(qc) || !cc_qc) {
+		/* Close quic-conn socket fd. */
+		qc_release_fd(qc, 0);
+	}
 
 	/* in the unlikely (but possible) case the connection was just added to
 	 * the accept_list we must delete it from there.

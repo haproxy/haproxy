@@ -49,6 +49,7 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t count,
                int flags, uint16_t gso_size);
 int qc_rcv_buf(struct quic_conn *qc);
 void quic_conn_sock_fd_iocb(int fd);
+void quic_conn_closed_sock_fd_iocb(int fd);
 
 void qc_alloc_fd(struct quic_conn *qc, const struct sockaddr_storage *src,
                  const struct sockaddr_storage *dst);
