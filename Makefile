@@ -1123,9 +1123,8 @@ install-doc:
 		$(INSTALL) -m 644 doc/$$x.txt "$(DESTDIR)$(DOCDIR)" ; \
 	done
 
-install-admin: admin/halog/halog
+install-admin:
 	$(Q)$(INSTALL) -d "$(DESTDIR)$(SBINDIR)"
-	$(Q)$(INSTALL) admin/halog/halog "$(DESTDIR)$(SBINDIR)"
 	$(Q)$(INSTALL) admin/cli/haproxy-dump-certs "$(DESTDIR)$(SBINDIR)"
 	$(Q)$(INSTALL) admin/cli/haproxy-reload "$(DESTDIR)$(SBINDIR)"
 
