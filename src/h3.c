@@ -1684,7 +1684,6 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 	struct h3s *h3s = qcs->ctx;
 	struct h3c *h3c = h3s->h3c;
 	ssize_t total = 0, ret = 0;
-	uint64_t prev_data_len = ((h3s->flags & H3_SF_HAVE_CLEN) ? h3s->body_len : h3s->data_len);
 
 	TRACE_ENTER(H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 
@@ -1755,11 +1754,20 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			total += hlen;
 			TRACE_PROTO("parsing a new frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 
-			/* Check that content-length is not exceeded on a new DATA frame. */
 			if (ftype == H3_FT_DATA) {
 				h3s->data_len += flen;
-				if (h3s->flags & H3_SF_HAVE_CLEN && h3_check_body_size(qcs, (fin && flen == b_data(b))))
-					break;
+
+				if (h3s->flags & H3_SF_HAVE_CLEN) {
+					/* Check that content-length is not exceeded by a new DATA frame.
+					 * Error immediately set by the following function if necessary.
+					 */
+					if (h3_check_body_size(qcs, (fin && flen == b_data(b))))
+						break;
+				}
+				else {
+					/* content-length not present, update estimated payload length. */
+					qcs->sd->kip = h3s->data_len;
+				}
 			}
 
 			if ((ret = h3_check_frame_valid(h3c, qcs, ftype))) {
@@ -1827,6 +1835,10 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 						qcs->flags &= ~QC_SF_EOI_SUSPENDED;
 					}
 				}
+
+				/* Update estimated payload with content-length value if present. */
+				if (h3s->flags & H3_SF_HAVE_CLEN)
+					qcs->sd->kip = h3s->body_len;
 			}
 			else {
 				ret = h3_trailers_to_htx(qcs, b, flen, last_stream_frame);
@@ -1893,8 +1905,6 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 	 */
 
  done:
-	qcs->sd->kip += ((h3s->flags & H3_SF_HAVE_CLEN) ? h3s->body_len : h3s->data_len) - prev_data_len;
-
 	TRACE_LEAVE(H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 	return total;
 
