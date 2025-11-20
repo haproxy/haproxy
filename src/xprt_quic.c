@@ -169,7 +169,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 
 		quic_cid_register_seq_num(conn_id, qc);
 
-		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
+		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN | CO_FL_FDLESS;
 		conn->handle.qc = qc;
 		qc->conn = conn;
 	}
