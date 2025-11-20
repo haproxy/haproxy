@@ -31033,6 +31033,9 @@ Current limitations as of 3.2:
 - The feature is limited to the HTTP-01 or DNS-01 challenges for now. HTTP-01
   is completely handled by HAProxy, but DNS-01 needs either the dataplaneAPI or
   another 3rd party tool to talk to a DNS provider API.
+- Configuring acme needs a configuration with a crt, it's currently not
+  possible to start without this crt on the disk, a key-pair must already exist
+  to start haproxy. It is recommanded to use an expired certificate for that.
 - The current HAProxy architecture is a non-blocking model, access to the disk
   is not supposed to be done after the configuration is loaded, because it
   could block the event loop, blocking the traffic on the same thread. Meaning
