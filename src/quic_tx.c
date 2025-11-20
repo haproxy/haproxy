@@ -284,13 +284,11 @@ static void qc_purge_tx_buf(struct quic_conn *qc, struct buffer *buf)
  *   Remaining data are purged from the buffer and will eventually be detected
  *   as lost which gives the opportunity to retry sending.
  */
-static int qc_send_ppkts(struct buffer *buf, struct ssl_sock_ctx *ctx)
+static int qc_send_ppkts(struct buffer *buf, struct quic_conn *qc)
 {
 	int ret = 0;
-	struct quic_conn *qc;
 	char skip_sendto = 0;
 
-	qc = ctx->qc;
 	TRACE_ENTER(QUIC_EV_CONN_SPPKTS, qc);
 	while (b_contig_data(buf, 0)) {
 		unsigned char *pos;
@@ -494,7 +492,7 @@ int qc_purge_txbuf(struct quic_conn *qc, struct buffer *buf)
 	 */
 	BUG_ON(!qc_test_fd(qc));
 
-	if (b_data(buf) && !qc_send_ppkts(buf, qc->xprt_ctx)) {
+	if (b_data(buf) && !qc_send_ppkts(buf, qc)) {
 		if (qc->flags & QUIC_FL_CONN_TO_KILL)
 			qc_txb_release(qc);
 		TRACE_DEVEL("leaving in error", QUIC_EV_CONN_TXPKT, qc);
@@ -933,7 +931,7 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list,
 		prep = qc_prep_pkts(qc, buf, send_list, max_dgrams ? max_dgrams - ret : 0);
 		BUG_ON(max_dgrams && prep > max_dgrams);
 
-		if (b_data(buf) && !qc_send_ppkts(buf, qc->xprt_ctx)) {
+		if (b_data(buf) && !qc_send_ppkts(buf, qc)) {
 			if (qc->flags & QUIC_FL_CONN_TO_KILL)
 				qc_txb_release(qc);
 			ret = -1;
