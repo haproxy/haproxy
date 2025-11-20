@@ -1638,7 +1638,12 @@ static void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 	(void)conn;
 
 	conn = ssl_sock_get_conn(ssl, &ctx);
-	/* must never happen */
+	/* The connection be NULL only for QUIC which does not free its SSL object
+	 * as this done for TCP.
+	 */
+	if (!conn)
+		return;
+
 	BUG_ON(!ctx);
 #ifndef SSL_OP_NO_RENEGOTIATION
 	/* Please note that BoringSSL defines this macro to zero so don't
@@ -2147,6 +2152,12 @@ static __maybe_unused void ssl_sock_msgcbk(int write_p, int version, int content
 {
 	struct connection *conn = ssl_sock_get_conn(ssl, NULL);
 	struct ssl_sock_msg_callback *cbk;
+
+	/* The connection be NULL only for QUIC which does not free its SSL object
+	 * as this done for TCP.
+	 */
+	if (!conn)
+		return;
 
 	/* Try to call all callback functions that were registered by using
 	 * ssl_sock_register_msg_callback().
@@ -4167,7 +4178,12 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 	struct server *s;
 	uint old_tid;
 
-	BUG_ON(!conn);
+	/* The connection may be NULL only for QUIC which does not free its SSL object
+	 * as this done for TCP.
+	 */
+	if (!conn)
+		return 0;
+
 	s = __objt_server(conn->target);
 
 	/* RWLOCK: only read lock the SSL cache even when writing in it because there is
@@ -4877,7 +4893,12 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 
 	ssl = X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx());
 	conn = ssl_sock_get_conn(ssl, NULL);
-	BUG_ON(!conn);
+	/* The connection may be NULL only for QUIC which does not free its SSL object
+	 * as this done for TCP.
+	 */
+	if (!conn)
+		return 0;
+
 	ssl_ctx = __conn_get_ssl_sock_ctx(conn);
 
 	/* We're checking if the provided hostnames match the desired one. The
