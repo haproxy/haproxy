@@ -8717,7 +8717,7 @@ static const struct mux_ops h2_ops = {
 };
 
 static struct mux_proto_list mux_proto_h2 =
-	{ .token = IST("h2"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_BOTH, .mux = &h2_ops };
+	{ .token = IST("h2"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_BOTH, .mux = &h2_ops,  .alpn = "\002h2" };
 
 INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_h2);
 

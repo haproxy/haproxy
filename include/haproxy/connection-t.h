@@ -670,6 +670,7 @@ struct mux_proto_list {
 	enum proto_proxy_mode mode;
 	enum proto_proxy_side side;
 	const struct mux_ops *mux;
+	const char *alpn;          /* Default alpn to set by default when the mux protocol is forced (optional, in binary form) */
 	struct list list;
 };
 
