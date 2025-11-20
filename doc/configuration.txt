@@ -31037,7 +31037,9 @@ Current limitations as of 3.2:
   is not supposed to be done after the configuration is loaded, because it
   could block the event loop, blocking the traffic on the same thread. Meaning
   that the certificates and keys generated from HAProxy will need to be dumped
-  from outside HAProxy using "dump ssl cert" on the stats socket.
+  from outside HAProxy using "dump ssl cert" on the stats socket. It's possible
+  to automate the dump of the certificates by using the dataplaneAPI or the
+  haproxy-dump-certs script provided in the admin/cli/ directory.
 - External Account Binding (EAB) is not supported.
 
 The ACME scheduler starts at HAProxy startup, it will loop over the
