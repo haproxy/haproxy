@@ -31029,13 +31029,16 @@ The ACME section allows to configure HAProxy as an ACMEv2 client. This feature
 is experimental meaning that "expose-experimental-directives" must be in the
 global section so this can be used.
 
-Current limitations as of 3.2: The feature is limited to the HTTP-01 challenge
-for now. The current HAProxy architecture is a non-blocking model, access to
-the disk is not supposed to be done after the configuration is loaded, because
-it could block the event loop, blocking the traffic on the same thread. Meaning
-that the certificates and keys generated from HAProxy will need to be dumped
-from outside HAProxy using "dump ssl cert" on the stats socket.
-External Account Binding (EAB) is not supported.
+Current limitations as of 3.2:
+- The feature is limited to the HTTP-01 or DNS-01 challenges for now. HTTP-01
+  is completely handled by HAProxy, but DNS-01 needs either the dataplaneAPI or
+  another 3rd party tool to talk to a DNS provider API.
+- The current HAProxy architecture is a non-blocking model, access to the disk
+  is not supposed to be done after the configuration is loaded, because it
+  could block the event loop, blocking the traffic on the same thread. Meaning
+  that the certificates and keys generated from HAProxy will need to be dumped
+  from outside HAProxy using "dump ssl cert" on the stats socket.
+- External Account Binding (EAB) is not supported.
 
 The ACME scheduler starts at HAProxy startup, it will loop over the
 certificates and start an ACME renewal task when the notAfter task is past
