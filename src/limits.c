@@ -105,9 +105,9 @@ int compute_ideal_maxpipes()
 
 /* considers global.maxsocks, global.maxpipes, async engines, SSL frontends and
  * rlimits and computes an ideal maxconn. It's meant to be called only when
- * maxsock contains the sum of listening FDs, before it is updated based on
- * maxconn and pipes. If there are not enough FDs left, DEFAULT_MAXCONN (by
- * default 100) is returned as it is expected that it will even run on tight
+ * global.est_fd_usage contains the sum of listening FDs, before it is updated
+ * based on maxconn and pipes. If there are not enough FDs left, DEFAULT_MAXCONN
+ * (by default 100) is returned as it is expected that it will even run on tight
  * environments, and will maintain compatibility with previous packages that
  * used to rely on this value as the default one. The system will emit a
  * warning indicating how many FDs are missing anyway if needed.
@@ -162,13 +162,7 @@ static int compute_ideal_maxconn()
 	}
 
 	/* subtract listeners and checks */
-	remain -= global.maxsock;
-
-	/* one epoll_fd/kqueue_fd per thread */
-	remain -= global.nbthread;
-
-	/* one wake-up pipe (2 fd) per thread */
-	remain -= 2 * global.nbthread;
+	remain -= global.est_fd_usage;
 
 	/* Fixed pipes values : we only subtract them if they're not larger
 	 * than the remaining FDs because pipes are optional.

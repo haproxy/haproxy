@@ -2304,6 +2304,9 @@ static void step_init_2(int argc, char** argv)
 				global.maxsock += p->peers_fe->maxconn;
 	}
 
+	/* count listeners, checks, plus 1 poller and one wake-up pipe (2fd) per thread */
+	global.est_fd_usage = global.maxsock + 3 * global.nbthread;
+
 	/* Compute the global.maxconn and possibly global.maxsslconn values */
 	set_global_maxconn();
 	global.maxsock = compute_ideal_maxsock(global.maxconn);

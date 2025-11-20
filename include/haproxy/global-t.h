@@ -233,6 +233,7 @@ struct global {
 					 * than 255 arguments
 					 */
 	/* 2-bytes hole */
+	int est_fd_usage;               /* rough estimate of reserved FDs (listeners, pollers etc) */
 	int cfg_curr_line;              /* line number currently being parsed */
 	const char *cfg_curr_file;      /* config file currently being parsed or NULL */
 	char *cfg_curr_section;         /* config section name currently being parsed or NULL */
