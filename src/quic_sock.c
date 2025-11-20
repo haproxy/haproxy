@@ -60,8 +60,14 @@ int quic_sock_get_src(struct connection *conn, struct sockaddr *addr, socklen_t 
 
 	qc = conn->handle.qc;
 	if (conn_is_back(conn)) {
-		/* no source address defined for outgoing connections for now */
-		return -1;
+		/* source address should be known since connect() */
+		if (!is_addr(&qc->local_addr))
+			return -1;
+
+		if (len > sizeof(qc->local_addr))
+			len = sizeof(qc->local_addr);
+		memcpy(addr, &qc->local_addr, len);
+		return 0;
 	} else {
 		/* front connection, return the peer's address */
 		if (len > sizeof(qc->peer_addr))

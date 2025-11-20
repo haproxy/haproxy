@@ -285,8 +285,9 @@ int quic_connect_server(struct connection *conn, int flags)
 	struct server *srv;
 	struct proxy *be;
 	struct conn_src *src;
-	struct sockaddr_storage *addr;
+	struct sockaddr_storage *addr, saddr;
 	struct quic_conn *qc = conn->handle.qc;
+	socklen_t saddr_len;
 
 	BUG_ON(qc->fd != -1);
 	BUG_ON(!conn->dst);
@@ -425,6 +426,12 @@ int quic_connect_server(struct connection *conn, int flags)
 		close(fd);
 		conn->flags |= CO_FL_ERROR;
 		return SF_ERR_SRVCL;
+	}
+
+	/* Update quic-conn source address after connect. */
+	if (getsockname(fd, (struct sockaddr *)&saddr, &saddr_len) == 0) {
+		if (saddr_len <= sizeof(qc->local_addr))
+			qc->local_addr = saddr;
 	}
 
 	qc->fd = fd;
