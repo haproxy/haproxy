@@ -194,19 +194,6 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	tot_time_reset(&qcs->timer.fctl);
 	tot_time_start(&qcs->timer.base);
 
-	if (!conn_is_back(conn)) {
-		qcs->sd = sedesc_new();
-		if (!qcs->sd)
-			goto err;
-		qcs->sd->se   = qcs;
-		qcs->sd->conn = qcc->conn;
-		se_fl_set(qcs->sd, SE_FL_T_MUX | SE_FL_ORPHAN | SE_FL_NOT_FIRST);
-		se_expect_no_data(qcs->sd);
-
-		if (!(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_QUIC_SND))
-			se_fl_set(qcs->sd, SE_FL_MAY_FASTFWD_CONS);
-	}
-
 	/* Allocate transport layer stream descriptor. Only needed for TX. */
 	if (!quic_stream_is_uni(id) || !quic_stream_is_remote(qcc, id)) {
 		struct quic_conn *qc = qcc->conn->handle.qc;
@@ -946,6 +933,20 @@ int qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin)
 
 	/* TODO duplicated from mux_h2 */
 	sess->t_idle = ns_to_ms(now_ns - sess->accept_ts) - sess->t_handshake;
+
+	/* first create the stream endpoint descriptor */
+	qcs->sd = sedesc_new();
+	if (!qcs->sd) {
+		TRACE_DEVEL("leaving on error", QMUX_EV_STRM_RECV, qcc->conn, qcs);
+		return -1;
+	}
+	qcs->sd->se   = qcs;
+	qcs->sd->conn = qcc->conn;
+	se_fl_set(qcs->sd, SE_FL_T_MUX | SE_FL_ORPHAN | SE_FL_NOT_FIRST);
+	se_expect_no_data(qcs->sd);
+
+	if (!(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD_QUIC_SND))
+		se_fl_set(qcs->sd, SE_FL_MAY_FASTFWD_CONS);
 
 	if (!sc_new_from_endp(qcs->sd, sess, buf)) {
 		TRACE_DEVEL("leaving on error", QMUX_EV_STRM_RECV, qcc->conn, qcs);
