@@ -6831,15 +6831,19 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 		/* Remove the connection from the list, to be sure nobody attempts
 		 * to use it while we handle the I/O events
 		 */
-		conn_in_list = conn->flags & (CO_FL_LIST_MASK|CO_FL_SESS_IDLE);
-		if (conn_in_list) {
-			if (conn->flags & CO_FL_SESS_IDLE) {
-				if (!session_detach_idle_conn(conn->owner, conn))
-					conn_in_list = 0;
-			}
-			else {
-				conn_delete_from_tree(conn, tid);
-			}
+		if (LIST_INLIST(&conn->idle_list)) {
+			conn_in_list = 1;
+			BUG_ON(!(conn->flags & CO_FL_LIST_MASK));
+			conn_delete_from_tree(conn, tid);
+		}
+		else if (LIST_INLIST(&conn->sess_el)) {
+			conn_in_list = 1;
+			BUG_ON(!(conn->flags & CO_FL_SESS_IDLE));
+			/* session_detach_idle_conn cannot fail thanks to LIST_INLIST() above test */
+			session_detach_idle_conn(conn->owner, conn);
+		}
+		else {
+			conn_in_list = 0;
 		}
 
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
@@ -6962,9 +6966,9 @@ leave:
 				}
 			}
 			else {
-				ASSUME_NONNULL(srv); /* srv is guaranteed by CO_FL_LIST_MASK */
+				ASSUME_NONNULL(srv); /* srv is guaranteed to be non-null if conn is in idle list */
 				TRACE_DEVEL("adding conn back to idle list", SSL_EV_CONN_IO_CB, conn);
-				srv_add_idle(srv, conn, conn_in_list == CO_FL_SAFE_LIST);
+				srv_add_idle(srv, conn, (conn->flags & CO_FL_LIST_MASK) == CO_FL_SAFE_LIST);
 			}
 		}
 		else {
