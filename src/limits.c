@@ -285,8 +285,7 @@ void set_global_maxconn(void)
 	if (!global.rlimit_memmax) {
 		if (global.maxconn == 0) {
 			global.maxconn = ideal_maxconn;
-			if (global.mode & (MODE_VERBOSE|MODE_DEBUG))
-				fprintf(stderr, "Note: setting global.maxconn to %d.\n", global.maxconn);
+			ha_notice("Automatically setting global.maxconn to %d.\n", global.maxconn);
 		}
 	}
 #ifdef USE_OPENSSL
@@ -332,10 +331,8 @@ void set_global_maxconn(void)
 			if (check_if_maxsock_permitted(compute_ideal_maxsock(global.maxconn)))
 				break;
 		} while (retried++ < 2);
-
-		if (global.mode & (MODE_VERBOSE|MODE_DEBUG))
-			fprintf(stderr, "Note: setting global.maxconn to %d and global.maxsslconn to %d.\n",
-			        global.maxconn, global.maxsslconn);
+		ha_notice("Automatically setting global.maxconn to %d and global.maxsslconn to %d.\n",
+		          global.maxconn, global.maxsslconn);
 	}
 	else if (!global.maxsslconn &&
 		 (global.ssl_used_frontend || global.ssl_used_backend)) {
