@@ -1137,6 +1137,7 @@ int assign_server_and_queue(struct stream *s)
 
 					HA_SPIN_LOCK(QUEUE_LOCK, &p->queue->lock);
 					if (!p->node.node.leaf_p) {
+						HA_SPIN_UNLOCK(QUEUE_LOCK, &p->queue->lock);
 						/*
 						 * Okay we've been queued and
 						 * unqueued already, just leave
