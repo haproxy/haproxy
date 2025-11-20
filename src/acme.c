@@ -777,6 +777,16 @@ static int cfg_postparser_acme()
 			ha_alert("acme '%s' was used on a crt line [%s:%d], but no '%s' section exists!\n",
 			         tmp_acme->name, tmp_acme->filename, -tmp_acme->linenum, tmp_acme->name);
 		}
+		if (tmp_acme->map) {
+			struct pat_ref *ref;
+
+			ref = pat_ref_lookup(tmp_acme->map);
+			if (!ref) {
+				ret++;
+				ha_alert("acme section '%s' line [%s:%d] has the map '%s' configured, but this map doesn't exist\n",
+				         tmp_acme->name, tmp_acme->filename, tmp_acme->linenum, tmp_acme->map);
+			}
+		}
 		tmp_acme = tmp_acme->next;
 	}
 
