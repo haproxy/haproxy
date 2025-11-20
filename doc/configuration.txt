@@ -550,6 +550,8 @@ HAProxy may emit the following status codes by itself :
    408  when the request timeout strikes before the request is complete
    410  when the requested resource is no longer available and will not
         be available again
+   413  when a HTTP/1.0 GET/HEAD/DELETE requests has a payload, also see
+        the "h1-accept-payload-with-any-method" option
    500  when HAProxy encounters an unrecoverable internal error, such as a
         memory allocation failure, which should never happen
    501 when HAProxy is unable to satisfy a client request because of an
@@ -2621,7 +2623,8 @@ group <group name>
   See also "gid" and "user".
 
 h1-accept-payload-with-any-method
-  Does not reject HTTP/1.0 GET/HEAD/DELETE requests with a payload.
+  Does not reject HTTP/1.0 GET/HEAD/DELETE requests with a payload with a
+  413 Payload Too Large HTTP response.
 
   While It is explicitly allowed in HTTP/1.1, HTTP/1.0 is not clear on this
   point and some old servers don't expect any payload and never look for body
