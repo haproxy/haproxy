@@ -3019,9 +3019,12 @@ init_proxies_list_stage1:
 
 				/* Neither ALPN nor NPN were explicitly set nor disabled, we're
 				 * in HTTP mode with an SSL or QUIC listener, we can enable ALPN.
-				 * Note that it's in binary form.
+				 * Note that it's in binary form. First we try to set the ALPN from
+				 * mux proto if set. Otherwise rely on the default ALPN.
 				 */
-				if (bind_conf->xprt == xprt_get(XPRT_QUIC))
+				if (bind_conf->mux_proto && bind_conf->mux_proto->alpn)
+					bind_conf->ssl_conf.alpn_str = strdup(bind_conf->mux_proto->alpn);
+				else if (bind_conf->xprt == xprt_get(XPRT_QUIC))
 					bind_conf->ssl_conf.alpn_str = strdup("\002h3");
 				else
 					bind_conf->ssl_conf.alpn_str = strdup("\002h2\010http/1.1");
