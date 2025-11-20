@@ -2943,7 +2943,66 @@ init_proxies_list_stage1:
 
 		/* check and reduce the bind-proc of each listener */
 		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
+			int mode = conn_pr_mode_to_proto_mode(curproxy->mode);
+			const struct mux_proto_list *mux_ent;
 			int ret;
+
+
+			/* Check the mux protocols, if any; before the check the ALPN */
+			if (bind_conf->xprt && bind_conf->xprt == xprt_get(XPRT_QUIC)) {
+				if (!bind_conf->mux_proto) {
+					/* No protocol was specified. If we're using QUIC at the transport
+					 * layer, we'll instantiate it as a mux as well. If QUIC is not
+					 * compiled in, this will remain NULL.
+					 */
+					bind_conf->mux_proto = get_mux_proto(ist("quic"));
+				}
+				if (bind_conf->options & BC_O_ACC_PROXY) {
+					ha_alert("Binding [%s:%d] for %s %s: QUIC protocol does not support PROXY protocol yet."
+						 " 'accept-proxy' option cannot be used with a QUIC listener.\n",
+						 bind_conf->file, bind_conf->line,
+						 proxy_type_str(curproxy), curproxy->id);
+					cfgerr++;
+				}
+			}
+
+			if (bind_conf->mux_proto) {
+				/* it is possible that an incorrect mux was referenced
+				 * due to the proxy's mode not being taken into account
+				 * on first pass. Let's adjust it now.
+				 */
+				mux_ent = conn_get_best_mux_entry(bind_conf->mux_proto->token, PROTO_SIDE_FE, mode);
+
+				if (!mux_ent || !isteq(mux_ent->token, bind_conf->mux_proto->token)) {
+					ha_alert("%s '%s' : MUX protocol '%.*s' is not usable for 'bind %s' at [%s:%d].\n",
+						 proxy_type_str(curproxy), curproxy->id,
+						 (int)bind_conf->mux_proto->token.len,
+						 bind_conf->mux_proto->token.ptr,
+						 bind_conf->arg, bind_conf->file, bind_conf->line);
+					cfgerr++;
+				} else {
+					if ((mux_ent->mux->flags & MX_FL_FRAMED) && !(bind_conf->options & BC_O_USE_SOCK_DGRAM)) {
+						ha_alert("%s '%s' : frame-based MUX protocol '%.*s' is incompatible with stream transport of 'bind %s' at [%s:%d].\n",
+							 proxy_type_str(curproxy), curproxy->id,
+							 (int)bind_conf->mux_proto->token.len,
+							 bind_conf->mux_proto->token.ptr,
+							 bind_conf->arg, bind_conf->file, bind_conf->line);
+						cfgerr++;
+					}
+					else if (!(mux_ent->mux->flags & MX_FL_FRAMED) && !(bind_conf->options & BC_O_USE_SOCK_STREAM)) {
+						ha_alert("%s '%s' : stream-based MUX protocol '%.*s' is incompatible with framed transport of 'bind %s' at [%s:%d].\n",
+							 proxy_type_str(curproxy), curproxy->id,
+							 (int)bind_conf->mux_proto->token.len,
+							 bind_conf->mux_proto->token.ptr,
+							 bind_conf->arg, bind_conf->file, bind_conf->line);
+						cfgerr++;
+					}
+				}
+
+				/* update the mux */
+				bind_conf->mux_proto = mux_ent;
+			}
+
 
 			/* HTTP frontends with "h2" as ALPN/NPN will work in
 			 * HTTP/2 and absolutely require buffers 16kB or larger.
@@ -4086,67 +4145,8 @@ out_uri_auth_compat:
 			}
 		}
 
-		/* Check the mux protocols, if any, for each listener and server
-		 * attached to the current proxy */
-		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
-			int mode = conn_pr_mode_to_proto_mode(curproxy->mode);
-			const struct mux_proto_list *mux_ent;
-
-			if (bind_conf->xprt && bind_conf->xprt == xprt_get(XPRT_QUIC)) {
-				if (!bind_conf->mux_proto) {
-					/* No protocol was specified. If we're using QUIC at the transport
-					 * layer, we'll instantiate it as a mux as well. If QUIC is not
-					 * compiled in, this will remain NULL.
-					 */
-					bind_conf->mux_proto = get_mux_proto(ist("quic"));
-				}
-				if (bind_conf->options & BC_O_ACC_PROXY) {
-					ha_alert("Binding [%s:%d] for %s %s: QUIC protocol does not support PROXY protocol yet."
-						 " 'accept-proxy' option cannot be used with a QUIC listener.\n",
-						 bind_conf->file, bind_conf->line,
-						 proxy_type_str(curproxy), curproxy->id);
-					cfgerr++;
-				}
-			}
-
-			if (!bind_conf->mux_proto)
-				continue;
-
-			/* it is possible that an incorrect mux was referenced
-			 * due to the proxy's mode not being taken into account
-			 * on first pass. Let's adjust it now.
-			 */
-			mux_ent = conn_get_best_mux_entry(bind_conf->mux_proto->token, PROTO_SIDE_FE, mode);
-
-			if (!mux_ent || !isteq(mux_ent->token, bind_conf->mux_proto->token)) {
-				ha_alert("%s '%s' : MUX protocol '%.*s' is not usable for 'bind %s' at [%s:%d].\n",
-					 proxy_type_str(curproxy), curproxy->id,
-					 (int)bind_conf->mux_proto->token.len,
-					 bind_conf->mux_proto->token.ptr,
-					 bind_conf->arg, bind_conf->file, bind_conf->line);
-				cfgerr++;
-			} else {
-				if ((mux_ent->mux->flags & MX_FL_FRAMED) && !(bind_conf->options & BC_O_USE_SOCK_DGRAM)) {
-					ha_alert("%s '%s' : frame-based MUX protocol '%.*s' is incompatible with stream transport of 'bind %s' at [%s:%d].\n",
-						 proxy_type_str(curproxy), curproxy->id,
-						 (int)bind_conf->mux_proto->token.len,
-						 bind_conf->mux_proto->token.ptr,
-						 bind_conf->arg, bind_conf->file, bind_conf->line);
-					cfgerr++;
-				}
-				else if (!(mux_ent->mux->flags & MX_FL_FRAMED) && !(bind_conf->options & BC_O_USE_SOCK_STREAM)) {
-					ha_alert("%s '%s' : stream-based MUX protocol '%.*s' is incompatible with framed transport of 'bind %s' at [%s:%d].\n",
-						 proxy_type_str(curproxy), curproxy->id,
-						 (int)bind_conf->mux_proto->token.len,
-						 bind_conf->mux_proto->token.ptr,
-						 bind_conf->arg, bind_conf->file, bind_conf->line);
-					cfgerr++;
-				}
-			}
-
-			/* update the mux */
-			bind_conf->mux_proto = mux_ent;
-		}
+		/* Check the mux protocols, if any, for each server attached to
+		 * the current proxy */
 		for (newsrv = curproxy->srv; newsrv; newsrv = newsrv->next) {
 			int mode = conn_pr_mode_to_proto_mode(curproxy->mode);
 			const struct mux_proto_list *mux_ent;
