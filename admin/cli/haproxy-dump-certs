@@ -103,6 +103,11 @@ dump_certificate() {
 		return 0
 	fi
 
+	# dry run will just return before trying to move the files
+	if [ "${DRY_RUN}" != "0" ]; then
+		return 0
+	fi
+
 	# move the current certificates to ".old.timestamp"
 	if [ -f "${prev_crt}" ] && [ -f "${prev_key}" ]; then
 		mv "${prev_crt}" "${prev_crt}.${d}"
@@ -123,7 +128,7 @@ dump_all_certificates() {
 		export KEY_FILENAME
 
 		if read_certificate "$line"; then
-			[ "${DRY_RUN}" = "0" ] && dump_certificate "$NAME" "$CRT_FILENAME" "$KEY_FILENAME"
+			dump_certificate "$NAME" "$CRT_FILENAME" "$KEY_FILENAME"
 		else
 			echo "[WARNING] ($$) : can't dump \"$name\", crt/key filename details not found in \"show ssl cert\"" >&2
 		fi
