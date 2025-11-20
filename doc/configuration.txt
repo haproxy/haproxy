@@ -17257,14 +17257,19 @@ proto <name>
   Here are the protocols that may be used as argument to a "proto" directive on
   a bind line :
 
+   quic : mode=HTTP  side=FE|BE  mux=QUIC  flags=HTX|NO_UPG|FRAMED
     h2   : mode=HTTP  side=FE|BE  mux=H2    flags=HTX|HOL_RISK|NO_UPG
     h1   : mode=HTTP  side=FE|BE  mux=H1    flags=HTX|NO_UPG
     none : mode=TCP   side=FE|BE  mux=PASS  flags=NO_UPG
 
   Idea behind this option is to bypass the selection of the best multiplexer's
   protocol for all connections instantiated from this listening socket. For
-  instance, it is possible to force the http/2 on clear TCP by specifying "proto
-  h2" on the bind line.
+  instance, it is possible to force the http/2 on clear TCP by specifying
+  "proto h2" on the bind line.
+
+  If the ALPN or the NPN settings are configured, the specified protocols
+  should be compatible with the multiplexer's protocol to avoid any issue. For
+  instance, if "proto h1" is set, the ALPN should not be set to "h2".
 
 quic-cc-algo { cubic | newreno | bbr | nocc }[(<args,...>)]
   This is a QUIC specific setting to select the congestion control algorithm
@@ -17921,10 +17926,15 @@ check-proto <name>
     h1   : mode=HTTP  side=FE|BE  mux=H1    flags=HTX|NO_UPG
     none : mode=TCP   side=FE|BE  mux=PASS  flags=NO_UPG
     quic : mode=HTTP  side=FE|BE  mux=QUIC  flags=HTX|NO_UPG|FRAMED
+    spop : mode=SPOP  side=BE     mux=SPOP  flags=HOL_RISK|NO_UPG
 
   Idea behind this option is to bypass the selection of the best multiplexer's
   protocol for health-check connections established to this server.
   If not defined, the server one will be used, if set.
+
+  If the ALPN or the NPN settings are configured, the specified protocols
+  should be compatible with the multiplexer's protocol to avoid any issue. For
+  instance, if "proto h1" is set, the ALPN should not be set to "h2".
 
   QUIC check configuration is not fully implemented yet. First, QUIC checks may
   only be performed for QUIC servers. Second, if one or more check specific
@@ -18791,9 +18801,14 @@ proto <name>
     fcgi : mode=HTTP  side=BE     mux=FCGI  flags=HTX|HOL_RISK|NO_UPG
     h1   : mode=HTTP  side=FE|BE  mux=H1    flags=HTX|NO_UPG
     none : mode=TCP   side=FE|BE  mux=PASS  flags=NO_UPG
+    spop : mode=SPOP  side=BE     mux=SPOP  flags=HOL_RISK|NO_UPG
 
   Idea behind this option is to bypass the selection of the best multiplexer's
   protocol for all connections established to this server.
+
+  If the ALPN or the NPN settings are configured, the specified protocols
+  should be compatible with the multiplexer's protocol to avoid any issue. For
+  instance, if "proto h1" is set, the ALPN should not be set to "h2".
 
   See also "ws" to use an alternative protocol for websocket streams.
 
