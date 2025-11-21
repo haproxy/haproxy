@@ -1752,12 +1752,12 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 			dpapi = sink_find("dpapi");
 			if (dpapi)
 				sink_write(dpapi, LOG_HEADER_NONE, 0, line, nmsg);
-		}
-
-		/* only useful for http-01 */
-		if (acme_add_challenge_map(ctx->cfg->map, auth->token.ptr, ctx->cfg->account.thumbprint, errmsg) != 0) {
-			memprintf(errmsg, "couldn't add the token to the '%s' map: %s", ctx->cfg->map, *errmsg);
-			goto error;
+		} else {
+			/* only useful for http-01 */
+			if (acme_add_challenge_map(ctx->cfg->map, auth->token.ptr, ctx->cfg->account.thumbprint, errmsg) != 0) {
+				memprintf(errmsg, "couldn't add the token to the '%s' map: %s", ctx->cfg->map, *errmsg);
+				goto error;
+			}
 		}
 
 		/* we only need one challenge, and iteration is only used to found the right one */
