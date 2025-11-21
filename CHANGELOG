@@ -1,6 +1,61 @@
 ChangeLog :
 ===========
 
+2025/11/21 : 3.3-dev14
+    - MINOR: stick-tables: Rename stksess shards to use buckets
+    - MINOR: quic: do not use quic_newcid_from_hash64 on BE side
+    - MINOR: quic: support multiple random CID generation for BE side
+    - MINOR: quic: try to clarify quic_conn CIDs fields direction
+    - MINOR: quic: refactor qc_new_conn() prototype
+    - MINOR: quic: remove <ipv4> arg from qc_new_conn()
+    - MEDIUM: mworker: set the mworker-max-reloads to 50
+    - BUG/MEDIUM: quic-be: prevent use of MUX for 0-RTT sessions without secrets
+    - CLEANUP: startup: move confusing msg variable
+    - BUG/MEDIUM: mworker: signals inconsistencies during startup and reload
+    - BUG/MINOR: mworker: wrong signals during startup
+    - BUG/MINOR: acme: P-256 doesn't work with openssl >= 3.0
+    - REGTESTS: ssl: split the SSL reuse test into TLS 1.2/1.3
+    - BUILD: Makefile: make install with admin tools
+    - CI: github: make install-bin instead of make install
+    - BUG/MINOR: ssl: remove dead code in ssl_sock_from_buf()
+    - BUG/MINOR: mux-quic: implement max-reuse server parameter
+    - MINOR: quic: fix trace on quic_conn_closed release
+    - BUG/MINOR: quic: do not decrement jobs for backend conns
+    - BUG/MINOR: quic: fix FD usage for quic_conn_closed on backend side
+    - BUILD: Makefile: remove halog from install-admin
+    - REGTESTS: ssl: add basic 0rtt tests for TLSv1.2, TLSv1.3 and QUIC
+    - REGTESTS: ssl: also verify that 0-rtt properly advertises early-data:1
+    - MINOR: quic/flags: add missing QUIC flags for flags dev tool.
+    - MINOR: quic: uneeded xprt context variable passed as parameter
+    - MINOR: limits: keep a copy of the rough estimate of needed FDs in global struct
+    - MINOR: limits: explain a bit better what to do when fd limits are exceeded
+    - BUG/MEDIUM: quic-be/ssl_sock: TLS callback called without connection
+    - BUG/MINOR: acme: alert when the map doesn't exist at startup
+    - DOC: acme: add details about the DNS-01 support
+    - DOC: acme: explain how to dump the certificates
+    - DOC: acme: configuring acme needs a crt file
+    - DOC: acme: add details about key pair generation in ACME section
+    - BUG/MEDIUM: queues: Don't forget to unlock the queue before exiting
+    - MINOR: muxes: Support an optional ALPN string when defining mux protocols
+    - MINOR: config: Do proto detection for listeners before checks about ALPN
+    - BUG/MEDIUM: config: Use the mux protocol ALPN by default for listeners if forced
+    - DOC: config: Add a note about conflict with ALPN/NPN settings and proto keyword
+    - MINOR: quic: store source address for backend conns
+    - BUG/MINOR: quic: flag conn with CO_FL_FDLESS on backend side
+    - ADMIN: dump-certs: let dry-run compare certificates
+    - BUG/MEDIUM: connection/ssl: also fix the ssl_sock_io_cb() regarding idle list
+    - DOC: http: document 413 response code
+    - MINOR: limits: display the computed maxconn using ha_notice()
+    - BUG/MEDIUM: applet: Fix conditions to detect spinning loop with the new API
+    - BUG/MEDIUM: cli: State the cli have no more data to deliver if it yields
+    - MINOR: h3: adjust sedesc update for known input payload len
+    - BUG/MINOR: mux-quic: fix sedesc leak on BE side
+    - OPTIM: mux-quic: delay FE sedesc alloc to stream creation
+    - BUG/MEDIUM: quic-be: quic_conn_closed buffer overflow
+    - BUG/MINOR: mux-quic: check access on qcs stream-endpoint
+    - BUG/MINOR: acme: handle multiple auth with the same name
+    - BUG/MINOR: acme: prevent creating map entries with dns-01
+
 2025/11/14 : 3.3-dev13
     - BUG/MEDIUM: config: for word expansion, empty or non-existing are the same
     - BUG/MINOR: quic: close connection on CID alloc failure
