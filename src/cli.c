@@ -3910,8 +3910,10 @@ error:
 size_t cli_raw_rcv_buf(struct appctx *appctx, struct buffer *buf, size_t count, unsigned int flags)
 {
 	/* don't send partial responses, we're just yielding to avoid CPU spikes */
-	if (appctx->st1 & APPCTX_CLI_ST1_YIELD)
+	if (appctx->st1 & APPCTX_CLI_ST1_YIELD) {
+		applet_have_no_more_data(appctx);
 		return 0;
+	}
 
 	return b_xfer(buf, &appctx->outbuf, MIN(count, b_data(&appctx->outbuf)));
 }
