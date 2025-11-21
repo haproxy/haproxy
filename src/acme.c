@@ -2856,54 +2856,58 @@ err:
 
 static int cli_acme_chall_ready_parse(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	char *errmsg = NULL;
+	char *msg = NULL;
 	const char *crt;
 	const char *dns;
 	struct acme_ctx *ctx;
 	struct acme_auth *auth;
 	int found = 0;
+	int remain = 0;
 	struct ebmb_node *node = NULL;
 
 	if (!*args[2] && !*args[3] && !*args[4]) {
-		memprintf(&errmsg, ": not enough parameters\n");
+		memprintf(&msg, ": not enough parameters\n");
 		goto err;
 	}
 
 	crt = args[2];
 	dns = args[4];
 
-	HA_RWLOCK_RDLOCK(OTHER_LOCK, &acme_lock);
-	node = ebmb_first(&acme_tasks);
-	while (node) {
+	HA_RWLOCK_WRLOCK(OTHER_LOCK, &acme_lock);
+	node = ebst_lookup(&acme_tasks, crt);
+	if (node) {
 		ctx = ebmb_entry(node, struct acme_ctx, node);
-
-		if (strcmp(ctx->store->path, crt) != 0)
-			continue;
-
 		auth = ctx->auths;
 		while (auth) {
 			if (strncmp(dns, auth->dns.ptr, auth->dns.len) == 0) {
 				if (!auth->ready) {
 					auth->ready = 1;
-					task_wakeup(ctx->task, TASK_WOKEN_MSG);
-					found = 1;
+					found++;
 				} else {
-					memprintf(&errmsg, "ACME challenge for crt \"%s\" and dns \"%s\" was already READY !\n", crt, dns);
+					memprintf(&msg, "ACME challenge for crt \"%s\" and dns \"%s\" was already READY !\n", crt, dns);
 				}
 			}
+			if (auth->ready == 0)
+				remain++;
 			auth = auth->next;
 		}
-		node = ebmb_next(node);
 	}
-	HA_RWLOCK_RDUNLOCK(OTHER_LOCK, &acme_lock);
+	HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &acme_lock);
 	if (!found) {
-		memprintf(&errmsg, "Couldn't find the ACME task using crt \"%s\" and dns \"%s\" !\n", crt, dns);
+		if (!msg)
+			memprintf(&msg, "Couldn't find the ACME task using crt \"%s\" and dns \"%s\" !\n", crt, dns);
 		goto err;
 	}
 
-	return cli_msg(appctx, LOG_INFO, "Challenge Ready!");
+	if (!remain) {
+		task_wakeup(ctx->task, TASK_WOKEN_MSG);
+		return cli_dynmsg(appctx, LOG_INFO, memprintf(&msg, "%d '%s' challenge(s) ready! All challenges ready, starting challenges validation!", found, dns));
+	} else {
+		return cli_dynmsg(appctx, LOG_INFO, memprintf(&msg, "%d '%s' challenge(s) ready! Remaining challenges to deploy: %d", found, dns, remain));
+	}
+
 err:
-	return cli_dynerr(appctx, errmsg);
+	return cli_dynerr(appctx, msg);
 }
 
 static int cli_acme_status_io_handler(struct appctx *appctx)
