@@ -1982,6 +1982,12 @@ static int quic_rx_pkt_parse(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			pos += pkt->token_len;
 		}
 		else if (pkt->type == QUIC_PACKET_TYPE_RETRY) {
+			if (qc->flags & QUIC_FL_CONN_CLOSING) {
+				TRACE_PROTO("Packet dropped",
+				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
+				goto drop;
+			}
+
 			if (!quic_retry_packet_check(qc, pkt, beg, end, pos, &qc->retry_token_len))
 				/* TODO: should close the connection? */
 				goto drop;
@@ -2079,26 +2085,34 @@ static int quic_rx_pkt_parse(struct quic_conn *qc, struct quic_rx_packet *pkt,
 					qc->dcid.len = pkt->scid.len;
 				}
 
-				/* Identify the negotiated version, chosen and sent by the server */
-				if (qc_is_back(qc) && pkt->version != qc->original_version && !qc->nictx) {
-					qc->nictx = pool_alloc(pool_head_quic_tls_ctx);
-					if (!qc->nictx) {
-						TRACE_PROTO("Could not alloc a new Initial secrets TLS context",
-						            QUIC_EV_CONN_RXPKT, qc);
+				if (qc_is_back(qc)) {
+					if (qc->flags & QUIC_FL_CONN_CLOSING) {
+						TRACE_PROTO("Packet dropped",
+						            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
 						goto drop;
 					}
 
-					quic_tls_ctx_reset(qc->nictx);
-					if (!qc_new_isecs(qc, qc->nictx, pkt->version,
-					                  qc->odcid.data, qc->odcid.len, 0)) {
-						TRACE_PROTO("Could not derive Initial secrets for new version",
-						            QUIC_EV_CONN_RXPKT, qc);
-						goto drop;
-					}
+					/* Identify the negotiated version, chosen and sent by the server */
+					if (pkt->version != qc->original_version && !qc->nictx) {
+						qc->nictx = pool_alloc(pool_head_quic_tls_ctx);
+						if (!qc->nictx) {
+							TRACE_PROTO("Could not alloc a new Initial secrets TLS context",
+										QUIC_EV_CONN_RXPKT, qc);
+							goto drop;
+						}
 
-					TRACE_PROTO("new Initial secrets TLS context initialization done",
-					            QUIC_EV_CONN_RXPKT, qc);
-					qc->negotiated_version = pkt->version;
+						quic_tls_ctx_reset(qc->nictx);
+						if (!qc_new_isecs(qc, qc->nictx, pkt->version,
+										  qc->odcid.data, qc->odcid.len, 0)) {
+							TRACE_PROTO("Could not derive Initial secrets for new version",
+										QUIC_EV_CONN_RXPKT, qc);
+							goto drop;
+						}
+
+						TRACE_PROTO("new Initial secrets TLS context initialization done",
+									QUIC_EV_CONN_RXPKT, qc);
+						qc->negotiated_version = pkt->version;
+					}
 				}
 			}
 		}
