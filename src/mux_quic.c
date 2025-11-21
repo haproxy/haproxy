@@ -2237,16 +2237,18 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 		}
 	}
 
-	/* Manually set EOS if FIN already reached as futures RESET_STREAM will be ignored in this case. */
-	if (qcs_sc(qcs) && se_fl_test(qcs->sd, SE_FL_EOI)) {
-		se_fl_set(qcs->sd, SE_FL_EOS);
-		qcs_alert(qcs);
-	}
+	if (qcs->sd) {
+		/* Manually set EOS if FIN already reached as futures RESET_STREAM will be ignored in this case. */
+		if (qcs_sc(qcs) && se_fl_test(qcs->sd, SE_FL_EOI)) {
+			se_fl_set(qcs->sd, SE_FL_EOS);
+			qcs_alert(qcs);
+		}
 
-	/* If not defined yet, set abort info for the sedesc */
-	if (!qcs->sd->abort_info.info) {
-		qcs->sd->abort_info.info = (SE_ABRT_SRC_MUX_QUIC << SE_ABRT_SRC_SHIFT);
-		qcs->sd->abort_info.code = err;
+		/* If not defined yet, set abort info for the sedesc */
+		if (!qcs->sd->abort_info.info) {
+			qcs->sd->abort_info.info = (SE_ABRT_SRC_MUX_QUIC << SE_ABRT_SRC_SHIFT);
+			qcs->sd->abort_info.code = err;
+		}
 	}
 
 	/* RFC 9000 3.5. Solicited State Transitions
@@ -3075,7 +3077,7 @@ static void qcc_wait_for_hs(struct qcc *qcc)
 		node = eb64_first(&qcc->streams_by_id);
 		while (node) {
 			qcs = container_of(node, struct qcs, by_id);
-			if (se_fl_test(qcs->sd, SE_FL_WAIT_FOR_HS))
+			if (qcs_sc(qcs) && se_fl_test(qcs->sd, SE_FL_WAIT_FOR_HS))
 				qcs_notify_recv(qcs);
 			node = eb64_next(node);
 		}
