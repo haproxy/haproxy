@@ -2890,7 +2890,6 @@ static int cli_acme_chall_ready_parse(char **args, char *payload, struct appctx 
 				} else {
 					memprintf(&errmsg, "ACME challenge for crt \"%s\" and dns \"%s\" was already READY !\n", crt, dns);
 				}
-				break;
 			}
 			auth = auth->next;
 		}
