@@ -978,7 +978,7 @@ struct task *task_process_applet(struct task *t, void *context, unsigned int sta
 	}
 
 	/* measure the call rate and check for anomalies when too high */
-	if ((!did_recv && sc_is_send_allowed(sc)) && (!did_send && sc_is_recv_allowed(sc))) {
+	if ((!did_send && sc_is_send_allowed(sc)) && (!did_recv && sc_is_recv_allowed(sc))) {
 		rate = update_freq_ctr(&app->call_rate, 1);
 		if (rate >= 100000 && app->call_rate.prev_ctr) // looped like this more than 100k times over last second
 			stream_dump_and_crash(&app->obj_type, read_freq_ctr(&app->call_rate));
