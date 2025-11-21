@@ -550,7 +550,7 @@ int quic_build_post_handshake_frames(struct quic_conn *qc,
 			goto err;
 		}
 
-		conn_id = quic_cid_alloc();
+		conn_id = quic_cid_alloc(qc_cid_side(qc));
 		if (!conn_id) {
 			qc_frm_free(qc, &frm);
 			TRACE_ERROR("CID allocation error", QUIC_EV_CONN_IO_CB, qc);

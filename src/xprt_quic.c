@@ -138,7 +138,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 		int retry_rand_cid = 3; /* Number of random retries on CID collision. */
 		struct server *srv = objt_server(conn->target);
 
-		conn_id = quic_cid_alloc();
+		conn_id = quic_cid_alloc(QUIC_CID_SIDE_BE);
 		if (!conn_id) {
 			TRACE_ERROR("error on CID allocation", QUIC_EV_CONN_NEW);
 			goto out;

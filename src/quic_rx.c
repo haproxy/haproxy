@@ -1052,7 +1052,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			pool_free(pool_head_quic_connection_id, conn_id);
 			TRACE_PROTO("CID retired", QUIC_EV_CONN_PSTRM, qc);
 
-			conn_id = quic_cid_alloc();
+			conn_id = quic_cid_alloc(qc_cid_side(qc));
 			if (!conn_id) {
 				TRACE_ERROR("CID allocation error", QUIC_EV_CONN_IO_CB, qc);
 				quic_set_connection_close(qc, quic_err_transport(QC_ERR_INTERNAL_ERROR));
@@ -1798,7 +1798,7 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 
 			pkt->saddr = dgram->saddr;
 
-			conn_id = quic_cid_alloc();
+			conn_id = quic_cid_alloc(QUIC_CID_SIDE_FE);
 			if (!conn_id) {
 				TRACE_ERROR("error on first CID allocation",
 				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);

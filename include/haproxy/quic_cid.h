@@ -15,9 +15,10 @@
 #include <haproxy/quic_rx-t.h>
 #include <haproxy/proto_quic.h>
 
-extern struct quic_cid_tree *quic_cid_trees;
+extern struct quic_cid_tree *quic_fe_cid_trees;
+extern struct quic_cid_tree *quic_be_cid_trees;
 
-struct quic_connection_id *quic_cid_alloc(void);
+struct quic_connection_id *quic_cid_alloc(enum quic_cid_side side);
 
 int quic_cid_generate_random(struct quic_connection_id *conn_id);
 int quic_cid_generate_from_hash(struct quic_connection_id *conn_id, uint64_t hash64);
@@ -81,11 +82,18 @@ static inline uchar quic_cid_tree_idx(const struct quic_cid *cid)
 	return _quic_cid_tree_idx(cid->data);
 }
 
+/* Returns the tree instance responsible for <conn_id> storage. */
+static inline struct quic_cid_tree *quic_cid_get_tree(const struct quic_connection_id *conn_id)
+{
+	const int tree_idx = quic_cid_tree_idx(&conn_id->cid);
+	return conn_id->side == QUIC_CID_SIDE_FE ?
+	  &quic_fe_cid_trees[tree_idx] : &quic_be_cid_trees[tree_idx];
+}
+
 /* Remove <conn_id> from global CID tree as a thread-safe operation. */
 static inline void quic_cid_delete(struct quic_connection_id *conn_id)
 {
-	const uchar idx = quic_cid_tree_idx(&conn_id->cid);
-	struct quic_cid_tree __maybe_unused *tree = &quic_cid_trees[idx];
+	struct quic_cid_tree __maybe_unused *tree = quic_cid_get_tree(conn_id);
 
 	HA_RWLOCK_WRLOCK(QC_CID_LOCK, &tree->lock);
 	ebmb_delete(&conn_id->node);

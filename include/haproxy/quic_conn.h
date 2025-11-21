@@ -91,6 +91,12 @@ static inline int qc_is_back(const struct quic_conn *qc)
 	return qc->flags & QUIC_FL_CONN_IS_BACK;
 }
 
+static inline enum quic_cid_side qc_cid_side(const struct quic_conn *qc)
+{
+	return !(qc->flags & QUIC_FL_CONN_IS_BACK) ?
+	        QUIC_CID_SIDE_FE : QUIC_CID_SIDE_BE;
+}
+
 /* Free the CIDs attached to <conn> QUIC connection. */
 static inline void free_quic_conn_cids(struct quic_conn *conn)
 {

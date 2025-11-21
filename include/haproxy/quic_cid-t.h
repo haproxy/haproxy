@@ -24,6 +24,12 @@ struct quic_cid {
 	unsigned char len; /* size of QUIC CID */
 };
 
+/* Determines whether a CID is used for frontend or backend connections. */
+enum quic_cid_side {
+	QUIC_CID_SIDE_FE,
+	QUIC_CID_SIDE_BE
+};
+
 /* QUIC connection id attached to a QUIC connection.
  *
  * This structure is used to match received packets DCIDs with the
@@ -34,11 +40,12 @@ struct quic_connection_id {
 	uint64_t retire_prior_to;
 	unsigned char stateless_reset_token[QUIC_STATELESS_RESET_TOKEN_LEN];
 
-	struct ebmb_node node; /* node for receiver tree, cid.data as key */
-	struct quic_cid cid;   /* CID data */
+	struct ebmb_node node;   /* node for receiver tree, cid.data as key */
+	struct quic_cid cid;     /* CID data */
 
-	struct quic_conn *qc;  /* QUIC connection using this CID */
-	uint tid;              /* Attached Thread ID for the connection. */
+	struct quic_conn *qc;    /* QUIC connection using this CID */
+	uint tid;                /* Attached Thread ID for the connection. */
+	enum quic_cid_side side; /* side where this CID is used */
 };
 
 #endif /* _HAPROXY_QUIC_CID_T_H */
