@@ -2859,7 +2859,7 @@ static int cli_acme_chall_ready_parse(char **args, char *payload, struct appctx 
 	char *msg = NULL;
 	const char *crt;
 	const char *dns;
-	struct acme_ctx *ctx;
+	struct acme_ctx *ctx = NULL;
 	struct acme_auth *auth;
 	int found = 0;
 	int remain = 0;
@@ -2897,13 +2897,14 @@ static int cli_acme_chall_ready_parse(char **args, char *payload, struct appctx 
 		if (!msg)
 			memprintf(&msg, "Couldn't find the ACME task using crt \"%s\" and dns \"%s\" !\n", crt, dns);
 		goto err;
-	}
-
-	if (!remain) {
-		task_wakeup(ctx->task, TASK_WOKEN_MSG);
-		return cli_dynmsg(appctx, LOG_INFO, memprintf(&msg, "%d '%s' challenge(s) ready! All challenges ready, starting challenges validation!", found, dns));
 	} else {
-		return cli_dynmsg(appctx, LOG_INFO, memprintf(&msg, "%d '%s' challenge(s) ready! Remaining challenges to deploy: %d", found, dns, remain));
+		if (!remain) {
+			if (ctx)
+				task_wakeup(ctx->task, TASK_WOKEN_MSG);
+			return cli_dynmsg(appctx, LOG_INFO, memprintf(&msg, "%d '%s' challenge(s) ready! All challenges ready, starting challenges validation!", found, dns));
+		} else {
+			return cli_dynmsg(appctx, LOG_INFO, memprintf(&msg, "%d '%s' challenge(s) ready! Remaining challenges to deploy: %d", found, dns, remain));
+		}
 	}
 
 err:
