@@ -630,7 +630,7 @@ static int ssl_set_cert_crl_file(X509_STORE *store_ctx, char *path)
 	if (store_ctx && store) {
 		int i;
 		X509_OBJECT *obj;
-		STACK_OF(X509_OBJECT) *objs = X509_STORE_get0_objects(store);
+		STACK_OF(X509_OBJECT) *objs = X509_STORE_getX_objects(store);
 		for (i = 0; i < sk_X509_OBJECT_num(objs); i++) {
 			obj = sk_X509_OBJECT_value(objs, i);
 			switch (X509_OBJECT_get_type(obj)) {
@@ -644,6 +644,7 @@ static int ssl_set_cert_crl_file(X509_STORE *store_ctx, char *path)
 				break;
 			}
 		}
+		sk_X509_OBJECT_popX_free(objs, X509_OBJECT_free);
 		return 1;
 	}
 	return 0;
@@ -687,7 +688,7 @@ static STACK_OF(X509_NAME)* ssl_get_client_ca_file(char *path)
 
 		skn = sk_X509_NAME_new_null();
 		/* take x509 from cafile_tree */
-		objs = X509_STORE_get0_objects(ca_e->ca_store);
+		objs = X509_STORE_getX_objects(ca_e->ca_store);
 		for (i = 0; i < sk_X509_OBJECT_num(objs); i++) {
 			x = X509_OBJECT_get0_X509(sk_X509_OBJECT_value(objs, i));
 			if (!x)
@@ -723,6 +724,7 @@ static STACK_OF(X509_NAME)* ssl_get_client_ca_file(char *path)
 			ca_name->xname = xn;
 			eb64_insert(&ca_name_tree, &ca_name->node);
 		}
+		sk_X509_OBJECT_popX_free(objs, X509_OBJECT_free);
 		ca_e->ca_list = skn;
 		/* remove temporary ca_name tree */
 		node = eb64_first(&ca_name_tree);

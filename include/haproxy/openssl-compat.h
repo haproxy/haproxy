@@ -380,6 +380,14 @@ static inline unsigned long ERR_peek_error_func(const char **func)
 
 #endif
 
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x40000000L) && !defined(OPENSSL_IS_AWSLC) && !defined(LIBRESSL_VERSION_NUMBER) && !defined(USE_OPENSSL_WOLFSSL)
+# define X509_STORE_getX_objects(x) X509_STORE_get1_objects(x)
+# define sk_X509_OBJECT_popX_free(x, y) sk_X509_OBJECT_pop_free(x,y)
+#else
+# define X509_STORE_getX_objects(x) X509_STORE_get0_objects(x)
+# define sk_X509_OBJECT_popX_free(x, y) ({})
+#endif
+
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) || (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER >= 0x2070200fL)
 #define __OPENSSL_110_CONST__ const
 #else
