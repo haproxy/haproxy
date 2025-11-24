@@ -1509,6 +1509,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 			ssl_sock_set_servername(conn, s->check.sni);
 		else if (auto_sni)
 			ssl_sock_set_servername(conn, b_orig(auto_sni));
+		else
+			ssl_sock_set_servername(conn, NULL);
 
 		if (connect->alpn)
 			ssl_sock_set_alpn(conn, (unsigned char *)connect->alpn, connect->alpn_len);
