@@ -93,9 +93,9 @@ static int cli_parse_show_quic(char **args, char *payload, struct appctx *appctx
 			     "             of levels among 'tp', 'sock', 'pktns', 'cc', or 'mux'\n"
 			     "  help       display this help\n"
 			     "Available output filters:\n"
-			     "  all        dump all connections (the default)\n"
+			     "  all        dump all connections\n"
 			     "  <id>       dump only the connection matching this identifier (0x...)\n"
-			     "Without any argument, all connections are dumped using the oneline format.\n");
+			     "Without any argument, active frontend connections are dumped using the oneline format.\n");
 		return cli_err(appctx, trash.area);
 	}
 	else if (*args[argc]) {
@@ -452,7 +452,7 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 	}
 	else if (!ctx->bref.ref) {
 		/* First invocation. */
-		ctx->bref.ref = ha_thread_ctx[ctx->thr].quic_conns.n;
+		ctx->bref.ref = ha_thread_ctx[ctx->thr].quic_conns_fe.n;
 
 		/* Print legend for oneline format. */
 		if (cli_show_quic_format(ctx) == QUIC_DUMP_FMT_ONELINE) {
@@ -470,7 +470,7 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 	while (1) {
 		int done = 0;
 
-		if (ctx->bref.ref == &ha_thread_ctx[ctx->thr].quic_conns) {
+		if (ctx->bref.ref == &ha_thread_ctx[ctx->thr].quic_conns_fe) {
 			/* If closing connections requested through "all" or a
 			 * specific connection is filtered, move to
 			 * quic_conns_clo list after browsing quic_conns. Else
@@ -505,7 +505,7 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 			if (ctx->thr >= global.nbthread)
 				break;
 			/* Switch to next thread quic_conns list. */
-			ctx->bref.ref = ha_thread_ctx[ctx->thr].quic_conns.n;
+			ctx->bref.ref = ha_thread_ctx[ctx->thr].quic_conns_fe.n;
 			continue;
 		}
 
@@ -572,7 +572,8 @@ static void cli_quic_init()
 	int thr;
 
 	for (thr = 0; thr < MAX_THREADS; ++thr) {
-		LIST_INIT(&ha_thread_ctx[thr].quic_conns);
+		LIST_INIT(&ha_thread_ctx[thr].quic_conns_fe);
+		LIST_INIT(&ha_thread_ctx[thr].quic_conns_be);
 		LIST_INIT(&ha_thread_ctx[thr].quic_conns_clo);
 	}
 }

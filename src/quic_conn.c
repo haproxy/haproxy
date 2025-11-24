@@ -445,7 +445,8 @@ void qc_detach_th_ctx_list(struct quic_conn *qc, int closing)
 		LIST_DEL_INIT(&bref->users);
 
 		/* Attach it to next instance unless it was the last list element. */
-		if (qc->el_th_ctx.n != &th_ctx->quic_conns &&
+		if (qc->el_th_ctx.n != &th_ctx->quic_conns_fe &&
+		    qc->el_th_ctx.n != &th_ctx->quic_conns_be &&
 		    qc->el_th_ctx.n != &th_ctx->quic_conns_clo) {
 			struct quic_conn *next = LIST_NEXT(&qc->el_th_ctx,
 			                                   struct quic_conn *,
@@ -459,7 +460,7 @@ void qc_detach_th_ctx_list(struct quic_conn *qc, int closing)
 	/* Remove quic_conn from global ha_thread_ctx list. */
 	LIST_DEL_INIT(&qc->el_th_ctx);
 
-	if (closing)
+	if (closing && !qc_is_back(qc))
 		LIST_APPEND(&th_ctx->quic_conns_clo, &qc->el_th_ctx);
 }
 
@@ -1398,7 +1399,10 @@ struct quic_conn *qc_new_conn(void *target,
 	/* Counters initialization */
 	memset(&qc->cntrs, 0, sizeof qc->cntrs);
 
-	LIST_APPEND(&th_ctx->quic_conns, &qc->el_th_ctx);
+	if (!qc_is_back(qc))
+		LIST_APPEND(&th_ctx->quic_conns_fe, &qc->el_th_ctx);
+	else
+		LIST_APPEND(&th_ctx->quic_conns_be, &qc->el_th_ctx);
 	qc->qc_epoch = HA_ATOMIC_LOAD(&qc_epoch);
 
 	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc);
@@ -2137,7 +2141,7 @@ void qc_finalize_tid_rebind(struct quic_conn *qc)
 	BUG_ON(qc->flags & (QUIC_FL_CONN_CLOSING|QUIC_FL_CONN_DRAINING));
 
 	/* Reinsert connection in ha_thread_ctx global list. */
-	LIST_APPEND(&th_ctx->quic_conns, &qc->el_th_ctx);
+	LIST_APPEND(&th_ctx->quic_conns_fe, &qc->el_th_ctx);
 	qc->qc_epoch = HA_ATOMIC_LOAD(&qc_epoch);
 
 	/* Reactivate FD polling if connection socket is active. */

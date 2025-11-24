@@ -150,7 +150,8 @@ struct thread_ctx {
 	struct list buffer_wq[DYNBUF_NBQ];  /* buffer waiters, 4 criticality-based queues */
 	struct list pool_lru_head;          /* oldest objects in thread-local pool caches */
 	struct list streams;                /* list of streams attached to this thread */
-	struct list quic_conns;             /* list of active quic-conns attached to this thread */
+	struct list quic_conns_fe;          /* list of active FE quic-conns attached to this thread */
+	struct list quic_conns_be;          /* list of active BE quic-conns attached to this thread */
 	struct list quic_conns_clo;         /* list of closing quic-conns attached to this thread */
 	struct list queued_checks;          /* checks waiting for a connection slot */
 	struct list tasklets[TL_CLASSES];   /* tasklets (and/or tasks) to run, by class */

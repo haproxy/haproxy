@@ -3342,9 +3342,10 @@ show quic [<format>] [<filter>]
   in the format will instead show a more detailed help message.
 
   The final argument is used to restrict or extend the connection list. By
-  default, connections on closing or draining state are not displayed. Use the
-  extra argument "all" to include them in the output. It's also possible to
-  restrict to a single connection by specifying its hexadecimal address.
+  default, active frontend connections only are displayed. Use the extra
+  argument "all" to list all connections, including the ones in closing state.
+  It's also possible to restrict to a single connection by specifying its
+  hexadecimal address.
 
 show servers conn [<backend>]
   Dump the current and idle connections state of the servers belonging to the
