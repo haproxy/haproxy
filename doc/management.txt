@@ -3343,9 +3343,9 @@ show quic [<format>] [<filter>]
 
   The final argument is used to restrict or extend the connection list. By
   default, active frontend connections only are displayed. Use the extra
-  argument "clo" to list instead closing frontend connections, or "all" for
-  both. It's also possible to restrict to a single connection by specifying its
-  hexadecimal address.
+  argument "clo" to list instead closing frontend connections, "be" for backend
+  connections or "all" for every categories. It's also possible to restrict to
+  a single connection by specifying its hexadecimal address.
 
 show servers conn [<backend>]
   Dump the current and idle connections state of the servers belonging to the

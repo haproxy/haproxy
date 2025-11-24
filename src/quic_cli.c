@@ -41,6 +41,7 @@ struct show_quic_ctx {
 
 #define QC_CLI_FL_SHOW_ALL 0x0001 /* show closing/draining connections */
 #define QC_CLI_FL_SHOW_CLO 0x0002 /* show closing/draining connections */
+#define QC_CLI_FL_SHOW_BE  0x0004 /* show closing/draining connections */
 
 /* Returns the output format for show quic. If specified explicitly use it as
  * set. Else format depends if filtering on a single connection instance. If
@@ -96,6 +97,7 @@ static int cli_parse_show_quic(char **args, char *payload, struct appctx *appctx
 			     "Available output filters:\n"
 			     "  all        dump all connections\n"
 			     "  clo        dump frontend closing connections\n"
+			     "  be         dump backend connections\n"
 			     "  <id>       dump only the connection matching this identifier (0x...)\n"
 			     "Without any argument, active frontend connections are dumped using the oneline format.\n");
 		return cli_err(appctx, trash.area);
@@ -166,6 +168,9 @@ static int cli_parse_show_quic(char **args, char *payload, struct appctx *appctx
 		}
 		else if (istmatch(istarg, ist("clo"))) {
 			ctx->flags |= QC_CLI_FL_SHOW_CLO;
+		}
+		else if (istmatch(istarg, ist("be"))) {
+			ctx->flags |= QC_CLI_FL_SHOW_BE;
 		}
 		else {
 			cli_err(appctx, "Invalid argument, use 'help' for more options.\n");
@@ -441,7 +446,9 @@ static void dump_quic_full(struct show_quic_ctx *ctx, struct quic_conn *qc)
 
 static inline struct list *cli_quic_get_list(int flags, int thr)
 {
-	if (flags & QC_CLI_FL_SHOW_CLO)
+	if (flags & QC_CLI_FL_SHOW_BE)
+		return &ha_thread_ctx[thr].quic_conns_be;
+	else if (flags & QC_CLI_FL_SHOW_CLO)
 		return &ha_thread_ctx[thr].quic_conns_clo;
 	else
 		return &ha_thread_ctx[thr].quic_conns_fe;
@@ -500,6 +507,8 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 			}
 			else if ((ctx->flags & QC_CLI_FL_SHOW_ALL) || ctx->ptr) {
 				if (ctx->bref.ref == &ha_thread_ctx[ctx->thr].quic_conns_fe)
+					qc_list = &ha_thread_ctx[ctx->thr].quic_conns_be;
+				else if (ctx->bref.ref == &ha_thread_ctx[ctx->thr].quic_conns_be)
 					qc_list = &ha_thread_ctx[ctx->thr].quic_conns_clo;
 				ctx->bref.ref = qc_list->n;
 				continue;
