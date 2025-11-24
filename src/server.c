@@ -3211,6 +3211,7 @@ void srv_free_params(struct server *srv)
 struct server *srv_drop(struct server *srv)
 {
 	struct server *next = NULL;
+	int i __maybe_unused;
 
 	if (!srv)
 		goto end;
@@ -3239,6 +3240,10 @@ struct server *srv_drop(struct server *srv)
 	task_destroy(srv->srvrq_check);
 
 	free(srv->id);
+#ifdef USE_QUIC
+	for (i = 0; i < global.nbthread; i++)
+		istfree(&srv->per_thr[i].quic_retry_token);
+#endif
 	srv_free_params(srv);
 
 	HA_SPIN_DESTROY(&srv->lock);
