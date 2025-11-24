@@ -3851,10 +3851,11 @@ out_uri_auth_compat:
 			}
 
 			if (newsrv->use_ssl == 1 || ((newsrv->flags & SRV_F_DEFSRV_USE_SSL) && newsrv->use_ssl != 1)) {
-				/* In HTTP only, if the SNI not set and we can realy on the host
+				/* In HTTP only, if the SNI is not set and we can rely on the host
 				 * header value, fill the sni expression accordingly
 				 */
-				if (newsrv->proxy->mode == PR_MODE_HTTP && !(newsrv->ssl_ctx.options & SRV_SSL_O_NO_AUTO_SNI)) {
+				if (!newsrv->sni_expr && newsrv->proxy->mode == PR_MODE_HTTP &&
+				    !(newsrv->ssl_ctx.options & SRV_SSL_O_NO_AUTO_SNI)) {
 					newsrv->sni_expr = strdup("req.hdr(host),field(1,:)");
 
 					err = NULL;
