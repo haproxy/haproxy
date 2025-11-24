@@ -193,7 +193,8 @@ static void dump_quic_oneline(struct show_quic_ctx *ctx, struct quic_conn *qc)
 	unsigned char cid_len;
 	struct listener *l = qc->li;
 
-	ret = chunk_appendf(&trash, "%p[%02u]/%-.12s ", qc, ctx->thr,
+	ret = chunk_appendf(&trash, "%p[%02u]%s/%-.12s ", qc, ctx->thr,
+	                    qc_is_back(qc) ? "(B)" : "",
 	                    l ? l->bind_conf->frontend->id :
 	                    qc->conn ? __objt_server(qc->conn->target)->id : "UNKNOWN");
 
@@ -288,7 +289,8 @@ static void dump_quic_full(struct show_quic_ctx *ctx, struct quic_conn *qc)
 
 	addnl = 0;
 	/* CIDs */
-	chunk_appendf(&trash, "* %p[%02u]: scid=", qc, ctx->thr);
+	chunk_appendf(&trash, "* %p[%02u]%s: scid=", qc, ctx->thr,
+	              qc_is_back(qc) ? "(B)" : "");
 	for (cid_len = 0; cid_len < qc->scid.len; ++cid_len)
 		chunk_appendf(&trash, "%02x", qc->scid.data[cid_len]);
 	while (cid_len++ < 20)
