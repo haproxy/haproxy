@@ -1779,44 +1779,43 @@ static inline int quic_do_enc_token(unsigned char **pos, const unsigned char *en
 	return 1;
 }
 
-/* Encode a token depending on <qc> connection type (listener or not).
- * For listeners, ony a null byte is encoded (no token).
- * For clients, if a RETRY token has been received, it is encoded, if not, if a
- * new token has been received (from NEW_TOKEN frame) and could be retrieved
- * from cache, it is encoded, if not a null byte is encoded (no token).
+/* Encode an INITIAL token at <pos> buffer position, without exceeding <end>
+ * pointer.
+ *
+ * On client side, token is either retrieved from a previously received RETRY
+ * paquet, or from the server cache populated by a NEW_TOKEN frame received by
+ * a previous connection. An empty field is encoded if no token is available.
+ *
+ * On server side, INITIAL token is not used so an empty field is encoded.
+ *
+ * Returns 1 on success or 0 on error.
  */
 static inline int quic_enc_token(struct quic_conn *qc,
                                  unsigned char **pos, const unsigned char *end)
 {
-	int ret = 0;
-	const unsigned char *tok;
+	struct server *s;
+	unsigned char *tok;
 	size_t toklen;
 
-	if (!qc_is_back(qc)) {
-		ret = quic_do_enc_token(pos, end, NULL, 0);
-	}
-	else if (qc->retry_token) {
+	if (qc->retry_token) {
+		/* Only clients may received token from a RETRY packet. */
+		BUG_ON(!qc_is_back(qc));
 		tok = qc->retry_token;
 		toklen = qc->retry_token_len;
-		ret = quic_do_enc_token(pos, end, tok, toklen);
 	}
-	else if (!qc->conn) {
-		TRACE_ERROR("connection closed", QUIC_EV_CONN_TXPKT, qc);
-		goto out;
+	else if (qc_is_back(qc) && qc->conn) {
+		/* Retrieve token from the server cache. */
+		s = __objt_server(qc->conn->target);
+		tok    = (unsigned char *)istptr(s->per_thr[tid].quic_retry_token);
+		toklen = istlen(s->per_thr[tid].quic_retry_token);
 	}
 	else {
-		struct server *s = __objt_server(qc->conn->target);
-		struct ist *stok;
-
-		stok = &s->per_thr[tid].quic_retry_token;
-		if (isttest(*stok))
-			ret = quic_do_enc_token(pos, end, (unsigned char *)istptr(*stok), istlen(*stok));
-		else
-			ret = quic_do_enc_token(pos, end, NULL, 0);
+		/* Prepare to encode an empty field. */
+		tok = NULL;
+		toklen = 0;
 	}
 
- out:
-	return ret;
+	return quic_do_enc_token(pos, end, tok, toklen);
 }
 
 /* This function builds a clear packet from <pkt> information (its type)
