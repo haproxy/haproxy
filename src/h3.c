@@ -1151,9 +1151,19 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	}
 
 	appbuf = qcc_get_stream_rxbuf(qcs);
-	BUG_ON(!appbuf || b_data(appbuf)); /* TODO */
+	BUG_ON(!appbuf); /* TODO */
 	BUG_ON(!b_size(appbuf)); /* TODO */
 	htx = htx_from_buf(appbuf);
+
+	/* Only handle one HEADERS frame at a time. Thus if HTX buffer is too
+	 * small, it happens solely from a single frame and the only option is
+	 * to close the stream.
+	 */
+	if (!htx_is_empty(htx)) {
+		qcs->flags |= QC_SF_DEM_FULL;
+		len = 0;
+		goto out;
+	}
 
 	/* first treat pseudo-header to build the start line */
 	hdr_idx = 0;
