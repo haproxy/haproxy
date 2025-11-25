@@ -14,6 +14,7 @@
 #include <haproxy/buf.h>
 #include <haproxy/connection.h>
 #include <haproxy/quic_conn.h>
+#include <haproxy/quic_sock.h>
 #include <haproxy/quic_ssl.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/quic_trace.h>
@@ -42,10 +43,13 @@ static void quic_close(struct connection *conn, void *xprt_ctx)
 	qc->flags |= QUIC_FL_CONN_XPRT_CLOSED;
 	qc->conn = NULL;
 
-	/* If the quic-conn timer has already expired or if already in "connection close"
-	 * state, free the quic-conn.
+	/* Immediately release the connection in the following cases :
+	 * - idle timeout already expired
+	 * - connection in closing state
+	 * - backend conn with no FD avail (after connect() failure)
 	 */
-	if (qc->flags & (QUIC_FL_CONN_EXP_TIMER|QUIC_FL_CONN_CLOSING)) {
+	if (qc->flags & (QUIC_FL_CONN_EXP_TIMER|QUIC_FL_CONN_CLOSING) ||
+	    (qc_is_back(qc) && !qc_test_fd(qc))) {
 		quic_conn_release(qc);
 		qc = NULL;
 		goto leave;

@@ -1548,9 +1548,16 @@ int quic_conn_release(struct quic_conn *qc)
 	BUG_ON(qc->conn);
 
 	cc_qc = NULL;
+	/* Convert to quic_conn_closed if entering in CLOSING state, except in
+	 * the following case :
+	 * - idle timeout already expired
+	 * - no FD available for a backend connection (after connect() failure)
+	 */
 	if ((qc->flags & QUIC_FL_CONN_CLOSING) && !(qc->flags & QUIC_FL_CONN_EXP_TIMER) &&
-	    qc->tx.cc_buf_area)
+	    qc->tx.cc_buf_area &&
+	    (!qc_is_back(qc) || qc_test_fd(qc))) {
 		cc_qc = qc_new_cc_conn(qc);
+	}
 
 	if (!cc_qc) {
 		task_destroy(qc->idle_timer_task);
