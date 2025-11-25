@@ -31,6 +31,7 @@ enum quic_dump_format {
 /* appctx context used by "show quic" command */
 struct show_quic_ctx {
 	unsigned int epoch;
+	struct list *list;
 	struct bref bref; /* back-reference to the quic-conn being dumped */
 	unsigned int thr;
 	int flags;
@@ -459,7 +460,6 @@ static inline struct list *cli_quic_get_list(int flags, int thr)
 
 static int cli_io_handler_dump_quic(struct appctx *appctx)
 {
-	struct list *qc_list;
 	struct show_quic_ctx *ctx = appctx->svcctx;
 	struct quic_conn *qc;
 
@@ -476,8 +476,8 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 	}
 	else if (!ctx->bref.ref) {
 		/* First invocation. */
-		qc_list = cli_quic_get_list(ctx->flags, ctx->thr);
-		ctx->bref.ref = qc_list->n;
+		ctx->list = cli_quic_get_list(ctx->flags, ctx->thr);
+		ctx->bref.ref = ctx->list->n;
 
 		/* Print legend for oneline format. */
 		if (cli_show_quic_format(ctx) == QUIC_DUMP_FMT_ONELINE) {
@@ -495,7 +495,7 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 	while (1) {
 		int done = 0;
 
-		if (ctx->bref.ref == qc_list) {
+		if (ctx->bref.ref == ctx->list) {
 			/* If closing connections requested through "all" or a
 			 * specific connection is filtered, move to
 			 * quic_conns_clo list after browsing quic_conns. Else
@@ -509,10 +509,10 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 			}
 			else if ((ctx->flags & QC_CLI_FL_SHOW_ALL) || ctx->ptr) {
 				if (ctx->bref.ref == &ha_thread_ctx[ctx->thr].quic_conns_fe)
-					qc_list = &ha_thread_ctx[ctx->thr].quic_conns_be;
+					ctx->list = &ha_thread_ctx[ctx->thr].quic_conns_be;
 				else if (ctx->bref.ref == &ha_thread_ctx[ctx->thr].quic_conns_be)
-					qc_list = &ha_thread_ctx[ctx->thr].quic_conns_clo;
-				ctx->bref.ref = qc_list->n;
+					ctx->list = &ha_thread_ctx[ctx->thr].quic_conns_clo;
+				ctx->bref.ref = ctx->list->n;
 				continue;
 			}
 
@@ -534,8 +534,8 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 			if (ctx->thr >= global.nbthread)
 				break;
 			/* Switch to next thread quic_conns list. */
-			qc_list = cli_quic_get_list(ctx->flags, ctx->thr);
-			ctx->bref.ref = qc_list->n;
+			ctx->list = cli_quic_get_list(ctx->flags, ctx->thr);
+			ctx->bref.ref = ctx->list->n;
 			continue;
 		}
 
