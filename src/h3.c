@@ -1150,8 +1150,11 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		goto out;
 	}
 
-	appbuf = qcc_get_stream_rxbuf(qcs);
-	BUG_ON(!appbuf); /* TODO */
+	if (!(appbuf = qcc_get_stream_rxbuf(qcs))) {
+		TRACE_ERROR("buffer alloc failure", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		len = -1;
+		goto out;
+	}
 	BUG_ON(!b_size(appbuf)); /* TODO */
 	htx = htx_from_buf(appbuf);
 
