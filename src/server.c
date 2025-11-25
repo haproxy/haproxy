@@ -3241,8 +3241,10 @@ struct server *srv_drop(struct server *srv)
 
 	free(srv->id);
 #ifdef USE_QUIC
-	for (i = 0; i < global.nbthread; i++)
-		istfree(&srv->per_thr[i].quic_retry_token);
+	if (srv->per_thr) {
+		for (i = 0; i < global.nbthread; i++)
+			istfree(&srv->per_thr[i].quic_retry_token);
+	}
 #endif
 	srv_free_params(srv);
 
