@@ -662,7 +662,7 @@ static int cfg_postsection_acme()
 
 		rv = snprintf(store_path, sizeof(store_path), "%s/%s", global_ssl.crt_base, cur_acme->account.file);
 		if (rv >= sizeof(store_path)) {
-			ha_alert(errmsg, "'%s/%s' : path too long", global_ssl.crt_base, cur_acme->account.file);
+			ha_alert("'%s/%s' : path too long", global_ssl.crt_base, cur_acme->account.file);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
