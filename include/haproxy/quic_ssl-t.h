@@ -17,5 +17,7 @@
 #include <haproxy/pool-t.h>
 
 extern struct pool_head *pool_head_quic_ssl_sock_ctx;
+extern const char *default_quic_ciphersuites;
+extern const char *default_quic_curves;
 
 #endif /* _HAPROXY_QUIC_SSL_T_H */

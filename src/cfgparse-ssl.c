@@ -38,6 +38,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/listener.h>
 #include <haproxy/openssl-compat.h>
+#include <haproxy/quic_ssl-t.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
 #include <haproxy/tools.h>
@@ -1752,6 +1753,13 @@ static int ssl_sock_init_srv(struct server *s)
 			return 1;
 	}
 #endif
+#ifdef USE_QUIC
+	if (srv_is_quic(s) && !s->ssl_ctx.ciphersuites) {
+		s->ssl_ctx.ciphersuites = strdup(default_quic_ciphersuites);
+		if (!s->ssl_ctx.ciphersuites)
+			return 1;
+	}
+#endif
 	s->ssl_ctx.options |= global_ssl.connect_default_ssloptions;
 	s->ssl_ctx.methods.flags |= global_ssl.connect_default_sslmethods.flags;
 
@@ -1780,6 +1788,13 @@ static int ssl_sock_init_srv(struct server *s)
 #if defined(SSL_CTX_set1_curves_list)
 	if (global_ssl.connect_default_curves && !s->ssl_ctx.curves) {
 		s->ssl_ctx.curves = strdup(global_ssl.connect_default_curves);
+		if (!s->ssl_ctx.curves)
+			return 1;
+	}
+#endif
+#ifdef USE_QUIC
+	if (srv_is_quic(s) && !s->ssl_ctx.curves) {
+		s->ssl_ctx.curves = strdup(default_quic_curves);
 		if (!s->ssl_ctx.curves)
 			return 1;
 	}
