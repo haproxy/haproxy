@@ -16513,10 +16513,10 @@ allow-0rtt
   you should only allow if for requests that are safe to replay, i.e. requests
   that are idempotent. You can use the "wait-for-handshake" action for any
   request that wouldn't be safe with early data.
-  With QUIC, 0rtt is supported with OpenSSL >= 3.5.2 and AWS-LC. With TCP/TLS,
-  0rtt is only supported with OpenSSL, and requires that the client sends an
-  ALPN, otherwise the early data won't be considered before the handshake
-  happens.
+  With QUIC, 0rtt is supported with QuicTLS, OpenSSL >= 3.5.2 and AWS-LC.
+  With TCP/TLS, 0rtt is only supported with OpenSSL, and requires that the
+  client sends an ALPN, otherwise the early data won't be considered before
+  the handshake happens.
 
 alpn <protocols>
   This enables the TLS ALPN extension and advertises the specified protocol
@@ -17745,8 +17745,8 @@ allow-0rtt
   Allow sending early data to the server when using TLS 1.3.
   Note that early data will be sent only if the client used early data, or
   if the backend uses "retry-on" with the "0rtt-rejected" keyword.
-  With QUIC, 0rtt is supported with OpenSSL >= 3.5.2 and AWS-LC. With TCP/TLS,
-  0rtt is only supported with OpenSSL.
+  With QUIC, 0rtt is supported with QuicTLS, OpenSSL >= 3.5.2 and AWS-LC.
+  With TCP/TLS, 0rtt is only supported with OpenSSL.
 
 alpn <protocols>
   May be used in the following contexts: tcp, http
