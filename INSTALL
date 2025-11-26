@@ -111,7 +111,7 @@ HAProxy requires a working GCC or Clang toolchain and GNU make :
     may want to retry with "gmake" which is the name commonly used for GNU make
     on BSD systems.
 
-  - GCC >= 4.7 (up to 14 tested). Older versions are no longer supported due to
+  - GCC >= 4.7 (up to 15 tested). Older versions are no longer supported due to
     the latest mt_list update which only uses c11-like atomics. Newer versions
     may sometimes break due to compiler regressions or behaviour changes. The
     version shipped with your operating system is very likely to work with no
@@ -237,7 +237,7 @@ to forcefully enable it using "USE_LIBCRYPT=1".
 -----------------
 For SSL/TLS, it is necessary to use a cryptography library. HAProxy currently
 supports the OpenSSL library, and is known to build and work with branches
-1.0.0, 1.0.1, 1.0.2, 1.1.0, 1.1.1, and 3.0 to 3.5. It is recommended to use
+1.0.0, 1.0.1, 1.0.2, 1.1.0, 1.1.1, and 3.0 to 3.6. It is recommended to use
 at least OpenSSL 1.1.1 to have support for all SSL keywords and configuration
 in HAProxy. OpenSSL follows a long-term support cycle similar to HAProxy's,
 and each of the branches above receives its own fixes, without forcing you to
@@ -259,11 +259,15 @@ reported to work as well. While there are some efforts from the community to
 ensure they work well, OpenSSL remains the primary target and this means that
 in case of conflicting choices, OpenSSL support will be favored over other
 options.  Note that QUIC is not fully supported when haproxy is built with
-OpenSSL < 3.5 version. In this case, QUICTLS is the preferred alternative.
-As of writing this, the QuicTLS project follows OpenSSL very closely and provides
-update simultaneously, but being a volunteer-driven project, its long-term future
-does not look certain enough to convince operating systems to package it, so it
-needs to be build locally. See the section about QUIC in this document.
+OpenSSL < 3.5.2 version. In this case, QUICTLS or AWS-LC are the preferred
+alternatives. As of writing this, the QuicTLS project follows OpenSSL very
+closely and provides update simultaneously, but being a volunteer-driven
+project, its long-term future does not look certain enough to convince
+operating systems to package it, so it needs to be build locally. Recent
+versions of AWS-LC (>= 1.22 and the FIPS branches) are pretty complete and
+generally more performant than other OpenSSL derivatives, but may behave
+slightly differently, particularly when dealing with outdated setups. See
+the section about QUIC in this document.
 
 A fifth option is wolfSSL (https://github.com/wolfSSL/wolfssl). It is the only
 supported alternative stack not based on OpenSSL, yet which implements almost
