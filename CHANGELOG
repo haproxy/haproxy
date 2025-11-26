@@ -1,6 +1,34 @@
 ChangeLog :
 ===========
 
+2025/11/26 : 3.3.0
+    - BUG/MINOR: acme: better challenge_ready processing
+    - BUG/MINOR: acme: warning ‘ctx’ may be used uninitialized
+    - MINOR: httpclient: complete the https log
+    - BUG/MEDIUM: server: do not use default SNI if manually set
+    - BUG/MINOR: freq_ctr: Prevent possible signed overflow in freq_ctr_overshoot_period
+    - DOC: ssl: Document the restrictions on 0RTT.
+    - DOC: ssl: Note that 0rtt works fork QUIC with QuicTLS too.
+    - BUG/MEDIUM: quic: do not prevent sending if no BE token
+    - BUG/MINOR: quic/server: free quic_retry_token on srv drop
+    - MINOR: quic: split global CID tree between FE and BE sides
+    - MINOR: quic: use separate global quic_conns FE/BE lists
+    - MINOR: quic: add "clo" filter on show quic
+    - MINOR: quic: dump backend connections on show quic
+    - MINOR: quic: mark backend conns on show quic
+    - BUG/MINOR: quic: fix uninit list on show quic handler
+    - BUG/MINOR: quic: release BE quic_conn on connect failure
+    - BUG/MINOR: server: fix srv_drop() crash on partially init srv
+    - BUG/MINOR: h3: do no crash on forwarding multiple chained response
+    - BUG/MINOR: h3: handle properly buf alloc failure on response forwarding
+    - BUG/MEDIUM: server/ssl: Unset the SNI for new server connections if none is set
+    - BUG/MINOR: acme: fix ha_alert() call
+    - Revert "BUG/MEDIUM: server/ssl: Unset the SNI for new server connections if none is set"
+    - BUG/MINOR: sock-inet: ignore conntrack for transparent sockets on Linux
+    - DEV: patchbot: prepare for new version 3.4-dev
+    - DOC: update INSTALL with the range of gcc compilers and openssl versions
+    - MINOR: version: mention that 3.3 is stable now
+
 2025/11/21 : 3.3-dev14
     - MINOR: stick-tables: Rename stksess shards to use buckets
     - MINOR: quic: do not use quic_newcid_from_hash64 on BE side
