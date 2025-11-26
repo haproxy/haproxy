@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2025/11/26 : 3.4-dev0
+    - MINOR: version: mention that it's development again
+
 2025/11/26 : 3.3.0
     - BUG/MINOR: acme: better challenge_ready processing
     - BUG/MINOR: acme: warning ‘ctx’ may be used uninitialized
