@@ -48,12 +48,12 @@ haproxy h1 -conf {
 
     listen clear-lst
         bind "fd@${clearlst}"
-        server s1 "${tmpdir}/ssl.sock" ssl ca-file ${testdir}/set_cafile_rootCA.crt verify none
+        server s1 "${tmpdir}/ssl.sock" ssl ca-file ${testdir}/certs/set_cafile_rootCA.crt verify none
 
     listen ssl-lst
         # crt: certificate of the server
         # ca-file: CA used for client authentication request
-        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/show_ocsp_server.pem ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/certs/show_ocsp_server.pem ca-file ${testdir}/certs/set_cafile_rootCA.crt verify none crt-ignore-err all
         http-response add-header X-SSL-Client-Verify %[ssl_c_verify]
         server s1 ${s1_addr}:${s1_port}
 } -start
@@ -72,7 +72,7 @@ haproxy h1 -cli {
 
 # Test the "show ssl ocsp-response" command with a certificate path as parameter
 shell {
-    ocsp_response=$(echo "show ssl ocsp-response ${testdir}/show_ocsp_server.pem" | socat "${tmpdir}/h1/stats" -)
+    ocsp_response=$(echo "show ssl ocsp-response ${testdir}/certs/show_ocsp_server.pem" | socat "${tmpdir}/h1/stats" -)
 
     echo "$ocsp_response" | grep "Responder Id: C = FR, O = HAProxy Technologies, CN = ocsp.haproxy.com" &&
     echo "$ocsp_response" | grep "Cert Status: good"
@@ -83,21 +83,21 @@ haproxy h1 -cli {
     send "show ssl cert"
     expect ~ ".*show_ocsp_server.pem"
 
-    send "show ssl cert ${testdir}/show_ocsp_server.pem"
+    send "show ssl cert ${testdir}/certs/show_ocsp_server.pem"
     expect ~ "Serial: 100F"
-    send "show ssl cert ${testdir}/show_ocsp_server.pem"
+    send "show ssl cert ${testdir}/certs/show_ocsp_server.pem"
     expect ~ "OCSP Response Key: 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a0202100f"
 
-    send "show ssl cert ${testdir}/show_ocsp_server.pem.ocsp"
+    send "show ssl cert ${testdir}/certs/show_ocsp_server.pem.ocsp"
     expect ~ "Responder Id: C = FR, O = HAProxy Technologies, CN = ocsp.haproxy.com"
-    send "show ssl cert ${testdir}/show_ocsp_server.pem.ocsp"
+    send "show ssl cert ${testdir}/certs/show_ocsp_server.pem.ocsp"
     expect ~ "Cert Status: good"
 }
 
 
 # Change the server certificate's OCSP response through "set ssl ocsp-response"
 shell {
-    printf "set ssl ocsp-response <<\n$(cat ${testdir}/show_ocsp_server.pem.ocsp.revoked|openssl base64)\n\n" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl ocsp-response <<\n$(cat ${testdir}/certs/show_ocsp_server.pem.ocsp.revoked|openssl base64)\n\n" | socat "${tmpdir}/h1/stats" -
 }
 
 # Check that the change was taken into account
@@ -110,16 +110,16 @@ haproxy h1 -cli {
     send "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a0202100f"
     expect ~ "Cert Status: revoked"
 
-    send "show ssl cert ${testdir}/show_ocsp_server.pem.ocsp"
+    send "show ssl cert ${testdir}/certs/show_ocsp_server.pem.ocsp"
     expect ~ "Cert Status: revoked"
 }
 
 
 # Change the server certificate's OCSP response through a transaction
 shell {
-    printf "set ssl cert ${testdir}/show_ocsp_server.pem <<\n$(cat ${testdir}/show_ocsp_server.pem | sed  '/^$/d')\n\n" | socat  "${tmpdir}/h1/stats" -
-    printf "set ssl cert ${testdir}/show_ocsp_server.pem.issuer <<\n$(cat ${testdir}/show_ocsp_server.pem.issuer | sed  '/^$/d')\n\n" | socat  "${tmpdir}/h1/stats" -
-    printf "set ssl cert ${testdir}/show_ocsp_server.pem.ocsp <<\n$(cat ${testdir}/show_ocsp_server.pem.ocsp|openssl base64)\n\n" | socat  "${tmpdir}/h1/stats" -
+    printf "set ssl cert ${testdir}/certs/show_ocsp_server.pem <<\n$(cat ${testdir}/certs/show_ocsp_server.pem | sed  '/^$/d')\n\n" | socat  "${tmpdir}/h1/stats" -
+    printf "set ssl cert ${testdir}/certs/show_ocsp_server.pem.issuer <<\n$(cat ${testdir}/certs/show_ocsp_server.pem.issuer | sed  '/^$/d')\n\n" | socat  "${tmpdir}/h1/stats" -
+    printf "set ssl cert ${testdir}/certs/show_ocsp_server.pem.ocsp <<\n$(cat ${testdir}/certs/show_ocsp_server.pem.ocsp|openssl base64)\n\n" | socat  "${tmpdir}/h1/stats" -
 }
 
 
@@ -131,16 +131,16 @@ haproxy h1 -cli {
     send "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a0202100f"
     expect ~ "This Update: Jun 10 08:57:45 2021 GMT"
 
-    send "show ssl cert *${testdir}/show_ocsp_server.pem.ocsp"
+    send "show ssl cert *${testdir}/certs/show_ocsp_server.pem.ocsp"
     expect ~ "Cert Status: good"
-    send "show ssl cert *${testdir}/show_ocsp_server.pem.ocsp"
+    send "show ssl cert *${testdir}/certs/show_ocsp_server.pem.ocsp"
     expect ~ "This Update: Jun 10 08:55:04 2021 GMT"
 }
 
 
 # Commit the transaction and check that it was taken into account
 haproxy h1 -cli {
-    send "commit ssl cert ${testdir}/show_ocsp_server.pem"
+    send "commit ssl cert ${testdir}/certs/show_ocsp_server.pem"
     expect ~ "Success!"
 
     send "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a0202100f"

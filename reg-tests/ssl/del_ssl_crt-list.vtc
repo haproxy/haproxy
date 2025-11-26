@@ -28,7 +28,7 @@ haproxy h1 -conf {
         tune.ssl.default-dh-param 2048
     .endif
         tune.ssl.capture-buffer-size 1
-        crt-base ${testdir}
+        crt-base ${testdir}/certs
         stats socket "${tmpdir}/h1/stats" level admin
         ssl-default-bind-options strict-sni
 
@@ -54,12 +54,12 @@ haproxy h1 -conf {
     listen first-ssl-fe
         # note: strict-sni is enforced from ssl-default-bind-options above
         mode http
-        bind "${tmpdir}/first-ssl.sock" ssl crt-list ${testdir}/simple.crt-list
+        bind "${tmpdir}/first-ssl.sock" ssl crt-list ${testdir}/certs/simple.crt-list
         server s1 ${s1_addr}:${s1_port}
 
     listen second-ssl-fe
         mode http
-        bind "${tmpdir}/second-ssl.sock" ssl no-strict-sni crt-list ${testdir}/localhost.crt-list
+        bind "${tmpdir}/second-ssl.sock" ssl no-strict-sni crt-list ${testdir}/certs/localhost.crt-list
         server s1 ${s1_addr}:${s1_port}
 } -start
 
@@ -78,12 +78,12 @@ client c1 -connect ${h1_clearlst_sock} {
 } -run
 
 haproxy h1 -cli {
-    send "del ssl crt-list ${testdir}/simple.crt-list ${testdir}/common.pem:2"
-    expect ~ "Entry '${testdir}/common.pem' deleted in crtlist '${testdir}/simple.crt-list'!"
+    send "del ssl crt-list ${testdir}/certs/simple.crt-list ${testdir}/certs/common.pem:2"
+    expect ~ "Entry '${testdir}/certs/common.pem' deleted in crtlist '${testdir}/certs/simple.crt-list'!"
 }
 
 haproxy h1 -cli {
-    send "show ssl crt-list -n ${testdir}/simple.crt-list"
+    send "show ssl crt-list -n ${testdir}/certs/simple.crt-list"
     expect !~ "common.pem:2"
 }
 
@@ -98,12 +98,12 @@ client c1 -connect ${h1_clearlst_sock} {
 # We should not be able to delete the crt-list's first line since it is the
 # default certificate of this bind line and the strict-sni option is not enabled.
 haproxy h1 -cli {
-    send "del ssl crt-list ${testdir}/localhost.crt-list ${testdir}/common.pem:1"
-    expect ~ "Can't delete the entry: certificate '${testdir}/common.pem' cannot be deleted, it is used as default certificate by the following frontends:"
+    send "del ssl crt-list ${testdir}/certs/localhost.crt-list ${testdir}/certs/common.pem:1"
+    expect ~ "Can't delete the entry: certificate '${testdir}/certs/common.pem' cannot be deleted, it is used as default certificate by the following frontends:"
 }
 
 # We should be able to delete any line of the crt-list since the strict-sni option is enabled.
 haproxy h1 -cli {
-    send "del ssl crt-list ${testdir}/simple.crt-list ${testdir}/common.pem:1"
-    expect ~ "Entry '${testdir}/common.pem' deleted in crtlist '${testdir}/simple.crt-list'!"
+    send "del ssl crt-list ${testdir}/certs/simple.crt-list ${testdir}/certs/common.pem:1"
+    expect ~ "Entry '${testdir}/certs/common.pem' deleted in crtlist '${testdir}/certs/simple.crt-list'!"
 }

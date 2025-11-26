@@ -59,7 +59,7 @@ haproxy h1 -conf {
         server s1 "${tmpdir}/ssl_P-384.sock" ssl verify none ssl-max-ver TLSv1.2 sni var(sess.sni)
 
     listen ssl-lst
-        bind "${tmpdir}/ssl.sock" ssl generate-certificates crt ${testdir}/generate_certificates/gen_cert_server.pem ca-sign-file ${testdir}/generate_certificates/gen_cert_ca.pem ca-file ${testdir}/generate_certificates/gen_cert_ca.pem verify optional
+        bind "${tmpdir}/ssl.sock" ssl generate-certificates crt ${testdir}/certs/generate_certificates/gen_cert_server.pem ca-sign-file ${testdir}/certs/generate_certificates/gen_cert_ca.pem ca-file ${testdir}/certs/generate_certificates/gen_cert_ca.pem verify optional
         http-response add-header x-ssl-s_dn %[ssl_f_s_dn(CN)]
         http-response add-header x-ssl-i_dn %[ssl_f_i_dn(CN)]
         http-response add-header x-ssl-sig_alg %[ssl_f_sig_alg]
@@ -69,7 +69,7 @@ haproxy h1 -conf {
         server s1 ${s1_addr}:${s1_port}
 
     listen ssl-lst-P-384
-        bind "${tmpdir}/ssl_P-384.sock" ssl generate-certificates crt ${testdir}/generate_certificates/gen_cert_server.pem ca-sign-file ${testdir}/generate_certificates/gen_cert_ca.pem ca-file ${testdir}/generate_certificates/gen_cert_ca.pem verify optional ecdhe secp384r1
+        bind "${tmpdir}/ssl_P-384.sock" ssl generate-certificates crt ${testdir}/certs/generate_certificates/gen_cert_server.pem ca-sign-file ${testdir}/certs/generate_certificates/gen_cert_ca.pem ca-file ${testdir}/certs/generate_certificates/gen_cert_ca.pem verify optional ecdhe secp384r1
         http-response add-header x-ssl-s_dn %[ssl_f_s_dn(CN)]
         http-response add-header x-ssl-i_dn %[ssl_f_i_dn(CN)]
         http-response add-header x-ssl-sig_alg %[ssl_f_sig_alg]

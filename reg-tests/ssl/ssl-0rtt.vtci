@@ -102,10 +102,10 @@ haproxy h1 -conf {
     listen ssl
         # socket names indicate their capabilities and are used below in regex
         # (0r means 0rtt OK, 1r means 0rtt not accepted)
-        bind "${VTC_SOCK_TYPE}+fd@${sv_sf_1r}" name sf_1r ssl crt ${testdir}/common.pem ssl-min-ver "${TLSV}" ssl-max-ver "${TLSV}"
-        bind "${VTC_SOCK_TYPE}+fd@${sv_sl_1r}" name sl_1r ssl crt ${testdir}/common.pem ssl-min-ver "${TLSV}" ssl-max-ver "${TLSV}" no-tls-tickets
-        bind "${VTC_SOCK_TYPE}+fd@${sv_sf_0r}" name sf_0r ssl crt ${testdir}/common.pem ssl-min-ver "${TLSV}" ssl-max-ver "${TLSV}" allow-0rtt
-        bind "${VTC_SOCK_TYPE}+fd@${sv_sl_0r}" name sl_0r ssl crt ${testdir}/common.pem ssl-min-ver "${TLSV}" ssl-max-ver "${TLSV}" allow-0rtt no-tls-tickets
+        bind "${VTC_SOCK_TYPE}+fd@${sv_sf_1r}" name sf_1r ssl crt ${testdir}/certs/common.pem ssl-min-ver "${TLSV}" ssl-max-ver "${TLSV}"
+        bind "${VTC_SOCK_TYPE}+fd@${sv_sl_1r}" name sl_1r ssl crt ${testdir}/certs/common.pem ssl-min-ver "${TLSV}" ssl-max-ver "${TLSV}" no-tls-tickets
+        bind "${VTC_SOCK_TYPE}+fd@${sv_sf_0r}" name sf_0r ssl crt ${testdir}/certs/common.pem ssl-min-ver "${TLSV}" ssl-max-ver "${TLSV}" allow-0rtt
+        bind "${VTC_SOCK_TYPE}+fd@${sv_sl_0r}" name sl_0r ssl crt ${testdir}/certs/common.pem ssl-min-ver "${TLSV}" ssl-max-ver "${TLSV}" allow-0rtt no-tls-tickets
 
         # expect early-data TLS version supports it and both the client and the listener support it
         http-request add-header x-expect-early 1 if { int("$ZRTT_SUPP") eq 1 } { ssl_fc_is_resumed } { req.hdr(x-from) -m reg '^cl_0r' } { so_name -m reg '0r$' }

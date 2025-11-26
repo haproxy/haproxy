@@ -66,20 +66,20 @@ haproxy h1 -conf {
         default_backend ssl-be
 
     backend ssl-be
-        server s1 "${tmpdir}/ssl1.sock" ssl verify none crt ${testdir}/client.ecdsa.pem force-tlsv12 curves P-256:P-384
+        server s1 "${tmpdir}/ssl1.sock" ssl verify none crt ${testdir}/certs/client.ecdsa.pem force-tlsv12 curves P-256:P-384
 
     backend ssl-curves-be
-        server s1 "${tmpdir}/ssl2.sock" ssl verify none crt ${testdir}/client.ecdsa.pem force-tlsv12 curves P-384
+        server s1 "${tmpdir}/ssl2.sock" ssl verify none crt ${testdir}/certs/client.ecdsa.pem force-tlsv12 curves P-384
 
     backend ssl-ecdhe-256-be
-        server s1 "${tmpdir}/ssl-ecdhe-256.sock" ssl verify none crt ${testdir}/client.ecdsa.pem force-tlsv12
+        server s1 "${tmpdir}/ssl-ecdhe-256.sock" ssl verify none crt ${testdir}/certs/client.ecdsa.pem force-tlsv12
 
     backend ssl-ecdhe-521-be
-        server s1 "${tmpdir}/ssl-ecdhe-521.sock" ssl verify none crt ${testdir}/client.ecdsa.pem force-tlsv12
+        server s1 "${tmpdir}/ssl-ecdhe-521.sock" ssl verify none crt ${testdir}/certs/client.ecdsa.pem force-tlsv12
 
 
     listen ssl1-lst
-        bind "${tmpdir}/ssl1.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/set_cafile_rootCA.crt verify optional curves P-256:P-384
+        bind "${tmpdir}/ssl1.sock" ssl crt ${testdir}/certs/common.pem ca-file ${testdir}/certs/set_cafile_rootCA.crt verify optional curves P-256:P-384
         server s1 ${s1_addr}:${s1_port}
 
     # The prime256v1 curve, which is used by default by a backend when no
@@ -88,21 +88,21 @@ haproxy h1 -conf {
         log ${Slg_cust_fmt_addr}:${Slg_cust_fmt_port} local0
         error-log-format "ERROR conn_status:\"%[fc_err]:%[fc_err_str]\" hsk_err:%{+Q}[ssl_fc_err_str]"
 
-        bind "${tmpdir}/ssl2.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/set_cafile_rootCA.crt verify optional curves P-384
+        bind "${tmpdir}/ssl2.sock" ssl crt ${testdir}/certs/common.pem ca-file ${testdir}/certs/set_cafile_rootCA.crt verify optional curves P-384
         server s1 ${s1_addr}:${s1_port}
 
     listen ssl-ecdhe-521-lst
         log ${Slg_cust_fmt_addr}:${Slg_cust_fmt_port} local0
         error-log-format "ERROR ECDHE-521 conn_status:\"%[fc_err]:%[fc_err_str]\" hsk_err:%{+Q}[ssl_fc_err_str]"
 
-        bind "${tmpdir}/ssl-ecdhe-521.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/set_cafile_rootCA.crt verify optional ecdhe secp521r1
+        bind "${tmpdir}/ssl-ecdhe-521.sock" ssl crt ${testdir}/certs/common.pem ca-file ${testdir}/certs/set_cafile_rootCA.crt verify optional ecdhe secp521r1
         server s1 ${s1_addr}:${s1_port}
 
     listen ssl-ecdhe-256-lst
         log ${Slg_cust_fmt_addr}:${Slg_cust_fmt_port} local0
         error-log-format "ERROR ECDHE-256 conn_status:\"%[fc_err]:%[fc_err_str]\" hsk_err:%{+Q}[ssl_fc_err_str]"
 
-        bind "${tmpdir}/ssl-ecdhe-256.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/set_cafile_rootCA.crt verify optional ecdhe prime256v1
+        bind "${tmpdir}/ssl-ecdhe-256.sock" ssl crt ${testdir}/certs/common.pem ca-file ${testdir}/certs/set_cafile_rootCA.crt verify optional ecdhe prime256v1
         server s1 ${s1_addr}:${s1_port}
 
 } -start

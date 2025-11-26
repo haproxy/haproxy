@@ -22,7 +22,7 @@ haproxy hapsrv -conf {
 
 	frontend fe
 		bind "fd@${fe}"
-		bind "fd@${fessl}" ssl crt ${testdir}/common.pem alpn h2,http/1.1
+		bind "fd@${fessl}" ssl crt ${testdir}/certs/common.pem alpn h2,http/1.1
 		capture request header sec-websocket-key len 128
 		http-request set-var(txn.ver) req.ver
 		use_backend be

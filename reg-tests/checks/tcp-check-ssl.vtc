@@ -62,7 +62,7 @@ haproxy htst -conf {
 	server fe1 ${htst_fe1_addr}:${htst_fe1_port}
 
     frontend fe1
-        bind "fd@${fe1}" ssl crt ${testdir}/common.pem
+        bind "fd@${fe1}" ssl crt ${testdir}/certs/common.pem
 
 } -start
 

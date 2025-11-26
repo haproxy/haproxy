@@ -19,8 +19,8 @@ haproxy h1 -arg "-L A" -conf {
         stick-table type string size 10m store server_id,gpc0,conn_cur,conn_rate(50000) peers peers
 
     peers peers
-        default-server ssl crt ${testdir}/common.pem verify none
-        bind "fd@${A}" ssl crt ${testdir}/common.pem
+        default-server ssl crt ${testdir}/certs/common.pem verify none
+        bind "fd@${A}" ssl crt ${testdir}/certs/common.pem
         server A
         server B ${h2_B_addr}:${h2_B_port}
         server C ${h3_C_addr}:${h3_C_port}
@@ -49,8 +49,8 @@ haproxy h2 -arg "-L B" -conf {
         stick-table type string size 10m store server_id,gpc0,conn_cur,conn_rate(50000) peers peers
 
     peers peers
-        default-server ssl crt ${testdir}/common.pem verify none
-        bind "fd@${B}" ssl crt ${testdir}/common.pem
+        default-server ssl crt ${testdir}/certs/common.pem verify none
+        bind "fd@${B}" ssl crt ${testdir}/certs/common.pem
         server A ${h1_A_addr}:${h1_A_port}
         server B
         server C ${h3_C_addr}:${h3_C_port}
@@ -78,8 +78,8 @@ haproxy h3 -arg "-L C" -conf {
         stick-table type string size 10m store server_id,gpc0,conn_cur,conn_rate(50000) peers peers
 
     peers peers
-        default-server ssl crt ${testdir}/common.pem verify none
-        bind "fd@${C}" ssl crt ${testdir}/common.pem
+        default-server ssl crt ${testdir}/certs/common.pem verify none
+        bind "fd@${C}" ssl crt ${testdir}/certs/common.pem
         server A ${h1_A_addr}:${h1_A_port}
         server B ${h2_B_addr}:${h2_B_port}
         server C

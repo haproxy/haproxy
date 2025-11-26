@@ -29,7 +29,7 @@ backend be-reverse
 	server dev rhttp@ ssl sni hdr(x-name) verify none
 
 frontend priv
-	bind "fd@${priv}" ssl crt ${testdir}/common.pem verify required ca-verify-file ${testdir}/ca-auth.crt alpn h2
+	bind "fd@${priv}" ssl crt ${testdir}/certs/common.pem verify required ca-verify-file ${testdir}/certs/ca-auth.crt alpn h2
 	tcp-request session attach-srv be-reverse/dev name ssl_c_s_dn(CN)
 } -start
 
@@ -45,7 +45,7 @@ defaults
 
 listen li
 	bind "fd@${li}"
-	server h_edge "${h_edge_priv_addr}:${h_edge_priv_port}" ssl crt ${testdir}/client1.pem verify none alpn h2
+	server h_edge "${h_edge_priv_addr}:${h_edge_priv_port}" ssl crt ${testdir}/certs/client1.pem verify none alpn h2
 } -start
 
 # Run a client through private endpoint

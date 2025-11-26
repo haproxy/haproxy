@@ -60,15 +60,15 @@ haproxy h1 -conf {
     frontend fe1
         option httplog
         log ${S1_addr}:${S1_port} len 2048 local0 debug err
-        bind "fd@${fe1}" ssl crt ${testdir}/common.pem
+        bind "fd@${fe1}" ssl crt ${testdir}/certs/common.pem
         use_backend be1
 
     frontend fe2
-        bind "fd@${fe2}" ssl crt ${testdir}/common.pem
+        bind "fd@${fe2}" ssl crt ${testdir}/certs/common.pem
         use_backend be2
 
     frontend fe3
-        bind "fd@${fe3}" ssl crt ${testdir}/common.pem
+        bind "fd@${fe3}" ssl crt ${testdir}/certs/common.pem
         use_backend be3
 } -start
 
@@ -108,19 +108,19 @@ haproxy h2 -conf {
         option httpchk OPTIONS * HTTP/1.1
         http-check send hdr Host www
         log ${S2_addr}:${S2_port} daemon
-        server srv1 ${h1_fe1_addr}:${h1_fe1_port} ssl crt ${testdir}/common.pem verify none check
+        server srv1 ${h1_fe1_addr}:${h1_fe1_port} ssl crt ${testdir}/certs/common.pem verify none check
 
     backend be4
         option log-health-checks
         log ${S4_addr}:${S4_port} daemon
-        server srv2 ${h1_fe2_addr}:${h1_fe2_port} ssl crt ${testdir}/common.pem verify none check-ssl check
+        server srv2 ${h1_fe2_addr}:${h1_fe2_port} ssl crt ${testdir}/certs/common.pem verify none check-ssl check
 
     backend be6
         option log-health-checks
         option httpchk OPTIONS * HTTP/1.1
         http-check send hdr Host www
         log ${S6_addr}:${S6_port} daemon
-        server srv3 127.0.0.1:80 crt ${testdir}/common.pem verify none check check-ssl port ${h1_fe3_port} addr ${h1_fe3_addr}:80
+        server srv3 127.0.0.1:80 crt ${testdir}/certs/common.pem verify none check check-ssl port ${h1_fe3_port} addr ${h1_fe3_addr}:80
 } -start
 
 syslog S1 -wait

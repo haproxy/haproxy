@@ -47,7 +47,7 @@ haproxy h1 -conf {
 
 	# frontend used to respond to ssl connection
 	frontend fe-ssl-term
-		bind "fd@${feSslTerm}" ssl crt ${testdir}/common.pem
+		bind "fd@${feSslTerm}" ssl crt ${testdir}/certs/common.pem
 		http-request return status 200
 } -start
 
@@ -63,7 +63,7 @@ client c1 -connect ${h1_feSsl_sock} {
 
 shell {
 	echo "new ssl ca-file common.pem" | socat "${tmpdir}/h1/stats" -
-	printf "set ssl ca-file common.pem <<\n$(cat ${testdir}/common.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+	printf "set ssl ca-file common.pem <<\n$(cat ${testdir}/certs/common.pem)\n\n" | socat "${tmpdir}/h1/stats" -
 	echo "commit ssl ca-file common.pem" | socat "${tmpdir}/h1/stats" -
 } -run
 

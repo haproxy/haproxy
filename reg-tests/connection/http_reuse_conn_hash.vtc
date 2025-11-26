@@ -47,7 +47,7 @@ haproxy h1 -conf {
 
 	listen receiver
 		bind "fd@${feR}"
-		bind "fd@${feR_ssl}" ssl crt ${testdir}/common.pem
+		bind "fd@${feR_ssl}" ssl crt ${testdir}/certs/common.pem
 		bind "fd@${feR_proxy}" accept-proxy
 		http-request return status 200
 		http-after-response set-header http_first_request %[http_first_req]

@@ -51,7 +51,7 @@ haproxy h1 -conf {
 		log ring@myring local0 # To TCP log
 
 	log-forward syslog2local
-		bind 127.0.0.1:2514 ssl crt ${testdir}/common.pem
+		bind 127.0.0.1:2514 ssl crt ${testdir}/certs/common.pem
 		log ${Slg1_addr}:${Slg1_port} local0 # To VTest syslog
 } -start
 
