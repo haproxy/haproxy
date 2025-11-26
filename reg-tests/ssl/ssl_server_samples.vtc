@@ -19,7 +19,7 @@ haproxy h1 -conf {
         tune.ssl.default-dh-param 2048
     .endif
         tune.ssl.capture-buffer-size 1
-        crt-base ${testdir}
+        crt-base ${testdir}/certs
         stats socket "${tmpdir}/h1/stats" level admin
 
     defaults
@@ -52,7 +52,7 @@ haproxy h1 -conf {
     listen ssl-lst
         mode http
 
-        bind "${tmpdir}/ssl.sock" ssl strict-sni crt-list ${testdir}/localhost.crt-list
+        bind "${tmpdir}/ssl.sock" ssl strict-sni crt-list ${testdir}/certs/localhost.crt-list
 
         server s1 ${s1_addr}:${s1_port}
 } -start

@@ -19,7 +19,6 @@ haproxy h1 -conf {
         tune.ssl.default-dh-param 2048
     .endif
         tune.ssl.capture-buffer-size 1
-        crt-base ${testdir}
 
     defaults
         mode http
@@ -50,7 +49,7 @@ haproxy h1 -conf {
         http-response add-header x-ssl-key_alg %[ssl_f_key_alg]
         http-response add-header x-ssl-version %[ssl_f_version]
 
-        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.pem
+        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/certs/common.pem
 
         server s1 ${s1_addr}:${s1_port}
 } -start

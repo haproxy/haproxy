@@ -71,7 +71,7 @@ haproxy h1 -conf {
         default-server inter 100ms
 
     frontend fe_ssl
-        bind "fd@${fe_ssl}" ssl crt ${testdir}/common.pem
+        bind "fd@${fe_ssl}" ssl crt ${testdir}/certs/common.pem
 
         http-request return status 200 if { path /test1 } { ssl_fc_sni www.test1.org }
         http-request return status 500 if { path /test2 } { ssl_fc_sni -m found }
@@ -79,7 +79,7 @@ haproxy h1 -conf {
         http-request deny
 
     listen li_check_ssl
-        bind "fd@${li_check_ssl}" ssl crt ${testdir}/common.pem
+        bind "fd@${li_check_ssl}" ssl crt ${testdir}/certs/common.pem
         http-request set-header x-sni %[ssl_fc_sni] if { ssl_fc_sni -m found }
 
         use-server s1 if { path /test1 }

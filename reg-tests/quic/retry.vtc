@@ -28,11 +28,11 @@ haproxy ha2 -conf {
         timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     listen quic_lstnr
-        bind "quic+fd@${fe_quic}" ssl crt ${testdir}/common.pem
+        bind "quic+fd@${fe_quic}" ssl crt ${testdir}/certs/common.pem
         server srv ${s1_addr}:${s1_port}
 
     listen quic_lstnr_retry
-        bind "quic+fd@${fe_quic_retry}" ssl crt ${testdir}/common.pem quic-force-retry
+        bind "quic+fd@${fe_quic_retry}" ssl crt ${testdir}/certs/common.pem quic-force-retry
         server srv ${s1_addr}:${s1_port}
 } -start
 

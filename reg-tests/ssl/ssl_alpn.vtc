@@ -77,11 +77,11 @@ haproxy h1 -conf {
                                         server s34 "${tmpdir}/ssl4.sock" alpn h2,http/1.1
 
     frontend fe-ssl
-        bind "${tmpdir}/ssl0.sock" ssl crt ${testdir}/common.pem
-        bind "${tmpdir}/ssl1.sock" ssl crt ${testdir}/common.pem alpn http/1.1 
-        bind "${tmpdir}/ssl2.sock" ssl crt ${testdir}/common.pem alpn h2
-        bind "${tmpdir}/ssl3.sock" ssl crt ${testdir}/common.pem alpn h2,http/1.1
-        bind "${tmpdir}/ssl4.sock" ssl crt ${testdir}/common.pem no-alpn
+        bind "${tmpdir}/ssl0.sock" ssl crt ${testdir}/certs/common.pem
+        bind "${tmpdir}/ssl1.sock" ssl crt ${testdir}/certs/common.pem alpn http/1.1 
+        bind "${tmpdir}/ssl2.sock" ssl crt ${testdir}/certs/common.pem alpn h2
+        bind "${tmpdir}/ssl3.sock" ssl crt ${testdir}/certs/common.pem alpn h2,http/1.1
+        bind "${tmpdir}/ssl4.sock" ssl crt ${testdir}/certs/common.pem no-alpn
         http-request return status 200 hdr x-alpn _%[ssl_fc_alpn] hdr x-path %[path] hdr x-ver _%[req.ver]
 } -start
 

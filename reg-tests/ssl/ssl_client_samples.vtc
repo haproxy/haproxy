@@ -35,7 +35,7 @@ haproxy h1 -conf {
     listen clear-lst
         bind "fd@${clearlst}"
         balance roundrobin
-        server s1 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/client1.pem
+        server s1 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/certs/client1.pem
 
     listen ssl-lst
         mode http
@@ -53,7 +53,7 @@ haproxy h1 -conf {
         http-response add-header x-ssl-key_alg %[ssl_c_key_alg]
         http-response add-header x-ssl-version %[ssl_c_version]
 
-        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/ca-auth.crt verify optional crt-ignore-err all crl-file ${testdir}/crl-auth.pem
+        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/certs/common.pem ca-file ${testdir}/certs/ca-auth.crt verify optional crt-ignore-err all crl-file ${testdir}/certs/crl-auth.pem
 
         server s1 ${s1_addr}:${s1_port}
 } -start

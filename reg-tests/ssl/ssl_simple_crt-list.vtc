@@ -19,7 +19,7 @@ haproxy h1 -conf {
     .if !ssllib_name_startswith(AWS-LC)
         tune.ssl.default-dh-param 2048
     .endif
-        crt-base ${testdir}
+        crt-base ${testdir}/certs
         stats socket "${tmpdir}/h1/stats" level admin
 
     defaults
@@ -42,7 +42,7 @@ haproxy h1 -conf {
 
     listen ssl-lst
         mode http
-        bind "${tmpdir}/ssl.sock" ssl strict-sni crt-list ${testdir}/simple.crt-list
+        bind "${tmpdir}/ssl.sock" ssl strict-sni crt-list ${testdir}/certs/simple.crt-list
 
         server s1 ${s1_addr}:${s1_port}
 } -start

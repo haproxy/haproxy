@@ -45,10 +45,10 @@ haproxy htst -conf {
        server fe1 ${htst_fe1_addr}:${htst_fe1_port}
 
     frontend fe1
-        bind "fd@${fe1}" ssl crt ${testdir}/common.pem curves P-256:P-384
+        bind "fd@${fe1}" ssl crt ${testdir}/certs/common.pem curves P-256:P-384
 
     frontend fe3
-        bind "fd@${fe3}" ssl crt ${testdir}/common.pem
+        bind "fd@${fe3}" ssl crt ${testdir}/certs/common.pem
 } -start
 
 haproxy h1 -conf {

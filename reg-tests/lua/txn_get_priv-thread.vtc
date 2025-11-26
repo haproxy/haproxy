@@ -32,7 +32,7 @@ haproxy h1 -conf {
 
     frontend fe2
         mode http
-        bind ":8443" ssl crt ${testdir}/common.pem
+        bind ":8443" ssl crt ${testdir}/certs/common.pem
         stats enable
         stats uri /
 

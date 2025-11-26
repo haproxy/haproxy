@@ -39,8 +39,7 @@ haproxy h1 -conf {
         http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
 
     listen ssl
-        bind "${VTC_SOCK_TYPE}+fd@${fe3}" ssl crt ${testdir}/common.pem ssl-min-ver "${TLSV}" ssl-max-ver "${TLSV}" "${NO_TLS_TICKETS}"
-
+        bind "${VTC_SOCK_TYPE}+fd@${fe3}" ssl crt ${testdir}/certs/common.pem ssl-min-ver "${TLSV}" ssl-max-ver "${TLSV}" "${NO_TLS_TICKETS}"
         http-response add-header x-ssl-resumed %[ssl_fc_is_resumed]
         server s1 ${s1_addr}:${s1_port}
 } -start

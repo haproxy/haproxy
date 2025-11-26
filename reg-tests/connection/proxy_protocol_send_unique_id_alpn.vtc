@@ -24,7 +24,7 @@ haproxy h1 -conf {
         server example ${h1_feR_addr}:${h1_feR_port} send-proxy-v2 proxy-v2-options unique-id ssl alpn XXX verify none
 
     listen receiver
-        bind "fd@${feR}" ssl crt ${testdir}/common.pem accept-proxy
+        bind "fd@${feR}" ssl crt ${testdir}/certs/common.pem accept-proxy
 
         http-request set-var(txn.proxy_unique_id) fc_pp_unique_id
         http-after-response set-header proxy_unique_id %[var(txn.proxy_unique_id)]

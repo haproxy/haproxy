@@ -30,7 +30,7 @@ haproxy h1 -conf {
         tune.ssl.default-dh-param 2048
     .endif
         tune.ssl.capture-buffer-size 1
-        crt-base ${testdir}
+        crt-base ${testdir}/certs
         stats socket "${tmpdir}/h1/stats" level admin
 
     defaults
@@ -52,15 +52,15 @@ haproxy h1 -conf {
 
     listen ssl-lst
         mode http
-        bind "${tmpdir}/ssl.sock" ssl strict-sni crt-list ${testdir}/localhost.crt-list
+        bind "${tmpdir}/ssl.sock" ssl strict-sni crt-list "${testdir}/certs/localhost.crt-list"
 
         server s1 ${s1_addr}:${s1_port}
-        server s2 ${s1_addr}:${s1_port} ssl crt "${testdir}/common.pem" weight 0 verify none
+        server s2 ${s1_addr}:${s1_port} ssl crt "${testdir}/certs/common.pem" weight 0 verify none
 } -start
 
 
 haproxy h1 -cli {
-    send "show ssl cert ${testdir}/common.pem"
+    send "show ssl cert ${testdir}/certs/common.pem"
     expect ~ ".*SHA1 FingerPrint: DF3B6E847A7BF83DFAAFCFEC65EE9BC36230D3EA"
 }
 
@@ -71,26 +71,26 @@ client c1 -connect ${h1_clearlst_sock} {
 } -run
 
 shell {
-    echo "new ssl cert ${testdir}/ecdsa.pem" | socat "${tmpdir}/h1/stats" -
-    printf "set ssl cert ${testdir}/ecdsa.pem <<\n$(cat ${testdir}/ecdsa.pem)\n\n" | socat "${tmpdir}/h1/stats" -
-    echo "commit ssl cert ${testdir}/ecdsa.pem" | socat "${tmpdir}/h1/stats" -
-    printf "add ssl crt-list ${testdir}/localhost.crt-list/ <<\n${testdir}/common.pem [ssl-min-ver SSLv3 verify none allow-0rtt] !*\n\n" | socat "${tmpdir}/h1/stats" -
-    printf "add ssl crt-list ${testdir}/localhost.crt-list/ <<\n${testdir}/ecdsa.pem [ssl-min-ver SSLv3 verify none allow-0rtt] localhost !www.test1.com\n\n" | socat "${tmpdir}/h1/stats" -
-    printf "add ssl crt-list ${testdir}/localhost.crt-list <<\n${testdir}/ecdsa.pem [verify none allow-0rtt]\n\n" | socat "${tmpdir}/h1/stats" -
-    printf "add ssl crt-list ${testdir}/localhost.crt-list/// <<\n${testdir}/ecdsa.pem localhost !www.test1.com\n\n" | socat "${tmpdir}/h1/stats" -
-    printf "add ssl crt-list ${testdir}/localhost.crt-list///// <<\n${testdir}/ecdsa.pem\n\n" | socat "${tmpdir}/h1/stats" -
-    printf "add ssl crt-list ${testdir}/localhost.crt-list// ${testdir}/ecdsa.pem\n" | socat "${tmpdir}/h1/stats" -
+    echo "new ssl cert ${testdir}/certs/ecdsa.pem" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl cert ${testdir}/certs/ecdsa.pem <<\n$(cat ${testdir}/certs/ecdsa.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert ${testdir}/certs/ecdsa.pem" | socat "${tmpdir}/h1/stats" -
+    printf "add ssl crt-list ${testdir}/certs/localhost.crt-list/ <<\n${testdir}/certs/common.pem [ssl-min-ver SSLv3 verify none allow-0rtt] !*\n\n" | socat "${tmpdir}/h1/stats" -
+    printf "add ssl crt-list ${testdir}/certs/localhost.crt-list/ <<\n${testdir}/certs/ecdsa.pem [ssl-min-ver SSLv3 verify none allow-0rtt] localhost !www.test1.com\n\n" | socat "${tmpdir}/h1/stats" -
+    printf "add ssl crt-list ${testdir}/certs/localhost.crt-list <<\n${testdir}/certs/ecdsa.pem [verify none allow-0rtt]\n\n" | socat "${tmpdir}/h1/stats" -
+    printf "add ssl crt-list ${testdir}/certs/localhost.crt-list/// <<\n${testdir}/certs/ecdsa.pem localhost !www.test1.com\n\n" | socat "${tmpdir}/h1/stats" -
+    printf "add ssl crt-list ${testdir}/certs/localhost.crt-list///// <<\n${testdir}/certs/ecdsa.pem\n\n" | socat "${tmpdir}/h1/stats" -
+    printf "add ssl crt-list ${testdir}/certs/localhost.crt-list// ${testdir}/certs/ecdsa.pem\n" | socat "${tmpdir}/h1/stats" -
 }
 
 haproxy h1 -cli {
-    send "show ssl cert ${testdir}/ecdsa.pem"
+    send "show ssl cert ${testdir}/certs/ecdsa.pem"
     expect ~ ".*SHA1 FingerPrint: A490D069DBAFBEE66DE434BEC34030ADE8BCCBF1"
 }
 
 haproxy h1 -cli {
-    send "show ssl crt-list ${testdir}/localhost.crt-list//"
+    send "show ssl crt-list ${testdir}/certs/localhost.crt-list//"
     # check the options and the filters in any order
-    expect ~ ".*${testdir}/ecdsa.pem \\[(?=.*verify none)(?=.*allow-0rtt)(?=.*ssl-min-ver SSLv3).*\\](?=.*!www.test1.com)(?=.*localhost).*"
+    expect ~ ".*${testdir}/certs/ecdsa.pem \\[(?=.*verify none)(?=.*allow-0rtt)(?=.*ssl-min-ver SSLv3).*\\](?=.*!www.test1.com)(?=.*localhost).*"
 }
 
 client c1 -connect ${h1_clearlst_sock} {
@@ -103,17 +103,17 @@ client c1 -connect ${h1_clearlst_sock} {
 # Try to add a new line that mentions an "unknown" CA file (not loaded yet).
 # It should fail since no disk access are allowed during runtime.
 shell {
-    printf "add ssl crt-list ${testdir}/localhost.crt-list/ <<\n${testdir}/ecdsa.pem [ca-file ${testdir}/ca-auth.crt] localhost\n\n" | socat "${tmpdir}/h1/stats" - | grep "unable to load ${testdir}/ca-auth.crt"
+    printf "add ssl crt-list ${testdir}/certs/localhost.crt-list/ <<\n${testdir}/certs/ecdsa.pem [ca-file ${testdir}/certs/ca-auth.crt] localhost\n\n" | socat "${tmpdir}/h1/stats" - | grep "unable to load ${testdir}/certs/ca-auth.crt"
 }
 shell {
-    printf "add ssl crt-list ${testdir}/localhost.crt-list/ <<\n${testdir}/ecdsa.pem [ca-verify-file ${testdir}/ca-auth.crt] localhost\n\n" | socat "${tmpdir}/h1/stats" - | grep "unable to load ${testdir}/ca-auth.crt"
+    printf "add ssl crt-list ${testdir}/certs/localhost.crt-list/ <<\n${testdir}/certs/ecdsa.pem [ca-verify-file ${testdir}/certs/ca-auth.crt] localhost\n\n" | socat "${tmpdir}/h1/stats" - | grep "unable to load ${testdir}/certs/ca-auth.crt"
 }
 shell {
-    printf "add ssl crt-list ${testdir}/localhost.crt-list/ <<\n${testdir}/ecdsa.pem [crl-file ${testdir}/ca-auth.crt] localhost\n\n" | socat "${tmpdir}/h1/stats" - | grep "unable to load ${testdir}/ca-auth.crt"
+    printf "add ssl crt-list ${testdir}/certs/localhost.crt-list/ <<\n${testdir}/certs/ecdsa.pem [crl-file ${testdir}/certs/ca-auth.crt] localhost\n\n" | socat "${tmpdir}/h1/stats" - | grep "unable to load ${testdir}/certs/ca-auth.crt"
 }
 
 # Check that the new line was not added to the crt-list.
 haproxy h1 -cli {
-    send "show ssl crt-list ${testdir}/localhost.crt-list//"
-    expect !~ ".*ca-file ${testdir}/ca-auth.crt"
+    send "show ssl crt-list ${testdir}/certs/localhost.crt-list//"
+    expect !~ ".*ca-file ${testdir}/certs/ca-auth.crt"
 }

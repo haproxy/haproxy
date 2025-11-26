@@ -56,7 +56,7 @@ haproxy h1 -conf {
     .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h1/stats" level admin
-        crt-base ${testdir}/ocsp_update
+        crt-base ${testdir}/certs/ocsp_update
 
     defaults
         mode http
@@ -68,7 +68,7 @@ haproxy h1 -conf {
         timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     frontend ssl-fe
-        bind "${tmpdir}/ssl.sock" ssl crt multicert/server_ocsp.pem ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        bind "${tmpdir}/ssl.sock" ssl crt multicert/server_ocsp.pem ca-file ${testdir}/certs/set_cafile_rootCA.crt verify none crt-ignore-err all
         http-request return status 200
 } -start
 
@@ -105,16 +105,16 @@ haproxy h1 -wait
 # calling "show ssl ocsp-response". This is done through the Syslog_ocsp
 # listener and a dedicated barrier.
 
-process p2 "openssl ocsp -index ${testdir}/ocsp_update/index.txt -rsigner ${testdir}/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/ocsp_update/ocsp_update_rootca.crt -nrequest 2 -ndays 1 -port 12345 -timeout 5" -start
+process p2 "openssl ocsp -index ${testdir}/certs/ocsp_update/index.txt -rsigner ${testdir}/certs/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/certs/ocsp_update/ocsp_update_rootca.crt -nrequest 2 -ndays 1 -port 12345 -timeout 5" -start
 
 barrier b2 cond 2 -cyclic
 
 syslog Syslog_ocsp -level notice {
     recv
-    expect ~ "<OCSP-UPDATE> ${testdir}/ocsp_update/multicert_no_ocsp/server_ocsp_rsa.pem 1 \"Update successful\" 0 1"
+    expect ~ "<OCSP-UPDATE> ${testdir}/certs/ocsp_update/multicert_no_ocsp/server_ocsp_rsa.pem 1 \"Update successful\" 0 1"
 
     recv
-    expect ~ "<OCSP-UPDATE> ${testdir}/ocsp_update/multicert_no_ocsp/server_ocsp_ecdsa.pem 1 \"Update successful\" 0 1"
+    expect ~ "<OCSP-UPDATE> ${testdir}/certs/ocsp_update/multicert_no_ocsp/server_ocsp_ecdsa.pem 1 \"Update successful\" 0 1"
 
     barrier b2 sync
 } -start
@@ -130,7 +130,7 @@ haproxy h2 -conf {
     .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h2/stats" level admin
-        crt-base ${testdir}/ocsp_update
+        crt-base ${testdir}/certs/ocsp_update
         log ${Syslog_ocsp_addr}:${Syslog_ocsp_port} local0 notice notice
 
     defaults
@@ -142,11 +142,11 @@ haproxy h2 -conf {
         timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     frontend ssl-rsa-fe
-        bind "${tmpdir}/ssl2.sock" ssl crt-list ${testdir}/ocsp_update/multicert_rsa.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        bind "${tmpdir}/ssl2.sock" ssl crt-list ${testdir}/certs/ocsp_update/multicert_rsa.crt-list ca-file ${testdir}/certs/set_cafile_rootCA.crt verify none crt-ignore-err all
         http-request return status 200
 
     frontend ssl-ecdsa-fe
-        bind "${tmpdir}/ssl3.sock" ssl crt-list ${testdir}/ocsp_update/multicert_ecdsa.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        bind "${tmpdir}/ssl3.sock" ssl crt-list ${testdir}/certs/ocsp_update/multicert_ecdsa.crt-list ca-file ${testdir}/certs/set_cafile_rootCA.crt verify none crt-ignore-err all
         http-request return status 200
 } -start
 
@@ -182,13 +182,13 @@ process p2 -wait -expect-exit 0
 # will not enable ocsp-update on its certificate. Only one request should then
 # be sent.
 
-process p3 "openssl ocsp -index ${testdir}/ocsp_update/index.txt -rsigner ${testdir}/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/ocsp_update/ocsp_update_rootca.crt -nrequest 1 -ndays 1 -port 12345 -timeout 5" -start
+process p3 "openssl ocsp -index ${testdir}/certs/ocsp_update/index.txt -rsigner ${testdir}/certs/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/certs/ocsp_update/ocsp_update_rootca.crt -nrequest 1 -ndays 1 -port 12345 -timeout 5" -start
 
 barrier b3 cond 2 -cyclic
 
 syslog Syslog_ocsp3 -level notice {
     recv
-    expect ~ "<OCSP-UPDATE> ${testdir}/ocsp_update/multicert_no_ocsp/server_ocsp_rsa.pem 1 \"Update successful\" 0 1"
+    expect ~ "<OCSP-UPDATE> ${testdir}/certs/ocsp_update/multicert_no_ocsp/server_ocsp_rsa.pem 1 \"Update successful\" 0 1"
     barrier b3 sync
 } -start
 
@@ -203,7 +203,7 @@ haproxy h3 -conf {
     .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h3/stats" level admin
-        crt-base ${testdir}/ocsp_update
+        crt-base ${testdir}/certs/ocsp_update
         log ${Syslog_ocsp3_addr}:${Syslog_ocsp3_port} local0 notice notice
 
     defaults
@@ -215,11 +215,11 @@ haproxy h3 -conf {
         timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     frontend ssl-rsa-fe
-        bind "${tmpdir}/ssl4.sock" ssl crt-list ${testdir}/ocsp_update/multicert_rsa.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        bind "${tmpdir}/ssl4.sock" ssl crt-list ${testdir}/certs/ocsp_update/multicert_rsa.crt-list ca-file ${testdir}/certs/set_cafile_rootCA.crt verify none crt-ignore-err all
         http-request return status 200
 
     frontend ssl-ecdsa-fe
-        bind "${tmpdir}/ssl5.sock" ssl crt-list ${testdir}/ocsp_update/multicert_ecdsa_no_update.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        bind "${tmpdir}/ssl5.sock" ssl crt-list ${testdir}/certs/ocsp_update/multicert_ecdsa_no_update.crt-list ca-file ${testdir}/certs/set_cafile_rootCA.crt verify none crt-ignore-err all
         http-request return status 200
 } -start
 
@@ -257,16 +257,16 @@ process p3 -wait
 # in haproxy proc variables in order to compare them to their new value after
 # the update is performed.
 
-process p4 "openssl ocsp -index ${testdir}/ocsp_update/index.txt -rsigner ${testdir}/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/ocsp_update/ocsp_update_rootca.crt -nrequest 2 -ndays 1 -port 12345 -timeout 5" -start
+process p4 "openssl ocsp -index ${testdir}/certs/ocsp_update/index.txt -rsigner ${testdir}/certs/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/certs/ocsp_update/ocsp_update_rootca.crt -nrequest 2 -ndays 1 -port 12345 -timeout 5" -start
 
 barrier b4 cond 2 -cyclic
 
 syslog Syslog_ocsp4 -level notice {
     recv
-    expect ~ "<OCSP-UPDATE> ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa 1 \"Update successful\" 0 1"
+    expect ~ "<OCSP-UPDATE> ${testdir}/certs/ocsp_update/multicert/server_ocsp.pem.rsa 1 \"Update successful\" 0 1"
 
     recv
-    expect ~ "<OCSP-UPDATE> ${testdir}/ocsp_update/multicert/server_ocsp_ecdsa.pem 1 \"Update successful\" 0 1"
+    expect ~ "<OCSP-UPDATE> ${testdir}/certs/ocsp_update/multicert/server_ocsp_ecdsa.pem 1 \"Update successful\" 0 1"
     barrier b4 sync
 } -start
 
@@ -281,7 +281,7 @@ haproxy h4 -conf {
     .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h4/stats" level admin
-        crt-base ${testdir}/ocsp_update
+        crt-base ${testdir}/certs/ocsp_update
         log ${Syslog_ocsp4_addr}:${Syslog_ocsp4_port} local0 notice notice
 
     defaults
@@ -293,11 +293,11 @@ haproxy h4 -conf {
         timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     frontend ssl-rsa-ocsp
-        bind "${tmpdir}/ssl5.sock" ssl crt ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        bind "${tmpdir}/ssl5.sock" ssl crt ${testdir}/certs/ocsp_update/multicert/server_ocsp.pem.rsa ca-file ${testdir}/certs/set_cafile_rootCA.crt verify none crt-ignore-err all
         http-request return status 200
 
     frontend ssl-ecdsa-ocsp
-        bind "${tmpdir}/ssl6.sock" ssl crt ${testdir}/ocsp_update/multicert/server_ocsp_ecdsa.pem ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        bind "${tmpdir}/ssl6.sock" ssl crt ${testdir}/certs/ocsp_update/multicert/server_ocsp_ecdsa.pem ca-file ${testdir}/certs/set_cafile_rootCA.crt verify none crt-ignore-err all
         http-request return status 200
 } -start
 
@@ -330,14 +330,14 @@ shell {
     # the OCSP response actually changed
     produced_at1=$(echo "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015" | socat "${tmpdir}/h4/stats" - | grep "Produced At" | tr -d ' ')
 
-    echo "update ssl ocsp-response ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa" | socat "${tmpdir}/h4/stats" -
+    echo "update ssl ocsp-response ${testdir}/certs/ocsp_update/multicert/server_ocsp.pem.rsa" | socat "${tmpdir}/h4/stats" -
 
     # Update the second ocsp response (ckch_data has a NULL ocsp_issuer pointer)
     # Store the current "Produced At" in order to ensure that after the update
     # the OCSP response actually changed
     produced_at2=$(echo "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016" | socat "${tmpdir}/h4/stats" - | grep "Produced At" | tr -d ' ')
 
-    echo "update ssl ocsp-response ${testdir}/ocsp_update/multicert/server_ocsp_ecdsa.pem" | socat "${tmpdir}/h4/stats" -
+    echo "update ssl ocsp-response ${testdir}/certs/ocsp_update/multicert/server_ocsp_ecdsa.pem" | socat "${tmpdir}/h4/stats" -
 
     echo "experimental-mode on;set var proc.produced_at1 str($produced_at1)" | socat "${tmpdir}/h4/stats" -
     echo "experimental-mode on;set var proc.produced_at2 str($produced_at2)" | socat "${tmpdir}/h4/stats" -
@@ -376,7 +376,7 @@ process p4 -wait
 # to the "show ssl ocsp-response" command.
 
 
-process p5 "openssl ocsp -index ${testdir}/ocsp_update/index.txt -rsigner ${testdir}/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/ocsp_update/ocsp_update_rootca.crt -nrequest 2 -ndays 1 -port 12345 -timeout 5" -start
+process p5 "openssl ocsp -index ${testdir}/certs/ocsp_update/index.txt -rsigner ${testdir}/certs/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/certs/ocsp_update/ocsp_update_rootca.crt -nrequest 2 -ndays 1 -port 12345 -timeout 5" -start
 
 barrier b5 cond 2 -cyclic
 
@@ -401,7 +401,7 @@ haproxy h5 -conf {
     .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h5/stats" level admin
-        crt-base ${testdir}/ocsp_update
+        crt-base ${testdir}/certs/ocsp_update
         log ${Syslog_ocsp5_addr}:${Syslog_ocsp5_port} local0 notice notice
 
     defaults
@@ -413,11 +413,11 @@ haproxy h5 -conf {
         timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     frontend ssl-rsa-fe
-        bind "${tmpdir}/ssl7.sock" ssl crt-list ${testdir}/ocsp_update/multicert_rsa.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        bind "${tmpdir}/ssl7.sock" ssl crt-list ${testdir}/certs/ocsp_update/multicert_rsa.crt-list ca-file ${testdir}/certs/set_cafile_rootCA.crt verify none crt-ignore-err all
         http-request return status 200
 
     frontend ssl-ecdsa-fe
-        bind "${tmpdir}/ssl8.sock" ssl crt-list ${testdir}/ocsp_update/multicert_ecdsa.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        bind "${tmpdir}/ssl8.sock" ssl crt-list ${testdir}/certs/ocsp_update/multicert_ecdsa.crt-list ca-file ${testdir}/certs/set_cafile_rootCA.crt verify none crt-ignore-err all
         http-request return status 200
 } -start
 
@@ -467,13 +467,13 @@ process p5 -wait
 # the 'ocsp-update on' option will be taken into account by the OCSP
 # auto update task
 #
-process p6 "openssl ocsp -index ${testdir}/ocsp_update/index.txt -rsigner ${testdir}/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/ocsp_update/ocsp_update_rootca.crt -nrequest 1 -ndays 1 -port 12345 -timeout 5" -start
+process p6 "openssl ocsp -index ${testdir}/certs/ocsp_update/index.txt -rsigner ${testdir}/certs/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/certs/ocsp_update/ocsp_update_rootca.crt -nrequest 1 -ndays 1 -port 12345 -timeout 5" -start
 
 barrier b6 cond 2 -cyclic
 
 syslog Syslog_ocsp6 -level notice {
     recv
-    expect ~ "<OCSP-UPDATE> ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa 1 \"Update successful\" 0 1"
+    expect ~ "<OCSP-UPDATE> ${testdir}/certs/ocsp_update/multicert/server_ocsp.pem.rsa 1 \"Update successful\" 0 1"
 
     barrier b6 sync
 } -start
@@ -489,7 +489,7 @@ haproxy h6 -conf {
     .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h6/stats" level admin
-        crt-base ${testdir}
+        crt-base ${testdir}/certs
         log ${Syslog_ocsp6_addr}:${Syslog_ocsp6_port} local0 notice notice
 
     defaults
@@ -502,7 +502,7 @@ haproxy h6 -conf {
         timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     frontend ssl-fe
-        bind "${tmpdir}/ssl9.sock" ssl crt-list ${testdir}/simple.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        bind "${tmpdir}/ssl9.sock" ssl crt-list ${testdir}/certs/simple.crt-list ca-file ${testdir}/certs/set_cafile_rootCA.crt verify none crt-ignore-err all
         http-request return status 200
 
 } -start
@@ -516,12 +516,12 @@ haproxy h6 -cli {
 # Create a new certificate that has an OCSP uri and add it to the
 # existing CLI with the 'ocsp-update on' command.
 shell {
-    echo "new ssl cert ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa" | socat "${tmpdir}/h6/stats" -
-    printf "set ssl cert ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa <<\n$(cat ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa)\n\n" | socat "${tmpdir}/h6/stats" -
-    printf "set ssl cert ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa.issuer <<\n$(cat ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa.issuer)\n\n" | socat "${tmpdir}/h6/stats" -
-    echo "commit ssl cert ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa" | socat "${tmpdir}/h6/stats" -
+    echo "new ssl cert ${testdir}/certs/ocsp_update/multicert/server_ocsp.pem.rsa" | socat "${tmpdir}/h6/stats" -
+    printf "set ssl cert ${testdir}/certs/ocsp_update/multicert/server_ocsp.pem.rsa <<\n$(cat ${testdir}/certs/ocsp_update/multicert/server_ocsp.pem.rsa)\n\n" | socat "${tmpdir}/h6/stats" -
+    printf "set ssl cert ${testdir}/certs/ocsp_update/multicert/server_ocsp.pem.rsa.issuer <<\n$(cat ${testdir}/certs/ocsp_update/multicert/server_ocsp.pem.rsa.issuer)\n\n" | socat "${tmpdir}/h6/stats" -
+    echo "commit ssl cert ${testdir}/certs/ocsp_update/multicert/server_ocsp.pem.rsa" | socat "${tmpdir}/h6/stats" -
 
-    printf "add ssl crt-list ${testdir}/simple.crt-list <<\n${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa [ocsp-update on] foo.com\n\n" | socat "${tmpdir}/h6/stats" -
+    printf "add ssl crt-list ${testdir}/certs/simple.crt-list <<\n${testdir}/certs/ocsp_update/multicert/server_ocsp.pem.rsa [ocsp-update on] foo.com\n\n" | socat "${tmpdir}/h6/stats" -
 }
 
 barrier b6 sync
@@ -544,18 +544,18 @@ process p6 -wait
 # Check that the global "tune.ocsp-update.mode" option works and that it
 # applies to certificates added via the CLI as well.
 #
-process p7 "openssl ocsp -index ${testdir}/ocsp_update/index.txt -rsigner ${testdir}/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/ocsp_update/ocsp_update_rootca.crt -nrequest 2 -ndays 1 -port 12345 -timeout 5" -start
+process p7 "openssl ocsp -index ${testdir}/certs/ocsp_update/index.txt -rsigner ${testdir}/certs/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/certs/ocsp_update/ocsp_update_rootca.crt -nrequest 2 -ndays 1 -port 12345 -timeout 5" -start
 
 barrier b7 cond 2 -cyclic
 
 syslog Syslog_ocsp7 -level notice {
     recv
-    expect ~ "<OCSP-UPDATE> ${testdir}/ocsp_update/multicert_no_ocsp/server_ocsp_ecdsa.pem 1 \"Update successful\" 0 1"
+    expect ~ "<OCSP-UPDATE> ${testdir}/certs/ocsp_update/multicert_no_ocsp/server_ocsp_ecdsa.pem 1 \"Update successful\" 0 1"
 
     barrier b7 sync
 
     recv
-    expect ~ "<OCSP-UPDATE> ${testdir}/server_ocsp_rsa.pem 1 \"Update successful\" 0 1"
+    expect ~ "<OCSP-UPDATE> ${testdir}/certs/server_ocsp_rsa.pem 1 \"Update successful\" 0 1"
 
     barrier b7 sync
 } -start
@@ -571,7 +571,7 @@ haproxy h7 -conf {
     .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h7/stats" level admin
-        crt-base ${testdir}
+        crt-base ${testdir}/certs
         ocsp-update.mode on
         log ${Syslog_ocsp7_addr}:${Syslog_ocsp7_port} local0 notice notice
 
@@ -585,8 +585,8 @@ haproxy h7 -conf {
         timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     frontend ssl-fe
-        bind "${tmpdir}/ssl_h7.sock" ssl crt ${testdir}/ocsp_update/multicert_no_ocsp/server_ocsp_ecdsa.pem ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
-        bind "${tmpdir}/ssl_h7_2.sock" ssl crt-list ${testdir}/simple.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        bind "${tmpdir}/ssl_h7.sock" ssl crt ${testdir}/certs/ocsp_update/multicert_no_ocsp/server_ocsp_ecdsa.pem ca-file ${testdir}/certs/set_cafile_rootCA.crt verify none crt-ignore-err all
+        bind "${tmpdir}/ssl_h7_2.sock" ssl crt-list ${testdir}/certs/simple.crt-list ca-file ${testdir}/certs/set_cafile_rootCA.crt verify none crt-ignore-err all
         http-request return status 200
 } -start
 
@@ -595,22 +595,22 @@ barrier b7 sync
 # Create a new certificate that has an OCSP uri and add it to the
 # existing CLI with the 'ocsp-update on' command.
 shell {
-    echo "new ssl cert ${testdir}/server_ocsp_rsa.pem" | socat "${tmpdir}/h7/stats" -
-    printf "set ssl cert ${testdir}/server_ocsp_rsa.pem <<\n$(cat ${testdir}/ocsp_update/multicert_no_ocsp/server_ocsp_rsa.pem)\n\n" | socat "${tmpdir}/h7/stats" -
-    echo "commit ssl cert ${testdir}/server_ocsp_rsa.pem" | socat "${tmpdir}/h7/stats" -
+    echo "new ssl cert ${testdir}/certs/server_ocsp_rsa.pem" | socat "${tmpdir}/h7/stats" -
+    printf "set ssl cert ${testdir}/certs/server_ocsp_rsa.pem <<\n$(cat ${testdir}/certs/ocsp_update/multicert_no_ocsp/server_ocsp_rsa.pem)\n\n" | socat "${tmpdir}/h7/stats" -
+    echo "commit ssl cert ${testdir}/certs/server_ocsp_rsa.pem" | socat "${tmpdir}/h7/stats" -
 
     # We should have ocsp-update enabled via the global option
-    printf "add ssl crt-list ${testdir}/simple.crt-list <<\n${testdir}/server_ocsp_rsa.pem foo.com\n\n" | socat "${tmpdir}/h7/stats" -
+    printf "add ssl crt-list ${testdir}/certs/simple.crt-list <<\n${testdir}/certs/server_ocsp_rsa.pem foo.com\n\n" | socat "${tmpdir}/h7/stats" -
 }
 
 barrier b7 sync
 
 haproxy h7 -cli {
     send "show ssl ocsp-updates"
-    expect ~ "303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016 | ${testdir}/ocsp_update/multicert_no_ocsp/server_ocsp_ecdsa.pem .*| 1 | 0 | 1 | Update successful"
+    expect ~ "303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016 | ${testdir}/certs/ocsp_update/multicert_no_ocsp/server_ocsp_ecdsa.pem .*| 1 | 0 | 1 | Update successful"
 
     send "show ssl ocsp-updates"
-    expect ~ "303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015 | ${testdir}/server_ocsp_rsa.pem .*| 1 | 0 | 1 | Update successful"
+    expect ~ "303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021015 | ${testdir}/certs/server_ocsp_rsa.pem .*| 1 | 0 | 1 | Update successful"
 }
 
 haproxy h7 -wait
@@ -640,7 +640,7 @@ haproxy h8 -conf {
     .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h8/stats" level admin
-        crt-base ${testdir}/ocsp_update
+        crt-base ${testdir}/certs/ocsp_update
 
     defaults
         mode http
@@ -652,7 +652,7 @@ haproxy h8 -conf {
         timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     frontend ssl-fe
-        bind "${tmpdir}/ssl-h8.sock" ssl crt-list ${testdir}/ocsp_update/multicert_both_certs.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        bind "${tmpdir}/ssl-h8.sock" ssl crt-list ${testdir}/certs/ocsp_update/multicert_both_certs.crt-list ca-file ${testdir}/certs/set_cafile_rootCA.crt verify none crt-ignore-err all
         http-request return status 200
 
     listen http_rebound_lst
@@ -674,7 +674,7 @@ haproxy h8 -cli {
 # ocsp response was removed from the auto update list but is still present in the
 # system
 haproxy h8 -cli {
-    send "del ssl crt-list ${testdir}/ocsp_update/multicert_both_certs.crt-list ${testdir}/ocsp_update/multicert/server_ocsp.pem.ecdsa"
+    send "del ssl crt-list ${testdir}/certs/ocsp_update/multicert_both_certs.crt-list ${testdir}/certs/ocsp_update/multicert/server_ocsp.pem.ecdsa"
     expect ~ "Entry.*deleted in crtlist"
 
     send "show ssl ocsp-updates"
@@ -683,14 +683,14 @@ haproxy h8 -cli {
     send "show ssl ocsp-response"
     expect ~ "Certificate ID key : 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a02021016"
 
-    send "show ssl ocsp-response ${testdir}/ocsp_update/multicert/server_ocsp.pem.ecdsa"
+    send "show ssl ocsp-response ${testdir}/certs/ocsp_update/multicert/server_ocsp.pem.ecdsa"
     expect ~ ".* Cert Status: good.*"
 }
 
 # Add the previously removed crt-list line with auto-update enabled and check that
 # the ocsp response appears in the auto update list
 shell {
-    printf "add ssl crt-list ${testdir}/ocsp_update/multicert_both_certs.crt-list <<\nmulticert/server_ocsp.pem.ecdsa [ocsp-update on] foo.bar\n\n" | socat "${tmpdir}/h8/stats" - | grep "Inserting certificate.*in crt-list"
+    printf "add ssl crt-list ${testdir}/certs/ocsp_update/multicert_both_certs.crt-list <<\nmulticert/server_ocsp.pem.ecdsa [ocsp-update on] foo.bar\n\n" | socat "${tmpdir}/h8/stats" - | grep "Inserting certificate.*in crt-list"
 }
 
 haproxy h8 -cli {
@@ -701,7 +701,7 @@ haproxy h8 -cli {
 # Check that the auto update option consistency check work even when crt-list
 # lines are added through the cli
 shell {
-    printf "add ssl crt-list ${testdir}/ocsp_update/multicert_both_certs.crt-list <<\nmulticert/server_ocsp.pem.ecdsa foo.foo\n\n" | socat "${tmpdir}/h8/stats" - | grep "different parameter 'ocsp-update'"
+    printf "add ssl crt-list ${testdir}/certs/ocsp_update/multicert_both_certs.crt-list <<\nmulticert/server_ocsp.pem.ecdsa foo.foo\n\n" | socat "${tmpdir}/h8/stats" - | grep "different parameter 'ocsp-update'"
 }
 
 haproxy h8 -wait
@@ -717,13 +717,13 @@ haproxy h8 -wait
 # update enabled can be updated via "update ssl ocsp-response" command.
 #
 
-process p9 "openssl ocsp -index ${testdir}/ocsp_update/index.txt -rsigner ${testdir}/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/ocsp_update/ocsp_update_rootca.crt -nrequest 1 -ndays 1 -port 12345 -timeout 5" -start
+process p9 "openssl ocsp -index ${testdir}/certs/ocsp_update/index.txt -rsigner ${testdir}/certs/ocsp_update/ocsp.haproxy.com.pem -CA ${testdir}/certs/ocsp_update/ocsp_update_rootca.crt -nrequest 1 -ndays 1 -port 12345 -timeout 5" -start
 
 barrier b9 cond 2 -cyclic
 
 syslog Syslog_ocsp9 -level notice {
     recv
-    expect ~ "<OCSP-UPDATE> ${testdir}/ocsp_update/rsa.pem 1 \"Update successful\" 0 1"
+    expect ~ "<OCSP-UPDATE> ${testdir}/certs/ocsp_update/rsa.pem 1 \"Update successful\" 0 1"
 
     barrier b9 sync
 } -start
@@ -740,7 +740,7 @@ haproxy h9 -conf {
     .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h9/stats" level admin
-        crt-base ${testdir}/ocsp_update
+        crt-base ${testdir}/certs/ocsp_update
         log ${Syslog_ocsp9_addr}:${Syslog_ocsp9_port} local0 notice notice
 
     defaults
@@ -753,7 +753,7 @@ haproxy h9 -conf {
         timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
     frontend ssl-fe
-        bind "${tmpdir}/ssl-h9.sock" ssl crt-list ${testdir}/ocsp_update/multicert_ecdsa_no_update.crt-list ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        bind "${tmpdir}/ssl-h9.sock" ssl crt-list ${testdir}/certs/ocsp_update/multicert_ecdsa_no_update.crt-list ca-file ${testdir}/certs/set_cafile_rootCA.crt verify none crt-ignore-err all
         http-request return status 200
 } -start
 
@@ -765,19 +765,19 @@ haproxy h9 -cli {
 
 # Create a new certificate and add it in the crt-list with ocsp auto-update enabled
 shell {
-    echo "new ssl cert ${testdir}/ocsp_update/rsa.pem" | socat "${tmpdir}/h9/stats" -
-    printf "set ssl cert ${testdir}/ocsp_update/rsa.pem <<\n$(cat ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa)\n\n" | socat "${tmpdir}/h9/stats" -
-    printf "set ssl cert ${testdir}/ocsp_update/rsa.pem.issuer <<\n$(cat ${testdir}/ocsp_update/ocsp_update_rootca.crt)\n\n" | socat "${tmpdir}/h9/stats" -
-    printf "set ssl cert ${testdir}/ocsp_update/rsa.pem.ocsp <<\n$(openssl base64 < ${testdir}/ocsp_update/multicert/server_ocsp.pem.rsa.ocsp)\n\n" | socat "${tmpdir}/h9/stats" -
-    echo "commit ssl cert ${testdir}/ocsp_update/rsa.pem" | socat "${tmpdir}/h9/stats" -
+    echo "new ssl cert ${testdir}/certs/ocsp_update/rsa.pem" | socat "${tmpdir}/h9/stats" -
+    printf "set ssl cert ${testdir}/certs/ocsp_update/rsa.pem <<\n$(cat ${testdir}/certs/ocsp_update/multicert/server_ocsp.pem.rsa)\n\n" | socat "${tmpdir}/h9/stats" -
+    printf "set ssl cert ${testdir}/certs/ocsp_update/rsa.pem.issuer <<\n$(cat ${testdir}/certs/ocsp_update/ocsp_update_rootca.crt)\n\n" | socat "${tmpdir}/h9/stats" -
+    printf "set ssl cert ${testdir}/certs/ocsp_update/rsa.pem.ocsp <<\n$(openssl base64 < ${testdir}/certs/ocsp_update/multicert/server_ocsp.pem.rsa.ocsp)\n\n" | socat "${tmpdir}/h9/stats" -
+    echo "commit ssl cert ${testdir}/certs/ocsp_update/rsa.pem" | socat "${tmpdir}/h9/stats" -
 
-    printf "add ssl crt-list ${testdir}/ocsp_update/multicert_ecdsa_no_update.crt-list <<\nrsa.pem [ocsp-update off] foo.bar\n\n" | socat "${tmpdir}/h9/stats" -
+    printf "add ssl crt-list ${testdir}/certs/ocsp_update/multicert_ecdsa_no_update.crt-list <<\nrsa.pem [ocsp-update off] foo.bar\n\n" | socat "${tmpdir}/h9/stats" -
 }
 
 # Check that the line is in the crt-list
 haproxy h9 -cli {
-    send "show ssl crt-list ${testdir}/ocsp_update/multicert_ecdsa_no_update.crt-list"
-    expect ~ "${testdir}/ocsp_update/rsa.pem.*ocsp-update off.*foo.bar"
+    send "show ssl crt-list ${testdir}/certs/ocsp_update/multicert_ecdsa_no_update.crt-list"
+    expect ~ "${testdir}/certs/ocsp_update/rsa.pem.*ocsp-update off.*foo.bar"
 }
 
 # Check that the new certificate is NOT in the auto update list
@@ -787,13 +787,13 @@ haproxy h9 -cli {
 }
 
 shell {
-    echo "update ssl ocsp-response ${testdir}/ocsp_update/rsa.pem" | socat "${tmpdir}/h9/stats" -
+    echo "update ssl ocsp-response ${testdir}/certs/ocsp_update/rsa.pem" | socat "${tmpdir}/h9/stats" -
 }
 
 barrier b9 sync
 
 haproxy h9 -cli {
-    send "show ssl ocsp-response ${testdir}/ocsp_update/rsa.pem"
+    send "show ssl ocsp-response ${testdir}/certs/ocsp_update/rsa.pem"
     expect ~ ".* Cert Status: revoked.*"
 }
 

@@ -39,13 +39,13 @@ haproxy h1 -conf {
     listen clear-lst
         bind "fd@${clearlst}"
         retries 0 # 2nd SSL connection must fail so skip the retry
-        server s1 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/client1.pem
+        server s1 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/certs/client1.pem
 
     listen ssl-lst
         # crt: certificate of the server
         # ca-file: CA used for client authentication request
         # crl-file: revocation list for client auth: the client1 certificate is revoked
-        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/ca-auth.crt verify optional crt-ignore-err all crl-file ${testdir}/crl-auth.pem
+        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/certs/common.pem ca-file ${testdir}/certs/ca-auth.crt verify optional crt-ignore-err all crl-file ${testdir}/certs/crl-auth.pem
 
         acl cert_expired ssl_c_verify 10
         acl cert_revoked ssl_c_verify 23
@@ -68,18 +68,18 @@ client c1 -connect ${h1_clearlst_sock} {
 } -run
 
 haproxy h1 -cli {
-    send "show ssl cert ${testdir}/client1.pem"
+    send "show ssl cert ${testdir}/certs/client1.pem"
     expect ~ ".*SHA1 FingerPrint: D9C3BAE37EA5A7EDB7B3C9BDD4DCB2FE58A412E4"
 }
 
 # Replace certificate with an expired one
 shell {
-    printf "set ssl cert ${testdir}/client1.pem <<\n$(cat ${testdir}/client2_expired.pem)\n\n" | socat "${tmpdir}/h1/stats" -
-    echo "commit ssl cert ${testdir}/client1.pem" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl cert ${testdir}/certs/client1.pem <<\n$(cat ${testdir}/certs/client2_expired.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert ${testdir}/certs/client1.pem" | socat "${tmpdir}/h1/stats" -
 }
 
 haproxy h1 -cli {
-    send "show ssl cert ${testdir}/client1.pem"
+    send "show ssl cert ${testdir}/certs/client1.pem"
     expect ~ ".*SHA1 FingerPrint: C625EB01A0A660294B9D7F44C5CEEE5AFC495BE4"
 }
 
@@ -95,12 +95,12 @@ client c1 -connect ${h1_clearlst_sock} {
 
 # Replace certificate with a revoked one
 shell {
-    printf "set ssl cert ${testdir}/client1.pem <<\n$(cat ${testdir}/client3_revoked.pem)\n\n" | socat "${tmpdir}/h1/stats" -
-    echo "commit ssl cert ${testdir}/client1.pem" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl cert ${testdir}/certs/client1.pem <<\n$(cat ${testdir}/certs/client3_revoked.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert ${testdir}/certs/client1.pem" | socat "${tmpdir}/h1/stats" -
 }
 
 haproxy h1 -cli {
-    send "show ssl cert ${testdir}/client1.pem"
+    send "show ssl cert ${testdir}/certs/client1.pem"
     expect ~ ".*SHA1 FingerPrint: 992386628A40C9D49C89BAC0058B5D45D8575151"
 }
 
@@ -115,12 +115,12 @@ client c1 -connect ${h1_clearlst_sock} {
 
 # Abort a transaction
 shell {
-    printf "set ssl cert ${testdir}/client1.pem <<\n$(cat ${testdir}/client3_revoked.pem)\n\n" | socat "${tmpdir}/h1/stats" -
-    echo "abort ssl cert ${testdir}/client1.pem" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl cert ${testdir}/certs/client1.pem <<\n$(cat ${testdir}/certs/client3_revoked.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "abort ssl cert ${testdir}/certs/client1.pem" | socat "${tmpdir}/h1/stats" -
 }
 
 haproxy h1 -cli {
-    send "show ssl cert ${testdir}/client1.pem"
+    send "show ssl cert ${testdir}/certs/client1.pem"
     expect ~ ".*SHA1 FingerPrint: 992386628A40C9D49C89BAC0058B5D45D8575151"
 }
 

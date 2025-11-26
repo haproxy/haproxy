@@ -40,7 +40,7 @@ global
         thread-groups 1
     .endif
 
-    crt-base ${testdir}/ocsp_update/multicert
+    crt-base ${testdir}/certs/ocsp_update/multicert
 #    ocsp-update.mode on
 
 defaults
@@ -75,7 +75,7 @@ global
         thread-groups 1
     .endif
 
-    crt-base ${testdir}/ocsp_update/multicert
+    crt-base ${testdir}/certs/ocsp_update/multicert
     ocsp-update.mode on
 
 defaults
@@ -110,7 +110,7 @@ global
         thread-groups 1
     .endif
 
-    crt-base ${testdir}/ocsp_update/multicert
+    crt-base ${testdir}/certs/ocsp_update/multicert
     ocsp-update.mode off
 
 defaults
@@ -145,7 +145,7 @@ global
         thread-groups 1
     .endif
 
-    crt-base ${testdir}/ocsp_update/multicert
+    crt-base ${testdir}/certs/ocsp_update/multicert
 #    ocsp-update.mode off
 
 defaults
@@ -181,7 +181,7 @@ global
         thread-groups 1
     .endif
 
-    crt-base ${testdir}/ocsp_update/multicert
+    crt-base ${testdir}/certs/ocsp_update/multicert
     ocsp-update.mode on
 
 defaults
@@ -217,7 +217,7 @@ global
         thread-groups 1
     .endif
 
-    crt-base ${testdir}/ocsp_update/multicert
+    crt-base ${testdir}/certs/ocsp_update/multicert
     ocsp-update.mode off
 
 defaults
@@ -255,7 +255,7 @@ global
         thread-groups 1
     .endif
 
-    crt-base ${testdir}/ocsp_update/multicert
+    crt-base ${testdir}/certs/ocsp_update/multicert
 #    ocsp-update.mode off
 
 defaults
@@ -291,7 +291,7 @@ global
         thread-groups 1
     .endif
 
-    crt-base ${testdir}/ocsp_update/multicert
+    crt-base ${testdir}/certs/ocsp_update/multicert
 #    ocsp-update.mode off
 
 defaults
@@ -328,7 +328,7 @@ global
         thread-groups 1
     .endif
 
-    crt-base ${testdir}/ocsp_update/multicert
+    crt-base ${testdir}/certs/ocsp_update/multicert
     ocsp-update.mode on
 
 defaults
@@ -365,7 +365,7 @@ global
         thread-groups 1
     .endif
 
-    crt-base ${testdir}/ocsp_update/multicert
+    crt-base ${testdir}/certs/ocsp_update/multicert
     ocsp-update.mode on
 
 defaults
@@ -402,7 +402,7 @@ global
         thread-groups 1
     .endif
 
-    crt-base ${testdir}/ocsp_update/multicert
+    crt-base ${testdir}/certs/ocsp_update/multicert
     ocsp-update.mode off
 
 defaults
@@ -439,7 +439,7 @@ global
         thread-groups 1
     .endif
 
-    crt-base ${testdir}/ocsp_update/multicert
+    crt-base ${testdir}/certs/ocsp_update/multicert
     ocsp-update.mode off
 
 defaults

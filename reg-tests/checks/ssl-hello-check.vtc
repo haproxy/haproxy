@@ -39,7 +39,7 @@ haproxy htst -conf {
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
 
     frontend fe1
-        bind "fd@${fe1}" ssl crt ${testdir}/common.pem
+        bind "fd@${fe1}" ssl crt ${testdir}/certs/common.pem
 
     frontend fe2
         bind "fd@${fe2}"

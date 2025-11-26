@@ -30,7 +30,7 @@ haproxy h1 -conf {
     .endif
         tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h1/stats" level admin
-        crt-base ${testdir}
+        crt-base ${testdir}/certs
 
     defaults
         mode http
@@ -49,13 +49,13 @@ haproxy h1 -conf {
         default_backend default_be
 
     backend default_be
-        server s1 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/client3_revoked.pem sni str(www.test1.com)
+        server s1 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/certs/client3_revoked.pem sni str(www.test1.com)
 
     backend with_crl_be
-        server s1 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/client3_revoked.pem sni str(with-crl.com)
+        server s1 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/certs/client3_revoked.pem sni str(with-crl.com)
 
     listen ssl-lst
-        bind "${tmpdir}/ssl.sock" ssl strict-sni crt-list ${testdir}/localhost.crt-list ca-file ${testdir}/ca-auth.crt verify required crt-ignore-err all
+        bind "${tmpdir}/ssl.sock" ssl strict-sni crt-list ${testdir}/certs/localhost.crt-list ca-file ${testdir}/certs/ca-auth.crt verify required crt-ignore-err all
         http-response add-header X-SSL-Client-Verify %[ssl_c_verify]
         server s1 ${s1_addr}:${s1_port}
 } -start
@@ -83,7 +83,7 @@ haproxy h1 -cli {
 }
 
 shell {
-    printf "set ssl crl-file new_crlfile.crt <<\n$(cat ${testdir}/crl-auth.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl crl-file new_crlfile.crt <<\n$(cat ${testdir}/certs/crl-auth.pem)\n\n" | socat "${tmpdir}/h1/stats" -
     echo "commit ssl crl-file new_crlfile.crt" | socat "${tmpdir}/h1/stats" -
 }
 
@@ -97,14 +97,14 @@ haproxy h1 -cli {
 
 # Add a new certificate that will use the new CA file
 shell {
-    echo "new ssl cert ${testdir}/set_cafile_server.pem" | socat "${tmpdir}/h1/stats" -
-    printf "set ssl cert ${testdir}/set_cafile_server.pem <<\n$(cat ${testdir}/set_cafile_server.pem)\n\n" | socat "${tmpdir}/h1/stats" -
-    echo "commit ssl cert ${testdir}/set_cafile_server.pem" | socat "${tmpdir}/h1/stats" -
+    echo "new ssl cert ${testdir}/certs/set_cafile_server.pem" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl cert ${testdir}/certs/set_cafile_server.pem <<\n$(cat ${testdir}/certs/set_cafile_server.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert ${testdir}/certs/set_cafile_server.pem" | socat "${tmpdir}/h1/stats" -
 }
 
 # Create a new crt-list line that will use the new CA file
 shell {
-    printf "add ssl crt-list ${testdir}/localhost.crt-list <<\n${testdir}/set_cafile_server.pem [crl-file new_crlfile.crt] with-crl.com\n\n" | socat "${tmpdir}/h1/stats" -
+    printf "add ssl crt-list ${testdir}/certs/localhost.crt-list <<\n${testdir}/certs/set_cafile_server.pem [crl-file new_crlfile.crt] with-crl.com\n\n" | socat "${tmpdir}/h1/stats" -
 }
 
 client c1 -connect ${h1_clearlst_sock} {
@@ -126,8 +126,8 @@ client c1 -connect ${h1_clearlst_sock} {
 
 # Delete the newly added crt-list line and CRL file
 haproxy h1 -cli {
-    send "del ssl crt-list ${testdir}/localhost.crt-list ${testdir}/set_cafile_server.pem"
-    expect ~ "Entry '${testdir}/set_cafile_server.pem' deleted in crtlist '${testdir}/localhost.crt-list'!"
+    send "del ssl crt-list ${testdir}/certs/localhost.crt-list ${testdir}/certs/set_cafile_server.pem"
+    expect ~ "Entry '${testdir}/certs/set_cafile_server.pem' deleted in crtlist '${testdir}/certs/localhost.crt-list'!"
 
     send "del ssl crl-file new_crlfile.crt"
     expect ~ "CRL file 'new_crlfile.crt' deleted!"

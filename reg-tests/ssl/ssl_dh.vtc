@@ -59,12 +59,12 @@ haproxy h1 -conf {
         server s1 "${tmpdir}/ssl_dflt_gencert.sock" ssl verify none ssl-max-ver TLSv1.2
 
     listen ssl-dflt-lst
-        bind "${tmpdir}/ssl_dflt.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/set_cafile_rootCA.crt verify optional ciphers "DHE-RSA-AES256-GCM-SHA384" ssl-max-ver TLSv1.2
+        bind "${tmpdir}/ssl_dflt.sock" ssl crt ${testdir}/certs/common.pem ca-file ${testdir}/certs/set_cafile_rootCA.crt verify optional ciphers "DHE-RSA-AES256-GCM-SHA384" ssl-max-ver TLSv1.2
         http-response set-header x-ssl-cipher %[ssl_fc_cipher]
         server s1 ${s1_addr}:${s1_port}
 
     listen ssl-dflt-gencert-lst
-        bind "${tmpdir}/ssl_dflt_gencert.sock" ssl generate-certificates crt ${testdir}/common.pem ca-file ${testdir}/set_cafile_rootCA.crt ca-sign-file ${testdir}/generate_certificates/gen_cert_ca.pem verify optional ciphers "DHE-RSA-AES256-GCM-SHA384" ssl-max-ver TLSv1.2
+        bind "${tmpdir}/ssl_dflt_gencert.sock" ssl generate-certificates crt ${testdir}/certs/common.pem ca-file ${testdir}/certs/set_cafile_rootCA.crt ca-sign-file ${testdir}/certs/generate_certificates/gen_cert_ca.pem verify optional ciphers "DHE-RSA-AES256-GCM-SHA384" ssl-max-ver TLSv1.2
         http-response set-header x-ssl-cipher %[ssl_fc_cipher]
         server s1 ${s1_addr}:${s1_port}
 } -start
@@ -99,7 +99,7 @@ haproxy h2 -conf {
         server s1 "${tmpdir}/ssl_dfltdh.sock" ssl verify none ssl-max-ver TLSv1.2
 
     listen ssl-4096dh-dflt-lst
-        bind "${tmpdir}/ssl_dfltdh.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/set_cafile_rootCA.crt verify optional ciphers "DHE-RSA-AES256-GCM-SHA384" ssl-max-ver TLSv1.2
+        bind "${tmpdir}/ssl_dfltdh.sock" ssl crt ${testdir}/certs/common.pem ca-file ${testdir}/certs/set_cafile_rootCA.crt verify optional ciphers "DHE-RSA-AES256-GCM-SHA384" ssl-max-ver TLSv1.2
         http-response set-header x-ssl-cipher %[ssl_fc_cipher]
         server s1 ${s1_addr}:${s1_port}
 } -start
@@ -117,7 +117,7 @@ haproxy h3 -conf {
         thread-groups 1
     .endif
 
-        ssl-dh-param-file ${testdir}/common.4096.dh
+        ssl-dh-param-file ${testdir}/certs/common.4096.dh
 
     defaults
         mode http
@@ -134,7 +134,7 @@ haproxy h3 -conf {
         server s1 "${tmpdir}/ssl_dhfile.sock" ssl verify none ssl-max-ver TLSv1.2
 
     listen ssl-dhfile-lst
-        bind "${tmpdir}/ssl_dhfile.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/set_cafile_rootCA.crt verify optional ciphers "DHE-RSA-AES256-GCM-SHA384" ssl-max-ver TLSv1.2
+        bind "${tmpdir}/ssl_dhfile.sock" ssl crt ${testdir}/certs/common.pem ca-file ${testdir}/certs/set_cafile_rootCA.crt verify optional ciphers "DHE-RSA-AES256-GCM-SHA384" ssl-max-ver TLSv1.2
         http-response set-header x-ssl-cipher %[ssl_fc_cipher]
         server s1 ${s1_addr}:${s1_port}
 } -start
@@ -188,14 +188,14 @@ shell {
 # Add a custom DH to the server's PEM certificate
 #
 shell {
-    printf "set ssl cert ${testdir}/common.pem <<\n$(cat ${testdir}/common.pem)\n$(cat ${testdir}/common.4096.dh)\n\n" | socat "${tmpdir}/h1/stats" -
-    echo "commit ssl cert ${testdir}/common.pem" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl cert ${testdir}/certs/common.pem <<\n$(cat ${testdir}/certs/common.pem)\n$(cat ${testdir}/certs/common.4096.dh)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert ${testdir}/certs/common.pem" | socat "${tmpdir}/h1/stats" -
 
-    printf "set ssl cert ${testdir}/common.pem <<\n$(cat ${testdir}/common.pem)\n$(cat ${testdir}/common.4096.dh)\n\n" | socat "${tmpdir}/h2/stats" -
-    echo "commit ssl cert ${testdir}/common.pem" | socat "${tmpdir}/h2/stats" -
+    printf "set ssl cert ${testdir}/certs/common.pem <<\n$(cat ${testdir}/certs/common.pem)\n$(cat ${testdir}/certs/common.4096.dh)\n\n" | socat "${tmpdir}/h2/stats" -
+    echo "commit ssl cert ${testdir}/certs/common.pem" | socat "${tmpdir}/h2/stats" -
 
-    printf "set ssl cert ${testdir}/common.pem <<\n$(cat ${testdir}/common.pem)\n$(cat ${testdir}/common.4096.dh)\n\n" | socat "${tmpdir}/h3/stats" -
-    echo "commit ssl cert ${testdir}/common.pem" | socat "${tmpdir}/h3/stats" -
+    printf "set ssl cert ${testdir}/certs/common.pem <<\n$(cat ${testdir}/certs/common.pem)\n$(cat ${testdir}/certs/common.4096.dh)\n\n" | socat "${tmpdir}/h3/stats" -
+    echo "commit ssl cert ${testdir}/certs/common.pem" | socat "${tmpdir}/h3/stats" -
 }
 
 

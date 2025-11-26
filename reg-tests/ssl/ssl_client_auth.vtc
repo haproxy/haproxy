@@ -46,15 +46,15 @@ haproxy h1 -conf {
         bind "fd@${clearlst}"
         balance roundrobin
         # crt: certificate sent for a client certificate request
-        server s1 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/client1.pem
-        server s2 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/client2_expired.pem # expired
-        server s3 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/client3_revoked.pem # revoked
+        server s1 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/certs/client1.pem
+        server s2 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/certs/client2_expired.pem # expired
+        server s3 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/certs/client3_revoked.pem # revoked
 
     listen ssl-lst
         # crt: certificate of the server
         # ca-file: CA used for client authentication request
         # crl-file: revocation list for client auth: the client1 certificate is revoked
-        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/ca-auth.crt verify optional crt-ignore-err X509_V_ERR_CERT_REVOKED,X509_V_ERR_CERT_HAS_EXPIRED crl-file ${testdir}/crl-auth.pem
+        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/certs/common.pem ca-file ${testdir}/certs/ca-auth.crt verify optional crt-ignore-err X509_V_ERR_CERT_REVOKED,X509_V_ERR_CERT_HAS_EXPIRED crl-file ${testdir}/certs/crl-auth.pem
 
         http-response add-header X-SSL %[ssl_c_verify,x509_v_err_str]
         server s1 ${s1_addr}:${s1_port}

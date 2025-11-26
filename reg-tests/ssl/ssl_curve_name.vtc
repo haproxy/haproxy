@@ -19,7 +19,7 @@ haproxy h1 -conf {
         tune.ssl.default-dh-param 2048
     .endif
         tune.ssl.capture-buffer-size 1
-        crt-base ${testdir}
+        crt-base ${testdir}/certs
 
     defaults
         mode http
@@ -35,12 +35,12 @@ haproxy h1 -conf {
         bind "fd@${clearlst}"
         balance roundrobin
         http-response add-header x-ssl-bc-curve-name %[ssl_bc_curve]
-        server s1 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/client.ecdsa.pem
+        server s1 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/certs/client.ecdsa.pem
 
     listen ssl-lst
         mode http
         http-response add-header x-ssl-fc-curve-name %[ssl_fc_curve]
-        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/set_cafile_rootCA.crt verify optional curves X25519:P-256:P-384
+        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/certs/common.pem ca-file ${testdir}/certs/set_cafile_rootCA.crt verify optional curves X25519:P-256:P-384
 
        server s1 ${s1_addr}:${s1_port}
 } -start

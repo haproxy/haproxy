@@ -22,7 +22,7 @@ defaults
 	mode			http
 
 frontend main-https
-	bind			"fd@${fe1}" ssl crt ${testdir}/common.pem
+	bind			"fd@${fe1}" ssl crt ${testdir}/certs/common.pem
 	compression algo gzip
 	compression type text/html text/plain application/json application/javascript
 	compression offload

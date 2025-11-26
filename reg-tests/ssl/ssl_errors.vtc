@@ -191,7 +191,7 @@ haproxy h1 -conf {
 
     listen clear_lst
         bind "fd@${clearlst}"
-        default-server ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none no-ssl-reuse force-tlsv12 sni str(foo.com)
+        default-server ssl crt ${testdir}/certs/set_cafile_client.pem ca-file ${testdir}/certs/set_cafile_interCA2.crt verify none no-ssl-reuse force-tlsv12 sni str(foo.com)
 
         balance roundrobin
         server cust_fmt "${tmpdir}/cust_logfmt_ssl.sock"
@@ -201,7 +201,7 @@ haproxy h1 -conf {
 
     listen clear_wrong_ciphers_lst
         bind "fd@${wrongcipherslst}"
-        default-server ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none no-ssl-reuse force-tlsv12 ciphers "aECDSA" sni str(foo.com)
+        default-server ssl crt ${testdir}/certs/set_cafile_client.pem ca-file ${testdir}/certs/set_cafile_interCA2.crt verify none no-ssl-reuse force-tlsv12 ciphers "aECDSA" sni str(foo.com)
 
         balance roundrobin
         server cust_fmt "${tmpdir}/cust_logfmt_ssl.sock"
@@ -217,20 +217,20 @@ haproxy h1 -conf {
         error-log-format "ERROR bc_err:%[bc_err]:%{+Q}[bc_err_str]\ ssl_bc_err:%[ssl_bc_err,and(proc.ssl_error_mask)]:%[ssl_bc_err_str]"
 
         balance roundrobin
-        server no_err "${tmpdir}/no_err_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify required sni str(Server)
-        server srv_cert_rejected "${tmpdir}/srv_rejected_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA1.crt verify required sni str(foo.com)
-        server mismatch_frontend "${tmpdir}/mismatch_fe_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify required sni str(foo.com) verifyhost str(toto)         # We force TLSv1.2 for this specific case because server-side
+        server no_err "${tmpdir}/no_err_ssl.sock" ssl crt ${testdir}/certs/set_cafile_client.pem ca-file ${testdir}/certs/set_cafile_interCA2.crt verify required sni str(Server)
+        server srv_cert_rejected "${tmpdir}/srv_rejected_ssl.sock" ssl crt ${testdir}/certs/set_cafile_client.pem ca-file ${testdir}/certs/set_cafile_interCA1.crt verify required sni str(foo.com)
+        server mismatch_frontend "${tmpdir}/mismatch_fe_ssl.sock" ssl crt ${testdir}/certs/set_cafile_client.pem ca-file ${testdir}/certs/set_cafile_interCA2.crt verify required sni str(foo.com) verifyhost str(toto)         # We force TLSv1.2 for this specific case because server-side
         # verification errors cannot be caught by the backend fetches when
         # using TLSv1.3
-        server clt_cert_rejected "${tmpdir}/rejected_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none force-tlsv12 sni str(foo.com)
-        server wrong_ciphers "${tmpdir}/wrong_ciphers_ssl.sock" ssl verify none crt ${testdir}/client1.pem ca-file ${testdir}/ca-auth.crt force-tlsv12 ciphers "aECDSA" sni str(foo.com)
+        server clt_cert_rejected "${tmpdir}/rejected_ssl.sock" ssl crt ${testdir}/certs/set_cafile_client.pem ca-file ${testdir}/certs/set_cafile_interCA2.crt verify none force-tlsv12 sni str(foo.com)
+        server wrong_ciphers "${tmpdir}/wrong_ciphers_ssl.sock" ssl verify none crt ${testdir}/certs/client1.pem ca-file ${testdir}/certs/ca-auth.crt force-tlsv12 ciphers "aECDSA" sni str(foo.com)
 
         # No TLSv1.3 support with OpenSSL 1.0.2 so we duplicate the previous
         # wrong cipher test in this case so that the error log remains the same
 .if openssl_version_before(1.1.1)
-        server wrong_ciphers2 "${tmpdir}/wrong_ciphers_ssl.sock" ssl verify none crt ${testdir}/client1.pem ca-file ${testdir}/ca-auth.crt force-tlsv12 ciphers "aECDSA" sni str(foo.com)
+        server wrong_ciphers2 "${tmpdir}/wrong_ciphers_ssl.sock" ssl verify none crt ${testdir}/certs/client1.pem ca-file ${testdir}/certs/ca-auth.crt force-tlsv12 ciphers "aECDSA" sni str(foo.com)
 .else
-        server wrong_ciphers_tls13 "${tmpdir}/wrong_ciphers_tls13_ssl.sock" ssl verify none crt ${testdir}/client1.pem ca-file ${testdir}/ca-auth.crt ciphersuites "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256" force-tlsv13 sni str(foo.com)
+        server wrong_ciphers_tls13 "${tmpdir}/wrong_ciphers_tls13_ssl.sock" ssl verify none crt ${testdir}/certs/client1.pem ca-file ${testdir}/certs/ca-auth.crt ciphersuites "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256" force-tlsv13 sni str(foo.com)
     .endif
 
 
@@ -241,7 +241,7 @@ haproxy h1 -conf {
         mode http
         log-format "conn_status:\"%[fc_err]:%[fc_err_str]\" hsk_err:\"%[ssl_fc_err]:%[ssl_fc_err_str]\" CN=%{+Q}[ssl_c_s_dn],serial=%[ssl_c_serial,hex],hash=%[ssl_c_sha1,hex]"
         error-log-format "ERROR conn_status:\"%[fc_err]:%[fc_err_str]\" hsk_err:\"%[ssl_fc_err,and(proc.ssl_error_mask)]:%[ssl_fc_err_str]\" CN=%{+Q}[ssl_c_s_dn],serial=%[ssl_c_serial,hex],hash=%[ssl_c_sha1,hex]"
-        bind "${tmpdir}/cust_logfmt_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphers "kRSA"
+        bind "${tmpdir}/cust_logfmt_ssl.sock" ssl crt ${testdir}/certs/set_cafile_server.pem ca-verify-file ${testdir}/certs/set_cafile_rootCA.crt ca-file ${testdir}/certs/set_cafile_interCA1.crt verify required ciphers "kRSA"
         server s1 ${s1_addr}:${s1_port}
 
     listen https_logfmt_ssl_lst
@@ -251,14 +251,14 @@ haproxy h1 -conf {
         mode http
         option httpslog
         error-log-format "ERROR %ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r %[fc_err]/%[ssl_fc_err,and(proc.ssl_error_mask),hex]/%[ssl_c_err]/%[ssl_c_ca_err]/%[ssl_fc_is_resumed] %[ssl_fc_sni]/%sslv/%sslc"
-        bind "${tmpdir}/https_logfmt_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphers "kRSA"
+        bind "${tmpdir}/https_logfmt_ssl.sock" ssl crt ${testdir}/certs/set_cafile_server.pem ca-verify-file ${testdir}/certs/set_cafile_rootCA.crt ca-file ${testdir}/certs/set_cafile_interCA1.crt verify required ciphers "kRSA"
         server s1 ${s1_addr}:${s1_port}
 
     listen logconnerror_ssl_lst
         log ${Slg_logconnerror_addr}:${Slg_logconnerror_port} local0 info
         mode http
         option httplog
-        bind "${tmpdir}/logconnerror_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphers "kRSA"
+        bind "${tmpdir}/logconnerror_ssl.sock" ssl crt ${testdir}/certs/set_cafile_server.pem ca-verify-file ${testdir}/certs/set_cafile_rootCA.crt ca-file ${testdir}/certs/set_cafile_interCA1.crt verify required ciphers "kRSA"
         server s1 ${s1_addr}:${s1_port}
 
 
@@ -274,28 +274,28 @@ haproxy h1 -conf {
 
     # The following listeners allow to test backend error fetches
     listen no_backend_err_ssl_lst from bknd_err_dflt
-        bind "${tmpdir}/no_err_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none
+        bind "${tmpdir}/no_err_ssl.sock" ssl crt ${testdir}/certs/set_cafile_server.pem ca-file ${testdir}/certs/set_cafile_interCA2.crt verify none
         server s1 ${s1_addr}:${s1_port}
 
     listen srv_rejected_ssl_lst from bknd_err_dflt
-        bind "${tmpdir}/srv_rejected_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none
+        bind "${tmpdir}/srv_rejected_ssl.sock" ssl crt ${testdir}/certs/set_cafile_server.pem ca-file ${testdir}/certs/set_cafile_interCA2.crt verify none
         server s1 ${s1_addr}:${s1_port}
 
     listen mismatch_fe_ssl_lst from bknd_err_dflt
-        bind "${tmpdir}/mismatch_fe_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none
+        bind "${tmpdir}/mismatch_fe_ssl.sock" ssl crt ${testdir}/certs/set_cafile_server.pem ca-file ${testdir}/certs/set_cafile_interCA2.crt verify none
         server s1 ${s1_addr}:${s1_port}
 
     listen rejected_clt_ssl_lst from bknd_err_dflt
-        bind "${tmpdir}/rejected_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-file ${testdir}/set_cafile_interCA2.crt verify required
+        bind "${tmpdir}/rejected_ssl.sock" ssl crt ${testdir}/certs/set_cafile_server.pem ca-file ${testdir}/certs/set_cafile_interCA2.crt verify required
         server s1 ${s1_addr}:${s1_port}
 
     listen wrong_ciphers_ssl_lst from bknd_err_dflt
-        bind "${tmpdir}/wrong_ciphers_ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/ca-auth.crt verify none force-tlsv12 ciphers "kRSA"
+        bind "${tmpdir}/wrong_ciphers_ssl.sock" ssl crt ${testdir}/certs/common.pem ca-file ${testdir}/certs/ca-auth.crt verify none force-tlsv12 ciphers "kRSA"
         server s1 ${s1_addr}:${s1_port}
 
 .if openssl_version_atleast(1.1.1)
     listen wrong_ciphers_tls13_ssl_lst from bknd_err_dflt
-        bind "${tmpdir}/wrong_ciphers_tls13_ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/ca-auth.crt verify none force-tlsv13 ciphersuites "TLS_AES_128_GCM_SHA256"
+        bind "${tmpdir}/wrong_ciphers_tls13_ssl.sock" ssl crt ${testdir}/certs/common.pem ca-file ${testdir}/certs/ca-auth.crt verify none force-tlsv13 ciphersuites "TLS_AES_128_GCM_SHA256"
         server s1 ${s1_addr}:${s1_port}
     .endif
 
@@ -327,8 +327,8 @@ barrier b1 sync
 
 # Change the root CA in the frontends
 shell {
-    printf "set ssl ca-file ${testdir}/set_cafile_rootCA.crt <<\n$(cat ${testdir}/set_cafile_interCA1.crt)\n\n" | socat "${tmpdir}/h1/stats" -
-    echo "commit ssl ca-file ${testdir}/set_cafile_rootCA.crt" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl ca-file ${testdir}/certs/set_cafile_rootCA.crt <<\n$(cat ${testdir}/certs/set_cafile_interCA1.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl ca-file ${testdir}/certs/set_cafile_rootCA.crt" | socat "${tmpdir}/h1/stats" -
 }
 
 client c4 -connect ${h1_clearlst_sock} {
@@ -352,14 +352,14 @@ barrier b1 sync
 
 # Restore the root CA
 shell {
-    printf "set ssl ca-file ${testdir}/set_cafile_rootCA.crt <<\n$(cat ${testdir}/set_cafile_rootCA.crt)\n\n" | socat "${tmpdir}/h1/stats" -
-    echo "commit ssl ca-file ${testdir}/set_cafile_rootCA.crt" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl ca-file ${testdir}/certs/set_cafile_rootCA.crt <<\n$(cat ${testdir}/certs/set_cafile_rootCA.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl ca-file ${testdir}/certs/set_cafile_rootCA.crt" | socat "${tmpdir}/h1/stats" -
 }
 
 # Change the intermediate CA in the frontends
 shell {
-    printf "set ssl ca-file ${testdir}/set_cafile_interCA1.crt <<\n$(cat ${testdir}/set_cafile_interCA2.crt)\n\n" | socat "${tmpdir}/h1/stats" -
-    echo "commit ssl ca-file ${testdir}/set_cafile_interCA1.crt" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl ca-file ${testdir}/certs/set_cafile_interCA1.crt <<\n$(cat ${testdir}/certs/set_cafile_interCA2.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl ca-file ${testdir}/certs/set_cafile_interCA1.crt" | socat "${tmpdir}/h1/stats" -
 }
 
 client c7 -connect ${h1_clearlst_sock} {
@@ -382,8 +382,8 @@ barrier b1 sync
 
 # Restore the intermediate CA in the frontends
 shell {
-    printf "set ssl ca-file ${testdir}/set_cafile_interCA1.crt <<\n$(cat ${testdir}/set_cafile_interCA1.crt)\n\n" | socat "${tmpdir}/h1/stats" -
-    echo "commit ssl ca-file ${testdir}/set_cafile_interCA1.crt" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl ca-file ${testdir}/certs/set_cafile_interCA1.crt <<\n$(cat ${testdir}/certs/set_cafile_interCA1.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl ca-file ${testdir}/certs/set_cafile_interCA1.crt" | socat "${tmpdir}/h1/stats" -
 }
 
 # "No shared cipher" errors
@@ -402,8 +402,8 @@ client c12 -connect ${h1_wrongcipherslst_sock} {
 
 
 shell {
-    printf "set ssl ca-file ${testdir}/set_cafile_interCA2.crt <<\n$(cat ${testdir}/set_cafile_interCA2.crt)\n$(cat ${testdir}/set_cafile_rootCA.crt)\n\n" | socat "${tmpdir}/h1/stats" -
-    echo "commit ssl ca-file ${testdir}/set_cafile_interCA2.crt" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl ca-file ${testdir}/certs/set_cafile_interCA2.crt <<\n$(cat ${testdir}/certs/set_cafile_interCA2.crt)\n$(cat ${testdir}/certs/set_cafile_rootCA.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl ca-file ${testdir}/certs/set_cafile_interCA2.crt" | socat "${tmpdir}/h1/stats" -
 }
 
 client c13 -connect ${h1_backenderrorslst_sock} {

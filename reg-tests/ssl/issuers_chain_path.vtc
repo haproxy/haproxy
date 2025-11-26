@@ -14,8 +14,8 @@ haproxy h1 -conf {
     .endif
 
         stats socket "${tmpdir}/h1/stats" level admin
-        issuers-chain-path "${testdir}/issuers-chain-path/ca/"
-        crt-base "${testdir}/issuers-chain-path"
+        issuers-chain-path "${testdir}/certs/issuers-chain-path/ca/"
+        crt-base "${testdir}/certs/issuers-chain-path"
 
     defaults
         mode http
@@ -34,9 +34,9 @@ haproxy h1 -conf {
 
 # We should have two distinct ocsp responses known that were loaded at build time
 haproxy h1 -cli {
-	send "show ssl cert ${testdir}/issuers-chain-path/server.pem"
+	send "show ssl cert ${testdir}/certs/issuers-chain-path/server.pem"
 	expect ~ ".*Chain Filename.*"
-	send "show ssl cert ${testdir}/issuers-chain-path/server.pem"
+	send "show ssl cert ${testdir}/certs/issuers-chain-path/server.pem"
 	expect ~ ".*Chain Subject.*"
 }
 

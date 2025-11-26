@@ -40,7 +40,7 @@ haproxy h1 -conf {
 
   listen frt
     mode http
-    bind "fd@${frt}" ssl crt ${testdir}/common.pem
+    bind "fd@${frt}" ssl crt ${testdir}/certs/common.pem
     http-request redirect location /
 } -start
 
