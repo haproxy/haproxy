@@ -2156,22 +2156,14 @@ int connect_server(struct stream *s)
 
 #ifdef USE_OPENSSL
 	/* Set socket SNI unless connection is reused. */
-	if (conn_is_ssl(srv_conn) && !(s->flags & SF_SRV_REUSED)) {
-		int sni_set = 0;
+	if (conn_is_ssl(srv_conn) && srv && srv->ssl_ctx.sni && !(s->flags & SF_SRV_REUSED)) {
+		struct sample *sni_smp = NULL;
 
-		if (srv && srv->ssl_ctx.sni) {
-			struct sample *sni_smp = NULL;
-
-			sni_smp = sample_fetch_as_type(s->be, s->sess, s,
-						       SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
-						       srv->ssl_ctx.sni, SMP_T_STR);
-			if (smp_make_safe(sni_smp)) {
-				ssl_sock_set_servername(srv_conn, sni_smp->data.u.str.area);
-				sni_set = 1;
-			}
-		}
-		if (!sni_set)
-			ssl_sock_set_servername(srv_conn, NULL);
+		sni_smp = sample_fetch_as_type(s->be, s->sess, s,
+		                               SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
+		                               srv->ssl_ctx.sni, SMP_T_STR);
+		if (smp_make_safe(sni_smp))
+			ssl_sock_set_servername(srv_conn, sni_smp->data.u.str.area);
 	}
 #endif /* USE_OPENSSL */
 
