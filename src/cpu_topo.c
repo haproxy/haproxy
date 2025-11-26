@@ -48,7 +48,11 @@ struct cpu_set_cfg {
 } cpu_set_cfg;
 
 /* CPU policy choice */
-static int cpu_policy = 1; // "first-usable-node"
+struct {
+	int cpu_policy;
+} cpu_policy_conf = {
+			1, /* "first-usable-node" */
+};
 
 /* list of CPU policies for "cpu-policy". The default one is the first one. */
 static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin, int gmax, char **err);
@@ -1459,12 +1463,12 @@ int cpu_apply_policy(int tmin, int tmax, int gmin, int gmax, char **err)
 		return 0;
 	}
 
-	if (!ha_cpu_policy[cpu_policy].fct) {
+	if (!ha_cpu_policy[cpu_policy_conf.cpu_policy].fct) {
 		/* nothing to do */
 		return 0;
 	}
 
-	if (ha_cpu_policy[cpu_policy].fct(cpu_policy, tmin, tmax, gmin, gmax, err) < 0)
+	if (ha_cpu_policy[cpu_policy_conf.cpu_policy].fct(cpu_policy_conf.cpu_policy, tmin, tmax, gmin, gmax, err) < 0)
 		return -1;
 
 	return 0;
@@ -1942,7 +1946,7 @@ static int cfg_parse_cpu_policy(char **args, int section_type, struct proxy *cur
 
 	for (i = 0; ha_cpu_policy[i].name; i++) {
 		if (strcmp(args[1], ha_cpu_policy[i].name) == 0) {
-			cpu_policy = i;
+			cpu_policy_conf.cpu_policy = i;
 			return 0;
 		}
 	}
