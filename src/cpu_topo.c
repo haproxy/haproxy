@@ -17,6 +17,9 @@
 #define CPU_SET_FL_NONE       0x0000
 #define CPU_SET_FL_DO_RESET   0x0001
 
+/* cpu_policy_conf flags */
+#define CPU_POLICY_ONE_THREAD_PER_CORE (1 << 0)
+
 /* CPU topology information, ha_cpuset_size() entries, allocated at boot */
 int cpu_topo_maxcpus  = -1;  // max number of CPUs supported by OS/haproxy
 int cpu_topo_lastcpu  = -1;  // last supposed online CPU (no need to look beyond)
@@ -50,8 +53,10 @@ struct cpu_set_cfg {
 /* CPU policy choice */
 struct {
 	int cpu_policy;
+	int flags;
 } cpu_policy_conf = {
-			1, /* "first-usable-node" */
+			1, /* "performance" policy */
+			0, /* Default flags */
 };
 
 /* list of CPU policies for "cpu-policy". The default one is the first one. */
@@ -1030,11 +1035,13 @@ void cpu_refine_cpusets(void)
 static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin, int gmax, char **err)
 {
 	struct hap_cpuset node_cpu_set;
+	struct hap_cpuset visited_tsid;
 	int first_node_id = -1;
 	int second_node_id = -1;
 	int cpu;
 	int cpu_count;
 	int grp, thr;
+	int thr_count = 0;
 
 	if (!global.numa_cpu_mapping)
 		return 0;
@@ -1069,12 +1076,19 @@ static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin
 	 * and make a CPU set of them.
 	 */
 	ha_cpuset_zero(&node_cpu_set);
+	ha_cpuset_zero(&visited_tsid);
 	for (cpu = cpu_count = 0; cpu <= cpu_topo_lastcpu; cpu++) {
 		if (ha_cpu_topo[cpu].no_id != first_node_id)
 			ha_cpu_topo[cpu].st |= HA_CPU_F_IGNORED;
 		else if (!(ha_cpu_topo[cpu].st & HA_CPU_F_EXCL_MASK)) {
 			ha_cpuset_set(&node_cpu_set, ha_cpu_topo[cpu].idx);
 			cpu_count++;
+
+			if (!(cpu_policy_conf.flags & CPU_POLICY_ONE_THREAD_PER_CORE) || !ha_cpuset_isset(&visited_tsid, ha_cpu_topo[cpu].ts_id)) {
+				ha_cpuset_set(&visited_tsid, ha_cpu_topo[cpu].ts_id);
+				thr_count++;
+				last_id = ha_cpu_topo[cpu].ts_id;
+			}
 		}
 	}
 
@@ -1083,8 +1097,8 @@ static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin
 		for (thr = 0; thr < MAX_THREADS_PER_GROUP; thr++)
 			ha_cpuset_assign(&cpu_map[grp].thread[thr], &node_cpu_set);
 
-	if (tmin <= cpu_count && cpu_count < tmax)
-		tmax = cpu_count;
+	if (tmin <= thr_count && thr_count < tmax)
+		tmax = thr_count;
 
 	ha_diag_warning("Multi-socket cpu detected, automatically binding on active CPUs of '%d' (%u active cpu(s))\n", first_node_id, cpu_count);
 
@@ -1106,6 +1120,7 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 {
 	struct hap_cpuset visited_cl_set;
 	struct hap_cpuset node_cpu_set;
+	struct hap_cpuset visited_tsid;
 	int cpu, cpu_start;
 	int cpu_count;
 	int cid;
@@ -1149,7 +1164,13 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 
 			/* make a mask of all of this cluster's CPUs */
 			ha_cpuset_set(&node_cpu_set, ha_cpu_topo[cpu].idx);
-			cpu_count++;
+			if (cpu_policy_conf.flags & CPU_POLICY_ONE_THREAD_PER_CORE) {
+				if (!ha_cpuset_isset(&visited_tsid, ha_cpu_topo[cpu].ts_id)) {
+					ha_cpuset_set(&visited_tsid, ha_cpu_topo[cpu].ts_id);
+					cpu_count++;
+				}
+			} else
+				cpu_count++;
 		}
 
 		/* now cid = next cluster_id or -1 if none; cpu_count is the
@@ -1222,6 +1243,7 @@ static int cpu_policy_group_by_ccx(int policy, int tmin, int tmax, int gmin, int
 {
 	struct hap_cpuset visited_ccx_set;
 	struct hap_cpuset node_cpu_set;
+	struct hap_cpuset visited_tsid;
 	int cpu, cpu_start;
 	int cpu_count;
 	int l3id;
@@ -1246,6 +1268,7 @@ static int cpu_policy_group_by_ccx(int policy, int tmin, int tmax, int gmin, int
 
 	while (global.nbtgroups < MAX_TGROUPS && global.nbthread < MAX_THREADS) {
 		ha_cpuset_zero(&node_cpu_set);
+		ha_cpuset_zero(&visited_tsid);
 		l3id = -1; cpu_count = 0;
 
 		for (cpu = cpu_start; cpu <= cpu_topo_lastcpu; cpu++) {
@@ -1265,7 +1288,13 @@ static int cpu_policy_group_by_ccx(int policy, int tmin, int tmax, int gmin, int
 
 			/* make a mask of all of this cluster's CPUs */
 			ha_cpuset_set(&node_cpu_set, ha_cpu_topo[cpu].idx);
-			cpu_count++;
+			if (cpu_policy_conf.flags & CPU_POLICY_ONE_THREAD_PER_CORE) {
+				if (!ha_cpuset_isset(&visited_tsid, ha_cpu_topo[cpu].ts_id)) {
+					ha_cpuset_set(&visited_tsid, ha_cpu_topo[cpu].ts_id);
+					cpu_count++;
+				}
+			} else
+				cpu_count++;
 		}
 
 		/* now l3id = next L3 ID or -1 if none; cpu_count is the
@@ -1941,9 +1970,23 @@ static int cfg_parse_cpu_policy(char **args, int section_type, struct proxy *cur
 {
 	int i;
 
-	if (too_many_args(1, args, err, NULL))
+	if (too_many_args(3, args, err, NULL))
 		return -1;
 
+	if (*args[2] != 0) {
+		if (!strcmp(args[2], "threads-per-core")) {
+			if (!strcmp(args[3], "1"))
+				cpu_policy_conf.flags |= CPU_POLICY_ONE_THREAD_PER_CORE;
+			else if (strcmp(args[3], "auto")) {
+				memprintf(err, "'%s' passed an unknown value '%s' to keyword '%s', known values are 1 or auto", args[0], args[3], args[2]);
+				return -1;
+			}
+		} else {
+			memprintf(err, "'%s' passed an unknown keyword '%s', the only known values are threads-per-core", args[0], args[2]);
+			return -1;
+		}
+
+	}
 	for (i = 0; ha_cpu_policy[i].name; i++) {
 		if (strcmp(args[1], ha_cpu_policy[i].name) == 0) {
 			cpu_policy_conf.cpu_policy = i;

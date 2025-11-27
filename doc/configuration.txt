@@ -2223,7 +2223,7 @@ cpu-map [auto:]<thread-group>[/<thread-set>] <cpu-set>[,...] [...]
       cpu-map 4/1-40   40-79,120-159
 
 
-cpu-policy <policy>
+cpu-policy <policy> [threads-per-core 1 | auto]
   Selects the CPU allocation policy to be used.
 
   On multi-CPU systems, there can be plenty of reasons for not using all
@@ -2374,6 +2374,11 @@ cpu-policy <policy>
                         sidecar setup, in order to scale the system down more
                         easily. Note that if a single cluster is present, it
                         will still be fully used.
+
+  An optional keyword can be added, "threads-per-core". It can accept two
+  values, "1" and "auto". If set to 1, then only one thread per core will be
+  created, unrespective of how many hardware threads the core has. If set
+  to auto, then one thread per hardware thread will be created.
 
   See also: "cpu-map", "cpu-set", "nbthread"
 
