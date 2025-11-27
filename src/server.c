@@ -40,6 +40,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/queue.h>
 #include <haproxy/quic_tp.h>
+#include <haproxy/quic_tune.h>
 #include <haproxy/resolvers.h>
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
@@ -2886,6 +2887,10 @@ void srv_settings_init(struct server *srv)
 
 	srv->uweight = srv->iweight = 1;
 
+#ifdef USE_QUIC
+	srv->quic_max_cwnd = quic_tune.be.cc_max_win_size;
+#endif
+
 	LIST_INIT(&srv->pp_tlvs);
 }
 
@@ -3042,6 +3047,11 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	srv->low_idle_conns = src->low_idle_conns;
 	srv->max_idle_conns = src->max_idle_conns;
 	srv->max_reuse = src->max_reuse;
+
+#ifdef USE_QUIC
+	srv->quic_cc_algo = src->quic_cc_algo;
+	srv->quic_max_cwnd = src->quic_max_cwnd;
+#endif
 
 	if (srv_tmpl)
 		srv->srvrq = src->srvrq;

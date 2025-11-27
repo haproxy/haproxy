@@ -234,6 +234,24 @@ static int bind_parse_quic_socket(char **args, int cur_arg, struct proxy *px,
 	return 0;
 }
 
+/* parse "quic-cc-algo" bind keyword */
+static int srv_parse_quic_cc_algo(char **args, int *cur_arg, struct proxy *px,
+                                  struct server *srv, char **err)
+{
+	const struct quic_cc_algo *cc_algo = NULL;
+
+	cc_algo = parse_cc_algo(args, *cur_arg, err, &srv->quic_max_cwnd);
+	if (!cc_algo)
+		goto fail;
+
+ out:
+	srv->quic_cc_algo = cc_algo;
+	return 0;
+
+ fail:
+	return ERR_ALERT | ERR_FATAL;
+}
+
 static struct bind_kw_list bind_kws = { "QUIC", { }, {
 	{ "quic-force-retry", bind_parse_quic_force_retry, 0 },
 	{ "quic-cc-algo", bind_parse_quic_cc_algo, 1 },
@@ -242,6 +260,12 @@ static struct bind_kw_list bind_kws = { "QUIC", { }, {
 }};
 
 INITCALL1(STG_REGISTER, bind_register_keywords, &bind_kws);
+
+static struct srv_kw_list srv_kws = { "QUIC", { }, {
+	{ "quic-cc-algo", srv_parse_quic_cc_algo, 1 },
+}};
+
+INITCALL1(STG_REGISTER, srv_register_keywords, &srv_kws);
 
 /* parse "tune.quic.fe.sock-per-conn", accepts "default-on" or "force-off" */
 static int cfg_parse_quic_tune_sock_per_conn(char **args, int section_type,

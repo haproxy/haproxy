@@ -1133,6 +1133,7 @@ struct quic_conn *qc_new_conn(void *target,
 	struct server *srv = objt_server(target);
 	struct proxy *prx = l ? l->bind_conf->frontend : __objt_server(target)->proxy;
 	const struct quic_cc_algo *cc_algo = NULL;
+	size_t max_cwnd;
 	unsigned int next_actconn = 0, next_sslconn = 0, next_handshake = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_INIT);
@@ -1234,6 +1235,7 @@ struct quic_conn *qc_new_conn(void *target,
 	/* QUIC Server (or listener). */
 	if (l) {
 		cc_algo = l->bind_conf->quic_cc_algo;
+		max_cwnd = l->bind_conf->max_cwnd;
 
 		qc->flags = 0;
 
@@ -1252,6 +1254,9 @@ struct quic_conn *qc_new_conn(void *target,
 	}
 	/* QUIC Client (outgoing connection to servers) */
 	else {
+		cc_algo = srv->quic_cc_algo;
+		max_cwnd = srv->quic_max_cwnd;
+
 		qc->flags = QUIC_FL_CONN_IS_BACK|QUIC_FL_CONN_PEER_VALIDATED_ADDR;
 		/* Duplicate GSO status on server to connection */
 		if (HA_ATOMIC_LOAD(&srv->flags) & SRV_F_UDP_GSO_NOTSUPP)
@@ -1347,8 +1352,8 @@ struct quic_conn *qc_new_conn(void *target,
 	/* Only one path at this time (multipath not supported) */
 	qc->path = &qc->paths[0];
 	quic_cc_path_init(qc->path, peer_addr->ss_family == AF_INET,
-	                  l ? l->bind_conf->max_cwnd : quic_tune.be.cc_max_win_size,
-	                  cc_algo ? cc_algo : default_quic_cc_algo, qc);
+	                  max_cwnd, cc_algo ? cc_algo : default_quic_cc_algo,
+	                  qc);
 
 	if (local_addr)
 		memcpy(&qc->local_addr, local_addr, sizeof(qc->local_addr));

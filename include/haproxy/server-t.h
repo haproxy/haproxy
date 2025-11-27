@@ -514,6 +514,8 @@ struct server {
 	} ssl_ctx;
 #ifdef USE_QUIC
 	struct quic_transport_params quic_params; /* QUIC transport parameters */
+	const struct quic_cc_algo *quic_cc_algo;  /* QUIC control congestion algorithm */
+	size_t quic_max_cwnd;                     /* QUIC maximum congestion control window size (kB) */
 #endif
 	struct path_parameters path_params;     /* Connection parameters for that server */
 	struct resolv_srvrq *srvrq;		/* Pointer representing the DNS SRV requeest, if any */

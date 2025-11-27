@@ -4834,7 +4834,7 @@ tune.quic.fe.cc.max-win-size <size>
 
   The default value is 480k.
 
-  See also the "quic-cc-algo" bind option.
+  See also the "quic-cc-algo" bind and server options.
 
 tune.quic.frontend.default-max-window-size <size> (deprecated)
   This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
@@ -5022,7 +5022,7 @@ tune.quic.fe.tx.pacing { on | off }
   deactivate it for networks with very high bandwidth/low latency
   characteristics to prevent unwanted delay and reduce CPU consumption.
 
-  See also the "quic-cc-algo" bind option.
+  See also the "quic-cc-algo" bind and server options.
 
 tune.quic.disable-tx-pacing (deprecated)
   This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
@@ -18821,6 +18821,16 @@ proto <name>
   instance, if "proto h1" is set, the ALPN should not be set to "h2".
 
   See also "ws" to use an alternative protocol for websocket streams.
+
+quic-cc-algo { cubic | newreno | bbr | nocc }[(<args,...>)]
+  This is a QUIC specific setting to select the congestion control algorithm
+  for any connection targetting this server. They are similar to those used by
+  TCP. See the bind option with a similar name for a complete description of
+  all customization options.
+
+  Default value: cubic
+
+  See also: "tune.quic.be.tx.pacing" and "tune.quic.be.cc.max-win-size"
 
 redir <prefix>
   May be used in the following contexts: http
