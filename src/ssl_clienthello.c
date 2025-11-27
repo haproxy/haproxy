@@ -506,7 +506,8 @@ sni_lookup:
 	/* abort handshake (was SSL_TLSEXT_ERR_ALERT_FATAL) */
 	if (conn)
 		conn->err_code = CO_ER_SSL_HANDSHAKE;
-	TRACE_ERROR("No suitable SSL context found", SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn, ssl, &conn->err_code);
+	TRACE_ERROR("No suitable SSL context found", SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR,
+	            conn, ssl, conn ? &conn->err_code : NULL);
 #if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
 	return ssl_select_cert_error;
 #else
