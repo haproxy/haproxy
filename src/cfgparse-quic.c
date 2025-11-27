@@ -97,18 +97,23 @@ static unsigned long parse_window_size(const char *kw, char *value,
 	return 0;
 }
 
-/* parse "quic-cc-algo" bind keyword */
-static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
-                                   struct bind_conf *conf, char **err)
+/* Parse option 'quic-cc-algo' on bind and server lines.
+ *
+ * Returns the selected algorithm or NULL on error. <max_cwnd> is used as a
+ * secondary output parameter, set to the maximum window size if specified.
+ */
+static const struct quic_cc_algo *parse_cc_algo(char **args, int cur_arg, char **err,
+                                                size_t *max_cwnd)
 {
 	const struct quic_cc_algo *cc_algo;
 	const char *algo = NULL;
 	struct ist algo_ist, arg_ist;
+	unsigned long cwnd = 0;
 	char *arg;
 
 	if (!*args[cur_arg + 1]) {
 		memprintf(err, "'%s' : missing control congestion algorithm", args[cur_arg]);
-		goto fail;
+		goto err;
 	}
 
 	arg = args[cur_arg + 1];
@@ -137,7 +142,7 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 		if (!experimental_directives_allowed) {
 			ha_alert("'%s' algo is experimental, must be allowed via a global "
 			         "'expose-experimental-directives'\n", arg);
-			goto fail;
+			goto err;
 		}
 
 		algo = QUIC_CC_NO_CC_STR;
@@ -147,7 +152,7 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 	}
 	else {
 		memprintf(err, "'%s' : unknown control congestion algorithm", args[cur_arg + 1]);
-		goto fail;
+		goto err;
 	}
 
 	if (*arg++ == '(') {
@@ -157,27 +162,45 @@ static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
 			goto out;
 
 		if (*arg != ',') {
-			unsigned long cwnd = parse_window_size(args[cur_arg], arg, &end_opt, err);
+			cwnd = parse_window_size(args[cur_arg], arg, &end_opt, err);
 			if (!cwnd)
-				goto fail;
-
-			conf->max_cwnd = cwnd;
+				goto err;
 
 			if (*end_opt == ')') {
 				goto out;
 			}
 			else if (*end_opt != ',') {
 				memprintf(err, "'%s' : cannot parse max-window argument for '%s' algorithm", args[cur_arg], algo);
-				goto fail;
+				goto err;
 			}
 			arg = end_opt;
 		}
 
 		if (*++arg != ')') {
 			memprintf(err, "'%s' : too many argument for '%s' algorithm", args[cur_arg], algo);
-			goto fail;
+			goto err;
 		}
 	}
+
+
+ out:
+	if (cwnd)
+		*max_cwnd = cwnd;
+	return cc_algo;
+
+ err:
+	return NULL;
+}
+
+/* parse "quic-cc-algo" bind keyword */
+static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
+                                   struct bind_conf *conf, char **err)
+{
+	const struct quic_cc_algo *cc_algo = NULL;
+
+	cc_algo = parse_cc_algo(args, cur_arg, err, &conf->max_cwnd);
+	if (!cc_algo)
+		goto fail;
 
  out:
 	conf->quic_cc_algo = cc_algo;
