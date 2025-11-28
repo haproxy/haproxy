@@ -9,9 +9,8 @@
 # - Check that you have socat
 
 varnishtest "Test the 'new ssl ca-file' and 'del ssl ca-file' commands of the CLI"
-feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
-feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
 feature cmd "command -v socat"
 
-setenv VTC_SOCK_TYPE stream
-include ${testdir}/new_del_ssl_cafile.vtci
+setenv VTC_SOCK_TYPE quic
+include ${testdir}/../ssl/new_del_ssl_cafile.vtci
