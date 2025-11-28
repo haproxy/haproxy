@@ -1721,9 +1721,13 @@ void qc_idle_timer_do_rearm(struct quic_conn *qc, int arm_ack)
 {
 	unsigned int expire;
 
+	TRACE_ENTER(QUIC_EV_CONN_IDLE_TIMER, qc);
+
 	/* It is possible the idle timer task has been already released. */
-	if (!qc->idle_timer_task)
-		return;
+	if (!qc->idle_timer_task) {
+		TRACE_PROTO("idle timer already released", QUIC_EV_CONN_IDLE_TIMER, qc);
+		goto leave;
+	}
 
 	if (qc->flags & (QUIC_FL_CONN_CLOSING|QUIC_FL_CONN_DRAINING)) {
 		/* RFC 9000 10.2. Immediate Close
@@ -1752,6 +1756,8 @@ void qc_idle_timer_do_rearm(struct quic_conn *qc, int arm_ack)
 		expire = QUIC_MAX(3 * quic_pto(qc), qc->max_idle_timeout);
 	}
 
+	TRACE_PRINTF(TRACE_LEVEL_PROTO, QUIC_EV_CONN_IDLE_TIMER, qc, 0, 0, 0,
+	             "quic_pto=%u expire=%u", quic_pto(qc), expire);
 	qc->idle_expire = tick_add(now_ms, MS_TO_TICKS(expire));
 	/* Note that the ACK timer is not armed during the handshake. So,
 	 * the handshake expiration date is taken into an account only
@@ -1773,6 +1779,9 @@ void qc_idle_timer_do_rearm(struct quic_conn *qc, int arm_ack)
 		task_queue(qc->idle_timer_task);
 		TRACE_PROTO("idle timer armed", QUIC_EV_CONN_IDLE_TIMER, qc);
 	}
+
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_IDLE_TIMER, qc);
 }
 
 /* Rearm the idle timer or ack timer for <qc> QUIC connection depending on <read>
