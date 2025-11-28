@@ -4519,9 +4519,9 @@ static int sample_conv_jwt_verify_check(struct arg *args, struct sample_conv *co
 
 	if (args[1].type == ARGT_STR) {
 		switch (alg) {
-			JWS_ALG_HS256:
-			JWS_ALG_HS384:
-			JWS_ALG_HS512:
+			case JWS_ALG_HS256:
+			case JWS_ALG_HS384:
+			case JWS_ALG_HS512:
 			/* don't try to load a file with HMAC algorithms */
 				retval = 1;
 				break;
