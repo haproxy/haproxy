@@ -3,8 +3,8 @@
 #
 varnishtest "Test the issuers-chain-path keyword"
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.6)'"
-feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && openssl_version_atleast(1.1.1)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && feature(OPENSSL) && openssl_version_atleast(1.1.1)'"
 feature cmd "command -v openssl && command -v socat"
 
-setenv VTC_SOCK_TYPE stream
-include ${testdir}/issuers_chain_path.vtci
+setenv VTC_SOCK_TYPE quic
+include ${testdir}/../ssl/issuers_chain_path.vtci
