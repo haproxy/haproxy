@@ -1099,6 +1099,16 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			/* TODO */
 			break;
 		case QUIC_FT_CONNECTION_CLOSE:
+			/* Nothing to do for non crypto errors */
+			if ((frm->connection_close.error_code & QC_ERR_CRYPTO_ERROR) && qc->conn) {
+				ssl_sock_handle_hs_error(qc->conn);
+				if (objt_server(qc->conn->target) && !qc->conn->mux) {
+					/* This has as side effect to close the connection stream */
+					if (conn_create_mux(qc->conn, NULL) >= 0)
+						qc->conn->mux->wake(qc->conn);
+				}
+			}
+			__fallthrough;
 		case QUIC_FT_CONNECTION_CLOSE_APP:
 			/* Increment the error counters */
 			quic_conn_closed_err_count_inc(qc, frm);

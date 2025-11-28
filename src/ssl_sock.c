@@ -5963,6 +5963,45 @@ void ssl_sock_update_counters(SSL *ssl,
 	}
 }
 
+/* Handle the handshake error for <conn> connection.
+ * Also used by QUIC.
+ */
+void ssl_sock_handle_hs_error(struct connection *conn)
+{
+	struct ssl_counters *counters = NULL;
+	struct ssl_counters *counters_px = NULL;
+
+	/* get counters */
+	ssl_sock_get_stats_counters(conn, &counters, &counters_px);
+
+	/* free resumed session if exists */
+	if (objt_server(conn->target)) {
+		struct server *s = __objt_server(conn->target);
+		/* RWLOCK: only rdlock the SSL cache even when writing in it because there is
+		 * one cache per thread, it only prevents to flush it from the CLI in
+		 * another thread */
+
+		HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
+		if (s->ssl_ctx.reused_sess[tid].ptr)
+			ha_free(&s->ssl_ctx.reused_sess[tid].ptr);
+		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
+	}
+
+	if (counters) {
+		HA_ATOMIC_INC(&counters->failed_handshake);
+		HA_ATOMIC_INC(&counters_px->failed_handshake);
+	}
+
+	/* Report an HS error only on SSL error */
+	if (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)))
+		conn_report_term_evt(conn, tevt_loc_hs, hs_tevt_type_truncated_rcv_err);
+
+	/* Fail on all other handshake errors */
+	conn->flags |= CO_FL_ERROR;
+	if (!conn->err_code)
+		conn->err_code = CO_ER_SSL_HANDSHAKE;
+}
+
 /* This is the callback which is used when an SSL handshake is pending. It
  * updates the FD status if it wants some polling before being called again.
  * It returns 0 if it fails in a fatal way or needs to poll to go further,
@@ -5975,8 +6014,6 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 	int ret;
 	struct ssl_counters *counters = NULL;
 	struct ssl_counters *counters_px = NULL;
-	struct listener *li;
-	struct server *srv = NULL;
 	socklen_t lskerr;
 	int skerr;
 
@@ -5984,26 +6021,6 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 
 	if (!conn_ctrl_ready(conn))
 		return 0;
-
-	/* get counters */
-	switch (obj_type(conn->target)) {
-	case OBJ_TYPE_LISTENER:
-		li = __objt_listener(conn->target);
-		counters = EXTRA_COUNTERS_GET(li->extra_counters, &ssl_stats_module);
-		counters_px = EXTRA_COUNTERS_GET(li->bind_conf->frontend->extra_counters_fe,
-		                                 &ssl_stats_module);
-		break;
-
-	case OBJ_TYPE_SERVER:
-		srv = __objt_server(conn->target);
-		counters = EXTRA_COUNTERS_GET(srv->extra_counters, &ssl_stats_module);
-		counters_px = EXTRA_COUNTERS_GET(srv->proxy->extra_counters_be,
-		                                 &ssl_stats_module);
-		break;
-
-	default:
-		break;
-	}
 
 	if (!ctx)
 		goto out_error;
@@ -6294,8 +6311,10 @@ reneg_ok:
 	if (global_ssl.async)
 		SSL_clear_mode(ctx->ssl, SSL_MODE_ASYNC);
 #endif
+	ssl_sock_get_stats_counters(conn, &counters, &counters_px);
 	/* Handshake succeeded */
-	ssl_sock_update_counters(ctx->ssl, counters, counters_px, !!srv);
+	ssl_sock_update_counters(ctx->ssl, counters, counters_px,
+	                         !!objt_server(conn->target));
 
 	TRACE_LEAVE(SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
 
@@ -6307,33 +6326,7 @@ reneg_ok:
 	/* Clear openssl global errors stack */
 	ssl_sock_dump_errors(conn, NULL);
 	ERR_clear_error();
-
-	/* free resumed session if exists */
-	if (objt_server(conn->target)) {
-		struct server *s = __objt_server(conn->target);
-		/* RWLOCK: only rdlock the SSL cache even when writing in it because there is
-		 * one cache per thread, it only prevents to flush it from the CLI in
-		 * another thread */
-
-		HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
-		if (s->ssl_ctx.reused_sess[tid].ptr)
-			ha_free(&s->ssl_ctx.reused_sess[tid].ptr);
-		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
-	}
-
-	if (counters) {
-		HA_ATOMIC_INC(&counters->failed_handshake);
-		HA_ATOMIC_INC(&counters_px->failed_handshake);
-	}
-
-	/* Report an HS error only on SSL error */
-	if (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)))
-		conn_report_term_evt(conn, tevt_loc_hs, hs_tevt_type_truncated_rcv_err);
-
-	/* Fail on all other handshake errors */
-	conn->flags |= CO_FL_ERROR;
-	if (!conn->err_code)
-		conn->err_code = CO_ER_SSL_HANDSHAKE;
+	ssl_sock_handle_hs_error(conn);
 
 	TRACE_ERROR("handshake error", SSL_EV_CONN_HNDSHK|SSL_EV_CONN_ERR, conn, (ctx ? ctx->ssl : NULL), &conn->err_code, (ctx ? &ctx->error_code : NULL));
 	return 0;

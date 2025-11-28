@@ -30,6 +30,7 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/ssl_sock-t.h>
+#include <haproxy/stats.h>
 #include <haproxy/thread.h>
 
 extern struct list tlskeys_reference;
@@ -89,6 +90,7 @@ unsigned int ssl_sock_get_verify_result(struct connection *conn);
 void ssl_sock_update_counters(SSL *ssl,
                               struct ssl_counters *counters,
                               struct ssl_counters *counters_px, int backend);
+void ssl_sock_handle_hs_error(struct connection *conn);
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 int ssl_sock_update_tlskey_ref(struct tls_keys_ref *ref,
 				struct buffer *tlskey);
@@ -241,6 +243,30 @@ static inline struct connection *ssl_sock_get_conn(const SSL *s, struct ssl_sock
 	return ret;
 }
 
+/* Set at <counters> and <counters_px> addresses the SSL statistical counters */
+static inline void ssl_sock_get_stats_counters(struct connection *conn,
+                                               struct ssl_counters **counters,
+                                               struct ssl_counters **counters_px)
+{
+	switch (obj_type(conn->target)) {
+	case OBJ_TYPE_LISTENER: {
+		struct listener *li = __objt_listener(conn->target);
+		*counters = EXTRA_COUNTERS_GET(li->extra_counters, &ssl_stats_module);
+		*counters_px = EXTRA_COUNTERS_GET(li->bind_conf->frontend->extra_counters_fe,
+		                                 &ssl_stats_module);
+		break;
+	}
+	case OBJ_TYPE_SERVER: {
+		struct server *srv = __objt_server(conn->target);
+		*counters = EXTRA_COUNTERS_GET(srv->extra_counters, &ssl_stats_module);
+		*counters_px = EXTRA_COUNTERS_GET(srv->proxy->extra_counters_be,
+		                                 &ssl_stats_module);
+		break;
+	}
+	default:
+		break;
+	}
+}
 
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_SSL_SOCK_H */
