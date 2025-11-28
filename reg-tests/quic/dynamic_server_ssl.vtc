@@ -1,0 +1,13 @@
+#REGTEST_TYPE=bug
+# Test if a certificate can be dynamically updated once a QUIC server which used it
+# was removed.
+#
+varnishtest "Delete server via cli and update certificates"
+
+# QUIC backend are not supported with USE_QUIC_OPENSSL_COMPAT
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
+feature cmd "command -v socat"
+
+setenv VTC_SOCK_TYPE quic
+include ${testdir}/../ssl/dynamic_server_ssl.vtci
+
