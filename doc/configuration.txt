@@ -16941,9 +16941,10 @@ ech <dir> [ EXPERIMENTAL ]
   See https://datatracker.ietf.org/doc/draft-ietf-tls-esni/
 
   This is an experimental feature, which requires the
-  "expose-experimental-directives" option in the global section. It also
-  necessitates an OpenSSL version that supports ECH, and HAProxy must be
-  compiled with USE_ECH=1.
+  "expose-experimental-directives" option in the global section.
+  It also necessitates an OpenSSL version that supports ECH
+  ( https://github.com/openssl/openssl/tree/feature/ech), and HAProxy must be
+  compiled with USE_ECH=1. The ECH API of AWS-LC is not supported.
 
   Example:
     $ openssl ech -public_name foobar.com -out /etc/haproxy/echkeydir/foobar.com.ech
