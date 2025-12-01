@@ -1747,6 +1747,7 @@ The following keywords are supported in the "global" section :
    - ca-base
    - chroot
    - cluster-secret
+   - cpu-affinity
    - cpu-map
    - cpu-policy
    - cpu-set
@@ -2223,6 +2224,15 @@ cpu-map [auto:]<thread-group>[/<thread-set>] <cpu-set>[,...] [...]
       cpu-map 4/1-40   40-79,120-159
 
 
+cpu-affinity <affinity>
+  Defines how you want threads to be bound to cpus.
+  It currently accepts 2 values :
+  - per-core, each thread will be bound to all the hardware threads of one core.
+  - per-group, each thread will be bound to all the hardware threads of the
+    group. This is the default unless threads-per-core 1 is used in cpu-policy.
+  - auto, per-group will be used, unless threads-per-core 1 is used in
+    cpu-policy, in which case per-core will be used. This is the default.
+
 cpu-policy <policy> [threads-per-core 1 | auto]
   Selects the CPU allocation policy to be used.
 
@@ -2379,6 +2389,8 @@ cpu-policy <policy> [threads-per-core 1 | auto]
   values, "1" and "auto". If set to 1, then only one thread per core will be
   created, unrespective of how many hardware threads the core has. If set
   to auto, then one thread per hardware thread will be created.
+  If no affinity is specified, and threads-per-core 1 is used, then by
+  default the affinity will be per-core.
 
   See also: "cpu-map", "cpu-set", "nbthread"
 
