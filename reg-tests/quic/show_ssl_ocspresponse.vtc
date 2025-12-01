@@ -20,9 +20,9 @@
 # - Check that you have socat
 
 varnishtest "Test the 'show ssl ocsp-response' and 'show ssl cert foo.pem.ocsp' features of the CLI"
-feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
-feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && !ssllib_name_startswith(BoringSSL) && !ssllib_name_startswith(wolfSSL)'"
+# QUIC backend are not supported with USE_QUIC_OPENSSL_COMPAT
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
 feature cmd "command -v socat && command -v openssl"
 
-setenv VTC_SOCK_TYPE stream
-include ${testdir}/show_ssl_ocspresponse.vtci
+setenv VTC_SOCK_TYPE quic
+include ${testdir}/../ssl/show_ssl_ocspresponse.vtci
