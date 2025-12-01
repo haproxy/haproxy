@@ -171,6 +171,15 @@ static int ha_quic_send_alert(SSL *ssl, enum ssl_encryption_level_t level, uint8
 	TRACE_PROTO("Received TLS alert", QUIC_EV_CONN_SSLALERT, qc, &alert, &level);
 
 	quic_set_tls_alert(qc, alert);
+	if (qc->conn) {
+		ssl_sock_handle_hs_error(qc->conn);
+		if (objt_server(qc->conn->target) && !qc->conn->mux) {
+			/* This has as side effect to close the connection stream */
+			if (conn_create_mux(qc->conn, NULL) >= 0)
+				qc->conn->mux->wake(qc->conn);
+		}
+	}
+
 	TRACE_LEAVE(QUIC_EV_CONN_SSLALERT, qc);
 	return 1;
 }
