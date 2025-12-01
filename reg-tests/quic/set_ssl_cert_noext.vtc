@@ -12,8 +12,9 @@
 # - Check that you have socat
 
 varnishtest "Test the 'set ssl cert' feature of the CLI with separate key and crt"
-#REQUIRE_OPTIONS=OPENSSL
+# QUIC backend are not supported with USE_QUIC_OPENSSL_COMPAT
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
 feature cmd "command -v socat"
 
-setenv VTC_SOCK_TYPE stream
-include ${testdir}/set_ssl_cert_noext.vtci
+setenv VTC_SOCK_TYPE quic
+include ${testdir}/../ssl/set_ssl_cert_noext.vtci
