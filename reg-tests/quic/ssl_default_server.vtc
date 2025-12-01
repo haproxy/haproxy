@@ -11,8 +11,8 @@
 #
 
 varnishtest "Test the 'set ssl cert' feature of the CLI"
-feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
-feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+# QUIC backend are not supported with USE_QUIC_OPENSSL_COMPAT
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
 
-setenv VTC_SOCK_TYPE stream
-include ${testdir}/ssl_default_server.vtci
+setenv VTC_SOCK_TYPE quic
+include ${testdir}/../ssl/ssl_default_server.vtci
