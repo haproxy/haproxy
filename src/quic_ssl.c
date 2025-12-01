@@ -162,6 +162,19 @@ static int qc_ssl_crypto_data_cpy(struct quic_conn *qc, struct quic_enc_level *q
 	return ret;
 }
 
+static int ha_quic_send_alert(SSL *ssl, enum ssl_encryption_level_t level, uint8_t alert)
+{
+	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
+
+	TRACE_ENTER(QUIC_EV_CONN_SSLALERT, qc);
+
+	TRACE_PROTO("Received TLS alert", QUIC_EV_CONN_SSLALERT, qc, &alert, &level);
+
+	quic_set_tls_alert(qc, alert);
+	TRACE_LEAVE(QUIC_EV_CONN_SSLALERT, qc);
+	return 1;
+}
+
 /* returns 0 on error, 1 on success */
 static int ha_quic_set_encryption_secrets(SSL *ssl, enum ssl_encryption_level_t level,
                                           const uint8_t *read_secret,
@@ -628,17 +641,7 @@ leave:
  */
 static int ha_quic_ossl_alert(SSL *ssl, unsigned char alert_code, void *arg)
 {
-	int ret = 1, alert = alert_code;
-	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
-
-	TRACE_ENTER(QUIC_EV_CONN_SSLALERT, qc);
-
-	TRACE_PROTO("Received TLS alert", QUIC_EV_CONN_SSLALERT, qc, &alert);
-	quic_set_tls_alert(qc, alert_code);
-
-	TRACE_LEAVE(QUIC_EV_CONN_SSLALERT, qc);
-
-	return ret;
+	return ha_quic_send_alert(ssl, -1, alert_code);
 }
 
 static const OSSL_DISPATCH ha_quic_dispatch[] = {
@@ -699,19 +702,6 @@ static int ha_quic_flush_flight(SSL *ssl)
 	TRACE_ENTER(QUIC_EV_CONN_FFLIGHT, qc);
 	TRACE_LEAVE(QUIC_EV_CONN_FFLIGHT, qc);
 
-	return 1;
-}
-
-static int ha_quic_send_alert(SSL *ssl, enum ssl_encryption_level_t level, uint8_t alert)
-{
-	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
-
-	TRACE_ENTER(QUIC_EV_CONN_SSLALERT, qc);
-
-	TRACE_PROTO("Received TLS alert", QUIC_EV_CONN_SSLALERT, qc, &alert, &level);
-
-	quic_set_tls_alert(qc, alert);
-	TRACE_LEAVE(QUIC_EV_CONN_SSLALERT, qc);
 	return 1;
 }
 
