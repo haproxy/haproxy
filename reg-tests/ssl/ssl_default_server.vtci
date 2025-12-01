@@ -1,0 +1,137 @@
+feature ignore_unknown_macro
+
+server s1 -repeat 7 {
+  rxreq
+  txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if streq("$VTC_SOCK_TYPE",quic)
+        # required for backend connections
+        expose-experimental-directives
+    .endif
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    .if !ssllib_name_startswith(AWS-LC)
+        tune.ssl.default-dh-param 2048
+    .endif
+        tune.ssl.capture-buffer-size 1
+        stats socket "${tmpdir}/h1/stats" level admin
+        crt-base ${testdir}/certs
+        ca-base ${testdir}/certs
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        use_backend first_be if { path /first }
+        use_backend second_be if { path /second }
+        use_backend third_be if { path /third }
+        use_backend fourth_be if { path /fourth }
+        use_backend fifth_be if { path /fifth }
+
+
+    backend first_be
+        default-server ssl crt client1.pem ca-file ca-auth.crt verify none
+        server s1 "${VTC_SOCK_TYPE}+${h1_ssl_sock}"
+
+    backend second_be
+        default-server ssl ca-file ca-auth.crt verify none
+        server s1 "${VTC_SOCK_TYPE}+${h1_ssl_sock}" crt client1.pem
+
+    backend third_be
+        default-server ssl crt client1.pem ca-file ca-auth.crt verify none
+        server s1 "${VTC_SOCK_TYPE}+${h1_ssl_sock}" crt client2_expired.pem
+
+    backend fourth_be
+        default-server ssl crt client1.pem verify none
+        server s1 "${VTC_SOCK_TYPE}+${h1_ssl_sock}" ca-file ca-auth.crt
+
+    backend fifth_be
+        balance roundrobin
+        default-server ssl crt client1.pem verify none
+        server s1 "${VTC_SOCK_TYPE}+${h1_ssl_sock}"
+        server s2 "${VTC_SOCK_TYPE}+${h1_ssl_sock}" crt client2_expired.pem
+        server s3 "${VTC_SOCK_TYPE}+${h1_ssl_sock}"
+
+
+    listen ssl-lst
+        bind "${VTC_SOCK_TYPE}+fd@${ssl}" ssl crt ${testdir}/certs/common.pem ca-file ca-auth.crt verify required crt-ignore-err all
+
+        acl cert_expired ssl_c_verify 10
+        acl cert_revoked ssl_c_verify 23
+        acl cert_ok ssl_c_verify 0
+
+        http-response add-header X-SSL Ok if cert_ok
+        http-response add-header X-SSL Expired if cert_expired
+        http-response add-header X-SSL Revoked if cert_revoked
+
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/first"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl == "Ok"
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/second"
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl == "Ok"
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/third"
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl == "Expired"
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/fourth"
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl == "Ok"
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/fifth"
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl == "Ok"
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/fifth"
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl == "Expired"
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/fifth"
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl == "Ok"
+} -run
