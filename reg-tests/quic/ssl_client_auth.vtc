@@ -15,7 +15,9 @@
 # https://www.haproxy.com/blog/ssl-client-certificate-management-at-application-level/
 
 varnishtest "Test the client auth"
-#REQUIRE_OPTIONS=OPENSSL
 
-setenv VTC_SOCK_TYPE stream
-include ${testdir}/ssl_client_auth.vtci
+# QUIC backend are not supported with USE_QUIC_OPENSSL_COMPAT
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
+
+setenv VTC_SOCK_TYPE quic
+include ${testdir}/../ssl/ssl_client_auth.vtci
