@@ -667,7 +667,7 @@ static void quic_cc_cubic_state_cli(struct buffer *buf, const struct quic_cc_pat
 	              (long long)(path->cwnd - c->last_w_max));
 }
 
-struct quic_cc_algo quic_cc_algo_cubic = {
+const struct quic_cc_algo quic_cc_algo_cubic = {
 	.type        = QUIC_CC_ALGO_TP_CUBIC,
 	.flags       = QUIC_CC_ALGO_FL_OPT_PACING,
 	.init        = quic_cc_cubic_init,

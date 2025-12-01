@@ -1132,7 +1132,7 @@ struct quic_conn *qc_new_conn(void *target,
 	struct listener *l = objt_listener(target);
 	struct server *srv = objt_server(target);
 	struct proxy *prx = l ? l->bind_conf->frontend : __objt_server(target)->proxy;
-	struct quic_cc_algo *cc_algo = NULL;
+	const struct quic_cc_algo *cc_algo = NULL;
 	unsigned int next_actconn = 0, next_sslconn = 0, next_handshake = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_INIT);

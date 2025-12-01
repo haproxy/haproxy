@@ -67,7 +67,7 @@ static void quic_cc_nocc_event(struct quic_cc *cc, struct quic_cc_event *ev)
 	return quic_cc_nocc_state_cbs[QUIC_CC_ST_SS](cc, ev);
 }
 
-struct quic_cc_algo quic_cc_algo_nocc = {
+const struct quic_cc_algo quic_cc_algo_nocc = {
 	.type        = QUIC_CC_ALGO_TP_NOCC,
 	.flags       = QUIC_CC_ALGO_FL_OPT_PACING,
 	.init        = quic_cc_nocc_init,

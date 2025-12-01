@@ -1531,7 +1531,7 @@ static void bbr_state_cli(struct buffer *buf, const struct quic_cc_path *p)
 	              (ull)bbr->bw, (ull)p->send_quantum, (ull)bbr->pacing_rate);
 }
 
-struct quic_cc_algo quic_cc_algo_bbr = {
+const struct quic_cc_algo quic_cc_algo_bbr = {
 	.type        = QUIC_CC_ALGO_TP_BBR,
 	.init        = bbr_init,
 	.pacing_inter = bbr_pacing_inter,

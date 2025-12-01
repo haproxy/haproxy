@@ -27,14 +27,14 @@
 #include <haproxy/quic_tune.h>
 #include <haproxy/thread.h>
 
-struct quic_cc_algo *default_quic_cc_algo = &quic_cc_algo_cubic;
+const struct quic_cc_algo *default_quic_cc_algo = &quic_cc_algo_cubic;
 
 /*
  * Initialize <cc> congestion control with <algo> as algorithm depending on <ipv4>
  * a boolean which is true for an IPv4 path.
  */
 void quic_cc_init(struct quic_cc *cc,
-                  struct quic_cc_algo *algo, struct quic_conn *qc)
+                  const struct quic_cc_algo *algo, struct quic_conn *qc)
 {
 	cc->qc = qc;
 	cc->algo = algo;

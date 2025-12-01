@@ -210,7 +210,7 @@ static void quic_cc_nr_event(struct quic_cc *cc, struct quic_cc_event *ev)
 	return quic_cc_nr_state_cbs[nr->state](cc, ev);
 }
 
-struct quic_cc_algo quic_cc_algo_nr = {
+const struct quic_cc_algo quic_cc_algo_nr = {
 	.type        = QUIC_CC_ALGO_TP_NEWRENO,
 	.flags       = QUIC_CC_ALGO_FL_OPT_PACING,
 	.init        = quic_cc_nr_init,

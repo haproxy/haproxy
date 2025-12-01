@@ -35,7 +35,7 @@
 #include <haproxy/quic_loss.h>
 #include <haproxy/thread.h>
 
-void quic_cc_init(struct quic_cc *cc, struct quic_cc_algo *algo, struct quic_conn *qc);
+void quic_cc_init(struct quic_cc *cc, const struct quic_cc_algo *algo, struct quic_conn *qc);
 void quic_cc_event(struct quic_cc *cc, struct quic_cc_event *ev);
 void quic_cc_state_trace(struct buffer *buf, const struct quic_cc *cc);
 
@@ -83,7 +83,7 @@ static inline void *quic_cc_priv(const struct quic_cc *cc)
  * which is true for an IPv4 path, if not false for an IPv6 path.
  */
 static inline void quic_cc_path_init(struct quic_cc_path *path, int ipv4, unsigned long max_cwnd,
-                                     struct quic_cc_algo *algo,
+                                     const struct quic_cc_algo *algo,
                                      struct quic_conn *qc)
 {
 	unsigned int max_dgram_sz;

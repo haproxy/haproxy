@@ -101,7 +101,7 @@ static unsigned long parse_window_size(const char *kw, char *value,
 static int bind_parse_quic_cc_algo(char **args, int cur_arg, struct proxy *px,
                                    struct bind_conf *conf, char **err)
 {
-	struct quic_cc_algo *cc_algo;
+	const struct quic_cc_algo *cc_algo;
 	const char *algo = NULL;
 	struct ist algo_ist, arg_ist;
 	char *arg;
