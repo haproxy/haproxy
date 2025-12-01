@@ -1,0 +1,12 @@
+#REGTEST_TYPE=devel
+
+# This reg-test uses the "set ssl cert" command to update a backend certificate over the CLI.
+# It requires socat to upload the certificate
+
+varnishtest "Test the 'set ssl cert' feature of the CLI"
+# QUIC backend are not supported with USE_QUIC_OPENSSL_COMPAT
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
+feature cmd "command -v socat"
+
+setenv VTC_SOCK_TYPE quic
+include ${testdir}/../ssl/set_ssl_server_cert.vtci
