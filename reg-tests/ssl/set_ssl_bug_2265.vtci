@@ -1,0 +1,81 @@
+feature ignore_unknown_macro
+
+server s1 -repeat 3 {
+  rxreq
+  txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if streq("$VTC_SOCK_TYPE",quic)
+        # required for backend connections
+        expose-experimental-directives
+    .endif
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    .if !ssllib_name_startswith(AWS-LC)
+        tune.ssl.default-dh-param 2048
+    .endif
+        tune.ssl.capture-buffer-size 1
+        stats socket "${tmpdir}/h1/stats" level admin
+
+    defaults
+        mode http
+        option httplog
+	retries 0
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        balance roundrobin
+        retries 0 # 2nd SSL connection must fail so skip the retry
+        server s1 "${VTC_SOCK_TYPE}+${h1_ssl_sock}" ssl verify none sni str(www.test1.com)
+        server s2 "${VTC_SOCK_TYPE}+${h1_ssl_sock}" ssl verify none sni str(www.test1.com)
+        server s3 "${VTC_SOCK_TYPE}+${h1_ssl_sock}" ssl verify none sni str(localhost)
+
+    listen ssl-lst
+        bind "${VTC_SOCK_TYPE}+fd@${ssl}" ssl crt ${testdir}/certs/bug-2265.crt strict-sni
+
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+
+haproxy h1 -cli {
+    send "show ssl cert ${testdir}/certs/bug-2265.crt"
+    expect ~ ".*SHA1 FingerPrint: DF3B6E847A7BF83DFAAFCFEC65EE9BC36230D3EA"
+}
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
+shell {
+    printf "set ssl cert ${testdir}/certs/bug-2265.crt <<\n$(cat ${testdir}/certs/ecdsa.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert ${testdir}/certs/bug-2265.crt" | socat "${tmpdir}/h1/stats" -
+}
+
+haproxy h1 -cli {
+    send "show ssl cert ${testdir}/certs/bug-2265.crt"
+    expect ~ ".*SHA1 FingerPrint: A490D069DBAFBEE66DE434BEC34030ADE8BCCBF1"
+}
+
+# check that the "www.test1.com" SNI was removed
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 503
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
