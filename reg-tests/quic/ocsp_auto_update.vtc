@@ -3,6 +3,7 @@
 
 # broken with BoringSSL.
 
+# With QUIC listeners.
 # This reg-test focuses on the OCSP response auto-update functionality. It does
 # not test the full scope of the feature because most of it is based on
 # expiration times and long delays between updates of valid OCSP responses.
@@ -28,8 +29,8 @@
 
 varnishtest "Test the OCSP auto update feature"
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.0-dev0)'"
-feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && !ssllib_name_startswith(BoringSSL) && !ssllib_name_startswith(LibreSSL) && openssl_version_atleast(1.1.1)'"
 feature cmd "command -v openssl && command -v socat"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
 
-setenv VTC_SOCK_TYPE stream
-include ${testdir}/ocsp_auto_update.vtci
+setenv VTC_SOCK_TYPE quic
+include ${testdir}/../ssl/ocsp_auto_update.vtci
