@@ -1,0 +1,8 @@
+#REGTEST_TYPE=devel
+
+varnishtest "Test the ssl_s_* sample fetches"
+# QUIC backend are not supported with USE_QUIC_OPENSSL_COMPAT
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
+
+setenv VTC_SOCK_TYPE quic
+include ${testdir}/../ssl/ssl_server_samples.vtci
