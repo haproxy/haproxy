@@ -3,53 +3,6 @@ varnishtest "Test for the bug #940"
 # Test that the SNI are correctly inserted with the same file multiple times.
 
 #REQUIRE_OPTIONS=OPENSSL
-feature ignore_unknown_macro
 
-server s1 -repeat 4 {
-    rxreq
-    txresp
-} -start
-
-haproxy h1 -conf {
-    global
-    .if feature(THREAD)
-        thread-groups 1
-    .endif
-
-    .if !ssllib_name_startswith(AWS-LC)
-        tune.ssl.default-dh-param 2048
-    .endif
-        crt-base ${testdir}/certs
-        stats socket "${tmpdir}/h1/stats" level admin
-
-    defaults
-        mode http
-        option httplog
-        log stderr local0 debug err
-        option logasap
-        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
-        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
-        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
-
-
-    listen clear-lst
-        bind "fd@${clearlst}"
-        balance roundrobin
-        server s1 "${tmpdir}/ssl.sock" ssl verify none sni str(record1.bug940.domain.tld)
-        server s2 "${tmpdir}/ssl.sock" ssl verify none sni str(record2.bug940.domain.tld)
-        server s3 "${tmpdir}/ssl.sock" ssl verify none sni str(record3.bug940.domain.tld)
-        server s4 "${tmpdir}/ssl.sock" ssl verify none sni str(record4.bug940.domain.tld)
-
-    listen ssl-lst
-        mode http
-        bind "${tmpdir}/ssl.sock" ssl strict-sni crt-list ${testdir}/certs/simple.crt-list
-
-        server s1 ${s1_addr}:${s1_port}
-} -start
-
-
-client c1 -repeat 4 -connect ${h1_clearlst_sock} {
-    txreq
-    rxresp
-    expect resp.status == 200
-} -run
+setenv VTC_SOCK_TYPE stream
+include ${testdir}/ssl_simple_crt-list.vtci
