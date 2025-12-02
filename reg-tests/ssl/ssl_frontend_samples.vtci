@@ -1,0 +1,74 @@
+feature ignore_unknown_macro
+
+server s1 -repeat 3 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if streq("$VTC_SOCK_TYPE",quic)
+        # required for backend connections
+        expose-experimental-directives
+    .endif
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    .if !ssllib_name_startswith(AWS-LC)
+        tune.ssl.default-dh-param 2048
+    .endif
+        tune.ssl.capture-buffer-size 1
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        balance roundrobin
+        server s1 "${VTC_SOCK_TYPE}+${h1_ssl_sock}" ssl verify none
+
+    listen ssl-lst
+        mode http
+
+        http-response add-header x-ssl-der %[ssl_f_der,hex]
+        http-response add-header x-ssl-sha1 %[ssl_f_sha1,hex]
+        http-response add-header x-ssl-notafter %[ssl_f_notafter]
+        http-response add-header x-ssl-notbefore %[ssl_f_notbefore]
+        http-response add-header x-ssl-sig_alg %[ssl_f_sig_alg]
+        http-response add-header x-ssl-i_dn %[ssl_f_i_dn]
+        http-response add-header x-ssl-s_dn %[ssl_f_s_dn]
+        http-response add-header x-ssl-s_serial %[ssl_f_serial,hex]
+        http-response add-header x-ssl-key_alg %[ssl_f_key_alg]
+        http-response add-header x-ssl-version %[ssl_f_version]
+
+        bind "${VTC_SOCK_TYPE}+fd@${ssl}" ssl crt ${testdir}/certs/common.pem
+
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-der ~ 308203C7308202AFA003020102021445B6C777.*65AD7F4469DB9C8581EE260ABCB727AEF8A7C3ADA
+    expect resp.http.x-ssl-sha1 == "DF3B6E847A7BF83DFAAFCFEC65EE9BC36230D3EA"
+    expect resp.http.x-ssl-notafter == "330917162600Z"
+    expect resp.http.x-ssl-notbefore == "230920162600Z"
+    expect resp.http.x-ssl-sig_alg == "RSA-SHA256"
+    expect resp.http.x-ssl-i_dn == "/C=FR/L=Paris/O=HAProxy Technologies/CN=HAProxy Test Intermediate CA"
+    expect resp.http.x-ssl-s_dn  == "/C=FR/L=Paris/O=test1/CN=www.test1.com"
+    expect resp.http.x-ssl-s_serial == "45B6C777A017159A19126340C1053521B91E123B"
+    expect resp.http.x-ssl-key_alg == "rsaEncryption"
+    expect resp.http.x-ssl-version == "3"
+} -run
+
+
