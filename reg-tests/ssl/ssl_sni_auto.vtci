@@ -1,0 +1,155 @@
+feature ignore_unknown_macro
+
+barrier b1 cond 7 -cyclic
+
+server s1 {
+       rxreq
+       expect req.http.x-sni == <undef>
+       txresp -status 200
+       barrier b1 sync
+} -start
+
+server s2 {
+       rxreq
+       expect req.http.x-sni == "www.check2.org"
+       txresp -status 200
+       barrier b1 sync
+} -start
+
+server s3 {
+       rxreq
+       expect req.http.x-sni == "www.check3.org"
+       txresp -status 200
+       barrier b1 sync
+} -start
+
+server s4 {
+       rxreq
+       expect req.http.x-sni == "www.other.org"
+       txresp -status 200
+       barrier b1 sync
+} -start
+
+server s5 {
+       rxreq
+       expect req.http.x-sni == <undef>
+       txresp -status 200
+       barrier b1 sync
+} -start
+
+server s6 {
+       rxreq
+       expect req.http.x-sni == <undef>
+       txresp -status 200
+       barrier b1 sync
+} -start
+
+
+haproxy h1 -conf {
+    global
+    .if streq("$VTC_SOCK_TYPE",quic)
+        # required for backend connections
+        expose-experimental-directives
+    .endif
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    .if !ssllib_name_startswith(AWS-LC)
+        tune.ssl.default-dh-param 2048
+    .endif
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        default-server inter 100ms
+
+    frontend fe_ssl
+        bind "${VTC_SOCK_TYPE}+fd@${fe_ssl}" ssl crt ${testdir}/certs/common.pem
+
+        http-request return status 200 if { path /test1 } { ssl_fc_sni www.test1.org }
+        http-request return status 500 if { path /test2 } { ssl_fc_sni -m found }
+        http-request return status 200 if { path /test3 } { ssl_fc_sni www.other.org }
+        http-request deny
+
+    listen li_check_ssl
+        bind "${VTC_SOCK_TYPE}+fd@${li_check_ssl}" ssl crt ${testdir}/certs/common.pem
+        http-request set-header x-sni %[ssl_fc_sni] if { ssl_fc_sni -m found }
+
+        use-server s1 if { path /test1 }
+        use-server s2 if { path /test2 }
+        use-server s3 if { path /test3 }
+        use-server s4 if { path /test4 }
+        use-server s5 if { path /test5 }
+        use-server s6 if { path /test6 }
+
+        server s1 ${s1_sock}
+        server s2 ${s2_sock}
+        server s3 ${s3_sock}
+        server s4 ${s4_sock}
+        server s5 ${s5_sock}
+        server s6 ${s6_sock}
+
+    listen li
+        bind "fd@${li}"
+        use-server s1 if { path /test1 }
+        use-server s2 if { path /test2 }
+        use-server s3 if { path /test3 }
+
+        server s1 "${VTC_SOCK_TYPE}+${h1_fe_ssl_sock}" ssl verify none
+        server s2 "${VTC_SOCK_TYPE}+${h1_fe_ssl_sock}" ssl verify none no-sni-auto
+        server s3 "${VTC_SOCK_TYPE}+${h1_fe_ssl_sock}" ssl verify none sni str("www.other.org")
+
+    backend be1
+        option httpchk GET /test1 HTTP/1.1
+        server chk1 "${VTC_SOCK_TYPE}+${h1_li_check_ssl_sock}" check "${SSL_OPT}" verify none
+
+    backend be2
+        option httpchk GET /test2 HTTP/1.1 www.check2.org:443
+        server chk2 "${VTC_SOCK_TYPE}+${h1_li_check_ssl_sock}" check "${SSL_OPT}" verify none
+
+    backend be3
+        option httpchk
+        http-check send meth GET uri /test3 hdr host "www.check3.org:443"
+        server chk3 "${VTC_SOCK_TYPE}+${h1_li_check_ssl_sock}" check "${SSL_OPT}" verify none
+
+    backend be4
+        option httpchk
+        http-check send meth GET uri /test4 hdr host "www.check4.org:443"
+        server chk4 "${VTC_SOCK_TYPE}+${h1_li_check_ssl_sock}" check "${SSL_OPT}" verify none check-sni "www.other.org"
+
+    backend be5
+        option httpchk
+        http-check send meth GET uri /test5 hdr host "www.check5.org:443"
+        server chk5 "${VTC_SOCK_TYPE}+${h1_li_check_ssl_sock}" check "${SSL_OPT}" verify none no-check-sni-auto
+
+    backend be6
+        option httpchk GET /test6 HTTP/1.1 www.check6.org:443
+	http-check connect default
+        server chk2 "${VTC_SOCK_TYPE}+${h1_li_check_ssl_sock}" check "${SSL_OPT}" verify none
+
+} -start
+
+barrier b1 sync
+
+client c1 -connect ${h1_li_sock} {
+    txreq -url "/test1" -hdr "host: www.test1.org:443"
+    rxresp
+    expect resp.status == 200
+
+    txreq -url "/test1"
+    rxresp
+    expect resp.status == 403
+
+    txreq -url "/test2" -hdr "host: www.test1.org"
+    rxresp
+    expect resp.status == 403
+
+    txreq -url "/test3" -hdr "host: www.test1.org"
+    rxresp
+    expect resp.status == 200
+} -run
