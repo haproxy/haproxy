@@ -4357,16 +4357,21 @@ init_proxies_list_stage2:
 				bind_conf->xprt->destroy_bind_conf(bind_conf);
 		}
 
-		/* create the task associated with the proxy */
-		curproxy->task = task_new_anywhere();
-		if (curproxy->task) {
-			curproxy->task->context = curproxy;
-			curproxy->task->process = manage_proxy;
-			curproxy->flags |= PR_FL_READY;
-		} else {
-			ha_alert("Proxy '%s': no more memory when trying to allocate the management task\n",
-				 curproxy->id);
-			cfgerr++;
+		/* Create the task associated with the proxy. Only necessary
+		 * for frontend or if a stick-table is defined.
+		 */
+		if ((curproxy->cap & PR_CAP_FE) || (curproxy->table && curproxy->table->current)) {
+			curproxy->task = task_new_anywhere();
+			if (curproxy->task) {
+				curproxy->task->context = curproxy;
+				curproxy->task->process = manage_proxy;
+				curproxy->flags |= PR_FL_READY;
+			}
+			else {
+				ha_alert("Proxy '%s': no more memory when trying to allocate the management task\n",
+					 curproxy->id);
+				cfgerr++;
+			}
 		}
 	}
 
