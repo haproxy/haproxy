@@ -1,0 +1,9 @@
+#REGTEST_TYPE=bug
+varnishtest "Test for the bug #940"
+# Test that the SNI are correctly inserted with the same file multiple times.
+
+# QUIC backend are not supported with USE_QUIC_OPENSSL_COMPAT
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
+
+setenv VTC_SOCK_TYPE quic
+include ${testdir}/../ssl/ssl_simple_crt-list.vtci
