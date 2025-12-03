@@ -1357,6 +1357,10 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, void *target)
 			}
 		}
 #endif
+		if (qc->conn && qc->conn->sni) {
+			SSL_set_tlsext_host_name(ctx->ssl, qc->conn->sni);
+			qc->conn->sni = NULL;
+		}
 
 		SSL_set_connect_state(ctx->ssl);
 	}

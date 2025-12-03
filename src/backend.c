@@ -2034,9 +2034,21 @@ int connect_server(struct stream *s)
 
 	if (!srv_conn->xprt) {
 		/* set the correct protocol on the output stream connector */
-
 		if (srv) {
 			struct protocol *proto = protocol_lookup(srv_conn->dst->ss_family, srv->addr_type.proto_type, srv->alt_proto);
+#ifdef USE_OPENSSL
+			struct sample *sni_smp = NULL;
+
+			/* Set socket SNI unless connection is reused. */
+			if (srv && srv->xprt && srv->xprt->get_ssl_sock_ctx && srv->ssl_ctx.sni) {
+				srv_conn->sni = NULL;
+				sni_smp = sample_fetch_as_type(s->be, s->sess, s,
+							       SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
+							       srv->ssl_ctx.sni, SMP_T_STR);
+				if (smp_make_safe(sni_smp))
+					srv_conn->sni = sni_smp->data.u.str.area;
+			}
+#endif /* USE_OPENSSL */
 
 			if (conn_prepare(srv_conn, proto, srv->xprt)) {
 				conn_free(srv_conn);
@@ -2153,19 +2165,6 @@ int connect_server(struct stream *s)
 	err = do_connect_server(s, srv_conn);
 	if (err != SF_ERR_NONE)
 		return err;
-
-#ifdef USE_OPENSSL
-	/* Set socket SNI unless connection is reused. */
-	if (conn_is_ssl(srv_conn) && srv && srv->ssl_ctx.sni && !(s->flags & SF_SRV_REUSED)) {
-		struct sample *sni_smp = NULL;
-
-		sni_smp = sample_fetch_as_type(s->be, s->sess, s,
-		                               SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
-		                               srv->ssl_ctx.sni, SMP_T_STR);
-		if (smp_make_safe(sni_smp))
-			ssl_sock_set_servername(srv_conn, sni_smp->data.u.str.area);
-	}
-#endif /* USE_OPENSSL */
 
 	/* The CO_FL_SEND_PROXY flag may have been set by the connect method,
 	 * if so, add our handshake pseudo-XPRT now.
