@@ -485,7 +485,7 @@ struct server {
 			unsigned char *ptr;
 			int size;
 			int allocated_size;
-			char *sni; /* SNI used for the session */
+			uint64_t sni_hash; /* Hash of the SNI used for the session */
 			__decl_thread(HA_RWLOCK_T sess_lock);
 		} * reused_sess;
 

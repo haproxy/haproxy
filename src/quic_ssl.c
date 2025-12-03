@@ -1357,7 +1357,6 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, void *target)
 			}
 		}
 #endif
-
 		SSL_set_connect_state(ctx->ssl);
 	}
 

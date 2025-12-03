@@ -520,6 +520,7 @@ void conn_init(struct connection *conn, void *target)
 	conn->xprt = NULL;
 	conn->reverse.target = NULL;
 	conn->reverse.name = BUF_NULL;
+	conn->sni_hash = 0;
 }
 
 /* Initialize members used for backend connections.
