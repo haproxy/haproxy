@@ -263,6 +263,7 @@ INITCALL1(STG_REGISTER, bind_register_keywords, &bind_kws);
 
 static struct srv_kw_list srv_kws = { "QUIC", { }, {
 	{ "quic-cc-algo", srv_parse_quic_cc_algo, 1 },
+	{ NULL, NULL, 0 },
 }};
 
 INITCALL1(STG_REGISTER, srv_register_keywords, &srv_kws);
