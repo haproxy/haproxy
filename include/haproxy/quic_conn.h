@@ -67,6 +67,7 @@ int qc_h3_request_reject(struct quic_conn *qc, uint64_t id);
 struct quic_conn *qc_new_conn(void *target,
                               const struct quic_rx_packet *initial_pkt,
                               const struct quic_cid *token_odcid,
+                              struct connection *connection,
                               struct quic_connection_id *conn_id,
                               struct sockaddr_storage *local_addr,
                               struct sockaddr_storage *peer_addr);

@@ -1834,7 +1834,7 @@ static struct quic_conn *quic_rx_pkt_retrieve_conn(struct quic_rx_packet *pkt,
 			}
 			else {
 				qc = qc_new_conn(l, pkt, &token_odcid,
-				                 conn_id, &dgram->daddr, &pkt->saddr);
+				                 NULL, conn_id, &dgram->daddr, &pkt->saddr);
 				if (qc == NULL) {
 					quic_cid_delete(conn_id); /* Removes CID from global tree as it points to a NULL qc. */
 					pool_free(pool_head_quic_connection_id, conn_id);

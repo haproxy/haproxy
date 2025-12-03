@@ -1124,6 +1124,7 @@ struct task *qc_process_timer(struct task *task, void *ctx, unsigned int state)
 struct quic_conn *qc_new_conn(void *target,
                               const struct quic_rx_packet *initial_pkt,
                               const struct quic_cid *token_odcid,
+                              struct connection *conn,
                               struct quic_connection_id *conn_id,
                               struct sockaddr_storage *local_addr,
                               struct sockaddr_storage *peer_addr)
@@ -1198,7 +1199,7 @@ struct quic_conn *qc_new_conn(void *target,
 	qc->idle_timer_task = NULL;
 
 	qc->xprt_ctx = NULL;
-	qc->conn = NULL;
+	qc->conn = conn;
 	qc->qcc = NULL;
 	qc->app_ops = NULL;
 	qc->path = NULL;

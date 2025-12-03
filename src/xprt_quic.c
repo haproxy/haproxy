@@ -165,7 +165,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 			goto out;
 		}
 
-		qc = qc_new_conn(srv, NULL, NULL, conn_id, NULL, &srv->addr);
+		qc = qc_new_conn(srv, NULL, NULL, conn, conn_id, NULL, &srv->addr);
 		if (!qc) {
 			pool_free(pool_head_quic_connection_id, conn_id);
 			goto out;
@@ -175,7 +175,6 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN | CO_FL_FDLESS;
 		conn->handle.qc = qc;
-		qc->conn = conn;
 	}
 
 	ret = 0;
