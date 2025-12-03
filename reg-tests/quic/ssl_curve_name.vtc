@@ -2,6 +2,8 @@
 
 varnishtest "Test the ssl_fc_curve/ssl_bc_curve sample fetches"
 feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(3.0.0) || feature(OPENSSL) && ssllib_name_startswith(AWS-LC) && awslc_api_atleast(35)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
 
-setenv VTC_SOCK_TYPE stream
-include ${testdir}/ssl_curve_name.vtci
+
+setenv VTC_SOCK_TYPE quic
+include ${testdir}/../ssl/ssl_curve_name.vtci
