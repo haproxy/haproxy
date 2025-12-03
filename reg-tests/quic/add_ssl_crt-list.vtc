@@ -13,6 +13,7 @@
 varnishtest "Test the 'add ssl crt-list' feature of the CLI"
 #REQUIRE_OPTIONS=OPENSSL
 feature cmd "command -v socat"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
 
-setenv VTC_SOCK_TYPE stream
-include ${testdir}/add_ssl_crt-list.vtci
+setenv VTC_SOCK_TYPE quic
+include ${testdir}/../ssl/add_ssl_crt-list.vtci
