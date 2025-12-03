@@ -654,11 +654,13 @@ struct connection {
 	 */
 	struct conn_hash_node hash_node;
 
-	/* Members used if connection must be reversed. */
-	struct {
-		enum obj_type *target; /* Listener for active reverse, server for passive. */
-		struct buffer name;    /* Only used for passive reverse. Used as SNI when connection added to server idle pool. */
-	} reverse;
+	union {
+		struct { /* Members used if connection must be reversed. */
+			enum obj_type *target; /* Listener for active reverse, server for passive. */
+			struct buffer name;    /* Only used for passive reverse. Used as SNI when connection added to server idle pool. */
+		} reverse;
+		const char *sni; /* SNI to use when the SSL socket is initialized. May be NULL. Resset to NULL by ssl_sock_init() */
+	};
 
 	uint32_t term_evts_log;        /* Termination events log: first 4 events reported from fd, handshake or xprt */
 	uint32_t mark;                 /* set network mark, if CO_FL_OPT_MARK is set */
