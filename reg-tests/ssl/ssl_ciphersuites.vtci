@@ -1,0 +1,143 @@
+feature ignore_unknown_macro
+
+barrier b1 cond 2 -cyclic
+
+server s1 -repeat 6 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if streq("$VTC_SOCK_TYPE",quic)
+        # required for backend connections
+        expose-experimental-directives
+    .endif
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        option httpslog
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        retries 0
+
+    listen clearlst
+        bind fd@${clearlst}
+        use_backend aes_128_gcm_sha256-be if { path /aes_128_gcm_sha256 }
+        use_backend aes_256_gcm_sha384-be if { path /aes_256_gcm_sha384 }
+        use_backend aes_chacha20_poly1305_sha256-be if { path /aes_chacha20_poly1305_sha256 }
+        use_backend wrong-be1 if { path /wrong-be1 }
+
+	# Backend and listener for TLS_AES_128_GCM_SHA256
+    global
+        ssl-default-bind-ciphersuites   TLS_AES_128_GCM_SHA256
+        ssl-default-server-ciphersuites TLS_AES_128_GCM_SHA256
+
+    backend aes_128_gcm_sha256-be
+        server s1 ${VTC_SOCK_TYPE}+${h1_aes_128_gcm_sha256_lst_sock} ssl verify none
+    listen aes_128_gcm_sha256_lst
+        http-response add-header x-cipher %[ssl_fc_cipher]
+        bind ${VTC_SOCK_TYPE}+fd@${aes_128_gcm_sha256_lst} ssl crt ${testdir}/certs/common.pem
+        server s1 ${s1_sock}
+
+	# Backend and listener for TLS_AES_256_GCM_SHA384
+    global
+        ssl-default-bind-ciphersuites   TLS_AES_256_GCM_SHA384
+        ssl-default-server-ciphersuites TLS_AES_256_GCM_SHA384
+
+    backend aes_256_gcm_sha384-be
+        server s1 ${VTC_SOCK_TYPE}+${h1_aes_256_gcm_sha384_lst_sock} ssl verify none
+    listen aes_256_gcm_sha384_lst
+        http-response add-header x-cipher %[ssl_fc_cipher]
+        bind ${VTC_SOCK_TYPE}+fd@${aes_256_gcm_sha384_lst} ssl crt ${testdir}/certs/common.pem
+        server s1 ${s1_sock}
+
+	# Backend and listener for TLS_CHACHA20_POLY1305_SHA256
+    global
+        ssl-default-bind-ciphersuites   TLS_CHACHA20_POLY1305_SHA256
+        ssl-default-server-ciphersuites TLS_CHACHA20_POLY1305_SHA256
+
+    backend aes_chacha20_poly1305_sha256-be
+        server s1 ${VTC_SOCK_TYPE}+${h1_aes_chacha20_poly1305_sha256_lst_sock} ssl verify none
+    listen aes_chacha20_poly1305_sha256_lst
+        http-response add-header x-cipher %[ssl_fc_cipher]
+        bind ${VTC_SOCK_TYPE}+fd@${aes_chacha20_poly1305_sha256_lst} ssl crt ${testdir}/certs/common.pem
+        server s1 ${s1_sock}
+
+    # servers with their own ciphersuites.
+    # connections to s1, s2, s4 and s5 must work, contrary to s3 and s6.
+	backend wrong-be1
+		balance roundrobin
+		server s1 ${VTC_SOCK_TYPE}+${h1_aes_128_gcm_sha256_lst_sock} ssl verify none ciphersuites TLS_CHACHA20_POLY1305_SHA256
+		server s2 ${VTC_SOCK_TYPE}+${h1_aes_128_gcm_sha256_lst_sock} ssl verify none ciphersuites TLS_AES_256_GCM_SHA384
+		server s3 ${VTC_SOCK_TYPE}+${h1_aes_128_gcm_sha256_lst_sock} ssl verify none ciphersuites TLS_AES_128_GCM_SHA256
+
+		server s4 ${VTC_SOCK_TYPE}+${h1_own_cipher_suites_chacha_sock} ssl verify none ciphersuites TLS_AES_128_GCM_SHA256
+		server s5 ${VTC_SOCK_TYPE}+${h1_own_cipher_suites_chacha_sock} ssl verify none ciphersuites TLS_AES_256_GCM_SHA384
+		server s6 ${VTC_SOCK_TYPE}+${h1_own_cipher_suites_chacha_sock} ssl verify none ciphersuites TLS_CHACHA20_POLY1305_SHA256
+    # listener with its own TLS_CHACHA20_POLY1305_SHA256 ciphersuites
+    listen own_cipher_suites_chacha
+        http-response add-header x-cipher %[ssl_fc_cipher]
+        bind ${VTC_SOCK_TYPE}+fd@${own_cipher_suites_chacha} ssl crt ${testdir}/certs/common.pem ciphersuites TLS_CHACHA20_POLY1305_SHA256
+        server s1 ${s1_sock}
+} -start
+
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/aes_128_gcm_sha256"
+    rxresp
+    expect resp.http.x-cipher == TLS_AES_128_GCM_SHA256
+    expect resp.status == 200
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/aes_256_gcm_sha384"
+    rxresp
+    expect resp.http.x-cipher == TLS_AES_256_GCM_SHA384
+    expect resp.status == 200
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/aes_chacha20_poly1305_sha256"
+    rxresp
+    expect resp.http.x-cipher == TLS_CHACHA20_POLY1305_SHA256
+    expect resp.status == 200
+} -run
+
+
+# Handshake failures during connection to wrong-be1/s[12]
+client c2 -connect ${h1_clearlst_sock} -repeat 2 {
+    txreq -url "/wrong-be1"
+    rxresp
+    expect resp.status == 503
+} -run
+
+# successul connection to wrong-be1/s3
+client c3 -connect ${h1_clearlst_sock} {
+    txreq -url "/wrong-be1"
+    rxresp
+    expect resp.http.x-cipher == TLS_AES_128_GCM_SHA256
+    expect resp.status == 200
+} -run
+
+# Handshake failures during connections to wrong-be/s[45]
+client c2 -connect ${h1_clearlst_sock} -repeat 2 {
+    txreq -url "/wrong-be1"
+    rxresp
+    expect resp.status == 503
+} -run
+
+# successul connection to wrong-be1/s6
+client c3 -connect ${h1_clearlst_sock} {
+    txreq -url "/wrong-be1"
+    rxresp
+    expect resp.http.x-cipher == TLS_CHACHA20_POLY1305_SHA256
+    expect resp.status == 200
+} -run
+

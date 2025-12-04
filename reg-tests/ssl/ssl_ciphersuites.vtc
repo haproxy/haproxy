@@ -1,0 +1,16 @@
+#REGTEST_TYPE=devel
+varnishtest "Tests for ssl-default-{bind,server}-ciphersuites global option and ciphersuites server and bind options"
+
+# This reg-tests configures three backends and their listener whose
+# ciphersuites configured by ssl-default-server-ciphersuites and
+# ssl-default-bind-ciphersuites match to each other. The connection to such
+# backends must all work.
+# A last "wrong-be1" backend with 2 series of 3 servers whose ciphersuites
+# do not match their listener ciphersuites for the 2 first servers. The last
+# server ciphersuites match its listener ciphersuites. So, the 2 first connection
+# to "wrong-be1" backend must fail contrary to the last one.
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(3.0.0) || feature(OPENSSL) && ssllib_name_startswith(AWS-LC) && awslc_api_atleast(35)'"
+
+setenv VTC_SOCK_TYPE stream
+include ${testdir}/ssl_ciphersuites.vtci
