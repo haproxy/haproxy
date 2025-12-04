@@ -1919,6 +1919,7 @@ next_line:
 		char *end;
 		char *args[MAX_LINE_ARGS + 1];
 		char *line = thisline;
+		const char *errptr = NULL; /* first error from parse_line() */
 
 		if (missing_lf != -1) {
 			ha_alert("parsing [%s:%d]: Stray NUL character at position %d.\n",
@@ -1984,11 +1985,10 @@ next_line:
 
 		while (1) {
 			uint32_t err;
-			const char *errptr = NULL;
-			int check_arg;
 
 			arg = sizeof(args) / sizeof(*args);
 			outlen = outlinesize;
+			errptr = NULL;
 			err = parse_line(line, outline, &outlen, args, &arg,
 					 PARSE_OPT_ENV | PARSE_OPT_DQUOTE | PARSE_OPT_SQUOTE |
 					 PARSE_OPT_BKSLASH | PARSE_OPT_SHARP | PARSE_OPT_WORD_EXPAND,
@@ -2066,60 +2066,6 @@ next_line:
 				err_code |= ERR_ALERT | ERR_FATAL;
 				fatal++;
 				goto next_line;
-			}
-
-			if (!(global.mode & MODE_DISCOVERY)) {
-				/* Only print empty arg warning in normal mode to prevent double display. */
-				for (check_arg = 0; check_arg < arg; check_arg++) {
-					if (!*args[check_arg]) {
-						static int warned_empty;
-						size_t newpos;
-						int suggest = 0;
-
-						/* if an empty arg was found, its pointer should be in <errptr>, except
-						 * for rare cases such as '\x00' etc. We need to check errptr in any case
-						 * and if it's not set, we'll fall back to args's position in the output
-						 * string instead (less accurate but still useful).
-						 */
-						if (!errptr) {
-							newpos = args[check_arg] - outline;
-							if (newpos >= strlen(line))
-								newpos = 0; // impossible to report anything, start at the beginning.
-							errptr = line + newpos;
-						} else if (isalnum((uchar)*errptr) || *errptr == '_') {
-							/* looks like an environment variable */
-							suggest = 1;
-						}
-
-						/* sanitize input line in-place */
-						newpos = sanitize_for_printing(line, errptr - line, 80);
-						ha_alert("parsing [%s:%d]: argument number %d at position %d is empty and marks the end of the "
-						         "argument list:\n  %s\n  %*s\n%s",
-						         file, linenum, check_arg, (int)(errptr - thisline + 1), line, (int)(newpos + 1),
-						         "^", (warned_empty++) ? "" :
-						         ("Aborting to prevent all subsequent arguments from being silently ignored. "
-							  "If this is caused by an environment variable expansion, please have a look at section "
-							  "2.3 of the configuration manual to find solutions to address this.\n"));
-
-						if (suggest) {
-							const char *end = errptr;
-							struct ist alt;
-
-							while (isalnum((uchar)*end) || *end == '_')
-								end++;
-
-							if (end > errptr) {
-								alt = env_suggest(ist2(errptr, end - errptr));
-								if (isttest(alt))
-									ha_notice("Hint: maybe you meant %.*s instead ?\n", (int)istlen(alt), istptr(alt));
-							}
-						}
-
-						err_code |= ERR_ALERT | ERR_FATAL;
-						fatal++;
-						goto next_line;
-					}
-				}
 			}
 
 			/* everything's OK */
@@ -2617,6 +2563,65 @@ next_line:
 				err_code |= ERR_ALERT | ERR_FATAL;
 				fatal++;
 				break;
+			}
+		}
+
+		/* now check for empty args on the line. Only do that in normal
+		 * mode to prevent double display during discovery pass. It relies
+		 * on errptr as returned by parse_line() above.
+		 */
+		if (!(global.mode & MODE_DISCOVERY)) {
+			int check_arg;
+
+			for (check_arg = 0; check_arg < arg; check_arg++) {
+				if (!*args[check_arg]) {
+					static int warned_empty;
+					size_t newpos;
+					int suggest = 0;
+
+					/* if an empty arg was found, its pointer should be in <errptr>, except
+					 * for rare cases such as '\x00' etc. We need to check errptr in any case
+					 * and if it's not set, we'll fall back to args's position in the output
+					 * string instead (less accurate but still useful).
+					 */
+					if (!errptr) {
+						newpos = args[check_arg] - outline;
+						if (newpos >= strlen(line))
+							newpos = 0; // impossible to report anything, start at the beginning.
+						errptr = line + newpos;
+					} else if (isalnum((uchar)*errptr) || *errptr == '_') {
+						/* looks like an environment variable */
+						suggest = 1;
+					}
+
+					/* sanitize input line in-place */
+					newpos = sanitize_for_printing(line, errptr - line, 80);
+					ha_alert("parsing [%s:%d]: argument number %d at position %d is empty and marks the end of the "
+					         "argument list:\n  %s\n  %*s\n%s",
+					         file, linenum, check_arg, (int)(errptr - thisline + 1), line, (int)(newpos + 1),
+					         "^", (warned_empty++) ? "" :
+					         ("Aborting to prevent all subsequent arguments from being silently ignored. "
+						  "If this is caused by an environment variable expansion, please have a look at section "
+						  "2.3 of the configuration manual to find solutions to address this.\n"));
+
+					if (suggest) {
+						const char *end = errptr;
+						struct ist alt;
+
+						while (isalnum((uchar)*end) || *end == '_')
+							end++;
+
+						if (end > errptr) {
+							alt = env_suggest(ist2(errptr, end - errptr));
+							if (isttest(alt))
+								ha_notice("Hint: maybe you meant %.*s instead ?\n", (int)istlen(alt), istptr(alt));
+						}
+					}
+
+					err_code |= ERR_ALERT | ERR_FATAL;
+					fatal++;
+					goto next_line;
+				}
 			}
 		}
 
