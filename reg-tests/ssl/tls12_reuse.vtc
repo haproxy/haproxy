@@ -4,7 +4,7 @@
 # Each client will try to established a connection, then try to reconnect 20 times resuming.
 
 varnishtest "Test if the SSL session/ticket reuse works correctly for TLSv1.2"
-feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL_WOLFSSL) || feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL_AWSLC) || feature(OPENSSL_WOLFSSL) || feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1)'"
 
 setenv VTC_SOCK_TYPE stream
 setenv TLSV TLSv1.2
