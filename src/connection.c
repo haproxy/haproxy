@@ -2759,7 +2759,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "bc_glitches", smp_fetch_fc_glitches, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
 	{ "bc_http_major", smp_fetch_fc_http_major, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
 	{ "bc_nb_streams", smp_fetch_fc_nb_streams, 0, NULL, SMP_T_SINT, SMP_USE_L5SRV },
-	{ "bc_setting_streams_limit", smp_fetch_fc_streams_limit, 0, NULL, SMP_T_SINT, SMP_USE_L5SRV },
+	{ "bc_settings_streams_limit", smp_fetch_fc_streams_limit, 0, NULL, SMP_T_SINT, SMP_USE_L5SRV },
 	{ "fc_err", smp_fetch_fc_err, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "fc_err_name", smp_fetch_fc_err_str, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
 	{ "fc_err_str", smp_fetch_fc_err_str, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
