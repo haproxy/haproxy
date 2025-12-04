@@ -17,6 +17,8 @@ haproxy h1 -conf {
         thread-groups 1
     .endif
 
+      # allow to enable or disable completely the cache for stateful resumption
+      tune.ssl.cachesize "${SSL_CACHESIZE}"
       # forced to 1 here, because there is a cached session per thread
       nbthread 1
 
@@ -36,14 +38,8 @@ haproxy h1 -conf {
         server s1 "${VTC_SOCK_TYPE}+${h1_fe3_addr}:${h1_fe3_port}" ssl verify none  sni str(www.test1.com)
         http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
 
-    listen clst4
-        bind "fd@${clst4}"
-        server s1 "${VTC_SOCK_TYPE}+${h1_fe4_addr}:${h1_fe4_port}" ssl verify none  sni str(www.test1.com)
-        http-response add-header x-ssl-bc-resumed %[ssl_bc_is_resumed]
-
     listen ssl
-        bind "${VTC_SOCK_TYPE}+fd@${fe3}" ssl crt ${testdir}/common.pem ssl-min-ver "${TLSV}" ssl-max-ver "${TLSV}"
-        bind "${VTC_SOCK_TYPE}+fd@${fe4}" ssl crt ${testdir}/common.pem ssl-min-ver "${TLSV}" ssl-max-ver "${TLSV}" no-tls-tickets
+        bind "${VTC_SOCK_TYPE}+fd@${fe3}" ssl crt ${testdir}/common.pem ssl-min-ver "${TLSV}" ssl-max-ver "${TLSV}" "${NO_TLS_TICKETS}"
 
         http-response add-header x-ssl-resumed %[ssl_fc_is_resumed]
         server s1 ${s1_addr}:${s1_port}
@@ -64,22 +60,6 @@ client c3 -connect ${h1_clst3_sock} -repeat 20 {
     expect resp.status == 200
     expect resp.http.x-ssl-resumed == 1
 } -run
-
-# fourth bind
-client c4 -connect ${h1_clst4_sock} {
-    txreq
-    rxresp
-    expect resp.status == 200
-    expect resp.http.x-ssl-resumed == 0
-} -run
-
-client c4 -connect ${h1_clst4_sock} -repeat 20 {
-    txreq
-    rxresp
-    expect resp.status == 200
-    expect resp.http.x-ssl-resumed == 1
-} -run
-
 
 # Could be useful to debug the result, the ssl_fc_is_resumed field in the log must be 1 after the 2nd command
 #shell {

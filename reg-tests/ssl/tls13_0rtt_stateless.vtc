@@ -1,6 +1,6 @@
 #REGTEST_TYPE=devel
 
-# This reg-test tests 8 scenarios with and without tickets, with various
+# This reg-test tests 8 scenarios with tickets, with various
 # combinations of settings for allow-0rtt, with TLSv1.3. Each client will try
 # to established a connection, then try to reconnect 10 times resuming, and
 # check for which combination(s) 0-rtt is used and if they are expected.
@@ -10,5 +10,7 @@ feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && ssllib_name_startswith(Op
 
 setenv VTC_SOCK_TYPE stream
 setenv TLSV TLSv1.3
+setenv NO_TLS_TICKETS tls-tickets
+setenv SSL_CACHESIZE 0
 setenv ALPN http/1.1
 include ${testdir}/../ssl/ssl-0rtt.vtci

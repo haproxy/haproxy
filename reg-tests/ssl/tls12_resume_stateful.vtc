@@ -1,11 +1,14 @@
 #REGTEST_TYPE=devel
 
-# This reg-test tests 2 scenarios with and without resumption tickets, with TLSv1.2
+# This reg-test tests the stateful TLS resumption (sessions) with TLSv1.2
 # Each client will try to established a connection, then try to reconnect 20 times resuming.
 
-varnishtest "Test if the SSL session/ticket reuse works correctly for TLSv1.2"
+varnishtest "Test if the SSL session resume works correctly for TLSv1.2"
 feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL_AWSLC) || feature(OPENSSL_WOLFSSL) || feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1)'"
 
 setenv VTC_SOCK_TYPE stream
 setenv TLSV TLSv1.2
+setenv NO_TLS_TICKETS "no-tls-tickets"
+setenv SSL_CACHESIZE 20000
+
 include ${testdir}/../ssl/ssl_reuse.vtci
