@@ -19673,21 +19673,22 @@ cache <name>
   Declare a cache section, allocate a shared cache memory named <name>, the
   size of cache is mandatory (see keyword "total-max-size" below).
 
-total-max-size <megabytes>
-  Define the size in RAM of the cache in megabytes. This size is split in
-  blocks of 1kB which are used by the cache entries. Its maximum value is 4095.
-
-max-object-size <bytes>
-  Define the maximum size of the objects to be cached. Must not be greater than
-  an half of "total-max-size". If not set, it equals to a 256th of the cache size.
-  All objects with sizes larger than "max-object-size" will not be cached.
-
 max-age <seconds>
   Define the maximum expiration duration. The expiration is set as the lowest
   value between the s-maxage or max-age (in this order) directive in the
   Cache-Control response header and this value. The default value is 60
   seconds, which means that you can't cache an object more than 60 seconds by
   default.
+
+max-object-size <bytes>
+  Define the maximum size of the objects to be cached. Must not be greater than
+  an half of "total-max-size". If not set, it equals to a 256th of the cache size.
+  All objects with sizes larger than "max-object-size" will not be cached.
+
+max-secondary-entries <number>
+  Define the maximum number of simultaneous secondary entries with the same primary
+  key in the cache. This needs the vary support to be enabled. Its default value is 10
+  and should be passed a strictly positive integer.
 
 process-vary <on/off>
   Enable or disable the processing of the Vary header. When disabled, a response
@@ -19698,10 +19699,9 @@ process-vary <on/off>
   the contents of the 'accept-encoding', 'referer' and 'origin' headers for
   now. The default value is off (disabled).
 
-max-secondary-entries <number>
-  Define the maximum number of simultaneous secondary entries with the same primary
-  key in the cache. This needs the vary support to be enabled. Its default value is 10
-  and should be passed a strictly positive integer.
+total-max-size <megabytes>
+  Define the size in RAM of the cache in megabytes. This size is split in
+  blocks of 1kB which are used by the cache entries. Its maximum value is 4095.
 
 
 6.2.2. Proxy section
