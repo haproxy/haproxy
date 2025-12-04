@@ -19671,7 +19671,7 @@ the corresponding http-request and http-response actions.
 
 cache <name>
   Declare a cache section, allocate a shared cache memory named <name>, the
-  size of cache is mandatory.
+  size of cache is mandatory (see keyword "total-max-size" below).
 
 total-max-size <megabytes>
   Define the size in RAM of the cache in megabytes. This size is split in
