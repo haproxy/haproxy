@@ -2162,8 +2162,11 @@ int connect_server(struct stream *s)
 		sni_smp = sample_fetch_as_type(s->be, s->sess, s,
 		                               SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
 		                               srv->ssl_ctx.sni, SMP_T_STR);
-		if (smp_make_safe(sni_smp))
+		if (smp_make_safe(sni_smp)) {
+			srv_conn->sni_hash = ssl_sock_sni_hash(ist2(b_orig(&sni_smp->data.u.str),
+								    b_data(&sni_smp->data.u.str)));
 			ssl_sock_set_servername(srv_conn, sni_smp->data.u.str.area);
+		}
 	}
 #endif /* USE_OPENSSL */
 

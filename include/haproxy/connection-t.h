@@ -660,6 +660,7 @@ struct connection {
 		struct buffer name;    /* Only used for passive reverse. Used as SNI when connection added to server idle pool. */
 	} reverse;
 
+	uint64_t sni_hash;             /* Hash of the SNI. Used to cache the TLS session and try to reuse it. set to 0 is there is no SNI */
 	uint32_t term_evts_log;        /* Termination events log: first 4 events reported from fd, handshake or xprt */
 	uint32_t mark;                 /* set network mark, if CO_FL_OPT_MARK is set */
 	uint8_t tos;                   /* set ip tos, if CO_FL_OPT_TOS is set */
