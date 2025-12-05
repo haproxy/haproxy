@@ -4202,6 +4202,7 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 		int len;
 		unsigned char *ptr;
 		const char *sni;
+		uint64_t sni_hash;
 #ifdef USE_QUIC
 		struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
 #endif
@@ -4246,20 +4247,13 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 		else if (s->ssl_ctx.reused_sess[tid].ptr && !old_tid)
 			HA_ATOMIC_CAS(&s->ssl_ctx.last_ssl_sess_tid, &old_tid, tid + 1);
 
-		if (s->ssl_ctx.reused_sess[tid].sni) {
-			/* if the new sni is empty or isn' t the same as the old one */
-			if ((!sni) || strcmp(s->ssl_ctx.reused_sess[tid].sni, sni) != 0) {
-				ha_free(&s->ssl_ctx.reused_sess[tid].sni);
-				s->ssl_ctx.reused_sess[tid].sni_hash = 0;
-				if (sni) {
-					s->ssl_ctx.reused_sess[tid].sni = strdup(sni);
-					s->ssl_ctx.reused_sess[tid].sni_hash = ssl_sock_sni_hash(ist(sni));
-				}
-			}
-		} else if (sni) {
-			/* if there wasn't an old sni but there is a new one */
-			s->ssl_ctx.reused_sess[tid].sni = strdup(sni);
-			s->ssl_ctx.reused_sess[tid].sni_hash = ssl_sock_sni_hash(ist(sni));
+		sni_hash = (sni ? ssl_sock_sni_hash(ist(sni)) : 0);
+		if (s->ssl_ctx.reused_sess[tid].sni_hash != sni_hash) {
+			/* if the new sni hash isn' t the same as the old one */
+			s->ssl_ctx.reused_sess[tid].sni_hash = sni_hash;
+			ha_free(&s->ssl_ctx.reused_sess[tid].sni);
+			if (sni)
+				s->ssl_ctx.reused_sess[tid].sni = strdup(sni);
 		}
 #ifdef USE_QUIC
 		/* The selected ALPN is not stored without SSL session. */
