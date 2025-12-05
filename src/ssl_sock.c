@@ -5689,21 +5689,32 @@ int ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
 	 * (transport parameters and ALPN) are successfully reused.
 	 */
 	int ret = qc && (srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) ? 0 : 1;
+	struct connection *conn = qc ? qc->conn : ctx->conn;
 #else
 	/* Always succeeds for TCP sockets. */
 	int ret = 1;
+	struct connection *conn = ctx->conn;
 #endif
 
 	HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.lock);
 	if (srv->ssl_ctx.reused_sess[tid].ptr) {
+		const unsigned char *ptr;
+		SSL_SESSION *sess;
+
+		/* No connection or the sni of the cached SSL session does not
+		 * match the one of the new connection, don't reuse the SSL session
+		 */
+		if (!conn || srv->ssl_ctx.reused_sess[tid].sni_hash != conn->sni_hash)
+			goto out;
+
 		/* let's recreate a session from (ptr,size) and assign
 		 * it to ctx->ssl. Its refcount will be updated by the
 		 * creation and by the assignment, so after assigning
 		 * it or failing to, we must always free it to decrement
 		 * the refcount.
 		 */
-		const unsigned char *ptr = srv->ssl_ctx.reused_sess[tid].ptr;
-		SSL_SESSION *sess = d2i_SSL_SESSION(NULL, &ptr, srv->ssl_ctx.reused_sess[tid].size);
+		ptr = srv->ssl_ctx.reused_sess[tid].ptr;
+		sess = d2i_SSL_SESSION(NULL, &ptr, srv->ssl_ctx.reused_sess[tid].size);
 
 		if (sess && !SSL_set_session(ctx->ssl, sess)) {
 			uint old_tid = HA_ATOMIC_LOAD(&srv->ssl_ctx.last_ssl_sess_tid); // 0=none, >0 = tid + 1
@@ -5748,6 +5759,14 @@ int ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
 		if (old_tid) {
 			HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[old_tid-1].sess_lock);
 
+			/* No connection or the sni of the cached SSL session does not
+			 * match the one of the new connection, don't reuse the SSL session
+			 */
+			if (!conn || srv->ssl_ctx.reused_sess[old_tid-1].sni_hash != conn->sni_hash) {
+				HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[old_tid-1].sess_lock);
+				goto out;
+			}
+
 			ptr = srv->ssl_ctx.reused_sess[old_tid-1].ptr;
 			if (ptr) {
 				sess = d2i_SSL_SESSION(NULL, &ptr, srv->ssl_ctx.reused_sess[old_tid-1].size);
@@ -5774,6 +5793,7 @@ int ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
 			HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[old_tid-1].sess_lock);
 		}
 	}
+  out:
 	HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.lock);
 
 	return ret;
