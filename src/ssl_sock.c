@@ -7605,8 +7605,7 @@ void ssl_sock_set_alpn(struct connection *conn, const unsigned char *alpn, int l
 #endif
 }
 
-/* Sets advertised SNI for outgoing connections. Please set <hostname> to NULL
- * to disable SNI.
+/* Sets advertised SNI for outgoing connections.
  */
 void ssl_sock_set_servername(struct connection *conn, const char *hostname)
 {
@@ -7614,7 +7613,7 @@ void ssl_sock_set_servername(struct connection *conn, const char *hostname)
 	struct ssl_sock_ctx *ctx = conn_get_ssl_sock_ctx(conn);
 	char *prev_name;
 
-	if (!ctx)
+	if (!ctx || !hostname)
 		return;
 
 	BUG_ON(!(conn->flags & CO_FL_WAIT_L6_CONN));
@@ -7629,9 +7628,7 @@ void ssl_sock_set_servername(struct connection *conn, const char *hostname)
 	 */
 
 	prev_name = (char *)SSL_get_servername(ctx->ssl, TLSEXT_NAMETYPE_host_name);
-	if ((!prev_name && hostname) ||
-	    !hostname ||
-	    strcmp(hostname, prev_name) != 0) {
+	if (!prev_name || strcmp(hostname, prev_name) != 0) {
 		SSL_set_session(ctx->ssl, NULL);
 		SSL_set_tlsext_host_name(ctx->ssl, hostname);
 	}
