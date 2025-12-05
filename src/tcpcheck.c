@@ -1459,6 +1459,20 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		? xprt_get(XPRT_SSL)
 		: ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) ? check->xprt : xprt_get(XPRT_RAW)));
 
+#ifdef USE_OPENSSL
+	if (xprt && xprt->get_ssl_sock_ctx) {
+		if (connect->sni)
+			sni = ist(connect->sni);
+		else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s && s->check.sni)
+			sni = ist(s->check.sni);
+		else if (auto_sni)
+			sni = ist2(b_orig(auto_sni), b_data(auto_sni));
+
+		if (isttest(sni))
+			conn->sni_hash = ssl_sock_sni_hash(sni);
+	}
+#endif
+
 	if (conn_prepare(conn, proto, xprt) < 0) {
 		TRACE_ERROR("xprt allocation error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
 		status = SF_ERR_RESOURCE;
@@ -1506,17 +1520,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 
 #ifdef USE_OPENSSL
 	if (conn_is_ssl(conn)) {
-		if (connect->sni)
-			sni = ist(connect->sni);
-		else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s && s->check.sni)
-			sni = ist(s->check.sni);
-		else if (auto_sni)
-			sni = ist2(b_orig(auto_sni), b_data(auto_sni));
-
-		if (isttest(sni)) {
-			conn->sni_hash = ssl_sock_sni_hash(sni);
+		if (isttest(sni))
 			ssl_sock_set_servername(conn, istptr(sni));
-		}
 
 		if (connect->alpn)
 			ssl_sock_set_alpn(conn, (unsigned char *)connect->alpn, connect->alpn_len);
