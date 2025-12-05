@@ -4201,14 +4201,12 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 	if (!(s->ssl_ctx.options & SRV_SSL_O_NO_REUSE)) {
 		int len;
 		unsigned char *ptr;
-		const char *sni;
 #ifdef USE_QUIC
 		struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
 #endif
 
 		/* determine the required len to store this new session */
 		len = i2d_SSL_SESSION(sess, NULL);
-		sni = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 		HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
 
 		ptr = s->ssl_ctx.reused_sess[tid].ptr;
@@ -4245,14 +4243,7 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 			HA_ATOMIC_CAS(&s->ssl_ctx.last_ssl_sess_tid, &old_tid, 0); // no more valid
 		else if (s->ssl_ctx.reused_sess[tid].ptr && !old_tid)
 			HA_ATOMIC_CAS(&s->ssl_ctx.last_ssl_sess_tid, &old_tid, tid + 1);
-
-		if (s->ssl_ctx.reused_sess[tid].sni_hash != conn->sni_hash) {
-			/* if the new sni hash or isn' t the same as the old one */
-			ha_free(&s->ssl_ctx.reused_sess[tid].sni);
-			s->ssl_ctx.reused_sess[tid].sni_hash = conn->sni_hash;
-			if (sni)
-				s->ssl_ctx.reused_sess[tid].sni = strdup(sni);
-		}
+		s->ssl_ctx.reused_sess[tid].sni_hash = conn->sni_hash;
 #ifdef USE_QUIC
 		/* The selected ALPN is not stored without SSL session. */
 		if (qc && (s->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) &&
@@ -5477,10 +5468,8 @@ void ssl_sock_free_srv_ctx(struct server *srv)
 	if (srv->ssl_ctx.reused_sess) {
 		int i;
 
-		for (i = 0; i < global.nbthread; i++) {
+		for (i = 0; i < global.nbthread; i++)
 			ha_free(&srv->ssl_ctx.reused_sess[i].ptr);
-			ha_free(&srv->ssl_ctx.reused_sess[i].sni);
-		}
 		ha_free(&srv->ssl_ctx.reused_sess);
 	}
 
@@ -5723,16 +5712,10 @@ int ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
 			SSL_SESSION_free(sess);
 			HA_RWLOCK_WRLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
 			ha_free(&srv->ssl_ctx.reused_sess[tid].ptr);
-			HA_RWLOCK_WRTORD(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
-			if (srv->ssl_ctx.reused_sess[tid].sni)
-				SSL_set_tlsext_host_name(ctx->ssl, srv->ssl_ctx.reused_sess[tid].sni);
-			HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
+			HA_RWLOCK_WRUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
 		} else if (sess) {
 			/* already assigned, not needed anymore */
 			SSL_SESSION_free(sess);
-			HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
-			if (srv->ssl_ctx.reused_sess[tid].sni)
-				SSL_set_tlsext_host_name(ctx->ssl, srv->ssl_ctx.reused_sess[tid].sni);
 #ifdef USE_QUIC
 			if (qc && srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) {
 				unsigned char *alpn = (unsigned char *)srv->path_params.nego_alpn;
@@ -5743,7 +5726,6 @@ int ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
 					ret = 1;
 			}
 #endif
-			HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[tid].sess_lock);
 		}
 	} else {
 		/* No session available yet, let's see if we can pick one
@@ -5786,9 +5768,6 @@ int ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
 					SSL_SESSION_free(sess);
 				}
 			}
-
-			if (srv->ssl_ctx.reused_sess[old_tid-1].sni)
-				SSL_set_tlsext_host_name(ctx->ssl, srv->ssl_ctx.reused_sess[old_tid-1].sni);
 
 			HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[old_tid-1].sess_lock);
 		}
@@ -7632,7 +7611,6 @@ void ssl_sock_set_servername(struct connection *conn, const char *hostname)
 {
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	struct ssl_sock_ctx *ctx = conn_get_ssl_sock_ctx(conn);
-	char *prev_name;
 
 	if (!ctx || !hostname)
 		return;
@@ -7640,19 +7618,7 @@ void ssl_sock_set_servername(struct connection *conn, const char *hostname)
 	BUG_ON(!(conn->flags & CO_FL_WAIT_L6_CONN));
 	BUG_ON(!(conn->flags & CO_FL_SSL_WAIT_HS));
 
-	/* if the SNI changes, we must destroy the reusable context so that a
-	 * new connection will present a new SNI. compare with the SNI
-	 * previously stored in the reused_sess. If the session was reused,
-	 * the associated SNI (if any) has already been assigned to the SSL
-	 * during ssl_sock_init() so SSL_get_servername() will properly
-	 * retrieve the currently known hostname for the SSL.
-	 */
-
-	prev_name = (char *)SSL_get_servername(ctx->ssl, TLSEXT_NAMETYPE_host_name);
-	if (!prev_name || strcmp(hostname, prev_name) != 0) {
-		SSL_set_session(ctx->ssl, NULL);
-		SSL_set_tlsext_host_name(ctx->ssl, hostname);
-	}
+	SSL_set_tlsext_host_name(ctx->ssl, hostname);
 #endif
 }
 

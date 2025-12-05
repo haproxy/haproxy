@@ -486,7 +486,6 @@ struct server {
 			int size;
 			int allocated_size;
 			uint64_t sni_hash; /* Hash of the SNI used for the session */
-			char *sni; /* SNI used for the session */
 			__decl_thread(HA_RWLOCK_T sess_lock);
 		} * reused_sess;
 

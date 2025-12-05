@@ -2770,10 +2770,8 @@ static void __ssl_sock_load_new_ckch_instance(struct ckch_inst *ckchi)
 		ckchi->server->ssl_ctx.inst = ckchi;
 
 		/* flush the session cache of the server */
-		for (i = 0; i < global.nbthread; i++) {
-			ha_free(&ckchi->server->ssl_ctx.reused_sess[i].sni);
+		for (i = 0; i < global.nbthread; i++)
 			ha_free(&ckchi->server->ssl_ctx.reused_sess[i].ptr);
-		}
 		HA_RWLOCK_WRUNLOCK(SSL_SERVER_LOCK, &ckchi->server->ssl_ctx.lock);
 
 	} else {
