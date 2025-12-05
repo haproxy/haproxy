@@ -4250,12 +4250,16 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 			/* if the new sni is empty or isn' t the same as the old one */
 			if ((!sni) || strcmp(s->ssl_ctx.reused_sess[tid].sni, sni) != 0) {
 				ha_free(&s->ssl_ctx.reused_sess[tid].sni);
-				if (sni)
+				s->ssl_ctx.reused_sess[tid].sni_hash = 0;
+				if (sni) {
 					s->ssl_ctx.reused_sess[tid].sni = strdup(sni);
+					s->ssl_ctx.reused_sess[tid].sni_hash = ssl_sock_sni_hash(ist(sni));
+				}
 			}
 		} else if (sni) {
 			/* if there wasn't an old sni but there is a new one */
 			s->ssl_ctx.reused_sess[tid].sni = strdup(sni);
+			s->ssl_ctx.reused_sess[tid].sni_hash = ssl_sock_sni_hash(ist(sni));
 		}
 #ifdef USE_QUIC
 		/* The selected ALPN is not stored without SSL session. */
