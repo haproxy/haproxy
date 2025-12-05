@@ -1,0 +1,143 @@
+feature ignore_unknown_macro
+
+barrier b1 cond 2 -cyclic
+
+server s1 -repeat 6 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if streq("$VTC_SOCK_TYPE",quic)
+        # required for backend connections
+        expose-experimental-directives
+    .endif
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        option httpslog
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        retries 0
+
+    listen clearlst
+        bind fd@${clearlst}
+        use_backend X25519-be if { path /X25519 }
+        use_backend P-256-be if { path /P-256 }
+        use_backend P-384-be if { path /P-384 }
+        use_backend wrong-be1 if { path /wrong-be1 }
+
+	# Backend and listener for X25519
+    global
+        ssl-default-bind-curves   X25519
+        ssl-default-server-curves X25519
+
+    backend X25519-be
+        server s1 ${VTC_SOCK_TYPE}+${h1_X25519_lst_sock} ssl verify none
+    listen X25519_lst
+        http-response add-header x-curve %[ssl_fc_curve]
+        bind ${VTC_SOCK_TYPE}+fd@${X25519_lst} ssl crt ${testdir}/certs/common.pem
+        server s1 ${s1_sock}
+
+	# Backend and listener for P-256
+    global
+        ssl-default-bind-curves   P-256
+        ssl-default-server-curves P-256
+
+    backend P-256-be
+        server s1 ${VTC_SOCK_TYPE}+${h1_p_256_lst_sock} ssl verify none
+    listen P-256_lst
+        http-response add-header x-curve %[ssl_fc_curve]
+        bind ${VTC_SOCK_TYPE}+fd@${p_256_lst} ssl crt ${testdir}/certs/common.pem
+        server s1 ${s1_sock}
+
+	# Backend and listener for P-384
+    global
+        ssl-default-bind-curves   P-384
+        ssl-default-server-curves P-384
+
+    backend P-384-be
+        server s1 ${VTC_SOCK_TYPE}+${h1_p_384_lst_sock} ssl verify none
+    listen P-384_lst
+        http-response add-header x-curve %[ssl_fc_curve]
+        bind ${VTC_SOCK_TYPE}+fd@${p_384_lst} ssl crt ${testdir}/certs/common.pem
+        server s1 ${s1_sock}
+
+    # servers with their own curves.
+    # connections to s1, s2, s4 and s5 must work, contrary to s3 and s6.
+	backend wrong-be1
+		balance roundrobin
+		server s1 ${VTC_SOCK_TYPE}+${h1_X25519_lst_sock} ssl verify none curves P-384
+		server s2 ${VTC_SOCK_TYPE}+${h1_X25519_lst_sock} ssl verify none curves P-256
+		server s3 ${VTC_SOCK_TYPE}+${h1_X25519_lst_sock} ssl verify none curves X25519
+
+		server s4 ${VTC_SOCK_TYPE}+${h1_own_cipher_suites_chacha_sock} ssl verify none curves X25519
+		server s5 ${VTC_SOCK_TYPE}+${h1_own_cipher_suites_chacha_sock} ssl verify none curves P-256
+		server s6 ${VTC_SOCK_TYPE}+${h1_own_cipher_suites_chacha_sock} ssl verify none curves P-384
+    # listener with its own P-384 curves
+    listen own_cipher_suites_chacha
+        http-response add-header x-curve %[ssl_fc_curve]
+        bind ${VTC_SOCK_TYPE}+fd@${own_cipher_suites_chacha} ssl crt ${testdir}/certs/common.pem curves P-384
+        server s1 ${s1_sock}
+} -start
+
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/X25519"
+    rxresp
+    expect resp.http.x-curve == X25519
+    expect resp.status == 200
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/P-256"
+    rxresp
+    expect resp.http.x-curve ~ (SECP256R1|prime256v1)
+    expect resp.status == 200
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/P-384"
+    rxresp
+    expect resp.http.x-curve ~ (SECP384R1|secp384r1)
+    expect resp.status == 200
+} -run
+
+
+# Handshake failures during connection to wrong-be1/s[12]
+client c2 -connect ${h1_clearlst_sock} -repeat 2 {
+    txreq -url "/wrong-be1"
+    rxresp
+    expect resp.status == 503
+} -run
+
+# successul connection to wrong-be1/s3
+client c3 -connect ${h1_clearlst_sock} {
+    txreq -url "/wrong-be1"
+    rxresp
+    expect resp.http.x-curve == X25519
+    expect resp.status == 200
+} -run
+
+# Handshake failures during connections to wrong-be/s[45]
+client c2 -connect ${h1_clearlst_sock} -repeat 2 {
+    txreq -url "/wrong-be1"
+    rxresp
+    expect resp.status == 503
+} -run
+
+# successul connection to wrong-be1/s6
+client c3 -connect ${h1_clearlst_sock} {
+    txreq -url "/wrong-be1"
+    rxresp
+    expect resp.http.x-curve ~ (SECP384R1|secp384r1)
+    expect resp.status == 200
+} -run
+

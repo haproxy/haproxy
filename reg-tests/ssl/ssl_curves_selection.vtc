@@ -1,0 +1,16 @@
+#REGTEST_TYPE=devel
+
+# This reg-tests configures three backends and their listener whose
+# curves configured by ssl-default-server-curves and ssl-default-bind-curves
+# correspond to each other. The connection to such backends must all work.
+# A last "wrong-be1" backend with 2 series of 3 servers whose curves
+# do not match their listener curves for the 2 first servers. The last
+# server curves match its listener curves. So, the 2 first connection
+# to "wrong-be1" backend must fail contrary to the last one.
+
+varnishtest "Tests for ssl-default-{bind,server}-curves global option and curves option for backends/frontends"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(3.0.0) || feature(OPENSSL) && ssllib_name_startswith(AWS-LC) && awslc_api_atleast(35)'"
+
+setenv VTC_SOCK_TYPE stream
+include ${testdir}/ssl_curves_selection.vtci
