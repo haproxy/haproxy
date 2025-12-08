@@ -864,8 +864,6 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 	/* displays old processes */
 
 	if (old) {
-		char *msg = NULL;
-
 		chunk_appendf(&trash, "# old workers\n");
 		list_for_each_entry(child, &proc_list, list) {
 			up = date.tv_sec - child->timestamp;
@@ -884,7 +882,6 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 				ha_free(&uptime);
 			}
 		}
-		free(msg);
 	}
 
 	if (applet_putchk(appctx, &trash) == -1)
