@@ -4492,6 +4492,7 @@ static void http_end_request(struct stream *s)
 			 */
 			channel_auto_read(&s->req);
 			txn->req.msg_state = HTTP_MSG_TUNNEL;
+			s->scb->flags &= ~SC_FL_NOHALF;
 			if (txn->rsp.msg_state != HTTP_MSG_TUNNEL)
 				s->res.flags |= CF_WAKE_ONCE;
 		}
