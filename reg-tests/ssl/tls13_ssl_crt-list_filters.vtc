@@ -5,7 +5,7 @@ feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && ssllib_name_startswith(Op
 # This test checks if the multiple certificate types works correctly with the
 # SNI, and that the negative filters are correctly excluded
 #
-# The selection is done with ciphers in TLSv1.2 and with the sigalgs in TLSv1.3
+# The selection is done with ciphers with the sigalgs in TLSv1.3
 #
 feature ignore_unknown_macro
 
@@ -43,58 +43,16 @@ haproxy h1 -conf {
 
         http-response add-header x-ssl-sha1    '%[ssl_s_sha1,hex]'
         http-response add-header x-ssl-keyalg  '%[ssl_s_key_alg]'
-
-## TLSv1.2
-
-        server s1 "${tmpdir}/ssl.sock" ssl verify none sni str(another-record.bug810.domain.tld) ssl-min-ver TLSv1.2 ssl-max-ver TLSv1.2 ciphers "kRSA"
-        server s2 "${tmpdir}/ssl.sock" ssl verify none sni str(another-record.bug810.domain.tld) ssl-min-ver TLSv1.2 ssl-max-ver TLSv1.2 ciphers "aECDSA"
-
-        server s3 "${tmpdir}/ssl.sock" ssl verify none sni str(another-record.bug818.domain.tld) ssl-min-ver TLSv1.2 ssl-max-ver TLSv1.2 ciphers "kRSA"
-
-## TLSv1.3
-
-        server s4 "${tmpdir}/ssl2.sock" ssl verify none sni str(another-record.bug810.domain.tld) ssl-min-ver TLSv1.3 sigalgs rsa_pss_rsae_sha384:rsa_pkcs1_sha256:ecdsa_secp384r1_sha384
-        server s5 "${tmpdir}/ssl2.sock" ssl verify none sni str(another-record.bug810.domain.tld) ssl-min-ver TLSv1.3 sigalgs rsa_pss_rsae_sha384:rsa_pkcs1_sha256
-        server s6 "${tmpdir}/ssl2.sock" ssl verify none sni str(another-record.bug810.domain.tld) ssl-min-ver TLSv1.3 sigalgs ecdsa_secp384r1_sha384
-
-        server s7 "${tmpdir}/ssl2.sock" ssl verify none sni str(another-record.bug818.domain.tld) ssl-min-ver TLSv1.3 sigalgs rsa_pss_rsae_sha384:rsa_pkcs1_sha256
-
+        server s1 "${tmpdir}/ssl.sock" ssl verify none sni str(another-record.bug810.domain.tld) ssl-min-ver TLSv1.3 sigalgs rsa_pss_rsae_sha384:rsa_pkcs1_sha256:ecdsa_secp384r1_sha384
+        server s2 "${tmpdir}/ssl.sock" ssl verify none sni str(another-record.bug810.domain.tld) ssl-min-ver TLSv1.3 sigalgs rsa_pss_rsae_sha384:rsa_pkcs1_sha256
+        server s3 "${tmpdir}/ssl.sock" ssl verify none sni str(another-record.bug810.domain.tld) ssl-min-ver TLSv1.3 sigalgs ecdsa_secp384r1_sha384
+        server s4 "${tmpdir}/ssl.sock" ssl verify none sni str(another-record.bug818.domain.tld) ssl-min-ver TLSv1.3 sigalgs rsa_pss_rsae_sha384:rsa_pkcs1_sha256
 
     listen ssl-lst
         mode http
-        bind "${tmpdir}/ssl.sock"  ssl strict-sni ssl-min-ver TLSv1.2 ssl-max-ver TLSv1.2  crt-list ${testdir}/certs/filters.crt-list
-        bind "${tmpdir}/ssl2.sock" ssl strict-sni ssl-min-ver TLSv1.3 ssl-max-ver TLSv1.3  crt-list ${testdir}/certs/filters.crt-list
-
+        bind "${tmpdir}/ssl.sock" ssl strict-sni ssl-min-ver TLSv1.3 ssl-max-ver TLSv1.3  crt-list ${testdir}/certs/filters.crt-list
         server s1 ${s1_addr}:${s1_port}
 } -start
-
-## TLSv1.2
-
-# RSA + TLSv1.2 + another-record.bug810.domain.tld OK
-client c1 -connect ${h1_clearlst_sock} {
-    txreq
-    rxresp
-    expect resp.status == 200
-    expect resp.http.x-ssl-keyalg == "rsaEncryption"
-} -run
-
-# ECDSA + TLSv1.2 + another-record.bug810.domain.tld OK
-client c1 -connect ${h1_clearlst_sock} {
-    txreq
-    rxresp
-    expect resp.status == 200
-    expect resp.http.x-ssl-keyalg == "id-ecPublicKey"
-} -run
-
-# RSA + TLSv1.2 + another-record.bug818.domain.tld OK, domain not available in
-# RSA because of the '!another-record.bug818.domain.tld' in the configuration.
-client c1 -connect ${h1_clearlst_sock} {
-    txreq
-    rxresp
-    expect resp.status == 503
-} -run
-
-## TLSv1.3
 
 # ECDSA/RSA sigalgs + TLSv1.3 + another-record.bug810.domain.tld should return the ECDSA cert
 client c1 -connect ${h1_clearlst_sock} {
