@@ -1,0 +1,83 @@
+feature ignore_unknown_macro
+
+server s1 -repeat 6 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if streq("$VTC_SOCK_TYPE",quic)
+        # required for backend connections
+        expose-experimental-directives
+    .endif
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    .if !ssllib_name_startswith(AWS-LC)
+        tune.ssl.default-dh-param 2048
+    .endif
+        crt-base ${testdir}/certs
+        stats socket "${tmpdir}/h1/stats" level admin
+
+    defaults
+        mode http
+        option httplog
+        retries 0
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        balance roundrobin
+
+        http-response add-header x-ssl-sha1    '%[ssl_s_sha1,hex]'
+        http-response add-header x-ssl-keyalg  '%[ssl_s_key_alg]'
+        server s1 "${VTC_SOCK_TYPE}+${h1_ssl_sock}" ssl verify none sni str(another-record.bug810.domain.tld) ssl-min-ver TLSv1.3 sigalgs rsa_pss_rsae_sha384:rsa_pkcs1_sha256:ecdsa_secp384r1_sha384
+        server s2 "${VTC_SOCK_TYPE}+${h1_ssl_sock}" ssl verify none sni str(another-record.bug810.domain.tld) ssl-min-ver TLSv1.3 sigalgs rsa_pss_rsae_sha384:rsa_pkcs1_sha256
+        server s3 "${VTC_SOCK_TYPE}+${h1_ssl_sock}" ssl verify none sni str(another-record.bug810.domain.tld) ssl-min-ver TLSv1.3 sigalgs ecdsa_secp384r1_sha384
+        server s4 "${VTC_SOCK_TYPE}+${h1_ssl_sock}" ssl verify none sni str(another-record.bug818.domain.tld) ssl-min-ver TLSv1.3 sigalgs rsa_pss_rsae_sha384:rsa_pkcs1_sha256
+
+    listen ssl-lst
+        mode http
+        bind "${VTC_SOCK_TYPE}+fd@${ssl}" ssl strict-sni ssl-min-ver TLSv1.3 ssl-max-ver TLSv1.3  crt-list ${testdir}/certs/filters.crt-list
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+# ECDSA/RSA sigalgs + TLSv1.3 + another-record.bug810.domain.tld should return the ECDSA cert
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-keyalg == "id-ecPublicKey"
+} -run
+
+# RSA sigalgs + TLSv1.3 + another-record.bug810.domain.tld should return the RSA cert
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-keyalg == "rsaEncryption"
+} -run
+
+
+# ECDSA sigalgs + TLSv1.3 + another-record.bug810.domain.tld should return the ECDSA cert
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-keyalg == "id-ecPublicKey"
+} -run
+
+# RSA sigalgs + TLSv1.3 + another-record.bug818.domain.tld must fail because
+# this domain is not available with RSA
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 503
+} -run
