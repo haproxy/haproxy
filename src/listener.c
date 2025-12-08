@@ -229,7 +229,7 @@ REGISTER_POST_DEINIT(accept_queue_deinit);
  */
 int li_init_per_thr(struct listener *li)
 {
-	int nbthr = MIN(global.nbthread, MAX_THREADS_PER_GROUP);
+	int nbthr = MIN(global.nbthread, global.maxthrpertgroup);
 	int i;
 
 	/* allocate per-thread elements for listener */
@@ -1394,7 +1394,7 @@ void listener_accept(struct listener *l)
 							/* no more threads here, switch to
 							 * last thread of previous group.
 							 */
-							t2 = MAX_THREADS_PER_GROUP - 1;
+							t2 = global.maxthrpertgroup - 1;
 							if (l->rx.shard_info)
 								r2--;
 							/* loop again */
@@ -1456,10 +1456,10 @@ void listener_accept(struct listener *l)
 						new_li = l->rx.shard_info->members[r1]->owner;
 
 					t2--;
-					if (t2 >= MAX_THREADS_PER_GROUP) {
+					if (t2 >= global.maxthrpertgroup) {
 						if (l->rx.shard_info)
 							r2--;
-						t2 = MAX_THREADS_PER_GROUP - 1;
+						t2 = global.maxthrpertgroup - 1;
 					}
 				}
 				else if (q1 - q2 > 0) {
@@ -1480,7 +1480,7 @@ void listener_accept(struct listener *l)
 						new_li = l->rx.shard_info->members[r1]->owner;
 				updt_t1:
 					t1++;
-					if (t1 >= MAX_THREADS_PER_GROUP) {
+					if (t1 >= global.maxthrpertgroup) {
 						if (l->rx.shard_info)
 							r1++;
 						t1 = 0;

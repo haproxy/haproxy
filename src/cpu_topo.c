@@ -1255,12 +1255,12 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 		 * CPUs but enough groups left, we'll try to make more smaller
 		 * groups, of the closest size each.
 		 */
-		nb_grp = (cpu_count + MAX_THREADS_PER_GROUP - 1) / MAX_THREADS_PER_GROUP;
+		nb_grp = (cpu_count + global.maxthrpertgroup - 1) / global.maxthrpertgroup;
 		if (nb_grp > MAX_TGROUPS - global.nbtgroups)
 			nb_grp = MAX_TGROUPS - global.nbtgroups;
 		thr_per_grp = (cpu_count + nb_grp - 1) / nb_grp;
-		if (thr_per_grp > MAX_THREADS_PER_GROUP)
-			thr_per_grp = MAX_THREADS_PER_GROUP;
+		if (thr_per_grp > global.maxthrpertgroup)
+			thr_per_grp = global.maxthrpertgroup;
 
 		while (nb_grp && cpu_count > 0) {
 			/* create at most thr_per_grp threads */
@@ -1414,12 +1414,12 @@ static int cpu_policy_group_by_ccx(int policy, int tmin, int tmax, int gmin, int
 		 * CPUs but enough groups left, we'll try to make more smaller
 		 * groups, of the closest size each.
 		 */
-		nb_grp = (cpu_count + MAX_THREADS_PER_GROUP - 1) / MAX_THREADS_PER_GROUP;
+		nb_grp = (cpu_count + global.maxthrpertgroup - 1) / global.maxthrpertgroup;
 		if (nb_grp > MAX_TGROUPS - global.nbtgroups)
 			nb_grp = MAX_TGROUPS - global.nbtgroups;
 		thr_per_grp = (cpu_count + nb_grp - 1) / nb_grp;
-		if (thr_per_grp > MAX_THREADS_PER_GROUP)
-			thr_per_grp = MAX_THREADS_PER_GROUP;
+		if (thr_per_grp > global.maxthrpertgroup)
+			thr_per_grp = global.maxthrpertgroup;
 
 		while (nb_grp && cpu_count > 0) {
 			/* create at most thr_per_grp threads */

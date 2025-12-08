@@ -1787,6 +1787,7 @@ The following keywords are supported in the "global" section :
    - lua-load
    - lua-load-per-thread
    - lua-prepend-path
+   - max-thread-per-group
    - mworker-max-reloads
    - nbthread
    - node
@@ -2996,6 +2997,14 @@ master-worker no-exit-on-failure
   crashed instead of killing everything. This need to be used with caution as
   it is only meant for debugging and could put the master process in an
   abnormal state.
+
+max-threads-per-group <number>
+  Defines the maximum number of threads in a thread group. Unless the number
+  of thread groups is fixed with the thread-groups directive, haproxy will
+  create more thread groups if needed. The default and maximum value is 64.
+  Having a lower value means more groups will potentially be created, which
+  can help improve performances, as a number of data structures are per
+  thread group, and that will mean less contention
 
 mworker-max-reloads <number>
   In master-worker mode, this option limits the number of time a worker can

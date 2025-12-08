@@ -1415,7 +1415,7 @@ int thread_map_to_groups()
 		 */
 		q = ut / ug;
 		r = ut % ug;
-		if ((q + !!r) > MAX_THREADS_PER_GROUP) {
+		if ((q + !!r) > global.maxthrpertgroup) {
 			ha_alert("Too many remaining unassigned threads (%d) for thread groups (%d). Please increase thread-groups or make sure to keep thread numbers contiguous\n", ut, ug);
 			return -1;
 		}
@@ -1645,6 +1645,9 @@ void thread_detect_count(void)
 	if (global.nbtgroups)
 		grp_min = grp_max = global.nbtgroups;
 
+	if (!global.maxthrpertgroup)
+		global.maxthrpertgroup = MAX_THREADS_PER_GROUP;
+
 #if defined(USE_THREAD)
 	/* Adjust to boot settings if not forced */
 	if (thr_min <= thread_cpus_enabled_at_boot && thread_cpus_enabled_at_boot < thr_max)
@@ -1668,13 +1671,13 @@ void thread_detect_count(void)
 	if (thr_min < grp_min && thr_max >= grp_min)
 		thr_min = grp_min;
 
-	if (thr_min <= MAX_THREADS_PER_GROUP * grp_max &&
-	    thr_max > MAX_THREADS_PER_GROUP * grp_max)
-		thr_max = MAX_THREADS_PER_GROUP * grp_max;
+	if (thr_min <= global.maxthrpertgroup * grp_max &&
+	    thr_max > global.maxthrpertgroup * grp_max)
+		thr_max = global.maxthrpertgroup * grp_max;
 
-	if (grp_min < (thr_min +  MAX_THREADS_PER_GROUP - 1) / MAX_THREADS_PER_GROUP &&
-	    grp_max >= (thr_min +  MAX_THREADS_PER_GROUP - 1) / MAX_THREADS_PER_GROUP)
-		grp_min = (thr_min +  MAX_THREADS_PER_GROUP - 1) / MAX_THREADS_PER_GROUP;
+	if (grp_min < (thr_min +  global.maxthrpertgroup - 1) / global.maxthrpertgroup &&
+	    grp_max >= (thr_min +  global.maxthrpertgroup - 1) / global.maxthrpertgroup)
+		grp_min = (thr_min +  global.maxthrpertgroup - 1) / global.maxthrpertgroup;
 
 	if (grp_max > thr_max && grp_min <= thr_max)
 		grp_max = thr_max;
@@ -1738,10 +1741,10 @@ void thread_detect_count(void)
 	if (!global.nbtgroups)
 		global.nbtgroups = 1;
 
-	if (global.nbthread > MAX_THREADS_PER_GROUP * global.nbtgroups) {
+	if (global.nbthread > global.maxthrpertgroup * global.nbtgroups) {
 		ha_diag_warning("nbthread too large or not set, found %d CPUs, limiting to %d threads (maximum is %d per thread group and %d groups). Please set nbthreads and/or increase thread-groups in the global section to silence this warning.\n",
-				global.nbthread, MAX_THREADS_PER_GROUP * global.nbtgroups, MAX_THREADS_PER_GROUP, MAX_TGROUPS);
-		global.nbthread = MAX_THREADS_PER_GROUP * global.nbtgroups;
+				global.nbthread, global.maxthrpertgroup * global.nbtgroups, global.maxthrpertgroup, MAX_TGROUPS);
+		global.nbthread = global.maxthrpertgroup * global.nbtgroups;
 	}
 	return;
 }
@@ -1871,7 +1874,7 @@ int parse_thread_set(const char *arg, struct thread_set *ts, char **err)
 		if (!*set) {
 			/* empty set sets no restriction */
 			min = 1;
-			max = is_rel ? MAX_THREADS_PER_GROUP : MAX_THREADS;
+			max = is_rel ? global.maxthrpertgroup : MAX_THREADS;
 		}
 		else {
 			if (sep != set && *sep && *sep != '-' && *sep != ',') {
@@ -1899,9 +1902,9 @@ int parse_thread_set(const char *arg, struct thread_set *ts, char **err)
 					max = min = 0; // throw an error below
 			}
 
-			if (min < 1 || min > MAX_THREADS || (is_rel && min > MAX_THREADS_PER_GROUP)) {
+			if (min < 1 || min > MAX_THREADS || (is_rel && min > global.maxthrpertgroup)) {
 				memprintf(err, "invalid first thread number '%s', permitted range is 1..%d, or 'all', 'odd', 'even'.",
-					  set, is_rel ? MAX_THREADS_PER_GROUP : MAX_THREADS);
+					  set, is_rel ? global.maxthrpertgroup : MAX_THREADS);
 				return -1;
 			}
 
@@ -1918,15 +1921,15 @@ int parse_thread_set(const char *arg, struct thread_set *ts, char **err)
 				v = atoi(set);
 
 				if (sep == set) { // no digit: to the max
-					max = is_rel ? MAX_THREADS_PER_GROUP : MAX_THREADS;
+					max = is_rel ? global.maxthrpertgroup : MAX_THREADS;
 					if (*sep && *sep != ',')
 						max = 0; // throw an error below
 				} else
 					max = v;
 
-				if (max < 1 || max > MAX_THREADS || (is_rel && max > MAX_THREADS_PER_GROUP)) {
+				if (max < 1 || max > MAX_THREADS || (is_rel && max > global.maxthrpertgroup)) {
 					memprintf(err, "invalid last thread number '%s', permitted range is 1..%d.",
-						  set, is_rel ? MAX_THREADS_PER_GROUP : MAX_THREADS);
+						  set, is_rel ? global.maxthrpertgroup : MAX_THREADS);
 					return -1;
 				}
 			}
@@ -2138,11 +2141,33 @@ static int cfg_parse_thread_group(char **args, int section_type, struct proxy *c
 		return -1;
 	}
 
-	if (ha_tgroup_info[tgroup-1].count > MAX_THREADS_PER_GROUP) {
-		memprintf(err, "'%s %ld' assigned too many threads (%d, max=%d)", args[0], tgroup, tot, MAX_THREADS_PER_GROUP);
+	if (ha_tgroup_info[tgroup-1].count > global.maxthrpertgroup) {
+		memprintf(err, "'%s %ld' assigned too many threads (%d, max=%d)", args[0], tgroup, tot, global.maxthrpertgroup);
 		return -1;
 	}
 
+	return 0;
+}
+
+/* Parse the "max-threads-per-group" global directive, which indicates the
+ * maximum number of thread to have in one thread group
+ */
+static int cfg_parse_maxthreadpertgroup(char **args, int section_type, struct proxy *curpx,
+                                        const struct proxy *defpx, const char *file, int line,
+                                        char **err)
+{
+	long maxthrpertg;
+	char *errptr;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	maxthrpertg = strtol(args[1], &errptr, 10);
+	if (!*args[1] || *errptr || maxthrpertg < 0 || maxthrpertg > MAX_THREADS_PER_GROUP) {
+		memprintf(err, "'%s' value must be an integer between 1 and %d,  got '%s'", args[0], MAX_THREADS_PER_GROUP, args[1]);
+		return -1;
+	}
+	global.maxthrpertgroup = maxthrpertg;
 	return 0;
 }
 
@@ -2196,6 +2221,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "nbthread",       cfg_parse_nbthread, 0 },
 	{ CFG_GLOBAL, "thread-group",   cfg_parse_thread_group, 0 },
 	{ CFG_GLOBAL, "thread-groups",  cfg_parse_thread_groups, 0 },
+	{ CFG_GLOBAL, "max-threads-per-group", cfg_parse_maxthreadpertgroup, 0 },
 	{ 0, NULL, NULL }
 }};
 
