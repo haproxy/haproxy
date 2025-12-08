@@ -808,6 +808,7 @@ void mworker_cleanup_proc()
 
 struct cli_showproc_ctx {
 	int debug;
+	int next_uptime; /* uptime must be greater than this value */
 };
 
 /*  Displays workers and processes  */
@@ -825,23 +826,32 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 
 	chunk_reset(&trash);
 
-	memprintf(&reloadtxt, "%d [failed: %d]", proc_self->reloads, proc_self->failedreloads);
-	chunk_printf(&trash, "#%-14s %-15s %-15s %-15s %-15s", "<PID>", "<type>", "<reloads>", "<uptime>", "<version>");
-	if (ctx->debug)
-		chunk_appendf(&trash, "\t\t %-15s %-15s", "<ipc_fd[0]>", "<ipc_fd[1]>");
-	chunk_appendf(&trash, "\n");
-	memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
-	chunk_appendf(&trash, "%-15u %-15s %-15s %-15s %-15s", (unsigned int)getpid(), "master", reloadtxt, uptime, haproxy_version);
-	if (ctx->debug)
-		chunk_appendf(&trash, "\t\t %-15d %-15d", proc_self->ipc_fd[0], proc_self->ipc_fd[1]);
-	chunk_appendf(&trash, "\n");
+	if (ctx->next_uptime == 0) {
+		memprintf(&reloadtxt, "%d [failed: %d]", proc_self->reloads, proc_self->failedreloads);
+		chunk_printf(&trash, "#%-14s %-15s %-15s %-15s %-15s", "<PID>", "<type>", "<reloads>", "<uptime>", "<version>");
+		if (ctx->debug)
+			chunk_appendf(&trash, "\t\t %-15s %-15s", "<ipc_fd[0]>", "<ipc_fd[1]>");
+		chunk_appendf(&trash, "\n");
+
+		/* display the master only the first time */
+		memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+		chunk_appendf(&trash, "%-15u %-15s %-15s %-15s %-15s", (unsigned int)getpid(), "master", reloadtxt, uptime, haproxy_version);
+		if (ctx->debug)
+			chunk_appendf(&trash, "\t\t %-15d %-15d", proc_self->ipc_fd[0], proc_self->ipc_fd[1]);
+		chunk_appendf(&trash, "\n");
+	}
 	ha_free(&reloadtxt);
 	ha_free(&uptime);
 
 	/* displays current processes */
-
-	chunk_appendf(&trash, "# workers\n");
+	if (ctx->next_uptime == 0)
+		chunk_appendf(&trash, "# workers\n");
 	list_for_each_entry(child, &proc_list, list) {
+
+		/* don't display current worker if we only need the next ones */
+		if (ctx->next_uptime != 0)
+			continue;
+
 		up = date.tv_sec - child->timestamp;
 		if (up < 0) /* must never be negative because of clock drift */
 			up = 0;
@@ -861,14 +871,20 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 		ha_free(&uptime);
 	}
 
-	/* displays old processes */
+	if (applet_putchk(appctx, &trash) == -1)
+		return 0;
 
-	if (old) {
-		chunk_appendf(&trash, "# old workers\n");
+	/* displays old processes */
+	if (old || ctx->next_uptime) { /* there's more */
+		if (ctx->next_uptime == 0)
+			chunk_appendf(&trash, "# old workers\n");
 		list_for_each_entry(child, &proc_list, list) {
 			up = date.tv_sec - child->timestamp;
 			if (up <= 0) /* must never be negative because of clock drift */
 				up = 0;
+
+			if (child->timestamp < ctx->next_uptime)
+				continue;
 
 			if (!(child->options & PROC_O_TYPE_WORKER))
 				continue;
@@ -881,11 +897,14 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 				chunk_appendf(&trash, "\n");
 				ha_free(&uptime);
 			}
+
+			/* start from there if there's not enough place */
+			ctx->next_uptime = child->timestamp;
+
+			if (applet_putchk(appctx, &trash) == -1)
+				return 0;
 		}
 	}
-
-	if (applet_putchk(appctx, &trash) == -1)
-		return 0;
 
 	/* dump complete */
 	return 1;
