@@ -1,0 +1,79 @@
+#REGTEST_TYPE=bug
+varnishtest "Test for ECDSA/RSA selection and crt-list filters"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.8)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1) || feature(OPENSSL_AWSLC)'"
+# This test checks if the multiple certificate types works correctly with the
+# SNI, and that the negative filters are correctly excluded
+#
+# The selection is done with ciphers in TLSv1.2
+#
+feature ignore_unknown_macro
+
+server s1 -repeat 6 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    .if !ssllib_name_startswith(AWS-LC)
+        tune.ssl.default-dh-param 2048
+    .endif
+        crt-base ${testdir}/certs
+        stats socket "${tmpdir}/h1/stats" level admin
+
+    defaults
+        mode http
+        option httplog
+        retries 0
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        balance roundrobin
+
+        http-response add-header x-ssl-sha1    '%[ssl_s_sha1,hex]'
+        http-response add-header x-ssl-keyalg  '%[ssl_s_key_alg]'
+
+        server s1 "${tmpdir}/ssl.sock" ssl verify none sni str(another-record.bug810.domain.tld) ssl-min-ver TLSv1.2 ssl-max-ver TLSv1.2 ciphers "kRSA"
+        server s2 "${tmpdir}/ssl.sock" ssl verify none sni str(another-record.bug810.domain.tld) ssl-min-ver TLSv1.2 ssl-max-ver TLSv1.2 ciphers "aECDSA"
+        server s3 "${tmpdir}/ssl.sock" ssl verify none sni str(another-record.bug818.domain.tld) ssl-min-ver TLSv1.2 ssl-max-ver TLSv1.2 ciphers "kRSA"
+
+    listen ssl-lst
+        mode http
+        bind "${tmpdir}/ssl.sock"  ssl strict-sni ssl-min-ver TLSv1.2 ssl-max-ver TLSv1.2  crt-list ${testdir}/certs/filters.crt-list
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+# RSA + TLSv1.2 + another-record.bug810.domain.tld OK
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-keyalg == "rsaEncryption"
+} -run
+
+# ECDSA + TLSv1.2 + another-record.bug810.domain.tld OK
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-keyalg == "id-ecPublicKey"
+} -run
+
+# RSA + TLSv1.2 + another-record.bug818.domain.tld OK, domain not available in
+# RSA because of the '!another-record.bug818.domain.tld' in the configuration.
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 503
+} -run
