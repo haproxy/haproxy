@@ -9138,8 +9138,10 @@ mode { tcp|http|log|spop }
               server features are supported, but not TCP or HTTP specific ones.
 
     spop      When used in a backend section, it will turn the backend into a
-              spop backend. This mode is mandatory and automatically set, if
-              necessary, for backends referenced by SPOE engines.
+              spop backend. This mode is mandatory if the backend contains
+              SPOA servers, but when mode is tcp, it will automatically be
+              converted to mode spop if such servers are detected.
+
 
   When doing content switching, it is mandatory that the frontend and the
   backend are in the same mode (generally HTTP), otherwise the configuration
