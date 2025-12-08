@@ -781,91 +781,150 @@ void mworker_cleanup_proc()
 
 struct cli_showproc_ctx {
 	int debug;
+	int phase;      /* 0=header+master, 1=current workers, 2=old workers, 3=done */
+    int idx_cur;    /* index within current workers iteration */
+    int idx_old;    /* index within old workers iteration */
+    int header_done;/* printed section headers */
 };
 
 /*  Displays workers and processes  */
 static int cli_io_handler_show_proc(struct appctx *appctx)
 {
-	struct mworker_proc *child;
-	int old = 0;
-	int up = date.tv_sec - proc_self->timestamp;
-	struct cli_showproc_ctx *ctx = appctx->svcctx;
-	char *uptime = NULL;
-	char *reloadtxt = NULL;
+    struct mworker_proc *child;
+    struct cli_showproc_ctx *ctx = appctx->svcctx;
+    char *uptime = NULL;
+    char *reloadtxt = NULL;
+    int count = 0;
+	int up = 0;
 
-	if (up < 0) /* must never be negative because of clock drift */
-		up = 0;
+    if (!ctx->phase) {
+        ctx->phase = 0;
+        ctx->idx_cur = 0;
+        ctx->idx_old = 0;
+        ctx->header_done = 0;
+    }
 
-	chunk_reset(&trash);
+    chunk_reset(&trash);
 
-	memprintf(&reloadtxt, "%d [failed: %d]", proc_self->reloads, proc_self->failedreloads);
-	chunk_printf(&trash, "#%-14s %-15s %-15s %-15s %-15s", "<PID>", "<type>", "<reloads>", "<uptime>", "<version>");
-	if (ctx->debug)
-		chunk_appendf(&trash, "\t\t %-15s %-15s", "<ipc_fd[0]>", "<ipc_fd[1]>");
-	chunk_appendf(&trash, "\n");
-	memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
-	chunk_appendf(&trash, "%-15u %-15s %-15s %-15s %-15s", (unsigned int)getpid(), "master", reloadtxt, uptime, haproxy_version);
-	if (ctx->debug)
-		chunk_appendf(&trash, "\t\t %-15d %-15d", proc_self->ipc_fd[0], proc_self->ipc_fd[1]);
-	chunk_appendf(&trash, "\n");
-	ha_free(&reloadtxt);
-	ha_free(&uptime);
+    /* Phase 0: header + master line */
+    if (ctx->phase == 0) {
+        up = date.tv_sec - proc_self->timestamp;
+        if (up < 0) up = 0; /* must never be negative because of clock drift */
 
-	/* displays current processes */
+        if (!ctx->header_done) {
+            chunk_printf(&trash, "#%-14s %-15s %-15s %-15s %-15s", "<PID>", "<type>", "<reloads>", "<uptime>", "<version>");
+            if (ctx->debug)
+                chunk_appendf(&trash, "\t\t %-15s %-15s", "<ipc_fd[0]>", "<ipc_fd[1]>");
+            chunk_appendf(&trash, "\n");
+            ctx->header_done = 1;
+        }
 
-	chunk_appendf(&trash, "# workers\n");
-	list_for_each_entry(child, &proc_list, list) {
-		up = date.tv_sec - child->timestamp;
-		if (up < 0) /* must never be negative because of clock drift */
-			up = 0;
+        memprintf(&reloadtxt, "%d [failed: %d]", proc_self->reloads, proc_self->failedreloads);
+        memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+        chunk_appendf(&trash, "%-15u %-15s %-15s %-15s %-15s", (unsigned int)getpid(), "master", reloadtxt, uptime, haproxy_version);
+        if (ctx->debug)
+            chunk_appendf(&trash, "\t\t %-15d %-15d", proc_self->ipc_fd[0], proc_self->ipc_fd[1]);
+        chunk_appendf(&trash, "\n");
+        ha_free(&reloadtxt);
+        ha_free(&uptime);
 
-		if (!(child->options & PROC_O_TYPE_WORKER))
-			continue;
+        chunk_appendf(&trash, "# workers\n");
+        if (applet_putchk(appctx, &trash) == -1) {
+            appctx->t->expire = tick_add(now_ms, 10);
+            return 0;
+        }
+        ctx->phase = 1;
+        chunk_reset(&trash);
+    }
 
-		if (child->options & PROC_O_LEAVING) {
-			old++;
-			continue;
-		}
-		memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
-		chunk_appendf(&trash, "%-15u %-15s %-15d %-15s %-15s", child->pid, "worker", child->reloads, uptime, child->version);
-		if (ctx->debug)
-			chunk_appendf(&trash, "\t\t %-15d %-15d", child->ipc_fd[0], child->ipc_fd[1]);
-		chunk_appendf(&trash, "\n");
-		ha_free(&uptime);
-	}
+    /* Phase 1: current workers (non-LEAVING) streamed */
+    if (ctx->phase == 1) {
+        count = 0;
+        list_for_each_entry(child, &proc_list, list) {
+            if (!(child->options & PROC_O_TYPE_WORKER))
+                continue;
+            if (child->options & PROC_O_LEAVING)
+                continue;
+            if (count++ < ctx->idx_cur)
+                continue;
 
-	/* displays old processes */
+            up = date.tv_sec - child->timestamp;
+            if (up < 0) up = 0; /* must never be negative because of clock drift */
+            memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+            chunk_appendf(&trash, "%-15u %-15s %-15d %-15s %-15s",
+                          child->pid, "worker", child->reloads, uptime, child->version);
+            if (ctx->debug)
+                chunk_appendf(&trash, "\t\t %-15d %-15d", child->ipc_fd[0], child->ipc_fd[1]);
+            chunk_appendf(&trash, "\n");
+            ha_free(&uptime);
 
-	if (old) {
-		char *msg = NULL;
+            ctx->idx_cur++;
+            if (applet_putchk(appctx, &trash) == -1) {
+                appctx->t->expire = tick_add(now_ms, 10);
+                return 0;
+            }
+            chunk_reset(&trash);
+        }
+        ctx->phase = 2;
+        chunk_reset(&trash);
+    }
 
-		chunk_appendf(&trash, "# old workers\n");
-		list_for_each_entry(child, &proc_list, list) {
-			up = date.tv_sec - child->timestamp;
-			if (up <= 0) /* must never be negative because of clock drift */
-				up = 0;
+	ctx->header_done = 0;
 
-			if (!(child->options & PROC_O_TYPE_WORKER))
-				continue;
+    /* Phase 2: old workers (LEAVING) streamed */
+    if (ctx->phase == 2) {
+		const int batch_limit = 64; /* limit entries printed per scheduler tick */
+		int printed_this_round = 0;
+        count = 0;
+        list_for_each_entry(child, &proc_list, list) {
+            if (!(child->options & PROC_O_TYPE_WORKER))
+                continue;
+            if (!(child->options & PROC_O_LEAVING))
+                continue;
 
-			if (child->options & PROC_O_LEAVING) {
-				memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
-				chunk_appendf(&trash, "%-15u %-15s %-15d %-15s %-15s", child->pid, "worker", child->reloads, uptime, child->version);
-				if (ctx->debug)
-					chunk_appendf(&trash, "\t\t %-15d %-15d", child->ipc_fd[0], child->ipc_fd[1]);
-				chunk_appendf(&trash, "\n");
-				ha_free(&uptime);
+            if (!ctx->header_done) {
+                chunk_appendf(&trash, "# old workers\n");
+                ctx->header_done = 1;
+                if (applet_putchk(appctx, &trash) == -1) {
+                    appctx->t->expire = tick_add(now_ms, 10);
+                    return 0;
+                }
+                chunk_reset(&trash);
+            }
+            if (count++ < ctx->idx_old)
+                continue;
+
+            up = date.tv_sec - child->timestamp;
+            if (up <= 0) up = 0; /* must never be negative because of clock drift */
+            memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
+            chunk_appendf(&trash, "%-15u %-15s %-15d %-15s %-15s",
+                          child->pid, "worker", child->reloads, uptime, child->version);
+            if (ctx->debug)
+                chunk_appendf(&trash, "\t\t %-15d %-15d", child->ipc_fd[0], child->ipc_fd[1]);
+            chunk_appendf(&trash, "\n");
+            ha_free(&uptime);
+
+            ctx->idx_old++;
+			printed_this_round++;
+            if (applet_putchk(appctx, &trash) == -1) {
+                appctx->t->expire = tick_add(now_ms, 10);
+                return 0;
+            }
+            chunk_reset(&trash);
+
+			/* If we printed a batch of old workers, yield to avoid long loops */
+			if (printed_this_round >= batch_limit) {
+				appctx->t->expire = tick_add(now_ms, 10);
+				return 0;
 			}
-		}
-		free(msg);
-	}
+        }
+        ctx->phase = 3;
+    }
 
-	if (applet_putchk(appctx, &trash) == -1)
-		return 0;
-
-	/* dump complete */
-	return 1;
+    /* dump complete */
+    return 1;
 }
+
 /* reload the master process */
 static int cli_parse_show_proc(char **args, char *payload, struct appctx *appctx, void *private)
 {
