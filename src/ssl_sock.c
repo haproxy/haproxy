@@ -4198,7 +4198,8 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 	 * or releasing it.
 	 */
 
-	if (!(s->ssl_ctx.options & SRV_SSL_O_NO_REUSE)) {
+	if (!(conn->flags & CO_FL_SSL_NO_CACHED_INFO) &&
+	    !(s->ssl_ctx.options & SRV_SSL_O_NO_REUSE)) {
 		int len;
 		unsigned char *ptr;
 #ifdef USE_QUIC
@@ -5685,6 +5686,12 @@ int ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
 	int ret = 1;
 	struct connection *conn = ctx->conn;
 #endif
+
+	/*
+	 * Always fail for check connections
+	 */
+	if (conn->flags & CO_FL_SSL_NO_CACHED_INFO)
+		return 0;
 
 	HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.lock);
 	if (srv->ssl_ctx.reused_sess[tid].ptr) {
