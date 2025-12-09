@@ -309,7 +309,7 @@ struct bind_kw_list {
 struct accept_queue_ring {
 	uint32_t idx;             /* (head << 16) | tail */
 	struct tasklet *tasklet;  /* tasklet of the thread owning this ring */
-	struct connection *entry[ACCEPT_QUEUE_SIZE] __attribute((aligned(64)));
+	struct connection *entry[ACCEPT_QUEUE_SIZE] THREAD_ALIGNED();
 };
 
 

@@ -91,7 +91,7 @@ extern struct pool_head *pool_head_task;
 extern struct pool_head *pool_head_tasklet;
 extern struct pool_head *pool_head_notification;
 
-__decl_thread(extern HA_RWLOCK_T wq_lock THREAD_ALIGNED(64));
+__decl_thread(extern HA_RWLOCK_T wq_lock THREAD_ALIGNED());
 
 void __tasklet_wakeup_on(struct tasklet *tl, int thr);
 struct list *__tasklet_wakeup_after(struct list *head, struct tasklet *tl);

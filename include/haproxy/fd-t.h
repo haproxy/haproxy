@@ -202,7 +202,7 @@ struct fdtab {
 #ifdef DEBUG_FD
 	unsigned int event_count;            /* number of events reported */
 #endif
-} THREAD_ALIGNED(64);
+} THREAD_ALIGNED();
 
 /* polled mask, one bit per thread and per direction for each FD */
 struct polled_mask {

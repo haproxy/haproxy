@@ -206,7 +206,7 @@ struct stktable {
 		void *ptr;          /* generic ptr to check if set or not */
 	} write_to; /* updates received on the source table will also update write_to */
 
-	THREAD_ALIGN(64);
+	THREAD_ALIGN();
 
 	struct {
 		struct eb_root keys;      /* head of sticky session tree */
@@ -221,7 +221,7 @@ struct stktable {
 	unsigned int refcnt;     /* number of local peer over all peers sections
 				    attached to this table */
 	unsigned int current;     /* number of sticky sessions currently in table */
-	THREAD_ALIGN(64);
+	THREAD_ALIGN();
 
 	struct eb_root updates;   /* head of sticky updates sequence tree, uses updt_lock */
 	struct mt_list *pend_updts; /* list of updates to be added to the update sequence tree, one per thread-group */
@@ -229,7 +229,7 @@ struct stktable {
 	unsigned int localupdate; /* uses updt_lock */
 	struct tasklet *updt_task;/* tasklet responsible for pushing the pending updates into the tree */
 
-	THREAD_ALIGN(64);
+	THREAD_ALIGN();
 	/* this lock is heavily used and must be on its own cache line */
 	__decl_thread(HA_RWLOCK_T updt_lock); /* lock protecting the updates part */
 

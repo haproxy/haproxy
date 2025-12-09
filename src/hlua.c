@@ -676,7 +676,7 @@ struct hlua_mem_allocator {
 	size_t limit;
 };
 
-static struct hlua_mem_allocator hlua_global_allocator THREAD_ALIGNED(64);
+static struct hlua_mem_allocator hlua_global_allocator THREAD_ALIGNED();
 
 /* hlua event subscription */
 struct hlua_event_sub {

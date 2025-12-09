@@ -304,7 +304,7 @@ struct error_snapshot {
 struct proxy_per_tgroup {
 	struct queue queue;
 	struct lbprm_per_tgrp lbprm;
-} THREAD_ALIGNED(64);
+} THREAD_ALIGNED();
 
 struct proxy {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_PROXY */
@@ -505,7 +505,7 @@ struct proxy {
 	EXTRA_COUNTERS(extra_counters_fe);
 	EXTRA_COUNTERS(extra_counters_be);
 
-	THREAD_ALIGN(64);
+	THREAD_ALIGN();
 	unsigned int queueslength;		/* Sum of the length of each queue */
 	int served;				/* # of active sessions currently being served */
 	int totpend;				/* total number of pending connections on this instance (for stats) */

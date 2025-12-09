@@ -294,7 +294,7 @@ struct srv_per_tgroup {
 	struct eb_root *lb_tree;                 /* For LB algos with split between thread groups, the tree to be used, for each group */
 	unsigned npos, lpos;			/* next and last positions in the LB tree, protected by LB lock */
 	unsigned rweight;			/* remainder of weight in the current LB tree */
-} THREAD_ALIGNED(64);
+} THREAD_ALIGNED();
 
 /* Configure the protocol selection for websocket */
 enum __attribute__((__packed__)) srv_ws_mode {
@@ -396,7 +396,7 @@ struct server {
 	/* The elements below may be changed on every single request by any
 	 * thread, and generally at the same time.
 	 */
-	THREAD_ALIGN(64);
+	THREAD_ALIGN();
 	struct eb32_node idle_node;             /* When to next do cleanup in the idle connections */
 	unsigned int curr_idle_conns;           /* Current number of orphan idling connections, both the idle and the safe lists */
 	unsigned int curr_idle_nb;              /* Current number of connections in the idle list */
@@ -414,7 +414,7 @@ struct server {
 	/* Element below are usd by LB algorithms and must be doable in
 	 * parallel to other threads reusing connections above.
 	 */
-	THREAD_ALIGN(64);
+	THREAD_ALIGN();
 	__decl_thread(HA_SPINLOCK_T lock);      /* may enclose the proxy's lock, must not be taken under */
 	union {
 		struct eb32_node lb_node;       /* node used for tree-based load balancing */
@@ -428,7 +428,7 @@ struct server {
 	};
 
 	/* usually atomically updated by any thread during parsing or on end of request */
-	THREAD_ALIGN(64);
+	THREAD_ALIGN();
 	int cur_sess;				/* number of currently active sessions (including syn_sent) */
 	int served;				/* # of active sessions currently being served (ie not pending) */
 	int consecutive_errors;			/* current number of consecutive errors */
@@ -436,7 +436,7 @@ struct server {
 	struct be_counters counters;		/* statistics counters */
 
 	/* Below are some relatively stable settings, only changed under the lock */
-	THREAD_ALIGN(64);
+	THREAD_ALIGN();
 
 	struct eb_root *lb_tree;                /* we want to know in what tree the server is */
 	struct tree_occ *lb_nodes;              /* lb_nodes_tot * struct tree_occ */

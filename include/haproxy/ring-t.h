@@ -130,11 +130,11 @@ struct ring_wait_cell {
 struct ring_storage {
 	size_t size;         // storage size
 	size_t rsvd;         // header length (used for file-backed maps)
-	THREAD_ALIGN(64);
+	THREAD_ALIGN();
 	size_t tail;         // storage tail
-	THREAD_ALIGN(64);
+	THREAD_ALIGN();
 	size_t head;         // storage head
-	THREAD_ALIGN(64);
+	THREAD_ALIGN();
 	char area[0];        // storage area begins immediately here
 };
 
@@ -149,7 +149,7 @@ struct ring {
 
 	/* keep the queue in a separate cache line below */
 	struct {
-		THREAD_ALIGN(64);
+		THREAD_ALIGN();
 		struct ring_wait_cell *ptr;
 	} queue[RING_WAIT_QUEUES + 1]; // wait queue + 1 spacer
 };

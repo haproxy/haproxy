@@ -537,7 +537,7 @@ struct mem_stats {
 	size_t size;
 	struct ha_caller caller;
 	const void *extra; // extra info specific to this call (e.g. pool ptr)
-} __attribute__((aligned(sizeof(void*))));
+} ALIGNED(sizeof(void*));
 
 #undef calloc
 #define calloc(x,y)  ({							\

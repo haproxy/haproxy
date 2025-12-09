@@ -59,9 +59,9 @@ struct ring_v2 {
 struct ring_v2a {
 	size_t size;         // storage size
 	size_t rsvd;         // header length (used for file-backed maps)
-	size_t tail __attribute__((aligned(64)));         // storage tail
-	size_t head __attribute__((aligned(64)));         // storage head
-	char area[0] __attribute__((aligned(64)));        // storage area begins immediately here
+	size_t tail ALIGNED(64);         // storage tail
+	size_t head ALIGNED(64);         // storage head
+	char area[0] ALIGNED(64);        // storage area begins immediately here
 };
 
 /* display the message and exit with the code */

@@ -35,7 +35,7 @@ volatile uint                    _global_now_ms;   /* locally stored common mono
 volatile uint			*global_now_ms;    /* common monotonic date in milliseconds (may wrap), may point to _global_now_ms or shared memory */
 
 /* when CLOCK_MONOTONIC is supported, the offset is applied from th_ctx->prev_mono_time instead */
-THREAD_ALIGNED(64) static llong  now_offset;      /* global offset between system time and global time in ns */
+THREAD_ALIGNED() static llong  now_offset;        /* global offset between system time and global time in ns */
 
 THREAD_LOCAL ullong              now_ns;          /* internal monotonic date derived from real clock, in ns (wraps every 585 yr) */
 THREAD_LOCAL uint                now_ms;          /* internal monotonic date in milliseconds (may wrap) */

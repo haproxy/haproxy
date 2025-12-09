@@ -27,7 +27,7 @@
 DECLARE_STATIC_TYPED_POOL(var_pool, "vars", struct var);
 
 /* list of variables for the process scope. */
-struct vars proc_vars THREAD_ALIGNED(64);
+struct vars proc_vars THREAD_ALIGNED();
 
 /* This array of int contains the system limits per context. */
 static unsigned int var_global_limit = 0;

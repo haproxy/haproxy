@@ -63,7 +63,7 @@ struct pool_cache_head {
 	unsigned int tid;    /* thread id, for debugging only */
 	struct pool_head *pool; /* assigned pool, for debugging only */
 	ulong fill_pattern;  /* pattern used to fill the area on free */
-} THREAD_ALIGNED(64);
+} THREAD_ALIGNED();
 
 /* This describes a pool registration, which is what was passed to
  * create_pool() and that might have been merged with an existing pool.
@@ -139,7 +139,7 @@ struct pool_head {
 	struct list regs;       /* registrations: alt names for this pool */
 
 	/* heavily read-write part */
-	THREAD_ALIGN(64);
+	THREAD_ALIGN();
 
 	/* these entries depend on the pointer value, they're used to reduce
 	 * the contention on fast-changing values. The alignment here is
@@ -148,7 +148,7 @@ struct pool_head {
 	 * just meant to shard elements and there are no per-free_list stats.
 	 */
 	struct {
-		THREAD_ALIGN(64);
+		THREAD_ALIGN();
 		struct pool_item *free_list; /* list of free shared objects */
 		unsigned int allocated;	/* how many chunks have been allocated */
 		unsigned int used;	/* how many chunks are currently in use */

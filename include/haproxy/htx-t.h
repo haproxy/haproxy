@@ -270,7 +270,7 @@ struct htx {
 	/* XXX 4 bytes unused */
 
 	/* Blocks representing the HTTP message itself */
-	char blocks[VAR_ARRAY] __attribute__((aligned(8)));
+	char blocks[VAR_ARRAY] ALIGNED(8);
 };
 
 #endif /* _HAPROXY_HTX_T_H */

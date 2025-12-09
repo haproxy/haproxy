@@ -116,7 +116,7 @@ struct pat_ref {
 	int unique_id; /* Each pattern reference have unique id. */
 	unsigned long long revision; /* updated for each update */
 	unsigned long long entry_cnt; /* the total number of entries */
-	THREAD_ALIGN(64);
+	THREAD_ALIGN();
 	__decl_thread(HA_RWLOCK_T lock); /* Lock used to protect pat ref elements */
 	event_hdl_sub_list e_subs;       /* event_hdl: pat_ref's subscribers list (atomically updated) */
 };
