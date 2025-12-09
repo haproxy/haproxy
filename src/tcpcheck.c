@@ -1394,6 +1394,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		status = SF_ERR_RESOURCE;
 		goto fail_check;
 	}
+
+	conn->flags |= CO_FL_SSL_NO_CACHED_INFO;
 	conn->ctx = check->sc;
 	conn_set_owner(conn, check->sess, NULL);
 

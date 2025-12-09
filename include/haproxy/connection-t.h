@@ -145,6 +145,7 @@ enum {
 	CO_FL_WAIT_ROOM     = 0x00000800,  /* data sink is full */
 
 	CO_FL_WANT_SPLICING = 0x00001000,  /* we wish to use splicing on the connection when possible */
+	CO_FL_SSL_NO_CACHED_INFO = 0x00002000, /* Don't use any cached information when creating a new SSL connection */
 	/* unused: 0x00002000 */
 
 	CO_FL_EARLY_SSL_HS  = 0x00004000,  /* We have early data pending, don't start SSL handshake yet */
@@ -212,13 +213,13 @@ static forceinline char *conn_show_flags(char *buf, size_t len, const char *deli
 	/* flags */
 	_(CO_FL_SAFE_LIST, _(CO_FL_IDLE_LIST, _(CO_FL_CTRL_READY,
 	_(CO_FL_REVERSED, _(CO_FL_ACT_REVERSING, _(CO_FL_OPT_MARK, _(CO_FL_OPT_TOS,
-	_(CO_FL_XPRT_READY, _(CO_FL_WANT_DRAIN, _(CO_FL_WAIT_ROOM, _(CO_FL_EARLY_SSL_HS,
+	_(CO_FL_XPRT_READY, _(CO_FL_WANT_DRAIN, _(CO_FL_WAIT_ROOM, _(CO_FL_SSL_NO_CACHED_INFO, _(CO_FL_EARLY_SSL_HS,
 	_(CO_FL_EARLY_DATA, _(CO_FL_SOCKS4_SEND, _(CO_FL_SOCKS4_RECV, _(CO_FL_SOCK_RD_SH,
 	_(CO_FL_SOCK_WR_SH, _(CO_FL_ERROR, _(CO_FL_FDLESS, _(CO_FL_WAIT_L4_CONN,
 	_(CO_FL_WAIT_L6_CONN, _(CO_FL_SEND_PROXY, _(CO_FL_ACCEPT_PROXY, _(CO_FL_ACCEPT_CIP,
 	_(CO_FL_SSL_WAIT_HS, _(CO_FL_PRIVATE, _(CO_FL_RCVD_PROXY, _(CO_FL_SESS_IDLE,
 	_(CO_FL_XPRT_TRACKED
-	))))))))))))))))))))))))))));
+	)))))))))))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
