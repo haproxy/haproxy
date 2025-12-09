@@ -47,23 +47,6 @@
 /* return the largest possible integer of type <ret>, with all bits set */
 #define MAX_RANGE(ret) (~(typeof(ret))0)
 
-/* DEFVAL() returns either the second argument as-is, or <def> if absent. This
- * is for use in macros arguments.
- */
-#define DEFVAL(_def,...) _FIRST_ARG(NULL, ##__VA_ARGS__, (_def))
-
-/* DEFNULL() returns either the argument as-is, or NULL if absent. This is for
- * use in macros arguments.
- */
-#define DEFNULL(...) DEFVAL(NULL, ##__VA_ARGS__)
-
-/* DEFZERO() returns either the argument as-is, or 0 if absent. This is for
- * use in macros arguments.
- */
-#define DEFZERO(...) DEFVAL(0, ##__VA_ARGS__)
-
-#define _FIRST_ARG(a, b, ...) b
-
 /* options flags for parse_line() */
 #define PARSE_OPT_SHARP         0x00000001      // '#' ends the line
 #define PARSE_OPT_BKSLASH       0x00000002      // '\' escapes chars
