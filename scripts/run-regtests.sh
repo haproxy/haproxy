@@ -144,7 +144,7 @@ _findtests() {
             regtest_type=default
         fi
         if ! $(echo $REGTESTS_TYPES | grep -wq $regtest_type) ; then
-            echo "  Skip $i because its type '"$regtest_type"' is excluded"
+            echo "  Skipped $i because its type '"$regtest_type"' is excluded" >> "${TESTDIR}/skipped.log"
             skiptest=1
         fi
     fi
@@ -167,7 +167,7 @@ _findtests() {
 
     for excludedtarget in $exclude_targets; do
       if [ "$excludedtarget" = "$TARGET" ]; then
-        echo "  Skip $i because haproxy is compiled for the excluded target $TARGET"
+        echo "  Skipped $i because haproxy is compiled for the excluded target $TARGET" >> "${TESTDIR}/skipped.log"
         skiptest=1
       fi
     done
@@ -181,7 +181,7 @@ _findtests() {
 	fi
       done
       if [ -z $found ]; then
-        echo "  Skip $i because haproxy is not compiled with the required option $requiredoption"
+        echo "  Skipped $i because haproxy is not compiled with the required option $requiredoption"  >> "${TESTDIR}/skipped.log"
         skiptest=1
       fi
     done
@@ -195,7 +195,7 @@ _findtests() {
 	fi
       done
       if [ -z $found ]; then
-        echo "  Skip $i because haproxy is not compiled with the required service $requiredservice"
+        echo "  Skipped $i because haproxy is not compiled with the required service $requiredservice"  >> "${TESTDIR}/skipped.log"
         skiptest=1
       fi
     done
@@ -255,7 +255,7 @@ _process() {
           debug="-v"
           ;;
         --keep-logs)
-          keep_logs="-L"
+          keep_logs=1
           ;;
         --type)
 	      REGTESTS_TYPES="$2"
@@ -302,7 +302,7 @@ LINEFEED="
 jobcount=""
 verbose="-q"
 debug=""
-keep_logs="-l"
+keep_logs=0
 testlist=""
 
 _process "$@";
@@ -376,33 +376,63 @@ if [ -n "$testlist" ]; then
   if [ -n "$jobcount" ]; then
     jobcount="-j $jobcount"
   fi
-  cmd="$VTEST_PROGRAM -b $((2<<20)) -k -t ${VTEST_TIMEOUT} $keep_logs $verbose $debug $jobcount $vtestparams $testlist"
+  cmd="$VTEST_PROGRAM -b $((2<<20)) -k -t ${VTEST_TIMEOUT} -L $verbose $debug $jobcount $vtestparams $testlist"
   eval $cmd
   _vtresult=$?
 else
   echo "No tests found that meet the required criteria"
 fi
 
-
-if [ $_vtresult -eq 0 ]; then
-  # all tests were successful, removing tempdir (the last part.)
-  # ignore errors is the directory is not empty or if it does not exist
-   rmdir "$TESTDIR" 2>/dev/null
-fi
-
 if [ -d "${TESTDIR}" ]; then
-  echo "########################## Gathering results ##########################"
-  export TESTDIR
-  find "$TESTDIR" -type d -name "vtc.*" -exec sh -c 'for i; do
-    if [ ! -e "$i/LOG" ] ; then continue; fi
+  # look for tests skipped by vtest
+  find "${TESTDIR}" -type f -name "LOG" | while read logfile; do
+    REASON=$(grep "SKIPPING test" "$logfile")
+    if [ -n "$REASON" ]; then
+      infofile="$(dirname "$logfile")/INFO"
+      if [ -e "$infofile" ]; then
+        vtc_path=$(sed 's/^Test case: //' "$infofile" )
+        if [ -n "$vtc_path" ]; then
+          echo "  Skipped $vtc_path (feature cmd)" >> "${TESTDIR}/skipped.log"
+        fi
+      fi
+    fi
+  done
 
-    cat <<- EOF | tee -a "$TESTDIR/failedtests.log"
+  if [ $keep_logs -eq 0 ]; then
+    # remove logs for successful tests
+    find "$TESTDIR" -type d -name "vtc.*" | while read vtcdir; do
+      # errors are starting with ----
+      grep -q "^----" ${vtcdir}/LOG || rm -fr "${vtcdir}"
+    done
+  fi
+
+  if [ $_vtresult -eq 0 ]; then
+    # all tests were successful, removing tempdir (the last part.)
+    # ignore errors is the directory is not empty or if it does not exist
+     rmdir "$TESTDIR" 2>/dev/null
+  fi
+
+  # show failed tests
+  if [ -d "${TESTDIR}" ]; then
+    echo "########################## Gathering results ##########################"
+    export TESTDIR
+    find "$TESTDIR" -type d -name "vtc.*" -exec sh -c 'for i; do
+      if [ ! -e "$i/LOG" ] ; then continue; fi
+
+      cat <<- EOF | tee -a "$TESTDIR/failedtests.log"
 $(echo "###### $(cat "$i/INFO") ######")
 $(echo "## test results in: \"$i\"")
 $(echo "## test log file: $i/LOG")
 $(grep -E -- "^(----|\*    diag)" "$i/LOG")
 EOF
-  done' sh {} +
-fi
+    done' sh {} +
+  fi
+
+  echo "########################## Listing skipped tests ####################"
+  count=$(wc -l < "${TESTDIR}/skipped.log")
+  cat "${TESTDIR}/skipped.log" | sort -n
+  echo "Total skipped tests: $count"
+
+fi # if TESTDIR
 
 exit $_vtresult
