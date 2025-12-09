@@ -1767,7 +1767,14 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			total += hlen;
 			TRACE_PROTO("parsing a new frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 
-			if (ftype == H3_FT_DATA) {
+			if ((ret = h3_check_frame_valid(h3c, qcs, ftype))) {
+				TRACE_ERROR("received an invalid frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+				qcc_set_error(qcs->qcc, ret, 1);
+				qcc_report_glitch(qcs->qcc, 1);
+				goto err;
+			}
+
+			if (h3s->type == H3S_T_REQ && ftype == H3_FT_DATA) {
 				h3s->data_len += flen;
 
 				if (h3s->flags & H3_SF_HAVE_CLEN) {
@@ -1778,16 +1785,12 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 						break;
 				}
 				else {
-					/* content-length not present, update estimated payload length. */
+					/* content-length not present, update estimated payload length.
+					 * <qcs.sd> is valid here as HEADERS frame were already parsed,
+					 * guaranteed by h3_check_frame_valid().
+					 */
 					qcs->sd->kip = h3s->data_len;
 				}
-			}
-
-			if ((ret = h3_check_frame_valid(h3c, qcs, ftype))) {
-				TRACE_ERROR("received an invalid frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-				qcc_set_error(qcs->qcc, ret, 1);
-				qcc_report_glitch(qcs->qcc, 1);
-				goto err;
 			}
 
 			if (!b_data(b))
@@ -1849,8 +1852,10 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 					}
 				}
 
-				/* Update estimated payload with content-length value if present. */
-				if (h3s->flags & H3_SF_HAVE_CLEN)
+				/* Update estimated payload with content-length value if present.
+				 * <sd> must be allocated on h3_req_headers_to_htx() success.
+				 */
+				if (ret >= 0 && h3s->flags & H3_SF_HAVE_CLEN)
 					qcs->sd->kip = h3s->body_len;
 			}
 			else {
