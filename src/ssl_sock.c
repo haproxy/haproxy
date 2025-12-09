@@ -6860,6 +6860,32 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 				ssl_sock_setup_ktls(ctx);
 #endif
 #endif
+			/*
+			 * For backend connections, attempt to
+			 * retrieve the ALPN, and store it into
+			 * the server's path_params, so that for
+			 * next connections, we'll know the ALPN
+			 * already, and immediately know which mux
+			 * to use, in case we want to use 0RTT.
+			 */
+			if (!(conn->flags & CO_FL_ERROR) && conn_is_back(conn)) {
+				struct server *srv;
+				const char *alpn;
+				int len;
+
+				srv = objt_server(conn->target);
+				if (srv && ssl_sock_get_alpn(conn, ctx, &alpn, &len)) {
+					if (len < sizeof(srv->path_params.nego_alpn) &&
+					    (len != strlen(srv->path_params.nego_alpn) ||
+					     memcmp(&srv->path_params.nego_alpn, alpn, len) != 0)) {
+						HA_RWLOCK_WRLOCK(SERVER_LOCK, &srv->path_params.param_lock);
+						memcpy(&srv->path_params.nego_alpn, alpn, len);
+						srv->path_params.nego_alpn[len] = 0;
+						HA_RWLOCK_WRUNLOCK(SERVER_LOCK, &srv->path_params.param_lock);
+					}
+				}
+
+			}
 		}
 	}
 	/* If we had an error, or the handshake is done and I/O is available,
@@ -6893,35 +6919,8 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 		if (ctx->conn->xprt_ctx == ctx) {
 			int closed_connection = 0;
 
-			if (!ctx->conn->mux) {
+			if (!ctx->conn->mux)
 				ret = conn_create_mux(ctx->conn, &closed_connection);
-				/*
-				 * For backend connections, attempt to
-				 * retrieve the ALPN, and store it into
-				 * the server's path_params, so that for
-				 * next connections, we'll know the ALPN
-				 * already, and immediately know which mux
-				 * to use, in case we want to use 0RTT.
-				 */
-				if (ret >= 0 && conn_is_back(conn)) {
-					struct server *srv;
-					const char *alpn;
-					int len;
-
-					srv = objt_server(conn->target);
-					if (srv && ssl_sock_get_alpn(conn, ctx, &alpn, &len)) {
-						if (len < sizeof(srv->path_params.nego_alpn) &&
-						    (len != strlen(srv->path_params.nego_alpn) ||
-						     memcmp(&srv->path_params.nego_alpn, alpn, len) != 0)) {
-							HA_RWLOCK_WRLOCK(SERVER_LOCK, &srv->path_params.param_lock);
-							memcpy(&srv->path_params.nego_alpn, alpn, len);
-							srv->path_params.nego_alpn[len] = 0;
-							HA_RWLOCK_WRUNLOCK(SERVER_LOCK, &srv->path_params.param_lock);
-						}
-					}
-				}
-
-			}
 			if (ret >= 0 && !woke && ctx->conn->mux && ctx->conn->mux->wake) {
 				ret = ctx->conn->mux->wake(ctx->conn);
 				if (ret < 0)
