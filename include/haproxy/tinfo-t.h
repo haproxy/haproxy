@@ -86,7 +86,7 @@ struct tgroup_info {
 
 	/* pad to cache line (64B) */
 	char __pad[0];            /* unused except to check remaining room */
-	char __end[0] __attribute__((aligned(64)));
+	char __end[0] THREAD_ALIGNED();
 };
 
 /* This structure describes the group-specific context (e.g. active threads
@@ -103,7 +103,7 @@ struct tgroup_ctx {
 
 	/* pad to cache line (64B) */
 	char __pad[0];                    /* unused except to check remaining room */
-	char __end[0] __attribute__((aligned(64)));
+	char __end[0] THREAD_ALIGNED();
 };
 
 /* This structure describes all the per-thread info we need. When threads are
@@ -124,7 +124,7 @@ struct thread_info {
 
 	/* pad to cache line (64B) */
 	char __pad[0];                    /* unused except to check remaining room */
-	char __end[0] __attribute__((aligned(64)));
+	char __end[0] THREAD_ALIGNED();
 };
 
 /* This structure describes all the per-thread context we need. This is

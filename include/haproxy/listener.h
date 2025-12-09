@@ -231,7 +231,7 @@ const char *listener_state_str(const struct listener *l);
 struct task *accept_queue_process(struct task *t, void *context, unsigned int state);
 struct task *manage_global_listener_queue(struct task *t, void *context, unsigned int state);
 
-extern struct accept_queue_ring accept_queue_rings[MAX_THREADS] __attribute__((aligned(64)));
+extern struct accept_queue_ring accept_queue_rings[MAX_THREADS] THREAD_ALIGNED();
 
 extern const char* li_status_st[LI_STATE_COUNT];
 enum li_status get_li_status(struct listener *l);

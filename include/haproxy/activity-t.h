@@ -125,8 +125,8 @@ struct activity {
 	unsigned int ctr2;         // general purposee debug counter
 #endif
 	char __pad[0]; // unused except to check remaining room
-	char __end[0] __attribute__((aligned(64))); // align size to 64.
-};
+	char __end[0] THREAD_ALIGNED();
+} THREAD_ALIGNED();
 
 /* 256 entries for callers * callees should be highly sufficient (~45 seen usually) */
 #define SCHED_ACT_HASH_BITS 8
@@ -146,7 +146,7 @@ struct sched_activity {
 	uint64_t lkw_time; /* lock waiting time */
 	uint64_t lkd_time; /* locked time */
 	uint64_t mem_time; /* memory ops wait time */
-};
+} THREAD_ALIGNED();
 
 #endif /* _HAPROXY_ACTIVITY_T_H */
 

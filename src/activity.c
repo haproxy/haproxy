@@ -60,10 +60,10 @@ uint64_t prof_mem_start_ns = 0;
 uint64_t prof_mem_stop_ns = 0;
 
 /* One struct per thread containing all collected measurements */
-struct activity activity[MAX_THREADS] __attribute__((aligned(64))) = { };
+struct activity activity[MAX_THREADS] = { };
 
 /* One struct per function pointer hash entry (SCHED_ACT_HASH_BUCKETS values, 0=collision) */
-struct sched_activity sched_activity[SCHED_ACT_HASH_BUCKETS] __attribute__((aligned(64))) = { };
+struct sched_activity sched_activity[SCHED_ACT_HASH_BUCKETS] = { };
 
 
 #ifdef USE_MEMORY_PROFILING
@@ -949,7 +949,7 @@ struct sched_activity *sched_activity_entry(struct sched_activity *array, const 
 static int cli_io_handler_show_profiling(struct appctx *appctx)
 {
 	struct show_prof_ctx *ctx = appctx->svcctx;
-	struct sched_activity tmp_activity[SCHED_ACT_HASH_BUCKETS] __attribute__((aligned(64)));
+	struct sched_activity tmp_activity[SCHED_ACT_HASH_BUCKETS];
 #ifdef USE_MEMORY_PROFILING
 	struct memprof_stats tmp_memstats[MEMPROF_HASH_BUCKETS + 1];
 	unsigned long long tot_alloc_calls, tot_free_calls;
@@ -1329,7 +1329,7 @@ static int cli_parse_show_profiling(char **args, char *payload, struct appctx *a
  */
 static int cli_io_handler_show_tasks(struct appctx *appctx)
 {
-	struct sched_activity tmp_activity[SCHED_ACT_HASH_BUCKETS] __attribute__((aligned(64)));
+	struct sched_activity tmp_activity[SCHED_ACT_HASH_BUCKETS];
 	struct buffer *name_buffer = get_trash_chunk();
 	struct sched_activity *entry;
 	const struct tasklet *tl;

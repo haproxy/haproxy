@@ -44,7 +44,7 @@ __decl_aligned_rwlock(wq_lock);
 
 /* used to detect if the scheduler looks stuck (for warnings) */
 static struct {
-	int sched_stuck ALIGNED(64);
+	int sched_stuck THREAD_ALIGNED();
 } sched_ctx[MAX_THREADS];
 
 /* Flags the task <t> for immediate destruction and puts it into its first

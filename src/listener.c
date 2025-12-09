@@ -66,7 +66,7 @@ const char* li_status_st[LI_STATE_COUNT] = {
 
 #if defined(USE_THREAD)
 
-struct accept_queue_ring accept_queue_rings[MAX_THREADS] __attribute__((aligned(64))) = { };
+struct accept_queue_ring accept_queue_rings[MAX_THREADS] THREAD_ALIGNED();
 
 /* dequeue and process a pending connection from the local accept queue (single
  * consumer). Returns the accepted connection or NULL if none was found.

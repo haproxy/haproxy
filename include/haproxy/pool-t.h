@@ -156,8 +156,8 @@ struct pool_head {
 		unsigned int failed;	/* failed allocations (indexed by hash of TID) */
 	} buckets[CONFIG_HAP_POOL_BUCKETS];
 
-	struct pool_cache_head cache[MAX_THREADS] THREAD_ALIGNED(64); /* pool caches */
-} __attribute__((aligned(64)));
+	struct pool_cache_head cache[MAX_THREADS] THREAD_ALIGNED(); /* pool caches */
+} THREAD_ALIGNED();
 
 #endif /* _HAPROXY_POOL_T_H */
 
