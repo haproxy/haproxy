@@ -4247,7 +4247,8 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 #ifdef USE_QUIC
 		/* The selected ALPN is not stored without SSL session. */
 		if (qc && (s->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) &&
-		    s->ssl_ctx.reused_sess[tid].ptr) {
+		    s->ssl_ctx.reused_sess[tid].ptr &&
+		    !(conn->flags & CO_FL_SSL_NO_CACHED_INFO)) {
 			const char *alpn = NULL;
 			int len;
 
@@ -6867,8 +6868,14 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 			 * next connections, we'll know the ALPN
 			 * already, and immediately know which mux
 			 * to use, in case we want to use 0RTT.
+			 *
+			 * We do not want it to do it for check connections,
+			 * though, as they may use different SSL settings,
+			 * so don't do it if the CO_FL_SSL_NO_CACHE_INFO flag
+			 * is set.
 			 */
-			if (!(conn->flags & CO_FL_ERROR) && conn_is_back(conn)) {
+			if (!(conn->flags & (CO_FL_ERROR | CO_FL_SSL_NO_CACHED_INFO)) &&
+			    conn_is_back(conn)) {
 				struct server *srv;
 				const char *alpn;
 				int len;
