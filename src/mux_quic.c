@@ -2499,7 +2499,8 @@ static int qcs_build_stream_frm(struct qcs *qcs, struct buffer *out, char fin,
 		goto err;
 	}
 
-	frm->stream.stream = qcs->tx.stream;
+	frm->stream.stream =
+	  conn_is_quic(qcc->conn) ? (void *)qcs->tx.stream : (void *)qcs;
 	frm->stream.id = qcs->id;
 	frm->stream.offset = 0;
 	frm->stream.dup = 0;

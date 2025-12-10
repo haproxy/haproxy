@@ -32,7 +32,6 @@
 #include <import/ebtree-t.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/list.h>
-#include <haproxy/quic_stream-t.h>
 #include <haproxy/quic_token.h>
 
 extern struct pool_head *pool_head_quic_frame;
@@ -170,7 +169,7 @@ struct qf_new_token {
 
 struct qf_stream {
 	uint64_t id;
-	struct qc_stream_desc *stream;
+	void *stream;
 
 	/* used only on TX when constructing frames.
 	 * Data cleared when processing ACK related to this STREAM frame.
