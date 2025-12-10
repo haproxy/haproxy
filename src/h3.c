@@ -1784,11 +1784,8 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 					if (h3_check_body_size(qcs, (fin && flen == b_data(b))))
 						break;
 				}
-				else {
-					/* content-length not present, update estimated payload length.
-					 * <qcs.sd> is valid here as HEADERS frame were already parsed,
-					 * guaranteed by h3_check_frame_valid().
-					 */
+				else if (qcs->sd) {
+					/* content-length not present, update estimated payload length. */
 					qcs->sd->kip = h3s->data_len;
 				}
 			}
@@ -1853,9 +1850,10 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 				}
 
 				/* Update estimated payload with content-length value if present.
-				 * <sd> must be allocated on h3_req_headers_to_htx() success.
+				 * On FE side, <sd> may be NULL on h3_req_headers_to_htx()
+				 * error or if stream is already closed.
 				 */
-				if (ret >= 0 && h3s->flags & H3_SF_HAVE_CLEN)
+				if (qcs->sd && h3s->flags & H3_SF_HAVE_CLEN)
 					qcs->sd->kip = h3s->body_len;
 			}
 			else {
