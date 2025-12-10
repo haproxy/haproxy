@@ -964,7 +964,7 @@ ifneq ($(EXTRA_OBJS),)
 endif
 
 OBJS_COMMON += src/mux_h2.o src/mux_h1.o src/mux_fcgi.o \
-        src/stick_table.o src/tools.o \
+        src/stick_table.o src/tools.o src/global.o \
         src/activity.o src/cli.o		\
         src/backend.o src/connection.o src/proxy.o	\
         src/cache.o src/stconn.o src/http_htx.o src/debug.o		\
