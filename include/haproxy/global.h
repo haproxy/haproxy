@@ -90,6 +90,7 @@ struct cfg_keyword;
 int check_kw_experimental(struct cfg_keyword *kw, const char *file, int linenum,
                           char **errmsg);
 const char **hap_get_next_build_opt(const char **curr);
+void ha_free_build_opts_list(void);
 
 /* simplified way to declare static build options in a file */
 #define REGISTER_BUILD_OPTS(str) \
