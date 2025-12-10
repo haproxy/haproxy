@@ -41,16 +41,16 @@ static inline void qc_stream_desc_send(struct qc_stream_desc *stream,
 
 /* Subscribe for send notification on <stream>. */
 static inline void qc_stream_desc_sub_send(struct qc_stream_desc *stream,
-                                           void (*cb)(struct qc_stream_desc *s, uint64_t offset, uint64_t len))
+                                           void (*cb)(void *ctx, uint64_t offset, uint64_t len))
 {
-	stream->notify_send = cb;
+	stream->notify_send = (void (*)(struct qc_stream_desc *, uint64_t offset, uint64_t len))cb;
 }
 
 /* Subscribe for room notification on <stream>. */
 static inline void qc_stream_desc_sub_room(struct qc_stream_desc *stream,
-                                           void (*cb)(struct qc_stream_desc *s, uint64_t offset))
+                                           void (*cb)(void *ctx, uint64_t offset))
 {
-	stream->notify_room = cb;
+	stream->notify_room = (void (*)(struct qc_stream_desc *, uint64_t offset))cb;
 }
 
 #endif /* USE_QUIC */

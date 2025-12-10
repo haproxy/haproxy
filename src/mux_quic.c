@@ -37,8 +37,8 @@ DECLARE_TYPED_POOL(pool_head_qcc, "qcc", struct qcc);
 DECLARE_TYPED_POOL(pool_head_qcs, "qcs", struct qcs);
 DECLARE_STATIC_TYPED_POOL(pool_head_qc_stream_rxbuf, "qc_stream_rxbuf", struct qc_stream_rxbuf);
 
-static void qmux_ctrl_send(struct qc_stream_desc *, uint64_t data, uint64_t offset);
-static void qmux_ctrl_room(struct qc_stream_desc *, uint64_t room);
+static void qmux_ctrl_send(void *ctx, uint64_t data, uint64_t offset);
+static void qmux_ctrl_room(void *ctx, uint64_t room);
 
 int qmux_is_quic(const struct qcc *qcc)
 {
@@ -614,9 +614,9 @@ static uint64_t qcs_prep_bytes(const struct qcs *qcs)
 /* Used as a callback for qc_stream_desc layer to notify about emission of a
  * STREAM frame of <data> length starting at <offset>.
  */
-static void qmux_ctrl_send(struct qc_stream_desc *stream, uint64_t data, uint64_t offset)
+static void qmux_ctrl_send(void *ctx, uint64_t data, uint64_t offset)
 {
-	struct qcs *qcs = stream->ctx;
+	struct qcs *qcs = ((struct qc_stream_desc *)ctx)->ctx;
 	struct qcc *qcc = qcs->qcc;
 	uint64_t diff;
 
@@ -715,8 +715,9 @@ static inline int qcc_bufwnd_full(const struct qcc *qcc)
 	}
 }
 
-static void qmux_ctrl_room(struct qc_stream_desc *stream, uint64_t room)
+static void qmux_ctrl_room(void *ctx, uint64_t room)
 {
+	struct qc_stream_desc *stream = ctx;
 	/* Context is different for active and released streams. */
 	struct qcc *qcc = !(stream->flags & QC_SD_FL_RELEASE) ?
 	  ((struct qcs *)stream->ctx)->qcc : stream->ctx;
