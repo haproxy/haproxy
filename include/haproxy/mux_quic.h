@@ -34,6 +34,8 @@ void qcs_notify_send(struct qcs *qcs);
 void qcs_on_data_sent(struct qcs *qcs, uint64_t data, uint64_t offset);
 void qcc_notify_buf(struct qcc *qcc, uint64_t free_size);
 
+void _qmux_ctrl_send(struct qcs *qcs, uint64_t data, uint64_t offset);
+
 struct buffer *qcc_get_stream_rxbuf(struct qcs *qcs);
 struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err, int small);
 struct buffer *qcc_realloc_stream_txbuf(struct qcs *qcs);
@@ -50,6 +52,7 @@ int qcc_recv_max_stream_data(struct qcc *qcc, uint64_t id, uint64_t max);
 int qcc_recv_max_streams(struct qcc *qcc, uint64_t max, int bidi);
 int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t final_size);
 int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err);
+int qcc_send_frames(struct qcc *qcc, struct list *frms, int stream);
 
 static inline int qmux_stream_rx_bufsz(void)
 {
