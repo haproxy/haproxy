@@ -1005,8 +1005,8 @@ OBJS_COMMON += src/mux_h2.o src/mux_h1.o src/mux_fcgi.o \
         src/version.o src/ncbmbuf.o src/ech.o \
 
 OBJS += $(OBJS_COMMON) src/acl.o src/cfgdiag.o src/cfgparse.o \
-        src/cfgparse-global.o src/cfgparse-listen.o src/cfgparse-tcp.o \
-        src/cfgparse-thread.o \
+        src/cfgparse-global.o src/cfgparse-listen.o src/cfgparse-mux_h2.o \
+        src/cfgparse-tcp.o src/cfgparse-thread.o \
         src/cfgparse-unix.o src/check.o src/dns.o src/dns_ring.o src/event_hdl.o \
         src/extcheck.o src/filters.o src/flt_bwlim.o src/flt_http_comp.o \
         src/flt_spoe.o src/flt_trace.o src/haproxy.o src/http_acl.o \

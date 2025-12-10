@@ -225,4 +225,18 @@ static inline const char *h2s_st_to_str(enum h2_ss st)
 	}
 }
 
+extern int h2_settings_header_table_size;
+extern int h2_settings_initial_window_size;
+extern int h2_be_settings_initial_window_size;
+extern int h2_fe_settings_initial_window_size;
+extern int h2_be_glitches_threshold;
+extern int h2_fe_glitches_threshold;
+extern uint h2_be_rxbuf;
+extern uint h2_fe_rxbuf;
+extern unsigned int h2_settings_max_concurrent_streams;
+extern unsigned int h2_be_settings_max_concurrent_streams;
+extern unsigned int h2_fe_settings_max_concurrent_streams;
+extern int h2_settings_max_frame_size;
+extern unsigned int h2_fe_max_total_streams;
+
 #endif /* _HAPROXY_MUX_H2_T_H */
