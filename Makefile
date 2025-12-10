@@ -956,53 +956,69 @@ endif # obsolete targets
 endif # TARGET
 
 OBJS =
+OBJS_COMMON =
+OBJS_HA_INJECT =
 
 ifneq ($(EXTRA_OBJS),)
   OBJS += $(EXTRA_OBJS)
 endif
 
-OBJS += src/mux_h2.o src/mux_h1.o src/mux_fcgi.o src/log.o		\
-        src/server.o src/stream.o src/tcpcheck.o src/http_ana.o		\
-        src/stick_table.o src/tools.o src/mux_spop.o src/sample.o	\
-        src/activity.o src/cfgparse.o src/peers.o src/cli.o		\
-        src/backend.o src/connection.o src/resolvers.o src/proxy.o	\
+OBJS_COMMON += src/mux_h2.o src/mux_h1.o src/mux_fcgi.o \
+        src/stick_table.o src/tools.o \
+        src/activity.o src/cli.o		\
+        src/backend.o src/connection.o src/proxy.o	\
         src/cache.o src/stconn.o src/http_htx.o src/debug.o		\
-        src/check.o src/stats-html.o src/haproxy.o src/listener.o	\
-        src/applet.o src/pattern.o src/cfgparse-listen.o		\
-        src/flt_spoe.o src/cebis_tree.o src/http_ext.o			\
-        src/http_act.o src/http_fetch.o src/cebs_tree.o			\
-        src/cebib_tree.o src/http_client.o src/dns.o			\
-        src/cebb_tree.o src/vars.o src/event_hdl.o src/tcp_rules.o	\
-        src/trace.o src/stats-proxy.o src/pool.o src/stats.o		\
-        src/cfgparse-global.o src/filters.o src/mux_pt.o		\
-        src/flt_http_comp.o src/sock.o src/h1.o src/sink.o		\
+        src/applet.o \
+        src/cebis_tree.o \
+        src/cebs_tree.o			\
+        src/cebib_tree.o \
+        src/cebb_tree.o src/vars.o \
+        src/trace.o src/pool.o \
+        src/mux_pt.o		\
+        src/sock.o src/h1.o src/sink.o		\
         src/ceba_tree.o src/session.o src/payload.o src/htx.o		\
         src/cebl_tree.o src/ceb32_tree.o src/ceb64_tree.o		\
-        src/server_state.o src/proto_rhttp.o src/flt_trace.o src/fd.o	\
-        src/task.o src/map.o src/fcgi-app.o src/h2.o src/mworker.o	\
-        src/tcp_sample.o src/mjson.o src/h1_htx.o src/tcp_act.o		\
-        src/ring.o src/flt_bwlim.o src/acl.o src/thread.o src/queue.o	\
-        src/http_rules.o src/http.o src/channel.o src/proto_tcp.o	\
-        src/mqtt.o src/lb_chash.o src/extcheck.o src/dns_ring.o		\
-        src/errors.o src/ncbuf.o src/compression.o src/http_conv.o	\
-        src/frontend.o src/stats-json.o src/proto_sockpair.o		\
-        src/raw_sock.o src/action.o src/stats-file.o src/buf.o		\
+        src/proto_rhttp.o src/fd.o	\
+        src/task.o src/map.o src/fcgi-app.o src/h2.o \
+        src/mjson.o src/h1_htx.o \
+        src/ring.o src/thread.o src/queue.o	\
+        src/http.o src/channel.o src/proto_tcp.o	\
+        src/lb_chash.o \
+        src/errors.o src/ncbuf.o src/compression.o \
+        src/frontend.o src/proto_sockpair.o		\
+        src/raw_sock.o src/action.o src/buf.o		\
         src/xprt_handshake.o src/proto_uxst.o src/lb_fwrr.o		\
         src/uri_normalizer.o src/mailers.o src/protocol.o		\
         src/cfgcond.o src/proto_udp.o src/lb_fwlc.o src/ebmbtree.o	\
-        src/proto_uxdg.o src/cfgdiag.o src/sock_unix.o src/sha1.o	\
+        src/proto_uxdg.o src/sock_unix.o src/sha1.o	\
         src/lb_fas.o src/clock.o src/sock_inet.o src/ev_select.o	\
-        src/lb_map.o src/shctx.o src/hpack-dec.o	                \
+        src/shctx.o src/hpack-dec.o	                \
         src/arg.o src/signal.o src/fix.o src/dynbuf.o src/guid.o	\
-        src/cfgparse-tcp.o src/lb_ss.o src/chunk.o src/counters.o	\
-        src/cfgparse-unix.o src/regex.o src/fcgi.o src/uri_auth.o	\
+        src/lb_ss.o src/chunk.o src/counters.o	\
+        src/fcgi.o src/uri_auth.o	\
         src/eb64tree.o src/eb32tree.o src/eb32sctree.o src/lru.o	\
         src/limits.o src/ebimtree.o src/wdt.o src/hpack-tbl.o		\
         src/ebistree.o src/base64.o src/auth.o src/time.o		\
         src/ebsttree.o src/freq_ctr.o src/systemd.o src/init.o		\
-        src/http_acl.o src/dict.o src/dgram.o src/pipe.o		\
+        src/dict.o src/dgram.o src/pipe.o		\
         src/hpack-huff.o src/hpack-enc.o src/ebtree.o src/hash.o	\
-        src/httpclient_cli.o src/version.o src/ncbmbuf.o src/ech.o
+        src/version.o src/ncbmbuf.o src/ech.o \
+
+OBJS += $(OBJS_COMMON) src/acl.o src/cfgdiag.o src/cfgparse.o \
+        src/cfgparse-global.o src/cfgparse-listen.o src/cfgparse-tcp.o \
+        src/cfgparse-unix.o src/check.o src/dns.o src/dns_ring.o src/event_hdl.o \
+        src/extcheck.o src/filters.o src/flt_bwlim.o src/flt_http_comp.o \
+        src/flt_spoe.o src/flt_trace.o src/haproxy.o src/http_acl.o \
+        src/http_act.o src/http_ana.o src/http_client.o src/http_conv.o \
+        src/http_ext.o src/http_fetch.o src/http_rules.o src/httpclient_cli.o \
+        src/lb_map.o src/listener.o src/log.o src/pattern.o src/mqtt.o \
+        src/mux_spop.o src/mworker.o src/peers.o src/regex.o src/resolvers.o \
+        src/sample.o src/server.o src/server_state.o src/stats.o \
+        src/stats-file.o src/stats-json.o src/stats-html.o src/stats-proxy.o \
+        src/stream.o src/tcp_act.o src/tcp_rules.o src/tcp_sample.o \
+        src/tcpcheck.o
+
+OBJS_HA_INJECT += $(OBJS_COMMON) src/ha-inject.o
 
 ifneq ($(TRACE),)
   OBJS += src/calltrace.o
@@ -1053,6 +1069,9 @@ else
 endif # non-empty target
 
 haproxy: $(OPTIONS_OBJS) $(OBJS)
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+
+ha-inject: $(OPTIONS_OBJS) $(OBJS_HA_INJECT)
 	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 objsize: haproxy
