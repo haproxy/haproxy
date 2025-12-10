@@ -1,6 +1,79 @@
 ChangeLog :
 ===========
 
+2025/12/10 : 3.4-dev1
+    - BUG/MINOR: jwt: Missing "case" in switch statement
+    - DOC: configuration: ECH support details
+    - Revert "MINOR: quic: use dynamic cc_algo on bind_conf"
+    - MINOR: quic: define quic_cc_algo as const
+    - MINOR: quic: extract cc-algo parsing in a dedicated function
+    - MINOR: quic: implement cc-algo server keyword
+    - BUG/MINOR: quic-be: Missing keywords array NULL termination
+    - REGTESTS: ssl enable tls12_reuse.vtc for AWS-LC
+    - REGTESTS: ssl: split tls*_reuse in stateless and stateful resume tests
+    - BUG/MEDIUM: connection: fix "bc_settings_streams_limit" typo
+    - BUG/MEDIUM: config: ignore empty args in skipped blocks
+    - DOC: config: mention clearer that the cache's total-max-size is mandatory
+    - DOC: config: reorder the cache section's keywords
+    - BUG/MINOR: quic/ssl: crash in ClientHello callback ssl traces
+    - BUG/MINOR: quic-be: handshake errors without connection stream closure
+    - MINOR: quic: Add useful debugging traces in qc_idle_timer_do_rearm()
+    - REGTESTS: ssl: Move all the SSL certificates, keys, crt-lists inside "certs" directory
+    - REGTESTS: quic/ssl: ssl/del_ssl_crt-list.vtc supported by QUIC
+    - REGTESTS: quic: dynamic_server_ssl.vtc supported by QUIC
+    - REGTESTS: quic: issuers_chain_path.vtc supported by QUIC
+    - REGTESTS: quic: new_del_ssl_cafile.vtc supported by QUIC
+    - REGTESTS: quic: ocsp_auto_update.vtc supported by QUIC
+    - REGTESTS: quic: set_ssl_bug_2265.vtc supported by QUIC
+    - MINOR: quic: avoid code duplication in TLS alert callback
+    - BUG/MINOR: quic-be: missing connection stream closure upon TLS alert to send
+    - REGTESTS: quic: set_ssl_cafile.vtc supported by QUIC
+    - REGTESTS: quic: set_ssl_cert_noext.vtc supported by QUIC
+    - REGTESTS: quic: set_ssl_cert.vtc supported by QUIC
+    - REGTESTS: quic: set_ssl_crlfile.vtc supported by QUIC
+    - REGTESTS: quic: set_ssl_server_cert.vtc supported by QUIC
+    - REGTESTS: quic: show_ssl_ocspresponse.vtc supported by QUIC
+    - REGTESTS: quic: ssl_client_auth.vtc supported by QUIC
+    - REGTESTS: quic: ssl_client_samples.vtc supported by QUIC
+    - REGTESTS: quic: ssl_default_server.vtc supported by QUIC
+    - REGTESTS: quic: new_del_ssl_crlfile.vtc supported by QUIC
+    - REGTESTS: quic: ssl_frontend_samples.vtc supported by QUIC
+    - REGTESTS: quic: ssl_server_samples.vtc supported by QUIC
+    - REGTESTS: quic: ssl_simple_crt-list.vtc supported by QUIC
+    - REGTESTS: quic: ssl_sni_auto.vtc code provision for QUIC
+    - REGTESTS: quic: ssl_curve_name.vtc supported by QUIC
+    - REGTESTS: quic: add_ssl_crt-list.vtc supported by QUIC
+    - REGTESTS: add ssl_ciphersuites.vtc (TCP & QUIC)
+    - BUG/MINOR: quic: do not set first the default QUIC curves
+    - REGTESTS: quic/ssl: Add ssl_curves_selection.vtc
+    - BUG/MINOR: ssl: Don't allow to set NULL sni
+    - MEDIUM: quic: Add connection as argument when qc_new_conn() is called
+    - MINOR: ssl: Add a function to hash SNIs
+    - MINOR: ssl: Store hash of the SNI for cached TLS sessions
+    - MINOR: ssl: Compare hashes instead of SNIs when a session is cached
+    - MINOR: connection/ssl: Store the SNI hash value in the connection itself
+    - MEDIUM: tcpcheck/backend: Get the connection SNI before initializing SSL ctx
+    - BUG/MEDIUM: ssl: Don't reuse TLS session if the connection's SNI differs
+    - MEDIUM: ssl/server: No longer store the SNI of cached TLS sessions
+    - BUG/MINOR: log: Dump good %B and %U values in logs
+    - BUG/MEDIUM: http-ana: Don't close server connection on read0 in TUNNEL mode
+    - DOC: config: Fix description of the spop mode
+    - DOC: config: Improve spop mode documentation
+    - MINOR: ssl: Split ssl_crt-list_filters.vtc in two files by TLS version
+    - REGTESTS: quic: tls13_ssl_crt-list_filters.vtc supported by QUIC
+    - BUG/MEDIUM: h3: do not access QCS <sd> if not allocated
+    - CLEANUP: mworker/cli: remove useless variable
+    - BUG/MINOR: mworker/cli: 'show proc' is limited by buffer size
+    - BUG/MEDIUM: ssl: Always check the ALPN after handshake
+    - MINOR: connections: Add a new CO_FL_SSL_NO_CACHED_INFO flag
+    - BUG/MEDIUM: ssl: Don't store the ALPN for check connections
+    - BUG/MEDIUM: ssl: Don't resume session for check connections
+    - CLEANUP: improvements to the alignment macros
+    - CLEANUP: use the automatic alignment feature
+    - CLEANUP: more conversions and cleanups for alignment
+    - BUG/MEDIUM: h3: fix access to QCS <sd> definitely
+    - MINOR: h2/trace: emit a trace of the received RST_STREAM type
+
 2025/11/26 : 3.4-dev0
     - MINOR: version: mention that it's development again
 
