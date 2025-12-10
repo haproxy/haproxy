@@ -22,6 +22,8 @@
 #ifndef _HAPROXY_MUX_H1_T_H
 #define _HAPROXY_MUX_H1_T_H
 
+#include <import/ist.h>
+
 #include <haproxy/api-t.h>
 #include <haproxy/show_flags-t.h>
 
@@ -111,6 +113,21 @@ static forceinline char *h1c_show_flags(char *buf, size_t len, const char *delim
 
 #define H1S_F_BODYLESS_REQ   0x00040000 /* Bodyless request message */
 #define H1S_F_BODYLESS_RESP  0x00080000 /* Bodyless response message */
+
+/* An entry in a headers map */
+struct h1_hdr_entry  {
+	struct ist name;
+	struct ebpt_node node;
+};
+
+/* Map of headers used to convert outgoing headers */
+struct h1_hdrs_map {
+	char *name;
+	struct eb_root map;
+};
+
+extern struct h1_hdrs_map hdrs_map;
+extern int accept_payload_with_any_method;
 
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
