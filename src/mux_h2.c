@@ -3356,6 +3356,8 @@ static int h2c_handle_priority(struct h2c *h2c)
  */
 static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 {
+	int rst_code;
+
 	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_RST|H2_EV_RX_EOI, h2c->conn, h2s);
 
 	/* process full frame only */
@@ -3365,13 +3367,20 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 		return 0;
 	}
 
+	rst_code = h2_get_n32(&h2c->dbuf, 0);
+	TRACE_PRINTF(TRACE_LEVEL_STATE, ~0U/*H2_EV_RX_FRAME|H2_EV_RX_RST|H2_EV_RX_EOI*/, h2c->conn, h2s, 0, 0,
+		     "received RST_STREAM(%d) : h2c=%p(%c=%s,%s,%#x) h2s=%p(%d)",
+		     rst_code, h2c, conn_is_back(h2c->conn) ? 'B' : 'F',
+		     h2c->proxy->id, h2c_st_to_str(h2c->st0), h2c->flags,
+		     h2s, h2s->id);
+
 	/* late RST, already handled */
 	if (h2s->st == H2_SS_CLOSED) {
 		TRACE_DEVEL("leaving on stream closed", H2_EV_RX_FRAME|H2_EV_RX_RST|H2_EV_RX_EOI, h2c->conn, h2s);
 		return 1;
 	}
 
-	h2s->errcode = h2_get_n32(&h2c->dbuf, 0);
+	h2s->errcode = rst_code;
 	h2s_close(h2s);
 
 	if (h2s_sc(h2s)) {
