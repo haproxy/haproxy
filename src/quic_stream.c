@@ -53,7 +53,7 @@ static void qc_stream_buf_free(struct qc_stream_desc *stream,
 
 	/* notify MUX about available buffers. */
 	if (stream->notify_room && room)
-		stream->notify_room(stream, room);
+		stream->notify_room(stream, room, stream->flags & QC_SD_FL_RELEASE);
 }
 
 /* Allocate a new stream descriptor with id <id>. The caller is responsible to
@@ -237,7 +237,7 @@ static int qc_stream_buf_store_ack(struct qc_stream_buf *buf,
 
 	buf->room += newly_acked;
 	if (stream->notify_room && qc_stream_buf_is_released(buf, stream))
-		stream->notify_room(stream, newly_acked);
+		stream->notify_room(stream, newly_acked, stream->flags & QC_SD_FL_RELEASE);
 
  end:
 	return newly_acked;
@@ -271,7 +271,7 @@ static struct qc_stream_buf *qc_stream_buf_ack(struct qc_stream_buf *buf,
 			if (diff >= buf->room) {
 				diff -= buf->room;
 				buf->room = 0;
-				stream->notify_room(stream, diff);
+				stream->notify_room(stream, diff, stream->flags & QC_SD_FL_RELEASE);
 			}
 			else {
 				buf->room -= diff;
@@ -534,7 +534,7 @@ void qc_stream_buf_release(struct qc_stream_desc *stream)
 	 * space plus already stored out-of-order data range as available.
 	 */
 	if (stream->notify_room && room)
-		stream->notify_room(stream, room);
+		stream->notify_room(stream, room, stream->flags & QC_SD_FL_RELEASE);
 }
 
 static int create_sbuf_pool(void)

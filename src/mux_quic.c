@@ -38,7 +38,7 @@ DECLARE_TYPED_POOL(pool_head_qcs, "qcs", struct qcs);
 DECLARE_STATIC_TYPED_POOL(pool_head_qc_stream_rxbuf, "qc_stream_rxbuf", struct qc_stream_rxbuf);
 
 static void qmux_ctrl_send(void *ctx, uint64_t data, uint64_t offset);
-static void qmux_ctrl_room(void *ctx, uint64_t room);
+static void qmux_ctrl_room(void *ctx, uint64_t room, int release);
 
 int qmux_is_quic(const struct qcc *qcc)
 {
@@ -611,12 +611,8 @@ static uint64_t qcs_prep_bytes(const struct qcs *qcs)
 	}
 }
 
-/* Used as a callback for qc_stream_desc layer to notify about emission of a
- * STREAM frame of <data> length starting at <offset>.
- */
-static void qmux_ctrl_send(void *ctx, uint64_t data, uint64_t offset)
+void qcs_on_data_sent(struct qcs *qcs, uint64_t data, uint64_t offset)
 {
-	struct qcs *qcs = ((struct qc_stream_desc *)ctx)->ctx;
 	struct qcc *qcc = qcs->qcc;
 	uint64_t diff;
 
@@ -660,12 +656,23 @@ static void qmux_ctrl_send(void *ctx, uint64_t data, uint64_t offset)
 			TRACE_STATE("stream flow-control reached",
 			            QMUX_EV_QCS_SEND, qcc->conn, qcs);
 		}
-		/* Release buffer if everything sent and buf is full or stream is waiting for room. */
-		if (!qcs_prep_bytes(qcs) &&
-		    (b_full(&qcs->stream->buf->buf) || qcs->flags & QC_SF_BLK_MROOM)) {
-			qc_stream_buf_release(qcs->stream);
-			qcs->flags &= ~QC_SF_BLK_MROOM;
-			qcs_notify_send(qcs);
+
+		if (qmux_is_quic(qcc)) {
+			/* Release buffer if everything sent and buf is full or stream is waiting for room. */
+			if (!qcs_prep_bytes(qcs) &&
+			    (b_full(&qcs->stream->buf->buf) || qcs->flags & QC_SF_BLK_MROOM)) {
+				qc_stream_buf_release(qcs->stream);
+				qcs->flags &= ~QC_SF_BLK_MROOM;
+				qcs_notify_send(qcs);
+			}
+		}
+		else {
+			b_del(&qcs->qos_buf, diff);
+			/* Release buffer if everything sent and buf is full or stream is waiting for room. */
+			if (!qcs_prep_bytes(qcs) && qcs->flags & QC_SF_BLK_MROOM) {
+				qcs->flags &= ~QC_SF_BLK_MROOM;
+				qcs_notify_send(qcs);
+			}
 		}
 
 		/* Add measurement for send rate. This is done at the MUX layer
@@ -674,7 +681,8 @@ static void qmux_ctrl_send(void *ctx, uint64_t data, uint64_t offset)
 		increment_send_rate(diff, 0);
 	}
 
-	if (!qc_stream_buf_get(qcs->stream) || !qcs_prep_bytes(qcs)) {
+	if ((qmux_is_quic(qcc) && !qc_stream_buf_get(qcs->stream)) ||
+            !qcs_prep_bytes(qcs)) {
 		/* Remove stream from send_list if all was sent. */
 		LIST_DEL_INIT(&qcs->el_send);
 		TRACE_STATE("stream sent done", QMUX_EV_QCS_SEND, qcc->conn, qcs);
@@ -684,13 +692,15 @@ static void qmux_ctrl_send(void *ctx, uint64_t data, uint64_t offset)
 			qcs_close_local(qcs);
 
 			if (qcs->flags & QC_SF_FIN_STREAM) {
-				qcs->stream->flags |= QC_SD_FL_WAIT_FOR_FIN;
+				if (qmux_is_quic(qcc))
+					qcs->stream->flags |= QC_SD_FL_WAIT_FOR_FIN;
 				/* Reset flag to not emit multiple FIN STREAM frames. */
 				qcs->flags &= ~QC_SF_FIN_STREAM;
 			}
 
 			/* Unsubscribe from streamdesc when everything sent. */
-			qc_stream_desc_sub_send(qcs->stream, NULL);
+			if (qmux_is_quic(qcc))
+				qc_stream_desc_sub_send(qcs->stream, NULL);
 
 			if (qcs_is_completed(qcs)) {
 				TRACE_STATE("add stream in purg_list", QMUX_EV_QCS_SEND, qcc->conn, qcs);
@@ -701,6 +711,15 @@ static void qmux_ctrl_send(void *ctx, uint64_t data, uint64_t offset)
 
  out:
 	TRACE_LEAVE(QMUX_EV_QCS_SEND, qcc->conn, qcs);
+}
+
+/* Callback for notification about emission of a STREAM frame of <data> length
+ * starting at <offset>.
+ */
+static void qmux_ctrl_send(void *ctx, uint64_t data, uint64_t offset)
+{
+	struct qcs *qcs = ((struct qc_stream_desc *)ctx)->ctx;
+	qcs_on_data_sent(qcs, data, offset);
 }
 
 /* Returns true if <qcc> buffer window does not have room for a new buffer. */
@@ -715,11 +734,11 @@ static inline int qcc_bufwnd_full(const struct qcc *qcc)
 	}
 }
 
-static void qmux_ctrl_room(void *ctx, uint64_t room)
+static void qmux_ctrl_room(void *ctx, uint64_t room, int release)
 {
 	struct qc_stream_desc *stream = ctx;
 	/* Context is different for active and released streams. */
-	struct qcc *qcc = !(stream->flags & QC_SD_FL_RELEASE) ?
+	struct qcc *qcc = !release ?
 	  ((struct qcs *)stream->ctx)->qcc : stream->ctx;
 	qcc_notify_buf(qcc, room);
 }

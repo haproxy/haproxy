@@ -49,8 +49,8 @@ struct qc_stream_desc {
 
 	int flags; /* QC_SD_FL_* values */
 
-	void (*notify_send)(struct qc_stream_desc *, uint64_t offset, uint64_t len);
-	void (*notify_room)(struct qc_stream_desc *, uint64_t room);
+	void (*notify_send)(void *ctx, uint64_t offset, uint64_t len);
+	void (*notify_room)(void *ctx, uint64_t room, int release);
 	void *ctx; /* notify context */
 };
 
