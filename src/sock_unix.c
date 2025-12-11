@@ -237,12 +237,6 @@ int sock_unix_bind_receiver(struct receiver *rx, char **errmsg)
 			err |= ERR_RETRYABLE;
 			goto bind_ret_err;
 		}
-		/* taking the other one's FD will result in it being marked
-		 * extern and being dup()ed. Let's mark the receiver as
-		 * inherited so that it properly bypasses all second-stage
-		 * setup and avoids being passed to new processes.
-		 */
-		rx->flags |= RX_F_INHERITED;
 		rx->fd = rx->shard_info->ref->fd;
 	}
 
@@ -418,7 +412,7 @@ int sock_unix_bind_receiver(struct receiver *rx, char **errmsg)
 	fd_insert(fd, rx->owner, rx->iocb, rx->bind_tgroup, rx->bind_thread);
 
 	/* for now, all regularly bound TCP listeners are exportable */
-	if (!(rx->flags & RX_F_INHERITED))
+	if (!(rx->flags & (RX_F_INHERITED_FD|RX_F_INHERITED_SOCK)))
 		HA_ATOMIC_OR(&fdtab[fd].state, FD_EXPORTED);
 
 	return err;

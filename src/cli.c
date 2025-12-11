@@ -3894,7 +3894,7 @@ int mworker_cli_global_proxy_new_listener(struct mworker_proc *proc)
 	list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 		HA_ATOMIC_INC(&unstoppable_jobs);
 		/* it's a sockpair but we don't want to keep the fd in the master */
-		l->rx.flags &= ~RX_F_INHERITED;
+		l->rx.flags &= ~RX_F_INHERITED_FD;
 		global.maxsock++; /* for the listening socket */
 	}
 

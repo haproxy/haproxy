@@ -909,7 +909,7 @@ static int tcp_suspend_receiver(struct receiver *rx)
 	 * parent process and any possible subsequent worker inheriting it.
 	 * Thus we just stop receiving from it.
 	 */
-	if (rx->flags & RX_F_INHERITED)
+	if (rx->flags & RX_F_INHERITED_SOCK)
 		goto done;
 
 	if (connect(rx->fd, &sa, sizeof(sa)) < 0)
@@ -945,7 +945,7 @@ static int tcp_resume_receiver(struct receiver *rx)
 	if (rx->fd < 0)
 		return 0;
 
-	if ((rx->flags & RX_F_INHERITED) || listen(rx->fd, listener_backlog(l)) == 0) {
+	if ((rx->flags & RX_F_INHERITED_SOCK) || listen(rx->fd, listener_backlog(l)) == 0) {
 		fd_want_recv(l->rx.fd);
 		return 1;
 	}

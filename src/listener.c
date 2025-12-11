@@ -846,7 +846,7 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 		proto->add(proto, l);
 
 		if (fd != -1)
-			l->rx.flags |= RX_F_INHERITED;
+			l->rx.flags |= RX_F_INHERITED_FD|RX_F_INHERITED_SOCK;
 
 		guid_init(&l->guid);
 
@@ -1844,6 +1844,12 @@ int bind_complete_thread_setup(struct bind_conf *bind_conf, int *err_code)
 					/* it has been allocated already in the previous round */
 					shard_info_attach(&new_li->rx, ref->rx.shard_info);
 					new_li->rx.flags |= RX_F_MUST_DUP;
+					/* taking the other one's FD will result in it being marked
+					 * extern and being dup()ed. Let's mark the receiver as
+					 * inherited so that it properly bypasses all second-stage
+					 * setup/unbind and avoids being passed to new processes.
+					 */
+					new_li->rx.flags |= ref->rx.flags & RX_F_INHERITED_SOCK;
 				}
 
 				gmask &= gmask - 1; // drop lowest bit

@@ -33,11 +33,12 @@
 
 /* Bit values for receiver->flags */
 #define RX_F_BOUND              0x00000001  /* receiver already bound */
-#define RX_F_INHERITED          0x00000002  /* inherited FD from the parent process (fd@) or duped from another local receiver */
+#define RX_F_INHERITED_FD       0x00000002  /* inherited FD from the parent process (fd@) */
 #define RX_F_MWORKER            0x00000004  /* keep the FD open in the master but close it in the children */
 #define RX_F_MUST_DUP           0x00000008  /* this receiver's fd must be dup() from a reference; ignore socket-level ops here */
 #define RX_F_NON_SUSPENDABLE    0x00000010  /* this socket cannot be suspended hence must always be unbound */
 #define RX_F_PASS_PKTINFO       0x00000020  /* pass pktinfo in received messages */
+#define RX_F_INHERITED_SOCK     0x00000040  /* inherited sock that could be duped from another local receiver */
 
 /* Bit values for rx_settings->options */
 #define RX_O_FOREIGN            0x00000001  /* receives on foreign addresses */

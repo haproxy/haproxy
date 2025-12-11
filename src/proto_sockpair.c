@@ -151,12 +151,6 @@ int sockpair_bind_receiver(struct receiver *rx, char **errmsg)
 			err |= ERR_RETRYABLE;
 			goto bind_ret_err;
 		}
-		/* taking the other one's FD will result in it being marked
-		 * extern and being dup()ed. Let's mark the receiver as
-		 * inherited so that it properly bypasses all second-stage
-		 * setup and avoids being passed to new processes.
-		 */
-		rx->flags |= RX_F_INHERITED;
 		rx->fd = rx->shard_info->ref->fd;
 	}
 
