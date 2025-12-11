@@ -1,7 +1,10 @@
 #REGTEST_TYPE=bug
 varnishtest "Test for ECDSA/RSA selection and crt-list filters"
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.8)'"
-feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1) || feature(OPENSSL_AWSLC)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC)'"
+# Note that USE_OPENSSL is always set if USE_QUIC is set
+# Same conditions as for ssl/tls13_ssl_crt-list_filters.vtc about TLS library versions
+feature cmd "$HAPROXY_PROGRAM -cc 'ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1) || feature(OPENSSL_AWSLC)'"
 # This test checks if the multiple certificate types works correctly with the
 # SNI, and that the negative filters are correctly excluded
 #
