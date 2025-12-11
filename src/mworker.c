@@ -223,7 +223,7 @@ int mworker_env_to_proc_list()
 				child->version = strdup(subtoken+8);
 			}
 		}
-		if (child->pid) {
+		if (child->pid > 0) {
 			LIST_APPEND(&proc_list, &child->list);
 		} else {
 			mworker_free_child(child);
@@ -909,6 +909,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 	/* dump complete */
 	return 1;
 }
+
 /* reload the master process */
 static int cli_parse_show_proc(char **args, char *payload, struct appctx *appctx, void *private)
 {
