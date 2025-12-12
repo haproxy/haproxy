@@ -14,6 +14,7 @@
 
 int qcc_qos_recv(struct qcc *qcc)
 {
+	/* TODO ajouter un buffer par connexion pour lecture des data incomplètes */
 	struct connection *conn = qcc->conn;
 	struct quic_frame frm;
 	const unsigned char *pos, *end;
@@ -47,6 +48,8 @@ int qcc_qos_recv(struct qcc *qcc)
 			qcc->rfctl.msd_uni_l = qs_tp_frm->tps.initial_max_stream_data_uni;
 			fprintf(stderr, "  initial_max_streams_bidi=%llu\n", (ullong)qs_tp_frm->tps.initial_max_streams_bidi);
 			fprintf(stderr, "  initial_max_streams_uni=%llu\n", (ullong)qs_tp_frm->tps.initial_max_streams_uni);
+
+			qcc->flags |= QC_CF_QSTP_RECV;
 		}
 		else if (frm.type >= QUIC_FT_STREAM_8 &&
 		         frm.type <= QUIC_FT_STREAM_F) {
@@ -160,6 +163,7 @@ int qcc_qos_send_frames(struct qcc *qcc, struct list *frms, int stream)
 	}
 	else if (!LIST_ISEMPTY(frms) && !(qcc->wait_event.events & SUB_RETRY_SEND)) {
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_SEND, &qcc->wait_event);
+		return 1;
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);

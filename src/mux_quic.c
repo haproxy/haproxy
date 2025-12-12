@@ -3054,7 +3054,8 @@ static int qcc_io_send(struct qcc *qcc)
 		goto out;
 	}
 
-	if (qcc->app_st < QCC_APP_ST_INIT) {
+	if (qcc->app_st < QCC_APP_ST_INIT &&
+	    (qmux_is_quic(qcc) || (qcc->flags & QC_CF_QSTP_RECV))) {
 		if (qcc_app_init(qcc))
 			goto out;
 	}
@@ -3928,6 +3929,9 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 		qcs->sd = sc->sedesc;
 		qcc->nb_sc++;
 		qcc->tot_sc++;
+
+		if (!qmux_is_quic(qcc))
+			tasklet_wakeup(qcc->wait_event.tasklet);
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCC_NEW, conn);
@@ -4682,6 +4686,6 @@ static const struct mux_ops qmux_qos_ops = {
 };
 
 static struct mux_proto_list mux_proto_qos =
-  { .token = IST("qos"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_FE, .mux = &qmux_qos_ops };
+  { .token = IST("qos"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_BOTH, .mux = &qmux_qos_ops };
 
 INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_qos);

@@ -247,6 +247,7 @@ struct qcc_app_ops {
 #define QC_CF_WAIT_HS   0x00000040 /* MUX init before QUIC handshake completed (0-RTT) */
 #define QC_CF_QOS       0x00000080
 #define QC_CF_QSTP_SENT 0x00000100
+#define QC_CF_QSTP_RECV 0x00000200
 
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
