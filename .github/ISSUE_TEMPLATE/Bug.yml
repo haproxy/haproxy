@@ -93,7 +93,8 @@ body:
       If HAProxy crashed then please provide:
 
         1. The last output from your HAProxy logs (e.g. from journalctl or syslog).
-        2. A backtrace from a coredump (`t a a bt full`).
+        2. A backtrace from a coredump (`t a a bt full`), make sure you didn't run haproxy in master-worker mode.
+           (Remove `-W -Ws` in command line and `master-worker` in global section of config)
     render: plain
 - type: textarea
   id: additional
