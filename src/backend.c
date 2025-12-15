@@ -2042,7 +2042,7 @@ int connect_server(struct stream *s)
 			struct ist sni = IST_NULL;
 
 			/* Set socket SNI */
-			if (srv->xprt && srv->xprt->get_ssl_sock_ctx && srv->ssl_ctx.sni) {
+			if (srv->xprt->get_ssl_sock_ctx && srv->ssl_ctx.sni) {
 				sni_smp = sample_fetch_as_type(s->be, s->sess, s,
 							       SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
 							       srv->ssl_ctx.sni, SMP_T_STR);
