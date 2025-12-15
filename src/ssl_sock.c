@@ -5701,7 +5701,7 @@ int ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
 		/* No connection or the sni of the cached SSL session does not
 		 * match the one of the new connection, don't reuse the SSL session
 		 */
-		if (!conn || srv->ssl_ctx.reused_sess[tid].sni_hash != conn->sni_hash)
+		if (srv->ssl_ctx.reused_sess[tid].sni_hash != conn->sni_hash)
 			goto out;
 
 		/* let's recreate a session from (ptr,size) and assign
@@ -5752,7 +5752,7 @@ int ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
 			/* No connection or the sni of the cached SSL session does not
 			 * match the one of the new connection, don't reuse the SSL session
 			 */
-			if (!conn || srv->ssl_ctx.reused_sess[old_tid-1].sni_hash != conn->sni_hash) {
+			if (srv->ssl_ctx.reused_sess[old_tid-1].sni_hash != conn->sni_hash) {
 				HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.reused_sess[old_tid-1].sess_lock);
 				goto out;
 			}
