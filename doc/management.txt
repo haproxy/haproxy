@@ -1725,6 +1725,19 @@ add acl [@<ver>] <acl> <pattern>
   This command cannot be used if the reference <acl> is a name also used with
   a map. In this case, the "add map" command must be used instead.
 
+add backend <name> from <defproxy> [ EXPERIMENTAL ]
+  Instantiate a new backend proxy with the name <name>.
+
+  Only TCP or HTTP proxies can be created. All of the settings are inherited
+  from <defproxy> default proxy instance. Servers can be added via the command
+  "add server". The backend is initialized in the unpublished state. Once
+  considered ready for traffic, use "publish backend" to expose the newly
+  created instance.
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin". Moreover, this feature is still considered in development so it
+  also requires experimental mode (see "experimental-mode on").
+
 add map [@<ver>] <map> <key> <value>
 add map [@<ver>] <map> <payload>
   Add an entry into the map <map> to associate the value <value> to the key

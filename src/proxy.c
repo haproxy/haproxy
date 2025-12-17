@@ -61,6 +61,7 @@
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
 #include <haproxy/tcpcheck.h>
+#include <haproxy/thread.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <haproxy/uri_auth.h>
@@ -4777,6 +4778,70 @@ static int cli_parse_shutdown_frontend(char **args, char *payload, struct appctx
 	return 1;
 }
 
+/* Parses a "add backend" CLI command to allocate a new backend instance,
+ * derived from a default proxy instance. This operation is performed under
+ * thread isolation.
+ *
+ * Always returns 1.
+ */
+static int cli_parse_add_backend(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct proxy *px, *defpx;
+	const char *be_name, *def_name, *err;
+	char *msg = NULL;
+
+	usermsgs_clr("CLI");
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	++args;
+	be_name = args[1];
+	if (!*be_name) {
+		cli_err(appctx, "Require backend name.\n");
+		return 1;
+	}
+	if ((err = invalid_char(be_name))) {
+		cli_dynerr(appctx, memprintf(&msg, "Invalid character '%c' in backend name.\n", *err));
+		return 1;
+	}
+
+	++args;
+	def_name = args[2];
+	if (!*args[1] || !*def_name || strcmp(args[1], "from") != 0) {
+		cli_err(appctx, "Usage: add backend <name> from <defproxy>.\n");
+		return 1;
+	}
+
+	defpx = proxy_find_by_name(def_name, PR_CAP_DEF, 0);
+	if (!defpx) {
+		cli_dynerr(appctx, memprintf(&msg, "Cannot find default proxy '%s'.\n", def_name));
+		return 1;
+	}
+
+	thread_isolate();
+
+	if ((px = proxy_find_by_name(be_name, PR_CAP_NONE, 0)) ||
+	    (px = proxy_find_by_name(be_name, PR_CAP_DEF, 0))) {
+		memprintf(&msg,
+		  "name is already used by other proxy '%s %s'",
+		  proxy_cap_str(px->cap), be_name);
+		px = NULL;
+		goto err;
+	}
+
+	thread_release();
+	ha_notice("New backend registered.\n");
+	cli_umsg(appctx, LOG_INFO);
+	return 1;
+
+ err:
+	thread_release();
+	if (msg)
+		cli_dynerr(appctx, msg);
+	return 1;
+}
+
 /* Parses the "disable frontend" directive, it always returns 1.
  *
  * Grabs the proxy lock.
@@ -5098,6 +5163,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
+	{ { "add", "backend", NULL },                       "add backend <backend>                   : add a new backend",                                              cli_parse_add_backend, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },
 	{ { "disable", "frontend",  NULL },                 "disable frontend <frontend>             : temporarily disable specific frontend",                          cli_parse_disable_frontend, NULL, NULL },
 	{ { "enable", "frontend",  NULL },                  "enable frontend <frontend>              : re-enable specific frontend",                                    cli_parse_enable_frontend, NULL, NULL },
 	{ { "publish", "backend",  NULL },                  "publish backend <backend>               : mark backend as ready for traffic",                              cli_parse_publish_backend, NULL, NULL },
