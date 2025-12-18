@@ -979,6 +979,33 @@ static void h2c_update_timeout(struct h2c *h2c)
 	TRACE_LEAVE(H2_EV_H2C_WAKE);
 }
 
+/* returns non-zero if the connection reached its last possible stream, i.e.
+ * on a frontend, if last_sid is set, max_id reached it, and on a backend,
+ * last_sid is set (since it's forbidden by the spec to initiate new streams
+ * on a connection that received a GOAWAY regardless of the advertised last
+ * stream id).
+ */
+static inline int h2c_reached_last_stream(const struct h2c *h2c)
+{
+	/* highest stream ID already reached ? */
+	if (h2c->max_id >= 0x7fffffff)
+		return 1;
+
+	/* GOAWAY sent or received ? */
+	if (h2c->last_sid < 0)
+		return 0;
+
+	if (h2c->flags & H2_CF_IS_BACK)
+		return 1;
+
+	/* front: reached advertised limit ? */
+	if (h2c->max_id >= h2c->last_sid)
+		return 1;
+
+	/* ok not yet */
+	return 0;
+}
+
 static __inline int
 h2c_is_dead(const struct h2c *h2c)
 {
@@ -989,7 +1016,7 @@ h2c_is_dead(const struct h2c *h2c)
 	     (!(h2c->conn->owner) && !conn_is_reverse(h2c->conn)) || /* Nobody's left to take care of the connection, drop it now */
 	     (!br_data(h2c->mbuf) &&  /* mux buffer empty, also process clean events below */
 	      ((h2c->flags & H2_CF_RCVD_SHUT) ||
-	       (h2c->last_sid >= 0 && h2c->max_id >= h2c->last_sid)))))
+	       h2c_reached_last_stream(h2c)))))
 		return 1;
 
 	return 0;
@@ -1146,12 +1173,14 @@ static inline int h2_streams_left(const struct h2c *h2c)
 {
 	int ret;
 
+	if (h2c_reached_last_stream(h2c))
+		return 0;
+
 	/* consider the number of outgoing streams we're allowed to create before
-	 * reaching the last GOAWAY frame seen. max_id is the last assigned id,
+	 * reaching the highest stream number. max_id is the last assigned id,
 	 * nb_reserved is the number of streams which don't yet have an ID.
 	 */
-	ret = (h2c->last_sid >= 0) ? h2c->last_sid : 0x7FFFFFFF;
-	ret = (unsigned int)(ret - h2c->max_id) / 2 - h2c->nb_reserved - 1;
+	ret = (unsigned int)(0x7FFFFFFF - h2c->max_id) / 2 - h2c->nb_reserved - 1;
 	if (ret < 0)
 		ret = 0;
 	return ret;
@@ -5161,8 +5190,7 @@ static int h2_process(struct h2c *h2c)
 
 	if ((h2c->flags & H2_CF_ERROR) || h2c_read0_pending(h2c) ||
 	    h2c->st0 == H2_CS_ERROR2 || h2c->flags & H2_CF_GOAWAY_FAILED ||
-	    (eb_is_empty(&h2c->streams_by_id) && h2c->last_sid >= 0 &&
-	     h2c->max_id >= h2c->last_sid)) {
+	    (eb_is_empty(&h2c->streams_by_id) && h2c_reached_last_stream(h2c))) {
 		h2_wake_some_streams(h2c, 0);
 
 		if (eb_is_empty(&h2c->streams_by_id)) {
