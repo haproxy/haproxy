@@ -22,6 +22,7 @@
 #include <haproxy/acl.h>
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
+#include <haproxy/backend.h>
 #include <haproxy/capture-t.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
@@ -56,7 +57,7 @@
 #include <haproxy/quic_tune.h>
 #include <haproxy/server-t.h>
 #include <haproxy/signal.h>
-#include <haproxy/stats-t.h>
+#include <haproxy/stats.h>
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
@@ -3023,8 +3024,10 @@ void defaults_px_unref_all(void)
 
 /* Add a reference on the default proxy <defpx> for the proxy <px> Nothing is
  * done if <px> already references <defpx>. Otherwise, the default proxy
- * refcount is incremented by one. For now, this operation is not thread safe
- * and is perform during init stage only.
+ * refcount is incremented by one.
+ *
+ * This operation is not thread safe. It must only be performed during init
+ * stage or under thread isolation.
  */
 static inline void defaults_px_ref(struct proxy *defpx, struct proxy *px)
 {
@@ -4786,10 +4789,12 @@ static int cli_parse_shutdown_frontend(char **args, char *payload, struct appctx
  */
 static int cli_parse_add_backend(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	struct proxy *px, *defpx;
+	struct proxy *px, *defpx, *next;
+	struct post_proxy_check_fct *ppcf;
 	const char *be_name, *def_name, *guid = NULL, *err;
 	char *msg = NULL;
 	enum pr_mode mode = 0;
+	int err_code = ERR_NONE;
 
 	usermsgs_clr("CLI");
 
@@ -4872,15 +4877,81 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
 		goto err;
 	}
 
+	px = alloc_new_proxy(be_name, PR_CAP_BE, &msg);
+	if (!px)
+		goto err;
+
+	if (guid && guid_insert(&px->obj_type, guid, &msg)) {
+		memprintf(&msg, "GUID insertion : %s", msg);
+		goto err;
+	}
+
+	if (proxy_defproxy_cpy(px, defpx, &msg))
+		goto err;
+
+	/* Override default-proxy mode if defined. */
+	if (mode)
+		px->mode = mode;
+
+	if (proxy_ref_defaults(px, defpx, &msg))
+		goto err;
+
+	proxy_init_per_thr(px);
+
+	if (proxy_finalize(px, &err_code))
+		goto err;
+
+	list_for_each_entry(ppcf, &post_proxy_check_list, list) {
+		err_code |= ppcf->fct(px);
+		if (err_code & (ERR_ABORT|ERR_FATAL))
+			goto err;
+	}
+
+	px->flags |= PR_FL_BE_UNPUBLISHED;
+
+	if (!stats_allocate_proxy_counters_internal(&px->extra_counters_be,
+	                                            COUNTERS_BE,
+	                                            STATS_PX_CAP_BE)) {
+		memprintf(&msg, "failed to allocate extra counters");
+		goto err;
+	}
+
+	if (!proxies_list) {
+		proxies_list->next = px;
+	}
+	else {
+		for (next = proxies_list; next->next; next = next->next)
+			;
+		next->next = px;
+	}
+	px->next = NULL;
+
 	thread_release();
-	ha_notice("New backend registered.\n");
+
+	if (unlikely(!be_supports_dynamic_srv(px, &msg)))
+		memprintf(&msg, "New backend registered (no support for dynamic servers: %s).\n", msg);
+	else
+		memprintf(&msg, "New backend registered.\n");
+	ha_notice(msg);
+	ha_free(&msg);
 	cli_umsg(appctx, LOG_INFO);
+
 	return 1;
 
  err:
+	/* free_proxy() ensures any potential refcounting on defpx is decremented. */
+	free_proxy(px);
 	thread_release();
-	if (msg)
+
+	if (msg) {
+		memprintf(&msg, "Error during backend creation : %s.\n", msg);
 		cli_dynerr(appctx, msg);
+	}
+	else {
+		ha_alert("Error during backend creation.\n");
+		cli_umsgerr(appctx);
+	}
+
 	return 1;
 }
 
