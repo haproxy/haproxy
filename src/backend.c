@@ -661,10 +661,6 @@ int assign_server(struct stream *s)
 					if (!(conn->flags & CO_FL_WAIT_XPRT)) {
 						srv = tmpsrv;
 						stream_set_srv_target(s, srv);
-						if (conn->flags & CO_FL_SESS_IDLE) {
-							conn->flags &= ~CO_FL_SESS_IDLE;
-							s->sess->idle_conns--;
-						}
 						goto out_ok;
 					}
 				}
