@@ -191,6 +191,8 @@ struct pat_ref_elt *pat_ref_find_elt(struct pat_ref *ref, const char *key);
 struct pat_ref_elt *pat_ref_gen_find_elt(struct pat_ref *ref, unsigned int gen_id, const char *key);
 struct pat_ref_elt *pat_ref_append(struct pat_ref *ref, const char *pattern, const char *sample, int line);
 struct pat_ref_elt *pat_ref_load(struct pat_ref *ref, unsigned int gen, const char *pattern, const char *sample, int line, char **err);
+struct pat_ref_gen *pat_ref_gen_new(struct pat_ref *ref, unsigned int gen_id);
+struct pat_ref_gen *pat_ref_gen_get(struct pat_ref *ref, unsigned int gen_id);
 int pat_ref_push(struct pat_ref_elt *elt, struct pattern_expr *expr, int patflags, char **err);
 int pat_ref_add(struct pat_ref *ref, const char *pattern, const char *sample, char **err);
 int pat_ref_set(struct pat_ref *ref, const char *pattern, const char *sample, char **err);

@@ -15,6 +15,7 @@
 #include <errno.h>
 
 #include <import/cebs_tree.h>
+#include <import/ceb32_tree.h>
 #include <import/ebistree.h>
 #include <import/ebpttree.h>
 #include <import/ebsttree.h>
@@ -30,6 +31,18 @@
 #include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
 
+
+/* Convenience macros for iterating over generations. */
+#define pat_ref_gen_foreach(gen, ref)								\
+	for (gen = cebu32_item_first(&ref->gen_root, gen_node, gen_id, struct pat_ref_gen);	\
+	     gen;										\
+	     gen = cebu32_item_next(&ref->gen_root, gen_node, gen_id, gen))
+
+/* Safe variant that allows deleting an entry in the body of the loop. */
+#define pat_ref_gen_foreach_safe(gen, next, ref)						\
+	for (gen = cebu32_item_first(&ref->gen_root, gen_node, gen_id, struct pat_ref_gen);	\
+	     gen && (next = cebu32_item_next(&ref->gen_root, gen_node, gen_id, gen), 1);	\
+	     gen = next)
 
 const char *const pat_match_names[PAT_MATCH_NUM] = {
 	[PAT_MATCH_FOUND] = "found",
@@ -1619,6 +1632,37 @@ int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
 		}
 	}
 	return 0;
+}
+
+/* Create a new generation object.
+ *
+ * Returns NULL in case of memory allocation failure.
+ */
+struct pat_ref_gen *pat_ref_gen_new(struct pat_ref *ref, unsigned int gen_id)
+{
+	struct pat_ref_gen *gen, *old;
+
+	gen = calloc(1, sizeof(struct pat_ref_gen));
+	if (!gen)
+		return NULL;
+
+	LIST_INIT(&gen->head);
+	ceb_init_root(&gen->elt_root);
+	gen->gen_id = gen_id;
+
+	old = cebu32_item_insert(&ref->gen_root, gen_node, gen_id, gen);
+	BUG_ON(old != gen, "Generation ID already exists");
+
+	return gen;
+}
+
+/* Find the generation <gen_id> in the pattern reference <ref>.
+ *
+ * Returns NULL if the generation cannot be found.
+ */
+struct pat_ref_gen *pat_ref_gen_get(struct pat_ref *ref, unsigned int gen_id)
+{
+	return cebu32_item_lookup(&ref->gen_root, gen_node, gen_id, gen_id, struct pat_ref_gen);
 }
 
 /* This function removes all elements belonging to <gen_id> and matching <key>

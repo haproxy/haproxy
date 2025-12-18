@@ -362,6 +362,7 @@ struct show_map_ctx {
 	unsigned int display_flags;
 	unsigned int curr_gen;  /* current/latest generation, for show/clear */
 	unsigned int prev_gen;  /* prev generation, for clear */
+	struct pat_ref_gen *gen; /* link to the generation being displayed, for show */
 	enum {
 		STATE_INIT = 0, /* initialize list and backrefs */
 		STATE_LIST,     /* list entries */

@@ -255,6 +255,7 @@ struct hlua_patref_iterator_context {
 	struct hlua_patref *ref;
 	struct bref bref;       /* back-reference from the pat_ref_elt being accessed
 	                         * during listing */
+	struct pat_ref_gen *gen; /* the generation we are iterating over */
 };
 
 #else /* USE_LUA */
