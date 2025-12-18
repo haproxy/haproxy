@@ -388,10 +388,16 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 			LIST_DELETE(&ctx->bref.users);
 			LIST_INIT(&ctx->bref.users);
 		} else {
-			ctx->bref.ref = ctx->ref->head.n;
+			ctx->gen = pat_ref_gen_get(ctx->ref, ctx->curr_gen);
+			if (!ctx->gen) {
+				HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ctx->ref->lock);
+				ctx->state = STATE_DONE;
+				return 1;
+			}
+			ctx->bref.ref = ctx->gen->head.n;
 		}
 
-		while (ctx->bref.ref != &ctx->ref->head) {
+		while (ctx->bref.ref != &ctx->gen->head) {
 			chunk_reset(&trash);
 
 			elt = LIST_ELEM(ctx->bref.ref, struct pat_ref_elt *, list);

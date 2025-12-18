@@ -3063,18 +3063,18 @@ static int _hlua_listable_patref_pairs_iterator(lua_State *L, int status, lua_KC
 
 	if (LIST_ISEMPTY(&hctx->bref.users)) {
 		/* first iteration */
-		hctx->bref.ref = hctx->ref->ptr->head.n;
+		hctx->gen = pat_ref_gen_get(hctx->ref->ptr, curr_gen);
+		if (!hctx->gen)
+			goto done;
+		hctx->bref.ref = hctx->gen->head.n;
 	}
 	else
 		LIST_DEL_INIT(&hctx->bref.users); // drop back ref from previous iteration
 
  next:
 	/* reached end of list? */
-	if (hctx->bref.ref == &hctx->ref->ptr->head) {
-		HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &hctx->ref->ptr->lock);
-		lua_pushnil(L);
-		return 1;
-	}
+	if (hctx->bref.ref == &hctx->gen->head)
+		goto done;
 
 	elt = LIST_ELEM(hctx->bref.ref, struct pat_ref_elt *, list);
 
@@ -3106,6 +3106,11 @@ static int _hlua_listable_patref_pairs_iterator(lua_State *L, int status, lua_KC
 	else
 		return 1;
 	return 2;
+
+done:
+	HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &hctx->ref->ptr->lock);
+	lua_pushnil(L);
+	return 1;
 
 }
 /* iterator must return key as string and value as patref

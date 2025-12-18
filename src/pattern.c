@@ -1581,8 +1581,12 @@ struct pat_ref *pat_ref_lookupid(int unique_id)
  */
 void pat_ref_delete_by_ptr(struct pat_ref *ref, struct pat_ref_elt *elt)
 {
+	struct pat_ref_gen *gen;
 	struct pattern_expr *expr;
 	struct bref *bref, *back;
+
+	gen = pat_ref_gen_get(ref, elt->gen_id);
+	BUG_ON(!gen);
 
 	/*
 	 * we have to unlink all watchers from this reference pattern. We must
@@ -1591,7 +1595,7 @@ void pat_ref_delete_by_ptr(struct pat_ref *ref, struct pat_ref_elt *elt)
 	list_for_each_entry_safe(bref, back, &elt->back_refs, users) {
 		LIST_DELETE(&bref->users);
 		LIST_INIT(&bref->users);
-		if (elt->list.n != &ref->head)
+		if (elt->list.n != &gen->head)
 			LIST_APPEND(&LIST_ELEM(elt->list.n, typeof(elt), list)->back_refs, &bref->users);
 		bref->ref = elt->list.n;
 	}
@@ -1606,7 +1610,7 @@ void pat_ref_delete_by_ptr(struct pat_ref *ref, struct pat_ref_elt *elt)
 		HA_RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
 
 	LIST_DELETE(&elt->list);
-	cebs_item_delete(&ref->ceb_root, node, pattern, elt);
+	cebs_item_delete(&gen->elt_root, node, pattern, elt);
 	free(elt->sample);
 	free(elt);
 	HA_ATOMIC_INC(&patterns_freed);
@@ -1621,14 +1625,17 @@ void pat_ref_delete_by_ptr(struct pat_ref *ref, struct pat_ref_elt *elt)
  */
 int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
 {
+	struct pat_ref_gen *gen;
 	struct pat_ref_elt *elt, *safe;
 
 	/* delete pattern from reference */
-	list_for_each_entry_safe(elt, safe, &ref->head, list) {
-		if (elt == refelt) {
-			event_hdl_publish(&ref->e_subs, EVENT_HDL_SUB_PAT_REF_DEL, NULL);
-			pat_ref_delete_by_ptr(ref, elt);
-			return 1;
+	pat_ref_gen_foreach(gen, ref) {
+		list_for_each_entry_safe(elt, safe, &gen->head, list) {
+			if (elt == refelt) {
+				event_hdl_publish(&ref->e_subs, EVENT_HDL_SUB_PAT_REF_DEL, NULL);
+				pat_ref_delete_by_ptr(ref, elt);
+				return 1;
+			}
 		}
 	}
 	return 0;
@@ -1642,7 +1649,7 @@ struct pat_ref_gen *pat_ref_gen_new(struct pat_ref *ref, unsigned int gen_id)
 {
 	struct pat_ref_gen *gen, *old;
 
-	gen = calloc(1, sizeof(struct pat_ref_gen));
+	gen = malloc(sizeof(struct pat_ref_gen));
 	if (!gen)
 		return NULL;
 
@@ -1672,24 +1679,21 @@ struct pat_ref_gen *pat_ref_gen_get(struct pat_ref *ref, unsigned int gen_id)
  */
 int pat_ref_gen_delete(struct pat_ref *ref, unsigned int gen_id, const char *key)
 {
-	struct pat_ref_elt *elt, *elt2;
-	int found = 0;
+	struct pat_ref_gen *gen;
+	struct pat_ref_elt *elt;
+
+	gen = pat_ref_gen_get(ref, gen_id);
+	if (!gen)
+		return 0;
 
 	/* delete pattern from reference */
-	elt = cebs_item_lookup(&ref->ceb_root, node, pattern, key, struct pat_ref_elt);
-	while (elt) {
-		elt2 = cebs_item_next_dup(&ref->ceb_root, node, pattern, elt);
-		if (elt->gen_id == gen_id) {
-			pat_ref_delete_by_ptr(ref, elt);
-			found = 1;
-		}
-		elt = elt2;
-	}
+	elt = cebs_item_lookup(&gen->elt_root, node, pattern, key, struct pat_ref_elt);
+	if (!elt)
+		return 0;
 
-	if (found)
-		event_hdl_publish(&ref->e_subs, EVENT_HDL_SUB_PAT_REF_DEL, NULL);
-
-	return found;
+	pat_ref_delete_by_ptr(ref, elt);
+	event_hdl_publish(&ref->e_subs, EVENT_HDL_SUB_PAT_REF_DEL, NULL);
+	return 1;
 }
 
 /* This function removes all patterns matching <key> from the reference
@@ -1707,15 +1711,12 @@ int pat_ref_delete(struct pat_ref *ref, const char *key)
  */
 struct pat_ref_elt *pat_ref_gen_find_elt(struct pat_ref *ref, unsigned int gen_id, const char *key)
 {
-	struct pat_ref_elt *elt;
+	struct pat_ref_gen *gen;
 
-	elt = cebs_item_lookup(&ref->ceb_root, node, pattern, key, struct pat_ref_elt);
-	while (elt) {
-		if (elt->gen_id == gen_id)
-			break;
-		elt = cebs_item_next_dup(&ref->ceb_root, node, pattern, elt);
-	}
-	return elt;
+	gen = pat_ref_gen_get(ref, gen_id);
+	if (!gen)
+		return NULL;
+	return cebs_item_lookup(&gen->elt_root, node, pattern, key, struct pat_ref_elt);
 }
 
 /*
@@ -1815,14 +1816,17 @@ static inline int pat_ref_set_elt(struct pat_ref *ref, struct pat_ref_elt *elt,
  */
 int pat_ref_set_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt, const char *value, char **err)
 {
+	struct pat_ref_gen *gen;
 	struct pat_ref_elt *elt;
 
 	/* Look for pattern in the reference. */
-	list_for_each_entry(elt, &ref->head, list) {
-		if (elt == refelt) {
-			if (!pat_ref_set_elt(ref, elt, value, err))
-				return 0;
-			return 1;
+	pat_ref_gen_foreach(gen, ref) {
+		list_for_each_entry(elt, &gen->head, list) {
+			if (elt == refelt) {
+				if (!pat_ref_set_elt(ref, elt, value, err))
+					return 0;
+				return 1;
+			}
 		}
 	}
 
@@ -1832,31 +1836,30 @@ int pat_ref_set_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt, const cha
 
 static int pat_ref_set_from_elt(struct pat_ref *ref, struct pat_ref_elt *elt, const char *value, char **err)
 {
-	unsigned int gen;
+	struct pat_ref_gen *gen;
 	struct pat_ref_elt *elt2;
-	int first = 1;
-	int found = 0;
+	int found = 0, publish = 0;
 
-	for (; elt; elt = elt2) {
-		char *tmp_err = NULL;
+	if (elt) {
+		if (elt->gen_id == ref->curr_gen)
+			publish = 1;
+		gen = pat_ref_gen_get(ref, elt->gen_id);
+		BUG_ON(!gen);
 
-		elt2 = cebs_item_next_dup(&ref->ceb_root, node, pattern, elt);
-		if (first)
-			gen = elt->gen_id;
-		else if (elt->gen_id != gen) {
-			/* only consider duplicate elements from the same gen! */
-			continue;
+		for (; elt; elt = elt2) {
+			char *tmp_err = NULL;
+
+			elt2 = cebs_item_next_dup(&gen->elt_root, node, pattern, elt);
+
+			if (!pat_ref_set_elt(ref, elt, value, &tmp_err)) {
+				if (err)
+					*err = tmp_err;
+				else
+					ha_free(&tmp_err);
+				return 0;
+			}
+			found = 1;
 		}
-
-		if (!pat_ref_set_elt(ref, elt, value, &tmp_err)) {
-			if (err)
-				*err = tmp_err;
-			else
-				ha_free(&tmp_err);
-			return 0;
-		}
-		found = 1;
-		first = 0;
 	}
 
 	if (!found) {
@@ -1864,7 +1867,7 @@ static int pat_ref_set_from_elt(struct pat_ref *ref, struct pat_ref_elt *elt, co
 		return 0;
 	}
 
-	if (gen == ref->curr_gen) // gen cannot be uninitialized here
+	if (publish)
 		event_hdl_publish(&ref->e_subs, EVENT_HDL_SUB_PAT_REF_SET, NULL);
 
 	return 1;
@@ -1883,15 +1886,15 @@ int pat_ref_set_elt_duplicate(struct pat_ref *ref, struct pat_ref_elt *elt, cons
 int pat_ref_gen_set(struct pat_ref *ref, unsigned int gen_id,
                     const char *key, const char *value, char **err)
 {
+	struct pat_ref_gen *gen;
 	struct pat_ref_elt *elt;
 
 	/* Look for pattern in the reference. */
-	elt = cebs_item_lookup(&ref->ceb_root, node, pattern, key, struct pat_ref_elt);
-	while (elt) {
-		if (elt->gen_id == gen_id)
-			break;
-		elt = cebs_item_next_dup(&ref->ceb_root, node, pattern, elt);
-	}
+	gen = pat_ref_gen_get(ref, gen_id);
+	if (gen)
+		elt = cebs_item_lookup(&gen->elt_root, node, pattern, key, struct pat_ref_elt);
+	else
+		elt = NULL;
 	return pat_ref_set_from_elt(ref, elt, value, err);
 }
 
@@ -1933,8 +1936,7 @@ static struct pat_ref *_pat_ref_new(const char *display, unsigned int flags)
 	ref->unique_id = -1;
 	ref->revision = 0;
 	ref->entry_cnt = 0;
-	LIST_INIT(&ref->head);
-	ref->ceb_root = NULL;
+	ceb_init_root(&ref->gen_root);
 	LIST_INIT(&ref->pat);
 	HA_RWLOCK_INIT(&ref->lock);
 	event_hdl_sub_list_init(&ref->e_subs);
@@ -2016,14 +2018,23 @@ struct pat_ref *pat_ref_newid(int unique_id, const char *display, unsigned int f
  * <ref> must be held. It sets the newly created pattern's generation number
  * to the same value as the reference's.
  */
-struct pat_ref_elt *pat_ref_append(struct pat_ref *ref, const char *pattern, const char *sample, int line)
+struct pat_ref_elt *pat_ref_append(struct pat_ref *ref, unsigned int gen_id,
+                                   const char *pattern, const char *sample, int line)
 {
+	struct pat_ref_gen *gen;
 	struct pat_ref_elt *elt;
 	int len = strlen(pattern);
 
 	elt = calloc(1, sizeof(*elt) + len + 1);
 	if (!elt)
 		goto fail;
+
+	gen = pat_ref_gen_get(ref, gen_id);
+	if (!gen) {
+		gen = pat_ref_gen_new(ref, gen_id);
+		if (!gen)
+			goto fail;
+	}
 
 	elt->gen_id = ref->curr_gen;
 	elt->line = line;
@@ -2039,8 +2050,8 @@ struct pat_ref_elt *pat_ref_append(struct pat_ref *ref, const char *pattern, con
 	LIST_INIT(&elt->back_refs);
 	elt->list_head = NULL;
 	elt->tree_head = NULL;
-	LIST_APPEND(&ref->head, &elt->list);
-	cebs_item_insert(&ref->ceb_root, node, pattern, elt);
+	LIST_APPEND(&gen->head, &elt->list);
+	cebs_item_insert(&gen->elt_root, node, pattern, elt);
 	HA_ATOMIC_INC(&patterns_added);
 	return elt;
  fail:
@@ -2138,9 +2149,8 @@ struct pat_ref_elt *pat_ref_load(struct pat_ref *ref, unsigned int gen,
 {
 	struct pat_ref_elt *elt;
 
-	elt = pat_ref_append(ref, pattern, sample, line);
+	elt = pat_ref_append(ref, gen, pattern, sample, line);
 	if (elt) {
-		elt->gen_id = gen;
 		if (!pat_ref_commit_elt(ref, elt, err))
 			elt = NULL;
 	} else
@@ -2177,6 +2187,7 @@ int pat_ref_add(struct pat_ref *ref,
  */
 int pat_ref_purge_range(struct pat_ref *ref, uint from, uint to, int budget)
 {
+	struct pat_ref_gen *gen, *gen2;
 	struct pat_ref_elt *elt, *elt_bck;
 	struct bref *bref, *bref_bck;
 	struct pattern_expr *expr;
@@ -2189,35 +2200,51 @@ int pat_ref_purge_range(struct pat_ref *ref, uint from, uint to, int budget)
 
 	/* assume completion for e.g. empty lists */
 	done = 1;
-	list_for_each_entry_safe(elt, elt_bck, &ref->head, list) {
-		if (elt->gen_id - from > to - from)
+	pat_ref_gen_foreach_safe(gen, gen2, ref) {
+		if (gen->gen_id - from > to - from) {
+			if (from <= to) {
+				break;
+			}
 			continue;
+		}
 
-		if (budget >= 0 && !budget--) {
-			done = 0;
+		list_for_each_entry_safe(elt, elt_bck, &gen->head, list) {
+			if (budget >= 0 && !budget--) {
+				done = 0;
+				break;
+			}
+
+			BUG_ON(elt->gen_id != gen->gen_id);
+
+			/*
+			 * we have to unlink all watchers from this reference pattern. We must
+			 * not relink them if this elt was the last one in the list.
+			 */
+			list_for_each_entry_safe(bref, bref_bck, &elt->back_refs, users) {
+				LIST_DELETE(&bref->users);
+				LIST_INIT(&bref->users);
+				if (elt->list.n != &gen->head)
+					LIST_APPEND(&LIST_ELEM(elt->list.n, typeof(elt), list)->back_refs, &bref->users);
+				bref->ref = elt->list.n;
+			}
+
+			/* delete the storage for all representations of this pattern. */
+			pat_delete_gen(ref, elt);
+
+			LIST_DELETE(&elt->list);
+			cebs_item_delete(&gen->elt_root, node, pattern, elt);
+			free(elt->sample);
+			free(elt);
+			HA_ATOMIC_INC(&patterns_freed);
+		}
+
+		if (!done)
 			break;
-		}
 
-		/*
-		 * we have to unlink all watchers from this reference pattern. We must
-		 * not relink them if this elt was the last one in the list.
-		 */
-		list_for_each_entry_safe(bref, bref_bck, &elt->back_refs, users) {
-			LIST_DELETE(&bref->users);
-			LIST_INIT(&bref->users);
-			if (elt->list.n != &ref->head)
-				LIST_APPEND(&LIST_ELEM(elt->list.n, typeof(elt), list)->back_refs, &bref->users);
-			bref->ref = elt->list.n;
-		}
-
-		/* delete the storage for all representations of this pattern. */
-		pat_delete_gen(ref, elt);
-
-		LIST_DELETE(&elt->list);
-		cebs_item_delete(&ref->ceb_root, node, pattern, elt);
-		free(elt->sample);
-		free(elt);
-		HA_ATOMIC_INC(&patterns_freed);
+		BUG_ON(!LIST_ISEMPTY(&gen->head));
+		BUG_ON(!ceb_isempty(&gen->elt_root));
+		cebu32_item_delete(&ref->gen_root, gen_node, gen_id, gen);
+		free(gen);
 	}
 
 	list_for_each_entry(expr, &ref->pat, list)
@@ -2432,7 +2459,7 @@ int pat_ref_read_from_file_smp(struct pat_ref *ref, char **err)
 		*value_end = '\0';
 
 		/* insert values */
-		if (!pat_ref_append(ref, key_beg, value_beg, line)) {
+		if (!pat_ref_append(ref, ref->curr_gen, key_beg, value_beg, line)) {
 			memprintf(err, "out of memory");
 			goto out_close;
 		}
@@ -2499,7 +2526,7 @@ int pat_ref_read_from_file(struct pat_ref *ref, char **err)
 		if (c == arg)
 			continue;
 
-		if (!pat_ref_append(ref, arg, NULL, line)) {
+		if (!pat_ref_append(ref, ref->curr_gen, arg, NULL, line)) {
 			memprintf(err, "out of memory when loading patterns from file <%s>", ref->reference);
 			goto out_close;
 		}
@@ -2523,6 +2550,7 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 {
 	struct pat_ref *ref;
 	struct pattern_expr *expr;
+	struct pat_ref_gen *gen;
 	struct pat_ref_elt *elt;
 	int reuse = 0;
 
@@ -2623,12 +2651,14 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 	 * content-based in case of duplicated keys we only want the first key
 	 * in the file to be considered.
 	 */
-	list_for_each_entry(elt, &ref->head, list) {
-		if (!pat_ref_push(elt, expr, patflags, err)) {
-			if (elt->line > 0)
-				memprintf(err, "%s at line %d of file '%s'",
-				          *err, elt->line, filename);
-			return 0;
+	pat_ref_gen_foreach(gen, ref) {
+		list_for_each_entry(elt, &gen->head, list) {
+			if (!pat_ref_push(elt, expr, patflags, err)) {
+				if (elt->line > 0)
+					memprintf(err, "%s at line %d of file '%s'",
+						*err, elt->line, filename);
+				return 0;
+			}
 		}
 	}
 
