@@ -2236,6 +2236,7 @@ cpu-affinity <affinity>
   - per-thread, that will bind one thread to one hardware thread only.
     If threads-per-core 1 is used in cpu-policy, then each thread will be bound
     to one hardware thread of a different core.
+  - per-ccx, each thread will be bound to all the hardware threads of a CCX.
 
 cpu-policy <policy> [threads-per-core 1 | auto]
   Selects the CPU allocation policy to be used.

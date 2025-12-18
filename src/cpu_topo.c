@@ -24,6 +24,7 @@
 #define CPU_AFFINITY_PER_GROUP  (1 << 0)
 #define CPU_AFFINITY_PER_CORE   (1 << 1)
 #define CPU_AFFINITY_PER_THREAD (1 << 2)
+#define CPU_AFFINITY_PER_CCX    (1 << 3)
 
 /* CPU topology information, ha_cpuset_size() entries, allocated at boot */
 int cpu_topo_maxcpus  = -1;  // max number of CPUs supported by OS/haproxy
@@ -73,6 +74,7 @@ static struct cpu_affinity {
 	{"per-core", CPU_AFFINITY_PER_CORE},
 	{"per-group", CPU_AFFINITY_PER_GROUP},
 	{"per-thread", CPU_AFFINITY_PER_THREAD},
+	{"per-ccx", CPU_AFFINITY_PER_CCX},
 	{"auto", 0},
 	{NULL, 0}
 };
@@ -1054,6 +1056,17 @@ static int find_next_cpu_tsid(int start, int tsid)
 	return -1;
 }
 
+static int find_next_cpu_ccx(int start, int l3id)
+{
+	int cpu;
+
+	for (cpu = start; cpu <= cpu_topo_lastcpu; cpu++)
+		if (ha_cpu_topo[cpu].ca_id[3] == l3id)
+			return cpu;
+
+	return -1;
+}
+
 /* the "first-usable-node" cpu-policy: historical one
  *  - does nothing if numa_cpu_mapping is not set
  *  - does nothing if nbthread is set
@@ -1065,6 +1078,7 @@ static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin
 {
 	struct hap_cpuset node_cpu_set;
 	struct hap_cpuset visited_tsid;
+	struct hap_cpuset visited_ccx;
 	int first_node_id = -1;
 	int second_node_id = -1;
 	int cpu;
@@ -1106,6 +1120,7 @@ static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin
 	 */
 	ha_cpuset_zero(&node_cpu_set);
 	ha_cpuset_zero(&visited_tsid);
+	ha_cpuset_zero(&visited_ccx);
 	for (cpu = cpu_count = 0; cpu <= cpu_topo_lastcpu; cpu++) {
 		if (ha_cpu_topo[cpu].no_id != first_node_id)
 			ha_cpu_topo[cpu].st |= HA_CPU_F_IGNORED;
@@ -1113,6 +1128,7 @@ static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin
 			ha_cpuset_set(&node_cpu_set, ha_cpu_topo[cpu].idx);
 			cpu_count++;
 
+			ha_cpuset_set(&visited_ccx, ha_cpu_topo[cpu].ca_id[3]);
 			if (!(cpu_policy_conf.flags & CPU_POLICY_ONE_THREAD_PER_CORE) || !ha_cpuset_isset(&visited_tsid, ha_cpu_topo[cpu].ts_id)) {
 				ha_cpuset_set(&visited_tsid, ha_cpu_topo[cpu].ts_id);
 				thr_count++;
@@ -1179,8 +1195,8 @@ static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin
 
 					if (got_cpu != -1) {
 						ha_cpuset_set(&thrset, ha_cpu_topo[got_cpu].idx);
-						ha_cpuset_clr(&thrset, ha_cpu_topo[got_cpu].idx);
 					}
+					ha_cpuset_clr(&visited_tsid, tsid);
 
 				} else {
 					int tid = ha_cpuset_ffs(&node_cpu_set) - 1;
@@ -1192,6 +1208,29 @@ static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin
 				}
 				if (ha_cpuset_ffs(&thrset) != 0)
 					ha_cpuset_assign(&cpu_map[0].thread[thr], &thrset);
+			}
+		} else if (cpu_policy_conf.affinity & CPU_AFFINITY_PER_CCX) {
+			struct hap_cpuset thrset;
+			int same_ccx = 0;
+
+			for (thr = 0; thr < thr_count; thr++) {
+				int got_cpu;
+				int next_try = 0;
+
+				if (same_ccx == 0) {
+					int l3id = ha_cpuset_ffs(&visited_ccx) - 1;
+					ha_cpuset_zero(&thrset);
+					while ((got_cpu = find_next_cpu_ccx(next_try, l3id)) != -1) {
+						next_try = got_cpu + 1;
+						same_ccx++;
+						ha_cpuset_set(&thrset, ha_cpu_topo[got_cpu].idx);
+					}
+					ha_cpuset_clr(&visited_ccx, l3id);
+				}
+				BUG_ON(same_ccx == 0);
+				if (ha_cpuset_ffs(&thrset) != 0)
+					ha_cpuset_assign(&cpu_map[0].thread[thr], &thrset);
+				same_ccx--;
 			}
 		} else {
 
@@ -1231,6 +1270,7 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 	struct hap_cpuset visited_cl_set;
 	struct hap_cpuset node_cpu_set;
 	struct hap_cpuset visited_tsid;
+	struct hap_cpuset visited_ccx;
 	struct hap_cpuset thrset;
 	int cpu, cpu_start;
 	int cpu_count;
@@ -1258,6 +1298,7 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 	while (global.nbtgroups < MAX_TGROUPS && global.nbthread < MAX_THREADS) {
 		ha_cpuset_zero(&node_cpu_set);
 		ha_cpuset_zero(&visited_tsid);
+		ha_cpuset_zero(&visited_ccx);
 		cid = -1; cpu_count = 0;
 
 		for (cpu = cpu_start; cpu <= cpu_topo_lastcpu; cpu++) {
@@ -1277,6 +1318,7 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 
 			/* make a mask of all of this cluster's CPUs */
 			ha_cpuset_set(&node_cpu_set, ha_cpu_topo[cpu].idx);
+			ha_cpuset_set(&visited_ccx, ha_cpu_topo[cpu].ca_id[3]);
 			if (!ha_cpuset_isset(&visited_tsid, ha_cpu_topo[cpu].ts_id)) {
 				cpu_count++;
 				ha_cpuset_set(&visited_tsid, ha_cpu_topo[cpu].ts_id);
@@ -1383,6 +1425,24 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 					if (ha_cpuset_ffs(&thrset) != 0)
 						ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &thrset);
 
+				} else if (cpu_policy_conf.affinity & CPU_AFFINITY_PER_CCX) {
+					if (same_core == 0) {
+						int l3id = ha_cpuset_ffs(&visited_ccx) - 1;
+						int got_cpu;
+						int next_try = 0;
+						ha_cpuset_zero(&thrset);
+
+						while ((got_cpu = find_next_cpu_ccx(next_try, l3id)) != -1) {
+							next_try = got_cpu + 1;
+							same_core++;
+							ha_cpuset_set(&thrset, ha_cpu_topo[got_cpu].idx);
+						}
+						ha_cpuset_clr(&visited_ccx, l3id);
+					}
+					BUG_ON(same_core == 0);
+					if (ha_cpuset_ffs(&thrset) != 0)
+						ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &thrset);
+					same_core--;
 				} else {
 					/* map these threads to all the CPUs */
 					ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &node_cpu_set);
@@ -1419,6 +1479,7 @@ static int cpu_policy_group_by_ccx(int policy, int tmin, int tmax, int gmin, int
 	struct hap_cpuset visited_ccx_set;
 	struct hap_cpuset node_cpu_set;
 	struct hap_cpuset visited_tsid;
+	struct hap_cpuset visited_ccx; /* List of CCXs we'll currently use */
 	struct hap_cpuset thrset;
 	int cpu, cpu_start;
 	int cpu_count;
@@ -1465,6 +1526,7 @@ static int cpu_policy_group_by_ccx(int policy, int tmin, int tmax, int gmin, int
 
 			/* make a mask of all of this cluster's CPUs */
 			ha_cpuset_set(&node_cpu_set, ha_cpu_topo[cpu].idx);
+			ha_cpuset_set(&visited_ccx, ha_cpu_topo[cpu].ca_id[3]);
 			if (!ha_cpuset_isset(&visited_tsid, ha_cpu_topo[cpu].ts_id)) {
 				cpu_count++;
 				ha_cpuset_set(&visited_tsid, ha_cpu_topo[cpu].ts_id);
@@ -1571,7 +1633,24 @@ static int cpu_policy_group_by_ccx(int policy, int tmin, int tmax, int gmin, int
 					if (ha_cpuset_ffs(&thrset) != 0)
 						ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &thrset);
 
+				} else if (cpu_policy_conf.affinity & CPU_AFFINITY_PER_CCX) {
+					if (same_core == 0) {
+						int l3id = ha_cpuset_ffs(&visited_ccx) - 1;
+						int got_cpu;
+						int next_try = 0;
+						ha_cpuset_zero(&thrset);
 
+						while ((got_cpu = find_next_cpu_ccx(next_try, l3id)) != -1) {
+							next_try = got_cpu + 1;
+							same_core++;
+							ha_cpuset_set(&thrset, ha_cpu_topo[got_cpu].idx);
+						}
+						ha_cpuset_clr(&visited_ccx, l3id);
+					}
+					BUG_ON(same_core == 0);
+					if (ha_cpuset_ffs(&thrset) != 0)
+						ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &thrset);
+					same_core--;
 				} else {
 					/* map these threads to all the CPUs */
 					ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &node_cpu_set);
