@@ -1423,6 +1423,9 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 
 		return 0;
 	}
+	else if (strcmp(args[0], "tune.defaults.purge") == 0) {
+		global.tune.options |= GTUNE_PURGE_DEFAULTS;
+	}
 	else if (strcmp(args[0], "tune.pattern.cache-size") == 0) {
 		if (*(args[1]) == 0) {
 			memprintf(err, "'%s' expects a positive numeric value", args[0]);
@@ -1869,6 +1872,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.bufsize", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.chksize", cfg_parse_global_unsupported_opts },
 	{ CFG_GLOBAL, "tune.comp.maxlevel", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.defaults.purge", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.disable-fast-forward", cfg_parse_global_tune_forward_opts },
 	{ CFG_GLOBAL, "tune.disable-zero-copy-forwarding", cfg_parse_global_tune_forward_opts },
 	{ CFG_GLOBAL, "tune.glitches.kill.cpu-usage", cfg_parse_global_tune_opts },

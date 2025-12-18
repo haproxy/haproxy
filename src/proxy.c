@@ -1667,6 +1667,30 @@ void defaults_px_detach(struct proxy *px)
 	/* If not destroyed, <px> can still be accessed in <defaults_list>. */
 }
 
+void defaults_px_ref_all(void)
+{
+	struct proxy *px;
+
+	for (px = cebis_item_first(&defproxy_by_name, conf.name_node, id, struct proxy);
+	     px;
+	     px = cebis_item_next(&defproxy_by_name, conf.name_node, id, px)) {
+		++px->conf.refcount;
+	}
+}
+
+void defaults_px_unref_all(void)
+{
+	struct proxy *px, *nx;
+
+	for (px = cebis_item_first(&defproxy_by_name, conf.name_node, id, struct proxy); px; px = nx) {
+		nx = cebis_item_next(&defproxy_by_name, conf.name_node, id, px);
+
+		BUG_ON(!px->conf.refcount);
+		if (!--px->conf.refcount)
+			defaults_px_destroy(px);
+	}
+}
+
 /* Add a reference on the default proxy <defpx> for the proxy <px> Nothing is
  * done if <px> already references <defpx>. Otherwise, the default proxy
  * refcount is incremented by one. For now, this operation is not thread safe

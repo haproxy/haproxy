@@ -72,6 +72,8 @@ void init_new_proxy(struct proxy *p);
 void defaults_px_destroy(struct proxy *px);
 void defaults_px_destroy_all_unref(void);
 void defaults_px_detach(struct proxy *px);
+void defaults_px_ref_all(void);
+void defaults_px_unref_all(void);
 
 void proxy_ref_defaults(struct proxy *px, struct proxy *defpx);
 void proxy_unref_defaults(struct proxy *px);

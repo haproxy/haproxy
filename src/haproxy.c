@@ -2105,8 +2105,13 @@ static void step_init_2(int argc, char** argv)
 	}
 	last_defproxy = NULL; /* This variable is not used after parsing. */
 
-	/* destroy unreferenced defaults proxies  */
-	defaults_px_destroy_all_unref();
+	if (global.tune.options & GTUNE_PURGE_DEFAULTS) {
+		/* destroy unreferenced defaults proxies  */
+		defaults_px_destroy_all_unref();
+	}
+	else {
+		defaults_px_ref_all();
+	}
 
 	list_for_each_entry(prcf, &pre_check_list, list) {
 		err_code |= prcf->fct();
@@ -2749,6 +2754,9 @@ void deinit(void)
 	 * they are respectively cleaned up in sink_deinit() and deinit_log_forward()
 	 */
 
+	/* If named defaults were preserved, ensure refcount is resetted. */
+	if (!(global.tune.options & GTUNE_PURGE_DEFAULTS))
+		defaults_px_unref_all();
 	/* All proxies are removed now, so every defaults should also be freed
 	 * when their refcount reached zero.
 	 */

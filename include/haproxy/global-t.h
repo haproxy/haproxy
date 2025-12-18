@@ -67,7 +67,7 @@
 #define GTUNE_USE_SYSTEMD        (1<<10)
 
 #define GTUNE_BUSY_POLLING       (1<<11)
-/* (1<<12) unused */
+#define GTUNE_PURGE_DEFAULTS     (1<<12)
 #define GTUNE_SET_DUMPABLE       (1<<13)
 #define GTUNE_USE_EVPORTS        (1<<14)
 #define GTUNE_STRICT_LIMITS      (1<<15)

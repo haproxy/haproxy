@@ -1871,6 +1871,7 @@ The following keywords are supported in the "global" section :
    - tune.bufsize
    - tune.bufsize.small
    - tune.comp.maxlevel
+   - tune.defaults.purge
    - tune.disable-fast-forward
    - tune.disable-zero-copy-forwarding
    - tune.epoll.mask-events
@@ -4120,6 +4121,19 @@ tune.comp.maxlevel <number>
   usage during compression. This value affects CPU usage during compression.
   Each stream using compression initializes the compression algorithm with
   this value. The default value is 1.
+
+tune.defaults.purge
+  For dynamic backends support, all named defaults sections are now kept in
+  memory after parsing. This is necessary as backend added at runtime must be
+  based on a named defaults for its configuration.
+
+  This may consume significant memory if the number of defaults instances is
+  important. In this case and if dynamic backend feature is unnecessary, it's
+  possible to use this option to force deletion of defaults section after
+  parsing. It is still mandatory though to keep referenced defaults section
+  which contain settings whose cannot be copied by their referencing proxies.
+  For example, this is the case if the defaults section defines TCP/HTTP rules
+  or a tcpcheck ruleset.
 
 tune.disable-fast-forward
   Disables the data fast-forwarding. It is a mechanism to optimize the data
