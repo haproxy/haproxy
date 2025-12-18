@@ -1,0 +1,76 @@
+name: openssl master
+
+on:
+  schedule:
+  - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    if: ${{ github.repository_owner == 'haproxy' || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - name: Install apt dependencies
+        run: |
+          sudo apt-get update -o Acquire::Languages=none -o Acquire::Translation=none
+          sudo apt-get --no-install-recommends -y install socat gdb
+          sudo apt-get --no-install-recommends -y install libpsl-dev
+      - uses: ./.github/actions/setup-vtest
+      - name: Install OpenSSL master
+        run: env OPENSSL_VERSION="master" GIT_TYPE="branch" scripts/build-ssl.sh
+      - name: Compile HAProxy
+        run: |
+          make -j$(nproc) ERR=1 CC=gcc TARGET=linux-glibc \
+            USE_QUIC=1 USE_OPENSSL=1 \
+            SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include \
+            DEBUG="-DDEBUG_POOL_INTEGRITY -DDEBUG_UNIT" \
+            ADDLIB="-Wl,-rpath,/usr/local/lib/ -Wl,-rpath,$HOME/opt/lib/"
+          sudo make install
+      - name: Show HAProxy version
+        id: show-version
+        run: |
+          ldd $(which haproxy)
+          haproxy -vv
+          echo "version=$(haproxy -v |awk 'NR==1{print $3}')" >> $GITHUB_OUTPUT
+      - name: Install problem matcher for VTest
+        run: echo "::add-matcher::.github/vtest.json"
+      - name: Run VTest for HAProxy
+        id: vtest
+        run: |
+          # This is required for macOS which does not actually allow to increase
+          # the '-n' soft limit to the hard limit, thus failing to run.
+          ulimit -n 65536
+          # allow to catch coredumps
+          ulimit -c unlimited
+          make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
+      - name: Show VTest results
+        if: ${{ failure() && steps.vtest.outcome == 'failure' }}
+        run: |
+          for folder in ${TMPDIR:-/tmp}/haregtests-*/vtc.*; do
+            printf "::group::"
+            cat $folder/INFO
+            cat $folder/LOG
+            echo "::endgroup::"
+          done
+          exit 1
+      - name: Run Unit tests
+        id: unittests
+        run: |
+          make unit-tests
+      - name: Show coredumps
+        if: ${{ failure() && steps.vtest.outcome == 'failure' }}
+        run: |
+          failed=false
+          shopt -s nullglob
+          for file in /tmp/core.*; do
+            failed=true
+            printf "::group::"
+            gdb -ex 'thread apply all bt full' ./haproxy $file
+            echo "::endgroup::"
+          done
+          if [ "$failed" = true ]; then
+            exit 1;
+          fi
