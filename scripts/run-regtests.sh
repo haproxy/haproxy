@@ -427,11 +427,13 @@ $(grep -E -- "^(----|\*    diag)" "$i/LOG")
 EOF
     done' sh {} +
   fi
-
-  echo "########################## Listing skipped tests ####################"
-  count=$(wc -l < "${TESTDIR}/skipped.log")
-  cat "${TESTDIR}/skipped.log" | sort -n
-  echo "Total skipped tests: $count"
+    echo "########################## Listing skipped tests ####################"
+    count=0
+    if [ -e "${TESTDIR}/skipped.log" ]; then
+      count=$(wc -l < "${TESTDIR}/skipped.log")
+      cat "${TESTDIR}/skipped.log" | sort -n
+    fi
+    echo "Total skipped tests: $count"
 
 fi # if TESTDIR
 
