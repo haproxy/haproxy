@@ -2227,7 +2227,7 @@ cpu-map [auto:]<thread-group>[/<thread-set>] <cpu-set>[,...] [...]
 
 cpu-affinity <affinity>
   Defines how you want threads to be bound to cpus.
-  It currently accepts 2 values :
+  It currently accepts the following values :
   - per-core, each thread will be bound to all the hardware threads of one core.
   - per-group, each thread will be bound to all the hardware threads of the
     group. This is the default unless threads-per-core 1 is used in cpu-policy.
