@@ -1322,7 +1322,7 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 			if (!ha_cpuset_isset(&visited_tsid, ha_cpu_topo[cpu].ts_id)) {
 				cpu_count++;
 				ha_cpuset_set(&visited_tsid, ha_cpu_topo[cpu].ts_id);
-			} else if (!cpu_policy_conf.flags & CPU_POLICY_ONE_THREAD_PER_CORE)
+			} else if (!(cpu_policy_conf.flags & CPU_POLICY_ONE_THREAD_PER_CORE))
 				cpu_count++;
 		}
 
@@ -1530,7 +1530,7 @@ static int cpu_policy_group_by_ccx(int policy, int tmin, int tmax, int gmin, int
 			if (!ha_cpuset_isset(&visited_tsid, ha_cpu_topo[cpu].ts_id)) {
 				cpu_count++;
 				ha_cpuset_set(&visited_tsid, ha_cpu_topo[cpu].ts_id);
-			} else if (!cpu_policy_conf.flags & CPU_POLICY_ONE_THREAD_PER_CORE)
+			} else if (!(cpu_policy_conf.flags & CPU_POLICY_ONE_THREAD_PER_CORE))
 				cpu_count++;
 		}
 
