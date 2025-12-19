@@ -58,6 +58,7 @@ struct h1c {
 	struct h1_counters *px_counters; /* h1 counters attached to proxy */
 	struct buffer_wait buf_wait;     /* Wait list for buffer allocation */
 	struct wait_event wait_event;    /* To be used if we're waiting for I/Os */
+	int glitches;                    /* Number of glitches on this connection */
 };
 
 /* H1 stream descriptor */
@@ -94,6 +95,9 @@ struct h1_hdr_entry  {
 /* Declare the headers map */
 static struct h1_hdrs_map hdrs_map = { .name = NULL, .map  = EB_ROOT };
 static int accept_payload_with_any_method = 0;
+
+static int h1_be_glitches_threshold = 0;  /* backend's max glitches: unlimited */
+static int h1_fe_glitches_threshold = 0;  /* frontend's max glitches: unlimited */
 
 /* trace source and events */
 static void h1_trace(enum trace_level level, uint64_t mask,
@@ -502,6 +506,31 @@ static void h1_trace_fill_ctx(struct trace_ctx *ctx, const struct trace_source *
 		if (!ctx->strm && h1s->sd && h1s_sc(h1s))
 			ctx->strm = sc_strm(h1s_sc(h1s));
 	}
+}
+
+/* report one or more glitches on the connection. That is any unexpected event
+ * that may occasionally happen but if repeated a bit too much, might indicate
+ * a misbehaving or completely bogus peer. It normally returns zero, unless the
+ * glitch limit was reached, in which case an error is also reported on the
+ * connection.
+ */
+#define h1_report_glitch(h1c, inc, ...) ({		\
+		COUNT_GLITCH(__VA_ARGS__);		\
+		_h1_report_glitch(h1c, inc); 		\
+	})
+
+static inline int _h1_report_glitch(struct h1c *h1c, int increment)
+{
+	int thres = (h1c->flags & H1C_F_IS_BACK) ?
+		h1_be_glitches_threshold : h1_fe_glitches_threshold;
+
+	h1c->glitches += increment;
+	if (thres && h1c->glitches >= thres &&
+	    (th_ctx->idle_pct <= global.tune.glitch_kill_maxidle)) {
+		h1c->flags |= H1C_F_ERROR;
+		return 1;
+	}
+	return 0;
 }
 
 
@@ -1265,6 +1294,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	h1c->task  = NULL;
 	h1c->req_count = 0;
 	h1c->term_evts_log = 0;
+	h1c->glitches = 0;
 
 	LIST_INIT(&h1c->buf_wait.list);
 	h1c->wait_event.tasklet = tasklet_new();
@@ -1962,6 +1992,7 @@ static size_t h1_handle_headers(struct h1s *h1s, struct h1m *h1m, struct htx *ht
 				h1s->h1c->errcode = h1m->err_code;
 			TRACE_ERROR("parsing error, reject H1 message", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
+			h1_report_glitch(h1s->h1c, 1, "parsing error");
 		}
 		else if (ret == -2) {
 			TRACE_STATE("RX path congested, waiting for more space", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_BLK, h1s->h1c->conn, h1s);
@@ -1987,6 +2018,7 @@ static size_t h1_handle_headers(struct h1s *h1s, struct h1m *h1m, struct htx *ht
 		h1s->h1c->errcode = 413;
 		TRACE_ERROR("HTTP/1.0 GET/HEAD/DELETE request with a payload forbidden", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 		h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
+		h1_report_glitch(h1s->h1c, 1, "HTTP/1.0 GET/HEAD/DELETE with payload");
 		ret = 0;
 		goto end;
 	}
@@ -2003,6 +2035,7 @@ static size_t h1_handle_headers(struct h1s *h1s, struct h1m *h1m, struct htx *ht
 			h1s->h1c->errcode = 422;
 		TRACE_ERROR("Unknown transfer-encoding", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 		h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
+		h1_report_glitch(h1s->h1c, 1, "unknown transfer-encoding");
 		ret = 0;
 		goto end;
 	}
@@ -2022,12 +2055,14 @@ static size_t h1_handle_headers(struct h1s *h1s, struct h1m *h1m, struct htx *ht
 				TRACE_ERROR("missing/invalid websocket key, reject H1 message",
 					    H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 
+				h1_report_glitch(h1s->h1c, 1, "rejecting missing/invalid websocket key");
 				ret = 0;
 				goto end;
 			} else {
 				TRACE_ERROR("missing/invalid websocket key, but accepting this "
 					    "violation according to configuration",
 					    H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
+				h1_report_glitch(h1s->h1c, 1, "accepting missing/invalid websocket key");
 			}
 		}
 	}
@@ -2039,6 +2074,7 @@ static size_t h1_handle_headers(struct h1s *h1s, struct h1m *h1m, struct htx *ht
 		 */
 		TRACE_STATE("Ignored parsing error", H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s);
 		h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
+		h1_report_glitch(h1s->h1c, 1, "ignored parsing error");
 	}
 
 	if (!(h1m->flags & H1_MF_RESP)) {
@@ -2078,6 +2114,7 @@ static size_t h1_handle_data(struct h1s *h1s, struct h1m *h1m, struct htx **htx,
 			h1s->flags |= H1S_F_PARSING_ERROR;
 			TRACE_ERROR("parsing error, reject H1 message", H1_EV_RX_DATA|H1_EV_RX_BODY|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
+			h1_report_glitch(h1s->h1c, 1, "parsing error");
 		}
 		goto end;
 	}
@@ -2114,6 +2151,7 @@ static size_t h1_handle_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 			h1s->flags |= H1S_F_PARSING_ERROR;
 			TRACE_ERROR("parsing error, reject H1 message", H1_EV_RX_DATA|H1_EV_RX_TLRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
+			h1_report_glitch(h1s->h1c, 1, "parsing error");
 		}
 		else if (ret == -2) {
 			TRACE_STATE("RX path congested, waiting for more space", H1_EV_RX_DATA|H1_EV_RX_TLRS|H1_EV_H1S_BLK, h1s->h1c->conn, h1s);
@@ -4093,6 +4131,7 @@ static int h1_process(struct h1c * h1c)
 	if (b_data(&h1c->ibuf) &&                                                /* Input data to be processed */
 	    ((h1c->state < H1_CS_RUNNING) || (h1c->state == H1_CS_DRAINING)) &&  /* IDLE, EMBRYONIC, UPGRADING or DRAINING */
 	    !(h1c->flags & (H1C_F_IN_SALLOC|H1C_F_ABRT_PENDING))) {              /* No allocation failure on the stream rxbuf and no ERROR on the H1C */
+		int prev_glitches = h1c->glitches;
 		struct h1s *h1s = h1c->h1s;
 		struct buffer *buf;
 		size_t count;
@@ -4161,6 +4200,8 @@ static int h1_process(struct h1c * h1c)
 				h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 			}
 		}
+		if (h1c->glitches != prev_glitches && !(h1c->flags & H1C_F_IS_BACK))
+			session_add_glitch_ctr(h1c->conn->owner, h1c->glitches - prev_glitches);
 	}
 
   no_parsing:
@@ -5416,6 +5457,8 @@ static int h1_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *outp
 		if (!(h1c->wait_event.events & SUB_RETRY_RECV))
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 		return 0;
+	case MUX_CTL_GET_GLITCHES:
+		return h1c->glitches;
 	case MUX_CTL_GET_NBSTRM:
 		return h1_used_streams(conn);
 	case MUX_CTL_GET_MAXSTRM:
@@ -5484,6 +5527,7 @@ static int h1_dump_h1c_info(struct buffer *msg, struct h1c *h1c, const char *pfx
 		      (unsigned int)b_head_ofs(&h1c->obuf), (unsigned int)b_size(&h1c->obuf),
 		      tevt_evts2str(h1c->term_evts_log));
 
+	chunk_appendf(msg, " .glitches=%d", h1c->glitches);
 	chunk_appendf(msg, " .task=%p", h1c->task);
 	if (h1c->task) {
 		chunk_appendf(msg, " .exp=%s",
@@ -5871,6 +5915,27 @@ static int cfg_parse_h1_headers_case_adjust_file(char **args, int section_type, 
 	return 0;
 }
 
+/* config parser for global "tune.h1.{fe,be}.glitches-threshold" */
+static int cfg_parse_h1_glitches_threshold(char **args, int section_type, struct proxy *curpx,
+                                           const struct proxy *defpx, const char *file, int line,
+                                           char **err)
+{
+	int *vptr;
+
+        if (too_many_args(1, args, err, NULL))
+                return -1;
+
+	/* backend/frontend */
+	vptr = (args[0][8] == 'b') ? &h1_be_glitches_threshold : &h1_fe_glitches_threshold;
+
+	*vptr = atoi(args[1]);
+	if (*vptr < 0) {
+		memprintf(err, "'%s' expects a positive numeric value.", args[0]);
+		return -1;
+	}
+        return 0;
+}
+
 /* config parser for global "tune.h1.zero-copy-fwd-recv" */
 static int cfg_parse_h1_zero_copy_fwd_rcv(char **args, int section_type, struct proxy *curpx,
 					   const struct proxy *defpx, const char *file, int line,
@@ -5914,6 +5979,8 @@ static struct cfg_kw_list cfg_kws = {{ }, {
 		{ CFG_GLOBAL, "h1-accept-payload-with-any-method", cfg_parse_h1_accept_payload_with_any_method },
 		{ CFG_GLOBAL, "h1-case-adjust", cfg_parse_h1_header_case_adjust },
 		{ CFG_GLOBAL, "h1-case-adjust-file", cfg_parse_h1_headers_case_adjust_file },
+		{ CFG_GLOBAL, "tune.h1.be.glitches-threshold", cfg_parse_h1_glitches_threshold },
+		{ CFG_GLOBAL, "tune.h1.fe.glitches-threshold", cfg_parse_h1_glitches_threshold },
 		{ CFG_GLOBAL, "tune.h1.zero-copy-fwd-recv", cfg_parse_h1_zero_copy_fwd_rcv },
 		{ CFG_GLOBAL, "tune.h1.zero-copy-fwd-send", cfg_parse_h1_zero_copy_fwd_snd },
 		{ 0, NULL, NULL },

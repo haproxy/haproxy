@@ -1877,6 +1877,8 @@ The following keywords are supported in the "global" section :
    - tune.events.max-events-at-once
    - tune.fail-alloc
    - tune.fd.edge-triggered
+   - tune.h1.be.glitches-threshold
+   - tune.h1.fe.glitches-threshold
    - tune.h1.zero-copy-fwd-recv
    - tune.h1.zero-copy-fwd-send
    - tune.h2.be.glitches-threshold
@@ -4193,9 +4195,40 @@ tune.glitches.kill.cpu-usage <number>
   will automatically get killed. A rule of thumb would be to set this value to
   twice the usually observed CPU usage, or the commonly observed CPU usage plus
   half the idle one (i.e. if CPU commonly reaches 60%, setting 80 here can make
-  sense). This parameter has no effect without tune.h2.fe.glitches-threshold or
-  tune.quic.fe.sec.glitches-threshold. See also the global parameters
-  "tune.h2.fe.glitches-threshold" and "tune.quic.fe.sec.glitches-threshold".
+  sense). This parameter has no effect without tune.h2.fe.glitches-threshold,
+  tune.quic.fe.sec.glitches-threshold or tune.h1.fe.glitches-threshold. See
+  also the global parameters "tune.h2.fe.glitches-threshold",
+  "tune.h1.fe.glitches-threshold" and "tune.quic.fe.sec.glitches-threshold".
+
+tune.h1.be.glitches-threshold <number>
+  Sets the threshold for the number of glitches on a HTTP/1 backend connection,
+  after which that connection will automatically be killed. This allows to
+  automatically kill misbehaving connections without having to write explicit
+  rules for them. The default value is zero, indicating that no threshold is
+  set so that no event will cause a connection to be closed. Typical events
+  include improperly formatted headers that had been nevertheless accepted by
+  "accept-unsafe-violations-in-http-response". Any non-zero value here should
+  probably be in the hundreds or thousands to be effective without affecting
+  slightly bogus servers. It is also possible to only kill connections when the
+  CPU usage crosses a certain level, by using "tune.glitches.kill.cpu-usage".
+
+  See also: tune.h1.fe.glitches-threshold, bc_glitches, and
+            tune.glitches.kill.cpu-usage
+
+tune.h1.fe.glitches-threshold <number>
+  Sets the threshold for the number of glitches on a HTTP/1 frontend connection
+  after which that connection will automatically be killed. This allows to
+  automatically kill misbehaving connections without having to write explicit
+  rules for them. The default value is zero, indicating that no threshold is
+  set so that no event will cause a connection to be closed. Typical events
+  include improperly formatted headers that had been nevertheless accepted by
+  "accept-unsafe-violations-in-http-request". Any non-zero value here should
+  probably be in the hundreds or thousands to be effective without affecting
+  slightly bogus clients. It is also possible to only kill connections when the
+  CPU usage crosses a certain level, by using "tune.glitches.kill.cpu-usage".
+
+  See also: tune.h1.be.glitches-threshold, fc_glitches, and
+            tune.glitches.kill.cpu-usage
 
 tune.h1.zero-copy-fwd-recv { on | off }
   Enables ('on') of disabled ('off') the zero-copy receives of data for the H1
