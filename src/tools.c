@@ -7439,6 +7439,15 @@ void ha_freearray(char ***array)
 }
 
 /*
+ * Secure implementation of memset that cannot be optimized away.
+ */
+void ha_memset_s(void *s, int c, size_t n)
+{
+	memset(s, c, n);
+	__asm__ __volatile__("" : : "r"(s) : "memory");
+}
+
+/*
  * Local variables:
  *  c-indent-level: 8
  *  c-basic-offset: 8

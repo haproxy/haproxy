@@ -1490,4 +1490,6 @@ int path_base(const char *path, const char *base, char *dst, char **err);
 
 void ha_freearray(char ***array);
 
+void ha_memset_s(void *s, int c, size_t n);
+
 #endif /* _HAPROXY_TOOLS_H */

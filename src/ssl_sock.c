@@ -3756,7 +3756,7 @@ static int ssl_sock_clear_passphrase_cache(void)
 
 			/* Erase stored passphrases just in case some memory
 			 * ends up leaking */
-			memset(passphrase_cache[idx].ptr, 0, passphrase_cache[idx].len);
+			ha_memset_s(passphrase_cache[idx].ptr, 0, passphrase_cache[idx].len);
 			istfree(&passphrase_cache[idx]);
 		}
 		ha_free(&passphrase_cache);
