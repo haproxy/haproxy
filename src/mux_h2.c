@@ -533,6 +533,7 @@ struct task *h2_timeout_task(struct task *t, void *context, unsigned int state);
 static int h2_send(struct h2c *h2c);
 static int h2_recv(struct h2c *h2c);
 static int h2_process(struct h2c *h2c);
+static int h2c_send_goaway_error(struct h2c *h2c, struct h2s *h2s);
 /* h2_io_cb is exported to see it resolved in "show fd" */
 struct task *h2_io_cb(struct task *t, void *ctx, unsigned int state);
 static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id);
@@ -1709,10 +1710,25 @@ static inline int _h2c_report_glitch(struct h2c *h2c, int increment)
 		h2_be_glitches_threshold : h2_fe_glitches_threshold;
 
 	h2c->glitches += increment;
-	if (thres && h2c->glitches >= thres &&
-	    (th_ctx->idle_pct <= global.tune.glitch_kill_maxidle)) {
-		h2c_error(h2c, H2_ERR_ENHANCE_YOUR_CALM);
-		return 1;
+	if (unlikely(thres && h2c->glitches >= (thres * 3 + 1) / 4)) {
+		/* at 75% of the threshold, we switch to close mode
+		 * to force clients to periodically reconnect.
+		 */
+		if (h2c->last_sid <= 0 ||
+		    h2c->last_sid > h2c->max_id + 2 * h2c_max_concurrent_streams(h2c)) {
+			/* not set yet or was too high */
+			h2c->last_sid = h2c->max_id + 2 * h2c_max_concurrent_streams(h2c);
+			h2c_send_goaway_error(h2c, NULL);
+		}
+
+		/* at 100% of the threshold and excess of CPU usage we also
+		 * actively kill the connection.
+		 */
+		if (h2c->glitches >= thres &&
+		    (th_ctx->idle_pct <= global.tune.glitch_kill_maxidle)) {
+			h2c_error(h2c, H2_ERR_ENHANCE_YOUR_CALM);
+			return 1;
+		}
 	}
 	return 0;
 }
