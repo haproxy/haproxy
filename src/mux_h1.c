@@ -525,10 +525,20 @@ static inline int _h1_report_glitch(struct h1c *h1c, int increment)
 		h1_be_glitches_threshold : h1_fe_glitches_threshold;
 
 	h1c->glitches += increment;
-	if (thres && h1c->glitches >= thres &&
-	    (th_ctx->idle_pct <= global.tune.glitch_kill_maxidle)) {
-		h1c->flags |= H1C_F_ERROR;
-		return 1;
+	if (unlikely(thres && h1c->glitches >= (thres * 3 + 1) / 4)) {
+		/* at 75% of the threshold, we switch to close mode
+		 * to force clients to periodically reconnect.
+		 */
+		h1c->h1s->flags = (h1c->h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+
+		/* at 100% of the threshold and excess of CPU usage we also
+		 * actively kill the connection.
+		 */
+		if (h1c->glitches >= thres &&
+		    (th_ctx->idle_pct <= global.tune.glitch_kill_maxidle)) {
+			h1c->flags |= H1C_F_ERROR;
+			return 1;
+		}
 	}
 	return 0;
 }

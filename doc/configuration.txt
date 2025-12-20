@@ -4211,6 +4211,10 @@ tune.h1.be.glitches-threshold <number>
   probably be in the hundreds or thousands to be effective without affecting
   slightly bogus servers. It is also possible to only kill connections when the
   CPU usage crosses a certain level, by using "tune.glitches.kill.cpu-usage".
+  Note that a graceful close is attempted at 75% of the configured threshold by
+  advertising a GOAWAY for a future stream. This ensures that a slightly faulty
+  connection will stop being used after some time without risking to interrupt
+  ongoing transfers.
 
   See also: tune.h1.fe.glitches-threshold, bc_glitches, and
             tune.glitches.kill.cpu-usage
@@ -4226,6 +4230,11 @@ tune.h1.fe.glitches-threshold <number>
   probably be in the hundreds or thousands to be effective without affecting
   slightly bogus clients. It is also possible to only kill connections when the
   CPU usage crosses a certain level, by using "tune.glitches.kill.cpu-usage".
+  Note that a graceful close is attempted at 75% of the configured threshold by
+  advertising a GOAWAY for a future stream. This ensures that a slightly non-
+  compliant client will have the opportunity to create a new connection and
+  continue to work unaffected without ever triggering the hard close thus
+  risking to interrupt ongoing transfers.
 
   See also: tune.h1.be.glitches-threshold, fc_glitches, and
             tune.glitches.kill.cpu-usage
