@@ -3136,13 +3136,6 @@ init_proxies_list_stage1:
 						 proxy_type_str(curproxy), curproxy->id);
 					cfgerr++;
 				}
-#ifdef WE_DONT_SUPPORT_SERVERLESS_LISTENERS
-				else if (curproxy->srv == NULL) {
-					ha_alert("%s '%s' needs at least 1 server in balance mode.\n",
-						 proxy_type_str(curproxy), curproxy->id);
-					cfgerr++;
-				}
-#endif
 				else if (curproxy->options & PR_O_DISPATCH) {
 					ha_warning("dispatch address of %s '%s' will be ignored in balance mode.\n",
 						   proxy_type_str(curproxy), curproxy->id);
