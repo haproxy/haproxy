@@ -1669,7 +1669,21 @@ struct pat_ref_gen *pat_ref_gen_new(struct pat_ref *ref, unsigned int gen_id)
  */
 struct pat_ref_gen *pat_ref_gen_get(struct pat_ref *ref, unsigned int gen_id)
 {
-	return cebu32_item_lookup(&ref->gen_root, gen_node, gen_id, gen_id, struct pat_ref_gen);
+	struct pat_ref_gen *gen;
+
+	/* We optimistically try to use the cached generation if it's the current one. */
+	if (likely(gen_id == ref->curr_gen && gen_id == ref->cached_gen.id && ref->cached_gen.data))
+		return ref->cached_gen.data;
+
+	gen = cebu32_item_lookup(&ref->gen_root, gen_node, gen_id, gen_id, struct pat_ref_gen);
+	if (unlikely(!gen))
+		return NULL;
+
+	if (gen_id == ref->curr_gen) {
+		ref->cached_gen.id = gen_id;
+		ref->cached_gen.data = gen;
+	}
+	return gen;
 }
 
 /* This function removes all elements belonging to <gen_id> and matching <key>
@@ -1937,6 +1951,8 @@ static struct pat_ref *_pat_ref_new(const char *display, unsigned int flags)
 	ref->revision = 0;
 	ref->entry_cnt = 0;
 	ceb_init_root(&ref->gen_root);
+	ref->cached_gen.id = ref->curr_gen;
+	ref->cached_gen.data = NULL;
 	LIST_INIT(&ref->pat);
 	HA_RWLOCK_INIT(&ref->lock);
 	event_hdl_sub_list_init(&ref->e_subs);
@@ -2244,6 +2260,8 @@ int pat_ref_purge_range(struct pat_ref *ref, uint from, uint to, int budget)
 		BUG_ON(!LIST_ISEMPTY(&gen->head));
 		BUG_ON(!ceb_isempty(&gen->elt_root));
 		cebu32_item_delete(&ref->gen_root, gen_node, gen_id, gen);
+		if (gen->gen_id == ref->cached_gen.id)
+			ref->cached_gen.data = NULL;
 		free(gen);
 	}
 

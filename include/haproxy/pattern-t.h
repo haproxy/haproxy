@@ -112,6 +112,11 @@ struct pat_ref {
 	unsigned int flags; /* flags PAT_REF_*. */
 	unsigned int curr_gen; /* current generation number (anything below can be removed) */
 	unsigned int next_gen; /* next generation number (insertions use this one) */
+	/* We keep a cached pointer to the current generation for performance. */
+	struct {
+		struct pat_ref_gen *data;
+		unsigned int id;
+	} cached_gen;
 	int unique_id; /* Each pattern reference have unique id. */
 	unsigned long long revision; /* updated for each update */
 	unsigned long long entry_cnt; /* the total number of entries */
