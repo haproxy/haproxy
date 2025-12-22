@@ -3010,13 +3010,111 @@ void defaults_px_unref_all(void)
  * refcount is incremented by one. For now, this operation is not thread safe
  * and is perform during init stage only.
  */
-void proxy_ref_defaults(struct proxy *px, struct proxy *defpx)
+static inline void defaults_px_ref(struct proxy *defpx, struct proxy *px)
 {
 	if (px->defpx == defpx)
 		return;
-	BUG_ON(px->defpx != NULL);
+	/* <px> is already referencing another defaults. */
+	BUG_ON(px->defpx);
+
 	px->defpx = defpx;
 	defpx->conf.refcount++;
+}
+
+/* Check that <px> can inherits from <defpx> default proxy. If some settings
+ * cannot be copied, refcount of the defaults instance is incremented.
+ * Inheritance may be impossible due to incompatibility issues. In this case,
+ * <errmsg> will be allocated to point to a textual description of the error.
+ *
+ * Returns ERR_NONE on success and a combination of ERR_CODE on failure
+ */
+int proxy_ref_defaults(struct proxy *px, struct proxy *defpx, char **errmsg)
+{
+	char defcap = defpx->cap & PR_CAP_LISTEN;
+	int err_code = ERR_NONE;
+
+	if ((px->cap & PR_CAP_BE) && (defpx->nb_req_cap || defpx->nb_rsp_cap)) {
+		memprintf(errmsg, "backend or defaults sections cannot inherit from a defaults section defining"
+		         " captures (defaults section at %s:%d)",
+		         defpx->conf.file, defpx->conf.line);
+		err_code |= ERR_ALERT | ERR_ABORT;
+		goto out;
+	}
+
+	/* If the current default proxy defines TCP/HTTP rules, the
+	 * current proxy will keep a reference on it. But some sanity
+	 * checks are performed first:
+	 *
+	 * - It cannot be used to init a defaults section
+	 * - It cannot be used to init a listen section
+	 * - It cannot be used to init backend and frontend sections at
+	 *   same time. It can be used to init several sections of the
+	 *   same type only.
+	 * - It cannot define L4/L5 TCP rules if it is used to init
+	 *   backend sections.
+	 * - It cannot define 'tcp-response content' rules if it
+	 *   is used to init frontend sections.
+	 *
+	 * If no error is found, refcount of the default proxy is incremented.
+	 */
+	if ((!LIST_ISEMPTY(&defpx->http_req_rules)        ||
+	     !LIST_ISEMPTY(&defpx->http_res_rules)        ||
+	     !LIST_ISEMPTY(&defpx->http_after_res_rules)  ||
+	     !LIST_ISEMPTY(&defpx->tcp_req.l4_rules)      ||
+	     !LIST_ISEMPTY(&defpx->tcp_req.l5_rules)      ||
+	     !LIST_ISEMPTY(&defpx->tcp_req.inspect_rules) ||
+	     !LIST_ISEMPTY(&defpx->tcp_rep.inspect_rules))) {
+
+		/* Note: Add tcpcheck_rules too if unresolve args become allowed in defaults section */
+		if (px->cap & PR_CAP_DEF) {
+			memprintf(errmsg, "a defaults section cannot inherit from a defaults section defining TCP/HTTP rules (defaults section at %s:%d)",
+			          defpx->conf.file, defpx->conf.line);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+		else if ((px->cap & PR_CAP_LISTEN) == PR_CAP_LISTEN) {
+			memprintf(errmsg, "a listen section cannot inherit from a defaults section defining TCP/HTTP rules");
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+		else if ((defcap == PR_CAP_BE || defcap == PR_CAP_FE) && (px->cap & PR_CAP_LISTEN) != defcap) {
+			memprintf(errmsg, "frontends and backends cannot inherit from the same defaults section"
+			         " if it defines TCP/HTTP rules (defaults section at %s:%d)",
+			         defpx->conf.file, defpx->conf.line);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+		else if (!(px->cap & PR_CAP_FE) && (!LIST_ISEMPTY(&defpx->tcp_req.l4_rules) ||
+		         !LIST_ISEMPTY(&defpx->tcp_req.l5_rules))) {
+			memprintf(errmsg, "a backend section cannot inherit from a defaults section defining"
+			         " 'tcp-request connection' or 'tcp-request session' rules (defaults section at %s:%d)",
+			         defpx->conf.file, defpx->conf.line);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+		else if (!(px->cap & PR_CAP_BE) && !LIST_ISEMPTY(&defpx->tcp_rep.inspect_rules)) {
+			memprintf(errmsg, "a frontend section cannot inherit from a defaults section defining"
+			         " 'tcp-response content' rules (defaults section at %s:%d)",
+			         defpx->conf.file, defpx->conf.line);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		defpx->cap = (defpx->cap & ~PR_CAP_LISTEN) | (px->cap & PR_CAP_LISTEN);
+		defaults_px_ref(defpx, px);
+	}
+
+	if ((defpx->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) &&
+	    (px->cap & PR_CAP_LISTEN) == PR_CAP_BE) {
+		/* If the current default proxy defines tcpcheck rules, the
+		 * current proxy will keep a reference on it. but only if the
+		 * current proxy has the backend capability.
+		 */
+		defaults_px_ref(defpx, px);
+	}
+
+ out:
+	return err_code;
 }
 
 /* proxy <px> removes its reference on its default proxy. The default proxy
