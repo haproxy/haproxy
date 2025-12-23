@@ -3047,7 +3047,6 @@ static int _hlua_listable_patref_pairs_iterator(lua_State *L, int status, lua_KC
 	int context_index;
 	struct hlua_patref_iterator_context *hctx;
 	struct pat_ref_elt *elt;
-	int cnt = 0;
 	unsigned int curr_gen;
 
 	context_index = lua_upvalueindex(1);
@@ -3077,23 +3076,6 @@ static int _hlua_listable_patref_pairs_iterator(lua_State *L, int status, lua_KC
 		goto done;
 
 	elt = LIST_ELEM(hctx->bref.ref, struct pat_ref_elt *, list);
-
-	if (elt->gen_id != curr_gen) {
-		/* check if we may do something to try to prevent thread contention,
-		 * unless we run from body/init state where hlua_yieldk is no-op
-		 */
-		if (cnt > 10000 && hlua_gethlua(L)) {
-			/* let's yield and wait for being called again to continue where we left off */
-			LIST_APPEND(&elt->back_refs, &hctx->bref.users);
-			HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &hctx->ref->ptr->lock);
-			hlua_yieldk(L, 0, 0, _hlua_listable_patref_pairs_iterator, TICK_ETERNITY, HLUA_CTRLYIELD); // continue
-			return 0; // not reached
-		}
-
-		hctx->bref.ref = elt->list.n;
-		cnt++;
-		goto next;
-	}
 
 	LIST_APPEND(&elt->back_refs, &hctx->bref.users);
 	HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &hctx->ref->ptr->lock);

@@ -402,9 +402,6 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 
 			elt = LIST_ELEM(ctx->bref.ref, struct pat_ref_elt *, list);
 
-			if (elt->gen_id != ctx->curr_gen)
-				goto skip;
-
 			/* build messages */
 			if (elt->sample)
 				chunk_appendf(&trash, "%p %s %s\n",
