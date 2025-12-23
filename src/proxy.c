@@ -77,6 +77,8 @@ struct ceb_root *defproxy_by_name = NULL; /* tree of default proxies sorted by n
 struct list defaults_list = LIST_HEAD_INIT(defaults_list); /* list of all defaults proxies */
 unsigned int error_snapshot_id = 0;     /* global ID assigned to each error then incremented */
 
+unsigned int dynpx_next_id = 0; /* lowest ID assigned to dynamic proxies */
+
 /* CLI context used during "show servers {state|conn}" */
 struct show_srv_ctx {
 	struct proxy *px;       /* current proxy to dump or NULL */
@@ -4915,6 +4917,14 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
 		memprintf(&msg, "failed to allocate extra counters");
 		goto err;
 	}
+
+	/* Assign automatically proxy ID. */
+	px->uuid = proxy_get_next_id(dynpx_next_id);
+	if (!px->uuid) {
+		memprintf(&msg, "no spare proxy ID available");
+		goto err;
+	}
+	dynpx_next_id = px->uuid;
 
 	if (!proxies_list) {
 		proxies_list->next = px;

@@ -41,6 +41,8 @@ extern unsigned int error_snapshot_id;  /* global ID assigned to each error then
 extern struct ceb_root *proxy_by_name;    /* tree of proxies sorted by name */
 extern struct list defaults_list;       /* all defaults proxies list */
 
+extern unsigned int dynpx_next_id;
+
 extern const struct cfg_opt cfg_opts[];
 extern const struct cfg_opt cfg_opts2[];
 extern const struct cfg_opt cfg_opts3[];

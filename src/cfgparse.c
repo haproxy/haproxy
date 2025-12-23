@@ -2428,6 +2428,9 @@ init_proxies_list_stage1:
 		}
 	}
 
+	/* Dynamic proxies IDs will never be lowered than this value. */
+	dynpx_next_id = next_pxid;
+
 	/*
 	 * We have just initialized the main proxies list
 	 * we must also configure the log-forward proxies list
