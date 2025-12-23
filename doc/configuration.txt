@@ -647,8 +647,8 @@ which must be placed before other sections, but it may be repeated if needed.
 In addition, some automatic identifiers may automatically be assigned to some
 of the created objects (e.g. proxies), and by reordering sections, their
 identifiers will change. These ones appear in the statistics for example. As
-such, the configuration below will assign "foo" ID number 1 and "bar" ID number
-2, which will be swapped if the two sections are reversed:
+such, the configuration below will assign "foo" an ID number smaller than its
+"bar" counterpart. This will be swapped if the two sections are reversed:
 
      listen foo
          bind :80
@@ -8692,9 +8692,11 @@ id <value>
 
   Arguments : none
 
-  Set a persistent ID for the proxy. This ID must be unique and positive.
-  An unused ID will automatically be assigned if unset. The first assigned
-  value will be 1. This ID is currently only returned in statistics.
+  Set a persistent ID for the proxy. This ID must be unique and positive. An
+  unused ID will automatically be assigned if unset. Due to an historical
+  behavior, value 1 is not used unless explicitely set. Thus, the lowest value
+  automatically assigned will be 2. This ID is currently only returned in
+  statistics.
 
 
 ignore-persist { if | unless } <condition>

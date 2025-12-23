@@ -1,0 +1,58 @@
+varnishtest "Ensure that proxies automatic numbering remains consistent across versions"
+
+feature ignore_unknown_macro
+
+# No ID explicitely set. First automatically assigned value must be set to '2'.
+# Value '1' is skipped due to an historical bug.
+haproxy h1 -conf {
+	defaults
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	listen fe1
+		bind "fd@${fe1}"
+
+	listen fe2
+		bind "fd@${fe2}"
+} -start
+
+haproxy h1 -cli {
+	send "show stat 1 -1 -1"
+	expect !~ "fe[12],"
+
+	send "show stat 2 -1 -1"
+	expect ~ "fe1,"
+
+	send "show stat 3 -1 -1"
+	expect ~ "fe2,"
+}
+
+# Explicitely uses ID 1 and 2. First automatically assigned value must be
+# set to '3'.
+haproxy h2 -conf {
+	defaults
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	listen fe1
+		bind "fd@${fe1}"
+	listen fe2
+		id 1  # 1 set as automatic value
+		bind "fd@${fe1}"
+	listen fe3
+		id 2
+		bind "fd@${fe3}"
+} -start
+
+haproxy h2 -cli {
+	send "show stat 1 -1 -1"
+	expect ~ "fe2,"
+
+	send "show stat 2 -1 -1"
+	expect ~ "fe3,"
+
+	send "show stat 3 -1 -1"
+	expect ~ "fe1,"
+}

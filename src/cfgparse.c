@@ -2786,7 +2786,8 @@ int check_config_validity()
 	struct server *newsrv = NULL;
 	struct mt_list back;
 	int err_code = 0;
-	unsigned int next_pxid = 1;
+	/* Value forced to skip '1' due to an historical bug, see below for more details. */
+	unsigned int next_pxid = 2;
 	struct bind_conf *bind_conf;
 	char *err;
 	struct cfg_postparser *postparser;
@@ -2874,16 +2875,19 @@ init_proxies_list_stage1:
 		unsigned int next_id;
 
 		proxy_init_per_thr(curproxy);
+
+		/* Assign automatic UUID if unset except for internal proxies.
+		 *
+		 * WARNING proxy UUID initialization is buggy as value '1' is
+		 * skipped if not explicitely used. This is an historical bug
+		 * and should not be corrected to prevent breakage on future
+		 * versions.
+		 */
 		if (!(curproxy->cap & PR_CAP_INT) && curproxy->uuid < 0) {
-			/* proxy ID not set, use automatic numbering with first
-			 * spare entry starting with next_pxid. We don't assign
-			 * numbers for internal proxies as they may depend on
-			 * build or config options and we don't want them to
-			 * possibly reuse existing IDs.
-			 */
 			next_pxid = proxy_get_next_id(next_pxid);
 			curproxy->uuid = next_pxid;
 			proxy_index_id(curproxy);
+			next_pxid++;
 		}
 
 		if (curproxy->mode == PR_MODE_HTTP && global.tune.bufsize >= (256 << 20) && ONLY_ONCE()) {
@@ -2891,17 +2895,6 @@ init_proxies_list_stage1:
 				 global.tune.bufsize);
 			cfgerr++;
 		}
-
-		/* next IDs are shifted even if the proxy is disabled, this
-		 * guarantees that a proxy that is temporarily disabled in the
-		 * configuration doesn't cause a renumbering. Internal proxies
-		 * that are not assigned a static ID must never shift the IDs
-		 * either since they may appear in any order (Lua, logs, etc).
-		 * The GLOBAL proxy that carries the stats socket has its ID
-		 * forced to zero.
-		 */
-		if (curproxy->uuid >= 0)
-			next_pxid++;
 
 		if (curproxy->flags & PR_FL_DISABLED) {
 			/* ensure we don't keep listeners uselessly bound. We
