@@ -76,6 +76,7 @@ struct protocol proto_tcpv4 = {
 	.check_events   = sock_check_events,
 	.ignore_events  = sock_ignore_events,
 	.get_info       = tcp_get_info,
+	.get_opt        = sock_conn_get_opt,
 
 	/* binding layer */
 	.rx_suspend     = tcp_suspend_receiver,
@@ -121,6 +122,7 @@ struct protocol proto_tcpv6 = {
 	.check_events   = sock_check_events,
 	.ignore_events  = sock_ignore_events,
 	.get_info       = tcp_get_info,
+	.get_opt        = sock_conn_get_opt,
 
 	/* binding layer */
 	.rx_suspend     = tcp_suspend_receiver,
@@ -167,6 +169,7 @@ struct protocol proto_mptcpv4 = {
 	.check_events   = sock_check_events,
 	.ignore_events  = sock_ignore_events,
 	.get_info       = tcp_get_info,
+	.get_opt        = sock_conn_get_opt,
 
 	/* binding layer */
 	.rx_suspend     = tcp_suspend_receiver,
@@ -212,6 +215,7 @@ struct protocol proto_mptcpv6 = {
 	.check_events   = sock_check_events,
 	.ignore_events  = sock_ignore_events,
 	.get_info       = tcp_get_info,
+	.get_opt        = sock_conn_get_opt,
 
 	/* binding layer */
 	.rx_suspend     = tcp_suspend_receiver,
