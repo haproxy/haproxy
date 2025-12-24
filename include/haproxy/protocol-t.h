@@ -160,6 +160,7 @@ struct protocol {
 	/* default I/O handler */
 	void (*default_iocb)(int fd);                   /* generic I/O handler (typically accept callback) */
 	int (*get_info)(struct connection *conn, long long int *info, int info_num);       /* Callback to get connection level statistical counters */
+	int (*get_opt)(const struct connection *conn, int level, int optname, void *buf, int size); /* getsockopt(level:optname) into buf:size */
 
 	uint flags;                                     /* flags describing protocol support (PROTO_F_*) */
 	uint nb_receivers;                              /* number of receivers (under proto_lock) */

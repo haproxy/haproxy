@@ -905,6 +905,23 @@ void sock_conn_ctrl_close(struct connection *conn)
 	conn->handle.fd = DEAD_FD_MAGIC;
 }
 
+/* call getsockopt() for <level> and <optname> on connection <conn>'s socket,
+ * store the result in <buf> for at most <size> bytes, and return the number
+ * of bytes read on success (which may be zero). Returns < 0 on error.
+ * Note that the recommended way to use the level is to pass IPPROTO_TCP for
+ * TCP_*, IPPROTO_UDP for UDP_*, IPPROTO_IP for IP_*, IPPROTO_IPV6 for IPV6_*,
+ * and SOL_SOCKET for UNIX sockets.
+ */
+int sock_conn_get_opt(const struct connection *conn, int level, int optname, void *buf, int size)
+{
+	socklen_t opt_len = size;
+
+	if (getsockopt(conn->handle.fd, level, optname, buf, &opt_len) == -1)
+		return -1;
+
+	return opt_len;
+}
+
 /* This is the callback which is set when a connection establishment is pending
  * and we have nothing to send. It may update the FD polling status to indicate
  * !READY. It returns 0 if it fails in a fatal way or needs to poll to go
