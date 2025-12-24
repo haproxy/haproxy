@@ -146,6 +146,25 @@ static int bind_parse_tcp_md5sig(char **args, int cur_arg, struct proxy *px, str
 }
 #endif
 
+#ifdef TCP_SAVE_SYN
+/* parse the "tcp-ss" bind keyword */
+static int bind_parse_tcp_ss(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	int tcp_ss = -1;
+
+	if (isdigit((unsigned char)*args[cur_arg + 1]))
+		tcp_ss = atoi(args[cur_arg + 1]);
+
+	if (tcp_ss < 0 || tcp_ss > 2) {
+		memprintf(err, "'%s' : TCP Save SYN option expects an integer argument from 0 to 2", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	conf->tcp_ss = tcp_ss;
+	return 0;
+}
+#endif
+
 #ifdef TCP_USER_TIMEOUT
 /* parse the "tcp-ut" bind keyword */
 static int bind_parse_tcp_ut(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
@@ -331,6 +350,9 @@ static struct bind_kw_list bind_kws = { "TCP", { }, {
 #endif
 #if defined(__linux__) && defined(TCP_MD5SIG)
 	{ "tcp-md5sig",    bind_parse_tcp_md5sig,   1 }, /* set TCP MD5 signature password */
+#endif
+#ifdef TCP_SAVE_SYN
+	{ "tcp-ss",        bind_parse_tcp_ss,       1 }, /* set TCP Save SYN option (0=no, 1=yes, 2=with MAC hdr) */
 #endif
 #ifdef TCP_USER_TIMEOUT
 	{ "tcp-ut",        bind_parse_tcp_ut,       1 }, /* set User Timeout on listening socket */

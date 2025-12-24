@@ -17512,6 +17512,18 @@ tcp-md5sig <password>
   introduction of spoofed TCP segments into the connection stream. But it can
   be useful for any very long-lived TCP connections.
 
+tcp-ss <mode>
+  Sets the TCP Save SYN option for all incoming connections instantiated from
+  this listening socket. This option is available on Linux since version 4.3.
+  It instructs the kernel to try to keep a copy of the incoming IP packet
+  containing the TCP SYN flag, for later inspection. The option knows 3 modes:
+    - 0    SYN packet saving is disabled, this is the default
+    - 1    SYN packet saving is enabled, and contains IP and TCP headers
+    - 2    SYN packet saving is enabled, and contains ETH, IP and TCP headers
+
+  This only works for regular TCP connections, and is ignored for other
+  protocols (e.g. UNIX sockets). See also "fc.saved_syn".
+
 tcp-ut <delay>
   Sets the TCP User Timeout for all incoming connections instantiated from this
   listening socket. This option is available on Linux since version 2.6.37. It

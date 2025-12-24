@@ -204,6 +204,7 @@ struct bind_conf {
 	unsigned int backlog;      /* if set, listen backlog */
 	int maxconn;               /* maximum connections allowed on this listener */
 	int (*accept)(struct connection *conn); /* upper layer's accept() */
+	int tcp_ss;                /* for TCP, Save SYN */
 	int level;                 /* stats access level (ACCESS_LVL_*) */
 	int severity_output;       /* default severity output format in cli feedback messages */
 	short int nice;            /* nice value to assign to the instantiated tasks */

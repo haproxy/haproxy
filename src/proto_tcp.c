@@ -778,6 +778,17 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		}
 	}
 #endif
+#if defined(TCP_SAVE_SYN)
+	if (listener->bind_conf->tcp_ss) {
+		if (setsockopt(fd, IPPROTO_TCP, TCP_SAVE_SYN,
+			       &listener->bind_conf->tcp_ss, sizeof(listener->bind_conf->tcp_ss)) == -1) {
+			chunk_appendf(msg, "%scannot set TCP Save SYN, (%s)", msg->data ? ", " : "",
+				      strerror(errno));
+			err |= ERR_WARN;
+		}
+	} else
+		setsockopt(fd, IPPROTO_TCP, TCP_SAVE_SYN, &zero, sizeof(zero));
+#endif
 #if defined(TCP_USER_TIMEOUT)
 	if (listener->bind_conf->tcp_ut) {
 		if (setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT,
