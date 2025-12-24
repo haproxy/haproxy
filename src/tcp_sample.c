@@ -465,6 +465,31 @@ smp_fetch_fc_reordering(const struct arg *args, struct sample *smp, const char *
 #endif
 #endif // TCP_INFO
 
+#ifdef TCP_SAVED_SYN
+/* Try to retrieve the saved SYN packet header that has been enabled on a
+ * TCP listener via the "tcp-ss" bind option.
+ */
+static int
+smp_fetch_fc_saved_syn(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn = objt_conn(smp->sess->origin);
+	int ret;
+
+	if (!conn || !conn->ctrl->get_opt)
+		return 0;
+
+	chunk_reset(&trash);
+	ret = conn->ctrl->get_opt(conn, IPPROTO_TCP, TCP_SAVED_SYN, trash.area, trash.size);
+	if (ret < 0)
+		return 0;
+
+	trash.data = ret;
+	smp->data.type = SMP_T_BIN;
+	smp->data.u.str = trash;
+	return 1;
+}
+#endif
+
 /* Validates the data unit argument passed to "accept_date" fetch. Argument 0 support an
  * optional string representing the unit of the result: "s" for seconds, "ms" for
  * milliseconds and "us" for microseconds.
@@ -579,6 +604,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "src",      smp_fetch_src,   0, NULL, SMP_T_ADDR, SMP_USE_L4CLI },
 	{ "src_is_local", smp_fetch_src_is_local, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
 	{ "src_port", smp_fetch_sport, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
+#ifdef TCP_SAVED_SYN
+	{ "fc_saved_syn",     smp_fetch_fc_saved_syn,     0,           NULL,              SMP_T_BIN,  SMP_USE_L4CLI },
+#endif
 #ifdef TCP_INFO
 	{ "fc_rtt",           smp_fetch_fc_rtt,           ARG1(0,STR), val_fc_time_value, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "fc_rttvar",        smp_fetch_fc_rttvar,        ARG1(0,STR), val_fc_time_value, SMP_T_SINT, SMP_USE_L4CLI },

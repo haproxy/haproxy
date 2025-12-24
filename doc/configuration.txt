@@ -17516,13 +17516,14 @@ tcp-ss <mode>
   Sets the TCP Save SYN option for all incoming connections instantiated from
   this listening socket. This option is available on Linux since version 4.3.
   It instructs the kernel to try to keep a copy of the incoming IP packet
-  containing the TCP SYN flag, for later inspection. The option knows 3 modes:
+  containing the TCP SYN flag, for later inspection via the "fc_saved_syn"
+  sample fetch function. The option knows 3 modes:
     - 0    SYN packet saving is disabled, this is the default
     - 1    SYN packet saving is enabled, and contains IP and TCP headers
     - 2    SYN packet saving is enabled, and contains ETH, IP and TCP headers
 
   This only works for regular TCP connections, and is ignored for other
-  protocols (e.g. UNIX sockets). See also "fc.saved_syn".
+  protocols (e.g. UNIX sockets). See also "fc_saved_syn".
 
 tcp-ut <delay>
   Sets the TCP User Timeout for all incoming connections instantiated from this
@@ -23277,6 +23278,7 @@ fc_retrans                                         integer
 fc_rtt(<unit>)                                     integer
 fc_rttvar(<unit>)                                  integer
 fc_sacked                                          integer
+fc_saved_syn                                       binary
 fc_settings_streams_limit                          integer
 fc_src                                             ip
 fc_src_is_local                                    boolean
@@ -23874,6 +23876,78 @@ fc_sacked : integer
   If the server connection is not established, if the connection is not TCP or
   if the operating system does not support TCP_INFO, for example Linux kernels
   before 2.4, the sample fetch fails.
+
+fc_saved_syn : binary
+  Returns a copy of the saved SYN packet that was preserved by the system
+  during the incoming connection setup. This requires that the "tcp-ss" option
+  was present on the "bind" line, and a Linux kernel 4.3 minimum. When "tcp-ss"
+  is set to 1, only the IP and TCP headers are present. When "tcp-ss" is set to
+  2, then the Ethernet header is also present before the IP header, and may be
+  used to control or log source MAC address or VLANs for example. Note that
+  there is no guarantee that a SYN will be saved. For example, if SYN cookies
+  are used, the SYN packet is not preserved and the connection is established
+  on the matching ACK packet. In addition, the system doesn't guarantee to
+  preserve the copy beyond the first read. As such it is strongly recommended
+  to copy it into a variable in scope "sess" from a "tcp-request connection"
+  rule and only use that variable for further manipulations. It is worth noting
+  that on the loopback interface a dummy 14-byte ethernet header is constructed
+  by the system where both the source and destination addresses are zero, and
+  only the protocol is set. It is convenient to convert such samples to
+  hexadecimal using the "hex" converter during debugging. Example (fields
+  manually separated and commented below):
+
+    frontend test
+        mode http
+        bind :::4445 tcp-ss 2
+        tcp-request connection set-var(sess.syn) fc_saved_syn
+        http-request return status 200 content-type text/plain \
+                     lf-string "%[var(sess.syn),hex]\n"
+
+    $ curl '0:4445'
+    000000000000 000000000000 0800 \  # MAC_DST MAC_SRC PROTO=IPv4
+    4500003C0A65400040063255       \  # IPv4 header, proto=6 (TCP)
+    7F000001 7F000001              \  # IP_SRC=127.0.0.1 IP_DST=127.0.0.1
+    E1F2 115D 01AF4E3E 00000000    \  # TCP_SPORT=57842 TCP_DPORT=4445, SEQ
+    A0 02 FFD7 FE300000            \  # OPT_LEN=20 TCP_FLAGS=SYN WIN=65495
+    0204FFD70402080A01C2A71A0000000001030307 # MSS=65495, TS, SACK, WSCALE 7
+
+    $ curl '[::1]:4445'
+    000000000000 000000000000 86DD   \ # MAC_DST MAC_SRC PROTO=IPv6
+    6008018F00280640                 \ # IPv6 header, proto=6 (TCP)
+    00000000000000000000000000000001 \ # SRC=::1
+    00000000000000000000000000000001 \ # DST=::1
+    9758 115D B5511F5D 00000000      \ # TCP_SPORT=38744 TCP_DPORT=4445, SEQ
+    A0 02 FFC4 00300000              \  # OPT_LEN=20 TCP_FLAGS=SYN WIN=65476
+    0204FFC40402080A9C231D680000000001030307 # MSS=65476, TS, SACK, WSCALE 7
+
+  The "bytes()" converter helps extract specific fields from the packet. The
+  be2dec() also permits to read chunks and emit them in integer form.
+
+  Example with IPv4 input:
+
+    frontend test
+        mode http
+        bind :4445 tcp-ss 2
+        tcp-request connection set-var(sess.syn) fc_saved_syn
+        http-request return status 200 content-type text/plain lf-string \
+                     "mac_dst=%[var(sess.syn),bytes(0,6),hex] \
+                      mac_src=%[var(sess.syn),bytes(6,6),hex] \
+                      proto=%[var(sess.syn),bytes(12,2),hex] \
+                      ipv4h=%[var(sess.syn),bytes(14,12),hex] \
+                      ipv4_src=%[var(sess.syn),bytes(26,4),be2dec(.,1)] \
+                      ipv4_dst=%[var(sess.syn),bytes(30,4),be2dec(.,1)] \
+                      tcp_spt=%[var(sess.syn),bytes(34,2),be2dec(,2)] \
+                      tcp_dpt=%[var(sess.syn),bytes(36,2),be2dec(,2)] \
+                      tcp_win=%[var(sess.syn),bytes(48,2),be2dec(,2)] \
+                      tcp_opt=%[var(sess.syn),bytes(54),hex]\n"
+
+    $ curl '0:4445'
+    mac_dst=000000000000 mac_src=000000000000 proto=0800 \
+    ipv4h=4500003CC9B7400040067302 ipv4_src=127.0.0.1 ipv4_dst=127.0.0.1 \
+    tcp_spt=43970 tcp_dpt=4445 tcp_win=65495 \
+    tcp_opt=0204FFD70402080A01DC0D410000000001030307
+
+  See also the "set-var" action, the "be2dec", "bytes" and "hex" converters.
 
 fc_settings_streams_limit : integer
   Returns the maximum number of streams allowed on the frontend connection. For
