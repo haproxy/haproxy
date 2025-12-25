@@ -118,7 +118,7 @@ client c2 -connect ${h1_clearlst_sock} -repeat 2 {
     expect resp.status == 503
 } -run
 
-# successul connection to wrong-be1/s3
+# successful connection to wrong-be1/s3
 client c3 -connect ${h1_clearlst_sock} {
     txreq -url "/wrong-be1"
     rxresp
@@ -133,7 +133,7 @@ client c2 -connect ${h1_clearlst_sock} -repeat 2 {
     expect resp.status == 503
 } -run
 
-# successul connection to wrong-be1/s6
+# successful connection to wrong-be1/s6
 client c3 -connect ${h1_clearlst_sock} {
     txreq -url "/wrong-be1"
     rxresp

@@ -21,7 +21,7 @@
  * trees are used on frontend and backend sides.
  *
  * . CID global tree splitting
- * To reduce the thread contention, a global CID tree is in reality splitted
+ * To reduce the thread contention, a global CID tree is in reality split
  * into 256 distinct instances. Each CID is assigned to a single tree instance
  * based on its content. Use quic_cid_tree_idx() to retrieve the expected tree
  * location for a CID.

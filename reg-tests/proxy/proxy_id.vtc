@@ -2,7 +2,7 @@ varnishtest "Ensure that proxies automatic numbering remains consistent across v
 
 feature ignore_unknown_macro
 
-# No ID explicitely set. First automatically assigned value must be set to '2'.
+# No ID explicitly set. First automatically assigned value must be set to '2'.
 # Value '1' is skipped due to an historical bug.
 haproxy h1 -conf {
 	defaults
@@ -28,7 +28,7 @@ haproxy h1 -cli {
 	expect ~ "fe2,"
 }
 
-# Explicitely uses ID 1 and 2. First automatically assigned value must be
+# Explicitly uses ID 1 and 2. First automatically assigned value must be
 # set to '3'.
 haproxy h2 -conf {
 	defaults

@@ -1014,7 +1014,7 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 				qc->conn->mux->wake(qc->conn);
 			}
 			else {
-				/* Wake up upper layer if the MUX is alreay initialized.
+				/* Wake up upper layer if the MUX is already initialized.
 				 * This is the case when the MUX was started for a 0-RTT session
 				 * but without early-data secrets to send them (when the server
 				 * does not support 0-RTT).

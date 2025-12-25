@@ -7840,7 +7840,7 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	ret -= h2s_htx->data;
 
   end:
-	/* If ther is no content-length, take care to update <kip> field */
+	/* If there is no content-length, take care to update <kip> field */
 	if (!(h2s->flags & H2_SF_DATA_CLEN))
 		h2s->sd->kip += prev_body_len - h2s->body_len;
 

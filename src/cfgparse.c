@@ -2879,7 +2879,7 @@ init_proxies_list_stage1:
 		/* Assign automatic UUID if unset except for internal proxies.
 		 *
 		 * WARNING proxy UUID initialization is buggy as value '1' is
-		 * skipped if not explicitely used. This is an historical bug
+		 * skipped if not explicitly used. This is an historical bug
 		 * and should not be corrected to prevent breakage on future
 		 * versions.
 		 */

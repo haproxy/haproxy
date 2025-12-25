@@ -3832,7 +3832,7 @@ static int qmux_strm_attach(struct connection *conn, struct sedesc *sd, struct s
 	 */
 	BUG_ON(!qcc_fctl_avail_streams(qcc, 1));
 
-	/* Connnection should not be reused if already on error/closed. */
+	/* Connection should not be reused if already on error/closed. */
 	BUG_ON(qcc->flags & QC_CF_ERRL || qcc->app_st >= QCC_APP_ST_SHUT);
 
 	qcs = qcc_init_stream_local(qcc, 1);

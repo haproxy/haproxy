@@ -384,7 +384,7 @@ static void cli_release_ech(struct appctx *appctx)
 
 
 static struct cli_kw_list cli_kws = {{ },{
-    { { "show", "ssl", "ech", NULL},  "show ssl ech [<name>]                   : display a named ECH configuation or all",      cli_parse_show_ech, cli_io_handler_ech_details, cli_release_ech, NULL, ACCESS_EXPERIMENTAL },
+    { { "show", "ssl", "ech", NULL},  "show ssl ech [<name>]                   : display a named ECH configuration or all",      cli_parse_show_ech, cli_io_handler_ech_details, cli_release_ech, NULL, ACCESS_EXPERIMENTAL },
     { { "add", "ssl", "ech", NULL },  "add ssl ech <name> <payload>            : add a new PEM-formatted ECH config and key ",  cli_parse_add_ech, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },
     { { "set", "ssl", "ech", NULL },  "set ssl ech <name> <payload>            : replace all ECH configs with that provided",   cli_parse_set_ech, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },
     { { "del", "ssl", "ech", NULL },  "del ssl ech <name> [<age-in-secs>]      : delete ECH configs",                           cli_parse_del_ech, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },

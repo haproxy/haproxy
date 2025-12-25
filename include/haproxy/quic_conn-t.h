@@ -434,7 +434,7 @@ struct quic_conn_closed {
 #define QUIC_FL_CONN_NEED_POST_HANDSHAKE_FRMS    (1U << 2) /* HANDSHAKE_DONE must be sent */
 #define QUIC_FL_CONN_IS_BACK                     (1U << 3) /* conn used on backend side */
 #define QUIC_FL_CONN_ACCEPT_REGISTERED           (1U << 4)
-#define QUIC_FL_CONN_UDP_GSO_EIO                 (1U << 5) /* GSO disabled due to a EIO occured on same listener */
+#define QUIC_FL_CONN_UDP_GSO_EIO                 (1U << 5) /* GSO disabled due to a EIO occurred on same listener */
 #define QUIC_FL_CONN_IDLE_TIMER_RESTARTED_AFTER_READ (1U << 6)
 #define QUIC_FL_CONN_RETRANS_NEEDED              (1U << 7)
 #define QUIC_FL_CONN_RETRANS_OLD_DATA            (1U << 8) /* retransmission in progress for probing with already sent data */

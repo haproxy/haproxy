@@ -651,7 +651,7 @@ struct shm_stats_file_object *shm_stats_file_add_object(char **errmsg)
 	objects = HA_ATOMIC_LOAD(&shm_stats_file_hdr->objects);
 
 	if (objects >= shm_stats_file_max_objects) {
-		memprintf(errmsg, "Cannot add additionnal object to '%s' file, maximum number already reached (%d). "
+		memprintf(errmsg, "Cannot add additional object to '%s' file, maximum number already reached (%d). "
 		           "Adjust \"shm-stats-file-max-objects\" directive if needed.",
 		           global.shm_stats_file, shm_stats_file_max_objects / global.nbtgroups);
 		return NULL;

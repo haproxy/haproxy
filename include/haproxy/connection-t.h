@@ -477,7 +477,7 @@ struct xprt_ops {
 	void (*dump_info)(struct buffer *, const struct connection *);
 	/*
 	 * Returns the value for various capabilities.
-	 * Returns 0 if the capability is known, iwth the actual value in arg,
+	 * Returns 0 if the capability is known, with the actual value in arg,
 	 * or -1 otherwise
 	 */
 	int (*get_capability)(struct connection *connection, void *xprt_ctx, enum xprt_capabilities, void *arg);

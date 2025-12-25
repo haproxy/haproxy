@@ -530,7 +530,7 @@
 /* add mandatory padding of the specified size between fields in a structure,
  * This is used to avoid false sharing of cache lines for dynamically allocated
  * structures which cannot guarantee alignment, or to ensure that the size of
- * the struct remains consistent on architectures with different aligment
+ * the struct remains consistent on architectures with different alignment
  * constraints
  */
 #ifndef ALWAYS_PAD

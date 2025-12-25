@@ -727,7 +727,7 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 
 			/* TODO currently it's not possible to emit an ACK and probing data simultaneously (see qc_do_build_pkt()).
 			 * As a side-effect, this could cause coalescing of two packets of the same type which should be avoided.
-			 * To implement this, a new datagram is forced by invokation of qc_txb_store(). This must then be checked
+			 * To implement this, a new datagram is forced by invocation of qc_txb_store(). This must then be checked
 			 * if padding is required as in this case this will be the last packet of the current datagram.
 			 */
 			if (probe && (must_ack || (qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED)))
@@ -2061,7 +2061,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	 * must be at least QUIC_PACKET_PN_MAXLEN(4) bytes long, so that the sample
 	 * will be extracted as the AEAD tag.
 	 *
-	 * Note that from here, <len> includes <*pn_len>, the total frame lenghts,
+	 * Note that from here, <len> includes <*pn_len>, the total frame lengths,
 	 * and QUIC_TLS_TAG_LEN(16).
 	 */
 	if (len < QUIC_PACKET_PN_MAXLEN + QUIC_HP_SAMPLE_LEN) {

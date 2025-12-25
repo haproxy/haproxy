@@ -2869,7 +2869,7 @@ limited-quic
   layer supports most of the necessary TLS operations, albeit without QUIC
   0-RTT capability.
 
-  This feature is primarily targetted for OpenSSL prior to version 3.5.2, where
+  This feature is primarily targeted for OpenSSL prior to version 3.5.2, where
   QUIC API was not implemented or only partially. The compatibility layer can
   still be activated for version 3.5.2 and above, but this is probably
   unnecessary.
@@ -8694,7 +8694,7 @@ id <value>
 
   Set a persistent ID for the proxy. This ID must be unique and positive. An
   unused ID will automatically be assigned if unset. Due to an historical
-  behavior, value 1 is not used unless explicitely set. Thus, the lowest value
+  behavior, value 1 is not used unless explicitly set. Thus, the lowest value
   automatically assigned will be 2. This ID is currently only returned in
   statistics.
 
@@ -18920,7 +18920,7 @@ proto <name>
 
 quic-cc-algo { cubic | newreno | bbr | nocc }[(<args,...>)]
   This is a QUIC specific setting to select the congestion control algorithm
-  for any connection targetting this server. They are similar to those used by
+  for any connection targeting this server. They are similar to those used by
   TCP. See the bind option with a similar name for a complete description of
   all customization options.
 

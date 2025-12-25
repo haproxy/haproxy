@@ -5,7 +5,7 @@
 
 #include <haproxy/api-t.h>
 
-/* Counter which can be used to measure data amount accross several buffers. */
+/* Counter which can be used to measure data amount across several buffers. */
 struct bdata_ctr {
 	uint64_t tot; /* sum of data present in all underlying buffers */
 	uint8_t bcnt; /* current number of allocated underlying buffers */

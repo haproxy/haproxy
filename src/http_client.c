@@ -658,7 +658,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 				blk = DISGUISE(htx_get_head_blk(htx));
 				sl = htx_get_blk_ptr(htx, blk);
 
-				/* Skipp any 1XX interim responses */
+				/* Skip any 1XX interim responses */
 				if (sl->info.res.status < 200) {
 					/* Upgrade are not supported. Report an error */
 					if (sl->info.res.status == 101)

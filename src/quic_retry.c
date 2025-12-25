@@ -353,7 +353,7 @@ int quic_retry_packet_check(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	if (!quic_tls_generate_retry_integrity_tag(qc->odcid.data, qc->odcid.len,
 	                                           beg, end - beg - QUIC_TLS_TAG_LEN,
 	                                           tag, pkt->version)) {
-		TRACE_PROTO("retry integrity tag faild", QUIC_EV_CONN_SPKT, qc);
+		TRACE_PROTO("retry integrity tag failed", QUIC_EV_CONN_SPKT, qc);
 		goto err;
 	}
 

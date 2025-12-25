@@ -5606,7 +5606,7 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 	 *   - if we're isolated or in a panic, we're safe and don't need to
 	 *     lock so we don't wait.
 	 *   - otherwise we use a trylock and we fail on conflict so that
-	 *     noone waits when there is contention.
+	 *     no one waits when there is contention.
 	 */
 	isolated = thread_isolated() || (get_tainted() & TAINTED_PANIC);
 

@@ -737,7 +737,7 @@ int session_reinsert_idle_conn(struct session *sess, struct connection *conn)
  * target server will be incremented.
  *
  * Returns 0 if the connection is kept, else non-zero if the connection was
- * explicitely removed from session.
+ * explicitly removed from session.
  */
 int session_check_idle_conn(struct session *sess, struct connection *conn)
 {
@@ -852,7 +852,7 @@ void session_unown_conn(struct session *sess, struct connection *conn)
  * session_unown_conn(), this function is not protected by a lock, so the
  * caller is responsible to properly use idle_conns_lock prior to calling it.
  *
- * Another notable difference is that <owner> member of <conn> is not resetted.
+ * Another notable difference is that <owner> member of <conn> is not reset.
  * This is a convenience as this function usage is generally coupled with a
  * following session_reinsert_idle_conn().
  *

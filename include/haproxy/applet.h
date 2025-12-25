@@ -366,7 +366,7 @@ static inline size_t applet_output_data(const struct appctx *appctx)
  * This is useful when data have been read directly from the buffer. It is
  * illegal to call this function with <len> causing a wrapping at the end of the
  * buffer. It's the caller's responsibility to ensure that <len> is never larger
- * than available ouput data.
+ * than available output data.
  *
  * This function is not HTX aware.
  */
@@ -392,7 +392,7 @@ static inline void applet_reset_input(struct appctx *appctx)
 		co_skip(sc_oc(appctx_sc(appctx)), co_data(sc_oc(appctx_sc(appctx))));
 }
 
-/* Returns the amout of space available at the HTX output buffer (see applet_get_outbuf).
+/* Returns the amount of space available at the HTX output buffer (see applet_get_outbuf).
  */
 static inline size_t applet_htx_output_room(const struct appctx *appctx)
 {
@@ -402,7 +402,7 @@ static inline size_t applet_htx_output_room(const struct appctx *appctx)
 		return channel_recv_max(sc_ic(appctx_sc(appctx)));
 }
 
-/* Returns the amout of space available at the output buffer (see applet_get_outbuf).
+/* Returns the amount of space available at the output buffer (see applet_get_outbuf).
  */
 static inline size_t applet_output_room(const struct appctx *appctx)
 {

@@ -1106,7 +1106,7 @@ int h1_format_htx_data(const struct ist data, struct buffer *chk, int chunked)
 }
 
 /* Format the htx message into its H1 representation. It returns 1 on success or
- * 0 if <outbuf> is full or not emtpy. No check are preformed on the message, it must be
+ * 0 if <outbuf> is full or not empty. No check is performed on the message, it must be
  * valid. Trailers are silently ignored if the message is not chunked.
  */
 int h1_format_htx_msg(const struct htx *htx, struct buffer *outbuf)

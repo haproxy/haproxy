@@ -313,8 +313,8 @@ struct se_abort_info {
  *
  * <kip> is the known input payload length. It is set by the stream endpoint
  *       that produce data and decremented once consumed by the app
- *       loyer. Depending on the enpoint, this value may be unset. It may be set
- *       only once if the payload lenght is fully known from the begining (a
+ *       layer. Depending on the endpoint, this value may be unset. It may be set
+ *       only once if the payload length is fully known from the beginning (a
  *       HTTP message with a content-length for instance), or incremented
  *       periodically when more data are expected (a chunk-encoded HTTP message
  *       for instance). On the app side, this value is decremented when data are

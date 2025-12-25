@@ -313,7 +313,7 @@ static const struct trace_event peers_trace_events[] = {
 #define PEERS_EV_PROTO_ERR     (1ULL << 13)
 	{ .mask = PEERS_EV_PROTO_ERR,    .name = "proto_error",    .desc = "protocol error" },
 #define PEERS_EV_PROTO_HELLO   (1ULL << 14)
-	{ .mask = PEERS_EV_PROTO_HELLO,   .name = "proto_hello",   .desc = "protocol hello mesage" },
+	{ .mask = PEERS_EV_PROTO_HELLO,   .name = "proto_hello",   .desc = "protocol hello message" },
 #define PEERS_EV_PROTO_SUCCESS (1ULL << 15)
 	{ .mask = PEERS_EV_PROTO_SUCCESS, .name = "proto_success", .desc = "protocol success message" },
 #define PEERS_EV_PROTO_UPDATE  (1ULL << 16)
@@ -1301,7 +1301,7 @@ static inline int peer_send_hellomsg(struct appctx *appctx, struct peer *peer)
  */
 static inline int peer_send_status_successmsg(struct appctx *appctx)
 {
-	TRACE_PROTO("send status sucess message", PEERS_EV_SESS_IO|PEERS_EV_TX_MSG|PEERS_EV_PROTO_SUCCESS, appctx);
+	TRACE_PROTO("send status success message", PEERS_EV_SESS_IO|PEERS_EV_TX_MSG|PEERS_EV_PROTO_SUCCESS, appctx);
 	return peer_send_msg(appctx, peer_prepare_status_successmsg, NULL);
 }
 
