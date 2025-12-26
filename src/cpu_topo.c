@@ -1507,6 +1507,7 @@ static int cpu_policy_group_by_ccx(int policy, int tmin, int tmax, int gmin, int
 	while (global.nbtgroups < MAX_TGROUPS && global.nbthread < MAX_THREADS) {
 		ha_cpuset_zero(&node_cpu_set);
 		ha_cpuset_zero(&visited_tsid);
+		ha_cpuset_zero(&visited_ccx);
 		l3id = -1; cpu_count = 0;
 
 		for (cpu = cpu_start; cpu <= cpu_topo_lastcpu; cpu++) {
