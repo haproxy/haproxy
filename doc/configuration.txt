@@ -23546,6 +23546,71 @@ var(<var-name>[,<default>]) : undefined
   return it as a string. Empty strings are permitted. See section 2.8 about
   variables for details.
 
+dump_all_vars([<scope>][,<prefix>][,<delimiter>]) : string
+  Returns a list of all variables in the specified scope, optionally filtered
+  by name prefix and with a customizable delimiter.
+
+  Output format: var1=value1<delim>var2=value2<delim>...
+
+  Value encoding by type:
+  - Strings: quoted and escaped (", \, \r, \n, \b, \0)
+    Example: txn.name="John \"Doe\""
+  - Binary: hex-encoded with 'x' prefix, unquoted
+    Example: txn.data=x48656c6c6f
+  - Integers: unquoted decimal
+    Example: txn.count=42
+  - Booleans: unquoted "true" or "false"
+    Example: txn.active=true
+  - Addresses: unquoted IP address string
+    Example: txn.client=192.168.1.1
+  - HTTP Methods: quoted string
+    Example: req.method="GET"
+
+  Arguments:
+  - <scope> (optional): sess, txn, req, res, or proc. If omitted, all these
+    scopes are visited in the same order as presented here.
+
+  - <prefix> (optional): filters variables whose names start with the
+    specified prefix (after removing the scope prefix).
+    Performance note: When using prefix filtering, all variables in the scope
+    are still visited. This should not be used with configurations involving
+    thousands of variables.
+
+  - <delimiter> (optional): string to separate variables. Defaults to ", "
+    (comma-space). Can be customized to any string. As a reminder, in order
+    to pass commas or spaces in a function argument, they need to be enclosed
+    in simple or double quotes (if the expression itself is already within
+    quotes, use the other ones).
+
+  Return value:
+  - On success: string containing all matching variables
+  - On failure: empty (sample fetch fails) if output buffer is too small.
+    The function will not truncate output; it fails completely to avoid
+    partial data.
+
+  This is particularly useful for debugging, logging, or exporting variable
+  states.
+
+  Examples:
+    # Dump all transaction variables
+    http-request return string %[dump_all_vars(txn)]
+
+    # Dump only variables starting with "user"
+    http-request set-header X-User-Vars "%[dump_all_vars(txn,user)]"
+
+    # Dump all process variables
+    http-request return string %[dump_all_vars(proc)]
+
+    # Custom delimiter (semicolon)
+    http-request set-header X-Vars "%[dump_all_vars(txn,,; )]"
+
+    # Force the default delimiter (comma space)
+    http-request set-header X-Vars "%[dump_all_vars(txn,,', ')]"
+
+    # Prefix filter with custom delimiter
+    http-request set-header X-Session "%[dump_all_vars(sess,user,|)]"
+
+
 wait_end : boolean
   This fetch either returns true when the inspection period is over, or does
   not fetch. It is only used in ACLs, in conjunction with content analysis to
