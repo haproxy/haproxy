@@ -20489,6 +20489,15 @@ htonl                                              integer      integer
 http_date([offset[,unit]])                         integer      string
 iif(true,false)                                    boolean      string
 in_table([table])                                  any          boolean
+ip.data                                            binary       binary
+ip.df                                              binary       integer
+ip.dst                                             binary       address
+ip.hdr                                             binary       binary
+ip.proto                                           binary       integer
+ip.src                                             binary       address
+ip.tos                                             binary       integer
+ip.ttl                                             binary       integer
+ip.ver                                             binary       integer
 ipmask(mask4[,mask6])                              address      address
 json([input-code])                                 string       string
 json_query(json_path[,output_type])                string       _outtype_
@@ -21065,6 +21074,81 @@ in_table([<table>])
   used to verify the presence of a certain key in a table tracking some
   elements (e.g. whether or not a source IP address or an Authorization header
   was already seen).
+
+ip.data
+  This is used with an input sample representing a binary Ethernet frame, as
+  returned by "fc_saved_syn" combined with the "tcp-ss" bind option set to "1",
+  or with the output of "eth.data". It skips the IP header and any optional
+  options or extensions, and returns a block of binary data starting at the
+  transport protocol (usually TCP or UDP). See also "fc_saved_syn", "tcp-ss",
+  and "eth.data".
+
+ip.df
+  This is used with an input sample representing a binary Ethernet frame, as
+  returned by "fc_saved_syn" combined with the "tcp-ss" bind option set to "1",
+  or with the output of "eth.data". It returns integer value 1 if the DF (don't
+  fragment) flag is set in the IP header, 0 otherwise. IPv6 does not have a DF
+  flag, and doesn't fragment by default so it always returns 1. See also
+  "fc_saved_syn", "tcp-ss", and "eth.data".
+
+ip.dst
+  This is used with an input sample representing a binary Ethernet frame, as
+  returned by "fc_saved_syn" combined with the "tcp-ss" bind option set to "1",
+  or with the output of "eth.data". It returns the IPv4 or IPv6 destination
+  address from the IPv4/v6 header. See also "fc_saved_syn", "tcp-ss", and
+  "eth.data".
+
+ip.hdr
+  This is used with an input sample representing a binary Ethernet frame, as
+  returned by "fc_saved_syn" combined with the "tcp-ss" bind option set to "1",
+  or with the output of "eth.data". It returns a block of binary data starting
+  with the IP header and stopping after the last option or extension, and
+  before the transport protocol header. See also "fc_saved_syn", "tcp-ss", and
+  "eth.data".
+
+ip.proto
+  This is used with an input sample representing a binary Ethernet frame, as
+  returned by "fc_saved_syn" combined with the "tcp-ss" bind option set to "1",
+  or with the output of "eth.data". It returns the transport protocol number,
+  usually 6 for TCP or 17 for UDP. See also "fc_saved_syn", "tcp-ss", and
+  "eth.data".
+
+ip.src
+  This is used with an input sample representing a binary Ethernet frame, as
+  returned by "fc_saved_syn" combined with the "tcp-ss" bind option set to "1",
+  or with the output of "eth.data". It returns the IPv4 or IPv6 source address
+  from the IPv4/v6 header. See also "fc_saved_syn", "tcp-ss", and "eth.data".
+
+ip.tos
+  This is used with an input sample representing a binary Ethernet frame, as
+  returned by "fc_saved_syn" combined with the "tcp-ss" bind option set to "1",
+  or with the output of "eth.data". It returns an integer corresponding to the
+  value of the type-of-service (TOS) field in the IPv4 header or traffic class
+  (TC) field in the IPv6 header. Note that in the modern internet, this field
+  most often contains a DSCP (Differentiated Services Codepoint) value in the
+  6 upper bits and the two lower are either not used, or used by IP ECN. Please
+  refer to RFC2474 and RFC8436 for DSCP values, and RFC3168 for IP ECN fields.
+  See also "fc_saved_syn", "tcp-ss", and "eth.data".
+
+ip.ttl
+  This is used with an input sample representing a binary Ethernet frame, as
+  returned by "fc_saved_syn" combined with the "tcp-ss" bind option set to "1",
+  or with the output of "eth.data". This returns an integer corresponding to
+  the TTL (Time To Live) or HL (Hop Limit) field in the IPv4/IPv6 header. This
+  value is usually preset to a fixed value and decremented by each router that
+  the packet crosses. It can help infer how far a client connects from when the
+  initial value is known. Note that most modern operating systems start with an
+  initial value of 64. See also "fc_saved_syn", "tcp-ss", and "eth.data".
+
+ip.ver
+  This is used with an input sample representing a binary Ethernet frame, as
+  returned by "fc_saved_syn" combined with the "tcp-ss" bind option set to "1",
+  or with the output of "eth.data". This returns the IP version from the IP
+  header, normally either 4 or 6. Note that this doesn't check whether the
+  protocol number in the upper layer Ethernet frame matches, but since this is
+  expected to be used with valid packets, it is expected that the operating
+  system has already verified this. See also "fc_saved_syn", "tcp-ss", and
+  "eth.data".
 
 ipmask(<mask4>[,<mask6>])
   Apply a mask to an IP address, and use the result for lookups and storage.
@@ -23983,8 +24067,8 @@ fc_saved_syn : binary
                       mac_src=%[var(sess.syn),eth.src,hex] \
                       proto=%[var(sess.syn),eth.proto,bytes(6),be2hex(,2)] \
                       ipv4h=%[var(sess.syn),eth.data,bytes(0,12),hex] \
-                      ipv4_src=%[var(sess.syn),bytes(26,4),be2dec(.,1)] \
-                      ipv4_dst=%[var(sess.syn),bytes(30,4),be2dec(.,1)] \
+                      ipv4_src=%[var(sess.syn),eth.data,ip.src] \
+                      ipv4_dst=%[var(sess.syn),eth.data,ip.dst] \
                       tcp_spt=%[var(sess.syn),bytes(34,2),be2dec(,2)] \
                       tcp_dpt=%[var(sess.syn),bytes(36,2),be2dec(,2)] \
                       tcp_win=%[var(sess.syn),bytes(48,2),be2dec(,2)] \
@@ -23996,8 +24080,8 @@ fc_saved_syn : binary
     tcp_spt=43970 tcp_dpt=4445 tcp_win=65495 \
     tcp_opt=0204FFD70402080A01DC0D410000000001030307
 
-  See also the "set-var" action, the "be2dec", "bytes", "hex", and
-           "eth.XXX" converters.
+  See also the "set-var" action, the "be2dec", "bytes", "hex", "eth.XXX" and
+           "ip.XXX" converters.
 
 fc_settings_streams_limit : integer
   Returns the maximum number of streams allowed on the frontend connection. For
