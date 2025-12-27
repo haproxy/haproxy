@@ -20583,6 +20583,18 @@ table_server_id([table])                           any          integer
 table_sess_cnt([table])                            any          integer
 table_sess_rate([table])                           any          integer
 table_trackers([table])                            any          integer
+tcp.dst                                            binary       integer
+tcp.flags                                          binary       integer
+tcp.options.mss                                    binary       integer
+tcp.options.sack                                   binary       integer
+tcp.options.tsopt                                  binary       integer
+tcp.options.tsval                                  binary       integer
+tcp.options.wscale                                 binary       integer
+tcp.options.wsopt                                  binary       integer
+tcp.options_list                                   binary       binary
+tcp.seq                                            binary       integer
+tcp.src                                            binary       integer
+tcp.win                                            binary       integer
 ub64dec                                            string       string
 ub64enc                                            string       string
 ungrpc(field_number[,field_type])                  binary       binary / int
@@ -22359,6 +22371,88 @@ table_trackers([<table>])
   concurrent connections there are from a given address for example. See also
   the sc_trackers sample fetch keyword.
 
+tcp.dst
+  This is used with an input sample representing a binary TCP header, as
+  returned by "ip.data". It returns an integer representing the destination
+  port present in the TCP header. See also "fc_saved_syn", "tcp-ss", and
+  "ip.data".
+
+tcp.flags
+  This is used with an input sample representing a binary TCP header, as
+  returned by "ip.data". It returns an integer representing the TCP flags
+  from this TCP header. All 8 flags from FIN to CWR are retrieved. Each flag
+  may be tested using the "and()" converter. Please refer to RFC9293 for the
+  value of each flag. See also "fc_saved_syn", "tcp-ss", and "ip.data".
+
+tcp.options.mss
+  This is used with an input sample representing a binary TCP header, as
+  returned by "ip.data". It looks for a TCP option of kind "MSS", and if found,
+  it returns an integer value corresponding to the advertised value in that
+  option, otherwise zero. The MSS is the Maximum Segment Size and indicates the
+  largest segment the peer may receive, in bytes. See also "fc_saved_syn",
+  "tcp-ss", and "ip.data".
+
+tcp.options.sack
+  This is used with an input sample representing a binary TCP header, as
+  returned by "ip.data". It looks for a TCP option of kind "Sack-Permitted",
+  and if found, returns 1, otherwise zero. See also "fc_saved_syn", "tcp-ss",
+  and "ip.data".
+
+tcp.options.tsopt
+  This is used with an input sample representing a binary TCP header, as
+  returned by "ip.data". It looks for a TCP option of kind "Timestamp", and if
+  found, returns 1, otherwise zero. See also "fc_saved_syn", "tcp-ss", and
+  "ip.data".
+
+tcp.options.tsval
+  This is used with an input sample representing a binary TCP header, as
+  returned by "ip.data". It looks for a TCP option of kind "Timestamp", and if
+  found, returns the timestamp value emitted by the peer, otherwise does not
+  return anything. Note that timestamps are 32-bit unsigned values with no
+  particular unit that only the peer decides on, and timestamps are expected to
+  be independent between different connections. See also "fc_saved_syn",
+  "tcp-ss", and "ip.data".
+
+tcp.options.wscale
+  This is used with an input sample representing a binary TCP header, as
+  returned by "ip.data". It looks for a TCP option of kind "Window Scale", and
+  if found, returns the window scaling value emitted by the peer, otherwise
+  zero. Note that values are not expected to be beyond 14 though no technical
+  limitation prevents them from being sent. In order to detect if the window
+  scale option was used, please use "tcp.options.wsopt". See also "tcp-ss",
+  "fc_saved_syn", "ip.data", and "tcp.options.wsopt".
+
+tcp.options.wsopt
+  This is used with an input sample representing a binary TCP header, as
+  returned by "ip.data". It looks for a TCP option of kind "Window Scale", and
+  if found, returns 1 otherwise 0. See also "fc_saved_syn", "tcp-ss", "ip.data"
+  "tcp.options.wscale".
+
+tcp.options_list
+  This is used with an input sample representing a binary TCP header, as
+  returned by "ip.data". It builds a binary sequence of all TCP option kinds in
+  the same order as they appear in the TCP header. It can produce from 0 to 60
+  bytes (in the worst case). The End-of-options is not emitted. See also
+  "fc_saved_syn", "tcp-ss", and "ip.data".
+
+tcp.seq
+  This is used with an input sample representing a binary TCP header, as
+  returned by "ip.data". It returns an integer representing the sequence number
+  used by the peer in the TCP header. Sequence numbers are 32-bit unsigned
+  values. See also "fc_saved_syn", "tcp-ss", and "ip.data".
+
+tcp.src
+  This is used with an input sample representing a binary TCP header, as
+  returned by "ip.data". It returns an integer representing the source port
+  present in the TCP header. See also "fc_saved_syn", "tcp-ss", and "ip.data".
+
+tcp.win
+  This is used with an input sample representing a binary TCP header, as
+  returned by "ip.data". It returns an integer representing the window size
+  advertised by the peer in the TCP header. The value is provided as-is, as a
+  16-bit unsigned quantity, without applying the window scaling factor. See
+  also "fc_saved_syn", "tcp-ss", and "ip.data".
+
 ub64dec
   This converter is the base64url variant of b64dec converter. base64url
   encoding is the "URL and Filename Safe Alphabet" variant of base64 encoding.
@@ -24069,10 +24163,10 @@ fc_saved_syn : binary
                       ipv4h=%[var(sess.syn),eth.data,bytes(0,12),hex] \
                       ipv4_src=%[var(sess.syn),eth.data,ip.src] \
                       ipv4_dst=%[var(sess.syn),eth.data,ip.dst] \
-                      tcp_spt=%[var(sess.syn),bytes(34,2),be2dec(,2)] \
-                      tcp_dpt=%[var(sess.syn),bytes(36,2),be2dec(,2)] \
-                      tcp_win=%[var(sess.syn),bytes(48,2),be2dec(,2)] \
-                      tcp_opt=%[var(sess.syn),bytes(54),hex]\n"
+                      tcp_spt=%[var(sess.syn),eth.data,ip.data,tcp.src] \
+                      tcp_dpt=%[var(sess.syn),eth.data,ip.data,tcp.dst] \
+                      tcp_win=%[var(sess.syn),eth.data,ip.data,tcp.win] \
+                      tcp_opt=%[var(sess.syn),eth.data,ip.data,bytes(20),hex]\n"
 
     $ curl '0:4445'
     mac_dst=000000000000 mac_src=000000000000 proto=0800 \
@@ -24080,8 +24174,8 @@ fc_saved_syn : binary
     tcp_spt=43970 tcp_dpt=4445 tcp_win=65495 \
     tcp_opt=0204FFD70402080A01DC0D410000000001030307
 
-  See also the "set-var" action, the "be2dec", "bytes", "hex", "eth.XXX" and
-           "ip.XXX" converters.
+  See also the "set-var" action, the "be2dec", "bytes", "hex", "eth.XXX",
+           "ip.XXX", and "tcp.XXX" converters.
 
 fc_settings_streams_limit : integer
   Returns the maximum number of streams allowed on the frontend connection. For

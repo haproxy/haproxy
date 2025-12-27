@@ -415,6 +415,240 @@ static int sample_conv_ip_ver(const struct arg *arg_p, struct sample *smp, void 
 	return 1;
 }
 
+/******************************************/
+/* Converters used to process TCP headers */
+/******************************************/
+
+/* returns the TCP header length in bytes if complete, otherwise zero */
+static int tcp_fullhdr_length(const struct sample *smp)
+{
+	size_t ofs;
+
+	if (smp->data.u.str.data < 20)
+		return 0;
+
+	/* check that header is complete */
+	ofs = ((uchar)smp->data.u.str.area[12] >> 4) * 4;
+	if (ofs < 20 || smp->data.u.str.data < ofs)
+		return 0;
+	return ofs;
+}
+
+/* returns the offset in the input TCP header where option kind <opt> is first
+ * seen, otherwise 0 if not found. NOP and END cannot be searched.
+ */
+static size_t tcp_fullhdr_find_opt(const struct sample *smp, uint8_t opt)
+{
+	size_t len = tcp_fullhdr_length(smp);
+	size_t next = 20, curr;
+
+	while ((curr = next) < len) {
+		if (smp->data.u.str.area[next] == 0) // kind0=end of options
+			break;
+		/* kind1 = NOP and is a single byte, others have a length field */
+		next += (smp->data.u.str.area[next] == 1) ? 1 : smp->data.u.str.area[next + 1];
+		if (smp->data.u.str.area[curr] == opt && next <= len)
+			return curr;
+	}
+
+	return 0;
+}
+
+/* returns the destination port field found in an input TCP header */
+static int sample_conv_tcp_dst(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	if (smp->data.u.str.data < 20)
+		return 0;
+
+	smp->data.u.sint = read_n16(smp->data.u.str.area + 2);
+	smp->data.type = SMP_T_SINT;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
+/* returns the flags field found in an input TCP header */
+static int sample_conv_tcp_flags(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	if (smp->data.u.str.data < 20)
+		return 0;
+
+	smp->data.u.sint = (uchar)smp->data.u.str.area[13];
+	smp->data.type = SMP_T_SINT;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
+/* returns the MSS value of an input TCP header, or 0 if absent. Returns
+ * nothing if the header is incomplete.
+ */
+static int sample_conv_tcp_options_mss(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	size_t len = tcp_fullhdr_length(smp);
+	size_t ofs = tcp_fullhdr_find_opt(smp, 2 /* MSS */);
+
+	if (!len)
+		return 0;
+
+	smp->data.u.sint = ofs ? read_n16(smp->data.u.str.area + ofs + 2) : 0;
+	smp->data.type = SMP_T_SINT;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
+/* returns 1 if the SackPerm option is present in an input TCP header,
+ * otherwise 0. Returns nothing if the header is incomplete.
+ */
+static int sample_conv_tcp_options_sack(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	size_t len = tcp_fullhdr_length(smp);
+	size_t ofs = tcp_fullhdr_find_opt(smp, 4 /* sackperm */);
+
+	if (!len)
+		return 0;
+
+	smp->data.u.sint = !!ofs;
+	smp->data.type = SMP_T_SINT;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
+/* returns 1 if the TimeStamp option is present in an input TCP header,
+ * otherwise 0. Returns nothing if the header is incomplete.
+ */
+static int sample_conv_tcp_options_tsopt(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	size_t len = tcp_fullhdr_length(smp);
+	size_t ofs = tcp_fullhdr_find_opt(smp, 8 /* TS */);
+
+	if (!len)
+		return 0;
+
+	smp->data.u.sint = !!ofs;
+	smp->data.type = SMP_T_SINT;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
+/* returns the TSval value in the TimeStamp option found in an input TCP
+ * header, if found, otherwise 0. Returns nothing if the header is incomplete
+ * (see also tsopt).
+ */
+static int sample_conv_tcp_options_tsval(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	size_t len = tcp_fullhdr_length(smp);
+	size_t ofs = tcp_fullhdr_find_opt(smp, 8 /* TS */);
+
+	if (!len)
+		return 0;
+
+	smp->data.u.sint = ofs ? read_n32(smp->data.u.str.area + ofs + 2) : 0;
+	smp->data.type = SMP_T_SINT;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
+/* returns the window scaling shift count from an input TCP header, otherwise 0
+ * if option not found (see also wsopt). Returns nothing if the header is
+ * incomplete.
+ */
+static int sample_conv_tcp_options_wscale(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	size_t len = tcp_fullhdr_length(smp);
+	size_t ofs = tcp_fullhdr_find_opt(smp, 3 /* wscale */);
+
+	if (!len)
+		return 0;
+
+	smp->data.u.sint = ofs ? (uchar)smp->data.u.str.area[ofs + 2] : 0;
+	smp->data.type = SMP_T_SINT;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
+/* returns 1 if the WScale option is present in an input TCP header,
+ * otherwise 0. Returns nothing if the header is incomplete.
+ */
+static int sample_conv_tcp_options_wsopt(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	size_t len = tcp_fullhdr_length(smp);
+	size_t ofs = tcp_fullhdr_find_opt(smp, 3 /* wscale */);
+
+	if (!len)
+		return 0;
+
+	smp->data.u.sint = !!ofs;
+	smp->data.type = SMP_T_SINT;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
+/* returns only the TCP options kinds of an input TCP header, as a binary
+ * block of one byte per option.
+ */
+static int sample_conv_tcp_options_list(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct buffer *trash = get_trash_chunk();
+	size_t len = tcp_fullhdr_length(smp);
+	size_t ofs = 20;
+
+	if (!len)
+		return 0;
+
+	while (ofs < len) {
+		if (smp->data.u.str.area[ofs] == 0) // kind0=end of options
+			break;
+		trash->area[trash->data++] = smp->data.u.str.area[ofs];
+		/* kind1 = NOP and is a single byte, others have a length field */
+		if (smp->data.u.str.area[ofs] == 1)
+			ofs++;
+		else if (ofs + 1 <= len)
+			ofs += smp->data.u.str.area[ofs + 1];
+		else
+			break;
+	}
+
+	/* returns a binary block of 1 byte per option */
+	smp->data.u.str = *trash;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
+/* returns the sequence number field found in an input TCP header */
+static int sample_conv_tcp_seq(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	if (smp->data.u.str.data < 20)
+		return 0;
+
+	smp->data.u.sint = read_n32(smp->data.u.str.area + 4);
+	smp->data.type = SMP_T_SINT;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
+/* returns the source port field found in an input TCP header */
+static int sample_conv_tcp_src(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	if (smp->data.u.str.data < 20)
+		return 0;
+
+	smp->data.u.sint = read_n16(smp->data.u.str.area);
+	smp->data.type = SMP_T_SINT;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
+/* returns the window field found in an input TCP header */
+static int sample_conv_tcp_win(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	if (smp->data.u.str.data < 20)
+		return 0;
+
+	smp->data.u.sint = read_n16(smp->data.u.str.area + 14);
+	smp->data.type = SMP_T_SINT;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
@@ -434,6 +668,19 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "ip.tos",             sample_conv_ip_tos,             0,      NULL,      SMP_T_BIN,  SMP_T_SINT },
 	{ "ip.ttl",             sample_conv_ip_ttl,             0,      NULL,      SMP_T_BIN,  SMP_T_SINT },
 	{ "ip.ver",             sample_conv_ip_ver,             0,      NULL,      SMP_T_BIN,  SMP_T_SINT },
+
+	{ "tcp.dst",            sample_conv_tcp_dst,            0,      NULL,      SMP_T_BIN,  SMP_T_SINT },
+	{ "tcp.flags",          sample_conv_tcp_flags,          0,      NULL,      SMP_T_BIN,  SMP_T_SINT },
+	{ "tcp.options.mss",    sample_conv_tcp_options_mss,    0,      NULL,      SMP_T_BIN,  SMP_T_SINT },
+	{ "tcp.options.sack",   sample_conv_tcp_options_sack,   0,      NULL,      SMP_T_BIN,  SMP_T_SINT },
+	{ "tcp.options.tsopt",  sample_conv_tcp_options_tsopt,  0,      NULL,      SMP_T_BIN,  SMP_T_SINT },
+	{ "tcp.options.tsval",  sample_conv_tcp_options_tsval,  0,      NULL,      SMP_T_BIN,  SMP_T_SINT },
+	{ "tcp.options.wscale", sample_conv_tcp_options_wscale, 0,      NULL,      SMP_T_BIN,  SMP_T_SINT },
+	{ "tcp.options.wsopt",  sample_conv_tcp_options_wsopt,  0,      NULL,      SMP_T_BIN,  SMP_T_SINT },
+	{ "tcp.options_list",   sample_conv_tcp_options_list,   0,      NULL,      SMP_T_BIN,  SMP_T_BIN  },
+	{ "tcp.seq",            sample_conv_tcp_seq,            0,      NULL,      SMP_T_BIN,  SMP_T_SINT },
+	{ "tcp.src",            sample_conv_tcp_src,            0,      NULL,      SMP_T_BIN,  SMP_T_SINT },
+	{ "tcp.win",            sample_conv_tcp_win,            0,      NULL,      SMP_T_BIN,  SMP_T_SINT },
 
 	{ NULL, NULL, 0, 0, 0 },
 }};
