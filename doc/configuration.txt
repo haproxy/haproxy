@@ -20471,6 +20471,12 @@ debug([prefix][,destination])                       any          same
 digest(algorithm)                                  binary       binary
 div(value)                                         integer      integer
 djb2([avalanche])                                  binary       integer
+eth.data                                           binary       binary
+eth.dst                                            binary       binary
+eth.hdr                                            binary       binary
+eth.proto                                          binary       integer
+eth.src                                            binary       binary
+eth.vlan                                           binary       integer
 even                                               integer      boolean
 field(index,delimiters[,count])                    string       string
 fix_is_valid                                       binary       boolean
@@ -20889,6 +20895,48 @@ djb2([<avalanche>])
   collect rough statistics. It must not be used for security purposes as a
   32-bit hash is trivial to break. See also "crc32", "sdbm", "wt6", "crc32c",
   and the "hash-type" directive.
+
+eth.data
+  This is used with an input sample representing a binary Ethernet frame, as
+  returned by "fc_saved_syn" combined with the "tcp-ss" bind option set to "2".
+  It skips all the Ethernet header including possible VLANs and returns a block
+  of binary data starting at the layer 3 protocol (usually IPv4 or IPv6). See
+  also "fc_saved_syn" and "tcp-ss".
+
+eth.dst
+  This is used with an input sample representing a binary Ethernet frame, as
+  returned by "fc_saved_syn" combined with the "tcp-ss" bind option set to "2".
+  It returns the 6 bytes of the Ethernet header corresponding to the
+  destination address of the frame, as a binary block. See also "fc_saved_syn"
+  and "tcp-ss".
+
+eth.hdr
+  This is used with an input sample representing a binary Ethernet frame, as
+  returned by "fc_saved_syn" combined with the "tcp-ss" bind option set to "2".
+  It trims anything past the Ethernet header but keeps possible VLANs, and
+  returns this header as a block of binary data. See also "fc_saved_syn" and
+  "tcp-ss".
+
+eth.proto
+  This is used with an input sample representing a binary Ethernet frame, as
+  returned by "fc_saved_syn" combined with the "tcp-ss" bind option set to "2".
+  It returns the protocol number (also known as EtherType) found in a Ethernet
+  header after any optional VLAN as an integer value. It should normally be
+  either 0x800 for IPv4 or 0x86DD for IPv6. See also "fc_saved_syn" and
+  "tcp-ss".
+
+eth.src
+  This is used with an input sample representing a binary Ethernet frame, as
+  returned by "fc_saved_syn" combined with the "tcp-ss" bind option set to "2".
+  It returns the 6 bytes of the Ethernet header corresponding to the source
+  address of the frame, as a binary block. See also "fc_saved_syn" and
+  "tcp-ss".
+
+eth.vlan
+  This is used with an input sample representing a binary Ethernet frame, as
+  returned by "fc_saved_syn" combined with the "tcp-ss" bind option set to "2".
+  It returns the last VLAN ID found in a Ethernet header as an integer value.
+  See also "fc_saved_syn" and "tcp-ss".
 
 even
   Returns a boolean TRUE if the input value of type signed integer is even
@@ -23921,7 +23969,8 @@ fc_saved_syn : binary
     0204FFC40402080A9C231D680000000001030307 # MSS=65476, TS, SACK, WSCALE 7
 
   The "bytes()" converter helps extract specific fields from the packet. The
-  be2dec() also permits to read chunks and emit them in integer form.
+  be2dec() also permits to read chunks and emit them in integer form. For more
+  accurate extraction, please refer to the "eth.XXX" converters.
 
   Example with IPv4 input:
 
@@ -23930,10 +23979,10 @@ fc_saved_syn : binary
         bind :4445 tcp-ss 2
         tcp-request connection set-var(sess.syn) fc_saved_syn
         http-request return status 200 content-type text/plain lf-string \
-                     "mac_dst=%[var(sess.syn),bytes(0,6),hex] \
-                      mac_src=%[var(sess.syn),bytes(6,6),hex] \
-                      proto=%[var(sess.syn),bytes(12,2),hex] \
-                      ipv4h=%[var(sess.syn),bytes(14,12),hex] \
+                     "mac_dst=%[var(sess.syn),eth.dst,hex] \
+                      mac_src=%[var(sess.syn),eth.src,hex] \
+                      proto=%[var(sess.syn),eth.proto,bytes(6),be2hex(,2)] \
+                      ipv4h=%[var(sess.syn),eth.data,bytes(0,12),hex] \
                       ipv4_src=%[var(sess.syn),bytes(26,4),be2dec(.,1)] \
                       ipv4_dst=%[var(sess.syn),bytes(30,4),be2dec(.,1)] \
                       tcp_spt=%[var(sess.syn),bytes(34,2),be2dec(,2)] \
@@ -23947,7 +23996,8 @@ fc_saved_syn : binary
     tcp_spt=43970 tcp_dpt=4445 tcp_win=65495 \
     tcp_opt=0204FFD70402080A01DC0D410000000001030307
 
-  See also the "set-var" action, the "be2dec", "bytes" and "hex" converters.
+  See also the "set-var" action, the "be2dec", "bytes", "hex", and
+           "eth.XXX" converters.
 
 fc_settings_streams_limit : integer
   Returns the maximum number of streams allowed on the frontend connection. For
