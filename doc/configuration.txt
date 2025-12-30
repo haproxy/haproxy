@@ -20492,6 +20492,7 @@ in_table([table])                                  any          boolean
 ip.data                                            binary       binary
 ip.df                                              binary       integer
 ip.dst                                             binary       address
+ip.fp                                              binary       binary
 ip.hdr                                             binary       binary
 ip.proto                                           binary       integer
 ip.src                                             binary       address
@@ -21109,6 +21110,49 @@ ip.dst
   or with the output of "eth.data". It returns the IPv4 or IPv6 destination
   address from the IPv4/v6 header. See also "fc_saved_syn", "tcp-ss", and
   "eth.data".
+
+ip.fp([<mode>])
+  This is used with an input sample representing a binary Ethernet frame, as
+  returned by "fc_saved_syn" combined with the "tcp-ss" bind option set to "1",
+  or with the output of "eth.data". It inspects various parts of the IP header
+  and the TCP header to construct sort of a fingerprint of invariant parts that
+  can be used to distinguish between multiple apparently identical hosts. The
+  real-world use case is to refine the identification of misbehaving hosts
+  between a shared IP address to avoid blocking legitimate users when only one
+  is misbehaving and needs to be blocked. The converter builds a 7-byte binary
+  block based on the input. The bytes of the fingerprint are arranged like
+  this:
+    - byte 0: IP TOS field (see ip.tos)
+    - byte 1:
+      - bit 7: IPv6 (1) / IPv4 (0)
+      - bit 6: ip.df
+      - bit 5..4: 0:ip.ttl<=32; 1:ip.ttl<=64; 2:ip.ttl<=128; 3:ip.ttl<=255
+      - bit 3: IP options present (1) / absent (0)
+      - bit 2: TCP data present (1) / absent (0)
+      - bit 1: TCP.flags has CWR set (1) / cleared (0)
+      - bit 0: TCP.flags has ECE set (1) / cleared (0)
+    - byte 2:
+      - bits 7..4: TCP header length in 4-byte words
+      - bits 3..0: TCP window scaling + 1 (1..15) / 0 (no WS advertised)
+    - byte 3..4: tcp.win
+    - byte 5..6: tcp.options.mss, or zero if absent
+
+  When the <mode> argument is not set or is zero, the fingerprint is solely
+  made of the 7 bytes described above. When the <mode> is 1, it starts by the
+  7-byte block above, and is followed by the list of TCP option kinds, for 0
+  to 40 extra bytes, as returned by "tcp.options_list".
+
+  Example:
+
+    frontend test
+        mode http
+        bind :4445 tcp-ss 1
+        tcp-request connection set-var(sess.syn) fc_saved_syn
+        http-request return status 200 content-type text/plain lf-string \
+              "src=%[var(sess.syn),ip.src] fp=%[var(sess.syn),ip.fp,hex]\n"
+
+  See also "fc_saved_syn", "tcp-ss", "eth.data", "ip.df", "ip.ttl", "tcp.win",
+           "tcp.options.mss", and "tcp.options_list".
 
 ip.hdr
   This is used with an input sample representing a binary Ethernet frame, as

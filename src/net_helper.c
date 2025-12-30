@@ -649,6 +649,159 @@ static int sample_conv_tcp_win(const struct arg *arg_p, struct sample *smp, void
 	return 1;
 }
 
+/* Builds a binary fingerprint of the IP+TCP input contents that are supposed
+ * to rely essentially on the client stack's settings. This can be used for
+ * example to selectively block bad behaviors at one IP address without
+ * blocking others. The resulting fingerprint is a binary block of 56 to 376
+ * bytes long (56 being the fixed part and the rest depending on the provided
+ * TCP extensions).
+ */
+static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct buffer *trash = get_trash_chunk();
+	uchar ipver;
+	uchar iptos;
+	uchar ipttl;
+	uchar ipdf;
+	uchar ipext;
+	uchar tcpflags;
+	uchar tcplen;
+	uchar tcpws;
+	ushort pktlen;
+	ushort tcpwin;
+	ushort tcpmss;
+	size_t iplen;
+	size_t ofs;
+	int mode;
+
+	/* check arg for mode > 0 */
+	if (arg_p[0].type == ARGT_SINT)
+		mode = arg_p[0].data.sint;
+	else
+		mode = 0;
+
+	/* retrieve IP version */
+	if (smp->data.u.str.data < 1)
+		return 0;
+
+	ipver = (uchar)smp->data.u.str.area[0] >> 4;
+	if (ipver == 4) {
+		/* check fields for IPv4 */
+
+		// extension present if header length != 5 words.
+		ipext = (smp->data.u.str.area[0] & 0xF) != 5;
+		iplen = (smp->data.u.str.area[0] & 0xF) * 4;
+		if (smp->data.u.str.data < iplen)
+			return 0;
+
+		iptos = smp->data.u.str.area[1];
+		pktlen = read_n16(smp->data.u.str.area + 2);
+		ipdf = !!(smp->data.u.str.area[6] & 0x40);
+		ipttl = smp->data.u.str.area[8];
+	}
+	else if (ipver == 6) {
+		/* check fields for IPv6 */
+		if (smp->data.u.str.data < 40)
+			return 0;
+
+		pktlen = read_n16(smp->data.u.str.area + 4);
+		// extension/next proto => ext present if !tcp && !udp
+		ipext = smp->data.u.str.area[6];
+		ipext = ipext != 6 && ipext != 17;
+
+		iptos = read_n16(smp->data.u.str.area) >> 4;
+		ipdf = 1; // no fragments by default in IPv6
+		ipttl = smp->data.u.str.area[7];
+	}
+	else
+		return 0;
+
+	/* prepare trash to contain at least 7 bytes */
+	trash->data = 7;
+
+	/* store the TOS in the FP's first byte */
+	trash->area[0] = iptos;
+
+	/* keep only two bits for TTL: <=32, <=64, <=128, <=255 */
+	ipttl = (ipttl > 64) ? ((ipttl > 128) ? 3 : 2) : ((ipttl > 32) ? 1 : 0);
+
+	/* OK we've collected required IP fields, let's advance to TCP now */
+	iplen = ip_header_length(smp);
+	if (!iplen || iplen > pktlen)
+		return 0;
+
+	/* advance buffer by <len> */
+	smp->data.u.str.area += iplen;
+	smp->data.u.str.data -= iplen;
+	pktlen -= iplen;
+
+	/* now SMP points to the TCP header. It must be complete */
+	tcplen = tcp_fullhdr_length(smp);
+	if (!tcplen || tcplen > pktlen)
+		return 0;
+
+	pktlen -= tcplen; // remaining data length (e.g. TFO)
+	tcpflags = smp->data.u.str.area[13];
+	tcpwin   = read_n16(smp->data.u.str.area + 14);
+
+	/* second byte of FP contains:
+	 *   - bit 7..4: IP.v6(1), IP.DF(1), IP.TTL(2),
+	 *   - bit 3..0: IP.ext(1), TCP.have_data(1), TCP.CWR(1), TCP.ECE(1)
+	 */
+	trash->area[1] =
+		((ipver == 6)                    << 7) |
+		(ipdf                            << 6) |
+		(ipttl                           << 4) |
+		(ipext                           << 3) |
+		((pktlen > 0)                    << 2) | // data present (TFO)
+		(tcpflags >> 6                   << 0);  // CWR, ECE
+
+	tcpmss = tcpws = 0;
+	ofs = 20;
+	while (ofs < tcplen) {
+		size_t next;
+
+		if (smp->data.u.str.area[ofs] == 0) // kind0=end of options
+			break;
+
+		/* kind1 = NOP and is a single byte, others have a length field */
+		if (smp->data.u.str.area[ofs] == 1)
+			next = ofs + 1;
+		else if (ofs + 1 <= tcplen)
+			next = ofs + smp->data.u.str.area[ofs + 1];
+		else
+			break;
+
+		if (next > tcplen)
+			break;
+
+		/* option is complete, take a copy of it */
+		if (mode > 0)
+			trash->area[trash->data++] = smp->data.u.str.area[ofs];
+
+		if (smp->data.u.str.area[ofs] == 2 /* MSS */) {
+			tcpmss = read_n16(smp->data.u.str.area + ofs + 2);
+		}
+		else if (smp->data.u.str.area[ofs] == 3 /* WS */) {
+			tcpws = (uchar)smp->data.u.str.area[ofs + 2];
+			/* output from 1 to 15, thus 0=not found */
+			tcpws = tcpws > 14 ? 15 : tcpws + 1;
+		}
+		ofs = next;
+	}
+
+	/* third byte contains hdrlen(4) and wscale(4) */
+	trash->area[2] = (tcplen << 2) | tcpws;
+
+	/* then tcpwin(16) then tcpmss(16) */
+	write_n16(trash->area + 3, tcpwin);
+	write_n16(trash->area + 5, tcpmss);
+
+	/* option kinds if any are stored starting at offset 7 */
+	smp->data.u.str = *trash;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
@@ -662,6 +815,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "ip.data",            sample_conv_ip_data,            0,      NULL,      SMP_T_BIN,  SMP_T_BIN  },
 	{ "ip.df",              sample_conv_ip_df,              0,      NULL,      SMP_T_BIN,  SMP_T_SINT },
 	{ "ip.dst",             sample_conv_ip_dst,             0,      NULL,      SMP_T_BIN,  SMP_T_ADDR },
+	{ "ip.fp",              sample_conv_ip_fp,   ARG1(0,SINT),      NULL,      SMP_T_BIN,  SMP_T_BIN  },
 	{ "ip.hdr",             sample_conv_ip_hdr,             0,      NULL,      SMP_T_BIN,  SMP_T_BIN  },
 	{ "ip.proto",           sample_conv_ip_proto,           0,      NULL,      SMP_T_BIN,  SMP_T_SINT },
 	{ "ip.src",             sample_conv_ip_src,             0,      NULL,      SMP_T_BIN,  SMP_T_ADDR },
