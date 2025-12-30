@@ -2052,7 +2052,7 @@ struct pat_ref_elt *pat_ref_append(struct pat_ref *ref, unsigned int gen_id,
 			goto fail;
 	}
 
-	elt->gen_id = ref->curr_gen;
+	elt->gen_id = gen_id;
 	elt->line = line;
 
 	memcpy((char*)elt->pattern, pattern, len + 1);
