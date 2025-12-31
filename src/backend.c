@@ -1447,7 +1447,7 @@ static int do_connect_server(struct stream *s, struct connection *conn)
 
 	if (co_data(&s->res))
 		conn_flags |= CONNECT_HAS_DATA;
-	if (s->conn_retries == s->max_retries)
+	if (s->conn_retries == 0)
 		conn_flags |= CONNECT_CAN_USE_TFO;
 	if (!conn_ctrl_ready(conn) || !conn_xprt_ready(conn)) {
 		ret = conn->ctrl->connect(conn, conn_flags);
