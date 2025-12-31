@@ -1445,7 +1445,7 @@ static int do_connect_server(struct stream *s, struct connection *conn)
 	if (unlikely(!conn || !conn->ctrl || !conn->ctrl->connect))
 		return SF_ERR_INTERNAL;
 
-	if (co_data(&s->res))
+	if (co_data(&s->req))
 		conn_flags |= CONNECT_HAS_DATA;
 	if (s->conn_retries == 0)
 		conn_flags |= CONNECT_CAN_USE_TFO;
