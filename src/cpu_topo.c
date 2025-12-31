@@ -1257,6 +1257,137 @@ static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin
 	return 0;
 }
 
+static void
+cpu_policy_assign_threads(int cpu_count, struct hap_cpuset node_cpu_set, struct hap_cpuset visited_tsid, struct hap_cpuset visited_ccx)
+{
+	struct hap_cpuset thrset;
+	int nb_grp;
+	int thr_per_grp;
+	int thr;
+	int same_core = 0;
+
+	ha_cpuset_zero(&thrset);
+	/* check that we're still within limits. If there are too many
+	 * CPUs but enough groups left, we'll try to make more smaller
+	 * groups, of the closest size each.
+	 */
+	nb_grp = (cpu_count + global.maxthrpertgroup - 1) / global.maxthrpertgroup;
+	if (nb_grp > MAX_TGROUPS - global.nbtgroups)
+		nb_grp = MAX_TGROUPS - global.nbtgroups;
+	thr_per_grp = (cpu_count + nb_grp - 1) / nb_grp;
+	if (thr_per_grp > global.maxthrpertgroup)
+		thr_per_grp = global.maxthrpertgroup;
+
+	while (nb_grp && cpu_count > 0) {
+		/* create at most thr_per_grp threads */
+		if (thr_per_grp > cpu_count)
+			thr_per_grp = cpu_count;
+
+		if (thr_per_grp + global.nbthread > MAX_THREADS)
+			thr_per_grp = MAX_THREADS - global.nbthread;
+
+		/* let's create the new thread group */
+		ha_tgroup_info[global.nbtgroups].base  = global.nbthread;
+		ha_tgroup_info[global.nbtgroups].count = thr_per_grp;
+
+		/* assign to this group the required number of threads */
+		for (thr = 0; thr < thr_per_grp; thr++) {
+			ha_thread_info[thr + global.nbthread].tgid = global.nbtgroups + 1;
+			ha_thread_info[thr + global.nbthread].tg = &ha_tgroup_info[global.nbtgroups];
+			ha_thread_info[thr + global.nbthread].tg_ctx = &ha_tgroup_ctx[global.nbtgroups];
+			if (cpu_policy_conf.affinity & CPU_AFFINITY_PER_CORE) {
+				if (same_core == 0) {
+					int tsid;
+					int corenb = 0;
+
+					ha_cpuset_zero(&thrset);
+					/*
+					 * Find the next available core, and assign the thread to it
+					 */
+					tsid = ha_cpuset_ffs(&visited_tsid) - 1;
+					if (tsid != -1) {
+						int next_try = 0;
+						int got_cpu;
+						while ((got_cpu = find_next_cpu_tsid(next_try, tsid)) != -1) {
+							next_try = got_cpu + 1;
+							if (!(ha_cpu_topo[got_cpu].st & HA_CPU_F_EXCL_MASK)) {
+								ha_cpuset_set(&thrset, ha_cpu_topo[got_cpu].idx);
+								corenb++;
+							}
+						}
+						ha_cpuset_clr(&visited_tsid, tsid);
+						ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &thrset);
+					}
+					if (cpu_policy_conf.flags & CPU_POLICY_ONE_THREAD_PER_CORE)
+						same_core = 1;
+					else
+						same_core = corenb;
+
+				}
+				if (ha_cpuset_ffs(&thrset) != 0)
+					ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &thrset);
+				same_core--;
+
+			} else if (cpu_policy_conf.affinity & CPU_AFFINITY_PER_THREAD) {
+				ha_cpuset_zero(&thrset);
+				if (cpu_policy_conf.flags & CPU_POLICY_ONE_THREAD_PER_CORE) {
+					int got_cpu;
+					int next_cpu = 0;
+					int tsid;
+
+					tsid = ha_cpuset_ffs(&visited_tsid) - 1;
+					while ((got_cpu = find_next_cpu_tsid(next_cpu, tsid)) != -1) {
+						if (!(ha_cpu_topo[got_cpu].st & HA_CPU_F_EXCL_MASK))
+							break;
+						next_cpu = got_cpu + 1;
+					}
+
+					if (got_cpu != -1) {
+						ha_cpuset_set(&thrset, ha_cpu_topo[got_cpu].idx);
+						ha_cpuset_clr(&visited_tsid, tsid);
+					}
+				} else {
+					int tid = ha_cpuset_ffs(&node_cpu_set) - 1;
+
+					if (tid != -1) {
+						ha_cpuset_set(&thrset, tid);
+						ha_cpuset_clr(&node_cpu_set, tid);
+					}
+				}
+				if (ha_cpuset_ffs(&thrset) != 0)
+					ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &thrset);
+
+			} else if (cpu_policy_conf.affinity & CPU_AFFINITY_PER_CCX) {
+				if (same_core == 0) {
+					int l3id = ha_cpuset_ffs(&visited_ccx) - 1;
+					int got_cpu;
+					int next_try = 0;
+					ha_cpuset_zero(&thrset);
+
+					while ((got_cpu = find_next_cpu_ccx(next_try, l3id)) != -1) {
+						next_try = got_cpu + 1;
+						same_core++;
+						ha_cpuset_set(&thrset, ha_cpu_topo[got_cpu].idx);
+					}
+					ha_cpuset_clr(&visited_ccx, l3id);
+				}
+				BUG_ON(same_core == 0);
+				if (ha_cpuset_ffs(&thrset) != 0)
+					ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &thrset);
+				same_core--;
+			} else {
+				/* map these threads to all the CPUs */
+				ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &node_cpu_set);
+			}
+		}
+
+		cpu_count -= thr_per_grp;
+		global.nbthread += thr_per_grp;
+		global.nbtgroups++;
+		if (global.nbtgroups >= MAX_TGROUPS || global.nbthread >= MAX_THREADS)
+			break;
+	}
+}
 /* the "group-by-cluster" cpu-policy:
  *  - does nothing if nbthread or thread-groups are set
  *  - otherwise tries to create one thread-group per cluster, with as many
@@ -1271,14 +1402,10 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 	struct hap_cpuset node_cpu_set;
 	struct hap_cpuset visited_tsid;
 	struct hap_cpuset visited_ccx;
-	struct hap_cpuset thrset;
 	int cpu, cpu_start;
 	int cpu_count;
 	int cid;
-	int thr_per_grp, nb_grp;
-	int thr;
 	int div;
-	int same_core = 0;
 
 	if (global.nbthread)
 		return 0;
@@ -1335,126 +1462,7 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 
 		ha_cpuset_set(&visited_cl_set, cid);
 
-		/* check that we're still within limits. If there are too many
-		 * CPUs but enough groups left, we'll try to make more smaller
-		 * groups, of the closest size each.
-		 */
-		nb_grp = (cpu_count + global.maxthrpertgroup - 1) / global.maxthrpertgroup;
-		if (nb_grp > MAX_TGROUPS - global.nbtgroups)
-			nb_grp = MAX_TGROUPS - global.nbtgroups;
-		thr_per_grp = (cpu_count + nb_grp - 1) / nb_grp;
-		if (thr_per_grp > global.maxthrpertgroup)
-			thr_per_grp = global.maxthrpertgroup;
-
-		while (nb_grp && cpu_count > 0) {
-			/* create at most thr_per_grp threads */
-			if (thr_per_grp > cpu_count)
-				thr_per_grp = cpu_count;
-
-			if (thr_per_grp + global.nbthread > MAX_THREADS)
-				thr_per_grp = MAX_THREADS - global.nbthread;
-
-			/* let's create the new thread group */
-			ha_tgroup_info[global.nbtgroups].base  = global.nbthread;
-			ha_tgroup_info[global.nbtgroups].count = thr_per_grp;
-
-			/* assign to this group the required number of threads */
-			for (thr = 0; thr < thr_per_grp; thr++) {
-				ha_thread_info[thr + global.nbthread].tgid = global.nbtgroups + 1;
-				ha_thread_info[thr + global.nbthread].tg = &ha_tgroup_info[global.nbtgroups];
-				ha_thread_info[thr + global.nbthread].tg_ctx = &ha_tgroup_ctx[global.nbtgroups];
-				if (cpu_policy_conf.affinity & CPU_AFFINITY_PER_CORE) {
-					if (same_core == 0) {
-						int tsid;
-						int corenb = 0;
-
-						ha_cpuset_zero(&thrset);
-						/*
-						 * Find the next available core, and assign the thread to it
-						 */
-						tsid = ha_cpuset_ffs(&visited_tsid) - 1;
-						if (tsid != -1) {
-							int next_try = 0;
-							int got_cpu;
-							while ((got_cpu = find_next_cpu_tsid(next_try, tsid)) != -1) {
-								next_try = got_cpu + 1;
-								if (!(ha_cpu_topo[got_cpu].st & HA_CPU_F_EXCL_MASK)) {
-									ha_cpuset_set(&thrset, ha_cpu_topo[got_cpu].idx);
-									corenb++;
-								}
-							}
-							ha_cpuset_clr(&visited_tsid, tsid);
-							ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &thrset);
-						}
-						if (cpu_policy_conf.flags & CPU_POLICY_ONE_THREAD_PER_CORE)
-							same_core = 1;
-						else
-							same_core = corenb;
-
-					}
-					if (ha_cpuset_ffs(&thrset) != 0)
-						ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &thrset);
-					same_core--;
-
-				} else if (cpu_policy_conf.affinity & CPU_AFFINITY_PER_THREAD) {
-					ha_cpuset_zero(&thrset);
-					if (cpu_policy_conf.flags & CPU_POLICY_ONE_THREAD_PER_CORE) {
-						int got_cpu;
-						int next_cpu = 0;
-						int tsid;
-
-						tsid = ha_cpuset_ffs(&visited_tsid) - 1;
-						while ((got_cpu = find_next_cpu_tsid(next_cpu, tsid)) != -1) {
-							if (!(ha_cpu_topo[got_cpu].st & HA_CPU_F_EXCL_MASK))
-								break;
-							next_cpu = got_cpu + 1;
-						}
-
-						if (got_cpu != -1) {
-							ha_cpuset_set(&thrset, ha_cpu_topo[got_cpu].idx);
-							ha_cpuset_clr(&visited_tsid, tsid);
-						}
-					} else {
-						int tid = ha_cpuset_ffs(&node_cpu_set) - 1;
-
-						if (tid != -1) {
-							ha_cpuset_set(&thrset, tid);
-							ha_cpuset_clr(&node_cpu_set, tid);
-						}
-					}
-					if (ha_cpuset_ffs(&thrset) != 0)
-						ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &thrset);
-
-				} else if (cpu_policy_conf.affinity & CPU_AFFINITY_PER_CCX) {
-					if (same_core == 0) {
-						int l3id = ha_cpuset_ffs(&visited_ccx) - 1;
-						int got_cpu;
-						int next_try = 0;
-						ha_cpuset_zero(&thrset);
-
-						while ((got_cpu = find_next_cpu_ccx(next_try, l3id)) != -1) {
-							next_try = got_cpu + 1;
-							same_core++;
-							ha_cpuset_set(&thrset, ha_cpu_topo[got_cpu].idx);
-						}
-						ha_cpuset_clr(&visited_ccx, l3id);
-					}
-					BUG_ON(same_core == 0);
-					if (ha_cpuset_ffs(&thrset) != 0)
-						ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &thrset);
-					same_core--;
-				} else {
-					/* map these threads to all the CPUs */
-					ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &node_cpu_set);
-				}
-			}
-
-			cpu_count -= thr_per_grp;
-			global.nbthread += thr_per_grp;
-			global.nbtgroups++;
-			if (global.nbtgroups >= MAX_TGROUPS || global.nbthread >= MAX_THREADS)
-				break;
-		}
+		cpu_policy_assign_threads(cpu_count, node_cpu_set, visited_tsid, visited_ccx);
 	}
 
 	if (global.nbthread)
@@ -1480,14 +1488,10 @@ static int cpu_policy_group_by_ccx(int policy, int tmin, int tmax, int gmin, int
 	struct hap_cpuset node_cpu_set;
 	struct hap_cpuset visited_tsid;
 	struct hap_cpuset visited_ccx; /* List of CCXs we'll currently use */
-	struct hap_cpuset thrset;
 	int cpu, cpu_start;
 	int cpu_count;
 	int l3id;
-	int thr_per_grp, nb_grp;
-	int thr;
 	int div;
-	int same_core = 0;
 
 	if (global.nbthread)
 		return 0;
@@ -1544,126 +1548,7 @@ static int cpu_policy_group_by_ccx(int policy, int tmin, int tmax, int gmin, int
 
 		ha_cpuset_set(&visited_ccx_set, l3id);
 
-		/* check that we're still within limits. If there are too many
-		 * CPUs but enough groups left, we'll try to make more smaller
-		 * groups, of the closest size each.
-		 */
-		nb_grp = (cpu_count + global.maxthrpertgroup - 1) / global.maxthrpertgroup;
-		if (nb_grp > MAX_TGROUPS - global.nbtgroups)
-			nb_grp = MAX_TGROUPS - global.nbtgroups;
-		thr_per_grp = (cpu_count + nb_grp - 1) / nb_grp;
-		if (thr_per_grp > global.maxthrpertgroup)
-			thr_per_grp = global.maxthrpertgroup;
-
-		while (nb_grp && cpu_count > 0) {
-			/* create at most thr_per_grp threads */
-			if (thr_per_grp > cpu_count)
-				thr_per_grp = cpu_count;
-
-			if (thr_per_grp + global.nbthread > MAX_THREADS)
-				thr_per_grp = MAX_THREADS - global.nbthread;
-
-			/* let's create the new thread group */
-			ha_tgroup_info[global.nbtgroups].base  = global.nbthread;
-			ha_tgroup_info[global.nbtgroups].count = thr_per_grp;
-
-			/* assign to this group the required number of threads */
-			for (thr = 0; thr < thr_per_grp; thr++) {
-				ha_thread_info[thr + global.nbthread].tgid = global.nbtgroups + 1;
-				ha_thread_info[thr + global.nbthread].tg = &ha_tgroup_info[global.nbtgroups];
-				ha_thread_info[thr + global.nbthread].tg_ctx = &ha_tgroup_ctx[global.nbtgroups];
-				if (cpu_policy_conf.affinity & CPU_AFFINITY_PER_CORE) {
-					if (same_core == 0) {
-						int tsid;
-						int corenb = 0;
-
-						ha_cpuset_zero(&thrset);
-						/*
-						 * Find the next available core, and assign the thread to it
-						 */
-						tsid = ha_cpuset_ffs(&visited_tsid) - 1;
-						if (tsid != -1) {
-							int next_try = 0;
-							int got_cpu;
-							while ((got_cpu = find_next_cpu_tsid(next_try, tsid)) != -1) {
-								next_try = got_cpu + 1;
-								if (!(ha_cpu_topo[got_cpu].st & HA_CPU_F_EXCL_MASK)) {
-									ha_cpuset_set(&thrset, ha_cpu_topo[got_cpu].idx);
-									corenb++;
-								}
-							}
-							ha_cpuset_clr(&visited_tsid, tsid);
-							ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &thrset);
-						}
-						if (cpu_policy_conf.flags & CPU_POLICY_ONE_THREAD_PER_CORE)
-							same_core = 1;
-						else
-							same_core = corenb;
-
-					}
-					if (ha_cpuset_ffs(&thrset) != 0)
-						ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &thrset);
-					same_core--;
-
-				} else if (cpu_policy_conf.affinity & CPU_AFFINITY_PER_THREAD) {
-					ha_cpuset_zero(&thrset);
-					if (cpu_policy_conf.flags & CPU_POLICY_ONE_THREAD_PER_CORE) {
-						int got_cpu;
-						int next_cpu = 0;
-						int tsid;
-
-						tsid = ha_cpuset_ffs(&visited_tsid) - 1;
-						while ((got_cpu = find_next_cpu_tsid(next_cpu, tsid)) != -1) {
-							if (!(ha_cpu_topo[got_cpu].st & HA_CPU_F_EXCL_MASK))
-								break;
-							next_cpu = got_cpu + 1;
-						}
-
-						if (got_cpu != -1) {
-							ha_cpuset_set(&thrset, ha_cpu_topo[got_cpu].idx);
-							ha_cpuset_clr(&visited_tsid, tsid);
-						}
-					} else {
-						int tid = ha_cpuset_ffs(&node_cpu_set) - 1;
-
-						if (tid != -1) {
-							ha_cpuset_set(&thrset, tid);
-							ha_cpuset_clr(&node_cpu_set, tid);
-						}
-					}
-					if (ha_cpuset_ffs(&thrset) != 0)
-						ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &thrset);
-
-				} else if (cpu_policy_conf.affinity & CPU_AFFINITY_PER_CCX) {
-					if (same_core == 0) {
-						int l3id = ha_cpuset_ffs(&visited_ccx) - 1;
-						int got_cpu;
-						int next_try = 0;
-						ha_cpuset_zero(&thrset);
-
-						while ((got_cpu = find_next_cpu_ccx(next_try, l3id)) != -1) {
-							next_try = got_cpu + 1;
-							same_core++;
-							ha_cpuset_set(&thrset, ha_cpu_topo[got_cpu].idx);
-						}
-						ha_cpuset_clr(&visited_ccx, l3id);
-					}
-					BUG_ON(same_core == 0);
-					if (ha_cpuset_ffs(&thrset) != 0)
-						ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &thrset);
-					same_core--;
-				} else {
-					/* map these threads to all the CPUs */
-					ha_cpuset_assign(&cpu_map[global.nbtgroups].thread[thr], &node_cpu_set);
-				}
-			}
-
-			cpu_count -= thr_per_grp;
-			global.nbthread += thr_per_grp;
-			global.nbtgroups++;
-			if (global.nbtgroups >= MAX_TGROUPS || global.nbthread >= MAX_THREADS)
-				break;
-		}
+		cpu_policy_assign_threads(cpu_count, node_cpu_set, visited_tsid, visited_ccx);
 	}
 
 	if (global.nbthread)
