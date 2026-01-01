@@ -21143,6 +21143,7 @@ ip.fp([<mode>])
   value, it then corresponds to the sum of the following values, and the
   respective components will be concatenated to the fingerprint, in the order
   below:
+    -   1: the received TTL value is appended to the fingerprint (1 byte)
     -   2: the list of TCP option kinds, as returned by "tcp.options_list",
            made of 0 to 40 extra bytes, is appended to the fingerprint
 

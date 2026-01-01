@@ -722,6 +722,9 @@ static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *
 	/* store the TOS in the FP's first byte */
 	trash->area[0] = iptos;
 
+	if (mode & 1) // append TTL
+		trash->area[trash->data++] = ipttl;
+
 	/* keep only two bits for TTL: <=32, <=64, <=128, <=255 */
 	ipttl = (ipttl > 64) ? ((ipttl > 128) ? 3 : 2) : ((ipttl > 32) ? 1 : 0);
 
