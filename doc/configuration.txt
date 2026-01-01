@@ -21137,10 +21137,14 @@ ip.fp([<mode>])
     - byte 3..4: tcp.win
     - byte 5..6: tcp.options.mss, or zero if absent
 
-  When the <mode> argument is not set or is zero, the fingerprint is solely
-  made of the 7 bytes described above. When the <mode> is 1, it starts by the
-  7-byte block above, and is followed by the list of TCP option kinds, for 0
-  to 40 extra bytes, as returned by "tcp.options_list".
+  The <mode> argument permits to append more information to the fingerprint. By
+  default, when the <mode> argument is not set or is zero, the fingerprint is
+  solely made of the 7 bytes described above. If <mode> is specified as another
+  value, it then corresponds to the sum of the following values, and the
+  respective components will be concatenated to the fingerprint, in the order
+  below:
+    -   2: the list of TCP option kinds, as returned by "tcp.options_list",
+           made of 0 to 40 extra bytes, is appended to the fingerprint
 
   Example:
 

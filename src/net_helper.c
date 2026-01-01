@@ -776,7 +776,7 @@ static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *
 			break;
 
 		/* option is complete, take a copy of it */
-		if (mode > 0)
+		if (mode & 2) // mode & 2: append tcp.options_list
 			trash->area[trash->data++] = smp->data.u.str.area[ofs];
 
 		if (smp->data.u.str.area[ofs] == 2 /* MSS */) {
