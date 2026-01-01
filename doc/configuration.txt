@@ -30207,7 +30207,7 @@ Arguments: (mandatory ones first, then alphabetically sorted):
                  which can represent a client identifier found in a request for
                  instance.
 
-     * string [length <len>]
+     * string [len <len>]
                  A table declared with "type string" will store substrings of
                  up to <len> characters. If the string provided by the pattern
                  extractor is larger than <len>, it will be truncated before
@@ -30217,7 +30217,7 @@ Arguments: (mandatory ones first, then alphabetically sorted):
                  limited to 32 characters. Increasing the length can have a
                  non-negligible memory usage impact.
 
-     * binary [length <len>]
+     * binary [len <len>]
                  A table declared with "type binary" will store binary blocks
                  of <len> bytes. If the block provided by the pattern
                  extractor is larger than <len>, it will be truncated before
