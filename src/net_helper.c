@@ -659,6 +659,7 @@ static int sample_conv_tcp_win(const struct arg *arg_p, struct sample *smp, void
 static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct buffer *trash = get_trash_chunk();
+	char *ipsrc;
 	uchar ipver;
 	uchar iptos;
 	uchar ipttl;
@@ -698,6 +699,7 @@ static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *
 		pktlen = read_n16(smp->data.u.str.area + 2);
 		ipdf = !!(smp->data.u.str.area[6] & 0x40);
 		ipttl = smp->data.u.str.area[8];
+		ipsrc = smp->data.u.str.area + 12;
 	}
 	else if (ipver == 6) {
 		/* check fields for IPv6 */
@@ -712,6 +714,7 @@ static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *
 		iptos = read_n16(smp->data.u.str.area) >> 4;
 		ipdf = 1; // no fragments by default in IPv6
 		ipttl = smp->data.u.str.area[7];
+		ipsrc = smp->data.u.str.area + 8;
 	}
 	else
 		return 0;
@@ -799,6 +802,13 @@ static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *
 	/* then tcpwin(16) then tcpmss(16) */
 	write_n16(trash->area + 3, tcpwin);
 	write_n16(trash->area + 5, tcpmss);
+
+	/* mode 4: append source IP address */
+	if (mode & 4) {
+		iplen = (ipver == 4) ? 4 : 16;
+		memcpy(trash->area + trash->data, ipsrc, iplen);
+		trash->data += iplen;
+	}
 
 	/* option kinds if any are stored starting at offset 7 */
 	smp->data.u.str = *trash;

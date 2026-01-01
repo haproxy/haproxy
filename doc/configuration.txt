@@ -21146,15 +21146,18 @@ ip.fp([<mode>])
     -   1: the received TTL value is appended to the fingerprint (1 byte)
     -   2: the list of TCP option kinds, as returned by "tcp.options_list",
            made of 0 to 40 extra bytes, is appended to the fingerprint
+    -   4: the source IP address is appended to the fingerprint, which adds
+           4 bytes for IPv4 and 16 for IPv6.
 
-  Example:
+  Example: make a 12..24 bytes fingerprint using the base FP, the TTL and the
+           source address (1+4=5):
 
     frontend test
         mode http
         bind :4445 tcp-ss 1
         tcp-request connection set-var(sess.syn) fc_saved_syn
         http-request return status 200 content-type text/plain lf-string \
-              "src=%[var(sess.syn),ip.src] fp=%[var(sess.syn),ip.fp,hex]\n"
+              "src=%[var(sess.syn),ip.src] fp=%[var(sess.syn),ip.fp(5),hex]\n"
 
   See also "fc_saved_syn", "tcp-ss", "eth.data", "ip.df", "ip.ttl", "tcp.win",
            "tcp.options.mss", and "tcp.options_list".
