@@ -10,6 +10,9 @@
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stats.h>
 #include <haproxy/trace.h>
+#ifdef USE_ECH
+#include <haproxy/ech.h>
+#endif
 
 DECLARE_TYPED_POOL(pool_head_quic_ssl_sock_ctx, "quic_ssl_sock_ctx", struct ssl_sock_ctx);
 const char *default_quic_ciphersuites = "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384"
@@ -809,6 +812,20 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 	if (!quic_tls_compat_init(bind_conf, ctx))
 		cfgerr++;
 #endif
+
+#ifdef USE_ECH
+	if (bind_conf->ssl_conf.ech_filedir) {
+		int loaded = 0;
+
+		if (load_echkeys(ctx, bind_conf->ssl_conf.ech_filedir, &loaded) != 1) {
+			cfgerr += 1;
+			ha_alert("Proxy '%s': failed to load ECH key s from %s for '%s' at [%s:%d].\n",
+			         bind_conf->frontend->id, bind_conf->ssl_conf.ech_filedir,
+			         bind_conf->arg, bind_conf->file, bind_conf->line);
+		}
+	}
+#endif
+
 
 	return cfgerr;
 }
