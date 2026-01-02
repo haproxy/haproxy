@@ -14027,7 +14027,11 @@ lua_State *hlua_init_state(int thread_num)
 	struct prepend_path *pp;
 
 	/* Init main lua stack. */
+#if defined(LUA_VERSION_NUM) && LUA_VERSION_NUM >= 505
+	L = lua_newstate(hlua_alloc, &hlua_global_allocator, luaL_makeseed(0));
+#else
 	L = lua_newstate(hlua_alloc, &hlua_global_allocator);
+#endif
 
 	if (!L) {
 		fprintf(stderr,
