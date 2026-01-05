@@ -1212,7 +1212,7 @@ static inline int peer_getline(struct appctx  *appctx)
 	int n = 0;
 
 	TRACE_ENTER(PEERS_EV_SESS_IO|PEERS_EV_RX_MSG, appctx);
-	if (applet_get_inbuf(appctx) == NULL || !applet_input_data(appctx)) {
+	if (applet_get_inbuf(appctx) == NULL) {
 		applet_need_more_data(appctx);
 		goto out;
 	}
