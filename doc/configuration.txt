@@ -2233,6 +2233,17 @@ cpu-affinity <affinity>
   - per-core, each thread will be bound to all the hardware threads of one core.
   - per-group, each thread will be bound to all the hardware threads of the
     group. This is the default unless threads-per-core 1 is used in cpu-policy.
+    per-group accepts an optional argument, to specify how CPUs should be
+    allocated. When a list of CPUs is larger than the maximum allozed number
+    of CPUs per group and has to be split between multiple groups, an extra
+    option allows to choose how the groups will be bound to those CPUs:
+    - auto: each thread group will only be assigned a fair share of contiguous
+      CPU cores that are dedicated to it and not shared with other groups.
+      This is the default as it generally is more optimal.
+      be shared across two thread groups. This is the default.
+    - loose: each group will still be allowed to use any CPU in the list. This
+      generally causes more contention, but may sometimes help deal better
+      with parasitic loads running on the same CPUs.
   - auto, per-group will be used, unless threads-per-core 1 is used in
     cpu-policy, in which case per-core will be used. This is the default.
   - per-thread, that will bind one thread to one hardware thread only.
