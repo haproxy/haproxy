@@ -871,6 +871,14 @@ static inline size_t h1s_data_pending(const struct h1s *h1s)
 	return ((h1m->state == H1_MSG_DONE) ? 0 : b_data(&h1s->h1c->ibuf));
 }
 
+static inline void h1s_consume_kop(struct h1s *h1s, size_t count)
+{
+	if (h1s->sd->kop > count)
+		h1s->sd->kop -= count;
+	else
+		h1s->sd->kop = 0;
+}
+
 /* Creates a new stream connector and the associate stream. <input> is used as input
  * buffer for the stream. On success, it is transferred to the stream and the
  * mux is no longer responsible of it. On error, <input> is unchanged, thus the
@@ -3093,7 +3101,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 					goto error;
 				}
 				h1m->curr_len = (h1s->sd->kop ? h1s->sd->kop : count);
-				h1s->sd->kop = 0;
+				h1s_consume_kop(h1s, h1m->curr_len);
 
 				/* Because chunk meta-data are prepended, the chunk size of the current chunk
 				 * must be handled before the end of the previous chunk.
@@ -3185,7 +3193,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 						h1m->curr_len = 0;
 						goto full;
 					}
-					h1s->sd->kop = 0;
+					h1s_consume_kop(h1s, h1m->curr_len);
 					h1m->state = H1_MSG_DATA;
 				}
 
@@ -4959,6 +4967,7 @@ static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 					goto out;
 				}
 				h1m->curr_len = count;
+				h1s_consume_kop(h1s, h1m->curr_len);
 			}
 			else {
 				/* The producer does not know the chunk size, thus this will be emitted at the
@@ -5094,11 +5103,13 @@ static size_t h1_done_ff(struct stconn *sc)
 			struct buffer buf = b_make(b_orig(&h1c->obuf), b_size(&h1c->obuf),
 						   b_peek_ofs(&h1c->obuf, b_data(&h1c->obuf) - sd->iobuf.data + sd->iobuf.offset),
 						   sd->iobuf.data);
+
 			h1_prepend_chunk_size(&buf, sd->iobuf.data, sd->iobuf.offset - ((h1m->state == H1_MSG_CHUNK_CRLF) ?  2 : 0));
 			if (h1m->state == H1_MSG_CHUNK_CRLF)
 				h1_prepend_chunk_crlf(&buf);
 			b_add(&h1c->obuf, sd->iobuf.offset);
 			h1m->state = H1_MSG_CHUNK_CRLF;
+			h1s_consume_kop(h1s, sd->iobuf.data);
 		}
 
 		total = sd->iobuf.data;
