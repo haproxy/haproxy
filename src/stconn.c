@@ -1351,6 +1351,7 @@ int sc_conn_recv(struct stconn *sc)
 			flags |= CO_RFL_BUF_FLUSH;
 			goto abort_fastfwd;
 		}
+		sc_ep_fwd_kip(sc, sc_opposite(sc));
 		ret = conn->mux->fastfwd(sc, ic->to_forward, flags);
 		if (ret < 0)
 			goto abort_fastfwd;
@@ -2033,6 +2034,7 @@ int sc_applet_recv(struct stconn *sc)
 			flags |= CO_RFL_BUF_FLUSH;
 			goto abort_fastfwd;
 		}
+		sc_ep_fwd_kip(sc, sc_opposite(sc));
 		ret = appctx_fastfwd(sc, ic->to_forward, flags);
 		if (ret < 0)
 			goto abort_fastfwd;
