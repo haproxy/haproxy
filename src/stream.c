@@ -1159,6 +1159,12 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 				backend = rule->be.backend;
 			}
 
+			/* If backend is ineligible, continue rules processing. */
+			if (backend && !be_is_eligible(backend)) {
+				backend = NULL;
+				continue;
+			}
+
 			/* Break the loop at the first matching rule found. If
 			 * the dynamic name resolution has fail, fallback will
 			 * be performed on the default backend.
@@ -1178,7 +1184,11 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 				return 0;
 			}
 
-			backend = fe->defbe.be ? fe->defbe.be : s->be;
+			/* Use default backend if possible or stay on the current proxy. */
+			if (fe->defbe.be && be_is_eligible(fe->defbe.be))
+				backend = fe->defbe.be;
+			else
+				backend = s->be;
 		}
 
 		if (!stream_set_backend(s, backend))

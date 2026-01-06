@@ -34,11 +34,13 @@ haproxy h1 -conf {
 	frontend fe
 		bind "fd@${fe1S}"
 		use_backend %[req.hdr("x-target")] if { req.hdr("x-dyn") "1" }
+		use_backend be          if { req.hdr("x-target") "be" }
 
 	frontend fe_default
 		bind "fd@${fe2S}"
 
 		use_backend %[req.hdr("x-target")] if { req.hdr("x-dyn") "1" }
+		use_backend be_disabled if { req.hdr("x-target") "be_disabled" }
 		use_backend be
 		default_backend be_default
 
@@ -48,6 +50,10 @@ haproxy h1 -conf {
 		server srv ${hsrv_feS_sock}
 
 	backend be
+		http-request return status 200 hdr "x-be" %[be_name]
+
+	backend be_disabled
+		disabled
 		http-request return status 200 hdr "x-be" %[be_name]
 
 	backend be_default
@@ -80,6 +86,12 @@ client c2 -connect ${h1_fe2S_sock} {
 	rxresp
 	expect resp.status == 200
 	expect resp.http.x-be == "be_default"
+
+	# Static rule on disabled backend -> continue to next rule
+	txreq -hdr "x-target: be_disabled"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-be == "be"
 } -run
 
 # Connect to listen proxy type
