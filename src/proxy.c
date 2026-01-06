@@ -5014,6 +5014,16 @@ int be_check_for_deletion(const char *bename, struct proxy **pb, const char **pm
 		goto out;
 	}
 
+	if (be->options & (PR_O_DISPATCH|PR_O_TRANSP)) {
+		msg = "Deletion of backend with deprecated dispatch/transparent options is not supported.";
+		goto out;
+	}
+
+	if (be->table) {
+		msg = "Cannot remove a backend with stick-table.";
+		goto out;
+	}
+
 	if (be->cap & PR_CAP_FE) {
 		msg = "Cannot delete a listen section.";
 		goto out;
