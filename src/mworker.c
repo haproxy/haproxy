@@ -508,6 +508,14 @@ void mworker_catch_sigterm(struct sig_handler *sh)
 	mworker_kill(sig);
 }
 
+/* handle operations that can't be done in the signal handler */
+static struct task *mworker_task_child_failure(struct task *task, void *context, unsigned int state)
+{
+	mworker_unblock_signals();
+	task_destroy(task);
+	return NULL;
+}
+
 /*
  * Performs some routines for the worker process, which has failed the reload,
  * updates the global load_status.
@@ -515,6 +523,7 @@ void mworker_catch_sigterm(struct sig_handler *sh)
 static void mworker_on_new_child_failure(int exitpid, int status)
 {
 	struct mworker_proc *child;
+	struct task *t;
 
 	/* increment the number of failed reloads */
 	list_for_each_entry(child, &proc_list, list) {
@@ -531,6 +540,15 @@ static void mworker_on_new_child_failure(int exitpid, int status)
 	 * the READY=1 signal still need to be sent */
 	if (global.tune.options & GTUNE_USE_SYSTEMD)
 		sd_notify(0, "READY=1\nSTATUS=Reload failed!\n");
+
+	/* call a task to unblock the signals from outside the sig handler */
+	if ((t = task_new_here()) == NULL) {
+		ha_warning("Can't restore HAProxy signals!\n");
+		return;
+	}
+
+	t->process = mworker_task_child_failure;
+	task_wakeup(t, TASK_WOKEN_MSG);
 }
 
 /*
