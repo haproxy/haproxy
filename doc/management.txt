@@ -2474,6 +2474,11 @@ prompt [help | n | i | p | timed]*
   advanced scripts, and the non-interactive mode (default) to basic scripts.
   Note that the non-interactive mode is not available for the master socket.
 
+publish backend <backend>
+  Activates content switching to a backend instance. This is the reverse
+  operation of "unpublish backend" command. This command is restricted and can
+  only be issued on sockets configured for levels "operator" or "admin".
+
 quit
   Close the connection when in interactive mode.
 
@@ -2841,6 +2846,13 @@ operator
   Decrease the CLI level of the current CLI session to operator. It can't be
   increased. It also drops expert and experimental mode. See also "show cli
   level".
+
+unpublish backend <backend>
+  Marks the backend as unqualified for future traffic selection. In effect,
+  use_backend / default_backend rules which reference it are ignored and the
+  next content switching rules are evaluated. Contrary to disabled backends,
+  servers health checks remain active. This command is restricted and can only
+  be issued on sockets configured for levels "operator" or "admin".
 
 user
   Decrease the CLI level of the current CLI session to user. It can't be

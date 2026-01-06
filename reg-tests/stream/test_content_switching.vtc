@@ -42,6 +42,7 @@ haproxy h1 -conf {
 		use_backend %[req.hdr("x-target")] if { req.hdr("x-dyn") "1" }
 		use_backend be_disabled if { req.hdr("x-target") "be_disabled" }
 		use_backend be
+		use_backend be2
 		default_backend be_default
 
 	listen li
@@ -50,6 +51,9 @@ haproxy h1 -conf {
 		server srv ${hsrv_feS_sock}
 
 	backend be
+		http-request return status 200 hdr "x-be" %[be_name]
+
+	backend be2
 		http-request return status 200 hdr "x-be" %[be_name]
 
 	backend be_disabled
@@ -107,4 +111,48 @@ client c3 -connect ${h1_liS_sock} {
 	rxresp
 	expect resp.status == 200
 	expect resp.http.x-be == "li"
+} -run
+
+haproxy h1 -cli {
+	send "unpublish backend be_unknown"
+	expect ~ "No such backend."
+
+	send "unpublish backend be_disabled"
+	expect ~ "No effect on a disabled backend."
+
+	send "unpublish backend be"
+	expect ~ "Backend unpublished."
+}
+
+client c4 -connect ${h1_fe2S_sock} {
+	# Static rule on unpublished backend -> continue to next rule
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-be == "be2"
+
+	# Dynamic rule on unpublished backend -> continue to next rule
+	txreq -hdr "x-dyn: 1" -hdr "x-target: be"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-be == "be2"
+} -run
+
+haproxy h1 -cli {
+	send "publish backend be"
+	expect ~ "Backend published."
+}
+
+client c5 -connect ${h1_fe2S_sock} {
+	# Static rule matching on republished backend
+	txreq -hdr "x-target: be"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-be == "be"
+
+	# Dynamic rule matching on republished backend
+	txreq -hdr "x-dyn: 1" -hdr "x-target: be"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-be == "be"
 } -run

@@ -7103,8 +7103,8 @@ default_backend <backend>
   used when no rule has matched. It generally is the dynamic backend which
   will catch all undetermined requests.
 
-  If a backend used as default is disabled, no traffic will be redirected to
-  it.
+  If a backend is disabled or unpublished, default_backend rules targetting it
+  will be ignored and stream processing will remain on the original proxy.
 
   Example :
 
@@ -14756,16 +14756,16 @@ use_backend <backend> [{if | unless} <condition>]
   There may be as many "use_backend" rules as desired. All of these rules are
   evaluated in their declaration order, and the first one which matches will
   assign the backend. This is even the case if the backend is considered as
-  down. However, if a matching rule targets a disabled backend, it is ignored
-  instead and rules evaluation continue.
+  down. However, if a matching rule targets a disabled or unpublished backend,
+  it is ignored instead and rules evaluation continue.
 
   In the first form, the backend will be used if the condition is met. In the
   second form, the backend will be used if the condition is not met. If no
   condition is valid, the backend defined with "default_backend" will be used
-  unless it is disabled. If no default backend is defined, either the servers
-  in the same section are used (in case of a "listen" section) or, in case of a
-  frontend, no server is used and a 503 service unavailable response is
-  returned.
+  unless it is disabled or unpublished. If no default backend is available,
+  either the servers in the same section are used (in case of a "listen"
+  section) or, in case of a frontend, no server is used and a 503 service
+  unavailable response is returned.
 
   Note that it is possible to switch from a TCP frontend to an HTTP backend. In
   this case, either the frontend has already checked that the protocol is HTTP,

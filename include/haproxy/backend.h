@@ -88,11 +88,11 @@ static inline int be_usable_srv(struct proxy *be)
 /* Returns true if <be> backend can be used as target to a switching rules. */
 static inline int be_is_eligible(const struct proxy *be)
 {
-	/* A disabled backend cannot be selected for traffic. Note that STOPPED
-	 * state is ignored as there is a risk of breaking requests during
-	 * soft-stop.
+	/* A disabled or unpublished backend cannot be selected for traffic.
+	 * Note that STOPPED state is ignored as there is a risk of breaking
+	 * requests during soft-stop.
 	 */
-	return !(be->flags & PR_FL_DISABLED);
+	return !(be->flags & (PR_FL_DISABLED|PR_FL_BE_UNPUBLISHED));
 }
 
 /* set the time of last session on the backend */

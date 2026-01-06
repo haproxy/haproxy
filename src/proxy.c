@@ -3360,6 +3360,54 @@ static int cli_parse_enable_frontend(char **args, char *payload, struct appctx *
 	return 1;
 }
 
+static int cli_parse_publish_backend(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct proxy *px;
+
+	usermsgs_clr("CLI");
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	px = cli_find_backend(appctx, args[2]);
+	if (!px)
+		return cli_err(appctx, "No such backend.\n");
+
+	if (px->flags & PR_FL_DISABLED)
+		return cli_err(appctx, "No effect on a disabled backend.\n");
+
+	thread_isolate();
+	px->flags &= ~PR_FL_BE_UNPUBLISHED;
+	thread_release();
+
+	ha_notice("Backend published.\n");
+	return cli_umsg(appctx, LOG_INFO);
+}
+
+static int cli_parse_unpublish_backend(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct proxy *px;
+
+	usermsgs_clr("CLI");
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	px = cli_find_backend(appctx, args[2]);
+	if (!px)
+		return cli_err(appctx, "No such backend.\n");
+
+	if (px->flags & PR_FL_DISABLED)
+		return cli_err(appctx, "No effect on a disabled backend.\n");
+
+	thread_isolate();
+	px->flags |= PR_FL_BE_UNPUBLISHED;
+	thread_release();
+
+	ha_notice("Backend unpublished.\n");
+	return cli_umsg(appctx, LOG_INFO);
+}
+
 /* appctx context used during "show errors" */
 struct show_errors_ctx {
 	struct proxy *px;	/* current proxy being dumped, NULL = not started yet. */
@@ -3574,12 +3622,14 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "disable", "frontend",  NULL },                 "disable frontend <frontend>             : temporarily disable specific frontend",                          cli_parse_disable_frontend, NULL, NULL },
 	{ { "enable", "frontend",  NULL },                  "enable frontend <frontend>              : re-enable specific frontend",                                    cli_parse_enable_frontend, NULL, NULL },
+	{ { "publish", "backend",  NULL },                  "publish backend <backend>               : mark backend as ready for traffic",                              cli_parse_publish_backend, NULL, NULL },
 	{ { "set", "maxconn", "frontend",  NULL },          "set maxconn frontend <frontend> <value> : change a frontend's maxconn setting",                            cli_parse_set_maxconn_frontend, NULL },
 	{ { "show","servers", "conn",  NULL },              "show servers conn [<backend>]           : dump server connections status (all or for a single backend)",   cli_parse_show_servers, cli_io_handler_servers_state },
 	{ { "show","servers", "state",  NULL },             "show servers state [<backend>]          : dump volatile server information (all or for a single backend)", cli_parse_show_servers, cli_io_handler_servers_state },
 	{ { "show", "backend", NULL },                      "show backend                            : list backends in the current running config", NULL,              cli_io_handler_show_backend },
 	{ { "shutdown", "frontend",  NULL },                "shutdown frontend <frontend>            : stop a specific frontend",                                       cli_parse_shutdown_frontend, NULL, NULL },
 	{ { "set", "dynamic-cookie-key", "backend", NULL }, "set dynamic-cookie-key backend <bk> <k> : change a backend secret key for dynamic cookies",                cli_parse_set_dyncookie_key_backend, NULL },
+	{ { "unpublish", "backend",  NULL },                "unpublish backend <backend>             : remove backend for traffic processing",                          cli_parse_unpublish_backend, NULL, NULL },
 	{ { "enable", "dynamic-cookie", "backend", NULL },  "enable dynamic-cookie backend <bk>      : enable dynamic cookies on a specific backend",                   cli_parse_enable_dyncookie_backend, NULL },
 	{ { "disable", "dynamic-cookie", "backend", NULL }, "disable dynamic-cookie backend <bk>     : disable dynamic cookies on a specific backend",                  cli_parse_disable_dyncookie_backend, NULL },
 	{ { "show", "errors", NULL },                       "show errors [<px>] [request|response]   : report last request and/or response errors for each proxy",      cli_parse_show_errors, cli_io_handler_show_errors, NULL },
