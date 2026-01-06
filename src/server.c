@@ -3218,12 +3218,17 @@ void srv_free_params(struct server *srv)
 struct server *srv_drop(struct server *srv)
 {
 	struct server *next = NULL;
+	struct proxy *px = NULL;
 	int i __maybe_unused;
 
 	if (!srv)
 		goto end;
 
 	next = srv->next;
+
+	/* If srv was deleted, a proxy refcount must be dropped. */
+	if (srv->flags & SRV_F_DELETED)
+		px = srv->proxy;
 
 	/* For dynamic servers, decrement the reference counter. Only free the
 	 * server when reaching zero.
@@ -3263,6 +3268,8 @@ struct server *srv_drop(struct server *srv)
 	event_hdl_sub_list_destroy(&srv->e_subs);
 
 	srv_free(&srv);
+
+	proxy_drop(px);
 
  end:
 	return next;
@@ -6527,6 +6534,16 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	 */
 	srv_detach(srv);
 
+	/* Mark the server as being deleted (ie removed from its proxy list)
+	 * but not yet purged from memory. Any module still referencing this
+	 * server must manipulate it with precaution and are expected to
+	 * release its refcount as soon as possible.
+	 */
+	srv->flags |= SRV_F_DELETED;
+
+	/* Inc proxy refcount until the server is finally freed. */
+	proxy_take(srv->proxy);
+
 	/* remove srv from addr_node tree */
 	ceb32_item_delete(&be->conf.used_server_id, conf.puid_node, puid, srv);
 	cebis_item_delete(&be->conf.used_server_name, conf.name_node, id, srv);
@@ -6534,15 +6551,6 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 
 	/* remove srv from idle_node tree for idle conn cleanup */
 	eb32_delete(&srv->idle_node);
-
-	/* flag the server as deleted
-	 * (despite the server being removed from primary server list,
-	 * one could still access the server data from a valid ptr)
-	 * Deleted flag helps detecting when a server is in transient removal
-	 * state.
-	 * ie: removed from the list but not yet freed/purged from memory.
-	 */
-	srv->flags |= SRV_F_DELETED;
 
 	/* set LSB bit (odd bit) for reuse_cnt */
 	srv_id_reuse_cnt |= 1;
