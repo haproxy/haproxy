@@ -1389,153 +1389,184 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 		newul->next = userlist;
 		userlist = newul;
 
-	} else if (strcmp(args[0], "group") == 0) {  	/* new group */
-		int cur_arg;
-		const char *err;
-		struct auth_groups *ag;
+	} else {
+		const struct cfg_kw_list *kwl;
+		char *errmsg = NULL;
+		int index;
 
-		if (!*args[1]) {
-			ha_alert("parsing [%s:%d]: '%s' expects <name> as arguments.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		err = invalid_char(args[1]);
-		if (err) {
-			ha_alert("parsing [%s:%d]: character '%c' is not permitted in '%s' name '%s'.\n",
-				 file, linenum, *err, args[0], args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (!userlist)
-			goto out;
-
-		for (ag = userlist->groups; ag; ag = ag->next)
-			if (strcmp(ag->name, args[1]) == 0) {
-				ha_warning("parsing [%s:%d]: ignoring duplicated group '%s' in userlist '%s'.\n",
-					   file, linenum, args[1], userlist->name);
-				err_code |= ERR_ALERT;
-				goto out;
+		list_for_each_entry(kwl, &cfg_keywords.list, list) {
+			for (index = 0; kwl->kw[index].kw; index++) {
+				if ((kwl->kw[index].section & CFG_USERLIST) &&
+					(strcmp(kwl->kw[index].kw, args[0]) == 0)) {
+						err_code |= kwl->kw[index].parse(args, CFG_USERLIST, NULL, NULL, file, linenum, &errmsg);
+						if (errmsg) {
+							ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+							ha_free(&errmsg);
+						}
+						goto out;
+					}
 			}
+		}
 
-		ag = calloc(1, sizeof(*ag));
-		if (!ag) {
-			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
-			err_code |= ERR_ALERT | ERR_ABORT;
+		ha_alert("parsing [%s:%d]: unknown keyword '%s' in '%s' section\n", file, linenum, args[0], "userlist");
+		err_code |= ERR_ALERT | ERR_FATAL;
+	}
+
+out:
+	return err_code;
+}
+
+int cfg_parse_users_group(char **args, int section_type, struct proxy *curproxy, const struct proxy *defproxy, const char *file, int linenum, char **err)
+{
+	int cur_arg;
+	const char *err_str;
+	struct auth_groups *ag;
+	int err_code = 0;
+
+	if (!*args[1]) {
+		ha_alert("parsing [%s:%d]: '%s' expects <name> as arguments.\n",
+				file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	err_str = invalid_char(args[1]);
+	if (err_str) {
+		ha_alert("parsing [%s:%d]: character '%c' is not permitted in '%s' name '%s'.\n",
+				file, linenum, *err_str, args[0], args[1]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	if (!userlist)
+		goto out;
+
+	for (ag = userlist->groups; ag; ag = ag->next)
+		if (strcmp(ag->name, args[1]) == 0) {
+			ha_warning("parsing [%s:%d]: ignoring duplicated group '%s' in userlist '%s'.\n",
+					file, linenum, args[1], userlist->name);
+			err_code |= ERR_ALERT;
 			goto out;
 		}
 
-		ag->name = strdup(args[1]);
-		if (!ag->name) {
-			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
-			err_code |= ERR_ALERT | ERR_ABORT;
-			free(ag);
-			goto out;
-		}
+	ag = calloc(1, sizeof(*ag));
+	if (!ag) {
+		ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+		err_code |= ERR_ALERT | ERR_ABORT;
+		goto out;
+	}
 
-		cur_arg = 2;
+	ag->name = strdup(args[1]);
+	if (!ag->name) {
+		ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+		err_code |= ERR_ALERT | ERR_ABORT;
+		free(ag);
+		goto out;
+	}
 
-		while (*args[cur_arg]) {
-			if (strcmp(args[cur_arg], "users") == 0) {
-				if (ag->groupusers) {
-					ha_alert("parsing [%s:%d]: 'users' option already defined in '%s' name '%s'.\n",
-						 file, linenum, args[0], args[1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					free(ag->groupusers);
-					free(ag->name);
-					free(ag);
-					goto out;
-				}
-				ag->groupusers = strdup(args[cur_arg + 1]);
-				cur_arg += 2;
-				continue;
-			} else {
-				ha_alert("parsing [%s:%d]: '%s' only supports 'users' option.\n",
-					 file, linenum, args[0]);
+	cur_arg = 2;
+
+	while (*args[cur_arg]) {
+		if (strcmp(args[cur_arg], "users") == 0) {
+			if (ag->groupusers) {
+				ha_alert("parsing [%s:%d]: 'users' option already defined in '%s' name '%s'.\n",
+						file, linenum, args[0], args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				free(ag->groupusers);
 				free(ag->name);
 				free(ag);
 				goto out;
 			}
+			ag->groupusers = strdup(args[cur_arg + 1]);
+			cur_arg += 2;
+			continue;
+		} else {
+			ha_alert("parsing [%s:%d]: '%s' only supports 'users' option.\n",
+					file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			free(ag->groupusers);
+			free(ag->name);
+			free(ag);
+			goto out;
+		}
+	}
+
+	ag->next = userlist->groups;
+	userlist->groups = ag;
+
+out:
+	return err_code;
+}
+
+int cfg_parse_users_user(char **args, int section_type, struct proxy *curproxy, const struct proxy *defproxy, const char *file, int linenum, char **err)
+{
+	struct auth_users *newuser;
+	int cur_arg;
+	int err_code = 0;
+
+	if (!*args[1]) {
+		ha_alert("parsing [%s:%d]: '%s' expects <name> as arguments.\n",
+			 file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+	if (!userlist)
+		goto out;
+
+	for (newuser = userlist->users; newuser; newuser = newuser->next)
+		if (strcmp(newuser->user, args[1]) == 0) {
+			ha_warning("parsing [%s:%d]: ignoring duplicated user '%s' in userlist '%s'.\n",
+				   file, linenum, args[1], userlist->name);
+			err_code |= ERR_ALERT;
+			goto out;
 		}
 
-		ag->next = userlist->groups;
-		userlist->groups = ag;
+	newuser = calloc(1, sizeof(*newuser));
+	if (!newuser) {
+		ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+		err_code |= ERR_ALERT | ERR_ABORT;
+		goto out;
+	}
 
-	} else if (strcmp(args[0], "user") == 0) {		/* new user */
-		struct auth_users *newuser;
-		int cur_arg;
+	newuser->user = strdup(args[1]);
 
-		if (!*args[1]) {
-			ha_alert("parsing [%s:%d]: '%s' expects <name> as arguments.\n",
+	newuser->next = userlist->users;
+	userlist->users = newuser;
+
+	cur_arg = 2;
+
+	while (*args[cur_arg]) {
+		if (strcmp(args[cur_arg], "password") == 0) {
+#ifdef USE_LIBCRYPT
+			if (!crypt("", args[cur_arg + 1])) {
+				ha_alert("parsing [%s:%d]: the encrypted password used for user '%s' is not supported by crypt(3).\n",
+					 file, linenum, newuser->user);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+#else
+			ha_warning("parsing [%s:%d]: no crypt(3) support compiled, encrypted passwords will not work.\n",
+				   file, linenum);
+			err_code |= ERR_ALERT;
+#endif
+			newuser->pass = strdup(args[cur_arg + 1]);
+			cur_arg += 2;
+			continue;
+		} else if (strcmp(args[cur_arg], "insecure-password") == 0) {
+			newuser->pass = strdup(args[cur_arg + 1]);
+			newuser->flags |= AU_O_INSECURE;
+			cur_arg += 2;
+			continue;
+		} else if (strcmp(args[cur_arg], "groups") == 0) {
+			newuser->u.groups_names = strdup(args[cur_arg + 1]);
+			cur_arg += 2;
+			continue;
+		} else {
+			ha_alert("parsing [%s:%d]: '%s' only supports 'password', 'insecure-password' and 'groups' options.\n",
 				 file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		if (!userlist)
-			goto out;
-
-		for (newuser = userlist->users; newuser; newuser = newuser->next)
-			if (strcmp(newuser->user, args[1]) == 0) {
-				ha_warning("parsing [%s:%d]: ignoring duplicated user '%s' in userlist '%s'.\n",
-					   file, linenum, args[1], userlist->name);
-				err_code |= ERR_ALERT;
-				goto out;
-			}
-
-		newuser = calloc(1, sizeof(*newuser));
-		if (!newuser) {
-			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
-			err_code |= ERR_ALERT | ERR_ABORT;
-			goto out;
-		}
-
-		newuser->user = strdup(args[1]);
-
-		newuser->next = userlist->users;
-		userlist->users = newuser;
-
-		cur_arg = 2;
-
-		while (*args[cur_arg]) {
-			if (strcmp(args[cur_arg], "password") == 0) {
-#ifdef USE_LIBCRYPT
-				if (!crypt("", args[cur_arg + 1])) {
-					ha_alert("parsing [%s:%d]: the encrypted password used for user '%s' is not supported by crypt(3).\n",
-						 file, linenum, newuser->user);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-#else
-				ha_warning("parsing [%s:%d]: no crypt(3) support compiled, encrypted passwords will not work.\n",
-					   file, linenum);
-				err_code |= ERR_ALERT;
-#endif
-				newuser->pass = strdup(args[cur_arg + 1]);
-				cur_arg += 2;
-				continue;
-			} else if (strcmp(args[cur_arg], "insecure-password") == 0) {
-				newuser->pass = strdup(args[cur_arg + 1]);
-				newuser->flags |= AU_O_INSECURE;
-				cur_arg += 2;
-				continue;
-			} else if (strcmp(args[cur_arg], "groups") == 0) {
-				newuser->u.groups_names = strdup(args[cur_arg + 1]);
-				cur_arg += 2;
-				continue;
-			} else {
-				ha_alert("parsing [%s:%d]: '%s' only supports 'password', 'insecure-password' and 'groups' options.\n",
-					 file, linenum, args[0]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-		}
-	} else {
-		ha_alert("parsing [%s:%d]: unknown keyword '%s' in '%s' section\n", file, linenum, args[0], "userlist");
-		err_code |= ERR_ALERT | ERR_FATAL;
 	}
 
 out:
@@ -4947,6 +4978,8 @@ REGISTER_CONFIG_SECTION("traces",         cfg_parse_traces,    NULL);
 
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "default-path",     cfg_parse_global_def_path },
+	{ CFG_USERLIST, "group", cfg_parse_users_group },
+	{ CFG_USERLIST, "user", cfg_parse_users_user },
 	{ /* END */ }
 }};
 
