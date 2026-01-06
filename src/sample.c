@@ -1512,6 +1512,7 @@ int smp_resolve_args(struct proxy *p, char **err)
 				break;
 			}
 
+			/* TODO CLI set-var should not prevent server deletion as var value is instantly resolved. */
 			srv->flags |= SRV_F_NON_PURGEABLE;
 
 			chunk_destroy(&arg->data.str);
@@ -1541,6 +1542,9 @@ int smp_resolve_args(struct proxy *p, char **err)
 				break;
 			}
 
+			/* TODO CLI set-var should not prevent proxy deletion as var value is instantly resolved. */
+			px->flags |= PR_FL_NON_PURGEABLE;
+
 			chunk_destroy(&arg->data.str);
 			arg->unresolved = 0;
 			arg->data.prx = px;
@@ -1567,6 +1571,9 @@ int smp_resolve_args(struct proxy *p, char **err)
 				cfgerr++;
 				break;
 			}
+
+			/* TODO CLI set-var should not prevent proxy deletion as var value is instantly resolved. */
+			px->flags |= PR_FL_NON_PURGEABLE;
 
 			chunk_destroy(&arg->data.str);
 			arg->unresolved = 0;
