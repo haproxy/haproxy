@@ -48,7 +48,7 @@ static const char *common_kw_list[] = {
 	"server-state-file-name", "max-session-srv-conns", "capture",
 	"retries", "http-request", "http-response", "http-after-response",
 	"http-send-name-header", "block", "redirect", "use_backend",
-	"use-server", "force-persist", "ignore-persist", "force-persist",
+	"use-server", "force-persist", "ignore-persist",
 	"stick-table", "stick", "stats", "option", "default_backend",
 	"http-reuse", "monitor", "transparent", "maxconn", "backlog",
 	"fullconn", "dispatch", "balance", "hash-type",
