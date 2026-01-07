@@ -1,6 +1,77 @@
 ChangeLog :
 ===========
 
+2026/01/07 : 3.4-dev2
+    - BUG/MEDIUM: mworker/listener: ambiguous use of RX_F_INHERITED with shards
+    - BUG/MEDIUM: http-ana: Properly detect client abort when forwarding response (v2)
+    - BUG/MEDIUM: stconn: Don't report abort from SC if read0 was already received
+    - BUG/MEDIUM: quic: Don't try to use hystart if not implemented
+    - CLEANUP: backend: Remove useless test on server's xprt
+    - CLEANUP: tcpcheck: Remove useless test on the xprt used for healthchecks
+    - CLEANUP: ssl-sock: Remove useless tests on connection when resuming TLS session
+    - REGTESTS: quic: fix a TLS stack usage
+    - REGTESTS: list all skipped tests including 'feature cmd' ones
+    - CI: github: remove openssl no-deprecated job
+    - CI: github: add a job to test the master branch of OpenSSL
+    - CI: github: openssl-master.yml misses actions/checkout
+    - BUG/MEDIUM: backend: Do not remove CO_FL_SESS_IDLE in assign_server()
+    - CI: github: use git prefix for openssl-master.yml
+    - BUG/MEDIUM: mux-h2: synchronize all conditions to create a new backend stream
+    - REGTESTS: fix error when no test are skipped
+    - MINOR: cpu-topo: Turn the cpu policy configuration into a struct
+    - MEDIUM: cpu-topo: Add a "threads-per-core" keyword to cpu-policy
+    - MEDIUM: cpu-topo: Add a "cpu-affinity" option
+    - MEDIUM: cpu-topo: Add a new "max-threads-per-group" global keyword
+    - MEDIUM: cpu-topo: Add the "per-thread" cpu_affinity
+    - MEDIUM: cpu-topo: Add the "per-ccx" cpu_affinity
+    - BUG/MINOR: cpu-topo: fix -Wlogical-not-parentheses build with clang
+    - DOC: config: fix number of values for "cpu-affinity"
+    - MINOR: tools: add a secure implementation of memset
+    - MINOR: mux-h2: add missing glitch count for non-decodable H2 headers
+    - MINOR: mux-h2: perform a graceful close at 75% glitches threshold
+    - MEDIUM: mux-h1: implement basic glitches support
+    - MINOR: mux-h1: perform a graceful close at 75% glitches threshold
+    - MEDIUM: cfgparse: acknowledge that proxy ID auto numbering starts at 2
+    - MINOR: cfgparse: remove useless checks on no server in backend
+    - OPTIM/MINOR: proxy: do not init proxy management task if unused
+    - MINOR: patterns: preliminary changes for reorganization
+    - MEDIUM: patterns: reorganize pattern reference elements
+    - CLEANUP: patterns: remove dead code
+    - OPTIM: patterns: cache the current generation
+    - MINOR: tcp: add new bind option "tcp-ss" to instruct the kernel to save the SYN
+    - MINOR: protocol: support a generic way to call getsockopt() on a connection
+    - MINOR: tcp: implement the get_opt() function
+    - MINOR: tcp_sample: implement the fc_saved_syn sample fetch function
+    - CLEANUP: assorted typo fixes in the code, commits and doc
+    - BUG/MEDIUM: cpu-topo: Don't forget to reset visited_ccx.
+    - BUG/MAJOR: set the correct generation ID in pat_ref_append().
+    - BUG/MINOR: backend: fix the conn_retries check for TFO
+    - BUG/MINOR: backend: inspect request not response buffer to check for TFO
+    - MINOR: net_helper: add sample converters to decode ethernet frames
+    - MINOR: net_helper: add sample converters to decode IP packet headers
+    - MINOR: net_helper: add sample converters to decode TCP headers
+    - MINOR: net_helper: add ip.fp() to build a simplified fingerprint of a SYN
+    - MINOR: net_helper: prepare the ip.fp() converter to support more options
+    - MINOR: net_helper: add an option to ip.fp() to append the TTL to the fingerprint
+    - MINOR: net_helper: add an option to ip.fp() to append the source address
+    - DOC: config: fix the length attribute name for stick tables of type binary / string
+    - MINOR: mworker/cli: only keep positive PIDs in proc_list
+    - CLEANUP: mworker: remove duplicate list.h include
+    - BUG/MINOR: mworker/cli: fix show proc pagination using reload counter
+    - MINOR: mworker/cli: extract worker "show proc" row printer
+    - MINOR: cpu-topo: Factorize code
+    - MINOR: cpu-topo: Rename variables to better fit their usage
+    - BUG/MEDIUM: peers: Properly handle shutdown when trying to get a line
+    - BUG/MEDIUM: mux-h1: Take care to update <kop> value during zero-copy forwarding
+    - MINOR: threads: Avoid using a thread group mask when stopping.
+    - MINOR: hlua: Add support for lua 5.5
+    - MEDIUM: cpu-topo: Add an optional directive for per-group affinity
+    - BUG/MEDIUM: mworker: can't use signals after a failed reload
+    - BUG/MEDIUM: stconn: Move data from <kip> to <kop> during zero-copy forwarding
+    - DOC: config: fix a few typos and refine cpu-affinity
+    - MINOR: receiver: Remove tgroup_mask from struct shard_info
+    - BUG/MINOR: quic: fix deprecated warning for window size keyword
+
 2025/12/10 : 3.4-dev1
     - BUG/MINOR: jwt: Missing "case" in switch statement
     - DOC: configuration: ECH support details
