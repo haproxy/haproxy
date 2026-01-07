@@ -882,9 +882,7 @@ struct shard_info *shard_info_attach(struct receiver *rx, struct shard_info *si)
 	}
 
 	rx->shard_info = si;
-	BUG_ON (si->tgroup_mask & 1UL << (rx->bind_tgroup - 1));
-	si->tgroup_mask |= 1UL << (rx->bind_tgroup - 1);
-	si->nbgroups     = my_popcountl(si->tgroup_mask);
+	si->nbgroups++;
 	si->nbthreads   += my_popcountl(rx->bind_thread);
 	si->members[si->nbgroups - 1] = rx;
 	return si;
@@ -913,8 +911,7 @@ void shard_info_detach(struct receiver *rx)
 	BUG_ON(gr == MAX_TGROUPS);
 
 	si->nbthreads   -= my_popcountl(rx->bind_thread);
-	si->tgroup_mask &= ~(1UL << (rx->bind_tgroup - 1));
-	si->nbgroups     = my_popcountl(si->tgroup_mask);
+	si->nbgroups--;
 
 	/* replace the member by the last one. If we removed the reference, we
 	 * have to switch to another one. It's always the first entry so we can

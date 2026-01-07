@@ -64,7 +64,6 @@ struct rx_settings {
 struct shard_info {
 	uint nbgroups;                         /* number of groups in this shard (=#rx); Zero = unused. */
 	uint nbthreads;                        /* number of threads in this shard (>=nbgroups) */
-	ulong tgroup_mask;                     /* bitmask of thread groups having a member here */
 	struct receiver *ref;                  /* first one, reference for FDs to duplicate */
 	struct receiver *members[MAX_TGROUPS]; /* all members of the shard (one per thread group) */
 };
