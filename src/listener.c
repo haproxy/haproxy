@@ -879,6 +879,11 @@ struct shard_info *shard_info_attach(struct receiver *rx, struct shard_info *si)
 			return NULL;
 
 		si->ref = rx;
+		si->members = calloc(global.nbtgroups, sizeof(*si->members));
+		if (si->members == NULL) {
+			free(si);
+			return NULL;
+		}
 	}
 
 	rx->shard_info = si;
@@ -921,8 +926,10 @@ void shard_info_detach(struct receiver *rx)
 	si->members[si->nbgroups] = NULL;
 	si->ref = si->members[0];
 
-	if (!si->nbgroups)
+	if (!si->nbgroups) {
+		free(si->members);
 		free(si);
+	}
 }
 
 /* clones listener <src> and returns the new one. All dynamically allocated

@@ -65,7 +65,7 @@ struct shard_info {
 	uint nbgroups;                         /* number of groups in this shard (=#rx); Zero = unused. */
 	uint nbthreads;                        /* number of threads in this shard (>=nbgroups) */
 	struct receiver *ref;                  /* first one, reference for FDs to duplicate */
-	struct receiver *members[MAX_TGROUPS]; /* all members of the shard (one per thread group) */
+	struct receiver **members; /* all members of the shard (one per thread group) */
 };
 
 /* This describes a receiver with all its characteristics (address, options, etc) */
