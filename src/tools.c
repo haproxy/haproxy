@@ -7182,7 +7182,7 @@ REGISTER_PER_THREAD_INIT(init_tools_per_thread);
  */
 char *fgets_from_mem(char* buf, int size, const char **position, const char *end)
 {
-	char *new_pos;
+	const char *new_pos;
 	int len = 0;
 
 	/* keep fgets behaviour */
