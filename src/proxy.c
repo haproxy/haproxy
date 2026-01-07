@@ -1160,6 +1160,56 @@ static int proxy_parse_tcpka_intvl(char **args, int section, struct proxy *proxy
 }
 #endif
 
+static int proxy_parse_force_be_switch(char **args, int section_type, struct proxy *curpx,
+                                       const struct proxy *defpx, const char *file, int line,
+                                       char **err)
+{
+	struct acl_cond *cond = NULL;
+	struct persist_rule *rule;
+
+	if (curpx->cap & PR_CAP_DEF) {
+		memprintf(err, "'%s' not allowed in 'defaults' section.", args[0]);
+		goto err;
+	}
+
+	if (!(curpx->cap & PR_CAP_FE)) {
+		memprintf(err, "'%s' only available in frontend or listen section.", args[0]);
+		goto err;
+	}
+
+	if (strcmp(args[1], "if") != 0 && strcmp(args[1], "unless") != 0) {
+		memprintf(err, "'%s' requires either 'if' or 'unless' followed by a condition.", args[0]);
+		goto err;
+	}
+
+	if (!(cond = build_acl_cond(file, line, &curpx->acl, curpx, (const char **)args + 1, err))) {
+		memprintf(err, "'%s' : %s.", args[0], *err);
+		goto err;
+	}
+
+	if (warnif_cond_conflicts(cond, SMP_VAL_FE_REQ_CNT, err)) {
+		memprintf(err, "'%s' : %s.", args[0], *err);
+		goto err;
+	}
+
+	rule = calloc(1, sizeof(*rule));
+	if (!rule) {
+		memprintf(err, "'%s' : out of memory.", args[0]);
+		goto err;
+	}
+
+	rule->cond = cond;
+	rule->type = PERSIST_TYPE_BE_SWITCH;
+	LIST_INIT(&rule->list);
+	LIST_APPEND(&curpx->persist_rules, &rule->list);
+
+	return 0;
+
+ err:
+	free_acl_cond(cond);
+	return -1;
+}
+
 static int proxy_parse_guid(char **args, int section_type, struct proxy *curpx,
                             const struct proxy *defpx, const char *file, int line,
                             char **err)
@@ -2869,6 +2919,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "clitcpka-intvl", proxy_parse_tcpka_intvl },
 	{ CFG_LISTEN, "srvtcpka-intvl", proxy_parse_tcpka_intvl },
 #endif
+	{ CFG_LISTEN, "force-be-switch", proxy_parse_force_be_switch },
 	{ CFG_LISTEN, "guid", proxy_parse_guid },
 	{ 0, NULL, NULL },
 }};

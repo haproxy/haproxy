@@ -5820,6 +5820,7 @@ errorloc302                               X          X         X         X
 errorloc303                               X          X         X         X
 error-log-format                          X          X         X         -
 force-persist                             -          -         X         X
+force-be-switch                           -          X         X         -
 filter                                    -          X         X         X
 fullconn                                  X          -         X         X
 guid                                      -          X         X         X
@@ -7149,7 +7150,11 @@ disabled
   is possible to disable many instances at once by adding the "disabled"
   keyword in a "defaults" section.
 
-  See also : "enabled"
+  By default, a disabled backend cannot be selected for content-switching.
+  However, a portion of the traffic can ignore this when "force-be-switch" is
+  used.
+
+  See also : "enabled", "force-be-switch"
 
 
 dispatch <address>:<port>   (deprecated)
@@ -7557,6 +7562,19 @@ force-persist { if | unless } <condition>
 
   See also : "option redispatch", "ignore-persist", "persist",
              and section 7 about ACL usage.
+
+
+force-be-switch { if | unless } <condition>
+  Allow content switching to select a backend instance even if it is disabled
+  or unpublished. This rule can be used by admins to test traffic to services
+  prior to expose them to the outside world.
+
+  May be used in the following contexts: tcp, http
+
+  May be used in sections:    defaults | frontend | listen | backend
+                                 no    |   yes    |   yes  |   no
+
+  See also : "disabled"
 
 
 filter <name> [param*]

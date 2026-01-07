@@ -1117,6 +1117,41 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 	return ACT_RET_STOP;
 }
 
+/* Parses persist-rules attached to <fe> frontend and report the first macthing
+ * entry, using <sess> session and <s> stream as sample source.
+ *
+ * As this function is called several times in the same stream context,
+ * <persist> will act as a caching value to avoid reprocessing of a similar
+ * ruleset. It must be set to a negative value for the first invokation.
+ *
+ * Returns 1 if a rule matches, else 0.
+ */
+static int lookup_fe_persist_rules(struct proxy *fe, struct session *sess,
+                                   struct stream *s, int *persist)
+{
+	struct persist_rule *prst_rule;
+
+	if (*persist >= 0) {
+		/* Rules already processed, use previous computed result. */
+		return *persist;
+	}
+
+	list_for_each_entry(prst_rule, &fe->persist_rules, list) {
+		if (!acl_match_cond(prst_rule->cond, fe, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL))
+			continue;
+
+		/* force/ignore-persist match */
+		if (prst_rule->type == PERSIST_TYPE_BE_SWITCH) {
+			*persist = 1;
+			break;
+		}
+	}
+
+	if (*persist < 0)
+		*persist = 0;
+	return *persist;
+}
+
 /* This stream analyser checks the switching rules and changes the backend
  * if appropriate. The default_backend rule is also considered, then the
  * target backend's forced persistence rules are also evaluated last if any.
@@ -1130,6 +1165,7 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 	struct session *sess = s->sess;
 	struct proxy *fe = sess->fe;
 	struct proxy *backend = NULL;
+	int fe_persist = -1;
 
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
@@ -1160,7 +1196,8 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 			}
 
 			/* If backend is ineligible, continue rules processing. */
-			if (backend && !be_is_eligible(backend)) {
+			if (backend && !be_is_eligible(backend) &&
+			    !lookup_fe_persist_rules(fe, sess, s, &fe_persist)) {
 				backend = NULL;
 				continue;
 			}
@@ -1185,10 +1222,14 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 			}
 
 			/* Use default backend if possible or stay on the current proxy. */
-			if (fe->defbe.be && be_is_eligible(fe->defbe.be))
+			if (fe->defbe.be &&
+			    (be_is_eligible(fe->defbe.be) ||
+			     lookup_fe_persist_rules(fe, sess, s, &fe_persist))) {
 				backend = fe->defbe.be;
-			else
+			}
+			else {
 				backend = s->be;
+			}
 		}
 
 		if (!stream_set_backend(s, backend))

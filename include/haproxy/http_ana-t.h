@@ -184,6 +184,7 @@ enum {
 	PERSIST_TYPE_NONE = 0,          /* no persistence */
 	PERSIST_TYPE_FORCE,             /* force-persist */
 	PERSIST_TYPE_IGNORE,            /* ignore-persist */
+	PERSIST_TYPE_BE_SWITCH,         /* force-be-switch */
 };
 
 /* final results for http-request rules */
