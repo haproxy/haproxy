@@ -498,7 +498,7 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 		char *end_opt;
 
 		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
-		               "Please use the newer keyword syntax 'tune.quic.fe.stream.max-concurrent'.", args[0]);
+		               "Please use the newer keyword syntax 'tune.quic.fe.cc.max-win-size'.", args[0]);
 
 		cwnd = parse_window_size(args[0], args[1], &end_opt, err);
 		if (!cwnd)
