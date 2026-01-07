@@ -1534,7 +1534,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 	} else {
-		ha_alert("parsing [%s:%d]: unknown keyword '%s' in '%s' section\n", file, linenum, args[0], "users");
+		ha_alert("parsing [%s:%d]: unknown keyword '%s' in '%s' section\n", file, linenum, args[0], "userlist");
 		err_code |= ERR_ALERT | ERR_FATAL;
 	}
 
