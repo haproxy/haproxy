@@ -237,11 +237,14 @@ int send_fd_uxst(int fd, int send_fd)
 	struct iovec iov;
 	struct msghdr msghdr;
 
-	char cmsgbuf[CMSG_SPACE(sizeof(int))] = {0};
-	char buf[CMSG_SPACE(sizeof(int))] = {0};
+	char cmsgbuf[CMSG_SPACE(sizeof(int))];
+	char buf[CMSG_SPACE(sizeof(int))];
 	struct cmsghdr *cmsg = (void *)buf;
 
 	int *fdptr;
+
+	memset(cmsgbuf, 0, sizeof(cmsgbuf));
+	memset(buf, 0, sizeof(buf));
 
 	iov.iov_base = iobuf;
 	iov.iov_len = sizeof(iobuf);
