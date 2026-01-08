@@ -1125,9 +1125,11 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
  */
 static int process_switching_rules(struct stream *s, struct channel *req, int an_bit)
 {
+	struct switching_rule *rule;
 	struct persist_rule *prst_rule;
 	struct session *sess = s->sess;
 	struct proxy *fe = sess->fe;
+	struct proxy *backend = NULL;
 
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
@@ -1136,18 +1138,9 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 
 	/* now check whether we have some switching rules for this request */
 	if (!(s->flags & SF_BE_ASSIGNED)) {
-		struct switching_rule *rule;
-
 		list_for_each_entry(rule, &fe->switching_rules, list) {
-			struct proxy *backend = NULL;
-
 			if (!acl_match_cond(rule->cond, fe, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL))
 				continue;
-
-			/* If the backend name is dynamic, try to resolve the name.
-			 * If we can't resolve the name, or if any error occurs, break
-			 * the loop and fallback to the default backend.
-			 */
 
 			if (rule->dynamic) {
 				struct buffer *tmp;
@@ -1161,36 +1154,35 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 
 				free_trash_chunk(tmp);
 				tmp = NULL;
-
-				if (!backend)
-					break;
 			}
-			else
+			else {
 				backend = rule->be.backend;
+			}
 
-			if (!stream_set_backend(s, backend))
-				goto sw_failed;
+			/* Break the loop at the first matching rule found. If
+			 * the dynamic name resolution has fail, fallback will
+			 * be performed on the default backend.
+			 */
 			break;
 		}
 
 		/* To ensure correct connection accounting on the backend, we
-		 * have to assign one if it was not set (eg: a listen). This
-		 * measure also takes care of correctly setting the default
-		 * backend if any. Don't do anything if an upgrade is already in
-		 * progress.
+		 * have to assign one if it was not set. Default backend may be
+		 * used if set, else it will stay on the current proxy. Also,
+		 * don't do anything if an upgrade is already in progress.
 		 */
-		if (!(s->flags & (SF_BE_ASSIGNED|SF_IGNORE)))
-			if (!stream_set_backend(s, fe->defbe.be ? fe->defbe.be : s->be))
-				goto sw_failed;
+		if (!backend) {
+			if ((s->flags & SF_IGNORE)) {
+				/* TCP stream upgrade to HTTP/2. */
+				DBG_TRACE_DEVEL("leaving with no backend because of a destructive upgrade", STRM_EV_STRM_ANA, s);
+				return 0;
+			}
 
-		/* No backend assigned but no error reported. It happens when a
-		 * TCP stream is upgraded to HTTP/2.
-		 */
-		if ((s->flags & (SF_BE_ASSIGNED|SF_IGNORE)) == SF_IGNORE) {
-			DBG_TRACE_DEVEL("leaving with no backend because of a destructive upgrade", STRM_EV_STRM_ANA, s);
-			return 0;
+			backend = fe->defbe.be ? fe->defbe.be : s->be;
 		}
 
+		if (!stream_set_backend(s, backend))
+			goto sw_failed;
 	}
 
 	/* Se the max connection retries for the stream. may be overwritten later */
