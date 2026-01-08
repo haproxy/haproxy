@@ -390,12 +390,14 @@ int alertif_too_many_args(int maxarg, const char *file, int linenum, char **args
 }
 
 
-/* Report it if a request ACL condition uses some keywords that are incompatible
- * with the place where the ACL is used. It returns either 0 or ERR_WARN so that
- * its result can be or'ed with err_code. Note that <cond> may be NULL and then
- * will be ignored.
+/* Report it if a request ACL condition uses some keywords that are
+ * incompatible with the place where the ACL is used. It returns either 0 or
+ * ERR_WARN so that its result can be or'ed with err_code. Note that <cond> may
+ * be NULL and then will be ignored. In case of error, <err> is dynamically
+ * allocated to contains a description.
  */
-int warnif_cond_conflicts(const struct acl_cond *cond, unsigned int where, const char *file, int line)
+int warnif_cond_conflicts(const struct acl_cond *cond, unsigned int where,
+                          char **err)
 {
 	const struct acl *acl;
 	const char *kw;
@@ -405,23 +407,27 @@ int warnif_cond_conflicts(const struct acl_cond *cond, unsigned int where, const
 
 	acl = acl_cond_conflicts(cond, where);
 	if (acl) {
-		if (acl->name && *acl->name)
-			ha_warning("parsing [%s:%d] : acl '%s' will never match because it only involves keywords that are incompatible with '%s'\n",
-				   file, line, acl->name, sample_ckp_names(where));
-		else
-			ha_warning("parsing [%s:%d] : anonymous acl will never match because it uses keyword '%s' which is incompatible with '%s'\n",
-				   file, line, LIST_ELEM(acl->expr.n, struct acl_expr *, list)->kw, sample_ckp_names(where));
+		if (acl->name && *acl->name) {
+			memprintf(err, "acl '%s' will never match because it only involves keywords that are incompatible with '%s'",
+			          acl->name, sample_ckp_names(where));
+		}
+		else {
+			memprintf(err, "anonymous acl will never match because it uses keyword '%s' which is incompatible with '%s'",
+			          LIST_ELEM(acl->expr.n, struct acl_expr *, list)->kw, sample_ckp_names(where));
+		}
 		return ERR_WARN;
 	}
 	if (!acl_cond_kw_conflicts(cond, where, &acl, &kw))
 		return 0;
 
-	if (acl->name && *acl->name)
-		ha_warning("parsing [%s:%d] : acl '%s' involves keywords '%s' which is incompatible with '%s'\n",
-			   file, line, acl->name, kw, sample_ckp_names(where));
-	else
-		ha_warning("parsing [%s:%d] : anonymous acl involves keyword '%s' which is incompatible with '%s'\n",
-			   file, line, kw, sample_ckp_names(where));
+	if (acl->name && *acl->name) {
+		memprintf(err, "acl '%s' involves keywords '%s' which is incompatible with '%s'",
+		          acl->name, kw, sample_ckp_names(where));
+	}
+	else {
+		memprintf(err, "anonymous acl involves keyword '%s' which is incompatible with '%s'",
+		          kw, sample_ckp_names(where));
+	}
 	return ERR_WARN;
 }
 
