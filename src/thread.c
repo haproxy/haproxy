@@ -60,7 +60,6 @@ THREAD_LOCAL struct thread_ctx *th_ctx = &ha_thread_ctx[0];
 
 #ifdef USE_THREAD
 
-volatile unsigned long all_tgroups_mask __read_mostly  = 1; // nbtgroup 1 assumed by default
 volatile unsigned int rdv_requests       = 0;  // total number of threads requesting RDV
 volatile unsigned int isolated_thread    = ~0; // ID of the isolated thread, or ~0 when none
 THREAD_LOCAL unsigned int  tgid          = 1; // thread ID starts at 1
@@ -1495,9 +1494,6 @@ int thread_map_to_groups()
 
 	}
 
-#ifdef USE_THREAD
-	all_tgroups_mask = m;
-#endif
 
 #if defined(USE_THREAD) && defined(USE_CPU_AFFINITY)
 	if (global.tune.debug & GDBG_CPU_AFFINITY) {

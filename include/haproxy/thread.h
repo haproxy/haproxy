@@ -60,7 +60,6 @@ extern int thread_cpus_enabled_at_boot;
 /* Only way found to replace variables with constants that are optimized away
  * at build time.
  */
-enum { all_tgroups_mask = 1UL };
 enum { tid_bit = 1UL };
 enum { tid = 0 };
 enum { tgid = 1 };
@@ -208,7 +207,6 @@ void wait_for_threads_completion();
 void set_thread_cpu_affinity();
 unsigned long long ha_get_pthread_id(unsigned int thr);
 
-extern volatile unsigned long all_tgroups_mask;
 extern volatile unsigned int rdv_requests;
 extern volatile unsigned int isolated_thread;
 extern THREAD_LOCAL unsigned int tid;      /* The thread id */
