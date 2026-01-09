@@ -1538,11 +1538,21 @@ int cfg_parse_users_user(char **args, int section_type, struct proxy *curproxy, 
 	while (*args[cur_arg]) {
 		if (strcmp(args[cur_arg], "password") == 0) {
 #ifdef USE_LIBCRYPT
+			struct timeval tv_before, tv_after;
+			ulong ms_elapsed;
+
+			gettimeofday(&tv_before, NULL);
 			if (!crypt("", args[cur_arg + 1])) {
 				ha_alert("parsing [%s:%d]: the encrypted password used for user '%s' is not supported by crypt(3).\n",
 					 file, linenum, newuser->user);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
+			}
+			gettimeofday(&tv_after, NULL);
+			ms_elapsed = tv_ms_elapsed(&tv_before, &tv_after);
+			if (ms_elapsed >= 10) {
+				ha_warning("parsing [%s:%d]: the hash algorithm used for this password takes %lu milliseconds to verify, which can have devastating performance and stability impacts. Please hash this password using a lighter algorithm (one that is compatible with web usage).\n", file, linenum, ms_elapsed);
+				err_code |= ERR_WARN;
 			}
 #else
 			ha_warning("parsing [%s:%d]: no crypt(3) support compiled, encrypted passwords will not work.\n",
