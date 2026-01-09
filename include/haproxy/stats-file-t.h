@@ -15,7 +15,7 @@ enum stfile_domain {
 };
 
 #define SHM_STATS_FILE_VER_MAJOR         1
-#define SHM_STATS_FILE_VER_MINOR         1
+#define SHM_STATS_FILE_VER_MINOR         2
 
 #define SHM_STATS_FILE_HEARTBEAT_TIMEOUT 60 /* passed this delay (seconds) process which has not
                                              * sent heartbeat will be considered down
@@ -64,9 +64,9 @@ struct shm_stats_file_hdr {
  */
 struct shm_stats_file_object {
 	char guid[GUID_MAX_LEN + 1];
-	uint8_t tgid; // thread group ID from 1 to 64
+	uint16_t tgid; // thread group ID
 	uint8_t type; // SHM_STATS_FILE_OBJECT_TYPE_* to know how to handle object.data
-	ALWAYS_PAD(6); // 6 bytes hole, ensure it remains the same size 32 vs 64 bits arch
+	ALWAYS_PAD(5); // 5 bytes hole, ensure it remains the same size 32 vs 64 bits arch
 	uint64_t users; // bitfield that corresponds to users of the object (see shm_stats_file_hdr slots)
 	/* as the struct may hold any of the types described here, let's make it
 	 * so it may store up to the heaviest one using an union
