@@ -386,11 +386,23 @@ int process_srv_queue(struct server *s)
 {
 	struct server *ref = s->track ? s->track : s;
 	struct proxy  *p = s->proxy;
-	uint64_t non_empty_tgids = all_tgroups_mask;
+	long non_empty_tgids[(global.nbtgroups / LONGBITS) + 1];
 	int maxconn;
 	int done = 0;
 	int px_ok;
 	int cur_tgrp;
+	int i = global.nbtgroups;
+	int curgrpnb = i;
+
+
+	while (i >= LONGBITS) {
+		non_empty_tgids[global.nbtgroups - i] = ULONG_MAX;
+		i -= LONGBITS;
+	}
+	while (i > 0) {
+		ha_bit_set(global.nbtgroups - i, non_empty_tgids);
+		i--;
+	}
 
 	/* if a server is not usable or backup and must not be used
 	 * to dequeue backend requests.
@@ -420,7 +432,7 @@ int process_srv_queue(struct server *s)
 	 * to our thread group, then we'll get one from a different one, to
 	 * be sure those actually get processed too.
 	 */
-	while (non_empty_tgids != 0
+	while (curgrpnb != 0
 	       && (done < global.tune.maxpollevents || !s->served) &&
 	       s->served < (maxconn = srv_dynamic_maxconn(s))) {
 	       int self_served;
@@ -431,8 +443,8 @@ int process_srv_queue(struct server *s)
 		* from our own thread-group queue.
 		*/
 	       self_served = _HA_ATOMIC_LOAD(&s->per_tgrp[tgid - 1].self_served) % (MAX_SELF_USE_QUEUE + 1);
-	       if ((self_served == MAX_SELF_USE_QUEUE && non_empty_tgids != (1UL << (tgid - 1))) ||
-		    !(non_empty_tgids & (1UL << (tgid - 1)))) {
+	       if ((self_served == MAX_SELF_USE_QUEUE && (curgrpnb > 1 || !ha_bit_test(tgid - 1, non_empty_tgids))) ||
+		    !ha_bit_test(tgid - 1, non_empty_tgids)) {
 			unsigned int old_served, new_served;
 
 			/*
@@ -452,7 +464,7 @@ int process_srv_queue(struct server *s)
 				 */
 				while (new_served == tgid ||
 				       new_served == global.nbtgroups + 1 ||
-				       !(non_empty_tgids & (1UL << (new_served - 1)))) {
+				       !ha_bit_test(new_served - 1, non_empty_tgids)) {
 					if (new_served == global.nbtgroups + 1)
 						new_served = 1;
 					else
@@ -468,7 +480,8 @@ int process_srv_queue(struct server *s)
 			to_dequeue = MAX_SELF_USE_QUEUE - self_served;
 		}
 		if (HA_ATOMIC_XCHG(&s->per_tgrp[cur_tgrp - 1].dequeuing, 1)) {
-			non_empty_tgids &= ~(1UL << (cur_tgrp - 1));
+			ha_bit_clr(cur_tgrp - 1, non_empty_tgids);
+			curgrpnb--;
 			continue;
 		}
 
@@ -479,7 +492,8 @@ int process_srv_queue(struct server *s)
 			 * the served field, only if it is < maxconn.
 			 */
 			if (!pendconn_process_next_strm(s, p, px_ok, cur_tgrp)) {
-				non_empty_tgids &= ~(1UL << (cur_tgrp - 1));
+				ha_bit_clr(cur_tgrp - 1, non_empty_tgids);
+				curgrpnb--;
 				break;
 			}
 			to_dequeue--;
