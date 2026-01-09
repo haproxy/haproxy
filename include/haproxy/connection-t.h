@@ -146,7 +146,6 @@ enum {
 
 	CO_FL_WANT_SPLICING = 0x00001000,  /* we wish to use splicing on the connection when possible */
 	CO_FL_SSL_NO_CACHED_INFO = 0x00002000, /* Don't use any cached information when creating a new SSL connection */
-	/* unused: 0x00002000 */
 
 	CO_FL_EARLY_SSL_HS  = 0x00004000,  /* We have early data pending, don't start SSL handshake yet */
 	CO_FL_EARLY_DATA    = 0x00008000,  /* At least some of the data are early data */
