@@ -1,0 +1,98 @@
+varnishtest "Ensure switching-rules conformance with backend eligibility"
+
+feature ignore_unknown_macro
+
+haproxy hsrv -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe
+		bind "fd@${feS}"
+		http-request return status 200 hdr "x-be" "li"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe
+		bind "fd@${fe1S}"
+		use_backend %[req.hdr("x-target")] if { req.hdr("x-dyn") "1" }
+
+	frontend fe_default
+		bind "fd@${fe2S}"
+
+		use_backend %[req.hdr("x-target")] if { req.hdr("x-dyn") "1" }
+		use_backend be
+		default_backend be_default
+
+	listen li
+		bind "fd@${liS}"
+		use_backend %[req.hdr("x-target")] if { req.hdr("x-dyn") "1" }
+		server srv ${hsrv_feS_sock}
+
+	backend be
+		http-request return status 200 hdr "x-be" %[be_name]
+
+	backend be_default
+		http-request return status 200 hdr "x-be" %[be_name]
+} -start
+
+client c1 -connect ${h1_fe1S_sock} {
+	# Dynamic rule matching
+	txreq -hdr "x-dyn: 1" -hdr "x-target: be"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-be == "be"
+
+	# Dynamic rule no match -> 503 expected
+	txreq -hdr "x-dyn: 1" -hdr "x-target: be_unknown"
+	rxresp
+	expect resp.status == 503
+} -run
+
+# Connect to frontend with default backend set
+client c2 -connect ${h1_fe2S_sock} {
+	# Dynamic rule matching
+	txreq -hdr "x-dyn: 1" -hdr "x-target: be"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-be == "be"
+
+	# Dynamic rule no match -> use default backend
+	txreq -hdr "x-dyn: 1" -hdr "x-target: be_unknown"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-be == "be_default"
+} -run
+
+# Connect to listen proxy type
+client c3 -connect ${h1_liS_sock} {
+	# Dynamic rule matching
+	txreq -hdr "x-dyn: 1" -hdr "x-target: be"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-be == "be"
+
+	# Dynamic rule no match -> stay on current proxy instance
+	txreq -hdr "x-dyn: 1" -hdr "x-target: be_unknown"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-be == "li"
+} -run
