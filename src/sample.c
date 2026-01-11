@@ -5381,11 +5381,19 @@ static int smp_fetch_conn_timers(const struct arg *args, struct sample *smp, con
 {
 	struct strm_logs *logs;
 
-	if (!smp->strm)
-		return 0;
-
 	smp->data.type = SMP_T_SINT;
 	smp->flags = 0;
+
+	if (!smp->strm) {
+		/* no stream: only fc.timer.handshake is available via
+		 * the session.
+		 */
+		if (kw[0] == 'f' && kw[9] == 'h') {
+			smp->data.u.sint = smp->sess->t_handshake;
+			return 1;
+		}
+		return 0;
+	}
 
 	logs = &smp->strm->logs;
 
