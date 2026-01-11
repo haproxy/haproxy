@@ -323,20 +323,19 @@ static inline int get_tcp_info(const struct arg *args, struct sample *smp,
 {
 	struct connection *conn;
 
-	/* strm can be null. */
-	if (!smp->strm)
-		return 0;
-
 	smp->data.type = SMP_T_SINT;
-	/* get the object associated with the stream connector.The
-	 * object can be other thing than a connection. For example,
-	 * it could be an appctx.
+
+	/* The front connection may be obtained either via the stream or the
+	 * session. Since the session is always there, we use it. Note that
+	 * the origin is not necessarily a connection (e.g. appctx). The back
+	 * connection however only works with a stream, so we check both.
 	 */
-	conn = (dir == 0 ? sc_conn(smp->strm->scf) : sc_conn(smp->strm->scb));
+	conn = dir == 0 ?
+		objt_conn(smp->sess->origin) :
+		smp->strm ? sc_conn(smp->strm->scb) : NULL;
 	if (!conn || !conn->ctrl->get_info ||
 	    !conn->ctrl->get_info(conn, &smp->data.u.sint, val))
 		return 0;
-
 
 	return 1;
 }
