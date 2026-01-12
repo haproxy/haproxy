@@ -739,7 +739,7 @@ static void shm_stats_file_preload(void)
 	while (it < objects) {
 		struct guid_node *node;
 		uint64_t users;
-		uint8_t obj_tgid;
+		uint16_t obj_tgid;
 
 		curr_obj = SHM_STATS_FILE_OBJECT(shm_stats_file_hdr, it);
 
