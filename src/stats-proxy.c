@@ -290,7 +290,7 @@ static struct field me_generate_field(const struct stat_col *col,
 	case STATS_PX_CAP_FE:
 	case STATS_PX_CAP_LI:
 		if (col->flags & STAT_COL_FL_SHARED) {
-			counter = (char *)&((struct fe_counters *)counters)->shared.tg;
+			counter = ((struct fe_counters *)counters)->shared.tg;
 			offset = col->metric.offset[0];
 		}
 		else
@@ -301,7 +301,7 @@ static struct field me_generate_field(const struct stat_col *col,
 	case STATS_PX_CAP_BE:
 	case STATS_PX_CAP_SRV:
 		if (col->flags & STAT_COL_FL_SHARED) {
-			counter = (char *)&((struct be_counters *)counters)->shared.tg;
+			counter = ((struct be_counters *)counters)->shared.tg;
 			offset = col->metric.offset[1];
 		}
 		else

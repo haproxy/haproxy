@@ -66,7 +66,7 @@ struct counters_shared {
 	COUNTERS_SHARED;
 	struct {
 		COUNTERS_SHARED_TG;
-	} *tg[MAX_TGROUPS];
+	} **tg;
 };
 
 /*
@@ -101,7 +101,7 @@ struct fe_counters_shared_tg {
 
 struct fe_counters_shared {
 	COUNTERS_SHARED;
-	struct fe_counters_shared_tg *tg[MAX_TGROUPS];
+	struct fe_counters_shared_tg **tg;
 };
 
 /* counters used by listeners and frontends */
@@ -160,7 +160,7 @@ struct be_counters_shared_tg {
 
 struct be_counters_shared {
 	COUNTERS_SHARED;
-	struct be_counters_shared_tg *tg[MAX_TGROUPS];
+	struct be_counters_shared_tg **tg;
 };
 
 /* counters used by servers and backends */

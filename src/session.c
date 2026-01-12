@@ -99,8 +99,12 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		sess->flags = SESS_FL_NONE;
 		sess->src = NULL;
 		sess->dst = NULL;
-		sess->fe_tgcounters = sess->fe->fe_counters.shared.tg[tgid - 1];
-		if (sess->listener && sess->listener->counters)
+		if (sess->fe->fe_counters.shared.tg)
+			sess->fe_tgcounters = sess->fe->fe_counters.shared.tg[tgid - 1];
+		else
+			sess->fe_tgcounters = NULL;
+
+		if (sess->listener && sess->listener->counters && sess->listener->counters->shared.tg)
 			sess->li_tgcounters = sess->listener->counters->shared.tg[tgid - 1];
 		else
 			sess->li_tgcounters = NULL;

@@ -951,8 +951,14 @@ int httpclient_applet_init(struct appctx *appctx)
 
 	s = appctx_strm(appctx);
 	s->target = target;
-	if (objt_server(s->target))
-		s->sv_tgcounters = __objt_server(s->target)->counters.shared.tg[tgid - 1];
+	if (objt_server(s->target)) {
+		struct server *srv = __objt_server(s->target);
+
+		if (srv->counters.shared.tg)
+			s->sv_tgcounters = __objt_server(s->target)->counters.shared.tg[tgid - 1];
+		else
+			s->sv_tgcounters = NULL;
+	}
 
 	/* set the "timeout server" */
 	s->scb->ioto = hc->timeout_server;

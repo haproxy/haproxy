@@ -2578,7 +2578,11 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 		return 0;
 
 	s->be = be;
-	s->be_tgcounters = be->be_counters.shared.tg[tgid - 1];
+	if (be->be_counters.shared.tg)
+		s->be_tgcounters = be->be_counters.shared.tg[tgid - 1];
+	else
+		s->be_tgcounters = NULL;
+
 	HA_ATOMIC_UPDATE_MAX(&be->be_counters.conn_max,
 			     HA_ATOMIC_ADD_FETCH(&be->beconn, 1));
 	proxy_inc_be_ctr(be);

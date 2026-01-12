@@ -293,6 +293,9 @@ static int parse_stat_line(struct ist line,
 			if (!(px->cap & PR_CAP_FE))
 				return 0; /* silently ignored fe/be mismatch */
 
+			if (!px->fe_counters.shared.tg)
+				return 0;
+
 			base_off_shared = (char *)px->fe_counters.shared.tg[0];
 			if (!base_off_shared)
 				return 0; // not allocated
@@ -304,6 +307,9 @@ static int parse_stat_line(struct ist line,
 		else if (domain == STFILE_DOMAIN_PX_BE) {
 			if (!(px->cap & PR_CAP_BE))
 				return 0; /* silently ignored fe/be mismatch */
+
+			if (!px->be_counters.shared.tg)
+				return 0;
 
 			base_off_shared = (char *)px->be_counters.shared.tg[0];
 			if (!base_off_shared)
@@ -328,6 +334,9 @@ static int parse_stat_line(struct ist line,
 		if (!li->counters)
 			return 0;
 
+		if (!li->counters->shared.tg)
+			return 0;
+
 		base_off_shared = (char *)li->counters->shared.tg[0];
 		if (!base_off_shared)
 			return 0; // not allocated
@@ -342,6 +351,9 @@ static int parse_stat_line(struct ist line,
 			goto err;
 
 		srv = __objt_server(node->obj_type);
+		if (!srv->counters.shared.tg)
+			return 0;
+
 		base_off_shared = (char *)srv->counters.shared.tg[0];
 		if (!base_off_shared)
 			return 0; // not allocated
@@ -765,8 +777,13 @@ static void shm_stats_file_preload(void)
 					BUG_ON(curr_obj->type != SHM_STATS_FILE_OBJECT_TYPE_FE);
 					li = __objt_listener(node->obj_type);
 					// counters are optional for listeners
-					if (li->counters)
+					if (li->counters) {
+						if (!li->counters->shared.tg)
+							li->counters->shared.tg = calloc(global.nbtgroups, sizeof(*li->counters->shared.tg));
+						if (li->counters->shared.tg == NULL)
+							goto release;
 						li->counters->shared.tg[obj_tgid - 1] = &curr_obj->data.fe;
+					}
 					break;
 				}
 				case OBJ_TYPE_SERVER:
@@ -775,6 +792,10 @@ static void shm_stats_file_preload(void)
 
 					BUG_ON(curr_obj->type != SHM_STATS_FILE_OBJECT_TYPE_BE);
 					sv = __objt_server(node->obj_type);
+					if (!sv->counters.shared.tg)
+						sv->counters.shared.tg = calloc(global.nbtgroups, sizeof(*sv->counters.shared.tg));
+					if (sv->counters.shared.tg == NULL)
+						goto release;
 					sv->counters.shared.tg[obj_tgid - 1] = &curr_obj->data.be;
 					break;
 				}
@@ -783,11 +804,19 @@ static void shm_stats_file_preload(void)
 					struct proxy *px;
 
 					px = __objt_proxy(node->obj_type);
-					if (curr_obj->type == SHM_STATS_FILE_OBJECT_TYPE_FE)
+					if (curr_obj->type == SHM_STATS_FILE_OBJECT_TYPE_FE) {
+						if (!px->fe_counters.shared.tg)
+							px->fe_counters.shared.tg = calloc(global.nbtgroups, sizeof(*px->fe_counters.shared.tg));
+						if (px->fe_counters.shared.tg == NULL)
+							goto release;
 						px->fe_counters.shared.tg[obj_tgid - 1] = &curr_obj->data.fe;
-					else if (curr_obj->type == SHM_STATS_FILE_OBJECT_TYPE_BE)
+					} else if (curr_obj->type == SHM_STATS_FILE_OBJECT_TYPE_BE) {
+						if (!px->be_counters.shared.tg)
+							px->be_counters.shared.tg = calloc(global.nbtgroups, sizeof(*px->be_counters.shared.tg));
+						if (px->fe_counters.shared.tg == NULL)
+							goto release;
 						px->be_counters.shared.tg[obj_tgid - 1] = &curr_obj->data.be;
-					else
+					} else
 						goto release; // not supported
 					break;
 				}

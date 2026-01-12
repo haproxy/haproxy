@@ -451,7 +451,11 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 	 * when the default backend is assigned.
 	 */
 	s->be  = sess->fe;
-	s->be_tgcounters = sess->fe->be_counters.shared.tg[tgid - 1];
+	if (sess->fe->be_counters.shared.tg)
+		s->be_tgcounters = sess->fe->be_counters.shared.tg[tgid - 1];
+	else
+		s->be_tgcounters = NULL;
+
 	s->sv_tgcounters = NULL; // default value
 
 	s->req_cap = NULL;

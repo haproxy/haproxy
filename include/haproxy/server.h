@@ -207,7 +207,7 @@ static inline void server_index_id(struct proxy *px, struct server *srv)
 /* increase the number of cumulated streams on the designated server */
 static inline void srv_inc_sess_ctr(struct server *s)
 {
-	if (s->counters.shared.tg[tgid - 1]) {
+	if (s->counters.shared.tg && s->counters.shared.tg[tgid - 1]) {
 		_HA_ATOMIC_INC(&s->counters.shared.tg[tgid - 1]->cum_sess);
 		update_freq_ctr(&s->counters.shared.tg[tgid - 1]->sess_per_sec, 1);
 	}
@@ -218,7 +218,7 @@ static inline void srv_inc_sess_ctr(struct server *s)
 /* set the time of last session on the designated server */
 static inline void srv_set_sess_last(struct server *s)
 {
-	if (s->counters.shared.tg[tgid - 1])
+	if (s->counters.shared.tg && s->counters.shared.tg[tgid - 1])
 		HA_ATOMIC_STORE(&s->counters.shared.tg[tgid - 1]->last_sess,  ns_to_sec(now_ns));
 }
 
