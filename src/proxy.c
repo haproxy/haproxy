@@ -4789,6 +4789,7 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
 	struct proxy *px, *defpx;
 	const char *be_name, *def_name, *err;
 	char *msg = NULL;
+	enum pr_mode mode = 0;
 
 	usermsgs_clr("CLI");
 
@@ -4813,9 +4814,37 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
 		return 1;
 	}
 
+	/* Parse optional arguments */
+	args += 2;
+	while (*args[1]) {
+		/* "mode" */
+		if (*args[2] && !mode && strcmp(args[1], "mode") == 0) {
+			mode = str_to_proxy_mode(args[2]);
+			if (mode == PR_MODES) {
+				cli_err(appctx, "Unknown proxy mode.\n");
+				return 1;
+			}
+			if (mode != PR_MODE_TCP && mode != PR_MODE_HTTP) {
+				cli_err(appctx, "Dynamic backends are compatible with only TCP or HTTP mode.\n");
+				return 1;
+			}
+		}
+		/* unknown, malformed or duplicate argument */
+		else {
+			cli_err(appctx, "Usage: add backend <name> from <defproxy> [mode <px_mode>].\n");
+			return 1;
+		}
+
+		args += 2;
+	}
+
 	defpx = proxy_find_by_name(def_name, PR_CAP_DEF, 0);
 	if (!defpx) {
 		cli_dynerr(appctx, memprintf(&msg, "Cannot find default proxy '%s'.\n", def_name));
+		return 1;
+	}
+	if (!(defpx->flags & PR_FL_DEF_EXPLICIT_MODE) && !mode) {
+		cli_dynerr(appctx, memprintf(&msg, "Mode is required as '%s' default proxy does not explicitely defines it.\n", def_name));
 		return 1;
 	}
 

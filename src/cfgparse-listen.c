@@ -657,6 +657,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		curproxy->mode = mode;
+		if (curproxy->cap & PR_CAP_DEF)
+			curproxy->flags |= PR_FL_DEF_EXPLICIT_MODE;
 	}
 	else if (strcmp(args[0], "id") == 0) {
 		struct proxy *conflict;
