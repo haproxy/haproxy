@@ -5048,6 +5048,11 @@ int be_check_for_deletion(const char *bename, struct proxy **pb, const char **pm
 		goto out;
 	}
 
+	if (be->srv) {
+		msg = "Only a backend without server can be deleted.";
+		goto out;
+	}
+
 	/* Second, conditions that may change over time */
 	ret = 0;
 

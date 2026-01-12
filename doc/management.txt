@@ -2128,7 +2128,8 @@ del backend <name>
   Removes the backend proxy with the name <name>.
 
   This operation is only possible for TCP or HTTP proxies. To succeed, the
-  backend instance must have been first unpublished.
+  backend instance must have been first unpublished. Also, all of its servers
+  must first be removed (via "del server" CLI).
 
   There is additional restrictions which prevent backend removal. First, a
   backend cannot be removed if it is explicitely referenced by config elements,
