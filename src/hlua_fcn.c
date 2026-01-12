@@ -2796,6 +2796,11 @@ static int _hlua_patref_add_bulk(lua_State *L, int status, lua_KContext ctx)
 	int count = 0;
 	int ret;
 
+	if (!lua_istable(L, 2)) {
+		luaL_argerror(L, 2, "argument is expected to be a table");
+		return 0; // not reached
+	}
+
 	if ((ref->flags & HLUA_PATREF_FL_GEN) &&
 	    pat_ref_may_commit(ref->ptr, ref->curr_gen))
 		curr_gen = ref->curr_gen;
