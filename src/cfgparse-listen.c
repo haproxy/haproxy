@@ -633,23 +633,30 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		goto out;
 	}
 	else if (strcmp(args[0], "mode") == 0) {  /* sets the proxy mode */
+		enum pr_mode mode;
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 
-		if (strcmp(args[1], "http") == 0) curproxy->mode = PR_MODE_HTTP;
-		else if (strcmp(args[1], "tcp") == 0) curproxy->mode = PR_MODE_TCP;
-		else if (strcmp(args[1], "log") == 0 && (curproxy->cap & PR_CAP_BE)) curproxy->mode = PR_MODE_SYSLOG;
-		else if (strcmp(args[1], "spop") == 0 && (curproxy->cap & PR_CAP_BE)) curproxy->mode = PR_MODE_SPOP;
-		else if (strcmp(args[1], "health") == 0) {
+		if (unlikely(strcmp(args[1], "health") == 0)) {
 			ha_alert("parsing [%s:%d] : 'mode health' doesn't exist anymore. Please use 'http-request return status 200' instead.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		else {
+
+		mode = str_to_proxy_mode(args[1]);
+		if (!mode) {
 			ha_alert("parsing [%s:%d] : unknown proxy mode '%s'.\n", file, linenum, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+		else if ((mode == PR_MODE_SYSLOG || mode == PR_MODE_SPOP) &&
+		         !(curproxy->cap & PR_CAP_BE)) {
+			ha_alert("parsing [%s:%d] : mode %s is only applicable on proxies with backend capability.\n", file, linenum, proxy_mode_str(mode));
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		curproxy->mode = mode;
 	}
 	else if (strcmp(args[0], "id") == 0) {
 		struct proxy *conflict;

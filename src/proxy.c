@@ -501,6 +501,21 @@ const char *proxy_mode_str(int mode) {
 		return "unknown";
 }
 
+/* Convert <mode> string into proxy mode type. PR_MODES is returned for unknown values. */
+enum pr_mode str_to_proxy_mode(const char *mode)
+{
+	if (strcmp(mode, "http") == 0)
+		return PR_MODE_HTTP;
+	else if (strcmp(mode, "tcp") == 0)
+		return PR_MODE_TCP;
+	else if (strcmp(mode, "log") == 0)
+		return PR_MODE_SYSLOG;
+	else if (strcmp(mode, "spop") == 0)
+		return PR_MODE_SPOP;
+
+	return PR_MODES;
+}
+
 /* try to find among known options the one that looks closest to <word> by
  * counting transitions between letters, digits and other characters. Will
  * return the best matching word if found, otherwise NULL. An optional array

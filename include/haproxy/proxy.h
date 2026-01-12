@@ -59,6 +59,7 @@ void deinit_proxy(struct proxy *p);
 void free_proxy(struct proxy *p);
 const char *proxy_cap_str(int cap);
 const char *proxy_mode_str(int mode);
+enum pr_mode str_to_proxy_mode(const char *mode);
 const char *proxy_find_best_option(const char *word, const char **extra);
 uint proxy_get_next_id(uint from);
 void proxy_store_name(struct proxy *px);
