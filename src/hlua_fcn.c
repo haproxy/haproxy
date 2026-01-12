@@ -2808,17 +2808,6 @@ static int _hlua_patref_add_bulk(lua_State *L, int status, lua_KContext ctx)
 		const char *key;
 		const char *value = NULL;
 
-		/* check if we may do something to try to prevent thread contention,
-		 * unless we run from body/init state where hlua_yieldk is no-op
-		 */
-		if (count > 100 && hlua_gethlua(L)) {
-			/* let's yield and wait for being called again to continue where we left off */
-			HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->ptr->lock);
-			hlua_yieldk(L, 0, 0, _hlua_patref_add_bulk, TICK_ETERNITY, HLUA_CTRLYIELD); // continue
-			return 0; // not reached
-
-		}
-
 		if (ref->ptr->flags & PAT_REF_SMP) {
 			/* key:val table */
 			luaL_checktype(L, -2, LUA_TSTRING);
@@ -2843,6 +2832,17 @@ static int _hlua_patref_add_bulk(lua_State *L, int status, lua_KContext ctx)
 		/* removes 'value'; keeps 'key' for next iteration */
 		lua_pop(L, 1);
 		count += 1;
+
+		/* check if we may do something to try to prevent thread contention,
+		 * unless we run from body/init state where hlua_yieldk is no-op
+		 */
+		if (count > 100 && hlua_gethlua(L)) {
+			/* let's yield and wait for being called again to continue where we left off */
+			HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->ptr->lock);
+			hlua_yieldk(L, 0, 0, _hlua_patref_add_bulk, TICK_ETERNITY, HLUA_CTRLYIELD); // continue
+			return 0; // not reached
+
+		}
 	}
 	HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->ptr->lock);
 	lua_pushboolean(L, 1);
