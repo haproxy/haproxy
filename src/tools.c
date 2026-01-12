@@ -2129,6 +2129,60 @@ char *escape_string(char *start, char *stop,
 	return NULL;
 }
 
+/*
+ * Appends a quoted and escaped string to a chunk buffer. The string is
+ * enclosed in double quotes and special characters are escaped with backslash:
+ * ", \, \r, \n, \b, \0
+ * Returns 0 on success, -1 if the buffer is too small (output is rolled back).
+ */
+int chunk_escape_string(struct buffer *chunk, const char *str, size_t len)
+{
+	size_t initial_data = chunk->data;
+	size_t i;
+
+	/* Opening quote */
+	if (chunk->data + 1 >= chunk->size)
+		return -1;
+	chunk->area[chunk->data++] = '"';
+
+	/* Escape and append each character */
+	for (i = 0; i < len; i++) {
+		unsigned char c = str[i];
+		const char *esc = NULL;
+
+		if (c == '"') esc = "\\\"";
+		else if (c == '\\') esc = "\\\\";
+		else if (c == '\r') esc = "\\r";
+		else if (c == '\n') esc = "\\n";
+		else if (c == '\b') esc = "\\b";
+		else if (c == '\0') esc = "\\0";
+
+		if (esc) {
+			if (chunk->data + 2 >= chunk->size) {
+				chunk->data = initial_data;
+				return -1;
+			}
+			chunk->area[chunk->data++] = esc[0];
+			chunk->area[chunk->data++] = esc[1];
+		} else {
+			if (chunk->data + 1 >= chunk->size) {
+				chunk->data = initial_data;
+				return -1;
+			}
+			chunk->area[chunk->data++] = c;
+		}
+	}
+
+	/* Closing quote */
+	if (chunk->data + 1 >= chunk->size) {
+		chunk->data = initial_data;
+		return -1;
+	}
+	chunk->area[chunk->data++] = '"';
+
+	return 0;
+}
+
 /* CBOR helper to encode an uint64 value with prefix (3bits MAJOR type)
  * according to RFC8949
  *

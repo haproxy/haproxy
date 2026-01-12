@@ -466,6 +466,13 @@ char *escape_string(char *start, char *stop,
 		    const char escape, const long *map,
 		    const char *string, const char *string_stop);
 
+/*
+ * Appends a quoted and escaped string to a chunk buffer. The string is
+ * enclosed in double quotes and special characters are escaped with backslash.
+ * Returns 0 on success, -1 if the buffer is too small (output is rolled back).
+ */
+int chunk_escape_string(struct buffer *chunk, const char *str, size_t len);
+
 /* Below are RFC8949 compliant cbor encode helper functions, see source
  * file for functions descriptions
  */
