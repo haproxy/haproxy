@@ -21398,7 +21398,8 @@ jwt_decrypt_secret(<secret>)
 
   This converter can be used for tokens that have an algorithm ("alg" field of
   the JOSE header) among the following: A128KW, A192KW, A256KW, A128GCMKW,
-  A192GCMKW, A256GCMKW, dir.
+  A192GCMKW, A256GCMKW, dir. Please note that the A128KW and A192KW algorithms
+  are not available on AWS-LC and decryption will not work.
 
   The JWE token must be provided base64url-encoded and the output will be
   provided "raw". If an error happens during token parsing, signature

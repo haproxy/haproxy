@@ -271,14 +271,26 @@ static int decrypt_cek_aeskw(struct buffer *cek, struct buffer *decrypted_cek, s
 		goto end;
 
 	switch(crypt_alg) {
+#ifndef OPENSSL_IS_AWSLC
+	/*  AWS-LC does not support EVP_aes_128_wrap or EVP_aes_192_wrap */
 	case JWE_ALG_A128KW: cipher = EVP_aes_128_wrap(); break;
 	case JWE_ALG_A192KW: cipher = EVP_aes_192_wrap(); break;
+#endif
 	case JWE_ALG_A256KW: cipher = EVP_aes_256_wrap(); break;
 	default:
 		goto end;
 	}
 
+#ifndef OPENSSL_IS_AWSLC
+	/* Comment from AWS-LC (in include/openssl/cipher.h):
+	 * EVP_aes_256_wrap implements AES-256 in Key Wrap mode. OpenSSL 1.1.1
+	 * required |EVP_CIPHER_CTX_FLAG_WRAP_ALLOW| to be set with
+	 * |EVP_CIPHER_CTX_set_flags|, in order for |EVP_aes_256_wrap| to work.
+	 * This is not required in AWS-LC and they are no-op flags maintained
+	 * for compatibility.
+	 */
 	EVP_CIPHER_CTX_set_flags(ctx, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
+#endif
 
 	iv_size = EVP_CIPHER_iv_length(cipher);
 	iv = alloc_trash_chunk();
