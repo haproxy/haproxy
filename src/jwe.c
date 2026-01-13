@@ -31,9 +31,9 @@ struct alg_enc {
 /* https://datatracker.ietf.org/doc/html/rfc7518#section-4.1 */
 typedef enum {
 	JWE_ALG_UNMANAGED = -1,
-	// JWE_ALG_RSA1_5,
-	// JWE_ALG_RSA_OAEP,
-	// JWE_ALG_RSA_OAEP_256,
+	JWE_ALG_RSA1_5,
+	JWE_ALG_RSA_OAEP,
+	JWE_ALG_RSA_OAEP_256,
 	JWE_ALG_A128KW,
 	JWE_ALG_A192KW,
 	JWE_ALG_A256KW,
@@ -51,9 +51,9 @@ typedef enum {
 } jwe_alg;
 
 struct alg_enc jwe_algs[] = {
-	{ "RSA1_5", JWE_ALG_UNMANAGED },
-	{ "RSA-OAEP", JWE_ALG_UNMANAGED },
-	{ "RSA-OAEP-256", JWE_ALG_UNMANAGED },
+	{ "RSA1_5", JWE_ALG_RSA1_5 },
+	{ "RSA-OAEP", JWE_ALG_RSA_OAEP },
+	{ "RSA-OAEP-256", JWE_ALG_RSA_OAEP_256 },
 	{ "A128KW", JWE_ALG_A128KW },
 	{ "A192KW", JWE_ALG_A192KW },
 	{ "A256KW", JWE_ALG_A256KW },
@@ -504,8 +504,8 @@ static int sample_conv_jwt_decrypt_secret(const struct arg *args, struct sample 
 	struct buffer **cek = NULL;
 	struct buffer *decrypted_cek = NULL;
 	struct buffer *out = NULL;
-	struct buffer *alg_iv = NULL;
 	struct buffer *alg_tag = NULL;
+	struct buffer *alg_iv = NULL;
 	int size = 0;
 	jwe_alg alg = JWE_ALG_UNMANAGED;
 	jwe_enc enc = JWE_ENC_UNMANAGED;
@@ -618,7 +618,6 @@ static int sample_conv_jwt_decrypt_secret(const struct arg *args, struct sample 
 		chunk_memcpy(decrypted_cek, secret_smp.data.u.str.area, secret_smp.data.u.str.data);
 	}
 
-
 	/* Decode the encrypted content thanks to decrypted_cek secret */
 	if (decrypt_ciphertext(enc, items, decoded_items, decrypted_cek, &out))
 		goto end;
@@ -640,6 +639,230 @@ end:
 	return retval;
 }
 
+
+static int decrypt_cek_rsa(struct buffer *cek, struct buffer *decrypted_cek,
+                           struct buffer *cert, jwe_alg crypt_alg)
+{
+	EVP_PKEY_CTX *ctx = NULL;
+	const EVP_MD *md = NULL;
+	EVP_PKEY *pkey = NULL;
+	int retval = 0;
+	int pad = 0;
+	size_t outl = b_size(decrypted_cek);
+
+	struct ckch_store *store = NULL;
+
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		goto end;
+
+	store = ckchs_lookup(b_orig(cert));
+	if (!store || !store->data->key || !store->conf.jwt) {
+		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+		goto end;
+	}
+
+	pkey = store->data->key;
+
+	EVP_PKEY_up_ref(pkey);
+
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+
+	switch(crypt_alg) {
+	case JWE_ALG_RSA1_5:
+		pad = RSA_PKCS1_PADDING;
+		md = EVP_sha1();
+		break;
+	case JWE_ALG_RSA_OAEP:
+		pad = RSA_PKCS1_OAEP_PADDING;
+		md = EVP_sha1();
+		break;
+	case JWE_ALG_RSA_OAEP_256:
+		pad = RSA_PKCS1_OAEP_PADDING;
+		md = EVP_sha256();
+		break;
+	default:
+		goto end;
+	}
+
+	ctx = EVP_PKEY_CTX_new(pkey, NULL);
+
+	if (!ctx)
+		goto end;
+
+	if (EVP_PKEY_decrypt_init(ctx) <= 0)
+		goto end;
+
+	if (EVP_PKEY_CTX_set_rsa_padding(ctx, pad) <= 0)
+		goto end;
+
+	if (pad == RSA_PKCS1_OAEP_PADDING) {
+		if (EVP_PKEY_CTX_set_rsa_oaep_md(ctx, md) <= 0)
+			goto end;
+
+		if (EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md) <= 0)
+			goto end;
+	}
+
+	if (EVP_PKEY_decrypt(ctx, (unsigned char*)b_orig(decrypted_cek), &outl,
+			     (unsigned char*)b_orig(cek), b_data(cek)) <= 0)
+		goto end;
+
+	decrypted_cek->data = outl;
+
+	retval = 1;
+
+end:
+	EVP_PKEY_CTX_free(ctx);
+	EVP_PKEY_free(pkey);
+	return retval;
+}
+
+
+/*
+ * Decrypt the contents of a JWE token thanks to the user-provided certificate
+ * and private key. This converter can only be used for tokens that have an
+ * asymetric algorithm (RSA only for now).
+ * Returns the decrypted contents, or nothing if any error happened.
+ */
+static int sample_conv_jwt_decrypt_cert(const struct arg *args, struct sample *smp, void *private)
+{
+	struct sample cert_smp;
+	struct buffer *input = NULL;
+	unsigned int item_num = JWE_ELT_MAX;
+	int retval = 0;
+	struct jwt_item items[JWE_ELT_MAX] = {};
+	struct buffer *decoded_items[JWE_ELT_MAX] = {};
+	jwe_alg alg = JWE_ALG_UNMANAGED;
+	jwe_enc enc = JWE_ENC_UNMANAGED;
+	int rsa = 0;
+	int size = 0;
+	struct buffer *cert = NULL;
+	struct buffer **cek = NULL;
+	struct buffer *decrypted_cek = NULL;
+	struct buffer *out = NULL;
+	struct jose_fields fields = {};
+
+	input = alloc_trash_chunk();
+	if (!input)
+		return 0;
+
+	if (!chunk_cpy(input, &smp->data.u.str))
+		goto end;
+
+	if (jwt_tokenize(input, items, &item_num) || item_num != JWE_ELT_MAX)
+		goto end;
+
+	/* Base64Url decode the JOSE header */
+	decoded_items[JWE_ELT_JOSE] = alloc_trash_chunk();
+	if (!decoded_items[JWE_ELT_JOSE])
+		goto end;
+	size = base64urldec(items[JWE_ELT_JOSE].start, items[JWE_ELT_JOSE].length,
+			    b_orig(decoded_items[JWE_ELT_JOSE]), b_size(decoded_items[JWE_ELT_JOSE]));
+	if (size < 0)
+		goto end;
+	decoded_items[JWE_ELT_JOSE]->data = size;
+
+	if (!parse_jose(decoded_items[JWE_ELT_JOSE], &alg, &enc, &fields))
+		goto end;
+
+	/* Check if "alg" fits certificate-based JWEs */
+	switch (alg) {
+	case JWE_ALG_RSA1_5:
+	case JWE_ALG_RSA_OAEP:
+	case JWE_ALG_RSA_OAEP_256:
+		rsa = 1;
+		break;
+	default:
+		/* Not managed yet */
+		goto end;
+	}
+
+	cert = alloc_trash_chunk();
+	if (!cert)
+		goto end;
+
+	smp_set_owner(&cert_smp, smp->px, smp->sess, smp->strm, smp->opt);
+	if (!sample_conv_var2smp_str(&args[0], &cert_smp))
+		goto end;
+	if (chunk_printf(cert, "%.*s", (int)b_data(&cert_smp.data.u.str), b_orig(&cert_smp.data.u.str)) <= 0)
+		goto end;
+
+	/* With asymetric crypto algorithms we should always have a CEK */
+	if (!items[JWE_ELT_CEK].length)
+		goto end;
+
+	cek = &decoded_items[JWE_ELT_CEK];
+
+	*cek = alloc_trash_chunk();
+	if (!*cek)
+		goto end;
+
+	decrypted_cek = alloc_trash_chunk();
+	if (!decrypted_cek) {
+		goto end;
+	}
+
+	size = base64urldec(items[JWE_ELT_CEK].start, items[JWE_ELT_CEK].length,
+	                    (*cek)->area, (*cek)->size);
+	if (size < 0) {
+		goto end;
+	}
+	(*cek)->data = size;
+
+	if (rsa && !decrypt_cek_rsa(*cek, decrypted_cek, cert, alg))
+		goto end;
+
+	if (decrypt_ciphertext(enc, items, decoded_items, decrypted_cek, &out))
+		goto end;
+
+	smp->data.u.str.data = b_data(out);
+	smp->data.u.str.area = b_orig(out);
+	smp->data.type = SMP_T_BIN;
+	smp_dup(smp);
+
+	retval = 1;
+
+end:
+	free_trash_chunk(input);
+	free_trash_chunk(cert);
+	free_trash_chunk(decrypted_cek);
+	free_trash_chunk(out);
+	clear_decoded_items(decoded_items);
+	return retval;
+}
+
+/* "jwt_decrypt_cert" converter check function.
+ * The first and only parameter should be a path to a pem certificate or a
+ * variable holding a path to a pem certificate. The certificate must already
+ * exist in the certificate store.
+ * This converter will be used for JWEs with an RSA type "alg" field in their
+ * JOSE header.
+ */
+static int sample_conv_jwt_decrypt_cert_check(struct arg *args, struct sample_conv *conv,
+                                              const char *file, int line, char **err)
+{
+	vars_check_arg(&args[0], NULL);
+
+	if (args[0].type == ARGT_STR) {
+		struct ckch_store *store = NULL;
+
+		if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+			return 0;
+		store = ckchs_lookup(args[0].data.str.area);
+		if (!store) {
+			memprintf(err, "unknown certificate %s", args[0].data.str.area);
+			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+			return 0;
+		} else if (!store->conf.jwt) {
+			memprintf(err, "unusable certificate %s (\"jwt\" option not set to \"on\")", args[0].data.str.area);
+			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+			return 0;
+		}
+		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	}
+
+	return 1;
+}
 
 /* "jwt_decrypt_secret" converter check function.
  * The first and only parameter should be a base64 encoded secret or a variable
@@ -663,6 +886,7 @@ static int sample_conv_jwt_decrypt_secret_check(struct arg *args, struct sample_
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	/* JSON Web Token converters */
 	{ "jwt_decrypt_secret",    sample_conv_jwt_decrypt_secret, ARG1(1,STR), sample_conv_jwt_decrypt_secret_check, SMP_T_BIN, SMP_T_BIN },
+	{ "jwt_decrypt_cert",      sample_conv_jwt_decrypt_cert,   ARG1(1,STR), sample_conv_jwt_decrypt_cert_check,    SMP_T_BIN, SMP_T_BIN },
 	{ NULL, NULL, 0, 0, 0 },
 
 }};
