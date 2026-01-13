@@ -1,0 +1,675 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+
+#include <stdio.h>
+
+#include <haproxy/jwt.h>
+#include <haproxy/tools.h>
+#include <haproxy/base64.h>
+#include <haproxy/chunk.h>
+#include <haproxy/init.h>
+#include <haproxy/openssl-compat.h>
+#include <haproxy/ssl_utils.h>
+#include <haproxy/buf.h>
+#include <haproxy/sample.h>
+#include <haproxy/thread.h>
+#include <haproxy/arg.h>
+#include <haproxy/vars.h>
+#include <haproxy/ssl_sock.h>
+#include <haproxy/ssl_ckch.h>
+
+#include <import/mjson.h>
+
+#if defined(HAVE_JWS)
+
+#ifdef USE_OPENSSL
+
+struct alg_enc {
+	const char *name;
+	int value;
+};
+
+/* https://datatracker.ietf.org/doc/html/rfc7518#section-4.1 */
+typedef enum {
+	JWE_ALG_UNMANAGED = -1,
+	// JWE_ALG_RSA1_5,
+	// JWE_ALG_RSA_OAEP,
+	// JWE_ALG_RSA_OAEP_256,
+	JWE_ALG_A128KW,
+	JWE_ALG_A192KW,
+	JWE_ALG_A256KW,
+	JWE_ALG_DIR,
+	// JWE_ALG_ECDH_ES,
+	// JWE_ALG_ECDH_ES_A128KW,
+	// JWE_ALG_ECDH_ES_A192KW,
+	// JWE_ALG_ECDH_ES_A256KW,
+	JWE_ALG_A128GCMKW,
+	JWE_ALG_A192GCMKW,
+	JWE_ALG_A256GCMKW,
+	// JWE_ALG_PBES2_HS256_A128KW,
+	// JWE_ALG_PBES2_HS384_A192KW,
+	// JWE_ALG_PBES2_HS512_A256KW,
+} jwe_alg;
+
+struct alg_enc jwe_algs[] = {
+	{ "RSA1_5", JWE_ALG_UNMANAGED },
+	{ "RSA-OAEP", JWE_ALG_UNMANAGED },
+	{ "RSA-OAEP-256", JWE_ALG_UNMANAGED },
+	{ "A128KW", JWE_ALG_A128KW },
+	{ "A192KW", JWE_ALG_A192KW },
+	{ "A256KW", JWE_ALG_A256KW },
+	{ "dir", JWE_ALG_DIR },
+	{ "ECDH-ES", JWE_ALG_UNMANAGED },
+	{ "ECDH-ES+A128KW", JWE_ALG_UNMANAGED },
+	{ "ECDH-ES+A192KW", JWE_ALG_UNMANAGED },
+	{ "ECDH-ES+A256KW", JWE_ALG_UNMANAGED },
+	{ "A128GCMKW", JWE_ALG_A128GCMKW },
+	{ "A192GCMKW", JWE_ALG_A192GCMKW },
+	{ "A256GCMKW", JWE_ALG_A256GCMKW },
+	{ "PBES2-HS256+A128KW", JWE_ALG_UNMANAGED },
+	{ "PBES2-HS384+A192KW", JWE_ALG_UNMANAGED },
+	{ "PBES2-HS512+A256KW", JWE_ALG_UNMANAGED },
+	{ NULL, JWE_ALG_UNMANAGED },
+};
+
+/* https://datatracker.ietf.org/doc/html/rfc7518#section-5.1 */
+typedef enum {
+	JWE_ENC_UNMANAGED = -1,
+	JWE_ENC_A128CBC_HS256,
+	JWE_ENC_A192CBC_HS384,
+	JWE_ENC_A256CBC_HS512,
+	JWE_ENC_A128GCM,
+	JWE_ENC_A192GCM,
+	JWE_ENC_A256GCM,
+} jwe_enc;
+
+struct alg_enc jwe_encodings[] = {
+	{ "A128CBC-HS256", JWE_ENC_A128CBC_HS256 },
+	{ "A192CBC-HS384", JWE_ENC_A192CBC_HS384 },
+	{ "A256CBC-HS512", JWE_ENC_A256CBC_HS512 },
+	{ "A128GCM", JWE_ENC_A128GCM },
+	{ "A192GCM", JWE_ENC_A192GCM },
+	{ "A256GCM", JWE_ENC_A256GCM },
+	{ NULL, JWE_ENC_UNMANAGED },
+};
+
+
+/*
+ * In the JWE Compact Serialization, a JWE is represented as the concatenation:
+ *     BASE64URL(UTF8(JWE Protected Header)) || '.' ||
+ *     BASE64URL(JWE Encrypted Key) || '.' ||
+ *     BASE64URL(JWE Initialization Vector) || '.' ||
+ *     BASE64URL(JWE Ciphertext) || '.' ||
+ *     BASE64URL(JWE Authentication Tag)
+ */
+enum jwe_elt {
+	JWE_ELT_JOSE = 0,
+	JWE_ELT_CEK,
+	JWE_ELT_IV,
+	JWE_ELT_CIPHERTEXT,
+	JWE_ELT_TAG,
+	JWE_ELT_MAX
+};
+
+
+struct jose_fields {
+	struct buffer *tag;
+	struct buffer *iv;
+};
+
+
+/*
+ * Parse contents of "alg" or "enc" field of the JOSE header.
+ */
+static inline int parse_alg_enc(struct buffer *buf, struct alg_enc *array)
+{
+	struct alg_enc *item = array;
+	int val = -1;
+
+	while (item->name) {
+		if (strncmp(item->name, b_orig(buf), (int)b_data(buf)) == 0) {
+			val = item->value;
+			break;
+		}
+		++item;
+	}
+
+	return val;
+}
+
+/*
+ * Look for field <field_name> in JSON <decoded_jose> and base64url decode its
+ * content in buffer <out>.
+ * The field might not be found, it won't be raised as an error.
+ */
+static inline int decode_jose_field(struct buffer *decoded_jose, const char *field_name, struct buffer *out)
+{
+	struct buffer *trash = get_trash_chunk();
+	int size = 0;
+
+	if (!out)
+		return 0;
+
+	size = mjson_get_string(b_orig(decoded_jose), b_data(decoded_jose), field_name,
+				b_orig(trash), b_size(trash));
+	if (size != -1) {
+		trash->data = size;
+		size = base64urldec(b_orig(trash), b_data(trash),
+				    b_orig(out), b_size(out));
+		if (size < 0)
+			return 1;
+		out->data = size;
+	}
+
+	return 0;
+}
+
+
+/*
+ * Extract the "alg" and "enc" of the JOSE header as well as some algo-specific
+ * base64url encoded fields.
+ */
+static int parse_jose(struct buffer *decoded_jose, int *alg, int *enc, struct jose_fields *jose_fields)
+{
+	struct buffer *trash = NULL;
+	int retval = 0;
+	int size = 0;
+
+	/* Look for "alg" field */
+	trash = get_trash_chunk();
+	size = mjson_get_string(b_orig(decoded_jose), b_data(decoded_jose), "$.alg",
+	                        b_orig(trash), b_size(trash));
+	if (size == -1)
+		goto end;
+	trash->data = size;
+	*alg = parse_alg_enc(trash, jwe_algs);
+	if (*alg == JWE_ALG_UNMANAGED)
+		goto end;
+
+	/* Look for "enc" field */
+	chunk_reset(trash);
+	size = mjson_get_string(b_orig(decoded_jose), b_data(decoded_jose), "$.enc",
+	                        b_orig(trash), b_size(trash));
+	if (size == -1)
+		goto end;
+	trash->data = size;
+	*enc = parse_alg_enc(trash, jwe_encodings);
+	if (*enc == JWE_ENC_UNMANAGED)
+		goto end;
+
+	/* Look for "tag" field (used by aes gcm encryption) */
+	if (decode_jose_field(decoded_jose, "$.tag", jose_fields->tag))
+		goto end;
+
+	/* Look for "iv" field (used by aes gcm encryption) */
+	if (decode_jose_field(decoded_jose, "$.iv", jose_fields->iv))
+		goto end;
+
+	retval = 1;
+
+end:
+	return retval;
+}
+
+
+/*
+ * Decrypt Encrypted Key <cek> encrypted with AES GCM Key Wrap algorithm and
+ * dump the decrypted key into <decrypted_cek> buffer. The decryption is done
+ * thanks to <iv> Initialization Vector, <secret> key and authentication check
+ * is performed with <aead_tag>. All those buffers must be in raw format,
+ * already base64url decoded.
+ * Return 0 in case of error, 1 otherwise.
+ */
+static int decrypt_cek_aesgcmkw(struct buffer *cek, struct buffer *aead_tag, struct buffer *iv,
+                                struct buffer *decrypted_cek, struct buffer *secret, jwe_alg crypt_alg)
+{
+	int retval = 0;
+	int key_size = 0;
+	int size = 0;
+
+	switch(crypt_alg) {
+	case JWE_ALG_A128GCMKW: key_size = 128; break;
+	case JWE_ALG_A192GCMKW: key_size = 192; break;
+	case JWE_ALG_A256GCMKW: key_size = 256; break;
+		break;
+	default:
+		goto end;
+	}
+
+	size = aes_process(cek, iv, secret, key_size, aead_tag, NULL, decrypted_cek, 1, 1);
+
+	if (size < 0)
+		goto end;
+
+	decrypted_cek->data = size;
+
+	retval = 1;
+
+end:
+	return retval;
+}
+
+
+/*
+ * Decrypt Encrypted Key <cek> encrypted with AES CBC Key Wrap algorithm and
+ * dump the decrypted key into <decrypted_cek> buffer. The decryption is done
+ * thanks to <iv> Initialization Vector and <secret> key. All those buffers must
+ * be in raw format, already base64url decoded.
+ * Return 0 in case of error, 1 otherwise.
+ */
+static int decrypt_cek_aeskw(struct buffer *cek, struct buffer *decrypted_cek, struct buffer *secret, jwe_alg crypt_alg)
+{
+	EVP_CIPHER_CTX *ctx = NULL;
+	const EVP_CIPHER *cipher = NULL;
+	struct buffer *iv = NULL;
+	int iv_size = 0;
+	int retval = 0;
+	int length = 0;
+
+	ctx = EVP_CIPHER_CTX_new();
+
+	if (!ctx)
+		goto end;
+
+	switch(crypt_alg) {
+	case JWE_ALG_A128KW: cipher = EVP_aes_128_wrap(); break;
+	case JWE_ALG_A192KW: cipher = EVP_aes_192_wrap(); break;
+	case JWE_ALG_A256KW: cipher = EVP_aes_256_wrap(); break;
+	default:
+		goto end;
+	}
+
+	EVP_CIPHER_CTX_set_flags(ctx, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
+
+	iv_size = EVP_CIPHER_iv_length(cipher);
+	iv = alloc_trash_chunk();
+	if (!iv)
+		goto end;
+	/* Default IV for AES KW (see RFC3394 section-2.2.3.1) */
+	memset(iv->area, 0xA6, iv_size);
+	iv->data = iv_size;
+
+	/* Initialise IV and key */
+	if (EVP_DecryptInit_ex(ctx, cipher, NULL, (unsigned char*)b_orig(secret), (unsigned char*)b_orig(iv)) <= 0)
+		goto end;
+
+	if (EVP_DecryptUpdate(ctx, (unsigned char*)b_orig(decrypted_cek), &length,
+			      (unsigned char*)b_orig(cek), b_data(cek)) <= 0)
+		goto end;
+
+	if (EVP_DecryptFinal_ex(ctx, (unsigned char*)decrypted_cek->area + length, (int*)&decrypted_cek->data) <= 0)
+		goto end;
+
+	decrypted_cek->data += length;
+
+	retval = 1;
+
+end:
+	EVP_CIPHER_CTX_free(ctx);
+	free_trash_chunk(iv);
+	return retval;
+}
+
+
+/*
+ * Build a signature tag when AES-CBC encoding is used and check that it matches
+ * the one found in the JWE token.
+ * The tag is built out of a HMAC of some concatenated data taken from the JWE
+ * token (see https://datatracker.ietf.org/doc/html/rfc7518#section-5.2). The
+ * firest half of the previously decrypted cek is used as HMAC key.
+ * Returns 0 in case of success, 1 otherwise.
+ */
+static int build_and_check_tag(jwe_enc enc,  struct jwt_item items[JWE_ELT_MAX],
+                               struct buffer *decoded_items[JWE_ELT_MAX],
+                               struct buffer *decrypted_cek)
+{
+	int retval = 1;
+	const EVP_MD *hash = NULL;
+	int mac_key_len = 0;
+	uint64_t aad_len = my_htonll(items[JWE_ELT_JOSE].length << 3);
+
+	struct buffer *tag_data = alloc_trash_chunk();
+	struct buffer *hmac = alloc_trash_chunk();
+
+	if (!tag_data || !hmac)
+		goto end;
+
+	/*
+	 * Concatenate the AAD (base64url encoded JOSE header),
+	 * the Initialization Vector, the ciphertext,
+	 * and the AL value (number of bits in the AAD in 64bits big endian)
+	 */
+	if (!chunk_memcpy(tag_data, items[JWE_ELT_JOSE].start, items[JWE_ELT_JOSE].length) ||
+	    !chunk_memcat(tag_data, b_orig(decoded_items[JWE_ELT_IV]), b_data(decoded_items[JWE_ELT_IV])) ||
+	    !chunk_memcat(tag_data, b_orig(decoded_items[JWE_ELT_CIPHERTEXT]), b_data(decoded_items[JWE_ELT_CIPHERTEXT])) ||
+	    !chunk_memcat(tag_data, (char*)&aad_len, sizeof(aad_len)))
+		goto end;
+
+	switch(enc) {
+	case JWE_ENC_A128CBC_HS256: mac_key_len = 16; hash = EVP_sha256(); break;
+	case JWE_ENC_A192CBC_HS384: mac_key_len = 24; hash = EVP_sha384(); break;
+	case JWE_ENC_A256CBC_HS512: mac_key_len = 32; hash = EVP_sha512(); break;
+	default: goto end;
+	}
+
+	if (b_data(decrypted_cek) < mac_key_len)
+		goto end;
+
+	/* Compute the HMAC SHA-XXX of the concatenated value above */
+	if (!HMAC(hash, b_orig(decrypted_cek), mac_key_len,
+	          (unsigned char*)b_orig(tag_data), b_data(tag_data),
+	          (unsigned char*)b_orig(hmac), (unsigned int*)&hmac->data))
+		goto end;
+
+	/* Use the first half of the HMAC output M as the Authentication Tag output T */
+	retval = memcmp(b_orig(decoded_items[JWE_ELT_TAG]), b_orig(hmac), b_data(hmac) >> 1);
+
+end:
+	free_trash_chunk(tag_data);
+	free_trash_chunk(hmac);
+	return retval;
+}
+
+
+/*
+ * Decrypt the ciphertext.
+ * Returns 0 in case of success, 1 otherwise.
+ */
+static int decrypt_ciphertext(jwe_enc enc, struct jwt_item items[JWE_ELT_MAX],
+			      struct buffer *decoded_items[JWE_ELT_MAX],
+                              struct buffer *decrypted_cek, struct buffer **out)
+{
+	struct buffer **ciphertext = NULL, **iv = NULL, **aead_tag = NULL, *aad = NULL;
+	int size = 0;
+	int gcm = 0;
+	int key_size = 0;
+	struct buffer *aes_key = NULL;
+	int retval = 1;
+
+	switch (enc) {
+	case JWE_ENC_A128CBC_HS256: gcm = 0; key_size = 16; break;
+	case JWE_ENC_A192CBC_HS384: gcm = 0; key_size = 24; break;
+	case JWE_ENC_A256CBC_HS512: gcm = 0; key_size = 32; break;
+	case JWE_ENC_A128GCM: gcm = 1; key_size = 16; break;
+	case JWE_ENC_A192GCM: gcm = 1; key_size = 24; break;
+	case JWE_ENC_A256GCM: gcm = 1; key_size = 32; break;
+	default: goto end;
+	}
+
+	/* Base64 decode cipher text */
+	ciphertext = &decoded_items[JWE_ELT_CIPHERTEXT];
+	*ciphertext = alloc_trash_chunk();
+	if (!*ciphertext)
+		goto end;
+	size = base64urldec(items[JWE_ELT_CIPHERTEXT].start, items[JWE_ELT_CIPHERTEXT].length,
+	                    (*ciphertext)->area, (*ciphertext)->size);
+	if (size < 0)
+		goto end;
+	(*ciphertext)->data = size;
+
+	/* Base64 decode Initialization Vector */
+	iv = &decoded_items[JWE_ELT_IV];
+	*iv = alloc_trash_chunk();
+	if (!*iv)
+		goto end;
+	size = base64urldec(items[JWE_ELT_IV].start, items[JWE_ELT_IV].length,
+	                    (*iv)->area, (*iv)->size);
+	if (size < 0)
+		goto end;
+	(*iv)->data = size;
+
+	/* Base64 decode Additional Data  */
+	aead_tag = &decoded_items[JWE_ELT_TAG];
+	*aead_tag = alloc_trash_chunk();
+	if (!*aead_tag)
+		goto end;
+	size = base64urldec(items[JWE_ELT_TAG].start, items[JWE_ELT_TAG].length,
+	                    (*aead_tag)->area, (*aead_tag)->size);
+	if (size < 0)
+		goto end;
+	(*aead_tag)->data = size;
+
+	if (gcm) {
+		aad = alloc_trash_chunk();
+		if (!aad)
+			goto end;
+		chunk_memcpy(aad, items[JWE_ELT_JOSE].start, items[JWE_ELT_JOSE].length);
+
+		aes_key = decrypted_cek;
+	} else {
+		/* https://datatracker.ietf.org/doc/html/rfc7518#section-5.2.2.1
+		 * Build the authentication tag out of the first part of the
+		 * cipher key and a combination of information extracted from
+		 * the JWE token.
+		 */
+		if (build_and_check_tag(enc, items, decoded_items, decrypted_cek))
+			goto end;
+
+		aes_key = alloc_trash_chunk();
+		if (!aes_key)
+			goto end;
+
+		/* Only use the second part of the decrypted key for actual
+		 * content decryption. */
+		if (b_data(decrypted_cek) != key_size * 2)
+			goto end;
+		chunk_memcpy(aes_key, decrypted_cek->area + key_size, key_size);
+	}
+
+	*out = alloc_trash_chunk();
+	if (!*out)
+		goto end;
+
+	size = aes_process(*ciphertext, *iv, aes_key, key_size*8, *aead_tag, aad, *out, 1, gcm);
+	if (size < 0)
+		goto end;
+
+	retval = 0;
+
+end:
+	free_trash_chunk(aad);
+	if (!gcm)
+		free_trash_chunk(aes_key);
+	return retval;
+}
+
+static inline void clear_decoded_items(struct buffer *decoded_items[JWE_ELT_MAX])
+{
+	struct buffer *buf = NULL;
+	int idx = JWE_ELT_JOSE;
+
+	while(idx != JWE_ELT_MAX) {
+		buf = decoded_items[idx];
+		free_trash_chunk(buf);
+
+		++idx;
+	}
+}
+
+
+/*
+ * Decrypt the contents of a JWE token thanks to the user-provided base64
+ * encoded secret. This converter can only be used for tokens that have a
+ * symetric algorithm (AESKW, AESGCMKW or "dir" special case).
+ * Returns the decrypted contents, or nothing if any error happened.
+ */
+static int sample_conv_jwt_decrypt_secret(const struct arg *args, struct sample *smp, void *private)
+{
+	struct buffer *input = NULL;
+	unsigned int item_num = JWE_ELT_MAX;
+	int retval = 0;
+	struct jwt_item items[JWE_ELT_MAX] = {};
+	struct buffer *decoded_items[JWE_ELT_MAX] = {};
+	struct sample secret_smp;
+	struct buffer *secret = NULL;
+	struct buffer **cek = NULL;
+	struct buffer *decrypted_cek = NULL;
+	struct buffer *out = NULL;
+	struct buffer *alg_iv = NULL;
+	struct buffer *alg_tag = NULL;
+	int size = 0;
+	jwe_alg alg = JWE_ALG_UNMANAGED;
+	jwe_enc enc = JWE_ENC_UNMANAGED;
+	int gcm = 0;
+	struct jose_fields fields = {};
+
+	input = alloc_trash_chunk();
+	if (!input)
+		return 0;
+
+	if (!chunk_cpy(input, &smp->data.u.str))
+		goto end;
+
+	if (jwt_tokenize(input, items, &item_num) || item_num != JWE_ELT_MAX)
+		goto end;
+
+	alg_tag = alloc_trash_chunk();
+	if (!alg_tag)
+		goto end;
+	alg_iv = alloc_trash_chunk();
+	if (!alg_iv)
+		goto end;
+
+	fields.tag = alg_tag;
+	fields.iv = alg_iv;
+
+	/* Base64Url decode the JOSE header */
+	decoded_items[JWE_ELT_JOSE] = alloc_trash_chunk();
+	if (!decoded_items[JWE_ELT_JOSE])
+		goto end;
+	size = base64urldec(items[JWE_ELT_JOSE].start, items[JWE_ELT_JOSE].length,
+			    b_orig(decoded_items[JWE_ELT_JOSE]), b_size(decoded_items[JWE_ELT_JOSE]));
+	if (size < 0)
+		goto end;
+	decoded_items[JWE_ELT_JOSE]->data = size;
+
+	if (!parse_jose(decoded_items[JWE_ELT_JOSE], &alg, &enc, &fields))
+		goto end;
+
+	/* Check if "alg" fits secret-based JWEs */
+	switch (alg) {
+	case JWE_ALG_A128KW:
+	case JWE_ALG_A192KW:
+	case JWE_ALG_A256KW:
+		gcm = 0;
+		break;
+	case JWE_ALG_A128GCMKW:
+	case JWE_ALG_A192GCMKW:
+	case JWE_ALG_A256GCMKW:
+		gcm = 1;
+		break;
+	case JWE_ALG_DIR:
+		break;
+	default:
+		/* Cannot use a secret for this type of "alg" */
+		goto end;
+	}
+
+	/* Parse secret argument and base64dec it if it comes from a variable. */
+	smp_set_owner(&secret_smp, smp->px, smp->sess, smp->strm, smp->opt);
+	if (!sample_conv_var2smp_str(&args[0], &secret_smp))
+		goto end;
+
+	if (args[0].type == ARGT_VAR) {
+		secret = alloc_trash_chunk();
+		if (!secret)
+			goto end;
+		size = base64dec(secret_smp.data.u.str.area, secret_smp.data.u.str.data, secret->area, secret->size);
+		if (size < 0)
+			goto end;
+		secret->data = size;
+		secret_smp.data.u.str = *secret;
+	}
+
+	if (items[JWE_ELT_CEK].length) {
+		int cek_size = 0;
+
+		cek = &decoded_items[JWE_ELT_CEK];
+
+		*cek = alloc_trash_chunk();
+		if (!*cek)
+			goto end;
+
+		decrypted_cek = alloc_trash_chunk();
+		if (!decrypted_cek) {
+			goto end;
+		}
+
+		cek_size = base64urldec(items[JWE_ELT_CEK].start, items[JWE_ELT_CEK].length,
+		                        (*cek)->area, (*cek)->size);
+		if (cek_size < 0) {
+			goto end;
+		}
+		(*cek)->data = cek_size;
+
+		if (gcm) {
+			if (!decrypt_cek_aesgcmkw(*cek, alg_tag, alg_iv, decrypted_cek, &secret_smp.data.u.str, alg))
+				goto end;
+		} else {
+			if (!decrypt_cek_aeskw(*cek, decrypted_cek, &secret_smp.data.u.str, alg))
+				goto end;
+		}
+	} else if (alg == JWE_ALG_DIR) {
+		/* The secret given as parameter should be used directly to
+		 * decode the encrypted content. */
+		decrypted_cek = alloc_trash_chunk();
+		if (!decrypted_cek)
+			goto end;
+
+		chunk_memcpy(decrypted_cek, secret_smp.data.u.str.area, secret_smp.data.u.str.data);
+	}
+
+
+	/* Decode the encrypted content thanks to decrypted_cek secret */
+	if (decrypt_ciphertext(enc, items, decoded_items, decrypted_cek, &out))
+		goto end;
+
+	smp->data.u.str.data = b_data(out);
+	smp->data.u.str.area = b_orig(out);
+	smp->data.type = SMP_T_BIN;
+	smp_dup(smp);
+
+	retval = 1;
+
+end:
+	free_trash_chunk(input);
+	free_trash_chunk(decrypted_cek);
+	free_trash_chunk(out);
+	free_trash_chunk(alg_tag);
+	free_trash_chunk(alg_iv);
+	clear_decoded_items(decoded_items);
+	return retval;
+}
+
+
+/* "jwt_decrypt_secret" converter check function.
+ * The first and only parameter should be a base64 encoded secret or a variable
+ * holding a base64 encoded secret. This converter will be used mainly for JWEs
+ * with an AES type "alg" field in their JOSE header.
+ */
+static int sample_conv_jwt_decrypt_secret_check(struct arg *args, struct sample_conv *conv,
+                                                const char *file, int line, char **err)
+{
+	/* Try to decode variables. */
+	if (!sample_check_arg_base64(&args[0], err)) {
+		memprintf(err, "failed to parse secret: %s", *err);
+		return 0;
+	}
+
+	return 1;
+}
+
+
+
+static struct sample_conv_kw_list sample_conv_kws = {ILH, {
+	/* JSON Web Token converters */
+	{ "jwt_decrypt_secret",    sample_conv_jwt_decrypt_secret, ARG1(1,STR), sample_conv_jwt_decrypt_secret_check, SMP_T_BIN, SMP_T_BIN },
+	{ NULL, NULL, 0, 0, 0 },
+
+}};
+
+INITCALL1(STG_REGISTER, sample_register_convs, &sample_conv_kws);
+
+#endif /* USE_OPENSSL */
+
+#endif /* HAVE_JWS */
+

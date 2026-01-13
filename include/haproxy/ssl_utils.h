@@ -57,6 +57,9 @@ const char *nid2nist(int nid);
 const char *sigalg2str(int sigalg);
 const char *curveid2str(int curve_id);
 
+int aes_process(struct buffer *data, struct buffer *nonce, struct buffer *key, int key_size,
+                struct buffer *aead_tag, struct buffer *aad, struct buffer *out, int decrypt, int gcm);
+
 #endif /* _HAPROXY_SSL_UTILS_H */
 #endif /* USE_OPENSSL */
 

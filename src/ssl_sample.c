@@ -172,7 +172,7 @@ static int sample_conv_sha2(const struct arg *arg_p, struct sample *smp, void *p
  * unexpected argument type is specified or memory allocation error
  * occurs. Otherwise it returns 1.
  */
-static inline int sample_check_arg_base64(struct arg *arg, char **err)
+int sample_check_arg_base64(struct arg *arg, char **err)
 {
 	char *dec = NULL;
 	int dec_size;
@@ -317,7 +317,7 @@ static int check_aes(struct arg *args, struct sample_conv *conv,
  * Returns -1 in case of error, either during the authentication or
  * encryption/decryption process, or the <out> buffer size in case of success.
  */
-static int aes_process(struct buffer *data, struct buffer *nonce, struct buffer *key, int key_size,
+int aes_process(struct buffer *data, struct buffer *nonce, struct buffer *key, int key_size,
                        struct buffer *aead_tag, struct buffer *aad, struct buffer *out, int decrypt, int gcm)
 {
 	EVP_CIPHER_CTX *ctx = NULL;

@@ -63,6 +63,7 @@ int smp_expr_output_type(struct sample_expr *expr);
 int c_none(struct sample *smp);
 int c_pseudo(struct sample *smp);
 int smp_dup(struct sample *smp);
+int sample_check_arg_base64(struct arg *arg, char **err);
 
 /*
  * This function just apply a cast on sample. It returns 0 if the cast is not

@@ -643,7 +643,7 @@ ifneq ($(USE_OPENSSL:0=),)
   OPTIONS_OBJS += src/ssl_sock.o src/ssl_ckch.o src/ssl_ocsp.o src/ssl_crtlist.o       \
                   src/ssl_sample.o src/cfgparse-ssl.o src/ssl_gencert.o                \
                   src/ssl_utils.o src/jwt.o src/ssl_clienthello.o src/jws.o src/acme.o \
-                  src/ssl_trace.o
+                  src/ssl_trace.o src/jwe.o
 endif
 
 ifneq ($(USE_ENGINE:0=),)
