@@ -3737,11 +3737,8 @@ int mworker_cli_attach_server(char **errmsg)
 
 error:
 
-	list_for_each_entry(child, &proc_list, list) {
-		free((char *)child->srv->conf.file); /* cast because of const char *  */
-		free(child->srv->id);
-		srv_free(&child->srv);
-	}
+	list_for_each_entry(child, &proc_list, list)
+		srv_drop(child->srv);
 	free(msg);
 
 	return -1;
