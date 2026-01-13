@@ -4787,7 +4787,7 @@ static int cli_parse_shutdown_frontend(char **args, char *payload, struct appctx
 static int cli_parse_add_backend(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct proxy *px, *defpx;
-	const char *be_name, *def_name, *err;
+	const char *be_name, *def_name, *guid = NULL, *err;
 	char *msg = NULL;
 	enum pr_mode mode = 0;
 
@@ -4829,9 +4829,13 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
 				return 1;
 			}
 		}
+		/* guid */
+		else if (*args[2] && !guid && strcmp(args[1], "guid") == 0) {
+			guid = args[2];
+		}
 		/* unknown, malformed or duplicate argument */
 		else {
-			cli_err(appctx, "Usage: add backend <name> from <defproxy> [mode <px_mode>].\n");
+			cli_err(appctx, "Usage: add backend <name> from <defproxy> [mode <px_mode>] [guid <val>].\n");
 			return 1;
 		}
 
