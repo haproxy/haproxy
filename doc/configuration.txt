@@ -20538,6 +20538,8 @@ ip.ver                                             binary       integer
 ipmask(mask4[,mask6])                              address      address
 json([input-code])                                 string       string
 json_query(json_path[,output_type])                string       _outtype_
+jwt_decrypt_cert(<cert>)                           string       binary
+jwt_decrypt_secret(<secret>)                       string       binary
 jwt_header_query([json_path[,output_type]])        string       string
 jwt_payload_query([json_path[,output_type]])       string       string
 -- keyword -------------------------------------+- input type + output type -
@@ -21362,22 +21364,71 @@ json_query(<json_path>[,<output_type>])
      # get the value of the key 'iss' from a JWT Bearer token
      http-request set-var(txn.token_payload) req.hdr(Authorization),word(2,.),ub64dec,json_query('$.iss')
 
+jwt_decrypt_cert(<cert>)
+  Performs a signature validation of a JSON Web Token following the JSON Web
+  Encryption format (see RFC 7516) given in input and return its content
+  decrypted thanks to the certificate provided.
+  The <cert> parameter must be a path to an already loaded certificate (that
+  can be dumped via the "dump ssl cert" CLI command). The certificate must have
+  its "jwt" option explicitely set to "on" (see "jwt" crt-list option). It can
+  be provided directly or via a variable.
+  The only tokens managed yet are the ones using the Compact Serialization
+  format (five dot-separated base64-url encoded strings).
+
+  This converter can be used for tokens that have an algorithm ("alg" field of
+  the JOSE header) among the following: RSA1_5, RSA-OAEP or RSA-OAEP-256.
+
+  The JWE token must be provided base64url-encoded and the output will be
+  provided "raw". If an error happens during token parsing, signature
+  verification or content decryption, an empty string will be returned.
+
+  Example:
+     # Get a JWT from the authorization header, put its decrypted content in an
+     # HTTP header
+     http-request set-var(txn.bearer) http_auth_bearer
+     http-request set-header X-Decrypted %[var(txn.bearer),jwt_decrypt_cert("/foo/bar.pem")]
+
+jwt_decrypt_secret(<secret>)
+  Performs a signature validation of a JSON Web Token following the JSON Web
+  Encryption format (see RFC 7516) given in input and return its content
+  decrypted thanks to the base64-encoded secret provided. The secret can be
+  given as a string or via a variable.
+  The only tokens managed yet are the ones using the Compact Serialization
+  format (five dot-separated base64-url encoded strings).
+
+  This converter can be used for tokens that have an algorithm ("alg" field of
+  the JOSE header) among the following: A128KW, A192KW, A256KW, A128GCMKW,
+  A192GCMKW, A256GCMKW, dir.
+
+  The JWE token must be provided base64url-encoded and the output will be
+  provided "raw". If an error happens during token parsing, signature
+  verification or content decryption, an empty string will be returned.
+
+  Example:
+     # Get a JWT from the authorization header, put its decrypted content in an
+     # HTTP header
+     http-request set-var(txn.bearer) http_auth_bearer
+     http-request set-header X-Decrypted %[var(txn.bearer),jwt_decrypt_secret("GawgguFyGrWKav7AX4VKUg")]
+
 jwt_header_query([<json_path>[,<output_type>]])
   When given a JSON Web Token (JWT) in input, either returns the decoded header
   part of the token (the first base64-url encoded part of the JWT) if no
   parameter is given, or performs a json_query on the decoded header part of
   the token. See "json_query" converter for details about the accepted
   json_path and output_type parameters.
+  This converter can be used with tokens that are either JWS or JWE tokens as
+  long as they are in the Compact Serialization format.
 
   Please note that this converter is only available when HAProxy has been
   compiled with USE_OPENSSL.
 
 jwt_payload_query([<json_path>[,<output_type>]])
-  When given a JSON Web Token (JWT) in input, either returns the decoded
-  payload part of the token (the second base64-url encoded part of the JWT) if
-  no parameter is given, or performs a json_query on the decoded payload part
-  of the token. See "json_query" converter for details about the accepted
-  json_path and output_type parameters.
+  When given a JSON Web Token (JWT) of the JSON Web Signed (JWS) format in
+  input, either returns the decoded payload part of the token (the second
+  base64-url encoded part of the JWT) if no parameter is given, or performs a
+  json_query on the decoded payload part of the token. See "json_query"
+  converter for details about the accepted json_path and output_type
+  parameters.
 
   Please note that this converter is only available when HAProxy has been
   compiled with USE_OPENSSL.
@@ -31552,8 +31603,9 @@ ocsp-update [ off | on ]
   failure" or "Error during insertion" errors.
 
 jwt [ off | on ]
-  Allow for this certificate to be used for JWT validation via the
-  "jwt_verify_cert" converter when set to 'on'. Its value default to 'off'.
+  Allow for this certificate to be used for JWT validation or decryption via
+  the "jwt_verify_cert" or "jwt_decrypt_cert" converters when set to 'on'. Its
+  value defaults to 'off'.
 
   When set to 'on' for a given certificate, the CLI command "del ssl cert" will
   not work. In order to be deleted, a certificate must not be used, either for
