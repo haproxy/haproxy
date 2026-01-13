@@ -3433,6 +3433,7 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 		free_check(&newsrv->agent);
 		free_check(&newsrv->check);
 		MT_LIST_DELETE(&newsrv->global_list);
+		srv_detach(newsrv);
 	}
 	srv_drop(newsrv);
 	return i - srv->tmpl_info.nb_low;

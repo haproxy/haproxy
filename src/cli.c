@@ -3737,8 +3737,10 @@ int mworker_cli_attach_server(char **errmsg)
 
 error:
 
-	list_for_each_entry(child, &proc_list, list)
+	list_for_each_entry(child, &proc_list, list) {
+		srv_detach(child->srv);
 		srv_drop(child->srv);
+	}
 	free(msg);
 
 	return -1;
