@@ -1741,6 +1741,10 @@ static void release_sample_arg(struct arg *p)
 			regex_free(p->data.reg);
 			p->data.reg = NULL;
 		}
+		else if (p->type == ARGT_VAR) {
+			if (p->data.var.flags & VDF_NAME_ALLOCATED)
+				ha_free((char **)&p->data.var.name);
+		}
 		p++;
 	}
 

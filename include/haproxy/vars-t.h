@@ -57,12 +57,15 @@ struct vars {
 };
 
 #define VDF_PARENT_CTX       0x00000001   // Set if the variable is related to the parent stream
+#define VDF_NAME_ALLOCATED   0x00000002   // Set if name was allocated and must be freed
 
 /* This struct describes a variable as found in an arg_data */
 struct var_desc {
 	uint64_t name_hash;
 	enum vars_scope scope;
 	uint flags; /*VDF_* */
+	const char *name; /* variable name (not owned) */
+	size_t name_len; /* variable name length */
 };
 
 struct var {
@@ -70,6 +73,7 @@ struct var {
 	uint64_t name_hash;        /* XXH3() of the variable's name, indexed by <name_node> */
 	uint flags;       // VF_*
 	/* 32-bit hole here */
+	char *name; /* variable name (allocated) */
 	struct sample_data data; /* data storage. */
 };
 

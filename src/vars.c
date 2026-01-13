@@ -178,6 +178,8 @@ unsigned int var_clear(struct vars *vars, struct var *var, int force)
 {
 	unsigned int size = 0;
 
+	ha_free(&var->name);
+
 	if (var->data.type == SMP_T_STR || var->data.type == SMP_T_BIN) {
 		ha_free(&var->data.u.str.area);
 		size += var->data.u.str.data;
@@ -322,6 +324,8 @@ static int vars_fill_desc(const char *name, int len, struct var_desc *desc, char
 	}
 
 	desc->name_hash = XXH3(name, len, var_name_hash_seed);
+	desc->name = name;
+	desc->name_len = len;
 	return 1;
 }
 
@@ -431,6 +435,16 @@ int var_set(const struct var_desc *desc, struct sample *smp, uint flags)
 			goto unlock;
 		var->name_hash = desc->name_hash;
 		var->flags = flags & VF_PERMANENT;
+
+		/* Save variable name */
+		var->name = NULL;
+		if (desc->name && desc->name_len > 0) {
+			var->name = my_strndup(desc->name, desc->name_len);
+			if (!var->name) {
+				pool_free(var_pool, var);
+				goto unlock;
+			}
+		}
 		var->data.type = SMP_T_ANY;
 		cebu64_item_insert(&vars->name_root[var->name_hash % VAR_NAME_ROOTS], name_node, name_hash, var);
 	}
@@ -623,6 +637,7 @@ int vars_check_arg(struct arg *arg, char **err)
 {
 	struct sample empty_smp = { };
 	struct var_desc desc;
+	char *saved_name = NULL;
 
 	/* Check arg type. */
 	if (arg->type != ARGT_STR) {
@@ -634,15 +649,30 @@ int vars_check_arg(struct arg *arg, char **err)
 	if (!vars_fill_desc(arg->data.str.area, arg->data.str.data, &desc, err))
 		return 0;
 
-	if (desc.scope == SCOPE_PROC && !var_set(&desc, &empty_smp, VF_CREATEONLY|VF_PERMANENT))
+	/* Save variable name before destroying the chunk */
+	if (desc.name && desc.name_len > 0) {
+		saved_name = my_strndup(desc.name, desc.name_len);
+		if (!saved_name) {
+			memprintf(err, "out of memory");
+			return 0;
+		}
+
+		desc.name = saved_name;
+		desc.flags |= VDF_NAME_ALLOCATED;
+	}
+
+	if (desc.scope == SCOPE_PROC && !var_set(&desc, &empty_smp, VF_CREATEONLY|VF_PERMANENT)) {
+		if (desc.flags & VDF_NAME_ALLOCATED)
+			ha_free(&saved_name);
 		return 0;
+	}
 
 	/* properly destroy the chunk */
 	chunk_destroy(&arg->data.str);
 
 	/* Use the global variable name pointer. */
 	arg->type = ARGT_VAR;
-	arg->data.var = desc;
+	arg->data.var = desc;  /* desc.name already points to saved_name */
 	return 1;
 }
 
@@ -868,6 +898,10 @@ static void release_store_rule(struct act_rule *rule)
 	lf_expr_deinit(&rule->arg.vars.fmt);
 
 	release_sample_expr(rule->arg.vars.expr);
+
+	/* Free variable name if allocated */
+	if (rule->arg.vars.desc.flags & VDF_NAME_ALLOCATED)
+		ha_free((char **)&rule->arg.vars.desc.name);
 }
 
 /* This two function checks the variable name and replace the
@@ -919,6 +953,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	struct ist condition = IST_NULL;
 	struct ist var = IST_NULL;
 	struct ist varname_ist = IST_NULL;
+	char *saved_name = NULL;
 
 	if (strncmp(var_name, "set-var-fmt", 11) == 0) {
 		var_name += 11;
@@ -972,6 +1007,17 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	lf_expr_init(&rule->arg.vars.fmt);
 	if (!vars_fill_desc(var_name, var_len, &rule->arg.vars.desc, err))
 		return ACT_RET_PRS_ERR;
+
+	/* Save variable name for runtime use */
+	if (rule->arg.vars.desc.name && rule->arg.vars.desc.name_len > 0) {
+		saved_name = my_strndup(rule->arg.vars.desc.name, rule->arg.vars.desc.name_len);
+		if (!saved_name) {
+			memprintf(err, "out of memory");
+			return ACT_RET_PRS_ERR;
+		}
+		rule->arg.vars.desc.name = saved_name;
+		rule->arg.vars.desc.flags |= VDF_NAME_ALLOCATED;
+	}
 
 	if (rule->arg.vars.desc.scope == SCOPE_PROC &&
 	    !var_set(&rule->arg.vars.desc, &empty_smp, VF_CREATEONLY|VF_PERMANENT))
