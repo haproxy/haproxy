@@ -218,13 +218,30 @@ static inline int sample_check_arg_base64(struct arg *arg, char **err)
 	return 1;
 }
 
-#ifdef EVP_CIPH_GCM_MODE
-static int check_aes_gcm(struct arg *args, struct sample_conv *conv,
-						  const char *file, int line, char **err)
+#if defined(EVP_CIPH_GCM_MODE)  || defined(EVP_CIPH_CBC_MODE)
+
+#define AES_FLG_ENC (1 << 0)
+#define AES_FLG_DEC (1 << 1)
+#define AES_FLG_GCM (1 << 2)
+#define AES_FLG_CBC (1 << 3)
+
+static int check_aes(struct arg *args, struct sample_conv *conv,
+                     const char *file, int line, char **err)
 {
+	int last_arg_idx = 3;
+
 	if (conv->kw[8] == 'd')
 		/* flag it as "aes_gcm_dec" */
-		args[0].type_flags = 1;
+		args[0].type_flags |= AES_FLG_DEC;
+	else
+		args[0].type_flags |= AES_FLG_ENC;
+
+	if (conv->kw[4] == 'g')
+		/* aes_gcm */
+		args[0].type_flags |= AES_FLG_GCM;
+	else
+		/* aes_cbc */
+		args[0].type_flags |= AES_FLG_CBC;
 
 	switch(args[0].data.sint) {
 	case 128:
@@ -245,13 +262,19 @@ static int check_aes_gcm(struct arg *args, struct sample_conv *conv,
 		memprintf(err, "failed to parse key : %s", *err);
 		return 0;
 	}
-	if ((args[0].type_flags && !sample_check_arg_base64(&args[3], err)) ||
-	    (!args[0].type_flags && !vars_check_arg(&args[3], err))) {
-		memprintf(err, "failed to parse aead_tag : %s", *err);
-		return 0;
+
+	if (args[0].type_flags & AES_FLG_GCM) {
+		/* GCM converters have a mandatory AEAD argument, AES in CBC mode
+		 * don't support this but still might have some AAD parameter. */
+		++last_arg_idx;
+		if (((args[0].type_flags & AES_FLG_DEC)  && !sample_check_arg_base64(&args[3], err)) ||
+		    (!(args[0].type_flags & AES_FLG_DEC) && !vars_check_arg(&args[3], err))) {
+			memprintf(err, "failed to parse aead_tag : %s", *err);
+			return 0;
+		}
 	}
-	if (args[4].type) {
-		if (!sample_check_arg_base64(&args[4], err)) {
+	if (args[last_arg_idx].type) {
+		if (!sample_check_arg_base64(&args[last_arg_idx], err)) {
 			memprintf(err, "failed to parse aad : %s", *err);
 			return 0;
 		}
@@ -259,7 +282,7 @@ static int check_aes_gcm(struct arg *args, struct sample_conv *conv,
 	return 1;
 }
 
-#define sample_conv_aes_gcm_init(a, b, c, d, e, f)	\
+#define sample_conv_aes_init(a, b, c, d, e, f)		\
 	({						\
 		int _ret = (a) ?			\
 		    EVP_DecryptInit_ex(b, c, d, e, f) :	\
@@ -267,7 +290,7 @@ static int check_aes_gcm(struct arg *args, struct sample_conv *conv,
 		_ret;					\
 	})
 
-#define sample_conv_aes_gcm_update(a, b, c, d, e, f)	\
+#define sample_conv_aes_update(a, b, c, d, e, f)	\
 	({						\
 		int _ret = (a) ?			\
 		    EVP_DecryptUpdate(b, c, d, e, f) :	\
@@ -275,7 +298,7 @@ static int check_aes_gcm(struct arg *args, struct sample_conv *conv,
 		_ret;					\
 	})
 
-#define sample_conv_aes_gcm_final(a, b, c, d)		\
+#define sample_conv_aes_final(a, b, c, d)		\
 	({						\
 		int _ret = (a) ?			\
 		    EVP_DecryptFinal_ex(b, c, d) :	\
@@ -286,14 +309,16 @@ static int check_aes_gcm(struct arg *args, struct sample_conv *conv,
 
 /*
  * Encrypt or decrypt <data> alongside additional data <aad> using AES algorithm
- * in GCM mode thanks to <key> of size <key_size> using <nonce> as
- * initialization vector. The authentication tag <aead_tag> is validated as
- * well (in case of decryption) or constructed in case of encryption.
+ * in GCM or CBC mode (depending on <gcm> parameter) thanks to <key> of size
+ * <key_size> using <nonce> as initialization vector.
+ * When GCM mode is used, the authentication tag <aead_tag> is validated as well
+ * (in case of decryption) or constructed in case of encryption.
+ * CBC does not support AEAD signature mechanism.
  * Returns -1 in case of error, either during the authentication or
  * encryption/decryption process, or the <out> buffer size in case of success.
  */
 static int aes_process(struct buffer *data, struct buffer *nonce, struct buffer *key, int key_size,
-                       struct buffer *aead_tag, struct buffer *aad, struct buffer *out, int decrypt)
+                       struct buffer *aead_tag, struct buffer *aad, struct buffer *out, int decrypt, int gcm)
 {
 	EVP_CIPHER_CTX *ctx = NULL;
 	int size;
@@ -306,50 +331,71 @@ static int aes_process(struct buffer *data, struct buffer *nonce, struct buffer 
 
 	switch(key_size) {
 	case 128:
-		sample_conv_aes_gcm_init(decrypt, ctx, EVP_aes_128_gcm(), NULL, NULL, NULL);
+		sample_conv_aes_init(decrypt, ctx, (gcm ? EVP_aes_128_gcm() : EVP_aes_128_cbc()),
+		                     NULL, NULL, NULL);
 		break;
 	case 192:
-		sample_conv_aes_gcm_init(decrypt, ctx, EVP_aes_192_gcm(), NULL, NULL, NULL);
+		sample_conv_aes_init(decrypt, ctx, (gcm ? EVP_aes_192_gcm() : EVP_aes_192_cbc()),
+		                     NULL, NULL, NULL);
 		break;
 	case 256:
-		sample_conv_aes_gcm_init(decrypt, ctx, EVP_aes_256_gcm(), NULL, NULL, NULL);
+		sample_conv_aes_init(decrypt, ctx, (gcm ? EVP_aes_256_gcm() : EVP_aes_256_cbc()),
+		                     NULL, NULL, NULL);
 		break;
 	default:
 		goto err;
 	}
 
-	if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, b_data(nonce), NULL))
-		goto err;
+	if (gcm) {
+		if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, b_data(nonce), NULL))
+			goto err;
+	} else {
+		/* CBC mode uses a fixed size (16B) Initialization Vector */
+#define AES_CBC_IV_LEN 16
+		if (b_data(nonce) < AES_CBC_IV_LEN) {
+			if (b_size(nonce) < AES_CBC_IV_LEN) {
+				struct buffer *tmp = get_trash_chunk();
+				if (b_size(tmp) < AES_CBC_IV_LEN)
+					goto err;
+				chunk_memcpy(tmp, b_orig(nonce), b_data(nonce));
+				nonce = tmp;
+			}
+			/* Pad provided nonce with zeroes */
+			while (b_data(nonce) != AES_CBC_IV_LEN)
+				b_putchr(nonce, '\0');
+		}
+	}
 
 	/* Initialise IV and key */
-	if(!sample_conv_aes_gcm_init(decrypt, ctx, NULL, NULL, (unsigned char*)b_orig(key),
-	                             (unsigned char*)b_orig(nonce)))
+	if(!sample_conv_aes_init(decrypt, ctx, NULL, NULL, (unsigned char*)b_orig(key),
+	                         (unsigned char*)b_orig(nonce)))
 		goto err;
 
 	if (aad && b_data(aad)) {
-		if (!sample_conv_aes_gcm_update(decrypt, ctx, NULL, (int*)&out->data,
-		                                (unsigned char*)b_orig(aad), (int)b_data(aad)))
+		if (!sample_conv_aes_update(decrypt, ctx, NULL, (int*)&out->data,
+		                            (unsigned char*)b_orig(aad), (int)b_data(aad)))
 			goto err;
 	}
 
-	if (!sample_conv_aes_gcm_update(decrypt, ctx, (unsigned char*)b_orig(out),
-	                                (int*)&out->data, (unsigned char*)b_orig(data), (int)b_data(data)))
+	if (!sample_conv_aes_update(decrypt, ctx, (unsigned char*)b_orig(out),
+	                            (int*)&out->data, (unsigned char*)b_orig(data), (int)b_data(data)))
 		goto err;
 
 	size = out->data;
 
-	if (decrypt)
+	if (decrypt && gcm) {
 		if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, b_data(aead_tag), b_orig(aead_tag)))
 			goto err;
+	}
 
-	ret = sample_conv_aes_gcm_final(decrypt, ctx, (unsigned char*)out->area + out->data,
-				    (int *)&out->data);
+	ret = sample_conv_aes_final(decrypt, ctx, (unsigned char*)out->area + out->data,
+	                            (int *)&out->data);
 	if (ret <= 0)
 		goto err;
 
 	out->data += size;
 
-	if (!decrypt) {
+	if (!decrypt && gcm) {
 		if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, 16, b_orig(aead_tag)))
 			goto err;
 		aead_tag->data = 16;
@@ -365,13 +411,15 @@ err:
 
 
 /* Arguments: AES size in bits, nonce, key, tag. The last three arguments are base64 encoded */
-static int sample_conv_aes_gcm(const struct arg *arg_p, struct sample *smp, void *private)
+static int sample_conv_aes(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct sample nonce, key, aead_tag, aad;
 	struct buffer *smp_trash = NULL, *smp_trash_alloc = NULL, *aad_trash = NULL;
 	struct buffer *nonce_trash = NULL, *key_trash = NULL, *aead_tag_trash = NULL;
-	int size, ret, dec;
+	int size, ret, dec, gcm;
 	int retval = 0;
+
+	int aad_arg_idx = 0;
 
 	smp_trash_alloc = alloc_trash_chunk();
 	if (!smp_trash_alloc)
@@ -403,7 +451,8 @@ static int sample_conv_aes_gcm(const struct arg *arg_p, struct sample *smp, void
 	}
 
 	/* encrypt (0) or decrypt (1) */
-	dec = (arg_p[0].type_flags == 1);
+	dec = (arg_p[0].type_flags & AES_FLG_DEC);
+	gcm = (arg_p[0].type_flags & AES_FLG_GCM);
 
 	smp_set_owner(&key, smp->px, smp->sess, smp->strm, smp->opt);
 	if (!sample_conv_var2smp_str(&arg_p[2], &key))
@@ -420,14 +469,19 @@ static int sample_conv_aes_gcm(const struct arg *arg_p, struct sample *smp, void
 		key.data.u.str = *key_trash;
 	}
 
+	if (gcm)
+		aad_arg_idx = 4;
+	else
+		aad_arg_idx = 3;
+
 	/* if there's an AAD parameter */
-	if (arg_p[4].type) {
+	if (arg_p[aad_arg_idx].type) {
 		smp_set_owner(&aad, smp->px, smp->sess, smp->strm, smp->opt);
 
-		if (!sample_conv_var2smp_str(&arg_p[4], &aad))
+		if (!sample_conv_var2smp_str(&arg_p[aad_arg_idx], &aad))
 			goto end;
-		/* if stored in a variable, the base64 decode was not done in check_aes_gcm() */
-		if (arg_p[4].type == ARGT_VAR) {
+		/* if stored in a variable, the base64 decode was not done in check_aes() */
+		if (arg_p[aad_arg_idx].type == ARGT_VAR) {
 			int aad_len;
 
 			aad_trash = alloc_trash_chunk();
@@ -442,36 +496,40 @@ static int sample_conv_aes_gcm(const struct arg *arg_p, struct sample *smp, void
 		}
 	}
 
-	smp_set_owner(&aead_tag, smp->px, smp->sess, smp->strm, smp->opt);
-	if (dec) {
-		if (!sample_conv_var2smp_str(&arg_p[3], &aead_tag))
-			goto end;
+	if (gcm) {
+		smp_set_owner(&aead_tag, smp->px, smp->sess, smp->strm, smp->opt);
+		if (dec) {
+			if (!sample_conv_var2smp_str(&arg_p[3], &aead_tag))
+				goto end;
 
-		if (arg_p[3].type == ARGT_VAR) {
+			if (arg_p[3].type == ARGT_VAR) {
+
+				aead_tag_trash = alloc_trash_chunk();
+				if (!aead_tag_trash)
+					goto end;
+
+				size = base64dec(aead_tag.data.u.str.area, aead_tag.data.u.str.data, aead_tag_trash->area,
+						 aead_tag_trash->size);
+				if (size < 0)
+					goto end;
+				aead_tag_trash->data = size;
+				aead_tag.data.u.str = *aead_tag_trash;
+			}
+		} else {
 			aead_tag_trash = alloc_trash_chunk();
 			if (!aead_tag_trash)
 				goto end;
-
-			size = base64dec(aead_tag.data.u.str.area, aead_tag.data.u.str.data,
-					 aead_tag_trash->area, aead_tag_trash->size);
-			if (size < 0)
-				goto end;
-			aead_tag_trash->data = size;
-			aead_tag.data.u.str = *aead_tag_trash;
 		}
-	} else {
-		aead_tag_trash = alloc_trash_chunk();
-		if (!aead_tag_trash)
-			goto end;
 	}
 
 	size = aes_process(smp_trash_alloc, &nonce.data.u.str, &key.data.u.str, arg_p[0].data.sint,
-			   dec ? &aead_tag.data.u.str : aead_tag_trash,
-			   arg_p[4].type ? &aad.data.u.str : NULL, smp_trash, dec);
+	                   (gcm && dec) ? &aead_tag.data.u.str : aead_tag_trash,
+	                   arg_p[4].type ? &aad.data.u.str : NULL, smp_trash, dec, gcm);
+
 	if (size < 0)
 		goto end;
 
-	if (!dec) {
+	if (!dec && gcm) {
 		struct buffer *trash = get_trash_chunk();
 
 		chunk_memcpy(trash, b_orig(aead_tag_trash), b_data(aead_tag_trash));
@@ -506,7 +564,7 @@ end:
 	free_trash_chunk(aead_tag_trash);
 	return retval;
 }
-#endif
+#endif /* defined(EVP_CIPH_GCM_MODE) || defined(EVP_CIPH_CBC_MODE) */
 
 static int check_crypto_digest(struct arg *args, struct sample_conv *conv,
 						  const char *file, int line, char **err)
@@ -2743,8 +2801,12 @@ INITCALL1(STG_REGISTER, sample_register_fetches, &sample_fetch_keywords);
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "sha2",               sample_conv_sha2,             ARG1(0, SINT),            smp_check_sha2,          SMP_T_BIN,  SMP_T_BIN  },
 #ifdef EVP_CIPH_GCM_MODE
-	{ "aes_gcm_enc",        sample_conv_aes_gcm,          ARG5(4,SINT,STR,STR,STR,STR), check_aes_gcm,           SMP_T_BIN,  SMP_T_BIN  },
-	{ "aes_gcm_dec",        sample_conv_aes_gcm,          ARG5(4,SINT,STR,STR,STR,STR), check_aes_gcm,           SMP_T_BIN,  SMP_T_BIN  },
+	{ "aes_gcm_enc",        sample_conv_aes,              ARG5(4,SINT,STR,STR,STR,STR), check_aes,               SMP_T_BIN,  SMP_T_BIN  },
+	{ "aes_gcm_dec",        sample_conv_aes,              ARG5(4,SINT,STR,STR,STR,STR), check_aes,               SMP_T_BIN,  SMP_T_BIN  },
+#endif
+#ifdef EVP_CIPH_CBC_MODE
+	{ "aes_cbc_enc",        sample_conv_aes,              ARG4(3,SINT,STR,STR,STR),     check_aes,               SMP_T_BIN,  SMP_T_BIN  },
+	{ "aes_cbc_dec",        sample_conv_aes,              ARG4(3,SINT,STR,STR,STR),     check_aes,               SMP_T_BIN,  SMP_T_BIN  },
 #endif
 	{ "x509_v_err_str",     sample_conv_x509_v_err,       0,                        NULL,                    SMP_T_SINT, SMP_T_STR },
 	{ "digest",             sample_conv_crypto_digest,    ARG1(1,STR),              check_crypto_digest,     SMP_T_BIN,  SMP_T_BIN  },
