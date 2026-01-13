@@ -8,10 +8,14 @@
 # encrypt/decrypt the data contained in the token ("enc" field of the JOSE
 # header).
 # This reg-test tests a subset of alg/enc combination.
+#
+# AWS-LC does not support A128KW algorithm so for tests that use it, we will
+# have a hardcoded "AWS-LC UNMANAGED" value put in the response header instead
+# of the decrypted contents.
 
 varnishtest "Test the 'jwt_decrypt' functionalities"
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.4-dev2)'"
-feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && openssl_version_atleast(1.1.1)'"
 feature ignore_unknown_macro
 
 server s1 -repeat 10 {
@@ -62,6 +66,11 @@ haproxy h1 -conf {
         http-request set-var(txn.secret) hdr(X-Secret),ub64dec,base64
 
         http-request set-var(txn.decrypted) var(txn.jwe),jwt_decrypt_secret(txn.secret)
+
+    .if ssllib_name_startswith(AWS-LC)
+        acl aws_unmanaged var(txn.jwe),jwt_header_query('$.alg') -m str "A128KW"
+        http-request set-var(txn.decrypted) str("AWS-LC UNMANAGED") if aws_unmanaged
+    .endif
 
         http-response set-header X-Decrypted %[var(txn.decrypted)]
         server s1 ${s1_addr}:${s1_port}
@@ -124,7 +133,7 @@ client c1_3 -connect ${h1_mainfe_sock} {
 client c2_1 -connect ${h1_mainfe_sock} {
     txreq -url "/secret" -hdr "Authorization: Bearer eyJhbGciOiAiQTEyOEtXIiwgImVuYyI6ICJBMTI4Q0JDLUhTMjU2In0.AaOyP1zNjsywJOoQ941JJWT4LQIDlpy3UibM_48HrsoCJ5ENpQhfbQ.h2ZBUiy9ofvcDZOwV2iVJA.K0FhK6ri44ZWmtFUtJRpiZSeT8feKX5grFpU8xG5026bGXAdZADO4ZkQ8DRvSEE9DwNIlK6cIEoSavm12gSzQVXajz3MWv5U6VbK5gPFCeFjJfMPmdQ9THIi-hapcueSxYz2rkcGxo3iP3ixE_bww8UB_XlQvnokhFxtf8NushMkjef4RDrW5vQu4j_qPbqG334msDKmFi8Klprs6JktrADeEJ0bPGN80NKEWp7XPcCbfmcwYe-9z_tPw_KJcQhLpQevfPLfVI4WjPgPxYNGw03qKYnLD7oTjr9qCrQmzUVXutlhxfpD3UQr11SJu8q19Ug82bON-GRd2CjpSrErQq42dd0_mWjG9iDqjqpYFBK9DV_qawy2dxFbfIcCsnb6ewifjoJLiFg2OT7-YdTaC7kqaXeE1JpA-OtMXN72FUDrnQ8r9ifj_VpMNvBf_36dbOCT-cGwIOI8Pf6HH2smXULhtBv9q-qO2zyScpmliqZDXUqmvQ8rxi-xYI2hijV80jo14teZgIotWsZE2FrMPJTkegDmh4cG5UzoUsQxzPhXqHvkss6Hv7h-_fmvXvXY1AZ8T8bL1qM4bS8mKpewmGtjmU6S220tL60ieT2QL0vmTFlJkOE8uFreWlPnxNKBix_zj4Smhg1zS_sl7GoXhp5Q_QY3MOMM5-gCAALY0crqLLWtHswElVOiJSyd64T9HFyXm7Rleqq2kLXmTvDhOR6lzMnA0rcGP7lQGYlLZgFiicsMY722XlKI3v1-cJYvj2RZMPe1ijBLFFTqyPeCBkbsDC3XCpWhMByNHSHKN3t-NJmQBIC-89ZeOMU-WBtqrDDi_CMnaz9mwkyt3P7ja_fVskc4KKBBlMVYDZ3DJeJw3Kg9Pie0XlqHkD6W1vyAWjOM2z76Rh_3553dLAH1HxNRwidLjq3SvoaX3TOU5O2_omFGPBek7QdzhNBGLgv6Zlul_XxZq9UGiVo1jrnkd40_vAZQRL6NyMxGBEij_b8F_wDMz5njrL-a0c2Y5mMno-q8gmM4sFKI1BS5HsrUAw.PFFSFlDslALnebAdaqS_MA" -hdr "X-Secret: 3921VrO5TrLvPQ-NFLlghQ"
     rxresp
-    expect resp.http.x-decrypted == "Sed ut perspiciatis unde omnis iste natus error sit voluptatem doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. porro quisquam est, qui dolorem ipsum quia dolor sit amet, adipisci velit, sed quia non numquam eius modi tempora incidunt ut dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in voluptate velit esse quam nihil molestiae consequatur, vel illum qui eum fugiat quo voluptas nulla pariatur?"
+    expect resp.http.x-decrypted ~ "(Sed ut perspiciatis unde omnis iste natus error sit voluptatem doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo veritatis et quasi architecto beatae vitae dicta sunt explicabo\\. Nemo ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt\\. porro quisquam est, qui dolorem ipsum quia dolor sit amet, adipisci velit, sed quia non numquam eius modi tempora incidunt ut dolore magnam aliquam quaerat voluptatem\\. Ut enim ad minima veniam, nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut ea commodi consequatur\\? Quis autem vel eum iure reprehenderit qui in voluptate velit esse quam nihil molestiae consequatur, vel illum qui eum fugiat quo voluptas nulla pariatur\\?|AWS-LC UNMANAGED)"
 } -run
 
 
@@ -135,7 +144,7 @@ client c2_1 -connect ${h1_mainfe_sock} {
 client c2_2 -connect ${h1_mainfe_sock} {
     txreq -url "/secret" -hdr "Authorization: Bearer eyJhbGciOiAiQTEyOEtXIiwgImVuYyI6ICJBMTI4Q0JDLUhTMjU2In0.AaOyP1zNjsywJOoQ941JJWT4LQIDlpy3UibM_48HrsoCJ5ENpQhfbQ.h2ZBUiy9ofvcDZOwV2iVJA.K0FhK6ri44ZWmtFUtJRpiZSeT8feKX5grFpU8xG5026bGXAdZADO4ZkQ8DRvSEE9DwNIlK6cIEoSavm12gSzQVXajz3MWv5U6VbK5gPFCeFjJfMPmdQ9THIi-hapcueSxYz2rkcGxo3iP3ixE_bww8UB_XlQvnokhFxtf8NushMkjef4RDrW5vQu4j_qPbqG334msDKmFi8Klprs6JktrADeEJ0bPGN80NKEWp7XPcCbfmcwYe-9z_tPw_KJcQhLpQevfPLfVI4WjPgPxYNGw03qKYnLD7oTjr9qCrQmzUVXutlhxfpD3UQr11SJu8q19Ug82bON-GRd2CjpSrErQq42dd0_mWjG9iDqjqpYFBK9DV_qawy2dxFbfIcCsnb6ewifjoJLiFg2OT7-YdTaC7kqaXeE1JpA-OtMXN72FUDrnQ8r9ifj_VpMNvBf_36dbOCT-cGwIOI8Pf6HH2smXULhtBv9q-qO2zyScpmliqZDXUqmvQ8rxi-xYI2hijV80jo14teZgIotWsZE2FrMPJTkegDmh4cG5UzoUsQxzPhXqHvkss6Hv7h-_fmvXvXY1AZ8T8bL1qM4bS8mKpewmGtjmU6S220tL60ieT2QL0vmTFlJkOE8uFreWlPnxNKBix_zj4Smhg1zS_sl7GoXhp5Q_QY3MOMM5-gCAALY0crqLLWtHswElVOiJSyd64T9HFyXm7Rleqq2kLXmTvDhOR6lzMnA0rcGP7lQGYlLZgFiicsMY722XlKI3v1-cJYvj2RZMPe1ijBLFFTqyPeCBkbsDC3XCpWhMByNHSHKN3t-NJmQBIC-89ZeOMU-WBtqrDDi_CMnaz9mwkyt3P7ja_fVskc4KKBBlMVYDZ3DJeJw3Kg9Pie0XlqHkD6W1vyAWjOM2z76Rh_3553dLAH1HxNRwidLjq3SvoaX3TOU5O2_omFGPBek7QdzhNBGLgv6Zlul_XxZq9UGiVo1jrnkd40_vAZQRL6NyMxGBEij_b8F_wDMz5njrL-a0c2Y5mMno-q8gmM4sFKI1BS5HsrUAw.PFFSFlDslALnebAdaqS_Ma" -hdr "X-Secret: 3921VrO5TrLvPQ-NFLlghQ"
     rxresp
-    expect resp.http.x-decrypted == ""
+    expect resp.http.x-decrypted ~ "(|AWS-LC UNMANAGED)"
 } -run
 
 
@@ -158,7 +167,7 @@ client c3 -connect ${h1_mainfe_sock} {
 client c4 -connect ${h1_mainfe_sock} {
     txreq -url "/secret" -hdr "Authorization: Bearer eyJhbGciOiJBMTI4S1ciLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0.6KB707dM9YTIgHtLvtgWQ8mKwboJW3of9locizkDTHzBC2IlrT1oOQ.AxY8DCtDaGlsbGljb3RoZQ.KDlTtXchhZTGufMYmOYGS4HffxPSUrfmqCHXaI9wOGY.U0m_YmjN04DJvceFICbCVQ" -hdr "X-Secret: GawgguFyGrWKav7AX4VKUg"
     rxresp
-    expect resp.http.x-decrypted == "Live long and prosper."
+    expect resp.http.x-decrypted ~ "(Live long and prosper\\.|AWS-LC UNMANAGED)"
 } -run
 
 
