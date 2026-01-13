@@ -88,8 +88,7 @@ static inline int be_usable_srv(struct proxy *be)
 /* set the time of last session on the backend */
 static inline void be_set_sess_last(struct proxy *be)
 {
-	if (be->be_counters.shared.tg && be->be_counters.shared.tg[tgid - 1])
-		HA_ATOMIC_STORE(&be->be_counters.shared.tg[tgid - 1]->last_sess, ns_to_sec(now_ns));
+	HA_ATOMIC_STORE(&be->be_counters.shared.tg[tgid - 1]->last_sess, ns_to_sec(now_ns));
 }
 
 /* This function returns non-zero if the designated server will be
