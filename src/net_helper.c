@@ -706,7 +706,7 @@ static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *
 		if (smp->data.u.str.data < 40)
 			return 0;
 
-		pktlen = read_n16(smp->data.u.str.area + 4);
+		pktlen = 40 + read_n16(smp->data.u.str.area + 4);
 		// extension/next proto => ext present if !tcp && !udp
 		ipext = smp->data.u.str.area[6];
 		ipext = ipext != 6 && ipext != 17;
