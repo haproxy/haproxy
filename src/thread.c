@@ -1874,7 +1874,7 @@ int parse_thread_set(const char *arg, struct thread_set *ts, char **err)
 		if (!*set) {
 			/* empty set sets no restriction */
 			min = 1;
-			max = is_rel ? global.maxthrpertgroup : MAX_THREADS;
+			max = is_rel ? MAX_THREADS_PER_GROUP : MAX_THREADS;
 		}
 		else {
 			if (sep != set && *sep && *sep != '-' && *sep != ',') {
@@ -1902,9 +1902,9 @@ int parse_thread_set(const char *arg, struct thread_set *ts, char **err)
 					max = min = 0; // throw an error below
 			}
 
-			if (min < 1 || min > MAX_THREADS || (is_rel && min > global.maxthrpertgroup)) {
+			if (min < 1 || min > MAX_THREADS || (is_rel && min > MAX_THREADS_PER_GROUP)) {
 				memprintf(err, "invalid first thread number '%s', permitted range is 1..%d, or 'all', 'odd', 'even'.",
-					  set, is_rel ? global.maxthrpertgroup : MAX_THREADS);
+					  set, is_rel ? MAX_THREADS_PER_GROUP : MAX_THREADS);
 				return -1;
 			}
 
@@ -1921,15 +1921,15 @@ int parse_thread_set(const char *arg, struct thread_set *ts, char **err)
 				v = atoi(set);
 
 				if (sep == set) { // no digit: to the max
-					max = is_rel ? global.maxthrpertgroup : MAX_THREADS;
+					max = is_rel ? MAX_THREADS_PER_GROUP : MAX_THREADS;
 					if (*sep && *sep != ',')
 						max = 0; // throw an error below
 				} else
 					max = v;
 
-				if (max < 1 || max > MAX_THREADS || (is_rel && max > global.maxthrpertgroup)) {
+				if (max < 1 || max > MAX_THREADS || (is_rel && max > MAX_THREADS_PER_GROUP)) {
 					memprintf(err, "invalid last thread number '%s', permitted range is 1..%d.",
-						  set, is_rel ? global.maxthrpertgroup : MAX_THREADS);
+						  set, is_rel ? MAX_THREADS_PER_GROUP : MAX_THREADS);
 					return -1;
 				}
 			}
