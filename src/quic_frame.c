@@ -363,11 +363,16 @@ static int quic_parse_ack_ecn_frame(struct quic_frame *frm, struct quic_conn *qc
                                     const unsigned char **pos, const unsigned char *end)
 {
 	struct qf_ack *ack_frm = &frm->ack;
+	/* TODO implement ECN advertising */
+	uint64_t ect0, ect1, ecn_ce;
 
 	return quic_dec_int(&ack_frm->largest_ack, pos, end) &&
-		quic_dec_int(&ack_frm->ack_delay, pos, end) &&
-		quic_dec_int(&ack_frm->first_ack_range, pos, end) &&
-		quic_dec_int(&ack_frm->ack_range_num, pos, end);
+	       quic_dec_int(&ack_frm->ack_delay, pos, end) &&
+	       quic_dec_int(&ack_frm->ack_range_num, pos, end) &&
+	       quic_dec_int(&ack_frm->first_ack_range, pos, end) &&
+	       quic_dec_int(&ect0, pos, end) &&
+	       quic_dec_int(&ect1, pos, end) &&
+	       quic_dec_int(&ecn_ce, pos, end);
 }
 
 /* Encode a RESET_STREAM frame at <pos> buffer position.
