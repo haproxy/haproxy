@@ -1262,6 +1262,8 @@ int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
 			case ST_I_PX_STATUS:
 				fld = chunk_newstr(out);
 				chunk_appendf(out, "%s", (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN");
+				if (px->flags & PR_FL_BE_UNPUBLISHED)
+					chunk_appendf(out, " (UNPUB)");
 				if (flags & (STAT_F_HIDE_MAINT|STAT_F_HIDE_DOWN))
 					chunk_appendf(out, " (%d/%d)", nbup, nbsrv);
 				field = mkf_str(FO_STATUS, fld);

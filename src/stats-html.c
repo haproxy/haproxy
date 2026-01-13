@@ -1133,6 +1133,23 @@ int stats_dump_fields_html(struct buffer *out,
 		chunk_appendf(out, "</tr>\n");
 	}
 	else if (stats[ST_I_PX_TYPE].u.u32 == STATS_TYPE_BE) {
+		struct ist ist_status = ist(field_str(stats, ST_I_PX_STATUS));
+		struct buffer buf_status;
+		char status[64];
+
+		buf_status = b_make(status, sizeof(status), 0, 0);
+		if (istmatch(ist_status, ist("DOWN"))) {
+			chunk_appendf(&buf_status, "<font color=\"%s\"><b>%s</b></font>",
+			              "red", field_str(stats, ST_I_PX_STATUS));
+		}
+		else if (istist(ist_status, ist("UNPUB")).len != 0) {
+			chunk_appendf(&buf_status, "<font color=\"%s\"><b>%s</b></font>",
+			              "orange", field_str(stats, ST_I_PX_STATUS));
+		}
+		else {
+			chunk_appendf(&buf_status, "%s", field_str(stats, ST_I_PX_STATUS));
+		}
+
 		chunk_appendf(out, "<tr class=\"backend\">");
 		if (flags & STAT_F_ADMIN) {
 			/* Column sub-heading for Enable or Disable server */
@@ -1298,7 +1315,7 @@ int stats_dump_fields_html(struct buffer *out,
 		              (long long)stats[ST_I_PX_SRV_ABRT].u.u64,
 		              (long long)stats[ST_I_PX_WRETR].u.u64, (long long)stats[ST_I_PX_WREDIS].u.u64,
 		              human_time(stats[ST_I_PX_LASTCHG].u.u32, 1),
-		              strcmp(field_str(stats, ST_I_PX_STATUS), "DOWN") ? field_str(stats, ST_I_PX_STATUS) : "<font color=\"red\"><b>DOWN</b></font>",
+		              status,
 		              stats[ST_I_PX_WEIGHT].u.u32, stats[ST_I_PX_UWEIGHT].u.u32,
 		              stats[ST_I_PX_ACT].u.u32, stats[ST_I_PX_BCK].u.u32);
 
