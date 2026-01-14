@@ -320,6 +320,12 @@ void deinit_proxy(struct proxy *p)
 	EXTRA_COUNTERS_FREE(p->extra_counters_fe);
 	EXTRA_COUNTERS_FREE(p->extra_counters_be);
 
+	list_for_each_entry_safe(rule, ruleb, &p->persist_rules, list) {
+		LIST_DELETE(&rule->list);
+		free_acl_cond(rule->cond);
+		free(rule);
+	}
+
 	free_server_rules(&p->server_rules);
 
 	list_for_each_entry_safe(rule, ruleb, &p->switching_rules, list) {
