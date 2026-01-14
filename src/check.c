@@ -513,7 +513,8 @@ void set_server_check_status(struct check *check, short status, const char *desc
 		if ((!(check->state & CHK_ST_AGENT) ||
 		    (check->status >= HCHK_STATUS_L57DATA)) &&
 		    (check->health > 0)) {
-			_HA_ATOMIC_INC(&s->counters.shared.tg[tgid - 1]->failed_checks);
+			if (s->counters.shared.tg)
+				_HA_ATOMIC_INC(&s->counters.shared.tg[tgid - 1]->failed_checks);
 			report = 1;
 			check->health--;
 			if (check->health < check->rise)
@@ -740,7 +741,8 @@ void __health_adjust(struct server *s, short status)
 	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 
 	HA_ATOMIC_STORE(&s->consecutive_errors, 0);
-	_HA_ATOMIC_INC(&s->counters.shared.tg[tgid - 1]->failed_hana);
+	if (s->counters.shared.tg)
+		_HA_ATOMIC_INC(&s->counters.shared.tg[tgid - 1]->failed_hana);
 
 	if (s->check.fastinter) {
 		/* timer might need to be advanced, it might also already be

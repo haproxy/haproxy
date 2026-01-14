@@ -823,7 +823,8 @@ int assign_server(struct stream *s)
 		else if (srv != prev_srv) {
 			if (s->be_tgcounters)
 				_HA_ATOMIC_INC(&s->be_tgcounters->cum_lbconn);
-			_HA_ATOMIC_INC(&srv->counters.shared.tg[tgid - 1]->cum_lbconn);
+			if (srv->counters.shared.tg)
+				_HA_ATOMIC_INC(&srv->counters.shared.tg[tgid - 1]->cum_lbconn);
 		}
 		stream_set_srv_target(s, srv);
 	}
@@ -997,11 +998,13 @@ int assign_server_and_queue(struct stream *s)
 					s->txn->flags |= TX_CK_DOWN;
 				}
 				s->flags |= SF_REDISP;
-				_HA_ATOMIC_INC(&prev_srv->counters.shared.tg[tgid - 1]->redispatches);
+				if (prev_srv->counters.shared.tg)
+					_HA_ATOMIC_INC(&prev_srv->counters.shared.tg[tgid - 1]->redispatches);
 				if (s->be_tgcounters)
 					_HA_ATOMIC_INC(&s->be_tgcounters->redispatches);
 			} else {
-				_HA_ATOMIC_INC(&prev_srv->counters.shared.tg[tgid - 1]->retries);
+				if (prev_srv->counters.shared.tg)
+					_HA_ATOMIC_INC(&prev_srv->counters.shared.tg[tgid - 1]->retries);
 				if (s->be_tgcounters)
 					_HA_ATOMIC_INC(&s->be_tgcounters->retries);
 			}
