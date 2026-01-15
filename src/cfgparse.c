@@ -134,6 +134,26 @@ struct cfg_kw_list cfg_keywords = {
 };
 
 /*
+ * Shifts <args> one position to the left.
+ * This function tricky preserves internal allocated structure of the
+ * <args>. We defer the deallocation of the "shifted off" element, by
+ * making it an empty string and moving it into the gap that appears after
+ * the shift.
+ */
+static void
+lshift_args(char **args)
+{
+	int i;
+	char *shifted;
+
+	shifted = args[0];
+	for (i = 0; *args[i + 1]; i++)
+		args[i] = args[i + 1];
+	*shifted = '\0';
+	args[i] = shifted;
+}
+
+/*
  * converts <str> to a list of listeners which are dynamically allocated.
  * The format is "{addr|'*'}:port[-end][,{addr|'*'}:port[-end]]*", where :
  *  - <addr> can be empty or "*" to indicate INADDR_ANY ;
@@ -2674,24 +2694,12 @@ next_line:
 
 		/* check for keyword modifiers "no" and "default" */
 		if (strcmp(args[0], "no") == 0) {
-			char *tmp;
-
 			kwm = KWM_NO;
-			tmp = args[0];
-			for (arg=0; *args[arg+1]; arg++)
-				args[arg] = args[arg+1];		// shift args after inversion
-			*tmp = '\0'; 					// fix the next arg to \0
-			args[arg] = tmp;
+			lshift_args(args);
 		}
 		else if (strcmp(args[0], "default") == 0) {
-			char *tmp;
-
 			kwm = KWM_DEF;
-			tmp = args[0];
-			for (arg=0; *args[arg+1]; arg++)
-				args[arg] = args[arg+1];		// shift args after inversion
-			*tmp = '\0';
-			args[arg] = tmp;
+			lshift_args(args);
 		}
 
 		if (kwm != KWM_STD && strcmp(args[0], "option") != 0 &&
