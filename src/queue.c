@@ -396,7 +396,7 @@ int process_srv_queue(struct server *s)
 
 
 	while (i >= LONGBITS) {
-		non_empty_tgids[global.nbtgroups - i] = ULONG_MAX;
+		non_empty_tgids[(global.nbtgroups - i) / LONGBITS] = ULONG_MAX;
 		i -= LONGBITS;
 	}
 	while (i > 0) {
