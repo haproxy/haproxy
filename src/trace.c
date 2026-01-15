@@ -128,6 +128,9 @@ int __trace_enabled(enum trace_level level, uint64_t mask, struct trace_source *
 	if (src->arg_def & TRC_ARGS_APPCTX)
 		ctx.appctx = trace_pick_arg(src->arg_def & TRC_ARGS_APPCTX, a1, a2, a3, a4);
 
+	if (src->arg_def & TRC_ARGS_HSTRM)
+		ctx.hs = trace_pick_arg(src->arg_def & TRC_ARGS_HSTRM, a1, a2, a3, a4);
+
 	if (src->fill_ctx)
 		src->fill_ctx(&ctx, src, a1, a2, a3, a4);
 
