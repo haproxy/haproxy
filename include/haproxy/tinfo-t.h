@@ -42,7 +42,7 @@ struct thread_set {
 		ulong abs[(MAX_THREADS + LONGBITS - 1) / LONGBITS];
 		ulong rel[MAX_TGROUPS];
 	};
-	ulong grps; /* bit field of all non-empty groups, 0 for abs */
+	ulong nbgrps; /* Number of thread groups, 0 for abs */
 };
 
 /* tasklet classes */

@@ -77,7 +77,7 @@ static inline int thread_set_nth_group(const struct thread_set *ts, int n)
 {
 	int i;
 
-	if (ts->grps) {
+	if (ts->nbgrps) {
 		for (i = 0; i < MAX_TGROUPS; i++)
 			if (ts->rel[i] && !n--)
 				return i + 1;
@@ -95,7 +95,7 @@ static inline ulong thread_set_nth_tmask(const struct thread_set *ts, int n)
 {
 	int i;
 
-	if (ts->grps) {
+	if (ts->nbgrps) {
 		for (i = 0; i < MAX_TGROUPS; i++)
 			if (ts->rel[i] && !n--)
 				return ts->rel[i];
@@ -111,7 +111,7 @@ static inline void thread_set_pin_grp1(struct thread_set *ts, ulong mask)
 {
 	int i;
 
-	ts->grps = 1;
+	ts->nbgrps = 1;
 	ts->rel[0] = mask;
 	for (i = 1; i < MAX_TGROUPS; i++)
 		ts->rel[i] = 0;

@@ -1756,7 +1756,8 @@ int bind_complete_thread_setup(struct bind_conf *bind_conf, int *err_code)
 	struct listener *li, *new_li, *ref;
 	struct thread_set new_ts;
 	int shard, shards, todo, done, grp, dups;
-	ulong mask, gmask, bit;
+	ulong mask, bit;
+	int nbgrps;
 	int cfgerr = 0;
 	char *err;
 
@@ -1788,7 +1789,7 @@ int bind_complete_thread_setup(struct bind_conf *bind_conf, int *err_code)
 			}
 		}
 		else if (shards == -2)
-			shards = protocol_supports_flag(li->rx.proto, PROTO_F_REUSEPORT_SUPPORTED) ? my_popcountl(bind_conf->thread_set.grps) : 1;
+			shards = protocol_supports_flag(li->rx.proto, PROTO_F_REUSEPORT_SUPPORTED) ? bind_conf->thread_set.nbgrps : 1;
 
 		/* no more shards than total threads */
 		if (shards > todo)
@@ -1821,25 +1822,25 @@ int bind_complete_thread_setup(struct bind_conf *bind_conf, int *err_code)
 
 				/* take next unassigned bit */
 				bit = (bind_conf->thread_set.rel[grp] & ~mask) & -(bind_conf->thread_set.rel[grp] & ~mask);
+				if (!new_ts.rel[grp])
+					new_ts.nbgrps++;
 				new_ts.rel[grp] |= bit;
 				mask |= bit;
-				new_ts.grps |= 1UL << grp;
 
 				done += shards;
 			};
 
-			BUG_ON(!new_ts.grps); // no more bits left unassigned
+			BUG_ON(!new_ts.nbgrps); // no more group ?
 
 			/* Create all required listeners for all bound groups. If more than one group is
 			 * needed, the first receiver serves as a reference, and subsequent ones point to
 			 * it. We already have a listener available in new_li() so we only allocate a new
-			 * one if we're not on the last one. We count the remaining groups by copying their
-			 * mask into <gmask> and dropping the lowest bit at the end of the loop until there
-			 * is no more. Ah yes, it's not pretty :-/
+			 * one if we're not on the last one.
+			 *
 			 */
 			ref = new_li;
-			gmask = new_ts.grps;
-			for (dups = 0; gmask; dups++) {
+			nbgrps = new_ts.nbgrps;
+			for (dups = 0; nbgrps; dups++) {
 				/* assign the first (and only) thread and group */
 				new_li->rx.bind_thread = thread_set_nth_tmask(&new_ts, dups);
 				new_li->rx.bind_tgroup = thread_set_nth_group(&new_ts, dups);
@@ -1856,8 +1857,8 @@ int bind_complete_thread_setup(struct bind_conf *bind_conf, int *err_code)
 					new_li->rx.flags |= ref->rx.flags & RX_F_INHERITED_SOCK;
 				}
 
-				gmask &= gmask - 1; // drop lowest bit
-				if (gmask) {
+				nbgrps--;
+				if (nbgrps) {
 					/* yet another listener expected in this shard, let's
 					 * chain it.
 					 */
@@ -2672,7 +2673,7 @@ static int bind_parse_thread(char **args, int cur_arg, struct proxy *px, struct 
 
 	l = LIST_NEXT(&conf->listeners, struct listener *, by_bind);
 	if (l->rx.addr.ss_family == AF_CUST_RHTTP_SRV &&
-	    atleast2(conf->thread_set.grps)) {
+	    conf->thread_set.nbgrps >= 2) {
 		memprintf(err, "'%s' : reverse HTTP bind cannot span multiple thread groups.", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
