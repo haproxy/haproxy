@@ -2684,9 +2684,14 @@ next_line:
 			args[arg] = tmp;
 		}
 		else if (strcmp(args[0], "default") == 0) {
+			char *tmp;
+
 			kwm = KWM_DEF;
+			tmp = args[0];
 			for (arg=0; *args[arg+1]; arg++)
 				args[arg] = args[arg+1];		// shift args after inversion
+			*tmp = '\0';
+			args[arg] = tmp;
 		}
 
 		if (kwm != KWM_STD && strcmp(args[0], "option") != 0 &&
