@@ -951,11 +951,12 @@ all:
 	@echo
 	@exit 1
 else
-all: dev/flags/flags haproxy $(EXTRA)
+all: dev/flags/flags haproxy httpterm $(EXTRA)
 endif # obsolete targets
 endif # TARGET
 
 OBJS =
+HTTPTERM_OBJS =
 
 ifneq ($(EXTRA_OBJS),)
   OBJS += $(EXTRA_OBJS)
@@ -1003,11 +1004,13 @@ OBJS += src/mux_h2.o src/mux_h1.o src/mux_fcgi.o src/log.o		\
         src/http_acl.o src/dict.o src/dgram.o src/pipe.o		\
         src/hpack-huff.o src/hpack-enc.o src/ebtree.o src/hash.o	\
         src/httpclient_cli.o src/version.o src/ncbmbuf.o src/ech.o	\
-        src/cfgparse-peers.o
+        src/cfgparse-peers.o src/httpterm.o
 
 ifneq ($(TRACE),)
   OBJS += src/calltrace.o
 endif
+
+HTTPTERM_OBJS += $(OBJS)
 
 # Used only for forced dependency checking. May be cleared during development.
 INCLUDES = $(wildcard include/*/*.h)
@@ -1054,6 +1057,9 @@ else
 endif # non-empty target
 
 haproxy: $(OPTIONS_OBJS) $(OBJS)
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+
+httpterm: $(OPTIONS_OBJS) $(HTTPTERM_OBJS)
 	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 objsize: haproxy
