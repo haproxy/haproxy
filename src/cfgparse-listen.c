@@ -18,6 +18,7 @@
 #include <haproxy/compression-t.h>
 #include <haproxy/connection.h>
 #include <haproxy/extcheck.h>
+#include <haproxy/hstream.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/http_ext.h>
@@ -704,6 +705,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			ha_alert("parsing [%s:%d] : 'mode health' doesn't exist anymore. Please use 'http-request return status 200' instead.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
+		}
+		else if (strcmp(args[1], "httpterm") == 0 && (curproxy->cap & PR_CAP_FE)) {
+			curproxy->mode = PR_MODE_HTTP;
+			curproxy->stream_new_from_sc = hstream_new;
 		}
 		else {
 			ha_alert("parsing [%s:%d] : unknown proxy mode '%s'.\n", file, linenum, args[1]);
