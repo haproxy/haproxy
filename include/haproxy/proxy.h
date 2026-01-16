@@ -35,7 +35,7 @@
 #include <haproxy/ticks.h>
 #include <haproxy/thread.h>
 
-extern struct proxy *proxies_list;
+extern struct list main_proxies;
 extern struct list proxies;
 extern struct ceb_root *used_proxy_id;  /* list of proxy IDs in use */
 extern unsigned int error_snapshot_id;  /* global ID assigned to each error then incremented */
@@ -320,14 +320,15 @@ static inline void increment_send_rate(uint64_t bytes, int splice)
  */
 static inline void main_proxies_register(struct proxy *px)
 {
-	px->next = proxies_list;
-	proxies_list = px;
+	LIST_INSERT(&main_proxies, &px->el);
 }
 
 /* Returns first entry in main proxies list or NULL if empty. */
 static inline struct proxy *main_proxies_first(void)
 {
-	return proxies_list;
+	if (LIST_ISEMPTY(&main_proxies))
+		return NULL;
+	return LIST_ELEM(main_proxies.n, struct proxy *, el);
 }
 
 /* Returns first entry in main proxies list unless <px> is already set. This is
@@ -335,15 +336,17 @@ static inline struct proxy *main_proxies_first(void)
  */
 static inline struct proxy *main_proxies_cond_first(struct proxy *px)
 {
-	if (!px)
-		px = proxies_list;
+	if (!px && !LIST_ISEMPTY(&main_proxies))
+		px = LIST_ELEM(main_proxies.n, struct proxy *, el);
 	return px;
 }
 
 /* Return next entry after <px> in main proxies list or NULL if reaching end of list. */
 static inline struct proxy *main_proxies_next(const struct proxy *px)
 {
-	return px->next;
+	if (px->el.n == &main_proxies)
+		return NULL;
+	return LIST_ELEM(px->el.n, struct proxy *, el);
 }
 
 #endif /* _HAPROXY_PROXY_H */

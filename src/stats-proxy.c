@@ -1667,7 +1667,7 @@ void proxy_stats_clear_counters(int clrall, struct list *stat_modules)
 	struct listener *li;
 	struct stats_module *mod;
 
-	for (px = proxies_list; px; px = px->next) {
+	list_for_each_entry(px, &main_proxies, el) {
 		if (clrall) {
 			memset(&px->be_counters, 0, sizeof(px->be_counters));
 			memset(&px->fe_counters, 0, sizeof(px->fe_counters));
@@ -1715,7 +1715,7 @@ void proxy_stats_clear_counters(int clrall, struct list *stat_modules)
 		if (!mod->clearable && !clrall)
 			continue;
 
-		for (px = proxies_list; px; px = px->next) {
+		list_for_each_entry(px, &main_proxies, el) {
 			enum stats_domain_px_cap mod_cap = stats_px_get_cap(mod->domain_flags);
 
 			if (px->cap & PR_CAP_FE && mod_cap & STATS_PX_CAP_FE) {

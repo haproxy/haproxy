@@ -5462,13 +5462,12 @@ int srv_init_addr(void)
 	struct proxy *curproxy;
 	int return_code = 0;
 
-	curproxy = proxies_list;
-	while (curproxy) {
+	list_for_each_entry(curproxy, &main_proxies, el) {
 		struct server *srv;
 
 		/* servers are in backend only */
 		if (!(curproxy->cap & PR_CAP_BE) || (curproxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED)))
-			goto srv_init_addr_next;
+			continue;
 
 		for (srv = curproxy->srv; srv; srv = srv->next) {
 			set_usermsgs_ctx(srv->conf.file, srv->conf.line, &srv->obj_type);
@@ -5476,9 +5475,6 @@ int srv_init_addr(void)
 				return_code |= srv_iterate_initaddr(srv);
 			reset_usermsgs_ctx();
 		}
-
- srv_init_addr_next:
-		curproxy = curproxy->next;
 	}
 
 	return return_code;

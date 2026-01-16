@@ -1226,7 +1226,7 @@ static int allocate_stats_px_postcheck(void)
 		i += offset;
 	}
 
-	for (px = proxies_list; px; px = px->next) {
+	list_for_each_entry(px, &main_proxies, el) {
 		if (!stats_allocate_proxy_counters(px)) {
 			ha_alert("stats: cannot allocate all counters for proxy statistics\n");
 			err_code |= ERR_ALERT | ERR_FATAL;

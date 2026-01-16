@@ -153,7 +153,7 @@ struct post_mortem {
 	struct tgroup_ctx  *tgroup_ctx;  // pointer to ha_tgroup_ctx
 	struct thread_ctx  *thread_ctx;  // pointer to ha_thread_ctx
 	struct list *pools;              // pointer to the head of the pools list
-	struct proxy **proxies;          // pointer to the head of the proxies list
+	struct list *proxies;            // pointer to the head of the proxies list
 	struct global *global;           // pointer to the struct global
 	struct fdtab **fdtab;            // pointer to the fdtab array
 	struct activity *activity;       // pointer to the activity[] per-thread array
@@ -2920,7 +2920,7 @@ process_info:
 	post_mortem.tgroup_ctx  = ha_tgroup_ctx;
 	post_mortem.thread_ctx  = ha_thread_ctx;
 	post_mortem.pools = &pools;
-	post_mortem.proxies = &proxies_list;
+	post_mortem.proxies = &main_proxies;
 	post_mortem.global = &global;
 	post_mortem.fdtab = &fdtab;
 	post_mortem.activity = activity;

@@ -6905,7 +6905,7 @@ static int postresolve_loggers()
 	/* global log directives */
 	err_code |= postresolve_logger_list(NULL, &global.loggers, NULL, NULL);
 	/* proxy log directives */
-	for (px = proxies_list; px; px = px->next)
+	list_for_each_entry(px, &main_proxies, el)
 		err_code |= postresolve_logger_list(px, &px->loggers, "proxy", px->id);
 	/* log-forward log directives */
 	list_for_each_entry(px, &cfg_log_forward, el)

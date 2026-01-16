@@ -833,7 +833,7 @@ void apply_server_state(void)
 
   no_globalfile:
 	/* parse all proxies and load states form tree (global file) or from local file */
-	for (curproxy = proxies_list; curproxy != NULL; curproxy = curproxy->next) {
+	list_for_each_entry(curproxy, &main_proxies, el) {
 		struct eb_root local_state_tree = EB_ROOT_UNIQUE;
 
 		/* Must be an enabled backend with at least a server */

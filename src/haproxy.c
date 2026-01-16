@@ -904,10 +904,10 @@ static void sig_listen(struct sig_handler *sh)
  */
 static void sig_dump_state(struct sig_handler *sh)
 {
-	struct proxy *p = proxies_list;
+	struct proxy *p;
 
 	ha_warning("SIGHUP received, dumping servers states.\n");
-	while (p) {
+	list_for_each_entry(p, &main_proxies, el) {
 		struct server *s = p->srv;
 
 		send_log(p, LOG_NOTICE, "SIGHUP received, dumping servers states for proxy %s.\n", p->id);
@@ -943,8 +943,6 @@ static void sig_dump_state(struct sig_handler *sh)
 		}
 		ha_warning("%s\n", trash.area);
 		send_log(p, LOG_NOTICE, "%s\n", trash.area);
-
-		p = p->next;
 	}
 }
 
@@ -2314,7 +2312,7 @@ static void step_init_2(int argc, char** argv)
 	/* Preload internal counters. */
 	apply_stats_file();
 
-	for (px = proxies_list; px; px = px->next)
+	list_for_each_entry(px, &main_proxies, el)
 		srv_compute_all_admin_states(px);
 
 	/* Apply servers' configured address */
@@ -2367,9 +2365,10 @@ static void step_init_2(int argc, char** argv)
 			if (pr->peers_fe)
 				break;
 
-		for (px = proxies_list; px; px = px->next)
+		list_for_each_entry(px, &main_proxies, el) {
 			if (!(px->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) && px->li_all)
 				break;
+		}
 
 		if (!px) {
 			/* We may only have log-forward section */
@@ -2522,7 +2521,7 @@ static void step_init_2(int argc, char** argv)
 		global.node = strdup(hostname);
 
 	/* stop disabled proxies */
-	for (px = proxies_list; px; px = px->next) {
+	list_for_each_entry(px, &main_proxies, el) {
 		if (px->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
 			stop_proxy(px);
 	}
@@ -2798,7 +2797,7 @@ static void read_cfg_in_discovery_mode(int argc, char **argv)
 
 void deinit(void)
 {
-	struct proxy *p = proxies_list, *p0;
+	struct proxy *p, *p0;
 	struct cfgfile *cfg, *cfg_tmp;
 	struct logger *log, *logb;
 	struct build_opts_str *bol, *bolb;
@@ -2853,11 +2852,8 @@ void deinit(void)
 	}
 
 	deinit_signals();
-	while (p) {
-		p0 = p;
-		p = p->next;
-		proxy_drop(p0);
-	}/* end while(p) */
+	list_for_each_entry_safe(p, p0, &main_proxies, el)
+		proxy_drop(p);
 
 	/* we don't need to free sink_proxies_list nor cfg_log_forward proxies since
 	 * they are respectively cleaned up in sink_deinit() and deinit_log_forward()

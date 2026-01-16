@@ -1234,7 +1234,7 @@ static void hstream_init_splicing(void)
 	if (!(global.tune.options & GTUNE_USE_SPLICE) || !global.maxpipes)
 		return;
 
-	for (px = proxies_list; px; px = px->next) {
+	list_for_each_entry(px, &main_proxies, el) {
 		if ((px->cap & PR_CAP_FE) && !(px->flags & PR_FL_DISABLED) && px->stream_new_from_sc == hstream_new) {
 			haterm_used = 1;
 			break;

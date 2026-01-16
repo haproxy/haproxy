@@ -71,7 +71,7 @@ int compute_ideal_maxpipes()
 	int pipes;
 	int max;
 
-	for (cur = proxies_list; cur; cur = cur->next) {
+	list_for_each_entry(cur, &main_proxies, el) {
 		if (cur->options2 & (PR_O2_SPLIC_ANY)) {
 			if (cur->cap & PR_CAP_FE) {
 				max = cur->maxconn;

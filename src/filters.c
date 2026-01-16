@@ -468,7 +468,7 @@ flt_init_all()
 	struct proxy *px;
 	int err_code = ERR_NONE;
 
-	for (px = proxies_list; px; px = px->next) {
+	list_for_each_entry(px, &main_proxies, el) {
 		if (px->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
 			continue;
 
@@ -490,7 +490,7 @@ flt_init_all_per_thread()
 	struct proxy *px;
 	int err_code = 0;
 
-	for (px = proxies_list; px; px = px->next) {
+	list_for_each_entry(px, &main_proxies, el) {
 		if (px->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
 			continue;
 
@@ -573,7 +573,7 @@ flt_deinit_all_per_thread()
 {
 	struct proxy *px;
 
-	for (px = proxies_list; px; px = px->next)
+	list_for_each_entry(px, &main_proxies, el)
 		flt_deinit_per_thread(px);
 }
 

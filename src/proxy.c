@@ -73,8 +73,17 @@
 __decl_spinlock(proxies_del_lock);
 
 int listeners;	/* # of proxy listeners, set by cfgparse */
-struct proxy *proxies_list  = NULL;     /* list of main proxies */
-struct list proxies = LIST_HEAD_INIT(proxies); /* list of all proxies */
+
+/* List of non-default and non-internal proxies, except mworker and cli_fe which are stored in it.
+ * Used for check_config_validity() post init and most runtime operations (stats, ...).
+ */
+struct list main_proxies = LIST_HEAD_INIT(main_proxies);
+
+/* List of all proxies, except defaults.
+ * Currently only used for post_proxy_check_fct and post_server_check_fct post init.
+ */
+struct list proxies = LIST_HEAD_INIT(proxies);
+
 struct ceb_root *used_proxy_id = NULL; /* list of proxy IDs in use */
 struct ceb_root *proxy_by_name = NULL; /* tree of proxies sorted by name */
 struct ceb_root *defproxy_by_name = NULL; /* tree of default proxies sorted by name (dups possible) */
@@ -3864,15 +3873,13 @@ struct task *hard_stop(struct task *t, void *context, unsigned int state)
 
 	ha_warning("soft-stop running for too long, performing a hard-stop.\n");
 	send_log(NULL, LOG_WARNING, "soft-stop running for too long, performing a hard-stop.\n");
-	p = proxies_list;
-	while (p) {
+	list_for_each_entry(p, &main_proxies, el) {
 		if ((p->cap & PR_CAP_FE) && (p->feconn > 0)) {
 			ha_warning("Proxy %s hard-stopped (%d remaining conns will be closed).\n",
 				   p->id, p->feconn);
 			send_log(p, LOG_WARNING, "Proxy %s hard-stopped (%d remaining conns will be closed).\n",
 				p->id, p->feconn);
 		}
-		p = p->next;
 	}
 
 	thread_isolate();
@@ -3924,12 +3931,10 @@ static void do_soft_stop_now()
 	thread_release();
 
 	/* Loop on proxies to stop backends */
-	p = proxies_list;
-	while (p) {
+	list_for_each_entry(p, &main_proxies, el) {
 		HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->lock);
 		proxy_cond_disable(p);
 		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->lock);
-		p = p->next;
 	}
 
 	/* signal zero is used to broadcast the "stopping" event */
@@ -4271,7 +4276,7 @@ void proxy_adjust_all_maxconn()
 	struct proxy *curproxy;
 	struct switching_rule *swrule1, *swrule2;
 
-	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
+	list_for_each_entry(curproxy, &main_proxies, el) {
 		if (curproxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
 			continue;
 
@@ -4315,7 +4320,7 @@ void proxy_adjust_all_maxconn()
 	/* automatically compute fullconn if not set. We must not do it in the
 	 * loop above because cross-references are not yet fully resolved.
 	 */
-	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
+	list_for_each_entry(curproxy, &main_proxies, el) {
 		if (curproxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
 			continue;
 
@@ -4837,7 +4842,7 @@ static int cli_parse_shutdown_frontend(char **args, char *payload, struct appctx
  */
 static int cli_parse_add_backend(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	struct proxy *px, *defpx, *next;
+	struct proxy *px, *defpx;
 	struct post_proxy_check_fct *ppcf;
 	const char *be_name, *def_name, *guid = NULL, *err;
 	char *msg = NULL;
@@ -4972,15 +4977,7 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
 	proxy_index_id(px);
 	dynpx_next_id = px->uuid;
 
-	if (!proxies_list) {
-		proxies_list = px;
-	}
-	else {
-		for (next = proxies_list; next->next; next = next->next)
-			;
-		next->next = px;
-	}
-	px->next = NULL;
+	LIST_APPEND(&main_proxies, &px->el);
 
 	thread_release();
 
@@ -5087,7 +5084,7 @@ int be_check_for_deletion(const char *bename, struct proxy **pb, const char **pm
 static int cli_parse_delete_backend(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct watcher *px_watch;
-	struct proxy *px, *prev;
+	struct proxy *px;
 	const char *msg;
 	char *be_name;
 	int ret;
@@ -5117,16 +5114,8 @@ static int cli_parse_delete_backend(char **args, char *payload, struct appctx *a
 	ceb32_item_delete(&used_proxy_id, conf.uuid_node, uuid, px);
 	cebis_item_delete(&proxy_by_name, conf.name_node, id, px);
 
-	/* Detach backend from global proxies_list. */
-	if (proxies_list == px) {
-		proxies_list = px->next;
-	}
-	else {
-		for (prev = proxies_list->next; prev && prev->next != px; prev = prev->next)
-			;
-		BUG_ON(!prev); /* Proxy instance not found in global list ? */
-		prev->next = px->next;
-	}
+	/* Detach backend from global main_proxies. */
+	LIST_DELETE(&px->el);
 
 	px->flags |= PR_FL_DELETED;
 

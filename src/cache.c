@@ -3090,7 +3090,7 @@ int post_check_cache()
 		/* Find all references for this cache in the existing filters
 		 * (over all proxies) and reference it in matching filters.
 		 */
-		for (px = proxies_list; px; px = px->next) {
+		list_for_each_entry(px, &main_proxies, el) {
 			struct flt_conf *fconf;
 			struct cache_flt_conf *cconf;
 

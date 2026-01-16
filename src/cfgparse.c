@@ -2269,7 +2269,7 @@ static struct proxy *_get_next_proxy(void *head, struct proxy *cur)
 	struct proxy *next;
 	struct list *list = (struct list *)head;
 
-	if (head == &cfg_log_forward || head == &sink_proxies_list) {
+	if (head == &main_proxies || head == &cfg_log_forward || head == &sink_proxies_list) {
 		next = cur ?
 		  LIST_ELEM(cur->el.n, struct proxy *, el) :
 		  LIST_ELEM(list->n,   struct proxy *, el);
@@ -2295,8 +2295,9 @@ static struct proxy *_get_next_proxy(void *head, struct proxy *cur)
  */
 int check_config_validity()
 {
+	struct list tmp_list = LIST_HEAD_INIT(tmp_list);
 	int cfgerr = 0, ret;
-	struct proxy *defpx;
+	struct proxy *defpx, *old;
 	void *init_proxies_list = NULL;
 	struct stktable *t;
 	struct server *newsrv = NULL;
@@ -2386,17 +2387,11 @@ int check_config_validity()
 		goto out;
 
 	/* first, we will invert the proxy list order */
-	curproxy = NULL;
-	while (proxies_list) {
-		struct proxy *next;
-
-		next = proxies_list->next;
-		proxies_list->next = curproxy;
-		curproxy = proxies_list;
-		if (!next)
-			break;
-		proxies_list = next;
+	list_for_each_entry_safe(curproxy, old, &main_proxies, el) {
+		LIST_DELETE(&curproxy->el);
+		LIST_INSERT(&tmp_list, &curproxy->el);
 	}
+	LIST_SPLICE(&main_proxies, &tmp_list);
 
 	/*
 	 * we must finish to initialize certain things on the servers,
@@ -2438,7 +2433,7 @@ int check_config_validity()
 
 	curproxy = NULL;
 	/* starting to initialize the main proxies list */
-	init_proxies_list = proxies_list;
+	init_proxies_list = &main_proxies;
 
 init_proxies_list_stage1:
 	while ((curproxy = _get_next_proxy(init_proxies_list, curproxy))) {
@@ -2497,7 +2492,7 @@ init_proxies_list_stage1:
 	 * We have just initialized the main proxies list
 	 * we must also configure the log-forward proxies list
 	 */
-	if (init_proxies_list == proxies_list) {
+	if (init_proxies_list == &main_proxies) {
 		init_proxies_list = &cfg_log_forward;
 		goto init_proxies_list_stage1;
 	}
@@ -2540,7 +2535,7 @@ init_proxies_list_stage1:
 
 	curproxy = NULL;
 	/* starting to initialize the main proxies list */
-	init_proxies_list = proxies_list;
+	init_proxies_list = &main_proxies;
 
 init_proxies_list_stage2:
 	while ((curproxy = _get_next_proxy(init_proxies_list, curproxy))) {
@@ -2650,7 +2645,7 @@ init_proxies_list_stage2:
 	 * We have just initialized the main proxies list
 	 * we must also configure the log-forward proxies list
 	 */
-	if (init_proxies_list == proxies_list) {
+	if (init_proxies_list == &main_proxies) {
 		init_proxies_list = &cfg_log_forward;
 		goto init_proxies_list_stage2;
 	}
@@ -2664,7 +2659,7 @@ init_proxies_list_stage2:
 	 * Recount currently required checks.
 	 */
 
-	for (curproxy=proxies_list; curproxy; curproxy=curproxy->next) {
+	list_for_each_entry(curproxy, &main_proxies, el) {
 		int optnum;
 
 		for (optnum = 0; cfg_opts[optnum].name; optnum++)
@@ -2830,7 +2825,7 @@ init_proxies_list_stage2:
 	 * be done earlier because the data size may be discovered while parsing
 	 * other proxies.
 	 */
-	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
+	list_for_each_entry(curproxy, &main_proxies, el) {
 		if ((curproxy->flags & PR_FL_DISABLED) || !curproxy->table)
 			continue;
 
@@ -2880,7 +2875,7 @@ init_proxies_list_stage2:
 
 	/* Update server_state_file_name to backend name if backend is supposed to use
 	 * a server-state file locally defined and none has been provided */
-	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
+	list_for_each_entry(curproxy, &main_proxies, el) {
 		if (curproxy->load_server_state_from_file == PR_SRV_STATE_FILE_LOCAL &&
 		    curproxy->server_state_file_name == NULL)
 			curproxy->server_state_file_name = strdup(curproxy->id);

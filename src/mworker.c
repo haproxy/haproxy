@@ -600,7 +600,7 @@ restart_wait:
 			mworker_on_new_child_failure(exitpid, status);
 
 			/* Detach all listeners */
-			for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
+			list_for_each_entry(curproxy, &main_proxies, el) {
 				list_for_each_entry_safe(l, l_next, &curproxy->conf.listeners, by_fe) {
 					if ((l->rx.fd == child->ipc_fd[0]) || (l->rx.fd == child->ipc_fd[1])) {
 						unbind_listener(l);
@@ -781,7 +781,7 @@ void mworker_cleanlisteners()
 	}
 
 	/* main proxies cleanup */
-	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
+	list_for_each_entry(curproxy, &main_proxies, el) {
 		int listen_in_master = 0;
 
 		list_for_each_entry_safe(l, l_next, &curproxy->conf.listeners, by_fe) {

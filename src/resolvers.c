@@ -2808,7 +2808,7 @@ static int resolvers_finalize_config(void)
 		task_wakeup(t, TASK_WOKEN_INIT);
 	}
 
-	for (px = proxies_list; px; px = px->next) {
+	list_for_each_entry(px, &main_proxies, el) {
 		struct server *srv;
 
 		if (px->flags & PR_FL_DISABLED) {

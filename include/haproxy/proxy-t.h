@@ -324,6 +324,7 @@ struct proxy {
 
 	struct list global_list;                /* list member for global proxy list */
 	struct list el;                         /* attach point in various list
+	                                         * - <main_proxies> for non internal instance
 	                                         * - <cfg_log_forward> for log forwarder
 	                                         * - <sink_proxies_list> for sink
 	                                         * - <defaults_list> for defaults section

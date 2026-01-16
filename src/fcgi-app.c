@@ -626,7 +626,7 @@ static int cfg_fcgi_apps_postparser()
 	struct server *srv;
 	int err_code = 0;
 
-	for (px = proxies_list; px; px = px->next) {
+	list_for_each_entry(px, &main_proxies, el) {
 		struct fcgi_flt_conf *fcgi_conf = find_px_fcgi_conf(px);
 		int nb_fcgi_srv = 0;
 

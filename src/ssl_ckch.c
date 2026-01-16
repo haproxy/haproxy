@@ -1863,7 +1863,7 @@ static int cli_parse_show_sni(char **args, char *payload, struct appctx *appctx,
 			if (*args[cur_arg+1] == '\0')
 				return cli_err(appctx, "'-f' requires a frontend name!\n");
 
-			for (px = proxies_list; px; px = px->next) {
+			list_for_each_entry(px, &main_proxies, el) {
 
 				/* only check the frontends */
 				if (!(px->cap & PR_CAP_FE))
