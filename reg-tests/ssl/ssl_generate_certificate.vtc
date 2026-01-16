@@ -150,7 +150,7 @@ client c5 -connect ${h1_clearlst_sock} {
 # Use another SNI - the server certificate should be generated and different
 # than the default one
 client c6 -connect ${h1_clearlst_sock} {
-  txreq -url "/P-384" -hdr "x-sni: unknown-sni.com"
+  txreq -url "/P-384" -hdr "x-sni: sni-longer-sni-longer-sni-longer-sni-longer-than-64-bytes-unknown-sni.com"
   rxresp
   expect resp.status == 200
   expect resp.http.x-ssl-sig_alg == "ecdsa-with-SHA256"

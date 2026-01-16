@@ -141,11 +141,14 @@ static SSL_CTX *ssl_sock_do_create_cert(const char *servername, struct bind_conf
 
 	/* Set the subject name using the same, but the CN */
 	name = X509_NAME_dup(name);
-	if (X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
-				       (const unsigned char *)servername,
-				       -1, -1, 0) != 1) {
-		X509_NAME_free(name);
-		goto mkcert_error;
+
+	if (strlen(servername) <= 64) {
+		if (X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
+		                              (const unsigned char *)servername,
+		                              -1, -1, 0) != 1) {
+			X509_NAME_free(name);
+			goto mkcert_error;
+		}
 	}
 	if (X509_set_subject_name(newcrt, name) != 1) {
 		X509_NAME_free(name);
