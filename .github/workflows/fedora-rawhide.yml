@@ -1,4 +1,4 @@
-name: Fedora/Rawhide/QuicTLS
+name: Fedora/Rawhide/OpenSSL
 
 on:
   schedule:
@@ -13,10 +13,10 @@ jobs:
     strategy:
       matrix:
         platform: [
-          { name: x64, cc: gcc,   QUICTLS_EXTRA_ARGS: "", ADDLIB_ATOMIC: "", ARCH_FLAGS: "" },
-          { name: x64, cc: clang, QUICTLS_EXTRA_ARGS: "", ADDLIB_ATOMIC: "", ARCH_FLAGS: "" },
-          { name: x86, cc: gcc,   QUICTLS_EXTRA_ARGS: "-m32 linux-generic32", ADDLIB_ATOMIC: "-latomic", ARCH_FLAGS: "-m32" },
-          { name: x86, cc: clang, QUICTLS_EXTRA_ARGS: "-m32 linux-generic32", ADDLIB_ATOMIC: "-latomic", ARCH_FLAGS: "-m32" }
+          { name: x64, cc: gcc,   ADDLIB_ATOMIC: "", ARCH_FLAGS: "" },
+          { name: x64, cc: clang, ADDLIB_ATOMIC: "", ARCH_FLAGS: "" },
+          { name: x86, cc: gcc,   ADDLIB_ATOMIC: "-latomic", ARCH_FLAGS: "-m32" },
+          { name: x86, cc: clang, ADDLIB_ATOMIC: "-latomic", ARCH_FLAGS: "-m32" }
         ]
       fail-fast: false
     name: ${{ matrix.platform.cc }}.${{ matrix.platform.name }}
@@ -28,11 +28,9 @@ jobs:
     - uses: actions/checkout@v5
     - name: Install dependencies
       run: |
-        dnf -y install awk diffutils git pcre-devel zlib-devel pcre2-devel 'perl(FindBin)' perl-IPC-Cmd 'perl(File::Copy)' 'perl(File::Compare)' lua-devel socat findutils systemd-devel clang
-        dnf -y install 'perl(FindBin)' 'perl(File::Compare)' perl-IPC-Cmd 'perl(File::Copy)' glibc-devel.i686 lua-devel.i686 lua-devel.x86_64 systemd-devel.i686 zlib-ng-compat-devel.i686 pcre-devel.i686 libatomic.i686
+        dnf -y install awk diffutils git pcre-devel zlib-devel pcre2-devel 'perl(FindBin)' perl-IPC-Cmd 'perl(File::Copy)' 'perl(File::Compare)' lua-devel socat findutils systemd-devel clang openssl-devel.x86_64
+        dnf -y install 'perl(FindBin)' 'perl(File::Compare)' perl-IPC-Cmd 'perl(File::Copy)' glibc-devel.i686 lua-devel.i686 lua-devel.x86_64 systemd-devel.i686 zlib-ng-compat-devel.i686 pcre-devel.i686 libatomic.i686 openssl-devel.i686
     - uses: ./.github/actions/setup-vtest
-    - name: Install QuicTLS
-      run: QUICTLS=yes QUICTLS_EXTRA_ARGS="${{ matrix.platform.QUICTLS_EXTRA_ARGS }}" scripts/build-ssl.sh
     - name: Build contrib tools
       run: |
         make admin/halog/halog
@@ -41,7 +39,7 @@ jobs:
         make dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht
     - name: Compile HAProxy with ${{ matrix.platform.cc }}
       run: |
-        make -j3 CC=${{ matrix.platform.cc }} V=1 ERR=1 TARGET=linux-glibc DEBUG="-DDEBUG_POOL_INTEGRITY -DDEBUG_UNIT" USE_OPENSSL=1 USE_QUIC=1 USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 ADDLIB="${{ matrix.platform.ADDLIB_ATOMIC }} -Wl,-rpath,${HOME}/opt/lib" SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include ARCH_FLAGS="${{ matrix.platform.ARCH_FLAGS }}"
+        make -j3 CC=${{ matrix.platform.cc }} V=1 ERR=1 TARGET=linux-glibc DEBUG="-DDEBUG_POOL_INTEGRITY -DDEBUG_UNIT" USE_PROMEX=1 USE_OPENSSL=1 USE_QUIC=1 USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 ADDLIB="${{ matrix.platform.ADDLIB_ATOMIC }}" ARCH_FLAGS="${{ matrix.platform.ARCH_FLAGS }}"
         make install
     - name: Show HAProxy version
       id: show-version
@@ -51,6 +49,13 @@ jobs:
         echo "::endgroup::"
         haproxy -vv
         echo "version=$(haproxy -v |awk 'NR==1{print $3}')" >> $GITHUB_OUTPUT
+#
+# TODO: review this workaround later
+    - name: relax crypto policies
+      run: |
+        dnf -y install crypto-policies-scripts
+        echo LEGACY > /etc/crypto-policies/config
+        update-crypto-policies
     - name: Run VTest for HAProxy ${{ steps.show-version.outputs.version }}
       id: vtest
       run: |
