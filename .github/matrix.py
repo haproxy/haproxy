@@ -222,7 +222,7 @@ def main(ref_name):
             "OPENSSL_VERSION=1.0.2u",
             "OPENSSL_VERSION=1.1.1s",
             "OPENSSL_VERSION=3.5.1",
-            "QUICTLS=yes",
+            "QUICTLS_VERSION=OpenSSL_1_1_1w-quic1",
             "WOLFSSL_VERSION=5.7.0",
             "AWS_LC_VERSION=1.39.0",
             # "BORINGSSL=yes",
@@ -261,7 +261,7 @@ def main(ref_name):
             except:
               pass
 
-            if ssl == "BORINGSSL=yes" or ssl == "QUICTLS=yes" or "LIBRESSL" in ssl or "WOLFSSL" in ssl or "AWS_LC" in ssl or openssl_supports_quic:
+            if ssl == "BORINGSSL=yes" or "QUICTLS" in ssl or "LIBRESSL" in ssl or "WOLFSSL" in ssl or "AWS_LC" in ssl or openssl_supports_quic:
                 flags.append("USE_QUIC=1")
 
             matrix.append(

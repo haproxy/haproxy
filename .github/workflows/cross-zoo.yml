@@ -104,7 +104,7 @@ jobs:
 
     - name: install quictls
       run: |
-        QUICTLS_EXTRA_ARGS="--cross-compile-prefix=${{ matrix.platform.arch }}- ${{ matrix.platform.target }}" QUICTLS=yes scripts/build-ssl.sh
+        QUICTLS_EXTRA_ARGS="--cross-compile-prefix=${{ matrix.platform.arch }}- ${{ matrix.platform.target }}" QUICTLS_VERSION=OpenSSL_1_1_1w-quic1 scripts/build-ssl.sh
 
     - name: Build
       run: |

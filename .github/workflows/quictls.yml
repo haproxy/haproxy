@@ -23,7 +23,7 @@ jobs:
           sudo apt-get update -o Acquire::Languages=none -o Acquire::Translation=none
           sudo apt-get --no-install-recommends -y install socat gdb
       - name: Install QuicTLS
-        run: env QUICTLS=yes QUICTLS_URL=https://github.com/quictls/quictls scripts/build-ssl.sh
+        run: env QUICTLS_VERSION=main QUICTLS_URL=https://github.com/quictls/quictls scripts/build-ssl.sh
       - name: Compile HAProxy
         run: |
           make -j$(nproc) ERR=1 CC=gcc TARGET=linux-glibc \

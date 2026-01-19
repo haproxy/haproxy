@@ -27,7 +27,7 @@ jobs:
           libsystemd-dev
     - name: Install QUICTLS
       run: |
-        QUICTLS=yes scripts/build-ssl.sh
+        QUICTLS_VERSION=OpenSSL_1_1_1w-quic1 scripts/build-ssl.sh
     - name: Download Coverity build tool
       run: |
         wget -c -N https://scan.coverity.com/download/linux64 --post-data "token=${{ secrets.COVERITY_SCAN_TOKEN }}&project=Haproxy" -O coverity_tool.tar.gz
