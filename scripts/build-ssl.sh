@@ -200,6 +200,7 @@ download_quictls () {
     else
        (
         cd ${BUILDSSL_TMPDIR}/quictls
+        git checkout "${QUICTLS_VERSION}"
         git pull
        )
     fi
@@ -287,7 +288,7 @@ if [ ! -z ${AWS_LC_FIPS_VERSION+x} ]; then
 	build_aws_lc_fips
 fi
 
-if [ ! -z ${QUICTLS+x} ]; then
+if [ ! -z ${QUICTLS_VERSION+x} ]; then
         download_quictls
         build_quictls
 fi
