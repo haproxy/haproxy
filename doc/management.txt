@@ -3627,7 +3627,7 @@ show stat [domain <resolvers|proxy>] [{<iid>|<proxy>} <type> <sid>] \
   format" described in the section above. In short, the second column (after the
   first ':') indicates the origin, nature, scope and persistence state of the
   variable. The third column indicates the field type, among "s32", "s64",
-  "u32", "u64", "flt' and "str". Then the fourth column is the value itself,
+  "u32", "u64", "flt" and "str". Then the fourth column is the value itself,
   which the consumer knows how to parse thanks to column 3 and how to process
   thanks to column 2.
 

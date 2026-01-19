@@ -2753,7 +2753,7 @@ h2-workaround-bogus-websocket-clients
   automatically downgrade to http/1.1 for the websocket tunnel, specify h2
   support on the bind line using "alpn" without an explicit "proto" keyword. If
   this statement was previously activated, this can be disabled by prefixing
-  the keyword with "no'.
+  the keyword with "no".
 
 hard-stop-after <time>
   Defines the maximum time allowed to perform a clean soft-stop.
@@ -19353,7 +19353,7 @@ strict-maxconn
   then never establish more connections to a server than maxconn, and try to
   reuse or kill connections if needed. Please note, however, than it may lead
   to failed requests in case we can't establish a new connection, and no
-  idle connection is available. This can happen when 'private" connections
+  idle connection is available. This can happen when "private" connections
   are established, connections tied only to a session, because authentication
   happened.
 
