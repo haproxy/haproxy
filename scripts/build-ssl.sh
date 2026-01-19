@@ -222,7 +222,11 @@ build_quictls () {
         cp -r include/* ${BUILDSSL_DESTDIR}/include
     else
         ./config shared no-tests ${QUICTLS_EXTRA_ARGS:-} --prefix="${BUILDSSL_DESTDIR}" --openssldir="${BUILDSSL_DESTDIR}" --libdir=lib -DPURIFY
-        make -j$(nproc) build_sw
+        if [ -z "${QUICTLS_VERSION##OpenSSL_1_1_1*}" ]; then
+            make all
+        else
+            make -j$(nproc) build_sw
+        fi
         make install_sw
     fi
 }
