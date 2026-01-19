@@ -57,7 +57,7 @@ jobs:
         echo "key=$(echo ${{ matrix.name }} | sha256sum | awk '{print $1}')" >> $GITHUB_OUTPUT
 
     - name: Cache SSL libs
-      if: ${{ matrix.ssl && matrix.ssl != 'stock' && matrix.ssl != 'BORINGSSL=yes' && 'QUICTLS' not in matrix.ssl }}
+      if: ${{ matrix.ssl && matrix.ssl != 'stock' && matrix.ssl != 'BORINGSSL=yes' && !contains(matrix.ssl, 'QUICTLS') }}
       id: cache_ssl
       uses: actions/cache@v4
       with:
