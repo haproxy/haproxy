@@ -6276,7 +6276,10 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 
 		/* only consider options that are frontend oriented and log oriented, such options may be set
 		 * in px->options2 because px->options is already full of tcp/http oriented options
+		 * also, cfg_parse_listen_match_option() assumes global curproxy variable points to
+		 * currently evaluated proxy
 		 */
+		curproxy = cfg_log_forward;
 		if (cfg_parse_listen_match_option(file, linenum, kwm, cfg_opts3, &err_code, args,
 		                                  PR_MODE_SYSLOG, PR_CAP_FE,
 		                                  &cfg_log_forward->options3, &cfg_log_forward->no_options3))
