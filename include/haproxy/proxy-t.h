@@ -93,7 +93,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_O_PREF_LAST  0x00000020      /* prefer last server */
 #define PR_O_DISPATCH   0x00000040      /* use dispatch mode */
 #define PR_O_FORCED_ID  0x00000080      /* proxy's ID was forced in the configuration */
-/* unused: 0x00000100 */
+#define PR_O_HTTPTERM   0x00000100      /* httpterm mode */
 #define PR_O_IGNORE_PRB 0x00000200      /* ignore empty requests (aborts and timeouts) */
 #define PR_O_NULLNOLOG  0x00000400      /* a connect without request will not be logged */
 #define PR_O_WREQ_BODY  0x00000800      /* always wait for the HTTP request body */
@@ -411,6 +411,7 @@ struct proxy {
 	int redispatch_after;			/* number of retries before redispatch */
 	unsigned down_time;			/* total time the proxy was down */
 	int (*accept)(struct stream *s);       /* application layer's accept() */
+	void *(*stream_new_from_sc)(struct session *sess, struct stconn *sc, struct buffer *in); /* stream connector creator function from mux stream connector */
 	struct conn_src conn_src;               /* connection source settings */
 	enum obj_type *default_target;		/* default target to use for accepted streams or NULL */
 	struct proxy *next;

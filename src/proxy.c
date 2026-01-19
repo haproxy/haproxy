@@ -31,6 +31,7 @@
 #include <haproxy/filters.h>
 #include <haproxy/global.h>
 #include <haproxy/guid.h>
+#include <haproxy/hstream.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/http_ext.h>
@@ -1544,6 +1545,7 @@ void init_new_proxy(struct proxy *p)
 	/* Default to only allow L4 retries */
 	p->retry_type = PR_RE_CONN_FAILED;
 
+	p->stream_new_from_sc = (p->options & PR_O_HTTPTERM) ? hstream_new : stream_new;
 	guid_init(&p->guid);
 
 	p->extra_counters_fe = NULL;
