@@ -5718,7 +5718,7 @@ It is possible to chain a TCP frontend to an HTTP backend. It is pointless if
 only HTTP traffic is handled. But it may be used to handle several protocols
 within the same frontend. In this case, the client's connection is first handled
 as a raw tcp connection before being upgraded to HTTP. Before the upgrade, the
-content processings are performend on raw data. Once upgraded, data is parsed
+content processings are performed on raw data. Once upgraded, data is parsed
 and stored using an internal representation called HTX and it is no longer
 possible to rely on raw representation. There is no way to go back.
 
@@ -5736,7 +5736,7 @@ HTTP/2 upgrade, applicative streams are distinct and all frontend rules are
 evaluated systematically on each one. And as said, the first stream, the TCP
 one, is destroyed, but only after the frontend rules were evaluated.
 
-There is another importnat point to understand when HTTP processings are
+There is another important point to understand when HTTP processings are
 performed from a TCP proxy. While HAProxy is able to parse HTTP/1 in-fly from
 tcp-request content rules, it is not possible for HTTP/2. Only the HTTP/2
 preface can be parsed. This is a huge limitation regarding the HTTP content

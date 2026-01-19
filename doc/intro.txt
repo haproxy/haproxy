@@ -1693,7 +1693,7 @@ A small team of trusted developers will receive it and will be able to propose
 a fix. We usually don't use embargoes and once a fix is available it gets
 merged. In some rare circumstances it can happen that a release is coordinated
 with software vendors. Please note that this process usually messes up with
-eveyone's work, and that rushed up releases can sometimes introduce new bugs,
+everyone's work, and that rushed up releases can sometimes introduce new bugs,
 so it's best avoided unless strictly necessary; as such, there is often little
 consideration for reports that needlessly cause such extra burden, and the best
 way to see your work credited usually is to provide a working fix, which will

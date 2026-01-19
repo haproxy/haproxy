@@ -5,7 +5,7 @@
 
 The buffer list API allows one to share a certain amount of buffers between
 multiple entities, which will each see their own as lists of buffers, while
-keeping a sharedd free list. The immediate use case is for muxes, which may
+keeping a shared free list. The immediate use case is for muxes, which may
 want to allocate up to a certain number of buffers per connection, shared
 among all streams. In this case, each stream will first request a new list
 for its own use, then may request extra entries from the free list. At any

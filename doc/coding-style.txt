@@ -3,7 +3,7 @@
 
 A number of contributors are often embarrassed with coding style issues, they
 don't always know if they're doing it right, especially since the coding style
-has elvoved along the years. What is explained here is not necessarily what is
+has evolved along the years. What is explained here is not necessarily what is
 applied in the code, but new code should as much as possible conform to this
 style. Coding style fixes happen when code is replaced. It is useless to send
 patches to fix coding style only, they will be rejected, unless they belong to
