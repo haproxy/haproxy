@@ -196,11 +196,11 @@ build_aws_lc_fips () {
 
 download_quictls () {
     if [ ! -d "${BUILDSSL_TMPDIR}/quictls" ]; then
-        git clone --depth=1 ${QUICTLS_URL} ${BUILDSSL_TMPDIR}/quictls
+        git clone -b "${QUICTLS_VERSION}" --depth=1 ${QUICTLS_URL} ${BUILDSSL_TMPDIR}/quictls
     else
        (
         cd ${BUILDSSL_TMPDIR}/quictls
-        git checkout "${QUICTLS_VERSION}"
+        git checkout "${QUICTLS_VERSION}" || exit 1
         git pull
        )
     fi
