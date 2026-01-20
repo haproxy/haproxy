@@ -964,7 +964,7 @@ endif
 OBJS += src/mux_h2.o src/mux_h1.o src/mux_fcgi.o src/log.o		\
         src/server.o src/stream.o src/tcpcheck.o src/http_ana.o		\
         src/stick_table.o src/tools.o src/mux_spop.o src/sample.o	\
-        src/activity.o src/cfgparse.o src/peers.o src/cli.o		\
+        src/activity.o src/cfgparse.o src/cfgparse-peers.o src/peers.o src/cli.o	\
         src/backend.o src/connection.o src/resolvers.o src/proxy.o	\
         src/cache.o src/stconn.o src/http_htx.o src/debug.o		\
         src/check.o src/stats-html.o src/haproxy.o src/listener.o	\
