@@ -462,6 +462,13 @@ static void qcs_close_remote(struct qcs *qcs)
 		qcs->st = QC_SS_CLO;
 	}
 
+	/* Cancel STOP_SENDING emission as it is now unneeded. */
+	if (qcs->st == QC_SS_CLO && (qcs->flags & QC_SF_TO_STOP_SENDING)) {
+		qcs->flags &= ~QC_SF_TO_STOP_SENDING;
+		/* Remove from send_list. Necessary to ensure BUG_ON() below is not triggered. */
+		LIST_DEL_INIT(&qcs->el_send);
+	}
+
 	if (qcs_is_completed(qcs)) {
 		BUG_ON(LIST_INLIST(&qcs->el_send));
 		TRACE_STATE("add stream in purg_list", QMUX_EV_QCS_RECV, qcs->qcc->conn, qcs);
