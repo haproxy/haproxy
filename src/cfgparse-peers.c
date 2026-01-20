@@ -571,22 +571,24 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		curpeers->disabled = 0;
 	}
 	else if (*args[0] != 0) {
-		struct peers_kw_list *pkwl;
+		struct cfg_kw_list *kwl;
 		int index;
-		int rc = -1;
+		int rc;
 
-		list_for_each_entry(pkwl, &peers_keywords.list, list) {
-			for (index = 0; pkwl->kw[index].kw != NULL; index++) {
-				if (strcmp(pkwl->kw[index].kw, args[0]) == 0) {
-					rc = pkwl->kw[index].parse(args, curpeers, file, linenum, &errmsg);
+		list_for_each_entry(kwl, &cfg_keywords.list, list) {
+			for (index = 0; kwl->kw[index].kw != NULL; index++) {
+				if ((kwl->kw[index].section == CFG_PEERS) &&
+				    strcmp(kwl->kw[index].kw, args[0]) == 0) {
+					rc = kwl->kw[index].parse(args, CFG_PEERS, curpeers->peers_fe, NULL, file, linenum, &errmsg);
 					if (rc < 0) {
 						ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
 					}
 					else if (rc > 0) {
-						ha_warning("parsing [%s:%d] : %s\n", file, linenum, errmsg);
-						err_code |= ERR_WARN;
+						if (errmsg)
+							ha_warning("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+						err_code |= rc;
 						goto out;
 					}
 					goto out;
