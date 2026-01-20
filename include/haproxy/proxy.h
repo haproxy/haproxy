@@ -67,7 +67,6 @@ struct proxy *proxy_find_best_match(int cap, const char *name, int id, int *diff
 int proxy_cfg_ensure_no_http(struct proxy *curproxy);
 int proxy_cfg_ensure_no_log(struct proxy *curproxy);
 void init_new_proxy(struct proxy *p);
-void proxy_preset_defaults(struct proxy *defproxy);
 void proxy_free_defaults(struct proxy *defproxy);
 void proxy_destroy_defaults(struct proxy *px);
 void proxy_destroy_all_unref_defaults(void);

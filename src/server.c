@@ -3155,9 +3155,7 @@ struct server *new_server(struct proxy *proxy)
 	}
 
 	HA_RWLOCK_INIT(&srv->path_params.param_lock);
-	/* please don't put default server settings here, they are set in
-	 * proxy_preset_defaults().
-	 */
+
 	return srv;
 }
 

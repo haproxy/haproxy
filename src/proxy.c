@@ -1491,9 +1491,9 @@ int proxy_cfg_ensure_no_log(struct proxy *curproxy)
 	return 0;
 }
 
-/* Perform the most basic initialization of a proxy :
- * memset(), list_init(*), reset_timeouts(*).
- * Any new proxy or peer should be initialized via this function.
+/* Perform the most basic initialization of <p> proxy and define some common
+ * default parameters values. Any new proxy or peer should be initialized via
+ * this function.
  */
 void init_new_proxy(struct proxy *p)
 {
@@ -1551,8 +1551,26 @@ void init_new_proxy(struct proxy *p)
 
 	HA_RWLOCK_INIT(&p->lock);
 
-	/* initialize the default settings */
-	proxy_preset_defaults(p);
+	lf_expr_init(&p->logformat);
+	lf_expr_init(&p->logformat_sd);
+	lf_expr_init(&p->format_unique_id);
+	lf_expr_init(&p->logformat_error);
+
+	/* initialize parameters to common default values */
+	p->mode = PR_MODE_TCP;
+	p->options |= PR_O_REUSE_SAFE;
+	p->max_out_conns = MAX_SRV_LIST;
+	p->email_alert.level = LOG_ALERT;
+	p->load_server_state_from_file = PR_SRV_STATE_FILE_UNSPEC;
+
+	if (!(p->cap & PR_CAP_INT)) {
+		p->maxconn = cfg_maxpconn;
+		p->conn_retries = CONN_RETRIES;
+	}
+	else {
+		p->options2 |= PR_O2_INDEPSTR;
+		p->timeout.connect = 5000;
+	}
 }
 
 /* Initialize per-thread proxy fields */
@@ -1567,37 +1585,9 @@ int proxy_init_per_thr(struct proxy *px)
 	return 0;
 }
 
-/* Preset default settings onto proxy <defproxy>. */
-void proxy_preset_defaults(struct proxy *defproxy)
-{
-	defproxy->mode = PR_MODE_TCP;
-	defproxy->flags = 0;
-	if (!(defproxy->cap & PR_CAP_INT)) {
-		defproxy->maxconn = cfg_maxpconn;
-		defproxy->conn_retries = CONN_RETRIES;
-	}
-	defproxy->redispatch_after = 0;
-	defproxy->options = PR_O_REUSE_SAFE;
-	if (defproxy->cap & PR_CAP_INT)
-		defproxy->options2 |= PR_O2_INDEPSTR;
-	defproxy->max_out_conns = MAX_SRV_LIST;
-
-	lf_expr_init(&defproxy->logformat);
-	lf_expr_init(&defproxy->logformat_sd);
-	lf_expr_init(&defproxy->format_unique_id);
-	lf_expr_init(&defproxy->logformat_error);
-
-	defproxy->email_alert.level = LOG_ALERT;
-	defproxy->load_server_state_from_file = PR_SRV_STATE_FILE_UNSPEC;
-
-	if (defproxy->cap & PR_CAP_INT)
-		defproxy->timeout.connect = 5000;
-}
-
 /* Frees all dynamic settings allocated on a default proxy that's about to be
  * destroyed. Note that most of the fields are not even reset, so extreme care
- * is required here, and calling proxy_preset_defaults() afterwards would be
- * safer.
+ * is required here.
  */
 void proxy_free_defaults(struct proxy *defproxy)
 {
