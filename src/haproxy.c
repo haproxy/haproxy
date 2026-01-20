@@ -2742,8 +2742,10 @@ void deinit(void)
 	 * they are respectively cleaned up in sink_deinit() and deinit_log_forward()
 	 */
 
-	/* destroy all referenced defaults proxies  */
-	defaults_px_destroy_all_unref();
+	/* All proxies are removed now, so every defaults should also be freed
+	 * when their refcount reached zero.
+	 */
+	BUG_ON(!LIST_ISEMPTY(&defaults_list));
 
 	userlist_free(userlist);
 

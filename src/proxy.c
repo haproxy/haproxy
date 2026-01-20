@@ -64,7 +64,7 @@ struct list proxies = LIST_HEAD_INIT(proxies); /* list of all proxies */
 struct ceb_root *used_proxy_id = NULL; /* list of proxy IDs in use */
 struct ceb_root *proxy_by_name = NULL; /* tree of proxies sorted by name */
 struct ceb_root *defproxy_by_name = NULL; /* tree of default proxies sorted by name (dups possible) */
-struct proxy *orphaned_default_proxies = NULL; /* deleted ones with refcount != 0 */
+struct list defaults_list = LIST_HEAD_INIT(defaults_list); /* list of all defaults proxies */
 unsigned int error_snapshot_id = 0;     /* global ID assigned to each error then incremented */
 
 /* CLI context used during "show servers {state|conn}" */
@@ -1500,6 +1500,7 @@ void init_new_proxy(struct proxy *p)
 	memset(p, 0, sizeof(struct proxy));
 	p->obj_type = OBJ_TYPE_PROXY;
 	LIST_INIT(&p->global_list);
+	LIST_INIT(&p->el);
 	LIST_INIT(&p->acl);
 	LIST_INIT(&p->http_req_rules);
 	LIST_INIT(&p->http_res_rules);
@@ -1628,29 +1629,11 @@ static void defaults_px_free(struct proxy *defproxy)
  */
 void defaults_px_destroy(struct proxy *px)
 {
-	struct proxy *prev;
-
 	BUG_ON(!(px->cap & PR_CAP_DEF));
 	BUG_ON(px->conf.refcount != 0);
 
 	cebis_item_delete(&defproxy_by_name, conf.name_node, id, px);
-
-	/* If orphaned defaults list is not empty, it may contain <px> instance.
-	 * In this case it is necessary to manually remove it from the list.
-	 */
-	if (orphaned_default_proxies) {
-		if (orphaned_default_proxies == px) {
-			orphaned_default_proxies = px->next;
-		}
-		else {
-			for (prev = orphaned_default_proxies;
-			     prev && prev->next != px; prev = prev->next)
-				;
-			if (prev)
-				prev->next = px->next;
-		}
-		px->next = NULL;
-	}
+	LIST_DELETE(&px->el);
 
 	defaults_px_free(px);
 	free(px);
@@ -1669,35 +1652,19 @@ void defaults_px_destroy_all_unref(void)
 		if (!px->conf.refcount)
 			defaults_px_destroy(px);
 	}
-
-	px = orphaned_default_proxies;
-	while (px) {
-		BUG_ON(!(px->cap & PR_CAP_DEF));
-		nx = px->next;
-		if (!px->conf.refcount)
-			defaults_px_destroy(px);
-		px = nx;
-	}
 }
 
 /* Removes <px> defaults from the name tree. This operation is useful when a
  * section is made invisible by a newer instance with the same name. If <px> is
- * not referenced it is freed immediately, else it is moved in defaults
- * orphaned list.
+ * not referenced it is freed immediately, else it is kept in defaults_list.
  */
 void defaults_px_detach(struct proxy *px)
 {
 	BUG_ON(!(px->cap & PR_CAP_DEF));
-
 	cebis_item_delete(&defproxy_by_name, conf.name_node, id, px);
-	if (px->conf.refcount) {
-		/* still referenced just append it to the orphaned list */
-		px->next = orphaned_default_proxies;
-		orphaned_default_proxies = px;
-	}
-	else {
+	if (!px->conf.refcount)
 		defaults_px_destroy(px);
-	}
+	/* If not destroyed, <px> can still be accessed in <defaults_list>. */
 }
 
 /* Add a reference on the default proxy <defpx> for the proxy <px> Nothing is

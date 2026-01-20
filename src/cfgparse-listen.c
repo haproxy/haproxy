@@ -569,6 +569,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if (rc & PR_CAP_DEF) {
+			LIST_APPEND(&defaults_list, &curproxy->el);
 			/* last and current proxies must be updated to this one */
 			curr_defproxy = last_defproxy = curproxy;
 		} else {

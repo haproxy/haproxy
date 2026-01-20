@@ -316,6 +316,7 @@ struct proxy {
 	unsigned long last_change;              /* internal use only: last time the proxy state was changed */
 
 	struct list global_list;                /* list member for global proxy list */
+	struct list el;                         /* attach point in various list - currently used only on defaults_list for defaults section */
 
 	unsigned int maxconn;                   /* max # of active streams on the frontend */
 
