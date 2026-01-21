@@ -352,6 +352,8 @@ int ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind
 			ssl_ctx = (SSL_CTX *)lru->data;
 		if (!ssl_ctx && lru) {
 			ssl_ctx = ssl_sock_do_create_cert(servername, bind_conf, ssl);
+			if (!ssl_ctx)
+				goto error;
 			lru64_commit(lru, ssl_ctx, cacert, 0, (void (*)(void *))SSL_CTX_free);
 		}
 		SSL_set_SSL_CTX(ssl, ssl_ctx);
@@ -360,11 +362,14 @@ int ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind
 	}
 	else {
 		ssl_ctx = ssl_sock_do_create_cert(servername, bind_conf, ssl);
+		if (!ssl_ctx)
+			goto error;
 		SSL_set_SSL_CTX(ssl, ssl_ctx);
 		/* No LRU cache, this CTX will be released as soon as the session dies */
 		SSL_CTX_free(ssl_ctx);
 		return 1;
 	}
+error:
 	return 0;
 }
 int ssl_sock_generate_certificate_from_conn(struct bind_conf *bind_conf, SSL *ssl)
