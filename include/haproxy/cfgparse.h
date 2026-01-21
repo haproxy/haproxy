@@ -111,6 +111,7 @@ extern char *cursection;
 extern int non_global_section_parsed;
 
 extern struct proxy *curproxy;
+extern struct proxy *last_defproxy;
 extern char initial_cwd[PATH_MAX];
 
 int cfg_parse_global(const char *file, int linenum, char **args, int inv);

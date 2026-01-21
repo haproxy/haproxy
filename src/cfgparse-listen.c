@@ -299,7 +299,6 @@ int cfg_parse_listen_match_option(const char *file, int linenum, int kwm,
 int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 {
 	static struct proxy *curr_defproxy = NULL;
-	static struct proxy *last_defproxy = NULL;
 	const char *err;
 	int rc;
 	int err_code = 0;
@@ -388,35 +387,49 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
-		if (*args[1] && rc & PR_CAP_DEF) {
-			/* for default proxies, if another one has the same
-			 * name and was explicitly referenced, this is an error
-			 * that we must reject. E.g.
-			 *     defaults def
-			 *     backend bck from def
-			 *     defaults def
+		if (rc & PR_CAP_DEF) {
+			/* If last defaults is unnamed, it will be made
+			 * invisible by the current newer section. It must be
+			 * freed unless it is still referenced by proxies.
 			 */
-			curproxy = proxy_find_by_name(args[1], PR_CAP_DEF, 0);
-			if (curproxy && curproxy->flags & PR_FL_EXPLICIT_REF) {
-				ha_alert("Parsing [%s:%d]: %s '%s' has the same name as another defaults section declared at"
-					 " %s:%d which was explicitly referenced hence cannot be replaced. Please remove or"
-					 " rename one of the offending defaults section.\n",
-					 file, linenum, proxy_cap_str(rc), args[1],
-					 curproxy->conf.file, curproxy->conf.line);
-				err_code |= ERR_ALERT | ERR_ABORT;
-				goto out;
+			if (last_defproxy && last_defproxy->id[0] == '\0' &&
+			    !last_defproxy->conf.refcount) {
+				defaults_px_destroy(last_defproxy);
 			}
+			last_defproxy = NULL;
 
-			/* if the other proxy exists, we don't need to keep it
-			 * since neither will support being explicitly referenced
-			 * so let's drop it from the index but keep a reference to
-			 * its location for error messages.
-			 */
-			if (curproxy) {
-				file_prev = curproxy->conf.file;
-				line_prev = curproxy->conf.line;
-				defaults_px_detach(curproxy);
-				curproxy = NULL;
+			/* If current defaults is named, check collision with previous instances. */
+			if (*args[1]) {
+				curproxy = proxy_find_by_name(args[1], PR_CAP_DEF, 0);
+
+				/* for default proxies, if another one has the same
+				 * name and was explicitly referenced, this is an error
+				 * that we must reject. E.g.
+				 *     defaults def
+				 *     backend bck from def
+				 *     defaults def
+				 */
+				if (curproxy && curproxy->flags & PR_FL_EXPLICIT_REF) {
+					ha_alert("Parsing [%s:%d]: %s '%s' has the same name as another defaults section declared at"
+						 " %s:%d which was explicitly referenced hence cannot be replaced. Please remove or"
+						 " rename one of the offending defaults section.\n",
+						 file, linenum, proxy_cap_str(rc), args[1],
+						 curproxy->conf.file, curproxy->conf.line);
+					err_code |= ERR_ALERT | ERR_ABORT;
+					goto out;
+				}
+
+				/* if the other proxy exists, we don't need to keep it
+				 * since neither will support being explicitly referenced
+				 * so let's drop it from the index but keep a reference to
+				 * its location for error messages.
+				 */
+				if (curproxy) {
+					file_prev = curproxy->conf.file;
+					line_prev = curproxy->conf.line;
+					defaults_px_detach(curproxy);
+					curproxy = NULL;
+				}
 			}
 		}
 

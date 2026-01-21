@@ -110,6 +110,8 @@ extern struct proxy *mworker_proxy;
 
 /* curproxy is only valid during parsing and will be NULL afterwards. */
 struct proxy *curproxy = NULL;
+/* last defaults section parsed, NULL after parsing */
+struct proxy *last_defproxy = NULL;
 
 char *cursection = NULL;
 int cfg_maxpconn = 0;                   /* # of simultaneous connections per proxy (-N) */

@@ -2098,6 +2098,13 @@ static void step_init_2(int argc, char** argv)
 	struct pre_check_fct *prcf;
 	const char *cc, *cflags, *opts;
 
+	/* Free last defaults if it is unnamed and unreferenced. */
+	if (last_defproxy && last_defproxy->id[0] == '\0' &&
+	    !last_defproxy->conf.refcount) {
+		defaults_px_destroy(last_defproxy);
+	}
+	last_defproxy = NULL; /* This variable is not used after parsing. */
+
 	/* destroy unreferenced defaults proxies  */
 	defaults_px_destroy_all_unref();
 
