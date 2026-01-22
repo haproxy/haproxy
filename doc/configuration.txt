@@ -3,7 +3,7 @@
                           Configuration Manual
                          ----------------------
                               version 3.4
-                              2026/01/07
+                              2026/01/22
 
 
 This document covers the configuration language as implemented in the version

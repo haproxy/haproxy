@@ -1,6 +1,88 @@
 ChangeLog :
 ===========
 
+2026/01/22 : 3.4-dev3
+    - BUILD: ssl: strchr definition changed in C23
+    - BUILD: tools: memchr definition changed in C23
+    - BUG/MINOR: cfgparse: wrong section name upon error
+    - MINOR: cfgparse: Refactor "userlist" parser to print it in -dKall operation
+    - BUILD: sockpair: fix build issue on macOS related to variable-length arrays
+    - BUG/MINOR: cli/stick-tables: argument to "show table" is optional
+    - REGTESTS: ssl: Fix reg-tests curve check
+    - CI: github: remove ERR=1 temporarly from the ECH job
+    - BUG/MINOR: ech/quic: enable ech configuration also for quic listeners
+    - MEDIUM: config: warn if some userlist hashes are too slow
+    - MINOR: cfgparse: remove duplicate "force-persist" in common kw list
+    - MINOR: sample: also support retrieving fc.timer.handshake without a stream
+    - MINOR: tcp-sample: permit retrieving tcp_info from the connection/session stage
+    - CLEANUP: connection: Remove outdated note about CO_FL `0x00002000` being unused
+    - MINOR: receiver: Dynamically alloc the "members" field of shard_info
+    - MINOR: stats: Increase the tgid from 8bits to 16bits
+    - BUG/MINOR: stats-file: Use a 16bits variable when loading tgid
+    - BUG/MINOR: hlua_fcn: fix broken yield for Patref:add_bulk()
+    - BUG/MINOR: hlua_fcn: ensure Patref:add_bulk() is given a table object before using it
+    - BUG/MINOR: net_helper: fix IPv6 header length processing
+    - MEDIUM: counters: Dynamically allocate per-thread group counters
+    - MEDIUM: counters: Remove some extra tests
+    - BUG/MEDIUM: threads: Fix binding thread on bind.
+    - BUG/MEDIUM: quic: fix ACK ECN frame parsing
+    - MEDIUM: counters: mostly revert da813ae4d7cb77137ed
+    - BUG/MINOR: http_act: fix deinit performed on uninitialized lf_expr in release_http_map()
+    - MINOR: queues: Turn non_empty_tgids into a long array.
+    - MINOR: threads: Eliminate all_tgroups_mask.
+    - BUG/MEDIUM: queues: Fix arithmetic when feeling non_empty_tgids
+    - MEDIUM: thread: Turn the group mask in thread set into a group counter
+    - BUG/MINOR: proxy: free persist_rules
+    - MEDIUM: stream: refactor switching-rules processing
+    - REGTESTS: add test on backend switching rules selection
+    - MEDIUM: proxy: do not select a backend if disabled
+    - MEDIUM: proxy: implement publish/unpublish backend CLI
+    - MINOR: stats: report BE unpublished status
+    - MINOR: cfgparse: adapt warnif_cond_conflicts() error output
+    - MEDIUM: proxy: force traffic on unpublished/disabled backends
+    - MINOR: ssl: Factorize AES GCM data processing
+    - MINOR: ssl: Add new aes_cbc_enc/_dec converters
+    - REGTESTS: ssl: Add tests for new aes cbc converters
+    - MINOR: jwe: Add new jwt_decrypt_secret converter
+    - MINOR: jwe: Add new jwt_decrypt_cert converter
+    - REGTESTS: jwe: Add jwt_decrypt_secret and jwt_decrypt_cert tests
+    - DOC: jwe: Add doc for jwt_decrypt converters
+    - MINOR: jwe: Some algorithms not supported by AWS-LC
+    - REGTESTS: jwe: Fix tests of algorithms not supported by AWS-LC
+    - BUG/MINOR: cfgparse: fix "default" prefix parsing
+    - REORG/MINOR: cfgparse: eliminate code duplication by lshift_args()
+    - MEDIUM: systemd: implement directory loading
+    - CI: github: switch monthly Fedora Rawhide build to OpenSSL
+    - SCRIPTS: build-ssl: use QUICTLS_VERSION instead of QUICTLS=yes
+    - CI: github: define the right quictls version in each jobs
+    - CI: github: fix vtest.yml with "not quictls"
+    - MINOR: cli: use srv_drop() when server was created using new_server()
+    - BUG/MINOR: server: ensure server is detached from proxy list before being freed
+    - BUG/MEDIUM: promex: server iteration may rely on stale server
+    - SCRIPTS: build-ssl: clone the quictls branch directly
+    - SCRIPTS: build-ssl: fix quictls build for 1.1.1 versions
+    - BUG/MEDIUM: log: parsing log-forward options may result in segfault
+    - DOC: proxy-protocol: Add SSL client certificate TLV
+    - DOC: fix typos in the documentation files
+    - DOC: fix mismatched quotes typos around words in the documentation files
+    - REORG: cfgparse: move peers parsing to cfgparse-peers.c
+    - MINOR: tools: add chunk_escape_string() helper function
+    - MINOR: vars: store variable names for runtime access
+    - MINOR: vars: implement dump_all_vars() sample fetch
+    - DOC: vars: document dump_all_vars() sample fetch
+    - BUG/MEDIUM: ssl: fix error path on generate-certificates
+    - BUG/MEDIUM: ssl: fix generate-certificates option when SNI greater than 64bytes
+    - BUG/MEDIUM: mux-quic: prevent BUG_ON() on aborted uni stream close
+    - REGTESTS: ssl: fix generate-certificates w/ LibreSSL
+    - SCRIPTS: build: enable symbols in AWS-LC builds
+    - BUG/MINOR: proxy: fix deinit crash on defaults with duplicate name
+    - BUG/MEDIUM: debug: only dump Lua state when panicking
+    - MINOR: proxy: remove proxy_preset_defaults()
+    - MINOR: proxy: refactor defaults proxies API
+    - MINOR: proxy: simplify defaults proxies list storage
+    - MEDIUM: cfgparse: do not store unnamed defaults in name tree
+    - MEDIUM: proxy: implement persistent named defaults
+
 2026/01/07 : 3.4-dev2
     - BUG/MEDIUM: mworker/listener: ambiguous use of RX_F_INHERITED with shards
     - BUG/MEDIUM: http-ana: Properly detect client abort when forwarding response (v2)
