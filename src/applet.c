@@ -848,7 +848,12 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 
 	input  = applet_output_data(app);
 	output = co_data(oc);
-	app->applet->fct(app);
+
+	/* Don't call I/O handler if the applet was shut (release callback was
+	 * already called)
+	 */
+	if (se_fl_test(app->sedesc, SE_FL_SHR | SE_FL_SHW))
+		app->applet->fct(app);
 
 	TRACE_POINT(APPLET_EV_PROCESS, app);
 
@@ -945,7 +950,11 @@ struct task *task_process_applet(struct task *t, void *context, unsigned int sta
 	applet_need_more_data(app);
 	applet_have_no_more_data(app);
 
-	app->applet->fct(app);
+	/* Don't call I/O handler if the applet was shut (release callback was
+	 * already called)
+	 */
+	if (!applet_fl_test(app, APPCTX_FL_SHUTDOWN))
+		app->applet->fct(app);
 
 	TRACE_POINT(APPLET_EV_PROCESS, app);
 
