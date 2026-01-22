@@ -67,12 +67,13 @@ struct proxy *proxy_find_best_match(int cap, const char *name, int id, int *diff
 int proxy_cfg_ensure_no_http(struct proxy *curproxy);
 int proxy_cfg_ensure_no_log(struct proxy *curproxy);
 void init_new_proxy(struct proxy *p);
-void proxy_free_defaults(struct proxy *defproxy);
-void proxy_destroy_defaults(struct proxy *px);
-void proxy_destroy_all_unref_defaults(void);
+
+void defaults_px_destroy(struct proxy *px);
+void defaults_px_destroy_all_unref(void);
+void defaults_px_detach(struct proxy *px);
+
 void proxy_ref_defaults(struct proxy *px, struct proxy *defpx);
 void proxy_unref_defaults(struct proxy *px);
-void proxy_unref_or_destroy_defaults(struct proxy *px);
 int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char **errmsg);
 struct proxy *alloc_new_proxy(const char *name, unsigned int cap,
                               char **errmsg);

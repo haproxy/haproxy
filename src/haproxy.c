@@ -2099,7 +2099,7 @@ static void step_init_2(int argc, char** argv)
 	const char *cc, *cflags, *opts;
 
 	/* destroy unreferenced defaults proxies  */
-	proxy_destroy_all_unref_defaults();
+	defaults_px_destroy_all_unref();
 
 	list_for_each_entry(prcf, &pre_check_list, list) {
 		err_code |= prcf->fct();
@@ -2743,7 +2743,7 @@ void deinit(void)
 	 */
 
 	/* destroy all referenced defaults proxies  */
-	proxy_destroy_all_unref_defaults();
+	defaults_px_destroy_all_unref();
 
 	userlist_free(userlist);
 

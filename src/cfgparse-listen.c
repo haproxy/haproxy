@@ -415,7 +415,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			if (curproxy) {
 				file_prev = curproxy->conf.file;
 				line_prev = curproxy->conf.line;
-				proxy_unref_or_destroy_defaults(curproxy);
+				defaults_px_detach(curproxy);
 				curproxy = NULL;
 			}
 		}
