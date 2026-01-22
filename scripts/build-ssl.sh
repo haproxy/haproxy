@@ -156,7 +156,7 @@ build_aws_lc () {
            mkdir -p build
            cd build
            cmake -version
-           cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=1 -DDISABLE_GO=1 -DDISABLE_PERL=1 \
+           cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=1 -DDISABLE_GO=1 -DDISABLE_PERL=1 \
                  -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DCMAKE_INSTALL_RPATH=${BUILDSSL_DESTDIR}/lib \
                  -DBUILD_TESTING=0 -DCMAKE_INSTALL_PREFIX=${BUILDSSL_DESTDIR} ..
            make -j$(nproc)
@@ -184,7 +184,7 @@ build_aws_lc_fips () {
            mkdir -p build
            cd build
            cmake -version
-           cmake -DCMAKE_BUILD_TYPE=Release -DFIPS=1 -DBUILD_SHARED_LIBS=1 \
+           cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIPS=1 -DBUILD_SHARED_LIBS=1 \
                  -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DCMAKE_INSTALL_RPATH=${BUILDSSL_DESTDIR}/lib \
                  -DBUILD_TESTING=0 -DCMAKE_INSTALL_PREFIX=${BUILDSSL_DESTDIR} ..
            make -j$(nproc)
