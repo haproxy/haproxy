@@ -1639,13 +1639,34 @@ void proxy_free_defaults(struct proxy *defproxy)
  */
 void proxy_destroy_defaults(struct proxy *px)
 {
+	struct proxy *prev;
+
 	if (!px)
 		return;
 	if (!(px->cap & PR_CAP_DEF))
 		return;
 	BUG_ON(px->conf.refcount != 0);
+
 	cebis_item_delete((px->cap & PR_CAP_DEF) ? &defproxy_by_name : &proxy_by_name,
 			  conf.name_node, id, px);
+
+	/* If orphaned defaults list is not empty, it may contain <px> instance.
+	 * In this case it is necessary to manually remove it from the list.
+	 */
+	if (orphaned_default_proxies) {
+		if (orphaned_default_proxies == px) {
+			orphaned_default_proxies = px->next;
+		}
+		else {
+			for (prev = orphaned_default_proxies;
+			     prev && prev->next != px; prev = prev->next)
+				;
+			if (prev)
+				prev->next = px->next;
+		}
+		px->next = NULL;
+	}
+
 	proxy_free_defaults(px);
 	free(px);
 }
