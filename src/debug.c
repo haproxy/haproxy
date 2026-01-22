@@ -605,7 +605,11 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 		chunk_appendf(buf, "%sCurrent executing a Lua HTTP service -- ", pfx);
 	}
 
-	if (hlua && hlua->T) {
+	/* only dump the Lua stack on panic because the approach is often
+	 * destructive and the running program might not recover from this
+	 * if called during warnings or "show threads".
+	 */
+	if (hlua && hlua->T && (get_tainted() & TAINTED_PANIC)) {
 		chunk_appendf(buf, "stack traceback:\n    ");
 		append_prefixed_str(buf, hlua_traceback(hlua->T, "\n    "), pfx, '\n', 0);
 	}
