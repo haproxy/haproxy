@@ -870,6 +870,7 @@ void hlua_unref(lua_State *L, int ref)
 __LJMP static int _hlua_traceback(lua_State *L)
 {
 	lua_Debug *ar = lua_touserdata(L, 1);
+	int ret;
 
 	/* Fill fields:
 	 * 'S': fills in the fields source, short_src, linedefined, lastlinedefined, and what;
@@ -877,7 +878,10 @@ __LJMP static int _hlua_traceback(lua_State *L)
 	 * 'n': fills in the field name and namewhat;
 	 * 't': fills in the field istailcall;
 	 */
-	return lua_getinfo(L, "Slnt", ar);
+	ret = lua_getinfo(L, "Slnt", ar);
+	if (!ret)
+		WILL_LJMP(luaL_error(L, "unexpected"));
+	return 0;
 }
 
 
@@ -896,7 +900,7 @@ const char *hlua_traceback(lua_State *L, const char* sep)
 		lua_pushlightuserdata(L, &ar);
 
 		/* safe getinfo */
-		switch (lua_pcall(L, 1, 1, 0)) {
+		switch (lua_pcall(L, 1, 0, 0)) {
 			case LUA_OK:
 				break;
 			default:
