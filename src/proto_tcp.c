@@ -1028,7 +1028,7 @@ static int tcp_get_info(struct connection *conn, long long int *info, int info_n
 
 static void __proto_tcp_init(void)
 {
-#if defined(__linux__) && !defined(TCP_MD5SIG)
+#if defined(__linux__) && defined(TCP_MD5SIG)
 	hap_register_feature("HAVE_TCP_MD5SIG");
 #endif
 }
