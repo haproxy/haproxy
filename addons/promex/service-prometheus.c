@@ -1255,7 +1255,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 				labels[lb_idx].value = ist2(sv->id, strlen(sv->id));
 
 				if (!stats_fill_sv_line(px, sv, 0, stats, ST_I_PX_MAX, &(ctx->field_num)))
-					return -1;
+					goto error;
 
 				if ((ctx->flags & PROMEX_FL_NO_MAINT_SRV) && (sv->cur_admin & SRV_ADMF_MAINT))
 					goto next_sv;
@@ -1473,7 +1473,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 
 					counters = EXTRA_COUNTERS_GET(sv->extra_counters, mod);
 					if (!mod->fill_stats(counters, stats + ctx->field_num, &ctx->mod_field_num))
-						return -1;
+						goto error;
 
 					val = stats[ctx->field_num + ctx->mod_field_num];
 					metric.type = ((val.type == FN_GAUGE) ? PROMEX_MT_GAUGE : PROMEX_MT_COUNTER);
@@ -1515,6 +1515,10 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
   full:
 	ret = 0;
 	goto end;
+
+  error:
+	watcher_detach(&ctx->srv_watch);
+	return -1;
 }
 
 /* Dump metrics of module <mod>. It returns 1 on success, 0 if <out> is full and
