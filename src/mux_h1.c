@@ -2488,8 +2488,10 @@ static size_t h1_make_reqline(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 			goto end;
 		type = htx_get_blk_type(blk);
 		sz = htx_get_blksz(blk);
-		if (type == HTX_BLK_UNUSED)
+		if (type == HTX_BLK_UNUSED) {
+			htx_remove_blk(htx, blk);
 			continue;
+		}
 		if (type != HTX_BLK_REQ_SL || sz > count)
 			goto error;
 		break;
@@ -2577,8 +2579,10 @@ static size_t h1_make_stline(struct h1s *h1s, struct h1m *h1m, struct htx *htx, 
 		type = htx_get_blk_type(blk);
 		sz = htx_get_blksz(blk);
 
-		if (type == HTX_BLK_UNUSED)
+		if (type == HTX_BLK_UNUSED) {
+			htx_remove_blk(htx, blk);
 			continue;
+		}
 		if (type != HTX_BLK_RES_SL || sz > count)
 			goto error;
 		break;
