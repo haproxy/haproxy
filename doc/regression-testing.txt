@@ -24,7 +24,7 @@ vtest installation
 ------------------------
 
 To use vtest you will have to download and compile the recent vtest
-sources found at https://github.com/vtest/VTest.
+sources found at https://github.com/vtest/VTest2.
 
 To compile vtest:
 
