@@ -5968,7 +5968,9 @@ static void stkt_late_init(void)
 	f = find_sample_fetch("src", strlen("src"));
 	if (f)
 		smp_fetch_src = f->process;
-	stkt_create_stk_ctr_pool();
+
+	if (stkt_create_stk_ctr_pool() & (ERR_ABORT | ERR_FATAL))
+		exit(1); // error already reported by the function
 
 	for (i = 0; i < CONFIG_HAP_TBL_BUCKETS; i++) {
 		MT_LIST_INIT(&per_bucket[i].toadd_tables);
