@@ -628,8 +628,10 @@ int ssl_sock_load_key_into_ckch(const char *path, char *buf, struct ckch_data *d
 	} while (!key && cb_data.passphrase_idx != -1 && cb_data.callback_called);
 
 	if (key == NULL) {
-		memprintf(err, "%sunable to load private key from file '%s'.\n",
-		          err && *err ? *err : "", path);
+		unsigned long e = ERR_peek_last_error();
+
+		memprintf(err, "%sunable to load private key from file '%s' (%s).\n",
+		          err && *err ? *err : "", path, ERR_error_string(e, NULL));
 		goto end;
 	}
 
