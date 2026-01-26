@@ -73,6 +73,14 @@ struct ckch_conf {
 		char *id;
 		char **domains;
 	} acme;
+	struct {
+		struct {
+			char *type;   /* "RSA" or "ECSDA" */
+			int bits;     /* bits for RSA */
+			char *curves; /* NID of curves for ECDSA*/
+		} key;
+		int on;
+	} gencrt;
 };
 
 /*
