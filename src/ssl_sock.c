@@ -3832,13 +3832,16 @@ int ssl_sock_passwd_cb(char *buf, int size, int rwflag, void *userdata)
 	global_ssl.passphrase_cmd[1] = strdup(data->path);
 
 	if (!global_ssl.passphrase_cmd[1]) {
+		data->passphrase_idx = -1;
 		ha_alert("ssl_sock_passwd_cb: allocation failure\n");
 		return -1;
 	}
 
 	if (!passphrase_cache)
-		if (ssl_sock_create_passphrase_cache())
+		if (ssl_sock_create_passphrase_cache()) {
+			data->passphrase_idx = -1;
 			return -1;
+		}
 
 	/* Try all the already known passphrases first. */
 	if (data->passphrase_idx < passphrase_idx) {
