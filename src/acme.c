@@ -157,7 +157,7 @@ enum acme_ret {
 	ACME_RET_FAIL = 2
 };
 
-static EVP_PKEY *acme_EVP_PKEY_gen(int keytype, int curves, int bits, char **errmsg);
+EVP_PKEY *acme_EVP_PKEY_gen(int keytype, int curves, int bits, char **errmsg);
 static int acme_start_task(struct ckch_store *store, char **errmsg);
 static struct task *acme_scheduler(struct task *task, void *context, unsigned int state);
 
@@ -2588,7 +2588,7 @@ error:
 }
 
 /* Return a new Generated private key of type <keytype> with <bits> and <curves> */
-static EVP_PKEY *acme_EVP_PKEY_gen(int keytype, int curves, int bits, char **errmsg)
+EVP_PKEY *acme_EVP_PKEY_gen(int keytype, int curves, int bits, char **errmsg)
 {
 
 	EVP_PKEY_CTX *pkey_ctx = NULL;
@@ -2627,27 +2627,16 @@ err:
 }
 
 /*
- * Generate a temporary expired X509  or reuse the one generated.
- * Use tmp_pkey to generate
- *
- * Increment the refcount when returning the existing one
+ * Generate an expired X509 from <pkey> private key which must be initialized.
+ * Return a pointer to the created X509 object if succeeded, NULL if not.
  */
-X509 *acme_gen_tmp_x509()
+X509 *acme_gen_x509(EVP_PKEY *pkey)
 {
 	X509         *newcrt  = NULL;
 	X509_NAME    *name;
 	const EVP_MD *digest = NULL;
 	CONF         *ctmp    = NULL;
 	int 	      key_type;
-	EVP_PKEY *pkey = tmp_pkey;
-
-	if (tmp_x509) {
-		X509_up_ref(tmp_x509);
-		return tmp_x509;
-	}
-
-	if (!tmp_pkey)
-		goto mkcert_error;
 
 	/* Create the certificate */
 	if (!(newcrt = X509_new()))
@@ -2698,8 +2687,6 @@ X509 *acme_gen_tmp_x509()
 	if (!(X509_sign(newcrt, pkey, digest)))
 		goto mkcert_error;
 
-	tmp_x509 = newcrt;
-
 	return newcrt;
 
 mkcert_error:
@@ -2709,6 +2696,26 @@ mkcert_error:
 
 }
 
+/*
+ * Generate a temporary expired X509  or reuse the one generated.
+ * Use tmp_pkey to generate
+ *
+ * Increment the refcount when returning the existing one
+ */
+X509 *acme_gen_tmp_x509()
+{
+	if (tmp_x509) {
+		X509_up_ref(tmp_x509);
+		return tmp_x509;
+	}
+
+	if (!tmp_pkey)
+		return NULL;
+
+	tmp_x509 = acme_gen_x509(tmp_pkey);
+
+	return tmp_x509;
+}
 
 /*
  * Generate a temporary RSA2048 pkey or reuse the one generated.
