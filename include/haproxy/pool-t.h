@@ -72,8 +72,8 @@ struct pool_registration {
 	struct list list;    /* link element */
 	const char *name;    /* name of the pool */
 	const char *file;    /* where the pool is declared */
+	ullong size;         /* expected object size */
 	unsigned int line;   /* line in the file where the pool is declared, 0 if none */
-	unsigned int size;   /* expected object size */
 	unsigned int flags;  /* MEM_F_* */
 	unsigned int type_align;  /* type-imposed alignment; 0=unspecified */
 	unsigned int align;  /* expected alignment; 0=unspecified */

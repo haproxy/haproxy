@@ -183,7 +183,7 @@ unsigned long long pool_total_allocated(void);
 unsigned long long pool_total_used(void);
 void pool_flush(struct pool_head *pool);
 void pool_gc(struct pool_head *pool_ctx);
-struct pool_head *create_pool_with_loc(const char *name, unsigned int size, unsigned int align,
+struct pool_head *create_pool_with_loc(const char *name, ullong size, unsigned int align,
                                        unsigned int flags, const char *file, unsigned int line);
 struct pool_head *create_pool_from_reg(const char *name, struct pool_registration *reg);
 void create_pool_callback(struct pool_head **ptr, char *name, struct pool_registration *reg);
