@@ -593,7 +593,7 @@ int ssl_sock_load_key_into_ckch(const char *path, char *buf, struct ckch_data *d
 	BIO *in = NULL;
 	int ret = 1;
 	EVP_PKEY *key = NULL;
-	struct passphrase_cb_data cb_data = { path, data, 0 };
+	struct passphrase_cb_data cb_data = { path, data, 0, 0 };
 
 	if (buf) {
 		/* reading from a buffer */
@@ -625,7 +625,7 @@ int ssl_sock_load_key_into_ckch(const char *path, char *buf, struct ckch_data *d
 	 */
 	do {
 		key = PEM_read_bio_PrivateKey(in, NULL, ssl_sock_passwd_cb, &cb_data);
-	} while (!key && cb_data.passphrase_idx != -1);
+	} while (!key && cb_data.passphrase_idx != -1 && cb_data.callback_called);
 
 	if (key == NULL) {
 		memprintf(err, "%sunable to load private key from file '%s'.\n",
@@ -667,6 +667,7 @@ int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct ckch_data *d
 	HASSL_DH *dh = NULL;
 	STACK_OF(X509) *chain = NULL;
 	struct issuer_chain *issuer_chain = NULL;
+	struct passphrase_cb_data cb_data = { path, data, 0, 0 };
 
 	if (buf) {
 		/* reading from a buffer */
@@ -691,8 +692,18 @@ int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct ckch_data *d
 		}
 	}
 
-	/* Read Private Key */
-	key = PEM_read_bio_PrivateKey(in, NULL, NULL, NULL);
+	/* Read Private Key
+	 * Since multiple private keys might have different passphrases that are
+	 * stored in a local cache, we want to try all the already known
+	 * passphrases first before raising an error. The passphrase_idx field
+	 * of the cb_data parameter will be modified in the callback and set to
+	 * -1 after the external passphrase tool is called.
+	 */
+	/* We don't know yet if the private key requires a password. */
+	data->encrypted_privkey = 0;
+	do {
+		key = PEM_read_bio_PrivateKey(in, NULL, ssl_sock_passwd_cb, &cb_data);
+	} while (!key && cb_data.passphrase_idx != -1 && cb_data.callback_called);
 	/* no need to check for errors here, because the private key could be loaded later */
 
 #ifndef OPENSSL_NO_DH

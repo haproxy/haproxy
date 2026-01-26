@@ -361,6 +361,7 @@ struct passphrase_cb_data {
 	const char *path;
 	struct ckch_data *ckch_data;
 	int passphrase_idx;
+	int callback_called;
 };
 
 #endif /* USE_OPENSSL */

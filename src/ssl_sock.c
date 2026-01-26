@@ -3813,6 +3813,8 @@ int ssl_sock_passwd_cb(char *buf, int size, int rwflag, void *userdata)
 	if (!data || data->passphrase_idx == -1)
 		return -1;
 
+	data->callback_called = 1;
+
 	ckch_data = data->ckch_data;
 
 	if (ckch_data)
