@@ -640,6 +640,7 @@ static void qmux_ctrl_send(struct qc_stream_desc *stream, uint64_t data, uint64_
 		/* Remove stream from send_list if all was sent. */
 		LIST_DEL_INIT(&qcs->el_send);
 		TRACE_STATE("stream sent done", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+		qcs_notify_send(qcs);
 
 		if (qcs->flags & (QC_SF_FIN_STREAM|QC_SF_DETACH)) {
 			/* Close stream locally. */
