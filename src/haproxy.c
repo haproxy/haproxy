@@ -88,6 +88,7 @@
 #include <haproxy/filters.h>
 #include <haproxy/global.h>
 #include <haproxy/hlua.h>
+#include <haproxy/hstream.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/limits.h>
 #if defined(USE_LINUX_CAP)
@@ -150,6 +151,8 @@ char **init_env;		/* to keep current process env variables backup */
 int  pidfd = -1;		/* FD to keep PID */
 int daemon_fd[2] = {-1, -1};	/* pipe to communicate with parent process */
 int devnullfd = -1;
+int httpterm_mode;
+struct cfgfile httpterm_cfg;
 
 static int stopped_tgroups;
 static int stop_detected;
@@ -1440,6 +1443,7 @@ static void init_early(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
+	httpterm_mode = !strncmp(progname, "httpterm", strlen("httpterm"));
 	chunk_initlen(&global.log_tag, strdup(progname), len, len);
 	if (b_orig(&global.log_tag) == NULL) {
 		ha_alert("Cannot allocate memory for log_tag.\n");
@@ -1486,6 +1490,9 @@ static void init_args(int argc, char **argv)
 
 	/* Use zero-copy forwarding by default */
 	global.tune.no_zero_copy_fwd = 0;
+
+	if (httpterm_mode)
+		return;
 
 	/* keep a copy of original arguments for the master process */
 	old_argv = copy_argv(argc, argv);
@@ -3281,6 +3288,9 @@ int main(int argc, char **argv)
 
 	RUN_INITCALLS(STG_INIT);
 
+	if (httpterm_mode)
+		init_httpterm_cfg(argc, argv, &httpterm_cfg);
+
 	/* Late init step: SSL crypto libs init and check, Lua lib init, ACL init,
 	 * set modes from cmdline and change dir, if this option is provided via
 	 * cmdline.
@@ -3319,11 +3329,14 @@ int main(int argc, char **argv)
 	/* backup initial process env, because parse_cfg() could modify it with
 	 * setenv/unsetenv/presetenv/resetenv keywords.
 	 */
-	if (backup_env() != 0)
+	if (!httpterm_mode && backup_env() != 0)
 		exit(EXIT_FAILURE);
 
-	/* parse conf in discovery mode and set modes from config */
-	read_cfg_in_discovery_mode(argc, argv);
+	if (!httpterm_mode)
+		/* parse conf in discovery mode and set modes from config */
+		read_cfg_in_discovery_mode(argc, argv);
+	else
+		parse_cfg(&httpterm_cfg);
 
 	/* From this stage all runtime modes are known. So let's do below some
 	 * preparation steps and then let's apply all discovered modes.
@@ -3366,7 +3379,7 @@ int main(int argc, char **argv)
 	}
 
 	/* Worker, daemon, foreground modes read the rest of the config */
-	if (!master) {
+	if (!master && !httpterm_mode) {
 		usermsgs_clr("config");
 		if (global.mode & MODE_MWORKER) {
 			if (clean_env() != 0) {
