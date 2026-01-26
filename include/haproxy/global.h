@@ -54,6 +54,8 @@ extern char **old_argv;
 extern const char *old_unixsocket;
 extern int daemon_fd[2];
 extern int devnullfd;
+extern int httpterm_mode;
+extern struct cfgfile httpterm_cfg;
 
 struct proxy;
 struct server;
