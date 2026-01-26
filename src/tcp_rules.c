@@ -970,6 +970,12 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		hdr->namelen = 0;
 		hdr->len = len;
 		hdr->pool = create_pool("caphdr", hdr->len + 1, MEM_F_SHARED);
+		if (!hdr->pool) {
+			memprintf(err, "parsing [%s:%d] : out of memory", file, line);
+			free(hdr);
+			release_sample_expr(expr);
+			return -1;
+		}
 		hdr->index = curpx->nb_req_cap++;
 
 		curpx->req_cap = hdr;

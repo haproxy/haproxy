@@ -878,6 +878,11 @@ static int proxy_parse_declare(char **args, int section, struct proxy *curpx,
 		hdr->namelen = 0;
 		hdr->len = len;
 		hdr->pool = create_pool("caphdr", hdr->len + 1, MEM_F_SHARED);
+		if (!hdr->pool) {
+			memprintf(err, "out of memory");
+			free(hdr);
+			return -1;
+		}
 
 		if (strcmp(args[2], "request") == 0) {
 			hdr->next = curpx->req_cap;

@@ -960,6 +960,12 @@ static enum act_parse_ret parse_http_req_capture(const char **args, int *orig_ar
 		hdr->namelen = 0;
 		hdr->len = len;
 		hdr->pool = create_pool("caphdr", hdr->len + 1, MEM_F_SHARED);
+		if (!hdr->pool) {
+			memprintf(err, "out of memory");
+			free(hdr);
+			release_sample_expr(expr);
+			return ACT_RET_PRS_ERR;
+		}
 		hdr->index = px->nb_req_cap++;
 
 		px->req_cap = hdr;

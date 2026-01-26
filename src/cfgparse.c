@@ -2324,6 +2324,12 @@ int check_config_validity()
 
 	pool_head_capture = create_pool("capture", global.tune.cookie_len, MEM_F_SHARED);
 
+	/* both will have already emitted an error message if needed */
+	if (!pool_head_requri || !pool_head_capture) {
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
 	/* Post initialisation of the users and groups lists. */
 	err_code = userlist_postinit();
 	if (err_code != ERR_NONE)
