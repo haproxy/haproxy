@@ -9275,6 +9275,9 @@ mode { tcp|http|log|spop }
               processing and switching will be possible. This is the mode which
               brings HAProxy most of its value.
 
+    httpterm  When used in a frontend section, this mode will turn it into
+              httpterm frontend services without backend.
+
     log       When used in a backend section, it will turn the backend into a
               log backend. Such backend can be used as a log destination for
               any "log" directive by using the "backend@<name>" syntax. Log
