@@ -32,6 +32,8 @@ int ssl_sock_set_generated_cert(SSL_CTX *ctx, unsigned int key, struct bind_conf
 unsigned int ssl_sock_generated_cert_key(const void *data, size_t len);
 int ssl_sock_gencert_load_ca(struct bind_conf *bind_conf);
 void ssl_sock_gencert_free_ca(struct bind_conf *bind_conf);
+EVP_PKEY *ssl_gen_EVP_PKEY(int keytype, int curves, int bits, char **errmsg);
+X509 *ssl_gen_x509(EVP_PKEY *pkey);
 
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_SSL_GENCERT_H */
