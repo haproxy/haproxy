@@ -1983,6 +1983,7 @@ The following keywords are supported in the "global" section :
    - tune.ssl.cachesize
    - tune.ssl.capture-buffer-size
    - tune.ssl.capture-cipherlist-size (deprecated)
+   - tune.ssl.certificate-compression
    - tune.ssl.default-dh-param
    - tune.ssl.force-private-cache
    - tune.ssl.hard-maxrecord
@@ -5309,6 +5310,22 @@ tune.ssl.capture-cipherlist-size <number> (deprecated)
   list, extensions list, elliptic curves list and elliptic curve point
   formats. If the value is 0 (default value) the capture is disabled,
   otherwise a buffer is allocated for each SSL/TLS connection.
+
+tune.ssl.certificate-compression { auto | off }
+  This setting allows to configure the certificate compression support which is
+  an extension (RFC 8879) to TLS 1.3.
+
+  When set to "auto" it uses the default value of the TLS library.
+
+  With "off" it tries to explicitely disable the support of the feature.
+  HAProxy won't try to send compressed certificates anymore nor accept
+  compressed certificates.
+
+  Configures both backend and frontend sides.
+
+  This keyword is supported by OpenSSL >= 3.2.0.
+
+  The default value is auto.
 
 tune.ssl.default-dh-param <number>
   Sets the maximum size of the Diffie-Hellman parameters used for generating

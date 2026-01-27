@@ -153,6 +153,9 @@ struct global_ssl global_ssl = {
 #ifdef HAVE_ACME
 	.acme_scheduler = 1,
 #endif
+#ifdef SSL_OP_NO_RX_CERTIFICATE_COMPRESSION
+	.certificate_compression = 1,
+#endif
 	.renegotiate = SSL_RENEGOTIATE_DFLT,
 	.passphrase_cmd = NULL,
 	.passphrase_cmd_args_cnt = 0,
@@ -4079,6 +4082,11 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 	options |= SSL_OP_NO_RENEGOTIATION;
 #endif
 
+#ifdef SSL_OP_NO_RX_CERTIFICATE_COMPRESSION
+	if (global_ssl.certificate_compression == 0)
+		options |= SSL_OP_NO_RX_CERTIFICATE_COMPRESSION | SSL_OP_NO_TX_CERTIFICATE_COMPRESSION;
+#endif
+
 	SSL_CTX_set_options(ctx, options);
 
 #ifdef SSL_MODE_ASYNC
@@ -5130,6 +5138,11 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 		options |= SSL_OP_NO_RENEGOTIATION;
 	else if (srv->ssl_ctx.renegotiate == SSL_RENEGOTIATE_ON)
 		options &= ~SSL_OP_NO_RENEGOTIATION;
+#endif
+
+#ifdef SSL_OP_NO_RX_CERTIFICATE_COMPRESSION
+	if (global_ssl.certificate_compression == 0)
+		options |= SSL_OP_NO_RX_CERTIFICATE_COMPRESSION | SSL_OP_NO_TX_CERTIFICATE_COMPRESSION;
 #endif
 
 	SSL_CTX_set_options(ctx, options);

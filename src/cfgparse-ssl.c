@@ -496,6 +496,36 @@ static int ssl_parse_global_keylog(char **args, int section_type, struct proxy *
 }
 #endif
 
+/* Allow to explicitely disable certificate compression when set to "off" */
+#ifdef SSL_OP_NO_RX_CERTIFICATE_COMPRESSION
+static int ssl_parse_certificate_compression(char **args, int section_type, struct proxy *curpx,
+                                             const struct proxy *defpx, const char *file, int line,
+                                             char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "auto") == 0)
+		global_ssl.certificate_compression = 1;
+	else if (strcmp(args[1], "off") == 0)
+		global_ssl.certificate_compression = 0;
+	else {
+		memprintf(err, "'%s' expects either 'on' or 'off' but got '%s'.", args[0], args[1]); return -1;
+	}
+
+	return 0;
+}
+#else
+static int ssl_parse_certificate_compression(char **args, int section_type, struct proxy *curpx,
+                                             const struct proxy *defpx, const char *file, int line,
+                                             char **err)
+{
+	memprintf(err, "'%s' is not supported by your TLS library. "
+	                    "It is known to work only with OpenSSL >= 3.2.0.", args[0]);
+	return -1;
+}
+#endif
+
 /* parse "ssl.force-private-cache".
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
@@ -2759,6 +2789,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "ssl-security-level", ssl_parse_security_level },
 	{ CFG_GLOBAL, "ssl-skip-self-issued-ca", ssl_parse_skip_self_issued_ca },
 	{ CFG_GLOBAL, "tune.ssl.cachesize", ssl_parse_global_int },
+	{ CFG_GLOBAL, "tune.ssl.certificate-compression", ssl_parse_certificate_compression },
 	{ CFG_GLOBAL, "tune.ssl.default-dh-param", ssl_parse_global_default_dh },
 	{ CFG_GLOBAL, "tune.ssl.force-private-cache",  ssl_parse_global_private_cache },
 	{ CFG_GLOBAL, "tune.ssl.lifetime", ssl_parse_global_lifetime },

@@ -338,6 +338,8 @@ struct global_ssl {
 	int renegotiate; /* Renegotiate mode (SSL_RENEGOTIATE_ flag) */
 	char **passphrase_cmd;
 	int passphrase_cmd_args_cnt;
+
+	unsigned int certificate_compression:1; /* allow to explicitely disable certificate compression */
 };
 
 /* The order here matters for picking a default context,
