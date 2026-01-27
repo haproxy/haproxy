@@ -510,7 +510,7 @@ static int ssl_parse_certificate_compression(char **args, int section_type, stru
 	else if (strcmp(args[1], "off") == 0)
 		global_ssl.certificate_compression = 0;
 	else {
-		memprintf(err, "'%s' expects either 'on' or 'off' but got '%s'.", args[0], args[1]); return -1;
+		memprintf(err, "'%s' expects either 'auto' or 'off' but got '%s'.", args[0], args[1]); return -1;
 	}
 
 	return 0;
