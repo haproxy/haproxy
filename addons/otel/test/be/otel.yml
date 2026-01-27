@@ -1,0 +1,246 @@
+exporters:
+  exporter_traces_otlp_file:
+    type:           otlp_file
+    thread_name:    "OTLP/file trace"
+    file_pattern:   "__be_traces_log-%F-%N"
+    alias_pattern:  "__traces_log-latest"
+    flush_interval: 30000000
+    flush_count:    256
+    file_size:      134217728
+    rotate_size:    5
+
+  exporter_traces_otlp_grpc:
+    type:                             otlp_grpc
+    thread_name:                      "OTLP/gRPC trace"
+    endpoint:                         "http://localhost:4317/v1/traces"
+    use_ssl_credentials:              false
+#   ssl_credentials_cacert_path:      ""
+#   ssl_credentials_cacert_as_string: ""
+#   ssl_client_key_path:              ""
+#   ssl_client_key_string:            ""
+#   ssl_client_cert_path:             ""
+#   ssl_client_cert_string:           ""
+#   timeout:                          10
+#   user_agent:                       ""
+#   max_threads:                      0
+#   compression:                      ""
+#   max_concurrent_requests:          0
+
+  exporter_traces_otlp_http:
+    type:                        otlp_http
+    thread_name:                 "OTLP/HTTP trace"
+    endpoint:                    "http://localhost:4318/v1/traces"
+    content_type:                json
+    json_bytes_mapping:          hexid
+    debug:                       false
+    timeout:                     10
+    http_headers:
+      - X-OTel-Header-1:         "OTLP HTTP traces test header #1"
+      - X-OTel-Header-2:         "OTLP HTTP traces test header #2"
+    max_concurrent_requests:     64
+    max_requests_per_connection: 8
+    ssl_insecure_skip_verify:    true
+#   ssl_ca_cert_path:            ""
+#   ssl_ca_cert_string:          ""
+#   ssl_client_key_path:         ""
+#   ssl_client_key_string:       ""
+#   ssl_client_cert_path:        ""
+#   ssl_client_cert_string:      ""
+#   ssl_min_tls:                 ""
+#   ssl_max_tls:                 ""
+#   ssl_cipher:                  ""
+#   ssl_cipher_suite:            ""
+#   compression:                 ""
+
+  exporter_traces_dev_null:
+    type:     ostream
+    filename: /dev/null
+
+  exporter_traces_ostream:
+    type:     ostream
+    filename: __be_traces
+
+  exporter_traces_memory:
+    type:        memory
+    buffer_size: 256
+
+  exporter_traces_zipkin:
+    type:           zipkin
+    endpoint:       "http://localhost:9411/api/v2/spans"
+    format:         json
+    service_name:   "zipkin-service"
+#   ipv4:           ""
+#   ipv6:           ""
+
+  exporter_metrics_otlp_file:
+    type:           otlp_file
+    thread_name:    "OTLP/file metr"
+    file_pattern:   "__be_metrics_log-%F-%N"
+    alias_pattern:  "__metrics_log-latest"
+    flush_interval: 30000000
+    flush_count:    256
+    file_size:      134217728
+    rotate_size:    5
+
+  exporter_metrics_otlp_grpc:
+    type:                otlp_grpc
+    thread_name:         "OTLP/gRPC metr"
+    endpoint:            "http://localhost:4317/v1/metrics"
+    use_ssl_credentials: false
+
+  exporter_metrics_otlp_http:
+    type:                        otlp_http
+    thread_name:                 "OTLP/HTTP metr"
+    endpoint:                    "http://localhost:4318/v1/metrics"
+    content_type:                json
+    debug:                       false
+    timeout:                     10
+    http_headers:
+      - X-OTel-Header-1:         "OTLP HTTP metrics test header #1"
+      - X-OTel-Header-2:         "OTLP HTTP metrics test header #2"
+    max_concurrent_requests:     64
+    max_requests_per_connection: 8
+    ssl_insecure_skip_verify:    true
+
+  exporter_metrics_dev_null:
+    type:     ostream
+    filename: /dev/null
+
+  exporter_metrics_ostream:
+    type:     ostream
+    filename: __be_metrics
+
+  exporter_metrics_memory:
+    type:        memory
+    buffer_size: 256
+
+  exporter_logs_otlp_file:
+    type:           otlp_file
+    thread_name:    "OTLP/file logs"
+    file_pattern:   "__be_logs_log-%F-%N"
+    alias_pattern:  "__logs_log-latest"
+    flush_interval: 30000000
+    flush_count:    256
+    file_size:      134217728
+    rotate_size:    5
+
+  exporter_logs_otlp_grpc:
+    type:                otlp_grpc
+    thread_name:         "OTLP/gRPC logs"
+    endpoint:            "http://localhost:4317/v1/logs"
+    use_ssl_credentials: false
+
+  exporter_logs_otlp_http:
+    type:                        otlp_http
+    thread_name:                 "OTLP/HTTP logs"
+    endpoint:                    "http://localhost:4318/v1/logs"
+    content_type:                json
+    debug:                       false
+    timeout:                     10
+    http_headers:
+      - X-OTel-Header-1:         "OTLP HTTP logs test header #1"
+      - X-OTel-Header-2:         "OTLP HTTP logs test header #2"
+    max_concurrent_requests:     64
+    max_requests_per_connection: 8
+    ssl_insecure_skip_verify:    true
+
+  exporter_logs_dev_null:
+    type:     ostream
+    filename: /dev/null
+
+  exporter_logs_ostream:
+    type:     ostream
+    filename: __be_logs
+
+  exporter_logs_elasticsearch:
+    type:             elasticsearch
+    host:             localhost
+    port:             9200
+    index:            logs
+    response_timeout: 30
+    debug:            false
+    http_headers:
+      - X-OTel-Header-1: "Elasticsearch logs test header #1"
+      - X-OTel-Header-2: "Elasticsearch logs test header #2"
+
+readers:
+  reader_metrics:
+    thread_name:     "reader metr"
+    export_interval: 10000
+    export_timeout:  5000
+
+samplers:
+  sampler_traces:
+#   type:  always_on
+#   type:  always_off
+#   type:  trace_id_ratio_based
+#   ratio: 1.0
+    type:     parent_based
+    delegate: always_on
+
+processors:
+  processor_traces_batch:
+    type:                  batch
+    thread_name:           "proc/batch trac"
+    # Note: when the queue is half full, a preemptive notification is sent
+    # to start the export call.
+    max_queue_size:        2048
+    # Time interval (in ms) between two consecutive exports
+    schedule_delay:        5000
+    # Export 'max_export_batch_size' after every `schedule_delay' milliseconds.
+    max_export_batch_size: 512
+
+  processor_traces_single:
+    type:                  single
+
+  processor_logs_batch:
+    type:                  batch
+    thread_name:           "proc/batch logs"
+    max_queue_size:        2048
+    schedule_delay:        5000
+    max_export_batch_size: 512
+
+  processor_logs_single:
+    type:                  single
+
+providers:
+  provider_traces:
+    resources:
+      - service.version:     "1.0.0"
+      - service.instance.id: "id-be"
+      - service.name:        "be"
+      - service.namespace:   "HAProxy traces test"
+
+  provider_metrics:
+    resources:
+      - service.version:     "1.0.0"
+      - service.instance.id: "id-be"
+      - service.name:        "be"
+      - service.namespace:   "HAProxy metrics test"
+
+  provider_logs:
+    resources:
+      - service.version:     "1.0.0"
+      - service.instance.id: "id-be"
+      - service.name:        "be"
+      - service.namespace:   "HAProxy logs test"
+
+signals:
+  traces:
+    scope_name: "HAProxy OTEL - traces"
+    exporters:  exporter_traces_otlp_http
+    samplers:   sampler_traces
+    processors: processor_traces_batch
+    providers:  provider_traces
+
+  metrics:
+    scope_name: "HAProxy OTEL - metrics"
+    exporters:  exporter_metrics_otlp_http
+    readers:    reader_metrics
+    providers:  provider_metrics
+
+  logs:
+    scope_name: "HAProxy OTEL - logs"
+    exporters:  exporter_logs_otlp_http
+    processors: processor_logs_batch
+    providers:  provider_logs
