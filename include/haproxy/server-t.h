@@ -383,7 +383,6 @@ struct server {
 	unsigned next_eweight;			/* next pending eweight to commit */
 	unsigned cumulative_weight;		/* weight of servers prior to this one in the same group, for chash balancing */
 	int maxqueue;				/* maximum number of pending connections allowed */
-	unsigned int queueslength;		/* Sum of the length of each queue */
 	int shard;				/* shard (in peers protocol context only) */
 	int log_bufsize;			/* implicit ring bufsize (for log server only - in log backend) */
 
@@ -406,6 +405,7 @@ struct server {
 	unsigned int max_used_conns;            /* Max number of used connections (the counter is reset at each connection purges */
 	unsigned int est_need_conns;            /* Estimate on the number of needed connections (max of curr and previous max_used) */
 	unsigned int curr_sess_idle_conns;      /* Current number of idle connections attached to a session instead of idle/safe trees. */
+	unsigned int queueslength;		/* Sum of the length of each queue */
 
 	/* elements only used during boot, do not perturb and plug the hole */
 	struct guid_node guid;			/* GUID global tree node */
