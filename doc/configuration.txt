@@ -17220,7 +17220,9 @@ interface <interface>
 ktls <on|off> [ EXPERIMENTAL ]
   Enables or disables ktls for those sockets. If enabled, kTLS will be used
   if the kernel supports it and the cipher is compatible. This is only
-  available on Linux kernel 4.17 and above.
+  available on Linux kernel 4.17 and above. Please note that some network
+  drivers and/or TLS stacks might restrict kTLS usage to TLS v1.2 only. See
+  also "force-tlsv12".
 
 label <label>
   Sets an optional label for these sockets. It could be used group sockets by
@@ -18480,9 +18482,10 @@ See also: "option tcp-check", "option httpchk"
 ktls <on|off> [ EXPERIMENTAL ]
   May be used in the following contexts: tcp, http, log, peers, ring
 
-  Enables or disables ktls for those sockets. If enabled, kTLS will be used
-  if the kernel supports it and the cipher is compatible.
-  This is only available on Linux.
+  Enables or disables ktls for those sockets. If enabled, kTLS will be used if
+  the kernel supports it and the cipher is compatible. This is only available
+  on Linux 4.17 and above. Please note that some network drivers and/or TLS
+  stacks might restrict kTLS usage to TLS v1.2 only. See also "force-tlsv12".
 
 log-bufsize <bufsize>
   May be used in the following contexts: log
