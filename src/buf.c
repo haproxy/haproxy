@@ -348,7 +348,7 @@ size_t b_xfer(struct buffer *dst, struct buffer *src, size_t count)
 
 	if (ret > count)
 		ret = count;
-	else if (!b_data(dst)) {
+	else if (!b_data(dst) && b_size(dst) == b_size(src)) {
 		/* zero copy is possible by just swapping buffers */
 		struct buffer tmp = *dst;
 		*dst = *src;
