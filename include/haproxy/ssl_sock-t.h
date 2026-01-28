@@ -194,7 +194,7 @@ struct issuer_chain {
 
 struct connection;
 
-typedef void (*ssl_sock_msg_callback_func)(struct connection *conn,
+typedef void (*ssl_sock_msg_callback_func)(
 	int write_p, int version, int content_type,
 	const void *buf, size_t len, SSL *ssl);
 

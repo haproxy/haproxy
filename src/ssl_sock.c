@@ -799,16 +799,16 @@ static struct eb_root *sh_ssl_sess_tree; /* ssl shared session tree */
 /* Dedicated callback functions for heartbeat and clienthello.
  */
 #ifdef TLS1_RT_HEARTBEAT
-static void ssl_sock_parse_heartbeat(struct connection *conn, int write_p, int version,
+static void ssl_sock_parse_heartbeat(int write_p, int version,
                                      int content_type, const void *buf, size_t len,
                                      SSL *ssl);
 #endif
-static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int version,
+static void ssl_sock_parse_clienthello(int write_p, int version,
                                        int content_type, const void *buf, size_t len,
                                        SSL *ssl);
 
 #ifdef HAVE_SSL_KEYLOG
-static void ssl_init_keylog(struct connection *conn, int write_p, int version,
+static void ssl_init_keylog(int write_p, int version,
                             int content_type, const void *buf, size_t len,
                             SSL *ssl);
 #endif
@@ -1799,13 +1799,14 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 }
 
 #ifdef TLS1_RT_HEARTBEAT
-static void ssl_sock_parse_heartbeat(struct connection *conn, int write_p, int version,
+static void ssl_sock_parse_heartbeat(int write_p, int version,
                                      int content_type, const void *buf, size_t len,
                                      SSL *ssl)
 {
 	/* test heartbeat received (write_p is set to 0
 	   for a received record) */
 	if ((content_type == TLS1_RT_HEARTBEAT) && (write_p == 0)) {
+		struct connection *conn = ssl_sock_get_conn(ssl, NULL);
 		struct ssl_sock_ctx *ctx = NULL;
 		const unsigned char *p = buf;
 		unsigned int payload;
@@ -1845,7 +1846,7 @@ static void ssl_sock_parse_heartbeat(struct connection *conn, int write_p, int v
 }
 #endif
 
-static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int version,
+static void ssl_sock_parse_clienthello(int write_p, int version,
                                        int content_type, const void *buf, size_t len,
                                        SSL *ssl)
 {
@@ -2139,7 +2140,7 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 
 
 #ifdef HAVE_SSL_KEYLOG
-static void ssl_init_keylog(struct connection *conn, int write_p, int version,
+static void ssl_init_keylog(int write_p, int version,
                             int content_type, const void *buf, size_t len,
                             SSL *ssl)
 {
@@ -2162,14 +2163,13 @@ static void ssl_init_keylog(struct connection *conn, int write_p, int version,
 /* Callback is called for ssl protocol analyse */
 static __maybe_unused void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf, size_t len, SSL *ssl, void *arg)
 {
-	struct connection *conn = ssl_sock_get_conn(ssl, NULL);
 	struct ssl_sock_msg_callback *cbk;
 
 	/* Try to call all callback functions that were registered by using
 	 * ssl_sock_register_msg_callback().
 	 */
 	list_for_each_entry(cbk, &ssl_sock_msg_callbacks, list) {
-		cbk->func(conn, write_p, version, content_type, buf, len, ssl);
+		cbk->func(write_p, version, content_type, buf, len, ssl);
 	}
 }
 
