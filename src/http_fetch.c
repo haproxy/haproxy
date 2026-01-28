@@ -138,7 +138,7 @@ static int get_http_auth(struct sample *smp, struct htx *htx)
 
 		len = base64dec(txn->auth.method_data.area,
 				txn->auth.method_data.data,
-				http_auth->area, global.tune.bufsize - 1);
+				http_auth->area, http_auth->size -1);
 
 		if (len < 0)
 			return 0;

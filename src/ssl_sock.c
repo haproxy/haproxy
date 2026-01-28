@@ -5918,7 +5918,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			     * a buffer.
 			     */
 			    (!b_is_null(&ctx->early_buf)) ?
-			    global.tune.bufsize - global.tune.maxrewrite : 0);
+			    ctx->early_buf.size - global.tune.maxrewrite : 0);
 		}
 #endif
 

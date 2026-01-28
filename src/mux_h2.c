@@ -4256,7 +4256,7 @@ static void h2_process_demux(struct h2c *h2c)
 				goto done;
 			}
 
-			if ((int)hdr.len < 0 || (int)hdr.len > global.tune.bufsize) {
+			if ((int)hdr.len < 0 || (int)hdr.len > b_size(&h2c->dbuf)) {
 				/* RFC7540#3.5: a GOAWAY frame MAY be omitted */
 				h2c_report_glitch(h2c, 1, "invalid settings frame length");
 				TRACE_ERROR("invalid settings frame length", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_SETTINGS|H2_EV_PROTO_ERR, h2c->conn);
@@ -4303,7 +4303,7 @@ static void h2_process_demux(struct h2c *h2c)
 				break;
 			}
 
-			if ((int)hdr.len < 0 || (int)hdr.len > global.tune.bufsize) {
+			if ((int)hdr.len < 0 || (int)hdr.len > b_size(&h2c->dbuf)) {
 				h2c_report_glitch(h2c, 1, "invalid H2 frame length");
 				TRACE_ERROR("invalid H2 frame length", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_PROTO_ERR, h2c->conn);
 				h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR);
@@ -4384,7 +4384,7 @@ static void h2_process_demux(struct h2c *h2c)
 			h2c->st0 = H2_CS_FRAME_P;
 
 			/* check for minimum basic frame format validity */
-			ret = h2_frame_check(h2c->dft, 1, h2c->dsi, h2c->dfl, global.tune.bufsize);
+			ret = h2_frame_check(h2c->dft, 1, h2c->dsi, h2c->dfl, b_size(&h2c->dbuf));
 			if (ret != H2_ERR_NO_ERROR) {
 				h2c_report_glitch(h2c, 1, "received invalid H2 frame header");
 				TRACE_ERROR("received invalid H2 frame header", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_PROTO_ERR, h2c->conn);
@@ -6066,7 +6066,7 @@ next_frame:
 			goto fail;
 		}
 
-		if ((unsigned)hdr.len > (unsigned)global.tune.bufsize) {
+		if ((unsigned)hdr.len > (unsigned)b_size(&h2c->dbuf)) {
 			/* RFC7540#4.2: invalid frame length */
 			h2c_report_glitch(h2c, 1, "too large CONTINUATION frame");
 			TRACE_STATE("too large CONTINUATION frame", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_HDR|H2_EV_RX_CONT|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);

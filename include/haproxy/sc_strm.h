@@ -133,7 +133,7 @@ static inline void sc_have_room(struct stconn *sc)
 static inline void sc_need_room(struct stconn *sc, ssize_t room_needed)
 {
 	sc->flags |= SC_FL_NEED_ROOM;
-	BUG_ON_HOT(room_needed > (ssize_t)global.tune.bufsize);
+	BUG_ON_HOT(room_needed > (ssize_t)c_size(sc_ic(sc)));
 	sc->room_needed = room_needed;
 }
 
