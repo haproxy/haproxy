@@ -4527,7 +4527,11 @@ tune.idle-pool.shared { on | off }
   disabling this option without setting a conservative value on "pool-low-conn"
   for all servers relying on connection reuse to achieve a high performance
   level, otherwise connections might be closed very often as the thread count
-  increases.
+  increases. Note that in any case, connections are only shared between threads
+  of the same thread group. This means that systems with many NUMA nodes may
+  show slightly more persistent connections while machines with unified caches
+  and many CPU cores per node may experience higher CPU usage. In the latter
+  case, the "max-thread-per-group" tunable may be used to improve the behavior.
 
 tune.idletimer <timeout>
   Sets the duration after which HAProxy will consider that an empty buffer is
