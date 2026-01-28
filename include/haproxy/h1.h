@@ -263,6 +263,8 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 	const char *ptr_old = ptr;
 	const char *end = b_wrap(buf);
 	uint64_t chunk = 0;
+	int backslash = 0;
+	int quote = 0;
 
 	stop -= start; // bytes left
 	start = stop;  // bytes to transfer
@@ -327,13 +329,37 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 			if (--stop == 0)
 				return 0;
 
-			while (!HTTP_IS_CRLF(*ptr)) {
+			/* The loop seeks the first CRLF or non-tab CTL char
+			 * and stops there. If a backslash/quote is active,
+			 * it's an error. If none, we assume it's the CRLF
+			 * and go back to the top of the loop checking for
+			 * CR then LF. This way CTLs, lone LF etc are handled
+			 * in the fallback path. This allows to protect
+			 * remotes against their own possibly non-compliant
+			 * chunk-ext parser which could mistakenly skip a
+			 * quoted CRLF. Chunk-ext are not used anyway, except
+			 * by attacks.
+			 */
+			while (!HTTP_IS_CTL(*ptr) || HTTP_IS_SPHT(*ptr)) {
+				if (backslash)
+					backslash = 0; // escaped char
+				else if (*ptr == '\\' && quote)
+					backslash = 1;
+				else if (*ptr == '\\') // backslash not permitted outside quotes
+					goto error;
+				else if (*ptr == '"')  // begin/end of quoted-pair
+					quote = !quote;
 				if (++ptr >= end)
 					ptr = b_orig(buf);
 				if (--stop == 0)
 					return 0;
 			}
-			/* we have a CRLF now, loop above */
+
+			/* mismatched quotes / backslashes end here */
+			if (quote || backslash)
+				goto error;
+
+			/* CTLs (CRLF) fall to the common check */
 			continue;
 		}
 		else

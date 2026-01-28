@@ -724,14 +724,42 @@ static size_t h1_parse_full_contig_chunks(struct h1m *h1m, struct htx **dsthtx,
 				break;
 			}
 			else if (likely(end[ridx] == ';')) {
+				int backslash = 0;
+				int quote = 0;
+
 				/* chunk extension, ends at next CRLF */
 				if (!++ridx)
 					goto end_parsing;
-				while (!HTTP_IS_CRLF(end[ridx])) {
+
+				/* The loop seeks the first CRLF or non-tab CTL char
+				 * and stops there. If a backslash/quote is active,
+				 * it's an error. If none, we assume it's the CRLF
+				 * and go back to the top of the loop checking for
+				 * CR then LF. This way CTLs, lone LF etc are handled
+				 * in the fallback path. This allows to protect
+				 * remotes against their own possibly non-compliant
+				 * chunk-ext parser which could mistakenly skip a
+				 * quoted CRLF. Chunk-ext are not used anyway, except
+				 * by attacks.
+				 */
+				while (!HTTP_IS_CTL(end[ridx]) || HTTP_IS_SPHT(end[ridx])) {
+					if (backslash)
+						backslash = 0; // escaped char
+					else if (end[ridx] == '\\' && quote)
+						backslash = 1;
+					else if (end[ridx] == '\\') // backslash not permitted outside quotes
+						goto parsing_error;
+					else if (end[ridx] == '"')  // begin/end of quoted-pair
+						quote = !quote;
 					if (!++ridx)
 						goto end_parsing;
 				}
-				/* we have a CRLF now, loop above */
+
+				/* mismatched quotes / backslashes end here */
+				if (quote || backslash)
+					goto parsing_error;
+
+				/* CTLs (CRLF) fall to the common check */
 				continue;
 			}
 			else {
