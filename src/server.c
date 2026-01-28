@@ -7416,10 +7416,9 @@ int srv_add_to_idle_list(struct server *srv, struct connection *conn, int is_saf
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		_HA_ATOMIC_INC(&srv->curr_idle_thr[tid]);
 
-		__ha_barrier_full();
-		if ((volatile void *)srv->idle_node.node.leaf_p == NULL) {
+		if (HA_ATOMIC_LOAD(&srv->idle_node.node.leaf_p) == NULL) {
 			HA_SPIN_LOCK(OTHER_LOCK, &idle_conn_srv_lock);
-			if ((volatile void *)srv->idle_node.node.leaf_p == NULL) {
+			if (_HA_ATOMIC_LOAD(&srv->idle_node.node.leaf_p) == NULL) {
 				srv->idle_node.key = tick_add(srv->pool_purge_delay,
 				                              now_ms);
 				eb32_insert(&idle_conn_srv, &srv->idle_node);
