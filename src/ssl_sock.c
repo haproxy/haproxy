@@ -1806,11 +1806,15 @@ static void ssl_sock_parse_heartbeat(struct connection *conn, int write_p, int v
 	/* test heartbeat received (write_p is set to 0
 	   for a received record) */
 	if ((content_type == TLS1_RT_HEARTBEAT) && (write_p == 0)) {
-		struct ssl_sock_ctx *ctx = __conn_get_ssl_sock_ctx(conn);
+		struct ssl_sock_ctx *ctx = NULL;
 		const unsigned char *p = buf;
 		unsigned int payload;
 
-		ctx->xprt_st |= SSL_SOCK_RECV_HEARTBEAT;
+		/* <conn> may be NULL in QUIC context */
+		if (conn) {
+			ctx = __conn_get_ssl_sock_ctx(conn);
+			ctx->xprt_st |= SSL_SOCK_RECV_HEARTBEAT;
+		}
 
 		/* Check if this is a CVE-2014-0160 exploitation attempt. */
 		if (*p != TLS1_HB_REQUEST)
@@ -2160,12 +2164,6 @@ static __maybe_unused void ssl_sock_msgcbk(int write_p, int version, int content
 {
 	struct connection *conn = ssl_sock_get_conn(ssl, NULL);
 	struct ssl_sock_msg_callback *cbk;
-
-	/* The connection be NULL only for QUIC which does not free its SSL object
-	 * as this done for TCP.
-	 */
-	if (!conn)
-		return;
 
 	/* Try to call all callback functions that were registered by using
 	 * ssl_sock_register_msg_callback().
