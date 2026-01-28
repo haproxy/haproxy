@@ -508,10 +508,16 @@ struct proxy {
 	EXTRA_COUNTERS(extra_counters_be);
 
 	THREAD_ALIGN();
-	unsigned int queueslength;		/* Sum of the length of each queue */
+	/* these ones change all the time */
 	int served;				/* # of active sessions currently being served */
-	int totpend;				/* total number of pending connections on this instance (for stats) */
 	unsigned int feconn, beconn;		/* # of active frontend and backends streams */
+
+	THREAD_ALIGN();
+	/* these ones are only changed when queues are involved, but checked
+	 * all the time.
+	 */
+	unsigned int queueslength;		/* Sum of the length of each queue */
+	int totpend;				/* total number of pending connections on this instance (for stats) */
 };
 
 struct switching_rule {
