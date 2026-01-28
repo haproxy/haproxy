@@ -1205,7 +1205,6 @@ smp_fetch_payload_lv(const struct arg *arg_p, struct sample *smp, const char *kw
 	unsigned int len_size = arg_p[1].data.sint;
 	unsigned int buf_offset;
 	unsigned int buf_size = 0;
-	struct channel *chn = NULL;
 	char *head = NULL;
 	size_t max, data;
 	int i;
@@ -1215,12 +1214,15 @@ smp_fetch_payload_lv(const struct arg *arg_p, struct sample *smp, const char *kw
 	/* buf offset could be absolute or relative to len offset + len size if prefixed by + or - */
 
 	if (smp->strm) {
+		struct channel *chn = NULL;
+
 		/* meaningless for HTX buffers */
 		if (IS_HTX_STRM(smp->strm))
 			return 0;
 		chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 		head = ci_head(chn);
 		data = ci_data(chn);
+		max = c_size(chn);
 	}
 	else if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK) {
 		struct check *check = __objt_check(smp->sess->origin);
@@ -1230,8 +1232,9 @@ smp_fetch_payload_lv(const struct arg *arg_p, struct sample *smp, const char *kw
 			return 0;
 		head = b_head(&check->bi);
 		data = b_data(&check->bi);
+		max = b_size(&check->bi);
 	}
-	max = global.tune.bufsize;
+
 	if (!head)
 		goto too_short;
 
@@ -1290,6 +1293,7 @@ smp_fetch_payload(const struct arg *arg_p, struct sample *smp, const char *kw, v
 		chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 		head = ci_head(chn);
 		data = ci_data(chn);
+		max = c_size(chn);
 	}
 	else if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK) {
 		struct check *check = __objt_check(smp->sess->origin);
@@ -1299,8 +1303,8 @@ smp_fetch_payload(const struct arg *arg_p, struct sample *smp, const char *kw, v
 			return 0;
 		head = b_head(&check->bi);
 		data = b_data(&check->bi);
+		max =  b_size(&check->bi);
 	}
-	max = global.tune.bufsize;
 	if (!head)
 		goto too_short;
 

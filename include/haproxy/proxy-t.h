@@ -293,7 +293,8 @@ struct error_snapshot {
 	struct server *srv;             /* server associated with the error (or NULL) */
 	/* @64 */
 	unsigned int ev_id;             /* event number (counter incremented for each capture) */
-	/* @68: 4 bytes hole here */
+	unsigned int buf_size;          /* buffer size */
+
 	struct sockaddr_storage src;    /* client's address */
 
 	/**** protocol-specific part ****/

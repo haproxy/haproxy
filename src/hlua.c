@@ -3952,7 +3952,7 @@ __LJMP static int hlua_channel_get_data_yield(lua_State *L, int status, lua_KCon
 		if (!len)
 			goto dup;
 		if (len == -1)
-			len = global.tune.bufsize;
+			len = c_size(chn);
 		if (len < 0) {
 			lua_pushfstring(L, "length out of range.");
 			WILL_LJMP(lua_error(L));
@@ -4035,7 +4035,7 @@ __LJMP static int hlua_channel_get_line_yield(lua_State *L, int status, lua_KCon
 		if (!len)
 			goto dup;
 		if (len == -1)
-			len = global.tune.bufsize;
+			len = c_size(chn);
 		if (len < 0) {
 			lua_pushfstring(L, "length out of range.");
 			WILL_LJMP(lua_error(L));
@@ -7470,7 +7470,7 @@ __LJMP static int hlua_http_msg_get_body(lua_State *L)
 		if (!len)
 			goto dup;
 		if (len == -1)
-			len = global.tune.bufsize;
+			len = c_size(msg->chn);
 		if (len < 0) {
 			lua_pushfstring(L, "length out of range.");
 			WILL_LJMP(lua_error(L));

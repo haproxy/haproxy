@@ -4008,8 +4008,8 @@ static int h1_recv(struct h1c *h1c)
 		 * a pointer swap and the next read will be doable at once in
 		 * an empty buffer.
 		 */
-		if (max > global.tune.bufsize - global.tune.maxrewrite)
-			max = global.tune.bufsize - global.tune.maxrewrite;
+		if (max > b_size(&h1c->ibuf) - global.tune.maxrewrite)
+			max = b_size(&h1c->ibuf) - global.tune.maxrewrite;
 	}
 
 	if (max) {

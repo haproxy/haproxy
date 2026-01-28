@@ -4173,6 +4173,7 @@ void proxy_capture_error(struct proxy *proxy, int is_back,
 	if (!es)
 		return;
 
+	es->buf_size = buf->size;
 	es->buf_len = buf_len;
 	es->ev_id   = ev_id;
 
@@ -5224,7 +5225,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 			              es->srv ? es->srv->puid : -1,
 			              es->ev_id, pn, port,
 			              es->buf_ofs, es->buf_out,
-			              global.tune.bufsize - es->buf_out - es->buf_len,
+			              es->buf_size - es->buf_out - es->buf_len,
 			              es->buf_len, es->buf_wrap, es->buf_err);
 
 			if (es->show)
@@ -5250,12 +5251,12 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 		}
 
 		/* OK, ptr >= 0, so we have to dump the current line */
-		while (ctx->ptr < es->buf_len && ctx->ptr < global.tune.bufsize) {
+		while (ctx->ptr < es->buf_len && ctx->ptr < es->buf_size) {
 			int newptr;
 			int newline;
 
 			newline = ctx->bol;
-			newptr = dump_text_line(&trash, es->buf, global.tune.bufsize, es->buf_len, &newline, ctx->ptr);
+			newptr = dump_text_line(&trash, es->buf, es->buf_size, es->buf_len, &newline, ctx->ptr);
 			if (newptr == ctx->ptr) {
 				applet_fl_set(appctx, APPCTX_FL_OUTBLK_FULL);
 				goto cant_send_unlock;
