@@ -74,6 +74,70 @@ static inline struct buffer *sc_ob(const struct stconn *sc)
 {
 	return &sc_oc(sc)->buf;
 }
+
+
+/* The application layer tells the stream connector that it just got the input
+ * buffer it was waiting for. A read activity is reported. The SC_FL_HAVE_BUFF
+ * flag is set and held until sc_used_buff() is called to indicate it was
+ * used.
+ */
+static inline void sc_have_buff(struct stconn *sc)
+{
+	if (sc->flags & SC_FL_NEED_BUFF) {
+		sc->flags &= ~SC_FL_NEED_BUFF;
+		sc->flags |=  SC_FL_HAVE_BUFF;
+		sc_ep_report_read_activity(sc);
+	}
+}
+
+/* The stream connector failed to get an input buffer and is waiting for it.
+ * It indicates a willingness to deliver data to the buffer that will have to
+ * be retried. As such, callers will often automatically clear SE_FL_HAVE_NO_DATA
+ * to be called again as soon as SC_FL_NEED_BUFF is cleared.
+ */
+static inline void sc_need_buff(struct stconn *sc)
+{
+	sc->flags |= SC_FL_NEED_BUFF;
+}
+
+/* The stream connector indicates that it has successfully allocated the buffer
+ * it was previously waiting for so it drops the SC_FL_HAVE_BUFF bit.
+ */
+static inline void sc_used_buff(struct stconn *sc)
+{
+	sc->flags &= ~SC_FL_HAVE_BUFF;
+}
+
+/* Tell a stream connector some room was made in the input buffer and any
+ * failed attempt to inject data into it may be tried again. This is usually
+ * called after a successful transfer of buffer contents to the other side.
+ *  A read activity is reported.
+ */
+static inline void sc_have_room(struct stconn *sc)
+{
+	if (sc->flags & SC_FL_NEED_ROOM) {
+		sc->flags &= ~SC_FL_NEED_ROOM;
+		sc->room_needed = 0;
+		sc_ep_report_read_activity(sc);
+	}
+}
+
+/* The stream connector announces it failed to put data into the input buffer
+ * by lack of room. Since it indicates a willingness to deliver data to the
+ * buffer that will have to be retried. Usually the caller will also clear
+ * SE_FL_HAVE_NO_DATA to be called again as soon as SC_FL_NEED_ROOM is cleared.
+ *
+ * The caller is responsible to specified the amount of free space required to
+ * progress. It must take care to not exceed the buffer size.
+ */
+static inline void sc_need_room(struct stconn *sc, ssize_t room_needed)
+{
+	sc->flags |= SC_FL_NEED_ROOM;
+	BUG_ON_HOT(room_needed > (ssize_t)global.tune.bufsize);
+	sc->room_needed = room_needed;
+}
+
+
 /* returns the stream's task associated to this stream connector */
 static inline struct task *sc_strm_task(const struct stconn *sc)
 {
