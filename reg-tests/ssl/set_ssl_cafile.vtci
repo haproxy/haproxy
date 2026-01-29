@@ -145,7 +145,7 @@ haproxy h1 -cli {
     send "show ssl ca-file ${testdir}/certs/set_cafile_interCA1.crt:2"
     expect !~ ".*SHA1 FingerPrint: 4FFF535278883264693CEA72C4FAD13F995D0098"
     send "show ssl ca-file ${testdir}/certs/set_cafile_interCA1.crt:2"
-    expect ~ ".*SHA1 FingerPrint: 3D3D1D10AD74A8135F05A818E10E5FA91433954D"
+    expect ~ ".*SHA1 FingerPrint: 3D3D1D10AD74A8135F05A818E10E5FA91433954D|5F8DAE4B2099A09F9BDDAFD7E9D900F0CE49977C"
 }
 
 client c1 -connect ${h1_clearverifiedlst_sock} {

@@ -86,9 +86,7 @@ haproxy h1 -cli {
     expect ~ "\\*${testdir}/certs/interCA2_crl_empty.pem"
 
     send "show ssl crl-file \\*${testdir}/certs/interCA2_crl_empty.pem"
-    expect ~ "Revoked Certificates:"
-    send "show ssl crl-file \\*${testdir}/certs/interCA2_crl_empty.pem:1"
-    expect ~ "Serial Number: 1008"
+    expect ~ "Revoked Certificates:\n.*Serial Number: 1008"
 }
 
 # This connection should still succeed since the transaction was not committed
