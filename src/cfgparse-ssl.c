@@ -973,7 +973,7 @@ static int ssl_bind_parse_ktls(char **args, int cur_arg, struct proxy *px, struc
 		return ERR_ALERT | ERR_FATAL;
 	}
 	if (!experimental_directives_allowed) {
-		memprintf(err, "'%s' directive is experimental, must be allowed via a global 'expose-experimental-directive'", args[cur_arg]);
+		memprintf(err, "'%s' directive is experimental, must be allowed via a global 'expose-experimental-directives'", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 	if (!strcasecmp(args[cur_arg + 1], "on")) {
@@ -2050,7 +2050,7 @@ static int srv_parse_ktls(char **args, int *cur_arg, struct proxy *px, struct se
 	}
 
 	if (!experimental_directives_allowed) {
-		memprintf(err, "'%s' directive is experimental, must be allowed via a global 'expose-experimental-directive'", args[*cur_arg]);
+		memprintf(err, "'%s' directive is experimental, must be allowed via a global 'expose-experimental-directives'", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
