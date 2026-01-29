@@ -11,7 +11,7 @@ default init, this was controversial but fedora and archlinux already uses it.
 At this time HAProxy still had a multi-process model, and the way haproxy is
 working was incompatible with the daemon mode.
 
-Systemd is compatible with traditionnal forking services, but somehow HAProxy
+Systemd is compatible with traditional forking services, but somehow HAProxy
 is different. To work correctly, systemd needs a main PID, this is the PID of
 the process that systemd will supervises.
 
@@ -45,7 +45,7 @@ However the wrapper suffered from several problems:
 
 ### mworker V1
 
-HAProxy 1.8 got ride of the wrapper which was replaced by the master worker
+HAProxy 1.8 got rid of the wrapper which was replaced by the master worker
 mode. This first version was basically a reintegration of the wrapper features
 within HAProxy. HAProxy is launched with the -W flag, read the configuration and
 then fork. In mworker mode, the master is usually launched as a root process,
@@ -86,7 +86,7 @@ retrieved automatically.
 The master is supervising the workers, when a current worker (not a previous one
 from before the reload) is exiting without being asked for a reload, the master
 will emit an "exit-on-failure" error and will kill every workers with a SIGTERM
-and exits with the same error code than the failed master, this behavior can be
+and exits with the same error code than the failed worker, this behavior can be
 changed by using the "no exit-on-failure" option in the global section.
 
 While the master is supervising the workers using the wait() function, the
@@ -186,8 +186,8 @@ number that can be found in HAPROXY_PROCESSES. With this change the stats socket
 in the configuration is less useful and everything can be done from the master
 CLI.
 
-With 2.7, the reload mecanism of the master CLI evolved, with previous versions,
-this mecanism was asynchronous, so once the `reload` command was received, the
+With 2.7, the reload mechanism of the master CLI evolved, with previous versions,
+this mechanism was asynchronous, so once the `reload` command was received, the
 master would reload, the active master CLI connection was closed, and there was
 no way to return a status as a response to the `reload` command. To achieve a
 synchronous reload, a dedicated sockpair is used, one side uses a master CLI
