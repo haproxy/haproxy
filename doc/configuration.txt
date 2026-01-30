@@ -1869,6 +1869,7 @@ The following keywords are supported in the "global" section :
    - tune.buffers.limit
    - tune.buffers.reserve
    - tune.bufsize
+   - tune.bufsize.large
    - tune.bufsize.small
    - tune.comp.maxlevel
    - tune.defaults.purge
@@ -4117,6 +4118,14 @@ tune.bufsize <size>
   than this size, HAProxy will return HTTP 502 (Bad Gateway). Note that the
   value set using this parameter will automatically be rounded up to the next
   multiple of 8 on 32-bit machines and 16 on 64-bit machines.
+
+tune.bufsize.large <size>
+  Sets the size in butes for large buffers. By defaults, support for large
+  buffers is not enabled, it must explicitly be enable by setting this value.
+
+  These buffers are designed to be used in some specific contexts where more
+  data must be bufferized without changing the size of regular buffers. The
+  large buffers are not implicitly used.
 
 tune.bufsize.small <size>
   Sets the size in bytes for small buffers. The defaults value is 1024.

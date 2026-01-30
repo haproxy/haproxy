@@ -36,6 +36,7 @@
 #include <haproxy/pool.h>
 
 extern struct pool_head *pool_head_buffer;
+extern struct pool_head *pool_head_large_buffer;
 
 int init_buffer(void);
 void buffer_dump(FILE *o, struct buffer *b, int from, int to);
@@ -136,13 +137,18 @@ static inline char *__b_get_emergency_buf(void)
 #define __b_free(_buf)							\
 	do {								\
 		char *area = (_buf)->area;				\
+		size_t sz = (_buf)->size;				\
 									\
 		/* let's first clear the area to save an occasional "show sess all" \
 		 * glancing over our shoulder from getting a dangling pointer.      \
 		 */							            \
 		*(_buf) = BUF_NULL;					\
 		__ha_barrier_store();					\
-		if (th_ctx->emergency_bufs_left < global.tune.reserved_bufs) \
+		/* if enabled, large buffers are always strictly greater \
+		 * than the default buffers */				\
+		if (unlikely(pool_head_large_buffer && sz == pool_head_large_buffer->size)) \
+			pool_free(pool_head_large_buffer, area);	\
+		else if (th_ctx->emergency_bufs_left < global.tune.reserved_bufs) \
 			th_ctx->emergency_bufs[th_ctx->emergency_bufs_left++] = area; \
 		else							\
 			pool_free(pool_head_buffer, area);		\
