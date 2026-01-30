@@ -29,6 +29,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
 #include <haproxy/filters.h>
+#include <haproxy/frontend.h>
 #include <haproxy/global.h>
 #include <haproxy/guid.h>
 #include <haproxy/http_ana.h>
@@ -37,6 +38,12 @@
 #include <haproxy/http_rules.h>
 #include <haproxy/mailers.h>
 #include <haproxy/listener.h>
+#include <haproxy/lb_chash.h>
+#include <haproxy/lb_fas.h>
+#include <haproxy/lb_fwlc.h>
+#include <haproxy/lb_fwrr.h>
+#include <haproxy/lb_map.h>
+#include <haproxy/lb_ss.h>
 #include <haproxy/log.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/peers.h>
@@ -46,6 +53,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/quic_tp.h>
+#include <haproxy/quic_tune.h>
 #include <haproxy/server-t.h>
 #include <haproxy/signal.h>
 #include <haproxy/stats-t.h>
@@ -1589,6 +1597,1307 @@ int proxy_init_per_thr(struct proxy *px)
 		queue_init(&px->per_tgrp[i].queue, px, NULL);
 
 	return 0;
+}
+
+int proxy_finalize(struct proxy *px, int *err_code)
+{
+	struct bind_conf *bind_conf;
+	struct server *newsrv;
+	struct switching_rule *rule;
+	struct server_rule *srule;
+	struct sticking_rule *mrule;
+	struct logger *tmplogger;
+	unsigned int next_id;
+	int cfgerr = 0;
+	char *err = NULL;
+	int i;
+
+	/* check and reduce the bind-proc of each listener */
+	list_for_each_entry(bind_conf, &px->conf.bind, by_fe) {
+		int mode = conn_pr_mode_to_proto_mode(px->mode);
+		const struct mux_proto_list *mux_ent;
+		int ret;
+
+		/* Check the mux protocols, if any; before the check the ALPN */
+		if (bind_conf->xprt && bind_conf->xprt == xprt_get(XPRT_QUIC)) {
+			if (!bind_conf->mux_proto) {
+				/* No protocol was specified. If we're using QUIC at the transport
+				 * layer, we'll instantiate it as a mux as well. If QUIC is not
+				 * compiled in, this will remain NULL.
+				 */
+				bind_conf->mux_proto = get_mux_proto(ist("quic"));
+			}
+			if (bind_conf->options & BC_O_ACC_PROXY) {
+				ha_alert("Binding [%s:%d] for %s %s: QUIC protocol does not support PROXY protocol yet."
+				         " 'accept-proxy' option cannot be used with a QUIC listener.\n",
+				         bind_conf->file, bind_conf->line,
+				         proxy_type_str(px), px->id);
+				cfgerr++;
+			}
+		}
+
+		if (bind_conf->mux_proto) {
+			/* it is possible that an incorrect mux was referenced
+			 * due to the proxy's mode not being taken into account
+			 * on first pass. Let's adjust it now.
+			 */
+			mux_ent = conn_get_best_mux_entry(bind_conf->mux_proto->token, PROTO_SIDE_FE, mode);
+
+			if (!mux_ent || !isteq(mux_ent->token, bind_conf->mux_proto->token)) {
+				ha_alert("%s '%s' : MUX protocol '%.*s' is not usable for 'bind %s' at [%s:%d].\n",
+				         proxy_type_str(px), px->id,
+				         (int)bind_conf->mux_proto->token.len,
+				         bind_conf->mux_proto->token.ptr,
+				         bind_conf->arg, bind_conf->file, bind_conf->line);
+				cfgerr++;
+			}
+			else {
+				if ((mux_ent->mux->flags & MX_FL_FRAMED) && !(bind_conf->options & BC_O_USE_SOCK_DGRAM)) {
+					ha_alert("%s '%s' : frame-based MUX protocol '%.*s' is incompatible with stream transport of 'bind %s' at [%s:%d].\n",
+					         proxy_type_str(px), px->id,
+					         (int)bind_conf->mux_proto->token.len,
+					         bind_conf->mux_proto->token.ptr,
+					         bind_conf->arg, bind_conf->file, bind_conf->line);
+					cfgerr++;
+				}
+				else if (!(mux_ent->mux->flags & MX_FL_FRAMED) && !(bind_conf->options & BC_O_USE_SOCK_STREAM)) {
+					ha_alert("%s '%s' : stream-based MUX protocol '%.*s' is incompatible with framed transport of 'bind %s' at [%s:%d].\n",
+					         proxy_type_str(px), px->id,
+					         (int)bind_conf->mux_proto->token.len,
+					         bind_conf->mux_proto->token.ptr,
+					         bind_conf->arg, bind_conf->file, bind_conf->line);
+					cfgerr++;
+				}
+			}
+
+			/* update the mux */
+			bind_conf->mux_proto = mux_ent;
+		}
+
+
+		/* HTTP frontends with "h2" as ALPN/NPN will work in
+		 * HTTP/2 and absolutely require buffers 16kB or larger.
+		 */
+#ifdef USE_OPENSSL
+		/* no-alpn ? If so, it's the right moment to remove it */
+		if (bind_conf->ssl_conf.alpn_str && !bind_conf->ssl_conf.alpn_len) {
+			ha_free(&bind_conf->ssl_conf.alpn_str);
+		}
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+		else if (!bind_conf->ssl_conf.alpn_str && !bind_conf->ssl_conf.npn_str &&
+			 ((bind_conf->options & BC_O_USE_SSL) || bind_conf->xprt == xprt_get(XPRT_QUIC)) &&
+			 px->mode == PR_MODE_HTTP && global.tune.bufsize >= 16384) {
+
+			/* Neither ALPN nor NPN were explicitly set nor disabled, we're
+			 * in HTTP mode with an SSL or QUIC listener, we can enable ALPN.
+			 * Note that it's in binary form. First we try to set the ALPN from
+			 * mux proto if set. Otherwise rely on the default ALPN.
+			 */
+			if (bind_conf->mux_proto && bind_conf->mux_proto->alpn)
+				bind_conf->ssl_conf.alpn_str = strdup(bind_conf->mux_proto->alpn);
+			else if (bind_conf->xprt == xprt_get(XPRT_QUIC))
+				bind_conf->ssl_conf.alpn_str = strdup("\002h3");
+			else
+				bind_conf->ssl_conf.alpn_str = strdup("\002h2\010http/1.1");
+
+			if (!bind_conf->ssl_conf.alpn_str) {
+				ha_alert("Proxy '%s': out of memory while trying to allocate a default alpn string in 'bind %s' at [%s:%d].\n",
+				         px->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+				cfgerr++;
+				*err_code |= ERR_FATAL | ERR_ALERT;
+				goto out;
+			}
+			bind_conf->ssl_conf.alpn_len = strlen(bind_conf->ssl_conf.alpn_str);
+		}
+#endif /* TLSEXT_TYPE_application_layer_protocol_negotiation */
+
+
+		if (px->mode == PR_MODE_HTTP && global.tune.bufsize < 16384) {
+#ifdef OPENSSL_NPN_NEGOTIATED
+			/* check NPN */
+			if (bind_conf->ssl_conf.npn_str && strstr(bind_conf->ssl_conf.npn_str, "\002h2")) {
+				ha_alert("HTTP frontend '%s' enables HTTP/2 via NPN at [%s:%d], so global.tune.bufsize must be at least 16384 bytes (%d now).\n",
+				         px->id, bind_conf->file, bind_conf->line, global.tune.bufsize);
+				cfgerr++;
+			}
+#endif /* OPENSSL_NPN_NEGOTIATED */
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+			/* check ALPN */
+			if (bind_conf->ssl_conf.alpn_str && strstr(bind_conf->ssl_conf.alpn_str, "\002h2")) {
+				ha_alert("HTTP frontend '%s' enables HTTP/2 via ALPN at [%s:%d], so global.tune.bufsize must be at least 16384 bytes (%d now).\n",
+				         px->id, bind_conf->file, bind_conf->line, global.tune.bufsize);
+				cfgerr++;
+			}
+#endif /* TLSEXT_TYPE_application_layer_protocol_negotiation */
+		} /* HTTP && bufsize < 16384 */
+#endif /* USE_OPENSSL */
+
+#ifdef USE_QUIC
+		if (bind_conf->xprt == xprt_get(XPRT_QUIC)) {
+			const struct quic_cc_algo *cc_algo = bind_conf->quic_cc_algo ?
+			  bind_conf->quic_cc_algo : default_quic_cc_algo;
+
+			if (!(cc_algo->flags & QUIC_CC_ALGO_FL_OPT_PACING) &&
+			    !(quic_tune.fe.fb_opts & QUIC_TUNE_FB_TX_PACING)) {
+				ha_warning("Binding [%s:%d] for %s %s: using the selected congestion algorithm without pacing may cause slowdowns or high loss rates during transfers.\n",
+				           bind_conf->file, bind_conf->line,
+				           proxy_type_str(px), px->id);
+				*err_code |= ERR_WARN;
+			}
+		}
+#endif /* USE_QUIC */
+
+		/* finish the bind setup */
+		ret = bind_complete_thread_setup(bind_conf, err_code);
+		if (ret != 0) {
+			cfgerr += ret;
+			if (*err_code & ERR_FATAL)
+				goto out;
+		}
+
+		if (bind_generate_guid(bind_conf)) {
+			cfgerr++;
+			*err_code |= ERR_FATAL | ERR_ALERT;
+			goto out;
+		}
+	}
+
+	switch (px->mode) {
+	case PR_MODE_TCP:
+		cfgerr += proxy_cfg_ensure_no_http(px);
+		cfgerr += proxy_cfg_ensure_no_log(px);
+		break;
+
+	case PR_MODE_HTTP:
+		cfgerr += proxy_cfg_ensure_no_log(px);
+		px->http_needed = 1;
+		break;
+
+	case PR_MODE_CLI:
+		cfgerr += proxy_cfg_ensure_no_http(px);
+		cfgerr += proxy_cfg_ensure_no_log(px);
+		break;
+
+	case PR_MODE_SYSLOG:
+		/* this mode is initialized as the classic tcp proxy */
+		cfgerr += proxy_cfg_ensure_no_http(px);
+		break;
+
+	case PR_MODE_SPOP:
+		cfgerr += proxy_cfg_ensure_no_http(px);
+		cfgerr += proxy_cfg_ensure_no_log(px);
+		break;
+
+	case PR_MODE_PEERS:
+	case PR_MODES:
+		/* should not happen, bug gcc warn missing switch statement */
+		ha_alert("%s '%s' cannot initialize this proxy mode (peers) in this way. NOTE: PLEASE REPORT THIS TO DEVELOPERS AS YOU'RE NOT SUPPOSED TO BE ABLE TO CREATE A CONFIGURATION TRIGGERING THIS!\n",
+		         proxy_type_str(px), px->id);
+		cfgerr++;
+		break;
+	}
+
+	if (!(px->cap & PR_CAP_INT) && (px->cap & PR_CAP_FE) && LIST_ISEMPTY(&px->conf.listeners)) {
+		ha_warning("%s '%s' has no 'bind' directive. Please declare it as a backend if this was intended.\n",
+		           proxy_type_str(px), px->id);
+		*err_code |= ERR_WARN;
+	}
+
+	if (px->cap & PR_CAP_BE) {
+		if (px->lbprm.algo & BE_LB_KIND) {
+			if (px->options & PR_O_TRANSP) {
+				ha_alert("%s '%s' cannot use both transparent and balance mode.\n",
+				         proxy_type_str(px), px->id);
+				cfgerr++;
+			}
+			else if (px->options & PR_O_DISPATCH) {
+				ha_warning("dispatch address of %s '%s' will be ignored in balance mode.\n",
+				           proxy_type_str(px), px->id);
+				*err_code |= ERR_WARN;
+			}
+		}
+		else if (!(px->options & (PR_O_TRANSP | PR_O_DISPATCH))) {
+			/* If no LB algo is set in a backend, and we're not in
+			 * transparent mode, dispatch mode nor proxy mode, we
+			 * want to use balance random by default.
+			 */
+			px->lbprm.algo &= ~BE_LB_ALGO;
+			px->lbprm.algo |= BE_LB_ALGO_RND;
+		}
+	}
+
+	if (px->options & PR_O_DISPATCH)
+		px->options &= ~PR_O_TRANSP;
+	else if (px->options & PR_O_TRANSP)
+		px->options &= ~PR_O_DISPATCH;
+
+	if ((px->tcpcheck_rules.flags & TCPCHK_RULES_UNUSED_HTTP_RS)) {
+		ha_warning("%s '%s' uses http-check rules without 'option httpchk', so the rules are ignored.\n",
+		           proxy_type_str(px), px->id);
+		*err_code |= ERR_WARN;
+	}
+
+	if ((px->options2 & PR_O2_CHK_ANY) == PR_O2_TCPCHK_CHK &&
+	    (px->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) != TCPCHK_RULES_HTTP_CHK) {
+		if (px->options & PR_O_DISABLE404) {
+			ha_warning("'%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
+			           "disable-on-404", proxy_type_str(px), px->id);
+			*err_code |= ERR_WARN;
+			px->options &= ~PR_O_DISABLE404;
+		}
+		if (px->options2 & PR_O2_CHK_SNDST) {
+			ha_warning("'%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
+			           "send-state", proxy_type_str(px), px->id);
+			*err_code |= ERR_WARN;
+			px->options2 &= ~PR_O2_CHK_SNDST;
+		}
+	}
+
+	if ((px->options2 & PR_O2_CHK_ANY) == PR_O2_EXT_CHK) {
+		if (!global.external_check) {
+			ha_alert("Proxy '%s' : '%s' unable to find required 'global.external-check'.\n",
+			         px->id, "option external-check");
+			cfgerr++;
+		}
+		if (!px->check_command) {
+			ha_alert("Proxy '%s' : '%s' unable to find required 'external-check command'.\n",
+			         px->id, "option external-check");
+			cfgerr++;
+		}
+		if (!(global.tune.options & GTUNE_INSECURE_FORK)) {
+			ha_warning("Proxy '%s' : 'insecure-fork-wanted' not enabled in the global section, '%s' will likely fail.\n",
+			           px->id, "option external-check");
+			*err_code |= ERR_WARN;
+		}
+	}
+
+	if (px->email_alert.flags & PR_EMAIL_ALERT_SET) {
+		if (!(px->email_alert.mailers.name && px->email_alert.from && px->email_alert.to)) {
+			ha_warning("'email-alert' will be ignored for %s '%s' (the presence any of "
+			           "'email-alert from', 'email-alert level' 'email-alert mailers', "
+			           "'email-alert myhostname', or 'email-alert to' "
+			           "requires each of 'email-alert from', 'email-alert mailers' and 'email-alert to' "
+			           "to be present).\n",
+			           proxy_type_str(px), px->id);
+			*err_code |= ERR_WARN;
+			free_email_alert(px);
+		}
+		if (!px->email_alert.myhostname)
+			px->email_alert.myhostname = strdup(hostname);
+	}
+
+	if (px->check_command) {
+		int clear = 0;
+		if ((px->options2 & PR_O2_CHK_ANY) != PR_O2_EXT_CHK) {
+			ha_warning("'%s' will be ignored for %s '%s' (requires 'option external-check').\n",
+			           "external-check command", proxy_type_str(px), px->id);
+			*err_code |= ERR_WARN;
+			clear = 1;
+		}
+		if (px->check_command[0] != '/' && !px->check_path) {
+			ha_alert("Proxy '%s': '%s' does not have a leading '/' and 'external-check path' is not set.\n",
+			         px->id, "external-check command");
+			cfgerr++;
+		}
+		if (clear) {
+			ha_free(&px->check_command);
+		}
+	}
+
+	if (px->check_path) {
+		if ((px->options2 & PR_O2_CHK_ANY) != PR_O2_EXT_CHK) {
+			ha_warning("'%s' will be ignored for %s '%s' (requires 'option external-check').\n",
+			           "external-check path", proxy_type_str(px), px->id);
+			*err_code |= ERR_WARN;
+			ha_free(&px->check_path);
+		}
+	}
+
+	/* if a default backend was specified, let's find it */
+	if (px->defbe.name) {
+		struct proxy *target;
+
+		target = proxy_be_by_name(px->defbe.name);
+		if (!target) {
+			ha_alert("Proxy '%s': unable to find required default_backend: '%s'.\n",
+			         px->id, px->defbe.name);
+			cfgerr++;
+		} else if (target == px) {
+			ha_alert("Proxy '%s': loop detected for default_backend: '%s'.\n",
+			         px->id, px->defbe.name);
+			cfgerr++;
+		} else if (target->mode != px->mode &&
+			   !(px->mode == PR_MODE_TCP && target->mode == PR_MODE_HTTP)) {
+
+			ha_alert("%s %s '%s' (%s:%d) tries to use incompatible %s %s '%s' (%s:%d) as its default backend (see 'mode').\n",
+			         proxy_mode_str(px->mode), proxy_type_str(px), px->id,
+			         px->conf.file, px->conf.line,
+			         proxy_mode_str(target->mode), proxy_type_str(target), target->id,
+			         target->conf.file, target->conf.line);
+			cfgerr++;
+		} else {
+			free(px->defbe.name);
+			px->defbe.be = target;
+			/* Emit a warning if this proxy also has some servers */
+			if (px->srv) {
+				ha_warning("In proxy '%s', the 'default_backend' rule always has precedence over the servers, which will never be used.\n",
+				           px->id);
+				*err_code |= ERR_WARN;
+			}
+			if (target->mode == PR_MODE_HTTP) {
+				/* at least one of the used backends will provoke an
+				 * HTTP upgrade
+				 */
+				px->options |= PR_O_HTTP_UPG;
+			}
+		}
+	}
+
+	/* find the target proxy for 'use_backend' rules */
+	list_for_each_entry(rule, &px->switching_rules, list) {
+		struct proxy *target;
+		struct logformat_node *node;
+		char *pxname;
+
+		/* Try to parse the string as a log format expression. If the result
+		 * of the parsing is only one entry containing a simple string, then
+		 * it's a standard string corresponding to a static rule, thus the
+		 * parsing is cancelled and be.name is restored to be resolved.
+		 */
+		pxname = rule->be.name;
+		lf_expr_init(&rule->be.expr);
+		px->conf.args.ctx = ARGC_UBK;
+		px->conf.args.file = rule->file;
+		px->conf.args.line = rule->line;
+		err = NULL;
+		if (!parse_logformat_string(pxname, px, &rule->be.expr, 0, SMP_VAL_FE_HRQ_HDR, &err)) {
+			ha_alert("Parsing [%s:%d]: failed to parse use_backend rule '%s' : %s.\n",
+			         rule->file, rule->line, pxname, err);
+			free(err);
+			cfgerr++;
+			continue;
+		}
+		node = LIST_NEXT(&rule->be.expr.nodes.list, struct logformat_node *, list);
+
+		if (!lf_expr_isempty(&rule->be.expr)) {
+			if (node->type != LOG_FMT_TEXT || node->list.n != &rule->be.expr.nodes.list) {
+				rule->dynamic = 1;
+				free(pxname);
+				/* backend is not yet known so we cannot assume its type,
+				 * thus we should consider that at least one of the used
+				 * backends may provoke HTTP upgrade
+				 */
+				px->options |= PR_O_HTTP_UPG;
+				continue;
+			}
+			/* Only one element in the list, a simple string: free the expression and
+			 * fall back to static rule
+			 */
+			lf_expr_deinit(&rule->be.expr);
+		}
+
+		rule->dynamic = 0;
+		rule->be.name = pxname;
+
+		target = proxy_be_by_name(rule->be.name);
+		if (!target) {
+			ha_alert("Proxy '%s': unable to find required use_backend: '%s'.\n",
+			         px->id, rule->be.name);
+			cfgerr++;
+		} else if (target == px) {
+			ha_alert("Proxy '%s': loop detected for use_backend: '%s'.\n",
+			         px->id, rule->be.name);
+			cfgerr++;
+		} else if (target->mode != px->mode &&
+			   !(px->mode == PR_MODE_TCP && target->mode == PR_MODE_HTTP)) {
+
+			ha_alert("%s %s '%s' (%s:%d) tries to use incompatible %s %s '%s' (%s:%d) in a 'use_backend' rule (see 'mode').\n",
+			         proxy_mode_str(px->mode), proxy_type_str(px), px->id,
+			         px->conf.file, px->conf.line,
+			         proxy_mode_str(target->mode), proxy_type_str(target), target->id,
+			         target->conf.file, target->conf.line);
+			cfgerr++;
+		} else {
+			ha_free(&rule->be.name);
+			rule->be.backend = target;
+			if (target->mode == PR_MODE_HTTP) {
+				/* at least one of the used backends will provoke an
+				 * HTTP upgrade
+				 */
+				px->options |= PR_O_HTTP_UPG;
+			}
+		}
+		*err_code |= warnif_tcp_http_cond(px, rule->cond);
+	}
+
+	/* find the target server for 'use_server' rules */
+	list_for_each_entry(srule, &px->server_rules, list) {
+		struct server *target;
+		struct logformat_node *node;
+		char *server_name;
+
+		/* We try to parse the string as a log format expression. If the result of the parsing
+		 * is only one entry containing a single string, then it's a standard string corresponding
+		 * to a static rule, thus the parsing is cancelled and we fall back to setting srv.ptr.
+		 */
+		server_name = srule->srv.name;
+		lf_expr_init(&srule->expr);
+		px->conf.args.ctx = ARGC_USRV;
+		err = NULL;
+		if (!parse_logformat_string(server_name, px, &srule->expr, 0, SMP_VAL_FE_HRQ_HDR, &err)) {
+			ha_alert("Parsing [%s:%d]; use-server rule failed to parse log-format '%s' : %s.\n",
+			         srule->file, srule->line, server_name, err);
+			free(err);
+			cfgerr++;
+			continue;
+		}
+		node = LIST_NEXT(&srule->expr.nodes.list, struct logformat_node *, list);
+
+		if (!lf_expr_isempty(&srule->expr)) {
+			if (node->type != LOG_FMT_TEXT || node->list.n != &srule->expr.nodes.list) {
+				srule->dynamic = 1;
+				free(server_name);
+				continue;
+			}
+			/* Only one element in the list, a simple string: free the expression and
+			 * fall back to static rule
+			 */
+			lf_expr_deinit(&srule->expr);
+		}
+
+		srule->dynamic = 0;
+		srule->srv.name = server_name;
+		target = server_find_by_name(px, srule->srv.name);
+		*err_code |= warnif_tcp_http_cond(px, srule->cond);
+
+		if (!target) {
+			ha_alert("%s '%s' : unable to find server '%s' referenced in a 'use-server' rule.\n",
+			         proxy_type_str(px), px->id, srule->srv.name);
+			cfgerr++;
+			continue;
+		}
+		ha_free(&srule->srv.name);
+		srule->srv.ptr = target;
+		target->flags |= SRV_F_NON_PURGEABLE;
+	}
+
+	/* find the target table for 'stick' rules */
+	list_for_each_entry(mrule, &px->sticking_rules, list) {
+		px->be_req_ana |= AN_REQ_STICKING_RULES;
+		if (mrule->flags & STK_IS_STORE)
+			px->be_rsp_ana |= AN_RES_STORE_RULES;
+
+		if (!resolve_stick_rule(px, mrule))
+			cfgerr++;
+
+		*err_code |= warnif_tcp_http_cond(px, mrule->cond);
+	}
+
+	/* find the target table for 'store response' rules */
+	list_for_each_entry(mrule, &px->storersp_rules, list) {
+		px->be_rsp_ana |= AN_RES_STORE_RULES;
+
+		if (!resolve_stick_rule(px, mrule))
+			cfgerr++;
+	}
+
+	/* check validity for 'tcp-request' layer 4/5/6/7 rules */
+	cfgerr += check_action_rules(&px->tcp_req.l4_rules, px, err_code);
+	cfgerr += check_action_rules(&px->tcp_req.l5_rules, px, err_code);
+	cfgerr += check_action_rules(&px->tcp_req.inspect_rules, px, err_code);
+	cfgerr += check_action_rules(&px->tcp_rep.inspect_rules, px, err_code);
+	cfgerr += check_action_rules(&px->http_req_rules, px, err_code);
+	cfgerr += check_action_rules(&px->http_res_rules, px, err_code);
+	cfgerr += check_action_rules(&px->http_after_res_rules, px, err_code);
+
+	/* Warn is a switch-mode http is used on a TCP listener with servers but no backend */
+	if (!px->defbe.name && LIST_ISEMPTY(&px->switching_rules) && px->srv) {
+		if ((px->options & PR_O_HTTP_UPG) && px->mode == PR_MODE_TCP)
+			ha_warning("Proxy '%s' : 'switch-mode http' configured for a %s %s with no backend. "
+			           "Incoming connections upgraded to HTTP cannot be routed to TCP servers\n",
+			           px->id, proxy_mode_str(px->mode), proxy_type_str(px));
+	}
+
+	if (px->table && px->table->peers.name) {
+		struct peers *curpeers;
+
+		for (curpeers = cfg_peers; curpeers; curpeers = curpeers->next) {
+			if (strcmp(curpeers->id, px->table->peers.name) == 0) {
+				ha_free(&px->table->peers.name);
+				px->table->peers.p = curpeers;
+				break;
+			}
+		}
+
+		if (!curpeers) {
+			ha_alert("Proxy '%s': unable to find sync peers '%s'.\n",
+			         px->id, px->table->peers.name);
+			ha_free(&px->table->peers.name);
+			px->table->peers.p = NULL;
+			cfgerr++;
+		}
+		else if (curpeers->disabled) {
+			/* silently disable this peers section */
+			px->table->peers.p = NULL;
+		}
+		else if (!curpeers->peers_fe) {
+			ha_alert("Proxy '%s': unable to find local peer '%s' in peers section '%s'.\n",
+			         px->id, localpeer, curpeers->id);
+			px->table->peers.p = NULL;
+			cfgerr++;
+		}
+	}
+
+
+	if (px->email_alert.mailers.name) {
+		struct mailers *curmailers = mailers;
+
+		for (curmailers = mailers; curmailers; curmailers = curmailers->next) {
+			if (strcmp(curmailers->id, px->email_alert.mailers.name) == 0)
+				break;
+		}
+		if (!curmailers) {
+			ha_alert("Proxy '%s': unable to find mailers '%s'.\n",
+			         px->id, px->email_alert.mailers.name);
+			free_email_alert(px);
+			cfgerr++;
+		}
+		else {
+			err = NULL;
+			if (init_email_alert(curmailers, px, &err)) {
+				ha_alert("Proxy '%s': %s.\n", px->id, err);
+				free(err);
+				cfgerr++;
+			}
+		}
+	}
+
+	if (px->uri_auth && !(px->uri_auth->flags & STAT_F_CONVDONE) &&
+	    !LIST_ISEMPTY(&px->uri_auth->http_req_rules) &&
+	    (px->uri_auth->userlist || px->uri_auth->auth_realm )) {
+		ha_alert("%s '%s': stats 'auth'/'realm' and 'http-request' can't be used at the same time.\n",
+		         "proxy", px->id);
+		cfgerr++;
+		goto out_uri_auth_compat;
+	}
+
+	if (px->uri_auth && px->uri_auth->userlist &&
+	    (!(px->uri_auth->flags & STAT_F_CONVDONE) ||
+	     LIST_ISEMPTY(&px->uri_auth->http_req_rules))) {
+		const char *uri_auth_compat_req[10];
+		struct act_rule *rule;
+		i = 0;
+
+		/* build the ACL condition from scratch. We're relying on anonymous ACLs for that */
+		uri_auth_compat_req[i++] = "auth";
+
+		if (px->uri_auth->auth_realm) {
+			uri_auth_compat_req[i++] = "realm";
+			uri_auth_compat_req[i++] = px->uri_auth->auth_realm;
+		}
+
+		uri_auth_compat_req[i++] = "unless";
+		uri_auth_compat_req[i++] = "{";
+		uri_auth_compat_req[i++] = "http_auth(.internal-stats-userlist)";
+		uri_auth_compat_req[i++] = "}";
+		uri_auth_compat_req[i++] = "";
+
+		rule = parse_http_req_cond(uri_auth_compat_req, "internal-stats-auth-compat", 0, px);
+		if (!rule) {
+			cfgerr++;
+			goto out;
+		}
+
+		LIST_APPEND(&px->uri_auth->http_req_rules, &rule->list);
+
+		if (px->uri_auth->auth_realm) {
+			ha_free(&px->uri_auth->auth_realm);
+		}
+		px->uri_auth->flags |= STAT_F_CONVDONE;
+	}
+ out_uri_auth_compat:
+
+	/* check whether we have a logger that uses RFC5424 log format */
+	list_for_each_entry(tmplogger, &px->loggers, list) {
+		if (tmplogger->format == LOG_FORMAT_RFC5424) {
+			if (!px->logformat_sd.str) {
+				/* set the default logformat_sd_string */
+				px->logformat_sd.str = default_rfc5424_sd_log_format;
+			}
+			break;
+		}
+	}
+
+	/* compile the log format */
+	if (!(px->cap & PR_CAP_FE)) {
+		lf_expr_deinit(&px->logformat);
+		lf_expr_deinit(&px->logformat_sd);
+	}
+
+	if (px->logformat.str) {
+		px->conf.args.ctx = ARGC_LOG;
+		px->conf.args.file = px->logformat.conf.file;
+		px->conf.args.line = px->logformat.conf.line;
+		err = NULL;
+		if (!lf_expr_compile(&px->logformat, &px->conf.args,
+		                            LOG_OPT_MANDATORY|LOG_OPT_MERGE_SPACES,
+		                            SMP_VAL_FE_LOG_END, &err) ||
+		    !lf_expr_postcheck(&px->logformat, px, &err)) {
+			ha_alert("Parsing [%s:%d]: failed to parse log-format : %s.\n",
+			         px->logformat.conf.file, px->logformat.conf.line, err);
+			free(err);
+			cfgerr++;
+		}
+		px->conf.args.file = NULL;
+		px->conf.args.line = 0;
+	}
+
+	if (px->logformat_sd.str) {
+		px->conf.args.ctx = ARGC_LOGSD;
+		px->conf.args.file = px->logformat_sd.conf.file;
+		px->conf.args.line = px->logformat_sd.conf.line;
+		err = NULL;
+		if (!lf_expr_compile(&px->logformat_sd, &px->conf.args,
+		                            LOG_OPT_MANDATORY|LOG_OPT_MERGE_SPACES,
+		                            SMP_VAL_FE_LOG_END, &err) ||
+		    !add_to_logformat_list(NULL, NULL, LF_SEPARATOR, &px->logformat_sd, &err) ||
+		    !lf_expr_postcheck(&px->logformat_sd, px, &err)) {
+			ha_alert("Parsing [%s:%d]: failed to parse log-format-sd : %s.\n",
+			         px->logformat_sd.conf.file, px->logformat_sd.conf.line, err);
+			free(err);
+			cfgerr++;
+		}
+		px->conf.args.file = NULL;
+		px->conf.args.line = 0;
+	}
+
+	if (px->format_unique_id.str) {
+		int where = 0;
+
+		px->conf.args.ctx = ARGC_UIF;
+		px->conf.args.file = px->format_unique_id.conf.file;
+		px->conf.args.line = px->format_unique_id.conf.line;
+		err = NULL;
+		if (px->cap & PR_CAP_FE)
+			where |= SMP_VAL_FE_HRQ_HDR;
+		if (px->cap & PR_CAP_BE)
+			where |= SMP_VAL_BE_HRQ_HDR;
+		if (!lf_expr_compile(&px->format_unique_id, &px->conf.args,
+		                            LOG_OPT_HTTP|LOG_OPT_MERGE_SPACES, where, &err) ||
+		    !lf_expr_postcheck(&px->format_unique_id, px, &err)) {
+			ha_alert("Parsing [%s:%d]: failed to parse unique-id : %s.\n",
+			         px->format_unique_id.conf.file, px->format_unique_id.conf.line, err);
+			free(err);
+			cfgerr++;
+		}
+		px->conf.args.file = NULL;
+		px->conf.args.line = 0;
+	}
+
+	if (px->logformat_error.str) {
+		px->conf.args.ctx = ARGC_LOG;
+		px->conf.args.file = px->logformat_error.conf.file;
+		px->conf.args.line = px->logformat_error.conf.line;
+		err = NULL;
+		if (!lf_expr_compile(&px->logformat_error, &px->conf.args,
+		                            LOG_OPT_MANDATORY|LOG_OPT_MERGE_SPACES,
+		                            SMP_VAL_FE_LOG_END, &err) ||
+		    !lf_expr_postcheck(&px->logformat_error, px, &err)) {
+			ha_alert("Parsing [%s:%d]: failed to parse error-log-format : %s.\n",
+			         px->logformat_error.conf.file, px->logformat_error.conf.line, err);
+			free(err);
+			cfgerr++;
+		}
+		px->conf.args.file = NULL;
+		px->conf.args.line = 0;
+	}
+
+	/* "balance hash" needs to compile its expression
+	 * (log backends will handle this in proxy log postcheck)
+	 */
+	if (px->mode != PR_MODE_SYSLOG &&
+	    (px->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_SMP) {
+		int idx = 0;
+		const char *args[] = {
+			px->lbprm.arg_str,
+			NULL,
+		};
+
+		err = NULL;
+		px->conf.args.ctx = ARGC_USRV; // same context as use_server.
+		px->lbprm.expr =
+			sample_parse_expr((char **)args, &idx,
+					  px->conf.file, px->conf.line,
+					  &err, &px->conf.args, NULL);
+
+		if (!px->lbprm.expr) {
+			ha_alert("%s '%s' [%s:%d]: failed to parse 'balance hash' expression '%s' in : %s.\n",
+			         proxy_type_str(px), px->id,
+			         px->conf.file, px->conf.line,
+			         px->lbprm.arg_str, err);
+			ha_free(&err);
+			cfgerr++;
+		}
+		else if (!(px->lbprm.expr->fetch->val & SMP_VAL_BE_SET_SRV)) {
+			ha_alert("%s '%s' [%s:%d]: error detected while parsing 'balance hash' expression '%s' "
+			         "which requires information from %s, which is not available here.\n",
+			         proxy_type_str(px), px->id,
+			         px->conf.file, px->conf.line,
+			         px->lbprm.arg_str, sample_src_names(px->lbprm.expr->fetch->use));
+			cfgerr++;
+		}
+		else if (px->mode == PR_MODE_HTTP && (px->lbprm.expr->fetch->use & SMP_USE_L6REQ)) {
+			ha_warning("%s '%s' [%s:%d]: L6 sample fetch <%s> will be ignored in 'balance hash' expression in HTTP mode.\n",
+			           proxy_type_str(px), px->id,
+			           px->conf.file, px->conf.line,
+			           px->lbprm.arg_str);
+		}
+		else
+			px->http_needed |= !!(px->lbprm.expr->fetch->use & SMP_USE_HTTP_ANY);
+	}
+
+	/* only now we can check if some args remain unresolved.
+	 * This must be done after the users and groups resolution.
+	 */
+	err = NULL;
+	i = smp_resolve_args(px, &err);
+	cfgerr += i;
+	if (i) {
+		indent_msg(&err, 8);
+		ha_alert("%s%s\n", i > 1 ? "multiple argument resolution errors:" : "", err);
+		ha_free(&err);
+	} else
+		cfgerr += acl_find_targets(px);
+
+	if (!(px->cap & PR_CAP_INT) && (px->mode == PR_MODE_TCP || px->mode == PR_MODE_HTTP) &&
+	    (((px->cap & PR_CAP_FE) && !px->timeout.client) ||
+	     ((px->cap & PR_CAP_BE) && (px->srv) &&
+	      (!px->timeout.connect ||
+	       (!px->timeout.server && (px->mode == PR_MODE_HTTP || !px->timeout.tunnel)))))) {
+		ha_warning("missing timeouts for %s '%s'.\n"
+		           "   | While not properly invalid, you will certainly encounter various problems\n"
+		           "   | with such a configuration. To fix this, please ensure that all following\n"
+		           "   | timeouts are set to a non-zero value: 'client', 'connect', 'server'.\n",
+		           proxy_type_str(px), px->id);
+		*err_code |= ERR_WARN;
+	}
+
+	/* Historically, the tarpit and queue timeouts were inherited from contimeout.
+	 * We must still support older configurations, so let's find out whether those
+	 * parameters have been set or must be copied from contimeouts.
+	 */
+	if (!px->timeout.tarpit)
+		px->timeout.tarpit = px->timeout.connect;
+	if ((px->cap & PR_CAP_BE) && !px->timeout.queue)
+		px->timeout.queue = px->timeout.connect;
+
+	if ((px->tcpcheck_rules.flags & TCPCHK_RULES_UNUSED_TCP_RS)) {
+		ha_warning("%s '%s' uses tcp-check rules without 'option tcp-check', so the rules are ignored.\n",
+		           proxy_type_str(px), px->id);
+		*err_code |= ERR_WARN;
+	}
+
+	/* ensure that cookie capture length is not too large */
+	if (px->capture_len >= global.tune.cookie_len) {
+		ha_warning("truncating capture length to %d bytes for %s '%s'.\n",
+		           global.tune.cookie_len - 1, proxy_type_str(px), px->id);
+		*err_code |= ERR_WARN;
+		px->capture_len = global.tune.cookie_len - 1;
+	}
+
+	/* The small pools required for the capture lists */
+	if (px->nb_req_cap) {
+		px->req_cap_pool = create_pool("ptrcap",
+		                                     px->nb_req_cap * sizeof(char *),
+		                                     MEM_F_SHARED);
+	}
+
+	if (px->nb_rsp_cap) {
+		px->rsp_cap_pool = create_pool("ptrcap",
+		                                     px->nb_rsp_cap * sizeof(char *),
+		                                     MEM_F_SHARED);
+	}
+
+	switch (px->load_server_state_from_file) {
+		case PR_SRV_STATE_FILE_UNSPEC:
+			px->load_server_state_from_file = PR_SRV_STATE_FILE_NONE;
+			break;
+		case PR_SRV_STATE_FILE_GLOBAL:
+			if (!global.server_state_file) {
+				ha_warning("backend '%s' configured to load server state file from global section 'server-state-file' directive. Unfortunately, 'server-state-file' is not set!\n",
+				           px->id);
+				*err_code |= ERR_WARN;
+			}
+			break;
+	}
+
+	/* first, we will invert the servers list order */
+	newsrv = NULL;
+	while (px->srv) {
+		struct server *next;
+
+		next = px->srv->next;
+		px->srv->next = newsrv;
+		newsrv = px->srv;
+		if (!next)
+			break;
+		px->srv = next;
+	}
+
+	/* Check that no server name conflicts. This causes trouble in the stats.
+	 * We only emit an error for the first conflict affecting each server,
+	 * in order to avoid combinatory explosion if all servers have the same
+	 * name. Since servers names are stored in a tree before landing here,
+	 * we simply have to check for the current server's duplicates to spot
+	 * conflicts.
+	 */
+	for (newsrv = px->srv; newsrv; newsrv = newsrv->next) {
+		struct server *other_srv;
+
+		/* Note: internal servers are not always registered and
+		 * they do not conflict.
+		 */
+		if (!ceb_intree(&newsrv->conf.name_node))
+			continue;
+
+		for (other_srv = newsrv;
+		     (other_srv = cebis_item_prev_dup(&px->conf.used_server_name, conf.name_node, id, other_srv)); ) {
+			ha_alert("parsing [%s:%d] : %s '%s', another server named '%s' was already defined at line %d, please use distinct names.\n",
+			         newsrv->conf.file, newsrv->conf.line,
+			         proxy_type_str(px), px->id,
+			         newsrv->id, other_srv->conf.line);
+			cfgerr++;
+			break;
+		}
+	}
+
+	/* assign automatic UIDs to servers which don't have one yet */
+	next_id = 1;
+	newsrv = px->srv;
+	while (newsrv != NULL) {
+		if (!newsrv->puid) {
+			/* server ID not set, use automatic numbering with first
+			 * spare entry starting with next_svid.
+			 */
+			next_id = server_get_next_id(px, next_id);
+			newsrv->puid = next_id;
+			server_index_id(px, newsrv);
+		}
+
+		next_id++;
+		newsrv = newsrv->next;
+	}
+
+	px->lbprm.wmult = 1; /* default weight multiplier */
+	px->lbprm.wdiv  = 1; /* default weight divider */
+
+	/*
+	 * If this server supports a maxconn parameter, it needs a dedicated
+	 * tasks to fill the emptied slots when a connection leaves.
+	 * Also, resolve deferred tracking dependency if needed.
+	 */
+	newsrv = px->srv;
+	while (newsrv != NULL) {
+		set_usermsgs_ctx(newsrv->conf.file, newsrv->conf.line, &newsrv->obj_type);
+
+		srv_minmax_conn_apply(newsrv);
+
+		/* this will also properly set the transport layer for
+		 * prod and checks
+		 * if default-server have use_ssl, prerare ssl init
+		 * without activating it */
+		if (newsrv->use_ssl == 1 || newsrv->check.use_ssl == 1 ||
+		    (newsrv->proxy->options & PR_O_TCPCHK_SSL) ||
+		    ((newsrv->flags & SRV_F_DEFSRV_USE_SSL) && newsrv->use_ssl != 1)) {
+			if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->prepare_srv)
+				cfgerr += xprt_get(XPRT_SSL)->prepare_srv(newsrv);
+			else if (xprt_get(XPRT_QUIC) && xprt_get(XPRT_QUIC)->prepare_srv)
+				cfgerr += xprt_get(XPRT_QUIC)->prepare_srv(newsrv);
+		}
+
+		if (newsrv->use_ssl == 1 || ((newsrv->flags & SRV_F_DEFSRV_USE_SSL) && newsrv->use_ssl != 1)) {
+			/* In HTTP only, if the SNI is not set and we can rely on the host
+			 * header value, fill the sni expression accordingly
+			 */
+			if (!newsrv->sni_expr && newsrv->proxy->mode == PR_MODE_HTTP &&
+			    !(newsrv->ssl_ctx.options & SRV_SSL_O_NO_AUTO_SNI)) {
+				newsrv->sni_expr = strdup("req.hdr(host),field(1,:)");
+
+				err = NULL;
+				if (server_parse_exprs(newsrv, px, &err)) {
+					ha_alert("parsing [%s:%d]: failed to parse auto SNI expression: %s\n",
+					         newsrv->conf.file, newsrv->conf.line, err);
+					free(err);
+					++cfgerr;
+					goto next_srv;
+				}
+			}
+		}
+
+
+		if ((newsrv->flags & SRV_F_FASTOPEN) &&
+		    ((px->retry_type & (PR_RE_DISCONNECTED | PR_RE_TIMEOUT)) !=
+		     (PR_RE_DISCONNECTED | PR_RE_TIMEOUT)))
+			ha_warning("server has tfo activated, the backend should be configured with at least 'conn-failure', 'empty-response' and 'response-timeout' or we wouldn't be able to retry the connection on failure.\n");
+
+		if (newsrv->trackit) {
+			if (srv_apply_track(newsrv, px)) {
+				++cfgerr;
+				goto next_srv;
+			}
+		}
+
+	next_srv:
+		reset_usermsgs_ctx();
+		newsrv = newsrv->next;
+	}
+
+	/*
+	 * Try to generate dynamic cookies for servers now.
+	 * It couldn't be done earlier, since at the time we parsed
+	 * the server line, we may not have known yet that we
+	 * should use dynamic cookies, or the secret key may not
+	 * have been provided yet.
+	 */
+	if (px->ck_opts & PR_CK_DYNAMIC) {
+		newsrv = px->srv;
+		while (newsrv != NULL) {
+			srv_set_dyncookie(newsrv);
+			newsrv = newsrv->next;
+		}
+
+	}
+	/* We have to initialize the server lookup mechanism depending
+	 * on what LB algorithm was chosen.
+	 */
+
+	px->lbprm.algo &= ~(BE_LB_LKUP | BE_LB_PROP_DYN);
+	switch (px->lbprm.algo & BE_LB_KIND) {
+	case BE_LB_KIND_RR:
+		if ((px->lbprm.algo & BE_LB_PARM) == BE_LB_RR_STATIC) {
+			px->lbprm.algo |= BE_LB_LKUP_MAP;
+			init_server_map(px);
+		} else if ((px->lbprm.algo & BE_LB_PARM) == BE_LB_RR_RANDOM) {
+			px->lbprm.algo |= BE_LB_LKUP_CHTREE | BE_LB_PROP_DYN;
+			if (chash_init_server_tree(px) < 0) {
+				cfgerr++;
+			}
+		} else {
+			px->lbprm.algo |= BE_LB_LKUP_RRTREE | BE_LB_PROP_DYN;
+			fwrr_init_server_groups(px);
+		}
+		break;
+
+	case BE_LB_KIND_CB:
+		if ((px->lbprm.algo & BE_LB_PARM) == BE_LB_CB_LC) {
+			px->lbprm.algo |= BE_LB_LKUP_LCTREE | BE_LB_PROP_DYN;
+			fwlc_init_server_tree(px);
+		} else {
+			px->lbprm.algo |= BE_LB_LKUP_FSTREE | BE_LB_PROP_DYN;
+			fas_init_server_tree(px);
+		}
+		break;
+
+	case BE_LB_KIND_HI:
+		if ((px->lbprm.algo & BE_LB_HASH_TYPE) == BE_LB_HASH_CONS) {
+			px->lbprm.algo |= BE_LB_LKUP_CHTREE | BE_LB_PROP_DYN;
+			if (chash_init_server_tree(px) < 0) {
+				cfgerr++;
+			}
+		} else {
+			px->lbprm.algo |= BE_LB_LKUP_MAP;
+			init_server_map(px);
+		}
+		break;
+	case BE_LB_KIND_SA:
+		if ((px->lbprm.algo & BE_LB_PARM) == BE_LB_SA_SS) {
+			px->lbprm.algo |= BE_LB_PROP_DYN;
+			init_server_ss(px);
+		}
+		break;
+	}
+	HA_RWLOCK_INIT(&px->lbprm.lock);
+
+	if (px->options & PR_O_LOGASAP)
+		px->to_log &= ~LW_BYTES;
+
+	if (!(px->cap & PR_CAP_INT) && (px->mode == PR_MODE_TCP || px->mode == PR_MODE_HTTP) &&
+	    (px->cap & PR_CAP_FE) && LIST_ISEMPTY(&px->loggers) &&
+	    (!lf_expr_isempty(&px->logformat) || !lf_expr_isempty(&px->logformat_sd))) {
+		ha_warning("log format ignored for %s '%s' since it has no log address.\n",
+		           proxy_type_str(px), px->id);
+		*err_code |= ERR_WARN;
+	}
+
+	if (px->mode != PR_MODE_HTTP && !(px->options & PR_O_HTTP_UPG)) {
+		int optnum;
+
+		if (px->uri_auth) {
+			ha_warning("'stats' statement ignored for %s '%s' as it requires HTTP mode.\n",
+			           proxy_type_str(px), px->id);
+			*err_code |= ERR_WARN;
+			stats_uri_auth_drop(px->uri_auth);
+			px->uri_auth = NULL;
+		}
+
+		if (px->capture_name) {
+			ha_warning("'capture' statement ignored for %s '%s' as it requires HTTP mode.\n",
+			           proxy_type_str(px), px->id);
+			*err_code |= ERR_WARN;
+		}
+
+		if (isttest(px->monitor_uri)) {
+			ha_warning("'monitor-uri' statement ignored for %s '%s' as it requires HTTP mode.\n",
+			           proxy_type_str(px), px->id);
+			*err_code |= ERR_WARN;
+		}
+
+		if (!LIST_ISEMPTY(&px->http_req_rules)) {
+			ha_warning("'http-request' rules ignored for %s '%s' as they require HTTP mode.\n",
+			           proxy_type_str(px), px->id);
+			*err_code |= ERR_WARN;
+		}
+
+		if (!LIST_ISEMPTY(&px->http_res_rules)) {
+			ha_warning("'http-response' rules ignored for %s '%s' as they require HTTP mode.\n",
+			           proxy_type_str(px), px->id);
+			*err_code |= ERR_WARN;
+		}
+
+		if (!LIST_ISEMPTY(&px->http_after_res_rules)) {
+			ha_warning("'http-after-response' rules ignored for %s '%s' as they require HTTP mode.\n",
+			           proxy_type_str(px), px->id);
+			*err_code |= ERR_WARN;
+		}
+
+		if (!LIST_ISEMPTY(&px->redirect_rules)) {
+			ha_warning("'redirect' rules ignored for %s '%s' as they require HTTP mode.\n",
+			           proxy_type_str(px), px->id);
+			*err_code |= ERR_WARN;
+		}
+
+		for (optnum = 0; cfg_opts[optnum].name; optnum++) {
+			if (cfg_opts[optnum].mode == PR_MODE_HTTP &&
+			    (px->cap & cfg_opts[optnum].cap) &&
+			    (px->options & cfg_opts[optnum].val)) {
+				ha_warning("'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
+				           cfg_opts[optnum].name, proxy_type_str(px), px->id);
+				*err_code |= ERR_WARN;
+				px->options &= ~cfg_opts[optnum].val;
+			}
+		}
+
+		for (optnum = 0; cfg_opts2[optnum].name; optnum++) {
+			if (cfg_opts2[optnum].mode == PR_MODE_HTTP &&
+			    (px->cap & cfg_opts2[optnum].cap) &&
+			    (px->options2 & cfg_opts2[optnum].val)) {
+				ha_warning("'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
+				           cfg_opts2[optnum].name, proxy_type_str(px), px->id);
+				*err_code |= ERR_WARN;
+				px->options2 &= ~cfg_opts2[optnum].val;
+			}
+		}
+
+#if defined(CONFIG_HAP_TRANSPARENT)
+		if (px->conn_src.bind_hdr_occ) {
+			px->conn_src.bind_hdr_occ = 0;
+			ha_warning("%s '%s' : ignoring use of header %s as source IP in non-HTTP mode.\n",
+			           proxy_type_str(px), px->id, px->conn_src.bind_hdr_name);
+			*err_code |= ERR_WARN;
+		}
+#endif /* CONFIG_HAP_TRANSPARENT */
+	}
+
+	/*
+	 * ensure that we're not cross-dressing a TCP server into HTTP.
+	 */
+	newsrv = px->srv;
+	while (newsrv != NULL) {
+		if ((px->mode != PR_MODE_HTTP) && newsrv->rdr_len) {
+			ha_alert("%s '%s' : server cannot have cookie or redirect prefix in non-HTTP mode.\n",
+			         proxy_type_str(px), px->id);
+			cfgerr++;
+		}
+
+		if ((px->mode != PR_MODE_HTTP) && newsrv->cklen) {
+			ha_warning("%s '%s' : ignoring cookie for server '%s' as HTTP mode is disabled.\n",
+			           proxy_type_str(px), px->id, newsrv->id);
+			*err_code |= ERR_WARN;
+		}
+
+		if ((newsrv->flags & SRV_F_MAPPORTS) && (px->options2 & PR_O2_RDPC_PRST)) {
+			ha_warning("%s '%s' : RDP cookie persistence will not work for server '%s' because it lacks an explicit port number.\n",
+			           proxy_type_str(px), px->id, newsrv->id);
+			*err_code |= ERR_WARN;
+		}
+
+#if defined(CONFIG_HAP_TRANSPARENT)
+		if (px->mode != PR_MODE_HTTP && newsrv->conn_src.bind_hdr_occ) {
+			newsrv->conn_src.bind_hdr_occ = 0;
+			ha_warning("%s '%s' : server %s cannot use header %s as source IP in non-HTTP mode.\n",
+			           proxy_type_str(px), px->id, newsrv->id, newsrv->conn_src.bind_hdr_name);
+			*err_code |= ERR_WARN;
+		}
+#endif /* CONFIG_HAP_TRANSPARENT */
+
+		if ((px->mode != PR_MODE_HTTP) && (px->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR)
+			px->options &= ~PR_O_REUSE_MASK;
+		if (px->mode == PR_MODE_SPOP)
+			px->options |= PR_O_REUSE_ALWS;
+
+		if ((px->mode != PR_MODE_HTTP) && newsrv->flags & SRV_F_RHTTP) {
+			ha_alert("%s '%s' : server %s uses reverse HTTP addressing which can only be used with HTTP mode.\n",
+			         proxy_type_str(px), px->id, newsrv->id);
+			cfgerr++;
+			*err_code |= ERR_FATAL | ERR_ALERT;
+			goto out;
+		}
+
+		newsrv = newsrv->next;
+	}
+
+	/* Check filter configuration, if any */
+	cfgerr += flt_check(px);
+
+	if (px->cap & PR_CAP_FE) {
+		if (!px->accept)
+			px->accept = frontend_accept;
+
+		if (!LIST_ISEMPTY(&px->tcp_req.inspect_rules) ||
+		    (px->defpx && !LIST_ISEMPTY(&px->defpx->tcp_req.inspect_rules)))
+			px->fe_req_ana |= AN_REQ_INSPECT_FE;
+
+		if (px->mode == PR_MODE_HTTP) {
+			px->fe_req_ana |= AN_REQ_WAIT_HTTP | AN_REQ_HTTP_PROCESS_FE;
+			px->fe_rsp_ana |= AN_RES_WAIT_HTTP | AN_RES_HTTP_PROCESS_FE;
+		}
+
+		if (px->mode == PR_MODE_CLI) {
+			px->fe_req_ana |= AN_REQ_WAIT_CLI;
+			px->fe_rsp_ana |= AN_RES_WAIT_CLI;
+		}
+
+		/* both TCP and HTTP must check switching rules */
+		px->fe_req_ana |= AN_REQ_SWITCHING_RULES;
+
+		/* Add filters analyzers if needed */
+		if (!LIST_ISEMPTY(&px->filter_configs)) {
+			px->fe_req_ana |= AN_REQ_FLT_START_FE | AN_REQ_FLT_XFER_DATA | AN_REQ_FLT_END;
+			px->fe_rsp_ana |= AN_RES_FLT_START_FE | AN_RES_FLT_XFER_DATA | AN_RES_FLT_END;
+		}
+	}
+
+	if (px->cap & PR_CAP_BE) {
+		if (!LIST_ISEMPTY(&px->tcp_req.inspect_rules) ||
+		    (px->defpx && !LIST_ISEMPTY(&px->defpx->tcp_req.inspect_rules)))
+			px->be_req_ana |= AN_REQ_INSPECT_BE;
+
+		if (!LIST_ISEMPTY(&px->tcp_rep.inspect_rules) ||
+		    (px->defpx && !LIST_ISEMPTY(&px->defpx->tcp_rep.inspect_rules)))
+                        px->be_rsp_ana |= AN_RES_INSPECT;
+
+		if (px->mode == PR_MODE_HTTP) {
+			px->be_req_ana |= AN_REQ_WAIT_HTTP | AN_REQ_HTTP_INNER | AN_REQ_HTTP_PROCESS_BE;
+			px->be_rsp_ana |= AN_RES_WAIT_HTTP | AN_RES_HTTP_PROCESS_BE;
+		}
+
+		/* If the backend does requires RDP cookie persistence, we have to
+		 * enable the corresponding analyser.
+		 */
+		if (px->options2 & PR_O2_RDPC_PRST)
+			px->be_req_ana |= AN_REQ_PRST_RDP_COOKIE;
+
+		/* Add filters analyzers if needed */
+		if (!LIST_ISEMPTY(&px->filter_configs)) {
+			px->be_req_ana |= AN_REQ_FLT_START_BE | AN_REQ_FLT_XFER_DATA | AN_REQ_FLT_END;
+			px->be_rsp_ana |= AN_RES_FLT_START_BE | AN_RES_FLT_XFER_DATA | AN_RES_FLT_END;
+		}
+	}
+
+	/* Check the mux protocols, if any, for each server attached to
+	 * the current proxy */
+	for (newsrv = px->srv; newsrv; newsrv = newsrv->next) {
+		int mode = conn_pr_mode_to_proto_mode(px->mode);
+		const struct mux_proto_list *mux_ent;
+
+		if (srv_is_quic(newsrv)) {
+			if (!newsrv->mux_proto) {
+				/* Force QUIC as mux-proto on server with quic addresses, similarly to bind on FE side. */
+				newsrv->mux_proto = get_mux_proto(ist("quic"));
+			}
+		}
+
+		if (!newsrv->mux_proto)
+			continue;
+
+		/* it is possible that an incorrect mux was referenced
+		 * due to the proxy's mode not being taken into account
+		 * on first pass. Let's adjust it now.
+		 */
+		mux_ent = conn_get_best_mux_entry(newsrv->mux_proto->token, PROTO_SIDE_BE, mode);
+
+		if (!mux_ent || !isteq(mux_ent->token, newsrv->mux_proto->token)) {
+			ha_alert("%s '%s' : MUX protocol '%.*s' is not usable for server '%s' at [%s:%d].\n",
+			         proxy_type_str(px), px->id,
+			         (int)newsrv->mux_proto->token.len,
+			         newsrv->mux_proto->token.ptr,
+			         newsrv->id, newsrv->conf.file, newsrv->conf.line);
+			cfgerr++;
+		}
+		else {
+			if ((mux_ent->mux->flags & MX_FL_FRAMED) && !srv_is_quic(newsrv)) {
+				ha_alert("%s '%s' : MUX protocol '%.*s' is incompatible with stream transport used by server '%s' at [%s:%d].\n",
+				         proxy_type_str(px), px->id,
+				         (int)newsrv->mux_proto->token.len,
+				         newsrv->mux_proto->token.ptr,
+				         newsrv->id, newsrv->conf.file, newsrv->conf.line);
+				cfgerr++;
+			}
+			else if (!(mux_ent->mux->flags & MX_FL_FRAMED) && srv_is_quic(newsrv)) {
+				ha_alert("%s '%s' : MUX protocol '%.*s' is incompatible with framed transport used by server '%s' at [%s:%d].\n",
+				         proxy_type_str(px), px->id,
+				         (int)newsrv->mux_proto->token.len,
+				         newsrv->mux_proto->token.ptr,
+				         newsrv->id, newsrv->conf.file, newsrv->conf.line);
+				cfgerr++;
+			}
+		}
+
+		/* update the mux */
+		newsrv->mux_proto = mux_ent;
+	}
+
+	/* Allocate default tcp-check rules for proxies without
+	 * explicit rules.
+	 */
+	if (px->cap & PR_CAP_BE) {
+		if (!(px->options2 & PR_O2_CHK_ANY)) {
+			struct tcpcheck_ruleset *rs = NULL;
+			struct tcpcheck_rules *rules = &px->tcpcheck_rules;
+
+			px->options2 |= PR_O2_TCPCHK_CHK;
+
+			rs = find_tcpcheck_ruleset("*tcp-check");
+			if (!rs) {
+				rs = create_tcpcheck_ruleset("*tcp-check");
+				if (rs == NULL) {
+					ha_alert("config: %s '%s': out of memory.\n",
+					         proxy_type_str(px), px->id);
+					cfgerr++;
+				}
+			}
+
+			free_tcpcheck_vars(&rules->preset_vars);
+			rules->list = &rs->rules;
+			rules->flags = 0;
+		}
+	}
+
+ out:
+	if (cfgerr)
+		*err_code |= ERR_ALERT | ERR_FATAL;
+
+	return cfgerr;
 }
 
 /* Frees all dynamic settings allocated on a default proxy that's about to be

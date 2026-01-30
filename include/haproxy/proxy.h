@@ -97,6 +97,7 @@ int resolve_stick_rule(struct proxy *curproxy, struct sticking_rule *mrule);
 void free_stick_rules(struct list *rules);
 void free_server_rules(struct list *srules);
 int proxy_init_per_thr(struct proxy *px);
+int proxy_finalize(struct proxy *px, int *err_code);
 
 /*
  * This function returns a string containing the type of the proxy in a format
