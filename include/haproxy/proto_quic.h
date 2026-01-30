@@ -25,6 +25,8 @@
 #include <haproxy/api-t.h>
 #include <haproxy/thread-t.h>
 
+#define QUIC_MAX_UDP_PAYLOAD_SIZE     2048
+
 extern struct protocol proto_quic4;
 extern struct protocol proto_quic6;
 

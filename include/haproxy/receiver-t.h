@@ -81,7 +81,6 @@ struct receiver {
 	struct shard_info *shard_info;   /* points to info about the owning shard, NULL if single rx */
 	struct list proto_list;          /* list in the protocol header */
 #ifdef USE_QUIC
-	struct mt_list rxbuf_list;       /* list of buffers to receive and dispatch QUIC datagrams. */
 	enum quic_sock_mode quic_mode;   /* QUIC socket allocation strategy */
 	unsigned int quic_curr_handshake; /* count of active QUIC handshakes */
 	unsigned int quic_curr_accept;   /* count of QUIC conns waiting for accept */

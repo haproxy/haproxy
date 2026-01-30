@@ -192,27 +192,26 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
 {
 	struct quic_dghdlr *dghdlr = ctx;
 	struct quic_dgram *dgram;
+	size_t len;
 	int max_dgrams = global.tune.maxpollevents;
 
 	TRACE_ENTER(QUIC_EV_CONN_LPKT);
 
-	while ((dgram = MT_LIST_POP(&dghdlr->dgrams, typeof(dgram), handler_list))) {
-		if (quic_dgram_parse(dgram, NULL, dgram->owner)) {
-			/* TODO should we requeue the datagram ? */
+	while ((dgram = mpring_read_begin(&dghdlr->buf, &len))) {
+		/* We ignore the return value of quic_dgram_parse() because
+		 * whether it was successful or not, we still need to empty the
+		 * ring buffer. Exiting early would leave us with data left to
+		 * process, and no guarantee we would get woken up again.
+		 */
+		quic_dgram_parse(dgram, NULL, dgram->owner);
+		mpring_read_end(&dghdlr->buf, len);
+
+		if (--max_dgrams <= 0) {
+			/* too much work done at once, come back here later */
+			tasklet_wakeup((struct tasklet *)t);
 			break;
 		}
-
-		if (--max_dgrams <= 0)
-			goto stop_here;
 	}
-
-	TRACE_LEAVE(QUIC_EV_CONN_LPKT);
-	return t;
-
- stop_here:
-	/* too much work done at once, come back here later */
-	if (!MT_LIST_ISEMPTY(&dghdlr->dgrams))
-		tasklet_wakeup((struct tasklet *)t);
 
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT);
 	return t;
@@ -259,40 +258,13 @@ static int quic_get_dgram_dcid(unsigned char *pos, const unsigned char *end,
 	goto leave;
 }
 
-
-/* Retrieve the DCID from the datagram found at <pos> position and deliver it to the
- * correct datagram handler.
- * Return 1 if a correct datagram could be found, 0 if not.
- */
-static int quic_lstnr_dgram_dispatch(unsigned char *pos, size_t len, void *owner,
-                                     struct sockaddr_storage *saddr,
-                                     struct sockaddr_storage *daddr,
-                                     struct quic_dgram *new_dgram, struct list *dgrams)
+/* Initialize a QUIC datagram. */
+static void quic_dgram_init(struct quic_dgram *dgram,
+                            unsigned char *pos, size_t len, void *owner,
+                            unsigned char *dcid, size_t dcid_len,
+                            struct sockaddr_storage *saddr,
+                            struct sockaddr_storage *daddr)
 {
-	struct quic_dgram *dgram;
-	unsigned char *dcid;
-	size_t dcid_len;
-	int cid_tid;
-
-	if (!len || !quic_get_dgram_dcid(pos, pos + len, &dcid, &dcid_len))
-		goto err;
-
-	dgram = new_dgram ? new_dgram : pool_alloc(pool_head_quic_dgram);
-	if (!dgram)
-		goto err;
-
-	if ((cid_tid = quic_get_cid_tid(dcid, dcid_len, saddr, pos, len)) < 0) {
-		/* Use the current thread if CID not found. If a clients opens
-		 * a connection with multiple packets, it is possible that
-		 * several threads will deal with datagrams sharing the same
-		 * CID. For this reason, the CID tree insertion will be
-		 * conducted as an atomic operation and the datagram ultimately
-		 * redispatch by the late thread.
-		 */
-		cid_tid = tid;
-	}
-
-	/* All the members must be initialized! */
 	dgram->obj_type = OBJ_TYPE_DGRAM;
 	dgram->owner = owner;
 	dgram->buf = pos;
@@ -303,50 +275,6 @@ static int quic_lstnr_dgram_dispatch(unsigned char *pos, size_t len, void *owner
 	dgram->daddr = *daddr;
 	dgram->qc = NULL;
 	dgram->flags = 0;
-
-	/* Attached datagram to its quic_receiver_buf and quic_dghdlrs. */
-	LIST_APPEND(dgrams, &dgram->recv_list);
-	MT_LIST_APPEND(&quic_dghdlrs[cid_tid].dgrams, &dgram->handler_list);
-
-	/* typically quic_lstnr_dghdlr() */
-	tasklet_wakeup(quic_dghdlrs[cid_tid].task);
-
-	return 1;
-
- err:
-	pool_free(pool_head_quic_dgram, new_dgram);
-	return 0;
-}
-
-/* This function is responsible to remove unused datagram attached in front of
- * <buf>. Each instances will be freed until a not yet consumed datagram is
- * found or end of the list is hit. The last unused datagram found is not freed
- * and is instead returned so that the caller can reuse it if needed.
- *
- * Returns the last unused datagram or NULL if no occurrence found.
- */
-static struct quic_dgram *quic_rxbuf_purge_dgrams(struct quic_receiver_buf *rbuf)
-{
-	struct quic_dgram *cur, *prev = NULL;
-
-	while (!LIST_ISEMPTY(&rbuf->dgram_list)) {
-		cur = LIST_ELEM(rbuf->dgram_list.n, struct quic_dgram *, recv_list);
-
-		/* Loop until a not yet consumed datagram is found. */
-		if (HA_ATOMIC_LOAD(&cur->buf))
-			break;
-
-		/* Clear buffer of current unused datagram. */
-		LIST_DELETE(&cur->recv_list);
-		b_del(&rbuf->buf, cur->len);
-
-		/* Free last found unused datagram. */
-		pool_free(pool_head_quic_dgram, prev);
-		prev = cur;
-	}
-
-	/* Return last unused datagram found. */
-	return prev;
 }
 
 /* Receive a single message from datagram socket <fd>. Data are placed in <out>
@@ -463,105 +391,132 @@ static ssize_t quic_recv(int fd, void *out, size_t len,
 	return ret;
 }
 
+/* Low-level function to write a datagram to the buffer of the handler thread. */
+static int quic_dgram_write(unsigned char *pos, size_t len, void *owner,
+                            unsigned char *dcid, size_t dcid_len,
+                            struct sockaddr_storage *saddr,
+                            struct sockaddr_storage *daddr,
+                            unsigned int cid_tid)
+{
+	struct mpring *dst;
+	struct quic_dgram *dgram;
+	unsigned char *data;
+	size_t bring_len;
+	void *buf;
+
+	dst = &quic_dghdlrs[cid_tid].buf;
+
+	bring_len = sizeof(struct quic_dgram) + len;
+	buf = mpring_write_reserve(dst, bring_len);
+	if (!buf)
+		return 0;
+
+	dgram = buf;
+	quic_dgram_init(dgram, pos, len, owner, dcid, dcid_len, saddr, daddr);
+
+	data = (unsigned char *)(dgram + 1);
+	memcpy(data, pos, len);
+
+	dgram->dcid = data + (dgram->dcid - dgram->buf);
+	dgram->buf = data;
+
+	mpring_write_commit(dst, buf, bring_len);
+
+	/* typically quic_lstnr_dghdlr() */
+	tasklet_wakeup(quic_dghdlrs[cid_tid].task);
+
+	return 1;
+}
+
+int quic_dgram_requeue(struct quic_dgram *dgram, int cid_tid)
+{
+
+	return quic_dgram_write(dgram->buf, dgram->len, dgram->owner,
+	                        dgram->dcid, dgram->dcid_len,
+	                        &dgram->saddr, &dgram->daddr, cid_tid);
+}
+
+/* Attempt to push a datagram to its handler thread.
+ *
+ * Returns 1 if successful, or 0 if the handler thread's buffer is full. If
+ * the datagram could not be pushed, it will be put on the appropriate pending
+ * lists. In all cases, take complete ownership of dgram - it won't be valid
+ * anymore after calling this function.
+ */
+static int quic_lstnr_dgram_dispatch(unsigned char *pos, size_t len, struct listener *l,
+                                     unsigned char *dcid, size_t dcid_len,
+                                     struct sockaddr_storage *saddr,
+                                     struct sockaddr_storage *daddr)
+{
+	struct proxy *px;
+	struct quic_counters *prx_counters;
+	int cid_tid;
+
+	if (!len)
+		goto err;
+
+	if (!dcid && !quic_get_dgram_dcid(pos, pos + len, &dcid, &dcid_len))
+		goto err;
+
+	if ((cid_tid = quic_get_cid_tid(dcid, dcid_len, saddr, pos, len)) < 0) {
+		/* Use the current thread if CID not found. If a clients opens
+		 * a connection with multiple packets, it is possible that
+		 * several threads will deal with datagrams sharing the same
+		 * CID. For this reason, the CID tree insertion will be
+		 * conducted as an atomic operation and the datagram ultimately
+		 * redispatch by the late thread.
+		 */
+		cid_tid = tid;
+	}
+
+	if (!quic_dgram_write(pos, len, l, dcid, dcid_len, saddr, daddr, cid_tid))
+		goto err;
+
+	return 1;
+
+ err:
+	px = l->bind_conf->frontend;
+	prx_counters = EXTRA_COUNTERS_GET(px->extra_counters_fe, &quic_stats_module);
+	HA_ATOMIC_INC(&prx_counters->rxbuf_full);
+	return 0;
+}
+
 /* Function called on a read event from a listening socket. It tries
  * to handle as many connections as possible.
  */
 void quic_lstnr_sock_fd_iocb(int fd)
 {
 	ssize_t ret;
-	struct quic_receiver_buf *rxbuf;
-	struct buffer *buf;
+	unsigned char buf[QUIC_MAX_UDP_PAYLOAD_SIZE];
 	struct listener *l = objt_listener(fdtab[fd].owner);
 	struct quic_transport_params *params;
 	/* Source address */
 	struct sockaddr_storage saddr = {0}, daddr = {0};
-	size_t max_sz, cspace;
-	struct quic_dgram *new_dgram;
-	unsigned char *dgram_buf;
+	size_t max_sz;
 	int max_dgrams;
 
 	BUG_ON(!l);
 
-	new_dgram = NULL;
-	if (!l)
-		return;
-
 	if (!(fdtab[fd].state & FD_POLL_IN) || !fd_recv_ready(fd))
 		return;
 
-	rxbuf = MT_LIST_POP(&l->rx.rxbuf_list, typeof(rxbuf), rxbuf_el);
-	if (!rxbuf)
-		goto out;
-
-	buf = &rxbuf->buf;
-
 	max_dgrams = global.tune.maxpollevents;
- start:
-	/* Try to reuse an existing dgram. Note that there is always at
-	 * least one datagram to pick, except the first time we enter
-	 * this function for this <rxbuf> buffer.
-	 */
-	new_dgram = quic_rxbuf_purge_dgrams(rxbuf);
-
 	params = &l->bind_conf->quic_params;
 	max_sz = params->max_udp_payload_size;
-	cspace = b_contig_space(buf);
-	if (cspace < max_sz) {
-		struct proxy *px = l->bind_conf->frontend;
-		struct quic_counters *prx_counters = EXTRA_COUNTERS_GET(px->extra_counters_fe, &quic_stats_module);
-		struct quic_dgram *dgram;
+	BUG_ON(max_sz > sizeof(buf));
 
-		/* Do no mark <buf> as full, and do not try to consume it
-		 * if the contiguous remaining space is not at the end
-		 */
-		if (b_tail(buf) + cspace < b_wrap(buf)) {
-			HA_ATOMIC_INC(&prx_counters->rxbuf_full);
-			goto out;
-		}
-
-		/* Allocate a fake datagram, without data to locate
-		 * the end of the RX buffer (required during purging).
-		 */
-		dgram = pool_alloc(pool_head_quic_dgram);
-		if (!dgram)
-			goto out;
-
-		/* Initialize only the useful members of this fake datagram. */
-		dgram->buf = NULL;
-		dgram->len = cspace;
-		/* Append this datagram only to the RX buffer list. It will
-		 * not be treated by any datagram handler.
-		 */
-		LIST_APPEND(&rxbuf->dgram_list, &dgram->recv_list);
-
-		/* Consume the remaining space */
-		b_add(buf, cspace);
-		if (b_contig_space(buf) < max_sz) {
-			HA_ATOMIC_INC(&prx_counters->rxbuf_full);
-			goto out;
-		}
-	}
-
-	dgram_buf = (unsigned char *)b_tail(buf);
-	ret = quic_recv(fd, dgram_buf, max_sz,
+ start:
+	ret = quic_recv(fd, buf, sizeof(buf),
 	                (struct sockaddr *)&saddr, sizeof(saddr),
 	                (struct sockaddr *)&daddr, sizeof(daddr),
 	                get_net_port(&l->rx.addr), 1);
 	if (ret <= 0)
-		goto out;
+		return;
 
-	b_add(buf, ret);
-	if (!quic_lstnr_dgram_dispatch(dgram_buf, ret, l, &saddr, &daddr,
-	                               new_dgram, &rxbuf->dgram_list)) {
-		/* If wrong, consume this datagram */
-		b_sub(buf, ret);
-	}
-	new_dgram = NULL;
+	quic_lstnr_dgram_dispatch(buf, ret, l, NULL, 0, &saddr, &daddr);
+
 	if (--max_dgrams > 0)
 		goto start;
- out:
-	pool_free(pool_head_quic_dgram, new_dgram);
-	MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->rxbuf_el);
 }
 
 /* FD-owned quic-conn socket callback. */
@@ -864,9 +819,10 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 int qc_rcv_buf(struct quic_conn *qc)
 {
 	struct sockaddr_storage saddr = {0}, daddr = {0};
-	struct quic_dgram *new_dgram = NULL;
+	struct quic_dgram dgram, *new_dgram;
 	struct buffer buf = BUF_NULL;
-	unsigned char *dgram_buf;
+	unsigned char *dgram_buf, *dcid;
+	size_t dcid_len;
 	ssize_t ret = 0;
 	struct listener *l = qc->li;
 
@@ -875,16 +831,13 @@ int qc_rcv_buf(struct quic_conn *qc)
 
 	TRACE_ENTER(QUIC_EV_CONN_RCV, qc);
 
+	new_dgram = &dgram;
 	do {
 		if (!b_alloc(&buf, DB_MUX_RX))
 			break; /* TODO subscribe for memory again available. */
 
 		b_reset(&buf);
 		BUG_ON(b_contig_space(&buf) < qc->max_udp_payload);
-
-		/* Allocate datagram on first loop or after requeuing. */
-		if (!new_dgram && !(new_dgram = pool_alloc(pool_head_quic_dgram)))
-			break; /* TODO subscribe for memory again available. */
 
 		dgram_buf = (unsigned char *)b_tail(&buf);
 		ret = quic_recv(qc->fd, dgram_buf, qc->max_udp_payload,
@@ -901,89 +854,27 @@ int qc_rcv_buf(struct quic_conn *qc)
 
 		b_add(&buf, ret);
 
-		new_dgram->obj_type = OBJ_TYPE_DGRAM;
-		new_dgram->buf = dgram_buf;
-		new_dgram->len = ret;
-		new_dgram->dcid_len = 0;
-		new_dgram->dcid = NULL;
-		new_dgram->saddr = saddr;
-		new_dgram->daddr = daddr;
-		new_dgram->qc = NULL;  /* set later via quic_dgram_parse() */
-		new_dgram->flags = 0;
-
 		TRACE_DEVEL("read datagram", QUIC_EV_CONN_RCV, qc, new_dgram);
 
-		if (!quic_get_dgram_dcid(new_dgram->buf,
-		                         new_dgram->buf + new_dgram->len,
-		                         &new_dgram->dcid, &new_dgram->dcid_len)) {
+		if (!quic_get_dgram_dcid(dgram_buf, dgram_buf + ret, &dcid, &dcid_len))
 			continue;
-		}
 
-		if (l && !qc_check_dcid(qc, new_dgram->dcid, new_dgram->dcid_len)) {
+		if (l && !qc_check_dcid(qc, dcid, dcid_len)) {
 			/* Datagram received by error on the connection FD, dispatch it
 			 * to its associated quic-conn.
 			 *
 			 * TODO count redispatch datagrams.
 			 */
-			struct quic_receiver_buf *rxbuf;
-			struct quic_dgram *tmp_dgram;
-			unsigned char *rxbuf_tail;
-			size_t cspace;
-
 			TRACE_STATE("datagram for other connection on quic-conn socket, requeue it", QUIC_EV_CONN_RCV, qc);
 
-			rxbuf = MT_LIST_POP(&l->rx.rxbuf_list, typeof(rxbuf), rxbuf_el);
-			ASSUME_NONNULL(rxbuf);
-			cspace = b_contig_space(&rxbuf->buf);
-
-			tmp_dgram = quic_rxbuf_purge_dgrams(rxbuf);
-			pool_free(pool_head_quic_dgram, tmp_dgram);
-
-			/* Insert a fake datagram if space wraps to consume it. */
-			if (cspace < new_dgram->len && b_space_wraps(&rxbuf->buf)) {
-				struct quic_dgram *fake_dgram = pool_alloc(pool_head_quic_dgram);
-				if (!fake_dgram) {
-					/* TODO count lost datagrams */
-					MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->rxbuf_el);
-					continue;
-				}
-
-				fake_dgram->buf = NULL;
-				fake_dgram->len = cspace;
-				LIST_APPEND(&rxbuf->dgram_list, &fake_dgram->recv_list);
-				b_add(&rxbuf->buf, cspace);
-			}
-
-			/* Recheck contig space after fake datagram insert. */
-			if (b_contig_space(&rxbuf->buf) < new_dgram->len) {
-				/* TODO count lost datagrams */
-				MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->rxbuf_el);
-				continue;
-			}
-
-			rxbuf_tail = (unsigned char *)b_tail(&rxbuf->buf);
-			__b_putblk(&rxbuf->buf, (char *)dgram_buf, new_dgram->len);
-			if (!quic_lstnr_dgram_dispatch(rxbuf_tail, ret, l, &saddr, &daddr,
-			                               new_dgram, &rxbuf->dgram_list)) {
-				/* TODO count lost datagrams. */
-				b_sub(&buf, ret);
-			}
-			else {
-				/* datagram must not be freed as it was requeued. */
-				new_dgram = NULL;
-			}
-
-			MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->rxbuf_el);
+			quic_lstnr_dgram_dispatch(dgram_buf, ret, l, dcid, dcid_len, &saddr, &daddr);
 			continue;
 		}
 
+		quic_dgram_init(new_dgram, dgram_buf, ret, NULL, dcid, dcid_len, &saddr, &daddr);
 		quic_dgram_parse(new_dgram, qc, l ? &l->obj_type :
 		                 (qc->conn ? &__objt_server(qc->conn->target)->obj_type : NULL));
-		/* A datagram must always be consumed after quic_parse_dgram(). */
-		BUG_ON(new_dgram->buf);
 	} while (ret > 0);
-
-	pool_free(pool_head_quic_dgram, new_dgram);
 
 	if (b_size(&buf)) {
 		b_free(&buf);

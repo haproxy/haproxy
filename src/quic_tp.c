@@ -10,8 +10,6 @@
 #include <haproxy/quic_trace.h>
 #include <haproxy/trace.h>
 
-#define QUIC_MAX_UDP_PAYLOAD_SIZE     2048
-
 static int qc_early_tranport_params_validate(struct quic_conn *qc,
                                              struct quic_transport_params *p,
                                              struct quic_early_transport_params *e);

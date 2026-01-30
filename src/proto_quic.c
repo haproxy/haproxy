@@ -56,10 +56,8 @@ struct quic_dghdlr *quic_dghdlrs;
 static uint64_t quic_mem_global;
 THREAD_LOCAL struct cshared quic_mem_diff;
 
-/* Size of the internal buffer of QUIC RX buffer at the fd level */
+/* Size of the per-handler QUIC RX buffer at the fd level */
 #define QUIC_RX_BUFSZ  (1UL << 18)
-
-DECLARE_STATIC_POOL(pool_head_quic_rxbuf, "quic_rxbuf", QUIC_RX_BUFSZ);
 
 static int quic_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static int quic_connect_server(struct connection *conn, int flags);
@@ -442,44 +440,6 @@ int quic_connect_server(struct connection *conn, int flags)
 	return SF_ERR_NONE;  /* connection is OK */
 }
 
-/* Allocate the RX buffers for <l> listener.
- * Return 1 if succeeded, 0 if not.
- */
-static int quic_alloc_rxbufs_listener(struct listener *l)
-{
-	int i;
-	struct quic_receiver_buf *tmp;
-
-	MT_LIST_INIT(&l->rx.rxbuf_list);
-	for (i = 0; i < my_popcountl(l->rx.bind_thread); i++) {
-		struct quic_receiver_buf *rxbuf;
-		char *buf;
-
-		rxbuf = calloc(1, sizeof(*rxbuf));
-		if (!rxbuf)
-			goto err;
-
-		buf = pool_alloc(pool_head_quic_rxbuf);
-		if (!buf) {
-			free(rxbuf);
-			goto err;
-		}
-
-		rxbuf->buf = b_make(buf, QUIC_RX_BUFSZ, 0, 0);
-		LIST_INIT(&rxbuf->dgram_list);
-		MT_LIST_APPEND(&l->rx.rxbuf_list, &rxbuf->rxbuf_el);
-	}
-
-	return 1;
-
- err:
-	while ((tmp = MT_LIST_POP(&l->rx.rxbuf_list, typeof(tmp), rxbuf_el))) {
-		pool_free(pool_head_quic_rxbuf, tmp->buf.area);
-		free(tmp);
-	}
-	return 0;
-}
-
 /* This function tries to bind a QUIC4/6 listener. It may return a warning or
  * an error message in <errmsg> if the message is at most <errlen> bytes long
  * (including '\0'). Note that <errmsg> may be NULL if <errlen> is also zero.
@@ -533,12 +493,6 @@ static int quic_bind_listener(struct listener *listener, char *errmsg, int errle
 		break;
 	default:
 		break;
-	}
-
-	if (!quic_alloc_rxbufs_listener(listener)) {
-		msg = "could not initialize tx/rx rings";
-		err |= ERR_WARN;
-		goto udp_return;
 	}
 
 	if (global.tune.frontend_rcvbuf)
@@ -632,6 +586,7 @@ REGISTER_PER_THREAD_INIT(quic_init_mem);
 
 static int quic_alloc_dghdlrs(void)
 {
+	char *buf;
 	int i;
 
 	quic_dghdlrs = calloc(global.nbthread, sizeof(*quic_dghdlrs));
@@ -643,6 +598,13 @@ static int quic_alloc_dghdlrs(void)
 	for (i = 0; i < global.nbthread; i++) {
 		struct quic_dghdlr *dghdlr = &quic_dghdlrs[i];
 
+		buf = malloc(QUIC_RX_BUFSZ);
+		if (!buf) {
+			ha_alert("Failed to allocate the buffer for the quic datagram handler on thread %d.\n", i);
+			return 0;
+		}
+		mpring_init(&dghdlr->buf, buf, QUIC_RX_BUFSZ);
+
 		dghdlr->task = tasklet_new();
 		if (!dghdlr->task) {
 			ha_alert("Failed to allocate the quic datagram handler on thread %d.\n", i);
@@ -652,8 +614,6 @@ static int quic_alloc_dghdlrs(void)
 		tasklet_set_tid(dghdlr->task, i);
 		dghdlr->task->context = dghdlr;
 		dghdlr->task->process = quic_lstnr_dghdlr;
-
-		MT_LIST_INIT(&dghdlr->dgrams);
 	}
 
 	return 1;

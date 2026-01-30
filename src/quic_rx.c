@@ -37,7 +37,6 @@
 #include <haproxy/trace.h>
 
 DECLARE_POOL(pool_head_quic_conn_rxbuf, "quic_conn_rxbuf", QUIC_CONN_RX_BUFSZ);
-DECLARE_TYPED_POOL(pool_head_quic_dgram, "quic_dgram", struct quic_dgram);
 DECLARE_TYPED_POOL(pool_head_quic_rx_packet, "quic_rx_packet", struct quic_rx_packet);
 
 /* Decode an expected packet number from <truncated_on> its truncated value,
@@ -2462,9 +2461,7 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 			if (!qc) {
 				if (new_tid >= 0) {
 					TRACE_STATE("re-enqueue packet to conn thread", QUIC_EV_CONN_LPKT);
-					MT_LIST_APPEND(&quic_dghdlrs[new_tid].dgrams,
-					               &dgram->handler_list);
-					tasklet_wakeup(quic_dghdlrs[new_tid].task);
+					quic_dgram_requeue(dgram, new_tid);
 					pool_free(pool_head_quic_rx_packet, pkt);
 					goto out;
 				}
@@ -2523,16 +2520,12 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 	/* This must never happen. */
 	BUG_ON(pos > end);
 	BUG_ON(pos < end || pos > dgram->buf + dgram->len);
-	/* Mark this datagram as consumed */
-	HA_ATOMIC_STORE(&dgram->buf, NULL);
 
  out:
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT);
 	return 0;
 
  err:
-	/* Mark this datagram as consumed as maybe at least some packets were parsed. */
-	HA_ATOMIC_STORE(&dgram->buf, NULL);
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT);
 	return -1;
 }
