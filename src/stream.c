@@ -764,6 +764,7 @@ void stream_free(struct stream *s)
 	/* We may want to free the maximum amount of pools if the proxy is stopping */
 	if (fe && unlikely(fe->flags & (PR_FL_DISABLED|PR_FL_STOPPED))) {
 		pool_flush(pool_head_buffer);
+		pool_flush(pool_head_large_buffer);
 		pool_flush(pool_head_http_txn);
 		pool_flush(pool_head_requri);
 		pool_flush(pool_head_capture);

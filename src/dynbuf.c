@@ -23,6 +23,7 @@
 #include <haproxy/tools.h>
 
 struct pool_head *pool_head_buffer __read_mostly;
+struct pool_head *pool_head_large_buffer __read_mostly = NULL;
 
 /* perform minimal initializations, report 0 in case of error, 1 if OK. */
 int init_buffer()
@@ -35,6 +36,12 @@ int init_buffer()
 	pool_head_buffer = create_aligned_pool("buffer", global.tune.bufsize, 64, MEM_F_SHARED|MEM_F_EXACT);
 	if (!pool_head_buffer)
 		return 0;
+
+	if (global.tune.bufsize_large) {
+		pool_head_large_buffer = create_aligned_pool("large_buffer", global.tune.bufsize_large, 64, MEM_F_SHARED|MEM_F_EXACT);
+		if (!pool_head_large_buffer)
+			return 0;
+	}
 
 	/* make sure any change to the queues assignment isn't overlooked */
 	BUG_ON(DB_PERMANENT - DB_UNLIKELY - 1 != DYNBUF_NBQ);
@@ -188,6 +195,40 @@ static int cfg_parse_tune_buffers_reserve(char **args, int section_type, struct 
 	return 0;
 }
 
+/* config parse for global "tune.bufsize.large" */
+static int cfg_parse_tune_bufsize_large(char **args, int section_type,
+                                        struct proxy *curpx, const struct proxy *defpx,
+                                        const char *file, int line, char **err)
+{
+	const char *res;
+	uint size;
+
+	if (too_many_args(1, args, err, NULL))
+		goto err;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "'%s' expects an integer argument.\n", args[0]);
+		goto err;
+	}
+
+	res = parse_size_err(args[1], &size);
+	if (res != NULL) {
+		memprintf(err, "unexpected '%s' after size passed to '%s'", res, args[0]);
+		goto err;
+	}
+
+	if (size <= 0) {
+		memprintf(err, "'%s' expects a positive integer argument.\n", args[0]);
+		goto err;
+	}
+
+	global.tune.bufsize_large = size;
+	return 0;
+
+ err:
+	return -1;
+}
+
 /* config parse for global "tune.bufsize.small" */
 static int cfg_parse_tune_bufsize_small(char **args, int section_type,
                                         struct proxy *curpx, const struct proxy *defpx,
@@ -261,6 +302,7 @@ static void free_emergency_buffers_per_thread(void)
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.buffers.limit", cfg_parse_tune_buffers_limit },
 	{ CFG_GLOBAL, "tune.buffers.reserve", cfg_parse_tune_buffers_reserve },
+	{ CFG_GLOBAL, "tune.bufsize.large", cfg_parse_tune_bufsize_large },
 	{ CFG_GLOBAL, "tune.bufsize.small", cfg_parse_tune_bufsize_small },
 	{ 0, NULL, NULL }
 }};

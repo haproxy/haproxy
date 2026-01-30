@@ -179,6 +179,7 @@ struct global {
 		uint recv_enough;  /* how many input bytes at once are "enough" */
 		uint bufsize;      /* buffer size in bytes, defaults to BUFSIZE */
 		uint bufsize_small;/* small buffer size in bytes */
+		uint bufsize_large;/* large buffer size in bytes */
 		int maxrewrite;    /* buffer max rewrite size in bytes, defaults to MAXREWRITE */
 		int reserved_bufs; /* how many buffers can only be allocated for response */
 		int buf_limit;     /* if not null, how many total buffers may only be allocated */

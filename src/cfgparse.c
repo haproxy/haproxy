@@ -2311,6 +2311,17 @@ int check_config_validity()
 		global.nbthread = global.thread_limit;
 	}
 
+	if (global.tune.bufsize_large > 0) {
+		if (global.tune.bufsize_large == global.tune.bufsize)
+			global.tune.bufsize_large = 0;
+		else if (global.tune.bufsize_large < global.tune.bufsize) {
+			ha_warning("tune.bufsize.large (%u) is lower than tune.bufsize (%u). large buffers support is disabled. "
+				   "Please fix either value to remove this warning.\n",
+				   global.tune.bufsize_large, global.tune.bufsize);
+			global.tune.bufsize_large = 0;
+		}
+	}
+
 	/* in the worst case these were supposed to be set in thread_detect_count() */
 	BUG_ON(!global.nbthread);
 	BUG_ON(!global.nbtgroups);
