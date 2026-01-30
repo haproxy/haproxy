@@ -2347,7 +2347,8 @@ static void step_init_2(int argc, char** argv)
 		deinit_and_exit(0);
 
 	/* now we know the buffer size, we can initialize the channels and buffers */
-	init_buffer();
+	if (!init_buffer())
+		exit(1); // error already reported
 
 	list_for_each_entry(pcf, &post_check_list, list) {
 		err_code |= pcf->fct();
