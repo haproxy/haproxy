@@ -6283,8 +6283,16 @@ balance url_param <param> [check_post]
                   will take away N-1 of the highest loaded servers at the
                   expense of performance. With very high values, the algorithm
                   will converge towards the leastconn's result but much slower.
+                  In addition, for large server farms with very low loads (or
+                  perfect balance), comparing loads will often lead to a tie,
+                  so in case of equal loads between all measured servers, their
+                  request rate over the last second are compared, which allows
+                  to better balance server usage over time in the same spirit
+                  as roundrobin does, and smooth consistent hash unfairness.
                   The default value is 2, which generally shows very good
-                  distribution and performance. This algorithm is also known as
+                  distribution and performance. For large farms with low loads
+                  (less than a few requests per second per server), it may help
+                  to raise it to 3 or even 4. This algorithm is also known as
                   the Power of Two Random Choices and is described here :
                   http://www.eecs.harvard.edu/~michaelm/postscripts/handbook2001.pdf
 

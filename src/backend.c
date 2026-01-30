@@ -576,9 +576,20 @@ struct server *get_server_rnd(struct stream *s, const struct server *avoid)
 		/* compare the new server to the previous best choice and pick
 		 * the one with the least currently served requests.
 		 */
-		if (prev && prev != curr &&
-		    curr->served * prev->cur_eweight > prev->served * curr->cur_eweight)
-			curr = prev;
+		if (prev && prev != curr) {
+			uint64_t wcurr = (uint64_t)curr->served * prev->cur_eweight;
+			uint64_t wprev = (uint64_t)prev->served * curr->cur_eweight;
+
+			if (wcurr > wprev)
+				curr = prev;
+			else if (wcurr == wprev && curr->counters.shared.tg && prev->counters.shared.tg) {
+				/* same load: pick the lowest weighted request rate */
+				wcurr = read_freq_ctr_period_estimate(&curr->counters._sess_per_sec, MS_TO_TICKS(1000));
+				wprev = read_freq_ctr_period_estimate(&prev->counters._sess_per_sec, MS_TO_TICKS(1000));
+				if (wprev * curr->cur_eweight < wcurr * prev->cur_eweight)
+					curr = prev;
+			}
+		}
 	} while (--draws > 0);
 
 	/* if the selected server is full, pretend we have none so that we reach
