@@ -852,7 +852,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	/* Don't call I/O handler if the applet was shut (release callback was
 	 * already called)
 	 */
-	if (se_fl_test(app->sedesc, SE_FL_SHR | SE_FL_SHW))
+	if (!se_fl_test(app->sedesc, SE_FL_SHR | SE_FL_SHW))
 		app->applet->fct(app);
 
 	TRACE_POINT(APPLET_EV_PROCESS, app);
