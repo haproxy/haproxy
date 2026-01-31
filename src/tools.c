@@ -987,6 +987,11 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	int new_fd = -1;
 	enum proto_type proto_type = 0; // to shut gcc warning
 	int ctrl_type = 0; // to shut gcc warning
+	/*
+	 * Indicates that we want to use an alternate protocol instead of the
+	 * default one.
+	 * Currently, only MPTCP is defined as an alternate protocol for TCP
+	 */
 	int alt_proto = 0;
 
 	portl = porth = porta = 0;
@@ -1011,7 +1016,6 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	    ((opts & (PA_O_STREAM|PA_O_DGRAM)) == (PA_O_DGRAM|PA_O_STREAM) && (opts & PA_O_DEFAULT_DGRAM))) {
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_DGRAM;
-		alt_proto = 1;
 	} else {
 		proto_type = PROTO_TYPE_STREAM;
 		ctrl_type = SOCK_STREAM;
@@ -1026,7 +1030,6 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		str2 += 6;
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_DGRAM;
-		alt_proto = 1;
 	}
 	else if (strncmp(str2, "quic+", 5) == 0) {
 		str2 += 5;
@@ -1043,7 +1046,6 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		ss.ss_family = AF_UNIX;
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_DGRAM;
-		alt_proto = 1;
 	}
 	else if (strncmp(str2, "uxst@", 5) == 0) {
 		str2 += 5;
@@ -1089,7 +1091,6 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		ss.ss_family = AF_INET;
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_DGRAM;
-		alt_proto = 1;
 	}
 	else if (strncmp(str2, "tcp6@", 5) == 0) {
 		str2 += 5;
@@ -1109,7 +1110,6 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		ss.ss_family = AF_INET6;
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_DGRAM;
-		alt_proto = 1;
 	}
 	else if (strncmp(str2, "tcp@", 4) == 0) {
 		str2 += 4;
@@ -1129,7 +1129,6 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		ss.ss_family = AF_UNSPEC;
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_DGRAM;
-		alt_proto = 1;
 	}
 	else if (strncmp(str2, "quic4@", 6) == 0) {
 		str2 += 6;
@@ -1399,6 +1398,8 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	}
 
 	if (proto || (opts & PA_O_CONNECT)) {
+		// if the socket type is SOCK_DGRAM, use by default an alternate protocol
+		alt_proto = alt_proto || (ctrl_type == SOCK_DGRAM);
 		/* Note: if the caller asks for a proto, we must find one,
 		 * except if we inherit from a raw FD (family == AF_CUST_EXISTING_FD)
 		 * orif we return with an fqdn that will resolve later,
