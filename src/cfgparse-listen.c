@@ -1731,7 +1731,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		curproxy->table = calloc(1, sizeof *curproxy->table);
 		if (!curproxy->table) {
-			ha_alert("parsing [%s:%d]: '%s %s' : memory allocation failed\n",
+			ha_alert("parsing [%s:%d]: '%s %s' : Out of memory\n",
 			         file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
