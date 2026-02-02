@@ -10821,7 +10821,7 @@ no option logasap
              logging.
 
 
-option mysql-check [ user <username> [ { post-41 | pre-41 } ] ]
+option mysql-check [ user <username> [ { post-41 | pre-41 | post-80 } ] ]
   Use MySQL health checks for server testing
 
   May be used in the following contexts: tcp
@@ -10834,6 +10834,12 @@ option mysql-check [ user <username> [ { post-41 | pre-41 } ] ]
                server.
     post-41    Send post v4.1 client compatible checks (the default)
     pre-41     Send pre v4.1 client compatible checks
+    post-80    Send post v8.0 client compatible checks with CLIENT_PLUGIN_AUTH
+               capability set and mysql_native_password as the authentication
+               plugin. Use this option when connecting to MySQL 8.0+ servers
+               where the health check user is created with mysql_native_password
+               authentication. Example:
+                 CREATE USER 'haproxy'@'%' IDENTIFIED WITH mysql_native_password BY '';
 
   If you specify a username, the check consists of sending two MySQL packet,
   one Client Authentication packet, and one QUIT packet, to correctly close

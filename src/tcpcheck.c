@@ -4943,6 +4943,35 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		"01"                           /* COM_QUIT command */
 	};
 
+	/* MySQL >=8.0 client Authentication packet with CLIENT_PLUGIN_AUTH capability.
+	 * MySQL 8.0 changed the default authentication plugin from mysql_native_password
+	 * to caching_sha2_password. By setting CLIENT_PLUGIN_AUTH and specifying
+	 * mysql_native_password as the auth plugin, we can still perform health checks
+	 * against MySQL 8.x servers when the health check user is configured with
+	 * mysql_native_password authentication.
+	 *
+	 * Client capabilities: 0x00088200 (little-endian: 00820800)
+	 *   - CLIENT_PROTOCOL_41       (0x00000200)
+	 *   - CLIENT_SECURE_CONNECTION (0x00008000)
+	 *   - CLIENT_PLUGIN_AUTH       (0x00080000)
+	 */
+	static char mysql80_rsname[] = "*mysql80-check";
+	static char mysql80_req[] = {
+		"%[var(check.header),hex]"     /* 3 bytes for the packet length and 1 byte for the sequence ID */
+		"00820800"                     /* client capabilities with CLIENT_PLUGIN_AUTH */
+		"00800001"                     /* max packet */
+		"21"                           /* character set (UTF-8) */
+		"000000000000000000000000"     /* 23 bytes, all zeroes */
+		"0000000000000000000000"
+		"%[var(check.username),hex]00" /* the username */
+		"00"                           /* auth response length (0 = no password) */
+		"6d7973716c5f6e61746976655f"   /* auth plugin name: "mysql_native_password\0" */
+		"70617373776f726400"
+		"010000"                       /* packet length */
+		"00"                           /* sequence ID */
+		"01"                           /* COM_QUIT command */
+	};
+
 	struct tcpcheck_ruleset *rs = NULL;
 	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
 	struct tcpcheck_rule *chk;
@@ -4999,8 +5028,14 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 			mysql_req = mysql40_req;
 			mysql_rsname  = mysql40_rsname;
 		}
+		else if (strcmp(args[cur_arg+2], "post-80") == 0) {
+			/* post-80: CLIENT_PLUGIN_AUTH + mysql_native_password (22 bytes) */
+			packetlen = userlen + 7 + 27 + 22;
+			mysql_req = mysql80_req;
+			mysql_rsname  = mysql80_rsname;
+		}
 		else  {
-			ha_alert("parsing [%s:%d] : keyword '%s' only supports 'post-41' and 'pre-41' (got '%s').\n",
+			ha_alert("parsing [%s:%d] : keyword '%s' only supports 'post-41', 'pre-41' and 'post-80' (got '%s').\n",
 				 file, line, args[cur_arg], args[cur_arg+2]);
 			goto error;
 		}
