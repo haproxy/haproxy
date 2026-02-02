@@ -686,7 +686,10 @@ int _cmp_cluster_avg_capa(const void *a, const void *b)
 {
 	const struct ha_cpu_cluster *l = (const struct ha_cpu_cluster *)a;
 	const struct ha_cpu_cluster *r = (const struct ha_cpu_cluster *)b;
-	return r->capa - l->capa;
+
+	if (!r->nb_cores || !l->nb_cores)
+		return r->nb_cores - l->nb_cores;
+	return r->capa * l->nb_cores - l->capa * r->nb_cores;
 }
 
 /* re-order a cluster array by cluster index only */
@@ -1669,7 +1672,7 @@ static int cpu_policy_performance(int policy, int tmin, int tmax, int gmin, int 
 
 	capa = 0;
 	for (cluster = 0; cluster < cpu_topo_maxcpus; cluster++) {
-		if (capa && ha_cpu_clusters[cluster].capa * 10 < ha_cpu_clusters[cluster].nb_cpu * capa * 8) {
+		if (capa && ha_cpu_clusters[cluster].capa * 10 < ha_cpu_clusters[cluster].nb_cores * capa * 8) {
 			/* This cluster is made of cores delivering less than
 			 * 80% of the performance of those of the previous
 			 * cluster, previous one, we're not interested in
@@ -1680,8 +1683,8 @@ static int cpu_policy_performance(int policy, int tmin, int tmax, int gmin, int 
 					ha_cpu_topo[cpu].st |= HA_CPU_F_IGNORED;
 			}
 		}
-		else if (ha_cpu_clusters[cluster].nb_cpu)
-			capa = ha_cpu_clusters[cluster].capa / ha_cpu_clusters[cluster].nb_cpu;
+		else if (ha_cpu_clusters[cluster].nb_cores)
+			capa = ha_cpu_clusters[cluster].capa / ha_cpu_clusters[cluster].nb_cores;
 		else
 			capa = 0;
 	}
@@ -1714,7 +1717,7 @@ static int cpu_policy_efficiency(int policy, int tmin, int tmax, int gmin, int g
 
 	capa = 0;
 	for (cluster = cpu_topo_maxcpus - 1; cluster >= 0; cluster--) {
-		if (capa && ha_cpu_clusters[cluster].capa * 8 >= ha_cpu_clusters[cluster].nb_cpu * capa * 10) {
+		if (capa && ha_cpu_clusters[cluster].capa * 8 >= ha_cpu_clusters[cluster].nb_cores * capa * 10) {
 			/* This cluster is made of cores each at last 25% faster
 			 * than those of the previous cluster, previous one, we're
 			 * not interested in using it.
@@ -1724,8 +1727,8 @@ static int cpu_policy_efficiency(int policy, int tmin, int tmax, int gmin, int g
 					ha_cpu_topo[cpu].st |= HA_CPU_F_IGNORED;
 			}
 		}
-		else if (ha_cpu_clusters[cluster].nb_cpu)
-			capa = ha_cpu_clusters[cluster].capa / ha_cpu_clusters[cluster].nb_cpu;
+		else if (ha_cpu_clusters[cluster].nb_cores)
+			capa = ha_cpu_clusters[cluster].capa / ha_cpu_clusters[cluster].nb_cores;
 		else
 			capa = 0;
 	}
