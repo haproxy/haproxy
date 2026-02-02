@@ -1,0 +1,84 @@
+varnishtest "Add backend via cli"
+
+feature ignore_unknown_macro
+
+haproxy hsrv -conf {
+	global
+	.if feature(THREAD)
+		thread-groups 1
+	.endif
+
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe
+		bind "fd@${fe}"
+		http-request return status 200
+} -start
+
+haproxy h1 -conf {
+	global
+	.if feature(THREAD)
+		thread-groups 1
+	.endif
+
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe
+		bind "fd@${feS}"
+		force-be-switch if { req.hdr("x-admin") "1" }
+		use_backend %[req.hdr(x-be)]
+
+	defaults def
+
+	defaults def_http
+		mode http
+} -start
+
+client c1 -connect ${h1_feS_sock} {
+	txreq -hdr "x-be: be"
+	rxresp
+	expect resp.status == 503
+} -run
+
+haproxy h1 -cli {
+	# non existent backend
+	send "experimental-mode on; add backend be from def"
+	expect ~ "Mode is required"
+
+	send "experimental-mode on; add backend be from def_http"
+	expect ~ "New backend registered."
+
+	send "add server be/srv ${hsrv_fe_addr}:${hsrv_fe_port}"
+	expect ~ "New server registered."
+	send "enable server be/srv"
+	expect ~ ".*"
+}
+
+client c1 -connect ${h1_feS_sock} {
+	txreq -hdr "x-be: be"
+	rxresp
+	expect resp.status == 503
+
+	txreq -hdr "x-be: be" -hdr "x-admin: 1"
+	rxresp
+	expect resp.status == 200
+} -run
+
+haproxy h1 -cli {
+	send "publish backend be"
+	expect ~ "Backend published."
+}
+
+client c1 -connect ${h1_feS_sock} {
+	txreq -hdr "x-be: be"
+	rxresp
+	expect resp.status == 200
+} -run
