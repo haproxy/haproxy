@@ -44,9 +44,6 @@ struct comp_state {
 /* Pools used to allocate comp_state structs */
 DECLARE_STATIC_TYPED_POOL(pool_head_comp_state, "comp_state", struct comp_state);
 
-static THREAD_LOCAL struct buffer tmpbuf;
-static THREAD_LOCAL struct buffer zbuf;
-
 static int select_compression_request_header(struct comp_state *st,
 					     struct stream *s,
 					     struct http_msg *msg);
@@ -68,25 +65,6 @@ comp_flt_init(struct proxy *px, struct flt_conf *fconf)
 {
 	fconf->flags |= FLT_CFG_FL_HTX;
 	return 0;
-}
-
-static int
-comp_flt_init_per_thread(struct proxy *px, struct flt_conf *fconf)
-{
-	if (b_alloc(&tmpbuf, DB_PERMANENT) == NULL)
-		return -1;
-	if (b_alloc(&zbuf, DB_PERMANENT) == NULL)
-		return -1;
-	return 0;
-}
-
-static void
-comp_flt_deinit_per_thread(struct proxy *px, struct flt_conf *fconf)
-{
-	if (tmpbuf.size)
-		b_free(&tmpbuf);
-	if (zbuf.size)
-		b_free(&zbuf);
 }
 
 static int
@@ -789,8 +767,6 @@ htx_compression_buffer_end(struct comp_state *st, struct buffer *out, int end, i
 /***********************************************************************/
 struct flt_ops comp_ops = {
 	.init              = comp_flt_init,
-	.init_per_thread   = comp_flt_init_per_thread,
-	.deinit_per_thread = comp_flt_deinit_per_thread,
 
 	.attach = comp_strm_init,
 	.detach = comp_strm_deinit,
