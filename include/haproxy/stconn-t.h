@@ -224,7 +224,7 @@ static forceinline char *sc_show_flags(char *buf, size_t len, const char *delim,
 	_(SC_FL_NEED_BUFF, _(SC_FL_NEED_ROOM,
         _(SC_FL_RCV_ONCE, _(SC_FL_SND_ASAP, _(SC_FL_SND_NEVERWAIT, _(SC_FL_SND_EXP_MORE,
 	_(SC_FL_ABRT_WANTED, _(SC_FL_SHUT_WANTED, _(SC_FL_ABRT_DONE, _(SC_FL_SHUT_DONE,
-	_(SC_FL_EOS, _(SC_FL_HAVE_BUFF))))))))))))))))))));
+	_(SC_FL_EOS, _(SC_FL_HAVE_BUFF, _(SC_FL_NO_FASTFWD)))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
