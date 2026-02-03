@@ -1801,27 +1801,30 @@ int sc_conn_send(struct stconn *sc)
  * flag are cleared prior to the attempt, and will possibly be updated in case
  * of success.
  */
-void sc_conn_sync_send(struct stconn *sc)
+int sc_conn_sync_send(struct stconn *sc)
 {
 	struct channel *oc = sc_oc(sc);
+	int did_send = 0;
 
 	oc->flags &= ~CF_WRITE_EVENT;
 
 	if (sc->flags & SC_FL_SHUT_DONE)
-		return;
+		goto end;
 
 	if (!co_data(oc))
-		return;
+		goto end;
 
 	if (!sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
-		return;
+		goto end;
 
 	if (!sc_mux_ops(sc))
-		return;
+		goto end;
 
-	sc_conn_send(sc);
+	did_send = sc_conn_send(sc);
 	if (oc->flags & CF_WRITE_EVENT)
 		oc->flags |= CF_WAKE_ONCE;
+  end:
+	return did_send;
 }
 
 /* Called by I/O handlers after completion.. It propagates

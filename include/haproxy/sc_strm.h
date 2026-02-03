@@ -38,7 +38,7 @@ void sc_update_tx(struct stconn *sc);
 
 struct task *sc_conn_io_cb(struct task *t, void *ctx, unsigned int state);
 int sc_conn_sync_recv(struct stconn *sc);
-void sc_conn_sync_send(struct stconn *sc);
+int sc_conn_sync_send(struct stconn *sc);
 
 int sc_applet_sync_recv(struct stconn *sc);
 void sc_applet_sync_send(struct stconn *sc);
@@ -408,10 +408,15 @@ static inline int sc_sync_recv(struct stconn *sc)
 /* Perform a synchronous send using the right version, depending the endpoing is
  * a connection or an applet.
  */
-static inline void sc_sync_send(struct stconn *sc)
+static inline int sc_sync_send(struct stconn *sc, unsigned cnt)
 {
-	if (sc_ep_test(sc, SE_FL_T_MUX))
-		sc_conn_sync_send(sc);
+	if (!sc_ep_test(sc, SE_FL_T_MUX))
+		return 0;
+	if (cnt >= 2 && co_data(sc_oc(sc))) {
+		task_wakeup(__sc_strm(sc)->task, TASK_WOKEN_MSG);
+		return 0;
+	}
+	return sc_conn_sync_send(sc);
 }
 
 /* Combines both sc_update_rx() and sc_update_tx() at once */
