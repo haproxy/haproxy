@@ -755,7 +755,6 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 	struct htx_blk *blk;
 	struct shared_block *fb;
 	struct htx_ret htxret;
-	size_t data_len = 0;
 	unsigned int orig_len, to_forward;
 	int ret;
 
@@ -767,7 +766,6 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 		return len;
 	}
 
-	chunk_reset(&trash);
 	orig_len = len;
 	to_forward = 0;
 
@@ -789,10 +787,17 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 				v = isttrim(v, len);
 
 				info = (type << 28) + v.len;
-				chunk_memcat(&trash, (char *)&info, sizeof(info));
-				chunk_istcat(&trash, v);
+				fb = shctx_row_reserve_hot(shctx, st->first_block, sizeof(info)+v.len);
+				if (!fb)
+					goto no_cache;
+				ret = shctx_row_data_append(shctx, st->first_block, (unsigned char *)&info, sizeof(info));
+				if (ret < 0)
+					goto no_cache;
+				ret = shctx_row_data_append(shctx, st->first_block, (unsigned char *)istptr(v), istlen(v));
+				if (ret < 0)
+					goto no_cache;
+				ASSUME_NONNULL((struct cache_entry *)st->first_block->data)->body_size += v.len;
 				to_forward += v.len;
-				data_len += v.len;
 				len -= v.len;
 				break;
 
@@ -804,8 +809,15 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 				if (sz > len)
 					goto end;
 
-				chunk_memcat(&trash, (char *)&blk->info, sizeof(blk->info));
-				chunk_memcat(&trash, htx_get_blk_ptr(htx, blk), sz);
+				fb = shctx_row_reserve_hot(shctx, st->first_block, sizeof(blk->info)+sz);
+				if (!fb)
+					goto no_cache;
+				ret = shctx_row_data_append(shctx, st->first_block, (unsigned char *)&(blk->info), sizeof(blk->info));
+				if (ret < 0)
+					goto no_cache;
+				ret = shctx_row_data_append(shctx, st->first_block, (unsigned char *)htx_get_blk_ptr(htx, blk), sz);
+				if (ret < 0)
+					goto no_cache;
 				to_forward += sz;
 				len -= sz;
 				break;
@@ -815,18 +827,6 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 	}
 
   end:
-
-	fb = shctx_row_reserve_hot(shctx, st->first_block, trash.data);
-	if (!fb) {
-		goto no_cache;
-	}
-
-	ASSUME_NONNULL((struct cache_entry *)st->first_block->data)->body_size += data_len;
-	ret = shctx_row_data_append(shctx, st->first_block,
-				    (unsigned char *)b_head(&trash), b_data(&trash));
-	if (ret < 0)
-		goto no_cache;
-
 	return to_forward;
 
   no_cache:
