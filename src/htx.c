@@ -704,8 +704,9 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 {
 	struct htx_blk   *blk, *dstblk;
 	struct htx_blk   *srcref, *dstref;
+	struct ist v;
 	enum htx_blk_type type;
-	uint32_t	  info, max, sz, ret;
+	uint32_t	  max, sz, ret;
 
 	ret = htx_used_space(dst);
 	srcref = dstref = dstblk = NULL;
@@ -715,38 +716,44 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 	 */
 	for (blk = htx_get_head_blk(src); blk && count; blk = htx_get_next_blk(src, blk)) {
 		type = htx_get_blk_type(blk);
+		sz = htx_get_blksz(blk);
 
 		/* Ignore unused block */
 		if (type == HTX_BLK_UNUSED)
 			continue;
 
-
 		max = htx_get_max_blksz(dst, count);
 		if (!max)
 			break;
 
-		sz = htx_get_blksz(blk);
-		info = blk->info;
-		if (sz > max) {
-			/* Only DATA blocks can be partially xferred */
-			if (type != HTX_BLK_DATA)
+		switch (type) {
+			case HTX_BLK_DATA:
+				v = htx_get_blk_value(src, blk);
+				if (v.len > max)
+					v.len = max;
+				v.len = htx_add_data(dst, v);
+				if (!v.len)
+					goto stop;
+				dstblk = htx_get_tail_blk(dst);
+				count -= sizeof(*dstblk) + v.len;
+				if (v.len != sz) {
+					/* Partial xfer: don't remove <blk> from <src> but
+					 * resize its content */
+					htx_cut_data_blk(src, blk, v.len);
+					goto stop;
+				}
 				break;
-			sz = max;
-			info = (type << 28) + sz;
-		}
-
-		dstblk = htx_reserve_nxblk(dst, sz);
-		if (!dstblk)
-			break;
-		dstblk->info = info;
-		htx_memcpy(htx_get_blk_ptr(dst, dstblk), htx_get_blk_ptr(src, blk), sz);
-
-		count -= sizeof(*dstblk) + sz;
-		if (blk->info != info) {
-			/* Partial xfer: don't remove <blk> from <src> but
-			 * resize its content */
-			htx_cut_data_blk(src, blk, sz);
-			break;
+			default:
+				/* Only DATA blocks can be partially xferred */
+				if (sz > max)
+					goto stop;
+				dstblk = htx_add_blk(dst, type, sz);
+				if (!dstblk)
+					goto stop;
+				dstblk->info = blk->info;
+				htx_memcpy(htx_get_blk_ptr(dst, dstblk), htx_get_blk_ptr(src, blk), sz);
+				count -= sizeof(*dstblk) + sz;
+				break;
 		}
 
 		/* Save <blk> to <srcref> and <dstblk> to <dstref> when we start
@@ -768,7 +775,7 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 			break;
 		}
 	}
-
+  stop:
 	if (unlikely(dstref)) {
 		/* Headers or trailers part was partially xferred, so rollback
 		 * the copy by removing all block between <dstref> and <dstblk>,
