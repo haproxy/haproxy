@@ -1378,6 +1378,10 @@ int sc_conn_recv(struct stconn *sc)
 	if (!sc_alloc_ibuf(sc, &(__sc_strm(sc)->buffer_wait)))
 		goto end_recv;
 
+	if ((ic->flags & CF_WROTE_DATA) && b_size(sc_ib(sc)) > global.tune.bufsize) {
+		sc_need_room(sc, -1);
+		goto done_recv;
+	}
 	/* For an HTX stream, if the buffer is stuck (no output data with some
 	 * input data) and if the HTX message is fragmented or if its free space
 	 * wraps, we force an HTX deframentation. It is a way to have a
@@ -2062,6 +2066,11 @@ int sc_applet_recv(struct stconn *sc)
  abort_fastfwd:
 	if (!sc_alloc_ibuf(sc, &appctx->buffer_wait))
 		goto end_recv;
+
+	if ((ic->flags & CF_WROTE_DATA) && b_size(sc_ib(sc)) > global.tune.bufsize) {
+		sc_need_room(sc, -1);
+		goto done_recv;
+	}
 
 	/* For an HTX stream, if the buffer is stuck (no output data with some
 	 * input data) and if the HTX message is fragmented or if its free space
