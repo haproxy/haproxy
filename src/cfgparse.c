@@ -2270,7 +2270,7 @@ err:
 int check_config_validity()
 {
 	int cfgerr = 0;
-	struct proxy *init_proxies_list = NULL;
+	struct proxy *init_proxies_list = NULL, *defpx;
 	struct stktable *t;
 	struct server *newsrv = NULL;
 	struct mt_list back;
@@ -2358,6 +2358,29 @@ int check_config_validity()
 			goto out;
 	}
 
+	list_for_each_entry(defpx, &defaults_list, el) {
+		/* check validity for 'tcp-request' layer 4/5/6/7 rules */
+		cfgerr += check_action_rules(&defpx->tcp_req.l4_rules, defpx, &err_code);
+		cfgerr += check_action_rules(&defpx->tcp_req.l5_rules, defpx, &err_code);
+		cfgerr += check_action_rules(&defpx->tcp_req.inspect_rules, defpx, &err_code);
+		cfgerr += check_action_rules(&defpx->tcp_rep.inspect_rules, defpx, &err_code);
+		cfgerr += check_action_rules(&defpx->http_req_rules, defpx, &err_code);
+		cfgerr += check_action_rules(&defpx->http_res_rules, defpx, &err_code);
+		cfgerr += check_action_rules(&defpx->http_after_res_rules, defpx, &err_code);
+
+		err = NULL;
+		i = smp_resolve_args(defpx, &err);
+		cfgerr += i;
+		if (i) {
+			indent_msg(&err, 8);
+			ha_alert("%s%s\n", i > 1 ? "multiple argument resolution errors:" : "", err);
+			ha_free(&err);
+		}
+		else {
+			cfgerr += acl_find_targets(defpx);
+		}
+	}
+
 	/* starting to initialize the main proxies list */
 	init_proxies_list = proxies_list;
 
@@ -2401,37 +2424,6 @@ init_proxies_list_stage1:
 				curproxy->table->peers.p = NULL;
 			}
 			continue;
-		}
-
-		/* The current proxy is referencing a default proxy. We must
-		 * finalize its config, but only once. If the default proxy is
-		 * ready (PR_FL_READY) it means it was already fully configured.
-		 */
-		if (curproxy->defpx) {
-			if (!(curproxy->defpx->flags & PR_FL_READY)) {
-				/* check validity for 'tcp-request' layer 4/5/6/7 rules */
-				cfgerr += check_action_rules(&curproxy->defpx->tcp_req.l4_rules, curproxy->defpx, &err_code);
-				cfgerr += check_action_rules(&curproxy->defpx->tcp_req.l5_rules, curproxy->defpx, &err_code);
-				cfgerr += check_action_rules(&curproxy->defpx->tcp_req.inspect_rules, curproxy->defpx, &err_code);
-				cfgerr += check_action_rules(&curproxy->defpx->tcp_rep.inspect_rules, curproxy->defpx, &err_code);
-				cfgerr += check_action_rules(&curproxy->defpx->http_req_rules, curproxy->defpx, &err_code);
-				cfgerr += check_action_rules(&curproxy->defpx->http_res_rules, curproxy->defpx, &err_code);
-				cfgerr += check_action_rules(&curproxy->defpx->http_after_res_rules, curproxy->defpx, &err_code);
-
-				err = NULL;
-				i = smp_resolve_args(curproxy->defpx, &err);
-				cfgerr += i;
-				if (i) {
-					indent_msg(&err, 8);
-					ha_alert("%s%s\n", i > 1 ? "multiple argument resolution errors:" : "", err);
-					ha_free(&err);
-				}
-				else
-					cfgerr += acl_find_targets(curproxy->defpx);
-
-				/* default proxy is now ready. Set the right FE/BE capabilities */
-				curproxy->defpx->flags |= PR_FL_READY;
-			}
 		}
 
 		/* check and reduce the bind-proc of each listener */
@@ -3860,7 +3852,6 @@ init_proxies_list_stage2:
 			if (curproxy->task) {
 				curproxy->task->context = curproxy;
 				curproxy->task->process = manage_proxy;
-				curproxy->flags |= PR_FL_READY;
 			}
 			else {
 				ha_alert("Proxy '%s': no more memory when trying to allocate the management task\n",
@@ -3937,7 +3928,6 @@ init_proxies_list_stage2:
 				 * Note that ->srv is used by the local peer of a new process to connect to the local peer
 				 * of an old process.
 				 */
-				curpeers->peers_fe->flags |= PR_FL_READY;
 				p = curpeers->remote;
 				while (p) {
 					struct peer *other_peer;
