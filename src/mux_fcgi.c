@@ -2151,7 +2151,8 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 		goto end;
 	type = htx_get_blk_type(blk);
 	size = htx_get_blksz(blk);
-	if (unlikely(size == count && htx_nbblks(htx) == 1 && type == HTX_BLK_DATA)) {
+	if (unlikely(size == count && b_size(mbuf) == b_size(buf) &&
+		     htx_nbblks(htx) == 1 && type == HTX_BLK_DATA)) {
 		void *old_area = mbuf->area;
 		int eom = (htx->flags & HTX_FL_EOM);
 

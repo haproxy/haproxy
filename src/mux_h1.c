@@ -3058,7 +3058,8 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 	    (!(h1m->flags & H1_MF_CHNK) || ((h1m->flags & H1_MF_CHNK) && (!h1m->curr_len || count == h1m->curr_len))) &&
 	    htx_nbblks(htx) == 1 &&
 	    htx_get_blk_type(blk) == HTX_BLK_DATA &&
-	    htx_get_blk_value(htx, blk).len == count) {
+	    htx_get_blk_value(htx, blk).len == count &&
+	    b_size(&h1c->obuf) == b_size(buf)) {
 		void *old_area;
 		int eom = (htx->flags & HTX_FL_EOM);
 
@@ -3344,7 +3345,8 @@ static size_t h1_make_tunnel(struct h1s *h1s, struct h1m *h1m, struct buffer *bu
 	if (!b_data(&h1c->obuf) &&
 	    htx_nbblks(htx) == 1 &&
 	    htx_get_blk_type(blk) == HTX_BLK_DATA &&
-	    htx_get_blksz(blk) == count) {
+	    htx_get_blksz(blk) == count &&
+	    b_size(&h1c->obuf) == b_size(buf)) {
 		void *old_area;
 
 		old_area = h1c->obuf.area;

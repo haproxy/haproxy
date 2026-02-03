@@ -2673,7 +2673,7 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
 	 * buffer to perform zero-copy. This is only achievable if MUX buffer
 	 * is currently empty.
 	 */
-	if (unlikely(fsize == count &&
+	if (unlikely(fsize == count && b_size(res) == b_size(buf) &&
 	             !b_data(res) &&
 	             htx_nbblks(htx) == 1 && type == HTX_BLK_DATA)) {
 		void *old_area = res->area;
