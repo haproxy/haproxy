@@ -1828,6 +1828,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	struct channel *req, *res;
 	struct stconn *scf, *scb;
 	unsigned int rate;
+	unsigned int scf_send_cnt, scb_send_cnt;
 
 	activity[tid].stream_calls++;
 	stream_cond_update_cpu_latency(s);
@@ -1855,6 +1856,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	/* Keep a copy of SC flags */
 	scf_flags = scf->flags;
 	scb_flags = scb->flags;
+	scf_send_cnt = scb_send_cnt = 0;
 
 	/* update pending events */
 	s->pending_events |= stream_map_task_state(state);
@@ -2488,7 +2490,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	}
 
 	/* Let's see if we can send the pending request now */
-	sc_sync_send(scb);
+	sc_sync_send(scb, scb_send_cnt++);
 
 	/*
 	 * Now forward all shutdown requests between both sides of the request buffer
@@ -2598,7 +2600,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	scf_flags = (scf_flags & ~(SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) | (scf->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED));
 
 	/* Let's see if we can send the pending response now */
-	sc_sync_send(scf);
+	sc_sync_send(scf, scf_send_cnt++);
 
 	/*
 	 * Now forward all shutdown requests between both sides of the buffer
