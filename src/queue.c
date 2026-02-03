@@ -197,11 +197,20 @@ void pendconn_unlink(struct pendconn *p)
 		oldidx -= p->queue_idx;
 		if (sv) {
 			p->strm->logs.srv_queue_pos += oldidx;
-			_HA_ATOMIC_DEC(&sv->queueslength);
-		}
-		else {
+			if (_HA_ATOMIC_FETCH_SUB(&sv->queueslength, 1) == 0) {
+				HA_SPIN_LOCK(SERVER_LOCK, &sv->state_lock);
+				if (sv->queueslength == 0)
+					sv->queues_not_empty = 0;
+				HA_SPIN_UNLOCK(SERVER_LOCK, &sv->state_lock);
+			}
+		} else {
 			p->strm->logs.prx_queue_pos += oldidx;
-			_HA_ATOMIC_DEC(&px->queueslength);
+			if (_HA_ATOMIC_FETCH_SUB(&px->queueslength, 1) == 0) {
+				HA_SPIN_LOCK(PROXY_LOCK, &px->lock);
+				if (px->queueslength == 0)
+					px->queues_not_empty = 0;
+				HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);
+			}
 		}
 
 		_HA_ATOMIC_DEC(&q->length);
@@ -350,7 +359,12 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px, int 
 
 	_HA_ATOMIC_DEC(&px->per_tgrp[tgrp - 1].queue.length);
 	_HA_ATOMIC_INC(&px->per_tgrp[tgrp - 1].queue.idx);
-	_HA_ATOMIC_DEC(&px->queueslength);
+	if (_HA_ATOMIC_SUB_FETCH(&px->queueslength, 1) == 0) {
+		HA_SPIN_LOCK(PROXY_LOCK, &px->lock);
+		if (px->queueslength == 0)
+			px->queues_not_empty = 0;
+		HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);
+	}
 	return 1;
 
  use_p:
@@ -372,7 +386,12 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px, int 
 
 	_HA_ATOMIC_DEC(&srv->per_tgrp[tgrp - 1].queue.length);
 	_HA_ATOMIC_INC(&srv->per_tgrp[tgrp - 1].queue.idx);
-	_HA_ATOMIC_DEC(&srv->queueslength);
+	if (_HA_ATOMIC_SUB_FETCH(&srv->queueslength, 1) == 0) {
+		HA_SPIN_LOCK(SERVER_LOCK, &srv->state_lock);
+		if (srv->queueslength == 0)
+			srv->queues_not_empty = 0;
+		HA_SPIN_UNLOCK(SERVER_LOCK, &srv->state_lock);
+	}
 	return 1;
 }
 
@@ -603,6 +622,17 @@ struct pendconn *pendconn_add(struct stream *strm)
 	p->queue = q;
 	p->queue_idx  = _HA_ATOMIC_LOAD(&q->idx) - 1; // for logging only
 	new_max = _HA_ATOMIC_ADD_FETCH(queueslength, 1);
+	if (new_max == 1) {
+		if (srv) {
+			HA_SPIN_LOCK(SERVER_LOCK, &srv->state_lock);
+			srv->queues_not_empty = 1;
+			HA_SPIN_UNLOCK(SERVER_LOCK, &srv->state_lock);
+		} else {
+			HA_SPIN_LOCK(PROXY_LOCK, &px->lock);
+			px->queues_not_empty = 1;
+			HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);
+		}
+	}
 	_HA_ATOMIC_INC(&q->length);
 	old_max = _HA_ATOMIC_LOAD(max_ptr);
 	while (new_max > old_max) {

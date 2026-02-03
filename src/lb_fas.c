@@ -322,7 +322,7 @@ struct server *fas_get_next_server(struct proxy *p, struct server *srvtoavoid)
 		struct server *s;
 
 		s = eb32_entry(node, struct server, lb_node);
-		if (!s->maxconn || (!s->queueslength && s->served < srv_dynamic_maxconn(s))) {
+		if (!s->maxconn || (!s->queueslength && server_has_room(s))) {
 			if (s != srvtoavoid) {
 				srv = s;
 				break;

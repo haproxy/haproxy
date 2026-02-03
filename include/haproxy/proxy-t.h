@@ -510,6 +510,7 @@ struct proxy {
 	EXTRA_COUNTERS(extra_counters_fe);
 	EXTRA_COUNTERS(extra_counters_be);
 
+	uint8_t queues_not_empty;               /* Are the request queues not empty ? Only changed when the queues go from non-empty to empty, and vice-versa. Protected by proxy lock */
 	THREAD_ALIGN();
 	/* these ones change all the time */
 	int served;				/* # of active sessions currently being served */

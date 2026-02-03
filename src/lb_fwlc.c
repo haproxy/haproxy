@@ -797,7 +797,7 @@ redo:
 				eweight = _HA_ATOMIC_LOAD(&s->cur_eweight);
 
 				planned_inflight = tree_elt->lb_node.key * eweight / SRV_EWGHT_MAX;
-				if (!s->maxconn || s->served + s->queueslength < srv_dynamic_maxconn(s) + s->maxqueue) {
+				if (server_has_room(s)) {
 					if (_HA_ATOMIC_LOAD(&s->served) + _HA_ATOMIC_LOAD(&s->queueslength) > planned_inflight + 2) {
 						/*
 						 * The server has more requests than expected,

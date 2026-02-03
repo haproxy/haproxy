@@ -86,7 +86,7 @@ static inline int server_has_room(const struct server *s) {
  * for and if/else usage.
  */
 static inline int may_dequeue_tasks(const struct server *s, const struct proxy *p) {
-	return (s && (s->queueslength || (p->queueslength && srv_currently_usable(s))) &&
+	return (s && (s->queues_not_empty || (p->queues_not_empty && srv_currently_usable(s))) &&
 		(!s->maxconn || s->cur_sess < srv_dynamic_maxconn(s)));
 }
 

@@ -597,7 +597,7 @@ struct server *get_server_rnd(struct stream *s, const struct server *avoid)
 	 * the backend's queue instead.
 	 */
 	if (curr &&
-	    (curr->queueslength || (curr->maxconn && curr->served >= srv_dynamic_maxconn(curr))))
+	    (curr->queues_not_empty || (curr->maxconn && curr->served >= srv_dynamic_maxconn(curr))))
 		curr = NULL;
 
 	return curr;
@@ -1158,10 +1158,21 @@ int assign_server_and_queue(struct stream *s)
 
 					_HA_ATOMIC_DEC(&p->queue->length);
 
-					if (p->queue->sv)
-						_HA_ATOMIC_DEC(&p->queue->sv->queueslength);
-					else
-						_HA_ATOMIC_DEC(&p->queue->px->queueslength);
+					if (p->queue->sv) {
+						if (_HA_ATOMIC_SUB_FETCH(&p->queue->sv->queueslength, 1) == 0) {
+							HA_SPIN_LOCK(SERVER_LOCK, &p->queue->sv->state_lock);
+							if (p->queue->sv->queueslength == 0)
+								p->queue->sv->queues_not_empty = 0;
+							HA_SPIN_UNLOCK(SERVER_LOCK, &p->queue->sv->state_lock);
+						}
+					} else {
+						if (_HA_ATOMIC_SUB_FETCH(&p->queue->px->queueslength, 1) == 0) {
+							HA_SPIN_LOCK(PROXY_LOCK, &p->queue->px->lock);
+							if (p->queue->px->queueslength == 0)
+								p->queue->px->queues_not_empty = 0;
+							HA_SPIN_UNLOCK(PROXY_LOCK, &p->queue->px->lock);
+						}
+					}
 
 					_HA_ATOMIC_INC(&p->queue->idx);
 					_HA_ATOMIC_DEC(&s->be->totpend);

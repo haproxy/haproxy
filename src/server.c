@@ -3259,6 +3259,8 @@ struct server *srv_drop(struct server *srv)
 
 	HA_SPIN_DESTROY(&srv->lock);
 
+	HA_SPIN_DESTROY(&srv->state_lock);
+
 	MT_LIST_DELETE(&srv->global_list);
 	event_hdl_sub_list_destroy(&srv->e_subs);
 
@@ -3816,6 +3818,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		} else
 			srv_settings_init(newsrv);
 		HA_SPIN_INIT(&newsrv->lock);
+		HA_SPIN_INIT(&newsrv->state_lock);
 	}
 	else {
 		/* This is a "default-server" line. Let's make certain the

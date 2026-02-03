@@ -620,7 +620,7 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 		fwrr_update_position(grp, srv, next_weight);
 		fwrr_dequeue_srv(srv, tgid);
 		grp->curr_pos++;
-		if (!srv->maxconn || (!srv->queueslength && srv->served < srv_dynamic_maxconn(srv))) {
+		if (!srv->maxconn || (!srv->queueslength && server_has_room(srv))) {
 			/* make sure it is not the server we are trying to exclude... */
 			if (srv != srvtoavoid || avoided)
 				break;
