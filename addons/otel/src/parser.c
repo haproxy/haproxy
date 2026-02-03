@@ -317,10 +317,21 @@ static int flt_otel_parse_cfg_sample_expr(const char *file, int line, char **arg
  *   err   - indirect pointer to error message string
  *
  * DESCRIPTION
- *   Parses a complete sample definition starting at index <idx> in <args>.
- *   Creates a conf_sample structure with optional <extra> data (event name or
- *   status code), then parses sample expressions.  When <n> is 0, all remaining
- *   arguments are parsed; otherwise at most <n> expressions are parsed.
+ *   Parses a complete sample definition starting at index <idx> in the
+ *   <args> array.  A new conf_sample structure is allocated and initialized
+ *   via flt_otel_conf_sample_init_ex() with the optional <extra> data (an
+ *   event name or a status code), then the sample expressions are parsed.
+ *
+ *   When <args>[<idx>] contains the "%[" sequence, the argument is parsed
+ *   as a log-format string via parse_logformat_string(): the lf_used flag
+ *   is set and the result is stored in the lf_expr member while the exprs
+ *   list remains empty.  Otherwise the arguments are treated as bare sample
+ *   expressions: the proxy configuration context is set and the function
+ *   calls flt_otel_parse_cfg_sample_expr() in a loop to populate exprs.
+ *
+ *   When <n> is 0 all remaining valid arguments are consumed; otherwise at
+ *   most <n> expressions are parsed.  On error the allocated conf_sample
+ *   structure is freed before returning.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success, or a combination of ERR_* flags
@@ -338,7 +349,25 @@ static int flt_otel_parse_cfg_sample(const char *file, int line, char **args, in
 	if (sample == NULL)
 		FLT_OTEL_PARSE_ERR(err, "'%s' : out of memory", args[0]);
 
-	if (!(retval & ERR_CODE)) {
+	if (retval & ERR_CODE) {
+		/* Do nothing. */
+	}
+	else if (strstr(args[idx], "%[") != NULL) {
+		/*
+		 * Log-format path: parse the single argument as a log-format
+		 * string into the sample structure.
+		 */
+		sample->lf_used = 1;
+
+		if (parse_logformat_string(args[idx], flt_otel_current_config->proxy, &(sample->lf_expr), LOG_OPT_HTTP, SMP_VAL_FE_LOG_END, err) == 0)
+			retval |= ERR_ABORT | ERR_ALERT;
+		else
+			OTELC_DBG(DEBUG, "sample '%s' -> log-format '%s' added", sample->key, sample->fmt_string);
+	}
+	else {
+		/*
+		 * Bare sample expression path.
+		 */
 		flt_otel_current_config->proxy->conf.args.ctx  = ARGC_OTEL;
 		flt_otel_current_config->proxy->conf.args.file = file;
 		flt_otel_current_config->proxy->conf.args.line = line;

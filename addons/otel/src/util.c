@@ -887,59 +887,78 @@ int flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample 
 	(void)memset(&value, 0, sizeof(value));
 	(void)memset(&buffer, 0, sizeof(buffer));
 
-	list_for_each_entry(expr, &(sample->exprs), list) {
-		FLT_OTEL_DBG_CONF_SAMPLE_EXPR("sample expression ", expr);
-
-		(void)memset(&smp, 0, sizeof(smp));
-
-		if (sample_process(s->be, s->sess, s, dir | SMP_OPT_FINAL, expr->expr, &smp) != NULL) {
-			OTELC_DBG(DEBUG, "data type %d: '%s'", smp.data.type, expr->fmt_expr);
-		} else {
-			OTELC_DBG(NOTICE, "WARNING: failed to fetch '%s' value", expr->fmt_expr);
-
-			/*
-			 * In case the fetch failed, we will set the result
-			 * (sample) to an empty static string.
-			 */
-			(void)memset(&(smp.data), 0, sizeof(smp.data));
-			smp.data.type       = SMP_T_STR;
-			smp.data.u.str.area = "";
-		}
-
+	/* Evaluate the sample: log-format path or expression list path. */
+	if (sample->lf_used) {
 		/*
-		 * If we have only one expression to process, then the data
-		 * type that is the result of the expression is converted to
-		 * an equivalent data type (if possible) that is written to
-		 * the tracer.
-		 *
-		 * If conversion is not possible, or if we have multiple
-		 * expressions to process, then the result is converted to
-		 * a string and as such sent to the tracer.
+		 * Log-format path: evaluate the log-format expression into a
+		 * dynamically allocated buffer.
 		 */
-		if ((sample->num_exprs == 1) && ((type == FLT_OTEL_EVENT_SAMPLE_ATTRIBUTE) || (type == FLT_OTEL_EVENT_SAMPLE_EVENT))) {
-			if (flt_otel_sample_to_value(sample->key, &(smp.data), &value, err) == FLT_OTEL_RET_ERROR)
-				retval = FLT_OTEL_RET_ERROR;
+		chunk_init(&buffer, OTELC_CALLOC(1, global.tune.bufsize), global.tune.bufsize);
+		if (buffer.area == NULL) {
+			FLT_OTEL_ERR("out of memory");
+
+			retval = FLT_OTEL_RET_ERROR;
 		} else {
-			if (buffer.area == NULL) {
-				chunk_init(&buffer, OTELC_CALLOC(1, global.tune.bufsize), global.tune.bufsize);
-				if (buffer.area == NULL) {
-					FLT_OTEL_ERR("out of memory");
+			buffer.data = build_logline(s, buffer.area, buffer.size, &(sample->lf_expr));
 
-					retval = FLT_OTEL_RET_ERROR;
+			value.u_type       = OTELC_VALUE_DATA;
+			value.u.value_data = buffer.area;
+		}
+	} else {
+		list_for_each_entry(expr, &(sample->exprs), list) {
+			FLT_OTEL_DBG_CONF_SAMPLE_EXPR("sample expression ", expr);
 
-					break;
-				}
+			(void)memset(&smp, 0, sizeof(smp));
+
+			if (sample_process(s->be, s->sess, s, dir | SMP_OPT_FINAL, expr->expr, &smp) != NULL) {
+				OTELC_DBG(DEBUG, "data type %d: '%s'", smp.data.type, expr->fmt_expr);
+			} else {
+				OTELC_DBG(NOTICE, "WARNING: failed to fetch '%s' value", expr->fmt_expr);
+
+				/*
+				 * In case the fetch failed, we will set the result
+				 * (sample) to an empty static string.
+				 */
+				(void)memset(&(smp.data), 0, sizeof(smp.data));
+				smp.data.type       = SMP_T_STR;
+				smp.data.u.str.area = "";
 			}
 
-			rc = flt_otel_sample_to_str(&(smp.data), buffer.area + buffer.data, buffer.size - buffer.data, err);
-			if (rc == FLT_OTEL_RET_ERROR) {
-				retval = FLT_OTEL_RET_ERROR;
+			/*
+			 * If we have only one expression to process, then the data
+			 * type that is the result of the expression is converted to
+			 * an equivalent data type (if possible) that is written to
+			 * the tracer.
+			 *
+			 * If conversion is not possible, or if we have multiple
+			 * expressions to process, then the result is converted to
+			 * a string and as such sent to the tracer.
+			 */
+			if ((sample->num_exprs == 1) && ((type == FLT_OTEL_EVENT_SAMPLE_ATTRIBUTE) || (type == FLT_OTEL_EVENT_SAMPLE_EVENT))) {
+				if (flt_otel_sample_to_value(sample->key, &(smp.data), &value, err) == FLT_OTEL_RET_ERROR)
+					retval = FLT_OTEL_RET_ERROR;
 			} else {
-				buffer.data += rc;
+				if (buffer.area == NULL) {
+					chunk_init(&buffer, OTELC_CALLOC(1, global.tune.bufsize), global.tune.bufsize);
+					if (buffer.area == NULL) {
+						FLT_OTEL_ERR("out of memory");
 
-				if (sample->num_exprs == ++idx) {
-					value.u_type       = OTELC_VALUE_DATA;
-					value.u.value_data = buffer.area;
+						retval = FLT_OTEL_RET_ERROR;
+
+						break;
+					}
+				}
+
+				rc = flt_otel_sample_to_str(&(smp.data), buffer.area + buffer.data, buffer.size - buffer.data, err);
+				if (rc == FLT_OTEL_RET_ERROR) {
+					retval = FLT_OTEL_RET_ERROR;
+				} else {
+					buffer.data += rc;
+
+					if (sample->num_exprs == ++idx) {
+						value.u_type       = OTELC_VALUE_DATA;
+						value.u.value_data = buffer.area;
+					}
 				}
 			}
 		}
