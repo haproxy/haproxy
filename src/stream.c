@@ -658,7 +658,7 @@ void stream_free(struct stream *s)
 	b_dequeue(&s->buffer_wait);
 
 	if (s->req.buf.size || s->res.buf.size) {
-		int count = !!s->req.buf.size + !!s->res.buf.size;
+		int count = (s->req.buf.size == global.tune.bufsize) + (s->res.buf.size == global.tune.bufsize);
 
 		b_free(&s->req.buf);
 		b_free(&s->res.buf);
@@ -807,11 +807,13 @@ void stream_release_buffers(struct stream *s)
 	int offer = 0;
 
 	if (c_size(&s->req) && c_empty(&s->req)) {
-		offer++;
+		if (c_size(&s->req) == global.tune.bufsize)
+			offer++;
 		b_free(&s->req.buf);
 	}
 	if (c_size(&s->res) && c_empty(&s->res)) {
-		offer++;
+		if (c_size(&s->res) == global.tune.bufsize)
+			offer++;
 		b_free(&s->res.buf);
 	}
 
