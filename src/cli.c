@@ -3536,7 +3536,6 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		if (objt_server(s->target)) {
 			if (s->flags & SF_CURR_SESS) {
 				s->flags &= ~SF_CURR_SESS;
-				HA_ATOMIC_DEC(&__objt_server(s->target)->cur_sess);
 			}
 			if (may_dequeue_tasks(__objt_server(s->target), be))
 				process_srv_queue(__objt_server(s->target));

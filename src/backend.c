@@ -984,6 +984,7 @@ int assign_server_and_queue(struct stream *s)
 {
 	struct pendconn *p;
 	struct server *srv;
+	int count;
 	int err;
 
 	if (s->pend_pos)
@@ -1073,6 +1074,7 @@ int assign_server_and_queue(struct stream *s)
 							        &served, served + 1);
 				} while (!got_it && served < srv_dynamic_maxconn(srv) &&
 					 __ha_cpu_relax());
+				count = served + 1;
 			}
 			if (!got_it) {
 				if (srv->maxqueue > 0 && srv->queueslength >= srv->maxqueue)
@@ -1095,8 +1097,9 @@ int assign_server_and_queue(struct stream *s)
 					return SRV_STATUS_INTERNAL;
 			}
 		} else
-			_HA_ATOMIC_INC(&srv->served);
+			count = _HA_ATOMIC_ADD_FETCH(&srv->served, 1);
 
+		HA_ATOMIC_UPDATE_MAX(&srv->counters.cur_sess_max, count);
 		/* OK, we can use this server. Let's reserve our place */
 		sess_change_server(s, srv);
 		return SRV_STATUS_OK;
@@ -2273,11 +2276,7 @@ int connect_server(struct stream *s)
 	s->conn_exp = tick_add_ifset(now_ms, s->connect_timeout);
 
 	if (srv) {
-		int count;
-
 		s->flags |= SF_CURR_SESS;
-		count = _HA_ATOMIC_ADD_FETCH(&srv->cur_sess, 1);
-		HA_ATOMIC_UPDATE_MAX(&srv->counters.cur_sess_max, count);
 		if (s->be->lbprm.server_take_conn)
 			s->be->lbprm.server_take_conn(srv);
 	}
@@ -2784,10 +2783,8 @@ void back_handle_st_cer(struct stream *s)
 
 		health_adjust(__objt_server(s->target), HANA_STATUS_L4_ERR);
 
-		if (s->flags & SF_CURR_SESS) {
+		if (s->flags & SF_CURR_SESS)
 			s->flags &= ~SF_CURR_SESS;
-			_HA_ATOMIC_DEC(&__objt_server(s->target)->cur_sess);
-		}
 
 		if ((sc->flags & SC_FL_ERROR) &&
 		    conn && conn->err_code == CO_ER_SSL_MISMATCH_SNI) {
@@ -3420,7 +3417,7 @@ smp_fetch_connslots(const struct arg *args, struct sample *smp, const char *kw, 
 			return 1;
 		}
 
-		smp->data.u.sint += (iterator->maxconn - iterator->cur_sess)
+		smp->data.u.sint += (iterator->maxconn - iterator->served)
 		                       +  (iterator->maxqueue - iterator->queueslength);
 	}
 
@@ -3590,8 +3587,8 @@ smp_fetch_be_conn_free(const struct arg *args, struct sample *smp, const char *k
 		}
 
 		maxconn = srv_dynamic_maxconn(iterator);
-		if (maxconn > iterator->cur_sess)
-			smp->data.u.sint += maxconn - iterator->cur_sess;
+		if (maxconn > iterator->served)
+			smp->data.u.sint += maxconn - iterator->served;
 	}
 
 	return 1;
@@ -3658,7 +3655,7 @@ smp_fetch_srv_conn(const struct arg *args, struct sample *smp, const char *kw, v
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = args->data.srv->cur_sess;
+	smp->data.u.sint = args->data.srv->served;
 	return 1;
 }
 
@@ -3681,8 +3678,8 @@ smp_fetch_srv_conn_free(const struct arg *args, struct sample *smp, const char *
 	}
 
 	maxconn = srv_dynamic_maxconn(args->data.srv);
-	if (maxconn > args->data.srv->cur_sess)
-		smp->data.u.sint = maxconn - args->data.srv->cur_sess;
+	if (maxconn > args->data.srv->served)
+		smp->data.u.sint = maxconn - args->data.srv->served;
 	else
 		smp->data.u.sint = 0;
 

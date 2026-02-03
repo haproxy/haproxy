@@ -78,7 +78,7 @@ static inline void pendconn_free(struct stream *s)
 
 /* Returns 0 if all slots are full on a server, or 1 if there are slots available. */
 static inline int server_has_room(const struct server *s) {
-	return !s->maxconn || s->cur_sess < srv_dynamic_maxconn(s);
+	return !s->maxconn || s->served < srv_dynamic_maxconn(s);
 }
 
 /* returns 0 if nothing has to be done for server <s> regarding queued connections,
@@ -87,7 +87,7 @@ static inline int server_has_room(const struct server *s) {
  */
 static inline int may_dequeue_tasks(const struct server *s, const struct proxy *p) {
 	return (s && (s->queues_not_empty || (p->queues_not_empty && srv_currently_usable(s))) &&
-		(!s->maxconn || s->cur_sess < srv_dynamic_maxconn(s)));
+		(!s->maxconn || s->served < srv_dynamic_maxconn(s)));
 }
 
 static inline int queue_limit_class(int class)

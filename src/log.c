@@ -4709,11 +4709,11 @@ int sess_build_logline_orig(struct session *sess, struct stream *s,
 
 				switch (obj_type(s ? s->target : sess->origin)) {
 				case OBJ_TYPE_SERVER:
-					value = __objt_server(s->target)->cur_sess;
+					value = __objt_server(s->target)->served;
 					break;
 				case OBJ_TYPE_CHECK:
 					value = (__objt_check(sess->origin)->server
-					         ? __objt_check(sess->origin)->server->cur_sess
+					         ? __objt_check(sess->origin)->server->served
 					         : 0);
 					break;
 				default:

@@ -1029,7 +1029,7 @@ int httpchk_build_status_header(struct server *s, struct buffer *buf)
 		      global.node,
 		      (s->cur_eweight * s->proxy->lbprm.wmult + s->proxy->lbprm.wdiv - 1) / s->proxy->lbprm.wdiv,
 		      (s->proxy->lbprm.tot_weight * s->proxy->lbprm.wmult + s->proxy->lbprm.wdiv - 1) / s->proxy->lbprm.wdiv,
-		      s->cur_sess, s->proxy->beconn - s->proxy->queueslength,
+		      s->served, s->proxy->beconn - s->proxy->queueslength,
 		      s->queueslength);
 
 	if ((s->cur_state == SRV_ST_STARTING) &&

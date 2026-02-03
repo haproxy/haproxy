@@ -2157,7 +2157,7 @@ static void srv_append_more(struct buffer *msg, struct server *s,
 				" %d sessions active, %d requeued, %d remaining in queue",
 				s->proxy->srv_act, s->proxy->srv_bck,
 				(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
-				s->cur_sess, xferred, s->queueslength);
+				s->served, xferred, s->queueslength);
 		else
 			chunk_appendf(msg, ". %d active and %d backup servers online.%s"
 				" %d sessions requeued, %d total in queue",

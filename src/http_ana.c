@@ -1191,10 +1191,9 @@ static __inline int do_l7_retry(struct stream *s, struct stconn *sc)
 		return -1;
 	s->conn_retries++;
 	if (objt_server(s->target)) {
-		if (s->flags & SF_CURR_SESS) {
+		if (s->flags & SF_CURR_SESS)
 			s->flags &= ~SF_CURR_SESS;
-			_HA_ATOMIC_DEC(&__objt_server(s->target)->cur_sess);
-		}
+
 		if (s->sv_tgcounters)
 			_HA_ATOMIC_INC(&s->sv_tgcounters->retries);
 	}

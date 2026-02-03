@@ -863,7 +863,7 @@ int stats_fill_sv_line(struct proxy *px, struct server *sv, int flags,
 				field = mkf_u32(FN_MAX, sv->counters.nbpend_max);
 				break;
 			case ST_I_PX_SCUR:
-				field = mkf_u32(0, sv->cur_sess);
+				field = mkf_u32(0, sv->served);
 				break;
 			case ST_I_PX_SMAX:
 				field = mkf_u32(FN_MAX, sv->counters.cur_sess_max);

@@ -905,7 +905,7 @@ static void sig_dump_state(struct sig_handler *sh)
 			             "SIGHUP: Server %s/%s is %s. Conn: %d act, %d pend, %llu tot.",
 			             p->id, s->id,
 			             (s->cur_state != SRV_ST_STOPPED) ? "UP" : "DOWN",
-			             s->cur_sess, s->queueslength, (ullong)COUNTERS_SHARED_TOTAL(s->counters.shared.tg, cum_sess, HA_ATOMIC_LOAD));
+			             s->served, s->queueslength, (ullong)COUNTERS_SHARED_TOTAL(s->counters.shared.tg, cum_sess, HA_ATOMIC_LOAD));
 			ha_warning("%s\n", trash.area);
 			send_log(p, LOG_NOTICE, "%s\n", trash.area);
 			s = s->next;

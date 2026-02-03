@@ -342,7 +342,7 @@ int prepare_external_check(struct check *check)
 	EXTCHK_SETENV(check, EXTCHK_HAPROXY_SERVER_ADDR, check->argv[3], err);
 	EXTCHK_SETENV(check, EXTCHK_HAPROXY_SERVER_PORT, check->argv[4], err);
 	EXTCHK_SETENV(check, EXTCHK_HAPROXY_SERVER_MAXCONN, ultoa_r(s->maxconn, buf, sizeof(buf)), err);
-	EXTCHK_SETENV(check, EXTCHK_HAPROXY_SERVER_CURCONN, ultoa_r(s->cur_sess, buf, sizeof(buf)), err);
+	EXTCHK_SETENV(check, EXTCHK_HAPROXY_SERVER_CURCONN, ultoa_r(s->served, buf, sizeof(buf)), err);
 	EXTCHK_SETENV(check, EXTCHK_HAPROXY_SERVER_SSL, s->use_ssl ? "1" : "0", err);
 
 	switch (px->mode) {
@@ -438,7 +438,7 @@ static int connect_proc_chk(struct task *t)
 		}
 
 		/* Update some environment variables and command args: curconn, server addr and server port */
-		EXTCHK_SETENV(check, EXTCHK_HAPROXY_SERVER_CURCONN, ultoa_r(s->cur_sess, buf, sizeof(buf)), fail);
+		EXTCHK_SETENV(check, EXTCHK_HAPROXY_SERVER_CURCONN, ultoa_r(s->served, buf, sizeof(buf)), fail);
 
 		family = real_family(s->addr.ss_family);
 		if (family == AF_UNIX) {

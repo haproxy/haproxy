@@ -1394,7 +1394,7 @@ int hlua_server_get_cur_sess(lua_State *L)
 		return 1;
 	}
 
-	lua_pushinteger(L, srv->cur_sess);
+	lua_pushinteger(L, srv->served);
 	return 1;
 }
 

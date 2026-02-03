@@ -430,7 +430,6 @@ struct server {
 
 	/* usually atomically updated by any thread during parsing or on end of request */
 	THREAD_ALIGN();
-	int cur_sess;				/* number of currently active sessions (including syn_sent) */
 	int served;				/* # of active sessions currently being served (ie not pending) */
 	int consecutive_errors;			/* current number of consecutive errors */
 	int consecutive_errors_limit;		/* number of consecutive errors that triggers an event */
