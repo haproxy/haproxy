@@ -20595,6 +20595,7 @@ ip.ver                                             binary       integer
 ipmask(mask4[,mask6])                              address      address
 json([input-code])                                 string       string
 json_query(json_path[,output_type])                string       _outtype_
+jwk_decrypt(<jwk>)                                 string       binary
 jwt_decrypt_cert(<cert>)                           string       binary
 jwt_decrypt_secret(<secret>)                       string       binary
 jwt_header_query([json_path[,output_type]])        string       string
@@ -21423,6 +21424,44 @@ json_query(<json_path>[,<output_type>])
 
      # get the value of the key 'iss' from a JWT Bearer token
      http-request set-var(txn.token_payload) req.hdr(Authorization),word(2,.),ub64dec,json_query('$.iss')
+
+jwk_decrypt(<jwk>)
+  Performs a signature validation of a JSON Web Token following the JSON Web
+  Encryption format (see RFC 7516) given in input and return its content
+  decrypted thanks to the provided JSON Web Key (RFC7517).
+  The <jwk> parameter must be a valid JWK of type 'oct' or 'RSA' ('kty' field
+  of the JSON key) that can be provided either as a string or via a variable.
+
+  The only tokens managed yet are the ones using the Compact Serialization
+  format (five dot-separated base64-url encoded strings).
+
+  This converter can be used to decode token that have a symmetric-type
+  algorithm ("alg" field of the JOSE header) among the following: A128KW,
+  A192KW, A256KW, A128GCMKW, A192GCMKW, A256GCMKW, dir. In this case, we expect
+  the provided JWK to be of the 'oct' type. Please note that the A128KW and
+  A192KW algorithms are not available on AWS-LC and decryption will not work.
+  This converter also manages tokens  that have an algorithm ("alg" field of
+  the JOSE header) among the following: RSA1_5, RSA-OAEP or RSA-OAEP-256. In
+  such a case an 'RSA' type JWK representing a private key must be provided.
+
+  The JWE token must be provided base64url-encoded and the output will be
+  provided "raw". If an error happens during token parsing, signature
+  verification or content decryption, an empty string will be returned.
+
+  Because of the way quotes, commas and double quotes are treated in the
+  configuration, the contents of the JWK must be properly escaped for this
+  converter to work properly (see section 2.2 for more information).
+
+  Example:
+     # Get a JWT from the authorization header, put its decrypted content in an
+     # HTTP header
+     http-request set-var(txn.bearer) http_auth_bearer
+     http-request set-header X-Decrypted %[var(txn.bearer),jwt_decrypt_secret(\'{\"kty\":\"oct\",\"k\":\"wAsgsg\"}\')
+
+    # or via a variable
+     http-request set-var(txn.bearer) http_auth_bearer
+     http-request set-var(txn.jwk) str(\'{\"kty\":\"oct\",\"k\":\"Q-NFLlghQ\"}\')
+     http-request set-header X-Decrypted %[var(txn.bearer),jwt_decrypt_secret(txn.jwk)
 
 jwt_decrypt_cert(<cert>)
   Performs a signature validation of a JSON Web Token following the JSON Web
@@ -31730,8 +31769,8 @@ ocsp-update [ off | on ]
 
 jwt [ off | on ]
   Allow for this certificate to be used for JWT validation or decryption via
-  the "jwt_verify_cert" or "jwt_decrypt_cert" converters when set to 'on'. Its
-  value defaults to 'off'.
+  the "jwt_verify_cert", "jwt_decrypt_cert" or "jwt_decrypt" converters when
+  set to 'on'. Its value defaults to 'off'.
 
   When set to 'on' for a given certificate, the CLI command "del ssl cert" will
   not work. In order to be deleted, a certificate must not be used, either for

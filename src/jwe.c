@@ -1118,10 +1118,323 @@ end:
 }
 
 
+
+typedef enum {
+	JWK_KTY_OCT,
+	JWK_KTY_RSA,
+// 	JWK_KTY_EC
+} jwk_type;
+
+struct jwk {
+	jwk_type type;
+	struct buffer *kid;
+	union {
+		EVP_PKEY *pkey;
+		struct buffer *secret;
+	};
+};
+
+static void clear_jwk(struct jwk *jwk)
+{
+	if (!jwk)
+		return;
+
+	free_trash_chunk(jwk->kid);
+	jwk->kid = NULL;
+
+	switch (jwk->type) {
+	case JWK_KTY_OCT:
+		free_trash_chunk(jwk->secret);
+		jwk->secret = NULL;
+		break;
+	case JWK_KTY_RSA:
+		EVP_PKEY_free(jwk->pkey);
+		jwk->pkey = NULL;
+		break;
+	default:
+		break;
+	}
+}
+
+
+/*
+ * Convert a JWK in buffer <jwk_buf> into either an RSA private key stored in an
+ * EVP_PKEY or a secret (for symmetric algorithms).
+ * Returns 0 in case of success, 1 otherwise.
+ */
+static int process_jwk(struct buffer *jwk_buf, struct jwk *jwk)
+{
+	struct buffer *kty = NULL;
+	int retval = 1;
+
+	kty = get_trash_chunk();
+	if (get_jwk_field(jwk_buf, "$.kty", kty))
+		goto end;
+
+	/* Look for optional "kid" field */
+	jwk->kid = alloc_trash_chunk();
+	if (!jwk->kid)
+		goto end;
+	get_jwk_field(jwk_buf, "$.kid", jwk->kid);
+
+	if (chunk_strcmp(kty, "oct") == 0) {
+		struct buffer *tmpbuf = get_trash_chunk();
+		int size = 0;
+
+		jwk->type = JWK_KTY_OCT;
+
+		jwk->secret = alloc_trash_chunk();
+		if (!jwk->secret)
+			goto end;
+
+		if (get_jwk_field(jwk_buf, "$.k", tmpbuf))
+			goto end;
+
+		size = base64urldec(b_orig(tmpbuf), b_data(tmpbuf),
+				    b_orig(jwk->secret), b_size(jwk->secret));
+		if (size < 0) {
+			goto end;
+		}
+		jwk->secret->data = size;
+
+	} else if (chunk_strcmp(kty, "RSA") == 0) {
+		jwk->type = JWK_KTY_RSA;
+
+		if (build_RSA_PKEY_from_buf(jwk_buf, &jwk->pkey))
+			goto end;
+	} else
+		goto end;
+
+	retval = 0;
+
+end:
+	if (retval)
+		clear_jwk(jwk);
+	return retval;
+}
+
+
+static int sample_conv_jwt_decrypt_check(struct arg *args, struct sample_conv *conv,
+                                         const char *file, int line, char **err)
+{
+	vars_check_arg(&args[0], NULL);
+
+	if (args[0].type == ARGT_STR) {
+		EVP_PKEY *pkey = NULL;
+		struct buffer *trash = get_trash_chunk();
+
+		if (get_jwk_field(&args[0].data.str, "$.kty", trash) == 0) {
+			if (chunk_strcmp(trash, "oct") == 0) {
+				struct buffer *key = get_trash_chunk();
+				if (get_jwk_field(&args[0].data.str, "$.k", key)) {
+					memprintf(err, "Missing 'k' field in JWK");
+					return 0;
+				}
+			} else if (chunk_strcmp(trash, "RSA") == 0) {
+				if (build_RSA_PKEY_from_buf(&args[0].data.str, &pkey)) {
+					memprintf(err, "Failed to parse JWK");
+					return 0;
+				}
+				EVP_PKEY_free(pkey);
+			} else {
+				memprintf(err, "Unmanaged key type (expected 'oct' or 'RSA'");
+				return 0;
+			}
+		} else {
+			memprintf(err, "Missing key type (expected 'oct' or 'RSA')");
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
+
+/*
+ * Decrypt the contents of a JWE token thanks to the user-provided JWK that can
+ * either contain an RSA private key or a secret.
+ * Returns the decrypted contents, or nothing if any error happened.
+ */
+static int sample_conv_jwt_decrypt(const struct arg *args, struct sample *smp, void *private)
+{
+	struct buffer *input = NULL;
+	unsigned int item_num = JWE_ELT_MAX;
+	struct sample jwk_smp;
+	struct jwt_item items[JWE_ELT_MAX] = {};
+	struct buffer *decoded_items[JWE_ELT_MAX] = {};
+	jwe_alg alg = JWE_ALG_UNMANAGED;
+	jwe_enc enc = JWE_ENC_UNMANAGED;
+	int size = 0;
+	int rsa = 0;
+	int dir = 0;
+	int gcm = 0;
+	int oct = 0;
+	int retval = 0;
+	struct buffer **cek = NULL;
+	struct buffer *decrypted_cek = NULL;
+	struct buffer *out = NULL;
+	struct jose_fields fields = {};
+
+	struct buffer *alg_tag = NULL;
+	struct buffer *alg_iv = NULL;
+
+	struct buffer *jwk_buf = NULL;
+	struct jwk jwk = {};
+
+	smp_set_owner(&jwk_smp, smp->px, smp->sess, smp->strm, smp->opt);
+	if (!sample_conv_var2smp_str(&args[0], &jwk_smp))
+		goto end;
+
+	/* Copy JWK parameter */
+	jwk_buf = alloc_trash_chunk();
+	if (!jwk_buf)
+		goto end;
+	if (!chunk_cpy(jwk_buf, &jwk_smp.data.u.str))
+		goto end;
+
+	/* Copy JWE input token */
+	input = alloc_trash_chunk();
+	if (!input)
+		goto end;
+	if (!chunk_cpy(input, &smp->data.u.str))
+		goto end;
+
+	if (jwt_tokenize(input, items, &item_num) || item_num != JWE_ELT_MAX)
+		goto end;
+
+	alg_tag = alloc_trash_chunk();
+	if (!alg_tag)
+		goto end;
+	alg_iv = alloc_trash_chunk();
+	if (!alg_iv)
+		goto end;
+
+	fields.tag = alg_tag;
+	fields.iv = alg_iv;
+
+	/* Base64Url decode the JOSE header */
+	decoded_items[JWE_ELT_JOSE] = alloc_trash_chunk();
+	if (!decoded_items[JWE_ELT_JOSE])
+		goto end;
+	size = base64urldec(items[JWE_ELT_JOSE].start, items[JWE_ELT_JOSE].length,
+			    b_orig(decoded_items[JWE_ELT_JOSE]), b_size(decoded_items[JWE_ELT_JOSE]));
+	if (size < 0)
+		goto end;
+	decoded_items[JWE_ELT_JOSE]->data = size;
+
+	if (!parse_jose(decoded_items[JWE_ELT_JOSE], &alg, &enc, &fields))
+		goto end;
+
+	/* Check if "alg" fits certificate-based JWEs */
+	switch (alg) {
+	case JWE_ALG_RSA1_5:
+	case JWE_ALG_RSA_OAEP:
+	case JWE_ALG_RSA_OAEP_256:
+		rsa = 1;
+		break;
+	case JWE_ALG_A128KW:
+	case JWE_ALG_A192KW:
+	case JWE_ALG_A256KW:
+		gcm = 0;
+		oct = 1;
+		break;
+	case JWE_ALG_A128GCMKW:
+	case JWE_ALG_A192GCMKW:
+	case JWE_ALG_A256GCMKW:
+		gcm = 1;
+		oct = 1;
+		break;
+	case JWE_ALG_DIR:
+		dir = 1;
+		oct = 1;
+		break;
+	default:
+		/* Not managed yet */
+		goto end;
+	}
+
+	/* Parse JWK argument. */
+	if (process_jwk(jwk_buf, &jwk))
+		goto end;
+
+	/* Check that the provided JWK is of the proper type */
+	if ((oct && jwk.type != JWK_KTY_OCT) ||
+	    (rsa && jwk.type != JWK_KTY_RSA))
+		goto end;
+
+	if (dir) {
+		/* The secret given as parameter should be used directly to
+		 * decode the encrypted content. */
+		decrypted_cek = alloc_trash_chunk();
+		if (!decrypted_cek)
+			goto end;
+
+		chunk_memcpy(decrypted_cek, b_orig(jwk.secret), b_data(jwk.secret));
+	} else {
+		/* With algorithms other than "dir" we should always have a CEK */
+		if (!items[JWE_ELT_CEK].length)
+			goto end;
+
+		cek = &decoded_items[JWE_ELT_CEK];
+
+		*cek = alloc_trash_chunk();
+		if (!*cek)
+			goto end;
+
+		decrypted_cek = alloc_trash_chunk();
+		if (!decrypted_cek) {
+			goto end;
+		}
+
+		size = base64urldec(items[JWE_ELT_CEK].start, items[JWE_ELT_CEK].length,
+				    (*cek)->area, (*cek)->size);
+		if (size < 0) {
+			goto end;
+		}
+		(*cek)->data = size;
+
+		if (rsa) {
+			if (do_decrypt_cek_rsa(*cek, decrypted_cek, jwk.pkey, alg))
+				goto end;
+		} else {
+			if (gcm) {
+				if (!decrypt_cek_aesgcmkw(*cek, alg_tag, alg_iv, decrypted_cek, jwk.secret, alg))
+					goto end;
+			} else {
+				if (!decrypt_cek_aeskw(*cek, decrypted_cek, jwk.secret, alg))
+					goto end;
+			}
+		}
+	}
+
+	if (decrypt_ciphertext(enc, items, decoded_items, decrypted_cek, &out))
+		goto end;
+
+	smp->data.u.str.data = b_data(out);
+	smp->data.u.str.area = b_orig(out);
+	smp->data.type = SMP_T_BIN;
+	smp_dup(smp);
+
+	retval = 1;
+
+end:
+	clear_jwk(&jwk);
+	free_trash_chunk(jwk_buf);
+	free_trash_chunk(input);
+	free_trash_chunk(decrypted_cek);
+	free_trash_chunk(out);
+	free_trash_chunk(alg_tag);
+	free_trash_chunk(alg_iv);
+	clear_decoded_items(decoded_items);
+	return retval;
+}
+
+
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	/* JSON Web Token converters */
 	{ "jwt_decrypt_secret",    sample_conv_jwt_decrypt_secret, ARG1(1,STR), sample_conv_jwt_decrypt_secret_check, SMP_T_BIN, SMP_T_BIN },
 	{ "jwt_decrypt_cert",      sample_conv_jwt_decrypt_cert,   ARG1(1,STR), sample_conv_jwt_decrypt_cert_check,   SMP_T_BIN, SMP_T_BIN },
+	{ "jwt_decrypt",           sample_conv_jwt_decrypt,        ARG1(1,STR), sample_conv_jwt_decrypt_check,        SMP_T_BIN, SMP_T_BIN },
 	{ NULL, NULL, 0, 0, 0 },
 
 }};
