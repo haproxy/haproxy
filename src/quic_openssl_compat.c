@@ -359,8 +359,7 @@ leave:
 }
 
 /* Callback use to parse TLS messages for <ssl> TLS session. */
-void quic_tls_compat_msg_callback(struct connection *conn,
-                                  int write_p, int version, int content_type,
+void quic_tls_compat_msg_callback(int write_p, int version, int content_type,
                                   const void *buf, size_t len, SSL *ssl)
 {
 	unsigned int alert;

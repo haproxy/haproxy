@@ -20,8 +20,7 @@
 #define QUIC_OPENSSL_COMPAT_CLIENT_APPLICATION   "CLIENT_TRAFFIC_SECRET_0"
 #define QUIC_OPENSSL_COMPAT_SERVER_APPLICATION   "SERVER_TRAFFIC_SECRET_0"
 
-void quic_tls_compat_msg_callback(struct connection *conn,
-                                  int write_p, int version, int content_type,
+void quic_tls_compat_msg_callback(int write_p, int version, int content_type,
                                   const void *buf, size_t len, SSL *ssl);
 int quic_tls_compat_init(struct bind_conf *bind_conf, SSL_CTX *ctx);
 void quic_tls_compat_keylog_callback(const SSL *ssl, const char *line);
