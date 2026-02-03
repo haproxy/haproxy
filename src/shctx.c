@@ -206,9 +206,12 @@ int shctx_row_data_append(struct shared_context *shctx, struct shared_block *fir
 		data += remain;
 		len -= remain;
 		first->len += remain; /* update len in the head of the row */
-		first->last_append = block;
 
 		block = LIST_ELEM(block->list.n, struct shared_block*, list);
+
+		/* Update <last_append> block only if the previous one is full */
+		if (start + remain == shctx->block_size)
+			first->last_append = block;
 	} while (block != first);
 
 	return len;
