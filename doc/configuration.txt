@@ -4127,6 +4127,9 @@ tune.bufsize.large <size>
   data must be bufferized without changing the size of regular buffers. The
   large buffers are not implicitly used.
 
+  Note that when large buffers are configured, three special large buffers will
+  be allocated for each threads during startup for internal usage.
+
 tune.bufsize.small <size>
   Sets the size in bytes for small buffers. The defaults value is 1024.
 
