@@ -474,11 +474,12 @@ static inline struct htx_sl *htx_add_stline(struct htx *htx, enum htx_blk_type t
 static inline struct htx_blk *htx_add_header(struct htx *htx, const struct ist name,
 					     const struct ist value)
 {
-	struct htx_blk *blk;
+	struct htx_blk *blk, *tailblk;
 
 	if (name.len > 255 || value.len > 1048575)
 		return NULL;
 
+	tailblk = htx_get_tail_blk(htx);
 	blk = htx_add_blk(htx, HTX_BLK_HDR, name.len + value.len);
 	if (!blk)
 		return NULL;
@@ -486,6 +487,8 @@ static inline struct htx_blk *htx_add_header(struct htx *htx, const struct ist n
 	blk->info += (value.len << 8) + name.len;
 	ist2bin_lc(htx_get_blk_ptr(htx, blk), name);
 	memcpy(htx_get_blk_ptr(htx, blk)  + name.len, value.ptr, value.len);
+	if (tailblk && htx_get_blk_type(tailblk) >= HTX_BLK_EOH)
+		htx->flags |= HTX_FL_UNORDERED;
 	return blk;
 }
 
@@ -495,11 +498,12 @@ static inline struct htx_blk *htx_add_header(struct htx *htx, const struct ist n
 static inline struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist name,
 					      const struct ist value)
 {
-	struct htx_blk *blk;
+	struct htx_blk *blk, *tailblk;
 
 	if (name.len > 255 || value.len > 1048575)
 		return NULL;
 
+	tailblk = htx_get_tail_blk(htx);
 	blk = htx_add_blk(htx, HTX_BLK_TLR, name.len + value.len);
 	if (!blk)
 		return NULL;
@@ -507,6 +511,8 @@ static inline struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist 
 	blk->info += (value.len << 8) + name.len;
 	ist2bin_lc(htx_get_blk_ptr(htx, blk), name);
 	memcpy(htx_get_blk_ptr(htx, blk)  + name.len, value.ptr, value.len);
+	if (tailblk && htx_get_blk_type(tailblk) >= HTX_BLK_EOT)
+		htx->flags |= HTX_FL_UNORDERED;
 	return blk;
 }
 
