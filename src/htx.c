@@ -11,6 +11,7 @@
  */
 
 #include <haproxy/chunk.h>
+#include <haproxy/global.h>
 #include <haproxy/htx.h>
 #include <haproxy/net_helper.h>
 
@@ -30,28 +31,30 @@ static inline __attribute__((always_inline)) void htx_memcpy(void *dst, void *sr
 /* Defragments an HTX message. It removes unused blocks and unwraps the payloads
  * part. A temporary buffer is used to do so. This function never fails. Most of
  * time, we need keep a ref on a specific HTX block. Thus is <blk> is set, the
- * pointer on its new position, after defrag, is returned. In addition, if the
- * size of the block must be altered, <blkinfo> info must be provided (!=
+ * pointer on its new position, after defrag, is returned. If <blk> is a DATA
+ * block, no merge with any previous DATA block is performed. In addition, if
+ * the size of the block must be altered, <blkinfo> info must be provided (!=
  * 0). But in this case, it remains the caller responsibility to update the
  * block content.
  */
-/* TODO: merge data blocks into one */
 struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t blkinfo)
 {
-	struct buffer *chunk = get_trash_chunk();
-	struct htx *tmp = htxbuf(chunk);
+	struct buffer *chunk;
+	struct htx *tmp;
 	struct htx_blk *newblk, *oldblk;
+	enum htx_blk_type type;
 	uint32_t new, old, blkpos;
-	uint32_t addr, blksz;
-	int32_t first = -1;
+	uint32_t blksz;
 
 	if (htx->head == -1)
 		return NULL;
 
+	chunk = alloc_trash_chunk();
+	tmp = htxbuf(chunk);
+
 	blkpos = -1;
 
 	new  = 0;
-	addr = 0;
 	tmp->size = htx->size;
 	tmp->data = 0;
 
@@ -61,16 +64,25 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t blkinf
 		if (htx_get_blk_type(oldblk) == HTX_BLK_UNUSED)
 			continue;
 
+		type = htx_get_blk_type(oldblk);
 		blksz = htx_get_blksz(oldblk);
-		htx_memcpy((void *)tmp->blocks + addr, htx_get_blk_ptr(htx, oldblk), blksz);
+		switch (type) {
+			case HTX_BLK_DATA:
+				if (blk != oldblk) {
+					newblk = htx_add_data_atonce(tmp, htx_get_blk_value(htx, oldblk));
+					break;
+				}
+				__fallthrough;
+			default:
+				newblk = htx_add_blk(tmp, type, blksz);
+				newblk->info = oldblk->info;
+				htx_memcpy(htx_get_blk_ptr(tmp, newblk), htx_get_blk_ptr(htx, oldblk), blksz);
+				break;
+		};
 
 		/* update the start-line position */
 		if (htx->first == old)
-			first = new;
-
-		newblk = htx_get_blk(tmp, new);
-		newblk->addr = addr;
-		newblk->info = oldblk->info;
+			tmp->first = new;
 
 		/* if <blk> is defined, save its new position */
 		if (blk != NULL && blk == oldblk) {
@@ -78,22 +90,20 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t blkinf
 				newblk->info = blkinfo;
 			blkpos = new;
 		}
-
-		blksz = htx_get_blksz(newblk);
-		addr += blksz;
-		tmp->data += blksz;
 		new++;
 	}
 
-	htx->data = tmp->data;
-	htx->first = first;
-	htx->head = 0;
-	htx->tail = new - 1;
-	htx->head_addr = htx->end_addr = 0;
-	htx->tail_addr = addr;
+	BUG_ON(htx->data != tmp->data);
+	htx->first = tmp->first;
+	htx->head = tmp->head;
+	htx->tail = tmp->tail;
+	htx->head_addr = tmp->head_addr;
+	htx->end_addr = tmp->end_addr;
+	htx->tail_addr = tmp->tail_addr;
 	htx->flags &= ~HTX_FL_FRAGMENTED;
 	htx_memcpy((void *)htx->blocks, (void *)tmp->blocks, htx->size);
 
+	free_trash_chunk(chunk);
 	return ((blkpos == -1) ? NULL : htx_get_blk(htx, blkpos));
 }
 
