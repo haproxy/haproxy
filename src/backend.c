@@ -2276,7 +2276,6 @@ int connect_server(struct stream *s)
 	s->conn_exp = tick_add_ifset(now_ms, s->connect_timeout);
 
 	if (srv) {
-		s->flags |= SF_CURR_SESS;
 		if (s->be->lbprm.server_take_conn)
 			s->be->lbprm.server_take_conn(srv);
 	}
@@ -2782,9 +2781,6 @@ void back_handle_st_cer(struct stream *s)
 		struct connection *conn = sc_conn(sc);
 
 		health_adjust(__objt_server(s->target), HANA_STATUS_L4_ERR);
-
-		if (s->flags & SF_CURR_SESS)
-			s->flags &= ~SF_CURR_SESS;
 
 		if ((sc->flags & SC_FL_ERROR) &&
 		    conn && conn->err_code == CO_ER_SSL_MISMATCH_SNI) {

@@ -46,7 +46,7 @@
 
 #define SF_FORCE_PRST	0x00000010	/* force persistence here, even if server is down */
 #define SF_MONITOR	0x00000020	/* this stream comes from a monitoring system */
-#define SF_CURR_SESS	0x00000040	/* a connection is currently being counted on the server */
+/* 0x00000040 unused */
 #define SF_CONN_EXP     0x00000080      /* timeout has expired */
 #define SF_REDISP	0x00000100	/* set if this stream was redispatched from one server to another */
 #define SF_IGNORE	0x00000200      /* The stream lead to a mux upgrade, and should be ignored */
@@ -120,8 +120,8 @@ static forceinline char *strm_show_flags(char *buf, size_t len, const char *deli
 	_e(SF_ERR_MASK, SF_ERR_UP,       _e(SF_ERR_MASK, SF_ERR_CHK_PORT))))))))))));
 
 	_(SF_DIRECT, _(SF_ASSIGNED, _(SF_MAYALLOC, _(SF_BE_ASSIGNED, _(SF_FORCE_PRST,
-	_(SF_MONITOR, _(SF_CURR_SESS, _(SF_CONN_EXP, _(SF_REDISP,
-	_(SF_IGNORE, _(SF_REDIRECTABLE, _(SF_HTX))))))))))));
+	_(SF_MONITOR, _(SF_CONN_EXP, _(SF_REDISP,
+	_(SF_IGNORE, _(SF_REDIRECTABLE, _(SF_HTX)))))))))));
 
 	/* epilogue */
 	_(~0U);

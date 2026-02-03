@@ -3534,9 +3534,6 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		stream_del_srv_conn(s);
 		if (objt_server(s->target)) {
-			if (s->flags & SF_CURR_SESS) {
-				s->flags &= ~SF_CURR_SESS;
-			}
 			if (may_dequeue_tasks(__objt_server(s->target), be))
 				process_srv_queue(__objt_server(s->target));
 		}
@@ -3566,7 +3563,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->res.to_forward = 0;
 		s->pcli_flags &= ~PCLI_F_BIDIR;
 		s->flags &= ~(SF_DIRECT|SF_ASSIGNED|SF_BE_ASSIGNED|SF_FORCE_PRST|SF_IGNORE_PRST);
-		s->flags &= ~(SF_CURR_SESS|SF_REDIRECTABLE|SF_SRV_REUSED);
+		s->flags &= ~(SF_REDIRECTABLE|SF_SRV_REUSED);
 		s->flags &= ~(SF_ERR_MASK|SF_FINST_MASK|SF_REDISP);
 		s->conn_retries = 0;  /* used for logging too */
 		s->conn_exp = TICK_ETERNITY;

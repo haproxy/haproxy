@@ -630,9 +630,6 @@ void stream_free(struct stream *s)
 	pendconn_free(s);
 
 	if (objt_server(s->target)) { /* there may be requests left pending in queue */
-		if (s->flags & SF_CURR_SESS)
-			s->flags &= ~SF_CURR_SESS;
-
 		if (may_dequeue_tasks(__objt_server(s->target), s->be))
 			process_srv_queue(__objt_server(s->target));
 	}
@@ -2056,9 +2053,6 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		scb->state = SC_ST_CLO;
 		srv = objt_server(s->target);
 		if (srv) {
-			if (s->flags & SF_CURR_SESS)
-				s->flags &= ~SF_CURR_SESS;
-
 			/*
 			 * We don't want to release the slot just yet
 			 * if we're using strict-maxconn, we want to
@@ -2980,9 +2974,6 @@ void stream_shutdown_self(struct stream *stream, int why)
 		stream->flags |= why;
 
 	if (objt_server(stream->target)) {
-		if (stream->flags & SF_CURR_SESS)
-			stream->flags &= ~SF_CURR_SESS;
-
 		sess_change_server(stream, NULL);
 		if (may_dequeue_tasks(objt_server(stream->target), stream->be))
 			process_srv_queue(objt_server(stream->target));
