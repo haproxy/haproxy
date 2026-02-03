@@ -100,7 +100,7 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t blkinf
 	htx->head_addr = tmp->head_addr;
 	htx->end_addr = tmp->end_addr;
 	htx->tail_addr = tmp->tail_addr;
-	htx->flags &= ~HTX_FL_FRAGMENTED;
+	htx->flags &= ~(HTX_FL_FRAGMENTED|HTX_FL_UNORDERED);
 	htx_memcpy((void *)htx->blocks, (void *)tmp->blocks, htx->size);
 
 	free_trash_chunk(chunk);
@@ -485,7 +485,8 @@ struct htx_ret htx_drain(struct htx *htx, uint32_t count)
 	struct htx_ret htxret = { .blk = NULL, .ret = 0 };
 
 	if (count == htx->data) {
-		uint32_t flags = (htx->flags & ~HTX_FL_FRAGMENTED); /* Preserve flags except FRAGMENTED */
+		 /* Preserve flags except FRAGMENTED and UNORDERED */
+		uint32_t flags = (htx->flags & ~(HTX_FL_FRAGMENTED|HTX_FL_UNORDERED));
 
 		htx_reset(htx);
 		htx->flags = flags; /* restore flags */
@@ -530,7 +531,8 @@ struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data)
 {
 	struct htx_blk *blk, *tailblk;
 	void *ptr;
-	uint32_t len, sz, tailroom, headroom;
+	uint32_t sz, tailroom, headroom;
+	uint32_t flags = 0;
 
 	if (htx->head == -1)
 		goto add_new_block;
@@ -547,8 +549,11 @@ struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data)
 
 	/* Don't try to append data if the last inserted block is not of the
 	 * same type */
-	if (htx_get_blk_type(tailblk) != HTX_BLK_DATA)
+	if (htx_get_blk_type(tailblk) != HTX_BLK_DATA) {
+		if (htx_get_blk_type(tailblk) > HTX_BLK_DATA)
+			flags |= HTX_FL_UNORDERED;
 		goto add_new_block;
+	}
 
 	/*
 	 * Same type and enough space: append data
@@ -558,39 +563,40 @@ struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data)
 	BUG_ON((int32_t)headroom < 0);
 	BUG_ON((int32_t)tailroom < 0);
 
-	len = data.len;
 	if (tailblk->addr+sz == htx->tail_addr) {
 		if (data.len <= tailroom)
 			goto append_data;
 		else if (!htx->head_addr) {
-			len = tailroom;
-			goto append_data;
+			/* Not enough space in tailroom: Defrag instead of wrapping */
 		}
 	}
 	else if (tailblk->addr+sz == htx->head_addr && data.len <= headroom)
 		goto append_data;
 
-	goto add_new_block;
+	/* Unable to append data in the DATA block, defrag the message first and append data */
+	htx_defrag(htx, NULL, 0);
+	tailblk = htx_get_tail_blk(htx);
+	if (tailblk == NULL)
+		goto add_new_block;
+	sz = htx_get_blksz(tailblk);
+	if (sz + data.len >= (256 << 20))
+		goto add_new_block;
 
   append_data:
 	/* Append data and update the block itself */
 	ptr = htx_get_blk_ptr(htx, tailblk);
-	htx_memcpy(ptr+sz, data.ptr, len);
-	htx_change_blk_value_len(htx, tailblk, sz+len);
-
-	if (data.len == len) {
-		blk = tailblk;
-		goto end;
-	}
-	data = istadv(data, len);
+	htx_memcpy(ptr+sz, data.ptr, data.len);
+	htx_change_blk_value_len(htx, tailblk, sz+data.len);
+	blk = tailblk;
+	goto end;
 
   add_new_block:
 	blk = htx_add_blk(htx, HTX_BLK_DATA, data.len);
 	if (!blk)
 		return NULL;
-
 	blk->info += data.len;
 	htx_memcpy(htx_get_blk_ptr(htx, blk), data.ptr, data.len);
+	htx->flags |= flags;
 
   end:
 	BUG_ON((int32_t)htx->tail_addr < 0);
@@ -658,6 +664,7 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 		/* set the new block size and update HTX message */
 		htx_set_blk_value_len(blk, v.len + delta);
 		htx->data += delta;
+		htx->flags |= HTX_FL_FRAGMENTED;
 	}
 	else { /* Do a degrag first (it is always an expansion) */
 		struct htx_blk tmpblk;
@@ -814,7 +821,9 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 		for (blk = htx_get_head_blk(src); blk && blk != srcref; blk = htx_remove_blk(src, blk));
 	}
 
-  end:
+	if (htx_is_empty(src))
+		dst->flags |= (src->flags & (HTX_FL_EOM|HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR));
+
 	ret = htx_used_space(dst) - ret;
 	return (struct htx_ret){.ret = ret, .blk = dstblk};
 }
@@ -847,6 +856,8 @@ struct htx_blk *htx_replace_header(struct htx *htx, struct htx_blk *blk,
 	if (ret == 3)
 		blk = htx_defrag(htx, blk, (type << 28) + (value.len << 8) + name.len);
 	else {
+		if (ret == 2)
+			htx->flags |= HTX_FL_FRAGMENTED;
 		/* Set the new block size and update HTX message */
 		blk->info = (type << 28) + (value.len << 8) + name.len;
 		htx->data += delta;
@@ -894,6 +905,8 @@ struct htx_sl *htx_replace_stline(struct htx *htx, struct htx_blk *blk, const st
 		blk = htx_defrag(htx, blk, (type << 28) + sz + delta);
 	}
 	else {
+		if (ret == 2)
+			htx->flags |= HTX_FL_FRAGMENTED;
 		/* Set the new block size and update HTX message */
 		blk->info = (type << 28) + sz + delta;
 		htx->data += delta;
@@ -926,6 +939,7 @@ struct htx_ret htx_reserve_max_data(struct htx *htx)
 	struct htx_blk *blk, *tailblk;
 	uint32_t sz, room;
 	int32_t len = htx_free_data_space(htx);
+	uint32_t flags = 0;
 
 	if (htx->head == -1)
 		goto rsv_new_block;
@@ -937,12 +951,22 @@ struct htx_ret htx_reserve_max_data(struct htx *htx)
 	tailblk = htx_get_tail_blk(htx);
 	if (tailblk == NULL)
 		goto rsv_new_block;
-	sz = htx_get_blksz(tailblk);
 
 	/* Don't try to append data if the last inserted block is not of the
 	 * same type */
-	if (htx_get_blk_type(tailblk) != HTX_BLK_DATA)
+	if (htx_get_blk_type(tailblk) != HTX_BLK_DATA) {
+		if (htx_get_blk_type(tailblk) > HTX_BLK_DATA)
+			flags |= HTX_FL_UNORDERED;
 		goto rsv_new_block;
+	}
+
+	if (htx->flags & HTX_FL_FRAGMENTED) {
+		htx_defrag(htx, NULL, 0);
+		tailblk = htx_get_tail_blk(htx);
+		if (tailblk == NULL)
+			goto rsv_new_block;
+	}
+	sz = htx_get_blksz(tailblk);
 
 	/*
 	 * Same type and enough space: append data
@@ -974,6 +998,7 @@ rsv_new_block:
 	blk = htx_add_blk(htx, HTX_BLK_DATA, len);
 	if (!blk)
 		return (struct htx_ret){.ret = 0, .blk = NULL};
+	htx->flags |= flags;
 	blk->info += len;
 	return (struct htx_ret){.ret = 0, .blk = blk};
 }
@@ -988,6 +1013,7 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 	void *ptr;
 	uint32_t sz, room;
 	int32_t len = data.len;
+	uint32_t flags = 0;
 
 	/* Not enough space to store data */
 	if (len > htx_free_data_space(htx))
@@ -1003,13 +1029,24 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 	tailblk = htx_get_tail_blk(htx);
 	if (tailblk == NULL)
 		goto add_new_block;
-	sz = htx_get_blksz(tailblk);
 
 	/* Don't try to append data if the last inserted block is not of the
 	 * same type */
-	if (htx_get_blk_type(tailblk) != HTX_BLK_DATA)
+	if (htx_get_blk_type(tailblk) != HTX_BLK_DATA) {
+		if (htx_get_blk_type(tailblk) > HTX_BLK_DATA)
+			flags |= HTX_FL_UNORDERED;
 		goto add_new_block;
+	}
 
+	if (htx->flags & HTX_FL_FRAGMENTED) {
+		htx_defrag(htx, NULL, 0);
+		tailblk = htx_get_tail_blk(htx);
+		if (tailblk == NULL)
+			goto add_new_block;
+	}
+	sz = htx_get_blksz(tailblk);
+	if (sz + data.len >= (256 << 20))
+		goto add_new_block;
 	/*
 	 * Same type and enough space: append data
 	 */
@@ -1044,6 +1081,7 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 	if (!blk)
 		return 0;
 
+	htx->flags |= flags;
 	blk->info += len;
 	htx_memcpy(htx_get_blk_ptr(htx, blk), data.ptr, len);
 	return len;
@@ -1089,6 +1127,8 @@ void htx_move_blk_before(struct htx *htx, struct htx_blk **blk, struct htx_blk *
 
 	cblk = *blk;
 	for (pblk = htx_get_prev_blk(htx, cblk); pblk; pblk = htx_get_prev_blk(htx, pblk)) {
+		htx->flags |= HTX_FL_UNORDERED;
+
 		/* Swap .addr and .info fields */
 		cblk->addr ^= pblk->addr; pblk->addr ^= cblk->addr; cblk->addr ^= pblk->addr;
 		cblk->info ^= pblk->info; pblk->info ^= cblk->info; cblk->info ^= pblk->info;
