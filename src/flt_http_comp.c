@@ -302,6 +302,10 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 					last = 0;
 					v.len = len;
 				}
+				if (v.len > b_size(&trash)) {
+					last = 0;
+					v.len = b_size(&trash);
+				}
 
 				ret = htx_compression_buffer_add_data(st, v.ptr, v.len, &trash, dir);
 				if (ret < 0 || htx_compression_buffer_end(st, &trash, last, dir) < 0)
