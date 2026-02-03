@@ -7234,7 +7234,7 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 	 * the time. This goes for headers, data blocks and any data extracted
 	 * from the HTX blocks.
 	 */
-	if (unlikely(fsize == count &&
+	if (unlikely(fsize == count && b_size(mbuf) == b_size(buf) &&
 	             htx_nbblks(htx) == 1 && type == HTX_BLK_DATA &&
 	             fsize <= h2s_mws(h2s) && fsize <= h2c->mws && fsize <= h2c->mfs)) {
 		void *old_area = mbuf->area;
