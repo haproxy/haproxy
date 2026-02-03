@@ -505,7 +505,7 @@ size_t appctx_htx_rcv_buf(struct appctx *appctx, struct buffer *buf, size_t coun
 
 	ret = appctx_htx->data;
 	buf_htx = htx_from_buf(buf);
-	if (htx_is_empty(buf_htx) && htx_used_space(appctx_htx) <= count) {
+	if (b_size(&appctx->outbuf) == b_size(buf) && htx_is_empty(buf_htx) && htx_used_space(appctx_htx) <= count) {
 		htx_to_buf(buf_htx, buf);
 		htx_to_buf(appctx_htx, &appctx->outbuf);
 		b_xfer(buf, &appctx->outbuf, b_data(&appctx->outbuf));
