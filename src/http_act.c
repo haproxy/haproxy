@@ -2379,8 +2379,9 @@ static enum act_return http_action_wait_for_body(struct act_rule *rule, struct p
 	struct channel *chn = ((rule->from == ACT_F_HTTP_REQ) ? &s->req : &s->res);
 	unsigned int time = (uintptr_t)rule->arg.act.p[0];
 	unsigned int bytes = (uintptr_t)rule->arg.act.p[1];
+	unsigned int large_buffer = (uintptr_t)rule->arg.act.p[2];
 
-	switch (http_wait_for_msg_body(s, chn, time, bytes)) {
+	switch (http_wait_for_msg_body(s, chn, time, bytes, large_buffer)) {
 	case HTTP_RULE_RES_CONT:
 		return ACT_RET_CONT;
 	case HTTP_RULE_RES_YIELD:
@@ -2396,6 +2397,21 @@ static enum act_return http_action_wait_for_body(struct act_rule *rule, struct p
 	}
 }
 
+/* Check function for 'wait-for-body' HTTP action. The function returns 1 in
+ * success case, otherwise, it returns 0 and err is filled.
+ */
+static int check_http_wait_for_body(struct act_rule *rule, struct proxy *px, char **err)
+{
+	unsigned int large_buffer = (uintptr_t)rule->arg.act.p[2];
+
+	if (large_buffer == 1 && !global.tune.bufsize_large) {
+		memprintf(err, "unable to use large buffers at %s:%d, 'tune.bufsize.large' global parameter must be set",
+			  rule->conf.file, rule->conf.line);
+		return 0;
+	}
+	return 1;
+}
+
 /* Parse a "wait-for-body" action. It returns ACT_RET_PRS_OK on success,
  * ACT_RET_PRS_ERR on error.
  */
@@ -2403,7 +2419,7 @@ static enum act_parse_ret parse_http_wait_for_body(const char **args, int *orig_
 						   struct act_rule *rule, char **err)
 {
 	int cur_arg;
-	unsigned int time, bytes;
+	unsigned int time, bytes, large_buffer;
 	const char *res;
 
 	cur_arg = *orig_arg;
@@ -2414,6 +2430,7 @@ static enum act_parse_ret parse_http_wait_for_body(const char **args, int *orig_
 
 	time = UINT_MAX; /* To be sure it is set */
 	bytes = 0; /* Default value, wait all the body */
+	large_buffer = 0; /* Don't use large buffers by default */
 	while (*(args[cur_arg])) {
 		if (strcmp(args[cur_arg], "time") == 0) {
 			if (!*args[cur_arg + 1]) {
@@ -2447,6 +2464,8 @@ static enum act_parse_ret parse_http_wait_for_body(const char **args, int *orig_
 			}
 			cur_arg++;
 		}
+		else if (strcmp(args[cur_arg], "use-large-buffer") == 0)
+			large_buffer = 1;
 		else
 			break;
 		cur_arg++;
@@ -2459,11 +2478,13 @@ static enum act_parse_ret parse_http_wait_for_body(const char **args, int *orig_
 
 	rule->arg.act.p[0] = (void *)(uintptr_t)time;
 	rule->arg.act.p[1] = (void *)(uintptr_t)bytes;
+	rule->arg.act.p[2] = (void *)(uintptr_t)large_buffer;
 
 	*orig_arg = cur_arg;
 
 	rule->action = ACT_CUSTOM;
 	rule->action_ptr = http_action_wait_for_body;
+	rule->check_ptr = check_http_wait_for_body;
 	return ACT_RET_PRS_OK;
 }
 

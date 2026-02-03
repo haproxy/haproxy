@@ -16603,7 +16603,7 @@ use-service <service-name>
     http-request use-service prometheus-exporter if { path /metrics }
 
 
-wait-for-body time <time> [ at-least <bytes> ]
+wait-for-body time <time> [ at-least <bytes> ] [use-large-buffer]
   Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     - |          -  |   -  |   -  |   -  |          X |  X |  -
 
@@ -16621,6 +16621,10 @@ wait-for-body time <time> [ at-least <bytes> ]
     happens first, this timeout will not occur even if the full body has
     not yet been received.
 
+  "use-large-buffer" option may be set to allocate a large buffer if regular
+  one is to small to store the message body. To be used, "tune.bufsize.large"
+  global option must be defined.
+
   This action may be used as a replacement for "option http-buffer-request".
 
   Arguments :
@@ -16635,7 +16639,7 @@ wait-for-body time <time> [ at-least <bytes> ]
   Example:
     http-request wait-for-body time 1s at-least 1k if METH_POST
 
-  See also : "option http-buffer-request"
+  See also : "option http-buffer-request" and "tune.bufsize.large"
 
 
 wait-for-handshake

@@ -846,7 +846,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, &s->txn->req);
 
 
-	switch (http_wait_for_msg_body(s, req, s->be->timeout.httpreq, 0)) {
+	switch (http_wait_for_msg_body(s, req, s->be->timeout.httpreq, 0, 0)) {
 	case HTTP_RULE_RES_CONT:
 		s->waiting_entity.type = STRM_ENTITY_NONE;
 		s->waiting_entity.ptr = NULL;
@@ -4253,7 +4253,7 @@ static int http_handle_stats(struct stream *s, struct channel *req, struct proxy
  * side). All other errors must be handled by the caller.
  */
 enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
-					unsigned int time, unsigned int bytes)
+					unsigned int time, unsigned int bytes, unsigned int large_buffer)
 {
 	struct session *sess = s->sess;
 	struct http_txn *txn = s->txn;
@@ -4286,11 +4286,8 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 	/* Now we're are waiting for the payload. We just need to know if all
 	 * data have been received or if the buffer is full.
 	 */
-	if ((htx->flags & HTX_FL_EOM) ||
-	    htx_get_tail_type(htx) > HTX_BLK_DATA ||
-	    channel_htx_full(chn, htx, global.tune.maxrewrite) ||
-	    sc_waiting_room(chn_prod(chn)))
-		goto end;
+	if ((htx->flags & HTX_FL_EOM) || htx_get_tail_type(htx) > HTX_BLK_DATA)
+		goto end; /* all data received */
 
 	if (bytes) {
 		struct htx_blk *blk;
@@ -4303,6 +4300,27 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 			if (len >= bytes)
 				goto end;
 		}
+	}
+
+	if (channel_htx_full(chn, htx, global.tune.maxrewrite) || sc_waiting_room(chn_prod(chn))) {
+		struct buffer lbuf;
+		char *area;
+
+		if (large_buffer == 0 || c_size(chn) == global.tune.bufsize_large)
+			goto end; /* don't use large buffer or large buffer is full */
+
+		/* normal buffer is full, allocate a large one
+		 */
+		area = pool_alloc(pool_head_large_buffer);
+		if (!area)
+			goto end; /* Allocation failure: TODO must be improved to use buffer_wait */
+		lbuf = b_make(area, global.tune.bufsize_large, 0, 0);
+		htx_xfer_blks(htx_from_buf(&lbuf), htx, htx_used_space(htx), HTX_BLK_UNUSED);
+		htx_to_buf(htx, &chn->buf);
+		b_free(&chn->buf);
+		offer_buffers(s, 1);
+		chn->buf = lbuf;
+		htx = htxbuf(&chn->buf);
 	}
 
 	if ((chn->flags & CF_READ_TIMEOUT) || tick_is_expired(chn->analyse_exp, now_ms)) {
