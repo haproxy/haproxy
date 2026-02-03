@@ -5918,10 +5918,11 @@ static struct task *server_warmup(struct task *t, void *context, unsigned int st
 	/* recalculate the weights and update the state */
 	server_recalc_eweight(s, 1);
 
+	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
+
 	/* probably that we can refill this server with a bit more connections */
 	process_srv_queue(s);
 
-	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 
 	/* get back there in 1 second or 1/20th of the slowstart interval,
 	 * whichever is greater, resulting in small 5% steps.
