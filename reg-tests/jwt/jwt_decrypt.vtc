@@ -1,8 +1,8 @@
 #REGTEST_TYPE=devel
 
-# This reg-test checks the behaviour of the jwt_decrypt_secret and
-# jwt_decrypt_cert converters that decode a JSON Web Encryption (JWE) token,
-# checks its signature and decrypt its content (RFC 7516).
+# This reg-test checks the behaviour of the jwt_decrypt_secret,
+# jwt_decrypt_cert and jwt_decrypt converters that decode a JSON Web Encryption
+# (JWE) token, check its signature and decrypt its content (RFC 7516).
 # The tokens have two tiers of encryption, one that is used to encrypt a secret
 # ("alg" field of the JOSE header) and this secret is then used to
 # encrypt/decrypt the data contained in the token ("enc" field of the JOSE
@@ -18,7 +18,7 @@ feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.4-dev2)'"
 feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && openssl_version_atleast(1.1.1)'"
 feature ignore_unknown_macro
 
-server s1 -repeat 10 {
+server s1 -repeat 20 {
   rxreq
   txresp
 } -start
@@ -57,6 +57,7 @@ haproxy h1 -conf {
 
         use_backend secret_based_alg if { path_beg /secret }
         use_backend pem_based_alg if { path_beg /pem }
+        use_backend jwk if { path_beg /jwk }
         default_backend dflt
 
 
@@ -85,6 +86,21 @@ haproxy h1 -conf {
         http-after-response set-header X-Decrypted %[var(txn.decrypted)]
         server s1 ${s1_addr}:${s1_port}
 
+    backend jwk
+
+        http-request set-var(txn.jwe) http_auth_bearer
+        http-request set-var(txn.jwk) req.fhdr(X-JWK)
+
+        http-request set-var(txn.decrypted) var(txn.jwe),jwt_decrypt(txn.jwk)
+
+    .if ssllib_name_startswith(AWS-LC)
+        acl aws_unmanaged var(txn.jwe),jwt_header_query('$.alg') -m str "A128KW"
+        http-request set-var(txn.decrypted) str("AWS-LC UNMANAGED") if aws_unmanaged
+    .endif
+
+        http-after-response set-header X-Decrypted %[var(txn.decrypted)]
+        server s1 ${s1_addr}:${s1_port}
+
 
     backend dflt
         server s1 ${s1_addr}:${s1_port}
@@ -102,6 +118,10 @@ client c1_1 -connect ${h1_mainfe_sock} {
     txreq -url "/secret" -hdr "Authorization: Bearer eyJhbGciOiAiZGlyIiwgImVuYyI6ICJBMjU2R0NNIn0..hxCk0nP4aVNpgfb7.inlyAZtUzDCTpD_9iuWx.Pyu90cmgkXenMIVu9RUp8w" -hdr "X-Secret: ZMpktzGq1g6_r4fKVdnx9OaYr4HjxPjIs7l7SwAsgsg"
     rxresp
     expect resp.http.x-decrypted == "Setec Astronomy"
+
+    txreq -url "/jwk" -hdr "Authorization: Bearer eyJhbGciOiAiZGlyIiwgImVuYyI6ICJBMjU2R0NNIn0..hxCk0nP4aVNpgfb7.inlyAZtUzDCTpD_9iuWx.Pyu90cmgkXenMIVu9RUp8w" -hdr "X-JWK: {\"kty\":\"oct\", \"k\":\"ZMpktzGq1g6_r4fKVdnx9OaYr4HjxPjIs7l7SwAsgsg\"}"
+    rxresp
+    expect resp.http.x-decrypted == "Setec Astronomy"
 } -run
 
 
@@ -111,6 +131,10 @@ client c1_1 -connect ${h1_mainfe_sock} {
 # Token is modified to have an invalid tag
 client c1_2 -connect ${h1_mainfe_sock} {
     txreq -url "/secret" -hdr "Authorization: Bearer eyJhbGciOiAiZGlyIiwgImVuYyI6ICJBMjU2R0NNIn0..hxCk0nP4aVNpgfb7.inlyAZtUzDCTpD_9iuWx.Pyu90cmgkXenMIVu9RUp8v" -hdr "X-Secret: ZMpktzGq1g6_r4fKVdnx9OaYr4HjxPjIs7l7SwAsgsg"
+    rxresp
+    expect resp.http.x-decrypted == ""
+
+    txreq -url "/jwk" -hdr "Authorization: Bearer eyJhbGciOiAiZGlyIiwgImVuYyI6ICJBMjU2R0NNIn0..hxCk0nP4aVNpgfb7.inlyAZtUzDCTpD_9iuWx.Pyu90cmgkXenMIVu9RUp8v" -hdr "X-JWK: {\"kty\":\"oct\", \"k\":\"ZMpktzGq1g6_r4fKVdnx9OaYr4HjxPjIs7l7SwAsgsg\"}"
     rxresp
     expect resp.http.x-decrypted == ""
 } -run
@@ -124,6 +148,10 @@ client c1_3 -connect ${h1_mainfe_sock} {
     txreq -url "/secret" -hdr "Authorization: Bearer eyJhbGciOiAiZGlyIiwgImVuYyI6ICJBMjU2R0NNIn0..hxCk0nP4aVNpgfb7.inlyAZtUzDCTpD_9iuWx.Pyu90cmgkXenMIVu9RUp8w" -hdr "X-Secret: zMpktzGq1g6_r4fKVdnx9OaYr4HjxPjIs7l7SwAsgsg"
     rxresp
     expect resp.http.x-decrypted == ""
+
+    txreq -url "/jwk" -hdr "Authorization: Bearer eyJhbGciOiAiZGlyIiwgImVuYyI6ICJBMjU2R0NNIn0..hxCk0nP4aVNpgfb7.inlyAZtUzDCTpD_9iuWx.Pyu90cmgkXenMIVu9RUp8v" -hdr "X-JWK: {\"kty\":\"oct\", \"k\":\"zMpktzGq1g6_r4fKVdnx9OaYr4HjxPjIs7l7SwAsgsg\"}"
+    rxresp
+    expect resp.http.x-decrypted == ""
 } -run
 
 
@@ -132,6 +160,11 @@ client c1_3 -connect ${h1_mainfe_sock} {
 #KEY: {"kty":"oct", "k":"3921VrO5TrLvPQ-NFLlghQ"}
 client c2_1 -connect ${h1_mainfe_sock} {
     txreq -url "/secret" -hdr "Authorization: Bearer eyJhbGciOiAiQTEyOEtXIiwgImVuYyI6ICJBMTI4Q0JDLUhTMjU2In0.AaOyP1zNjsywJOoQ941JJWT4LQIDlpy3UibM_48HrsoCJ5ENpQhfbQ.h2ZBUiy9ofvcDZOwV2iVJA.K0FhK6ri44ZWmtFUtJRpiZSeT8feKX5grFpU8xG5026bGXAdZADO4ZkQ8DRvSEE9DwNIlK6cIEoSavm12gSzQVXajz3MWv5U6VbK5gPFCeFjJfMPmdQ9THIi-hapcueSxYz2rkcGxo3iP3ixE_bww8UB_XlQvnokhFxtf8NushMkjef4RDrW5vQu4j_qPbqG334msDKmFi8Klprs6JktrADeEJ0bPGN80NKEWp7XPcCbfmcwYe-9z_tPw_KJcQhLpQevfPLfVI4WjPgPxYNGw03qKYnLD7oTjr9qCrQmzUVXutlhxfpD3UQr11SJu8q19Ug82bON-GRd2CjpSrErQq42dd0_mWjG9iDqjqpYFBK9DV_qawy2dxFbfIcCsnb6ewifjoJLiFg2OT7-YdTaC7kqaXeE1JpA-OtMXN72FUDrnQ8r9ifj_VpMNvBf_36dbOCT-cGwIOI8Pf6HH2smXULhtBv9q-qO2zyScpmliqZDXUqmvQ8rxi-xYI2hijV80jo14teZgIotWsZE2FrMPJTkegDmh4cG5UzoUsQxzPhXqHvkss6Hv7h-_fmvXvXY1AZ8T8bL1qM4bS8mKpewmGtjmU6S220tL60ieT2QL0vmTFlJkOE8uFreWlPnxNKBix_zj4Smhg1zS_sl7GoXhp5Q_QY3MOMM5-gCAALY0crqLLWtHswElVOiJSyd64T9HFyXm7Rleqq2kLXmTvDhOR6lzMnA0rcGP7lQGYlLZgFiicsMY722XlKI3v1-cJYvj2RZMPe1ijBLFFTqyPeCBkbsDC3XCpWhMByNHSHKN3t-NJmQBIC-89ZeOMU-WBtqrDDi_CMnaz9mwkyt3P7ja_fVskc4KKBBlMVYDZ3DJeJw3Kg9Pie0XlqHkD6W1vyAWjOM2z76Rh_3553dLAH1HxNRwidLjq3SvoaX3TOU5O2_omFGPBek7QdzhNBGLgv6Zlul_XxZq9UGiVo1jrnkd40_vAZQRL6NyMxGBEij_b8F_wDMz5njrL-a0c2Y5mMno-q8gmM4sFKI1BS5HsrUAw.PFFSFlDslALnebAdaqS_MA" -hdr "X-Secret: 3921VrO5TrLvPQ-NFLlghQ"
+    rxresp
+    expect resp.http.x-decrypted ~ "(Sed ut perspiciatis unde omnis iste natus error sit voluptatem doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo veritatis et quasi architecto beatae vitae dicta sunt explicabo\\. Nemo ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt\\. porro quisquam est, qui dolorem ipsum quia dolor sit amet, adipisci velit, sed quia non numquam eius modi tempora incidunt ut dolore magnam aliquam quaerat voluptatem\\. Ut enim ad minima veniam, nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut ea commodi consequatur\\? Quis autem vel eum iure reprehenderit qui in voluptate velit esse quam nihil molestiae consequatur, vel illum qui eum fugiat quo voluptas nulla pariatur\\?|AWS-LC UNMANAGED)"
+
+
+    txreq -url "/jwk" -hdr "Authorization: Bearer eyJhbGciOiAiQTEyOEtXIiwgImVuYyI6ICJBMTI4Q0JDLUhTMjU2In0.AaOyP1zNjsywJOoQ941JJWT4LQIDlpy3UibM_48HrsoCJ5ENpQhfbQ.h2ZBUiy9ofvcDZOwV2iVJA.K0FhK6ri44ZWmtFUtJRpiZSeT8feKX5grFpU8xG5026bGXAdZADO4ZkQ8DRvSEE9DwNIlK6cIEoSavm12gSzQVXajz3MWv5U6VbK5gPFCeFjJfMPmdQ9THIi-hapcueSxYz2rkcGxo3iP3ixE_bww8UB_XlQvnokhFxtf8NushMkjef4RDrW5vQu4j_qPbqG334msDKmFi8Klprs6JktrADeEJ0bPGN80NKEWp7XPcCbfmcwYe-9z_tPw_KJcQhLpQevfPLfVI4WjPgPxYNGw03qKYnLD7oTjr9qCrQmzUVXutlhxfpD3UQr11SJu8q19Ug82bON-GRd2CjpSrErQq42dd0_mWjG9iDqjqpYFBK9DV_qawy2dxFbfIcCsnb6ewifjoJLiFg2OT7-YdTaC7kqaXeE1JpA-OtMXN72FUDrnQ8r9ifj_VpMNvBf_36dbOCT-cGwIOI8Pf6HH2smXULhtBv9q-qO2zyScpmliqZDXUqmvQ8rxi-xYI2hijV80jo14teZgIotWsZE2FrMPJTkegDmh4cG5UzoUsQxzPhXqHvkss6Hv7h-_fmvXvXY1AZ8T8bL1qM4bS8mKpewmGtjmU6S220tL60ieT2QL0vmTFlJkOE8uFreWlPnxNKBix_zj4Smhg1zS_sl7GoXhp5Q_QY3MOMM5-gCAALY0crqLLWtHswElVOiJSyd64T9HFyXm7Rleqq2kLXmTvDhOR6lzMnA0rcGP7lQGYlLZgFiicsMY722XlKI3v1-cJYvj2RZMPe1ijBLFFTqyPeCBkbsDC3XCpWhMByNHSHKN3t-NJmQBIC-89ZeOMU-WBtqrDDi_CMnaz9mwkyt3P7ja_fVskc4KKBBlMVYDZ3DJeJw3Kg9Pie0XlqHkD6W1vyAWjOM2z76Rh_3553dLAH1HxNRwidLjq3SvoaX3TOU5O2_omFGPBek7QdzhNBGLgv6Zlul_XxZq9UGiVo1jrnkd40_vAZQRL6NyMxGBEij_b8F_wDMz5njrL-a0c2Y5mMno-q8gmM4sFKI1BS5HsrUAw.PFFSFlDslALnebAdaqS_MA" -hdr "X-JWK: {\"kty\":\"oct\", \"k\":\"3921VrO5TrLvPQ-NFLlghQ\"}"
     rxresp
     expect resp.http.x-decrypted ~ "(Sed ut perspiciatis unde omnis iste natus error sit voluptatem doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo veritatis et quasi architecto beatae vitae dicta sunt explicabo\\. Nemo ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt\\. porro quisquam est, qui dolorem ipsum quia dolor sit amet, adipisci velit, sed quia non numquam eius modi tempora incidunt ut dolore magnam aliquam quaerat voluptatem\\. Ut enim ad minima veniam, nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut ea commodi consequatur\\? Quis autem vel eum iure reprehenderit qui in voluptate velit esse quam nihil molestiae consequatur, vel illum qui eum fugiat quo voluptas nulla pariatur\\?|AWS-LC UNMANAGED)"
 } -run
@@ -178,6 +211,10 @@ client c5 -connect ${h1_mainfe_sock} {
     txreq -url "/secret" -hdr "Authorization: Bearer eyJhbGciOiJBMjU2R0NNS1ciLCJlbmMiOiJBMTkyQ0JDLUhTMzg0IiwiaXYiOiJzVE81QjlPRXFuaUhCX3dYIiwidGFnIjoid2M1ZnRpYUFnNGNOR1JkZzNWQ3FXdyJ9.2zqnM9zeNU-eAMp5h2uFJyxbHHKsZs9YAYKzOcIF3d3Q9uq1TMQAvqOIuXw3kU9o.hh5aObIoIMR6Ke0rXm6V1A.R7U-4OlqOR6f2C1b3nI5bFqZBIGNBgza7FfoPEgrQT8.asJCzUAHCuxS7o8Ut4ENfaY5RluLB35F" -hdr "X-Secret: vprpatiNyI-biJY57qr8Gg4--4Rycgb2G5yO1_myYAw"
     rxresp
     expect resp.http.x-decrypted == "My Encrypted message"
+
+    txreq -url "/jwk" -hdr "Authorization: Bearer eyJhbGciOiJBMjU2R0NNS1ciLCJlbmMiOiJBMTkyQ0JDLUhTMzg0IiwiaXYiOiJzVE81QjlPRXFuaUhCX3dYIiwidGFnIjoid2M1ZnRpYUFnNGNOR1JkZzNWQ3FXdyJ9.2zqnM9zeNU-eAMp5h2uFJyxbHHKsZs9YAYKzOcIF3d3Q9uq1TMQAvqOIuXw3kU9o.hh5aObIoIMR6Ke0rXm6V1A.R7U-4OlqOR6f2C1b3nI5bFqZBIGNBgza7FfoPEgrQT8.asJCzUAHCuxS7o8Ut4ENfaY5RluLB35F" -hdr "X-JWK: {\"k\":\"vprpatiNyI-biJY57qr8Gg4--4Rycgb2G5yO1_myYAw\",\"kty\":\"oct\"}"
+    rxresp
+    expect resp.http.x-decrypted == "My Encrypted message"
 } -run
 
 
@@ -185,6 +222,12 @@ client c5 -connect ${h1_mainfe_sock} {
 #ENC: A256GCM
 client c6 -connect ${h1_mainfe_sock} {
     txreq -url "/pem" -hdr "Authorization: Bearer eyJhbGciOiAiUlNBMV81IiwgImVuYyI6ICJBMjU2R0NNIn0.ew8AbprGcd_J73-CZPIsE1YonD9rtcL7VCuOOuVkrpS_9UzA9_kMh1yw20u-b5rKJAhmFMCQPXl44ro6IzOeHu8E2X_NlPEnQfyNVQ4R1HB_E9sSk5BLxOH3aHkVUh0I-e2eDDj-pdI3OrdjZtnZEBeQ7tpMcoBEbn1VGg7Pmw4qtdS-0qnDSs-PttU-cejjgPUNLRU8UdoRVC9uJKacJms110QugDuFuMYTTSU2nbIYh0deCMRAuKGWt0Ii6EMYW2JaJ7JfXag59Ar1uylQPyEVrocnOsDuB9xnp2jd796qCPdKxBK9yKUnwjal4SQpYbutr40QzG1S4MsKaUorLg.0el2ruY0mm2s7LUR.X5RI6dF06Y_dbAr8meb-6SG5enj5noto9nzgQU5HDrYdiUofPptIf6E-FikKUM9QR4pY9SyphqbPYeAN1ZYVxBrR8tUf4Do2kw1biuuRAmuIyytpmxwvY946T3ctu1Zw3Ymwe-jWXX08EngzssvzFOGT66gkdufrTkC45Fkr0RBOmWa5OVVg_VR6LwcivtQMmlArlrwbaDmmLqt_2p7afT0UksEz4loq0sskw-p7GbhB2lpzXoDnijdHrQkftRbVCiDbK4-qGr7IRFb0YOHvyVFr-kmDoJv2Zsg_rPKV1LkYmPJUbVDo9T3RAcLinlKPK4ZPC_2bWj3M9BvfOq1HeuyVWzX2Cb1mHFdxXFGqaLPfsE0VOfn0GqL7oHVbuczYYw2eKdmiw5LEMwuuJEdYDE9IIFEe8oRB4hNZ0XMYB6oqqZejD0Fh6nqlj5QUrTYpTSE-3LkgK2zRJ0oZFXZyHCB426bmViuE0mXF7twkQep09g0U35-jFBZcSYBDvZZL1t5d_YEQ0QtO0mEeEpGb0Pvk_EsSMFib7NxClz4_rdtwWCFuM4uFOS5vrQMiMqi_TadhLxrugRFhJpsibuScCiJ7eNDrUvwSWEwv1U593MUX3guDq_ONOo_49EOJSyRJtQCNC6FW6GLWSz9TCo6g5LCnXt-pqwu0Iymr7ZTQ3MTsdq2G55JM2e6SdG43iET8r235hynmXHKPUYHlSjsC2AEAY_pGDO0akIhf4wDVIM5rytn-rjQf-29ZJp05g6KPe-EaN1C-X7aBGhgAEgnX-iaXXbotpGeKRTNj2jAG1UrkYi6BGHxluiXJ8jH_LjHuxKyzIObqK8p28ePDKRL-jyNTrvGW2uorgb_u7HGmWYIWLTI7obnZ5vw3MbkjcwEd4bX5JXUj2rRsUWMlZSSFVO9Wgf7MBvcLsyF0Yqun3p0bi__edmcqNF_uuYZT-8jkUlMborqIDDCYYqIolgi5R1Bmut-gFYq6xyfEncxOi50xmYon50UulVnAH-up_RELGtCjmAivaJb8.upVY733IMAT8YbMab2PZnw" -hdr "X-PEM: ${testdir}/rsa1_5.pem"
+    rxresp
+    expect resp.http.x-decrypted == "Sed ut perspiciatis unde omnis iste natus error sit voluptatem doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. porro quisquam est, qui dolorem ipsum quia dolor sit amet, adipisci velit, sed quia non numquam eius modi tempora incidunt ut dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in voluptate velit esse quam nihil molestiae consequatur, vel illum qui eum fugiat quo voluptas nulla pariatur?"
+
+
+    txreq -url "/jwk" -hdr "Authorization: Bearer eyJhbGciOiAiUlNBMV81IiwgImVuYyI6ICJBMjU2R0NNIn0.ew8AbprGcd_J73-CZPIsE1YonD9rtcL7VCuOOuVkrpS_9UzA9_kMh1yw20u-b5rKJAhmFMCQPXl44ro6IzOeHu8E2X_NlPEnQfyNVQ4R1HB_E9sSk5BLxOH3aHkVUh0I-e2eDDj-pdI3OrdjZtnZEBeQ7tpMcoBEbn1VGg7Pmw4qtdS-0qnDSs-PttU-cejjgPUNLRU8UdoRVC9uJKacJms110QugDuFuMYTTSU2nbIYh0deCMRAuKGWt0Ii6EMYW2JaJ7JfXag59Ar1uylQPyEVrocnOsDuB9xnp2jd796qCPdKxBK9yKUnwjal4SQpYbutr40QzG1S4MsKaUorLg.0el2ruY0mm2s7LUR.X5RI6dF06Y_dbAr8meb-6SG5enj5noto9nzgQU5HDrYdiUofPptIf6E-FikKUM9QR4pY9SyphqbPYeAN1ZYVxBrR8tUf4Do2kw1biuuRAmuIyytpmxwvY946T3ctu1Zw3Ymwe-jWXX08EngzssvzFOGT66gkdufrTkC45Fkr0RBOmWa5OVVg_VR6LwcivtQMmlArlrwbaDmmLqt_2p7afT0UksEz4loq0sskw-p7GbhB2lpzXoDnijdHrQkftRbVCiDbK4-qGr7IRFb0YOHvyVFr-kmDoJv2Zsg_rPKV1LkYmPJUbVDo9T3RAcLinlKPK4ZPC_2bWj3M9BvfOq1HeuyVWzX2Cb1mHFdxXFGqaLPfsE0VOfn0GqL7oHVbuczYYw2eKdmiw5LEMwuuJEdYDE9IIFEe8oRB4hNZ0XMYB6oqqZejD0Fh6nqlj5QUrTYpTSE-3LkgK2zRJ0oZFXZyHCB426bmViuE0mXF7twkQep09g0U35-jFBZcSYBDvZZL1t5d_YEQ0QtO0mEeEpGb0Pvk_EsSMFib7NxClz4_rdtwWCFuM4uFOS5vrQMiMqi_TadhLxrugRFhJpsibuScCiJ7eNDrUvwSWEwv1U593MUX3guDq_ONOo_49EOJSyRJtQCNC6FW6GLWSz9TCo6g5LCnXt-pqwu0Iymr7ZTQ3MTsdq2G55JM2e6SdG43iET8r235hynmXHKPUYHlSjsC2AEAY_pGDO0akIhf4wDVIM5rytn-rjQf-29ZJp05g6KPe-EaN1C-X7aBGhgAEgnX-iaXXbotpGeKRTNj2jAG1UrkYi6BGHxluiXJ8jH_LjHuxKyzIObqK8p28ePDKRL-jyNTrvGW2uorgb_u7HGmWYIWLTI7obnZ5vw3MbkjcwEd4bX5JXUj2rRsUWMlZSSFVO9Wgf7MBvcLsyF0Yqun3p0bi__edmcqNF_uuYZT-8jkUlMborqIDDCYYqIolgi5R1Bmut-gFYq6xyfEncxOi50xmYon50UulVnAH-up_RELGtCjmAivaJb8.upVY733IMAT8YbMab2PZnw" \
+                    -hdr "X-JWK: { \"kty\": \"RSA\", \"e\": \"AQAB\", \"n\": \"wsqJbopx18NQFYLYOq4ZeMSE89yGiEankUpf25yV8QqroKUGrASj_OeqTWUjwPGKTN1vGFFuHYxiJeAUQH2qQPmg9Oqk6-ATBEKn9COKYniQ5459UxCwmZA2RL6ufhrNyq0JF3GfXkjLDBfhU9zJJEOhknsA0L_c-X4AI3d_NbFdMqxNe1V_UWAlLcbKdwO6iC9fAvwUmDQxgy6R0DC1CMouQpenMRcALaSHar1cm4K-syoNobv3HEuqgZ3s6-hOOSqauqAO0GUozPpaIA7OeruyRl5sTWT0r-iz39bchID2bIKtcqLiFcSYPLBcxmsaQCqRlGhmv6stjTCLV1yT9w\", \"kid\": \"ff3c5c96-392e-46ef-a839-6ff16027af78\", \"d\": \"b9hXfQ8lOtw8mX1dpqPcoElGhbczz_-xq2znCXQpbBPSZBUddZvchRSH5pSSKPEHlgb3CSGIdpLqsBCv0C_XmCM9ViN8uqsYgDO9uCLIDK5plWttbkqA_EufvW03R9UgIKWmOL3W4g4t-C2mBb8aByaGGVNjLnlb6i186uBsPGkvaeLHbQcRQKAvhOUTeNiyiiCbUGJwCm4avMiZrsz1r81Y1Z5izo0ERxdZymxM3FRZ9vjTB-6DtitvTXXnaAm1JTu6TIpj38u2mnNLkGMbflOpgelMNKBZVxSmfobIbFN8CHVc1UqLK2ElsZ9RCQANgkMHlMkOMj-XT0wHa3VBUQ\", \"p\": \"8mgriveKJAp1S7SHqirQAfZafxVuAK_A2QBYPsAUhikfBOvN0HtZjgurPXSJSdgR8KbWV7ZjdJM_eOivIb_XiuAaUdIOXbLRet7t9a_NJtmX9iybhoa9VOJFMBq_rbnbbte2kq0-FnXmv3cukbC2LaEw3aEcDgyURLCgWFqt7M0\", \"q\": \"zbbTv5421GowOfKVEuVoA35CEWgl8mdasnEZac2LWxMwKExikKU5LLacLQlcOt7A6n1ZGUC2wyH8mstO5tV34Eug3fnNrbnxFUEE_ZB_njs_rtZnwz57AoUXOXVnd194seIZF9PjdzZcuwXwXbrZ2RSVW8if_ZH5OVYEM1EsA9M\", \"dp\": \"1BaIYmIKn1X3InGlcSFcNRtSOnaJdFhRpotCqkRssKUx2qBlxs7ln_5dqLtZkx5VM_UE_GE7yzc6BZOwBxtOftdsr8HVh-14ksSR9rAGEsO2zVBiEuW4qZf_aQM-ScWfU--wcczZ0dT-Ou8P87Bk9K9fjcn0PeaLoz3WTPepzNE\", \"dq\": \"kYw2u4_UmWvcXVOeV_VKJ5aQZkJ6_sxTpodRBMPyQmkMHKcW4eKU1mcJju_deqWadw5jGPPpm5yTXm5UkAwfOeookoWpGa7CvVf4kPNI6Aphn3GBjunJHNpPuU6w-wvomGsxd-NqQDGNYKHuFFMcyXO_zWXglQdP_1o1tJ1M-BM\", \"qi\": \"j94Ens784M8zsfwWoJhYq9prcSZOGgNbtFWQZO8HP8pcNM9ls7YA4snTtAS_B4peWWFAFZ0LSKPCxAvJnrq69ocmEKEk7ss1Jo062f9pLTQ6cnhMjev3IqLocIFt5Vbsg_PWYpFSR7re6FRbF9EYOM7F2-HRv1idxKCWoyQfBqk\" }"
     rxresp
     expect resp.http.x-decrypted == "Sed ut perspiciatis unde omnis iste natus error sit voluptatem doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. porro quisquam est, qui dolorem ipsum quia dolor sit amet, adipisci velit, sed quia non numquam eius modi tempora incidunt ut dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in voluptate velit esse quam nihil molestiae consequatur, vel illum qui eum fugiat quo voluptas nulla pariatur?"
 } -run
@@ -198,4 +241,23 @@ client c7 -connect ${h1_mainfe_sock} {
     expect resp.http.x-decrypted == "Sed ut perspiciatis unde omnis iste natus error sit voluptatem doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. porro quisquam est, qui dolorem ipsum quia dolor sit amet, adipisci velit, sed quia non numquam eius modi tempora incidunt ut dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in voluptate velit esse quam nihil molestiae consequatur, vel illum qui eum fugiat quo voluptas nulla pariatur?"
 } -run
 
+
+# Test 'jwt_decrypt' error cases
+client c8 -connect ${h1_mainfe_sock} {
+    # Invalid 'oct' JWK
+    txreq -url "/jwk" -hdr "Authorization: Bearer eyJhbGciOiJBMjU2R0NNS1ciLCJlbmMiOiJBMTkyQ0JDLUhTMzg0IiwiaXYiOiJzVE81QjlPRXFuaUhCX3dYIiwidGFnIjoid2M1ZnRpYUFnNGNOR1JkZzNWQ3FXdyJ9.2zqnM9zeNU-eAMp5h2uFJyxbHHKsZs9YAYKzOcIF3d3Q9uq1TMQAvqOIuXw3kU9o.hh5aObIoIMR6Ke0rXm6V1A.R7U-4OlqOR6f2C1b3nI5bFqZBIGNBgza7FfoPEgrQT8.asJCzUAHCuxS7o8Ut4ENfaY5RluLB35F" -hdr "X-JWK: {\"k\":\"invalid\",\"kty\":\"oct\"}"
+    rxresp
+    expect resp.http.x-decrypted == ""
+
+    # Wrong JWK type
+    txreq -url "/jwk" -hdr "Authorization: Bearer eyJhbGciOiJBMjU2R0NNS1ciLCJlbmMiOiJBMTkyQ0JDLUhTMzg0IiwiaXYiOiJzVE81QjlPRXFuaUhCX3dYIiwidGFnIjoid2M1ZnRpYUFnNGNOR1JkZzNWQ3FXdyJ9.2zqnM9zeNU-eAMp5h2uFJyxbHHKsZs9YAYKzOcIF3d3Q9uq1TMQAvqOIuXw3kU9o.hh5aObIoIMR6Ke0rXm6V1A.R7U-4OlqOR6f2C1b3nI5bFqZBIGNBgza7FfoPEgrQT8.asJCzUAHCuxS7o8Ut4ENfaY5RluLB35F" -hdr "X-JWK: {\"k\":\"invalid\",\"kty\":\"RSA\"}"
+    rxresp
+    expect resp.http.x-decrypted == ""
+
+    # Invalid 'RSA' JWK (truncated 'qi')
+    txreq -url "/jwk" -hdr "Authorization: Bearer eyJhbGciOiAiUlNBMV81IiwgImVuYyI6ICJBMjU2R0NNIn0.ew8AbprGcd_J73-CZPIsE1YonD9rtcL7VCuOOuVkrpS_9UzA9_kMh1yw20u-b5rKJAhmFMCQPXl44ro6IzOeHu8E2X_NlPEnQfyNVQ4R1HB_E9sSk5BLxOH3aHkVUh0I-e2eDDj-pdI3OrdjZtnZEBeQ7tpMcoBEbn1VGg7Pmw4qtdS-0qnDSs-PttU-cejjgPUNLRU8UdoRVC9uJKacJms110QugDuFuMYTTSU2nbIYh0deCMRAuKGWt0Ii6EMYW2JaJ7JfXag59Ar1uylQPyEVrocnOsDuB9xnp2jd796qCPdKxBK9yKUnwjal4SQpYbutr40QzG1S4MsKaUorLg.0el2ruY0mm2s7LUR.X5RI6dF06Y_dbAr8meb-6SG5enj5noto9nzgQU5HDrYdiUofPptIf6E-FikKUM9QR4pY9SyphqbPYeAN1ZYVxBrR8tUf4Do2kw1biuuRAmuIyytpmxwvY946T3ctu1Zw3Ymwe-jWXX08EngzssvzFOGT66gkdufrTkC45Fkr0RBOmWa5OVVg_VR6LwcivtQMmlArlrwbaDmmLqt_2p7afT0UksEz4loq0sskw-p7GbhB2lpzXoDnijdHrQkftRbVCiDbK4-qGr7IRFb0YOHvyVFr-kmDoJv2Zsg_rPKV1LkYmPJUbVDo9T3RAcLinlKPK4ZPC_2bWj3M9BvfOq1HeuyVWzX2Cb1mHFdxXFGqaLPfsE0VOfn0GqL7oHVbuczYYw2eKdmiw5LEMwuuJEdYDE9IIFEe8oRB4hNZ0XMYB6oqqZejD0Fh6nqlj5QUrTYpTSE-3LkgK2zRJ0oZFXZyHCB426bmViuE0mXF7twkQep09g0U35-jFBZcSYBDvZZL1t5d_YEQ0QtO0mEeEpGb0Pvk_EsSMFib7NxClz4_rdtwWCFuM4uFOS5vrQMiMqi_TadhLxrugRFhJpsibuScCiJ7eNDrUvwSWEwv1U593MUX3guDq_ONOo_49EOJSyRJtQCNC6FW6GLWSz9TCo6g5LCnXt-pqwu0Iymr7ZTQ3MTsdq2G55JM2e6SdG43iET8r235hynmXHKPUYHlSjsC2AEAY_pGDO0akIhf4wDVIM5rytn-rjQf-29ZJp05g6KPe-EaN1C-X7aBGhgAEgnX-iaXXbotpGeKRTNj2jAG1UrkYi6BGHxluiXJ8jH_LjHuxKyzIObqK8p28ePDKRL-jyNTrvGW2uorgb_u7HGmWYIWLTI7obnZ5vw3MbkjcwEd4bX5JXUj2rRsUWMlZSSFVO9Wgf7MBvcLsyF0Yqun3p0bi__edmcqNF_uuYZT-8jkUlMborqIDDCYYqIolgi5R1Bmut-gFYq6xyfEncxOi50xmYon50UulVnAH-up_RELGtCjmAivaJb8.upVY733IMAT8YbMab2PZnw" \
+                    -hdr "X-JWK: { \"kty\": \"RSA\", \"e\": \"AQAB\", \"n\": \"wsqJbopx18NQFYLYOq4ZeMSE89yGiEankUpf25yV8QqroKUGrASj_OeqTWUjwPGKTN1vGFFuHYxiJeAUQH2qQPmg9Oqk6-ATBEKn9COKYniQ5459UxCwmZA2RL6ufhrNyq0JF3GfXkjLDBfhU9zJJEOhknsA0L_c-X4AI3d_NbFdMqxNe1V_UWAlLcbKdwO6iC9fAvwUmDQxgy6R0DC1CMouQpenMRcALaSHar1cm4K-syoNobv3HEuqgZ3s6-hOOSqauqAO0GUozPpaIA7OeruyRl5sTWT0r-iz39bchID2bIKtcqLiFcSYPLBcxmsaQCqRlGhmv6stjTCLV1yT9w\", \"kid\": \"ff3c5c96-392e-46ef-a839-6ff16027af78\", \"d\": \"b9hXfQ8lOtw8mX1dpqPcoElGhbczz_-xq2znCXQpbBPSZBUddZvchRSH5pSSKPEHlgb3CSGIdpLqsBCv0C_XmCM9ViN8uqsYgDO9uCLIDK5plWttbkqA_EufvW03R9UgIKWmOL3W4g4t-C2mBb8aByaGGVNjLnlb6i186uBsPGkvaeLHbQcRQKAvhOUTeNiyiiCbUGJwCm4avMiZrsz1r81Y1Z5izo0ERxdZymxM3FRZ9vjTB-6DtitvTXXnaAm1JTu6TIpj38u2mnNLkGMbflOpgelMNKBZVxSmfobIbFN8CHVc1UqLK2ElsZ9RCQANgkMHlMkOMj-XT0wHa3VBUQ\", \"p\": \"8mgriveKJAp1S7SHqirQAfZafxVuAK_A2QBYPsAUhikfBOvN0HtZjgurPXSJSdgR8KbWV7ZjdJM_eOivIb_XiuAaUdIOXbLRet7t9a_NJtmX9iybhoa9VOJFMBq_rbnbbte2kq0-FnXmv3cukbC2LaEw3aEcDgyURLCgWFqt7M0\", \"q\": \"zbbTv5421GowOfKVEuVoA35CEWgl8mdasnEZac2LWxMwKExikKU5LLacLQlcOt7A6n1ZGUC2wyH8mstO5tV34Eug3fnNrbnxFUEE_ZB_njs_rtZnwz57AoUXOXVnd194seIZF9PjdzZcuwXwXbrZ2RSVW8if_ZH5OVYEM1EsA9M\", \"dp\": \"1BaIYmIKn1X3InGlcSFcNRtSOnaJdFhRpotCqkRssKUx2qBlxs7ln_5dqLtZkx5VM_UE_GE7yzc6BZOwBxtOftdsr8HVh-14ksSR9rAGEsO2zVBiEuW4qZf_aQM-ScWfU--wcczZ0dT-Ou8P87Bk9K9fjcn0PeaLoz3WTPepzNE\", \"dq\": \"kYw2u4_UmWvcXVOeV_VKJ5aQZkJ6_sxTpodRBMPyQmkMHKcW4eKU1mcJju_deqWadw5jGPPpm5yTXm5UkAwfOeookoWpGa7CvVf4kPNI6Aphn3GBjunJHNpPuU6w-wvomGsxd-NqQDGNYKHuFFMcyXO_zWXglQdP_1o1tJ1M-BM\", \"qi\": \"j94Ens784M8zsfwWoJhYq9prcSZOGgNbtFWQZO8HP8pcNM9ls7YA4snTtAS_B4peWWFAFZ0LSKPCxAvJnrq69ocmEKEk7ss1Jo062f9pLTQ6cnhMjev3IqLocIFt5\" }"
+    rxresp
+    expect resp.http.x-decrypted == ""
+} -run
 
