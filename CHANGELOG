@@ -1,6 +1,43 @@
 ChangeLog :
 ===========
 
+2026/02/04 : 3.4-dev4
+    - BUG/MEDIUM: hlua: fix invalid lua_pcall() usage in hlua_traceback()
+    - BUG/MINOR: hlua: consume error object if ignored after a failing lua_pcall()
+    - BUG/MINOR: promex: Detach promex from the server on error dump its metrics dump
+    - BUG/MEDIUM: mux-h1: Skip UNUSED htx block when formating the start line
+    - BUG/MINOR: proto_tcp: Properly report support for HAVE_TCP_MD5SIG feature
+    - BUG/MINOR: config: check capture pool creations for failures
+    - BUG/MINOR: stick-tables: abort startup on stk_ctr pool creation failure
+    - MEDIUM: pools: better check for size rounding overflow on registration
+    - DOC: reg-tests: update VTest upstream link in the starting guide
+    - BUG/MINOR: ssl: Properly manage alloc failures in SSL passphrase callback
+    - BUG/MINOR: ssl: Encrypted keys could not be loaded when given alongside certificate
+    - MINOR: ssl: display libssl errors on private key loading
+    - BUG/MAJOR: applet: Don't call I/O handler if the applet was shut
+    - MINOR: ssl: allow to disable certificate compression
+    - BUG/MINOR: ssl: fix error message of tune.ssl.certificate-compression
+    - DOC: config: mention some possible TLS versions restrictions for kTLS
+    - OPTIM: server: move queueslength in server struct
+    - OPTIM: proxy: separate queues fields from served
+    - OPTIM: server: get rid of the last use of _ha_barrier_full()
+    - DOC: config: mention that idle connection sharing is per thread-group
+    - MEDIUM: h1: strictly verify quoting in chunk extensions
+    - BUG/MINOR: config/ssl: fix spelling of "expose-experimental-directives"
+    - BUG/MEDIUM: ssl: fix msg callbacks on QUIC connections
+    - MEDIUM: ssl: remove connection from msg callback args
+    - MEDIUM: ssl: porting to X509_STORE_get1_objects() for OpenSSL 4.0
+    - REGTESTS: ssl: make reg-tests compatible with OpenSSL 4.0
+    - DOC: internals: cleanup few typos in master-worker documentation
+    - BUG/MEDIUM: applet: Fix test on shut flags for legacy applets
+    - MINOR: quic: Fix build with USE_QUIC_OPENSSL_COMPAT
+    - MEDIUM: tcpcheck: add post-80 option for mysql-check to support MySQL 8.x
+    - BUG/MEDIUM: threads: Atomically set TH_FL_SLEEPING and clr FL_NOTIFIED
+    - BUG/MINOR: cpu-topo: count cores not cpus to distinguish core types
+    - DOC: config: mention the limitation on server id range for consistent hash
+    - MEDIUM: backend: make "balance random" consider req rate when loads are equal
+    - BUG/MINOR: config: Fix setting of alt_proto
+
 2026/01/22 : 3.4-dev3
     - BUILD: ssl: strchr definition changed in C23
     - BUILD: tools: memchr definition changed in C23
