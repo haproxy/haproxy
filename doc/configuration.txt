@@ -18335,7 +18335,10 @@ hash-key <key>
 
       id         The node keys will be derived from the server's numeric
                  identifier as set from "id" or which defaults to its position
-                 in the server list.
+                 in the server list. This is the default. Note that only the 28
+                 lowest bits of the ID will be used (i.e. (id % 268435456)), so
+                 better only use values comprised between 1 and this value to
+                 avoid overlap.
 
       addr       The node keys will be derived from the server's address, when
                  available, or else fall back on "id".
@@ -18347,7 +18350,9 @@ hash-key <key>
   HAProxy processes are balancing traffic to the same set of servers. If the
   server order of each process is different (because, for example, DNS records
   were resolved in different orders) then this will allow each independent
-  HAProxy processes to agree on routing decisions.
+  HAProxy processes to agree on routing decisions. Note: "balance random" also
+  uses "hash-type consistent", and the quality of the distribution will depend
+  on the quality of the keys.
 
 id <value>
   May be used in the following contexts: tcp, http, log
