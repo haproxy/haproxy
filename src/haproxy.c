@@ -2918,9 +2918,12 @@ void run_poll_loop()
 		if (thread_has_tasks())
 			activity[tid].wake_tasks++;
 		else {
-			_HA_ATOMIC_OR(&th_ctx->flags, TH_FL_SLEEPING);
-			_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_NOTIFIED);
-			__ha_barrier_atomic_store();
+			unsigned int flags = _HA_ATOMIC_LOAD(&th_ctx->flags);
+
+			while (unlikely(!HA_ATOMIC_CAS(&th_ctx->flags, &flags,
+(flags | TH_FL_SLEEPING) & ~TH_FL_NOTIFIED)))
+				__ha_cpu_relax();
+
 			if (thread_has_tasks()) {
 				activity[tid].wake_tasks++;
 				_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_SLEEPING);
