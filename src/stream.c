@@ -2850,10 +2850,12 @@ void stream_update_time_stats(struct stream *s)
  * current connection slot. This function also notifies any LB algo which might
  * expect to be informed about any change in the number of active streams on a
  * server.
+ * Returns the number of simultaneous requests on the old server.
  */
-void sess_change_server(struct stream *strm, struct server *newsrv)
+int sess_change_server(struct stream *strm, struct server *newsrv)
 {
 	struct server *oldsrv = strm->srv_conn;
+	int count = -1;
 
 	/* Dynamic servers may be deleted during process lifetime. This
 	 * operation is always conducted under thread isolation. Several
@@ -2875,8 +2877,8 @@ void sess_change_server(struct stream *strm, struct server *newsrv)
 		 * served field has been incremented, so we have to decrement it now.
 		 */
 		if (oldsrv)
-			_HA_ATOMIC_DEC(&oldsrv->served);
-		return;
+			count = _HA_ATOMIC_SUB_FETCH(&oldsrv->served, 1);
+		return count;
 	}
 
 	if (oldsrv) {
@@ -2891,7 +2893,7 @@ void sess_change_server(struct stream *strm, struct server *newsrv)
 		 */
 		_HA_ATOMIC_DEC(&oldsrv->proxy->served);
 		stream_del_srv_conn(strm);
-		_HA_ATOMIC_DEC(&oldsrv->served);
+		count = _HA_ATOMIC_SUB_FETCH(&oldsrv->served, 1);
 		__ha_barrier_atomic_store();
 		if (oldsrv->proxy->lbprm.server_drop_conn)
 			oldsrv->proxy->lbprm.server_drop_conn(oldsrv);
@@ -2904,6 +2906,7 @@ void sess_change_server(struct stream *strm, struct server *newsrv)
 			newsrv->proxy->lbprm.server_take_conn(newsrv);
 		stream_add_srv_conn(strm, newsrv);
 	}
+	return count;
 }
 
 /* Handle server-side errors for default protocols. It is called whenever a a

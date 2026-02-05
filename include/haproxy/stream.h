@@ -72,7 +72,7 @@ void strm_dump_to_buffer(struct buffer *buf, const struct stream *strm, const ch
 struct ist stream_generate_unique_id(struct stream *strm, struct lf_expr *format);
 
 void stream_process_counters(struct stream *s);
-void sess_change_server(struct stream *strm, struct server *newsrv);
+int sess_change_server(struct stream *strm, struct server *newsrv);
 struct task *process_stream(struct task *t, void *context, unsigned int state);
 void default_srv_error(struct stream *s, struct stconn *sc);
 
