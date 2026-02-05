@@ -1441,6 +1441,10 @@ static void init_early(int argc, char **argv)
 	}
 
 	chunk_initlen(&global.log_tag, strdup(progname), len, len);
+	if (b_orig(&global.log_tag) == NULL) {
+		ha_alert("Cannot allocate memory for log_tag.\n");
+		exit(EXIT_FAILURE);
+	}
 }
 
 /* handles program arguments. Very minimal parsing is performed, variables are
