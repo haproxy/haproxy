@@ -36,6 +36,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/ssl_ckch.h>
+#include <haproxy/ssl_gencert.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_ocsp.h>
 #include <haproxy/ssl_utils.h>
@@ -4782,18 +4783,69 @@ static int ckch_conf_load_pem_or_generate(void *value, char *buf, struct ckch_st
 
 #ifdef HAVE_ACME
 	errno = 0;
-	/* if ACME is enabled and the file does not exists, generate the PEM */
-	if (s->conf.acme.id && (stat(path, &sb) == -1 && errno == ENOENT)) {
-		/* generate they key and the certificate */
+	if (s->conf.gencrt.on != 1) {
+		if (s->conf.gencrt.key.type ||
+		    s->conf.gencrt.key.bits ||
+		    s->conf.gencrt.key.curves) {
+			memprintf(err, "keyword 'keytype', 'bits' and 'curves' require"
+			          " 'generate-dummy' set to 'on'\n");
+			err_code |= ERR_FATAL;
+			goto out;
+		}
+	}
+
+	if (s->conf.gencrt.on == 1) {
+		int type, bits, nid = -1;
+		char *curves;
+
+		if (!s->conf.gencrt.key.type)
+			type = EVP_PKEY_RSA;
+		else {
+			if (!strcmp(s->conf.gencrt.key.type, "RSA"))
+				type = EVP_PKEY_RSA;
+			else if (!strcmp(s->conf.gencrt.key.type, "ECDSA"))
+				type = EVP_PKEY_EC;
+			else {
+				memprintf(err, "keyword 'keytype' requires either 'RSA' or 'ECDSA'.");
+				err_code |= ERR_FATAL;
+				goto out;
+			}
+		}
+
+		/* default values: 2048 bits for RSA key, "P-384" curves for ECDSA key */
+		bits = s->conf.gencrt.key.bits ? s->conf.gencrt.key.bits : 2048;
+		curves = s->conf.gencrt.key.curves ? s->conf.gencrt.key.curves : "P-384";
+
+		if (type == EVP_PKEY_EC && (nid = curves2nid(curves)) == -1) {
+			memprintf(err, "unsupported curves '%s'.", s->conf.gencrt.key.curves);
+			err_code |= ERR_FATAL;
+			goto out;
+		}
+
+		s->data->key = ssl_gen_EVP_PKEY(type, nid, bits, err);
+		if (!s->data->key) {
+			err_code |= ERR_FATAL;
+			goto out;
+		}
+
+		s->data->cert = ssl_gen_x509(s->data->key);
+		if (!s->data->cert) {
+			memprintf(err, "Couldn't generate a keypair.");
+			err_code |= ERR_FATAL;
+			goto out;
+		}
+	}
+	else if (s->conf.acme.id && (stat(path, &sb) == -1 && errno == ENOENT)) {
+		/* if ACME is enabled and the file does not exists, generate the PEM */
 		ha_notice("No certificate available for '%s', generating a temporary key pair before getting the ACME certificate\n", path);
 		s->data->key = acme_gen_tmp_pkey();
 		s->data->cert = acme_gen_tmp_x509();
+
 		if (!s->data->key || !s->data->cert) {
 			memprintf(err, "Couldn't generate a temporary keypair for '%s'\n", path);
 			err_code |= ERR_FATAL;
 			goto out;
 		}
-
 	} else
 #endif
 	{
@@ -4852,6 +4904,10 @@ struct ckch_conf_kws ckch_conf_kws[] = {
 	{ "acme",         offsetof(struct ckch_conf, acme.id),          PARSE_TYPE_STR,   ckch_conf_acme_init,            },
 #endif
 	{ "domains",      offsetof(struct ckch_conf, acme.domains),     PARSE_TYPE_ARRAY_SUBSTR,   NULL,            },
+	{ "generate-dummy", offsetof(struct ckch_conf, gencrt.on),      PARSE_TYPE_ONOFF, NULL,                           },
+	{ "keytype",      offsetof(struct ckch_conf, gencrt.key.type),  PARSE_TYPE_STR,   NULL,                           },
+	{ "bits",         offsetof(struct ckch_conf, gencrt.key.bits),  PARSE_TYPE_INT,   NULL,                           },
+	{ "curves",       offsetof(struct ckch_conf, gencrt.key.curves), PARSE_TYPE_STR,  NULL,                           },
 	{ NULL,          -1,                                            PARSE_TYPE_STR,   NULL,                           }
 };
 
