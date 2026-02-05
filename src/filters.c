@@ -34,61 +34,75 @@ DECLARE_STATIC_TYPED_POOL(pool_head_filter, "filter", struct filter);
 
 static int handle_analyzer_result(struct stream *s, struct channel *chn, unsigned int an_bit, int ret);
 
-/* - RESUME_FILTER_LOOP and RESUME_FILTER_END must always be used together.
- *   The first one begins a loop and the seconds one ends it.
+/* - resume_filter_list_start() and resume_filter_list_next() must always be used together.
+ *   The first one sets the first filter value and the second one allows to get the
+ *   next one until NULL is returned
  *
- * - BREAK_EXECUTION must be used to break the loop and set the filter from
- *   which to resume the next time.
+ * - resume_filter_list_break() must be used to break the iteration and set the filter
+ *   from which to resume the next time (that is, resume_filter_list_start() will allow
+ *   to resume from value at the time of the break)
  *
  *  Here is an example:
  *
- *    RESUME_FILTER_LOOP(stream, channel) {
- *        ...
- *        if (cond)
- *             BREAK_EXECUTION(stream, channel, label);
- *        ...
- *    } RESUME_FILTER_END;
+ *    struct filter *filter;
+ *
+ *    for (filter = resume_filter_list_start(stream, channel); filter
+ *         filter = resume_filter_list_next(stream, channel, filter)) {
+ *	...
+ *	if (cond) {
+ *		resume_filter_list_break(stream, channel, filter, ret);
+		goto label;
+ *      }
+ *    }
  *    ...
  *     label:
  *    ...
  *
  */
-#define RESUME_FILTER_LOOP(strm, chn)					\
-	do {								\
-		struct filter *filter;					\
-									\
-		if (strm_flt(strm)->current[CHN_IDX(chn)]) {		\
-			filter = strm_flt(strm)->current[CHN_IDX(chn)]; \
-			strm_flt(strm)->current[CHN_IDX(chn)] = NULL;	\
-			if (!(chn_prod(chn)->flags & SC_FL_ERROR) &&	\
-			    !(chn->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) { \
-				(strm)->waiting_entity.type = STRM_ENTITY_NONE;	\
-				(strm)->waiting_entity.ptr = NULL;	\
-			}						\
-			goto resume_execution;				\
-		}							\
-									\
-		list_for_each_entry(filter, &strm_flt(s)->filters, list) { \
-		resume_execution:
+static inline struct filter *resume_filter_list_start(struct stream *strm, struct channel *chn)
+{
+	struct filter *filter;
 
-#define RESUME_FILTER_END					\
-		}						\
-	} while(0)
+	if (strm_flt(strm)->current[CHN_IDX(chn)]) {
+		filter = strm_flt(strm)->current[CHN_IDX(chn)];
+		strm_flt(strm)->current[CHN_IDX(chn)] = NULL;
+		if (!(chn_prod(chn)->flags & SC_FL_ERROR) &&
+		    !(chn->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) {
+			(strm)->waiting_entity.type = STRM_ENTITY_NONE;
+			(strm)->waiting_entity.ptr = NULL;
+		}
+	}
+	else {
+		filter = LIST_NEXT(&strm_flt(strm)->filters, struct filter *, list);
+		if (&filter->list == &strm_flt(strm)->filters)
+			filter = NULL; /* empty list */
+	}
 
-#define BREAK_EXECUTION(strm, chn, label)				\
-	do {								\
-		if (ret == 0) {						\
-			s->waiting_entity.type = STRM_ENTITY_FILTER;	\
-			s->waiting_entity.ptr  = filter;		\
-		}							\
-		else if (ret < 0) {					\
-			(strm)->last_entity.type = STRM_ENTITY_FILTER;	\
-			(strm)->last_entity.ptr = filter;		\
-		}							\
-		strm_flt(strm)->current[CHN_IDX(chn)] = filter;		\
-		goto label;						\
-	} while (0)
+	return filter;
+}
 
+static inline struct filter *resume_filter_list_next(struct stream *strm, struct channel *chn,
+                                                     struct filter *filter)
+{
+	filter = LIST_NEXT(&filter->list, struct filter *, list);
+	if (&filter->list == &strm_flt(strm)->filters)
+		filter = NULL; /* end of list */
+	return filter;
+}
+
+static inline void resume_filter_list_break(struct stream *strm, struct channel *chn,
+                                            struct filter *filter, int ret)
+{
+	if (ret == 0) {
+		strm->waiting_entity.type = STRM_ENTITY_FILTER;
+		strm->waiting_entity.ptr  = filter;
+	}
+	else if (ret < 0) {
+		strm->last_entity.type = STRM_ENTITY_FILTER;
+		strm->last_entity.ptr = filter;
+	}
+	strm_flt(strm)->current[CHN_IDX(chn)] = filter;
+}
 
 /* List head of all known filter keywords */
 static struct flt_kw_list flt_keywords = {
@@ -599,12 +613,14 @@ flt_set_stream_backend(struct stream *s, struct proxy *be)
 int
 flt_http_end(struct stream *s, struct http_msg *msg)
 {
+	struct filter *filter;
 	unsigned long long *strm_off = &FLT_STRM_OFF(s, msg->chn);
 	unsigned int offset = 0;
 	int ret = 1;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
-	RESUME_FILTER_LOOP(s, msg->chn) {
+	for (filter = resume_filter_list_start(s, msg->chn); filter;
+	     filter = resume_filter_list_next(s, msg->chn, filter)) {
 		unsigned long long flt_off = FLT_OFF(filter, msg->chn);
 		offset = flt_off - *strm_off;
 
@@ -618,10 +634,12 @@ flt_http_end(struct stream *s, struct http_msg *msg)
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 			filter->calls++;
 			ret = FLT_OPS(filter)->http_end(s, filter, msg);
-			if (ret <= 0)
-				BREAK_EXECUTION(s, msg->chn, end);
+			if (ret <= 0) {
+				resume_filter_list_break(s, msg->chn, filter, ret);
+				goto end;
+			}
 		}
-	} RESUME_FILTER_END;
+	}
 
 	c_adv(msg->chn, offset);
 	*strm_off += offset;
@@ -750,6 +768,7 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 int
 flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 {
+	struct filter *filter;
 	int ret = 1;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
@@ -761,7 +780,8 @@ flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 	chn->flags |= CF_FLT_ANALYZE;
 	chn->analysers |= ((chn->flags & CF_ISRESP) ? AN_RES_FLT_END : AN_REQ_FLT_END);
 
-	RESUME_FILTER_LOOP(s, chn) {
+	for (filter = resume_filter_list_start(s, chn); filter;
+	     filter = resume_filter_list_next(s, chn, filter)) {
 		if (!(chn->flags & CF_ISRESP)) {
 			if (an_bit == AN_REQ_FLT_START_BE &&
 			    !(filter->flags & FLT_FL_IS_BACKEND_FILTER))
@@ -778,10 +798,12 @@ flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_FLT_ANA, s);
 			filter->calls++;
 			ret = FLT_OPS(filter)->channel_start_analyze(s, filter, chn);
-			if (ret <= 0)
-				BREAK_EXECUTION(s, chn, end);
+			if (ret <= 0) {
+				resume_filter_list_break(s, chn, filter, ret);
+				goto end;
+			}
 		}
-	} RESUME_FILTER_END;
+	}
 
  end:
 	ret = handle_analyzer_result(s, chn, an_bit, ret);
@@ -802,20 +824,24 @@ flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 int
 flt_pre_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 {
+	struct filter *filter;
 	int ret = 1;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
 
-	RESUME_FILTER_LOOP(s, chn) {
+	for (filter = resume_filter_list_start(s, chn); filter;
+	     filter = resume_filter_list_next(s, chn, filter)) {
 		if (FLT_OPS(filter)->channel_pre_analyze && (filter->pre_analyzers & an_bit)) {
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_FLT_ANA, s);
 			filter->calls++;
 			ret = FLT_OPS(filter)->channel_pre_analyze(s, filter, chn, an_bit);
-			if (ret <= 0)
-				BREAK_EXECUTION(s, chn, check_result);
+			if (ret <= 0) {
+				resume_filter_list_break(s, chn, filter, ret);
+				goto check_result;
+			}
 			filter->pre_analyzers &= ~an_bit;
 		}
-	} RESUME_FILTER_END;
+	}
 
  check_result:
 	ret = handle_analyzer_result(s, chn, 0, ret);
@@ -867,20 +893,24 @@ int
 flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_bit)
 {
 	struct http_msg *msg;
+	struct filter *filter;
 	int              ret = 1;
 
 	msg = ((chn->flags & CF_ISRESP) ? &s->txn->rsp : &s->txn->req);
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
 
-	RESUME_FILTER_LOOP(s, chn) {
+	for (filter = resume_filter_list_start(s, chn); filter;
+	     filter = resume_filter_list_next(s, chn, filter)) {
 		if (FLT_OPS(filter)->http_headers) {
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 			filter->calls++;
 			ret = FLT_OPS(filter)->http_headers(s, filter, msg);
-			if (ret <= 0)
-				BREAK_EXECUTION(s, chn, check_result);
+			if (ret <= 0) {
+				resume_filter_list_break(s, chn, filter, ret);
+				goto check_result;
+			}
 		}
-	} RESUME_FILTER_END;
+	}
 
 	if (HAS_DATA_FILTERS(s, chn)) {
 		size_t data = http_get_hdrs_size(htxbuf(&chn->buf));
@@ -907,6 +937,7 @@ int
 flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 {
 	int ret = 1;
+	struct filter *filter;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
 
@@ -915,7 +946,8 @@ flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 	if (!(chn->flags & CF_FLT_ANALYZE))
 		goto sync;
 
-	RESUME_FILTER_LOOP(s, chn) {
+	for (filter = resume_filter_list_start(s, chn); filter;
+	     filter = resume_filter_list_next(s, chn, filter)) {
 		FLT_OFF(filter, chn) = 0;
 		unregister_data_filter(s, chn, filter);
 
@@ -923,10 +955,12 @@ flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_FLT_ANA, s);
 			filter->calls++;
 			ret = FLT_OPS(filter)->channel_end_analyze(s, filter, chn);
-			if (ret <= 0)
-				BREAK_EXECUTION(s, chn, end);
+			if (ret <= 0) {
+				resume_filter_list_break(s, chn, filter, ret);
+				goto end;
+			}
 		}
-	} RESUME_FILTER_END;
+	}
 
  end:
 	/* We don't remove yet this analyzer because we need to synchronize the
