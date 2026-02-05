@@ -3534,8 +3534,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		stream_del_srv_conn(s);
 		if (objt_server(s->target)) {
-			if (may_dequeue_tasks(__objt_server(s->target), be))
-				process_srv_queue(__objt_server(s->target));
+			srv_manage_queues(__objt_server(s->target), be);
 		}
 
 		s->target = NULL;

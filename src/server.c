@@ -2597,9 +2597,7 @@ const char *server_parse_maxconn_change_request(struct server *sv,
 		sv->maxconn = v;
 	}
 
-	if (may_dequeue_tasks(sv, sv->proxy))
-		process_srv_queue(sv);
-
+	srv_manage_queues(sv, sv->proxy);
 	return NULL;
 }
 

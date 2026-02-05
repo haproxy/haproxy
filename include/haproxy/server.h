@@ -30,6 +30,7 @@
 #include <haproxy/applet-t.h>
 #include <haproxy/arg-t.h>
 #include <haproxy/freq_ctr.h>
+#include <haproxy/queue.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/resolvers-t.h>
 #include <haproxy/sample-t.h>
@@ -388,6 +389,19 @@ static inline int srv_is_quic(const struct server *srv)
 {
 	return srv->addr_type.proto_type == PROTO_TYPE_DGRAM &&
 	       srv->addr_type.xprt_type == PROTO_TYPE_STREAM;
+}
+
+/*
+ * Returns 1 if the server is full, 0 if it is not, and -1 if unknown
+ */
+static inline int srv_manage_queues(struct server *srv, struct proxy *px)
+{
+	int full = -1;
+
+	if (may_dequeue_tasks(srv, px))
+		full = process_srv_queue(srv);
+
+	return full;
 }
 
 #endif /* _HAPROXY_SERVER_H */

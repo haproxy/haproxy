@@ -860,8 +860,7 @@ out_ok:
 		if (conn_slot == srv) {
 			sess_change_server(s, srv);
 		} else {
-			if (may_dequeue_tasks(conn_slot, s->be))
-				process_srv_queue(conn_slot);
+			srv_manage_queues(conn_slot, s->be);
 		}
 	}
 
@@ -2400,8 +2399,8 @@ int srv_redispatch_connect(struct stream *s)
 		 * Not needed for backend queues, already handled in
 		 * assign_server_and_queue().
 		 */
-		if (unlikely(srv && may_dequeue_tasks(srv, s->be)))
-			process_srv_queue(srv);
+		if (unlikely(srv))
+		       srv_manage_queues(srv, s->be);
 
 		return 1;
 
@@ -2421,8 +2420,7 @@ int srv_redispatch_connect(struct stream *s)
 			_HA_ATOMIC_INC(&s->be_tgcounters->failed_conns);
 
 		/* release other streams waiting for this server */
-		if (may_dequeue_tasks(srv, s->be))
-			process_srv_queue(srv);
+		srv_manage_queues(srv, s->be);
 		return 1;
 	}
 	/* if we get here, it's because we got SRV_STATUS_OK, which also
@@ -2498,8 +2496,7 @@ void back_try_conn_req(struct stream *s)
 
 			/* release other streams waiting for this server */
 			sess_change_server(s, NULL);
-			if (may_dequeue_tasks(srv, s->be))
-				process_srv_queue(srv);
+			srv_manage_queues(srv, s->be);
 
 			/* Failed and not retryable. */
 			sc_abort(sc);
@@ -2816,8 +2813,7 @@ void back_handle_st_cer(struct stream *s)
 		if (s->be_tgcounters)
 			_HA_ATOMIC_INC(&s->be_tgcounters->failed_conns);
 		sess_change_server(s, NULL);
-		if (may_dequeue_tasks(objt_server(s->target), s->be))
-			process_srv_queue(objt_server(s->target));
+		srv_manage_queues(objt_server(s->target), s->be);
 
 		/* shutw is enough to stop a connecting socket */
 		sc_shutdown(sc);
@@ -2850,8 +2846,7 @@ void back_handle_st_cer(struct stream *s)
 		if (s->be_tgcounters)
 			_HA_ATOMIC_INC(&s->be_tgcounters->internal_errors);
 		sess_change_server(s, NULL);
-		if (may_dequeue_tasks(objt_server(s->target), s->be))
-			process_srv_queue(objt_server(s->target));
+		srv_manage_queues(objt_server(s->target), s->be);
 
 		/* shutw is enough to stop a connecting socket */
 		sc_shutdown(sc);

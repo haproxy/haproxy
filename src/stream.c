@@ -630,8 +630,7 @@ void stream_free(struct stream *s)
 	pendconn_free(s);
 
 	if (objt_server(s->target)) { /* there may be requests left pending in queue */
-		if (may_dequeue_tasks(__objt_server(s->target), s->be))
-			process_srv_queue(__objt_server(s->target));
+		srv_manage_queues(__objt_server(s->target), s->be);
 	}
 
 	if (unlikely(s->srv_conn)) {
@@ -647,8 +646,7 @@ void stream_free(struct stream *s)
 		 */
 		if (!(oldsrv->flags & SRV_F_STRICT_MAXCONN)) {
 			sess_change_server(s, NULL);
-			if (may_dequeue_tasks(oldsrv, s->be))
-				process_srv_queue(oldsrv);
+			srv_manage_queues(oldsrv, s->be);
 		}
 	}
 
@@ -758,8 +756,7 @@ void stream_free(struct stream *s)
 
 		if ((oldsrv->flags & SRV_F_STRICT_MAXCONN)) {
 			sess_change_server(s, NULL);
-			if (may_dequeue_tasks(oldsrv, s->be))
-				process_srv_queue(oldsrv);
+			srv_manage_queues(oldsrv, s->be);
 		}
 	}
 
@@ -2060,8 +2057,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			 */
 			if (!(srv->flags & SRV_F_STRICT_MAXCONN)) {
 				sess_change_server(s, NULL);
-				if (may_dequeue_tasks(srv, s->be))
-					process_srv_queue(srv);
+				srv_manage_queues(srv, s->be);
 			}
 		}
 
@@ -2975,8 +2971,7 @@ void stream_shutdown_self(struct stream *stream, int why)
 
 	if (objt_server(stream->target)) {
 		sess_change_server(stream, NULL);
-		if (may_dequeue_tasks(objt_server(stream->target), stream->be))
-			process_srv_queue(objt_server(stream->target));
+		srv_manage_queues(__objt_server(stream->target), stream->be);
 	}
 
 	/* shutw is enough to stop a connecting socket */
