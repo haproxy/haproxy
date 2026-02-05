@@ -31870,6 +31870,30 @@ jwt [ off | on ]
   This option can be changed during runtime via the "add ssl jwt" and "del ssl
   jwt" CLI commands. See also "show ssl jwt" CLI command.
 
+generate-dummy [ off | on ]
+  Allow the generation of a private key and its self-signed certificate at
+  parsing time when set to 'on'. This may be useful if one does not have a
+  certificate at disposal during testing phase for instance. In this case,
+  "keytype", "bits" and "curves" may be used to customize the private key. When
+  not used, the default value is 'off'. (also see "keytype", "bits" and
+  "curves").
+
+keytype [ RSA | ECDSA ]
+  Allow the selection of the private key type used to generate at parsing time
+  a self-signed certificate. This is the case if "generate-dummy" is set to 'on'
+  for this certificate. When not used, the default is 'RSA'.
+  (also see "generate-dummy").
+
+bits <number>
+  Configure the number of bits to generate an RSA self-signed certificate when
+  "generate-dummy" is set to 'on' for this self-signed certificate and "keytype"
+  is set to 'RSA'. When not used, the default is 2048. (also see
+  "generate-dummy").
+
+curves <string>
+  Configure the curves when "generate-dummy" is set to 'on' and "keytype" is
+  set to 'ECDSA" for this self-signed certificate. The default is 'P-384'.
+
 12.8. ACME
 ----------
 
