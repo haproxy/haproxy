@@ -3771,8 +3771,8 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 			      htx, htx->flags, htx->size, htx->data, htx_nbblks(htx),
 			      (htx->tail >= htx->head) ? "NO" : "YES");
 	}
-	if (HAS_FILTERS(strm) && strm->strm_flt.current[0]) {
-		const struct filter *flt = strm->strm_flt.current[0];
+	if (HAS_FILTERS(strm) && strm->req.flt.current) {
+		const struct filter *flt = strm->req.flt.current;
 
 		chunk_appendf(buf, "%s      current_filter=%p (id=\"%s\" flags=0x%x pre=0x%x post=0x%x) \n", pfx,
 			      flt, flt->config->id, flt->flags, flt->pre_analyzers, flt->post_analyzers);
@@ -3804,8 +3804,8 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 			      (htx->tail >= htx->head) ? "NO" : "YES");
 	}
 
-	if (HAS_FILTERS(strm) && strm->strm_flt.current[1]) {
-		const struct filter *flt = strm->strm_flt.current[1];
+	if (HAS_FILTERS(strm) && strm->res.flt.current) {
+		const struct filter *flt = strm->res.flt.current;
 
 		chunk_appendf(buf, "%s      current_filter=%p (id=\"%s\" flags=0x%x pre=0x%x post=0x%x) \n", pfx,
 			      flt, flt->config->id, flt->flags, flt->pre_analyzers, flt->post_analyzers);

@@ -40,13 +40,13 @@ extern const char *fcgi_flt_id;
 /* Useful macros to access per-channel values. It can be safely used inside
  * filters. */
 #define CHN_IDX(chn)     (((chn)->flags & CF_ISRESP) == CF_ISRESP)
-#define FLT_STRM_OFF(s, chn) (strm_flt(s)->offset[CHN_IDX(chn)])
+#define FLT_STRM_OFF(s, chn) (chn->flt.offset)
 #define FLT_OFF(flt, chn) ((flt)->offset[CHN_IDX(chn)])
 
 #define HAS_FILTERS(strm)           ((strm)->strm_flt.flags & STRM_FLT_FL_HAS_FILTERS)
 
-#define HAS_REQ_DATA_FILTERS(strm)  ((strm)->strm_flt.nb_req_data_filters != 0)
-#define HAS_RSP_DATA_FILTERS(strm)  ((strm)->strm_flt.nb_rsp_data_filters != 0)
+#define HAS_REQ_DATA_FILTERS(strm)  ((strm)->req.flt.nb_data_filters != 0)
+#define HAS_RSP_DATA_FILTERS(strm)  ((strm)->res.flt.nb_data_filters != 0)
 #define HAS_DATA_FILTERS(strm, chn) (((chn)->flags & CF_ISRESP) ? HAS_RSP_DATA_FILTERS(strm) : HAS_REQ_DATA_FILTERS(strm))
 
 #define IS_REQ_DATA_FILTER(flt)  ((flt)->flags & FLT_FL_IS_REQ_DATA_FILTER)
@@ -137,14 +137,11 @@ static inline void
 register_data_filter(struct stream *s, struct channel *chn, struct filter *filter)
 {
 	if (!IS_DATA_FILTER(filter, chn)) {
-		if (chn->flags & CF_ISRESP) {
+		if (chn->flags & CF_ISRESP)
 			filter->flags |= FLT_FL_IS_RSP_DATA_FILTER;
-			strm_flt(s)->nb_rsp_data_filters++;
-		}
-		else  {
+		else
 			filter->flags |= FLT_FL_IS_REQ_DATA_FILTER;
-			strm_flt(s)->nb_req_data_filters++;
-		}
+		chn->flt.nb_data_filters++;
 	}
 }
 
@@ -153,15 +150,11 @@ static inline void
 unregister_data_filter(struct stream *s, struct channel *chn, struct filter *filter)
 {
 	if (IS_DATA_FILTER(filter, chn)) {
-		if (chn->flags & CF_ISRESP) {
+		if (chn->flags & CF_ISRESP)
 			filter->flags &= ~FLT_FL_IS_RSP_DATA_FILTER;
-			strm_flt(s)->nb_rsp_data_filters--;
-
-		}
-		else  {
+		else
 			filter->flags &= ~FLT_FL_IS_REQ_DATA_FILTER;
-			strm_flt(s)->nb_req_data_filters--;
-		}
+		chn->flt.nb_data_filters--;
 	}
 }
 
@@ -186,9 +179,16 @@ static inline struct filter *flt_list_start(struct stream *strm, struct channel 
 {
 	struct filter *filter;
 
-	filter = LIST_NEXT(&strm_flt(strm)->filters, struct filter *, list);
-	if (&filter->list == &strm_flt(strm)->filters)
-		filter = NULL; /* empty list */
+	if (chn->flags & CF_ISRESP) {
+		filter = LIST_NEXT(&chn->flt.filters, struct filter *, res_list);
+		if (&filter->res_list == &chn->flt.filters)
+			filter = NULL; /* empty list */
+	}
+	else {
+		filter = LIST_NEXT(&chn->flt.filters, struct filter *, req_list);
+		if (&filter->req_list == &chn->flt.filters)
+			filter = NULL; /* empty list */
+	}
 
 	return filter;
 }
@@ -196,9 +196,16 @@ static inline struct filter *flt_list_start(struct stream *strm, struct channel 
 static inline struct filter *flt_list_next(struct stream *strm, struct channel *chn,
                                            struct filter *filter)
 {
-	filter = LIST_NEXT(&filter->list, struct filter *, list);
-	if (&filter->list == &strm_flt(strm)->filters)
-		filter = NULL; /* end of list */
+	if (chn->flags & CF_ISRESP) {
+		filter = LIST_NEXT(&filter->res_list, struct filter *, res_list);
+		if (&filter->res_list == &chn->flt.filters)
+			filter = NULL; /* end of list */
+	}
+	else {
+		filter = LIST_NEXT(&filter->req_list, struct filter *, req_list);
+		if (&filter->req_list == &chn->flt.filters)
+			filter = NULL; /* end of list */
+	}
 
 	return filter;
 }

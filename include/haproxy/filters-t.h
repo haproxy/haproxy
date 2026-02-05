@@ -232,22 +232,28 @@ struct filter {
 	                                    * 0: request channel, 1: response channel */
 	unsigned int    pre_analyzers;     /* bit field indicating analyzers to pre-process */
 	unsigned int    post_analyzers;    /* bit field indicating analyzers to post-process */
-	struct list     list;              /* Next filter for the same proxy/stream */
+	struct list     list;              /* Filter list for the stream */
+	/* req_list and res_list are exactly equivalent, except the order may differ */
+	struct list     req_list;          /* Filter list for request channel */
+	struct list     res_list;          /* Filter list for response channel */
 };
 
 /*
  * Structure reprensenting the "global" state of filters attached to a stream.
+ * Doesn't hold much information, as the channel themselves hold chn_flt struct
+ * which contains the per-channel members.
  */
 struct strm_flt {
 	struct list    filters;               /* List of filters attached to a stream */
-	struct filter *current[2];            /* From which filter resume processing, for a specific channel.
-	                                       * This is used for resumable callbacks only,
-	                                       * If NULL, we start from the first filter.
-	                                       * 0: request channel, 1: response channel */
 	unsigned short flags;                 /* STRM_FL_* */
-	unsigned char  nb_req_data_filters;   /* Number of data filters registered on the request channel */
-	unsigned char  nb_rsp_data_filters;   /* Number of data filters registered on the response channel */
-	unsigned long long offset[2];
+};
+
+/* structure holding filter state for some members that are channel oriented */
+struct chn_flt {
+	struct list filters;                  /* List of filters attached to a channel */
+	struct filter *current;               /* From which filter resume processing, for a specific channel. */
+	unsigned char nb_data_filters;        /* Number of data filters registered on channel */
+	unsigned long long offset;
 };
 
 #endif /* _HAPROXY_FILTERS_T_H */

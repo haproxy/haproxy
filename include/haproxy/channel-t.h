@@ -24,6 +24,7 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/buf-t.h>
+#include <haproxy/filters-t.h>
 #include <haproxy/show_flags-t.h>
 
 /* The CF_* macros designate Channel Flags, which may be ORed in the bit field
@@ -205,6 +206,7 @@ struct channel {
 	unsigned char xfer_large;       /* number of consecutive large xfers */
 	unsigned char xfer_small;       /* number of consecutive small xfers */
 	int analyse_exp;                /* expiration date for current analysers (if set) */
+	struct chn_flt flt;             /* current state of filters active on this channel */
 };
 
 

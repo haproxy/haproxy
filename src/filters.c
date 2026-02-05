@@ -67,9 +67,9 @@ static inline struct filter *resume_filter_list_start(struct stream *strm, struc
 {
 	struct filter *filter;
 
-	if (strm_flt(strm)->current[CHN_IDX(chn)]) {
-		filter = strm_flt(strm)->current[CHN_IDX(chn)];
-		strm_flt(strm)->current[CHN_IDX(chn)] = NULL;
+	if (chn->flt.current) {
+		filter = chn->flt.current;
+		chn->flt.current = NULL;
 		if (!(chn_prod(chn)->flags & SC_FL_ERROR) &&
 		    !(chn->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) {
 			(strm)->waiting_entity.type = STRM_ENTITY_NONE;
@@ -100,7 +100,7 @@ static inline void resume_filter_list_break(struct stream *strm, struct channel 
 		strm->last_entity.type = STRM_ENTITY_FILTER;
 		strm->last_entity.ptr = filter;
 	}
-	strm_flt(strm)->current[CHN_IDX(chn)] = filter;
+	chn->flt.current = filter;
 }
 
 /* List head of all known filter keywords */
@@ -455,6 +455,14 @@ flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int fla
 	}
 
 	LIST_APPEND(&strm_flt(s)->filters, &f->list);
+
+	/* for now f->req_list == f->res_list to preserve
+	 * historical behavior, but the ordering will change
+	 * in the future
+	 */
+	LIST_APPEND(&s->req.flt.filters, &f->req_list);
+	LIST_APPEND(&s->res.flt.filters, &f->res_list);
+
 	strm_flt(s)->flags |= STRM_FLT_FL_HAS_FILTERS;
 	return 0;
 }
@@ -470,6 +478,10 @@ flt_stream_init(struct stream *s)
 
 	memset(strm_flt(s), 0, sizeof(*strm_flt(s)));
 	LIST_INIT(&strm_flt(s)->filters);
+	memset(&s->req.flt, 0, sizeof(s->req.flt));
+	LIST_INIT(&s->req.flt.filters);
+	memset(&s->res.flt, 0, sizeof(s->res.flt));
+	LIST_INIT(&s->res.flt.filters);
 	list_for_each_entry(fconf, &strm_fe(s)->filter_configs, list) {
 		if (flt_stream_add_filter(s, fconf, 0) < 0)
 			return -1;
@@ -494,6 +506,8 @@ flt_stream_release(struct stream *s, int only_backend)
 			if (FLT_OPS(filter)->detach)
 				FLT_OPS(filter)->detach(s, filter);
 			LIST_DELETE(&filter->list);
+			LIST_DELETE(&filter->req_list);
+			LIST_DELETE(&filter->res_list);
 			pool_free(pool_head_filter, filter);
 		}
 	}
