@@ -34,7 +34,11 @@ DECLARE_STATIC_TYPED_POOL(pool_head_filter, "filter", struct filter);
 
 static int handle_analyzer_result(struct stream *s, struct channel *chn, unsigned int an_bit, int ret);
 
-/* - resume_filter_list_start() and resume_filter_list_next() must always be used together.
+/*
+ * The API below is similar to flt_list_start() and flt_list_next() except that it can be
+ * interrupted and resumed!
+ *
+ * - resume_filter_list_start() and resume_filter_list_next() must always be used together.
  *   The first one sets the first filter value and the second one allows to get the
  *   next one until NULL is returned
  *
@@ -72,11 +76,8 @@ static inline struct filter *resume_filter_list_start(struct stream *strm, struc
 			(strm)->waiting_entity.ptr = NULL;
 		}
 	}
-	else {
-		filter = LIST_NEXT(&strm_flt(strm)->filters, struct filter *, list);
-		if (&filter->list == &strm_flt(strm)->filters)
-			filter = NULL; /* empty list */
-	}
+	else
+		filter = flt_list_start(strm, chn);
 
 	return filter;
 }
@@ -84,10 +85,8 @@ static inline struct filter *resume_filter_list_start(struct stream *strm, struc
 static inline struct filter *resume_filter_list_next(struct stream *strm, struct channel *chn,
                                                      struct filter *filter)
 {
-	filter = LIST_NEXT(&filter->list, struct filter *, list);
-	if (&filter->list == &strm_flt(strm)->filters)
-		filter = NULL; /* end of list */
-	return filter;
+	/* simply an alias to flt_list_next() */
+	return flt_list_next(strm, chn, filter);
 }
 
 static inline void resume_filter_list_break(struct stream *strm, struct channel *chn,
@@ -659,7 +658,8 @@ flt_http_reset(struct stream *s, struct http_msg *msg)
 	struct filter *filter;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
-	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+	for (filter = flt_list_start(s, msg->chn); filter;
+	     filter = flt_list_next(s, msg->chn, filter)) {
 		if (FLT_OPS(filter)->http_reset) {
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 			filter->calls++;
@@ -710,7 +710,8 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 
 	ret = data = len - out;
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
-	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+	for (filter = flt_list_start(s, msg->chn); filter;
+	     filter = flt_list_next(s, msg->chn, filter)) {
 		unsigned long long *flt_off = &FLT_OFF(filter, msg->chn);
 		unsigned int offset = *flt_off - *strm_off;
 
@@ -866,7 +867,8 @@ flt_post_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
 
-	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+	for (filter = flt_list_start(s, chn); filter;
+	     filter = flt_list_next(s, chn, filter)) {
 		if (FLT_OPS(filter)->channel_post_analyze &&  (filter->post_analyzers & an_bit)) {
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_FLT_ANA, s);
 			filter->calls++;
@@ -916,7 +918,8 @@ flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_
 		size_t data = http_get_hdrs_size(htxbuf(&chn->buf));
 		struct filter *f;
 
-		list_for_each_entry(f, &strm_flt(s)->filters, list)
+		for (f = flt_list_start(s, chn); f;
+		     f = flt_list_next(s, chn, f))
 			FLT_OFF(f, chn) = data;
 	}
 
@@ -1019,7 +1022,8 @@ flt_tcp_payload(struct stream *s, struct channel *chn, unsigned int len)
 
 	ret = data = len - out;
 	DBG_TRACE_ENTER(STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
-	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+	for (filter = flt_list_start(s, chn); filter;
+	     filter = flt_list_next(s, chn, filter)) {
 		unsigned long long *flt_off = &FLT_OFF(filter, chn);
 		unsigned int offset = *flt_off - *strm_off;
 

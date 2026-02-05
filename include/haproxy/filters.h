@@ -165,6 +165,44 @@ unregister_data_filter(struct stream *s, struct channel *chn, struct filter *fil
 	}
 }
 
+/*
+ * flt_list_start() and flt_list_next() can be used to iterate over the list of filters
+ * for a given <strm> and <chn> combination. It will automatically choose the proper
+ * list to iterate from depending on the context.
+ *
+ * flt_list_start() has to be called exactly once to get the first value from the list
+ * to get the following values, use flt_list_next() until NULL is returned.
+ *
+ * Example:
+ *
+ *    struct filter *filter;
+ *
+ *    for (filter = flt_list_start(stream, channel); filter;
+ *         filter = flt_list_next(stream, channel, filter)) {
+ *	...
+ *    }
+ */
+static inline struct filter *flt_list_start(struct stream *strm, struct channel *chn)
+{
+	struct filter *filter;
+
+	filter = LIST_NEXT(&strm_flt(strm)->filters, struct filter *, list);
+	if (&filter->list == &strm_flt(strm)->filters)
+		filter = NULL; /* empty list */
+
+	return filter;
+}
+
+static inline struct filter *flt_list_next(struct stream *strm, struct channel *chn,
+                                           struct filter *filter)
+{
+	filter = LIST_NEXT(&filter->list, struct filter *, list);
+	if (&filter->list == &strm_flt(strm)->filters)
+		filter = NULL; /* end of list */
+
+	return filter;
+}
+
 /* This function must be called when a filter alter payload data. It updates
  * offsets of all previous filters. Do not call this function when a filter
  * change the size of payload data leads to an undefined behavior.
@@ -177,7 +215,8 @@ flt_update_offsets(struct filter *filter, struct channel *chn, int len)
 	struct stream *s = chn_strm(chn);
 	struct filter *f;
 
-	list_for_each_entry(f, &strm_flt(s)->filters, list) {
+	for (f = flt_list_start(s, chn); f;
+	     f = flt_list_next(s, chn, f)) {
 		if (f == filter)
 			break;
 		FLT_OFF(f, chn) += len;
