@@ -1738,6 +1738,13 @@ add backend <name> from <defproxy> [mode <mode>] [guid <guid>] [ EXPERIMENTAL ]
   in the unpublished state. Once considered ready for traffic, use "publish
   backend" to expose the newly created instance.
 
+  All named default proxies can be used, given that they validate the same
+  inheritance rules applied during configuration parsing. There is some
+  exceptions though, for example when the mode is neither TCP nor HTTP. Another
+  exception is that it is not yet possible to use a default proxies which
+  reference custom HTTP errors, for example via the errorfiles or http-rules
+  keywords.
+
   This command is restricted and can only be issued on sockets configured for
   level "admin". Moreover, this feature is still considered in development so it
   also requires experimental mode (see "experimental-mode on").

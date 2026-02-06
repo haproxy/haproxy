@@ -4851,6 +4851,15 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
 		cli_dynerr(appctx, memprintf(&msg, "Mode is required as '%s' default proxy does not explicitely defines it.\n", def_name));
 		return 1;
 	}
+	if (defpx->mode != PR_MODE_TCP && defpx->mode != PR_MODE_HTTP) {
+		cli_dynerr(appctx, memprintf(&msg, "Dynamic backends only support TCP or HTTP mode, whereas default proxy '%s' uses 'mode %s'.\n",
+		           def_name, proxy_mode_str(defpx->mode)));
+		return 1;
+	}
+	if (!LIST_ISEMPTY(&defpx->conf.errors)) {
+		cli_dynerr(appctx, memprintf(&msg, "Dynamic backends cannot inherit from default proxy '%s' because it references HTTP errors.\n", def_name));
+		return 1;
+	}
 
 	thread_isolate();
 
