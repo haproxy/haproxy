@@ -1641,9 +1641,6 @@ void thread_detect_count(void)
 	if (global.nbtgroups)
 		grp_min = grp_max = global.nbtgroups;
 
-	if (!global.maxthrpertgroup)
-		global.maxthrpertgroup = MAX_THREADS_PER_GROUP;
-
 #if defined(USE_THREAD)
 	/* Adjust to boot settings if not forced */
 	if (thr_min <= thread_cpus_enabled_at_boot && thread_cpus_enabled_at_boot < thr_max)
