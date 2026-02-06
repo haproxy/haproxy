@@ -4939,10 +4939,10 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
 	thread_release();
 
 	if (unlikely(!be_supports_dynamic_srv(px, &msg)))
-		memprintf(&msg, "New backend registered (no support for dynamic servers: %s).\n", msg);
+		memprintf(&msg, "New backend registered (no support for dynamic servers: %s)", msg);
 	else
-		memprintf(&msg, "New backend registered.\n");
-	ha_notice(msg);
+		memprintf(&msg, "New backend registered");
+	ha_notice("%s.\n", msg);
 	ha_free(&msg);
 	cli_umsg(appctx, LOG_INFO);
 
