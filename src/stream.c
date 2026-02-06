@@ -629,10 +629,6 @@ void stream_free(struct stream *s)
 
 	pendconn_free(s);
 
-	if (objt_server(s->target)) { /* there may be requests left pending in queue */
-		srv_manage_queues(__objt_server(s->target), s->be);
-	}
-
 	if (unlikely(s->srv_conn)) {
 		struct server *oldsrv = s->srv_conn;
 		/* the stream still has a reserved slot on a server, but
