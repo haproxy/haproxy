@@ -1394,6 +1394,12 @@ int thread_map_to_groups()
 	for (g = 0; g < global.nbtgroups; g++) {
 		if (!ha_tgroup_info[g].count)
 			ug++;
+		else {
+			if (ha_tgroup_info[g].count > global.maxthrpertgroup) {
+				ha_alert("thread-group %d assigned too many threads (%d, max=%d)\n", g, ha_tgroup_info[g].count, global.maxthrpertgroup);
+				return -1;
+			}
+		}
 		ha_tgroup_info[g].tgid_bit = 1UL << g;
 	}
 
@@ -2132,11 +2138,6 @@ static int cfg_parse_thread_group(char **args, int section_type, struct proxy *c
 
 	if (ha_tgroup_info[tgroup-1].count > tot) {
 		memprintf(err, "'%s %ld' assigned sparse threads, only contiguous supported", args[0], tgroup);
-		return -1;
-	}
-
-	if (ha_tgroup_info[tgroup-1].count > global.maxthrpertgroup) {
-		memprintf(err, "'%s %ld' assigned too many threads (%d, max=%d)", args[0], tgroup, tot, global.maxthrpertgroup);
 		return -1;
 	}
 
