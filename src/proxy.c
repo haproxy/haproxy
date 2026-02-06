@@ -4927,7 +4927,7 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
 	dynpx_next_id = px->uuid;
 
 	if (!proxies_list) {
-		proxies_list->next = px;
+		proxies_list = px;
 	}
 	else {
 		for (next = proxies_list; next->next; next = next->next)
