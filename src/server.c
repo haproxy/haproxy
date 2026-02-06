@@ -6104,7 +6104,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	struct add_srv_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	struct proxy *be;
 	struct server *srv;
-	char *be_name, *sv_name;
+	char *be_name, *sv_name, *errmsg;
 	int errcode, argc;
 	int next_id;
 	const int parse_flags = SRV_PARSE_DYNAMIC|SRV_PARSE_PARSE_ADDR;
@@ -6140,13 +6140,9 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	if (!be)
 		return cli_err(appctx, "No such backend.\n");
 
-	if (!(be->lbprm.algo & BE_LB_PROP_DYN)) {
-		cli_err(appctx, "Backend must use a dynamic load balancing to support dynamic servers.\n");
-		return 1;
-	}
-
-	if (be->mode == PR_MODE_SYSLOG) {
-		cli_err(appctx," Dynamic servers cannot be used with log backends.\n");
+	errmsg = NULL;
+	if (!be_supports_dynamic_srv(be, &errmsg)) {
+		cli_dynerr(appctx, memprintf(&errmsg, "Backend does not support dynamic servers : %s.\n", errmsg));
 		return 1;
 	}
 

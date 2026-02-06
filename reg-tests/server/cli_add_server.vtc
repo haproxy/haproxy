@@ -51,7 +51,7 @@ haproxy h1 -cli {
 
 	# invalid load-balancing algo
 	send "add server other/s1 ${s1_addr}:${s1_port}"
-	expect ~ "Backend must use a dynamic load balancing to support dynamic servers."
+	expect ~ "backend 'other' uses a non dynamic load balancing method"
 
 	# invalid mux proto
 	send "add server other2/s1 ${s1_addr}:${s1_port} proto h2"

@@ -69,6 +69,7 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit);
 
 int be_downtime(struct proxy *px);
+int be_supports_dynamic_srv(struct proxy *px, char **msg);
 void recount_servers(struct proxy *px);
 void update_backend_weight(struct proxy *px);
 

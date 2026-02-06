@@ -59,6 +59,7 @@
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 #include <haproxy/trace.h>
 
 #define TRACE_SOURCE &trace_strm
@@ -3053,6 +3054,27 @@ int be_downtime(struct proxy *px) {
 		return px->down_time;
 
 	return ns_to_sec(now_ns) - px->last_change + px->down_time;
+}
+
+/* Checks if <px> backend supports the addition of servers at runtime. Either a
+ * backend or a defaults proxy are supported. If proxy is incompatible, <msg>
+ * will be allocated to contain a textual explaination.
+ */
+int be_supports_dynamic_srv(struct proxy *px, char **msg)
+{
+	if (px->lbprm.algo && !(px->lbprm.algo & BE_LB_PROP_DYN)) {
+		memprintf(msg, "%s '%s' uses a non dynamic load balancing method",
+		          proxy_cap_str(px->cap), px->id);
+		return 0;
+	}
+
+	if (px->mode == PR_MODE_SYSLOG) {
+		memprintf(msg, "%s '%s' uses mode log",
+		          proxy_cap_str(px->cap), px->id);
+		return 0;
+	}
+
+	return 1;
 }
 
 /*
