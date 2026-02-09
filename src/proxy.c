@@ -47,6 +47,7 @@
 #include <haproxy/lb_ss.h>
 #include <haproxy/log.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/openssl-compat.h> /* required for TLSEXT_TYPE_application_layer_protocol_negotiation */
 #include <haproxy/peers.h>
 #include <haproxy/pool.h>
 #include <haproxy/protocol.h>
