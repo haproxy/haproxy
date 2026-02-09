@@ -263,7 +263,10 @@ static int sample_conv_url_dec(const struct arg *args, struct sample *smp, void 
 	  * before decoding.
 	 */
 	if (smp->flags & SMP_F_CONST || smp->data.u.str.size <= smp->data.u.str.data) {
-		struct buffer *str = get_trash_chunk();
+		struct buffer *str = get_trash_chunk_sz(smp->data.u.str.data);
+
+		if (!str)
+			return 0;
 		memcpy(str->area, smp->data.u.str.area, smp->data.u.str.data);
 		smp->data.u.str.area = str->area;
 		smp->data.u.str.size = str->size;
@@ -334,9 +337,12 @@ static int sample_conv_url_enc(const struct arg *args, struct sample *smp, void
 		*private)
 {
 	enum encode_type enc_type;
-	struct buffer *trash = get_trash_chunk();
+	struct buffer *trash = get_trash_chunk_sz(smp->data.u.str.data);
 	long *encode_map;
 	char *ret;
+
+	if (!trash)
+		return 0;
 
 	enc_type = ENC_QUERY;
 	enc_type = args->data.sint;
