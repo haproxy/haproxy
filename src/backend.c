@@ -690,7 +690,7 @@ int assign_server(struct stream *s)
 		/* if there's some queue on the backend, with certain algos we
 		 * know it's because all servers are full.
 		 */
-		if (s->be->queueslength && s->be->served && s->be->queueslength != s->be->beconn &&
+		if (s->be->queues_not_empty && s->be->served && s->be->queueslength != s->be->beconn &&
 		    (((s->be->lbprm.algo & (BE_LB_KIND|BE_LB_NEED|BE_LB_PARM)) == BE_LB_ALGO_FAS)||   // first
 		     ((s->be->lbprm.algo & (BE_LB_KIND|BE_LB_NEED|BE_LB_PARM)) == BE_LB_ALGO_RR) ||   // roundrobin
 		     ((s->be->lbprm.algo & (BE_LB_KIND|BE_LB_NEED|BE_LB_PARM)) == BE_LB_ALGO_SRR))) { // static-rr

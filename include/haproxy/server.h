@@ -399,7 +399,7 @@ static inline int srv_manage_queues(struct server *srv, struct proxy *px)
 	int full = -1;
 
 	if (may_dequeue_tasks(srv, px))
-		full = process_srv_queue(srv);
+		full = process_srv_queue(srv, &full);
 
 	return full;
 }

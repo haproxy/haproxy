@@ -263,7 +263,7 @@ static struct pendconn *pendconn_first(struct eb_root *pendconns)
  * This function must only be called if the server queue is locked _AND_ the
  * proxy queue is not. Today it is only called by process_srv_queue.
  * When a pending connection is dequeued, this function returns 1 if a pendconn
- * is dequeued, otherwise 0.
+ * is dequeued, otherwise 0 if the queues are empty, or -1 if the server is full.
  */
 static int pendconn_process_next_strm(struct server *srv, struct proxy *px, int px_ok, int tgrp)
 {
@@ -302,7 +302,7 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px, int 
 	if (!got_it) {
 		if (pp)
 			HA_SPIN_UNLOCK(QUEUE_LOCK, &px->per_tgrp[tgrp - 1].queue.lock);
-		return 0;
+		return -1;
 	}
 
 	/*
@@ -398,17 +398,19 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px, int 
 /* Manages a server's connection queue. This function will try to dequeue as
  * many pending streams as possible, and wake them up.
  */
-int process_srv_queue(struct server *s)
+int process_srv_queue(struct server *s, int *fullp)
 {
 	struct server *ref = s->track ? s->track : s;
 	struct proxy  *p = s->proxy;
 	long non_empty_tgids[(global.nbtgroups / LONGBITS) + 1];
 	int maxconn;
 	int done = 0;
+	int full = 0;
 	int px_ok;
 	int cur_tgrp;
 	int i = global.nbtgroups;
 	int curgrpnb = i;
+	int ret;
 
 
 	while (i >= LONGBITS) {
@@ -507,9 +509,12 @@ int process_srv_queue(struct server *s)
 			 * pendconn_process_next_strm() will increment
 			 * the served field, only if it is < maxconn.
 			 */
-			if (!pendconn_process_next_strm(s, p, px_ok, cur_tgrp)) {
+			ret = pendconn_process_next_strm(s, p, px_ok, cur_tgrp);
+			if (ret <= 0) {
 				ha_bit_clr(cur_tgrp - 1, non_empty_tgids);
 				curgrpnb--;
+				if (ret == -1)
+					full = 1;
 				break;
 			}
 			to_dequeue--;
@@ -549,16 +554,24 @@ int process_srv_queue(struct server *s)
 		 */
 		for (i = 0; i < global.nbtgroups; i++) {
 			HA_SPIN_LOCK(QUEUE_LOCK, &s->per_tgrp[i].queue.lock);
-			if (pendconn_process_next_strm(s, p, px_ok, i + 1)) {
+			ret = pendconn_process_next_strm(s, p, px_ok, i + 1);
+			if (ret == 1) {
 				HA_SPIN_UNLOCK(QUEUE_LOCK, &s->per_tgrp[i].queue.lock);
 				_HA_ATOMIC_SUB(&p->totpend, 1);
 				_HA_ATOMIC_ADD(&p->served, 1);
 				done++;
 				break;
+			} else if (ret == -1) {
+				/* Server full */
+				   HA_SPIN_UNLOCK(QUEUE_LOCK, &s->per_tgrp[i].queue.lock);
+				   full = 1;
+				   break;
 			}
 			HA_SPIN_UNLOCK(QUEUE_LOCK, &s->per_tgrp[i].queue.lock);
 		}
 	}
+	if (fullp)
+		*fullp = full;
 	return done;
 }
 

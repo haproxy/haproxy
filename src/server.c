@@ -5930,6 +5930,7 @@ static int srv_alloc_lb(struct server *sv, struct proxy *be)
 static struct task *server_warmup(struct task *t, void *context, unsigned int state)
 {
 	struct server *s = context;
+	int full;
 
 	/* by default, plan on stopping the task */
 	t->expire = TICK_ETERNITY;
@@ -5945,7 +5946,7 @@ static struct task *server_warmup(struct task *t, void *context, unsigned int st
 	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 
 	/* probably that we can refill this server with a bit more connections */
-	process_srv_queue(s);
+	process_srv_queue(s, &full);
 
 
 	/* get back there in 1 second or 1/20th of the slowstart interval,
@@ -6702,6 +6703,7 @@ static int _srv_update_status_op(struct server *s, enum srv_op_st_chg_cause caus
 	int log_level;
 	int srv_was_stopping = (s->cur_state == SRV_ST_STOPPING) || (s->cur_admin & SRV_ADMF_DRAIN);
 	int xferred = 0;
+	int full;
 
 	if ((s->cur_state != SRV_ST_STOPPED) && (s->next_state == SRV_ST_STOPPED)) {
 		srv_lb_propagate(s);
@@ -6782,7 +6784,7 @@ static int _srv_update_status_op(struct server *s, enum srv_op_st_chg_cause caus
 		/* check if we can handle some connections queued.
 		 * We will take as many as we can handle.
 		 */
-		xferred = process_srv_queue(s);
+		xferred = process_srv_queue(s, &full);
 
 		tmptrash = alloc_trash_chunk();
 		if (tmptrash) {
@@ -6819,6 +6821,7 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 	struct buffer *tmptrash = NULL;
 	int srv_was_stopping = (s->cur_state == SRV_ST_STOPPING) || (s->cur_admin & SRV_ADMF_DRAIN);
 	int xferred = 0;
+	int full;
 
 	/* Maintenance must also disable health checks */
 	if (!(s->cur_admin & SRV_ADMF_MAINT) && (s->next_admin & SRV_ADMF_MAINT)) {
@@ -6981,7 +6984,7 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 		/* check if we can handle some connections queued.
 		 * We will take as many as we can handle.
 		 */
-		xferred = process_srv_queue(s);
+		xferred = process_srv_queue(s, &full);
 	}
 	else if (s->next_admin & SRV_ADMF_MAINT) {
 		/* remaining in maintenance mode, let's inform precisely about the
