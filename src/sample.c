@@ -876,7 +876,9 @@ int smp_dup(struct sample *smp)
 		__fallthrough;
 
 	case SMP_T_STR:
-		trash = get_trash_chunk();
+		trash = get_trash_chunk_sz(smp->data.u.str.data+1);
+		if (!trash)
+			return 0;
 		trash->data = smp->data.type == SMP_T_STR ?
 		    smp->data.u.str.data : smp->data.u.meth.str.data;
 		if (trash->data > trash->size - 1)
@@ -890,7 +892,9 @@ int smp_dup(struct sample *smp)
 		break;
 
 	case SMP_T_BIN:
-		trash = get_trash_chunk();
+		trash = get_trash_chunk_sz(smp->data.u.str.data);
+		if (!trash)
+			return 0;
 		trash->data = smp->data.u.str.data;
 		if (trash->data > trash->size)
 			trash->data = trash->size;
@@ -1857,9 +1861,11 @@ static int smp_check_debug(struct arg *args, struct sample_conv *conv,
 
 static int sample_conv_base642bin(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct buffer *trash = get_trash_chunk();
+	struct buffer *trash = get_trash_chunk_sz(smp->data.u.str.data);
 	int bin_len;
 
+	if (!trash)
+		return 0;
 	trash->data = 0;
 	bin_len = base64dec(smp->data.u.str.area, smp->data.u.str.data,
 			    trash->area, trash->size);
@@ -1875,9 +1881,11 @@ static int sample_conv_base642bin(const struct arg *arg_p, struct sample *smp, v
 
 static int sample_conv_base64url2bin(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct buffer *trash = get_trash_chunk();
+	struct buffer *trash = get_trash_chunk_sz(smp->data.u.str.data);
 	int bin_len;
 
+	if (!trash)
+		return 0;
 	trash->data = 0;
 	bin_len = base64urldec(smp->data.u.str.area, smp->data.u.str.data,
 			    trash->area, trash->size);
@@ -1893,9 +1901,11 @@ static int sample_conv_base64url2bin(const struct arg *arg_p, struct sample *smp
 
 static int sample_conv_bin2base64(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct buffer *trash = get_trash_chunk();
+	struct buffer *trash = get_trash_chunk_sz((smp->data.u.str.data+2) * 4 / 3);
 	int b64_len;
 
+	if (!trash)
+		return 0;
 	trash->data = 0;
 	b64_len = a2base64(smp->data.u.str.area, smp->data.u.str.data,
 			   trash->area, trash->size);
@@ -1911,9 +1921,11 @@ static int sample_conv_bin2base64(const struct arg *arg_p, struct sample *smp, v
 
 static int sample_conv_bin2base64url(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct buffer *trash = get_trash_chunk();
+	struct buffer *trash = get_trash_chunk_sz((smp->data.u.str.data+2) * 4 / 3);
 	int b64_len;
 
+	if (!trash)
+		return 0;
 	trash->data = 0;
 	b64_len = a2base64url(smp->data.u.str.area, smp->data.u.str.data,
 			   trash->area, trash->size);
@@ -2012,15 +2024,18 @@ static int sample_conv_2dec_check(struct arg *args, struct sample_conv *conv,
  */
 static int sample_conv_2dec(const struct arg *args, struct sample *smp, void *private, int be)
 {
-	struct buffer *trash = get_trash_chunk();
+	struct buffer *trash = get_trash_chunk_sz(smp->data.u.str.data);
 	const int last = args[2].data.sint ? smp->data.u.str.data - args[1].data.sint + 1 : smp->data.u.str.data;
-	int max_size = trash->size - 2;
+	int max_size;
 	int i;
 	int start;
 	int ptr = 0;
 	unsigned long long number;
 	char *pos;
 
+	if (!trash)
+		return 0;
+	max_size = trash->size - 2;
 	trash->data = 0;
 
 	while (ptr < last && trash->data <= max_size) {
@@ -2102,7 +2117,7 @@ static int sample_conv_be2hex_check(struct arg *args, struct sample_conv *conv,
  */
 static int sample_conv_be2hex(const struct arg *args, struct sample *smp, void *private)
 {
-	struct buffer *trash = get_trash_chunk();
+	struct buffer *trash = get_trash_chunk_sz(smp->data.u.str.data);
 	int chunk_size = args[1].data.sint;
 	const int last = args[2].data.sint ? smp->data.u.str.data - chunk_size + 1 : smp->data.u.str.data;
 	int i;
@@ -2110,6 +2125,8 @@ static int sample_conv_be2hex(const struct arg *args, struct sample *smp, void *
 	int ptr = 0;
 	unsigned char c;
 
+	if (!trash)
+		return 0;
 	trash->data = 0;
 	if (args[0].data.str.data == 0 && args[2].data.sint == 0)
 		chunk_size = smp->data.u.str.data;
@@ -2130,6 +2147,15 @@ static int sample_conv_be2hex(const struct arg *args, struct sample *smp, void *
 			trash->area[trash->data++] = hextab[(c >> 4) & 0xF];
 			trash->area[trash->data++] = hextab[c & 0xF];
 		}
+
+		if (trash->data >= max_size) {
+			struct buffer *trash2 = get_larger_trash_chunk(trash);
+
+			if (!trash2)
+				break;
+			max_size += trash2->size - trash->size;
+			trash = trash2;
+		}
 	}
 
 	smp->data.u.str = *trash;
@@ -2140,10 +2166,12 @@ static int sample_conv_be2hex(const struct arg *args, struct sample *smp, void *
 
 static int sample_conv_bin2hex(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct buffer *trash = get_trash_chunk();
+	struct buffer *trash = get_trash_chunk_sz(smp->data.u.str.data*2);
 	unsigned char c;
 	int ptr = 0;
 
+	if (!trash)
+		return 0;
 	trash->data = 0;
 	while (ptr < smp->data.u.str.data && trash->data <= trash->size - 2) {
 		c = smp->data.u.str.area[ptr++];
@@ -2158,16 +2186,26 @@ static int sample_conv_bin2hex(const struct arg *arg_p, struct sample *smp, void
 
 static int sample_conv_bin2base2(const struct arg *arg_p, struct sample *smp, void *private)
 {
-	struct buffer *trash = get_trash_chunk();
+	struct buffer *trash = get_trash_chunk_sz(smp->data.u.str.data);
 	unsigned char c;
 	int ptr = 0;
 	int bit = 0;
 
+	if (!trash)
+		return 0;
 	trash->data = 0;
 	while (ptr < smp->data.u.str.data && trash->data <= trash->size - 8) {
 		c = smp->data.u.str.area[ptr++];
                 for (bit = 7; bit >= 0; bit--)
                         trash->area[trash->data++] = c & (1 << bit) ? '1' : '0';
+
+		if (trash->data >= trash->size - 8) {
+			struct buffer *trash2 = get_larger_trash_chunk(trash);
+
+			if (!trash2)
+				break;
+			trash = trash2;
+		}
 	}
 	smp->data.u.str = *trash;
 	smp->data.type = SMP_T_STR;
@@ -2787,8 +2825,11 @@ static int sample_conv_json(const struct arg *arg_p, struct sample *smp, void *p
 		}
 
 		/* Check length */
-		if (temp->data + len > temp->size)
-			return 0;
+		if (temp->data + len > temp->size) {
+			temp = get_larger_trash_chunk(temp);
+			if (!temp)
+				return 0;
+		}
 
 		/* Copy string. */
 		memcpy(temp->area + temp->data, str, len);
@@ -3177,11 +3218,14 @@ static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp, void 
 	char *start, *end;
 	struct my_regex *reg = arg_p[0].data.reg;
 	regmatch_t pmatch[MAX_MATCH];
-	struct buffer *trash = get_trash_chunk();
+	struct buffer *trash = get_trash_chunk_sz(smp->data.u.str.data);
+	struct buffer *tmp;
 	struct buffer *output;
 	int flag, max;
 	int found;
 
+	if (!trash)
+		return 0;
 	start = smp->data.u.str.area;
 	end = start + smp->data.u.str.data;
 
@@ -3198,6 +3242,13 @@ static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp, void 
 
 		if (!found)
 			pmatch[0].rm_so = end - start;
+
+		/* If too many data to copy try to get a larger chunk */
+		if (pmatch[0].rm_so > b_room(trash)) {
+			tmp = get_larger_trash_chunk(trash);
+			if (tmp)
+				trash = tmp;
+		}
 
 		/* copy the heading non-matching part (which may also be the tail if nothing matches) */
 		max = trash->size - trash->data;
@@ -3217,6 +3268,13 @@ static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp, void 
 
 		output->data = exp_replace(output->area, output->size, start, arg_p[1].data.str.area, pmatch);
 
+		/* If too many data to copy try to get a larger chunk */
+		if (output->data > b_room(trash)) {
+			tmp = get_larger_trash_chunk(trash);
+			if (tmp)
+				trash = tmp;
+		}
+
 		/* replace the matching part */
 		max = trash->size - trash->data;
 		if (max) {
@@ -3232,6 +3290,13 @@ static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp, void 
 		/* stop here if we're done with this string */
 		if (start >= end)
 			break;
+
+		/* If too many data to copy try to get a larger chunk */
+		if (!b_room(trash)) {
+			tmp = get_larger_trash_chunk(trash);
+			if (tmp)
+				trash = tmp;
+		}
 
 		/* We have a special case for matches of length 0 (eg: "x*y*").
 		 * These ones are considered to match in front of a character,
@@ -3591,9 +3656,18 @@ static int sample_conv_concat(const struct arg *arg_p, struct sample *smp, void 
 {
 	struct buffer *trash;
 	struct sample tmp;
+	struct ist var = IST_NULL;
 	int max;
 
-	trash = alloc_trash_chunk();
+
+	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
+	if (arg_p[1].type == ARGT_VAR && vars_get_by_desc(&arg_p[1].data.var, &tmp, NULL) &&
+	    (sample_casts[tmp.data.type][SMP_T_STR] == c_none ||
+	     sample_casts[tmp.data.type][SMP_T_STR](&tmp))) {
+		var = ist2(b_orig(&tmp.data.u.str), b_data(&tmp.data.u.str));
+	}
+
+	trash = alloc_trash_chunk_sz(smp->data.u.str.data + arg_p[0].data.str.data + istlen(var) + arg_p[2].data.str.data);
 	if (!trash)
 		return 0;
 
@@ -3615,24 +3689,15 @@ static int sample_conv_concat(const struct arg *arg_p, struct sample *smp, void 
 		trash->area[trash->data] = 0;
 	}
 
-	/* append second string (variable) if it's found and we can turn it
-	 * into a string.
-	 */
-	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
-	if (arg_p[1].type == ARGT_VAR && vars_get_by_desc(&arg_p[1].data.var, &tmp, NULL) &&
-	    (sample_casts[tmp.data.type][SMP_T_STR] == c_none ||
-	     sample_casts[tmp.data.type][SMP_T_STR](&tmp))) {
+	/* append second string (variable) if it's found */
+	max = istlen(var);
+	if (max > trash->size - 1 - trash->data)
+		max = trash->size - 1 - trash->data;
 
-		max = tmp.data.u.str.data;
-		if (max > trash->size - 1 - trash->data)
-			max = trash->size - 1 - trash->data;
-
-		if (max) {
-			memcpy(trash->area + trash->data, tmp.data.u.str.area,
-			       max);
-			trash->data += max;
-			trash->area[trash->data] = 0;
-		}
+	if (max) {
+		memcpy(trash->area + trash->data, istptr(var), max);
+		trash->data += max;
+		trash->area[trash->data] = 0;
 	}
 
 	/* append third string */
@@ -3675,10 +3740,18 @@ static int sample_conv_add_item(const struct arg *arg_p, struct sample *smp, voi
 {
 	struct buffer *tmpbuf;
 	struct sample tmp;
+	struct ist var = IST_NULL;
 	size_t max;
-	int var_available;
 
-	tmpbuf = alloc_trash_chunk();
+	/* Check if variable is found and we can turn into a string. */
+	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
+	if (arg_p[1].type == ARGT_VAR && vars_get_by_desc(&arg_p[1].data.var, &tmp, NULL) &&
+	    (sample_casts[tmp.data.type][SMP_T_STR] == c_none ||
+	     sample_casts[tmp.data.type][SMP_T_STR](&tmp))) {
+		var = ist2(b_orig(&tmp.data.u.str), b_data(&tmp.data.u.str));
+	}
+
+	tmpbuf = alloc_trash_chunk_sz(smp->data.u.str.data + arg_p[0].data.str.data + istlen(var) + arg_p[2].data.str.data);
 	if (!tmpbuf)
 		return 0;
 
@@ -3689,19 +3762,10 @@ static int sample_conv_add_item(const struct arg *arg_p, struct sample *smp, voi
 	memcpy(tmpbuf->area, smp->data.u.str.area, tmpbuf->data);
 	tmpbuf->area[tmpbuf->data] = 0;
 
-	/* Check if variable is found and we can turn into a string. */
-	var_available = 0;
-	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
-	if (arg_p[1].type == ARGT_VAR && vars_get_by_desc(&arg_p[1].data.var, &tmp, NULL) &&
-	    (sample_casts[tmp.data.type][SMP_T_STR] == c_none ||
-	     sample_casts[tmp.data.type][SMP_T_STR](&tmp)))
-		var_available = 1;
-
 	/* Append delimiter only if input is not empty and either
 	 * the variable or the suffix are not empty
 	 */
-	if (smp->data.u.str.data && ((var_available && tmp.data.u.str.data) ||
-	    arg_p[2].data.str.data)) {
+	if (smp->data.u.str.data && ((istlen(var) && tmp.data.u.str.data) || arg_p[2].data.str.data)) {
 		max = arg_p[0].data.str.data;
 		if (max > tmpbuf->size - 1 - tmpbuf->data)
 			max = tmpbuf->size - 1 - tmpbuf->data;
@@ -3714,13 +3778,13 @@ static int sample_conv_add_item(const struct arg *arg_p, struct sample *smp, voi
 	}
 
 	/* Append variable contents if variable is found and turned into string. */
-	if (var_available) {
-		max = tmp.data.u.str.data;
+	if (istlen(var)) {
+		max = istlen(var);
 		if (max > tmpbuf->size - 1 - tmpbuf->data)
 			max = tmpbuf->size - 1 - tmpbuf->data;
 
 		if (max) {
-			memcpy(tmpbuf->area + tmpbuf->data, tmp.data.u.str.area, max);
+			memcpy(tmpbuf->area + tmpbuf->data, istptr(var), max);
 			tmpbuf->data += max;
 			tmpbuf->area[tmpbuf->data] = 0;
 		}
@@ -4462,9 +4526,14 @@ static int sample_conv_json_query(const struct arg *args, struct sample *smp, vo
 		case MJSON_TOK_STRING: {
 			int len;
 
+		retry:
 			len = mjson_get_string(smp->data.u.str.area, smp->data.u.str.data, args[0].data.str.area, trash->area, trash->size);
 
 			if (len == -1) {
+				trash = get_larger_trash_chunk(trash);
+				if (trash)
+					goto retry;
+
 				/* invalid string */
 				return 0;
 			}
@@ -4478,6 +4547,11 @@ static int sample_conv_json_query(const struct arg *args, struct sample *smp, vo
                case MJSON_TOK_ARRAY: {
                        // We copy the complete array, including square brackets into the return buffer
                        // result looks like: ["manage-account","manage-account-links","view-profile"]
+		       if (token_size > trash->size) {
+			       trash = get_larger_trash_chunk(trash);
+			       if (!trash)
+				       return 0;
+		       }
                        trash->data = b_putblk(trash, token, token_size);
                        smp->data.u.str = *trash;
                        smp->data.type = SMP_T_STR;
@@ -4607,7 +4681,7 @@ static int sample_conv_jwt_verify(const struct arg *args, struct sample *smp, vo
 	 * smp_dup) which would end up erasing the contents of the 'smp' input
 	 * buffer.
 	 */
-	input = alloc_trash_chunk();
+	input = alloc_trash_chunk_sz(smp->data.u.str.data);
 	if (!input)
 		return 0;
 	alg = alloc_trash_chunk();
@@ -4660,7 +4734,7 @@ static int sample_conv_jwt_verify_cert(const struct arg *args, struct sample *sm
 	 * smp_dup) which would end up erasing the contents of the 'smp' input
 	 * buffer.
 	 */
-	input = alloc_trash_chunk();
+	input = alloc_trash_chunk_sz(smp->data.u.str.data);
 	if (!input)
 		return 0;
 	alg = alloc_trash_chunk();
@@ -4710,13 +4784,17 @@ static int sample_conv_jwt_member_query(const struct arg *args, struct sample *s
 {
 	struct jwt_item items[JWT_ELT_MAX] = { { 0 } };
 	unsigned int item_num = member + 1; /* We don't need to tokenize the full token */
-	struct buffer *decoded_header = get_trash_chunk();
+	struct buffer *decoded_header;
 	int retval = 0;
 	int ret;
 
 	jwt_tokenize(&smp->data.u.str, items, &item_num);
 
 	if (item_num < member + 1)
+		goto end;
+
+	decoded_header = get_trash_chunk_sz(items[member].length);
+	if (!decoded_header)
 		goto end;
 
 	ret = base64urldec(items[member].start, items[member].length,
