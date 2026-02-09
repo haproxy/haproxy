@@ -44,6 +44,7 @@
 /* this struct is used between calls to smp_fetch_hdr() or smp_fetch_cookie() */
 static THREAD_LOCAL struct http_hdr_ctx static_http_hdr_ctx;
 /* this is used to convert raw connection buffers to htx */
+/* NOTE: For now, raw bufers cannot exceeds the standard size */
 static THREAD_LOCAL struct buffer static_raw_htx_chunk;
 static THREAD_LOCAL char *static_raw_htx_buf;
 
@@ -648,7 +649,7 @@ static int smp_fetch_body(const struct arg *args, struct sample *smp, const char
 				/* More than one DATA block we must use a trash */
 				if (!chk) {
 					smp->flags &= ~SMP_F_CONST;
-					chk = get_trash_chunk();
+					chk = get_trash_chunk_sz(htx->data);
 					chunk_istcat(chk, body);
 				}
 				chunk_istcat(chk, htx_get_blk_value(htx, blk));
@@ -1960,12 +1961,16 @@ static int smp_fetch_param(char delim, const char *name, int name_len, const str
 	    vstart >= chunks[0] && vstart <= chunks[1] &&
 	    vend >= chunks[2] && vend <= chunks[3]) {
 		/* Wrapped case. */
-		temp = get_trash_chunk();
-		memcpy(temp->area, vstart, chunks[1] - vstart);
-		memcpy(temp->area + ( chunks[1] - vstart ), chunks[2],
-		       vend - chunks[2]);
+		size_t len1 = ( chunks[1] - vstart );
+		size_t len2 = ( vend - chunks[2] );
+
+		temp = get_trash_chunk_sz(len1 + len2);
+		if (!temp)
+			return 0;
+		memcpy(temp->area, vstart, len1);
+		memcpy(temp->area + len1, chunks[2], len2);
 		smp->data.u.str.area = temp->area;
-		smp->data.u.str.data = ( chunks[1] - vstart ) + ( vend - chunks[2] );
+		smp->data.u.str.data = len1 + len2;
 	} else {
 		/* Contiguous case. */
 		smp->data.u.str.area = (char *)vstart;
@@ -2092,7 +2097,7 @@ static int smp_fetch_body_param(const struct arg *args, struct sample *smp, cons
 				if (isttest(body)) {
 					/* More than one DATA block we must use a trash */
 					if (!chk) {
-						chk = get_trash_chunk();
+						chk = get_trash_chunk_sz(htx->data);
 						chunk_istcat(chk, body);
 					}
 					chunk_istcat(chk, htx_get_blk_value(htx, blk));
