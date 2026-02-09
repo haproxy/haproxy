@@ -652,8 +652,8 @@ static int sample_conv_tcp_win(const struct arg *arg_p, struct sample *smp, void
 /* Builds a binary fingerprint of the IP+TCP input contents that are supposed
  * to rely essentially on the client stack's settings. This can be used for
  * example to selectively block bad behaviors at one IP address without
- * blocking others. The resulting fingerprint is a binary block of 56 to 376
- * bytes long (56 being the fixed part and the rest depending on the provided
+ * blocking others. The resulting fingerprint is a binary block of 64 to 384
+ * bits long (64 being the fixed part and the rest depending on the provided
  * TCP extensions).
  */
 static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *private)
@@ -668,6 +668,7 @@ static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *
 	uchar tcpflags;
 	uchar tcplen;
 	uchar tcpws;
+	uchar opts;
 	ushort pktlen;
 	ushort tcpwin;
 	ushort tcpmss;
@@ -719,8 +720,8 @@ static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *
 	else
 		return 0;
 
-	/* prepare trash to contain at least 7 bytes */
-	trash->data = 7;
+	/* prepare trash to contain at least 8 bytes */
+	trash->data = 8;
 
 	/* store the TOS in the FP's first byte */
 	trash->area[0] = iptos;
@@ -763,9 +764,11 @@ static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *
 		(tcpflags >> 6                   << 0);  // CWR, ECE
 
 	tcpmss = tcpws = 0;
+	opts = 0;
 	ofs = 20;
 	while (ofs < tcplen) {
 		size_t next;
+		uchar opt;
 
 		if (smp->data.u.str.area[ofs] == 0) // kind0=end of options
 			break;
@@ -782,17 +785,24 @@ static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *
 			break;
 
 		/* option is complete, take a copy of it */
-		if (mode & 2) // mode & 2: append tcp.options_list
-			trash->area[trash->data++] = smp->data.u.str.area[ofs];
+		opt = smp->data.u.str.area[ofs];
 
-		if (smp->data.u.str.area[ofs] == 2 /* MSS */) {
+		if (mode & 2) // mode & 2: append tcp.options_list
+			trash->area[trash->data++] = opt;
+
+		if (opt == 2 /* MSS */) {
 			tcpmss = read_n16(smp->data.u.str.area + ofs + 2);
 		}
-		else if (smp->data.u.str.area[ofs] == 3 /* WS */) {
+		else if (opt == 3 /* WS */) {
 			tcpws = (uchar)smp->data.u.str.area[ofs + 2];
 			/* output from 1 to 15, thus 0=not found */
 			tcpws = tcpws > 14 ? 15 : tcpws + 1;
 		}
+
+		/* keep a presence mask of opts 2..8 and others */
+		if (opt >= 2)
+			opts |= 1 << (opt < 9 ? opt - 2 : 7);
+
 		ofs = next;
 	}
 
@@ -802,6 +812,9 @@ static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *
 	/* then tcpwin(16) then tcpmss(16) */
 	write_n16(trash->area + 3, tcpwin);
 	write_n16(trash->area + 5, tcpmss);
+
+	/* the the bit mask of present options */
+	trash->area[7] = opts;
 
 	/* mode 4: append source IP address */
 	if (mode & 4) {

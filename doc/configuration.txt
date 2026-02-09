@@ -21239,9 +21239,9 @@ ip.fp([<mode>])
   can be used to distinguish between multiple apparently identical hosts. The
   real-world use case is to refine the identification of misbehaving hosts
   between a shared IP address to avoid blocking legitimate users when only one
-  is misbehaving and needs to be blocked. The converter builds a 7-byte binary
-  block based on the input. The bytes of the fingerprint are arranged like
-  this:
+  is misbehaving and needs to be blocked. The converter builds a 8-byte minimum
+  binary block based on the input. The bytes of the fingerprint are arranged
+  like this:
     - byte 0: IP TOS field (see ip.tos)
     - byte 1:
       - bit 7: IPv6 (1) / IPv4 (0)
@@ -21256,10 +21256,13 @@ ip.fp([<mode>])
       - bits 3..0: TCP window scaling + 1 (1..15) / 0 (no WS advertised)
     - byte 3..4: tcp.win
     - byte 5..6: tcp.options.mss, or zero if absent
+    - byte 7: 1 bit per present TCP option, with options 2 to 8 being mapped to
+              bits 0..6 respectively, and bit 7 indicating the presence of any
+              option from 9 to 255.
 
   The <mode> argument permits to append more information to the fingerprint. By
   default, when the <mode> argument is not set or is zero, the fingerprint is
-  solely made of the 7 bytes described above. If <mode> is specified as another
+  solely made of the 8 bytes described above. If <mode> is specified as another
   value, it then corresponds to the sum of the following values, and the
   respective components will be concatenated to the fingerprint, in the order
   below:
@@ -21269,7 +21272,7 @@ ip.fp([<mode>])
     -   4: the source IP address is appended to the fingerprint, which adds
            4 bytes for IPv4 and 16 for IPv6.
 
-  Example: make a 12..24 bytes fingerprint using the base FP, the TTL and the
+  Example: make a 13..25 bytes fingerprint using the base FP, the TTL and the
            source address (1+4=5):
 
     frontend test
