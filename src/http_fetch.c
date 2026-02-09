@@ -624,14 +624,17 @@ static int smp_fetch_body(const struct arg *args, struct sample *smp, const char
 	struct channel *chn = ((kw[2] == 'q') ? SMP_REQ_CHN(smp) : SMP_RES_CHN(smp));
 	struct check *check = ((kw[2] == 's') ? objt_check(smp->sess->origin) : NULL);
 	struct htx *htx = smp_prefetch_htx(smp, chn, check, 1);
-	struct buffer *temp;
+	struct buffer *chk = NULL;
+	struct ist body = IST_NULL;
 	int32_t pos;
 	int finished = 0;
 
 	if (!htx)
 		return 0;
 
-	temp = get_trash_chunk();
+	if ((htx->flags & (HTX_FL_FRAGMENTED|HTX_FL_UNORDERED)) || htx_space_wraps(htx))
+		htx_defrag(htx, NULL, 0);
+
 	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 		struct htx_blk *blk = htx_get_blk(htx, pos);
 		enum htx_blk_type type = htx_get_blk_type(blk);
@@ -641,14 +644,27 @@ static int smp_fetch_body(const struct arg *args, struct sample *smp, const char
 			break;
 		}
 		if (type == HTX_BLK_DATA) {
-			if (!h1_format_htx_data(htx_get_blk_value(htx, blk), temp, 0))
-				return 0;
+			if (isttest(body)) {
+				/* More than one DATA block we must use a trash */
+				if (!chk) {
+					smp->flags &= ~SMP_F_CONST;
+					chk = get_trash_chunk();
+					chunk_istcat(chk, body);
+				}
+				chunk_istcat(chk, htx_get_blk_value(htx, blk));
+				body = ist2(b_orig(chk), b_data(chk));
+			}
+			else {
+				body = htx_get_blk_value(htx, blk);
+				smp->flags |= SMP_F_CONST;
+			}
 		}
 	}
 
 	smp->data.type = SMP_T_BIN;
-	smp->data.u.str = *temp;
-	smp->flags = SMP_F_VOL_TEST;
+	smp->data.u.str.area = istptr(body);
+	smp->data.u.str.data = istlen(body);
+	smp->flags |= SMP_F_VOL_TEST;
 
 	if (!finished && (check || (chn && !channel_full(chn, global.tune.maxrewrite) &&
 				    !(chn_prod(chn)->flags & (SC_FL_EOI|SC_FL_EOS|SC_FL_ABRT_DONE)))))
@@ -2056,13 +2072,16 @@ static int smp_fetch_body_param(const struct arg *args, struct sample *smp, cons
 
 	if (!smp->ctx.a[0]) { // first call, find the query string
 		struct htx *htx = smp_prefetch_htx(smp, chn, NULL, 1);
-		struct buffer *temp;
+		struct buffer *chk = NULL;
+		struct ist body = IST_NULL;
 		int32_t pos;
 
 		if (!htx)
 			return 0;
 
-		temp   = get_trash_chunk();
+		if ((htx->flags & (HTX_FL_FRAGMENTED|HTX_FL_UNORDERED)) || htx_space_wraps(htx))
+			htx_defrag(htx, NULL, 0);
+
 		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 			struct htx_blk   *blk  = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
@@ -2070,20 +2089,28 @@ static int smp_fetch_body_param(const struct arg *args, struct sample *smp, cons
 			if (type == HTX_BLK_TLR || type == HTX_BLK_EOT)
 				break;
 			if (type == HTX_BLK_DATA) {
-				if (!h1_format_htx_data(htx_get_blk_value(htx, blk), temp, 0))
-					return 0;
+				if (isttest(body)) {
+					/* More than one DATA block we must use a trash */
+					if (!chk) {
+						chk = get_trash_chunk();
+						chunk_istcat(chk, body);
+					}
+					chunk_istcat(chk, htx_get_blk_value(htx, blk));
+					body = ist2(b_orig(chk), b_data(chk));
+				}
+				else
+					body = htx_get_blk_value(htx, blk);
 			}
 		}
 
-		smp->ctx.a[0] = temp->area;
-		smp->ctx.a[1] = temp->area + temp->data;
+		smp->ctx.a[0] = istptr(body);
+		smp->ctx.a[1] = istend(body);
 
 		/* Assume that the context is filled with NULL pointer
 		 * before the first call.
 		 * smp->ctx.a[2] = NULL;
 		 * smp->ctx.a[3] = NULL;
 		 */
-
 	}
 
 	return smp_fetch_param('&', name, name_len, args, smp, kw, private, insensitive);
