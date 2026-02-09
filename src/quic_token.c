@@ -129,6 +129,11 @@ int quic_token_check(struct quic_rx_packet *pkt,
 		goto err;
 	}
 
+	if (tokenlen != QUIC_TOKEN_LEN) {
+		TRACE_ERROR("invalid token length", QUIC_EV_CONN_LPKT, qc);
+		goto err;
+	}
+
 	/* Generate the AAD. */
 	aadlen = ipaddrcpy(aad, &dgram->saddr);
 	rand = token + tokenlen - QUIC_TOKEN_RAND_DLEN;
