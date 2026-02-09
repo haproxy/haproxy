@@ -1166,7 +1166,12 @@ int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
 		goto leave;
 	}
 
-	quic_dec_int(&frm->type, pos, end);
+	if (!quic_dec_int(&frm->type, pos, end)) {
+		TRACE_ERROR("malformed frame type", QUIC_EV_CONN_PRSFRM, qc);
+		quic_set_connection_close(qc, quic_err_transport(QC_ERR_FRAME_ENCODING_ERROR));
+		goto leave;
+	}
+
 	if (!quic_frame_type_is_known(frm->type)) {
 		/* RFC 9000 12.4. Frames and Frame Types
 		 *
