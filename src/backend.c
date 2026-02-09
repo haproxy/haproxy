@@ -597,7 +597,7 @@ struct server *get_server_rnd(struct stream *s, const struct server *avoid)
 	 * the backend's queue instead.
 	 */
 	if (curr &&
-	    (curr->queues_not_empty || (curr->maxconn && curr->served >= srv_dynamic_maxconn(curr))))
+	    (curr->queues_not_empty || !server_has_room(curr)))
 		curr = NULL;
 
 	return curr;

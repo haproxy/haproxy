@@ -3603,6 +3603,8 @@ int srv_postinit(struct server *srv)
 			goto out;
 		}
 	}
+	if (!srv->slowstart && srv->minconn == srv->maxconn)
+		srv->server_max_static = 1;
 
  out:
 	return err_code;
@@ -5948,12 +5950,19 @@ static struct task *server_warmup(struct task *t, void *context, unsigned int st
 	/* probably that we can refill this server with a bit more connections */
 	process_srv_queue(s, &full);
 
+	if (s->maxconn) {
+		HA_SPIN_LOCK(SERVER_LOCK, &s->state_lock);
+		s->server_full = (s->served >= s->maxconn);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &s->state_lock);
+	}
 
 	/* get back there in 1 second or 1/20th of the slowstart interval,
 	 * whichever is greater, resulting in small 5% steps.
 	 */
 	if (s->next_state == SRV_ST_STARTING)
 		t->expire = tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20)));
+	else if (s->minconn == s->maxconn)
+		s->server_max_static = 1;
 	return t;
 }
 
@@ -6786,6 +6795,11 @@ static int _srv_update_status_op(struct server *s, enum srv_op_st_chg_cause caus
 		 */
 		xferred = process_srv_queue(s, &full);
 
+		if (s->maxconn) {
+			HA_SPIN_LOCK(SERVER_LOCK, &s->state_lock);
+			s->server_full = (s->served >= s->maxconn);
+			HA_SPIN_UNLOCK(SERVER_LOCK, &s->state_lock);
+		}
 		tmptrash = alloc_trash_chunk();
 		if (tmptrash) {
 			chunk_printf(tmptrash,
@@ -6985,6 +6999,11 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 		 * We will take as many as we can handle.
 		 */
 		xferred = process_srv_queue(s, &full);
+		if (s->maxconn) {
+			HA_SPIN_LOCK(SERVER_LOCK, &s->state_lock);
+			s->server_full = (s->served >= s->maxconn);
+			HA_SPIN_UNLOCK(SERVER_LOCK, &s->state_lock);
+		}
 	}
 	else if (s->next_admin & SRV_ADMF_MAINT) {
 		/* remaining in maintenance mode, let's inform precisely about the
