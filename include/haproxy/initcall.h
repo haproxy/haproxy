@@ -147,14 +147,14 @@ __attribute__((constructor)) static void __initcb_##linenum()      \
 #define _DECLARE_INITCALL(...) \
 	__DECLARE_INITCALL(__VA_ARGS__)
 
-/* This requires that function <function> is called with pointer argument
- * <argument> during init stage <stage> which must be one of init_stage.
+/* This requires that function <function> is called without arguments
+ * during init stage <stage> which must be one of init_stage.
  */
 #define INITCALL0(stage, function)                                     \
 	_DECLARE_INITCALL(stage, __LINE__, function, 0, 0, 0)
 
 /* This requires that function <function> is called with pointer argument
- * <argument> during init stage <stage> which must be one of init_stage.
+ * <arg1> during init stage <stage> which must be one of init_stage.
  */
 #define INITCALL1(stage, function, arg1)                               \
 	_DECLARE_INITCALL(stage, __LINE__, function, arg1, 0, 0)
