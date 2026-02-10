@@ -5888,25 +5888,13 @@ static int cli_parse_enable_server(char **args, char *payload, struct appctx *ap
  */
 static int srv_alloc_lb(struct server *sv, struct proxy *be)
 {
-	int node;
-
 	sv->lb_tree = (sv->flags & SRV_F_BACKUP) ?
 	              &be->lbprm.chash.bck : &be->lbprm.chash.act;
 	sv->lb_nodes_tot = sv->uweight * BE_WEIGHT_SCALE;
 	sv->lb_nodes_now = 0;
 
-	if (((be->lbprm.algo & (BE_LB_KIND | BE_LB_PARM)) == (BE_LB_KIND_RR | BE_LB_RR_RANDOM)) ||
-	    ((be->lbprm.algo & (BE_LB_KIND | BE_LB_HASH_TYPE)) == (BE_LB_KIND_HI | BE_LB_HASH_CONS))) {
-		sv->lb_nodes = calloc(sv->lb_nodes_tot, sizeof(*sv->lb_nodes));
-
-		if (!sv->lb_nodes)
-			return 0;
-
-		for (node = 0; node < sv->lb_nodes_tot; node++) {
-			sv->lb_nodes[node].server = sv;
-			sv->lb_nodes[node].node.key = full_hash(sv->puid * SRV_EWGHT_RANGE + node);
-		}
-	}
+	if (be->lbprm.server_init && be->lbprm.server_init(sv) < 0)
+		return 0; // typically out of memory
 
 	return 1;
 }

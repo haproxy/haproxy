@@ -552,6 +552,26 @@ struct server *chash_get_next_server(struct proxy *p, struct server *srvtoavoid)
 	return srv;
 }
 
+/* Allocates and initializes lb nodes for server <srv>. Returns < 0 on error.
+ * This is called by chash_init_server_tree() as well as from srv_alloc_lb()
+ * for runtime addition.
+ */
+int chash_server_init(struct server *srv)
+{
+	int node;
+
+	srv->lb_nodes = calloc(srv->lb_nodes_tot, sizeof(*srv->lb_nodes));
+	if (!srv->lb_nodes)
+		return -1;
+
+	srv->lb_server_key = chash_compute_server_key(srv);
+	for (node = 0; node < srv->lb_nodes_tot; node++) {
+		srv->lb_nodes[node].server = srv;
+		srv->lb_nodes[node].node.key = chash_compute_node_key(srv, node);
+	}
+	return 0;
+}
+
 /* Releases the allocated lb_nodes for this server */
 void chash_server_deinit(struct server *srv)
 {
@@ -568,11 +588,11 @@ int chash_init_server_tree(struct proxy *p)
 {
 	struct server *srv;
 	struct eb_root init_head = EB_ROOT;
-	int node;
 
 	p->lbprm.set_server_status_up   = chash_set_server_status_up;
 	p->lbprm.set_server_status_down = chash_set_server_status_down;
 	p->lbprm.update_server_eweight  = chash_update_server_weight;
+	p->lbprm.server_init            = chash_server_init;
 	p->lbprm.server_deinit          = chash_server_deinit;
 	p->lbprm.server_take_conn = NULL;
 	p->lbprm.server_drop_conn = NULL;
@@ -595,16 +615,10 @@ int chash_init_server_tree(struct proxy *p)
 		srv->lb_tree = (srv->flags & SRV_F_BACKUP) ? &p->lbprm.chash.bck : &p->lbprm.chash.act;
 		srv->lb_nodes_tot = srv->uweight * BE_WEIGHT_SCALE;
 		srv->lb_nodes_now = 0;
-		srv->lb_nodes = calloc(srv->lb_nodes_tot,
-				       sizeof(*srv->lb_nodes));
-		if (!srv->lb_nodes) {
+
+		if (chash_server_init(srv) < 0) {
 			ha_alert("failed to allocate lb_nodes for server %s.\n", srv->id);
 			return -1;
-		}
-		srv->lb_server_key = chash_compute_server_key(srv);
-		for (node = 0; node < srv->lb_nodes_tot; node++) {
-			srv->lb_nodes[node].server = srv;
-			srv->lb_nodes[node].node.key = chash_compute_node_key(srv, node);
 		}
 
 		if (srv_currently_usable(srv))

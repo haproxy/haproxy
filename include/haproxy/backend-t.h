@@ -192,6 +192,7 @@ struct lbprm {
 	void (*server_requeue)(struct server *);         /* function used to place the server where it must be */
 	void (*proxy_deinit)(struct proxy *);            /* to be called when we're destroying the proxy */
 	void (*server_deinit)(struct server *);          /* to be called when we're destroying the server */
+	int (*server_init)(struct server *);             /* initialize a freshly added server (runtime); <0=fail. */
 };
 
 #endif /* _HAPROXY_BACKEND_T_H */
