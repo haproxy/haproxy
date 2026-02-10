@@ -552,6 +552,12 @@ struct server *chash_get_next_server(struct proxy *p, struct server *srvtoavoid)
 	return srv;
 }
 
+/* Releases the allocated lb_nodes for this server */
+void chash_server_deinit(struct server *srv)
+{
+	ha_free(&srv->lb_nodes);
+}
+
 /* This function is responsible for building the active and backup trees for
  * consistent hashing. The servers receive an array of initialized nodes
  * with their assigned keys. It also sets p->lbprm.wdiv to the eweight to
@@ -567,6 +573,7 @@ int chash_init_server_tree(struct proxy *p)
 	p->lbprm.set_server_status_up   = chash_set_server_status_up;
 	p->lbprm.set_server_status_down = chash_set_server_status_down;
 	p->lbprm.update_server_eweight  = chash_update_server_weight;
+	p->lbprm.server_deinit          = chash_server_deinit;
 	p->lbprm.server_take_conn = NULL;
 	p->lbprm.server_drop_conn = NULL;
 

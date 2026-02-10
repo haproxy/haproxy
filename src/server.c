@@ -3184,7 +3184,6 @@ void srv_free_params(struct server *srv)
 	free(srv->cc_algo);
 	free(srv->tcp_md5sig);
 	free(srv->addr_key);
-	free(srv->lb_nodes);
 	counters_be_shared_drop(&srv->counters.shared);
 	if (srv->log_target) {
 		deinit_log_target(srv->log_target);
