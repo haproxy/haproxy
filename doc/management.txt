@@ -2558,7 +2558,8 @@ set maxconn global <maxconn>
   delayed until the threshold is reached. A value of zero restores the initial
   setting.
 
-set profiling { tasks | memory } { auto | on | off }
+set profiling memory { on | off }
+set profiling tasks { auto | on | off | lock | no-lock | memory | no-memory }
   Enables or disables CPU or memory profiling for the indicated subsystem. This
   is equivalent to setting or clearing the "profiling" settings in the "global"
   section of the configuration file. Please also see "show profiling". Note
@@ -2567,6 +2568,13 @@ set profiling { tasks | memory } { auto | on | off }
   The memory profiling is limited to certain operating systems (known to work
   on the linux-glibc target), and requires USE_MEMORY_PROFILING to be set at
   compile time.
+
+. For tasks profiling, it is possible to enable or disable the collection of
+  per-task lock and memory timings at runtime, but the change is only taken
+  into account next time the profiler switches from off/auto to on (either
+  automatically or manually). Thus when using "no-lock" to disable per-task
+  lock profiling and save CPU cycles, it is recommended to flip the task
+  profiling off then on to commit the change.
 
 set rate-limit connections global <value>
   Change the process-wide connection rate limit, which is set by the global

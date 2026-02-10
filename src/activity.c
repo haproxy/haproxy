@@ -747,6 +747,8 @@ static int cfg_parse_prof_tasks(char **args, int section_type, struct proxy *cur
 /* parse a "set profiling" command. It always returns 1. */
 static int cli_parse_set_profiling(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	int arg;
+
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
@@ -792,52 +794,66 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 	if (strcmp(args[2], "tasks") != 0)
 		return cli_err(appctx, "Expects either 'tasks' or 'memory'.\n");
 
-	if (strcmp(args[3], "on") == 0) {
-		unsigned int old = profiling;
-		int i;
+	for (arg = 3; *args[arg]; arg++) {
+		if (strcmp(args[arg], "on") == 0) {
+			unsigned int old = profiling;
+			int i;
 
-		while (!_HA_ATOMIC_CAS(&profiling, &old, (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_ON))
-			;
+			while (!_HA_ATOMIC_CAS(&profiling, &old, (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_ON))
+				;
 
-		HA_ATOMIC_STORE(&prof_task_start_ns, now_ns);
-		HA_ATOMIC_STORE(&prof_task_stop_ns, 0);
+			HA_ATOMIC_STORE(&prof_task_start_ns, now_ns);
+			HA_ATOMIC_STORE(&prof_task_stop_ns, 0);
 
-		/* also flush current profiling stats */
-		for (i = 0; i < SCHED_ACT_HASH_BUCKETS; i++) {
-			HA_ATOMIC_STORE(&sched_activity[i].calls, 0);
-			HA_ATOMIC_STORE(&sched_activity[i].cpu_time, 0);
-			HA_ATOMIC_STORE(&sched_activity[i].lat_time, 0);
-			HA_ATOMIC_STORE(&sched_activity[i].lkw_time, 0);
-			HA_ATOMIC_STORE(&sched_activity[i].lkd_time, 0);
-			HA_ATOMIC_STORE(&sched_activity[i].mem_time, 0);
-			HA_ATOMIC_STORE(&sched_activity[i].func, NULL);
-			HA_ATOMIC_STORE(&sched_activity[i].caller, NULL);
+			/* also flush current profiling stats */
+			for (i = 0; i < SCHED_ACT_HASH_BUCKETS; i++) {
+				HA_ATOMIC_STORE(&sched_activity[i].calls, 0);
+				HA_ATOMIC_STORE(&sched_activity[i].cpu_time, 0);
+				HA_ATOMIC_STORE(&sched_activity[i].lat_time, 0);
+				HA_ATOMIC_STORE(&sched_activity[i].lkw_time, 0);
+				HA_ATOMIC_STORE(&sched_activity[i].lkd_time, 0);
+				HA_ATOMIC_STORE(&sched_activity[i].mem_time, 0);
+				HA_ATOMIC_STORE(&sched_activity[i].func, NULL);
+				HA_ATOMIC_STORE(&sched_activity[i].caller, NULL);
+			}
 		}
-	}
-	else if (strcmp(args[3], "auto") == 0) {
-		unsigned int old = profiling;
-		unsigned int new;
+		else if (strcmp(args[arg], "auto") == 0) {
+			unsigned int old = profiling;
+			unsigned int new;
 
-		do {
-			if ((old & HA_PROF_TASKS_MASK) >= HA_PROF_TASKS_AON)
-				new = (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_AON;
-			else
-				new = (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_AOFF;
-		} while (!_HA_ATOMIC_CAS(&profiling, &old, new));
+			do {
+				if ((old & HA_PROF_TASKS_MASK) >= HA_PROF_TASKS_AON)
+					new = (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_AON;
+				else
+					new = (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_AOFF;
+			} while (!_HA_ATOMIC_CAS(&profiling, &old, new));
 
-		HA_ATOMIC_STORE(&prof_task_start_ns, now_ns);
-		HA_ATOMIC_STORE(&prof_task_stop_ns, 0);
-	}
-	else if (strcmp(args[3], "off") == 0) {
-		unsigned int old = profiling;
-		while (!_HA_ATOMIC_CAS(&profiling, &old, (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_OFF))
-			;
+			HA_ATOMIC_STORE(&prof_task_start_ns, now_ns);
+			HA_ATOMIC_STORE(&prof_task_stop_ns, 0);
+		}
+		else if (strcmp(args[arg], "off") == 0) {
+			unsigned int old = profiling;
+			while (!_HA_ATOMIC_CAS(&profiling, &old, (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_OFF))
+				;
 
-		if (HA_ATOMIC_LOAD(&prof_task_start_ns))
-			HA_ATOMIC_STORE(&prof_task_stop_ns, now_ns);
+			if (HA_ATOMIC_LOAD(&prof_task_start_ns))
+				HA_ATOMIC_STORE(&prof_task_stop_ns, now_ns);
+		}
+		else if (strcmp(args[arg], "lock") == 0)
+			HA_ATOMIC_OR(&profiling, HA_PROF_TASKS_LOCK);
+		else if (strcmp(args[arg], "no-lock") == 0)
+			HA_ATOMIC_AND(&profiling, ~HA_PROF_TASKS_LOCK);
+		else if (strcmp(args[arg], "memory") == 0)
+			HA_ATOMIC_OR(&profiling, HA_PROF_TASKS_MEM);
+		else if (strcmp(args[arg], "no-memory") == 0)
+			HA_ATOMIC_AND(&profiling, ~HA_PROF_TASKS_MEM);
+		else
+			break; // unknown arg
 	}
-	else
-		return cli_err(appctx, "Expects 'on', 'auto', or 'off'.\n");
+
+	/* either no arg or invalid one */
+	if (arg == 3 || *args[arg])
+		return cli_err(appctx, "Expects a combination of either 'on', 'auto', 'off', 'lock', 'no-lock', 'memory' or 'no-memory'.\n");
 
 	return 1;
 }
