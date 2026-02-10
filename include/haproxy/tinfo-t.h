@@ -69,6 +69,8 @@ enum {
 #define TH_FL_IN_DBG_HANDLER    0x00000100  /* thread currently in the debug signal handler */
 #define TH_FL_IN_WDT_HANDLER    0x00000200  /* thread currently in the wdt signal handler */
 #define TH_FL_IN_ANY_HANDLER    0x00000380  /* mask to test if the thread is in any signal handler */
+#define TH_FL_TASK_PROFILING_L  0x00000400  /* task profiling in locks (also requires TASK_PROFILING) */
+#define TH_FL_TASK_PROFILING_M  0x00000800  /* task profiling in mem alloc (also requires TASK_PROFILING) */
 
 /* we have 4 buffer-wait queues, in highest to lowest emergency order */
 #define DYNBUF_NBQ              4

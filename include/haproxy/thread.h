@@ -362,15 +362,19 @@ static inline unsigned long thread_isolated()
 		extern uint64_t now_mono_time(void);			\
 		if (_LK_ != _LK_UN) {					\
 			th_ctx->lock_level += bal;			\
-			if (unlikely(th_ctx->flags & TH_FL_TASK_PROFILING)) \
+			if (unlikely((th_ctx->flags & (TH_FL_TASK_PROFILING|TH_FL_TASK_PROFILING_L)) == \
+			             (TH_FL_TASK_PROFILING|TH_FL_TASK_PROFILING_L))) \
 				lock_start = now_mono_time();		\
 		}							\
 		(void)(expr);						\
 		if (_LK_ == _LK_UN) {					\
 			th_ctx->lock_level += bal;			\
-			if (th_ctx->lock_level == 0 && unlikely(th_ctx->flags & TH_FL_TASK_PROFILING)) \
+			if (th_ctx->lock_level == 0 &&\
+			    unlikely((th_ctx->flags & (TH_FL_TASK_PROFILING|TH_FL_TASK_PROFILING_L)) == \
+			             (TH_FL_TASK_PROFILING|TH_FL_TASK_PROFILING_L))) \
 				th_ctx->locked_total += now_mono_time() - th_ctx->lock_start_date; \
-		} else if (unlikely(th_ctx->flags & TH_FL_TASK_PROFILING)) { \
+		} else if (unlikely((th_ctx->flags & (TH_FL_TASK_PROFILING|TH_FL_TASK_PROFILING_L)) == \
+			             (TH_FL_TASK_PROFILING|TH_FL_TASK_PROFILING_L))) { \
 			uint64_t now = now_mono_time();			\
 			if (lock_start)					\
 				th_ctx->lock_wait_total += now - lock_start; \
@@ -384,7 +388,8 @@ static inline unsigned long thread_isolated()
 		typeof(expr) _expr = (expr);				\
 		if (_expr == 0) {					\
 			th_ctx->lock_level += bal;			\
-			if (unlikely(th_ctx->flags & TH_FL_TASK_PROFILING)) { \
+			if (unlikely((th_ctx->flags & (TH_FL_TASK_PROFILING|TH_FL_TASK_PROFILING_L)) == \
+			             (TH_FL_TASK_PROFILING|TH_FL_TASK_PROFILING_L))) { \
 				if (_LK_ == _LK_UN && th_ctx->lock_level == 0) \
 					th_ctx->locked_total += now_mono_time() - th_ctx->lock_start_date; \
 				else if (_LK_ != _LK_UN && th_ctx->lock_level == 1) \

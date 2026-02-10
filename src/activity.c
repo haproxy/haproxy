@@ -659,8 +659,20 @@ void activity_count_runtime(uint32_t run_time)
 	if (!(_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)) {
 		if (unlikely((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_ON ||
 		             ((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_AON &&
-		             swrate_avg(run_time, TIME_STATS_SAMPLES) >= up)))
+			      swrate_avg(run_time, TIME_STATS_SAMPLES) >= up))) {
+
+			if (profiling & HA_PROF_TASKS_LOCK)
+				_HA_ATOMIC_OR(&th_ctx->flags, TH_FL_TASK_PROFILING_L);
+			else
+				_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_TASK_PROFILING_L);
+
+			if (profiling & HA_PROF_TASKS_MEM)
+				_HA_ATOMIC_OR(&th_ctx->flags, TH_FL_TASK_PROFILING_M);
+			else
+				_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_TASK_PROFILING_M);
+
 			_HA_ATOMIC_OR(&th_ctx->flags, TH_FL_TASK_PROFILING);
+		}
 	} else {
 		if (unlikely((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_OFF ||
 		             ((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_AOFF &&
