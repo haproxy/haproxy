@@ -692,26 +692,41 @@ static int cfg_parse_prof_memory(char **args, int section_type, struct proxy *cu
 }
 #endif // USE_MEMORY_PROFILING
 
-/* config parser for global "profiling.tasks", accepts "on" or "off" */
+/* config parser for global "profiling.tasks", accepts "on", "off", 'auto",
+ * "lock", "no-lock", "memory", "no-memory".
+ */
 static int cfg_parse_prof_tasks(char **args, int section_type, struct proxy *curpx,
                                 const struct proxy *defpx, const char *file, int line,
                                 char **err)
 {
-	if (too_many_args(1, args, err, NULL))
-		return -1;
+	int arg;
 
-	if (strcmp(args[1], "on") == 0) {
-		profiling = (profiling & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_ON;
-		HA_ATOMIC_STORE(&prof_task_start_ns, now_ns);
+	for (arg = 1; *args[arg]; arg++) {
+		if (strcmp(args[arg], "on") == 0) {
+			profiling = (profiling & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_ON;
+			HA_ATOMIC_STORE(&prof_task_start_ns, now_ns);
+		}
+		else if (strcmp(args[arg], "auto") == 0) {
+			profiling = (profiling & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_AOFF;
+			HA_ATOMIC_STORE(&prof_task_start_ns, now_ns);
+		}
+		else if (strcmp(args[arg], "off") == 0)
+			profiling = (profiling & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_OFF;
+		else if (strcmp(args[arg], "lock") == 0)
+			profiling |= HA_PROF_TASKS_LOCK;
+		else if (strcmp(args[arg], "no-lock") == 0)
+			profiling &= ~HA_PROF_TASKS_LOCK;
+		else if (strcmp(args[arg], "memory") == 0)
+			profiling |= HA_PROF_TASKS_MEM;
+		else if (strcmp(args[arg], "no-memory") == 0)
+			profiling &= ~HA_PROF_TASKS_MEM;
+		else
+			break;
 	}
-	else if (strcmp(args[1], "auto") == 0) {
-		profiling = (profiling & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_AOFF;
-		HA_ATOMIC_STORE(&prof_task_start_ns, now_ns);
-	}
-	else if (strcmp(args[1], "off") == 0)
-		profiling = (profiling & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_OFF;
-	else {
-		memprintf(err, "'%s' expects either 'on', 'auto', or 'off' but got '%s'.", args[0], args[1]);
+
+	/* either no arg or invalid arg */
+	if (arg == 1 || *args[arg]) {
+		memprintf(err, "'%s' expects a combination of either 'on', 'auto', 'off', 'lock', 'no-lock', 'memory', or 'no-memory', but got '%s'.", args[0], args[arg]);
 		return -1;
 	}
 	return 0;

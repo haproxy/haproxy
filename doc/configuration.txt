@@ -4005,7 +4005,7 @@ profiling.memory { on | off }
   use in production. The same may be achieved at run time on the CLI using the
   "set profiling memory" command, please consult the management manual.
 
-profiling.tasks { auto | on | off }
+profiling.tasks { auto | on | off | lock | no-lock | memory | no-memory }*
   Enables ('on') or disables ('off') per-task CPU profiling. When set to 'auto'
   the profiling automatically turns on a thread when it starts to suffer from
   an average latency of 1000 microseconds or higher as reported in the
@@ -4015,6 +4015,18 @@ profiling.tasks { auto | on | off }
   spikes). It may also spontaneously trigger from time to time on overloaded
   systems, containers, or virtual machines, or when the system swaps (which
   must absolutely never happen on a load balancer).
+
+  When task profiling is enabled, HAProxy can also collect the time each task
+  spends with a lock held or waiting for a lock, as well as the time spent
+  waiting for a memory allocation to succeed in case of a pool cache miss. This
+  can sometimes help understand certain causes of latency. For this, the extra
+  keywords "lock" (to enable lock time collection), "no-lock" (to disable it),
+  "memory" (to enable memory allocation time collection) or "no-memory" (to
+  disable it) may additionally be passed. By default they are not enabled since
+  they can have a non-negligible CPU impact on highly loaded systems (3-10%).
+  Note that the overhead is only taken when profiling is effectively running,
+  so that when running in "auto" mode, it will only appear when HAProxy decides
+  to turn it on.
 
   CPU profiling per task can be very convenient to report where the time is
   spent and which requests have what effect on which other request. Enabling

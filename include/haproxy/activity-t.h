@@ -33,6 +33,8 @@
 #define HA_PROF_TASKS_MASK  0x00000003     /* per-task CPU profiling mask */
 
 #define HA_PROF_MEMORY      0x00000004     /* memory profiling */
+#define HA_PROF_TASKS_MEM   0x00000008     /* per-task CPU profiling with memory */
+#define HA_PROF_TASKS_LOCK  0x00000010     /* per-task CPU profiling with locks */
 
 
 #ifdef USE_MEMORY_PROFILING
