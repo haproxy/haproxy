@@ -652,32 +652,19 @@ end:
 }
 
 
-static int decrypt_cek_rsa(struct buffer *cek, struct buffer *decrypted_cek,
-                           struct buffer *cert, jwe_alg crypt_alg)
+/*
+ * Decrypt the content of <cek> buffer into <decrypted_cek> buffer thanks to the
+ * private key <pkey> using algorithm <crypt_alg> (RSA).
+ * Returns 0 in case of success, 1 otherwise.
+ */
+static int do_decrypt_cek_rsa(struct buffer *cek, struct buffer *decrypted_cek,
+                              EVP_PKEY *pkey, jwe_alg crypt_alg)
 {
 	EVP_PKEY_CTX *ctx = NULL;
 	const EVP_MD *md = NULL;
-	EVP_PKEY *pkey = NULL;
-	int retval = 0;
+	int retval = 1;
 	int pad = 0;
 	size_t outl = b_size(decrypted_cek);
-
-	struct ckch_store *store = NULL;
-
-	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
-		goto end;
-
-	store = ckchs_lookup(b_orig(cert));
-	if (!store || !store->data->key || !store->conf.jwt) {
-		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
-		goto end;
-	}
-
-	pkey = store->data->key;
-
-	EVP_PKEY_up_ref(pkey);
-
-	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 
 	switch(crypt_alg) {
 	case JWE_ALG_RSA1_5:
@@ -721,10 +708,48 @@ static int decrypt_cek_rsa(struct buffer *cek, struct buffer *decrypted_cek,
 
 	decrypted_cek->data = outl;
 
-	retval = 1;
+	retval = 0;
 
 end:
 	EVP_PKEY_CTX_free(ctx);
+	return retval;
+}
+
+
+/*
+ * Look for <cert> in the ckch_store tree and use its private key to decrypt
+ * <cek> into <decrypted_cek> using <crypt_alg> algorithm (of the RSA alg
+ * family).
+ * Returns 0 in case of success, 1 otherwise.
+ */
+static int decrypt_cek_rsa(struct buffer *cek, struct buffer *decrypted_cek,
+                           struct buffer *cert, jwe_alg crypt_alg)
+{
+	EVP_PKEY *pkey = NULL;
+	int retval = 1;
+
+	struct ckch_store *store = NULL;
+
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		goto end;
+
+	store = ckchs_lookup(b_orig(cert));
+	if (!store || !store->data->key || !store->conf.jwt) {
+		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+		goto end;
+	}
+
+	pkey = store->data->key;
+
+	EVP_PKEY_up_ref(pkey);
+
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+
+	if (do_decrypt_cek_rsa(cek, decrypted_cek, pkey, crypt_alg))
+		goto end;
+
+	retval = 0;
+end:
 	EVP_PKEY_free(pkey);
 	return retval;
 }
@@ -821,7 +846,7 @@ static int sample_conv_jwt_decrypt_cert(const struct arg *args, struct sample *s
 	}
 	(*cek)->data = size;
 
-	if (rsa && !decrypt_cek_rsa(*cek, decrypted_cek, cert, alg))
+	if (rsa && decrypt_cek_rsa(*cek, decrypted_cek, cert, alg))
 		goto end;
 
 	if (decrypt_ciphertext(enc, items, decoded_items, decrypted_cek, &out))
@@ -894,11 +919,209 @@ static int sample_conv_jwt_decrypt_secret_check(struct arg *args, struct sample_
 }
 
 
+/*
+ * Convert a base64url encoded buffer into a BIGNUM.
+ */
+static BIGNUM *base64url_to_BIGNUM(struct buffer *b64url_buf)
+{
+	BIGNUM *bn = NULL;
+	struct buffer *decoded = get_trash_chunk();
+	int size = 0;
+
+	if (!b64url_buf)
+		return NULL;
+
+	size = base64urldec(b_orig(b64url_buf), b_data(b64url_buf),
+			    b_orig(decoded), b_size(decoded));
+	if (size < 0)
+		return NULL;
+	decoded->data = size;
+
+	bn = BN_bin2bn((const unsigned char *)b_orig(decoded), b_data(decoded), NULL);
+
+	return bn;
+}
+
+/*
+ * Extract a field named <field> of type string out of the <jwk> JSON buffer and
+ * dump its value in <out>.
+ * Return 0 in case of success, 1 in case of error (JSON parsing error or value
+ * not found).
+ */
+static int get_jwk_field(struct buffer *jwk, const char *field, struct buffer *out)
+{
+	int size = 0;
+
+	chunk_reset(out);
+
+	size = mjson_get_string(b_orig(jwk), b_data(jwk), field,
+				b_orig(out), b_size(out));
+	if (size == -1)
+		return 1;
+
+	out->data = size;
+	return 0;
+}
+
+enum {
+	RSA_BIGNUM_N,
+	RSA_BIGNUM_E,
+	RSA_BIGNUM_D,
+	RSA_BIGNUM_P,
+	RSA_BIGNUM_Q,
+	RSA_BIGNUM_DP,
+	RSA_BIGNUM_DQ,
+	RSA_BIGNUM_QI,
+
+	RSA_BIGNUM_COUNT
+};
+
+
+/*
+ * Build the EVP_PKEY out of the BIGNUMs parsed by the caller.
+ * The RSA_set0_ functions were deprecated in OpenSSL3, hence the two different
+ * code blocks.
+ * Returns 0 in case of success, 1 otherwise.
+ */
+static int do_build_RSA_PKEY(BIGNUM *nums[RSA_BIGNUM_COUNT], EVP_PKEY **pkey)
+#if HA_OPENSSL_VERSION_NUMBER >= 0x30000000L
+{
+	int retval = 1;
+	OSSL_PARAM *params = NULL;
+	OSSL_PARAM_BLD *param_bld = NULL;
+	EVP_PKEY_CTX *pctx = NULL;
+
+	param_bld = OSSL_PARAM_BLD_new();
+
+	if (!OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_RSA_N, nums[RSA_BIGNUM_N]) ||
+	    !OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_RSA_E, nums[RSA_BIGNUM_E]) ||
+	    !OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_RSA_D, nums[RSA_BIGNUM_D]) ||
+	    !OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_RSA_FACTOR1, nums[RSA_BIGNUM_P]) ||
+	    !OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_RSA_FACTOR2, nums[RSA_BIGNUM_Q]) ||
+	    !OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_RSA_EXPONENT1, nums[RSA_BIGNUM_DP]) ||
+	    !OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_RSA_EXPONENT2, nums[RSA_BIGNUM_DQ]) ||
+	    !OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_RSA_COEFFICIENT1, nums[RSA_BIGNUM_QI]))
+		goto end;
+
+	params = OSSL_PARAM_BLD_to_param(param_bld);
+
+	if (!params)
+		goto end;
+
+	pctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL);
+	if (!pctx)
+		goto end;
+	if (EVP_PKEY_fromdata_init(pctx) != 1)
+		goto end;
+
+	if (EVP_PKEY_fromdata(pctx, pkey, EVP_PKEY_KEYPAIR, params) != 1)
+		goto end;
+
+	retval = 0;
+end:
+	OSSL_PARAM_BLD_free(param_bld);
+	OSSL_PARAM_free(params);
+	EVP_PKEY_CTX_free(pctx);
+
+	return retval;
+}
+#else /* HA_OPENSSL_VERSION_NUMBER < 0x30000000L */
+{
+	int retval = 1;
+	RSA *rsa = NULL;
+
+	rsa = RSA_new();
+	if (!rsa)
+		goto end;
+
+	if (RSA_set0_key(rsa, nums[RSA_BIGNUM_N], nums[RSA_BIGNUM_E], nums[RSA_BIGNUM_D]) != 1 ||
+	    RSA_set0_factors(rsa, nums[RSA_BIGNUM_P], nums[RSA_BIGNUM_Q]) != 1 ||
+	    RSA_set0_crt_params(rsa, nums[RSA_BIGNUM_DP], nums[RSA_BIGNUM_DQ], nums[RSA_BIGNUM_QI]) != 1)
+		goto end;
+
+	*pkey = EVP_PKEY_new();
+	if (!*pkey)
+		goto end;
+
+	if (EVP_PKEY_set1_RSA(*pkey, rsa) != 1)
+		goto end;
+
+	retval = 0;
+end:
+	RSA_free(rsa);
+	return retval;
+}
+#endif
+
+static inline void clear_bignums(BIGNUM *nums[RSA_BIGNUM_COUNT])
+{
+	int idx = 0;
+
+	while (idx < RSA_BIGNUM_COUNT)
+		BN_free(nums[idx++]);
+}
+
+/*
+ * Build an EVP_PKEY that contains an RSA private key out of a JWK buffer that
+ * must have an "RSA" key type ("kty" field).
+ * Return 0 in case of success, 1 otherwise.
+ */
+static int build_RSA_PKEY_from_buf(struct buffer *jwk, EVP_PKEY **pkey)
+{
+	BIGNUM *nums[RSA_BIGNUM_COUNT] = {};
+	int retval = 1;
+
+	struct buffer *tmpbuf = alloc_trash_chunk();
+
+	if (!tmpbuf)
+		goto end;
+
+	/*
+	 * Extract all the mandatory fields that all represent BIGNUMs out of
+	 * the JWK buffer.
+	 */
+	if (get_jwk_field(jwk, "$.n", tmpbuf) || (nums[RSA_BIGNUM_N] = base64url_to_BIGNUM(tmpbuf)) == NULL)
+		goto end;
+	if (get_jwk_field(jwk, "$.e", tmpbuf) || (nums[RSA_BIGNUM_E] = base64url_to_BIGNUM(tmpbuf)) == NULL)
+		goto end;
+	if (get_jwk_field(jwk, "$.d", tmpbuf) || (nums[RSA_BIGNUM_D] = base64url_to_BIGNUM(tmpbuf)) == NULL)
+		goto end;
+	if (get_jwk_field(jwk, "$.p", tmpbuf) || (nums[RSA_BIGNUM_P] = base64url_to_BIGNUM(tmpbuf)) == NULL)
+		goto end;
+	if (get_jwk_field(jwk, "$.q", tmpbuf) || (nums[RSA_BIGNUM_Q] = base64url_to_BIGNUM(tmpbuf)) == NULL)
+		goto end;
+	if (get_jwk_field(jwk, "$.dp", tmpbuf) || (nums[RSA_BIGNUM_DP] = base64url_to_BIGNUM(tmpbuf)) == NULL)
+		goto end;
+	if (get_jwk_field(jwk, "$.dq", tmpbuf) || (nums[RSA_BIGNUM_DQ] = base64url_to_BIGNUM(tmpbuf)) == NULL)
+		goto end;
+	if (get_jwk_field(jwk, "$.qi", tmpbuf) || (nums[RSA_BIGNUM_QI] = base64url_to_BIGNUM(tmpbuf)) == NULL)
+		goto end;
+
+	retval = do_build_RSA_PKEY(nums, pkey);
+
+end:
+	/* The bignums are duplicated with OpenSSL3+ but not with the older API */
+#if HA_OPENSSL_VERSION_NUMBER >= 0x30000000L
+	clear_bignums(nums);
+#else
+	if (retval)
+		clear_bignums(nums);
+#endif
+
+	free_trash_chunk(tmpbuf);
+	if (retval) {
+		EVP_PKEY_free(*pkey);
+		*pkey = NULL;
+	}
+
+	return retval;
+}
+
 
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	/* JSON Web Token converters */
 	{ "jwt_decrypt_secret",    sample_conv_jwt_decrypt_secret, ARG1(1,STR), sample_conv_jwt_decrypt_secret_check, SMP_T_BIN, SMP_T_BIN },
-	{ "jwt_decrypt_cert",      sample_conv_jwt_decrypt_cert,   ARG1(1,STR), sample_conv_jwt_decrypt_cert_check,    SMP_T_BIN, SMP_T_BIN },
+	{ "jwt_decrypt_cert",      sample_conv_jwt_decrypt_cert,   ARG1(1,STR), sample_conv_jwt_decrypt_cert_check,   SMP_T_BIN, SMP_T_BIN },
 	{ NULL, NULL, 0, 0, 0 },
 
 }};
