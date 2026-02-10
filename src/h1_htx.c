@@ -464,9 +464,10 @@ static size_t h1_copy_msg_data(struct htx **dsthtx, struct buffer *srcbuf, size_
 	 *   - count == srcbuf->data
 	 *   - srcbuf->head == sizeof(struct htx)
 	 *   => we can swap the buffers and place an htx header into
-	 *      the target buffer instead
+	 *      the target buffer instead (for buffers of same size)
 	 */
-	if (unlikely(htx_is_empty(tmp_htx) && count == b_data(srcbuf) &&
+	if (unlikely(b_size(srcbuf) == b_size(htxbuf) &&
+		     htx_is_empty(tmp_htx) && count == b_data(srcbuf) &&
 		     !ofs && b_head_ofs(srcbuf) == sizeof(struct htx))) {
 		void *raw_area = srcbuf->area;
 		void *htx_area = htxbuf->area;
