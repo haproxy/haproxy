@@ -1491,6 +1491,25 @@ end:
 }
 
 /*
+ * return the default verify cert directory.
+ *
+ * It might provided by the SSL library or set in an environment variable
+ *  (commonly SSL_CERT_DIR)
+ */
+const char *ha_default_cert_dir()
+{
+        const char *dir = NULL;
+        const char *certdir_varname = X509_get_default_cert_dir_env();
+
+        if (certdir_varname)
+                dir = getenv(certdir_varname);
+        if (dir == NULL)
+                dir = X509_get_default_cert_dir();
+
+        return dir;
+}
+
+/*
  * Try to load a ca-file from disk into the ca-file cache.
  *  <shuterror> allows you to to stop emitting the errors.
  *  Return 0 upon error
@@ -1519,7 +1538,7 @@ int __ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_
 		}
 
 		if (strcmp(path, "@system-ca") == 0) {
-			dir = X509_get_default_cert_dir();
+			dir = ha_default_cert_dir();
 			if (!dir) {
 				if (!shuterror)
 					ha_alert("Couldn't get the system CA directory from X509_get_default_cert_dir().\n");
