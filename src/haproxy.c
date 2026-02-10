@@ -2925,8 +2925,7 @@ void run_poll_loop()
 		else {
 			unsigned int flags = _HA_ATOMIC_LOAD(&th_ctx->flags);
 
-			while (unlikely(!HA_ATOMIC_CAS(&th_ctx->flags, &flags,
-(flags | TH_FL_SLEEPING) & ~TH_FL_NOTIFIED)))
+			while (unlikely(!HA_ATOMIC_CAS(&th_ctx->flags, &flags, (flags | TH_FL_SLEEPING) & ~TH_FL_NOTIFIED)))
 				__ha_cpu_relax();
 
 			if (thread_has_tasks()) {
