@@ -4462,6 +4462,7 @@ static int dump_servers_state(struct appctx *appctx)
 	char srv_check_addr[INET6_ADDRSTRLEN + 1];
 	time_t srv_time_since_last_change;
 	int bk_f_forced_id, srv_f_forced_id;
+	unsigned int srv_addr_port;
 	char *srvrecord;
 
 	if (!ctx->sv)
@@ -4470,9 +4471,13 @@ static int dump_servers_state(struct appctx *appctx)
 	for (; ctx->sv != NULL; ctx->sv = srv->next) {
 		srv = ctx->sv;
 
+		HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 		dump_server_addr(&srv->addr, srv_addr);
 		dump_server_addr(&srv->check.addr, srv_check_addr);
 		dump_server_addr(&srv->agent.addr, srv_agent_addr);
+		srv_addr_port = get_host_port(&srv->addr);
+		if (!srv_addr_port)
+			srv_addr_port = srv->svc_port;
 
 		srv_time_since_last_change = ns_to_sec(now_ns) - srv->last_change;
 		bk_f_forced_id = px->options & PR_O_FORCED_ID ? 1 : 0;
@@ -4490,20 +4495,20 @@ static int dump_servers_state(struct appctx *appctx)
 			             "%d %d %d %d %ld "
 			             "%d %d %d %d %d "
 			             "%d %d %s %u "
-				     "%s %d %d "
-				     "%s %s %d"
+			     "%s %d %d "
+			     "%s %s %d"
 			             "\n",
 			             px->uuid, HA_ANON_CLI(px->id),
 			             srv->puid, HA_ANON_CLI(srv->id),
-				     hash_ipanon(appctx->cli_ctx.anon_key, srv_addr, 0),
+			     hash_ipanon(appctx->cli_ctx.anon_key, srv_addr, 0),
 			             srv->cur_state, srv->cur_admin, srv->uweight, srv->iweight,
-				     (long int)srv_time_since_last_change,
+			     (long int)srv_time_since_last_change,
 			             srv->check.status, srv->check.result, srv->check.health,
-				     srv->check.state & 0x0F, srv->agent.state & 0x1F,
+			     srv->check.state & 0x0F, srv->agent.state & 0x1F,
 			             bk_f_forced_id, srv_f_forced_id,
-				     srv->hostname ? HA_ANON_CLI(srv->hostname) : "-", srv->svc_port,
+			     srv->hostname ? HA_ANON_CLI(srv->hostname) : "-", srv_addr_port,
 			             srvrecord ? srvrecord : "-", srv->use_ssl, srv->check.port,
-				     srv_check_addr, srv_agent_addr, srv->agent.port);
+			     srv_check_addr, srv_agent_addr, srv->agent.port);
 		} else {
 			/* show servers conn */
 			int thr;
@@ -4512,7 +4517,7 @@ static int dump_servers_state(struct appctx *appctx)
 			             "%s/%s %d/%d %s %u - %u %u %u %u %u %u %u %u %d %u",
 			             HA_ANON_CLI(px->id), HA_ANON_CLI(srv->id),
 			             px->uuid, srv->puid, hash_ipanon(appctx->cli_ctx.anon_key, srv_addr, 0),
-			             srv->svc_port, srv->pool_purge_delay,
+			             srv_addr_port, srv->pool_purge_delay,
 			             srv->served,
 			             srv->curr_used_conns, srv->max_used_conns, srv->est_need_conns,
 			             srv->curr_sess_idle_conns,
@@ -4523,6 +4528,7 @@ static int dump_servers_state(struct appctx *appctx)
 
 			chunk_appendf(&trash, "\n");
 		}
+		HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 
 		if (applet_putchk(appctx, &trash) == -1) {
 			return 0;
