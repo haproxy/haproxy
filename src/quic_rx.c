@@ -1155,7 +1155,17 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 	if (frm)
 		qc_frm_free(qc, &frm);
 
-	if (fast_retrans && qc->iel && qc->hel) {
+	/* RFC 9002 6.2.3. Speeding up Handshake Completion
+	 *
+	 * To speed up handshake completion under these conditions, an endpoint
+	 * MAY, for a limited number of times per connection, send a packet
+	 * containing unacknowledged CRYPTO data earlier than the PTO expiry,
+	 * subject to the address validation limits in Section 8.1 of [QUIC-
+	 * TRANSPORT]. Doing so at most once for each connection is adequate to
+	 * quickly recover from a single packet loss.
+	 */
+	if (fast_retrans && !(qc->flags & QUIC_FL_CONN_HANDSHAKE_SPEED_UP) &&
+	    qc->iel && qc->hel) {
 		struct quic_enc_level *iqel = qc->iel;
 		struct quic_enc_level *hqel = qc->hel;
 
