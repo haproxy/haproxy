@@ -1,0 +1,126 @@
+                             ------
+                             haterm
+                             ------
+                   (or httpterm into haproxy)
+
+
+1. Background
+-------------
+
+Httperm is a program which has been developed by Willy Tarreau to benchmark
+haproxy. This is a HTTP server. Originally, it supported only 1.x HTTP versions
+without SSL support. This has become a very big limitation when haproxy has
+begun to support others HTTP versions (HTTPS, HTTP/2 and HTTP/3 with QUIC).
+
+This is the reason why it has been decided to integrate the httpterm
+functionalities into haproxy to create the new haterm program. This has become
+possible since the connection stream rework, in addition to the version-agnostic
+HTX API implementation which has moved the HTTP message parsing responsability
+to the multiplexers.
+
+See https://github.com/wtarreau/haterm for more details about the original
+httpterm.
+
+
+2. Compilation
+--------------
+
+Haterm may be compiled in the same way as haproxy but with "haterm" as Makefile
+target to provide on the "make" command line as follows:
+
+  $ make -j $(nproc) TARGET=linux-glibc haterm
+
+Haterm supports HTTPS/SSL/TCP:
+
+  $ make TARGET=linux-glibc USE_OPENSSL=1
+
+It also supports QUIC:
+
+  $ make -j $(nproc) TARGET=linux-glibc USE_OPENSSL=1 USE_QUIC=1 \
+         USE_QUIC_OPENSSL_COMPAT=1 haterm
+
+See INSTALL for more details about how to compile haterm.
+
+
+3. Execution
+-----------
+
+Haterm is a very easy to use HTTP server with supports for all the HTTP
+versions. It displays its usage when run without argument or wrong arguments:
+
+    $ ./haterm
+    Usage : haterm -L [<ip>]:<clear port>:<TCP&QUIC SSL port> [-L...]*
+        -G <line> : multiple option; append <line> to the "global" section
+        -F <line> : multiple option; append <line> to the "frontend" section
+        -T <line> : multiple option; needs -d;
+                    append <line> to the "frontend" section
+        -C : dump the configuration and exit
+        -D : goes daemon
+        -d : enable the traces for all http protocols
+
+As haproxy, haterm may listen on several TCP/UDP addresses which can be
+provided by multiple "-L" options. To be functional, it needs at least one
+correct "-L" option to be set.
+
+Examples:
+
+    $ ./haterm -L 127.0.0.1:8888      # listen on 127.0.0.1:8888 TCP address
+
+    $ ./haterm -L 127.0.0.1:8888:8889 # listen on 127.0.0.1:8888 TCP address,
+                                        # 127.0.01:8889 SSL/TCP address,
+                                        # and 127.0.01:8889 QUIC/UDP address
+
+    $ ./haterm -L 127.0.0.1:8888:8889 -L [::1]:8888:8889
+
+With USE_QUIC_OPENSSL_COMPAT support, you will have to configure a global
+section as for haproxy. haterm sets internally its configuration in.
+memory as this is done by haproxy from configuration files:
+
+    $ ./haterm -L 127.0.0.1:8888:8889
+    [NOTICE]   (1371578) : haproxy version is 3.4-dev4-ba5eab-28
+    [NOTICE]   (1371578) : path to executable is ./haterm
+    [ALERT]    (1371578) : Binding [haterm cfgfile:12] for frontend
+                           ___haterm_frontend___: this SSL library does not
+                           support the QUIC protocol. A limited compatibility
+                           layer may be enabled using the "limited-quic" global
+                           option if desired.
+
+Such an alert may be fixed with "-G' option:
+
+    $ ./haterm -L 127.0.0.1:8888:8889 -G "limited-quic\n"
+
+
+When the SSL support is not compiled, the second port is ignored. This is also
+the case for the QUIC support.
+
+Haterm adjusts its responses depending on the requests it receives. An empty
+query string provides the information about how the URIs are understood by
+haterm:
+
+    $ curl http://127.0.0.1:8888/?
+    HATerm for haproxy
+    All integer argument values are in the form [digits]*[kmgr] (r=random(0..1))
+    The following arguments are supported to override the default objects :
+     - /?s=<size>        return <size> bytes.
+                         E.g. /?s=20k
+     - /?r=<retcode>     present <retcode> as the HTTP return code.
+                         E.g. /?r=404
+     - /?c=<cache>       set the return as not cacheable if <1.
+                         E.g. /?c=0
+     - /?A=<req-after>   drain the request body after sending the response.
+                         E.g. /?A=1
+     - /?C=<close>       force the response to use close if >0.
+                         E.g. /?C=1
+     - /?K=<keep-alive>  force the response to use keep-alive if >0.
+                         E.g. /?K=1
+     - /?t=<time>        wait <time> milliseconds before responding.
+                         E.g. /?t=500
+     - /?k=<enable>      Enable transfer encoding chunked with only one chunk
+                         if >0.
+     - /?R=<enable>      Enable sending random data if >0.
+
+    Note that those arguments may be cumulated on one line separated by a set of
+    delimitors among [&?,;/] :
+     -  GET /?s=20k&c=1&t=700&K=30r HTTP/1.0
+     -  GET /?r=500?s=0?c=0?t=1000 HTTP/1.0
+

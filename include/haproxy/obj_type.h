@@ -26,6 +26,7 @@
 #include <haproxy/applet-t.h>
 #include <haproxy/check-t.h>
 #include <haproxy/connection-t.h>
+#include <haproxy/hstream-t.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/pool.h>
@@ -187,6 +188,19 @@ static inline struct check *objt_check(enum obj_type *t)
 	if (!t || *t != OBJ_TYPE_CHECK)
 		return NULL;
 	return __objt_check(t);
+}
+
+static inline struct hstream *__objt_hstream(enum obj_type *t)
+{
+	return container_of(t, struct hstream, obj_type);
+}
+
+static inline struct hstream *objt_hstream(enum obj_type *t)
+{
+	if (!t || *t != OBJ_TYPE_HATERM)
+		return NULL;
+
+	return __objt_hstream(t);
 }
 
 #ifdef USE_QUIC
