@@ -152,6 +152,8 @@ int daemon_fd[2] = {-1, -1};	/* pipe to communicate with parent process */
 int devnullfd = -1;
 int fileless_mode;
 struct cfgfile fileless_cfg;
+extern __attribute__((weak)) void haproxy_init_args(int argc, char **argv);
+extern __attribute__((weak)) char **copy_argv(int argc, char **argv);
 
 static int stopped_tgroups;
 static int stop_detected;
@@ -1174,7 +1176,7 @@ err:
  * Return an allocated copy of argv
  */
 
-static char **copy_argv(int argc, char **argv)
+char **copy_argv(int argc, char **argv)
 {
 	char **newargv, **retargv;
 
@@ -1502,52 +1504,9 @@ static void init_early(int argc, char **argv)
 	}
 }
 
-/* handles program arguments. Very minimal parsing is performed, variables are
- * fed with some values, and lists are completed with other ones. In case of
- * error, it will exit.
- */
-static void init_args(int argc, char **argv)
+void haproxy_init_args(int argc, char **argv)
 {
 	char *err_msg = NULL;
-
-	/* pre-fill in the global tuning options before we let the cmdline
-	 * change them.
-	 */
-	global.tune.options |= GTUNE_USE_SELECT;  /* select() is always available */
-#if defined(USE_POLL)
-	global.tune.options |= GTUNE_USE_POLL;
-#endif
-#if defined(USE_EPOLL)
-	global.tune.options |= GTUNE_USE_EPOLL;
-#endif
-#if defined(USE_KQUEUE)
-	global.tune.options |= GTUNE_USE_KQUEUE;
-#endif
-#if defined(USE_EVPORTS)
-	global.tune.options |= GTUNE_USE_EVPORTS;
-#endif
-#if defined(USE_LINUX_SPLICE)
-	global.tune.options |= GTUNE_USE_SPLICE;
-#endif
-#if defined(USE_GETADDRINFO)
-	global.tune.options |= GTUNE_USE_GAI;
-#endif
-#ifdef USE_THREAD
-	global.tune.options |= GTUNE_IDLE_POOL_SHARED;
-#endif
-	global.tune.options |= GTUNE_STRICT_LIMITS;
-
-	global.tune.options |= GTUNE_USE_FAST_FWD; /* Use fast-forward by default */
-
-	/* Use zero-copy forwarding by default */
-	global.tune.no_zero_copy_fwd = 0;
-
-	/* keep a copy of original arguments for the master process */
-	old_argv = copy_argv(argc, argv);
-	if (!old_argv) {
-		ha_alert("failed to copy argv.\n");
-		exit(EXIT_FAILURE);
-	}
 
 	/* skip program name and start */
 	argc--; argv++;
@@ -1850,6 +1809,54 @@ static void init_args(int argc, char **argv)
 		argv++; argc--;
 	}
 	free(err_msg);
+}
+
+/* handles program arguments. Very minimal parsing is performed, variables are
+ * fed with some values, and lists are completed with other ones. In case of
+ * error, it will exit.
+ */
+static void init_args(int argc, char **argv)
+{
+	/* pre-fill in the global tuning options before we let the cmdline
+	 * change them.
+	 */
+	global.tune.options |= GTUNE_USE_SELECT;  /* select() is always available */
+#if defined(USE_POLL)
+	global.tune.options |= GTUNE_USE_POLL;
+#endif
+#if defined(USE_EPOLL)
+	global.tune.options |= GTUNE_USE_EPOLL;
+#endif
+#if defined(USE_KQUEUE)
+	global.tune.options |= GTUNE_USE_KQUEUE;
+#endif
+#if defined(USE_EVPORTS)
+	global.tune.options |= GTUNE_USE_EVPORTS;
+#endif
+#if defined(USE_LINUX_SPLICE)
+	global.tune.options |= GTUNE_USE_SPLICE;
+#endif
+#if defined(USE_GETADDRINFO)
+	global.tune.options |= GTUNE_USE_GAI;
+#endif
+#ifdef USE_THREAD
+	global.tune.options |= GTUNE_IDLE_POOL_SHARED;
+#endif
+	global.tune.options |= GTUNE_STRICT_LIMITS;
+
+	global.tune.options |= GTUNE_USE_FAST_FWD; /* Use fast-forward by default */
+
+	/* Use zero-copy forwarding by default */
+	global.tune.no_zero_copy_fwd = 0;
+
+	/* keep a copy of original arguments for the master process */
+	old_argv = copy_argv(argc, argv);
+	if (!old_argv) {
+		ha_alert("failed to copy argv.\n");
+		exit(EXIT_FAILURE);
+	}
+
+	haproxy_init_args(argc, argv);
 }
 
 /* call the various keyword dump functions based on the comma-delimited list of
