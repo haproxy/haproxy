@@ -18,6 +18,7 @@
 #include <haproxy/compression-t.h>
 #include <haproxy/connection.h>
 #include <haproxy/extcheck.h>
+#include <haproxy/hstream.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/http_ext.h>
@@ -645,9 +646,22 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		mode = str_to_proxy_mode(args[1]);
 		if (!mode) {
-			ha_alert("parsing [%s:%d] : unknown proxy mode '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
+			if (strcmp(args[1], "haterm") == 0) {
+				if (!(curproxy->cap & PR_CAP_FE)) {
+					ha_alert("parsing [%s:%d] : mode haterm is only applicable"
+					         " on proxies with frontend capability.\n", file, linenum);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				mode = PR_MODE_HTTP;
+				curproxy->stream_new_from_sc = hstream_new;
+			}
+			else {
+				ha_alert("parsing [%s:%d] : unknown proxy mode '%s'.\n", file, linenum, args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
 		}
 		else if ((mode == PR_MODE_SYSLOG || mode == PR_MODE_SPOP) &&
 		         !(curproxy->cap & PR_CAP_BE)) {

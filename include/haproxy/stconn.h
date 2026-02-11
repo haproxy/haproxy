@@ -24,6 +24,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/connection.h>
+#include <haproxy/hstream-t.h>
 #include <haproxy/htx-t.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/stconn-t.h>
@@ -45,10 +46,12 @@ void se_shutdown(struct sedesc *sedesc, enum se_shut_mode mode);
 struct stconn *sc_new_from_endp(struct sedesc *sedesc, struct session *sess, struct buffer *input);
 struct stconn *sc_new_from_strm(struct stream *strm, unsigned int flags);
 struct stconn *sc_new_from_check(struct check *check, unsigned int flags);
+struct stconn *sc_new_from_haterm(struct sedesc *sd, struct session *sess, struct buffer *input);
 void sc_free(struct stconn *sc);
 
 int sc_attach_mux(struct stconn *sc, void *target, void *ctx);
 int sc_attach_strm(struct stconn *sc, struct stream *strm);
+int sc_attach_hstream(struct stconn *sc, struct hstream *hs);
 
 void sc_destroy(struct stconn *sc);
 int sc_reset_endp(struct stconn *sc);
@@ -328,6 +331,21 @@ static inline struct check *sc_check(const struct stconn *sc)
 {
 	if (obj_type(sc->app) == OBJ_TYPE_CHECK)
 		return __objt_check(sc->app);
+	return NULL;
+}
+
+/* Returns the haterm stream from a sc if the application is a
+ * haterm stream. Otherwise NULL is returned. __sc_hstream() returns the haterm
+ * stream without any control while sc_hstream() check the application type.
+ */
+static inline struct hstream *__sc_hstream(const struct stconn *sc)
+{
+	return __objt_hstream(sc->app);
+}
+static inline struct hstream *sc_hstream(const struct stconn *sc)
+{
+	if (obj_type(sc->app) == OBJ_TYPE_HATERM)
+		return __objt_hstream(sc->app);
 	return NULL;
 }
 
