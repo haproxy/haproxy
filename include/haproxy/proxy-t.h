@@ -413,6 +413,7 @@ struct proxy {
 	int redispatch_after;			/* number of retries before redispatch */
 	unsigned down_time;			/* total time the proxy was down */
 	int (*accept)(struct stream *s);       /* application layer's accept() */
+	void *(*stream_new_from_sc)(struct session *sess, struct stconn *sc, struct buffer *in); /* stream instantiation callback for mux stream connector */
 	struct conn_src conn_src;               /* connection source settings */
 	enum obj_type *default_target;		/* default target to use for accepted streams or NULL */
 	struct proxy *next;

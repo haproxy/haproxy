@@ -344,7 +344,7 @@ int stream_buf_available(void *arg)
  * transfer to the stream and <input> is set to BUF_NULL. On error, <input>
  * buffer is unchanged and it is the caller responsibility to release it.
  */
-struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer *input)
+void *stream_new(struct session *sess, struct stconn *sc, struct buffer *input)
 {
 	struct stream *s;
 	struct task *t;
