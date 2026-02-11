@@ -16,6 +16,7 @@
 #include <haproxy/connection.h>
 #include <haproxy/check.h>
 #include <haproxy/filters.h>
+#include <haproxy/hstream.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/pipe.h>
 #include <haproxy/pool.h>
@@ -89,6 +90,15 @@ struct sc_app_ops sc_app_check_ops = {
 	.shutdown= NULL,
 	.wake    = wake_srv_chk,
 	.name    = "CHCK",
+};
+
+struct sc_app_ops sc_app_hstream_ops = {
+	.chk_rcv = NULL,
+	.chk_snd = NULL,
+	.abort   = NULL,
+	.shutdown= NULL,
+	.wake    = hstream_wake,
+	.name    = "HTERM",
 };
 
 /* Initializes an endpoint */
@@ -412,6 +422,30 @@ int sc_attach_strm(struct stconn *sc, struct stream *strm)
 	else {
 		sc->app_ops = &sc_app_embedded_ops;
 	}
+	return 0;
+}
+
+/* Attach a stconn to a haterm layer and sets the relevant
+ * callbacks. Returns -1 on error and 0 on success. SE_FL_ORPHAN flag is
+ * removed. This function is called by a haterm stream when it is created
+ * to attach it on the stream connector on the client side.
+ */
+int sc_attach_hstream(struct stconn *sc, struct hstream *hs)
+{
+	BUG_ON(!sc_ep_test(sc, SE_FL_T_MUX));
+
+	sc->app = &hs->obj_type;
+	sc_ep_clr(sc, SE_FL_ORPHAN);
+	sc_ep_report_read_activity(sc);
+	sc->wait_event.tasklet = tasklet_new();
+	if (!sc->wait_event.tasklet)
+		return -1;
+
+	sc->wait_event.tasklet->process = sc_hstream_io_cb;
+	sc->wait_event.tasklet->context = sc;
+	sc->wait_event.events = 0;
+
+	sc->app_ops = &sc_app_hstream_ops;
 	return 0;
 }
 
