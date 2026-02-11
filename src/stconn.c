@@ -244,7 +244,7 @@ struct stconn *sc_new_from_endp(struct sedesc *sd, struct session *sess, struct 
 	sc = sc_new(sd);
 	if (unlikely(!sc))
 		return NULL;
-	if (unlikely(!stream_new(sess, sc, input))) {
+	if (unlikely(!sess->fe->stream_new_from_sc(sess, sc, input))) {
 		sd->sc = NULL;
 		if (sc->sedesc != sd) {
 			/* none was provided so sc_new() allocated one */

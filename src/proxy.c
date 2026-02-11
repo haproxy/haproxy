@@ -1578,6 +1578,7 @@ void init_new_proxy(struct proxy *p)
 	/* Default to only allow L4 retries */
 	p->retry_type = PR_RE_CONN_FAILED;
 
+	p->stream_new_from_sc = stream_new;
 	guid_init(&p->guid);
 
 	p->extra_counters_fe = NULL;
@@ -3343,6 +3344,7 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 		curproxy->clitcpka_cnt   = defproxy->clitcpka_cnt;
 		curproxy->clitcpka_idle  = defproxy->clitcpka_idle;
 		curproxy->clitcpka_intvl = defproxy->clitcpka_intvl;
+		curproxy->stream_new_from_sc = defproxy->stream_new_from_sc;
 	}
 
 	if (curproxy->cap & PR_CAP_BE) {
