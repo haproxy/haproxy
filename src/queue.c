@@ -105,11 +105,8 @@ unsigned int srv_dynamic_maxconn(const struct server *s)
 {
 	unsigned int max;
 
-	if (s->proxy->beconn >= s->proxy->fullconn)
-		/* no fullconn or proxy is full */
-		max = s->maxconn;
-	else if (s->minconn == s->maxconn)
-		/* static limit */
+	if (s->minconn == s->maxconn || s->proxy->beconn >= s->proxy->fullconn)
+		/* static limit, or no fullconn or proxy is full */
 		max = s->maxconn;
 	else max = MAX(s->minconn,
 		       s->proxy->beconn * s->maxconn / s->proxy->fullconn);
