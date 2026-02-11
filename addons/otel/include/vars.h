@@ -4,9 +4,11 @@
 #define _OTEL_VARS_H_
 
 #define FLT_OTEL_VARS_SCOPE       "txn"
-#define FLT_OTEL_VAR_CTX_SIZE     int8_t
 #define FLT_OTEL_VAR_CHAR_DASH    'D'
 #define FLT_OTEL_VAR_CHAR_SPACE   'S'
+
+#ifndef USE_OTEL_VARS_NAME
+#  define FLT_OTEL_VAR_CTX_SIZE   int8_t
 
 /* Context buffer for storing a single variable value during iteration. */
 struct flt_otel_ctx {
@@ -16,6 +18,7 @@ struct flt_otel_ctx {
 
 /* Callback type invoked for each context variable during iteration. */
 typedef int (*flt_otel_ctx_loop_cb)(struct sample *, size_t, const char *, const char *, const char *, FLT_OTEL_VAR_CTX_SIZE, char **, void *);
+#endif /* !USE_OTEL_VARS_NAME */
 
 
 #ifndef DEBUG_OTEL

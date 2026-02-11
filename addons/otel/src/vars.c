@@ -31,6 +31,7 @@ static void flt_otel_vars_scope_dump(struct vars *vars, const char *scope)
 	if (vars == NULL)
 		return;
 
+	/* Lock the variable store for safe iteration. */
 	vars_rdlock(vars);
 	for (i = 0; i < VAR_NAME_ROOTS; i++) {
 		struct ceb_node *node = cebu64_imm_first(&(vars->name_root[i]));
@@ -306,6 +307,8 @@ static inline void flt_otel_smp_init(struct stream *s, struct sample *smp, uint 
 	}
 }
 
+
+#ifndef USE_OTEL_VARS_NAME
 
 /***
  * NAME
@@ -837,6 +840,221 @@ struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, co
 	OTELC_RETURN_PTR(retptr);
 }
 
+#else
+
+/***
+ * NAME
+ *   flt_otel_vars_get_scope - resolve scope string to variable store
+ *
+ * SYNOPSIS
+ *   static struct vars *flt_otel_vars_get_scope(struct stream *s, const char *scope)
+ *
+ * ARGUMENTS
+ *   s     - current stream
+ *   scope - variable scope string ("proc", "sess", "txn", "req", "res")
+ *
+ * DESCRIPTION
+ *   Resolves a scope name string to the corresponding HAProxy variable
+ *   store for the given <stream>.
+ *
+ * RETURN VALUE
+ *   Returns a pointer to the variable store, or NULL if the <scope>
+ *   is unknown.
+ */
+static struct vars *flt_otel_vars_get_scope(struct stream *s, const char *scope)
+{
+	if (strcmp(scope, "txn") == 0)
+		return &(s->vars_txn);
+	else if (strcmp(scope, "req") == 0)
+		return &(s->vars_reqres);
+	else if (strcmp(scope, "res") == 0)
+		return &(s->vars_reqres);
+	else if (strcmp(scope, "sess") == 0)
+		return &(s->sess->vars);
+	else if (strcmp(scope, "proc") == 0)
+		return &proc_vars;
+
+	return NULL;
+}
+
+
+/***
+ * NAME
+ *   flt_otel_vars_unset - context variables bulk unset via prefix scan
+ *
+ * SYNOPSIS
+ *   int flt_otel_vars_unset(struct stream *s, const char *scope, const char *prefix, uint opt, char **err)
+ *
+ * ARGUMENTS
+ *   s      - current stream
+ *   scope  - variable scope
+ *   prefix - variable prefix
+ *   opt    - sample option flags
+ *   err    - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Unsets all context variables whose name starts with the normalized
+ *   <prefix> followed by a dot.  Walks the CEB tree of the variable
+ *   store for the given <scope> and removes each matching variable.
+ *
+ * RETURN VALUE
+ *   Returns the number of variables removed, 0 if none found,
+ *   or FLT_OTEL_RET_ERROR on failure.
+ */
+int flt_otel_vars_unset(struct stream *s, const char *scope, const char *prefix, uint opt, char **err)
+{
+	struct vars    *vars;
+	char            norm_prefix[BUFSIZ];
+	unsigned int    size = 0;
+	int             prefix_len, retval = 0, i;
+
+	OTELC_FUNC("%p, \"%s\", \"%s\", %u, %p:%p", s, OTELC_STR_ARG(scope), OTELC_STR_ARG(prefix), opt, OTELC_DPTR_ARGS(err));
+
+	prefix_len = flt_otel_var_name(prefix, NULL, NULL, 0, norm_prefix, sizeof(norm_prefix), err);
+	if (prefix_len == FLT_OTEL_RET_ERROR)
+		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+
+	vars = flt_otel_vars_get_scope(s, scope);
+	if (vars == NULL)
+		OTELC_RETURN_INT(0);
+
+	/* Lock and iterate all variables, clearing those matching the prefix. */
+	vars_wrlock(vars);
+	for (i = 0; i < VAR_NAME_ROOTS; i++) {
+		struct ceb_node *node = cebu64_imm_first(&(vars->name_root[i]));
+
+		while (node != NULL) {
+			struct var      *var = container_of(node, struct var, name_node);
+			struct ceb_node *next = cebu64_imm_next(&(vars->name_root[i]), node);
+
+			if ((var->name != NULL) &&
+			    (strncmp(var->name, norm_prefix, prefix_len) == 0) &&
+			    (var->name[prefix_len] == '.')) {
+				OTELC_DBG(NOTICE, "prefix unset '%s'", var->name);
+
+				size += var_clear(vars, var, 1);
+				retval++;
+			}
+
+			node = next;
+		}
+	}
+	vars_wrunlock(vars);
+
+	if (size > 0)
+		var_accounting_diff(vars, s->sess, s, -(int)size);
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_vars_get - context variables to text map via prefix scan
+ *
+ * SYNOPSIS
+ *   struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, const char *prefix, uint opt, char **err)
+ *
+ * ARGUMENTS
+ *   s      - current stream
+ *   scope  - variable scope
+ *   prefix - variable prefix
+ *   opt    - sample option flags
+ *   err    - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Reads all context variables whose name starts with the normalized
+ *   <prefix> followed by a dot.  Walks the CEB tree of the variable
+ *   store for the given <scope>, denormalizes each matching variable
+ *   name, and adds the key-value pair to the returned text map.
+ *
+ * RETURN VALUE
+ *   Returns a pointer to the populated text map, or NULL if no
+ *   variables are found.
+ */
+struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, const char *prefix, uint opt, char **err)
+{
+	struct vars           *vars;
+	struct otelc_text_map *retptr = NULL;
+	char                   norm_prefix[BUFSIZ], otel_name[BUFSIZ];
+	int                    prefix_len, i;
+
+	OTELC_FUNC("%p, \"%s\", \"%s\", %u, %p:%p", s, OTELC_STR_ARG(scope), OTELC_STR_ARG(prefix), opt, OTELC_DPTR_ARGS(err));
+
+	prefix_len = flt_otel_var_name(prefix, NULL, NULL, 0, norm_prefix, sizeof(norm_prefix), err);
+	if (prefix_len == FLT_OTEL_RET_ERROR)
+		OTELC_RETURN_PTR(NULL);
+
+	vars = flt_otel_vars_get_scope(s, scope);
+	if (vars == NULL)
+		OTELC_RETURN_PTR(NULL);
+
+	/* Read-lock and collect all variables matching the prefix into a text map. */
+	vars_rdlock(vars);
+	for (i = 0; i < VAR_NAME_ROOTS; i++) {
+		struct ceb_node *node = cebu64_imm_first(&(vars->name_root[i]));
+
+		for ( ; node != NULL; node = cebu64_imm_next(&(vars->name_root[i]), node)) {
+			struct var *var = container_of(node, struct var, name_node);
+			const char *key;
+			int         otel_name_len;
+
+			if ((var->name == NULL) ||
+			    (strncmp(var->name, norm_prefix, prefix_len) != 0) ||
+			    (var->name[prefix_len] != '.'))
+				continue;
+
+			/* Skip the "prefix." part to get the key name. */
+			key = var->name + prefix_len + 1;
+
+			otel_name_len = flt_otel_denormalize_name(key, otel_name, sizeof(otel_name), err);
+			if (otel_name_len == FLT_OTEL_RET_ERROR) {
+				FLT_OTEL_ERR("failed to reverse variable name, buffer too small");
+
+				break;
+			}
+
+			if ((var->data.type != SMP_T_STR) && (var->data.type != SMP_T_BIN)) {
+				OTELC_DBG(NOTICE, "skipping '%s', unsupported type %d", var->name, var->data.type);
+
+				continue;
+			}
+
+			OTELC_DBG(NOTICE, "'%s' -> '%.*s'", var->name, (int)b_data(&(var->data.u.str)), b_orig(&(var->data.u.str)));
+
+			if (retptr == NULL) {
+				retptr = OTELC_TEXT_MAP_NEW(NULL, 8);
+				if (retptr == NULL) {
+					FLT_OTEL_ERR("failed to create map data");
+
+					break;
+				}
+			}
+
+			if (OTELC_TEXT_MAP_ADD(retptr, otel_name, otel_name_len, b_orig(&(var->data.u.str)), b_data(&(var->data.u.str)), OTELC_TEXT_MAP_AUTO) == -1) {
+				FLT_OTEL_ERR("failed to add map data");
+
+				otelc_text_map_destroy(&retptr);
+
+				break;
+			}
+		}
+	}
+	vars_rdunlock(vars);
+
+	OTELC_TEXT_MAP_DUMP(retptr, "extracted variables");
+
+	if ((retptr != NULL) && (retptr->count == 0)) {
+		OTELC_DBG(NOTICE, "WARNING: no variables found");
+
+		otelc_text_map_destroy(&retptr);
+	}
+
+	OTELC_RETURN_PTR(retptr);
+}
+
+#endif /* USE_OTEL_VARS_NAME */
+
 
 /***
  * NAME
@@ -938,8 +1156,10 @@ int flt_otel_var_set(struct stream *s, const char *scope, const char *prefix, co
 
 		retval = var_name_len;
 
+#ifndef USE_OTEL_VARS_NAME
 		if (strcmp(scope, FLT_OTEL_VARS_SCOPE) == 0)
 			retval = flt_otel_ctx_set(s, scope, prefix, name, opt, err);
+#endif
 	}
 
 	OTELC_RETURN_INT(retval);

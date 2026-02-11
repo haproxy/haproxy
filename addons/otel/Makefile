@@ -65,6 +65,14 @@ OPTIONS_OBJS += \
 ifneq ($(OTEL_USE_VARS:0=),)
 OTEL_DEFINE  += -DUSE_OTEL_VARS
 OPTIONS_OBJS += addons/otel/src/vars.o
+
+# Auto-detect whether struct var has a 'name' member.  When present,
+# prefix-based variable scanning can be used instead of the tracking
+# buffer approach.
+OTEL_VAR_HAS_NAME := $(shell awk '/^struct var \{/,/^\}/' include/haproxy/vars-t.h 2>/dev/null | grep -q '[*]name;' && echo 1)
+ifneq ($(OTEL_VAR_HAS_NAME),)
+OTEL_DEFINE += -DUSE_OTEL_VARS_NAME
+endif
 endif
 
 OTEL_CFLAGS := $(OTEL_CFLAGS) -Iaddons/otel/include $(OTEL_DEFINE)
