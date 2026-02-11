@@ -1029,6 +1029,31 @@ static int tcp_get_info(struct connection *conn, long long int *info, int info_n
 static void __proto_tcp_init(void)
 {
 #if defined(__linux__) && defined(TCP_MD5SIG)
+	/* check if the setsockopt works to register a line in haproxy -vv */
+	struct sockaddr_in *addr;
+	int fd;
+	struct tcp_md5sig md5 = {};
+
+
+	addr = (struct sockaddr_in *)&md5.tcpm_addr;
+
+	addr->sin_family = AF_INET;
+	addr->sin_port = 0;
+	addr->sin_addr.s_addr = htonl(0x7F000001);
+
+	fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (fd < 0) {
+		goto end;
+	}
+	md5.tcpm_keylen = strlcpy2((char*)md5.tcpm_key, "foobar", sizeof(md5.tcpm_key));
+	if (setsockopt(fd, IPPROTO_TCP, TCP_MD5SIG, &md5, sizeof(md5)) < 0) {
+		goto end;
+	}
+	hap_register_feature("HAVE_WORKING_TCP_MD5SIG");
+end:
+	if (fd >= 0)
+		close(fd);
+
 	hap_register_feature("HAVE_TCP_MD5SIG");
 #endif
 }
