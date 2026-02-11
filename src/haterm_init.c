@@ -366,3 +366,11 @@ void haproxy_init_args(int argc, char **argv)
     if (err)
 	    exit(1);
 }
+
+/* Dummy arg copier function */
+char **copy_argv(int argc, char **argv)
+{
+	char **ret = calloc(1, sizeof(*ret));
+	*ret = strdup("");
+	return ret;
+}
