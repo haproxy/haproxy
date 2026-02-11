@@ -162,7 +162,7 @@ trace_get_htx_datalen(struct htx *htx, unsigned int offset, unsigned int len)
 
 	blk = htxret.blk;
 	if (blk && htxret.ret && htx_get_blk_type(blk) == HTX_BLK_DATA) {
-		data += htxret.ret;
+		data += htx_get_blksz(blk) - htxret.ret;
 		blk = htx_get_next_blk(htx, blk);
 	}
 	while (blk) {
