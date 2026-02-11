@@ -39,8 +39,8 @@ static inline __attribute__((always_inline)) void htx_memcpy(void *dst, void *sr
  */
 struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t blkinfo)
 {
-	struct buffer *chunk;
-	struct htx *tmp;
+	struct buffer *chunk = get_trash_chunk_sz(htx->size+sizeof(struct htx));
+	struct htx *tmp = htxbuf(chunk);
 	struct htx_blk *newblk, *oldblk;
 	enum htx_blk_type type;
 	uint32_t new, old, blkpos;
@@ -48,9 +48,6 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t blkinf
 
 	if (htx->head == -1)
 		return NULL;
-
-	chunk = alloc_trash_chunk();
-	tmp = htxbuf(chunk);
 
 	blkpos = -1;
 
@@ -103,7 +100,6 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t blkinf
 	htx->flags &= ~(HTX_FL_FRAGMENTED|HTX_FL_UNORDERED);
 	htx_memcpy((void *)htx->blocks, (void *)tmp->blocks, htx->size);
 
-	free_trash_chunk(chunk);
 	return ((blkpos == -1) ? NULL : htx_get_blk(htx, blkpos));
 }
 
