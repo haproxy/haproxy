@@ -24,6 +24,7 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/global-t.h>
+#include <haproxy/cfgparse.h>
 
 extern struct global global;
 extern int  pid;                /* current process id */
@@ -54,6 +55,8 @@ extern char **old_argv;
 extern const char *old_unixsocket;
 extern int daemon_fd[2];
 extern int devnullfd;
+extern int fileless_mode;
+extern struct cfgfile fileless_cfg;
 
 struct proxy;
 struct server;
