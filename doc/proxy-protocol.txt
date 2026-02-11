@@ -627,7 +627,10 @@ For the type PP2_TYPE_SSL, the value is itself a defined like this :
                 uint8_t  client;
                 uint32_t verify;
                 struct pp2_tlv sub_tlv[0];
-        };
+        } __attribute__((packed));
+
+Note the "packed" attribute which indicates that each field starts immediately
+after the previous one (i.e. without type-specific alignment nor padding).
 
 The <verify> field will be zero if the client presented a certificate
 and it was successfully verified, and non-zero otherwise.
