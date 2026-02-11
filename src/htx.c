@@ -651,7 +651,29 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 	}
 	else { /* Do a degrag first (it is always an expansion) */
 		struct htx_blk tmpblk;
-		int32_t offset;
+		struct buffer *chunk = alloc_trash_chunk();
+		void *ptr;
+
+		if (!chunk)
+			return NULL;
+
+		ptr = b_orig(chunk);
+		b_set_data(chunk, n.len + v.len + delta);
+
+		/* Copy the name, if any */
+		htx_memcpy(ptr, n.ptr, n.len);
+		ptr += n.len;
+
+		/* Copy value before old part, if any */
+		htx_memcpy(ptr, v.ptr, old.ptr - v.ptr);
+		ptr += old.ptr - v.ptr;
+
+		/* Copy new value */
+		htx_memcpy(ptr, new.ptr, new.len);
+		ptr += new.len;
+
+		/* Copy value after old part, if any */
+		htx_memcpy(ptr, istend(old), istend(v) - istend(old));
 
 		/* use tmpblk to set new block size before defrag and to compute
 		 * the offset after defrag
@@ -663,14 +685,11 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 		/* htx_defrag() will take care to update the block size and the htx message */
 		blk = htx_defrag(htx, blk, tmpblk.info);
 
-		/* newblk is now the new HTX block. Compute the offset to copy/move payload */
-		offset = blk->addr - tmpblk.addr;
+		/* finally copy data */
+		htx_memcpy(htx_get_blk_ptr(htx, blk), b_orig(chunk), b_data(chunk));
+		free_trash_chunk(chunk);
 
-		/* move the end first and copy new data
-		 */
-		memmove(old.ptr + offset + new.len, old.ptr + offset + old.len,
-			istend(v) - istend(old));
-		htx_memcpy(old.ptr + offset, new.ptr, new.len);
+		htx->data += delta;
 	}
 	return blk;
 }
