@@ -1,0 +1,135 @@
+                                  ------
+                                  HATerm
+                                  ------
+                           HAProxy's dummy HTTP
+                           server for benchmarks
+
+1. Background
+-------------
+
+HATerm is a dummy HTTP server that leverages the flexible and scalable
+architecture of HAProxy to ease benchmarking of HTTP agents in all versions of
+HTTP currently supported by HAProxy (HTTP/1, HTTP/2, HTTP/3), and both in clear
+and TLS / QUIC. It follows the same principle as its ancestor HTTPTerm [1],
+consisting in producing HTTP responses entirely configured by the request
+parameters (size, response time, status etc). It also preserves the spirit
+HTTPTerm which does not require any configuration beyond an optional listening
+address and a port number, though it also supports advanced configurations with
+the full spectrum of HAProxy features for specific testing. The goal remains
+to make it almost as fast as the original HTTPTerm so that it can become a
+de-facto replacement, with a compatible command line and request parameters
+that will not change users' habits.
+
+  [1] https://github.com/wtarreau/httpterm
+
+
+2. Compilation
+--------------
+
+HATerm may be compiled in the same way as HAProxy but with "haterm" as Makefile
+target to provide on the "make" command line as follows:
+
+  $ make -j $(nproc) TARGET=linux-glibc haterm
+
+HATerm supports HTTPS/SSL/TCP:
+
+  $ make TARGET=linux-glibc USE_OPENSSL=1
+
+It also supports QUIC:
+
+  $ make -j $(nproc) TARGET=linux-glibc USE_OPENSSL=1 USE_QUIC=1 haterm
+
+Technically speaking, it uses the regular HAProxy source and object code with a
+different command line parser. As such, all build options supported by HAProxy
+also apply to HATerm. See INSTALL for more details about how to compile them.
+
+
+3. Execution
+------------
+
+HATerm is a very easy to use HTTP server with supports for all the HTTP
+versions. It displays its usage when run without argument or wrong arguments:
+
+    $ ./haterm
+    Usage : haterm -L [<ip>]:<clear port>[:<TCP&QUIC SSL port>] [-L...]* [opts]
+    where <opts> may be any combination of:
+        -G <line> : multiple option; append <line> to the "global" section
+        -F <line> : multiple option; append <line> to the "frontend" section
+        -T <line> : multiple option; append <line> to the "traces" section
+        -C : dump the configuration and exit
+        -D : goes daemon
+        -v : shows version
+        -d : enable the traces for all http protocols
+
+Arguments -G, -F, -T permit to append one or multiple lines at the end of their
+respective sections. A tab character ('\t') is prepended at the beginning of
+the argument, and a line feed ('\n') is appended at the end. It is also
+possible to insert multiple lines at once using escape sequences '\n' and '\t'
+inside the string argument.
+
+As HAProxy, HATerm may listen on several TCP/UDP addresses which can be
+provided by multiple "-L" options. To be functional, it needs at least one
+correct "-L" option to be set.
+
+Examples:
+
+    $ ./haterm -L 127.0.0.1:8888        # listen on 127.0.0.1:8888 TCP address
+
+    $ ./haterm -L 127.0.0.1:8888:8889   # listen on 127.0.0.1:8888 TCP address,
+                                        # 127.0.01:8889 SSL/TCP address,
+                                        # and 127.0.01:8889 QUIC/UDP address
+
+    $ ./haterm -L 127.0.0.1:8888:8889 -L [::1]:8888:8889
+
+With USE_QUIC_OPENSSL_COMPAT support, the user must configure a global
+section as for HAProxy. HATerm sets internally its configuration in.
+memory as this is done by HAProxy from configuration files:
+
+    $ ./haterm -L 127.0.0.1:8888:8889
+    [NOTICE]   (1371578) : haproxy version is 3.4-dev4-ba5eab-28
+    [NOTICE]   (1371578) : path to executable is ./haterm
+    [ALERT]    (1371578) : Binding [haterm cfgfile:12] for frontend
+                           ___haterm_frontend___: this SSL library does not
+                           support the QUIC protocol. A limited compatibility
+                           layer may be enabled using the "limited-quic" global
+                           option if desired.
+
+Such an alert may be fixed with "-G' option:
+
+    $ ./haterm -L 127.0.0.1:8888:8889 -G "limited-quic"
+
+
+When the SSL support is not compiled in, the second port is ignored. This is
+also the case for the QUIC support.
+
+HATerm adjusts its responses depending on the requests it receives. An empty
+query string provides the information about how the URIs are understood by
+HATerm:
+
+    $ curl http://127.0.0.1:8888/?
+    HAProxy's dummy HTTP server for benchmarks - version 3.4-dev4.
+    All integer argument values are in the form [digits]*[kmgr] (r=random(0..1))
+    The following arguments are supported to override the default objects :
+     - /?s=<size>        return <size> bytes.
+                         E.g. /?s=20k
+     - /?r=<retcode>     present <retcode> as the HTTP return code.
+                         E.g. /?r=404
+     - /?c=<cache>       set the return as not cacheable if <1.
+                         E.g. /?c=0
+     - /?A=<req-after>   drain the request body after sending the response.
+                         E.g. /?A=1
+     - /?C=<close>       force the response to use close if >0.
+                         E.g. /?C=1
+     - /?K=<keep-alive>  force the response to use keep-alive if >0.
+                         E.g. /?K=1
+     - /?t=<time>        wait <time> milliseconds before responding.
+                         E.g. /?t=500
+     - /?k=<enable>      Enable transfer encoding chunked with only one chunk
+                         if >0.
+     - /?R=<enable>      Enable sending random data if >0.
+
+    Note that those arguments may be cumulated on one line separated by a set of
+    delimitors among [&?,;/] :
+     -  GET /?s=20k&c=1&t=700&K=30r HTTP/1.0
+     -  GET /?r=500?s=0?c=0?t=1000 HTTP/1.0
+

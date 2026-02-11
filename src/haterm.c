@@ -906,9 +906,9 @@ static struct task *process_hstream(struct task *t, void *context, unsigned int 
 	goto leave;
 }
 
-/* Allocate a httpter stream as this is done for classical haproxy streams.
+/* Allocate an haterm stream as this is done for classical haproxy streams.
  * This function is called as proxy callback from muxes.
- * Return the haterm stream object if succeede, NUL if not.
+ * Return the haterm stream object on success, NULL if not.
  */
 void *hstream_new(struct session *sess, struct stconn *sc, struct buffer *input)
 {
