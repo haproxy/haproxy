@@ -3825,7 +3825,7 @@ int ssl_sock_passwd_cb(char *buf, int size, int rwflag, void *userdata)
 
 	if (!global_ssl.passphrase_cmd) {
 		data->passphrase_idx = -1;
-		ha_alert("Trying to load a passphrase-protected private key without an 'ssl-passphrase-cmd' defined.");
+		ha_alert("Trying to load a passphrase-protected private key without an 'ssl-passphrase-cmd' defined.\n");
 		return -1;
 	}
 
