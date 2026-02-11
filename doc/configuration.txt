@@ -9307,6 +9307,9 @@ mode { tcp|http|log|spop }
               processing and switching will be possible. This is the mode which
               brings HAProxy most of its value.
 
+    haterm    The frontend will work in haterm HTTP benchmark mode. This is
+              not supported by backends. See doc/haterm.txt for details.
+
     log       When used in a backend section, it will turn the backend into a
               log backend. Such backend can be used as a log destination for
               any "log" directive by using the "backend@<name>" syntax. Log
