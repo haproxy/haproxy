@@ -5344,6 +5344,10 @@ int srv_init_addr(void)
 			set_usermsgs_ctx(srv->conf.file, srv->conf.line, &srv->obj_type);
 			if (srv->hostname || srv->srvrq)
 				return_code |= srv_iterate_initaddr(srv);
+			if (srv->lastaddr) {
+				int err_code;
+				return_code |= srv_apply_lastaddr(srv, &err_code);
+			}
 			reset_usermsgs_ctx();
 		}
 
