@@ -604,6 +604,48 @@ void display_version()
 	}
 }
 
+/* compare a feature string, ignoring the first character (-/+)
+   used for qsort */
+static int feat_cmp(const void *a, const void *b)
+{
+	const struct ist *ia = a;
+	const struct ist *ib = b;
+
+	struct ist sa = istadv(*ia, 1);
+	struct ist sb = istadv(*ib, 1);
+
+	return istdiff(sa, sb);
+}
+
+/* split the feature list into an allocated sorted array of ist
+   the return ptr must be freed by the caller */
+static struct ist *split_feature_list()
+{
+	struct ist *out;
+	struct ist tmp = ist(build_features);
+
+	int n = 1; /* last element don't have a ' ' */
+	int i = 0;
+
+	for (i = 0; build_features[i] != '\0'; i++) {
+		if (build_features[i] == ' ')
+			n++;
+	}
+	out = calloc(n + 1, sizeof(*out)); // last elem is NULL
+	if (!out)
+		goto end;
+
+	i = 0;
+	while (tmp.len)
+		out[i++] = istsplit(&tmp, ' ');
+
+	qsort(out, n, sizeof(struct ist), feat_cmp);
+
+end:
+
+	return out;
+}
+
 /* display_mode:
  * 0 = short version (e.g., "3.3.1")
  * 1 = full version (e.g., "3.3.1-dev5-1bb975-71")
@@ -643,14 +685,18 @@ void display_version_plain(int display_mode)
 static void display_build_opts()
 {
 	const char **opt;
+	struct ist *feat_list = NULL, *tmp;
 
-	printf("Build options : %s"
-	       "\n\nFeature list : %s"
-	       "\n\nDefault settings :"
+	feat_list = split_feature_list();
+
+	printf("Build options : %s", build_opts_string);
+	printf("\n\nFeature list :");
+	for (tmp = feat_list;tmp->ptr;tmp++)
+		printf(" %.*s", (int)tmp->len, tmp->ptr);
+	printf("\n\nDefault settings :"
 	       "\n  bufsize = %d, maxrewrite = %d, maxpollevents = %d"
 	       "\n\n",
-	       build_opts_string,
-	       build_features, BUFSIZE, MAXREWRITE, MAX_POLL_EVENTS);
+	       BUFSIZE, MAXREWRITE, MAX_POLL_EVENTS);
 
 	for (opt = NULL; (opt = hap_get_next_build_opt(opt)); puts(*opt))
 		;
@@ -669,6 +715,7 @@ static void display_build_opts()
 	putchar('\n');
 	list_filters(stdout);
 	putchar('\n');
+	ha_free(&feat_list);
 }
 
 /*
