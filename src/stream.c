@@ -641,8 +641,9 @@ void stream_free(struct stream *s)
 		 * free the connection before.
 		 */
 		if (!(oldsrv->flags & SRV_F_STRICT_MAXCONN)) {
-			sess_change_server(s, NULL);
-			srv_manage_queues(oldsrv, s->be);
+			int served = sess_change_server(s, NULL);
+			if (srv_manage_queues(oldsrv, s->be) == -1)
+				srv_check_full_state(oldsrv, served);
 		}
 	}
 
@@ -751,8 +752,9 @@ void stream_free(struct stream *s)
 		struct server *oldsrv = s->srv_conn;
 
 		if ((oldsrv->flags & SRV_F_STRICT_MAXCONN)) {
-			sess_change_server(s, NULL);
-			srv_manage_queues(oldsrv, s->be);
+			int served = sess_change_server(s, NULL);
+			if (srv_manage_queues(oldsrv, s->be) == -1)
+				srv_check_full_state(oldsrv, served);
 		}
 	}
 
@@ -2052,8 +2054,11 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			 * free the connection before.
 			 */
 			if (!(srv->flags & SRV_F_STRICT_MAXCONN)) {
-				sess_change_server(s, NULL);
-				srv_manage_queues(srv, s->be);
+				int served;
+
+				served = sess_change_server(s, NULL);
+				if (srv_manage_queues(srv, s->be) == -1)
+					srv_check_full_state(srv, served);
 			}
 		}
 
@@ -2969,8 +2974,12 @@ void stream_shutdown_self(struct stream *stream, int why)
 		stream->flags |= why;
 
 	if (objt_server(stream->target)) {
-		sess_change_server(stream, NULL);
-		srv_manage_queues(__objt_server(stream->target), stream->be);
+		struct server *srv = __objt_server(stream->target);
+		int served;
+
+		served = sess_change_server(stream, NULL);
+		if (srv_manage_queues(srv, stream->be) == -1)
+			srv_check_full_state(srv, served);
 	}
 
 	/* shutw is enough to stop a connecting socket */

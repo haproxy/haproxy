@@ -353,8 +353,12 @@ static inline void stream_choose_redispatch(struct stream *s)
 	       (s->conn_retries % (s->max_retries + 1 + s->be->redispatch_after) == 0))) ||
 	     (!(s->flags & SF_DIRECT) && s->be->srv_act > 1 &&
 	      ((s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_HI)))) {
-		sess_change_server(s, NULL);
-		srv_manage_queues(objt_server(s->target), s->be);
+		struct server *srv = __objt_server(s->target);
+		int served;
+
+		served = sess_change_server(s, NULL);
+		if (srv_manage_queues(srv, s->be) == -1)
+			srv_check_full_state(srv, served);
 
 		sockaddr_free(&s->scb->dst);
 		s->flags &= ~(SF_DIRECT | SF_ASSIGNED);

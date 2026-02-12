@@ -3485,8 +3485,13 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		if (s->flags & SF_BE_ASSIGNED) {
 			HA_ATOMIC_DEC(&be->beconn);
-			if (unlikely(s->srv_conn))
-				sess_change_server(s, NULL);
+			if (unlikely(s->srv_conn)) {
+				struct server *srv = s->srv_conn;
+				int served;
+
+				served = sess_change_server(s, NULL);
+				srv_check_full_state(srv, served);
+			}
 		}
 
 		s->logs.t_close = ns_to_ms(now_ns - s->logs.accept_ts);

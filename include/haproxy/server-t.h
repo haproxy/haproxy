@@ -554,6 +554,7 @@ struct server {
 	EXTRA_COUNTERS(extra_counters);
 	__decl_thread(HA_SPINLOCK_T state_lock);/* protect the following state fields */
 	uint8_t queues_not_empty;               /* Are the request queues not empty ? Only changed when the queues go from non-empty to empty, and vice-versa. Protected by the state_lock lock when changed */
+	uint8_t server_full;                    /* we reached maxconn, and can no longer process more requests, protected by the state_lock */
 };
 
 /* data provided to EVENT_HDL_SUB_SERVER handlers through event_hdl facility */

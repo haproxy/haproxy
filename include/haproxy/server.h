@@ -398,10 +398,25 @@ static inline int srv_manage_queues(struct server *srv, struct proxy *px)
 {
 	int full = -1;
 
-	if (may_dequeue_tasks(srv, px))
-		full = process_srv_queue(srv, &full);
+	if (may_dequeue_tasks(srv, px)) {
+		process_srv_queue(srv, &full);
+		if ((full && !srv->server_full) || (!full && srv->server_full)) {
+			HA_SPIN_LOCK(SERVER_LOCK, &srv->state_lock);
+			srv->server_full = (srv->served >= srv->maxconn);
+			HA_SPIN_UNLOCK(SERVER_LOCK, &srv->state_lock);
+		}
+	}
 
 	return full;
+}
+
+static inline void srv_check_full_state(struct server *srv, int served)
+{
+	if (srv->maxconn > 0 && served == srv->maxconn - 1) {
+		HA_SPIN_LOCK(SERVER_LOCK, &srv->state_lock);
+		srv->server_full = (srv->served >= srv->maxconn);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &srv->state_lock);
+	}
 }
 
 #endif /* _HAPROXY_SERVER_H */

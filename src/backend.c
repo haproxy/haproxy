@@ -645,8 +645,10 @@ int assign_server(struct stream *s)
 	/* We have to release any connection slot before applying any LB algo,
 	 * otherwise we may erroneously end up with no available slot.
 	 */
-	if (conn_slot)
-		sess_change_server(s, NULL);
+	if (conn_slot) {
+		int served = sess_change_server(s, NULL);
+		srv_check_full_state(conn_slot, served);
+	}
 
 	/* We will now try to find the good server and store it into <objt_server(s->target)>.
 	 * Note that <objt_server(s->target)> may be NULL in case of dispatch or proxy mode,
@@ -858,7 +860,8 @@ out_ok:
 	 */
 	if (conn_slot) {
 		if (conn_slot == srv) {
-			sess_change_server(s, srv);
+			int served = sess_change_server(s, srv);
+			srv_check_full_state(srv, served);
 		} else {
 			srv_manage_queues(conn_slot, s->be);
 		}
@@ -982,7 +985,7 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 int assign_server_and_queue(struct stream *s)
 {
 	struct pendconn *p;
-	struct server *srv;
+	struct server *srv, *oldsrv;
 	int count;
 	int err;
 
@@ -1039,10 +1042,16 @@ int assign_server_and_queue(struct stream *s)
 		 * assigned from persistence information (direct mode).
 		 */
 		if ((s->flags & SF_REDIRECTABLE) && srv->rdr_len) {
+			struct server *oldsrv;
+
+			int served;
 			/* server scheduled for redirection, and already assigned. We
 			 * don't want to go further nor check the queue.
 			 */
-			sess_change_server(s, srv); /* not really needed in fact */
+			oldsrv = s->srv_conn;
+			served = sess_change_server(s, srv); /* not really needed in fact */
+			if (oldsrv)
+				srv_check_full_state(oldsrv, served);
 			return SRV_STATUS_OK;
 		}
 
@@ -1095,12 +1104,21 @@ int assign_server_and_queue(struct stream *s)
 				else
 					return SRV_STATUS_INTERNAL;
 			}
+			if (served + 1 == srv->maxconn) {
+				HA_SPIN_LOCK(SERVER_LOCK, &srv->state_lock);
+				srv->server_full = (srv->served >= srv->maxconn);
+				HA_SPIN_UNLOCK(SERVER_LOCK, &srv->state_lock);
+			}
 		} else
 			count = _HA_ATOMIC_ADD_FETCH(&srv->served, 1);
 
 		HA_ATOMIC_UPDATE_MAX(&srv->counters.cur_sess_max, count);
 		/* OK, we can use this server. Let's reserve our place */
-		sess_change_server(s, srv);
+		oldsrv = s->srv_conn;
+
+		count = sess_change_server(s, srv);
+		if (oldsrv != NULL)
+			srv_check_full_state(oldsrv, count);
 		return SRV_STATUS_OK;
 
 	case SRV_STATUS_FULL:
@@ -1123,15 +1141,15 @@ int assign_server_and_queue(struct stream *s)
 			 * dequeue us eventually, so we can just do nothing.
 			 */
 			if (unlikely(s->be->ready_srv != NULL)) {
-				struct server *newserv;
+				struct server *newserv, *oldserv;
+				int served;
 
 				newserv = HA_ATOMIC_XCHG(&s->be->ready_srv, NULL);
 				if (newserv != NULL) {
 					int got_slot = 0;
 
 					while (_HA_ATOMIC_LOAD(&newserv->served) == 0) {
-						int served = 0;
-
+						served = 0;
 						if (_HA_ATOMIC_CAS(&newserv->served, &served, 1)) {
 							got_slot = 1;
 							break;
@@ -1143,6 +1161,12 @@ int assign_server_and_queue(struct stream *s)
 						 * wake up us, stop now.
 						 */
 						return SRV_STATUS_QUEUED;
+					}
+
+					if (served + 1 == newserv->maxconn) {
+						HA_SPIN_LOCK(SERVER_LOCK, &newserv->state_lock);
+						newserv->server_full = (newserv->served >= newserv->maxconn);
+						HA_SPIN_UNLOCK(SERVER_LOCK, &newserv->state_lock);
 					}
 
 					HA_SPIN_LOCK(QUEUE_LOCK, &p->queue->lock);
@@ -1185,7 +1209,11 @@ int assign_server_and_queue(struct stream *s)
 					stream_set_srv_target(s, newserv);
 
 					s->pend_pos = NULL;
-					sess_change_server(s, newserv);
+					oldserv = s->srv_conn;
+
+					served = sess_change_server(s, newserv);
+					if (oldserv)
+						srv_check_full_state(oldserv, served);
 					return SRV_STATUS_OK;
 				}
 			}
@@ -2481,6 +2509,8 @@ void back_try_conn_req(struct stream *s)
 		 * abort, retry immediately or redispatch.
 		 */
 		if (conn_err == SF_ERR_INTERNAL) {
+			int served;
+
 			if (!s->conn_err_type) {
 				s->conn_err_type = STRM_ET_CONN_OTHER;
 			}
@@ -2495,8 +2525,9 @@ void back_try_conn_req(struct stream *s)
 				_HA_ATOMIC_INC(&s->be_tgcounters->failed_conns);
 
 			/* release other streams waiting for this server */
-			sess_change_server(s, NULL);
-			srv_manage_queues(srv, s->be);
+			served = sess_change_server(s, NULL);
+			if (srv && srv_manage_queues(srv, s->be) == -1)
+				srv_check_full_state(srv, served);
 
 			/* Failed and not retryable. */
 			sc_abort(sc);
@@ -2804,6 +2835,9 @@ void back_handle_st_cer(struct stream *s)
 
 	/* ensure that we have enough retries left */
 	if (s->conn_retries >= s->max_retries || !(s->be->retry_type & PR_RE_CONN_FAILED)) {
+		struct server *srv = objt_server(s->target);
+		int served;
+
 		if (!s->conn_err_type) {
 			s->conn_err_type = STRM_ET_CONN_ERR;
 		}
@@ -2812,8 +2846,9 @@ void back_handle_st_cer(struct stream *s)
 			_HA_ATOMIC_INC(&s->sv_tgcounters->failed_conns);
 		if (s->be_tgcounters)
 			_HA_ATOMIC_INC(&s->be_tgcounters->failed_conns);
-		sess_change_server(s, NULL);
-		srv_manage_queues(objt_server(s->target), s->be);
+		served = sess_change_server(s, NULL);
+		if (srv && srv_manage_queues(srv, s->be) == -1)
+			srv_check_full_state(srv, served);
 
 		/* shutw is enough to stop a connecting socket */
 		sc_shutdown(sc);
@@ -2838,6 +2873,9 @@ void back_handle_st_cer(struct stream *s)
 	 * ST_TAR and SC_FL_ERROR and SF_CONN_EXP flags will be unset.
 	 */
 	if (sc_reset_endp(sc) < 0) {
+		struct server *srv = objt_server(s->target);
+		int served;
+
 		if (!s->conn_err_type)
 			s->conn_err_type = STRM_ET_CONN_OTHER;
 
@@ -2845,8 +2883,9 @@ void back_handle_st_cer(struct stream *s)
 			_HA_ATOMIC_INC(&s->sv_tgcounters->internal_errors);
 		if (s->be_tgcounters)
 			_HA_ATOMIC_INC(&s->be_tgcounters->internal_errors);
-		sess_change_server(s, NULL);
-		srv_manage_queues(objt_server(s->target), s->be);
+		served = sess_change_server(s, NULL);
+		if (srv && srv_manage_queues(srv, s->be) == -1)
+			srv_check_full_state(srv, served);
 
 		/* shutw is enough to stop a connecting socket */
 		sc_shutdown(sc);
