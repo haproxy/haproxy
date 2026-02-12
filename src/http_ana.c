@@ -4312,7 +4312,12 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 	}
 
 	/* we get here if we need to wait for more data */
-	if (!(chn_prod(chn)->flags & (SC_FL_EOS|SC_FL_ABRT_DONE))) {
+
+	if ((s->scf->flags & SC_FL_ERROR) ||
+	    ((s->scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) &&
+	     proxy_abrt_close_def(s->be, 1)))
+		ret = HTTP_RULE_RES_CONT;
+	else if (!(chn_prod(chn)->flags & (SC_FL_ERROR|SC_FL_EOS|SC_FL_ABRT_DONE))) {
 		if (!tick_isset(chn->analyse_exp))
 			chn->analyse_exp = tick_add_ifset(now_ms, time);
 		ret = HTTP_RULE_RES_YIELD;
