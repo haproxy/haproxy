@@ -692,7 +692,12 @@ static void display_build_opts()
 	printf("Build options : %s", build_opts_string);
 	printf("\n\nFeature list :");
 	for (tmp = feat_list;tmp->ptr;tmp++)
-		printf(" %.*s", (int)tmp->len, tmp->ptr);
+		if (!isttest(istist(*tmp, ist("HAVE_WORKING_"))))
+			printf(" %.*s", (int)tmp->len, tmp->ptr);
+	printf("\nDetected feature list :");
+	for (tmp = feat_list;tmp->ptr;tmp++)
+		if (isttest(istist(*tmp, ist("HAVE_WORKING_"))))
+			printf(" %.*s", (int)tmp->len, tmp->ptr);
 	printf("\n\nDefault settings :"
 	       "\n  bufsize = %d, maxrewrite = %d, maxpollevents = %d"
 	       "\n\n",
