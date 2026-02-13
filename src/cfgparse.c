@@ -2418,6 +2418,11 @@ init_proxies_list_stage1:
 				 global.tune.bufsize);
 			cfgerr++;
 		}
+		if (curproxy->mode == PR_MODE_HTTP && global.tune.bufsize_large >= (256 << 20) && ONLY_ONCE()) {
+			ha_alert("global.tune.bufsize_large must be below 256 MB when HTTP is in use (current value = %d).\n",
+				 global.tune.bufsize_large);
+			cfgerr++;
+		}
 
 		if (curproxy->flags & PR_FL_DISABLED) {
 			/* ensure we don't keep listeners uselessly bound. We
