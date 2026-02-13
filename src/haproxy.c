@@ -2814,7 +2814,7 @@ void deinit(void)
 	while (p) {
 		p0 = p;
 		p = p->next;
-		free_proxy(p0);
+		proxy_drop(p0);
 	}/* end while(p) */
 
 	/* we don't need to free sink_proxies_list nor cfg_log_forward proxies since

@@ -58,7 +58,7 @@ void stop_proxy(struct proxy *p);
 int  stream_set_backend(struct stream *s, struct proxy *be);
 
 void deinit_proxy(struct proxy *p);
-void free_proxy(struct proxy *p);
+void proxy_drop(struct proxy *p);
 const char *proxy_cap_str(int cap);
 const char *proxy_mode_str(int mode);
 enum pr_mode str_to_proxy_mode(const char *mode);
@@ -82,6 +82,7 @@ void proxy_unref_defaults(struct proxy *px);
 int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char **errmsg);
 struct proxy *alloc_new_proxy(const char *name, unsigned int cap,
                               char **errmsg);
+void proxy_take(struct proxy *px);
 struct proxy *parse_new_proxy(const char *name, unsigned int cap,
                               const char *file, int linenum,
                               const struct proxy *defproxy);

@@ -1214,7 +1214,7 @@ err:
 	if (err_code & ERR_CODE) {
 		ha_alert("httpclient: cannot initialize: %s\n", errmsg);
 		free(errmsg);
-		free_proxy(px);
+		proxy_drop(px);
 
 		return NULL;
 	}

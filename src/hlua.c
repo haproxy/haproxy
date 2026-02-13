@@ -14726,7 +14726,7 @@ static void hlua_deinit()
 			lua_close(hlua_states[thr]);
 	}
 
-	free_proxy(socket_proxy);
+	proxy_drop(socket_proxy);
 }
 
 REGISTER_POST_DEINIT(hlua_deinit);

@@ -818,7 +818,7 @@ static void sink_free(struct sink *sink)
 	}
 	LIST_DEL_INIT(&sink->sink_list); // remove from parent list
 	task_destroy(sink->forward_task);
-	free_proxy(sink->forward_px);
+	proxy_drop(sink->forward_px);
 	ha_free(&sink->name);
 	ha_free(&sink->desc);
 	while (sink->sft) {
@@ -866,7 +866,7 @@ static struct sink *sink_new_ringbuf(const char *id, const char *description,
 	return sink;
 
  err:
-	free_proxy(p);
+	proxy_drop(p);
 	return NULL;
 }
 

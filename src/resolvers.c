@@ -2637,7 +2637,7 @@ static void resolvers_destroy(struct resolvers *resolvers)
 		resolv_free_resolution(res);
 	}
 
-	free_proxy(resolvers->px);
+	proxy_drop(resolvers->px);
 	free(resolvers->id);
 	free((char *)resolvers->conf.file);
 	task_destroy(resolvers->t);
@@ -3586,7 +3586,7 @@ out:
 err_free_conf_file:
 	ha_free((void **)&r->conf.file);
 err_free_p:
-	free_proxy(p);
+	proxy_drop(p);
 err_free_r:
 	ha_free(&r);
 	return err_code;

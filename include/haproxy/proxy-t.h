@@ -247,6 +247,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_FL_PAUSED             0x00000020  /* The proxy was paused at run time (reversible) */
 #define PR_FL_CHECKED            0x00000040  /* The proxy configuration was fully checked (including postparsing checks) */
 #define PR_FL_BE_UNPUBLISHED     0x00000080  /* The proxy cannot be targetted by content switching rules */
+#define PR_FL_DELETED            0x00000100  /* Proxy has been deleted and must be manipulated with care */
 
 struct stream;
 
@@ -508,6 +509,7 @@ struct proxy {
 
 	struct guid_node guid;			/* GUID global tree node */
 	struct mt_list watcher_list;		/* list of elems which currently references this proxy instance (currently only used with backends) */
+	uint refcount;				/* refcount to keep proxy from being deleted during runtime */
 
 	EXTRA_COUNTERS(extra_counters_fe);
 	EXTRA_COUNTERS(extra_counters_be);

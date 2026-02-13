@@ -3739,7 +3739,7 @@ void deinit_log_forward()
 	while (p) {
 		p0 = p;
 		p = p->next;
-		free_proxy(p0);
+		proxy_drop(p0);
 	}
 }
 
