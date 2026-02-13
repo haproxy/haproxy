@@ -54,6 +54,30 @@ static inline int buffer_almost_full(const struct buffer *buf)
 	return b_almost_full(buf);
 }
 
+/* Return 1 if <sz> is the  default buffer size */
+static inline int b_is_default_sz(size_t sz)
+{
+	return (sz == pool_head_buffer->size);
+}
+
+/* Return 1 if <sz> is the size of a large buffer (alwoys false is large buffers are not configured) */
+static inline int b_is_large_sz(size_t sz)
+{
+	return (pool_head_large_buffer && sz == pool_head_large_buffer->size);
+}
+
+/* Return 1 if <bug> is a  default buffer */
+static inline int b_is_default(struct buffer *buf)
+{
+	return b_is_default_sz(b_size(buf));
+}
+
+/* Return 1 if <buf> is a large buffer (alwoys 0 is large buffers are not configured) */
+static inline int b_is_large(struct buffer *buf)
+{
+	return b_is_large_sz(b_size(buf));
+}
+
 /**************************************************/
 /* Functions below are used for buffer allocation */
 /**************************************************/
@@ -146,7 +170,7 @@ static inline char *__b_get_emergency_buf(void)
 		__ha_barrier_store();					\
 		/* if enabled, large buffers are always strictly greater \
 		 * than the default buffers */				\
-		if (unlikely(pool_head_large_buffer && sz == pool_head_large_buffer->size)) \
+		if (unlikely(b_is_large_sz(sz)))			\
 			pool_free(pool_head_large_buffer, area);	\
 		else if (th_ctx->emergency_bufs_left < global.tune.reserved_bufs) \
 			th_ctx->emergency_bufs[th_ctx->emergency_bufs_left++] = area; \

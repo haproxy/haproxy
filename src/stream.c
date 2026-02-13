@@ -658,11 +658,17 @@ void stream_free(struct stream *s)
 	b_dequeue(&s->buffer_wait);
 
 	if (s->req.buf.size || s->res.buf.size) {
-		int count = (s->req.buf.size == global.tune.bufsize) + (s->res.buf.size == global.tune.bufsize);
+		int count = 0;
+
+		if (b_is_default(&s->req.buf))
+			count++;
+		if (b_is_default(&s->res.buf))
+			count++;
 
 		b_free(&s->req.buf);
 		b_free(&s->res.buf);
-		offer_buffers(NULL, count);
+		if (count)
+			offer_buffers(NULL, count);
 	}
 
 	pool_free(pool_head_uniqueid, s->unique_id.ptr);
@@ -808,12 +814,12 @@ void stream_release_buffers(struct stream *s)
 	int offer = 0;
 
 	if (c_size(&s->req) && c_empty(&s->req)) {
-		if (c_size(&s->req) == global.tune.bufsize)
+		if (b_is_default(&s->req.buf))
 			offer++;
 		b_free(&s->req.buf);
 	}
 	if (c_size(&s->res) && c_empty(&s->res)) {
-		if (c_size(&s->res) == global.tune.bufsize)
+		if (b_is_default(&s->res.buf))
 			offer++;
 		b_free(&s->res.buf);
 	}
