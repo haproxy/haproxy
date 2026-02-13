@@ -4306,7 +4306,7 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 		struct buffer lbuf;
 		char *area;
 
-		if (large_buffer == 0 || c_size(chn) == global.tune.bufsize_large)
+		if (large_buffer == 0 || b_is_large(&chn->buf))
 			goto end; /* don't use large buffer or large buffer is full */
 
 		/* normal buffer is full, allocate a large one
