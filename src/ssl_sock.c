@@ -6008,8 +6008,9 @@ void ssl_sock_handle_hs_error(struct connection *conn)
 		 * another thread */
 
 		HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
-		if (s->ssl_ctx.reused_sess[tid].ptr)
-			ha_free(&s->ssl_ctx.reused_sess[tid].ptr);
+		HA_RWLOCK_WRLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.reused_sess[tid].sess_lock);
+		ha_free(&s->ssl_ctx.reused_sess[tid].ptr);
+		HA_RWLOCK_WRUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.reused_sess[tid].sess_lock);
 		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
 	}
 
