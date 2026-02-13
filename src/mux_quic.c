@@ -630,10 +630,11 @@ static void qmux_ctrl_send(struct qc_stream_desc *stream, uint64_t data, uint64_
 			            QMUX_EV_QCS_SEND, qcc->conn, qcs);
 		}
 		/* Release buffer if everything sent and buf is full or stream is waiting for room. */
-		if (!qcs_prep_bytes(qcs) &&
-		    (b_full(&qcs->stream->buf->buf) || qcs->flags & QC_SF_BLK_MROOM)) {
-			qc_stream_buf_release(qcs->stream);
-			qcs->flags &= ~QC_SF_BLK_MROOM;
+		if (!qcs_prep_bytes(qcs)) {
+			if (b_full(&qcs->stream->buf->buf) || qcs->flags & QC_SF_BLK_MROOM) {
+				qc_stream_buf_release(qcs->stream);
+				qcs->flags &= ~QC_SF_BLK_MROOM;
+			}
 			qcs_notify_send(qcs);
 		}
 
