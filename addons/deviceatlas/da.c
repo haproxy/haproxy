@@ -324,7 +324,7 @@ static void da_haproxy_checkinst(void)
 static int da_haproxy(const struct arg *args, struct sample *smp, da_deviceinfo_t *devinfo)
 {
     struct buffer *tmp;
-    da_propid_t prop, *pprop;
+    da_propid_t prop;
     da_status_t status;
     da_type_t proptype;
 	const char *propname;
@@ -344,13 +344,15 @@ static int da_haproxy(const struct arg *args, struct sample *smp, da_deviceinfo_
 			chunk_appendf(tmp, "%c", global_deviceatlas.separator);
 			continue;
 		}
-		pprop = &prop;
-		da_atlas_getproptype(&global_deviceatlas.atlas, *pprop, &proptype);
+		if (unlikely(da_atlas_getproptype(&global_deviceatlas.atlas, prop, &proptype) != DA_OK)) {
+			chunk_appendf(tmp, "%c", global_deviceatlas.separator);
+			continue;
+		}
 
 		switch (proptype) {
 			case DA_TYPE_BOOLEAN: {
 				bool val;
-				status = da_getpropboolean(devinfo, *pprop, &val);
+				status = da_getpropboolean(devinfo, prop, &val);
 				if (status == DA_OK) {
 					chunk_appendf(tmp, "%d", val);
 				}
@@ -359,7 +361,7 @@ static int da_haproxy(const struct arg *args, struct sample *smp, da_deviceinfo_
 			case DA_TYPE_INTEGER:
 			case DA_TYPE_NUMBER: {
 				long val;
-				status = da_getpropinteger(devinfo, *pprop, &val);
+				status = da_getpropinteger(devinfo, prop, &val);
 				if (status == DA_OK) {
 					chunk_appendf(tmp, "%ld", val);
 				}
@@ -367,7 +369,7 @@ static int da_haproxy(const struct arg *args, struct sample *smp, da_deviceinfo_
 			}
 			case DA_TYPE_STRING: {
 				const char *val;
-				status = da_getpropstring(devinfo, *pprop, &val);
+				status = da_getpropstring(devinfo, prop, &val);
 				if (status == DA_OK) {
 					chunk_appendf(tmp, "%s", val);
 				}
