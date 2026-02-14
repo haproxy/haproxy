@@ -31,6 +31,7 @@ static struct {
 	da_atlas_t atlas;
 	da_evidence_id_t useragentid;
 	da_severity_t loglevel;
+	size_t maxhdrlen;
 	char separator;
 	unsigned char daset:1;
 } global_deviceatlas = {
@@ -42,6 +43,7 @@ static struct {
 	.atlasmap = NULL,
 	.atlasfd = -1,
 	.useragentid = 0,
+	.maxhdrlen = 0,
 	.daset = 0,
 	.separator = '|',
 };
@@ -224,6 +226,15 @@ static int init_deviceatlas(void)
 
 		global_deviceatlas.useragentid = da_atlas_header_evidence_id(&global_deviceatlas.atlas,
 			"user-agent");
+		{
+			size_t hi;
+			global_deviceatlas.maxhdrlen = 16;
+			for (hi = 0; hi < global_deviceatlas.atlas.header_evidence_count; hi++) {
+				size_t nl = strlen(global_deviceatlas.atlas.header_priorities[hi].name);
+				if (nl > global_deviceatlas.maxhdrlen)
+					global_deviceatlas.maxhdrlen = nl;
+			}
+		}
 		if ((global_deviceatlas.atlasfd = shm_open(ATLASMAPNM, O_RDWR, 0660)) != -1) {
 			global_deviceatlas.atlasmap = mmap(NULL, ATLASTOKSZ, PROT_READ | PROT_WRITE, MAP_SHARED, global_deviceatlas.atlasfd, 0);
 			if (global_deviceatlas.atlasmap == MAP_FAILED) {
@@ -304,6 +315,15 @@ static void da_haproxy_checkinst(void)
                     free(global_deviceatlas.atlasimgptr);
                     global_deviceatlas.atlasimgptr = cnew;
                     global_deviceatlas.atlas = inst;
+                    {
+                        size_t hi;
+                        global_deviceatlas.maxhdrlen = 16;
+                        for (hi = 0; hi < inst.header_evidence_count; hi++) {
+                            size_t nl = strlen(inst.header_priorities[hi].name);
+                            if (nl > global_deviceatlas.maxhdrlen)
+                                global_deviceatlas.maxhdrlen = nl;
+                        }
+                    }
                     base[0] = 0;
                     ha_notice("deviceatlas : new instance, data file date `%s`.\n",
                         da_getdatacreationiso8601(&global_deviceatlas.atlas));
@@ -464,8 +484,7 @@ static int da_haproxy_fetch(const struct arg *args, struct sample *smp, const ch
 			continue;
 		}
 
-		/* The HTTP headers used by the DeviceAtlas API are not longer */
-		if (n.len >= sizeof(hbuf)) {
+		if (n.len > global_deviceatlas.maxhdrlen || n.len >= sizeof(hbuf)) {
 			continue;
 		}
 
