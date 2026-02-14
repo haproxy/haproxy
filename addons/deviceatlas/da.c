@@ -177,7 +177,7 @@ static int init_deviceatlas(void)
 		da_status_t status;
 
 		jsonp = fopen(global_deviceatlas.jsonpath, "r");
-		if (jsonp == 0) {
+		if (unlikely(jsonp == 0)) {
 			ha_alert("deviceatlas : '%s' json file has invalid path or is not readable.\n",
 				 global_deviceatlas.jsonpath);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -189,7 +189,7 @@ static int init_deviceatlas(void)
 		status = da_atlas_compile(jsonp, da_haproxy_read, da_haproxy_seek,
 			&global_deviceatlas.atlasimgptr, &atlasimglen);
 		fclose(jsonp);
-		if (status != DA_OK) {
+		if (unlikely(status != DA_OK)) {
 			ha_alert("deviceatlas : '%s' json file is invalid.\n",
 				 global_deviceatlas.jsonpath);
 			free(global_deviceatlas.atlasimgptr);
@@ -201,7 +201,7 @@ static int init_deviceatlas(void)
 		status = da_atlas_open(&global_deviceatlas.atlas, extraprops,
 			global_deviceatlas.atlasimgptr, atlasimglen);
 
-		if (status != DA_OK) {
+		if (unlikely(status != DA_OK)) {
 			ha_alert("deviceatlas : data could not be compiled.\n");
 			free(global_deviceatlas.atlasimgptr);
 			da_fini();
@@ -276,10 +276,10 @@ static void deinit_deviceatlas(void)
 static void da_haproxy_checkinst(void)
 {
 	if (global_deviceatlas.atlasmap != 0) {
-		char *base;
-		base = (char *)global_deviceatlas.atlasmap;
+            char *base;
+            base = (char *)global_deviceatlas.atlasmap;
 
-		if (base[0] != 0) {
+            if (base[0] != 0) {
             FILE *jsonp;
             void *cnew;
             da_status_t status;
@@ -423,7 +423,7 @@ static int da_haproxy_conv(const struct arg *args, struct sample *smp, void *pri
 	char useragentbuf[1024];
 	int i;
 
-	if (global_deviceatlas.daset == 0 || smp->data.u.str.data == 0) {
+	if (unlikely(global_deviceatlas.daset == 0) || smp->data.u.str.data == 0) {
 		return 1;
 	}
 
@@ -449,10 +449,10 @@ static int da_haproxy_fetch(const struct arg *args, struct sample *smp, const ch
 	struct channel *chn;
 	struct htx *htx;
 	struct htx_blk *blk;
-	char vbuf[DA_MAX_HEADERS][1024] = {{ 0 }};
+	char vbuf[DA_MAX_HEADERS][1024];
 	int i, nbh = 0;
 
-	if (global_deviceatlas.daset == 0) {
+	if (unlikely(global_deviceatlas.daset == 0)) {
 		return 0;
 	}
 
@@ -460,10 +460,9 @@ static int da_haproxy_fetch(const struct arg *args, struct sample *smp, const ch
 
 	chn = (smp->strm ? &smp->strm->req : NULL);
 	htx = smp_prefetch_htx(smp, chn, NULL, 1);
-	if (!htx)
+	if (unlikely(!htx))
 		return 0;
 
-	i = 0;
 	for (blk = htx_get_first_blk(htx); nbh < DA_MAX_HEADERS && blk; blk = htx_get_next_blk(htx, blk)) {
 		size_t vlen;
 		char *pval;
