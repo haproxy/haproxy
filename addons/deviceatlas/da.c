@@ -299,6 +299,7 @@ static void da_haproxy_checkinst(void)
             fclose(jsonp);
             if (status == DA_OK) {
                 if (da_atlas_open(&inst, extraprops, cnew, atlassz) == DA_OK) {
+                    inst.config.cache_size = global_deviceatlas.cachesize;
                     da_atlas_close(&global_deviceatlas.atlas);
                     free(global_deviceatlas.atlasimgptr);
                     global_deviceatlas.atlasimgptr = cnew;
