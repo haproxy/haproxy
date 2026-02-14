@@ -280,6 +280,10 @@ static void da_haproxy_checkinst(void)
             da_property_decl_t extraprops[1] = {{NULL, 0}};
 #ifdef USE_THREAD
             HA_SPIN_LOCK(OTHER_LOCK, &dadwsch_lock);
+            if (base[0] == 0) {
+                HA_SPIN_UNLOCK(OTHER_LOCK, &dadwsch_lock);
+                return;
+            }
 #endif
             strlcpy2(atlasp, base + sizeof(char), sizeof(atlasp));
             jsonp = fopen(atlasp, "r");
