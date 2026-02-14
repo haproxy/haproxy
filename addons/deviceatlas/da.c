@@ -312,6 +312,8 @@ static void da_haproxy_checkinst(void)
                     ha_alert("deviceatlas : instance update failed.\n");
                     free(cnew);
                 }
+            } else {
+                free(cnew);
             }
 #ifdef USE_THREAD
             HA_SPIN_UNLOCK(OTHER_LOCK, &dadwsch_lock);
