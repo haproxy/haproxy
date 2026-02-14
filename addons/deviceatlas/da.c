@@ -464,13 +464,12 @@ static int da_haproxy_fetch(const struct arg *args, struct sample *smp, const ch
 
 		memcpy(hbuf, n.ptr, n.len);
 		hbuf[n.len] = 0;
-		pval = v.ptr;
-		vlen = v.len;
 		evid = -1;
 		i = v.len > sizeof(tval) - 1 ? sizeof(tval) - 1 : v.len;
 		memcpy(tval, v.ptr, i);
 		tval[i] = 0;
 		pval = tval;
+		vlen = i;
 
 		if (strcasecmp(hbuf, "Accept-Language") == 0) {
 			evid = da_atlas_accept_language_evidence_id(&global_deviceatlas.atlas);
@@ -488,7 +487,7 @@ static int da_haproxy_fetch(const struct arg *args, struct sample *smp, const ch
 				continue;
 			}
 
-			vlen -= global_deviceatlas.cookienamelen - 1;
+			vlen = pl;
 			pval = p;
 			evid = da_atlas_clientprop_evidence_id(&global_deviceatlas.atlas);
 		} else {
