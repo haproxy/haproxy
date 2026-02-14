@@ -57,6 +57,10 @@ static int da_json_file(char **args, int section_type, struct proxy *curpx,
 		return -1;
 	}
 	global_deviceatlas.jsonpath = strdup(args[1]);
+	if (unlikely(global_deviceatlas.jsonpath == NULL)) {
+		memprintf(err, "deviceatlas json file : out of memory.\n");
+		return -1;
+	}
 	return 0;
 }
 
@@ -102,6 +106,10 @@ static int da_properties_cookie(char **args, int section_type, struct proxy *cur
 		return -1;
 	} else {
 		global_deviceatlas.cookiename = strdup(args[1]);
+		if (unlikely(global_deviceatlas.cookiename == NULL)) {
+			memprintf(err, "deviceatlas cookie name : out of memory.\n");
+			return -1;
+		}
 	}
 	global_deviceatlas.cookienamelen = strlen(global_deviceatlas.cookiename);
 	return 0;
