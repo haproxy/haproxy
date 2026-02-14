@@ -253,15 +253,13 @@ static void deinit_deviceatlas(void)
 		free(global_deviceatlas.cookiename);
 		da_atlas_close(&global_deviceatlas.atlas);
 		free(global_deviceatlas.atlasimgptr);
+		da_fini();
 	}
 
 	if (global_deviceatlas.atlasfd != -1) {
 		munmap(global_deviceatlas.atlasmap, ATLASTOKSZ);
 		close(global_deviceatlas.atlasfd);
-		shm_unlink(ATLASMAPNM);
 	}
-
-	da_fini();
 }
 
 static void da_haproxy_checkinst(void)
