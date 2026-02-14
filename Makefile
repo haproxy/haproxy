@@ -1040,7 +1040,7 @@ IGNORE_OPTS=help install install-man install-doc install-bin \
 	uninstall clean tags cscope tar git-tar version update-version \
 	opts reg-tests reg-tests-help unit-tests admin/halog/halog dev/flags/flags \
 	dev/haring/haring dev/ncpu/ncpu dev/poll/poll dev/tcploop/tcploop \
-	dev/term_events/term_events
+	dev/term_events/term_events dev/gdb/pm-from-core
 
 ifneq ($(TARGET),)
 ifeq ($(filter $(firstword $(MAKECMDGOALS)),$(IGNORE_OPTS)),)
@@ -1069,6 +1069,9 @@ admin/dyncookie/dyncookie: admin/dyncookie/dyncookie.o
 	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 dev/flags/flags: dev/flags/flags.o
+	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+
+dev/gdb/pm-from-core: dev/gdb/pm-from-core.o
 	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 dev/haring/haring: dev/haring/haring.o
@@ -1169,7 +1172,7 @@ distclean: clean
 	$(Q)rm -f admin/dyncookie/dyncookie
 	$(Q)rm -f dev/haring/haring dev/ncpu/ncpu{,.so} dev/poll/poll dev/tcploop/tcploop
 	$(Q)rm -f dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht
-	$(Q)rm -f dev/qpack/decode
+	$(Q)rm -f dev/qpack/decode dev/gdb/pm-from-core
 
 tags:
 	$(Q)find src include \( -name '*.c' -o -name '*.h' \) -print0 | \
