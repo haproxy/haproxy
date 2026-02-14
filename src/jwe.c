@@ -230,7 +230,6 @@ static int decrypt_cek_aesgcmkw(struct buffer *cek, struct buffer *aead_tag, str
 	case JWE_ALG_A128GCMKW: key_size = 128; break;
 	case JWE_ALG_A192GCMKW: key_size = 192; break;
 	case JWE_ALG_A256GCMKW: key_size = 256; break;
-		break;
 	default:
 		goto end;
 	}
@@ -372,8 +371,12 @@ static int build_and_check_tag(jwe_enc enc,  struct jwt_item items[JWE_ELT_MAX],
 	          (unsigned char*)b_orig(hmac), (unsigned int*)&hmac->data))
 		goto end;
 
+	/* Double check that buffer lengths line up before the comparison */
+	if (unlikely(b_data(decoded_items[JWE_ELT_TAG]) != b_data(hmac) >> 1))
+		goto end;
+
 	/* Use the first half of the HMAC output M as the Authentication Tag output T */
-	retval = memcmp(b_orig(decoded_items[JWE_ELT_TAG]), b_orig(hmac), b_data(hmac) >> 1);
+	retval = CRYPTO_memcmp(b_orig(decoded_items[JWE_ELT_TAG]), b_orig(hmac), b_data(hmac) >> 1);
 
 end:
 	free_trash_chunk(tag_data);
