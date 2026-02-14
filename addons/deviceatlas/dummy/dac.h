@@ -141,6 +141,11 @@ enum {
     DA_INITIAL_MEMORY_ESTIMATE = 1024 * 1024 * 14
 };
 
+struct header_evidence_entry {
+    const char *name;
+    da_evidence_id_t id;
+};
+
 struct da_config {
     unsigned int cache_size;
     unsigned int __reserved[15]; /* enough reserved keywords for future use */
