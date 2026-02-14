@@ -393,8 +393,7 @@ static int da_haproxy_conv(const struct arg *args, struct sample *smp, void *pri
 {
 	da_deviceinfo_t devinfo;
 	da_status_t status;
-	const char *useragent;
-	char useragentbuf[1024] = { 0 };
+	char useragentbuf[1024];
 	int i;
 
 	if (global_deviceatlas.daset == 0 || smp->data.u.str.data == 0) {
@@ -403,14 +402,12 @@ static int da_haproxy_conv(const struct arg *args, struct sample *smp, void *pri
 
 	da_haproxy_checkinst();
 
-	i = smp->data.u.str.data > sizeof(useragentbuf) ? sizeof(useragentbuf) : smp->data.u.str.data;
-	memcpy(useragentbuf, smp->data.u.str.area, i - 1);
-	useragentbuf[i - 1] = 0;
-
-	useragent = (const char *)useragentbuf;
+	i = smp->data.u.str.data > sizeof(useragentbuf) - 1 ? sizeof(useragentbuf) - 1 : smp->data.u.str.data;
+	memcpy(useragentbuf, smp->data.u.str.area, i);
+	useragentbuf[i] = 0;
 
 	status = da_search(&global_deviceatlas.atlas, &devinfo,
-		global_deviceatlas.useragentid, useragent, 0);
+		global_deviceatlas.useragentid, useragentbuf, 0);
 
 	return status != DA_OK ? 0 : da_haproxy(args, smp, &devinfo);
 }
