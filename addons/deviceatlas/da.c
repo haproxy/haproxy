@@ -419,7 +419,7 @@ static int da_haproxy_conv(const struct arg *args, struct sample *smp, void *pri
 	return status != DA_OK ? 0 : da_haproxy(args, smp, &devinfo);
 }
 
-#define DA_MAX_HEADERS       24
+#define DA_MAX_HEADERS       32
 
 static int da_haproxy_fetch(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -450,8 +450,8 @@ static int da_haproxy_fetch(const struct arg *args, struct sample *smp, const ch
 		da_evidence_id_t evid;
 		enum htx_blk_type type;
 		struct ist n, v;
-		char hbuf[24] = { 0 };
-		char tval[1024] = { 0 };
+		char hbuf[64];
+		char tval[1024];
 
 		type = htx_get_blk_type(blk);
 
