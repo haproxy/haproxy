@@ -190,6 +190,8 @@ static int init_deviceatlas(void)
 		if (status != DA_OK) {
 			ha_alert("deviceatlas : '%s' json file is invalid.\n",
 				 global_deviceatlas.jsonpath);
+			free(global_deviceatlas.atlasimgptr);
+			da_fini();
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -199,6 +201,8 @@ static int init_deviceatlas(void)
 
 		if (status != DA_OK) {
 			ha_alert("deviceatlas : data could not be compiled.\n");
+			free(global_deviceatlas.atlasimgptr);
+			da_fini();
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -207,6 +211,14 @@ static int init_deviceatlas(void)
 
 		if (global_deviceatlas.cookiename == 0) {
 			global_deviceatlas.cookiename = strdup(DA_COOKIENAME_DEFAULT);
+			if (unlikely(global_deviceatlas.cookiename == NULL)) {
+				ha_alert("deviceatlas : out of memory.\n");
+				da_atlas_close(&global_deviceatlas.atlas);
+				free(global_deviceatlas.atlasimgptr);
+				da_fini();
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
 			global_deviceatlas.cookienamelen = strlen(global_deviceatlas.cookiename);
 		}
 
