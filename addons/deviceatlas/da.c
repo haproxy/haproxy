@@ -73,6 +73,7 @@ static int da_log_level(char **args, int section_type, struct proxy *curpx,
 	loglevel = atol(args[1]);
 	if (loglevel < 0 || loglevel > 3) {
 		memprintf(err, "deviceatlas log level : expects a log level between 0 and 3, %s given.\n", args[1]);
+		return -1;
 	} else {
 		global_deviceatlas.loglevel = (da_severity_t)loglevel;
 	}
@@ -119,6 +120,7 @@ static int da_cache_size(char **args, int section_type, struct proxy *curpx,
     cachesize = atol(args[1]);
     if (cachesize < 0 || cachesize > DA_CACHE_MAX) {
         memprintf(err, "deviceatlas cache size : expects a cache size between 0 and %d, %s given.\n", DA_CACHE_MAX, args[1]);
+	return -1;
     } else {
 #ifdef APINOCACHE
         fprintf(stdout, "deviceatlas cache size : no-op, its support is disabled.\n");
