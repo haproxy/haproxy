@@ -2558,7 +2558,7 @@ static int post_section_frontend_crt_init()
 		}
 
 		/* must set the ssl_conf in case of duplication of the crtlist_entry */
-		entry->ssl_conf = n->ssl_conf;
+		entry->ssl_conf = crtlist_dup_ssl_conf(n->ssl_conf);
 
 		err_code |= crtlist_load_crt(n->ckch_conf->crt, n->ckch_conf, newlist, entry, n->filename, n->linenum, &err);
 		if (err_code & ERR_CODE)
