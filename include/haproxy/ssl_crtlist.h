@@ -28,6 +28,7 @@
 
 /* crt-list entry functions */
 void ssl_sock_free_ssl_conf(struct ssl_bind_conf *conf);
+struct ssl_bind_conf *crtlist_dup_ssl_conf(struct ssl_bind_conf *src);
 char **crtlist_dup_filters(char **args, int fcount);
 void crtlist_free_filters(char **args);
 void crtlist_entry_free(struct crtlist_entry *entry);
