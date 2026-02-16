@@ -585,8 +585,8 @@ struct server *get_server_rnd(struct stream *s, const struct server *avoid)
 				curr = prev;
 			else if (wcurr == wprev && curr->counters.shared.tg && prev->counters.shared.tg) {
 				/* same load: pick the lowest weighted request rate */
-				wcurr = read_freq_ctr_period_estimate(&curr->counters._sess_per_sec, MS_TO_TICKS(1000));
-				wprev = read_freq_ctr_period_estimate(&prev->counters._sess_per_sec, MS_TO_TICKS(1000));
+				wcurr = read_freq_ctr_period_estimate(&curr->counters.shared.tg[tgid - 1]->sess_per_sec, MS_TO_TICKS(1000));
+				wprev = read_freq_ctr_period_estimate(&prev->counters.shared.tg[tgid - 1]->sess_per_sec, MS_TO_TICKS(1000));
 				if (wprev * curr->cur_eweight < wcurr * prev->cur_eweight)
 					curr = prev;
 			}
