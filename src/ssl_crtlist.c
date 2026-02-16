@@ -515,6 +515,13 @@ int crtlist_load_crt(char *crt_path, struct ckch_conf *cc, struct crtlist *newli
 	struct stat st;
 	int cfgerr = 0;
 
+	if (!crt_path) {
+		memprintf(err, "%sTrying to load a certificate but no 'crt' keyword specified.\n",
+		         err && *err ? *err : "");
+		cfgerr |= ERR_ALERT | ERR_FATAL;
+		goto error;
+	}
+
 	/* Look for a ckch_store or create one */
 	ckchs = ckchs_lookup(crt_path);
 	if (ckchs == NULL) {
