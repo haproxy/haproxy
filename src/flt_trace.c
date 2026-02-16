@@ -37,6 +37,7 @@ struct trace_config {
 	struct proxy *proxy;
 	char         *name;
 	unsigned int  flags;
+	unsigned int  max_fwd;
 };
 
 #define FLT_TRACE(conf, fmt, ...)						\
@@ -194,10 +195,11 @@ trace_init(struct proxy *px, struct flt_conf *fconf)
 	fconf->flags |= FLT_CFG_FL_HTX;
 	fconf->conf = conf;
 
-	FLT_TRACE(conf, "filter initialized [quiet=%s - fwd random=%s - hexdump=%s]",
+	FLT_TRACE(conf, "filter initialized [quiet=%s - fwd random=%s - hexdump=%s - max fwd=%u]",
 		  ((conf->flags & TRACE_F_QUIET) ? "true" : "false"),
 		  ((conf->flags & TRACE_F_RAND_FWD) ? "true" : "false"),
-		  ((conf->flags & TRACE_F_HEXDUMP) ? "true" : "false"));
+		  ((conf->flags & TRACE_F_HEXDUMP) ? "true" : "false"),
+		  conf->max_fwd);
 	return 0;
 }
 
@@ -473,6 +475,8 @@ trace_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg
 				ret = len;
 		}
 	}
+	if (conf->max_fwd && ret > conf->max_fwd)
+		ret = conf->max_fwd;
 
 	FLT_STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s) - "
 		   "offset=%u - len=%u - forward=%d",
@@ -541,6 +545,8 @@ trace_tcp_payload(struct stream *s, struct filter *filter, struct channel *chn,
 					ret = len;
 			}
 		}
+		if (conf->max_fwd && ret > conf->max_fwd)
+			ret = conf->max_fwd;
 
 		FLT_STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s) - "
 			       "offset=%u - len=%u - forward=%d",
@@ -555,6 +561,8 @@ trace_tcp_payload(struct stream *s, struct filter *filter, struct channel *chn,
 
 		if (ret && (conf->flags & TRACE_F_RAND_FWD))
 			ret = ha_random() % (ret+1);
+		if (conf->max_fwd && ret > conf->max_fwd)
+			ret = conf->max_fwd;
 
 		FLT_STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s) - "
 			       "offset=%u - len=%u - forward=%d",
@@ -651,6 +659,22 @@ parse_trace_flt(char **args, int *cur_arg, struct proxy *px,
 				conf->flags |= TRACE_F_RAND_FWD;
 			else if (strcmp(args[pos], "hexdump") == 0)
 				conf->flags |= TRACE_F_HEXDUMP;
+			else if (strcmp(args[pos], "max-fwd") == 0) {
+				long long max;
+				if (!*args[pos + 1]) {
+					memprintf(err, "'%s' : '%s' option without value",
+						  args[*cur_arg], args[pos]);
+					goto error;
+				}
+				max = atoll(args[pos + 1]);
+				if (max < 0 || max > UINT_MAX) {
+					memprintf(err, "'%s' : '%s' expect unsigned integer (0 to 4294967295 expected)",
+						  args[*cur_arg], args[pos]);
+					goto error;
+				}
+				conf->max_fwd = max;
+				pos++;
+			}
 			else
 				break;
 			pos++;

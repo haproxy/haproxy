@@ -29778,7 +29778,7 @@ See also : "filter"
 9.1. Trace
 ----------
 
-filter trace [name <name>] [random-forwarding] [hexdump]
+filter trace [name <name>] [random-forwarding] [max-fwd <max>] [hexdump]
 
   Arguments:
     <name>               is an arbitrary name that will be reported in
@@ -29790,6 +29790,11 @@ filter trace [name <name>] [random-forwarding] [hexdump]
                          default, this filter forwards all previously parsed
                          data. With this parameter, it only forwards a random
                          amount of the parsed data.
+
+    <max>                is the maximum amount of data that can be forwarded at
+                         a time. "max-fwd" option can be combined with the
+                         random forwarding. <max> must be an positive integer.
+                         0 means there is no limit.
 
     <hexdump>             dumps all forwarded data to the server and the client.
 
