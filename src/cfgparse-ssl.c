@@ -2598,6 +2598,7 @@ error:
 	free(err);
 
 	list_for_each_entry_safe(n, r, &cur_crtlist, list) {
+		ha_free(&n->filename);
 		ckch_conf_clean(n->ckch_conf);
 		ha_free(&n->ckch_conf);
 		ssl_sock_free_ssl_conf(n->ssl_conf);
