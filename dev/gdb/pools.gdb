@@ -14,8 +14,8 @@ define pools_dump
       set $idx=$idx + 1
     end
 
-    set $mem = $total * $e->size
-    printf "list=%#lx pool_head=%p name=%s size=%u alloc=%u used=%u mem=%u\n", $p, $e, $e->name, $e->size, $total, $used, $mem
+    set $mem = (unsigned long)$total * $e->size
+    printf "list=%#lx pool_head=%p name=%s size=%u alloc=%u used=%u mem=%lu\n", $p, $e, $e->name, $e->size, $total, $used, $mem
     set $p = *(void **)$p
   end
 end
