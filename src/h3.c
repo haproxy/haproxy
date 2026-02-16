@@ -812,6 +812,11 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			goto out;
 		}
 	}
+	else {
+		h3s->err = H3_ERR_REQUEST_REJECTED;
+		len = -1;
+		goto out;
+	}
 
 	flags |= HTX_SL_F_VER_11;
 	flags |= HTX_SL_F_XFER_LEN;
