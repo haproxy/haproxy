@@ -15,7 +15,7 @@
 # - Check that you have socat
 
 varnishtest "Test the 'set ssl ca-file' feature of the CLI"
-feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)' && !feature(OPENSSL_AWSLC)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL) && !feature(OPENSSL_AWSLC)'"
 
 feature cmd "command -v socat"
 
