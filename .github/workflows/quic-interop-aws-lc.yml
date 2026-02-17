@@ -11,7 +11,7 @@ on:
 
 
 jobs:
-  build:
+  combined-build-and-run:
     runs-on: ubuntu-24.04
     if: ${{ github.repository_owner == 'haproxy' || github.event_name == 'workflow_dispatch' }}
     permissions:
@@ -21,84 +21,44 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push Docker image
+      - name: Build Docker image
         id: push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: https://github.com/haproxytech/haproxy-qns.git
-          push: true
+          platforms: linux/amd64
           build-args: |
             SSLLIB=AWS-LC
-          tags: ghcr.io/${{ github.repository }}:aws-lc
-
-      - name: Cleanup registry
-        uses: actions/delete-package-versions@v5
-        with:
-          owner: ${{ github.repository_owner }}
-          package-name: 'haproxy'
-          package-type: container
-          min-versions-to-keep: 1
-          delete-only-untagged-versions: 'true'
-
-  run:
-    needs: build
-    strategy:
-      matrix:
-        suite: [
-          { client: chrome, tests: "http3" },
-          { client: picoquic, tests: "handshake,transfer,longrtt,chacha20,multiplexing,retry,resumption,zerortt,http3,blackhole,keyupdate,ecn,amplificationlimit,handshakeloss,transferloss,handshakecorruption,transfercorruption,ipv6,v2" },
-          { client: quic-go,  tests: "handshake,transfer,longrtt,chacha20,multiplexing,retry,resumption,zerortt,http3,blackhole,keyupdate,ecn,amplificationlimit,handshakeloss,transferloss,handshakecorruption,transfercorruption,ipv6,v2" },
-          { client: ngtcp2,  tests: "handshake,transfer,longrtt,chacha20,multiplexing,retry,resumption,zerortt,http3,blackhole,keyupdate,ecn,amplificationlimit,handshakeloss,transferloss,handshakecorruption,transfercorruption,ipv6,v2" }
-        ]
-      fail-fast: false
-
-    name: ${{ matrix.suite.client }}
-    runs-on: ubuntu-24.04
-    if: ${{ github.repository_owner == 'haproxy' || github.event_name == 'workflow_dispatch' }}
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          tags: local:aws-lc
 
       - name: Install tshark
         run: |
           sudo apt-get update
           sudo apt-get -y install tshark
 
-      - name: Pull image
-        run: |
-          docker pull ghcr.io/${{ github.repository }}:aws-lc
-
       - name: Run
         run: |
           git clone https://github.com/quic-interop/quic-interop-runner
           cd quic-interop-runner
           pip install -r requirements.txt --break-system-packages
-          python run.py -j result.json -l logs -r haproxy=ghcr.io/${{ github.repository }}:aws-lc -t ${{ matrix.suite.tests }} -c ${{ matrix.suite.client }} -s haproxy
+          python run.py -j result.json -l logs-chrome -r haproxy=local:aws-lc -t "http3" -c chrome -s haproxy
+          python run.py -j result.json -l logs-picoquic -r haproxy=local:aws-lc -t "handshake,transfer,longrtt,chacha20,multiplexing,retry,resumption,zerortt,http3,blackhole,keyupdate,ecn,amplificationlimit,handshakeloss,transferloss,handshakecorruption,transfercorruption,ipv6,v2" -c picoquic -s haproxy
+          python run.py -j result.json -l logs-quic-go -r haproxy=local:aws-lc -t "handshake,transfer,longrtt,chacha20,multiplexing,retry,resumption,zerortt,http3,blackhole,keyupdate,ecn,amplificationlimit,handshakeloss,transferloss,handshakecorruption,transfercorruption,ipv6,v2" -c quic-go -s haproxy
+          python run.py -j result.json -l logs-ngtcp2 -r haproxy=local:aws-lc -t "handshake,transfer,longrtt,chacha20,multiplexing,retry,resumption,zerortt,http3,blackhole,keyupdate,ecn,amplificationlimit,handshakeloss,transferloss,handshakecorruption,transfercorruption,ipv6,v2" -c ngtcp2 -s haproxy
 
       - name: Delete succeeded logs
         if: failure()
         run: |
-          cd quic-interop-runner/logs/haproxy_${{ matrix.suite.client }}
-          cat ../../result.json | jq -r '.results[][] | select(.result=="succeeded") | .name' | xargs rm -rf
+          for client in chrome picoquic quic-go ngtcp2; do
+            pushd quic-interop-runner/logs-${client}/haproxy_${client}
+            cat ../../result.json | jq -r '.results[][] | select(.result=="succeeded") | .name' | xargs rm -rf
+            popd
+          done
 
       - name: Logs upload
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-${{ matrix.suite.client }}
-          path: quic-interop-runner/logs/
+          name: logs
+          path: quic-interop-runner/logs*/
           retention-days: 6
