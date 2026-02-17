@@ -4089,6 +4089,7 @@ static size_t qmux_strm_snd_buf(struct stconn *sc, struct buffer *buf,
 
 	/* Cannot emit data after FIN/RESET_STREAM, drain extra payload. */
 	if (qcs_is_close_local(qcs) || (qcs->flags & QC_SF_TO_RESET)) {
+		BUG_ON_STRESS(1);
 		ret = qcs_http_reset_buf(qcs, buf, count);
 		goto end;
 	}
