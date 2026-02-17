@@ -4937,6 +4937,12 @@ static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 		goto out;
 	}
 
+	if (h1m->state < H1_MSG_CHUNK_SIZE || h1m->state == H1_MSG_TRAILERS || h1m->state == H1_MSG_DONE) {
+		TRACE_STATE("Unexpected message state, disable fastfwd", H1_EV_STRM_SEND|H1_EV_STRM_ERR, h1c->conn, h1s);
+		h1s->sd->iobuf.flags |= IOBUF_FL_NO_FF;
+		goto out;
+	}
+
 	if ((!(h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_REQ)) ||
 	    ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP))) {
 		TRACE_STATE("Bodyless message, disable fastfwd", H1_EV_STRM_SEND|H1_EV_STRM_ERR, h1c->conn, h1s);
