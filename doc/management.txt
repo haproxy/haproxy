@@ -2129,7 +2129,8 @@ del backend <name>
 
   This operation is only possible for TCP or HTTP proxies. To succeed, the
   backend instance must have been first unpublished. Also, all of its servers
-  must first be removed (via "del server" CLI).
+  must first be removed (via "del server" CLI). Finally, no stream must still
+  be attached to the backend instance.
 
   There is additional restrictions which prevent backend removal. First, a
   backend cannot be removed if it is explicitely referenced by config elements,
@@ -2138,6 +2139,10 @@ del backend <name>
   case when deprecated dispatch or option transparent are used. Also, a backend
   cannot be removed if there is a stick-table declared in it. Finally, it is
   impossible for now to remove a backend if QUIC servers were present in it.
+
+  It can be useful to use "wait be-removable" prior to this command to check
+  for the aformentioned requisites. This also provides a methode to wait for
+  the final closure of the streams attached to the target backend.
 
   This command is restricted and can only be issued on sockets configured for
   level "admin". Moreover, this feature is still considered in development so it
@@ -4544,6 +4549,13 @@ wait { -h | <delay> } [<condition> [<args>...]]
   With a condition and optional arguments, the command will wait for the
   specified condition to be satisfied, to unrecoverably fail, or to remain
   unsatisfied for the whole <delay> duration. The supported conditions are:
+
+  - be-removable <proxy> : this will wait for the specified proxy backend to be
+    removable by the "del backend" command. Some conditions will never be
+    accepted (e.g. backend not yet unpublished or with servers in it) and will
+    cause the report of a specific error message indicating what condition is
+    not met. If everything is OK before the delay, a success is returned and
+    the operation is terminated.
 
   - srv-removable <proxy>/<server> : this will wait for the specified server to
     be removable by the "del server" command, i.e. be in maintenance and no

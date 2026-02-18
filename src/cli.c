@@ -2120,6 +2120,14 @@ static int cli_parse_wait(char **args, char *payload, struct appctx *appctx, voi
 		ctx->args[1] = ist0(sv_name);
 		ctx->cond = CLI_WAIT_COND_SRV_UNUSED;
 	}
+	else if (strcmp(args[2], "be-removable") == 0) {
+		if (!*args[3])
+			return cli_err(appctx, "Missing backend name.\n");
+		ctx->args[0] = strdup(args[3]);
+		if (!ctx->args[0])
+			return cli_err(appctx, "Out of memory trying to clone the backend name.\n");
+		ctx->cond = CLI_WAIT_COND_BE_UNUSED;
+	}
 	else if (*args[2]) {
 		/* show the command's help either upon request (-h) or error */
 		err = "Usage: wait {-h|<duration>} [condition [args...]]\n"
@@ -2165,9 +2173,15 @@ static int cli_io_handler_wait(struct appctx *appctx)
 
 	/* here we should evaluate our waiting conditions, if any */
 
-	if (ctx->cond == CLI_WAIT_COND_SRV_UNUSED) {
-		/* check if the server in args[0]/args[1] can be released now */
-		ret = srv_check_for_deletion(ctx->args[0], ctx->args[1], NULL, NULL, &ctx->msg);
+	if (ctx->cond == CLI_WAIT_COND_SRV_UNUSED ||
+	    ctx->cond == CLI_WAIT_COND_BE_UNUSED) {
+		if (ctx->cond == CLI_WAIT_COND_SRV_UNUSED) {
+			/* check if the server in args[0]/args[1] can be released now */
+			ret = srv_check_for_deletion(ctx->args[0], ctx->args[1], NULL, NULL, &ctx->msg);
+		}
+		else {
+			ret = be_check_for_deletion(ctx->args[0], NULL, &ctx->msg);
+		}
 
 		if (ret < 0) {
 			/* unrecoverable failure */
