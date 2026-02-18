@@ -22,7 +22,7 @@
 #include <haproxy/quic_pacing.h>
 #include <haproxy/quic_sock.h>
 #include <haproxy/quic_stream.h>
-#include <haproxy/quic_tp-t.h>
+#include <haproxy/quic_tp.h>
 #include <haproxy/quic_tune.h>
 #include <haproxy/quic_tx.h>
 #include <haproxy/quic_utils.h>
@@ -1690,11 +1690,37 @@ void qcc_abort_stream_read(struct qcs *qcs)
 /* Install the <app_ops> applicative layer of a QUIC connection on mux <qcc>.
  * Returns 0 on success else non-zero.
  */
-int qcc_install_app_ops(struct qcc *qcc, const struct qcc_app_ops *app_ops)
+static int qcc_install_app_ops(struct qcc *qcc)
 {
+	struct quic_conn *qc = qcc->conn->handle.qc;
+	const struct qcc_app_ops *app_ops = qc->app_ops;
+
 	TRACE_ENTER(QMUX_EV_QCC_NEW, qcc->conn);
 
-	if (app_ops->init && !app_ops->init(qcc)) {
+	if (conn_is_back(qcc->conn) && !app_ops) {
+		/* This may happen only for 0-RTT client sessions. The alpn
+		 * was not set by this thread. Then, set by another thread.
+		 * When this thread try to connect_server(), it initializes the mux
+		 * but without app_ops.
+		 */
+		const unsigned char *alpn;
+		struct quic_early_transport_params *etps;
+		struct server *srv = __objt_server(qcc->conn->target);
+
+		HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.lock);
+		alpn = (const unsigned char *)srv->path_params.nego_alpn;
+		etps = &srv->path_params.tps;
+		/* Note that quic_set_app_ops() cannot fail (or return 0) for a 0-RTT
+		 * session because it did not fail for the previous non 0-RTT session.
+		 */
+		if (quic_set_app_ops(qc, alpn, strlen((const char *)alpn))) {
+			qc_early_transport_params_reuse(qc, &qc->tx.params, etps);
+			app_ops = qc->app_ops;
+		}
+		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.lock);
+	}
+
+	if (!app_ops || (app_ops->init && !app_ops->init(qcc))) {
 		TRACE_ERROR("application layer install error", QMUX_EV_QCC_NEW, qcc->conn);
 		goto err;
 	}
@@ -3628,6 +3654,13 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	qcc->glitches = 0;
 	qcc->err = quic_err_transport(QC_ERR_NO_ERROR);
 
+	/* Register conn as app_ops and traces may use it. */
+	qcc->conn = conn;
+	if (qcc_install_app_ops(qcc)) {
+		TRACE_PROTO("Cannot install app layer", QMUX_EV_QCC_NEW|QMUX_EV_QCC_ERR, conn);
+		goto err;
+	}
+
 	/* Server parameters, params used for RX flow control. */
 	lparams = &conn->handle.qc->rx.params;
 
@@ -3726,14 +3759,6 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	LIST_INIT(&qcc->opening_list);
 
 	HA_ATOMIC_STORE(&conn->handle.qc->qcc, qcc);
-
-	/* Register conn as app_ops may use it. */
-	qcc->conn = conn;
-
-	if (qcc_install_app_ops(qcc, conn->handle.qc->app_ops)) {
-		TRACE_PROTO("Cannot install app layer", QMUX_EV_QCC_NEW|QMUX_EV_QCC_ERR, conn);
-		goto err;
-	}
 
 	if (qcc->app_ops == &h3_ops && !conn_is_back(conn))
 		proxy_inc_fe_cum_sess_ver_ctr(sess->listener, prx, 3);

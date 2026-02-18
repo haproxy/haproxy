@@ -5689,27 +5689,21 @@ int increment_sslconn()
  * Return 1 if succeeded, 0 if not. Always succeeds for TCP socket. May fail
  * for QUIC sockets.
  */
-int ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
+void ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
 {
+
 #ifdef USE_QUIC
 	struct quic_conn *qc = ctx->qc;
-	/* Default status for QUIC sockets + 0-RTT is failure(0). The status will
-	 * be set to success(1) only if the QUIC connection parameters
-	 * (transport parameters and ALPN) are successfully reused.
-	 */
-	int ret = qc && (srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) ? 0 : 1;
 	struct connection *conn = qc ? qc->conn : ctx->conn;
 #else
-	/* Always succeeds for TCP sockets. */
-	int ret = 1;
 	struct connection *conn = ctx->conn;
 #endif
 
 	/*
-	 * Always fail for check connections
+	 * Do nothing for check connections
 	 */
 	if (conn->flags & CO_FL_SSL_NO_CACHED_INFO)
-		return 0;
+		return;
 
 	HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.lock);
 	if (srv->ssl_ctx.reused_sess[tid].ptr) {
@@ -5742,16 +5736,6 @@ int ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
 		} else if (sess) {
 			/* already assigned, not needed anymore */
 			SSL_SESSION_free(sess);
-#ifdef USE_QUIC
-			if (qc && srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) {
-				unsigned char *alpn = (unsigned char *)srv->path_params.nego_alpn;
-				struct quic_early_transport_params *etps = &srv->path_params.tps;
-
-				if (quic_reuse_srv_params(qc, alpn, etps))
-					/* Success */
-					ret = 1;
-			}
-#endif
 		}
 	} else {
 		/* No session available yet, let's see if we can pick one
@@ -5781,16 +5765,7 @@ int ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
 				if (sess) {
 					if (!SSL_set_session(ctx->ssl, sess))
 						HA_ATOMIC_CAS(&srv->ssl_ctx.last_ssl_sess_tid, &old_tid, 0); // no more valid
-#ifdef USE_QUIC
-					else if (qc && srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) {
-						unsigned char *alpn = (unsigned char *)srv->path_params.nego_alpn;
-						struct quic_early_transport_params *etps = &srv->path_params.tps;
 
-						if (quic_reuse_srv_params(qc, alpn, etps))
-							/* Success */
-							ret = 1;
-					}
-#endif
 					SSL_SESSION_free(sess);
 				}
 			}
@@ -5800,8 +5775,6 @@ int ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
 	}
   out:
 	HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &srv->ssl_ctx.lock);
-
-	return ret;
 }
 
 /*

@@ -1353,21 +1353,10 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, void *target)
 		if (!qc_ssl_set_quic_transport_params(ctx->ssl, qc, quic_version_1, 0))
 			goto err;
 
-		if (!(srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA))
-		    ssl_sock_srv_try_reuse_sess(ctx, srv);
+		ssl_sock_srv_try_reuse_sess(ctx, srv);
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L) && defined(HAVE_SSL_0RTT_QUIC)
-		else {
-			/* Enable early data only if the SSL session, transport parameters
-			 * and application protocol could be reused. This insures the mux is
-			 * correctly selected.
-			 */
-			if (ssl_sock_srv_try_reuse_sess(ctx, srv))
-				SSL_set_quic_early_data_enabled(ctx->ssl, 1);
-			else {
-				/* No error here. 0-RTT will not be enabled. */
-				TRACE_PROTO("Could not reuse any ALPN", QUIC_EV_CONN_NEW, qc);
-			}
-		}
+		if ((srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA))
+			SSL_set_quic_early_data_enabled(ctx->ssl, 1);
 #endif
 
 		SSL_set_connect_state(ctx->ssl);
