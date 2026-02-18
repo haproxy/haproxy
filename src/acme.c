@@ -2681,8 +2681,10 @@ X509 *acme_gen_tmp_x509()
 		goto mkcert_error;
 	}
 	/* Set issuer name as itself */
-	if (X509_set_issuer_name(newcrt, name) != 1)
+	if (X509_set_issuer_name(newcrt, name) != 1) {
+		X509_NAME_free(name);
 		goto mkcert_error;
+	}
 	X509_NAME_free(name);
 
 	/* Autosign the certificate with the private key */
