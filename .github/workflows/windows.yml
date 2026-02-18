@@ -18,6 +18,7 @@ jobs:
   msys2:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    if: ${{ github.repository_owner == 'haproxy' || github.event_name == 'workflow_dispatch' }}
     defaults:
       run:
         shell: msys2 {0}
