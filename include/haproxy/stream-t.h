@@ -320,7 +320,10 @@ struct stream {
 	struct list *current_rule_list;         /* this is used to store the current executed rule list. */
 	void *current_rule;                     /* this is used to store the current rule to be resumed. */
 	int rules_exp;                          /* expiration date for current rules execution */
-	int tunnel_timeout;
+	int tunnel_timeout;                     /* per-stream tunnel timeout, set by set-timeout action */
+	int connect_timeout;                    /* per-stream connect timeout, set by set-timeout action */
+	int queue_timeout;                      /* per-stream queue timeout, set by set-timeout action */
+	int tarpit_timeout;                     /* per-stream tarpit timeout, set by set-timeout action */
 
 	struct {
 		void *ptr;                      /* Pointer on the entity  (def: NULL) */

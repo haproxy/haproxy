@@ -2254,7 +2254,7 @@ int connect_server(struct stream *s)
 #endif
 
 	/* set connect timeout */
-	s->conn_exp = tick_add_ifset(now_ms, s->be->timeout.connect);
+	s->conn_exp = tick_add_ifset(now_ms, s->connect_timeout);
 
 	if (srv) {
 		int count;
@@ -2377,7 +2377,7 @@ int srv_redispatch_connect(struct stream *s)
 		return 1;
 
 	case SRV_STATUS_QUEUED:
-		s->conn_exp = tick_add_ifset(now_ms, s->be->timeout.queue);
+		s->conn_exp = tick_add_ifset(now_ms, s->queue_timeout);
 		s->scb->state = SC_ST_QUE;
 
 		/* handle the unlikely event where we added to the server's
@@ -3742,6 +3742,42 @@ smp_fetch_srv_uweight(const struct arg *args, struct sample *smp, const char *kw
 }
 
 static int
+smp_fetch_be_connect_timeout(const struct arg *args, struct sample *smp, const char *km, void *private)
+{
+	struct proxy *px = NULL;
+
+	if (smp->strm)
+		px = smp->strm->be;
+	else if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+		px = __objt_check(smp->sess->origin)->proxy;
+	if (!px)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TXN;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = TICKS_TO_MS(px->timeout.connect);
+	return 1;
+}
+
+static int
+smp_fetch_be_queue_timeout(const struct arg *args, struct sample *smp, const char *km, void *private)
+{
+	struct proxy *px = NULL;
+
+	if (smp->strm)
+		px = smp->strm->be;
+	else if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+		px = __objt_check(smp->sess->origin)->proxy;
+	if (!px)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TXN;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = TICKS_TO_MS(px->timeout.queue);
+	return 1;
+}
+
+static int
 smp_fetch_be_server_timeout(const struct arg *args, struct sample *smp, const char *km, void *private)
 {
 	struct proxy *px = NULL;
@@ -3756,6 +3792,24 @@ smp_fetch_be_server_timeout(const struct arg *args, struct sample *smp, const ch
 	smp->flags = SMP_F_VOL_TXN;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = TICKS_TO_MS(px->timeout.server);
+	return 1;
+}
+
+static int
+smp_fetch_be_tarpit_timeout(const struct arg *args, struct sample *smp, const char *km, void *private)
+{
+	struct proxy *px = NULL;
+
+	if (smp->strm)
+		px = smp->strm->be;
+	else if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+		px = __objt_check(smp->sess->origin)->proxy;
+	if (!px)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TXN;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = TICKS_TO_MS(px->timeout.tarpit);
 	return 1;
 }
 
@@ -3859,8 +3913,11 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "be_conn_free",      smp_fetch_be_conn_free,      ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "be_id",             smp_fetch_be_id,             0,           NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ "be_name",           smp_fetch_be_name,           0,           NULL, SMP_T_STR,  SMP_USE_BKEND, },
+	{ "be_connect_timeout",smp_fetch_be_connect_timeout,0,           NULL, SMP_T_SINT, SMP_USE_BKEND, },
+	{ "be_queue_timeout",  smp_fetch_be_queue_timeout,  0,           NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ "be_server_timeout", smp_fetch_be_server_timeout, 0,           NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ "be_sess_rate",      smp_fetch_be_sess_rate,      ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "be_tarpit_timeout", smp_fetch_be_tarpit_timeout, 0,           NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ "be_tunnel_timeout", smp_fetch_be_tunnel_timeout, 0,           NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ "connslots",         smp_fetch_connslots,         ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "nbsrv",             smp_fetch_nbsrv,             ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },

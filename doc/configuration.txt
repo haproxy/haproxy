@@ -16357,20 +16357,24 @@ set-status <status> [reason <str>]
     http-response set-status 503 reason "Slow Down".
 
 
-set-timeout { client | server | tunnel } { <timeout> | <expr> }
+set-timeout { client | connect | queue | server | tarpit | tunnel } { <timeout> | <expr> }
   Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     - |          -  |   -  |   -  |   -  |          X |  X |  -
 
-  This action overrides the specified "client", "server" or "tunnel" timeout
-  for the current stream only. The timeout can be specified in milliseconds or
-  with any other unit if the number is suffixed by the unit as explained at the
-  top of this document. It is also possible to write an expression which must
-  return a number interpreted as a timeout in milliseconds.
+  This action overrides the specified "client", "connect", "queue", "server",
+  "tarpit" or "tunnel" timeout for the current stream only. Changing one timeout
+  does not influence any other timeouts, even if they are inherited from each
+  other during configuration parsing (see last example). The timeout can be
+  specified in milliseconds or with any other unit if the number is suffixed by
+  the unit as explained at the top of this document. It is also possible to
+  write an expression which must return a number interpreted as a timeout in
+  milliseconds.
 
-  Note that the server/tunnel timeouts are only relevant on the backend side
-  and thus this rule is only available for the proxies with backend
-  capabilities. Likewise, client timeout is only relevant for frontend side.
-  Also the timeout value must be non-null to obtain the expected results.
+  Note that the connect, queue, server and tunnel timeouts are only relevant on
+  the backend side and thus this rule is only available for the proxies with
+  backend capabilities. Likewise, client timeout is only relevant for frontend
+  side. Tarpit timeout is available to both sides. The timeout value must be
+  non-null to obtain the expected results.
 
   Example:
     http-request set-timeout tunnel 5s
@@ -16380,6 +16384,18 @@ set-timeout { client | server | tunnel } { <timeout> | <expr> }
     http-response set-timeout tunnel 5s
     http-response set-timeout server res.hdr(X-Refresh-Seconds),mul(1000)
 
+  Example:
+    defaults
+      # This will set both tarpit and queue timeout to 5s as they are not
+      # defined
+      timeout connect 5s
+      timeout client 30s
+      timeout server 30s
+
+    listen foo
+      # This will only change the connect timeout to 10s without affecting
+      # queue or tarpit timeouts
+      http-request set-timeout connect 10s
 
 set-tos <tos> (deprecated)
   This is an alias for "set-fc-tos" (which should be used instead).
@@ -23828,12 +23844,18 @@ bc_src_port                                        integer
 bc_srv_queue                                       integer
 be_id                                              integer
 be_name                                            string
+be_connect_timeout                                 integer
+be_queue_timeout                                   integer
 be_server_timeout                                  integer
+be_tarpit_timeout                                  integer
 be_tunnel_timeout                                  integer
 bytes_in                                           integer
 bytes_out                                          integer
+cur_connect_timeout                                integer
 cur_client_timeout                                 integer
+cur_queue_timeout                                  integer
 cur_server_timeout                                 integer
+cur_tarpit_timeout                                 integer
 cur_tunnel_timeout                                 integer
 dst                                                ip
 dst_conn                                           integer
@@ -23867,6 +23889,7 @@ fc_src                                             ip
 fc_src_is_local                                    boolean
 fc_src_port                                        integer
 fc_unacked                                         integer
+fe_tarpit_timeout                                  integer
 fe_client_timeout                                  integer
 fe_defbe                                           string
 fe_id                                              integer
@@ -24161,6 +24184,11 @@ be_id : integer
   used in a frontend and no backend was used, it returns the current
   frontend's id. It can also be used in a tcp-check or an http-check ruleset.
 
+be_connect_timeout : integer
+  Returns the configuration value in millisecond for the connect timeout of the
+  current backend. This timeout can be overwritten by a "set-timeout" rule. See
+  also the "cur_connect_timeout".
+
 be_name : string
   Returns a string containing the current backend's name. It can be used in
   frontends with responses to check which backend processed the request. If
@@ -24168,10 +24196,20 @@ be_name : string
   frontend's name. It can also be used in a tcp-check or an http-check
   ruleset.
 
+be_queue_timeout : integer
+  Returns the configuration value in millisecond for the queue timeout of the
+  current backend. This timeout can be overwritten by a "set-timeout" rule. See
+  also the "cur_queue_timeout".
+
 be_server_timeout : integer
   Returns the configuration value in millisecond for the server timeout of the
   current backend. This timeout can be overwritten by a "set-timeout" rule. See
   also the "cur_server_timeout".
+
+be_tarpit_timeout : integer
+  Returns the configuration value in millisecond for the queue timeout of the
+  current backend. This timeout can be overwritten by a "set-timeout" rule. See
+  also the "cur_tarpit_timeout".
 
 be_tunnel_timeout : integer
   Returns the configuration value in millisecond for the tunnel timeout of the
@@ -24184,15 +24222,31 @@ bytes_in : integer
 bytes_out : integer
   See "res.bytes_in".
 
+cur_connect_timeout : integer
+  Returns the currently applied connect timeout in millisecond for the stream.
+  In the default case, this will be equal to be_connect_timeout unless a
+  "set-timeout" rule has been applied. See also "be_connect_timeout".
+
 cur_client_timeout : integer
   Returns the currently applied client timeout in millisecond for the stream.
   In the default case, this will be equal to fe_client_timeout unless a
   "set-timeout" rule has been applied. See also "fe_client_timeout".
 
+cur_queue_timeout : integer
+  Returns the currently applied queue timeout in millisecond for the stream.
+  In the default case, this will be equal to be_queue_timeout unless a
+  "set-timeout" rule has been applied. See also "be_queue_timeout".
+
 cur_server_timeout : integer
   Returns the currently applied server timeout in millisecond for the stream.
   In the default case, this will be equal to be_server_timeout unless a
   "set-timeout" rule has been applied. See also "be_server_timeout".
+
+cur_tarpit_timeout : integer
+  Returns the currently applied tarpit timeout in millisecond for the stream.
+  In the default case, this will be equal to fe_tarpit_timeout/be_tarpit_timeout
+  unless a "set-timeout" rule has been applied. See also "fe_tarpit_timeout"
+  and "be_tarpit_timeout".
 
 cur_tunnel_timeout : integer
   Returns the currently applied tunnel timeout in millisecond for the stream.
@@ -24577,6 +24631,10 @@ fe_name : string
   Returns a string containing the current frontend's name. It can be used in
   backends to check from which frontend it was called, or to stick all users
   coming via a same frontend to the same server.
+
+fe_tarpit_timeout : integer
+  Returns the configuration value in millisecond for the tarpit timeout of the
+  current frontend. This timeout can be overwritten by a "set-timeout" rule.
 
 req.bytes_in : integer
   This returns the number of bytes received from the client. The value

@@ -564,7 +564,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 	req->analysers &= AN_REQ_FLT_END; /* remove switching rules etc... */
 	req->analysers |= AN_REQ_HTTP_TARPIT;
-	req->analyse_exp = tick_add_ifset(now_ms,  s->be->timeout.tarpit);
+	req->analyse_exp = tick_add_ifset(now_ms, s->tarpit_timeout ? s->tarpit_timeout : s->be->timeout.tarpit);
 	if (!req->analyse_exp)
 		req->analyse_exp = tick_add(now_ms, 0);
 	stream_inc_http_err_ctr(s);

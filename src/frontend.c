@@ -314,12 +314,22 @@ smp_fetch_fe_client_timeout(const struct arg *args, struct sample *smp, const ch
 	return 1;
 }
 
+static int
+smp_fetch_fe_tarpit_timeout(const struct arg *args, struct sample *smp, const char *km, void *private)
+{
+	smp->flags = SMP_F_VOL_TXN;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = TICKS_TO_MS(smp->sess->fe->timeout.tarpit);
+	return 1;
+}
+
 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "fe_client_timeout", smp_fetch_fe_client_timeout, 0,          NULL, SMP_T_SINT, SMP_USE_FTEND, },
+	{ "fe_tarpit_timeout", smp_fetch_fe_tarpit_timeout, 0,          NULL, SMP_T_SINT, SMP_USE_FTEND, },
 	{ "fe_conn",           smp_fetch_fe_conn,           ARG1(1,FE), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "fe_defbe",          smp_fetch_fe_defbe,          0,          NULL, SMP_T_STR,  SMP_USE_FTEND, },
 	{ "fe_id",             smp_fetch_fe_id,             0,          NULL, SMP_T_SINT, SMP_USE_FTEND, },

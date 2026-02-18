@@ -102,7 +102,10 @@ enum act_name {
 
 /* Timeout name valid for a set-timeout rule */
 enum act_timeout_name {
+	ACT_TIMEOUT_CONNECT,
 	ACT_TIMEOUT_SERVER,
+	ACT_TIMEOUT_QUEUE,
+	ACT_TIMEOUT_TARPIT,
 	ACT_TIMEOUT_TUNNEL,
 	ACT_TIMEOUT_CLIENT,
 };

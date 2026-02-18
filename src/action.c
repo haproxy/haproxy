@@ -188,12 +188,29 @@ int cfg_parse_rule_set_timeout(const char **args, int idx, struct act_rule *rule
 	const char *res;
 	const char *timeout_name = args[idx++];
 
-	if (strcmp(timeout_name, "server") == 0) {
+	if (strcmp(timeout_name, "connect") == 0) {
+		if (!(px->cap & PR_CAP_BE)) {
+			memprintf(err, "'%s' has no backend capability", px->id);
+			return -1;
+		}
+		rule->arg.timeout.type = ACT_TIMEOUT_CONNECT;
+	}
+	else if (strcmp(timeout_name, "server") == 0) {
 		if (!(px->cap & PR_CAP_BE)) {
 			memprintf(err, "'%s' has no backend capability", px->id);
 			return -1;
 		}
 		rule->arg.timeout.type = ACT_TIMEOUT_SERVER;
+	}
+	else if (strcmp(timeout_name, "queue") == 0) {
+		if (!(px->cap & PR_CAP_BE)) {
+			memprintf(err, "'%s' has no backend capability", px->id);
+			return -1;
+		}
+		rule->arg.timeout.type = ACT_TIMEOUT_QUEUE;
+	}
+	else if (strcmp(timeout_name, "tarpit") == 0) {
+		rule->arg.timeout.type = ACT_TIMEOUT_TARPIT;
 	}
 	else if (strcmp(timeout_name, "tunnel") == 0) {
 		if (!(px->cap & PR_CAP_BE)) {
@@ -211,7 +228,7 @@ int cfg_parse_rule_set_timeout(const char **args, int idx, struct act_rule *rule
 	}
 	else {
 		memprintf(err,
-		          "'set-timeout' rule supports 'server'/'tunnel'/'client' (got '%s')",
+		          "'set-timeout' rule supports 'client'/'connect'/'queue'/'server'/'tarpit'/'tunnel' (got '%s')",
 		          timeout_name);
 		return -1;
 	}

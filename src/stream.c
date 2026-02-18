@@ -555,6 +555,9 @@ struct stream *stream_new(struct session *sess, struct stconn *sc, struct buffer
 	s->resolv_ctx.hostname_dn_len = 0;
 	s->resolv_ctx.parent = NULL;
 
+	s->connect_timeout = TICK_ETERNITY;
+	s->queue_timeout = TICK_ETERNITY;
+	s->tarpit_timeout = TICK_ETERNITY;
 	s->tunnel_timeout = TICK_ETERNITY;
 
 	LIST_APPEND(&th_ctx->streams, &s->list);
@@ -949,8 +952,20 @@ int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout
 		s->scf->ioto = timeout;
 		return 1;
 
+	case ACT_TIMEOUT_CONNECT:
+		s->connect_timeout = timeout;
+		return 1;
+
+	case ACT_TIMEOUT_QUEUE:
+		s->queue_timeout = timeout;
+		return 1;
+
 	case ACT_TIMEOUT_SERVER:
 		s->scb->ioto = timeout;
+		return 1;
+
+	case ACT_TIMEOUT_TARPIT:
+		s->tarpit_timeout = timeout;
 		return 1;
 
 	case ACT_TIMEOUT_TUNNEL:
@@ -1247,6 +1262,10 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 
 	/* Se the max connection retries for the stream. may be overwritten later */
 	s->max_retries = s->be->conn_retries;
+
+	/* Set the queue and connect timeouts. May be overwritten later */
+	s->connect_timeout = s->be->timeout.connect;
+	s->queue_timeout = s->be->timeout.queue;
 
 	/* we don't want to run the TCP or HTTP filters again if the backend has not changed */
 	if (fe == s->be) {
@@ -4383,6 +4402,17 @@ static struct action_kw_list stream_http_after_res_actions =  { ILH, {
 
 INITCALL1(STG_REGISTER, http_after_res_keywords_register, &stream_http_after_res_actions);
 
+static int smp_fetch_cur_connect_timeout(const struct arg *args, struct sample *smp, const char *km, void *private)
+{
+	smp->flags = SMP_F_VOL_TXN;
+	smp->data.type = SMP_T_SINT;
+	if (!smp->strm)
+		return 0;
+
+	smp->data.u.sint = TICKS_TO_MS(smp->strm->connect_timeout);
+	return 1;
+}
+
 static int smp_fetch_cur_client_timeout(const struct arg *args, struct sample *smp, const char *km, void *private)
 {
 	smp->flags = SMP_F_VOL_TXN;
@@ -4402,6 +4432,34 @@ static int smp_fetch_cur_server_timeout(const struct arg *args, struct sample *s
 		return 0;
 
 	smp->data.u.sint = TICKS_TO_MS(smp->strm->scb->ioto);
+	return 1;
+}
+
+static int smp_fetch_cur_queue_timeout(const struct arg *args, struct sample *smp, const char *km, void *private)
+{
+	smp->flags = SMP_F_VOL_TXN;
+	smp->data.type = SMP_T_SINT;
+	if (!smp->strm)
+		return 0;
+
+	smp->data.u.sint = TICKS_TO_MS(smp->strm->queue_timeout);
+	return 1;
+}
+
+static int smp_fetch_cur_tarpit_timeout(const struct arg *args, struct sample *smp, const char *km, void *private)
+{
+	smp->flags = SMP_F_VOL_TXN;
+	smp->data.type = SMP_T_SINT;
+	if (!smp->strm)
+		return 0;
+
+	if (smp->strm->tarpit_timeout)
+		smp->data.u.sint = TICKS_TO_MS(smp->strm->tarpit_timeout);
+	else if (smp->strm->be)
+		smp->data.u.sint = TICKS_TO_MS(smp->strm->be->timeout.tarpit);
+	else
+		smp->data.u.sint = TICKS_TO_MS(smp->sess->fe->timeout.tarpit);
+
 	return 1;
 }
 
@@ -4609,8 +4667,11 @@ static int smp_fetch_redispatched(const struct arg *args, struct sample *smp, co
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct sample_fetch_kw_list smp_kws = {ILH, {
+	{ "cur_connect_timeout",smp_fetch_cur_connect_timeout,0, NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ "cur_client_timeout", smp_fetch_cur_client_timeout, 0, NULL, SMP_T_SINT, SMP_USE_FTEND, },
 	{ "cur_server_timeout", smp_fetch_cur_server_timeout, 0, NULL, SMP_T_SINT, SMP_USE_BKEND, },
+	{ "cur_queue_timeout",  smp_fetch_cur_queue_timeout,  0, NULL, SMP_T_SINT, SMP_USE_BKEND, },
+	{ "cur_tarpit_timeout", smp_fetch_cur_tarpit_timeout, 0, NULL, SMP_T_SINT, SMP_USE_FTEND | SMP_USE_BKEND, },
 	{ "cur_tunnel_timeout", smp_fetch_cur_tunnel_timeout, 0, NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ "last_entity",        smp_fetch_last_entity,        0, NULL, SMP_T_STR,  SMP_USE_INTRN, },
 	{ "last_rule_file",     smp_fetch_last_rule_file,     0, NULL, SMP_T_STR,  SMP_USE_INTRN, },
