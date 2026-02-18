@@ -1371,11 +1371,9 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 			    H1_EV_H1C_NEW|H1_EV_STRM_NEW, h1c->conn, h1c->h1s);
 	}
 
-	if (t) {
-		h1_set_idle_expiration(h1c);
-		t->expire = tick_first(t->expire, h1c->idle_exp);
-		task_queue(t);
-	}
+	h1_set_idle_expiration(h1c);
+	t->expire = tick_first(t->expire, h1c->idle_exp);
+	task_queue(t);
 
 	/* prepare to read something */
 	if (b_data(&h1c->ibuf))
