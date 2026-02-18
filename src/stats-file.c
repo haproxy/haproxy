@@ -840,6 +840,8 @@ next:
 int shm_stats_file_prepare(void)
 {
 	struct task *heartbeat_task;
+	volatile ullong *local_global_now_ns;
+	volatile uint *local_global_now_ms;
 	int first = 0; // process responsible for initializing the shm memory
 	int slot;
 	int objects;
@@ -901,7 +903,11 @@ int shm_stats_file_prepare(void)
 	else if (!shm_stats_file_check_ver(shm_stats_file_hdr))
 		goto err_version;
 
-	/* from now on use the shared global time */
+	/* from now on use the shared global time, but save local global time
+	 * in case reverting is required
+	 */
+	local_global_now_ms = global_now_ms;
+	local_global_now_ns = global_now_ns;
 	global_now_ms = &shm_stats_file_hdr->global_now_ms;
 	global_now_ns = &shm_stats_file_hdr->global_now_ns;
 
@@ -968,7 +974,18 @@ int shm_stats_file_prepare(void)
 	slot = shm_stats_file_get_free_slot(shm_stats_file_hdr);
 	if (slot == -1) {
 		ha_warning("config: failed to get shm stats file slot for '%s', all slots are occupied\n", global.shm_stats_file);
+		/* stop using shared clock since we withdraw from the shared memory,
+		 * simply update the local clock and switch to using it instead
+		 */
+		*local_global_now_ms = HA_ATOMIC_LOAD(global_now_ms);
+		*local_global_now_ns = HA_ATOMIC_LOAD(global_now_ns);
+
+		/* shared memory mapping no longer needed */
 		munmap(shm_stats_file_hdr, sizeof(*shm_stats_file_hdr));
+		shm_stats_file_hdr = NULL;
+
+		global_now_ms = local_global_now_ms;
+		global_now_ns = local_global_now_ns;
 		return ERR_WARN;
 	}
 
