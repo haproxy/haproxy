@@ -4167,6 +4167,15 @@ static size_t qmux_strm_nego_ff(struct stconn *sc, struct buffer *input,
 		goto end;
 	}
 
+	if (qcs_is_close_local(qcs) || (qcs->flags & QC_SF_TO_RESET)) {
+		/* Cannot emit any new data if stream already closed. Data
+		 * draining will be performed via snd_buf.
+		 */
+		TRACE_DEVEL("stream already closed", QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
+		qcs->sd->iobuf.flags |= IOBUF_FL_NO_FF;
+		goto end;
+	}
+
 	if (LIST_INLIST(&qcs->el_buf)) {
 		TRACE_DEVEL("leaving on no buf avail", QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 		qcs->sd->iobuf.flags |= IOBUF_FL_FF_BLOCKED;
