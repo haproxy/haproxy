@@ -2824,10 +2824,6 @@ void deinit(void)
 	/* If named defaults were preserved, ensure <def_ref> count is resetted. */
 	if (!(global.tune.options & GTUNE_PURGE_DEFAULTS))
 		defaults_px_unref_all();
-	/* All proxies are removed now, so every defaults should also be freed
-	 * when their <def_ref> count reached zero.
-	 */
-	BUG_ON(!LIST_ISEMPTY(&defaults_list));
 
 	userlist_free(userlist);
 
@@ -2837,6 +2833,11 @@ void deinit(void)
 
 	list_for_each_entry(pdf, &post_deinit_list, list)
 		pdf->fct();
+
+	/* All proxies are removed now, so every defaults should also be freed
+	 * when their <def_ref> count reached zero.
+	 */
+	BUG_ON(!LIST_ISEMPTY(&defaults_list));
 
 	ha_free(&global.log_send_hostname);
 	chunk_destroy(&global.log_tag);

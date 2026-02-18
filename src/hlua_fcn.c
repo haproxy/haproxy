@@ -1966,9 +1966,19 @@ void hlua_listable_servers(lua_State *L, struct proxy *px)
 	lua_setmetatable(L, -2);
 }
 
+int hlua_proxy_gc(lua_State *L)
+{
+	struct proxy *px = hlua_checkudata(L, 1, class_proxy_ref);
+	proxy_drop(px);
+	return 0;
+}
+
 static struct proxy *hlua_check_proxy(lua_State *L, int ud)
 {
-	return hlua_checkudata(L, ud, class_proxy_ref);
+	struct proxy *px = hlua_checkudata(L, ud, class_proxy_ref);
+	if (px->flags & PR_FL_DELETED)
+		return NULL;
+	return px;
 }
 
 int hlua_proxy_get_name(lua_State *L)
@@ -1976,6 +1986,11 @@ int hlua_proxy_get_name(lua_State *L)
 	struct proxy *px;
 
 	px = hlua_check_proxy(L, 1);
+	if (px == NULL) {
+		lua_pushnil(L);
+		return 0;
+	}
+
 	lua_pushstring(L, px->id);
 	return 1;
 }
@@ -1986,6 +2001,11 @@ int hlua_proxy_get_uuid(lua_State *L)
 	char buffer[17];
 
 	px = hlua_check_proxy(L, 1);
+	if (px == NULL) {
+		lua_pushnil(L);
+		return 0;
+	}
+
 	snprintf(buffer, sizeof(buffer), "%d", px->uuid);
 	lua_pushstring(L, buffer);
 	return 1;
@@ -2024,6 +2044,9 @@ int hlua_proxy_pause(lua_State *L)
 	struct proxy *px;
 
 	px = hlua_check_proxy(L, 1);
+	if (px == NULL)
+		return 0;
+
 	/* safe to call without PROXY_LOCK - pause_proxy takes it */
 	pause_proxy(px);
 	return 0;
@@ -2034,6 +2057,9 @@ int hlua_proxy_resume(lua_State *L)
 	struct proxy *px;
 
 	px = hlua_check_proxy(L, 1);
+	if (px == NULL)
+		return 0;
+
 	/* safe to call without PROXY_LOCK - resume_proxy takes it */
 	resume_proxy(px);
 	return 0;
@@ -2044,6 +2070,9 @@ int hlua_proxy_stop(lua_State *L)
 	struct proxy *px;
 
 	px = hlua_check_proxy(L, 1);
+	if (px == NULL)
+		return 0;
+
 	/* safe to call without PROXY_LOCK - stop_proxy takes it */
 	stop_proxy(px);
 	return 0;
@@ -2055,6 +2084,11 @@ int hlua_proxy_get_cap(lua_State *L)
 	const char *str;
 
 	px = hlua_check_proxy(L, 1);
+	if (px == NULL) {
+		lua_pushnil(L);
+		return 0;
+	}
+
 	str = proxy_cap_str(px->cap);
 	lua_pushstring(L, str);
 	return 1;
@@ -2066,6 +2100,11 @@ int hlua_proxy_get_stats(lua_State *L)
 	int i;
 
 	px = hlua_check_proxy(L, 1);
+	if (px == NULL) {
+		lua_pushnil(L);
+		return 0;
+	}
+
 	if (px->cap & PR_CAP_BE)
 		stats_fill_be_line(px, STAT_F_SHLGNDS, stats, STATS_LEN, NULL);
 	else
@@ -2086,6 +2125,11 @@ int hlua_proxy_get_mode(lua_State *L)
 	const char *str;
 
 	px = hlua_check_proxy(L, 1);
+	if (px == NULL) {
+		lua_pushnil(L);
+		return 0;
+	}
+
 	str = proxy_mode_str(px->mode);
 	lua_pushstring(L, str);
 	return 1;
@@ -2096,6 +2140,9 @@ int hlua_proxy_shut_bcksess(lua_State *L)
 	struct proxy *px;
 
 	px = hlua_check_proxy(L, 1);
+	if (px == NULL)
+		return 0;
+
 	srv_shutdown_backup_streams(px, SF_ERR_KILLED);
 	return 0;
 }
@@ -2105,6 +2152,11 @@ int hlua_proxy_get_srv_act(lua_State *L)
 	struct proxy *px;
 
 	px = hlua_check_proxy(L, 1);
+	if (px == NULL) {
+		lua_pushnil(L);
+		return 0;
+	}
+
 	lua_pushinteger(L, px->srv_act);
 	return 1;
 }
@@ -2114,6 +2166,11 @@ int hlua_proxy_get_srv_bck(lua_State *L)
 	struct proxy *px;
 
 	px = hlua_check_proxy(L, 1);
+	if (px == NULL) {
+		lua_pushnil(L);
+		return 0;
+	}
+
 	lua_pushinteger(L, px->srv_bck);
 	return 1;
 }
@@ -2128,6 +2185,10 @@ int hlua_proxy_get_mailers(lua_State *L)
 	struct mailer *mailer;
 
 	px = hlua_check_proxy(L, 1);
+	if (px == NULL) {
+		lua_pushnil(L);
+		return 0;
+	}
 
 	if (!px->email_alert.mailers.m)
 		return 0; /* email-alert mailers not found on proxy */
@@ -2207,6 +2268,8 @@ int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 
 	lua_pushlightuserdata(L, px);
 	lua_rawseti(L, -2, 0);
+
+	proxy_take(px);
 
 	/* set public methods */
 	hlua_class_function(L, "get_name", hlua_proxy_get_name);
@@ -3233,6 +3296,7 @@ void hlua_fcn_reg_core_fcn(lua_State *L)
 
 	/* Create proxy object. */
 	lua_newtable(L);
+	hlua_class_function(L, "__gc", hlua_proxy_gc);
 	hlua_class_function(L, "__index", hlua_proxy_index);
 	class_proxy_ref = hlua_register_metatable(L, CLASS_PROXY);
 
