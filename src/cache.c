@@ -626,7 +626,7 @@ cache_store_check(struct proxy *px, struct flt_conf *fconf)
 				return 1;
 			}
 		}
-		else if (f->id == http_comp_flt_id)
+		else if (f->id == http_comp_req_flt_id || f->id == http_comp_res_flt_id)
 			comp = 1;
 		else if (f->id == fcgi_flt_id)
 			continue;

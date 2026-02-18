@@ -6935,11 +6935,15 @@ compression offload
 
   See also : "compression type", "compression algo", "compression direction"
 
-compression direction <direction>
+compression direction <direction> (deprecated)
   Makes haproxy able to compress both requests and responses.
   Valid values are "request", to compress only requests, "response", to
   compress only responses, or "both", when you want to compress both.
   The default value is "response".
+
+  This directive is only relevant when legacy "filter compression" was
+  enabled, as with explicit comp-req and comp-res filters compression
+  direction is redundant.
 
   May be used in the following contexts: http
 
@@ -29904,7 +29908,21 @@ a server by adding some latencies in the processing.
 9.2. HTTP compression
 ---------------------
 
-filter compression
+filter comp-req
+
+Enables filter that explicitly tries to compress HTTP requests according to
+"compression" settings. Implicitly sets "compression direction request".
+
+filter comp-res
+
+Enables filter that explicitly tries to compress HTTP responses according to
+"compression" settings. Implicitly sets "compression direction response"
+
+filter compression (deprecated)
+
+Alias for backward compatibility purposes that is functionnally equivalent to
+enabling both "comp-req" and "comp-res" filter. "compression" keyword must be
+used to configure appropriate behavior:
 
 The HTTP compression has been moved in a filter in HAProxy 1.7. "compression"
 keyword must still be used to enable and configure the HTTP compression. And

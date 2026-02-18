@@ -221,7 +221,8 @@ static int fcgi_flt_check(struct proxy *px, struct flt_conf *fconf)
 	}
 
 	list_for_each_entry(f, &px->filter_configs, list) {
-		if (f->id == http_comp_flt_id || f->id == cache_store_flt_id)
+		if (f->id == http_comp_req_flt_id || f->id == http_comp_res_flt_id ||
+		    f->id == cache_store_flt_id)
 			continue;
 		else if ((f->id == fconf->id) && f->conf != fcgi_conf) {
 			ha_alert("proxy '%s' : only one fcgi-app supported per backend.\n",

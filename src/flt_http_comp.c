@@ -27,9 +27,11 @@
 
 #define COMP_STATE_PROCESSING 0x01
 
-const char *http_comp_flt_id = "compression filter";
+const char *http_comp_req_flt_id = "comp-req filter";
+const char *http_comp_res_flt_id = "comp-res filter";
 
-struct flt_ops comp_ops;
+struct flt_ops comp_req_ops;
+struct flt_ops comp_res_ops;
 
 struct comp_state {
 	/*
@@ -198,33 +200,59 @@ fail:
 }
 
 static int
-comp_http_headers(struct stream *s, struct filter *filter, struct http_msg *msg)
+comp_req_http_headers(struct stream *s, struct filter *filter, struct http_msg *msg)
 {
 	struct comp_state *st = filter->ctx;
 	int comp_flags = 0;
 
 	if (!strm_fe(s)->comp && !s->be->comp)
 		goto end;
+
 	if (strm_fe(s)->comp)
 		comp_flags |= strm_fe(s)->comp->flags;
 	if (s->be->comp)
 		comp_flags |= s->be->comp->flags;
 
+	if (!(comp_flags & COMP_FL_DIR_REQ))
+		goto end;
+
 	if (!(msg->chn->flags & CF_ISRESP)) {
-		if (comp_flags & COMP_FL_DIR_REQ) {
-			    comp_prepare_compress_request(st, s, msg);
-			    if (st->comp_algo[COMP_DIR_REQ]) {
-				    if (!set_compression_header(st, s, msg))
-					    goto end;
-				    register_data_filter(s, msg->chn, filter);
-				    st->flags |= COMP_STATE_PROCESSING;
-			    }
+		comp_prepare_compress_request(st, s, msg);
+		if (st->comp_algo[COMP_DIR_REQ]) {
+			if (!set_compression_header(st, s, msg))
+				goto end;
+			register_data_filter(s, msg->chn, filter);
+			st->flags |= COMP_STATE_PROCESSING;
 		}
-		if (comp_flags & COMP_FL_DIR_RES)
-			select_compression_request_header(st, s, msg);
-	} else if (comp_flags & COMP_FL_DIR_RES) {
+	}
+
+  end:
+	return 1;
+}
+
+static int
+comp_res_http_headers(struct stream *s, struct filter *filter, struct http_msg *msg)
+{
+	struct comp_state *st = filter->ctx;
+	int comp_flags = 0;
+
+	if (!strm_fe(s)->comp && !s->be->comp)
+		goto end;
+
+	if (strm_fe(s)->comp)
+		comp_flags |= strm_fe(s)->comp->flags;
+	if (s->be->comp)
+		comp_flags |= s->be->comp->flags;
+
+	if (!(comp_flags & COMP_FL_DIR_RES))
+		goto end;
+
+
+	if (!(msg->chn->flags & CF_ISRESP))
+		select_compression_request_header(st, s, msg);
+	else {
 		/* Response headers have already been checked in
-		 * comp_http_post_analyze callback. */
+		 * comp_res_http_post_analyze callback. */
 		if (st->comp_algo[COMP_DIR_RES]) {
 			if (!set_compression_header(st, s, msg))
 				goto end;
@@ -238,8 +266,8 @@ comp_http_headers(struct stream *s, struct filter *filter, struct http_msg *msg)
 }
 
 static int
-comp_http_post_analyze(struct stream *s, struct filter *filter,
-		       struct channel *chn, unsigned an_bit)
+comp_res_http_post_analyze(struct stream *s, struct filter *filter,
+                           struct channel *chn, unsigned an_bit)
 {
 	struct http_txn   *txn = s->txn;
 	struct http_msg   *msg = &txn->rsp;
@@ -259,19 +287,13 @@ comp_http_post_analyze(struct stream *s, struct filter *filter,
 
 static int
 comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
-		  unsigned int offset, unsigned int len)
+		  unsigned int offset, unsigned int len, int dir)
 {
 	struct comp_state *st = filter->ctx;
 	struct htx *htx = htxbuf(&msg->chn->buf);
 	struct htx_ret htxret = htx_find_offset(htx, offset);
 	struct htx_blk *blk, *next;
 	int ret, consumed = 0, to_forward = 0, last = 0;
-	int dir;
-
-	if (msg->chn->flags & CF_ISRESP)
-		dir = COMP_DIR_RES;
-	else
-		dir = COMP_DIR_REQ;
 
 	blk = htxret.blk;
 	offset = htxret.ret;
@@ -384,10 +406,29 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 	return -1;
 }
 
+static int
+comp_req_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
+                      unsigned int offset, unsigned int len)
+{
+	if (msg->chn->flags & CF_ISRESP)
+		return 0;
+
+	return comp_http_payload(s, filter, msg, offset, len, COMP_DIR_REQ);
+}
 
 static int
-comp_http_end(struct stream *s, struct filter *filter,
-	      struct http_msg *msg)
+comp_res_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
+                      unsigned int offset, unsigned int len)
+{
+	if (!(msg->chn->flags & CF_ISRESP))
+		return 0;
+
+	return comp_http_payload(s, filter, msg, offset, len, COMP_DIR_RES);
+}
+
+static int
+comp_res_http_end(struct stream *s, struct filter *filter,
+	          struct http_msg *msg)
 {
 	struct comp_state *st = filter->ctx;
 
@@ -769,17 +810,28 @@ htx_compression_buffer_end(struct comp_state *st, struct buffer *out, int end, i
 
 
 /***********************************************************************/
-struct flt_ops comp_ops = {
+
+struct flt_ops comp_req_ops = {
 	.init              = comp_flt_init,
 
 	.attach = comp_strm_init,
 	.detach = comp_strm_deinit,
 
-	.channel_post_analyze  = comp_http_post_analyze,
+	.http_headers          = comp_req_http_headers,
+	.http_payload          = comp_req_http_payload,
+};
 
-	.http_headers          = comp_http_headers,
-	.http_payload          = comp_http_payload,
-	.http_end              = comp_http_end,
+struct flt_ops comp_res_ops = {
+	.init              = comp_flt_init,
+
+	.attach = comp_strm_init,
+	.detach = comp_strm_deinit,
+
+	.channel_post_analyze  = comp_res_http_post_analyze,
+
+	.http_headers          = comp_res_http_headers,
+	.http_payload          = comp_res_http_payload,
+	.http_end              = comp_res_http_end,
 };
 
 /* returns compression options from <proxy> proxy or allocates them if
@@ -985,27 +1037,109 @@ parse_http_comp_flt(char **args, int *cur_arg, struct proxy *px,
                     struct flt_conf *fconf, char **err, void *private)
 {
 	struct flt_conf *fc, *back;
+	struct flt_conf *fconf_res;
 
 	list_for_each_entry_safe(fc, back, &px->filter_configs, list) {
-		if (fc->id == http_comp_flt_id) {
+		if (fc->id == http_comp_req_flt_id || fc->id == http_comp_res_flt_id) {
 			memprintf(err, "%s: Proxy supports only one compression filter\n", px->id);
 			return -1;
 		}
 	}
 
-	fconf->id   = http_comp_flt_id;
+	fconf->id   = http_comp_req_flt_id;
 	fconf->conf = NULL;
-	fconf->ops  = &comp_ops;
+	fconf->ops  = &comp_req_ops;
+
+	/* FILTER API prepared a single filter_conf struct as it is meant to
+	 * initialize exactly one fconf per keyword, but with the "compression"
+	 * filter, for retro-compatibility we want to emulate the historical
+	 * behavior which is to compress both requests and responses, so to
+	 * emulate that we manually initialize the comp-res filter as well
+	 */
+	fconf_res = calloc(1, sizeof(*fconf_res));
+	if (!fconf_res) {
+		memprintf(err, "'%s' : out of memory", args[0]);
+		return -1;
+	}
+	fconf_res->id = http_comp_res_flt_id;
+	fconf_res->conf = NULL;
+	fconf_res->ops = &comp_res_ops;
+
+	/* manually add the fconf_res to the list because filter API doesn't
+	 * know about it
+	 */
+	LIST_APPEND(&px->filter_configs, &fconf_res->list);
+
+
 	(*cur_arg)++;
 
 	return 0;
 }
 
+static int
+parse_http_comp_req_flt(char **args, int *cur_arg, struct proxy *px,
+                        struct flt_conf *fconf, char **err, void *private)
+{
+	struct flt_conf *fc, *back;
+	struct comp *comp;
+
+	list_for_each_entry_safe(fc, back, &px->filter_configs, list) {
+		if (fc->id == http_comp_req_flt_id) {
+			memprintf(err, "%s: Proxy supports only one comp-req filter\n", px->id);
+			return -1;
+		}
+	}
+
+	comp = proxy_get_comp(px, 0);
+	if (comp == NULL) {
+		memprintf(err, "memory failure\n");
+		return -1;
+	}
+	comp->flags |= COMP_FL_DIR_REQ;
+
+	fconf->id   = http_comp_req_flt_id;
+	fconf->conf = NULL;
+	fconf->ops  = &comp_req_ops;
+	(*cur_arg)++;
+
+	return 0;
+}
+
+static int
+parse_http_comp_res_flt(char **args, int *cur_arg, struct proxy *px,
+                        struct flt_conf *fconf, char **err, void *private)
+{
+	struct flt_conf *fc, *back;
+	struct comp *comp;
+
+	list_for_each_entry_safe(fc, back, &px->filter_configs, list) {
+		if (fc->id == http_comp_res_flt_id) {
+			memprintf(err, "%s: Proxy supports only one comp-res filter\n", px->id);
+			return -1;
+		}
+	}
+
+	comp = proxy_get_comp(px, 0);
+	if (comp == NULL) {
+		memprintf(err, "memory failure\n");
+		return -1;
+	}
+	comp->flags |= COMP_FL_DIR_RES;
+
+	fconf->id   = http_comp_res_flt_id;
+	fconf->conf = NULL;
+	fconf->ops  = &comp_res_ops;
+	(*cur_arg)++;
+
+	return 0;
+}
 
 int
 check_implicit_http_comp_flt(struct proxy *proxy)
 {
 	struct flt_conf *fconf;
+	struct flt_conf *fconf_req = NULL;
+	struct flt_conf *fconf_res = NULL;
 	int explicit = 0;
 	int comp = 0;
 	int err = 0;
@@ -1014,7 +1148,7 @@ check_implicit_http_comp_flt(struct proxy *proxy)
 		goto end;
 	if (!LIST_ISEMPTY(&proxy->filter_configs)) {
 		list_for_each_entry(fconf, &proxy->filter_configs, list) {
-			if (fconf->id == http_comp_flt_id)
+			if (fconf->id == http_comp_req_flt_id || fconf->id == http_comp_res_flt_id)
 				comp = 1;
 			else if (fconf->id == cache_store_flt_id) {
 				if (comp) {
@@ -1042,17 +1176,25 @@ check_implicit_http_comp_flt(struct proxy *proxy)
 
 	/* Implicit declaration of the compression filter is always the last
 	 * one */
-	fconf = calloc(1, sizeof(*fconf));
-	if (!fconf) {
+	fconf_req = calloc(1, sizeof(*fconf));
+	fconf_res = calloc(1, sizeof(*fconf));
+	if (!fconf_req || !fconf_res) {
 		ha_alert("config: %s '%s': out of memory\n",
 			 proxy_type_str(proxy), proxy->id);
+		ha_free(&fconf_req);
+		ha_free(&fconf_res);
 		err++;
 		goto end;
 	}
-	fconf->id   = http_comp_flt_id;
-	fconf->conf = NULL;
-	fconf->ops  = &comp_ops;
-	LIST_APPEND(&proxy->filter_configs, &fconf->list);
+	fconf_req->id   = http_comp_req_flt_id;
+	fconf_req->conf = NULL;
+	fconf_req->ops  = &comp_req_ops;
+	LIST_APPEND(&proxy->filter_configs, &fconf_req->list);
+
+	fconf_res->id   = http_comp_res_flt_id;
+	fconf_res->conf = NULL;
+	fconf_res->ops  = &comp_res_ops;
+	LIST_APPEND(&proxy->filter_configs, &fconf_res->list);
  end:
 	return err;
 }
@@ -1087,7 +1229,7 @@ smp_fetch_res_comp_algo(const struct arg *args, struct sample *smp,
 		return 0;
 
 	list_for_each_entry(filter, &strm_flt(smp->strm)->filters, list) {
-		if (FLT_ID(filter) != http_comp_flt_id)
+		if (FLT_ID(filter) != http_comp_res_flt_id)
 			continue;
 
 		if (!(st = filter->ctx))
@@ -1114,6 +1256,8 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 /* Declare the filter parser for "compression" keyword */
 static struct flt_kw_list filter_kws = { "COMP", { }, {
 		{ "compression", parse_http_comp_flt, NULL },
+		{ "comp-req", parse_http_comp_req_flt, NULL },
+		{ "comp-res", parse_http_comp_res_flt, NULL },
 		{ NULL, NULL, NULL },
 	}
 };

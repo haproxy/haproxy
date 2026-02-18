@@ -28,7 +28,9 @@
 #include <haproxy/stream-t.h>
 
 extern const char *trace_flt_id;
-extern const char *http_comp_flt_id;
+extern const char *http_comp_req_flt_id;
+extern const char *http_comp_res_flt_id;
+
 extern const char *cache_store_flt_id;
 extern const char *spoe_filter_id;
 extern const char *fcgi_flt_id;
