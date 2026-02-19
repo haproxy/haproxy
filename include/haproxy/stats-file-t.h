@@ -47,7 +47,7 @@ struct shm_stats_file_hdr {
 	 */
 	struct {
 		pid_t pid;
-		int heartbeat; // last activity of this process + heartbeat timeout, in ticks
+		uint heartbeat; // last activity of this process + heartbeat timeout, in ticks
 	} slots[64];
 	int objects; /* actual number of objects stored in the shm */
 	int objects_slots; /* total available objects slots unless map is resized */

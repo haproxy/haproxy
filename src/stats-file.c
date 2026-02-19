@@ -492,7 +492,7 @@ static int shm_stats_file_check_ver(struct shm_stats_file_hdr *hdr)
 	return 1;
 }
 
-static inline int shm_hb_is_stale(int hb)
+static inline int shm_hb_is_stale(uint hb)
 {
 	return (hb == TICK_ETERNITY || tick_is_expired(hb, now_ms));
 }
@@ -501,7 +501,7 @@ static inline int shm_hb_is_stale(int hb)
  */
 static int shm_stats_file_slot_isfree(struct shm_stats_file_hdr *hdr, int id)
 {
-	int hb;
+	uint hb;
 
 	hb = HA_ATOMIC_LOAD(&hdr->slots[id].heartbeat);
 	return shm_hb_is_stale(hb);
@@ -513,7 +513,7 @@ static int shm_stats_file_slot_isfree(struct shm_stats_file_hdr *hdr, int id)
 int shm_stats_file_get_free_slot(struct shm_stats_file_hdr *hdr)
 {
 	int it = 0;
-	int hb;
+	uint hb;
 
 	while (it < sizeof(hdr->slots) / sizeof(hdr->slots[0])) {
 		hb = HA_ATOMIC_LOAD(&hdr->slots[it].heartbeat);
