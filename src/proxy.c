@@ -2543,6 +2543,13 @@ int proxy_finalize(struct proxy *px, int *err_code)
 			if (!newsrv->sni_expr && newsrv->proxy->mode == PR_MODE_HTTP &&
 			    !(newsrv->ssl_ctx.options & SRV_SSL_O_NO_AUTO_SNI)) {
 				newsrv->sni_expr = strdup("req.hdr(host),field(1,:)");
+				if (!newsrv->sni_expr) {
+					ha_alert("parsing [%s:%d]: out of memory while generating server auto SNI expression.\n",
+					         newsrv->conf.file, newsrv->conf.line);
+					cfgerr++;
+					*err_code |= ERR_ALERT | ERR_ABORT;
+					goto out;
+				}
 
 				err = NULL;
 				if (server_parse_exprs(newsrv, px, &err)) {
