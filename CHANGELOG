@@ -1,6 +1,142 @@
 ChangeLog :
 ===========
 
+2026/02/19 : 3.4-dev5
+    - DOC: internals: addd mworker V3 internals
+    - BUG/MINOR: threads: Initialize maxthrpertgroup earlier.
+    - BUG/MEDIUM: threads: Differ checking the max threads per group number
+    - BUG/MINOR: startup: fix allocation error message of progname string
+    - BUG/MINOR: startup: handle a possible strdup() failure
+    - MINOR: cfgparse: validate defaults proxies separately
+    - MINOR: cfgparse: move proxy post-init in a dedicated function
+    - MINOR: proxy: refactor proxy inheritance of a defaults section
+    - MINOR: proxy: refactor mode parsing
+    - MINOR: backend: add function to check support for dynamic servers
+    - MINOR: proxy: define "add backend" handler
+    - MINOR: proxy: parse mode on dynamic backend creation
+    - MINOR: proxy: parse guid on dynamic backend creation
+    - MINOR: proxy: check default proxy compatibility on "add backend"
+    - MEDIUM: proxy: implement dynamic backend creation
+    - MINOR: proxy: assign dynamic proxy ID
+    - REGTESTS: add dynamic backend creation test
+    - BUG/MINOR: proxy: fix clang build error on "add backend" handler
+    - BUG/MINOR: proxy: fix null dereference in "add backend" handler
+    - MINOR: net_helper: extend the ip.fp output with an option presence mask
+    - BUG/MINOR: proxy: fix default ALPN bind settings
+    - CLEANUP: lb-chash: free lb_nodes from chash's deinit(), not global
+    - BUG/MEDIUM: lb-chash: always properly initialize lb_nodes with dynamic servers
+    - CLEANUP: haproxy: fix bad line wrapping in run_poll_loop()
+    - MINOR: activity: support setting/clearing lock/memory watching for task profiling
+    - MEDIUM: activity: apply and use new finegrained task profiling settings
+    - MINOR: activity: allow to switch per-task lock/memory profiling at runtime
+    - MINOR: startup: Add the SSL lib verify directory in haproxy -vv
+    - BUG/MINOR: ssl: SSL_CERT_DIR environment variable doesn't affect haproxy
+    - CLEANUP: initcall: adjust comments to INITCALL{0,1} macros
+    - DOC: proxy-proto: underline the packed attribute for struct pp2_tlv_ssl
+    - MINOR: queues: Check minconn first in srv_dynamic_maxconn()
+    - MINOR: servers: Call process_srv_queue() without lock when possible
+    - BUG/MINOR: quic: ensure handshake speed up is only run once per conn
+    - BUG/MAJOR: quic: reject invalid token
+    - BUG/MAJOR: quic: fix parsing frame type
+    - MINOR: ssl: Missing '\n' in error message
+    - MINOR: jwt: Convert an RSA JWK into an EVP_PKEY
+    - MINOR: jwt: Add new jwt_decrypt_jwk converter
+    - REGTESTS: jwt: Add new "jwt_decrypt_jwk" tests
+    - MINOR: startup: Add HAVE_WORKING_TCP_MD5SIG in haproxy -vv
+    - MINOR: startup: sort the feature list in haproxy -vv
+    - MINOR: startup: show the list of detected features at runtime with haproxy -vv
+    - SCRIPTS: build-vtest: allow to set a TMPDIR and a DESTDIR
+    - MINOR: filters: rework RESUME_FILTER_* macros as inline functions
+    - MINOR: filters: rework filter iteration for channel related callback functions
+    - MEDIUM: filters: use per-channel filter list when relevant
+    - DEV: gdb: add a utility to find the post-mortem address from a core
+    - BUG/MINOR: deviceatlas: add missing return on error in config parsers
+    - BUG/MINOR: deviceatlas: add NULL checks on strdup() results in config parsers
+    - BUG/MEDIUM: deviceatlas: fix resource leaks on init error paths
+    - BUG/MINOR: deviceatlas: fix off-by-one in da_haproxy_conv()
+    - BUG/MINOR: deviceatlas: fix cookie vlen using wrong length after extraction
+    - BUG/MINOR: deviceatlas: fix double-checked locking race in checkinst
+    - BUG/MINOR: deviceatlas: fix resource leak on hot-reload compile failure
+    - BUG/MINOR: deviceatlas: fix deinit to only finalize when initialized
+    - BUG/MINOR: deviceatlas: set cache_size on hot-reloaded atlas instance
+    - MINOR: deviceatlas: check getproptype return and remove pprop indirection
+    - MINOR: deviceatlas: increase DA_MAX_HEADERS and header buffer sizes
+    - MINOR: deviceatlas: define header_evidence_entry in dummy library header
+    - MINOR: deviceatlas: precompute maxhdrlen to skip oversized headers early
+    - CLEANUP: deviceatlas: add unlikely hints and minor code tidying
+    - DEV: gdb: use unsigned longs to display pools memory usage
+    - BUG/MINOR: ssl: lack crtlist_dup_ssl_conf() declaration
+    - BUG/MINOR: ssl: double-free on error path w/ ssl-f-use parser
+    - BUG/MINOR: ssl: fix leak in ssl-f-use parser upon error
+    - BUG/MINOR: ssl: clarify ssl-f-use errors in post-section parsing
+    - BUG/MINOR: ssl: error with ssl-f-use when no "crt"
+    - MEDIUM: backend: make "balance random" consider tg local req rate when loads are equal
+    - BUG/MAJOR: Revert "MEDIUM: mux-quic: add BUG_ON if sending on locally closed QCS"
+    - BUG/MEDIUM: h3: reject frontend CONNECT as currently not implemented
+    - MINOR: mux-quic: add BUG_ON_STRESS() when draining data on closed stream
+    - REGTESTS: fix quoting in feature cmd which prevents test execution
+    - BUG/MEDIUM: mux-h2/quic: Stop sending via fast-forward if stream is closed
+    - BUG/MEDIUM: mux-h1: Stop sending vi fast-forward for unexpected states
+    - BUG/MEDIUM: applet: Fix test on shut flags for legacy applets (v2)
+    - DEV: term-events: Fix hanshake events decoding
+    - BUG/MINOR: flt-trace: Properly compute length of the first DATA block
+    - MINOR: flt-trace: Add an option to limit the amount of data forwarded
+    - CLEANUP: compression: Remove unused static buffers
+    - BUG/MEDIUM: shctx: Use the next block when data exactly filled a block
+    - BUG/MINOR: http-ana: Stop to wait for body on client error/abort
+    - MINOR: stconn: Add missing SC_FL_NO_FASTFWD flag in sc_show_flags
+    - REORG: stconn: Move functions related to channel buffers to sc_strm.h
+    - BUG/MEDIUM: jwe: fix timing side-channel and dead code in JWE decryption
+    - MINOR: tree-wide: Use the buffer size instead of global setting when possible
+    - MINOR: buffers: Swap buffers of same size only
+    - BUG/MINOR: config: Check buffer pool creation for failures
+    - MEDIUM: cache: Don't rely on a chunk to store messages payload
+    - MEDIUM: stream: Limit number of synchronous send per stream wakeup
+    - MEDIUM: compression: Be sure to never compress more than a chunk at once
+    - MEDIUM: mux-h1/mux-h2/mux-fcgi/h3: Disable 0-copy for buffers of different size
+    - MEDIUM: applet: Disable 0-copy for buffers of different size
+    - MINOR: h1-htx: Disable 0-copy for buffers of different size
+    - MEDIUM: stream: Offer buffers of default size only
+    - BUG/MEDIUM: htx: Fix function used to change part of a block value when defrag
+    - MEDIUM: htx: Refactor transfer of htx blocks to merge DATA blocks if possible
+    - MEDIUM: htx: Refactor htx defragmentation to merge data blocks
+    - MEDIUM: htx: Improve detection of fragmented/unordered HTX messages
+    - MINOR: http-ana: Do a defrag on unaligned HTX message when waiting for payload
+    - MINOR: http-fetch: Use pointer to HTX DATA block when retrieving HTX body
+    - MEDIUM: dynbuf: Add a pool for large buffers with a configurable size
+    - MEDIUM: chunk: Add support for large chunks
+    - MEDIUM: stconn: Properly handle large buffers during a receive
+    - MEDIUM: sample: Get chunks with a size dependent on input data when necessary
+    - MEDIUM: http-fetch: Be able to use large chunks when necessary
+    - MINPR: htx: Get large chunk if necessary to perform a defrag
+    - MEDIUM: http-ana: Use a large buffer if necessary when waiting for body
+    - MINOR: dynbuf: Add helpers to know if a buffer is a default or a large buffer
+    - MINOR: config: reject configs using HTTP with large bufsize >= 256 MB
+    - CI: do not use ghcr.io for Quic Interop workflows
+    - BUG/MEDIUM: ssl: SSL backend sessions used after free
+    - CI: vtest: move the vtest2 URL to vinyl-cache.org
+    - CI: github: disable windows.yml by default on unofficials repo
+    - MEDIUM: Add connect/queue/tarpit timeouts to set-timeout
+    - CLEANUP: mux-h1: Remove unneeded null check
+    - DOC: remove openssl no-deprecated CI image
+    - BUG/MINOR: acme: fix X509_NAME leak when X509_set_issuer_name() fails
+    - BUG/MINOR: backend: check delay MUX before conn_prepare()
+    - OPTIM: backend: reduce contention when checking MUX init with ALPN
+    - DOC: configuration: add the ACME wiki page link
+    - MINOR: ssl/ckch: Move EVP_PKEY and cert code generation from acme
+    - MINOR: ssl/ckch: certificates generation from "load" "crt-store" directive
+    - MINOR: trace: add definitions for haterm streams
+    - MINOR: init: allow a fileless init mode
+    - MEDIUM: init: allow the redefinition of argv[] parsing function
+    - MINOR: stconn: stream instantiation from proxy callback
+    - MINOR: haterm: add haterm HTTP server
+    - MINOR: haterm: new "haterm" utility
+    - MINOR: haterm: increase thread-local pool size
+    - BUG/MEDIUM: stats-file: fix shm-stats-file recover when all process slots are full
+    - BUG/MINOR: stats-file: manipulate shm-stats-file heartbeat using unsigned int
+    - BUG/MEDIUM: stats-file: detect and fix inconsistent shared clock when resuming from shm-stats-file
+    - CI: github: only enable OS X on development branches
+
 2026/02/04 : 3.4-dev4
     - BUG/MEDIUM: hlua: fix invalid lua_pcall() usage in hlua_traceback()
     - BUG/MINOR: hlua: consume error object if ignored after a failing lua_pcall()
