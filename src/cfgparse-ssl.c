@@ -2738,7 +2738,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "force-tlsv12",            srv_parse_tls_method_options, 0, 1, 1 }, /* force TLSv12 */
 	{ "force-tlsv13",            srv_parse_tls_method_options, 0, 1, 1 }, /* force TLSv13 */
 	{ "ktls",                    srv_parse_ktls,               1, 1, 1 }, /* enable or disable kTLS */
-	{ "no-check-sni-auto",       srv_parse_no_check_sni_auto,  0, 1, 0 }, /* disable automatic SNI selection for health checks */
+	{ "no-check-sni-auto",       srv_parse_no_check_sni_auto,  0, 1, 1 }, /* disable automatic SNI selection for health checks */
 	{ "no-check-ssl",            srv_parse_no_check_ssl,       0, 1, 0 }, /* disable SSL for health checks */
 	{ "no-renegotiate",          srv_parse_renegotiate,        0, 1, 1 }, /* Disable renegotiation */
 	{ "no-send-proxy-v2-ssl",    srv_parse_no_send_proxy_ssl,  0, 1, 0 }, /* do not send PROXY protocol header v2 with SSL info */
