@@ -2070,12 +2070,13 @@ int connect_server(struct stream *s)
 			 * to ensure consistency accross the whole stack, in
 			 * particular for QUIC between quic-conn and mux layer.
 			 */
-			HA_RWLOCK_RDLOCK(SERVER_LOCK, &srv->path_params.param_lock);
 			if (IS_HTX_STRM(s) && srv->use_ssl &&
-			    (srv->ssl_ctx.alpn_str || srv->ssl_ctx.npn_str) &&
-			    srv->path_params.nego_alpn[0] == 0)
-				may_start_mux_now = 0;
-			HA_RWLOCK_RDUNLOCK(SERVER_LOCK, &srv->path_params.param_lock);
+			    (srv->ssl_ctx.alpn_str || srv->ssl_ctx.npn_str)) {
+				HA_RWLOCK_RDLOCK(SERVER_LOCK, &srv->path_params.param_lock);
+				if (srv->path_params.nego_alpn[0] == 0)
+					may_start_mux_now = 0;
+				HA_RWLOCK_RDUNLOCK(SERVER_LOCK, &srv->path_params.param_lock);
+			}
 #endif /* TLSEXT_TYPE_application_layer_protocol_negotiation */
 
 #endif /* USE_OPENSSL */
