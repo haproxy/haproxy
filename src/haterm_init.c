@@ -330,6 +330,16 @@ void haproxy_init_args(int argc, char **argv)
 		haterm_usage(progname);
 	}
 
+	if (hbuf_is_null(&gbuf)) {
+		/* use 3MB of local cache per thread mainly for QUIC */
+		if (hbuf_alloc(&gbuf) == NULL) {
+			ha_alert("failed to allocate a buffer.\n");
+			goto leave;
+		}
+		hbuf_appendf(&gbuf, "global\n");
+		hbuf_appendf(&gbuf, "\ttune.memory.hot-size 3145728\n");
+	}
+
 	/* "global" section */
 	if (!hbuf_is_null(&gbuf))
 		hbuf_appendf(&mbuf, "%.*s\n", (int)gbuf.data, gbuf.area);
