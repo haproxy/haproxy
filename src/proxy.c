@@ -2536,29 +2536,20 @@ int proxy_finalize(struct proxy *px, int *err_code)
 				cfgerr += xprt_get(XPRT_QUIC)->prepare_srv(newsrv);
 		}
 
-		if (newsrv->use_ssl == 1 || ((newsrv->flags & SRV_F_DEFSRV_USE_SSL) && newsrv->use_ssl != 1)) {
-			/* In HTTP only, if the SNI is not set and we can rely on the host
-			 * header value, fill the sni expression accordingly
-			 */
-			if (!newsrv->sni_expr && newsrv->proxy->mode == PR_MODE_HTTP &&
-			    !(newsrv->ssl_ctx.options & SRV_SSL_O_NO_AUTO_SNI)) {
-				newsrv->sni_expr = strdup("req.hdr(host),field(1,:)");
-				if (!newsrv->sni_expr) {
-					ha_alert("parsing [%s:%d]: out of memory while generating server auto SNI expression.\n",
-					         newsrv->conf.file, newsrv->conf.line);
-					cfgerr++;
-					*err_code |= ERR_ALERT | ERR_ABORT;
+		/* In HTTP only, if the SNI is not set and we can rely on the
+		 * host header value, fill the sni expression accordingly
+		 */
+		if (newsrv->proxy->mode == PR_MODE_HTTP &&
+		    (newsrv->use_ssl == 1 || (newsrv->flags & SRV_F_DEFSRV_USE_SSL)) &&
+		    !newsrv->sni_expr && !(newsrv->ssl_ctx.options & SRV_SSL_O_NO_AUTO_SNI)) {
+			if (srv_configure_auto_sni(newsrv, err_code, &err)) {
+				ha_alert("parsing [%s:%d]: %s.\n",
+				         newsrv->conf.file, newsrv->conf.line, err);
+				ha_free(&err);
+				++cfgerr;
+				if (*err_code & ERR_ABORT)
 					goto out;
-				}
-
-				err = NULL;
-				if (server_parse_exprs(newsrv, px, &err)) {
-					ha_alert("parsing [%s:%d]: failed to parse auto SNI expression: %s\n",
-					         newsrv->conf.file, newsrv->conf.line, err);
-					free(err);
-					++cfgerr;
-					goto next_srv;
-				}
+				goto next_srv;
 			}
 		}
 

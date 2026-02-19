@@ -3377,6 +3377,29 @@ int server_parse_exprs(struct server *srv, struct proxy *px, char **errmsg)
 	return ret;
 }
 
+/* Fill <srv> SNI expression to reuse the host header on outgoing requests.
+ *
+ * Returns 0 on success else non-zero. On error, <err_code> and <err> message
+ * are both set.
+ */
+int srv_configure_auto_sni(struct server *srv, int *err_code, char **err)
+{
+	srv->sni_expr = strdup("req.hdr(host),field(1,:)");
+	if (!srv->sni_expr) {
+		memprintf(err, "out of memory while generating server auto SNI expression");
+		*err_code |= ERR_ALERT | ERR_ABORT;
+		return 1;
+	}
+
+	if (server_parse_exprs(srv, srv->proxy, err)) {
+		memprintf(err, "failed to parse auto SNI expression: %s", *err);
+		*err_code |= ERR_ALERT | ERR_FATAL;
+		return 1;
+	}
+
+	return 0;
+}
+
 /* Initialize as much as possible servers from <srv> server template.
  * Note that a server template is a special server with
  * a few different parameters than a server which has
@@ -6228,6 +6251,15 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		else if (xprt_get(XPRT_QUIC) && xprt_get(XPRT_QUIC)->prepare_srv) {
 			if (xprt_get(XPRT_QUIC)->prepare_srv(srv))
 				goto out;
+		}
+	}
+
+	/* Define default SNI from host header if needed. */
+	if (srv->proxy->mode == PR_MODE_HTTP && srv->use_ssl == 1 &&
+	    !srv->sni_expr && !(srv->ssl_ctx.options & SRV_SSL_O_NO_AUTO_SNI)) {
+		if (srv_configure_auto_sni(srv, &errcode, &errmsg)) {
+			ha_alert("%s.\n", errmsg);
+			goto out;
 		}
 	}
 

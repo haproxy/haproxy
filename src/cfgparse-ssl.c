@@ -2743,7 +2743,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "no-renegotiate",          srv_parse_renegotiate,        0, 1, 1 }, /* Disable renegotiation */
 	{ "no-send-proxy-v2-ssl",    srv_parse_no_send_proxy_ssl,  0, 1, 0 }, /* do not send PROXY protocol header v2 with SSL info */
 	{ "no-send-proxy-v2-ssl-cn", srv_parse_no_send_proxy_cn,   0, 1, 0 }, /* do not send PROXY protocol header v2 with CN */
-	{ "no-sni-auto",             srv_parse_no_sni_auto,        0, 1, 0 }, /* disable automatic SNI selection */
+	{ "no-sni-auto",             srv_parse_no_sni_auto,        0, 1, 1 }, /* disable automatic SNI selection */
 	{ "no-ssl",                  srv_parse_no_ssl,             0, 1, 0 }, /* disable SSL processing */
 	{ "no-ssl-reuse",            srv_parse_no_ssl_reuse,       0, 1, 1 }, /* disable session reuse */
 	{ "no-sslv3",                srv_parse_tls_method_options, 0, 0, 1 }, /* disable SSLv3 */
