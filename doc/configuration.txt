@@ -31882,6 +31882,9 @@ The ACME section allows to configure HAProxy as an ACMEv2 client. This feature
 is experimental meaning that "expose-experimental-directives" must be in the
 global section so this can be used.
 
+A guide is available on the HAProxy wiki
+https://github.com/haproxy/wiki/wiki/ACME:--native-haproxy
+
 Current limitations as of 3.3:
 - The feature is limited to the HTTP-01 or DNS-01 challenges for now. HTTP-01
   is completely handled by HAProxy, but DNS-01 needs either the dataplaneAPI or
