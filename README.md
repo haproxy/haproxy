@@ -2,7 +2,6 @@
 
 [![alpine/musl](https://github.com/haproxy/haproxy/actions/workflows/musl.yml/badge.svg)](https://github.com/haproxy/haproxy/actions/workflows/musl.yml)
 [![AWS-LC](https://github.com/haproxy/haproxy/actions/workflows/aws-lc.yml/badge.svg)](https://github.com/haproxy/haproxy/actions/workflows/aws-lc.yml)
-[![openssl no-deprecated](https://github.com/haproxy/haproxy/actions/workflows/openssl-nodeprecated.yml/badge.svg)](https://github.com/haproxy/haproxy/actions/workflows/openssl-nodeprecated.yml)
 [![Illumos](https://github.com/haproxy/haproxy/actions/workflows/illumos.yml/badge.svg)](https://github.com/haproxy/haproxy/actions/workflows/illumos.yml)
 [![NetBSD](https://github.com/haproxy/haproxy/actions/workflows/netbsd.yml/badge.svg)](https://github.com/haproxy/haproxy/actions/workflows/netbsd.yml)
 [![FreeBSD](https://api.cirrus-ci.com/github/haproxy/haproxy.svg?task=FreeBSD)](https://cirrus-ci.com/github/haproxy/haproxy/)
