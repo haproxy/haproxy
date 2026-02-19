@@ -2059,6 +2059,25 @@ int connect_server(struct stream *s)
 					srv_conn->sni_hash = ssl_sock_sni_hash(sni);
 				}
 			}
+
+#if defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
+			/* Delay mux initialization if SSL and ALPN/NPN is set
+			 * and server cache is not yet populated. Note that in
+			 * TCP mode this check is ignored as only mux-pt is
+			 * available.
+			 *
+			 * This check must be performed before conn_prepare()
+			 * to ensure consistency accross the whole stack, in
+			 * particular for QUIC between quic-conn and mux layer.
+			 */
+			HA_RWLOCK_RDLOCK(SERVER_LOCK, &srv->path_params.param_lock);
+			if (IS_HTX_STRM(s) && srv->use_ssl &&
+			    (srv->ssl_ctx.alpn_str || srv->ssl_ctx.npn_str) &&
+			    srv->path_params.nego_alpn[0] == 0)
+				may_start_mux_now = 0;
+			HA_RWLOCK_RDUNLOCK(SERVER_LOCK, &srv->path_params.param_lock);
+#endif /* TLSEXT_TYPE_application_layer_protocol_negotiation */
+
 #endif /* USE_OPENSSL */
 
 			if (conn_prepare(srv_conn, proto, srv->xprt)) {
@@ -2090,21 +2109,6 @@ int connect_server(struct stream *s)
 			return SF_ERR_INTERNAL;  /* how did we get there ? */
 		}
 		srv_conn->ctx = s->scb;
-
-#if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
-		/* Delay mux initialization if SSL and ALPN/NPN is set. Note
-		 * that this is skipped in TCP mode as we only want mux-pt
-		 * anyway.
-		 */
-		if (srv) {
-			HA_RWLOCK_RDLOCK(SERVER_LOCK, &srv->path_params.param_lock);
-			if (IS_HTX_STRM(s) && srv->use_ssl &&
-			    (srv->ssl_ctx.alpn_str || srv->ssl_ctx.npn_str) &&
-			    srv->path_params.nego_alpn[0] == 0)
-				may_start_mux_now = 0;
-			HA_RWLOCK_RDUNLOCK(SERVER_LOCK, &srv->path_params.param_lock);
-		}
-#endif
 
 		/* process the case where the server requires the PROXY protocol to be sent */
 		srv_conn->send_proxy_ofs = 0;
