@@ -14,11 +14,6 @@
 
 #include <haproxy/acme-t.h>
 
-#include <haproxy/cli.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/errors.h>
-#include <haproxy/jws.h>
-
 #include <haproxy/base64.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
