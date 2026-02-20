@@ -7,6 +7,8 @@
 
 static int haterm_debug;
 
+#define QUIC_BIND_LONG_OPT "quic-bind-opts"
+#define TCP_BIND_LONG_OPT  "tcp-bind-opts"
 /*
  * This function prints the command line usage for haterm and exits
  */
@@ -23,7 +25,10 @@ static void haterm_usage(char *name)
 		"        -b <keysize> : RSA key size in bits (ex: \"2048\", \"4096\"...)\n"
 		"        -c <curves> : ECSDA curves (ex: \"P-256\", \"P-384\"...)\n"
 		"        -v : shows version\n"
-		"        -d : enable the traces for all http protocols\n", name);
+		"        -d : enable the traces for all http protocols\n"
+		"        --" QUIC_BIND_LONG_OPT " <opts> : append options to QUIC \"bind\" lines\n"
+		"        --" TCP_BIND_LONG_OPT " <opts> : append options to TCP \"bind\" lines\n"
+		, name);
 	exit(1);
 }
 
@@ -162,6 +167,9 @@ void haproxy_init_args(int argc, char **argv)
 	struct hbuf fbuf = HBUF_NULL; // "frontend" section
 	struct hbuf tbuf = HBUF_NULL; // "traces" section
 	char *bits = NULL, *curves = NULL;
+	char *quic_bind_opt = NULL, *tcp_bind_opt = NULL;
+	int sargc; /* saved argc */
+	char **sargv; /* saved argv */
 
 	fileless_mode = 1;
 	if (argc <= 1)
@@ -174,12 +182,67 @@ void haproxy_init_args(int argc, char **argv)
 
 	/* skip program name and start */
 	argc--; argv++;
+	/* save the arguments */
+	sargc = argc; sargv = argv;
+
+	/* THIS PART MUST NOT MODIFY THE ARGUMENTS */
+	/* Parse the arguments which must be reused to build the conf. */
 	while (argc > 0) {
 		char *opt;
 
 		if (**argv == '-') {
 			opt = *argv + 1;
-			if (*opt == 'd') {
+			if (*opt == '-') {
+				/* long options */
+				opt++;
+				if (strcmp(opt, QUIC_BIND_LONG_OPT) == 0) {
+					argv++; argc--;
+					if (argc <= 0 || **argv == '-')
+						haterm_usage(progname);
+
+					quic_bind_opt = *argv;
+				}
+				else if (strcmp(opt, TCP_BIND_LONG_OPT) == 0) {
+					argv++; argc--;
+					if (argc <= 0 || **argv == '-')
+						haterm_usage(progname);
+
+					tcp_bind_opt = *argv;
+				}
+			}
+		}
+
+		argc--; argv++;
+	}
+
+	/* Restore the argumenst */
+	argc = sargc; argv = sargv;
+	while (argc > 0) {
+		char *opt;
+
+		if (**argv == '-') {
+			opt = *argv + 1;
+			if (*opt == '-') {
+				/* long options */
+				opt++;
+				if (strcmp(opt, QUIC_BIND_LONG_OPT) == 0) {
+					argv++; argc--;
+					if (argc <= 0 || **argv == '-')
+						haterm_usage(progname);
+
+					quic_bind_opt = *argv;
+				}
+				else if (strcmp(opt, TCP_BIND_LONG_OPT) == 0) {
+					argv++; argc--;
+					if (argc <= 0 || **argv == '-')
+						haterm_usage(progname);
+
+					tcp_bind_opt = *argv;
+				}
+				else
+					haterm_usage(progname);
+			}
+			else if (*opt == 'd') {
 				/* empty option */
 				if (*(opt + 1))
 					haterm_usage(progname);
@@ -324,14 +387,18 @@ void haproxy_init_args(int argc, char **argv)
 					hbuf_appendf(&fbuf, "\tbind %s:%s shards by-thread ssl "
 					             "alpn h2,http1.1,http1.0"
 					             " crt " HATERM_RSA_CERT_NAME
-					             " crt " HATERM_ECDSA_CERT_NAME "\n",
-					             ip, port2);
+					             " crt " HATERM_ECDSA_CERT_NAME "%s%s\n",
+					             ip, port2,
+					             tcp_bind_opt ? " " : "",
+					             tcp_bind_opt ? tcp_bind_opt : "");
 
 					/* QUIC binding */
 					hbuf_appendf(&fbuf, "\tbind %s@%s:%s shards by-thread ssl"
 					             " crt " HATERM_RSA_CERT_NAME
-					             " crt " HATERM_ECDSA_CERT_NAME "\n",
-					             ipv6 ? "quic6" : "quic4", ip, port2);
+					             " crt " HATERM_ECDSA_CERT_NAME "%s%s\n",
+					             ipv6 ? "quic6" : "quic4", ip, port2,
+					             quic_bind_opt ? " " : "",
+					             quic_bind_opt ? quic_bind_opt : "");
 				}
 			}
 			else

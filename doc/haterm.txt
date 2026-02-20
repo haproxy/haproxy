@@ -62,6 +62,9 @@ versions. It displays its usage when run without argument or wrong arguments:
         -c <curves> : ECSDA curves (ex: "P-256", "P-384"...)
         -v : shows version
         -d : enable the traces for all http protocols
+        --quic-bind-opts <opts> : append options to QUIC "bind" lines
+        --tcp-bind-opts <opts> : append options to TCP "bind" lines
+
 
 Arguments -G, -F, -T permit to append one or multiple lines at the end of their
 respective sections. A tab character ('\t') is prepended at the beginning of
