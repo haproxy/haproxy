@@ -193,7 +193,11 @@ static inline void *qc_counters(enum obj_type *o, const struct stats_module *m)
 	p = l ? l->bind_conf->frontend :
 		s ? s->proxy : NULL;
 
-	return p ? EXTRA_COUNTERS_GET(p->extra_counters_fe, m) : NULL;
+	if (l && p)
+		return EXTRA_COUNTERS_GET(p->extra_counters_fe, m);
+	else if (s && p)
+		return EXTRA_COUNTERS_GET(p->extra_counters_be, m);
+	return NULL;
 }
 
 void chunk_frm_appendf(struct buffer *buf, const struct quic_frame *frm);

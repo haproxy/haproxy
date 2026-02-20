@@ -1222,7 +1222,6 @@ struct quic_conn *qc_new_conn(void *target,
 	/* Packet number spaces */
 	qc->ipktns = qc->hpktns = qc->apktns = NULL;
 	LIST_INIT(&qc->pktns_list);
-	qc->prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe, &quic_stats_module);
 
 	qc->cids = pool_alloc(pool_head_quic_cids);
 	if (!qc->cids) {
@@ -1252,6 +1251,8 @@ struct quic_conn *qc_new_conn(void *target,
 		qc->odcid = initial_pkt->dcid;
 		/* Copy the packet SCID to reuse it as DCID for sending */
 		qc->dcid = initial_pkt->scid;
+
+		qc->prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe, &quic_stats_module);
 	}
 	/* QUIC Client (outgoing connection to servers) */
 	else {
@@ -1273,6 +1274,8 @@ struct quic_conn *qc_new_conn(void *target,
 			goto err;
 		qc->dcid.len = sizeof(qc->dcid.data);
 		qc->odcid = qc->dcid;
+
+		qc->prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_be, &quic_stats_module);
 	}
 
 	qc->err = quic_err_transport(QC_ERR_NO_ERROR);
