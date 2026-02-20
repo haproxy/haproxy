@@ -1665,7 +1665,8 @@ int quic_conn_release(struct quic_conn *qc)
 
 	/* Connection released before peer address validated. */
 	if (unlikely(!(qc->flags & QUIC_FL_CONN_PEER_VALIDATED_ADDR))) {
-		BUG_ON(!qc->prx_counters->half_open_conn);
+		/* half_open_conn counter must not be manipulated by BE conns. */
+		BUG_ON(qc_is_back(qc) || !qc->prx_counters->half_open_conn);
 		HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
 	}
 

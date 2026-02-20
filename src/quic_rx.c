@@ -1357,7 +1357,8 @@ int qc_treat_rx_pkts(struct quic_conn *qc)
 						TRACE_STATE("validate peer address on handshake packet",
 						            QUIC_EV_CONN_RXPKT, qc, pkt);
 						qc->flags |= QUIC_FL_CONN_PEER_VALIDATED_ADDR;
-						BUG_ON(!qc->prx_counters->half_open_conn);
+						/* half_open_conn counter must not be manipulated by BE conns. */
+						BUG_ON(qc_is_back(qc) || !qc->prx_counters->half_open_conn);
 						HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
 					}
 
