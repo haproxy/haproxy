@@ -58,6 +58,8 @@ versions. It displays its usage when run without argument or wrong arguments:
         -T <line> : multiple option; append <line> to the "traces" section
         -C : dump the configuration and exit
         -D : goes daemon
+        -b <keysize> : RSA key size in bits (ex: "2048", "4096"...)
+        -c <curves> : ECSDA curves (ex: "P-256", "P-384"...)
         -v : shows version
         -d : enable the traces for all http protocols
 

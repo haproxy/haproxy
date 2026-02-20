@@ -20,6 +20,8 @@ static void haterm_usage(char *name)
 		"        -T <line> : multiple option; append <line> to the \"traces\" section\n"
 		"        -C : dump the configuration and exit\n"
 		"        -D : goes daemon\n"
+		"        -b <keysize> : RSA key size in bits (ex: \"2048\", \"4096\"...)\n"
+		"        -c <curves> : ECSDA curves (ex: \"P-256\", \"P-384\"...)\n"
 		"        -v : shows version\n"
 		"        -d : enable the traces for all http protocols\n", name);
 	exit(1);
@@ -34,10 +36,10 @@ static const char *haterm_cfg_dflt_str =
             "\tmode haterm\n"
             "\ttimeout client 25s\n";
 
-static const char *haterm_cfg_crt_store_str =
-        "crt-store\n"
-            "\tload generate-dummy on keytype RSA crt "   HATERM_RSA_CERT_NAME   "\n"
-            "\tload generate-dummy on keytype ECDSA crt " HATERM_ECDSA_CERT_NAME "\n";
+#define HATERM_CFG_CRT_STORE_STR_FMT \
+        "crt-store\n" \
+            "\tload generate-dummy on keytype RSA bits %s crt "     HATERM_RSA_CERT_NAME   "\n" \
+            "\tload generate-dummy on keytype ECDSA curves %s crt " HATERM_ECDSA_CERT_NAME "\n\n"
 
 static const char *haterm_cfg_traces_str =
         "traces\n"
@@ -159,6 +161,7 @@ void haproxy_init_args(int argc, char **argv)
 	struct hbuf mbuf = HBUF_NULL; // to build the main of the cfgfile
 	struct hbuf fbuf = HBUF_NULL; // "frontend" section
 	struct hbuf tbuf = HBUF_NULL; // "traces" section
+	char *bits = NULL, *curves = NULL;
 
 	fileless_mode = 1;
 	if (argc <= 1)
@@ -205,6 +208,20 @@ void haproxy_init_args(int argc, char **argv)
 
 				printf("HATerm version " HAPROXY_VERSION " released " HAPROXY_DATE "\n");
 				exit(0);
+			}
+			else if (*opt == 'b') {
+				argv++; argc--;
+				if (argc <= 0 || **argv == '-')
+					haterm_usage(progname);
+
+				bits = *argv;
+			}
+			else if (*opt == 'c') {
+				argv++; argc--;
+				if (argc <= 0 || **argv == '-')
+					haterm_usage(progname);
+
+				curves = *argv;
 			}
 			else if (*opt == 'F') {
 				argv++; argc--;
@@ -354,7 +371,8 @@ void haproxy_init_args(int argc, char **argv)
 
 	/* "crt-store" section */
 	if (has_ssl)
-		hbuf_appendf(&mbuf, "%s\n", haterm_cfg_crt_store_str);
+		hbuf_appendf(&mbuf, HATERM_CFG_CRT_STORE_STR_FMT,
+		             bits ? bits : "2048", curves ? curves : "P-384");
 
 	/* "frontend" section */
 	hbuf_appendf(&mbuf, "%.*s\n", (int)fbuf.data, fbuf.area);
