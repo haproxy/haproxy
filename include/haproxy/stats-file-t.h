@@ -36,7 +36,7 @@ struct shm_stats_file_hdr {
 	/* 2 bytes hole */
 	uint global_now_ms;   /* global monotonic date (ms) common to all processes using the shm */
 	ullong global_now_ns; /* global monotonic date (ns) common to all processes using the shm */
-	llong now_offset;     /* offset applied to global monotonic date on startup */
+	ALWAYS_PAD(8); // 8 bytes hole
 	/* each process uses one slot and is identified using its pid, max 64 in order
 	 * to be able to use bitmask to refer to a process and then look its pid in the
 	 * "slots.pid" map

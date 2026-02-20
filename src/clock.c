@@ -266,6 +266,7 @@ void clock_update_global_date()
 {
 	ullong old_now_ns;
 	uint old_now_ms;
+	int now_ns_changed = 0;
 
 	/* now that we have bounded the local time, let's check if it's
 	 * realistic regarding the global date, which only moves forward,
@@ -275,8 +276,10 @@ void clock_update_global_date()
 	old_now_ms = _HA_ATOMIC_LOAD(global_now_ms);
 
 	do {
-		if (now_ns < old_now_ns)
+		if (now_ns < old_now_ns) {
+			now_ns_changed = 1;
 			now_ns = old_now_ns;
+		}
 
 		/* now <now_ns> is expected to be the most accurate date,
 		 * equal to <global_now_ns> or newer. Updating the global
@@ -295,8 +298,11 @@ void clock_update_global_date()
 		if (unlikely(now_ms == TICK_ETERNITY))
 			now_ms++;
 
-		if (!((now_ns ^ old_now_ns) & ~0x7FFFULL))
+		if (!((now_ns ^ old_now_ns) & ~0x7FFFULL)) {
+			if (now_ns_changed)
+				goto end;
 			return;
+		}
 
 		/* let's try to update the global_now_ns (both in nanoseconds
 		 * and ms forms) or loop again.
@@ -305,6 +311,7 @@ void clock_update_global_date()
 		  (now_ms  != old_now_ms && !_HA_ATOMIC_CAS(global_now_ms, &old_now_ms, now_ms))) &&
 		 __ha_cpu_relax());
 
+ end:
 	if (!th_ctx->curr_mono_time) {
 		/* Only update the offset when monotonic time is not available.
 		 * <now_ns> and <now_ms> are now updated to the last value of
@@ -313,6 +320,16 @@ void clock_update_global_date()
 		 * it last, the variations will not break the monotonic property.
 		 */
 		HA_ATOMIC_STORE(&now_offset, now_ns - tv_to_ns(&date));
+	}
+	else if (global_now_ns != &_global_now_ns) {
+		/*
+		 * or global_now_ns is shared with other processes: this results
+		 * in the now_offset requiring to self-adjust so that it is consistent
+		 * with now_offset used by other processes, as we may have learned from
+		 * a new global_now_ns that was used in pair with a different offset from
+		 * ours
+		 */
+		HA_ATOMIC_STORE(&now_offset, now_ns - th_ctx->curr_mono_time);
 	}
 }
 

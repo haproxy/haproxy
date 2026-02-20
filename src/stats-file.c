@@ -898,7 +898,6 @@ int shm_stats_file_prepare(void)
 		/* set global clock for the first time */
 		shm_stats_file_hdr->global_now_ms = *global_now_ms;
 		shm_stats_file_hdr->global_now_ns = *global_now_ns;
-		shm_stats_file_hdr->now_offset = clock_get_now_offset();
 	}
 	else if (!shm_stats_file_check_ver(shm_stats_file_hdr))
 		goto err_version;
@@ -912,64 +911,37 @@ int shm_stats_file_prepare(void)
 	global_now_ns = &shm_stats_file_hdr->global_now_ns;
 
 	if (!first) {
-		llong adjt_offset;
+		llong new_offset, adjt_offset;
+
+		/* Given the clock from the shared map and our current clock which is considered
+		 * up-to-date, we can now compute the now_offset that we will be using instead
+		 * of the default one in order to make our clock consistent with the shared one
+		 *
+		 * First we remove the original offset from now_ns to get pure now_ns
+		 * then we compare now_ns with the shared clock, which gives us the
+		 * relative offset we should be using to make our monotonic clock
+		 * coincide with the shared one.
+		 */
+		new_offset = HA_ATOMIC_LOAD(global_now_ns) - (now_ns - clock_get_now_offset());
 
 		/* set adjusted offset which corresponds to the corrected offset
-		 * relative to the initial offset stored in the shared memory instead
-		 * of our process-local one
+		 * relative to the new offset we calculated instead or the default
+		 * one
 		 */
-		adjt_offset = -clock_get_now_offset() + shm_stats_file_hdr->now_offset;
+		adjt_offset = -clock_get_now_offset() + new_offset;
 
 		/* we now rely on global_now_* from the shm, so the boot
 		 * offset that was initially applied in clock_init_process_date()
 		 * is no longer relevant. So we fix it by applying the one from the
 		 * initial process instead
 		 */
-		if (HA_ATOMIC_LOAD(global_now_ns) >
-		    (now_ns + adjt_offset) +
-		    (unsigned long)SHM_STATS_FILE_HEARTBEAT_TIMEOUT * 1000 * 1000 * 1000) {
-			/* global_now_ns (which is supposed to be monotonic, as
-			 * with now_ns) is inconsistent with local now_ns (off by
-			 * more than SHM_STATS_FILE_HEARTBEAT_TIMEOUT seconds): global
-			 * is too ahead from local while they are supposed to be close
-			 * to each other. A possible cause for that is that we are
-			 * resuming from a shm-state-file which was generated on another
-			 * host or after a system reboot (monotonic clock is reset
-			 * between reboots)
-			 *
-			 * Since we cannot work with inconsistent global and local
-			 * now_ns, to prevent existing shared records that depend on
-			 * the shared global_now_ns to become obsolete, we manually
-			 * adjust the now_offset so that local now_ns is consistent
-			 * with the global one.
-			 */
-			now_ns -= clock_get_now_offset();
-			adjt_offset = HA_ATOMIC_LOAD(global_now_ns) - now_ns;
-
-			/*
-			 * While we are normally not supposed to change the shm-stats-file
-			 * offset once it was set, we make an exception here as we
-			 * can safely consider we are the only process working on the
-			 * file (after reboot or host migration). Doing this ensure
-			 * future processes from the same host will use the corrected
-			 * offset right away.
-			 */
-			shm_stats_file_hdr->now_offset = adjt_offset;
-		}
-
 		now_ns = now_ns + adjt_offset;
 		start_time_ns = start_time_ns + adjt_offset;
-		clock_set_now_offset(shm_stats_file_hdr->now_offset);
+		clock_set_now_offset(new_offset);
 
 		/* ensure global_now_* is consistent before continuing */
 		clock_update_global_date();
 	}
-
-	/* now that global_now_ns is accurate, recompute precise now_offset
-	 * if needed (in case it is dynamic when monotonic clock not available)
-	 */
-	if (!th_ctx->curr_mono_time)
-		clock_set_now_offset(HA_ATOMIC_LOAD(global_now_ns) - tv_to_ns(&date));
 
 	/* sync local and global clocks, so all clocks are consistent */
 	clock_update_date(0, 1);
