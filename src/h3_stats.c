@@ -246,7 +246,7 @@ struct stats_module h3_stats_module = {
 	.stats_count   = H3_STATS_COUNT,
 	.counters      = &h3_counters,
 	.counters_size = sizeof(h3_counters),
-	.domain_flags  = MK_STATS_PROXY_DOMAIN(STATS_PX_CAP_FE),
+	.domain_flags  = MK_STATS_PROXY_DOMAIN(STATS_PX_CAP_FE|STATS_PX_CAP_BE),
 	.clearable     = 1,
 };
 

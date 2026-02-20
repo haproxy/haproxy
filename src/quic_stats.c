@@ -247,7 +247,7 @@ struct stats_module quic_stats_module = {
 	.stats_count   = QUIC_STATS_COUNT,
 	.counters      = &quic_counters,
 	.counters_size = sizeof(quic_counters),
-	.domain_flags  = MK_STATS_PROXY_DOMAIN(STATS_PX_CAP_FE),
+	.domain_flags  = MK_STATS_PROXY_DOMAIN(STATS_PX_CAP_FE|STATS_PX_CAP_BE),
 	.clearable     = 1,
 };
 
