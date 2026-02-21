@@ -878,7 +878,7 @@ static void acme_ctx_destroy(struct acme_ctx *ctx)
 		istfree(&auth->auth);
 		istfree(&auth->chall);
 		istfree(&auth->token);
-		istfree(&auth->token);
+		istfree(&auth->dns);
 		next = auth->next;
 		free(auth);
 		auth = next;
