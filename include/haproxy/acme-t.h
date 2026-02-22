@@ -58,6 +58,7 @@ struct acme_auth {
        struct ist auth;   /* auth URI */
        struct ist chall;  /* challenge URI */
        struct ist token;  /* token */
+       int validated;     /* already validated */
        int ready;         /* is the challenge ready ? */
        void *next;
 };

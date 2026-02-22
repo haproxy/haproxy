@@ -1654,6 +1654,19 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 
 	auth->dns = istdup(ist2(t2->area, t2->data));
 
+	ret = mjson_get_string(hc->res.buf.area, hc->res.buf.data, "$.status", trash.area, trash.size);
+	if (ret == -1) {
+		memprintf(errmsg, "couldn't get a \"status\" from Authorization URL \"%s\"", auth->auth.ptr);
+		goto error;
+	}
+	trash.data = ret;
+
+	/* if auth is already valid we need to skip solving challenges */
+	if (strncasecmp("valid", trash.area, trash.data) == 0) {
+		auth->validated = 1;
+		goto out;
+	}
+
 	/* get the multiple challenges and select the one from the configuration */
 	for (i = 0; ; i++) {
 		int ret;
@@ -1761,6 +1774,7 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 		break;
 	}
 
+out:
 	ret = 0;
 
 error:
@@ -2263,6 +2277,14 @@ re:
 		break;
 		case ACME_CHALLENGE:
 			if (http_st == ACME_HTTP_REQ) {
+				/* if challenge is already validated we skip this stage */
+				if (ctx->next_auth->validated) {
+					if ((ctx->next_auth = ctx->next_auth->next) == NULL) {
+						st = ACME_CHKCHALLENGE;
+						ctx->next_auth = ctx->auths;
+					}
+					goto nextreq;
+				}
 
 				/* if the challenge is not ready, wait to be wakeup */
 				if (!ctx->next_auth->ready)
@@ -2292,6 +2314,14 @@ re:
 		break;
 		case ACME_CHKCHALLENGE:
 			if (http_st == ACME_HTTP_REQ) {
+				/* if challenge is already validated we skip this stage */
+				if (ctx->next_auth->validated) {
+					if ((ctx->next_auth = ctx->next_auth->next) == NULL)
+						st = ACME_FINALIZE;
+
+					goto nextreq;
+				}
+
 				if (acme_post_as_get(task, ctx, ctx->next_auth->chall, &errmsg) != 0)
 					goto retry;
 			}
