@@ -3741,6 +3741,10 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 #ifdef USE_QUIC
 #ifdef HAVE_OPENSSL_QUIC_CLIENT_SUPPORT
 		if (srv_is_quic(newsrv)) {
+			/* TODO QUIC is currently incompatible with dynamic
+			 * backends deletion. Please fix this before removing
+			 * QUIC BE experimental status.
+			 */
 			if (!experimental_directives_allowed) {
 				ha_alert("QUIC is experimental for server '%s',"
 				         " must be allowed via a global 'expose-experimental-directives'\n",
@@ -3991,6 +3995,16 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 			}
 			srv->ssl_ctx.alpn_len = strlen(srv->ssl_ctx.alpn_str);
 		}
+
+		/* Deletion of backend when QUIC servers were used is currently
+		 * not implemented. This is because quic_conn instances
+		 * directly references its parent proxy via <prx_counters>
+		 * member.
+		 *
+		 * TODO lift this restriction by ensuring safe access on proxy
+		 * counters or via refcount.
+		 */
+		srv->proxy->flags |= PR_FL_NON_PURGEABLE;
 #else
 		ha_alert("QUIC protocol selected but support not compiled in (check build options).\n");
 		return ERR_ALERT | ERR_FATAL;

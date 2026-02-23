@@ -2136,7 +2136,8 @@ del backend <name>
   for example via a use_backend rule or in sample expressions. Some proxies
   options are also incompatible with runtime deletion. Currently, this is the
   case when deprecated dispatch or option transparent are used. Also, a backend
-  cannot be removed if there is a stick-table declared in it.
+  cannot be removed if there is a stick-table declared in it. Finally, it is
+  impossible for now to remove a backend if QUIC servers were present in it.
 
   This command is restricted and can only be issued on sockets configured for
   level "admin". Moreover, this feature is still considered in development so it
