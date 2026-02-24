@@ -222,6 +222,7 @@ struct hlua_proxy_list {
 };
 
 struct hlua_proxy_list_iterator_context {
+	struct watcher px_watch; /* watcher to automatically update next pointer on backend deletion */
 	struct proxy *next;
 	char capabilities;
 };

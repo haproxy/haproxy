@@ -2316,11 +2316,28 @@ int hlua_listable_proxies_pairs_iterator(lua_State *L)
 	lua_pushstring(L, ctx->next->id);
 	hlua_fcn_new_proxy(L, ctx->next);
 
-	for (ctx->next = ctx->next->next;
+	ctx->next = watcher_next(&ctx->px_watch, ctx->next->next);
+	for (;
 	     ctx->next && !hlua_listable_proxies_match(ctx->next, ctx->capabilities);
-	     ctx->next = ctx->next->next);
+	     ctx->next = watcher_next(&ctx->px_watch, ctx->next->next))
+		;
 
 	return 2;
+}
+
+/* ensure proper cleanup for listable_proxies_pairs */
+int hlua_listable_proxies_pairs_gc(lua_State *L)
+{
+	struct hlua_proxy_list_iterator_context *ctx;
+
+	ctx = lua_touserdata(L, 1);
+
+	/* we need to make sure that the watcher leaves in detached state even
+	 * if the iterator was interrupted (ie: "break" from the loop), else
+	 * the server watcher list will become corrupted
+	 */
+	watcher_detach(&ctx->px_watch);
+	return 0;
 }
 
 /* init the iterator context, return iterator function
@@ -2336,10 +2353,21 @@ int hlua_listable_proxies_pairs(lua_State *L)
 
 	ctx = lua_newuserdata(L, sizeof(*ctx));
 
+	/* add gc metamethod to the newly created userdata */
+	lua_newtable(L);
+	hlua_class_function(L, "__gc", hlua_listable_proxies_pairs_gc);
+	lua_setmetatable(L, -2);
+
 	ctx->capabilities = hlua_px->capabilities;
-	for (ctx->next = proxies_list;
+
+	ctx->next = NULL;
+	watcher_init(&ctx->px_watch, &ctx->next, offsetof(struct proxy, watcher_list));
+
+	for (watcher_attach(&ctx->px_watch, proxies_list);
 	     ctx->next && !hlua_listable_proxies_match(ctx->next, ctx->capabilities);
-	     ctx->next = ctx->next->next);
+	     ctx->next = watcher_next(&ctx->px_watch, ctx->next->next))
+		;
+
 	lua_pushcclosure(L, hlua_listable_proxies_pairs_iterator, 1);
 	return 1;
 }
