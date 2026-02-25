@@ -1475,12 +1475,20 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		/* Not an HTTP response */
 		msg->vsn = 0;
 	}
-	else {
+	else if (objt_server(s->target)) {
 		/* HTTP response from a server, use it to set the response version */
 		char *ptr;
 
 		ptr = HTX_SL_RES_VPTR(sl);
 		msg->vsn = ((ptr[5] - '0') << 4) + (ptr[7] - '0');
+
+		/* If front endpoint is an applet, use the server version for the request */
+		if (sc_ep_test(s->scf, SE_FL_T_APPLET))
+			txn->req.vsn = msg->vsn;
+	}
+	else {
+		/* HTTP response from an applet, use the request version for the response */
+		msg->vsn = txn->req.vsn;
 	}
 
 	/* Adjust server's health based on status code. Note: status codes 501
@@ -4727,6 +4735,9 @@ int http_forward_proxy_resp(struct stream *s, int final)
 
 		if (s->txn->meth == HTTP_METH_HEAD)
 			htx_skip_msg_payload(htx);
+
+		/* Respnse from haproxy, override HTTP response verison using the request one */
+		s->txn->rsp.vsn = s->txn->req.vsn;
 
 		channel_auto_read(req);
 		channel_abort(req);
