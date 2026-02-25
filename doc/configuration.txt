@@ -1725,7 +1725,7 @@ Assuming haproxy is in $PATH, test these configurations in a shell with:
     $ sudo haproxy -f configuration.conf -c
 
 
-3. Global parameters
+3. Global section
 --------------------
 
 Parameters in the "global" section are process-wide and often OS-specific. They
@@ -28064,7 +28064,7 @@ Detailed fields description :
     limits have been reached. For instance, if actconn is close to 512 when
     multiple connection errors occur, chances are high that the system limits
     the process to use a maximum of 1024 file descriptors and that all of them
-    are used. See section 3 "Global parameters" to find how to tune the system.
+    are used. See section 3 "Global section" to find how to tune the system.
 
   - "feconn" is the total number of concurrent connections on the frontend when
     the session was logged. It is useful to estimate the amount of resource
@@ -28304,7 +28304,7 @@ Detailed fields description :
     limits have been reached. For instance, if actconn is close to 512 or 1024
     when multiple connection errors occur, chances are high that the system
     limits the process to use a maximum of 1024 file descriptors and that all
-    of them are used. See section 3 "Global parameters" to find how to tune the
+    of them are used. See section 3 "Global section" to find how to tune the
     system.
 
   - "feconn" is the total number of concurrent connections on the frontend when
