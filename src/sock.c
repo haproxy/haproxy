@@ -162,8 +162,8 @@ struct connection *sock_accept_conn(struct listener *l, int *status)
 	case ENFILE:
 		if (p)
 			send_log(p, LOG_EMERG,
-			         "Proxy %s reached system FD limit (maxsock=%d). Please check system tunables.\n",
-			         p->id, global.maxsock);
+			         "Proxy %s reached system FD limit (actconn=%d). Please check system tunables.\n",
+			         p->id, actconn);
 		ret = CO_AC_PAUSE;
 		break;
 
@@ -179,8 +179,8 @@ struct connection *sock_accept_conn(struct listener *l, int *status)
 	case ENOMEM:
 		if (p)
 			send_log(p, LOG_EMERG,
-			         "Proxy %s reached system memory limit (maxsock=%d). Please check system tunables.\n",
-			         p->id, global.maxsock);
+			         "Proxy %s reached system memory limit (actconn=%d). Please check system tunables.\n",
+			         p->id, actconn);
 		ret = CO_AC_PAUSE;
 		break;
 
