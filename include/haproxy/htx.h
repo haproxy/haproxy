@@ -98,6 +98,11 @@ static inline struct ist htx_sl_p3(const struct htx_sl *sl)
 	return ist2(HTX_SL_P3_PTR(sl), HTX_SL_P3_LEN(sl));
 }
 
+static inline struct ist htx_sl_vsn(const struct htx_sl *sl)
+{
+	return ((sl->flags & HTX_SL_F_IS_RESP) ? htx_sl_p1(sl) : htx_sl_p3(sl));
+}
+
 static inline struct ist htx_sl_req_meth(const struct htx_sl *sl)
 {
 	return htx_sl_p1(sl);
