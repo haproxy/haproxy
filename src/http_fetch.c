@@ -311,25 +311,70 @@ struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, struct che
 	 * that further checks can rely on HTTP tests.
 	 */
 	if (sl && msg->msg_state < HTTP_MSG_BODY) {
+		struct ist vsn;
+
 		if (!(chn->flags & CF_ISRESP)) {
+			vsn = htx_sl_req_vsn(sl);
 			txn->meth = sl->info.req.meth;
 			if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
 				s->flags |= SF_REDIRECTABLE;
 		}
 		else {
+			vsn = htx_sl_res_vsn(sl);
 			if (txn->status == -1)
 				txn->status = sl->info.res.status;
 			if (txn->server_status == -1)
 				txn->server_status = sl->info.res.status;
 		}
-		if (sl->flags & HTX_SL_F_VER_11)
-			msg->flags |= HTTP_MSGF_VER_11;
+
+		if ((sl->flags & HTX_SL_F_NOT_HTTP) || istlen(vsn) != 8) {
+			/* Not an HTTP message */
+			msg->vsn = 0;
+		}
+		else {
+			char *ptr = istptr(vsn);
+
+			msg->vsn = ((ptr[5] - '0') << 4) + (ptr[7] - '0');
+			if (sl->flags & HTX_SL_F_VER_11)
+				msg->flags |= HTTP_MSGF_VER_11;
+		}
 	}
 
 	/* everything's OK */
   end:
 	return htx;
 }
+
+/* Get the HTTP version from <msg> or <htx> and append it into the chunk <chk>
+ * with the format "<major>.<minor>".
+ * It returns 0 if <msg> and <htx> are both NULL or if the version
+ * is not a valid HTTP version. Otherwise, it returns 1 (success).
+ *
+ * The version is retrieved from <msg>, if not NULL. Otherwise, it is retrieved
+ * from <htx>.
+ */
+static int get_msg_version(const struct http_msg *msg, const struct htx *htx, struct buffer *chk)
+{
+	if (msg) {
+		if (msg->vsn) {
+			chunk_appendf(chk, "%d.%d", (msg->vsn & 0xf0) >> 4, msg->vsn & 0xf);
+			return 1;
+		}
+	}
+	else if (htx) {
+		struct htx_sl *sl = http_get_stline(htx);
+		struct ist vsn = htx_sl_vsn(sl);
+
+		if (!(sl->flags & HTX_SL_F_NOT_HTTP) && istlen(vsn) == 8) {
+			chunk_appendf(chk, "%d.%d", istptr(vsn)[5] - '0',  istptr(vsn)[7] - '0');
+			return 1;
+		}
+	}
+
+	/* <msg> and <htx> are both NULL or not a valid HTTP version */
+	return 0;
+}
+
 
 /* This function fetches the method of current HTTP request and stores
  * it in the global pattern struct as a chunk. There are two possibilities :
@@ -374,56 +419,34 @@ static int smp_fetch_meth(const struct arg *args, struct sample *smp, const char
 
 static int smp_fetch_rqver(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stream *s = smp->strm;
 	struct channel *chn = SMP_REQ_CHN(smp);
 	struct htx *htx = smp_prefetch_htx(smp, chn, NULL, 1);
-	struct htx_sl *sl;
-	char *ptr;
-	int len;
+	struct buffer *vsn = get_trash_chunk();
 
-	if (!htx)
-		return 0;
-
-	sl = http_get_stline(htx);
-	len = HTX_SL_REQ_VLEN(sl);
-	ptr = HTX_SL_REQ_VPTR(sl);
-
-	while ((len-- > 0) && (*ptr++ != '/'));
-	if (len <= 0)
+	if (!get_msg_version((s && s->txn) ? &s->txn->req : NULL, htx, vsn))
 		return 0;
 
 	smp->data.type = SMP_T_STR;
-	smp->data.u.str.area = ptr;
-	smp->data.u.str.data = len;
-
-	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
+	smp->data.u.str = *vsn;
 	return 1;
 }
 
 static int smp_fetch_stver(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct stream *s = smp->strm;
 	struct channel *chn = SMP_RES_CHN(smp);
 	struct check *check = objt_check(smp->sess->origin);
 	struct htx *htx = smp_prefetch_htx(smp, chn, check, 1);
-	struct htx_sl *sl;
-	char *ptr;
-	int len;
+	struct buffer *vsn = get_trash_chunk();
 
-	if (!htx)
-		return 0;
-
-	sl = http_get_stline(htx);
-	len = HTX_SL_RES_VLEN(sl);
-	ptr = HTX_SL_RES_VPTR(sl);
-
-	while ((len-- > 0) && (*ptr++ != '/'));
-	if (len <= 0)
+	if (!get_msg_version((s && s->txn) ? &s->txn->rsp : NULL, htx, vsn))
 		return 0;
 
 	smp->data.type = SMP_T_STR;
-	smp->data.u.str.area = ptr;
-	smp->data.u.str.data = len;
+	smp->data.u.str = *vsn;
+	return 1;
 
-	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	return 1;
 }
 
@@ -1638,25 +1661,17 @@ static int smp_fetch_capture_req_uri(const struct arg *args, struct sample *smp,
  */
 static int smp_fetch_capture_req_ver(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct http_txn *txn;
+	struct stream *s = smp->strm;
+	struct buffer *vsn;
 
-	if (!smp->strm)
+	vsn = get_trash_chunk();
+	chunk_memcat(vsn, "HTTP/", 5);
+	if (!get_msg_version((s && s->txn) ? &s->txn->req : NULL, NULL, vsn))
 		return 0;
 
-	txn = smp->strm->txn;
-	if (!txn || txn->req.msg_state < HTTP_MSG_BODY)
-		return 0;
-
-	if (txn->req.flags & HTTP_MSGF_VER_11)
-		smp->data.u.str.area = "HTTP/1.1";
-	else
-		smp->data.u.str.area = "HTTP/1.0";
-
-	smp->data.u.str.data = 8;
-	smp->data.type  = SMP_T_STR;
-	smp->flags = SMP_F_CONST;
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str = *vsn;
 	return 1;
-
 }
 
 /* Retrieves the HTTP version from the response (either 1.0 or 1.1) and emits it
@@ -1664,23 +1679,16 @@ static int smp_fetch_capture_req_ver(const struct arg *args, struct sample *smp,
  */
 static int smp_fetch_capture_res_ver(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct http_txn *txn;
+	struct stream *s = smp->strm;
+	struct buffer *vsn;
 
-	if (!smp->strm)
+	vsn = get_trash_chunk();
+	chunk_memcat(vsn, "HTTP/", 5);
+	if (!get_msg_version((s && s->txn) ? &s->txn->rsp : NULL, NULL, vsn))
 		return 0;
 
-	txn = smp->strm->txn;
-	if (!txn || txn->rsp.msg_state < HTTP_MSG_BODY)
-		return 0;
-
-	if (txn->rsp.flags & HTTP_MSGF_VER_11)
-		smp->data.u.str.area = "HTTP/1.1";
-	else
-		smp->data.u.str.area = "HTTP/1.0";
-
-	smp->data.u.str.data = 8;
-	smp->data.type  = SMP_T_STR;
-	smp->flags = SMP_F_CONST;
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str = *vsn;
 	return 1;
 
 }
@@ -2333,8 +2341,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "req_proto_http",     smp_fetch_proto_http,         0,                NULL,    SMP_T_BOOL, SMP_USE_HRQHP },
 
 	/* HTTP version on the request path */
-	{ "req.ver",            smp_fetch_rqver,              0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
-	{ "req_ver",            smp_fetch_rqver,              0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
+	{ "req.ver",            smp_fetch_rqver,              0,                NULL,    SMP_T_STR,  SMP_USE_HRQHP },
+	{ "req_ver",            smp_fetch_rqver,              0,                NULL,    SMP_T_STR,  SMP_USE_HRQHP },
 
 	{ "req.body",           smp_fetch_body,               0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 	{ "req.body_len",       smp_fetch_body_len,           0,                NULL,    SMP_T_SINT, SMP_USE_HRQHV },
@@ -2345,8 +2353,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "req.hdrs_bin",       smp_fetch_hdrs_bin,           0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 
 	/* HTTP version on the response path */
-	{ "res.ver",            smp_fetch_stver,              0,                NULL,    SMP_T_STR,  SMP_USE_HRSHV },
-	{ "resp_ver",           smp_fetch_stver,              0,                NULL,    SMP_T_STR,  SMP_USE_HRSHV },
+	{ "res.ver",            smp_fetch_stver,              0,                NULL,    SMP_T_STR,  SMP_USE_HRSHP },
+	{ "resp_ver",           smp_fetch_stver,              0,                NULL,    SMP_T_STR,  SMP_USE_HRSHP },
 
 	{ "res.body",           smp_fetch_body,               0,                NULL,    SMP_T_BIN,  SMP_USE_HRSHV },
 	{ "res.body_len",       smp_fetch_body_len,           0,                NULL,    SMP_T_SINT, SMP_USE_HRSHV },

@@ -26907,9 +26907,10 @@ capture.req.uri : string
   allocated.
 
 capture.req.ver : string
-  This extracts the request's HTTP version and returns either "HTTP/1.0" or
-  "HTTP/1.1". Unlike "req.ver", it can be used in both request, response, and
-  logs because it relies on a persistent flag.
+  This extracts the request's HTTP version and returns it with the format
+  "HTTP/<major>.<minor>". It can be used in both request, response, and logs
+  because it relies on a persistent information. If the request version is not
+  valid, this sample fetch fails.
 
 capture.res.hdr(<idx>) : string
   This extracts the content of the header captured by the "capture response
@@ -26918,9 +26919,10 @@ capture.res.hdr(<idx>) : string
   See also: "capture response header"
 
 capture.res.ver : string
-  This extracts the response's HTTP version and returns either "HTTP/1.0" or
-  "HTTP/1.1". Unlike "res.ver", it can be used in logs because it relies on a
-  persistent flag.
+  This extracts the response's HTTP version and returns it with the format
+  "HTTP/<major>.<minor>". It can be used in logs because it relies on a
+  persistent information. If the response version is not valid, this sample
+  fetch fails.
 
 cookie([<name>]) : string (deprecated)
   This extracts the last occurrence of the cookie name <name> on a "Cookie"
@@ -27271,15 +27273,13 @@ req.timer.tq : integer
 
 req.ver : string
 req_ver : string (deprecated)
-  Returns the version string from the HTTP request, for example "1.1". This can
-  be useful for ACL. For logs use the "%HV" logformat alias. Some predefined
-  ACL already check for versions 1.0 and 1.1.
+  Returns the version string from the HTTP request, with the format
+  "<major>.<minor>". This can be useful for ACL. Some predefined ACL already
+  check for common versions.  It can be used in both request, response, and
+  logs because it relies on a persistent information. If the request version is
+  not valid, this sample fetch fails.
 
   Common values are "1.0", "1.1", "2.0" or "3.0".
-
-  In the case of http/2 and http/3, the value is not extracted from the HTTP
-  version in the request line but is determined by the negotiated protocol
-  version.
 
   ACL derivatives :
     req.ver : exact string match
@@ -27484,8 +27484,9 @@ res.timer.hdr : integer
 
 res.ver : string
 resp_ver : string (deprecated)
-  Returns the version string from the HTTP response, for example "1.1". This
-  can be useful for logs, but is mostly there for ACL.
+  Returns the version string from the HTTP response, with the format
+  "<major>.<minor>". This can be useful for logs, but is mostly there for
+  ACL. If the response version is not valid, this sample fetch fails.
 
   It may be used in tcp-check based expect rules.
 
