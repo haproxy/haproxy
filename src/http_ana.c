@@ -97,7 +97,6 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	struct htx *htx;
 	struct htx_sl *sl;
 	char http_ver;
-	int len;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, msg);
 
@@ -131,14 +130,16 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 	htx = htxbuf(&req->buf);
 	sl = http_get_stline(htx);
-	len = HTX_SL_REQ_VLEN(sl);
-	if (len < 6) {
+	if ((sl->flags & HTX_SL_F_NOT_HTTP) || HTX_SL_REQ_VLEN(sl) != 8) {
+		/* Not an HTTP request */
 		http_ver = 0;
+		msg->vsn = 0;
 	}
 	else {
 		char *ptr;
 
 		ptr = HTX_SL_REQ_VPTR(sl);
+		msg->vsn = ((ptr[5] - '0') << 4) + (ptr[7] - '0');
 		http_ver = ptr[5] - '0';
 	}
 
@@ -1469,6 +1470,18 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 */
 	BUG_ON(htx_get_first_type(htx) != HTX_BLK_RES_SL);
 	sl = http_get_stline(htx);
+
+	if ((sl->flags & HTX_SL_F_NOT_HTTP) || HTX_SL_RES_VLEN(sl) != 8)  {
+		/* Not an HTTP response */
+		msg->vsn = 0;
+	}
+	else {
+		/* HTTP response from a server, use it to set the response version */
+		char *ptr;
+
+		ptr = HTX_SL_RES_VPTR(sl);
+		msg->vsn = ((ptr[5] - '0') << 4) + (ptr[7] - '0');
+	}
 
 	/* Adjust server's health based on status code. Note: status codes 501
 	 * and 505 are triggered on demand by client request, so we must not
