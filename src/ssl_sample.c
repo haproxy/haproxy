@@ -779,7 +779,7 @@ static int
 smp_fetch_ssl_r_dn(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	X509 *crt = NULL;
-	X509_NAME *name;
+	const X509_NAME *name;
 	int ret = 0;
 	struct buffer *smp_trash;
 	struct connection *conn;
@@ -1113,7 +1113,7 @@ smp_fetch_ssl_x_i_dn(const struct arg *args, struct sample *smp, const char *kw,
 	int cert_peer = (kw[4] == 'c' || kw[4] == 's') ? 1 : 0;
 	int conn_server = (kw[4] == 's') ? 1 : 0;
 	X509 *crt = NULL;
-	X509_NAME *name;
+	const X509_NAME *name;
 	int ret = 0;
 	struct buffer *smp_trash;
 	struct connection *conn;

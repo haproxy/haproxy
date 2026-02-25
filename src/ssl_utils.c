@@ -74,11 +74,12 @@ int ssl_sock_get_serial(X509 *crt, struct buffer *out)
 	if (!serial)
 		return 0;
 
-	if (out->size < serial->length)
+	if (out->size < ASN1_STRING_length(serial))
 		return -1;
 
-	memcpy(out->area, serial->data, serial->length);
-	out->data = serial->length;
+	out->data = ASN1_STRING_length(serial);
+	memcpy(out->area, ASN1_STRING_get0_data(serial), out->data);
+
 	return 1;
 }
 
@@ -110,32 +111,34 @@ int ssl_sock_crt2der(X509 *crt, struct buffer *out)
  */
 int ssl_sock_get_time(ASN1_TIME *tm, struct buffer *out)
 {
-	if (tm->type == V_ASN1_GENERALIZEDTIME) {
-		ASN1_GENERALIZEDTIME *gentm = (ASN1_GENERALIZEDTIME *)tm;
+	const unsigned char *data;
 
-		if (gentm->length < 12)
+	if (ASN1_STRING_type(tm) == V_ASN1_GENERALIZEDTIME) {
+		data = ASN1_STRING_get0_data(tm);
+
+		if (ASN1_STRING_length(tm) < 12)
 			return 0;
-		if (gentm->data[0] != 0x32 || gentm->data[1] != 0x30)
+		if (data[0] != 0x32 || data[1] != 0x30)
 			return 0;
-		if (out->size < gentm->length-2)
+		if (out->size < ASN1_STRING_length(tm) - 2)
 			return -1;
 
-		memcpy(out->area, gentm->data+2, gentm->length-2);
-		out->data = gentm->length-2;
+		out->data = ASN1_STRING_length(tm) - 2;
+		memcpy(out->area, data + 2, out->data);
 		return 1;
 	}
 	else if (tm->type == V_ASN1_UTCTIME) {
-		ASN1_UTCTIME *utctm = (ASN1_UTCTIME *)tm;
+		data = ASN1_STRING_get0_data(tm);
 
-		if (utctm->length < 10)
+		if (ASN1_STRING_length(tm) < 10)
 			return 0;
-		if (utctm->data[0] >= 0x35)
+		if (data[0] >= 0x35)
 			return 0;
-		if (out->size < utctm->length)
+		if (out->size < ASN1_STRING_length(tm))
 			return -1;
 
-		memcpy(out->area, utctm->data, utctm->length);
-		out->data = utctm->length;
+		out->data = ASN1_STRING_length(tm);
+		memcpy(out->area, data, out->data);
 		return 1;
 	}
 
@@ -145,7 +148,7 @@ int ssl_sock_get_time(ASN1_TIME *tm, struct buffer *out)
 /* Extract an entry from a X509_NAME and copy its value to an output chunk.
  * Returns 1 if entry found, 0 if entry not found, or -1 if output not large enough.
  */
-int ssl_sock_get_dn_entry(X509_NAME *a, const struct buffer *entry, int pos,
+int ssl_sock_get_dn_entry(const X509_NAME *a, const struct buffer *entry, int pos,
                           struct buffer *out)
 {
 	X509_NAME_ENTRY *ne;
@@ -207,7 +210,7 @@ int ssl_sock_get_dn_entry(X509_NAME *a, const struct buffer *entry, int pos,
  * Currently supports rfc2253 for returning LDAP V3 DNs.
  * Returns 1 if dn entries exist, 0 if no dn entry was found.
  */
-int ssl_sock_get_dn_formatted(X509_NAME *a, const struct buffer *format, struct buffer *out)
+int ssl_sock_get_dn_formatted(const X509_NAME *a, const struct buffer *format, struct buffer *out)
 {
 	BIO *bio = NULL;
 	int ret = 0;
@@ -237,7 +240,7 @@ out:
 /* Extract and format full DN from a X509_NAME and copy result into a chunk
  * Returns 1 if dn entries exits, 0 if no dn entry found or -1 if output is not large enough.
  */
-int ssl_sock_get_dn_oneline(X509_NAME *a, struct buffer *out)
+int ssl_sock_get_dn_oneline(const X509_NAME *a, struct buffer *out)
 {
 	X509_NAME_ENTRY *ne;
 	ASN1_OBJECT *obj;
@@ -629,16 +632,16 @@ INITCALL0(STG_REGISTER, init_x509_v_err_tab);
 long asn1_generalizedtime_to_epoch(ASN1_GENERALIZEDTIME *d)
 {
 	long epoch;
-	char *p, *end;
+	const unsigned char *p, *end;
 	const unsigned short month_offset[12] = {
 		0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334
 	};
 	unsigned long year, month;
 
-	if (!d || (d->type != V_ASN1_GENERALIZEDTIME)) return -1;
+	if (!d || (ASN1_STRING_type(d) != V_ASN1_GENERALIZEDTIME)) return -1;
 
-	p = (char *)d->data;
-	end = p + d->length;
+	p = ASN1_STRING_get0_data(d);
+	end = p + ASN1_STRING_length(d);
 
 	if (end - p < 4) return -1;
 	year = 1000 * (p[0] - '0') + 100 * (p[1] - '0') + 10 * (p[2] - '0') + p[3] - '0';

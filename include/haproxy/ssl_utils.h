@@ -34,10 +34,10 @@ int cert_get_pkey_algo(X509 *crt, struct buffer *out);
 int ssl_sock_get_serial(X509 *crt, struct buffer *out);
 int ssl_sock_crt2der(X509 *crt, struct buffer *out);
 int ssl_sock_get_time(ASN1_TIME *tm, struct buffer *out);
-int ssl_sock_get_dn_entry(X509_NAME *a, const struct buffer *entry, int pos,
+int ssl_sock_get_dn_entry(const X509_NAME *a, const struct buffer *entry, int pos,
                           struct buffer *out);
-int ssl_sock_get_dn_formatted(X509_NAME *a, const struct buffer *format, struct buffer *out);
-int ssl_sock_get_dn_oneline(X509_NAME *a, struct buffer *out);
+int ssl_sock_get_dn_formatted(const X509_NAME *a, const struct buffer *format, struct buffer *out);
+int ssl_sock_get_dn_oneline(const X509_NAME *a, struct buffer *out);
 X509* ssl_sock_get_peer_certificate(SSL *ssl);
 X509* ssl_sock_get_verified_chain_root(SSL *ssl);
 unsigned int openssl_version_parser(const char *version);
