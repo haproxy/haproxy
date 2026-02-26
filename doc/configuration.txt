@@ -8263,7 +8263,7 @@ http-check expect [min-recv <int>] [comment <msg>]
          http-check expect status 200,201,300-310
 
          # be sure a sessid coookie is set
-         http-check expect header name "set-cookie" value -m beg "sessid="
+         http-check expect hdr name "set-cookie" value -m beg "sessid="
 
          # consider SQL errors as errors
          http-check expect ! string SQL\ Error
