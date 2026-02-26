@@ -97,6 +97,53 @@ FLT_OTEL_CONF_FUNC_FREE(str, str,
 
 /***
  * NAME
+ *   flt_otel_conf_link_init - conf_link structure allocation
+ *
+ * SYNOPSIS
+ *   struct flt_otel_conf_link *flt_otel_conf_link_init(const char *id, int line, struct list *head, char **err)
+ *
+ * ARGUMENTS
+ *   id   - identifier string to duplicate
+ *   line - configuration file line number
+ *   head - list to append to (or NULL)
+ *   err  - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Allocates and initializes a conf_link structure for a span link
+ *   reference.  The <id> string is duplicated and stored as the linked
+ *   span name.  If <head> is non-NULL, the structure is appended to
+ *   the list.
+ *
+ * RETURN VALUE
+ *   Returns a pointer to the initialized structure, or NULL on failure.
+ */
+FLT_OTEL_CONF_FUNC_INIT(link, span, )
+
+
+/***
+ * NAME
+ *   flt_otel_conf_link_free - conf_link structure deallocation
+ *
+ * SYNOPSIS
+ *   void flt_otel_conf_link_free(struct flt_otel_conf_link **ptr)
+ *
+ * ARGUMENTS
+ *   ptr - a pointer to the address of a structure
+ *
+ * DESCRIPTION
+ *   Deallocates memory used by the flt_otel_conf_link structure and its
+ *   contents, then removes it from the list of structures of that type.
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+FLT_OTEL_CONF_FUNC_FREE(link, span,
+	FLT_OTEL_DBG_CONF_HDR("- conf_link free ", *ptr, span);
+)
+
+
+/***
+ * NAME
  *   flt_otel_conf_ph_init - conf_ph placeholder structure allocation
  *
  * SYNOPSIS
@@ -401,6 +448,7 @@ FLT_OTEL_CONF_FUNC_FREE(context, id,
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
 FLT_OTEL_CONF_FUNC_INIT(span, id,
+	LIST_INIT(&(retptr->links));
 	LIST_INIT(&(retptr->attributes));
 	LIST_INIT(&(retptr->events));
 	LIST_INIT(&(retptr->baggages));
@@ -430,6 +478,7 @@ FLT_OTEL_CONF_FUNC_FREE(span, id,
 
 	OTELC_SFREE((*ptr)->ref_id);
 	OTELC_SFREE((*ptr)->ctx_id);
+	FLT_OTEL_LIST_DESTROY(link, &((*ptr)->links));
 	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->attributes));
 	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->events));
 	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->baggages));

@@ -955,6 +955,14 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 					else
 						FLT_OTEL_PARSE_ERR(&err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
 				}
+				else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_SPAN_LINK)) {
+					if (FLT_OTEL_ARG_ISVALID(i + 1)) {
+						if (flt_otel_conf_link_init(args[++i], line, &(flt_otel_current_span->links), &err) == NULL)
+							retval |= ERR_ABORT | ERR_ALERT;
+					} else {
+						FLT_OTEL_PARSE_ERR(&err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+					}
+				}
 				else {
 					FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid argument (use '%s%s')", args[i], pdata->name, pdata->usage);
 				}
@@ -967,6 +975,11 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			 */
 			OTELC_DBG(DEBUG, "new span '%s' without reference", flt_otel_current_span->id);
 		}
+	}
+	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_LINK) {
+		for (i = 1; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++)
+			if (flt_otel_conf_link_init(args[i], line, &(flt_otel_current_span->links), &err) == NULL)
+				retval |= ERR_ABORT | ERR_ALERT;
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_ATTRIBUTE) {
 		retval = flt_otel_parse_cfg_sample(file, line, args, 2, 0, NULL, &(flt_otel_current_span->attributes), &err);

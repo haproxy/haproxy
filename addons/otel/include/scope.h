@@ -29,10 +29,10 @@
 
 #define FLT_OTEL_DBG_SCOPE_DATA_KV_FMT       "%p:{ %p %zu %zu }"
 #define FLT_OTEL_DBG_SCOPE_DATA_KV_ARGS(p)   &(p), (p).attr, (p).cnt, (p).size
-#define FLT_OTEL_DBG_SCOPE_DATA(h,p)                                                                               \
-	OTELC_DBG(DEBUG, h "%p:{ " FLT_OTEL_DBG_SCOPE_DATA_KV_FMT " " FLT_OTEL_DBG_SCOPE_DATA_KV_FMT " %s }", (p), \
-	          FLT_OTEL_DBG_SCOPE_DATA_KV_ARGS((p)->baggage), FLT_OTEL_DBG_SCOPE_DATA_KV_ARGS((p)->attributes), \
-	          flt_otel_list_dump(&((p)->events)))
+#define FLT_OTEL_DBG_SCOPE_DATA(h,p)                                                                                   \
+	OTELC_DBG(DEBUG, h "%p:{ " FLT_OTEL_DBG_SCOPE_DATA_KV_FMT " " FLT_OTEL_DBG_SCOPE_DATA_KV_FMT " %s %s }", (p), \
+	          FLT_OTEL_DBG_SCOPE_DATA_KV_ARGS((p)->baggage), FLT_OTEL_DBG_SCOPE_DATA_KV_ARGS((p)->attributes),    \
+	          flt_otel_list_dump(&((p)->events)), flt_otel_list_dump(&((p)->links)))
 
 #define FLT_OTEL_DBG_RUNTIME_CONTEXT(h,p)                                                     \
 	OTELC_DBG(DEBUG, h "%p:{ %p %p '%s' %hhu %hhu 0x%02hhx 0x%08x %u %d %s %s }", (p),    \
@@ -64,15 +64,25 @@ struct flt_otel_scope_data_event {
 	struct list      list; /* Used to chain this structure. */
 };
 
+/* Span link referencing another span or span context. */
+struct flt_otel_scope_data_link {
+	struct otelc_span         *span;    /* Linked span, or NULL. */
+	struct otelc_span_context *context; /* Linked span context, or NULL. */
+	struct list                list;    /* Used to chain this structure. */
+};
+
+/* Span status code and description. */
 struct flt_otel_scope_data_status {
 	int   code;        /* OTELC_SPAN_STATUS_* value. */
 	char *description; /* Span status description string. */
 };
 
+/* Aggregated runtime data collected during scope execution. */
 struct flt_otel_scope_data {
 	struct flt_otel_scope_data_kv     baggage;    /* Defined scope baggage. */
 	struct flt_otel_scope_data_kv     attributes; /* Defined scope attributes. */
 	struct list                       events;     /* Defined scope events. */
+	struct list                       links;      /* Defined scope links. */
 	struct flt_otel_scope_data_status status;     /* Defined scope status. */
 };
 

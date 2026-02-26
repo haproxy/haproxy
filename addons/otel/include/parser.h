@@ -19,6 +19,7 @@
 
 #define FLT_OTEL_PARSE_SPAN_ROOT              "root"
 #define FLT_OTEL_PARSE_SPAN_PARENT            "parent"
+#define FLT_OTEL_PARSE_SPAN_LINK              "link"
 #define FLT_OTEL_PARSE_CTX_AUTONAME           "-"
 #define FLT_OTEL_PARSE_CTX_IGNORE_NAME        '-'
 #define FLT_OTEL_PARSE_CTX_USE_HEADERS        "use-headers"
@@ -73,7 +74,8 @@
  */
 #define FLT_OTEL_PARSE_SCOPE_DEFINES                                                                                                \
 	FLT_OTEL_PARSE_SCOPE_DEF(          ID, 0, CHAR, 2, 2, "otel-scope",   " <name>")                                            \
-	FLT_OTEL_PARSE_SCOPE_DEF(        SPAN, 0, NONE, 2, 7, "span",         " <name> [<reference>] [root]")                       \
+	FLT_OTEL_PARSE_SCOPE_DEF(        SPAN, 0, NONE, 2, 7, "span",         " <name> [<reference>] [<link>] [root]")              \
+	FLT_OTEL_PARSE_SCOPE_DEF(        LINK, 1, NONE, 2, 0,   "link",       " <span> ...")                                        \
 	FLT_OTEL_PARSE_SCOPE_DEF(   ATTRIBUTE, 1, NONE, 3, 0,   "attribute",  " <key> <sample> ...")                                \
 	FLT_OTEL_PARSE_SCOPE_DEF(       EVENT, 1, NONE, 4, 0,   "event",      " <name> <key> <sample> ...")                         \
 	FLT_OTEL_PARSE_SCOPE_DEF(     BAGGAGE, 1,  VAR, 3, 0,   "baggage",    " <key> <sample> ...")                                \
