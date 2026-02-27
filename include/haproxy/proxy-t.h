@@ -479,7 +479,7 @@ struct proxy {
 		struct log_steps log_steps;     /* bitfield of log origins where log should be generated during request handling */
 		const char *file_prev;          /* file of the previous instance found with the same name, or NULL */
 		int line_prev;                  /* line of the previous instance found with the same name, or 0 */
-		unsigned int refcount;          /* refcount on this proxy (only used for default proxy for now) */
+		unsigned int def_ref;           /* default proxy only refcount */
 	} conf;					/* config information */
 	struct http_ext *http_ext;	        /* http ext options */
 	struct ceb_root *used_server_addr;      /* list of server addresses in use */

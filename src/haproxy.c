@@ -2166,7 +2166,7 @@ static void step_init_2(int argc, char** argv)
 
 	/* Free last defaults if it is unnamed and unreferenced. */
 	if (last_defproxy && last_defproxy->id[0] == '\0' &&
-	    !last_defproxy->conf.refcount) {
+	    !last_defproxy->conf.def_ref) {
 		defaults_px_destroy(last_defproxy);
 	}
 	last_defproxy = NULL; /* This variable is not used after parsing. */
@@ -2821,11 +2821,11 @@ void deinit(void)
 	 * they are respectively cleaned up in sink_deinit() and deinit_log_forward()
 	 */
 
-	/* If named defaults were preserved, ensure refcount is resetted. */
+	/* If named defaults were preserved, ensure <def_ref> count is resetted. */
 	if (!(global.tune.options & GTUNE_PURGE_DEFAULTS))
 		defaults_px_unref_all();
 	/* All proxies are removed now, so every defaults should also be freed
-	 * when their refcount reached zero.
+	 * when their <def_ref> count reached zero.
 	 */
 	BUG_ON(!LIST_ISEMPTY(&defaults_list));
 

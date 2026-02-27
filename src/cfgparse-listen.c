@@ -393,7 +393,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			 * freed unless it is still referenced by proxies.
 			 */
 			if (last_defproxy && last_defproxy->id[0] == '\0' &&
-			    !last_defproxy->conf.refcount) {
+			    !last_defproxy->conf.def_ref) {
 				defaults_px_destroy(last_defproxy);
 			}
 			last_defproxy = NULL;
