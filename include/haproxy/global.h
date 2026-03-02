@@ -56,6 +56,7 @@ extern const char *old_unixsocket;
 extern int daemon_fd[2];
 extern int devnullfd;
 extern int fileless_mode;
+extern int client_mode;
 extern struct cfgfile fileless_cfg;
 
 /* storage for collected libs */

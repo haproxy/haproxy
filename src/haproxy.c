@@ -150,6 +150,7 @@ int  pidfd = -1;		/* FD to keep PID */
 int daemon_fd[2] = {-1, -1};	/* pipe to communicate with parent process */
 int devnullfd = -1;
 int fileless_mode;
+int client_mode;
 struct cfgfile fileless_cfg;
 extern __attribute__((weak)) void haproxy_init_args(int argc, char **argv);
 extern __attribute__((weak)) char **copy_argv(int argc, char **argv);
@@ -3529,7 +3530,7 @@ int main(int argc, char **argv)
 	}
 
 	/* Exit in standalone mode, if no listeners found */
-	if (!(global.mode & MODE_MWORKER) && listeners == 0) {
+	if (!(global.mode & MODE_MWORKER) && !client_mode && listeners == 0) {
 		ha_alert("[%s.main()] No enabled listener found (check for 'bind' directives) ! Exiting.\n", argv[0]);
 		/* Note: we don't have to send anything to the old pids because we
 		 * never stopped them. */
