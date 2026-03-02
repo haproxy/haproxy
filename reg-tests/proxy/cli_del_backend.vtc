@@ -25,6 +25,18 @@ haproxy h1 -conf {
 
 	backend be
 		server s1 ${s1_addr}:${s1_port} disabled
+
+	# Defaults with tcp-check rules in it
+	# Currently this is the only case of runtime ref on an unnamed default
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+		option httpchk GET / HTTP/1.1
+
+	backend be_unnamed_def_ref
+	backend be_unnamed_def_ref2
 } -start
 
 haproxy h1 -cli {
@@ -55,4 +67,22 @@ haproxy h1 -cli {
 
 	send "show stat be 2 -1"
 	expect !~ "be,BACKEND,"
+}
+
+haproxy h1 -cli {
+	send "show stat be_unnamed_def_ref 2 -1"
+	expect ~ "be_unnamed_def_ref,BACKEND,"
+
+	send "unpublish backend be_unnamed_def_ref;"
+	expect ~ ".*"
+	send "experimental-mode on; del backend be_unnamed_def_ref"
+	expect ~ "Backend deleted."
+
+	send "show stat be_unnamed_def_ref 2 -1"
+	expect !~ "be_unnamed_def_ref,BACKEND,"
+
+	send "unpublish backend be_unnamed_def_ref2;"
+	expect ~ ".*"
+	send "experimental-mode on; del backend be_unnamed_def_ref2"
+	expect ~ "Backend deleted."
 }
