@@ -3604,6 +3604,11 @@ ssl-skip-self-issued-ca
   certificates. It's useless for BoringSSL, .issuer is ignored because ocsp
   bits does not need it. Requires at least OpenSSL 1.0.2.
 
+stats calculate-max-counters [on|off]
+  Activates or deactivates the calculation of stats max counters. If you
+  don't need them, deactivating them may increase performances a bit.
+  The default is on.
+
 stats maxconn <connections>
   By default, the stats socket is limited to 10 concurrent connections. It is
   possible to change this value with "stats maxconn".

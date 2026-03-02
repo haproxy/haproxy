@@ -616,12 +616,22 @@ static int cli_parse_global(char **args, int section_type, struct proxy *curpx,
 		}
 		global.cli_fe->maxconn = maxconn;
 	}
+	else if (strcmp(args[1], "calculate-max-counters") == 0) {
+		if (!strcasecmp(args[2], "on"))
+			return 0;
+		else if (!strcasecmp(args[2], "off")) {
+			global.tune.options |= GTUNE_NO_MAX_COUNTER;
+			return 0;
+		}
+		memprintf(err, "'%s' only supports 'on' and 'off', received '%s'", args[1], args[2]);
+		return -1;
+	}
 	else if (strcmp(args[1], "bind-process") == 0) {
 		memprintf(err, "'%s %s' is not supported anymore.", args[0], args[1]);
 		return -1;
 	}
 	else {
-		memprintf(err, "'%s' only supports 'socket', 'maxconn', 'bind-process' and 'timeout' (got '%s')", args[0], args[1]);
+		memprintf(err, "'%s' only supports 'socket', 'maxconn', 'bind-process', 'calculate-max-counters'  and 'timeout' (got '%s')", args[0], args[1]);
 		return -1;
 	}
 	return 0;

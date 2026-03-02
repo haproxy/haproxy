@@ -26,6 +26,7 @@
 
 #include <haproxy/counters-t.h>
 #include <haproxy/guid-t.h>
+#include <haproxy/global.h>
 
 extern THREAD_LOCAL void *trash_counters;
 
@@ -105,7 +106,8 @@ void counters_be_shared_drop(struct be_counters_shared *counters);
 
 #define COUNTERS_UPDATE_MAX(counter, count)                                   \
 	do {                                                                  \
-		HA_ATOMIC_UPDATE_MAX(counter, count);                         \
+		if (!(global.tune.options & GTUNE_NO_MAX_COUNTER))            \
+			HA_ATOMIC_UPDATE_MAX(counter, count);                 \
 	} while (0)
 
 /* Manipulation of extra_counters, for boot-time registrable modules */
