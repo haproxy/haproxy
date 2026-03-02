@@ -3014,6 +3014,7 @@ void defaults_px_detach(struct proxy *px)
 	/* If not destroyed, <px> can still be accessed in <defaults_list>. */
 }
 
+/* Increments by one defaults proxy reference of all defaults stored in tree name. */
 void defaults_px_ref_all(void)
 {
 	struct proxy *px;
@@ -3025,6 +3026,7 @@ void defaults_px_ref_all(void)
 	}
 }
 
+/* Decrements defaults proxy ref of all defaults. This is the reverse of defaults_px_ref_all(). */
 void defaults_px_unref_all(void)
 {
 	struct proxy *px, *nx;
