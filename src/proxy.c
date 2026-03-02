@@ -68,6 +68,8 @@
 #include <haproxy/tools.h>
 #include <haproxy/uri_auth.h>
 
+/* Lock to ensure multiple backends deletion concurrently is safe */
+static __decl_spinlock(proxies_del_lock);
 
 int listeners;	/* # of proxy listeners, set by cfgparse */
 struct proxy *proxies_list  = NULL;     /* list of main proxies */
@@ -229,10 +231,15 @@ static inline void proxy_free_common(struct proxy *px)
 	struct logger *log, *logb;
 	struct lf_expr *lf, *lfb;
 
+	/* First release from global elements under lock protection. */
+	HA_SPIN_LOCK(PROXIES_DEL_LOCK, &proxies_del_lock);
 	/* note that the node's key points to p->id */
 	cebis_item_delete((px->cap & PR_CAP_DEF) ? &defproxy_by_name : &proxy_by_name, conf.name_node, id, px);
-	ha_free(&px->id);
 	LIST_DEL_INIT(&px->global_list);
+	HA_SPIN_UNLOCK(PROXIES_DEL_LOCK, &proxies_del_lock);
+
+	/* Now release internal proxy elements. */
+	ha_free(&px->id);
 	drop_file_name(&px->conf.file);
 	counters_fe_shared_drop(&px->fe_counters.shared);
 	counters_be_shared_drop(&px->be_counters.shared);
