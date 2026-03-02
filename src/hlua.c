@@ -5833,6 +5833,9 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_getline_yield, TICK_ETERNITY, 0));
 	}
 
+	/* Stop to consume until the next receive or the end of the response */
+	applet_wont_consume(luactx->appctx);
+
 	/* return the result. */
 	luaL_pushresult(&luactx->b);
 	return 1;
@@ -5843,6 +5846,9 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 __LJMP static int hlua_applet_http_getline(lua_State *L)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+
+	/* Restart to consume - could have been disabled by a previous receive */
+	applet_will_consume(luactx->appctx);
 
 	/* Initialise the string catenation. */
 	luaL_buffinit(L, &luactx->b);
@@ -11502,6 +11508,9 @@ void hlua_applet_http_fct(struct appctx *ctx)
 	if (!(strm->flags & SF_ERR_MASK))
 		strm->flags |= SF_ERR_RESOURCE;
 	http_ctx->flags |= APPLET_DONE;
+
+	/* Restart to consume to drain the request */
+	applet_will_consume(ctx);
 	goto out;
 }
 
