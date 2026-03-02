@@ -1020,7 +1020,7 @@ ifneq ($(TRACE),)
   OBJS += src/calltrace.o
 endif
 
-HATERM_OBJS += $(OBJS) src/haterm_init.o
+HATERM_OBJS += $(OBJS) src/haterm_init.o src/hbuf.o
 
 # Used only for forced dependency checking. May be cleared during development.
 INCLUDES = $(wildcard include/*/*.h)

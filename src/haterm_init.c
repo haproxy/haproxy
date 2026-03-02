@@ -3,6 +3,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
+#include <haproxy/hbuf.h>
 #include <haproxy/version.h>
 
 static int haterm_debug;
@@ -57,104 +58,6 @@ static const char *haterm_cfg_traces_str =
             "\ttrace h2 sink stderr level user start now verbosity minimal\n"
             "\ttrace h3 sink stderr level user start now verbosity minimal\n"
             "\ttrace qmux sink stderr level user start now verbosity minimal\n";
-
-/* Very small API similar to buffer API to carefully build some strings */
-#define HBUF_NULL ((struct hbuf) { })
-#define HBUF_SIZE (16 << 10) /* bytes */
-struct hbuf {
-	char *area;
-	size_t data;
-	size_t size;
-};
-
-static struct hbuf *hbuf_alloc(struct hbuf *h)
-{
-	h->area = malloc(HBUF_SIZE);
-	if (!h->area)
-		return NULL;
-
-	h->size = HBUF_SIZE;
-	h->data = 0;
-	return h;
-}
-
-static inline void free_hbuf(struct hbuf *h)
-{
-	free(h->area);
-	h->area = NULL;
-}
-
-__attribute__ ((format(printf, 2, 3)))
-static void hbuf_appendf(struct hbuf *h, char *fmt, ...)
-{
-	va_list argp;
-	size_t room;
-	int ret;
-
-	room = h->size - h->data;
-	if (!room)
-		return;
-
-	va_start(argp, fmt);
-	ret = vsnprintf(h->area + h->data, room, fmt, argp);
-	if (ret >= room)
-		h->area[h->data] = '\0';
-	else
-		h->data += ret;
-	va_end(argp);
-}
-
-static inline size_t hbuf_is_null(const struct hbuf *h)
-{
-	return h->size == 0;
-}
-
-/* Simple function, to append <line> to <b> without without
- * trailing '\0' character.
- * Take into an account the '\t' and '\n' escaped sequences.
- */
-static void hstream_str_buf_append(struct hbuf *h, const char *line)
-{
-	const char *p, *end;
-	char *to = h->area + h->data;
-	char *wrap = h->area + h->size;
-	int nl = 0; /* terminal '\n' */
-
-	p = line;
-	end = line + strlen(line);
-
-	/* prepend '\t' if missing */
-	if (strncmp(line, "\\t", 2) != 0 && to < wrap) {
-		*to++ = '\t';
-		h->data++;
-	}
-
-	while (p < end && to < wrap) {
-		if (*p == '\\') {
-			if (!*++p || p >= end)
-				break;
-			if (*p == 'n') {
-				*to++ = '\n';
-				if (p + 1 >= end)
-					nl = 1;
-			}
-			else if (*p == 't')
-				*to++ = '\t';
-			p++;
-			h->data++;
-		}
-		else {
-			*to++ = *p++;
-			h->data++;
-		}
-	}
-
-	/* add a terminal '\n' if not already present */
-	if (to < wrap && !nl) {
-		*to++ = '\n';
-		h->data++;
-	}
-}
 
 /* This function initialises the haterm HTTP benchmark server from
  * <argv>. This consists in building a configuration file in memory
@@ -318,7 +221,7 @@ void haproxy_init_args(int argc, char **argv)
 					hbuf_appendf(&fbuf, "\toption accept-unsafe-violations-in-http-request\n");
 				}
 
-				hstream_str_buf_append(&fbuf, *argv);
+				hbuf_str_append(&fbuf, *argv);
 			}
 			else if (*opt == 'G') {
 				argv++; argc--;
@@ -334,7 +237,7 @@ void haproxy_init_args(int argc, char **argv)
 					hbuf_appendf(&gbuf, "global\n");
 				}
 
-				hstream_str_buf_append(&gbuf, *argv);
+				hbuf_str_append(&gbuf, *argv);
 			}
 			else if (*opt == 'T') {
 				argv++; argc--;
@@ -347,7 +250,7 @@ void haproxy_init_args(int argc, char **argv)
 				}
 
 				haterm_debug = 1;
-				hstream_str_buf_append(&tbuf, *argv);
+				hbuf_str_append(&tbuf, *argv);
 			}
 			else if (*opt == 'L') {
 				/* binding */
