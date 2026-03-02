@@ -2980,14 +2980,18 @@ static void defaults_px_free(struct proxy *defproxy)
 
 /* Removes <px> defaults instance from the name tree, free its content and
  * storage. This must only be used if <px> is unreferenced.
+ *
+ * Uses PROXIES_DEL_LOCK to protect global tree/list accesses.
  */
 void defaults_px_destroy(struct proxy *px)
 {
 	BUG_ON(!(px->cap & PR_CAP_DEF));
 	BUG_ON(px->conf.def_ref != 0);
 
+	HA_SPIN_LOCK(PROXIES_DEL_LOCK, &proxies_del_lock);
 	cebis_item_delete(&defproxy_by_name, conf.name_node, id, px);
 	LIST_DELETE(&px->el);
+	HA_SPIN_UNLOCK(PROXIES_DEL_LOCK, &proxies_del_lock);
 
 	defaults_px_free(px);
 	free(px);
@@ -2995,6 +2999,8 @@ void defaults_px_destroy(struct proxy *px)
 
 /* delete all unreferenced default proxies. A default proxy is unreferenced if
  * its <def_ref> count is equal to zero.
+ *
+ * Not thread safe - currently only used during init.
  */
 void defaults_px_destroy_all_unref(void)
 {
@@ -3011,6 +3017,8 @@ void defaults_px_destroy_all_unref(void)
 /* Removes <px> defaults from the name tree. This operation is useful when a
  * section is made invisible by a newer instance with the same name. If <px> is
  * not referenced it is freed immediately, else it is kept in defaults_list.
+ *
+ * Not thread safe - currently only used during parsing.
  */
 void defaults_px_detach(struct proxy *px)
 {
@@ -3021,7 +3029,10 @@ void defaults_px_detach(struct proxy *px)
 	/* If not destroyed, <px> can still be accessed in <defaults_list>. */
 }
 
-/* Increments by one defaults proxy reference of all defaults stored in tree name. */
+/* Increments by one defaults proxy reference of all defaults stored in tree name.
+ *
+ * Not thread safe - currently only used during init.
+ */
 void defaults_px_ref_all(void)
 {
 	struct proxy *px;
@@ -3033,7 +3044,11 @@ void defaults_px_ref_all(void)
 	}
 }
 
-/* Decrements defaults proxy ref of all defaults. This is the reverse of defaults_px_ref_all(). */
+/* Decrements defaults proxy ref of all defaults. This is the reverse of
+ * defaults_px_ref_all().
+ *
+ * Not thread safe - currently only used during deinit.
+ */
 void defaults_px_unref_all(void)
 {
 	struct proxy *px, *nx;
