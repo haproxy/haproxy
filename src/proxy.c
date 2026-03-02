@@ -3009,7 +3009,7 @@ void defaults_px_destroy_all_unref(void)
 	for (px = cebis_item_first(&defproxy_by_name, conf.name_node, id, struct proxy); px; px = nx) {
 		BUG_ON(!(px->cap & PR_CAP_DEF));
 		nx = cebis_item_next(&defproxy_by_name, conf.name_node, id, px);
-		if (!px->conf.def_ref)
+		if (!HA_ATOMIC_LOAD(&px->conf.def_ref))
 			defaults_px_destroy(px);
 	}
 }
@@ -3024,7 +3024,7 @@ void defaults_px_detach(struct proxy *px)
 {
 	BUG_ON(!(px->cap & PR_CAP_DEF));
 	cebis_item_delete(&defproxy_by_name, conf.name_node, id, px);
-	if (!px->conf.def_ref)
+	if (!HA_ATOMIC_LOAD(&px->conf.def_ref))
 		defaults_px_destroy(px);
 	/* If not destroyed, <px> can still be accessed in <defaults_list>. */
 }
@@ -3040,7 +3040,7 @@ void defaults_px_ref_all(void)
 	for (px = cebis_item_first(&defproxy_by_name, conf.name_node, id, struct proxy);
 	     px;
 	     px = cebis_item_next(&defproxy_by_name, conf.name_node, id, px)) {
-		++px->conf.def_ref;
+		HA_ATOMIC_INC(&px->conf.def_ref);
 	}
 }
 
@@ -3057,7 +3057,7 @@ void defaults_px_unref_all(void)
 		nx = cebis_item_next(&defproxy_by_name, conf.name_node, id, px);
 
 		BUG_ON(!px->conf.def_ref);
-		if (!--px->conf.def_ref)
+		if (!HA_ATOMIC_SUB_FETCH(&px->conf.def_ref, 1))
 			defaults_px_destroy(px);
 	}
 }
@@ -3066,8 +3066,7 @@ void defaults_px_unref_all(void)
  * done if <px> already references <defpx>. Otherwise, the default proxy
  * <def_ref> count is incremented by one.
  *
- * This operation is not thread safe. It must only be performed during init
- * stage or under thread isolation.
+ * Access on default proxy reference is thread safe thanks to atomic ops.
  */
 static inline void defaults_px_ref(struct proxy *defpx, struct proxy *px)
 {
@@ -3077,7 +3076,7 @@ static inline void defaults_px_ref(struct proxy *defpx, struct proxy *px)
 	BUG_ON(px->defpx);
 
 	px->defpx = defpx;
-	defpx->conf.def_ref++;
+	HA_ATOMIC_INC(&defpx->conf.def_ref);
 }
 
 /* Check that <px> can inherits from <defpx> default proxy. If some settings
@@ -3178,14 +3177,15 @@ int proxy_ref_defaults(struct proxy *px, struct proxy *defpx, char **errmsg)
 
 /* proxy <px> removes its reference on its default proxy. The default proxy
  * <def_ref> count is decremented by one. If it was the last reference, the
- * corresponding default proxy is destroyed. For now this operation is not
- * thread safe and is performed during deinit staged only.
-*/
+ * corresponding default proxy is destroyed.
+ *
+ * Access on default proxy reference is thread safe thanks to atomic ops.
+ */
 void proxy_unref_defaults(struct proxy *px)
 {
 	if (px->defpx == NULL)
 		return;
-	if (!--px->defpx->conf.def_ref)
+	if (!HA_ATOMIC_SUB_FETCH(&px->defpx->conf.def_ref, 1))
 		defaults_px_destroy(px->defpx);
 	px->defpx = NULL;
 }
