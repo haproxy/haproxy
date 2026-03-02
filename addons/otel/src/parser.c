@@ -870,6 +870,284 @@ static struct acl_cond *flt_otel_parse_acl(const char *file, int line, struct pr
 
 /***
  * NAME
+ *   flt_otel_parse_bounds - histogram boundary string parser
+ *
+ * SYNOPSIS
+ *   static int flt_otel_parse_bounds(const char *str, double **bounds, size_t *bounds_num, char **err, const char *err_msg)
+ *
+ * ARGUMENTS
+ *   str        - space-separated numeric boundary string
+ *   bounds     - pointer to the destination boundary array
+ *   bounds_num - pointer to store the number of boundaries
+ *   err        - indirect pointer to error message string
+ *   err_msg    - context label used in error messages
+ *
+ * DESCRIPTION
+ *   Parses a space-separated string of numbers into a dynamically allocated
+ *   array of doubles suitable for the meter add_view API.  The string is
+ *   duplicated internally and tokenized with strtok().  Each token is
+ *   converted with flt_otel_strtod().  The values are sorted internally.
+ *
+ * RETURN VALUE
+ *   Returns ERR_NONE (== 0) in case of success,
+ *   or a combination of ERR_* flags if an error is encountered.
+ */
+static int flt_otel_parse_bounds(const char *str, double **bounds, size_t *bounds_num, char **err, const char *err_msg)
+{
+	char   *buffer, *token, *lasts;
+	size_t  bounds_len = 0, bounds_size = 8;
+	double  value, *ptr;
+	int     retval = ERR_NONE;
+
+	OTELC_FUNC("\"%s\", %p, %p, %p:%p, \"%s\"", OTELC_STR_ARG(str), bounds, bounds_num, OTELC_DPTR_ARGS(err), OTELC_STR_ARG(err_msg));
+
+	buffer  = OTELC_STRDUP(str);
+	*bounds = OTELC_CALLOC(bounds_size, sizeof(**bounds));
+	if ((buffer == NULL) || (*bounds == NULL)) {
+		OTELC_SFREE(buffer);
+		OTELC_SFREE(*bounds);
+
+		FLT_OTEL_PARSE_ERR(err, "'%s' : out of memory", err_msg);
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	/* Tokenize and parse space-separated boundary values. */
+	for (token = strtok_r(buffer, " \t", &lasts); token != NULL; token = strtok_r(NULL, " \t", &lasts)) {
+		if (!flt_otel_strtod(token, &value, 0.0, DBL_MAX, err)) {
+			retval |= ERR_ABORT | ERR_ALERT;
+
+			break;
+		}
+		else if (bounds_len >= bounds_size) {
+			ptr = OTELC_REALLOC(*bounds, (bounds_size + 8) * sizeof(*ptr));
+			if (ptr == NULL) {
+				FLT_OTEL_PARSE_ERR(err, "'%s' : out of memory", err_msg);
+
+				OTELC_SFREE_CLEAR(*bounds);
+
+				break;
+			}
+
+			*bounds      = ptr;
+			bounds_size += 8;
+		}
+
+		(*bounds)[bounds_len++] = value;
+	}
+
+	/* Sort the bounds and reject duplicates. */
+	if ((*bounds != NULL) && (bounds_len > 1)) {
+		size_t i;
+
+		qsort(*bounds, bounds_len, sizeof(**bounds), flt_otel_qsort_compar_double);
+
+		for (i = 1; i < bounds_len; i++)
+			if (flt_otel_qsort_compar_double(*bounds + i - 1, *bounds + i) == 0) {
+				FLT_OTEL_PARSE_ERR(err, "'%s' : duplicate boundary value '%.2f'", err_msg, (*bounds)[i]);
+
+				OTELC_SFREE_CLEAR(*bounds);
+
+				break;
+			}
+	}
+
+	OTELC_SFREE(buffer);
+
+	if (*bounds == NULL) {
+		*bounds_num = 0;
+	}
+	else if (bounds_len == 0) {
+		FLT_OTEL_PARSE_ERR(err, "'%s' : empty bounds", err_msg);
+
+		OTELC_SFREE_CLEAR(*bounds);
+		*bounds_num = 0;
+	}
+	else {
+		*bounds_num = bounds_len;
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_parse_cfg_instrument - instrument keyword parser
+ *
+ * SYNOPSIS
+ *   static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args, const struct flt_otel_parse_data *pdata, char **err)
+ *
+ * ARGUMENTS
+ *   file  - configuration file path
+ *   line  - configuration file line number
+ *   args  - configuration line arguments array
+ *   pdata - keyword metadata (name, usage, argument limits)
+ *   err   - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Parses the "instrument" keyword inside an otel-scope section.  Two forms
+ *   are supported: the "update" form that references an existing instrument by
+ *   name and adds attributes to it, and the "create" form that defines a new
+ *   metric instrument with a type, name, optional aggregation type (preceded by
+ *   the 'aggr' keyword), optional description, optional unit, a single sample
+ *   expression for the value, and optional histogram bucket boundaries
+ *   (preceded by the 'bounds' keyword).  The 'bounds' keyword is only valid for
+ *   histogram instrument types.
+ *
+ * RETURN VALUE
+ *   Returns ERR_NONE (== 0) in case of success,
+ *   or a combination of ERR_* flags if an error is encountered.
+ */
+static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args, const struct flt_otel_parse_data *pdata, char **err)
+{
+#define FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEF(a,b)   { OTELC_METRIC_INSTRUMENT_##a, b },
+	static const struct {
+		otelc_metric_instrument_t  type;
+		const char                *keyword;
+	} instr_type[] = { FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEFINES };
+#undef FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEF
+	struct flt_otel_conf_instrument *instr;
+	int                              i, retval = ERR_NONE;
+
+	OTELC_FUNC("\"%s\", %d, %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, pdata, OTELC_DPTR_ARGS(err));
+
+	/* Look up the instrument type from args[1]. */
+	for (i = 0; i < OTELC_TABLESIZE(instr_type); i++)
+		if (FLT_OTEL_PARSE_KEYWORD(1, instr_type[i].keyword)) {
+			OTELC_DBG(DEBUG, "instrument type: %d '%s'", instr_type[i].type, instr_type[i].keyword);
+
+			break;
+		}
+
+	if (i >= OTELC_TABLESIZE(instr_type)) {
+		FLT_OTEL_PARSE_ERR(err, "'%s' : invalid instrument type", args[1]);
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	/*
+	 * Only one create and one update instrument per name are allowed.
+	 * Pass NULL as head for update instruments to bypass the generic
+	 * duplicate check (which would reject the shared name), check for
+	 * update duplicates separately, and append to the list manually.
+	 */
+	if (instr_type[i].type == OTELC_METRIC_INSTRUMENT_UPDATE) {
+		list_for_each_entry(instr, &(flt_otel_current_scope->instruments), list)
+			if ((instr->type == OTELC_METRIC_INSTRUMENT_UPDATE) && FLT_OTEL_PARSE_KEYWORD(2, instr->id)) {
+				FLT_OTEL_ERR("'%s' : already defined", args[2]);
+
+				OTELC_RETURN_INT(retval);
+			}
+
+		instr = flt_otel_conf_instrument_init(args[2], line, NULL, err);
+		if (instr != NULL)
+			LIST_APPEND(&(flt_otel_current_scope->instruments), &(instr->list));
+	} else {
+		instr = flt_otel_conf_instrument_init(args[2], line, &(flt_otel_current_scope->instruments), err);
+	}
+
+	if (instr == NULL) {
+		retval |= ERR_ABORT | ERR_ALERT;
+	}
+	else if (instr_type[i].type == OTELC_METRIC_INSTRUMENT_UPDATE) {
+		bool flag_add_attr = false;
+
+		instr->type = instr_type[i].type;
+
+		/* Update instruments only accept additional attributes. */
+		for (i = 3; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++) {
+			if (flag_add_attr) {
+				if (!FLT_OTEL_ARG_ISVALID(i) || !FLT_OTEL_ARG_ISVALID(i + 1))
+					FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+				else if (otelc_kv_add(&(instr->attr), &(instr->attr_len), args[i], args[i + 1], strlen(args[i + 1])) == OTELC_RET_ERROR)
+					FLT_OTEL_PARSE_ERR(err, "'%s' : out of memory", args[0]);
+				else
+					i++;
+			}
+			else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_INSTRUMENT_ATTR)) {
+				flag_add_attr = true;
+			}
+			else {
+				FLT_OTEL_PARSE_ERR(err, "'%s' : unknown keyword (use '%s%s')", args[i], pdata->name, pdata->usage);
+			}
+		}
+
+		if (flag_add_attr && (instr->attr_len == 0))
+			FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+	}
+	else {
+		instr->type = instr_type[i].type;
+
+		/*
+		 * Create instruments accept aggr, description, unit, value,
+		 * and bounds.
+		 */
+		for (i = 3; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++) {
+			if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_INSTRUMENT_AGGR)) {
+				if (!FLT_OTEL_ARG_ISVALID(i + 1))
+					FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+				else if (instr->aggr_type != OTELC_METRIC_AGGREGATION_UNSET)
+					FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+				else {
+					otelc_metric_aggregation_type_t type = otelc_meter_aggr_parse(args[++i]);
+
+					if (type == OTELC_RET_ERROR)
+						FLT_OTEL_PARSE_ERR(err, "'%s' : invalid aggregation type", args[i]);
+					else
+						instr->aggr_type = type;
+				}
+			}
+			else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_INSTRUMENT_DESC)) {
+				if (!FLT_OTEL_ARG_ISVALID(i + 1))
+					FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+				else if (instr->description == NULL)
+					retval = flt_otel_parse_strdup(&(instr->description), NULL, args[++i], err, args[0]);
+				else
+					FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+			}
+			else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_INSTRUMENT_UNIT)) {
+				if (!FLT_OTEL_ARG_ISVALID(i + 1))
+					FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+				else if (instr->unit == NULL)
+					retval = flt_otel_parse_strdup(&(instr->unit), NULL, args[++i], err, args[0]);
+				else
+					FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+			}
+			else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_INSTRUMENT_VALUE)) {
+				if (!FLT_OTEL_ARG_ISVALID(i + 1))
+					FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+				else if (!LIST_ISEMPTY(&(instr->samples)))
+					FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+				else {
+					retval = flt_otel_parse_cfg_sample(file, line, args, ++i, 1, NULL, &(instr->samples), err);
+
+					if (!(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i + 1) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_AGGR) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_DESC) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_UNIT) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_VALUE) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_BOUNDS))
+						FLT_OTEL_PARSE_ERR(err, "'%s' : only one sample expression allowed per instrument", args[0]);
+				}
+			}
+			else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_INSTRUMENT_BOUNDS)) {
+				if (!FLT_OTEL_ARG_ISVALID(i + 1))
+					FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+				else if (instr->type != OTELC_METRIC_INSTRUMENT_HISTOGRAM_UINT64)
+					FLT_OTEL_PARSE_ERR(err, "'%s' : bounds only valid for hist_int instruments", args[i]);
+				else if (instr->bounds != NULL)
+					FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+				else
+					retval = flt_otel_parse_bounds(args[++i], &(instr->bounds), &(instr->bounds_num), err, args[0]);
+			}
+			else {
+				FLT_OTEL_PARSE_ERR(err, "'%s' : invalid argument (use '%s%s')", args[i], pdata->name, pdata->usage);
+			}
+		}
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_parse_cfg_scope - otel-scope section parser
  *
  * SYNOPSIS
@@ -1087,6 +1365,9 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_FINISH) {
 		retval = flt_otel_parse_cfg_str(file, line, args, &(flt_otel_current_scope->spans_to_finish), &err);
+	}
+	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_INSTRUMENT) {
+		retval = flt_otel_parse_cfg_instrument(file, line, args, pdata, &err);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_ACL) {
 		if (FLT_OTEL_PARSE_KEYWORD(1, "or"))

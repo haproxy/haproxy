@@ -194,6 +194,12 @@ static int flt_otel_lib_init(struct flt_otel_conf_instr *instr, char **err)
 			FLT_OTEL_ERR("%s", "failed to initialize OpenTelemetry tracer");
 
 		OTELC_RETURN_INT(retval);
+	}
+
+	instr->meter = otelc_meter_create(err);
+	if (instr->meter == NULL) {
+		if (*err == NULL)
+			FLT_OTEL_ERR("%s", "failed to initialize OpenTelemetry meter");
 	} else {
 		otelc_ext_init(flt_otel_mem_malloc, flt_otel_mem_free, flt_otel_thread_id);
 		otelc_log_set_handler(flt_otel_log_handler_cb, NULL, false);
@@ -408,6 +414,7 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 {
 	struct flt_otel_conf **conf = (fconf == NULL) ? NULL : (typeof(conf))&(fconf->conf);
 	struct otelc_tracer   *otel_tracer = NULL;
+	struct otelc_meter    *otel_meter = NULL;
 #ifdef DEBUG_OTEL
 	char                   buffer[BUFSIZ];
 	int                    i;
@@ -438,13 +445,15 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 	 * still point to the HAProxy pool allocator; otelc_deinit() resets
 	 * those callbacks, so it runs last.
 	 */
-	if ((*conf)->instr != NULL)
+	if ((*conf)->instr != NULL) {
 		otel_tracer = (*conf)->instr->tracer;
+		otel_meter  = (*conf)->instr->meter;
+	}
 
 	flt_otel_conf_free(conf);
 	OTELC_MEMINFO();
 	flt_otel_pool_destroy();
-	otelc_deinit(&otel_tracer, NULL, NULL);
+	otelc_deinit(&otel_tracer, &otel_meter, NULL);
 
 	OTELC_RETURN();
 }
@@ -723,6 +732,91 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	else if (span_root_cnt > 1)
 		FLT_OTEL_ALERT("''%s' : multiple spans are marked as the root span'", conf->id);
 
+	OTELC_DBG(DEBUG, "- defined instruments ----------");
+
+	/*
+	 * Validate update-form instruments: for each one, resolve its reference
+	 * to the matching create-form instrument definition.
+	 *
+	 * Validate create-form instruments: check that names are unique across
+	 * all scopes.
+	 */
+	list_for_each_entry(conf_scope, &(conf->scopes), list) {
+		struct flt_otel_conf_instrument *conf_instr, *instr;
+		struct flt_otel_conf_scope      *scope;
+
+		list_for_each_entry(conf_instr, &(conf_scope->instruments), list) {
+			if (conf_instr->type == OTELC_METRIC_INSTRUMENT_UPDATE) {
+				FLT_OTEL_DBG_CONF_INSTRUMENT("  update ", conf_instr);
+
+				/*
+				 * Search all scopes for a create-form instrument
+				 * whose name matches this update-form instrument.
+				 */
+				list_for_each_entry(scope, &(conf->scopes), list) {
+					list_for_each_entry(instr, &(scope->instruments), list) {
+						if ((instr->type != OTELC_METRIC_INSTRUMENT_UPDATE) && (strcmp(instr->id, conf_instr->id) == 0))
+							conf_instr->ref = instr;
+
+						if (conf_instr->ref != NULL)
+							break;
+					}
+
+					if (conf_instr->ref != NULL)
+						break;
+				}
+
+				if (conf_instr->ref == NULL) {
+					FLT_OTEL_ALERT("''%s' : update-form instrument has no matching create-form definition'", conf_instr->id);
+
+					retval++;
+				}
+			} else {
+				bool flag_past = false, flag_dup = false;
+
+				FLT_OTEL_DBG_CONF_INSTRUMENT("  create ", conf_instr);
+
+				if (LIST_ISEMPTY(&(conf_instr->samples))) {
+					FLT_OTEL_ALERT("''%s' : create-form instrument '%s' has no value expression'", conf->id, conf_instr->id);
+
+					retval++;
+				}
+
+				if ((conf_instr->aggr_type == OTELC_METRIC_AGGREGATION_UNSET) && (conf_instr->type == OTELC_METRIC_INSTRUMENT_HISTOGRAM_UINT64))
+					conf_instr->aggr_type = OTELC_METRIC_AGGREGATION_HISTOGRAM;
+
+				/*
+				 * Checking that create-form instrument names
+				 * are unique across all scopes.  Only compare
+				 * forward to avoid reporting the same pair
+				 * twice.
+				 */
+				list_for_each_entry(scope, &(conf->scopes), list) {
+					list_for_each_entry(instr, &(scope->instruments), list)
+						if (instr == conf_instr) {
+							flag_past = true;
+
+							continue;
+						}
+						else if (!flag_past || (instr->type == OTELC_METRIC_INSTRUMENT_UPDATE)) {
+							continue;
+						}
+						else if (strcmp(instr->id, conf_instr->id) == 0) {
+							FLT_OTEL_ALERT("''%s' : duplicated create-form instrument '%s''", conf->id, conf_instr->id);
+
+							retval++;
+
+							flag_dup = true;
+							break;
+						}
+
+					if (flag_dup)
+						break;
+				}
+			}
+		}
+	}
+
 	FLT_OTEL_DBG_LIST(conf, group, "", "defined", _group,
 	                  FLT_OTEL_DBG_CONF_GROUP("   ", _group);
 	                  FLT_OTEL_DBG_LIST(_group, ph_scope, "   ", "used", _scope, FLT_OTEL_DBG_CONF_PH("      ", _scope)));
@@ -775,6 +869,12 @@ static int flt_otel_ops_init_per_thread(struct proxy *p, struct flt_conf *fconf)
 		retval = OTELC_OPS(conf->instr->tracer, start);
 		if (retval == OTELC_RET_ERROR)
 			FLT_OTEL_ALERT("%s", conf->instr->tracer->err);
+
+		if (retval != OTELC_RET_ERROR) {
+			retval = OTELC_OPS(conf->instr->meter, start);
+			if (retval == OTELC_RET_ERROR)
+				FLT_OTEL_ALERT("%s", conf->instr->meter->err);
+		}
 
 		if (retval != FLT_OTEL_RET_ERROR)
 			fconf->flags |= FLT_CFG_FL_HTX;

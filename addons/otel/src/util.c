@@ -347,6 +347,19 @@ int flt_otel_args_concat(const char **args, int idx, int n, char **str)
 }
 
 
+/*
+ * Comparator for qsort: ascending order of doubles.  Values within
+ * FLT_OTEL_DBL_EPSILON of each other are treated as equal.
+ */
+int flt_otel_qsort_compar_double(const void *p1, const void *p2)
+{
+	double a = *(const double *)p1;
+	double b = *(const double *)p2;
+
+	return (fabs(a - b) < FLT_OTEL_DBL_EPSILON) ? 0 : ((a < b) ? -1 : 1);
+}
+
+
 /***
  * NAME
  *   flt_otel_strtod - string to double conversion with range check

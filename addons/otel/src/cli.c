@@ -342,9 +342,9 @@ static int flt_otel_cli_parse_rate(char **args, char *payload, struct appctx *ap
  *   Handles the "otel status" CLI command.  Builds a formatted status report
  *   for all OTel filter instances across all proxies.  The report includes
  *   the library version, proxy name, configuration file path, group and scope
- *   counts, disable counts, instrumentation ID, tracer state, rate limit, error
- *   mode, disabled state, logging state, and analyzer bits.  When DEBUG_OTEL is
- *   enabled, the current debug level is also included.
+ *   counts, disable counts, instrumentation ID, tracer and meter state, rate
+ *   limit, error mode, disabled state, logging state, and analyzer bits.  When
+ *   DEBUG_OTEL is enabled, the current debug level is also included.
  *
  * RETURN VALUE
  *   Returns 1, or 0 on memory allocation failure.
@@ -382,6 +382,7 @@ static int flt_otel_cli_parse_status(char **args, char *payload, struct appctx *
 		(void)memprintf(&msg, "%s       instrumentation %s\n", msg, conf->instr->id);
 		(void)memprintf(&msg, "%s       configuration: %s\n", msg, conf->instr->config);
 		(void)memprintf(&msg, "%s       tracer:        %s\n", msg, (conf->instr->tracer != NULL) ? "active" : "not initialized");
+		(void)memprintf(&msg, "%s       meter:         %s\n", msg, (conf->instr->meter != NULL) ? "active" : "not initialized");
 		(void)memprintf(&msg, "%s       rate limit:    %.2f %%\n", msg, FLT_OTEL_U32_FLOAT(_HA_ATOMIC_LOAD(&(conf->instr->rate_limit))));
 		(void)memprintf(&msg, "%s       hard errors:   %s\n", msg, FLT_OTEL_STR_FLAG_YN(_HA_ATOMIC_LOAD(&(conf->instr->flag_harderr))));
 		(void)memprintf(&msg, "%s       disabled:      %s\n", msg, FLT_OTEL_STR_FLAG_YN(_HA_ATOMIC_LOAD(&(conf->instr->flag_disabled))));

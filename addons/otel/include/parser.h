@@ -20,6 +20,12 @@
 #define FLT_OTEL_PARSE_SPAN_ROOT              "root"
 #define FLT_OTEL_PARSE_SPAN_PARENT            "parent"
 #define FLT_OTEL_PARSE_SPAN_LINK              "link"
+#define FLT_OTEL_PARSE_INSTRUMENT_DESC        "desc"
+#define FLT_OTEL_PARSE_INSTRUMENT_VALUE       "value"
+#define FLT_OTEL_PARSE_INSTRUMENT_ATTR        "attr"
+#define FLT_OTEL_PARSE_INSTRUMENT_UNIT        "unit"
+#define FLT_OTEL_PARSE_INSTRUMENT_BOUNDS      "bounds"
+#define FLT_OTEL_PARSE_INSTRUMENT_AGGR        "aggr"
 #define FLT_OTEL_PARSE_CTX_AUTONAME           "-"
 #define FLT_OTEL_PARSE_CTX_IGNORE_NAME        '-'
 #define FLT_OTEL_PARSE_CTX_USE_HEADERS        "use-headers"
@@ -65,6 +71,33 @@
 	FLT_OTEL_PARSE_SCOPE_STATUS_DEF(    OK, "ok"    ) \
 	FLT_OTEL_PARSE_SCOPE_STATUS_DEF( ERROR, "error" )
 
+/* Sentinel: instrument has not been created yet. */
+#define OTELC_METRIC_INSTRUMENT_UNSET         -1
+
+/* Sentinel: instrument creation is in progress by another thread. */
+#define OTELC_METRIC_INSTRUMENT_PENDING       -2
+
+/* Sentinel: update-form instrument (re-evaluates an existing one). */
+#define OTELC_METRIC_INSTRUMENT_UPDATE        0xff
+
+#define OTELC_METRIC_AGGREGATION_UNSET        -1
+
+/*
+ * Observable (asynchronous) instruments are not supported.  The OTel SDK
+ * invokes their callbacks from an external background thread that is not a
+ * HAProxy thread.  HAProxy sample fetches rely on internal per-thread-group
+ * state and return incorrect results when called from a non-HAProxy thread.
+ *
+ * Double-precision instruments are not supported because HAProxy sample fetches
+ * do not return double values.
+ */
+#define FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEFINES                            \
+	FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEF(UPDATE,           "update"   ) \
+	FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEF(COUNTER_UINT64,   "cnt_int"  ) \
+	FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEF(HISTOGRAM_UINT64, "hist_int" ) \
+	FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEF(UDCOUNTER_INT64,  "udcnt_int") \
+	FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEF(GAUGE_INT64,      "gauge_int")
+
 /*
  * In case the possibility of working with OpenTelemetry context via HAProxy
  * variables is not used, args_max member of the structure flt_otel_parse_data
@@ -72,19 +105,20 @@
  * because in this case the 'use-vars' argument cannot be entered anyway,
  * so I will not complicate it here with additional definitions.
  */
-#define FLT_OTEL_PARSE_SCOPE_DEFINES                                                                                                \
-	FLT_OTEL_PARSE_SCOPE_DEF(          ID, 0, CHAR, 2, 2, "otel-scope",   " <name>")                                            \
-	FLT_OTEL_PARSE_SCOPE_DEF(        SPAN, 0, NONE, 2, 7, "span",         " <name> [<reference>] [<link>] [root]")              \
-	FLT_OTEL_PARSE_SCOPE_DEF(        LINK, 1, NONE, 2, 0,   "link",       " <span> ...")                                        \
-	FLT_OTEL_PARSE_SCOPE_DEF(   ATTRIBUTE, 1, NONE, 3, 0,   "attribute",  " <key> <sample> ...")                                \
-	FLT_OTEL_PARSE_SCOPE_DEF(       EVENT, 1, NONE, 4, 0,   "event",      " <name> <key> <sample> ...")                         \
-	FLT_OTEL_PARSE_SCOPE_DEF(     BAGGAGE, 1,  VAR, 3, 0,   "baggage",    " <key> <sample> ...")                                \
-	FLT_OTEL_PARSE_SCOPE_DEF(      INJECT, 1,  CTX, 2, 4,   "inject",     FLT_OTEL_PARSE_SCOPE_INJECT_HELP)                     \
-	FLT_OTEL_PARSE_SCOPE_DEF(     EXTRACT, 0,  CTX, 2, 3,   "extract",    FLT_OTEL_PARSE_SCOPE_EXTRACT_HELP)                    \
-	FLT_OTEL_PARSE_SCOPE_DEF(      STATUS, 1, NONE, 2, 0,   "status",     " <code> [<sample> ...]")                             \
-	FLT_OTEL_PARSE_SCOPE_DEF(      FINISH, 0, NONE, 2, 0,   "finish",     " <name> ...")                                        \
-	FLT_OTEL_PARSE_SCOPE_DEF(IDLE_TIMEOUT, 0, NONE, 2, 2, "idle-timeout", " <time>")                                            \
-	FLT_OTEL_PARSE_SCOPE_DEF(         ACL, 0, CHAR, 3, 0, "acl",          " <name> <criterion> [flags] [operator] <value> ...") \
+#define FLT_OTEL_PARSE_SCOPE_DEFINES                                                                                                                                           \
+	FLT_OTEL_PARSE_SCOPE_DEF(          ID, 0, CHAR, 2, 2, "otel-scope",   " <name>")                                                                                       \
+	FLT_OTEL_PARSE_SCOPE_DEF(        SPAN, 0, NONE, 2, 7, "span",         " <name> [<reference>] [<link>] [root]")                                                         \
+	FLT_OTEL_PARSE_SCOPE_DEF(        LINK, 1, NONE, 2, 0,   "link",       " <span> ...")                                                                                   \
+	FLT_OTEL_PARSE_SCOPE_DEF(   ATTRIBUTE, 1, NONE, 3, 0,   "attribute",  " <key> <sample> ...")                                                                           \
+	FLT_OTEL_PARSE_SCOPE_DEF(       EVENT, 1, NONE, 4, 0,   "event",      " <name> <key> <sample> ...")                                                                    \
+	FLT_OTEL_PARSE_SCOPE_DEF(     BAGGAGE, 1,  VAR, 3, 0,   "baggage",    " <key> <sample> ...")                                                                           \
+	FLT_OTEL_PARSE_SCOPE_DEF(      INJECT, 1,  CTX, 2, 4,   "inject",     FLT_OTEL_PARSE_SCOPE_INJECT_HELP)                                                                \
+	FLT_OTEL_PARSE_SCOPE_DEF(     EXTRACT, 0,  CTX, 2, 3,   "extract",    FLT_OTEL_PARSE_SCOPE_EXTRACT_HELP)                                                               \
+	FLT_OTEL_PARSE_SCOPE_DEF(      STATUS, 1, NONE, 2, 0,   "status",     " <code> [<sample> ...]")                                                                        \
+	FLT_OTEL_PARSE_SCOPE_DEF(      FINISH, 0, NONE, 2, 0,   "finish",     " <name> ...")                                                                                   \
+	FLT_OTEL_PARSE_SCOPE_DEF(  INSTRUMENT, 0, NONE, 3, 0, "instrument",   " { update <name> [<attr> ...] | <type> <name> [<aggr>] [<desc>] [<unit>] <value> [<bounds>] }") \
+	FLT_OTEL_PARSE_SCOPE_DEF(IDLE_TIMEOUT, 0, NONE, 2, 2, "idle-timeout", " <time>")                                                                                       \
+	FLT_OTEL_PARSE_SCOPE_DEF(         ACL, 0, CHAR, 3, 0, "acl",          " <name> <criterion> [flags] [operator] <value> ...")                                            \
 	FLT_OTEL_PARSE_SCOPE_DEF(    ON_EVENT, 0, NONE, 2, 0, "otel-event",   " <name> [{ if | unless } <condition>]")
 
 /* Invalid character check modes for identifier validation. */

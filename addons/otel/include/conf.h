@@ -56,10 +56,11 @@
 	                 flt_otel_list_dump(&((p)->statuses)))
 
 #define FLT_OTEL_DBG_CONF_SCOPE(h,p)                                                                        \
-	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%hhu %d %u %s %p %s %s %s }", (p),              \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%hhu %d %u %s %p %s %s %s %s }", (p),           \
 	                 FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->flag_used, (p)->event, (p)->idle_timeout,      \
 	                 flt_otel_list_dump(&((p)->acls)), (p)->cond, flt_otel_list_dump(&((p)->contexts)), \
-	                 flt_otel_list_dump(&((p)->spans)), flt_otel_list_dump(&((p)->spans_to_finish)))
+	                 flt_otel_list_dump(&((p)->spans)), flt_otel_list_dump(&((p)->spans_to_finish)),    \
+	                 flt_otel_list_dump(&((p)->instruments)))
 
 #define FLT_OTEL_DBG_CONF_GROUP(h,p)                                         \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%hhu %s }", (p), \
@@ -69,11 +70,17 @@
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%p }", (p), FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->ptr)
 
 #define FLT_OTEL_DBG_CONF_INSTR(h,p)                                                                                                 \
-	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %p %u %hhu %hhu 0x%02hhx %p:%s 0x%08x %u %s %s %s }", (p),          \
-	                 FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->config, (p)->tracer, (p)->rate_limit, (p)->flag_harderr,                \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %p %p %u %hhu %hhu 0x%02hhx %p:%s 0x%08x %u %s %s %s }", (p),       \
+	                 FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->config, (p)->tracer, (p)->meter, (p)->rate_limit, (p)->flag_harderr,    \
 	                 (p)->flag_disabled, (p)->logging, &((p)->proxy_log), flt_otel_list_dump(&((p)->proxy_log.loggers)),         \
 	                 (p)->analyzers, (p)->idle_timeout, flt_otel_list_dump(&((p)->acls)), flt_otel_list_dump(&((p)->ph_groups)), \
 	                 flt_otel_list_dump(&((p)->ph_scopes)))
+
+#define FLT_OTEL_DBG_CONF_INSTRUMENT(h,p)                                                                                     \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%" PRId64 " %d %d '%s' '%s' %s %p %zu %p %zu %p }", (p),          \
+	                 FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->idx, (p)->type, (p)->aggr_type, OTELC_STR_ARG((p)->description), \
+	                 OTELC_STR_ARG((p)->unit), flt_otel_list_dump(&((p)->samples)), (p)->attr, (p)->attr_len, (p)->ref,   \
+	                 (p)->bounds_num, (p)->bounds)
 
 #define FLT_OTEL_DBG_CONF(h,p)                                    \
 	OTELC_DBG(DEBUG, h "%p:{ %p '%s' '%s' %p %s %s }", (p),   \
@@ -112,6 +119,7 @@ struct flt_otel_conf_sample_expr {
  * flt_otel_conf_span->events (event_name -> OTELC_VALUE_STR(&extra))
  * flt_otel_conf_span->baggages
  * flt_otel_conf_span->statuses (status_code -> extra.u.value_int32)
+ * flt_otel_conf_instrument->samples
  */
 struct flt_otel_conf_sample {
 	FLT_OTEL_CONF_HDR(key);         /* The list containing sample names. */
@@ -161,6 +169,25 @@ struct flt_otel_conf_span {
 	struct list statuses;      /* Span status code and description (only one per list). */
 };
 
+/*
+ * Metric instrument configuration within a scope.
+ *   flt_otel_conf_scope->instruments
+ */
+struct flt_otel_conf_instrument {
+	FLT_OTEL_CONF_HDR(id);                          /* The name of the instrument. */
+	int64_t                            idx;         /* Meter instrument index (-1 if not yet created). */
+	otelc_metric_instrument_t          type;        /* Instrument type (or UPDATE). */
+	otelc_metric_aggregation_type_t    aggr_type;   /* Aggregation type for the view (create only). */
+	char                              *description; /* Instrument description (create only). */
+	char                              *unit;        /* Instrument unit (create only). */
+	struct list                        samples;     /* Sample expressions for the value. */
+	double                            *bounds;      /* Histogram bucket boundaries (create only). */
+	size_t                             bounds_num;  /* Number of histogram bucket boundaries. */
+	struct otelc_kv                   *attr;        /* Instrument attributes (update only). */
+	size_t                             attr_len;    /* Number of instrument attributes. */
+	struct flt_otel_conf_instrument   *ref;         /* Resolved create-form instrument (update only). */
+};
+
 /* Configuration for a single event scope. */
 struct flt_otel_conf_scope {
 	FLT_OTEL_CONF_HDR(id);            /* The scope name. */
@@ -172,6 +199,7 @@ struct flt_otel_conf_scope {
 	struct list      contexts;        /* Declared contexts. */
 	struct list      spans;           /* Declared spans. */
 	struct list      spans_to_finish; /* The list of spans scheduled for finishing. */
+	struct list      instruments;     /* The list of metric instruments. */
 };
 
 /* Configuration for a named group of scopes. */
@@ -189,11 +217,12 @@ struct flt_otel_conf_ph {
 #define flt_otel_conf_ph_group        flt_otel_conf_ph
 #define flt_otel_conf_ph_scope        flt_otel_conf_ph
 
-/* Top-level OTel instrumentation settings (tracer, options). */
+/* Top-level OTel instrumentation settings (tracer, meter, options). */
 struct flt_otel_conf_instr {
 	FLT_OTEL_CONF_HDR(id);              /* The OpenTelemetry instrumentation name. */
 	char                *config;        /* The OpenTelemetry configuration file name. */
 	struct otelc_tracer *tracer;        /* The OpenTelemetry tracer handle. */
+	struct otelc_meter  *meter;         /* The OpenTelemetry meter handle. */
 	uint32_t             rate_limit;    /* [0 2^32-1] <-> [0.0 100.0] */
 	bool                 flag_harderr;  /* [0 1] */
 	bool                 flag_disabled; /* [0 1] */

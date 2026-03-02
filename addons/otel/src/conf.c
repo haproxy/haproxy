@@ -488,6 +488,64 @@ FLT_OTEL_CONF_FUNC_FREE(span, id,
 
 /***
  * NAME
+ *   flt_otel_conf_instrument_init - conf_instrument structure allocation
+ *
+ * SYNOPSIS
+ *   struct flt_otel_conf_instrument *flt_otel_conf_instrument_init(const char *id, int line, struct list *head, char **err)
+ *
+ * ARGUMENTS
+ *   id   - identifier string to duplicate
+ *   line - configuration file line number
+ *   head - list to append to (or NULL)
+ *   err  - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Allocates and initializes a conf_instrument structure.  Sets the instrument
+ *   type and meter index to OTELC_METRIC_INSTRUMENT_UNSET and initializes the
+ *   samples list.  The <id> string is duplicated and stored as the instrument
+ *   name.  If <head> is non-NULL, the structure is appended to the list.
+ *
+ * RETURN VALUE
+ *   Returns a pointer to the initialized structure, or NULL on failure.
+ */
+FLT_OTEL_CONF_FUNC_INIT(instrument, id,
+	retptr->idx       = OTELC_METRIC_INSTRUMENT_UNSET;
+	retptr->type      = OTELC_METRIC_INSTRUMENT_UNSET;
+	retptr->aggr_type = OTELC_METRIC_AGGREGATION_UNSET;
+	LIST_INIT(&(retptr->samples));
+)
+
+
+/***
+ * NAME
+ *   flt_otel_conf_instrument_free - conf_instrument structure deallocation
+ *
+ * SYNOPSIS
+ *   void flt_otel_conf_instrument_free(struct flt_otel_conf_instrument **ptr)
+ *
+ * ARGUMENTS
+ *   ptr - a pointer to the address of a structure
+ *
+ * DESCRIPTION
+ *   Deallocates memory used by the flt_otel_conf_instrument structure and its
+ *   contents, then removes it from the list of structures of that type.
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+FLT_OTEL_CONF_FUNC_FREE(instrument, id,
+	FLT_OTEL_DBG_CONF_INSTRUMENT("- conf_instrument free ", *ptr);
+
+	OTELC_SFREE((*ptr)->description);
+	OTELC_SFREE((*ptr)->unit);
+	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->samples));
+	OTELC_SFREE((*ptr)->bounds);
+	otelc_kv_destroy(&((*ptr)->attr), (*ptr)->attr_len);
+)
+
+
+/***
+ * NAME
  *   flt_otel_conf_scope_init - conf_scope structure allocation
  *
  * SYNOPSIS
@@ -513,6 +571,7 @@ FLT_OTEL_CONF_FUNC_INIT(scope, id,
 	LIST_INIT(&(retptr->contexts));
 	LIST_INIT(&(retptr->spans));
 	LIST_INIT(&(retptr->spans_to_finish));
+	LIST_INIT(&(retptr->instruments));
 )
 
 
@@ -548,6 +607,7 @@ FLT_OTEL_CONF_FUNC_FREE(scope, id,
 	FLT_OTEL_LIST_DESTROY(context, &((*ptr)->contexts));
 	FLT_OTEL_LIST_DESTROY(span, &((*ptr)->spans));
 	FLT_OTEL_LIST_DESTROY(str, &((*ptr)->spans_to_finish));
+	FLT_OTEL_LIST_DESTROY(instrument, &((*ptr)->instruments));
 )
 
 

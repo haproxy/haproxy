@@ -11,6 +11,217 @@ const struct flt_otel_event_data flt_otel_event_data[FLT_OTEL_EVENT_MAX] = { FLT
 
 /***
  * NAME
+ *   flt_otel_scope_run_instrument_record - metric instrument value recorder
+ *
+ * SYNOPSIS
+ *   static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, struct otelc_meter *meter, struct flt_otel_conf_instrument *instr_ref, struct flt_otel_conf_instrument *instr, char **err)
+ *
+ * ARGUMENTS
+ *   s         - the stream providing the sample context
+ *   dir       - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
+ *   meter     - the OTel meter instance
+ *   instr_ref - the create-form instrument providing samples and meter index
+ *   instr     - the update-form instrument providing per-scope attributes
+ *   err       - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Evaluates sample expressions from a create-form instrument and records
+ *   the resulting value via the <meter> API.  Each expression is evaluated
+ *   with sample_process(), converted to an otelc_value via
+ *   flt_otel_sample_to_value(), and recorded via
+ *   <meter>->update_instrument_kv_n().
+ *
+ * RETURN VALUE
+ *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
+ */
+static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, struct otelc_meter *meter, struct flt_otel_conf_instrument *instr_ref, struct flt_otel_conf_instrument *instr, char **err)
+{
+	struct flt_otel_conf_sample      *sample;
+	struct flt_otel_conf_sample_expr *expr;
+	struct sample                     smp;
+	struct otelc_value                value;
+	int                               retval = FLT_OTEL_RET_OK;
+
+	OTELC_FUNC("%p, %u, %p, %p, %p, %p:%p", s, dir, meter, instr_ref, instr, OTELC_DPTR_ARGS(err));
+
+	/* The samples list always contains exactly one entry. */
+	sample = LIST_NEXT(&(instr_ref->samples), struct flt_otel_conf_sample *, list);
+
+	(void)memset(&smp, 0, sizeof(smp));
+
+	if (sample->lf_used) {
+		/*
+		 * Log-format path: evaluate into a temporary buffer and present
+		 * the result as a string sample.
+		 */
+		smp.data.u.str.area = OTELC_CALLOC(1, global.tune.bufsize);
+		if (smp.data.u.str.area == NULL) {
+			FLT_OTEL_ERR("out of memory");
+
+			OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+		}
+
+		smp.data.type       = SMP_T_STR;
+		smp.data.u.str.data = build_logline(s, smp.data.u.str.area, global.tune.bufsize, &(sample->lf_expr));
+	} else {
+		/* The expressions list always contains exactly one entry. */
+		expr = LIST_NEXT(&(sample->exprs), struct flt_otel_conf_sample_expr *, list);
+
+		FLT_OTEL_DBG_CONF_SAMPLE_EXPR("sample expression ", expr);
+
+		if (sample_process(s->be, s->sess, s, dir | SMP_OPT_FINAL, expr->expr, &smp) == NULL) {
+			OTELC_DBG(NOTICE, "WARNING: failed to fetch '%s'", expr->fmt_expr);
+
+			retval = FLT_OTEL_RET_ERROR;
+		}
+	}
+
+	if (retval == FLT_OTEL_RET_ERROR) {
+		/* Do nothing. */
+	}
+	else if (flt_otel_sample_to_value(sample->key, &(smp.data), &value, err) == FLT_OTEL_RET_ERROR) {
+		if (value.u_type == OTELC_VALUE_DATA)
+			OTELC_SFREE(value.u.value_data);
+
+		retval = FLT_OTEL_RET_ERROR;
+	}
+	else {
+		OTELC_DBG_VALUE(DEBUG, "value ", &value);
+
+		/*
+		 * Metric instruments expect numeric values (INT64 or DOUBLE).
+		 * Reject OTELC_VALUE_DATA since the meter cannot interpret
+		 * arbitrary string data as a numeric measurement.
+		 */
+		if (value.u_type == OTELC_VALUE_DATA) {
+			OTELC_DBG(NOTICE, "WARNING: non-numeric value type for instrument '%s'", instr_ref->id);
+
+			if (otelc_value_strtonum(&value, OTELC_VALUE_INT64) == OTELC_RET_ERROR) {
+				OTELC_SFREE(value.u.value_data);
+
+				retval = FLT_OTEL_RET_ERROR;
+			}
+		}
+
+		if (retval != FLT_OTEL_RET_ERROR)
+			if (OTELC_OPS(meter, update_instrument_kv_n, HA_ATOMIC_LOAD(&(instr_ref->idx)), &value, instr->attr, instr->attr_len) == OTELC_RET_ERROR)
+				retval = FLT_OTEL_RET_ERROR;
+	}
+
+	if (sample->lf_used)
+		OTELC_SFREE(smp.data.u.str.area);
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_scope_run_instrument - metric instrument processor
+ *
+ * SYNOPSIS
+ *   static int flt_otel_scope_run_instrument(struct stream *s, uint dir, struct flt_otel_conf_scope *scope, struct otelc_meter *meter, char **err)
+ *
+ * ARGUMENTS
+ *   s     - the stream providing the sample context
+ *   dir   - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
+ *   scope - the scope configuration containing the instrument list
+ *   meter - the OTel meter instance
+ *   err   - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Processes all metric instruments configured in <scope>.  Runs in two
+ *   passes: the first pass lazily creates create-form instruments via <meter>
+ *   on first use, using HA_ATOMIC_CAS on the instrument index to guarantee
+ *   thread-safe one-time initialization.  The second pass iterates over
+ *   update-form instruments and records measurements via
+ *   flt_otel_scope_run_instrument_record().  Instruments whose index is still
+ *   negative (UNUSED or PENDING) are skipped, so that a concurrent creation by
+ *   another thread does not cause an invalid <meter> access.
+ *
+ * RETURN VALUE
+ *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
+ */
+static int flt_otel_scope_run_instrument(struct stream *s, uint dir, struct flt_otel_conf_scope *scope, struct otelc_meter *meter, char **err)
+{
+	struct flt_otel_conf_instrument *conf_instr;
+	int                              retval = FLT_OTEL_RET_OK;
+
+	OTELC_FUNC("%p, %u, %p, %p, %p:%p", s, dir, scope, meter, OTELC_DPTR_ARGS(err));
+
+	list_for_each_entry(conf_instr, &(scope->instruments), list) {
+		if (conf_instr->type == OTELC_METRIC_INSTRUMENT_UPDATE) {
+			/* Do nothing. */
+		}
+		else if (HA_ATOMIC_LOAD(&(conf_instr->idx)) == OTELC_METRIC_INSTRUMENT_UNSET) {
+			int64_t expected = OTELC_METRIC_INSTRUMENT_UNSET;
+			int     rc;
+
+			OTELC_DBG(DEBUG, "run instrument '%s' -> '%s'", scope->id, conf_instr->id);
+			FLT_OTEL_DBG_CONF_INSTRUMENT("", conf_instr);
+
+			/*
+			 * Create form: use this instrument directly.  Lazily
+			 * create the instrument on first use.  Use CAS to
+			 * ensure only one thread performs the creation in a
+			 * multi-threaded environment.
+			 */
+			if (!HA_ATOMIC_CAS(&(conf_instr->idx), &expected, OTELC_METRIC_INSTRUMENT_PENDING))
+				continue;
+
+			/*
+			 * The view must be created before the instrument,
+			 * otherwise bucket boundaries cannot be set.
+			 */
+			if ((conf_instr->bounds != NULL) && (conf_instr->bounds_num > 0))
+				if (OTELC_OPS(meter, add_view, conf_instr->id, conf_instr->description, conf_instr->id, conf_instr->unit, conf_instr->type, conf_instr->aggr_type, conf_instr->bounds, conf_instr->bounds_num) == OTELC_RET_ERROR)
+					OTELC_DBG(NOTICE, "WARNING: failed to add view for instrument '%s'", conf_instr->id);
+
+			rc = OTELC_OPS(meter, create_instrument, conf_instr->id, conf_instr->description, conf_instr->unit, conf_instr->type, NULL);
+			if (rc == OTELC_RET_ERROR) {
+				OTELC_DBG(NOTICE, "WARNING: failed to create instrument '%s'", conf_instr->id);
+
+				HA_ATOMIC_STORE(&(conf_instr->idx), OTELC_METRIC_INSTRUMENT_UNSET);
+
+				retval = FLT_OTEL_RET_ERROR;
+
+				continue;
+			} else {
+				HA_ATOMIC_STORE(&(conf_instr->idx), rc);
+			}
+		}
+	}
+
+	list_for_each_entry(conf_instr, &(scope->instruments), list)
+		if (conf_instr->type == OTELC_METRIC_INSTRUMENT_UPDATE) {
+			struct flt_otel_conf_instrument *instr = conf_instr->ref;
+
+			OTELC_DBG(DEBUG, "run instrument '%s' -> '%s'", scope->id, conf_instr->id);
+			FLT_OTEL_DBG_CONF_INSTRUMENT("", conf_instr);
+
+			/*
+			 * Update form: record a measurement using an existing
+			 * create-form instrument.
+			 */
+			if (instr == NULL) {
+				OTELC_DBG(NOTICE, "WARNING: invalid reference instrument '%s'", conf_instr->id);
+
+				retval = FLT_OTEL_RET_ERROR;
+			}
+			else if (HA_ATOMIC_LOAD(&(instr->idx)) < 0) {
+				OTELC_DBG(NOTICE, "WARNING: instrument '%s' not yet created, skipping", instr->id);
+			}
+			else if (flt_otel_scope_run_instrument_record(s, dir, meter, instr, conf_instr, err) == FLT_OTEL_RET_ERROR) {
+				retval = FLT_OTEL_RET_ERROR;
+			}
+		}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_scope_run_span - single span execution
  *
  * SYNOPSIS
@@ -351,6 +562,11 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 
 		flt_otel_scope_data_free(&data);
 	}
+
+	/* Process metric instruments. */
+	if (!LIST_ISEMPTY(&(conf_scope->instruments)))
+		if (flt_otel_scope_run_instrument(s, dir, conf_scope, conf->instr->meter, err) == FLT_OTEL_RET_ERROR)
+			retval = FLT_OTEL_RET_ERROR;
 
 	/* Mark the configured spans for finishing and clean up. */
 	list_for_each_entry(span_to_finish, &(conf_scope->spans_to_finish), list)
