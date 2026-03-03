@@ -12,6 +12,9 @@
 #include <haproxy/mux_quic-t.h>
 #include <haproxy/stconn.h>
 
+#include <haproxy/h3.h>
+#include <haproxy/hq_interop.h>
+
 #define qcc_report_glitch(qcc, inc, ...) ({		\
 		COUNT_GLITCH(__VA_ARGS__);		\
 		_qcc_report_glitch(qcc, inc); 		\
@@ -114,6 +117,16 @@ static inline void qcs_wait_http_req(struct qcs *qcs)
 void qcc_show_quic(struct qcc *qcc);
 
 void qcc_wakeup(struct qcc *qcc);
+
+static inline const struct qcc_app_ops *quic_alpn_to_app_ops(const char *alpn, int alpn_len)
+{
+	if (alpn_len >= 2 && memcmp(alpn, "h3", 2) == 0)
+		return &h3_ops;
+	else if (alpn_len >= 10 && memcmp(alpn, "hq-interop", 10) == 0)
+		return &hq_interop_ops;
+
+	return NULL;
+}
 
 #endif /* USE_QUIC */
 

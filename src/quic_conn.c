@@ -38,8 +38,6 @@
 #include <haproxy/freq_ctr.h>
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
-#include <haproxy/h3.h>
-#include <haproxy/hq_interop.h>
 #include <haproxy/log.h>
 #include <haproxy/mux_quic.h>
 #include <haproxy/ncbuf.h>
@@ -274,14 +272,11 @@ void quic_set_tls_alert(struct quic_conn *qc, int alert)
  */
 int quic_set_app_ops(struct quic_conn *qc, const char *alpn, int alpn_len)
 {
-	if (alpn_len >= 2 && memcmp(alpn, "h3", 2) == 0)
-		qc->app_ops = &h3_ops;
-	else if (alpn_len >= 10 && memcmp(alpn, "hq-interop", 10) == 0)
-		qc->app_ops = &hq_interop_ops;
-	else
+	if (!(qc->app_ops = quic_alpn_to_app_ops(alpn, alpn_len)))
 		return 0;
 
 	return 1;
+
 }
 
 /* Try to reuse <alpn> ALPN and <etps> early transport parameters.
