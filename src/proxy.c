@@ -4120,7 +4120,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 	else
 		s->be_tgcounters = NULL;
 
-	HA_ATOMIC_UPDATE_MAX(&be->be_counters.conn_max,
+	COUNTERS_UPDATE_MAX(&be->be_counters.conn_max,
 			     HA_ATOMIC_ADD_FETCH(&be->beconn, 1));
 	proxy_inc_be_ctr(be);
 

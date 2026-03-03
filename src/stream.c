@@ -2834,10 +2834,10 @@ void stream_update_time_stats(struct stream *s)
 		swrate_add_dynamic(&srv->counters.c_time, samples_window, t_connect);
 		swrate_add_dynamic(&srv->counters.d_time, samples_window, t_data);
 		swrate_add_dynamic(&srv->counters.t_time, samples_window, t_close);
-		HA_ATOMIC_UPDATE_MAX(&srv->counters.qtime_max, t_queue);
-		HA_ATOMIC_UPDATE_MAX(&srv->counters.ctime_max, t_connect);
-		HA_ATOMIC_UPDATE_MAX(&srv->counters.dtime_max, t_data);
-		HA_ATOMIC_UPDATE_MAX(&srv->counters.ttime_max, t_close);
+		COUNTERS_UPDATE_MAX(&srv->counters.qtime_max, t_queue);
+		COUNTERS_UPDATE_MAX(&srv->counters.ctime_max, t_connect);
+		COUNTERS_UPDATE_MAX(&srv->counters.dtime_max, t_data);
+		COUNTERS_UPDATE_MAX(&srv->counters.ttime_max, t_close);
 	}
 	if (s->be_tgcounters)
 		samples_window = (((s->be->mode == PR_MODE_HTTP) ?
@@ -2848,10 +2848,10 @@ void stream_update_time_stats(struct stream *s)
 	swrate_add_dynamic(&s->be->be_counters.c_time, samples_window, t_connect);
 	swrate_add_dynamic(&s->be->be_counters.d_time, samples_window, t_data);
 	swrate_add_dynamic(&s->be->be_counters.t_time, samples_window, t_close);
-	HA_ATOMIC_UPDATE_MAX(&s->be->be_counters.qtime_max, t_queue);
-	HA_ATOMIC_UPDATE_MAX(&s->be->be_counters.ctime_max, t_connect);
-	HA_ATOMIC_UPDATE_MAX(&s->be->be_counters.dtime_max, t_data);
-	HA_ATOMIC_UPDATE_MAX(&s->be->be_counters.ttime_max, t_close);
+	COUNTERS_UPDATE_MAX(&s->be->be_counters.qtime_max, t_queue);
+	COUNTERS_UPDATE_MAX(&s->be->be_counters.ctime_max, t_connect);
+	COUNTERS_UPDATE_MAX(&s->be->be_counters.dtime_max, t_data);
+	COUNTERS_UPDATE_MAX(&s->be->be_counters.ttime_max, t_close);
 }
 
 /*

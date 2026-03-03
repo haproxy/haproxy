@@ -172,10 +172,10 @@ struct task *accept_queue_process(struct task *t, void *context, unsigned int st
 		 * connection.
 		 */
 		if (!(li->bind_conf->options & BC_O_UNLIMITED)) {
-			HA_ATOMIC_UPDATE_MAX(&global.sps_max,
+			COUNTERS_UPDATE_MAX(&global.sps_max,
 			                     update_freq_ctr(&global.sess_per_sec, 1));
 			if (li->bind_conf->options & BC_O_USE_SSL) {
-				HA_ATOMIC_UPDATE_MAX(&global.ssl_max,
+				COUNTERS_UPDATE_MAX(&global.ssl_max,
 				                     update_freq_ctr(&global.ssl_per_sec, 1));
 			}
 		}
@@ -1227,16 +1227,16 @@ void listener_accept(struct listener *l)
 
 		/* The connection was accepted, it must be counted as such */
 		if (l->counters)
-			HA_ATOMIC_UPDATE_MAX(&l->counters->conn_max, next_conn);
+			COUNTERS_UPDATE_MAX(&l->counters->conn_max, next_conn);
 
 		if (p) {
-			HA_ATOMIC_UPDATE_MAX(&p->fe_counters.conn_max, next_feconn);
+			COUNTERS_UPDATE_MAX(&p->fe_counters.conn_max, next_feconn);
 			proxy_inc_fe_conn_ctr(l, p);
 		}
 
 		if (!(l->bind_conf->options & BC_O_UNLIMITED)) {
 			count = update_freq_ctr(&global.conn_per_sec, 1);
-			HA_ATOMIC_UPDATE_MAX(&global.cps_max, count);
+			COUNTERS_UPDATE_MAX(&global.cps_max, count);
 		}
 
 		_HA_ATOMIC_INC(&activity[tid].accepted);
@@ -1575,13 +1575,13 @@ void listener_accept(struct listener *l)
 		 */
 		if (!(l->bind_conf->options & BC_O_UNLIMITED)) {
 			count = update_freq_ctr(&global.sess_per_sec, 1);
-			HA_ATOMIC_UPDATE_MAX(&global.sps_max, count);
+			COUNTERS_UPDATE_MAX(&global.sps_max, count);
 		}
 #ifdef USE_OPENSSL
 		if (!(l->bind_conf->options & BC_O_UNLIMITED) &&
 		    l->bind_conf && l->bind_conf->options & BC_O_USE_SSL) {
 			count = update_freq_ctr(&global.ssl_per_sec, 1);
-			HA_ATOMIC_UPDATE_MAX(&global.ssl_max, count);
+			COUNTERS_UPDATE_MAX(&global.ssl_max, count);
 		}
 #endif
 

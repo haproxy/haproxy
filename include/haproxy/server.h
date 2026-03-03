@@ -29,6 +29,7 @@
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
 #include <haproxy/arg-t.h>
+#include <haproxy/counters.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/resolvers-t.h>
@@ -212,7 +213,7 @@ static inline void srv_inc_sess_ctr(struct server *s)
 		_HA_ATOMIC_INC(&s->counters.shared.tg[tgid - 1]->cum_sess);
 		update_freq_ctr(&s->counters.shared.tg[tgid - 1]->sess_per_sec, 1);
 	}
-	HA_ATOMIC_UPDATE_MAX(&s->counters.sps_max,
+	COUNTERS_UPDATE_MAX(&s->counters.sps_max,
 	                     update_freq_ctr(&s->counters._sess_per_sec, 1));
 }
 

@@ -103,6 +103,11 @@ void counters_be_shared_drop(struct be_counters_shared *counters);
 	__ret;                                                                \
 })
 
+#define COUNTERS_UPDATE_MAX(counter, count)                                   \
+	do {                                                                  \
+		HA_ATOMIC_UPDATE_MAX(counter, count);                         \
+	} while (0)
+
 /* Manipulation of extra_counters, for boot-time registrable modules */
 /* retrieve the base storage of extra counters (first tgroup if any) */
 #define EXTRA_COUNTERS_BASE(counters, mod) \
