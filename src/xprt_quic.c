@@ -239,6 +239,22 @@ static void qc_xprt_dump_info(struct buffer *msg, const struct connection *conn)
 	quic_dump_qc_info(msg, conn->handle.qc);
 }
 
+static int qc_get_alpn(const struct connection *conn, void *xprt_ctx, const char **str, int *len)
+{
+	struct quic_conn *qc = conn->handle.qc;
+	int ret = 0;
+
+	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
+	if (qc->alpn) {
+		*str = qc->alpn;
+		*len = strlen(qc->alpn);
+		ret = 1;
+	}
+
+	TRACE_LEAVE(QUIC_EV_CONN_NEW, qc);
+	return ret;
+}
+
 /* transport-layer operations for QUIC connections. */
 static struct xprt_ops ssl_quic = {
 	.close    = quic_close,
@@ -250,7 +266,7 @@ static struct xprt_ops ssl_quic = {
 	.destroy_bind_conf = ssl_sock_destroy_bind_conf,
 	.prepare_srv = ssl_sock_prepare_srv_ctx,
 	.destroy_srv = ssl_sock_free_srv_ctx,
-	.get_alpn = ssl_sock_get_alpn,
+	.get_alpn = qc_get_alpn,
 	.get_ssl_sock_ctx = qc_get_ssl_sock_ctx,
 	.dump_info = qc_xprt_dump_info,
 	.name     = "QUIC",

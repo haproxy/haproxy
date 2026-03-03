@@ -267,21 +267,23 @@ void quic_set_tls_alert(struct quic_conn *qc, int alert)
 	TRACE_LEAVE(QUIC_EV_CONN_SSLALERT, qc);
 }
 
-/* Set the application for <qc> QUIC connection.
- * Return 1 if succeeded, 0 if not.
+/* Register the negotiated TLS ALPN <alpn> of length <alpn_len> for <qc> QUIC
+ * connection. This checks that the protocol is compatible with the QUIC stack.
+ *
+ * Returns 1 on success else 0.
  */
-int quic_set_app_ops(struct quic_conn *qc, const char *alpn, int alpn_len)
+int qc_register_alpn(struct quic_conn *qc, const char *alpn, int alpn_len)
 {
-	if (!(qc->app_ops = quic_alpn_to_app_ops(alpn, alpn_len)))
+	const struct qcc_app_ops *app_ops;
+
+	if (!(app_ops = quic_alpn_to_app_ops(alpn, alpn_len)))
 		return 0;
 
+	qc->alpn = app_ops->alpn;
 	return 1;
-
 }
 
 /* Try to reuse <alpn> ALPN and <etps> early transport parameters.
- * This function also sets the application operations calling
- * quic_set_app_ops().
  * Return 1 if succeeded, 0 if not.
  */
 int quic_reuse_srv_params(struct quic_conn *qc,
@@ -292,7 +294,7 @@ int quic_reuse_srv_params(struct quic_conn *qc,
 
 	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
 
-	if (!alpn || !quic_set_app_ops(qc, alpn, strlen(alpn)))
+	if (!alpn || !qc_register_alpn(qc, alpn, strlen(alpn)))
 		goto err;
 
 	qc_early_transport_params_reuse(qc, &qc->tx.params, etps);
@@ -1124,6 +1126,7 @@ struct quic_conn *qc_new_conn(void *target,
 	LIST_INIT(&qc->rx.pkt_list);
 
 	qc->streams_by_id = EB_ROOT_UNIQUE;
+	qc->alpn = NULL;
 
 	/* Required to call free_quic_conn_cids() from quic_conn_release() */
 	qc->cids = NULL;
@@ -1143,7 +1146,6 @@ struct quic_conn *qc_new_conn(void *target,
 	qc->xprt_ctx = NULL;
 	qc->conn = conn;
 	qc->qcc = NULL;
-	qc->app_ops = NULL;
 	qc->strm_reject = NULL;
 	qc->path = NULL;
 

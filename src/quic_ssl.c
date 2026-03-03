@@ -1004,7 +1004,7 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 
 		/* Check the alpn could be negotiated */
 		if (!qc_is_back(qc)) {
-			if (!qc->app_ops) {
+			if (!qc->alpn) {
 				TRACE_ERROR("No negotiated ALPN", QUIC_EV_CONN_IO_CB, qc, &state);
 				quic_set_tls_alert(qc, SSL_AD_NO_APPLICATION_PROTOCOL);
 				goto err;
@@ -1016,7 +1016,7 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 
 			qc->conn->flags &= ~(CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN);
 			if (!ssl_sock_get_alpn(qc->conn, ctx, &alpn, &alpn_len) ||
-			    !quic_set_app_ops(qc, alpn, alpn_len)) {
+			    !qc_register_alpn(qc, alpn, alpn_len)) {
 				TRACE_ERROR("No negotiated ALPN", QUIC_EV_CONN_IO_CB, qc, &state);
 				quic_set_tls_alert(qc, SSL_AD_NO_APPLICATION_PROTOCOL);
 				goto err;

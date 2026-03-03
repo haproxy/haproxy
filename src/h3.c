@@ -3398,6 +3398,8 @@ int h3_reject(struct list *out, uint64_t id)
 
 /* HTTP/3 application layer operations */
 const struct qcc_app_ops h3_ops = {
+	.alpn        = "h3",
+
 	.init        = h3_init,
 	.finalize    = h3_finalize,
 	.attach      = h3_attach,

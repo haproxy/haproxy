@@ -91,7 +91,7 @@ static inline char *qcs_st_to_str(enum qcs_state st)
 	}
 }
 
-int qcc_install_app_ops(struct qcc *qcc, const struct qcc_app_ops *app_ops);
+int qcc_install_app_ops(struct qcc *qcc);
 
 /* Register <qcs> stream for http-request timeout. If the stream is not yet
  * attached in the configured delay, qcc timeout task will be triggered. This

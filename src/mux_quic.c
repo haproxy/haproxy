@@ -1688,26 +1688,38 @@ void qcc_abort_stream_read(struct qcs *qcs)
 	TRACE_LEAVE(QMUX_EV_QCC_NEW, qcc->conn, qcs);
 }
 
-/* Install the <app_ops> applicative layer of a QUIC connection on mux <qcc>.
+/* Install the applicative layer of a QUIC connection on mux <qcc>.
  * Returns 0 on success else non-zero.
  */
-int qcc_install_app_ops(struct qcc *qcc, const struct qcc_app_ops *app_ops)
+int qcc_install_app_ops(struct qcc *qcc)
 {
-	TRACE_ENTER(QMUX_EV_QCC_NEW, qcc->conn);
+	struct connection *conn = qcc->conn;
+	const struct qcc_app_ops *app_ops;
+	const char *alpn;
+	int alpn_len;
+
+	TRACE_ENTER(QMUX_EV_QCC_NEW, conn);
+
+	if (!conn_get_alpn(conn, &alpn, &alpn_len))
+		goto err;
+
+	app_ops = quic_alpn_to_app_ops(alpn, alpn_len);
+	if (!app_ops)
+		goto err;
 
 	if (app_ops->init && !app_ops->init(qcc)) {
-		TRACE_ERROR("application layer install error", QMUX_EV_QCC_NEW, qcc->conn);
+		TRACE_ERROR("application layer install error", QMUX_EV_QCC_NEW, conn);
 		goto err;
 	}
 
-	TRACE_PROTO("application layer installed", QMUX_EV_QCC_NEW, qcc->conn);
+	TRACE_PROTO("application layer installed", QMUX_EV_QCC_NEW, conn);
 	qcc->app_ops = app_ops;
 
-	TRACE_LEAVE(QMUX_EV_QCC_NEW, qcc->conn);
+	TRACE_LEAVE(QMUX_EV_QCC_NEW, conn);
 	return 0;
 
  err:
-	TRACE_LEAVE(QMUX_EV_QCC_NEW, qcc->conn);
+	TRACE_LEAVE(QMUX_EV_QCC_NEW, conn);
 	return 1;
 }
 
@@ -3740,7 +3752,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	/* Register conn as app_ops may use it. */
 	qcc->conn = conn;
 
-	if (qcc_install_app_ops(qcc, conn->handle.qc->app_ops)) {
+	if (qcc_install_app_ops(qcc)) {
 		TRACE_PROTO("Cannot install app layer", QMUX_EV_QCC_NEW|QMUX_EV_QCC_ERR, conn);
 		goto err;
 	}

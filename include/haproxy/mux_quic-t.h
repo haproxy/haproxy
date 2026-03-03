@@ -200,6 +200,8 @@ enum qcc_app_ops_close_side {
 
 /* QUIC application layer operations */
 struct qcc_app_ops {
+	const char *alpn;
+
 	/* Initialize <qcc> connection app context. */
 	int (*init)(struct qcc *qcc);
 	/* Finish connection initialization if prelude required. */

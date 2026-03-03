@@ -324,6 +324,8 @@ static int hq_interop_attach(struct qcs *qcs, void *conn_ctx)
 }
 
 const struct qcc_app_ops hq_interop_ops = {
+	.alpn       = "hq-interop",
+
 	.rcv_buf    = hq_interop_rcv_buf,
 	.snd_buf    = hq_interop_snd_buf,
 	.nego_ff    = hq_interop_nego_ff,
