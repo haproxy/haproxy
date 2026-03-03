@@ -1988,7 +1988,7 @@ int hlua_proxy_get_name(lua_State *L)
 	px = hlua_check_proxy(L, 1);
 	if (px == NULL) {
 		lua_pushnil(L);
-		return 0;
+		return 1;
 	}
 
 	lua_pushstring(L, px->id);
@@ -2003,7 +2003,7 @@ int hlua_proxy_get_uuid(lua_State *L)
 	px = hlua_check_proxy(L, 1);
 	if (px == NULL) {
 		lua_pushnil(L);
-		return 0;
+		return 1;
 	}
 
 	snprintf(buffer, sizeof(buffer), "%d", px->uuid);
@@ -2086,7 +2086,7 @@ int hlua_proxy_get_cap(lua_State *L)
 	px = hlua_check_proxy(L, 1);
 	if (px == NULL) {
 		lua_pushnil(L);
-		return 0;
+		return 1;
 	}
 
 	str = proxy_cap_str(px->cap);
@@ -2102,7 +2102,7 @@ int hlua_proxy_get_stats(lua_State *L)
 	px = hlua_check_proxy(L, 1);
 	if (px == NULL) {
 		lua_pushnil(L);
-		return 0;
+		return 1;
 	}
 
 	if (px->cap & PR_CAP_BE)
@@ -2127,7 +2127,7 @@ int hlua_proxy_get_mode(lua_State *L)
 	px = hlua_check_proxy(L, 1);
 	if (px == NULL) {
 		lua_pushnil(L);
-		return 0;
+		return 1;
 	}
 
 	str = proxy_mode_str(px->mode);
@@ -2154,7 +2154,7 @@ int hlua_proxy_get_srv_act(lua_State *L)
 	px = hlua_check_proxy(L, 1);
 	if (px == NULL) {
 		lua_pushnil(L);
-		return 0;
+		return 1;
 	}
 
 	lua_pushinteger(L, px->srv_act);
@@ -2168,7 +2168,7 @@ int hlua_proxy_get_srv_bck(lua_State *L)
 	px = hlua_check_proxy(L, 1);
 	if (px == NULL) {
 		lua_pushnil(L);
-		return 0;
+		return 1;
 	}
 
 	lua_pushinteger(L, px->srv_bck);
@@ -2187,7 +2187,7 @@ int hlua_proxy_get_mailers(lua_State *L)
 	px = hlua_check_proxy(L, 1);
 	if (px == NULL) {
 		lua_pushnil(L);
-		return 0;
+		return 1;
 	}
 
 	if (!px->email_alert.mailers.m)
