@@ -1695,13 +1695,25 @@ int qcc_install_app_ops(struct qcc *qcc)
 {
 	struct connection *conn = qcc->conn;
 	const struct qcc_app_ops *app_ops;
+	struct server *srv;
 	const char *alpn;
 	int alpn_len;
 
 	TRACE_ENTER(QMUX_EV_QCC_NEW, conn);
 
-	if (!conn_get_alpn(conn, &alpn, &alpn_len))
-		goto err;
+	if (!conn_get_alpn(conn, &alpn, &alpn_len)) {
+		if (!conn_is_back(conn))
+			goto err;
+
+		srv = __objt_server(conn->target);
+		HA_RWLOCK_RDLOCK(SERVER_LOCK, &srv->path_params.param_lock);
+		alpn = srv->path_params.nego_alpn;
+		HA_RWLOCK_RDUNLOCK(SERVER_LOCK, &srv->path_params.param_lock);
+
+		if (!alpn)
+			goto err;
+		alpn_len = strlen(srv->path_params.nego_alpn);
+	}
 
 	app_ops = quic_alpn_to_app_ops(alpn, alpn_len);
 	if (!app_ops)

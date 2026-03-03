@@ -245,6 +245,7 @@ static int qc_get_alpn(const struct connection *conn, void *xprt_ctx, const char
 	int ret = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
+
 	if (qc->alpn) {
 		*str = qc->alpn;
 		*len = strlen(qc->alpn);
