@@ -381,6 +381,7 @@ static const char *hlua_pushfstring_safe(lua_State *L, const char *fmt, ...)
 
 /* Applet status flags */
 #define APPLET_DONE     0x01 /* applet processing is done. */
+#define APPLET_REQ_RECV 0x02 /* The request was fully received */
 /* unused: 0x02 */
 #define APPLET_HDR_SENT 0x04 /* Response header sent. */
 /* unused: 0x08, 0x10 */
@@ -5770,10 +5771,14 @@ __LJMP static int hlua_applet_http_get_priv(lua_State *L)
 __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	struct hlua_http_ctx *http_ctx = luactx->appctx->svcctx;
 	struct buffer *inbuf = applet_get_inbuf(luactx->appctx);
 	struct htx *htx;
 	struct htx_blk *blk;
 	int stop = 0;
+
+	if (http_ctx->flags & APPLET_REQ_RECV)
+		goto end;
 
 	if (!inbuf)
 		goto wait;
@@ -5823,8 +5828,10 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 	/* The message was fully consumed and no more data are expected
 	 * (EOM flag set).
 	 */
-	if (htx_is_empty(htx) && (htx->flags & HTX_FL_EOM))
+	if (htx_is_empty(htx) && (htx->flags & HTX_FL_EOM)) {
+		http_ctx->flags |= APPLET_REQ_RECV;
 		stop = 1;
+	}
 
 	htx_to_buf(htx, inbuf);
 	if (!stop) {
@@ -5833,6 +5840,7 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_getline_yield, TICK_ETERNITY, 0));
 	}
 
+  end:
 	/* Stop to consume until the next receive or the end of the response */
 	applet_wont_consume(luactx->appctx);
 
@@ -5863,10 +5871,14 @@ __LJMP static int hlua_applet_http_getline(lua_State *L)
 __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	struct hlua_http_ctx *http_ctx = luactx->appctx->svcctx;
 	struct buffer *inbuf = applet_get_inbuf(luactx->appctx);
 	struct htx *htx;
 	struct htx_blk *blk;
 	int len;
+
+	if (http_ctx->flags & APPLET_REQ_RECV)
+		goto end;
 
 	if (!inbuf)
 		goto wait;
@@ -5915,8 +5927,10 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 	/* The message was fully consumed and no more data are expected
 	 * (EOM flag set).
 	 */
-	if (htx_is_empty(htx) && (htx->flags & HTX_FL_EOM))
+	if (htx_is_empty(htx) && (htx->flags & HTX_FL_EOM)) {
+		http_ctx->flags |= APPLET_REQ_RECV;
 		len = 0;
+	}
 
 	htx_to_buf(htx, inbuf);
 	applet_fl_clr(luactx->appctx, APPCTX_FL_INBLK_FULL);
@@ -5932,6 +5946,7 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_http_recv_yield, TICK_ETERNITY, 0));
 	}
 
+  end:
 	/* Stop to consume until the next receive or the end of the response */
 	applet_wont_consume(luactx->appctx);
 
