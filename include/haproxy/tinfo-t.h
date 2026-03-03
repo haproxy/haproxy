@@ -75,6 +75,20 @@ enum {
 /* we have 4 buffer-wait queues, in highest to lowest emergency order */
 #define DYNBUF_NBQ              4
 
+/* execution context, for tracing resource usage or warning origins */
+enum thread_exec_ctx_type {
+	TH_EX_CTX_NONE = 0,                 /* context not filled */
+	TH_EX_CTX_OTHER,                    /* context only known by a generic pointer */
+};
+
+struct thread_exec_ctx {
+	enum thread_exec_ctx_type type;
+	/* 32-bit hole here on 64-bit platforms */
+	union {
+		const void *pointer;        /* generic pointer (for other) */
+	};
+};
+
 /* Thread group information. This defines a base and a count of global thread
  * IDs which belong to it, and which can be looked up into thread_info/ctx. It
  * is set up during parsing and is stable during operation. Thread groups start
@@ -172,8 +186,7 @@ struct thread_ctx {
 	uint64_t curr_mono_time;            /* latest system wide monotonic time (leaving poll) */
 
 	ulong lock_history;                 /* history of used locks, see thread.h for more details */
-
-	/* around 56 unused bytes here */
+	struct thread_exec_ctx exec_ctx;    /* current execution context when known, or NULL */
 
 	// fourth cache line here on 64 bits: accessed mostly using atomic ops
 	ALWAYS_ALIGN(64);
