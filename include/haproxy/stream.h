@@ -412,6 +412,7 @@ static inline void stream_shutdown(struct stream *s, int why)
 static inline unsigned int stream_map_task_state(unsigned int state)
 {
 	return ((state & TASK_WOKEN_TIMER) ? STRM_EVT_TIMER : 0)         |
+		((state & TASK_WOKEN_RES)  ? STRM_EVT_RES : 0)           |
 		((state & TASK_WOKEN_MSG)  ? STRM_EVT_MSG : 0)           |
 		((state & TASK_F_UEVT1)    ? STRM_EVT_SHUT_SRV_DOWN : 0) |
 		((state & TASK_F_UEVT3)    ? STRM_EVT_SHUT_SRV_UP : 0)   |

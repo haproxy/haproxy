@@ -180,6 +180,7 @@ enum {
 	STRM_EVT_SHUT_SRV_DOWN = 0x00000004, /* Must be shut because the selected server became available */
 	STRM_EVT_SHUT_SRV_UP   = 0x00000008, /* Must be shut because a preferred server became available */
 	STRM_EVT_KILLED        = 0x00000010, /* Must be shut for external reason */
+	STRM_EVT_RES           = 0x00000020, /* A requested resource is available (a buffer, a conn_slot...) */
 };
 
 /* This function is used to report flags in debugging tools. Please reflect
