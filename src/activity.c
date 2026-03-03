@@ -308,9 +308,12 @@ struct memprof_stats *memprof_get_bin(const void *ra, enum memprof_method meth)
 		bin = MEMPROF_HASH_BUCKETS;
 		goto leave;
 	}
-	hash = _ptr_hash(ra);
-	bin = _ptr_hash_reduce(hash, MEMPROF_HASH_BITS);
-	for (; memprof_stats[bin].caller != ra; bin = (bin + (hash | 1)) & (MEMPROF_HASH_BUCKETS - 1)) {
+	hash = _ptr2_hash_arg(ra, th_ctx->exec_ctx.pointer, th_ctx->exec_ctx.type);
+	for (bin = _ptr_hash_reduce(hash, MEMPROF_HASH_BITS);
+	     memprof_stats[bin].caller != ra ||
+	       memprof_stats[bin].exec_ctx.type != th_ctx->exec_ctx.type ||
+	       memprof_stats[bin].exec_ctx.pointer != th_ctx->exec_ctx.pointer;
+	     bin = (bin + (hash | 1)) & (MEMPROF_HASH_BUCKETS - 1)) {
 		if (!--retries) {
 			bin = MEMPROF_HASH_BUCKETS;
 			break;
@@ -319,6 +322,7 @@ struct memprof_stats *memprof_get_bin(const void *ra, enum memprof_method meth)
 		old = NULL;
 		if (!memprof_stats[bin].caller &&
 		    HA_ATOMIC_CAS(&memprof_stats[bin].caller, &old, ra)) {
+			memprof_stats[bin].exec_ctx = th_ctx->exec_ctx;
 			memprof_stats[bin].method = meth;
 			break;
 		}
@@ -923,6 +927,14 @@ static int cmp_memprof_stats(const void *a, const void *b)
 		return -1;
 	else if (l->alloc_tot + l->free_tot < r->alloc_tot + r->free_tot)
 		return 1;
+	else if (l->exec_ctx.type > r->exec_ctx.type)
+		return -1;
+	else if (l->exec_ctx.type < r->exec_ctx.type)
+		return 1;
+	else if (l->exec_ctx.pointer > r->exec_ctx.pointer)
+		return -1;
+	else if (l->exec_ctx.pointer < r->exec_ctx.pointer)
+		return 1;
 	else
 		return 0;
 }
@@ -935,6 +947,14 @@ static int cmp_memprof_addr(const void *a, const void *b)
 	if (l->caller > r->caller)
 		return -1;
 	else if (l->caller < r->caller)
+		return 1;
+	else if (l->exec_ctx.type > r->exec_ctx.type)
+		return -1;
+	else if (l->exec_ctx.type < r->exec_ctx.type)
+		return 1;
+	else if (l->exec_ctx.pointer > r->exec_ctx.pointer)
+		return -1;
+	else if (l->exec_ctx.pointer < r->exec_ctx.pointer)
 		return 1;
 	else
 		return 0;

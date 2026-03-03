@@ -24,6 +24,7 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/freq_ctr-t.h>
+#include <haproxy/tinfo-t.h>
 
 /* bit fields for the "profiling" global variable */
 #define HA_PROF_TASKS_OFF   0x00000000     /* per-task CPU profiling forced disabled */
@@ -84,6 +85,7 @@ struct memprof_stats {
 	unsigned long long alloc_tot;
 	unsigned long long free_tot;
 	void *info; // for pools, ptr to the pool
+	struct thread_exec_ctx exec_ctx;
 };
 #endif
 
