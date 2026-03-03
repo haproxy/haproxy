@@ -20,6 +20,11 @@ extern struct list server_deinit_list;
 extern struct list per_thread_free_list;
 extern struct list per_thread_deinit_list;
 
+/* initcall caller location */
+extern const struct initcall *caller_initcall;
+extern const char *caller_file;
+extern int caller_line;
+
 void hap_register_pre_check(int (*fct)());
 void hap_register_post_check(int (*fct)());
 void hap_register_post_proxy_check(int (*fct)(struct proxy *));

@@ -89,6 +89,11 @@ struct list per_thread_free_list = LIST_HEAD_INIT(per_thread_free_list);
  * valgrind mostly happy. */
 struct list per_thread_deinit_list = LIST_HEAD_INIT(per_thread_deinit_list);
 
+/* location of current INITCALL declaration being processed, or NULL */
+const struct initcall *caller_initcall = NULL;
+const char *caller_file = NULL;
+int caller_line = 0;
+
 /* used to register some initialization functions to call before the checks. */
 void hap_register_pre_check(int (*fct)())
 {
