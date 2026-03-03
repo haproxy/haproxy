@@ -409,6 +409,9 @@ struct quic_conn {
 	unsigned int hs_expire;
 
 	const struct qcc_app_ops *app_ops;
+	/* Callback to close any stream after MUX closure - set by the MUX itself */
+	int (*strm_reject)(struct list *out, uint64_t stream_id);
+
 	/* Proxy counters */
 	struct quic_counters *prx_counters;
 

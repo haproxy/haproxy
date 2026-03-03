@@ -3377,8 +3377,12 @@ static void qcc_release(struct qcc *qcc)
 
 	qcc_clear_frms(qcc);
 
-	if (qcc->app_ops && qcc->app_ops->release)
-		qcc->app_ops->release(qcc->ctx);
+	if (qcc->app_ops) {
+		if (qcc->app_ops->release)
+			qcc->app_ops->release(qcc->ctx);
+		if (conn->handle.qc)
+			conn->handle.qc->strm_reject = qcc->app_ops->strm_reject;
+	}
 	TRACE_PROTO("application layer released", QMUX_EV_QCC_END, conn);
 
 	pool_free(pool_head_qcc, qcc);

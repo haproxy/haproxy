@@ -3345,6 +3345,57 @@ static void h3_trace(enum trace_level level, uint64_t mask,
 	}
 }
 
+/* Cancel a request on stream id <id>. This is useful when the client opens a
+ * new stream but the MUX has already been released. A STOP_SENDING +
+ * RESET_STREAM frames are prepared for emission.
+ *
+ * Returns 1 on success else 0.
+ */
+int h3_reject(struct list *out, uint64_t id)
+{
+	int ret = 0;
+	struct quic_frame *ss, *rs;
+	const uint64_t app_error_code = H3_ERR_REQUEST_REJECTED;
+
+	TRACE_ENTER(H3_EV_TX_FRAME);
+
+	/* Do not emit rejection for unknown unidirectional stream as it is
+	 * forbidden to close some of them (H3 control stream and QPACK
+	 * encoder/decoder streams).
+	 */
+	if (quic_stream_is_uni(id)) {
+		ret = 1;
+		goto out;
+	}
+
+	ss = qc_frm_alloc(QUIC_FT_STOP_SENDING);
+	if (!ss) {
+		TRACE_ERROR("failed to allocate quic_frame", H3_EV_TX_FRAME);
+		goto out;
+	}
+
+	ss->stop_sending.id = id;
+	ss->stop_sending.app_error_code = app_error_code;
+
+	rs = qc_frm_alloc(QUIC_FT_RESET_STREAM);
+	if (!rs) {
+		TRACE_ERROR("failed to allocate quic_frame", H3_EV_TX_FRAME);
+		qc_frm_free(NULL, &ss);
+		goto out;
+	}
+
+	rs->reset_stream.id = id;
+	rs->reset_stream.app_error_code = app_error_code;
+	rs->reset_stream.final_size = 0;
+
+	LIST_APPEND(out, &ss->list);
+	LIST_APPEND(out, &rs->list);
+	ret = 1;
+ out:
+	TRACE_LEAVE(H3_EV_TX_FRAME);
+	return ret;
+}
+
 /* HTTP/3 application layer operations */
 const struct qcc_app_ops h3_ops = {
 	.init        = h3_init,
@@ -3360,4 +3411,5 @@ const struct qcc_app_ops h3_ops = {
 	.inc_err_cnt = h3_stats_inc_err_cnt,
 	.report_susp = h3_report_susp,
 	.release     = h3_release,
+	.strm_reject = h3_reject,
 };

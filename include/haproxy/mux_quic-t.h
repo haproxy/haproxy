@@ -232,6 +232,9 @@ struct qcc_app_ops {
 	void (*inc_err_cnt)(void *ctx, int err_code);
 	/* Set QCC error code as suspicious activity has been detected. */
 	void (*report_susp)(void *ctx);
+
+	/* Free function to close a stream after MUX layer shutdown. */
+	int (*strm_reject)(struct list *out, uint64_t id);
 };
 
 #endif /* USE_QUIC */

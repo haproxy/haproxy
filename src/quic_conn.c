@@ -377,61 +377,6 @@ void quic_conn_closed_err_count_inc(struct quic_conn *qc, struct quic_frame *frm
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
 }
 
-/* Cancel a request on connection <qc> for stream id <id>. This is useful when
- * the client opens a new stream but the MUX has already been released. A
- * STOP_SENDING + RESET_STREAM frames are prepared for emission.
- *
- * TODO this function is closely related to H3. Its place should be in H3 layer
- * instead of quic-conn but this requires an architecture adjustment.
- *
- * Returns 1 on success else 0.
- */
-int qc_h3_request_reject(struct quic_conn *qc, uint64_t id)
-{
-	int ret = 0;
-	struct quic_frame *ss, *rs;
-	struct quic_enc_level *qel = qc->ael;
-	const uint64_t app_error_code = H3_ERR_REQUEST_REJECTED;
-
-	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
-
-	/* Do not emit rejection for unknown unidirectional stream as it is
-	 * forbidden to close some of them (H3 control stream and QPACK
-	 * encoder/decoder streams).
-	 */
-	if (quic_stream_is_uni(id)) {
-		ret = 1;
-		goto out;
-	}
-
-	ss = qc_frm_alloc(QUIC_FT_STOP_SENDING);
-	if (!ss) {
-		TRACE_ERROR("failed to allocate quic_frame", QUIC_EV_CONN_PRSHPKT, qc);
-		goto out;
-	}
-
-	ss->stop_sending.id = id;
-	ss->stop_sending.app_error_code = app_error_code;
-
-	rs = qc_frm_alloc(QUIC_FT_RESET_STREAM);
-	if (!rs) {
-		TRACE_ERROR("failed to allocate quic_frame", QUIC_EV_CONN_PRSHPKT, qc);
-		qc_frm_free(qc, &ss);
-		goto out;
-	}
-
-	rs->reset_stream.id = id;
-	rs->reset_stream.app_error_code = app_error_code;
-	rs->reset_stream.final_size = 0;
-
-	LIST_APPEND(&qel->pktns->tx.frms, &ss->list);
-	LIST_APPEND(&qel->pktns->tx.frms, &rs->list);
-	ret = 1;
- out:
-	TRACE_LEAVE(QUIC_EV_CONN_PRSHPKT, qc);
-	return ret;
-}
-
 /* Remove a <qc> quic-conn from its ha_thread_ctx list. If <closing> is true,
  * it will immediately be reinserted in the ha_thread_ctx quic_conns_clo list.
  */
@@ -1204,6 +1149,7 @@ struct quic_conn *qc_new_conn(void *target,
 	qc->conn = conn;
 	qc->qcc = NULL;
 	qc->app_ops = NULL;
+	qc->strm_reject = NULL;
 	qc->path = NULL;
 
 	/* Keyupdate: required to safely call quic_tls_ku_free() from

@@ -14,7 +14,6 @@
 
 #include <haproxy/quic_rx.h>
 
-#include <haproxy/h3.h>
 #include <haproxy/list.h>
 #include <haproxy/ncbmbuf.h>
 #include <haproxy/proto_quic.h>
@@ -962,8 +961,8 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				}
 				else {
 					TRACE_DEVEL("No mux for new stream", QUIC_EV_CONN_PRSHPKT, qc);
-					if (qc->app_ops == &h3_ops) {
-						if (!qc_h3_request_reject(qc, strm_frm->id)) {
+					if (qc->strm_reject) {
+						if (!qc->strm_reject(&qc->ael->pktns->tx.frms, strm_frm->id)) {
 							TRACE_ERROR("error on request rejection", QUIC_EV_CONN_PRSHPKT, qc);
 							/* This packet will not be acknowledged */
 							goto err;
