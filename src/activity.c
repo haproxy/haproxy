@@ -1220,7 +1220,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	if (!ctx->linenum)
 		chunk_appendf(&trash,
 		              "Alloc/Free statistics by call place over %.3f sec till %.3f sec ago:\n"
-		              "         Calls         |         Tot Bytes           |       Caller and method\n"
+		              "         Calls         |         Tot Bytes           |       Caller, method, extra info\n"
 		              "<- alloc -> <- free  ->|<-- alloc ---> <-- free ---->|\n",
 			      (prof_mem_start_ns ? (prof_mem_stop_ns ? prof_mem_stop_ns : now_ns) - prof_mem_start_ns : 0) / 1000000000.0,
 			      (prof_mem_stop_ns ? now_ns - prof_mem_stop_ns : 0) / 1000000000.0);
@@ -1278,6 +1278,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 				      (int)((1000ULL * entry->locked_calls / tot_calls) % 10));
 		}
 
+		chunk_append_thread_ctx(&trash, &entry->exec_ctx, " [via ", "]");
 		chunk_appendf(&trash, "\n");
 
 		if (applet_putchk(appctx, &trash) == -1)
