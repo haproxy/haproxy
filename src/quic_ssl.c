@@ -1011,11 +1011,11 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 			}
 		}
 		else if (qc->conn) {
-			const unsigned char *alpn;
-			size_t alpn_len;
+			const char *alpn;
+			int alpn_len;
 
 			qc->conn->flags &= ~(CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN);
-			if (!ssl_sock_get_alpn(qc->conn, ctx, (const char **)&alpn, (int *)&alpn_len) ||
+			if (!ssl_sock_get_alpn(qc->conn, ctx, &alpn, &alpn_len) ||
 			    !quic_set_app_ops(qc, alpn, alpn_len)) {
 				TRACE_ERROR("No negotiated ALPN", QUIC_EV_CONN_IO_CB, qc, &state);
 				quic_set_tls_alert(qc, SSL_AD_NO_APPLICATION_PROTOCOL);
@@ -1358,7 +1358,7 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, void *target)
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L) && defined(HAVE_SSL_0RTT_QUIC)
 		if ((srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA)) {
 			int ret;
-			unsigned char *alpn;
+			char *alpn;
 			struct quic_early_transport_params *etps;
 			/* This code is called by connect_server() by way of
 			 * conn_prepare().
@@ -1374,7 +1374,7 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, void *target)
 			 * able to send data at early-data level.
 			 */
 			HA_RWLOCK_RDLOCK(SERVER_LOCK, &srv->path_params.param_lock);
-			alpn = (unsigned char *)srv->path_params.nego_alpn;
+			alpn = srv->path_params.nego_alpn;
 			etps = &srv->path_params.tps;
 			ret = quic_reuse_srv_params(qc, alpn, etps);
 			HA_RWLOCK_RDUNLOCK(SERVER_LOCK, &srv->path_params.param_lock);

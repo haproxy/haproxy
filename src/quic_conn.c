@@ -272,7 +272,7 @@ void quic_set_tls_alert(struct quic_conn *qc, int alert)
 /* Set the application for <qc> QUIC connection.
  * Return 1 if succeeded, 0 if not.
  */
-int quic_set_app_ops(struct quic_conn *qc, const unsigned char *alpn, size_t alpn_len)
+int quic_set_app_ops(struct quic_conn *qc, const char *alpn, int alpn_len)
 {
 	if (alpn_len >= 2 && memcmp(alpn, "h3", 2) == 0)
 		qc->app_ops = &h3_ops;
@@ -290,14 +290,14 @@ int quic_set_app_ops(struct quic_conn *qc, const unsigned char *alpn, size_t alp
  * Return 1 if succeeded, 0 if not.
  */
 int quic_reuse_srv_params(struct quic_conn *qc,
-                          const unsigned char *alpn,
+                          const char *alpn,
                           const struct quic_early_transport_params *etps)
 {
 	int ret = 0;
 
 	TRACE_ENTER(QUIC_EV_CONN_NEW, qc);
 
-	if (!alpn || !quic_set_app_ops(qc, alpn, strlen((char *)alpn)))
+	if (!alpn || !quic_set_app_ops(qc, alpn, strlen(alpn)))
 		goto err;
 
 	qc_early_transport_params_reuse(qc, &qc->tx.params, etps);

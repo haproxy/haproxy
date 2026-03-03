@@ -2242,7 +2242,7 @@ static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
 	}
 
 #ifdef USE_QUIC
-	if (qc && !quic_set_app_ops(qc, *out, *outlen)) {
+	if (qc && !quic_set_app_ops(qc, (const char *)*out, *outlen)) {
 		quic_set_tls_alert(qc, SSL_AD_NO_APPLICATION_PROTOCOL);
 		return SSL_TLSEXT_ERR_NOACK;
 	}
