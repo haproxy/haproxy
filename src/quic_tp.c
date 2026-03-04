@@ -168,7 +168,7 @@ static int quic_transport_param_dec_pref_addr(struct tp_preferred_address *addr,
 
 	addr->cid.len = *(*buf)++;
 	if (addr->cid.len) {
-		if (end - sizeof(addr->stateless_reset_token) - *buf > addr->cid.len ||
+		if (end - *buf < addr->cid.len + sizeof(addr->stateless_reset_token) ||
 		    addr->cid.len > sizeof(addr->cid.data)) {
 			return 0;
 		}
