@@ -69,15 +69,16 @@ static inline struct filter *resume_filter_list_start(struct stream *strm, struc
 
 	if (chn->flt.current) {
 		filter = chn->flt.current;
-		chn->flt.current = NULL;
 		if (!(chn_prod(chn)->flags & SC_FL_ERROR) &&
 		    !(chn->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) {
 			(strm)->waiting_entity.type = STRM_ENTITY_NONE;
 			(strm)->waiting_entity.ptr = NULL;
 		}
 	}
-	else
+	else {
 		filter = flt_list_start(strm, chn);
+		chn->flt.current = filter;
+	}
 
 	return filter;
 }
@@ -85,22 +86,24 @@ static inline struct filter *resume_filter_list_start(struct stream *strm, struc
 static inline struct filter *resume_filter_list_next(struct stream *strm, struct channel *chn,
                                                      struct filter *filter)
 {
-	/* simply an alias to flt_list_next() */
-	return flt_list_next(strm, chn, filter);
+	filter = flt_list_next(strm, chn, filter);
+	chn->flt.current = filter;
+	return filter;
 }
 
 static inline void resume_filter_list_break(struct stream *strm, struct channel *chn,
                                             struct filter *filter, int ret)
 {
+	chn->flt.current = NULL;
 	if (ret == 0) {
 		strm->waiting_entity.type = STRM_ENTITY_FILTER;
 		strm->waiting_entity.ptr  = filter;
+		chn->flt.current = filter;
 	}
 	else if (ret < 0) {
 		strm->last_entity.type = STRM_ENTITY_FILTER;
 		strm->last_entity.ptr = filter;
 	}
-	chn->flt.current = filter;
 }
 
 /* List head of all known filter keywords */

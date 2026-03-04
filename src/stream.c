@@ -3801,8 +3801,9 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 	if (HAS_FILTERS(strm) && strm->req.flt.current) {
 		const struct filter *flt = strm->req.flt.current;
 
-		chunk_appendf(buf, "%s      current_filter=%p (id=\"%s\" flags=0x%x pre=0x%x post=0x%x) \n", pfx,
-			      flt, flt->config->id, flt->flags, flt->pre_analyzers, flt->post_analyzers);
+		chunk_appendf(buf, "%s      current_filter=%p (id=\"%s\" flags=0x%x pre=0x%x post=0x%x %s) \n", pfx,
+			      flt, flt->config->id, flt->flags, flt->pre_analyzers, flt->post_analyzers,
+			      (flt == strm->waiting_entity.ptr) ? "YIELDING" : "RUNNING");
 	}
 
 	chunk_appendf(buf,
@@ -3834,8 +3835,9 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 	if (HAS_FILTERS(strm) && strm->res.flt.current) {
 		const struct filter *flt = strm->res.flt.current;
 
-		chunk_appendf(buf, "%s      current_filter=%p (id=\"%s\" flags=0x%x pre=0x%x post=0x%x) \n", pfx,
-			      flt, flt->config->id, flt->flags, flt->pre_analyzers, flt->post_analyzers);
+		chunk_appendf(buf, "%s      current_filter=%p (id=\"%s\" flags=0x%x pre=0x%x post=0x%x %s) \n", pfx,
+			      flt, flt->config->id, flt->flags, flt->pre_analyzers, flt->post_analyzers,
+			      (flt == strm->waiting_entity.ptr) ? "YIELDING" : "RUNNING");
 	}
 
 	if (strm->current_rule_list && strm->current_rule) {
