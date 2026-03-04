@@ -50,13 +50,15 @@
 
 /* reads a varint from <raw>'s lowest <b> bits and <len> bytes max (raw included).
  * returns the 32-bit value on success after updating raw_in and len_in. Forces
- * len_in to (uint32_t)-1 on truncated input.
+ * len_in to (uint32_t)-1 on truncated input. The caller is responsible for
+ * providing a non-zero <len_in> on input.
  */
 static uint32_t get_var_int(const uint8_t **raw_in, uint32_t *len_in, int b)
 {
 	uint32_t ret = 0;
 	int len = *len_in;
 	const uint8_t *raw = *raw_in;
+	uint32_t v, max = ~0;
 	uint8_t shift = 0;
 
 	len--;
@@ -64,23 +66,26 @@ static uint32_t get_var_int(const uint8_t **raw_in, uint32_t *len_in, int b)
 	if (ret != (uint32_t)((1 << b) - 1))
 		goto end;
 
-	while (len && (*raw & 128)) {
-		ret += ((uint32_t)(*raw++) & 127) << shift;
-		shift += 7;
+	do {
+		if (!len)
+			goto too_short;
+		v = *raw++;
 		len--;
-	}
-
-	/* last 7 bits */
-	if (!len)
-		goto too_short;
-	len--;
-	ret += ((uint32_t)(*raw++) & 127) << shift;
+		if (v & 127) { // make UBSan happy
+			if ((v & 127) > max)
+				goto too_large;
+			ret += (v & 127) << shift;
+		}
+		max >>= 7;
+		shift += 7;
+	} while (v & 128);
 
  end:
 	*raw_in = raw;
 	*len_in = len;
 	return ret;
 
+ too_large:
  too_short:
 	*len_in = (uint32_t)-1;
 	return 0;
