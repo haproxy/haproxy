@@ -421,6 +421,12 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 				goto out;
 			}
 
+			if (len < length) {
+				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
+				ret = -QPACK_RET_TRUNCATED;
+				goto out;
+			}
+
 			qpack_debug_printf(stderr, " h=%d length=%llu", !!h, (unsigned long long)length);
 			if (h) {
 				char *trash;
