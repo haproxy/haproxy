@@ -5306,6 +5306,9 @@ __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KC
 
 	/* End of data: commit the total strings and return. */
 	if (ret < 0) {
+		/* Stop to consume */
+		applet_wont_consume(luactx->appctx);
+
 		luaL_pushresult(&luactx->b);
 		return 1;
 	}
@@ -5320,6 +5323,10 @@ __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KC
 		luaL_addlstring(&luactx->b, blk2, len2);
 
 	applet_skip_input(luactx->appctx, len1+len2);
+
+	/* Stop to consume until the next receive */
+	applet_wont_consume(luactx->appctx);
+
 	luaL_pushresult(&luactx->b);
 	return 1;
 }
@@ -5328,6 +5335,9 @@ __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KC
 __LJMP static int hlua_applet_tcp_getline(lua_State *L)
 {
 	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+
+	/* Restart to consume - could have been disabled by a previous receive */
+	applet_will_consume(luactx->appctx);
 
 	/* Initialise the string catenation. */
 	luaL_buffinit(L, &luactx->b);
@@ -5355,6 +5365,9 @@ __LJMP static int hlua_applet_tcp_recv_try(lua_State *L)
 	/* Data not yet available. return yield. */
 	if (ret == 0) {
 		if (tick_is_expired(exp_date, now_ms)) {
+			/* Stop to consume until the next receive */
+			applet_wont_consume(luactx->appctx);
+
 			/* return the result. */
 			lua_pushnil(L);
 			return 1;
@@ -5366,6 +5379,9 @@ __LJMP static int hlua_applet_tcp_recv_try(lua_State *L)
 
 	/* End of data: commit the total strings and return. */
 	if (ret < 0) {
+		/* Stop to consume */
+		applet_wont_consume(luactx->appctx);
+
 		luaL_pushresult(&luactx->b);
 		return 1;
 	}
@@ -5386,6 +5402,9 @@ __LJMP static int hlua_applet_tcp_recv_try(lua_State *L)
 		applet_skip_input(luactx->appctx, len1+len2);
 
 		if (tick_is_expired(exp_date, now_ms)) {
+			/* Stop to consume until the next receive */
+			applet_wont_consume(luactx->appctx);
+
 			/* return the result. */
 			luaL_pushresult(&luactx->b);
 			return 1;
@@ -5419,6 +5438,9 @@ __LJMP static int hlua_applet_tcp_recv_try(lua_State *L)
 			applet_need_more_data(luactx->appctx);
 			return 0;
 		}
+
+		/* Stop to consume until the next receive */
+		applet_wont_consume(luactx->appctx);
 
 		/* return the result. */
 		luaL_pushresult(&luactx->b);
@@ -5474,6 +5496,9 @@ __LJMP static int hlua_applet_tcp_recv(lua_State *L)
 	exp_date = delay ? tick_add(now_ms, delay) : TICK_ETERNITY;
 	lua_pushinteger(L, exp_date);
 
+	/* Restart to consume - could have been disabled by a previous receive */
+	applet_will_consume(luactx->appctx);
+
 	/* Initialise the string catenation. */
 	luaL_buffinit(L, &luactx->b);
 
@@ -5494,6 +5519,9 @@ __LJMP static int hlua_applet_tcp_try_recv(lua_State *L)
 
 	/* set the expiration date (mandatory arg but not relevant here) */
 	lua_pushinteger(L, now_ms);
+
+	/* Restart to consume - could have been disabled by a previous receive */
+	applet_will_consume(luactx->appctx);
 
 	/* Initialise the string catenation. */
 	luaL_buffinit(L, &luactx->b);
@@ -11094,8 +11122,11 @@ void hlua_applet_tcp_fct(struct appctx *ctx)
 		goto out;
 
 	/* The applet execution is already done. */
-	if (tcp_ctx->flags & APPLET_DONE)
+	if (tcp_ctx->flags & APPLET_DONE) {
+		/* Restart to consume to drain request data */
+		applet_will_consume(ctx);
 		goto out;
+	}
 
 	/* Execute the function. */
 	switch (hlua_ctx_resume(hlua, 1)) {
@@ -11103,6 +11134,9 @@ void hlua_applet_tcp_fct(struct appctx *ctx)
 	case HLUA_E_OK:
 		tcp_ctx->flags |= APPLET_DONE;
 		applet_set_eos(ctx);
+
+		/* Restart to consume to drain request data */
+		applet_will_consume(ctx);
 		break;
 
 	/* yield. */
