@@ -2838,7 +2838,6 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 		int forced = s->flags & SF_RULE_FYIELD;
 
 		rule = s->current_rule;
-		s->current_rule = NULL;
 		s->flags &= ~SF_RULE_FYIELD;
 		if (s->current_rule_list == rules || (def_rules && s->current_rule_list == def_rules)) {
 			if (forced)
@@ -2854,11 +2853,12 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 
 	list_for_each_entry(rule, s->current_rule_list, list) {
  resume_rule:
+		s->current_rule = rule;
+
 		/* check if budget is exceeded and we need to continue on the next
 		 * polling loop, unless we know that we cannot yield
 		 */
 		if (s->rules_bcount++ >= global.tune.max_rules_at_once && !(act_opts & ACT_OPT_FINAL)) {
-			s->current_rule = rule;
 			s->flags |= SF_RULE_FYIELD;
 			rule_ret = HTTP_RULE_RES_FYIELD;
 			task_wakeup(s->task, TASK_WOKEN_MSG);
@@ -2890,7 +2890,6 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 					s->last_entity.ptr  = rule;
 					goto end;
 				case ACT_RET_YIELD:
-					s->current_rule = rule;
 					if (act_opts & ACT_OPT_FINAL) {
 						send_log(s->be, LOG_WARNING,
 							 "Internal error: action yields while it is  no long allowed "
@@ -2980,13 +2979,17 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 
 	if (def_rules && s->current_rule_list == def_rules) {
 		s->current_rule_list = rules;
+		s->current_rule = NULL;
 		goto restart;
 	}
 
   end:
 	/* if the ruleset evaluation is finished reset the strict mode */
-	if (rule_ret != HTTP_RULE_RES_YIELD && rule_ret != HTTP_RULE_RES_FYIELD)
+	if (rule_ret != HTTP_RULE_RES_YIELD && rule_ret != HTTP_RULE_RES_FYIELD) {
+		s->current_rule_list = NULL;
+		s->current_rule = NULL;
 		txn->req.flags &= ~HTTP_MSGF_SOFT_RW;
+	}
 
 	/* we reached the end of the rules, nothing to report */
 	return rule_ret;
@@ -3026,7 +3029,6 @@ static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct lis
 		int forced = s->flags & SF_RULE_FYIELD;
 
 		rule = s->current_rule;
-		s->current_rule = NULL;
 		s->flags &= ~SF_RULE_FYIELD;
 		if (s->current_rule_list == rules || (def_rules && s->current_rule_list == def_rules)) {
 			if (forced)
@@ -3043,11 +3045,12 @@ static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct lis
 
 	list_for_each_entry(rule, s->current_rule_list, list) {
  resume_rule:
+		s->current_rule = rule;
+
 		/* check if budget is exceeded and we need to continue on the next
 		 * polling loop, unless we know that we cannot yield
 		 */
 		if (s->rules_bcount++ >= global.tune.max_rules_at_once && !(act_opts & ACT_OPT_FINAL)) {
-			s->current_rule = rule;
 			s->flags |= SF_RULE_FYIELD;
 			rule_ret = HTTP_RULE_RES_FYIELD;
 			task_wakeup(s->task, TASK_WOKEN_MSG);
@@ -3079,7 +3082,6 @@ resume_execution:
 					s->last_entity.ptr  = rule;
 					goto end;
 				case ACT_RET_YIELD:
-					s->current_rule = rule;
 					if (act_opts & ACT_OPT_FINAL) {
 						send_log(s->be, LOG_WARNING,
 							 "Internal error: action yields while it is no long allowed "
@@ -3159,13 +3161,17 @@ resume_execution:
 
 	if (def_rules && s->current_rule_list == def_rules) {
 		s->current_rule_list = rules;
+		s->current_rule = NULL;
 		goto restart;
 	}
 
   end:
 	/* if the ruleset evaluation is finished reset the strict mode */
-	if (rule_ret != HTTP_RULE_RES_YIELD && rule_ret != HTTP_RULE_RES_FYIELD)
+	if (rule_ret != HTTP_RULE_RES_YIELD && rule_ret != HTTP_RULE_RES_FYIELD) {
+		s->current_rule_list = NULL;
+		s->current_rule = NULL;
 		txn->rsp.flags &= ~HTTP_MSGF_SOFT_RW;
+	}
 
 	/* we reached the end of the rules, nothing to report */
 	return rule_ret;

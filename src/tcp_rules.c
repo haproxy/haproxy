@@ -155,11 +155,12 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
   restart:
 	list_for_each_entry(rule, s->current_rule_list, list) {
  resume_rule:
+		s->current_rule = rule;
+
 		/* check if budget is exceeded and we need to continue on the next
 		 * polling loop, unless we know that we cannot yield
 		 */
 		if (s->rules_bcount++ >= global.tune.max_rules_at_once && !(act_opts & ACT_OPT_FINAL)) {
-			s->current_rule = rule;
 			s->flags |= SF_RULE_FYIELD;
 			task_wakeup(s->task, TASK_WOKEN_MSG);
 			goto missing_data;
@@ -169,8 +170,10 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 			enum acl_test_res ret = ACL_TEST_PASS;
 
 			ret = acl_exec_cond(rule->cond, s->be, sess, s, SMP_OPT_DIR_REQ | partial);
-			if (ret == ACL_TEST_MISS)
+			if (ret == ACL_TEST_MISS) {
+				s->current_rule = NULL;
 				goto missing_data;
+			}
 
 			ret = acl_pass(ret);
 			if (rule->cond->pol == ACL_COND_UNLESS)
@@ -193,7 +196,6 @@ resume_execution:
 					s->last_entity.ptr  = rule;
 					goto end;
 				case ACT_RET_YIELD:
-					s->current_rule = rule;
 					if (act_opts & ACT_OPT_FINAL) {
 						send_log(s->be, LOG_WARNING,
 							 "Internal error: yield not allowed if the inspect-delay expired "
@@ -241,6 +243,7 @@ resume_execution:
 
 	if (def_rules && s->current_rule_list == def_rules) {
 		s->current_rule_list = rules;
+		s->current_rule = NULL;
 		goto restart;
 	}
 
@@ -354,7 +357,6 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 		int forced = s->flags & SF_RULE_FYIELD;
 
 		rule = s->current_rule;
-		s->current_rule = NULL;
 		s->flags &= ~SF_RULE_FYIELD;
 		if (!(rep->flags & SC_FL_ERROR) && !(rep->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) {
 			s->waiting_entity.type = STRM_ENTITY_NONE;
@@ -371,11 +373,12 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
   restart:
 	list_for_each_entry(rule, s->current_rule_list, list) {
  resume_rule:
+		s->current_rule = rule;
+
 		/* check if budget is exceeded and we need to continue on the next
 		 * polling loop, unless we know that we cannot yield
 		 */
 		if (s->rules_bcount++ >= global.tune.max_rules_at_once && !(act_opts & ACT_OPT_FINAL)) {
-			s->current_rule = rule;
 			s->flags |= SF_RULE_FYIELD;
 			task_wakeup(s->task, TASK_WOKEN_MSG);
 			goto missing_data;
@@ -385,8 +388,10 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 			enum acl_test_res ret = ACL_TEST_PASS;
 
 			ret = acl_exec_cond(rule->cond, s->be, sess, s, SMP_OPT_DIR_RES | partial);
-			if (ret == ACL_TEST_MISS)
+			if (ret == ACL_TEST_MISS) {
+				s->current_rule = NULL;
 				goto missing_data;
+			}
 
 			ret = acl_pass(ret);
 			if (rule->cond->pol == ACL_COND_UNLESS)
@@ -409,7 +414,6 @@ resume_execution:
 					s->last_entity.ptr  = rule;
 					goto end;
 				case ACT_RET_YIELD:
-					s->current_rule = rule;
 					if (act_opts & ACT_OPT_FINAL) {
 						send_log(s->be, LOG_WARNING,
 							 "Internal error: yield not allowed if the inspect-delay expired "
@@ -466,6 +470,7 @@ resume_execution:
 
 	if (def_rules && s->current_rule_list == def_rules) {
 		s->current_rule_list = rules;
+		s->current_rule = NULL;
 		goto restart;
 	}
 

@@ -1117,10 +1117,8 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 			return ACT_RET_ERR;
 
 		/* Finish initialisation of the context. */
-		s->current_rule = rule;
 		if (appctx_init(appctx) == -1)
 			return ACT_RET_ERR;
-		s->current_rule = NULL;
 	}
 	else
 		appctx = __sc_appctx(s->scb);
@@ -3842,7 +3840,9 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 
 	if (strm->current_rule_list && strm->current_rule) {
 		const struct act_rule *rule = strm->current_rule;
-		chunk_appendf(buf, "%s  current_rule=\"%s\" [%s:%d]\n", pfx, rule->kw->kw, rule->conf.file, rule->conf.line);
+		chunk_appendf(buf, "%s  current_rule=\"%s\" [%s:%d] (%s)\n",
+			      pfx, rule->kw->kw, rule->conf.file, rule->conf.line,
+			      (rule == strm->waiting_entity.ptr) ? "YIELDING" : "RUNNING");
 	}
 }
 
