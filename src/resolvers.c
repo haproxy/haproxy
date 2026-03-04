@@ -656,8 +656,9 @@ int resolv_read_name(unsigned char *buffer, unsigned char *bufend,
 
 		/* +1 to take label len + label string */
 		label_len++;
-
-		for (n = 0; n < label_len; n++) {
+		*dest = *reader; /* copy label len */
+		/* copy lowered label string */
+		for (n = 1; n < label_len; n++) {
 			dest[n] = tolower(reader[n]);
 		}
 
