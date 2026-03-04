@@ -4107,6 +4107,7 @@ end:
 int stream_set_backend(struct stream *s, struct proxy *be)
 {
 	unsigned int req_ana;
+	unsigned int beconn;
 
 	if (s->flags & SF_BE_ASSIGNED)
 		return 1;
@@ -4120,8 +4121,8 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 	else
 		s->be_tgcounters = NULL;
 
-	COUNTERS_UPDATE_MAX(&be->be_counters.conn_max,
-			     HA_ATOMIC_ADD_FETCH(&be->beconn, 1));
+	beconn = HA_ATOMIC_ADD_FETCH(&be->beconn, 1);
+	COUNTERS_UPDATE_MAX(&be->be_counters.conn_max, beconn);
 	proxy_inc_be_ctr(be);
 
 	/* assign new parameters to the stream from the new backend */
