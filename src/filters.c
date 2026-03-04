@@ -741,8 +741,7 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 		filter->calls++;
 		ret = FLT_OPS(filter)->http_payload(s, filter, msg, out + offset, data - offset);
 		if (ret < 0) {
-			s->last_entity.type = STRM_ENTITY_FILTER;
-			s->last_entity.ptr = filter;
+			resume_filter_list_break(s, msg->chn, filter, ret);
 			goto end;
 		}
 		data = ret + *flt_off - *strm_off;
@@ -888,8 +887,7 @@ flt_post_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 			filter->calls++;
 			ret = FLT_OPS(filter)->channel_post_analyze(s, filter, chn, an_bit);
 			if (ret < 0) {
-				s->last_entity.type = STRM_ENTITY_FILTER;
-				s->last_entity.ptr = filter;
+				resume_filter_list_break(s, chn, filter, ret);
 				break;
 			}
 			filter->post_analyzers &= ~an_bit;
@@ -1053,8 +1051,7 @@ flt_tcp_payload(struct stream *s, struct channel *chn, unsigned int len)
 		filter->calls++;
 		ret = FLT_OPS(filter)->tcp_payload(s, filter, chn, out + offset, data - offset);
 		if (ret < 0) {
-			s->last_entity.type = STRM_ENTITY_FILTER;
-			s->last_entity.ptr = filter;
+			resume_filter_list_break(s, chn, filter, ret);
 			goto end;
 		}
 		data = ret + *flt_off - *strm_off;
