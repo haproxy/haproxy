@@ -528,8 +528,11 @@ flt_stream_start(struct stream *s)
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		if (FLT_OPS(filter)->stream_start) {
 			filter->calls++;
-			if (FLT_OPS(filter)->stream_start(s, filter) < 0)
+			if (FLT_OPS(filter)->stream_start(s, filter) < 0) {
+				s->last_entity.type = STRM_ENTITY_FILTER;
+				s->last_entity.ptr = filter;
 				return -1;
+			}
 		}
 	}
 	if (strm_li(s) && (strm_li(s)->bind_conf->analysers & AN_REQ_FLT_START_FE)) {
