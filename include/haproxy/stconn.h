@@ -525,7 +525,7 @@ static inline size_t se_done_ff(struct sedesc *se)
 			}
 		}
 	}
-
+	se->sc->bytes_out += ret;
 	return ret;
 }
 
