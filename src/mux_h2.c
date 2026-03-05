@@ -4689,16 +4689,7 @@ static void h2_resume_each_sending_h2s(struct h2c *h2c, struct list *head)
 			continue;
 		}
 
-		if (h2s->subs && h2s->subs->events & SUB_RETRY_SEND) {
-			h2s->flags |= H2_SF_NOTIFIED;
-			tasklet_wakeup(h2s->subs->tasklet);
-			h2s->subs->events &= ~SUB_RETRY_SEND;
-			if (!h2s->subs->events)
-				h2s->subs = NULL;
-		}
-		else if (h2s->flags & (H2_SF_WANT_SHUTR|H2_SF_WANT_SHUTW)) {
-			tasklet_wakeup(h2s->shut_tl);
-		}
+		h2s_notify_send(h2s);
 	}
 
 	TRACE_LEAVE(H2_EV_H2C_SEND|H2_EV_H2S_WAKE, h2c->conn);
