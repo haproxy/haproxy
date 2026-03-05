@@ -661,6 +661,84 @@ void sc_abort(struct stconn *sc)
 	}
 }
 
+/*
+ * This function performs a shutdown-write on a detached stream connector in a
+ * connected or init state (it does nothing for other states). It either shuts
+ * the write side or marks itself as closed. The buffer flags are updated to
+ * reflect the new state. It does also close everything if the SC was marked as
+ * being in error state. The owner task is woken up if it exists.
+ */
+void sc_shutdown(struct stconn *sc)
+{
+
+	struct channel *ic = sc_ic(sc);
+	struct channel *oc = sc_oc(sc);
+
+	BUG_ON(!sc_strm(sc));
+
+	sc->flags &= ~SC_FL_SHUT_WANTED;
+	if (sc->flags & SC_FL_SHUT_DONE)
+		return;
+	sc->flags |= SC_FL_SHUT_DONE;
+	oc->flags |= CF_WRITE_EVENT;
+	sc_set_hcto(sc);
+	sc_report_term_evt(sc, strm_tevt_type_shutw);
+
+	switch (sc->state) {
+	case SC_ST_RDY:
+	case SC_ST_EST:
+		/* we have to shut before closing, otherwise some short messages
+		 * may never leave the system, especially when there are remaining
+		 * unread data in the socket input buffer, or when nolinger is set.
+		 * However, if SC_FL_NOLINGER is explicitly set, we know there is
+		 * no risk so we close both sides immediately.
+		 */
+		if (!(sc->flags & (SC_FL_ERROR|SC_FL_NOLINGER|SC_FL_EOS|SC_FL_ABRT_DONE)) &&
+		    !(ic->flags & CF_DONT_READ)) {
+			if (sc_ep_test(sc, SE_FL_T_MUX|SE_FL_T_APPLET))
+				se_shutdown(sc->sedesc, SE_SHW_NORMAL);
+			return;
+		}
+
+		if (sc_ep_test(sc, SE_FL_T_MUX))
+			se_shutdown(sc->sedesc, SE_SHR_RESET|((sc->flags & SC_FL_NOLINGER) ? SE_SHW_SILENT : SE_SHW_NORMAL));
+		else if (sc_ep_test(sc, SE_FL_T_APPLET))
+			se_shutdown(sc->sedesc, SE_SHR_RESET|SE_SHW_NORMAL);
+
+		sc->state = SC_ST_DIS;
+		break;
+
+	case SC_ST_CON:
+		if (sc_ep_test(sc, SE_FL_T_MUX)) {
+			/* we may have to close a pending connection, and mark the
+			 * response buffer as abort
+			 */
+			se_shutdown(sc->sedesc, SE_SHR_RESET|SE_SHW_SILENT);
+		}
+		__fallthrough;
+	case SC_ST_CER:
+	case SC_ST_QUE:
+	case SC_ST_TAR:
+		/* Note that none of these states may happen with applets */
+		sc->state = SC_ST_DIS;
+		break;
+	default:
+		break;
+	}
+
+	sc->flags &= ~SC_FL_NOLINGER;
+	if (!(sc->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)))
+		sc->flags |= SC_FL_ABRT_DONE;
+	if (sc->flags & SC_FL_ISBACK)
+		__sc_strm(sc)->conn_exp = TICK_ETERNITY;
+
+	if (!sc_ep_test(sc, SE_FL_T_MUX|SE_FL_T_APPLET)) {
+		/* note that if the task exists, it must unregister itself once it runs */
+		if (!(sc->flags & SC_FL_DONT_WAKE))
+			task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
+	}
+}
+
 /* This is to be used after making some room available in a channel. It will
  * return without doing anything if the stream connector's RX path is blocked.
  * It will automatically mark the stream connector as busy processing the end

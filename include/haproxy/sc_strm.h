@@ -37,6 +37,7 @@ void sc_update_rx(struct stconn *sc);
 void sc_update_tx(struct stconn *sc);
 
 void sc_abort(struct stconn *sc);
+void sc_shutdown(struct stconn *sc);
 void sc_chk_rcv(struct stconn *sc);
 
 struct task *sc_conn_io_cb(struct task *t, void *ctx, unsigned int state);
@@ -511,13 +512,6 @@ static inline void sc_schedule_abort(struct stconn *sc)
 static inline void sc_schedule_shutdown(struct stconn *sc)
 {
 	sc->flags |= SC_FL_SHUT_WANTED;
-}
-
-/* Shutdown the SC and notify the endpoint using the data layer */
-static inline void sc_shutdown(struct stconn *sc)
-{
-	if (likely(sc->app_ops->shutdown))
-		sc->app_ops->shutdown(sc);
 }
 
 #endif /* _HAPROXY_SC_STRM_H */
