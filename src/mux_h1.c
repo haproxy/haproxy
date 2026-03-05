@@ -3733,21 +3733,24 @@ static void h1_wake_stream_for_send(struct h1s *h1s)
 	}
 }
 
-/* alerts the data layer following this sequence :
- *   - if the h1s' data layer is subscribed to recv, then it's woken up for recv
- *   - if its subscribed to send, then it's woken up for send
- *   - if it was subscribed to neither, its ->wake() callback is called
+/* Alerts the data layer by waking it up. TASK_WOKEN_MSG state is used by
+ * default and if the data layer is also subscribed to recv or send,
+ * TASK_WOKEN_IO is added.
  */
 static void h1_alert(struct h1s *h1s)
 {
+	unsigned int state = TASK_WOKEN_MSG;
+
+	TRACE_POINT(H1_EV_STRM_WAKE, h1s->h1c->conn, h1s);
+	if (!h1s_sc(h1s))
+		return;
+
 	if (h1s->subs) {
-		h1_wake_stream_for_recv(h1s);
-		h1_wake_stream_for_send(h1s);
+		h1s->subs->events = 0;
+		h1s->subs = NULL;
+		state |= TASK_WOKEN_IO;
 	}
-	else if (h1s_sc(h1s) && h1s_sc(h1s)->app_ops->wake != NULL) {
-		TRACE_POINT(H1_EV_STRM_WAKE, h1s->h1c->conn, h1s);
-		h1s_sc(h1s)->app_ops->wake(h1s_sc(h1s));
-	}
+	tasklet_wakeup(h1s_sc(h1s)->wait_event.tasklet, state);
 }
 
 /* Try to send an HTTP error with h1c->errcode status code. It returns 1 on success

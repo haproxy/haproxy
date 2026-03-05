@@ -972,26 +972,26 @@ static void spop_strm_notify_send(struct spop_strm *spop_strm)
 	}
 }
 
-/* Alerts the data layer, trying to wake it up by all means, following
- * this sequence :
- *   - if the spop stream' data layer is subscribed to recv, then it's woken up
- *     for recv
- *   - if its subscribed to send, then it's woken up for send
- *   - if it was subscribed to neither, its ->wake() callback is called
- * It is safe to call this function with a closed stream which doesn't have a
- * stream connector anymore.
+/* Alerts the data layer by waking it up. TASK_WOKEN_MSG state is used by
+ * default and if the data layer is also subscribed to recv or send,
+ * TASK_WOKEN_IO is added.
  */
 static void spop_strm_alert(struct spop_strm *spop_strm)
 {
+	unsigned int state = TASK_WOKEN_MSG;
+
 	TRACE_POINT(SPOP_EV_STRM_WAKE, spop_strm->spop_conn->conn, spop_strm);
+	if (!spop_strm_sc(spop_strm))
+		return;
+
 	if (spop_strm->subs) {
-		spop_strm_notify_recv(spop_strm);
-		spop_strm_notify_send(spop_strm);
+		if (spop_strm->subs->events & SUB_RETRY_SEND)
+			spop_strm->flags |= SPOP_SF_NOTIFIED;
+		spop_strm->subs->events  = 0;
+		spop_strm->subs = NULL;
+			state |= TASK_WOKEN_IO;
 	}
-	else if (spop_strm_sc(spop_strm) && spop_strm_sc(spop_strm)->app_ops->wake != NULL) {
-		TRACE_POINT(SPOP_EV_STRM_WAKE, spop_strm->spop_conn->conn, spop_strm);
-		spop_strm_sc(spop_strm)->app_ops->wake(spop_strm_sc(spop_strm));
-	}
+	tasklet_wakeup(spop_strm_sc(spop_strm)->wait_event.tasklet, state);
 }
 
 /* Writes the 32-bit frame size <len> at address <frame> */
