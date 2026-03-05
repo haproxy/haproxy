@@ -782,6 +782,27 @@ struct flt_ops comp_ops = {
 	.http_end              = comp_http_end,
 };
 
+/* returns compression options from <proxy> proxy or allocates them if
+ * needed
+ *
+ * When compression options are created, flags will be set to <defaults>
+ *
+ * Returns NULL in case of memory error
+ */
+static inline struct comp *proxy_get_comp(struct proxy *proxy, int defaults)
+{
+	struct comp    *comp;
+
+	if (proxy->comp == NULL) {
+		comp = calloc(1, sizeof(*comp));
+		if (unlikely(!comp))
+			return NULL;
+		comp->flags = defaults;
+		proxy->comp = comp;
+	}
+	return proxy->comp;
+}
+
 static int
 parse_compression_options(char **args, int section, struct proxy *proxy,
 			  const struct proxy *defpx, const char *file, int line,
@@ -791,19 +812,13 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 	int ret = 0;
 	const char *res;
 
-	if (proxy->comp == NULL) {
-		comp = calloc(1, sizeof(*comp));
-		if (unlikely(!comp)) {
-			memprintf(err, "'%s': out of memory.", args[0]);
-			ret = -1;
-			goto end;
-		}
-		/* Always default to compress responses */
-		comp->flags = COMP_FL_DIR_RES;
-		proxy->comp = comp;
+	/* always default to compress responses */
+	comp = proxy_get_comp(proxy, COMP_FL_DIR_RES);
+	if (comp == NULL) {
+		memprintf(err, "'%s': out of memory.", args[0]);
+		ret = -1;
+		goto end;
 	}
-	else
-		comp = proxy->comp;
 
 	if (strcmp(args[1], "algo") == 0 || strcmp(args[1], "algo-res") == 0) {
 		struct comp_ctx *ctx;
