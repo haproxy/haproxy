@@ -1045,13 +1045,12 @@ int httpchk_build_status_header(struct server *s, struct buffer *buf)
 /**************************************************************************/
 /***************** Health-checks based on connections *********************/
 /**************************************************************************/
-/* This function is used only for server health-checks. It handles connection
- * status updates including errors. If necessary, it wakes the check task up.
- * It returns 0 on normal cases, <0 if at least one close() has happened on the
- * connection (eg: reconnect). It relies on tcpcheck_main().
+/* This function handles connection status updates including errors. If
+ * necessary, it wakes the check task up.
  */
-int wake_srv_chk(struct stconn *sc)
+struct task *srv_chk_io_cb(struct task *t, void *ctx, unsigned int state)
 {
+	struct stconn *sc = ctx;
 	struct connection *conn;
 	struct check *check = __sc_check(sc);
 	int ret = 0;
@@ -1098,15 +1097,6 @@ int wake_srv_chk(struct stconn *sc)
 
   end:
 	TRACE_LEAVE(CHK_EV_HCHK_WAKE, check);
-	return ret;
-}
-
-/* This function checks if any I/O is wanted, and if so, attempts to do so */
-struct task *srv_chk_io_cb(struct task *t, void *ctx, unsigned int state)
-{
-	struct stconn *sc = ctx;
-
-	wake_srv_chk(sc);
 	return t;
 }
 
