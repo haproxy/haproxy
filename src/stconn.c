@@ -56,7 +56,6 @@ struct sc_app_ops sc_app_conn_ops = {
 	.chk_snd = sc_app_chk_snd_conn,
 	.abort   = sc_app_abort_conn,
 	.shutdown= sc_app_shut_conn,
-	.wake    = sc_conn_process,
 	.name    = "STRM",
 };
 
@@ -66,7 +65,6 @@ struct sc_app_ops sc_app_embedded_ops = {
 	.chk_snd = sc_app_chk_snd,
 	.abort   = sc_app_abort,
 	.shutdown= sc_app_shut,
-	.wake    = NULL,   /* may never be used */
 	.name    = "NONE", /* may never be used */
 };
 
@@ -76,7 +74,6 @@ struct sc_app_ops sc_app_applet_ops = {
 	.chk_snd = sc_app_chk_snd_applet,
 	.abort   = sc_app_abort_applet,
 	.shutdown= sc_app_shut_applet,
-	.wake    = sc_applet_process,
 	.name    = "STRM",
 };
 
@@ -86,7 +83,6 @@ struct sc_app_ops sc_app_check_ops = {
 	.chk_snd = NULL,
 	.abort   = NULL,
 	.shutdown= NULL,
-	.wake    = wake_srv_chk,
 	.name    = "CHCK",
 };
 
@@ -95,7 +91,6 @@ struct sc_app_ops sc_app_hstream_ops = {
 	.chk_snd = NULL,
 	.abort   = NULL,
 	.shutdown= NULL,
-	.wake    = hstream_wake,
 	.name    = "HTERM",
 };
 
