@@ -29,44 +29,30 @@
 DECLARE_TYPED_POOL(pool_head_connstream, "stconn", struct stconn);
 DECLARE_TYPED_POOL(pool_head_sedesc, "sedesc", struct sedesc);
 
-/* functions used by default on a detached stream connector */
-static void sc_app_shut(struct stconn *sc);
-
-/* functions used on a mux-based stream connector */
-static void sc_app_shut_conn(struct stconn *sc);
-
-/* functions used on an applet-based stream connector */
-static void sc_app_shut_applet(struct stconn *sc);
-
 static int sc_conn_recv(struct stconn *sc);
 static int sc_conn_send(struct stconn *sc);
 
 /* stream connector operations for connections */
 struct sc_app_ops sc_app_conn_ops = {
-	.shutdown= sc_app_shut_conn,
 	.name    = "STRM",
 };
 
 /* stream connector operations for embedded tasks */
 struct sc_app_ops sc_app_embedded_ops = {
-	.shutdown= sc_app_shut,
 	.name    = "NONE", /* may never be used */
 };
 
 /* stream connector operations for applets */
 struct sc_app_ops sc_app_applet_ops = {
-	.shutdown= sc_app_shut_applet,
 	.name    = "STRM",
 };
 
 /* stream connector for health checks on connections */
 struct sc_app_ops sc_app_check_ops = {
-	.shutdown= NULL,
 	.name    = "CHCK",
 };
 
 struct sc_app_ops sc_app_hstream_ops = {
-	.shutdown= NULL,
 	.name    = "HTERM",
 };
 
@@ -878,192 +864,6 @@ static inline void sc_chk_snd(struct stconn *sc)
 		if (!(sc->flags & SC_FL_DONT_WAKE))
 			task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
 	}
-}
-
-/*
- * This function performs a shutdown-write on a detached stream connector in a
- * connected or init state (it does nothing for other states). It either shuts
- * the write side or marks itself as closed. The buffer flags are updated to
- * reflect the new state. It does also close everything if the SC was marked as
- * being in error state. The owner task is woken up if it exists.
- */
-static void sc_app_shut(struct stconn *sc)
-{
-	struct channel *ic = sc_ic(sc);
-	struct channel *oc = sc_oc(sc);
-
-	sc->flags &= ~SC_FL_SHUT_WANTED;
-	if (sc->flags & SC_FL_SHUT_DONE)
-		return;
-	sc->flags |= SC_FL_SHUT_DONE;
-	oc->flags |= CF_WRITE_EVENT;
-	sc_set_hcto(sc);
-
-	switch (sc->state) {
-	case SC_ST_RDY:
-	case SC_ST_EST:
-		/* we have to shut before closing, otherwise some short messages
-		 * may never leave the system, especially when there are remaining
-		 * unread data in the socket input buffer, or when nolinger is set.
-		 * However, if SC_FL_NOLINGER is explicitly set, we know there is
-		 * no risk so we close both sides immediately.
-		 */
-		if (!(sc->flags & (SC_FL_ERROR|SC_FL_NOLINGER|SC_FL_EOS|SC_FL_ABRT_DONE)) &&
-		    !(ic->flags & CF_DONT_READ))
-			return;
-
-		sc->state = SC_ST_DIS;
-		break;
-	case SC_ST_CON:
-	case SC_ST_CER:
-	case SC_ST_QUE:
-	case SC_ST_TAR:
-		/* Note that none of these states may happen with applets */
-		sc->state = SC_ST_DIS;
-		break;
-	default:
-		break;
-	}
-
-	sc->flags &= ~SC_FL_NOLINGER;
-	if (!(sc->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)))
-		sc->flags |= SC_FL_ABRT_DONE;
-	if (sc->flags & SC_FL_ISBACK)
-		__sc_strm(sc)->conn_exp = TICK_ETERNITY;
-
-	/* note that if the task exists, it must unregister itself once it runs */
-	if (!(sc->flags & SC_FL_DONT_WAKE))
-		task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
-}
-
-/*
- * This function performs a shutdown-write on a stream connector attached to
- * a connection in a connected or init state (it does nothing for other
- * states). It either shuts the write side or marks itself as closed. The
- * buffer flags are updated to reflect the new state.  It does also close
- * everything if the SC was marked as being in error state. If there is a
- * data-layer shutdown, it is called.
- */
-static void sc_app_shut_conn(struct stconn *sc)
-{
-	struct channel *ic = sc_ic(sc);
-	struct channel *oc = sc_oc(sc);
-
-	BUG_ON(!sc_conn(sc));
-
-	sc->flags &= ~SC_FL_SHUT_WANTED;
-	if (sc->flags & SC_FL_SHUT_DONE)
-		return;
-	sc->flags |= SC_FL_SHUT_DONE;
-	oc->flags |= CF_WRITE_EVENT;
-	sc_set_hcto(sc);
-	sc_report_term_evt(sc, strm_tevt_type_shutw);
-
-	switch (sc->state) {
-	case SC_ST_RDY:
-	case SC_ST_EST:
-
-		/* we have to shut before closing, otherwise some short messages
-		 * may never leave the system, especially when there are remaining
-		 * unread data in the socket input buffer, or when nolinger is set.
-		 * However, if SC_FL_NOLINGER is explicitly set, we know there is
-		 * no risk so we close both sides immediately.
-		 */
-		if (!(sc->flags & (SC_FL_NOLINGER|SC_FL_EOS|SC_FL_ABRT_DONE)) && !(ic->flags & CF_DONT_READ)) {
-			se_shutdown(sc->sedesc, SE_SHW_NORMAL);
-			return;
-		}
-
-		se_shutdown(sc->sedesc, SE_SHR_RESET|((sc->flags & SC_FL_NOLINGER) ? SE_SHW_SILENT : SE_SHW_NORMAL));
-		sc->state = SC_ST_DIS;
-		break;
-
-	case SC_ST_CON:
-		/* we may have to close a pending connection, and mark the
-		 * response buffer as abort
-		 */
-		se_shutdown(sc->sedesc, SE_SHR_RESET|SE_SHW_SILENT);
-		sc->state = SC_ST_DIS;
-		break;
-	case SC_ST_CER:
-	case SC_ST_QUE:
-	case SC_ST_TAR:
-		sc->state = SC_ST_DIS;
-		break;
-	default:
-		break;
-	}
-
-	sc->flags &= ~SC_FL_NOLINGER;
-	if (!(sc->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)))
-		sc->flags |= SC_FL_ABRT_DONE;
-	if (sc->flags & SC_FL_ISBACK)
-		__sc_strm(sc)->conn_exp = TICK_ETERNITY;
-}
-
-
-/*
- * This function performs a shutdown-write on a stream connector attached to an
- * applet in a connected or init state (it does nothing for other states). It
- * either shuts the write side or marks itself as closed. The buffer flags are
- * updated to reflect the new state. It does also close everything if the SI
- * was marked as being in error state. The owner task is woken up if it exists.
- */
-static void sc_app_shut_applet(struct stconn *sc)
-{
-	struct channel *ic = sc_ic(sc);
-	struct channel *oc = sc_oc(sc);
-
-	BUG_ON(!sc_appctx(sc));
-
-	sc->flags &= ~SC_FL_SHUT_WANTED;
-	if (sc->flags & SC_FL_SHUT_DONE)
-		return;
-	sc->flags |= SC_FL_SHUT_DONE;
-	oc->flags |= CF_WRITE_EVENT;
-	sc_set_hcto(sc);
-	sc_report_term_evt(sc, strm_tevt_type_shutw);
-
-	/* on shutw we always wake the applet up */
-	appctx_wakeup(__sc_appctx(sc));
-
-	switch (sc->state) {
-	case SC_ST_RDY:
-	case SC_ST_EST:
-
-		/* we have to shut before closing, otherwise some short messages
-		 * may never leave the system, especially when there are remaining
-		 * unread data in the socket input buffer, or when nolinger is set.
-		 * However, if SC_FL_NOLINGER is explicitly set, we know there is
-		 * no risk so we close both sides immediately.
-		 */
-		if (!(sc->flags & (SC_FL_ERROR|SC_FL_NOLINGER|SC_FL_EOS|SC_FL_ABRT_DONE)) &&
-		    !(ic->flags & CF_DONT_READ)) {
-			se_shutdown(sc->sedesc, SE_SHW_NORMAL);
-			return;
-		}
-
-		se_shutdown(sc->sedesc, SE_SHR_RESET|SE_SHW_NORMAL);
-		sc->state = SC_ST_DIS;
-		break;
-
-	case SC_ST_CON:
-	case SC_ST_CER:
-	case SC_ST_QUE:
-	case SC_ST_TAR:
-		/* Note that none of these states may happen with applets */
-		se_shutdown(sc->sedesc, SE_SHR_RESET|SE_SHW_NORMAL);
-		sc->state = SC_ST_DIS;
-		break;
-	default:
-		break;
-	}
-
-	sc->flags &= ~SC_FL_NOLINGER;
-	if (!(sc->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)))
-		sc->flags |= SC_FL_ABRT_DONE;
-	if (sc->flags & SC_FL_ISBACK)
-		__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 }
 
 /* This function is designed to be called from within the stream handler to
@@ -1997,7 +1797,7 @@ static void sc_applet_eos(struct stconn *sc)
 			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 	}
 	else if (sc_cond_forward_shut(sc))
-		return sc_app_shut_applet(sc);
+		return sc_shutdown(sc);
 }
 
 /*
