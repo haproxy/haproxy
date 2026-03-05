@@ -2628,7 +2628,14 @@ static int _send_status(char **args, char *payload, struct appctx *appctx, void 
 		/* update status of the new worker */
 		if (proc->pid == pid) {
 			proc->options &= ~PROC_O_INIT;
+			/* the sockpair between the master and the worker is
+			 * used temporarly as a listener to receive
+			 * _send_status. Once it is received we don't want to
+			 * use this FD as a listener anymore, but only as a
+			 * server, to allow only connections from the master to
+			 * the worker for the master CLI */
 			mproxy_li = fdtab[proc->ipc_fd[0]].owner;
+			BUG_ON(mproxy_li == NULL);
 			stop_listener(mproxy_li, 0, 0, 0);
 		}
 		/* send TERM to workers, which have exceeded max_reloads counter */
