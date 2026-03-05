@@ -428,13 +428,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 			qpack_debug_printf(stderr, " n=%d t=%d index=%llu", !!n, !!static_tbl, (unsigned long long)index);
 			h = *raw & 0x80;
 			length = qpack_get_varint(&raw, &len, 7);
-			if (len == (uint64_t)-1) {
-				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-				ret = -QPACK_RET_TRUNCATED;
-				goto out;
-			}
-
-			if (len < length) {
+			if (len == (uint64_t)-1 || len < length) {
 				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
 				ret = -QPACK_RET_TRUNCATED;
 				goto out;
@@ -451,6 +445,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 					ret = -QPACK_RET_TOO_LARGE;
 					goto out;
 				}
+
 				nlen = huff_dec(raw, length, trash, tmp->size - tmp->data);
 				if (nlen == (uint32_t)-1) {
 					qpack_debug_printf(stderr, " can't decode huffman.\n");
@@ -467,12 +462,6 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 				value = ist2(raw, length);
 			}
 
-			if (len < length) {
-				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-				ret = -QPACK_RET_TRUNCATED;
-				goto out;
-			}
-
 			raw += length;
 			len -= length;
 		}
@@ -485,7 +474,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 			n = *raw & 0x10;
 			hname = *raw & 0x08;
 			name_len = qpack_get_varint(&raw, &len, 3);
-			if (len == (uint64_t)-1) {
+			if (len == (uint64_t)-1 || len < name_len) {
 				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
 				ret = -QPACK_RET_TRUNCATED;
 				goto out;
@@ -493,12 +482,6 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 
 			qpack_debug_printf(stderr, " n=%d hname=%d name_len=%llu", !!n, !!hname, (unsigned long long)name_len);
 			/* Name string */
-
-			if (len < name_len) {
-				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-				ret = -QPACK_RET_TRUNCATED;
-				goto out;
-			}
 
 			if (hname) {
 				char *trash;
@@ -531,19 +514,13 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 
 			hvalue = *raw & 0x80;
 			value_len = qpack_get_varint(&raw, &len, 7);
-			if (len == (uint64_t)-1) {
+			if (len == (uint64_t)-1 || len < value_len) {
 				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
 				ret = -QPACK_RET_TRUNCATED;
 				goto out;
 			}
 
 			qpack_debug_printf(stderr, " hvalue=%d value_len=%llu", !!hvalue, (unsigned long long)value_len);
-
-			if (len < value_len) {
-				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
-				ret = -QPACK_RET_TRUNCATED;
-				goto out;
-			}
 
 			if (hvalue) {
 				char *trash;
