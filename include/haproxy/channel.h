@@ -376,6 +376,7 @@ static inline void channel_add_input(struct channel *chn, unsigned int len)
 		c_adv(chn, fwd);
 	}
 	/* notify that some data was read */
+	chn_prod(chn)->bytes_in += len;
 	chn->flags |= CF_READ_EVENT;
 }
 
