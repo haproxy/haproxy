@@ -862,7 +862,7 @@ static void fcgi_strm_notify_recv(struct fcgi_strm *fstrm)
 {
 	if (fstrm->subs && (fstrm->subs->events & SUB_RETRY_RECV)) {
 		TRACE_POINT(FCGI_EV_STRM_WAKE, fstrm->fconn->conn, fstrm);
-		tasklet_wakeup(fstrm->subs->tasklet);
+		tasklet_wakeup(fstrm->subs->tasklet, TASK_WOKEN_IO);
 		fstrm->subs->events &= ~SUB_RETRY_RECV;
 		if (!fstrm->subs->events)
 			fstrm->subs = NULL;
@@ -875,7 +875,7 @@ static void fcgi_strm_notify_send(struct fcgi_strm *fstrm)
 	if (fstrm->subs && (fstrm->subs->events & SUB_RETRY_SEND)) {
 		TRACE_POINT(FCGI_EV_STRM_WAKE, fstrm->fconn->conn, fstrm);
 		fstrm->flags |= FCGI_SF_NOTIFIED;
-		tasklet_wakeup(fstrm->subs->tasklet);
+		tasklet_wakeup(fstrm->subs->tasklet, TASK_WOKEN_IO);
 		fstrm->subs->events &= ~SUB_RETRY_SEND;
 		if (!fstrm->subs->events)
 			fstrm->subs = NULL;

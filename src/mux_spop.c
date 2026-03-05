@@ -952,7 +952,7 @@ static void spop_strm_notify_recv(struct spop_strm *spop_strm)
 {
 	if (spop_strm->subs && (spop_strm->subs->events & SUB_RETRY_RECV)) {
 		TRACE_POINT(SPOP_EV_STRM_WAKE, spop_strm->spop_conn->conn, spop_strm);
-		tasklet_wakeup(spop_strm->subs->tasklet);
+		tasklet_wakeup(spop_strm->subs->tasklet, TASK_WOKEN_IO);
 		spop_strm->subs->events &= ~SUB_RETRY_RECV;
 		if (!spop_strm->subs->events)
 			spop_strm->subs = NULL;
@@ -965,7 +965,7 @@ static void spop_strm_notify_send(struct spop_strm *spop_strm)
 	if (spop_strm->subs && (spop_strm->subs->events & SUB_RETRY_SEND)) {
 		TRACE_POINT(SPOP_EV_STRM_WAKE, spop_strm->spop_conn->conn, spop_strm);
 		spop_strm->flags |= SPOP_SF_NOTIFIED;
-		tasklet_wakeup(spop_strm->subs->tasklet);
+		tasklet_wakeup(spop_strm->subs->tasklet, TASK_WOKEN_IO);
 		spop_strm->subs->events &= ~SUB_RETRY_SEND;
 		if (!spop_strm->subs->events)
 			spop_strm->subs = NULL;

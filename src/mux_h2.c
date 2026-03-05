@@ -1668,9 +1668,10 @@ static void __maybe_unused h2s_notify_recv(struct h2s *h2s)
 		TRACE_POINT(H2_EV_STRM_WAKE, h2s->h2c->conn, h2s);
 		if (h2s->h2c->next_tasklet ||
 		    (th_ctx->current && th_ctx->current->process == h2_io_cb))
-			h2s->h2c->next_tasklet = tasklet_wakeup_after(h2s->h2c->next_tasklet, h2s->subs->tasklet);
+			h2s->h2c->next_tasklet = tasklet_wakeup_after(h2s->h2c->next_tasklet, h2s->subs->tasklet,
+								      TASK_WOKEN_IO);
 		else
-			tasklet_wakeup(h2s->subs->tasklet);
+			tasklet_wakeup(h2s->subs->tasklet, TASK_WOKEN_IO);
 		h2s->subs->events &= ~SUB_RETRY_RECV;
 		if (!h2s->subs->events)
 			h2s->subs = NULL;
@@ -1683,7 +1684,7 @@ static void __maybe_unused h2s_notify_send(struct h2s *h2s)
 	if (h2s->subs && h2s->subs->events & SUB_RETRY_SEND) {
 		TRACE_POINT(H2_EV_STRM_WAKE, h2s->h2c->conn, h2s);
 		h2s->flags |= H2_SF_NOTIFIED;
-		tasklet_wakeup(h2s->subs->tasklet);
+		tasklet_wakeup(h2s->subs->tasklet, TASK_WOKEN_IO);
 		h2s->subs->events &= ~SUB_RETRY_SEND;
 		if (!h2s->subs->events)
 			h2s->subs = NULL;
