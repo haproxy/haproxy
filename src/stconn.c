@@ -707,6 +707,103 @@ void sc_chk_rcv(struct stconn *sc)
 	}
 }
 
+/* Calls chk_snd on the endpoint using the data layer */
+static inline void sc_chk_snd(struct stconn *sc)
+{
+	struct channel *oc = sc_oc(sc);
+
+	BUG_ON(!sc_strm(sc));
+
+	if (sc_ep_test(sc, SE_FL_T_MUX)) {
+		if (unlikely(!sc_state_in(sc->state, SC_SB_RDY|SC_SB_EST) ||
+			     (sc->flags & SC_FL_SHUT_DONE)))
+			return;
+
+		if (unlikely(!co_data(oc) && !sc_ep_have_ff_data(sc)))  /* called with nothing to send ! */
+			return;
+
+		if (!sc_ep_have_ff_data(sc) &&              /* data wants to be fast-forwarded ASAP */
+		    !sc_ep_test(sc, SE_FL_WAIT_DATA))       /* not waiting for data */
+			return;
+
+		if (!(sc->wait_event.events & SUB_RETRY_SEND))
+			sc_conn_send(sc);
+
+		if (sc_ep_test(sc, SE_FL_ERROR | SE_FL_ERR_PENDING) || sc_is_conn_error(sc)) {
+			/* Write error on the file descriptor */
+			BUG_ON(sc_ep_test(sc, SE_FL_EOS|SE_FL_ERROR|SE_FL_ERR_PENDING) == (SE_FL_EOS|SE_FL_ERR_PENDING));
+			goto out_wakeup;
+		}
+
+		/* OK, so now we know that some data might have been sent, and that we may
+		 * have to poll first. We have to do that too if the buffer is not empty.
+		 */
+		if (!co_data(oc) && !sc_ep_have_ff_data(sc)) {
+			/* the connection is established but we can't write. Either the
+			 * buffer is empty, or we just refrain from sending because the
+			 * ->o limit was reached. Maybe we just wrote the last
+			 * chunk and need to close.
+			 */
+			if ((oc->flags & CF_AUTO_CLOSE) &&
+			    ((sc->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) == SC_FL_SHUT_WANTED) &&
+			    sc_state_in(sc->state, SC_SB_RDY|SC_SB_EST)) {
+				sc_shutdown(sc);
+				goto out_wakeup;
+			}
+
+			if ((sc->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) == 0)
+				sc_ep_set(sc, SE_FL_WAIT_DATA);
+		}
+		else {
+			/* Otherwise there are remaining data to be sent in the buffer,
+			 * which means we have to poll before doing so.
+			 */
+			sc_ep_clr(sc, SE_FL_WAIT_DATA);
+		}
+
+		/* in case of special condition (error, shutdown, end of write...), we
+		 * have to notify the task.
+		 */
+		if (likely((sc->flags & SC_FL_SHUT_DONE) ||
+			   ((oc->flags & CF_WRITE_EVENT) && sc->state < SC_ST_EST) ||
+			   ((oc->flags & CF_WAKE_WRITE) &&
+			    ((!co_data(oc) && !oc->to_forward) ||
+			     !sc_state_in(sc->state, SC_SB_EST))))) {
+		out_wakeup:
+			if (!(sc->flags & SC_FL_DONT_WAKE))
+				task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
+		}
+	}
+	else if  (sc_ep_test(sc, SE_FL_T_APPLET)) {
+		if (unlikely(sc->state != SC_ST_EST || (sc->flags & SC_FL_SHUT_DONE)))
+			return;
+
+		/* we only wake the applet up if it was waiting for some data  and is ready to consume it */
+		if (!sc_ep_test(sc, SE_FL_WAIT_DATA|SE_FL_WONT_CONSUME))
+			return;
+
+		if (co_data(oc) || sc_ep_have_ff_data(sc)) {
+			/* (re)start sending */
+			appctx_wakeup(__sc_appctx(sc));
+		}
+	}
+	else {
+		if (unlikely(sc->state != SC_ST_EST || (sc->flags & SC_FL_SHUT_DONE)))
+			return;
+
+		if (!sc_ep_test(sc, SE_FL_WAIT_DATA) ||  /* not waiting for data */
+		    (!co_data(oc) && !sc_ep_have_ff_data(sc)))  /* called with nothing to send ! */
+			return;
+
+		/* Otherwise there are remaining data to be sent in the buffer,
+		 * so we tell the handler.
+		 */
+		sc_ep_clr(sc, SE_FL_WAIT_DATA);
+		if (!(sc->flags & SC_FL_DONT_WAKE))
+			task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
+	}
+}
+
 /*
  * This function performs a shutdown-write on a detached stream connector in a
  * connected or init state (it does nothing for other states). It either shuts
