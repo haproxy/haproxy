@@ -876,7 +876,7 @@ static void sc_app_chk_rcv_conn(struct stconn *sc)
 
 	/* (re)start reading */
 	if (sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
-		tasklet_wakeup(sc->wait_event.tasklet);
+		tasklet_wakeup(sc->wait_event.tasklet, TASK_WOKEN_IO);
 }
 
 
