@@ -58,6 +58,7 @@ int sc_reset_endp(struct stconn *sc);
 
 struct appctx *sc_applet_create(struct stconn *sc, struct applet *app);
 int sc_applet_process(struct stconn *sc);
+int sc_conn_process(struct stconn *sc);
 
 void sc_conn_prepare_endp_upgrade(struct stconn *sc);
 void sc_conn_abort_endp_upgrade(struct stconn *sc);
