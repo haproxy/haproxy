@@ -30,15 +30,12 @@ DECLARE_TYPED_POOL(pool_head_connstream, "stconn", struct stconn);
 DECLARE_TYPED_POOL(pool_head_sedesc, "sedesc", struct sedesc);
 
 /* functions used by default on a detached stream connector */
-static void sc_app_abort(struct stconn *sc);
 static void sc_app_shut(struct stconn *sc);
 
 /* functions used on a mux-based stream connector */
-static void sc_app_abort_conn(struct stconn *sc);
 static void sc_app_shut_conn(struct stconn *sc);
 
 /* functions used on an applet-based stream connector */
-static void sc_app_abort_applet(struct stconn *sc);
 static void sc_app_shut_applet(struct stconn *sc);
 
 static int sc_conn_recv(struct stconn *sc);
@@ -46,34 +43,29 @@ static int sc_conn_send(struct stconn *sc);
 
 /* stream connector operations for connections */
 struct sc_app_ops sc_app_conn_ops = {
-	.abort   = sc_app_abort_conn,
 	.shutdown= sc_app_shut_conn,
 	.name    = "STRM",
 };
 
 /* stream connector operations for embedded tasks */
 struct sc_app_ops sc_app_embedded_ops = {
-	.abort   = sc_app_abort,
 	.shutdown= sc_app_shut,
 	.name    = "NONE", /* may never be used */
 };
 
 /* stream connector operations for applets */
 struct sc_app_ops sc_app_applet_ops = {
-	.abort   = sc_app_abort_applet,
 	.shutdown= sc_app_shut_applet,
 	.name    = "STRM",
 };
 
 /* stream connector for health checks on connections */
 struct sc_app_ops sc_app_check_ops = {
-	.abort   = NULL,
 	.shutdown= NULL,
 	.name    = "CHCK",
 };
 
 struct sc_app_ops sc_app_hstream_ops = {
-	.abort   = NULL,
 	.shutdown= NULL,
 	.name    = "HTERM",
 };
@@ -626,38 +618,6 @@ static inline int sc_is_fastfwd_supported(struct stconn *sc)
 		sc_ep_test(sc_opposite(sc), SE_FL_MAY_FASTFWD_CONS) &&
 		sc_ic(sc)->to_forward);
 }
-/*
- * This function performs a shutdown-read on a detached stream connector in a
- * connected or init state (it does nothing for other states). It either shuts
- * the read side or marks itself as closed. The buffer flags are updated to
- * reflect the new state. If the stream connector has SC_FL_NOHALF, we also
- * forward the close to the write side. The owner task is woken up if it exists.
- */
-static void sc_app_abort(struct stconn *sc)
-{
-	struct channel *ic = sc_ic(sc);
-
-	if (sc->flags & (SC_FL_EOS|SC_FL_ABRT_DONE))
-		return;
-
-	sc->flags |= SC_FL_ABRT_DONE;
-	ic->flags |= CF_READ_EVENT;
-
-	if (!sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
-		return;
-
-	if (sc->flags & SC_FL_SHUT_DONE) {
-		sc->state = SC_ST_DIS;
-		if (sc->flags & SC_FL_ISBACK)
-			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
-	}
-	else if (sc_cond_forward_shut(sc))
-		return sc_app_shut(sc);
-
-	/* note that if the task exists, it must unregister itself once it runs */
-	if (!(sc->flags & SC_FL_DONT_WAKE))
-		task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
-}
 
 /*
  * This function performs a shutdown-read on a detached stream connector in a
@@ -899,40 +859,6 @@ static void sc_app_shut(struct stconn *sc)
 }
 
 /*
- * This function performs a shutdown-read on a stream connector attached to
- * a connection in a connected or init state (it does nothing for other
- * states). It either shuts the read side or marks itself as closed. The buffer
- * flags are updated to reflect the new state. If the stream connector has
- * SC_FL_NOHALF, we also forward the close to the write side. If a control
- * layer is defined, then it is supposed to be a socket layer and file
- * descriptors are then shutdown or closed accordingly. The function
- * automatically disables polling if needed.
- */
-static void sc_app_abort_conn(struct stconn *sc)
-{
-	struct channel *ic = sc_ic(sc);
-
-	BUG_ON(!sc_conn(sc));
-
-	if (sc->flags & (SC_FL_EOS|SC_FL_ABRT_DONE))
-		return;
-	sc->flags |= SC_FL_ABRT_DONE;
-	ic->flags |= CF_READ_EVENT;
-
-	if (!sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
-		return;
-
-	if (sc->flags & SC_FL_SHUT_DONE) {
-		se_shutdown(sc->sedesc, SE_SHR_RESET|SE_SHW_SILENT);
-		sc->state = SC_ST_DIS;
-		if (sc->flags & SC_FL_ISBACK)
-			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
-	}
-	else if (sc_cond_forward_shut(sc))
-		return sc_app_shut_conn(sc);
-}
-
-/*
  * This function performs a shutdown-write on a stream connector attached to
  * a connection in a connected or init state (it does nothing for other
  * states). It either shuts the write side or marks itself as closed. The
@@ -997,40 +923,6 @@ static void sc_app_shut_conn(struct stconn *sc)
 		__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 }
 
-
-/*
- * This function performs a shutdown-read on a stream connector attached to an
- * applet in a connected or init state (it does nothing for other states). It
- * either shuts the read side or marks itself as closed. The buffer flags are
- * updated to reflect the new state. If the stream connector has SC_FL_NOHALF,
- * we also forward the close to the write side. The owner task is woken up if
- * it exists.
- */
-static void sc_app_abort_applet(struct stconn *sc)
-{
-	struct channel *ic = sc_ic(sc);
-
-	BUG_ON(!sc_appctx(sc));
-
-	if (sc->flags & (SC_FL_EOS|SC_FL_ABRT_DONE))
-		return;
-	sc->flags |= SC_FL_ABRT_DONE;
-	ic->flags |= CF_READ_EVENT;
-
-	/* Note: on abort, we don't call the applet */
-
-	if (!sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
-		return;
-
-	if (sc->flags & SC_FL_SHUT_DONE) {
-		se_shutdown(sc->sedesc, SE_SHR_RESET|SE_SHW_NORMAL);
-		sc->state = SC_ST_DIS;
-		if (sc->flags & SC_FL_ISBACK)
-			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
-	}
-	else if (sc_cond_forward_shut(sc))
-		return sc_app_shut_applet(sc);
-}
 
 /*
  * This function performs a shutdown-write on a stream connector attached to an

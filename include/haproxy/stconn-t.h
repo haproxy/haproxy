@@ -354,7 +354,6 @@ struct sedesc {
  * There are very few combinations in practice (strm/chk <-> none/mux/applet).
  */
 struct sc_app_ops {
-	void (*abort)(struct stconn *);      /* abort function, may not be null */
 	void (*shutdown)(struct stconn *);   /* shutdown function, may not be null */
 	char name[8];                        /* data layer name, zero-terminated */
 };
