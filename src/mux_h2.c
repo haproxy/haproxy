@@ -1695,26 +1695,27 @@ static void __maybe_unused h2s_notify_send(struct h2s *h2s)
 	}
 }
 
-/* alerts the data layer, trying to wake it up by all means, following
- * this sequence :
- *   - if the h2s' data layer is subscribed to recv, then it's woken up for recv
- *   - if its subscribed to send, then it's woken up for send
- *   - if it was subscribed to neither, its ->wake() callback is called
- * It is safe to call this function with a closed stream which doesn't have a
- * stream connector anymore.
+/* alerts the data layer by waking it up. TASK_WOKEN_MSG state is used by
+ * default and if the data layer is also subscribed to recv or send,
+ * TASK_WOKEN_IO is added. But first of all, we check if the shut tasklet must
+ * be woken up or not instead.
  */
 static void __maybe_unused h2s_alert(struct h2s *h2s)
 {
 	TRACE_ENTER(H2_EV_H2S_WAKE, h2s->h2c->conn, h2s);
+	if (!h2s->subs && (h2s->flags & (H2_SF_WANT_SHUTR | H2_SF_WANT_SHUTW)))
+		tasklet_wakeup(h2s->shut_tl);
+	else if (h2s_sc(h2s)) {
+		unsigned int state = TASK_WOKEN_MSG;
 
-	if (h2s->subs ||
-	    (h2s->flags & (H2_SF_WANT_SHUTR | H2_SF_WANT_SHUTW))) {
-		h2s_notify_recv(h2s);
-		h2s_notify_send(h2s);
-	}
-	else if (h2s_sc(h2s) && h2s_sc(h2s)->app_ops->wake != NULL) {
-		TRACE_POINT(H2_EV_STRM_WAKE, h2s->h2c->conn, h2s);
-		h2s_sc(h2s)->app_ops->wake(h2s_sc(h2s));
+		if (h2s->subs) {
+			if (h2s->subs->events & SUB_RETRY_SEND)
+				h2s->flags |= H2_SF_NOTIFIED;
+			h2s->subs->events = 0;
+			h2s->subs = NULL;
+			state |= TASK_WOKEN_IO;
+		}
+		tasklet_wakeup(h2s_sc(h2s)->wait_event.tasklet, state);
 	}
 
 	TRACE_LEAVE(H2_EV_H2S_WAKE, h2s->h2c->conn, h2s);

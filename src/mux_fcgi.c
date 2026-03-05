@@ -886,26 +886,28 @@ static void fcgi_strm_notify_send(struct fcgi_strm *fstrm)
 	}
 }
 
-/* Alerts the data layer, trying to wake it up by all means, following
- * this sequence :
- *   - if the fcgi stream' data layer is subscribed to recv, then it's woken up
- *     for recv
- *   - if its subscribed to send, then it's woken up for send
- *   - if it was subscribed to neither, its ->wake() callback is called
- * It is safe to call this function with a closed stream which doesn't have a
- * stream connector anymore.
+
+/* Alerts the data layer by waking it up. TASK_WOKEN_MSG state is used by
+ * default and if the data layer is also subscribed to recv or send,
+ * TASK_WOKEN_IO is added. But first of all, we check if the shut tasklet must
+ * be woken up or not instead.
  */
 static void fcgi_strm_alert(struct fcgi_strm *fstrm)
 {
 	TRACE_POINT(FCGI_EV_STRM_WAKE, fstrm->fconn->conn, fstrm);
-	if (fstrm->subs ||
-	    (fstrm->flags & (FCGI_SF_WANT_SHUTR|FCGI_SF_WANT_SHUTW))) {
-		fcgi_strm_notify_recv(fstrm);
-		fcgi_strm_notify_send(fstrm);
-	}
-	else if (fcgi_strm_sc(fstrm) && fcgi_strm_sc(fstrm)->app_ops->wake != NULL) {
-		TRACE_POINT(FCGI_EV_STRM_WAKE, fstrm->fconn->conn, fstrm);
-		fcgi_strm_sc(fstrm)->app_ops->wake(fcgi_strm_sc(fstrm));
+	if (!fstrm->subs && (fstrm->flags & (FCGI_SF_WANT_SHUTR|FCGI_SF_WANT_SHUTW)))
+		tasklet_wakeup(fstrm->shut_tl);
+	else if (fcgi_strm_sc(fstrm)) {
+		unsigned int state = TASK_WOKEN_MSG;
+
+		if (fstrm->subs) {
+			if (fstrm->subs->events & SUB_RETRY_SEND)
+				fstrm->flags |= FCGI_SF_NOTIFIED;
+			fstrm->subs->events = 0;
+			fstrm->subs = NULL;
+			state |= TASK_WOKEN_IO;
+		}
+		tasklet_wakeup(fcgi_strm_sc(fstrm)->wait_event.tasklet, state);
 	}
 }
 

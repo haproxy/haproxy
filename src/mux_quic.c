@@ -506,19 +506,23 @@ static struct ncbuf *qcs_get_ncbuf(struct qcs *qcs, struct ncbuf *ncbuf)
 	return ncbuf;
 }
 
-/* Notify an eventual subscriber on <qcs> or else wakeup up the stconn layer if
- * initialized.
+/* Notify the stconn layer if initialized with TASK_WOKEN_MSG state and
+ * eventually TASK_WOKEN_IO.
  */
 static void qcs_alert(struct qcs *qcs)
 {
+	unsigned int state = TASK_WOKEN_MSG;
+
+	TRACE_POINT(QMUX_EV_STRM_WAKE, qcs->qcc->conn, qcs);
+	if (!qcs_sc(qcs))
+		return;
+
 	if (qcs->subs) {
-		qcs_notify_recv(qcs);
-		qcs_notify_send(qcs);
+		qcs->subs->events = 0;
+		qcs->subs = NULL;
+		state |= TASK_WOKEN_IO;
 	}
-	else if (qcs_sc(qcs) && qcs->sd->sc->app_ops->wake) {
-		TRACE_POINT(QMUX_EV_STRM_WAKE, qcs->qcc->conn, qcs);
-		qcs->sd->sc->app_ops->wake(qcs->sd->sc);
-	}
+	tasklet_wakeup(qcs_sc(qcs)->wait_event.tasklet, state);
 }
 
 int qcs_subscribe(struct qcs *qcs, int event_type, struct wait_event *es)

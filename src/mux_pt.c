@@ -252,20 +252,21 @@ struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned int status)
 
 	TRACE_ENTER(PT_EV_CONN_WAKE, ctx->conn);
 	if (!se_fl_test(ctx->sd, SE_FL_ORPHAN)) {
+		unsigned int state = TASK_WOKEN_MSG;
+
 		/* There's a small race condition.
 		 * mux_pt_io_cb() is only supposed to be called if we have no
 		 * stream attached. However, maybe the tasklet got woken up,
 		 * and this connection was then attached to a new stream.
-		 * If this happened, just wake the tasklet up if anybody
-		 * subscribed to receive events, and otherwise call the wake
-		 * method, to make sure the event is noticed.
+		 * If this happened, just wake the tasklet up.
 		 */
 		if (ctx->conn->subs) {
 			ctx->conn->subs->events = 0;
-			tasklet_wakeup(ctx->conn->subs->tasklet);
 			ctx->conn->subs = NULL;
-		} else if (pt_sc(ctx)->app_ops->wake)
-			pt_sc(ctx)->app_ops->wake(pt_sc(ctx));
+			state |= TASK_WOKEN_IO;
+		}
+		tasklet_wakeup(pt_sc(ctx)->wait_event.tasklet, state);
+
 		TRACE_DEVEL("leaving waking up SC", PT_EV_CONN_WAKE, ctx->conn);
 		return t;
 	}
@@ -360,14 +361,9 @@ static int mux_pt_wake(struct connection *conn)
 	int ret = 0;
 
 	TRACE_ENTER(PT_EV_CONN_WAKE, ctx->conn);
-	if (!se_fl_test(ctx->sd, SE_FL_ORPHAN)) {
-		ret = pt_sc(ctx)->app_ops->wake ? pt_sc(ctx)->app_ops->wake(pt_sc(ctx)) : 0;
-
-		if (ret < 0) {
-			TRACE_DEVEL("leaving waking up SC", PT_EV_CONN_WAKE, ctx->conn);
-			return ret;
-		}
-	} else {
+	if (!se_fl_test(ctx->sd, SE_FL_ORPHAN))
+		tasklet_wakeup(pt_sc(ctx)->wait_event.tasklet, TASK_WOKEN_MSG);
+	else {
 		conn_ctrl_drain(conn);
 		if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH)) {
 			TRACE_DEVEL("leaving destroying PT context", PT_EV_CONN_WAKE, ctx->conn);
