@@ -3716,7 +3716,7 @@ static void h1_wake_stream_for_recv(struct h1s *h1s)
 {
 	if (h1s && h1s->subs && h1s->subs->events & SUB_RETRY_RECV) {
 		TRACE_POINT(H1_EV_STRM_WAKE, h1s->h1c->conn, h1s);
-		tasklet_wakeup(h1s->subs->tasklet);
+		tasklet_wakeup(h1s->subs->tasklet, TASK_WOKEN_IO);
 		h1s->subs->events &= ~SUB_RETRY_RECV;
 		if (!h1s->subs->events)
 			h1s->subs = NULL;
@@ -3726,7 +3726,7 @@ static void h1_wake_stream_for_send(struct h1s *h1s)
 {
 	if (h1s && h1s->subs && h1s->subs->events & SUB_RETRY_SEND) {
 		TRACE_POINT(H1_EV_STRM_WAKE, h1s->h1c->conn, h1s);
-		tasklet_wakeup(h1s->subs->tasklet);
+		tasklet_wakeup(h1s->subs->tasklet, TASK_WOKEN_IO);
 		h1s->subs->events &= ~SUB_RETRY_SEND;
 		if (!h1s->subs->events)
 			h1s->subs = NULL;

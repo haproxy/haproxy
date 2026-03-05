@@ -548,7 +548,7 @@ void qcs_notify_recv(struct qcs *qcs)
 {
 	if (qcs->subs && qcs->subs->events & SUB_RETRY_RECV) {
 		TRACE_POINT(QMUX_EV_STRM_WAKE, qcs->qcc->conn, qcs);
-		tasklet_wakeup(qcs->subs->tasklet);
+		tasklet_wakeup(qcs->subs->tasklet, TASK_WOKEN_IO);
 		qcs->subs->events &= ~SUB_RETRY_RECV;
 		if (!qcs->subs->events)
 			qcs->subs = NULL;
@@ -559,7 +559,7 @@ void qcs_notify_send(struct qcs *qcs)
 {
 	if (qcs->subs && qcs->subs->events & SUB_RETRY_SEND) {
 		TRACE_POINT(QMUX_EV_STRM_WAKE, qcs->qcc->conn, qcs);
-		tasklet_wakeup(qcs->subs->tasklet);
+		tasklet_wakeup(qcs->subs->tasklet, TASK_WOKEN_IO);
 		qcs->subs->events &= ~SUB_RETRY_SEND;
 		if (!qcs->subs->events)
 			qcs->subs = NULL;
