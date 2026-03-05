@@ -28746,7 +28746,7 @@ Please refer to the table below for currently defined aliases :
   |                          Others                                           |
   +---+------+------------------------------------------------------+---------+
   |   | %B   | bytes_read           (from server to client)         | numeric |
-  |   |      | %[req.bytes_in]                                      |         |
+  |   |      | %[res.bytes_in]                                      |         |
   +---+------+------------------------------------------------------+---------+
   | H | %CC  | captured_request_cookie                              | string  |
   +---+------+------------------------------------------------------+---------+
