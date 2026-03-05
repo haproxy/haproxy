@@ -900,7 +900,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 			stream_dump_and_crash(&app->obj_type, read_freq_ctr(&app->call_rate));
 	}
 
-	sc->app_ops->wake(sc);
+	sc_applet_process(sc);
 	channel_release_buffer(ic, &app->buffer_wait);
 	TRACE_LEAVE(APPLET_EV_PROCESS, app);
 	return t;
@@ -993,7 +993,7 @@ struct task *task_process_applet(struct task *t, void *context, unsigned int sta
 			stream_dump_and_crash(&app->obj_type, read_freq_ctr(&app->call_rate));
 	}
 
-	sc->app_ops->wake(sc);
+	sc_applet_process(sc);
 	appctx_release_buffers(app);
 	TRACE_LEAVE(APPLET_EV_PROCESS, app);
 	return t;

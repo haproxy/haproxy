@@ -50,7 +50,6 @@ static void sc_app_chk_snd_applet(struct stconn *sc);
 static int sc_conn_process(struct stconn *sc);
 static int sc_conn_recv(struct stconn *sc);
 static int sc_conn_send(struct stconn *sc);
-static int sc_applet_process(struct stconn *sc);
 
 /* stream connector operations for connections */
 struct sc_app_ops sc_app_conn_ops = {
