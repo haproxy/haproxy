@@ -32,19 +32,16 @@ DECLARE_TYPED_POOL(pool_head_sedesc, "sedesc", struct sedesc);
 /* functions used by default on a detached stream connector */
 static void sc_app_abort(struct stconn *sc);
 static void sc_app_shut(struct stconn *sc);
-static void sc_app_chk_rcv(struct stconn *sc);
 static void sc_app_chk_snd(struct stconn *sc);
 
 /* functions used on a mux-based stream connector */
 static void sc_app_abort_conn(struct stconn *sc);
 static void sc_app_shut_conn(struct stconn *sc);
-static void sc_app_chk_rcv_conn(struct stconn *sc);
 static void sc_app_chk_snd_conn(struct stconn *sc);
 
 /* functions used on an applet-based stream connector */
 static void sc_app_abort_applet(struct stconn *sc);
 static void sc_app_shut_applet(struct stconn *sc);
-static void sc_app_chk_rcv_applet(struct stconn *sc);
 static void sc_app_chk_snd_applet(struct stconn *sc);
 
 static int sc_conn_recv(struct stconn *sc);
@@ -52,7 +49,6 @@ static int sc_conn_send(struct stconn *sc);
 
 /* stream connector operations for connections */
 struct sc_app_ops sc_app_conn_ops = {
-	.chk_rcv = sc_app_chk_rcv_conn,
 	.chk_snd = sc_app_chk_snd_conn,
 	.abort   = sc_app_abort_conn,
 	.shutdown= sc_app_shut_conn,
@@ -61,7 +57,6 @@ struct sc_app_ops sc_app_conn_ops = {
 
 /* stream connector operations for embedded tasks */
 struct sc_app_ops sc_app_embedded_ops = {
-	.chk_rcv = sc_app_chk_rcv,
 	.chk_snd = sc_app_chk_snd,
 	.abort   = sc_app_abort,
 	.shutdown= sc_app_shut,
@@ -70,7 +65,6 @@ struct sc_app_ops sc_app_embedded_ops = {
 
 /* stream connector operations for applets */
 struct sc_app_ops sc_app_applet_ops = {
-	.chk_rcv = sc_app_chk_rcv_applet,
 	.chk_snd = sc_app_chk_snd_applet,
 	.abort   = sc_app_abort_applet,
 	.shutdown= sc_app_shut_applet,
@@ -79,7 +73,6 @@ struct sc_app_ops sc_app_applet_ops = {
 
 /* stream connector for health checks on connections */
 struct sc_app_ops sc_app_check_ops = {
-	.chk_rcv = NULL,
 	.chk_snd = NULL,
 	.abort   = NULL,
 	.shutdown= NULL,
@@ -87,7 +80,6 @@ struct sc_app_ops sc_app_check_ops = {
 };
 
 struct sc_app_ops sc_app_hstream_ops = {
-	.chk_rcv = NULL,
 	.chk_snd = NULL,
 	.abort   = NULL,
 	.shutdown= NULL,
@@ -771,20 +763,6 @@ static void sc_app_shut(struct stconn *sc)
 		task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
 }
 
-/* default chk_rcv function for scheduled tasks */
-static void sc_app_chk_rcv(struct stconn *sc)
-{
-	if (sc_ep_have_ff_data(sc_opposite(sc))) {
-		/* stop reading */
-		sc_need_room(sc, -1);
-	}
-	else {
-		/* (re)start reading */
-		if (!(sc->flags & SC_FL_DONT_WAKE))
-			task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
-	}
-}
-
 /* default chk_snd function for scheduled tasks */
 static void sc_app_chk_snd(struct stconn *sc)
 {
@@ -902,21 +880,6 @@ static void sc_app_shut_conn(struct stconn *sc)
 		sc->flags |= SC_FL_ABRT_DONE;
 	if (sc->flags & SC_FL_ISBACK)
 		__sc_strm(sc)->conn_exp = TICK_ETERNITY;
-}
-
-/* This function is used for inter-stream connector calls. It is called by the
- * consumer to inform the producer side that it may be interested in checking
- * for free space in the buffer. Note that it intentionally does not update
- * timeouts, so that we can still check them later at wake-up. This function is
- * dedicated to connection-based stream connectors.
- */
-static void sc_app_chk_rcv_conn(struct stconn *sc)
-{
-	BUG_ON(!sc_conn(sc));
-
-	/* (re)start reading */
-	if (sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
-		tasklet_wakeup(sc->wait_event.tasklet, TASK_WOKEN_IO);
 }
 
 
@@ -1087,17 +1050,6 @@ static void sc_app_shut_applet(struct stconn *sc)
 		sc->flags |= SC_FL_ABRT_DONE;
 	if (sc->flags & SC_FL_ISBACK)
 		__sc_strm(sc)->conn_exp = TICK_ETERNITY;
-}
-
-/* chk_rcv function for applets */
-static void sc_app_chk_rcv_applet(struct stconn *sc)
-{
-	BUG_ON(!sc_appctx(sc));
-
-	if (!sc_ep_have_ff_data(sc_opposite(sc))) {
-		/* (re)start reading */
-		appctx_wakeup(__sc_appctx(sc));
-	}
 }
 
 /* chk_snd function for applets */
