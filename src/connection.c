@@ -141,7 +141,7 @@ int conn_create_mux(struct connection *conn, int *closed_connection)
 fail:
 		/* let the upper layer know the connection failed */
 		if (sc) {
-			sc->app_ops->wake(sc);
+			sc_conn_process(sc);
 		}
 		else if (conn_reverse_in_preconnect(conn)) {
 			struct listener *l = conn_active_reverse_listener(conn);

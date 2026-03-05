@@ -47,7 +47,6 @@ static void sc_app_shut_applet(struct stconn *sc);
 static void sc_app_chk_rcv_applet(struct stconn *sc);
 static void sc_app_chk_snd_applet(struct stconn *sc);
 
-static int sc_conn_process(struct stconn *sc);
 static int sc_conn_recv(struct stconn *sc);
 static int sc_conn_send(struct stconn *sc);
 
