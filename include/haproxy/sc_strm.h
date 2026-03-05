@@ -36,6 +36,8 @@
 void sc_update_rx(struct stconn *sc);
 void sc_update_tx(struct stconn *sc);
 
+void sc_chk_rcv(struct stconn *sc);
+
 struct task *sc_conn_io_cb(struct task *t, void *ctx, unsigned int state);
 int sc_conn_sync_recv(struct stconn *sc);
 int sc_conn_sync_send(struct stconn *sc);
@@ -358,31 +360,6 @@ static inline int sc_is_recv_allowed(const struct stconn *sc)
 		return 0;
 
 	return !(sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM));
-}
-
-/* This is to be used after making some room available in a channel. It will
- * return without doing anything if the stream connector's RX path is blocked.
- * It will automatically mark the stream connector as busy processing the end
- * point in order to avoid useless repeated wakeups.
- * It will then call ->chk_rcv() to enable receipt of new data.
- */
-static inline void sc_chk_rcv(struct stconn *sc)
-{
-	if (sc_ep_test(sc, SE_FL_APPLET_NEED_CONN) &&
-	    sc_state_in(sc_opposite(sc)->state, SC_SB_RDY|SC_SB_EST|SC_SB_DIS|SC_SB_CLO)) {
-		sc_ep_clr(sc, SE_FL_APPLET_NEED_CONN);
-		sc_ep_report_read_activity(sc);
-	}
-
-	if (!sc_is_recv_allowed(sc))
-		return;
-
-	if (!sc_state_in(sc->state, SC_SB_RDY|SC_SB_EST))
-		return;
-
-	sc_ep_set(sc, SE_FL_HAVE_NO_DATA);
-	if (likely(sc->app_ops->chk_rcv))
-		sc->app_ops->chk_rcv(sc);
 }
 
 /* Calls chk_snd on the endpoint using the data layer */

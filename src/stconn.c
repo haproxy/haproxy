@@ -675,6 +675,46 @@ static void sc_app_abort(struct stconn *sc)
 		task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
 }
 
+
+/* This is to be used after making some room available in a channel. It will
+ * return without doing anything if the stream connector's RX path is blocked.
+ * It will automatically mark the stream connector as busy processing the end
+ * point in order to avoid useless repeated wakeups.
+ * It will then woken the right entity to enable receipt of new data.
+ */
+void sc_chk_rcv(struct stconn *sc)
+{
+	BUG_ON(!sc_strm(sc));
+
+	if (sc_ep_test(sc, SE_FL_APPLET_NEED_CONN) &&
+	    sc_state_in(sc_opposite(sc)->state, SC_SB_RDY|SC_SB_EST|SC_SB_DIS|SC_SB_CLO)) {
+		sc_ep_clr(sc, SE_FL_APPLET_NEED_CONN);
+		sc_ep_report_read_activity(sc);
+	}
+
+	if (!sc_is_recv_allowed(sc))
+		return;
+
+	if (!sc_state_in(sc->state, SC_SB_RDY|SC_SB_EST))
+		return;
+
+	sc_ep_set(sc, SE_FL_HAVE_NO_DATA);
+
+	/* (re)start reading */
+	if (sc_ep_test(sc, SE_FL_T_MUX)) {
+		if (sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
+			tasklet_wakeup(sc->wait_event.tasklet, TASK_WOKEN_IO);
+	}
+	else if  (sc_ep_test(sc, SE_FL_T_APPLET)) {
+		if (!sc_ep_have_ff_data(sc_opposite(sc)))
+			appctx_wakeup(__sc_appctx(sc));
+	}
+	else {
+		if (!(sc->flags & SC_FL_DONT_WAKE))
+			task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
+	}
+}
+
 /*
  * This function performs a shutdown-write on a detached stream connector in a
  * connected or init state (it does nothing for other states). It either shuts
