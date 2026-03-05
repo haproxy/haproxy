@@ -2023,13 +2023,7 @@ static void spop_resume_each_sending_spop_strm(struct spop_conn *spop_conn, stru
 			continue;
 		}
 
-		if (spop_strm->subs && spop_strm->subs->events & SUB_RETRY_SEND) {
-			spop_strm->flags |= SPOP_SF_NOTIFIED;
-			tasklet_wakeup(spop_strm->subs->tasklet);
-			spop_strm->subs->events &= ~SUB_RETRY_SEND;
-			if (!spop_strm->subs->events)
-				spop_strm->subs = NULL;
-		}
+		spop_strm_notify_send(spop_strm);
 	}
 
 	TRACE_LEAVE(SPOP_EV_SPOP_CONN_SEND|SPOP_EV_STRM_WAKE, spop_conn->conn);
