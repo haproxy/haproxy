@@ -356,7 +356,7 @@ out:
  */
 size_t jws_b64_signature(EVP_PKEY *pkey, enum jwt_alg alg, char *b64protected, char *b64payload, char *dst, size_t dsize)
 {
-	EVP_MD_CTX *ctx;
+	EVP_MD_CTX *ctx = NULL;
 	const EVP_MD *evp_md = NULL;
 	int ret = 0;
 	struct buffer *sign = NULL;
@@ -450,6 +450,7 @@ size_t jws_b64_signature(EVP_PKEY *pkey, enum jwt_alg alg, char *b64protected, c
 	ret = a2base64url(sign->area, sign->data, dst, dsize);
 
 out:
+	EVP_MD_CTX_free(ctx);
 	free_trash_chunk(sign);
 
 	if (ret > 0)
