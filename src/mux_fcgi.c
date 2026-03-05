@@ -2987,9 +2987,9 @@ static int fcgi_send(struct fcgi_conn *fconn)
 	 * for us.
 	 */
 	if (!(fconn->flags & (FCGI_CF_MUX_MFULL | FCGI_CF_DEM_MROOM)) && fconn->state >= FCGI_CS_RECORD_H) {
-		struct fcgi_strm *fstrm;
+		struct fcgi_strm *fstrm, *fstrm_back;
 
-		list_for_each_entry(fstrm, &fconn->send_list, send_list) {
+		list_for_each_entry_safe(fstrm, fstrm_back, &fconn->send_list, send_list) {
 			if (fconn->state == FCGI_CS_CLOSED || fconn->flags & FCGI_CF_MUX_BLOCK_ANY)
 				break;
 
