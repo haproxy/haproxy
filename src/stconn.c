@@ -1982,7 +1982,7 @@ struct task *sc_conn_io_cb(struct task *t, void *ctx, unsigned int state)
 		ret = sc_conn_send(sc);
 	if (!(sc->wait_event.events & SUB_RETRY_RECV))
 		ret |= sc_conn_recv(sc);
-	if (ret != 0)
+	if (ret != 0 || (state & TASK_WOKEN_MSG))
 		sc_conn_process(sc);
 
 	stream_release_buffers(__sc_strm(sc));
