@@ -659,6 +659,47 @@ static void sc_app_abort(struct stconn *sc)
 		task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
 }
 
+/*
+ * This function performs a shutdown-read on a detached stream connector in a
+ * connected or init state (it does nothing for other states). It either shuts
+ * the read side or marks itself as closed. The buffer flags are updated to
+ * reflect the new state. If the stream connector has SC_FL_NOHALF, we also
+ * forward the close to the write side. The owner task is woken up if it exists.
+ */
+void sc_abort(struct stconn *sc)
+{
+	struct channel *ic = sc_ic(sc);
+
+	BUG_ON(!sc_strm(sc));
+
+	if (sc->flags & (SC_FL_EOS|SC_FL_ABRT_DONE))
+		return;
+
+	sc->flags |= SC_FL_ABRT_DONE;
+	ic->flags |= CF_READ_EVENT;
+
+	if (!sc_state_in(sc->state, SC_SB_CON|SC_SB_RDY|SC_SB_EST))
+		return;
+
+	if (sc->flags & SC_FL_SHUT_DONE) {
+		if (sc_ep_test(sc, SE_FL_T_MUX))
+			se_shutdown(sc->sedesc, SE_SHR_RESET|SE_SHW_SILENT);
+		else if  (sc_ep_test(sc, SE_FL_T_APPLET))
+			se_shutdown(sc->sedesc, SE_SHR_RESET|SE_SHW_NORMAL);
+
+		sc->state = SC_ST_DIS;
+		if (sc->flags & SC_FL_ISBACK)
+			__sc_strm(sc)->conn_exp = TICK_ETERNITY;
+	}
+	else if (sc_cond_forward_shut(sc))
+		return sc_shutdown(sc);
+
+	if (!sc_ep_test(sc, SE_FL_T_MUX|SE_FL_T_APPLET)) {
+		/* note that if the task exists, it must unregister itself once it runs */
+		if (!(sc->flags & SC_FL_DONT_WAKE))
+			task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
+	}
+}
 
 /* This is to be used after making some room available in a channel. It will
  * return without doing anything if the stream connector's RX path is blocked.
