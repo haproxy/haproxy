@@ -63,6 +63,7 @@ static uint64_t qpack_get_varint(const unsigned char **buf, uint64_t *len_in, in
 	uint64_t ret = 0;
 	int len = *len_in;
 	const uint8_t *raw = *buf;
+	uint64_t v, max = ~0;
 	uint8_t shift = 0;
 
 	if (len == 0)
@@ -73,24 +74,26 @@ static uint64_t qpack_get_varint(const unsigned char **buf, uint64_t *len_in, in
 	if (ret != (uint64_t)((1ULL << b) - 1))
 		goto end;
 
-	while (len && (*raw & 128)) {
-		ret += ((uint64_t)*raw++ & 127) << shift;
-		shift += 7;
+	do {
+		if (!len)
+			goto too_short;
+		v = *raw++;
 		len--;
-	}
-
-	/* last 7 bits */
-	if (!len)
-		goto too_short;
-
-	len--;
-	ret += ((uint64_t)*raw++ & 127) << shift;
+		if (v & 127) { // make UBSan happy
+			if ((v & 127) > max)
+				goto too_large;
+			ret += (v & 127) << shift;
+		}
+		max >>= 7;
+		shift += 7;
+	} while (v & 128);
 
  end:
 	*buf = raw;
 	*len_in = len;
 	return ret;
 
+ too_large:
  too_short:
 	*len_in = (uint64_t)-1;
 	return 0;
