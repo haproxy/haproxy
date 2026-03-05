@@ -362,13 +362,6 @@ static inline int sc_is_recv_allowed(const struct stconn *sc)
 	return !(sc->flags & (SC_FL_WONT_READ|SC_FL_NEED_BUFF|SC_FL_NEED_ROOM));
 }
 
-/* Calls chk_snd on the endpoint using the data layer */
-static inline void sc_chk_snd(struct stconn *sc)
-{
-	if (likely(sc->app_ops->chk_snd))
-		sc->app_ops->chk_snd(sc);
-}
-
 
 /* Perform a synchronous receive using the right version, depending the endpoing
  * is a connection or an applet.
