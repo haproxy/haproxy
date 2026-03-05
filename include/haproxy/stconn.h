@@ -351,16 +351,6 @@ static inline struct hstream *sc_hstream(const struct stconn *sc)
 	return NULL;
 }
 
-/* Returns the name of the application layer's name for the stconn,
- * or "NONE" when none is attached.
- */
-static inline const char *sc_get_data_name(const struct stconn *sc)
-{
-	if (!sc->app_ops)
-		return "NONE";
-	return sc->app_ops->name;
-}
-
 /* Returns non-zero if the stream connector's Rx path is blocked because of
  * lack of room in the input buffer. This usually happens after applets failed
  * to deliver data into the channel's buffer and reported it via sc_need_room().

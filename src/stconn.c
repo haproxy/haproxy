@@ -32,30 +32,6 @@ DECLARE_TYPED_POOL(pool_head_sedesc, "sedesc", struct sedesc);
 static int sc_conn_recv(struct stconn *sc);
 static int sc_conn_send(struct stconn *sc);
 
-/* stream connector operations for connections */
-struct sc_app_ops sc_app_conn_ops = {
-	.name    = "STRM",
-};
-
-/* stream connector operations for embedded tasks */
-struct sc_app_ops sc_app_embedded_ops = {
-	.name    = "NONE", /* may never be used */
-};
-
-/* stream connector operations for applets */
-struct sc_app_ops sc_app_applet_ops = {
-	.name    = "STRM",
-};
-
-/* stream connector for health checks on connections */
-struct sc_app_ops sc_app_check_ops = {
-	.name    = "CHCK",
-};
-
-struct sc_app_ops sc_app_hstream_ops = {
-	.name    = "HTERM",
-};
-
 /* Initializes an endpoint */
 void sedesc_init(struct sedesc *sedesc)
 {
@@ -107,7 +83,7 @@ void sedesc_free(struct sedesc *sedesc)
 /* Performs a shutdown on the endpoint. This function deals with connection and
  * applet endpoints. It is responsible to set SE flags corresponding to the
  * given shut modes and to call right shutdown functions of the endpoint. It is
- * called from the .abort and .shut app_ops callback functions at the SC level.
+ * called from the sc_abort and sc_shutdown functions at the SC level.
  */
 void se_shutdown(struct sedesc *sedesc, enum se_shut_mode mode)
 {
@@ -173,7 +149,6 @@ static struct stconn *sc_new(struct sedesc *sedesc)
 	sc->ioto = TICK_ETERNITY;
 	sc->room_needed = 0;
 	sc->app = NULL;
-	sc->app_ops = NULL;
 	sc->src = NULL;
 	sc->dst = NULL;
 	sc->bytes_in = sc->bytes_out = 0;
@@ -237,7 +212,6 @@ struct stconn *sc_new_from_strm(struct stream *strm, unsigned int flags)
 	sc->flags |= flags;
 	sc_ep_set(sc, SE_FL_DETACHED);
 	sc->app = &strm->obj_type;
-	sc->app_ops = &sc_app_embedded_ops;
 	return sc;
 }
 
@@ -255,7 +229,6 @@ struct stconn *sc_new_from_check(struct check *check, unsigned int flags)
 	sc->flags |= flags;
 	sc_ep_set(sc, SE_FL_DETACHED);
 	sc->app = &check->obj_type;
-	sc->app_ops = &sc_app_check_ops;
 	return sc;
 }
 
@@ -308,7 +281,6 @@ int sc_attach_mux(struct stconn *sc, void *sd, void *ctx)
 			sc->wait_event.events = 0;
 		}
 
-		sc->app_ops = &sc_app_conn_ops;
 		xref_create(&sc->sedesc->xref, &sc_opposite(sc)->sedesc->xref);
 	}
 	else if (sc_check(sc)) {
@@ -320,8 +292,6 @@ int sc_attach_mux(struct stconn *sc, void *sd, void *ctx)
 			sc->wait_event.tasklet->context = sc;
 			sc->wait_event.events = 0;
 		}
-
-		sc->app_ops = &sc_app_check_ops;
 	}
 
 	sedesc->se = sd;
@@ -343,10 +313,8 @@ static int sc_attach_applet(struct stconn *sc, struct appctx *appctx)
 	sc->sedesc->se = appctx;
 	sc_ep_set(sc, SE_FL_T_APPLET);
 	sc_ep_clr(sc, SE_FL_DETACHED);
-	if (sc_strm(sc)) {
-		sc->app_ops = &sc_app_applet_ops;
+	if (sc_strm(sc))
 		xref_create(&sc->sedesc->xref, &sc_opposite(sc)->sedesc->xref);
-	}
 
 	return 0;
 }
@@ -368,14 +336,6 @@ int sc_attach_strm(struct stconn *sc, struct stream *strm)
 		sc->wait_event.tasklet->process = sc_conn_io_cb;
 		sc->wait_event.tasklet->context = sc;
 		sc->wait_event.events = 0;
-
-		sc->app_ops = &sc_app_conn_ops;
-	}
-	else if (sc_ep_test(sc, SE_FL_T_APPLET)) {
-		sc->app_ops = &sc_app_applet_ops;
-	}
-	else {
-		sc->app_ops = &sc_app_embedded_ops;
 	}
 	return 0;
 }
@@ -399,8 +359,6 @@ int sc_attach_hstream(struct stconn *sc, struct hstream *hs)
 	sc->wait_event.tasklet->process = sc_hstream_io_cb;
 	sc->wait_event.tasklet->context = sc;
 	sc->wait_event.events = 0;
-
-	sc->app_ops = &sc_app_hstream_ops;
 	return 0;
 }
 
@@ -470,10 +428,6 @@ static void sc_detach_endp(struct stconn **scp)
 	 *        connection related for now but this will evolved
 	 */
 	sc->flags &= SC_FL_ISBACK;
-	if (sc_strm(sc))
-		sc->app_ops = &sc_app_embedded_ops;
-	else
-		sc->app_ops = NULL;
 	sc_free_cond(scp);
 }
 
@@ -488,7 +442,6 @@ static void sc_detach_app(struct stconn **scp)
 		return;
 
 	sc->app = NULL;
-	sc->app_ops = NULL;
 	sockaddr_free(&sc->src);
 	sockaddr_free(&sc->dst);
 
