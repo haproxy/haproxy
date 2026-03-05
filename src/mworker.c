@@ -232,7 +232,7 @@ int mworker_env_to_proc_list()
 	/* set the leaving processes once we know which number of reloads are the current processes */
 
 	list_for_each_entry(child, &proc_list, list) {
-		if (child->reloads > 0)
+		if (child->reloads > 0  && !(child->options & PROC_O_TYPE_MASTER))
 			child->options |= PROC_O_LEAVING;
 	}
 
