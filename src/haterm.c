@@ -447,15 +447,6 @@ err:
 	goto leave;
 }
 
-int hstream_wake(struct stconn *sc)
-{
-	struct hstream *hs = __sc_hstream(sc);
-
-	TRACE_STATE("waking up task", HS_EV_HSTRM_IO_CB, hs);
-	task_wakeup(hs->task, TASK_WOKEN_IO);
-	return 0;
-}
-
 /* Add data to HTX response buffer from pre-built responses */
 static void hstream_add_data(struct htx *htx, struct hstream *hs)
 {
