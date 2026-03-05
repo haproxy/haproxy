@@ -1,6 +1,118 @@
 ChangeLog :
 ===========
 
+2026/03/05 : 3.4-dev6
+    - CLEANUP: acme: remove duplicate includes
+    - BUG/MINOR: proxy: detect strdup error on server auto SNI
+    - BUG/MINOR: server: set auto SNI for dynamic servers
+    - BUG/MINOR: server: enable no-check-sni-auto for dynamic servers
+    - MINOR: haterm: provide -b and -c options (RSA key size, ECDSA curves)
+    - MINOR: haterm: add long options for QUIC and TCP "bind" settings
+    - BUG/MINOR: haterm: missing allocation check in copy_argv()
+    - BUG/MINOR: quic: fix counters used on BE side
+    - MINOR: quic: add BUG_ON() on half_open_conn counter access from BE
+    - BUG/MINOR: quic/h3: display QUIC/H3 backend module on HTML stats
+    - BUG/MINOR: acme: acme_ctx_destroy() leaks auth->dns
+    - BUG/MINOR: acme: wrong labels logic always memprintf errmsg
+    - MINOR: ssl: clarify error reporting for unsupported keywords
+    - BUG/MINOR: acme: fix incorrect number of arguments allowed in config
+    - CLEANUP: haterm: remove unreachable labels hstream_add_data()
+    - CLEANUP: haterm: avoid static analyzer warnings about rand() use
+    - CLEANUP: ssl: Remove a useless variable from ssl_gen_x509()
+    - CI: use the latest docker for QUIC Interop
+    - CI: remove redundant "halog" compilation
+    - CLENAUP: cfgparse: accept-invalid-http-* does not support "no"/"defaults"
+    - BUG/MEDIUM: spoe: Acquire context buffer in applet before consuming a frame
+    - MINOR: traces: always mark trace_source as thread-aligned
+    - MINOR: ncbmbuf: improve itbmap_next() code
+    - MINOR: proxy: improve code when checking server name conflicts
+    - MINOR: quic: add a new metric for ncbuf failures
+    - BUG/MINOR: haterm: cannot reset default "haterm" mode
+    - BUG/MEDIUM: cpu-topo: Distribute CPUs fairly across groups
+    - BUG/MINOR: quic: missing app ops init during backend 0-RTT sessions
+    - CLEANUP: ssl: remove outdated comments
+    - MINOR: mux-h2: also count glitches on invalid trailers
+    - MINOR: mux-h2: add a new setting, "tune.h2.log-errors" to tweak error logging
+    - BUG/MEDIUM: mux-h2: make sure to always report pending errors to the stream
+    - BUG/MINOR: server: adjust initialization order for dynamic servers
+    - CLEANUP: tree-wide: drop a few useless null-checks before free()
+    - CLEANUP: quic-stats: include counters from quic_stats
+    - REORG: stats/counters: move extra_counters to counters not stats
+    - CLEANUP: stats: drop stats.h / stats-t.h where not needed
+    - MEDIUM: counters: change the fill_stats() API to pass the module and extra_counters
+    - CLEANUP: counters: only retrieve zeroes for unallocated extra_counters
+    - MEDIUM: counters: add a dedicated storage for extra_counters in various structs
+    - MINOR: counters: store a tgroup step for extra_counters to access multiple tgroups
+    - MEDIUM: counters: store the number of thread groups accessing extra_counters
+    - MINOR: counters: add EXTRA_COUNTERS_BASE() to retrieve extra_counters base storage
+    - MEDIUM: counters: return aggregate extra counters in ->fill_stats()
+    - MEDIUM: counters: make EXTRA_COUNTERS_GET() consider tgid
+    - BUG/MINOR: call EXTRA_COUNTERS_FREE() before srv_free_params() in srv_drop()
+    - MINOR: promex: test applet resume in stress mode
+    - BUG/MINOR: promex: fix server iteration when last server is deleted
+    - BUG/MINOR: proxy: add dynamic backend into ID tree
+    - MINOR: proxy: convert proxy flags to uint
+    - MINOR: server: refactor srv_detach()
+    - MINOR: proxy: define a basic "del backend" CLI
+    - MINOR: proxy: define proxy watcher member
+    - MINOR: stats: protect proxy iteration via watcher
+    - MINOR: promex: use watcher to iterate over backend instances
+    - MINOR: lua: use watcher for proxies iterator
+    - MINOR: proxy: add refcount to proxies
+    - MINOR: proxy: rename default refcount to avoid confusion
+    - MINOR: server: take proxy refcount when deleting a server
+    - MINOR: lua: handle proxy refcount
+    - MINOR: proxy: prevent backend removal when unsupported
+    - MINOR: proxy: prevent deletion of backend referenced by config elements
+    - MINOR: proxy: prevent backend deletion if server still exists in it
+    - MINOR: server: mark backend removal as forbidden if QUIC was used
+    - MINOR: cli: implement wait on be-removable
+    - MINOR: proxy: add comment for defaults_px_ref/unref_all()
+    - MEDIUM: proxy: add lock for global accesses during proxy free
+    - MEDIUM: proxy: add lock for global accesses during default free
+    - MINOR: proxy: use atomic ops for default proxy refcount
+    - MEDIUM: proxy: implement backend deletion
+    - REGTESTS: add a test on "del backend"
+    - REGTESTS: complete "del backend" with unnamed defaults ref free
+    - BUG/MINOR: hlua: fix return with push nil on proxy check
+    - BUG/MEDIUM: stream: Handle TASK_WOKEN_RES as a stream event
+    - MINOR: quic: use signed char type for ALPN manipulation
+    - MINOR: quic/h3: reorganize stream reject after MUX closure
+    - MINOR: mux-quic: add function for ALPN to app-ops conversion
+    - MEDIUM: quic/mux-quic: adjust app-ops install
+    - MINOR: quic: use server cache for ALPN on BE side
+    - BUG/MEDIUM: hpack: correctly deal with too large decoded numbers
+    - BUG/MAJOR: qpack: unchecked length passed to huffman decoder
+    - BUG/MINOR: qpack: fix 1-byte OOB read in qpack_decode_fs_pfx()
+    - BUG/MINOR: quic: fix OOB read in preferred_address transport parameter
+    - BUG/MEDIUM: qpack: correctly deal with too large decoded numbers
+    - BUG/MINOR: hlua: Properly enable/disable line receives from HTTP applet
+    - BUG/MEDIUM: hlua: Fix end of request detection when retrieving payload
+    - BUG/MINOR: hlua: Properly enable/disable receives for TCP applets
+    - MINOR: htx: Add a function to retrieve the HTTP version from a start-line
+    - MINOR: h1-htx: Reports non-HTTP version via dedicated flags
+    - BUG/MINOR: h1-htx: Be sure that H1 response version starts by "HTTP/"
+    - MINOR: http-ana: Save the message version in the http_msg structure
+    - MEDIUM: http-fetch: Rework how HTTP message version is retrieved
+    - MEDIUM: http-ana: Use the version of the opposite side for internal messages
+    - DEBUG: stream: Display the currently running rule in stream dump
+    - MINOR: filters: Use filter API as far as poissible to break loops on filters
+    - MINOR: filters: Set last_entity when a filter fails on stream_start callback
+    - MINOR: stream: Display the currently running filter per channel in stream dump
+    - DOC: config: Use the right alias for %B
+    - BUG/MINOR: channel: Increase the stconn bytes_in value in channel_add_input()
+    - BUG/MINOR: sample: Fix sample to retrieve the number of bytes received and sent
+    - BUG/MINOR: http-ana: Increment scf bytes_out value if an haproxy error is sent
+    - BUG/MAJOR: fcgi: Fix param decoding by properly checking its size
+    - BUG/MAJOR: resolvers: Properly lowered the names found in DNS response
+    - BUG/MEDIUM: mux-fcgi: Use a safe loop to resume each stream eligible for sending
+    - MINOR: mux-fcgi: Use a dedicated function to resume streams eligible for sending
+    - CLEANUP: qpack: simplify length checks in qpack_decode_fs()
+    - MINOR: counters: Introduce COUNTERS_UPDATE_MAX()
+    - MINOR: listeners: Update the frequency counters separately when needed
+    - MINOR: proxies: Update beconn separately
+    - MINOR: stats: Add an option to disable the calculation of max counters
+
 2026/02/19 : 3.4-dev5
     - DOC: internals: addd mworker V3 internals
     - BUG/MINOR: threads: Initialize maxthrpertgroup earlier.
