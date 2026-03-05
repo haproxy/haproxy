@@ -349,14 +349,6 @@ struct sedesc {
 	unsigned long long kop;    /* Known outgoing payload length (see above) */
 };
 
-/* sc_app_ops describes the application layer's operations and notification
- * callbacks when I/O activity is reported and to use to perform shutr/shutw.
- * There are very few combinations in practice (strm/chk <-> none/mux/applet).
- */
-struct sc_app_ops {
-	char name[8];                        /* data layer name, zero-terminated */
-};
-
 /*
  * This structure describes the elements of a connection relevant to a stream
  */
@@ -378,7 +370,6 @@ struct stconn {
 	struct wait_event wait_event;        /* We're in a wait list */
 	struct sedesc *sedesc;               /* points to the stream endpoint descriptor */
 	enum obj_type *app;                  /* points to the applicative point (stream or check) */
-	const struct sc_app_ops *app_ops;    /* general operations used at the app layer */
 	struct sockaddr_storage *src;        /* source address (pool), when known, otherwise NULL */
 	struct sockaddr_storage *dst;        /* destination address (pool), when known, otherwise NULL */
 };

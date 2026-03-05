@@ -3670,12 +3670,11 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 		}
 
 		chunk_appendf(buf,
-		              "%s      co0=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n", pfx,
+		              "%s      co0=%p ctrl=%s xprt=%s mux=%s target=%s:%p\n", pfx,
 			      conn,
 			      conn_get_ctrl_name(conn),
 			      conn_get_xprt_name(conn),
 			      conn_get_mux_name(conn),
-			      sc_get_data_name(scf),
 		              obj_type_name(conn->target),
 		              obj_base_ptr(conn->target));
 
@@ -3732,12 +3731,11 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 		}
 
 		chunk_appendf(buf,
-		              "%s      co1=%p ctrl=%s xprt=%s mux=%s data=%s target=%s:%p\n", pfx,
+		              "%s      co1=%p ctrl=%s xprt=%s mux=%s target=%s:%p\n", pfx,
 			      conn,
 			      conn_get_ctrl_name(conn),
 			      conn_get_xprt_name(conn),
 			      conn_get_mux_name(conn),
-			      sc_get_data_name(scb),
 		              obj_type_name(conn->target),
 		              obj_base_ptr(conn->target));
 
