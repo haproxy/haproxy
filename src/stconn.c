@@ -32,24 +32,20 @@ DECLARE_TYPED_POOL(pool_head_sedesc, "sedesc", struct sedesc);
 /* functions used by default on a detached stream connector */
 static void sc_app_abort(struct stconn *sc);
 static void sc_app_shut(struct stconn *sc);
-static void sc_app_chk_snd(struct stconn *sc);
 
 /* functions used on a mux-based stream connector */
 static void sc_app_abort_conn(struct stconn *sc);
 static void sc_app_shut_conn(struct stconn *sc);
-static void sc_app_chk_snd_conn(struct stconn *sc);
 
 /* functions used on an applet-based stream connector */
 static void sc_app_abort_applet(struct stconn *sc);
 static void sc_app_shut_applet(struct stconn *sc);
-static void sc_app_chk_snd_applet(struct stconn *sc);
 
 static int sc_conn_recv(struct stconn *sc);
 static int sc_conn_send(struct stconn *sc);
 
 /* stream connector operations for connections */
 struct sc_app_ops sc_app_conn_ops = {
-	.chk_snd = sc_app_chk_snd_conn,
 	.abort   = sc_app_abort_conn,
 	.shutdown= sc_app_shut_conn,
 	.name    = "STRM",
@@ -57,7 +53,6 @@ struct sc_app_ops sc_app_conn_ops = {
 
 /* stream connector operations for embedded tasks */
 struct sc_app_ops sc_app_embedded_ops = {
-	.chk_snd = sc_app_chk_snd,
 	.abort   = sc_app_abort,
 	.shutdown= sc_app_shut,
 	.name    = "NONE", /* may never be used */
@@ -65,7 +60,6 @@ struct sc_app_ops sc_app_embedded_ops = {
 
 /* stream connector operations for applets */
 struct sc_app_ops sc_app_applet_ops = {
-	.chk_snd = sc_app_chk_snd_applet,
 	.abort   = sc_app_abort_applet,
 	.shutdown= sc_app_shut_applet,
 	.name    = "STRM",
@@ -73,14 +67,12 @@ struct sc_app_ops sc_app_applet_ops = {
 
 /* stream connector for health checks on connections */
 struct sc_app_ops sc_app_check_ops = {
-	.chk_snd = NULL,
 	.abort   = NULL,
 	.shutdown= NULL,
 	.name    = "CHCK",
 };
 
 struct sc_app_ops sc_app_hstream_ops = {
-	.chk_snd = NULL,
 	.abort   = NULL,
 	.shutdown= NULL,
 	.name    = "HTERM",
@@ -707,7 +699,12 @@ void sc_chk_rcv(struct stconn *sc)
 	}
 }
 
-/* Calls chk_snd on the endpoint using the data layer */
+
+/* This function is used for inter-stream connector calls. It is called by the
+ * producer to inform the consumer side that it may be interested in checking
+ * for data in the buffer. Note that it intentionally does not update timeouts,
+ * so that we can still check them later at wake-up.
+ */
 static inline void sc_chk_snd(struct stconn *sc)
 {
 	struct channel *oc = sc_oc(sc);
@@ -860,26 +857,6 @@ static void sc_app_shut(struct stconn *sc)
 		task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
 }
 
-/* default chk_snd function for scheduled tasks */
-static void sc_app_chk_snd(struct stconn *sc)
-{
-	struct channel *oc = sc_oc(sc);
-
-	if (unlikely(sc->state != SC_ST_EST || (sc->flags & SC_FL_SHUT_DONE)))
-		return;
-
-	if (!sc_ep_test(sc, SE_FL_WAIT_DATA) ||  /* not waiting for data */
-	    (!co_data(oc) && !sc_ep_have_ff_data(sc)))  /* called with nothing to send ! */
-		return;
-
-	/* Otherwise there are remaining data to be sent in the buffer,
-	 * so we tell the handler.
-	 */
-	sc_ep_clr(sc, SE_FL_WAIT_DATA);
-	if (!(sc->flags & SC_FL_DONT_WAKE))
-		task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
-}
-
 /*
  * This function performs a shutdown-read on a stream connector attached to
  * a connection in a connected or init state (it does nothing for other
@@ -980,77 +957,6 @@ static void sc_app_shut_conn(struct stconn *sc)
 }
 
 
-/* This function is used for inter-stream connector calls. It is called by the
- * producer to inform the consumer side that it may be interested in checking
- * for data in the buffer. Note that it intentionally does not update timeouts,
- * so that we can still check them later at wake-up.
- */
-static void sc_app_chk_snd_conn(struct stconn *sc)
-{
-	struct channel *oc = sc_oc(sc);
-
-	BUG_ON(!sc_conn(sc));
-
-	if (unlikely(!sc_state_in(sc->state, SC_SB_RDY|SC_SB_EST) ||
-		     (sc->flags & SC_FL_SHUT_DONE)))
-		return;
-
-	if (unlikely(!co_data(oc) && !sc_ep_have_ff_data(sc)))  /* called with nothing to send ! */
-		return;
-
-	if (!sc_ep_have_ff_data(sc) &&              /* data wants to be fast-forwarded ASAP */
-	    !sc_ep_test(sc, SE_FL_WAIT_DATA))       /* not waiting for data */
-		return;
-
-	if (!(sc->wait_event.events & SUB_RETRY_SEND))
-		sc_conn_send(sc);
-
-	if (sc_ep_test(sc, SE_FL_ERROR | SE_FL_ERR_PENDING) || sc_is_conn_error(sc)) {
-		/* Write error on the file descriptor */
-		BUG_ON(sc_ep_test(sc, SE_FL_EOS|SE_FL_ERROR|SE_FL_ERR_PENDING) == (SE_FL_EOS|SE_FL_ERR_PENDING));
-		goto out_wakeup;
-	}
-
-	/* OK, so now we know that some data might have been sent, and that we may
-	 * have to poll first. We have to do that too if the buffer is not empty.
-	 */
-	if (!co_data(oc) && !sc_ep_have_ff_data(sc)) {
-		/* the connection is established but we can't write. Either the
-		 * buffer is empty, or we just refrain from sending because the
-		 * ->o limit was reached. Maybe we just wrote the last
-		 * chunk and need to close.
-		 */
-		if ((oc->flags & CF_AUTO_CLOSE) &&
-		    ((sc->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) == SC_FL_SHUT_WANTED) &&
-		    sc_state_in(sc->state, SC_SB_RDY|SC_SB_EST)) {
-			sc_shutdown(sc);
-			goto out_wakeup;
-		}
-
-		if ((sc->flags & (SC_FL_SHUT_DONE|SC_FL_SHUT_WANTED)) == 0)
-			sc_ep_set(sc, SE_FL_WAIT_DATA);
-	}
-	else {
-		/* Otherwise there are remaining data to be sent in the buffer,
-		 * which means we have to poll before doing so.
-		 */
-		sc_ep_clr(sc, SE_FL_WAIT_DATA);
-	}
-
-	/* in case of special condition (error, shutdown, end of write...), we
-	 * have to notify the task.
-	 */
-	if (likely((sc->flags & SC_FL_SHUT_DONE) ||
-		   ((oc->flags & CF_WRITE_EVENT) && sc->state < SC_ST_EST) ||
-		   ((oc->flags & CF_WAKE_WRITE) &&
-		    ((!co_data(oc) && !oc->to_forward) ||
-		     !sc_state_in(sc->state, SC_SB_EST))))) {
-	out_wakeup:
-		if (!(sc->flags & SC_FL_DONT_WAKE))
-			task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
-	}
-}
-
 /*
  * This function performs a shutdown-read on a stream connector attached to an
  * applet in a connected or init state (it does nothing for other states). It
@@ -1148,27 +1054,6 @@ static void sc_app_shut_applet(struct stconn *sc)
 	if (sc->flags & SC_FL_ISBACK)
 		__sc_strm(sc)->conn_exp = TICK_ETERNITY;
 }
-
-/* chk_snd function for applets */
-static void sc_app_chk_snd_applet(struct stconn *sc)
-{
-	struct channel *oc = sc_oc(sc);
-
-	BUG_ON(!sc_appctx(sc));
-
-	if (unlikely(sc->state != SC_ST_EST || (sc->flags & SC_FL_SHUT_DONE)))
-		return;
-
-	/* we only wake the applet up if it was waiting for some data  and is ready to consume it */
-	if (!sc_ep_test(sc, SE_FL_WAIT_DATA|SE_FL_WONT_CONSUME))
-		return;
-
-	if (co_data(oc) || sc_ep_have_ff_data(sc)) {
-		/* (re)start sending */
-		appctx_wakeup(__sc_appctx(sc));
-	}
-}
-
 
 /* This function is designed to be called from within the stream handler to
  * update the input channel's expiration timer and the stream connector's
