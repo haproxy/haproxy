@@ -147,9 +147,14 @@ static int sample_conv_sha2(const struct arg *arg_p, struct sample *smp, void *p
 	mdctx = EVP_MD_CTX_new();
 	if (!mdctx)
 		return 0;
-	EVP_DigestInit_ex(mdctx, evp, NULL);
-	EVP_DigestUpdate(mdctx, smp->data.u.str.area, smp->data.u.str.data);
-	EVP_DigestFinal_ex(mdctx, (unsigned char*)trash->area, &digest_length);
+
+	if (!EVP_DigestInit_ex(mdctx, evp, NULL) ||
+	    !EVP_DigestUpdate(mdctx, smp->data.u.str.area, smp->data.u.str.data) ||
+	    !EVP_DigestFinal_ex(mdctx, (unsigned char*)trash->area, &digest_length)) {
+		EVP_MD_CTX_free(mdctx);
+		return 0;
+	}
+
 	trash->data = digest_length;
 
 	EVP_MD_CTX_free(mdctx);
