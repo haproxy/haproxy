@@ -45,22 +45,22 @@ struct list tcp_res_cont_keywords = LIST_HEAD_INIT(tcp_res_cont_keywords);
  */
 void tcp_req_conn_keywords_register(struct action_kw_list *kw_list)
 {
-	LIST_APPEND(&tcp_req_conn_keywords, &kw_list->list);
+	act_add_list(&tcp_req_conn_keywords, kw_list);
 }
 
 void tcp_req_sess_keywords_register(struct action_kw_list *kw_list)
 {
-	LIST_APPEND(&tcp_req_sess_keywords, &kw_list->list);
+	act_add_list(&tcp_req_sess_keywords, kw_list);
 }
 
 void tcp_req_cont_keywords_register(struct action_kw_list *kw_list)
 {
-	LIST_APPEND(&tcp_req_cont_keywords, &kw_list->list);
+	act_add_list(&tcp_req_cont_keywords, kw_list);
 }
 
 void tcp_res_cont_keywords_register(struct action_kw_list *kw_list)
 {
-	LIST_APPEND(&tcp_res_cont_keywords, &kw_list->list);
+	act_add_list(&tcp_res_cont_keywords, kw_list);
 }
 
 /*
@@ -187,7 +187,8 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 resume_execution:
 		/* Always call the action function if defined */
 		if (rule->action_ptr) {
-			switch (rule->action_ptr(rule, s->be, s->sess, s, act_opts)) {
+			switch (EXEC_CTX_WITH_RET(rule->exec_ctx,
+			                          rule->action_ptr(rule, s->be, s->sess, s, act_opts))) {
 				case ACT_RET_CONT:
 					break;
 				case ACT_RET_STOP:
@@ -405,7 +406,8 @@ resume_execution:
 
 		/* Always call the action function if defined */
 		if (rule->action_ptr) {
-			switch (rule->action_ptr(rule, s->be, s->sess, s, act_opts)) {
+			switch (EXEC_CTX_WITH_RET(rule->exec_ctx,
+			                          rule->action_ptr(rule, s->be, s->sess, s, act_opts))) {
 				case ACT_RET_CONT:
 					break;
 				case ACT_RET_STOP:
@@ -570,7 +572,9 @@ int tcp_exec_l4_rules(struct session *sess)
 
 		/* Always call the action function if defined */
 		if (rule->action_ptr) {
-			switch (rule->action_ptr(rule, sess->fe, sess, NULL, ACT_OPT_FINAL | ACT_OPT_FIRST)) {
+			switch (EXEC_CTX_WITH_RET(rule->exec_ctx,
+			                          rule->action_ptr(rule, sess->fe, sess, NULL,
+			                                           ACT_OPT_FINAL | ACT_OPT_FIRST))) {
 				case ACT_RET_YIELD:
 					/* yield is not allowed at this point. If this return code is
 					 * used it is a bug, so I prefer to abort the process.
@@ -659,7 +663,9 @@ int tcp_exec_l5_rules(struct session *sess)
 
 		/* Always call the action function if defined */
 		if (rule->action_ptr) {
-			switch (rule->action_ptr(rule, sess->fe, sess, NULL, ACT_OPT_FINAL | ACT_OPT_FIRST)) {
+			switch (EXEC_CTX_WITH_RET(rule->exec_ctx,
+			                          rule->action_ptr(rule, sess->fe, sess, NULL,
+			                                           ACT_OPT_FINAL | ACT_OPT_FIRST))) {
 				case ACT_RET_YIELD:
 					/* yield is not allowed at this point. If this return code is
 					 * used it is a bug, so I prefer to abort the process.

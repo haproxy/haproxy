@@ -3380,7 +3380,7 @@ static enum act_parse_ret stream_parse_use_service(const char **args, int *cur_a
 
 void service_keywords_register(struct action_kw_list *kw_list)
 {
-	LIST_APPEND(&service_keywords, &kw_list->list);
+	act_add_list(&service_keywords, kw_list);
 }
 
 struct action_kw *service_find(const char *kw)

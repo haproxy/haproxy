@@ -206,6 +206,7 @@ struct act_rule {
 			void *p[4];
 		} act;                         /* generic pointers to be used by custom actions */
 	} arg;                                 /* arguments used by some actions */
+	struct thread_exec_ctx exec_ctx;       /* execution context */
 	struct {
 		char *file;                    /* file name where the rule appears (or NULL) */
 		int line;                      /* line number where the rule appears */
@@ -217,7 +218,9 @@ struct action_kw {
 	enum act_parse_ret (*parse)(const char **args, int *cur_arg, struct proxy *px,
 	                            struct act_rule *rule, char **err);
 	int flags;
+	/* 4 bytes here */
 	void *private;
+	struct thread_exec_ctx exec_ctx;       /* execution context */
 };
 
 struct action_kw_list {

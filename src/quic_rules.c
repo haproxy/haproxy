@@ -37,7 +37,8 @@ int quic_init_exec_rules(struct listener *li, struct quic_dgram *dgram)
 			continue;
 
 		if (rule->action_ptr) {
-			switch (rule->action_ptr(rule, px, &rule_sess, NULL, 0)) {
+			switch (EXEC_CTX_WITH_RET(rule->exec_ctx,
+			                          rule->action_ptr(rule, px, &rule_sess, NULL, 0))) {
 			case ACT_RET_CONT:
 				break;
 			case ACT_RET_DONE:
@@ -142,7 +143,7 @@ struct action_kw_list quic_init_actions_list = {
 
 void quic_init_actions_register(struct action_kw_list *kw_list)
 {
-	LIST_APPEND(&quic_init_actions_list.list, &kw_list->list);
+	act_add_list(&quic_init_actions_list.list, kw_list);
 }
 
 /* Return the struct quic-initial action associated to a keyword. */

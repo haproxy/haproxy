@@ -2417,7 +2417,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_action_kw(struct check *check, struct tcpch
 	enum act_return act_ret;
 
 	act_rule =rule->action_kw.rule;
-	act_ret = act_rule->action_ptr(act_rule, check->proxy, check->sess, NULL, 0);
+	act_ret = EXEC_CTX_WITH_RET(act_rule->exec_ctx,
+	                            act_rule->action_ptr(act_rule, check->proxy, check->sess, NULL, 0));
 	if (act_ret != ACT_RET_CONT) {
 		chunk_printf(&trash, "TCPCHK ACTION unexpected result at step %d\n",
 			     tcpcheck_get_step_id(check, rule));
@@ -2636,7 +2637,7 @@ int tcpcheck_main(struct check *check)
 
 void tcp_check_keywords_register(struct action_kw_list *kw_list)
 {
-	LIST_APPEND(&tcp_check_keywords.list, &kw_list->list);
+	act_add_list(&tcp_check_keywords.list, kw_list);
 }
 
 /**************************************************************************/

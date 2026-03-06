@@ -52,17 +52,17 @@ struct action_kw_list http_after_res_keywords = {
 
 void http_req_keywords_register(struct action_kw_list *kw_list)
 {
-	LIST_APPEND(&http_req_keywords.list, &kw_list->list);
+	act_add_list(&http_req_keywords.list, kw_list);
 }
 
 void http_res_keywords_register(struct action_kw_list *kw_list)
 {
-	LIST_APPEND(&http_res_keywords.list, &kw_list->list);
+	act_add_list(&http_res_keywords.list, kw_list);
 }
 
 void http_after_res_keywords_register(struct action_kw_list *kw_list)
 {
-	LIST_APPEND(&http_after_res_keywords.list, &kw_list->list);
+	act_add_list(&http_after_res_keywords.list, kw_list);
 }
 
 /*

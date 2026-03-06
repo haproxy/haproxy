@@ -35,6 +35,7 @@ int act_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 int act_resolution_error_cb(struct resolv_requester *requester, int error_code);
 const char *action_suggest(const char *word, const struct list *keywords, const char **extra);
 void free_act_rule(struct act_rule *rule);
+void act_add_list(struct list *head, struct action_kw_list *kw_list);
 
 static inline struct action_kw *action_lookup(struct list *keywords, const char *kw)
 {
