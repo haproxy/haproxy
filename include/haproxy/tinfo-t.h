@@ -81,6 +81,8 @@ enum thread_exec_ctx_type {
 	TH_EX_CTX_OTHER,                    /* context only known by a generic pointer */
 	TH_EX_CTX_INITCALL,                 /* the pointer is an initcall providing file:line */
 	TH_EX_CTX_CALLER,                   /* the pointer is an ha_caller of the caller providing file:line etc */
+	TH_EX_CTX_SMPF,                     /* directly registered sample fetch function, using .smpf_kwl */
+	TH_EX_CTX_CONV,                     /* directly registered converter function, using .conv_kwl */
 };
 
 struct thread_exec_ctx {
@@ -90,6 +92,8 @@ struct thread_exec_ctx {
 		const void *pointer;        /* generic pointer (for other) */
 		const struct initcall *initcall;  /* used with TH_EX_CTX_INITCALL */
 		const struct ha_caller *ha_caller;  /* used with TH_EX_CTX_CALLER */
+		const struct sample_fetch_kw_list *smpf_kwl; /* used with TH_EX_CTX_SMPF */
+		const struct sample_conv_kw_list *conv_kwl;  /* used with TH_EX_CTX_CONV */
 	};
 };
 

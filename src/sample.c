@@ -458,6 +458,9 @@ void sample_register_fetches(struct sample_fetch_kw_list *kwl)
 		if (caller_initcall) {
 			sf->exec_ctx.type = TH_EX_CTX_INITCALL;
 			sf->exec_ctx.initcall = caller_initcall;
+		} else {
+			sf->exec_ctx.type = TH_EX_CTX_SMPF;
+			sf->exec_ctx.smpf_kwl = kwl;
 		}
 	}
 	LIST_APPEND(&sample_fetches.list, &kwl->list);
@@ -479,6 +482,9 @@ void sample_register_convs(struct sample_conv_kw_list *pckl)
 		if (caller_initcall) {
 			sc->exec_ctx.type = TH_EX_CTX_INITCALL;
 			sc->exec_ctx.initcall = caller_initcall;
+		} else {
+			sc->exec_ctx.type = TH_EX_CTX_CONV;
+			sc->exec_ctx.conv_kwl = pckl;
 		}
 	}
 	LIST_APPEND(&sample_convs.list, &pckl->list);

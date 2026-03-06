@@ -7529,6 +7529,12 @@ void chunk_append_thread_ctx(struct buffer *output, const struct thread_exec_ctx
 		chunk_appendf(output,"ctx registered at %s@%s:%d", ctx->ha_caller->func, slash, ctx->ha_caller->line);
 		break;
 	}
+	case TH_EX_CTX_SMPF:
+		chunk_appendf(output,"smpf kwl starting with '%s'", ctx->smpf_kwl->kw[0].kw);
+		break;
+	case TH_EX_CTX_CONV:
+		chunk_appendf(output,"conv kwl starting with '%s'", ctx->conv_kwl->kw[0].kw);
+		break;
 	default:
 		chunk_appendf(output,"other ctx %p", ctx->pointer);
 		break;
