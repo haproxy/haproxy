@@ -24,6 +24,7 @@
 #define _HAPROXY_SAMPLE_T_H
 
 #include <haproxy/api-t.h>
+#include <haproxy/tinfo-t.h>
 #include <haproxy/sample_data-t.h>
 
 /* input and output sample types
@@ -265,6 +266,7 @@ struct sample_conv {
 	unsigned int in_type;                     /* expected input sample type */
 	unsigned int out_type;                    /* output sample type */
 	void *private;                            /* private values. only used by maps and Lua */
+	struct thread_exec_ctx exec_ctx;          /* execution context */
 };
 
 /* sample conversion expression */
@@ -288,6 +290,7 @@ struct sample_fetch {
 	unsigned int use;                         /* fetch source (SMP_USE_*) */
 	unsigned int val;                         /* fetch validity (SMP_VAL_*) */
 	void *private;                            /* private values. only used by Lua */
+	struct thread_exec_ctx exec_ctx;          /* execution context */
 };
 
 /* sample expression */

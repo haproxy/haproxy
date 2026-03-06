@@ -4926,7 +4926,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 
 	/* Run the sample fetch process. */
 	smp_set_owner(&smp, hsmp->p, hsmp->s->sess, hsmp->s, hsmp->dir & SMP_OPT_DIR);
-	if (!f->process(args, &smp, f->kw, f->private)) {
+	if (!EXEC_CTX_WITH_RET(f->exec_ctx, f->process(args, &smp, f->kw, f->private))) {
 		if (hsmp->flags & HLUA_F_AS_STRING)
 			lua_pushstring(L, "");
 		else
@@ -5059,7 +5059,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	}
 
 	/* Run the sample conversion process. */
-	if (!conv->process(args, &smp, conv->private)) {
+	if (!EXEC_CTX_WITH_RET(conv->exec_ctx, conv->process(args, &smp, conv->private))) {
 		if (hsmp->flags & HLUA_F_AS_STRING)
 			lua_pushstring(L, "");
 		else
