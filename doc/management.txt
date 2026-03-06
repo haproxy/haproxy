@@ -3359,7 +3359,7 @@ show pools [byname|bysize|byusage] [detailed] [match <pfx>] [<nb>]
       - Pool quic_conn_c (152 bytes) : 1337 allocated (203224 bytes), ...
     Total: 15 pools, 109578176 bytes allocated, 109578176 used ...
 
-show profiling [{all | status | tasks | memory}] [byaddr|bytime|aggr|<max_lines>]*
+show profiling [{all | status | tasks | memory}] [byaddr|bytime|byctx|aggr|<max_lines>]*
   Dumps the current profiling settings, one per line, as well as the command
   needed to change them. When tasks profiling is enabled, some per-function
   statistics collected by the scheduler will also be emitted, with a summary
@@ -3368,14 +3368,15 @@ show profiling [{all | status | tasks | memory}] [byaddr|bytime|aggr|<max_lines>
   allocations/releases and their sizes will be reported. It is possible to
   limit the dump to only the profiling status, the tasks, or the memory
   profiling by specifying the respective keywords; by default all profiling
-  information are dumped. It is also possible to limit the number of lines
+  information are dumped. It is also possible to limit the number of lines of
   of output of each category by specifying a numeric limit. If is possible to
-  request that the output is sorted by address or by total execution time
-  instead of usage, e.g. to ease comparisons between subsequent calls or to
-  check what needs to be optimized, and to aggregate task activity by called
-  function instead of seeing the details. Please note that profiling is
-  essentially aimed at developers since it gives hints about where CPU cycles
-  or memory are wasted in the code. There is nothing useful to monitor there.
+  request that the output is sorted by address, by total execution time, or by
+  calling context instead of usage, e.g. to ease comparisons between subsequent
+  calls or to check what needs to be optimized, and to aggregate task activity
+  by called function instead of seeing the details. Please note that profiling
+  is essentially aimed at developers since it gives hints about where CPU
+  cycles or memory are wasted in the code. There is nothing useful to monitor
+  there.
 
 show resolvers [<resolvers section id>]
   Dump statistics for the given resolvers section, or all resolvers sections

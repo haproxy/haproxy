@@ -29,7 +29,7 @@ struct show_prof_ctx {
 	int dump_step;  /* 0,1,2,4,5,6; see cli_iohandler_show_profiling() */
 	int linenum;    /* next line to be dumped (starts at 0) */
 	int maxcnt;     /* max line count per step (0=not set)  */
-	int by_what;    /* 0=sort by usage, 1=sort by address, 2=sort by time */
+	int by_what;    /* 0=sort by usage, 1=sort by address, 2=sort by time, 3=sort by ctx */
 	int aggr;       /* 0=dump raw, 1=aggregate on callee    */
 	/* 4-byte hole here */
 	struct sched_activity *tmp_activity; /* dynamically allocated during dumps */
@@ -959,6 +959,27 @@ static int cmp_memprof_addr(const void *a, const void *b)
 	else
 		return 0;
 }
+
+static int cmp_memprof_ctx(const void *a, const void *b)
+{
+	const struct memprof_stats *l = (const struct memprof_stats *)a;
+	const struct memprof_stats *r = (const struct memprof_stats *)b;
+
+	if (l->exec_ctx.pointer > r->exec_ctx.pointer)
+		return -1;
+	else if (l->exec_ctx.pointer < r->exec_ctx.pointer)
+		return 1;
+	else if (l->exec_ctx.type > r->exec_ctx.type)
+		return -1;
+	else if (l->exec_ctx.type < r->exec_ctx.type)
+		return 1;
+	else if (l->caller > r->caller)
+		return -1;
+	else if (l->caller < r->caller)
+		return 1;
+	else
+		return 0;
+}
 #endif // USE_MEMORY_PROFILING
 
 /* Computes the index of function pointer <func> and caller <caller> for use
@@ -1188,8 +1209,10 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	ctx->tmp_memstats = tmp_memstats;
 	memcpy(tmp_memstats, memprof_stats, sizeof(memprof_stats));
 
-	if (ctx->by_what)
+	if (ctx->by_what == 1)
 		qsort(tmp_memstats, MEMPROF_HASH_BUCKETS+1, sizeof(tmp_memstats[0]), cmp_memprof_addr);
+	else if (ctx->by_what == 3)
+		qsort(tmp_memstats, MEMPROF_HASH_BUCKETS+1, sizeof(tmp_memstats[0]), cmp_memprof_ctx);
 	else
 		qsort(tmp_memstats, MEMPROF_HASH_BUCKETS+1, sizeof(tmp_memstats[0]), cmp_memprof_stats);
 
@@ -1424,6 +1447,9 @@ static int cli_parse_show_profiling(char **args, char *payload, struct appctx *a
 		else if (strcmp(args[arg], "bytime") == 0) {
 			ctx->by_what = 2; // sort output by total time instead of usage
 		}
+		else if (strcmp(args[arg], "byctx") == 0) {
+			ctx->by_what = 3; // sort output by caller context instead of usage
+		}
 		else if (strcmp(args[arg], "aggr") == 0) {
 			ctx->aggr = 1;    // aggregate output by callee
 		}
@@ -1431,7 +1457,7 @@ static int cli_parse_show_profiling(char **args, char *payload, struct appctx *a
 			ctx->maxcnt = atoi(args[arg]); // number of entries to dump
 		}
 		else
-			return cli_err(appctx, "Expects either 'all', 'status', 'tasks', 'memory', 'byaddr', 'bytime', 'aggr' or a max number of output lines.\n");
+			return cli_err(appctx, "Expects either 'all', 'status', 'tasks', 'memory', 'byaddr', 'bytime', 'byctx', 'aggr' or a max number of output lines.\n");
 	}
 	return 0;
 }
