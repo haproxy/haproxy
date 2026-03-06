@@ -79,6 +79,7 @@ enum {
 enum thread_exec_ctx_type {
 	TH_EX_CTX_NONE = 0,                 /* context not filled */
 	TH_EX_CTX_OTHER,                    /* context only known by a generic pointer */
+	TH_EX_CTX_INITCALL,                 /* the pointer is an initcall providing file:line */
 };
 
 struct thread_exec_ctx {
@@ -86,6 +87,7 @@ struct thread_exec_ctx {
 	/* 32-bit hole here on 64-bit platforms */
 	union {
 		const void *pointer;        /* generic pointer (for other) */
+		const struct initcall *initcall;  /* used with TH_EX_CTX_INITCALL */
 	};
 };
 

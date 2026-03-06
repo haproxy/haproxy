@@ -7515,6 +7515,13 @@ void chunk_append_thread_ctx(struct buffer *output, const struct thread_exec_ctx
 	chunk_appendf(output,"%s", pfx ? pfx : "");
 
 	switch (ctx->type) {
+	case TH_EX_CTX_INITCALL: {
+		const char *file = ctx->initcall->loc_file;
+		const char *slash = strrchr(file, '/');
+		slash = slash ? slash + 1 : file;
+		chunk_appendf(output,"ctx registered at %s:%d", slash, ctx->initcall->loc_line);
+		break;
+	}
 	default:
 		chunk_appendf(output,"other ctx %p", ctx->pointer);
 		break;
