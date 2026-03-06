@@ -450,7 +450,8 @@ flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int fla
 	f->flags |= flags;
 
 	if (FLT_OPS(f)->attach) {
-		int ret = FLT_OPS(f)->attach(s, f);
+		struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, f->config);
+		int ret = EXEC_CTX_WITH_RET(exec_ctx, FLT_OPS(f)->attach(s, f));
 		if (ret <= 0) {
 			pool_free(pool_head_filter, f);
 			return ret;
@@ -506,8 +507,10 @@ flt_stream_release(struct stream *s, int only_backend)
 	list_for_each_entry_safe(filter, back, &strm_flt(s)->filters, list) {
 		if (!only_backend || (filter->flags & FLT_FL_IS_BACKEND_FILTER)) {
 			filter->calls++;
-			if (FLT_OPS(filter)->detach)
-				FLT_OPS(filter)->detach(s, filter);
+			if (FLT_OPS(filter)->detach) {
+				struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
+				EXEC_CTX_NO_RET(exec_ctx, FLT_OPS(filter)->detach(s, filter));
+			}
 			LIST_DELETE(&filter->list);
 			LIST_DELETE(&filter->req_list);
 			LIST_DELETE(&filter->res_list);
@@ -530,8 +533,10 @@ flt_stream_start(struct stream *s)
 
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		if (FLT_OPS(filter)->stream_start) {
+			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
+
 			filter->calls++;
-			if (FLT_OPS(filter)->stream_start(s, filter) < 0) {
+			if (EXEC_CTX_WITH_RET(exec_ctx, FLT_OPS(filter)->stream_start(s, filter) < 0)) {
 				s->last_entity.type = STRM_ENTITY_FILTER;
 				s->last_entity.ptr = filter;
 				return -1;
@@ -556,8 +561,10 @@ flt_stream_stop(struct stream *s)
 
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		if (FLT_OPS(filter)->stream_stop) {
+			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
+
 			filter->calls++;
-			FLT_OPS(filter)->stream_stop(s, filter);
+			EXEC_CTX_NO_RET(exec_ctx, FLT_OPS(filter)->stream_stop(s, filter));
 		}
 	}
 }
@@ -573,8 +580,10 @@ flt_stream_check_timeouts(struct stream *s)
 
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		if (FLT_OPS(filter)->check_timeouts) {
+			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
+
 			filter->calls++;
-			FLT_OPS(filter)->check_timeouts(s, filter);
+			EXEC_CTX_NO_RET(exec_ctx, FLT_OPS(filter)->check_timeouts(s, filter));
 		}
 	}
 }
@@ -601,8 +610,10 @@ flt_set_stream_backend(struct stream *s, struct proxy *be)
   end:
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		if (FLT_OPS(filter)->stream_set_backend) {
+			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
+
 			filter->calls++;
-			if (FLT_OPS(filter)->stream_set_backend(s, filter, be) < 0) {
+			if (EXEC_CTX_WITH_RET(exec_ctx, FLT_OPS(filter)->stream_set_backend(s, filter, be) < 0)) {
 				s->last_entity.type = STRM_ENTITY_FILTER;
 				s->last_entity.ptr = filter;
 				return -1;
@@ -650,9 +661,11 @@ flt_http_end(struct stream *s, struct http_msg *msg)
 			continue;
 
 		if (FLT_OPS(filter)->http_end) {
+			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
+
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 			filter->calls++;
-			ret = FLT_OPS(filter)->http_end(s, filter, msg);
+			ret = EXEC_CTX_WITH_RET(exec_ctx, FLT_OPS(filter)->http_end(s, filter, msg));
 			if (ret <= 0) {
 				resume_filter_list_break(s, msg->chn, filter, ret);
 				goto end;
@@ -681,9 +694,11 @@ flt_http_reset(struct stream *s, struct http_msg *msg)
 	for (filter = flt_list_start(s, msg->chn); filter;
 	     filter = flt_list_next(s, msg->chn, filter)) {
 		if (FLT_OPS(filter)->http_reset) {
+			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
+
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 			filter->calls++;
-			FLT_OPS(filter)->http_reset(s, filter, msg);
+			EXEC_CTX_NO_RET(exec_ctx, FLT_OPS(filter)->http_reset(s, filter, msg));
 		}
 	}
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
@@ -701,9 +716,11 @@ flt_http_reply(struct stream *s, short status, const struct buffer *msg)
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		if (FLT_OPS(filter)->http_reply) {
+			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
+
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 			filter->calls++;
-			FLT_OPS(filter)->http_reply(s, filter, status, msg);
+			EXEC_CTX_NO_RET(exec_ctx, FLT_OPS(filter)->http_reply(s, filter, status, msg));
 		}
 	}
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
@@ -732,6 +749,7 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
 	for (filter = flt_list_start(s, msg->chn); filter;
 	     filter = flt_list_next(s, msg->chn, filter)) {
+		struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
 		unsigned long long *flt_off = &FLT_OFF(filter, msg->chn);
 		unsigned int offset = *flt_off - *strm_off;
 
@@ -745,7 +763,7 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 
 		DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 		filter->calls++;
-		ret = FLT_OPS(filter)->http_payload(s, filter, msg, out + offset, data - offset);
+		ret = EXEC_CTX_WITH_RET(exec_ctx, FLT_OPS(filter)->http_payload(s, filter, msg, out + offset, data - offset));
 		if (ret < 0) {
 			resume_filter_list_break(s, msg->chn, filter, ret);
 			goto end;
@@ -815,9 +833,11 @@ flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 
 		FLT_OFF(filter, chn) = 0;
 		if (FLT_OPS(filter)->channel_start_analyze) {
+			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
+
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_FLT_ANA, s);
 			filter->calls++;
-			ret = FLT_OPS(filter)->channel_start_analyze(s, filter, chn);
+			ret = EXEC_CTX_WITH_RET(exec_ctx, FLT_OPS(filter)->channel_start_analyze(s, filter, chn));
 			if (ret <= 0) {
 				resume_filter_list_break(s, chn, filter, ret);
 				goto end;
@@ -852,9 +872,11 @@ flt_pre_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 	for (filter = resume_filter_list_start(s, chn); filter;
 	     filter = resume_filter_list_next(s, chn, filter)) {
 		if (FLT_OPS(filter)->channel_pre_analyze && (filter->pre_analyzers & an_bit)) {
+			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
+
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_FLT_ANA, s);
 			filter->calls++;
-			ret = FLT_OPS(filter)->channel_pre_analyze(s, filter, chn, an_bit);
+			ret = EXEC_CTX_WITH_RET(exec_ctx, FLT_OPS(filter)->channel_pre_analyze(s, filter, chn, an_bit));
 			if (ret <= 0) {
 				resume_filter_list_break(s, chn, filter, ret);
 				goto check_result;
@@ -889,9 +911,11 @@ flt_post_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 	for (filter = flt_list_start(s, chn); filter;
 	     filter = flt_list_next(s, chn, filter)) {
 		if (FLT_OPS(filter)->channel_post_analyze &&  (filter->post_analyzers & an_bit)) {
+			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
+
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_FLT_ANA, s);
 			filter->calls++;
-			ret = FLT_OPS(filter)->channel_post_analyze(s, filter, chn, an_bit);
+			ret = EXEC_CTX_WITH_RET(exec_ctx, FLT_OPS(filter)->channel_post_analyze(s, filter, chn, an_bit));
 			if (ret < 0) {
 				resume_filter_list_break(s, chn, filter, ret);
 				break;
@@ -922,9 +946,11 @@ flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_
 	for (filter = resume_filter_list_start(s, chn); filter;
 	     filter = resume_filter_list_next(s, chn, filter)) {
 		if (FLT_OPS(filter)->http_headers) {
+			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
+
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 			filter->calls++;
-			ret = FLT_OPS(filter)->http_headers(s, filter, msg);
+			ret = EXEC_CTX_WITH_RET(exec_ctx, FLT_OPS(filter)->http_headers(s, filter, msg));
 			if (ret <= 0) {
 				resume_filter_list_break(s, chn, filter, ret);
 				goto check_result;
@@ -973,9 +999,11 @@ flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 		unregister_data_filter(s, chn, filter);
 
 		if (FLT_OPS(filter)->channel_end_analyze) {
+			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
+
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_FLT_ANA, s);
 			filter->calls++;
-			ret = FLT_OPS(filter)->channel_end_analyze(s, filter, chn);
+			ret = EXEC_CTX_WITH_RET(exec_ctx, FLT_OPS(filter)->channel_end_analyze(s, filter, chn));
 			if (ret <= 0) {
 				resume_filter_list_break(s, chn, filter, ret);
 				goto end;
@@ -1042,6 +1070,7 @@ flt_tcp_payload(struct stream *s, struct channel *chn, unsigned int len)
 	DBG_TRACE_ENTER(STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
 	for (filter = flt_list_start(s, chn); filter;
 	     filter = flt_list_next(s, chn, filter)) {
+		struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
 		unsigned long long *flt_off = &FLT_OFF(filter, chn);
 		unsigned int offset = *flt_off - *strm_off;
 
@@ -1055,7 +1084,7 @@ flt_tcp_payload(struct stream *s, struct channel *chn, unsigned int len)
 
 		DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
 		filter->calls++;
-		ret = FLT_OPS(filter)->tcp_payload(s, filter, chn, out + offset, data - offset);
+		ret = EXEC_CTX_WITH_RET(exec_ctx, FLT_OPS(filter)->tcp_payload(s, filter, chn, out + offset, data - offset));
 		if (ret < 0) {
 			resume_filter_list_break(s, chn, filter, ret);
 			goto end;

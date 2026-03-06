@@ -7542,6 +7542,9 @@ void chunk_append_thread_ctx(struct buffer *output, const struct thread_exec_ctx
 	case TH_EX_CTX_ACTION:
 		chunk_appendf(output,"act kwl starting with '%s'", ctx->action_kwl->kw[0].kw);
 		break;
+	case TH_EX_CTX_FLT:
+		chunk_appendf(output,"flt '%s'", ctx->flt_conf->id);
+		break;
 	default:
 		chunk_appendf(output,"other ctx %p", ctx->pointer);
 		break;
