@@ -1368,6 +1368,18 @@ static forceinline ullong _ptr2_hash(const void *p1, const void *p2)
 	return x ^ y;
 }
 
+/* two-pointer plus arg version, low-level, use ptr2_hash_arg() instead */
+static forceinline ullong _ptr2_hash_arg(const void *p1, const void *p2, ulong arg)
+{
+	unsigned long long x = (unsigned long)p1;
+	unsigned long long y = (unsigned long)p2;
+
+	x *= 0xacd1be85U;
+	x += arg;
+	y *= 0x9d28e4e9U;
+	return x ^ y;
+}
+
 /* returns a hash on <bits> bits of pointer <p> that is suitable for being used
  * to compute statistic buckets, in that it's fast and reasonably distributed
  * thanks to mixing the bits via a multiplication by a prime number and using
@@ -1390,6 +1402,14 @@ static forceinline uint ptr_hash(const void *p, const int bits)
 static forceinline uint ptr2_hash(const void *p1, const void *p2, const int bits)
 {
 	return _ptr_hash_reduce(_ptr2_hash(p1, p2), bits);
+}
+
+/* Same as above but works on two pointers and a long argument. It will return
+ * the same values if the second pointer is NULL.
+ */
+static forceinline uint ptr2_hash_arg(const void *p1, const void *p2, ulong arg, const int bits)
+{
+	return _ptr_hash_reduce(_ptr2_hash_arg(p1, p2, arg), bits);
 }
 
 
