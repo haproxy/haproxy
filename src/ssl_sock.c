@@ -5883,15 +5883,17 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		                           &ctx->ssl, &ctx->bio, ha_meth, ctx) == -1)
 			goto err;
 
-#ifdef SSL_READ_EARLY_DATA_SUCCESS
+#ifdef HAVE_SSL_0RTT
 		if (bc->ssl_conf.early_data) {
 			b_alloc(&ctx->early_buf, DB_MUX_RX);
+#if defined(SSL_READ_EARLY_DATA_SUCCESS)
 			SSL_set_max_early_data(ctx->ssl,
 			    /* Only allow early data if we managed to allocate
 			     * a buffer.
 			     */
 			    (!b_is_null(&ctx->early_buf)) ?
 			    ctx->early_buf.size - global.tune.maxrewrite : 0);
+#endif
 		}
 #endif
 
@@ -5899,7 +5901,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
-#ifdef SSL_READ_EARLY_DATA_SUCCESS
+#ifdef HAVE_SSL_0RTT
 		if (bc->ssl_conf.early_data)
 			conn->flags |= CO_FL_EARLY_SSL_HS;
 #endif
@@ -6044,16 +6046,35 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 	    skerr != 0)
 		goto out_error;
 
-#ifdef SSL_READ_EARLY_DATA_SUCCESS
+#ifdef HAVE_SSL_0RTT
 	/*
 	 * Check if we have early data. If we do, we have to read them
 	 * before SSL_do_handshake() is called, And there's no way to
 	 * detect early data, except to try to read them
 	 */
 	if (conn->flags & CO_FL_EARLY_SSL_HS) {
-		size_t read_data = 0;
 
 		while (1) {
+#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
+			ret = SSL_read(ctx->ssl, b_tail(&ctx->early_buf),
+				       b_room(&ctx->early_buf));
+			if (ret > 0) {
+				conn->flags |= CO_FL_EARLY_DATA;
+				b_add(&ctx->early_buf, ret);
+			} else {
+				int err = SSL_get_error(ctx->ssl, ret);
+
+				if (SSL_in_init(ctx->ssl) && err == SSL_ERROR_WANT_READ)
+					goto check_error;
+				if (!b_data(&ctx->early_buf))
+					b_free(&ctx->early_buf);
+				conn->flags &= ~CO_FL_EARLY_SSL_HS;
+				break;
+			}
+#endif
+
+#ifdef SSL_READ_EARLY_DATA_SUCCESS
+			size_t read_data = 0;
 			ret = SSL_read_early_data(ctx->ssl,
 			    b_tail(&ctx->early_buf), b_room(&ctx->early_buf),
 			    &read_data);
@@ -6073,6 +6094,7 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				TRACE_STATE("Read early data finish", SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
 				break;
 			}
+#endif
 		}
 	}
 #endif
@@ -6266,6 +6288,12 @@ check_error:
 			TRACE_ERROR("Zero return error", SSL_EV_CONN_HNDSHK|SSL_EV_CONN_ERR, conn, ctx->ssl, &conn->err_code, &ctx->error_code);
 			goto out_error;
 
+#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
+		} else if (ret == SSL_ERROR_EARLY_DATA_REJECTED) {
+			conn->err_code = CO_ER_SSL_EARLY_FAILED;
+			TRACE_ERROR("Early data rejected", SSL_EV_CONN_HNDSHK|SSL_EV_CONN_ERR, conn, ctx->ssl, &conn->err_code);
+			goto out_error;
+#endif
 		}
 		else {
 			/* Fail on all other handshake errors */
@@ -6284,18 +6312,20 @@ check_error:
 	}
 	else {
 		TRACE_STATE("Successful SSL_do_handshake", SSL_EV_CONN_HNDSHK, conn, ctx->ssl);
-#ifdef SSL_READ_EARLY_DATA_SUCCESS
+#ifdef HAVE_SSL_0RTT
 		/*
 		 * If the server refused the early data, we have to send a
 		 * 425 to the client, as we no longer have the data to sent
 		 * them again.
 		 */
 		if ((conn->flags & CO_FL_EARLY_DATA) && (objt_server(conn->target))) {
+#ifdef SSL_READ_EARLY_DATA_SUCCESS
 			if (SSL_get_early_data_status(ctx->ssl) == SSL_EARLY_DATA_REJECTED) {
 				conn->err_code = CO_ER_SSL_EARLY_FAILED;
 				TRACE_ERROR("Early data rejected", SSL_EV_CONN_HNDSHK|SSL_EV_CONN_ERR, conn, ctx->ssl, &conn->err_code);
 				goto out_error;
 			}
+#endif
 		}
 #endif
 	}
@@ -6901,7 +6931,7 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 	 */
 	if ((ctx->conn->flags & CO_FL_ERROR) ||
 	    !(ctx->conn->flags & CO_FL_SSL_WAIT_HS)
-#ifdef SSL_READ_EARLY_DATA_SUCCESS
+#ifdef HAVE_SSL_0RTT
 	    || (b_data(&ctx->early_buf) && (ctx->flags & SSL_SOCK_F_HAS_ALPN ||
 	               (objt_listener(conn->target) &&
 		        __objt_listener(conn->target)->bind_conf->mux_proto)))
@@ -6937,7 +6967,7 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 			goto leave;
 		}
 	}
-#ifdef SSL_READ_EARLY_DATA_SUCCESS
+#ifdef HAVE_SSL_0RTT
 	/* If we have early data and somebody wants to receive, let them */
 	else if (b_data(&ctx->early_buf) && ctx->subs &&
 		 ctx->subs->events & SUB_RETRY_RECV) {
@@ -7000,7 +7030,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 
 	BUG_ON_HOT(msg_control != NULL);
 
-#ifdef SSL_READ_EARLY_DATA_SUCCESS
+#ifdef HAVE_SSL_0RTT
 	if (b_data(&ctx->early_buf)) {
 		try = b_contig_space(buf);
 		if (try > b_data(&ctx->early_buf))
