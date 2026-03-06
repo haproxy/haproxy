@@ -84,6 +84,7 @@ enum thread_exec_ctx_type {
 	TH_EX_CTX_SMPF,                     /* directly registered sample fetch function, using .smpf_kwl */
 	TH_EX_CTX_CONV,                     /* directly registered converter function, using .conv_kwl */
 	TH_EX_CTX_FUNC,                     /* hopefully recognizable function/callback, using .pointer */
+	TH_EX_CTX_ACTION,                   /* directly registered action function, using .action_kwl */
 };
 
 struct thread_exec_ctx {
@@ -95,6 +96,7 @@ struct thread_exec_ctx {
 		const struct ha_caller *ha_caller;  /* used with TH_EX_CTX_CALLER */
 		const struct sample_fetch_kw_list *smpf_kwl; /* used with TH_EX_CTX_SMPF */
 		const struct sample_conv_kw_list *conv_kwl;  /* used with TH_EX_CTX_CONV */
+		const struct action_kw_list *action_kwl;  /* used with TH_EX_CTX_ACTION */
 	};
 };
 

@@ -7539,6 +7539,9 @@ void chunk_append_thread_ctx(struct buffer *output, const struct thread_exec_ctx
 		resolve_sym_name(output, "func '", ctx->pointer);
 		chunk_appendf(output,"'");
 		break;
+	case TH_EX_CTX_ACTION:
+		chunk_appendf(output,"act kwl starting with '%s'", ctx->action_kwl->kw[0].kw);
+		break;
 	default:
 		chunk_appendf(output,"other ctx %p", ctx->pointer);
 		break;

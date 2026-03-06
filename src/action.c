@@ -400,6 +400,9 @@ void act_add_list(struct list *head, struct action_kw_list *kw_list)
 		if (caller_initcall) {
 			kw_list->kw[i].exec_ctx.type = TH_EX_CTX_INITCALL;
 			kw_list->kw[i].exec_ctx.initcall = caller_initcall;
+		} else {
+			kw_list->kw[i].exec_ctx.type = TH_EX_CTX_ACTION;
+			kw_list->kw[i].exec_ctx.action_kwl = kw_list;
 		}
 	}
 	LIST_APPEND(head, &kw_list->list);
