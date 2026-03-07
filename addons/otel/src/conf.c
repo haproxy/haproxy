@@ -546,6 +546,60 @@ FLT_OTEL_CONF_FUNC_FREE(instrument, id,
 
 /***
  * NAME
+ *   flt_otel_conf_log_record_init - conf_log_record structure allocation
+ *
+ * SYNOPSIS
+ *   struct flt_otel_conf_log_record *flt_otel_conf_log_record_init(const char *id, int line, struct list *head, char **err)
+ *
+ * ARGUMENTS
+ *   id   - identifier string to duplicate
+ *   line - configuration file line number
+ *   head - list to append to (or NULL)
+ *   err  - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Allocates and initializes a conf_log_record structure.  Initializes the
+ *   sample expressions list.  The <id> string is required by the macro but is
+ *   not used directly; the severity level is stored separately.  If <head> is
+ *   non-NULL, the structure is appended to the list.
+ *
+ * RETURN VALUE
+ *   Returns a pointer to the initialized structure, or NULL on failure.
+ */
+FLT_OTEL_CONF_FUNC_INIT(log_record, id,
+	LIST_INIT(&(retptr->samples));
+)
+
+
+/***
+ * NAME
+ *   flt_otel_conf_log_record_free - conf_log_record structure deallocation
+ *
+ * SYNOPSIS
+ *   void flt_otel_conf_log_record_free(struct flt_otel_conf_log_record **ptr)
+ *
+ * ARGUMENTS
+ *   ptr - a pointer to the address of a structure
+ *
+ * DESCRIPTION
+ *   Deallocates memory used by the flt_otel_conf_log_record structure and its
+ *   contents, then removes it from the list of structures of that type.
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+FLT_OTEL_CONF_FUNC_FREE(log_record, id,
+	FLT_OTEL_DBG_CONF_LOG_RECORD("- conf_log_record free ", *ptr);
+
+	OTELC_SFREE((*ptr)->event_name);
+	OTELC_SFREE((*ptr)->span);
+	otelc_kv_destroy(&((*ptr)->attr), (*ptr)->attr_len);
+	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->samples));
+)
+
+
+/***
+ * NAME
  *   flt_otel_conf_scope_init - conf_scope structure allocation
  *
  * SYNOPSIS
@@ -572,6 +626,7 @@ FLT_OTEL_CONF_FUNC_INIT(scope, id,
 	LIST_INIT(&(retptr->spans));
 	LIST_INIT(&(retptr->spans_to_finish));
 	LIST_INIT(&(retptr->instruments));
+	LIST_INIT(&(retptr->log_records));
 )
 
 
@@ -608,6 +663,7 @@ FLT_OTEL_CONF_FUNC_FREE(scope, id,
 	FLT_OTEL_LIST_DESTROY(span, &((*ptr)->spans));
 	FLT_OTEL_LIST_DESTROY(str, &((*ptr)->spans_to_finish));
 	FLT_OTEL_LIST_DESTROY(instrument, &((*ptr)->instruments));
+	FLT_OTEL_LIST_DESTROY(log_record, &((*ptr)->log_records));
 )
 
 

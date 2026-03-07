@@ -1148,6 +1148,107 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 
 /***
  * NAME
+ *   flt_otel_parse_cfg_log_record - log-record keyword parser
+ *
+ * SYNOPSIS
+ *   static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args, const struct flt_otel_parse_data *pdata, char **err)
+ *
+ * ARGUMENTS
+ *   file  - configuration file path
+ *   line  - configuration file line number
+ *   args  - configuration line arguments array
+ *   pdata - keyword metadata (name, usage, argument limits)
+ *   err   - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Parses the "log-record" keyword inside an otel-scope section.  The first
+ *   argument is a required severity level string.  Optional keywords "id",
+ *   "event", "span", and "attr" follow in any order.  The remaining arguments
+ *   at the end are parsed as fetch expressions or a log-format string.
+ *
+ * RETURN VALUE
+ *   Returns ERR_NONE (== 0) in case of success,
+ *   or a combination of ERR_* flags if an error is encountered.
+ */
+static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args, const struct flt_otel_parse_data *pdata, char **err)
+{
+	struct flt_otel_conf_log_record *log;
+	otelc_log_severity_t             severity;
+	int                              i, retval = ERR_NONE;
+
+	OTELC_FUNC("\"%s\", %d, %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, pdata, OTELC_DPTR_ARGS(err));
+
+	/* Look up the severity level from args[1]. */
+	severity = otelc_logger_severity_parse(args[1]);
+	if (severity == OTELC_LOG_SEVERITY_INVALID) {
+		FLT_OTEL_PARSE_ERR(err, "'%s' : invalid log severity", args[1]);
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	log = flt_otel_conf_log_record_init(FLT_OTEL_CONF_HDR_SPECIAL "log-record", line, &(flt_otel_current_scope->log_records), err);
+	if (log == NULL) {
+		retval |= ERR_ABORT | ERR_ALERT;
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	log->severity = severity;
+
+	/* Parse optional keywords starting from args[2]. */
+	for (i = 2; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++) {
+		if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LOG_RECORD_ID)) {
+			if (!FLT_OTEL_ARG_ISVALID(i + 1))
+				FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+			else if (log->event_id != 0)
+				FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+			else if (!flt_otel_strtoll(args[++i], &(log->event_id), 0, LLONG_MAX, err))
+				retval |= ERR_ABORT | ERR_ALERT;
+		}
+		else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LOG_RECORD_EVENT)) {
+			if (!FLT_OTEL_ARG_ISVALID(i + 1))
+				FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+			else if (log->event_name != NULL)
+				FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+			else
+				retval = flt_otel_parse_strdup(&(log->event_name), NULL, args[++i], err, args[0]);
+		}
+		else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LOG_RECORD_SPAN)) {
+			if (!FLT_OTEL_ARG_ISVALID(i + 1))
+				FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+			else if (log->span != NULL)
+				FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+			else
+				retval = flt_otel_parse_strdup(&(log->span), NULL, args[++i], err, args[0]);
+		}
+		else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LOG_RECORD_ATTR)) {
+			if (!FLT_OTEL_ARG_ISVALID(i + 1) || !FLT_OTEL_ARG_ISVALID(i + 2))
+				FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+			else if (otelc_kv_add(&(log->attr), &(log->attr_len), args[i + 1], args[i + 2], strlen(args[i + 2])) == OTELC_RET_ERROR)
+				FLT_OTEL_PARSE_ERR(err, "'%s' : out of memory", args[0]);
+			else
+				i += 2;
+		}
+		else {
+			/*
+			 * Not a recognized keyword -- the remaining arguments
+			 * are sample fetch expressions or a log-format string.
+			 */
+			retval = flt_otel_parse_cfg_sample(file, line, args, i, 0, NULL, &(log->samples), err);
+
+			break;
+		}
+	}
+
+	if (!(retval & ERR_CODE) && LIST_ISEMPTY(&(log->samples)))
+		FLT_OTEL_PARSE_ERR(err, "'%s' : missing body expression (use '%s%s')", args[0], pdata->name, pdata->usage);
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_parse_cfg_scope - otel-scope section parser
  *
  * SYNOPSIS
@@ -1162,8 +1263,8 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
  * DESCRIPTION
  *   Section parser for the otel-scope configuration block.  Handles keywords:
  *   scope ID, span (with optional root/parent/link modifiers), link, attribute,
- *   event, baggage, status, inject, extract, finish, instrument, acl, and
- *   otel-event (with optional if/unless conditions).
+ *   event, baggage, status, inject, extract, finish, instrument, log-record,
+ *   acl, and otel-event (with optional if/unless conditions).
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -1368,6 +1469,9 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_INSTRUMENT) {
 		retval = flt_otel_parse_cfg_instrument(file, line, args, pdata, &err);
+	}
+	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_LOG_RECORD) {
+		retval = flt_otel_parse_cfg_log_record(file, line, args, pdata, &err);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_ACL) {
 		if (FLT_OTEL_PARSE_KEYWORD(1, "or"))

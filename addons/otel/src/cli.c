@@ -383,6 +383,7 @@ static int flt_otel_cli_parse_status(char **args, char *payload, struct appctx *
 		(void)memprintf(&msg, "%s       configuration: %s\n", msg, conf->instr->config);
 		(void)memprintf(&msg, "%s       tracer:        %s\n", msg, (conf->instr->tracer != NULL) ? "active" : "not initialized");
 		(void)memprintf(&msg, "%s       meter:         %s\n", msg, (conf->instr->meter != NULL) ? "active" : "not initialized");
+		(void)memprintf(&msg, "%s       logger:        %s\n", msg, (conf->instr->logger != NULL) ? "active" : "not initialized");
 		(void)memprintf(&msg, "%s       rate limit:    %.2f %%\n", msg, FLT_OTEL_U32_FLOAT(_HA_ATOMIC_LOAD(&(conf->instr->rate_limit))));
 		(void)memprintf(&msg, "%s       hard errors:   %s\n", msg, FLT_OTEL_STR_FLAG_YN(_HA_ATOMIC_LOAD(&(conf->instr->flag_harderr))));
 		(void)memprintf(&msg, "%s       disabled:      %s\n", msg, FLT_OTEL_STR_FLAG_YN(_HA_ATOMIC_LOAD(&(conf->instr->flag_disabled))));

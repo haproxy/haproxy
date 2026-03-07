@@ -31,6 +31,13 @@
 #define FLT_OTEL_CONF_HDR_FMT         "%p:{ { '%.*s' %zu %d } "
 #define FLT_OTEL_CONF_HDR_ARGS(p,m)   (int)(p)->m##_len, (p)->m, (p)->m##_len, (p)->cfg_line
 
+/*
+ * Special two-byte prefix that triggers automatic id generation in
+ * FLT_OTEL_CONF_FUNC_INIT(): the text after the prefix is combined
+ * with the configuration line number to form a unique identifier.
+ */
+#define FLT_OTEL_CONF_HDR_SPECIAL     "\x1e\x1f"
+
 #define FLT_OTEL_CONF_STR_CMP(s,S)    ((s##_len == S##_len) && (memcmp(s, S, S##_len) == 0))
 
 #define FLT_OTEL_DBG_CONF_SAMPLE_EXPR(h,p) \
@@ -56,11 +63,11 @@
 	                 flt_otel_list_dump(&((p)->statuses)))
 
 #define FLT_OTEL_DBG_CONF_SCOPE(h,p)                                                                        \
-	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%hhu %d %u %s %p %s %s %s %s }", (p),           \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%hhu %d %u %s %p %s %s %s %s %s }", (p),        \
 	                 FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->flag_used, (p)->event, (p)->idle_timeout,      \
 	                 flt_otel_list_dump(&((p)->acls)), (p)->cond, flt_otel_list_dump(&((p)->contexts)), \
 	                 flt_otel_list_dump(&((p)->spans)), flt_otel_list_dump(&((p)->spans_to_finish)),    \
-	                 flt_otel_list_dump(&((p)->instruments)))
+	                 flt_otel_list_dump(&((p)->instruments)), flt_otel_list_dump(&((p)->log_records)))
 
 #define FLT_OTEL_DBG_CONF_GROUP(h,p)                                         \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%hhu %s }", (p), \
@@ -69,11 +76,12 @@
 #define FLT_OTEL_DBG_CONF_PH(h,p) \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%p }", (p), FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->ptr)
 
-#define FLT_OTEL_DBG_CONF_INSTR(h,p)                                                                                                 \
-	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %p %p %u %hhu %hhu 0x%02hhx %p:%s 0x%08x %u %s %s %s }", (p),       \
-	                 FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->config, (p)->tracer, (p)->meter, (p)->rate_limit, (p)->flag_harderr,    \
-	                 (p)->flag_disabled, (p)->logging, &((p)->proxy_log), flt_otel_list_dump(&((p)->proxy_log.loggers)),         \
-	                 (p)->analyzers, (p)->idle_timeout, flt_otel_list_dump(&((p)->acls)), flt_otel_list_dump(&((p)->ph_groups)), \
+#define FLT_OTEL_DBG_CONF_INSTR(h,p)                                                                                         \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %p %p %p %u %hhu %hhu 0x%02hhx %p:%s 0x%08x %u %s %s %s }", \
+	                 (p), FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->config, (p)->tracer, (p)->meter, (p)->logger,              \
+	                 (p)->rate_limit, (p)->flag_harderr, (p)->flag_disabled, (p)->logging, &((p)->proxy_log),            \
+	                 flt_otel_list_dump(&((p)->proxy_log.loggers)), (p)->analyzers, (p)->idle_timeout,                   \
+	                 flt_otel_list_dump(&((p)->acls)), flt_otel_list_dump(&((p)->ph_groups)),                            \
 	                 flt_otel_list_dump(&((p)->ph_scopes)))
 
 #define FLT_OTEL_DBG_CONF_INSTRUMENT(h,p)                                                                                     \
@@ -81,6 +89,11 @@
 	                 FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->idx, (p)->type, (p)->aggr_type, OTELC_STR_ARG((p)->description), \
 	                 OTELC_STR_ARG((p)->unit), flt_otel_list_dump(&((p)->samples)), (p)->attr, (p)->attr_len, (p)->ref,   \
 	                 (p)->bounds_num, (p)->bounds)
+
+#define FLT_OTEL_DBG_CONF_LOG_RECORD(h,p)                                                                             \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%d %" PRId64 " '%s' '%s' %p %zu %p }", (p),               \
+	                 FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->severity, (p)->event_id, OTELC_STR_ARG((p)->event_name), \
+	                 OTELC_STR_ARG((p)->span), (p)->attr, (p)->attr_len, flt_otel_list_dump(&((p)->samples)))
 
 #define FLT_OTEL_DBG_CONF(h,p)                                    \
 	OTELC_DBG(DEBUG, h "%p:{ %p '%s' '%s' %p %s %s }", (p),   \
@@ -120,6 +133,7 @@ struct flt_otel_conf_sample_expr {
  * flt_otel_conf_span->baggages
  * flt_otel_conf_span->statuses (status_code -> extra.u.value_int32)
  * flt_otel_conf_instrument->samples
+ * flt_otel_conf_log_record->samples
  */
 struct flt_otel_conf_sample {
 	FLT_OTEL_CONF_HDR(key);         /* The list containing sample names. */
@@ -188,6 +202,21 @@ struct flt_otel_conf_instrument {
 	struct flt_otel_conf_instrument   *ref;         /* Resolved create-form instrument (update only). */
 };
 
+/*
+ * Log record configuration within a scope.
+ *   flt_otel_conf_scope->log_records
+ */
+struct flt_otel_conf_log_record {
+	FLT_OTEL_CONF_HDR(id);            /* Required by macro; member <id> is not used directly. */
+	otelc_log_severity_t  severity;   /* The severity level. */
+	int64_t               event_id;   /* Optional event identifier. */
+	char                 *event_name; /* Optional event name. */
+	char                 *span;       /* Optional span reference. */
+	struct otelc_kv      *attr;       /* Log record attributes. */
+	size_t                attr_len;   /* Number of log record attributes. */
+	struct list           samples;    /* Sample expressions for the body. */
+};
+
 /* Configuration for a single event scope. */
 struct flt_otel_conf_scope {
 	FLT_OTEL_CONF_HDR(id);            /* The scope name. */
@@ -200,6 +229,7 @@ struct flt_otel_conf_scope {
 	struct list      spans;           /* Declared spans. */
 	struct list      spans_to_finish; /* The list of spans scheduled for finishing. */
 	struct list      instruments;     /* The list of metric instruments. */
+	struct list      log_records;     /* The list of log records. */
 };
 
 /* Configuration for a named group of scopes. */
@@ -223,6 +253,7 @@ struct flt_otel_conf_instr {
 	char                *config;        /* The OpenTelemetry configuration file name. */
 	struct otelc_tracer *tracer;        /* The OpenTelemetry tracer handle. */
 	struct otelc_meter  *meter;         /* The OpenTelemetry meter handle. */
+	struct otelc_logger *logger;        /* The OpenTelemetry logger handle. */
 	uint32_t             rate_limit;    /* [0 2^32-1] <-> [0.0 100.0] */
 	bool                 flag_harderr;  /* [0 1] */
 	bool                 flag_disabled; /* [0 1] */

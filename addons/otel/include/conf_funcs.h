@@ -14,6 +14,7 @@
 	{                                                                                                                     \
 		struct flt_otel_conf_##_type_ *retptr = NULL;                                                                 \
 		struct flt_otel_conf_##_type_ *ptr;                                                                           \
+		char                           id_buffer[FLT_OTEL_ID_MAXLEN + 16];                                            \
 		size_t                         _id_##_len;                                                                    \
 		                                                                                                              \
 		OTELC_FUNC("\"%s\", %d, %p, %p:%p", OTELC_STR_ARG(id), line, head, OTELC_DPTR_ARGS(err));                     \
@@ -22,6 +23,11 @@
 			FLT_OTEL_ERR("name not set");                                                                         \
 		                                                                                                              \
 			OTELC_RETURN_PTR(retptr);                                                                             \
+		}                                                                                                             \
+		else if ((id[0] == FLT_OTEL_CONF_HDR_SPECIAL[0]) && (id[1] == FLT_OTEL_CONF_HDR_SPECIAL[1])) {                \
+			(void)snprintf(id_buffer, sizeof(id_buffer), "%s:%d", id + 2, line);                                  \
+		                                                                                                              \
+			id = id_buffer;                                                                                       \
 		}                                                                                                             \
 		                                                                                                              \
 		_id_##_len = strlen(id);                                                                                      \
@@ -106,6 +112,7 @@ FLT_OTEL_CONF_FUNC_DECL(context)
 FLT_OTEL_CONF_FUNC_DECL(span)
 FLT_OTEL_CONF_FUNC_DECL(scope)
 FLT_OTEL_CONF_FUNC_DECL(instrument)
+FLT_OTEL_CONF_FUNC_DECL(log_record)
 FLT_OTEL_CONF_FUNC_DECL(group)
 FLT_OTEL_CONF_FUNC_DECL(instr)
 

@@ -200,6 +200,14 @@ static int flt_otel_lib_init(struct flt_otel_conf_instr *instr, char **err)
 	if (instr->meter == NULL) {
 		if (*err == NULL)
 			FLT_OTEL_ERR("%s", "failed to initialize OpenTelemetry meter");
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	instr->logger = otelc_logger_create(err);
+	if (instr->logger == NULL) {
+		if (*err == NULL)
+			FLT_OTEL_ERR("%s", "failed to initialize OpenTelemetry logger");
 	} else {
 		otelc_ext_init(flt_otel_mem_malloc, flt_otel_mem_free, flt_otel_thread_id);
 		otelc_log_set_handler(flt_otel_log_handler_cb, NULL, false);
@@ -415,6 +423,7 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 	struct flt_otel_conf **conf = (fconf == NULL) ? NULL : (typeof(conf))&(fconf->conf);
 	struct otelc_tracer   *otel_tracer = NULL;
 	struct otelc_meter    *otel_meter = NULL;
+	struct otelc_logger   *otel_logger = NULL;
 #ifdef DEBUG_OTEL
 	char                   buffer[BUFSIZ];
 	int                    i;
@@ -448,12 +457,13 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 	if ((*conf)->instr != NULL) {
 		otel_tracer = (*conf)->instr->tracer;
 		otel_meter  = (*conf)->instr->meter;
+		otel_logger = (*conf)->instr->logger;
 	}
 
 	flt_otel_conf_free(conf);
 	OTELC_MEMINFO();
 	flt_otel_pool_destroy();
-	otelc_deinit(&otel_tracer, &otel_meter, NULL);
+	otelc_deinit(&otel_tracer, &otel_meter, &otel_logger);
 
 	OTELC_RETURN();
 }
@@ -817,6 +827,45 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 		}
 	}
 
+	OTELC_DBG(DEBUG, "- defined log records ----------");
+
+	/*
+	 * Validate log-record span references: for each log-record that
+	 * names a span, verify that a span with that name exists in one
+	 * of the configured scopes.
+	 */
+	list_for_each_entry(conf_scope, &(conf->scopes), list) {
+		struct flt_otel_conf_log_record *conf_log;
+
+		list_for_each_entry(conf_log, &(conf_scope->log_records), list) {
+			FLT_OTEL_DBG_CONF_LOG_RECORD("  ", conf_log);
+
+			if (conf_log->span != NULL) {
+				struct flt_otel_conf_scope *find_scope;
+				struct flt_otel_conf_span  *find_span;
+				bool                        flag_found = false;
+
+				list_for_each_entry(find_scope, &(conf->scopes), list) {
+					list_for_each_entry(find_span, &(find_scope->spans), list)
+						if (strcmp(find_span->id, conf_log->span) == 0) {
+							flag_found = true;
+
+							break;
+						}
+
+					if (flag_found)
+						break;
+				}
+
+				if (!flag_found) {
+					FLT_OTEL_ALERT("'" FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : log-record references undefined span '%s''", conf_scope->id, conf_log->span);
+
+					retval++;
+				}
+			}
+		}
+	}
+
 	FLT_OTEL_DBG_LIST(conf, group, "", "defined", _group,
 	                  FLT_OTEL_DBG_CONF_GROUP("   ", _group);
 	                  FLT_OTEL_DBG_LIST(_group, ph_scope, "   ", "used", _scope, FLT_OTEL_DBG_CONF_PH("      ", _scope)));
@@ -874,6 +923,12 @@ static int flt_otel_ops_init_per_thread(struct proxy *p, struct flt_conf *fconf)
 			retval = OTELC_OPS(conf->instr->meter, start);
 			if (retval == OTELC_RET_ERROR)
 				FLT_OTEL_ALERT("%s", conf->instr->meter->err);
+		}
+
+		if (retval != OTELC_RET_ERROR) {
+			retval = OTELC_OPS(conf->instr->logger, start);
+			if (retval == OTELC_RET_ERROR)
+				FLT_OTEL_ALERT("%s", conf->instr->logger->err);
 		}
 
 		if (retval != FLT_OTEL_RET_ERROR)

@@ -26,6 +26,10 @@
 #define FLT_OTEL_PARSE_INSTRUMENT_UNIT        "unit"
 #define FLT_OTEL_PARSE_INSTRUMENT_BOUNDS      "bounds"
 #define FLT_OTEL_PARSE_INSTRUMENT_AGGR        "aggr"
+#define FLT_OTEL_PARSE_LOG_RECORD_ID          "id"
+#define FLT_OTEL_PARSE_LOG_RECORD_EVENT       "event"
+#define FLT_OTEL_PARSE_LOG_RECORD_SPAN        "span"
+#define FLT_OTEL_PARSE_LOG_RECORD_ATTR        "attr"
 #define FLT_OTEL_PARSE_CTX_AUTONAME           "-"
 #define FLT_OTEL_PARSE_CTX_IGNORE_NAME        '-'
 #define FLT_OTEL_PARSE_CTX_USE_HEADERS        "use-headers"
@@ -117,6 +121,7 @@
 	FLT_OTEL_PARSE_SCOPE_DEF(      STATUS, 1, NONE, 2, 0,   "status",     " <code> [<sample> ...]")                                                                        \
 	FLT_OTEL_PARSE_SCOPE_DEF(      FINISH, 0, NONE, 2, 0,   "finish",     " <name> ...")                                                                                   \
 	FLT_OTEL_PARSE_SCOPE_DEF(  INSTRUMENT, 0, NONE, 3, 0, "instrument",   " { update <name> [<attr> ...] | <type> <name> [<aggr>] [<desc>] [<unit>] <value> [<bounds>] }") \
+	FLT_OTEL_PARSE_SCOPE_DEF(  LOG_RECORD, 0, NONE, 3, 0, "log-record",   " <severity> [<id>] [<event>] [<span>] [<attr>] <sample>")                                       \
 	FLT_OTEL_PARSE_SCOPE_DEF(IDLE_TIMEOUT, 0, NONE, 2, 2, "idle-timeout", " <time>")                                                                                       \
 	FLT_OTEL_PARSE_SCOPE_DEF(         ACL, 0, CHAR, 3, 0, "acl",          " <name> <criterion> [flags] [operator] <value> ...")                                            \
 	FLT_OTEL_PARSE_SCOPE_DEF(    ON_EVENT, 0, NONE, 2, 0, "otel-event",   " <name> [{ if | unless } <condition>]")

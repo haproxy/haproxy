@@ -222,6 +222,137 @@ static int flt_otel_scope_run_instrument(struct stream *s, uint dir, struct flt_
 
 /***
  * NAME
+ *   flt_otel_scope_run_log_record - log record emitter
+ *
+ * SYNOPSIS
+ *   static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uint dir, struct flt_otel_conf_scope *scope, struct otelc_logger *logger, const struct timespec *ts, char **err)
+ *
+ * ARGUMENTS
+ *   s      - the stream providing the sample context
+ *   f      - the filter instance
+ *   dir    - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
+ *   scope  - the scope configuration containing the log record list
+ *   logger - the OTel logger instance
+ *   ts     - the wall-clock timestamp for the log record
+ *   err    - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Processes all log records configured in <scope>.  For each record, checks
+ *   whether the logger is enabled for the configured severity, evaluates the
+ *   sample expressions into a body string, resolves the optional span reference
+ *   against the runtime context, and emits the log record via the logger's
+ *   log_span operation.
+ *
+ * RETURN VALUE
+ *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
+ */
+static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uint dir, struct flt_otel_conf_scope *scope, struct otelc_logger *logger, const struct timespec *ts, char **err)
+{
+	struct flt_otel_conf_log_record *conf_log;
+	int                              retval = FLT_OTEL_RET_OK;
+
+	OTELC_FUNC("%p, %p, %u, %p, %p, %p, %p:%p", s, f, dir, scope, logger, ts, OTELC_DPTR_ARGS(err));
+
+	list_for_each_entry(conf_log, &(scope->log_records), list) {
+		struct flt_otel_conf_sample      *sample;
+		struct flt_otel_conf_sample_expr *expr;
+		struct sample                     smp;
+		struct otelc_span                *otel_span = NULL;
+		struct buffer                     buffer;
+		int                               rc;
+
+		OTELC_DBG(DEBUG, "run log-record '%s' -> '%s'", scope->id, conf_log->id);
+
+		/* Skip if the logger is not enabled for this severity. */
+		if (OTELC_OPS(logger, enabled, conf_log->severity) == 0)
+			continue;
+
+		/* The samples list has exactly one entry. */
+		sample = LIST_NEXT(&(conf_log->samples), typeof(sample), list);
+
+		(void)memset(&buffer, 0, sizeof(buffer));
+
+		if (sample->lf_used) {
+			/*
+			 * Log-format path: evaluate the log-format expression
+			 * into a dynamically allocated buffer.
+			 */
+			chunk_init(&buffer, OTELC_CALLOC(1, global.tune.bufsize), global.tune.bufsize);
+			if (buffer.area != NULL)
+				buffer.data = build_logline(s, buffer.area, buffer.size, &(sample->lf_expr));
+		} else {
+			/*
+			 * Bare sample expression path: evaluate each expression
+			 * and concatenate the results.
+			 */
+			list_for_each_entry(expr, &(sample->exprs), list) {
+				(void)memset(&smp, 0, sizeof(smp));
+
+				if (sample_process(s->be, s->sess, s, dir | SMP_OPT_FINAL, expr->expr, &smp) == NULL) {
+					OTELC_DBG(NOTICE, "WARNING: failed to fetch '%s'", expr->fmt_expr);
+
+					retval = FLT_OTEL_RET_ERROR;
+
+					break;
+				}
+
+				if (buffer.area == NULL) {
+					chunk_init(&buffer, OTELC_CALLOC(1, global.tune.bufsize), global.tune.bufsize);
+					if (buffer.area == NULL)
+						break;
+				}
+
+				rc = flt_otel_sample_to_str(&(smp.data), buffer.area + buffer.data, buffer.size - buffer.data, err);
+				if (rc == FLT_OTEL_RET_ERROR) {
+					retval = FLT_OTEL_RET_ERROR;
+
+					break;
+				}
+
+				buffer.data += rc;
+			}
+		}
+
+		if (buffer.area == NULL) {
+			FLT_OTEL_ERR("out of memory");
+
+			retval = FLT_OTEL_RET_ERROR;
+
+			continue;
+		}
+
+		/*
+		 * If the log record references a span, resolve it against the
+		 * runtime context.  A missing span is not fatal -- the log
+		 * record is emitted without span correlation.
+		 */
+		if (conf_log->span != NULL) {
+			struct flt_otel_runtime_context *rt_ctx = FLT_OTEL_RT_CTX(f->ctx);
+			struct flt_otel_scope_span      *sc_span;
+
+			list_for_each_entry(sc_span, &(rt_ctx->spans), list)
+				if (strcmp(sc_span->id, conf_log->span) == 0) {
+					otel_span = sc_span->span;
+
+					break;
+				}
+
+			if (otel_span == NULL)
+				OTELC_DBG(NOTICE, "WARNING: cannot find span '%s' for log-record", conf_log->span);
+		}
+
+		if (OTELC_OPS(logger, log_span, conf_log->severity, conf_log->event_id, conf_log->event_name, otel_span, ts, conf_log->attr, conf_log->attr_len, "%s", buffer.area) == OTELC_RET_ERROR)
+			retval = FLT_OTEL_RET_ERROR;
+
+		OTELC_SFREE(buffer.area);
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_scope_run_span - single span execution
  *
  * SYNOPSIS
@@ -357,7 +488,8 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
  *   from HTTP headers or HAProxy variables, iterates over configured spans
  *   (resolving links, evaluating sample expressions for attributes, events,
  *   baggage and status), calls flt_otel_scope_run_span() for each, processes
- *   metric instruments, then marks and finishes completed spans.
+ *   metric instruments, emits log records, then marks and finishes completed
+ *   spans.
  *
  * RETURN VALUE
  *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
@@ -566,6 +698,11 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 	/* Process metric instruments. */
 	if (!LIST_ISEMPTY(&(conf_scope->instruments)))
 		if (flt_otel_scope_run_instrument(s, dir, conf_scope, conf->instr->meter, err) == FLT_OTEL_RET_ERROR)
+			retval = FLT_OTEL_RET_ERROR;
+
+	/* Emit log records. */
+	if (!LIST_ISEMPTY(&(conf_scope->log_records)))
+		if (flt_otel_scope_run_log_record(s, f, dir, conf_scope, conf->instr->logger, ts_system, err) == FLT_OTEL_RET_ERROR)
 			retval = FLT_OTEL_RET_ERROR;
 
 	/* Mark the configured spans for finishing and clean up. */
