@@ -4,7 +4,7 @@ set -e
 
 export VERBOSE=1
 export TIMEOUT=90
-export MASTER_SOCKET=${MASTER_SOCKET:-/var/run/haproxy-master.sock}
+export MASTER_SOCKET="${MASTER_SOCKET:-/var/run/haproxy-master.sock}"
 export RET=
 
 alert() {
@@ -15,6 +15,19 @@ alert() {
 
 
 reload() {
+	if [ -S "$MASTER_SOCKET" ]; then
+		socat_addr="UNIX-CONNECT:${MASTER_SOCKET}"
+	else
+		case "$MASTER_SOCKET" in
+			*:[0-9]*)
+				socat_addr="TCP:${MASTER_SOCKET}"
+				;;
+			*)
+				alert "Invalid master socket address '${MASTER_SOCKET}': expected a UNIX socket file or <host>:<port>"
+				return 1
+				;;
+		esac
+	fi
 	while read -r line; do
 
 		if [ "$line" = "Success=0" ]; then
@@ -33,7 +46,7 @@ reload() {
 			fi
 		fi
 
-	done < <(echo "reload" | socat -t"${TIMEOUT}" "${MASTER_SOCKET}" -)
+	done < <(echo "reload" | socat -t"${TIMEOUT}" "$socat_addr" -)
 
 	if [ -z "$RET" ]; then
 		alert "Couldn't finish the reload before the timeout (${TIMEOUT})."
@@ -52,7 +65,7 @@ usage() {
 	echo " EXPERIMENTAL script!"
 	echo ""
 	echo "Options:"
-	echo "  -S,  --master-socket <path>   Use the master socket at <path> (default: ${MASTER_SOCKET})"
+	echo "  -S,  --master-socket <addr>   Unix socket path or <host>:<port> (default: ${MASTER_SOCKET})"
 	echo "  -d,  --debug                  Debug mode, set -x"
 	echo "  -t,  --timeout                Timeout (socat -t) (default: ${TIMEOUT})"
 	echo "  -s,  --silent                 Silent mode (no output)"
