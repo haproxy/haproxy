@@ -1,11 +1,10 @@
-#!/bin/bash
+#!/bin/sh
 
 set -e
 
 export VERBOSE=1
 export TIMEOUT=90
 export MASTER_SOCKET="${MASTER_SOCKET:-/var/run/haproxy-master.sock}"
-export RET=
 
 alert() {
 	if [ "$VERBOSE" -ge "1" ]; then
@@ -28,32 +27,25 @@ reload() {
 				;;
 		esac
 	fi
-	while read -r line; do
 
-		if [ "$line" = "Success=0" ]; then
-			RET=1
-		elif [ "$line" = "Success=1" ]; then
-			RET=0
-		elif [ "$line" = "Another reload is still in progress." ]; then
-			alert "$line"
-		elif [ "$line" = "--" ]; then
-			continue;
+	echo "reload" | socat -t"${TIMEOUT}" "$socat_addr" - | {
+		read -r status || { alert "No status received (connection error or timeout after ${TIMEOUT}s)."; exit 1; }
+		case "$status" in
+			"Success=1") ret=0 ;;
+			"Success=0") ret=1 ;;
+			*)           alert "Unexpected response: '$status'"; exit 1 ;;
+		esac
+
+		read -r _  # consume "--"
+
+		if [ "$VERBOSE" -ge 3 ] || { [ "$ret" = 1 ] && [ "$VERBOSE" -ge 2 ]; }; then
+			cat >&2
 		else
-			if [ "$RET" = 1 ] && [ "$VERBOSE" = "2" ]; then
-				echo "$line" >&2
-			elif [ "$VERBOSE" = "3" ]; then
-				echo "$line" >&2
-			fi
+			cat >/dev/null
 		fi
 
-	done < <(echo "reload" | socat -t"${TIMEOUT}" "$socat_addr" -)
-
-	if [ -z "$RET" ]; then
-		alert "Couldn't finish the reload before the timeout (${TIMEOUT})."
-		return 1
-	fi
-
-	return "$RET"
+		exit "$ret"
+	}
 }
 
 usage() {
