@@ -62,7 +62,7 @@ usage() {
 	echo "  -t,  --timeout                Timeout (socat -t) (default: ${TIMEOUT})"
 	echo "  -s,  --silent                 Silent mode (no output)"
 	echo "  -v,  --verbose                Verbose output (output from haproxy on failure)"
-	echo "  -vv                           Even more verbose output (output from haproxy on success and failure)"
+	echo "  -vv  --verbose=all            Very verbose output (output from haproxy on success and failure)"
 	echo "  -h,  --help                   This help"
 	echo ""
 	echo "Examples:"
@@ -89,7 +89,7 @@ main() {
 				VERBOSE=2
 				shift
 				;;
-			-vv|--verbose)
+			-vv|--verbose=all)
 				VERBOSE=3
 				shift
 				;;
