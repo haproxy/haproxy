@@ -28,7 +28,7 @@
 #   show-backports -q -m -r hapee-r2 hapee-r1
 
 
-USAGE="Usage: ${0##*/} [-q] [-H] [-m] [-u] [-r reference] [-l logexpr] [-s subject] [-b base] {branch|range} [...] [-- file*]"
+USAGE="Usage: ${0##*/} [-q] [-H] [-m] [-u] [-L] [-r reference] [-l logexpr] [-s subject] [-b base] {branch|range} [...] [-- file*]"
 BASES=( )
 BRANCHES=( )
 REF=
@@ -39,6 +39,7 @@ SUBJECT=
 MISSING=
 UPSTREAM=
 BODYHASH=
+SINCELAST=
 
 die() {
 	[ "$#" -eq 0 ] || echo "$*" >&2
@@ -70,7 +71,7 @@ dump_commit_matrix() {
 	count=0
 	# now look up commits
 	while read ref subject; do
-		if [ -n "$MISSING" -a "${subject:0:9}" = "[RELEASE]" ]; then
+		if [ -n "$MISSING" -o -n "$SINCELAST" ] && [ "${subject:0:9}" = "[RELEASE]" ]; then
 			continue
 		fi
 
@@ -153,6 +154,7 @@ while [ -n "$1" -a -z "${1##-*}" ]; do
 		-m)        MISSING=1      ; shift   ;;
 		-u)        UPSTREAM=1     ; shift   ;;
 		-H)        BODYHASH=1     ; shift   ;;
+		-L)        SINCELAST=1    ; shift   ;;
 		-h|--help) quit "$USAGE" ;;
 		*)         die  "$USAGE" ;;
 	esac
@@ -297,9 +299,23 @@ dump_commit_matrix | column -t | \
 (
 	left_commits=( )
 	right_commits=( )
+	since_last=( )
+	last_bkp=$BASE
 	while read line; do
 		# append the subject at the end of the line
 		set -- $line
+		if [ -n "$SINCELAST" ]; then
+		        if [ "${line::1}" = ":" ]; then
+		                continue
+		        fi
+		        if [ "$2" != "-" ]; then
+		                last_bkp="$1"
+		                since_last=( )
+		        else
+			        since_last[${#since_last[@]}]="$1"
+		        fi
+		        continue
+		fi
 		echo -n "$line "
 		if [ "${line::1}" = ":" ]; then
 			echo "---- Subject ----"
@@ -315,7 +331,14 @@ dump_commit_matrix | column -t | \
 			right_commits[${#right_commits[@]}]="$comm"
 		fi
 	done
-	if [ -n "$MISSING" -a ${#left_commits[@]} -eq 0 ]; then
+	if [ -n "$SINCELAST" -a ${#since_last[@]} -eq 0 ]; then
+		echo "No new commit upstream since last commit $last_bkp."
+	elif [ -n "$SINCELAST" ]; then
+		echo "Found ${#since_last[@]} commit(s) added to branch $REF since last backported commit $last_bkp:"
+		echo
+		echo "   git cherry-pick -sx ${since_last[@]}"
+		echo
+	elif [ -n "$MISSING" -a ${#left_commits[@]} -eq 0 ]; then
 		echo "No missing commit to apply."
 	elif [ -n "$MISSING" ]; then
 		echo
