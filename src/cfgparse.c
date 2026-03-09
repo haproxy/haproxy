@@ -2322,6 +2322,17 @@ int check_config_validity()
 		}
 	}
 
+	if (global.tune.bufsize_small > 0) {
+		if (global.tune.bufsize_small == global.tune.bufsize)
+			global.tune.bufsize_small = 0;
+		else if (global.tune.bufsize_small > global.tune.bufsize) {
+			ha_warning("invalid small buffer size %d bytes which is greater to default bufsize %d bytes.\n",
+				   global.tune.bufsize_small, global.tune.bufsize);
+			err_code |=  ERR_FATAL | ERR_ABORT;
+			goto out;
+		}
+	}
+
 	/* in the worst case these were supposed to be set in thread_detect_count() */
 	BUG_ON(!global.nbthread);
 	BUG_ON(!global.nbtgroups);

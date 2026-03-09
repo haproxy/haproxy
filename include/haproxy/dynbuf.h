@@ -37,6 +37,7 @@
 
 extern struct pool_head *pool_head_buffer;
 extern struct pool_head *pool_head_large_buffer;
+extern struct pool_head *pool_head_small_buffer;
 
 int init_buffer(void);
 void buffer_dump(FILE *o, struct buffer *b, int from, int to);
@@ -66,6 +67,12 @@ static inline int b_is_large_sz(size_t sz)
 	return (pool_head_large_buffer && sz == pool_head_large_buffer->size);
 }
 
+/* Return 1 if <sz> is the size of a small buffer */
+static inline int b_is_small_sz(size_t sz)
+{
+	return (pool_head_small_buffer && sz == pool_head_small_buffer->size);
+}
+
 /* Return 1 if <bug> is a  default buffer */
 static inline int b_is_default(struct buffer *buf)
 {
@@ -76,6 +83,12 @@ static inline int b_is_default(struct buffer *buf)
 static inline int b_is_large(struct buffer *buf)
 {
 	return b_is_large_sz(b_size(buf));
+}
+
+/* Return 1 if <buf> is a small buffer */
+static inline int b_is_small(struct buffer *buf)
+{
+	return b_is_small_sz(b_size(buf));
 }
 
 /**************************************************/
@@ -172,6 +185,8 @@ static inline char *__b_get_emergency_buf(void)
 		 * than the default buffers */				\
 		if (unlikely(b_is_large_sz(sz)))			\
 			pool_free(pool_head_large_buffer, area);	\
+		else if (unlikely(b_is_small_sz(sz)))			\
+			pool_free(pool_head_small_buffer, area);	\
 		else if (th_ctx->emergency_bufs_left < global.tune.reserved_bufs) \
 			th_ctx->emergency_bufs[th_ctx->emergency_bufs_left++] = area; \
 		else							\

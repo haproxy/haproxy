@@ -24,6 +24,7 @@
 
 struct pool_head *pool_head_buffer __read_mostly;
 struct pool_head *pool_head_large_buffer __read_mostly = NULL;
+struct pool_head *pool_head_small_buffer __read_mostly;
 
 /* perform minimal initializations, report 0 in case of error, 1 if OK. */
 int init_buffer()
@@ -40,6 +41,12 @@ int init_buffer()
 	if (global.tune.bufsize_large) {
 		pool_head_large_buffer = create_aligned_pool("large_buffer", global.tune.bufsize_large, 64, MEM_F_SHARED|MEM_F_EXACT);
 		if (!pool_head_large_buffer)
+			return 0;
+	}
+
+	if (global.tune.bufsize_small) {
+		pool_head_small_buffer = create_aligned_pool("small_buffer", global.tune.bufsize_small, 64, MEM_F_SHARED|MEM_F_EXACT);
+		if (!pool_head_small_buffer)
 			return 0;
 	}
 

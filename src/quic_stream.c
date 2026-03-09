@@ -16,8 +16,6 @@ DECLARE_STATIC_TYPED_POOL(pool_head_quic_stream_desc, "qc_stream_desc", struct q
 DECLARE_STATIC_TYPED_POOL(pool_head_quic_stream_buf, "qc_stream_buf", struct qc_stream_buf);
 DECLARE_STATIC_TYPED_POOL(pool_head_quic_stream_ack, "qc_stream_ack", struct qc_stream_ack);
 
-static struct pool_head *pool_head_sbuf;
-
 static void qc_stream_buf_free(struct qc_stream_desc *stream,
                                struct qc_stream_buf **stream_buf)
 {
@@ -39,13 +37,10 @@ static void qc_stream_buf_free(struct qc_stream_desc *stream,
 		room = b_data(buf);
 	}
 
-	if ((*stream_buf)->sbuf) {
-		pool_free(pool_head_sbuf, buf->area);
-	}
-	else {
+	b_free(buf);
+	if (!(*stream_buf)->sbuf) {
 		bdata_ctr_del(&stream->data, b_data(buf));
 		bdata_ctr_bdec(&stream->data);
-		b_free(buf);
 		offer_buffers(NULL, 1);
 	}
 	pool_free(pool_head_quic_stream_buf, *stream_buf);
@@ -412,10 +407,7 @@ void qc_stream_desc_free(struct qc_stream_desc *stream, int closing)
 			pool_free(pool_head_quic_stream_ack, ack);
 		}
 
-		if (buf->sbuf)
-			pool_free(pool_head_sbuf, buf->buf.area);
-		else
-			b_free(&buf->buf);
+		b_free(&buf->buf);
 
 		eb64_delete(&buf->offset_node);
 		pool_free(pool_head_quic_stream_buf, buf);
@@ -461,7 +453,7 @@ struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
 	stream->buf->buf = BUF_NULL;
 	stream->buf->offset_node.key = offset;
 
-	if (!small) {
+	if (!small || !global.tune.bufsize_small) {
 		stream->buf->sbuf = 0;
 		if (!b_alloc(&stream->buf->buf, DB_MUX_TX)) {
 			pool_free(pool_head_quic_stream_buf, stream->buf);
@@ -472,7 +464,7 @@ struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
 	else {
 		char *area;
 
-		if (!(area = pool_alloc(pool_head_sbuf))) {
+		if (!(area = pool_alloc(pool_head_small_buffer))) {
 			pool_free(pool_head_quic_stream_buf, stream->buf);
 			stream->buf = NULL;
 			return NULL;
@@ -502,7 +494,7 @@ struct buffer *qc_stream_buf_realloc(struct qc_stream_desc *stream)
 	BUG_ON(b_data(&stream->buf->buf));
 
 	/* Release buffer */
-	pool_free(pool_head_sbuf, stream->buf->buf.area);
+	b_free(&stream->buf->buf);
 	stream->buf->buf = BUF_NULL;
 	stream->buf->sbuf = 0;
 
@@ -536,23 +528,3 @@ void qc_stream_buf_release(struct qc_stream_desc *stream)
 	if (stream->notify_room && room)
 		stream->notify_room(stream, room);
 }
-
-static int create_sbuf_pool(void)
-{
-	if (global.tune.bufsize_small > global.tune.bufsize) {
-		ha_warning("invalid small buffer size %d bytes which is greater to default bufsize %d bytes.\n",
-		           global.tune.bufsize_small, global.tune.bufsize);
-		return ERR_FATAL|ERR_ABORT;
-	}
-
-	pool_head_sbuf = create_pool("sbuf", global.tune.bufsize_small,
-	                             MEM_F_SHARED|MEM_F_EXACT);
-	if (!pool_head_sbuf) {
-		ha_warning("error on small buffer pool allocation.\n");
-		return ERR_FATAL|ERR_ABORT;
-	}
-
-	return ERR_NONE;
-}
-
-REGISTER_POST_CHECK(create_sbuf_pool);
