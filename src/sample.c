@@ -4795,8 +4795,7 @@ static int sample_conv_jwt_member_query(const struct arg *args, struct sample *s
 	int retval = 0;
 	int ret;
 
-	if (jwt_tokenize(&smp->data.u.str, items, &item_num))
-		goto end;
+	jwt_tokenize(&smp->data.u.str, items, &item_num);
 
 	if (item_num < member + 1)
 		goto end;
