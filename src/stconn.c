@@ -708,6 +708,8 @@ void sc_chk_rcv(struct stconn *sc)
 			appctx_wakeup(__sc_appctx(sc));
 	}
 	else {
+		/* In theory, it should not happen. This CHECK_IF will be used to validate it (or not...) */
+		CHECK_IF(!sc_ep_test(sc, SE_FL_T_MUX|SE_FL_T_APPLET));
 		if (!(sc->flags & SC_FL_DONT_WAKE))
 			task_wakeup(sc_strm_task(sc), TASK_WOKEN_IO);
 	}
@@ -799,6 +801,9 @@ static inline void sc_chk_snd(struct stconn *sc)
 		}
 	}
 	else {
+		/* In theory, it should not happen. This CHECK_IF will be used to validate it (or not...) */
+		CHECK_IF(!sc_ep_test(sc, SE_FL_T_MUX|SE_FL_T_APPLET));
+
 		if (unlikely(sc->state != SC_ST_EST || (sc->flags & SC_FL_SHUT_DONE)))
 			return;
 
