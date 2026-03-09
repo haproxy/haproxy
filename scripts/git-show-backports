@@ -255,7 +255,7 @@ if [ -z "$BASE" -a -n "$MISSING" ]; then
 fi
 
 if [ -z "$BASE" ]; then
-	err "Warning! No base specified, looking for common ancestor."
+	[ "$QUIET" != "" ] || err "Warning! No base specified, looking for common ancestor."
 	BASE=$(git merge-base --all "$REF" "${BRANCHES[@]}")
 	if [ -z "$BASE" ]; then
 		die "Couldn't find a common ancestor between these branches"
