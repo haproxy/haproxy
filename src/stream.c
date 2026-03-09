@@ -2511,6 +2511,18 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			srv = objt_server(s->target);
 			if (scb->state == SC_ST_ASS && srv && srv->rdr_len && (s->flags & SF_REDIRECTABLE))
 				http_perform_server_redirect(s, scb);
+
+			if (unlikely(scb->state == SC_ST_QUE && IS_HTX_STRM(s))) {
+				struct buffer sbuf = BUF_NULL;
+
+				if (!htx_move_to_small_buffer(&sbuf, &req->buf))
+					break;
+				b_free(&req->buf);
+				offer_buffers(s, 1);
+				req->buf = sbuf;
+				DBG_TRACE_DEVEL("request moved to a small buffer", STRM_EV_STRM_PROC, s);
+			}
+
 		} while (scb->state == SC_ST_ASS);
 	}
 

@@ -1190,7 +1190,7 @@ int sc_conn_recv(struct stconn *sc)
 		 * SE_FL_RCV_MORE on the SC if more space is needed.
 		 */
 		max = channel_recv_max(ic);
-		if ((ic->flags & CF_WROTE_DATA) && b_is_large(sc_ib(sc)))
+		if (b_is_small(sc_ib(sc)) || ((ic->flags & CF_WROTE_DATA) && b_is_large(sc_ib(sc))))
 			max = 0;
 		ret = CALL_MUX_WITH_RET(conn->mux, rcv_buf(sc, &ic->buf, max, cur_flags));
 
@@ -1861,7 +1861,7 @@ int sc_applet_recv(struct stconn *sc)
 	 * SE_FL_RCV_MORE on the SC if more space is needed.
 	 */
 	max = channel_recv_max(ic);
-	if ((ic->flags & CF_WROTE_DATA) && b_is_large(sc_ib(sc)))
+	if (b_is_small(sc_ib(sc)) || ((ic->flags & CF_WROTE_DATA) && b_is_large(sc_ib(sc))))
 		max = 0;
 	ret = appctx_rcv_buf(sc, &ic->buf, max, flags);
 	if (sc_ep_test(sc, SE_FL_WANT_ROOM)) {
