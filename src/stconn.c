@@ -581,10 +581,8 @@ void sc_abort(struct stconn *sc)
 		return;
 
 	if (sc->flags & SC_FL_SHUT_DONE) {
-		if (sc_ep_test(sc, SE_FL_T_MUX))
+		if (sc_ep_test(sc, SE_FL_T_MUX|SE_FL_T_APPLET))
 			se_shutdown(sc->sedesc, SE_SHR_RESET|SE_SHW_SILENT);
-		else if  (sc_ep_test(sc, SE_FL_T_APPLET))
-			se_shutdown(sc->sedesc, SE_SHR_RESET|SE_SHW_NORMAL);
 
 		sc->state = SC_ST_DIS;
 		if (sc->flags & SC_FL_ISBACK)
@@ -639,10 +637,8 @@ void sc_shutdown(struct stconn *sc)
 			return;
 		}
 
-		if (sc_ep_test(sc, SE_FL_T_MUX))
+		if (sc_ep_test(sc, SE_FL_T_MUX|SE_FL_T_APPLET))
 			se_shutdown(sc->sedesc, SE_SHR_RESET|((sc->flags & SC_FL_NOLINGER) ? SE_SHW_SILENT : SE_SHW_NORMAL));
-		else if (sc_ep_test(sc, SE_FL_T_APPLET))
-			se_shutdown(sc->sedesc, SE_SHR_RESET|SE_SHW_NORMAL);
 
 		sc->state = SC_ST_DIS;
 		break;
