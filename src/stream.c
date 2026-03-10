@@ -2512,11 +2512,22 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			if (scb->state == SC_ST_ASS && srv && srv->rdr_len && (s->flags & SF_REDIRECTABLE))
 				http_perform_server_redirect(s, scb);
 
-			if (unlikely(scb->state == SC_ST_QUE && IS_HTX_STRM(s))) {
+			if (unlikely(scb->state == SC_ST_QUE)) {
 				struct buffer sbuf = BUF_NULL;
 
-				if (!htx_move_to_small_buffer(&sbuf, &req->buf))
-					break;
+				if (IS_HTX_STRM(s)) {
+					if (!htx_move_to_small_buffer(&sbuf, &req->buf))
+						break;
+				}
+				else {
+					if (b_size(&req->buf) == global.tune.bufsize_small ||
+					    b_data(&req->buf) > global.tune.bufsize_small)
+						break;
+					if (!b_alloc_small(&sbuf))
+						break;
+					b_xfer(&sbuf, &req->buf, b_data(&req->buf));
+				}
+
 				b_free(&req->buf);
 				offer_buffers(s, 1);
 				req->buf = sbuf;
