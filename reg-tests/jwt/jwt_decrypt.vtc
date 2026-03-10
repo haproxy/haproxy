@@ -53,6 +53,10 @@ haproxy h1 -conf {
         # { "kty": "RSA", "e": "AQAB", "n": "wsqJbopx18NQFYLYOq4ZeMSE89yGiEankUpf25yV8QqroKUGrASj_OeqTWUjwPGKTN1vGFFuHYxiJeAUQH2qQPmg9Oqk6-ATBEKn9COKYniQ5459UxCwmZA2RL6ufhrNyq0JF3GfXkjLDBfhU9zJJEOhknsA0L_c-X4AI3d_NbFdMqxNe1V_UWAlLcbKdwO6iC9fAvwUmDQxgy6R0DC1CMouQpenMRcALaSHar1cm4K-syoNobv3HEuqgZ3s6-hOOSqauqAO0GUozPpaIA7OeruyRl5sTWT0r-iz39bchID2bIKtcqLiFcSYPLBcxmsaQCqRlGhmv6stjTCLV1yT9w", "kid": "ff3c5c96-392e-46ef-a839-6ff16027af78", "d": "b9hXfQ8lOtw8mX1dpqPcoElGhbczz_-xq2znCXQpbBPSZBUddZvchRSH5pSSKPEHlgb3CSGIdpLqsBCv0C_XmCM9ViN8uqsYgDO9uCLIDK5plWttbkqA_EufvW03R9UgIKWmOL3W4g4t-C2mBb8aByaGGVNjLnlb6i186uBsPGkvaeLHbQcRQKAvhOUTeNiyiiCbUGJwCm4avMiZrsz1r81Y1Z5izo0ERxdZymxM3FRZ9vjTB-6DtitvTXXnaAm1JTu6TIpj38u2mnNLkGMbflOpgelMNKBZVxSmfobIbFN8CHVc1UqLK2ElsZ9RCQANgkMHlMkOMj-XT0wHa3VBUQ", "p": "8mgriveKJAp1S7SHqirQAfZafxVuAK_A2QBYPsAUhikfBOvN0HtZjgurPXSJSdgR8KbWV7ZjdJM_eOivIb_XiuAaUdIOXbLRet7t9a_NJtmX9iybhoa9VOJFMBq_rbnbbte2kq0-FnXmv3cukbC2LaEw3aEcDgyURLCgWFqt7M0", "q": "zbbTv5421GowOfKVEuVoA35CEWgl8mdasnEZac2LWxMwKExikKU5LLacLQlcOt7A6n1ZGUC2wyH8mstO5tV34Eug3fnNrbnxFUEE_ZB_njs_rtZnwz57AoUXOXVnd194seIZF9PjdzZcuwXwXbrZ2RSVW8if_ZH5OVYEM1EsA9M", "dp": "1BaIYmIKn1X3InGlcSFcNRtSOnaJdFhRpotCqkRssKUx2qBlxs7ln_5dqLtZkx5VM_UE_GE7yzc6BZOwBxtOftdsr8HVh-14ksSR9rAGEsO2zVBiEuW4qZf_aQM-ScWfU--wcczZ0dT-Ou8P87Bk9K9fjcn0PeaLoz3WTPepzNE", "dq": "kYw2u4_UmWvcXVOeV_VKJ5aQZkJ6_sxTpodRBMPyQmkMHKcW4eKU1mcJju_deqWadw5jGPPpm5yTXm5UkAwfOeookoWpGa7CvVf4kPNI6Aphn3GBjunJHNpPuU6w-wvomGsxd-NqQDGNYKHuFFMcyXO_zWXglQdP_1o1tJ1M-BM", "qi": "j94Ens784M8zsfwWoJhYq9prcSZOGgNbtFWQZO8HP8pcNM9ls7YA4snTtAS_B4peWWFAFZ0LSKPCxAvJnrq69ocmEKEk7ss1Jo062f9pLTQ6cnhMjev3IqLocIFt5Vbsg_PWYpFSR7re6FRbF9EYOM7F2-HRv1idxKCWoyQfBqk" }
         load crt rsa_oeap.pem key rsa_oeap.key jwt on
 
+        # Private key built out of the following JWK:
+        # {"crv":"P-256","d":"6qbbYYII1zqqmlDHhTwJt-JYBe-ELI02yAecAx-nD4w","kty":"EC","x":"bASil7YpthReLltIsaJCaRrE7XtLCRVtOpGtdPO0jH0","y":"9xj9qfSrVKFqN3lnaNDXAclGGnfmU_j7xsEocZdYmPs"}
+        load crt ec_decrypt.crt key ec_decrypt.key jwt on
+
     listen main-fe
         bind "fd@${mainfe}"
 
@@ -83,6 +87,11 @@ haproxy h1 -conf {
         http-request set-var(txn.pem) hdr(X-PEM)
 
         http-request set-var(txn.decrypted) var(txn.jwe),jwt_decrypt_cert(txn.pem)
+
+    .if ssllib_name_startswith(AWS-LC)
+        acl aws_unmanaged var(txn.jwe),jwt_header_query('$.alg') -m end "A128KW" -m end "A192KW"
+        http-request set-var(txn.decrypted) str("AWS-LC UNMANAGED") if aws_unmanaged
+    .endif
 
         http-after-response set-header X-Decrypted %[var(txn.decrypted)]
         server s1 ${s1_addr}:${s1_port}
@@ -276,6 +285,11 @@ client c9 -connect ${h1_mainfe_sock} {
     rxresp
     expect resp.http.x-decrypted == "Random test message for ECDH-ES encrypted tokens"
 
+    txreq -url "/pem" -hdr "Authorization: Bearer eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTEyOENCQy1IUzI1NiIsImVwayI6eyJjcnYiOiJQLTI1NiIsImt0eSI6IkVDIiwieCI6InhEcUZveF9oR3Q5VjZWSWZjRUpaU1VVTm1uT0V5Qk1BYzZybHlOV09lcjgiLCJ5IjoiUVZmdkstcVJ0V0J1Uk9XVzRnMmlVampqMFN3U1BzYjB6ZE10R0c2czBFUSJ9fQ..0ykoqdP2WMKra2VugMQMzg.dyCI6QGNIf-x4n0DIaXgVnGtoSCOD3sOX7I01djrFdNRRSmPnITcQiJn1lw1LbiZyqZxOLf_mJHw7BRrcgPxBG6gsP3oFBnLeXllcD6kuLtllVofaPDEKdr66W9dp6Cr.002j4NUlGTYz8d_0mTM38A" \
+            -hdr "X-PEM: ${testdir}/ec_decrypt.crt"
+    rxresp
+    expect resp.http.x-decrypted == "Random test message for ECDH-ES encrypted token (with some extra padding for good measure)"
+
 } -run
 
 # ECDH-ES+A___KW
@@ -286,6 +300,11 @@ client c10 -connect ${h1_mainfe_sock} {
                     -hdr "X-JWK: {\"crv\":\"P-256\",\"d\":\"6qbbYYII1zqqmlDHhTwJt-JYBe-ELI02yAecAx-nD4w\",\"kty\":\"EC\",\"x\":\"bASil7YpthReLltIsaJCaRrE7XtLCRVtOpGtdPO0jH0\",\"y\":\"9xj9qfSrVKFqN3lnaNDXAclGGnfmU_j7xsEocZdYmPs\"}"
     rxresp
     expect resp.http.x-decrypted ~ "(Random test message for ECDH-ES encrypted tokens|AWS-LC UNMANAGED)"
+
+    txreq -url "/pem" -hdr "Authorization: Bearer eyJhbGciOiJFQ0RILUVTK0ExMjhLVyIsImVuYyI6IkExMjhDQkMtSFMyNTYiLCJlcGsiOnsiY3J2IjoiUC0yNTYiLCJrdHkiOiJFQyIsIngiOiJKeUJzcDZtZjVCMWROYUk0ZGppX2pnMm9NdFRRQUd4akxTekdGbGJ0dXZZIiwieSI6IlFfZnlBUmZiMGpjWXFtSTZUNEdXTXA1U2dGYXZiQ3lGUGF3OHhab1BIYzAifX0.JKrKKRF9QdxUyv0KX-MV11eHpP2Vz8Amdh8j3ipd_QP57jkN-OWRCQ.CjpnSVRVV51C10cUwCTaXA.bliaBk7mGYIOGdvgiMg481iC8GiOarRrjIkUgEBuqiSJENmOi90IXgnoVp4qQdi70bJVBNuCYP7Q9sLzZc4X2g.C_TCuAfAH5020v-NdR91BA" \
+                    -hdr "X-PEM: ${testdir}/ec_decrypt.crt"
+    rxresp
+    expect resp.http.x-decrypted ~ "(Random test message for ECDH-ES\\+A128KW encrypted token|AWS-LC UNMANAGED)"
 
 
     # ECDH-ES+A192KW

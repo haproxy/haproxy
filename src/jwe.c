@@ -1110,12 +1110,14 @@ static int sample_conv_jwt_decrypt_cert(const struct arg *args, struct sample *s
 	jwe_alg alg = JWE_ALG_UNMANAGED;
 	jwe_enc enc = JWE_ENC_UNMANAGED;
 	int rsa = 0;
+	int ec = 0;
 	int size = 0;
 	struct buffer *cert = NULL;
 	struct buffer **cek = NULL;
 	struct buffer *decrypted_cek = NULL;
 	struct buffer *out = NULL;
 	struct jose_fields fields = {};
+	EVP_PKEY *privkey = NULL;
 
 	input = alloc_trash_chunk();
 	if (!input)
@@ -1147,6 +1149,12 @@ static int sample_conv_jwt_decrypt_cert(const struct arg *args, struct sample *s
 	case JWE_ALG_RSA_OAEP_256:
 		rsa = 1;
 		break;
+	case JWE_ALG_ECDH_ES:
+	case JWE_ALG_ECDH_ES_A128KW:
+	case JWE_ALG_ECDH_ES_A192KW:
+	case JWE_ALG_ECDH_ES_A256KW:
+		ec = 1;
+		break;
 	default:
 		/* Not managed yet */
 		goto end;
@@ -1162,30 +1170,58 @@ static int sample_conv_jwt_decrypt_cert(const struct arg *args, struct sample *s
 	if (chunk_printf(cert, "%.*s", (int)b_data(&cert_smp.data.u.str), b_orig(&cert_smp.data.u.str)) <= 0)
 		goto end;
 
-	/* With asymetric crypto algorithms we should always have a CEK */
-	if (!items[JWE_ELT_CEK].length)
-		goto end;
+	/* With ECDH-ES no CEK will be provided. */
+	if (!ec || alg != JWE_ALG_ECDH_ES) {
 
-	cek = &decoded_items[JWE_ELT_CEK];
+		/* With asymetric crypto algorithms we should always have a CEK */
+		if (!items[JWE_ELT_CEK].length)
+			goto end;
 
-	*cek = alloc_trash_chunk();
-	if (!*cek)
-		goto end;
+		cek = &decoded_items[JWE_ELT_CEK];
+
+		*cek = alloc_trash_chunk();
+		if (!*cek)
+			goto end;
+
+
+		size = base64urldec(items[JWE_ELT_CEK].start, items[JWE_ELT_CEK].length,
+				    (*cek)->area, (*cek)->size);
+		if (size < 0) {
+			goto end;
+		}
+		(*cek)->data = size;
+	}
 
 	decrypted_cek = alloc_trash_chunk();
 	if (!decrypted_cek) {
 		goto end;
 	}
 
-	size = base64urldec(items[JWE_ELT_CEK].start, items[JWE_ELT_CEK].length,
-	                    (*cek)->area, (*cek)->size);
-	if (size < 0) {
-		goto end;
-	}
-	(*cek)->data = size;
-
 	if (rsa && decrypt_cek_rsa(*cek, decrypted_cek, cert, alg))
 		goto end;
+	else if (ec) {
+		struct ckch_store *store = NULL;
+
+		if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+			goto end;
+
+		store = ckchs_lookup(b_orig(cert));
+		if (!store || !store->data->key || !store->conf.jwt) {
+			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+			goto end;
+		}
+
+		privkey = store->data->key;
+
+		EVP_PKEY_up_ref(privkey);
+
+		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+
+		if (do_decrypt_cek_ec((cek != NULL) ? *cek : NULL, decrypted_cek,
+				      privkey, fields.pubkey,
+				      alg, enc, fields.apu, fields.apv))
+			goto end;
+	}
 
 	if (decrypt_ciphertext(enc, items, decoded_items, decrypted_cek, &out))
 		goto end;
@@ -1204,6 +1240,7 @@ end:
 	free_trash_chunk(out);
 	clear_decoded_items(decoded_items);
 	clear_jose_fields(&fields);
+	EVP_PKEY_free(privkey);
 	return retval;
 }
 
