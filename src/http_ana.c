@@ -4337,20 +4337,10 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 	}
 
 	if (channel_htx_full(chn, htx, global.tune.maxrewrite) || sc_waiting_room(chn_prod(chn))) {
-		struct buffer lbuf;
-		char *area;
+		struct buffer lbuf = BUF_NULL;
 
-		if (large_buffer == 0 || b_is_large(&chn->buf))
-			goto end; /* don't use large buffer or large buffer is full */
-
-		/* normal buffer is full, allocate a large one
-		 */
-		area = pool_alloc(pool_head_large_buffer);
-		if (!area)
-			goto end; /* Allocation failure: TODO must be improved to use buffer_wait */
-		lbuf = b_make(area, global.tune.bufsize_large, 0, 0);
-		htx_xfer_blks(htx_from_buf(&lbuf), htx, htx_used_space(htx), HTX_BLK_UNUSED);
-		htx_to_buf(htx, &chn->buf);
+		if (large_buffer == 0 || b_is_large(&chn->buf) || !htx_move_to_large_buffer(&lbuf, &chn->buf))
+			goto end; /* don't use large buffer or already a large buffer */
 		b_free(&chn->buf);
 		offer_buffers(s, 1);
 		chn->buf = lbuf;
