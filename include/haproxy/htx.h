@@ -57,6 +57,10 @@ size_t htx_add_data(struct htx *htx, const struct ist data);
 struct htx_blk *htx_add_last_data(struct htx *htx, struct ist data);
 void htx_move_blk_before(struct htx *htx, struct htx_blk **blk, struct htx_blk **ref);
 int htx_append_msg(struct htx *dst, const struct htx *src);
+struct buffer *htx_move_to_small_buffer(struct buffer *dst, struct buffer *src);
+struct buffer *htx_move_to_large_buffer(struct buffer *dst, struct buffer *src);
+struct buffer *htx_copy_to_small_buffer(struct buffer *dst, struct buffer *src);
+struct buffer *htx_copy_to_large_buffer(struct buffer *dst, struct buffer *src);
 
 #define HTX_XFER_DEFAULT           0x00000000 /* Default XFER: no partial xfer / remove blocks from source */
 #define HTX_XFER_KEEP_SRC_BLKS     0x00000001 /* Don't remove xfer blocks from source messages during xfer */

@@ -11,6 +11,7 @@
  */
 
 #include <haproxy/chunk.h>
+#include <haproxy/dynbuf.h>
 #include <haproxy/global.h>
 #include <haproxy/htx.h>
 #include <haproxy/net_helper.h>
@@ -1324,4 +1325,69 @@ int htx_append_msg(struct htx *dst, const struct htx *src)
   error:
 	htx_truncate(dst, offset);
 	return 0;
+}
+
+
+/* If possible, trasnfer HTX blocks from <src> to a small buffer. This function
+ * allocate the small buffer and makes <dst> point on it. If <dst> is not empty
+ * or if <src> contains to many data, NULL is returned. If the allocation
+ * failed, NULL is returned. Otherwise <dst> is returned.  <flags> instructs how
+ * the transfer must be performed.
+ */
+struct buffer *__htx_xfer_to_small_buffer(struct buffer *dst, struct buffer *src, unsigned int flags)
+{
+	struct htx *dst_htx;
+	struct htx *src_htx = htxbuf(src);
+	size_t sz = (sizeof(struct htx) + htx_used_space(src_htx));
+
+	if (dst->size || sz > global.tune.bufsize_small  || !b_alloc_small(dst))
+		return NULL;
+	dst_htx = htx_from_buf(dst);
+	htx_xfer(dst_htx, src_htx, src_htx->size, flags);
+	htx_to_buf(dst_htx, dst);
+	return dst;
+}
+
+/* If possible, trasnfer HTX blocks from <src> to a large buffer. This function
+ * allocate the small buffer and makes <dst> point on it. If <dst> is not empty
+ * or if <src> contains to many data, NULL is returned. If the allocation
+ * failed, NULL is returned. Otherwise <dst> is returned.  <flags> instructs how
+ * the transfer must be performed.
+ */
+struct buffer *__htx_xfer_to_large_buffer(struct buffer *dst, struct buffer *src, unsigned int flags)
+{
+	struct htx *dst_htx;
+	struct htx *src_htx = htxbuf(src);
+	size_t sz = (sizeof(struct htx) + htx_used_space(src_htx));
+
+	if (dst->size || sz > global.tune.bufsize_large || !b_alloc_large(dst))
+		return NULL;
+	dst_htx = htx_from_buf(dst);
+	htx_xfer(dst_htx, src_htx, src_htx->size, flags);
+	htx_to_buf(dst_htx, dst);
+	return dst;
+}
+
+/* Move HTX blocks from <src> to <dst>. Relies on __htx_xfer_to_small_buffer() */
+struct buffer *htx_move_to_small_buffer(struct buffer *dst, struct buffer *src)
+{
+	return __htx_xfer_to_small_buffer(dst, src, HTX_XFER_DEFAULT);
+}
+
+/* Move HTX blocks from <src> to <dst>. Relies on __htx_xfer_to_large_buffer() */
+struct buffer *htx_move_to_large_buffer(struct buffer *dst, struct buffer *src)
+{
+	return __htx_xfer_to_large_buffer(dst, src, HTX_XFER_DEFAULT);
+}
+
+/* Copy HTX blocks from <src> to <dst>. Relies on __htx_xfer_to_small_buffer() */
+struct buffer *htx_copy_to_small_buffer(struct buffer *dst, struct buffer *src)
+{
+	return __htx_xfer_to_small_buffer(dst, src, HTX_XFER_KEEP_SRC_BLKS);
+}
+
+/* Copy HTX blocks from <src> to <dst>. Relies on __htx_xfer_to_large_buffer() */
+struct buffer *htx_copy_to_large_buffer(struct buffer *dst, struct buffer *src)
+{
+	return __htx_xfer_to_large_buffer(dst, src, HTX_XFER_KEEP_SRC_BLKS);
 }
