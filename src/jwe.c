@@ -534,7 +534,7 @@ static int sample_conv_jwt_decrypt_secret(const struct arg *args, struct sample 
 	if (!chunk_cpy(input, &smp->data.u.str))
 		goto end;
 
-	if (jwt_tokenize(input, items, &item_num) || item_num != JWE_ELT_MAX)
+	if (jwt_tokenize(input, items, item_num))
 		goto end;
 
 	alg_tag = alloc_trash_chunk();
@@ -789,7 +789,7 @@ static int sample_conv_jwt_decrypt_cert(const struct arg *args, struct sample *s
 	if (!chunk_cpy(input, &smp->data.u.str))
 		goto end;
 
-	if (jwt_tokenize(input, items, &item_num) || item_num != JWE_ELT_MAX)
+	if (jwt_tokenize(input, items, item_num))
 		goto end;
 
 	/* Base64Url decode the JOSE header */
@@ -1302,7 +1302,7 @@ static int sample_conv_jwt_decrypt_jwk(const struct arg *args, struct sample *sm
 	if (!chunk_cpy(input, &smp->data.u.str))
 		goto end;
 
-	if (jwt_tokenize(input, items, &item_num) || item_num != JWE_ELT_MAX)
+	if (jwt_tokenize(input, items, item_num))
 		goto end;
 
 	alg_tag = alloc_trash_chunk();

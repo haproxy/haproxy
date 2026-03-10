@@ -16,7 +16,7 @@ feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 feature cmd "command -v socat"
 feature ignore_unknown_macro
 
-server s1 -repeat 27 {
+server s1 -repeat 40 {
   rxreq
   txresp
 } -start
@@ -542,3 +542,44 @@ client c27 -connect ${h1_mainfe_sock} {
     expect resp.http.x-jwt-verify-RS256-var2 == "1"
 
 } -run
+
+client c28 -connect ${h1_mainfe_sock} {
+    # Token content : {"alg":"none"}
+    #                 {"iss":"joe", "exp":1300819380, "http://example.com/is_root":true}
+    txreq -url "/none" -hdr "Authorization: Bearer eyJhbGciOiJub25lIn0.eyJpc3MiOiJqb2UiLA0KICJleHAiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ."
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-jwt-alg == "none"
+    expect resp.http.x-jwt-verify == "1"
+} -run
+
+client c29 -connect ${h1_mainfe_sock} {
+    # Invalid Token : too many subparts
+    txreq -url "/errors" -hdr "Authorization: Bearer eyJhbGciOiJub25lIn0.aa.aa.aa"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-jwt-alg == "none"
+    expect resp.http.x-jwt-verify == "-3"
+
+    # Invalid Token : too many subparts
+    txreq -url "/errors" -hdr "Authorization: Bearer eyJhbGciOiJub25lIn0.aa.aa."
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-jwt-alg == "none"
+    expect resp.http.x-jwt-verify == "-3"
+
+    # Invalid Token : too few subparts
+    txreq -url "/errors" -hdr "Authorization: Bearer eyJhbGciOiJub25lIn0.aa"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-jwt-alg == "none"
+    expect resp.http.x-jwt-verify == "-3"
+
+    # Invalid Token : no signature but alg different than "none"
+    txreq -url "/errors" -hdr "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ."
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-jwt-alg == "RS256"
+    expect resp.http.x-jwt-verify == "-3"
+} -run
+

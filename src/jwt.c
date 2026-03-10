@@ -94,26 +94,30 @@ enum jwt_alg jwt_parse_alg(const char *alg_str, unsigned int alg_len)
  * now, we don't need to manage more than three subparts in the tokens.
  * See section 3.1 of RFC7515 for more information about JWS Compact
  * Serialization.
- * Returns 0 in case of success.
+ * Returns -1 in case of error, 0 if the token has exactly <item_num> parts, a
+ * positive value otherwise.
  */
-int jwt_tokenize(const struct buffer *jwt, struct jwt_item *items, unsigned int *item_num)
+int jwt_tokenize(const struct buffer *jwt, struct jwt_item *items, unsigned int item_num)
 {
 	char *ptr = jwt->area;
 	char *jwt_end = jwt->area + jwt->data;
 	unsigned int index = 0;
 	unsigned int length = 0;
 
-	if (index < *item_num) {
-		items[index].start = ptr;
-		items[index].length = 0;
-	}
+	if (item_num == 0)
+		return -1;
 
-	while (index < *item_num && ptr < jwt_end) {
+	items[index].start = ptr;
+	items[index].length = 0;
+
+	while (ptr < jwt_end) {
 		if (*ptr++ == '.') {
 			items[index++].length = length;
+			/* We found enough items, no need to keep looking for
+			 * separators. */
+			if (index == item_num)
+				return 1;
 
-			if (index == *item_num)
-				return -1;
 			items[index].start = ptr;
 			items[index].length = 0;
 			length = 0;
@@ -121,10 +125,11 @@ int jwt_tokenize(const struct buffer *jwt, struct jwt_item *items, unsigned int 
 			++length;
 	}
 
-	if (index < *item_num)
-		items[index].length = length;
+	/* We might not have found enough items */
+	if (index < item_num - 1)
+		return -1;
 
-	*item_num = (index+1);
+	items[index].length = length;
 
 	return (ptr != jwt_end);
 }
@@ -493,12 +498,8 @@ enum jwt_vrfy_status jwt_verify(const struct buffer *token, const struct buffer 
 	if (ctx.alg == JWT_ALG_DEFAULT)
 		return JWT_VRFY_UNKNOWN_ALG;
 
-	if (jwt_tokenize(token, items, &item_num))
+	if (jwt_tokenize(token, items, item_num))
 		return JWT_VRFY_INVALID_TOKEN;
-
-	if (item_num != JWT_ELT_MAX)
-		if (ctx.alg != JWS_ALG_NONE || item_num != JWT_ELT_SIG)
-			return JWT_VRFY_INVALID_TOKEN;
 
 	ctx.jose = items[JWT_ELT_JOSE];
 	ctx.claims = items[JWT_ELT_CLAIMS];
