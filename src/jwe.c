@@ -1056,11 +1056,11 @@ end:
 }
 #endif
 
-static inline void clear_bignums(BIGNUM *nums[RSA_BIGNUM_COUNT])
+static inline void clear_bignums(BIGNUM **nums, int count)
 {
 	int idx = 0;
 
-	while (idx < RSA_BIGNUM_COUNT)
+	while (idx < count)
 		BN_free(nums[idx++]);
 }
 
@@ -1105,12 +1105,226 @@ static int build_RSA_PKEY_from_buf(struct buffer *jwk, EVP_PKEY **pkey)
 end:
 	/* The bignums are duplicated with OpenSSL3+ but not with the older API */
 #if HA_OPENSSL_VERSION_NUMBER >= 0x30000000L
-	clear_bignums(nums);
+	clear_bignums(nums, RSA_BIGNUM_COUNT);
 #else
 	if (retval)
-		clear_bignums(nums);
+		clear_bignums(nums, RSA_BIGNUM_COUNT);
 #endif
 
+	free_trash_chunk(tmpbuf);
+	if (retval) {
+		EVP_PKEY_free(*pkey);
+		*pkey = NULL;
+	}
+
+	return retval;
+}
+
+enum {
+	EC_BIGNUM_X,
+	EC_BIGNUM_Y,
+	EC_BIGNUM_D,
+
+	EC_BIGNUM_COUNT
+};
+
+
+#if HA_OPENSSL_VERSION_NUMBER >= 0x30000000L
+/*
+ * Build an EC pubkey out of its 'x' and 'y' parameters for EC curve with <nid>.
+ * Dump the corresponding pubkey in <out> buffer.
+ * Returns 0 in case of success, 1 otherwise.
+ */
+static inline int curve_param_to_pubkey(int nid, BIGNUM *x, BIGNUM *y, struct buffer *out)
+{
+	EC_POINT *ec_point = NULL;
+	EC_GROUP *group = NULL;
+	BN_CTX *bnctx = NULL;
+	int retval = 1;
+
+	if (!out)
+		goto end;
+
+	group = EC_GROUP_new_by_curve_name(nid);
+	if (!group)
+		goto end;
+
+	bnctx = BN_CTX_new();
+	if (!bnctx)
+		goto end;
+
+	ec_point = EC_POINT_new(group);
+	if (!ec_point)
+		goto end;
+
+	if (EC_POINT_set_affine_coordinates(group, ec_point, x, y, bnctx) < 0)
+		goto end;
+
+	out->data = EC_POINT_point2oct(group, ec_point, POINT_CONVERSION_UNCOMPRESSED,
+	                               (unsigned char*)b_orig(out), b_size(out), bnctx);
+
+	if (out->data == 0)
+		goto end;
+
+	retval = 0;
+
+end:
+	EC_POINT_free(ec_point);
+	EC_GROUP_free(group);
+	BN_CTX_free(bnctx);
+	return retval;
+}
+#endif
+
+
+/*
+ * Build an EVP_PKEY that contains an EC key (either public or private) out of a
+ * JWK buffer that must have an "EC" key type ("kty" field). A public key must
+ * have valid "x" and "y" fields and a private key must have a "d" field as
+ * well.
+ * Return 0 in case of success, 1 otherwise.
+ */
+static int do_build_EC_PKEY(struct buffer *curve, BIGNUM *nums[EC_BIGNUM_COUNT], EVP_PKEY **pkey)
+#if HA_OPENSSL_VERSION_NUMBER >= 0x30000000L
+{
+	int retval = 1;
+	struct buffer *pubkey = NULL;
+	int nid = 0;
+
+	OSSL_PARAM *params = NULL;
+	OSSL_PARAM_BLD *param_bld = NULL;
+	EVP_PKEY_CTX *pctx = NULL;
+
+	nid = curves2nid(b_orig(curve));
+	if (nid == -1)
+		goto end;
+
+	pubkey = alloc_trash_chunk();
+	if (!pubkey)
+		goto end;
+
+	if (curve_param_to_pubkey(nid, nums[EC_BIGNUM_X], nums[EC_BIGNUM_Y], pubkey))
+		goto end;
+
+	param_bld = OSSL_PARAM_BLD_new();
+
+	if (!OSSL_PARAM_BLD_push_utf8_string(param_bld, OSSL_PKEY_PARAM_GROUP_NAME,
+					     b_orig(curve), b_data(curve)) ||
+	    !OSSL_PARAM_BLD_push_octet_string(param_bld, OSSL_PKEY_PARAM_PUB_KEY,
+					      pubkey->area, pubkey->data) ||
+	    (nums[EC_BIGNUM_D] && !OSSL_PARAM_BLD_push_BN(param_bld, OSSL_PKEY_PARAM_PRIV_KEY, nums[EC_BIGNUM_D])))
+		goto end;
+
+	params = OSSL_PARAM_BLD_to_param(param_bld);
+
+	if (!params)
+		goto end;
+
+	pctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL);
+	if (!pctx)
+		goto end;
+
+	if (EVP_PKEY_fromdata_init(pctx) != 1 ||
+	    EVP_PKEY_fromdata(pctx, pkey, EVP_PKEY_KEYPAIR, params) != 1)
+		goto end;
+
+	retval = 0;
+
+end:
+	free_trash_chunk(pubkey);
+	OSSL_PARAM_BLD_free(param_bld);
+	EVP_PKEY_CTX_free(pctx);
+	OSSL_PARAM_free(params);
+	return retval;
+}
+#else
+{
+	EC_KEY *ec_key = NULL;
+	int retval = 1;
+	int nid = 0;
+
+	nid = curves2nid(b_orig(curve));
+	if (nid == -1)
+		goto end;
+
+	ec_key = EC_KEY_new_by_curve_name(nid);
+	if (!ec_key)
+		goto end;
+
+	if (nums[EC_BIGNUM_D] && EC_KEY_set_private_key(ec_key, nums[EC_BIGNUM_D]) < 0)
+		goto end;
+
+	if (EC_KEY_set_public_key_affine_coordinates(ec_key, nums[EC_BIGNUM_X], nums[EC_BIGNUM_Y]) < 0)
+		goto end;
+
+	if (EC_KEY_check_key(ec_key) == 0)
+		goto end;
+
+	*pkey = EVP_PKEY_new();
+	if (!*pkey)
+		goto end;
+
+	if (EVP_PKEY_set1_EC_KEY(*pkey, ec_key) == 0)
+		goto end;
+
+	retval = 0;
+
+end:
+	EC_KEY_free(ec_key);
+	if (retval) {
+		EVP_PKEY_free(*pkey);
+		*pkey = NULL;
+	}
+	return retval;
+}
+#endif
+
+
+/*
+ * Build an EVP_PKEY that contains an EC key out of a JWK buffer that must have
+ * an "EC" key type ("kty" field).
+ * Return 0 in case of success, 1 otherwise.
+ */
+static int build_EC_PKEY_from_buf(struct buffer *jwk, EVP_PKEY **pkey)
+{
+	BIGNUM *nums[EC_BIGNUM_COUNT] = {};
+	int retval = 1;
+	struct buffer *crv = NULL, *tmpbuf = NULL;
+
+	crv = alloc_trash_chunk();
+	if (!crv)
+		goto end;
+
+	tmpbuf = alloc_trash_chunk();
+	if (!tmpbuf)
+		goto end;
+
+	if (get_jwk_field(jwk, "$.x", tmpbuf) || (nums[EC_BIGNUM_X] = base64url_to_BIGNUM(tmpbuf)) == NULL)
+		goto end;
+	if (get_jwk_field(jwk, "$.y", tmpbuf) || (nums[EC_BIGNUM_Y] = base64url_to_BIGNUM(tmpbuf)) == NULL)
+		goto end;
+	/* "d" is optional, we might have a pure public key with only "x" and
+	 * "y" provided. */
+	if (get_jwk_field(jwk, "$.d", tmpbuf) == 0 && (nums[EC_BIGNUM_D] = base64url_to_BIGNUM(tmpbuf)) == NULL)
+		goto end;
+
+	if (get_jwk_field(jwk, "$.crv", crv))
+		goto end;
+
+	retval = do_build_EC_PKEY(crv, nums, pkey);
+
+#if 0
+	if (!retval) {
+		BIO *bp = BIO_new_fp(stdout, BIO_NOCLOSE);
+		EVP_PKEY_print_private(bp, *pkey, 1, NULL);
+		BIO_free(bp);
+	}
+#endif
+
+end:
+	clear_bignums(nums, EC_BIGNUM_COUNT);
+
+	free_trash_chunk(crv);
 	free_trash_chunk(tmpbuf);
 	if (retval) {
 		EVP_PKEY_free(*pkey);
@@ -1125,7 +1339,7 @@ end:
 typedef enum {
 	JWK_KTY_OCT,
 	JWK_KTY_RSA,
-// 	JWK_KTY_EC
+	JWK_KTY_EC
 } jwk_type;
 
 struct jwk {
@@ -1204,6 +1418,11 @@ static int process_jwk(struct buffer *jwk_buf, struct jwk *jwk)
 		jwk->type = JWK_KTY_RSA;
 
 		if (build_RSA_PKEY_from_buf(jwk_buf, &jwk->pkey))
+			goto end;
+	} else if (chunk_strcmp(kty, "EC") == 0) {
+		jwk->type = JWK_KTY_EC;
+
+		if (build_EC_PKEY_from_buf(jwk_buf, &jwk->pkey))
 			goto end;
 	} else
 		goto end;
