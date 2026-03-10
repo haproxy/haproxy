@@ -2319,6 +2319,7 @@ int check_config_validity()
 				   "Please fix either value to remove this warning.\n",
 				   global.tune.bufsize_large, global.tune.bufsize);
 			global.tune.bufsize_large = 0;
+			err_code |= ERR_WARN;
 		}
 	}
 
