@@ -200,6 +200,35 @@ static inline char *__b_get_emergency_buf(void)
 			__b_free((_buf));	\
 	} while (0)
 
+
+static inline struct buffer *b_alloc_small(struct buffer *buf)
+{
+	char *area = NULL;
+
+	if (!buf->size) {
+		area = pool_alloc(pool_head_small_buffer);
+		if (!area)
+			return NULL;
+		buf->area = area;
+		buf->size = global.tune.bufsize_small;
+	}
+	return buf;
+}
+
+static inline struct buffer *b_alloc_large(struct buffer *buf)
+{
+	char *area = NULL;
+
+	if (!buf->size) {
+		area = pool_alloc(pool_head_large_buffer);
+		if (!area)
+			return NULL;
+		buf->area = area;
+		buf->size = global.tune.bufsize_large;
+	}
+	return buf;
+}
+
 /* Offer one or multiple buffer currently belonging to target <from> to whoever
  * needs one. Any pointer is valid for <from>, including NULL. Its purpose is
  * to avoid passing a buffer to oneself in case of failed allocations (e.g.
