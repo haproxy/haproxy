@@ -239,21 +239,11 @@ int mworker_env_to_proc_list()
 	unsetenv("HAPROXY_PROCESSES");
 
 no_env:
-
+	/* couldn't find the master element, exiting  */
 	if (!proc_self) {
-
-		proc_self = mworker_proc_new();
-		if (!proc_self) {
-			ha_alert("Cannot allocate process structures.\n");
-			err = -1;
-			goto out;
-		}
-		proc_self->options |= PROC_O_TYPE_MASTER;
-		proc_self->pid = pid;
-		proc_self->timestamp = 0; /* we don't know the startime anymore */
-
-		LIST_APPEND(&proc_list, &proc_self->list);
-		ha_warning("The master internals are corrupted or it was started with a too old version (< 1.9). Please restart the master process.\n");
+		err = -1;
+		ha_alert("Failed to deserialize data for the master process. Unrecoverable error, exiting.\n");
+		goto out;
 	}
 
 out:
