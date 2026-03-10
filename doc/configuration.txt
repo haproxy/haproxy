@@ -21503,7 +21503,8 @@ jwt_decrypt_cert(<cert>)
   format (five dot-separated base64-url encoded strings).
 
   This converter can be used for tokens that have an algorithm ("alg" field of
-  the JOSE header) among the following: RSA1_5, RSA-OAEP or RSA-OAEP-256.
+  the JOSE header) among the following: RSA1_5, RSA-OAEP, RSA-OAEP-256,
+  ECDH-ES, ECDH-ES+A128KW, ECDH-ES+A192KW or ECDH-ES+A256KW.
 
   The JWE token must be provided base64url-encoded and the output will be
   provided "raw". If an error happens during token parsing, signature
@@ -21519,8 +21520,9 @@ jwt_decrypt_jwk(<jwk>)
   Performs a signature validation of a JSON Web Token following the JSON Web
   Encryption format (see RFC 7516) given in input and return its content
   decrypted thanks to the provided JSON Web Key (RFC7517).
-  The <jwk> parameter must be a valid JWK of type 'oct' or 'RSA' ('kty' field
-  of the JSON key) that can be provided either as a string or via a variable.
+  The <jwk> parameter must be a valid JWK of type 'oct', 'EC' or 'RSA' ('kty'
+  field of the JSON key) that can be provided either as a string or via a
+  variable.
 
   The only tokens managed yet are the ones using the Compact Serialization
   format (five dot-separated base64-url encoded strings).
@@ -21528,11 +21530,16 @@ jwt_decrypt_jwk(<jwk>)
   This converter can be used to decode token that have a symmetric-type
   algorithm ("alg" field of the JOSE header) among the following: A128KW,
   A192KW, A256KW, A128GCMKW, A192GCMKW, A256GCMKW, dir. In this case, we expect
-  the provided JWK to be of the 'oct' type. Please note that the A128KW and
-  A192KW algorithms are not available on AWS-LC and decryption will not work.
-  This converter also manages tokens  that have an algorithm ("alg" field of
-  the JOSE header) among the following: RSA1_5, RSA-OAEP or RSA-OAEP-256. In
-  such a case an 'RSA' type JWK representing a private key must be provided.
+  the provided JWK to be of the 'oct' type.
+
+  This converter also manages tokens that have an algorithm ("alg" field of the
+  JOSE header) in the RSA family (RSA1_5, RSA-OAEP or RSA-OAEP-256) when
+  provided an 'RSA' JWK, or in the ECDH family (ECDH-ES, ECDH-ES+A128KW,
+  ECDH-ES+A192KW or ECDH-ES+A256KW) when provided an 'EC' JWK.
+
+  Please note that the A128KW and A192KW algorithms are not available on AWS-LC
+  so the A128KW, A192KW, ECDH-ES+A128KW and ECDH-ES+A192KW algorithms won't
+  work.
 
   The JWE token must be provided base64url-encoded and the output will be
   provided "raw". If an error happens during token parsing, signature
@@ -21546,7 +21553,7 @@ jwt_decrypt_jwk(<jwk>)
      # Get a JWT from the authorization header, put its decrypted content in an
      # HTTP header
      http-request set-var(txn.bearer) http_auth_bearer
-     http-request set-header X-Decrypted %[var(txn.bearer),jwt_decrypt_secret(\'{\"kty\":\"oct\",\"k\":\"wAsgsg\"}\')
+     http-request set-header X-Decrypted %[var(txn.bearer),jwt_decrypt_jwk(\'{\"kty\":\"oct\",\"k\":\"wAsgsg\"}\')
 
     # or via a variable
      http-request set-var(txn.bearer) http_auth_bearer
