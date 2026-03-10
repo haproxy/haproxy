@@ -19,7 +19,7 @@ feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.4-dev2)'"
 feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && openssl_version_atleast(1.1.1)'"
 feature ignore_unknown_macro
 
-server s1 -repeat 20 {
+server s1 -repeat 30 {
   rxreq
   txresp
 } -start
@@ -262,3 +262,18 @@ client c8 -connect ${h1_mainfe_sock} {
     expect resp.http.x-decrypted == ""
 } -run
 
+
+# ECDH-ES
+client c9 -connect ${h1_mainfe_sock} {
+    txreq -url "/jwk" -hdr "Authorization: Bearer eyJhbGciOiAiRUNESC1FUyIsICJlbmMiOiAiQTI1NkdDTSIsICJlcGsiOiB7Imt0eSI6ICJFQyIsICJjcnYiOiAiUC0yNTYiLCAieCI6ICJZVUg1VlJweURCb3FiUjVCUWlSMGV4anJ0bDdLb24yeTZkejFnM3NuNzZJIiwgInkiOiAiZld2RHFHb3pYNjJnMnRTS19oSkctWkVKNkFCcFhYTS1Tc1hPeE5KUXFtUSJ9fQ..0tN70AQ3P_4uEV4t.zkv7KfnUlDTKjJ82zKCMK_z7OEFk_euXGuJemShf8mnOeEUE4UN8wS5cRJzMQWxcY9d3dIvUCYx0HhzeoXnKqnkEU6be659IVtKpqtceLYKcIkpjj0XiaEalVqIKKXTU2NG2ldNsYwnEDN_XxMnIUPFOy3yJqpOfjf8v98ABYuTWfJVwk3tK9vYCj-ScCf2NK7cEIti_09VCsxMg7z0kvco5UaTXvDjEbPhj_EVfHoPlmDE6EuaO5OX5t3reOoJ1vsM2PEpADiYfmvSZxeWAmmtAH7cvrRIUCcy4Q5pNczh1Pmt0y-uJKtme16YWq8PxVtnb7lY9HDTuPeaMVqvMV6PlQ9vnfsirjpz72qx3ArAeXkIGJsPOGKfgCoW6sAWHQxCzvq8ek7zOaqTAo169PSdtxfBL4MJWxoLg38pODy4cjEGR71YYirthejEMgRs7G1A8ksxgs2bkYGInunUD_iAWkQzxYZhFlLRntWP1ikOKmx9gbqR6K9UiqCK1UG4NXF3o4OV34m-jw-cXMDF2JkekVK2-rhxTbXmqP-VhDrkQ2ANdk7fTW9elFYNisVzE1QjdClMKGhO1fdKiSJ9xSPo3W6pMuquYYN-XT1fLiu3GDtO4ELZWVdwmiucsxv9H2jzPwbhvbvlXwXsmyCBtvumcEUbiYCOIYvlddhTGjZHplvDU73O5SkxUYJTYh7H0DcSiZ-6tcWdRCs605xVZMJ_X91_gZ1tb2_df73lYT_tVo39kw78m3GVFBeK2Zy4JeLheo0fHE7n8lg13uwG77SHwrWSV61KKWhBPZR0bWGi8YvVHnqX0GWklIjpqjbIjYAk4baFv4MO4OvEkPxnGm64NNZWrGEA0U8eEHCgjF1ZagQFNb674Crgd-tRA0QPEAOc9NsnlK1Q-47KIgqNbwoc3VpbpHNLVJT4aKWV5q187YNxarbpeDqguh75M9AgbpT5bSDFhjF83f1kiEDgLdNTkAd-CPAzgtzaEAfxD1K4ViZZZ2DqXgw0PFTFZAWrWqv8Ydi61r5MJ.Srleju8Bifrc_6bqFPUF_w" \
+                    -hdr "X-JWK: {\"kty\":\"EC\",\"crv\":\"P-256\",\"x\":\"DxaAKzwruXJh4IkdieycIJER6w8M1TYMCV3qOa-l9CM\",\"y\":\"_kRI1aD7-PMFwhUpXmcRzw6hALF_xdKwADuKOM-xsak\",\"d\":\"SOu5eRc40yn5yVrg069VjWNH4wsoErN8_AxmH4cI88s\"}"
+    rxresp
+    expect resp.http.x-decrypted == "Sed ut perspiciatis unde omnis iste natus error sit voluptatem doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. porro quisquam est, qui dolorem ipsum quia dolor sit amet, adipisci velit, sed quia non numquam eius modi tempora incidunt ut dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in voluptate velit esse quam nihil molestiae consequatur, vel illum qui eum fugiat quo voluptas nulla pariatur?"
+
+
+    txreq -url "/jwk" -hdr "Authorization: Bearer eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTI1NkNCQy1IUzUxMiIsImVwayI6eyJjcnYiOiJQLTUyMSIsImt0eSI6IkVDIiwieCI6IkFYelVIT0hFdXU1RzlxSHBQOGdXelBub3FQNUpSVmNrYWZGb1VxV0FUQVd6b3FUN0tmX3V5WW5HSElaNkVXdUx0U0NrUnREUHE4WDJlcV9lSDc0QVRQZGwiLCJ5IjoiQVRxelFNWV9PUE9lWUZYNlpGN0l4ZkgwQ2x6RlRjZjVhaE1UTERmMHJYRkczNmdHN1lDMjR1Q2hrR2ZoZHlBT1RRY09kN1ZyQlM4clNZeC03R0hLbzNWNSJ9fQ..kTaw9v3MWCN78jq5OXTWZA.w4o_19dlHEFEhQ0GXI08x-vJnImL_mtZ_oHXTCvfCj_aCEDL4UuiaAU7-yvtM60G3HjNO6TTvmCdvHOTz6Ynrg.H-EbBpTyi5YXNT5DHSFiNBeBcdjmClR_LDARvak4qng" \
+                    -hdr "X-JWK: {\"alg\":\"ECDH-ES\",\"crv\":\"P-521\",\"d\":\"AVBp1yn67_t0C8WfJnrhZsgy4TDkA9XktZnwAHcCTUMWTBCURXOjCNCIaCyE65xzIQbZUc9rO-B93XKFO81u8myd\",\"key_ops\":[\"wrapKey\",\"unwrapKey\"],\"kty\":\"EC\",\"x\":\"AByuEl5P9ledNRyj4EjTtQwDcsIYpbNzUqjri5o8GPGLzeTWUzjDBVt1ZyxKfK8VMVQbj8sIrBHncYUqM1Re3pSA\",\"y\":\"AW171IiyQSWx95A9uT1m76XPcAss3jeE7lHgw8mU7yIxSi_SItDYFixJ5Xtf2Vu2BLlmpR0on6VV1UUNIyPk6qwb\"}"
+    rxresp
+    expect resp.http.x-decrypted == "Random test message for ECDH-ES encrypted tokens"
+
+} -run

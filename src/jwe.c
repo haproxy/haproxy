@@ -58,7 +58,7 @@ struct alg_enc jwe_algs[] = {
 	{ "A192KW", JWE_ALG_A192KW },
 	{ "A256KW", JWE_ALG_A256KW },
 	{ "dir", JWE_ALG_DIR },
-	{ "ECDH-ES", JWE_ALG_UNMANAGED },
+	{ "ECDH-ES", JWE_ALG_ECDH_ES },
 	{ "ECDH-ES+A128KW", JWE_ALG_UNMANAGED },
 	{ "ECDH-ES+A192KW", JWE_ALG_UNMANAGED },
 	{ "ECDH-ES+A256KW", JWE_ALG_UNMANAGED },
@@ -139,6 +139,24 @@ static inline int parse_alg_enc(struct buffer *buf, struct alg_enc *array)
 
 	return val;
 }
+
+/*
+ * Get the string corresponding to <id> that can be either an encoding or an
+ * algorithm.
+ */
+static inline const char* algenc2str(int id, struct alg_enc *array)
+{
+	struct alg_enc *item = array;
+
+	while (item->name) {
+		if (item->value == id)
+			return item->name;
+		++item;
+	}
+
+	return NULL;
+}
+
 
 /*
  * Look for field <field_name> in JSON <decoded_jose> and if it is found,
@@ -819,6 +837,216 @@ static int decrypt_cek_rsa(struct buffer *cek, struct buffer *decrypted_cek,
 	retval = 0;
 end:
 	EVP_PKEY_free(pkey);
+	return retval;
+}
+
+
+/*
+ * Derive an ECDH secret out of the user-provided EC private key <privkey> and
+ * the public key built out of the JWK found in the JOSE header ("epk" field).
+ * Return 0 in case of success, 1 otherwise.
+ */
+static int derive_ecdh_secret(EVP_PKEY *privkey, EVP_PKEY *epk_key, struct buffer *derived)
+{
+	EVP_PKEY_CTX *ctx = NULL;
+	int retval = 1;
+	size_t derived_len = 0;
+
+	if (!derived)
+		goto end;
+
+	ctx = EVP_PKEY_CTX_new(privkey, NULL);
+	if (!ctx)
+		goto end;
+
+	if (EVP_PKEY_derive_init(ctx) != 1)
+		goto end;
+
+	if (EVP_PKEY_derive_set_peer(ctx, epk_key) != 1)
+		goto end;
+
+	if (EVP_PKEY_derive(ctx, NULL, &derived_len) != 1)
+		goto end;
+
+	if (derived_len > b_size(derived))
+		goto end;
+
+	if (EVP_PKEY_derive(ctx, (unsigned char*)derived->area, &derived_len) != 1)
+		goto end;
+	derived->data = derived_len;
+
+	retval = 0;
+end:
+	EVP_PKEY_CTX_free(ctx);
+	return retval;
+}
+
+
+/*
+ * Append <val_len> in big endian form and 4 bytes to the <out> buffer as well
+ * as the <val> content.
+ */
+static inline void append_data_len(struct buffer *out, const char *val, int val_len)
+{
+	uint32_t be_len = htonl(val_len);
+	chunk_memcat(out, (char*)&be_len, (int)sizeof(be_len));
+	chunk_memcat(out, val, val_len);
+}
+
+
+/*
+ * Build the concatKDF buffer (see section 4.6.2 of RFC7518).
+ * Return 0 in case of success, 1 otherwise.
+ */
+static int build_concatkdf_otherinfo(const char *alg_id, struct buffer *apu, struct buffer *apv,
+                                     uint32_t keydatalen, struct buffer *out)
+{
+	int retval = 1;
+
+	if (!out)
+		goto end;
+
+	/*
+	 * Key derivation is performed using the Concat KDF, as defined in
+	 * Section 5.8.1 of [NIST.800-56A]
+	 *	"For this format, OtherInfo is a bit string equal to the
+	 *	following concatenation:
+	 *	AlgorithmID || PartyUInfo || PartyVInfo {|| SuppPubInfo }{||SuppPrivInfo }"
+	 *
+	 * From https://datatracker.ietf.org/doc/html/rfc7518#section-4.6.2
+	 *	SuppPubInfo : This is set to the keydatalen represented as a
+	 *	32-bit big-endian integer.
+	 */
+	append_data_len(out, alg_id, strlen(alg_id));
+	append_data_len(out, (apu ? b_orig(apu) : NULL), (apu ? b_data(apu) : 0));
+	append_data_len(out, (apv ? b_orig(apv) : NULL), (apv ? b_data(apv) : 0));
+
+	keydatalen = htonl(keydatalen);
+	chunk_memcat(out, (char*)&keydatalen, (int)sizeof(keydatalen));
+
+	retval = 0;
+
+end:
+	return retval;
+}
+
+
+/*
+ * Decrypt the content of <cek> buffer into <decrypted_cek> buffer thanks to the
+ * private key <pkey> using algorithm <crypt_alg> (RSA).
+ * Returns 0 in case of success, 1 otherwise.
+ */
+static int do_decrypt_cek_ec(struct buffer *cek, struct buffer *decrypted_cek, EVP_PKEY *privkey,
+                             EVP_PKEY *pubkey, jwe_alg crypt_alg, jwe_enc crypt_enc,
+                             struct buffer *apu, struct buffer *apv)
+{
+	int retval = 1;
+	int key_size = 0;
+	struct buffer *derived_secret = NULL;
+	struct buffer *otherinfo = NULL;
+	const char *alg_id = NULL;
+
+	int ecdhes = 0;
+
+	/* rfc7518#section-4.6.2
+	 * Key derivation is performed using the Concat KDF, as defined in
+	 * Section 5.8.1 of [NIST.800-56A], where the Digest Method is SHA-256. */
+	const EVP_MD *md = EVP_sha256();
+	EVP_MD_CTX *ctx = NULL;
+
+	switch(crypt_alg) {
+	case JWE_ALG_ECDH_ES:
+		ecdhes = 1;
+		switch(crypt_enc) {
+		case JWE_ENC_A128GCM:
+			key_size = 128;
+			break;
+		case JWE_ENC_A192GCM:
+			key_size = 192;
+			break;
+		case JWE_ENC_A256GCM:
+		case JWE_ENC_A128CBC_HS256:
+			key_size = 256;
+			break;
+		case JWE_ENC_A192CBC_HS384:
+			key_size = 384;
+			break;
+		case JWE_ENC_A256CBC_HS512:
+			key_size = 512;
+			break;
+		default:
+			goto end;
+		}
+		alg_id = algenc2str(crypt_enc, jwe_encodings);
+		if (!alg_id)
+			goto end;
+		break;
+	default:
+		goto end;
+	}
+
+	if (!alg_id) {
+		alg_id = algenc2str(crypt_alg, jwe_algs);
+		if (!alg_id)
+			goto end;
+	}
+
+	derived_secret = alloc_trash_chunk();
+	if (!derived_secret)
+		goto end;
+
+	otherinfo = alloc_trash_chunk();
+	if (!otherinfo)
+		goto end;
+
+	if (derive_ecdh_secret(privkey, pubkey, derived_secret))
+		goto end;
+
+	if (build_concatkdf_otherinfo(alg_id, apu, apv, key_size, otherinfo))
+		goto end;
+
+	ctx = EVP_MD_CTX_create();
+	if (!ctx)
+		goto end;
+
+	/* Data derivation as in Section 5.8.1 of [NIST.800-56A]
+	 * https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-56Ar2.pdf
+	 */
+	if (ecdhes) {
+		/* The decrypted cek to be used for actual data decrypt
+		 * operation will be built in the following block. */
+		int hashlen = EVP_MD_size(md);
+
+		int keydatalen = (key_size >> 3);
+
+		int reps = keydatalen / hashlen;
+		int counter = 0;
+		int offset = 0;
+
+		for (counter = 0; counter <= reps; ++counter) {
+
+			uint32_t be_counter = htonl(counter+1);
+
+			if (EVP_DigestInit_ex(ctx, md, NULL) != 1 ||
+			    EVP_DigestUpdate(ctx, (char*)&be_counter, sizeof(be_counter)) != 1 ||
+			    EVP_DigestUpdate(ctx, b_orig(derived_secret), b_data(derived_secret)) != 1 ||
+			    EVP_DigestUpdate(ctx, b_orig(otherinfo), b_data(otherinfo)) != 1 ||
+			    EVP_DigestFinal_ex(ctx, (unsigned char*)(decrypted_cek->area + offset), NULL) != 1)
+				goto end;
+
+			offset += hashlen;
+
+		}
+
+		decrypted_cek->data = keydatalen;
+	}
+
+	retval = 0;
+
+end:
+	free_trash_chunk(derived_secret);
+	free_trash_chunk(otherinfo);
+	EVP_MD_CTX_free(ctx);
 	return retval;
 }
 
@@ -1521,16 +1749,22 @@ static int sample_conv_jwt_decrypt_jwk_check(struct arg *args, struct sample_con
 				}
 			} else if (chunk_strcmp(trash, "RSA") == 0) {
 				if (build_RSA_PKEY_from_buf(&args[0].data.str, &pkey)) {
-					memprintf(err, "Failed to parse JWK");
+					memprintf(err, "Failed to parse RSA JWK");
+					return 0;
+				}
+				EVP_PKEY_free(pkey);
+			} else if (chunk_strcmp(trash, "EC") == 0) {
+				if (build_EC_PKEY_from_buf(&args[0].data.str, &pkey)) {
+					memprintf(err, "Failed to parse EC JWK");
 					return 0;
 				}
 				EVP_PKEY_free(pkey);
 			} else {
-				memprintf(err, "Unmanaged key type (expected 'oct' or 'RSA'");
+				memprintf(err, "Unmanaged key type (expected 'oct', 'RSA' or 'EC'");
 				return 0;
 			}
 		} else {
-			memprintf(err, "Missing key type (expected 'oct' or 'RSA')");
+			memprintf(err, "Missing key type (expected 'oct', 'RSA' or 'EC')");
 			return 0;
 		}
 	}
@@ -1558,6 +1792,7 @@ static int sample_conv_jwt_decrypt_jwk(const struct arg *args, struct sample *sm
 	int dir = 0;
 	int gcm = 0;
 	int oct = 0;
+	int ec = 0;
 	int retval = 0;
 	struct buffer **cek = NULL;
 	struct buffer *decrypted_cek = NULL;
@@ -1624,6 +1859,9 @@ static int sample_conv_jwt_decrypt_jwk(const struct arg *args, struct sample *sm
 		dir = 1;
 		oct = 1;
 		break;
+	case JWE_ALG_ECDH_ES:
+		ec = 1;
+		break;
 	default:
 		/* Not managed yet */
 		goto end;
@@ -1635,7 +1873,8 @@ static int sample_conv_jwt_decrypt_jwk(const struct arg *args, struct sample *sm
 
 	/* Check that the provided JWK is of the proper type */
 	if ((oct && jwk.type != JWK_KTY_OCT) ||
-	    (rsa && jwk.type != JWK_KTY_RSA))
+	    (rsa && jwk.type != JWK_KTY_RSA) ||
+	    (ec && jwk.type != JWK_KTY_EC))
 		goto end;
 
 	if (dir) {
@@ -1646,6 +1885,34 @@ static int sample_conv_jwt_decrypt_jwk(const struct arg *args, struct sample *sm
 			goto end;
 
 		chunk_memcpy(decrypted_cek, b_orig(jwk.secret), b_data(jwk.secret));
+	} else if (ec) {
+		/* With algorithms other than "ECDH-ES" we should always have a CEK */
+		if (alg != JWE_ALG_ECDH_ES) {
+			if (!items[JWE_ELT_CEK].length)
+				goto end;
+
+			cek = &decoded_items[JWE_ELT_CEK];
+
+			*cek = alloc_trash_chunk();
+			if (!*cek)
+				goto end;
+
+			size = base64urldec(items[JWE_ELT_CEK].start, items[JWE_ELT_CEK].length,
+					    (*cek)->area, (*cek)->size);
+			if (size < 0) {
+				goto end;
+			}
+			(*cek)->data = size;
+		}
+
+		decrypted_cek = alloc_trash_chunk();
+		if (!decrypted_cek) {
+			goto end;
+		}
+
+		if (do_decrypt_cek_ec((cek != NULL) ? *cek : NULL, decrypted_cek, jwk.pkey, fields.pubkey,
+				      alg, enc, fields.apu, fields.apv))
+			goto end;
 	} else {
 		/* With algorithms other than "dir" we should always have a CEK */
 		if (!items[JWE_ELT_CEK].length)
@@ -1657,17 +1924,17 @@ static int sample_conv_jwt_decrypt_jwk(const struct arg *args, struct sample *sm
 		if (!*cek)
 			goto end;
 
-		decrypted_cek = alloc_trash_chunk();
-		if (!decrypted_cek) {
-			goto end;
-		}
-
 		size = base64urldec(items[JWE_ELT_CEK].start, items[JWE_ELT_CEK].length,
 				    (*cek)->area, (*cek)->size);
 		if (size < 0) {
 			goto end;
 		}
 		(*cek)->data = size;
+
+		decrypted_cek = alloc_trash_chunk();
+		if (!decrypted_cek) {
+			goto end;
+		}
 
 		if (rsa) {
 			if (do_decrypt_cek_rsa(*cek, decrypted_cek, jwk.pkey, alg))
