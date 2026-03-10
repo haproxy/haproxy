@@ -462,16 +462,12 @@ struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
 		}
 	}
 	else {
-		char *area;
-
-		if (!(area = pool_alloc(pool_head_small_buffer))) {
+		if (!b_alloc_small(&stream->buf->buf)) {
 			pool_free(pool_head_quic_stream_buf, stream->buf);
 			stream->buf = NULL;
 			return NULL;
 		}
-
 		stream->buf->sbuf = 1;
-		stream->buf->buf = b_make(area, global.tune.bufsize_small, 0, 0);
 	}
 
 	eb64_insert(&stream->buf_tree, &stream->buf->offset_node);
