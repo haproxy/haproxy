@@ -39,9 +39,9 @@ typedef enum {
 	JWE_ALG_A256KW,
 	JWE_ALG_DIR,
 	JWE_ALG_ECDH_ES,
-	// JWE_ALG_ECDH_ES_A128KW,
-	// JWE_ALG_ECDH_ES_A192KW,
-	// JWE_ALG_ECDH_ES_A256KW,
+	JWE_ALG_ECDH_ES_A128KW,
+	JWE_ALG_ECDH_ES_A192KW,
+	JWE_ALG_ECDH_ES_A256KW,
 	JWE_ALG_A128GCMKW,
 	JWE_ALG_A192GCMKW,
 	JWE_ALG_A256GCMKW,
@@ -59,9 +59,9 @@ struct alg_enc jwe_algs[] = {
 	{ "A256KW", JWE_ALG_A256KW },
 	{ "dir", JWE_ALG_DIR },
 	{ "ECDH-ES", JWE_ALG_ECDH_ES },
-	{ "ECDH-ES+A128KW", JWE_ALG_UNMANAGED },
-	{ "ECDH-ES+A192KW", JWE_ALG_UNMANAGED },
-	{ "ECDH-ES+A256KW", JWE_ALG_UNMANAGED },
+	{ "ECDH-ES+A128KW", JWE_ALG_ECDH_ES_A128KW },
+	{ "ECDH-ES+A192KW", JWE_ALG_ECDH_ES_A192KW },
+	{ "ECDH-ES+A256KW", JWE_ALG_ECDH_ES_A256KW },
 	{ "A128GCMKW", JWE_ALG_A128GCMKW },
 	{ "A192GCMKW", JWE_ALG_A192GCMKW },
 	{ "A256GCMKW", JWE_ALG_A256GCMKW },
@@ -237,6 +237,9 @@ static int parse_jose(struct buffer *decoded_jose, int *alg, int *enc, struct jo
 
 	switch (*alg) {
 	case JWE_ALG_ECDH_ES:
+	case JWE_ALG_ECDH_ES_A128KW:
+	case JWE_ALG_ECDH_ES_A192KW:
+	case JWE_ALG_ECDH_ES_A256KW:
 		ec = 1;
 		break;
 	case JWE_ALG_A128GCMKW:
@@ -944,15 +947,25 @@ static int do_decrypt_cek_ec(struct buffer *cek, struct buffer *decrypted_cek, E
 	int key_size = 0;
 	struct buffer *derived_secret = NULL;
 	struct buffer *otherinfo = NULL;
+	struct buffer *tmpbuf = NULL;
 	const char *alg_id = NULL;
 
+	jwe_alg kw_alg = JWE_ALG_UNMANAGED;
+
 	int ecdhes = 0;
+	unsigned char *concatkdf_ptr = NULL;
+	size_t *concatkdf_len = 0;
 
 	/* rfc7518#section-4.6.2
 	 * Key derivation is performed using the Concat KDF, as defined in
 	 * Section 5.8.1 of [NIST.800-56A], where the Digest Method is SHA-256. */
 	const EVP_MD *md = EVP_sha256();
+	int hashlen = EVP_MD_size(md);
 	EVP_MD_CTX *ctx = NULL;
+	int keydatalen = 0;
+	int counter = 0;
+	int offset = 0;
+	int reps = 0;
 
 	switch(crypt_alg) {
 	case JWE_ALG_ECDH_ES:
@@ -980,6 +993,18 @@ static int do_decrypt_cek_ec(struct buffer *cek, struct buffer *decrypted_cek, E
 		alg_id = algenc2str(crypt_enc, jwe_encodings);
 		if (!alg_id)
 			goto end;
+		break;
+	case JWE_ALG_ECDH_ES_A128KW:
+		key_size = 128;
+		kw_alg = JWE_ALG_A128KW;
+		break;
+	case JWE_ALG_ECDH_ES_A192KW:
+		key_size = 192;
+		kw_alg = JWE_ALG_A192KW;
+		break;
+	case JWE_ALG_ECDH_ES_A256KW:
+		key_size = 256;
+		kw_alg = JWE_ALG_A256KW;
 		break;
 	default:
 		goto end;
@@ -1011,34 +1036,50 @@ static int do_decrypt_cek_ec(struct buffer *cek, struct buffer *decrypted_cek, E
 
 	/* Data derivation as in Section 5.8.1 of [NIST.800-56A]
 	 * https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-56Ar2.pdf
+	 *
+	 * For ECDH-ES the buffer built after the concatKDF operation will be
+	 * used directly to decrypt the contents. When ECDH-ES+AES Key Wrap is
+	 * used we must wrap the cek with the built buffer using the right AES
+	 * KW algorithm.
 	 */
-	if (ecdhes) {
-		/* The decrypted cek to be used for actual data decrypt
-		 * operation will be built in the following block. */
-		int hashlen = EVP_MD_size(md);
+	if (!ecdhes) {
+		tmpbuf = alloc_trash_chunk();
+		if (!tmpbuf)
+			goto end;
+		concatkdf_ptr = (unsigned char*)tmpbuf->area;
+		concatkdf_len = &tmpbuf->data;
+	} else {
+		concatkdf_ptr = (unsigned char*)decrypted_cek->area;
+		concatkdf_len = &decrypted_cek->data;
+	}
 
-		int keydatalen = (key_size >> 3);
+	/* The decrypted cek to be used for actual data decrypt
+	 * operation will be built in the following block. */
+	keydatalen = (key_size >> 3);
+	reps = keydatalen / hashlen;
 
-		int reps = keydatalen / hashlen;
-		int counter = 0;
-		int offset = 0;
+	for (counter = 0; counter <= reps; ++counter) {
 
-		for (counter = 0; counter <= reps; ++counter) {
+		uint32_t be_counter = htonl(counter+1);
 
-			uint32_t be_counter = htonl(counter+1);
+		if (EVP_DigestInit_ex(ctx, md, NULL) != 1 ||
+		    EVP_DigestUpdate(ctx, (char*)&be_counter, sizeof(be_counter)) != 1 ||
+		    EVP_DigestUpdate(ctx, b_orig(derived_secret), b_data(derived_secret)) != 1 ||
+		    EVP_DigestUpdate(ctx, b_orig(otherinfo), b_data(otherinfo)) != 1 ||
+		    EVP_DigestFinal_ex(ctx, concatkdf_ptr + offset, NULL) != 1)
+			goto end;
 
-			if (EVP_DigestInit_ex(ctx, md, NULL) != 1 ||
-			    EVP_DigestUpdate(ctx, (char*)&be_counter, sizeof(be_counter)) != 1 ||
-			    EVP_DigestUpdate(ctx, b_orig(derived_secret), b_data(derived_secret)) != 1 ||
-			    EVP_DigestUpdate(ctx, b_orig(otherinfo), b_data(otherinfo)) != 1 ||
-			    EVP_DigestFinal_ex(ctx, (unsigned char*)(decrypted_cek->area + offset), NULL) != 1)
-				goto end;
+		offset += hashlen;
 
-			offset += hashlen;
+	}
 
-		}
+	*concatkdf_len = keydatalen;
 
-		decrypted_cek->data = keydatalen;
+	if (!ecdhes) {
+		/* Need to used the previously generated key to wrap the CEK
+		 * with the "A128KW", "A192KW", or "A256KW" algorithms. */
+		if (!decrypt_cek_aeskw(cek, decrypted_cek, tmpbuf, kw_alg))
+			goto end;
 	}
 
 	retval = 0;
@@ -1046,6 +1087,7 @@ static int do_decrypt_cek_ec(struct buffer *cek, struct buffer *decrypted_cek, E
 end:
 	free_trash_chunk(derived_secret);
 	free_trash_chunk(otherinfo);
+	free_trash_chunk(tmpbuf);
 	EVP_MD_CTX_free(ctx);
 	return retval;
 }
@@ -1860,6 +1902,9 @@ static int sample_conv_jwt_decrypt_jwk(const struct arg *args, struct sample *sm
 		oct = 1;
 		break;
 	case JWE_ALG_ECDH_ES:
+	case JWE_ALG_ECDH_ES_A128KW:
+	case JWE_ALG_ECDH_ES_A192KW:
+	case JWE_ALG_ECDH_ES_A256KW:
 		ec = 1;
 		break;
 	default:

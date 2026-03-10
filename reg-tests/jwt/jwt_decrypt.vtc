@@ -95,7 +95,7 @@ haproxy h1 -conf {
         http-request set-var(txn.decrypted) var(txn.jwe),jwt_decrypt_jwk(txn.jwk)
 
     .if ssllib_name_startswith(AWS-LC)
-        acl aws_unmanaged var(txn.jwe),jwt_header_query('$.alg') -m str "A128KW"
+        acl aws_unmanaged var(txn.jwe),jwt_header_query('$.alg') -m end "A128KW" -m end "A192KW"
         http-request set-var(txn.decrypted) str("AWS-LC UNMANAGED") if aws_unmanaged
     .endif
 
@@ -275,5 +275,30 @@ client c9 -connect ${h1_mainfe_sock} {
                     -hdr "X-JWK: {\"alg\":\"ECDH-ES\",\"crv\":\"P-521\",\"d\":\"AVBp1yn67_t0C8WfJnrhZsgy4TDkA9XktZnwAHcCTUMWTBCURXOjCNCIaCyE65xzIQbZUc9rO-B93XKFO81u8myd\",\"key_ops\":[\"wrapKey\",\"unwrapKey\"],\"kty\":\"EC\",\"x\":\"AByuEl5P9ledNRyj4EjTtQwDcsIYpbNzUqjri5o8GPGLzeTWUzjDBVt1ZyxKfK8VMVQbj8sIrBHncYUqM1Re3pSA\",\"y\":\"AW171IiyQSWx95A9uT1m76XPcAss3jeE7lHgw8mU7yIxSi_SItDYFixJ5Xtf2Vu2BLlmpR0on6VV1UUNIyPk6qwb\"}"
     rxresp
     expect resp.http.x-decrypted == "Random test message for ECDH-ES encrypted tokens"
+
+} -run
+
+# ECDH-ES+A___KW
+client c10 -connect ${h1_mainfe_sock} {
+
+    # ECDH-ES+A128KW
+    txreq -url "/jwk" -hdr "Authorization: Bearer eyJhbGciOiJFQ0RILUVTK0ExMjhLVyIsImVuYyI6IkExMjhDQkMtSFMyNTYiLCJlcGsiOnsiY3J2IjoiUC0yNTYiLCJrdHkiOiJFQyIsIngiOiJtc2poQktWNW5oNnBjdjhoRnR0UDlFVXRzaURzWG83T3RCekVZYkVJM1EwIiwieSI6IloxQ3FPQlEya1RNR1lENWdMUWJCaHB0MzRKRkR3dW5TX2ZzSmhsMlc1OWcifX0.5l7YaATvAWFJnWK_HsBPmawJ0RMqrkiwyZ9xAuiYCFSiqWWSr8D82A.0sa1s5V2RcDf0FW6hA1lig.z2DVLxtHeY1fPp6dJHiHEuHLVIQHQ10GfYXeFxwNE7JGyto-D3K1elHQn0Yq4Pitaheja21gnXkJajXhOA0rwQ.YmpToFWmj8XQrXMeXTa9eQ" \
+                    -hdr "X-JWK: {\"crv\":\"P-256\",\"d\":\"6qbbYYII1zqqmlDHhTwJt-JYBe-ELI02yAecAx-nD4w\",\"kty\":\"EC\",\"x\":\"bASil7YpthReLltIsaJCaRrE7XtLCRVtOpGtdPO0jH0\",\"y\":\"9xj9qfSrVKFqN3lnaNDXAclGGnfmU_j7xsEocZdYmPs\"}"
+    rxresp
+    expect resp.http.x-decrypted ~ "(Random test message for ECDH-ES encrypted tokens|AWS-LC UNMANAGED)"
+
+
+    # ECDH-ES+A192KW
+    txreq -url "/jwk" -hdr "Authorization: Bearer eyJhbGciOiJFQ0RILUVTK0ExOTJLVyIsImVuYyI6IkExOTJDQkMtSFMzODQiLCJlcGsiOnsiY3J2IjoiUC0zODQiLCJrdHkiOiJFQyIsIngiOiJDcTd3Y0MzUm92VFRZSTMzLU9DcXBocjFlN1NzeEZWY0dOQXhEOEpWZHBRQmROaGg3Z2dLNTJKVkJ1RF9uZXVHIiwieSI6IjlaLU1MV09TQ3VZd0JZVTEtcTd2YUREWUZ1WFhqc1EwSmxpWllLVmdOU0dqVHVLY3VXQnJHemV2RzZEeGgyRHQifX0.75lt6Ixq6UhlN8uiaEphy8SiqEVsuD4Rc3QbFcmP7MJUTyt15LcZ3y-M7TJeNBh3Ajy_6K2WooU.cO9tUaQ2eVo0tIuOqb5_Bw.HQ6DqnLhW2Ad0c78WFGgwCStefYdL37xmh2Fa2mCsVNW5q0K3-xeDHYuIP9Q5xBYEY70U6wV5a0iVN87ii_iMA.feLteQh1ickYVJ2ZZ2whoVzNGRHgUpjp" \
+                    -hdr "X-JWK: {\"alg\":\"ECDH-ES+A192KW\",\"crv\":\"P-384\",\"d\":\"pj6xIezfwtUakkkLtbRQ9FmN6uN1YJ-TSBkWn4awuDfWiHgqpQHA7_L95Hjks1cK\",\"key_ops\":[\"wrapKey\",\"unwrapKey\"],\"kty\":\"EC\",\"x\":\"JO3ojbUYOzoSb-7lAy-c7VhDIjhEtg4zrPn_NJKuGhat-cuI1c4LvOj3n8p3j4bn\",\"y\":\"CA3i4pN7t6liWxQXyxdDp9t79B8uWuubGADJuGn_2_yl6pufhnQ30OBA590fOtEm\"}"
+    rxresp
+    expect resp.http.x-decrypted ~ "(Random test message for ECDH-ES\\+A192KW encrypted tokens|AWS-LC UNMANAGED)"
+
+
+    # ECDH-ES+A256KW
+    txreq -url "/jwk" -hdr "Authorization: Bearer eyJhbGciOiJFQ0RILUVTK0EyNTZLVyIsImVuYyI6IkEyNTZDQkMtSFM1MTIiLCJlcGsiOnsiY3J2IjoiUC01MjEiLCJrdHkiOiJFQyIsIngiOiJBTFZuZXN6Tl93WVJSWVYtblp3dy1sSkVDTXB2eE1iSENXX3BjY3EyWlF2eFdsNzVKdm5TM3lKbjgzcTE1MlpnWU4zTTB4SUhzQmw1empWZS02OGR4TThwIiwieSI6IkFUX2pGel94RGt0VFY4WWYzZlo1MnRvbE5QWkwwNXlwa0dVTThPWFRNZTBaaVNfYnIzaS0xNHFlWG1OcjA3TFFjNUZMX1VTQkE5WmlyWGRaZkVLUnFqNmEifX0.MqGFvMzpIlwQHeXgPucBkXmS2BaXr2ByUugzD31XrPtxwlWw96vOmfcjSHvda2FGJ1u6InaMMVZMMp75P6AF0kvk8vuM7QF2.kHYblcqwHgXv0xRQrLHwoA.gwFUyTx3RRHWvmqyUL5N6W8HcwbNc1hPTImQPoCNPv6rkhzV1obikVj7sNuTh3Po0nBu2QCKrt-GjJTlD4Q5kw.Q_YZWSkVVxv1rcpySgENN3ZPp-chIYoCGC070kkqiXc" \
+                    -hdr "X-JWK: {\"alg\":\"ECDH-ES+A256KW\",\"crv\":\"P-521\",\"d\":\"AGGLpIzSL1jE34wGa-owWCVt2rgk8j3jqh33QQFKwYCJ9abp3vROyQ-dNv6j6PjrnF1EFyY9dDzChNpWmzoOZAp3\",\"key_ops\":[\"wrapKey\",\"unwrapKey\"],\"kty\":\"EC\",\"x\":\"AD0EIUE6Bt_TDcyOPM6VchRocp7AFSeVd6XkVALWf8AFebeMgKIvJsCsGeRdPTO3vWWrR5AOvvpiBfurb9M9Tus-\",\"y\":\"AOeI5d0iF463g3DolhmVFn6MWk764ONuXRexLApjN-Q6_RkcnCieRSZzqqSPMYuEn-N3i4aYfiEPZV0jk8oZKQMQ\"}"
+    rxresp
+    expect resp.http.x-decrypted == "Random test message for ECDH-ES+A256KW encrypted tokens"
 
 } -run
