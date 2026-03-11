@@ -394,6 +394,12 @@ static inline unsigned long ERR_peek_error_func(const char **func)
 #define __OPENSSL_110_CONST__
 #endif
 
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x40000000L) && (!defined(USE_OPENSSL_WOLFSSL))
+#define __X509_NAME_CONST__ const
+#else
+#define __X509_NAME_CONST__
+#endif
+
 /* ERR_remove_state() was deprecated in 1.0.0 in favor of
  * ERR_remove_thread_state(), which was in turn deprecated in
  * 1.1.0 and does nothing anymore. Let's simply silently kill

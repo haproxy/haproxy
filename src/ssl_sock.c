@@ -691,7 +691,8 @@ static STACK_OF(X509_NAME)* ssl_get_client_ca_file(char *path)
 		STACK_OF(X509_OBJECT) *objs;
 		STACK_OF(X509_NAME) *skn;
 		X509 *x;
-		X509_NAME *xn;
+		__X509_NAME_CONST__ X509_NAME *xn;
+		X509_NAME *xn_dup;
 
 		skn = sk_X509_NAME_new_null();
 		/* take x509 from cafile_tree */
@@ -716,19 +717,19 @@ static STACK_OF(X509_NAME)* ssl_get_client_ca_file(char *path)
 			if (ca_name)
 				continue;
 			ca_name = calloc(1, sizeof *ca_name);
-			xn = X509_NAME_dup(xn);
+			xn_dup = X509_NAME_dup(xn);
 			if (!ca_name ||
-			    !xn ||
-			    !sk_X509_NAME_push(skn, xn)) {
+			    !xn_dup ||
+			    !sk_X509_NAME_push(skn, xn_dup)) {
 				    free(ca_name);
-				    X509_NAME_free(xn);
+				    X509_NAME_free(xn_dup);
 				    sk_X509_NAME_pop_free(skn, X509_NAME_free);
 				    sk_X509_NAME_free(skn);
 				    skn = NULL;
 				    break;
 			}
 			ca_name->node.key = key;
-			ca_name->xname = xn;
+			ca_name->xname = xn_dup;
 			eb64_insert(&ca_name_tree, &ca_name->node);
 		}
 		sk_X509_OBJECT_popX_free(objs, X509_OBJECT_free);
@@ -3151,7 +3152,7 @@ int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct 
 	SSL_CTX *ctx;
 	int i;
 	int order = 0;
-	X509_NAME *xname;
+	__X509_NAME_CONST__ X509_NAME *xname;
 	char *str;
 	EVP_PKEY *pkey;
 	struct pkey_info kinfo = { .sig = TLSEXT_signature_anonymous, .bits = 0 };
@@ -3243,8 +3244,8 @@ int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct 
 		xname = X509_get_subject_name(data->cert);
 		i = -1;
 		while ((i = X509_NAME_get_index_by_NID(xname, NID_commonName, i)) != -1) {
-			X509_NAME_ENTRY *entry = X509_NAME_get_entry(xname, i);
-			ASN1_STRING *value;
+			__X509_NAME_CONST__ X509_NAME_ENTRY *entry = X509_NAME_get_entry(xname, i);
+			__X509_NAME_CONST__ ASN1_STRING *value;
 
 			value = X509_NAME_ENTRY_get_data(entry);
 			if (ASN1_STRING_to_UTF8((unsigned char **)&str, value) >= 0) {
@@ -4897,7 +4898,7 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 	X509 *cert;
 	STACK_OF(GENERAL_NAME) *alt_names;
 	int i;
-	X509_NAME *cert_subject;
+	__X509_NAME_CONST__ X509_NAME *cert_subject;
 	char *str;
 
 	if (ok == 0)
@@ -4963,8 +4964,8 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 	cert_subject = X509_get_subject_name(cert);
 	i = -1;
 	while (!ok && (i = X509_NAME_get_index_by_NID(cert_subject, NID_commonName, i)) != -1) {
-		X509_NAME_ENTRY *entry = X509_NAME_get_entry(cert_subject, i);
-		ASN1_STRING *value;
+		__X509_NAME_CONST__ X509_NAME_ENTRY *entry = X509_NAME_get_entry(cert_subject, i);
+		__X509_NAME_CONST__ ASN1_STRING *value;
 		value = X509_NAME_ENTRY_get_data(entry);
 		if (ASN1_STRING_to_UTF8((unsigned char **)&str, value) >= 0) {
 			ok = ssl_sock_srv_hostcheck(str, servername);
@@ -7637,7 +7638,7 @@ int ssl_sock_get_remote_common_name(struct connection *conn,
 {
 	struct ssl_sock_ctx *ctx = conn_get_ssl_sock_ctx(conn);
 	X509 *crt = NULL;
-	X509_NAME *name;
+	__X509_NAME_CONST__ X509_NAME *name;
 	const char find_cn[] = "CN";
 	const struct buffer find_cn_chunk = {
 		.area = (char *)&find_cn,
@@ -7737,7 +7738,7 @@ int ssl_sock_get_alpn(const struct connection *conn, void *xprt_ctx, const char 
 int ssl_load_global_issuer_from_BIO(BIO *in, char *fp, char **err)
 {
 	X509 *ca;
-	X509_NAME *name = NULL;
+	__X509_NAME_CONST__ X509_NAME *name = NULL;
 	ASN1_OCTET_STRING *skid = NULL;
 	STACK_OF(X509) *chain = NULL;
 	struct issuer_chain *issuer;
