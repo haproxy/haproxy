@@ -2177,7 +2177,8 @@ static __maybe_unused void ssl_sock_msgcbk(int write_p, int version, int content
 	 * ssl_sock_register_msg_callback().
 	 */
 	list_for_each_entry(cbk, &ssl_sock_msg_callbacks, list) {
-		cbk->func(write_p, version, content_type, buf, len, ssl);
+		EXEC_CTX_NO_RET(EXEC_CTX_MAKE(TH_EX_CTX_FUNC, cbk->func),
+		                cbk->func(write_p, version, content_type, buf, len, ssl));
 	}
 }
 
