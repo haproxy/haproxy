@@ -1309,6 +1309,10 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		      tot_alloc_calls - tot_free_calls,
 		      tot_alloc_bytes - tot_free_bytes);
 
+	/* release optional buffer name */
+	for (i = 0; i < max; i++)
+		ha_free(&tmp_memstats[i].info);
+
 	if (applet_putchk(appctx, &trash) == -1)
 		return 0;
 
