@@ -7548,6 +7548,10 @@ void chunk_append_thread_ctx(struct buffer *output, const struct thread_exec_ctx
 	case TH_EX_CTX_MUX:
 		chunk_appendf(output,"mux '%s'", ctx->mux_ops->name);
 		break;
+	case TH_EX_CTX_TASK:
+		resolve_sym_name(output, "task '", ctx->task);
+		chunk_appendf(output,"'");
+		break;
 	default:
 		chunk_appendf(output,"other ctx %p", ctx->pointer);
 		break;

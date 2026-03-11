@@ -650,16 +650,19 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		if (state & TASK_F_TASKLET) {
 			/* this is a tasklet */
 
-			t = process(t, ctx, state);
+			t = EXEC_CTX_WITH_RET(EXEC_CTX_MAKE(TH_EX_CTX_TASK, process),
+			                      process(t, ctx, state));
 			if (t != NULL)
 				_HA_ATOMIC_AND(&t->state, ~TASK_RUNNING);
 		} else {
 			/* This is a regular task */
 
 			if (process == process_stream)
-				t = process_stream(t, ctx, state);
+				t = EXEC_CTX_WITH_RET(EXEC_CTX_MAKE(TH_EX_CTX_TASK, process_stream),
+				                      process_stream(t, ctx, state));
 			else
-				t = process(t, ctx, state);
+				t = EXEC_CTX_WITH_RET(EXEC_CTX_MAKE(TH_EX_CTX_TASK, process),
+			                              process(t, ctx, state));
 
 			/* If there is a pending state, we have to wake up the task
 			 * immediately, else we defer it into wait queue.
