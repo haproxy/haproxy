@@ -1228,6 +1228,31 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	else
 		qsort(tmp_memstats, MEMPROF_HASH_BUCKETS+1, sizeof(tmp_memstats[0]), cmp_memprof_stats);
 
+	if (ctx->aggr) {
+		/* merge entries for the same caller and reset the exec_ctx */
+		for (i = j = 0; i < MEMPROF_HASH_BUCKETS; i++) {
+			if ((tmp_memstats[i].alloc_calls | tmp_memstats[i].free_calls) == 0)
+				continue;
+			for (j = i + 1; j < MEMPROF_HASH_BUCKETS; j++) {
+				if ((tmp_memstats[j].alloc_calls | tmp_memstats[j].free_calls) == 0)
+					continue;
+				if (tmp_memstats[j].caller != tmp_memstats[i].caller ||
+				    tmp_memstats[j].method != tmp_memstats[i].method ||
+				    tmp_memstats[j].info   != tmp_memstats[i].info)
+					continue;
+				tmp_memstats[i].locked_calls  += tmp_memstats[j].locked_calls;
+				tmp_memstats[i].alloc_calls   += tmp_memstats[j].alloc_calls;
+				tmp_memstats[i].free_calls    += tmp_memstats[j].free_calls;
+				tmp_memstats[i].alloc_tot     += tmp_memstats[j].alloc_tot;
+				tmp_memstats[i].free_tot      += tmp_memstats[j].free_tot;
+				/* don't dump the ctx */
+				tmp_memstats[i].exec_ctx.type = 0;
+				/* don't dump the merged entry */
+				tmp_memstats[j].alloc_calls = tmp_memstats[j].free_calls = 0;
+			}
+		}
+	}
+
  memstats_resume:
 	if (!ctx->linenum)
 		chunk_appendf(&trash,
