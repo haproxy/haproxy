@@ -92,7 +92,8 @@ static SSL_CTX *ssl_sock_do_create_cert(const char *servername, struct bind_conf
 	EVP_PKEY     *pkey    = NULL;
 	SSL          *tmp_ssl = NULL;
 	CONF         *ctmp    = NULL;
-	X509_NAME    *name;
+	__X509_NAME_CONST__ X509_NAME *name;
+	X509_NAME    *subject = NULL;
 	const EVP_MD *digest;
 	X509V3_CTX    ctx;
 	unsigned int  i;
@@ -140,21 +141,21 @@ static SSL_CTX *ssl_sock_do_create_cert(const char *servername, struct bind_conf
 		goto mkcert_error;
 
 	/* Set the subject name using the same, but the CN */
-	name = X509_NAME_dup(name);
+	subject = X509_NAME_dup(name);
 
 	if (strlen(servername) <= 64) {
-		if (X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
+		if (X509_NAME_add_entry_by_txt(subject, "CN", MBSTRING_ASC,
 		                              (const unsigned char *)servername,
 		                              -1, -1, 0) != 1) {
-			X509_NAME_free(name);
+			X509_NAME_free(subject);
 			goto mkcert_error;
 		}
 	}
-	if (X509_set_subject_name(newcrt, name) != 1) {
-		X509_NAME_free(name);
+	if (X509_set_subject_name(newcrt, subject) != 1) {
+		X509_NAME_free(subject);
 		goto mkcert_error;
 	}
-	X509_NAME_free(name);
+	X509_NAME_free(subject);
 
 	/* Add x509v3 extensions as specified */
 	ctmp = NCONF_new(NULL);

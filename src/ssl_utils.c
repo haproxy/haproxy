@@ -187,12 +187,12 @@ int ssl_sock_get_time(ASN1_TIME *tm, struct buffer *out)
 /* Extract an entry from a X509_NAME and copy its value to an output chunk.
  * Returns 1 if entry found, 0 if entry not found, or -1 if output not large enough.
  */
-int ssl_sock_get_dn_entry(X509_NAME *a, const struct buffer *entry, int pos,
+int ssl_sock_get_dn_entry(__X509_NAME_CONST__ X509_NAME *a, const struct buffer *entry, int pos,
                           struct buffer *out)
 {
-	X509_NAME_ENTRY *ne;
-	ASN1_OBJECT *obj;
-	ASN1_STRING *data;
+	__X509_NAME_CONST__ X509_NAME_ENTRY *ne;
+	__X509_NAME_CONST__ ASN1_OBJECT *obj;
+	__X509_NAME_CONST__ ASN1_STRING *data;
 	const unsigned char *data_ptr;
 	int data_len;
 	int i, j, n;
@@ -249,7 +249,7 @@ int ssl_sock_get_dn_entry(X509_NAME *a, const struct buffer *entry, int pos,
  * Currently supports rfc2253 for returning LDAP V3 DNs.
  * Returns 1 if dn entries exist, 0 if no dn entry was found.
  */
-int ssl_sock_get_dn_formatted(X509_NAME *a, const struct buffer *format, struct buffer *out)
+int ssl_sock_get_dn_formatted(__X509_NAME_CONST__ X509_NAME *a, const struct buffer *format, struct buffer *out)
 {
 	BIO *bio = NULL;
 	int ret = 0;
@@ -279,11 +279,11 @@ out:
 /* Extract and format full DN from a X509_NAME and copy result into a chunk
  * Returns 1 if dn entries exits, 0 if no dn entry found or -1 if output is not large enough.
  */
-int ssl_sock_get_dn_oneline(X509_NAME *a, struct buffer *out)
+int ssl_sock_get_dn_oneline(__X509_NAME_CONST__ X509_NAME *a, struct buffer *out)
 {
-	X509_NAME_ENTRY *ne;
-	ASN1_OBJECT *obj;
-	ASN1_STRING *data;
+	__X509_NAME_CONST__ X509_NAME_ENTRY *ne;
+	__X509_NAME_CONST__ ASN1_OBJECT *obj;
+	__X509_NAME_CONST__ ASN1_STRING *data;
 	const unsigned char *data_ptr;
 	int data_len;
 	int i, n, ln;

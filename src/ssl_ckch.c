@@ -2126,7 +2126,7 @@ static int show_cert_detail(X509 *cert, STACK_OF(X509) *chain, struct issuer_cha
 	int i;
 	int write = -1;
 	unsigned int len = 0;
-	X509_NAME *name = NULL;
+	__X509_NAME_CONST__ X509_NAME *name = NULL;
 
 	if (!tmp)
 		return -1;
@@ -4412,7 +4412,7 @@ static int show_crl_detail(X509_CRL *crl, struct buffer *out)
 	BIO *bio = NULL;
 	struct buffer *tmp = alloc_trash_chunk();
 	long version;
-	X509_NAME *issuer;
+	__X509_NAME_CONST__ X509_NAME *issuer;
 	int write = -1;
 #ifndef USE_OPENSSL_WOLFSSL
 	STACK_OF(X509_REVOKED) *rev = NULL;
