@@ -83,6 +83,7 @@ enum thread_exec_ctx_type {
 	TH_EX_CTX_CALLER,                   /* the pointer is an ha_caller of the caller providing file:line etc */
 	TH_EX_CTX_SMPF,                     /* directly registered sample fetch function, using .smpf_kwl */
 	TH_EX_CTX_CONV,                     /* directly registered converter function, using .conv_kwl */
+	TH_EX_CTX_FUNC,                     /* hopefully recognizable function/callback, using .pointer */
 };
 
 struct thread_exec_ctx {
