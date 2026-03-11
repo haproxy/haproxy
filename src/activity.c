@@ -31,6 +31,9 @@ struct show_prof_ctx {
 	int maxcnt;     /* max line count per step (0=not set)  */
 	int by_what;    /* 0=sort by usage, 1=sort by address, 2=sort by time */
 	int aggr;       /* 0=dump raw, 1=aggregate on callee    */
+	/* 4-byte hole here */
+	struct sched_activity *tmp_activity; /* dynamically allocated during dumps */
+	struct memprof_stats *tmp_memstats; /* dynamically allocated during dumps */
 };
 
 /* CLI context for the "show activity" command */
@@ -992,9 +995,9 @@ struct sched_activity *sched_activity_entry(struct sched_activity *array, const 
 static int cli_io_handler_show_profiling(struct appctx *appctx)
 {
 	struct show_prof_ctx *ctx = appctx->svcctx;
-	struct sched_activity tmp_activity[SCHED_ACT_HASH_BUCKETS];
+	struct sched_activity *tmp_activity = ctx->tmp_activity;
 #ifdef USE_MEMORY_PROFILING
-	struct memprof_stats tmp_memstats[MEMPROF_HASH_BUCKETS + 1];
+	struct memprof_stats *tmp_memstats = ctx->tmp_memstats;
 	unsigned long long tot_alloc_calls, tot_free_calls;
 	unsigned long long tot_alloc_bytes, tot_free_bytes;
 #endif
@@ -1035,7 +1038,20 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	if ((ctx->dump_step & 3) != 1)
 		goto skip_tasks;
 
-	memcpy(tmp_activity, sched_activity, sizeof(tmp_activity));
+	if (tmp_activity)
+		goto tasks_resume;
+
+	/* first call for show profiling tasks: we have to allocate a tmp
+	 * array for sorting and processing, and possibly perform some
+	 * sorting and aggregation.
+	 */
+	tmp_activity = ha_aligned_alloc(__alignof__(*tmp_activity), sizeof(sched_activity));
+	if (!tmp_activity)
+		goto end_tasks;
+
+	ctx->tmp_activity = tmp_activity;
+	memcpy(tmp_activity, sched_activity, sizeof(sched_activity));
+
 	/* for addr sort and for callee aggregation we have to first sort by address */
 	if (ctx->aggr || ctx->by_what == 1) // sort by addr
 		qsort(tmp_activity, SCHED_ACT_HASH_BUCKETS, sizeof(tmp_activity[0]), cmp_sched_activity_addr);	
@@ -1060,6 +1076,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	else if (ctx->by_what == 2) // by cpu_tot
 		qsort(tmp_activity, SCHED_ACT_HASH_BUCKETS, sizeof(tmp_activity[0]), cmp_sched_activity_cpu);
 
+ tasks_resume:
 	if (!ctx->linenum)
 		chunk_appendf(&trash, "Tasks activity over %.3f sec till %.3f sec ago:\n"
 		                      "  function                      calls   cpu_tot   cpu_avg   lkw_avg   lkd_avg   mem_avg   lat_avg\n",
@@ -1123,6 +1140,8 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		return 0;
 	}
 
+ end_tasks:
+	ha_free(&ctx->tmp_activity);
 	ctx->linenum = 0; // reset first line to dump
 	if ((ctx->dump_step & 4) == 0)
 		ctx->dump_step++; // next step
@@ -1133,12 +1152,26 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	if ((ctx->dump_step & 3) != 2)
 		goto skip_mem;
 
-	memcpy(tmp_memstats, memprof_stats, sizeof(tmp_memstats));
+	if (tmp_memstats)
+		goto memstats_resume;
+
+	/* first call for show profiling memory: we have to allocate a tmp
+	 * array for sorting and processing, and possibly perform some sorting
+	 * and aggregation.
+	 */
+	tmp_memstats = ha_aligned_alloc(__alignof__(*tmp_memstats), sizeof(memprof_stats));
+	if (!tmp_memstats)
+		goto end_memstats;
+
+	ctx->tmp_memstats = tmp_memstats;
+	memcpy(tmp_memstats, memprof_stats, sizeof(memprof_stats));
+
 	if (ctx->by_what)
 		qsort(tmp_memstats, MEMPROF_HASH_BUCKETS+1, sizeof(tmp_memstats[0]), cmp_memprof_addr);
 	else
 		qsort(tmp_memstats, MEMPROF_HASH_BUCKETS+1, sizeof(tmp_memstats[0]), cmp_memprof_stats);
 
+ memstats_resume:
 	if (!ctx->linenum)
 		chunk_appendf(&trash,
 		              "Alloc/Free statistics by call place over %.3f sec till %.3f sec ago:\n"
@@ -1316,6 +1349,8 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	if (applet_putchk(appctx, &trash) == -1)
 		return 0;
 
+ end_memstats:
+	ha_free(&ctx->tmp_memstats);
 	ctx->linenum = 0; // reset first line to dump
 	if ((ctx->dump_step & 4) == 0)
 		ctx->dump_step++; // next step
@@ -1324,6 +1359,15 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 #endif // USE_MEMORY_PROFILING
 
 	return 1;
+}
+
+/* release structs allocated by "show profiling" */
+static void cli_release_show_profiling(struct appctx *appctx)
+{
+	struct show_prof_ctx *ctx = appctx->svcctx;
+
+	ha_free(&ctx->tmp_activity);
+	ha_free(&ctx->tmp_memstats);
 }
 
 /* parse a "show profiling" command. It returns 1 on failure, 0 if it starts to dump.
@@ -1709,7 +1753,7 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "set",  "profiling", NULL }, "set profiling <what> {auto|on|off}      : enable/disable resource profiling (tasks,memory)", cli_parse_set_profiling,  NULL },
 	{ { "show", "activity", NULL },  "show activity [-1|0|thread_num]         : show per-thread activity stats (for support/developers)", cli_parse_show_activity, cli_io_handler_show_activity, NULL },
-	{ { "show", "profiling", NULL }, "show profiling [<what>|<#lines>|<opts>]*: show profiling state (all,status,tasks,memory)",   cli_parse_show_profiling, cli_io_handler_show_profiling, NULL },
+	{ { "show", "profiling", NULL }, "show profiling [<what>|<#lines>|<opts>]*: show profiling state (all,status,tasks,memory)",   cli_parse_show_profiling, cli_io_handler_show_profiling, cli_release_show_profiling },
 	{ { "show", "tasks", NULL },     "show tasks                              : show running tasks",                               NULL, cli_io_handler_show_tasks,     NULL },
 	{{},}
 }};
