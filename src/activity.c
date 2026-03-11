@@ -302,13 +302,15 @@ struct memprof_stats *memprof_get_bin(const void *ra, enum memprof_method meth)
 	int retries = 16; // up to 16 consecutive entries may be tested.
 	const void *old;
 	unsigned int bin;
+	ullong hash;
 
 	if (unlikely(!ra)) {
 		bin = MEMPROF_HASH_BUCKETS;
 		goto leave;
 	}
-	bin = ptr_hash(ra, MEMPROF_HASH_BITS);
-	for (; memprof_stats[bin].caller != ra; bin = (bin + 1) & (MEMPROF_HASH_BUCKETS - 1)) {
+	hash = _ptr_hash(ra);
+	bin = _ptr_hash_reduce(hash, MEMPROF_HASH_BITS);
+	for (; memprof_stats[bin].caller != ra; bin = (bin + (hash | 1)) & (MEMPROF_HASH_BUCKETS - 1)) {
 		if (!--retries) {
 			bin = MEMPROF_HASH_BUCKETS;
 			break;
