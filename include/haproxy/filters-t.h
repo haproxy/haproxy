@@ -215,6 +215,12 @@ struct flt_conf {
 	unsigned int    flags; /* FLT_CFG_FL_* */
 };
 
+struct filter_sequence_elt {
+	char *flt_name; /* filter name (set during parsing) */
+	struct flt_conf *flt_conf; /* associated filter conf (set after parsing) */
+	struct list list; /* list element */
+};
+
 /*
  * Structure reprensenting a filter instance attached to a stream
  *

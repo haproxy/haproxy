@@ -509,6 +509,12 @@ struct proxy {
 						 * name is used
 						 */
 	struct list filter_configs;		/* list of the filters that are declared on this proxy */
+	struct {                                /* sequence in which declared filters on the proxy should be execute
+	                                         * (list of filter_sequence_elt)
+						 */
+		struct list req;                /* during request handling */
+		struct list res;                /* during response handling */
+	} filter_sequence;
 
 	struct guid_node guid;			/* GUID global tree node */
 	struct mt_list watcher_list;		/* list of elems which currently references this proxy instance (currently only used with backends) */

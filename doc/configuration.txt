@@ -6001,6 +6001,7 @@ external-check path                       X          -         X         X
 force-persist                             -          -         X         X
 force-be-switch                           -          X         X         -
 filter                                    -          X         X         X
+filter-sequence                           -          X         X         X
 fullconn                                  X          -         X         X
 guid                                      -          X         X         X
 hash-balance-factor                       X          -         X         X
@@ -7891,8 +7892,41 @@ filter <name> [param*]
 
         server srv1 192.168.0.1:80
 
-  See also : section 9.
+  See also : section 9., "filter-sequence"
 
+filter-sequence { request | response } <filter_list>
+
+  Specifies in which order filters declared on the proxy should be
+  executed.
+
+  May be used in the following contexts: tcp, http
+
+  May be used in sections:    defaults | frontend | listen | backend
+                                 no    |    yes   |   yes  |   yes
+
+  Comma-separated list of filter names (<filter_list>) to specify in which
+  order filters declared on the proxy should be executed, for request
+  or response path, respectively.
+
+  When filter-sequence is not specified for a given path (ie: request vs
+  response), the order in which filters are declared on the proxy is used.
+
+  If filter-sequence omits some filters that were declared on the proxy,
+  they will not be executed. This is an effective way of temporarily
+  disabling a filter without removing it from the configuration.
+
+  Example:
+     global
+        lua-load my-filter.lua # defines custom "lua.my-filter"
+     frontend myfront
+        filter comp-req
+        filter comp-res
+        filter lua.my-filter
+
+        filter-sequence request lua.my-filter,comp-req
+        filter-sequence response lua.my-filter,comp-res
+
+  See also : "filter"
 
 fullconn <conns>
   Specify at what backend load the servers will reach their maxconn

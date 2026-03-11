@@ -298,6 +298,136 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
 }
 
 /*
+ * Parses the "filter-sequence" keyword
+ */
+static int
+parse_filter_sequence(char **args, int section_type, struct proxy *curpx,
+                      const struct proxy *defpx, const char *file, int line, char **err)
+{
+	/* filter-sequence cannot be defined on a default proxy */
+	if (curpx == defpx) {
+		memprintf(err, "parsing [%s:%d] : %s is not allowed in a 'default' section.",
+			  file, line, args[0]);
+		return -1;
+	}
+	if (strcmp(args[0], "filter-sequence") == 0) {
+		struct list *list;
+		char *str;
+		size_t cur_sep;
+
+		if (!*args[1]) {
+			memprintf(err,
+				  "parsing [%s:%d] : missing argument for '%s' in %s '%s'.",
+				  file, line, args[0], proxy_type_str(curpx), curpx->id);
+			goto error;
+		}
+
+		if (!strcmp(args[1], "request"))
+			list = &curpx->filter_sequence.req;
+		else if (!strcmp(args[1], "response"))
+			list = &curpx->filter_sequence.res;
+		else {
+			memprintf(err,
+				  "parsing [%s:%d] : expected either 'request' or 'response' for '%s' in %s '%s'.",
+				  file, line, args[0], proxy_type_str(curpx), curpx->id);
+			goto error;
+		}
+
+		if (!*args[2]) {
+			memprintf(err,
+				  "parsing [%s:%d] : missing filter list for '%s' in %s '%s'.",
+				  file, line, args[0], proxy_type_str(curpx), curpx->id);
+			goto error;
+		}
+
+		str = args[2];
+		while (str[0]) {
+			struct filter_sequence_elt *elt;
+
+			elt = calloc(1, sizeof(*elt));
+			if (!elt) {
+				memprintf(err, "'%s %s' : out of memory", args[0], args[1]);
+				goto error;
+			}
+
+			cur_sep = strcspn(str, ",");
+
+			elt->flt_name = my_strndup(str, cur_sep);
+			if (!elt->flt_name) {
+				ha_free(&elt);
+				goto error;
+			}
+
+			LIST_APPEND(list, &elt->list);
+
+			if (str[cur_sep])
+				str += cur_sep + 1;
+			else
+				str += cur_sep;
+		}
+	}
+
+	return 0;
+
+  error:
+	return -1;
+}
+
+static int compile_filter_sequence_elt(struct proxy *px, struct filter_sequence_elt *elt, char **errmsg)
+{
+	struct flt_conf *fconf;
+	int ret = ERR_NONE;
+
+	list_for_each_entry(fconf, &px->filter_configs, list) {
+		if (!strcmp(elt->flt_name, fconf->name)) {
+			elt->flt_conf = fconf;
+			break;
+		}
+	}
+	if (!elt->flt_conf) {
+		memprintf(errmsg, "invalid filter name: '%s' is not defined on the proxy", elt->flt_name);
+		ret = ERR_FATAL;
+	}
+
+	return ret;
+}
+
+/* after config is checked, time to resolve filter-sequence (both request and response)
+ * used on the proxy in order to associate filter names with valid flt_conf entries
+ * this will help decrease filter lookup time during runtime (filter ids are compared
+ * using their address, not string content)
+ */
+static int postcheck_filter_sequence(struct proxy *px)
+{
+	struct filter_sequence_elt *elt;
+	char *errmsg = NULL;
+	int ret = ERR_NONE;
+
+	list_for_each_entry(elt, &px->filter_sequence.req, list) {
+		ret = compile_filter_sequence_elt(px, elt, &errmsg);
+		if (ret & ERR_CODE) {
+			memprintf(&errmsg, "error while postparsing request filter-sequence '%s' : %s", elt->flt_name, errmsg);
+			goto error;
+		}
+	}
+	list_for_each_entry(elt, &px->filter_sequence.res, list) {
+		ret = compile_filter_sequence_elt(px, elt, &errmsg);
+		if (ret & ERR_CODE) {
+			memprintf(&errmsg, "error while postparsing response filter-sequence '%s' : %s", elt->flt_name, errmsg);
+			goto error;
+		}
+	}
+
+	return ret;
+
+ error:
+	ha_alert("%s: %s\n", px->id, errmsg);
+	ha_free(&errmsg);
+	return ret;
+}
+REGISTER_POST_PROXY_CHECK(postcheck_filter_sequence);
+
+/*
  * Calls 'init' callback for all filters attached to a proxy. This happens after
  * the configuration parsing. Filters can finish to fill their config. Returns
  * (ERR_ALERT|ERR_FATAL) if an error occurs, 0 otherwise.
@@ -401,12 +531,23 @@ void
 flt_deinit(struct proxy *proxy)
 {
 	struct flt_conf *fconf, *back;
+	struct filter_sequence_elt *fsequence, *fsequenceb;
 
 	list_for_each_entry_safe(fconf, back, &proxy->filter_configs, list) {
 		if (fconf->ops->deinit)
 			fconf->ops->deinit(proxy, fconf);
 		LIST_DELETE(&fconf->list);
 		free(fconf);
+	}
+	list_for_each_entry_safe(fsequence, fsequenceb, &proxy->filter_sequence.req, list) {
+		LIST_DEL_INIT(&fsequence->list);
+		ha_free(&fsequence->flt_name);
+		ha_free(&fsequence);
+	}
+	list_for_each_entry_safe(fsequence, fsequenceb, &proxy->filter_sequence.res, list) {
+		LIST_DEL_INIT(&fsequence->list);
+		ha_free(&fsequence->flt_name);
+		ha_free(&fsequence);
 	}
 }
 
@@ -438,7 +579,7 @@ flt_deinit_all_per_thread()
 
 /* Attaches a filter to a stream. Returns -1 if an error occurs, 0 otherwise. */
 static int
-flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int flags)
+flt_stream_add_filter(struct stream *s, struct proxy *px, struct flt_conf *fconf, unsigned int flags)
 {
 	struct filter *f;
 
@@ -461,16 +602,36 @@ flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int fla
 	}
 
 	LIST_APPEND(&strm_flt(s)->filters, &f->list);
+	LIST_INIT(&f->req_list);
+	LIST_INIT(&f->res_list);
 
-	/* for now f->req_list == f->res_list to preserve
-	 * historical behavior, but the ordering will change
-	 * in the future
-	 */
-	LIST_APPEND(&s->req.flt.filters, &f->req_list);
-	LIST_APPEND(&s->res.flt.filters, &f->res_list);
+	/* use filter config ordering unless filter-sequence says otherwise */
+	if (LIST_ISEMPTY(&px->filter_sequence.req))
+		LIST_APPEND(&s->req.flt.filters, &f->req_list);
+	if (LIST_ISEMPTY(&px->filter_sequence.res))
+		LIST_APPEND(&s->res.flt.filters, &f->res_list);
 
 	strm_flt(s)->flags |= STRM_FLT_FL_HAS_FILTERS;
 	return 0;
+}
+
+static void flt_stream_organize_filters(struct stream *s, struct proxy *px)
+{
+	struct filter_sequence_elt *fsequence;
+	struct filter *filter;
+
+	list_for_each_entry(fsequence, &px->filter_sequence.req, list) {
+		list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+			if (filter->config == fsequence->flt_conf && !LIST_INLIST(&filter->req_list))
+				LIST_APPEND(&s->req.flt.filters, &filter->req_list);
+		}
+	}
+	list_for_each_entry(fsequence, &px->filter_sequence.res, list) {
+		list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+			if (filter->config == fsequence->flt_conf && !LIST_INLIST(&filter->res_list))
+				LIST_APPEND(&s->res.flt.filters, &filter->res_list);
+		}
+	}
 }
 
 /*
@@ -489,9 +650,10 @@ flt_stream_init(struct stream *s)
 	memset(&s->res.flt, 0, sizeof(s->res.flt));
 	LIST_INIT(&s->res.flt.filters);
 	list_for_each_entry(fconf, &strm_fe(s)->filter_configs, list) {
-		if (flt_stream_add_filter(s, fconf, 0) < 0)
+		if (flt_stream_add_filter(s, strm_fe(s), fconf, 0) < 0)
 			return -1;
 	}
+	flt_stream_organize_filters(s, strm_fe(s));
 	return 0;
 }
 
@@ -605,9 +767,11 @@ flt_set_stream_backend(struct stream *s, struct proxy *be)
 		goto end;
 
 	list_for_each_entry(fconf, &be->filter_configs, list) {
-		if (flt_stream_add_filter(s, fconf, FLT_FL_IS_BACKEND_FILTER) < 0)
+		if (flt_stream_add_filter(s, be, fconf, FLT_FL_IS_BACKEND_FILTER) < 0)
 			return -1;
 	}
+
+	flt_stream_organize_filters(s, be);
 
   end:
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
@@ -1231,6 +1395,7 @@ handle_analyzer_result(struct stream *s, struct channel *chn,
  * not enabled. */
 static struct cfg_kw_list cfg_kws = {ILH, {
 		{ CFG_LISTEN, "filter", parse_filter },
+		{ CFG_LISTEN, "filter-sequence", parse_filter_sequence },
 		{ 0, NULL, NULL },
 	}
 };
