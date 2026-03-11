@@ -74,11 +74,20 @@ int ssl_sock_get_serial(X509 *crt, struct buffer *out)
 	if (!serial)
 		return 0;
 
+#ifdef USE_OPENSSL_WOLFSSL
 	if (out->size < serial->length)
 		return -1;
 
 	memcpy(out->area, serial->data, serial->length);
 	out->data = serial->length;
+#else
+	if (out->size < ASN1_STRING_length(serial))
+		return -1;
+
+	out->data = ASN1_STRING_length(serial);
+	memcpy(out->area, ASN1_STRING_get0_data(serial), out->data);
+#endif
+
 	return 1;
 }
 
@@ -110,35 +119,68 @@ int ssl_sock_crt2der(X509 *crt, struct buffer *out)
  */
 int ssl_sock_get_time(ASN1_TIME *tm, struct buffer *out)
 {
-	if (tm->type == V_ASN1_GENERALIZEDTIME) {
-		ASN1_GENERALIZEDTIME *gentm = (ASN1_GENERALIZEDTIME *)tm;
+#ifdef USE_OPENSSL_WOLFSSL
+        if (tm->type == V_ASN1_GENERALIZEDTIME) {
+                ASN1_GENERALIZEDTIME *gentm = (ASN1_GENERALIZEDTIME *)tm;
 
-		if (gentm->length < 12)
+                if (gentm->length < 12)
+                        return 0;
+                if (gentm->data[0] != 0x32 || gentm->data[1] != 0x30)
+                        return 0;
+                if (out->size < gentm->length-2)
+                        return -1;
+
+                memcpy(out->area, gentm->data+2, gentm->length-2);
+                out->data = gentm->length-2;
+                return 1;
+        }
+        else if (tm->type == V_ASN1_UTCTIME) {
+                ASN1_UTCTIME *utctm = (ASN1_UTCTIME *)tm;
+
+                if (utctm->length < 10)
+                        return 0;
+                if (utctm->data[0] >= 0x35)
+                        return 0;
+                if (out->size < utctm->length)
+                        return -1;
+
+                memcpy(out->area, utctm->data, utctm->length);
+                out->data = utctm->length;
+                return 1;
+        }
+
+#else
+	const unsigned char *data;
+
+	if (ASN1_STRING_type(tm) == V_ASN1_GENERALIZEDTIME) {
+		data = ASN1_STRING_get0_data(tm);
+
+		if (ASN1_STRING_length(tm) < 12)
 			return 0;
-		if (gentm->data[0] != 0x32 || gentm->data[1] != 0x30)
+		if (data[0] != 0x32 || data[1] != 0x30)
 			return 0;
-		if (out->size < gentm->length-2)
+		if (out->size < ASN1_STRING_length(tm) - 2)
 			return -1;
 
-		memcpy(out->area, gentm->data+2, gentm->length-2);
-		out->data = gentm->length-2;
+		out->data = ASN1_STRING_length(tm) - 2;
+		memcpy(out->area, data + 2, out->data);
 		return 1;
 	}
-	else if (tm->type == V_ASN1_UTCTIME) {
-		ASN1_UTCTIME *utctm = (ASN1_UTCTIME *)tm;
+	else if (ASN1_STRING_type(tm) == V_ASN1_UTCTIME) {
+		data = ASN1_STRING_get0_data(tm);
 
-		if (utctm->length < 10)
+		if (ASN1_STRING_length(tm) < 10)
 			return 0;
-		if (utctm->data[0] >= 0x35)
+		if (data[0] >= 0x35)
 			return 0;
-		if (out->size < utctm->length)
+		if (out->size < ASN1_STRING_length(tm))
 			return -1;
 
-		memcpy(out->area, utctm->data, utctm->length);
-		out->data = utctm->length;
+		out->data = ASN1_STRING_length(tm);
+		memcpy(out->area, data, out->data);
 		return 1;
 	}
-
+#endif
 	return 0;
 }
 
@@ -629,16 +671,26 @@ INITCALL0(STG_REGISTER, init_x509_v_err_tab);
 long asn1_generalizedtime_to_epoch(ASN1_GENERALIZEDTIME *d)
 {
 	long epoch;
-	char *p, *end;
 	const unsigned short month_offset[12] = {
 		0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334
 	};
 	unsigned long year, month;
 
+#ifdef USE_OPENSSL_WOLFSSL
+	char *p, *end;
+
 	if (!d || (d->type != V_ASN1_GENERALIZEDTIME)) return -1;
 
 	p = (char *)d->data;
 	end = p + d->length;
+#else
+	const unsigned char *p, *end;
+
+	if (!d || (ASN1_STRING_type(d) != V_ASN1_GENERALIZEDTIME)) return -1;
+
+	p = ASN1_STRING_get0_data(d);
+	end = p + ASN1_STRING_length(d);
+#endif
 
 	if (end - p < 4) return -1;
 	year = 1000 * (p[0] - '0') + 100 * (p[1] - '0') + 10 * (p[2] - '0') + p[3] - '0';
