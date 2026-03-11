@@ -180,7 +180,7 @@ static int ha_quic_send_alert(SSL *ssl, enum ssl_encryption_level_t level, uint8
 		if (objt_server(qc->conn->target) && !qc->conn->mux) {
 			/* This has as side effect to close the connection stream */
 			if (conn_create_mux(qc->conn, NULL) >= 0)
-				qc->conn->mux->wake(qc->conn);
+				CALL_MUX_NO_RET(qc->conn->mux, wake(qc->conn));
 		}
 	}
 
@@ -1029,7 +1029,7 @@ int qc_ssl_do_hanshake(struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 				}
 
 				/* Wake up MUX after its creation. Operation similar to TLS+ALPN on TCP stack. */
-				qc->conn->mux->wake(qc->conn);
+				CALL_MUX_NO_RET(qc->conn->mux, wake(qc->conn));
 			}
 			else {
 				/* Wake up upper layer if the MUX is already initialized.

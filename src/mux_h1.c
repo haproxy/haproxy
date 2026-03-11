@@ -1197,7 +1197,7 @@ static int h1s_finish_detach(struct h1s *h1s)
 			if (!session_add_conn(sess, h1c->conn)) {
 				/* HTTP/1.1 conn is always idle after detach, can be removed if session insert failed. */
 				h1c->conn->owner = NULL;
-				h1c->conn->mux->destroy(h1c);
+				CALL_MUX_NO_RET(h1c->conn->mux, destroy(h1c));
 				goto released;
 			}
 
@@ -1213,7 +1213,7 @@ static int h1s_finish_detach(struct h1s *h1s)
 			/* Ensure session can keep a new idle connection. */
 			if (session_check_idle_conn(sess, h1c->conn)) {
 				TRACE_DEVEL("outgoing connection rejected", H1_EV_STRM_END|H1_EV_H1C_END, h1c->conn);
-				h1c->conn->mux->destroy(h1c);
+				CALL_MUX_NO_RET(h1c->conn->mux, destroy(h1c));
 				goto released;
 			}
 
@@ -1236,7 +1236,7 @@ static int h1s_finish_detach(struct h1s *h1s)
 
 			if (!srv_add_to_idle_list(objt_server(h1c->conn->target), h1c->conn, is_not_first)) {
 				/* The server doesn't want it, let's kill the connection right away */
-				h1c->conn->mux->destroy(h1c);
+				CALL_MUX_NO_RET(h1c->conn->mux, destroy(h1c));
 				TRACE_DEVEL("outgoing connection killed", H1_EV_STRM_END|H1_EV_H1C_END);
 				goto released;
 			}

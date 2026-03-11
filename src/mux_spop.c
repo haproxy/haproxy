@@ -3013,7 +3013,7 @@ static void spop_detach(struct sedesc *sd)
 			if (eb_is_empty(&spop_conn->streams_by_id)) {
 				if (!spop_conn->conn->owner) {
 					/* Session insertion above has failed and connection is idle, remove it. */
-					spop_conn->conn->mux->destroy(spop_conn);
+					CALL_MUX_NO_RET(spop_conn->conn->mux, destroy(spop_conn));
 					TRACE_DEVEL("leaving on error after killing outgoing connection", SPOP_EV_STRM_END|SPOP_EV_SPOP_CONN_ERR);
 					return;
 				}
@@ -3026,7 +3026,7 @@ static void spop_detach(struct sedesc *sd)
 
 				/* Ensure session can keep a new idle connection. */
 				if (session_check_idle_conn(sess, spop_conn->conn) != 0) {
-					spop_conn->conn->mux->destroy(spop_conn);
+					CALL_MUX_NO_RET(spop_conn->conn->mux, destroy(spop_conn));
 					TRACE_DEVEL("leaving without reusable idle connection", SPOP_EV_STRM_END);
 					return;
 				}
@@ -3057,7 +3057,7 @@ static void spop_detach(struct sedesc *sd)
 
 				if (!srv_add_to_idle_list(objt_server(spop_conn->conn->target), spop_conn->conn, 1)) {
 					/* The server doesn't want it, let's kill the connection right away */
-					spop_conn->conn->mux->destroy(spop_conn);
+					CALL_MUX_NO_RET(spop_conn->conn->mux, destroy(spop_conn));
 					TRACE_DEVEL("leaving on error after killing outgoing connection", SPOP_EV_STRM_END|SPOP_EV_SPOP_CONN_ERR);
 					return;
 				}

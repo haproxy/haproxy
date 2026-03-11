@@ -6960,7 +6960,7 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 			if (!ctx->conn->mux)
 				ret = conn_create_mux(ctx->conn, &closed_connection);
 			if (ret >= 0 && !woke && ctx->conn->mux && ctx->conn->mux->wake) {
-				ret = ctx->conn->mux->wake(ctx->conn);
+				ret = CALL_MUX_WITH_RET(ctx->conn->mux, wake(ctx->conn));
 				if (ret < 0)
 					closed_connection = 1;
 			}
@@ -6991,7 +6991,7 @@ leave:
 				TRACE_DEVEL("adding conn back to session list", SSL_EV_CONN_IO_CB, conn);
 				if (!session_reinsert_idle_conn(conn->owner, conn)) {
 					/* session add conn failure */
-					conn->mux->destroy(conn->ctx);
+					CALL_MUX_NO_RET(conn->mux, destroy(conn->ctx));
 					t = NULL;
 				}
 			}
@@ -7003,7 +7003,7 @@ leave:
 		}
 		else {
 			/* Do not store an idle conn if server in maintenance. */
-			conn->mux->destroy(conn->ctx);
+			CALL_MUX_NO_RET(conn->mux, destroy(conn->ctx));
 			t = NULL;
 		}
 	}

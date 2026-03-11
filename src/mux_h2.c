@@ -5672,7 +5672,7 @@ static void h2_detach(struct sedesc *sd)
 				if (eb_is_empty(&h2c->streams_by_id)) {
 					if (!h2c->conn->owner) {
 						/* Session insertion above has failed and connection is idle, remove it. */
-						h2c->conn->mux->destroy(h2c);
+						CALL_MUX_NO_RET(h2c->conn->mux, destroy(h2c));
 						TRACE_DEVEL("leaving on error after killing outgoing connection", H2_EV_STRM_END|H2_EV_H2C_ERR);
 						return;
 					}
@@ -5685,7 +5685,7 @@ static void h2_detach(struct sedesc *sd)
 
 					/* Ensure session can keep a new idle connection. */
 					if (session_check_idle_conn(sess, h2c->conn) != 0) {
-						h2c->conn->mux->destroy(h2c);
+						CALL_MUX_NO_RET(h2c->conn->mux, destroy(h2c));
 						TRACE_DEVEL("leaving without reusable idle connection", H2_EV_STRM_END);
 						return;
 					}
@@ -5716,7 +5716,7 @@ static void h2_detach(struct sedesc *sd)
 
 					if (!srv_add_to_idle_list(objt_server(h2c->conn->target), h2c->conn, 1)) {
 						/* The server doesn't want it, let's kill the connection right away */
-						h2c->conn->mux->destroy(h2c);
+						CALL_MUX_NO_RET(h2c->conn->mux, destroy(h2c));
 						TRACE_DEVEL("leaving on error after killing outgoing connection", H2_EV_STRM_END|H2_EV_H2C_ERR);
 						return;
 					}

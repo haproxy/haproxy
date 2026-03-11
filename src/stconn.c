@@ -106,7 +106,7 @@ void se_shutdown(struct sedesc *sedesc, enum se_shut_mode mode)
 				sdo = se_opposite(sedesc);
 				if (sdo)
 					reason = &sdo->abort_info;
-				mux->shut(sedesc->sc, mode, reason);
+				CALL_MUX_NO_RET(mux, shut(sedesc->sc, mode, reason));
 			}
 			se_fl_set(sedesc, flags);
 		}
@@ -393,7 +393,7 @@ static void sc_detach_endp(struct stconn **scp)
 			se_fl_set(sedesc, SE_FL_ORPHAN);
 			sedesc->sc = NULL;
 			sc->sedesc = NULL;
-			conn->mux->detach(sedesc);
+			CALL_MUX_NO_RET(conn->mux, detach(sedesc));
 		}
 		else {
 			/* It's too early to have a mux, let's just destroy
@@ -1118,7 +1118,7 @@ int sc_conn_recv(struct stconn *sc)
 			goto abort_fastfwd;
 		}
 		sc_ep_fwd_kip(sc, sc_opposite(sc));
-		ret = conn->mux->fastfwd(sc, ic->to_forward, flags);
+		ret = CALL_MUX_WITH_RET(conn->mux, fastfwd(sc, ic->to_forward, flags));
 		if (ret < 0)
 			goto abort_fastfwd;
 		else if (ret > 0) {
@@ -1189,7 +1189,7 @@ int sc_conn_recv(struct stconn *sc)
 		 * SE_FL_RCV_MORE on the SC if more space is needed.
 		 */
 		max = channel_recv_max(ic);
-		ret = conn->mux->rcv_buf(sc, &ic->buf, max, cur_flags);
+		ret = CALL_MUX_WITH_RET(conn->mux, rcv_buf(sc, &ic->buf, max, cur_flags));
 
 		if (sc_ep_test(sc, SE_FL_WANT_ROOM)) {
 			/* SE_FL_WANT_ROOM must not be reported if the channel's
@@ -1437,7 +1437,7 @@ int sc_conn_send(struct stconn *sc)
 		if (oc->flags & CF_STREAMER)
 			send_flag |= CO_SFL_STREAMER;
 
-		ret = conn->mux->resume_fastfwd(sc, send_flag);
+		ret = CALL_MUX_WITH_RET(conn->mux, resume_fastfwd(sc, send_flag));
 		if (ret > 0) {
 			sc->bytes_out += ret;
 			did_send = 1;
@@ -1509,7 +1509,7 @@ int sc_conn_send(struct stconn *sc)
 		if ((sc->flags & SC_FL_SHUT_WANTED) && co_data(oc) == c_data(oc))
 			send_flag |= CO_SFL_LAST_DATA;
 
-		ret = conn->mux->snd_buf(sc, &oc->buf, co_data(oc), send_flag);
+		ret = CALL_MUX_WITH_RET(conn->mux, snd_buf(sc, &oc->buf, co_data(oc), send_flag));
 		if (ret > 0) {
 			did_send = 1;
 			c_rew(oc, ret);

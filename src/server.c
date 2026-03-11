@@ -7247,7 +7247,7 @@ struct task *srv_cleanup_toremove_conns(struct task *task, void *context, unsign
 
 	while ((conn = MT_LIST_POP(&idle_conns[tid].toremove_conns,
 	                               struct connection *, toremove_list)) != NULL) {
-		conn->mux->destroy(conn->ctx);
+		CALL_MUX_NO_RET(conn->mux, destroy(conn->ctx));
 	}
 
 	return task;

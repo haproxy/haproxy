@@ -1105,7 +1105,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				if (objt_server(qc->conn->target) && !qc->conn->mux) {
 					/* This has as side effect to close the connection stream */
 					if (conn_create_mux(qc->conn, NULL) >= 0)
-						qc->conn->mux->wake(qc->conn);
+						CALL_MUX_NO_RET(qc->conn->mux, wake(qc->conn));
 				}
 			}
 			__fallthrough;

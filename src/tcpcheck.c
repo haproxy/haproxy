@@ -1810,8 +1810,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 
   do_send:
 	TRACE_DATA("send data", CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA, check);
-	if (conn->mux->snd_buf(sc, &check->bo,
-			       (IS_HTX_CONN(conn) ? (htxbuf(&check->bo))->data: b_data(&check->bo)), 0) <= 0) {
+	if (CALL_MUX_WITH_RET(conn->mux, snd_buf(sc, &check->bo,
+	                      (IS_HTX_CONN(conn) ? (htxbuf(&check->bo))->data: b_data(&check->bo)), 0)) <= 0) {
 		if ((conn->flags & CO_FL_ERROR) || sc_ep_test(sc, SE_FL_ERROR)) {
 			ret = TCPCHK_EVAL_STOP;
 			TRACE_DEVEL("connection error during send", CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA|CHK_EV_TX_ERR, check);
@@ -1898,7 +1898,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_r
 	while (sc_ep_test(sc, SE_FL_RCV_MORE) ||
 	       (!(conn->flags & CO_FL_ERROR) && !sc_ep_test(sc, SE_FL_ERROR | SE_FL_EOS))) {
 		max = (IS_HTX_SC(sc) ?  htx_free_space(htxbuf(&check->bi)) : b_room(&check->bi));
-		read = conn->mux->rcv_buf(sc, &check->bi, max, 0);
+		read = CALL_MUX_WITH_RET(conn->mux, rcv_buf(sc, &check->bi, max, 0));
 		cur_read += read;
 		if (!read ||
 		    sc_ep_test(sc, SE_FL_WANT_ROOM) ||

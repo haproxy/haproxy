@@ -964,10 +964,22 @@ static int cmp_memprof_ctx(const void *a, const void *b)
 {
 	const struct memprof_stats *l = (const struct memprof_stats *)a;
 	const struct memprof_stats *r = (const struct memprof_stats *)b;
+	const void *ptrl = l->exec_ctx.pointer;
+	const void *ptrr = r->exec_ctx.pointer;
 
-	if (l->exec_ctx.pointer > r->exec_ctx.pointer)
+	/* in case of a mux, we'll use the always-present ->subscribe()
+	 * function as a sorting key so that mux-ops and other mux functions
+	 * appear grouped together.
+	 */
+	if (l->exec_ctx.type == TH_EX_CTX_MUX)
+		ptrl = l->exec_ctx.mux_ops->subscribe;
+
+	if (r->exec_ctx.type == TH_EX_CTX_MUX)
+		ptrr = r->exec_ctx.mux_ops->subscribe;
+
+	if (ptrl > ptrr)
 		return -1;
-	else if (l->exec_ctx.pointer < r->exec_ctx.pointer)
+	else if (ptrl < ptrr)
 		return 1;
 	else if (l->exec_ctx.type > r->exec_ctx.type)
 		return -1;

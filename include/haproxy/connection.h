@@ -49,6 +49,13 @@ extern struct mux_stopping_data mux_stopping_data[MAX_THREADS];
 
 #define IS_HTX_CONN(conn) ((conn)->mux && ((conn)->mux->flags & MX_FL_HTX))
 
+/* macros to switch the calling context to the mux during a call. There's one
+ * with a return value for most calls, and one without for the few like shut(),
+ * detach() or destroy() with no return.
+ */
+#define CALL_MUX_WITH_RET(mux, func) EXEC_CTX_WITH_RET(EXEC_CTX_MAKE(TH_EX_CTX_MUX, (mux)), (mux)->func)
+#define CALL_MUX_NO_RET(mux, func)   EXEC_CTX_NO_RET(EXEC_CTX_MAKE(TH_EX_CTX_MUX, (mux)), (mux)->func)
+
 /* receive a PROXY protocol header over a connection */
 int conn_recv_proxy(struct connection *conn, int flag);
 int conn_send_proxy(struct connection *conn, unsigned int flag);
@@ -480,7 +487,7 @@ static inline int conn_install_mux(struct connection *conn, const struct mux_ops
 
 	conn->mux = mux;
 	conn->ctx = ctx;
-	ret = mux->init ? mux->init(conn, prx, sess, &BUF_NULL) : 0;
+	ret = mux->init ? CALL_MUX_WITH_RET(mux, init(conn, prx, sess, &BUF_NULL)) : 0;
 	if (ret < 0) {
 		conn->mux = NULL;
 		conn->ctx = NULL;

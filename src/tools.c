@@ -7545,6 +7545,9 @@ void chunk_append_thread_ctx(struct buffer *output, const struct thread_exec_ctx
 	case TH_EX_CTX_FLT:
 		chunk_appendf(output,"flt '%s'", ctx->flt_conf->id);
 		break;
+	case TH_EX_CTX_MUX:
+		chunk_appendf(output,"mux '%s'", ctx->mux_ops->name);
+		break;
 	default:
 		chunk_appendf(output,"other ctx %p", ctx->pointer);
 		break;

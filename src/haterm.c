@@ -250,7 +250,7 @@ static int hstream_htx_buf_rcv(struct connection *conn, struct hstream *hs)
 		htx_reset(htxbuf(&hs->req));
 		max = (IS_HTX_SC(hs->sc) ?  htx_free_space(htxbuf(&hs->req)) : b_room(&hs->req));
 		sc_ep_clr(hs->sc, SE_FL_WANT_ROOM);
-		read = conn->mux->rcv_buf(hs->sc, &hs->req, max, 0);
+		read = CALL_MUX_WITH_RET(conn->mux, rcv_buf(hs->sc, &hs->req, max, 0));
 		cur_read += read;
 		if (!htx_expect_more(htxbuf(&hs->req))) {
 		    fin = 1;
@@ -313,7 +313,7 @@ static int hstream_htx_buf_snd(struct connection *conn, struct hstream *hs)
 		goto out;
 	}
 
-	nret = conn->mux->snd_buf(hs->sc, &hs->res, htxbuf(&hs->res)->data, 0);
+	nret = CALL_MUX_WITH_RET(conn->mux, snd_buf(hs->sc, &hs->res, htxbuf(&hs->res)->data, 0));
 	if (nret <= 0) {
 		if (hs->flags & HS_ST_CONN_ERROR ||
 		    conn->flags & CO_FL_ERROR || sc_ep_test(sc, SE_FL_ERROR)) {
@@ -873,7 +873,7 @@ static struct task *process_hstream(struct task *t, void *context, unsigned int 
  out:
 	if (!hs->to_write && !hs->req_body && htx_is_empty(htxbuf(&hs->res))) {
 		TRACE_DEVEL("shutting down stream", HS_EV_HSTRM_SEND, hs);
-		conn->mux->shut(hs->sc, SE_SHW_SILENT|SE_SHW_NORMAL, NULL);
+		CALL_MUX_NO_RET(conn->mux, shut(hs->sc, SE_SHW_SILENT|SE_SHW_NORMAL, NULL));
 	}
 
 	if (hs->flags & HS_ST_CONN_ERROR ||

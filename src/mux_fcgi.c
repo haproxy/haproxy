@@ -3736,7 +3736,7 @@ static void fcgi_detach(struct sedesc *sd)
 			if (eb_is_empty(&fconn->streams_by_id)) {
 				if (!fconn->conn->owner) {
 					/* Session insertion above has failed and connection is idle, remove it. */
-					fconn->conn->mux->destroy(fconn);
+					CALL_MUX_NO_RET(fconn->conn->mux, destroy(fconn));
 					TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);
 					return;
 				}
@@ -3749,7 +3749,7 @@ static void fcgi_detach(struct sedesc *sd)
 
 				/* Ensure session can keep a new idle connection. */
 				if (session_check_idle_conn(sess, fconn->conn) != 0) {
-					fconn->conn->mux->destroy(fconn);
+					CALL_MUX_NO_RET(fconn->conn->mux, destroy(fconn));
 					TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);
 					return;
 				}
@@ -3780,7 +3780,7 @@ static void fcgi_detach(struct sedesc *sd)
 
 				if (!srv_add_to_idle_list(objt_server(fconn->conn->target), fconn->conn, 1)) {
 					/* The server doesn't want it, let's kill the connection right away */
-					fconn->conn->mux->destroy(fconn);
+					CALL_MUX_NO_RET(fconn->conn->mux, destroy(fconn));
 					TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);
 					return;
 				}

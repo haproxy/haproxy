@@ -117,7 +117,7 @@ out:
 			if (!ctx->conn->mux)
 				ret = conn_create_mux(ctx->conn, NULL);
 			if (ret >= 0 && !woke && ctx->conn->mux && ctx->conn->mux->wake)
-				ret = ctx->conn->mux->wake(ctx->conn);
+				ret = CALL_MUX_WITH_RET(ctx->conn->mux, wake(ctx->conn));
 		}
 		tasklet_free(ctx->wait_event.tasklet);
 		pool_free(xprt_handshake_ctx_pool, ctx);

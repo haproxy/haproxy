@@ -1396,7 +1396,7 @@ check_tgid:
 			tree = search_tree ? &srv->per_thr[i].safe_conns : &srv->per_thr[i].idle_conns;
 			conn = srv_lookup_conn(tree, hash);
 			while (conn) {
-				if (conn->mux->takeover && conn->mux->takeover(conn, i, 0) == 0) {
+				if (conn->mux->takeover && CALL_MUX_WITH_RET(conn->mux, takeover(conn, i, 0)) == 0) {
 					conn_delete_from_tree(conn, i);
 					_HA_ATOMIC_INC(&activity[tid].fd_takeover);
 					found = 1;
@@ -1498,7 +1498,7 @@ takeover_random_idle_conn(struct ceb_root **root, int curtid)
 
 	conn = ceb64_item_first(root, hash_node.node, hash_node.key, struct connection);
 	while (conn) {
-		if (conn->mux->takeover && conn->mux->takeover(conn, curtid, 1) == 0) {
+		if (conn->mux->takeover && CALL_MUX_WITH_RET(conn->mux, takeover(conn, curtid, 1)) == 0) {
 			conn_delete_from_tree(conn, curtid);
 			return conn;
 		}
@@ -1555,7 +1555,7 @@ kill_random_idle_conn(struct server *srv)
 			 */
 			_HA_ATOMIC_INC(&srv->curr_used_conns);
 		}
-		conn->mux->destroy(conn->ctx);
+		CALL_MUX_NO_RET(conn->mux, destroy(conn->ctx));
 		return 1;
 	}
 	return 0;
@@ -1765,7 +1765,7 @@ int be_reuse_connection(int64_t hash, struct session *sess,
 			}
 
 			if (avail >= 1) {
-				if (srv_conn->mux->attach(srv_conn, sc->sedesc, sess) == -1) {
+				if (CALL_MUX_WITH_RET(srv_conn->mux, attach(srv_conn, sc->sedesc, sess)) == -1) {
 					if (sc_reset_endp(sc) < 0)
 						goto err;
 					sc_ep_clr(sc, ~SE_FL_DETACHED);
@@ -1879,7 +1879,7 @@ int connect_server(struct stream *s)
 			 * It will in turn call srv_release_conn through
 			 * conn_free which also uses it.
 			 */
-			tokill_conn->mux->destroy(tokill_conn->ctx);
+			CALL_MUX_NO_RET(tokill_conn->mux, destroy(tokill_conn->ctx));
 		}
 		else {
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);

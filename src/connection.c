@@ -232,14 +232,14 @@ int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake)
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		}
 
-		ret = conn->mux->wake(conn);
+		ret = CALL_MUX_WITH_RET(conn->mux, wake(conn));
 		if (ret < 0)
 			goto done;
 
 		if (conn_in_list) {
 			if (srv && (srv->cur_admin & SRV_ADMF_MAINT)) {
 				/* Do not store an idle conn if server in maintenance. */
-				conn->mux->destroy(conn->ctx);
+				CALL_MUX_NO_RET(conn->mux, destroy(conn->ctx));
 				ret = -1;
 				goto done;
 			}
@@ -247,7 +247,7 @@ int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake)
 			if (conn->flags & CO_FL_SESS_IDLE) {
 				if (!session_reinsert_idle_conn(conn->owner, conn)) {
 					/* session add conn failure */
-					conn->mux->destroy(conn->ctx);
+					CALL_MUX_NO_RET(conn->mux, destroy(conn->ctx));
 					ret = -1;
 				}
 			}
@@ -291,7 +291,7 @@ int conn_upgrade_mux_fe(struct connection *conn, void *ctx, struct buffer *buf,
 	old_mux_ctx = conn->ctx;
 	conn->mux = new_mux;
 	conn->ctx = ctx;
-	if (new_mux->init(conn, bind_conf->frontend, conn->owner, buf) == -1) {
+	if (CALL_MUX_WITH_RET(new_mux, init(conn, bind_conf->frontend, conn->owner, buf)) == -1) {
 		/* The mux upgrade failed, so restore the old mux */
 		conn->ctx = old_mux_ctx;
 		conn->mux = old_mux;
@@ -300,7 +300,7 @@ int conn_upgrade_mux_fe(struct connection *conn, void *ctx, struct buffer *buf,
 
 	/* The mux was upgraded, destroy the old one */
 	*buf = BUF_NULL;
-	old_mux->destroy(old_mux_ctx);
+	CALL_MUX_NO_RET(old_mux, destroy(old_mux_ctx));
 	return 0;
 }
 
@@ -658,7 +658,7 @@ void conn_free(struct connection *conn)
 void conn_release(struct connection *conn)
 {
 	if (conn->mux) {
-		conn->mux->destroy(conn->ctx);
+		CALL_MUX_NO_RET(conn->mux, destroy(conn->ctx));
 	}
 	else {
 		conn_stop_tracking(conn);
@@ -3034,7 +3034,7 @@ static struct task *mux_stopping_process(struct task *t, void *ctx, unsigned int
 
 	list_for_each_entry_safe(conn, back, &mux_stopping_data[tid].list, stopping_list) {
 		if (conn->mux && conn->mux->wake)
-			conn->mux->wake(conn);
+			CALL_MUX_NO_RET(conn->mux, wake(conn));
 	}
 
 	return t;

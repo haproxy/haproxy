@@ -452,7 +452,7 @@ static inline size_t se_nego_ff(struct sedesc *se, struct buffer *input, size_t 
 				goto end;
 			}
 
-			ret = mux->nego_fastfwd(se->sc, input, count, flags);
+			ret = CALL_MUX_WITH_RET(mux, nego_fastfwd(se->sc, input, count, flags));
 			if (se->iobuf.flags & IOBUF_FL_FF_BLOCKED) {
 				sc_ep_report_blocked_send(se->sc, 0);
 
@@ -485,7 +485,7 @@ static inline size_t se_done_ff(struct sedesc *se)
 		size_t to_send = se_ff_data(se);
 
 		BUG_ON(!mux->done_fastfwd);
-		ret = mux->done_fastfwd(se->sc);
+		ret = CALL_MUX_WITH_RET(mux, done_fastfwd(se->sc));
 		if (ret) {
 			/* Something was forwarded, unblock the zero-copy forwarding.
 			 * If all data was sent, report and send activity.

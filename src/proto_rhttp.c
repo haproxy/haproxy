@@ -241,7 +241,7 @@ struct task *rhttp_process(struct task *task, void *ctx, unsigned int state)
 			 * directly.
 			 */
 			if (conn->mux && conn->mux->destroy) {
-				conn->mux->destroy(conn->ctx);
+				CALL_MUX_NO_RET(conn->mux, destroy(conn->ctx));
 			}
 			else {
 				conn_stop_tracking(conn);
@@ -464,7 +464,7 @@ struct connection *rhttp_accept_conn(struct listener *l, int *status)
 	BUG_ON(!(conn->flags & CO_FL_ACT_REVERSING));
 	conn->flags &= ~CO_FL_ACT_REVERSING;
 	conn->flags |= CO_FL_REVERSED;
-	conn->mux->ctl(conn, MUX_CTL_REVERSE_CONN, NULL);
+	CALL_MUX_NO_RET(conn->mux, ctl(conn, MUX_CTL_REVERSE_CONN, NULL));
 
 	l->rx.rhttp.pend_conn = NULL;
 	*status = CO_AC_NONE;
