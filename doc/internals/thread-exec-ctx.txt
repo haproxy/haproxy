@@ -1,0 +1,50 @@
+2026-03-12 - thread execution context
+
+Thread execution context (thread_exec_ctx) is a combination of type and pointer
+that are set in the current running thread at th_ctx->exec_ctx when entering
+certain processing (tasks, sample fetch functions, actions, CLI keywords etc).
+They're refined along execution, so that a task such as process_stream could
+temporarily switch to a converter while evaluating an expression and switch
+back to process_stream. They are reported in thread dumps and are mixed with
+caller locations for memory profiling. As such they are intentionally not too
+precise in order to avoid an explosion of the number of buckets. At the moment,
+the level of granularity it provides is sufficient to try to narrow a
+misbehaving origin down to a list of keywords. The context types can currently
+be:
+
+- something registered via an initcall, with the initcall's location
+- something registered via an ha_caller, with the caller's location
+- an explicit sample fetch / converter / action / CLI keyword list
+- an explicit function (mainly used for actions without keywords)
+- a task / tasklet (no distinction is made), using the ->process pointer
+- a filter (e.g. compression), via flt_conf, reporting name
+- a mux (via the mux_ops, reporting the name)
+- an applet (e.g. cache, stats, CLI)
+
+A macro EXEC_CTX_MAKE(type, pointer) makes a thread_exec_ctx from such
+values.
+
+A macro EXEC_CTX_NO_RET(ctx, statement) calls a void statement under the
+specified context.
+
+A macro EXEC_CTX_WITH_RET(ctx, expr) calls an expression under the specified
+context.
+
+Most locations were modified to directly use these macros on the fly, by
+retrieving the context from where it was set on the element being evaluated
+(e.g. an action rule contains the context inherited by the action keyword
+that was used to create it).
+
+In tools.c, chunk_append_thread_ctx() tries to decode the given exec_ctx and
+appends it into the provided buffer. It's used by ha_thread_dump_one() and
+cli_io_handler_show_activity() for memory profiling. In this latter case,
+the detected thread_ctx are reported in the output under brackets prefixed
+with "[via ...]" to distinguish call paths to the same allocators.
+
+A good way to test if a context is properly reported is to place a bleeding
+malloc() call into one of the monitored functions, e.g.:
+
+   DISGUISE(malloc(8));
+
+and issue "show profiling memory" after stressing the function. Its context
+must appear on the right with the number of calls.
