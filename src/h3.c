@@ -1505,7 +1505,7 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	}
 
 	/* Check the number of blocks against "tune.http.maxhdr" value before adding EOT block */
-	if (htx_nbblks(htx) > global.tune.max_http_hdr) {
+	if (hdr_idx > global.tune.max_http_hdr) {
 		len = -1;
 		goto out;
 	}

@@ -861,8 +861,8 @@ int h2_make_htx_trailers(struct http_hdr *list, struct htx *htx)
 			goto fail;
 	}
 
-	/* Check the number of blocks against "tune.http.maxhdr" value before adding EOT block */
-	if (htx_nbblks(htx) > global.tune.max_http_hdr)
+	/* Check the number of trailers against "tune.http.maxhdr" value before adding EOT block */
+	if (idx > global.tune.max_http_hdr)
 		goto fail;
 
 	if (!htx_add_endof(htx, HTX_BLK_EOT))
