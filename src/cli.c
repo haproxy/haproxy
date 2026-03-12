@@ -2614,8 +2614,9 @@ static int cli_parse_echo(char **args, char *payload, struct appctx *appctx, voi
 
 static int _send_status(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	struct listener *mproxy_li;
 	struct mworker_proc *proc;
+	struct stconn *sc = appctx_sc(appctx);
+	struct listener *mproxy_li = strm_li(__sc_strm(sc));
 	char *msg = "READY\n";
 	int pid;
 
@@ -2625,19 +2626,18 @@ static int _send_status(char **args, char *payload, struct appctx *appctx, void 
 	pid = atoi(args[2]);
 
 	list_for_each_entry(proc, &proc_list, list) {
+
 		/* update status of the new worker */
 		if (proc->pid == pid) {
 			proc->options &= ~PROC_O_INIT;
-			/* the sockpair between the master and the worker is
-			 * used temporarly as a listener to receive
-			 * _send_status. Once it is received we don't want to
-			 * use this FD as a listener anymore, but only as a
-			 * server, to allow only connections from the master to
-			 * the worker for the master CLI */
-			mproxy_li = fdtab[proc->ipc_fd[0]].owner;
-			BUG_ON(mproxy_li == NULL);
-			stop_listener(mproxy_li, 0, 0, 0);
+
+			/* the proxy used to receive the _send_status must be
+			 * the one corresponding to the PID we received in
+			 * argument */
+			BUG_ON(proc->ipc_fd[0] < 0);
+			BUG_ON(mproxy_li != fdtab[proc->ipc_fd[0]].owner);
 		}
+
 		/* send TERM to workers, which have exceeded max_reloads counter */
 		if (max_reloads != -1) {
 			if ((proc->options & PROC_O_TYPE_WORKER) &&
@@ -2648,6 +2648,15 @@ static int _send_status(char **args, char *payload, struct appctx *appctx, void 
 
 		}
 	}
+
+	/* the sockpair between the master and the worker is
+	 * used temporarly as a listener to receive
+	 * _send_status. Once it is received we don't want to
+	 * use this FD as a listener anymore, but only as a
+	 * server, to allow only connections from the master to
+	 * the worker for the master CLI */
+	BUG_ON(mproxy_li == NULL);
+	stop_listener(mproxy_li, 0, 0, 0);
 
 	/* At this point we are sure, that newly forked worker is started,
 	 * so we can write our PID in a pidfile, if provided. Master doesn't
