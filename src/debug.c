@@ -367,6 +367,9 @@ void ha_thread_dump_one(struct buffer *buf, int is_caller)
 			      (now - th_ctx->sched_call_date));
 	}
 
+	/* report the execution context when known */
+	chunk_append_thread_ctx(buf, &th_ctx->exec_ctx, "             exec_ctx: ", "\n");
+
 	/* this is the end of what we can dump from outside the current thread */
 
 	chunk_appendf(buf, "             curr_task=");
