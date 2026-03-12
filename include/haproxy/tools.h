@@ -1540,4 +1540,6 @@ void ha_freearray(char ***array);
 
 void ha_memset_s(void *s, int c, size_t n);
 
+void chunk_append_thread_ctx(struct buffer *output, const struct thread_exec_ctx *ctx, const char *pfx, const char *sfx);
+
 #endif /* _HAPROXY_TOOLS_H */

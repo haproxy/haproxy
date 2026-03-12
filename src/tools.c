@@ -7502,6 +7502,28 @@ void ha_memset_s(void *s, int c, size_t n)
 	__asm__ __volatile__("" : : "r"(s) : "memory");
 }
 
+/* Optionally appends the thread execution context as a string to the output,
+ * prefixed with <pfx> and suffixed with <sfx> if not NULL and only when the
+ * context type is not TH_EX_CTX_NONE. Otherwise it does nothing and leaves the
+ * chunk untouched.
+ */
+void chunk_append_thread_ctx(struct buffer *output, const struct thread_exec_ctx *ctx, const char *pfx, const char *sfx)
+{
+	if (!ctx->type)
+		return;
+
+	chunk_appendf(output,"%s", pfx ? pfx : "");
+
+	switch (ctx->type) {
+	default:
+		chunk_appendf(output,"other ctx %p", ctx->pointer);
+		break;
+	}
+
+	chunk_appendf(output,"%s", sfx ? sfx : "");
+}
+
+
 /*
  * Local variables:
  *  c-indent-level: 8
