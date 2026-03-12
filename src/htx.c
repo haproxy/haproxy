@@ -469,6 +469,18 @@ void htx_truncate(struct htx *htx, uint32_t offset)
 		blk = htx_remove_blk(htx, blk);
 }
 
+/* Removes all blocks after <blk>, excluding it. if <blk> is NULL, all blocks
+ * are removed.
+ */
+void htx_truncate_blk(struct htx *htx, struct htx_blk *blk)
+{
+	if (!blk) {
+		htx_drain(htx, htx->data);
+		return;
+	}
+	for (blk = htx_get_next_blk(htx, blk); blk; blk = htx_remove_blk(htx, blk));
+}
+
 /* Drains <count> bytes from the HTX message <htx>. If the last block is a DATA
  * block, it will be cut if necessary. Others blocks will be removed at once if
  * <count> is large enough. The function returns an htx_ret with the first block

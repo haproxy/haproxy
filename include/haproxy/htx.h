@@ -37,6 +37,7 @@ struct htx_blk *htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t bl
 struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk);
 struct htx_ret htx_find_offset(struct htx *htx, uint32_t offset);
 void htx_truncate(struct htx *htx, uint32_t offset);
+void htx_truncate_blk(struct htx *htx, struct htx_blk *blk);
 struct htx_ret htx_drain(struct htx *htx, uint32_t max);
 
 struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
