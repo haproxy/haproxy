@@ -1493,7 +1493,7 @@ int sc_conn_send(struct stconn *sc)
 			 * disable the l7 retries by setting
 			 * l7_conn_retries to 0.
 			 */
-			if (s->txn->req.msg_state != HTTP_MSG_DONE)
+			if (s->txn->req.msg_state != HTTP_MSG_DONE || b_is_large(&oc->buf))
 				s->txn->flags &= ~TX_L7_RETRY;
 			else {
 				if (b_alloc(&s->txn->l7_buffer, DB_UNLIKELY) == NULL)
