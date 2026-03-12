@@ -601,7 +601,7 @@
  * store stats.
  */
 #ifndef MEMPROF_HASH_BITS
-# define MEMPROF_HASH_BITS 10
+# define MEMPROF_HASH_BITS 12
 #endif
 #define MEMPROF_HASH_BUCKETS (1U << MEMPROF_HASH_BITS)
 
