@@ -7552,6 +7552,9 @@ void chunk_append_thread_ctx(struct buffer *output, const struct thread_exec_ctx
 		resolve_sym_name(output, "task '", ctx->task);
 		chunk_appendf(output,"'");
 		break;
+	case TH_EX_CTX_APPLET:
+		chunk_appendf(output,"applet '%s'", ctx->applet->name);
+		break;
 	default:
 		chunk_appendf(output,"other ctx %p", ctx->pointer);
 		break;

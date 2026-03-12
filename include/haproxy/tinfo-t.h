@@ -88,6 +88,7 @@ enum thread_exec_ctx_type {
 	TH_EX_CTX_FLT,                      /* filter whose config is in .flt_conf */
 	TH_EX_CTX_MUX,                      /* mux whose mux_ops is in .mux_ops */
 	TH_EX_CTX_TASK,                     /* task or tasklet whose function is in .task */
+	TH_EX_CTX_APPLET,                   /* applet whose applet is in .applet */
 };
 
 struct thread_exec_ctx {
@@ -103,6 +104,7 @@ struct thread_exec_ctx {
 		const struct flt_conf *flt_conf;  /* used with TH_EX_CTX_FLTCONF */
 		const struct mux_ops *mux_ops;  /* used with TH_EX_CTX_MUX */
 		const struct task *(*task)(struct task *, void *, unsigned int); /* used with TH_EX_CTX_TASK */
+		const struct applet *applet;  /* used with TH_EX_CTX_APPLET */
 	};
 };
 

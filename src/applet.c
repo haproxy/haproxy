@@ -31,7 +31,6 @@ unsigned int nb_applets = 0;
 
 DECLARE_TYPED_POOL(pool_head_appctx,  "appctx",  struct appctx);
 
-
 /* trace source and events */
 static void applet_trace(enum trace_level level, uint64_t mask,
 			 const struct trace_source *src,
@@ -417,7 +416,7 @@ void appctx_shut(struct appctx *appctx)
 	TRACE_ENTER(APPLET_EV_RELEASE, appctx);
 
 	if (appctx->applet->release)
-		appctx->applet->release(appctx);
+		CALL_APPLET_NO_RET(appctx->applet, release(appctx));
 	applet_fl_set(appctx, APPCTX_FL_SHUTDOWN);
 
 	b_dequeue(&appctx->buffer_wait);
@@ -551,7 +550,7 @@ size_t appctx_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 	if (flags & CO_RFL_BUF_FLUSH)
 		applet_fl_set(appctx, APPCTX_FL_FASTFWD);
 
-	ret = appctx->applet->rcv_buf(appctx, buf, count, flags);
+	ret = CALL_APPLET_WITH_RET(appctx->applet, rcv_buf(appctx, buf, count, flags));
 	if (ret)
 		applet_fl_clr(appctx, APPCTX_FL_OUTBLK_FULL);
 
@@ -659,7 +658,7 @@ size_t appctx_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, unsig
 		goto end;
 	}
 
-	ret = appctx->applet->snd_buf(appctx, buf, count, flags);
+	ret = CALL_APPLET_WITH_RET(appctx->applet, snd_buf(appctx, buf, count, flags));
 
 	if (applet_fl_test(appctx, (APPCTX_FL_ERROR|APPCTX_FL_ERR_PENDING)))
 		se_report_term_evt(appctx->sedesc, se_tevt_type_snd_err);
@@ -716,7 +715,7 @@ int appctx_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 	}
 
 	b_add(sdo->iobuf.buf, sdo->iobuf.offset);
-	ret = appctx->applet->fastfwd(appctx, sdo->iobuf.buf, len, 0);
+	ret = CALL_APPLET_WITH_RET(appctx->applet, fastfwd(appctx, sdo->iobuf.buf, len, 0));
 	b_sub(sdo->iobuf.buf, sdo->iobuf.offset);
 	sdo->iobuf.data += ret;
 
@@ -853,7 +852,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	 * already called)
 	 */
 	if (!se_fl_test(app->sedesc, SE_FL_SHR) || !se_fl_test(app->sedesc, SE_FL_SHW))
-		app->applet->fct(app);
+		CALL_APPLET_NO_RET(app->applet, fct(app));
 
 	TRACE_POINT(APPLET_EV_PROCESS, app);
 
@@ -954,7 +953,7 @@ struct task *task_process_applet(struct task *t, void *context, unsigned int sta
 	 * already called)
 	 */
 	if (!applet_fl_test(app, APPCTX_FL_SHUTDOWN))
-		app->applet->fct(app);
+		CALL_APPLET_NO_RET(app->applet, fct(app));
 
 	TRACE_POINT(APPLET_EV_PROCESS, app);
 

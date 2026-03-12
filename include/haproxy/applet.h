@@ -62,6 +62,13 @@ ssize_t applet_append_line(void *ctx, struct ist v1, struct ist v2, size_t ofs, 
 static forceinline void applet_fl_set(struct appctx *appctx, uint on);
 static forceinline void applet_fl_clr(struct appctx *appctx, uint off);
 
+/* macros to switch the calling context to the applet during a call. There's
+ * one with a return value for most calls, and one without for the few like
+ * fct(), shut(), or release() with no return.
+ */
+#define CALL_APPLET_WITH_RET(applet, func) EXEC_CTX_WITH_RET(EXEC_CTX_MAKE(TH_EX_CTX_APPLET, (applet)), (applet)->func)
+#define CALL_APPLET_NO_RET(applet, func)   EXEC_CTX_NO_RET(EXEC_CTX_MAKE(TH_EX_CTX_APPLET, (applet)), (applet)->func)
+
 
 static forceinline uint appctx_app_test(const struct appctx *appctx, uint test)
 {
@@ -126,7 +133,7 @@ static inline int appctx_init(struct appctx *appctx)
 	task_set_thread(appctx->t, tid);
 
 	if (appctx->applet->init)
-		return appctx->applet->init(appctx);
+		return CALL_APPLET_WITH_RET(appctx->applet, init(appctx));
 	return 0;
 }
 
