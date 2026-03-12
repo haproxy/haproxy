@@ -3780,9 +3780,11 @@ int main(int argc, char **argv)
 		}
 
 		list_for_each_entry(proc, &proc_list, list) {
-			if (proc->pid == -1)
+			if (proc->pid == -1 && proc->options & PROC_O_TYPE_WORKER)
 				break;
 		}
+
+		BUG_ON(!(proc->options & PROC_O_TYPE_WORKER));
 
 		if (send_fd_uxst(proc->ipc_fd[1], sock_pair[0]) == -1) {
 			ha_alert("[%s.main()] Cannot transfer connection fd %d over the sockpair@%d\n",
