@@ -66,6 +66,7 @@ extern void *__elf_aux_vector;
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
 #include <haproxy/chunk.h>
+#include <haproxy/cli-t.h>
 #include <haproxy/compiler.h>
 #include <haproxy/dgram.h>
 #include <haproxy/global.h>
@@ -7554,6 +7555,14 @@ void chunk_append_thread_ctx(struct buffer *output, const struct thread_exec_ctx
 		break;
 	case TH_EX_CTX_APPLET:
 		chunk_appendf(output,"applet '%s'", ctx->applet->name);
+		break;
+	case TH_EX_CTX_CLI_KWL:
+		chunk_appendf(output,"cli kwl starting with '%s %s %s %s %s'",
+			      ctx->cli_kwl->kw[0].str_kw[0],
+			      ctx->cli_kwl->kw[0].str_kw[1] ? ctx->cli_kwl->kw[0].str_kw[1] : "",
+			      ctx->cli_kwl->kw[0].str_kw[2] ? ctx->cli_kwl->kw[0].str_kw[2] : "",
+			      ctx->cli_kwl->kw[0].str_kw[3] ? ctx->cli_kwl->kw[0].str_kw[3] : "",
+			      ctx->cli_kwl->kw[0].str_kw[4] ? ctx->cli_kwl->kw[0].str_kw[4] : "");
 		break;
 	default:
 		chunk_appendf(output,"other ctx %p", ctx->pointer);

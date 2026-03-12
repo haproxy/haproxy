@@ -410,6 +410,9 @@ void cli_register_kw(struct cli_kw_list *kw_list)
 		if (caller_initcall) {
 			kw->exec_ctx.type = TH_EX_CTX_INITCALL;
 			kw->exec_ctx.initcall = caller_initcall;
+		} else {
+			kw->exec_ctx.type = TH_EX_CTX_CLI_KWL;
+			kw->exec_ctx.cli_kwl = kw_list;
 		}
 	}
 	LIST_APPEND(&cli_keywords.list, &kw_list->list);
