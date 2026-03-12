@@ -6059,7 +6059,8 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			ret = SSL_read(ctx->ssl, b_tail(&ctx->early_buf),
 				       b_room(&ctx->early_buf));
 			if (ret > 0) {
-				conn->flags |= CO_FL_EARLY_DATA;
+				if (SSL_in_early_data(ctx->ssl))
+					conn->flags |= CO_FL_EARLY_DATA;
 				b_add(&ctx->early_buf, ret);
 			} else {
 				int err = SSL_get_error(ctx->ssl, ret);
