@@ -1635,18 +1635,11 @@ void haproxy_init_args(int argc, char **argv)
 					argc--; argv++;
 				}
 
-				ret = trace_parse_cmd(arg, &err_msg);
-				if (ret <= -1) {
-					if (ret < -1) {
-						ha_alert("-dt: %s.\n", err_msg);
-						ha_free(&err_msg);
-						exit(EXIT_FAILURE);
-					}
-					else {
-						printf("%s\n", err_msg);
-						ha_free(&err_msg);
-						exit(0);
-					}
+				ret = trace_add_cmd(arg, &err_msg);
+				if (ret) {
+					ha_alert("-dt: %s.\n", err_msg);
+					ha_free(&err_msg);
+					exit(EXIT_FAILURE);
 				}
 			}
 #ifdef HA_USE_KTLS
@@ -3478,6 +3471,7 @@ int main(int argc, char **argv)
 		list_for_each_entry_safe(cfg, cfg_tmp, &cfg_cfgfiles, list)
 			ha_free(&cfg->content);
 
+		trace_parse_cmds();
 		usermsgs_clr(NULL);
 	}
 

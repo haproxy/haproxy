@@ -35,6 +35,14 @@
 struct list trace_sources = LIST_HEAD_INIT(trace_sources);
 THREAD_LOCAL struct buffer trace_buf = { };
 
+struct trace_cmd {
+	struct list next;
+	const char *arg;
+};
+
+/* List of arguments to "-dt" options for deferred processing. */
+static struct list trace_cmds = LIST_HEAD_INIT(trace_cmds);
+
 /* allocates the trace buffers. Returns 0 in case of failure. It is safe to
  * call to call this function multiple times if the size changes.
  */
@@ -990,6 +998,21 @@ static int trace_parse_statement(char **args, char **msg)
 	return _trace_parse_statement(args, msg, NULL, 0);
 }
 
+int trace_add_cmd(const char *arg_src, char **errmsg)
+{
+	struct trace_cmd *cmd;
+
+	cmd = malloc(sizeof(*cmd));
+	if (!cmd) {
+		memprintf(errmsg, "Can't allocate trace cmd!");
+		return -1;
+	}
+
+	cmd->arg = arg_src;
+	LIST_APPEND(&trace_cmds, &cmd->next);
+	return 0;
+}
+
 void _trace_parse_cmd(struct trace_source *src, int level, int verbosity)
 {
 	trace_source_reset(src);
@@ -1004,7 +1027,7 @@ void _trace_parse_cmd(struct trace_source *src, int level, int verbosity)
  *
  * Returns 0 on success else non-zero.
  */
-int trace_parse_cmd(const char *arg_src, char **errmsg)
+static int trace_parse_cmd(const char *arg_src, char **errmsg)
 {
 	char *str;
 	char *arg, *oarg;
@@ -1135,6 +1158,34 @@ int trace_parse_cmd(const char *arg_src, char **errmsg)
 	}
 	ha_free(&oarg);
 	return 0;
+}
+
+void trace_parse_cmds(void)
+{
+	struct trace_cmd *cmd;
+	char *errmsg = NULL;
+	int ret = 0;
+
+	while (!LIST_ISEMPTY(&trace_cmds)) {
+		cmd = LIST_ELEM(trace_cmds.n, struct trace_cmd *, next);
+		if (!ret)
+			ret = trace_parse_cmd(cmd->arg, &errmsg);
+		LIST_DELETE(&cmd->next);
+		free(cmd);
+	}
+
+	if (ret <= -1) {
+		if (ret < -1) {
+			ha_alert("-dt: %s.\n", errmsg);
+			ha_free(&errmsg);
+			exit(EXIT_FAILURE);
+		}
+		else {
+			printf("%s\n", errmsg);
+			ha_free(&errmsg);
+			exit(0);
+		}
+	}
 }
 
 /* parse a "trace" statement in the "global" section, returns 1 if a message is returned, otherwise zero */
