@@ -23,6 +23,7 @@
 #define _HAPROXY_CLI_T_H
 
 #include <haproxy/applet-t.h>
+#include <haproxy/tinfo-t.h>
 
 /* Access level for a stats socket (appctx->cli_ctx.level) */
 #define ACCESS_LVL_NONE     0x0000
@@ -120,6 +121,8 @@ struct cli_kw {
 	void (*io_release)(struct appctx *appctx);
 	void *private;
 	int level; /* this is the level needed to show the keyword usage and to use it */
+	/* 4-byte hole here */
+	struct thread_exec_ctx exec_ctx;          /* execution context */
 };
 
 struct cli_kw_list {

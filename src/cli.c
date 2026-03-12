@@ -400,6 +400,18 @@ struct cli_kw* cli_find_kw_exact(char **args)
 
 void cli_register_kw(struct cli_kw_list *kw_list)
 {
+	struct cli_kw *kw;
+
+	for (kw = &kw_list->kw[0]; kw->str_kw[0]; kw++) {
+		/* store declaration file/line if known */
+		if (kw->exec_ctx.type)
+			continue;
+
+		if (caller_initcall) {
+			kw->exec_ctx.type = TH_EX_CTX_INITCALL;
+			kw->exec_ctx.initcall = caller_initcall;
+		}
+	}
 	LIST_APPEND(&cli_keywords.list, &kw_list->list);
 }
 
@@ -1211,11 +1223,11 @@ void cli_io_handler(struct appctx *appctx)
 
 			case CLI_ST_CALLBACK: /* use custom pointer */
 				if (appctx->cli_ctx.io_handler)
-					if (appctx->cli_ctx.io_handler(appctx)) {
+					if (EXEC_CTX_WITH_RET(appctx->cli_ctx.kw->exec_ctx, appctx->cli_ctx.io_handler(appctx))) {
 						appctx->t->expire = TICK_ETERNITY;
 						appctx->st0 = CLI_ST_PROMPT;
 						if (appctx->cli_ctx.io_release) {
-							appctx->cli_ctx.io_release(appctx);
+							EXEC_CTX_NO_RET(appctx->cli_ctx.kw->exec_ctx, appctx->cli_ctx.io_release(appctx));
 							appctx->cli_ctx.io_release = NULL;
 							appctx->cli_ctx.kw = NULL;
 							/* some release handlers might have
@@ -1329,7 +1341,7 @@ static void cli_release_handler(struct appctx *appctx)
 	free_trash_chunk(appctx->cli_ctx.cmdline);
 
 	if (appctx->cli_ctx.io_release) {
-		appctx->cli_ctx.io_release(appctx);
+		EXEC_CTX_NO_RET(appctx->cli_ctx.kw->exec_ctx, appctx->cli_ctx.io_release(appctx));
 		appctx->cli_ctx.io_release = NULL;
 		appctx->cli_ctx.kw = NULL;
 	}
