@@ -7522,6 +7522,13 @@ void chunk_append_thread_ctx(struct buffer *output, const struct thread_exec_ctx
 		chunk_appendf(output,"ctx registered at %s:%d", slash, ctx->initcall->loc_line);
 		break;
 	}
+	case TH_EX_CTX_CALLER: {
+		const char *file = ctx->ha_caller->file;
+		const char *slash = strrchr(file, '/');
+		slash = slash ? slash + 1 : file;
+		chunk_appendf(output,"ctx registered at %s@%s:%d", ctx->ha_caller->func, slash, ctx->ha_caller->line);
+		break;
+	}
 	default:
 		chunk_appendf(output,"other ctx %p", ctx->pointer);
 		break;
