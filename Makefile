@@ -1332,7 +1332,8 @@ range:
 			echo "[ $$index/$$count ]   $$commit #############################"; \
 			git checkout -q $$commit || die 1; \
 			$(MAKE) all || die 1; \
-			[ -z "$(TEST_CMD)" ] || $(TEST_CMD) || die 1; \
+			set -- $(TEST_CMD); \
+			[ "$$#" -eq 0 ] || "$$@" || die 1; \
 			index=$$((index + 1)); \
 		done; \
 		echo;echo "Done! $${count} commit(s) built successfully for RANGE $${RANGE}" ; \
