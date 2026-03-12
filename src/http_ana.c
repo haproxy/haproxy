@@ -1224,11 +1224,14 @@ static __inline int do_l7_retry(struct stream *s, struct stconn *sc)
 	}
 
 	b_free(&req->buf);
+
 	/* Swap the L7 buffer with the channel buffer */
 	/* We know we stored the co_data as b_data, so get it there */
 	co_data = b_data(&s->txn->l7_buffer);
 	b_set_data(&s->txn->l7_buffer, b_size(&s->txn->l7_buffer));
-	b_xfer(&req->buf, &s->txn->l7_buffer, b_data(&s->txn->l7_buffer));
+
+	req->buf = s->txn->l7_buffer;
+	s->txn->l7_buffer = BUF_NULL;
 	co_set_data(req, co_data);
 
 	DBG_TRACE_DEVEL("perform a L7 retry", STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, s->txn);
