@@ -2377,6 +2377,9 @@ int check_config_validity()
 		cfgerr += check_action_rules(&defpx->http_req_rules, defpx, &err_code);
 		cfgerr += check_action_rules(&defpx->http_res_rules, defpx, &err_code);
 		cfgerr += check_action_rules(&defpx->http_after_res_rules, defpx, &err_code);
+#ifdef USE_QUIC
+		cfgerr += check_action_rules(&defpx->quic_init_rules, defpx, &err_code);
+#endif
 
 		err = NULL;
 		i = smp_resolve_args(defpx, &err);

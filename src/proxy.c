@@ -2152,6 +2152,9 @@ int proxy_finalize(struct proxy *px, int *err_code)
 	cfgerr += check_action_rules(&px->http_req_rules, px, err_code);
 	cfgerr += check_action_rules(&px->http_res_rules, px, err_code);
 	cfgerr += check_action_rules(&px->http_after_res_rules, px, err_code);
+#ifdef USE_QUIC
+	cfgerr += check_action_rules(&px->quic_init_rules, px, err_code);
+#endif
 
 	/* Warn is a switch-mode http is used on a TCP listener with servers but no backend */
 	if (!px->defbe.name && LIST_ISEMPTY(&px->switching_rules) && px->srv) {
