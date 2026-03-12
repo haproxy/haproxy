@@ -130,6 +130,7 @@ struct appctx {
 		int (*io_handler)(struct appctx *appctx);  /* used within the cli_io_handler when st0 = CLI_ST_CALLBACK */
 		void (*io_release)(struct appctx *appctx); /* used within the cli_io_handler when st0 = CLI_ST_CALLBACK,
 							      if the command is terminated or the session released */
+		struct cli_kw *kw;      /* the keyword being processed */
 	} cli_ctx; /* context dedicated to the CLI applet */
 
 	struct buffer_wait buffer_wait; /* position in the list of objects waiting for a buffer */

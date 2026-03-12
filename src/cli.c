@@ -849,6 +849,7 @@ static int cli_process_cmdline(struct appctx *appctx)
 	else if (kw->level == ACCESS_EXPERIMENTAL)
 		mark_tainted(TAINTED_CLI_EXPERIMENTAL_MODE);
 
+	appctx->cli_ctx.kw = kw;
 	appctx->cli_ctx.io_handler = kw->io_handler;
 	appctx->cli_ctx.io_release = kw->io_release;
 
@@ -868,6 +869,7 @@ static int cli_process_cmdline(struct appctx *appctx)
 	goto end;
 
   fail:
+	appctx->cli_ctx.kw = NULL;
 	appctx->cli_ctx.io_handler = NULL;
 	appctx->cli_ctx.io_release = NULL;
 
@@ -1215,11 +1217,13 @@ void cli_io_handler(struct appctx *appctx)
 						if (appctx->cli_ctx.io_release) {
 							appctx->cli_ctx.io_release(appctx);
 							appctx->cli_ctx.io_release = NULL;
+							appctx->cli_ctx.kw = NULL;
 							/* some release handlers might have
 							 * pending output to print.
 							 */
 							continue;
 						}
+						appctx->cli_ctx.kw = NULL;
 					}
 				break;
 			default: /* abnormal state */
@@ -1327,6 +1331,7 @@ static void cli_release_handler(struct appctx *appctx)
 	if (appctx->cli_ctx.io_release) {
 		appctx->cli_ctx.io_release(appctx);
 		appctx->cli_ctx.io_release = NULL;
+		appctx->cli_ctx.kw = NULL;
 	}
 	else if (appctx->st0 == CLI_ST_PRINT_DYN || appctx->st0 == CLI_ST_PRINT_DYNERR) {
 		struct cli_print_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
