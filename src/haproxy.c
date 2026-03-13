@@ -3765,6 +3765,7 @@ int main(int argc, char **argv)
 		char *msg = NULL;
 		char c;
 		int r __maybe_unused;
+		struct timeval tv = { .tv_sec = 2, .tv_usec = 0 };
 
 		if (socketpair(PF_UNIX, SOCK_STREAM, 0, sock_pair) == -1) {
 			ha_alert("[%s.main()] Cannot create socketpair to update the new worker state\n",
@@ -3803,6 +3804,7 @@ int main(int argc, char **argv)
 		 * we make sure that the fd is received correctly.
 		 */
 		shutdown(sock_pair[1], SHUT_WR);
+		setsockopt(sock_pair[1], SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 		r = read(sock_pair[1], &c, 1);
 		close(sock_pair[1]);
 		close(sock_pair[0]);
