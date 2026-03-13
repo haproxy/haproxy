@@ -1149,10 +1149,6 @@ int sc_conn_recv(struct stconn *sc)
 	if (!sc_alloc_ibuf(sc, &(__sc_strm(sc)->buffer_wait)))
 		goto end_recv;
 
-	if ((ic->flags & CF_WROTE_DATA) && b_size(sc_ib(sc)) > global.tune.bufsize) {
-		sc_need_room(sc, -1);
-		goto done_recv;
-	}
 	/* For an HTX stream, if the buffer is stuck (no output data with some
 	 * input data) and if the HTX message is fragmented or if its free space
 	 * wraps, we force an HTX deframentation. It is a way to have a
@@ -1194,6 +1190,8 @@ int sc_conn_recv(struct stconn *sc)
 		 * SE_FL_RCV_MORE on the SC if more space is needed.
 		 */
 		max = channel_recv_max(ic);
+		if ((ic->flags & CF_WROTE_DATA) && b_is_large(sc_ib(sc)))
+			max = 0;
 		ret = CALL_MUX_WITH_RET(conn->mux, rcv_buf(sc, &ic->buf, max, cur_flags));
 
 		if (sc_ep_test(sc, SE_FL_WANT_ROOM)) {
@@ -1838,11 +1836,6 @@ int sc_applet_recv(struct stconn *sc)
 	if (!sc_alloc_ibuf(sc, &appctx->buffer_wait))
 		goto end_recv;
 
-	if ((ic->flags & CF_WROTE_DATA) && b_size(sc_ib(sc)) > global.tune.bufsize) {
-		sc_need_room(sc, -1);
-		goto done_recv;
-	}
-
 	/* For an HTX stream, if the buffer is stuck (no output data with some
 	 * input data) and if the HTX message is fragmented or if its free space
 	 * wraps, we force an HTX deframentation. It is a way to have a
@@ -1868,6 +1861,8 @@ int sc_applet_recv(struct stconn *sc)
 	 * SE_FL_RCV_MORE on the SC if more space is needed.
 	 */
 	max = channel_recv_max(ic);
+	if ((ic->flags & CF_WROTE_DATA) && b_is_large(sc_ib(sc)))
+		max = 0;
 	ret = appctx_rcv_buf(sc, &ic->buf, max, flags);
 	if (sc_ep_test(sc, SE_FL_WANT_ROOM)) {
 		/* SE_FL_WANT_ROOM must not be reported if the channel's
