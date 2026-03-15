@@ -501,11 +501,14 @@ static int hstream_build_http_resp(struct hstream *hs)
 	struct htx *htx;
 	unsigned int flags = HTX_SL_F_IS_RESP | HTX_SL_F_XFER_LEN | (!hs->req_chunked ?  HTX_SL_F_CLEN : 0);
 	struct htx_sl *sl;
-	char hdrbuf[128];
+	char *end;
 
 	TRACE_ENTER(HS_EV_HSTRM_RESP, hs);
 
-	snprintf(hdrbuf, sizeof(hdrbuf), "%d", hs->req_code);
+	chunk_reset(&trash);
+	end = ultoa_o(hs->req_code, trash.area, trash.size);
+	if (!end)
+		goto err;
 	buf = hstream_get_buf(hs, &hs->res);
 	if (!buf) {
 		TRACE_ERROR("could not allocate response buffer", HS_EV_HSTRM_RESP, hs);
@@ -515,7 +518,7 @@ static int hstream_build_http_resp(struct hstream *hs)
 	htx = htx_from_buf(buf);
 	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags,
 	                    !(hs->ka & 4) ? ist("HTTP/1.0") : ist("HTTP/1.1"),
-	                    ist(hdrbuf), IST_NULL);
+	                    ist2(trash.area, end - trash.area), IST_NULL);
 	if (!sl) {
 		TRACE_ERROR("could not add HTX start line", HS_EV_HSTRM_RESP, hs);
 		goto err;
@@ -550,18 +553,46 @@ static int hstream_build_http_resp(struct hstream *hs)
 	}
 
 	/* XXX TODO time?  XXX */
-	snprintf(hdrbuf, sizeof(hdrbuf), "time=%ld ms", 0L);
-	if (!htx_add_header(htx, ist("X-req"), ist(hdrbuf))) {
+	chunk_reset(&trash);
+	if (!chunk_strcat(&trash, "time=0 ms") ||
+	    !htx_add_header(htx, ist("X-req"), ist2(trash.area, trash.data))) {
 		TRACE_ERROR("could not add x-req HTX header", HS_EV_HSTRM_RESP, hs);
 	    goto err;
 	}
 
 	/* XXX TODO time? XXX */
-	snprintf(hdrbuf, sizeof(hdrbuf), "id=%s, code=%d, cache=%d,%s size=%lld, time=%d ms (%ld real)",
-	         "dummy", hs->req_code, hs->req_cache,
-			 hs->req_chunked ? " chunked," : "",
-			 hs->req_size, 0, 0L);
-	if (!htx_add_header(htx, ist("X-rsp"), ist(hdrbuf))) {
+	chunk_reset(&trash);
+	if (!chunk_strcat(&trash, "id=dummy, code=")) {
+		TRACE_ERROR("could not build x-rsp HTX header", HS_EV_HSTRM_RESP, hs);
+	    goto err;
+	}
+	end = ultoa_o(hs->req_code, trash.area + trash.data, trash.size - trash.data);
+	if (!end)
+		goto err;
+	trash.data = end - trash.area;
+	if (!chunk_strcat(&trash, ", cache=")) {
+		TRACE_ERROR("could not build x-rsp HTX header", HS_EV_HSTRM_RESP, hs);
+	    goto err;
+	}
+	end = ultoa_o(hs->req_cache, trash.area + trash.data, trash.size - trash.data);
+	if (!end)
+		goto err;
+	trash.data = end - trash.area;
+	if (hs->req_chunked && !chunk_strcat(&trash, ", chunked,")) {
+		TRACE_ERROR("could not build x-rsp HTX header", HS_EV_HSTRM_RESP, hs);
+	    goto err;
+	}
+	if (!chunk_strcat(&trash, " size=")) {
+		TRACE_ERROR("could not build x-rsp HTX header", HS_EV_HSTRM_RESP, hs);
+	    goto err;
+	}
+	end = ultoa_o(hs->req_size, trash.area + trash.data, trash.size - trash.data);
+	if (!end)
+		goto err;
+	trash.data = end - trash.area;
+
+	if (!chunk_strcat(&trash, ", time=0 ms (0 real)") ||
+	    !htx_add_header(htx, ist("X-rsp"), ist2(trash.area, trash.data))) {
 		TRACE_ERROR("could not add x-rsp HTX header", HS_EV_HSTRM_RESP, hs);
 	    goto err;
 	}
