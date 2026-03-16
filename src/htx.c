@@ -719,10 +719,154 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 	return blk;
 }
 
+/* Transfer HTX blocks from <src> to <dst>, stopping if <count> bytes were
+ * transferred (including payload and meta-data). It returns the number of bytes
+ * copied. By default, copied blocks are removed from <src> and only full
+ * headers and trailers part can be moved. <flags> can be set to change the
+ * default behavior:
+ *  - HTX_XFER_KEEP_SRC_BLKS: source blocks are not removed
+ *  - HTX_XFER_PARTIAL_HDRS_COPY: partial headers and trailers part can be xferred
+ *  - HTX_XFER_HDRS_ONLY: Only the headers part is xferred
+ */
+size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int flags)
+{
+	struct htx_blk *blk, *last_dstblk;
+	size_t ret = 0;
+	int dst_full = 0;
+
+	last_dstblk = NULL;
+	for (blk = htx_get_head_blk(src); blk && count; blk = htx_get_next_blk(src, blk)) {
+		struct ist v;
+		enum htx_blk_type type;
+		uint32_t sz;
+
+		/* Ignore unused block */
+		type = htx_get_blk_type(blk);
+		if (type == HTX_BLK_UNUSED)
+			continue;
+
+		if ((flags & HTX_XFER_HDRS_ONLY) &&
+		    type != HTX_BLK_REQ_SL && type != HTX_BLK_RES_SL &&
+		    type != HTX_BLK_HDR && type != HTX_BLK_EOH)
+			break;
+
+		sz = htx_get_blksz(blk);
+		switch (type) {
+		case HTX_BLK_DATA:
+			v = htx_get_blk_value(src, blk);
+			if (v.len > count)
+				v.len = count;
+			v.len = htx_add_data(dst, v);
+			if (!v.len) {
+				dst_full = 1;
+				goto stop;
+			}
+			last_dstblk = htx_get_tail_blk(dst);
+			count -= sizeof(*blk) + v.len;
+			ret += sizeof(*blk) + v.len;
+			if (v.len != sz) {
+				dst_full = 1;
+				goto stop;
+			}
+			break;
+
+		default:
+			if (sz > count) {
+				dst_full = 1;
+				goto stop;
+			}
+
+			last_dstblk = htx_add_blk(dst, type, sz);
+			if (!last_dstblk) {
+				dst_full = 1;
+				goto stop;
+			}
+			last_dstblk->info = blk->info;
+			htx_memcpy(htx_get_blk_ptr(dst, last_dstblk), htx_get_blk_ptr(src, blk), sz);
+			count -= sizeof(*blk) + sz;
+			ret += sizeof(*blk) + sz;
+			break;
+		}
+
+		last_dstblk = NULL; /* Reset last_dstblk because it was fully copied */
+	}
+  stop:
+	/* Here, if not NULL, <blk> point on the first not fully copied block in
+	 * <src>. And <last_dstblk>, if defined, is the last not fully copied
+	 * block in <dst>. So have:
+	 *   - <blk> == NULL: everything was copied. <last_dstblk> must be NULL
+	 *   - <blk> != NULL && <last_dstblk> == NULL: partial copy but the last block was fully copied
+	 *   - <blk> != NULL && <last_dstblk> != NULL: partial copy and the last block was patially copied (DATA block only)
+	 */
+	if (!(flags & HTX_XFER_PARTIAL_HDRS_COPY)) {
+		/* Partial headers/trailers copy is not supported */
+		struct htx_blk *dstblk;
+		enum htx_blk_type type = HTX_BLK_UNUSED;
+
+		dstblk = htx_get_tail_blk(dst);
+		if (dstblk)
+			type = htx_get_blk_type(dstblk);
+
+		/* the last copied block is a start-line, a header or a trailer */
+		if (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL || type == HTX_BLK_HDR || type == HTX_BLK_TLR) {
+			/* <src > cannot have partial headers or trailers part */
+			BUG_ON(blk == NULL);
+
+			/* Remove partial headers/trailers from <dst> and rollback on <str> to not remove them later */
+			while (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL || type == HTX_BLK_HDR || type == HTX_BLK_TLR) {
+				BUG_ON(type != htx_get_blk_type(blk));
+				ret -= sizeof(*blk) + htx_get_blksz(blk);
+				htx_remove_blk(dst, dstblk);
+				dstblk = htx_get_tail_blk(dst);
+				blk = htx_get_prev_blk(src, blk);
+				if (!dstblk)
+					break;
+				type = htx_get_blk_type(dstblk);
+			}
+
+			/* Report if the xfer was interrupted because <dst> was
+			 * full but is was originally empty
+			 */
+			if (dst_full && htx_is_empty(dst))
+				src->flags |= HTX_FL_PARSING_ERROR;
+		}
+	}
+
+	if (!(flags & HTX_XFER_KEEP_SRC_BLKS)) {
+		/* True xfer performed, remove copied block from <src> */
+		struct htx_blk *blk2;
+
+		/* Remove all fully copied blocks */
+		if (!blk)
+			htx_drain(src, src->data);
+		else {
+			for (blk2 = htx_get_head_blk(src); blk2 && blk2 != blk; blk2 = htx_remove_blk(src, blk2));
+
+			/* If copy was stopped on a DATA block and the last destination
+			 * block is not NULL, it means a partial copy was performed. So
+			 * cut the source block accordingly
+			 */
+			if (last_dstblk && blk2 && htx_get_blk_type(blk2) == HTX_BLK_DATA) {
+				htx_cut_data_blk(src, blk2, htx_get_blksz(last_dstblk));
+			}
+		}
+	}
+
+	/* Everything was copied, transfert terminal HTX flags too */
+	if (!blk) {
+		dst->flags |= (src->flags & (HTX_FL_EOM|HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR));
+		src->flags = 0;
+	}
+
+	return ret;
+}
+
 /* Transfer HTX blocks from <src> to <dst>, stopping once the first block of the
  * type <mark> is transferred (typically EOH or EOT) or when <count> bytes were
  * moved (including payload and meta-data). It returns the number of bytes moved
  * and the last HTX block inserted in <dst>.
+ *
+ * DEPRECATED
  */
 struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 			     enum htx_blk_type mark)
