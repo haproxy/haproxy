@@ -1112,6 +1112,19 @@ static int spoe_process_event(struct stream *s, struct spoe_context *ctx,
 				 agent->id, spoe_event_str[ev], s->uniq_id, ctx->status_code, ctx->stats.t_process,
 				 agent->counters.nb_errors, agent->counters.nb_processed);
 	}
+	else if (ret == 0) {
+		struct channel *chn = (dir == SMP_OPT_DIR_REQ) ? &s->req : &s->res;
+
+		if ((s->scf->flags & SC_FL_ERROR) ||
+		    ((s->scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) && proxy_abrt_close_def(s->be, 1)) ||
+		    (chn_prod(chn)->flags & (SC_FL_ERROR|SC_FL_EOS|SC_FL_ABRT_DONE))) {
+			ctx->status_code = SPOE_CTX_ERR_INTERRUPT;
+			spoe_stop_processing(agent, ctx);
+			spoe_handle_processing_error(s, agent, ctx, dir);
+			ret = 1;
+		}
+	}
+
 	return ret;
 }
 
