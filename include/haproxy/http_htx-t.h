@@ -93,4 +93,22 @@ struct http_errors {
 	struct list list;                     /* http-errors list */
 };
 
+/* Indicates the keyword origin of an http-error definition. This is used in
+ * <conf_errors> type to indicate which part of the internal union should be
+ * manipulated.
+ */
+enum http_err_directive {
+	HTTP_ERR_DIRECTIVE_SECTION = 0, /* "errorfiles" keyword referencing a http-errors section */
+	HTTP_ERR_DIRECTIVE_INLINE,      /* "errorfile" keyword with inline error definition */
+};
+
+/* Used with "errorfiles" directives. It indicates for each known HTTP error
+ * status codes if they are defined in the target http-errors section.
+ */
+enum http_err_import {
+	HTTP_ERR_IMPORT_NO = 0,
+	HTTP_ERR_IMPORT_IMPLICIT, /* import every errcode defined in a section */
+	HTTP_ERR_IMPORT_EXPLICIT, /* import a specific errcode from a section */
+};
+
 #endif /* _HAPROXY_HTTP_HTX_T_H */

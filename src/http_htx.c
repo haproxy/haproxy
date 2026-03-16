@@ -41,15 +41,15 @@ struct list http_replies_list = LIST_HEAD_INIT(http_replies_list);
 /* The declaration of an errorfiles/errorfile directives. Used during config
  * parsing only. */
 struct conf_errors {
-	char type;                                  /* directive type (0: errorfiles, 1: errorfile) */
+	enum http_err_directive type;               /* directive type */
 	union {
 		struct {
 			int status;                 /* the status code associated to this error */
 			struct http_reply *reply;   /* the http reply for the errorfile */
-		} errorfile;                        /* describe an "errorfile" directive */
+		} errorfile;                        /* for HTTP_ERR_DIRECTIVE_INLINE only */
 		struct {
 			char *name;                 /* the http-errors section name */
-			char status[HTTP_ERR_SIZE]; /* list of status to import (0: ignore, 1: implicit import, 2: explicit import) */
+			enum http_err_import status[HTTP_ERR_SIZE]; /* list of status to import */
 		} errorfiles;                       /* describe an "errorfiles" directive */
 	} info;
 
@@ -2034,7 +2034,7 @@ static int proxy_parse_errorloc(char **args, int section, struct proxy *curpx,
 		ret = -1;
 		goto out;
 	}
-	conf_err->type = 1;
+	conf_err->type = HTTP_ERR_DIRECTIVE_INLINE;
 	conf_err->info.errorfile.status = status;
 	conf_err->info.errorfile.reply = reply;
 
@@ -2105,7 +2105,7 @@ static int proxy_parse_errorfile(char **args, int section, struct proxy *curpx,
 		ret = -1;
 		goto out;
 	}
-	conf_err->type = 1;
+	conf_err->type = HTTP_ERR_DIRECTIVE_INLINE;
 	conf_err->info.errorfile.status = status;
 	conf_err->info.errorfile.reply = reply;
 	conf_err->file = strdup(file);
@@ -2146,12 +2146,12 @@ static int proxy_parse_errorfiles(char **args, int section, struct proxy *curpx,
 		memprintf(err, "%s : out of memory.", args[0]);
 		goto error;
 	}
-	conf_err->type = 0;
 
+	conf_err->type = HTTP_ERR_DIRECTIVE_SECTION;
 	conf_err->info.errorfiles.name = name;
 	if (!*(args[2])) {
 		for (rc = 0; rc < HTTP_ERR_SIZE; rc++)
-			conf_err->info.errorfiles.status[rc] = 1;
+			conf_err->info.errorfiles.status[rc] = HTTP_ERR_IMPORT_IMPLICIT;
 	}
 	else {
 		int cur_arg, status;
@@ -2160,7 +2160,7 @@ static int proxy_parse_errorfiles(char **args, int section, struct proxy *curpx,
 
 			for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
 				if (http_err_codes[rc] == status) {
-					conf_err->info.errorfiles.status[rc] = 2;
+					conf_err->info.errorfiles.status[rc] = HTTP_ERR_IMPORT_EXPLICIT;
 					break;
 				}
 			}
@@ -2231,14 +2231,14 @@ static int proxy_parse_http_error(char **args, int section, struct proxy *curpx,
 	if (reply->type == HTTP_REPLY_ERRFILES) {
 		int rc = http_get_status_idx(reply->status);
 
-		conf_err->type = 2;
+		conf_err->type = HTTP_ERR_DIRECTIVE_SECTION;
 		conf_err->info.errorfiles.name = reply->body.http_errors;
-		conf_err->info.errorfiles.status[rc] = 2;
+		conf_err->info.errorfiles.status[rc] = HTTP_ERR_IMPORT_EXPLICIT;
 		reply->body.http_errors = NULL;
 		release_http_reply(reply);
 	}
 	else {
-		conf_err->type = 1;
+		conf_err->type = HTTP_ERR_DIRECTIVE_INLINE;
 		conf_err->info.errorfile.status = reply->status;
 		conf_err->info.errorfile.reply = reply;
 		LIST_APPEND(&http_replies_list, &reply->list);
@@ -2268,7 +2268,7 @@ static int proxy_check_errors(struct proxy *px)
 	int rc, err = ERR_NONE;
 
 	list_for_each_entry_safe(conf_err, conf_err_back, &px->conf.errors, list) {
-		if (conf_err->type == 1) {
+		if (conf_err->type == HTTP_ERR_DIRECTIVE_INLINE) {
 			/* errorfile */
 			rc = http_get_status_idx(conf_err->info.errorfile.status);
 			px->replies[rc] = conf_err->info.errorfile.reply;
@@ -2295,10 +2295,10 @@ static int proxy_check_errors(struct proxy *px)
 
 			free(conf_err->info.errorfiles.name);
 			for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
-				if (conf_err->info.errorfiles.status[rc] > 0) {
+				if (conf_err->info.errorfiles.status[rc] > HTTP_ERR_IMPORT_NO) {
 					if (http_errs->replies[rc])
 						px->replies[rc] = http_errs->replies[rc];
-					else if (conf_err->info.errorfiles.status[rc] == 2)
+					else if (conf_err->info.errorfiles.status[rc] == HTTP_ERR_IMPORT_EXPLICIT)
 						ha_warning("config: proxy '%s' : status '%d' not declared in"
 							   " http-errors section '%s' (at %s:%d).\n",
 							   px->id, http_err_codes[rc], http_errs->id,
@@ -2355,7 +2355,7 @@ int proxy_dup_default_conf_errors(struct proxy *curpx, const struct proxy *defpx
 			goto out;
 		}
 		new_conf_err->type = conf_err->type;
-		if (conf_err->type == 1) {
+		if (conf_err->type == HTTP_ERR_DIRECTIVE_INLINE) {
 			new_conf_err->info.errorfile.status = conf_err->info.errorfile.status;
 			new_conf_err->info.errorfile.reply  = conf_err->info.errorfile.reply;
 		}
@@ -2385,7 +2385,7 @@ void proxy_release_conf_errors(struct proxy *px)
 	struct conf_errors *conf_err, *conf_err_back;
 
 	list_for_each_entry_safe(conf_err, conf_err_back, &px->conf.errors, list) {
-		if (conf_err->type == 0)
+		if (conf_err->type == HTTP_ERR_DIRECTIVE_SECTION)
 			free(conf_err->info.errorfiles.name);
 		LIST_DELETE(&conf_err->list);
 		free(conf_err->file);
