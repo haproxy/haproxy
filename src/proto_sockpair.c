@@ -488,8 +488,11 @@ struct connection *sockpair_accept_conn(struct listener *l, int *status)
 	int ret;
 	int cfd;
 
-	if ((cfd = recv_fd_uxst(l->rx.fd)) != -1)
+	if ((cfd = recv_fd_uxst(l->rx.fd)) != -1) {
 		fd_set_nonblock(cfd);
+		if (master)
+			fd_set_cloexec(cfd);
+	}
 
 	if (likely(cfd != -1)) {
 		/* Perfect, the connection was accepted */
