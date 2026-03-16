@@ -516,8 +516,11 @@ static void spoe_handle_appctx(struct appctx *appctx)
 				appctx->st0 = SPOE_APPCTX_ST_END;
 				applet_set_error(appctx);
 			}
-			else if (!spoe_handle_receiving_frame_appctx(appctx))
-				break;
+			else {
+				SPOE_APPCTX(appctx)->spoe_ctx->state = SPOE_CTX_ST_WAITING_ACK;
+				if (!spoe_handle_receiving_frame_appctx(appctx))
+					break;
+			}
 			goto switchstate;
 
 		case SPOE_APPCTX_ST_EXIT:
