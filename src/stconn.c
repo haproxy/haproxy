@@ -1496,16 +1496,20 @@ int sc_conn_send(struct stconn *sc)
 			if (s->txn->req.msg_state != HTTP_MSG_DONE || b_is_large(&oc->buf))
 				s->txn->flags &= ~TX_L7_RETRY;
 			else {
-				if (b_alloc(&s->txn->l7_buffer, DB_UNLIKELY) == NULL)
-					s->txn->flags &= ~TX_L7_RETRY;
-				else {
-					memcpy(b_orig(&s->txn->l7_buffer),
-					       b_orig(&oc->buf),
-					       b_size(&oc->buf));
-					s->txn->l7_buffer.head = co_data(oc);
-					b_add(&s->txn->l7_buffer, co_data(oc));
+				if (!htx_copy_to_small_buffer(&s->txn->l7_buffer, &oc->buf)) {
+					if (b_alloc(&s->txn->l7_buffer, DB_UNLIKELY) == NULL)
+						s->txn->flags &= ~TX_L7_RETRY;
+					else {
+						memcpy(b_orig(&s->txn->l7_buffer),
+						       b_orig(&oc->buf),
+						       b_size(&oc->buf));
+					}
 				}
 
+				if (s->txn->flags & TX_L7_RETRY) {
+					s->txn->l7_buffer.head = co_data(oc);
+					b_set_data(&s->txn->l7_buffer, co_data(oc));
+				}
 			}
 		}
 
