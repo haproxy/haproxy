@@ -7866,7 +7866,6 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	struct htx *h2s_htx = NULL;
 	struct htx *buf_htx = NULL;
 	struct buffer *rxbuf = NULL;
-	struct htx_ret htxret;
 	size_t ret = 0;
 	uint prev_h2c_flags = h2c->flags;
 	unsigned long long prev_body_len = h2s->body_len;
@@ -7901,8 +7900,7 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 		goto end;
 	}
 
-	htxret = htx_xfer_blks(buf_htx, h2s_htx, count, HTX_BLK_UNUSED);
-	count -= htxret.ret;
+	count -= htx_xfer(buf_htx, h2s_htx, count, HTX_XFER_DEFAULT);
 
 	if (h2s_htx->flags & HTX_FL_PARSING_ERROR) {
 		buf_htx->flags |= HTX_FL_PARSING_ERROR;

@@ -511,7 +511,7 @@ size_t appctx_htx_rcv_buf(struct appctx *appctx, struct buffer *buf, size_t coun
 		goto out;
 	}
 
-	htx_xfer_blks(buf_htx, appctx_htx, count, HTX_BLK_UNUSED);
+	htx_xfer(buf_htx, appctx_htx, count, HTX_XFER_DEFAULT);
 	buf_htx->flags |= (appctx_htx->flags & (HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR));
 	if (htx_is_empty(appctx_htx)) {
 		buf_htx->flags |= (appctx_htx->flags & HTX_FL_EOM);
@@ -608,7 +608,7 @@ size_t appctx_htx_snd_buf(struct appctx *appctx, struct buffer *buf, size_t coun
 		goto end;
 	}
 
-	htx_xfer_blks(appctx_htx, buf_htx, count, HTX_BLK_UNUSED);
+	htx_xfer(appctx_htx, buf_htx, count, HTX_XFER_DEFAULT);
 	if (htx_is_empty(buf_htx)) {
 		appctx_htx->flags |= (buf_htx->flags & HTX_FL_EOM);
 	}

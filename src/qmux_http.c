@@ -44,7 +44,7 @@ size_t qcs_http_rcv_buf(struct qcs *qcs, struct buffer *buf, size_t count,
 		goto end;
 	}
 
-	htx_xfer_blks(cs_htx, qcs_htx, count, HTX_BLK_UNUSED);
+	htx_xfer(cs_htx, qcs_htx, count, HTX_XFER_DEFAULT);
 	BUG_ON(qcs_htx->flags & HTX_FL_PARSING_ERROR);
 
 	/* Copy EOM from src to dst buffer if all data copied. */
