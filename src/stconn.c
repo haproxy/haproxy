@@ -621,6 +621,11 @@ void sc_shutdown(struct stconn *sc)
 	sc_set_hcto(sc);
 	sc_report_term_evt(sc, strm_tevt_type_shutw);
 
+	if (sc_ep_test(sc, SE_FL_T_APPLET)) {
+		/* on shutw we always wake the applet up */
+		appctx_wakeup(__sc_appctx(sc));
+	}
+
 	switch (sc->state) {
 	case SC_ST_RDY:
 	case SC_ST_EST:
