@@ -24,7 +24,7 @@
 
 #include <import/mjson.h>
 
-static double mystrtod(const char *str, char **end);
+static double mystrtod(const char *str, int len, char **end);
 
 static int mjson_esc(int c, int esc) {
   const char *p, *esc1 = "\b\f\n\r\t\\\"", *esc2 = "bfnrt\\\"";
@@ -101,7 +101,7 @@ int mjson(const char *s, int len, mjson_cb_t cb, void *ud) {
           tok = MJSON_TOK_FALSE;
         } else if (c == '-' || ((c >= '0' && c <= '9'))) {
           char *end = NULL;
-          mystrtod(&s[i], &end);
+          mystrtod(&s[i], len - i, &end);
           if (end != NULL) i += (int) (end - &s[i] - 1);
           tok = MJSON_TOK_NUMBER;
         } else if (c == '"') {
@@ -212,7 +212,7 @@ static int mjson_get_cb(int tok, const char *s, int off, int len, void *ud) {
   } else if (tok == '[') {
     if (data->d1 == data->d2 && data->path[data->pos] == '[') {
       data->i1 = 0;
-      data->i2 = (int) mystrtod(&data->path[data->pos + 1], NULL);
+      data->i2 = (int) mystrtod(&data->path[data->pos + 1], strlen(&data->path[data->pos + 1]),  NULL);
       if (data->i1 == data->i2) {
         data->d2++;
         data->pos += 3;
@@ -272,7 +272,7 @@ int mjson_get_number(const char *s, int len, const char *path, double *v) {
   const char *p;
   int tok, n;
   if ((tok = mjson_find(s, len, path, &p, &n)) == MJSON_TOK_NUMBER) {
-    if (v != NULL) *v = mystrtod(p, NULL);
+    if (v != NULL) *v = mystrtod(p, n, NULL);
   }
   return tok == MJSON_TOK_NUMBER ? 1 : 0;
 }
@@ -343,57 +343,56 @@ static int is_digit(int c) {
 }
 
 /* NOTE: strtod() implementation by Yasuhiro Matsumoto. */
-static double mystrtod(const char *str, char **end) {
+static double mystrtod(const char *str, int len, char **end) {
   double d = 0.0;
   int sign = 1, __attribute__((unused)) n = 0;
   const char *p = str, *a = str;
+  const char *end_p = str + len;
 
   /* decimal part */
-  if (*p == '-') {
+  if (p < end_p && *p == '-') {
     sign = -1;
     ++p;
-  } else if (*p == '+') {
+  } else if (p < end_p && *p == '+') {
     ++p;
   }
-  if (is_digit(*p)) {
+  if (p < end_p && is_digit(*p)) {
     d = (double) (*p++ - '0');
-    while (*p && is_digit(*p)) {
+    while (p < end_p && is_digit(*p)) {
       d = d * 10.0 + (double) (*p - '0');
       ++p;
       ++n;
     }
     a = p;
-  } else if (*p != '.') {
+  } else if (p >= end_p || *p != '.') {
     goto done;
   }
   d *= sign;
 
   /* fraction part */
-  if (*p == '.') {
+  if (p < end_p && *p == '.') {
     double f = 0.0;
     double base = 0.1;
     ++p;
 
-    if (is_digit(*p)) {
-      while (*p && is_digit(*p)) {
-        f += base * (*p - '0');
-        base /= 10.0;
-        ++p;
-        ++n;
-      }
+    while (p < end_p && is_digit(*p)) {
+      f += base * (*p - '0');
+      base /= 10.0;
+      ++p;
+      ++n;
     }
     d += f * sign;
     a = p;
   }
 
   /* exponential part */
-  if ((*p == 'E') || (*p == 'e')) {
+  if (p < end_p && ((*p == 'E') || (*p == 'e'))) {
     double exp, f;
     int i, e = 0, neg = 0;
     p++;
-    if (*p == '-') p++, neg++;
-    if (*p == '+') p++;
-    while (is_digit(*p)) e = e * 10 + *p++ - '0';
+    if (p < end_p && *p == '-') p++, neg++;
+    if (p < end_p && *p == '+') p++;
+    while (p < end_p && is_digit(*p)) e = e * 10 + *p++ - '0';
     i = e;
     if (neg) e = -e;
 #if 0
