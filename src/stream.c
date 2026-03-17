@@ -3841,7 +3841,7 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 	if (strm->current_rule_list && strm->current_rule) {
 		const struct act_rule *rule = strm->current_rule;
 		chunk_appendf(buf, "%s  current_rule=\"%s\" [%s:%d] (%s)\n",
-			      pfx, rule->kw->kw, rule->conf.file, rule->conf.line,
+			      pfx, rule->kw ? rule->kw->kw : "?", rule->conf.file, rule->conf.line,
 			      (rule == strm->waiting_entity.ptr) ? "YIELDING" : "RUNNING");
 	}
 }
