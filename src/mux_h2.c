@@ -7902,15 +7902,6 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 
 	count -= htx_xfer(buf_htx, h2s_htx, count, HTX_XFER_DEFAULT);
 
-	if (h2s_htx->flags & HTX_FL_PARSING_ERROR) {
-		buf_htx->flags |= HTX_FL_PARSING_ERROR;
-		if (htx_is_empty(buf_htx))
-			se_fl_set(h2s->sd, SE_FL_EOI);
-	}
-	else if (htx_is_empty(h2s_htx)) {
-		buf_htx->flags |= (h2s_htx->flags & HTX_FL_EOM);
-	}
-
 	htx_to_buf(buf_htx, buf);
 	htx_to_buf(h2s_htx, rxbuf);
 	ret -= h2s_htx->data;
