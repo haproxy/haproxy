@@ -7938,13 +7938,7 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 
 	/* tell the stream layer whether there are data left or not */
 	if (h2s_rxbuf_cnt(h2s)) {
-		/* Note that parsing errors can also arrive here, we may need
-		 * to propagate errors upstream otherwise no new activity will
-		 * unblock them.
-		 */
 		se_fl_set(h2s->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
-		if (h2s_htx && h2s_htx->flags & HTX_FL_PARSING_ERROR)
-			h2s_propagate_term_flags(h2c, h2s);
 		BUG_ON_HOT(!buf->data);
 	}
 	else {
