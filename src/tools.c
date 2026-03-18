@@ -6038,6 +6038,7 @@ struct dl_collect_ctx {
 	size_t size;
 	char *prefix;
 	int pos;
+	char libpthread_path[PATH_MAX];
 };
 
 static int dl_collect_libs_cb(struct dl_phdr_info *info, size_t size, void *data)
@@ -6066,6 +6067,18 @@ static int dl_collect_libs_cb(struct dl_phdr_info *info, size_t size, void *data
 		load_file_into_tar(&ctx->storage, &ctx->size, ctx->prefix, dbg, NULL, "haproxy-libs-dump");
 	}
 
+	/* check if we're loading libpthread or libc, and if so, keep a copy of its path */
+	if (!ctx->libpthread_path[0]) {
+		const char *basename = strrchr(fname, '/');
+
+		if (basename &&
+		    (strncmp(basename, "/libpthread.so", 14) == 0 ||
+		     strncmp(basename, "/libc.so", 8) == 0)) {
+			/* Note: this will trim the trailing slash */
+			strncpy(ctx->libpthread_path, fname,
+			        MIN(basename - fname, sizeof(ctx->libpthread_path)));
+		}
+	}
  leave:
 	/* increment the object's number */
 	ctx->pos++;
@@ -6075,11 +6088,13 @@ static int dl_collect_libs_cb(struct dl_phdr_info *info, size_t size, void *data
 /* dumps lib names and optionally address ranges */
 void collect_libs(void)
 {
-	struct dl_collect_ctx ctx = { .storage = NULL, .size = 0, .pos = 0 };
+	struct dl_collect_ctx ctx = { .storage = NULL, .size = 0, .pos = 0, .libpthread_path = "" };
+	const char *libthr_paths[] = { ctx.libpthread_path, "/usr/lib64", "/lib64", "/usr/lib", "/lib", NULL };
 	ulong pagesize = sysconf(_SC_PAGESIZE);
 	char dir_name[16];
 	size_t new_size;
 	void *page;
+	int i;
 
 	/* prepend a directory named after the starting pid */
 	snprintf(dir_name, sizeof(dir_name), "core-%u", getpid());
@@ -6087,6 +6102,22 @@ void collect_libs(void)
 
 	/* callbacks will (re-)allocate ctx->storage */
 	dl_iterate_phdr(dl_collect_libs_cb, &ctx);
+
+	/* if we've found libpthread, there's likely a libthread_db.so.1 next
+	 * to it, for use with gdb, and ctx.libpthread_path will point to it,
+	 * and with it, libthr_paths[0]. Otherwise we search in a few other
+	 * common paths.
+	 */
+	for (i = 0; libthr_paths[i]; i++) {
+		char path[PATH_MAX];
+
+		if (!*libthr_paths[i])
+			continue;
+
+		snprintf(path, sizeof(path), "%s/libthread_db.so.1", DISGUISE(libthr_paths[i]));
+		if (load_file_into_tar(&ctx.storage, &ctx.size, ctx.prefix, path, NULL, "haproxy-libs-dump") == 0)
+			break;
+	}
 
 	/* now that the archive is complete, we need to close it by appending
 	 * two empty 512B blocks. We'll also place it aligned in an isolated
