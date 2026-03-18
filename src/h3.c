@@ -1754,6 +1754,14 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 
 	if (!b_data(b) && fin && quic_stream_is_bidi(qcs->id)) {
 		TRACE_PROTO("received FIN without data", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+
+		/* FIN received, ensure body length is conform to any content-length header. */
+		if ((h3s->flags & H3_SF_HAVE_CLEN) && h3_check_body_size(qcs, 1)) {
+			qcc_abort_stream_read(qcs);
+			qcc_reset_stream(qcs, h3s->err);
+			goto done;
+		}
+
 		if (qcs_http_handle_standalone_fin(qcs)) {
 			TRACE_ERROR("cannot set EOM", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 			qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1);
