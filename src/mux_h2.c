@@ -492,6 +492,7 @@ static uint h2_fe_rxbuf                       =     0; /* frontend's default tot
 static unsigned int h2_settings_max_concurrent_streams    = 100; /* default value */
 static unsigned int h2_be_settings_max_concurrent_streams =   0; /* backend value */
 static unsigned int h2_fe_settings_max_concurrent_streams =   0; /* frontend value */
+static unsigned int h2_fe_max_rq_load         = ~0;    /* max rq for FE dynamic MCS sizing. 0=def rq */
 static int h2_settings_max_frame_size         = 0;     /* unset */
 static int h2_settings_log_errors             = H2_ERR_LOG_ERR_STRM;
 
@@ -757,6 +758,21 @@ static inline int h2c_max_concurrent_streams(const struct h2c *h2c)
 		h2_fe_settings_max_concurrent_streams;
 
 	ret = ret ? ret : h2_settings_max_concurrent_streams;
+
+	/* if h2_fe_max_rq_load is set, adjust the max concurrent streams
+	 * according to it and the current load.
+	 */
+	if (!(h2c->flags & H2_CF_IS_BACK) && h2_fe_max_rq_load != ~0) {
+		uint limit = h2_fe_max_rq_load ? h2_fe_max_rq_load : global.tune.runqueue_depth;
+		uint load = MAX(swrate_avg(th_ctx->rq_tot_peak, RQ_LOAD_SAMPLES), th_ctx->rq_total);
+
+		/* divide limits by the square of the ratio of current load to
+		 * the limit so as to react fast.
+		 */
+		if (load > limit)
+			ret = (uint64_t)ret * limit / load * limit / load;
+		ret = ret ? ret : 1;
+	}
 	return ret;
 }
 
@@ -8709,19 +8725,42 @@ static int h2_parse_max_concurrent_streams(char **args, int section_type, struct
 {
 	uint *vptr;
 
-	if (too_many_args(1, args, err, NULL))
-		return -1;
-
 	/* backend/frontend/default */
 	vptr = (args[0][8] == 'b') ? &h2_be_settings_max_concurrent_streams :
 	       (args[0][8] == 'f') ? &h2_fe_settings_max_concurrent_streams :
 	       &h2_settings_max_concurrent_streams;
+
+
+	if ((args[0][8] != 'f' && too_many_args(1, args, err, NULL)) ||
+	    too_many_args(3, args, err, NULL))
+		return -1;
 
 	*vptr = atoi(args[1]);
 	if ((int)*vptr < 0) {
 		memprintf(err, "'%s' expects a positive numeric value.", args[0]);
 		return -1;
 	}
+
+	if (args[0][8] != 'f')
+		goto leave;
+
+	/* tune.h2.fe. here */
+	if (strcmp(args[2], "rq-load") == 0) {
+		if (strcmp(args[3], "ignore") == 0)
+			h2_fe_max_rq_load = ~0;
+		else if (strcmp(args[3], "auto") == 0)
+			h2_fe_max_rq_load = 0;
+		else if (!*args[3] || (h2_fe_max_rq_load = atoi(args[3])) <= 0) {
+			memprintf(err, "'%s' expects a strictly positive run-queue length, or 'auto' or 'ignore'.", args[0]);
+			return -1;
+		}
+	}
+	else if (*args[2]) {
+		memprintf(err, "'%s' only supports 'rq-load' after the numeric value, but found '%s'.", args[0], args[2]);
+		return -1;
+	}
+
+ leave:
 	return 0;
 }
 

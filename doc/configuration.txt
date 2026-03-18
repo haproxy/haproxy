@@ -4418,7 +4418,7 @@ tune.h2.fe.initial-window-size <number>
 
   See also: tune.h2.initial-window-size.
 
-tune.h2.fe.max-concurrent-streams <number>
+tune.h2.fe.max-concurrent-streams <number> [args...]
   Sets the HTTP/2 maximum number of concurrent streams per incoming connection
   (i.e. the number of outstanding requests on a single connection from a
   client). When not set, the default set by tune.h2.max-concurrent-streams
@@ -4426,7 +4426,26 @@ tune.h2.fe.max-concurrent-streams <number>
   the page load time for complex sites with lots of small objects over high
   latency networks but can also result in using more memory by allowing a
   client to allocate more resources at once. The default value of 100 is
-  generally good and it is recommended not to change this value.
+  generally good and it is recommended not to change this value. A larger
+  concurrency also has an impact on the processing load and latency when
+  dealing with large numbers of connections which are themselves using many
+  streams, and it may lower the barrier to denial of service attacks. The
+  command supports the following optional arguments after the number:
+
+  - rq-load { <number> | auto | ignore }:
+    The optional argument "rq-load" permits to dynamically adjust the
+    advertised concurrency based on the executing thread's run-queue load:
+    as long as the thread's load remains below the indicated threshold, the
+    configured streams limit will be advertised. When the thread's load
+    increases beyond the configured limit, the advertised streams limit will be
+    decreased proportionally to the square of the excess ratio. Target load
+    levels between 50 and 100 generally show very good moderation under heavy
+    loads. Alternately, instead of specifying an explicit number, the keyword
+    accepts "ignore", which is the default and means that the thread's
+    run-queue load will not be considered to moderate the advertised streams
+    limit, and "auto", which sets the limit to the "tune.runqueue-depth"
+    value, which generally provides good results without having to tweak
+    the configuration any further.
 
 tune.h2.fe.max-total-streams <number>
   Sets the HTTP/2 maximum number of total streams processed per incoming
