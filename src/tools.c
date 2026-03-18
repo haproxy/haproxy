@@ -6031,6 +6031,81 @@ int dump_libs(struct buffer *output, int with_addr)
 	dl_iterate_phdr(dl_dump_libs_cb, &ctx);
 	return output->data != old_data;
 }
+
+/* the private <data> we pass below is a dump context initialized like this */
+struct dl_collect_ctx {
+	char *storage;
+	size_t size;
+	char *prefix;
+	int pos;
+};
+
+static int dl_collect_libs_cb(struct dl_phdr_info *info, size_t size, void *data)
+{
+	struct dl_collect_ctx *ctx = data;
+	const char *fname;
+
+	if (!info || !info->dlpi_name)
+		goto leave;
+
+	if (!*info->dlpi_name)
+		fname = get_exec_path();
+	else if (strchr(info->dlpi_name, '/'))
+		fname = info->dlpi_name;
+	else
+		/* else it's a VDSO or similar and we're not interested */
+		goto leave;
+
+	load_file_into_tar(&ctx->storage, &ctx->size, ctx->prefix, fname, NULL, "haproxy-libs-dump");
+ leave:
+	/* increment the object's number */
+	ctx->pos++;
+	return 0;
+}
+
+/* dumps lib names and optionally address ranges */
+void collect_libs(void)
+{
+	struct dl_collect_ctx ctx = { .storage = NULL, .size = 0, .pos = 0 };
+	ulong pagesize = sysconf(_SC_PAGESIZE);
+	char dir_name[16];
+	size_t new_size;
+	void *page;
+
+	/* prepend a directory named after the starting pid */
+	snprintf(dir_name, sizeof(dir_name), "core-%u", getpid());
+	ctx.prefix = dir_name;
+
+	/* callbacks will (re-)allocate ctx->storage */
+	dl_iterate_phdr(dl_collect_libs_cb, &ctx);
+
+	/* now that the archive is complete, we need to close it by appending
+	 * two empty 512B blocks. We'll also place it aligned in an isolated
+	 * mapped area so that it uses its own segment in a core dump for
+	 * easier locating. In order to do this, we'll allocate two extra
+	 * pages and will punch holes around.
+	 */
+	new_size = (ctx.size + 2*512 + 2*pagesize + pagesize - 1) & -pagesize;
+	page = mmap(NULL, new_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+
+	if (page != MAP_FAILED) {
+		/* punch holes around that won't go into the core */
+		mprotect(page, pagesize, PROT_NONE);
+		mprotect(page + new_size - pagesize, pagesize, PROT_NONE);
+		new_size -= 2*pagesize;
+		page += pagesize;
+		/* copy and make read-only */
+		memcpy(page, ctx.storage, ctx.size);
+		mprotect(page, lib_size, PROT_READ);
+		vma_set_name(page, new_size, "archive", "boot-libs");
+
+		lib_storage = page;
+		lib_size = new_size;
+	}
+
+	/* don't need the temporary storage anymore */
+	ha_free(&ctx.storage);
+}
 # else // no DL_ITERATE_PHDR
 #  error "No dump_libs() function for this platform"
 # endif
@@ -6040,6 +6115,11 @@ int dump_libs(struct buffer *output, int with_addr)
 int dump_libs(struct buffer *output, int with_addr)
 {
 	return 0;
+}
+
+/* unsupported platform: do not collect anything */
+void collect_libs(void)
+{
 }
 
 #endif // HA_HAVE_DUMP_LIBS

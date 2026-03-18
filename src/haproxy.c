@@ -271,6 +271,10 @@ unsigned int tainted = 0;
 unsigned int experimental_directives_allowed = 0;
 unsigned int deprecated_directives_allowed = 0;
 
+/* mapped storage for collected libs */
+void *lib_storage = NULL;
+size_t lib_size = 0;
+
 int check_kw_experimental(struct cfg_keyword *kw, const char *file, int linenum,
                           char **errmsg)
 {
@@ -2516,6 +2520,10 @@ static void step_init_2(int argc, char** argv)
 	chunk_appendf(&trash, "TARGET='%s'", pm_target_opts);
 
 	post_mortem_add_component("haproxy", haproxy_version, cc, cflags, opts, argv[0]);
+
+	if ((global.tune.options & (GTUNE_SET_DUMPABLE | GTUNE_COLLECT_LIBS)) ==
+	    (GTUNE_SET_DUMPABLE | GTUNE_COLLECT_LIBS))
+		collect_libs();
 }
 
 /* This is a third part of the late init sequence, where we register signals for

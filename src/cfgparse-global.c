@@ -97,6 +97,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		if (!*args[1] || strcmp(args[1], "on") == 0)
 			global.tune.options |= GTUNE_SET_DUMPABLE;
+		else if (strcmp(args[1], "libs") == 0)
+			global.tune.options |= GTUNE_SET_DUMPABLE | GTUNE_COLLECT_LIBS;
 		else if (strcmp(args[1], "off") == 0)
 			global.tune.options &= ~GTUNE_SET_DUMPABLE;
 		else {

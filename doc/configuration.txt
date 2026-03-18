@@ -3148,7 +3148,25 @@ server-state-file <file>
   configuration. See also "server-state-base" and "show servers state",
   "load-server-state-from-file" and "server-state-file-name"
 
-set-dumpable [ on | off ]
+set-dumpable [ on | off | libs ]
+  This option helps choose the core dump behavior in case of process crash.
+  Available options are:
+
+  - on      this enables core dumping at the process level if it was
+            previously disabled.
+
+  - off     this disables a previously enabled core dumping.
+
+  - libs    this enables core dumping with an embedded copy of the binaries and
+            libraries that are required for debugging. This may be requested by
+            developers. In this case haproxy will try to load the libraries it
+            depends on into memory and keep them preciously. If the process
+            crashes, they will be dumped into the core so there is no need for
+            retrieving them from the file system anymore and no risk that they
+            do not match the core. This takes a few megabytes to a few tens of
+            megabytes of additional RAM, so it is better not to use it on small
+            systems.
+
   This option is better left disabled by default and enabled only upon a
   developer's request. By default it is disabled. Without argument, it defaults
   to "on". If it has been enabled, it may still be forcibly disabled by prefixing

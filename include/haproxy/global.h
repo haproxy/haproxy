@@ -58,6 +58,10 @@ extern int devnullfd;
 extern int fileless_mode;
 extern struct cfgfile fileless_cfg;
 
+/* storage for collected libs */
+extern void *lib_storage;
+extern size_t lib_size;
+
 struct proxy;
 struct server;
 int main(int argc, char **argv);
