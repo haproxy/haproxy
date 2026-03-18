@@ -89,12 +89,21 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			global.tune.options |=  GTUNE_BUSY_POLLING;
 	}
 	else if (strcmp(args[0], "set-dumpable") == 0) { /* "no set-dumpable" or "set-dumpable" */
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
-		if (kwm == KWM_NO)
+		if (kwm == KWM_NO) {
 			global.tune.options &= ~GTUNE_SET_DUMPABLE;
-		else
-			global.tune.options |=  GTUNE_SET_DUMPABLE;
+			goto out;
+		}
+		if (!*args[1] || strcmp(args[1], "on") == 0)
+			global.tune.options |= GTUNE_SET_DUMPABLE;
+		else if (strcmp(args[1], "off") == 0)
+			global.tune.options &= ~GTUNE_SET_DUMPABLE;
+		else {
+			ha_alert("parsing [%s:%d] : '%s' only supports 'on' and 'off' as an argument, found '%s'.\n", file, linenum, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+	                goto out;
+		}
 	}
 	else if (strcmp(args[0], "h2-workaround-bogus-websocket-clients") == 0) { /* "no h2-workaround-bogus-websocket-clients" or "h2-workaround-bogus-websocket-clients" */
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))

@@ -3148,10 +3148,11 @@ server-state-file <file>
   configuration. See also "server-state-base" and "show servers state",
   "load-server-state-from-file" and "server-state-file-name"
 
-set-dumpable
+set-dumpable [ on | off ]
   This option is better left disabled by default and enabled only upon a
-  developer's request. If it has been enabled, it may still be forcibly
-  disabled by prefixing it with the "no" keyword. It has no impact on
+  developer's request. By default it is disabled. Without argument, it defaults
+  to "on". If it has been enabled, it may still be forcibly disabled by prefixing
+  it with the "no" keyword or by setting it to "off". It has no impact on
   performance nor stability but will try hard to re-enable core dumps that were
   possibly disabled by file size limitations (ulimit -f), core size limitations
   (ulimit -c), or "dumpability" of a process after changing its UID/GID (such
