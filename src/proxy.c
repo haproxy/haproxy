@@ -4918,10 +4918,6 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
 		           def_name, proxy_mode_str(defpx->mode)));
 		return 1;
 	}
-	if (!LIST_ISEMPTY(&defpx->conf.errors)) {
-		cli_dynerr(appctx, memprintf(&msg, "Dynamic backends cannot inherit from default proxy '%s' because it references HTTP errors.\n", def_name));
-		return 1;
-	}
 
 	thread_isolate();
 

@@ -63,6 +63,7 @@
 #include <haproxy/global.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/http_htx.h>
 #include <haproxy/lb_chash.h>
 #include <haproxy/lb_fas.h>
 #include <haproxy/lb_fwlc.h>
@@ -2392,6 +2393,8 @@ int check_config_validity()
 		else {
 			cfgerr += acl_find_targets(defpx);
 		}
+
+		err_code |= proxy_check_http_errors(defpx);
 	}
 
 	/* starting to initialize the main proxies list */
