@@ -53,6 +53,7 @@
 enum sticktable_field {
 	STICKTABLE_SIZE = 0,
 	STICKTABLE_USED,
+	STICKTABLE_LOCAL_UPDATES,
 	/* must always be the last one */
 	STICKTABLE_TOTAL_FIELDS
 };
@@ -6310,6 +6311,10 @@ static int stk_promex_metric_info(unsigned int id, struct promex_metric *metric,
 			*metric = (struct promex_metric){ .n = ist("used"), .type = PROMEX_MT_GAUGE, .flags = PROMEX_FL_MODULE_METRIC };
 			*desc = ist("Number of entries used in this stick table.");
 			break;
+		case STICKTABLE_LOCAL_UPDATES:
+			*metric = (struct promex_metric){ .n = ist("local_updates"), .type = PROMEX_MT_GAUGE, .flags = PROMEX_FL_MODULE_METRIC };
+			*desc = ist("Cumulative number of updates on the stick table initiated by the local process. Please note that this value will eventually wrap after 4294967295 since it is stored using unsigned int (uint32). As this metric is often used to compute the update rate of a given table between two queries, wrapping must be taken into account and the time between 2 queries must not exceed the theorical time needed for this value to wrap.");
+			break;
 		default:
 			return -1;
 	}
@@ -6346,6 +6351,17 @@ static int stk_promex_fill_ts(void *unused, void *metric_ctx, unsigned int id, s
 			break;
 		case STICKTABLE_USED:
 			*field = mkf_u32(FN_GAUGE, t->current);
+			break;
+		case STICKTABLE_LOCAL_UPDATES:
+			/* localupdate is meant to be guarded by updt_lock, but
+			 * here we don't care about the most up-to-date value, nor
+			 * need to read the value consistently with another table-related
+			 * one, all we really want is a rough reading of the current
+			 * number of local updates performed on the table, thus we hope
+			 * the value is read as an atomic operation (which should be
+			 * the case for uint32 on most platforms)
+			 */
+			*field = mkf_u32(FN_GAUGE, t->localupdate);
 			break;
 		default:
 			return -1;

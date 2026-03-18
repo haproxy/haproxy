@@ -407,6 +407,7 @@ listed below. Metrics from extra counters are not listed.
 +----------------------------------------------------+
 | haproxy_sticktable_size                            |
 | haproxy_sticktable_used                            |
+| haproxy_sticktable_local_updates                   |
 +----------------------------------------------------+
 
 * Resolvers metrics
