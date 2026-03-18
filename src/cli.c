@@ -2876,7 +2876,7 @@ static int pcli_prefix_to_pid(const char *prefix)
 		if (*errtol != '\0')
 			return -1;
 		list_for_each_entry(child, &proc_list, list) {
-			if (!(child->options & PROC_O_TYPE_WORKER))
+			if (!(child->options & PROC_O_TYPE_WORKER) || (child->options & PROC_O_INIT))
 				continue;
 			if (child->pid == proc_pid){
 				return child->pid;
@@ -2899,7 +2899,7 @@ static int pcli_prefix_to_pid(const char *prefix)
 		/* chose the right process, the current one is the one with the
 		 least number of reloads */
 		list_for_each_entry(child, &proc_list, list) {
-			if (!(child->options & PROC_O_TYPE_WORKER))
+			if (!(child->options & PROC_O_TYPE_WORKER) || (child->options & PROC_O_INIT))
 				continue;
 			if (child->reloads == 0)
 				return child->pid;
