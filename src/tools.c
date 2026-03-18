@@ -5809,6 +5809,71 @@ const void *resolve_dso_name(struct buffer *buf, const char *pfx, const void *ad
 	return NULL;
 }
 
+/* make a simplistic tar header (512 bytes) into output for file name <fname>
+ * of size <size> and mode <mode>. An optional prefix directory name can be
+ * passed in <pfx>, and an optional symlink destination may be passed in
+ * <link>. NULL is accepted for <pfx> and <link> if unused. Note that here we
+ * may abuse the link destination that is normally not used with regular files
+ * to place a magic.
+ */
+void make_tar_header(char *output, const char *pfx, const char *fname, const char *link, size_t size, mode_t mode)
+{
+	uint i, csum;
+
+	union {
+		uchar buffer[512];            /* raw data */
+		struct {                      /* byte offset */
+			char name[100];       /*   0 */
+			char mode[8];         /* 100 : octal */
+			char uid[8];          /* 108 : octal */
+			char gid[8];          /* 116 : octal */
+			char size[12];        /* 124 : octal */
+			char mtime[12];       /* 136 : octal */
+			char chksum[8];       /* 148 : sum of the header's bytes */
+			char typeflag;        /* 156 : '0' = regular file */
+			char linkname[100];   /* 157 */
+			char magic_ver[8];    /* 257 : "ustar  \0" or "ustar\0""00" */
+			char uname[32];       /* 265 */
+			char gname[32];       /* 297 */
+			char devmajor[8];     /* 329 */
+			char devminor[8];     /* 337 */
+			char prefix[155];     /* 345 */
+			char pad12[12];       /* 500 */
+		} hdr;
+	} blk = {
+		.hdr = {
+			.name  = "",
+			.mode  = "",
+			.uid   = "0000000",
+			.gid   = "0000000",
+			.size  = "00000000000",
+			.mtime = "00000000000",
+			.chksum = { ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ' },
+			.typeflag = '0',  // regular file
+			.magic_ver = { 'u', 's', 't', 'a', 'r', '\0', '0', '0' },
+			.uname = "root",
+			.gname = "root",
+			.devmajor = "0",
+			.devminor = "0",
+		},
+	};
+
+	strlcpy2(blk.hdr.linkname, link ? link : NULL, sizeof(blk.hdr.linkname));
+	strlcpy2(blk.hdr.prefix, pfx ? pfx : NULL, sizeof(blk.hdr.prefix));
+	strlcpy2(blk.hdr.name, fname, sizeof(blk.hdr.name));
+	snprintf(blk.hdr.size, sizeof(blk.hdr.size), "%llo", (ullong)size);
+	snprintf(blk.hdr.mode, sizeof(blk.hdr.mode), "%07o", (uint)mode & 0x1FFFFF);
+
+	/* cksum: 6 octal bytes followed by NUL then space. Computed with cksum
+	 * preset to 8 spaces.
+	 */
+	for (i = csum = 0; i < 512; i++)
+		csum += blk.buffer[i];
+
+	snprintf(blk.hdr.chksum, sizeof(blk.hdr.chksum), "%06o", csum);
+	memcpy(output, &blk, sizeof(blk));
+}
+
 /* On systems where this is supported, let's provide a possibility to enumerate
  * the list of object files. The output is appended to a buffer initialized by
  * the caller, with one name per line. A trailing zero is always emitted if data

@@ -1147,6 +1147,7 @@ void dump_hex(struct buffer *out, const char *pfx, const void *buf, int len, int
 int may_access(const void *ptr);
 const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *addr);
 const void *resolve_dso_name(struct buffer *buf, const char *pfx, const void *addr);
+void make_tar_header(char *output, const char *pfx, const char *fname, const char *link, size_t size, mode_t mode);
 const char *get_exec_path(void);
 void *get_sym_curr_addr(const char *name);
 void *get_sym_next_addr(const char *name);
