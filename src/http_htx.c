@@ -49,6 +49,7 @@ struct conf_errors {
 		} inl;                              /* for HTTP_ERR_DIRECTIVE_INLINE only */
 		struct {
 			char *name;                 /* the http-errors section name */
+			struct http_errors *resolved; /* resolved section pointer set via proxy_check_http_errors() */
 			enum http_err_import status[HTTP_ERR_SIZE]; /* list of status to import */
 		} section;                          /* for HTTP_ERR_DIRECTIVE_SECTION only */
 	} type;
@@ -2269,7 +2270,6 @@ static int proxy_finalize_http_errors(struct proxy *px)
 {
 	struct conf_errors *conf_err, *conf_err_back;
 	struct http_errors *http_errs;
-	int section_found;
 	int rc;
 
 	list_for_each_entry_safe(conf_err, conf_err_back, &px->conf.errors, list) {
@@ -2284,16 +2284,8 @@ static int proxy_finalize_http_errors(struct proxy *px)
 			break;
 
 		case HTTP_ERR_DIRECTIVE_SECTION:
-			section_found = 0;
-			list_for_each_entry(http_errs, &http_errors_list, list) {
-				if (strcmp(http_errs->id, conf_err->type.section.name) == 0) {
-					section_found = 1;
-					break;
-				}
-			}
-
-			free(conf_err->type.section.name);
-			if (section_found) {
+			http_errs = conf_err->type.section.resolved;
+			if (http_errs) {
 				for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
 					if (conf_err->type.section.status[rc] == HTTP_ERR_IMPORT_NO)
 						continue;
@@ -2360,12 +2352,15 @@ int proxy_check_http_errors(struct proxy *px)
 				}
 			}
 
+			ha_free(&conf_err->type.section.name);
 			if (!section_found) {
 				ha_alert("proxy '%s': unknown http-errors section '%s' (at %s:%d).\n",
 				         px->id, conf_err->type.section.name, conf_err->file, conf_err->line);
 				err |= ERR_ALERT | ERR_FATAL;
 				continue;
 			}
+
+			conf_err->type.section.resolved = http_errs;
 
 			for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
 				if (conf_err->type.section.status[rc] == HTTP_ERR_IMPORT_EXPLICIT &&
