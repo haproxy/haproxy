@@ -5874,6 +5874,86 @@ void make_tar_header(char *output, const char *pfx, const char *fname, const cha
 	memcpy(output, &blk, sizeof(blk));
 }
 
+/* appends file <input> into the tar file at location <storage> and size
+ * <size>. The file's location in the archive will appear at <pfx>/<fname>. If
+ * <pfx> is NULL, no prefix is inserted. Note that <pfx> must not end with a
+ * slash. If <fname> is NULL, then the basename of <input> is used. If <input>
+ * is NULL, then <fname> is used. The two may not be NULL simultaneously. An
+ * optional <link> tag (100 chars max) may be added if not NULL. The file's
+ * mode is set with just r/x depending on what was present, or zero in case of
+ * open error (so as to keep trace of the attempt to load the file). Returns 0
+ * on success, non-zero with errno set on error.
+ */
+int load_file_into_tar(char **storage, size_t *size, const char *pfx, const char *fname, const char *input, const char *link)
+{
+	size_t alloc_size;
+	ssize_t fsize = 0;
+	struct stat buf;
+	ssize_t ret = -1;
+	mode_t mode;
+	int fd = -1;
+	char *ptr;
+
+	if (!input)
+		input = fname;
+	else if (!fname) {
+		fname = strrchr(input, '/');
+		if (!fname++)
+			fname = input;
+	}
+
+	/* do not concatenate slashes */
+	if (*fname == '/')
+		fname++;
+
+	if (stat(input, &buf) != 0)
+		goto leave;
+
+	fsize = buf.st_size;
+
+	/* only keep read and exec */
+	mode = buf.st_mode;
+	if (mode & 0111)
+		mode |= 0111;
+	if (mode & 0444)
+		mode |= 0444;
+	mode &= 0555;
+
+	/* Open the file. In case of failure, we'll still create an entry of
+	 * size zero to indicate that we tried to read this file.
+	 */
+	fd = open(input, O_RDONLY);
+	if (fd < 0) {
+		fsize = 0;
+		mode = 0;
+	}
+
+	/* we need one 512B block for the header + as many 512B blocks as
+	 * needed for the file.
+	 */
+	alloc_size = (fsize + 512 + 511) & -512;
+	ptr = realloc(*storage, *size + alloc_size);
+	if (!ptr)
+		goto leave;
+
+	*storage = ptr;
+	ptr += *size;        // previous end
+	*size += alloc_size; // new end
+
+	make_tar_header(ptr, pfx, fname, link, fsize, mode);
+
+	ret = fsize ? read(fd, ptr + 512, fsize) : 0;
+	/* always pad with zeroes (complete of partial reads) */
+	if (ret < 0)
+		ret = 0;
+	memset(ptr + 512 + ret, 0, alloc_size - 512 - ret);
+
+ leave:
+	if (fd >= 0)
+		close(fd);
+	return ret == fsize ? 0 : 1;
+}
+
 /* On systems where this is supported, let's provide a possibility to enumerate
  * the list of object files. The output is appended to a buffer initialized by
  * the caller, with one name per line. A trailing zero is always emitted if data
