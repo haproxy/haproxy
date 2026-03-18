@@ -6057,6 +6057,15 @@ static int dl_collect_libs_cb(struct dl_phdr_info *info, size_t size, void *data
 		goto leave;
 
 	load_file_into_tar(&ctx->storage, &ctx->size, ctx->prefix, fname, NULL, "haproxy-libs-dump");
+
+	/* try to load equivalent debug symbols for absolute paths  */
+	if (*fname == '/') {
+		char dbg[PATH_MAX];
+
+		snprintf(dbg, sizeof(dbg), "/usr/lib/debug%s", fname);
+		load_file_into_tar(&ctx->storage, &ctx->size, ctx->prefix, dbg, NULL, "haproxy-libs-dump");
+	}
+
  leave:
 	/* increment the object's number */
 	ctx->pos++;
