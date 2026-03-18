@@ -2672,6 +2672,8 @@ int proxy_finalize(struct proxy *px, int *err_code)
 		*err_code |= ERR_WARN;
 	}
 
+	*err_code |= proxy_check_http_errors(px);
+
 	if (px->mode != PR_MODE_HTTP && !(px->options & PR_O_HTTP_UPG)) {
 		int optnum;
 

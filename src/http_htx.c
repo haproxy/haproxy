@@ -2260,12 +2260,17 @@ static int proxy_parse_http_error(char **args, int section, struct proxy *curpx,
 
 }
 
-/* Check "errorfiles" proxy keyword */
-static int proxy_check_errors(struct proxy *px)
+/* Converts <conf_errors> initialized during config parsing for <px> proxy.
+ * Each one of them is transfromed in a http_reply type, stored in proxy
+ * replies array member. The original <conf_errors> becomes unneeded and is
+ * thus removed and freed.
+ */
+static int proxy_finalize_http_errors(struct proxy *px)
 {
 	struct conf_errors *conf_err, *conf_err_back;
 	struct http_errors *http_errs;
-	int rc, err = ERR_NONE;
+	int section_found;
+	int rc;
 
 	list_for_each_entry_safe(conf_err, conf_err_back, &px->conf.errors, list) {
 		switch (conf_err->directive) {
@@ -2279,41 +2284,31 @@ static int proxy_check_errors(struct proxy *px)
 			break;
 
 		case HTTP_ERR_DIRECTIVE_SECTION:
+			section_found = 0;
 			list_for_each_entry(http_errs, &http_errors_list, list) {
-				if (strcmp(http_errs->id, conf_err->type.section.name) == 0)
+				if (strcmp(http_errs->id, conf_err->type.section.name) == 0) {
+					section_found = 1;
 					break;
-			}
-
-			/* unknown http-errors section */
-			if (&http_errs->list == &http_errors_list) {
-				ha_alert("proxy '%s': unknown http-errors section '%s' (at %s:%d).\n",
-				         px->id, conf_err->type.section.name, conf_err->file, conf_err->line);
-				err |= ERR_ALERT | ERR_FATAL;
-				free(conf_err->type.section.name);
-				goto next;
+				}
 			}
 
 			free(conf_err->type.section.name);
-			for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
-				if (conf_err->type.section.status[rc] > HTTP_ERR_IMPORT_NO) {
+			if (section_found) {
+				for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
+					if (conf_err->type.section.status[rc] == HTTP_ERR_IMPORT_NO)
+						continue;
 					if (http_errs->replies[rc])
 						px->replies[rc] = http_errs->replies[rc];
-					else if (conf_err->type.section.status[rc] == HTTP_ERR_IMPORT_EXPLICIT)
-						ha_warning("config: proxy '%s' : status '%d' not declared in"
-						           " http-errors section '%s' (at %s:%d).\n",
-						           px->id, http_err_codes[rc], http_errs->id,
-						           conf_err->file, conf_err->line);
 				}
 			}
 		}
-	  next:
+
 		LIST_DELETE(&conf_err->list);
 		free(conf_err->file);
 		free(conf_err);
 	}
 
-  out:
-	return err;
+	return ERR_NONE;
 }
 
 static int post_check_errors()
@@ -2341,6 +2336,51 @@ static int post_check_errors()
 	}
 
 	return err_code;
+}
+
+/* Checks the validity of conf_errors stored in <px> proxy after the
+ * configuration is completely parsed.
+ *
+ * Returns ERR_NONE on success and a combination of ERR_CODE on failure.
+ */
+int proxy_check_http_errors(struct proxy *px)
+{
+	struct http_errors *http_errs;
+	struct conf_errors *conf_err;
+	int section_found;
+	int rc, err = ERR_NONE;
+
+	list_for_each_entry(conf_err, &px->conf.errors, list) {
+		if (conf_err->directive == HTTP_ERR_DIRECTIVE_SECTION) {
+			section_found = 0;
+			list_for_each_entry(http_errs, &http_errors_list, list) {
+				if (strcmp(http_errs->id, conf_err->type.section.name) == 0) {
+					section_found = 1;
+					break;
+				}
+			}
+
+			if (!section_found) {
+				ha_alert("proxy '%s': unknown http-errors section '%s' (at %s:%d).\n",
+				         px->id, conf_err->type.section.name, conf_err->file, conf_err->line);
+				err |= ERR_ALERT | ERR_FATAL;
+				continue;
+			}
+
+			for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
+				if (conf_err->type.section.status[rc] == HTTP_ERR_IMPORT_EXPLICIT &&
+				    !http_errs->replies[rc]) {
+					ha_warning("config: proxy '%s' : status '%d' not declared in"
+					           " http-errors section '%s' (at %s:%d).\n",
+					           px->id, http_err_codes[rc], http_errs->id,
+					           conf_err->file, conf_err->line);
+					err |= ERR_WARN;
+				}
+			}
+		}
+	}
+
+	return err;
 }
 
 int proxy_dup_default_conf_errors(struct proxy *curpx, const struct proxy *defpx, char **errmsg)
@@ -2508,7 +2548,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 }};
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
-REGISTER_POST_PROXY_CHECK(proxy_check_errors);
+REGISTER_POST_PROXY_CHECK(proxy_finalize_http_errors);
 REGISTER_POST_CHECK(post_check_errors);
 
 REGISTER_CONFIG_SECTION("http-errors", cfg_parse_http_errors, NULL);
