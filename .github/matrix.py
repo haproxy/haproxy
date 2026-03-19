@@ -19,9 +19,10 @@ from packaging import version
 #
 # this CI is used for both development and stable branches of HAProxy
 #
-# naming convention used, if branch name matches:
+# naming convention used, if branch/tag name matches:
 #
 #   "haproxy-" - stable branches
+#   "vX.Y.Z"   - release tags
 #   otherwise  - development branch (i.e. "latest" ssl variants, "latest" github images)
 #
 
@@ -120,11 +121,13 @@ def clean_compression(compression):
 def main(ref_name):
     print("Generating matrix for branch '{}'.".format(ref_name))
 
+    is_stable = "haproxy-" in ref_name or re.match(r'^v\d+\.\d+\.\d+$', ref_name)
+
     matrix = []
 
     # Ubuntu
 
-    if "haproxy-" in ref_name:
+    if is_stable:
         os = "ubuntu-24.04"         # stable branch
         os_arm = "ubuntu-24.04-arm" # stable branch
     else:
@@ -228,7 +231,7 @@ def main(ref_name):
             # "BORINGSSL=yes",
         ]
 
-        if "haproxy-" not in ref_name: # development branch
+        if not is_stable: # development branch
             ssl_versions = ssl_versions + [
                 "OPENSSL_VERSION=latest",
                 "LIBRESSL_VERSION=latest",
@@ -276,7 +279,7 @@ def main(ref_name):
             )
 
     # macOS on dev branches
-    if "haproxy-" not in ref_name:
+    if not is_stable:
         os = "macos-26"     # development branch
 
         TARGET = "osx"
