@@ -4447,6 +4447,17 @@ tune.h2.fe.max-concurrent-streams <number> [args...]
     value, which generally provides good results without having to tweak
     the configuration any further.
 
+  - min <number>:
+    This sets the minimum advertised concurrency level when rq-load is used,
+    even if this results in a higher load than the configured target. This
+    allows to maintain a good level of interactivity on a site under very
+    heavy load. The minimum and default value is 1, but values between 5
+    and 15 can improve user experience.
+
+  Example:
+
+     tune.h2.fe.max-concurrent-streams 100 rq-load auto min 15
+
 tune.h2.fe.max-total-streams <number>
   Sets the HTTP/2 maximum number of total streams processed per incoming
   connection. Once this limit is reached, HAProxy will send a graceful GOAWAY

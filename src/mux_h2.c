@@ -492,6 +492,7 @@ static uint h2_fe_rxbuf                       =     0; /* frontend's default tot
 static unsigned int h2_settings_max_concurrent_streams    = 100; /* default value */
 static unsigned int h2_be_settings_max_concurrent_streams =   0; /* backend value */
 static unsigned int h2_fe_settings_max_concurrent_streams =   0; /* frontend value */
+static unsigned int h2_fe_min_concurrent_streams = 1;  /* minimum concurrent streams when using rq-load */
 static unsigned int h2_fe_max_rq_load         = ~0;    /* max rq for FE dynamic MCS sizing. 0=def rq */
 static int h2_settings_max_frame_size         = 0;     /* unset */
 static int h2_settings_log_errors             = H2_ERR_LOG_ERR_STRM;
@@ -771,7 +772,8 @@ static inline int h2c_max_concurrent_streams(const struct h2c *h2c)
 		 */
 		if (load > limit)
 			ret = (uint64_t)ret * limit / load * limit / load;
-		ret = ret ? ret : 1;
+		if (ret < h2_fe_min_concurrent_streams)
+			ret = h2_fe_min_concurrent_streams;
 	}
 	return ret;
 }
@@ -8724,6 +8726,7 @@ static int h2_parse_max_concurrent_streams(char **args, int section_type, struct
                                            char **err)
 {
 	uint *vptr;
+	int arg;
 
 	/* backend/frontend/default */
 	vptr = (args[0][8] == 'b') ? &h2_be_settings_max_concurrent_streams :
@@ -8731,8 +8734,7 @@ static int h2_parse_max_concurrent_streams(char **args, int section_type, struct
 	       &h2_settings_max_concurrent_streams;
 
 
-	if ((args[0][8] != 'f' && too_many_args(1, args, err, NULL)) ||
-	    too_many_args(3, args, err, NULL))
+	if (args[0][8] != 'f' && too_many_args(1, args, err, NULL))
 		return -1;
 
 	*vptr = atoi(args[1]);
@@ -8745,21 +8747,34 @@ static int h2_parse_max_concurrent_streams(char **args, int section_type, struct
 		goto leave;
 
 	/* tune.h2.fe. here */
-	if (strcmp(args[2], "rq-load") == 0) {
-		if (strcmp(args[3], "ignore") == 0)
-			h2_fe_max_rq_load = ~0;
-		else if (strcmp(args[3], "auto") == 0)
-			h2_fe_max_rq_load = 0;
-		else if (!*args[3] || (h2_fe_max_rq_load = atoi(args[3])) <= 0) {
-			memprintf(err, "'%s' expects a strictly positive run-queue length, or 'auto' or 'ignore'.", args[0]);
+	for (arg = 2; *args[arg]; arg += 2) {
+		if (strcmp(args[arg], "rq-load") == 0) {
+			if (strcmp(args[arg + 1], "ignore") == 0)
+				h2_fe_max_rq_load = ~0;
+			else if (strcmp(args[arg + 1], "auto") == 0)
+				h2_fe_max_rq_load = 0;
+			else if (!*args[arg + 1] || (h2_fe_max_rq_load = atoi(args[arg + 1])) <= 0) {
+				memprintf(err, "'%s' expects a strictly positive run-queue length, or 'auto' or 'ignore'.", args[0]);
+				return -1;
+			}
+		}
+		else if (strcmp(args[arg], "min") == 0) {
+			if (!*args[arg + 1] || (h2_fe_min_concurrent_streams = atoi(args[arg + 1])) <= 0) {
+				memprintf(err, "'%s' expects a strictly positive minimum number of streams'.", args[0]);
+				return -1;
+			}
+
+			if (h2_fe_min_concurrent_streams > h2_fe_settings_max_concurrent_streams) {
+				memprintf(err, "'%s' minimum number of streams (%u) cannot be higher than the maximum (%u)'.",
+					  args[0], h2_fe_min_concurrent_streams, h2_fe_settings_max_concurrent_streams);
+				return -1;
+			}
+		}
+		else if (*args[arg]) {
+			memprintf(err, "'%s' only supports 'rq-load' or 'min' after the numeric value, but found '%s'.", args[0], args[arg]);
 			return -1;
 		}
 	}
-	else if (*args[2]) {
-		memprintf(err, "'%s' only supports 'rq-load' after the numeric value, but found '%s'.", args[0], args[2]);
-		return -1;
-	}
-
  leave:
 	return 0;
 }
