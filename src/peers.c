@@ -2351,6 +2351,11 @@ static inline int peer_treat_definemsg(struct appctx *appctx, struct peer *p,
 		goto malformed_exit;
 	}
 
+	if (table_type < 0 || table_type >= PEER_KT_TYPES) {
+		TRACE_PROTO("ignore table definition message: unknown table type", PEERS_EV_SESS_IO|PEERS_EV_RX_MSG|PEERS_EV_PROTO_DEF, appctx, p);
+		goto ignore_msg;
+	}
+
 	table_keylen = intdecode(msg_cur, msg_end);
 	if (!*msg_cur) {
 		TRACE_ERROR("malformed table definition message: no key length", PEERS_EV_SESS_IO|PEERS_EV_RX_MSG|PEERS_EV_PROTO_ERR, appctx, p);
