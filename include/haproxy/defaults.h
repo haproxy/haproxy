@@ -536,6 +536,11 @@
 #define TIME_STATS_SAMPLES 512
 #endif
 
+/* number of samples used to measure the load in the run queue */
+#ifndef RQ_LOAD_SAMPLES
+#define RQ_LOAD_SAMPLES 512
+#endif
+
 /* max ocsp cert id asn1 encoded length */
 #ifndef OCSP_MAX_CERTID_ASN1_LENGTH
 #define OCSP_MAX_CERTID_ASN1_LENGTH 128

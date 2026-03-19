@@ -233,6 +233,7 @@ struct thread_ctx {
 	struct buffer *last_dump_buffer;        /* Copy of last buffer used for a dump; may be NULL or invalid; for post-mortem only */
 	unsigned long long total_streams;       /* Total number of streams created on this thread */
 	unsigned int stream_cnt;                /* Number of streams attached to this thread */
+	unsigned int rq_tot_peak;               /* total run queue size last call */
 
 	// around 68 bytes here for shared variables
 

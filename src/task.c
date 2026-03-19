@@ -738,6 +738,8 @@ void process_runnable_tasks()
 
 	_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_STUCK); // this thread is still running
 
+	swrate_add_peak_local(&th_ctx->rq_tot_peak, RQ_LOAD_SAMPLES, th_ctx->rq_total);
+
 	if (!thread_has_tasks()) {
 		activity[tid].empty_rq++;
 		return;
