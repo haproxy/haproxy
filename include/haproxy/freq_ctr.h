@@ -403,6 +403,25 @@ static inline uint swrate_add_scaled_opportunistic(uint *sum, uint n, uint v, ui
 	return new_sum;
 }
 
+/* Like swrate_add() except that if <v> is beyond the current average, the
+ * average is replaced by the peak. This is essentially used to measure peak
+ * loads in the scheduler, reason why it is provided as a local variant that
+ * does not involve atomic operations.
+ */
+static inline uint swrate_add_peak_local(uint *sum, uint n, uint v)
+{
+	uint old_sum, new_sum;
+
+	old_sum = *sum;
+	if (v * n > old_sum)
+		new_sum = v * n;
+	else
+		new_sum = old_sum - (old_sum + n - 1) / n + v;
+
+	*sum = new_sum;
+	return new_sum;
+}
+
 /* Returns the average sample value for the sum <sum> over a sliding window of
  * <n> samples. Better if <n> is a power of two. It must be the same <n> as the
  * one used above in all additions.
