@@ -124,6 +124,12 @@ static inline int real_family(int ss_family)
 	return fam ? fam->real_family : AF_UNSPEC;
 }
 
+static inline int proto_is_quic(const struct protocol *proto)
+{
+	return (proto->proto_type == PROTO_TYPE_DGRAM &&
+		proto->xprt_type == PROTO_TYPE_STREAM);
+}
+
 #endif /* _HAPROXY_PROTOCOL_H */
 
 /*
