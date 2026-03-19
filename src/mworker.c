@@ -226,11 +226,11 @@ int mworker_env_to_proc_list()
 			struct list *insert_pt = &proc_list;
 			struct mworker_proc *pos;
 
-                        /* insert at the right position in ASC reload order;
-                         * search from the tail since items are sorted most of
+			/* insert at the right position in ASC reload order;
+			 * search from the tail since items are sorted most of
 			 * the time
-                         */
-                        list_for_each_entry_rev(pos, &proc_list, list) {
+			 */
+			list_for_each_entry_rev(pos, &proc_list, list) {
 				if (pos->reloads <= child->reloads) {
 					insert_pt = &pos->list;
 					break;
