@@ -1515,13 +1515,15 @@ int check_buf_available(void *target)
 /*
  * Allocate a buffer. If it fails, it adds the check in buffer wait queue.
  */
-struct buffer *check_get_buf(struct check *check, struct buffer *bptr)
+struct buffer *check_get_buf(struct check *check, struct buffer *bptr, unsigned int small_buffer)
 {
 	struct buffer *buf = NULL;
 
-	if (likely(!LIST_INLIST(&check->buf_wait.list)) &&
-	    unlikely((buf = b_alloc(bptr, DB_CHANNEL)) == NULL)) {
-		b_queue(DB_CHANNEL, &check->buf_wait, check, check_buf_available);
+	if (small_buffer == 0 || (buf = b_alloc_small(bptr)) == NULL) {
+		if (likely(!LIST_INLIST(&check->buf_wait.list)) &&
+		    unlikely((buf = b_alloc(bptr, DB_CHANNEL)) == NULL)) {
+			b_queue(DB_CHANNEL, &check->buf_wait, check, check_buf_available);
+		}
 	}
 	return buf;
 }
@@ -1533,8 +1535,11 @@ struct buffer *check_get_buf(struct check *check, struct buffer *bptr)
 void check_release_buf(struct check *check, struct buffer *bptr)
 {
 	if (bptr->size) {
+		int defbuf = b_is_default(bptr);
+
 		b_free(bptr);
-		offer_buffers(check->buf_wait.target, 1);
+		if (defbuf)
+			offer_buffers(check->buf_wait.target, 1);
 	}
 }
 
@@ -1654,7 +1659,6 @@ int start_check_task(struct check *check, int mininter,
  */
 static int start_checks()
 {
-
 	struct proxy *px;
 	struct server *s;
 	char *errmsg = NULL;
@@ -1681,6 +1685,9 @@ static int start_checks()
 	 */
 	for (px = proxies_list; px; px = px->next) {
 		for (s = px->srv; s; s = s->next) {
+			if (s->check.tcpcheck_rules->flags & TCPCHK_RULES_MAY_USE_SBUF)
+				s->check.state |= CHK_ST_USE_SMALL_BUFF;
+
 			if (s->check.state & CHK_ST_CONFIGURED) {
 				nbcheck++;
 				if ((srv_getinter(&s->check) >= SRV_CHK_INTER_THRES) &&

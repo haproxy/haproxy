@@ -121,6 +121,7 @@ enum tcpcheck_rule_type {
 /* Unused 0x000000A0..0x00000FF0 (reserved for future proto) */
 #define TCPCHK_RULES_TCP_CHK     0x00000FF0
 #define TCPCHK_RULES_PROTO_CHK   0x00000FF0 /* Mask to cover protocol check */
+#define TCPCHK_RULES_MAY_USE_SBUF 0x00001000 /* checks may try to use small buffers if possible for the request */
 
 struct check;
 struct tcpcheck_connect {

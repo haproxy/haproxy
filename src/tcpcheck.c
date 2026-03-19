@@ -40,6 +40,7 @@
 #include <haproxy/check.h>
 #include <haproxy/chunk.h>
 #include <haproxy/connection.h>
+#include <haproxy/dynbuf.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/h1.h>
@@ -1659,7 +1660,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 		goto out;
 	}
 
-	if (!check_get_buf(check, &check->bo)) {
+  retry:
+	if (!check_get_buf(check, &check->bo, (check->state & CHK_ST_USE_SMALL_BUFF))) {
 		check->state |= CHK_ST_OUT_ALLOC;
 		ret = TCPCHK_EVAL_WAIT;
 		TRACE_STATE("waiting for output buffer allocation", CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA|CHK_EV_TX_BLK, check);
@@ -1679,6 +1681,13 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 	case TCPCHK_SEND_STRING:
 	case TCPCHK_SEND_BINARY:
 		if (istlen(send->data) >= b_size(&check->bo)) {
+			if (b_is_small(&check->bo)) {
+				check->state &= ~CHK_ST_USE_SMALL_BUFF;
+				check_release_buf(check, &check->bo);
+				TRACE_DEVEL("Send fail with small buffer retry with default one", CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA, check);
+				goto retry;
+			}
+
 			chunk_printf(&trash, "tcp-check send : string too large (%u) for buffer size (%u) at step %d",
 				     (unsigned int)istlen(send->data), (unsigned int)b_size(&check->bo),
 				     tcpcheck_get_step_id(check, rule));
@@ -1689,6 +1698,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 		b_putist(&check->bo, send->data);
 		break;
 	case TCPCHK_SEND_STRING_LF:
+		BUG_ON(check->state & CHK_ST_USE_SMALL_BUFF);
 		check->bo.data = sess_build_logline(check->sess, NULL, b_orig(&check->bo), b_size(&check->bo), &rule->send.fmt);
 		if (!b_data(&check->bo))
 			goto out;
@@ -1696,7 +1706,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 	case TCPCHK_SEND_BINARY_LF: {
 		int len = b_size(&check->bo);
 
-		tmp = alloc_trash_chunk();
+		BUG_ON(check->state & CHK_ST_USE_SMALL_BUFF);
+		tmp = alloc_trash_chunk_sz(len);
 		if (!tmp)
 			goto error_lf;
 		tmp->data = sess_build_logline(check->sess, NULL, b_orig(tmp), b_size(tmp), &rule->send.fmt);
@@ -1713,7 +1724,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 		struct ist meth, uri, vsn, clen, body;
 		unsigned int slflags = 0;
 
-		tmp = alloc_trash_chunk();
+		tmp = alloc_trash_chunk_sz(b_size(&check->bo));
 		if (!tmp)
 			goto error_htx;
 
@@ -1838,6 +1849,12 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 		htx_reset(htx);
 		htx_to_buf(htx, &check->bo);
 	}
+	if (b_is_small(&check->bo)) {
+		check->state &= ~CHK_ST_USE_SMALL_BUFF;
+		check_release_buf(check, &check->bo);
+		TRACE_DEVEL("Send fail with small buffer retry with default one", CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA, check);
+		goto retry;
+	}
 	chunk_printf(&trash, "tcp-check send : failed to build HTTP request at step %d",
 		     tcpcheck_get_step_id(check, rule));
 	TRACE_ERROR("failed to build HTTP request", CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA|CHK_EV_TCPCHK_ERR, check);
@@ -1884,7 +1901,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_r
 		goto wait_more_data;
 	}
 
-	if (!check_get_buf(check, &check->bi)) {
+	if (!check_get_buf(check, &check->bi, 0)) {
 		check->state |= CHK_ST_IN_ALLOC;
 		TRACE_STATE("waiting for input buffer allocation", CHK_EV_RX_DATA|CHK_EV_RX_BLK, check);
 		goto wait_more_data;
@@ -4067,6 +4084,8 @@ static int check_proxy_tcpcheck(struct proxy *px)
 		}
 	}
 
+	/* Allow small buffer use by default. All send rules must be compatible */
+	px->tcpcheck_rules.flags |= (global.tune.bufsize_small ? TCPCHK_RULES_MAY_USE_SBUF : 0);
 
 	/* Remove all comment rules. To do so, when a such rule is found, the
 	 * comment is assigned to the following rule(s).
@@ -4096,6 +4115,25 @@ static int check_proxy_tcpcheck(struct proxy *px)
 			ha_free(&comment);
 			break;
 		case TCPCHK_ACT_SEND:
+			/* Disable small buffer use for rules using LF stirngs or too large data */
+			switch (chk->send.type) {
+			case TCPCHK_SEND_STRING:
+			case TCPCHK_SEND_BINARY:
+				if (istlen(chk->send.data) >= global.tune.bufsize_small)
+					px->tcpcheck_rules.flags &= ~TCPCHK_RULES_MAY_USE_SBUF;
+				break;
+			case TCPCHK_SEND_STRING_LF:
+			case TCPCHK_SEND_BINARY_LF:
+				px->tcpcheck_rules.flags &= ~TCPCHK_RULES_MAY_USE_SBUF;
+				break;
+			case TCPCHK_SEND_HTTP:
+				if ((chk->send.http.flags & TCPCHK_SND_HTTP_FL_BODY_FMT) ||
+				    (istlen(chk->send.http.body) >= global.tune.bufsize_small))
+					px->tcpcheck_rules.flags &= ~TCPCHK_RULES_MAY_USE_SBUF;
+			default:
+				break;
+			}
+			__fallthrough;
 		case TCPCHK_ACT_EXPECT:
 			if (!chk->comment && comment)
 				chk->comment = strdup(comment);

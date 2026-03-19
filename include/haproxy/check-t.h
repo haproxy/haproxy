@@ -59,6 +59,7 @@ enum chk_result {
 #define CHK_ST_FASTINTER        0x0400  /* force fastinter check */
 #define CHK_ST_READY            0x0800  /* check ready to migrate or run, see below */
 #define CHK_ST_SLEEPING         0x1000  /* check was sleeping, i.e. not currently bound to a thread, see below */
+#define CHK_ST_USE_SMALL_BUFF   0x2000  /* Use small buffers if possible for the request */
 
 /* 4 possible states for CHK_ST_SLEEPING and CHK_ST_READY:
  *   SLP  RDY   State      Description
