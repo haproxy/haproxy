@@ -199,6 +199,11 @@ struct act_rule {
 			struct sample_expr *name; /* used to differentiate idle connections */
 		} attach_srv; /* 'attach-srv' rule */
 		struct {
+			enum log_orig_id orig;
+			char *profile_name;
+			struct log_profile *profile;
+		} do_log; /* 'do-log' action */
+		struct {
 			int value;
 			struct sample_expr *expr;
 		} expr_int; /* expr or int value (when expr is NULL)*/

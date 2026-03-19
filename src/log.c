@@ -6927,24 +6927,87 @@ static int px_parse_log_steps(char **args, int section_type, struct proxy *curpx
 static enum act_return do_log_action(struct act_rule *rule, struct proxy *px,
                                      struct session *sess, struct stream *s, int flags)
 {
+	struct process_send_log_ctx ctx;
+
 	/* do_log() expects valid session pointer */
 	BUG_ON(sess == NULL);
 
-	do_log(sess, s, log_orig(rule->arg.expr_int.value, LOG_ORIG_FL_NONE));
+	ctx.origin = log_orig(rule->arg.do_log.orig, LOG_ORIG_FL_NONE);
+	ctx.sess = sess;
+	ctx.stream = s;
+	ctx.profile = rule->arg.do_log.profile;
+
+	do_log_ctx(&ctx);
 	return ACT_RET_CONT;
 }
 
-/* Parse a "do_log" action. It doesn't take any argument
+static int do_log_action_check(struct act_rule *rule, struct proxy *px, char **err)
+{
+	if (rule->arg.do_log.profile_name) {
+		struct log_profile *prof;
+
+		prof = log_profile_find_by_name(rule->arg.do_log.profile_name);
+		if (!prof) {
+			memprintf(err, "do-log action: profile '%s' is invalid", rule->arg.do_log.profile_name);
+			ha_free(&rule->arg.do_log.profile_name);
+			return 0;
+		}
+
+		ha_free(&rule->arg.do_log.profile_name);
+
+		if (!log_profile_postcheck(px, prof, err)) {
+			memprintf(err, "do-log action on %s %s uses incompatible log-profile '%s': %s",  proxy_type_str(px), px->id, prof->id, *err);
+			return 0;
+		}
+		rule->arg.do_log.profile = prof;
+	}
+	return 1; // success
+}
+
+static void do_log_action_release(struct act_rule *rule)
+{
+	ha_free(&rule->arg.do_log.profile_name);
+}
+
+
+/* Parse a "do_log" action. It takes optional "log-profile" argument to
+ * specifically use a given log-profile when generating the log message
+ *
  * May be used from places where per-context actions are usually registered
  */
 enum act_parse_ret do_log_parse_act(enum log_orig_id id,
                                     const char **args, int *orig_arg, struct proxy *px,
                                     struct act_rule *rule, char **err)
 {
+	int cur_arg = *orig_arg;
+
 	rule->action_ptr = do_log_action;
 	rule->action = ACT_CUSTOM;
-	rule->release_ptr = NULL;
-	rule->arg.expr_int.value = id;
+	rule->check_ptr = do_log_action_check;
+	rule->release_ptr = do_log_action_release;
+	rule->arg.do_log.orig = id;
+
+	while (*args[*orig_arg]) {
+		if (!strcmp(args[*orig_arg], "profile")) {
+			if (!*args[*orig_arg + 1]) {
+				memprintf(err,
+					  "action '%s': 'profile' expects argument.",
+					  args[cur_arg-1]);
+				return ACT_RET_PRS_ERR;
+			}
+			rule->arg.do_log.profile_name = strdup(args[*orig_arg + 1]);
+			if (!rule->arg.do_log.profile_name) {
+				memprintf(err,
+					  "action '%s': memory error when setting 'profile'",
+				           args[cur_arg-1]);
+				return ACT_RET_PRS_ERR;
+			}
+			*orig_arg += 2;
+		}
+		else
+			break;
+	}
+
 	return ACT_RET_PRS_OK;
 }
 
