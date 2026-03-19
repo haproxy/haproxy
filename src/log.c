@@ -5200,17 +5200,11 @@ out:
 
 }
 
-/*
- * opportunistic log when at least the session is known to exist
- * <s> may be NULL
- *
- * Will not log if the frontend has no log defined. By default it will
- * try to emit the log as INFO, unless the stream already exists and
- * set-log-level was used.
- */
-void do_log(struct session *sess, struct stream *s, struct log_orig origin)
+static void do_log_ctx(struct process_send_log_ctx *ctx)
 {
-	struct process_send_log_ctx ctx;
+	struct stream *s = ctx->stream;
+	struct session *sess = ctx->sess;
+	struct log_orig origin = ctx->origin;
 	int size;
 	int sd_size = 0;
 	int level = -1;
@@ -5242,11 +5236,26 @@ void do_log(struct session *sess, struct stream *s, struct log_orig origin)
 
 	size = sess_build_logline_orig(sess, s, logline, global.max_syslog_len, &sess->fe->logformat, origin);
 
+	__send_log(ctx, &sess->fe->loggers, &sess->fe->log_tag, level,
+		   logline, size, logline_rfc5424, sd_size);
+}
+
+/*
+ * opportunistic log when at least the session is known to exist
+ * <s> may be NULL
+ *
+ * Will not log if the frontend has no log defined. By default it will
+ * try to emit the log as INFO, unless the stream already exists and
+ * set-log-level was used.
+ */
+void do_log(struct session *sess, struct stream *s, struct log_orig origin)
+{
+	struct process_send_log_ctx ctx;
+
 	ctx.origin = origin;
 	ctx.sess = sess;
 	ctx.stream = s;
-	__send_log(&ctx, &sess->fe->loggers, &sess->fe->log_tag, level,
-		   logline, size, logline_rfc5424, sd_size);
+	do_log_ctx(&ctx);
 }
 
 /*
