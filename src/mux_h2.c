@@ -3384,7 +3384,7 @@ static int h2c_handle_goaway(struct h2c *h2c)
 		return 0;
 	}
 
-	last = h2_get_n32(&h2c->dbuf, 0);
+	last = h2_get_n32(&h2c->dbuf, 0) & 0x7FFFFFFF; // mask R bit
 	h2c->errcode = h2_get_n32(&h2c->dbuf, 4);
 	if (h2c->last_sid < 0)
 		h2c->last_sid = last;
