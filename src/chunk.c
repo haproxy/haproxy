@@ -53,6 +53,22 @@ struct pool_head *pool_head_large_trash __read_mostly = NULL;
 /* this is used to drain data, and as a temporary large buffer */
 THREAD_LOCAL struct buffer trash_large = { };
 
+/* small trash chunks used for various conversions */
+static THREAD_LOCAL struct buffer *small_trash_chunk;
+static THREAD_LOCAL struct buffer small_trash_chunk1;
+static THREAD_LOCAL struct buffer small_trash_chunk2;
+
+/* small trash buffers used for various conversions */
+static int small_trash_size __read_mostly = 0;
+static THREAD_LOCAL char *small_trash_buf1 = NULL;
+static THREAD_LOCAL char *small_trash_buf2 = NULL;
+
+/* the trash pool for reentrant allocations */
+struct pool_head *pool_head_small_trash __read_mostly = NULL;
+
+/* this is used to drain data, and as a temporary small buffer */
+THREAD_LOCAL struct buffer trash_small = { };
+
 /*
 * Returns a pre-allocated and initialized trash chunk that can be used for any
 * type of conversion. Two chunks and their respective buffers are alternatively
@@ -103,14 +119,40 @@ struct buffer *get_large_trash_chunk(void)
 	return large_trash_chunk;
 }
 
+/* Similar to get_trash_chunk() but return a pre-allocated small chunk
+ * instead. Becasuse small buffers are not enabled by default, this function may
+ * return NULL.
+ */
+struct buffer *get_small_trash_chunk(void)
+{
+	char *small_trash_buf;
+
+	if (!small_trash_size)
+		return NULL;
+
+	if (small_trash_chunk == &small_trash_chunk1) {
+		small_trash_chunk = &small_trash_chunk2;
+		small_trash_buf = small_trash_buf2;
+	}
+	else {
+		small_trash_chunk = &small_trash_chunk1;
+		small_trash_buf = small_trash_buf1;
+	}
+	*small_trash_buf = 0;
+	chunk_init(small_trash_chunk, small_trash_buf, small_trash_size);
+	return small_trash_chunk;
+}
+
 /* Returns a trash chunk accordingly to the requested size. This function may
  * fail if the requested size is too big or if the large chubks are not
  * configured.
  */
 struct buffer *get_trash_chunk_sz(size_t size)
 {
-	if (likely(size <= trash_size))
-	    return get_trash_chunk();
+	if (likely(size > small_trash_size && size <= trash_size))
+		return get_trash_chunk();
+	else if (small_trash_size && size <= small_trash_size)
+		return get_small_trash_chunk();
 	else if (large_trash_size && size <= large_trash_size)
 		return get_large_trash_chunk();
 	else
@@ -122,17 +164,20 @@ struct buffer *get_trash_chunk_sz(size_t size)
  */
 struct buffer *get_larger_trash_chunk(struct buffer *chk)
 {
-	struct buffer *chunk;
+	struct buffer *chunk = NULL;
 
-	if (!chk)
-		return get_trash_chunk();
+	if (!chk || chk->size == small_trash_size) {
+		/* no chunk or a small one, use a regular buffer */
+		chunk = get_trash_chunk();
+	}
+	else if (large_trash_size && chk->size <= large_trash_size) {
+		/* a regular byffer, use a large buffer if possible */
+		chunk = get_large_trash_chunk();
+	}
 
-	/* No large buffers or current chunk is alread a large trash chunk */
-	if (!large_trash_size || chk->size == large_trash_size)
-		return NULL;
+	if (chk && chunk)
+		b_xfer(chunk, chk, b_data(chk));
 
-	chunk = get_large_trash_chunk();
-	b_xfer(chunk, chk, b_data(chk));
 	return chunk;
 }
 
@@ -166,9 +211,29 @@ static int alloc_large_trash_buffers(int bufsize)
 	return trash_large.area && large_trash_buf1 && large_trash_buf2;
 }
 
+/* allocates the trash small buffers if necessary. Returns 0 in case of
+ * failure. Unlike alloc_trash_buffers(), It is unexpected to call this function
+ * multiple times. Small buffers are not used during configuration parsing.
+ */
+static int alloc_small_trash_buffers(int bufsize)
+{
+	small_trash_size = bufsize;
+	if (!small_trash_size)
+		return 1;
+
+	BUG_ON(trash_small.area && small_trash_buf1 && small_trash_buf2);
+
+	chunk_init(&trash_small, my_realloc2(trash_small.area, bufsize), bufsize);
+	small_trash_buf1 = (char *)my_realloc2(small_trash_buf1, bufsize);
+	small_trash_buf2 = (char *)my_realloc2(small_trash_buf2, bufsize);
+	return trash_small.area && small_trash_buf1 && small_trash_buf2;
+}
+
 static int alloc_trash_buffers_per_thread()
 {
-	return alloc_trash_buffers(global.tune.bufsize) && alloc_large_trash_buffers(global.tune.bufsize_large);
+	return (alloc_trash_buffers(global.tune.bufsize) &&
+		alloc_large_trash_buffers(global.tune.bufsize_large) &&
+		alloc_small_trash_buffers(global.tune.bufsize_large));
 }
 
 static void free_trash_buffers_per_thread()
@@ -180,6 +245,10 @@ static void free_trash_buffers_per_thread()
 	chunk_destroy(&trash_large);
 	ha_free(&large_trash_buf2);
 	ha_free(&large_trash_buf1);
+
+	chunk_destroy(&trash_small);
+	ha_free(&small_trash_buf2);
+	ha_free(&small_trash_buf1);
 }
 
 /* Initialize the trash buffers. It returns 0 if an error occurred. */
@@ -205,6 +274,14 @@ int init_trash_buffers(int first)
 						    sizeof(struct buffer) + global.tune.bufsize_large,
 						    MEM_F_EXACT);
 		if (!pool_head_large_trash)
+			return 0;
+	}
+
+	if (!first && global.tune.bufsize_small) {
+		pool_head_small_trash = create_pool("small_trash",
+						    sizeof(struct buffer) + global.tune.bufsize_small,
+						    MEM_F_EXACT);
+		if (!pool_head_small_trash)
 			return 0;
 	}
 	return 1;

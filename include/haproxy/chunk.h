@@ -33,6 +33,7 @@
 
 extern struct pool_head *pool_head_trash;
 extern struct pool_head *pool_head_large_trash;
+extern struct pool_head *pool_head_small_trash;
 
 /* function prototypes */
 
@@ -48,6 +49,7 @@ int chunk_strcmp(const struct buffer *chk, const char *str);
 int chunk_strcasecmp(const struct buffer *chk, const char *str);
 struct buffer *get_trash_chunk(void);
 struct buffer *get_large_trash_chunk(void);
+struct buffer *get_small_trash_chunk(void);
 struct buffer *get_trash_chunk_sz(size_t size);
 struct buffer *get_larger_trash_chunk(struct buffer *chunk);
 int init_trash_buffers(int first);
@@ -134,13 +136,38 @@ static forceinline struct buffer *alloc_large_trash_chunk(void)
 }
 
 /*
+ * Allocate a small trash chunk from the reentrant pool. The buffer starts at
+ * the end of the chunk. This chunk must be freed using free_trash_chunk(). This
+ * call may fail and the caller is responsible for checking that the returned
+ * pointer is not NULL.
+ */
+static forceinline struct buffer *alloc_small_trash_chunk(void)
+{
+	struct buffer *chunk;
+
+	if (!pool_head_small_trash)
+		return NULL;
+
+	chunk = pool_alloc(pool_head_small_trash);
+	if (chunk) {
+		char *buf = (char *)chunk + sizeof(struct buffer);
+		*buf = 0;
+		chunk_init(chunk, buf,
+			   pool_head_small_trash->size - sizeof(struct buffer));
+	}
+	return chunk;
+}
+
+/*
  * Allocate a trash chunk accordingly to the requested size. This chunk must be
  * freed using free_trash_chunk(). This call may fail and the caller is
  * responsible for checking that the returned pointer is not NULL.
  */
 static forceinline struct buffer *alloc_trash_chunk_sz(size_t size)
 {
-	if (likely(size <= pool_head_trash->size))
+	if (pool_head_small_trash && size <= pool_head_small_trash->size)
+		return alloc_small_trash_chunk();
+	else if (size <= pool_head_trash->size)
 		return alloc_trash_chunk();
 	else if (pool_head_large_trash && size <= pool_head_large_trash->size)
 		return alloc_large_trash_chunk();
@@ -153,10 +180,12 @@ static forceinline struct buffer *alloc_trash_chunk_sz(size_t size)
  */
 static forceinline void free_trash_chunk(struct buffer *chunk)
 {
-	if (likely(chunk && chunk->size == pool_head_trash->size - sizeof(struct buffer)))
-		pool_free(pool_head_trash, chunk);
-	else
+	if (pool_head_small_trash && chunk && chunk->size == pool_head_small_trash->size - sizeof(struct buffer))
+		pool_free(pool_head_small_trash, chunk);
+	else if (pool_head_large_trash && chunk && chunk->size == pool_head_large_trash->size - sizeof(struct buffer))
 		pool_free(pool_head_large_trash, chunk);
+	else
+		pool_free(pool_head_trash, chunk);
 }
 
 /* copies chunk <src> into <chk>. Returns 0 in case of failure. */
