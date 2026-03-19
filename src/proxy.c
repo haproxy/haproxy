@@ -1676,11 +1676,17 @@ int proxy_finalize(struct proxy *px, int *err_code)
 		}
 
 		if (bind_conf->mux_proto) {
+			int is_quic;
+
+			if ((bind_conf->options & (BC_O_USE_SOCK_DGRAM | BC_O_USE_XPRT_STREAM)) == (BC_O_USE_SOCK_DGRAM | BC_O_USE_XPRT_STREAM))
+				is_quic = 1;
+			else
+				is_quic = 0;
 			/* it is possible that an incorrect mux was referenced
 			 * due to the proxy's mode not being taken into account
 			 * on first pass. Let's adjust it now.
 			 */
-			mux_ent = conn_get_best_mux_entry(bind_conf->mux_proto->token, PROTO_SIDE_FE, mode);
+			mux_ent = conn_get_best_mux_entry(bind_conf->mux_proto->token, PROTO_SIDE_FE, is_quic, mode);
 
 			if (!mux_ent || !isteq(mux_ent->token, bind_conf->mux_proto->token)) {
 				ha_alert("%s '%s' : MUX protocol '%.*s' is not usable for 'bind %s' at [%s:%d].\n",
@@ -2879,7 +2885,7 @@ int proxy_finalize(struct proxy *px, int *err_code)
 		 * due to the proxy's mode not being taken into account
 		 * on first pass. Let's adjust it now.
 		 */
-		mux_ent = conn_get_best_mux_entry(newsrv->mux_proto->token, PROTO_SIDE_BE, mode);
+		mux_ent = conn_get_best_mux_entry(newsrv->mux_proto->token, PROTO_SIDE_BE, srv_is_quic(newsrv), mode);
 
 		if (!mux_ent || !isteq(mux_ent->token, newsrv->mux_proto->token)) {
 			ha_alert("%s '%s' : MUX protocol '%.*s' is not usable for server '%s' at [%s:%d].\n",

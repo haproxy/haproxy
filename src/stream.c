@@ -3289,7 +3289,7 @@ static int check_tcp_switch_stream_mode(struct act_rule *rule, struct proxy *px,
 		px->options |= PR_O_HTTP_UPG;
 
 	if (mux_proto) {
-		mux_ent = conn_get_best_mux_entry(mux_proto->token, PROTO_SIDE_FE, mode);
+		mux_ent = conn_get_best_mux_entry(mux_proto->token, PROTO_SIDE_FE, 0, mode);
 		if (!mux_ent || !isteq(mux_ent->token, mux_proto->token)) {
 			memprintf(err, "MUX protocol '%.*s' is not compatible with the selected mode",
 				  (int)mux_proto->token.len, mux_proto->token.ptr);
@@ -3297,7 +3297,7 @@ static int check_tcp_switch_stream_mode(struct act_rule *rule, struct proxy *px,
 		}
 	}
 	else {
-		mux_ent = conn_get_best_mux_entry(IST_NULL, PROTO_SIDE_FE, mode);
+		mux_ent = conn_get_best_mux_entry(IST_NULL, PROTO_SIDE_FE, 0, mode);
 		if (!mux_ent) {
 			memprintf(err, "Unable to find compatible MUX protocol with the selected mode");
 			return 0;

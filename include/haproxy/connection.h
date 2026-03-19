@@ -34,6 +34,7 @@
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/pool-t.h>
+#include <haproxy/protocol.h>
 #include <haproxy/server.h>
 #include <haproxy/session-t.h>
 #include <haproxy/task-t.h>
@@ -609,13 +610,13 @@ void list_mux_proto(FILE *out);
  */
 static inline const struct mux_proto_list *conn_get_best_mux_entry(
         const struct ist mux_proto,
-        int proto_side, int proto_mode)
+        int proto_side, int proto_is_quic, int proto_mode)
 {
 	struct mux_proto_list *item;
 	struct mux_proto_list *fallback = NULL;
 
 	list_for_each_entry(item, &mux_proto_list.list, list) {
-		if (!(item->side & proto_side) || !(item->mode & proto_mode))
+		if (!(item->side & proto_side) || !(item->mode & proto_mode) || (proto_is_quic && !(item->mux->flags & MX_FL_FRAMED)))
 			continue;
 		if (istlen(mux_proto) && isteq(mux_proto, item->token))
 			return item;
@@ -640,7 +641,7 @@ static inline const struct mux_ops *conn_get_best_mux(struct connection *conn,
 {
 	const struct mux_proto_list *item;
 
-	item = conn_get_best_mux_entry(mux_proto, proto_side, proto_mode);
+	item = conn_get_best_mux_entry(mux_proto, proto_side, proto_is_quic(conn->ctrl), proto_mode);
 
 	return item ? item->mux : NULL;
 }
