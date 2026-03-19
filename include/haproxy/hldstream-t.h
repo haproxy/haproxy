@@ -23,6 +23,7 @@ struct hldstream {
 	int flags;
 	int state;
 	unsigned long long to_send; /* number of body data bytes to send */
+	struct timeval req_date;
 	struct list list;
 };
 
