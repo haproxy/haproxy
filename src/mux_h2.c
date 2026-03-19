@@ -3453,6 +3453,7 @@ static int h2c_handle_priority(struct h2c *h2c)
 static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 {
 	int rst_code;
+	int ret = 1;
 
 	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_RST|H2_EV_RX_EOI, h2c->conn, h2s);
 
@@ -3481,6 +3482,16 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 
 	if (h2s_sc(h2s)) {
 		se_fl_set_error(h2s->sd);
+
+		if (unlikely(!se_fl_test(h2s->sd, SE_FL_APP_STARTED))) {
+			/* the application layer has not yet started to read! */
+			TRACE_STATE("received early RST_STREAM", H2_EV_RX_FRAME|H2_EV_RX_RST, h2c->conn);
+			if (h2c_report_glitch(h2c, 1, "received early RST_STREAM, attack suspected")) {
+				TRACE_DEVEL("too many glitches, leaving on error", H2_EV_RX_FRAME|H2_EV_RX_RST, h2c->conn, h2s);
+				ret = 0; // report the error
+			}
+		}
+
 		se_report_term_evt(h2s->sd, se_tevt_type_rst_rcvd);
 		if (!h2s->sd->abort_info.info) {
 			h2s->sd->abort_info.info = (SE_ABRT_SRC_MUX_H2 << SE_ABRT_SRC_SHIFT);
@@ -3491,7 +3502,7 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 
 	h2s->flags |= H2_SF_RST_RCVD;
 	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_RST|H2_EV_RX_EOI, h2c->conn, h2s);
-	return 1;
+	return ret;
 }
 
 /* processes a HEADERS frame. Returns h2s on success or NULL on missing data.
