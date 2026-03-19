@@ -40,6 +40,7 @@ struct check;
 #define IS_HTX_SC(sc)     ((sc_conn(sc) && IS_HTX_CONN(__sc_conn(sc))) || (sc_appctx(sc) && IS_HTX_STRM(__sc_strm(sc))))
 
 struct sedesc *sedesc_new();
+struct stconn *sc_new(struct sedesc *sedesc);
 void sedesc_free(struct sedesc *sedesc);
 
 void se_shutdown(struct sedesc *sedesc, enum se_shut_mode mode);
