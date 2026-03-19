@@ -1,0 +1,132 @@
+------
+                                  HALoad
+                                  ------
+                            HAProxy's dummy HTTP
+                           client for benchmarks
+
+1. Background
+-------------
+
+HALoad is a lightweight, multi-threaded traffic generator designed to benchmark
+HTTP infrastructures under heavy loads. Built directly onto HAProxy's highly
+scalable core architecture, it shares its parent engine's efficient handling of
+connections. This framework allows the tool to generate high-volume traffic
+across all standard application layers, including HTTP/1, HTTP/2, and HTTP/3
+(QUIC), over either cleartext or secured TLS connections.
+
+The primary design goal is to provide a modernized alternative to legacy tools
+like h1load, extending benchmarking capabilities to newer protocols. Notably,
+HALoad introduces the concept of users (-u), a feature completely absent
+from h1load. Here, a "user" strictly represents an independent, concurrent
+HTTP client task. Under this architecture, each simulated client will
+instantiate as many backend server connections as there are target URLs
+specified on the command line.
+
+HALoad does not require any configuration file. Instead, the configuration is
+dynamically derived from basic command line inputs. This ensures immediate
+usability for test operators while retaining the ability to test complex,
+multi-protocol setups.
+
+
+2. Compilation
+--------------
+
+The compilation process mirrors standard HAProxy builds, specifying "haload"
+as the compilation target via the command line:
+
+  $ make -j $(nproc) TARGET=linux-glibc haload
+
+To enable encrypted communication layers (TLS/SSL):
+
+  $ make TARGET=linux-glibc USE_OPENSSL=1 haload
+
+For advanced HTTP/3 over QUIC load testing:
+
+  $ make -j $(nproc) TARGET=linux-glibc USE_OPENSSL=1 USE_QUIC=1 haload
+
+Because HALoad shares the code of the main HAProxy binary, it natively
+inherits all standard HAProxy compiler flags, optimizations, and build
+targets.
+
+
+3. Execution
+------------
+
+HALoad displays its usage when run without argument or wrong arguments:
+
+    Usage : haload [opts] [URL]
+    where <opts> may be any combination of:
+            -d <time>        test duration in seconds (0)
+            -e               stop upon first connection error
+            -h(0|1|2|2c|3)   use h0 (hq-interop for QUIC), h1, h2, h2c or h3
+                             (QUIC/TCP) protocols (*)
+            -(0|1|2|2c|3)    same as above (*)
+            -l               enable long output format; double for raw values
+            -m <streams>     maximum concurrent streams (1)
+            -n <reqs>        maximum total requests (-1)
+            -r <reqs>        number of requests per connection (-1)
+            -s <time>        soft start: time in sec to reach 100% load
+            -t <threads>     number of threads
+            -u <users>       number of users (1)
+            -w <time>        I/O timeout in milliseconds (10000)
+            -C               dump the configuration and exit
+            -H "foo:bar"     add this header name and value
+            -I               use HEAD instead of GET
+            -v               shows version
+            --defaults <str> add a string to default section
+            --global <str>   add a string to global section
+            --server <opts>  set server <opt> options as defined for "server"
+                             haproxy keyword
+            --show-status-codes show HTTP status codes distribution
+            --traces         enable the traces for all the HTTP protocols
+    SSL options:
+            --tls-ciphers <ciphers>      for TLS1.2 and below (*)
+            --tls-ciphersuites <ciphers> for TLS1.3 and above (*)
+            --tls-curves <curves> (*)
+    URL format:
+            (http://|https://|quic://)<addr>:<port>/<path>
+    Note: Options marked with an asterisk (*) are positional and MUST be placed
+          BEFORE the URLs they are intended to affect.
+
+
+At startup, HALoad dynamically generates an HAProxy configuration in memory.
+Options like --global and --defaults allow raw configuration lines to be added
+directly to the "global" and "defaults" sections, while --server appends
+options to the backend server. These parameters support standard escaped
+notation (e.g., '\n' or '\t') to insert multi-line statements in a single
+argument en ligne de commande.
+
+
+Examples:
+
+    # 30-second test using 4 threads simulating 10 distinct users
+    $ ./haload -t 4 -u 10 -d 30 http://127.0.0.1:8888/
+
+    # HTTP/3 test limiting concurrent streams to 3 per connection (-m3)
+    $ ./haload -m3 quic://127.0.0.1:8889/
+
+    # Dump the generated memory configuration and exit (-C)
+    $ ./haload https://127.0.0.1:4443 -C
+    global
+            tune.memory.hot-size 3145728
+            ssl-server-verify none
+            tune.h2.be.max-concurrent-streams 1
+            tune.quic.be.stream.max-concurrent 1
+
+    # Dump the configuration and exit (-C) to check -m3 effect
+    $ ./haload https://127.0.0.1:4443 -m3 -C
+    global
+            tune.memory.hot-size 3145728
+            ssl-server-verify none
+            tune.h2.be.max-concurrent-streams 3
+            tune.quic.be.stream.max-concurrent 3
+
+    # Add a custom directive into defaults, dump the configuration and exit (-C)
+    $ ./haload https://127.0.0.1:4443 --defaults "timeout connect 5s" -C
+    global
+            tune.memory.hot-size 3145728
+            ssl-server-verify none
+            tune.h2.be.max-concurrent-streams 1
+            tune.quic.be.stream.max-concurrent 1
+    defaults
+            timeout connect 5s

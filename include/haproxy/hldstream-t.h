@@ -12,6 +12,7 @@
 struct hldstream {
 	enum obj_type obj_type;
 	struct connection *conn;
+	unsigned int expire;
 	int64_t hash;
 	struct hld_usr *usr;
 	struct hld_url *url;
@@ -23,6 +24,7 @@ struct hldstream {
 	int flags;
 	int state;
 	unsigned long long to_send; /* number of body data bytes to send */
+	struct timeval req_date;
 	struct list list;
 };
 
