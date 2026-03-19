@@ -156,14 +156,13 @@ enum PR_SRV_STATE_FILE {
 #define PR_O2_RSTRICT_REQ_HDR_NAMES_NOOP 0x01000000 /* preserve request header names containing chars outside of [0-9a-zA-Z-] charset */
 #define PR_O2_RSTRICT_REQ_HDR_NAMES_MASK 0x01c00000 /* mask for restrict-http-header-names option */
 
-/* unused : 0x02000000 ... 0x08000000 */
-
 /* server health checks */
-#define PR_O2_CHK_NONE  0x00000000      /* no L7 health checks configured (TCP by default) */
-#define PR_O2_TCPCHK_CHK 0x90000000     /* use TCPCHK check for server health */
-#define PR_O2_EXT_CHK   0xA0000000      /* use external command for server health */
-/* unused: 0xB0000000 to 0xF000000, reserved for health checks */
-#define PR_O2_CHK_ANY   0xF0000000      /* Mask to cover any check */
+#define PR_O2_CHK_NONE   0x00000000    /* no L7 health checks configured (TCP by default) */
+#define PR_O2_TCPCHK_CHK 0x02000000    /* use TCPCHK check for server health */
+#define PR_O2_EXT_CHK    0x04000000    /* use external command for server health */
+#define PR_O2_CHK_ANY    0x06000000    /* Mask to cover any check */
+
+/* unused : 0x08000000 ... 0x80000000 */
 /* end of proxy->options2 */
 
 /* bits for proxy->options3 */
