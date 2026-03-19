@@ -25,6 +25,7 @@
 #include <haproxy/api.h>
 #include <haproxy/connection.h>
 #include <haproxy/hstream-t.h>
+#include <haproxy/hldstream-t.h>
 #include <haproxy/htx-t.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/stconn-t.h>
@@ -347,6 +348,21 @@ static inline struct hstream *sc_hstream(const struct stconn *sc)
 {
 	if (obj_type(sc->app) == OBJ_TYPE_HATERM)
 		return __objt_hstream(sc->app);
+	return NULL;
+}
+
+/* Returns the haload stream from a sc if the application is a
+ * haload stream. Otherwise NULL is returned. __sc_hldstream() returns the haterm
+ * stream without any control while sc_hldstream() check the application type.
+ */
+static inline struct hldstream *__sc_hldstream(const struct stconn *sc)
+{
+	return __objt_hldstream(sc->app);
+}
+static inline struct hldstream *sc_hldstream(const struct stconn *sc)
+{
+	if (obj_type(sc->app) == OBJ_TYPE_HALOAD)
+		return __objt_hldstream(sc->app);
 	return NULL;
 }
 
