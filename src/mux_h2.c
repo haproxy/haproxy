@@ -101,6 +101,7 @@ struct h2c {
 	struct wait_event wait_event;  /* To be used if we're waiting for I/Os */
 
 	struct list *next_tasklet; /* which applet to wake up next (NULL by default) */
+	uint32_t streams_hard_limit; /* maximum number of concurrent streams supported locally */
 };
 
 
@@ -744,7 +745,8 @@ static inline int h2c_may_expire(const struct h2c *h2c)
 
 /* returns the number of max concurrent streams permitted on a connection,
  * depending on its side (frontend or backend), falling back to the default
- * h2_settings_max_concurrent_streams. It may even be zero.
+ * h2_settings_max_concurrent_streams. It may even be zero. It only relies
+ * on configuration settings.
  */
 static inline int h2c_max_concurrent_streams(const struct h2c *h2c)
 {
@@ -1114,7 +1116,7 @@ static inline void h2c_restart_reading(const struct h2c *h2c, int consider_buffe
 /* returns true if the front connection has too many stream connectors attached */
 static inline int h2_frt_has_too_many_sc(const struct h2c *h2c)
 {
-	return h2c->nb_sc > h2c_max_concurrent_streams(h2c) ||
+	return h2c->nb_sc > h2c->streams_hard_limit ||
 	       unlikely(conn_reverse_in_preconnect(h2c->conn));
 }
 
@@ -1425,7 +1427,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	/* Initialise the context. */
 	h2c->st0 = H2_CS_PREFACE;
 	h2c->conn = conn;
-	h2c->streams_limit = h2c_max_concurrent_streams(h2c);
+	h2c->streams_limit = h2c->streams_hard_limit = h2c_max_concurrent_streams(h2c);
 	nb_rxbufs = (h2c->flags & H2_CF_IS_BACK) ? h2_be_rxbuf : h2_fe_rxbuf;
 	nb_rxbufs = (nb_rxbufs + global.tune.bufsize - 9 - 1) / (global.tune.bufsize - 9);
 	nb_rxbufs = MAX(nb_rxbufs, h2c->streams_limit);
@@ -1743,9 +1745,9 @@ static inline int _h2c_report_glitch(struct h2c *h2c, int increment)
 		 * to force clients to periodically reconnect.
 		 */
 		if (h2c->last_sid <= 0 ||
-		    h2c->last_sid > h2c->max_id + 2 * h2c_max_concurrent_streams(h2c)) {
+		    h2c->last_sid > h2c->max_id + 2 * h2c->streams_hard_limit) {
 			/* not set yet or was too high */
-			h2c->last_sid = h2c->max_id + 2 * h2c_max_concurrent_streams(h2c);
+			h2c->last_sid = h2c->max_id + 2 * h2c->streams_hard_limit;
 			h2c_send_goaway_error(h2c, NULL);
 		}
 
@@ -2107,7 +2109,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	/* Cannot handle stream if active reversed connection is not yet accepted. */
 	BUG_ON(conn_reverse_in_preconnect(h2c->conn));
 
-	if (h2c->nb_streams >= h2c_max_concurrent_streams(h2c)) {
+	if (h2c->nb_streams >= h2c->streams_hard_limit) {
 		h2c_report_glitch(h2c, 1, "HEADERS frame causing MAX_CONCURRENT_STREAMS to be exceeded");
 		TRACE_ERROR("HEADERS frame causing MAX_CONCURRENT_STREAMS to be exceeded", H2_EV_H2S_NEW|H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn);
 		session_inc_http_req_ctr(sess);
@@ -2287,7 +2289,7 @@ static int h2c_send_settings(struct h2c *h2c)
 		chunk_memcat(&buf, str, 6);
 	}
 
-	mcs = h2c_max_concurrent_streams(h2c);
+	mcs = h2c->streams_hard_limit;
 	if (mcs != 0) {
 		char str[6] = "\x00\x03"; /* max_concurrent_streams */
 
@@ -2908,8 +2910,8 @@ static int h2c_handle_settings(struct h2c *h2c)
 		case H2_SETTINGS_MAX_CONCURRENT_STREAMS:
 			if (h2c->flags & H2_CF_IS_BACK) {
 				/* the limit is only for the backend; for the frontend it is our limit */
-				if ((unsigned int)arg > h2c_max_concurrent_streams(h2c))
-					arg = h2c_max_concurrent_streams(h2c);
+				if ((unsigned int)arg > h2c->streams_hard_limit)
+					arg = h2c->streams_hard_limit;
 				h2c->streams_limit = arg;
 			}
 			break;
@@ -3561,7 +3563,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		goto out; // IDLE but too many sc still present
 	}
 	else if (h2_fe_max_total_streams &&
-		 h2c->stream_cnt >= h2_fe_max_total_streams + h2c_max_concurrent_streams(h2c)) {
+		 h2c->stream_cnt >= h2_fe_max_total_streams + h2c->streams_hard_limit) {
 		/* We've already told this client we were going to close a
 		 * while ago and apparently it didn't care, so it's time to
 		 * stop processing its requests for real.
@@ -3688,9 +3690,9 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		 * ID.
 		 */
 		if (h2c->last_sid <= 0 ||
-		    h2c->last_sid > h2c->max_id + 2 * h2c_max_concurrent_streams(h2c)) {
+		    h2c->last_sid > h2c->max_id + 2 * h2c->streams_hard_limit) {
 			/* not set yet or was too high */
-			h2c->last_sid = h2c->max_id + 2 * h2c_max_concurrent_streams(h2c);
+			h2c->last_sid = h2c->max_id + 2 * h2c->streams_hard_limit;
 			h2c_send_goaway_error(h2c, NULL);
 		}
 	}
