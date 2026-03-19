@@ -5971,6 +5971,8 @@ errorloc302                               X          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
 errorloc303                               X          X         X         X
 error-log-format                          X          X         X         -
+external-check command                    X          -         X         X
+external-check path                       X          -         X         X
 force-persist                             -          -         X         X
 force-be-switch                           -          X         X         -
 filter                                    -          X         X         X
@@ -6064,8 +6066,6 @@ option tcp-smart-connect             (*)  X          -         X         X
 option tcpka                              X          X         X         X
 option tcplog                             X          X         X         -
 option transparent      (deprecated) (*)  X          -         X         X
-external-check command                    X          -         X         X
-external-check path                       X          -         X         X
 persist rdp-cookie                        X          -         X         X
 quic-initial                              X (!)      X         X         -
 rate-limit sessions                       X          X         X         -
@@ -7726,6 +7726,96 @@ force-persist { if | unless } <condition>
 
   See also : "option redispatch", "ignore-persist", "persist",
              and section 7 about ACL usage.
+
+
+external-check command <command>
+  Executable to run when performing an external-check
+
+  May be used in the following contexts: tcp, http, log
+
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+
+  Arguments :
+    <command> is the external command to run
+
+  The arguments passed to the to the command are:
+
+  <proxy_address> <proxy_port> <server_address> <server_port>
+
+  The <proxy_address> and <proxy_port> are derived from the first listener
+  that is either IPv4, IPv6 or a UNIX socket. In the case of a UNIX socket
+  listener the proxy_address will be the path of the socket and the
+  <proxy_port> will be the string "NOT_USED". In a backend section, it's not
+  possible to determine a listener, and both <proxy_address> and <proxy_port>
+  will have the string value "NOT_USED".
+
+  Some values are also provided through environment variables.
+
+  Environment variables :
+    HAPROXY_PROXY_ADDR      The first bind address if available (or empty if not
+                            applicable, for example in a "backend" section).
+
+    HAPROXY_PROXY_ID        The backend id.
+
+    HAPROXY_PROXY_NAME      The backend name.
+
+    HAPROXY_PROXY_PORT      The first bind port if available (or empty if not
+                            applicable, for example in a "backend" section or
+                            for a UNIX socket).
+
+    HAPROXY_SERVER_ADDR     The server address.
+
+    HAPROXY_SERVER_CURCONN  The current number of connections on the server.
+
+    HAPROXY_SERVER_ID       The server id.
+
+    HAPROXY_SERVER_MAXCONN  The server max connections.
+
+    HAPROXY_SERVER_NAME     The server name.
+
+    HAPROXY_SERVER_PORT     The server port if available (or empty for a UNIX
+                            socket).
+
+    HAPROXY_SERVER_SSL      "0" when SSL is not used, "1" when it is used
+
+    HAPROXY_SERVER_PROTO    The protocol used by this server, which can be one
+                            of "cli" (the haproxy CLI), "syslog" (syslog TCP
+                            server), "peers" (peers TCP server), "h1" (HTTP/1.x
+                            server), "h2" (HTTP/2 server), or "tcp" (any other
+                            TCP server).
+
+    PATH                    The PATH environment variable used when executing
+                            the command may be set using "external-check path".
+
+  If the command executed and exits with a zero status then the check is
+  considered to have passed, otherwise the check is considered to have
+  failed.
+
+  Example :
+        external-check command /bin/true
+
+  See also : "external-check", "option external-check", "external-check path"
+
+
+external-check path <path>
+  The value of the PATH environment variable used when running an external-check
+
+  May be used in the following contexts: tcp, http, log
+
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+
+  Arguments :
+    <path> is the path used when executing external command to run
+
+  The default path is "".
+
+  Example :
+        external-check path "/usr/bin:/bin"
+
+  See also : "external-check", "option external-check",
+             "external-check command"
 
 
 force-be-switch { if | unless } <condition>
@@ -11813,96 +11903,6 @@ no option transparent     (deprecated)
 
   See also: the "usesrc" argument of the "source" keyword, and the
             "transparent" option of the "bind" keyword.
-
-
-external-check command <command>
-  Executable to run when performing an external-check
-
-  May be used in the following contexts: tcp, http, log
-
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
-
-  Arguments :
-    <command> is the external command to run
-
-  The arguments passed to the to the command are:
-
-  <proxy_address> <proxy_port> <server_address> <server_port>
-
-  The <proxy_address> and <proxy_port> are derived from the first listener
-  that is either IPv4, IPv6 or a UNIX socket. In the case of a UNIX socket
-  listener the proxy_address will be the path of the socket and the
-  <proxy_port> will be the string "NOT_USED". In a backend section, it's not
-  possible to determine a listener, and both <proxy_address> and <proxy_port>
-  will have the string value "NOT_USED".
-
-  Some values are also provided through environment variables.
-
-  Environment variables :
-    HAPROXY_PROXY_ADDR      The first bind address if available (or empty if not
-                            applicable, for example in a "backend" section).
-
-    HAPROXY_PROXY_ID        The backend id.
-
-    HAPROXY_PROXY_NAME      The backend name.
-
-    HAPROXY_PROXY_PORT      The first bind port if available (or empty if not
-                            applicable, for example in a "backend" section or
-                            for a UNIX socket).
-
-    HAPROXY_SERVER_ADDR     The server address.
-
-    HAPROXY_SERVER_CURCONN  The current number of connections on the server.
-
-    HAPROXY_SERVER_ID       The server id.
-
-    HAPROXY_SERVER_MAXCONN  The server max connections.
-
-    HAPROXY_SERVER_NAME     The server name.
-
-    HAPROXY_SERVER_PORT     The server port if available (or empty for a UNIX
-                            socket).
-
-    HAPROXY_SERVER_SSL      "0" when SSL is not used, "1" when it is used
-
-    HAPROXY_SERVER_PROTO    The protocol used by this server, which can be one
-                            of "cli" (the haproxy CLI), "syslog" (syslog TCP
-                            server), "peers" (peers TCP server), "h1" (HTTP/1.x
-                            server), "h2" (HTTP/2 server), or "tcp" (any other
-                            TCP server).
-
-    PATH                    The PATH environment variable used when executing
-                            the command may be set using "external-check path".
-
-  If the command executed and exits with a zero status then the check is
-  considered to have passed, otherwise the check is considered to have
-  failed.
-
-  Example :
-        external-check command /bin/true
-
-  See also : "external-check", "option external-check", "external-check path"
-
-
-external-check path <path>
-  The value of the PATH environment variable used when running an external-check
-
-  May be used in the following contexts: tcp, http, log
-
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
-
-  Arguments :
-    <path> is the path used when executing external command to run
-
-  The default path is "".
-
-  Example :
-        external-check path "/usr/bin:/bin"
-
-  See also : "external-check", "option external-check",
-             "external-check command"
 
 
 persist rdp-cookie
