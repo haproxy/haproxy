@@ -162,7 +162,11 @@ enum PR_SRV_STATE_FILE {
 #define PR_O2_EXT_CHK    0x04000000    /* use external command for server health */
 #define PR_O2_CHK_ANY    0x06000000    /* Mask to cover any check */
 
-/* unused : 0x08000000 ... 0x80000000 */
+#define PR_O2_USE_SBUF_QUEUE    0x08000000 /* use small buffer for request when stream are queued*/
+#define PR_O2_USE_SBUF_L7_RETRY 0x10000000 /* use small buffer for request when L7 retires are enabled */
+#define PR_O2_USE_SBUF_CHECK    0x20000000 /* use small buffer for request's healthchecks */
+#define PR_O2_USE_SBUF_ALL      0x38000000 /* all flags for use-large-buffer option */
+/* unused : 0x40000000 ... 0x80000000 */
 /* end of proxy->options2 */
 
 /* bits for proxy->options3 */

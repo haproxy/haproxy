@@ -1496,7 +1496,8 @@ int sc_conn_send(struct stconn *sc)
 			if (s->txn->req.msg_state != HTTP_MSG_DONE || b_is_large(&oc->buf))
 				s->txn->flags &= ~TX_L7_RETRY;
 			else {
-				if (!htx_copy_to_small_buffer(&s->txn->l7_buffer, &oc->buf)) {
+				if (!(s->be->options2 & PR_O2_USE_SBUF_L7_RETRY) ||
+				    !htx_copy_to_small_buffer(&s->txn->l7_buffer, &oc->buf)) {
 					if (b_alloc(&s->txn->l7_buffer, DB_UNLIKELY) == NULL)
 						s->txn->flags &= ~TX_L7_RETRY;
 					else {

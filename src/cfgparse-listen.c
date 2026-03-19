@@ -2200,6 +2200,42 @@ stats_error_parsing:
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+		else if (strcmp(args[1], "use-small-buffers") == 0) {
+			unsigned int flags = PR_O2_USE_SBUF_ALL;
+
+			if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL)) {
+				err_code |= ERR_WARN;
+				goto out;
+			}
+
+			if (*(args[2])) {
+				int cur_arg;
+
+				flags = 0;
+				for (cur_arg = 2; *(args[cur_arg]); cur_arg++) {
+					if (strcmp(args[cur_arg], "queue") == 0)
+						flags |= PR_O2_USE_SBUF_QUEUE;
+					else if (strcmp(args[cur_arg], "l7-retries") == 0)
+						flags |= PR_O2_USE_SBUF_L7_RETRY;
+					else if (strcmp(args[cur_arg], "check") == 0)
+						flags |= PR_O2_USE_SBUF_CHECK;
+					else {
+						ha_alert("parsing [%s:%d] : invalid parameter '%s'. option '%s' expects 'queue', 'l7-retries' or 'check' value.\n",
+							 file, linenum, args[cur_arg], args[1]);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+				}
+			}
+			if (kwm == KWM_STD) {
+				curproxy->options2 &= ~PR_O2_USE_SBUF_ALL;
+				curproxy->options2 |= flags;
+			}
+			else if (kwm == KWM_NO) {
+				curproxy->options2 &= ~flags;
+			}
+			goto out;
+		}
 
 		if (kwm != KWM_STD) {
 			ha_alert("parsing [%s:%d]: negation/default is not supported for option '%s'.\n",

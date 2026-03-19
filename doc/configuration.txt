@@ -4165,8 +4165,11 @@ tune.bufsize.small <size>
   If however a small buffer is not sufficient, a reallocation is automatically
   done to switch to a standard size buffer.
 
-  For the moment, it is used only by HTTP/3 protocol to emit the response
-  headers.
+  For the moment, it is automatically used only by HTTP/3 protocol to emit the
+  response headers. Otherwise, small buffers support can be enabled for
+  specific proxies via the "use-small-buffers" option.
+
+  See also: option use-small-buffers
 
 tune.comp.maxlevel <number>
   Sets the maximum compression level. The compression level affects CPU
@@ -6066,6 +6069,7 @@ option tcp-smart-connect             (*)  X          -         X         X
 option tcpka                              X          X         X         X
 option tcplog                             X          X         X         -
 option transparent      (deprecated) (*)  X          -         X         X
+option use-small-buffers             (*)  X          -         X         X
 persist rdp-cookie                        X          -         X         X
 quic-initial                              X (!)      X         X         -
 rate-limit sessions                       X          X         X         -
@@ -11904,6 +11908,36 @@ no option transparent     (deprecated)
   See also: the "usesrc" argument of the "source" keyword, and the
             "transparent" option of the "bind" keyword.
 
+
+option use-small-buffers [ queue | l7-retries | check ]*
+
+  Enable support for small buffers for the given categories.
+
+  May be used in the following contexts: tcp, http
+
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+
+  This option can be used to enable the small buffers support at diffent places
+  to save memory. By default, with no parameter, small buffers are used as far
+  as possible at all possible places. Otherwise, it is possible to limit it to
+  following the places:
+
+   - queue:      When set, small buffers will be used to store the requests, if
+                 small enough, when the connection is queued.
+   - l7-retries: When set, small buffers will be used to save the requests
+                 when L7 retries are enabled.
+   - check:      When set, small buffers will be used for the health-checks
+                 requests.
+
+  When enabled, small buffers are used, but only if it is possible. Otherwise,
+  when data are too large, a regular buffer is automtically used. The size of
+  small buffers is configurable via the "tune.bufsize.small" global setting.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also: tune.bufsize.small
 
 persist rdp-cookie
 persist rdp-cookie(<name>)
