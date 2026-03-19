@@ -37,6 +37,7 @@
 #include <haproxy/namespace.h>
 #include <haproxy/port_range.h>
 #include <haproxy/protocol.h>
+#include <haproxy/proto_tcp.h>
 #include <haproxy/proxy.h>
 #include <haproxy/queue.h>
 #include <haproxy/quic_tp.h>
@@ -2938,7 +2939,9 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	}
 	srv->use_ssl                  = src->use_ssl;
 	srv->check.addr               = src->check.addr;
+	srv->check.proto              = src->check.proto;
 	srv->agent.addr               = src->agent.addr;
+	srv->agent.proto              = src->agent.proto;
 	srv->check.use_ssl            = src->check.use_ssl;
 	srv->check.port               = src->check.port;
 	if (src->check.sni != NULL)
@@ -4635,6 +4638,11 @@ out:
 			set_srv_agent_addr(s, &sk);
 		if (port)
 			set_srv_agent_port(s, new_port);
+		/* Agent currently only uses TCP */
+		if (sk.ss_family == AF_INET)
+			s->agent.proto = &proto_tcpv4;
+		else
+			s->agent.proto = &proto_tcpv6;
 	}
 	return NULL;
 }
@@ -4646,7 +4654,8 @@ out:
  */
 const char *srv_update_check_addr_port(struct server *s, const char *addr, const char *port)
 {
-	struct sockaddr_storage sk;
+	struct sockaddr_storage *sk = NULL;
+	struct protocol *proto = NULL;
 	struct buffer *msg;
 	int new_port;
 
@@ -4659,7 +4668,8 @@ const char *srv_update_check_addr_port(struct server *s, const char *addr, const
 	}
 	if (addr) {
 		memset(&sk, 0, sizeof(struct sockaddr_storage));
-		if (str2ip2(addr, &sk, 0) == NULL) {
+		sk = str2sa_range(addr, NULL, NULL, NULL, NULL, &proto, NULL, NULL, NULL, NULL, NULL, 0);
+		if (sk == NULL) {
 			chunk_appendf(msg, "invalid addr '%s'", addr);
 			goto out;
 		}
@@ -4683,8 +4693,10 @@ out:
 	if (msg->data)
 		return msg->area;
 	else {
-		if (addr)
-			s->check.addr = sk;
+		if (sk) {
+			s->check.addr = *sk;
+			s->check.proto = proto;
+		}
 		if (port)
 			s->check.port = new_port;
 

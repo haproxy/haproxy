@@ -1428,9 +1428,15 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 			check->mux_proto = NULL;
 	}
 	else {
-		proto = s ?
-		  protocol_lookup(conn->dst->ss_family, s->addr_type.proto_type, s->alt_proto) :
-		  protocol_lookup(conn->dst->ss_family, PROTO_TYPE_STREAM, 0);
+		if (check->proto)
+			proto = check->proto;
+		else {
+			if (is_addr(&connect->addr))
+				proto = protocol_lookup(conn->dst->ss_family, PROTO_TYPE_STREAM, 0);
+			else
+				proto = protocol_lookup(conn->dst->ss_family, s->addr_type.proto_type, s->alt_proto);
+
+		}
 	}
 
 	port = 0;
