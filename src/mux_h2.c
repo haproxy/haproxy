@@ -3289,7 +3289,7 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 		goto out0;
 	}
 
-	inc = h2_get_n32(&h2c->dbuf, 0);
+	inc = h2_get_n32(&h2c->dbuf, 0) & 0x7FFFFFFF;
 
 	if (h2c->dsi != 0) {
 		/* stream window update */
