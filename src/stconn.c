@@ -134,7 +134,7 @@ void se_shutdown(struct sedesc *sedesc, enum se_shut_mode mode)
  * function. The caller must, at least, set the SE_FL_ORPHAN or SE_FL_DETACHED
  * flag.
  */
-static struct stconn *sc_new(struct sedesc *sedesc)
+struct stconn *sc_new(struct sedesc *sedesc)
 {
 	struct stconn *sc;
 
