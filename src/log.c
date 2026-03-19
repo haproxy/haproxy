@@ -2913,6 +2913,7 @@ static inline void __send_log_set_metadata_sd(struct ist *metadata, char *sd, si
 struct process_send_log_ctx {
 	struct session *sess;
 	struct stream *stream;
+	struct log_profile *profile;
 	struct log_orig origin;
 };
 
@@ -2941,6 +2942,10 @@ static inline void _process_send_log_override(struct process_send_log_ctx *ctx,
 	struct ist orig_sd = hdr.metadata[LOG_META_STDATA];
 	enum log_orig_id orig = (ctx) ? ctx->origin.id : LOG_ORIG_UNSPEC;
 	uint16_t orig_fl = (ctx) ? ctx->origin.flags : LOG_ORIG_FL_NONE;
+
+	/* ctx->profile gets priority over logger profile */
+	if (ctx && ctx->profile)
+		prof = ctx->profile;
 
 	BUG_ON(!prof);
 
@@ -3095,8 +3100,8 @@ static void process_send_log(struct process_send_log_ctx *ctx,
 
 			nblogger += 1;
 
-			/* logger may use a profile to override a few things */
-			if (unlikely(logger->prof))
+			/* caller or default logger may use a profile to override a few things */
+			if (unlikely(logger->prof || (ctx && ctx->profile)))
 				_process_send_log_override(ctx, logger, hdr, message, size, nblogger);
 			else
 				_process_send_log_final(logger, hdr, message, size, nblogger);
@@ -5255,6 +5260,7 @@ void do_log(struct session *sess, struct stream *s, struct log_orig origin)
 	ctx.origin = origin;
 	ctx.sess = sess;
 	ctx.stream = s;
+	ctx.profile = NULL;
 	do_log_ctx(&ctx);
 }
 
@@ -5306,6 +5312,7 @@ void strm_log(struct stream *s, struct log_orig origin)
 	ctx.origin = origin;
 	ctx.sess = sess;
 	ctx.stream = s;
+	ctx.profile = NULL;
 	__send_log(&ctx, &sess->fe->loggers, &sess->fe->log_tag, level,
 		   logline, size, logline_rfc5424, sd_size);
 	s->logs.logwait = 0;
@@ -5373,6 +5380,7 @@ void _sess_log(struct session *sess, int embryonic)
 	ctx.origin = orig;
 	ctx.sess = sess;
 	ctx.stream = NULL;
+	ctx.profile = NULL;
 	__send_log(&ctx, &sess->fe->loggers,
 	           &sess->fe->log_tag, level,
 		   logline, size, logline_rfc5424, sd_size);
