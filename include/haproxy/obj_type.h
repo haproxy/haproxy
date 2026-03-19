@@ -28,6 +28,7 @@
 #include <haproxy/check-t.h>
 #include <haproxy/connection-t.h>
 #include <haproxy/hstream-t.h>
+#include <haproxy/hldstream-t.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/pool.h>
@@ -215,6 +216,19 @@ static inline struct acme_rslv *objt_acme_rslv(enum obj_type *t)
 	if (!t || *t != OBJ_TYPE_ACME_RSLV)
 		return NULL;
 	return __objt_acme_rslv(t);
+}
+
+static inline struct hldstream *__objt_hldstream(enum obj_type *t)
+{
+	return container_of(t, struct hldstream, obj_type);
+}
+
+static inline struct hldstream *objt_hldstream(enum obj_type *t)
+{
+	if (!t || *t != OBJ_TYPE_HALOAD)
+		return NULL;
+
+	return __objt_hldstream(t);
 }
 
 #ifdef USE_QUIC
