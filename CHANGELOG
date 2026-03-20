@@ -1,6 +1,138 @@
 ChangeLog :
 ===========
 
+2026/03/20 : 3.4-dev7
+    - BUG/MINOR: stconn: Increase SC bytes_out value in se_done_ff()
+    - BUG/MINOR: ssl-sample: Fix sample_conv_sha2() by checking EVP_Digest* failures
+    - BUG/MINOR: backend: Don't get proto to use for webscoket if there is no server
+    - BUG/MINOR: jwt: Missing 'jwt_tokenize' return value check
+    - MINOR: flt_http_comp: define and use proxy_get_comp() helper function
+    - MEDIUM: flt_http_comp: split "compression" filter in 2 distinct filters
+    - CLEANUP: flt_http_comp: comp_state doesn't bother about the direction anymore
+    - BUG/MINOR: admin: haproxy-reload use explicit socat address type
+    - MEDIUM: admin: haproxy-reload conversion to POSIX sh
+    - BUG/MINOR: admin: haproxy-reload rename -vv long option
+    - SCRIPTS: git-show-backports: hide the common ancestor warning in quiet mode
+    - SCRIPTS: git-show-backports: add a restart-from-last option
+    - MINOR: mworker: add a BUG_ON() on mproxy_li in _send_status
+    - BUG/MINOR: mworker: don't set the PROC_O_LEAVING flag on master process
+    - Revert "BUG/MINOR: jwt: Missing 'jwt_tokenize' return value check"
+    - MINOR: jwt: Improve 'jwt_tokenize' function
+    - MINOR: jwt: Convert EC JWK to EVP_PKEY
+    - MINOR: jwt: Parse ec-specific fields in jose header
+    - MINOR: jwt: Manage ECDH-ES algorithm in jwt_decrypt_jwk function
+    - MINOR: jwt: Add ecdh-es+axxxkw support in jwt_decrypt_jwk converter
+    - MINOR: jwt: Manage ec certificates in jwt_decrypt_cert
+    - DOC: jwt: Add ECDH support in jwt_decrypt converters
+    - MINOR: stconn: Call sc_conn_process from the I/O callback if TASK_WOKEN_MSG state was set
+    - MINOR: mux-h2: Rely on h2s_notify_send() when resuming h2s for sending
+    - MINOR: mux-spop: Rely on spop_strm_notify_send() when resuming streams for sending
+    - MINOR: muxes: Wakup the data layer from a mux stream with TASK_WOKEN_IO state
+    - MAJOR: muxes: No longer use app_ops .wake() callback function from muxes
+    - MINOR: applet: Call sc_applet_process() instead of .wake() callback function
+    - MINOR: connection: Call sc_conn_process() instead of .wake() callback function
+    - MEDIUM: stconn: Remove .wake() callback function from app_ops
+    - MINOR: check: Remove wake_srv_chk() function
+    - MINOR: haterm: Remove hstream_wake() function
+    - MINOR: stconn: Wakup the SC with TASK_WOKEN_IO state from opposite side
+    - MEDIUM: stconn: Merge all .chk_rcv() callback functions in sc_chk_rcv()
+    - MINOR: stconn: Remove .chk_rcv() callback functions
+    - MEDIUM: stconn: Merge all .chk_snd() callback functions in sc_chk_snd()
+    - MINOR: stconn: Remove .chk_snd() callback functions
+    - MEDIUM: stconn: Merge all .abort() callback functions in sc_abort()
+    - MINOR: stconn: Remove .abort() callback functions
+    - MEDIUM: stconn: Merge all .shutdown() callback functions in sc_shutdown()
+    - MINOR: stconn: Remove .shutdown() callback functions
+    - MINOR: stconn: Totally app_ops from the stconns
+    - MINOR: stconn: Simplify sc_abort/sc_shutdown by merging calls to se_shutdown
+    - DEBUG: stconn: Add a CHECK_IF() when I/O are performed on a orphan SC
+    - MEDIUM: mworker: exiting when couldn't find the master mworker_proc element
+    - BUILD: ssl: use ASN1_STRING accessors for OpenSSL 4.0 compatibility
+    - BUILD: ssl: make X509_NAME usage OpenSSL 4.0 ready
+    - BUG/MINOR: tcpcheck: Fix typo in error error message for `http-check expect`
+    - BUG/MINOR: jws: fix memory leak in jws_b64_signature
+    - DOC: configuration: http-check expect example typo
+    - DOC/CLEANUP: config: update mentions of the old "Global parameters" section
+    - BUG/MEDIUM: ssl: Handle receiving early data with BoringSSL/AWS-LC
+    - BUG/MINOR: mworker: always stop the receiving listener
+    - BUG/MEDIUM: ssl: Don't report read data as early data with AWS-LC
+    - BUILD: makefile: fix range build without test command
+    - BUG/MINOR: memprof: avoid a small memory leak in "show profiling"
+    - BUG/MINOR: proxy: do not forget to validate quic-initial rules
+    - MINOR: activity: use dynamic allocation for "show profiling" entries
+    - MINOR: tools: extend the pointer hashing code to ease manipulations
+    - MINOR: tools: add a new pointer hash function that also takes an argument
+    - MINOR: memprof: attempt different retry slots for different hashes on collision
+    - MINOR: tinfo: start to add basic thread_exec_ctx
+    - MINOR: memprof: prepare to consider exec_ctx in reporting
+    - MINOR: memprof: also permit to sort output by calling context
+    - MINOR: tools: add a function to write a thread execution context.
+    - MINOR: debug: report the execution context on thread dumps
+    - MINOR: memprof: report the execution context on profiling output
+    - MINOR: initcall: record the file and line declaration of an INITCALL
+    - MINOR: tools: decode execution context TH_EX_CTX_INITCALL
+    - MINOR: tools: support decoding ha_caller type exec context
+    - MINOR: sample: store location for fetch/conv via initcalls
+    - MINOR: sample: also report contexts registered directly
+    - MINOR: tools: support an execution context that is just a function
+    - MINOR: actions: store the location of keywords registered via initcalls
+    - MINOR: actions: also report execution contexts registered directly
+    - MINOR: filters: set the exec context to the current filter config
+    - MINOR: ssl: set the thread execution context during message callbacks
+    - MINOR: connection: track mux calls to report their allocation context
+    - MINOR: task: set execution context on task/tasklet calls
+    - MINOR: applet: set execution context on applet calls
+    - MINOR: cli: keep the info of the current keyword being processed in the appctx
+    - MINOR: cli: keep track of the initcall context since kw registration
+    - MINOR: cli: implement execution context for manually registered keywords
+    - MINOR: activity: support aggregating by caller also for memprofile
+    - MINOR: activity: raise the default number of memprofile buckets to 4k
+    - DOC: internals: short explanation on how thread_exec_ctx works
+    - BUG/MINOR: mworker: only match worker processes when looking for unspawned proc
+    - MINOR: traces: defer processing of "-dt" options
+    - BUG/MINOR: mworker: fix typo &= instead of & in proc list serialization
+    - BUG/MINOR: mworker: set a timeout on the worker socketpair read at startup
+    - BUG/MINOR: mworker: avoid passing NULL version in proc list serialization
+    - BUG/MINOR: sockpair: set FD_CLOEXEC on fd received via SCM_RIGHTS
+    - BUG/MEDIUM: stconn: Don't forget to wakeup applets on shutdown
+    - BUG/MINOR: spoe: Properly switch SPOE filter to WAITING_ACK state
+    - BUG/MEDIUM: spoe: Properly abort processing on client abort
+    - BUG/MEDIUM: stconn: Fix abort on close when a large buffer is used
+    - BUG/MEDIUM: stconn: Don't perform L7 retries with large buffer
+    - BUG/MINOR: h2/h3: Only test number of trailers inserted in HTX message
+    - MINOR: htx: Add function to truncate all blocks after a specific block
+    - BUG/MINOR: h2/h3: Never insert partial headers/trailers in an HTX message
+    - BUG/MINOR: http-ana: Swap L7 buffer with request buffer by hand
+    - BUG/MINOR: stream: Fix crash in stream dump if the current rule has no keyword
+    - BUG/MINOR: mjson: make mystrtod() length-aware to prevent out-of-bounds reads
+    - MEDIUM: stats-file/clock: automatically update now_offset based on shared clock
+    - MINOR: promex: export "haproxy_sticktable_local_updates" metric
+    - BUG/MINOR: spoe: Fix condition to abort processing on client abort
+    - BUILD: spoe: Remove unsused variable
+    - MINOR: tools: add a function to create a tar file header
+    - MINOR: tools: add a function to load a file into a tar archive
+    - MINOR: config: support explicit "on" and "off" for "set-dumpable"
+    - MINOR: debug: read all libs in memory when set-dumpable=libs
+    - DEV: gdb: add a new utility to extract libs from a core dump: libs-from-core
+    - MINOR: debug: copy debug symbols from /usr/lib/debug when present
+    - MINOR: debug: opportunistically load libthread_db.so.1 with set-dumpable=libs
+    - BUG/MINOR: mworker: don't try to access an initializing process
+    - BUG/MEDIUM: peers: enforce check on incoming table key type
+    - BUG/MINOR: mux-h2: properly ignore R bit in GOAWAY stream ID
+    - BUG/MINOR: mux-h2: properly ignore R bit in WINDOW_UPDATE increments
+    - OPTIM: haterm: use chunk builders for generated response headers
+    - BUG/MAJOR: h3: check body size with content-length on empty FIN
+    - BUG/MEDIUM: h3: reject unaligned frames except DATA
+    - BUG/MINOR: mworker/cli: fix show proc pagination losing entries on resume
+    - CI: github: treat vX.Y.Z release tags as stable like haproxy-* branches
+    - MINOR: freq_ctr: add a function to add values with a peak
+    - MINOR: task: maintain a per-thread indicator of the peak run-queue size
+    - MINOR: mux-h2: store the concurrent streams hard limit in the h2c
+    - MINOR: mux-h2: permit to moderate the advertised streams limit depending on load
+    - MINOR: mux-h2: permit to fix a minimum value for the advertised streams limit
+    - BUG/MINOR: mworker: fix sort order of mworker_proc in 'show proc'
+    - CLEANUP: mworker: fix tab/space mess in mworker_env_to_proc_list()
+
 2026/03/05 : 3.4-dev6
     - CLEANUP: acme: remove duplicate includes
     - BUG/MINOR: proxy: detect strdup error on server auto SNI
