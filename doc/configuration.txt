@@ -13701,13 +13701,6 @@ tcp-check expect [min-recv <int>] [comment <msg>]
               does not match, the check will wait for more data. If set to 0,
               the evaluation result is always conclusive.
 
-    <match>   is a keyword indicating how to look for a specific pattern in the
-              response. The keyword may be one of "string", "rstring", "binary" or
-              "rbinary".
-              The keyword may be preceded by an exclamation mark ("!") to negate
-              the match. Spaces are allowed between the exclamation mark and the
-              keyword. See below for more details on the supported keywords.
-
     ok-status <st>     is optional and can be used to set the check status if
                        the expect rule is successfully evaluated and if it is
                        the last rule in the tcp-check ruleset. "L7OK", "L7OKC",
@@ -13754,6 +13747,13 @@ tcp-check expect [min-recv <int>] [comment <msg>]
                        reported in logs, on success or on error. <expr> is a
                        standard HAProxy expression formed by a sample-fetch
                        followed by some converters.
+
+    <match>   is a keyword indicating how to look for a specific pattern in the
+              response. The keyword may be one of "string", "rstring", "binary" or
+              "rbinary".
+              The keyword may be preceded by an exclamation mark ("!") to negate
+              the match. Spaces are allowed between the exclamation mark and the
+              keyword. See below for more details on the supported keywords.
 
     <pattern> is the pattern to look for. It may be a string or a regular
               expression. If the pattern contains spaces, they must be escaped
