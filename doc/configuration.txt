@@ -8326,6 +8326,11 @@ http-check expect [min-recv <int>] [comment <msg>]
                        occurred during the expect rule evaluation. <fmt> is a
                        Custom log format string (see section 8.2.6).
 
+    status-code <expr> is optional and can be used to set the check status code
+                       reported in logs, on success or on error. <expr> is a
+                       standard HAProxy expression formed by a sample-fetch
+                       followed by some converters.
+
     <match>   is a keyword indicating how to look for a specific pattern in the
               response. The keyword may be one of "status", "rstatus", "hdr",
               "fhdr", "string", or "rstring". The keyword may be preceded by an
