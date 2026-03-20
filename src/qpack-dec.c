@@ -61,10 +61,10 @@
 static uint64_t qpack_get_varint(const unsigned char **buf, uint64_t *len_in, int b)
 {
 	uint64_t ret = 0;
-	int len = *len_in;
+	uint64_t len = *len_in;
 	const uint8_t *raw = *buf;
-	uint64_t v, max = ~0;
-	uint8_t shift = 0;
+	uint64_t v, limit = (1ULL << 62) - 1;
+	int shift = 0;
 
 	if (len == 0)
 		goto too_short;
@@ -77,24 +77,26 @@ static uint64_t qpack_get_varint(const unsigned char **buf, uint64_t *len_in, in
 	do {
 		if (!len)
 			goto too_short;
+
 		v = *raw++;
 		len--;
-		if (v & 127) { // make UBSan happy
-			if ((v & 127) > max)
-				goto too_large;
-			ret += (v & 127) << shift;
-		}
-		max >>= 7;
+		/* This check is sufficient to prevent any overflow
+		 * and implicitly limits shift to 63.
+		 */
+		if ((v & 127) > (limit - ret) >> shift)
+			goto too_large;
+
+		ret += (v & 127) << shift;
 		shift += 7;
 	} while (v & 128);
 
- end:
+end:
 	*buf = raw;
 	*len_in = len;
 	return ret;
 
- too_large:
- too_short:
+too_large:
+too_short:
 	*len_in = (uint64_t)-1;
 	return 0;
 }
@@ -402,7 +404,10 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 			n = efl_type & 0x20;
 			static_tbl = efl_type & 0x10;
 			index = qpack_get_varint(&raw, &len, 4);
-			if (len == (uint64_t)-1) {
+			/* There must be at least one byte available for <h> value after this
+			 * decoding before the next call to qpack_get_varint().
+			 */
+			if ((int64_t)len <= 0) {
 				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
 				ret = -QPACK_RET_TRUNCATED;
 				goto out;
@@ -474,7 +479,10 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 			n = *raw & 0x10;
 			hname = *raw & 0x08;
 			name_len = qpack_get_varint(&raw, &len, 3);
-			if (len == (uint64_t)-1 || len < name_len) {
+			/* There must be at least one byte available for <hvalue> after this
+			 * decoding before the next call to qpack_get_varint().
+			 */
+			if ((int64_t)len < (int64_t)name_len + 1) {
 				qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
 				ret = -QPACK_RET_TRUNCATED;
 				goto out;
