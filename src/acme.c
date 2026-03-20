@@ -2526,7 +2526,7 @@ X509_REQ *acme_x509_req(EVP_PKEY *pkey, char **san)
 {
 	struct buffer *san_trash = NULL;
 	X509_REQ *x = NULL;
-	X509_NAME *nm;
+	X509_NAME *nm = NULL;
 	STACK_OF(X509_EXTENSION) *exts = NULL;
 	X509_EXTENSION *ext_san;
 	char *str_san = NULL;
@@ -2569,16 +2569,21 @@ X509_REQ *acme_x509_req(EVP_PKEY *pkey, char **san)
 	if (!X509_REQ_add_extensions(x, exts))
 		goto error;
 
-	sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
-
 	if (!X509_REQ_sign(x, pkey, EVP_sha256()))
 		goto error;
 
+	sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
+	X509_NAME_free(nm);
+	free(str_san);
 	free_trash_chunk(san_trash);
 
 	return x;
 
 error:
+	sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
+	X509_REQ_free(x);
+	X509_NAME_free(nm);
+	free(str_san);
 	free_trash_chunk(san_trash);
 	return NULL;
 
