@@ -147,7 +147,7 @@ void __tasklet_wakeup_on(struct tasklet *tl, int thr)
 			LIST_APPEND(&th_ctx->tasklets[TL_BULK], &tl->list);
 			th_ctx->tl_class_mask |= 1 << TL_BULK;
 		}
-		else if ((struct task *)tl == th_ctx->current) {
+		else if ((struct task *)tl == th_ctx->current && !(tl->state & TASK_WOKEN_ANY)) {
 			LIST_APPEND(&th_ctx->tasklets[TL_BULK], &tl->list);
 			th_ctx->tl_class_mask |= 1 << TL_BULK;
 		}
@@ -185,7 +185,7 @@ struct list *__tasklet_wakeup_after(struct list *head, struct tasklet *tl)
 			LIST_INSERT(&th_ctx->tasklets[TL_BULK], &tl->list);
 			th_ctx->tl_class_mask |= 1 << TL_BULK;
 		}
-		else if ((struct task *)tl == th_ctx->current) {
+		else if ((struct task *)tl == th_ctx->current && !(tl->state & TASK_WOKEN_ANY)) {
 			LIST_INSERT(&th_ctx->tasklets[TL_BULK], &tl->list);
 			th_ctx->tl_class_mask |= 1 << TL_BULK;
 		}
