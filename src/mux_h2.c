@@ -489,6 +489,9 @@ static int h2_be_glitches_threshold           =     0; /* backend's max glitches
 static int h2_fe_glitches_threshold           =     0; /* frontend's max glitches: unlimited */
 static uint h2_be_rxbuf                       =     0; /* backend's default total rxbuf (bytes) */
 static uint h2_fe_rxbuf                       =     0; /* frontend's default total rxbuf (bytes) */
+static unsigned int h2_be_max_frames_at_once  =     0; /* backend value: 0=no limit */
+static unsigned int h2_fe_max_frames_at_once  =     0; /* frontend value: 0=no limit */
+static unsigned int h2_fe_max_rst_at_once     =     0; /* frontend value: 0=no limit */
 static unsigned int h2_settings_max_concurrent_streams    = 100; /* default value */
 static unsigned int h2_be_settings_max_concurrent_streams =   0; /* backend value */
 static unsigned int h2_fe_settings_max_concurrent_streams =   0; /* frontend value */
@@ -4239,6 +4242,8 @@ static void h2_process_demux(struct h2c *h2c)
 	struct h2_fh hdr;
 	unsigned int padlen = 0;
 	int32_t old_iw = h2c->miw;
+	uint frames_budget = 0;
+	uint rst_budget = 0;
 
 	TRACE_ENTER(H2_EV_H2C_WAKE, h2c->conn);
 
@@ -4325,6 +4330,14 @@ static void h2_process_demux(struct h2c *h2c)
 			HA_ATOMIC_INC(&h2c->px_counters->settings_rcvd);
 			goto new_frame;
 		}
+	}
+
+	if (h2c->flags & H2_CF_IS_BACK) {
+		frames_budget = h2_be_max_frames_at_once;
+	}
+	else {
+		frames_budget = h2_fe_max_frames_at_once;
+		rst_budget    = h2_fe_max_rst_at_once;
 	}
 
 	/* process as many incoming frames as possible below */
@@ -4627,6 +4640,29 @@ static void h2_process_demux(struct h2c *h2c)
 				h2c->flags &= ~H2_CF_DEM_IN_PROGRESS;
 				TRACE_STATE("switching to FRAME_H", H2_EV_RX_FRAME|H2_EV_RX_FHDR, h2c->conn);
 				h2c->st0 = H2_CS_FRAME_H;
+			}
+		}
+
+		/* If more frames remain in the buffer, let's first check if we've
+		 * depleted the frames processing budget. Consuming the RST budget
+		 * makes the tasklet go to TL_BULK to make it less prioritary than
+		 * other processing since it's often used by attacks, while other
+		 * frame types just yield normally.
+		 */
+		if (b_data(&h2c->dbuf)) {
+			if (h2c->dft == H2_FT_RST_STREAM && (rst_budget && !--rst_budget)) {
+				/* we've consumed all RST frames permitted by
+				 * the budget, we have to yield now.
+				 */
+				tasklet_wakeup(h2c->wait_event.tasklet, 0);
+				break;
+			}
+			else if ((frames_budget && !--frames_budget)) {
+				/* we've consumed all frames permitted by the
+				 * budget, we have to yield now.
+				 */
+				tasklet_wakeup(h2c->wait_event.tasklet);
+				break;
 			}
 		}
 	}
@@ -8800,6 +8836,30 @@ static int h2_parse_max_total_streams(char **args, int section_type, struct prox
 	return 0;
 }
 
+/* config parser for global "tune.h2.{be.,fe.,}max-{frames,rst}-at-once" */
+static int h2_parse_max_frames_at_once(char **args, int section_type, struct proxy *curpx,
+                                       const struct proxy *defpx, const char *file, int line,
+                                       char **err)
+{
+	uint *vptr;
+
+	/* backend/frontend/default */
+	if (strcmp(args[0], "tune.h2.be.max-frames-at-once") == 0)
+		vptr = &h2_be_max_frames_at_once;
+	else if (strcmp(args[0], "tune.h2.fe.max-frames-at-once") == 0)
+		vptr = &h2_fe_max_frames_at_once;
+	else if (strcmp(args[0], "tune.h2.fe.max-rst-at-once") == 0)
+		vptr = &h2_fe_max_rst_at_once;
+	else
+		BUG_ON(1, "unhandled keyword");
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	*vptr = atoi(args[1]);
+	return 0;
+}
+
 /* config parser for global "tune.h2.max-frame-size" */
 static int h2_parse_max_frame_size(char **args, int section_type, struct proxy *curpx,
                                    const struct proxy *defpx, const char *file, int line,
@@ -8898,10 +8958,13 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.h2.be.glitches-threshold",  h2_parse_glitches_threshold     },
 	{ CFG_GLOBAL, "tune.h2.be.initial-window-size", h2_parse_initial_window_size    },
 	{ CFG_GLOBAL, "tune.h2.be.max-concurrent-streams", h2_parse_max_concurrent_streams },
+	{ CFG_GLOBAL, "tune.h2.be.max-frames-at-once",  h2_parse_max_frames_at_once     },
 	{ CFG_GLOBAL, "tune.h2.be.rxbuf",               h2_parse_rxbuf                  },
 	{ CFG_GLOBAL, "tune.h2.fe.glitches-threshold",  h2_parse_glitches_threshold     },
 	{ CFG_GLOBAL, "tune.h2.fe.initial-window-size", h2_parse_initial_window_size    },
 	{ CFG_GLOBAL, "tune.h2.fe.max-concurrent-streams", h2_parse_max_concurrent_streams },
+	{ CFG_GLOBAL, "tune.h2.fe.max-frames-at-once",  h2_parse_max_frames_at_once     },
+	{ CFG_GLOBAL, "tune.h2.fe.max-rst-at-once",     h2_parse_max_frames_at_once     },
 	{ CFG_GLOBAL, "tune.h2.fe.max-total-streams",   h2_parse_max_total_streams      },
 	{ CFG_GLOBAL, "tune.h2.fe.rxbuf",               h2_parse_rxbuf                  },
 	{ CFG_GLOBAL, "tune.h2.header-table-size",      h2_parse_header_table_size      },

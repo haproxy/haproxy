@@ -1886,10 +1886,13 @@ The following keywords are supported in the "global" section :
    - tune.h2.be.glitches-threshold
    - tune.h2.be.initial-window-size
    - tune.h2.be.max-concurrent-streams
+   - tune.h2.be.max-frames-at-once
    - tune.h2.be.rxbuf
    - tune.h2.fe.glitches-threshold
    - tune.h2.fe.initial-window-size
    - tune.h2.fe.max-concurrent-streams
+   - tune.h2.fe.max-frames-at-once
+   - tune.h2.fe.max-rst-at-once
    - tune.h2.fe.max-total-streams
    - tune.h2.fe.rxbuf
    - tune.h2.header-table-size
@@ -4368,6 +4371,13 @@ tune.h2.be.max-concurrent-streams <number>
   case). It is highly recommended not to increase this value; some might find
   it optimal to run at low values (1..5 typically).
 
+tune.h2.be.max-frames-at-once <number>
+  Sets the maximum number of HTTP/2 incoming frames that will be processed at
+  once on a backend connection. It can be useful to set this to a low value
+  (a few tens to a few hundreds) when dealing with very large buffers in order
+  to maintain a low latency and a better fairness between multiple connections.
+  The default value is zero, which means that no limitation is enforced.
+
 tune.h2.be.rxbuf <size>
   Sets the HTTP/2 receive buffer size for outgoing connections, in bytes. This
   size will be rounded up to the next multiple of tune.bufsize and will be
@@ -4457,6 +4467,25 @@ tune.h2.fe.max-concurrent-streams <number> [args...]
   Example:
 
      tune.h2.fe.max-concurrent-streams 100 rq-load auto min 15
+
+tune.h2.fe.max-frames-at-once <number>
+  Sets the maximum number of HTTP/2 incoming frames that will be processed at
+  once on a frontend connection. It can be useful to set this to a low value
+  (a few tens to a few hundreds) when dealing with very large buffers in order
+  to maintain a low latency and a better fairness between multiple connections.
+  The default value is zero, which means that no limitation is enforced.
+
+tune.h2.fe.max-rst-at-once <number>
+  Sets the maximum number of HTTP/2 incoming RST_STREAM that will be processed
+  at once on a frontend connection. Once the specified number of RST_STREAM
+  frames are received, the connection handler will be placed in a low priority
+  queue and be processed after all other tasks. It can be useful to set this to
+  a very low value (1 or a few units) to significantly reduce the impacts of
+  RST_STREAM floods. RST_STREAM do happen when a user clicks on the Stop button
+  in their browser, but the few extra milliseconds caused by this requeuing are
+  generally unnoticeable, however they are generally effective at significantly
+  lowering the load caused from such floods. The default value is zero, which
+  means that no limitation is enforced.
 
 tune.h2.fe.max-total-streams <number>
   Sets the HTTP/2 maximum number of total streams processed per incoming
