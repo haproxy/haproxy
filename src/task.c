@@ -157,8 +157,8 @@ void __tasklet_wakeup_on(struct tasklet *tl, int thr)
 			th_ctx->tl_class_mask |= 1 << TL_URGENT;
 		}
 		else {
-			LIST_APPEND(&th_ctx->tasklets[th_ctx->current_queue], &tl->list);
-			th_ctx->tl_class_mask |= 1 << th_ctx->current_queue;
+			LIST_APPEND(&th_ctx->tasklets[TL_NORMAL], &tl->list);
+			th_ctx->tl_class_mask |= 1 << TL_NORMAL;
 		}
 		_HA_ATOMIC_INC(&th_ctx->rq_total);
 	} else {
@@ -196,8 +196,8 @@ struct list *__tasklet_wakeup_after(struct list *head, struct tasklet *tl)
 			th_ctx->tl_class_mask |= 1 << TL_URGENT;
 		}
 		else {
-			LIST_INSERT(&th_ctx->tasklets[th_ctx->current_queue], &tl->list);
-			th_ctx->tl_class_mask |= 1 << th_ctx->current_queue;
+			LIST_INSERT(&th_ctx->tasklets[TL_NORMAL], &tl->list);
+			th_ctx->tl_class_mask |= 1 << TL_NORMAL;
 		}
 	}
 	else {
