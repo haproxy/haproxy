@@ -130,20 +130,22 @@ struct notification {
  * on return.
  */
 #define TASK_COMMON							\
-	struct {							\
-		unsigned int state; /* task state : bitfield of TASK_	*/ \
-		int tid;            /* tid of task/tasklet. <0 = local for tasklet, unbound for task */ \
-		struct task *(*process)(struct task *t, void *ctx, unsigned int state); /* the function which processes the task */ \
-		void *context; /* the task's context */			\
-		const struct ha_caller *caller;	 /* call place of last wakeup(); 0 on init, -1 on free */ \
-		uint32_t wake_date;              /* date of the last task wakeup */ \
-		unsigned int calls;              /* number of times process was called */ \
-		TASK_DEBUG_STORAGE;					\
-	}
+	unsigned int state; /* task state : bitfield of TASK_	*/ \
+	int tid;            /* tid of task/tasklet. <0 = local for tasklet, unbound for task */ \
+	struct task *(*process)(struct task *t, void *ctx, unsigned int state); /* the function which processes the task */ \
+	void *context; /* the task's context */			\
+	const struct ha_caller *caller;	 /* call place of last wakeup(); 0 on init, -1 on free */ \
+	uint32_t wake_date;              /* date of the last task wakeup */ \
+	unsigned int calls;              /* number of times process was called */ \
+	TASK_DEBUG_STORAGE;					\
+	short last_run;                  /* 16-bit now_ms of last run */
+	/* a 16- or 48-bit hole remains here and is used by task */
 
 /* The base for all tasks */
 struct task {
 	TASK_COMMON;			/* must be at the beginning! */
+	short nice;                     /* task prio from -1024 to +1024 */
+	int expire;			/* next expiration date for this task, in ticks */
 	struct eb32_node rq;		/* ebtree node used to hold the task in the run queue */
 	/* WARNING: the struct task is often aliased as a struct tasklet when
 	 * it is NOT in the run queue. The tasklet has its struct list here
@@ -151,14 +153,12 @@ struct task {
 	 * ever reorder these fields without taking this into account!
 	 */
 	struct eb32_node wq;		/* ebtree node used to hold the task in the wait queue */
-	int expire;			/* next expiration date for this task, in ticks */
-	short nice;                     /* task prio from -1024 to +1024 */
-	/* 16-bit hole here */
 };
 
 /* lightweight tasks, without priority, mainly used for I/Os */
 struct tasklet {
 	TASK_COMMON;			/* must be at the beginning! */
+	/* 48-bit hole here */
 	struct list list;
 	/* WARNING: the struct task is often aliased as a struct tasklet when
 	 * it is not in the run queue. The task has its struct rq here where

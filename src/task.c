@@ -563,13 +563,22 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			continue;
 		}
 
-		budgets[queue]--;
-		activity[tid].ctxsw++;
-
 		t = (struct task *)LIST_ELEM(tl_queues[queue].n, struct tasklet *, list);
+
+		/* check if this task has already run during this loop */
+		if ((uint16_t)t->last_run == (uint16_t)activity[tid].loops) {
+			activity[tid].ctr1++;
+			budget_mask &= ~(1 << queue);
+			queue++;
+			continue;
+		}
+		t->last_run = activity[tid].loops;
 		ctx = t->context;
 		process = t->process;
 		t->calls++;
+
+		budgets[queue]--;
+		activity[tid].ctxsw++;
 
 		th_ctx->lock_wait_total = 0;
 		th_ctx->mem_wait_total = 0;
@@ -734,7 +743,7 @@ void process_runnable_tasks()
 	int max_processed;
 	int lpicked, gpicked;
 	int heavy_queued = 0;
-	int budget;
+	int budget, done;
 
 	_HA_ATOMIC_AND(&th_ctx->flags, ~TH_FL_STUCK); // this thread is still running
 
@@ -904,10 +913,11 @@ void process_runnable_tasks()
 	}
 
 	/* execute tasklets in each queue */
-	max_processed -= run_tasks_from_lists(max);
+	done = run_tasks_from_lists(max);
+	max_processed -= done;
 
 	/* some tasks may have woken other ones up */
-	if (max_processed > 0 && thread_has_tasks())
+	if (done && max_processed > 0 && thread_has_tasks())
 		goto not_done_yet;
 
  leave:
