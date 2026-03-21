@@ -148,7 +148,6 @@ void __tasklet_wakeup_on(struct tasklet *tl, int thr)
 			th_ctx->tl_class_mask |= 1 << TL_BULK;
 		}
 		else if ((struct task *)tl == th_ctx->current) {
-			_HA_ATOMIC_OR(&tl->state, TASK_SELF_WAKING);
 			LIST_APPEND(&th_ctx->tasklets[TL_BULK], &tl->list);
 			th_ctx->tl_class_mask |= 1 << TL_BULK;
 		}
@@ -187,7 +186,6 @@ struct list *__tasklet_wakeup_after(struct list *head, struct tasklet *tl)
 			th_ctx->tl_class_mask |= 1 << TL_BULK;
 		}
 		else if ((struct task *)tl == th_ctx->current) {
-			_HA_ATOMIC_OR(&tl->state, TASK_SELF_WAKING);
 			LIST_INSERT(&th_ctx->tasklets[TL_BULK], &tl->list);
 			th_ctx->tl_class_mask |= 1 << TL_BULK;
 		}
