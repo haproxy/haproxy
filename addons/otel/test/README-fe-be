@@ -1,0 +1,124 @@
+Frontend / backend test configuration (fe/ + be/)
+=================================================
+
+The 'fe-be' test uses two cascaded HAProxy instances to demonstrate
+inter-process trace context propagation via HTTP headers.  The frontend instance
+(fe/) creates the root trace and injects span context into the HTTP request
+headers.  The backend instance (be/) extracts that context and continues the
+trace as a child of the frontend's span.
+
+The two instances run as separate processes: the frontend listens on port 10080
+and proxies to the backend on port 11080, which in turn proxies to the origin
+server on port 8000.
+
+
+Files
+-----
+
+  fe/otel.cfg    OTel filter configuration for the frontend instance
+  fe/haproxy.cfg HAProxy configuration for the frontend instance
+  be/otel.cfg    OTel filter configuration for the backend instance
+  be/haproxy.cfg HAProxy configuration for the backend instance
+  run-fe-be.sh   Convenience script to launch both instances
+
+
+Events
+------
+
+  T = Trace (span)
+
+  Both instances produce traces only -- no metrics or log-records.
+
+  Frontend (fe/) events:
+
+    Event                      Scope                    T
+    --------------------------------------------------------
+    on-client-session-start    client_session_start     x
+    on-frontend-tcp-request    frontend_tcp_request     x
+    on-frontend-http-request   frontend_http_request    x
+    on-backend-tcp-request     backend_tcp_request      x
+    on-backend-http-request    backend_http_request     x
+    on-client-session-end      client_session_end       -
+    on-server-session-start    server_session_start     x
+    on-tcp-response            tcp_response             x
+    on-http-response           http_response            x
+    on-server-session-end      server_session_end       -
+
+  Backend (be/) events:
+
+    Event                      Scope                    T
+    --------------------------------------------------------
+    on-frontend-http-request   frontend_http_request    x
+    on-backend-tcp-request     backend_tcp_request      x
+    on-backend-http-request    backend_http_request     x
+    on-client-session-end      client_session_end       -
+    on-server-session-start    server_session_start     x
+    on-tcp-response            tcp_response             x
+    on-http-response           http_response            x
+    on-server-session-end      server_session_end       -
+
+  The backend starts its trace at on-frontend-http-request where it extracts
+  the span context injected by the frontend.  Earlier request events
+  (on-client-session-start, on-frontend-tcp-request) are not needed because
+  the context is not yet available in the HTTP headers at that point.
+
+
+Context propagation
+-------------------
+
+  The frontend injects context into HTTP headers in the backend_http_request
+  scope:
+
+    span "HAProxy session"
+        inject "otel-ctx" use-headers
+
+  The backend extracts that context in its frontend_http_request scope:
+
+    extract "otel-ctx" use-headers
+    span "HAProxy session" parent "otel-ctx" root
+
+
+Span hierarchy
+--------------
+
+  Frontend (fe/):
+
+    "HAProxy session" (root)
+     +-- "Client session"
+          +-- "Frontend TCP request"
+               +-- "Frontend HTTP request"
+                    +-- "Backend TCP request"
+                         +-- "Backend HTTP request"
+
+    "HAProxy session" (root)
+     +-- "Server session"
+          +-- "TCP response"
+               +-- "HTTP response"
+
+  Backend (be/):
+
+    "HAProxy session" (root, parent: frontend's "HAProxy session")
+     +-- "Client session"
+          +-- "Frontend HTTP request"
+               +-- "Backend TCP request"
+                    +-- "Backend HTTP request"
+
+    "HAProxy session" (root)
+     +-- "Server session"
+          +-- "TCP response"
+               +-- "HTTP response"
+
+
+Running the test
+----------------
+
+From the test/ directory:
+
+  % ./run-fe-be.sh [/path/to/haproxy] [pidfile]
+
+If no arguments are given, the script looks for the haproxy binary three
+directories up from the current working directory.  The backend origin server
+must be running on 127.0.0.1:8000.
+
+The script launches both HAProxy instances in the background and waits.
+Press CTRL-C to stop both instances.

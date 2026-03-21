@@ -1,0 +1,85 @@
+Comparison test configuration (cmp/)
+====================================
+
+The 'cmp' test is a simplified standalone configuration made for comparison with
+other tracing implementations.  It uses a reduced set of events and a compact
+span hierarchy without context propagation, groups or metrics.  This
+configuration is closer to a typical production deployment.
+
+All response-side scopes (http_response, http_response-error, server_session_end
+and client_session_end) share the on-http-response event, which means they fire
+in a single batch at response time.
+
+
+Files
+-----
+
+  cmp/otel.cfg    OTel filter configuration (scopes)
+  cmp/haproxy.cfg HAProxy frontend/backend configuration
+  cmp/otel.yml    Exporter, processor, reader and provider definitions
+  run-cmp.sh      Convenience script to launch HAProxy with this config
+
+
+Events
+------
+
+  T = Trace (span)
+
+  This configuration produces traces only -- no metrics or log-records.
+
+  Request analyzer events:
+
+    Event                      Scope                    T
+    --------------------------------------------------------
+    on-client-session-start    client_session_start     x
+    on-frontend-tcp-request    frontend_tcp_request     x
+    on-frontend-http-request   frontend_http_request    x
+    on-backend-tcp-request     backend_tcp_request      x
+    on-backend-http-request    backend_http_request     x
+    on-server-unavailable      server_unavailable       x
+
+  Response analyzer events:
+
+    Event                      Scope                    T
+    --------------------------------------------------------
+    on-server-session-start    server_session_start     x
+    on-tcp-response            tcp_response             x
+    on-http-response           http_response            x
+    on-http-response           http_response-error      x  (conditional)
+    on-http-response           server_session_end       -  (finish only)
+    on-http-response           client_session_end       -  (finish only)
+
+  The http_response-error scope fires conditionally when the ACL
+  acl-http-status-ok (status 100:399) does not match, setting an error status
+  on the "HTTP response" span.
+
+  The server_session_end and client_session_end scopes are bound to the
+  on-http-response event and only perform finish operations.
+
+
+Span hierarchy
+--------------
+
+    "HAProxy session" (root)
+     +-- "Client session"
+          +-- "Frontend TCP request"
+               +-- "Frontend HTTP request"
+                    +-- "Backend TCP request"
+                         +-- "Backend HTTP request"
+
+    "HAProxy session" (root)
+     +-- "Server session"
+          +-- "TCP response"
+               +-- "HTTP response"
+
+
+Running the test
+----------------
+
+From the test/ directory:
+
+  % ./run-cmp.sh [/path/to/haproxy] [pidfile]
+
+If no arguments are given, the script looks for the haproxy binary three
+directories up from the current working directory.  The backend origin server
+must be running on 127.0.0.1:8000.

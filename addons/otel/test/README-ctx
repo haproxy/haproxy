@@ -1,0 +1,149 @@
+Context propagation test configuration (ctx/)
+=============================================
+
+The 'ctx' test is a standalone configuration that uses inject/extract context
+propagation on every scope.  Spans are opened using extracted span contexts
+stored in HAProxy variables as parent references instead of direct span names.
+This adds the overhead of context serialization, variable storage and
+deserialization on every scope execution.
+
+The event coverage matches the 'sa' configuration.  The key difference is the
+propagation mechanism: each scope injects its context into a numbered variable
+(otel_ctx_1 through otel_ctx_17) and the next scope extracts from that variable
+to establish the parent relationship.
+
+The client_session_start event is split into two scopes (client_session_start_1
+and client_session_start_2) to demonstrate inject/extract between scopes
+handling the same event.
+
+
+Files
+-----
+
+  ctx/otel.cfg    OTel filter configuration (scopes, groups, contexts)
+  ctx/haproxy.cfg HAProxy frontend/backend configuration
+  ctx/otel.yml    Exporter, processor, reader and provider definitions
+  run-ctx.sh      Convenience script to launch HAProxy with this config
+
+
+Events
+------
+
+  T = Trace (span)
+
+  This configuration produces traces only -- no metrics or log-records.
+
+  Stream lifecycle events:
+
+    Event                    Scope                        T
+    ----------------------------------------------------------
+    on-client-session-start  client_session_start_1       x
+    on-client-session-start  client_session_start_2       x
+
+  Request analyzer events:
+
+    Event                              Scope                          T
+    --------------------------------------------------------------------
+    on-frontend-tcp-request            frontend_tcp_request           x
+    on-http-wait-request               http_wait_request              x
+    on-http-body-request               http_body_request              x
+    on-frontend-http-request           frontend_http_request          x
+    on-switching-rules-request         switching_rules_request        x
+    on-backend-tcp-request             backend_tcp_request            x
+    on-backend-http-request            backend_http_request           x
+    on-process-server-rules-request    process_server_rules_request   x
+    on-http-process-request            http_process_request           x
+    on-tcp-rdp-cookie-request          tcp_rdp_cookie_request         x
+    on-process-sticking-rules-request  process_sticking_rules_request x
+    on-client-session-end              client_session_end             -
+    on-server-unavailable              server_unavailable             -
+
+  Response analyzer events:
+
+    Event                              Scope                          T
+    --------------------------------------------------------------------
+    on-server-session-start            server_session_start           x
+    on-tcp-response                    tcp_response                   x
+    on-http-wait-response              http_wait_response             x
+    on-process-store-rules-response    process_store_rules_response   x
+    on-http-response                   http_response                  x
+    on-http-response                   http_response-error            x  (conditional)
+    on-server-session-end              server_session_end             -
+
+  The http_response_group (http_response_1, http_response_2) and
+  http_after_response_group (http_after_response) are invoked via http-response
+  and http-after-response directives in haproxy.cfg.
+
+
+Context propagation chain
+-------------------------
+
+  Each scope injects its span context into a HAProxy variable and the next scope
+  extracts it.  The variable names and their flow:
+
+    otel_ctx_1   "HAProxy session"              -> client_session_start_2
+    otel_ctx_2   "Client session"               -> frontend_tcp_request
+    otel_ctx_3   "Frontend TCP request"         -> http_wait_request
+    otel_ctx_4   "HTTP wait request"            -> http_body_request
+    otel_ctx_5   "HTTP body request"            -> frontend_http_request
+    otel_ctx_6   "Frontend HTTP request"        -> switching_rules_request
+    otel_ctx_7   "Switching rules request"      -> backend_tcp_request
+    otel_ctx_8   "Backend TCP request"          -> backend_http_request
+    otel_ctx_9   "Backend HTTP request"         -> process_server_rules_request
+    otel_ctx_10  "Process server rules request" -> http_process_request
+    otel_ctx_11  "HTTP process request"         -> tcp_rdp_cookie_request
+    otel_ctx_12  "TCP RDP cookie request"       -> process_sticking_rules_request
+    otel_ctx_13  "Process sticking rules req."  -> server_session_start
+    otel_ctx_14  "Server session"               -> tcp_response
+    otel_ctx_15  "TCP response"                 -> http_wait_response
+    otel_ctx_16  "HTTP wait response"           -> process_store_rules_response
+    otel_ctx_17  "Process store rules response" -> http_response
+
+  All contexts use both use-headers and use-vars injection modes, except
+  otel_ctx_14 and otel_ctx_15 which use use-vars only.
+
+
+Span hierarchy
+--------------
+
+  The span hierarchy is identical to the 'sa' configuration, but parent
+  relationships are established through extracted contexts rather than direct
+  span name references.
+
+  Request path:
+
+    "HAProxy session" (root)                                   [otel_ctx_1]
+     +-- "Client session"                                      [otel_ctx_2]
+          +-- "Frontend TCP request"                           [otel_ctx_3]
+               +-- "HTTP wait request"                         [otel_ctx_4]
+                    +-- "HTTP body request"                    [otel_ctx_5]
+                         +-- "Frontend HTTP request"           [otel_ctx_6]
+                              +-- "Switching rules request"    [otel_ctx_7]
+                                   +-- "Backend TCP request"   [otel_ctx_8]
+                                        +-- (continues to process_sticking_rules_request)
+
+  Response path:
+
+    "HAProxy session"                                          [otel_ctx_1]
+     +-- "Server session"                                      [otel_ctx_14]
+          +-- "TCP response"                                   [otel_ctx_15]
+               +-- "HTTP wait response"                        [otel_ctx_16]
+                    +-- "Process store rules response"         [otel_ctx_17]
+                         +-- "HTTP response"
+
+  Auxiliary spans:
+
+    "HAProxy session"
+     +-- "HAProxy response"       (http_after_response_group, on error)
+
+
+Running the test
+----------------
+
+From the test/ directory:
+
+  % ./run-ctx.sh [/path/to/haproxy] [pidfile]
+
+If no arguments are given, the script looks for the haproxy binary three
+directories up from the current working directory.  The backend origin server
+must be running on 127.0.0.1:8000.

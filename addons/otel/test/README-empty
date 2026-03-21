@@ -1,0 +1,53 @@
+Empty test configuration (empty/)
+=================================
+
+The 'empty' test is a minimal configuration that loads the OTel filter without
+defining any scopes, events or groups.  The instrumentation block contains only
+the config directive pointing to the YAML pipeline definition.
+
+This configuration verifies that the filter initializes and shuts down cleanly
+when no telemetry is configured.  It exercises the full YAML parsing path
+(exporters, processors, readers, samplers, providers and signals) without
+producing any trace, metric or log-record data.
+
+
+Files
+-----
+
+  empty/otel.cfg    OTel filter configuration (instrumentation only)
+  empty/haproxy.cfg HAProxy frontend/backend configuration
+  empty/otel.yml    Exporter, processor, reader and provider definitions
+
+
+Events
+------
+
+  No events are registered.  The filter is loaded and attached to the frontend
+  but performs no per-stream processing.
+
+
+YAML pipeline
+-------------
+
+  Despite the empty filter configuration, the otel.yml file defines a complete
+  pipeline with all three signal types to verify that the YAML parser handles
+  the full configuration without errors:
+
+    Signal     Exporter                   Processor / Reader
+    -----------------------------------------------------------
+    traces     exporter_traces_otlp_http  processor_traces_batch
+    metrics    exporter_metrics_otlp_http reader_metrics
+    logs       exporter_logs_otlp_http    processor_logs_batch
+
+  Additional exporter definitions (otlp_file, otlp_grpc, ostream, memory,
+  zipkin, elasticsearch) are present in the YAML but are not wired into the
+  active signal pipelines.
+
+
+Running the test
+----------------
+
+There is no dedicated run script for the empty configuration.  To run it
+manually from the test/ directory:
+
+  % /path/to/haproxy -f haproxy-common.cfg -f empty/haproxy.cfg
