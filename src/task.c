@@ -730,8 +730,8 @@ void process_runnable_tasks()
 	struct task *t;
 	const unsigned int default_weights[TL_CLASSES] = {
 		[TL_URGENT] = 64, // ~50% of CPU bandwidth for I/O
-		[TL_NORMAL] = 48, // ~37% of CPU bandwidth for tasks
-		[TL_BULK]   = 16, // ~13% of CPU bandwidth for self-wakers
+		[TL_NORMAL] = 60, // ~47% of CPU bandwidth for tasks
+		[TL_BULK]   = 4,  // ~3% of CPU bandwidth for self-wakers
 		[TL_HEAVY]  = 1,  // never more than 1 heavy task at once
 	};
 	unsigned int max[TL_CLASSES]; // max to be run per class
