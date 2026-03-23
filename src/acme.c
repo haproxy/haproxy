@@ -2558,7 +2558,8 @@ X509_REQ *acme_x509_req(EVP_PKEY *pkey, char **san)
 	for (i = 0; san[i]; i++) {
 		chunk_appendf(san_trash, "%sDNS:%s", i ? "," : "", san[i]);
 	}
-	str_san = my_strndup(san_trash->area, san_trash->data);
+	if ((str_san = my_strndup(san_trash->area, san_trash->data)) == NULL)
+		goto error;
 
 	if ((ext_san = X509V3_EXT_conf_nid(NULL, NULL, NID_subject_alt_name, str_san)) == NULL)
 		goto error;
