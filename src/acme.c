@@ -2729,7 +2729,7 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 	struct ckch_store *store = NULL;
 	char *errmsg = NULL;
 
-	if (!*args[1]) {
+	if (!*args[2]) {
 		memprintf(&errmsg, ": not enough parameters\n");
 		goto err;
 	}
