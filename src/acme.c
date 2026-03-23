@@ -15,6 +15,7 @@
 #include <haproxy/acme-t.h>
 
 #include <haproxy/base64.h>
+#include <haproxy/intops.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
 #include <haproxy/errors.h>
@@ -1187,7 +1188,7 @@ int acme_res_certificate(struct task *task, struct acme_ctx *ctx, char **errmsg)
 		}
 		/* get the next retry timing */
 		if (isteqi(hdr->n, ist("Retry-After"))) {
-			ctx->retryafter = atol(hdr->v.ptr);
+			ctx->retryafter = __strl2uic(hdr->v.ptr, hdr->v.len);
 		}
 	}
 
@@ -1260,7 +1261,7 @@ int acme_res_chkorder(struct task *task, struct acme_ctx *ctx, char **errmsg)
 		}
 		/* get the next retry timing */
 		if (isteqi(hdr->n, ist("Retry-After"))) {
-			ctx->retryafter = atol(hdr->v.ptr);
+			ctx->retryafter = __strl2uic(hdr->v.ptr, hdr->v.len);
 		}
 	}
 
@@ -1390,7 +1391,7 @@ int acme_res_finalize(struct task *task, struct acme_ctx *ctx, char **errmsg)
 		}
 		/* get the next retry timing */
 		if (isteqi(hdr->n, ist("Retry-After"))) {
-			ctx->retryafter = atol(hdr->v.ptr);
+			ctx->retryafter = __strl2uic(hdr->v.ptr, hdr->v.len);
 		}
 	}
 
@@ -1491,7 +1492,7 @@ enum acme_ret acme_res_challenge(struct task *task, struct acme_ctx *ctx, struct
 		}
 		/* get the next retry timing */
 		if (isteqi(hdr->n, ist("Retry-After"))) {
-			ctx->retryafter = atol(hdr->v.ptr);
+			ctx->retryafter = __strl2uic(hdr->v.ptr, hdr->v.len);
 		}
 	}
 
@@ -1617,7 +1618,7 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 		}
 		/* get the next retry timing */
 		if (isteqi(hdr->n, ist("Retry-After"))) {
-			ctx->retryafter = atol(hdr->v.ptr);
+			ctx->retryafter = __strl2uic(hdr->v.ptr, hdr->v.len);
 		}
 
 	}
@@ -1848,7 +1849,7 @@ int acme_res_neworder(struct task *task, struct acme_ctx *ctx, char **errmsg)
 		}
 		/* get the next retry timing */
 		if (isteqi(hdr->n, ist("Retry-After"))) {
-			ctx->retryafter = atol(hdr->v.ptr);
+			ctx->retryafter = __strl2uic(hdr->v.ptr, hdr->v.len);
 		}
 		/* get the order URL */
 		if (isteqi(hdr->n, ist("Location"))) {
@@ -2008,7 +2009,7 @@ int acme_res_account(struct task *task, struct acme_ctx *ctx, int newaccount, ch
 		}
 		/* get the next retry timing */
 		if (isteqi(hdr->n, ist("Retry-After"))) {
-			ctx->retryafter = atol(hdr->v.ptr);
+			ctx->retryafter = __strl2uic(hdr->v.ptr, hdr->v.len);
 		}
 		if (isteqi(hdr->n, ist("Replay-Nonce"))) {
 			istfree(&ctx->nonce);
