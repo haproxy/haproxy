@@ -6057,6 +6057,9 @@ static int dl_collect_libs_cb(struct dl_phdr_info *info, size_t size, void *data
 		/* else it's a VDSO or similar and we're not interested */
 		goto leave;
 
+	if (!fname)
+		goto leave;
+
 	load_file_into_tar(&ctx->storage, &ctx->size, ctx->prefix, fname, NULL, "haproxy-libs-dump");
 
 	/* try to load equivalent debug symbols for absolute paths  */
