@@ -221,14 +221,16 @@ struct task *quic_lstnr_dghdlr(struct task *t, void *ctx, unsigned int state)
  * <end> being at one byte past the end of this datagram.
  * Returns 1 if succeeded, 0 if not.
  */
-static int quic_get_dgram_dcid(unsigned char *pos, const unsigned char *end,
-                               unsigned char **dcid, size_t *dcid_len)
+static int quic_get_dgram_dcid(unsigned char *start, const unsigned char *end,
+                               size_t *dcid_off, size_t *dcid_len)
 {
+	unsigned char *pos;
 	int ret = 0, long_header;
 	size_t minlen, skip;
 
 	TRACE_ENTER(QUIC_EV_CONN_RXPKT);
 
+	pos = start;
 	if (!(*pos & QUIC_PACKET_FIXED_BIT)) {
 		TRACE_PROTO("fixed bit not set", QUIC_EV_CONN_RXPKT);
 		goto err;
@@ -246,7 +248,7 @@ static int quic_get_dgram_dcid(unsigned char *pos, const unsigned char *end,
 	if (*dcid_len > QUIC_CID_MAXLEN || end - pos <= *dcid_len)
 		goto err;
 
-	*dcid = pos;
+	*dcid_off = pos - start;
 
 	ret = 1;
  leave:
@@ -261,7 +263,7 @@ static int quic_get_dgram_dcid(unsigned char *pos, const unsigned char *end,
 /* Initialize a QUIC datagram. */
 static void quic_dgram_init(struct quic_dgram *dgram,
                             unsigned char *pos, size_t len, void *owner,
-                            unsigned char *dcid, size_t dcid_len,
+                            size_t dcid_off, size_t dcid_len,
                             struct sockaddr_storage *saddr,
                             struct sockaddr_storage *daddr)
 {
@@ -269,7 +271,7 @@ static void quic_dgram_init(struct quic_dgram *dgram,
 	dgram->owner = owner;
 	dgram->buf = pos;
 	dgram->len = len;
-	dgram->dcid = dcid;
+	dgram->dcid_off = dcid_off;
 	dgram->dcid_len = dcid_len;
 	dgram->saddr = *saddr;
 	dgram->daddr = *daddr;
@@ -393,7 +395,7 @@ static ssize_t quic_recv(int fd, void *out, size_t len,
 
 /* Low-level function to write a datagram to the buffer of the handler thread. */
 static int quic_dgram_write(unsigned char *pos, size_t len, void *owner,
-                            unsigned char *dcid, size_t dcid_len,
+                            size_t dcid_off, size_t dcid_len,
                             struct sockaddr_storage *saddr,
                             struct sockaddr_storage *daddr,
                             unsigned int cid_tid)
@@ -412,14 +414,12 @@ static int quic_dgram_write(unsigned char *pos, size_t len, void *owner,
 		return 0;
 
 	dgram = buf;
-	quic_dgram_init(dgram, pos, len, owner, dcid, dcid_len, saddr, daddr);
+	quic_dgram_init(dgram, pos, len, owner, dcid_off, dcid_len, saddr, daddr);
 
 	data = (unsigned char *)(dgram + 1);
 	memcpy(data, pos, len);
 
-	dgram->dcid = data + (dgram->dcid - dgram->buf);
 	dgram->buf = data;
-
 	mpring_write_commit(dst, buf, bring_len);
 
 	/* typically quic_lstnr_dghdlr() */
@@ -430,9 +430,8 @@ static int quic_dgram_write(unsigned char *pos, size_t len, void *owner,
 
 int quic_dgram_requeue(struct quic_dgram *dgram, int cid_tid)
 {
-
 	return quic_dgram_write(dgram->buf, dgram->len, dgram->owner,
-	                        dgram->dcid, dgram->dcid_len,
+	                        dgram->dcid_off, dgram->dcid_len,
 	                        &dgram->saddr, &dgram->daddr, cid_tid);
 }
 
@@ -444,7 +443,7 @@ int quic_dgram_requeue(struct quic_dgram *dgram, int cid_tid)
  * anymore after calling this function.
  */
 static int quic_lstnr_dgram_dispatch(unsigned char *pos, size_t len, struct listener *l,
-                                     unsigned char *dcid, size_t dcid_len,
+                                     size_t dcid_off, size_t dcid_len,
                                      struct sockaddr_storage *saddr,
                                      struct sockaddr_storage *daddr)
 {
@@ -455,10 +454,7 @@ static int quic_lstnr_dgram_dispatch(unsigned char *pos, size_t len, struct list
 	if (!len)
 		goto err;
 
-	if (!dcid && !quic_get_dgram_dcid(pos, pos + len, &dcid, &dcid_len))
-		goto err;
-
-	if ((cid_tid = quic_get_cid_tid(dcid, dcid_len, saddr, pos, len)) < 0) {
+	if ((cid_tid = quic_get_cid_tid(pos + dcid_off, dcid_len, saddr, pos, len)) < 0) {
 		/* Use the current thread if CID not found. If a clients opens
 		 * a connection with multiple packets, it is possible that
 		 * several threads will deal with datagrams sharing the same
@@ -469,7 +465,7 @@ static int quic_lstnr_dgram_dispatch(unsigned char *pos, size_t len, struct list
 		cid_tid = tid;
 	}
 
-	if (!quic_dgram_write(pos, len, l, dcid, dcid_len, saddr, daddr, cid_tid))
+	if (!quic_dgram_write(pos, len, l, dcid_off, dcid_len, saddr, daddr, cid_tid))
 		goto err;
 
 	return 1;
@@ -492,7 +488,7 @@ void quic_lstnr_sock_fd_iocb(int fd)
 	struct quic_transport_params *params;
 	/* Source address */
 	struct sockaddr_storage saddr = {0}, daddr = {0};
-	size_t max_sz;
+	size_t dcid_off, dcid_len, max_sz;
 	int max_dgrams;
 
 	BUG_ON(!l);
@@ -513,7 +509,8 @@ void quic_lstnr_sock_fd_iocb(int fd)
 	if (ret <= 0)
 		return;
 
-	quic_lstnr_dgram_dispatch(buf, ret, l, NULL, 0, &saddr, &daddr);
+	if (quic_get_dgram_dcid(buf, buf + ret, &dcid_off, &dcid_len))
+		quic_lstnr_dgram_dispatch(buf, ret, l, dcid_off, dcid_len, &saddr, &daddr);
 
 	if (--max_dgrams > 0)
 		goto start;
@@ -821,8 +818,8 @@ int qc_rcv_buf(struct quic_conn *qc)
 	struct sockaddr_storage saddr = {0}, daddr = {0};
 	struct quic_dgram dgram, *new_dgram;
 	struct buffer buf = BUF_NULL;
-	unsigned char *dgram_buf, *dcid;
-	size_t dcid_len;
+	unsigned char *dgram_buf;
+	size_t dcid_off, dcid_len;
 	ssize_t ret = 0;
 	struct listener *l = qc->li;
 
@@ -856,10 +853,10 @@ int qc_rcv_buf(struct quic_conn *qc)
 
 		TRACE_DEVEL("read datagram", QUIC_EV_CONN_RCV, qc, new_dgram);
 
-		if (!quic_get_dgram_dcid(dgram_buf, dgram_buf + ret, &dcid, &dcid_len))
+		if (!quic_get_dgram_dcid(dgram_buf, dgram_buf + ret, &dcid_off, &dcid_len))
 			continue;
 
-		if (l && !qc_check_dcid(qc, dcid, dcid_len)) {
+		if (l && !qc_check_dcid(qc, dgram_buf + dcid_off, dcid_len)) {
 			/* Datagram received by error on the connection FD, dispatch it
 			 * to its associated quic-conn.
 			 *
@@ -867,11 +864,11 @@ int qc_rcv_buf(struct quic_conn *qc)
 			 */
 			TRACE_STATE("datagram for other connection on quic-conn socket, requeue it", QUIC_EV_CONN_RCV, qc);
 
-			quic_lstnr_dgram_dispatch(dgram_buf, ret, l, dcid, dcid_len, &saddr, &daddr);
+			quic_lstnr_dgram_dispatch(dgram_buf, ret, l, dcid_off, dcid_len, &saddr, &daddr);
 			continue;
 		}
 
-		quic_dgram_init(new_dgram, dgram_buf, ret, NULL, dcid, dcid_len, &saddr, &daddr);
+		quic_dgram_init(new_dgram, dgram_buf, ret, NULL, dcid_off, dcid_len, &saddr, &daddr);
 		quic_dgram_parse(new_dgram, qc, l ? &l->obj_type :
 		                 (qc->conn ? &__objt_server(qc->conn->target)->obj_type : NULL));
 	} while (ret > 0);

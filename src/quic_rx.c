@@ -1977,7 +1977,7 @@ static int quic_rx_pkt_parse(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		 */
 		if (!(pkt->flags & QUIC_FL_RX_PACKET_DGRAM_FIRST) &&
 		    (pkt->dcid.len != dgram->dcid_len ||
-		     memcmp(dgram->dcid, pkt->dcid.data, pkt->dcid.len))) {
+		     memcmp(dgram->buf + dgram->dcid_off, pkt->dcid.data, pkt->dcid.len))) {
 			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
 			goto drop;
 		}
@@ -2184,7 +2184,7 @@ static int quic_rx_pkt_parse(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		 */
 		if (!(pkt->flags & QUIC_FL_RX_PACKET_DGRAM_FIRST) &&
 		    (pkt->dcid.len != dgram->dcid_len ||
-		     memcmp(dgram->dcid, pkt->dcid.data, pkt->dcid.len))) {
+		     memcmp(dgram->buf + dgram->dcid_off, pkt->dcid.data, pkt->dcid.len))) {
 			TRACE_PROTO("RX pkt dropped", QUIC_EV_CONN_LPKT);
 			goto drop;
 		}

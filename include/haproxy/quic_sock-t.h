@@ -27,7 +27,7 @@ struct quic_dgram {
 	void *owner;
 	unsigned char *buf;
 	size_t len;
-	unsigned char *dcid;
+	size_t dcid_off;
 	size_t dcid_len;
 	struct sockaddr_storage saddr;
 	struct sockaddr_storage daddr;

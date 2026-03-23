@@ -629,7 +629,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			}
 			/* DCID */
 			for (i = 0; i < dgram->dcid_len; ++i)
-				chunk_appendf(&trace_buf, "%02x", dgram->dcid[i]);
+				chunk_appendf(&trace_buf, "%02x", dgram->buf[dgram->dcid_off + i]);
 
 		}
 	}
