@@ -1343,7 +1343,6 @@ int acme_req_finalize(struct task *task, struct acme_ctx *ctx, char **errmsg)
 	csr->data = ret;
 
 	chunk_printf(req_in, "{ \"csr\": \"%.*s\" }", (int)csr->data, csr->area);
-	OPENSSL_free(data);
 
 
 	if (acme_jws_payload(req_in, ctx->nonce, ctx->finalize, ctx->cfg->account.pkey, ctx->kid, req_out, errmsg) != 0)
@@ -1357,6 +1356,7 @@ int acme_req_finalize(struct task *task, struct acme_ctx *ctx, char **errmsg)
 error:
 	memprintf(errmsg, "couldn't request the finalize URL");
 out:
+	OPENSSL_free(data);
 	free_trash_chunk(req_in);
 	free_trash_chunk(req_out);
 	free_trash_chunk(csr);
