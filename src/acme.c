@@ -2528,7 +2528,7 @@ X509_REQ *acme_x509_req(EVP_PKEY *pkey, char **san)
 	X509_REQ *x = NULL;
 	X509_NAME *nm = NULL;
 	STACK_OF(X509_EXTENSION) *exts = NULL;
-	X509_EXTENSION *ext_san;
+	X509_EXTENSION *ext_san = NULL;
 	char *str_san = NULL;
 	int i = 0;
 
@@ -2566,6 +2566,9 @@ X509_REQ *acme_x509_req(EVP_PKEY *pkey, char **san)
 
 	if (!sk_X509_EXTENSION_push(exts, ext_san))
 		goto error;
+
+	ext_san = NULL; /* handle double-free upon error */
+
 	if (!X509_REQ_add_extensions(x, exts))
 		goto error;
 
@@ -2580,6 +2583,7 @@ X509_REQ *acme_x509_req(EVP_PKEY *pkey, char **san)
 	return x;
 
 error:
+	X509_EXTENSION_free(ext_san);
 	sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
 	X509_REQ_free(x);
 	X509_NAME_free(nm);
