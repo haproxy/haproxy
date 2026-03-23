@@ -565,7 +565,6 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 
 		/* check if this task has already run during this loop */
 		if ((uint16_t)t->last_run == (uint16_t)activity[tid].loops) {
-			activity[tid].ctr1++;
 			budget_mask &= ~(1 << queue);
 			queue++;
 			continue;
