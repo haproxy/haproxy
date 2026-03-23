@@ -266,7 +266,6 @@ static int cfg_parse_acme(const char *file, int linenum, char **args, int kwm)
 	mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
 
 	if (strcmp(args[0], "acme") == 0) {
-		struct acme_cfg *tmp_acme = acme_cfgs;
 
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
@@ -292,7 +291,7 @@ static int cfg_parse_acme(const char *file, int linenum, char **args, int kwm)
 			 * name */
 			err_code |= ERR_ALERT | ERR_FATAL;
 			ha_alert("parsing [%s:%d]: acme section '%s' already exists (%s:%d).\n",
-					file, linenum, args[1], tmp_acme->filename, tmp_acme->linenum);
+			         file, linenum, args[1], cur_acme->filename, cur_acme->linenum);
 			goto out;
 		}
 
