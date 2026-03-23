@@ -2352,15 +2352,16 @@ int proxy_check_http_errors(struct proxy *px)
 				}
 			}
 
-			ha_free(&conf_err->type.section.name);
 			if (!section_found) {
 				ha_alert("proxy '%s': unknown http-errors section '%s' (at %s:%d).\n",
 				         px->id, conf_err->type.section.name, conf_err->file, conf_err->line);
+				ha_free(&conf_err->type.section.name);
 				err |= ERR_ALERT | ERR_FATAL;
 				continue;
 			}
 
 			conf_err->type.section.resolved = http_errs;
+			ha_free(&conf_err->type.section.name);
 
 			for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
 				if (conf_err->type.section.status[rc] == HTTP_ERR_IMPORT_EXPLICIT &&
