@@ -2770,8 +2770,8 @@ static int cli_acme_chall_ready_parse(char **args, char *payload, struct appctx 
 	int remain = 0;
 	struct ebmb_node *node = NULL;
 
-	if (!*args[2] && !*args[3] && !*args[4]) {
-		memprintf(&msg, ": not enough parameters\n");
+	if (!*args[2] || !*args[3] || !*args[4]) {
+		memprintf(&msg, "Not enough parameters: \"acme challenge_ready <certfile> domain <domain>\"\n");
 		goto err;
 	}
 
