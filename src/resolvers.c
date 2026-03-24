@@ -1326,15 +1326,33 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 				key = XXH32(reader, answer_record->data_len, answer_record->type);
 				break;
 
+			case DNS_RTYPE_TXT: {
+				/* TXT: sequence of [1-byte length | string bytes] *.
+				 * Only the first string is kept, further data is ignored.
+				 */
+				int slen = (unsigned char)reader[0];
+
+				if (answer_record->data_len < 1 || 1 + slen > answer_record->data_len)
+					goto invalid_resp;
+				offset = answer_record->data_len;
+				memcpy(answer_record->data.target, reader + 1, slen);
+				answer_record->data.target[slen] = 0;
+				answer_record->data_len = slen;
+				key = XXH32(answer_record->data.target, slen, answer_record->type);
+				break;
+			}
+
 		} /* switch (record type) */
 
 		/* Increment the counter for number of records saved into our
 		 * local response */
 		nb_saved_records++;
 
-		/* Move forward answer_record->data_len for analyzing next
-		 * record in the response */
-		reader += ((answer_record->type == DNS_RTYPE_SRV)
+		/* Move forward past the record data. For SRV and TXT, offset holds
+		 * the wire data length
+		 */
+		reader += ((answer_record->type == DNS_RTYPE_SRV ||
+		            answer_record->type == DNS_RTYPE_TXT)
 			   ? offset
 			   : answer_record->data_len);
 
@@ -1369,6 +1387,12 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
                                         found = 1;
 				}
                                 break;
+
+			case DNS_RTYPE_TXT:
+				if (answer_record->data_len == tmp_record->data_len &&
+				    memcmp(answer_record->data.target, tmp_record->data.target, answer_record->data_len) == 0)
+					found = 1;
+				break;
 
 			default:
 				break;
