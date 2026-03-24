@@ -345,6 +345,7 @@ enum {
 	XPRT_SSL = 1,
 	XPRT_HANDSHAKE = 2,
 	XPRT_QUIC = 3,
+	XPRT_QSTRM = 4,
 	XPRT_ENTRIES /* must be last one */
 };
 
