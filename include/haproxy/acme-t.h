@@ -2,8 +2,11 @@
 #ifndef _ACME_T_H_
 #define _ACME_T_H_
 
+#include <haproxy/acme_resolvers-t.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/openssl-compat.h>
+
+#if defined(HAVE_ACME)
 
 #define ACME_RETRY 5
 
@@ -13,6 +16,8 @@ struct acme_cfg {
 	int linenum;                /* config linenum */
 	char *name;                 /* section name */
 	int reuse_key;              /* do we need to renew the private key */
+	int dns_check;              /* enable DNS resolution to verify TXT record before challenge */
+	unsigned int dns_delay;     /* delay in seconds before re-triggering DNS resolution (default: 300) */
 	char *directory;            /* directory URL */
 	char *map;                  /* storage for tokens + thumbprint */
 	struct {
@@ -40,6 +45,9 @@ enum acme_st {
 	ACME_NEWACCOUNT,
 	ACME_NEWORDER,
 	ACME_AUTH,
+	ACME_RSLV_WAIT,
+	ACME_RSLV_TRIGGER,
+	ACME_RSLV_READY,
 	ACME_CHALLENGE,
 	ACME_CHKCHALLENGE,
 	ACME_FINALIZE,
@@ -59,6 +67,7 @@ struct acme_auth {
        struct ist chall;  /* challenge URI */
        struct ist token;  /* token */
        int validated;     /* already validated */
+       struct acme_rslv *rslv; /* acme dns-01 resolver */
        int ready;         /* is the challenge ready ? */
        void *next;
 };
@@ -85,6 +94,7 @@ struct acme_ctx {
 	X509_REQ *req;
 	struct ist finalize;
 	struct ist certificate;
+	unsigned int dnstasks;      /* number of DNS tasks running for this ctx */
 	struct task *task;
 	struct ebmb_node node;
 	char name[VAR_ARRAY];
@@ -101,5 +111,7 @@ struct acme_ctx {
 #define ACME_VERB_SIMPLE   3
 #define ACME_VERB_ADVANCED 4
 #define ACME_VERB_COMPLETE 5
+
+#endif /* ! HAVE_ACME */
 
 #endif

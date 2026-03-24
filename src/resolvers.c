@@ -21,6 +21,7 @@
 #include <import/cebis_tree.h>
 
 #include <haproxy/action.h>
+#include <haproxy/acme_resolvers.h>
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
 #include <haproxy/cfgparse.h>
@@ -2170,6 +2171,25 @@ int resolv_link_resolution(void *requester, int requester_type, int requester_lo
 					   ? DNS_RTYPE_A
 					   : DNS_RTYPE_AAAA;
 			break;
+#if defined(HAVE_ACME)
+		case OBJ_TYPE_ACME_RSLV: {
+			struct acme_rslv *acme_rslv = (struct acme_rslv *)requester;
+
+			req = resolv_get_requester(&acme_rslv->requester,
+			                           &acme_rslv->obj_type,
+			                           acme_rslv->success_cb,
+			                           acme_rslv->error_cb);
+			if (!req)
+				goto err;
+
+			hostname_dn     = &acme_rslv->hostname_dn;
+			hostname_dn_len = acme_rslv->hostname_dn_len;
+			resolvers       = acme_rslv->resolvers;
+
+			query_type      = DNS_RTYPE_TXT;
+			break;
+		}
+#endif
 		default:
 			goto err;
 	}
@@ -2557,6 +2577,11 @@ struct task *process_resolvers(struct task *t, void *context, unsigned int state
 						/* Always perform the resolution */
 						must_run = 1;
 						break;
+					case OBJ_TYPE_ACME_RSLV:
+						/* Always perform the resolution */
+						must_run = 1;
+						break;
+
 					default:
 						break;
 				}

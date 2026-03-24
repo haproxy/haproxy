@@ -4,6 +4,7 @@
  * Implements the ACMEv2 RFC 8555 protocol
  */
 
+#include "haproxy/ticks.h"
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,6 +15,7 @@
 
 #include <haproxy/acme-t.h>
 
+#include <haproxy/acme_resolvers.h>
 #include <haproxy/base64.h>
 #include <haproxy/intops.h>
 #include <haproxy/cfgparse.h>
@@ -24,6 +26,7 @@
 #include <haproxy/list.h>
 #include <haproxy/log.h>
 #include <haproxy/pattern.h>
+#include <haproxy/resolvers.h>
 #include <haproxy/sink.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_gencert.h>
@@ -118,6 +121,9 @@ static void acme_trace(enum trace_level level, uint64_t mask, const struct trace
 			case ACME_NEWACCOUNT:     chunk_appendf(&trace_buf, "ACME_NEWACCOUNT");   break;
 			case ACME_NEWORDER:       chunk_appendf(&trace_buf, "ACME_NEWORDER");     break;
 			case ACME_AUTH:           chunk_appendf(&trace_buf, "ACME_AUTH");         break;
+			case ACME_RSLV_WAIT:      chunk_appendf(&trace_buf, "ACME_RSLV_WAIT");    break;
+			case ACME_RSLV_TRIGGER:   chunk_appendf(&trace_buf, "ACME_RSLV_TRIGGER");   break;
+			case ACME_RSLV_READY:     chunk_appendf(&trace_buf, "ACME_RSLV_READY");   break;
 			case ACME_CHALLENGE:      chunk_appendf(&trace_buf, "ACME_CHALLENGE");    break;
 			case ACME_CHKCHALLENGE:   chunk_appendf(&trace_buf, "ACME_CHKCHALLENGE"); break;
 			case ACME_FINALIZE:       chunk_appendf(&trace_buf, "ACME_FINALIZE");     break;
@@ -191,6 +197,7 @@ struct acme_cfg *new_acme_cfg(const char *name)
 	ret->linenum = 0;
 
 	ret->challenge = strdup("http-01"); /* default value */
+	ret->dns_delay = 300; /* default DNS re-trigger delay in seconds */
 
 	/* The default generated keys are EC-384 */
 	ret->key.type = EVP_PKEY_EC;
@@ -435,6 +442,49 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 		if (!cur_acme->map) {
 			err_code |= ERR_ALERT | ERR_FATAL;
 			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			goto out;
+		}
+	} else if (strcmp(args[0], "dns-check") == 0) {
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires an argument\n", file, linenum, args[0], cursection);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
+		if (strcmp(args[1], "on") == 0) {
+			cur_acme->dns_check = 1;
+		} else if (strcmp(args[1], "off") == 0) {
+			cur_acme->dns_check = 0;
+		} else {
+			err_code |= ERR_ALERT | ERR_FATAL;
+			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires either the 'on' or 'off' parameter\n", file, linenum, args[0], cursection);
+			goto out;
+		}
+	} else if (strcmp(args[0], "dns-delay") == 0) {
+		const char *res;
+
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires an argument\n", file, linenum, args[0], cursection);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
+		res = parse_time_err(args[1], &cur_acme->dns_delay, TIME_UNIT_S);
+		if (res == PARSE_TIME_OVER) {
+			ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to '%s'\n", file, linenum, args[1], args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		} else if (res == PARSE_TIME_UNDER) {
+			ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to '%s'\n", file, linenum, args[1], args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		} else if (res) {
+			ha_alert("parsing [%s:%d]: unexpected character '%c' in argument to '%s'\n", file, linenum, *res, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 	} else if (strcmp(args[0], "reuse-key") == 0) {
@@ -841,6 +891,8 @@ static struct cfg_kw_list cfg_kws_acme = {ILH, {
 	{ CFG_ACME, "curves",  cfg_parse_acme_cfg_key },
 	{ CFG_ACME, "map",  cfg_parse_acme_kws },
 	{ CFG_ACME, "reuse-key",  cfg_parse_acme_kws },
+	{ CFG_ACME, "dns-check",  cfg_parse_acme_kws },
+	{ CFG_ACME, "dns-delay",  cfg_parse_acme_kws },
 	{ CFG_ACME, "acme-vars",  cfg_parse_acme_vars_provider },
 	{ CFG_ACME, "provider-name",  cfg_parse_acme_vars_provider },
 	{ CFG_GLOBAL, "acme.scheduler", cfg_parse_global_acme_sched },
@@ -879,6 +931,7 @@ static void acme_ctx_destroy(struct acme_ctx *ctx)
 		istfree(&auth->chall);
 		istfree(&auth->token);
 		istfree(&auth->dns);
+		acme_rslv_free(auth->rslv);
 		next = auth->next;
 		free(auth);
 		auth = next;
@@ -2272,12 +2325,114 @@ re:
 					goto retry;
 				}
 				if ((ctx->next_auth = ctx->next_auth->next) == NULL) {
-					st = ACME_CHALLENGE;
+					if (strcasecmp(ctx->cfg->challenge, "dns-01") == 0 && ctx->cfg->dns_check)
+						st = ACME_RSLV_WAIT;
+					else
+						st = ACME_CHALLENGE;
 					ctx->next_auth = ctx->auths;
 				}
 				/* call with next auth or do the challenge step */
 				goto nextreq;
 			}
+		break;
+		case ACME_RSLV_WAIT: {
+			/* wait dns-delay */
+			st = ACME_RSLV_TRIGGER;
+			ctx->http_state = ACME_HTTP_REQ;
+			ctx->state = st;
+			send_log(NULL, LOG_NOTICE, "acme: %s: dns-01: triggering the resolution in %ds\n",
+			                            ctx->store->path, ctx->cfg->dns_delay);
+
+			task->expire = tick_add(now_ms, ctx->cfg->dns_delay * 1000);
+			return task;
+		}
+		break;
+		case ACME_RSLV_TRIGGER: {
+			struct acme_auth *auth;
+
+			/* if it was trigger by the CLI, still wait dns_delay if
+			 * not everything is ready, or skip and to to
+			 * ACME_CHALLENGE */
+			if (!(state & TASK_WOKEN_TIMER)) {
+				int all_ready = 1;
+
+				for (auth = ctx->auths; auth != NULL; auth = auth->next) {
+					if (auth->ready)
+						continue;
+					all_ready = 0;
+				}
+				if (all_ready) {
+					st = ACME_CHALLENGE;
+					ctx->http_state = ACME_HTTP_REQ;
+					ctx->state = st;
+					goto nextreq;
+				} else {
+					return task;
+				}
+			}
+
+			/* on timer expiry, re-trigger resolution for non-ready auths */
+			for (auth = ctx->auths; auth != NULL; auth = auth->next) {
+				if (auth->ready)
+					continue;
+
+				HA_ATOMIC_INC(&ctx->dnstasks);
+
+				auth->rslv = acme_rslv_start(auth, &ctx->dnstasks, &errmsg);
+				if (!auth->rslv)
+					goto abort;
+				auth->rslv->acme_task = task;
+			}
+			st = ACME_RSLV_READY;
+			goto wait;
+		}
+		break;
+		case ACME_RSLV_READY: {
+			struct acme_auth *auth;
+			int all_ready = 1;
+
+			/* if triggered by the CLI, wait for the DNS tasks to
+			 * finish
+			 */
+                        if (HA_ATOMIC_LOAD(&ctx->dnstasks) != 0)
+				goto wait;
+
+			/* triggered by the latest DNS task */
+			for (auth = ctx->auths; auth != NULL; auth = auth->next) {
+				if (auth->ready)
+					continue;
+				if (auth->rslv->result != RSLV_STATUS_VALID) {
+					send_log(NULL, LOG_NOTICE, "acme: %s: dns-01: Couldn't get the TXT record for \"_acme-challenge.%.*s\", expected \"%.*s\" (status=%d)\n",
+					         ctx->store->path, (int)auth->dns.len, auth->dns.ptr,
+					         (int)auth->token.len, auth->token.ptr,
+					         auth->rslv->result);
+					all_ready = 0;
+				} else {
+					if (isteq(auth->rslv->txt, auth->token)) {
+						auth->ready = 1;
+					} else {
+						send_log(NULL, LOG_NOTICE, "acme: %s: dns-01: TXT record mismatch for \"_acme-challenge.%.*s\": expected \"%.*s\", got \"%.*s\"\n",
+						         ctx->store->path, (int)auth->dns.len, auth->dns.ptr,
+						         (int)auth->token.len, auth->token.ptr,
+						         (int)auth->rslv->txt.len, auth->rslv->txt.ptr);
+						all_ready = 0;
+					}
+				}
+				acme_rslv_free(auth->rslv);
+				auth->rslv = NULL;
+			}
+			if (all_ready) {
+				st = ACME_CHALLENGE;
+				ctx->next_auth = ctx->auths;
+				goto nextreq;
+			}
+
+			/* not all ready yet, retry after dns-delay */
+			st = ACME_RSLV_WAIT;
+			ctx->http_state = ACME_HTTP_REQ;
+			ctx->state = st;
+			goto nextreq;
+		}
 		break;
 		case ACME_CHALLENGE:
 			if (http_st == ACME_HTTP_REQ) {
