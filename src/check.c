@@ -1813,7 +1813,15 @@ int init_srv_check(struct server *srv)
 		 * specified.
 		 */
 		if (!srv->check.port && !is_addr(&srv->check.addr)) {
-			if (!srv->check.use_ssl && srv->use_ssl != -1)
+			/*
+			 * If any setting is set for the check, then we can't
+			 * assume we'll use the same XPRT as the server, the
+			 * server may be QUIC, but we want a TCP check.
+			 */
+			if (!srv->check.use_ssl && srv->use_ssl != -1 &&
+			    !srv->check.via_socks4 && !srv->check.send_proxy &&
+			    (!srv->check.alpn_len || (srv->check.alpn_len == srv->ssl_ctx.alpn_len && !strncmp(srv->check.alpn_str, srv->ssl_ctx.alpn_str, srv->check.alpn_len))) &&
+			    (!srv->check.mux_proto || srv->check.mux_proto != srv->mux_proto))
 				srv->check.xprt = srv->xprt;
 			else if (srv->check.use_ssl == 1)
 				srv->check.xprt = xprt_get(XPRT_SSL);
