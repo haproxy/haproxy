@@ -22,6 +22,7 @@
 #ifndef _HAPROXY_OBJ_TYPE_H
 #define _HAPROXY_OBJ_TYPE_H
 
+#include <haproxy/acme_resolvers-t.h>
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
 #include <haproxy/check-t.h>
@@ -45,17 +46,18 @@ static inline enum obj_type obj_type(const enum obj_type *t)
 static inline const char *obj_type_name(const enum obj_type *t)
 {
 	switch (obj_type(t)) {
-	case OBJ_TYPE_NONE:     return "NONE";
-	case OBJ_TYPE_LISTENER: return "LISTENER";
-	case OBJ_TYPE_PROXY:    return "PROXY";
-	case OBJ_TYPE_SERVER:   return "SERVER";
-	case OBJ_TYPE_APPLET:   return "APPLET";
-	case OBJ_TYPE_APPCTX:   return "APPCTX";
-	case OBJ_TYPE_CONN:     return "CONN";
-	case OBJ_TYPE_SRVRQ:    return "SRVRQ";
-	case OBJ_TYPE_SC:       return "SC";
-	case OBJ_TYPE_STREAM:   return "STREAM";
-	case OBJ_TYPE_CHECK:    return "CHECK";
+	case OBJ_TYPE_NONE:       return "NONE";
+	case OBJ_TYPE_LISTENER:   return "LISTENER";
+	case OBJ_TYPE_PROXY:      return "PROXY";
+	case OBJ_TYPE_SERVER:     return "SERVER";
+	case OBJ_TYPE_APPLET:     return "APPLET";
+	case OBJ_TYPE_APPCTX:     return "APPCTX";
+	case OBJ_TYPE_CONN:       return "CONN";
+	case OBJ_TYPE_SRVRQ:      return "SRVRQ";
+	case OBJ_TYPE_SC:         return "SC";
+	case OBJ_TYPE_STREAM:     return "STREAM";
+	case OBJ_TYPE_CHECK:      return "CHECK";
+	case OBJ_TYPE_ACME_RSLV:  return "ACME_RSLV";
 #ifdef USE_QUIC
 	case OBJ_TYPE_DGRAM:    return "DGRAM";
 #endif
@@ -203,6 +205,18 @@ static inline struct hstream *objt_hstream(enum obj_type *t)
 	return __objt_hstream(t);
 }
 
+static inline struct acme_rslv *__objt_acme_rslv(enum obj_type *t)
+{
+	return container_of(t, struct acme_rslv, obj_type);
+}
+
+static inline struct acme_rslv *objt_acme_rslv(enum obj_type *t)
+{
+	if (!t || *t != OBJ_TYPE_ACME_RSLV)
+		return NULL;
+	return __objt_acme_rslv(t);
+}
+
 #ifdef USE_QUIC
 static inline struct quic_dgram *__objt_dgram(enum obj_type *t)
 {
@@ -220,17 +234,18 @@ static inline struct quic_dgram *objt_dgram(enum obj_type *t)
 static inline void *obj_base_ptr(enum obj_type *t)
 {
 	switch (obj_type(t)) {
-	case OBJ_TYPE_NONE:     return NULL;
-	case OBJ_TYPE_LISTENER: return __objt_listener(t);
-	case OBJ_TYPE_PROXY:    return __objt_proxy(t);
-	case OBJ_TYPE_SERVER:   return __objt_server(t);
-	case OBJ_TYPE_APPLET:   return __objt_applet(t);
-	case OBJ_TYPE_APPCTX:   return __objt_appctx(t);
-	case OBJ_TYPE_CONN:     return __objt_conn(t);
-	case OBJ_TYPE_SRVRQ:    return __objt_resolv_srvrq(t);
-	case OBJ_TYPE_SC:       return __objt_sc(t);
-	case OBJ_TYPE_STREAM:   return __objt_stream(t);
-	case OBJ_TYPE_CHECK:    return __objt_check(t);
+	case OBJ_TYPE_NONE:      return NULL;
+	case OBJ_TYPE_LISTENER:  return __objt_listener(t);
+	case OBJ_TYPE_PROXY:     return __objt_proxy(t);
+	case OBJ_TYPE_SERVER:    return __objt_server(t);
+	case OBJ_TYPE_APPLET:    return __objt_applet(t);
+	case OBJ_TYPE_APPCTX:    return __objt_appctx(t);
+	case OBJ_TYPE_CONN:      return __objt_conn(t);
+	case OBJ_TYPE_SRVRQ:     return __objt_resolv_srvrq(t);
+	case OBJ_TYPE_SC:        return __objt_sc(t);
+	case OBJ_TYPE_STREAM:    return __objt_stream(t);
+	case OBJ_TYPE_CHECK:     return __objt_check(t);
+	case OBJ_TYPE_ACME_RSLV: return __objt_acme_rslv(t);
 #ifdef USE_QUIC
 	case OBJ_TYPE_DGRAM:    return __objt_dgram(t);
 #endif
