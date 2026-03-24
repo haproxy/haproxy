@@ -5473,7 +5473,6 @@ int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 
 	free_tcpcheck_vars(&rules->preset_vars);
 	rules->list = NULL;
-	rules->flags |= TCPCHK_SND_HTTP_FROM_OPT;
 
 	/* Deduce the ruleset name from the proxy info */
 	chunk_printf(&trash, "*http-check-%s_%s-%d",
