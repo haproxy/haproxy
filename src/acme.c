@@ -1730,8 +1730,12 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 				goto error;
 			}
 
+			/* replace the token by the TXT entry */
+			istfree(&auth->token);
+			auth->token = istdup(ist2(dns_record->area, dns_record->data));
+
 			send_log(NULL, LOG_NOTICE,"acme: %s: dns-01 requires to set the \"_acme-challenge.%.*s\" TXT record to \"%.*s\" and use the \"acme challenge_ready %s domain %.*s\" command over the CLI\n",
-			                                             ctx->store->path, (int)auth->dns.len, auth->dns.ptr, (int)dns_record->data, dns_record->area, ctx->store->path, (int)auth->dns.len, auth->dns.ptr);
+			                                             ctx->store->path, (int)auth->dns.len, auth->dns.ptr, (int)auth->token.len, auth->token.ptr, ctx->store->path, (int)auth->dns.len, auth->dns.ptr);
 
 			/* dump to the "dpapi" sink */
 			line[nmsg++] = ist("acme deploy ");
