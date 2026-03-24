@@ -72,6 +72,7 @@ extern struct pool_head *resolv_requester_pool;
 /* dns record types (non exhaustive list) */
 #define DNS_RTYPE_A             1       /* IPv4 address */
 #define DNS_RTYPE_CNAME         5       /* canonical name */
+#define DNS_RTYPE_TXT           16      /* TXT */
 #define DNS_RTYPE_AAAA          28      /* IPv6 address */
 #define DNS_RTYPE_SRV           33      /* SRV record */
 #define DNS_RTYPE_OPT           41      /* OPT */
