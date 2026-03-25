@@ -776,7 +776,7 @@ static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *
 		/* kind1 = NOP and is a single byte, others have a length field */
 		if (smp->data.u.str.area[ofs] == 1)
 			next = ofs + 1;
-		else if (ofs + 1 <= tcplen)
+		else if (ofs + 1 < tcplen)
 			next = ofs + smp->data.u.str.area[ofs + 1];
 		else
 			break;
@@ -790,10 +790,10 @@ static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *
 		if (mode & 2) // mode & 2: append tcp.options_list
 			trash->area[trash->data++] = opt;
 
-		if (opt == 2 /* MSS */) {
+		if (opt == 2 && (ofs + 3 < tcplen) /* MSS value starts at ofs + 2 and is 2 Bytes long */) {
 			tcpmss = read_n16(smp->data.u.str.area + ofs + 2);
 		}
-		else if (opt == 3 /* WS */) {
+		else if (opt == 3 && (ofs + 2 < tcplen) /* WS value 1 Byte is at ofs + 2) {
 			tcpws = (uchar)smp->data.u.str.area[ofs + 2];
 			/* output from 1 to 15, thus 0=not found */
 			tcpws = tcpws > 14 ? 15 : tcpws + 1;
