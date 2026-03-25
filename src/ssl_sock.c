@@ -8086,8 +8086,8 @@ static int cli_parse_show_tlskeys(char **args, char *payload, struct appctx *app
 {
 	struct show_keys_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 
-	if ((appctx->cli_ctx.level & ACCESS_LVL_MASK) < ACCESS_LVL_ADMIN)
-		ha_warning("'%s %s' accessed without admin rights, this won't be supported anymore starting from haproxy 3.3\n", args[0], args[1]);
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
 
 	/* no parameter, shows only file list */
 	if (!*args[2]) {
@@ -8113,8 +8113,8 @@ static int cli_parse_set_tlskeys(char **args, char *payload, struct appctx *appc
 	struct tls_keys_ref *ref;
 	int ret;
 
-	if ((appctx->cli_ctx.level & ACCESS_LVL_MASK) < ACCESS_LVL_ADMIN)
-		ha_warning("'%s %s %s' accessed without admin rights, this won't be supported anymore starting from haproxy 3.3\n", args[0], args[1], args[2]);
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
 
 	/* Expect two parameters: the filename and the new new TLS key in encoding */
 	if (!*args[3] || !*args[4])
