@@ -1,0 +1,319 @@
+                   -----------------------------------------
+                     HAProxy OTEL filter speed test guide
+                                Version 1.0
+                          ( Last update: 2026-04-09 )
+                   -----------------------------------------
+                         Author : Miroslav Zagorac
+                   Contact : mzagorac at haproxy dot com
+
+
+SUMMARY
+--------
+
+  1.    Overview
+  2.    Prerequisites
+  3.    Running the test
+  4.    Test parameters
+  5.    Rate-limit levels
+  6.    Test configurations
+  7.    Results
+  7.1.    Standalone (sa)
+  7.2.    Comparison (cmp)
+  7.3.    Context propagation (ctx)
+  7.4.    Frontend / backend (fe-be)
+  8.    Summary
+
+
+1. Overview
+------------
+
+The test-speed.sh script measures the performance impact of the OTEL filter on
+HAProxy at various rate-limit settings.  For each test configuration, the script
+iterates through a series of rate-limit values -- from full tracing (100%) down
+to the filter being completely removed -- measuring throughput and latency at
+each level.
+
+The script uses template files (haproxy.cfg.in and otel.cfg.in) from each test
+directory to generate the actual configuration files.  A sed substitution
+adjusts the rate-limit value (or disables/removes the filter) before each run.
+
+
+2. Prerequisites
+-----------------
+
+The following tools must be installed and available in PATH:
+
+  - thttpd : a lightweight HTTP server used as the backend origin server.
+             It serves a small static HTML file (index.html) on port 8000.
+
+  - wrk    : an HTTP benchmarking tool that generates the test load.
+             See https://github.com/wg/wrk
+
+
+3. Running the test
+--------------------
+
+The test is executed from the test directory.  It can be run for all
+configurations at once or for a single configuration.
+
+To run all configurations:
+
+  % ./test-speed.sh all
+
+This produces result files in the _logs directory:
+
+  _logs/README-speed-fe-be
+  _logs/README-speed-sa
+  _logs/README-speed-cmp
+  _logs/README-speed-ctx
+
+To run a single configuration:
+
+  % ./test-speed.sh <cfg> [<dir>]
+
+Where <cfg> corresponds to a run-<cfg>.sh script and <dir> is the configuration
+directory (defaults to <cfg>).  For example:
+
+  % ./test-speed.sh sa
+  % ./test-speed.sh fe-be fe
+  % ./test-speed.sh cmp
+  % ./test-speed.sh ctx
+
+
+4. Test parameters
+-------------------
+
+The wrk benchmarking tool is invoked with the following parameters:
+
+  -t8        8 threads
+  -c8        8 concurrent connections
+  -d300      5-minute test duration (300 seconds)
+  --latency  latency distribution reporting
+
+Each rate-limit level is tested sequentially.  Between runs, HAProxy is stopped
+via SIGUSR1 and restarted with the next rate-limit configuration.  A 10-second
+pause separates consecutive runs.
+
+The backend origin server (thttpd) serves a small static HTML page (index.html,
+approximately 50 bytes) on port 8000.  HAProxy listens on port 10080 and proxies
+requests to the origin.
+
+
+5. Rate-limit levels
+---------------------
+
+The script tests nine rate-limit levels in the following order:
+
+  100.0    - the filter processes every stream (worst case)
+   75.0    - the filter processes 75% of streams
+   50.0    - the filter processes 50% of streams
+   25.0    - the filter processes 25% of streams
+   10.0    - the filter processes 10% of streams
+    2.5    - the filter processes 2.5% of streams
+    0.0    - the filter is loaded and attached to every stream but never
+             processes any telemetry (the rate-limit check always fails);
+             this measures the per-stream attach and detach overhead
+
+  disabled - the filter is loaded but disabled via 'option disabled'; it is not
+             attached to streams at all; this measures the cost of loading and
+             initializing the filter library without any per-stream work
+
+  off      - the 'filter opentelemetry' and 'otel-group' directives are
+             commented out of haproxy.cfg; the filter is not loaded and has zero
+             presence in the processing path; this is the absolute baseline
+
+In the result tables, the 'overhead' column is the throughput loss relative to
+the 'off' baseline, expressed as a percentage:
+
+  overhead = (req/s_off - req/s_test) / req/s_off * 100
+
+
+6. Test configurations
+-----------------------
+
+Four OTEL filter configurations are tested.  They differ in complexity and in
+the features they exercise:
+
+  sa     - Standalone.  Uses all possible HAProxy filter events with spans,
+           attributes, events, links, baggage, status, metrics and groups.
+           This is the most comprehensive single-instance configuration and
+           represents the worst-case scenario.
+
+  cmp    - Comparison.  A simplified configuration made for comparison with
+           other tracing implementations.  It uses a reduced span hierarchy
+           without context propagation, groups or metrics.  This is closer to
+           a typical production deployment.
+
+  ctx    - Context propagation.  Similar to 'sa' in scope coverage, but spans
+           are opened using extracted span contexts (inject/extract via HAProxy
+           variables) as parent references instead of direct span names.  This
+           adds the overhead of context serialization, variable storage and
+           deserialization on every scope execution.
+
+  fe-be  - Frontend / backend.  Two cascaded HAProxy instances: the frontend
+           (fe) creates the root trace and injects span context into HTTP
+           headers; the backend (be) extracts the context and continues the
+           trace.  This configuration measures the combined overhead of two
+           OTEL filter instances plus the inter-process context propagation
+           cost.
+
+           Note: the rate-limit is varied only on the frontend.  The backend
+           always runs with its default configuration (filter enabled,
+           hard-errors on).  The backend configuration is only modified for
+           the 'disabled' and 'off' levels.
+
+
+7. Results
+-----------
+
+The tables below summarize the benchmarking results.  The 'req/s' column shows
+the sustained request rate reported by wrk, 'avg latency' is the average
+response time, and 'overhead' is the throughput loss relative to the 'off'
+baseline.
+
+
+7.1. Standalone (sa)
+---------------------
+
+  ---------------------------------------------------------------
+   rate-limit     req/s     avg latency     overhead
+  ---------------------------------------------------------------
+      100.0%     38,202       213.08 us       21.6%
+       75.0%     40,223       202.18 us       17.4%
+       50.0%     42,777       190.49 us       12.2%
+       25.0%     45,302       180.46 us        7.0%
+       10.0%     46,879       174.69 us        3.7%
+        2.5%     47,993       170.58 us        1.4%
+        0.0%     48,726       167.96 us          ~0
+     disabled    48,788       167.74 us          ~0
+     off         48,697       168.00 us      baseline
+  ---------------------------------------------------------------
+
+With all possible events active, the sa configuration at 100% rate-limit shows
+a 22% throughput reduction.  At 10% rate-limit the overhead drops to 3.7%, and
+at 2.5% it is barely measurable at 1.4%.  The 'disabled' and '0.0' levels show
+no measurable overhead above the baseline.
+
+
+7.2. Comparison (cmp)
+----------------------
+
+  ---------------------------------------------------------------
+   rate-limit     req/s     avg latency     overhead
+  ---------------------------------------------------------------
+      100.0%     44,780       182.58 us        7.6%
+       75.0%     45,362       180.10 us        6.4%
+       50.0%     46,279       176.59 us        4.6%
+       25.0%     47,061       173.57 us        2.9%
+       10.0%     47,793       170.85 us        1.4%
+        2.5%     48,410       169.11 us        0.2%
+        0.0%     48,586       168.09 us          ~0
+     disabled    48,510       168.57 us          ~0
+     off         48,488       168.64 us      baseline
+  ---------------------------------------------------------------
+
+The simplified cmp configuration shows significantly lower overhead than sa at
+every rate-limit level.  At 100% rate-limit the overhead is 7.6%, at 10% it is
+1.4%, and below 2.5% it becomes indistinguishable from the baseline.
+
+
+7.3. Context propagation (ctx)
+-------------------------------
+
+  ---------------------------------------------------------------
+   rate-limit     req/s     avg latency     overhead
+  ---------------------------------------------------------------
+      100.0%     30,032       270.35 us       38.0%
+       75.0%     33,490       242.56 us       30.9%
+       50.0%     37,679       215.92 us       22.2%
+       25.0%     42,449       192.36 us       12.4%
+       10.0%     45,458       180.08 us        6.2%
+        2.5%     47,546       171.64 us        1.9%
+        0.0%     48,313       168.86 us        0.3%
+     disabled    48,620       168.36 us          ~0
+     off         48,446       168.73 us      baseline
+  ---------------------------------------------------------------
+
+The ctx configuration is the most expensive due to the inject/extract cycle on
+every scope execution.  At 100% rate-limit the overhead reaches 38%.  However,
+the cost scales linearly with the rate-limit: at 10% the overhead is 6.2%, and
+at 2.5% it drops to 1.9%.  The filter attachment overhead (0.0% vs off) is
+negligible at 0.3%.
+
+
+7.4. Frontend / backend (fe-be)
+--------------------------------
+
+  ---------------------------------------------------------------
+   rate-limit     req/s     avg latency     overhead
+  ---------------------------------------------------------------
+      100.0%     34,012       238.75 us       19.1%
+       75.0%     35,462       230.08 us       15.7%
+       50.0%     36,811       222.33 us       12.5%
+       25.0%     38,493       210.95 us        8.5%
+       10.0%     39,735       206.15 us        5.5%
+        2.5%     40,423       202.35 us        3.9%
+        0.0%     40,842       200.88 us        2.9%
+     disabled    42,113       194.91 us          ~0
+     off         42,062       194.37 us      baseline
+  ---------------------------------------------------------------
+
+The fe-be configuration involves two HAProxy instances in series, so the
+absolute baseline (off) is already lower at 42,062 req/s due to the extra
+network hop.  The rate-limit is varied only on the frontend; the backend
+always has the filter loaded with hard-errors enabled.
+
+This explains the 2.9% overhead at rate-limit 0.0: even though the frontend
+never traces, the backend filter still attaches to every stream, attempts to
+extract context from the HTTP headers, fails (because the frontend did not
+inject any context), and the hard-errors option stops further processing.
+This per-stream attach/extract/error cycle accounts for the residual cost.
+
+When both instances have the filter disabled (disabled level), the overhead
+is within measurement noise, consistent with the single-instance
+configurations.
+
+
+8. Summary
+-----------
+
+The table below shows the overhead for each configuration at selected rate-limit
+levels:
+
+  ---------------------------------------------------
+   rate-limit    sa      cmp      ctx     fe-be
+  ---------------------------------------------------
+      100.0%   21.6%    7.6%    38.0%    19.1%
+       25.0%    7.0%    2.9%    12.4%     8.5%
+       10.0%    3.7%    1.4%     6.2%     5.5%
+        2.5%    1.4%    0.2%     1.9%     3.9%
+  ---------------------------------------------------
+
+Key observations:
+
+  - The overhead scales approximately linearly with the rate-limit value.
+    Reducing the rate-limit from 100% to 10% eliminates the vast majority
+    of the cost in all configurations.
+
+  - The cmp configuration, which uses a reduced span hierarchy typical of
+    production deployments, adds only 1.4% overhead at a 10% rate-limit.
+
+  - The sa configuration, which exercises all possible events, stays at about
+    7% overhead at a 25% rate-limit and below 4% at 10%.
+
+  - The ctx configuration is the most expensive due to the inject/extract
+    context propagation on every scope.  It is designed as a stress test for
+    the propagation mechanism rather than a practical production template.
+
+  - The fe-be configuration carries a higher fixed cost because two HAProxy
+    instances are involved and the backend filter processes context extraction
+    regardless of the frontend rate-limit setting.
+
+  - Loading the filter but disabling it via 'option disabled' adds no measurable
+    overhead in any configuration.
+
+  - The filter attachment cost without any telemetry processing (rate-limit 0.0)
+    is 0.3% or less for single-instance configurations (sa, cmp, ctx).
+
+  - In typical production use with a rate-limit of 10% or less, the performance
+    impact of the OTEL filter should be negligible for single-instance deployments.

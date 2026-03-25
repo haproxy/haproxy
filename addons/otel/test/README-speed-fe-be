@@ -1,0 +1,144 @@
+--- rate-limit 100.0 --------------------------------------------------
+Running 5m test @ http://localhost:10080/index.html
+  8 threads and 8 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   238.75us  129.45us  15.59ms   98.45%
+    Req/Sec     4.27k    75.22     5.28k    77.45%
+  Latency Distribution
+     50%  228.00us
+     75%  243.00us
+     90%  262.00us
+     99%  410.00us
+  10206938 requests in 5.00m, 2.46GB read
+Requests/sec:  34011.80
+Transfer/sec:      8.40MB
+----------------------------------------------------------------------
+
+--- rate-limit 75.0 --------------------------------------------------
+Running 5m test @ http://localhost:10080/index.html
+  8 threads and 8 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   230.08us  201.50us  32.12ms   99.25%
+    Req/Sec     4.46k    83.43     5.36k    75.61%
+  Latency Distribution
+     50%  222.00us
+     75%  241.00us
+     90%  261.00us
+     99%  401.00us
+  10641998 requests in 5.00m, 2.57GB read
+Requests/sec:  35461.59
+Transfer/sec:      8.76MB
+----------------------------------------------------------------------
+
+--- rate-limit 50.0 --------------------------------------------------
+Running 5m test @ http://localhost:10080/index.html
+  8 threads and 8 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   222.33us  242.52us  35.13ms   99.43%
+    Req/Sec     4.62k    99.86     5.78k    79.00%
+  Latency Distribution
+     50%  211.00us
+     75%  237.00us
+     90%  259.00us
+     99%  400.00us
+  11046951 requests in 5.00m, 2.66GB read
+Requests/sec:  36810.91
+Transfer/sec:      9.09MB
+----------------------------------------------------------------------
+
+--- rate-limit 25.0 --------------------------------------------------
+Running 5m test @ http://localhost:10080/index.html
+  8 threads and 8 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   210.95us  117.20us  10.57ms   97.85%
+    Req/Sec     4.84k   101.85     6.04k    68.10%
+  Latency Distribution
+     50%  198.00us
+     75%  222.00us
+     90%  252.00us
+     99%  394.00us
+  11551741 requests in 5.00m, 2.79GB read
+Requests/sec:  38493.03
+Transfer/sec:      9.51MB
+----------------------------------------------------------------------
+
+--- rate-limit 10.0 --------------------------------------------------
+Running 5m test @ http://localhost:10080/index.html
+  8 threads and 8 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   206.15us  209.34us  31.73ms   99.27%
+    Req/Sec     4.99k   112.62     5.36k    71.21%
+  Latency Distribution
+     50%  193.00us
+     75%  210.00us
+     90%  237.00us
+     99%  387.00us
+  11924489 requests in 5.00m, 2.88GB read
+Requests/sec:  39735.09
+Transfer/sec:      9.81MB
+----------------------------------------------------------------------
+
+--- rate-limit 2.5 --------------------------------------------------
+Running 5m test @ http://localhost:10080/index.html
+  8 threads and 8 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   202.35us  180.56us  27.28ms   99.10%
+    Req/Sec     5.08k   145.06     8.27k    71.24%
+  Latency Distribution
+     50%  191.00us
+     75%  205.00us
+     90%  223.00us
+     99%  374.00us
+  12131047 requests in 5.00m, 2.93GB read
+Requests/sec:  40423.43
+Transfer/sec:      9.98MB
+----------------------------------------------------------------------
+
+--- rate-limit 0.0 --------------------------------------------------
+Running 5m test @ http://localhost:10080/index.html
+  8 threads and 8 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   200.88us  223.19us  32.70ms   99.44%
+    Req/Sec     5.13k   151.03     6.55k    69.46%
+  Latency Distribution
+     50%  190.00us
+     75%  203.00us
+     90%  218.00us
+     99%  367.00us
+  12256706 requests in 5.00m, 2.96GB read
+Requests/sec:  40842.16
+Transfer/sec:     10.09MB
+----------------------------------------------------------------------
+
+--- rate-limit disabled --------------------------------------------------
+Running 5m test @ http://localhost:10080/index.html
+  8 threads and 8 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   194.91us  222.55us  33.80ms   99.47%
+    Req/Sec     5.29k   167.52     5.95k    68.32%
+  Latency Distribution
+     50%  184.00us
+     75%  197.00us
+     90%  214.00us
+     99%  353.00us
+  12633928 requests in 5.00m, 3.05GB read
+Requests/sec:  42112.54
+Transfer/sec:     10.40MB
+----------------------------------------------------------------------
+
+--- rate-limit off --------------------------------------------------
+Running 5m test @ http://localhost:10080/index.html
+  8 threads and 8 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   194.37us  166.76us  28.75ms   99.09%
+    Req/Sec     5.28k   160.02     5.86k    68.02%
+  Latency Distribution
+     50%  184.00us
+     75%  197.00us
+     90%  214.00us
+     99%  355.00us
+  12622896 requests in 5.00m, 3.04GB read
+Requests/sec:  42062.31
+Transfer/sec:     10.39MB
+----------------------------------------------------------------------
+

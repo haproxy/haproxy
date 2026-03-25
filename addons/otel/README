@@ -20,6 +20,7 @@ SUMMARY
   4.3.    "otel-scope" section
   4.4.    "otel-group" section
   5.    Examples
+  5.1.    Benchmarking results
   6.    OTel CLI
   7.    Known bugs and limitations
 
@@ -53,6 +54,12 @@ documentation, more precisely in the doc/internals/filters.txt file).
 The OTel filter activation is done explicitly by specifying it in the HAProxy
 configuration.  If this is not done, the OTel filter in no way participates in
 the work of HAProxy.
+
+As for the impact on HAProxy speed, this is documented with test results located
+in the test directory (see section 5.1).  The speed of operation depends on the
+way the filter is used and the complexity of the configuration.  In typical
+production use with a rate limit of 10% or less, the performance impact should
+be negligible (see the 'rate-limit' keyword).
 
 The OTel filter allows intensive use of ACLs, which can be defined anywhere in
 the configuration.  Thus, it is possible to use the filter only for those
@@ -1080,6 +1087,43 @@ one of the pre-configured scripts:
   % ./run-ctx.sh
   % ./run-cmp.sh
   % ./run-fe-be.sh
+
+
+5.1. Benchmarking results
+--------------------------
+
+To check the performance impact of the OTel filter, test configurations located
+in the test directory have been benchmarked.  The test results (with the names
+README-speed-xxx, where xxx is the name of the configuration being tested) are
+also in the test directory.
+
+Testing was done with the wrk utility using 8 threads, 8 connections and a
+5-minute test duration.  Detailed results and methodology are documented in the
+test/README-test-speed file.
+
+Below is a summary of the 'sa' (standalone) configuration results, which uses
+all possible events and demonstrates the worst-case scenario:
+
+  ---------------------------------------------------------------
+   rate-limit     req/s     avg latency     overhead
+  ---------------------------------------------------------------
+      100.0%     38,202       213.08 us       21.6%
+       50.0%     42,777       190.49 us       12.2%
+       25.0%     45,302       180.46 us        7.0%
+       10.0%     46,879       174.69 us        3.7%
+        2.5%     47,993       170.58 us        1.4%
+     disabled    48,788       167.74 us          ~0
+     off         48,697       168.00 us      baseline
+  ---------------------------------------------------------------
+
+The 'off' baseline is measured with the 'filter opentelemetry' directive
+commented out, so the filter is not loaded at all.  The 'disabled' level has
+the filter loaded but disabled via 'option disabled', so the initialization
+overhead is included but no events are processed.
+
+As the table shows, with the rate limit set to 25% the overhead is about 7%.
+At 10% the overhead drops to 3.7%.  In typical production use with a rate limit
+of 10% or less, the performance impact should be negligible.
 
 
 6. OTel CLI
