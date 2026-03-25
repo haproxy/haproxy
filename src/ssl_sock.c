@@ -6957,9 +6957,30 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 		if (ctx->conn->xprt_ctx == ctx) {
 			int closed_connection = 0;
 
-			if (!ctx->conn->mux)
-				ret = conn_create_mux(ctx->conn, &closed_connection);
-			if (ret >= 0 && !woke && ctx->conn->mux && ctx->conn->mux->wake) {
+			if (!ctx->conn->mux) {
+				if (ctx->conn->flags & (CO_FL_QSTRM_RECV|CO_FL_QSTRM_SEND)) {
+					const struct xprt_ops *ops = xprt_get(XPRT_QSTRM);
+					void *xprt_ctx_hs = NULL;
+
+					ret = ops->init(conn, &xprt_ctx_hs);
+					BUG_ON(ret);
+
+					ret = ops->add_xprt(conn, xprt_ctx_hs,
+					  conn->xprt_ctx, conn->xprt, NULL, NULL);
+					BUG_ON(ret);
+
+					conn->xprt = ops;
+					conn->xprt_ctx = xprt_ctx_hs;
+
+
+					ret = conn->xprt->start(conn, xprt_ctx_hs);
+					BUG_ON(ret);
+				}
+				else
+					ret = conn_create_mux(ctx->conn, &closed_connection);
+			}
+
+			if (ret >= 0 && ctx->conn->mux && !woke && ctx->conn->mux && ctx->conn->mux->wake) {
 				ret = CALL_MUX_WITH_RET(ctx->conn->mux, wake(ctx->conn));
 				if (ret < 0)
 					closed_connection = 1;
