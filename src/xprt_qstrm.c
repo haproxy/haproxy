@@ -21,14 +21,71 @@ struct xprt_qstrm_ctx {
 
 DECLARE_STATIC_TYPED_POOL(xprt_qstrm_ctx_pool, "xprt_qstrm_ctx", struct xprt_qstrm_ctx);
 
+int conn_recv_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int flag)
+{
+	struct quic_frame frm;
+	const unsigned char *pos, *end;
+	int ret;
+
+	if (!conn_ctrl_ready(conn))
+		goto fail;
+
+	BUG_ON(conn->flags & CO_FL_FDLESS);
+
+	if (!fd_recv_ready(conn->handle.fd))
+		goto not_ready;
+
+	while (1) {
+		ret = ctx->ops_lower->rcv_buf(conn, ctx->ctx_lower, &trash, trash.size, NULL, 0, MSG_PEEK);
+		BUG_ON(conn->flags & CO_FL_ERROR); /* TODO handle fatal errors */
+		trash.data = ret;
+		break;
+	}
+
+	if (!trash.data)
+		goto not_ready;
+
+	pos = (unsigned char *)b_orig(&trash);
+	end = (unsigned char *)(b_orig(&trash) + b_data(&trash));
+	ret = qc_parse_frm_type(&frm, &pos, end, NULL);
+	BUG_ON(!ret); /* TODO handle a truncated frame, recv must be performed again. */
+
+	/* TODO close connection with TRANSPORT_PARAMETER_ERROR if frame not present. */
+	BUG_ON(frm.type != QUIC_FT_QX_TRANSPORT_PARAMETERS);
+
+	ret = qc_parse_frm_payload(&frm, &pos, end, NULL);
+	BUG_ON(!ret); /* TODO handle a truncated frame, recv must be performed again. */
+
+	ctx->rparams = frm.qmux_transport_params.params;
+
+	conn->flags &= ~flag;
+	return 1;
+
+ not_ready:
+	return 0;
+
+ fail:
+	conn->flags |= CO_FL_ERROR;
+	return 0;
+}
+
 struct task *xprt_qstrm_io_cb(struct task *t, void *context, unsigned int state)
 {
 	struct xprt_qstrm_ctx *ctx = context;
 	struct connection *conn = ctx->conn;
 	int ret;
 
+	if (conn->flags & CO_FL_QSTRM_RECV) {
+		if (!conn_recv_qstrm(conn, ctx, CO_FL_QSTRM_RECV)) {
+			ctx->ops_lower->subscribe(conn, ctx->ctx_lower,
+			                          SUB_RETRY_RECV, &ctx->wait_event);
+			goto out;
+		}
+	}
+
  out:
-	if (conn->flags & CO_FL_ERROR) {
+	if ((conn->flags & CO_FL_ERROR) ||
+	    !(conn->flags & CO_FL_QSTRM_RECV)) {
 		/* MUX will access members from xprt_ctx on init, so create
 		 * operation should be called before any members are resetted.
 		 */

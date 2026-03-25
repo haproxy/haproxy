@@ -130,7 +130,8 @@ enum {
 
 	CO_FL_OPT_TOS       = 0x00000020,  /* connection has a special sockopt tos */
 
-	/* unused : 0x00000040, 0x00000080 */
+	/* unused : 0x00000040 */
+	CO_FL_QSTRM_RECV    = 0x00000080,  /* connection uses QMux protocol, needs to exchange transport parameters before starting mux layer */
 
 	/* These flags indicate whether the Control and Transport layers are initialized */
 	CO_FL_CTRL_READY    = 0x00000100, /* FD was registered, fd_delete() needed */
