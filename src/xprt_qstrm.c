@@ -3,6 +3,7 @@
 #include <haproxy/connection.h>
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
+#include <haproxy/mux_quic.h>
 #include <haproxy/pool.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_tp-t.h>
@@ -69,11 +70,55 @@ int conn_recv_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int fla
 	return 0;
 }
 
+int conn_send_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int flag)
+{
+	struct quic_frame frm;
+	unsigned char *pos, *old, *end;
+	int ret;
+
+	if (!conn_ctrl_ready(conn))
+		goto fail;
+
+	frm.type = QUIC_FT_QX_TRANSPORT_PARAMETERS;
+	frm.qmux_transport_params.params.initial_max_streams_bidi = 100;
+	frm.qmux_transport_params.params.initial_max_streams_uni  = 3;
+	frm.qmux_transport_params.params.initial_max_stream_data_bidi_local = qmux_stream_rx_bufsz();
+	frm.qmux_transport_params.params.initial_max_stream_data_bidi_remote = qmux_stream_rx_bufsz();
+	frm.qmux_transport_params.params.initial_max_stream_data_uni = qmux_stream_rx_bufsz();
+
+	b_reset(&trash);
+	old = pos = (unsigned char *)b_head(&trash);
+	end = (unsigned char *)b_wrap(&trash);
+	ret = qc_build_frm(&frm, &pos, end, NULL);
+	BUG_ON(!ret);
+	b_add(&trash, pos - old);
+
+	ret = ctx->ops_lower->snd_buf(conn, ctx->ctx_lower, &trash, b_data(&trash),
+	                              NULL, 0, 0);
+	BUG_ON(!ret || ret != b_data(&trash));
+
+	conn->flags &= ~flag;
+
+	return 1;
+
+ fail:
+	conn->flags |= CO_FL_ERROR;
+	return 0;
+}
+
 struct task *xprt_qstrm_io_cb(struct task *t, void *context, unsigned int state)
 {
 	struct xprt_qstrm_ctx *ctx = context;
 	struct connection *conn = ctx->conn;
 	int ret;
+
+	if (conn->flags & CO_FL_QSTRM_SEND) {
+		if (!conn_send_qstrm(conn, ctx, CO_FL_QSTRM_SEND)) {
+			ctx->ops_lower->subscribe(conn, ctx->ctx_lower,
+			                          SUB_RETRY_SEND, &ctx->wait_event);
+			goto out;
+		}
+	}
 
 	if (conn->flags & CO_FL_QSTRM_RECV) {
 		if (!conn_recv_qstrm(conn, ctx, CO_FL_QSTRM_RECV)) {
@@ -85,7 +130,7 @@ struct task *xprt_qstrm_io_cb(struct task *t, void *context, unsigned int state)
 
  out:
 	if ((conn->flags & CO_FL_ERROR) ||
-	    !(conn->flags & CO_FL_QSTRM_RECV)) {
+	    !(conn->flags & (CO_FL_QSTRM_RECV|CO_FL_QSTRM_SEND))) {
 		/* MUX will access members from xprt_ctx on init, so create
 		 * operation should be called before any members are resetted.
 		 */
