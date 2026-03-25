@@ -103,11 +103,19 @@ static void xprt_qstrm_close(struct connection *conn, void *xprt_ctx)
 	ABORT_NOW();
 }
 
+static int xprt_qstrm_get_alpn(const struct connection *conn, void *xprt_ctx,
+                               const char **str, int *len)
+{
+	struct xprt_qstrm_ctx *ctx = xprt_ctx;
+	return ctx->ops_lower->get_alpn(conn, ctx->ctx_lower, str, len);
+}
+
 struct xprt_ops xprt_qstrm = {
 	.add_xprt  = xprt_qstrm_add_xprt,
 	.init      = xprt_qstrm_init,
 	.start     = xprt_qstrm_start,
 	.close     = xprt_qstrm_close,
+	.get_alpn  = xprt_qstrm_get_alpn,
 	.name      = "qstrm",
 };
 
