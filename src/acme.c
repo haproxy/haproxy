@@ -2731,6 +2731,9 @@ static int cli_acme_renew_parse(char **args, char *payload, struct appctx *appct
 	struct ckch_store *store = NULL;
 	char *errmsg = NULL;
 
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
 	if (!*args[2]) {
 		memprintf(&errmsg, ": not enough parameters\n");
 		goto err;
@@ -2769,6 +2772,9 @@ static int cli_acme_chall_ready_parse(char **args, char *payload, struct appctx 
 	int found = 0;
 	int remain = 0;
 	struct ebmb_node *node = NULL;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
 
 	if (!*args[2] || !*args[3] || !*args[4]) {
 		memprintf(&msg, "Not enough parameters: \"acme challenge_ready <certfile> domain <domain>\"\n");
@@ -2892,8 +2898,12 @@ end:
 	return 1;
 }
 
-static int cli_acme_ps(char **args, char *payload, struct appctx *appctx, void *private)
+static int cli_acme_parse_status(char **args, char *payload, struct appctx *appctx, void *private)
 {
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
 	return 0;
 }
 
@@ -2901,7 +2911,7 @@ static int cli_acme_ps(char **args, char *payload, struct appctx *appctx, void *
 
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "acme", "renew", NULL },           "acme renew <certfile>                   : renew a certificate using the ACME protocol", cli_acme_renew_parse, NULL, NULL, NULL, 0 },
-	{ { "acme", "status", NULL },          "acme status                             : show status of certificates configured with ACME", cli_acme_ps, cli_acme_status_io_handler, NULL, NULL, 0 },
+	{ { "acme", "status", NULL },          "acme status                             : show status of certificates configured with ACME", cli_acme_parse_status, cli_acme_status_io_handler, NULL, NULL, 0 },
 	{ { "acme", "challenge_ready", NULL }, "acme challenge_ready <certfile> domain <domain> : notify HAProxy that the ACME challenge is ready", cli_acme_chall_ready_parse, NULL, NULL, NULL, 0 },
 	{ { NULL }, NULL, NULL, NULL }
 }};
