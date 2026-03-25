@@ -1510,8 +1510,8 @@ static int cli_parse_update_ocsp_response(char **args, char *payload, struct app
 	unsigned char key[OCSP_MAX_CERTID_ASN1_LENGTH] = {};
 	unsigned char *p;
 
-	if ((appctx->cli_ctx.level & ACCESS_LVL_MASK) < ACCESS_LVL_ADMIN)
-		ha_warning("'%s %s %s' accessed without admin rights, this won't be supported anymore starting from haproxy 3.3\n", args[0], args[1], args[2]);
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
 
 	if (!*args[3]) {
 		memprintf(&err, "'update ssl ocsp-response' expects a filename\n");
@@ -1593,8 +1593,8 @@ static int cli_parse_set_ocspresponse(char **args, char *payload, struct appctx 
 	char *err = NULL;
 	int i, j, ret;
 
-	if ((appctx->cli_ctx.level & ACCESS_LVL_MASK) < ACCESS_LVL_ADMIN)
-		ha_warning("'%s %s %s' accessed without admin rights, this won't be supported anymore starting from haproxy 3.3\n", args[0], args[1], args[2]);
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
 
 	if (!payload)
 		payload = args[3];
@@ -1639,8 +1639,8 @@ static int cli_parse_show_ocspresponse(char **args, char *payload, struct appctx
 	struct show_ocspresp_cli_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	int arg_idx = 3;
 
-	if ((appctx->cli_ctx.level & ACCESS_LVL_MASK) < ACCESS_LVL_ADMIN)
-		ha_warning("'%s %s %s' accessed without admin rights, this won't be supported anymore starting from haproxy 3.3\n", args[0], args[1], args[2]);
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
 
 	if (*args[3]) {
 		struct certificate_ocsp *ocsp = NULL;
@@ -1825,8 +1825,8 @@ static int cli_parse_show_ocsp_updates(char **args, char *payload, struct appctx
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 	struct show_ocsp_updates_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 
-	if ((appctx->cli_ctx.level & ACCESS_LVL_MASK) < ACCESS_LVL_ADMIN)
-		ha_warning("'%s %s %s' accessed without admin rights, this won't be supported anymore starting from haproxy 3.3\n", args[0], args[1], args[2]);
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
 
 	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
 
