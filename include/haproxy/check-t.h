@@ -155,7 +155,7 @@ enum {
 };
 
 struct tcpcheck_rule;
-struct tcpcheck_rules;
+struct tcpcheck;
 
 struct check {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_CHECK */
@@ -174,7 +174,7 @@ struct check {
 	signed char use_ssl;			/* use SSL for health checks (1: on, 0: server mode, -1: off) */
 	int send_proxy;				/* send a PROXY protocol header with checks */
 	int reuse_pool;				/* try to reuse idle connections */
-	struct tcpcheck_rules *tcpcheck_rules;	/* tcp-check send / expect rules */
+	struct tcpcheck *tcpcheck;               /* tcp-check to use to perform a health-check */
 	struct tcpcheck_rule *current_step;     /* current step when using tcpcheck */
 	int inter, fastinter, downinter;        /* checks: time in milliseconds */
 	enum chk_result result;                 /* health-check result : CHK_RES_* */

@@ -36,7 +36,7 @@ extern struct action_kw_list tcp_check_keywords;
 extern struct pool_head *pool_head_tcpcheck_rule;
 
 int tcpcheck_get_step_id(const struct check *check, const struct tcpcheck_rule *rule);
-struct tcpcheck_rule *get_first_tcpcheck_rule(const struct tcpcheck_rules *rules);
+struct tcpcheck_rule *get_first_tcpcheck_rule(const struct tcpcheck_ruleset *rs);
 
 struct tcpcheck_ruleset *create_tcpcheck_ruleset(const char *name);
 struct tcpcheck_ruleset *find_tcpcheck_ruleset(const char *name);
@@ -50,9 +50,9 @@ void free_tcpcheck_var(struct tcpcheck_var *var);
 int dup_tcpcheck_vars(struct list *dst, const struct list *src);
 void free_tcpcheck_vars(struct list *vars);
 
-int add_tcpcheck_expect_str(struct tcpcheck_rules *rules, const char *str);
-int add_tcpcheck_send_strs(struct tcpcheck_rules *rules, const char * const *strs);
-int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_rules *rules, char **errmsg);
+int add_tcpcheck_expect_str(struct tcpcheck_ruleset *rs, const char *str);
+int add_tcpcheck_send_strs(struct tcpcheck_ruleset *rs, const char * const *strs);
+int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_ruleset *rs, char **errmsg);
 
 void free_tcpcheck_http_hdr(struct tcpcheck_http_hdr *hdr);
 

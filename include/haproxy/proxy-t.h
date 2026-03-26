@@ -445,7 +445,7 @@ struct proxy {
 	struct stktable *table;			/* table for storing sticking streams */
 
 	struct task *task;			/* the associated task, mandatory to manage rate limiting, stopping and resource shortage, NULL if disabled */
-	struct tcpcheck_rules tcpcheck_rules;   /* tcp-check send / expect rules */
+	struct tcpcheck tcpcheck;               /* tcp-check to use to perform a health-check */
 	char *check_command;			/* Command to use for external agent checks */
 	char *check_path;			/* PATH environment to use for external agent checks */
 	struct http_reply *replies[HTTP_ERR_SIZE]; /* HTTP replies for known errors */

@@ -312,7 +312,7 @@ struct tcpcheck_ruleset *create_tcpcheck_ruleset(const char *name)
 		free(rs);
 		return NULL;
 	}
-
+	rs->flags = 0;
 	LIST_INIT(&rs->rules);
 	ebis_insert(&shared_tcpchecks, &rs->node);
 	return rs;
@@ -361,11 +361,11 @@ int tcpcheck_get_step_id(const struct check *check, const struct tcpcheck_rule *
 /* Returns the first non COMMENT/ACTION_KW tcp-check rule from list <list> or
  * NULL if none was found.
  */
-struct tcpcheck_rule *get_first_tcpcheck_rule(const struct tcpcheck_rules *rules)
+struct tcpcheck_rule *get_first_tcpcheck_rule(const struct tcpcheck_ruleset *rs)
 {
 	struct tcpcheck_rule *r;
 
-	list_for_each_entry(r, rules->list, list) {
+	list_for_each_entry(r, &rs->rules, list) {
 		if (r->action != TCPCHK_ACT_COMMENT && r->action != TCPCHK_ACT_ACTION_KW)
 			return r;
 	}
@@ -375,11 +375,11 @@ struct tcpcheck_rule *get_first_tcpcheck_rule(const struct tcpcheck_rules *rules
 /* Returns the last non COMMENT/ACTION_KW tcp-check rule from list <list> or
  * NULL if none was found.
  */
-static struct tcpcheck_rule *get_last_tcpcheck_rule(struct tcpcheck_rules *rules)
+static struct tcpcheck_rule *get_last_tcpcheck_rule(struct tcpcheck_ruleset *rs)
 {
 	struct tcpcheck_rule *r;
 
-	list_for_each_entry_rev(r, rules->list, list) {
+	list_for_each_entry_rev(r, &rs->rules, list) {
 		if (r->action != TCPCHK_ACT_COMMENT && r->action != TCPCHK_ACT_ACTION_KW)
 			return r;
 	}
@@ -390,15 +390,15 @@ static struct tcpcheck_rule *get_last_tcpcheck_rule(struct tcpcheck_rules *rules
  * <start> or NULL if non was found. If <start> is NULL, it relies on
  * get_first_tcpcheck_rule().
  */
-static struct tcpcheck_rule *get_next_tcpcheck_rule(struct tcpcheck_rules *rules, struct tcpcheck_rule *start)
+static struct tcpcheck_rule *get_next_tcpcheck_rule(struct tcpcheck_ruleset *rs, struct tcpcheck_rule *start)
 {
 	struct tcpcheck_rule *r;
 
 	if (!start)
-		return get_first_tcpcheck_rule(rules);
+		return get_first_tcpcheck_rule(rs);
 
 	r = LIST_NEXT(&start->list, typeof(r), list);
-	list_for_each_entry_from(r, rules->list, list) {
+	list_for_each_entry_from(r, &rs->rules, list) {
 		if (r->action != TCPCHK_ACT_COMMENT && r->action != TCPCHK_ACT_ACTION_KW)
 			return r;
 	}
@@ -438,7 +438,7 @@ static void tcpcheck_expect_onerror_message(struct buffer *msg, struct check *ch
 	}
 
 	if (check->type == PR_O2_TCPCHK_CHK &&
-	    (check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) != TCPCHK_RULES_TCP_CHK) {
+	    (check->tcpcheck->rs->flags & TCPCHK_RULES_PROTO_CHK) != TCPCHK_RULES_TCP_CHK) {
 		goto comment;
 	}
 
@@ -523,7 +523,7 @@ static void tcpcheck_expect_onsuccess_message(struct buffer *msg, struct check *
 		msg->data += sess_build_logline(check->sess, NULL, b_tail(msg), b_room(msg),
 						&rule->expect.onsuccess_fmt);
 	else if (check->type == PR_O2_TCPCHK_CHK &&
-		 (check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_TCP_CHK)
+		 (check->tcpcheck->rs->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_TCP_CHK)
 		chunk_strcat(msg, "(tcp-check)");
 
 	/* Finally, the check status code is set if the expect rule defines a
@@ -589,7 +589,7 @@ static enum tcpcheck_eval_ret tcpcheck_mysql_expect_packet(struct check *check, 
 		goto error;
 	}
 
-	if (get_next_tcpcheck_rule(check->tcpcheck_rules, rule) != NULL) {
+	if (get_next_tcpcheck_rule(check->tcpcheck->rs, rule) != NULL) {
 		/* Not the last rule, continue */
 		goto out;
 	}
@@ -1287,9 +1287,9 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 
 	TRACE_ENTER(CHK_EV_TCPCHK_CONN, check);
 
-	check_type = check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK;
+	check_type = check->tcpcheck->rs->flags & TCPCHK_RULES_PROTO_CHK;
 
-	next = get_next_tcpcheck_rule(check->tcpcheck_rules, rule);
+	next = get_next_tcpcheck_rule(check->tcpcheck->rs, rule);
 
 	/* current connection already created, check if it is established or not */
 	if (conn) {
@@ -1567,7 +1567,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && check->mux_proto)
 			mux_ops = check->mux_proto->mux;
 		else {
-			int mode = tcpchk_rules_type_to_proto_mode(check->tcpcheck_rules->flags);
+			int mode = tcpchk_rules_type_to_proto_mode(check->tcpcheck->rs->flags);
 
 			mux_ops = conn_get_best_mux(conn, IST_NULL, PROTO_SIDE_BE, mode);
 		}
@@ -2505,10 +2505,10 @@ int tcpcheck_main(struct check *check)
 			goto out_end_tcpcheck;
 		}
 		vars_init_head(&check->vars, SCOPE_CHECK);
-		rule = LIST_NEXT(check->tcpcheck_rules->list, typeof(rule), list);
+		rule = LIST_NEXT(&check->tcpcheck->rs->rules, typeof(rule), list);
 
 		/* Preset tcp-check variables */
-		list_for_each_entry(var, &check->tcpcheck_rules->preset_vars, list) {
+		list_for_each_entry(var, &check->tcpcheck->preset_vars, list) {
 			struct sample smp;
 
 			memset(&smp, 0, sizeof(smp));
@@ -2521,7 +2521,7 @@ int tcpcheck_main(struct check *check)
 
 	/* Now evaluate the tcp-check rules */
 
-	list_for_each_entry_from(rule, check->tcpcheck_rules->list, list) {
+	list_for_each_entry_from(rule, &check->tcpcheck->rs->rules, list) {
 		check->code = 0;
 		switch (rule->action) {
 		case TCPCHK_ACT_CONNECT:
@@ -2567,7 +2567,7 @@ int tcpcheck_main(struct check *check)
 				must_read = 0;
 			}
 
-			eval_ret = ((check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK
+			eval_ret = ((check->tcpcheck->rs->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK
 				    ? tcpcheck_eval_expect_http(check, rule, last_read)
 				    : tcpcheck_eval_expect(check, rule, last_read));
 
@@ -3903,7 +3903,7 @@ void tcpcheck_overwrite_send_http_rule(struct tcpcheck_rule *old, struct tcpchec
  * returns 1 on success and 0 on error and <errmsg> is filled with the error
  * message.
  */
-int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_rules *rules, char **errmsg)
+int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_ruleset *rs, char **errmsg)
 {
 	struct tcpcheck_rule *r;
 
@@ -3929,15 +3929,15 @@ int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_rules *rul
 		 *     both, overwriting the old send rule (the explicit one) with info of the
 		 *     new send rule (the implicit one).
 		 */
-		r = get_first_tcpcheck_rule(rules);
+		r = get_first_tcpcheck_rule(rs);
 		if (r && r->action == TCPCHK_ACT_CONNECT)
-			r = get_next_tcpcheck_rule(rules, r);
+			r = get_next_tcpcheck_rule(rs, r);
 		if (!r || r->action != TCPCHK_ACT_SEND)
-			LIST_INSERT(rules->list, &chk->list);
+			LIST_INSERT(&rs->rules, &chk->list);
 		else if (r->send.http.flags & TCPCHK_SND_HTTP_FROM_OPT) {
 			LIST_DELETE(&r->list);
 			free_tcpcheck(r, 0);
-			LIST_INSERT(rules->list, &chk->list);
+			LIST_INSERT(&rs->rules, &chk->list);
 		}
 		else {
 			tcpcheck_overwrite_send_http_rule(r, chk);
@@ -3951,7 +3951,7 @@ int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_rules *rul
 		 * the rule is appended to the list.
 		 */
 
-		r = get_last_tcpcheck_rule(rules);
+		r = get_last_tcpcheck_rule(rs);
 		if (!r || (r->action == TCPCHK_ACT_SEND && (r->send.http.flags & TCPCHK_SND_HTTP_FROM_OPT)))
 			/* no error */;
 		else if (r->action != TCPCHK_ACT_CONNECT && chk->action == TCPCHK_ACT_SEND) {
@@ -3971,7 +3971,7 @@ int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_rules *rul
 		}
 
 		if (chk->action == TCPCHK_ACT_SEND) {
-			r = get_first_tcpcheck_rule(rules);
+			r = get_first_tcpcheck_rule(rs);
 			if (r && r->action == TCPCHK_ACT_SEND && (r->send.http.flags & TCPCHK_SND_HTTP_FROM_OPT)) {
 				tcpcheck_overwrite_send_http_rule(r, chk);
 				free_tcpcheck(chk, 0);
@@ -3980,7 +3980,7 @@ int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_rules *rul
 				chk = r;
 			}
 		}
-		LIST_APPEND(rules->list, &chk->list);
+		LIST_APPEND(&rs->rules, &chk->list);
 	}
 	return 1;
 }
@@ -4001,23 +4001,23 @@ static int check_proxy_tcpcheck(struct proxy *px)
 	ha_free(&px->check_command);
 	ha_free(&px->check_path);
 
-	if (!px->tcpcheck_rules.list) {
+	if (!px->tcpcheck.rs) {
 		ha_alert("proxy '%s' : tcp-check configured but no ruleset defined.\n", px->id);
 		ret |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
 
 	/* HTTP ruleset only :  */
-	if ((px->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK) {
+	if ((px->tcpcheck.rs->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK) {
 		struct tcpcheck_rule *next;
 
 		/* move remaining implicit send rule from "option httpchk" line to the right place.
 		 * If such rule exists, it must be the first one. In this case, the rule is moved
 		 * after the first connect rule, if any. Otherwise, nothing is done.
 		 */
-		chk = get_first_tcpcheck_rule(&px->tcpcheck_rules);
+		chk = get_first_tcpcheck_rule(px->tcpcheck.rs);
 		if (chk && chk->action == TCPCHK_ACT_SEND && (chk->send.http.flags & TCPCHK_SND_HTTP_FROM_OPT)) {
-			next = get_next_tcpcheck_rule(&px->tcpcheck_rules, chk);
+			next = get_next_tcpcheck_rule(px->tcpcheck.rs, chk);
 			if (next && next->action == TCPCHK_ACT_CONNECT) {
 				LIST_DELETE(&chk->list);
 				LIST_INSERT(&next->list, &chk->list);
@@ -4029,10 +4029,10 @@ static int check_proxy_tcpcheck(struct proxy *px)
 		 * versions where the http expect rule was optional. Now it is possible to chained
 		 * send/expect rules but the last expect may still be implicit.
 		 */
-		chk = get_last_tcpcheck_rule(&px->tcpcheck_rules);
+		chk = get_last_tcpcheck_rule(px->tcpcheck.rs);
 		if (chk && chk->action == TCPCHK_ACT_SEND) {
 			next = parse_tcpcheck_expect((char *[]){"http-check", "expect", "status", "200-399", ""},
-						     1, px, px->tcpcheck_rules.list, TCPCHK_RULES_HTTP_CHK,
+						     1, px, &px->tcpcheck.rs->rules, TCPCHK_RULES_HTTP_CHK,
 						     px->conf.file, px->conf.line, &errmsg);
 			if (!next) {
 				ha_alert("proxy '%s': unable to add implicit http-check expect rule "
@@ -4041,7 +4041,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 				ret |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-			LIST_APPEND(px->tcpcheck_rules.list, &next->list);
+			LIST_APPEND(&px->tcpcheck.rs->rules, &next->list);
 			next->index = chk->index + 1;
 		}
 	}
@@ -4051,7 +4051,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 	/* If there is no connect rule preceding all send / expect rules, an
 	 * implicit one is inserted before all others.
 	 */
-	chk = get_first_tcpcheck_rule(&px->tcpcheck_rules);
+	chk = get_first_tcpcheck_rule(px->tcpcheck.rs);
 	if (!chk || chk->action != TCPCHK_ACT_CONNECT) {
 		chk = calloc(1, sizeof(*chk));
 		if (!chk) {
@@ -4062,17 +4062,17 @@ static int check_proxy_tcpcheck(struct proxy *px)
 		}
 		chk->action = TCPCHK_ACT_CONNECT;
 		chk->connect.options = (TCPCHK_OPT_DEFAULT_CONNECT|TCPCHK_OPT_IMPLICIT);
-		LIST_INSERT(px->tcpcheck_rules.list, &chk->list);
+		LIST_INSERT(&px->tcpcheck.rs->rules, &chk->list);
 	}
 
 	/* Now, back again on HTTP ruleset. Try to resolve the sni log-format
 	 * string if necessary, but onlu for implicit connect rules, by getting
 	 * it from the following send rule.
 	 */
-	if ((px->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK) {
+	if ((px->tcpcheck.rs->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK) {
 		struct tcpcheck_connect *connect = NULL;
 
-		list_for_each_entry(chk, px->tcpcheck_rules.list, list) {
+		list_for_each_entry(chk, &px->tcpcheck.rs->rules, list) {
 			if (chk->action == TCPCHK_ACT_CONNECT && !chk->connect.sni &&
 			    (chk->connect.options & TCPCHK_OPT_IMPLICIT)) {
 				/* Only eval connect rule with no explici SNI */
@@ -4091,12 +4091,12 @@ static int check_proxy_tcpcheck(struct proxy *px)
 	}
 
 	/* Allow small buffer use by default. All send rules must be compatible */
-	px->tcpcheck_rules.flags |= (global.tune.bufsize_small ? TCPCHK_RULES_MAY_USE_SBUF : 0);
+	px->tcpcheck.rs->flags |= (global.tune.bufsize_small ? TCPCHK_RULES_MAY_USE_SBUF : 0);
 
 	/* Remove all comment rules. To do so, when a such rule is found, the
 	 * comment is assigned to the following rule(s).
 	 */
-	list_for_each_entry_safe(chk, back, px->tcpcheck_rules.list, list) {
+	list_for_each_entry_safe(chk, back, &px->tcpcheck.rs->rules, list) {
 		struct tcpcheck_rule *next;
 
 		if (chk->action != prev_action && prev_action != TCPCHK_ACT_COMMENT)
@@ -4113,7 +4113,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 		case TCPCHK_ACT_CONNECT:
 			if (!chk->comment && comment)
 				chk->comment = strdup(comment);
-			next = get_next_tcpcheck_rule(&px->tcpcheck_rules, chk);
+			next = get_next_tcpcheck_rule(px->tcpcheck.rs, chk);
 			if (next && next->action == TCPCHK_ACT_SEND)
 				chk->connect.options |= TCPCHK_OPT_HAS_DATA;
 			__fallthrough;
@@ -4126,16 +4126,16 @@ static int check_proxy_tcpcheck(struct proxy *px)
 			case TCPCHK_SEND_STRING:
 			case TCPCHK_SEND_BINARY:
 				if (istlen(chk->send.data) >= global.tune.bufsize_small)
-					px->tcpcheck_rules.flags &= ~TCPCHK_RULES_MAY_USE_SBUF;
+					px->tcpcheck.rs->flags &= ~TCPCHK_RULES_MAY_USE_SBUF;
 				break;
 			case TCPCHK_SEND_STRING_LF:
 			case TCPCHK_SEND_BINARY_LF:
-				px->tcpcheck_rules.flags &= ~TCPCHK_RULES_MAY_USE_SBUF;
+				px->tcpcheck.rs->flags &= ~TCPCHK_RULES_MAY_USE_SBUF;
 				break;
 			case TCPCHK_SEND_HTTP:
 				if ((chk->send.http.flags & TCPCHK_SND_HTTP_FL_BODY_FMT) ||
 				    (istlen(chk->send.http.body) >= global.tune.bufsize_small))
-					px->tcpcheck_rules.flags &= ~TCPCHK_RULES_MAY_USE_SBUF;
+					px->tcpcheck.rs->flags &= ~TCPCHK_RULES_MAY_USE_SBUF;
 			default:
 				break;
 			}
@@ -4154,9 +4154,9 @@ static int check_proxy_tcpcheck(struct proxy *px)
 
 void deinit_proxy_tcpcheck(struct proxy *px)
 {
-	free_tcpcheck_vars(&px->tcpcheck_rules.preset_vars);
-	px->tcpcheck_rules.flags = 0;
-	px->tcpcheck_rules.list  = NULL;
+	free_tcpcheck_vars(&px->tcpcheck.preset_vars);
+	px->tcpcheck.flags = 0;
+	px->tcpcheck.rs = NULL;
 }
 
 static void deinit_tcpchecks()
@@ -4180,7 +4180,7 @@ static void deinit_tcpchecks()
 	}
 }
 
-int add_tcpcheck_expect_str(struct tcpcheck_rules *rules, const char *str)
+int add_tcpcheck_expect_str(struct tcpcheck_ruleset *rs, const char *str)
 {
 	struct tcpcheck_rule *tcpcheck, *prev_check;
 	struct tcpcheck_expect *expect;
@@ -4206,7 +4206,7 @@ int add_tcpcheck_expect_str(struct tcpcheck_rules *rules, const char *str)
 	 * in a chain of one or more expect rule, potentially itself.
 	 */
 	tcpcheck->expect.head = tcpcheck;
-	list_for_each_entry_rev(prev_check, rules->list, list) {
+	list_for_each_entry_rev(prev_check, &rs->rules, list) {
 		if (prev_check->action == TCPCHK_ACT_EXPECT) {
 			if (prev_check->expect.flags & TCPCHK_EXPT_FL_INV)
 				tcpcheck->expect.head = prev_check;
@@ -4215,11 +4215,11 @@ int add_tcpcheck_expect_str(struct tcpcheck_rules *rules, const char *str)
 		if (prev_check->action != TCPCHK_ACT_COMMENT && prev_check->action != TCPCHK_ACT_ACTION_KW)
 			break;
 	}
-	LIST_APPEND(rules->list, &tcpcheck->list);
+	LIST_APPEND(&rs->rules, &tcpcheck->list);
 	return 1;
 }
 
-int add_tcpcheck_send_strs(struct tcpcheck_rules *rules, const char * const *strs)
+int add_tcpcheck_send_strs(struct tcpcheck_ruleset *rs, const char * const *strs)
 {
 	struct tcpcheck_rule *tcpcheck;
 	struct tcpcheck_send *send;
@@ -4248,7 +4248,7 @@ int add_tcpcheck_send_strs(struct tcpcheck_rules *rules, const char * const *str
 		for (in = strs[i]; (*dst = *in++); dst++);
 	*dst = 0;
 
-	LIST_APPEND(rules->list, &tcpcheck->list);
+	LIST_APPEND(&rs->rules, &tcpcheck->list);
 	return 1;
 }
 
@@ -4276,6 +4276,7 @@ int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 			memprintf(errmsg, "out of memory.\n");
 			goto error;
 		}
+		rs->flags |= TCPCHK_RULES_TCP_CHK;
 	}
 
 	index = 0;
@@ -4319,14 +4320,14 @@ int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 	LIST_APPEND(&rs->rules, &chk->list);
 
 	if ((curpx->options2 & PR_O2_CHK_ANY) == PR_O2_TCPCHK_CHK &&
-	    (curpx->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_TCP_CHK) {
+	    (curpx->tcpcheck.rs->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_TCP_CHK) {
 		/* Use this ruleset if the proxy already has tcp-check enabled */
-		curpx->tcpcheck_rules.list = &rs->rules;
-		curpx->tcpcheck_rules.flags &= ~TCPCHK_RULES_UNUSED_TCP_RS;
+		curpx->tcpcheck.rs = rs;
+		curpx->tcpcheck.flags &= ~TCPCHK_FL_UNUSED_TCP_RS;
 	}
 	else {
 		/* mark this ruleset as unused for now */
-		curpx->tcpcheck_rules.flags |= TCPCHK_RULES_UNUSED_TCP_RS;
+		curpx->tcpcheck.flags |= TCPCHK_FL_UNUSED_TCP_RS;
 	}
 
 	return ret;
@@ -4377,6 +4378,7 @@ static int proxy_parse_httpcheck(char **args, int section, struct proxy *curpx,
 			memprintf(errmsg, "out of memory.\n");
 			goto error;
 		}
+		rs->flags |= TCPCHK_RULES_HTTP_CHK;
 	}
 
 	index = 0;
@@ -4417,19 +4419,19 @@ static int proxy_parse_httpcheck(char **args, int section, struct proxy *curpx,
 
 	chk->index = index;
 	if ((curpx->options2 & PR_O2_CHK_ANY) == PR_O2_TCPCHK_CHK &&
-	    (curpx->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK) {
+	    (curpx->tcpcheck.rs->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK) {
 		/* Use this ruleset if the proxy already has http-check enabled */
-		curpx->tcpcheck_rules.list = &rs->rules;
-		curpx->tcpcheck_rules.flags &= ~TCPCHK_RULES_UNUSED_HTTP_RS;
-		if (!tcpcheck_add_http_rule(chk, &curpx->tcpcheck_rules, errmsg)) {
+		curpx->tcpcheck.rs = rs;
+		curpx->tcpcheck.flags &= ~TCPCHK_FL_UNUSED_HTTP_RS;
+		if (!tcpcheck_add_http_rule(chk, curpx->tcpcheck.rs, errmsg)) {
 			memprintf(errmsg, "'%s %s' : %s.", args[0], args[1], *errmsg);
-			curpx->tcpcheck_rules.list = NULL;
+			curpx->tcpcheck.rs = NULL;
 			goto error;
 		}
 	}
 	else {
 		/* mark this ruleset as unused for now */
-		curpx->tcpcheck_rules.flags |= TCPCHK_RULES_UNUSED_HTTP_RS;
+		curpx->tcpcheck.flags |= TCPCHK_FL_UNUSED_HTTP_RS;
 		LIST_APPEND(&rs->rules, &chk->list);
 	}
 
@@ -4450,7 +4452,7 @@ int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 	static char *redis_res = "+PONG\r\n";
 
 	struct tcpcheck_ruleset *rs = NULL;
-	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
+	struct tcpcheck *tc = &curpx->tcpcheck;
 	struct tcpcheck_rule *chk;
 	char *errmsg = NULL;
 	int err_code = 0;
@@ -4464,9 +4466,8 @@ int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 	curpx->options2 &= ~PR_O2_CHK_ANY;
 	curpx->options2 |= PR_O2_TCPCHK_CHK;
 
-	free_tcpcheck_vars(&rules->preset_vars);
-	rules->list  = NULL;
-	rules->flags = 0;
+	free_tcpcheck_vars(&tc->preset_vars);
+	tc->rs = NULL;
 
 	rs = find_tcpcheck_ruleset("*redis-check");
 	if (rs)
@@ -4477,6 +4478,7 @@ int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
 		goto error;
 	}
+	rs->flags |= TCPCHK_RULES_REDIS_CHK;
 
 	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send", redis_req, ""},
 				  1, curpx, &rs->rules, file, line, &errmsg);
@@ -4501,9 +4503,7 @@ int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 	LIST_APPEND(&rs->rules, &chk->list);
 
   ruleset_found:
-	rules->list = &rs->rules;
-	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
-	rules->flags |= TCPCHK_RULES_REDIS_CHK;
+	tc->rs = rs;
 
   out:
 	free(errmsg);
@@ -4551,7 +4551,7 @@ int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx,
 	};
 
 	struct tcpcheck_ruleset *rs = NULL;
-	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
+	struct tcpcheck *tc = &curpx->tcpcheck;
 	struct tcpcheck_rule *chk;
 	char *errmsg = NULL;
 	int err_code = 0;
@@ -4565,9 +4565,8 @@ int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx,
 	curpx->options2 &= ~PR_O2_CHK_ANY;
 	curpx->options2 |= PR_O2_TCPCHK_CHK;
 
-	free_tcpcheck_vars(&rules->preset_vars);
-	rules->list  = NULL;
-	rules->flags = 0;
+	free_tcpcheck_vars(&tc->preset_vars);
+	tc->rs = NULL;
 
 	rs = find_tcpcheck_ruleset("*ssl-hello-check");
 	if (rs)
@@ -4578,6 +4577,7 @@ int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx,
 		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
 		goto error;
 	}
+	rs->flags |= TCPCHK_RULES_SSL3_CHK;
 
 	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-binary-lf", sslv3_client_hello, ""},
 				  1, curpx, &rs->rules, file, line, &errmsg);
@@ -4601,9 +4601,7 @@ int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx,
 	LIST_APPEND(&rs->rules, &chk->list);
 
   ruleset_found:
-	rules->list = &rs->rules;
-	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
-	rules->flags |= TCPCHK_RULES_SSL3_CHK;
+	tc->rs = rs;
 
   out:
 	free(errmsg);
@@ -4622,7 +4620,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 	static char *smtp_req = "%[var(check.smtp_cmd)]\r\n";
 
 	struct tcpcheck_ruleset *rs = NULL;
-	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
+	struct tcpcheck *tc = &curpx->tcpcheck;
 	struct tcpcheck_rule *chk;
 	struct tcpcheck_var *var = NULL;
 	char *cmd = NULL, *errmsg = NULL;
@@ -4637,9 +4635,8 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 	curpx->options2 &= ~PR_O2_CHK_ANY;
 	curpx->options2 |= PR_O2_TCPCHK_CHK;
 
-	free_tcpcheck_vars(&rules->preset_vars);
-	rules->list  = NULL;
-	rules->flags = 0;
+	free_tcpcheck_vars(&tc->preset_vars);
+	tc->rs  = NULL;
 
 	cur_arg += 2;
 	if (*args[cur_arg] && *args[cur_arg+1] &&
@@ -4665,7 +4662,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 	var->data.u.str.area = cmd;
 	var->data.u.str.data = strlen(cmd);
 	LIST_INIT(&var->list);
-	LIST_APPEND(&rules->preset_vars, &var->list);
+	LIST_APPEND(&tc->preset_vars, &var->list);
 	cmd = NULL;
 	var = NULL;
 
@@ -4678,6 +4675,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
 		goto error;
 	}
+	rs->flags |= TCPCHK_RULES_SMTP_CHK;
 
 	chk = parse_tcpcheck_connect((char *[]){"tcp-check", "connect", "default", "linger", ""},
 				     1, curpx, &rs->rules, file, line, &errmsg);
@@ -4765,9 +4763,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
         LIST_APPEND(&rs->rules, &chk->list);
 
   ruleset_found:
-	rules->list = &rs->rules;
-	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
-	rules->flags |= TCPCHK_RULES_SMTP_CHK;
+	tc->rs = rs;
 
   out:
 	free(errmsg);
@@ -4776,7 +4772,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
   error:
 	free(cmd);
 	free(var);
-	free_tcpcheck_vars(&rules->preset_vars);
+	free_tcpcheck_vars(&tc->preset_vars);
 	free_tcpcheck_ruleset(rs);
 	err_code |= ERR_ALERT | ERR_FATAL;
 	goto out;
@@ -4795,7 +4791,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 	};
 
 	struct tcpcheck_ruleset *rs = NULL;
-	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
+	struct tcpcheck *tc = &curpx->tcpcheck;
 	struct tcpcheck_rule *chk;
 	struct tcpcheck_var *var = NULL;
 	char *user = NULL, *errmsg = NULL;
@@ -4811,9 +4807,8 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 	curpx->options2 &= ~PR_O2_CHK_ANY;
 	curpx->options2 |= PR_O2_TCPCHK_CHK;
 
-	free_tcpcheck_vars(&rules->preset_vars);
-	rules->list  = NULL;
-	rules->flags = 0;
+	free_tcpcheck_vars(&tc->preset_vars);
+	tc->rs  = NULL;
 
 	cur_arg += 2;
 	if (!*args[cur_arg] || !*args[cur_arg+1]) {
@@ -4834,7 +4829,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		var->data.u.str.area = user;
 		var->data.u.str.data = strlen(user);
 		LIST_INIT(&var->list);
-		LIST_APPEND(&rules->preset_vars, &var->list);
+		LIST_APPEND(&tc->preset_vars, &var->list);
 		user = NULL;
 		var = NULL;
 
@@ -4846,7 +4841,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		var->data.type = SMP_T_SINT;
 		var->data.u.sint = packetlen;
 		LIST_INIT(&var->list);
-		LIST_APPEND(&rules->preset_vars, &var->list);
+		LIST_APPEND(&tc->preset_vars, &var->list);
 		var = NULL;
 	}
 	else {
@@ -4864,6 +4859,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
 		goto error;
 	}
+	rs->flags |= TCPCHK_RULES_PGSQL_CHK;
 
 	chk = parse_tcpcheck_connect((char *[]){"tcp-check", "connect", "default", "linger", ""},
 				     1, curpx, &rs->rules, file, line, &errmsg);
@@ -4911,9 +4907,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 	LIST_APPEND(&rs->rules, &chk->list);
 
   ruleset_found:
-	rules->list = &rs->rules;
-	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
-	rules->flags |= TCPCHK_RULES_PGSQL_CHK;
+	tc->rs = rs;
 
   out:
 	free(errmsg);
@@ -4922,7 +4916,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
   error:
 	free(user);
 	free(var);
-	free_tcpcheck_vars(&rules->preset_vars);
+	free_tcpcheck_vars(&tc->preset_vars);
 	free_tcpcheck_ruleset(rs);
 	err_code |= ERR_ALERT | ERR_FATAL;
 	goto out;
@@ -5018,7 +5012,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 	};
 
 	struct tcpcheck_ruleset *rs = NULL;
-	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
+	struct tcpcheck *tc = &curpx->tcpcheck;
 	struct tcpcheck_rule *chk;
 	struct tcpcheck_var *var = NULL;
 	char *mysql_rsname = "*mysql-check";
@@ -5034,9 +5028,8 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 	curpx->options2 &= ~PR_O2_CHK_ANY;
 	curpx->options2 |= PR_O2_TCPCHK_CHK;
 
-	free_tcpcheck_vars(&rules->preset_vars);
-	rules->list  = NULL;
-	rules->flags = 0;
+	free_tcpcheck_vars(&tc->preset_vars);
+	tc->rs  = NULL;
 
 	cur_arg += 2;
 	if (*args[cur_arg]) {
@@ -5099,7 +5092,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		var->data.u.str.area = hdr;
 		var->data.u.str.data = 4;
 		LIST_INIT(&var->list);
-		LIST_APPEND(&rules->preset_vars, &var->list);
+		LIST_APPEND(&tc->preset_vars, &var->list);
 		hdr = NULL;
 		var = NULL;
 
@@ -5112,7 +5105,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		var->data.u.str.area = user;
 		var->data.u.str.data = strlen(user);
 		LIST_INIT(&var->list);
-		LIST_APPEND(&rules->preset_vars, &var->list);
+		LIST_APPEND(&tc->preset_vars, &var->list);
 		user = NULL;
 		var = NULL;
 	}
@@ -5126,6 +5119,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
 		goto error;
 	}
+	rs->flags |= TCPCHK_RULES_MYSQL_CHK;
 
 	chk = parse_tcpcheck_connect((char *[]){"tcp-check", "connect", "default", "linger", ""},
 				     1, curpx, &rs->rules, file, line, &errmsg);
@@ -5170,9 +5164,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 	}
 
   ruleset_found:
-	rules->list = &rs->rules;
-	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
-	rules->flags |= TCPCHK_RULES_MYSQL_CHK;
+	tc->rs = rs;
 
   out:
 	free(errmsg);
@@ -5182,7 +5174,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 	free(hdr);
 	free(user);
 	free(var);
-	free_tcpcheck_vars(&rules->preset_vars);
+	free_tcpcheck_vars(&tc->preset_vars);
 	free_tcpcheck_ruleset(rs);
 	err_code |= ERR_ALERT | ERR_FATAL;
 	goto out;
@@ -5194,7 +5186,7 @@ int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 	static char *ldap_req = "300C020101600702010304008000";
 
 	struct tcpcheck_ruleset *rs = NULL;
-	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
+	struct tcpcheck *tc = &curpx->tcpcheck;
 	struct tcpcheck_rule *chk;
 	char *errmsg = NULL;
 	int err_code = 0;
@@ -5208,9 +5200,8 @@ int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 	curpx->options2 &= ~PR_O2_CHK_ANY;
 	curpx->options2 |= PR_O2_TCPCHK_CHK;
 
-	free_tcpcheck_vars(&rules->preset_vars);
-	rules->list  = NULL;
-	rules->flags = 0;
+	free_tcpcheck_vars(&tc->preset_vars);
+	tc->rs  = NULL;
 
 	rs = find_tcpcheck_ruleset("*ldap-check");
 	if (rs)
@@ -5221,6 +5212,7 @@ int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
 		goto error;
 	}
+	rs->flags |= TCPCHK_RULES_LDAP_CHK;
 
 	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-binary", ldap_req, ""},
 				  1, curpx, &rs->rules, file, line, &errmsg);
@@ -5254,9 +5246,7 @@ int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 	LIST_APPEND(&rs->rules, &chk->list);
 
   ruleset_found:
-	rules->list = &rs->rules;
-	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
-	rules->flags |= TCPCHK_RULES_LDAP_CHK;
+	tc->rs = rs;
 
   out:
 	free(errmsg);
@@ -5279,7 +5269,7 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 		"62696c697469657308000b6865616c7468636865636b11";
 
 	struct tcpcheck_ruleset *rs = NULL;
-	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
+	struct tcpcheck *tc = &curpx->tcpcheck;
 	struct tcpcheck_rule *chk;
 	char *errmsg = NULL;
 	int err_code = 0;
@@ -5293,9 +5283,8 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 	curpx->options2 &= ~PR_O2_CHK_ANY;
 	curpx->options2 |= PR_O2_TCPCHK_CHK;
 
-	free_tcpcheck_vars(&rules->preset_vars);
-	rules->list  = NULL;
-	rules->flags = 0;
+	free_tcpcheck_vars(&tc->preset_vars);
+	tc->rs  = NULL;
 
 	rs = find_tcpcheck_ruleset("*spop-check");
 	if (rs)
@@ -5306,6 +5295,7 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 		ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
 		goto error;
 	}
+	rs->flags |= TCPCHK_RULES_SPOP_CHK;
 
 	chk = parse_tcpcheck_connect((char *[]){"tcp-check", "connect", "default", "proto", "none", ""},
 				     1, curpx, &rs->rules, file, line, &errmsg);
@@ -5336,9 +5326,7 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 	LIST_APPEND(&rs->rules, &chk->list);
 
   ruleset_found:
-	rules->list = &rs->rules;
-	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
-	rules->flags |= TCPCHK_RULES_SPOP_CHK;
+	tc->rs = rs;
 
   out:
 	return err_code;
@@ -5445,7 +5433,7 @@ int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 			    const char *file, int line)
 {
 	struct tcpcheck_ruleset *rs = NULL;
-	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
+	struct tcpcheck *tc = &curpx->tcpcheck;
 	struct tcpcheck_rule *chk;
 	char *errmsg = NULL;
 	int err_code = 0;
@@ -5467,12 +5455,11 @@ int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 		ha_free(&errmsg);
 	}
 
-  no_request:
 	curpx->options2 &= ~PR_O2_CHK_ANY;
 	curpx->options2 |= PR_O2_TCPCHK_CHK;
 
-	free_tcpcheck_vars(&rules->preset_vars);
-	rules->list = NULL;
+	free_tcpcheck_vars(&tc->preset_vars);
+	tc->rs = NULL;
 
 	/* Deduce the ruleset name from the proxy info */
 	chunk_printf(&trash, "*http-check-%s_%s-%d",
@@ -5486,14 +5473,14 @@ int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 			ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
 			goto error;
 		}
+		rs->flags |= TCPCHK_RULES_HTTP_CHK;
 	}
 
-	rules->list = &rs->rules;
-	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
-	rules->flags |= TCPCHK_RULES_HTTP_CHK;
-	if (!tcpcheck_add_http_rule(chk, rules, &errmsg)) {
+	tc->rs = rs;
+	tc->flags &= ~TCPCHK_FL_UNUSED_HTTP_RS;
+	if (!tcpcheck_add_http_rule(chk, rs, &errmsg)) {
 		ha_alert("parsing [%s:%d] : '%s %s' : %s.\n", file, line, args[0], args[1], errmsg);
-		rules->list = NULL;
+		tc->rs = NULL;
 		goto error;
 	}
 
@@ -5513,7 +5500,7 @@ int proxy_parse_tcp_check_opt(char **args, int cur_arg, struct proxy *curpx, con
 			      const char *file, int line)
 {
 	struct tcpcheck_ruleset *rs = NULL;
-	struct tcpcheck_rules *rules = &curpx->tcpcheck_rules;
+	struct tcpcheck *tc = &curpx->tcpcheck;
 	int err_code = 0;
 
 	if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[cur_arg+1], NULL))
@@ -5525,25 +5512,9 @@ int proxy_parse_tcp_check_opt(char **args, int cur_arg, struct proxy *curpx, con
 	curpx->options2 &= ~PR_O2_CHK_ANY;
 	curpx->options2 |= PR_O2_TCPCHK_CHK;
 
-	if ((rules->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_TCP_CHK) {
-		/* If a tcp-check rulesset is already set, do nothing */
-		if (rules->list)
-			goto out;
+	free_tcpcheck_vars(&tc->preset_vars);
+	tc->rs = NULL;
 
-		/* If a tcp-check ruleset is waiting to be used for the current proxy,
-		 * get it.
-		 */
-		if (rules->flags & TCPCHK_RULES_UNUSED_TCP_RS)
-			goto curpx_ruleset;
-
-		/* Otherwise, try to get the tcp-check ruleset of the default proxy */
-		chunk_printf(&trash, "*tcp-check-defaults_%s-%d", defpx->conf.file, defpx->conf.line);
-		rs = find_tcpcheck_ruleset(b_orig(&trash));
-		if (rs)
-			goto ruleset_found;
-	}
-
-  curpx_ruleset:
 	/* Deduce the ruleset name from the proxy info */
 	chunk_printf(&trash, "*tcp-check-%s_%s-%d",
 		     ((curpx == defpx) ? "defaults" : curpx->id),
@@ -5556,13 +5527,11 @@ int proxy_parse_tcp_check_opt(char **args, int cur_arg, struct proxy *curpx, con
 			ha_alert("parsing [%s:%d] : out of memory.\n", file, line);
 			goto error;
 		}
+		rs->flags |= TCPCHK_RULES_TCP_CHK;
 	}
 
-  ruleset_found:
-	free_tcpcheck_vars(&rules->preset_vars);
-	rules->list = &rs->rules;
-	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
-	rules->flags |= TCPCHK_RULES_TCP_CHK;
+	tc->rs = rs;
+	tc->flags &= ~TCPCHK_FL_UNUSED_TCP_RS;
 
   out:
 	return err_code;
