@@ -6686,12 +6686,16 @@ int srv_apply_track(struct server *srv, struct proxy *curproxy)
 		return 1;
 	}
 
-	if (curproxy != px &&
-	    (curproxy->options & PR_O_DISABLE404) != (px->options & PR_O_DISABLE404)) {
-		ha_alert("unable to use %s/%s for"
-		         "tracking: disable-on-404 option inconsistency.\n",
-		         px->id, strack->id);
-		return 1;
+	if (curproxy != px) {
+		int val1 = curproxy->tcpcheck.rs && (curproxy->tcpcheck.rs->flags & TCPCHK_RULES_DISABLE404);
+		int val2 = px->tcpcheck.rs && (px->tcpcheck.rs->flags & TCPCHK_RULES_DISABLE404);
+
+		if (val1 != val2) {
+			ha_alert("unable to use %s/%s for"
+				 "tracking: disable-on-404 option inconsistency.\n",
+				 px->id, strack->id);
+			return 1;
+		}
 	}
 
 	srv->track = strack;

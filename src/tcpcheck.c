@@ -1781,7 +1781,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 			}
 
 		}
-		if (check->proxy->options2 & PR_O2_CHK_SNDST) {
+		if (check->tcpcheck->rs->flags & TCPCHK_RULES_SNDST) {
 			chunk_reset(tmp);
 			httpchk_build_status_header(check->server, tmp);
 			if (!htx_add_header(htx, ist("X-Haproxy-Server-State"), ist2(b_orig(tmp), b_data(tmp))))
@@ -2005,7 +2005,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcp
 	check->code = sl->info.res.status;
 
 	if (check->server &&
-	    (check->server->proxy->options & PR_O_DISABLE404) &&
+	    (check->tcpcheck->rs->flags & TCPCHK_RULES_DISABLE404) &&
 	    (check->server->next_state != SRV_ST_STOPPED) &&
 	    (check->code == 404)) {
 		/* 404 may be accepted as "stopping" only if the server was up */
@@ -2611,7 +2611,7 @@ int tcpcheck_main(struct check *check)
 			enum healthcheck_status status;
 
 			if (check->server &&
-			    (check->server->proxy->options & PR_O_DISABLE404) &&
+			    (check->tcpcheck->rs->flags & TCPCHK_RULES_DISABLE404) &&
 			    (check->server->next_state != SRV_ST_STOPPED) &&
 			    (check->code == 404)) {
 				set_server_check_status(check, HCHK_STATUS_L7OKCD, NULL);
@@ -4350,22 +4350,6 @@ static int proxy_parse_httpcheck(char **args, int section, struct proxy *curpx,
 	if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[0], NULL))
 		ret = 1;
 
-	cur_arg = 1;
-	if (strcmp(args[cur_arg], "disable-on-404") == 0) {
-		/* enable a graceful server shutdown on an HTTP 404 response */
-		curpx->options |= PR_O_DISABLE404;
-		if (too_many_args(1, args, errmsg, NULL))
-			goto error;
-		goto out;
-	}
-	else if (strcmp(args[cur_arg], "send-state") == 0) {
-		/* enable emission of the apparent state of a server in HTTP checks */
-		curpx->options2 |= PR_O2_CHK_SNDST;
-		if (too_many_args(1, args, errmsg, NULL))
-			goto error;
-		goto out;
-	}
-
 	/* Deduce the ruleset name from the proxy info */
 	chunk_printf(&trash, "*http-check-%s_%s-%d",
 		     ((curpx == defpx) ? "defaults" : curpx->id),
@@ -4379,6 +4363,21 @@ static int proxy_parse_httpcheck(char **args, int section, struct proxy *curpx,
 			goto error;
 		}
 		rs->flags |= TCPCHK_RULES_HTTP_CHK;
+	}
+	cur_arg = 1;
+	if (strcmp(args[cur_arg], "disable-on-404") == 0) {
+		/* enable a graceful server shutdown on an HTTP 404 response */
+		rs->flags |= TCPCHK_RULES_DISABLE404;
+		if (too_many_args(1, args, errmsg, NULL))
+			goto error;
+		goto out;
+	}
+	else if (strcmp(args[cur_arg], "send-state") == 0) {
+		/* enable emission of the apparent state of a server in HTTP checks */
+		rs->flags |= TCPCHK_RULES_SNDST;
+		if (too_many_args(1, args, errmsg, NULL))
+			goto error;
+		goto out;
 	}
 
 	index = 0;

@@ -109,6 +109,10 @@ enum tcpcheck_rule_type {
 #define TCPCHK_FL_UNUSED_HTTP_RS 0x00000002 /* An unused http-check ruleset exists for the current proxy  */
 #define TCPCHK_FL_UNUSED_RS      0x00000003 /* Mask for unused ruleset */
 
+#define TCPCHK_RULES_NONE         0x00000000
+#define TCPCHK_RULES_DISABLE404   0x00000001 /* Disable a server on a 404 response wht HTTP health checks */
+#define TCPCHK_RULES_SNDST        0x00000002 /* send the state of each server along with HTTP health checks */
+
 #define TCPCHK_RULES_PGSQL_CHK   0x00000010
 #define TCPCHK_RULES_REDIS_CHK   0x00000020
 #define TCPCHK_RULES_SMTP_CHK    0x00000030
