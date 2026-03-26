@@ -2789,7 +2789,6 @@ struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, struct pr
 						  args[cur_arg], sample_src_names(port_expr->fetch->use));
 					goto error;
 				}
-				px->http_needed |= !!(port_expr->fetch->use & SMP_USE_HTTP_ANY);
 			}
 			else if (port > 65535 || port < 1) {
 				memprintf(errmsg, "expects a valid TCP port (from range 1 to 65535) or a sample expression, got %s.",
@@ -3590,7 +3589,6 @@ struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct pro
 					  args[cur_arg], sample_src_names(status_expr->fetch->use));
 					goto error;
 			}
-			px->http_needed |= !!(status_expr->fetch->use & SMP_USE_HTTP_ANY);
 		}
 		else if (strcmp(args[cur_arg], "tout-status") == 0) {
 			if (in_pattern) {
