@@ -2969,14 +2969,14 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	srv->agent.use_ssl            = src->agent.use_ssl;
 	srv->agent.port               = src->agent.port;
 
-	if (src->agent.tcpcheck_rules) {
-		srv->agent.tcpcheck_rules = calloc(1, sizeof(*srv->agent.tcpcheck_rules));
-		if (srv->agent.tcpcheck_rules) {
-			srv->agent.tcpcheck_rules->flags = src->agent.tcpcheck_rules->flags;
-			srv->agent.tcpcheck_rules->list  = src->agent.tcpcheck_rules->list;
-			LIST_INIT(&srv->agent.tcpcheck_rules->preset_vars);
-			dup_tcpcheck_vars(&srv->agent.tcpcheck_rules->preset_vars,
-					  &src->agent.tcpcheck_rules->preset_vars);
+	if (src->agent.tcpcheck) {
+		srv->agent.tcpcheck = calloc(1, sizeof(*srv->agent.tcpcheck));
+		if (srv->agent.tcpcheck) {
+			srv->agent.tcpcheck->flags = (src->agent.tcpcheck->flags & ~TCPCHK_FL_UNUSED_RS);
+			srv->agent.tcpcheck->rs = src->agent.tcpcheck->rs;
+			LIST_INIT(&srv->agent.tcpcheck->preset_vars);
+			dup_tcpcheck_vars(&srv->agent.tcpcheck->preset_vars,
+					  &src->agent.tcpcheck->preset_vars);
 		}
 	}
 
@@ -3123,7 +3123,7 @@ struct server *new_server(struct proxy *proxy)
 	srv->check.status = HCHK_STATUS_INI;
 	srv->check.server = srv;
 	srv->check.proxy = proxy;
-	srv->check.tcpcheck_rules = &proxy->tcpcheck_rules;
+	srv->check.tcpcheck = &proxy->tcpcheck;
 
 	srv->agent.obj_type = OBJ_TYPE_CHECK;
 	srv->agent.status = HCHK_STATUS_INI;

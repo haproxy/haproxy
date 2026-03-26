@@ -235,7 +235,7 @@ static void check_trace(enum trace_level level, uint64_t mask,
 	if (mask & CHK_EV_TCPCHK) {
 		const char *type;
 
-		switch (check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) {
+		switch (check->tcpcheck->rs->flags & TCPCHK_RULES_PROTO_CHK) {
 			case TCPCHK_RULES_PGSQL_CHK: type = "PGSQL"; break;
 			case TCPCHK_RULES_REDIS_CHK: type = "REDIS"; break;
 			case TCPCHK_RULES_SMTP_CHK:  type = "SMTP";  break;
@@ -271,7 +271,7 @@ static void check_trace(enum trace_level level, uint64_t mask,
 			buf = (b_is_null(&check->bo) ? NULL : &check->bo);
 
 		if (buf) {
-			if ((check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK) {
+			if ((check->tcpcheck->rs->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK) {
 				int full = (src->verbosity == CHK_VERB_COMPLETE);
 
 				chunk_memcat(&trace_buf, "\n\t", 2);
@@ -832,7 +832,7 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	chk = get_trash_chunk();
 
 	if (check->type == PR_O2_TCPCHK_CHK &&
-	    (check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_TCP_CHK) {
+	    (check->tcpcheck->rs->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_TCP_CHK) {
 		step = tcpcheck_get_step_id(check, NULL);
 		if (!step) {
 			TRACE_DEVEL("initial connection failure", CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check);
@@ -1565,8 +1565,8 @@ void free_check(struct check *check)
 	 * in this case.
 	 */
 	if (check->state & CHK_ST_AGENT) {
-		free_tcpcheck_vars(&check->tcpcheck_rules->preset_vars);
-		ha_free(&check->tcpcheck_rules);
+		free_tcpcheck_vars(&check->tcpcheck->preset_vars);
+		ha_free(&check->tcpcheck);
 	}
 
 	ha_free(&check->pool_conn_name);
@@ -1686,7 +1686,7 @@ static int start_checks()
 	for (px = proxies_list; px; px = px->next) {
 		for (s = px->srv; s; s = s->next) {
 			if ((px->options2 & PR_O2_USE_SBUF_CHECK) &&
-			    (s->check.tcpcheck_rules->flags & TCPCHK_RULES_MAY_USE_SBUF))
+			    (s->check.tcpcheck->rs->flags & TCPCHK_RULES_MAY_USE_SBUF))
 				s->check.state |= CHK_ST_USE_SMALL_BUFF;
 
 			if (s->check.state & CHK_ST_CONFIGURED) {
@@ -1803,7 +1803,7 @@ int init_srv_check(struct server *srv)
 	if (!srv->do_check || !(srv->proxy->cap & PR_CAP_BE))
 		goto out;
 
-	check_type = srv->check.tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK;
+	check_type = srv->check.tcpcheck->rs->flags & TCPCHK_RULES_PROTO_CHK;
 
 	if (!(srv->flags & SRV_F_DYNAMIC)) {
 		/* If neither a port nor an addr was specified and no check
@@ -1897,7 +1897,7 @@ int init_srv_check(struct server *srv)
 	    (!is_inet_addr(&srv->check.addr) && (is_addr(&srv->check.addr) || !is_inet_addr(&srv->addr))))
 		goto init;
 
-	if (!srv->proxy->tcpcheck_rules.list || LIST_ISEMPTY(srv->proxy->tcpcheck_rules.list)) {
+	if (LIST_ISEMPTY(&srv->check.tcpcheck->rs->rules)) {
 		ha_alert("config: %s '%s': server '%s' has neither service port nor check port.\n",
 			 proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
 		ret |= ERR_ALERT | ERR_ABORT;
@@ -1905,7 +1905,7 @@ int init_srv_check(struct server *srv)
 	}
 
 	/* search the first action (connect / send / expect) in the list */
-	r = get_first_tcpcheck_rule(&srv->proxy->tcpcheck_rules);
+	r = get_first_tcpcheck_rule(srv->check.tcpcheck->rs);
 	if (!r || (r->action != TCPCHK_ACT_CONNECT) || (!r->connect.port && !get_host_port(&r->connect.addr))) {
 		ha_alert("config: %s '%s': server '%s' has neither service port nor check port "
 			 "nor tcp_check rule 'connect' with port information.\n",
@@ -1915,7 +1915,7 @@ int init_srv_check(struct server *srv)
 	}
 
 	/* scan the tcp-check ruleset to ensure a port has been configured */
-	list_for_each_entry(r, srv->proxy->tcpcheck_rules.list, list) {
+	list_for_each_entry(r, &srv->check.tcpcheck->rs->rules, list) {
 		if ((r->action == TCPCHK_ACT_CONNECT) && (!r->connect.port && !get_host_port(&r->connect.addr))) {
 			ha_alert("config: %s '%s': server '%s' has neither service port nor check port, "
 				 "and a tcp_check rule 'connect' with no port information.\n",
@@ -1962,7 +1962,7 @@ int init_srv_agent_check(struct server *srv)
 	/* If there is no connect rule preceding all send / expect rules, an
 	 * implicit one is inserted before all others.
 	 */
-	chk = get_first_tcpcheck_rule(srv->agent.tcpcheck_rules);
+	chk = get_first_tcpcheck_rule(srv->agent.tcpcheck->rs);
 	if (!chk || chk->action != TCPCHK_ACT_CONNECT) {
 		chk = calloc(1, sizeof(*chk));
 		if (!chk) {
@@ -1974,14 +1974,14 @@ int init_srv_agent_check(struct server *srv)
 		}
 		chk->action = TCPCHK_ACT_CONNECT;
 		chk->connect.options = (TCPCHK_OPT_DEFAULT_CONNECT|TCPCHK_OPT_IMPLICIT);
-		LIST_INSERT(srv->agent.tcpcheck_rules->list, &chk->list);
+		LIST_INSERT(&srv->agent.tcpcheck->rs->rules, &chk->list);
 	}
 
 	/* <chk> is always defined here and it is a CONNECT action. If there is
 	 * a preset variable, it means there is an agent string defined and data
 	 * will be sent after the connect.
 	 */
-	if (!LIST_ISEMPTY(&srv->agent.tcpcheck_rules->preset_vars))
+	if (!LIST_ISEMPTY(&srv->agent.tcpcheck->preset_vars))
 		chk->connect.options |= TCPCHK_OPT_HAS_DATA;
 
 
@@ -2137,7 +2137,7 @@ static int srv_parse_agent_check(char **args, int *cur_arg, struct proxy *curpx,
 				 char **errmsg)
 {
 	struct tcpcheck_ruleset *rs = NULL;
-	struct tcpcheck_rules *rules = srv->agent.tcpcheck_rules;
+	struct tcpcheck *tc = srv->agent.tcpcheck;
 	struct tcpcheck_rule *chk;
 	int err_code = 0;
 
@@ -2150,17 +2150,15 @@ static int srv_parse_agent_check(char **args, int *cur_arg, struct proxy *curpx,
 		return ERR_WARN;
 	}
 
-	if (!rules) {
-		rules = calloc(1, sizeof(*rules));
-		if (!rules) {
+	if (!tc) {
+		tc = calloc(1, sizeof(*tc));
+		if (!tc) {
 			memprintf(errmsg, "out of memory.");
 			goto error;
 		}
-		LIST_INIT(&rules->preset_vars);
-		srv->agent.tcpcheck_rules = rules;
+		LIST_INIT(&tc->preset_vars);
+		srv->agent.tcpcheck = tc;
 	}
-	rules->list  = NULL;
-	rules->flags = 0;
 
 	rs = find_tcpcheck_ruleset("*agent-check");
 	if (rs)
@@ -2193,9 +2191,9 @@ static int srv_parse_agent_check(char **args, int *cur_arg, struct proxy *curpx,
 	LIST_APPEND(&rs->rules, &chk->list);
 
   ruleset_found:
-	rules->list = &rs->rules;
-	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
-	rules->flags |= TCPCHK_RULES_AGENT_CHK;
+	tc->rs = rs;
+	tc->flags &= ~TCPCHK_FL_UNUSED_RS;
+	rs->flags |= TCPCHK_RULES_AGENT_CHK;
 	srv->do_agent = 1;
 
   out:
@@ -2288,7 +2286,7 @@ static int srv_parse_agent_port(char **args, int *cur_arg, struct proxy *curpx, 
 
 int set_srv_agent_send(struct server *srv, const char *send)
 {
-	struct tcpcheck_rules *rules = srv->agent.tcpcheck_rules;
+	struct tcpcheck *tc = srv->agent.tcpcheck;
 	struct tcpcheck_var *var = NULL;
 	char *str;
 
@@ -2297,13 +2295,13 @@ int set_srv_agent_send(struct server *srv, const char *send)
 	if (str == NULL || var == NULL)
 		goto error;
 
-	free_tcpcheck_vars(&rules->preset_vars);
+	free_tcpcheck_vars(&tc->preset_vars);
 
 	var->data.type = SMP_T_STR;
 	var->data.u.str.area = str;
 	var->data.u.str.data = strlen(str);
 	LIST_INIT(&var->list);
-	LIST_APPEND(&rules->preset_vars, &var->list);
+	LIST_APPEND(&tc->preset_vars, &var->list);
 
 	return 1;
 
@@ -2317,7 +2315,7 @@ int set_srv_agent_send(struct server *srv, const char *send)
 static int srv_parse_agent_send(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
 				char **errmsg)
 {
-	struct tcpcheck_rules *rules = srv->agent.tcpcheck_rules;
+	struct tcpcheck *tc = srv->agent.tcpcheck;
 	int err_code = 0;
 
 	if (!*(args[*cur_arg+1])) {
@@ -2325,14 +2323,14 @@ static int srv_parse_agent_send(char **args, int *cur_arg, struct proxy *curpx, 
 		goto error;
 	}
 
-	if (!rules) {
-		rules = calloc(1, sizeof(*rules));
-		if (!rules) {
+	if (!tc) {
+		tc = calloc(1, sizeof(*tc));
+		if (!tc) {
 			memprintf(errmsg, "out of memory.");
 			goto error;
 		}
-		LIST_INIT(&rules->preset_vars);
-		srv->agent.tcpcheck_rules = rules;
+		LIST_INIT(&tc->preset_vars);
+		srv->agent.tcpcheck = tc;
 	}
 
 	if (!set_srv_agent_send(srv, args[*cur_arg+1])) {

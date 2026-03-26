@@ -1577,7 +1577,7 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->conf.args.list);
 	LIST_INIT(&p->conf.lf_checks);
 	LIST_INIT(&p->filter_configs);
-	LIST_INIT(&p->tcpcheck_rules.preset_vars);
+	LIST_INIT(&p->tcpcheck.preset_vars);
 
 	MT_LIST_INIT(&p->lbprm.lb_free_list);
 
@@ -1876,14 +1876,14 @@ int proxy_finalize(struct proxy *px, int *err_code)
 	else if (px->options & PR_O_TRANSP)
 		px->options &= ~PR_O_DISPATCH;
 
-	if ((px->tcpcheck_rules.flags & TCPCHK_RULES_UNUSED_HTTP_RS)) {
+	if ((px->tcpcheck.flags & TCPCHK_FL_UNUSED_HTTP_RS)) {
 		ha_warning("%s '%s' uses http-check rules without 'option httpchk', so the rules are ignored.\n",
 		           proxy_type_str(px), px->id);
 		*err_code |= ERR_WARN;
 	}
 
 	if ((px->options2 & PR_O2_CHK_ANY) == PR_O2_TCPCHK_CHK &&
-	    (px->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) != TCPCHK_RULES_HTTP_CHK) {
+	    px->tcpcheck.rs && (px->tcpcheck.rs->flags & TCPCHK_RULES_PROTO_CHK) != TCPCHK_RULES_HTTP_CHK) {
 		if (px->options & PR_O_DISABLE404) {
 			ha_warning("'%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
 			           "disable-on-404", proxy_type_str(px), px->id);
@@ -2443,7 +2443,7 @@ int proxy_finalize(struct proxy *px, int *err_code)
 	if ((px->cap & PR_CAP_BE) && !px->timeout.queue)
 		px->timeout.queue = px->timeout.connect;
 
-	if ((px->tcpcheck_rules.flags & TCPCHK_RULES_UNUSED_TCP_RS)) {
+	if (px->tcpcheck.flags & TCPCHK_FL_UNUSED_TCP_RS) {
 		ha_warning("%s '%s' uses tcp-check rules without 'option tcp-check', so the rules are ignored.\n",
 		           proxy_type_str(px), px->id);
 		*err_code |= ERR_WARN;
@@ -2924,7 +2924,6 @@ int proxy_finalize(struct proxy *px, int *err_code)
 	if (px->cap & PR_CAP_BE) {
 		if (!(px->options2 & PR_O2_CHK_ANY)) {
 			struct tcpcheck_ruleset *rs = NULL;
-			struct tcpcheck_rules *rules = &px->tcpcheck_rules;
 
 			px->options2 |= PR_O2_TCPCHK_CHK;
 
@@ -2937,10 +2936,8 @@ int proxy_finalize(struct proxy *px, int *err_code)
 					cfgerr++;
 				}
 			}
-
-			free_tcpcheck_vars(&rules->preset_vars);
-			rules->list = &rs->rules;
-			rules->flags = 0;
+			px->tcpcheck.rs = rs;
+			free_tcpcheck_vars(&px->tcpcheck.preset_vars);
 		}
 	}
 
@@ -3173,7 +3170,7 @@ int proxy_ref_defaults(struct proxy *px, struct proxy *defpx, char **errmsg)
 		defaults_px_ref(defpx, px);
 	}
 
-	if ((defpx->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) &&
+	if (defpx->tcpcheck.rs && (defpx->tcpcheck.rs->flags & TCPCHK_RULES_PROTO_CHK) &&
 	    (px->cap & PR_CAP_LISTEN) == PR_CAP_BE) {
 		/* If the current default proxy defines tcpcheck rules, the
 		 * current proxy will keep a reference on it. but only if the
@@ -3411,14 +3408,12 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 		curproxy->redispatch_after = defproxy->redispatch_after;
 		curproxy->max_ka_queue = defproxy->max_ka_queue;
 
-		curproxy->tcpcheck_rules.flags = (defproxy->tcpcheck_rules.flags & ~TCPCHK_RULES_UNUSED_RS);
-		curproxy->tcpcheck_rules.list  = defproxy->tcpcheck_rules.list;
-		if (!LIST_ISEMPTY(&defproxy->tcpcheck_rules.preset_vars)) {
-			if (!dup_tcpcheck_vars(&curproxy->tcpcheck_rules.preset_vars,
-					       &defproxy->tcpcheck_rules.preset_vars)) {
-				memprintf(errmsg, "proxy '%s': failed to duplicate tcpcheck preset-vars", curproxy->id);
-				return 1;
-			}
+		curproxy->tcpcheck.flags = (defproxy->tcpcheck.flags & ~TCPCHK_FL_UNUSED_RS);
+		curproxy->tcpcheck.rs  = defproxy->tcpcheck.rs;
+		if (!dup_tcpcheck_vars(&curproxy->tcpcheck.preset_vars,
+				       &defproxy->tcpcheck.preset_vars)) {
+			memprintf(errmsg, "proxy '%s': failed to duplicate tcpcheck preset-vars", curproxy->id);
+			return 1;
 		}
 
 		curproxy->ck_opts = defproxy->ck_opts;
