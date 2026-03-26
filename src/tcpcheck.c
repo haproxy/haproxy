@@ -2839,7 +2839,7 @@ struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, struct pr
 			conn_opts |= TCPCHK_OPT_LINGER;
 #ifdef USE_OPENSSL
 		else if (strcmp(args[cur_arg], "ssl") == 0) {
-			px->options |= PR_O_TCPCHK_SSL;
+			px->tcpcheck.flags |= TCPCHK_FL_USE_SSL;
 			conn_opts |= TCPCHK_OPT_SSL;
 		}
 		else if (strcmp(args[cur_arg], "sni") == 0) {
