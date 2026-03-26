@@ -83,10 +83,6 @@ struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct pro
                                             struct list *rules, unsigned int proto,
                                             const char *file, int line, char **errmsg);
 
-int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
-                         const struct proxy *defpx, const char *file, int line,
-                         char **errmsg);
-
 int proxy_parse_tcp_check_opt(char **args, int cur_arg, struct proxy *curpx, const struct proxy *defpx,
 			      const char *file, int line);
 int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, const struct proxy *defpx,
