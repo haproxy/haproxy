@@ -691,6 +691,12 @@ static inline int conn_is_ssl(struct connection *conn)
 	return !!conn_get_ssl_sock_ctx(conn);
 }
 
+/* Returns true if connection runs over QUIC. */
+static inline int conn_is_quic(const struct connection *conn)
+{
+	return conn->flags & CO_FL_FDLESS;
+}
+
 /* Returns true if connection must be reversed. */
 static inline int conn_is_reverse(const struct connection *conn)
 {
