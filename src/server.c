@@ -7623,7 +7623,7 @@ static void srv_close_idle_conns(struct server *srv)
 
 REGISTER_SERVER_DEINIT(srv_close_idle_conns);
 
-/* config parser for global "tune.idle-pool.shared", accepts "on" or "off" */
+/* config parser for global "tune.idle-pool.shared", accepts "full", "on" or "off" */
 static int cfg_parse_idle_pool_shared(char **args, int section_type, struct proxy *curpx,
                                       const struct proxy *defpx, const char *file, int line,
                                       char **err)
@@ -7631,12 +7631,17 @@ static int cfg_parse_idle_pool_shared(char **args, int section_type, struct prox
 	if (too_many_args(1, args, err, NULL))
 		return -1;
 
-	if (strcmp(args[1], "on") == 0)
+	if (strcmp(args[1], "full") == 0) {
 		global.tune.options |= GTUNE_IDLE_POOL_SHARED;
-	else if (strcmp(args[1], "off") == 0)
+		global.tune.tg_takeover = FULL_THREADGROUP_TAKEOVER;
+	} else if (strcmp(args[1], "on") == 0) {
+		global.tune.options |= GTUNE_IDLE_POOL_SHARED;
+		global.tune.tg_takeover = RESTRICTED_THREADGROUP_TAKEOVER;
+	} else if (strcmp(args[1], "off") == 0) {
 		global.tune.options &= ~GTUNE_IDLE_POOL_SHARED;
-	else {
-		memprintf(err, "'%s' expects either 'on' or 'off' but got '%s'.", args[0], args[1]);
+		global.tune.tg_takeover = NO_THREADGROUP_TAKEOVER;
+	} else {
+		memprintf(err, "'%s' expects 'auto', 'on' or 'off' but got '%s'.", args[0], args[1]);
 		return -1;
 	}
 	return 0;
