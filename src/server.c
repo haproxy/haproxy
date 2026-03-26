@@ -4667,7 +4667,6 @@ const char *srv_update_check_addr_port(struct server *s, const char *addr, const
 		goto out;
 	}
 	if (addr) {
-		memset(&sk, 0, sizeof(struct sockaddr_storage));
 		sk = str2sa_range(addr, NULL, NULL, NULL, NULL, &proto, NULL, NULL, NULL, NULL, NULL, 0);
 		if (sk == NULL) {
 			chunk_appendf(msg, "invalid addr '%s'", addr);
