@@ -108,6 +108,7 @@ enum tcpcheck_rule_type {
 #define TCPCHK_FL_UNUSED_TCP_RS  0x00000001 /* An unused tcp-check ruleset exists for the current proxy */
 #define TCPCHK_FL_UNUSED_HTTP_RS 0x00000002 /* An unused http-check ruleset exists for the current proxy  */
 #define TCPCHK_FL_UNUSED_RS      0x00000003 /* Mask for unused ruleset */
+#define TCPCHK_FL_USE_SSL        0x00000004 /* tcp-check uses SSL connection */
 
 #define TCPCHK_RULES_NONE         0x00000000
 #define TCPCHK_RULES_DISABLE404   0x00000001 /* Disable a server on a 404 response wht HTTP health checks */
