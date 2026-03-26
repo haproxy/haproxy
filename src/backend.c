@@ -2124,6 +2124,11 @@ int connect_server(struct stream *s)
 			srv_conn->flags |= CO_FL_SOCKS4;
 		}
 
+		if (srv && srv->mux_proto && isteq(srv->mux_proto->token, ist("qmux"))) {
+			srv_conn->flags |= (CO_FL_QSTRM_RECV|CO_FL_QSTRM_SEND);
+			may_start_mux_now = 0;
+		}
+
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
 		/* if websocket stream, try to update connection ALPN. */
 		if (unlikely(s->flags & SF_WEBSOCKET) &&

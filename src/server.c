@@ -1453,6 +1453,15 @@ static int srv_parse_proto(char **args, int *cur_arg,
 		memprintf(err, "'%s' :  unknown MUX protocol '%s'", args[*cur_arg], args[*cur_arg+1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
+
+	if (newsrv->mux_proto->mux->flags & MX_FL_EXPERIMENTAL) {
+		if (!experimental_directives_allowed) {
+			memprintf(err, "'%s' : '%s' protocol is experimental, must be allowed via a global 'expose-experimental-directives'",
+			          args[*cur_arg], args[*cur_arg + 1]);
+			return ERR_ALERT | ERR_FATAL;
+		}
+		mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
+	}
 	return 0;
 }
 

@@ -4684,6 +4684,10 @@ static const struct mux_ops qstrm_ops = {
 	.subscribe   = qmux_strm_subscribe,
 	.unsubscribe = qmux_strm_unsubscribe,
 	.wake        = qmux_wake,
+	.avail_streams = qmux_avail_streams,
+	.used_streams = qmux_used_streams,
+	.takeover    = NULL,  /* QUIC takeover support not implemented yet */
+	.attach      = qmux_strm_attach,
 	.shut        = qmux_strm_shut,
 	.ctl         = qmux_ctl,
 	.sctl        = qmux_sctl,
@@ -4693,6 +4697,6 @@ static const struct mux_ops qstrm_ops = {
 };
 
 static struct mux_proto_list mux_proto_qstrm =
-  { .token = IST("qmux"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_FE, .mux = &qstrm_ops };
+  { .token = IST("qmux"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_BOTH, .mux = &qstrm_ops };
 
 INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_qstrm);

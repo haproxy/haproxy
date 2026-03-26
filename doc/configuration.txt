@@ -17745,7 +17745,7 @@ proto <name>
   a bind line :
 
    quic : mode=HTTP  side=FE|BE  mux=QUIC  flags=HTX|NO_UPG|FRAMED
-    qmux : mode=HTTP  side=FE     mux=QMUX  flags=HTX|NO_UPG
+    qmux : mode=HTTP  side=FE|BE  mux=QMUX  flags=HTX|NO_UPG
     h2   : mode=HTTP  side=FE|BE  mux=H2    flags=HTX|HOL_RISK|NO_UPG
     h1   : mode=HTTP  side=FE|BE  mux=H1    flags=HTX|NO_UPG
     none : mode=TCP   side=FE|BE  mux=PASS  flags=NO_UPG
@@ -19323,6 +19323,7 @@ proto <name>
   a server line :
 
     quic : mode=HTTP  side=FE|BE  mux=QUIC  flags=HTX|NO_UPG|FRAMED
+    qmux : mode=HTTP  side=FE|BE  mux=QMUX  flags=HTX|NO_UPG
     h2   : mode=HTTP  side=FE|BE  mux=H2    flags=HTX|HOL_RISK|NO_UPG
     fcgi : mode=HTTP  side=BE     mux=FCGI  flags=HTX|HOL_RISK|NO_UPG
     h1   : mode=HTTP  side=FE|BE  mux=H1    flags=HTX|NO_UPG
@@ -19337,6 +19338,10 @@ proto <name>
   instance, if "proto h1" is set, the ALPN should not be set to "h2".
 
   See also "ws" to use an alternative protocol for websocket streams.
+
+  QMux is a subset of QUIC which runs over TCP. It corresponds to the following
+  draft protocol https://www.ietf.org/archive/id/draft-opik-quic-qmux-01.html.
+  It is considered experimental in haproxy for now.
 
 quic-cc-algo { cubic | newreno | bbr | nocc }[(<args,...>)]
   This is a QUIC specific setting to select the congestion control algorithm
