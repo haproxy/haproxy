@@ -1882,22 +1882,6 @@ int proxy_finalize(struct proxy *px, int *err_code)
 		*err_code |= ERR_WARN;
 	}
 
-	if ((px->options2 & PR_O2_CHK_ANY) == PR_O2_TCPCHK_CHK &&
-	    px->tcpcheck.rs && (px->tcpcheck.rs->flags & TCPCHK_RULES_PROTO_CHK) != TCPCHK_RULES_HTTP_CHK) {
-		if (px->options & PR_O_DISABLE404) {
-			ha_warning("'%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
-			           "disable-on-404", proxy_type_str(px), px->id);
-			*err_code |= ERR_WARN;
-			px->options &= ~PR_O_DISABLE404;
-		}
-		if (px->options2 & PR_O2_CHK_SNDST) {
-			ha_warning("'%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
-			           "send-state", proxy_type_str(px), px->id);
-			*err_code |= ERR_WARN;
-			px->options2 &= ~PR_O2_CHK_SNDST;
-		}
-	}
-
 	if ((px->options2 & PR_O2_CHK_ANY) == PR_O2_EXT_CHK) {
 		if (!global.external_check) {
 			ha_alert("Proxy '%s' : '%s' unable to find required 'global.external-check'.\n",

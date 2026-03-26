@@ -119,8 +119,7 @@ enum PR_SRV_STATE_FILE {
 
 #define PR_O_TCPCHK_SSL 0x10000000      /* at least one TCPCHECK connect rule requires SSL */
 #define PR_O_CONTSTATS  0x20000000      /* continuous counters */
-#define PR_O_DISABLE404 0x40000000      /* Disable a server on a 404 response to a health-check */
-/* unused: 0x80000000 */
+/* unused: 0x40000000..0x80000000 */
 
 /* bits for proxy->options2 */
 #define PR_O2_SPLIC_REQ	0x00000001      /* transfer requests using linux kernel's splice() */
@@ -145,7 +144,7 @@ enum PR_SRV_STATE_FILE {
 
 #define PR_O2_NODELAY   0x00020000      /* fully interactive mode, never delay outgoing data */
 #define PR_O2_USE_PXHDR 0x00040000      /* use Proxy-Connection for proxy requests */
-#define PR_O2_CHK_SNDST 0x00080000      /* send the state of each server along with HTTP health checks */
+/* unused: 0x00080000 */
 
 #define PR_O2_SRC_ADDR	0x00100000	/* get the source ip and port for logs */
 
