@@ -164,7 +164,10 @@ struct qcs {
 		struct bdata_ctr data; /* data utilization counter. Note that <tot> is now used for now as accounting may be difficult with ncbuf. */
 	} rx;
 	struct {
-		struct qc_stream_desc *stream; /* quic */
+		union {
+			struct qc_stream_desc *stream; /* quic */
+			struct buffer qstrm_buf;       /* qstrm */
+		};
 		struct quic_fctl fc; /* stream flow control applied on sending */
 		struct quic_frame *msd_frm; /* MAX_STREAM_DATA frame prepared */
 	} tx;
