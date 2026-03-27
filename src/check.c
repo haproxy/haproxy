@@ -1552,8 +1552,9 @@ void free_check(struct check *check)
 	 * done for health-check : the proxy is the owner of the rules / vars
 	 * in this case.
 	 */
-	if (check->state & CHK_ST_AGENT) {
+	if (check->state & CHK_ST_AGENT || check->tcpcheck->healthcheck) {
 		free_tcpcheck_vars(&check->tcpcheck->preset_vars);
+		ha_free(&check->tcpcheck->healthcheck);
 		ha_free(&check->tcpcheck);
 	}
 

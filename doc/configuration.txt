@@ -18673,6 +18673,18 @@ hash-key <key>
   uses "hash-type consistent", and the quality of the distribution will depend
   on the quality of the keys.
 
+healthchec <name>
+  May be used in the following contexts: tcp, http
+
+  Specify the health-check sectino to use to perform check on the server.
+
+  Argument :
+    <name>    is the health-check section name.
+
+  Thanks to this option, it is possible to use a pre-server health-check
+  configuration instead of using the proxy configuration. See also "healthcheck
+  section".
+
 id <value>
   May be used in the following contexts: tcp, http, log
 
@@ -32363,6 +32375,81 @@ Example:
       curves P-384
       map virt@acme
 
+
+12.9. Healthchecks
+------------------
+
+It is possible to globally declare several health-checks that could be used by
+servers across all the configuration, overriding the local proxy configuration.
+
+healthcheck <name>
+  Created a new healthcheck with name <name>. This name must be unique. It
+  should be used on server line to reference a specific health-check section.
+
+type <type>
+  Defines the health-check type. This parameter is mandatory. Following types
+  of health-check are supported:
+
+    * tcp-check
+    * httpchk
+    * ssl-hello-chk
+    * smtpchk
+    * pgsql-check
+    * redis-check
+    * mysql-check
+    * ldap-check
+    * spop-check
+
+  Each type uses the same parameters, if any, than the corresponding proxy's
+  option. For instance, the method, the uri... may be speficied for the
+  "httpchk" type:
+
+  Examples :
+        healthcheck my-http-check
+	    type httpchk GET /health HTTP/1.1 %[srv_name]
+
+  See also : "option tcp-check", "option httpchk", "option ssl-hello-chk",
+             "option smtpchk", "option mysql-check", "option pgsql-check",
+	     "option redis-check", "option ldap-check and "option spop-check"
+
+http-check comment <string>
+http-check connect [default] [port <expr>] [addr <ip>] [send-proxy]
+                   [via-socks4] [ssl] [sni <sni>] [alpn <alpn>] [linger]
+                   [proto <name>] [comment <msg>]
+http-check disable-on-404
+http-check expect [min-recv <int>] [comment <msg>]
+                  [ok-status <st>] [error-status <st>] [tout-status <st>]
+                  [on-success <fmt>] [on-error <fmt>] [status-code <expr>]
+                  [!] <match> <pattern>
+http-check send [meth <method>] [{ uri <uri> | uri-lf <fmt> }>] [ver <version>]
+                [hdr <name> <fmt>]* [{ body <string> | body-lf <fmt> }]
+                [comment <msg>]
+http-check send-state
+http-check set-var(<var-name>[,<cond>...]) <expr>
+http-check set-var-fmt(<var-name>[,<cond>...]) <fmt>
+http-check unset-var(<var-name>)
+  Add a specific http-check rule for a "httpchk" healthcheck. The same syntax
+  than the corresponding proxy's directives is used. See the corresponding proxy
+  documentation for details.
+
+tcp-check comment <string>
+tcp-check connect [default] [port <expr>] [addr <ip>] [send-proxy] [via-socks4]
+                  [ssl] [sni <sni>] [alpn <alpn>] [linger]
+                  [proto <name>] [comment <msg>]
+tcp-check expect [min-recv <int>] [comment <msg>]
+                 [ok-status <st>] [error-status <st>] [tout-status <st>]
+                 [on-success <fmt>] [on-error <fmt>] [status-code <expr>]
+                 [!] <match> <pattern>
+tcp-check send <data> [comment <msg>]
+tcp-check send-lf <fmt> [comment <msg>]
+tcp-check send-binary <hexstring> [comment <msg>]
+tcp-check send-binary-lf <hexfmt> [comment <msg>]
+tcp-check set-var(<var-name>[,<cond>...]) <expr>
+tcp-check set-var-fmt(<var-name>[,<cond>...]) <fmt>
+tcp-check unset-var(<var-name>)
+  Add a specific tcp-check rule for a "tcp-check" healthcheck. The same syntax
+  than the corresponding proxy's directives is used. See the corresponding proxy
+  documentation for details.
 
 /*
  * Local variables:

@@ -2537,6 +2537,10 @@ int proxy_finalize(struct proxy *px, int *err_code)
 
 		srv_minmax_conn_apply(newsrv);
 
+		*err_code |= check_server_tcpcheck(newsrv);
+		if (*err_code & (ERR_ABORT|ERR_FATAL))
+			goto out;
+
 		/* this will also properly set the transport layer for
 		 * prod and checks
 		 * if default-server have use_ssl, prerare ssl init
