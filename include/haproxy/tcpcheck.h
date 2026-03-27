@@ -129,6 +129,22 @@ static inline int tcpchk_rules_type_to_proto_mode(int tcpchk_rules_type)
 	return mode;
 }
 
+static inline const char *tcpcheck_ruleset_type_to_str(struct tcpcheck_ruleset *rs)
+{
+	switch (rs->flags & TCPCHK_RULES_PROTO_CHK) {
+		case TCPCHK_RULES_PGSQL_CHK: return "PGSQL"; break;
+		case TCPCHK_RULES_REDIS_CHK: return "REDIS"; break;
+		case TCPCHK_RULES_SMTP_CHK:  return "SMTP";  break;
+		case TCPCHK_RULES_HTTP_CHK:  return "HTTP";  break;
+		case TCPCHK_RULES_MYSQL_CHK: return "MYSQL"; break;
+		case TCPCHK_RULES_LDAP_CHK:  return "LDAP";  break;
+		case TCPCHK_RULES_SSL3_CHK:  return "SSL3";  break;
+		case TCPCHK_RULES_AGENT_CHK: return "AGENT"; break;
+		case TCPCHK_RULES_SPOP_CHK:  return "SPOP";  break;
+		case TCPCHK_RULES_TCP_CHK:   return "TCP";   break;
+		default:                     return "???"; break;
+	}
+}
 #endif /* _HAPROXY_TCPCHECK_H */
 
 /*
