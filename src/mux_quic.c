@@ -10,6 +10,7 @@
 #include <haproxy/global-t.h>
 #include <haproxy/h3.h>
 #include <haproxy/list.h>
+#include <haproxy/mux_quic_qstrm.h>
 #include <haproxy/ncbuf.h>
 #include <haproxy/pool.h>
 #include <haproxy/proxy.h>
@@ -3181,6 +3182,11 @@ static int qcc_io_recv(struct qcc *qcc)
 
 	if ((qcc->flags & QC_CF_WAIT_HS) && !(qcc->wait_event.events & SUB_RETRY_RECV))
 		qcc_wait_for_hs(qcc);
+
+	if (!conn_is_quic(qcc->conn)) {
+		if (!(qcc->wait_event.events & SUB_RETRY_RECV))
+			qcc_qstrm_recv(qcc);
+	}
 
 	while (!LIST_ISEMPTY(&qcc->recv_list)) {
 		qcs = LIST_ELEM(qcc->recv_list.n, struct qcs *, el_recv);
