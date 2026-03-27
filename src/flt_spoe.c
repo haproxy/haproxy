@@ -1114,7 +1114,7 @@ static int spoe_process_event(struct stream *s, struct spoe_context *ctx,
 	}
 	else if (ret == 0) {
 		if ((s->scf->flags & SC_FL_ERROR) ||
-		    ((s->scf->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) && proxy_abrt_close_def(s->be, 1))) {
+		    ((s->scf->flags & SC_FL_EOS) && proxy_abrt_close_def(s->be, 1))) {
 			ctx->status_code = SPOE_CTX_ERR_INTERRUPT;
 			spoe_stop_processing(agent, ctx);
 			spoe_handle_processing_error(s, agent, ctx, dir);
