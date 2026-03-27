@@ -10,13 +10,18 @@
 
 #define ACME_RETRY 5
 
+/* Readiness requirements for challenge */
+#define ACME_RDY_NONE  0x00
+#define ACME_RDY_CLI   0x01
+#define ACME_RDY_DNS   0x02
+
 /* acme section configuration */
 struct acme_cfg {
 	char *filename;             /* config filename */
 	int linenum;                /* config linenum */
 	char *name;                 /* section name */
 	int reuse_key;              /* do we need to renew the private key */
-	int dns_check;              /* enable DNS resolution to verify TXT record before challenge */
+	int cond_ready;             /* ready condition */
 	unsigned int dns_delay;     /* delay in seconds before re-triggering DNS resolution (default: 300) */
 	char *directory;            /* directory URL */
 	char *map;                  /* storage for tokens + thumbprint */

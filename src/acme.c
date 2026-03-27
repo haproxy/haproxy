@@ -427,6 +427,18 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 			goto out;
 		}
+
+		/* require the CLI by default */
+		if ((strcasecmp("dns-01", args[1]) == 0) && (cur_acme->cond_ready == 0)) {
+			cur_acme->cond_ready = ACME_RDY_CLI;
+		}
+
+		if ((strcasecmp("http-01", args[1]) == 0) && (cur_acme->cond_ready != 0)) {
+			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section, \"http-01\" is not compatible with the \"challenge-ready\" option\n", file, linenum, args[0], cursection);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 	} else if (strcmp(args[0], "map") == 0) {
 		/* save the map name for thumbprint + token storage */
 		if (!*args[1]) {
@@ -444,7 +456,10 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 			goto out;
 		}
-	} else if (strcmp(args[0], "dns-check") == 0) {
+	} else if (strcmp(args[0], "challenge-ready") == 0) {
+		char *str = args[1];
+		char *saveptr;
+
 		if (!*args[1]) {
 			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires an argument\n", file, linenum, args[0], cursection);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -453,15 +468,37 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 
-		if (strcmp(args[1], "on") == 0) {
-			cur_acme->dns_check = 1;
-		} else if (strcmp(args[1], "off") == 0) {
-			cur_acme->dns_check = 0;
-		} else {
+		cur_acme->cond_ready = 0;
+
+		while ((str = strtok_r(str, ",", &saveptr))) {
+
+			if (strcmp(str, "cli") == 0) {
+				/* wait for the CLI-ready to run the challenge */
+				cur_acme->cond_ready |= ACME_RDY_CLI;
+			} else if (strcmp(str, "dns") == 0) {
+				/* wait for the DNS-check to run the challenge */
+				cur_acme->cond_ready |= ACME_RDY_DNS;
+			} else if (strcmp(str, "none") == 0) {
+				if (cur_acme->cond_ready || (saveptr && *saveptr)) {
+					err_code |= ERR_ALERT | ERR_FATAL;
+					ha_alert("parsing [%s:%d]: keyword '%s' in '%s' can't combine 'none' with other keywords.\n", file, linenum, args[0], cursection);
+					goto out;
+				}
+				cur_acme->cond_ready = ACME_RDY_NONE;
+			} else {
+				err_code |= ERR_ALERT | ERR_FATAL;
+				ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires parameter separated by commas: 'cli', 'dns' or 'none'\n", file, linenum, args[0], cursection);
+				goto out;
+			}
+			str = NULL;
+		}
+
+		if ((strcasecmp("http-01", cur_acme->challenge) == 0) && (cur_acme->cond_ready != 0)) {
+			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section, \"http-01\" is not compatible with the \"challenge-ready\" option\n", file, linenum, args[0], cursection);
 			err_code |= ERR_ALERT | ERR_FATAL;
-			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires either the 'on' or 'off' parameter\n", file, linenum, args[0], cursection);
 			goto out;
 		}
+
 	} else if (strcmp(args[0], "dns-delay") == 0) {
 		const char *res;
 
@@ -891,7 +928,7 @@ static struct cfg_kw_list cfg_kws_acme = {ILH, {
 	{ CFG_ACME, "curves",  cfg_parse_acme_cfg_key },
 	{ CFG_ACME, "map",  cfg_parse_acme_kws },
 	{ CFG_ACME, "reuse-key",  cfg_parse_acme_kws },
-	{ CFG_ACME, "dns-check",  cfg_parse_acme_kws },
+	{ CFG_ACME, "challenge-ready",  cfg_parse_acme_kws },
 	{ CFG_ACME, "dns-delay",  cfg_parse_acme_kws },
 	{ CFG_ACME, "acme-vars",  cfg_parse_acme_vars_provider },
 	{ CFG_ACME, "provider-name",  cfg_parse_acme_vars_provider },
@@ -1787,7 +1824,8 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 			istfree(&auth->token);
 			auth->token = istdup(ist2(dns_record->area, dns_record->data));
 
-			send_log(NULL, LOG_NOTICE,"acme: %s: dns-01 requires to set the \"_acme-challenge.%.*s\" TXT record to \"%.*s\" and use the \"acme challenge_ready %s domain %.*s\" command over the CLI\n",
+			if (ctx->cfg->cond_ready & ACME_RDY_CLI)
+				send_log(NULL, LOG_NOTICE,"acme: %s: dns-01 requires to set the \"_acme-challenge.%.*s\" TXT record to \"%.*s\" and use the \"acme challenge_ready %s domain %.*s\" command over the CLI\n",
 			                                             ctx->store->path, (int)auth->dns.len, auth->dns.ptr, (int)auth->token.len, auth->token.ptr, ctx->store->path, (int)auth->dns.len, auth->dns.ptr);
 
 			/* dump to the "dpapi" sink */
@@ -1971,11 +2009,6 @@ int acme_res_neworder(struct task *task, struct acme_ctx *ctx, char **errmsg)
 			memprintf(errmsg, "out of memory");
 			goto error;
 		}
-
-                /* if the challenge is not dns-01, consider that the challenge
-                 * is ready because computed by HAProxy */
-                if (strcasecmp(ctx->cfg->challenge, "dns-01") != 0)
-			auth->ready = 1;
 
 		auth->next = ctx->auths;
 		ctx->auths = auth;
@@ -2325,7 +2358,7 @@ re:
 					goto retry;
 				}
 				if ((ctx->next_auth = ctx->next_auth->next) == NULL) {
-					if (strcasecmp(ctx->cfg->challenge, "dns-01") == 0 && ctx->cfg->dns_check)
+					if (strcasecmp(ctx->cfg->challenge, "dns-01") == 0 && ctx->cfg->cond_ready)
 						st = ACME_RSLV_WAIT;
 					else
 						st = ACME_CHALLENGE;
@@ -2336,7 +2369,27 @@ re:
 			}
 		break;
 		case ACME_RSLV_WAIT: {
-			/* wait dns-delay */
+			struct acme_auth *auth;
+			int all_cond_ready = ctx->cfg->cond_ready;
+
+			for (auth = ctx->auths; auth != NULL; auth = auth->next) {
+				all_cond_ready &= auth->ready;
+			}
+
+			/* if everything is ready, let's do the challenge request */
+			if ((all_cond_ready & ctx->cfg->cond_ready) == ctx->cfg->cond_ready) {
+				st = ACME_CHALLENGE;
+				ctx->http_state = ACME_HTTP_REQ;
+				ctx->state = st;
+				goto nextreq;
+			}
+
+			/* if we need to wait for the CLI, let's wait */
+			if ((ctx->cfg->cond_ready & ACME_RDY_CLI) && !(all_cond_ready & ACME_RDY_CLI))
+				goto wait;
+
+			/* we don't need to wait, we can trigger the resolution
+			 * after the delay */
 			st = ACME_RSLV_TRIGGER;
 			ctx->http_state = ACME_HTTP_REQ;
 			ctx->state = st;
@@ -2357,7 +2410,7 @@ re:
 				int all_ready = 1;
 
 				for (auth = ctx->auths; auth != NULL; auth = auth->next) {
-					if (auth->ready)
+					if (auth->ready == ctx->cfg->cond_ready)
 						continue;
 					all_ready = 0;
 				}
@@ -2373,7 +2426,7 @@ re:
 
 			/* on timer expiry, re-trigger resolution for non-ready auths */
 			for (auth = ctx->auths; auth != NULL; auth = auth->next) {
-				if (auth->ready)
+				if (auth->ready == ctx->cfg->cond_ready)
 					continue;
 
 				HA_ATOMIC_INC(&ctx->dnstasks);
@@ -2399,7 +2452,7 @@ re:
 
 			/* triggered by the latest DNS task */
 			for (auth = ctx->auths; auth != NULL; auth = auth->next) {
-				if (auth->ready)
+				if (auth->ready == ctx->cfg->cond_ready)
 					continue;
 				if (auth->rslv->result != RSLV_STATUS_VALID) {
 					send_log(NULL, LOG_NOTICE, "acme: %s: dns-01: Couldn't get the TXT record for \"_acme-challenge.%.*s\", expected \"%.*s\" (status=%d)\n",
@@ -2409,7 +2462,7 @@ re:
 					all_ready = 0;
 				} else {
 					if (isteq(auth->rslv->txt, auth->token)) {
-						auth->ready = 1;
+						auth->ready |= ACME_RDY_DNS;
 					} else {
 						send_log(NULL, LOG_NOTICE, "acme: %s: dns-01: TXT record mismatch for \"_acme-challenge.%.*s\": expected \"%.*s\", got \"%.*s\"\n",
 						         ctx->store->path, (int)auth->dns.len, auth->dns.ptr,
@@ -2446,7 +2499,7 @@ re:
 				}
 
 				/* if the challenge is not ready, wait to be wakeup */
-				if (!ctx->next_auth->ready)
+				if (ctx->next_auth->ready != ctx->cfg->cond_ready)
 					goto wait;
 
 				if (acme_req_challenge(task, ctx, ctx->next_auth, &errmsg) != 0)
@@ -2959,7 +3012,7 @@ static int cli_acme_chall_ready_parse(char **args, char *payload, struct appctx 
 	const char *crt;
 	const char *dns;
 	struct acme_ctx *ctx = NULL;
-	struct acme_auth *auth;
+	struct acme_auth *auth = NULL;
 	int found = 0;
 	int remain = 0;
 	struct ebmb_node *node = NULL;
@@ -2979,17 +3032,18 @@ static int cli_acme_chall_ready_parse(char **args, char *payload, struct appctx 
 	node = ebst_lookup(&acme_tasks, crt);
 	if (node) {
 		ctx = ebmb_entry(node, struct acme_ctx, node);
-		auth = ctx->auths;
+		if (ctx->cfg->cond_ready & ACME_RDY_CLI)
+			auth = ctx->auths;
 		while (auth) {
 			if (strncmp(dns, auth->dns.ptr, auth->dns.len) == 0) {
-				if (!auth->ready) {
-					auth->ready = 1;
+				if (!(auth->ready & ACME_RDY_CLI)) {
+					auth->ready |= ACME_RDY_CLI;
 					found++;
 				} else {
 					memprintf(&msg, "ACME challenge for crt \"%s\" and dns \"%s\" was already READY !\n", crt, dns);
 				}
 			}
-			if (auth->ready == 0)
+			if ((auth->ready & ACME_RDY_CLI) == 0)
 				remain++;
 			auth = auth->next;
 		}
@@ -2997,7 +3051,7 @@ static int cli_acme_chall_ready_parse(char **args, char *payload, struct appctx 
 	HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &acme_lock);
 	if (!found) {
 		if (!msg)
-			memprintf(&msg, "Couldn't find the ACME task using crt \"%s\" and dns \"%s\" !\n", crt, dns);
+			memprintf(&msg, "Couldn't find an ACME task using crt \"%s\" and dns \"%s\" to set as ready!\n", crt, dns);
 		goto err;
 	} else {
 		if (!remain) {
