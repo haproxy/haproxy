@@ -2567,23 +2567,12 @@ static int qcc_subscribe_send(struct qcc *qcc)
 	return 1;
 }
 
-/* Wrapper for send on transport layer. Send a list of frames <frms> for the
- * connection <qcc>.
- *
- * Returns 0 if all data sent with success. On fatal error, a negative error
- * code is returned. A positive 1 is used if emission should be paced.
- */
-static int qcc_send_frames(struct qcc *qcc, struct list *frms, int stream)
+static int qcc_quic_send_frames(struct qcc *qcc, struct list *frms, int stream)
 {
 	enum quic_tx_err ret;
 	struct quic_pacer *pacer = NULL;
 
 	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
-
-	if (LIST_ISEMPTY(frms)) {
-		TRACE_DEVEL("leaving on no frame to send", QMUX_EV_QCC_SEND, qcc->conn);
-		return -1;
-	}
 
 	if (stream && qcc_is_pacing_active(qcc->conn))
 		pacer = &qcc->tx.pacer;
@@ -2610,6 +2599,23 @@ static int qcc_send_frames(struct qcc *qcc, struct list *frms, int stream)
  err:
 	TRACE_DEVEL("leaving on error", QMUX_EV_QCC_SEND, qcc->conn);
 	return -1;
+}
+
+/* Wrapper for send on transport layer. Send a list of frames <frms> for the
+ * connection <qcc>.
+ *
+ * Returns 0 if all data sent with success. On fatal error, a negative error
+ * code is returned. A positive 1 is used if emission should be paced.
+ */
+static int qcc_send_frames(struct qcc *qcc, struct list *frms, int stream)
+{
+	if (LIST_ISEMPTY(frms)) {
+		TRACE_DEVEL("leaving on no frame to send", QMUX_EV_QCC_SEND, qcc->conn);
+		return -1;
+	}
+
+	return conn_is_quic(qcc->conn) ? qcc_quic_send_frames(qcc, frms, stream) :
+	                                 qcc_qstrm_send_frames(qcc, frms);
 }
 
 /* Emit a RESET_STREAM on <qcs>.
@@ -3072,6 +3078,12 @@ static int qcc_io_send(struct qcc *qcc)
 	 * flow-control limit reached.
 	 */
 	while ((ret = qcc_send_frames(qcc, frms, 1)) == 0 && !qfctl_rblocked(&qcc->tx.fc)) {
+		/* TODO should this check also be performed for QUIC ? */
+		if (!conn_is_quic(qcc->conn) && (qcc->conn->flags & CO_FL_ERROR)) {
+			TRACE_DEVEL("connection on error", QMUX_EV_QCC_SEND, qcc->conn);
+			goto out;
+		}
+
 		window_conn = qfctl_rcap(&qcc->tx.fc);
 		resent = 0;
 
@@ -3083,7 +3095,8 @@ static int qcc_io_send(struct qcc *qcc)
 			 * new qc_stream_desc should be present in send_list as
 			 * long as transport layer can handle all data.
 			 */
-			BUG_ON(qcs->tx.stream->buf && !qfctl_rblocked(&qcs->tx.fc));
+			BUG_ON((!conn_is_quic(qcc->conn) || qcs->tx.stream->buf) &&
+			       !qfctl_rblocked(&qcs->tx.fc));
 
 			/* Total sent bytes must not exceed connection window. */
 			BUG_ON(resent > window_conn);

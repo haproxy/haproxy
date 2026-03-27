@@ -147,3 +147,88 @@ int qcc_qstrm_recv(struct qcc *qcc)
  err:
 	return -1;
 }
+
+/* Sends <frms> list of frames for <qcc> connection.
+ *
+ * Returns 0 if all data are emitted or a positive value if sending should be
+ * retry later. A negative error code is used for a fatal failure.
+ */
+int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
+{
+	struct connection *conn = qcc->conn;
+	struct quic_frame *frm, *frm_old;
+	struct quic_frame *split_frm, *orig_frm;
+	unsigned char *pos, *old, *end;
+	size_t ret;
+
+	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
+	list_for_each_entry_safe(frm, frm_old, frms, list) {
+ loop:
+		split_frm = NULL;
+		b_reset(&trash);
+		old = pos = (unsigned char *)b_orig(&trash);
+		end = (unsigned char *)b_wrap(&trash);
+
+		BUG_ON(!frm);
+		TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QMUX_EV_QCC_SEND, qcc->conn, 0, 0, 0,
+		             "frm type %02llx", (ullong)frm->type);
+
+		if (frm->type >= QUIC_FT_STREAM_8 && frm->type <= QUIC_FT_STREAM_F) {
+			size_t flen, split_size;
+
+			flen = quic_strm_frm_fillbuf(end - pos, frm, &split_size);
+			if (!flen)
+				continue;
+
+			if (split_size) {
+				split_frm = quic_strm_frm_split(frm, split_size);
+				if (!split_frm) {
+					ABORT_NOW();
+					continue;
+				}
+
+				orig_frm = frm;
+				frm = split_frm;
+			}
+		}
+
+		qc_build_frm(frm, &pos, end, NULL);
+		BUG_ON(pos - old > global.tune.bufsize);
+		BUG_ON(pos == old);
+		b_add(&trash, pos - old);
+
+		ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, &trash, b_data(&trash), NULL, 0, 0);
+		if (!ret) {
+			TRACE_DEVEL("snd_buf interrupted", QMUX_EV_QCC_SEND, qcc->conn);
+			if (split_frm)
+				LIST_INSERT(frms, &split_frm->list);
+			break;
+		}
+
+		if (ret != b_data(&trash)) {
+			/* TODO */
+			ABORT_NOW();
+		}
+
+		if (frm->type >= QUIC_FT_STREAM_8 && frm->type <= QUIC_FT_STREAM_F)
+			/* TODO notify MUX */
+
+		LIST_DEL_INIT(&frm->list);
+		if (split_frm) {
+			frm = orig_frm;
+			goto loop;
+		}
+	}
+
+	if (conn->flags & CO_FL_ERROR) {
+		/* TODO */
+		//ABORT_NOW();
+	}
+	else if (!LIST_ISEMPTY(frms) && !(qcc->wait_event.events & SUB_RETRY_SEND)) {
+		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_SEND, &qcc->wait_event);
+		return 1;
+	}
+
+	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);
+	return 0;
+}
