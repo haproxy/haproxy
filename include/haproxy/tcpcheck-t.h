@@ -248,6 +248,7 @@ struct tcpcheck_ruleset {
 
 struct tcpcheck {
 	struct tcpcheck_ruleset *rs; /* The tcp-check ruleset to use */
+	char *healthcheck;           /* name of the healthcheck section (NULL if not used) */
 	struct list preset_vars;     /* The list of variable to preset before executing the ruleset */
 	unsigned int flags;          /* TCPCHECK_FL_* */
 };

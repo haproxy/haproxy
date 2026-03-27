@@ -4164,6 +4164,35 @@ static int check_proxy_tcpcheck(struct proxy *px)
 	return ret;
 }
 
+int check_server_tcpcheck(struct server *srv)
+{
+	struct tcpcheck_ruleset *rs;
+	int err_code = 0;
+
+	if (srv->check.tcpcheck->healthcheck) {
+		rs = find_tcpcheck_ruleset(srv->check.tcpcheck->healthcheck);
+		if (!rs) {
+			ha_alert("parsing [%s:%d]: healthcheck section '%s' not found for server '%s'.\n",
+				 srv->conf.file, srv->conf.line, srv->check.tcpcheck->healthcheck, srv->id);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (!dup_tcpcheck_vars(&srv->check.tcpcheck->preset_vars, &rs->conf.preset_vars)) {
+			ha_alert("parsing [%s:%d]:  unable to duplicate preset variables for server '%s'.\n",
+				 srv->conf.file, srv->conf.line, srv->id);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		srv->check.tcpcheck->rs = rs;
+		srv->check.tcpcheck->flags = rs->conf.flags;
+
+		err_code = check_tcpcheck_ruleset(srv->proxy, rs);
+	}
+
+  out:
+	return err_code;
+}
+
 void deinit_proxy_tcpcheck(struct proxy *px)
 {
 	free_tcpcheck_vars(&px->tcpcheck.preset_vars);
@@ -5920,6 +5949,43 @@ int cfg_post_parse_healthchecks()
 	return err_code;
 }
 
+/* Parse the "healthcheck" server keyword */
+static int srv_parse_healthcheck(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
+				 char **errmsg)
+{
+	int err_code = 0;
+
+	if (!*args[*cur_arg+1]) {
+		memprintf(errmsg, "'%s' expects a healthcheck name as argument.", args[*cur_arg]);
+		err_code |= ERR_ALERT | ERR_ABORT;
+		goto out;
+	}
+
+	if (srv->check.tcpcheck->healthcheck) {
+		/* a healthcheck section was already defined. Replace it */
+		ha_free(&srv->check.tcpcheck->healthcheck);
+	}
+	else {
+		srv->check.tcpcheck = calloc(1, sizeof(*srv->check.tcpcheck));
+		if (srv->check.tcpcheck == NULL) {
+			memprintf(errmsg, "out of memory");
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		LIST_INIT(&srv->check.tcpcheck->preset_vars);
+	}
+
+	if (!memprintf(&srv->check.tcpcheck->healthcheck, "*healthcheck-%s", args[*cur_arg+1])) {
+		ha_free(&srv->check.tcpcheck);
+		memprintf(errmsg, "out of memory");
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+  out:
+	return err_code;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
         { CFG_LISTEN, "http-check",     proxy_parse_httpcheck },
         { CFG_LISTEN, "tcp-check",      proxy_parse_tcpcheck },
@@ -5932,3 +5998,11 @@ REGISTER_POST_DEINIT(deinit_tcpchecks);
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 REGISTER_CONFIG_SECTION("healthcheck",  cfg_parse_healthchecks,  cfg_post_parse_healthchecks);
+
+/* register "server" line keywords */
+static struct srv_kw_list srv_kws = { "CHK", { }, {
+	{ "healthcheck", srv_parse_healthcheck,  1,  1,  1 }, /* The healthcheck section to use */
+	{ NULL, NULL, 0 },
+}};
+
+INITCALL1(STG_REGISTER, srv_register_keywords, &srv_kws);
