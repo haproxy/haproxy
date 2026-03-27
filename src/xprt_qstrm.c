@@ -22,6 +22,18 @@ struct xprt_qstrm_ctx {
 
 DECLARE_STATIC_TYPED_POOL(xprt_qstrm_ctx_pool, "xprt_qstrm_ctx", struct xprt_qstrm_ctx);
 
+const struct quic_transport_params *xprt_qstrm_lparams(const void *context)
+{
+	const struct xprt_qstrm_ctx *ctx = context;
+	return &ctx->lparams;
+}
+
+const struct quic_transport_params *xprt_qstrm_rparams(const void *context)
+{
+	const struct xprt_qstrm_ctx *ctx = context;
+	return &ctx->rparams;
+}
+
 int conn_recv_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int flag)
 {
 	struct quic_frame frm;
@@ -80,11 +92,7 @@ int conn_send_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int fla
 		goto fail;
 
 	frm.type = QUIC_FT_QX_TRANSPORT_PARAMETERS;
-	frm.qmux_transport_params.params.initial_max_streams_bidi = 100;
-	frm.qmux_transport_params.params.initial_max_streams_uni  = 3;
-	frm.qmux_transport_params.params.initial_max_stream_data_bidi_local = qmux_stream_rx_bufsz();
-	frm.qmux_transport_params.params.initial_max_stream_data_bidi_remote = qmux_stream_rx_bufsz();
-	frm.qmux_transport_params.params.initial_max_stream_data_uni = qmux_stream_rx_bufsz();
+	frm.qmux_transport_params.params = ctx->lparams;
 
 	b_reset(&trash);
 	old = pos = (unsigned char *)b_head(&trash);
@@ -186,6 +194,15 @@ static int xprt_qstrm_init(struct connection *conn, void **xprt_ctx)
 
 	ctx->ctx_lower = NULL;
 	ctx->ops_lower = NULL;
+
+	memset(&ctx->rparams, 0, sizeof(struct quic_transport_params));
+
+	/* TP configuration advertised by us */
+	ctx->lparams.initial_max_streams_bidi = 100;
+	ctx->lparams.initial_max_streams_uni = 3;
+	ctx->lparams.initial_max_stream_data_bidi_local = qmux_stream_rx_bufsz();
+	ctx->lparams.initial_max_stream_data_bidi_remote = qmux_stream_rx_bufsz();
+	ctx->lparams.initial_max_stream_data_uni = qmux_stream_rx_bufsz();
 
 	*xprt_ctx = ctx;
 

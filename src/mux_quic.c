@@ -34,6 +34,7 @@
 #include <haproxy/stconn.h>
 #include <haproxy/time.h>
 #include <haproxy/trace.h>
+#include <haproxy/xprt_qstrm.h>
 #include <haproxy/xref.h>
 
 DECLARE_TYPED_POOL(pool_head_qcc, "qcc", struct qcc);
@@ -3701,7 +3702,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
                      struct session *sess, struct buffer *input)
 {
 	struct qcc *qcc;
-	struct quic_transport_params *lparams, *rparams;
+	const struct quic_transport_params *lparams, *rparams;
 	void *conn_ctx = conn->ctx;
 
 	TRACE_ENTER(QMUX_EV_QCC_NEW);
@@ -3720,26 +3721,49 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	qcc->glitches = 0;
 	qcc->err = quic_err_transport(QC_ERR_NO_ERROR);
 
-	/* Server parameters, params used for RX flow control. */
-	lparams = &conn->handle.qc->rx.params;
+	if (conn_is_quic(conn)) {
+		/* Server parameters, params used for RX flow control. */
+		lparams = &conn->handle.qc->rx.params;
 
-	qcc->lfctl.ms_bidi = qcc->lfctl.ms_bidi_init = lparams->initial_max_streams_bidi;
-	qcc->lfctl.ms_uni = lparams->initial_max_streams_uni;
-	qcc->lfctl.msd_bidi_l = lparams->initial_max_stream_data_bidi_local;
-	qcc->lfctl.msd_bidi_r = lparams->initial_max_stream_data_bidi_remote;
-	qcc->lfctl.msd_uni_r = lparams->initial_max_stream_data_uni;
-	qcc->lfctl.cl_bidi_r = 0;
+		qcc->lfctl.ms_bidi = qcc->lfctl.ms_bidi_init = lparams->initial_max_streams_bidi;
+		qcc->lfctl.ms_uni = lparams->initial_max_streams_uni;
+		qcc->lfctl.msd_bidi_l = lparams->initial_max_stream_data_bidi_local;
+		qcc->lfctl.msd_bidi_r = lparams->initial_max_stream_data_bidi_remote;
+		qcc->lfctl.msd_uni_r = lparams->initial_max_stream_data_uni;
+		qcc->lfctl.cl_bidi_r = 0;
 
-	qcc->lfctl.md = qcc->lfctl.md_init = lparams->initial_max_data;
-	qcc->lfctl.offsets_recv = qcc->lfctl.offsets_consume = 0;
+		qcc->lfctl.md = qcc->lfctl.md_init = lparams->initial_max_data;
+		qcc->lfctl.offsets_recv = qcc->lfctl.offsets_consume = 0;
 
-	rparams = &conn->handle.qc->tx.params;
-	qfctl_init(&qcc->tx.fc, rparams->initial_max_data);
-	qcc->rfctl.ms_uni = rparams->initial_max_streams_uni;
-	qcc->rfctl.ms_bidi = rparams->initial_max_streams_bidi;
-	qcc->rfctl.msd_bidi_l = rparams->initial_max_stream_data_bidi_local;
-	qcc->rfctl.msd_bidi_r = rparams->initial_max_stream_data_bidi_remote;
-	qcc->rfctl.msd_uni_l = rparams->initial_max_stream_data_uni;
+		rparams = &conn->handle.qc->tx.params;
+		qfctl_init(&qcc->tx.fc, rparams->initial_max_data);
+		qcc->rfctl.ms_uni = rparams->initial_max_streams_uni;
+		qcc->rfctl.ms_bidi = rparams->initial_max_streams_bidi;
+		qcc->rfctl.msd_bidi_l = rparams->initial_max_stream_data_bidi_local;
+		qcc->rfctl.msd_bidi_r = rparams->initial_max_stream_data_bidi_remote;
+		qcc->rfctl.msd_uni_l = rparams->initial_max_stream_data_uni;
+	}
+	else {
+		rparams = xprt_qstrm_rparams(conn->xprt_ctx);
+		qfctl_init(&qcc->tx.fc, rparams->initial_max_data);
+
+		qcc->rfctl.ms_uni = rparams->initial_max_streams_uni;
+		qcc->rfctl.ms_bidi = rparams->initial_max_streams_bidi;
+		qcc->rfctl.msd_bidi_l = rparams->initial_max_stream_data_bidi_local;
+		qcc->rfctl.msd_bidi_r = rparams->initial_max_stream_data_bidi_remote;
+		qcc->rfctl.msd_uni_l = rparams->initial_max_stream_data_uni;
+
+		/* TODO */
+		qcc->lfctl.ms_bidi = qcc->lfctl.ms_bidi_init = 16384;
+		qcc->lfctl.ms_uni = 3;
+		qcc->lfctl.msd_bidi_l = 16384;
+		qcc->lfctl.msd_bidi_r = 16384;
+		qcc->lfctl.msd_uni_r = 16384;
+		qcc->lfctl.cl_bidi_r = 0;
+
+		qcc->lfctl.md = qcc->lfctl.md_init = 16384;
+		qcc->lfctl.offsets_recv = qcc->lfctl.offsets_consume = 0;
+	}
 
 	qcc->tx.buf_in_flight = 0;
 
