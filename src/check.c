@@ -235,19 +235,7 @@ static void check_trace(enum trace_level level, uint64_t mask,
 	if (mask & CHK_EV_TCPCHK) {
 		const char *type;
 
-		switch (check->tcpcheck->rs->flags & TCPCHK_RULES_PROTO_CHK) {
-			case TCPCHK_RULES_PGSQL_CHK: type = "PGSQL"; break;
-			case TCPCHK_RULES_REDIS_CHK: type = "REDIS"; break;
-			case TCPCHK_RULES_SMTP_CHK:  type = "SMTP";  break;
-			case TCPCHK_RULES_HTTP_CHK:  type = "HTTP";  break;
-			case TCPCHK_RULES_MYSQL_CHK: type = "MYSQL"; break;
-			case TCPCHK_RULES_LDAP_CHK:  type = "LDAP";  break;
-			case TCPCHK_RULES_SSL3_CHK:  type = "SSL3";  break;
-			case TCPCHK_RULES_AGENT_CHK: type = "AGENT"; break;
-			case TCPCHK_RULES_SPOP_CHK:  type = "SPOP";  break;
-			case TCPCHK_RULES_TCP_CHK:   type = "TCP";   break;
-			default:                     type = "???"; break;
-		}
+		type = tcpcheck_ruleset_type_to_str(check->tcpcheck->rs);
 		if (check->current_step)
 			chunk_appendf(&trace_buf, " - tcp-check=(%s,%d)", type, tcpcheck_get_step_id(check, NULL));
 		else
