@@ -84,6 +84,9 @@ struct qcc {
 		struct quic_pacer pacer; /* engine used to pace emission */
 		int paced_sent_ctr; /* counter for when emission is interrupted due to pacing */
 	} tx;
+	struct {
+		struct buffer qstrm_buf;
+	} rx;
 
 	uint64_t largest_bidi_r; /* largest remote bidi stream ID opened. */
 	uint64_t largest_uni_r;  /* largest remote uni stream ID opened. */

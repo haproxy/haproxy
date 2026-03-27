@@ -42,7 +42,8 @@ static int qstrm_parse_frm(struct qcc *qcc, struct buffer *buf)
 	old = pos = (unsigned char *)b_head(buf);
 	end = (unsigned char *)b_head(buf) + b_data(buf);
 	ret = qc_parse_frm_type(&frm, &pos, end, NULL);
-	BUG_ON(!ret);
+	if (!ret)
+		return 0;
 
 	if (!qstrm_is_frm_valid(&frm)) {
 		/* TODO close connection with FRAME_ENCODING_ERROR */
@@ -51,7 +52,8 @@ static int qstrm_parse_frm(struct qcc *qcc, struct buffer *buf)
 	}
 
 	ret = qc_parse_frm_payload(&frm, &pos, end, NULL);
-	BUG_ON(!ret);
+	if (!ret)
+		return 0;
 
 	if (frm.type >= QUIC_FT_STREAM_8 &&
 	    frm.type <= QUIC_FT_STREAM_F) {
@@ -86,24 +88,26 @@ static int qstrm_parse_frm(struct qcc *qcc, struct buffer *buf)
  */
 int qcc_qstrm_recv(struct qcc *qcc)
 {
-	/* TODO add a buffer on the connection for incomplete data read */
 	struct connection *conn = qcc->conn;
+	struct buffer *buf = &qcc->rx.qstrm_buf;
 	int total = 0, frm_ret;
 	size_t ret;
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
 
 	do {
-		b_reset(&trash);
-		ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, &trash, trash.size, NULL, 0, 0);
+		b_realign_if_empty(buf);
+		ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, b_contig_space(buf), NULL, 0, 0);
 		BUG_ON(conn->flags & CO_FL_ERROR);
 
 		total += ret;
-		while (b_data(&trash)) {
-			frm_ret = qstrm_parse_frm(qcc, &trash);
-			BUG_ON(!frm_ret);
+		while (b_data(buf)) {
+			frm_ret = qstrm_parse_frm(qcc, buf);
+			BUG_ON(frm_ret < 0); /* TODO handle fatal errors */
+			if (!frm_ret)
+				break;
 
-			b_del(&trash, frm_ret);
+			b_del(buf, frm_ret);
 		}
 	} while (ret > 0);
 

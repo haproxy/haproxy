@@ -3745,6 +3745,15 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 		qcc->pacing_task->state |= TASK_F_WANTS_TIME;
 	}
 
+	if (!conn_is_quic(conn)) {
+		qcc->rx.qstrm_buf = BUF_NULL;
+		b_alloc(&qcc->rx.qstrm_buf, DB_MUX_RX);
+		if (!b_size(&qcc->rx.qstrm_buf)) {
+			TRACE_ERROR("rx qstrm buf alloc failure", QMUX_EV_QCC_NEW);
+			goto err;
+		}
+	}
+
 	if (conn_is_back(conn)) {
 		qcc->next_bidi_l    = 0x00;
 		qcc->largest_bidi_r = 0x01;
