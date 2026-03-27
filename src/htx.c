@@ -733,9 +733,11 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 {
 	struct htx_blk *blk, *last_dstblk;
 	size_t ret = 0;
+	uint32_t max, last_dstblk_sz;
 	int dst_full = 0;
 
 	last_dstblk = NULL;
+	last_dstblk_sz = 0;
 	for (blk = htx_get_head_blk(src); blk && count; blk = htx_get_next_blk(src, blk)) {
 		struct ist v;
 		enum htx_blk_type type;
@@ -751,18 +753,23 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 		    type != HTX_BLK_HDR && type != HTX_BLK_EOH)
 			break;
 
+		max = htx_get_max_blksz(dst, count);
+		if (!max)
+			break;
+
 		sz = htx_get_blksz(blk);
 		switch (type) {
 		case HTX_BLK_DATA:
 			v = htx_get_blk_value(src, blk);
-			if (v.len > count)
-				v.len = count;
+			if (v.len > max)
+				v.len = max;
 			v.len = htx_add_data(dst, v);
 			if (!v.len) {
 				dst_full = 1;
 				goto stop;
 			}
 			last_dstblk = htx_get_tail_blk(dst);
+			last_dstblk_sz = v.len;
 			count -= sizeof(*blk) + v.len;
 			ret += sizeof(*blk) + v.len;
 			if (v.len != sz) {
@@ -772,7 +779,7 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 			break;
 
 		default:
-			if (sz > count) {
+			if (sz > max) {
 				dst_full = 1;
 				goto stop;
 			}
@@ -784,12 +791,14 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 			}
 			last_dstblk->info = blk->info;
 			htx_memcpy(htx_get_blk_ptr(dst, last_dstblk), htx_get_blk_ptr(src, blk), sz);
+			last_dstblk_sz = sz;
 			count -= sizeof(*blk) + sz;
 			ret += sizeof(*blk) + sz;
 			break;
 		}
 
 		last_dstblk = NULL; /* Reset last_dstblk because it was fully copied */
+		last_dstblk_sz = 0;
 	}
   stop:
 	/* Here, if not NULL, <blk> point on the first not fully copied block in
@@ -848,7 +857,7 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 			 * cut the source block accordingly
 			 */
 			if (last_dstblk && blk2 && htx_get_blk_type(blk2) == HTX_BLK_DATA) {
-				htx_cut_data_blk(src, blk2, htx_get_blksz(last_dstblk));
+				htx_cut_data_blk(src, blk2, last_dstblk_sz);
 			}
 		}
 	}
