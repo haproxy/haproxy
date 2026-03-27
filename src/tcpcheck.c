@@ -52,7 +52,7 @@
 #include <haproxy/log.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/protocol.h>
-#include <haproxy/proxy-t.h>
+#include <haproxy/proxy.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
@@ -72,6 +72,8 @@
 /* Global tree to share all tcp-checks */
 struct eb_root shared_tcpchecks = EB_ROOT;
 
+/* Proxy used during parsing of healtcheck sections */
+struct proxy *tcpchecks_proxy = NULL;
 
 DECLARE_TYPED_POOL(pool_head_tcpcheck_rule, "tcpcheck_rule", struct tcpcheck_rule);
 
@@ -314,6 +316,7 @@ struct tcpcheck_ruleset *create_tcpcheck_ruleset(const char *name)
 	}
 	rs->flags = 0;
 	LIST_INIT(&rs->rules);
+	LIST_INIT(&rs->conf.preset_vars);
 	ebis_insert(&shared_tcpchecks, &rs->node);
 	return rs;
 }
@@ -5669,7 +5672,241 @@ int proxy_parse_tcp_check_opt(char **args, int cur_arg, struct proxy *curpx, con
 
   out:
 	return err_code;
+}
 
+int cfg_parse_healthchecks(const char *file, int linenum, char **args, int kwm)
+{
+	static struct tcpcheck_ruleset *cur_rs = NULL;
+	int rc, err_code = 0;
+	char *errmsg = NULL;
+
+	if (strcmp(args[0], "healthcheck") == 0) { /* new healthcheck section */
+		struct tcpcheck_ruleset *rs = NULL;
+		const char *err;
+
+		if (!tcpchecks_proxy) {
+			tcpchecks_proxy = alloc_new_proxy("TCPCHECKS", PR_CAP_BE|PR_CAP_INT, &errmsg);
+			if (!tcpchecks_proxy) {
+				ha_alert("parsing [%s:%d] : %s.\n", file, linenum, errmsg);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+		}
+		tcpchecks_proxy->options2 &= ~PR_O2_CHK_ANY;
+		tcpchecks_proxy->tcpcheck.flags = 0;
+		tcpchecks_proxy->tcpcheck.rs = NULL;
+
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d] : missing name for healthcheck section.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		err = invalid_char(args[1]);
+		if (err) {
+			ha_alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
+				 file, linenum, *err, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		chunk_printf(&trash, "*healthcheck-%s", args[1]);
+		rs = find_tcpcheck_ruleset(b_orig(&trash));
+		if (rs != NULL) {
+			ha_alert("parsing [%s:%d] : healthcheck section '%s' already defined at %s:%d.\n",
+				 file, linenum, args[1], rs->conf.file, rs->conf.line);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		cur_rs = create_tcpcheck_ruleset(b_orig(&trash));
+		if (cur_rs == NULL) {
+			ha_alert("parsing [%s:%d] : failed to allocate healthcheck %s.\n", file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		cur_rs->conf.file = strdup(file);
+		cur_rs->conf.line = linenum;
+
+		tcpchecks_proxy->tcpcheck.rs = cur_rs;
+	}
+	else if (strcmp(args[0], "type") == 0) {
+		if (*(args[1]) == '\0') {
+			ha_alert("parsing [%s:%d] : '%s' expects a healthcheck type.\n",
+				 file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		if (tcpchecks_proxy->options2 & PR_O2_CHK_ANY) {
+			ha_alert("parsing [%s:%d] : healthcheck type already defined.\n",
+				 file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		if (strcmp(args[1], "tcp-check") != 0 && (tcpchecks_proxy->tcpcheck.flags & TCPCHK_FL_UNUSED_TCP_RS)) {
+			ha_alert("parsing [%s:%d] : cannot set '%s' type with 'tcp-check' rules\n",
+				 file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+		if (strcmp(args[1], "httpchk") != 0 && (tcpchecks_proxy->tcpcheck.flags & TCPCHK_FL_UNUSED_HTTP_RS)) {
+			ha_alert("parsing [%s:%d] : cannot set '%s' type with 'http-check' rules\n",
+				 file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		if (strcmp(args[1], "tcp-check") == 0) {
+			cur_rs->flags |= TCPCHK_RULES_TCP_CHK;
+			err_code |= do_parse_tcp_check_opt(args, 2, tcpchecks_proxy, cur_rs, file, linenum);
+			goto out;
+		}
+		else if (strcmp(args[1], "httpchk") == 0) {
+			cur_rs->flags |= TCPCHK_RULES_HTTP_CHK;
+			err_code |= do_parse_httpchk_opt(args, 2, tcpchecks_proxy, cur_rs, file, linenum);
+			goto out;
+		}
+		else if (strcmp(args[1], "ssl-hello-chk") == 0) {
+			cur_rs->flags |= TCPCHK_RULES_SSL3_CHK;
+			err_code |= do_parse_ssl_hello_chk_opt(args, 2, tcpchecks_proxy, cur_rs, file, linenum);
+			goto out;
+		}
+		else if (strcmp(args[1], "smtpchk") == 0) {
+			cur_rs->flags |= TCPCHK_RULES_SMTP_CHK;
+			err_code |= do_parse_smtpchk_opt(args, 2, tcpchecks_proxy, cur_rs, file, linenum);
+			goto out;
+		}
+		else if (strcmp(args[1], "pgsql-check") == 0) {
+			cur_rs->flags |= TCPCHK_RULES_PGSQL_CHK;
+			err_code |= do_parse_pgsql_check_opt(args, 2, tcpchecks_proxy,cur_rs, file, linenum);
+			goto out;
+		}
+		else if (strcmp(args[1], "redis-check") == 0) {
+			cur_rs->flags |= TCPCHK_RULES_REDIS_CHK;
+			err_code |= do_parse_redis_check_opt(args, 2, tcpchecks_proxy,cur_rs, file, linenum);
+			goto out;
+		}
+		else if (strcmp(args[1], "mysql-check") == 0) {
+			cur_rs->flags |= TCPCHK_RULES_MYSQL_CHK;
+			err_code |= do_parse_mysql_check_opt(args, 2, tcpchecks_proxy,cur_rs, file, linenum);
+			goto out;
+		}
+		else if (strcmp(args[1], "ldap-check") == 0) {
+			cur_rs->flags |= TCPCHK_RULES_LDAP_CHK;
+			err_code |= do_parse_ldap_check_opt(args, 2, tcpchecks_proxy, cur_rs, file, linenum);
+			goto out;
+		}
+		else if (strcmp(args[1], "spop-check") == 0) {
+			cur_rs->flags |= TCPCHK_RULES_SPOP_CHK;
+			err_code |= do_parse_spop_check_opt(args, 2, tcpchecks_proxy, cur_rs, file, linenum);
+			goto out;
+		}
+		else {
+			ha_alert("parsing [%s:%d] : unknown healthcheck type '%s (expects 'tcp-check', 'httpchk', 'ssl-hello-chk', "
+				 "'smtpchk', 'pgsql-check', 'redis-check', 'mysql-check', 'ldap-check', 'spop-check').\n",
+				 file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+	}
+	else if (strcmp(args[0], "tcp-check") == 0) {
+		if ((tcpchecks_proxy->options2 & PR_O2_CHK_ANY) &&
+		    (cur_rs->flags & TCPCHK_RULES_PROTO_CHK) != TCPCHK_RULES_TCP_CHK) {
+			ha_alert("parsing [%s:%d] : unable to configure 'tcp-check' rule for '%s' healthcheck\n",
+				 file, linenum, tcpcheck_ruleset_type_to_str(cur_rs));
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		if (tcpchecks_proxy->tcpcheck.flags & TCPCHK_FL_UNUSED_HTTP_RS) {
+			ha_alert("parsing [%s:%d] : cannot mix 'tcp-check' and 'http-check' rules\n",
+				 file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		rc = do_parse_tcpcheck(args, tcpchecks_proxy, cur_rs, file, linenum, &errmsg);
+		if (rc < 0) {
+			ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+			err_code |= ERR_ALERT | ERR_ABORT;
+		}
+		else if (rc > 0) {
+			ha_warning("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+			err_code |= ERR_WARN;
+		}
+		goto out;
+	}
+	else if (strcmp(args[0], "http-check") == 0) {
+		if ((tcpchecks_proxy->options2 & PR_O2_CHK_ANY) &&
+		    (cur_rs->flags & TCPCHK_RULES_PROTO_CHK) != TCPCHK_RULES_HTTP_CHK) {
+			ha_alert("parsing [%s:%d] : unable to configure 'http-check' rule for '%s' healthcheck\n",
+				 file, linenum, tcpcheck_ruleset_type_to_str(cur_rs));
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		if (tcpchecks_proxy->tcpcheck.flags & TCPCHK_FL_UNUSED_TCP_RS) {
+			ha_alert("parsing [%s:%d] : cannot mix 'tcp-check' and 'http-check' rules\n",
+				 file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		rc = do_parse_httpcheck(args, tcpchecks_proxy, cur_rs, file, linenum, &errmsg);
+		if (rc < 0) {
+			ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+			err_code |= ERR_ALERT | ERR_ABORT;
+		}
+		else if (rc > 0) {
+			ha_warning("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+			err_code |= ERR_WARN;
+		}
+		goto out;
+	}
+
+  out:
+	free(errmsg);
+	return err_code;
+}
+
+int cfg_post_parse_healthchecks()
+{
+	struct tcpcheck_ruleset *rs;
+	int err_code = 0;
+
+	BUG_ON(!tcpchecks_proxy);
+	rs = tcpchecks_proxy->tcpcheck.rs;
+	if (!rs)
+		goto out;
+
+	if (tcpchecks_proxy->tcpcheck.flags & TCPCHK_FL_UNUSED_TCP_RS) {
+		ha_alert("parsing [%s:%d] : healthcheck section '%s' : tcp-check rules without 'type tcp-check', so the rules are ignored.\n",
+			 rs->conf.file, rs->conf.line, (char *)rs->node.key);
+		err_code |= ERR_WARN;
+	}
+
+	if (tcpchecks_proxy->tcpcheck.flags & TCPCHK_FL_UNUSED_HTTP_RS) {
+		ha_alert("parsing [%s:%d] : healthcheck section '%s' : http-check rules without 'type http-check', so the rules are ignored.\n",
+			 rs->conf.file, rs->conf.line, (char *)rs->node.key);
+		err_code |= ERR_WARN;
+	}
+
+	if (!dup_tcpcheck_vars(&rs->conf.preset_vars, &tcpchecks_proxy->tcpcheck.preset_vars)) {
+		ha_alert("parsing [%s:%d] : unable to duplicate preset variables for healthcheck section '%s'.\n",
+			 rs->conf.file, rs->conf.line, (char *)rs->node.key);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+	rs->conf.flags = tcpchecks_proxy->tcpcheck.flags;
+
+  out:
+	free_tcpcheck_vars(&tcpchecks_proxy->tcpcheck.preset_vars);
+	tcpchecks_proxy->options2 &= ~PR_O2_CHK_ANY;
+	tcpchecks_proxy->tcpcheck.flags = 0;
+	tcpchecks_proxy->tcpcheck.rs = NULL;
+	return err_code;
 }
 
 static struct cfg_kw_list cfg_kws = {ILH, {
@@ -5682,3 +5919,5 @@ REGISTER_POST_PROXY_CHECK(check_proxy_tcpcheck);
 REGISTER_PROXY_DEINIT(deinit_proxy_tcpcheck);
 REGISTER_POST_DEINIT(deinit_tcpchecks);
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
+REGISTER_CONFIG_SECTION("healthcheck",  cfg_parse_healthchecks,  cfg_post_parse_healthchecks);

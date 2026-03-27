@@ -238,6 +238,12 @@ struct tcpcheck_ruleset {
 	struct list rules;     /* the list of tcpcheck_rule */
 	unsigned int flags;    /* flags applied to the rules */
 	struct ebpt_node node; /* node in the shared tree */
+	struct {
+		struct list preset_vars;  /* The list of variable to preset for healthcheck sections */
+		unsigned int flags;       /* TCPCHECK_FL_* for healthcheck sections */
+		const char *file;         /* file where the section appears */
+		int line;                 /* line where the section appears */
+	} conf;                           /* config information */
 };
 
 struct tcpcheck {
