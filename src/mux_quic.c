@@ -1,4 +1,5 @@
 #include <haproxy/mux_quic.h>
+#include <haproxy/mux_quic_priv.h>
 
 #include <import/eb64tree.h>
 
@@ -409,7 +410,7 @@ static void qcc_refresh_timeout(struct qcc *qcc)
 /* Mark a stream as open if it was idle. This can be used on every
  * successful emission/reception operation to update the stream state.
  */
-static void qcs_idle_open(struct qcs *qcs)
+void qcs_idle_open(struct qcs *qcs)
 {
 	/* This operation must not be used if the stream is already closed. */
 	BUG_ON_HOT(qcs->st == QC_SS_CLO);
@@ -421,7 +422,7 @@ static void qcs_idle_open(struct qcs *qcs)
 }
 
 /* Close the local channel of <qcs> instance. */
-static void qcs_close_local(struct qcs *qcs)
+void qcs_close_local(struct qcs *qcs)
 {
 	TRACE_STATE("closing stream locally", QMUX_EV_QCS_SEND, qcs->qcc->conn, qcs);
 
@@ -445,7 +446,7 @@ static void qcs_close_local(struct qcs *qcs)
 }
 
 /* Returns true if <qcs> can be purged. */
-static int qcs_is_completed(struct qcs *qcs)
+int qcs_is_completed(struct qcs *qcs)
 {
 	/* A stream is completed if fully closed and stconn released, or simply
 	 * detached and everything already sent.
@@ -594,7 +595,7 @@ struct buffer *qcs_tx_buf(struct qcs *qcs)
 }
 
 /* Returns total number of bytes not already sent to quic-conn layer. */
-static uint64_t qcs_prep_bytes(const struct qcs *qcs)
+uint64_t qcs_prep_bytes(const struct qcs *qcs)
 {
 	const struct buffer *out = qcs_tx_buf_const(qcs);
 	uint64_t diff, base_off;

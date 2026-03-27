@@ -5,7 +5,10 @@
 #include <haproxy/chunk.h>
 #include <haproxy/connection.h>
 #include <haproxy/mux_quic.h>
+#include <haproxy/mux_quic_priv.h>
+#include <haproxy/proxy.h>
 #include <haproxy/qmux_trace.h>
+#include <haproxy/quic_fctl.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/trace.h>
 
@@ -148,6 +151,69 @@ int qcc_qstrm_recv(struct qcc *qcc)
 	return -1;
 }
 
+/* Updates a <qcs> stream after a successful emission of data of length <data>. */
+static void qstrm_ctrl_send(struct qcs *qcs, uint64_t data)
+{
+	struct qcc *qcc = qcs->qcc;
+	struct quic_fctl *fc_conn = &qcc->tx.fc;
+	struct quic_fctl *fc_strm = &qcs->tx.fc;
+
+	TRACE_ENTER(QMUX_EV_QCS_SEND, qcc->conn, qcs);
+
+	qcs_idle_open(qcs);
+
+	/* Ensure real offset never exceeds soft value. */
+	BUG_ON(fc_conn->off_real + data > fc_conn->off_soft);
+	BUG_ON(fc_strm->off_real + data > fc_strm->off_soft);
+
+	/* increase offset on connection */
+	if (qfctl_rinc(fc_conn, data)) {
+		TRACE_STATE("connection flow-control reached",
+		            QMUX_EV_QCS_SEND, qcc->conn);
+	}
+
+	/* increase offset on stream */
+	if (qfctl_rinc(fc_strm, data)) {
+		TRACE_STATE("stream flow-control reached",
+		            QMUX_EV_QCS_SEND, qcc->conn, qcs);
+	}
+
+	b_del(&qcs->tx.qstrm_buf, data);
+	/* Release buffer if everything sent and stream is waiting for room. */
+	if (!qcs_prep_bytes(qcs) && (qcs->flags & QC_SF_BLK_MROOM)) {
+		qcs->flags &= ~QC_SF_BLK_MROOM;
+		qcs_notify_send(qcs);
+	}
+
+	/* Add measurement for send rate. This is done at the MUX layer
+	 * to account only for STREAM frames without retransmission.
+	 */
+	increment_send_rate(data, 0);
+
+	if (!qcs_prep_bytes(qcs)) {
+		/* Remove stream from send_list if all was sent. */
+		LIST_DEL_INIT(&qcs->el_send);
+		TRACE_STATE("stream sent done", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+
+		if (qcs->flags & (QC_SF_FIN_STREAM|QC_SF_DETACH)) {
+			/* Close stream locally. */
+			qcs_close_local(qcs);
+
+			if (qcs->flags & QC_SF_FIN_STREAM) {
+				/* Reset flag to not emit multiple FIN STREAM frames. */
+				qcs->flags &= ~QC_SF_FIN_STREAM;
+			}
+
+			if (qcs_is_completed(qcs)) {
+				TRACE_STATE("add stream in purg_list", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+				LIST_APPEND(&qcc->purg_list, &qcs->el_send);
+			}
+		}
+	}
+
+	TRACE_LEAVE(QMUX_EV_QCS_SEND, qcc->conn, qcs);
+}
+
 /* Sends <frms> list of frames for <qcc> connection.
  *
  * Returns 0 if all data are emitted or a positive value if sending should be
@@ -211,7 +277,7 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 		}
 
 		if (frm->type >= QUIC_FT_STREAM_8 && frm->type <= QUIC_FT_STREAM_F)
-			/* TODO notify MUX */
+			qstrm_ctrl_send(frm->stream.stream, frm->stream.len);
 
 		LIST_DEL_INIT(&frm->list);
 		if (split_frm) {
