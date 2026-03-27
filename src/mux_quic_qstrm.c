@@ -64,6 +64,14 @@ static int qstrm_parse_frm(struct qcc *qcc, struct buffer *buf)
 		struct qf_reset_stream *rst_frm = &frm.reset_stream;
 		qcc_recv_reset_stream(qcc, rst_frm->id, rst_frm->app_error_code, rst_frm->final_size);
 	}
+	else if (frm.type == QUIC_FT_MAX_DATA) {
+		struct qf_max_data *md_frm = &frm.max_data;
+		qcc_recv_max_data(qcc, md_frm->max_data);
+	}
+	else if (frm.type == QUIC_FT_MAX_STREAM_DATA) {
+		struct qf_max_stream_data *msd_frm = &frm.max_stream_data;
+		qcc_recv_max_stream_data(qcc, msd_frm->id, msd_frm->max_stream_data);
+	}
 	else {
 		ABORT_NOW();
 	}
