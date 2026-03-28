@@ -4885,8 +4885,14 @@ static size_t h1_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 
 	/* Inherit some flags from the upper layer */
 	h1c->flags &= ~(H1C_F_CO_MSG_MORE|H1C_F_CO_STREAMER);
-	if (flags & CO_SFL_MSG_MORE)
-		h1c->flags |= H1C_F_CO_MSG_MORE;
+	if (flags & CO_SFL_MSG_MORE) {
+		/* Don't set H1C_F_CO_MSG_MORE when sending a bodyless response to client.
+		 * We must do that if the response is not finished, regardless it a bodyless
+		 * response, to be sure to send it ASAP.
+		 */
+		if ((h1c->flags & H1C_F_IS_BACK) || !(h1s->flags & H1S_F_BODYLESS_RESP))
+			h1c->flags |= H1C_F_CO_MSG_MORE;
+	}
 	if (flags & CO_SFL_STREAMER)
 		h1c->flags |= H1C_F_CO_STREAMER;
 
