@@ -12,6 +12,7 @@ import functools
 import json
 import re
 import sys
+import urllib.error
 import urllib.request
 from os import environ
 from packaging import version
@@ -33,13 +34,24 @@ def get_all_github_tags(url):
     headers = {}
     if environ.get("GITHUB_TOKEN") is not None:
         headers["Authorization"] = "token {}".format(environ.get("GITHUB_TOKEN"))
-    request = urllib.request.Request(url, headers=headers)
-    try:
-        tags = urllib.request.urlopen(request)
-    except:
-        return None
-    tags = json.loads(tags.read().decode("utf-8"))
-    return [tag['name'] for tag in tags]
+    all_tags = []
+    page = 1
+    sep = "&" if "?" in url else "?"
+    while True:
+        paginated_url = "{}{}per_page=100&page={}".format(url, sep, page)
+        request = urllib.request.Request(paginated_url, headers=headers)
+        try:
+            response = urllib.request.urlopen(request)
+        except urllib.error.URLError:
+            return all_tags if all_tags else None
+        tags = json.loads(response.read().decode("utf-8"))
+        if not tags:
+            break
+        all_tags.extend([tag['name'] for tag in tags])
+        if len(tags) < 100:
+            break
+        page += 1
+    return all_tags if all_tags else None
 
 @functools.lru_cache(5)
 def determine_latest_openssl(ssl):
@@ -65,6 +77,8 @@ def determine_latest_aws_lc(ssl):
     if not tags:
         return "AWS_LC_VERSION=failed_to_detect"
     valid_tags = list(filter(aws_lc_version_valid, tags))
+    if not valid_tags:
+        return "AWS_LC_VERSION=failed_to_detect"
     latest_tag = max(valid_tags, key=aws_lc_version_string_to_num)
     return "AWS_LC_VERSION={}".format(latest_tag[1:])
 
@@ -76,11 +90,12 @@ def aws_lc_fips_version_valid(version_string):
 
 @functools.lru_cache(5)
 def determine_latest_aws_lc_fips(ssl):
-    # the AWS-LC-FIPS tags are at the end of the list, so let's get a lot
-    tags = get_all_github_tags("https://api.github.com/repos/aws/aws-lc/tags?per_page=200")
+    tags = get_all_github_tags("https://api.github.com/repos/aws/aws-lc/tags")
     if not tags:
         return "AWS_LC_FIPS_VERSION=failed_to_detect"
     valid_tags = list(filter(aws_lc_fips_version_valid, tags))
+    if not valid_tags:
+        return "AWS_LC_FIPS_VERSION=failed_to_detect"
     latest_tag = max(valid_tags, key=aws_lc_fips_version_string_to_num)
     return "AWS_LC_FIPS_VERSION={}".format(latest_tag[12:])
 
