@@ -149,7 +149,7 @@ usage() {
 	echo "Options:"
 	echo "  -S, --master-socket <path>   Use the master socket at <path> (default: ${SOCKET})"
 	echo "  -s, --socket <path>          Use the stats socket at <path>"
-	echo "  -p, --path <path>            Specifiy a base path for relative files (default: ${BASEPATH})"
+	echo "  -p, --path <path>            Specify a base path for relative files (default: ${BASEPATH})"
 	echo "  -n, --dry-run                Read certificates on the socket but don't dump them"
 	echo "  -d, --debug                  Debug mode, set -x"
 	echo "  -v, --verbose                Verbose mode"

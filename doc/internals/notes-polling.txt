@@ -114,7 +114,7 @@ SHUT RDY ACT
   1   1   1   => shut pending
 
 PB: we can land into final shut if one thread disables the FD while another
-    one that was waiting on it reports it as shut. Theorically it should be
+    one that was waiting on it reports it as shut. Theoretically it should be
     implicitly ready though, since reported. But if no data is reported, it
     will be reportedly shut only. And no event will be reported then. This
     might still make sense since it's not active, thus we don't want events.

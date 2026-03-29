@@ -1363,7 +1363,7 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, void *target)
 			/* This code is called by connect_server() by way of
 			 * conn_prepare().
 			 * XXX TODO XXX: there is a remaining race condition where
-			 * the negotiated alpn could be resetted before running this code
+			 * the negotiated alpn could be reset before running this code
 			 * here. In this case the app_ops for the mux will not be
 			 * set by quic_reuse_srv_params().
 			 *

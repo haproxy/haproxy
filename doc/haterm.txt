@@ -134,7 +134,7 @@ HATerm:
      - /?R=<enable>      Enable sending random data if >0.
 
     Note that those arguments may be cumulated on one line separated by a set of
-    delimitors among [&?,;/] :
+    delimiters among [&?,;/] :
      -  GET /?s=20k&c=1&t=700&K=30r HTTP/1.0
      -  GET /?r=500?s=0?c=0?t=1000 HTTP/1.0
 

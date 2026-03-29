@@ -4916,7 +4916,7 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
 		return 1;
 	}
 	if (!(defpx->flags & PR_FL_DEF_EXPLICIT_MODE) && !mode) {
-		cli_dynerr(appctx, memprintf(&msg, "Mode is required as '%s' default proxy does not explicitely defines it.\n", def_name));
+		cli_dynerr(appctx, memprintf(&msg, "Mode is required as '%s' default proxy does not explicitly defines it.\n", def_name));
 		return 1;
 	}
 	if (defpx->mode != PR_MODE_TCP && defpx->mode != PR_MODE_HTTP) {

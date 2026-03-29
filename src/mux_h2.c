@@ -4645,7 +4645,7 @@ static void h2_process_demux(struct h2c *h2c)
 
 		/* If more frames remain in the buffer, let's first check if we've
 		 * depleted the frames processing budget. Consuming the RST budget
-		 * makes the tasklet go to TL_BULK to make it less prioritary than
+		 * makes the tasklet go to TL_BULK to make it less priority than
 		 * other processing since it's often used by attacks, while other
 		 * frame types just yield normally.
 		 */

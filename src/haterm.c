@@ -47,7 +47,7 @@ const char *HTTP_HELP =
         " - /?R=<enable>      Enable sending random data if >0.\n"
         "\n"
         "Note that those arguments may be cumulated on one line separated by a set of\n"
-        "delimitors among [&?,;/] :\n"
+        "delimiters among [&?,;/] :\n"
         " -  GET /?s=20k&c=1&t=700&K=30r HTTP/1.0\n"
         " -  GET /?r=500?s=0?c=0?t=1000 HTTP/1.0\n"
         "\n";
@@ -323,7 +323,7 @@ static int hstream_htx_buf_snd(struct connection *conn, struct hstream *hs)
 	}
 
 	/* The HTX data are not fully sent if the last HTX data
-	 * were not fully transfered or if there are remaining data
+	 * were not fully transferred or if there are remaining data
 	 * to send (->to_write > 0).
 	 */
 	if (!htx_is_empty(htxbuf(&hs->res))) {
@@ -1025,7 +1025,7 @@ static int hstream_build_responses(void)
 
 	/* original haterm chunk mode responses are made of 1-byte chunks
 	 * but the haproxy muxes do not support this. At this time
-	 * these reponses are handled the same way as for common
+	 * these responses are handled the same way as for common
 	 * responses with a pre-built buffer.
 	 */
 	for (i = 0; i < sizeof(common_chunk_resp); i++)
@@ -1033,7 +1033,7 @@ static int hstream_build_responses(void)
 
 	random_resp = malloc(random_resp_len);
 	if (!random_resp) {
-		ha_alert("not enough memore...\n");
+		ha_alert("not enough memory...\n");
 		return -1;
 	}
 

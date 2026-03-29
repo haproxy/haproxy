@@ -424,7 +424,7 @@ end:
  * the one found in the JWE token.
  * The tag is built out of a HMAC of some concatenated data taken from the JWE
  * token (see https://datatracker.ietf.org/doc/html/rfc7518#section-5.2). The
- * firest half of the previously decrypted cek is used as HMAC key.
+ * first half of the previously decrypted cek is used as HMAC key.
  * Returns 0 in case of success, 1 otherwise.
  */
 static int build_and_check_tag(jwe_enc enc,  struct jwt_item items[JWE_ELT_MAX],
@@ -602,7 +602,7 @@ static inline void clear_decoded_items(struct buffer *decoded_items[JWE_ELT_MAX]
 /*
  * Decrypt the contents of a JWE token thanks to the user-provided base64
  * encoded secret. This converter can only be used for tokens that have a
- * symetric algorithm (AESKW, AESGCMKW or "dir" special case).
+ * symmetric algorithm (AESKW, AESGCMKW or "dir" special case).
  * Returns the decrypted contents, or nothing if any error happened.
  */
 static int sample_conv_jwt_decrypt_secret(const struct arg *args, struct sample *smp, void *private)
@@ -1096,7 +1096,7 @@ end:
 /*
  * Decrypt the contents of a JWE token thanks to the user-provided certificate
  * and private key. This converter can only be used for tokens that have an
- * asymetric algorithm (RSA only for now).
+ * asymmetric algorithm (RSA only for now).
  * Returns the decrypted contents, or nothing if any error happened.
  */
 static int sample_conv_jwt_decrypt_cert(const struct arg *args, struct sample *smp, void *private)
@@ -1173,7 +1173,7 @@ static int sample_conv_jwt_decrypt_cert(const struct arg *args, struct sample *s
 	/* With ECDH-ES no CEK will be provided. */
 	if (!ec || alg != JWE_ALG_ECDH_ES) {
 
-		/* With asymetric crypto algorithms we should always have a CEK */
+		/* With asymmetric crypto algorithms we should always have a CEK */
 		if (!items[JWE_ELT_CEK].length)
 			goto end;
 

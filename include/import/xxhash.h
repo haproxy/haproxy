@@ -1587,7 +1587,7 @@ struct XXH3_state_s {
 
 
 /*!
- * simple alias to pre-selected XXH3_128bits variant
+ * simple alias to preselected XXH3_128bits variant
  */
 XXH_PUBLIC_API XXH_PUREF XXH128_hash_t XXH128(XXH_NOESCAPE const void* data, size_t len, XXH64_hash_t seed);
 

@@ -2262,7 +2262,7 @@ static int proxy_parse_http_error(char **args, int section, struct proxy *curpx,
 }
 
 /* Converts <conf_errors> initialized during config parsing for <px> proxy.
- * Each one of them is transfromed in a http_reply type, stored in proxy
+ * Each one of them is transformed in a http_reply type, stored in proxy
  * replies array member. The original <conf_errors> becomes unneeded and is
  * thus removed and freed.
  */

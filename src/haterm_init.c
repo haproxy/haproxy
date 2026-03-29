@@ -106,7 +106,7 @@ static inline size_t hbuf_is_null(const struct hbuf *h)
 
 /* Simple function, to append <line> to <b> without without
  * trailing '\0' character.
- * Take into an account the '\t' and '\n' escaped sequeces.
+ * Take into an account the '\t' and '\n' escaped sequences.
  */
 static void hstream_str_buf_append(struct hbuf *h, const char *line)
 {
@@ -215,7 +215,7 @@ void haproxy_init_args(int argc, char **argv)
 		argc--; argv++;
 	}
 
-	/* Restore the argumenst */
+	/* Restore the arguments */
 	argc = sargc; argv = sargv;
 	while (argc > 0) {
 		char *opt;

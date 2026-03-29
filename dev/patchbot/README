@@ -86,7 +86,7 @@ maintenance model and what the user wants is passed, then the LLM is invited to
 provide its opinion on the need for a backport and an explanation of the reason
 for its choice. This often helps the user to find a quick summary about the
 patch. All these outputs are then converted to a long HTML page with colors and
-radio buttons, where patches are pre-selected based on this classification,
+radio buttons, where patches are preselected based on this classification,
 that the user can consult and adjust, read the commits if needed, and the
 selected patches finally provide some copy-pastable commands in a text-area to
 select commit IDs to work on, typically in a form that's suitable for a simple

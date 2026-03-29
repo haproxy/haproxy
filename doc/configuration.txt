@@ -5441,7 +5441,7 @@ tune.ssl.certificate-compression { auto | off }
 
   When set to "auto" it uses the default value of the TLS library.
 
-  With "off" it tries to explicitely disable the support of the feature.
+  With "off" it tries to explicitly disable the support of the feature.
   HAProxy won't try to send compressed certificates anymore nor accept
   compressed certificates.
 
@@ -7275,7 +7275,7 @@ default_backend <backend>
   used when no rule has matched. It generally is the dynamic backend which
   will catch all undetermined requests.
 
-  If a backend is disabled or unpublished, default_backend rules targetting it
+  If a backend is disabled or unpublished, default_backend rules targeting it
   will be ignored and stream processing will remain on the original proxy.
 
   Example :
@@ -11926,7 +11926,7 @@ option use-small-buffers [ queue | l7-retries | check ]*
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
 
-  This option can be used to enable the small buffers support at diffent places
+  This option can be used to enable the small buffers support at different places
   to save memory. By default, with no parameter, small buffers are used as far
   as possible at all possible places. Otherwise, it is possible to limit it to
   following the places:
@@ -11939,7 +11939,7 @@ option use-small-buffers [ queue | l7-retries | check ]*
                  requests.
 
   When enabled, small buffers are used, but only if it is possible. Otherwise,
-  when data are too large, a regular buffer is automtically used. The size of
+  when data are too large, a regular buffer is automatically used. The size of
   small buffers is configurable via the "tune.bufsize.small" global setting.
 
   If this option has been enabled in a "defaults" section, it can be disabled
@@ -21630,7 +21630,7 @@ jwt_decrypt_cert(<cert>)
   decrypted thanks to the certificate provided.
   The <cert> parameter must be a path to an already loaded certificate (that
   can be dumped via the "dump ssl cert" CLI command). The certificate must have
-  its "jwt" option explicitely set to "on" (see "jwt" crt-list option). It can
+  its "jwt" option explicitly set to "on" (see "jwt" crt-list option). It can
   be provided directly or via a variable.
   The only tokens managed yet are the ones using the Compact Serialization
   format (five dot-separated base64-url encoded strings).
@@ -30060,7 +30060,7 @@ Enables filter that explicitly tries to compress HTTP responses according to
 
 filter compression (deprecated)
 
-Alias for backward compatibility purposes that is functionnally equivalent to
+Alias for backward compatibility purposes that is functionally equivalent to
 enabling both "comp-req" and "comp-res" filter. "compression" keyword must be
 used to configure appropriate behavior:
 
@@ -31443,9 +31443,9 @@ user <username> [password|insecure-password <password>]
   slower than their glibc counterparts when calculating hashes, so you might
   want to consider this aspect too.
 
-  All passwords are considered normal arguments and are therefor subject to
+  All passwords are considered normal arguments and are therefore subject to
   regular section 2.2 Quoting and escaping. Single quoting passwords is
-  therefor recommended.
+  therefore recommended.
 
   Example:
         userlist L1

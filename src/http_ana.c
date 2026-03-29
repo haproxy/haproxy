@@ -4734,7 +4734,7 @@ int http_forward_proxy_resp(struct stream *s, int final)
 		if (s->txn->meth == HTTP_METH_HEAD)
 			htx_skip_msg_payload(htx);
 
-		/* Respnse from haproxy, override HTTP response verison using the request one */
+		/* Response from haproxy, override HTTP response version using the request one */
 		s->txn->rsp.vsn = s->txn->req.vsn;
 
 		channel_auto_read(req);

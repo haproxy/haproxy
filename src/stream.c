@@ -1138,12 +1138,12 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 	return ACT_RET_STOP;
 }
 
-/* Parses persist-rules attached to <fe> frontend and report the first macthing
+/* Parses persist-rules attached to <fe> frontend and report the first matching
  * entry, using <sess> session and <s> stream as sample source.
  *
  * As this function is called several times in the same stream context,
  * <persist> will act as a caching value to avoid reprocessing of a similar
- * ruleset. It must be set to a negative value for the first invokation.
+ * ruleset. It must be set to a negative value for the first invocation.
  *
  * Returns 1 if a rule matches, else 0.
  */

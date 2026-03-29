@@ -521,7 +521,7 @@ static int ssl_parse_global_keylog(char **args, int section_type, struct proxy *
 }
 #endif
 
-/* Allow to explicitely disable certificate compression when set to "off" */
+/* Allow to explicitly disable certificate compression when set to "off" */
 #ifdef SSL_OP_NO_RX_CERTIFICATE_COMPRESSION
 static int ssl_parse_certificate_compression(char **args, int section_type, struct proxy *curpx,
                                              const struct proxy *defpx, const char *file, int line,

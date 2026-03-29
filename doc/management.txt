@@ -1731,7 +1731,7 @@ add backend <name> from <defproxy> [mode <mode>] [guid <guid>] [ EXPERIMENTAL ]
   Only TCP or HTTP proxies can be created. All of the settings are inherited
   from <defproxy> default proxy instance. By default, it is mandatory to
   specify the backend mode via the argument of the same name, unless <defproxy>
-  already defines it explicitely. It is also possible to use an optional GUID
+  already defines it explicitly. It is also possible to use an optional GUID
   argument if wanted.
 
   Servers can be added via the command "add server". The backend is initialized
@@ -2130,7 +2130,7 @@ del backend <name>
   be attached to the backend instance.
 
   There is additional restrictions which prevent backend removal. First, a
-  backend cannot be removed if it is explicitely referenced by config elements,
+  backend cannot be removed if it is explicitly referenced by config elements,
   for example via a use_backend rule or in sample expressions. Some proxies
   options are also incompatible with runtime deletion. Currently, this is the
   case when deprecated dispatch or option transparent are used. Also, a backend
@@ -2138,7 +2138,7 @@ del backend <name>
   impossible for now to remove a backend if QUIC servers were present in it.
 
   It can be useful to use "wait be-removable" prior to this command to check
-  for the aformentioned requisites. This also provides a methode to wait for
+  for the aforementioned requisites. This also provides a method to wait for
   the final closure of the streams attached to the target backend.
 
   This command is restricted and can only be issued on sockets configured for

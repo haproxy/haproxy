@@ -806,7 +806,7 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 	 * block in <dst>. So have:
 	 *   - <blk> == NULL: everything was copied. <last_dstblk> must be NULL
 	 *   - <blk> != NULL && <last_dstblk> == NULL: partial copy but the last block was fully copied
-	 *   - <blk> != NULL && <last_dstblk> != NULL: partial copy and the last block was patially copied (DATA block only)
+	 *   - <blk> != NULL && <last_dstblk> != NULL: partial copy and the last block was partially copied (DATA block only)
 	 */
 	if (!(flags & HTX_XFER_PARTIAL_HDRS_COPY)) {
 		/* Partial headers/trailers copy is not supported */
@@ -862,7 +862,7 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 		}
 	}
 
-	/* Everything was copied, transfert terminal HTX flags too */
+	/* Everything was copied, transfer terminal HTX flags too */
 	if (!blk) {
 		dst->flags |= (src->flags & (HTX_FL_EOM|HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR));
 		src->flags = 0;
@@ -1337,7 +1337,7 @@ int htx_append_msg(struct htx *dst, const struct htx *src)
 }
 
 
-/* If possible, trasnfer HTX blocks from <src> to a small buffer. This function
+/* If possible, transfer HTX blocks from <src> to a small buffer. This function
  * allocate the small buffer and makes <dst> point on it. If <dst> is not empty
  * or if <src> contains to many data, NULL is returned. If the allocation
  * failed, NULL is returned. Otherwise <dst> is returned.  <flags> instructs how
@@ -1357,7 +1357,7 @@ struct buffer *__htx_xfer_to_small_buffer(struct buffer *dst, struct buffer *src
 	return dst;
 }
 
-/* If possible, trasnfer HTX blocks from <src> to a large buffer. This function
+/* If possible, transfer HTX blocks from <src> to a large buffer. This function
  * allocate the small buffer and makes <dst> point on it. If <dst> is not empty
  * or if <src> contains to many data, NULL is returned. If the allocation
  * failed, NULL is returned. Otherwise <dst> is returned.  <flags> instructs how

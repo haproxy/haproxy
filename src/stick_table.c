@@ -6313,7 +6313,7 @@ static int stk_promex_metric_info(unsigned int id, struct promex_metric *metric,
 			break;
 		case STICKTABLE_LOCAL_UPDATES:
 			*metric = (struct promex_metric){ .n = ist("local_updates"), .type = PROMEX_MT_GAUGE, .flags = PROMEX_FL_MODULE_METRIC };
-			*desc = ist("Cumulative number of updates on the stick table initiated by the local process. Please note that this value will eventually wrap after 4294967295 since it is stored using unsigned int (uint32). As this metric is often used to compute the update rate of a given table between two queries, wrapping must be taken into account and the time between 2 queries must not exceed the theorical time needed for this value to wrap.");
+			*desc = ist("Cumulative number of updates on the stick table initiated by the local process. Please note that this value will eventually wrap after 4294967295 since it is stored using unsigned int (uint32). As this metric is often used to compute the update rate of a given table between two queries, wrapping must be taken into account and the time between 2 queries must not exceed the theoretical time needed for this value to wrap.");
 			break;
 		default:
 			return -1;

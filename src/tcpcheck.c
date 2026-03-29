@@ -4121,7 +4121,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 			ha_free(&comment);
 			break;
 		case TCPCHK_ACT_SEND:
-			/* Disable small buffer use for rules using LF stirngs or too large data */
+			/* Disable small buffer use for rules using LF strings or too large data */
 			switch (chk->send.type) {
 			case TCPCHK_SEND_STRING:
 			case TCPCHK_SEND_BINARY:

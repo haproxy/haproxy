@@ -2670,7 +2670,7 @@ static int _send_status(char **args, char *payload, struct appctx *appctx, void 
 	}
 
 	/* the sockpair between the master and the worker is
-	 * used temporarly as a listener to receive
+	 * used temporarily as a listener to receive
 	 * _send_status. Once it is received we don't want to
 	 * use this FD as a listener anymore, but only as a
 	 * server, to allow only connections from the master to

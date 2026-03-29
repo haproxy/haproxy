@@ -65,7 +65,7 @@ struct buffer *htx_copy_to_large_buffer(struct buffer *dst, struct buffer *src);
 #define HTX_XFER_DEFAULT           0x00000000 /* Default XFER: no partial xfer / remove blocks from source */
 #define HTX_XFER_KEEP_SRC_BLKS     0x00000001 /* Don't remove xfer blocks from source messages during xfer */
 #define HTX_XFER_PARTIAL_HDRS_COPY 0x00000002 /* Allow partial copy of headers and trailers part */
-#define HTX_XFER_HDRS_ONLY         0x00000003 /* Only Transfert header blocks (start-line, header and EOH) */
+#define HTX_XFER_HDRS_ONLY         0x00000003 /* Only Transfer header blocks (start-line, header and EOH) */
 size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int flags);
 
 /* Functions and macros to get parts of the start-line or length of these

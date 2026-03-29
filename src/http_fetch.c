@@ -44,7 +44,7 @@
 /* this struct is used between calls to smp_fetch_hdr() or smp_fetch_cookie() */
 static THREAD_LOCAL struct http_hdr_ctx static_http_hdr_ctx;
 /* this is used to convert raw connection buffers to htx */
-/* NOTE: For now, raw bufers cannot exceeds the standard size */
+/* NOTE: For now, raw buffers cannot exceeds the standard size */
 static THREAD_LOCAL struct buffer static_raw_htx_chunk;
 static THREAD_LOCAL char *static_raw_htx_buf;
 

@@ -2067,7 +2067,7 @@ int connect_server(struct stream *s)
 			 * available.
 			 *
 			 * This check must be performed before conn_prepare()
-			 * to ensure consistency accross the whole stack, in
+			 * to ensure consistency across the whole stack, in
 			 * particular for QUIC between quic-conn and mux layer.
 			 */
 			if (IS_HTX_STRM(s) && srv->use_ssl &&
@@ -3063,7 +3063,7 @@ int be_downtime(struct proxy *px) {
 
 /* Checks if <px> backend supports the addition of servers at runtime. Either a
  * backend or a defaults proxy are supported. If proxy is incompatible, <msg>
- * will be allocated to contain a textual explaination.
+ * will be allocated to contain a textual explanation.
  */
 int be_supports_dynamic_srv(struct proxy *px, char **msg)
 {
