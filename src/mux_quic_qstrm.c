@@ -96,16 +96,41 @@ int qcc_qstrm_recv(struct qcc *qcc)
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
 
 	do {
-		b_realign_if_empty(buf);
+ recv:
+		/* Wrapping is not supported for QMux reception. */
+		BUG_ON(b_data(buf) != b_contig_data(buf, 0));
+
+		/* Checks if there is no more room before wrapping position. */
+		if (b_head(buf) + b_contig_data(buf, 0) == b_wrap(buf)) {
+			if (!b_room(buf)) {
+				/* TODO frame bigger than buffer, connection must be closed */
+				ABORT_NOW();
+			}
+
+			/* Realign data in the buffer to have more room. */
+			memmove(b_orig(buf), b_head(buf), b_data(buf));
+			buf->head = 0;
+		}
+		else {
+			/* Ensure maximum room is always available. */
+			b_realign_if_empty(buf);
+		}
+
 		ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, b_contig_space(buf), NULL, 0, 0);
 		BUG_ON(conn->flags & CO_FL_ERROR);
 
 		total += ret;
 		while (b_data(buf)) {
 			frm_ret = qstrm_parse_frm(qcc, buf);
+
 			BUG_ON(frm_ret < 0); /* TODO handle fatal errors */
-			if (!frm_ret)
+			if (!frm_ret) {
+				/* Checks if wrapping position is reached, requires realign. */
+				if (b_head(buf) + b_contig_data(buf, 0) == b_wrap(buf))
+					goto recv;
+				/* Truncated frame read but room still left, subscribe to retry later. */
 				break;
+			}
 
 			b_del(buf, frm_ret);
 		}
