@@ -102,6 +102,8 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, const struct proxy *defpx,
 			    const char *file, int line);
 
+int check_server_tcpcheck(struct server *srv);
+
 void tcp_check_keywords_register(struct action_kw_list *kw_list);
 
 /* Return the struct action_kw associated to a keyword */
