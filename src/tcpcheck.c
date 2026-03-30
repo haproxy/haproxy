@@ -3986,39 +3986,25 @@ int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_ruleset *r
 	return 1;
 }
 
-/* Check tcp-check health-check configuration for the proxy <px>. */
-static int check_proxy_tcpcheck(struct proxy *px)
+/* Check tcp-check ruleset configuration for the proxy <px>. */
+static int check_tcpcheck_ruleset(struct proxy *px, struct tcpcheck_ruleset *rs)
 {
 	struct tcpcheck_rule *chk, *back;
 	char *comment = NULL, *errmsg = NULL;
 	enum tcpcheck_rule_type prev_action = TCPCHK_ACT_COMMENT;
 	int ret = ERR_NONE;
 
-	if (!(px->cap & PR_CAP_BE) || (px->options2 & PR_O2_CHK_ANY) != PR_O2_TCPCHK_CHK) {
-		deinit_proxy_tcpcheck(px);
-		goto out;
-	}
-
-	ha_free(&px->check_command);
-	ha_free(&px->check_path);
-
-	if (!px->tcpcheck.rs) {
-		ha_alert("proxy '%s' : tcp-check configured but no ruleset defined.\n", px->id);
-		ret |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-
 	/* HTTP ruleset only :  */
-	if ((px->tcpcheck.rs->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK) {
+	if ((rs->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK) {
 		struct tcpcheck_rule *next;
 
 		/* move remaining implicit send rule from "option httpchk" line to the right place.
 		 * If such rule exists, it must be the first one. In this case, the rule is moved
 		 * after the first connect rule, if any. Otherwise, nothing is done.
 		 */
-		chk = get_first_tcpcheck_rule(px->tcpcheck.rs);
+		chk = get_first_tcpcheck_rule(rs);
 		if (chk && chk->action == TCPCHK_ACT_SEND && (chk->send.http.flags & TCPCHK_SND_HTTP_FROM_OPT)) {
-			next = get_next_tcpcheck_rule(px->tcpcheck.rs, chk);
+			next = get_next_tcpcheck_rule(rs, chk);
 			if (next && next->action == TCPCHK_ACT_CONNECT) {
 				LIST_DELETE(&chk->list);
 				LIST_INSERT(&next->list, &chk->list);
@@ -4030,10 +4016,10 @@ static int check_proxy_tcpcheck(struct proxy *px)
 		 * versions where the http expect rule was optional. Now it is possible to chained
 		 * send/expect rules but the last expect may still be implicit.
 		 */
-		chk = get_last_tcpcheck_rule(px->tcpcheck.rs);
+		chk = get_last_tcpcheck_rule(rs);
 		if (chk && chk->action == TCPCHK_ACT_SEND) {
 			next = parse_tcpcheck_expect((char *[]){"http-check", "expect", "status", "200-399", ""},
-						     1, px, &px->tcpcheck.rs->rules, TCPCHK_RULES_HTTP_CHK,
+						     1, px, &rs->rules, TCPCHK_RULES_HTTP_CHK,
 						     px->conf.file, px->conf.line, &errmsg);
 			if (!next) {
 				ha_alert("proxy '%s': unable to add implicit http-check expect rule "
@@ -4042,7 +4028,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 				ret |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-			LIST_APPEND(&px->tcpcheck.rs->rules, &next->list);
+			LIST_APPEND(&rs->rules, &next->list);
 			next->index = chk->index + 1;
 		}
 	}
@@ -4052,7 +4038,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 	/* If there is no connect rule preceding all send / expect rules, an
 	 * implicit one is inserted before all others.
 	 */
-	chk = get_first_tcpcheck_rule(px->tcpcheck.rs);
+	chk = get_first_tcpcheck_rule(rs);
 	if (!chk || chk->action != TCPCHK_ACT_CONNECT) {
 		chk = calloc(1, sizeof(*chk));
 		if (!chk) {
@@ -4063,17 +4049,17 @@ static int check_proxy_tcpcheck(struct proxy *px)
 		}
 		chk->action = TCPCHK_ACT_CONNECT;
 		chk->connect.options = (TCPCHK_OPT_DEFAULT_CONNECT|TCPCHK_OPT_IMPLICIT);
-		LIST_INSERT(&px->tcpcheck.rs->rules, &chk->list);
+		LIST_INSERT(&rs->rules, &chk->list);
 	}
 
 	/* Now, back again on HTTP ruleset. Try to resolve the sni log-format
 	 * string if necessary, but onlu for implicit connect rules, by getting
 	 * it from the following send rule.
 	 */
-	if ((px->tcpcheck.rs->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK) {
+	if ((rs->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK) {
 		struct tcpcheck_connect *connect = NULL;
 
-		list_for_each_entry(chk, &px->tcpcheck.rs->rules, list) {
+		list_for_each_entry(chk, &rs->rules, list) {
 			if (chk->action == TCPCHK_ACT_CONNECT && !chk->connect.sni &&
 			    (chk->connect.options & TCPCHK_OPT_IMPLICIT)) {
 				/* Only eval connect rule with no explici SNI */
@@ -4092,12 +4078,12 @@ static int check_proxy_tcpcheck(struct proxy *px)
 	}
 
 	/* Allow small buffer use by default. All send rules must be compatible */
-	px->tcpcheck.rs->flags |= (global.tune.bufsize_small ? TCPCHK_RULES_MAY_USE_SBUF : 0);
+	rs->flags |= (global.tune.bufsize_small ? TCPCHK_RULES_MAY_USE_SBUF : 0);
 
 	/* Remove all comment rules. To do so, when a such rule is found, the
 	 * comment is assigned to the following rule(s).
 	 */
-	list_for_each_entry_safe(chk, back, &px->tcpcheck.rs->rules, list) {
+	list_for_each_entry_safe(chk, back, &rs->rules, list) {
 		struct tcpcheck_rule *next;
 
 		if (chk->action != prev_action && prev_action != TCPCHK_ACT_COMMENT)
@@ -4114,7 +4100,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 		case TCPCHK_ACT_CONNECT:
 			if (!chk->comment && comment)
 				chk->comment = strdup(comment);
-			next = get_next_tcpcheck_rule(px->tcpcheck.rs, chk);
+			next = get_next_tcpcheck_rule(rs, chk);
 			if (next && next->action == TCPCHK_ACT_SEND)
 				chk->connect.options |= TCPCHK_OPT_HAS_DATA;
 			__fallthrough;
@@ -4127,16 +4113,16 @@ static int check_proxy_tcpcheck(struct proxy *px)
 			case TCPCHK_SEND_STRING:
 			case TCPCHK_SEND_BINARY:
 				if (istlen(chk->send.data) >= global.tune.bufsize_small)
-					px->tcpcheck.rs->flags &= ~TCPCHK_RULES_MAY_USE_SBUF;
+					rs->flags &= ~TCPCHK_RULES_MAY_USE_SBUF;
 				break;
 			case TCPCHK_SEND_STRING_LF:
 			case TCPCHK_SEND_BINARY_LF:
-				px->tcpcheck.rs->flags &= ~TCPCHK_RULES_MAY_USE_SBUF;
+				rs->flags &= ~TCPCHK_RULES_MAY_USE_SBUF;
 				break;
 			case TCPCHK_SEND_HTTP:
 				if ((chk->send.http.flags & TCPCHK_SND_HTTP_FL_BODY_FMT) ||
 				    (istlen(chk->send.http.body) >= global.tune.bufsize_small))
-					px->tcpcheck.rs->flags &= ~TCPCHK_RULES_MAY_USE_SBUF;
+					rs->flags &= ~TCPCHK_RULES_MAY_USE_SBUF;
 			default:
 				break;
 			}
@@ -4148,6 +4134,31 @@ static int check_proxy_tcpcheck(struct proxy *px)
 		}
 	}
 	ha_free(&comment);
+
+  out:
+	return ret;
+}
+
+/* Check tcp-check health-check configuration for the proxy <px>. */
+static int check_proxy_tcpcheck(struct proxy *px)
+{
+	int ret = ERR_NONE;
+
+	if (!(px->cap & PR_CAP_BE) || (px->options2 & PR_O2_CHK_ANY) != PR_O2_TCPCHK_CHK) {
+		deinit_proxy_tcpcheck(px);
+		goto out;
+	}
+
+	ha_free(&px->check_command);
+	ha_free(&px->check_path);
+
+	if (!px->tcpcheck.rs) {
+		ha_alert("proxy '%s' : tcp-check configured but no ruleset defined.\n", px->id);
+		ret |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	ret = check_tcpcheck_ruleset(px, px->tcpcheck.rs);
 
   out:
 	return ret;
