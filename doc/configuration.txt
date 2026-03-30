@@ -15146,6 +15146,7 @@ The same abbreviations are used in the reference section 4.4 below.
 accept                         X           X     X     X     X            -   -   -
 add-acl                        -           -     -     -     -            X   X   -
 add-header                     -           -     -     -     -            X   X   X
+add-headers-bin                -           -     -     -     -            X   X   X
 allow                          -           -     -     -     -            X   X   X
 attach-srv                     -           -     X     -     -            -   -   -
 auth                           -           -     -     -     -            X   -   -
@@ -15155,6 +15156,7 @@ capture                        -           -     -     X     -            X   X 
 close                          -           -     -     -     X            -   -   -
 del-acl                        -           -     -     -     -            X   X   -
 del-header                     -           -     -     -     -            X   X   X
+del-headers-bin                -           -     -     -     -            X   X   X
 del-map                        -           -     -     -     -            X   X   X
 deny                           -           -     -     -     -            X   X   -
 dgram-drop                     X           -     -     -     -            -   -   -
@@ -15191,6 +15193,7 @@ set-dst-port                   -           X     X     X     -            X   - 
 set-fc-mark                    -           X     X     X     X            X   X   -
 set-fc-tos                     -           X     X     X     X            X   X   -
 set-header                     -           -     -     -     -            X   X   X
+set-headers-bin                -           -     -     -     -            X   X   X
 set-log-level                  -           -     -     X     X            X   X   X
 set-map                        -           -     -     -     -            X   X   X
 set-mark (deprecated)          -           X     X     X     X            X   X   -
@@ -15269,6 +15272,31 @@ add-header <name> <fmt>
   so it is possible to add other similar rules. Note that header addition is
   performed immediately, so one rule might reuse the resulting header from a
   previous rule.
+
+
+add-headers-bin <fmt> [ prefix <str> ]
+  Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
+                    - |          -  |   -  |   -  |   -  |          X |  X |  X
+
+  This is a variant of the "add-header" action where the header names and
+  values are passed as a base64 encoded string of varint encoded header names
+  and values. See the "req.hdrs_bin" sample fetch about the varint format. This
+  is useful when you want to set multiple headers at once, without having to
+  know the header names in advance. Note that these headers have not been
+  validated by the HTTP parser and could lead to emitting invalid messages and
+  in worst cases lead to request smuggling attacks. The number of headers
+  inserted are also of importance, as that is limited by tune.http.maxhdr.
+  Optional prefix will only set the headers from the encoded string that
+  start with <str>.
+
+  Example:
+
+    # This would reset the Accept/UA/Host headers to their initial values
+    http-request set-var(txn.oldheaders) req.hdrs_bin,base64
+    http-request del-header Accept
+    http-request del-header User-Agent
+    http-request del-header Host
+    http-request add-headers-bin %[var(txn.oldheaders)]
 
 
 allow
@@ -15411,6 +15439,20 @@ del-header <name> [ -m <meth> ]
   are "str" (exact match), "beg" (prefix match), "end" (suffix match), "sub"
   (substring match) and "reg" (regex match). If not specified, exact matching
   method is used.
+
+
+del-headers-bin <fmt> [ -m <meth> ]
+  Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
+                    - |          -  |   -  |   -  |   -  |          X |  X |  X
+
+  This removes all HTTP header fields whose names are specified in <fmt>. <fmt>
+  is a base64 encoded varint encoded string of all header names that should be
+  deleted. See "add-headers-bin" and "set-headers-bin" for the description of
+  encoding and examples. <meth> is the matching method, applied on all the
+  header names. Supported matching methods are "str" (exact match), "beg"
+  (prefix match), "end" (suffix match) and "sub" (substring match). The "reg"
+  (regex match) is not supported due to unpredictable performance during
+  runtime. If not specified, exact matching method is used.
 
 
 del-map(<map-name>) <key fmt>
@@ -16312,6 +16354,30 @@ set-header <name> <fmt>
         http-request set-header X-SSL-Issuer           %{+Q}[ssl_c_i_dn]
         http-request set-header X-SSL-Client-NotBefore %{+Q}[ssl_c_notbefore]
         http-request set-header X-SSL-Client-NotAfter  %{+Q}[ssl_c_notafter]
+
+set-headers-bin <fmt> [ prefix <str> ]
+  Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
+                    - |          -  |   -  |   -  |   -  |          X |  X |  X
+
+  This is a variant of the "set-header" action where the header names and
+  values are passed as a base64 encoded string of varint encoded header names
+  and values. See the "req.hdrs_bin" sample fetch about the varint format. This
+  is useful when you want to set multiple headers at once, without having to
+  know the header names in advance. Note that these headers have not been
+  validated by the HTTP parser and could lead to emitting invalid messages and
+  in worst cases lead to request smuggling attacks. The number of headers
+  inserted are also of importance, as that is limited by tune.http.maxhdr.
+  Optional prefix will only set the headers from the encoded string that
+  start with <str>.
+
+  Example:
+
+    # This would reset the Accept/UA/Host headers to their initial values
+    http-request set-var(txn.oldheaders) req.hdrs_bin,base64
+    http-request del-header Accept
+    http-request del-header User-Agent
+    http-request del-header Host
+    http-request set-headers-bin %[var(txn.oldheaders)]
 
 
 set-log-level <level>

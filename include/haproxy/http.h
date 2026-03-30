@@ -290,6 +290,36 @@ static inline int http_status_matches(const long *array, uint status)
 	return ha_bit_test(status - 100, array);
 }
 
+/* This function returns 1 if the header is one of the immutable headers.
+ * Forbidden headers are the ones that must not be rewritten. Function returns
+ * 0 if a header can be rewritten
+*/
+static inline int is_immutable_header(struct ist hdr)
+{
+	switch (hdr.len) {
+	case 6:
+		return isteqi(hdr, ist("expect"));
+	case 7:
+		return isteqi(hdr, ist("trailer")) ||
+				isteqi(hdr, ist("upgrade"));
+	case 10:
+		return isteqi(hdr, ist("connection")) ||
+				isteqi(hdr, ist("keep-alive"));
+	case 14:
+		return isteqi(hdr, ist("content-length"));
+	case 16:
+		return isteqi(hdr, ist("proxy-connection"));
+	case 17:
+		return isteqi(hdr, ist("transfer-encoding"));
+	case 18:
+		return isteqi(hdr, ist("proxy-authenticate"));
+	case 19:
+		return isteqi(hdr, ist("proxy-authorization"));
+	default:
+			return 0;
+	}
+}
+
 #endif /* _HAPROXY_HTTP_H */
 
 /*
