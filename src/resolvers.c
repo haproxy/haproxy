@@ -2171,7 +2171,7 @@ int resolv_link_resolution(void *requester, int requester_type, int requester_lo
 					   ? DNS_RTYPE_A
 					   : DNS_RTYPE_AAAA;
 			break;
-
+#if defined(HAVE_ACME)
 		case OBJ_TYPE_ACME_RSLV: {
 			struct acme_rslv *acme_rslv = (struct acme_rslv *)requester;
 
@@ -2189,7 +2189,7 @@ int resolv_link_resolution(void *requester, int requester_type, int requester_lo
 			query_type      = DNS_RTYPE_TXT;
 			break;
 		}
-
+#endif
 		default:
 			goto err;
 	}
