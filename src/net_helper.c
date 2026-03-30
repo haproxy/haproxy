@@ -793,7 +793,7 @@ static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *
 		if (opt == 2 && (ofs + 3 < tcplen) /* MSS value starts at ofs + 2 and is 2 Bytes long */) {
 			tcpmss = read_n16(smp->data.u.str.area + ofs + 2);
 		}
-		else if (opt == 3 && (ofs + 2 < tcplen) /* WS value 1 Byte is at ofs + 2) {
+		else if (opt == 3 && (ofs + 2 < tcplen) /* WS value 1 Byte is at ofs + 2 */) {
 			tcpws = (uchar)smp->data.u.str.area[ofs + 2];
 			/* output from 1 to 15, thus 0=not found */
 			tcpws = tcpws > 14 ? 15 : tcpws + 1;
