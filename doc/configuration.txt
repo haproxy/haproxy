@@ -32137,6 +32137,42 @@ challenge <string>
   Takes a challenge type as parameter, this must be http-01 or dns-01. When not
   used the default is http-01.
 
+challenge-ready <value>[,<value>]*
+  Configure the conditions that must be met before notifying the ACME server
+  that a dns-01 challenge is ready to be validated. Accepted values are:
+
+    cli  - wait for an operator to signal readiness via the CLI command
+           "acme challenge_ready <crt> domain <domain>" on the master CLI or
+           the stats socket. This allows an external DNS provisioning tool to
+           confirm that the TXT record has been set before HAProxy proceeds.
+
+    dns  - perform a DNS pre-check by resolving the TXT record for
+           "_acme-challenge.<domain>" using the configured "default" resolvers
+           section, not the authoritative name servers. The challenge is not
+           submitted until the TXT record matches the expected token. Results
+           may therefore be affected by DNS caching at the resolver level. The
+           delay between resolution attempts is controlled by "dns-delay". This
+           option is independent of the CLI command, so no human intervention
+           is required.
+
+    none - no readiness condition; the challenge is submitted to the ACME
+           server immediately without waiting for any external confirmation.
+           This option cannot be combined with others.
+
+  Multiple values can be combined with a comma so that both conditions must be
+  met. The order of the values is not significant. When "cli" and "dns" are
+  combined, HAProxy first waits for the CLI confirmation before triggering the
+  DNS propagation check.
+
+  This option is only compatible with the dns-01 challenge type.
+
+  When "challenge" is set to "dns-01" and this option is not configured, the
+  default is "cli".
+
+  Example:
+    # Wait for CLI confirmation, then verify DNS propagation
+    challenge-ready cli,dns
+
 contact <string>
   The contact email that will be associated to the account key in the CA.
 
@@ -32149,6 +32185,15 @@ directory <string>
 
   Example:
     directory https://acme-staging-v02.api.letsencrypt.org/directory
+
+dns-delay <time>
+  When "challenge-ready" includes "dns", configure the delay before the first
+  DNS resolution attempt and between retries. The value is a time expressed in
+  HAProxy time format (e.g. "5m", "300s"). Default is 300 seconds.
+
+  Note that the resolution goes through the configured "default" resolvers
+  section, not the authoritative name servers. Results may therefore still be
+  affected by DNS caching at the resolver level.
 
 keytype <string>
   Configure the type of key that will be generated. Value can be either "RSA"
