@@ -6,6 +6,8 @@
 #include <haproxy/istbuf.h>
 #include <haproxy/openssl-compat.h>
 
+#if defined(HAVE_ACME)
+
 #define ACME_RETRY 5
 
 /* Readiness requirements for challenge */
@@ -114,5 +116,7 @@ struct acme_ctx {
 #define ACME_VERB_SIMPLE   3
 #define ACME_VERB_ADVANCED 4
 #define ACME_VERB_COMPLETE 5
+
+#endif /* ! HAVE_ACME */
 
 #endif
