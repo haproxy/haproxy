@@ -219,14 +219,14 @@ struct stconn *sc_new_from_strm(struct stream *strm, unsigned int flags)
  * thus it will be created by sc_new(). So the SE_FL_DETACHED flag is set. It
  * returns NULL on error. On success, the new stream connector is returned.
  */
-struct stconn *sc_new_from_check(struct check *check, unsigned int flags)
+struct stconn *sc_new_from_check(struct check *check)
 {
 	struct stconn *sc;
 
 	sc = sc_new(NULL);
 	if (unlikely(!sc))
 		return NULL;
-	sc->flags |= flags;
+	sc->flags = SC_FL_ISBACK;
 	sc_ep_set(sc, SE_FL_DETACHED);
 	sc->app = &check->obj_type;
 	return sc;

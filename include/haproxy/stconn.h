@@ -45,7 +45,7 @@ void se_shutdown(struct sedesc *sedesc, enum se_shut_mode mode);
 
 struct stconn *sc_new_from_endp(struct sedesc *sedesc, struct session *sess, struct buffer *input);
 struct stconn *sc_new_from_strm(struct stream *strm, unsigned int flags);
-struct stconn *sc_new_from_check(struct check *check, unsigned int flags);
+struct stconn *sc_new_from_check(struct check *check);
 void sc_free(struct stconn *sc);
 
 int sc_attach_mux(struct stconn *sc, void *target, void *ctx);
