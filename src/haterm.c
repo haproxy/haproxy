@@ -787,6 +787,10 @@ static struct task *process_hstream(struct task *t, void *context, unsigned int 
 		struct htx_sl *sl = http_get_stline(htx);
 		struct http_hdr_ctx expect, clength;
 
+		/* we're starting to work with this endpoint, let's flag it */
+		if (unlikely(!sc_ep_test(hs->sc, SE_FL_APP_STARTED)))
+			sc_ep_set(hs->sc, SE_FL_APP_STARTED);
+
 		if (sl->flags & HTX_SL_F_VER_11)
 			hs->ka = 5;
 

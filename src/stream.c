@@ -1894,6 +1894,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 					 SF_ERR_KILLED));
 	}
 
+	/* we're starting to work with this endpoint, let's flag it */
+	if (unlikely(!sc_ep_test(scf, SE_FL_APP_STARTED)))
+		sc_ep_set(scf, SE_FL_APP_STARTED);
+
 	/* First, attempt to receive pending data from I/O layers */
 	sc_sync_recv(scf);
 	sc_sync_recv(scb);

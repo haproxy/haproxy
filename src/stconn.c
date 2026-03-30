@@ -210,6 +210,10 @@ struct stconn *sc_new_from_strm(struct stream *strm, unsigned int flags)
 	if (unlikely(!sc))
 		return NULL;
 	sc->flags |= flags;
+
+	if (flags & SC_FL_ISBACK)
+		sc_ep_set(sc, SE_FL_APP_STARTED);
+
 	sc_ep_set(sc, SE_FL_DETACHED);
 	sc->app = &strm->obj_type;
 	return sc;
@@ -227,6 +231,7 @@ struct stconn *sc_new_from_check(struct check *check)
 	if (unlikely(!sc))
 		return NULL;
 	sc->flags = SC_FL_ISBACK;
+	sc_ep_set(sc, SE_FL_APP_STARTED);
 	sc_ep_set(sc, SE_FL_DETACHED);
 	sc->app = &check->obj_type;
 	return sc;
