@@ -1185,7 +1185,14 @@ int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
 
 	parser = qf_parser(frm->type);
 	if (!(parser->mask & (1U << pkt->type))) {
+		/* RFC 9000 12.4. Frames and Frame Types
+		 *
+		 * An endpoint MUST treat
+		 * receipt of a frame in a packet type that is not permitted as a
+		 * connection error of type PROTOCOL_VIOLATION.
+		 */
 		TRACE_DEVEL("unauthorized frame", QUIC_EV_CONN_PRSFRM, qc, frm);
+		quic_set_connection_close(qc, quic_err_transport(QC_ERR_PROTOCOL_VIOLATION));
 		goto leave;
 	}
 
