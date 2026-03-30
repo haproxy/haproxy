@@ -17,7 +17,7 @@
 #include <haproxy/quic_enc.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_rx-t.h>
-#include <haproxy/quic_tp-t.h>
+#include <haproxy/quic_tp.h>
 #include <haproxy/quic_trace.h>
 #include <haproxy/quic_tx.h>
 #include <haproxy/trace.h>
@@ -1011,10 +1011,44 @@ static int quic_build_handshake_done_frame(unsigned char **pos, const unsigned c
 	return 1;
 }
 
+/* Encodes a QX_TRANSPORT_PARAMETER <frm> frame at <pos> buffer position.
+ * Returns 1 on success else 0.
+ */
 static int quic_build_qmux_transport_parameters(unsigned char **pos, const unsigned char *end,
                                                 struct quic_frame *frm, struct quic_conn *conn)
 {
-	/* TODO */
+	unsigned char *old = *pos;
+	struct buffer buf;
+
+	/* Reserve space for Length field encoded as a max varint size. */
+	if (end - *pos < 8)
+		return 0;
+
+	/* Encode a 0 length field for now. */
+	buf = b_make((char *)*pos, end - *pos, 0, 0);
+	if (!b_quic_enc_int(&buf, 0, 8))
+		return 0;
+	*pos += 8;
+
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_MAX_IDLE_TIMEOUT, 30000))
+		return 0;
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_DATA, 16384))
+		return 0;
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAM_DATA_BIDI_LOCAL, 16384))
+		return 0;
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAM_DATA_BIDI_REMOTE, 16384))
+		return 0;
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAM_DATA_UNI, 16384))
+		return 0;
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAMS_BIDI, 100))
+		return 0;
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAMS_UNI, 100))
+		return 0;
+
+	/* Re-encode the real length field now. */
+	buf = b_make((char *)old, 8, 0, 0);
+	b_quic_enc_int(&buf, *pos - old - 8, 8);
+
 	return 1;
 }
 
@@ -1028,10 +1062,25 @@ static int quic_parse_handshake_done_frame(struct quic_frame *frm, struct quic_c
 	return 1;
 }
 
+/* Parse a QX_TRANSPORT_PARAMETER frame at <pos> buffer position.
+ * Returns 1 on success else 0.
+ */
 static int quic_parse_qmux_transport_parameters(struct quic_frame *frm, struct quic_conn *qc,
                                                 const unsigned char **pos, const unsigned char *end)
 {
-	/* TODO */
+	struct qf_qx_transport_parameters *params_frm = &frm->qmux_transport_params;
+	uint64_t len;
+
+	if (!quic_dec_int(&len, pos, end))
+		return 0;
+
+	if (len > end - *pos)
+		return 0;
+	end = *pos + len;
+
+	if (!quic_transport_params_decode(&params_frm->params, 1, *pos, end))
+		return 0;
+
 	return 1;
 }
 
