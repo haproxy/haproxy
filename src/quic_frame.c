@@ -1227,26 +1227,21 @@ int qc_parse_frm_payload(struct quic_frame *frm,
 	return ret;
 }
 
-/* Encode <frm> QUIC frame at <pos> buffer position.
- * Returns 1 if succeeded (enough room at <pos> buffer position to encode the frame), 0 if not.
- * The buffer is updated to point to one byte past the end of the built frame
- * only if succeeded.
+/* Encodes a <frm> QUIC frame in buffer starting at <pos> and ending
+ * at <end>. On success, <pos> is advanced up to the end of the newly encoded
+ * data.
+ *
+ * Returns 1 on success else 0.
  */
-int qc_build_frm(unsigned char **pos, const unsigned char *end,
-                 struct quic_frame *frm, struct quic_tx_packet *pkt,
+int qc_build_frm(struct quic_frame *frm,
+                 unsigned char **pos, const unsigned char *end,
                  struct quic_conn *qc)
 {
 	int ret = 0;
-	const struct quic_frame_builder *builder;
+	const struct quic_frame_builder *builder = qf_builder(frm->type);
 	unsigned char *p = *pos;
 
 	TRACE_ENTER(QUIC_EV_CONN_BFRM, qc);
-	builder = qf_builder(frm->type);
-	if (!(builder->mask & (1U << pkt->type))) {
-		/* XXX This it a bug to send an unauthorized frame with such a packet type XXX */
-		TRACE_ERROR("unauthorized frame", QUIC_EV_CONN_BFRM, qc, frm);
-		BUG_ON(!(builder->mask & (1U << pkt->type)));
-	}
 
 	if (!quic_enc_int(&p, end, frm->type)) {
 		TRACE_DEVEL("not enough room", QUIC_EV_CONN_BFRM, qc, frm);
@@ -1259,9 +1254,39 @@ int qc_build_frm(unsigned char **pos, const unsigned char *end,
 		goto leave;
 	}
 
-	pkt->flags |= builder->flags;
 	*pos = p;
+	ret = 1;
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_BFRM, qc);
+	return ret;
+}
 
+/* Encodes a <frm> QUIC frame in <pkt> packet buffer via qc_build_frm() after
+ * checking packet type compatibility. Packet <pkt> flags are updated if the
+ * frame characteristics impacts it.
+ *
+ * Returns 1 on success else 0.
+ */
+int qc_build_frm_pkt(struct quic_frame *frm, struct quic_tx_packet *pkt,
+                     unsigned char **pos, const unsigned char *end,
+                     struct quic_conn *qc)
+{
+	const struct quic_frame_builder *builder = qf_builder(frm->type);
+	int ret = 0;
+
+	TRACE_ENTER(QUIC_EV_CONN_BFRM, qc);
+
+	if (pkt && !(builder->mask & (1U << pkt->type))) {
+		/* XXX This it a bug to send an unauthorized frame with such a packet type XXX */
+		TRACE_ERROR("unauthorized frame", QUIC_EV_CONN_BFRM, qc, frm);
+		BUG_ON(!(builder->mask & (1U << pkt->type)));
+	}
+
+	ret = qc_build_frm(frm, pos, end, qc);
+	if (!ret)
+		goto leave;
+
+	pkt->flags |= builder->flags;
 	ret = 1;
  leave:
 	TRACE_LEAVE(QUIC_EV_CONN_BFRM, qc);

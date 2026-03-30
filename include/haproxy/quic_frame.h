@@ -34,9 +34,13 @@
 
 const char *quic_frame_type_string(enum quic_frame_type ft);
 
-int qc_build_frm(unsigned char **pos, const unsigned char *end,
-                 struct quic_frame *frm, struct quic_tx_packet *pkt,
+int qc_build_frm(struct quic_frame *frm,
+                 unsigned char **pos, const unsigned char *end,
                  struct quic_conn *conn);
+
+int qc_build_frm_pkt(struct quic_frame *frm, struct quic_tx_packet *pkt,
+                     unsigned char **pos, const unsigned char *end,
+                     struct quic_conn *qc);
 
 int qc_parse_frm_type(struct quic_frame *frm,
                       const unsigned char **pos, const unsigned char *end,

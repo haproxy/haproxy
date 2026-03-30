@@ -2087,7 +2087,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	/* payload building (ack-eliciting or not frames) */
 	payload = pos;
 	if (ack_frm_len) {
-		if (!qc_build_frm(&pos, end, &ack_frm, pkt, qc))
+		if (!qc_build_frm_pkt(&ack_frm, pkt, &pos, end, qc))
 			goto no_room;
 
 		pkt->largest_acked_pn = quic_pktns_get_largest_acked_pn(qel->pktns);
@@ -2098,7 +2098,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	if (!LIST_ISEMPTY(&frm_list)) {
 		struct quic_frame *tmp_cf;
 		list_for_each_entry_safe(cf, tmp_cf, &frm_list, list) {
-			if (!qc_build_frm(&pos, end, cf, pkt, qc)) {
+			if (!qc_build_frm_pkt(cf, pkt, &pos, end, qc)) {
 				ssize_t room = end - pos;
 				TRACE_PROTO("Not enough room", QUIC_EV_CONN_TXPKT,
 				            qc, NULL, NULL, &room);
@@ -2118,13 +2118,13 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	/* Build a PING frame if needed. */
 	if (add_ping_frm) {
 		frm.type = QUIC_FT_PING;
-		if (!qc_build_frm(&pos, end, &frm, pkt, qc))
+		if (!qc_build_frm_pkt(&frm, pkt, &pos, end, qc))
 			goto no_room;
 	}
 
 	/* Build a CONNECTION_CLOSE frame if needed. */
 	if (cc) {
-		if (!qc_build_frm(&pos, end, &cc_frm, pkt, qc))
+		if (!qc_build_frm_pkt(&cc_frm, pkt, &pos, end, qc))
 			goto no_room;
 
 		pkt->flags |= QUIC_FL_TX_PACKET_CC;
@@ -2134,7 +2134,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	if (padding_len) {
 		frm.type = QUIC_FT_PADDING;
 		frm.padding.len = padding_len;
-		if (!qc_build_frm(&pos, end, &frm, pkt, qc))
+		if (!qc_build_frm_pkt(&frm, pkt, &pos, end, qc))
 			goto no_room;
 	}
 
