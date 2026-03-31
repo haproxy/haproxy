@@ -813,7 +813,7 @@ static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *
 	write_n16(trash->area + 3, tcpwin);
 	write_n16(trash->area + 5, tcpmss);
 
-	/* the the bit mask of present options */
+	/* then the bit mask of present options */
 	trash->area[7] = opts;
 
 	/* mode 4: append source IP address */
