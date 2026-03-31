@@ -336,6 +336,16 @@ dump_commit_matrix | column -t | \
 	elif [ -n "$SINCELAST" ]; then
 		echo "Found ${#since_last[@]} commit(s) added to branch $REF since last backported commit $last_bkp:"
 		echo
+		if [ -z "$QUIET" ]; then
+			for c in "${since_last[@]}"; do
+				echo "$(git log -1 --pretty="  %h  | %s" "$c")"
+			done
+			echo
+			echo "In order to show and/or apply them all to current branch :"
+			echo
+			echo "   git show --pretty=format:'%C(yellow)commit  %H%C(normal)%nAuthor: %an <%ae>%nDate:   %aD%n%n%C(green)%C(bold)git cherry-pick -sx %h%n%n%w(0,4,4)%B%N' ${since_last[@]}"
+			echo
+		fi
 		echo "   git cherry-pick -sx ${since_last[@]}"
 		echo
 	elif [ -n "$MISSING" -a ${#left_commits[@]} -eq 0 ]; then
