@@ -1,0 +1,267 @@
+varnishtest "Health-checks: tests of healthcheck sections"
+feature ignore_unknown_macro
+#REQUIRE_OPTION=OPENSSL
+#REGTEST_TYPE=slow
+
+server s1 {
+    rxreq
+    expect req.method == OPTIONS
+    expect req.url == /
+    expect req.proto == HTTP/1.0
+    expect req.http.host == <undef>
+    txresp
+} -start
+
+server s2 {
+    rxreq
+    expect req.method == GET
+    expect req.url == /status
+    expect req.proto == HTTP/1.1
+    expect req.http.host == "www.haproxy.org"
+    txresp
+} -start
+
+server s3 {
+    rxreq
+    expect req.method == GET
+    expect req.url == /health
+    expect req.proto == HTTP/1.1
+    txresp
+} -start
+
+server s4 {
+    rxreq
+    expect req.method == GET
+    expect req.url == /req1
+    expect req.proto == HTTP/1.1
+    expect req.http.x-test == "server=srv"
+    expect req.http.x-haproxy-server-state ~ "UP.+name=be1/srv4"
+    expect req.bodylen == 0
+    txresp
+
+    accept
+    rxreq
+    expect req.method == GET
+    expect req.url == /req2
+    expect req.proto == HTTP/1.1
+    expect req.http.x-test == "server="
+    expect req.http.x-haproxy-server-state ~ "UP.+name=be1/srv4"
+    expect req.http.content-length == 17
+    expect req.bodylen == 17
+    expect req.body == "health-check body"
+    txresp
+
+    accept
+    rxreq
+    expect req.method == GET
+    expect req.url == /req3
+    expect req.proto == HTTP/1.0
+    expect req.http.x-test == <undef>
+    expect req.http.x-haproxy-server-state ~ "UP.+name=be1/srv4"
+    expect req.bodylen == 0
+    txresp
+
+    accept
+    rxreq
+    expect req.method == GET
+    expect req.url == /
+    expect req.proto == HTTP/1.0
+    expect req.http.x-test == <undef>
+    expect req.http.x-haproxy-server-state ~ "UP.+name=be1/srv4"
+    expect req.bodylen == 24
+    expect req.body == "health-check on be1-srv4"
+    txresp
+} -start
+
+# REDIS
+server s5 {
+  recv 14
+  send "+PONG\r\n"
+} -start
+
+# TCP-CHECK
+server s6 {
+    rxreq
+    expect req.method == GET
+    expect req.url == /
+    expect req.proto == HTTP/1.0
+    expect req.http.host == "www.haproxy.org"
+    txresp
+} -start
+
+# PgSQL
+server s8 {
+  recv 23
+  sendhex "52000000170000000A534352414D2D5348412D3235360000"
+} -start
+
+# SMTP
+server s9 {
+  send "220 smtp-check.vtc SMTP Server\r\n"
+  recv 17
+  send "250-smtp-check.vtc\r\n"
+  send "250-KEYWORD\r\n"
+  send "250 LAST KEYWORD\r\n"
+  recv 6
+  send "221 smtp-check.vtc closing\r\n"
+} -start
+
+# MySQL
+server s10 {
+  sendhex "4A0000000A382E302E3139000A0000006F3C025E6249410D00FFFFFF0200FFC715000000000000000000007C182159106E2761144322200063616368696E675F736861325F70617373776F726400"
+  recv 47
+  sendhex "0700000200000002000000"
+} -start
+
+# LDAP
+server s11 {
+  recv 14
+  sendhex "308400000010020101 61 84000000070A01"
+  sendhex "00 04000400"
+} -start
+
+# SPOP
+server s12 {
+  recv 82
+  sendhex "00000036 65 00000001 0000 0776657273696F6E 0803322E30 0E6D61782D6672616D652D73697A65 03FCF0 060C6361706162696C6974696573 0800"
+} -start
+
+syslog S1 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv[1-4] succeeded"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv[1-4] succeeded"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv[1-4] succeeded"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv[1-4] succeeded"
+} -start
+
+
+syslog S2 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv[0-9]+ succeeded"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv[0-9]+ succeeded"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv[0-9] succeeded"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv[0-9]+ succeeded"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv[0-9]+ succeeded"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv[0-9]+ succeeded"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv[0-9]+ succeeded"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv[0-9]+ succeeded"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    .if !ssllib_name_startswith(AWS-LC)
+        tune.ssl.default-dh-param 2048
+    .endif
+
+    defaults
+        mode tcp
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    healthcheck http-status
+        type httpchk GET /status HTTP/1.1 www.haproxy.org
+
+    healthcheck http-health
+        type httpchk
+        http-check send meth GET uri /health ver HTTP/1.1
+
+    healthcheck http-complex
+        http-check send-state
+        http-check connect addr ${s4_addr}:${s4_port}
+        http-check set-var(check.server) "str(srv)"
+        http-check set-var(check.path) "str(/req1)"
+        http-check send meth GET uri-lf "%[var(check.path)]" ver HTTP/1.1 hdr x-test "server=%[var(check.server)]"
+        http-check expect status 200
+        http-check connect addr ${s4_addr} port ${s4_port}
+        http-check unset-var(check.server)
+        http-check set-var(check.path) "str(/req2)"
+        http-check send meth GET uri-lf "%[var(check.path)]" ver HTTP/1.1 hdr x-test "server=%[var(check.server)]" body "health-check body"
+        http-check expect rstatus "^2[0-9]{2}"
+        http-check connect addr ${s4_addr} port ${s4_port}
+        http-check set-var(check.path) "str(/req3)"
+        http-check send meth GET uri-lf "%[var(check.path)]"
+        http-check expect rstatus "^2[0-9]{2}"
+        http-check connect addr ${s4_addr} port ${s4_port}
+        http-check unset-var(check.path)
+        http-check send meth GET uri-lf "%[var(check.path)]" body-lf "health-check on %[be_name]-%[srv_name]"
+        ## implicit expect rule
+        type httpchk
+
+    healthcheck tcpchk
+        type tcp-check
+        tcp-check connect
+        tcp-check send GET\ /\ HTTP/1.0\r\n
+        tcp-check send Host:\ www.haproxy.org\r\n
+        tcp-check send \r\n
+        tcp-check expect rstring (2..|3..)
+        tcp-check connect addr ${h1_li6_addr} port ${h1_li6_port} ssl
+        tcp-check send GET\ /\ HTTP/1.0\r\n
+        tcp-check send Host:\ www.haproxy.org\r\n
+        tcp-check send \r\n
+        tcp-check expect rstring (2..|3..)
+
+    healthcheck redis
+        type redis-check
+
+    healthcheck sslchk
+        type ssl-hello-chk
+
+    healthcheck pgchk
+        type pgsql-check user postgres
+
+    healthcheck smtpchk
+        type smtpchk EHLO domain.tld
+
+    healthcheck mysqlchk
+        type mysql-check user user
+
+    healthcheck ldapchk
+        type ldap-check
+
+    healthcheck spopchk
+        type spop-check
+
+    listen li6
+        mode http
+        bind "fd@${li6}" ssl crt ${testdir}/certs/common.pem
+        http-request return status 200
+
+    backend be1
+        log ${S1_addr}:${S1_port} daemon
+        option log-health-checks
+        option httpchk
+        server srv1 ${s1_addr}:${s1_port} check inter 100ms rise 1 fall 1
+        server srv2 ${s2_addr}:${s2_port} check inter 100ms rise 1 fall 1 healthcheck http-status
+        server srv3 ${s3_addr}:${s3_port} check inter 100ms rise 1 fall 1 healthcheck http-health
+        server srv4 ${s4_addr}:${s4_port} check inter 100ms rise 1 fall 1 healthcheck http-complex
+
+    backend be2
+        log ${S2_addr}:${S2_port} daemon
+        option log-health-checks
+        server srv5 ${s5_addr}:${s5_port} check inter 100ms rise 1 fall 1 healthcheck redis
+        server srv6 ${s6_addr}:${s6_port} check inter 100ms rise 1 fall 1 healthcheck tcpchk verify none
+        server srv7 ${h1_li6_addr}:${h1_li6_port} check inter 100ms rise 1 fall 1 healthcheck sslchk
+        server srv8 ${s8_addr}:${s8_port} check inter 100ms rise 1 fall 1 healthcheck pgchk
+        server srv9 ${s9_addr}:${s9_port} check inter 100ms rise 1 fall 1 healthcheck smtpchk
+        server srv10 ${s10_addr}:${s10_port} check inter 100ms rise 1 fall 1 healthcheck mysqlchk
+        server srv11 ${s11_addr}:${s11_port} check inter 100ms rise 1 fall 1 healthcheck ldapchk
+        server srv12 ${s12_addr}:${s12_port} check inter 100ms rise 1 fall 1 healthcheck spopchk
+} -start
+
+syslog S1 -wait
+syslog S2 -wait
