@@ -12366,6 +12366,14 @@ server <name> <address>[:[port]] [param*]
                       one of them over the FD. The bind part will use the
                       received socket as the client FD. Should be used
                       carefully.
+                    - 'quic4@' [ EXPERIMENTAL] -> address is resolved as IPv4
+                      and protocol UDP is used. QUIC on the backend side is
+                      considered experimental mainly because this prevents the
+                      server removal at runtime. This requires the global
+                      keyword "expose-experimental-directives" to use it.
+                    - 'quic6@' [ EXPERIMENTAL] -> address is resolved as IPv6
+                      and protocol UDP is used. It is considered similarly
+                      flagged as experimental.
                     - 'rhttp@' [ EXPERIMENTAL ] -> custom address family for a
                       passive server in HTTP reverse context. This is an
                       experimental features which requires
@@ -19193,6 +19201,7 @@ proto <name>
   Here are the protocols that may be used as argument to a "proto" directive on
   a server line :
 
+    quic : mode=HTTP  side=FE|BE  mux=QUIC  flags=HTX|NO_UPG|FRAMED
     h2   : mode=HTTP  side=FE|BE  mux=H2    flags=HTX|HOL_RISK|NO_UPG
     fcgi : mode=HTTP  side=BE     mux=FCGI  flags=HTX|HOL_RISK|NO_UPG
     h1   : mode=HTTP  side=FE|BE  mux=H1    flags=HTX|NO_UPG
