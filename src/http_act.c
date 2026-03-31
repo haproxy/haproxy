@@ -1515,14 +1515,18 @@ static enum act_return http_action_set_headers_bin(struct act_rule *rule, struct
 	decoded->data = bytes_read;
 
 	while (1) {
-		offset += decode_varint(&decoded->area, decoded->area + decoded->data - offset, &sz);
-		if (offset == -1)
+		int ret;
+
+		ret = decode_varint(&decoded->area, decoded->area + decoded->data - offset, &sz);
+		if (ret == -1)
 			goto fail_rewrite;
+		offset += ret;
 
 		if (!sz) {
-			offset += decode_varint(&decoded->area, decoded->area + decoded->data - offset, &sz);
-			if (offset == -1)
+			ret = decode_varint(&decoded->area, decoded->area + decoded->data - offset, &sz);
+			if (ret == -1)
 				goto fail_rewrite;
+			offset += ret;
 			if (!sz)
 				goto leave;
 			else
@@ -1533,9 +1537,10 @@ static enum act_return http_action_set_headers_bin(struct act_rule *rule, struct
 		offset += sz;
 		decoded->area += sz;
 
-		offset += decode_varint(&decoded->area, decoded->area + decoded->data - offset, &sz);
-		if (offset == -1)
+		ret = decode_varint(&decoded->area, decoded->area + decoded->data - offset, &sz);
+		if (ret == -1)
 			goto fail_rewrite;
+		offset += ret;
 
 		v = ist2(decoded->area, sz);
 		offset += sz;
@@ -1977,14 +1982,18 @@ static enum act_return http_action_del_headers_bin(struct act_rule *rule, struct
 	decoded->data = bytes_read;
 
 	while (1) {
-		offset += decode_varint(&decoded->area, decoded->area + decoded->data - offset, &sz);
-		if (offset == -1)
+		int ret;
+
+		ret = decode_varint(&decoded->area, decoded->area + decoded->data - offset, &sz);
+		if (ret == -1)
 			goto fail_rewrite;
+		offset += ret;
 
 		if (!sz) {
-			offset += decode_varint(&decoded->area, decoded->area + decoded->data - offset, &sz);
-			if (offset == -1)
+			ret = decode_varint(&decoded->area, decoded->area + decoded->data - offset, &sz);
+			if (ret == -1)
 				goto fail_rewrite;
+			offset += ret;
 			if (!sz)
 				goto leave;
 			else
