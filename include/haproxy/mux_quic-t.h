@@ -164,13 +164,13 @@ struct qcs {
 		struct bdata_ctr data; /* data utilization counter. Note that <tot> is now used for now as accounting may be difficult with ncbuf. */
 	} rx;
 	struct {
+		struct qc_stream_desc *stream; /* quic */
 		struct quic_fctl fc; /* stream flow control applied on sending */
 		struct quic_frame *msd_frm; /* MAX_STREAM_DATA frame prepared */
 	} tx;
 
 	struct eb64_node by_id;
 	uint64_t id;
-	struct qc_stream_desc *stream;
 
 	struct list el_recv; /* element of qcc.recv_list */
 	struct list el_send; /* element of qcc.send_list */

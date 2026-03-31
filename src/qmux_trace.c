@@ -169,8 +169,8 @@ void qmux_dump_qcs_info(struct buffer *msg, const struct qcs *qcs)
 	                                          (ullong)qcs->tx.fc.off_real,
 	                                          (ullong)qcs->tx.fc.limit);
 
-	if (qcs->stream)
-		bdata_ctr_print(msg, &qcs->stream->data, " buf=");
+	if (qcs->tx.stream)
+		bdata_ctr_print(msg, &qcs->tx.stream->data, " buf=");
 
 	chunk_appendf(msg, " .ti=%u/%u/%u",
 	              tot_time_read(&qcs->timer.base),
