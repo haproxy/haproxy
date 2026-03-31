@@ -249,6 +249,8 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
 		cur_arg = 1;
 		kw = flt_find_kw(args[cur_arg]);
 		if (kw) {
+			/* default name is keyword name, unless overriden by parse func */
+			fconf->name = kw->kw;
 			if (!kw->parse) {
 				memprintf(err, "parsing [%s:%d] : '%s' : "
 					  "'%s' option is not implemented in this version (check build options).",

@@ -1033,6 +1033,7 @@ parse_http_comp_flt(char **args, int *cur_arg, struct proxy *px,
 	}
 
 	fconf->id   = http_comp_req_flt_id;
+	fconf->name = "comp-req";
 	fconf->conf = NULL;
 	fconf->ops  = &comp_req_ops;
 
@@ -1048,6 +1049,7 @@ parse_http_comp_flt(char **args, int *cur_arg, struct proxy *px,
 		return -1;
 	}
 	fconf_res->id = http_comp_res_flt_id;
+	fconf_res->name = "comp-res";
 	fconf_res->conf = NULL;
 	fconf_res->ops = &comp_res_ops;
 
