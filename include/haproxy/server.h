@@ -220,8 +220,12 @@ static inline void srv_inc_sess_ctr(struct server *s)
 /* set the time of last session on the designated server */
 static inline void srv_set_sess_last(struct server *s)
 {
-	if (s->counters.shared.tg)
-		HA_ATOMIC_STORE(&s->counters.shared.tg[tgid - 1]->last_sess,  ns_to_sec(now_ns));
+	if (s->counters.shared.tg) {
+		uint now_sec = ns_to_sec(now_ms);
+
+		if (HA_ATOMIC_LOAD(&s->counters.shared.tg[tgid - 1]->last_sess) != now_sec)
+			HA_ATOMIC_STORE(&s->counters.shared.tg[tgid - 1]->last_sess, now_sec);
+	}
 }
 
 /* returns the current server throttle rate between 0 and 100% */
