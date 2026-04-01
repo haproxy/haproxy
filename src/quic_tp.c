@@ -267,17 +267,6 @@ quic_transport_param_decode(struct quic_transport_params *p, int server,
 
 	switch (type) {
 	case QUIC_TP_ORIGINAL_DESTINATION_CONNECTION_ID:
-		/* RFC 9000 18.2. Transport Parameter Definitions
-		 *
-		 * A client MUST NOT include any server-only transport parameter:
-		 * original_destination_connection_id, preferred_address,
-		 * retry_source_connection_id, or stateless_reset_token. A server MUST
-		 * treat receipt of any of these transport parameters as a connection
-		 * error of type TRANSPORT_PARAMETER_ERROR.
-		 */
-		if (!server)
-			return QUIC_TP_DEC_ERR_INVAL;
-
 		if (len > sizeof p->original_destination_connection_id.data)
 			return QUIC_TP_DEC_ERR_TRUNC;
 		if (len)
@@ -297,10 +286,6 @@ quic_transport_param_decode(struct quic_transport_params *p, int server,
 		p->initial_source_connection_id_present = 1;
 		break;
 	case QUIC_TP_STATELESS_RESET_TOKEN:
-		/* see original_destination_connection_id RFC reference above. */
-		if (!server)
-			return QUIC_TP_DEC_ERR_INVAL;
-
 		if (len != sizeof p->stateless_reset_token)
 			return QUIC_TP_DEC_ERR_TRUNC;
 		memcpy(p->stateless_reset_token, *buf, len);
@@ -308,10 +293,6 @@ quic_transport_param_decode(struct quic_transport_params *p, int server,
 		p->with_stateless_reset_token = 1;
 		break;
 	case QUIC_TP_PREFERRED_ADDRESS:
-		/* see original_destination_connection_id RFC reference above. */
-		if (!server)
-			return QUIC_TP_DEC_ERR_INVAL;
-
 		if (!quic_transport_param_dec_pref_addr(&p->preferred_address, buf, *buf + len))
 			return QUIC_TP_DEC_ERR_TRUNC;
 		p->with_preferred_address = 1;
@@ -323,15 +304,6 @@ quic_transport_param_decode(struct quic_transport_params *p, int server,
 	case QUIC_TP_MAX_UDP_PAYLOAD_SIZE:
 		if (!quic_dec_int(&p->max_udp_payload_size, buf, end))
 			return QUIC_TP_DEC_ERR_TRUNC;
-
-		/* RFC 9000 18.2. Transport Parameter Definitions
-		 *
-		 * max_udp_payload_size (0x03): [...]
-		 * The default for this parameter is the maximum permitted UDP
-		 * payload of 65527. Values below 1200 are invalid.
-		 */
-		if (p->max_udp_payload_size < 1200)
-			return QUIC_TP_DEC_ERR_INVAL;
 
 		break;
 	case QUIC_TP_INITIAL_MAX_DATA:
@@ -362,26 +334,10 @@ quic_transport_param_decode(struct quic_transport_params *p, int server,
 		if (!quic_dec_int(&p->ack_delay_exponent, buf, end))
 			return QUIC_TP_DEC_ERR_TRUNC;
 
-		/* RFC 9000 18.2. Transport Parameter Definitions
-		 *
-		 * ack_delay_exponent (0x0a): [...]
-		 * Values above 20 are invalid.
-		 */
-		if (p->ack_delay_exponent > QUIC_TP_ACK_DELAY_EXPONENT_LIMIT)
-			return QUIC_TP_DEC_ERR_INVAL;
-
 		break;
 	case QUIC_TP_MAX_ACK_DELAY:
 		if (!quic_dec_int(&p->max_ack_delay, buf, end))
 			return QUIC_TP_DEC_ERR_TRUNC;
-
-		/* RFC 9000 18.2. Transport Parameter Definitions
-		 *
-		 * max_ack_delay (0x0b): [...]
-		 * Values of 2^14 or greater are invalid.
-		 */
-		if (p->max_ack_delay >= QUIC_TP_MAX_ACK_DELAY_LIMIT)
-			return QUIC_TP_DEC_ERR_INVAL;
 
 		break;
 	case QUIC_TP_DISABLE_ACTIVE_MIGRATION:
@@ -400,10 +356,6 @@ quic_transport_param_decode(struct quic_transport_params *p, int server,
 			return QUIC_TP_DEC_ERR_TRUNC;
 		break;
 	case QUIC_TP_RETRY_SOURCE_CONNECTION_ID:
-		/* see original_destination_connection_id RFC reference above. */
-		if (!server)
-			return QUIC_TP_DEC_ERR_INVAL;
-
 		if (len > sizeof p->retry_source_connection_id.data)
 			return QUIC_TP_DEC_ERR_TRUNC;
 
@@ -700,6 +652,18 @@ quic_transport_params_decode(struct quic_transport_params *p, int server,
 			return err;
 	}
 
+	return QUIC_TP_DEC_ERR_NONE;
+}
+
+/* Check validity of decoded <p> transport parameters. The boolean argument
+ * <server> must be set according to the origin of the parameters.
+ *
+ * Returns 1 if params are valid, else 0 if TRANSPORT_PARAMETER_ERROR must be
+ * emitted.
+ */
+static enum quic_tp_dec_err
+quic_transport_params_check(const struct quic_transport_params *p, int server)
+{
 	/* RFC 9000 7.3. Authenticating Connection IDs
 	 *
 	 * An endpoint MUST treat the absence of the
@@ -715,6 +679,45 @@ quic_transport_params_decode(struct quic_transport_params *p, int server,
 
 	/* RFC 9000 18.2. Transport Parameter Definitions
 	 *
+	 * A client MUST NOT include any server-only transport parameter:
+	 * original_destination_connection_id, preferred_address,
+	 * retry_source_connection_id, or stateless_reset_token.
+	 */
+	if (!server &&
+	    (p->original_destination_connection_id_present ||
+	     p->retry_source_connection_id.len ||
+	     p->with_stateless_reset_token ||
+	     p->with_preferred_address)) {
+		return QUIC_TP_DEC_ERR_INVAL;
+	}
+
+	/* RFC 9000 18.2. Transport Parameter Definitions
+	 *
+	 * max_udp_payload_size (0x03): [...]
+	 * The default for this parameter is the maximum permitted UDP
+	 * payload of 65527. Values below 1200 are invalid.
+	 */
+	if (p->max_udp_payload_size < 1200)
+		return QUIC_TP_DEC_ERR_INVAL;
+
+	/* RFC 9000 18.2. Transport Parameter Definitions
+	 *
+	 * ack_delay_exponent (0x0a): [...]
+	 * Values above 20 are invalid.
+	 */
+	if (p->ack_delay_exponent > QUIC_TP_ACK_DELAY_EXPONENT_LIMIT)
+		return QUIC_TP_DEC_ERR_INVAL;
+
+	/* RFC 9000 18.2. Transport Parameter Definitions
+	 *
+	 * max_ack_delay (0x0b): [...]
+	 * Values of 2^14 or greater are invalid.
+	 */
+	if (p->max_ack_delay >= QUIC_TP_MAX_ACK_DELAY_LIMIT)
+		return QUIC_TP_DEC_ERR_INVAL;
+
+	/* RFC 9000 18.2. Transport Parameter Definitions
+	 *
 	 * active_connection_id_limit (0x0e):
 	 * [...] The value of the
 	 * active_connection_id_limit parameter MUST be at least 2. An
@@ -722,7 +725,7 @@ quic_transport_params_decode(struct quic_transport_params *p, int server,
 	 * connection with an error of type TRANSPORT_PARAMETER_ERROR.
 	 */
 	if (p->active_connection_id_limit < QUIC_TP_DFLT_ACTIVE_CONNECTION_ID_LIMIT)
-		return QUIC_TP_DEC_ERR_INVAL;
+		 return QUIC_TP_DEC_ERR_INVAL;
 
 	return QUIC_TP_DEC_ERR_NONE;
 }
@@ -761,14 +764,16 @@ int quic_transport_params_store(struct quic_conn *qc, int server,
 	quic_dflt_transport_params_cpy(tx_params);
 
 	err = quic_transport_params_decode(tx_params, server, buf, end);
-	if (err == QUIC_TP_DEC_ERR_INVAL) {
+	if (err != QUIC_TP_DEC_ERR_NONE) {
+		TRACE_ERROR("error on transport parameters decoding", QUIC_EV_TRANSP_PARAMS, qc);
+		return 0;
+	}
+
+	err = quic_transport_params_check(tx_params, server);
+	if (err != QUIC_TP_DEC_ERR_NONE) {
 		TRACE_ERROR("invalid transport parameter value", QUIC_EV_TRANSP_PARAMS, qc);
 		quic_set_connection_close(qc, quic_err_transport(QC_ERR_TRANSPORT_PARAMETER_ERROR));
 		return 1;
-	}
-	else if (err == QUIC_TP_DEC_ERR_TRUNC) {
-		TRACE_ERROR("error on transport parameters decoding", QUIC_EV_TRANSP_PARAMS, qc);
-		return 0;
 	}
 
 	if (edata_accepted && !qc_early_tranport_params_validate(qc, tx_params, &etps)) {
