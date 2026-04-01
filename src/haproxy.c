@@ -1121,6 +1121,8 @@ static int read_cfg()
 	setenv("HAPROXY_HTTPS_LOG_FMT", default_https_log_format, 1);
 	setenv("HAPROXY_TCP_LOG_FMT", default_tcp_log_format, 1);
 	setenv("HAPROXY_TCP_CLF_LOG_FMT", clf_tcp_log_format, 1);
+	setenv("HAPROXY_KEYLOG_FC_LOG_FMT", keylog_format_fc, 1);
+	setenv("HAPROXY_KEYLOG_BC_LOG_FMT", keylog_format_bc, 1);
 	setenv("HAPROXY_BRANCH", PRODUCT_BRANCH, 1);
 	list_for_each_entry(cfg, &cfg_cfgfiles, list) {
 		int ret;

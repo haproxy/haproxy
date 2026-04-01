@@ -990,23 +990,26 @@ within conditional blocks and not to reference them in the global section's
 The table below summaries the status of each variable for the different working
 modes:
 
-  +--------------------------+---------+------------+-----------+
-  |        variable          | usable  | modifiable |  listed   |
-  |                          +---------+------------+-----------+
-  |                          |  M | W  |   M  |  W  |  M  |  W  |
-  +--------------------------+----+----+------+-----+-----+-----+
-  | HAPROXY_STARTUP_VERSION  |  X | X  |      |     |  X  |  X  |
-  | HAPROXY_BRANCH           |  X | X  |      |     |  X  |  X  |
-  | HAPROXY_CFGFILES         |    |    |      |     |  X  |  X  |
-  | HAPROXY_MWORKER          |    |    |      |     |  X  |  X  |
-  | HAPROXY_CLI              |    |    |      |     |     |  X  |
-  | HAPROXY_MASTER_CLI       |    |    |      |     |  X  |     |
-  | HAPROXY_LOCALPEER        |    | X  |      |     |     |  X  |
-  | HAPROXY_HTTP_LOG_FMT     |    | X  |      |  X  |     |     |
-  | HAPROXY_HTTP_CLF_LOG_FMT |    | X  |      |  X  |     |     |
-  | HAPROXY_HTTPS_LOG_FMT    |    | X  |      |  X  |     |     |
-  | HAPROXY_TCP_LOG_FMT      |    | X  |      |  X  |     |     |
-  +--------------------------+----+----+------+-----+-----+-----+
+  +---------------------------+---------+------------+-----------+
+  |          variable         | usable  | modifiable |  listed   |
+  |                           +---------+------------+-----------+
+  |                           |  M | W  |   M  |  W  |  M  |  W  |
+  +---------------------------+----+----+------+-----+-----+-----+
+  | HAPROXY_STARTUP_VERSION   |  X | X  |      |     |  X  |  X  |
+  | HAPROXY_BRANCH            |  X | X  |      |     |  X  |  X  |
+  | HAPROXY_CFGFILES          |    |    |      |     |  X  |  X  |
+  | HAPROXY_MWORKER           |    |    |      |     |  X  |  X  |
+  | HAPROXY_CLI               |    |    |      |     |     |  X  |
+  | HAPROXY_MASTER_CLI        |    |    |      |     |  X  |     |
+  | HAPROXY_LOCALPEER         |    | X  |      |     |     |  X  |
+  | HAPROXY_HTTP_LOG_FMT      |    | X  |      |  X  |     |     |
+  | HAPROXY_HTTP_CLF_LOG_FMT  |    | X  |      |  X  |     |     |
+  | HAPROXY_HTTPS_LOG_FMT     |    | X  |      |  X  |     |     |
+  | HAPROXY_TCP_LOG_FMT       |    | X  |      |  X  |     |     |
+  | HAPROXY_TCP_CLF_LOG_FMT   |    | X  |      |  X  |     |     |
+  | HAPROXY_KEYLOG_FC_LOG_FMT |    | X  |      |  X  |     |     |
+  | HAPROXY_KEYLOG_BC_LOG_FMT |    | X  |      |  X  |     |     |
+  +---------------------------+----+----+------+-----+-----+-----+
 
 The variables in question are the following:
 
@@ -1038,6 +1041,16 @@ The variables in question are the following:
 
   * HAPROXY_TCP_CLF_LOG_FMT: similar to HAPROXY_HTTP_CLF_LOG_FMT but for TCP
     CLF log format as defined in section 8.2.2 "TCP log format".
+
+  * HAPROXY_KEYLOG_FC_LOG_FMT: contains the keylog format for the frontend
+    (client-facing) TLS connection, with key entries separated by newlines so
+    it might not be compatible with your syslog server. "tune.ssl.keylog on" is
+    required.
+
+  * HAPROXY_KEYLOG_BC_LOG_FMT: similar to HAPROXY_KEYLOG_FC_LOG_FMT but for the
+    backend (server-facing) TLS connection. Key entries are separated by
+    newlines so it might not be compatible with your syslog server.
+    "tune.ssl.keylog on" is required.
 
   * HAPROXY_MWORKER: In master-worker mode, this variable is set to 1.
 
@@ -5530,6 +5543,12 @@ tune.ssl.keylog { on | off }
                 SERVER_TRAFFIC_SECRET_0 %[ssl_bc_client_random,hex] %[ssl_bc_server_traffic_secret_0]\n
                 EXPORTER_SECRET %[ssl_bc_client_random,hex] %[ssl_bc_exporter_secret]\n
                 EARLY_EXPORTER_SECRET %[ssl_bc_client_random,hex] %[ssl_bc_early_exporter_secret]"
+
+  HAProxy also provides the above formats as predefined environment variables
+  that can be used directly in a "log-format" directive:
+
+    $HAPROXY_KEYLOG_FC_LOG_FMT   frontend (client-facing) connection keys
+    $HAPROXY_KEYLOG_BC_LOG_FMT   backend (server-facing) connection keys
 
 tune.ssl.lifetime <timeout>
   Sets how long a cached SSL session may remain valid. This time is expressed
