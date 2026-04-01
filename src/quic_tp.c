@@ -256,9 +256,8 @@ static int quic_transport_param_dec_version_info(struct tp_version_information *
 }
 
 /* Decode into <p> struct a transport parameter found in <*buf> buffer with
- * <type> as type and <len> as length, depending on <server> boolean value which
- * must be set to 1 for a server (haproxy listener) or 0 for a client (connection
- * to an haproxy server).
+ * <type> as type and <len> as length. The boolean argument <server> must be
+ * set according to the origin of the parameters.
  */
 static enum quic_tp_dec_err
 quic_transport_param_decode(struct quic_transport_params *p, int server,
@@ -675,9 +674,8 @@ int quic_transport_params_encode(unsigned char *buf,
 	return pos - head;
 }
 
-/* Decode transport parameters found in <buf> buffer into <p>, depending on
- * <server> boolean value which must be set to 1 for a server (haproxy listener)
- * or 0 for a client (connection to a haproxy server).
+/* Decode transport parameters found in <buf> buffer into <p>. The boolean
+ * argument <server> must be set according to the origin of the parameters.
  * Returns 1 if succeeded, 0 if not.
  */
 static enum quic_tp_dec_err
@@ -729,9 +727,10 @@ quic_transport_params_decode(struct quic_transport_params *p, int server,
 	return QUIC_TP_DEC_ERR_NONE;
 }
 
-/* Store transport parameters found in <buf> buffer into <qc> QUIC connection
- * depending on <server> value which must be 1 for a server (haproxy listener)
- * or 0 for a client (connection to a haproxy server).
+/* Store transport parameters found in <buf> buffer into <qc> QUIC connection.
+ * The boolean argument <server> must be set according to the origin of the
+ * parameters.
+ *
  * Note that peer transport parameters are stored in the TX part of the connection:
  * they are used to send packets to the peer with its transport parameters as
  * limitations.
