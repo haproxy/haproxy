@@ -289,7 +289,7 @@ void stats_dump_html_info(struct stconn *sc)
 	              "<td align=\"left\" valign=\"top\" nowrap width=\"1%%\">"
 	              "<b>Display option:</b><ul style=\"margin-top: 0.25em;\">"
 	              "",
-	              (ctx->flags & STAT_F_HIDEVER) ? "" : (stats_version_string),
+	              (ctx->flags & STAT_F_SHOWVER) ? (stats_version_string) : "",
 	              pid, (ctx->flags & STAT_F_SHNODE) ? " on " : "",
 		      (ctx->flags & STAT_F_SHNODE) ? (uri->node ? uri->node : global.node) : "",
 	              (ctx->flags & STAT_F_SHDESC) ? ": " : "",

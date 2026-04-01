@@ -1976,7 +1976,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			if (!stats_check_init_uri_auth(&curproxy->uri_auth))
 				goto alloc_error;
 		} else if (strcmp(args[1], "hide-version") == 0) {
-			if (!stats_set_flag(&curproxy->uri_auth, STAT_F_HIDEVER))
+			if (curproxy->uri_auth)
+				curproxy->uri_auth->flags &= ~STAT_F_SHOWVER;
+		} else if (strcmp(args[1], "show-version") == 0) {
+			if (!stats_set_flag(&curproxy->uri_auth, STAT_F_SHOWVER))
 				goto alloc_error;
 		} else if (strcmp(args[1], "show-legends") == 0) {
 			if (!stats_set_flag(&curproxy->uri_auth, STAT_F_SHLGNDS))
@@ -2043,7 +2046,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 		} else {
 stats_error_parsing:
-			ha_alert("parsing [%s:%d]: %s '%s', expects 'admin', 'uri', 'realm', 'auth', 'scope', 'enable', 'hide-version', 'show-node', 'show-desc' or 'show-legends'.\n",
+			ha_alert("parsing [%s:%d]: %s '%s', expects 'admin', 'uri', 'realm', 'auth', 'scope', 'enable', 'hide-version', 'show-node', 'show-desc' , 'show-legends' or 'show-version'.\n",
 				 file, linenum, *args[1]?"unknown stats parameter":"missing keyword in", args[*args[1]?1:0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;

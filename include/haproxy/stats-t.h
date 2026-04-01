@@ -37,7 +37,7 @@
 #define STAT_F_CHUNKED    0x00000040    /* use chunked encoding (HTTP/1.1) */
 #define STAT_F_JSON_SCHM  0x00000080    /* dump the json schema */
 
-#define STAT_F_HIDEVER    0x00000100    /* conf: do not report the version and reldate */
+#define STAT_F_SHOWVER    0x00000100    /* conf: report the version and reldate */
 #define STAT_F_SHNODE     0x00000200    /* conf: show node name */
 #define STAT_F_SHDESC     0x00000400    /* conf: show description */
 #define STAT_F_SHLGNDS    0x00000800    /* conf: show legends */

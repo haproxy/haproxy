@@ -6098,6 +6098,7 @@ stats scope                               X          X         X         X
 stats show-desc                           X          X         X         X
 stats show-legends                        X          X         X         X
 stats show-node                           X          X         X         X
+stats show-version                        X          X         X         X
 stats uri                                 X          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
 stick match                               -          -         X         X
@@ -12913,12 +12914,12 @@ stats hide-version
 
   Arguments : none
 
-  By default, the stats page reports some useful status information along with
+  The stats page can report some useful status information along with
   the statistics. Among them is HAProxy's version. However, it is generally
   considered dangerous to report precise version to anyone, as it can help them
   target known weaknesses with specific attacks. The "stats hide-version"
   statement removes the version from the statistics report. This is recommended
-  for public sites or any site with a weak login/password.
+  for public sites or any site with a weak login/password, and is the default.
 
   Though this statement alone is enough to enable statistics reporting, it is
   recommended to set all other settings in order to avoid relying on default
@@ -12942,7 +12943,8 @@ stats hide-version
         stats uri     /admin?stats
         stats refresh 5s
 
-  See also : "stats auth", "stats enable", "stats realm", "stats uri"
+  See also : "stats auth", "stats enable", "stats realm", "stats uri",
+             "stats show-version"
 
 
 stats http-request { allow | deny | auth [realm <realm>] }
@@ -13208,6 +13210,25 @@ stats show-node [ <name> ]
   See also: "show-desc", "stats enable", "stats uri", and "node" in global
             section.
 
+stats show-version
+  Enable statistics and show HAProxy version reporting
+
+  May be used in the following contexts: http
+
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+
+  Arguments : none
+
+  The stats page can report some useful status information along with
+  the statistics. Among them is HAProxy's version. However, it is generally
+  considered dangerous to report precise version to anyone, as it can help them
+  target known weaknesses with specific attacks, and so is disabled by default.
+  The "stats show-version" enables displaying those informations. This is not
+  recommanded for public sites or any site with a weak login/password.
+
+  See also : "stats auth", "stats enable", "stats realm", "stats uri",
+             "stats hide-version"
 
 stats uri <prefix>
   Enable statistics and define the URI prefix to access them
