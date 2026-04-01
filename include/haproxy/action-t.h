@@ -151,6 +151,7 @@ struct act_rule {
 			struct ist str;        /* string param (reason, header name, ...) */
 			struct lf_expr fmt;    /* log-format compatible expression */
 			struct my_regex *re;   /* used by replace-header/value/uri/path */
+			struct sample_expr *expr; /* sample expression used by HTTP action */
 		} http;                        /* args used by some HTTP rules */
 		struct http_reply *http_reply; /* HTTP response to be used by return/deny/tarpit rules */
 		struct redirect_rule *redir;   /* redirect rule or "http-request redirect" */

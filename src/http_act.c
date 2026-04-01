@@ -51,6 +51,7 @@ static void release_http_action(struct act_rule *rule)
 	if (rule->arg.http.re)
 		regex_free(rule->arg.http.re);
 	lf_expr_deinit(&rule->arg.http.fmt);
+	release_sample_expr(rule->arg.http.expr);
 }
 
 /* Release memory allocated by HTTP actions relying on an http reply. Concretely,
