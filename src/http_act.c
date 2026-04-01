@@ -1712,22 +1712,14 @@ static enum act_parse_ret parse_http_set_headers_bin(const char **args, int *ori
 		return ACT_RET_PRS_ERR;
 	}
 
-	cur_arg++;
-
 	/* Check if an argument is available */
-	if (*args[cur_arg]) {
-		if (strcmp(args[cur_arg], "prefix") == 0 ) {
-			if(!*args[cur_arg+1]) {
-				memprintf(err, "expects 1 argument: <headers>; or 3 arguments: <headers> prefix <pfx>");
-				return ACT_RET_PRS_ERR;
-			} else {
-				cur_arg++;
-				rule->arg.http.str = ist(strdup(args[cur_arg]));
-			}
-		} else {
+	if (*args[cur_arg+1] && strcmp(args[cur_arg+1], "prefix") == 0 ) {
+		if(!*args[cur_arg+2]) {
 			memprintf(err, "expects 1 argument: <headers>; or 3 arguments: <headers> prefix <pfx>");
 			return ACT_RET_PRS_ERR;
 		}
+		cur_arg += 2;
+		rule->arg.http.str = ist(strdup(args[cur_arg]));
 	}
 
 	*orig_arg = cur_arg + 1;
