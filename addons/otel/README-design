@@ -1,0 +1,725 @@
+OpenTelemetry filter -- design patterns
+==========================================================================
+
+This document describes the cross-cutting design patterns used throughout
+the OTel filter implementation.  It complements README-implementation
+(component-by-component architecture) with a pattern-oriented view of the
+mechanisms that span multiple source files.
+
+
+1  X-Macro Code Generation
+----------------------------------------------------------------------
+
+The filter uses X-macro lists extensively to generate enums, keyword tables,
+event metadata and configuration init/free functions from a single definition.
+Each X-macro list is a preprocessor define containing repeated invocations of
+a helper macro whose name is supplied by the expansion context.
+
+1.1  Event Definitions
+
+FLT_OTEL_EVENT_DEFINES (event.h) drives the event system.  Each entry has the
+form:
+
+  FLT_OTEL_EVENT_DEF(NAME, CHANNEL, REQ_AN, RES_AN, HTTP_INJ, "string")
+
+The same list is expanded twice:
+
+  - In enum FLT_OTEL_EVENT_enum (event.h) to produce symbolic constants
+    (FLT_OTEL_EVENT_NONE, FLT_OTEL_EVENT_REQ_STREAM_START, etc.) followed by
+    the FLT_OTEL_EVENT_MAX sentinel.
+
+  - In the flt_otel_event_data[] initializer (event.c) to produce a const table
+    of struct flt_otel_event_data entries carrying the analyzer bit, sample
+    fetch direction, valid fetch locations, HTTP injection flag and event name
+    string.
+
+Adding a new event requires a single line in the X-macro list.
+
+1.2  Parser Keyword Definitions
+
+Three X-macro lists drive the configuration parser:
+
+  FLT_OTEL_PARSE_INSTR_DEFINES   (parser.h, 9 keywords)
+  FLT_OTEL_PARSE_GROUP_DEFINES   (parser.h, 2 keywords)
+  FLT_OTEL_PARSE_SCOPE_DEFINES   (parser.h, 15 keywords)
+
+Each entry has the form:
+
+  FLT_OTEL_PARSE_DEF(ENUM, flag, check, min, max, "name", "usage")
+
+Each list is expanded to:
+
+  - An enum for keyword indices (FLT_OTEL_PARSE_INSTR_ID, etc.).
+  - A static parse_data[] table of struct flt_otel_parse_data entries carrying
+    the keyword index, flag_check_id, check_name type, argument count bounds,
+    keyword name string and usage string.
+
+The section parsers (flt_otel_parse_cfg_instr, _group, _scope) look up args[0]
+in their parse_data table via flt_otel_parse_cfg_check(), which validates
+argument counts and character constraints before dispatching to
+the keyword-specific handler.
+
+Additional X-macro lists generate:
+
+  FLT_OTEL_PARSE_SCOPE_STATUS_DEFINES      Span status codes.
+  FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEFINES  Instrument type keywords.
+  FLT_OTEL_HTTP_METH_DEFINES               HTTP method name table.
+  FLT_OTEL_GROUP_DEFINES                   Group action metadata.
+
+1.3  Configuration Init/Free Generation
+
+Two macros in conf_funcs.h generate init and free functions for all
+configuration structure types:
+
+  FLT_OTEL_CONF_FUNC_INIT(_type_, _id_, _func_)
+  FLT_OTEL_CONF_FUNC_FREE(_type_, _id_, _func_)
+
+The _type_ parameter names the structure (e.g. "span"), _id_ names the
+identifier field within the FLT_OTEL_CONF_HDR (e.g. "id", "key", "str"), and
+_func_ is a brace-enclosed code block executed after the boilerplate allocation
+(for init) or before the boilerplate teardown (for free).
+
+The generated init function:
+  1. Validates the identifier is non-NULL and non-empty.
+  2. Checks the length against FLT_OTEL_ID_MAXLEN (64).
+  3. Detects duplicates in the target list.
+  4. Handles auto-generated IDs (FLT_OTEL_CONF_HDR_SPECIAL prefix).
+  5. Allocates with OTELC_CALLOC, duplicates the ID with OTELC_STRDUP.
+  6. Appends to the parent list via LIST_APPEND.
+  7. Executes the custom _func_ body.
+
+The generated free function:
+  1. Executes the custom _func_ body (typically list destruction).
+  2. Frees the identifier string.
+  3. Removes the node from its list.
+  4. Frees the structure with OTELC_SFREE_CLEAR.
+
+conf.c instantiates these macros for all 13 configuration types: hdr, str, ph,
+sample_expr, sample, link, context, span, scope, instrument, log_record, group,
+instr.  The more complex types (span, scope, instr) carry non-trivial _func_
+bodies that initialize sub-lists or set default values.
+
+
+2  Type-Safe Generic Macros
+----------------------------------------------------------------------
+
+define.h provides utility macros that use typeof() and statement expressions
+for type-safe generic programming without C++ templates.
+
+2.1  Safe Pointer Dereferencing
+
+  FLT_OTEL_PTR_SAFE(a, b)
+    Returns 'a' if non-NULL, otherwise the default value 'b'.  Uses typeof(*(a))
+    to verify type compatibility at compile time.
+
+  FLT_OTEL_DEREF(p, m, v)
+    Safely dereferences p->m, returning 'v' if 'p' is NULL.
+
+  FLT_OTEL_DDEREF(a, m, v)
+    Safely double-dereferences *a->m, returning 'v' if either 'a' or '*a' is
+    NULL.
+
+These macros eliminate repetitive NULL checks while preserving the correct
+pointer types through typeof().
+
+2.2  String Comparison
+
+  FLT_OTEL_STR_CMP(S, s)
+    Compares a runtime string 's' against a compile-time string literal 'S'.
+    Expands to a call with the literal's address and computed length, avoiding
+    repeated strlen() on known constants.
+
+  FLT_OTEL_CONF_STR_CMP(s, S)
+    Compares two configuration strings using their cached length fields (from
+    FLT_OTEL_CONF_STR / FLT_OTEL_CONF_HDR).  Falls through to memcmp() only when
+    lengths match, providing an early-out fast path.
+
+2.3  List Operations
+
+  FLT_OTEL_LIST_ISVALID(a)
+    Checks whether a list head has been initialized (both prev and next are
+    non-NULL).
+
+  FLT_OTEL_LIST_DEL(a)
+    Safely deletes a list element only if the list head is valid.
+
+  FLT_OTEL_LIST_DESTROY(t, h)
+    Destroys all elements in a typed configuration list by iterating with
+    list_for_each_entry_safe and calling flt_otel_conf_<t>_free() for each
+    entry.  The type 't' is used to derive both the structure type and the
+    free function name.
+
+2.4  Thread-Local Rotating Buffers
+
+  FLT_OTEL_BUFFER_THR(b, m, n, p)
+    Declares a thread-local pool of 'n' string buffers, each of size 'm'.
+    The pool index rotates on each invocation, avoiding the need for explicit
+    allocation in debug formatting functions.  Each call returns a pointer to
+    the next buffer via the output parameter 'p'.
+
+    Used primarily in debug-only functions (flt_otel_analyzer,
+    flt_otel_list_dump) where temporary strings must survive until their caller
+    finishes with them.
+
+
+3  Error Handling Architecture
+----------------------------------------------------------------------
+
+3.1  Error Accumulation Macros
+
+Three macros in define.h manage error messages:
+
+  FLT_OTEL_ERR(f, ...)
+    Formats an error message via memprintf() into the caller's char **err
+    pointer, but only if *err is still NULL.  Prevents overwriting the first
+    error with a cascading secondary error.
+
+  FLT_OTEL_ERR_APPEND(f, ...)
+    Unconditionally appends to the error message regardless of prior content.
+    Used when a function must report multiple issues.
+
+  FLT_OTEL_ERR_FREE(p)
+    Logs the accumulated error message at WARNING level via FLT_OTEL_ALERT,
+    then frees the string and NULLs the pointer.
+
+All source functions that can fail accept a char **err parameter.  The
+convention is: set *err on error, leave it alone on success.  Callers check
+both the return value and *err to detect problems.
+
+3.2  Parse-Time Error Reporting
+
+Configuration parsing (parser.c) uses additional macros:
+
+  FLT_OTEL_PARSE_ERR(e, f, ...)
+    Sets the error string and ORs ERR_ABORT | ERR_ALERT into the return value.
+    Used inside section parser switch statements.
+
+  FLT_OTEL_PARSE_ALERT(f, ...)
+    Issues a ha_alert() with the current file and line, then sets the error
+    flags.  Used when the error message should appear immediately.
+
+  FLT_OTEL_POST_PARSE_ALERT(f, ...)
+    Same as PARSE_ALERT but uses cfg_file instead of file, for post-parse
+    validation that runs after the parser has moved on.
+
+  FLT_OTEL_PARSE_IFERR_ALERT()
+    Checks whether *err was set by a called function, and if so, issues an
+    alert and clears the error.  This bridges between functions that use the
+    char **err convention and the parser's own alert mechanism.
+
+3.3  Runtime Error Modes
+
+Two helper functions in filter.c implement the runtime error policy:
+
+  flt_otel_return_int(f, err, retval)
+  flt_otel_return_void(f, err)
+
+If an error is detected (retval == FLT_OTEL_RET_ERROR or *err != NULL):
+
+  Hard-error mode (rt_ctx->flag_harderr):
+    Sets rt_ctx->flag_disabled = 1, disabling the filter for the remainder of
+    the stream.  Atomically increments the disabled counter.  The error is
+    logged as "filter hard-error (disabled)".
+
+  Soft-error mode (default):
+    The error is logged as "filter soft-error" and processing continues.  The
+    tracing data for the current event may be incomplete but the stream is not
+    affected.
+
+In both modes, FLT_OTEL_RET_OK is always returned to HAProxy.  A tracing failure
+never interrupts stream processing.
+
+3.4  Disabled State Checking
+
+flt_otel_is_disabled() (filter.c) is called at the top of every filter callback
+that processes events.  It checks three conditions:
+
+  1. rt_ctx is NULL (filter was never attached or already detached).
+  2. rt_ctx->flag_disabled is set (hard-error disabled the filter).
+  3. conf->instr->flag_disabled is set (globally disabled via CLI).
+
+All three are loaded via _HA_ATOMIC_LOAD() for thread safety.  When disabled,
+the callback returns immediately without processing.
+
+
+4  Thread Safety Model
+----------------------------------------------------------------------
+
+The filter runs within HAProxy's multi-threaded worker model.  Each stream is
+bound to a single thread, so per-stream state (the runtime context, spans and
+contexts) is accessed without locking.  Cross-stream shared state uses atomic
+operations.
+
+4.1  Atomic Fields
+
+The following fields are accessed atomically across threads:
+
+  conf->instr->flag_disabled  Toggled by CLI "otel enable/disable".  Checked in
+                              flt_otel_ops_attach() and flt_otel_is_disabled().
+
+  conf->instr->flag_harderr   Toggled by CLI "otel hard-errors/soft-errors".
+                              Copied to rt_ctx at attach time.
+
+  conf->instr->rate_limit     Set by CLI "otel rate".
+                              Read in flt_otel_ops_attach().
+
+  conf->instr->logging        Set by CLI "otel logging".
+                              Copied to rt_ctx at attach time.
+
+  flt_otel_drop_cnt           Incremented in flt_otel_log_handler_cb().
+                              Read by CLI "otel status".
+
+  conf->cnt.disabled[]        Incremented in flt_otel_return_int/void().
+  conf->cnt.attached[]        Incremented in flt_otel_ops_attach().
+
+All use _HA_ATOMIC_LOAD(), _HA_ATOMIC_STORE(), _HA_ATOMIC_INC() or
+_HA_ATOMIC_ADD() from HAProxy's atomic primitives.
+
+4.2  Metric Instrument Creation (CAS Pattern)
+
+Metric instruments are shared across all threads but created lazily on first
+use.  The creation uses a compare-and-swap pattern to ensure exactly one thread
+performs the creation:
+
+  int64_t expected = OTELC_METRIC_INSTRUMENT_UNSET;  /* -1 */
+  if (HA_ATOMIC_CAS(&instr->idx, &expected, OTELC_METRIC_INSTRUMENT_PENDING)) {
+      /* This thread won the race -- create the instrument. */
+      idx = meter->create_instrument(...);
+      HA_ATOMIC_STORE(&instr->idx, idx);
+  }
+
+The three states are:
+  UNSET   (-1)  Not yet created.  The CAS target.
+  PENDING (-2)  Creation in progress by another thread.
+  >= 0          Valid meter index.  Ready for recording.
+
+Threads that lose the CAS skip creation.  Update-form instruments check that the
+referenced create-form's idx is >= 0 before recording; if it is still PENDING or
+UNSET, the measurement is silently skipped.
+
+4.3  Per-Thread Initialization Guard
+
+flt_otel_ops_init_per_thread() uses the FLT_CFG_FL_HTX flag on fconf as a
+one-shot guard: the tracer, meter and logger background threads are started only
+on the first call.  Subsequent calls from other proxies sharing the same filter
+configuration skip the start sequence.
+
+4.4  CLI Update Propagation
+
+CLI set commands (cli.c) iterate all OTel filter instances across all proxies
+using the FLT_OTEL_PROXIES_LIST_START / FLT_OTEL_PROXIES_LIST_END macros
+(util.h) and atomically update the target field on each instance.  This ensures
+that "otel disable" takes effect globally, not just on one proxy.
+
+
+5  Sample Evaluation Pipeline
+----------------------------------------------------------------------
+
+Sample expressions bridge HAProxy's runtime data (headers, variables, connection
+properties) into OTel attributes, events, baggage, status, metric values and log
+record bodies.
+
+5.1  Two Evaluation Paths
+
+The parser detects which path to use based on the presence of "%[" in the sample
+value argument:
+
+  Log-format path (sample->lf_used == true):
+    The value is parsed via parse_logformat_string() and stored in
+    sample->lf_expr.  At runtime, build_logline() evaluates the expression into
+    a temporary buffer of global.tune.bufsize bytes.  The result is always a
+    string.
+
+  Bare sample path (sample->lf_used == false):
+    Each whitespace-separated token is parsed via sample_parse_expr() and
+    stored as an flt_otel_conf_sample_expr in sample->exprs.  At runtime, each
+    expression is evaluated via sample_process().  If there is exactly one
+    expression, the native HAProxy sample type is preserved (bool, int, IP
+    address, string).  If there are multiple expressions, their string
+    representations are concatenated.
+
+5.2  Type Conversion Chain
+
+flt_otel_sample_to_value() (util.c) converts HAProxy sample types to OTel value
+types:
+
+  SMP_T_BOOL  ->  OTELC_VALUE_BOOL
+  SMP_T_SINT  ->  OTELC_VALUE_INT64
+  Other       ->  OTELC_VALUE_DATA (string, via flt_otel_sample_to_str)
+
+flt_otel_sample_to_str() handles the string conversion for non-trivial types:
+
+  SMP_T_BOOL     "0" or "1"
+  SMP_T_SINT     snprintf decimal
+  SMP_T_IPV4     inet_ntop
+  SMP_T_IPV6     inet_ntop
+  SMP_T_STR      direct copy
+  SMP_T_METH     lookup from static HTTP method table, or raw string for
+                 HTTP_METH_OTHER
+
+For metric instruments, string values are rejected -- the meter requires
+OTELC_VALUE_INT64.  If the sample evaluates to a string, otelc_value_strtonum()
+attempts numeric conversion as a last resort.
+
+5.3  Dispatch to Data Structures
+
+flt_otel_sample_add() (util.c) is the top-level evaluator.  After converting the
+sample to an otelc_value, it dispatches based on type:
+
+  FLT_OTEL_EVENT_SAMPLE_ATTRIBUTE
+    -> flt_otel_sample_add_kv(&data->attributes, key, &value)
+
+  FLT_OTEL_EVENT_SAMPLE_BAGGAGE
+    -> flt_otel_sample_add_kv(&data->baggage, key, &value)
+
+  FLT_OTEL_EVENT_SAMPLE_EVENT
+    -> flt_otel_sample_add_event(&data->events, sample, &value)
+       Groups attributes by event name; creates a new flt_otel_scope_data_event
+       node if the event name is not yet present.
+
+  FLT_OTEL_EVENT_SAMPLE_STATUS
+    -> flt_otel_sample_set_status(&data->status, sample, &value, err)
+       Sets the status code from sample->extra.num and the description from the
+       evaluated value.  Rejects duplicate status settings.
+
+5.4  Growable Key-Value Arrays
+
+Attribute and baggage arrays use a lazy-allocation / grow-on-demand pattern via
+flt_otel_sample_add_kv() (util.c):
+
+  - Initial allocation: FLT_OTEL_ATTR_INIT_SIZE (8) elements via otelc_kv_new().
+  - Growth: FLT_OTEL_ATTR_INC_SIZE (4) additional elements via otelc_kv_resize()
+    when the array is full.
+  - The cnt field tracks used elements; size tracks total capacity.
+
+Event attribute arrays follow the same pattern within each
+flt_otel_scope_data_event node.
+
+
+6  Rate Limiting and Filtering
+----------------------------------------------------------------------
+
+6.1  Rate Limit Representation
+
+The rate limit is configured as a floating-point percentage (0.0 to 100.0) but
+stored internally as a uint32_t for lock-free comparison:
+
+  FLT_OTEL_FLOAT_U32(a)  Converts a percentage to a uint32 value:
+                          (uint32_t)((a / 100.0) * UINT32_MAX)
+
+  FLT_OTEL_U32_FLOAT(a)  Converts back for display:
+                          ((double)(a) / UINT32_MAX) * 100.0
+
+At attach time, the filter compares a fresh ha_random32() value against the
+stored rate_limit.  If the random value exceeds the threshold, the filter
+returns FLT_OTEL_RET_IGNORE and does not attach to the stream.  This provides
+uniform sampling without floating-point arithmetic on the hot path.
+
+6.2  ACL-Based Filtering
+
+Each scope may carry an ACL condition (if/unless) evaluated at scope
+execution time via acl_exec_cond().  ACL references are resolved through
+a priority chain in flt_otel_parse_acl() (parser.c):
+
+  1. Scope-local ACLs (declared within the otel-scope section).
+  2. Instrumentation ACLs (declared in the otel-instrumentation section).
+  3. Proxy ACLs (declared in the HAProxy frontend/backend section).
+
+The first list that produces a successful build_acl_cond() result is used.
+If the condition fails at runtime:
+
+  - If the scope contains a root span, the entire stream is disabled
+    (rt_ctx->flag_disabled = 1) to avoid orphaned child spans.
+  - Otherwise, the scope is simply skipped.
+
+6.3  Global Disable
+
+The filter can be disabled globally via the CLI ("otel disable") or the
+configuration ("option disabled").  The flag_disabled field on the
+instrumentation configuration is checked atomically in flt_otel_ops_attach()
+before any per-stream allocation occurs.
+
+
+7  Memory Management Strategy
+----------------------------------------------------------------------
+
+7.1  Pool-Based Allocation
+
+Four HAProxy memory pools are registered for frequently allocated structures
+(pool.c):
+
+  pool_head_otel_scope_span       Per-stream span entries.
+  pool_head_otel_scope_context    Per-stream context entries.
+  pool_head_otel_runtime_context  Per-stream runtime context.
+  pool_head_otel_span_context     OTel SDK objects (via C wrapper allocator
+                                  callback).
+
+Pool registration is conditional on compile-time flags (USE_POOL_OTEL_* in
+config.h).  flt_otel_pool_alloc() attempts pool allocation first and falls back
+to heap allocation (OTELC_MALLOC) when the pool is NULL or the requested size
+exceeds the pool's element size.
+
+The C wrapper library's memory allocations are redirected through
+flt_otel_mem_malloc() / flt_otel_mem_free() (filter.c), which use the
+otel_span_context pool via otelc_ext_init().  This keeps OTel SDK objects in
+HAProxy's pool allocator for cache-friendly allocation.
+
+7.2  Trash Buffers
+
+flt_otel_trash_alloc() (pool.c) provides temporary scratch buffers of
+global.tune.bufsize bytes.  When USE_TRASH_CHUNK is defined, it uses HAProxy's
+alloc_trash_chunk(); otherwise it manually allocates a buffer structure and data
+area.  Trash buffers are used for:
+
+  - Log-format evaluation in metric recording and log record emission.
+  - HTTP header name construction in flt_otel_http_header_set().
+  - Temporary string assembly in sample evaluation.
+
+7.3  Scope Data Lifecycle
+
+flt_otel_scope_data (scope.h) is initialized and freed within a single span
+processing block in flt_otel_scope_run().  It is stack-conceptual data:
+allocated at the start of each span's processing, populated during sample
+evaluation, consumed by flt_otel_scope_run_span(), and freed immediately after.
+The key-value arrays within it are heap-allocated via otelc_kv_new() and freed
+via otelc_kv_destroy().
+
+
+8  Context Propagation Mechanism
+----------------------------------------------------------------------
+
+8.1  Carrier Abstraction
+
+The OTel C wrapper uses a carrier pattern for context propagation.  Two carrier
+types exist, each with writer and reader variants:
+
+  otelc_text_map_writer / otelc_text_map_reader
+  otelc_http_headers_writer / otelc_http_headers_reader
+
+otelc.c provides callback functions that the C wrapper invokes during
+inject/extract operations:
+
+  Injection (writer callbacks):
+    flt_otel_text_map_writer_set_cb()
+    flt_otel_http_headers_writer_set_cb()
+    Both append key-value pairs to the carrier's text_map via
+    OTELC_TEXT_MAP_ADD.
+
+  Extraction (reader callbacks):
+    flt_otel_text_map_reader_foreach_key_cb()
+    flt_otel_http_headers_reader_foreach_key_cb()
+    Both iterate the text_map's key-value pairs, invoking a handler function
+    for each entry.  Iteration stops early if the handler returns -1.
+
+8.2  HTTP Header Storage
+
+flt_otel_http_headers_get() (http.c) reads headers from the HTX buffer with
+prefix matching.  The prefix is stripped from header names in the returned
+text_map.  A special prefix character ('-') matches all headers without prefix
+filtering.
+
+flt_otel_http_header_set() constructs a "prefix-name" header, removes all
+existing occurrences via an http_find_header / http_remove_header loop, then
+adds the new value via http_add_header.
+
+8.3  Variable Storage
+
+When USE_OTEL_VARS is enabled, span context can also be stored in HAProxy
+transaction-scoped variables.  Variable names are normalized
+(flt_otel_normalize_name in vars.c):
+
+  Dashes    -> 'D'  (FLT_OTEL_VAR_CHAR_DASH)
+  Spaces    -> 'S'  (FLT_OTEL_VAR_CHAR_SPACE)
+  Uppercase -> lowercase
+
+Full variable names are constructed as "scope.prefix.name" with dots as
+component separators.
+
+Two implementation paths exist based on the USE_OTEL_VARS_NAME compile flag:
+
+  With USE_OTEL_VARS_NAME:
+    A binary tracking buffer (stored as a HAProxy variable) records the names
+    of all context variables.  flt_otel_ctx_loop() iterates length-prefixed
+    entries in this buffer, calling a callback for each.  This enables efficient
+    enumeration without scanning the full variable store.
+
+  Without USE_OTEL_VARS_NAME:
+    Direct CEB tree traversal on the HAProxy variable store with prefix
+    matching.  This is simpler but potentially slower for large variable sets.
+
+The choice is auto-detected at build time by checking whether struct var has
+a 'name' member.
+
+
+9  Debug Infrastructure
+----------------------------------------------------------------------
+
+9.1  Conditional Compilation
+
+When OTEL_DEBUG=1 is set at build time, -DDEBUG_OTEL is added to the compiler
+flags.  This enables:
+
+  - Additional flt_ops callbacks: deinit_per_thread, http_payload, http_reset,
+    tcp_payload.  In non-debug builds these are NULL.
+
+  - FLT_OTEL_USE_COUNTERS (config.h), which activates the per-event counters in
+    flt_otel_counters (attached[], disabled[] arrays).
+
+  - Debug-only functions throughout the codebase, marked with [D] in
+    README-func: flt_otel_scope_data_dump, flt_otel_http_headers_dump,
+    flt_otel_vars_dump, flt_otel_args_dump, flt_otel_filters_dump, etc.
+
+  - The OTELC_DBG() macro for level-gated debug output.
+
+9.2  Debug Level Bitmask
+
+The debug level is a uint stored in conf->instr and controllable at runtime via
+"otel debug <level>".  The default value is FLT_OTEL_DEBUG_LEVEL (0b11101111111
+in config.h).  Each bit enables a category of debug output.
+
+9.3  Logging Integration
+
+The FLT_OTEL_LOG macro (debug.h) integrates with HAProxy's send_log() system.
+Its behavior depends on the logging flags:
+
+  FLT_OTEL_LOGGING_OFF (0):
+    No log messages are emitted.
+
+  FLT_OTEL_LOGGING_ON (1 << 0):
+    Log messages are sent to the log servers configured in the instrumentation
+    block via parse_logger().
+
+  FLT_OTEL_LOGGING_NOLOGNORM (1 << 1):
+    Combined with ON, suppresses normal-level messages (only warnings and above
+    are emitted).
+
+These flags are set via the "option dontlog-normal" configuration keyword or the
+"otel logging" CLI command.
+
+9.4  Counter System
+
+When FLT_OTEL_USE_COUNTERS is defined, the flt_otel_counters structure (conf.h)
+maintains:
+
+  attached[4]   Counters for attach outcomes, incremented atomically in
+                flt_otel_ops_attach().
+  disabled[2]   Counters for hard-error disables, incremented atomically in
+                flt_otel_return_int() / flt_otel_return_void().
+
+The counters are reported by the "otel status" CLI command and dumped at deinit
+time in debug builds.
+
+
+10  Idle Timeout Mechanism
+----------------------------------------------------------------------
+
+The idle timeout fires periodic events on idle streams, enabling heartbeat-style
+span updates or metric recordings.
+
+10.1  Configuration
+
+Each otel-scope bound to the "on-idle-timeout" event must declare an
+idle-timeout interval.  At check time (flt_otel_ops_check), the minimum idle
+timeout across all scopes is stored in conf->instr->idle_timeout.
+
+10.2  Initialization
+
+In flt_otel_ops_stream_start(), the runtime context's idle_timeout and idle_exp
+fields are initialized from the precomputed minimum.  The expiration tick is
+merged into the request channel's analyse_exp to ensure the stream task wakes
+at the right time.
+
+10.3  Firing
+
+flt_otel_ops_check_timeouts() checks tick_is_expired(rt_ctx->idle_exp).
+When expired:
+  - The on-idle-timeout event fires via flt_otel_event_run().
+  - The timer is rescheduled for the next interval.
+  - If analyse_exp itself has expired (which would cause a tight loop), it is
+    reset before the new idle_exp is merged.
+  - STRM_EVT_MSG is set on stream->pending_events to ensure the stream is
+    re-evaluated.
+
+
+11  Group Action Integration Pattern
+----------------------------------------------------------------------
+
+The "otel-group" action integrates OTel scopes with HAProxy's rule system
+(http-request, http-response, http-after-response, tcp-request, tcp-response).
+
+11.1  Registration
+
+group.c registers action keywords via INITCALL1 macros for all five action
+contexts.  Each registration points to flt_otel_group_parse() as the parse
+function.
+
+11.2  Parse-Check-Execute Cycle
+
+  Parse (flt_otel_group_parse):
+    Stores the filter ID and group ID as string duplicates in rule->arg.act.p[].
+    Sets the check, action and release callbacks.
+
+  Check (flt_otel_group_check):
+    Resolves the string IDs to configuration pointers by scanning the proxy's
+    filter list.  Replaces the string pointers with resolved flt_conf,
+    flt_otel_conf and flt_otel_conf_ph pointers.  Frees the original string
+    duplicates.
+
+  Execute (flt_otel_group_action):
+    Finds the filter instance in the stream's filter list.  Validates rule->from
+    against the flt_otel_group_data[] table to determine the sample fetch
+    direction and valid fetch locations.  Iterates all scopes in the group and
+    calls flt_otel_scope_run() for each.  Always returns ACT_RET_CONT -- a group
+    action never interrupts rule processing.
+
+11.3  Group Data Table
+
+The flt_otel_group_data[] table (group.c) maps each HAProxy action context
+(ACT_F_*) to:
+
+  act_from     The action context enum value.
+  smp_val      The valid sample fetch location (FE or BE).
+  smp_opt_dir  The sample fetch direction (REQ or RES).
+
+This table is generated from the FLT_OTEL_GROUP_DEFINES X-macro list (group.h).
+
+
+12  CLI Runtime Control Architecture
+----------------------------------------------------------------------
+
+cli.c registers commands under the "otel" prefix.  The command table maps
+keyword sequences to handler functions with access level requirements.
+
+12.1  Command Table
+
+  "otel status"       No access restriction.  Read-only status report.
+  "otel enable"       ACCESS_LVL_ADMIN.  Clears flag_disabled.
+  "otel disable"      ACCESS_LVL_ADMIN.  Sets flag_disabled.
+  "otel hard-errors"  ACCESS_LVL_ADMIN.  Sets flag_harderr.
+  "otel soft-errors"  ACCESS_LVL_ADMIN.  Clears flag_harderr.
+  "otel logging"      ACCESS_LVL_ADMIN for setting; any for reading.
+  "otel rate"         ACCESS_LVL_ADMIN for setting; any for reading.
+  "otel debug"        ACCESS_LVL_ADMIN.  DEBUG_OTEL only.
+
+The "otel enable" and "otel disable" commands share the same handler
+(flt_otel_cli_parse_disabled) with the private argument distinguishing the
+operation (1 for disable, 0 for enable).  The same pattern is used for
+hard-errors / soft-errors.
+
+12.2  Global Propagation
+
+All set operations iterate every OTel filter instance across all proxies using
+FLT_OTEL_PROXIES_LIST_START / FLT_OTEL_PROXIES_LIST_END macros and atomically
+update the target field.  A single "otel disable" command disables the filter
+in every proxy that has it configured.
+
+12.3  Status Report
+
+The "otel status" command assembles a dynamic string via memprintf() containing:
+
+  - Library versions (C++ SDK and C wrapper).
+  - Debug level (DEBUG_OTEL only).
+  - Dropped diagnostic message count.
+  - Per-proxy: config file, group/scope counts, instrumentation details, rate
+    limit, error mode, disabled state, logging state, analyzer bitmask, and
+    counters (if FLT_OTEL_USE_COUNTERS).
