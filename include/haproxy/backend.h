@@ -99,8 +99,11 @@ static inline int be_is_eligible(const struct proxy *be)
 /* set the time of last session on the backend */
 static inline void be_set_sess_last(struct proxy *be)
 {
+	uint now_sec = ns_to_sec(now_ns);
+
 	if (be->be_counters.shared.tg)
-		HA_ATOMIC_STORE(&be->be_counters.shared.tg[tgid - 1]->last_sess, ns_to_sec(now_ns));
+		if (HA_ATOMIC_LOAD(&be->be_counters.shared.tg[tgid - 1]->last_sess) != now_sec)
+			HA_ATOMIC_STORE(&be->be_counters.shared.tg[tgid - 1]->last_sess, now_sec);
 }
 
 /* This function returns non-zero if the designated server will be
