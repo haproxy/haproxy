@@ -5500,7 +5500,7 @@ tune.ssl.keylog { on | off }
   These sample fetches should be used to generate the SSLKEYLOGFILE that is
   required to decipher traffic with wireshark.
 
-  https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS/Key_Log_Format
+  https://tlswg.org/sslkeylogfile/draft-ietf-tls-keylogfile.html
 
   The SSLKEYLOG is a series of lines which are formatted this way:
 
