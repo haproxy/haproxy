@@ -1489,63 +1489,36 @@ static enum act_return http_action_set_headers_bin(struct act_rule *rule, struct
 {
 	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn->req : &s->txn->rsp);
 	struct htx *htx = htxbuf(&msg->chn->buf);
+	struct sample *hdrs_bin;
+	char *p, *end;
 	enum act_return ret = ACT_RET_CONT;
-	struct buffer *binstring, *decoded = NULL;
 	struct http_hdr_ctx ctx;
 	struct ist n, v;
 	uint64_t sz = 0;
-	size_t offset = 0;
-	int bytes_read;
-	char *oldarea = NULL;
 
-	binstring = alloc_trash_chunk();
-	if (!binstring)
-		goto fail_alloc;
-	decoded = alloc_trash_chunk();
-	if (!decoded)
-		goto fail_alloc;
+	hdrs_bin = sample_fetch_as_type(px, sess, s, SMP_OPT_FINAL, rule->arg.http.expr, SMP_T_BIN);
+	if (!hdrs_bin)
+		return ACT_RET_CONT;
 
-	oldarea = decoded->area;
-
-	binstring->data = build_logline(s, binstring->area, binstring->size, &rule->arg.http.fmt);
-
-	bytes_read = base64dec(binstring->area, binstring->data, decoded->area, decoded->size);
-	if (bytes_read < 0)
-		goto fail_rewrite;
-
-	decoded->data = bytes_read;
-
-	while (1) {
-		int ret;
-
-		ret = decode_varint(&decoded->area, decoded->area + decoded->data - offset, &sz);
-		if (ret == -1)
+	p = b_orig(&hdrs_bin->data.u.str);
+	end = b_tail(&hdrs_bin->data.u.str);
+	while (p < end) {
+		if (decode_varint(&p, end, &sz) == -1)
 			goto fail_rewrite;
-		offset += ret;
-
 		if (!sz) {
-			ret = decode_varint(&decoded->area, decoded->area + decoded->data - offset, &sz);
-			if (ret == -1)
+			if (decode_varint(&p, end, &sz) == -1 || sz > 0)
 				goto fail_rewrite;
-			offset += ret;
-			if (!sz)
-				goto leave;
-			else
-				goto fail_rewrite;
+			goto leave;
 		}
 
-		n = ist2(decoded->area, sz);
-		offset += sz;
-		decoded->area += sz;
+		n = ist2(p, sz);
+		p += sz;
 
-		ret = decode_varint(&decoded->area, decoded->area + decoded->data - offset, &sz);
-		if (ret == -1)
+		if (decode_varint(&p, end, &sz) == -1)
 			goto fail_rewrite;
-		offset += ret;
 
-		v = ist2(decoded->area, sz);
-		offset += sz;
-		decoded->area += sz;
+		v = ist2(p, sz);
+		p += sz;
 
 		if (istlen(rule->arg.http.str) && !istmatch(n, rule->arg.http.str))
 			continue;
@@ -1565,19 +1538,11 @@ static enum act_return http_action_set_headers_bin(struct act_rule *rule, struct
 			goto fail_rewrite;
 	}
 
-  leave:
-	free_trash_chunk(binstring);
-	/* decode_varint moves the area pointer, so return it to the correct position */
-	if (decoded)
-		decoded->area = oldarea;
-	free_trash_chunk(decoded);
-	return ret;
-
-  fail_alloc:
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_RESOURCE;
+	/* invalid encoding */
 	ret = ACT_RET_ERR;
-	goto leave;
+
+  leave:
+	return ret;
 
   fail_rewrite:
 	if (sess->fe_tgcounters)
@@ -1678,14 +1643,15 @@ static enum act_parse_ret parse_http_set_header(const char **args, int *orig_arg
 static enum act_parse_ret parse_http_set_headers_bin(const char **args, int *orig_arg, struct proxy *px,
 						   struct act_rule *rule, char **err)
 {
-	int cap = 0, cur_arg;
+	struct sample_expr *expr;
+	unsigned int where;
+	int cur_arg;
 
 	if (args[*orig_arg-1][0] == 's')
 		rule->action = 0; // set-header
 	else
 		rule->action = 1; // add-header
 	rule->action_ptr = http_action_set_headers_bin;
-
 	rule->release_ptr = release_http_action;
 	lf_expr_init(&rule->arg.http.fmt);
 
@@ -1695,35 +1661,39 @@ static enum act_parse_ret parse_http_set_headers_bin(const char **args, int *ori
 		return ACT_RET_PRS_ERR;
 	}
 
-	if (rule->from == ACT_F_HTTP_REQ) {
-		px->conf.args.ctx = ARGC_HRQ;
-		if (px->cap & PR_CAP_FE)
-			cap |= SMP_VAL_FE_HRQ_HDR;
-		if (px->cap & PR_CAP_BE)
-			cap |= SMP_VAL_BE_HRQ_HDR;
-	}
-	else{
-		px->conf.args.ctx =  ARGC_HRS;
-		if (px->cap & PR_CAP_FE)
-			cap |= SMP_VAL_FE_HRS_HDR;
-		if (px->cap & PR_CAP_BE)
-			cap |= SMP_VAL_BE_HRS_HDR;
-	}
-	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.http.fmt, LOG_OPT_HTTP, cap, err)) {
+	expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line,
+				 err, &px->conf.args, NULL);
+	if (!expr)
+		return ACT_RET_PRS_ERR;
+
+	where = 0;
+	if (px->cap & PR_CAP_FE)
+		where |= (rule->from == ACT_F_HTTP_REQ ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_FE_HRS_HDR);
+	if (px->cap & PR_CAP_BE)
+		where |= (rule->from == ACT_F_HTTP_REQ ? SMP_VAL_BE_HRQ_HDR : SMP_VAL_BE_HRS_HDR);
+
+	if (!(expr->fetch->val & where)) {
+		memprintf(err, "fetch method '%s' extracts information from '%s', none of which is available here",
+			  args[cur_arg-1], sample_src_names(expr->fetch->use));
+		release_sample_expr(expr);
 		return ACT_RET_PRS_ERR;
 	}
 
 	/* Check if an argument is available */
-	if (*args[cur_arg+1] && strcmp(args[cur_arg+1], "prefix") == 0 ) {
-		if(!*args[cur_arg+2]) {
+	if (strcmp(args[cur_arg], "prefix") == 0 ) {
+		cur_arg++;
+		if(!*args[cur_arg]) {
 			memprintf(err, "expects 1 argument: <headers>; or 3 arguments: <headers> prefix <pfx>");
+			release_sample_expr(expr);
 			return ACT_RET_PRS_ERR;
 		}
-		cur_arg += 2;
 		rule->arg.http.str = ist(strdup(args[cur_arg]));
+		cur_arg++;
 	}
 
-	*orig_arg = cur_arg + 1;
+	rule->arg.http.expr = expr;
+
+	*orig_arg = cur_arg;
 	return ACT_RET_PRS_OK;
 }
 
@@ -1948,54 +1918,26 @@ static enum act_return http_action_del_headers_bin(struct act_rule *rule, struct
 	struct http_hdr_ctx ctx;
 	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn->req : &s->txn->rsp);
 	struct htx *htx = htxbuf(&msg->chn->buf);
+	struct sample *hdrs_bin;
+	char *p, *end;
 	enum act_return ret = ACT_RET_CONT;
-	struct buffer *binstring, *decoded = NULL;
 	struct ist n;
 	uint64_t sz = 0;
-	size_t offset = 0;
-	int bytes_read;
-	char *oldarea = NULL;
 
-	binstring = alloc_trash_chunk();
-	if (!binstring)
-		goto fail_alloc;
-	decoded = alloc_trash_chunk();
-	if (!decoded)
-		goto fail_alloc;
+	hdrs_bin = sample_fetch_as_type(px, sess, s, SMP_OPT_FINAL, rule->arg.http.expr, SMP_T_BIN);
+	if (!hdrs_bin)
+		return ACT_RET_CONT;
 
-	oldarea = decoded->area;
-
-	binstring->data = build_logline(s, binstring->area, binstring->size, &rule->arg.http.fmt);
-
-	bytes_read = base64dec(binstring->area, binstring->data, decoded->area, decoded->size);
-	if (bytes_read < 0) {
-		goto fail_rewrite;
-	}
-
-	decoded->data = bytes_read;
-
-	while (1) {
-		int ret;
-
-		ret = decode_varint(&decoded->area, decoded->area + decoded->data - offset, &sz);
-		if (ret == -1)
+	p = b_orig(&hdrs_bin->data.u.str);
+	end = b_tail(&hdrs_bin->data.u.str);
+	while (p < end) {
+		if (decode_varint(&p, end, &sz) == -1)
 			goto fail_rewrite;
-		offset += ret;
+		if (!sz)
+			goto leave;
 
-		if (!sz) {
-			ret = decode_varint(&decoded->area, decoded->area + decoded->data - offset, &sz);
-			if (ret == -1)
-				goto fail_rewrite;
-			offset += ret;
-			if (!sz)
-				goto leave;
-			else
-				goto fail_rewrite;
-		}
-
-		n = ist2(decoded->area, sz);
-		offset += sz;
-		decoded->area += sz;
+		n = ist2(p, sz);
+		p += sz;
 
 		if (is_immutable_header(n))
 			continue;
@@ -2024,19 +1966,11 @@ static enum act_return http_action_del_headers_bin(struct act_rule *rule, struct
 		}
 	}
 
-  leave:
-	free_trash_chunk(binstring);
-	/* decode_varint moves the area pointer, so return it to the correct position */
-	if (decoded)
-		decoded->area = oldarea;
-	free_trash_chunk(decoded);
-	return ret;
-
-  fail_alloc:
-	if (!(s->flags & SF_ERR_MASK))
-		s->flags |= SF_ERR_RESOURCE;
+	/* invalid encoding */
 	ret = ACT_RET_ERR;
-	goto leave;
+
+  leave:
+	return ret;
 
   fail_rewrite:
 	if (sess->fe_tgcounters)
@@ -2064,7 +1998,9 @@ static enum act_return http_action_del_headers_bin(struct act_rule *rule, struct
 static enum act_parse_ret parse_http_del_headers_bin(const char **args, int *orig_arg, struct proxy *px,
 						struct act_rule *rule, char **err)
 {
-	int cap = 0, cur_arg;
+	struct sample_expr *expr;
+	unsigned int where;
+	int cur_arg;
 	int pat_idx;
 
 	/* set exact matching (-m str) as default */
@@ -2079,40 +2015,37 @@ static enum act_parse_ret parse_http_del_headers_bin(const char **args, int *ori
 		return ACT_RET_PRS_ERR;
 	}
 
-    if (rule->from == ACT_F_HTTP_REQ) {
-        px->conf.args.ctx = ARGC_HRQ;
-        if (px->cap & PR_CAP_FE)
-            cap |= SMP_VAL_FE_HRQ_HDR;
-        if (px->cap & PR_CAP_BE)
-            cap |= SMP_VAL_BE_HRQ_HDR;
-    }
-    else{
-        px->conf.args.ctx =  ARGC_HRS;
-        if (px->cap & PR_CAP_FE)
-            cap |= SMP_VAL_FE_HRS_HDR;
-        if (px->cap & PR_CAP_BE)
-            cap |= SMP_VAL_BE_HRS_HDR;
-    }
+	expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line,
+				 err, &px->conf.args, NULL);
+	if (!expr)
+		return ACT_RET_PRS_ERR;
 
-	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.http.fmt, LOG_OPT_HTTP, cap, err)) {
-		istfree(&rule->arg.http.str);
+	where = 0;
+	if (px->cap & PR_CAP_FE)
+		where |= (rule->from == ACT_F_HTTP_REQ ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_FE_HRS_HDR);
+	if (px->cap & PR_CAP_BE)
+		where |= (rule->from == ACT_F_HTTP_REQ ? SMP_VAL_BE_HRQ_HDR : SMP_VAL_BE_HRS_HDR);
+
+	if (!(expr->fetch->val & where)) {
+		memprintf(err, "fetch method '%s' extracts information from '%s', none of which is available here",
+			  args[cur_arg-1], sample_src_names(expr->fetch->use));
+		release_sample_expr(expr);
 		return ACT_RET_PRS_ERR;
 	}
 
-	px->conf.args.ctx = (rule->from == ACT_F_HTTP_REQ ? ARGC_HRQ : ARGC_HRS);
-
-	if (strcmp(args[cur_arg+1], "-m") == 0) {
+	if (strcmp(args[cur_arg], "-m") == 0) {
 		cur_arg++;
-		if (!*args[cur_arg+1]) {
+		if (!*args[cur_arg]) {
 			memprintf(err, "-m flag expects exactly 1 argument");
+			release_sample_expr(expr);
 			return ACT_RET_PRS_ERR;
 		}
 
-		cur_arg++;
 		pat_idx = pat_find_match_name(args[cur_arg]);
 		switch (pat_idx) {
 		case PAT_MATCH_REG:
 			memprintf(err, "-m reg with is unsupported with del-header-bin due to performance reasons");
+			release_sample_expr(expr);
 			return ACT_RET_PRS_ERR;
 		case PAT_MATCH_STR:
 		case PAT_MATCH_BEG:
@@ -2122,11 +2055,15 @@ static enum act_parse_ret parse_http_del_headers_bin(const char **args, int *ori
 			break;
 		default:
 			memprintf(err, "-m with unsupported matching method '%s'", args[cur_arg]);
+			release_sample_expr(expr);
 			return ACT_RET_PRS_ERR;
 		}
+		cur_arg++;
 	}
 
-	*orig_arg = cur_arg + 1;
+	rule->arg.http.expr = expr;
+
+	*orig_arg = cur_arg;
 	return ACT_RET_PRS_OK;
 }
 

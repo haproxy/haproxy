@@ -15314,29 +15314,28 @@ add-header <name> <fmt>
   previous rule.
 
 
-add-headers-bin <fmt> [ prefix <str> ]
+add-headers-bin <expr> [ prefix <str> ]
   Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     - |          -  |   -  |   -  |   -  |          X |  X |  X
 
   This is a variant of the "add-header" action where the header names and
-  values are passed as a base64 encoded string of varint encoded header names
-  and values. See the "req.hdrs_bin" sample fetch about the varint format. This
-  is useful when you want to set multiple headers at once, without having to
-  know the header names in advance. Note that these headers have not been
-  validated by the HTTP parser and could lead to emitting invalid messages and
-  in worst cases lead to request smuggling attacks. The number of headers
-  inserted are also of importance, as that is limited by tune.http.maxhdr.
-  Optional prefix will only set the headers from the encoded string that
-  start with <str>.
+  values are passed as a varint encoded binary string. See the "req.hdrs_bin"
+  sample fetch about the varint format. This is useful when you want to set
+  multiple headers at once, without having to know the header names in
+  advance. Note that these headers have not been validated by the HTTP parser
+  and could lead to emitting invalid messages and in worst cases lead to
+  request smuggling attacks. The number of headers inserted are also of
+  importance, as that is limited by tune.http.maxhdr.  Optional prefix will
+  only set the headers from the encoded string that start with <str>.
 
   Example:
 
     # This would reset the Accept/UA/Host headers to their initial values
-    http-request set-var(txn.oldheaders) req.hdrs_bin,base64
+    http-request set-var(txn.oldheaders) req.hdrs_bin
     http-request del-header Accept
     http-request del-header User-Agent
     http-request del-header Host
-    http-request add-headers-bin %[var(txn.oldheaders)]
+    http-request add-headers-bin var(txn.oldheaders)
 
 
 allow
@@ -15481,17 +15480,17 @@ del-header <name> [ -m <meth> ]
   method is used.
 
 
-del-headers-bin <fmt> [ -m <meth> ]
+del-headers-bin <expr> [ -m <meth> ]
   Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     - |          -  |   -  |   -  |   -  |          X |  X |  X
 
-  This removes all HTTP header fields whose names are specified in <fmt>. <fmt>
-  is a base64 encoded varint encoded string of all header names that should be
-  deleted. See "add-headers-bin" and "set-headers-bin" for the description of
-  encoding and examples. <meth> is the matching method, applied on all the
-  header names. Supported matching methods are "str" (exact match), "beg"
-  (prefix match), "end" (suffix match) and "sub" (substring match). The "reg"
-  (regex match) is not supported due to unpredictable performance during
+  This removes all HTTP header fields whose names are specified in <expr>.
+  <expr> must return a varint encoded binary string of all header names that
+  should be deleted. See "add-headers-bin" and "set-headers-bin" for the
+  description of encoding and examples. <meth> is the matching method, applied
+  on all the header names. Supported matching methods are "str" (exact match),
+  "beg" (prefix match), "end" (suffix match) and "sub" (substring match). The
+  "reg" (regex match) is not supported due to unpredictable performance during
   runtime. If not specified, exact matching method is used.
 
 
@@ -16395,29 +16394,28 @@ set-header <name> <fmt>
         http-request set-header X-SSL-Client-NotBefore %{+Q}[ssl_c_notbefore]
         http-request set-header X-SSL-Client-NotAfter  %{+Q}[ssl_c_notafter]
 
-set-headers-bin <fmt> [ prefix <str> ]
+set-headers-bin <expr> [ prefix <str> ]
   Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     - |          -  |   -  |   -  |   -  |          X |  X |  X
 
   This is a variant of the "set-header" action where the header names and
-  values are passed as a base64 encoded string of varint encoded header names
-  and values. See the "req.hdrs_bin" sample fetch about the varint format. This
-  is useful when you want to set multiple headers at once, without having to
-  know the header names in advance. Note that these headers have not been
-  validated by the HTTP parser and could lead to emitting invalid messages and
-  in worst cases lead to request smuggling attacks. The number of headers
-  inserted are also of importance, as that is limited by tune.http.maxhdr.
-  Optional prefix will only set the headers from the encoded string that
-  start with <str>.
+  values are passed as a varint encoded binary string. See the "req.hdrs_bin"
+  sample fetch about the varint format. This is useful when you want to set
+  multiple headers at once, without having to know the header names in
+  advance. Note that these headers have not been validated by the HTTP parser
+  and could lead to emitting invalid messages and in worst cases lead to
+  request smuggling attacks. The number of headers inserted are also of
+  importance, as that is limited by tune.http.maxhdr.  Optional prefix will
+  only set the headers from the encoded string that start with <str>.
 
   Example:
 
     # This would reset the Accept/UA/Host headers to their initial values
-    http-request set-var(txn.oldheaders) req.hdrs_bin,base64
+    http-request set-var(txn.oldheaders) req.hdrs_bin
     http-request del-header Accept
     http-request del-header User-Agent
     http-request del-header Host
-    http-request set-headers-bin %[var(txn.oldheaders)]
+    http-request set-headers-bin var(txn.oldheaders)
 
 
 set-log-level <level>
