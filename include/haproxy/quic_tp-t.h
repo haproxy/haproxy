@@ -124,12 +124,5 @@ struct quic_early_transport_params {
 	uint64_t initial_max_streams_uni;
 };
 
-/* Return type for QUIC TP decode function */
-enum quic_tp_dec_err {
-	QUIC_TP_DEC_ERR_NONE = 0,  /* no error */
-	QUIC_TP_DEC_ERR_INVAL,     /* invalid value as per RFC 9000 */
-	QUIC_TP_DEC_ERR_TRUNC,     /* field encoding too small or too large */
-};
-
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_QUIC_TP_T_H */
