@@ -32320,6 +32320,18 @@ dns-delay <time>
   section, not the authoritative name servers. Results may therefore still be
   affected by DNS caching at the resolver level.
 
+dns-timeout <time>
+  When "challenge-ready" includes "dns", configure the maximum time allowed to
+  successfully resolve the TXT record before aborting the challenge. The value
+  is a time expressed in HAProxy time format (e.g. "10m", "600s"). Default is
+  600 seconds.
+
+  If the next DNS resolution attempt would be triggered after the timeout has
+  elapsed (taking into account "dns-delay"), the challenge is aborted with an
+  error. This prevents an infinite retry loop when DNS propagation fails.
+
+  See also: "dns-delay"
+
 keytype <string>
   Configure the type of key that will be generated. Value can be either "RSA"
   or "ECDSA". You can also configure the "curves" for ECDSA and the number of

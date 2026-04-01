@@ -198,6 +198,7 @@ struct acme_cfg *new_acme_cfg(const char *name)
 
 	ret->challenge = strdup("http-01"); /* default value */
 	ret->dns_delay = 300; /* default DNS re-trigger delay in seconds */
+	ret->dns_timeout = 600; /* default DNS retry timeout */
 
 	/* The default generated keys are EC-384 */
 	ret->key.type = EVP_PKEY_EC;
@@ -511,6 +512,31 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 			goto out;
 
 		res = parse_time_err(args[1], &cur_acme->dns_delay, TIME_UNIT_S);
+		if (res == PARSE_TIME_OVER) {
+			ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to '%s'\n", file, linenum, args[1], args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		} else if (res == PARSE_TIME_UNDER) {
+			ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to '%s'\n", file, linenum, args[1], args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		} else if (res) {
+			ha_alert("parsing [%s:%d]: unexpected character '%c' in argument to '%s'\n", file, linenum, *res, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	} else if (strcmp(args[0], "dns-timeout") == 0) {
+		const char *res;
+
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires an argument\n", file, linenum, args[0], cursection);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
+		res = parse_time_err(args[1], &cur_acme->dns_timeout, TIME_UNIT_S);
 		if (res == PARSE_TIME_OVER) {
 			ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to '%s'\n", file, linenum, args[1], args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -930,6 +956,7 @@ static struct cfg_kw_list cfg_kws_acme = {ILH, {
 	{ CFG_ACME, "reuse-key",  cfg_parse_acme_kws },
 	{ CFG_ACME, "challenge-ready",  cfg_parse_acme_kws },
 	{ CFG_ACME, "dns-delay",  cfg_parse_acme_kws },
+	{ CFG_ACME, "dns-timeout",  cfg_parse_acme_kws },
 	{ CFG_ACME, "acme-vars",  cfg_parse_acme_vars_provider },
 	{ CFG_ACME, "provider-name",  cfg_parse_acme_vars_provider },
 	{ CFG_GLOBAL, "acme.scheduler", cfg_parse_global_acme_sched },
@@ -2387,6 +2414,19 @@ re:
 			/* if we need to wait for the CLI, let's wait */
 			if ((ctx->cfg->cond_ready & ACME_RDY_CLI) && !(all_cond_ready & ACME_RDY_CLI))
 				goto wait;
+
+			/* set the start time of the DNS checks so we can apply
+			 * the timeout */
+			if (ctx->dnsstarttime == 0)
+				 ctx->dnsstarttime = ns_to_sec(now_ns);
+
+			/* Check if the next resolution would be triggered too
+			 * late according to the dns_timeout and abort is
+			 * necessary. */
+			if (ctx->dnsstarttime && ns_to_sec(now_ns) + ctx->cfg->dns_delay > ctx->dnsstarttime + ctx->cfg->dns_timeout) {
+				memprintf(&errmsg, "dns-01: Couldn't resolve the TXT records in %ds.",  ctx->cfg->dns_timeout);
+				goto abort;
+			}
 
 			/* we don't need to wait, we can trigger the resolution
 			 * after the delay */

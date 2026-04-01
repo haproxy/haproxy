@@ -23,6 +23,7 @@ struct acme_cfg {
 	int reuse_key;              /* do we need to renew the private key */
 	int cond_ready;             /* ready condition */
 	unsigned int dns_delay;     /* delay in seconds before re-triggering DNS resolution (default: 300) */
+	unsigned int dns_timeout;   /* time after which the DNS check shouldn't be retried  (default: 600) */
 	char *directory;            /* directory URL */
 	char *map;                  /* storage for tokens + thumbprint */
 	struct {
@@ -100,6 +101,7 @@ struct acme_ctx {
 	struct ist finalize;
 	struct ist certificate;
 	unsigned int dnstasks;      /* number of DNS tasks running for this ctx */
+	unsigned int dnsstarttime;  /* time at which we started the DNS checks */
 	struct task *task;
 	struct ebmb_node node;
 	char name[VAR_ARRAY];
