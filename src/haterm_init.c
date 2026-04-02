@@ -26,6 +26,7 @@ static void haterm_usage(char *name)
 		"        -c <curves> : ECSDA curves (ex: \"P-256\", \"P-384\"...)\n"
 		"        -v : shows version\n"
 		"        -d : enable the traces for all http protocols\n"
+		"        -dS : disables splice() usage even when available\n"
 		"        -dZ : disable zero-copy forwarding\n"
 		"        --" QUIC_BIND_LONG_OPT " <opts> : append options to QUIC \"bind\" lines\n"
 		"        --" TCP_BIND_LONG_OPT " <opts> : append options to TCP \"bind\" lines\n"
@@ -40,6 +41,9 @@ static void haterm_usage(char *name)
 static const char *haterm_cfg_dflt_str =
         "defaults\n"
             "\tmode haterm\n"
+#if defined(USE_LINUX_SPLICE)
+	    "\toption splice-response\n"
+#endif
             "\ttimeout client 25s\n";
 
 #define HATERM_CFG_CRT_STORE_STR_FMT \
@@ -247,6 +251,11 @@ void haproxy_init_args(int argc, char **argv)
 				else
 					haterm_usage(progname);
 			}
+#if defined(USE_LINUX_SPLICE)
+			else if (*opt == 'd' && *(opt+1) == 'S') {
+				global.tune.options &= ~GTUNE_USE_SPLICE;
+			}
+#endif
 			else if (*opt == 'd' && *(opt+1) == 'Z') {
 				global.tune.no_zero_copy_fwd |= NO_ZERO_COPY_FWD;
 			}
