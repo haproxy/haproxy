@@ -324,6 +324,10 @@ static int hstream_ff_snd(struct connection *conn, struct hstream *hs)
 	}
 
 	nego_flags |= NEGO_FF_FL_EXACT_SIZE;
+#if defined(USE_LINUX_SPLICE)
+	if ((global.tune.options & GTUNE_USE_SPLICE) && !(sd->iobuf.flags & IOBUF_FL_NO_SPLICING))
+		nego_flags |= NEGO_FF_FL_MAY_SPLICE;
+#endif
 	len = se_nego_ff(sd, &BUF_NULL, hs->to_write, nego_flags);
 	if (sd->iobuf.flags & IOBUF_FL_NO_FF) {
 		TRACE_DEVEL("Fast-forwarding not supported by endpoint, disable it", HS_EV_HSTRM_RESP, hs);
@@ -334,10 +338,25 @@ static int hstream_ff_snd(struct connection *conn, struct hstream *hs)
 		goto out;
 	}
 
+#if defined(USE_LINUX_SPLICE)
+	if (sd->iobuf.pipe) {
+		if (len > master_pipesize)
+			len = master_pipesize;
+		ret = tee(master_pipe->cons, sd->iobuf.pipe->prod, len, SPLICE_F_NONBLOCK);
+		if (ret > 0) {
+			sd->iobuf.pipe->data += ret;
+			hs->to_write -= ret;
+		}
+		if (!hs->to_write)
+			sd->iobuf.flags |= IOBUF_FL_EOI;
+		goto done;
+	}
+#endif
 	hs->to_write -= hstream_add_ff_data(hs, sd, len);
 	if (!hs->to_write)
 		sd->iobuf.flags |= IOBUF_FL_EOI;
 
+  done:
 	if (se_done_ff(sd) != 0 || !(sd->iobuf.flags & (IOBUF_FL_FF_BLOCKED|IOBUF_FL_FF_WANT_ROOM))) {
 		/* Something was forwarding or the consumer states it is not
 		 * blocked anyore, don't reclaim more room */

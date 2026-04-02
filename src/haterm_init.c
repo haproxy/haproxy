@@ -246,6 +246,11 @@ void haproxy_init_args(int argc, char **argv)
 				else
 					haterm_usage(progname);
 			}
+#if defined(USE_LINUX_SPLICE)
+			else if (*opt == 'd' && *(opt+1) == 'S') {
+				global.tune.options &= ~GTUNE_USE_SPLICE;
+			}
+#endif
 			else if (*opt == 'd' && *(opt+1) == 'Z') {
 				global.tune.no_zero_copy_fwd |= NO_ZERO_COPY_FWD;
 			}
