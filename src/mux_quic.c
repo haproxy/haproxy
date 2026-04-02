@@ -3276,15 +3276,17 @@ static void qcc_shutdown(struct qcc *qcc)
 		qcc->err = quic_err_transport(QC_ERR_NO_ERROR);
 	}
 
-	/* Register "no error" code at transport layer. Do not use
-	 * quic_set_connection_close() as retransmission may be performed to
-	 * finalized transfers. Do not overwrite quic-conn existing code if
-	 * already set.
-	 *
-	 * TODO implement a wrapper function for this in quic-conn module
-	 */
-	if (!(qcc->conn->handle.qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE))
-		qcc->conn->handle.qc->err = qcc->err;
+	if (conn_is_quic(qcc->conn)) {
+		/* Register "no error" code at transport layer. Do not use
+		 * quic_set_connection_close() as retransmission may be performed to
+		 * finalized transfers. Do not overwrite quic-conn existing code if
+		 * already set.
+		 *
+		 * TODO implement a wrapper function for this in quic-conn module
+		 */
+		if (!(qcc->conn->handle.qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE))
+			qcc->conn->handle.qc->err = qcc->err;
+	}
 
 	/* A connection is not reusable if app layer is closed. */
 	if (qcc->flags & QC_CF_IS_BACK)
@@ -3406,7 +3408,7 @@ static void qcc_release(struct qcc *qcc)
 		qcs_free(qcs);
 	}
 
-	if (conn) {
+	if (conn && conn_is_quic(conn)) {
 		qc = conn->handle.qc;
 
 		/* unsubscribe from all remaining qc_stream_desc */
@@ -3439,7 +3441,7 @@ static void qcc_release(struct qcc *qcc)
 	if (qcc->app_ops) {
 		if (qcc->app_ops->release)
 			qcc->app_ops->release(qcc->ctx);
-		if (conn->handle.qc)
+		if (conn_is_quic(conn) && conn->handle.qc)
 			conn->handle.qc->strm_reject = qcc->app_ops->strm_reject;
 	}
 	TRACE_PROTO("application layer released", QMUX_EV_QCC_END, conn);
@@ -3794,7 +3796,8 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	qcc_reset_idle_start(qcc);
 	LIST_INIT(&qcc->opening_list);
 
-	HA_ATOMIC_STORE(&conn->handle.qc->qcc, qcc);
+	if (conn_is_quic(conn))
+		HA_ATOMIC_STORE(&conn->handle.qc->qcc, qcc);
 
 	/* Register conn as app_ops may use it. */
 	qcc->conn = conn;
@@ -3814,18 +3817,20 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 		/* init read cycle */
 		tasklet_wakeup(qcc->wait_event.tasklet);
 
-		/* MUX is initialized before QUIC handshake completion if early data
-		 * received. Flag connection to delay stream processing if
-		 * wait-for-handshake is active.
-		 */
-		if (conn->handle.qc->state < QUIC_HS_ST_COMPLETE) {
-			if (!(conn->flags & CO_FL_EARLY_SSL_HS)) {
-				TRACE_STATE("flag connection with early data", QMUX_EV_QCC_WAKE, conn);
-				conn->flags |= CO_FL_EARLY_SSL_HS;
-				/* subscribe for handshake completion */
-				conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV,
-				                      &qcc->wait_event);
-				qcc->flags |= QC_CF_WAIT_HS;
+		if (conn_is_quic(conn)) {
+			/* MUX is initialized before QUIC handshake completion if early data
+			 * received. Flag connection to delay stream processing if
+			 * wait-for-handshake is active.
+			 */
+			if (conn->handle.qc->state < QUIC_HS_ST_COMPLETE) {
+				if (!(conn->flags & CO_FL_EARLY_SSL_HS)) {
+					TRACE_STATE("flag connection with early data", QMUX_EV_QCC_WAKE, conn);
+					conn->flags |= CO_FL_EARLY_SSL_HS;
+					/* subscribe for handshake completion */
+					conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV,
+							      &qcc->wait_event);
+					qcc->flags |= QC_CF_WAIT_HS;
+				}
 			}
 		}
 	}
@@ -3869,11 +3874,13 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	return 0;
 
  err:
-	/* Prepare CONNECTION_CLOSE, using INTERNAL_ERROR as fallback code if unset. */
-	if (!(conn->handle.qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE)) {
-		struct quic_err err = qcc && qcc->err.code ?
-		  qcc->err : quic_err_transport(QC_ERR_INTERNAL_ERROR);
-		quic_set_connection_close(conn->handle.qc, err);
+	if (conn_is_quic(conn)) {
+		/* Prepare CONNECTION_CLOSE, using INTERNAL_ERROR as fallback code if unset. */
+		if (!(conn->handle.qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE)) {
+			struct quic_err err = qcc && qcc->err.code ?
+			  qcc->err : quic_err_transport(QC_ERR_INTERNAL_ERROR);
+			quic_set_connection_close(conn->handle.qc, err);
+		}
 	}
 
 	if (qcc) {
