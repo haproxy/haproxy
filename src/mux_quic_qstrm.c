@@ -223,7 +223,7 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 {
 	struct connection *conn = qcc->conn;
 	struct quic_frame *frm, *frm_old;
-	struct quic_frame *split_frm, *orig_frm;
+	struct quic_frame *split_frm, *next_frm;
 	struct buffer *buf = &qcc->tx.qstrm_buf;
 	unsigned char *pos, *old, *end;
 	size_t ret;
@@ -246,7 +246,7 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 	b_reset(buf);
 	list_for_each_entry_safe(frm, frm_old, frms, list) {
  loop:
-		split_frm = NULL;
+		split_frm = next_frm = NULL;
 		b_reset(buf);
 		old = pos = (unsigned char *)b_orig(buf);
 		end = (unsigned char *)b_wrap(buf);
@@ -269,7 +269,7 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 					continue;
 				}
 
-				orig_frm = frm;
+				next_frm = frm;
 				frm = split_frm;
 			}
 		}
@@ -297,7 +297,7 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 
 		LIST_DEL_INIT(&frm->list);
 		if (split_frm) {
-			frm = orig_frm;
+			frm = next_frm;
 			goto loop;
 		}
 	}
