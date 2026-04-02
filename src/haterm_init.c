@@ -242,6 +242,9 @@ void haproxy_init_args(int argc, char **argv)
 				else
 					haterm_usage(progname);
 			}
+			else if (*opt == 'd' && *(opt+1) == 'Z') {
+				global.tune.no_zero_copy_fwd |= NO_ZERO_COPY_FWD;
+			}
 			else if (*opt == 'd') {
 				/* empty option */
 				if (*(opt + 1))
