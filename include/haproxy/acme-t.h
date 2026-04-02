@@ -51,6 +51,7 @@ enum acme_st {
 	ACME_NEWACCOUNT,
 	ACME_NEWORDER,
 	ACME_AUTH,
+	ACME_CLI_WAIT,               /* wait for the ACME_RDY_CLI */
 	ACME_RSLV_WAIT,
 	ACME_RSLV_TRIGGER,
 	ACME_RSLV_READY,

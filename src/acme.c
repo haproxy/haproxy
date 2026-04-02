@@ -121,6 +121,7 @@ static void acme_trace(enum trace_level level, uint64_t mask, const struct trace
 			case ACME_NEWACCOUNT:     chunk_appendf(&trace_buf, "ACME_NEWACCOUNT");   break;
 			case ACME_NEWORDER:       chunk_appendf(&trace_buf, "ACME_NEWORDER");     break;
 			case ACME_AUTH:           chunk_appendf(&trace_buf, "ACME_AUTH");         break;
+			case ACME_CLI_WAIT :      chunk_appendf(&trace_buf, "ACME_CLI_WAIT");    break;
 			case ACME_RSLV_WAIT:      chunk_appendf(&trace_buf, "ACME_RSLV_WAIT");    break;
 			case ACME_RSLV_TRIGGER:   chunk_appendf(&trace_buf, "ACME_RSLV_TRIGGER");   break;
 			case ACME_RSLV_READY:     chunk_appendf(&trace_buf, "ACME_RSLV_READY");   break;
@@ -2386,7 +2387,7 @@ re:
 				}
 				if ((ctx->next_auth = ctx->next_auth->next) == NULL) {
 					if (strcasecmp(ctx->cfg->challenge, "dns-01") == 0 && ctx->cfg->cond_ready)
-						st = ACME_RSLV_WAIT;
+						st = ACME_CLI_WAIT;
 					else
 						st = ACME_CHALLENGE;
 					ctx->next_auth = ctx->auths;
@@ -2395,7 +2396,7 @@ re:
 				goto nextreq;
 			}
 		break;
-		case ACME_RSLV_WAIT: {
+		case ACME_CLI_WAIT: {
 			struct acme_auth *auth;
 			int all_cond_ready = ctx->cfg->cond_ready;
 
@@ -2414,6 +2415,25 @@ re:
 			/* if we need to wait for the CLI, let's wait */
 			if ((ctx->cfg->cond_ready & ACME_RDY_CLI) && !(all_cond_ready & ACME_RDY_CLI))
 				goto wait;
+
+			/* next step */
+			st = ACME_RSLV_WAIT;
+			goto nextreq;
+		}
+		break;
+		case ACME_RSLV_WAIT: {
+			struct acme_auth *auth;
+			int all_cond_ready = ctx->cfg->cond_ready;
+
+			for (auth = ctx->auths; auth != NULL; auth = auth->next) {
+				all_cond_ready &= auth->ready;
+			}
+
+			/* if everything is ready, let's do the challenge request */
+			if ((all_cond_ready & ctx->cfg->cond_ready) == ctx->cfg->cond_ready) {
+				st = ACME_CHALLENGE;
+				goto nextreq;
+			}
 
 			/* set the start time of the DNS checks so we can apply
 			 * the timeout */
