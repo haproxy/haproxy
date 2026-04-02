@@ -26,6 +26,7 @@ static void haterm_usage(char *name)
 		"        -c <curves> : ECSDA curves (ex: \"P-256\", \"P-384\"...)\n"
 		"        -v : shows version\n"
 		"        -d : enable the traces for all http protocols\n"
+		"        -dZ : disable zero-copy forwarding\n"
 		"        --" QUIC_BIND_LONG_OPT " <opts> : append options to QUIC \"bind\" lines\n"
 		"        --" TCP_BIND_LONG_OPT " <opts> : append options to TCP \"bind\" lines\n"
 		, name);
@@ -241,6 +242,9 @@ void haproxy_init_args(int argc, char **argv)
 				}
 				else
 					haterm_usage(progname);
+			}
+			else if (*opt == 'd' && *(opt+1) == 'Z') {
+				global.tune.no_zero_copy_fwd |= NO_ZERO_COPY_FWD;
 			}
 			else if (*opt == 'd') {
 				/* empty option */
