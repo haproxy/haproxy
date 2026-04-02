@@ -32314,7 +32314,7 @@ directory <string>
 dns-delay <time>
   When "challenge-ready" includes "dns", configure the delay before the first
   DNS resolution attempt and between retries. The value is a time expressed in
-  HAProxy time format (e.g. "5m", "300s"). Default is 300 seconds.
+  HAProxy time format (e.g. "5m", "300s"). Default is 30 seconds.
 
   Note that the resolution goes through the configured "default" resolvers
   section, not the authoritative name servers. Results may therefore still be

@@ -197,7 +197,7 @@ struct acme_cfg *new_acme_cfg(const char *name)
 	ret->linenum = 0;
 
 	ret->challenge = strdup("http-01"); /* default value */
-	ret->dns_delay = 300; /* default DNS re-trigger delay in seconds */
+	ret->dns_delay = 30; /* default DNS re-trigger delay in seconds */
 	ret->dns_timeout = 600; /* default DNS retry timeout */
 
 	/* The default generated keys are EC-384 */
