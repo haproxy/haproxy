@@ -83,6 +83,12 @@ int         flt_otel_sample_to_str(const struct sample_data *data, char *value, 
 /* Convert sample data to an OTel value. */
 int         flt_otel_sample_to_value(const char *key, const struct sample_data *data, struct otelc_value *value, char **err);
 
+/* Add a key-value pair to a growable key-value array. */
+int         flt_otel_sample_add_kv(struct flt_otel_scope_data_kv *kv, const char *key, const struct otelc_value *value);
+
+/* Evaluate a sample definition into an OTel value. */
+int         flt_otel_sample_eval(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, bool flag_native, struct otelc_value *value, char **err);
+
 /* Evaluate a sample expression and add the result to scope data. */
 int         flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, struct flt_otel_scope_data *data, int type, char **err);
 

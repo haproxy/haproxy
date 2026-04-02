@@ -799,7 +799,7 @@ static int flt_otel_sample_set_status(struct flt_otel_scope_data_status *status,
  *   flt_otel_sample_add_kv - key-value attribute addition
  *
  * SYNOPSIS
- *   static int flt_otel_sample_add_kv(struct flt_otel_scope_data_kv *kv, const char *key, const struct otelc_value *value)
+ *   int flt_otel_sample_add_kv(struct flt_otel_scope_data_kv *kv, const char *key, const struct otelc_value *value)
  *
  * ARGUMENTS
  *   kv    - key-value storage (attributes or baggage)
@@ -816,7 +816,7 @@ static int flt_otel_sample_set_status(struct flt_otel_scope_data_status *status,
  * RETURN VALUE
  *   Returns the current element count, or FLT_OTEL_RET_ERROR on failure.
  */
-static int flt_otel_sample_add_kv(struct flt_otel_scope_data_kv *kv, const char *key, const struct otelc_value *value)
+int flt_otel_sample_add_kv(struct flt_otel_scope_data_kv *kv, const char *key, const struct otelc_value *value)
 {
 	struct otelc_kv *attr = NULL;
 
@@ -858,46 +858,49 @@ static int flt_otel_sample_add_kv(struct flt_otel_scope_data_kv *kv, const char 
 
 /***
  * NAME
- *   flt_otel_sample_add - top-level sample evaluator
+ *   flt_otel_sample_eval - sample expression evaluation
  *
  * SYNOPSIS
- *   int flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, struct flt_otel_scope_data *data, int type, char **err)
+ *   int flt_otel_sample_eval(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, bool flag_native, struct otelc_value *value, char **err)
  *
  * ARGUMENTS
- *   s      - current stream
- *   dir    - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
- *   sample - configured sample definition
- *   data   - scope data to populate
- *   type   - sample type (FLT_OTEL_EVENT_SAMPLE_*)
- *   err    - indirect pointer to error message string
+ *   s           - current stream
+ *   dir         - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
+ *   sample      - configured sample definition
+ *   flag_native - preserve native types for single-expression samples
+ *   value       - evaluated result (caller-owned)
+ *   err         - indirect pointer to error message string
  *
  * DESCRIPTION
- *   Processes all sample expressions for a configured sample definition,
- *   converts the results, and dispatches to the appropriate handler.  For
- *   single-expression attributes and events, native type preservation is
- *   attempted via flt_otel_sample_to_value().  For multi-expression samples,
- *   all results are concatenated into a string buffer.  The final value is
- *   dispatched to flt_otel_sample_add_kv() for attributes and baggage,
- *   flt_otel_sample_add_event() for events, or flt_otel_sample_set_status()
- *   for status.
+ *   Evaluates all sample expressions for a configured sample definition and
+ *   stores the result in <value>.  Two evaluation paths are supported:
+ *   log-format expressions (sample->lf_used) are evaluated via build_logline();
+ *   bare sample expressions are evaluated via sample_process().
+ *
+ *   When <flag_native> is true and the sample has exactly one expression, the
+ *   native HAProxy sample type is preserved via flt_otel_sample_to_value()
+ *   (e.g. bool, int64).  Otherwise, all expression results are concatenated
+ *   into a string (OTELC_VALUE_DATA).
+ *
+ *   On success, ownership of any dynamically allocated data within <value>
+ *   (value->u.value_data for OTELC_VALUE_DATA) is transferred to the caller.
+ *   On error, no cleanup is required.
  *
  * RETURN VALUE
- *   Returns a negative value if an error occurs, 0 if it needs to wait,
- *   any other value otherwise.
+ *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
  */
-int flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, struct flt_otel_scope_data *data, int type, char **err)
+int flt_otel_sample_eval(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, bool flag_native, struct otelc_value *value, char **err)
 {
 	const struct flt_otel_conf_sample_expr *expr;
 	struct sample                           smp;
-	struct otelc_value                      value;
 	struct buffer                           buffer;
 	int                                     idx = 0, rc, retval = FLT_OTEL_RET_OK;
 
-	OTELC_FUNC("%p, %u, %p, %p, %d, %p:%p", s, dir, sample, data, type, OTELC_DPTR_ARGS(err));
+	OTELC_FUNC("%p, %u, %p, %hhu, %p, %p:%p", s, dir, sample, flag_native, value, OTELC_DPTR_ARGS(err));
 
 	FLT_OTEL_DBG_CONF_SAMPLE("sample ", sample);
 
-	(void)memset(&value, 0, sizeof(value));
+	(void)memset(value, 0, sizeof(*value));
 	(void)memset(&buffer, 0, sizeof(buffer));
 
 	/* Evaluate the sample: log-format path or expression list path. */
@@ -914,8 +917,8 @@ int flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample 
 		} else {
 			buffer.data = build_logline(s, buffer.area, buffer.size, &(sample->lf_expr));
 
-			value.u_type       = OTELC_VALUE_DATA;
-			value.u.value_data = buffer.area;
+			value->u_type       = OTELC_VALUE_DATA;
+			value->u.value_data = buffer.area;
 		}
 	} else {
 		list_for_each_entry(expr, &(sample->exprs), list) {
@@ -947,8 +950,8 @@ int flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample 
 			 * expressions to process, then the result is converted to
 			 * a string and as such sent to the tracer.
 			 */
-			if ((sample->num_exprs == 1) && ((type == FLT_OTEL_EVENT_SAMPLE_ATTRIBUTE) || (type == FLT_OTEL_EVENT_SAMPLE_EVENT))) {
-				if (flt_otel_sample_to_value(sample->key, &(smp.data), &value, err) == FLT_OTEL_RET_ERROR)
+			if ((sample->num_exprs == 1) && flag_native) {
+				if (flt_otel_sample_to_value(sample->key, &(smp.data), value, err) == FLT_OTEL_RET_ERROR)
 					retval = FLT_OTEL_RET_ERROR;
 			} else {
 				if (buffer.area == NULL) {
@@ -969,13 +972,64 @@ int flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample 
 					buffer.data += rc;
 
 					if (sample->num_exprs == ++idx) {
-						value.u_type       = OTELC_VALUE_DATA;
-						value.u.value_data = buffer.area;
+						value->u_type       = OTELC_VALUE_DATA;
+						value->u.value_data = buffer.area;
 					}
 				}
 			}
 		}
 	}
+
+	/* On error, free any dynamically allocated value data. */
+	if (retval == FLT_OTEL_RET_ERROR) {
+		if (buffer.area != NULL)
+			OTELC_SFREE(buffer.area);
+		else if (value->u_type == OTELC_VALUE_DATA)
+			OTELC_SFREE(value->u.value_data);
+
+		(void)memset(value, 0, sizeof(*value));
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_sample_add - top-level sample evaluator and dispatcher
+ *
+ * SYNOPSIS
+ *   int flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, struct flt_otel_scope_data *data, int type, char **err)
+ *
+ * ARGUMENTS
+ *   s      - current stream
+ *   dir    - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
+ *   sample - configured sample definition
+ *   data   - scope data to populate
+ *   type   - sample type (FLT_OTEL_EVENT_SAMPLE_*)
+ *   err    - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Evaluates all sample expressions for a configured sample definition via
+ *   flt_otel_sample_eval(), then dispatches the result to the appropriate
+ *   handler: flt_otel_sample_add_kv() for attributes and baggage,
+ *   flt_otel_sample_add_event() for events, or flt_otel_sample_set_status()
+ *   for status.
+ *
+ * RETURN VALUE
+ *   Returns a negative value if an error occurs, 0 if it needs to wait,
+ *   any other value otherwise.
+ */
+int flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, struct flt_otel_scope_data *data, int type, char **err)
+{
+	struct otelc_value value;
+	bool               flag_native;
+	int                retval;
+
+	OTELC_FUNC("%p, %u, %p, %p, %d, %p:%p", s, dir, sample, data, type, OTELC_DPTR_ARGS(err));
+
+	flag_native = ((type == FLT_OTEL_EVENT_SAMPLE_ATTRIBUTE) || (type == FLT_OTEL_EVENT_SAMPLE_EVENT));
+	retval = flt_otel_sample_eval(s, dir, sample, flag_native, &value, err);
 
 	/* Dispatch the evaluated value to the appropriate collection. */
 	if (retval == FLT_OTEL_RET_ERROR) {
@@ -1015,8 +1069,6 @@ int flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample 
 	 */
 	if ((retval != FLT_OTEL_RET_ERROR) && (type != FLT_OTEL_EVENT_SAMPLE_STATUS))
 		/* Do nothing. */;
-	else if (buffer.area != NULL)
-		OTELC_SFREE(buffer.area);
 	else if (value.u_type == OTELC_VALUE_DATA)
 		OTELC_SFREE(value.u.value_data);
 
