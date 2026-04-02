@@ -61,6 +61,8 @@ static char common_chunk_resp[RESPSIZE];
 static char *random_resp;
 static int random_resp_len = RESPSIZE;
 
+static size_t hstream_add_htx_data(struct hstream *hs, struct htx *htx, unsigned long long len);
+
 #define TRACE_SOURCE &trace_haterm
 struct trace_source trace_haterm;
 static void hterm_trace(enum trace_level level, uint64_t mask, const struct trace_source *src,
@@ -448,11 +450,10 @@ err:
 }
 
 /* Add data to HTX response buffer from pre-built responses */
-static void hstream_add_data(struct htx *htx, struct hstream *hs)
+static size_t hstream_add_htx_data(struct hstream *hs, struct htx *htx, unsigned long long len)
 {
-	int ret;
+	size_t ret;
 	char *data_ptr;
-	unsigned long long max;
 	unsigned int offset;
 	char *buffer;
 	size_t buffer_len;
@@ -476,19 +477,16 @@ static void hstream_add_data(struct htx *htx, struct hstream *hs)
 		modulo = HS_COMMON_RESPONSE_LINE_SZ;
 	}
 
-	offset = (hs->req_size - hs->to_write) % modulo;
+	offset = (hs->req_size - len) % modulo;
 	data_ptr = buffer + offset;
-	max = hs->to_write;
-	if (max > (unsigned long long)(buffer_len - offset))
-		max = (unsigned long long)(buffer_len - offset);
+	if (len > (unsigned long long)(buffer_len - offset))
+		len = (unsigned long long)(buffer_len - offset);
 
-	ret = htx_add_data(htx, ist2(data_ptr, max));
+	ret = htx_add_data(htx, ist2(data_ptr, len));
 	if (!ret)
 		TRACE_STATE("unable to add payload to HTX message", HS_EV_HSTRM_ADD_DATA, hs);
-
-	hs->to_write -= ret;
 	TRACE_LEAVE(HS_EV_HSTRM_ADD_DATA, hs);
-	return;
+	return ret;
 }
 
 /* Build the HTTP response with eventually some BODY data depending on ->to_write
@@ -603,7 +601,7 @@ static int hstream_build_http_resp(struct hstream *hs)
 	}
 
 	if (hs->to_write > 0)
-		hstream_add_data(htx, hs);
+		hs->to_write -= hstream_add_htx_data(hs, htx, hs->to_write);
 	if (hs->to_write <= 0)
 		htx->flags |= HTX_FL_EOM;
 	htx_to_buf(htx, buf);
@@ -889,7 +887,7 @@ static struct task *process_hstream(struct task *t, void *context, unsigned int 
 
 		htx = htx_from_buf(buf);
 		if (hs->to_write > 0)
-			hstream_add_data(htx, hs);
+			hs->to_write -= hstream_add_htx_data(hs, htx, hs->to_write);
 		if (hs->to_write <= 0)
 			htx->flags |= HTX_FL_EOM;
 		htx_to_buf(htx, &hs->res);
