@@ -1,3 +1,6 @@
+#define _GNU_SOURCE
+#include <fcntl.h>
+
 #include <haproxy/buf.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/chunk.h>
@@ -6,6 +9,7 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/http.h>
 #include <haproxy/istbuf.h>
+#include <haproxy/pipe.h>
 #include <haproxy/pool.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/sc_strm.h>
@@ -61,6 +65,11 @@ static char common_response[RESPSIZE];
 static char common_chunk_resp[RESPSIZE];
 static char *random_resp;
 static int random_resp_len = RESPSIZE;
+
+#if defined(USE_LINUX_SPLICE)
+struct pipe *master_pipe = NULL;
+size_t master_pipesize = 0;
+#endif
 
 static size_t hstream_add_ff_data(struct hstream *hs, struct sedesc *sd, unsigned long long len);
 static size_t hstream_add_htx_data(struct hstream *hs, struct htx *htx, unsigned long long len);
@@ -1157,5 +1166,56 @@ static int hstream_build_responses(void)
 
 	return 1;
 }
+
+#if defined(USE_LINUX_SPLICE)
+static void hstream_init_splicing(void)
+{
+	if (!(global.tune.options & GTUNE_USE_SPLICE))
+		return;
+
+	if (!global.tune.pipesize)
+		global.tune.pipesize = 65536 * 5 / 4;
+
+	master_pipe = get_pipe();
+	if (master_pipe) {
+		struct iovec v = { .iov_base = common_response,
+				   .iov_len = sizeof(common_response) };
+		int total, ret;
+
+		total = ret = 0;
+		do {
+			ret = vmsplice(master_pipe->prod, &v, 1, SPLICE_F_NONBLOCK);
+			if (ret > 0)
+				total += ret;
+		} while (ret > 0 && total < global.tune.pipesize);
+		master_pipesize = total;
+
+		if (master_pipesize < global.tune.pipesize) {
+			if (master_pipesize < 60*1024) {
+				/* Older kernels were limited to around 60-61 kB */
+				ha_warning("Failed to vmsplice response buffer after %lu bytes, splicing disabled\n", master_pipesize);
+				global.tune.options &= ~GTUNE_USE_SPLICE;
+				put_pipe(master_pipe);
+				master_pipe = NULL;
+			}
+			else
+				ha_warning("Splicing is limited to %lu bytes (too old kernel)\n", master_pipesize);
+		}
+	}
+	else {
+		ha_warning("Unable to allocate master pipe for splicing, splicing disabled\n");
+		global.tune.options &= ~GTUNE_USE_SPLICE;
+	}
+}
+
+static void hstream_deinit(void)
+{
+	if (master_pipe)
+		put_pipe(master_pipe);
+}
+
+REGISTER_POST_DEINIT(hstream_deinit);
+INITCALL0(STG_INIT_2, hstream_init_splicing);
+#endif
 
 REGISTER_POST_CHECK(hstream_build_responses);
