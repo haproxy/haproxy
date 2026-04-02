@@ -186,6 +186,10 @@ void haproxy_init_args(int argc, char **argv)
 	/* save the arguments */
 	sargc = argc; sargv = argv;
 
+#if defined(USE_LINUX_SPLICE)
+	global.tune.options |= GTUNE_USE_SPLICE;
+#endif
+
 	/* THIS PART MUST NOT MODIFY THE ARGUMENTS */
 	/* Parse the arguments which must be reused to build the conf. */
 	while (argc > 0) {
