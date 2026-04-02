@@ -3344,7 +3344,7 @@ static int qcc_io_process(struct qcc *qcc)
 		/* If using listener socket, soft-stop is not supported. The
 		 * connection must be closed immediately.
 		 */
-		if (!qc_test_fd(qcc->conn->handle.qc)) {
+		if (conn_is_quic(qcc->conn) && !qc_test_fd(qcc->conn->handle.qc)) {
 			TRACE_DEVEL("proxy disabled with listener socket, closing connection", QMUX_EV_QCC_WAKE, qcc->conn);
 			qcc->conn->flags |= (CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH);
 			qcc_io_send(qcc);
