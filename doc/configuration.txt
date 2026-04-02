@@ -9401,7 +9401,7 @@ log-steps <steps>
   same transaction. Special value 'all' may be used to enable all available
   log origins, making it possible to track a transaction from accept to close.
   Indidivual log origins may also be specified using their names separated by
-  spaces to selectively enable when logs should be produced.
+  commas to selectively enable when logs should be produced.
 
   Common log origins are: accept, connect, request, response, close.
 
