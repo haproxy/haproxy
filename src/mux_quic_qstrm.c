@@ -224,16 +224,32 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 	struct connection *conn = qcc->conn;
 	struct quic_frame *frm, *frm_old;
 	struct quic_frame *split_frm, *orig_frm;
+	struct buffer *buf = &qcc->tx.qstrm_buf;
 	unsigned char *pos, *old, *end;
 	size_t ret;
 
 	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
+
+	if (b_data(buf)) {
+		ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf), NULL, 0, 0);
+		if (!ret) {
+			TRACE_DEVEL("snd_buf interrupted", QMUX_EV_QCC_SEND, qcc->conn);
+			goto out;
+		}
+
+		if (ret != b_data(buf)) {
+			/* TODO */
+			ABORT_NOW();
+		}
+	}
+
+	b_reset(buf);
 	list_for_each_entry_safe(frm, frm_old, frms, list) {
  loop:
 		split_frm = NULL;
-		b_reset(&trash);
-		old = pos = (unsigned char *)b_orig(&trash);
-		end = (unsigned char *)b_wrap(&trash);
+		b_reset(buf);
+		old = pos = (unsigned char *)b_orig(buf);
+		end = (unsigned char *)b_wrap(buf);
 
 		BUG_ON(!frm);
 		TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QMUX_EV_QCC_SEND, qcc->conn, 0, 0, 0,
@@ -261,9 +277,9 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 		qc_build_frm(frm, &pos, end, NULL);
 		BUG_ON(pos - old > global.tune.bufsize);
 		BUG_ON(pos == old);
-		b_add(&trash, pos - old);
+		b_add(buf, pos - old);
 
-		ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, &trash, b_data(&trash), NULL, 0, 0);
+		ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf), NULL, 0, 0);
 		if (!ret) {
 			TRACE_DEVEL("snd_buf interrupted", QMUX_EV_QCC_SEND, qcc->conn);
 			if (split_frm)
@@ -271,7 +287,7 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 			break;
 		}
 
-		if (ret != b_data(&trash)) {
+		if (ret != b_data(buf)) {
 			/* TODO */
 			ABORT_NOW();
 		}
@@ -286,6 +302,7 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 		}
 	}
 
+ out:
 	if (conn->flags & CO_FL_ERROR) {
 		/* TODO */
 		//ABORT_NOW();

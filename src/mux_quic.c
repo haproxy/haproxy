@@ -3760,6 +3760,13 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	}
 
 	if (!conn_is_quic(conn)) {
+		qcc->tx.qstrm_buf = BUF_NULL;
+		b_alloc(&qcc->tx.qstrm_buf, DB_MUX_TX);
+		if (!b_size(&qcc->tx.qstrm_buf)) {
+			TRACE_ERROR("tx qstrm buf alloc failure", QMUX_EV_QCC_NEW);
+			goto err;
+		}
+
 		qcc->rx.qstrm_buf = BUF_NULL;
 		b_alloc(&qcc->rx.qstrm_buf, DB_MUX_RX);
 		if (!b_size(&qcc->rx.qstrm_buf)) {
