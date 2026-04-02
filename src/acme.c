@@ -2435,11 +2435,6 @@ re:
 				goto nextreq;
 			}
 
-			/* set the start time of the DNS checks so we can apply
-			 * the timeout */
-			if (ctx->dnsstarttime == 0)
-				 ctx->dnsstarttime = ns_to_sec(now_ns);
-
 			/* Check if the next resolution would be triggered too
 			 * late according to the dns_timeout and abort is
 			 * necessary. */
@@ -2462,6 +2457,11 @@ re:
 		break;
 		case ACME_RSLV_TRIGGER: {
 			struct acme_auth *auth;
+
+			/* set the start time of the DNS checks so we can apply
+			 * the timeout */
+			if (ctx->dnsstarttime == 0)
+				 ctx->dnsstarttime = ns_to_sec(now_ns);
 
 			/* if it was trigger by the CLI, still wait dns_delay if
 			 * not everything is ready, or skip and to to

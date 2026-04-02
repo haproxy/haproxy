@@ -32336,9 +32336,11 @@ dns-timeout <time>
   is a time expressed in HAProxy time format (e.g. "10m", "600s"). Default is
   600 seconds.
 
-  If the next DNS resolution attempt would be triggered after the timeout has
-  elapsed (taking into account "dns-delay"), the challenge is aborted with an
-  error. This prevents an infinite retry loop when DNS propagation fails.
+  The timer starts from the moment the first DNS resolution attempt is
+  triggered (after the initial "dns-delay"). If the next resolution attempt
+  would be triggered after the timeout has elapsed, the challenge is aborted
+  with an error. This prevents an infinite retry loop when DNS propagation
+  fails.
 
   See also: "dns-delay"
 
