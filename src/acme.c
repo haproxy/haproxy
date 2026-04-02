@@ -2462,28 +2462,6 @@ re:
 			 * the timeout */
 			if (ctx->dnsstarttime == 0)
 				 ctx->dnsstarttime = ns_to_sec(now_ns);
-
-			/* if it was trigger by the CLI, still wait dns_delay if
-			 * not everything is ready, or skip and to to
-			 * ACME_CHALLENGE */
-			if (!(state & TASK_WOKEN_TIMER)) {
-				int all_ready = 1;
-
-				for (auth = ctx->auths; auth != NULL; auth = auth->next) {
-					if (auth->ready == ctx->cfg->cond_ready)
-						continue;
-					all_ready = 0;
-				}
-				if (all_ready) {
-					st = ACME_CHALLENGE;
-					ctx->http_state = ACME_HTTP_REQ;
-					ctx->state = st;
-					goto nextreq;
-				} else {
-					return task;
-				}
-			}
-
 			/* on timer expiry, re-trigger resolution for non-ready auths */
 			for (auth = ctx->auths; auth != NULL; auth = auth->next) {
 				if (auth->ready == ctx->cfg->cond_ready)
