@@ -2034,6 +2034,39 @@ smp_fetch_ssl_fc_sni(const struct arg *args, struct sample *smp, const char *kw,
 #endif
 }
 
+/* ssl_fc_crtname */
+static int smp_fetch_ssl_fc_crtname(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn;
+	SSL *ssl;
+	SSL_CTX *ctx;
+
+	smp->flags = SMP_F_VOL_SESS | SMP_F_CONST;
+	smp->data.type = SMP_T_STR;
+
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+		conn = (kw[4] == 'b') ? sc_conn(__objt_check(smp->sess->origin)->sc) : NULL;
+	else
+		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
+			smp->strm ? sc_conn(smp->strm->scb) : NULL;
+
+	ssl = ssl_sock_get_ssl_object(conn);
+	if (!ssl)
+		return 0;
+
+	ctx = SSL_get_SSL_CTX(ssl);
+	if (!ctx)
+		return 0;
+
+	smp->data.u.str.area = SSL_CTX_get_ex_data(ctx, ssl_crtname_index);
+	if (!smp->data.u.str.area)
+		return 0;
+	smp->data.u.str.data = strlen(smp->data.u.str.area);
+
+	return 1;
+}
+
+
 #ifdef USE_ECH
 static int
 smp_fetch_ssl_fc_ech_status(const struct arg *args, struct sample *smp,
@@ -2768,6 +2801,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 #endif
 
 	{ "ssl_fc_sni",             smp_fetch_ssl_fc_sni,         0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_fc_crtname",         smp_fetch_ssl_fc_crtname,     0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 #ifdef USE_ECH
 	{ "ssl_fc_ech_status",      smp_fetch_ssl_fc_ech_status,  0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_fc_ech_outer_sni",   smp_fetch_ssl_fc_ech_outer_sni, 0,                 NULL,    SMP_T_STR,  SMP_USE_L5CLI },

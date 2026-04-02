@@ -25659,6 +25659,7 @@ ssl_fc_client_early_traffic_secret                 string
 ssl_fc_client_handshake_traffic_secret             string
 ssl_fc_client_random                               binary
 ssl_fc_client_traffic_secret_0                     string
+ssl_fc_crtname                                     string
 ssl_fc_curve                                       string
 ssl_fc_early_exporter_secret                       string
 ssl_fc_ecformats_bin                               binary
@@ -26282,6 +26283,21 @@ ssl_fc_client_traffic_secret_0 : string
   keylog callback to generate the SSLKEYLOGFILE. The SSL Key logging must be
   activated with "tune.ssl.keylog on" in the global section. See also
   "tune.ssl.keylog"
+
+ssl_fc_crtname : string
+  Returns the name of the certificate that was selected for the incoming
+  SSL/TLS connection. This is the name as it appears in "show ssl cert": it
+  may be the filename with its relative or absolute path, or an alias,
+  depending on how the certificate was declared in the configuration.
+
+  Example :
+    crt-store example
+        load crt "example.com.pem"
+
+    frontend www
+        bind *:443 ssl crt "@example/example.com.pem"
+        acl match_certificate ssl_fc_crtname -m beg -i "@example/"
+        http-request set-header X-Cert-Name %[ssl_fc_crtname] if match_certificate
 
 ssl_fc_curve : string
   Returns the name of the curve used in the key agreement when the incoming

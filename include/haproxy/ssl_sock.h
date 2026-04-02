@@ -54,6 +54,7 @@ extern struct xprt_ops ssl_sock;
 extern int ssl_capture_ptr_index;
 extern int ssl_keylog_index;
 extern int ssl_client_sni_index;
+extern int ssl_crtname_index;
 extern struct pool_head *pool_head_ssl_keylog;
 extern struct pool_head *pool_head_ssl_keylog_str;
 extern struct list openssl_providers;

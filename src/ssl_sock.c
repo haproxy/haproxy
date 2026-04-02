@@ -764,6 +764,8 @@ int ssl_client_crt_ref_index = -1;
 
 /* Used to store the client's SNI in case of ClientHello callback error */
 int ssl_client_sni_index = -1;
+/* store the name of the certificate */
+int ssl_crtname_index = -1;
 
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 struct list tlskeys_reference = LIST_HEAD_INIT(tlskeys_reference);
@@ -3160,6 +3162,7 @@ int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	STACK_OF(GENERAL_NAME) *names;
 #endif
+	char *crtname = NULL;
 	struct ckch_data *data;
 	struct ckch_inst *ckch_inst = NULL;
 	int errcode = 0;
@@ -3178,6 +3181,16 @@ int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct 
 		errcode |= ERR_ALERT | ERR_FATAL;
 		goto error;
 	}
+
+	crtname = strdup(path);
+	if (!crtname) {
+		memprintf(err, "%sunable to allocate SSL context for cert '%s'.\n",
+		          err && *err ? *err : "", path);
+		errcode |= ERR_ALERT | ERR_FATAL;
+		goto error;
+	}
+
+	SSL_CTX_set_ex_data(ctx, ssl_crtname_index, crtname);
 
 	if (global_ssl.security_level > -1)
 		SSL_CTX_set_security_level(ctx, global_ssl.security_level);
@@ -8361,6 +8374,11 @@ static void ssl_sock_capture_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *
 	pool_free(pool_head_ssl_capture, ptr);
 }
 
+static void ssl_sock_free_crtname(void *parent, void *ptr, CRYPTO_EX_DATA *ad, int idx, long argl, void *argp)
+{
+	free(ptr);
+}
+
 #ifdef HAVE_SSL_KEYLOG
 static void ssl_sock_keylog_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad, int idx, long argl, void *argp)
 {
@@ -8488,6 +8506,8 @@ static void __ssl_sock_init(void)
 #endif
 	ssl_client_crt_ref_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_clt_crt_free_func);
 	ssl_client_sni_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_clt_sni_free_func);
+	ssl_crtname_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_free_crtname);
+
 #if defined(USE_ENGINE) && !defined(OPENSSL_NO_ENGINE)
 	ENGINE_load_builtin_engines();
 	hap_register_post_check(ssl_check_async_engine_count);
