@@ -115,22 +115,23 @@ static void acme_trace(enum trace_level level, uint64_t mask, const struct trace
 		}
 		chunk_appendf(&trace_buf, ", st: ");
 		switch (ctx->state) {
-			case ACME_RESOURCES:      chunk_appendf(&trace_buf, "ACME_RESOURCES");    break;
-			case ACME_NEWNONCE:       chunk_appendf(&trace_buf, "ACME_NEWNONCE");     break;
-			case ACME_CHKACCOUNT:     chunk_appendf(&trace_buf, "ACME_CHKACCOUNT");   break;
-			case ACME_NEWACCOUNT:     chunk_appendf(&trace_buf, "ACME_NEWACCOUNT");   break;
-			case ACME_NEWORDER:       chunk_appendf(&trace_buf, "ACME_NEWORDER");     break;
-			case ACME_AUTH:           chunk_appendf(&trace_buf, "ACME_AUTH");         break;
-			case ACME_CLI_WAIT :      chunk_appendf(&trace_buf, "ACME_CLI_WAIT");    break;
-			case ACME_RSLV_WAIT:      chunk_appendf(&trace_buf, "ACME_RSLV_WAIT");    break;
-			case ACME_RSLV_TRIGGER:   chunk_appendf(&trace_buf, "ACME_RSLV_TRIGGER");   break;
-			case ACME_RSLV_READY:     chunk_appendf(&trace_buf, "ACME_RSLV_READY");   break;
-			case ACME_CHALLENGE:      chunk_appendf(&trace_buf, "ACME_CHALLENGE");    break;
-			case ACME_CHKCHALLENGE:   chunk_appendf(&trace_buf, "ACME_CHKCHALLENGE"); break;
-			case ACME_FINALIZE:       chunk_appendf(&trace_buf, "ACME_FINALIZE");     break;
-			case ACME_CHKORDER:       chunk_appendf(&trace_buf, "ACME_CHKORDER");     break;
-			case ACME_CERTIFICATE:    chunk_appendf(&trace_buf, "ACME_CERTIFICATE");  break;
-			case ACME_END:            chunk_appendf(&trace_buf, "ACME_END");          break;
+			case ACME_RESOURCES:         chunk_appendf(&trace_buf, "ACME_RESOURCES");        break;
+			case ACME_NEWNONCE:          chunk_appendf(&trace_buf, "ACME_NEWNONCE");         break;
+			case ACME_CHKACCOUNT:        chunk_appendf(&trace_buf, "ACME_CHKACCOUNT");       break;
+			case ACME_NEWACCOUNT:        chunk_appendf(&trace_buf, "ACME_NEWACCOUNT");       break;
+			case ACME_NEWORDER:          chunk_appendf(&trace_buf, "ACME_NEWORDER");         break;
+			case ACME_AUTH:              chunk_appendf(&trace_buf, "ACME_AUTH");             break;
+			case ACME_CLI_WAIT :         chunk_appendf(&trace_buf, "ACME_CLI_WAIT");         break;
+			case ACME_INITIAL_DELAY:     chunk_appendf(&trace_buf, "ACME_INITIAL_DELAY");    break;
+			case ACME_RSLV_RETRY_DELAY:  chunk_appendf(&trace_buf, "ACME_RSLV_RETRY_DELAY"); break;
+			case ACME_RSLV_TRIGGER:      chunk_appendf(&trace_buf, "ACME_RSLV_TRIGGER");     break;
+			case ACME_RSLV_READY:        chunk_appendf(&trace_buf, "ACME_RSLV_READY");       break;
+			case ACME_CHALLENGE:         chunk_appendf(&trace_buf, "ACME_CHALLENGE");        break;
+			case ACME_CHKCHALLENGE:      chunk_appendf(&trace_buf, "ACME_CHKCHALLENGE");     break;
+			case ACME_FINALIZE:          chunk_appendf(&trace_buf, "ACME_FINALIZE");         break;
+			case ACME_CHKORDER:          chunk_appendf(&trace_buf, "ACME_CHKORDER");         break;
+			case ACME_CERTIFICATE:       chunk_appendf(&trace_buf, "ACME_CERTIFICATE");      break;
+			case ACME_END:               chunk_appendf(&trace_buf, "ACME_END");              break;
 		}
 	}
 	if (mask & (ACME_EV_REQ|ACME_EV_RES)) {
@@ -480,6 +481,9 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 			} else if (strcmp(str, "dns") == 0) {
 				/* wait for the DNS-check to run the challenge */
 				cur_acme->cond_ready |= ACME_RDY_DNS;
+			} else if (strcmp(str, "delay") == 0) {
+				/* wait for the DNS-check to run the challenge */
+				cur_acme->cond_ready |= ACME_RDY_DELAY;
 			} else if (strcmp(str, "none") == 0) {
 				if (cur_acme->cond_ready || (saveptr && *saveptr)) {
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -2417,11 +2421,49 @@ re:
 				goto wait;
 
 			/* next step */
-			st = ACME_RSLV_WAIT;
+			st = ACME_INITIAL_DELAY;
 			goto nextreq;
 		}
 		break;
-		case ACME_RSLV_WAIT: {
+		case ACME_INITIAL_DELAY: {
+			struct acme_auth *auth;
+			int all_cond_ready = ctx->cfg->cond_ready;
+
+			for (auth = ctx->auths; auth != NULL; auth = auth->next) {
+				all_cond_ready &= auth->ready;
+			}
+
+			/* if everything is ready, let's do the challenge request */
+			if ((all_cond_ready & ctx->cfg->cond_ready) == ctx->cfg->cond_ready) {
+				st = ACME_CHALLENGE;
+				goto nextreq;
+			}
+
+			/* if we don't have an initial delay, let's trigger */
+			if (!(ctx->cfg->cond_ready & ACME_RDY_DELAY)) {
+				st = ACME_RSLV_TRIGGER;
+				goto nextreq;
+			}
+
+			for (auth = ctx->auths; auth != NULL; auth = auth->next) {
+				auth->ready |= ACME_RDY_DELAY;
+			}
+
+			/* either trigger the resolution of the challenge */
+			if (ctx->cfg->cond_ready & ACME_RDY_DNS)
+				st = ACME_RSLV_TRIGGER;
+			else
+				st = ACME_CHALLENGE;
+			ctx->http_state = ACME_HTTP_REQ;
+			ctx->state = st;
+			send_log(NULL, LOG_NOTICE, "acme: %s: dns-01: waiting %ds\n",
+			                            ctx->store->path, ctx->cfg->dns_delay);
+
+			task->expire = tick_add(now_ms, ctx->cfg->dns_delay * 1000);
+			return task;
+		}
+		break;
+		case ACME_RSLV_RETRY_DELAY: {
 			struct acme_auth *auth;
 			int all_cond_ready = ctx->cfg->cond_ready;
 
@@ -2448,7 +2490,7 @@ re:
 			st = ACME_RSLV_TRIGGER;
 			ctx->http_state = ACME_HTTP_REQ;
 			ctx->state = st;
-			send_log(NULL, LOG_NOTICE, "acme: %s: dns-01: triggering the resolution in %ds\n",
+			send_log(NULL, LOG_NOTICE, "acme: %s: dns-01: retrying the resolution in %ds\n",
 			                            ctx->store->path, ctx->cfg->dns_delay);
 
 			task->expire = tick_add(now_ms, ctx->cfg->dns_delay * 1000);
@@ -2519,7 +2561,7 @@ re:
 			}
 
 			/* not all ready yet, retry after dns-delay */
-			st = ACME_RSLV_WAIT;
+			st = ACME_RSLV_RETRY_DELAY;
 			ctx->http_state = ACME_HTTP_REQ;
 			ctx->state = st;
 			goto nextreq;

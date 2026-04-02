@@ -32290,14 +32290,19 @@ challenge-ready <value>[,<value>]*
            option is independent of the CLI command, so no human intervention
            is required.
 
+    delay - apply an initial wait of "dns-delay" before proceeding. Without
+            "dns", the challenge is submitted after the delay expires. When
+            combined with "dns", the initial wait is applied before starting
+            the DNS pre-checks.
+
     none - no readiness condition; the challenge is submitted to the ACME
            server immediately without waiting for any external confirmation.
            This option cannot be combined with others.
 
-  Multiple values can be combined with a comma so that both conditions must be
-  met. The order of the values is not significant. When "cli" and "dns" are
-  combined, HAProxy first waits for the CLI confirmation before triggering the
-  DNS propagation check.
+  Multiple values can be combined with a comma. When several conditions are
+  specified, HAProxy processes them in the following order: first it waits for
+  the CLI confirmation ("cli"), then applies the initial delay ("delay"), then
+  performs the DNS pre-checks ("dns").
 
   This option is only compatible with the dns-01 challenge type.
 
@@ -32322,9 +32327,20 @@ directory <string>
     directory https://acme-staging-v02.api.letsencrypt.org/directory
 
 dns-delay <time>
-  When "challenge-ready" includes "dns", configure the delay before the first
-  DNS resolution attempt and between retries. The value is a time expressed in
-  HAProxy time format (e.g. "5m", "300s"). Default is 30 seconds.
+  Configure the delay used by "challenge-ready" conditions "delay" and "dns".
+  The value is a time expressed in HAProxy time format (e.g. "5m", "300s").
+  Default is 30 seconds.
+
+  Its role depends on the "challenge-ready" conditions in use:
+
+    delay     - the challenge is submitted after this delay expires, without
+                any DNS pre-check.
+
+    dns       - the delay between two consecutive DNS resolution attempts.
+                The first probe fires immediately without any initial wait.
+
+    dns+delay - the initial wait before the first DNS resolution attempt, and
+                the delay between subsequent retries.
 
   Note that the resolution goes through the configured "default" resolvers
   section, not the authoritative name servers. Results may therefore still be

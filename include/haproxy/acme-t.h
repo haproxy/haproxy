@@ -14,6 +14,7 @@
 #define ACME_RDY_NONE  0x00
 #define ACME_RDY_CLI   0x01
 #define ACME_RDY_DNS   0x02
+#define ACME_RDY_DELAY 0x04
 
 /* acme section configuration */
 struct acme_cfg {
@@ -52,7 +53,8 @@ enum acme_st {
 	ACME_NEWORDER,
 	ACME_AUTH,
 	ACME_CLI_WAIT,               /* wait for the ACME_RDY_CLI */
-	ACME_RSLV_WAIT,
+	ACME_INITIAL_DELAY,
+	ACME_RSLV_RETRY_DELAY,
 	ACME_RSLV_TRIGGER,
 	ACME_RSLV_READY,
 	ACME_CHALLENGE,
