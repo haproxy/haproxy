@@ -272,8 +272,10 @@ int cfg_eval_cond_term(const struct cfg_cond_term *term, char **err)
 		case CFG_PRED_OSSL_VERSION_ATLEAST: { // checks if the current openssl version is at least this one
 			int opensslret = openssl_compare_current_version(term->args[0].data.str.area);
 
-			if (opensslret < -1) /* can't parse the string or no openssl available */
+			if (opensslret < -1) { /* can't parse the string or no openssl available */
+				memprintf(err, "invalid argument to conditional expression predicate '%s': '%s'", term->pred->word, term->args[0].data.str.area);
 				ret = -1;
+			}
 			else
 				ret = opensslret <= 0;
 			break;
@@ -281,8 +283,10 @@ int cfg_eval_cond_term(const struct cfg_cond_term *term, char **err)
 		case CFG_PRED_OSSL_VERSION_BEFORE: { // checks if the current openssl version is older than this one
 			int opensslret = openssl_compare_current_version(term->args[0].data.str.area);
 
-			if (opensslret < -1) /* can't parse the string or no openssl available */
+			if (opensslret < -1) { /* can't parse the string or no openssl available */
+				memprintf(err, "invalid argument to conditional expression predicate '%s': '%s'", term->pred->word, term->args[0].data.str.area);
 				ret = -1;
+			}
 			else
 				ret = opensslret > 0;
 			break;
