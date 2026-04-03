@@ -671,13 +671,13 @@ static int add_sample_to_logformat_list(char *text, char *name, int name_len, in
 
 	if (!(expr->fetch->val & cap)) {
 		memprintf(err, "sample fetch <%s> may not be reliably used here because it needs '%s' which is not available here",
-		          text, sample_src_names(expr->fetch->use));
+		          expr->fetch->kw, sample_src_names(expr->fetch->use));
 		goto error_free;
 	}
 
 	if ((options & LOG_OPT_HTTP) && (expr->fetch->use & (SMP_USE_L6REQ|SMP_USE_L6RES))) {
 		ha_warning("parsing [%s:%d] : L6 sample fetch <%s> ignored in HTTP log-format string.\n",
-			   lf_expr->conf.file, lf_expr->conf.line, text);
+			   lf_expr->conf.file, lf_expr->conf.line, expr->fetch->kw);
 	}
 
 	LIST_APPEND(list_format, &node->list);
