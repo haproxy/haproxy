@@ -18712,10 +18712,10 @@ hash-key <key>
   uses "hash-type consistent", and the quality of the distribution will depend
   on the quality of the keys.
 
-healthchec <name>
+healthcheck <name>
   May be used in the following contexts: tcp, http
 
-  Specify the health-check sectino to use to perform check on the server.
+  Specify the health-check section to use to perform check on the server.
 
   Argument :
     <name>    is the health-check section name.
