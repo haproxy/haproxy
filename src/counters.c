@@ -109,7 +109,7 @@ static int _counters_shared_prepare(struct counters_shared *shared,
 
 			shm_obj = shm_stats_file_add_object(errmsg);
 			if (shm_obj) {
-				snprintf(shm_obj->guid, sizeof(shm_obj->guid)- 1, "%s", guid_get(guid));
+				snprintf(shm_obj->guid, sizeof(shm_obj->guid), "%s", guid_get(guid));
 				if (is_be) {
 					shm_obj->type = SHM_STATS_FILE_OBJECT_TYPE_BE;
 					be_shared = (struct be_counters_shared *)shared;
