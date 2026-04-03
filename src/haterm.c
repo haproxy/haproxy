@@ -29,6 +29,10 @@ DECLARE_TYPED_POOL(pool_head_hstream, "hstream", struct hstream);
 #define HS_ST_HTTP_HELP         0x0010
 #define HS_ST_HTTP_EXPECT       0x0020
 #define HS_ST_HTTP_RESP_SL_SENT 0x0040
+#define HS_ST_OPT_CHUNK_RES     0x0080 /* chunk-encoded response (?k=1) */
+#define HS_ST_OPT_REQ_AFTER_RES 0x0100 /* drain the request payload after the response (?A=1) */
+#define HS_ST_OPT_RANDOM_RES    0x0200 /* random response (?R=1) */
+#define HS_ST_OPT_NO_CACHE      0x0400 /* non-cacheable resposne (?c=0) */
 
 const char *HTTP_HELP =
 	"HAProxy's dummy HTTP server for benchmarks - version " HAPROXY_VERSION ".\n"
@@ -48,7 +52,7 @@ const char *HTTP_HELP =
         "                     E.g. /?K=1\n"
         " - /?t=<time>        wait <time> milliseconds before responding.\n"
         "                     E.g. /?t=500\n"
-        " - /?k=<enable>      Enable transfer encoding chunked with only one chunk if >0 (disable fast-forward and splicing).\n"
+        " - /?k=<enable>      Enable transfer encoding chunked with only one chunk if >0.\n"
         " - /?S=<enable>      Disable use of splice() to send data if <1.\n"
         " - /?R=<enable>      Enable sending random data if >0.\n"
         "\n"
@@ -213,7 +217,7 @@ struct task *sc_hstream_io_cb(struct task *t, void *ctx, unsigned int state)
 		task_wakeup(hs->task, TASK_WOKEN_IO);
 	}
 
-	if (((!hs->req_after_res || !hs->to_write) && hs->req_body) ||
+	if (((!(hs->flags & HS_ST_OPT_REQ_AFTER_RES) || !hs->to_write) && hs->req_body) ||
 	    !htx_is_empty(htxbuf(&hs->req))) {
 		TRACE_STATE("waking up task", HS_EV_HSTRM_IO_CB, hs);
 		task_wakeup(hs->task, TASK_WOKEN_IO);
@@ -389,7 +393,7 @@ static int hstream_htx_buf_snd(struct connection *conn, struct hstream *hs)
 
 	if (!htxbuf(&hs->res)->data) {
 		/* This is possible after having drained the body, so after
-		 * having sent the response here when req_after_res=1.
+		 * having sent the response here when HS_ST_OPT_REQ_AFTER_RES flag is set.
 		 */
 		ret = 1;
 		goto out;
@@ -541,7 +545,7 @@ static size_t hstream_add_ff_data(struct hstream *hs, struct sedesc *sd, unsigne
 	TRACE_ENTER(HS_EV_HSTRM_ADD_DATA, hs);
 	b_add(sd->iobuf.buf, sd->iobuf.offset);
 
-	if (hs->req_random) {
+	if (hs->flags & HS_ST_OPT_RANDOM_RES) {
 		buffer = random_resp;
 		buffer_len = random_resp_len;
 		modulo = random_resp_len;
@@ -579,12 +583,12 @@ static size_t hstream_add_htx_data(struct hstream *hs, struct htx *htx, unsigned
 
 	TRACE_ENTER(HS_EV_HSTRM_ADD_DATA, hs);
 
-	if (hs->req_chunked) {
+	if (hs->flags & HS_ST_OPT_CHUNK_RES) {
 		buffer = common_chunk_resp;
 		buffer_len = sizeof(common_chunk_resp);
 		modulo = sizeof(common_chunk_resp);
 	}
-	else if (hs->req_random) {
+	else if (hs->flags & HS_ST_OPT_RANDOM_RES) {
 		buffer = random_resp;
 		buffer_len = random_resp_len;
 		modulo = random_resp_len;
@@ -615,7 +619,7 @@ static int hstream_build_http_resp(struct hstream *hs)
 	int ret = 0;
 	struct buffer *buf;
 	struct htx *htx;
-	unsigned int flags = HTX_SL_F_IS_RESP | HTX_SL_F_XFER_LEN | (!hs->req_chunked ?  HTX_SL_F_CLEN : 0);
+	unsigned int flags = HTX_SL_F_IS_RESP | HTX_SL_F_XFER_LEN | (!(hs->flags & HS_ST_OPT_CHUNK_RES) ?  HTX_SL_F_CLEN : 0);
 	struct htx_sl *sl;
 	char *end;
 
@@ -655,7 +659,7 @@ static int hstream_build_http_resp(struct hstream *hs)
 		}
 	}
 
-	if (!hs->req_chunked && (hs->ka & 1)) {
+	if (!(hs->flags & HS_ST_OPT_CHUNK_RES) && (hs->ka & 1)) {
 		char *end = ultoa_o(hs->req_size, trash.area, trash.size);
 		if (!htx_add_header(htx, ist("Content-Length"), ist2(trash.area, end - trash.area))) {
 			TRACE_ERROR("could not add content-length HTX header", HS_EV_HSTRM_RESP, hs);
@@ -663,7 +667,7 @@ static int hstream_build_http_resp(struct hstream *hs)
 		}
 	}
 
-	if (!hs->req_cache && !htx_add_header(htx, ist("Cache-control"), ist("no-cache"))) {
+	if ((hs->flags & HS_ST_OPT_NO_CACHE) && !htx_add_header(htx, ist("Cache-control"), ist("no-cache"))) {
 		TRACE_ERROR("could not add cache-control HTX header", HS_EV_HSTRM_RESP, hs);
 		goto err;
 	}
@@ -686,15 +690,11 @@ static int hstream_build_http_resp(struct hstream *hs)
 	if (!end)
 		goto err;
 	trash.data = end - trash.area;
-	if (!chunk_strcat(&trash, ", cache=")) {
+	if (!chunk_strcat(&trash, ((hs->flags & HS_ST_OPT_NO_CACHE) ? ", cache=0" : ", cache=1"))) {
 		TRACE_ERROR("could not build x-rsp HTX header", HS_EV_HSTRM_RESP, hs);
 	    goto err;
 	}
-	end = ultoa_o(hs->req_cache, trash.area + trash.data, trash.size - trash.data);
-	if (!end)
-		goto err;
-	trash.data = end - trash.area;
-	if (hs->req_chunked && !chunk_strcat(&trash, ", chunked,")) {
+	if ((hs->flags & HS_ST_OPT_CHUNK_RES) && !chunk_strcat(&trash, ", chunked,")) {
 		TRACE_ERROR("could not build x-rsp HTX header", HS_EV_HSTRM_RESP, hs);
 	    goto err;
 	}
@@ -797,10 +797,16 @@ static void hstream_parse_uri(struct ist uri, struct hstream *hs)
 					hs->res_wait = MS_TO_TICKS(result << mult);
 					break;
 				case 'c':
-					hs->req_cache = result << mult;
+					if (result < 1)
+						hs->flags |= HS_ST_OPT_NO_CACHE;
+					else
+						hs->flags &= ~HS_ST_OPT_NO_CACHE;
 					break;
 				case 'A':
-					hs->req_after_res = result;
+					if (result > 0)
+						hs->flags |= HS_ST_OPT_REQ_AFTER_RES;
+					else
+						hs->flags &= ~HS_ST_OPT_REQ_AFTER_RES;
 					break;
 				case 'C':
 					hs->ka = (hs->ka & 4) | 2 | !result;  // forced OFF
@@ -809,10 +815,16 @@ static void hstream_parse_uri(struct ist uri, struct hstream *hs)
 					hs->ka = (hs->ka & 4) | 2 | !!result; // forced ON
 					break;
 				case 'k':
-					hs->req_chunked = result;
+					if (result > 0)
+						hs->flags |= HS_ST_OPT_CHUNK_RES;
+					else
+						hs->flags &= ~HS_ST_OPT_CHUNK_RES;
 					break;
 				case 'R':
-					hs->req_random = result;
+					if (result > 0)
+						hs->flags |= HS_ST_OPT_RANDOM_RES;
+					else
+						hs->flags &= ~HS_ST_OPT_RANDOM_RES;
 					break;
 				}
 				arg = next;
@@ -858,11 +870,11 @@ static inline int hstream_sl_hdrs_htx_buf_snd(struct hstream *hs,
 /* Must be called before sending to determine if the body request must be
  * drained asap before sending. Return 1 if this is the case, 0 if not.
  * This is the case by default before sending the response except if
- * the contrary has been asked with ->req_after_res=0.
+ * the contrary has been asked with flag HS_ST_OPT_REQ_AFTER_RES.
  * Return true if the body request has not been fully drained (->hs->req_body>0)
  * and if the response has been sent (hs->to_write=0 &&
  * htx_is_empty(htxbuf(&hs->res) or if it must not be drained after having
- * sent the response (->req_after_res=0) or
+ * sent the response (HS_ST_OPT_REQ_AFTER_RES not set) or
  */
 static inline int hstream_must_drain(struct hstream *hs)
 {
@@ -870,7 +882,7 @@ static inline int hstream_must_drain(struct hstream *hs)
 
 	TRACE_ENTER(HS_EV_PROCESS_HSTRM, hs);
 	ret = !(hs->flags & HS_ST_CONN_ERROR) && hs->req_body > 0 &&
-		((!hs->to_write && htx_is_empty(htxbuf(&hs->res))) || !hs->req_after_res);
+		((!hs->to_write && htx_is_empty(htxbuf(&hs->res))) || !(hs->flags & HS_ST_OPT_REQ_AFTER_RES));
 	TRACE_LEAVE(HS_EV_PROCESS_HSTRM, hs);
 
 	return ret;
@@ -881,7 +893,7 @@ static inline int hstream_is_fastfwd_supported(struct hstream *hs)
 	return (!(global.tune.no_zero_copy_fwd & NO_ZERO_COPY_FWD) &&
 		sc_ep_test(hs->sc, SE_FL_MAY_FASTFWD_CONS) &&
 		!(hs->sc->sedesc->iobuf.flags & IOBUF_FL_NO_FF) &&
-		!hs->req_chunked && hs->to_write);
+		!(hs->flags & HS_ST_OPT_CHUNK_RES) && hs->to_write);
 }
 
 /* haterm stream processing task */
@@ -949,7 +961,7 @@ static struct task *process_hstream(struct task *t, void *context, unsigned int 
 		}
 
 		if (hstream_must_drain(hs)) {
-			/* The request must be drained before sending the response (hs->req_after_res=0).
+			/* The request must be drained before sending the response (HS_ST_OPT_REQ_AFTER_RES not set).
 			 * The body will be drained upon next wakeup.
 			 */
 			TRACE_STATE("waking up task", HS_EV_HSTRM_IO_CB, hs);
@@ -969,7 +981,7 @@ static struct task *process_hstream(struct task *t, void *context, unsigned int 
 			goto err;
 
 		if (hstream_must_drain(hs)) {
-			/* The request must be drained before sending the response (hs->req_after_res=0).
+			/* The request must be drained before sending the response (HS_ST_OPT_REQ_AFTER_RES not set).
 			 * The body will be drained upon next wakeup.
 			 */
 			TRACE_STATE("waking up task", HS_EV_HSTRM_IO_CB, hs);
@@ -1035,7 +1047,7 @@ static struct task *process_hstream(struct task *t, void *context, unsigned int 
 		hstream_htx_buf_snd(conn, hs);
 
  send_done:
-		if (hs->req_body && hs->req_after_res && !hs->to_write) {
+		if (hs->req_body && (hs->flags & HS_ST_OPT_REQ_AFTER_RES) && !hs->to_write) {
 			/* Response sending has just complete. The body will be drained upon
 			 * next wakeup.
 			 */
@@ -1101,15 +1113,11 @@ void *hstream_new(struct session *sess, struct stconn *sc, struct buffer *input)
 	hs->flags = 0;
 
 	hs->ka = 0;
-	hs->req_cache = 1;
 	hs->req_size = 0;
 	hs->req_body = 0;
 	hs->req_code = 200;
 	hs->res_wait = TICK_ETERNITY;
 	hs->res_time = TICK_ETERNITY;
-	hs->req_chunked = 0;
-	hs->req_random = 0;
-	hs->req_after_res = 0;
 	hs->req_meth = HTTP_METH_OTHER;
 
 	if (sc_conn(sc)) {
