@@ -8506,7 +8506,7 @@ static void __ssl_sock_init(void)
 #endif
 	ssl_client_crt_ref_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_clt_crt_free_func);
 	ssl_client_sni_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_clt_sni_free_func);
-	ssl_crtname_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_free_crtname);
+	ssl_crtname_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_free_crtname);
 
 #if defined(USE_ENGINE) && !defined(OPENSSL_NO_ENGINE)
 	ENGINE_load_builtin_engines();
