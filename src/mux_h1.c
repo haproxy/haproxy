@@ -4672,6 +4672,7 @@ static void h1_detach(struct sedesc *sd)
 
 	if (h1c->state == H1_CS_RUNNING && !(h1c->flags & H1C_F_IS_BACK) && h1s->req.state != H1_MSG_DONE) {
 		h1c->state = H1_CS_DRAINING;
+		h1c->flags &= ~H1C_F_WANT_FASTFWD;
 		h1c_report_term_evt(h1c, muxc_tevt_type_graceful_shut);
 		COUNT_IF(1, "Deferring H1S destroy to drain message");
 		TRACE_DEVEL("Deferring H1S destroy to drain message", H1_EV_STRM_END, h1s->h1c->conn, h1s);
