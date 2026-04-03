@@ -232,7 +232,7 @@ int cfg_eval_cond_term(const struct cfg_cond_term *term, char **err)
 			const char *p;
 
 			ret = 0; // assume feature not found
-			for (p = build_features; (p = strstr(p, term->args[0].data.str.area)); p++) {
+			for (p = build_features; *p && (p = strstr(p, term->args[0].data.str.area)); p++) {
 				if (p > build_features &&
 				    (p[term->args[0].data.str.data] == ' ' ||
 				     p[term->args[0].data.str.data] == 0)) {
