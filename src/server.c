@@ -7654,7 +7654,7 @@ static int cfg_parse_idle_pool_shared(char **args, int section_type, struct prox
 		global.tune.options &= ~GTUNE_IDLE_POOL_SHARED;
 		global.tune.tg_takeover = NO_THREADGROUP_TAKEOVER;
 	} else {
-		memprintf(err, "'%s' expects 'auto', 'on' or 'off' but got '%s'.", args[0], args[1]);
+		memprintf(err, "'%s' expects 'full', 'on' or 'off' but got '%s'.", args[0], args[1]);
 		return -1;
 	}
 	return 0;

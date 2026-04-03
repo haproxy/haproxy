@@ -4649,7 +4649,7 @@ tune.http.maxhdr <number>
   protocols. This limit is large enough but not documented on purpose. The same
   limit is applied on the first steps of the decoding for the same reason.
 
-tune.idle-pool.shared { auto | on | off }
+tune.idle-pool.shared { full | on | off }
   Controls sharing idle connection pools between threads for a same server.
   It can be enabled for all threads in a same thread group ('on'), enabled for
   all threads ('full') or disabled ('off'). The default is to share them
