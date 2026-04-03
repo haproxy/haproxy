@@ -1,0 +1,86 @@
+varnishtest "Test filter-sequence feature"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.4-dev0)'"
+feature ignore_unknown_macro
+#REQUIRE_OPTIONS=LUA
+
+barrier b1 cond 2 -cyclic
+
+server s1 {
+    rxreq
+    txresp
+} -repeat 2 -start
+
+syslog Slg1 -level info {
+    recv
+    expect ~ ".* haproxy ${h1_pid} .* FilterA.req"
+    recv
+    expect ~ ".* haproxy ${h1_pid} .* FilterB.req"
+    recv
+    expect ~ ".* haproxy ${h1_pid} .* FilterA.resp"
+    recv
+    expect ~ ".* haproxy ${h1_pid} .* FilterB.resp"
+
+    barrier b1 sync
+
+    recv
+    expect ~ ".* haproxy ${h1_pid} .* FilterB.req"
+    recv
+    expect ~ ".* haproxy ${h1_pid} .* FilterA.req"
+    recv
+    expect ~ ".* haproxy ${h1_pid} .* FilterB.resp"
+} -start
+
+haproxy h1 -conf {
+    global
+	tune.lua.bool-sample-conversion normal
+	lua-load ${testdir}/dummy_filters.lua
+	log udp@${Slg1_addr}:${Slg1_port} format rfc5424 local0
+
+     defaults
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen fe1
+        mode http
+	filter lua.FilterA
+	filter lua.FilterB
+
+        bind "fd@${fe1}"
+
+	# test normal sequence (inherited from filter ordering)
+
+	server app1 ${s1_addr}:${s1_port}
+
+    listen fe2
+        mode http
+	filter lua.FilterA
+	filter lua.FilterB
+
+	# test forced filter-sequence on request
+	filter-sequence request lua.FilterB,lua.FilterA
+	# ignore filterA on response
+	filter-sequence response lua.FilterB
+
+        bind "fd@${fe2}"
+
+	server app1 ${s1_addr}:${s1_port}
+} -start
+
+client c0 -connect ${h1_fe1_sock} {
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+} -start -wait
+
+# Wait matching log messages
+barrier b1 sync
+
+client c1 -connect ${h1_fe2_sock} {
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+} -start -wait
+
+syslog Slg1 -wait
