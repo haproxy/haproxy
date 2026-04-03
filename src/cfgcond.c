@@ -564,6 +564,8 @@ int cfg_eval_condition(char **args, char **err, const char **errptr)
 		}
 
 		ret = cfg_eval_cond_expr(expr, err);
+		if (ret < 0)
+			goto fail;
 		goto done;
 	}
 
