@@ -3093,10 +3093,7 @@ INITCALL0(STG_INIT, init_stream);
  */
 struct ist stream_generate_unique_id(struct stream *strm, struct lf_expr *format)
 {
-	if (isttest(strm->unique_id)) {
-		return strm->unique_id;
-	}
-	else {
+	if (!isttest(strm->unique_id)) {
 		char *unique_id;
 
 		if ((unique_id = pool_alloc(pool_head_uniqueid)) == NULL)
@@ -3107,9 +3104,9 @@ struct ist stream_generate_unique_id(struct stream *strm, struct lf_expr *format
 		 */
 		strm->unique_id = ist2(unique_id, 0);
 		strm->unique_id.len = build_logline(strm, unique_id, UNIQUEID_LEN, format);
-
-		return strm->unique_id;
 	}
+
+	return strm->unique_id;
 }
 
 /************************************************************************/
