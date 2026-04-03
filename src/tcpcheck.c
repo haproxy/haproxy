@@ -5334,8 +5334,8 @@ static int do_parse_tcp_check_opt(char **args, int cur_arg, struct proxy *curpx,
 }
 
 /* Parses the "tcp-check" proxy keyword */
-static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx, const struct proxy *defpx,
-				const char *file, int line, char **errmsg)
+int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx, const struct proxy *defpx,
+                         const char *file, int line, char **errmsg)
 {
 	struct tcpcheck_ruleset *rs = NULL;
 	int ret = 0, ret2;
