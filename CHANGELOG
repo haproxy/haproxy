@@ -1,6 +1,167 @@
 ChangeLog :
 ===========
 
+2026/04/03 : 3.4-dev8
+    - MINOR: log: split do_log() in do_log() + do_log_ctx()
+    - MINOR: log: provide a way to override logger->profile from process_send_log_ctx
+    - MINOR: log: support optional 'profile <log_profile_name>' argument to do-log action
+    - BUG/MINOR: sock: adjust accept() error messages for ENFILE and ENOMEM
+    - BUG/MINOR: qpack: fix 62-bit overflow and 1-byte OOB reads in decoding
+    - MEDIUM: sched: do not run a same task multiple times in series
+    - MINOR: sched: do not requeue a tasklet into the current queue
+    - MINOR: sched: do not punish self-waking tasklets anymore
+    - MEDIUM: sched: do not punish self-waking tasklets if TASK_WOKEN_ANY
+    - MEDIUM: sched: change scheduler budgets to lower TL_BULK
+    - MINOR: mux-h2: assign a limited frames processing budget
+    - BUILD: sched: fix leftover of debugging test in single-run changes
+    - BUG/MEDIUM: acme: fix multiple resource leaks in acme_x509_req()
+    - MINOR: http_htx: use enum for arbitrary values in conf_errors
+    - MINOR: http_htx: rename fields in struct conf_errors
+    - MINOR: http_htx: split check/init of http_errors
+    - MINOR/OPTIM: http_htx: lookup once http_errors section on check/init
+    - MEDIUM: proxy: remove http-errors limitation for dynamic backends
+    - BUG/MINOR: acme: leak of ext_san upon insertion error
+    - BUG/MINOR: acme: wrong error when checking for duplicate section
+    - BUG/MINOR: acme/cli: wrong argument check in 'acme renew'
+    - BUG/MINOR: http_htx: fix null deref in http-errors config check
+    - MINOR: buffers: Move small buffers management from quic to dynbuf part
+    - MINOR: dynbuf: Add helper functions to alloc large and small buffers
+    - MINOR: quic: Use b_alloc_small() to allocate a small buffer
+    - MINOR: config: Relax tests on the configured size of small buffers
+    - MINOR: config: Report the warning when invalid large buffer size is set
+    - MEDIUM: htx: Add htx_xfer function to replace htx_xfer_blks
+    - MINOR: htx: Add helper functions to xfer a message to smaller or larger one
+    - MINOR: http-ana: Use HTX API to move to a large buffer
+    - MEDIUM: chunk: Add support for small chunks
+    - MEDIUM: stream: Try to use a small buffer for HTTP request on queuing
+    - MEDIUM: stream: Try to use small buffer when TCP stream is queued
+    - MEDIUM: stconn: Use a small buffer if possible for L7 retries
+    - MEDIUM: tree-wide: Rely on htx_xfer() instead of htx_xfer_blks()
+    - Revert "BUG/MEDIUM: mux-h2: make sure to always report pending errors to the stream"
+    - MEDIUM: mux-h2: Stop dealing with HTX flags transfer in h2_rcv_buf()
+    - MEDIUM: tcpcheck: Use small buffer if possible for healthchecks
+    - MINOR: proxy: Review options flags used to configure healthchecks
+    - DOC: config: Fix alphabetical ordering of proxy options
+    - DOC: config: Fix alphabetical ordering of external-check directives
+    - MINOR: proxy: Add use-small-buffers option to set where to use small buffers
+    - DOC: config: Add missing 'status-code' param for 'http-check expect' directive
+    - DOC: config: Reorder params for 'tcp-check expect' directive
+    - BUG/MINOR: acme: NULL check on my_strndup()
+    - BUG/MINOR: acme: free() DER buffer on a2base64url error path
+    - BUG/MINOR: acme: replace atol with len-bounded __strl2uic() for retry-after
+    - BUG/MINOR: acme/cli: fix argument check and error in 'acme challenge_ready'
+    - BUILD: tools: potential null pointer dereference in dl_collect_libs_cb
+    - BUG/MINOR: ech: permission checks on the CLI
+    - BUG/MINOR: acme: permission checks on the CLI
+    - BUG/MEDIUM: check: Don't reuse the server xprt if we should not
+    - MINOR: checks: Store the protocol to be used in struct check
+    - MINOR: protocols: Add a new proto_is_quic() function
+    - MEDIUM: connections: Enforce mux protocol requirements
+    - MEDIUM: server: remove a useless memset() in srv_update_check_addr_port.
+    - BUG/MINOR: config: Warn only if warnif_cond_conflicts report a conflict
+    - BUG/MINOR: config: Properly test warnif_misplaced_* return values
+    - BUG/MINOR: http-ana: Only consider client abort for abortonclose
+    - BUG/MEDIUM: acme: skip doing challenge if it is already valid
+    - MINOR: connections: Enhance tune.idle-pool.shared
+    - BUG/MINOR: acme: fix task allocation leaked upon error
+    - BUG/MEDIUM: htx: Fix htx_xfer() to consume more data than expected
+    - CI: github: fix tag listing by implementing proper API pagination
+    - CLEANUP: fix typos and spelling in comments and documentation
+    - BUG/MINOR: quic: close conn on packet reception with incompatible frame
+    - CLEANUP: stconn: Remove usless sc_new_from_haterm() declaration
+    - BUG/MINOR: stconn: Always declare the SC created from healthchecks as a back SC
+    - MINOR: stconn: flag the stream endpoint descriptor when the app has started
+    - MINOR: mux-h2: report glitches on early RST_STREAM
+    - BUG/MINOR: net_helper: fix length controls on ip.fp tcp options parsing
+    - BUILD: net_helper: fix unterminated comment that broke the build
+    - MINOR: resolvers: basic TXT record implementation
+    - MINOR: acme: store the TXT record in auth->token
+    - MEDIUM: acme: add dns-01 DNS propagation pre-check
+    - MEDIUM: acme: new 'challenge-ready' option
+    - DOC: configuration: document challenge-ready and dns-delay options for ACME
+    - SCRIPTS: git-show-backports: list new commits and how to review them with -L
+    - BUG/MEDIUM: ssl/cli: tls-keys commands warn when accessed without admin level
+    - BUG/MEDIUM: ssl/ocsp: ocsp commands warn when accessed without admin level
+    - BUG/MEDIUM: map/cli: map/acl commands warn when accessed without admin level
+    - BUG/MEDIUM: ssl/cli: tls-keys commands are missing permission checks
+    - BUG/MEDIUM: ssl/ocsp: ocsp commands are missing permission checks
+    - BUG/MEDIUM: map/cli: CLI commands lack admin permission checks
+    - DOC: configuration: mention QUIC server support
+    - MEDIUM: Add set-headers-bin, add-headers-bin and del-headers-bin actions
+    - BUG/MEDIUM: mux-h1: Don't set MSG_MORE on bodyless responses forwarded to client
+    - BUG/MINOR: http_act: Properly handle decoding errors in *-headers-bin actions
+    - MEDIUM: stats: Hide the version by default and add stats-showversion
+    - MINOR: backends: Don't update last_sess if it did not change
+    - MINOR: servers: Don't update last_sess if it did not change
+    - MINOR: ssl/log: add keylog format variables and env vars
+    - DOC: configuration: update tune.ssl.keylog URL to IETF draft
+    - BUG/MINOR: http_act: Make set/add-headers-bin compatible with ACL conditions
+    - MINOR: action: Add a sample expression field in arguments used by HTTP actions
+    - MEDIUM: http_act: Rework *-headers-bin actions
+    - BUG/MINOR: tcpcheck: Remove unexpected flag on tcpcheck rules for httchck option
+    - MEDIUM: tcpcheck: Refactor how tcp-check rulesets are stored
+    - MINOR: tcpcheck: Deal with disable-on-404 and send-state in the tcp-check itself
+    - BUG/MINOR: tcpcheck: Don't enable http_needed when parsing HTTP samples
+    - MINOR: tcpcheck: Use tcpcheck flags to know a healthcheck uses SSL connections
+    - BUG/MINOR: tcpcheck: Use tcpcheck context for expressions parsing
+    - CLEANUP: tcpcheck: Don't needlessly expose proxy_parse_tcpcheck()
+    - MINOR: tcpcheck: Add a function to stringify the healthcheck type
+    - MEDIUM: tcpcheck: Split parsing functions to prepare healthcheck sections parsing
+    - MEDIUM: tcpcheck:  Add parsing support for healthcheck sections
+    - MINOR: tcpcheck: Extract tcpheck ruleset post-config in a dedicated function
+    - MEDIUM: tcpcheck/server: Add healthcheck server keyword
+    - REGTESTS: tcpcheck: Add a script to check healthcheck section
+    - MINOR: acme: add 'dns-timeout' keyword for dns-01 challenge
+    - CLEANUP: net_helper: fix typo in comment
+    - MINOR: acme: set the default dns-delay to 30s
+    - MINOR: connection: add function to identify a QUIC connection
+    - MINOR: quic: refactor frame parsing
+    - MINOR: quic: refactor frame encoding
+    - BUG/MINOR: quic: fix documentation for transport params decoding
+    - MINOR: quic: split transport params decoding/check
+    - MINOR: quic: remove useless quic_tp_dec_err type
+    - MINOR: quic: define QMux transport parameters frame type
+    - MINOR: quic: implement QMux transport params frame parser/builder
+    - MINOR: mux-quic: move qcs stream member into tx inner struct
+    - MINOR: mux-quic: prepare Tx support for QMux
+    - MINOR: mux-quic: convert init/closure for QMux compatibility
+    - MINOR: mux-quic: protect qcc_io_process for QMux
+    - MINOR: mux-quic: prepare traces support for QMux
+    - MINOR: quic: abstract stream type in qf_stream frame
+    - MEDIUM: mux-quic: implement QMux receive
+    - MINOR: mux-quic: handle flow-control frame on qstream read
+    - MINOR: mux-quic: define Rx connection buffer for QMux
+    - MINOR: mux_quic: implement qstrm rx buffer realign
+    - MEDIUM: mux-quic: implement QMux send
+    - MINOR: mux-quic: implement qstream send callback
+    - MINOR: mux-quic: define Tx connection buffer for QMux
+    - MINOR: xprt_qstrm: define new xprt module for QMux protocol
+    - MINOR: xprt_qstrm: define callback for ALPN retrieval
+    - MINOR: xprt_qstrm: implement reception of transport parameters
+    - MINOR: xprt_qstrm: implement sending of transport parameters
+    - MEDIUM: ssl: load xprt_qstrm after handshake completion
+    - MINOR: mux-quic: use QMux transport parameters from qstrm xprt
+    - MAJOR: mux-quic: activate QMux for frontend side
+    - MAJOR: mux-quic: activate QMux on the backend side
+    - MINOR: acme: split the CLI wait from the resolve wait
+    - MEDIUM: acme: initialize the dns timer starting from the first DNS request
+    - DEBUG: connection/flags: add QSTRM flags for the decoder
+    - BUG/MINOR: mux_quic: fix uninit for QMux emission
+    - MINOR: acme: remove remaining CLI wait in ACME_RSLV_TRIGGER
+    - MEDIUM: acme: split the initial delay from the retry DNS delay
+    - BUG/MINOR: cfgcond: properly set the error pointer on evaluation error
+    - BUG/MINOR: cfgcond: always set the error string on openssl_version checks
+    - BUG/MINOR: cfgcond: always set the error string on awslc_api checks
+    - BUG/MINOR: cfgcond: fail cleanly on missing argument for "feature"
+    - MINOR: ssl: add the ssl_fc_crtname sample fetch
+    - MINOR: hasterm: Change hstream_add_data() to prepare zero-copy data forwarding
+    - MEDIUM: haterm: Add support for 0-copy data forwading and option to disable it
+    - MEDIUM: haterm: Prepare support for splicing by initializing a master pipe
+    - MEDIUM: haterm: Add support for splicing and option to disable it
+    - MINOR: haterm: Handle boolean request options as flags
+    - MINOR: haterm: Add an request option to disable splicing
+    - BUG/MINOR: ssl: fix memory leak in ssl_fc_crtname by using SSL_CTX ex_data index
+
 2026/03/20 : 3.4-dev7
     - BUG/MINOR: stconn: Increase SC bytes_out value in se_done_ff()
     - BUG/MINOR: ssl-sample: Fix sample_conv_sha2() by checking EVP_Digest* failures
