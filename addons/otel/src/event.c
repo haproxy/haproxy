@@ -258,6 +258,7 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 		struct flt_otel_conf_sample_expr *expr;
 		struct sample                     smp;
 		struct otelc_span                *otel_span = NULL;
+		struct flt_otel_scope_data_kv     log_attr;
 		struct buffer                     buffer;
 		int                               rc;
 
@@ -266,6 +267,28 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 		/* Skip if the logger is not enabled for this severity. */
 		if (OTELC_OPS(logger, enabled, conf_log->severity) == 0)
 			continue;
+
+		/* Evaluate log record attributes from sample expressions. */
+		(void)memset(&log_attr, 0, sizeof(log_attr));
+
+		list_for_each_entry(sample, &(conf_log->attributes), list) {
+			struct otelc_value attr_value;
+
+			OTELC_DBG(DEBUG, "adding log-record attribute '%s' -> '%s'", sample->key, sample->fmt_string);
+
+			if (flt_otel_sample_eval(s, dir, sample, true, &attr_value, err) == FLT_OTEL_RET_ERROR) {
+				retval = FLT_OTEL_RET_ERROR;
+
+				continue;
+			}
+
+			if (flt_otel_sample_add_kv(&log_attr, sample->key, &attr_value) == FLT_OTEL_RET_ERROR) {
+				if (attr_value.u_type == OTELC_VALUE_DATA)
+					OTELC_SFREE(attr_value.u.value_data);
+
+				retval = FLT_OTEL_RET_ERROR;
+			}
+		}
 
 		/* The samples list has exactly one entry. */
 		sample = LIST_NEXT(&(conf_log->samples), typeof(sample), list);
@@ -318,6 +341,8 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 
 			retval = FLT_OTEL_RET_ERROR;
 
+			otelc_kv_destroy(&(log_attr.attr), log_attr.cnt);
+
 			continue;
 		}
 
@@ -341,9 +366,10 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 				OTELC_DBG(NOTICE, "WARNING: cannot find span '%s' for log-record", conf_log->span);
 		}
 
-		if (OTELC_OPS(logger, log_span, conf_log->severity, conf_log->event_id, conf_log->event_name, otel_span, ts, conf_log->attr, conf_log->attr_len, "%s", buffer.area) == OTELC_RET_ERROR)
+		if (OTELC_OPS(logger, log_span, conf_log->severity, conf_log->event_id, conf_log->event_name, otel_span, ts, log_attr.attr, log_attr.cnt, "%s", buffer.area) == OTELC_RET_ERROR)
 			retval = FLT_OTEL_RET_ERROR;
 
+		otelc_kv_destroy(&(log_attr.attr), log_attr.cnt);
 		OTELC_SFREE(buffer.area);
 	}
 

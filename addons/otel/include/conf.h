@@ -91,9 +91,9 @@
 	                 (p)->bounds_num, (p)->bounds)
 
 #define FLT_OTEL_DBG_CONF_LOG_RECORD(h,p)                                                                             \
-	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%d %" PRId64 " '%s' '%s' %p %zu %p }", (p),               \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%d %" PRId64 " '%s' '%s' %s %s }", (p),                  \
 	                 FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->severity, (p)->event_id, OTELC_STR_ARG((p)->event_name), \
-	                 OTELC_STR_ARG((p)->span), (p)->attr, (p)->attr_len, flt_otel_list_dump(&((p)->samples)))
+	                 OTELC_STR_ARG((p)->span), flt_otel_list_dump(&((p)->attributes)), flt_otel_list_dump(&((p)->samples)))
 
 #define FLT_OTEL_DBG_CONF(h,p)                                    \
 	OTELC_DBG(DEBUG, h "%p:{ %p '%s' '%s' %p %s %s }", (p),   \
@@ -212,8 +212,7 @@ struct flt_otel_conf_log_record {
 	int64_t               event_id;   /* Optional event identifier. */
 	char                 *event_name; /* Optional event name. */
 	char                 *span;       /* Optional span reference. */
-	struct otelc_kv      *attr;       /* Log record attributes. */
-	size_t                attr_len;   /* Number of log record attributes. */
+	struct list           attributes; /* Log record attributes (flt_otel_conf_sample). */
 	struct list           samples;    /* Sample expressions for the body. */
 };
 

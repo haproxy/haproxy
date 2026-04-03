@@ -669,15 +669,15 @@ instrument { update <name> [<attr>] | <type> <name> [<aggr>] [<desc>] [<unit>] <
     attr   - attribute key-value pairs (update form only)
 
 
-log-record <severity> [id <integer>] [event <name>] [span <span-name>] [attr <key> <value>] ... <sample> ...
+log-record <severity> [id <integer>] [event <name>] [span <span-name>] [attr <key> <sample>] ... <sample> ...
   This keyword emits an OpenTelemetry log record within the scope.  The first
   argument is a required severity level.  Optional keywords follow in any order
   before the trailing sample expressions that form the log record body:
 
-    id <integer>       - numeric event identifier
-    event <name>       - event name string
-    span <span-name>   - associate the log record with an open span
-    attr <key> <value> - add a key-value attribute (repeatable)
+    id <integer>        - numeric event identifier
+    event <name>        - event name string
+    span <span-name>    - associate the log record with an open span
+    attr <key> <sample> - add an attribute evaluated at runtime (repeatable)
 
   The remaining arguments at the end are sample fetch expressions.  A single
   sample preserves its native type; multiple samples are concatenated as a
@@ -694,8 +694,8 @@ log-record <severity> [id <integer>] [event <name>] [span <span-name>] [attr <ke
 
   For example:
     log-record info str("heartbeat")
-    log-record info id 1001 event "http-request" span "Frontend HTTP request" attr "http.method" "GET" method url
-    log-record trace id 1000 event "session-start" span "Client session" attr "attr_1_key" "attr_1_value" src str(":") src_port
+    log-record info id 1001 event "http-request" span "Frontend HTTP request" attr "http.method" method method url
+    log-record trace id 1000 event "session-start" span "Client session" attr "src_ip" src src str(":") src_port
     log-record warn event "server-unavailable" str("503 Service Unavailable")
 
   Arguments :

@@ -155,7 +155,7 @@ executes all referenced scopes when the rule fires.
         inject <name-prefix> [use-headers] [use-vars]
       finish <name> ...
       instrument <type> <name> ... / instrument update <name> ...
-      log-record <severity> [id <int>] [event <name>] [span <ref>] [attr <k> <v>] ... <sample> ...
+      log-record <severity> [id <int>] [event <name>] [span <ref>] [attr <key> <sample>] ... <sample> ...
       acl <name> <criterion> ...
 
 Each scope ties to a single HAProxy analyzer event (or none, if used only
@@ -1157,9 +1157,13 @@ The flt_otel_conf_log_record structure (conf.h) holds:
   event_id     Optional numeric event identifier (int64).
   event_name   Optional event name string.
   span         Optional span reference name (resolved at runtime).
-  attr         Key-value attribute array (from "attr" keywords).
-  attr_len     Number of attributes.
+  attributes   List of flt_otel_conf_sample entries for attributes.
   samples      List of sample expressions for the body.
+
+The attributes list contains flt_otel_conf_sample entries, one per "attr"
+keyword.  Each entry's key field holds the attribute name and its sample
+expressions are evaluated at runtime, following the same two-path model
+(bare sample or log-format) as span attributes.
 
 The samples list contains exactly one flt_otel_conf_sample entry, which
 in turn holds either a list of bare sample expressions or a single
@@ -1178,7 +1182,12 @@ For each configured log record the function performs:
      skipped.  The threshold is controlled by the "min_severity" option
      in the YAML logs signal configuration.
 
-  2. Body evaluation: the single sample entry is evaluated using one of
+  2. Attribute evaluation: each entry in the attributes list is evaluated via
+     flt_otel_sample_add() into a temporary flt_otel_scope_data structure.
+     The evaluated key-value array is passed to logger->log_span() and freed
+     after emission.
+
+  3. Body evaluation: the single sample entry is evaluated using one of
      two paths:
 
      Log-format path (sample->lf_used is true):
@@ -1191,14 +1200,14 @@ For each configured log record the function performs:
        flt_otel_sample_to_str().  Results are concatenated into a
        single buffer.
 
-  3. Span resolution: if conf_log->span is non-NULL, the runtime
+  4. Span resolution: if conf_log->span is non-NULL, the runtime
      context's spans list is searched for a scope_span with a matching
      name.  If found, the OTel span pointer is captured for correlation.
      A missing span is non-fatal -- a NOTICE warning is logged and the
      record is emitted without span correlation.
 
-  4. Emission: logger->log_span() is called with the severity, event_id,
-     event_name, resolved span (or NULL), wall-clock timestamp,
+  5. Emission: logger->log_span() is called with the severity, event_id,
+     event_name, resolved span (or NULL), wall-clock timestamp, the evaluated
      attributes and the evaluated body string.
 
 18.6.3  Logger Lifecycle Summary

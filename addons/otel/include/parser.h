@@ -121,7 +121,7 @@
 	FLT_OTEL_PARSE_SCOPE_DEF(      STATUS, 1, NONE, 2, 0,   "status",     " <code> [<sample> ...]")                                                                        \
 	FLT_OTEL_PARSE_SCOPE_DEF(      FINISH, 0, NONE, 2, 0,   "finish",     " <name> ...")                                                                                   \
 	FLT_OTEL_PARSE_SCOPE_DEF(  INSTRUMENT, 0, NONE, 3, 0, "instrument",   " { update <name> [<attr> ...] | <type> <name> [<aggr>] [<desc>] [<unit>] <value> [<bounds>] }") \
-	FLT_OTEL_PARSE_SCOPE_DEF(  LOG_RECORD, 0, NONE, 3, 0, "log-record",   " <severity> [<id>] [<event>] [<span>] [<attr>] <sample>")                                       \
+	FLT_OTEL_PARSE_SCOPE_DEF(  LOG_RECORD, 0, NONE, 3, 0, "log-record",   " <severity> [<id>] [<event>] [<span>] [<attr>] <sample> ...")                                   \
 	FLT_OTEL_PARSE_SCOPE_DEF(IDLE_TIMEOUT, 0, NONE, 2, 2, "idle-timeout", " <time>")                                                                                       \
 	FLT_OTEL_PARSE_SCOPE_DEF(         ACL, 0, CHAR, 3, 0, "acl",          " <name> <criterion> [flags] [operator] <value> ...")                                            \
 	FLT_OTEL_PARSE_SCOPE_DEF(    ON_EVENT, 0, NONE, 2, 0, "otel-event",   " <name> [{ if | unless } <condition>]")

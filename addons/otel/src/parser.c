@@ -1224,10 +1224,11 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
 		else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LOG_RECORD_ATTR)) {
 			if (!FLT_OTEL_ARG_ISVALID(i + 1) || !FLT_OTEL_ARG_ISVALID(i + 2))
 				FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
-			else if (otelc_kv_add(&(log->attr), &(log->attr_len), args[i + 1], args[i + 2], strlen(args[i + 2])) == OTELC_RET_ERROR)
-				FLT_OTEL_PARSE_ERR(err, "'%s' : out of memory", args[0]);
-			else
-				i += 2;
+			else {
+				retval = flt_otel_parse_cfg_sample(file, line, args, i + 2, 1, NULL, &(log->attributes), err);
+				if (!(retval & ERR_CODE))
+					i += 2;
+			}
 		}
 		else {
 			/*

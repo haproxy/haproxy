@@ -559,14 +559,15 @@ FLT_OTEL_CONF_FUNC_FREE(instrument, id,
  *
  * DESCRIPTION
  *   Allocates and initializes a conf_log_record structure.  Initializes the
- *   sample expressions list.  The <id> string is required by the macro but is
- *   not used directly; the severity level is stored separately.  If <head> is
- *   non-NULL, the structure is appended to the list.
+ *   attributes and sample expressions lists.  The <id> string is required by
+ *   the macro but is not used directly; the severity level is stored
+ *   separately.  If <head> is non-NULL, the structure is appended to the list.
  *
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
 FLT_OTEL_CONF_FUNC_INIT(log_record, id,
+	LIST_INIT(&(retptr->attributes));
 	LIST_INIT(&(retptr->samples));
 )
 
@@ -593,7 +594,7 @@ FLT_OTEL_CONF_FUNC_FREE(log_record, id,
 
 	OTELC_SFREE((*ptr)->event_name);
 	OTELC_SFREE((*ptr)->span);
-	otelc_kv_destroy(&((*ptr)->attr), (*ptr)->attr_len);
+	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->attributes));
 	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->samples));
 )
 

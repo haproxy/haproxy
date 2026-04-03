@@ -361,14 +361,19 @@ Supported keywords:
         instrument update "name_cnt_int" attr "attr_1_key" "attr_1_value"
 
 
-  log-record <severity> [id <integer>] [event <name>] [span <span-name>] [attr <key> <value>] ... <sample> ...
+  log-record <severity> [id <integer>] [event <name>] [span <span-name>] [attr <key> <sample>] ... <sample> ...
       Emit an OpenTelemetry log record.  The first argument is a required
       severity level.  Optional keywords follow in any order:
 
-        id <integer>       - numeric event identifier
-        event <name>       - event name string
-        span <span-name>   - associate the log record with an open span
-        attr <key> <value> - add a key-value attribute (repeatable)
+        id <integer>        - numeric event identifier
+        event <name>        - event name string
+        span <span-name>    - associate the log record with an open span
+        attr <key> <sample> - add an attribute evaluated at runtime (repeatable)
+
+      The 'attr' keyword takes an attribute name and a single HAProxy sample
+      expression.  The expression is evaluated at runtime, following the same
+      rules as span attributes: a bare sample fetch (e.g. src) or a log-format
+      string (e.g. "%[src]:%[src_port]").
 
       The remaining arguments at the end are sample fetch expressions that form
       the log record body.  A single sample preserves its native type; multiple
@@ -389,8 +394,8 @@ Supported keywords:
 
       Examples:
         log-record info str("heartbeat")
-        log-record info id 1001 event "http-request" span "Frontend HTTP request" attr "http.method" "GET" method url
-        log-record trace id 1000 event "session-start" span "Client session" attr "attr_1_key" "attr_1_value" attr "attr_2_key" "attr_2_value" src str(":") src_port
+        log-record info id 1001 event "http-request" span "Frontend HTTP request" attr "http.method" method method url
+        log-record trace id 1000 event "session-start" span "Client session" attr "src_ip" src attr "src_port" src_port src str(":") src_port
         log-record warn event "server-unavailable" str("503 Service Unavailable")
         log-record info event "session-stop" str("stream stopped")
 

@@ -86,6 +86,8 @@ The complete ownership tree, from root to leaves:
       |   +-- flt_otel_conf_sample           (samples list)
       |       +-- flt_otel_conf_sample_expr  (exprs list)
       +-- flt_otel_conf_log_record           (log_records list)
+          +-- flt_otel_conf_sample           (attributes list)
+          |   +-- flt_otel_conf_sample_expr  (exprs list)
           +-- flt_otel_conf_sample           (samples list)
               +-- flt_otel_conf_sample_expr  (exprs list)
 
@@ -217,14 +219,14 @@ an existing instrument via the ref pointer).
   event_id               Optional event identifier.
   event_name             Optional event name.
   span                   Optional span reference.
-  attr                   Log record attributes.
-  attr_len               Number of log record attributes.
+  attributes             Log record attributes (flt_otel_conf_sample list).
   samples                Sample expressions for the body.
 
 Log records are emitted via the OTel logger at the configured severity.  The
 optional span reference associates the log record with an open span at runtime.
-Attributes are stored as key-value pairs added via the 'attr' keyword, which
-can be repeated.
+Attributes are stored as flt_otel_conf_sample entries added via the 'attr'
+keyword, which can be repeated.  Attribute values are HAProxy sample expressions
+evaluated at runtime.
 
 4.8  flt_otel_conf_context
 
