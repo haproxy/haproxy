@@ -2128,7 +2128,7 @@ static enum act_parse_ret parse_http_pause(const char **args, int *orig_arg, str
                 rule->arg.timeout.expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file,
                                                            px->conf.args.line, err, &px->conf.args, NULL);
                 if (!rule->arg.timeout.expr) {
-                        memprintf(err, "unexpected character '%c' in rule 'mause'", *res);
+                        memprintf(err, "unexpected character '%c' in rule 'pause'", *res);
                         return ACT_RET_PRS_ERR;
                 }
         }
