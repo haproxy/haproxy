@@ -33,6 +33,7 @@ DECLARE_TYPED_POOL(pool_head_hstream, "hstream", struct hstream);
 #define HS_ST_OPT_REQ_AFTER_RES 0x0100 /* drain the request payload after the response (?A=1) */
 #define HS_ST_OPT_RANDOM_RES    0x0200 /* random response (?R=1) */
 #define HS_ST_OPT_NO_CACHE      0x0400 /* non-cacheable resposne (?c=0) */
+#define HS_ST_OPT_NO_SPLICING   0x0800 /* no splicing (?S=1) */
 
 const char *HTTP_HELP =
 	"HAProxy's dummy HTTP server for benchmarks - version " HAPROXY_VERSION ".\n"
@@ -52,7 +53,7 @@ const char *HTTP_HELP =
         "                     E.g. /?K=1\n"
         " - /?t=<time>        wait <time> milliseconds before responding.\n"
         "                     E.g. /?t=500\n"
-        " - /?k=<enable>      Enable transfer encoding chunked with only one chunk if >0.\n"
+        " - /?k=<enable>      Enable transfer encoding chunked with only one chunk if >0 (disable fast-forward and splicing).\n"
         " - /?S=<enable>      Disable use of splice() to send data if <1.\n"
         " - /?R=<enable>      Enable sending random data if >0.\n"
         "\n"
@@ -330,7 +331,9 @@ static int hstream_ff_snd(struct connection *conn, struct hstream *hs)
 
 	nego_flags |= NEGO_FF_FL_EXACT_SIZE;
 #if defined(USE_LINUX_SPLICE)
-	if ((global.tune.options & GTUNE_USE_SPLICE) && !(sd->iobuf.flags & IOBUF_FL_NO_SPLICING))
+	if ((global.tune.options & GTUNE_USE_SPLICE) &&
+	    !(sd->iobuf.flags & IOBUF_FL_NO_SPLICING) &&
+	    !(hs->flags & HS_ST_OPT_NO_SPLICING))
 		nego_flags |= NEGO_FF_FL_MAY_SPLICE;
 #endif
 	len = se_nego_ff(sd, &BUF_NULL, hs->to_write, nego_flags);
@@ -819,6 +822,12 @@ static void hstream_parse_uri(struct ist uri, struct hstream *hs)
 						hs->flags |= HS_ST_OPT_CHUNK_RES;
 					else
 						hs->flags &= ~HS_ST_OPT_CHUNK_RES;
+					break;
+				case 'S':
+					if (result < 1)
+						hs->flags |= HS_ST_OPT_NO_SPLICING;
+					else
+						hs->flags &= ~HS_ST_OPT_NO_SPLICING;
 					break;
 				case 'R':
 					if (result > 0)
