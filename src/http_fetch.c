@@ -515,8 +515,8 @@ static int smp_fetch_uniqueid(const struct arg *args, struct sample *smp, const 
 	if (!isttest(unique_id))
 		return 0;
 
-	smp->data.u.str.area = smp->strm->unique_id.ptr;
-	smp->data.u.str.data = smp->strm->unique_id.len;
+	smp->data.u.str.area = istptr(unique_id);
+	smp->data.u.str.data = istlen(unique_id);
 	smp->data.type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
 	return 1;
