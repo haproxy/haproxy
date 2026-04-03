@@ -5905,6 +5905,10 @@ int cfg_parse_healthchecks(const char *file, int linenum, char **args, int kwm)
 		}
 		goto out;
 	}
+	else {
+		ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
+		err_code |= ERR_ALERT | ERR_ABORT;
+	}
 
   out:
 	free(errmsg);
