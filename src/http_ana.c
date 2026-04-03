@@ -2524,9 +2524,9 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 			}
 			else {
 				/* add location with executing log format */
-				int len = build_logline(s, chunk->area + chunk->data,
-				                        chunk->size - chunk->data,
-				                        &rule->rdr_fmt);
+				size_t len = build_logline(s, chunk->area + chunk->data,
+				                           chunk->size - chunk->data,
+				                           &rule->rdr_fmt);
 				if (!len && rule->flags & REDIRECT_FLAG_IGNORE_EMPTY) {
 					ret = 2;
 					goto out;

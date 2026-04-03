@@ -3885,7 +3885,7 @@ int lf_expr_dup(const struct lf_expr *orig, struct lf_expr *dest)
  * is not zero. It requires a valid session and optionally a stream. If the
  * stream is NULL, default values will be assumed for the stream part.
  */
-int sess_build_logline_orig(struct session *sess, struct stream *s,
+size_t sess_build_logline_orig(struct session *sess, struct stream *s,
                             char *dst, size_t maxsize, struct lf_expr *lf_expr,
                             struct log_orig log_orig)
 {
@@ -5229,8 +5229,8 @@ static void do_log_ctx(struct process_send_log_ctx *ctx)
 	struct stream *s = ctx->stream;
 	struct session *sess = ctx->sess;
 	struct log_orig origin = ctx->origin;
-	int size;
-	int sd_size = 0;
+	size_t size;
+	size_t sd_size = 0;
 	int level = -1;
 
 	if (LIST_ISEMPTY(&sess->fe->loggers))
@@ -5291,8 +5291,9 @@ void strm_log(struct stream *s, struct log_orig origin)
 {
 	struct process_send_log_ctx ctx;
 	struct session *sess = s->sess;
-	int size, err, level;
-	int sd_size = 0;
+	int err, level;
+	size_t size;
+	size_t sd_size = 0;
 
 	/* if we don't want to log normal traffic, return now */
 	err = (s->flags & SF_REDISP) ||
@@ -5353,8 +5354,9 @@ void strm_log(struct stream *s, struct log_orig origin)
 void _sess_log(struct session *sess, int embryonic)
 {
 	struct process_send_log_ctx ctx;
-	int size, level;
-	int sd_size = 0;
+	int level;
+	size_t size;
+	size_t sd_size = 0;
 	struct log_orig orig;
 
 	if (!sess)
