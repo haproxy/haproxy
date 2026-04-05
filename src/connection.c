@@ -412,7 +412,7 @@ int conn_install_mux_chk(struct connection *conn, void *ctx, struct session *ses
 		struct ist mux_proto;
 		const char *alpn_str = NULL;
 		int alpn_len = 0;
-		int mode = tcpchk_rules_type_to_proto_mode(check->tcpcheck->flags);
+		int mode = tcpchk_rules_type_to_proto_mode(check->tcpcheck->rs->flags);
 
 		conn_get_alpn(conn, &alpn_str, &alpn_len);
 		mux_proto = ist2(alpn_str, alpn_len);
