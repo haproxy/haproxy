@@ -628,7 +628,8 @@ instrument { update <name> [<attr>] | <type> <name> [<aggr>] [<desc>] [<unit>] <
 
   To update an existing instrument (previously created in another scope), use
   'update' followed by the name of the instrument.  Optional attributes can be
-  added using the 'attr' keyword followed by key-value pairs.
+  added using the 'attr' keyword followed by a key and a sample expression
+  evaluated at runtime.
 
   Supported instrument types:
     - cnt_int   : counter (uint64)
@@ -656,7 +657,7 @@ instrument { update <name> [<attr>] | <type> <name> [<aggr>] [<desc>] [<unit>] <
     instrument cnt_int  "my_counter" desc "Counter" value int(1)
     instrument hist_int "my_hist" aggr exp_histogram desc "Latency" value lat_ns_tot unit "ns"
     instrument hist_int "my_hist2" desc "Latency" value lat_ns_tot unit "ns" bounds "100 1000 10000 100000"
-    instrument update "my_counter" attr "key1" "val1"
+    instrument update "my_counter" attr "key1" str("val1")
 
   Arguments :
     type   - the instrument type (see list above)
@@ -666,7 +667,7 @@ instrument { update <name> [<attr>] | <type> <name> [<aggr>] [<desc>] [<unit>] <
     unit   - optional unit string for the instrument
     value  - sample expression providing the measurement value
     bounds - optional histogram bucket boundaries (hist_int only)
-    attr   - attribute key-value pairs (update form only)
+    attr   - attribute key and sample expression (update form only)
 
 
 log-record <severity> [id <integer>] [event <name>] [span <span-name>] [attr <key> <sample>] ... <sample> ...

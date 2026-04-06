@@ -204,13 +204,13 @@ strings without list linkage.
   samples                Sample expressions for the value.
   bounds                 Histogram bucket boundaries (create only).
   bounds_num             Number of histogram bucket boundaries.
-  attr                   Instrument attributes (update only).
-  attr_len               Number of instrument attributes.
+  attributes             Instrument attributes (update only, flt_otel_conf_sample).
   ref                    Resolved create-form instrument (update only).
 
 Instruments come in two forms: create-form (defines a new metric with type,
 description, unit, and optional histogram bounds) and update-form (references
-an existing instrument via the ref pointer).
+an existing instrument via the ref pointer).  Update-form attributes are stored
+as flt_otel_conf_sample entries and evaluated at runtime.
 
 4.7  flt_otel_conf_log_record
 

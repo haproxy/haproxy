@@ -1060,10 +1060,11 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 			if (flag_add_attr) {
 				if (!FLT_OTEL_ARG_ISVALID(i) || !FLT_OTEL_ARG_ISVALID(i + 1))
 					FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
-				else if (otelc_kv_add(&(instr->attr), &(instr->attr_len), args[i], args[i + 1], strlen(args[i + 1])) == OTELC_RET_ERROR)
-					FLT_OTEL_PARSE_ERR(err, "'%s' : out of memory", args[0]);
-				else
-					i++;
+				else {
+					retval = flt_otel_parse_cfg_sample(file, line, args, i + 1, 1, NULL, &(instr->attributes), err);
+					if (!(retval & ERR_CODE))
+						i++;
+				}
 			}
 			else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_INSTRUMENT_ATTR)) {
 				flag_add_attr = true;
@@ -1073,7 +1074,7 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 			}
 		}
 
-		if (flag_add_attr && (instr->attr_len == 0))
+		if (flag_add_attr && LIST_ISEMPTY(&(instr->attributes)))
 			FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
 	}
 	else {

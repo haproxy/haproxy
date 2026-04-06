@@ -502,8 +502,9 @@ FLT_OTEL_CONF_FUNC_FREE(span, id,
  * DESCRIPTION
  *   Allocates and initializes a conf_instrument structure.  Sets the instrument
  *   type and meter index to OTELC_METRIC_INSTRUMENT_UNSET and initializes the
- *   samples list.  The <id> string is duplicated and stored as the instrument
- *   name.  If <head> is non-NULL, the structure is appended to the list.
+ *   samples and attributes lists.  The <id> string is duplicated and stored as
+ *   the instrument name.  If <head> is non-NULL, the structure is appended to
+ *   the list.
  *
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
@@ -513,6 +514,7 @@ FLT_OTEL_CONF_FUNC_INIT(instrument, id,
 	retptr->type      = OTELC_METRIC_INSTRUMENT_UNSET;
 	retptr->aggr_type = OTELC_METRIC_AGGREGATION_UNSET;
 	LIST_INIT(&(retptr->samples));
+	LIST_INIT(&(retptr->attributes));
 )
 
 
@@ -540,7 +542,7 @@ FLT_OTEL_CONF_FUNC_FREE(instrument, id,
 	OTELC_SFREE((*ptr)->unit);
 	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->samples));
 	OTELC_SFREE((*ptr)->bounds);
-	otelc_kv_destroy(&((*ptr)->attr), (*ptr)->attr_len);
+	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->attributes));
 )
 
 

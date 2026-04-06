@@ -320,7 +320,7 @@ Supported keywords:
 
 
   instrument <type> <name> [aggr <aggregation>] [desc <description>] [unit <unit>] value <sample> [bounds <bounds>]
-  instrument update <name> [attr <key> <value> ...]
+  instrument update <name> [attr <key> <sample> ...]
       Create or update a metric instrument.
 
       Supported types:
@@ -358,7 +358,7 @@ Supported keywords:
         instrument cnt_int  "name_cnt_int" desc "Integer Counter" value int(1),add(2) unit "unit"
         instrument hist_int "name_hist" aggr exp_histogram desc "Latency" value lat_ns_tot unit "ns"
         instrument hist_int "name_hist2" desc "Latency" value lat_ns_tot unit "ns" bounds "100 1000 10000"
-        instrument update "name_cnt_int" attr "attr_1_key" "attr_1_value"
+        instrument update "name_cnt_int" attr "attr_1_key" str("attr_1_value")
 
 
   log-record <severity> [id <integer>] [event <name>] [span <span-name>] [attr <key> <sample>] ... <sample> ...

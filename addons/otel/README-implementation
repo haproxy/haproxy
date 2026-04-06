@@ -1052,8 +1052,7 @@ The flt_otel_conf_instrument structure (conf.h) holds:
   samples      List of sample expressions for the instrument value.
   bounds       Histogram bucket boundaries array (create-form only).
   bounds_num   Number of histogram bucket boundaries.
-  attr         Key-value attribute array (update-form only).
-  attr_len     Number of attributes.
+  attributes   List of flt_otel_conf_sample entries (update-form only).
   ref          Pointer to the create-form instrument (update-form only).
 
 18.5.3  Meter Initialization and Startup

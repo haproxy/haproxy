@@ -139,10 +139,11 @@ src/event.c
 Event dispatching, metrics recording and scope/span execution engine.
 
   flt_otel_scope_run_instrument_record
-      Records a measurement for a synchronous metric instrument.  Evaluates the
-      sample expression from the create-form instrument (instr_ref) and submits
-      the value to the meter via update_instrument_kv_n(), using per-scope
-      attributes from the update-form instrument (instr).
+      Records a measurement for a synchronous metric instrument.  Evaluates
+      update-form attributes via flt_otel_sample_eval() and
+      flt_otel_sample_add_kv(), evaluates the sample expression from the
+      create-form instrument (instr_ref), and submits the value to the meter
+      via update_instrument_kv_n().
 
   flt_otel_scope_run_instrument
       Processes all metric instruments for a scope.  Runs in two passes: the

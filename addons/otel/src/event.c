@@ -40,9 +40,32 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
 	struct flt_otel_conf_sample_expr *expr;
 	struct sample                     smp;
 	struct otelc_value                value;
+	struct flt_otel_scope_data_kv     instr_attr;
 	int                               retval = FLT_OTEL_RET_OK;
 
 	OTELC_FUNC("%p, %u, %p, %p, %p, %p:%p", s, dir, meter, instr_ref, instr, OTELC_DPTR_ARGS(err));
+
+	/* Evaluate instrument attributes from sample expressions. */
+	(void)memset(&instr_attr, 0, sizeof(instr_attr));
+
+	list_for_each_entry(sample, &(instr->attributes), list) {
+		struct otelc_value attr_value;
+
+		OTELC_DBG(DEBUG, "adding instrument attribute '%s' -> '%s'", sample->key, sample->fmt_string);
+
+		if (flt_otel_sample_eval(s, dir, sample, true, &attr_value, err) == FLT_OTEL_RET_ERROR) {
+			retval = FLT_OTEL_RET_ERROR;
+
+			continue;
+		}
+
+		if (flt_otel_sample_add_kv(&instr_attr, sample->key, &attr_value) == FLT_OTEL_RET_ERROR) {
+			if (attr_value.u_type == OTELC_VALUE_DATA)
+				OTELC_SFREE(attr_value.u.value_data);
+
+			retval = FLT_OTEL_RET_ERROR;
+		}
+	}
 
 	/* The samples list always contains exactly one entry. */
 	sample = LIST_NEXT(&(instr_ref->samples), struct flt_otel_conf_sample *, list);
@@ -57,6 +80,8 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
 		smp.data.u.str.area = OTELC_CALLOC(1, global.tune.bufsize);
 		if (smp.data.u.str.area == NULL) {
 			FLT_OTEL_ERR("out of memory");
+
+			otelc_kv_destroy(&(instr_attr.attr), instr_attr.cnt);
 
 			OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
 		}
@@ -104,9 +129,11 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
 		}
 
 		if (retval != FLT_OTEL_RET_ERROR)
-			if (OTELC_OPS(meter, update_instrument_kv_n, HA_ATOMIC_LOAD(&(instr_ref->idx)), &value, instr->attr, instr->attr_len) == OTELC_RET_ERROR)
+			if (OTELC_OPS(meter, update_instrument_kv_n, HA_ATOMIC_LOAD(&(instr_ref->idx)), &value, instr_attr.attr, instr_attr.cnt) == OTELC_RET_ERROR)
 				retval = FLT_OTEL_RET_ERROR;
 	}
+
+	otelc_kv_destroy(&(instr_attr.attr), instr_attr.cnt);
 
 	if (sample->lf_used)
 		OTELC_SFREE(smp.data.u.str.area);

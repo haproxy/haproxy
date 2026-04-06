@@ -85,10 +85,10 @@
 	                 flt_otel_list_dump(&((p)->ph_scopes)))
 
 #define FLT_OTEL_DBG_CONF_INSTRUMENT(h,p)                                                                                     \
-	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%" PRId64 " %d %d '%s' '%s' %s %p %zu %p %zu %p }", (p),          \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%" PRId64 " %d %d '%s' '%s' %s %s %p %zu %p }", (p),              \
 	                 FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->idx, (p)->type, (p)->aggr_type, OTELC_STR_ARG((p)->description), \
-	                 OTELC_STR_ARG((p)->unit), flt_otel_list_dump(&((p)->samples)), (p)->attr, (p)->attr_len, (p)->ref,   \
-	                 (p)->bounds_num, (p)->bounds)
+	                 OTELC_STR_ARG((p)->unit), flt_otel_list_dump(&((p)->samples)), flt_otel_list_dump(&((p)->attributes)), \
+	                 (p)->ref, (p)->bounds_num, (p)->bounds)
 
 #define FLT_OTEL_DBG_CONF_LOG_RECORD(h,p)                                                                             \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%d %" PRId64 " '%s' '%s' %s %s }", (p),                  \
@@ -197,8 +197,7 @@ struct flt_otel_conf_instrument {
 	struct list                        samples;     /* Sample expressions for the value. */
 	double                            *bounds;      /* Histogram bucket boundaries (create only). */
 	size_t                             bounds_num;  /* Number of histogram bucket boundaries. */
-	struct otelc_kv                   *attr;        /* Instrument attributes (update only). */
-	size_t                             attr_len;    /* Number of instrument attributes. */
+	struct list                        attributes;  /* Instrument attributes (update only, flt_otel_conf_sample). */
 	struct flt_otel_conf_instrument   *ref;         /* Resolved create-form instrument (update only). */
 };
 
