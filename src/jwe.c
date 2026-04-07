@@ -738,6 +738,7 @@ static int sample_conv_jwt_decrypt_secret(const struct arg *args, struct sample 
 end:
 	clear_jose_fields(&fields);
 	free_trash_chunk(input);
+	free_trash_chunk(secret);
 	free_trash_chunk(decrypted_cek);
 	free_trash_chunk(out);
 	clear_decoded_items(decoded_items);
