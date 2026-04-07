@@ -2097,12 +2097,12 @@ int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt, int ex
 			}
 
 			dc = p->dcache;
+			if (id > dc->max_entries) {
+				TRACE_ERROR("malformed update message: invalid dict value", PEERS_EV_SESS_IO|PEERS_EV_PROTO_ERR, appctx, p, st);
+				goto malformed_unlock;
+			}
 			if (*msg_cur == end) {
 				/* Dictionary entry key without value. */
-				if (id > dc->max_entries) {
-					TRACE_ERROR("malformed update message: invalid dict value", PEERS_EV_SESS_IO|PEERS_EV_PROTO_ERR, appctx, p, st);
-					goto malformed_unlock;
-				}
 				/* IDs sent over the network are numbered from 1. */
 				de = dc->rx[id - 1].de;
 			}
