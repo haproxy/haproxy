@@ -1924,6 +1924,7 @@ The following keywords are supported in the "global" section :
    - tune.lua.log.loggers
    - tune.lua.log.stderr
    - tune.lua.maxmem
+   - tune.lua.openlibs
    - tune.lua.service-timeout
    - tune.lua.session-timeout
    - tune.lua.task-timeout
@@ -4834,6 +4835,37 @@ tune.lua.maxmem <number>
   default it is zero which means unlimited. It is important to set a limit to
   ensure that a bug in a script will not result in the system running out of
   memory.
+
+tune.lua.openlibs [all | none | <lib>[,<lib>...]]
+  Selects which Lua standard libraries are loaded when initialising the Lua
+  state. The argument is a comma-separated list of library names taken from
+  the following set: table, io, os, string, math, utf8, package, debug. The
+  special values "all" and "none" may be used instead of a list. "none"
+  cannot be combined with library names. The default value is "all".
+
+  The base and coroutine libraries are always loaded regardless of this
+  setting: base provides core Lua functions that HAProxy relies on, and
+  coroutine is required because HAProxy overrides coroutine.create() with
+  its own safe implementation.
+
+  Note that fork() and new thread creation are already blocked by default in
+  HAProxy regardless of this setting, and can only be re-enabled via the
+  "insecure-fork-wanted" global directive. Restricting the set of loaded
+  libraries further reduces the attack surface exposed to Lua scripts. In
+  particular:
+    - omitting "os" prevents os.execute() and os.exit()
+    - omitting "io" prevents io.open() and io.popen()
+    - omitting "package" prevents loading native C modules via require()
+    - omitting "debug" prevents introspection of HAProxy internals via
+      debug.getupvalue(), debug.getmetatable(), or debug.sethook()
+
+  Examples:
+    tune.lua.openlibs none                    # only base + coroutine
+    tune.lua.openlibs string,math,table,utf8  # safe subset, no I/O or OS
+    tune.lua.openlibs all                     # default, load everything
+
+  This setting must be set before any "lua-load" or "lua-load-per-thread"
+  directive, otherwise a parse error is returned.
 
 tune.lua.service-timeout <timeout>
   This is the execution timeout for the Lua services. This is useful for

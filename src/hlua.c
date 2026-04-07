@@ -23,6 +23,11 @@
 #error "Requires Lua 5.3 or later."
 #endif
 
+/* LUA_GNAME was introduced in Lua 5.4 */
+#ifndef LUA_GNAME
+#define LUA_GNAME "_G"
+#endif
+
 #include <import/ebpttree.h>
 
 #include <haproxy/api.h>
@@ -513,6 +518,31 @@ static uint32_t hlua_timeout_burst = 1000; /* burst timeout. */
 static uint32_t hlua_timeout_session = 4000; /* session timeout. */
 static uint32_t hlua_timeout_task = 0; /* task timeout. */
 static uint32_t hlua_timeout_applet = 4000; /* applet timeout. */
+
+/* tune.lua.openlibs: bitmask of optional Lua standard libraries to open.
+ * The base and coroutine libraries are always loaded regardless of this
+ * setting (base provides core functions required by HAProxy; coroutine is
+ * always overridden by HAProxy's safe wrapper).
+ */
+#define HLUA_OPENLIBS_ALL  0xFF
+
+static const struct {
+	const char    *name;
+	lua_CFunction  open;
+	uint           flag;
+} hlua_openlibs_tbl[] = {
+	{ LUA_TABLIBNAME,  luaopen_table,   0x01 },
+	{ LUA_IOLIBNAME,   luaopen_io,      0x02 },
+	{ LUA_OSLIBNAME,   luaopen_os,      0x04 },
+	{ LUA_STRLIBNAME,  luaopen_string,  0x08 },
+	{ LUA_MATHLIBNAME, luaopen_math,    0x10 },
+	{ LUA_UTF8LIBNAME, luaopen_utf8,    0x20 },
+	{ LUA_LOADLIBNAME, luaopen_package, 0x40 },
+	{ LUA_DBLIBNAME,   luaopen_debug,   0x80 },
+	{ NULL, NULL, 0 }
+};
+
+static uint hlua_openlibs_flags = HLUA_OPENLIBS_ALL;
 
 /* hlua multipurpose timer:
  *  used to compute burst lua time (within a single hlua_ctx_resume())
@@ -13281,6 +13311,66 @@ static int hlua_cfg_parse_bool_sample_conversion(char **args, int section_type, 
 	return 0;
 }
 
+static int hlua_cfg_parse_openlibs(char **args, int section_type, struct proxy *curpx,
+                                   const struct proxy *defpx, const char *file, int line,
+                                   char **err)
+{
+	char *token, *save, *str;
+	uint flags = 0;
+	int has_none = 0;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (!*args[1]) {
+		memprintf(err, "'%s' expects 'all', 'none', or a comma-separated list of "
+		          "libraries: table,io,os,string,math,utf8,package,debug", args[0]);
+		return -1;
+	}
+
+	if (hlua_loaded) {
+		memprintf(err, "'%s' must be set before any \"lua-load\" or "
+		          "\"lua-load-per-thread\" directive.", args[0]);
+		return -1;
+	}
+
+	str = args[1];
+	while ((token = strtok_r(str, ",", &save))) {
+		int i;
+
+		if (strcmp(token, "all") == 0) {
+			flags = HLUA_OPENLIBS_ALL;
+		}
+		else if (strcmp(token, "none") == 0) {
+			has_none = 1;
+		}
+		else {
+			for (i = 0; hlua_openlibs_tbl[i].name; i++) {
+				if (strcmp(token, hlua_openlibs_tbl[i].name) == 0) {
+					flags |= hlua_openlibs_tbl[i].flag;
+					break;
+				}
+			}
+			if (!hlua_openlibs_tbl[i].name) {
+				int j;
+				memprintf(err, "'%s': unknown library '%s', expected one of: all,none", args[0], token);
+				for (j = 0; hlua_openlibs_tbl[j].name; j++)
+					memprintf(err, "%s,%s", *err, hlua_openlibs_tbl[j].name);
+				return -1;
+			}
+		}
+		str = NULL;
+	}
+
+	if (has_none && flags) {
+		memprintf(err, "'%s': 'none' cannot be combined with other libraries.", args[0]);
+		return -1;
+	}
+
+	hlua_openlibs_flags = flags;
+	return 0;
+}
+
 /* This function is called by the main configuration key "lua-load". It loads and
  * execute an lua file during the parsing of the HAProxy configuration file. It is
  * the main lua entry point.
@@ -13567,6 +13657,7 @@ static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "tune.lua.log.loggers",     hlua_cfg_parse_log_loggers },
 	{ CFG_GLOBAL, "tune.lua.log.stderr",      hlua_cfg_parse_log_stderr },
 	{ CFG_GLOBAL, "tune.lua.bool-sample-conversion", hlua_cfg_parse_bool_sample_conversion },
+	{ CFG_GLOBAL, "tune.lua.openlibs",               hlua_cfg_parse_openlibs },
 	{ 0, NULL, NULL },
 }};
 
@@ -14133,8 +14224,25 @@ lua_State *hlua_init_state(int thread_num)
 		lua_atpanic(L, hlua_panic_ljmp);
 	}
 
-	/* Initialise lua. */
-	luaL_openlibs(L);
+	/* Initialise lua: open standard libraries according to tune.lua.openlibs.
+	 * The base and coroutine libraries are always loaded: base provides the
+	 * core Lua functions HAProxy relies on; coroutine.create() is overridden
+	 * by HAProxy's own safe wrapper right after.
+	 */
+	if (hlua_openlibs_flags == HLUA_OPENLIBS_ALL) {
+		luaL_openlibs(L);
+	} else {
+		int i;
+
+		luaL_requiref(L, LUA_GNAME,     luaopen_base,      1); lua_pop(L, 1);
+		luaL_requiref(L, LUA_COLIBNAME, luaopen_coroutine, 1); lua_pop(L, 1);
+		for (i = 0; hlua_openlibs_tbl[i].name; i++) {
+			if (hlua_openlibs_flags & hlua_openlibs_tbl[i].flag) {
+				luaL_requiref(L, hlua_openlibs_tbl[i].name, hlua_openlibs_tbl[i].open, 1);
+				lua_pop(L, 1);
+			}
+		}
+	}
 #define HLUA_PREPEND_PATH_TOSTRING1(x) #x
 #define HLUA_PREPEND_PATH_TOSTRING(x) HLUA_PREPEND_PATH_TOSTRING1(x)
 #ifdef HLUA_PREPEND_PATH
