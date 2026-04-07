@@ -170,7 +170,7 @@ struct buffer *get_larger_trash_chunk(struct buffer *chk)
 		/* no chunk or a small one, use a regular buffer */
 		chunk = get_trash_chunk();
 	}
-	else if (large_trash_size && chk->size <= large_trash_size) {
+	else if (large_trash_size && chk->size < large_trash_size) {
 		/* a regular byffer, use a large buffer if possible */
 		chunk = get_large_trash_chunk();
 	}
