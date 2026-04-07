@@ -15,6 +15,7 @@ haproxy h1 -conf {
         # under us.
         tune.idle-pool.shared off
 
+        tune.lua.openlibs string,table
         tune.lua.bool-sample-conversion normal
 
         lua-load-per-thread ${testdir}/txn_get_priv.lua
