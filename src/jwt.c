@@ -331,13 +331,20 @@ static int convert_ecdsa_sig(const struct jwt_ctx *ctx, struct buffer *signature
 	/* Build ecdsa out of R and S values. */
 	ECDSA_SIG_set0(ecdsa_sig, ec_R, ec_S);
 
-	p = (unsigned char*)signature->area;
-
-	signature->data = i2d_ECDSA_SIG(ecdsa_sig, &p);
-	if (signature->data == 0) {
+	/* i2d_ECDSA_SIG writes with no output bound. The DER encoding adds
+	 * a SEQUENCE header (~4 bytes), two INTEGER headers (~4 bytes each),
+	 * and up to two sign-padding bytes on top of the raw R||S bytes.
+	 * Compute the length first to avoid overflowing signature->area.
+	 */
+	retval = i2d_ECDSA_SIG(ecdsa_sig, NULL);
+	if (retval <= 0 || (size_t)retval > signature->size) {
 		retval = JWT_VRFY_INVALID_TOKEN;
 		goto end;
 	}
+
+	p = (unsigned char*)signature->area;
+	signature->data = i2d_ECDSA_SIG(ecdsa_sig, &p);
+	retval = 0;
 
 end:
 	ECDSA_SIG_free(ecdsa_sig);
