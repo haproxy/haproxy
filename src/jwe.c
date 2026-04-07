@@ -718,6 +718,10 @@ static int sample_conv_jwt_decrypt_secret(const struct arg *args, struct sample 
 			goto end;
 
 		chunk_memcpy(decrypted_cek, secret_smp.data.u.str.area, secret_smp.data.u.str.data);
+	} else {
+		/* Empty CEK with a non-"dir" algorithm: nothing we can use to
+		 * derive a key. Bail out instead of passing NULL down. */
+		goto end;
 	}
 
 	/* Decode the encrypted content thanks to decrypted_cek secret */
