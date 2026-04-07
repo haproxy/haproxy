@@ -233,7 +233,7 @@ static int alloc_trash_buffers_per_thread()
 {
 	return (alloc_trash_buffers(global.tune.bufsize) &&
 		alloc_large_trash_buffers(global.tune.bufsize_large) &&
-		alloc_small_trash_buffers(global.tune.bufsize_large));
+		alloc_small_trash_buffers(global.tune.bufsize_small));
 }
 
 static void free_trash_buffers_per_thread()
