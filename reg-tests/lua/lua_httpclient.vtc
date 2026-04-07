@@ -42,6 +42,7 @@ haproxy h1 -conf {
         thread-groups 1
     .endif
 
+        tune.lua.openlibs none
         tune.lua.bool-sample-conversion normal
         lua-load ${testdir}/lua_httpclient.lua
 
