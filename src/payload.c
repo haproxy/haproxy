@@ -874,6 +874,9 @@ smp_fetch_ssl_hello_sni(const struct arg *args, struct sample *smp, const char *
 			name_type = data[6];
 			name_len = (data[7] << 8) + data[8];
 
+			if (name_len + 3 > srv_len)
+				goto not_ssl_hello;
+
 			if (name_type == 0) { /* hostname */
 				smp->data.type = SMP_T_STR;
 				smp->data.u.str.area = (char *)data + 9;
