@@ -20,7 +20,21 @@ runs:
         ulimit -n 65536
         ulimit -c unlimited
 
+    - name: Get VTest latest commit SHA
+      id: vtest-sha
+      shell: bash
+      run: |
+        echo "sha=$(git ls-remote https://code.vinyl-cache.org/vtest/VTest2 HEAD | cut -f1)" >> $GITHUB_OUTPUT
+
+    - name: Cache VTest
+      id: cache-vtest
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/../vtest
+        key: vtest-${{ runner.os }}-${{ steps.vtest-sha.outputs.sha }}
+
     - name: Install VTest
+      if: steps.cache-vtest.outputs.cache-hit != 'true'
       shell: bash
       run: |
         scripts/build-vtest.sh

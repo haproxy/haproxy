@@ -4,9 +4,7 @@ DESTDIR=${DESTDIR:-${PWD}/../vtest/}
 TMPDIR=${TMPDIR:-$(mktemp -d)}
 set -eux
 
-curl -fsSL "https://code.vinyl-cache.org/vtest/VTest2/archive/main.tar.gz" -o "${TMPDIR}/VTest.tar.gz"
-mkdir -p "${TMPDIR}/vtest"
-tar xvf ${TMPDIR}/VTest.tar.gz -C "${TMPDIR}/vtest" --strip-components=1
+git clone https://code.vinyl-cache.org/vtest/VTest2 "${TMPDIR}/vtest"
 # Special flags due to: https://github.com/vtest/VTest/issues/12
 
 # Note: do not use "make -C ../vtest", otherwise MAKEFLAGS contains "w"
