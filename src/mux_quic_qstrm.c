@@ -93,8 +93,9 @@ int qcc_qstrm_recv(struct qcc *qcc)
 {
 	struct connection *conn = qcc->conn;
 	struct buffer *buf = &qcc->rx.qstrm_buf;
+	struct buffer buf_rec;
 	int total = 0, frm_ret;
-	size_t ret;
+	size_t ret = 1;
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
 
@@ -103,14 +104,9 @@ int qcc_qstrm_recv(struct qcc *qcc)
 		/* Wrapping is not supported for QMux reception. */
 		BUG_ON(b_data(buf) != b_contig_data(buf, 0));
 
-		/* Checks if there is no more room before wrapping position. */
-		if (b_head(buf) + b_contig_data(buf, 0) == b_wrap(buf)) {
-			if (!b_room(buf)) {
-				/* TODO frame bigger than buffer, connection must be closed */
-				ABORT_NOW();
-			}
-
-			/* Realign data in the buffer to have more room. */
+		/* If current record is too big, realign buffer for more room. */
+		if (b_head(buf) + qcc->rx.rlen > b_wrap(buf)) {
+			BUG_ON(qcc->rx.rlen > b_size(buf)); /* TODO max_record_size */
 			memmove(b_orig(buf), b_head(buf), b_data(buf));
 			buf->head = 0;
 		}
@@ -119,23 +115,42 @@ int qcc_qstrm_recv(struct qcc *qcc)
 			b_realign_if_empty(buf);
 		}
 
-		ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, b_contig_space(buf), NULL, 0, 0);
-		BUG_ON(conn->flags & CO_FL_ERROR);
+		if ((!b_data(buf) && !qcc->rx.rlen) || qcc->rx.rlen > b_data(buf)) {
+			/* Previous realign operation should ensure send cannot result in data wrapping. */
+			BUG_ON(b_data(buf) && b_tail(buf) == b_orig(buf));
+			ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, b_contig_space(buf), NULL, 0, 0);
+			BUG_ON(conn->flags & CO_FL_ERROR); /* TODO handle errors */
+			/* Previous realign operation should ensure send cannot result in data wrapping. */
+			BUG_ON(b_data(buf) != b_contig_data(buf, 0));
+		}
 
-		total += ret;
-		while (b_data(buf)) {
-			frm_ret = qstrm_parse_frm(qcc, buf);
+		if (b_data(buf) && !qcc->rx.rlen) {
+			int ret2 = b_quic_dec_int(&qcc->rx.rlen, buf, NULL);
+			BUG_ON(!ret2); /* TODO incomplete record length */
+			if (b_head(buf) + qcc->rx.rlen > b_wrap(buf))
+				goto recv;
+			BUG_ON(b_data(buf) < qcc->rx.rlen); /* TODO incomplete record */
+		}
+
+		/* TODO realign necessary if record boundary at the extreme end of the buffer */
+		BUG_ON(!qcc->rx.rlen && b_data(buf) && b_tail(buf) == b_orig(buf));
+
+		while (qcc->rx.rlen && b_data(buf) >= qcc->rx.rlen) {
+			buf_rec = b_make(b_orig(buf), b_size(buf),
+			                 b_head_ofs(buf), qcc->rx.rlen);
+			frm_ret = qstrm_parse_frm(qcc, &buf_rec);
 
 			BUG_ON(frm_ret < 0); /* TODO handle fatal errors */
 			if (!frm_ret) {
-				/* Checks if wrapping position is reached, requires realign. */
-				if (b_head(buf) + b_contig_data(buf, 0) == b_wrap(buf))
-					goto recv;
-				/* Truncated frame read but room still left, subscribe to retry later. */
-				break;
+				/* emit FRAME_ENCODING_ERROR */
+				ABORT_NOW();
 			}
 
+			/* A frame cannot be bigger than a record thanks to <buf_rec> delimitation. */
+			BUG_ON(qcc->rx.rlen < frm_ret);
 			b_del(buf, frm_ret);
+			qcc->rx.rlen -= frm_ret;
+			total += frm_ret;
 		}
 	} while (ret > 0);
 
