@@ -123,7 +123,7 @@ struct appctx {
 
 		int severity_output;    /* used within the cli_io_handler to format severity output of informational feedback */
 		int level;              /* the level of CLI which can be lowered dynamically */
-		char payload_pat[8];    /* Payload pattern */
+		char *payload_pat;      /* Pointer on the payload pattern. NULL if no payload */
 		char *payload;          /* Pointer on the payload. NULL if no payload */
 		uint32_t anon_key;      /* the key to anonymise with the hash in cli */
 		/* XXX 4 unused bytes here */

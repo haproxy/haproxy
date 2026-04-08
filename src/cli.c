@@ -65,6 +65,7 @@
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
 
+#define MAX_PAYLOAD_PATTERN_SIZE 7
 #define PAYLOAD_PATTERN "<<"
 
 static struct applet cli_applet;
@@ -762,12 +763,13 @@ static int cli_get_severity_output(struct appctx *appctx)
 static int cli_process_cmdline(struct appctx *appctx)
 {
 	char *args[MAX_CLI_ARGS + 1], *orig, *p, *end, *payload = NULL;
+	char *end_of_cmdline;
 	int i = 0, ret = 0;
 	struct cli_kw *kw;
 
 	orig = p = b_head(appctx->cli_ctx.cmdline);
 	end = p + strlen(p);
-
+	end_of_cmdline = (appctx->cli_ctx.payload_pat ? appctx->cli_ctx.payload_pat - strlen(PAYLOAD_PATTERN) : b_tail(appctx->cli_ctx.cmdline)-1);
 	/*
 	 * Get pointers on words.
 	 * One extra slot is reserved to store a pointer on a null byte.
@@ -815,12 +817,11 @@ static int cli_process_cmdline(struct appctx *appctx)
 	/* Pass the payload to the last command. It happens when the end of the
 	 * command is just before the payload pattern.
 	 */
-	if (appctx->cli_ctx.payload && appctx->cli_ctx.payload == end + strlen(appctx->cli_ctx.payload_pat) + 3) {
+	if (end == end_of_cmdline) {
 		appctx->st1 |= APPCTX_CLI_ST1_LASTCMD;
-		payload = appctx->cli_ctx.payload;
+		if (appctx->cli_ctx.payload)
+			payload = appctx->cli_ctx.payload;
 	}
-	if (end+1 == b_tail(appctx->cli_ctx.cmdline))
-		appctx->st1 |= APPCTX_CLI_ST1_LASTCMD;
 
 	/* throw an error if too many args are provided */
 	if (*p && i == MAX_CLI_ARGS) {
@@ -946,6 +947,7 @@ int cli_init(struct appctx *appctx)
 	applet_reset_svcctx(appctx);
 	appctx->st0 = CLI_ST_PARSE_CMDLINE;
 	appctx->cli_ctx.level = bind_conf->level;
+	appctx->cli_ctx.payload_pat = NULL;
 	appctx->cli_ctx.payload = NULL;
 	appctx->cli_ctx.cmdline = NULL;
 
@@ -1052,10 +1054,9 @@ int cli_parse_cmdline(struct appctx *appctx)
 				/* A customized pattern can't be more than 7 characters
 				 * if it's more, don't make it a payload
 				 */
-				if (pat_len < sizeof(appctx->cli_ctx.payload_pat)) {
-					/* copy the customized pattern, don't store the << */
-					strncpy(appctx->cli_ctx.payload_pat, last_arg + strlen(PAYLOAD_PATTERN), sizeof(appctx->cli_ctx.payload_pat)-1);
-					appctx->cli_ctx.payload_pat[sizeof(appctx->cli_ctx.payload_pat)-1] = '\0';
+				if (pat_len <= MAX_PAYLOAD_PATTERN_SIZE) {
+					/* Save the pointer on the payload pattern (skipping PAYLOAD_PATTERN) */
+					appctx->cli_ctx.payload_pat = last_arg + strlen(PAYLOAD_PATTERN);
 
 					/* The last command finishes before the payload pattern.
 					 * Don't strip trailing spaces to be sure to detect when
@@ -1297,6 +1298,7 @@ void cli_io_handler(struct appctx *appctx)
 			if (appctx->st1 & APPCTX_CLI_ST1_LASTCMD) {
 				applet_reset_svcctx(appctx);
 				free_trash_chunk(appctx->cli_ctx.cmdline);
+				appctx->cli_ctx.payload_pat = NULL;
 				appctx->cli_ctx.payload = NULL;
 				appctx->cli_ctx.cmdline = NULL;
 				appctx->st1 &= ~APPCTX_CLI_ST1_LASTCMD;
