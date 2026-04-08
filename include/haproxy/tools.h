@@ -1545,4 +1545,10 @@ void ha_memset_s(void *s, int c, size_t n);
 
 void chunk_append_thread_ctx(struct buffer *output, const struct thread_exec_ctx *ctx, const char *pfx, const char *sfx);
 
+static inline int net_addr_type_is_quic(struct net_addr_type *type)
+{
+	return type->proto_type == PROTO_TYPE_DGRAM &&
+	       type->xprt_type == PROTO_TYPE_STREAM;
+}
+
 #endif /* _HAPROXY_TOOLS_H */
