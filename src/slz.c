@@ -508,11 +508,11 @@ static void reset_refs(union ref *refs, long count)
 }
 
 /* Compresses <ilen> bytes from <in> into <out> according to RFC1951. The
- * output result may be up to 5 bytes larger than the input, to which 2 extra
- * bytes may be added to send the last chunk due to BFINAL+EOB encoding (10
- * bits) when <more> is not set. The caller is responsible for ensuring there
- * is enough room in the output buffer for this. The amount of output bytes is
- * returned, and no CRC is computed.
+ * output result may be up to 5 bytes larger than the input for each 65535
+ * nput bytes, to which 2 extra bytes may be added to send the last chunk due
+ * to BFINAL+EOB encoding (10 bits) when <more> is not set. The caller is
+ * responsible for ensuring there is enough room in the output buffer for this.
+ * The amount of output bytes is returned, and no CRC is computed.
  */
 long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsigned char *in, long ilen, int more)
 {
@@ -642,10 +642,55 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 		/* direct mapping of dist->huffman code */
 		dist = fh_dist_table[pos - last - 1];
 
-		/* if encoding the dist+length is more expensive than sending
-		 * the equivalent as bytes, lets keep the literals.
+		/* If encoding the dist+length is more expensive than sending
+		 * the equivalent as bytes, lets keep the literals. This is
+		 * important for the compression ratio and also for standing by
+		 * our promise that the output is no longer than input + 5 bytes
+		 * every 65535. The explanation is that a valid stream starts in
+		 * EOB and ends in EOB, which is the state where we can grow by
+		 * up to 5 bytes (1 byte for BT, 2 for LEN, 2 for NLEN, then
+		 * literal data). Sending compressed Huffman data (reference or
+		 * fixed encoding) may only be accepted if it is guaranteed that
+		 * it will not represent more bytes in the worst case. Switching
+		 * from EOB to FIXED requires 3 bits of BT. Then either fixed
+		 * data (8 or 9 bits) or references (15-33 bits). Switching back
+		 * to EOB requires EOB (7 bits), and in order to get back to the
+		 * situation where bytes can be added with no overhead, the BT,
+		 * align, LEN and NLEN have to be sent as well:
+		 *
+		 * Before switching:
+		 *          [BT] [ALIGN] [LEN] [NLEN] [PLIT]
+		 *   bits:    3     7     16     16   8*plit
+		 *
+		 * In case of sending mlen bytes as literals:
+		 *          [BT] [ALIGN] [LEN] [NLEN] [PLIT] [MLEN]
+		 *   bits:    3     7     16     16   8*plit 8*mlen
+		 *
+		 * In case of sending mlen bytes as literals, we add:
+		 *       [MLEN]
+		 * bits: 8*mlen
+		 *
+		 * In case of sending reference, we add in the worst case:
+		 *       [BT] [CODE] [DIST] [EOB] [BT] [ALIGN] [LEN] [NLEN]
+		 * bits:  3    clen   dlen    7    3      7      16    16
+		 *
+		 * Thus for literals we add 8*mlen bits, and for reference we
+		 * add clen+dlen+52 bits. If the reference encoding + 52 bits
+		 * is shorter. Of course there are plenty of opportunities to
+		 * be much shorter once we switch to FIXED, and a stricter
+		 * tracking could allow to send references more often. But here
+		 * we at least guarantee that if data fit as literals, they also
+		 * fit using a temporary switch to FIXED.
+		 *
+		 * Regarding encoding size, clen is 7 for mlen 3..10, to 12 for
+		 * mlen 131..257. dlen is 8 for distances 1..4, to 21 for
+		 * distances 16385..32768. Thus mlen <= 130 produces clen+dlen
+		 * <= 32 bits. This means that for mlen 4 or above, the encoded
+		 * reference is always smaller than the data it references. This
+		 * is what guarantees that once switched to FIXED we can stay
+		 * in it for as long as needed.
 		 */
-		if ((dist & 0x1f) + (code >> 16) + 8 >= 8 * mlen + bit9)
+		if (strm->state == SLZ_ST_EOB && (dist & 0x1f) + (code >> 16) + 52 > 8 * mlen)
 			goto send_as_lit;
 
 		/* first, copy pending literals */
