@@ -125,7 +125,7 @@ int conn_send_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int fla
 	struct buffer *buf = &ctx->txbuf;
 	unsigned char *pos, *old, *end;
 	size_t sent;
-	int ret;
+	int ret, lensz;
 
 	if (!conn_ctrl_ready(conn))
 		goto fail;
@@ -136,12 +136,17 @@ int conn_send_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int fla
 	/* Small buf is sufficient for our transport parameters. */
 	if (!b_size(buf) && !b_alloc_small(buf))
 		goto fail;
+	/* Record size field length */
+	lensz = quic_int_getsize(quic_int_cap_length(b_size(buf)));
 
 	if (!b_data(buf)) {
-		old = pos = (unsigned char *)b_orig(buf);
+		old = pos = (unsigned char *)b_orig(buf) + lensz;
 		end = (unsigned char *)b_wrap(buf);
 		ret = qc_build_frm(&frm, &pos, end, NULL);
-		BUG_ON(!ret);
+		BUG_ON(!ret); /* should never fail */
+
+		ret = b_quic_enc_int(buf, pos - old, lensz);
+		BUG_ON(!ret); /* should never fail */
 		b_add(buf, pos - old);
 	}
 

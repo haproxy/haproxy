@@ -242,6 +242,8 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 	struct buffer *buf = &qcc->tx.qstrm_buf;
 	unsigned char *pos, *old, *end;
 	size_t ret;
+	/* Record size field length */
+	const int lensz = quic_int_getsize(quic_int_cap_length(b_size(buf)));
 
 	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
 
@@ -258,12 +260,12 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 		}
 	}
 
-	b_reset(buf);
 	list_for_each_entry_safe(frm, frm_old, frms, list) {
  loop:
 		split_frm = next_frm = NULL;
 		b_reset(buf);
-		old = pos = (unsigned char *)b_orig(buf);
+		/* Reserve 4 bytes for the record header. */
+		old = pos = (unsigned char *)b_orig(buf) + lensz;
 		end = (unsigned char *)b_wrap(buf);
 
 		BUG_ON(!frm);
@@ -292,6 +294,10 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 		qc_build_frm(frm, &pos, end, NULL);
 		BUG_ON(pos - old > global.tune.bufsize);
 		BUG_ON(pos == old);
+
+		/* Encode record header and save built payload. */
+		ret = b_quic_enc_int(buf, pos - old, lensz);
+		BUG_ON(!ret);
 		b_add(buf, pos - old);
 
 		ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf), NULL, 0, 0);
