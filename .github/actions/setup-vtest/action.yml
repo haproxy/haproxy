@@ -31,7 +31,7 @@ runs:
       uses: actions/cache@v5
       with:
         path: ${{ github.workspace }}/vtest
-        key: vtest-${{ runner.os }}-${{ steps.vtest-sha.outputs.sha }}
+        key: vtest-${{ runner.os }}-${{ runner.arch }}-${{ steps.vtest-sha.outputs.sha }}
 
     - name: Install VTest
       if: steps.cache-vtest.outputs.cache-hit != 'true'
