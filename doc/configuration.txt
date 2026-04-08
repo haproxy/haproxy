@@ -17826,7 +17826,7 @@ proto <name>
   instance, if "proto h1" is set, the ALPN should not be set to "h2".
 
   QMux is a subset of QUIC which runs over TCP. It corresponds to the following
-  draft protocol https://www.ietf.org/archive/id/draft-opik-quic-qmux-01.html.
+  draft protocol https://www.ietf.org/archive/id/draft-ietf-quic-qmux-01.html.
   It is considered experimental in haproxy for now.
 
 quic-cc-algo { cubic | newreno | bbr | nocc }[(<args,...>)]
@@ -19406,7 +19406,7 @@ proto <name>
   See also "ws" to use an alternative protocol for websocket streams.
 
   QMux is a subset of QUIC which runs over TCP. It corresponds to the following
-  draft protocol https://www.ietf.org/archive/id/draft-opik-quic-qmux-01.html.
+  draft protocol https://www.ietf.org/archive/id/draft-ietf-quic-qmux-01.html.
   It is considered experimental in haproxy for now.
 
 quic-cc-algo { cubic | newreno | bbr | nocc }[(<args,...>)]
