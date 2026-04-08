@@ -1081,6 +1081,7 @@ static int quic_parse_qmux_transport_parameters(struct quic_frame *frm, struct q
 	if (!quic_transport_params_decode(&params_frm->params, 1, *pos, end))
 		return 0;
 
+	*pos += len;
 	return 1;
 }
 
