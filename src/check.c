@@ -1802,29 +1802,42 @@ int init_srv_check(struct server *srv)
 		 * specified.
 		 */
 		if (!srv->check.port && !is_addr(&srv->check.addr)) {
-			/*
-			 * If any setting is set for the check, then we can't
-			 * assume we'll use the same XPRT as the server, the
-			 * server may be QUIC, but we want a TCP check.
-			 */
-			if (!srv->check.use_ssl && srv->use_ssl != -1 &&
-			    !srv->check.via_socks4 && !srv->check.send_proxy &&
-			    (!srv->check.alpn_len || (srv->check.alpn_len == srv->ssl_ctx.alpn_len && !strncmp(srv->check.alpn_str, srv->ssl_ctx.alpn_str, srv->check.alpn_len))) &&
-			    (!srv->check.mux_proto || srv->check.mux_proto != srv->mux_proto))
+			if ((!srv->check.use_ssl && srv->use_ssl != -1) ||
+			    (srv->check.use_ssl == srv->use_ssl))
 				srv->check.xprt = srv->xprt;
 			else if (srv->check.use_ssl == 1)
 				srv->check.xprt = xprt_get(XPRT_SSL);
 			srv->check.send_proxy |= (srv->pp_opts);
+			srv->check.addr_type = srv->addr_type;
+			srv->check.alt_proto = srv->alt_proto;
+		} else {
+			/* Only port was specified, so let's go with TCP */
+			if (!is_addr(&srv->check.addr)) {
+				srv->check.addr_type.proto_type = PROTO_TYPE_STREAM;
+				srv->check.addr_type.xprt_type = PROTO_TYPE_STREAM;
+			}
+			if (net_addr_type_is_quic(&srv->check.addr_type))
+				srv->check.xprt = xprt_get(XPRT_QUIC);
+			else
+				if (srv->check.use_ssl == 1)
+					srv->check.xprt = xprt_get(XPRT_SSL);
 		}
-		else if (srv->check.use_ssl == 1)
-			srv->check.xprt = xprt_get(XPRT_SSL);
 	}
 	else {
 		/* For dynamic servers, check-ssl and check-send-proxy must be
 		 * explicitly defined even if the check port was not
 		 * overridden.
 		 */
-		if (srv->check.use_ssl == 1)
+		if (!is_addr(&srv->check.addr)) {
+			if (srv->check.port) {
+				srv->check.addr_type.proto_type = PROTO_TYPE_STREAM;
+				srv->check.addr_type.xprt_type = PROTO_TYPE_STREAM;
+			} else
+				srv->check.addr_type = srv->addr_type;
+		}
+		if (net_addr_type_is_quic(&srv->check.addr_type))
+			srv->check.xprt = xprt_get(XPRT_QUIC);
+		else if (srv->check.use_ssl == 1)
 			srv->check.xprt = xprt_get(XPRT_SSL);
 	}
 
@@ -1834,7 +1847,8 @@ int init_srv_check(struct server *srv)
 	if (srv->mux_proto && !srv->check.mux_proto &&
 	    ((srv->mux_proto->mode == PROTO_MODE_HTTP && check_type == TCPCHK_RULES_HTTP_CHK) ||
 	     (srv->mux_proto->mode == PROTO_MODE_SPOP && check_type == TCPCHK_RULES_SPOP_CHK) ||
-	     (srv->mux_proto->mode == PROTO_MODE_TCP && check_type != TCPCHK_RULES_HTTP_CHK))) {
+	     (srv->mux_proto->mode == PROTO_MODE_TCP && check_type != TCPCHK_RULES_HTTP_CHK)) &&
+	     (net_addr_type_is_quic(&srv->check.addr_type) == srv_is_quic(srv))) {
 		srv->check.mux_proto = srv->mux_proto;
 	}
 	/* test that check proto is valid if explicitly defined */
@@ -1850,7 +1864,7 @@ int init_srv_check(struct server *srv)
 
 	/* validate <srv> server health-check settings */
 
-	if (srv_is_quic(srv)) {
+	if (net_addr_type_is_quic(&srv->check.addr_type)) {
 		if (srv->check.mux_proto && srv->check.mux_proto != get_mux_proto(ist("quic"))) {
 			ha_alert("config: %s '%s': QUIC server '%s' uses an incompatible MUX protocol for checks.\n",
 			         proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
@@ -2061,8 +2075,9 @@ static int srv_parse_addr(char **args, int *cur_arg, struct proxy *curpx, struct
 			  char **errmsg)
 {
 	struct sockaddr_storage *sk;
-	struct protocol *proto;
+	struct net_addr_type addr_type;
 	int port1, port2, err_code = 0;
+	int alt = 0;
 
 
 	if (!*args[*cur_arg+1]) {
@@ -2070,7 +2085,7 @@ static int srv_parse_addr(char **args, int *cur_arg, struct proxy *curpx, struct
 		goto error;
 	}
 
-	sk = str2sa_range(args[*cur_arg+1], NULL, &port1, &port2, NULL, &proto, NULL, errmsg, NULL, NULL, NULL,
+	sk = str2sa_range(args[*cur_arg+1], NULL, &port1, &port2, NULL, NULL, &addr_type, errmsg, NULL, NULL, &alt,
 	                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM | PA_O_CONNECT);
 	if (!sk) {
 		memprintf(errmsg, "'%s' : %s", args[*cur_arg], *errmsg);
@@ -2078,7 +2093,8 @@ static int srv_parse_addr(char **args, int *cur_arg, struct proxy *curpx, struct
 	}
 
 	srv->check.addr = *sk;
-	srv->check.proto = proto;
+	srv->check.addr_type = addr_type;
+	srv->check.alt_proto = alt;
 	/* if agentaddr was never set, we can use addr */
 	if (!(srv->flags & SRV_F_AGENTADDR))
 		srv->agent.addr = *sk;
@@ -2109,10 +2125,9 @@ static int srv_parse_agent_addr(char **args, int *cur_arg, struct proxy *curpx, 
 	}
 	set_srv_agent_addr(srv, &sk);
 	/* Agent currently only uses TCP */
-	if (sk.ss_family == AF_INET)
-		srv->agent.proto = &proto_tcpv4;
-	else
-		srv->agent.proto = &proto_tcpv6;
+	srv->agent.addr_type.proto_type = PROTO_TYPE_STREAM;
+	srv->agent.addr_type.xprt_type = PROTO_TYPE_STREAM;
+	srv->agent.alt_proto = 0;
   out:
 	return err_code;
 

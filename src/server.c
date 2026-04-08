@@ -2948,9 +2948,11 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	}
 	srv->use_ssl                  = src->use_ssl;
 	srv->check.addr               = src->check.addr;
-	srv->check.proto              = src->check.proto;
+	srv->check.addr_type          = src->check.addr_type;
+	srv->check.alt_proto          = src->check.alt_proto;
 	srv->agent.addr               = src->agent.addr;
-	srv->agent.proto              = src->agent.proto;
+	srv->agent.addr_type          = src->agent.addr_type;
+	srv->agent.alt_proto          = src->agent.alt_proto;
 	srv->check.use_ssl            = src->check.use_ssl;
 	srv->check.port               = src->check.port;
 	if (src->check.sni != NULL)
@@ -4648,10 +4650,9 @@ out:
 		if (port)
 			set_srv_agent_port(s, new_port);
 		/* Agent currently only uses TCP */
-		if (sk.ss_family == AF_INET)
-			s->agent.proto = &proto_tcpv4;
-		else
-			s->agent.proto = &proto_tcpv6;
+		s->agent.addr_type.proto_type = PROTO_TYPE_STREAM;
+		s->agent.addr_type.xprt_type = PROTO_TYPE_STREAM;
+		s->agent.alt_proto = 0;
 	}
 	return NULL;
 }
@@ -4664,9 +4665,10 @@ out:
 const char *srv_update_check_addr_port(struct server *s, const char *addr, const char *port)
 {
 	struct sockaddr_storage *sk = NULL;
-	struct protocol *proto = NULL;
+	struct net_addr_type addr_type;
 	struct buffer *msg;
 	int new_port;
+	int alt = 0;
 
 	msg = get_trash_chunk();
 	chunk_reset(msg);
@@ -4676,7 +4678,7 @@ const char *srv_update_check_addr_port(struct server *s, const char *addr, const
 		goto out;
 	}
 	if (addr) {
-		sk = str2sa_range(addr, NULL, NULL, NULL, NULL, &proto, NULL, NULL, NULL, NULL, NULL, 0);
+		sk = str2sa_range(addr, NULL, NULL, NULL, NULL, NULL, &addr_type, NULL, NULL, NULL, &alt, 0);
 		if (sk == NULL) {
 			chunk_appendf(msg, "invalid addr '%s'", addr);
 			goto out;
@@ -4703,7 +4705,8 @@ out:
 	else {
 		if (sk) {
 			s->check.addr = *sk;
-			s->check.proto = proto;
+			s->check.addr_type = addr_type;
+			s->check.alt_proto = alt;
 		}
 		if (port)
 			s->check.port = new_port;

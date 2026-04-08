@@ -1421,25 +1421,14 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		      ? connect->addr
 		      : (is_addr(&check->addr) ? check->addr : s->addr));
 
-	if (s && srv_is_quic(s) && tcpcheck_use_nondefault_connect(check, connect)) {
-		/* For QUIC servers, fallback to TCP checks if any specific
-		 * check connection parameter is set.
+	if (connect->options & TCPCHK_OPT_DEFAULT_CONNECT)
+		proto = protocol_lookup(conn->dst->ss_family, check->addr_type.proto_type, check->alt_proto);
+	else {
+		/*
+		 * For explicit tcp-check/http-check rules, always assume TCP,
+		 * QUIC is not supported yet.
 		 */
 		proto = protocol_lookup(conn->dst->ss_family, PROTO_TYPE_STREAM, 0);
-		/* Also reset MUX protocol if set to QUIC. */
-		if (check->mux_proto == s->mux_proto)
-			check->mux_proto = NULL;
-	}
-	else {
-		if (check->proto)
-			proto = check->proto;
-		else {
-			if (is_addr(&connect->addr))
-				proto = protocol_lookup(conn->dst->ss_family, PROTO_TYPE_STREAM, 0);
-			else
-				proto = protocol_lookup(conn->dst->ss_family, s->addr_type.proto_type, s->alt_proto);
-
-		}
 	}
 
 	port = 0;

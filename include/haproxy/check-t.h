@@ -24,6 +24,7 @@
 #include <haproxy/connection-t.h>
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/tools-t.h>
 #include <haproxy/vars-t.h>
 
 /* Please note: this file tends to commonly be part of circular dependencies,
@@ -189,7 +190,8 @@ struct check {
 	char **envp;				/* the environment to use if running a process-based check */
 	struct pid_list *curpid;		/* entry in pid_list used for current process-based test, or -1 if not in test */
 	struct sockaddr_storage addr;   	/* the address to check */
-	struct protocol *proto;                 /* protocol used for check, may be different from the server's one */
+	struct net_addr_type addr_type;         /* Address type (dgram/stream for both protocol and XPRT) */
+	int alt_proto;                          /* Needed to know exactly which protocol we are after */
 	char *pool_conn_name;                   /* conn name used on reuse */
 	char *sni;				/* Server name */
 	char *alpn_str;                         /* ALPN to use for checks */
