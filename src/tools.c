@@ -4678,10 +4678,8 @@ char *memvprintf(char **out, const char *format, va_list orig_args)
 		ha_free(&ret);
 	}
 
-	if (out) {
-		free(*out);
-		*out = ret;
-	}
+	free(*out);
+	*out = ret;
 
 	return ret;
 }
