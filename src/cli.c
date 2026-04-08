@@ -819,8 +819,8 @@ static int cli_process_cmdline(struct appctx *appctx)
 	 */
 	if (end == end_of_cmdline) {
 		appctx->st1 |= APPCTX_CLI_ST1_LASTCMD;
-		if (appctx->cli_ctx.payload)
-			payload = appctx->cli_ctx.payload;
+		if (b_data(&appctx->cli_ctx.payload))
+			payload = b_head(&appctx->cli_ctx.payload);
 	}
 
 	/* throw an error if too many args are provided */
@@ -948,8 +948,8 @@ int cli_init(struct appctx *appctx)
 	appctx->st0 = CLI_ST_PARSE_CMDLINE;
 	appctx->cli_ctx.level = bind_conf->level;
 	appctx->cli_ctx.payload_pat = NULL;
-	appctx->cli_ctx.payload = NULL;
 	appctx->cli_ctx.cmdline = NULL;
+	appctx->cli_ctx.payload = BUF_NULL;
 
 	/* Wakeup the applet ASAP. */
         applet_need_more_data(appctx);
@@ -978,6 +978,7 @@ int cli_parse_cmdline(struct appctx *appctx)
 	}
 
 	while (1) {
+		struct buffer *buf;
 
 		/* payload doesn't take escapes nor does it end on semi-colons,
 		 * so we use the regular getline. Normal mode however must stop
@@ -985,14 +986,15 @@ int cli_parse_cmdline(struct appctx *appctx)
 		 * Note we reserve one byte at the end to insert a trailing nul
 		 * byte.
 		 */
-		str = b_tail(appctx->cli_ctx.cmdline);
+		buf = (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD) ? &appctx->cli_ctx.payload : appctx->cli_ctx.cmdline;
+		str = b_tail(buf);
 		if (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD))
-			len = b_getdelim(&appctx->inbuf, 0, b_data(&appctx->inbuf), str, b_room(appctx->cli_ctx.cmdline), "\n;", '\\');
+			len = b_getdelim(&appctx->inbuf, 0, b_data(&appctx->inbuf), str, b_room(buf), "\n;", '\\');
 		else
-			len = b_getline(&appctx->inbuf, 0, b_data(&appctx->inbuf), str, b_room(appctx->cli_ctx.cmdline) - 1);
+			len = b_getline(&appctx->inbuf, 0, b_data(&appctx->inbuf), str, b_room(buf) - 1);
 
 		if (!len) {
-			if (!b_room(appctx->cli_ctx.cmdline) || (b_data(&appctx->inbuf) > b_room(appctx->cli_ctx.cmdline) - 1)) {
+			if (!b_room(buf) || (b_data(&appctx->inbuf) > b_room(buf) - 1)) {
 				cli_err(appctx, "The command line is too big for the buffer size. Please change tune.bufsize in the configuration to use a bigger command.\n");
 				applet_set_error(appctx);
 				b_reset(&appctx->inbuf);
@@ -1002,7 +1004,7 @@ int cli_parse_cmdline(struct appctx *appctx)
 		}
 
 		b_del(&appctx->inbuf, len);
-		b_add(appctx->cli_ctx.cmdline,  len);
+		b_add(buf,  len);
 		applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
 
 		if (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)) {
@@ -1065,7 +1067,7 @@ int cli_parse_cmdline(struct appctx *appctx)
 					*last_arg = '\0';
 
 					/* The payload will start on the next character in the buffer */
-					appctx->cli_ctx.payload = b_tail(appctx->cli_ctx.cmdline);
+					appctx->cli_ctx.payload = b_make(b_tail(buf), b_room(buf), 0, 0);
 					appctx->st1 |= APPCTX_CLI_ST1_PAYLOAD;
 				}
 			}
@@ -1083,8 +1085,8 @@ int cli_parse_cmdline(struct appctx *appctx)
 			if (len-1 == strlen(appctx->cli_ctx.payload_pat)) {
 				if (strncmp(str, appctx->cli_ctx.payload_pat, len-1) == 0) {
 					/* end of payload was reached, rewind before the previous \n and replace it by a \0 */
-					b_sub(appctx->cli_ctx.cmdline, strlen(appctx->cli_ctx.payload_pat) + 2);
-					*b_tail(appctx->cli_ctx.cmdline) = '\0';
+					b_sub(buf, strlen(appctx->cli_ctx.payload_pat) + 2);
+					*b_tail(buf) = '\0';
 					appctx->st1 &= ~APPCTX_CLI_ST1_PAYLOAD;
 				}
 			}
@@ -1299,8 +1301,8 @@ void cli_io_handler(struct appctx *appctx)
 				applet_reset_svcctx(appctx);
 				free_trash_chunk(appctx->cli_ctx.cmdline);
 				appctx->cli_ctx.payload_pat = NULL;
-				appctx->cli_ctx.payload = NULL;
 				appctx->cli_ctx.cmdline = NULL;
+				appctx->cli_ctx.payload = BUF_NULL;
 				appctx->st1 &= ~APPCTX_CLI_ST1_LASTCMD;
 				if (appctx->st1 & APPCTX_CLI_ST1_INTER) {
 					appctx->st0 = CLI_ST_PARSE_CMDLINE;
