@@ -502,7 +502,8 @@ static void session_kill_embryonic(struct session *sess, unsigned int state)
 		if (!conn->err_code ||
 		    conn->err_code == CO_ER_PRX_EMPTY || conn->err_code == CO_ER_PRX_ABORT ||
 		    conn->err_code == CO_ER_CIP_EMPTY || conn->err_code == CO_ER_CIP_ABORT ||
-		    conn->err_code == CO_ER_SSL_EMPTY || conn->err_code == CO_ER_SSL_ABORT)
+		    conn->err_code == CO_ER_SSL_EMPTY || conn->err_code == CO_ER_SSL_ABORT ||
+		    conn->err_code == CO_ER_QSTRM)
 			log = 0;
 	}
 
@@ -514,6 +515,8 @@ static void session_kill_embryonic(struct session *sess, unsigned int state)
 				conn->err_code = CO_ER_CIP_TIMEOUT;
 			else if (conn->flags & CO_FL_SSL_WAIT_HS)
 				conn->err_code = CO_ER_SSL_TIMEOUT;
+			else if (conn->flags & CO_FL_QSTRM_RECV)
+				conn->err_code = CO_ER_QSTRM;
 		}
 
 		sess_log_embryonic(sess);

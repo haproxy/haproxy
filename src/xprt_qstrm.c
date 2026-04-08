@@ -65,7 +65,8 @@ int conn_recv_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int fla
 
 	do {
 		ret = ctx->ops_lower->rcv_buf(conn, ctx->ctx_lower, buf, b_room(buf), NULL, 0, 0);
-		BUG_ON(conn->flags & CO_FL_ERROR);
+		if (conn->flags & CO_FL_ERROR)
+			goto fail;
 	} while (ret);
 
 	if (!b_data(buf))
@@ -91,6 +92,7 @@ int conn_recv_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int fla
 	return 0;
 
  fail:
+	conn->err_code = CO_ER_QSTRM;
 	conn->flags |= CO_FL_ERROR;
 	return 0;
 }
@@ -123,6 +125,9 @@ int conn_send_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int fla
 
 	sent = ctx->ops_lower->snd_buf(conn, ctx->ctx_lower, buf, b_data(buf),
 	                               NULL, 0, 0);
+	if (conn->flags & CO_FL_ERROR)
+		goto fail;
+
 	b_del(buf, sent);
 	if (b_data(buf))
 		goto retry;
@@ -135,6 +140,7 @@ int conn_send_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int fla
 	return 0;
 
  fail:
+	conn->err_code = CO_ER_QSTRM;
 	conn->flags |= CO_FL_ERROR;
 	return 0;
 }
@@ -143,20 +149,23 @@ struct task *xprt_qstrm_io_cb(struct task *t, void *context, unsigned int state)
 {
 	struct xprt_qstrm_ctx *ctx = context;
 	struct connection *conn = ctx->conn;
-	int ret;
 
 	if (conn->flags & CO_FL_QSTRM_SEND) {
 		if (!conn_send_qstrm(conn, ctx, CO_FL_QSTRM_SEND)) {
-			ctx->ops_lower->subscribe(conn, ctx->ctx_lower,
-			                          SUB_RETRY_SEND, &ctx->wait_event);
+			if (!(conn->flags & CO_FL_ERROR)) {
+				ctx->ops_lower->subscribe(conn, ctx->ctx_lower,
+				                          SUB_RETRY_SEND, &ctx->wait_event);
+			}
 			goto out;
 		}
 	}
 
 	if (conn->flags & CO_FL_QSTRM_RECV) {
 		if (!conn_recv_qstrm(conn, ctx, CO_FL_QSTRM_RECV)) {
-			ctx->ops_lower->subscribe(conn, ctx->ctx_lower,
-			                          SUB_RETRY_RECV, &ctx->wait_event);
+			if (!(conn->flags & CO_FL_ERROR)) {
+				ctx->ops_lower->subscribe(conn, ctx->ctx_lower,
+				                          SUB_RETRY_RECV, &ctx->wait_event);
+			}
 			goto out;
 		}
 	}
@@ -164,15 +173,17 @@ struct task *xprt_qstrm_io_cb(struct task *t, void *context, unsigned int state)
  out:
 	if ((conn->flags & CO_FL_ERROR) ||
 	    !(conn->flags & (CO_FL_QSTRM_RECV|CO_FL_QSTRM_SEND))) {
+		/* XPRT should be unsubscribed when transfer done or on error. */
+		BUG_ON(ctx->wait_event.events);
+
 		/* MUX will access members from xprt_ctx on init, so create
 		 * operation should be called before any members are resetted.
 		 */
-		ret = conn_create_mux(conn, NULL);
-		BUG_ON(ret);
+		if (conn_create_mux(conn, NULL) == 0)
+			conn->mux->wake(conn);
 
 		conn->xprt_ctx = ctx->ctx_lower;
 		conn->xprt = ctx->ops_lower;
-		conn->mux->wake(conn);
 
 		b_free(&ctx->rxbuf);
 		b_free(&ctx->txbuf);

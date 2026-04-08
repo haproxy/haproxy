@@ -863,6 +863,8 @@ const char *conn_err_code_str(struct connection *c)
 
 	case CO_ER_SSL_FATAL:      return "SSL fatal error";
 
+	case CO_ER_QSTRM:          return "Error during QMux transport parameters initial exchange";
+
 	case CO_ER_REVERSE:        return "Reverse connect failure";
 
 	case CO_ER_POLLERR:        return "Poller reported POLLERR";

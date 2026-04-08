@@ -285,6 +285,8 @@ enum {
 
 	CO_ER_SSL_FATAL,         /* SSL fatal error during a SSL_read or SSL_write */
 
+	CO_ER_QSTRM,             /* QMux transport parameter exchange failure */
+
 	CO_ER_REVERSE,           /* Error during reverse connect */
 
 	CO_ER_POLLERR,           /* we only noticed POLLERR */
