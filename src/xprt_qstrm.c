@@ -20,6 +20,7 @@ struct xprt_qstrm_ctx {
 	struct quic_transport_params lparams;
 	struct quic_transport_params rparams;
 
+	struct buffer txbuf;
 	struct buffer rxbuf;
 };
 
@@ -97,7 +98,9 @@ int conn_recv_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int fla
 int conn_send_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int flag)
 {
 	struct quic_frame frm;
+	struct buffer *buf = &ctx->txbuf;
 	unsigned char *pos, *old, *end;
+	size_t sent;
 	int ret;
 
 	if (!conn_ctrl_ready(conn))
@@ -106,20 +109,30 @@ int conn_send_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int fla
 	frm.type = QUIC_FT_QX_TRANSPORT_PARAMETERS;
 	frm.qmux_transport_params.params = ctx->lparams;
 
-	b_reset(&trash);
-	old = pos = (unsigned char *)b_head(&trash);
-	end = (unsigned char *)b_wrap(&trash);
-	ret = qc_build_frm(&frm, &pos, end, NULL);
-	BUG_ON(!ret);
-	b_add(&trash, pos - old);
+	/* Small buf is sufficient for our transport parameters. */
+	if (!b_size(buf) && !b_alloc_small(buf))
+		goto fail;
 
-	ret = ctx->ops_lower->snd_buf(conn, ctx->ctx_lower, &trash, b_data(&trash),
-	                              NULL, 0, 0);
-	BUG_ON(!ret || ret != b_data(&trash));
+	if (!b_data(buf)) {
+		old = pos = (unsigned char *)b_orig(buf);
+		end = (unsigned char *)b_wrap(buf);
+		ret = qc_build_frm(&frm, &pos, end, NULL);
+		BUG_ON(!ret);
+		b_add(buf, pos - old);
+	}
+
+	sent = ctx->ops_lower->snd_buf(conn, ctx->ctx_lower, buf, b_data(buf),
+	                               NULL, 0, 0);
+	b_del(buf, sent);
+	if (b_data(buf))
+		goto retry;
 
 	conn->flags &= ~flag;
 
 	return 1;
+
+ retry:
+	return 0;
 
  fail:
 	conn->flags |= CO_FL_ERROR;
@@ -162,6 +175,7 @@ struct task *xprt_qstrm_io_cb(struct task *t, void *context, unsigned int state)
 		conn->mux->wake(conn);
 
 		b_free(&ctx->rxbuf);
+		b_free(&ctx->txbuf);
 
 		tasklet_free(ctx->wait_event.tasklet);
 		pool_free(xprt_qstrm_ctx_pool, ctx);
@@ -210,6 +224,7 @@ static int xprt_qstrm_init(struct connection *conn, void **xprt_ctx)
 	ctx->ops_lower = NULL;
 
 	ctx->rxbuf = BUF_NULL;
+	ctx->txbuf = BUF_NULL;
 
 	memset(&ctx->rparams, 0, sizeof(struct quic_transport_params));
 
