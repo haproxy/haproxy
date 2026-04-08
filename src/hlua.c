@@ -8074,11 +8074,6 @@ struct http_hdr *hlua_httpclient_table_to_hdrs(lua_State *L)
 				goto skip_headers;
 			}
 
-			if (hdr_num >= global.tune.max_http_hdr) {
-				lua_pop(L, 2);
-				goto skip_headers;
-			}
-
 			v = lua_tolstring(L, -1, &vlen);
 			value = ist2(v, vlen);
 			name = ist2(n, nlen);
