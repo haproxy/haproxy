@@ -994,6 +994,7 @@ int cli_parse_cmdline(struct appctx *appctx)
 				cli_err(appctx, "The command line is too big for the buffer size. Please change tune.bufsize in the configuration to use a bigger command.\n");
 				applet_set_error(appctx);
 				b_reset(&appctx->inbuf);
+				goto end;
 			}
 			break;
 		}
