@@ -30,14 +30,14 @@ runs:
       id: cache-vtest
       uses: actions/cache@v5
       with:
-        path: ${{ github.workspace }}/../vtest
+        path: ${{ github.workspace }}/vtest
         key: vtest-${{ runner.os }}-${{ steps.vtest-sha.outputs.sha }}
 
     - name: Install VTest
       if: steps.cache-vtest.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        scripts/build-vtest.sh
+        DESTDIR=${{ github.workspace }}/vtest scripts/build-vtest.sh
 
     - name: Install problem matcher for VTest
       shell: bash

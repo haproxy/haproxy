@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v5
       - name: Install VTest
         run: |
-          scripts/build-vtest.sh
+          DESTDIR=${{ github.workspace }}/vtest scripts/build-vtest.sh
       - name: Install apt dependencies
         run: |
           sudo apt-get update -o Acquire::Languages=none -o Acquire::Translation=none
@@ -51,7 +51,7 @@ jobs:
           ulimit -n 65536
           # allow to catch coredumps
           ulimit -c unlimited
-          make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
+          make reg-tests VTEST_PROGRAM=${{ github.workspace }}/vtest/vtest REGTESTS_TYPES=default,bug,devel
       - name: Show VTest results
         if: ${{ failure() && steps.vtest.outcome == 'failure' }}
         run: |
