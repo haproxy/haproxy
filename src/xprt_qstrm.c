@@ -5,6 +5,7 @@
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
 #include <haproxy/mux_quic.h>
+#include <haproxy/mux_quic_qstrm.h>
 #include <haproxy/pool.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_tp-t.h>
@@ -22,6 +23,7 @@ struct xprt_qstrm_ctx {
 
 	struct buffer txbuf;
 	struct buffer rxbuf;
+	size_t rxrlen;
 };
 
 DECLARE_STATIC_TYPED_POOL(xprt_qstrm_ctx_pool, "xprt_qstrm_ctx", struct xprt_qstrm_ctx);
@@ -45,11 +47,17 @@ struct buffer *xprt_qstrm_rxbuf(void *context)
 	return &ctx->rxbuf;
 }
 
+size_t xprt_qstrm_rxrlen(const void *context)
+{
+	const struct xprt_qstrm_ctx *ctx = context;
+	return ctx->rxrlen;
+}
+
 int conn_recv_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int flag)
 {
 	struct quic_frame frm;
 	struct buffer *buf = &ctx->rxbuf;
-	const unsigned char *pos, *end;
+	const unsigned char *pos, *old, *end;
 	size_t ret;
 
 	if (!conn_ctrl_ready(conn))
@@ -72,18 +80,32 @@ int conn_recv_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int fla
 	if (!b_data(buf))
 		goto not_ready;
 
-	pos = (unsigned char *)b_orig(buf);
-	end = (unsigned char *)(b_orig(buf) + b_data(buf));
-	if (!qc_parse_frm_type(&frm, &pos, end, NULL))
+	/* Read record length. */
+	if (!b_quic_dec_int(&ctx->rxrlen, buf, NULL))
 		goto not_ready;
+
+	/* Reject too small or too big records. */
+	if (!ctx->rxrlen || ctx->rxrlen > b_size(buf))
+		goto fail;
+	if (ctx->rxrlen > b_data(buf))
+		goto not_ready;
+
+	old = pos = (unsigned char *)b_head(buf);
+	end = pos + ctx->rxrlen;
+	if (!qc_parse_frm_type(&frm, &pos, end, NULL))
+		goto fail;
 
 	/* TODO close connection with TRANSPORT_PARAMETER_ERROR if frame not present. */
 	BUG_ON(frm.type != QUIC_FT_QX_TRANSPORT_PARAMETERS);
 
 	if (!qc_parse_frm_payload(&frm, &pos, end, NULL))
-		goto not_ready;
+		goto fail;
 
 	ctx->rparams = frm.qmux_transport_params.params;
+	b_del(buf, pos - old);
+	/* <end> delimiter should guarantee than frame length does not go beyong the record end */
+	BUG_ON(ctx->rxrlen < pos - old);
+	ctx->rxrlen -= (pos - old);
 
 	conn->flags &= ~flag;
 	return 1;
@@ -235,6 +257,7 @@ static int xprt_qstrm_init(struct connection *conn, void **xprt_ctx)
 	ctx->ops_lower = NULL;
 
 	ctx->rxbuf = BUF_NULL;
+	ctx->rxrlen = 0;
 	ctx->txbuf = BUF_NULL;
 
 	memset(&ctx->rparams, 0, sizeof(struct quic_transport_params));

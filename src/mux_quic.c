@@ -3802,8 +3802,13 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 
 		/* Retrieve data if xprt read too much */
 		xprt_buf = xprt_qstrm_rxbuf(conn->xprt_ctx);
-		if (unlikely(b_data(xprt_buf)))
+		if (unlikely(b_data(xprt_buf))) {
 			b_xfer(&qcc->rx.qstrm_buf, xprt_buf, b_data(xprt_buf));
+			qcc->rx.rlen = xprt_qstrm_rxrlen(conn->xprt_ctx);
+		}
+		else {
+			qcc->rx.rlen = 0;
+		}
 	}
 
 	if (conn_is_back(conn)) {
