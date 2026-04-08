@@ -616,10 +616,11 @@ static inline const struct mux_proto_list *conn_get_best_mux_entry(
 	struct mux_proto_list *fallback = NULL;
 
 	list_for_each_entry(item, &mux_proto_list.list, list) {
-		if (!(item->side & proto_side) || !(item->mode & proto_mode) || (proto_is_quic && !(item->mux->flags & MX_FL_FRAMED)))
+		if (!(item->side & proto_side) || !(item->mode & proto_mode) || ((proto_is_quic != 0) != ((item->mux->flags & MX_FL_FRAMED) != 0)))
 			continue;
-		if (istlen(mux_proto) && isteq(mux_proto, item->token))
+		if (istlen(mux_proto) && isteq(mux_proto, item->token)) {
 			return item;
+		}
 		else if (!istlen(item->token)) {
 			if (!fallback || (item->mode == proto_mode && fallback->mode != proto_mode))
 				fallback = item;
