@@ -509,7 +509,7 @@ static int hstream_build_http_100_continue_resp(struct hstream *hs)
 
 	htx = htx_from_buf(buf);
 	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, ist("HTTP/1.1"),
-						ist("100-continue"), IST_NULL);
+			    ist("100"), ist("continue"));
 	if (!sl) {
 		TRACE_ERROR("could not add HTX start line", HS_EV_HSTRM_SEND, hs);
 		goto err;
