@@ -1914,6 +1914,11 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 	if (outbuf.size < FCGI_RECORD_HEADER_SZ)
 		goto full;
 
+	/* FCGI record size is uint16_t; cap output to avoid truncation in
+	 * fcgi_set_record_size() when tune.bufsize is large. */
+	if (outbuf.size > 0xFFFF + FCGI_RECORD_HEADER_SZ)
+		outbuf.size = 0xFFFF + FCGI_RECORD_HEADER_SZ;
+
 	/* vsn: 1(FCGI_VERSION), type: (4)FCGI_PARAMS, id: fstrm->id,
 	 *  len: 0x0000 (fill later), padding: 0x00, rsv: 0x00 */
 	memcpy(outbuf.area, "\x01\x04\x00\x00\x00\x00\x00\x00", FCGI_RECORD_HEADER_SZ);
@@ -2153,7 +2158,14 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 		goto end;
 	type = htx_get_blk_type(blk);
 	size = htx_get_blksz(blk);
-	if (unlikely(size == count && b_size(mbuf) == b_size(buf) &&
+	/* FCGI content_len is uint16_t. With tune.bufsize >= 65544 a single
+	 * HTX block can exceed 65535 bytes; the implicit truncation in
+	 * fcgi_set_record_size() would then desynchronize the record
+	 * stream and let the client smuggle a forged FCGI request to the
+	 * backend. Refuse zero-copy in that case and let the copy path
+	 * split the data across multiple records.
+	 */
+	if (unlikely(size <= 0xFFFF && size == count && b_size(mbuf) == b_size(buf) &&
 		     htx_nbblks(htx) == 1 && type == HTX_BLK_DATA)) {
 		void *old_area = mbuf->area;
 		int eom = (htx->flags & HTX_FL_EOM);
@@ -2211,6 +2223,11 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 
 	if (outbuf.size < FCGI_RECORD_HEADER_SZ + extra_bytes)
 		goto full;
+
+	/* FCGI content_len is uint16_t; cap output to avoid truncation in
+	 * fcgi_set_record_size() when tune.bufsize is large. */
+	if (outbuf.size > 0xFFFF + FCGI_RECORD_HEADER_SZ)
+		outbuf.size = 0xFFFF + FCGI_RECORD_HEADER_SZ;
 
 	/* vsn: 1(FCGI_VERSION), type: (5)FCGI_STDIN, id: fstrm->id,
 	 *  len: 0x0000 (fill later), padding: 0x00, rsv: 0x00 */
