@@ -1511,10 +1511,14 @@ static enum act_return http_action_set_headers_bin(struct act_rule *rule, struct
 			goto leave;
 		}
 
+		if (sz > (uint64_t)(end - p))
+			goto fail_rewrite;
 		n = ist2(p, sz);
 		p += sz;
 
 		if (decode_varint(&p, end, &sz) == -1)
+			goto fail_rewrite;
+		if (sz > (uint64_t)(end - p))
 			goto fail_rewrite;
 
 		v = ist2(p, sz);
@@ -1935,6 +1939,8 @@ static enum act_return http_action_del_headers_bin(struct act_rule *rule, struct
 			goto fail_rewrite;
 		if (!sz)
 			goto leave;
+		if (sz > (uint64_t)(end - p))
+			goto fail_rewrite;
 
 		n = ist2(p, sz);
 		p += sz;
