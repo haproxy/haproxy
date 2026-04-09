@@ -713,12 +713,27 @@ static inline void _task_schedule(struct task *task, int when, const struct ha_c
 
 #ifdef USE_THREAD
 	if (task->tid < 0) {
+		int was_running;
+		/*
+		 * Make sure the task is not already running before changing
+		 * its expire, otherwise it could overwrite our modification
+		 */
+		if (task == th_ctx->current)
+			was_running = 1;
+		else {
+			was_running = 0;
+			while (HA_ATOMIC_FETCH_OR(&task->state, TASK_RUNNING) & TASK_RUNNING)
+				__ha_cpu_relax();
+		}
+
 		/* FIXME: is it really needed to lock the WQ during the check ? */
 		HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
 		if (task_in_wq(task))
 			when = tick_first(when, task->expire);
 
 		task->expire = when;
+		if (!was_running)
+			task_drop_running(task, 0);
 		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key)) {
 			if (likely(caller)) {
 				caller = HA_ATOMIC_XCHG(&task->caller, caller);
