@@ -6177,6 +6177,17 @@ __LJMP static int hlua_applet_http_status(lua_State *L)
 	}
 
 	http_ctx->status = status;
+	/* Anchor the reason string in the registry so the Lua GC can't
+	 * collect it before start_response() reads it back. The previous
+	 * direct pointer assignment was a use-after-free if a GC ran
+	 * between set_status() and start_response().
+	 */
+	lua_pushlightuserdata(L, &http_ctx->reason);
+	if (reason)
+		lua_pushvalue(L, 3);
+	else
+		lua_pushnil(L);
+	lua_settable(L, LUA_REGISTRYINDEX);
 	http_ctx->reason = reason;
 	lua_pushboolean(L, 1);
 	return 1;
