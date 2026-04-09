@@ -1527,7 +1527,6 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 				goto invalid_resp;
 			answer_record->data.in6.sin6_family = AF_INET6;
 			memcpy(&answer_record->data.in6.sin6_addr, reader, answer_record->data_len);
-			break;
 		}
 		else {
 			pool_free(resolv_answer_item_pool, answer_record);
