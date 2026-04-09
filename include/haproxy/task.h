@@ -775,6 +775,11 @@ static inline void task_destroy(struct task *t)
 	if (!t)
 		return;
 
+	if (t->tid != tid) {
+		task_kill(t);
+		return;
+	}
+
 	task_unlink_wq(t);
 	/* We don't have to explicitly remove from the run queue.
 	 * If we are in the runqueue, the test below will set t->process
