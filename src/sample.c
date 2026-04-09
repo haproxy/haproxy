@@ -885,7 +885,7 @@ static int c_int2str(struct sample *smp)
  */
 int smp_dup(struct sample *smp)
 {
-	struct buffer *trash;
+	struct buffer *trash, *buf;
 
 	switch (smp->data.type) {
 	case SMP_T_BOOL:
@@ -902,19 +902,17 @@ int smp_dup(struct sample *smp)
 		__fallthrough;
 
 	case SMP_T_STR:
-		trash = get_trash_chunk_sz(smp->data.u.str.data+1);
+		buf = (smp->data.type == SMP_T_STR ? &smp->data.u.str : &smp->data.u.meth.str);
+		trash = get_trash_chunk_sz(buf->data+1);
 		if (!trash)
 			return 0;
-		trash->data = smp->data.type == SMP_T_STR ?
-		    smp->data.u.str.data : smp->data.u.meth.str.data;
+		trash->data = buf->data;
 		if (trash->data > trash->size - 1)
 			trash->data = trash->size - 1;
 
-		memcpy(trash->area, smp->data.type == SMP_T_STR ?
-		    smp->data.u.str.area : smp->data.u.meth.str.area,
-		    trash->data);
+		memcpy(trash->area, buf->area, trash->data);
 		trash->area[trash->data] = 0;
-		smp->data.u.str = *trash;
+		*buf = *trash;
 		break;
 
 	case SMP_T_BIN:
