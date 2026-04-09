@@ -3298,7 +3298,12 @@ static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp, void 
 		if (!output)
 			break;
 
-		output->data = exp_replace(output->area, output->size, start, arg_p[1].data.str.area, pmatch);
+		max = exp_replace(output->area, output->size, start, arg_p[1].data.str.area, pmatch);
+		if ((int)max < 0) {
+			free_trash_chunk(output);
+			break;
+		}
+		output->data = max;
 
 		/* If too many data to copy try to get a larger chunk */
 		if (output->data > b_room(trash)) {
