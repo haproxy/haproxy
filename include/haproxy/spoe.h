@@ -76,7 +76,7 @@ static inline int spoe_decode_buffer(char **buf, char *end, char **str, uint64_t
 	*len = 0;
 
 	ret = decode_varint(&p, end, &sz);
-	if (ret == -1 || p + sz > end)
+	if (ret == -1 || sz > (uint64_t)(end - p))
 		return -1;
 
 	*str = p;
