@@ -5,11 +5,6 @@
 #include <haproxy/http-t.h>
 #include <haproxy/obj_type-t.h>
 
-/* Size in bytes of the prebuilts response buffers */
-#define RESPSIZE 16384
-/* Number of bytes by body response line */
-#define HS_COMMON_RESPONSE_LINE_SZ 50
-
 /* hastream stream */
 struct hstream {
 	enum obj_type obj_type;
