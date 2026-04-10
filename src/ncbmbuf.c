@@ -218,8 +218,14 @@ int ncbmb_is_empty(const struct ncbmbuf *buf)
 
 int ncbmb_is_full(const struct ncbmbuf *buf)
 {
-	/* TODO */
-	return 0;
+	size_t i = 0;
+
+	for (i = 0; i < buf->size_bm; ++i) {
+		if (!buf->bitmap[i])
+			return 0;
+	}
+
+	return 1;
 }
 
 int ncbmb_is_fragmented(const struct ncbmbuf *buf)
