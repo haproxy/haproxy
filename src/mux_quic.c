@@ -3784,6 +3784,8 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	}
 
 	if (!conn_is_quic(conn)) {
+		struct buffer *xprt_buf;
+
 		qcc->tx.qstrm_buf = BUF_NULL;
 		b_alloc(&qcc->tx.qstrm_buf, DB_MUX_TX);
 		if (!b_size(&qcc->tx.qstrm_buf)) {
@@ -3797,6 +3799,11 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 			TRACE_ERROR("rx qstrm buf alloc failure", QMUX_EV_QCC_NEW);
 			goto err;
 		}
+
+		/* Retrieve data if xprt read too much */
+		xprt_buf = xprt_qstrm_rxbuf(conn->xprt_ctx);
+		if (unlikely(b_data(xprt_buf)))
+			b_xfer(&qcc->rx.qstrm_buf, xprt_buf, b_data(xprt_buf));
 	}
 
 	if (conn_is_back(conn)) {
@@ -3857,8 +3864,14 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	qcc_reset_idle_start(qcc);
 	LIST_INIT(&qcc->opening_list);
 
-	if (conn_is_quic(conn))
+	if (conn_is_quic(conn)) {
 		HA_ATOMIC_STORE(&conn->handle.qc->qcc, qcc);
+	}
+	else {
+		/* Wakeup MUX immediately if data copied from XPRT layer. */
+		if (unlikely(b_data(&qcc->rx.qstrm_buf)))
+			tasklet_wakeup(qcc->wait_event.tasklet);
+	}
 
 	/* Register conn as app_ops may use it. */
 	qcc->conn = conn;

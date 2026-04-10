@@ -37,6 +37,13 @@ const struct quic_transport_params *xprt_qstrm_rparams(const void *context)
 	return &ctx->rparams;
 }
 
+/* Returns RX buffer as mutable to allow zero-copy by the caller. */
+struct buffer *xprt_qstrm_rxbuf(void *context)
+{
+	struct xprt_qstrm_ctx *ctx = context;
+	return &ctx->rxbuf;
+}
+
 int conn_recv_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int flag)
 {
 	struct quic_frame frm;
