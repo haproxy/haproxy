@@ -4,6 +4,7 @@
 #include <haproxy/buf.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/chunk.h>
+#include <haproxy/compat.h>
 #include <haproxy/global.h>
 #include <haproxy/hstream-t.h>
 #include <haproxy/http_htx.h>
@@ -332,6 +333,7 @@ static int hstream_ff_snd(struct connection *conn, struct hstream *hs)
 	nego_flags |= NEGO_FF_FL_EXACT_SIZE;
 #if defined(USE_LINUX_SPLICE)
 	if ((global.tune.options & GTUNE_USE_SPLICE) &&
+	    master_pipe &&
 	    !(sd->iobuf.flags & IOBUF_FL_NO_SPLICING) &&
 	    !(hs->flags & HS_ST_OPT_NO_SPLICING))
 		nego_flags |= NEGO_FF_FL_MAY_SPLICE;
@@ -348,6 +350,7 @@ static int hstream_ff_snd(struct connection *conn, struct hstream *hs)
 
 #if defined(USE_LINUX_SPLICE)
 	if (sd->iobuf.pipe) {
+		BUG_ON(master_pipesize == 0 || master_pipe == NULL);
 		if (len > master_pipesize)
 			len = master_pipesize;
 		ret = tee(master_pipe->cons, sd->iobuf.pipe->prod, len, SPLICE_F_NONBLOCK);
@@ -1207,11 +1210,13 @@ static int hstream_build_responses(void)
 #if defined(USE_LINUX_SPLICE)
 static void hstream_init_splicing(void)
 {
-	if (!(global.tune.options & GTUNE_USE_SPLICE))
+	unsigned int pipesize = 65536 * 5 / 4;
+
+	if (!(global.tune.options & GTUNE_USE_SPLICE) || !global.maxpipes)
 		return;
 
-	if (!global.tune.pipesize)
-		global.tune.pipesize = 65536 * 5 / 4;
+	if (global.tune.pipesize)
+		pipesize = global.tune.pipesize;
 
 	master_pipe = get_pipe();
 	if (master_pipe) {
@@ -1219,30 +1224,31 @@ static void hstream_init_splicing(void)
 				   .iov_len = sizeof(common_response) };
 		int total, ret;
 
+#ifdef F_SETPIPE_SZ
+                fcntl(master_pipe->cons, F_SETPIPE_SZ, pipesize);
+#endif
 		total = ret = 0;
 		do {
 			ret = vmsplice(master_pipe->prod, &v, 1, SPLICE_F_NONBLOCK);
 			if (ret > 0)
 				total += ret;
-		} while (ret > 0 && total < global.tune.pipesize);
+		} while (ret > 0 && total < pipesize);
 		master_pipesize = total;
 
-		if (master_pipesize < global.tune.pipesize) {
+		if (master_pipesize < pipesize) {
 			if (master_pipesize < 60*1024) {
 				/* Older kernels were limited to around 60-61 kB */
-				ha_warning("Failed to vmsplice response buffer after %lu bytes, splicing disabled\n", master_pipesize);
-				global.tune.options &= ~GTUNE_USE_SPLICE;
+				ha_warning("Failed to vmsplice haterm mastre pipe after %lu bytes, splicing disabled for haterm\n", master_pipesize);
 				put_pipe(master_pipe);
 				master_pipe = NULL;
+				master_pipesize = 0;
 			}
 			else
-				ha_warning("Splicing is limited to %lu bytes (too old kernel)\n", master_pipesize);
+				ha_warning("Splicing in haterm is limited to %lu bytes (too old kernel)\n", master_pipesize);
 		}
 	}
-	else {
-		ha_warning("Unable to allocate master pipe for splicing, splicing disabled\n");
-		global.tune.options &= ~GTUNE_USE_SPLICE;
-	}
+	else
+		ha_warning("Unable to allocate haterm master pipe for splicing, splicing disabled for haterm\n");
 }
 
 static void hstream_deinit(void)
