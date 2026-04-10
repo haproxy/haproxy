@@ -3032,7 +3032,9 @@ static int qcc_io_send(struct qcc *qcc)
 		/* Prepare a CONNECTION_CLOSE if not already done. */
 		if (!(qcc->flags & QC_CF_ERRL_DONE)) {
 			TRACE_DATA("report a connection error", QMUX_EV_QCC_SEND|QMUX_EV_QCC_ERR, qcc->conn);
-			quic_set_connection_close(qcc->conn->handle.qc, qcc->err);
+			/* TODO implement a QMux alternative */
+			if (conn_is_quic(qcc->conn))
+				quic_set_connection_close(qcc->conn->handle.qc, qcc->err);
 			qcc->flags |= QC_CF_ERRL_DONE;
 		}
 		goto out;
