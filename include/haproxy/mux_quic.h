@@ -53,7 +53,8 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err);
 
 static inline int qmux_stream_rx_bufsz(void)
 {
-	return global.tune.bufsize - NCB_RESERVED_SZ;
+	ncb_sz_t size_bm = (global.tune.bufsize + 8) / 9;
+	return global.tune.bufsize - size_bm;
 }
 
 #define QCS_ID_TYPE_MASK         0x3

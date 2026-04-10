@@ -12,7 +12,7 @@
 #include <haproxy/connection-t.h>
 #include <haproxy/htx-t.h>
 #include <haproxy/list-t.h>
-#include <haproxy/ncbuf-t.h>
+#include <haproxy/ncbmbuf-t.h>
 #include <haproxy/quic_fctl-t.h>
 #include <haproxy/quic_frame-t.h>
 #include <haproxy/quic_pacing-t.h>
@@ -153,7 +153,7 @@ enum qcs_state {
  */
 struct qc_stream_rxbuf {
 	struct eb64_node off_node; /* base offset of current buffer, node for QCS rx.bufs */
-	struct ncbuf ncb;          /* data storage with support for out of order offset */
+	struct ncbmbuf ncb;        /* data storage with support for out of order offset */
 	uint64_t off_end;          /* first offset directly outside of current buffer */
 };
 
