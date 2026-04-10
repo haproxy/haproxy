@@ -77,6 +77,12 @@ static int qstrm_parse_frm(struct qcc *qcc, struct buffer *buf)
 		struct qf_max_stream_data *msd_frm = &frm.max_stream_data;
 		qcc_recv_max_stream_data(qcc, msd_frm->id, msd_frm->max_stream_data);
 	}
+	else if (frm.type == QUIC_FT_DATA_BLOCKED ||
+	         frm.type == QUIC_FT_STREAM_DATA_BLOCKED ||
+	         frm.type == QUIC_FT_STREAMS_BLOCKED_BIDI ||
+	         frm.type == QUIC_FT_STREAMS_BLOCKED_UNI) {
+	        /* TODO */
+	}
 	else {
 		ABORT_NOW();
 	}
