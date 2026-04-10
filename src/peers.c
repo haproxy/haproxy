@@ -1895,6 +1895,18 @@ int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt, int ex
 
 	newts->shard = stktable_get_key_shard(table, newts->key.key, keylen);
 
+	/* stksess_new has set the entry expire to the table expire delay,
+	 * if it is a new entry set_entry inserts at that position in the expire
+	 * tree the touch_remote updates this date but the tree's re-order is not
+	 * designed to set back in the past, and the entry will be trashed only
+	 * after a full table's expire delay regardless the setting.
+	 * But setting the expire on newts here allows to set directly new entries
+	 * at the right position and to trash the entry in time if it is a new
+	 * created one from resync process for instance.
+	 */
+	newts->expire = tick_add(now_ms, expire);
+
+
 	/* lookup for existing entry */
 	ts = stktable_set_entry(table, newts);
 	if (ts != newts) {
