@@ -586,7 +586,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		 * will have to be applied to all listeners created after last_listen.
 		 */
 		if (!str2listener(args[1], curproxy, bind_conf, file, linenum, &errmsg)) {
-			if (errmsg && *errmsg) {
+			if (errmsg) {
 				indent_msg(&errmsg, 2);
 				ha_alert("parsing [%s:%d] : '%s' : %s\n", file, linenum, args[0], errmsg);
 			}
@@ -1366,7 +1366,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (curproxy->cap & PR_CAP_BE)
 			where |= SMP_VAL_BE_HRQ_HDR;
 		err_code |= warnif_cond_conflicts(rule->cond, where, &errmsg);
-		if (errmsg && *errmsg)
+		if (errmsg)
 			ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
 
 		LIST_APPEND(&curproxy->http_req_rules, &rule->list);
@@ -1401,7 +1401,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (curproxy->cap & PR_CAP_BE)
 			where |= SMP_VAL_BE_HRS_HDR;
 		err_code |= warnif_cond_conflicts(rule->cond, where, &errmsg);
-		if (errmsg && *errmsg)
+		if (errmsg)
 			ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
 
 		LIST_APPEND(&curproxy->http_res_rules, &rule->list);
@@ -1435,7 +1435,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (curproxy->cap & PR_CAP_BE)
 			where |= SMP_VAL_BE_HRS_HDR;
 		err_code |= warnif_cond_conflicts(rule->cond, where, &errmsg);
-		if (errmsg && *errmsg)
+		if (errmsg)
 			ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
 
 		LIST_APPEND(&curproxy->http_after_res_rules, &rule->list);
@@ -1500,7 +1500,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (curproxy->cap & PR_CAP_BE)
 			where |= SMP_VAL_BE_HRQ_HDR;
 		err_code |= warnif_cond_conflicts(rule->cond, where, &errmsg);
-		if (errmsg && *errmsg)
+		if (errmsg)
 			ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
 	}
 	else if (strcmp(args[0], "use_backend") == 0) {
@@ -1530,7 +1530,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 
 			err_code |= warnif_cond_conflicts(cond, SMP_VAL_FE_SET_BCK, &errmsg);
-			if (errmsg && *errmsg)
+			if (errmsg)
 				ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
 		}
 		else if (*args[2]) {
@@ -1593,7 +1593,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_SET_SRV, &errmsg);
-		if (errmsg && *errmsg)
+		if (errmsg)
 			ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
 
 		rule = calloc(1, sizeof(*rule));
@@ -1648,7 +1648,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		 * where force-persist is applied.
 		 */
 		err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_REQ_CNT, &errmsg);
-		if (errmsg && *errmsg)
+		if (errmsg)
 			ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
 
 		rule = calloc(1, sizeof(*rule));
@@ -1816,7 +1816,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_STO_RUL, &errmsg);
 		else
 			err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_SET_SRV, &errmsg);
-		if (errmsg && *errmsg)
+		if (errmsg)
 			ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
 
 		rule = calloc(1, sizeof(*rule));
@@ -1874,7 +1874,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			if (curproxy->cap & PR_CAP_BE)
 				where |= SMP_VAL_BE_HRQ_HDR;
 			err_code |= warnif_cond_conflicts(cond, where, &errmsg);
-			if (errmsg && *errmsg)
+			if (errmsg)
 				ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
 
 			rule = calloc(1, sizeof(*rule));
@@ -1954,7 +1954,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			if (curproxy->cap & PR_CAP_BE)
 				where |= SMP_VAL_BE_HRQ_HDR;
 			err_code |= warnif_cond_conflicts(rule->cond, where, &errmsg);
-			if (errmsg && *errmsg)
+			if (errmsg)
 				ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
 			LIST_APPEND(&curproxy->uri_auth->http_req_rules, &rule->list);
 

@@ -6174,7 +6174,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		bind_conf->accept = session_accept_fd;
 
 		if (!str2listener(args[1], cfg_log_forward, bind_conf, file, linenum, &errmsg)) {
-			if (errmsg && *errmsg) {
+			if (errmsg) {
 				indent_msg(&errmsg, 2);
 				ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 			}
@@ -6216,7 +6216,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		bind_conf->maxaccept = global.tune.maxaccept ? global.tune.maxaccept : MAX_ACCEPT;
 
 		if (!str2receiver(args[1], cfg_log_forward, bind_conf, file, linenum, &errmsg)) {
-			if (errmsg && *errmsg) {
+			if (errmsg) {
 				indent_msg(&errmsg, 2);
 				ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 			}
@@ -6240,7 +6240,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 			ret = kw->parse(args, cur_arg, cfg_log_forward, bind_conf, &errmsg);
 			err_code |= ret;
 			if (ret) {
-				if (errmsg && *errmsg) {
+				if (errmsg) {
 					indent_msg(&errmsg, 2);
 					ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
 				}

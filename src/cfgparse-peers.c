@@ -187,7 +187,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			}
 
 			if (!str2listener(args[1], curpeers->peers_fe, bind_conf, file, linenum, &errmsg)) {
-				if (errmsg && *errmsg) {
+				if (errmsg) {
 					indent_msg(&errmsg, 2);
 					ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 				}
@@ -453,7 +453,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if (!str2listener(args[2], curpeers->peers_fe, bind_conf, file, linenum, &errmsg)) {
-			if (errmsg && *errmsg) {
+			if (errmsg) {
 				indent_msg(&errmsg, 2);
 				ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 			}
