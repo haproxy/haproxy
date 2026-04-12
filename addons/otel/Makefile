@@ -55,6 +55,8 @@ OPTIONS_OBJS += \
 	addons/otel/src/event.o  \
 	addons/otel/src/filter.o \
 	addons/otel/src/parser.o \
+	addons/otel/src/pool.o   \
+	addons/otel/src/scope.o  \
 	addons/otel/src/util.o
 
 OTEL_CFLAGS := $(OTEL_CFLAGS) -Iaddons/otel/include $(OTEL_DEFINE)

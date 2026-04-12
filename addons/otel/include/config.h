@@ -3,6 +3,14 @@
 #ifndef _OTEL_CONFIG_H_
 #define _OTEL_CONFIG_H_
 
+/* Memory pool selection flags. */
+#define USE_POOL_BUFFER
+#define USE_POOL_OTEL_SPAN_CONTEXT
+#define USE_POOL_OTEL_SCOPE_SPAN
+#define USE_POOL_OTEL_SCOPE_CONTEXT
+#define USE_POOL_OTEL_RUNTIME_CONTEXT
+#define USE_TRASH_CHUNK
+
 #define FLT_OTEL_ID_MAXLEN        64            /* Maximum identifier length. */
 #define FLT_OTEL_DEBUG_LEVEL   0b11101111111 /* Default debug bitmask. */
 

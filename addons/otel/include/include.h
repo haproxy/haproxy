@@ -32,6 +32,8 @@
 #include "conf_funcs.h"
 #include "filter.h"
 #include "parser.h"
+#include "pool.h"
+#include "scope.h"
 #include "util.h"
 
 #endif /* _OTEL_INCLUDE_H_ */
