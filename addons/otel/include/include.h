@@ -33,6 +33,7 @@
 #include "conf.h"
 #include "conf_funcs.h"
 #include "filter.h"
+#include "group.h"
 #include "http.h"
 #include "otelc.h"
 #include "parser.h"

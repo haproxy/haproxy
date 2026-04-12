@@ -56,6 +56,7 @@ OPTIONS_OBJS += \
 	addons/otel/src/conf.o   \
 	addons/otel/src/event.o  \
 	addons/otel/src/filter.o \
+	addons/otel/src/group.o  \
 	addons/otel/src/http.o   \
 	addons/otel/src/otelc.o  \
 	addons/otel/src/parser.o \
