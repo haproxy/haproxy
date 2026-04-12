@@ -34,7 +34,7 @@ runs:
         key: vtest-${{ runner.os }}-${{ runner.arch }}-${{ steps.vtest-sha.outputs.sha }}
 
     - name: Install VTest
-      if: steps.cache-vtest.outputs.cache-hit != 'true'
+      if: ${{ steps.cache-vtest.outputs.cache-hit != 'true' }}
       shell: bash
       run: |
         DESTDIR=${{ github.workspace }}/vtest scripts/build-vtest.sh
