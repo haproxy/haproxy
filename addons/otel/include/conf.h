@@ -205,6 +205,11 @@ struct flt_otel_counters {
 		uint64_t htx[2];    /* htx_is_empty() function result counter. */
 	} event[FLT_OTEL_EVENT_MAX];
 #endif
+
+#ifdef FLT_OTEL_USE_COUNTERS
+	uint64_t attached[4];       /* [run rate-limit disabled error] */
+	uint64_t disabled[2];       /* How many times stream processing is disabled. */
+#endif
 };
 
 /* The OpenTelemetry filter configuration. */

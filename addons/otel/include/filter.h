@@ -37,6 +37,10 @@ enum FLT_OTEL_RET_enum {
 extern const char     *otel_flt_id;
 extern struct flt_ops  flt_otel_ops;
 
+
+/* Check whether the OTel filter is disabled for a stream. */
+bool flt_otel_is_disabled(const struct filter *f FLT_OTEL_DBG_ARGS(, int event));
+
 #endif /* _OTEL_FILTER_H_ */
 
 /*

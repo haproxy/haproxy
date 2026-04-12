@@ -40,6 +40,140 @@ void flt_otel_args_dump(const char **args)
 
 /***
  * NAME
+ *   flt_otel_chn_label - channel direction label
+ *
+ * SYNOPSIS
+ *   const char *flt_otel_chn_label(const struct channel *chn)
+ *
+ * ARGUMENTS
+ *   chn - channel to identify
+ *
+ * DESCRIPTION
+ *   Returns a human-readable label indicating the channel direction based on
+ *   the CF_ISRESP flag.
+ *
+ * RETURN VALUE
+ *   Returns "RESponse" for response channels, or "REQuest" for request
+ *   channels.
+ */
+const char *flt_otel_chn_label(const struct channel *chn)
+{
+	return (chn == NULL) ? "-" : ((chn->flags & CF_ISRESP) ? "RESponse" : "REQuest");
+}
+
+
+/***
+ * NAME
+ *   flt_otel_pr_mode - proxy mode label
+ *
+ * SYNOPSIS
+ *   const char *flt_otel_pr_mode(const struct stream *s)
+ *
+ * ARGUMENTS
+ *   s - stream to check
+ *
+ * DESCRIPTION
+ *   Returns a human-readable label indicating the proxy mode.  Uses the
+ *   backend proxy if a backend is assigned, otherwise the frontend proxy.
+ *
+ * RETURN VALUE
+ *   Returns "HTTP" for HTTP mode proxies, or "TCP" for TCP mode proxies.
+ */
+const char *flt_otel_pr_mode(const struct stream *s)
+{
+	struct proxy *px = (s->flags & SF_BE_ASSIGNED) ? s->be : strm_fe(s);
+
+	return (px->mode == PR_MODE_HTTP) ? "HTTP" : "TCP";
+}
+
+
+/***
+ * NAME
+ *   flt_otel_stream_pos - stream position label
+ *
+ * SYNOPSIS
+ *   const char *flt_otel_stream_pos(const struct stream *s)
+ *
+ * ARGUMENTS
+ *   s - stream to check
+ *
+ * DESCRIPTION
+ *   Returns a human-readable label indicating the stream position based on the
+ *   SF_BE_ASSIGNED flag.
+ *
+ * RETURN VALUE
+ *   Returns "backend" if a backend is assigned, or "frontend" otherwise.
+ */
+const char *flt_otel_stream_pos(const struct stream *s)
+{
+	return (s->flags & SF_BE_ASSIGNED) ? "backend" : "frontend";
+}
+
+
+/***
+ * NAME
+ *   flt_otel_type - filter type label
+ *
+ * SYNOPSIS
+ *   const char *flt_otel_type(const struct filter *f)
+ *
+ * ARGUMENTS
+ *   f - filter instance to check
+ *
+ * DESCRIPTION
+ *   Returns a human-readable label indicating the filter type based on the
+ *   FLT_FL_IS_BACKEND_FILTER flag.
+ *
+ * RETURN VALUE
+ *   Returns "backend" for backend filters, or "frontend" for frontend filters.
+ */
+const char *flt_otel_type(const struct filter *f)
+{
+	return (f->flags & FLT_FL_IS_BACKEND_FILTER) ? "backend" : "frontend";
+}
+
+
+/***
+ * NAME
+ *   flt_otel_analyzer - analyzer bit name lookup
+ *
+ * SYNOPSIS
+ *   const char *flt_otel_analyzer(uint an_bit)
+ *
+ * ARGUMENTS
+ *   an_bit - the analyzer identifier bit
+ *
+ * DESCRIPTION
+ *   Looks up the human-readable analyzer name for the given <an_bit> value from
+ *   the flt_otel_event_data table.  If the bit is not found, a formatted error
+ *   string is returned from a thread-local buffer.
+ *
+ * RETURN VALUE
+ *   Returns the analyzer name string, or a formatted error message if the bit
+ *   is invalid.
+ */
+const char *flt_otel_analyzer(uint an_bit)
+{
+	static THREAD_LOCAL char  retbuf[32];
+	const char               *retptr = NULL;
+	int                       i;
+
+	for (i = 0; i < OTELC_TABLESIZE(flt_otel_event_data); i++)
+		if (flt_otel_event_data[i].an_bit == an_bit) {
+			retptr = flt_otel_event_data[i].an_name;
+
+			break;
+		}
+
+	if (retptr == NULL)
+		(void)snprintf(retbuf, sizeof(retbuf), "invalid an_bit: 0x%08x", an_bit);
+
+	return (retptr == NULL) ? retbuf : retptr;
+}
+
+
+/***
+ * NAME
  *   flt_otel_list_dump - debug list summary
  *
  * SYNOPSIS

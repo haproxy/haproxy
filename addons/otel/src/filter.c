@@ -13,6 +13,194 @@ const char *otel_flt_id = "the OpenTelemetry filter";
 
 /***
  * NAME
+ *   flt_otel_lib_init - OTel library initialization
+ *
+ * SYNOPSIS
+ *   static int flt_otel_lib_init(struct flt_otel_conf_instr *instr, char **err)
+ *
+ * ARGUMENTS
+ *   instr - pointer to the instrumentation configuration
+ *   err   - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Initializes the OpenTelemetry C wrapper library for the instrumentation
+ *   specified by <instr>.  It verifies the library version, constructs the
+ *   absolute configuration path from <instr>->config, calls otelc_init(), and
+ *   creates the tracer and meter instances.  On success, it registers the
+ *   memory and thread ID callbacks via otelc_ext_init().
+ *
+ * RETURN VALUE
+ *   Returns 0 on success, or FLT_OTEL_RET_ERROR on failure.
+ */
+static int flt_otel_lib_init(struct flt_otel_conf_instr *instr, char **err)
+{
+	char cwd[PATH_MAX], path[PATH_MAX];
+	int  rc, retval = FLT_OTEL_RET_ERROR;
+
+	OTELC_FUNC("%p, %p:%p", instr, OTELC_DPTR_ARGS(err));
+
+	if (flt_otel_pool_init() == FLT_OTEL_RET_ERROR) {
+		FLT_OTEL_ERR("failed to initialize memory pools");
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	flt_otel_pool_info();
+
+	if (getcwd(cwd, sizeof(cwd)) == NULL) {
+		FLT_OTEL_ERR("failed to get current working directory");
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	rc = snprintf(path, sizeof(path), "%s/%s", cwd, instr->config);
+	if ((rc == -1) || (rc >= sizeof(path))) {
+		FLT_OTEL_ERR("failed to construct the OpenTelemetry configuration path");
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	retval = 0;
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_is_disabled - filter disabled check
+ *
+ * SYNOPSIS
+ *   bool flt_otel_is_disabled(const struct filter *f, int event)
+ *
+ * ARGUMENTS
+ *   f     - the filter instance to check
+ *   event - the event identifier, or -1 (debug only)
+ *
+ * DESCRIPTION
+ *   Checks whether the filter instance is disabled for the current stream by
+ *   examining the runtime context's flag_disabled field.  When DEBUG_OTEL is
+ *   enabled, it also logs the filter name, type and the <event> name.
+ *
+ * RETURN VALUE
+ *   Returns true if the filter is disabled, false otherwise.
+ */
+bool flt_otel_is_disabled(const struct filter *f FLT_OTEL_DBG_ARGS(, int event))
+{
+#ifdef DEBUG_OTEL
+	const struct flt_otel_conf *conf = FLT_OTEL_CONF(f);
+	const char                 *msg;
+#endif
+	bool                        retval;
+
+	retval = FLT_OTEL_RT_CTX(f->ctx)->flag_disabled ? 1 : 0;
+
+#ifdef DEBUG_OTEL
+	msg    = retval ? " (disabled)" : "";
+
+	if (OTELC_IN_RANGE(event, 0, FLT_OTEL_EVENT_MAX - 1))
+		OTELC_DBG(NOTICE, "filter '%s', type: %s, event: '%s' %d%s", conf->id, flt_otel_type(f), flt_otel_event_data[event].name, event, msg);
+	else
+		OTELC_DBG(NOTICE, "filter '%s', type: %s%s", conf->id, flt_otel_type(f), msg);
+#endif
+
+	return retval;
+}
+
+
+/***
+ * NAME
+ *   flt_otel_return_int - error handler for int-returning callbacks
+ *
+ * SYNOPSIS
+ *   static int flt_otel_return_int(const struct filter *f, char **err, int retval)
+ *
+ * ARGUMENTS
+ *   f      - the filter instance
+ *   err    - indirect pointer to error message string
+ *   retval - the return value from the caller
+ *
+ * DESCRIPTION
+ *   Error handler for filter callbacks that return an integer value.  If
+ *   <retval> indicates an error or <err> contains a message, the filter is
+ *   disabled when hard-error mode is enabled; in soft-error mode, the error
+ *   is silently cleared.  The error message is always freed before returning.
+ *
+ * RETURN VALUE
+ *   Returns FLT_OTEL_RET_OK if an error was handled, or the original <retval>.
+ */
+static int flt_otel_return_int(const struct filter *f, char **err, int retval)
+{
+	struct flt_otel_runtime_context *rt_ctx = f->ctx;
+
+	/* Disable the filter on hard errors; ignore on soft errors. */
+	if ((retval == FLT_OTEL_RET_ERROR) || ((err != NULL) && (*err != NULL))) {
+		if (rt_ctx->flag_harderr) {
+			OTELC_DBG(INFO, "WARNING: filter hard-error (disabled)");
+
+			rt_ctx->flag_disabled = 1;
+
+#ifdef FLT_OTEL_USE_COUNTERS
+			_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.disabled + 1, 1);
+#endif
+		} else {
+			OTELC_DBG(INFO, "WARNING: filter soft-error");
+		}
+
+		retval = FLT_OTEL_RET_OK;
+	}
+
+	FLT_OTEL_ERR_FREE(*err);
+
+	return retval;
+}
+
+
+/***
+ * NAME
+ *   flt_otel_return_void - error handler for void-returning callbacks
+ *
+ * SYNOPSIS
+ *   static void flt_otel_return_void(const struct filter *f, char **err)
+ *
+ * ARGUMENTS
+ *   f   - the filter instance
+ *   err - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Error handler for filter callbacks that return void.  If <err> contains
+ *   a message, the filter is disabled when hard-error mode is enabled; in
+ *   soft-error mode, the error is silently cleared.  The error message is
+ *   always freed before returning.
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+static void flt_otel_return_void(const struct filter *f, char **err)
+{
+	struct flt_otel_runtime_context *rt_ctx = f->ctx;
+
+	/* Disable the filter on hard errors; ignore on soft errors. */
+	if ((err != NULL) && (*err != NULL)) {
+		if (rt_ctx->flag_harderr) {
+			OTELC_DBG(INFO, "WARNING: filter hard-error (disabled)");
+
+			rt_ctx->flag_disabled = 1;
+
+#ifdef FLT_OTEL_USE_COUNTERS
+			_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.disabled + 1, 1);
+#endif
+		} else {
+			OTELC_DBG(INFO, "WARNING: filter soft-error");
+		}
+	}
+
+	FLT_OTEL_ERR_FREE(*err);
+}
+
+
+/***
+ * NAME
  *   flt_otel_ops_init - filter init callback (flt_ops.init)
  *
  * SYNOPSIS
@@ -31,9 +219,28 @@ const char *otel_flt_id = "the OpenTelemetry filter";
  */
 static int flt_otel_ops_init(struct proxy *p, struct flt_conf *fconf)
 {
+	struct flt_otel_conf *conf = FLT_OTEL_DEREF(fconf, conf, NULL);
+	char                 *err = NULL;
+	int                   retval = FLT_OTEL_RET_ERROR;
+
 	OTELC_FUNC("%p, %p", p, fconf);
 
-	OTELC_RETURN_INT(0);
+	if (conf == NULL)
+		OTELC_RETURN_INT(retval);
+
+	/*
+	 * Initialize the OpenTelemetry library.
+	 */
+	retval = flt_otel_lib_init(conf->instr, &err);
+	if (retval != FLT_OTEL_RET_ERROR)
+		/* Do nothing. */;
+	else if (err != NULL) {
+		FLT_OTEL_ALERT("%s", err);
+
+		FLT_OTEL_ERR_FREE(err);
+	}
+
+	OTELC_RETURN_INT(retval);
 }
 
 
@@ -58,7 +265,21 @@ static int flt_otel_ops_init(struct proxy *p, struct flt_conf *fconf)
  */
 static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 {
+	struct flt_otel_conf **conf = (fconf == NULL) ? NULL : (typeof(conf))&(fconf->conf);
+
 	OTELC_FUNC("%p, %p", p, fconf);
+
+	if (conf == NULL)
+		OTELC_RETURN();
+
+#ifdef DEBUG_OTEL
+#  ifdef FLT_OTEL_USE_COUNTERS
+	OTELC_DBG(LOG, "attach counters: %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, (*conf)->cnt.attached[0], (*conf)->cnt.attached[1], (*conf)->cnt.attached[2], (*conf)->cnt.attached[3]);
+#  endif
+#endif
+
+	flt_otel_conf_free(conf);
+	flt_otel_pool_destroy();
 
 	OTELC_RETURN();
 }
@@ -373,9 +594,28 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
  */
 static int flt_otel_ops_init_per_thread(struct proxy *p, struct flt_conf *fconf)
 {
+	struct flt_otel_conf *conf = FLT_OTEL_DEREF(fconf, conf, NULL);
+	int                   retval = FLT_OTEL_RET_ERROR;
+
 	OTELC_FUNC("%p, %p", p, fconf);
 
-	OTELC_RETURN_INT(FLT_OTEL_RET_OK);
+	if (conf == NULL)
+		OTELC_RETURN_INT(retval);
+
+	/*
+	 * Start the OpenTelemetry library tracer thread.  Enable HTX streams
+	 * filtering.
+	 */
+	if (!(fconf->flags & FLT_CFG_FL_HTX)) {
+		retval = FLT_OTEL_RET_OK;
+
+		if (retval != FLT_OTEL_RET_ERROR)
+			fconf->flags |= FLT_CFG_FL_HTX;
+	} else {
+		retval = FLT_OTEL_RET_OK;
+	}
+
+	OTELC_RETURN_INT(retval);
 }
 
 
@@ -433,7 +673,62 @@ static void flt_otel_ops_deinit_per_thread(struct proxy *p, struct flt_conf *fco
  */
 static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 {
+	const struct flt_otel_conf *conf = FLT_OTEL_CONF(f);
+	char                       *err = NULL;
+
 	OTELC_FUNC("%p, %p", s, f);
+
+	/* Skip attachment when the filter is globally disabled. */
+	if (_HA_ATOMIC_LOAD(&(conf->instr->flag_disabled))) {
+		OTELC_DBG(NOTICE, "filter '%s', type: %s (disabled)", conf->id, flt_otel_type(f));
+
+#ifdef FLT_OTEL_USE_COUNTERS
+		_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.attached + 2, 1);
+#endif
+
+		OTELC_RETURN_INT(FLT_OTEL_RET_IGNORE);
+	}
+	else if (_HA_ATOMIC_LOAD(&(conf->instr->rate_limit)) < FLT_OTEL_FLOAT_U32(100.0)) {
+		uint32_t rnd = ha_random32();
+		uint32_t rate = _HA_ATOMIC_LOAD(&(conf->instr->rate_limit));
+
+		if (rate <= rnd) {
+			OTELC_DBG(NOTICE, "filter '%s', type: %s (ignored: %u <= %u)", conf->id, flt_otel_type(f), rate, rnd);
+
+#ifdef FLT_OTEL_USE_COUNTERS
+			_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.attached + 1, 1);
+#endif
+
+			OTELC_RETURN_INT(FLT_OTEL_RET_IGNORE);
+		}
+	}
+
+	OTELC_DBG(NOTICE, "filter '%s', type: %s (run)", conf->id, flt_otel_type(f));
+
+	/* Create the per-stream runtime context. */
+	f->ctx = flt_otel_runtime_context_init(s, f, &err);
+	FLT_OTEL_ERR_FREE(err);
+	if (f->ctx == NULL) {
+		FLT_OTEL_LOG(LOG_EMERG, "failed to create context");
+
+#ifdef FLT_OTEL_USE_COUNTERS
+		_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.attached + 3, 1);
+#endif
+
+		OTELC_RETURN_INT(FLT_OTEL_RET_IGNORE);
+	}
+
+	/*
+	 * AN_REQ_WAIT_HTTP and AN_RES_WAIT_HTTP analyzers can only be used
+	 * in the .channel_post_analyze callback function.
+	 */
+	f->pre_analyzers  |= conf->instr->analyzers & ((AN_REQ_ALL & ~AN_REQ_WAIT_HTTP & ~AN_REQ_HTTP_TARPIT) | (AN_RES_ALL & ~AN_RES_WAIT_HTTP));
+	f->post_analyzers |= conf->instr->analyzers & (AN_REQ_WAIT_HTTP | AN_RES_WAIT_HTTP);
+
+#ifdef FLT_OTEL_USE_COUNTERS
+	_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.attached + 0, 1);
+#endif
+	FLT_OTEL_LOG(LOG_INFO, "%08x %08x", f->pre_analyzers, f->post_analyzers);
 
 	OTELC_RETURN_INT(FLT_OTEL_RET_OK);
 }
@@ -462,9 +757,33 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
  */
 static int flt_otel_ops_stream_start(struct stream *s, struct filter *f)
 {
+	const struct flt_otel_conf      *conf = FLT_OTEL_CONF(f);
+	struct flt_otel_runtime_context *rt_ctx;
+	char                            *err = NULL;
+	int                              retval = FLT_OTEL_RET_OK;
+
 	OTELC_FUNC("%p, %p", s, f);
 
-	OTELC_RETURN_INT(FLT_OTEL_RET_OK);
+	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, FLT_OTEL_EVENT__STREAM_START)))
+		OTELC_RETURN_INT(retval);
+
+	/* The result of the function is ignored. */
+	(void)flt_otel_event_run(s, f, NULL, FLT_OTEL_EVENT__STREAM_START, &err);
+
+	/*
+	 * Initialize the idle timer from the precomputed minimum idle_timeout
+	 * in the instrumentation configuration.
+	 */
+	if (conf->instr->idle_timeout != 0) {
+		rt_ctx = FLT_OTEL_RT_CTX(f->ctx);
+
+		rt_ctx->idle_timeout = conf->instr->idle_timeout;
+		rt_ctx->idle_exp     = tick_add(now_ms, rt_ctx->idle_timeout);
+
+		s->req.analyse_exp = tick_first(s->req.analyse_exp, rt_ctx->idle_exp);
+	}
+
+	OTELC_RETURN_INT(flt_otel_return_int(f, &err, retval));
 }
 
 
@@ -491,9 +810,19 @@ static int flt_otel_ops_stream_start(struct stream *s, struct filter *f)
  */
 static int flt_otel_ops_stream_set_backend(struct stream *s, struct filter *f, struct proxy *be)
 {
+	char *err = NULL;
+	int   retval = FLT_OTEL_RET_OK;
+
 	OTELC_FUNC("%p, %p, %p", s, f, be);
 
-	OTELC_RETURN_INT(FLT_OTEL_RET_OK);
+	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, FLT_OTEL_EVENT__BACKEND_SET)))
+		OTELC_RETURN_INT(retval);
+
+	OTELC_DBG(DEBUG, "backend: %s", be->id);
+
+	(void)flt_otel_event_run(s, f, &(s->req), FLT_OTEL_EVENT__BACKEND_SET, &err);
+
+	OTELC_RETURN_INT(flt_otel_return_int(f, &err, retval));
 }
 
 
@@ -517,7 +846,17 @@ static int flt_otel_ops_stream_set_backend(struct stream *s, struct filter *f, s
  */
 static void flt_otel_ops_stream_stop(struct stream *s, struct filter *f)
 {
+	char *err = NULL;
+
 	OTELC_FUNC("%p, %p", s, f);
+
+	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, FLT_OTEL_EVENT__STREAM_STOP)))
+		OTELC_RETURN();
+
+	/* The result of the function is ignored. */
+	(void)flt_otel_event_run(s, f, NULL, FLT_OTEL_EVENT__STREAM_STOP, &err);
+
+	flt_otel_return_void(f, &err);
 
 	OTELC_RETURN();
 }
@@ -547,6 +886,10 @@ static void flt_otel_ops_detach(struct stream *s, struct filter *f)
 {
 	OTELC_FUNC("%p, %p", s, f);
 
+	OTELC_DBG(NOTICE, "filter '%s', type: %s", FLT_OTEL_CONF(f)->id, flt_otel_type(f));
+
+	flt_otel_runtime_context_free(f);
+
 	OTELC_RETURN();
 }
 
@@ -574,7 +917,45 @@ static void flt_otel_ops_detach(struct stream *s, struct filter *f)
  */
 static void flt_otel_ops_check_timeouts(struct stream *s, struct filter *f)
 {
+	struct flt_otel_runtime_context *rt_ctx;
+	char                            *err = NULL;
+
 	OTELC_FUNC("%p, %p", s, f);
+
+	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, -1)))
+		OTELC_RETURN();
+
+	rt_ctx = FLT_OTEL_RT_CTX(f->ctx);
+
+	/*
+	 * This callback is invoked for every timer event on the stream,
+	 * not only for our idle timer.  The filter API provides no way to
+	 * distinguish which timer expired, so the tick check below is the only
+	 * mechanism to determine whether our idle timer is the one that fired.
+	 */
+	if (tick_isset(rt_ctx->idle_exp) && tick_is_expired(rt_ctx->idle_exp, now_ms)) {
+		/* Fire the on-idle-timeout event. */
+		(void)flt_otel_event_run(s, f, &(s->req), FLT_OTEL_EVENT__IDLE_TIMEOUT, &err);
+
+		/* Reschedule the next idle timeout. */
+		rt_ctx->idle_exp = tick_add(now_ms, rt_ctx->idle_timeout);
+
+		/*
+		 * Reset analyse_exp if it has expired before merging in the new
+		 * idle tick.  Without this, tick_first() would keep returning
+		 * the stale expired value, causing the stream task to wake in
+		 * a tight loop.
+		 */
+		if (tick_is_expired(s->req.analyse_exp, now_ms))
+			s->req.analyse_exp = TICK_ETERNITY;
+
+		s->req.analyse_exp = tick_first(s->req.analyse_exp, rt_ctx->idle_exp);
+
+		/* Force the request and response analysers to be re-evaluated. */
+		s->pending_events |= STRM_EVT_MSG;
+	}
+
+	flt_otel_return_void(f, &err);
 
 	OTELC_RETURN();
 }
@@ -603,9 +984,85 @@ static void flt_otel_ops_check_timeouts(struct stream *s, struct filter *f)
  */
 static int flt_otel_ops_channel_start_analyze(struct stream *s, struct filter *f, struct channel *chn)
 {
+	char *err = NULL;
+	int   retval;
+
 	OTELC_FUNC("%p, %p, %p", s, f, chn);
 
-	OTELC_RETURN_INT(FLT_OTEL_RET_OK);
+	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, (chn->flags & CF_ISRESP) ? FLT_OTEL_EVENT_RES_SERVER_SESS_START : FLT_OTEL_EVENT_REQ_CLIENT_SESS_START)))
+		OTELC_RETURN_INT(FLT_OTEL_RET_OK);
+
+	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s)", flt_otel_chn_label(chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s));
+
+	if (chn->flags & CF_ISRESP) {
+		/* The response channel. */
+		chn->analysers |= f->pre_analyzers & AN_RES_ALL;
+
+		/* The event 'on-server-session-start'. */
+		retval = flt_otel_event_run(s, f, chn, FLT_OTEL_EVENT_RES_SERVER_SESS_START, &err);
+
+		/*
+		 * WAIT is currently never returned by flt_otel_event_run(),
+		 * this is kept for defensive purposes only.
+		 */
+		if (retval == FLT_OTEL_RET_WAIT) {
+			channel_dont_read(chn);
+			channel_dont_close(chn);
+		}
+	} else {
+		/* The request channel. */
+		chn->analysers |= f->pre_analyzers & AN_REQ_ALL;
+
+		/* The event 'on-client-session-start'. */
+		retval = flt_otel_event_run(s, f, chn, FLT_OTEL_EVENT_REQ_CLIENT_SESS_START, &err);
+	}
+
+	/*
+	 * Data filter registration is intentionally disabled.  The http_payload
+	 * and tcp_payload callbacks are debug-only stubs (registered via
+	 * OTELC_DBG_IFDEF) and do not process data.
+	 *
+	 * register_data_filter(s, chn, f);
+	 */
+
+	/*
+	 * Propagate the idle-timeout expiry to the channel so the stream task
+	 * keeps waking at the configured interval.
+	 */
+	if (tick_isset(FLT_OTEL_RT_CTX(f->ctx)->idle_exp))
+		chn->analyse_exp = tick_first(chn->analyse_exp, FLT_OTEL_RT_CTX(f->ctx)->idle_exp);
+
+	OTELC_RETURN_INT(flt_otel_return_int(f, &err, retval));
+}
+
+
+/***
+ * NAME
+ *   flt_otel_get_event - look up an event index by analyzer bit
+ *
+ * SYNOPSIS
+ *   static int flt_otel_get_event(uint an_bit)
+ *
+ * ARGUMENTS
+ *   an_bit - analyzer bit to search for
+ *
+ * DESCRIPTION
+ *   Searches the flt_otel_event_data table for the entry whose an_bit field
+ *   matches <an_bit>.
+ *
+ * RETURN VALUE
+ *   Returns the table index on success, FLT_OTEL_RET_ERROR if no match is
+ *   found.
+ */
+static int flt_otel_get_event(uint an_bit)
+{
+	int i;
+
+	for (i = 0; i < OTELC_TABLESIZE(flt_otel_event_data); i++)
+		if (flt_otel_event_data[i].an_bit == an_bit)
+			return i;
+
+	return FLT_OTEL_RET_ERROR;
 }
 
 
@@ -632,9 +1089,31 @@ static int flt_otel_ops_channel_start_analyze(struct stream *s, struct filter *f
  */
 static int flt_otel_ops_channel_pre_analyze(struct stream *s, struct filter *f, struct channel *chn, uint an_bit)
 {
+	char *err = NULL;
+	int   event, retval;
+
 	OTELC_FUNC("%p, %p, %p, 0x%08x", s, f, chn, an_bit);
 
-	OTELC_RETURN_INT(FLT_OTEL_RET_OK);
+	event = flt_otel_get_event(an_bit);
+	if (event == FLT_OTEL_RET_ERROR)
+		OTELC_RETURN_INT(FLT_OTEL_RET_OK);
+	else if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, event)))
+		OTELC_RETURN_INT(FLT_OTEL_RET_OK);
+
+	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s), analyzer: %s", flt_otel_chn_label(chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s), flt_otel_analyzer(an_bit));
+
+	retval = flt_otel_event_run(s, f, chn, event, &err);
+
+	/*
+	 * WAIT is currently never returned by flt_otel_event_run(), this is
+	 * kept for defensive purposes only.
+	 */
+	if ((retval == FLT_OTEL_RET_WAIT) && (chn->flags & CF_ISRESP)) {
+		channel_dont_read(chn);
+		channel_dont_close(chn);
+	}
+
+	OTELC_RETURN_INT(flt_otel_return_int(f, &err, retval));
 }
 
 
@@ -662,9 +1141,22 @@ static int flt_otel_ops_channel_pre_analyze(struct stream *s, struct filter *f, 
  */
 static int flt_otel_ops_channel_post_analyze(struct stream *s, struct filter *f, struct channel *chn, uint an_bit)
 {
+	char *err = NULL;
+	int   event, retval;
+
 	OTELC_FUNC("%p, %p, %p, 0x%08x", s, f, chn, an_bit);
 
-	OTELC_RETURN_INT(FLT_OTEL_RET_OK);
+	event = flt_otel_get_event(an_bit);
+	if (event == FLT_OTEL_RET_ERROR)
+		OTELC_RETURN_INT(FLT_OTEL_RET_OK);
+	else if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, event)))
+		OTELC_RETURN_INT(FLT_OTEL_RET_OK);
+
+	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s), analyzer: %s", flt_otel_chn_label(chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s), flt_otel_analyzer(an_bit));
+
+	retval = flt_otel_event_run(s, f, chn, event, &err);
+
+	OTELC_RETURN_INT(flt_otel_return_int(f, &err, retval));
 }
 
 
@@ -692,9 +1184,35 @@ static int flt_otel_ops_channel_post_analyze(struct stream *s, struct filter *f,
  */
 static int flt_otel_ops_channel_end_analyze(struct stream *s, struct filter *f, struct channel *chn)
 {
+	char *err = NULL;
+	int   rc, retval;
+
 	OTELC_FUNC("%p, %p, %p", s, f, chn);
 
-	OTELC_RETURN_INT(FLT_OTEL_RET_OK);
+	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, (chn->flags & CF_ISRESP) ? FLT_OTEL_EVENT_RES_SERVER_SESS_END : FLT_OTEL_EVENT_REQ_CLIENT_SESS_END)))
+		OTELC_RETURN_INT(FLT_OTEL_RET_OK);
+
+	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s)", flt_otel_chn_label(chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s));
+
+	if (chn->flags & CF_ISRESP) {
+		/* The response channel, event 'on-server-session-end'. */
+		retval = flt_otel_event_run(s, f, chn, FLT_OTEL_EVENT_RES_SERVER_SESS_END, &err);
+	} else {
+		/* The request channel, event 'on-client-session-end'. */
+		retval = flt_otel_event_run(s, f, chn, FLT_OTEL_EVENT_REQ_CLIENT_SESS_END, &err);
+
+		/*
+		 * In case an event using server response is defined and not
+		 * executed, event 'on-server-unavailable' is called here.
+		 */
+		if ((FLT_OTEL_CONF(f)->instr->analyzers & AN_RES_ALL) && !(FLT_OTEL_RT_CTX(f->ctx)->analyzers & AN_RES_ALL)) {
+			rc = flt_otel_event_run(s, f, chn, FLT_OTEL_EVENT_REQ_SERVER_UNAVAILABLE, &err);
+			if ((retval == FLT_OTEL_RET_OK) && (rc != FLT_OTEL_RET_OK))
+				retval = rc;
+		}
+	}
+
+	OTELC_RETURN_INT(flt_otel_return_int(f, &err, retval));
 }
 
 
@@ -720,9 +1238,20 @@ static int flt_otel_ops_channel_end_analyze(struct stream *s, struct filter *f, 
  */
 static int flt_otel_ops_http_headers(struct stream *s, struct filter *f, struct http_msg *msg)
 {
+	int event = (msg->chn->flags & CF_ISRESP) ? FLT_OTEL_EVENT_RES_HTTP_HEADERS : FLT_OTEL_EVENT_REQ_HTTP_HEADERS;
+	char *err = NULL;
+	int   retval = FLT_OTEL_RET_OK;
+
 	OTELC_FUNC("%p, %p, %p", s, f, msg);
 
-	OTELC_RETURN_INT(FLT_OTEL_RET_OK);
+	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, event)))
+		OTELC_RETURN_INT(retval);
+
+	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s)", flt_otel_chn_label(msg->chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s));
+
+	(void)flt_otel_event_run(s, f, msg->chn, event, &err);
+
+	OTELC_RETURN_INT(flt_otel_return_int(f, &err, retval));
 }
 
 
@@ -751,9 +1280,21 @@ static int flt_otel_ops_http_headers(struct stream *s, struct filter *f, struct 
  */
 static int flt_otel_ops_http_payload(struct stream *s, struct filter *f, struct http_msg *msg, uint offset, uint len)
 {
+	char *err = NULL;
+	int   retval = len;
+
 	OTELC_FUNC("%p, %p, %p, %u, %u", s, f, msg, offset, len);
 
-	OTELC_RETURN_INT(len);
+	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, -1)))
+		OTELC_RETURN_INT(len);
+
+	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s), offset: %u, len: %u, forward: %d", flt_otel_chn_label(msg->chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s), offset, len, retval);
+
+	/* Debug stub -- retval is always len, wakeup is never reached. */
+	if (retval != len)
+		task_wakeup(s->task, TASK_WOKEN_MSG);
+
+	OTELC_RETURN_INT(flt_otel_return_int(f, &err, retval));
 }
 
 #endif /* DEBUG_OTEL */
@@ -781,9 +1322,20 @@ static int flt_otel_ops_http_payload(struct stream *s, struct filter *f, struct 
  */
 static int flt_otel_ops_http_end(struct stream *s, struct filter *f, struct http_msg *msg)
 {
+	int event = (msg->chn->flags & CF_ISRESP) ? FLT_OTEL_EVENT_RES_HTTP_END : FLT_OTEL_EVENT_REQ_HTTP_END;
+	char *err = NULL;
+	int   retval = FLT_OTEL_RET_OK;
+
 	OTELC_FUNC("%p, %p, %p", s, f, msg);
 
-	OTELC_RETURN_INT(FLT_OTEL_RET_OK);
+	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, event)))
+		OTELC_RETURN_INT(retval);
+
+	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s)", flt_otel_chn_label(msg->chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s));
+
+	(void)flt_otel_event_run(s, f, msg->chn, event, &err);
+
+	OTELC_RETURN_INT(flt_otel_return_int(f, &err, retval));
 }
 
 
@@ -809,7 +1361,18 @@ static int flt_otel_ops_http_end(struct stream *s, struct filter *f, struct http
  */
 static void flt_otel_ops_http_reply(struct stream *s, struct filter *f, short status, const struct buffer *msg)
 {
+	char *err = NULL;
+
 	OTELC_FUNC("%p, %p, %hd, %p", s, f, status, msg);
+
+	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, FLT_OTEL_EVENT_RES_HTTP_REPLY)))
+		OTELC_RETURN();
+
+	OTELC_DBG(DEBUG, "channel: -, mode: %s (%s), status: %hd", flt_otel_pr_mode(s), flt_otel_stream_pos(s), status);
+
+	(void)flt_otel_event_run(s, f, &(s->res), FLT_OTEL_EVENT_RES_HTTP_REPLY, &err);
+
+	flt_otel_return_void(f, &err);
 
 	OTELC_RETURN();
 }
@@ -838,7 +1401,16 @@ static void flt_otel_ops_http_reply(struct stream *s, struct filter *f, short st
  */
 static void flt_otel_ops_http_reset(struct stream *s, struct filter *f, struct http_msg *msg)
 {
+	char *err = NULL;
+
 	OTELC_FUNC("%p, %p, %p", s, f, msg);
+
+	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, -1)))
+		OTELC_RETURN();
+
+	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s)", flt_otel_chn_label(msg->chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s));
+
+	flt_otel_return_void(f, &err);
 
 	OTELC_RETURN();
 }
@@ -867,9 +1439,26 @@ static void flt_otel_ops_http_reset(struct stream *s, struct filter *f, struct h
  */
 static int flt_otel_ops_tcp_payload(struct stream *s, struct filter *f, struct channel *chn, uint offset, uint len)
 {
+	char *err = NULL;
+	int   retval = len;
+
 	OTELC_FUNC("%p, %p, %p, %u, %u", s, f, chn, offset, len);
 
-	OTELC_RETURN_INT(len);
+	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, -1)))
+		OTELC_RETURN_INT(len);
+
+	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s), offset: %u, len: %u, forward: %d", flt_otel_chn_label(chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s), offset, len, retval);
+
+	/* Debug stub -- no data processing implemented yet. */
+	if (s->flags & SF_HTX) {
+	} else {
+	}
+
+	/* Debug stub -- retval is always len, wakeup is never reached. */
+	if (retval != len)
+		task_wakeup(s->task, TASK_WOKEN_MSG);
+
+	OTELC_RETURN_INT(flt_otel_return_int(f, &err, retval));
 }
 
 #endif /* DEBUG_OTEL */

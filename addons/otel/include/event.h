@@ -123,6 +123,10 @@ struct flt_otel_event_data {
 /* Per-event metadata table indexed by FLT_OTEL_EVENT_* constants. */
 extern const struct flt_otel_event_data flt_otel_event_data[FLT_OTEL_EVENT_MAX];
 
+
+/* Run all scopes matching a filter event on the given stream and channel. */
+int flt_otel_event_run(struct stream *s, struct filter *f, struct channel *chn, int event, char **err);
+
 #endif /* _OTEL_EVENT_H_ */
 
 /*

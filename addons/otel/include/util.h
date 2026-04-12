@@ -24,6 +24,21 @@
 /* Dump configuration arguments for debugging. */
 void        flt_otel_args_dump(const char **args);
 
+/* Return a label string identifying a channel direction. */
+const char *flt_otel_chn_label(const struct channel *chn);
+
+/* Return the proxy mode string for a stream. */
+const char *flt_otel_pr_mode(const struct stream *s);
+
+/* Return the stream processing position as a string. */
+const char *flt_otel_stream_pos(const struct stream *s);
+
+/* Return the filter type string for a filter instance. */
+const char *flt_otel_type(const struct filter *f);
+
+/* Return the analyzer name string for an analyzer bit. */
+const char *flt_otel_analyzer(uint an_bit);
+
 /* Dump a linked list of configuration items as a string. */
 const char *flt_otel_list_dump(const struct list *head);
 #endif

@@ -26,6 +26,7 @@
 #include <opentelemetry-c-wrapper/include.h>
 
 #include "config.h"
+#include "debug.h"
 #include "define.h"
 #include "event.h"
 #include "conf.h"

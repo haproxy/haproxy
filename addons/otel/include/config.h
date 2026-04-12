@@ -11,6 +11,11 @@
 #define USE_POOL_OTEL_RUNTIME_CONTEXT
 #define USE_TRASH_CHUNK
 
+/* Enable per-event and per-stream diagnostic counters in debug builds. */
+#if defined(DEBUG_OTEL) && !defined(FLT_OTEL_USE_COUNTERS)
+#  define FLT_OTEL_USE_COUNTERS
+#endif
+
 #define FLT_OTEL_ID_MAXLEN        64            /* Maximum identifier length. */
 #define FLT_OTEL_DEBUG_LEVEL   0b11101111111 /* Default debug bitmask. */
 
