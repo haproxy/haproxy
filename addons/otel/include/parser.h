@@ -22,6 +22,7 @@
 #define FLT_OTEL_PARSE_CTX_AUTONAME           "-"
 #define FLT_OTEL_PARSE_CTX_IGNORE_NAME        '-'
 #define FLT_OTEL_PARSE_CTX_USE_HEADERS        "use-headers"
+#define FLT_OTEL_PARSE_CTX_USE_VARS           "use-vars"
 #define FLT_OTEL_PARSE_OPTION_HARDERR         "hard-errors"
 #define FLT_OTEL_PARSE_OPTION_DISABLED        "disabled"
 #define FLT_OTEL_PARSE_OPTION_NOLOGNORM       "dontlog-normal"
@@ -45,8 +46,13 @@
 	FLT_OTEL_PARSE_GROUP_DEF(    ID, 0, CHAR, 2, 2, "otel-group", " <name>") \
 	FLT_OTEL_PARSE_GROUP_DEF(SCOPES, 0, NONE, 2, 0, "scopes",   " <name> ...")
 
-#define FLT_OTEL_PARSE_SCOPE_INJECT_HELP      " <name-prefix> [use-headers]"
-#define FLT_OTEL_PARSE_SCOPE_EXTRACT_HELP     " <name-prefix> [use-headers]"
+#ifdef USE_OTEL_VARS
+#  define FLT_OTEL_PARSE_SCOPE_INJECT_HELP    " <name-prefix> [use-vars] [use-headers]"
+#  define FLT_OTEL_PARSE_SCOPE_EXTRACT_HELP   " <name-prefix> [use-vars | use-headers]"
+#else
+#  define FLT_OTEL_PARSE_SCOPE_INJECT_HELP    " <name-prefix> [use-headers]"
+#  define FLT_OTEL_PARSE_SCOPE_EXTRACT_HELP   " <name-prefix> [use-headers]"
+#endif
 
 /*
  * The first argument of the FLT_OTEL_PARSE_SCOPE_STATUS_DEF() macro is defined
@@ -108,7 +114,8 @@ enum FLT_OTEL_PARSE_SCOPE_enum {
 
 /* Context storage type flags for inject/extract operations. */
 enum FLT_OTEL_CTX_USE_enum {
-	FLT_OTEL_CTX_USE_HEADERS = 1 << 0,
+	FLT_OTEL_CTX_USE_VARS    = 1 << 0,
+	FLT_OTEL_CTX_USE_HEADERS = 1 << 1,
 };
 
 /* Logging state flags for the OTel filter. */

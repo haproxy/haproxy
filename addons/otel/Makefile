@@ -3,6 +3,7 @@
 # OTEL_INC      : force the include path to libopentelemetry-c-wrapper
 # OTEL_LIB      : force the lib path to libopentelemetry-c-wrapper
 # OTEL_RUNPATH  : add libopentelemetry-c-wrapper RUNPATH to haproxy executable
+# OTEL_USE_VARS : allows the use of variables for the OpenTelemetry context
 
 OTEL_DEFINE    =
 OTEL_CFLAGS    =
@@ -60,5 +61,10 @@ OPTIONS_OBJS += \
 	addons/otel/src/pool.o   \
 	addons/otel/src/scope.o  \
 	addons/otel/src/util.o
+
+ifneq ($(OTEL_USE_VARS:0=),)
+OTEL_DEFINE  += -DUSE_OTEL_VARS
+OPTIONS_OBJS += addons/otel/src/vars.o
+endif
 
 OTEL_CFLAGS := $(OTEL_CFLAGS) -Iaddons/otel/include $(OTEL_DEFINE)

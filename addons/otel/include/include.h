@@ -38,6 +38,7 @@
 #include "pool.h"
 #include "scope.h"
 #include "util.h"
+#include "vars.h"
 
 #endif /* _OTEL_INCLUDE_H_ */
 

@@ -133,6 +133,7 @@
 #   OTEL_INC       : force the include path to libopentelemetry-c-wrapper
 #   OTEL_LIB       : force the lib path to libopentelemetry-c-wrapper
 #   OTEL_RUNPATH   : add RUNPATH for libopentelemetry-c-wrapper to haproxy executable
+#   OTEL_USE_VARS  : allows the use of variables for the OpenTelemetry context
 #   IGNOREGIT      : ignore GIT commit versions if set.
 #   VERSION        : force haproxy version reporting.
 #   SUBVERS        : add a sub-version (eg: platform, model, ...).

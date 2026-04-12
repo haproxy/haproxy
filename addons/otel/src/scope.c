@@ -50,6 +50,15 @@ struct flt_otel_runtime_context *flt_otel_runtime_context_init(struct stream *s,
 	uuid = b_make(retptr->uuid, sizeof(retptr->uuid), 0, 0);
 	ha_generate_uuid_v4(&uuid);
 
+#ifdef USE_OTEL_VARS
+	/*
+	 * The HAProxy variable 'sess.otel.uuid' is registered here,
+	 * after which its value is set to runtime context UUID.
+	 */
+	if (flt_otel_var_register(FLT_OTEL_VAR_UUID, err) != -1)
+		(void)flt_otel_var_set(s, FLT_OTEL_VAR_UUID, retptr->uuid, SMP_OPT_DIR_REQ, err);
+#endif
+
 	FLT_OTEL_DBG_RUNTIME_CONTEXT("session context: ", retptr);
 
 	OTELC_RETURN_PTR(retptr);
@@ -664,7 +673,8 @@ void flt_otel_scope_finish_marked(const struct flt_otel_runtime_context *rt_ctx,
  * DESCRIPTION
  *   Removes scope spans with a NULL OTel span and scope contexts with a NULL
  *   OTel context from the runtime context.  For each removed context, the
- *   associated HTTP headers are also cleaned up via <chn>.
+ *   associated HTTP headers and HAProxy variables are also cleaned up via
+ *   <chn>.
  *
  * RETURN VALUE
  *   This function does not return a value.
@@ -692,10 +702,13 @@ void flt_otel_scope_free_unused(struct flt_otel_runtime_context *rt_ctx, struct 
 		list_for_each_entry_safe(ctx, ctx_back, &(rt_ctx->contexts), list)
 			if (ctx->context == NULL) {
 				/*
-				 * All headers associated with the context in
-				 * question should be deleted.
+				 * All headers and variables associated with
+				 * the context in question should be deleted.
 				 */
 				(void)flt_otel_http_headers_remove(chn, ctx->id, NULL);
+#ifdef USE_OTEL_VARS
+				(void)flt_otel_vars_unset(rt_ctx->stream, FLT_OTEL_VARS_SCOPE, ctx->id, ctx->smp_opt_dir, NULL);
+#endif
 
 				flt_otel_scope_context_free(&ctx);
 			}

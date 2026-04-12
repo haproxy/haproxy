@@ -756,6 +756,8 @@ static int flt_otel_post_parse_cfg_group(void)
  *
  * DESCRIPTION
  *   Parses the context storage type argument for inject/extract keywords.
+ *   Accepts "use-headers" or (when USE_OTEL_VARS is defined) "use-vars".
+ *   Both types may be used simultaneously on the same span.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -770,6 +772,10 @@ static int flt_otel_parse_cfg_scope_ctx(char **args, int cur_arg, char **err)
 
 	if (FLT_OTEL_PARSE_KEYWORD(cur_arg, FLT_OTEL_PARSE_CTX_USE_HEADERS))
 		flags = FLT_OTEL_CTX_USE_HEADERS;
+#ifdef USE_OTEL_VARS
+	else if (FLT_OTEL_PARSE_KEYWORD(cur_arg, FLT_OTEL_PARSE_CTX_USE_VARS))
+		flags = FLT_OTEL_CTX_USE_VARS;
+#endif
 	else
 		FLT_OTEL_PARSE_ERR(err, "'%s' : invalid context storage type", args[0]);
 
@@ -1030,6 +1036,10 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			conf_ctx->flags = FLT_OTEL_CTX_USE_HEADERS;
 		else if (FLT_OTEL_PARSE_KEYWORD(2, FLT_OTEL_PARSE_CTX_USE_HEADERS))
 			conf_ctx->flags = FLT_OTEL_CTX_USE_HEADERS;
+#ifdef USE_OTEL_VARS
+		else if (FLT_OTEL_PARSE_KEYWORD(2, FLT_OTEL_PARSE_CTX_USE_VARS))
+			conf_ctx->flags = FLT_OTEL_CTX_USE_VARS;
+#endif
 		else
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid context storage type", args[2]);
 	}

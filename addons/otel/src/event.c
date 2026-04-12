@@ -31,7 +31,8 @@ const struct flt_otel_event_data flt_otel_event_data[FLT_OTEL_EVENT_MAX] = { FLT
  * DESCRIPTION
  *   Executes a single span: creates the OTel span on first call via the tracer,
  *   adds links, baggage, attributes, events and status from <data>, then
- *   injects the span context into HTTP headers if configured in <conf_span>.
+ *   injects the span context into HTTP headers or HAProxy variables if
+ *   configured in <conf_span>.
  *
  * RETURN VALUE
  *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
@@ -77,7 +78,7 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
 		if (OTELC_OPS(span->span, set_status, data->status.code, data->status.description) == -1)
 			retval = FLT_OTEL_RET_ERROR;
 
-	/* Inject span context into HTTP headers. */
+	/* Inject span context into HTTP headers and variables. */
 	if (conf_span->ctx_id != NULL) {
 		struct otelc_http_headers_writer  writer;
 		struct otelc_text_map            *text_map = NULL;
@@ -85,8 +86,17 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
 		if (flt_otel_inject_http_headers(span->span, &writer) != FLT_OTEL_RET_ERROR) {
 			int i = 0;
 
-			if (conf_span->ctx_flags & FLT_OTEL_CTX_USE_HEADERS) {
+			if (conf_span->ctx_flags & (FLT_OTEL_CTX_USE_VARS | FLT_OTEL_CTX_USE_HEADERS)) {
 				for (text_map = &(writer.text_map); i < text_map->count; i++) {
+#ifdef USE_OTEL_VARS
+					if (!(conf_span->ctx_flags & FLT_OTEL_CTX_USE_VARS))
+						/* Do nothing. */;
+					else if (flt_otel_var_register(FLT_OTEL_VARS_SCOPE, conf_span->ctx_id, text_map->key[i], err) == FLT_OTEL_RET_ERROR)
+						retval = FLT_OTEL_RET_ERROR;
+					else if (flt_otel_var_set(s, FLT_OTEL_VARS_SCOPE, conf_span->ctx_id, text_map->key[i], text_map->value[i], dir, err) == FLT_OTEL_RET_ERROR)
+						retval = FLT_OTEL_RET_ERROR;
+#endif
+
 					if (!(conf_span->ctx_flags & FLT_OTEL_CTX_USE_HEADERS))
 						/* Do nothing. */;
 					else if (flt_otel_http_header_set(chn, conf_span->ctx_id, text_map->key[i], text_map->value[i], err) == FLT_OTEL_RET_ERROR)
@@ -121,10 +131,10 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
  *
  * DESCRIPTION
  *   Executes a complete scope: evaluates ACL conditions, extracts contexts
- *   from HTTP headers, iterates over configured spans (resolving links,
- *   evaluating sample expressions for attributes, events, baggage and status),
- *   calls flt_otel_scope_run_span() for each, processes metric instruments,
- *   then marks and finishes completed spans.
+ *   from HTTP headers or HAProxy variables, iterates over configured spans
+ *   (resolving links, evaluating sample expressions for attributes, events,
+ *   baggage and status), calls flt_otel_scope_run_span() for each, processes
+ *   metric instruments, then marks and finishes completed spans.
  *
  * RETURN VALUE
  *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
@@ -200,10 +210,15 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 		FLT_OTEL_DBG_CONF_CONTEXT("run context ", conf_ctx);
 
 		/*
-		 * The OpenTelemetry context is read from the HTTP headers.
+		 * The OpenTelemetry context is read from the HTTP header
+		 * or from HAProxy variables.
 		 */
 		if (conf_ctx->flags & FLT_OTEL_CTX_USE_HEADERS)
 			text_map = flt_otel_http_headers_get(chn, conf_ctx->id, conf_ctx->id_len, err);
+#ifdef USE_OTEL_VARS
+		else
+			text_map = flt_otel_vars_get(s, FLT_OTEL_VARS_SCOPE, conf_ctx->id, dir, err);
+#endif
 
 		if (text_map != NULL) {
 			if (flt_otel_scope_context_init(f->ctx, conf->instr->tracer, conf_ctx->id, conf_ctx->id_len, text_map, dir, err) == NULL)
@@ -341,6 +356,9 @@ int flt_otel_event_run(struct stream *s, struct filter *f, struct channel *chn, 
 			retval = FLT_OTEL_RET_ERROR;
 	}
 
+#ifdef USE_OTEL_VARS
+	flt_otel_vars_dump(s);
+#endif
 	flt_otel_http_headers_dump(chn);
 
 	OTELC_DBG(DEBUG, "event = %d %s, chn = %p, s->req = %p, s->res = %p", event, flt_otel_event_data[event].an_name, chn, &(s->req), &(s->res));
