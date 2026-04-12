@@ -52,6 +52,7 @@ endif
 
 OPTIONS_OBJS += \
 	addons/otel/src/conf.o   \
+	addons/otel/src/event.o  \
 	addons/otel/src/filter.o \
 	addons/otel/src/parser.o \
 	addons/otel/src/util.o

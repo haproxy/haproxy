@@ -27,6 +27,7 @@
 
 #include "config.h"
 #include "define.h"
+#include "event.h"
 #include "conf.h"
 #include "conf_funcs.h"
 #include "filter.h"

@@ -3,6 +3,12 @@
 #ifndef _OTEL_FILTER_H_
 #define _OTEL_FILTER_H_
 
+#define FLT_OTEL_FMT_NAME           "'" FLT_OTEL_OPT_NAME "' : "
+#define FLT_OTEL_FMT_TYPE           "'filter' : "
+
+#define FLT_OTEL_CONDITION_IF       "if"
+#define FLT_OTEL_CONDITION_UNLESS   "unless"
+
 /* Return codes for OTel filter operations. */
 enum FLT_OTEL_RET_enum {
 	FLT_OTEL_RET_ERROR  = -1,
@@ -12,7 +18,8 @@ enum FLT_OTEL_RET_enum {
 };
 
 
-extern const char *otel_flt_id;
+extern const char     *otel_flt_id;
+extern struct flt_ops  flt_otel_ops;
 
 #endif /* _OTEL_FILTER_H_ */
 

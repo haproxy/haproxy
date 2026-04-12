@@ -176,6 +176,96 @@ int flt_otel_args_concat(const char **args, int idx, int n, char **str)
 
 /***
  * NAME
+ *   flt_otel_strtod - string to double conversion with range check
+ *
+ * SYNOPSIS
+ *   bool flt_otel_strtod(const char *nptr, double *value, double limit_min, double limit_max, char **err)
+ *
+ * ARGUMENTS
+ *   nptr      - string to parse
+ *   value     - pointer to store the parsed double result
+ *   limit_min - minimum allowed value
+ *   limit_max - maximum allowed value
+ *   err       - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Parses the string <nptr> as a double-precision floating-point number.
+ *   Validates that the entire string is consumed and that the result falls
+ *   within the range [<limit_min>, <limit_max>].  On parse error or range
+ *   violation, an error message is stored via <err>.
+ *
+ * RETURN VALUE
+ *   Returns true on success, false on failure.
+ */
+bool flt_otel_strtod(const char *nptr, double *value, double limit_min, double limit_max, char **err)
+{
+	char *endptr = NULL;
+	bool  retval = false;
+
+	if (value == NULL)
+		return retval;
+
+	errno = 0;
+
+	*value = strtod(nptr, &endptr);
+	if ((errno != 0) || OTELC_STR_IS_VALID(endptr))
+		FLT_OTEL_ERR("'%s' : invalid value", nptr);
+	else if (!OTELC_IN_RANGE(*value, limit_min, limit_max))
+		FLT_OTEL_ERR("'%s' : value out of range [%.2f, %.2f]", nptr, limit_min, limit_max);
+	else
+		retval = true;
+
+	return retval;
+}
+
+
+/***
+ * NAME
+ *   flt_otel_strtoll - string to int64_t conversion with range check
+ *
+ * SYNOPSIS
+ *   bool flt_otel_strtoll(const char *nptr, int64_t *value, int64_t limit_min, int64_t limit_max, char **err)
+ *
+ * ARGUMENTS
+ *   nptr      - string to parse
+ *   value     - pointer to store the parsed int64_t result
+ *   limit_min - minimum allowed value
+ *   limit_max - maximum allowed value
+ *   err       - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Parses the string <nptr> as a 64-bit integer using base auto-detection.
+ *   Validates that the entire string is consumed and that the result falls
+ *   within the range [<limit_min>, <limit_max>].  On parse error or range
+ *   violation, an error message is stored via <err>.
+ *
+ * RETURN VALUE
+ *   Returns true on success, false on failure.
+ */
+bool flt_otel_strtoll(const char *nptr, int64_t *value, int64_t limit_min, int64_t limit_max, char **err)
+{
+	char *endptr = NULL;
+	bool  retval = false;
+
+	if (value == NULL)
+		return retval;
+
+	errno = 0;
+
+	*value = strtoll(nptr, &endptr, 0);
+	if ((errno != 0) || OTELC_STR_IS_VALID(endptr))
+		FLT_OTEL_ERR("'%s' : invalid value", nptr);
+	else if (!OTELC_IN_RANGE(*value, limit_min, limit_max))
+		FLT_OTEL_ERR("'%s' : value out of range [%" PRId64 ", %" PRId64 "]", nptr, limit_min, limit_max);
+	else
+		retval = true;
+
+	return retval;
+}
+
+
+/***
+ * NAME
  *   flt_otel_sample_to_str - sample data to string conversion
  *
  * SYNOPSIS

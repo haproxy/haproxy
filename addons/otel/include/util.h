@@ -34,6 +34,12 @@ int         flt_otel_args_count(const char **args);
 /* Concatenate argument array elements into a single string. */
 int         flt_otel_args_concat(const char **args, int idx, int n, char **str);
 
+/* Parse a string to double with range validation. */
+bool        flt_otel_strtod(const char *nptr, double *value, double limit_min, double limit_max, char **err);
+
+/* Parse a string to int64_t with range validation. */
+bool        flt_otel_strtoll(const char *nptr, int64_t *value, int64_t limit_min, int64_t limit_max, char **err);
+
 /* Convert sample data to a string representation. */
 int         flt_otel_sample_to_str(const struct sample_data *data, char *value, size_t size, char **err);
 
