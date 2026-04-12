@@ -69,7 +69,7 @@ def aws_lc_version_string_to_num(version_string):
     return tuple(map(int, version_string[1:].split('.')))
 
 def aws_lc_version_valid(version_string):
-    return re.match('^v[0-9]+(\.[0-9]+)*$', version_string)
+    return re.match(r'^v[0-9]+(\.[0-9]+)*$', version_string)
 
 @functools.lru_cache(5)
 def determine_latest_aws_lc(ssl):
@@ -86,7 +86,7 @@ def aws_lc_fips_version_string_to_num(version_string):
     return tuple(map(int, version_string[12:].split('.')))
 
 def aws_lc_fips_version_valid(version_string):
-    return re.match('^AWS-LC-FIPS-[0-9]+(\.[0-9]+)*$', version_string)
+    return re.match(r'^AWS-LC-FIPS-[0-9]+(\.[0-9]+)*$', version_string)
 
 @functools.lru_cache(5)
 def determine_latest_aws_lc_fips(ssl):
@@ -103,7 +103,7 @@ def wolfssl_version_string_to_num(version_string):
     return tuple(map(int, version_string[1:].removesuffix('-stable').split('.')))
 
 def wolfssl_version_valid(version_string):
-    return re.match('^v[0-9]+(\.[0-9]+)*-stable$', version_string)
+    return re.match(r'^v[0-9]+(\.[0-9]+)*-stable$', version_string)
 
 @functools.lru_cache(5)
 def determine_latest_wolfssl(ssl):
