@@ -15,6 +15,12 @@
 /* Compile-time string length excluding the null terminator. */
 #define FLT_OTEL_STR_SIZE(a)         (sizeof(a) - 1)
 
+/* Expand to address and length pair for a string literal. */
+#define FLT_OTEL_STR_ADDRSIZE(a)     (a), FLT_OTEL_STR_SIZE(a)
+
+/* Compare a runtime string against a compile-time string literal. */
+#define FLT_OTEL_STR_CMP(S,s)        ((s##_len == FLT_OTEL_STR_SIZE(S)) && (memcmp((s), FLT_OTEL_STR_ADDRSIZE(S)) == 0))
+
 /* Execute a statement exactly once across all invocations. */
 #define FLT_OTEL_RUN_ONCE(f)         do { static bool _f = 1; if (_f) { _f = 0; { f; } } } while (0)
 

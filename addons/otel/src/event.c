@@ -11,6 +11,78 @@ const struct flt_otel_event_data flt_otel_event_data[FLT_OTEL_EVENT_MAX] = { FLT
 
 /***
  * NAME
+ *   flt_otel_scope_run_span - single span execution
+ *
+ * SYNOPSIS
+ *   static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct channel *chn, uint dir, struct flt_otel_scope_span *span, struct flt_otel_scope_data *data, const struct flt_otel_conf_span *conf_span, const struct timespec *ts_steady, const struct timespec *ts_system, char **err)
+ *
+ * ARGUMENTS
+ *   s         - the stream being processed
+ *   f         - the filter instance
+ *   chn       - the channel used for HTTP header injection
+ *   dir       - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
+ *   span      - the runtime scope span to execute
+ *   data      - the evaluated scope data (attributes, events, links, status)
+ *   conf_span - the span configuration
+ *   ts_steady - the monotonic timestamp for span creation
+ *   ts_system - the wall-clock timestamp for span events
+ *   err       - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Executes a single span: creates the OTel span on first call via the tracer,
+ *   adds links, baggage, attributes, events and status from <data>, then
+ *   injects the span context into HTTP headers if configured in <conf_span>.
+ *
+ * RETURN VALUE
+ *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
+ */
+static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct channel *chn, uint dir, struct flt_otel_scope_span *span, struct flt_otel_scope_data *data, const struct flt_otel_conf_span *conf_span, const struct timespec *ts_steady, const struct timespec *ts_system, char **err)
+{
+	struct flt_otel_conf *conf = FLT_OTEL_CONF(f);
+	int                   retval = FLT_OTEL_RET_OK;
+
+	OTELC_FUNC("%p, %p, %p, %u, %p, %p, %p, %p, %p, %p:%p", s, f, chn, dir, span, data, conf_span, ts_steady, ts_system, OTELC_DPTR_ARGS(err));
+
+	if (span == NULL)
+		OTELC_RETURN_INT(retval);
+
+	/* Create the OTel span on first invocation. */
+	if (span->span == NULL) {
+		span->span = OTELC_OPS(conf->instr->tracer, start_span_with_options, span->id, span->ref_span, span->ref_ctx, ts_steady, ts_system, OTELC_SPAN_KIND_SERVER, NULL, 0);
+		if (span->span == NULL)
+			OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+	}
+
+	/* Set baggage key-value pairs on the span. */
+	if (data->baggage.attr != NULL)
+		if (OTELC_OPS(span->span, set_baggage_kv_n, data->baggage.attr, data->baggage.cnt) == -1)
+			retval = FLT_OTEL_RET_ERROR;
+
+	/* Set span attributes. */
+	if (data->attributes.attr != NULL)
+		if (OTELC_OPS(span->span, set_attribute_kv_n, data->attributes.attr, data->attributes.cnt) == -1)
+			retval = FLT_OTEL_RET_ERROR;
+
+	/* Add span events in reverse order. */
+	if (!LIST_ISEMPTY(&(data->events))) {
+		struct flt_otel_scope_data_event *event;
+
+		list_for_each_entry_rev(event, &(data->events), list)
+			if (OTELC_OPS(span->span, add_event_kv_n, event->name, ts_system, event->attr, event->cnt) == -1)
+				retval = FLT_OTEL_RET_ERROR;
+	}
+
+	/* Set span status code and description. */
+	if (data->status.description != NULL)
+		if (OTELC_OPS(span->span, set_status, data->status.code, data->status.description) == -1)
+			retval = FLT_OTEL_RET_ERROR;
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_scope_run - scope execution engine
  *
  * SYNOPSIS
@@ -36,15 +108,134 @@ const struct flt_otel_event_data flt_otel_event_data[FLT_OTEL_EVENT_MAX] = { FLT
  * RETURN VALUE
  *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
  */
-static int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, struct flt_otel_conf_scope *conf_scope, const struct timespec *ts_steady, const struct timespec *ts_system, uint dir, char **err)
+int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, struct flt_otel_conf_scope *conf_scope, const struct timespec *ts_steady, const struct timespec *ts_system, uint dir, char **err)
 {
+#ifdef FLT_OTEL_USE_COUNTERS
+	struct flt_otel_conf      *conf = FLT_OTEL_CONF(f);
+#endif
+	struct flt_otel_conf_span *conf_span;
+	struct flt_otel_conf_str  *span_to_finish;
+	struct timespec            ts_now_steady, ts_now_system;
+	int                        retval = FLT_OTEL_RET_OK;
+
 	OTELC_FUNC("%p, %p, %p, %p, %p, %p, %u, %p:%p", s, f, chn, conf_scope, ts_steady, ts_system, dir, OTELC_DPTR_ARGS(err));
 
 	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s)", flt_otel_chn_label(chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s));
 	OTELC_DBG(DEBUG, "run scope '%s' %d", conf_scope->id, conf_scope->event);
 	FLT_OTEL_DBG_CONF_SCOPE("run scope ", conf_scope);
 
-	OTELC_RETURN_INT(FLT_OTEL_RET_OK);
+	if (ts_steady == NULL) {
+		(void)clock_gettime(CLOCK_MONOTONIC, &ts_now_steady);
+
+		ts_steady = &ts_now_steady;
+	}
+	if (ts_system == NULL) {
+		(void)clock_gettime(CLOCK_REALTIME, &ts_now_system);
+
+		ts_system = &ts_now_system;
+	}
+
+	/* Evaluate the scope's ACL condition; skip this scope on mismatch. */
+	if (conf_scope->cond != NULL) {
+		enum acl_test_res res;
+		int               rc;
+
+		res = acl_exec_cond(conf_scope->cond, s->be, s->sess, s, dir | SMP_OPT_FINAL);
+		rc  = acl_pass(res);
+		if (conf_scope->cond->pol == ACL_COND_UNLESS)
+			rc = !rc;
+
+		OTELC_DBG(DEBUG, "the ACL rule %s", rc ? "matches" : "does not match");
+
+		/*
+		 * If the rule does not match, the current scope is skipped.
+		 *
+		 * If it is a root span, further processing of the session is
+		 * disabled.  As soon as the first span is encountered which
+		 * is marked as root, further search is interrupted.
+		 */
+		if (rc == 0) {
+			list_for_each_entry(conf_span, &(conf_scope->spans), list)
+				if (conf_span->flag_root) {
+					OTELC_DBG(LOG, "session disabled");
+
+					FLT_OTEL_RT_CTX(f->ctx)->flag_disabled = 1;
+
+#ifdef FLT_OTEL_USE_COUNTERS
+					_HA_ATOMIC_ADD(conf->cnt.disabled + 0, 1);
+#endif
+
+					break;
+				}
+
+			OTELC_RETURN_INT(retval);
+		}
+	}
+
+	/* Process configured spans: resolve links and collect samples. */
+	list_for_each_entry(conf_span, &(conf_scope->spans), list) {
+		struct flt_otel_scope_data   data;
+		struct flt_otel_scope_span  *span;
+		struct flt_otel_conf_sample *sample;
+
+		OTELC_DBG(DEBUG, "run span '%s' -> '%s'", conf_scope->id, conf_span->id);
+		FLT_OTEL_DBG_CONF_SPAN("run span ", conf_span);
+
+		flt_otel_scope_data_init(&data);
+
+		span = flt_otel_scope_span_init(f->ctx, conf_span->id, conf_span->id_len, conf_span->ref_id, conf_span->ref_id_len, dir, err);
+		if (span == NULL)
+			retval = FLT_OTEL_RET_ERROR;
+
+		list_for_each_entry(sample, &(conf_span->attributes), list) {
+			OTELC_DBG(DEBUG, "adding attribute '%s' -> '%s'", sample->key, sample->fmt_string);
+
+			if (flt_otel_sample_add(s, dir, sample, &data, FLT_OTEL_EVENT_SAMPLE_ATTRIBUTE, err) == FLT_OTEL_RET_ERROR)
+				retval = FLT_OTEL_RET_ERROR;
+		}
+
+		list_for_each_entry(sample, &(conf_span->events), list) {
+			OTELC_DBG(DEBUG, "adding event '%s' -> '%s'", sample->key, sample->fmt_string);
+
+			if (flt_otel_sample_add(s, dir, sample, &data, FLT_OTEL_EVENT_SAMPLE_EVENT, err) == FLT_OTEL_RET_ERROR)
+				retval = FLT_OTEL_RET_ERROR;
+		}
+
+		list_for_each_entry(sample, &(conf_span->baggages), list) {
+			OTELC_DBG(DEBUG, "adding baggage '%s' -> '%s'", sample->key, sample->fmt_string);
+
+			if (flt_otel_sample_add(s, dir, sample, &data, FLT_OTEL_EVENT_SAMPLE_BAGGAGE, err) == FLT_OTEL_RET_ERROR)
+				retval = FLT_OTEL_RET_ERROR;
+		}
+
+		/*
+		 * Regardless of the use of the list, only one status per event
+		 * is allowed.
+		 */
+		list_for_each_entry(sample, &(conf_span->statuses), list) {
+			OTELC_DBG(DEBUG, "adding status '%s' -> '%s'", sample->key, sample->fmt_string);
+
+			if (flt_otel_sample_add(s, dir, sample, &data, FLT_OTEL_EVENT_SAMPLE_STATUS, err) == FLT_OTEL_RET_ERROR)
+				retval = FLT_OTEL_RET_ERROR;
+		}
+
+		/* Attempt to run the span regardless of earlier errors. */
+		if (span != NULL)
+			if (flt_otel_scope_run_span(s, f, chn, dir, span, &data, conf_span, ts_steady, ts_system, err) == FLT_OTEL_RET_ERROR)
+				retval = FLT_OTEL_RET_ERROR;
+
+		flt_otel_scope_data_free(&data);
+	}
+
+	/* Mark the configured spans for finishing and clean up. */
+	list_for_each_entry(span_to_finish, &(conf_scope->spans_to_finish), list)
+		if (flt_otel_scope_finish_mark(f->ctx, span_to_finish->str, span_to_finish->str_len) == FLT_OTEL_RET_ERROR)
+			retval = FLT_OTEL_RET_ERROR;
+
+	flt_otel_scope_finish_marked(f->ctx, ts_steady);
+	flt_otel_scope_free_unused(f->ctx, chn);
+
+	OTELC_RETURN_INT(retval);
 }
 
 

@@ -58,6 +58,12 @@ bool        flt_otel_strtoll(const char *nptr, int64_t *value, int64_t limit_min
 /* Convert sample data to a string representation. */
 int         flt_otel_sample_to_str(const struct sample_data *data, char *value, size_t size, char **err);
 
+/* Convert sample data to an OTel value. */
+int         flt_otel_sample_to_value(const char *key, const struct sample_data *data, struct otelc_value *value, char **err);
+
+/* Evaluate a sample expression and add the result to scope data. */
+int         flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, struct flt_otel_scope_data *data, int type, char **err);
+
 #endif /* _OTEL_UTIL_H_ */
 
 /*

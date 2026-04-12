@@ -519,6 +519,441 @@ int flt_otel_sample_to_str(const struct sample_data *data, char *value, size_t s
 	OTELC_RETURN_INT(retval);
 }
 
+
+/***
+ * NAME
+ *   flt_otel_sample_to_value - sample data to OTel value conversion
+ *
+ * SYNOPSIS
+ *   int flt_otel_sample_to_value(const char *key, const struct sample_data *data, struct otelc_value *value, char **err)
+ *
+ * ARGUMENTS
+ *   key   - sample key name (for debug output)
+ *   data  - sample data to convert
+ *   value - output OTel value structure
+ *   err   - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Converts sample data to an otelc_value structure.  Boolean samples are
+ *   stored as OTELC_VALUE_BOOL, integer samples as OTELC_VALUE_INT64.  All
+ *   other types are converted to a string via flt_otel_sample_to_str() and
+ *   stored as OTELC_VALUE_DATA with heap-allocated storage.
+ *
+ * RETURN VALUE
+ *   Returns the size of the converted value, or FLT_OTEL_RET_ERROR on failure.
+ */
+int flt_otel_sample_to_value(const char *key, const struct sample_data *data, struct otelc_value *value, char **err)
+{
+	int retval = FLT_OTEL_RET_ERROR;
+
+	OTELC_FUNC("\"%s\", %p, %p, %p:%p", OTELC_STR_ARG(key), data, value, OTELC_DPTR_ARGS(err));
+
+	if ((data == NULL) || (value == NULL))
+		OTELC_RETURN_INT(retval);
+
+	/* Convert the sample value to an otelc_value based on its type. */
+	if (data->type == SMP_T_BOOL) {
+		value->u_type       = OTELC_VALUE_BOOL;
+		value->u.value_bool = data->u.sint ? 1 : 0;
+
+		retval = sizeof(value->u.value_bool);
+	}
+	else if (data->type == SMP_T_SINT) {
+		value->u_type        = OTELC_VALUE_INT64;
+		value->u.value_int64 = data->u.sint;
+
+		retval = sizeof(value->u.value_int64);
+	}
+	else {
+		value->u_type       = OTELC_VALUE_DATA;
+		value->u.value_data = OTELC_MALLOC(global.tune.bufsize);
+
+		if (value->u.value_data == NULL)
+			FLT_OTEL_ERR("out of memory");
+		else
+			retval = flt_otel_sample_to_str(data, value->u.value_data, global.tune.bufsize, err);
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_sample_add_event - span event attribute addition
+ *
+ * SYNOPSIS
+ *   static int flt_otel_sample_add_event(struct list *events, struct flt_otel_conf_sample *sample, const struct otelc_value *value)
+ *
+ * ARGUMENTS
+ *   events - list of span events (flt_otel_scope_data_event)
+ *   sample - configured sample with event name and key
+ *   value  - OTel value to add as an attribute
+ *
+ * DESCRIPTION
+ *   Adds a sample value as a span event attribute.  Searches the existing
+ *   events list for an event with a matching name; if not found, creates a new
+ *   event entry with an initial attribute array of FLT_OTEL_ATTR_INIT_SIZE
+ *   elements.  If the attribute array is full, it is grown by
+ *   FLT_OTEL_ATTR_INC_SIZE elements.  The key-value pair is appended to the
+ *   event's attribute array.
+ *
+ * RETURN VALUE
+ *   Returns the attribute count for the event, or FLT_OTEL_RET_ERROR on
+ *   failure.
+ */
+static int flt_otel_sample_add_event(struct list *events, struct flt_otel_conf_sample *sample, const struct otelc_value *value)
+{
+	struct flt_otel_scope_data_event *ptr, *event = NULL;
+	struct otelc_kv                  *attr = NULL;
+	bool                              flag_list_insert = 0;
+
+	OTELC_FUNC("%p, %p, %p", events, sample, value);
+
+	if ((events == NULL) || (sample == NULL) || (value == NULL))
+		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+
+	/*
+	 * First try to find an event with the same name in the list of events,
+	 * if it succeeds, new data is added to the event found.
+	 */
+	if (!LIST_ISEMPTY(events))
+		list_for_each_entry(ptr, events, list)
+			if (strcmp(ptr->name, OTELC_VALUE_STR(&(sample->extra))) == 0) {
+				event = ptr;
+
+				break;
+			}
+
+	/*
+	 * If an event with the required name is not found, a new event is added
+	 * to the list.  Initially, the number of attributes for the new event
+	 * is set to FLT_OTEL_ATTR_INIT_SIZE.
+	 */
+	if (event == NULL) {
+		event = OTELC_CALLOC(1, sizeof(*event));
+		if (event == NULL)
+			OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+
+		event->name = OTELC_STRDUP(OTELC_VALUE_STR(&(sample->extra)));
+		event->attr = OTELC_CALLOC(FLT_OTEL_ATTR_INIT_SIZE, sizeof(*(event->attr)));
+		event->cnt  = 0;
+		event->size = FLT_OTEL_ATTR_INIT_SIZE;
+		if ((event->name == NULL) || (event->attr == NULL)) {
+			OTELC_SFREE(event->name);
+			OTELC_SFREE(event->attr);
+			OTELC_SFREE(event);
+
+			OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+		}
+
+		flag_list_insert = 1;
+
+		OTELC_DBG(DEBUG, "scope event data initialized");
+	}
+
+	/*
+	 * In case event attributes are added to an already existing event in
+	 * the list, it is checked whether the number of attributes should be
+	 * increased.  If necessary, it will be increased by the amount
+	 * FLT_OTEL_ATTR_INC_SIZE.
+	 */
+	if (event->cnt == event->size) {
+		typeof(event->attr) ptr = OTELC_REALLOC(event->attr, sizeof(*ptr) * (event->size + FLT_OTEL_ATTR_INC_SIZE));
+		if (ptr == NULL)
+			OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+
+		event->attr  = ptr;
+		event->size += FLT_OTEL_ATTR_INC_SIZE;
+
+		OTELC_DBG(DEBUG, "scope event data reallocated");
+	}
+
+	attr                 = event->attr + event->cnt++;
+	attr->key            = sample->key;
+	attr->key_is_dynamic = false;
+	(void)memcpy(&(attr->value), value, sizeof(attr->value));
+
+	if (flag_list_insert) {
+		if (LIST_ISEMPTY(events))
+			LIST_INIT(events);
+
+		LIST_INSERT(events, &(event->list));
+	}
+
+	OTELC_RETURN_INT(event->cnt);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_sample_set_status - span status setter
+ *
+ * SYNOPSIS
+ *   static int flt_otel_sample_set_status(struct flt_otel_scope_data_status *status, struct flt_otel_conf_sample *sample, const struct otelc_value *value, char **err)
+ *
+ * ARGUMENTS
+ *   status - span status structure to populate
+ *   sample - configured sample with status code in extra data
+ *   value  - OTel value for the status description
+ *   err    - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Sets the span status code and description from sample data.  The status
+ *   code is taken from the sample's extra field (an int32 value) and the
+ *   description from <value>, which must be a string type.  Multiple status
+ *   settings for the same span are rejected with an error.
+ *
+ * RETURN VALUE
+ *   Returns 1 on success, or FLT_OTEL_RET_ERROR on failure.
+ */
+static int flt_otel_sample_set_status(struct flt_otel_scope_data_status *status, struct flt_otel_conf_sample *sample, const struct otelc_value *value, char **err)
+{
+	OTELC_FUNC("%p, %p, %p, %p:%p", status, sample, value, OTELC_DPTR_ARGS(err));
+
+	if ((status == NULL) || (sample == NULL) || (value == NULL))
+		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+
+	/*
+	 * This scenario should never occur, but the check is still enforced -
+	 * multiple status settings are not allowed within the filter
+	 * configuration for each span event.
+	 */
+	if (status->description != NULL) {
+		FLT_OTEL_ERR("'%s' : span status already set", sample->key);
+
+		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+	}
+	else if ((value->u_type != OTELC_VALUE_STRING) && (value->u_type != OTELC_VALUE_DATA)) {
+		FLT_OTEL_ERR("'%s' : status description must be a string value", sample->key);
+
+		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+	}
+
+	status->code        = sample->extra.u.value_int32;
+	status->description = OTELC_STRDUP(OTELC_VALUE_STR(value));
+	if (status->description == NULL) {
+		FLT_OTEL_ERR("out of memory");
+
+		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+	}
+
+	OTELC_RETURN_INT(1);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_sample_add_kv - key-value attribute addition
+ *
+ * SYNOPSIS
+ *   static int flt_otel_sample_add_kv(struct flt_otel_scope_data_kv *kv, const char *key, const struct otelc_value *value)
+ *
+ * ARGUMENTS
+ *   kv    - key-value storage (attributes or baggage)
+ *   key   - attribute or baggage key name
+ *   value - OTel value to add
+ *
+ * DESCRIPTION
+ *   Adds a sample value as a key-value attribute or baggage entry.  If the
+ *   key-value array is not yet allocated, it is created with
+ *   FLT_OTEL_ATTR_INIT_SIZE elements via otelc_kv_new().  When the array is
+ *   full, it is grown by FLT_OTEL_ATTR_INC_SIZE elements.  The key-value pair
+ *   is appended to the array.
+ *
+ * RETURN VALUE
+ *   Returns the current element count, or FLT_OTEL_RET_ERROR on failure.
+ */
+static int flt_otel_sample_add_kv(struct flt_otel_scope_data_kv *kv, const char *key, const struct otelc_value *value)
+{
+	struct otelc_kv *attr = NULL;
+
+	OTELC_FUNC("%p, \"%s\", %p", kv, OTELC_STR_ARG(key), value);
+
+	if ((kv == NULL) || (key == NULL) || (value == NULL))
+		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+
+	if (kv->attr == NULL) {
+		kv->attr = otelc_kv_new(FLT_OTEL_ATTR_INIT_SIZE);
+		if (kv->attr == NULL)
+			OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+
+		kv->cnt  = 0;
+		kv->size = FLT_OTEL_ATTR_INIT_SIZE;
+
+		OTELC_DBG(DEBUG, "scope kv data initialized");
+	}
+
+	if (kv->cnt == kv->size) {
+		typeof(kv->attr) ptr = OTELC_REALLOC(kv->attr, sizeof(*ptr) * (kv->size + FLT_OTEL_ATTR_INC_SIZE));
+		if (ptr == NULL)
+			OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+
+		kv->attr  = ptr;
+		kv->size += FLT_OTEL_ATTR_INC_SIZE;
+
+		OTELC_DBG(DEBUG, "scope kv data reallocated");
+	}
+
+	attr                 = kv->attr + kv->cnt++;
+	attr->key            = (typeof(attr->key))key;
+	attr->key_is_dynamic = false;
+	(void)memcpy(&(attr->value), value, sizeof(attr->value));
+
+	OTELC_RETURN_INT(kv->cnt);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_sample_add - top-level sample evaluator
+ *
+ * SYNOPSIS
+ *   int flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, struct flt_otel_scope_data *data, int type, char **err)
+ *
+ * ARGUMENTS
+ *   s      - current stream
+ *   dir    - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
+ *   sample - configured sample definition
+ *   data   - scope data to populate
+ *   type   - sample type (FLT_OTEL_EVENT_SAMPLE_*)
+ *   err    - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Processes all sample expressions for a configured sample definition,
+ *   converts the results, and dispatches to the appropriate handler.  For
+ *   single-expression attributes and events, native type preservation is
+ *   attempted via flt_otel_sample_to_value().  For multi-expression samples,
+ *   all results are concatenated into a string buffer.  The final value is
+ *   dispatched to flt_otel_sample_add_kv() for attributes and baggage,
+ *   flt_otel_sample_add_event() for events, or flt_otel_sample_set_status()
+ *   for status.
+ *
+ * RETURN VALUE
+ *   Returns a negative value if an error occurs, 0 if it needs to wait,
+ *   any other value otherwise.
+ */
+int flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, struct flt_otel_scope_data *data, int type, char **err)
+{
+	const struct flt_otel_conf_sample_expr *expr;
+	struct sample                           smp;
+	struct otelc_value                      value;
+	struct buffer                           buffer;
+	int                                     idx = 0, rc, retval = FLT_OTEL_RET_OK;
+
+	OTELC_FUNC("%p, %u, %p, %p, %d, %p:%p", s, dir, sample, data, type, OTELC_DPTR_ARGS(err));
+
+	FLT_OTEL_DBG_CONF_SAMPLE("sample ", sample);
+
+	(void)memset(&value, 0, sizeof(value));
+	(void)memset(&buffer, 0, sizeof(buffer));
+
+	list_for_each_entry(expr, &(sample->exprs), list) {
+		FLT_OTEL_DBG_CONF_SAMPLE_EXPR("sample expression ", expr);
+
+		(void)memset(&smp, 0, sizeof(smp));
+
+		if (sample_process(s->be, s->sess, s, dir | SMP_OPT_FINAL, expr->expr, &smp) != NULL) {
+			OTELC_DBG(DEBUG, "data type %d: '%s'", smp.data.type, expr->fmt_expr);
+		} else {
+			OTELC_DBG(NOTICE, "WARNING: failed to fetch '%s' value", expr->fmt_expr);
+
+			/*
+			 * In case the fetch failed, we will set the result
+			 * (sample) to an empty static string.
+			 */
+			(void)memset(&(smp.data), 0, sizeof(smp.data));
+			smp.data.type       = SMP_T_STR;
+			smp.data.u.str.area = "";
+		}
+
+		/*
+		 * If we have only one expression to process, then the data
+		 * type that is the result of the expression is converted to
+		 * an equivalent data type (if possible) that is written to
+		 * the tracer.
+		 *
+		 * If conversion is not possible, or if we have multiple
+		 * expressions to process, then the result is converted to
+		 * a string and as such sent to the tracer.
+		 */
+		if ((sample->num_exprs == 1) && ((type == FLT_OTEL_EVENT_SAMPLE_ATTRIBUTE) || (type == FLT_OTEL_EVENT_SAMPLE_EVENT))) {
+			if (flt_otel_sample_to_value(sample->key, &(smp.data), &value, err) == FLT_OTEL_RET_ERROR)
+				retval = FLT_OTEL_RET_ERROR;
+		} else {
+			if (buffer.area == NULL) {
+				chunk_init(&buffer, OTELC_CALLOC(1, global.tune.bufsize), global.tune.bufsize);
+				if (buffer.area == NULL) {
+					FLT_OTEL_ERR("out of memory");
+
+					retval = FLT_OTEL_RET_ERROR;
+
+					break;
+				}
+			}
+
+			rc = flt_otel_sample_to_str(&(smp.data), buffer.area + buffer.data, buffer.size - buffer.data, err);
+			if (rc == FLT_OTEL_RET_ERROR) {
+				retval = FLT_OTEL_RET_ERROR;
+			} else {
+				buffer.data += rc;
+
+				if (sample->num_exprs == ++idx) {
+					value.u_type       = OTELC_VALUE_DATA;
+					value.u.value_data = buffer.area;
+				}
+			}
+		}
+	}
+
+	/* Dispatch the evaluated value to the appropriate collection. */
+	if (retval == FLT_OTEL_RET_ERROR) {
+		/* Do nothing. */
+	}
+	else if (type == FLT_OTEL_EVENT_SAMPLE_ATTRIBUTE) {
+		retval = flt_otel_sample_add_kv(&(data->attributes), sample->key, &value);
+		if (retval == FLT_OTEL_RET_ERROR)
+			FLT_OTEL_ERR("out of memory");
+	}
+	else if (type == FLT_OTEL_EVENT_SAMPLE_EVENT) {
+		retval = flt_otel_sample_add_event(&(data->events), sample, &value);
+		if (retval == FLT_OTEL_RET_ERROR)
+			FLT_OTEL_ERR("out of memory");
+	}
+	else if (type == FLT_OTEL_EVENT_SAMPLE_BAGGAGE) {
+		retval = flt_otel_sample_add_kv(&(data->baggage), sample->key, &value);
+		if (retval == FLT_OTEL_RET_ERROR)
+			FLT_OTEL_ERR("out of memory");
+	}
+	else if (type == FLT_OTEL_EVENT_SAMPLE_STATUS) {
+		retval = flt_otel_sample_set_status(&(data->status), sample, &value, err);
+	}
+	else {
+		FLT_OTEL_ERR("invalid event sample type: %d", type);
+
+		retval = FLT_OTEL_RET_ERROR;
+	}
+
+	/*
+	 * Free dynamically allocated value data that was not transferred to
+	 * a key-value array.  For ATTRIBUTE, EVENT, and BAGGAGE, the value
+	 * pointer is shallow-copied into the kv array on success and will be
+	 * freed by otelc_kv_destroy().  For STATUS, the handler creates its
+	 * own copy, so the original must be freed.  On any error, no handler
+	 * consumed the value.
+	 */
+	if ((retval != FLT_OTEL_RET_ERROR) && (type != FLT_OTEL_EVENT_SAMPLE_STATUS))
+		/* Do nothing. */;
+	else if (buffer.area != NULL)
+		OTELC_SFREE(buffer.area);
+	else if (value.u_type == OTELC_VALUE_DATA)
+		OTELC_SFREE(value.u.value_data);
+
+	flt_otel_scope_data_dump(data);
+
+	OTELC_RETURN_INT(retval);
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

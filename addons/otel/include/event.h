@@ -108,6 +108,14 @@ enum FLT_OTEL_EVENT_enum {
 #undef FLT_OTEL_EVENT_DEF
 };
 
+/* Sample data types associated with a scope event. */
+enum FLT_OTEL_EVENT_SAMPLE_enum {
+	FLT_OTEL_EVENT_SAMPLE_ATTRIBUTE = 0,
+	FLT_OTEL_EVENT_SAMPLE_EVENT,
+	FLT_OTEL_EVENT_SAMPLE_BAGGAGE,
+	FLT_OTEL_EVENT_SAMPLE_STATUS,
+};
+
 /* Per-event metadata mapping analyzer bits to filter event names. */
 struct flt_otel_event_data {
 	uint        an_bit;           /* Used channel analyser. */
@@ -119,10 +127,15 @@ struct flt_otel_event_data {
 	const char *name;             /* Filter event name. */
 };
 
+struct flt_otel_conf_scope;
+
 
 /* Per-event metadata table indexed by FLT_OTEL_EVENT_* constants. */
 extern const struct flt_otel_event_data flt_otel_event_data[FLT_OTEL_EVENT_MAX];
 
+
+/* Execute a single scope: create spans, record instruments, evaluate samples. */
+int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, struct flt_otel_conf_scope *conf_scope, const struct timespec *ts_steady, const struct timespec *ts_system, uint dir, char **err);
 
 /* Run all scopes matching a filter event on the given stream and channel. */
 int flt_otel_event_run(struct stream *s, struct filter *f, struct channel *chn, int event, char **err);

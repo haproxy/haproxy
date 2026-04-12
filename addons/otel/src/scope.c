@@ -486,6 +486,162 @@ void flt_otel_scope_data_free(struct flt_otel_scope_data *ptr)
 
 /***
  * NAME
+ *   flt_otel_scope_finish_mark - mark spans and contexts for finishing
+ *
+ * SYNOPSIS
+ *   int flt_otel_scope_finish_mark(const struct flt_otel_runtime_context *rt_ctx, const char *id, size_t id_len)
+ *
+ * ARGUMENTS
+ *   rt_ctx - the runtime context containing spans and contexts
+ *   id     - the target name, or a wildcard ("*", "*req*", "*res*")
+ *   id_len - length of the <id> string
+ *
+ * DESCRIPTION
+ *   Marks spans and contexts for finishing.  The <id> argument supports
+ *   wildcards: "*" marks all spans and contexts, "*req*" marks the request
+ *   channel only, "*res*" marks the response channel only.  Otherwise, a named
+ *   span or context is looked up by exact match.
+ *
+ * RETURN VALUE
+ *   Returns the number of spans and contexts that were marked.
+ */
+int flt_otel_scope_finish_mark(const struct flt_otel_runtime_context *rt_ctx, const char *id, size_t id_len)
+{
+	struct flt_otel_scope_span    *span;
+	struct flt_otel_scope_context *ctx;
+	int                            span_cnt = 0, ctx_cnt = 0, retval;
+
+	OTELC_FUNC("%p, \"%s\", %zu", rt_ctx, OTELC_STR_ARG(id), id_len);
+
+	/* Handle wildcard finish marks: all, request-only, response-only. */
+	if (FLT_OTEL_STR_CMP(FLT_OTEL_SCOPE_SPAN_FINISH_ALL, id)) {
+		list_for_each_entry(span, &(rt_ctx->spans), list) {
+			span->flag_finish = 1;
+			span_cnt++;
+		}
+
+		list_for_each_entry(ctx, &(rt_ctx->contexts), list) {
+			ctx->flag_finish = 1;
+			ctx_cnt++;
+		}
+
+		OTELC_DBG(NOTICE, "marked %d span(s), %d context(s)", span_cnt, ctx_cnt);
+	}
+	else if (FLT_OTEL_STR_CMP(FLT_OTEL_SCOPE_SPAN_FINISH_REQ, id)) {
+		list_for_each_entry(span, &(rt_ctx->spans), list)
+			if (span->smp_opt_dir == SMP_OPT_DIR_REQ) {
+				span->flag_finish = 1;
+				span_cnt++;
+			}
+
+		list_for_each_entry(ctx, &(rt_ctx->contexts), list)
+			if (ctx->smp_opt_dir == SMP_OPT_DIR_REQ) {
+				ctx->flag_finish = 1;
+				ctx_cnt++;
+			}
+
+		OTELC_DBG(NOTICE, "marked REQuest channel %d span(s), %d context(s)", span_cnt, ctx_cnt);
+	}
+	else if (FLT_OTEL_STR_CMP(FLT_OTEL_SCOPE_SPAN_FINISH_RES, id)) {
+		list_for_each_entry(span, &(rt_ctx->spans), list)
+			if (span->smp_opt_dir == SMP_OPT_DIR_RES) {
+				span->flag_finish = 1;
+				span_cnt++;
+			}
+
+		list_for_each_entry(ctx, &(rt_ctx->contexts), list)
+			if (ctx->smp_opt_dir == SMP_OPT_DIR_RES) {
+				ctx->flag_finish = 1;
+				ctx_cnt++;
+			}
+
+		OTELC_DBG(NOTICE, "marked RESponse channel %d span(s), %d context(s)", span_cnt, ctx_cnt);
+	}
+	else {
+		list_for_each_entry(span, &(rt_ctx->spans), list)
+			if (FLT_OTEL_CONF_STR_CMP(span->id, id)) {
+				span->flag_finish = 1;
+				span_cnt++;
+
+				break;
+			}
+
+		list_for_each_entry(ctx, &(rt_ctx->contexts), list)
+			if (FLT_OTEL_CONF_STR_CMP(ctx->id, id)) {
+				ctx->flag_finish = 1;
+				ctx_cnt++;
+
+				break;
+			}
+
+		if (span_cnt > 0)
+			OTELC_DBG(NOTICE, "marked span '%s'", id);
+		if (ctx_cnt > 0)
+			OTELC_DBG(NOTICE, "marked context '%s'", id);
+		if ((span_cnt + ctx_cnt) == 0)
+			OTELC_DBG(NOTICE, "cannot find span/context '%s'", id);
+	}
+
+	retval = span_cnt + ctx_cnt;
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_scope_finish_marked - finish marked spans and contexts
+ *
+ * SYNOPSIS
+ *   void flt_otel_scope_finish_marked(const struct flt_otel_runtime_context *rt_ctx, const struct timespec *ts_finish)
+ *
+ * ARGUMENTS
+ *   rt_ctx    - the runtime context containing spans and contexts
+ *   ts_finish - the monotonic timestamp to use as the span end time
+ *
+ * DESCRIPTION
+ *   Ends all spans and destroys all contexts that have been marked for
+ *   finishing by flt_otel_scope_finish_mark().  Each span is ended with the
+ *   <ts_finish> timestamp; each context's OTel span context is destroyed.
+ *   The finish flags are cleared after processing.
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+void flt_otel_scope_finish_marked(const struct flt_otel_runtime_context *rt_ctx, const struct timespec *ts_finish)
+{
+	struct flt_otel_scope_span    *span;
+	struct flt_otel_scope_context *ctx;
+
+	OTELC_FUNC("%p, %p", rt_ctx, ts_finish);
+
+	/* End all spans that have been marked for finishing. */
+	list_for_each_entry(span, &(rt_ctx->spans), list)
+		if (span->flag_finish) {
+			FLT_OTEL_DBG_SCOPE_SPAN("finishing span ", span);
+
+			OTELC_OPSR(span->span, end_with_options, ts_finish, OTELC_SPAN_STATUS_IGNORE, NULL);
+
+			span->flag_finish = 0;
+		}
+
+	/* Destroy all contexts that have been marked for finishing. */
+	list_for_each_entry(ctx, &(rt_ctx->contexts), list)
+		if (ctx->flag_finish) {
+			FLT_OTEL_DBG_SCOPE_CONTEXT("finishing context ", ctx);
+
+			if (ctx->context != NULL)
+				OTELC_OPSR(ctx->context, destroy);
+
+			ctx->flag_finish = 0;
+		}
+
+	OTELC_RETURN();
+}
+
+
+/***
+ * NAME
  *   flt_otel_scope_free_unused - remove unused spans and contexts
  *
  * SYNOPSIS

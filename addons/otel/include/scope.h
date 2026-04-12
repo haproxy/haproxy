@@ -143,6 +143,12 @@ void                             flt_otel_scope_data_init(struct flt_otel_scope_
 /* Free all scope data contents. */
 void                             flt_otel_scope_data_free(struct flt_otel_scope_data *ptr);
 
+/* Mark a span for finishing by name in the runtime context. */
+int                              flt_otel_scope_finish_mark(const struct flt_otel_runtime_context *rt_ctx, const char *id, size_t id_len);
+
+/* End all spans that have been marked for finishing. */
+void                             flt_otel_scope_finish_marked(const struct flt_otel_runtime_context *rt_ctx, const struct timespec *ts_finish);
+
 /* Free scope spans and contexts no longer needed by a channel. */
 void                             flt_otel_scope_free_unused(struct flt_otel_runtime_context *rt_ctx, struct channel *chn);
 
