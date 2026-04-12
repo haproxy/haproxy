@@ -27,8 +27,11 @@
 
 #include "config.h"
 #include "define.h"
+#include "conf.h"
+#include "conf_funcs.h"
 #include "filter.h"
 #include "parser.h"
+#include "util.h"
 
 #endif /* _OTEL_INCLUDE_H_ */
 

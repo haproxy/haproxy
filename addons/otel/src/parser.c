@@ -50,6 +50,8 @@ static int flt_otel_parse(char **args, int *cur_arg, struct proxy *px, struct fl
 	);
 #endif
 
+	FLT_OTEL_ARGS_DUMP();
+
 	OTELC_RETURN_INT(retval);
 }
 

@@ -3,6 +3,7 @@
 #ifndef _OTEL_CONFIG_H_
 #define _OTEL_CONFIG_H_
 
+#define FLT_OTEL_ID_MAXLEN        64            /* Maximum identifier length. */
 #define FLT_OTEL_DEBUG_LEVEL   0b11101111111 /* Default debug bitmask. */
 
 #endif /* _OTEL_CONFIG_H_ */

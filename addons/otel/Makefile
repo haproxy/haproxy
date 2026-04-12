@@ -51,7 +51,9 @@ $(error OpenTelemetry C wrapper : can't find library)
 endif
 
 OPTIONS_OBJS += \
+	addons/otel/src/conf.o   \
 	addons/otel/src/filter.o \
-	addons/otel/src/parser.o
+	addons/otel/src/parser.o \
+	addons/otel/src/util.o
 
 OTEL_CFLAGS := $(OTEL_CFLAGS) -Iaddons/otel/include $(OTEL_DEFINE)
