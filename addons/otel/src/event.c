@@ -77,6 +77,27 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
 		if (OTELC_OPS(span->span, set_status, data->status.code, data->status.description) == -1)
 			retval = FLT_OTEL_RET_ERROR;
 
+	/* Inject span context into HTTP headers. */
+	if (conf_span->ctx_id != NULL) {
+		struct otelc_http_headers_writer  writer;
+		struct otelc_text_map            *text_map = NULL;
+
+		if (flt_otel_inject_http_headers(span->span, &writer) != FLT_OTEL_RET_ERROR) {
+			int i = 0;
+
+			if (conf_span->ctx_flags & FLT_OTEL_CTX_USE_HEADERS) {
+				for (text_map = &(writer.text_map); i < text_map->count; i++) {
+					if (!(conf_span->ctx_flags & FLT_OTEL_CTX_USE_HEADERS))
+						/* Do nothing. */;
+					else if (flt_otel_http_header_set(chn, conf_span->ctx_id, text_map->key[i], text_map->value[i], err) == FLT_OTEL_RET_ERROR)
+						retval = FLT_OTEL_RET_ERROR;
+				}
+			}
+
+			otelc_text_map_destroy(&text_map);
+		}
+	}
+
 	OTELC_RETURN_INT(retval);
 }
 
@@ -110,13 +131,12 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
  */
 int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, struct flt_otel_conf_scope *conf_scope, const struct timespec *ts_steady, const struct timespec *ts_system, uint dir, char **err)
 {
-#ifdef FLT_OTEL_USE_COUNTERS
-	struct flt_otel_conf      *conf = FLT_OTEL_CONF(f);
-#endif
-	struct flt_otel_conf_span *conf_span;
-	struct flt_otel_conf_str  *span_to_finish;
-	struct timespec            ts_now_steady, ts_now_system;
-	int                        retval = FLT_OTEL_RET_OK;
+	struct flt_otel_conf         *conf = FLT_OTEL_CONF(f);
+	struct flt_otel_conf_context *conf_ctx;
+	struct flt_otel_conf_span    *conf_span;
+	struct flt_otel_conf_str     *span_to_finish;
+	struct timespec               ts_now_steady, ts_now_system;
+	int                           retval = FLT_OTEL_RET_OK;
 
 	OTELC_FUNC("%p, %p, %p, %p, %p, %p, %u, %p:%p", s, f, chn, conf_scope, ts_steady, ts_system, dir, OTELC_DPTR_ARGS(err));
 
@@ -169,6 +189,29 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 				}
 
 			OTELC_RETURN_INT(retval);
+		}
+	}
+
+	/* Extract and initialize OpenTelemetry propagation contexts. */
+	list_for_each_entry(conf_ctx, &(conf_scope->contexts), list) {
+		struct otelc_text_map *text_map = NULL;
+
+		OTELC_DBG(DEBUG, "run context '%s' -> '%s'", conf_scope->id, conf_ctx->id);
+		FLT_OTEL_DBG_CONF_CONTEXT("run context ", conf_ctx);
+
+		/*
+		 * The OpenTelemetry context is read from the HTTP headers.
+		 */
+		if (conf_ctx->flags & FLT_OTEL_CTX_USE_HEADERS)
+			text_map = flt_otel_http_headers_get(chn, conf_ctx->id, conf_ctx->id_len, err);
+
+		if (text_map != NULL) {
+			if (flt_otel_scope_context_init(f->ctx, conf->instr->tracer, conf_ctx->id, conf_ctx->id_len, text_map, dir, err) == NULL)
+				retval = FLT_OTEL_RET_ERROR;
+
+			otelc_text_map_destroy(&text_map);
+		} else {
+			retval = FLT_OTEL_RET_ERROR;
 		}
 	}
 
@@ -297,6 +340,8 @@ int flt_otel_event_run(struct stream *s, struct filter *f, struct channel *chn, 
 		else if (flt_otel_scope_run(s, f, chn, conf_scope, &ts_steady, &ts_system, flt_otel_event_data[event].smp_opt_dir, err) == FLT_OTEL_RET_ERROR)
 			retval = FLT_OTEL_RET_ERROR;
 	}
+
+	flt_otel_http_headers_dump(chn);
 
 	OTELC_DBG(DEBUG, "event = %d %s, chn = %p, s->req = %p, s->res = %p", event, flt_otel_event_data[event].an_name, chn, &(s->req), &(s->res));
 

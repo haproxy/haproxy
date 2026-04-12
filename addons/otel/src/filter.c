@@ -895,6 +895,8 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 #endif
 	FLT_OTEL_LOG(LOG_INFO, "%08x %08x", f->pre_analyzers, f->post_analyzers);
 
+	flt_otel_http_headers_dump(&(s->req));
+
 	OTELC_RETURN_INT(FLT_OTEL_RET_OK);
 }
 

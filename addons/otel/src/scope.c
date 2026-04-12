@@ -685,6 +685,22 @@ void flt_otel_scope_free_unused(struct flt_otel_runtime_context *rt_ctx, struct 
 				flt_otel_scope_span_free(&span);
 	}
 
+	/* Remove contexts that failed extraction and clean up their traces. */
+	if (!LIST_ISEMPTY(&(rt_ctx->contexts))) {
+		struct flt_otel_scope_context *ctx, *ctx_back;
+
+		list_for_each_entry_safe(ctx, ctx_back, &(rt_ctx->contexts), list)
+			if (ctx->context == NULL) {
+				/*
+				 * All headers associated with the context in
+				 * question should be deleted.
+				 */
+				(void)flt_otel_http_headers_remove(chn, ctx->id, NULL);
+
+				flt_otel_scope_context_free(&ctx);
+			}
+	}
+
 	FLT_OTEL_DBG_RUNTIME_CONTEXT("session context: ", rt_ctx);
 
 	OTELC_RETURN();
