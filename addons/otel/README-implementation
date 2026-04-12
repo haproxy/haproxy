@@ -1,0 +1,1216 @@
+OpenTelemetry Filter Implementation Review
+======================================================================
+
+1  Overview
+----------------------------------------------------------------------
+
+The OpenTelemetry (OTel) filter for HAProxy provides distributed tracing,
+metrics and logging capabilities.  It creates, propagates and exports spans,
+metric instruments and log records that follow the OpenTelemetry specification.
+The filter hooks into the HAProxy stream processing pipeline through the
+filter API and maps HAProxy channel analyzer events to OpenTelemetry span
+lifecycle operations, metric recordings and log-record emissions.
+
+The implementation is located entirely under addons/otel/ and consists of
+header files, C source files, a Makefile, and a set of test configurations
+with runner scripts.
+
+
+2  Directory Structure
+----------------------------------------------------------------------
+
+  addons/otel/
+  |-- Makefile           Build integration (USE_OTEL option)
+  |-- include/
+  |   |-- include.h      Master include (pulls all headers)
+  |   |-- config.h       Build-time tunables (pool sizes, limits)
+  |   |-- define.h       Utility macros (memory, strings, lists)
+  |   |-- debug.h        Debug/logging infrastructure
+  |   |-- filter.h       Filter return codes, alert macros
+  |   |-- parser.h       Configuration keyword definitions
+  |   |-- conf.h         Configuration data structures
+  |   |-- conf_funcs.h   Generated init/free function macros
+  |   |-- event.h        Event enumeration and data table
+  |   |-- scope.h        Runtime span/context structures
+  |   |-- pool.h         Memory pool helpers
+  |   |-- http.h         HTTP header manipulation
+  |   |-- otelc.h        Span context inject/extract wrappers
+  |   |-- vars.h         HAProxy variable integration
+  |   |-- util.h         String conversion, sample helpers
+  |   |-- group.h        Group action (HAProxy rule integration)
+  |   `-- cli.h          CLI command interface
+  |-- src/
+  |   |-- filter.c       Filter lifecycle and channel callbacks
+  |   |-- parser.c       Configuration file parser
+  |   |-- conf.c         Configuration structure init/free
+  |   |-- event.c        Scope/span execution engine
+  |   |-- scope.c        Runtime context and span management
+  |   |-- http.c         HTTP header get/set/remove
+  |   |-- otelc.c        C wrapper inject/extract bridge
+  |   |-- vars.c         HAProxy variable read/write
+  |   |-- pool.c         Pool alloc/free, trash buffers
+  |   |-- util.c         Argument handling, sample conversion
+  |   |-- group.c        Group action parsing and execution
+  |   `-- cli.c          CLI command handlers
+  `-- test/
+      |-- copy-yml.sh    YAML configuration transformer
+      |-- test-speed.sh  Performance benchmarking runner
+      |-- run-sa.sh      Standalone test runner
+      |-- run-fe-be.sh   Frontend-backend chain runner
+      |-- run-ctx.sh     Context propagation test runner
+      |-- run-cmp.sh     Comparison test runner
+      |-- sa/            Standalone test configs
+      |-- fe/            Frontend-only test configs
+      |-- be/            Backend-only test configs
+      |-- ctx/           Context propagation test configs
+      |-- cmp/           Comparison test configs
+      `-- empty/         Minimal/empty configuration test
+
+
+3  Build System
+----------------------------------------------------------------------
+
+The Makefile is included from the main HAProxy build when USE_OTEL is set.
+It detects the opentelemetry-c-wrapper library via pkg-config or manual
+OTEL_INC/OTEL_LIB paths.
+
+Build options:
+
+  USE_OTEL=1        Enable the filter (required).
+  OTEL_DEBUG=1      Compile with DEBUG_OTEL; links the _dbg variant of the
+                    wrapper library and enables additional debug callbacks in
+                    filter.c (stream_set_backend, http_headers, http_payload,
+                    tcp_payload, etc.).
+  OTEL_USE_VARS=1   Compile vars.c; enables USE_OTEL_VARS which allows span
+                    context propagation via HAProxy transaction variables in
+                    addition to HTTP headers.
+  OTEL_INC=<path>   Manual include path for the C wrapper.
+  OTEL_LIB=<path>   Manual library path for the C wrapper.
+  OTEL_RUNPATH=1    Embed RPATH to the wrapper library.
+
+Compiled objects (11 always, 12 with OTEL_USE_VARS):
+
+  cli.o  conf.o  event.o  filter.o  group.o  http.o  opentelemetry.o  parser.o
+  pool.o  scope.o  util.o  [vars.o]
+
+
+4  Configuration Parsing
+----------------------------------------------------------------------
+
+Configuration parsing is driven by parser.c.  The filter is declared in the
+HAProxy configuration with:
+
+  filter opentelemetry [id <name>] config <file>
+
+The flt_otel_parse() function (parser.c) handles the "filter" line, creates an
+flt_otel_conf structure, and delegates to parse_cfg() which loads the referenced
+YAML/CFG file.  That file is parsed using temporary section registrations for
+three section types:
+
+  otel-instrumentation   ->  flt_otel_parse_cfg_instr()
+  otel-group             ->  flt_otel_parse_cfg_group()
+  otel-scope             ->  flt_otel_parse_cfg_scope()
+
+After each section is fully parsed, a post-parse function validates the section
+(e.g., flt_otel_post_parse_cfg_scope() checks that context injection is only
+used on events that support it).
+
+4.1  Instrumentation Section
+
+  otel-instrumentation <name>
+      config <file>
+      log <target>
+      debug-level <value>
+      rate-limit <value>
+      option { disabled | hard-errors | dontlog-normal }
+      groups <name> ...
+      scopes <name> ...
+      acl <name> <criterion> ...
+
+The instrumentation block defines global filter parameters: the YAML exporter
+configuration file, logging, rate limiting, and references to groups and scopes.
+Exactly one instrumentation block is allowed per filter instance.
+
+4.2  Group Section
+
+  otel-group <name>
+      scopes <name> ...
+
+Groups bundle multiple scopes under a single name for use with HAProxy
+http-request/http-response rules via the "otel-group" action.  The group action
+(group.c) parses the rule, resolves the scope references at check time, and
+executes all referenced scopes when the rule fires.
+
+4.3  Scope Section
+
+  otel-scope <name>
+      otel-event <event-name> [if|unless <condition>]
+      extract <name-prefix> [use-headers|use-vars]
+      span <name> [parent <ref>] [link <ref>] [root]
+        link <span> ...
+        attribute <key> <sample> ...
+        event <name> <key> <sample> ...
+        baggage <key> <sample> ...
+        status <code> [<sample> ...]
+        inject <name-prefix> [use-headers] [use-vars]
+      finish <name> ...
+      instrument <type> <name> ... / instrument update <name> ...
+      log-record <severity> [id <int>] [event <name>] [span <ref>] [attr <k> <v>] ... <sample> ...
+      acl <name> <criterion> ...
+
+Each scope ties to a single HAProxy analyzer event (or none, if used only
+through groups).  Scopes contain context extraction directives, span
+definitions, metric instruments, log records, and finish directives.
+
+A span may specify:
+  - A parent reference (another span or extracted context).
+  - One or more links to other spans/contexts.  Inline link syntax allows one
+    link on the span line; the standalone "link" keyword allows multiple.
+  - The "root" flag marking it as the trace root.
+  - Attributes, events, baggages and status evaluated from HAProxy sample
+    expressions at runtime.
+  - An inject directive to propagate the span context via HTTP headers and/or
+    HAProxy variables.
+
+4.4  Configuration Structure Initialization
+
+All configuration structures are allocated and freed using macro-generated
+functions from conf_funcs.h:
+
+  FLT_OTEL_CONF_FUNC_INIT(type, id_field, extra_init)
+  FLT_OTEL_CONF_FUNC_FREE(type, id_field, extra_free)
+
+These macros produce flt_otel_conf_<type>_init() and _free() functions.
+The init function:
+  - Checks the identifier length against FLT_OTEL_ID_MAXLEN (64).
+  - Checks for duplicate identifiers in the target list.
+  - Allocates the structure with OTELC_CALLOC.
+  - Copies the identifier with OTELC_STRDUP.
+  - Appends to the head list.
+  - Executes any extra initialization (e.g., LIST_INIT for sub-lists in the
+    span structure).
+
+The free function:
+  - Executes any extra cleanup (e.g., destroying sub-lists).
+  - Frees the identifier string.
+  - Removes the node from its list.
+  - Frees the structure.
+
+The full init/free chain for all structures:
+
+  flt_otel_conf          flt_otel_conf_init() / flt_otel_conf_free()
+    flt_otel_conf_instr  generated via macro
+      flt_otel_conf_ph   generated (for ph_groups, ph_scopes)
+    flt_otel_conf_group  generated
+      flt_otel_conf_ph   generated (for ph_scopes)
+    flt_otel_conf_scope  generated
+      flt_otel_conf_context    generated
+      flt_otel_conf_span       generated
+        flt_otel_conf_link       generated
+        flt_otel_conf_sample     generated + _init_ex()
+          flt_otel_conf_sample_expr  generated
+      flt_otel_conf_instrument generated
+      flt_otel_conf_log_record generated
+        flt_otel_conf_sample     generated + _init_ex()
+          flt_otel_conf_sample_expr  generated
+
+
+5  Filter Lifecycle
+----------------------------------------------------------------------
+
+The filter registers its operations in the flt_otel_ops structure (filter.c)
+and the keyword parser via INITCALL1 (parser.c).
+
+5.1  Proxy-Level Initialization
+
+  flt_otel_ops_init():
+    - Registers CLI commands via flt_otel_cli_init().
+    - Initializes the OpenTelemetry library via flt_otel_lib_init(): verifies
+      the C wrapper version, resolves the absolute path of the YAML
+      configuration file, calls otelc_init() to set up exporters, creates the
+      tracer, meter and logger objects, and registers custom memory allocation
+      and thread-id callbacks with the wrapper via otelc_ext_init().
+
+  flt_otel_ops_check():
+    - Validates that filter IDs are unique across all proxies.
+    - Resolves group->scope and instrumentation->scope/group placeholder
+      references to actual configuration structures (setting the ptr field
+      and flag_used).
+    - Warns about unused scopes, missing root spans, or multiple root spans.
+    - Validates metric instruments: resolves update-form references to their
+      matching create-form definitions, and rejects duplicate create-form names
+      across scopes.
+    - Computes the aggregated analyzer bitmask from all used scopes.
+
+  flt_otel_ops_init_per_thread():
+    - Starts the tracer, meter and logger background threads on first call.
+    - Sets the FLT_CFG_FL_HTX flag to enable HTX stream filtering.
+
+  flt_otel_ops_deinit():
+    - Destroys the tracer, meter and logger.
+    - Frees the entire configuration tree.
+    - Calls otelc_deinit() to shut down the wrapper library.
+
+5.2  Stream-Level Callbacks
+
+  flt_otel_ops_attach():
+    - Checks if the filter is globally disabled; returns IGNORE.
+    - Applies rate limiting via ha_random32(); returns IGNORE if the random
+      value exceeds the configured rate_limit.
+    - Creates the runtime context (flt_otel_runtime_context_init) with a
+      generated UUID and initialized span/context lists.
+    - Sets pre_analyzers and post_analyzers bitmasks from the instrumentation's
+      aggregated analyzer flags.  AN_REQ_WAIT_HTTP and AN_RES_WAIT_HTTP are
+      placed in post_analyzers because those analyzers can only be used in the
+      post_analyze callback.  AN_REQ_HTTP_TARPIT is excluded from pre_analyzers.
+
+  flt_otel_ops_detach():
+    - Frees the runtime context, which finishes all remaining active spans and
+      destroys all remaining contexts.
+
+  flt_otel_ops_check_timeouts():
+    - Checks whether the idle-timeout timer has expired; if so, fires the
+      on-idle-timeout event and reschedules the timer for the next interval.
+    - Sets STRM_EVT_MSG on the stream's pending_events to ensure the filter is
+      re-evaluated after a timeout.
+
+5.3  Error Handling
+
+Two helper functions manage errors:
+
+  flt_otel_return_int() / flt_otel_return_void():
+    - If the result indicates an error or an error string is set: in hard-error
+      mode, the filter is disabled for the current stream (flag_disabled = 1)
+      and the disabled counter is incremented atomically.  In soft-error mode,
+      the error is merely logged.
+    - The error string is always freed.
+    - For int returns, FLT_OTEL_RET_OK is returned regardless, so the stream
+      continues processing even after an error.
+
+
+6  Event Processing (Channel Analyzers)
+----------------------------------------------------------------------
+
+The filter maps HAProxy channel analyzer callbacks to a table of named events
+defined in event.h (FLT_OTEL_EVENT_DEFINES).
+
+6.1  Event Table
+
+Each event entry carries:
+  - an_bit:           the HAProxy analyzer bit (AN_REQ_*, AN_RES_*)
+  - an_name:          the analyzer bit name (e.g. "AN_REQ_FLT_HTTP_HDRS")
+  - smp_opt_dir:      sample fetch direction (REQ or RES)
+  - smp_val_fe/be:    valid sample fetch locations
+  - flag_http_inject: whether span context can be injected into HTTP headers
+                      at this point
+  - name:             configuration event name (e.g. "on-frontend-http-request")
+
+Events with an_bit == 0 are pseudo-events not tied to any channel
+analyzer.  Two of them fire from stream lifecycle callbacks:
+  - on-stream-start  (flt_otel_ops_stream_start, before channel processing)
+  - on-stream-stop   (flt_otel_ops_stream_stop, after channel processing)
+
+One fires periodically from the check_timeouts callback:
+  - on-idle-timeout  (flt_otel_ops_check_timeouts, when stream is idle)
+
+One fires from the stream_set_backend callback:
+  - on-backend-set   (flt_otel_ops_stream_set_backend, when backend is assigned)
+
+Four fire from HTTP lifecycle callbacks:
+  - on-http-headers-request / on-http-headers-response (flt_otel_ops_http_headers)
+  - on-http-end-request / on-http-end-response         (flt_otel_ops_http_end)
+  - on-http-reply                                      (flt_otel_ops_http_reply)
+
+The remaining pseudo-events fire from channel start/end callbacks:
+  - on-client-session-start / on-client-session-end
+  - on-server-session-start / on-server-session-end
+  - on-server-unavailable
+
+The stream lifecycle events pass NULL for the channel argument, so
+context injection/extraction via HTTP headers cannot be used.  Their
+sample fetch direction is unconstrained (0xff), allowing both request
+and response fetches.
+
+6.2  Callback Flow
+
+  stream_start(s, f):
+    - Fires on-stream-start with chn=NULL.
+    - Called when a new stream begins, before any channel processing.
+    - Initializes the idle timer from the precomputed minimum idle_timeout in
+      the instrumentation configuration.
+
+  stream_set_backend(s, f, be):
+    - Fires on-backend-set with chn=&s->req.
+    - Called when a backend is assigned (skipped if frontend == backend).
+
+  stream_stop(s, f):
+    - Fires on-stream-stop with chn=NULL.
+    - Called when a stream is destroyed, after all channel processing.
+
+  check_timeouts(s, f):
+    - Checks whether the idle-timeout timer has expired.
+    - If expired, fires on-idle-timeout and reschedules the timer.
+
+  channel_start_analyze(chn):
+    - Enables the per-channel analyzers from pre_analyzers.
+    - Fires on-client-session-start (request) or on-server-session-start
+      (response).
+    - Propagates the idle-timeout expiry to the channel's analyse_exp.
+
+  channel_pre_analyze(chn, an_bit):
+    - Looks up the event by an_bit in the event table.
+    - Calls flt_otel_event_run() for the matching event.
+
+  channel_post_analyze(chn, an_bit):
+    - Same as pre_analyze but for post-analyzers (AN_REQ_WAIT_HTTP,
+      AN_RES_WAIT_HTTP).
+
+  channel_end_analyze(chn):
+    - Fires on-client-session-end (request) or on-server-session-end (response).
+    - For the request channel: if response analyzers were configured but
+      none executed (server was unreachable), fires on-server-unavailable.
+
+  http_headers(s, f, msg):
+    - Fires on-http-headers-request or on-http-headers-response depending on
+      msg->chn direction.
+
+  http_end(s, f, msg):
+    - Fires on-http-end-request or on-http-end-response depending on
+      msg->chn direction.
+
+  http_reply(s, f, status, msg):
+    - Fires on-http-reply with chn=&s->res.
+
+6.3  Scope Execution
+
+  flt_otel_event_run() (event.c):
+    - Captures timestamps (CLOCK_MONOTONIC + CLOCK_REALTIME).
+    - Updates the runtime context's executed-analyzers bitmask.
+    - Iterates all scopes matching the event; calls flt_otel_scope_run() for
+      each used scope.
+
+  flt_otel_scope_run() (event.c):
+    1. Evaluates the scope's ACL condition; if it fails:
+       - If the scope contains a root span, disables the stream.
+       - Returns without processing.
+    2. Extracts contexts: for each configured extract directive, reads
+       the span context from HTTP headers or HAProxy variables via
+       flt_otel_scope_context_init().
+    3. Processes spans: for each configured span:
+       a. Calls flt_otel_scope_span_init() which either returns an existing
+          scope_span (by name) or creates a new one with resolved parent
+          reference.
+       b. Resolves span links against the runtime context -- first searching
+          active spans, then extracted contexts.  Unresolved links produce a
+          NOTICE-level warning and are skipped.
+       c. Evaluates attributes, events, baggages, and status from sample
+          expressions via flt_otel_sample_add().
+       d. Calls flt_otel_scope_run_span() which:
+          - Creates the OTel span via tracer->start_span_with_options()
+            (if not already started).
+          - Adds all resolved links via span->add_link().
+          - Sets baggage, attributes, events, and status.
+          - Optionally injects the span context into HTTP headers and/or
+            HAProxy variables.
+    4. Processes metric instruments via flt_otel_scope_run_instrument(), which
+       runs two passes: the first lazily creates create-form instruments using
+       HA_ATOMIC_CAS for thread-safe one-time initialization; the second records
+       measurements for update-form instruments, skipping any whose index is
+       still negative (creation pending or not yet attempted).
+    5. Emits log records via flt_otel_scope_run_log_record(), which iterates
+       the scope's log-record list, skips entries below the logger's severity
+       threshold, evaluates sample expressions into a body string, resolves
+       the optional span reference, and emits the record via the logger.
+    6. Marks spans listed in "finish" directives.
+    7. Calls flt_otel_scope_finish_marked() to end marked spans/contexts.
+    8. Calls flt_otel_scope_free_unused() to remove finished and destroyed
+       scope_span/scope_context entries from the runtime lists.
+
+
+7  Runtime Data Structures
+----------------------------------------------------------------------
+
+7.1  Runtime Context (per stream)
+
+  flt_otel_runtime_context:
+    stream         Owning stream pointer.
+    filter         Owning filter pointer.
+    uuid[40]       Generated UUID v4 for the session.
+    flag_harderr   Copied from instrumentation config.
+    flag_disabled  Set when the filter encounters a hard error or ACL disables
+                   processing.
+    logging        Logging flags.
+    analyzers      Bitmask of analyzers that have actually executed.
+    idle_timeout   Idle timeout interval in milliseconds (0 = off).
+    idle_exp       Tick at which the next idle timeout fires.
+    spans          Linked list of flt_otel_scope_span.
+    contexts       Linked list of flt_otel_scope_context.
+
+7.2  Scope Span
+
+  flt_otel_scope_span:
+    id / id_len    Span operation name (borrowed from config).
+    smp_opt_dir    Direction in which the span was created.
+    flag_finish    Set by finish directives, cleared after ending.
+    span           The OTel span object (NULL before start, NULL after
+                   end_with_options).
+    ref_span       Parent span pointer (resolved at init).
+    ref_ctx        Parent context pointer (resolved at init).
+    list           Chain in runtime_context.spans.
+
+  flt_otel_scope_span_init() performs memoization: if a span with the same name
+  already exists in rt_ctx->spans, it returns the existing entry.  This allows
+  multiple scopes to contribute attributes/events to the same logical span.
+
+7.3  Scope Context
+
+  flt_otel_scope_context:
+    id / id_len    Context name (borrowed from config).
+    smp_opt_dir    Direction in which the context was extracted.
+    flag_finish    Marks the context for destruction.
+    context        The OTel span_context object.
+    list           Chain in runtime_context.contexts.
+
+  Similarly memoized: duplicate extraction of the same context name returns the
+  existing entry.
+
+7.4  Scope Data (per span per scope run, stack-allocated)
+
+  flt_otel_scope_data:
+    baggage        Key-value array for baggage items.
+    attributes     Key-value array for span attributes.
+    events         Linked list of flt_otel_scope_data_event (each with name
+                   + key-value array).
+    links          Linked list of flt_otel_scope_data_link (each with span
+                   and/or context pointer).
+    status         Status code and description string.
+
+  Initialized at the start of each span processing block and freed at the end.
+  The link entries hold borrowed pointers to OTel objects owned by the runtime
+  context, so only the link nodes themselves are freed.
+
+7.5  Span Finishing
+
+  finish <name> / finish * / finish *req* / finish *res*
+
+  The "finish" directive marks spans and contexts for completion:
+    - "*" marks all.
+    - "*req*" / "*res*" marks those created in the request/response direction
+      respectively.
+    - Otherwise, marks by exact name.
+
+  flt_otel_scope_finish_marked() iterates all marked entries:
+    - Spans are ended via span->end_with_options() which NULLs the span pointer.
+    - Contexts are destroyed via context->destroy() which NULLs the context
+      pointer.
+
+  flt_otel_scope_free_unused() then removes entries with NULL span/context
+  pointers from the runtime lists.  For contexts, associated HTTP headers
+  and variables are also cleaned up.
+
+  On stream detach (flt_otel_runtime_context_free), any remaining active spans
+  are force-ended and all entries are freed.
+
+
+8  Span Links
+----------------------------------------------------------------------
+
+Span links associate a span with other spans or contexts without establishing
+a parent-child relationship.
+
+8.1  Configuration
+
+Two syntaxes are supported:
+
+  Inline (one link per span declaration):
+    span <name> [parent <ref>] link <linked-span> [root]
+
+  Standalone (multiple links, requires a preceding span):
+    link <span-name> [<span-name> ...]
+
+The flt_otel_conf_link structure stores each link target name.  Duplicate link
+names within the same span are rejected by the init macro's duplicate check.
+The links list is initialized in flt_otel_conf_span_init() and destroyed in
+flt_otel_conf_span_free().
+
+8.2  Runtime Resolution
+
+At scope execution time (event.c, flt_otel_scope_run), for each configured link:
+  1. The name is searched in rt_ctx->spans (active scope_span entries).
+     If found, the OTel span pointer is captured.
+  2. If not found in spans, the name is searched in rt_ctx->contexts (extracted
+     scope_context entries).  If found, the OTel span_context pointer is
+     captured.
+  3. If neither found, a NOTICE warning is logged and the link is skipped.
+  4. A flt_otel_scope_data_link node is allocated and appended to the scope
+     data's links list.
+
+In flt_otel_scope_run_span(), all resolved links are applied via
+span->add_link(span, link_span, link_context, NULL, 0).  The last two arguments
+(attributes array and count) are NULL/0, meaning links carry no additional
+attributes.
+
+
+9  Context Propagation
+----------------------------------------------------------------------
+
+9.1  Extraction
+
+  extract <name-prefix> [use-headers|use-vars]
+
+Extracts an incoming trace context.  The prefix identifies the header name
+pattern (for HTTP) or variable name pattern (for vars).
+
+  - use-headers (default): flt_otel_http_headers_get() iterates HTX headers
+    matching the prefix and builds an otelc_text_map.
+  - use-vars: flt_otel_vars_get() reads HAProxy variables matching the prefix
+    pattern.
+
+The text map is passed to flt_otel_extract_http_headers() which uses the
+C wrapper to reconstruct an otelc_span_context.
+
+9.2  Injection
+
+  inject <name-prefix> [use-headers] [use-vars]
+
+Injects the current span's context into outgoing data.  Both storage types can
+be used simultaneously.
+
+  flt_otel_inject_http_headers() serializes the span context into an
+  otelc_http_headers_writer which produces a text_map.  For each key-value pair:
+    - use-headers: flt_otel_http_header_set() adds/replaces the header with the
+      prefixed name.
+    - use-vars: flt_otel_var_register() + flt_otel_var_set() stores the value
+      in a HAProxy transaction variable with normalized name (dashes replaced
+      with 'D', spaces with 'S', uppercase lowered; dots serve as component
+      separators).
+
+
+10  HTTP Header Manipulation
+----------------------------------------------------------------------
+
+  http.c provides three operations:
+
+  flt_otel_http_headers_get(chn, prefix, prefix_len, err):
+    Iterates the HTX message headers.  Headers whose name starts with the given
+    prefix are collected into an otelc_text_map.  The prefix is stripped from
+    the names in the returned map.
+
+  flt_otel_http_header_set(chn, prefix, name, value, err):
+    Removes any existing header matching "prefix" + "name", then adds a new
+    header with the given value.  If name is NULL, all headers with the prefix
+    are removed (bulk delete).
+
+  flt_otel_http_headers_remove(chn, prefix, err):
+    Convenience wrapper; removes all headers matching the prefix.
+
+
+11  HAProxy Variable Integration
+----------------------------------------------------------------------
+
+Enabled with OTEL_USE_VARS=1.  Provides an alternative propagation mechanism
+using HAProxy transaction-scoped variables.
+
+Variable names are normalized: dashes and spaces are replaced with special
+characters to comply with HAProxy variable naming rules.  A meta-variable
+tracks the list of context variable names so they can be enumerated for
+extraction.
+
+Key functions:
+  flt_otel_var_register()   Registers a variable with HAProxy.
+  flt_otel_var_set()        Sets a variable value.
+  flt_otel_vars_get()       Reads all context variables into a text_map for
+                            extraction.
+  flt_otel_vars_unset()     Removes all context variables.
+
+
+12  Group Action Integration
+----------------------------------------------------------------------
+
+The "otel-group" HAProxy action allows triggering trace scopes from
+tcp-request, tcp-response, http-request, http-response and
+http-after-response rules:
+
+  tcp-request         otel-group <filter-id> <group-name>
+  tcp-response        otel-group <filter-id> <group-name>
+  http-request        otel-group <filter-id> <group-name>
+  http-response       otel-group <filter-id> <group-name>
+  http-after-response otel-group <filter-id> <group-name>
+
+  group.c implements:
+    flt_otel_group_parse():   Parses the action arguments.
+    flt_otel_group_check():   Resolves group and scope references.
+    flt_otel_group_action():  At runtime, finds the OTel filter in the stream,
+                              iterates all scopes in the group, and calls
+                              flt_otel_scope_run() for each.
+
+
+13  Memory Management
+----------------------------------------------------------------------
+
+  pool.c provides wrappers around HAProxy memory pools and standard
+  allocation:
+
+  flt_otel_pool_alloc()   Allocates from a pool (if non-NULL and the requested
+                          size fits) or via calloc.
+  flt_otel_pool_free()    Returns memory to the pool or frees it.
+  flt_otel_pool_strndup() Duplicates a string via pool allocation.
+  flt_otel_trash_alloc()  Acquires a trash buffer chunk.
+  flt_otel_trash_free()   Releases a trash buffer chunk.
+
+Four pool heads are registered for hot-path structures:
+  - otel_scope_span       (scope.c)
+  - otel_scope_context    (scope.c)
+  - otel_runtime_context  (scope.c)
+  - otel_span_context     (filter.c, used by the C wrapper via otelc_ext_init
+                          callback)
+
+The wrapper library's memory allocations are redirected through
+flt_otel_mem_malloc() / flt_otel_mem_free() which use the otel_span_context
+pool.  This ensures OTel objects benefit from HAProxy's pool allocator.
+
+
+14  CLI Interface
+----------------------------------------------------------------------
+
+  cli.c registers commands under "flt-otel" for runtime control:
+  - Setting the debug level.
+  - Enabling/disabling the filter on the fly.
+
+Logging can be independently controlled via the instrumentation's logging
+flags (ON, NOLOGNORM).  Log output goes to the log servers configured in the
+instrumentation block.
+
+
+15  Debug Infrastructure
+----------------------------------------------------------------------
+
+When compiled with OTEL_DEBUG=1 (DEBUG_OTEL defined), the filter enables:
+
+  - Additional flt_ops callbacks: stream_set_backend, deinit_per_thread,
+    http_headers, http_payload, http_end, http_reset, http_reply, tcp_payload.
+    In non-debug builds these are set to NULL.  (Note: stream_start and
+    stream_stop are always registered because they fire the on-stream-start
+    and on-stream-stop events.)
+
+  - The OTELC_DBG() macro produces debug output at various levels.
+
+  - flt_otel_scope_data_dump() dumps the complete scope data (baggage,
+    attributes, events, links, status) for inspection.
+
+  - Event usage counters (per-event htx_is_empty statistics) are maintained and
+    printed at deinit.
+
+  - Pool size information is printed at startup.
+
+The debug level is a bitmask that can be adjusted at runtime via the CLI.
+
+
+16  Test Infrastructure
+----------------------------------------------------------------------
+
+16.1  Test Scenarios
+
+  sa    Standalone: comprehensive test exercising all request and response
+        events, span links (both inline and standalone syntax), events with data
+        capture, baggage, and the full span hierarchy from client session start
+        to server session end.
+
+  fe    Frontend-only: tests the request-side span chain with context injection
+        into HTTP headers.
+
+  be    Backend-only: tests context extraction from HTTP headers and
+        response-side processing.  Designed to run as the backend of
+        the fe/ test.
+
+  ctx   Context propagation: deep nesting test that verifies context propagation
+        via both HTTP headers and HAProxy variables.
+
+  cmp   Comparison: simplified configuration made for comparison with other
+        tracing implementations.
+
+  empty Minimal: validates that an empty configuration (only the
+        instrumentation block, no scopes) does not crash.
+
+16.2  Test Runners
+
+All runners are POSIX shell scripts (/bin/sh).  They accept an optional HAProxy
+binary path and log to test/_logs/.
+
+  run-sa.sh     Runs a single HAProxy instance with sa/ config.
+  run-cmp.sh    Runs a single HAProxy instance with cmp/ config.
+  test-speed.sh Runs performance benchmarks for one or all configurations.
+  run-ctx.sh    Runs a single HAProxy instance with ctx/ config.
+  run-fe-be.sh  Launches two HAProxy instances (frontend on port 10080, backend
+                on port 11080) forming a trace propagation chain.  Handles
+                graceful shutdown via SIGUSR1.
+
+  copy-yml.sh   Transforms a template YAML configuration by replacing
+                placeholders with test-specific values (service names, file
+                suffixes, etc.).
+
+16.3  Exporter Configuration
+
+Each test directory contains an otel.yml file configuring three exporter types:
+  - OTLP file exporter (writes traces to local files).
+  - OTLP gRPC exporter (sends to localhost:4317).
+  - OTLP HTTP exporter (sends to localhost:4318 in JSON format).
+
+
+17  Notable Design Decisions
+----------------------------------------------------------------------
+
+  - Span memoization: flt_otel_scope_span_init() and
+    flt_otel_scope_context_init() return existing entries if one with the
+    same name already exists.  This allows multiple scopes to contribute data
+    (attributes, events) to the same logical span across different analyzer
+    events.
+
+  - Lazy span creation: the OTel span object is created on first use in
+    flt_otel_scope_run_span(), not at scope_span_init time.  This separates
+    the span identity (name, parent reference) from the actual OTel resource.
+
+  - Soft/hard error modes: in soft mode, errors are logged but the stream
+    continues with tracing effectively abandoned for that span.  In hard mode,
+    the filter disables itself for the rest of the stream.  Either way, stream
+    processing is never interrupted by a tracing failure (FLT_OTEL_RET_OK is
+    always returned).
+
+  - Rate limiting uses a uint32 representation of a percentage
+    (FLT_OTEL_FLOAT_U32), compared against ha_random32() for uniform
+    distribution without floating-point at runtime.
+
+  - Server-unavailable fallback: if the backend was never reached (no response
+    analyzers executed), the on-server-unavailable event is fired at client
+    session end to ensure all spans are properly closed.
+
+  - Custom memory allocator: the C wrapper's allocations are routed through
+    HAProxy memory pools via otelc_ext_init(), keeping OTel objects in the
+    same allocation domain as the rest of the filter.
+
+  - Thread integration: flt_otel_thread_id() returns the HAProxy tid, ensuring
+    the wrapper's thread-local operations map to HAProxy worker threads.
+
+
+18  Tracer, Span and Metrics Internals
+----------------------------------------------------------------------
+
+This chapter describes the end-to-end lifecycle of the tracer and meter
+objects, the runtime span management model, and the metric instrument
+recording pipeline.
+
+18.1  Tracer Provider Initialization
+
+The tracer provider is set up during the proxy-level flt_otel_ops_init()
+callback, which delegates to flt_otel_lib_init() (filter.c).
+The initialization sequence is as follows:
+
+  1. Version check: OTELC_IS_VALID_VERSION() verifies that the
+     OpenTelemetry C wrapper library version matches the header files.
+
+  2. Configuration path: the relative path from the "config" keyword in
+     the instrumentation section is resolved to an absolute path using
+     getcwd() + snprintf().
+
+  3. SDK initialization: otelc_init(path, err) loads the YAML
+     configuration file and sets up the SDK exporters, samplers,
+     processors and metric readers.
+
+  4. Tracer creation: otelc_tracer_create(err) allocates the tracer
+     handle and stores it in instr->tracer.
+
+  5. Meter creation: otelc_meter_create(err) allocates the meter handle
+     and stores it in instr->meter.
+
+  6. Logger creation: otelc_logger_create(err) allocates the logger
+     handle and stores it in instr->logger.
+
+  7. Extension callbacks: on success, otelc_ext_init() registers custom
+     memory allocation (flt_otel_mem_malloc / flt_otel_mem_free) and
+     thread-id (flt_otel_thread_id) callbacks so that OTel SDK objects
+     use HAProxy memory pools and thread numbering.
+
+  8. Log handler: otelc_log_set_handler() installs a callback that
+     counts SDK diagnostic messages via the flt_otel_drop_cnt counter.
+
+All three handles are stored in the flt_otel_conf_instr structure
+(conf.h):
+
+  struct flt_otel_conf_instr {
+      ...
+      struct otelc_tracer *tracer;  /* The OpenTelemetry tracer handle. */
+      struct otelc_meter  *meter;   /* The OpenTelemetry meter handle. */
+      struct otelc_logger *logger;  /* The OpenTelemetry logger handle. */
+      ...
+  };
+
+18.2  Per-Thread Tracer, Meter and Logger Startup
+
+The flt_otel_ops_init_per_thread() callback (filter.c) starts the
+tracer, meter and logger background threads on the first call:
+
+  if (!(fconf->flags & FLT_CFG_FL_HTX)) {
+      retval = OTELC_OPS(conf->instr->tracer, start);
+      if (retval != OTELC_RET_ERROR) {
+          retval = OTELC_OPS(conf->instr->meter, start);
+          ...
+      }
+      if (retval != OTELC_RET_ERROR) {
+          retval = OTELC_OPS(conf->instr->logger, start);
+          ...
+      }
+      fconf->flags |= FLT_CFG_FL_HTX;
+  }
+
+The FLT_CFG_FL_HTX flag ensures that start is called only once, even
+when multiple proxies share the same filter configuration.  If any
+start operation fails, the error string from the failing handle is
+forwarded via FLT_OTEL_ALERT.
+
+18.3  Tracer, Meter and Logger Shutdown
+
+At proxy deinit (flt_otel_ops_deinit, filter.c), the tracer, meter
+and logger are destroyed in a single call:
+
+  otelc_deinit(&((*conf)->instr->tracer), &((*conf)->instr->meter), &((*conf)->instr->logger));
+
+This flushes any pending spans, metric data and log records to the
+configured exporters, then releases the SDK resources.  The full
+configuration tree is freed immediately after via flt_otel_conf_free().
+
+18.4  Span Lifecycle
+
+Spans progress through four phases: identity allocation, OTel span
+creation, data population, and completion.
+
+18.4.1  Span Identity Allocation
+
+When a scope containing a span definition executes for the first time,
+flt_otel_scope_span_init() (scope.c) allocates a scope_span
+entry from the otel_scope_span pool and inserts it into the runtime
+context's spans list:
+
+  retptr = flt_otel_pool_alloc(pool_head_otel_scope_span, ...);
+  retptr->id          = id;       /* Borrowed from config. */
+  retptr->id_len      = id_len;
+  retptr->smp_opt_dir = dir;
+  retptr->ref_span    = ref_span; /* Resolved parent span. */
+  retptr->ref_ctx     = ref_ctx;  /* Resolved parent context. */
+  LIST_INSERT(&(rt_ctx->spans), &(retptr->list));
+
+The parent reference (ref_id) is resolved at this point by searching the
+runtime context's spans list first, then the contexts list.  If the
+parent name cannot be found in either list, an error is returned and the
+span is not created.
+
+Memoization: if a span with the same name already exists in
+rt_ctx->spans, the existing entry is returned without allocation.  This
+allows multiple scopes (across different analyzer events) to contribute
+attributes, events and other data to the same logical span.
+
+18.4.2  OTel Span Creation (Lazy)
+
+The actual OTel span object is created lazily on first use in
+flt_otel_scope_run_span() (event.c):
+
+  if (span->span == NULL) {
+      span->span = OTELC_OPS(conf->instr->tracer,
+          start_span_with_options, span->id,
+          span->ref_span, span->ref_ctx,
+          ts_steady, ts_system, OTELC_SPAN_KIND_SERVER);
+  }
+
+The arguments are:
+
+  span->id       The operation name (string identifier from config).
+  span->ref_span The parent span pointer (NULL if root or no parent).
+  span->ref_ctx  The parent span context (from extracted context).
+  ts_steady      Monotonic timestamp (CLOCK_MONOTONIC) for duration.
+  ts_system      Wall-clock timestamp (CLOCK_REALTIME) for events.
+  OTELC_SPAN_KIND_SERVER  Fixed span kind for all HAProxy spans.
+
+This separation between identity allocation and OTel creation means the
+span name, parent references and pool entry exist before the OTel
+resource is allocated.  Subsequent scope executions that reference the
+same span name find the existing entry (via memoization) and add their
+data to the already-created OTel span.
+
+18.4.3  Span Data Population
+
+After creation, flt_otel_scope_run_span() (event.c) populates
+the span with data collected during scope execution:
+
+  Links (event.c):
+    Each resolved link is added via span->add_link(span, link_span,
+    link_context, NULL, 0).  Links associate the span with other spans
+    or contexts without establishing a parent-child relationship.  The
+    last two arguments (attributes array and count) are always NULL/0.
+
+  Baggage (event.c):
+    span->set_baggage_kv_n(data->baggage.attr, data->baggage.cnt)
+    sets key-value baggage items propagated across service boundaries.
+
+  Attributes (event.c):
+    span->set_attribute_kv_n(data->attributes.attr, data->attributes.cnt)
+    sets key-value span attributes evaluated from HAProxy sample
+    expressions.
+
+  Events (event.c):
+    For each event in data->events (iterated in reverse insertion order):
+    span->add_event_kv_n(event->name, ts_system, event->attr, event->cnt)
+    adds a named event with a wall-clock timestamp and key-value
+    attributes.
+
+  Status (event.c):
+    span->set_status(data->status.code, data->status.description)
+    sets the span's status code and description string.  Only one status
+    per event is allowed.
+
+18.4.4  Span Context Injection
+
+After populating the span, if the configuration contains an "inject"
+directive (conf_span->ctx_id is non-NULL), the span context is
+serialized for downstream propagation (event.c).
+
+  flt_otel_inject_http_headers() serializes the span context into an
+  otelc_http_headers_writer, producing a text_map of key-value pairs.
+  For each pair, depending on the ctx_flags:
+
+    FLT_OTEL_CTX_USE_HEADERS:
+      flt_otel_http_header_set() writes the header into the HTX message.
+
+    FLT_OTEL_CTX_USE_VARS (requires OTEL_USE_VARS=1):
+      flt_otel_var_register() + flt_otel_var_set() store the value
+      in a HAProxy transaction variable.
+
+  Both storage types can be used simultaneously on the same span.
+
+18.4.5  Span Completion
+
+Spans are ended through the marking mechanism described in chapter 7.5.
+The actual end call in flt_otel_scope_finish_marked() (scope.c) is:
+
+  OTELC_OPSR(span->span, end_with_options,
+             ts_finish, OTELC_SPAN_STATUS_IGNORE, NULL);
+
+The arguments are the monotonic timestamp, a status hint (IGNORE means
+"do not override the status already set on the span"), and NULL for
+error string.  After end_with_options returns, the OTELC_OPSR macro
+NULLs the span pointer, making the entry eligible for removal by
+flt_otel_scope_free_unused().
+
+On stream detach, flt_otel_runtime_context_free() (scope.c)
+force-ends any remaining active spans with the current monotonic
+timestamp and frees all pool entries.
+
+18.5  Metric Instruments
+
+The filter supports the full set of OpenTelemetry metric instrument
+types through a two-form configuration model: "create" form instruments
+define the instrument, and "update" form instruments record measurements
+against it.
+
+18.5.1  Instrument Types
+
+The following instrument types are available (parser.h):
+
+    cnt_int         Counter (uint64)
+    hist_int        Histogram (uint64)
+    udcnt_int       UpDownCounter (int64)
+    gauge_int       Gauge (int64)
+
+Observable (asynchronous) instruments are not supported.  The OTel SDK invokes
+their callbacks from an external background thread that is not a HAProxy
+thread.  HAProxy sample fetches rely on internal per-thread-group state and
+return incorrect results when called from a non-HAProxy thread.
+
+Double-precision types are not supported because HAProxy sample fetches do not
+return double values.
+
+  Special:
+    update          Update-form instrument (records measurements)
+
+Each create-form instrument carries a description, unit, aggregation type,
+sample expression list, and optional histogram bucket boundaries.  Each
+update-form instrument carries a reference to its create-form counterpart
+and an attribute key-value array for per-scope dimensions.
+
+18.5.2  Instrument Configuration Structure
+
+The flt_otel_conf_instrument structure (conf.h) holds:
+
+  idx          Meter instrument index.  Initially set to
+               OTELC_METRIC_INSTRUMENT_UNSET (-1).  Transitions to
+               OTELC_METRIC_INSTRUMENT_PENDING (-2) during creation,
+               then to the positive meter index on success.
+  type         The otelc_metric_instrument_t type constant, or
+               OTELC_METRIC_INSTRUMENT_UPDATE (0xff) for update-form.
+  aggr_type    The otelc_metric_aggregation_type_t constant.
+               Initially OTELC_METRIC_AGGREGATION_UNSET (-1).
+  description  Instrument description string (create-form only).
+  unit         Instrument unit string (create-form only).
+  samples      List of sample expressions for the instrument value.
+  bounds       Histogram bucket boundaries array (create-form only).
+  bounds_num   Number of histogram bucket boundaries.
+  attr         Key-value attribute array (update-form only).
+  attr_len     Number of attributes.
+  ref          Pointer to the create-form instrument (update-form only).
+
+18.5.3  Meter Initialization and Startup
+
+The meter handle is created alongside the tracer in flt_otel_lib_init()
+(filter.c) via otelc_meter_create(err) and started per-thread
+in flt_otel_ops_init_per_thread() (filter.c) via
+OTELC_OPS(conf->instr->meter, start).  The meter background thread
+handles periodic collection and export of metric data.
+
+18.5.4  Instrument Creation and Recording
+
+Metric instrument processing is performed by
+flt_otel_scope_run_instrument() (event.c), which runs in two
+passes during scope execution.
+
+  Pass 1 -- Create-form instruments (event.c):
+
+    Iterates all instruments in the scope.  For each create-form
+    instrument whose idx is OTELC_METRIC_INSTRUMENT_UNSET:
+
+    a. Thread-safe one-time creation: HA_ATOMIC_CAS transitions the idx
+       from UNSET to PENDING.  If the CAS fails (another thread is
+       already creating this instrument), the current thread skips it.
+
+    b. Instrument creation: meter->create_instrument() is called with
+       the instrument name, description, unit, type and callback data.
+       On success, the returned index is stored atomically; on failure,
+       the idx is reset to UNSET.  If the instrument has an explicit
+       aggregation type or histogram bucket boundaries, meter->add_view()
+       is called before instrument creation to register a view with the
+       configured aggregation strategy and optional bounds.  When bounds
+       are present without an explicit aggregation type, histogram
+       aggregation is used automatically for backward compatibility.
+
+  Pass 2 -- Update-form instruments (event.c):
+
+    Iterates all instruments again.  For each update-form instrument:
+
+    a. Reference validation: the ref pointer must be non-NULL (resolved
+       at check time to the create-form instrument).
+
+    b. Index check: if the create-form instrument's idx is still
+       negative (UNUSED or PENDING), the measurement is skipped.
+
+    c. Recording: flt_otel_scope_run_instrument_record() evaluates the
+       sample expression, converts it to an otelc_value, and calls
+       meter->update_instrument_kv_n(idx, &value, attr, attr_len).
+
+18.5.5  Sample Evaluation for Metrics
+
+The recording function flt_otel_scope_run_instrument_record()
+(event.c) supports two evaluation paths:
+
+  Standard path: evaluates sample_process() on the first expression in
+  the create-form instrument's samples list, using the stream's backend,
+  session and direction context.
+
+  Log-format path: if sample->lf_used is set, allocates a temporary
+  buffer of global.tune.bufsize, calls build_logline() to evaluate the
+  log-format expression, and presents the result as an SMP_T_STR sample.
+
+Both paths converge on flt_otel_sample_to_value(), which converts the
+HAProxy sample data to an otelc_value.  Metric instruments require
+numeric values (INT64); if the conversion produces
+OTELC_VALUE_DATA (string), a warning is logged and the measurement is
+rejected.
+
+
+18.5.6  Instrument Lifecycle Summary
+
+  Configuration time:
+    idx = OTELC_METRIC_INSTRUMENT_UNSET (-1)
+    type = instrument type constant
+
+  First scope execution (any thread):
+    idx transitions:  UNSET -> PENDING -> meter_index  (success)
+                      UNSET -> PENDING -> UNSET       (failure)
+
+  Subsequent scope executions:
+    Create-form: skipped (idx is already a valid meter index).
+    Update-form: evaluates samples and records via meter API.
+
+  Shutdown:
+    otelc_deinit() flushes and destroys tracer, meter and logger,
+    including all registered instruments and their callbacks.
+
+
+18.6  Log Records
+
+The filter supports OpenTelemetry log records via the "log-record"
+keyword inside otel-scope sections.  Each log record is emitted through
+the OTel logger at a configured severity level, with an evaluated body,
+optional span correlation and optional key-value attributes.
+
+18.6.1  Log Record Configuration Structure
+
+The flt_otel_conf_log_record structure (conf.h) holds:
+
+  severity     The otelc_log_severity_t severity level.
+  event_id     Optional numeric event identifier (int64).
+  event_name   Optional event name string.
+  span         Optional span reference name (resolved at runtime).
+  attr         Key-value attribute array (from "attr" keywords).
+  attr_len     Number of attributes.
+  samples      List of sample expressions for the body.
+
+The samples list contains exactly one flt_otel_conf_sample entry, which
+in turn holds either a list of bare sample expressions or a single
+log-format expression (when the value contains "%[").
+
+18.6.2  Log Record Emission
+
+Log record processing is performed by flt_otel_scope_run_log_record()
+(event.c), called from flt_otel_scope_run() after metric instrument
+processing and before span finishing.
+
+For each configured log record the function performs:
+
+  1. Severity check: OTELC_OPS(logger, enabled, severity) tests whether
+     the logger accepts records at this severity.  If not, the entry is
+     skipped.  The threshold is controlled by the "min_severity" option
+     in the YAML logs signal configuration.
+
+  2. Body evaluation: the single sample entry is evaluated using one of
+     two paths:
+
+     Log-format path (sample->lf_used is true):
+       A temporary buffer of global.tune.bufsize is allocated and
+       build_logline() evaluates the log-format expression into it.
+
+     Bare sample expression path:
+       Each expression in sample->exprs is evaluated via
+       sample_process() and converted to a string via
+       flt_otel_sample_to_str().  Results are concatenated into a
+       single buffer.
+
+  3. Span resolution: if conf_log->span is non-NULL, the runtime
+     context's spans list is searched for a scope_span with a matching
+     name.  If found, the OTel span pointer is captured for correlation.
+     A missing span is non-fatal -- a NOTICE warning is logged and the
+     record is emitted without span correlation.
+
+  4. Emission: logger->log_span() is called with the severity, event_id,
+     event_name, resolved span (or NULL), wall-clock timestamp,
+     attributes and the evaluated body string.
+
+18.6.3  Logger Lifecycle Summary
+
+  Proxy init (flt_otel_lib_init):
+    otelc_logger_create() allocates the logger handle.
+
+  Per-thread init (flt_otel_ops_init_per_thread):
+    logger->start() launches the logger background thread.
+
+  Scope execution (flt_otel_scope_run):
+    flt_otel_scope_run_log_record() emits records via logger->log_span().
+
+  Shutdown (flt_otel_ops_deinit):
+    otelc_deinit() flushes pending log records and destroys the logger.

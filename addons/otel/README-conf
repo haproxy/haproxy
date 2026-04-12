@@ -1,0 +1,454 @@
+OpenTelemetry Filter Configuration Structures
+==============================================================================
+
+1  Overview
+------------------------------------------------------------------------------
+
+The OpenTelemetry filter configuration is a tree of C structures that mirrors
+the hierarchical layout of the filter's configuration file.  Each structure type
+carries a common header macro, and its allocation and deallocation are performed
+by macro-generated init/free function pairs defined in conf_funcs.h.
+
+The root of the tree is flt_otel_conf, which owns the instrumentation settings,
+groups, and scopes.  Scopes contain the actual tracing and metrics definitions:
+contexts, spans, instruments, and their sample expressions.
+
+Source files:
+  include/conf.h        Structure definitions and debug macros.
+  include/conf_funcs.h  Init/free macro templates and declarations.
+  src/conf.c            Init/free implementations for all types.
+
+
+2  Common Macros
+------------------------------------------------------------------------------
+
+Two macros provide the building blocks embedded in every configuration
+structure.
+
+2.1  FLT_OTEL_CONF_STR(p)
+
+Expands to an anonymous struct containing a string pointer and its cached
+length:
+
+  struct {
+      char   *p;
+      size_t  p_len;
+  };
+
+Used for auxiliary string fields that do not need list linkage (e.g. ref_id and
+ctx_id in flt_otel_conf_span).
+
+2.2  FLT_OTEL_CONF_HDR(p)
+
+Expands to an anonymous struct that extends FLT_OTEL_CONF_STR with a
+configuration file line number and an intrusive list node:
+
+  struct {
+      char        *p;
+      size_t       p_len;
+      int          cfg_line;
+      struct list  list;
+  };
+
+Every configuration structure embeds FLT_OTEL_CONF_HDR as its first member.
+The <p> parameter names the identifier field (e.g. "id", "key", "str", "span",
+"fmt_expr").  The list node chains the structure into its parent's list.
+The cfg_line records the source line for error reporting.
+
+
+3  Structure Hierarchy
+------------------------------------------------------------------------------
+
+The complete ownership tree, from root to leaves:
+
+  flt_otel_conf
+  +-- flt_otel_conf_instr                    (one, via pointer)
+  |   +-- flt_otel_conf_ph                   (ph_groups list)
+  |   +-- flt_otel_conf_ph                   (ph_scopes list)
+  |   +-- struct acl                         (acls list, HAProxy-owned type)
+  |   +-- struct logger                      (proxy_log.loggers, HAProxy type)
+  +-- flt_otel_conf_group                    (groups list)
+  |   +-- flt_otel_conf_ph                   (ph_scopes list)
+  +-- flt_otel_conf_scope                    (scopes list)
+      +-- flt_otel_conf_context              (contexts list)
+      +-- flt_otel_conf_span                 (spans list)
+      |   +-- flt_otel_conf_link             (links list)
+      |   +-- flt_otel_conf_sample           (attributes list)
+      |   |   +-- flt_otel_conf_sample_expr  (exprs list)
+      |   +-- flt_otel_conf_sample           (events list)
+      |   |   +-- flt_otel_conf_sample_expr  (exprs list)
+      |   +-- flt_otel_conf_sample           (baggages list)
+      |   |   +-- flt_otel_conf_sample_expr  (exprs list)
+      |   +-- flt_otel_conf_sample           (statuses list)
+      |       +-- flt_otel_conf_sample_expr  (exprs list)
+      +-- flt_otel_conf_str                  (spans_to_finish list)
+      +-- flt_otel_conf_instrument           (instruments list)
+      |   +-- flt_otel_conf_sample           (samples list)
+      |       +-- flt_otel_conf_sample_expr  (exprs list)
+      +-- flt_otel_conf_log_record           (log_records list)
+          +-- flt_otel_conf_sample           (samples list)
+              +-- flt_otel_conf_sample_expr  (exprs list)
+
+All child lists use HAProxy's intrusive doubly-linked list (struct list)
+threaded through the FLT_OTEL_CONF_HDR embedded in each child structure.
+
+3.1  Placeholder Structures
+
+The flt_otel_conf_ph structure serves as an indirection node.  During parsing,
+placeholder entries record names of groups and scopes.  At check time
+(flt_otel_check), these names are resolved to pointers to the actual
+flt_otel_conf_group or flt_otel_conf_scope structures via the ptr field.
+Two type aliases exist for clarity:
+
+  #define flt_otel_conf_ph_group  flt_otel_conf_ph
+  #define flt_otel_conf_ph_scope  flt_otel_conf_ph
+
+Corresponding free aliases ensure the FLT_OTEL_LIST_DESTROY macro can locate
+the correct free function:
+
+  #define flt_otel_conf_ph_group_free  flt_otel_conf_ph_free
+  #define flt_otel_conf_ph_scope_free  flt_otel_conf_ph_free
+
+
+4  Structure Definitions
+------------------------------------------------------------------------------
+
+4.1  flt_otel_conf (root)
+
+  proxy      Proxy owning the filter.
+  id         The OpenTelemetry filter id.
+  cfg_file   The OpenTelemetry filter configuration file name.
+  instr      The OpenTelemetry instrumentation settings (pointer).
+  groups     List of all available groups.
+  scopes     List of all available scopes.
+  cnt        Various counters related to filter operation.
+  smp_args   Deferred sample fetch arguments to resolve at check time.
+
+This structure does not use FLT_OTEL_CONF_HDR because it is not part of any
+list -- it is the unique root, owned by the filter instance.
+
+4.2  flt_otel_conf_instr (instrumentation)
+
+  FLT_OTEL_CONF_HDR(id)  The OpenTelemetry instrumentation name.
+  config                 The OpenTelemetry configuration file name.
+  tracer                 The OpenTelemetry tracer handle.
+  meter                  The OpenTelemetry meter handle.
+  logger                 The OpenTelemetry logger handle.
+  rate_limit             Rate limit as uint32 ([0..2^32-1] maps [0..100]%).
+  flag_harderr           Hard-error mode flag.
+  flag_disabled          Disabled flag.
+  logging                Logging mode (0, 1, or 3).
+  proxy_log              The log server list (HAProxy proxy structure).
+  analyzers              Defined channel analyzers bitmask.
+  idle_timeout           Minimum idle timeout across scopes (ms, 0 = off).
+  acls                   ACLs declared on this tracer.
+  ph_groups              List of all used groups (placeholders).
+  ph_scopes              List of all used scopes (placeholders).
+
+Exactly one instrumentation block is allowed per filter instance.  The parser
+stores a pointer to it in flt_otel_conf.instr.
+
+4.3  flt_otel_conf_group
+
+  FLT_OTEL_CONF_HDR(id)  The group name.
+  flag_used              The indication that the group is being used.
+  ph_scopes              List of all used scopes (placeholders).
+
+Groups bundle scopes for use with the "otel-group" HAProxy action.
+
+4.4  flt_otel_conf_scope
+
+  FLT_OTEL_CONF_HDR(id)  The scope name.
+  flag_used              The indication that the scope is being used.
+  event                  FLT_OTEL_EVENT_* identifier.
+  idle_timeout           Idle timeout interval in milliseconds (0 = off).
+  acls                   ACLs declared on this scope.
+  cond                   ACL condition to meet.
+  contexts               Declared contexts.
+  spans                  Declared spans.
+  spans_to_finish        The list of spans scheduled for finishing.
+  instruments            The list of metric instruments.
+  log_records            The list of log records.
+
+Each scope binds to a single HAProxy analyzer event (or none, if used only
+through groups).
+
+4.5  flt_otel_conf_span
+
+  FLT_OTEL_CONF_HDR(id)      The name of the span.
+  FLT_OTEL_CONF_STR(ref_id)  The reference name, if used.
+  FLT_OTEL_CONF_STR(ctx_id)  The span context name, if used.
+  ctx_flags                  The type of storage used for the span context.
+  flag_root                  Whether this is a root span.
+  links                      The set of linked span names.
+  attributes                 The set of key:value attributes.
+  events                     The set of events with key-value attributes.
+  baggages                   The set of key:value baggage items.
+  statuses                   Span status code and description.
+
+The ref_id and ctx_id fields use FLT_OTEL_CONF_STR because they are simple name
+strings without list linkage.
+
+4.6  flt_otel_conf_instrument
+
+  FLT_OTEL_CONF_HDR(id)  The name of the instrument.
+  idx                    Meter instrument index: UNSET (-1) before creation,
+                         PENDING (-2) while another thread is creating, or >= 0
+                         for the actual meter index.
+  type                   Instrument type (or UPDATE).
+  aggr_type              Aggregation type for the view (create only).
+  description            Instrument description (create only).
+  unit                   Instrument unit (create only).
+  samples                Sample expressions for the value.
+  bounds                 Histogram bucket boundaries (create only).
+  bounds_num             Number of histogram bucket boundaries.
+  attr                   Instrument attributes (update only).
+  attr_len               Number of instrument attributes.
+  ref                    Resolved create-form instrument (update only).
+
+Instruments come in two forms: create-form (defines a new metric with type,
+description, unit, and optional histogram bounds) and update-form (references
+an existing instrument via the ref pointer).
+
+4.7  flt_otel_conf_log_record
+
+  FLT_OTEL_CONF_HDR(id)  Required by macro; member <id> is not used directly.
+  severity               The severity level.
+  event_id               Optional event identifier.
+  event_name             Optional event name.
+  span                   Optional span reference.
+  attr                   Log record attributes.
+  attr_len               Number of log record attributes.
+  samples                Sample expressions for the body.
+
+Log records are emitted via the OTel logger at the configured severity.  The
+optional span reference associates the log record with an open span at runtime.
+Attributes are stored as key-value pairs added via the 'attr' keyword, which
+can be repeated.
+
+4.8  flt_otel_conf_context
+
+  FLT_OTEL_CONF_HDR(id)  The name of the context.
+  flags                  Storage type from which the span context is extracted.
+
+4.9  flt_otel_conf_sample
+
+  FLT_OTEL_CONF_HDR(key)  The list containing sample names.
+  fmt_string              Combined sample-expression arguments string.
+  extra                   Optional supplementary data.
+  exprs                   Used to chain sample expressions.
+  num_exprs               Number of defined expressions.
+  lf_expr                 The log-format expression.
+  lf_used                 Whether lf_expr is used instead of exprs.
+
+The extra field carries type-specific data: event name strings (OTELC_VALUE_DATA)
+for span events, status code integers (OTELC_VALUE_INT32) for span statuses.
+
+When the sample value argument contains the "%[" sequence, the parser treats
+it as a log-format string: the lf_used flag is set and the compiled result is
+stored in lf_expr, while the exprs list remains empty.  At runtime, if lf_used
+is true, the log-format expression is evaluated via build_logline() instead of
+the sample expression list.
+
+4.10  flt_otel_conf_sample_expr
+
+  FLT_OTEL_CONF_HDR(fmt_expr)  The original expression format string.
+  expr                         The sample expression (struct sample_expr).
+
+4.11  Simple Types
+
+  flt_otel_conf_hdr   Generic header; used for simple named entries.
+  flt_otel_conf_str   String holder (identical to conf_hdr in layout, but the
+                      HDR field is named "str" instead of "id"); used for
+                      spans_to_finish.
+  flt_otel_conf_link  Span link reference; HDR field named "span".
+  flt_otel_conf_ph    Placeholder; carries a ptr field resolved at check time.
+
+
+5  Initialization
+------------------------------------------------------------------------------
+
+5.1  Macro-Generated Init Functions
+
+The FLT_OTEL_CONF_FUNC_INIT macro (conf_funcs.h) generates a function with the
+following signature for each configuration type:
+
+  struct flt_otel_conf_<type> *flt_otel_conf_<type>_init(const char *id, int line, struct list *head, char **err);
+
+The generated function performs these steps:
+
+  1. Validates that <id> is non-NULL and non-empty.
+  2. Checks the identifier length against FLT_OTEL_ID_MAXLEN (64).
+  3. If <head> is non-NULL, iterates the list to reject duplicate identifiers
+     (strcmp match).
+  4. Allocates the structure with OTELC_CALLOC (zeroed memory).
+  5. Records the configuration line number in cfg_line.
+  6. Duplicates the identifier string with OTELC_STRDUP.
+  7. If <head> is non-NULL, appends the structure to the list via LIST_APPEND.
+  8. Executes any custom initialization body provided as the third macro
+     argument.
+
+If any step fails, the function sets an error message via FLT_OTEL_ERR and
+returns NULL.
+
+5.2  Custom Initialization Bodies
+
+Several structure types require additional setup beyond what the macro template
+provides.  The custom init body runs after the base allocation and list
+insertion succeed:
+
+  conf_sample:
+    LIST_INIT for exprs.  Calls lf_expr_init for lf_expr.
+
+  conf_span:
+    LIST_INIT for links, attributes, events, baggages, statuses.
+
+  conf_scope:
+    LIST_INIT for acls, contexts, spans, spans_to_finish, instruments,
+    log_records.
+
+  conf_group:
+    LIST_INIT for ph_scopes.
+
+  conf_instrument:
+    Sets idx and type to OTELC_METRIC_INSTRUMENT_UNSET, aggr_type to
+    OTELC_METRIC_AGGREGATION_UNSET.  LIST_INIT for samples.
+
+  conf_log_record:
+    LIST_INIT for samples.
+
+  conf_instr:
+    Sets rate_limit to FLT_OTEL_FLOAT_U32(100.0) (100%).  Calls init_new_proxy
+    for proxy_log.  LIST_INIT for acls, ph_groups, ph_scopes.
+
+Types with no custom body (hdr, str, link, ph, sample_expr, context) rely
+entirely on the zeroed OTELC_CALLOC allocation.
+
+5.3  Extended Sample Initialization
+
+The flt_otel_conf_sample_init_ex function (conf.c) provides a higher-level
+initialization for sample structures:
+
+  1. Verifies sufficient arguments in the args[] array.
+  2. Calls flt_otel_conf_sample_init with the sample key.
+  3. Copies extra data (event name string or status code integer).
+  4. Concatenates remaining arguments into the fmt_string via
+     flt_otel_args_concat.
+  5. Counts the number of sample expressions.
+
+This function is used by the parser for span attributes, events, baggages,
+statuses, and instrument samples.
+
+5.4  Top-Level Initialization
+
+The flt_otel_conf_init function (conf.c) is hand-written rather than
+macro-generated because the root structure does not follow the standard header
+pattern:
+
+  1. Allocates flt_otel_conf with OTELC_CALLOC.
+  2. Stores the proxy reference.
+  3. Initializes the groups and scopes lists.
+
+
+6  Deallocation
+------------------------------------------------------------------------------
+
+6.1  Macro-Generated Free Functions
+
+The FLT_OTEL_CONF_FUNC_FREE macro (conf_funcs.h) generates a function with the
+following signature:
+
+  void flt_otel_conf_<type>_free(struct flt_otel_conf_<type> **ptr);
+
+The generated function performs these steps:
+
+  1. Checks that both <ptr> and <*ptr> are non-NULL.
+  2. Executes any custom cleanup body provided as the third macro argument.
+  3. Frees the identifier string with OTELC_SFREE.
+  4. Removes the structure from its list with FLT_OTEL_LIST_DEL.
+  5. Frees the structure with OTELC_SFREE_CLEAR and sets <*ptr> to NULL.
+
+6.2  Custom Cleanup Bodies
+
+Custom cleanup runs before the base teardown, allowing child structures to be
+freed while the parent is still valid:
+
+  conf_sample:
+    Frees fmt_string.  If extra is OTELC_VALUE_DATA, frees the data pointer.
+    Destroys the exprs list (sample_expr entries).  Deinitializes lf_expr via
+    lf_expr_deinit.
+
+  conf_sample_expr:
+    Releases the HAProxy sample expression via release_sample_expr.
+
+  conf_span:
+    Frees ref_id and ctx_id strings.
+    Destroys links, attributes, events, baggages, and statuses lists.
+
+  conf_instrument:
+    Frees description, unit, and bounds.  Destroys the samples list.
+    Destroys the attr key-value array via otelc_kv_destroy.
+
+  conf_log_record:
+    Frees event_name and span strings.  Destroys the attr key-value array via
+    otelc_kv_destroy.  Destroys the samples list.
+
+  conf_scope:
+    Prunes and frees each ACL entry.  Frees the ACL condition via free_acl_cond.
+    Destroys contexts, spans, spans_to_finish, instruments, and log_records
+    lists.
+
+  conf_group:
+    Destroys the ph_scopes list.
+
+  conf_instr:
+    Frees the config string.  Prunes and frees each ACL entry.  Frees each
+    logger entry from proxy_log.loggers.  Destroys the ph_groups and ph_scopes
+    lists.
+
+Types with no custom cleanup (hdr, str, link, ph, context) only run the base
+teardown: free the identifier, unlink, free the structure.
+
+6.3  List Destruction
+
+The FLT_OTEL_LIST_DESTROY(type, head) macro (defined in define.h) iterates a
+list and calls flt_otel_conf_<type>_free for each entry.  This macro drives the
+recursive teardown from parent to leaf.
+
+6.4  Top-Level Deallocation
+
+The flt_otel_conf_free function (conf.c) is hand-written:
+
+  1. Frees the id and cfg_file strings.
+  2. Calls flt_otel_conf_instr_free for the instrumentation.
+  3. Destroys the groups list (which recursively frees placeholders).
+  4. Destroys the scopes list (which recursively frees contexts, spans,
+     instruments, log records, and all their children).
+  5. Frees the root structure and sets the pointer to NULL.
+
+
+7  Summary of Init/Free Pairs
+------------------------------------------------------------------------------
+
+The following table lists all configuration types and their init/free function
+pairs.  Types marked "macro" are generated by the FLT_OTEL_CONF_FUNC_(INIT|FREE)
+macros.  The HDR field column shows which member name is used for the common
+header.
+
+  Type             HDR field  Source  Custom init body
+  ---------------  ---------  ------  -------------------------
+  conf             (none)     manual  groups, scopes
+  conf_hdr         id         macro   (none)
+  conf_str         str        macro   (none)
+  conf_link        span       macro   (none)
+  conf_ph          id         macro   (none)
+  conf_sample_expr fmt_expr   macro   (none)
+  conf_sample      key        macro   exprs, lf_expr
+  conf_sample (ex) key        manual  extra, fmt_string, exprs
+  conf_context     id         macro   (none)
+  conf_span        id         macro   5 sub-lists
+  conf_instrument  id         macro   idx, type, samples
+  conf_log_record  id         macro   samples
+  conf_scope       id         macro   6 sub-lists
+  conf_group       id         macro   ph_scopes
+  conf_instr       id         macro   rate_limit, proxy_log, acls, ph_groups, ph_scopes

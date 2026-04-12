@@ -1,0 +1,1137 @@
+                   -----------------------------------------
+                      The HAProxy OpenTelemetry filter (OTel)
+                                  Version 1.0
+                          ( Last update: 2026-03-18 )
+                   -----------------------------------------
+                           Author : Miroslav Zagorac
+                     Contact : mzagorac at haproxy dot com
+
+
+SUMMARY
+--------
+
+  0.    Terms
+  1.    Introduction
+  2.    Build instructions
+  3.    Basic concepts in OpenTelemetry
+  4.    OTel configuration
+  4.1.    OTel scope
+  4.2.    "otel-instrumentation" section
+  4.3.    "otel-scope" section
+  4.4.    "otel-group" section
+  5.    Examples
+  6.    OTel CLI
+  7.    Known bugs and limitations
+
+
+0. Terms
+---------
+
+* OTel: The HAProxy OpenTelemetry filter
+
+OTel is the HAProxy filter that allows you to send telemetry data (traces,
+metrics and logs) to observability backends via the OpenTelemetry protocol.
+
+
+1. Introduction
+----------------
+
+Nowadays there is a growing need to divide a process into microservices and
+there is a problem of monitoring the work of the same process.  One way to solve
+this problem is to use a distributed tracing service in a central location.
+
+The OTel filter is the successor to the OpenTracing (OT) filter and is built on
+the OpenTelemetry standard, which unifies distributed tracing, metrics and
+logging into a single observability framework.  Unlike the older OpenTracing
+filter which relied on vendor-specific tracer plugins, the OTel filter uses the
+OpenTelemetry protocol (OTLP) to export data directly to any compatible backend.
+
+The OTel filter is a standard HAProxy filter, so what applies to others also
+applies to this one (of course, by that I mean what is described in the
+documentation, more precisely in the doc/internals/filters.txt file).
+
+The OTel filter activation is done explicitly by specifying it in the HAProxy
+configuration.  If this is not done, the OTel filter in no way participates in
+the work of HAProxy.
+
+The OTel filter allows intensive use of ACLs, which can be defined anywhere in
+the configuration.  Thus, it is possible to use the filter only for those
+connections that are of interest to us.
+
+
+2. Build instructions
+----------------------
+
+OTel is the HAProxy filter and as such is compiled together with HAProxy.
+
+To communicate with an OpenTelemetry compatible backend, the OTel filter uses
+the OpenTelemetry C Wrapper library (which again uses the OpenTelemetry C++
+SDK).  This means that we must have the library installed on the system on which
+we want to compile or use HAProxy.
+
+Instructions for compiling and installing the required library can be found at
+https://github.com/haproxytech/opentelemetry-c-wrapper .
+
+The OTel filter can be more easily compiled using the pkg-config tool, if we
+have the OpenTelemetry C Wrapper library installed so that it contains
+pkg-config files (which have the .pc extension).  If the pkg-config tool cannot
+be used, then the path to the directory where the include files and libraries
+are located can be explicitly specified.
+
+Below are examples of the two ways to compile HAProxy with the OTel filter, the
+first using the pkg-config tool and the second explicitly specifying the path to
+the OpenTelemetry C Wrapper include and library.
+
+Note: prompt '%' indicates that the command is executed under an unprivileged
+      user, while prompt '#' indicates that the command is executed under the
+      root user.
+
+Example of compiling HAProxy using the pkg-config tool (assuming the
+OpenTelemetry C Wrapper library is installed in the /opt directory):
+
+  % PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 USE_OTEL=1 TARGET=linux-glibc
+
+The OTel filter can also be compiled in debug mode as follows:
+
+  % PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 USE_OTEL=1 OTEL_DEBUG=1 TARGET=linux-glibc
+
+HAProxy compilation example explicitly specifying path to the OpenTelemetry C
+Wrapper include and library:
+
+  % make -j8 USE_OTEL=1 OTEL_INC=/opt/include OTEL_LIB=/opt/lib TARGET=linux-glibc
+
+In case we want to use debug mode, then it looks like this:
+
+  % make -j8 USE_OTEL=1 OTEL_DEBUG=1 OTEL_INC=/opt/include OTEL_LIB=/opt/lib TARGET=linux-glibc
+
+To enable OpenTelemetry context propagation via HAProxy variables (in addition
+to HTTP headers), add the OTEL_USE_VARS=1 option:
+
+  % PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 USE_OTEL=1 OTEL_USE_VARS=1 TARGET=linux-glibc
+
+If the library we want to use is not installed on a unix system, then a locally
+installed library can be used (say, which is compiled and installed in the user
+home directory).  In this case instead of /opt/include and /opt/lib the
+equivalent paths to the local installation should be specified.  Of course, in
+that case the pkg-config tool can also be used if we have a complete
+installation (with .pc files).
+
+Last but not least, if the pkg-config tool is not used when compiling, then the
+HAProxy executable may not be able to find the OpenTelemetry C Wrapper library
+at startup.  This can be solved in several ways, for example using the
+LD_LIBRARY_PATH environment variable which should be set to the path where the
+library is located before starting the HAProxy.
+
+  % LD_LIBRARY_PATH=/opt/lib /path-to/haproxy ...
+
+Another way is to add RUNPATH to HAProxy executable that contains the path to
+the library in question.
+
+  % make -j8 USE_OTEL=1 OTEL_RUNPATH=1 OTEL_INC=/opt/include OTEL_LIB=/opt/lib TARGET=linux-glibc
+
+After HAProxy is compiled, we can check if the OTel filter is enabled:
+
+  % ./haproxy -vv | grep opentelemetry
+  --- command output ----------
+          [  OTel] opentelemetry
+  --- command output ----------
+
+A summary of all OTel build options:
+
+  USE_OTEL      - enable the OpenTelemetry filter
+  OTEL_DEBUG    - compile the filter in debug mode
+  OTEL_INC      - force path to opentelemetry-c-wrapper include files
+  OTEL_LIB      - force path to opentelemetry-c-wrapper library
+  OTEL_RUNPATH  - add opentelemetry-c-wrapper RUNPATH to executable
+  OTEL_USE_VARS - enable context propagation via HAProxy variables
+
+
+3. Basic concepts in OpenTelemetry
+-----------------------------------
+
+Basic concepts of OpenTelemetry can be read on the OpenTelemetry documentation
+website https://opentelemetry.io/docs/concepts/ .
+
+Here we will list only the most important elements of distributed tracing.
+
+A 'trace' is a description of the complete transaction we want to record in the
+tracing system.  A 'span' is an operation that represents a unit of work that is
+recorded in a tracing system.  A 'span context' is a group of information
+related to a particular span that is passed on to the system (from service to
+service).  Using this context, we can add new spans to already open trace (or
+supplement data in already open spans).
+
+An individual span may contain one or more attributes, events, links and baggage
+items.
+
+An 'attribute' is a key-value element that is valid for the entire span.
+Attributes describe properties of the span such as HTTP method, URL, status
+code, and so on.
+
+A span 'event' is a named key-value element that allows you to write some data
+at a certain time within the span's lifetime.  It can be used for debugging or
+recording notable occurrences.
+
+A 'link' is a reference to another span (possibly in a different trace) that is
+causally related to the current span.  Unlike the parent-child relationship,
+links represent non-hierarchical associations between spans.
+
+A 'baggage' item is a key-value data pair that can be used for the duration of
+an entire trace, from the moment it is added to the span.
+
+A span 'status' indicates the outcome of the operation: unset (default), ok
+(successful) or error (failed).  An optional description string can accompany
+the error status.
+
+
+4. OTel configuration
+----------------------
+
+In order for the OTel filter to be used, the 'insecure-fork-wanted' keyword
+must be set in the HAProxy 'global' section.  This is required because the
+OpenTelemetry C++ SDK creates background threads for data export and batch
+processing.  HAProxy will refuse to load the configuration if this keyword
+is missing.
+
+  global
+      insecure-fork-wanted
+      ...
+
+The OTel filter must also be included in the HAProxy configuration, in the
+proxy section (frontend / listen / backend):
+
+   frontend otel-test
+     ...
+     filter opentelemetry [id <id>] config <file>
+     ...
+
+If no filter id is specified, 'otel-filter' is used as default.  The 'config'
+parameter must be specified and it contains the path of the OTel filter
+configuration file.  This file defines the OTel scopes, groups and
+instrumentation sections (see section 4.1).  The YAML configuration for the
+OpenTelemetry SDK is a separate file, referenced by the 'config' keyword inside
+the "otel-instrumentation" section (see section 4.2).
+
+
+4.1 OTel scope
+---------------
+
+If the filter id is defined for the OTel filter, then the OTel scope with the
+same name should be defined in the configuration file.  In the same
+configuration file we can have several defined OTel scopes.
+
+Each OTel scope must have a defined (only one) "otel-instrumentation" section
+that is used to configure the operation of the OTel filter and define the used
+groups and scopes.
+
+OTel scope starts with the id of the filter specified in square brackets and
+ends with the end of the file or when a new OTel scope is defined.
+
+For example, this defines two OTel scopes in the same configuration file:
+  [my-first-otel-filter]
+    otel-instrumentation instrumentation1
+    ...
+    otel-group group1
+    ...
+    otel-scope scope1
+    ...
+
+  [my-second-otel-filter]
+    ...
+
+
+4.2. "otel-instrumentation" section
+-------------------------------------
+
+Only one "otel-instrumentation" section must be defined for each OTel scope.
+
+The mandatory 'config' keyword defines the YAML configuration file for the
+OpenTelemetry SDK.  This file specifies the telemetry pipeline: exporters,
+processors, samplers, providers and signals.
+
+Through optional keywords can be defined ACLs, logging, rate limit, and groups
+and scopes that define the tracing model.
+
+
+otel-instrumentation <name>
+  A new OTel instrumentation with the name <name> is created.
+
+  Arguments :
+    name - the name of the OpenTelemetry instrumentation section
+
+
+  The following keywords are supported in this section:
+    - mandatory keywords:
+      - config
+
+    - optional keywords:
+      - acl
+      - debug-level
+      - groups
+      - [no] log
+      - [no] option disabled
+      - [no] option dontlog-normal
+      - [no] option hard-errors
+      - rate-limit
+      - scopes
+
+
+acl <aclname> <criterion> [flags] [operator] <value> ...
+  Declare or complete an access list.
+
+  To configure and use the ACL, see section 7 of the HAProxy Configuration
+  Manual.
+
+
+config <file>
+  The mandatory keyword associated with the OTel instrumentation configuration.
+  This keyword sets the path of the YAML configuration file for the
+  OpenTelemetry SDK.  The YAML file defines the complete telemetry pipeline
+  including exporters, samplers, processors, providers and signal routing.
+
+  The YAML configuration file supports the following top-level sections:
+
+  'exporters' - defines telemetry data destinations.  Supported exporter types
+  are:
+    - otlp_grpc     : export via OTLP over gRPC
+    - otlp_http     : export via OTLP over HTTP (JSON or Protobuf)
+    - otlp_file     : export to local files in OTLP format
+    - zipkin        : export to Zipkin-compatible backends
+    - elasticsearch : export to Elasticsearch
+    - ostream       : write to a file (text output, useful for debugging)
+    - memory        : in-memory buffer (useful for testing)
+
+  'samplers' - defines trace sampling strategies.  Supported types:
+    - always_on            : sample every trace
+    - always_off           : sample no traces
+    - trace_id_ratio_based : sample a fraction of traces (set by ratio)
+    - parent_based         : sampling decision based on parent span
+
+  'processors' - defines how telemetry data is processed before export:
+    - batch  : batch spans before exporting (configurable queue size, export
+               interval and batch size)
+    - single : export each span individually
+
+  'readers' - defines metric readers with configurable export interval and
+  timeout.
+
+  'providers' - defines resource attributes (service name, version, instance ID,
+  namespace, etc.) that are attached to all telemetry data.
+
+  'signals' - binds the above components together for each signal type (traces,
+  metrics, logs), specifying which exporter, sampler, processor, reader and
+  provider to use.
+
+  Arguments :
+    file - the path of the YAML configuration file
+
+
+debug-level <value>
+  This keyword sets the value of the debug level related to the display of debug
+  messages in the OTel filter.  The 'debug-level' value is a bitmask, ie a
+  single value bit enables or disables the display of the corresponding debug
+  message that uses that bit.  The default value is set via the
+  FLT_OTEL_DEBUG_LEVEL macro in the include/config.h file.  Debug level value is
+  used only if the OTel filter is compiled with the debug mode enabled,
+  otherwise it is ignored.
+
+  Arguments :
+    value - bitmask value (hexadecimal notation, e.g. 0x77f)
+
+
+groups <name> ...
+  A list of "otel-group" groups used for the currently defined instrumentation
+  is declared.  Several groups can be specified in one line.
+
+  Arguments :
+    name - the name of the OTel group
+
+
+log global
+log <addr> [len <len>] [format <fmt>] <facility> [<level> [<minlevel>]]
+no log
+  Enable per-instance logging of events and traffic.
+
+  To configure and use the logging system, see section 4.2 of the HAProxy
+  Configuration Manual.
+
+
+option disabled
+no option disabled
+  Keyword which turns the operation of the OTel filter on or off.  By default
+  the filter is on.
+
+
+option dontlog-normal
+no option dontlog-normal
+  Enable or disable logging of normal, successful processing.  By default, this
+  option is disabled.  For this option to be considered, logging must be turned
+  on.
+
+  See also: 'log' keyword description.
+
+
+option hard-errors
+no option hard-errors
+  During the operation of the filter, some errors may occur, caused by incorrect
+  configuration of the instrumentation or some error related to the operation of
+  HAProxy.  By default, such an error will not interrupt the filter operation
+  for the stream in which the error occurred.  If the 'hard-errors' option is
+  enabled, the operation error prohibits all further processing of events and
+  groups in the stream in which the error occurred.
+
+
+rate-limit <value>
+  This option allows limiting the use of the OTel filter, ie it can be
+  influenced whether the OTel filter is activated for a stream or not.
+  Determining whether or not a filter is activated depends on the value of this
+  option that is compared to a randomly selected value when attaching the filter
+  to the stream.  By default, the value of this option is set to 100.0, ie the
+  OTel filter is activated for each stream.
+
+  Arguments :
+    value - floating point value ranging from 0.0 to 100.0
+
+
+scopes <name> ...
+  This keyword declares a list of "otel-scope" definitions used for the
+  currently defined instrumentation.  Multiple scopes can be specified in the
+  same line.
+
+  Arguments :
+    name - the name of the OTel scope
+
+
+4.3. "otel-scope" section
+--------------------------
+
+Stream processing begins with filter attachment, then continues with the
+processing of a number of defined events and groups, and ends with filter
+detachment.  The "otel-scope" section is used to define actions related to
+individual events.  However, this section may be part of a group, so the event
+does not have to be part of the definition.
+
+
+otel-scope <name>
+  Creates a new OTel scope definition named <name>.
+
+  Arguments :
+    name - the name of the OTel scope
+
+
+  The following keywords are supported in this section:
+    - acl
+    - attribute
+    - baggage
+    - event
+    - extract
+    - finish
+    - idle-timeout
+    - inject
+    - instrument
+    - link
+    - log-record
+    - otel-event
+    - span
+    - status
+
+
+acl <aclname> <criterion> [flags] [operator] <value> ...
+  Declare or complete an access list.
+
+  To configure and use the ACL, see section 7 of the HAProxy Configuration
+  Manual.
+
+
+attribute <key> <sample> ...
+  This keyword allows setting an attribute for the currently active span.  The
+  first argument is the name of the attribute (key) and the rest are its value.
+  A value can consist of one or more sample expressions.  If the value is only
+  one sample, then the type of that data depends on the type of the HAProxy
+  sample.  If the value contains more samples, then the data type is string.
+  The data conversion table is below:
+
+   HAProxy sample data type | the OpenTelemetry data type
+  --------------------------+----------------------------
+            NULL            |        NULL
+            BOOL            |        BOOL
+            INT32           |        INT64
+            UINT32          |        UINT64
+            INT64           |        INT64
+            UINT64          |        UINT64
+            IPV4            |        STRING
+            IPV6            |        STRING
+            STRING          |        STRING
+            BINARY          |        UNSUPPORTED
+  --------------------------+----------------------------
+
+  Arguments :
+    key    - key part of a data pair (attribute name)
+    sample - sample expression (value part of a data pair), at least
+             one sample must be present
+
+
+baggage <key> <sample> ...
+  Baggage items allow the propagation of data between spans, ie allow the
+  assignment of metadata that is propagated to future children spans.  This data
+  is formatted in the style of key-value pairs and is part of the context that
+  can be transferred between processes that are part of a server architecture.
+
+  This keyword allows setting the baggage for the currently active span.  The
+  data type is always a string, ie any sample type is converted to a string.
+  The exception is a binary value that is not supported by the OTel filter.
+
+  See the 'attribute' keyword description for the data type conversion table.
+
+  Arguments :
+    key    - key part of a data pair
+    sample - sample expression (value part of a data pair), at least one sample
+             must be present
+
+
+event <name> <key> <sample> ...
+  This keyword allows adding a span event to the currently active span.  A span
+  event is a named, timestamped annotation with optional attributes.  The data
+  type is always a string, ie any sample type is converted to a string.
+
+  See the 'attribute' keyword description for the data type conversion table.
+
+  Arguments :
+    name   - name of the span event
+    key    - key part of a data pair (attribute name within the event)
+    sample - sample expression (value part of a data pair), at least one sample
+             must be present
+
+
+extract <name-prefix> [use-vars | use-headers]
+  For a more detailed description of the propagation process of the span
+  context, see the description of the keyword 'inject'.  Only the process of
+  extracting data from the carrier is described here.
+
+  The default carrier is HTTP headers.  If OTEL_USE_VARS is enabled at compile
+  time, the 'use-vars' option can be used instead to extract context from
+  HAProxy variables.
+
+  Arguments :
+    name-prefix - data name prefix (ie key element prefix)
+    use-vars    - data is extracted from HAProxy variables
+    use-headers - data is extracted from the HTTP header
+
+
+  Below is an example of using HAProxy variables to transfer span context data:
+
+  --- test/ctx/otel.cfg -----------------------------------------------
+      ...
+      otel-scope client_session_start_2
+          extract "otel_ctx_1" use-vars
+          span "Client session" parent "otel_ctx_1"
+      ...
+  ---------------------------------------------------------------------
+
+
+finish <name> ...
+  Closing a particular span or span context.  Instead of the name of the span,
+  there are several specially predefined names with which we can finish certain
+  groups of spans.  So it can be used as the name '*req*' for all open spans
+  related to the request channel, '*res*' for all open spans related to the
+  response channel and '*' for all open spans regardless of which channel they
+  are related to.  Several spans and/or span contexts can be specified in one
+  line.
+
+  Arguments :
+    name - the name of the span or span context
+
+
+inject <name-prefix> [use-vars] [use-headers]
+  In OpenTelemetry, the transfer of data related to the tracing process between
+  microservices that are part of a larger service is done through the
+  propagation of the span context.  The basic operations that allow us to access
+  and transfer this data are 'inject' and 'extract'.
+
+  'inject' allows us to extract span context so that the obtained data can be
+  forwarded to another process (microservice) via the selected carrier. 'inject'
+  in the name actually means inject data into carrier.  Carrier is an interface
+  here (ie a data structure) that allows us to transfer tracing state from one
+  process to another.
+
+  Data transfer can take place via one of two selected storage methods, the
+  first is by adding data to the HTTP header and the second is by using HAProxy
+  variables (the latter requires OTEL_USE_VARS=1 at compile time).  Only data
+  transfer via HTTP header can be used to transfer data to another process (ie
+  microservice).  All data is organized in the form of key-value data pairs.
+
+  No matter which data transfer method you use, we need to specify a prefix for
+  the key element.  All alphanumerics (lowercase only) and underline character
+  can be used to construct the data name prefix.  Uppercase letters can actually
+  be used, but they will be converted to lowercase when creating the prefix.
+  The special prefix '-' can be used to generate the name automatically from the
+  scope's event name or the span name.
+
+  Arguments :
+    name-prefix - data name prefix (ie key element prefix), or '-' for automatic
+                  naming
+    use-vars    - HAProxy variables are used to store and transfer data
+                  (requires OTEL_USE_VARS=1)
+    use-headers - HTTP headers are used to store and transfer data
+
+
+  Below is an example of using HTTP headers and variables to propagate the span
+  context.
+
+  --- test/ctx/otel.cfg -----------------------------------------------
+      ...
+      otel-scope client_session_start_1
+          span "HAProxy session" root
+              inject "otel_ctx_1" use-headers use-vars
+      ...
+  ---------------------------------------------------------------------
+
+  Because HAProxy does not allow the '-' character in the variable name (which
+  is automatically generated by the OpenTelemetry API and on which we have no
+  influence), it is converted to the letter 'D'.  We can see that there is no
+  such conversion in the name of the HTTP header because the '-' sign is allowed
+  there.  Due to this conversion, initially all uppercase letters are converted
+  to lowercase because otherwise we would not be able to distinguish whether the
+  disputed sign '-' is used or not.
+
+  Thus created HTTP headers and variables are deleted when executing the
+  'finish' keyword or when detaching the stream from the filter.
+
+
+instrument { update <name> [<attr>] | <type> <name> [<aggr>] [<desc>] [<unit>] <value> [<bounds>] }
+  This keyword allows creating or updating metric instruments within the scope.
+  Metric instruments record numerical measurements that are exported alongside
+  traces.
+
+  To create a new instrument, specify the instrument type, a name, and a sample
+  expression providing the measurement value (preceded by the 'value' keyword).
+  Optionally, a human-readable description (preceded by 'desc') and a unit
+  string (preceded by 'unit') can be added.
+
+  An aggregation type can be specified using the 'aggr' keyword followed by one
+  of the supported aggregation types listed below.  When specified, a metrics
+  view is registered with the given aggregation strategy.  If no aggregation
+  type is specified, the SDK default is used.
+
+  For histogram instruments (hist_int), optional bucket boundaries can be
+  specified using the 'bounds' keyword followed by a double-quoted string of
+  space-separated integers in strictly ascending order.  When bounds are
+  specified without an explicit aggregation type, histogram aggregation is
+  used automatically.
+
+  To update an existing instrument (previously created in another scope), use
+  'update' followed by the name of the instrument.  Optional attributes can be
+  added using the 'attr' keyword followed by key-value pairs.
+
+  Supported instrument types:
+    - cnt_int   : counter (uint64)
+    - hist_int  : histogram (uint64)
+    - udcnt_int : up-down counter (int64)
+    - gauge_int : gauge (int64)
+
+  Supported aggregation types:
+    - drop          : measurements are discarded
+    - histogram     : explicit bucket histogram
+    - last_value    : last recorded value
+    - sum           : sum of recorded values
+    - default       : SDK default for the instrument type
+    - exp_histogram : base-2 exponential histogram
+
+  Observable (asynchronous) instruments are not supported.  The OpenTelemetry
+  SDK invokes their callbacks from an external background thread that is not
+  a HAProxy thread.  HAProxy sample fetches rely on internal per-thread-group
+  state and return incorrect results when called from a non-HAProxy thread.
+
+  Double-precision types are not supported because HAProxy sample fetches do
+  not return double values.
+
+  For example:
+    instrument cnt_int  "my_counter" desc "Counter" value int(1)
+    instrument hist_int "my_hist" aggr exp_histogram desc "Latency" value lat_ns_tot unit "ns"
+    instrument hist_int "my_hist2" desc "Latency" value lat_ns_tot unit "ns" bounds "100 1000 10000 100000"
+    instrument update "my_counter" attr "key1" "val1"
+
+  Arguments :
+    type   - the instrument type (see list above)
+    name   - the name of the instrument
+    aggr   - optional aggregation type (see list above)
+    desc   - optional human-readable description of the instrument
+    unit   - optional unit string for the instrument
+    value  - sample expression providing the measurement value
+    bounds - optional histogram bucket boundaries (hist_int only)
+    attr   - attribute key-value pairs (update form only)
+
+
+log-record <severity> [id <integer>] [event <name>] [span <span-name>] [attr <key> <value>] ... <sample> ...
+  This keyword emits an OpenTelemetry log record within the scope.  The first
+  argument is a required severity level.  Optional keywords follow in any order
+  before the trailing sample expressions that form the log record body:
+
+    id <integer>       - numeric event identifier
+    event <name>       - event name string
+    span <span-name>   - associate the log record with an open span
+    attr <key> <value> - add a key-value attribute (repeatable)
+
+  The remaining arguments at the end are sample fetch expressions.  A single
+  sample preserves its native type; multiple samples are concatenated as a
+  string.
+
+  Supported severity levels follow the OpenTelemetry specification:
+    trace, trace2, trace3, trace4, debug, debug2, debug3, debug4,
+    info, info2, info3, info4, warn, warn2, warn3, warn4,
+    error, error2, error3, error4, fatal, fatal2, fatal3, fatal4
+
+  The log record is only emitted when the logger is enabled for the configured
+  severity.  If a 'span' reference is given but the named span is not found at
+  runtime, the log record is emitted without span correlation.
+
+  For example:
+    log-record info str("heartbeat")
+    log-record info id 1001 event "http-request" span "Frontend HTTP request" attr "http.method" "GET" method url
+    log-record trace id 1000 event "session-start" span "Client session" attr "attr_1_key" "attr_1_value" src str(":") src_port
+    log-record warn event "server-unavailable" str("503 Service Unavailable")
+
+  Arguments :
+    severity - the log severity level (see list above)
+    id       - optional numeric event identifier
+    event    - optional event name
+    span     - optional name of an open span to associate with
+    attr     - optional attribute key-value pairs (repeatable)
+    sample   - sample fetch expression(s) forming the log record body
+
+
+link <span> ...
+  This keyword adds span links to the currently active span.  A span link
+  represents a causal relationship to another span without establishing a
+  parent-child hierarchy.  Links are useful for connecting spans across
+  different traces or for associating related spans within the same trace.
+
+  Multiple span names can be specified in one line.  Each name is resolved at
+  runtime by searching for an active span or an extracted context with that
+  name.  If a referenced span or context cannot be found, the link is silently
+  skipped.
+
+  Arguments :
+    span - the name of a span or span context to link to
+
+
+otel-event <name> [{ if | unless } <condition>]
+  Set the event that triggers the 'otel-scope' to which it is assigned.
+  Optionally, it can be followed by an ACL-based condition, in which case it
+  will only be evaluated if the condition is true.
+
+  ACL-based conditions are executed in the context of a stream that processes
+  the client and server connections.  To configure and use the ACL, see section
+  7 of the HAProxy Configuration Manual.
+
+  Arguments :
+    name      - the event name
+    condition - a standard ACL-based condition
+
+  Supported events are (the table gives the names of the events in the OTel
+  filter and the corresponding equivalent in the SPOE filter):
+
+    -------------------------------------|------------------------------
+      the OTel filter                    |  the SPOE filter
+    -------------------------------------|------------------------------
+      on-stream-start                    |  -
+      on-stream-stop                     |  -
+      on-idle-timeout                    |  -
+      on-backend-set                     |  -
+    -------------------------------------|------------------------------
+      on-client-session-start            |  on-client-session
+      on-frontend-tcp-request            |  on-frontend-tcp-request
+      on-http-wait-request               |  -
+      on-http-body-request               |  -
+      on-frontend-http-request           |  on-frontend-http-request
+      on-switching-rules-request         |  -
+      on-backend-tcp-request             |  on-backend-tcp-request
+      on-backend-http-request            |  on-backend-http-request
+      on-process-server-rules-request    |  -
+      on-http-process-request            |  -
+      on-tcp-rdp-cookie-request          |  -
+      on-process-sticking-rules-request  |  -
+      on-http-headers-request            |  -
+      on-http-end-request                |  -
+      on-client-session-end              |  -
+      on-server-unavailable              |  -
+    -------------------------------------|------------------------------
+      on-server-session-start            |  on-server-session
+      on-tcp-response                    |  on-tcp-response
+      on-http-wait-response              |  -
+      on-process-store-rules-response    |  -
+      on-http-response                   |  on-http-response
+      on-http-headers-response           |  -
+      on-http-end-response               |  -
+      on-http-reply                      |  -
+      on-server-session-end              |  -
+    -------------------------------------|------------------------------
+
+  --- Stream lifecycle events (not tied to a channel analyzer) ---
+
+  The on-stream-start and on-stream-stop events fire from the stream_start and
+  stream_stop filter callbacks respectively, before any channel processing
+  begins and after all channel processing ends.  No channel is available at
+  that point, so context injection/extraction via HTTP headers cannot be used
+  in scopes bound to these events.  Sample fetches in these scopes are not
+  direction-constrained.
+
+  The on-idle-timeout event fires periodically when the stream has no data
+  transfer activity.  It requires the 'idle-timeout' keyword to set the
+  interval.  This event is useful for heartbeat spans, idle-time metrics, and
+  idle-time log records.  It fires from the check_timeouts filter callback
+  using HAProxy's tick-based timer infrastructure.
+
+  The on-backend-set event fires from the stream_set_backend filter callback
+  when a backend is assigned to the stream.  It is not called if the frontend
+  and the backend are the same proxy.
+
+
+  --- Request channel events ---
+
+  Analyzer events (tied to AN_REQ_* bits):
+
+  The on-frontend-tcp-request event fires during frontend TCP content inspection
+  (AN_REQ_INSPECT_FE).
+
+  The on-http-wait-request event fires after the complete HTTP request has been
+  received (AN_REQ_WAIT_HTTP).  This is a post-analyzer event.
+
+  The on-http-body-request event fires when the HTTP request body is available
+  for inspection (AN_REQ_HTTP_BODY).
+
+  The on-frontend-http-request event fires during frontend HTTP request
+  processing: header rules, monitoring, statistics and redirects
+  (AN_REQ_HTTP_PROCESS_FE).
+
+  The on-switching-rules-request event fires when backend switching rules are
+  evaluated (AN_REQ_SWITCHING_RULES).
+
+  The on-backend-tcp-request event fires during backend TCP content inspection
+  (AN_REQ_INSPECT_BE).
+
+  The on-backend-http-request event fires during backend HTTP request processing
+  (AN_REQ_HTTP_PROCESS_BE).
+
+  The on-process-server-rules-request event fires when use-server rules are
+  evaluated (AN_REQ_SRV_RULES).
+
+  The on-http-process-request event fires during inner HTTP request processing
+  (AN_REQ_HTTP_INNER).
+
+  The on-tcp-rdp-cookie-request event fires when RDP cookie persistence is
+  evaluated (AN_REQ_PRST_RDP_COOKIE).
+
+  The on-process-sticking-rules-request event fires when stick-table persistence
+  matching rules are evaluated (AN_REQ_STICKING_RULES).
+
+  Non-analyzer events (not tied to AN_REQ_* bits):
+
+  The on-client-session-start event fires when the request channel analysis
+  begins.  It corresponds to the start of a new client session.
+
+  The on-http-headers-request event fires from the http_headers filter callback
+  after all HTTP request headers have been parsed and analyzed.
+
+  The on-http-end-request event fires from the http_end filter callback when all
+  HTTP request data has been processed and forwarded.
+
+  The on-client-session-end event fires when the request channel analysis ends.
+
+  The on-server-unavailable event fires during request channel end-analysis when
+  response analyzers were configured but never executed because the server was
+  not reached.
+
+
+  --- Response channel events ---
+
+  Analyzer events (tied to AN_RES_* bits):
+
+  The on-tcp-response event fires during TCP response content inspection
+  (AN_RES_INSPECT).
+
+  The on-http-wait-response event fires after the complete HTTP response has
+  been received (AN_RES_WAIT_HTTP).  This is a post-analyzer event.
+
+  The on-process-store-rules-response event fires when stick-table store rules
+  are evaluated (AN_RES_STORE_RULES).
+
+  The on-http-response event fires during backend HTTP response processing
+  (AN_RES_HTTP_PROCESS_BE).
+
+  Non-analyzer events (not tied to AN_RES_* bits):
+
+  The on-server-session-start event fires when the response channel analysis
+  begins, after a server connection has been established.
+
+  The on-http-headers-response event fires from the http_headers filter callback
+  after all HTTP response headers have been parsed and analyzed.
+
+  The on-http-end-response event fires from the http_end filter callback when
+  all HTTP response data has been processed and forwarded.
+
+  The on-http-reply event fires from the http_reply filter callback when HAProxy
+  generates an internal reply (error page, deny response, redirect).  It always
+  fires on the response channel.
+
+  The on-server-session-end event fires when the response channel analysis ends.
+
+
+idle-timeout <time>
+  Set the idle timeout interval for a scope bound to the 'on-idle-timeout'
+  event.  The timer fires periodically at the given interval when the stream
+  is idle.  This keyword is mandatory for scopes using the 'on-idle-timeout'
+  event and cannot be used with any other event.
+
+  The <time> argument accepts the standard HAProxy time format: a number
+  followed by a unit suffix (ms, s, m, h, d).  A value of zero is not
+  permitted.
+
+  Arguments :
+    time - the idle timeout interval (e.g. 5s, 500ms, 1m)
+
+  Example :
+    scopes on_idle_timeout
+    ..
+    otel-scope on_idle_timeout
+        idle-timeout 5s
+        span "heartbeat" root
+            attribute "idle.elapsed" str("idle-check")
+        instrument cnt_int "idle.count" value int(1)
+        log-record info str("heartbeat")
+        otel-event on-idle-timeout
+
+
+span <name> [<reference>] [<link>] [root]
+  Creating a new span (or referencing an already opened one).  If a new span is
+  created, it can have a parent reference to another span or context, an inline
+  link to another span, or be marked as a root span.  If no reference is
+  specified, the new span will become a root span.  We need to pay attention to
+  the fact that in one trace there can be only one root span.  If a non-existent
+  span is specified as a reference, a new span will not be created.
+
+  The parent reference is set using the 'parent' keyword followed by the name of
+  an existing span or extracted context.  An inline link is set using the 'link'
+  keyword followed by a span or context name.  The 'root' keyword explicitly
+  marks the span as a root span.
+
+  For example:
+    span "HAProxy session" root
+    span "Client session" parent "HAProxy session"
+    span "HTTP request" parent "TCP request" link "HAProxy session"
+    span "Client session" parent "otel_ctx_1"
+
+  Only one inline link can be specified per 'span' declaration.  For multiple
+  links, use the standalone 'link' keyword described above.
+
+  Arguments :
+    name      - the name of the span being created or referenced
+                (operation name)
+    reference - 'parent <name>' or 'link <name>' or 'root'
+
+
+status <code> [<sample> ...]
+  This keyword sets the status for the currently active span.  The status
+  indicates the outcome of the operation represented by the span.
+
+  The status code is one of the following predefined values:
+    - ignore : do not set any status (default)
+    - unset  : explicitly mark status as unset
+    - ok     : the operation completed successfully
+    - error  : the operation resulted in an error
+
+  An optional description can follow the status code, consisting of one or more
+  sample expressions whose values are concatenated as a string.  The description
+  is typically used with the 'error' status to provide additional context about
+  the failure.
+
+  For example:
+    status "ok"
+    status "error" str("http.status_code: ") status
+
+  Arguments :
+    code   - the status code (ignore, unset, ok, error)
+    sample - optional sample expression(s) for the status description
+
+
+4.4. "otel-group" section
+--------------------------
+
+This section allows us to define a group of OTel scopes, that is not activated
+via an event but is triggered from TCP or HTTP rules.  More precisely, these are
+the following rules: 'tcp-request', 'tcp-response', 'http-request',
+'http-response' and 'http-after-response'.  These rules can be defined in the
+HAProxy configuration file.
+
+The action keyword used in these rules is 'otel-group', and it takes the filter
+id and the group name as arguments:
+
+  http-response otel-group <filter-id> <group-name> [{ if | unless } ...]
+
+
+otel-group <name>
+  Creates a new OTel group definition named <name>.
+
+  Arguments :
+    name - the name of the OTel group
+
+
+  The following keywords are supported in this section:
+    - scopes
+
+
+scopes <name> ...
+  'otel-scope' sections that are part of the specified group are defined.  If
+  the mentioned 'otel-scope' sections are used only in some OTel group, they do
+  not have to have defined events.  Several 'otel-scope' sections can be
+  specified in one line.
+
+  Arguments :
+    name - the name of the 'otel-scope' section
+
+
+5. Examples
+------------
+
+Several examples of the OTel filter configuration can be found in the test
+directory.  A brief description of the prepared configurations follows:
+
+cmp   - a configuration made for comparison purposes with other tracing
+        implementations.
+
+sa    - a standalone configuration in which all possible events are used.  This
+        is the most comprehensive example demonstrating spans, attributes,
+        events, links, baggage, status and other features.
+
+ctx   - a configuration similar to 'sa', with the difference that the spans are
+        opened using extracted span contexts as references instead of direct
+        parent span names.  This demonstrates the inject/extract context
+        propagation mechanism using HAProxy variables.
+
+fe be - a more complex example of the OTel filter configuration that uses two
+        cascaded HAProxy services (frontend and backend).  The span context
+        between HAProxy processes is transmitted via the HTTP header using
+        inject/extract.
+
+empty - an empty configuration in which the OTel filter is initialized but no
+        event is triggered.  It is not very usable, except to check the behavior
+        of the OTel filter in the case of a similar configuration.
+
+
+The OTel filter does not use tracer plugins.  Instead, telemetry data is
+exported using the OpenTelemetry protocol (OTLP) directly to any compatible
+backend.  The backend is configured through the YAML configuration file
+specified by the 'config' keyword.
+
+In order to be able to collect and view trace data we need an OpenTelemetry
+compatible backend.  There are many options available, including:
+
+  - Jaeger  : https://www.jaegertracing.io/
+  - Grafana : https://grafana.com/oss/tempo/
+  - Zipkin  : https://zipkin.io/
+  - SigNoz  : https://signoz.io/
+  - Datadog : https://www.datadoghq.com/
+
+For quick testing, a simple setup using the OpenTelemetry Collector and Jaeger
+can be started with Docker:
+
+  # docker run -d --name jaeger -p 4317:4317 -p 4318:4318 -p 16686:16686 jaegertracing/all-in-one:latest
+
+This starts Jaeger with OTLP/gRPC on port 4317, OTLP/HTTP on port 4318 and the
+web UI on port 16686.  If we want to use that container later, it can be started
+and stopped using the 'docker container start/stop' commands.
+
+The test configurations use a YAML file that defines an OTLP/HTTP exporter
+sending data to localhost:4318.  A typical minimal YAML configuration looks like
+this:
+
+  --- otel.yml --------------------------------------------------------
+  exporters:
+    my_exporter:
+      type:     otlp_http
+      endpoint: "http://localhost:4318/v1/traces"
+
+  samplers:
+    my_sampler:
+      type: always_on
+
+  processors:
+    my_processor:
+      type: batch
+
+  providers:
+    my_provider:
+      resources:
+        - service.name: "haproxy"
+
+  signals:
+    traces:
+      scope_name: "HAProxy OTel"
+      exporters:  my_exporter
+      samplers:   my_sampler
+      processors: my_processor
+      providers:  my_provider
+  ---------------------------------------------------------------------
+
+In order to use any of the configurations from the test directory, we can run
+one of the pre-configured scripts:
+
+  % ./run-sa.sh
+  % ./run-ctx.sh
+  % ./run-cmp.sh
+  % ./run-fe-be.sh
+
+
+6. OTel CLI
+------------
+
+Via the HAProxy CLI interface we can find out the current status of the OTel
+filter and change several of its settings.
+
+All supported CLI commands can be found in the following way, using the socat
+utility with the assumption that the HAProxy CLI socket path is set to
+/tmp/haproxy.sock (of course, instead of socat, nc or other utility can be used
+with a change in arguments when running the same):
+
+  % echo "help" | socat - UNIX-CONNECT:/tmp/haproxy.sock | grep flt-otel
+  --- command output ----------
+  flt-otel debug [level]   : set the OTel filter debug level
+  flt-otel disable         : disable the OTel filter
+  flt-otel enable          : enable the OTel filter
+  flt-otel soft-errors     : turning off hard-errors mode
+  flt-otel hard-errors     : enabling hard-errors mode
+  flt-otel logging [state] : set logging state
+  flt-otel rate [value]    : set the rate limit
+  flt-otel status          : show the OTel filter status
+  --- command output ----------
+
+'flt-otel debug' can only be used in case the OTel filter is compiled with the
+debug mode enabled.  When invoked without arguments, these commands display the
+current value of the respective setting.
+
+
+7. Known bugs and limitations
+-------------------------------
+
+The name of the span context definition can contain only letters, numbers and
+characters '_' and '-'.  Also, all uppercase letters in the name are converted
+to lowercase.  The character '-' is converted internally to the 'D' character,
+and since a HAProxy variable is generated from that name, this should be taken
+into account if we want to use it somewhere in the HAProxy configuration.  The
+above mentioned span context is used in the 'inject' and 'extract' keywords.
+
+An inline span link (using the 'link' keyword within a 'span' declaration) is
+limited to a single link per span declaration due to the fixed argument count
+(maximum 7 arguments).  For multiple links, use the standalone 'link' keyword
+instead.
+
+Let's look a little at the example test/fe-be (configurations are in the
+test/fe and test/be directories, 'fe' is here the abbreviation for frontend and
+'be' for backend).  In case we have the 'rate-limit' set to a value less than
+100.0, then distributed tracing will not be started with each new HTTP request.
+It also means that the span context will not be delivered (via the HTTP header)
+to the backend HAProxy process.  The 'rate-limit' on the backend HAProxy must be
+set to 100.0, but because the frontend HAProxy does not send a span context
+every time, all such cases will cause an error to be reported on the backend
+server.  Therefore, the 'hard-errors' option must be set on the backend server,
+so that processing on that stream is stopped as soon as the first error occurs.

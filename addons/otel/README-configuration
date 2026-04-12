@@ -1,0 +1,946 @@
+                   -----------------------------------------
+                    HAProxy OTel filter configuration guide
+                                Version 1.0
+                        ( Last update: 2026-03-18 )
+                   -----------------------------------------
+                         Author : Miroslav Zagorac
+                   Contact : mzagorac at haproxy dot com
+
+
+SUMMARY
+--------
+
+  1.    Overview
+  2.    HAProxy filter declaration
+  3.    OTel configuration file structure
+  3.1.    OTel scope (top-level)
+  3.2.    "otel-instrumentation" section
+  3.3.    "otel-scope" section
+  3.4.    "otel-group" section
+  4.    YAML configuration file
+  4.1.    Exporters
+  4.2.    Samplers
+  4.3.    Processors
+  4.4.    Readers
+  4.5.    Providers
+  4.6.    Signals
+  5.    HAProxy rule integration
+  6.    Complete examples
+  6.1.    Standalone example (sa)
+  6.2.    Frontend / backend example (fe/be)
+  6.3.    Context propagation example (ctx)
+  6.4.    Comparison example (cmp)
+  6.5.    Empty / minimal example (empty)
+
+
+1. Overview
+------------
+
+The OTel filter configuration consists of two files:
+
+  1) An OTel configuration file (.cfg) that defines the tracing model: scopes,
+     groups, spans, attributes, events, instrumentation and log-records.
+
+  2) A YAML configuration file (.yml) that configures the OpenTelemetry SDK
+     pipeline: exporters, samplers, processors, readers, providers and signal
+     routing.
+
+The OTel configuration file is referenced from the HAProxy configuration using
+the 'filter opentelemetry' directive.  The YAML file is in turn referenced from
+the OTel configuration file using the 'config' keyword inside the
+"otel-instrumentation" section.
+
+
+2. HAProxy filter declaration
+------------------------------
+
+The OTel filter requires the 'insecure-fork-wanted' keyword in the HAProxy
+'global' section.  This is necessary because the OpenTelemetry C++ SDK creates
+background threads for data export and batch processing.  HAProxy will refuse
+to load the configuration if this keyword is missing.
+
+  global
+      insecure-fork-wanted
+      ...
+
+The filter is activated by adding a filter directive in the HAProxy
+configuration, in a proxy section (frontend / listen / backend):
+
+  frontend my-frontend
+    ...
+    filter opentelemetry [id <id>] config <otel-cfg-file>
+    ...
+
+If no filter id is specified, 'otel-filter' is used as default.  The 'config'
+parameter is mandatory and specifies the path to the OTel configuration file.
+
+Example (from test/sa/haproxy.cfg):
+
+  frontend otel-test-sa-frontend
+      bind *:10080
+      default_backend servers-backend
+
+      acl acl-http-status-ok status 100:399
+
+      filter opentelemetry id otel-test-sa config sa/otel.cfg
+
+      http-response otel-group otel-test-sa http_response_group if acl-http-status-ok
+      http-after-response otel-group otel-test-sa http_after_response_group if !acl-http-status-ok
+
+  backend servers-backend
+      server server-1 127.0.0.1:8000
+
+
+3. OTel configuration file structure
+--------------------------------------
+
+The OTel configuration file uses a simple section-based format.  It contains
+three types of sections: one "otel-instrumentation" section (mandatory), zero
+or more "otel-scope" sections, and zero or more "otel-group" sections.
+
+
+3.1. OTel scope (top-level)
+-----------------------------
+
+The file is organized into top-level OTel scopes, each identified by a filter
+id enclosed in square brackets.  The filter id must match the id specified in
+the HAProxy 'filter opentelemetry' directive.
+
+  [<filter-id>]
+      otel-instrumentation <name>
+          ...
+
+      otel-group <name>
+          ...
+
+      otel-scope <name>
+          ...
+
+Multiple OTel scopes (for different filter instances) can coexist in the same
+file:
+
+  [my-first-filter]
+      otel-instrumentation instr1
+          ...
+
+  [my-second-filter]
+      otel-instrumentation instr2
+          ...
+
+
+3.2. "otel-instrumentation" section
+-------------------------------------
+
+Exactly one "otel-instrumentation" section must be defined per OTel scope.
+It configures the global behavior of the filter and declares which groups
+and scopes are active.
+
+Syntax:
+
+  otel-instrumentation <name>
+
+Keywords (mandatory):
+
+  config <file>
+      Path to the YAML configuration file for the OpenTelemetry SDK.
+
+Keywords (optional):
+
+  acl <aclname> <criterion> [flags] [operator] <value> ...
+      Declare an ACL.  See section 7 of the HAProxy Configuration Manual.
+
+  debug-level <value>
+      Set the debug level bitmask (e.g. 0x77f).  Only effective when compiled
+      with OTEL_DEBUG=1.
+
+  groups <name> ...
+      Declare one or more "otel-group" sections used by this instrumentation.
+      Can be repeated on multiple lines.
+
+  log global
+  log <addr> [len <len>] [format <fmt>] <facility> [<level> [<minlvl>]]
+  no log
+      Enable per-instance logging.
+
+  option disabled / no option disabled
+      Disable or enable the filter.  Default: enabled.
+
+  option dontlog-normal / no option dontlog-normal
+      Suppress logging for normal (successful) operations.  Default: disabled.
+
+  option hard-errors / no option hard-errors
+      Stop all filter processing in a stream after the first error.  Default:
+      disabled (errors are non-fatal).
+
+  rate-limit <value>
+      Percentage of streams for which the filter is activated.  Floating-point
+      value from 0.0 to 100.0.  Default: 100.0.
+
+  scopes <name> ...
+      Declare one or more "otel-scope" sections used by this instrumentation.
+      Can be repeated on multiple lines.
+
+
+Example (from test/sa/otel.cfg):
+
+  [otel-test-sa]
+      otel-instrumentation otel-test-instrumentation
+          debug-level 0x77f
+          log localhost:514 local7 debug
+          config sa/otel.yml
+          option dontlog-normal
+          option hard-errors
+          no option disabled
+          rate-limit 100.0
+
+          groups http_response_group
+          groups http_after_response_group
+
+          scopes on_stream_start
+          scopes on_stream_stop
+
+          scopes client_session_start
+          scopes frontend_tcp_request
+          ...
+          scopes server_session_end
+
+
+3.3. "otel-scope" section
+---------------------------
+
+An "otel-scope" section defines the actions that take place when a particular
+event fires or when a group is triggered.
+
+Syntax:
+
+  otel-scope <name>
+
+Supported keywords:
+
+  span <name> [parent <ref>] [link <ref>] [root]
+      Create a new span or reference an already opened one.
+
+      - 'root' marks this span as the trace root (only one per trace).
+      - 'parent <ref>' sets the parent to an existing span or extracted context
+        name.
+      - 'link <ref>' adds an inline link to another span or context.  Multiple
+        inline links can be specified within the argument limit.
+      - If no reference is given, the span becomes a root span.
+
+      A span declaration opens a "sub-context" within the scope: the keywords
+      'link', 'attribute', 'event', 'baggage', 'status' and 'inject' that follow
+      apply to that span until the next 'span' keyword or the end of the scope.
+
+      Examples:
+        span "HAProxy session" root
+        span "Client session" parent "HAProxy session"
+        span "HTTP request" parent "TCP request" link "HAProxy session"
+        span "Client session" parent "otel_ctx_1"
+
+
+  attribute <key> <sample> ...
+      Set an attribute on the currently active span.  A single sample preserves
+      its native type; multiple samples are concatenated as a string.
+
+      Examples:
+        attribute "http.method" method
+        attribute "http.url" url
+        attribute "http.version" str("HTTP/") req.ver
+
+
+  event <name> <key> <sample> ...
+      Add a span event (timestamped annotation) to the currently active span.
+      The data type is always string.
+
+      Examples:
+        event "event_ip" "src" src str(":") src_port
+        event "event_be" "be" be_id str(" ") be_name
+
+
+  baggage <key> <sample> ...
+      Set baggage on the currently active span.  Baggage propagates to all child
+      spans.  The data type is always string.
+
+      Example:
+        baggage "haproxy_id" var(sess.otel.uuid)
+
+
+  status <code> [<sample> ...]
+      Set the span status.  Valid codes: ignore (default), unset, ok, error.
+      An optional description follows the code.
+
+      Examples:
+        status "ok"
+        status "error" str("http.status_code: ") status
+
+
+  link <span> ...
+      Add non-hierarchical links to the currently active span.  Multiple span
+      names can be specified.  Use this keyword for multiple links (the inline
+      'link' in 'span' is limited to one).
+
+      Example:
+        link "HAProxy session" "Client session"
+
+
+  inject <name-prefix> [use-vars] [use-headers]
+      Inject span context into an HTTP header carrier and/or HAProxy variables.
+      The prefix names the context; the special prefix '-' generates the name
+      automatically.  Default storage: use-headers.  The 'use-vars' option
+      requires OTEL_USE_VARS=1 at compile time.
+
+      Example:
+        span "HAProxy session" root
+            inject "otel_ctx_1" use-headers use-vars
+
+
+  extract <name-prefix> [use-vars | use-headers]
+      Extract a previously injected span context from an HTTP header or HAProxy
+      variables.  The extracted context can then be used as a parent reference
+      in 'span ... parent <name-prefix>'.
+
+      Example:
+        extract "otel_ctx_1" use-vars
+        span "Client session" parent "otel_ctx_1"
+
+
+  finish <name> ...
+      Close one or more spans or span contexts.  Special names:
+        '*'      - finish all open spans
+        '*req*'  - finish all request-channel spans
+        '*res*'  - finish all response-channel spans
+
+      Multiple names can be given on one line.  A quoted context name after a
+      span name finishes the associated context as well.
+
+      Examples:
+        finish "Frontend TCP request"
+        finish "Client session" "otel_ctx_2"
+        finish *
+
+
+  instrument <type> <name> [aggr <aggregation>] [desc <description>] [unit <unit>] value <sample> [bounds <bounds>]
+  instrument update <name> [attr <key> <value> ...]
+      Create or update a metric instrument.
+
+      Supported types:
+        cnt_int   - counter (uint64)
+        hist_int  - histogram (uint64)
+        udcnt_int - up-down counter (int64)
+        gauge_int - gauge (int64)
+
+      Supported aggregation types:
+        drop           - measurements are discarded
+        histogram      - explicit bucket histogram
+        last_value     - last recorded value
+        sum            - sum of recorded values
+        default        - SDK default for the instrument type
+        exp_histogram  - base-2 exponential histogram
+
+      An aggregation type can be specified using the 'aggr' keyword.  When
+      specified, a metrics view is registered with the given aggregation
+      strategy.  If omitted, the SDK default is used.
+
+      For histogram instruments (hist_int), optional bucket boundaries can be
+      specified using the 'bounds' keyword followed by a double-quoted string
+      of space-separated numbers (order does not matter; values are sorted
+      internally).  When bounds are specified without an explicit aggregation
+      type, histogram aggregation is used automatically.
+
+      Observable (asynchronous) and double-precision types are not supported.
+      Observable instrument callbacks are invoked by the OTel SDK from an
+      external background thread; HAProxy sample fetches rely on internal
+      per-thread-group state and return incorrect results from a non-HAProxy
+      thread.  Double-precision types are not supported because HAProxy sample
+      fetches do not return double values.
+
+      Examples:
+        instrument cnt_int  "name_cnt_int" desc "Integer Counter" value int(1),add(2) unit "unit"
+        instrument hist_int "name_hist" aggr exp_histogram desc "Latency" value lat_ns_tot unit "ns"
+        instrument hist_int "name_hist2" desc "Latency" value lat_ns_tot unit "ns" bounds "100 1000 10000"
+        instrument update "name_cnt_int" attr "attr_1_key" "attr_1_value"
+
+
+  log-record <severity> [id <integer>] [event <name>] [span <span-name>] [attr <key> <value>] ... <sample> ...
+      Emit an OpenTelemetry log record.  The first argument is a required
+      severity level.  Optional keywords follow in any order:
+
+        id <integer>       - numeric event identifier
+        event <name>       - event name string
+        span <span-name>   - associate the log record with an open span
+        attr <key> <value> - add a key-value attribute (repeatable)
+
+      The remaining arguments at the end are sample fetch expressions that form
+      the log record body.  A single sample preserves its native type; multiple
+      samples are concatenated as a string.
+
+      Supported severity levels follow the OpenTelemetry specification:
+        trace, trace2, trace3, trace4
+        debug, debug2, debug3, debug4
+        info,  info2,  info3,  info4
+        warn,  warn2,  warn3,  warn4
+        error, error2, error3, error4
+        fatal, fatal2, fatal3, fatal4
+
+      The log record is only emitted if the logger is enabled for the configured
+      severity (controlled by the 'min_severity' option in the YAML logs signal
+      configuration).  If a 'span' reference is given but the named span is not
+      found at runtime, the log record is emitted without span correlation.
+
+      Examples:
+        log-record info str("heartbeat")
+        log-record info id 1001 event "http-request" span "Frontend HTTP request" attr "http.method" "GET" method url
+        log-record trace id 1000 event "session-start" span "Client session" attr "attr_1_key" "attr_1_value" attr "attr_2_key" "attr_2_value" src str(":") src_port
+        log-record warn event "server-unavailable" str("503 Service Unavailable")
+        log-record info event "session-stop" str("stream stopped")
+
+
+  acl <aclname> <criterion> [flags] [operator] <value> ...
+      Declare an ACL local to this scope.
+
+      Example:
+        acl acl-test-src-ip src 127.0.0.1
+
+
+  otel-event <name> [{ if | unless } <condition>]
+      Bind this scope to a filter event, optionally with an ACL-based condition.
+
+      Supported events (stream lifecycle):
+        on-stream-start
+        on-stream-stop
+        on-idle-timeout
+        on-backend-set
+
+      Supported events (request channel):
+        on-client-session-start
+        on-frontend-tcp-request
+        on-http-wait-request
+        on-http-body-request
+        on-frontend-http-request
+        on-switching-rules-request
+        on-backend-tcp-request
+        on-backend-http-request
+        on-process-server-rules-request
+        on-http-process-request
+        on-tcp-rdp-cookie-request
+        on-process-sticking-rules-request
+        on-http-headers-request
+        on-http-end-request
+        on-client-session-end
+        on-server-unavailable
+
+      Supported events (response channel):
+        on-server-session-start
+        on-tcp-response
+        on-http-wait-response
+        on-process-store-rules-response
+        on-http-response
+        on-http-headers-response
+        on-http-end-response
+        on-http-reply
+        on-server-session-end
+
+      The on-stream-start event fires from the stream_start filter callback,
+      before any channel processing begins.  The on-stream-stop event fires from
+      the stream_stop callback, after all channel processing ends.  No channel
+      is available at that point, so context injection/extraction via HTTP
+      headers cannot be used in scopes bound to these events.
+
+      The on-idle-timeout event fires periodically when the stream has no data
+      transfer activity.  It requires the 'idle-timeout' keyword to set the
+      interval.  Scopes bound to this event can create heartbeat spans, record
+      idle-time metrics, and emit idle-time log records.
+
+      The on-backend-set event fires when a backend is assigned to the stream.
+      It is not called if the frontend and backend are the same.
+
+      The on-http-headers-request and on-http-headers-response events fire after
+      all HTTP headers have been parsed and analyzed.
+
+      The on-http-end-request and on-http-end-response events fire when all HTTP
+      data has been processed and forwarded.
+
+      The on-http-reply event fires when HAProxy generates an internal reply
+      (error page, deny response, redirect).
+
+      Examples:
+        otel-event on-stream-start if acl-test-src-ip
+        otel-event on-stream-stop
+        otel-event on-client-session-start
+        otel-event on-client-session-start if acl-test-src-ip
+        otel-event on-http-response if !acl-http-status-ok
+        otel-event on-idle-timeout
+
+
+  idle-timeout <time>
+      Set the idle timeout interval for a scope bound to the 'on-idle-timeout'
+      event.  The timer fires periodically at the given interval when the stream
+      has no data transfer activity.  This keyword is mandatory for scopes using
+      the 'on-idle-timeout' event and cannot be used with any other event.
+
+      The <time> argument accepts the standard HAProxy time format: a number
+      followed by a unit suffix (ms, s, m, h, d).  A value of zero is not
+      permitted.
+
+      Example:
+        scopes on_idle_timeout
+        ..
+        otel-scope on_idle_timeout
+            idle-timeout 5s
+            span "heartbeat" root
+                attribute "idle.elapsed" str("idle-check")
+            instrument cnt_int "idle.count" value int(1)
+            log-record info str("heartbeat")
+            otel-event on-idle-timeout
+
+
+3.4. "otel-group" section
+---------------------------
+
+An "otel-group" section defines a named collection of scopes that can be
+triggered from HAProxy TCP/HTTP rules rather than from filter events.
+
+Syntax:
+
+  otel-group <name>
+
+Keywords:
+
+  scopes <name> ...
+      List the "otel-scope" sections that belong to this group.  Multiple names
+      can be given on one line.  Scopes that are used only in groups do not need
+      to define an 'otel-event'.
+
+Example (from test/sa/otel.cfg):
+
+  otel-group http_response_group
+      scopes http_response_1
+      scopes http_response_2
+
+  otel-scope http_response_1
+      span "HTTP response"
+          event "event_content" "hdr.content" res.hdr("content-type") str("; length: ") res.hdr("content-length") str(" bytes")
+
+  otel-scope http_response_2
+      span "HTTP response"
+          event "event_date" "hdr.date" res.hdr("date") str(" / ") res.hdr("last-modified")
+
+
+4. YAML configuration file
+----------------------------
+
+The YAML configuration file defines the OpenTelemetry SDK pipeline.  It is
+referenced by the 'config' keyword in the "otel-instrumentation" section.
+It contains the following top-level sections: exporters, samplers, processors,
+readers, providers and signals.
+
+
+4.1. Exporters
+---------------
+
+Each exporter has a user-chosen name and a 'type' that determines which
+additional options are available.  Options marked with (*) are required.
+
+Supported types:
+
+  otlp_grpc - Export via OTLP over gRPC.
+    type (*)                          "otlp_grpc"
+    thread_name                       exporter thread name (string)
+    endpoint                          OTLP/gRPC endpoint URL (string)
+    use_ssl_credentials               enable SSL channel credentials (boolean)
+    ssl_credentials_cacert_path       CA certificate file path (string)
+    ssl_credentials_cacert_as_string  CA certificate as inline string (string)
+    ssl_client_key_path               client private key file path (string)
+    ssl_client_key_string             client private key as inline string (string)
+    ssl_client_cert_path              client certificate file path (string)
+    ssl_client_cert_string            client certificate as inline string (string)
+    timeout                           export timeout in seconds (integer)
+    user_agent                        User-Agent header value (string)
+    max_threads                       maximum exporter threads (integer)
+    compression                       compression algorithm name (string)
+    max_concurrent_requests           concurrent request limit (integer)
+
+
+  otlp_http - Export via OTLP over HTTP (JSON or Protobuf).
+    type (*)                        "otlp_http"
+    thread_name                     exporter thread name (string)
+    endpoint                        OTLP/HTTP endpoint URL (string)
+    content_type                    payload format: "json" or "protobuf"
+    json_bytes_mapping              binary encoding: "hexid", "utf8" or "base64"
+    debug                           enable debug output (boolean)
+    timeout                         export timeout in seconds (integer)
+    http_headers                    custom HTTP headers (list of key: value)
+    max_concurrent_requests         concurrent request limit (integer)
+    max_requests_per_connection     request limit per connection (integer)
+    ssl_insecure_skip_verify        skip TLS certificate verification (boolean)
+    ssl_ca_cert_path                CA certificate file path (string)
+    ssl_ca_cert_string              CA certificate as inline string (string)
+    ssl_client_key_path             client private key file path (string)
+    ssl_client_key_string           client private key as inline string (string)
+    ssl_client_cert_path            client certificate file path (string)
+    ssl_client_cert_string          client certificate as inline string (string)
+    ssl_min_tls                     minimum TLS version (string)
+    ssl_max_tls                     maximum TLS version (string)
+    ssl_cipher                      TLS cipher list (string)
+    ssl_cipher_suite                TLS 1.3 cipher suite list (string)
+    compression                     compression algorithm name (string)
+
+
+  otlp_file - Export to local files in OTLP format.
+    type (*)                        "otlp_file"
+    thread_name                     exporter thread name (string)
+    file_pattern                    output filename pattern (string)
+    alias_pattern                   symlink pattern for latest file (string)
+    flush_interval                  flush interval in microseconds (integer)
+    flush_count                     spans per flush (integer)
+    file_size                       maximum file size in bytes (integer)
+    rotate_size                     number of rotated files to keep (integer)
+
+
+  ostream - Write to a file (text output, useful for debugging).
+    type (*)                        "ostream"
+    filename                        output file path (string)
+
+
+  memory - In-memory buffer (useful for testing).
+    type (*)                        "memory"
+    buffer_size                     maximum buffered items (integer)
+
+
+  zipkin - Export to Zipkin-compatible backends.
+    type (*)                        "zipkin"
+    endpoint                        Zipkin collector URL (string)
+    format                          payload format: "json" or "protobuf"
+    service_name                    service name reported to Zipkin (string)
+    ipv4                            service IPv4 address (string)
+    ipv6                            service IPv6 address (string)
+
+
+  elasticsearch - Export to Elasticsearch.
+    type (*)                        "elasticsearch"
+    host                            Elasticsearch hostname (string)
+    port                            Elasticsearch port (integer)
+    index                           Elasticsearch index name (string)
+    response_timeout                response timeout in seconds (integer)
+    debug                           enable debug output (boolean)
+    http_headers                    custom HTTP headers (list of key: value)
+
+
+4.2. Samplers
+--------------
+
+Samplers control which traces are recorded.  Each sampler has a user-chosen
+name and a 'type' that determines its behavior.
+
+Supported types:
+
+  always_on - Sample every trace.
+    type (*)                        "always_on"
+
+
+  always_off - Sample no traces.
+    type (*)                        "always_off"
+
+
+  trace_id_ratio_based - Sample a fraction of traces.
+    type (*)                        "trace_id_ratio_based"
+    ratio                           sampling ratio, 0.0 to 1.0 (float)
+
+
+  parent_based - Inherit sampling decision from parent span.
+    type (*)                        "parent_based"
+    delegate                        fallback sampler name (string)
+
+
+4.3. Processors
+----------------
+
+Processors define how telemetry data is handled before export.  Each
+processor has a user-chosen name and a 'type' that determines its behavior.
+
+Supported types:
+
+  batch - Batch spans before exporting.
+    type (*)                        "batch"
+    thread_name                     processor thread name (string)
+    max_queue_size                  maximum queued spans (integer)
+    schedule_delay                  export interval in milliseconds (integer)
+    max_export_batch_size           maximum spans per export call (integer)
+
+    When the queue reaches half capacity, a preemptive notification triggers
+    an early export.
+
+  single - Export each span individually (no batching).
+    type (*)                        "single"
+
+
+4.4. Readers
+-------------
+
+Readers define how metrics are collected and exported.  Each reader has a
+user-chosen name.
+
+    thread_name                     reader thread name (string)
+    export_interval                 collection interval in milliseconds (integer)
+    export_timeout                  export timeout in milliseconds (integer)
+
+
+4.5. Providers
+---------------
+
+Providers define resource attributes attached to all telemetry data.  Each
+provider has a user-chosen name.
+
+    resources                       key-value resource attributes (list)
+
+Standard resource attribute keys include service.name, service.version,
+service.instance.id and service.namespace.
+
+
+4.6. Signals
+-------------
+
+Signals bind exporters, samplers, processors, readers and providers together
+for each telemetry type.  The supported signal names are "traces", "metrics"
+and "logs".
+
+    scope_name                      instrumentation scope name (string)
+    exporters                       exporter name reference (string)
+    samplers                        sampler name reference (string, traces only)
+    processors                      processor name reference (string, traces/logs)
+    readers                         reader name reference (string, metrics only)
+    providers                       provider name reference (string)
+    min_severity                    minimum log severity level (string, logs only)
+
+The "min_severity" option controls which log records are emitted.  Only log
+records whose severity is equal to or higher than the configured minimum are
+passed to the exporter.  The value is a severity name as listed under the
+"log-record" keyword (e.g. "trace", "debug", "info", "warn", "error", "fatal").
+If omitted, the logger accepts all severity levels.
+
+
+5. HAProxy rule integration
+----------------------------
+
+Groups defined in the OTel configuration file can be triggered from HAProxy
+TCP/HTTP rules using the 'otel-group' action keyword:
+
+  http-request        otel-group <filter-id> <group> [condition]
+  http-response       otel-group <filter-id> <group> [condition]
+  http-after-response otel-group <filter-id> <group> [condition]
+  tcp-request         otel-group <filter-id> <group> [condition]
+  tcp-response        otel-group <filter-id> <group> [condition]
+
+This allows running specific groups of scopes based on ACL conditions defined
+in the HAProxy configuration.
+
+Example (from test/sa/haproxy.cfg):
+
+  acl acl-http-status-ok status 100:399
+
+  filter opentelemetry id otel-test-sa config sa/otel.cfg
+
+  # Run response scopes for successful responses
+  http-response otel-group otel-test-sa http_response_group if acl-http-status-ok
+
+  # Run after-response scopes for error responses
+  http-after-response otel-group otel-test-sa http_after_response_group if !acl-http-status-ok
+
+
+6. Complete examples
+---------------------
+
+The test directory contains several complete example configurations.  Each
+subdirectory contains an OTel configuration file (otel.cfg), a YAML file
+(otel.yml) and a HAProxy configuration file (haproxy.cfg).
+
+
+6.1. Standalone example (sa)
+------------------------------
+
+The most comprehensive example.  All possible events are used, with spans,
+attributes, events, links, baggage, status, metrics and groups demonstrated.
+
+--- test/sa/otel.cfg (excerpt) -----------------------------------------
+
+[otel-test-sa]
+    otel-instrumentation otel-test-instrumentation
+        config sa/otel.yml
+        option dontlog-normal
+        option hard-errors
+        no option disabled
+        rate-limit 100.0
+
+        groups http_response_group
+        groups http_after_response_group
+
+        scopes on_stream_start
+        scopes on_stream_stop
+        scopes client_session_start
+        scopes frontend_tcp_request
+        ...
+        scopes server_session_end
+
+    otel-group http_response_group
+        scopes http_response_1
+        scopes http_response_2
+
+    otel-scope http_response_1
+        span "HTTP response"
+            event "event_content" "hdr.content" res.hdr("content-type") str("; length: ") res.hdr("content-length") str(" bytes")
+
+    otel-scope on_stream_start
+        instrument udcnt_int "haproxy.sessions.active" desc "Active sessions" value int(1) unit "{session}"
+        span "HAProxy session" root
+            baggage "haproxy_id" var(sess.otel.uuid)
+            event "event_ip" "src" src str(":") src_port
+        acl acl-test-src-ip src 127.0.0.1
+        otel-event on-stream-start if acl-test-src-ip
+
+    otel-scope on_stream_stop
+        finish *
+        otel-event on-stream-stop
+
+    otel-scope client_session_start
+        span "Client session" parent "HAProxy session"
+        otel-event on-client-session-start
+
+    otel-scope frontend_http_request
+        span "Frontend HTTP request" parent "HTTP body request" link "HAProxy session"
+            attribute "http.method" method
+            attribute "http.url" url
+            attribute "http.version" str("HTTP/") req.ver
+        finish "HTTP body request"
+        otel-event on-frontend-http-request
+
+    otel-scope server_session_start
+        span "Server session" parent "HAProxy session"
+        link "HAProxy session" "Client session"
+        finish "Process sticking rules request"
+        otel-event on-server-session-start
+
+    otel-scope server_session_end
+        finish *
+        otel-event on-server-session-end
+
+---------------------------------------------------------------------
+
+
+6.2. Frontend / backend example (fe/be)
+-----------------------------------------
+
+Demonstrates distributed tracing across two cascaded HAProxy instances using
+inject/extract to propagate the span context via HTTP headers.
+
+The frontend HAProxy (test/fe) creates the root trace and injects context:
+
+--- test/fe/otel.cfg (excerpt) -----------------------------------------
+
+    otel-scope backend_http_request
+        span "Backend HTTP request" parent "Backend TCP request"
+        finish "Backend TCP request"
+        span "HAProxy session"
+            inject "otel-ctx" use-headers
+        otel-event on-backend-http-request
+
+---------------------------------------------------------------------
+
+The backend HAProxy (test/be) extracts the context and continues the trace:
+
+--- test/be/otel.cfg (excerpt) -----------------------------------------
+
+    otel-scope frontend_http_request
+        extract "otel-ctx" use-headers
+        span "HAProxy session" parent "otel-ctx" root
+            baggage "haproxy_id" var(sess.otel.uuid)
+        span "Client session" parent "HAProxy session"
+        span "Frontend HTTP request" parent "Client session"
+            attribute "http.method" method
+            attribute "http.url" url
+            attribute "http.version" str("HTTP/") req.ver
+        otel-event on-frontend-http-request
+
+---------------------------------------------------------------------
+
+
+6.3. Context propagation example (ctx)
+----------------------------------------
+
+Similar to 'sa', but spans are opened using extracted span contexts as parent
+references instead of direct span names.  This demonstrates the inject/extract
+mechanism using HAProxy variables.
+
+--- test/ctx/otel.cfg (excerpt) ----------------------------------------
+
+    otel-scope client_session_start_1
+        span "HAProxy session" root
+            inject "otel_ctx_1" use-headers use-vars
+            baggage "haproxy_id" var(sess.otel.uuid)
+        otel-event on-client-session-start
+
+    otel-scope client_session_start_2
+        extract "otel_ctx_1" use-vars
+        span "Client session" parent "otel_ctx_1"
+            inject "otel_ctx_2" use-headers use-vars
+        otel-event on-client-session-start
+
+    otel-scope frontend_tcp_request
+        extract "otel_ctx_2" use-vars
+        span "Frontend TCP request" parent "otel_ctx_2"
+            inject "otel_ctx_3" use-headers use-vars
+        otel-event on-frontend-tcp-request
+
+    otel-scope http_wait_request
+        extract "otel_ctx_3" use-vars
+        span "HTTP wait request" parent "otel_ctx_3"
+        finish "Frontend TCP request" "otel_ctx_3"
+        otel-event on-http-wait-request
+
+---------------------------------------------------------------------
+
+
+6.4. Comparison example (cmp)
+-------------------------------
+
+A configuration made for comparison purposes with other tracing implementations.
+It uses a simplified span hierarchy without context propagation.
+
+--- test/cmp/otel.cfg (excerpt) ----------------------------------------
+
+    otel-scope client_session_start
+        span "HAProxy session" root
+            baggage "haproxy_id" var(sess.otel.uuid)
+        span "Client session" parent "HAProxy session"
+        otel-event on-client-session-start
+
+    otel-scope http_response-error
+        span "HTTP response"
+            status "error" str("!acl-http-status-ok")
+        otel-event on-http-response if !acl-http-status-ok
+
+    otel-scope server_session_end
+        finish "HTTP response" "Server session"
+        otel-event on-http-response
+
+    otel-scope client_session_end
+        finish "*"
+        otel-event on-http-response
+
+---------------------------------------------------------------------
+
+
+6.5. Empty / minimal example (empty)
+--------------------------------------
+
+The minimal valid OTel configuration.  The filter is initialized but no events
+are triggered:
+
+--- test/empty/otel.cfg -------------------------------------------------
+
+  otel-instrumentation otel-test-instrumentation
+      config empty/otel.yml
+
+---------------------------------------------------------------------
+
+This is useful for testing the OTel filter initialization behavior without any
+actual telemetry processing.
