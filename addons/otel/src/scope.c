@@ -87,10 +87,16 @@ void flt_otel_runtime_context_free(struct filter *f)
 
 	/* End all active spans with a common timestamp. */
 	if (!LIST_ISEMPTY(&(rt_ctx->spans))) {
+		struct timespec             ts_steady;
 		struct flt_otel_scope_span *span, *span_back;
 
-		list_for_each_entry_safe(span, span_back, &(rt_ctx->spans), list)
+		/* All spans should be completed at the same time. */
+		(void)clock_gettime(CLOCK_MONOTONIC, &ts_steady);
+
+		list_for_each_entry_safe(span, span_back, &(rt_ctx->spans), list) {
+			OTELC_OPSR(span->span, end_with_options, &ts_steady, OTELC_SPAN_STATUS_IGNORE, NULL);
 			flt_otel_scope_span_free(&span);
+		}
 	}
 
 	/* Destroy all extracted span contexts. */
@@ -322,6 +328,9 @@ void flt_otel_scope_context_free(struct flt_otel_scope_context **ptr)
 		OTELC_RETURN();
 
 	FLT_OTEL_DBG_SCOPE_CONTEXT("", *ptr);
+
+	if ((*ptr)->context != NULL)
+		OTELC_OPSR((*ptr)->context, destroy);
 
 	FLT_OTEL_LIST_DEL(&((*ptr)->list));
 	flt_otel_pool_free(pool_head_otel_scope_context, (void **)ptr);

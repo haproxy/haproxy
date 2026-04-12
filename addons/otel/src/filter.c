@@ -10,6 +10,121 @@
  */
 const char *otel_flt_id = "the OpenTelemetry filter";
 
+/* Counter of OTel SDK internal diagnostic messages. */
+uint64_t flt_otel_drop_cnt = 0;
+
+
+/***
+ * NAME
+ *   flt_otel_mem_malloc - OTel library memory allocator callback
+ *
+ * SYNOPSIS
+ *   static void *flt_otel_mem_malloc(const char *func, int line, size_t size)
+ *
+ * ARGUMENTS
+ *   func - caller function name (debug only)
+ *   line - caller source line number (debug only)
+ *   size - number of bytes to allocate
+ *
+ * DESCRIPTION
+ *   Allocator callback for the OpenTelemetry C wrapper library.  It allocates
+ *   the requested <size> bytes from the HAProxy pool_head_otel_span_context
+ *   pool.  This function is registered via otelc_ext_init().
+ *
+ * RETURN VALUE
+ *   Returns a pointer to the allocated memory, or NULL on failure.
+ */
+static void *flt_otel_mem_malloc(FLT_OTEL_DBG_ARGS(const char *func, int line, ) size_t size)
+{
+	return flt_otel_pool_alloc(pool_head_otel_span_context, size, 1, NULL);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_mem_free - OTel library memory deallocator callback
+ *
+ * SYNOPSIS
+ *   static void flt_otel_mem_free(const char *func, int line, void *ptr)
+ *
+ * ARGUMENTS
+ *   func - caller function name (debug only)
+ *   line - caller source line number (debug only)
+ *   ptr  - pointer to the memory to free
+ *
+ * DESCRIPTION
+ *   Deallocator callback for the OpenTelemetry C wrapper library.  It returns
+ *   the memory pointed to by <ptr> back to the HAProxy
+ *   pool_head_otel_span_context pool.  This function is registered via
+ *   otelc_ext_init().
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+static void flt_otel_mem_free(FLT_OTEL_DBG_ARGS(const char *func, int line, ) void *ptr)
+{
+	flt_otel_pool_free(pool_head_otel_span_context, &ptr);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_thread_id - OTel library thread ID callback
+ *
+ * SYNOPSIS
+ *   static int flt_otel_thread_id(void)
+ *
+ * ARGUMENTS
+ *   This function takes no arguments.
+ *
+ * DESCRIPTION
+ *   Thread ID callback for the OpenTelemetry C wrapper library.  It returns
+ *   the HAProxy thread identifier (tid).  This function is registered via
+ *   otelc_ext_init().
+ *
+ * RETURN VALUE
+ *   Returns the HAProxy thread ID.
+ */
+static int flt_otel_thread_id(void)
+{
+	return tid;
+}
+
+
+/***
+ * NAME
+ *   flt_otel_log_handler_cb - counts SDK internal diagnostic messages
+ *
+ * SYNOPSIS
+ *   static void flt_otel_log_handler_cb(otelc_log_level_t level, const char *file, int line, const char *msg, const struct otelc_kv *attr, size_t attr_len, void *ctx)
+ *
+ * ARGUMENTS
+ *   level    - severity of the OTel SDK diagnostic message
+ *   file     - source file that emitted the message
+ *   line     - source line number
+ *   msg      - formatted diagnostic message text
+ *   attr     - array of key-value attributes associated with the message
+ *   attr_len - number of entries in the attr array
+ *   ctx      - opaque context pointer (unused)
+ *
+ * DESCRIPTION
+ *   Custom OTel SDK internal log handler registered via otelc_log_set_handler().
+ *   Each invocation atomically increments the flt_otel_drop_cnt counter so the
+ *   HAProxy OTel filter can verify how many OTel SDK diagnostic messages were
+ *   emitted.  The message content is intentionally ignored.
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+static void flt_otel_log_handler_cb(otelc_log_level_t level __maybe_unused, const char *file __maybe_unused, int line __maybe_unused, const char *msg __maybe_unused, const struct otelc_kv *attr __maybe_unused, size_t attr_len __maybe_unused, void *ctx __maybe_unused)
+{
+	OTELC_FUNC("%d, \"%s\", %d, \"%s\", %p, %zu, %p", level, OTELC_STR_ARG(file), line, OTELC_STR_ARG(msg), attr, attr_len, ctx);
+
+	_HA_ATOMIC_INC(&flt_otel_drop_cnt);
+
+	OTELC_RETURN();
+}
+
 
 /***
  * NAME
@@ -39,6 +154,12 @@ static int flt_otel_lib_init(struct flt_otel_conf_instr *instr, char **err)
 
 	OTELC_FUNC("%p, %p:%p", instr, OTELC_DPTR_ARGS(err));
 
+	if (!OTELC_IS_VALID_VERSION()) {
+		FLT_OTEL_ERR("OpenTelemetry C Wrapper version mismatch: library (%s) does not match header files (%s).  Please ensure both are the same version.", otelc_version(), OTELC_VERSION);
+
+		OTELC_RETURN_INT(retval);
+	}
+
 	if (flt_otel_pool_init() == FLT_OTEL_RET_ERROR) {
 		FLT_OTEL_ERR("failed to initialize memory pools");
 
@@ -60,7 +181,25 @@ static int flt_otel_lib_init(struct flt_otel_conf_instr *instr, char **err)
 		OTELC_RETURN_INT(retval);
 	}
 
-	retval = 0;
+	if (otelc_init(path, err) == OTELC_RET_ERROR) {
+		if (*err == NULL)
+			FLT_OTEL_ERR("%s", "failed to initialize tracing library");
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	instr->tracer = otelc_tracer_create(err);
+	if (instr->tracer == NULL) {
+		if (*err == NULL)
+			FLT_OTEL_ERR("%s", "failed to initialize OpenTelemetry tracer");
+
+		OTELC_RETURN_INT(retval);
+	} else {
+		otelc_ext_init(flt_otel_mem_malloc, flt_otel_mem_free, flt_otel_thread_id);
+		otelc_log_set_handler(flt_otel_log_handler_cb, NULL, false);
+
+		retval = 0;
+	}
 
 	OTELC_RETURN_INT(retval);
 }
@@ -266,6 +405,11 @@ static int flt_otel_ops_init(struct proxy *p, struct flt_conf *fconf)
 static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 {
 	struct flt_otel_conf **conf = (fconf == NULL) ? NULL : (typeof(conf))&(fconf->conf);
+	struct otelc_tracer   *otel_tracer = NULL;
+#ifdef DEBUG_OTEL
+	char                   buffer[BUFSIZ];
+	int                    i;
+#endif
 
 	OTELC_FUNC("%p, %p", p, fconf);
 
@@ -273,13 +417,32 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 		OTELC_RETURN();
 
 #ifdef DEBUG_OTEL
+	otelc_statistics(buffer, sizeof(buffer));
+	OTELC_DBG(LOG, "%s", buffer);
+
 #  ifdef FLT_OTEL_USE_COUNTERS
 	OTELC_DBG(LOG, "attach counters: %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, (*conf)->cnt.attached[0], (*conf)->cnt.attached[1], (*conf)->cnt.attached[2], (*conf)->cnt.attached[3]);
 #  endif
-#endif
+
+	OTELC_DBG(LOG, "--- used events ----------");
+	for (i = 0; i < OTELC_TABLESIZE((*conf)->cnt.event); i++)
+		if ((*conf)->cnt.event[i].flag_used)
+			OTELC_DBG(LOG, "  %02d %25s: %" PRIu64 " / %" PRIu64, i, flt_otel_event_data[i].an_name, (*conf)->cnt.event[i].htx[0], (*conf)->cnt.event[i].htx[1]);
+#endif /* DEBUG_OTEL */
+
+	/*
+	 * Save the OTel handles before freeing the configuration.
+	 * flt_otel_conf_free() must run while the wrapper's ext callbacks
+	 * still point to the HAProxy pool allocator; otelc_deinit() resets
+	 * those callbacks, so it runs last.
+	 */
+	if ((*conf)->instr != NULL)
+		otel_tracer = (*conf)->instr->tracer;
 
 	flt_otel_conf_free(conf);
+	OTELC_MEMINFO();
 	flt_otel_pool_destroy();
+	otelc_deinit(&otel_tracer, NULL, NULL);
 
 	OTELC_RETURN();
 }
@@ -607,7 +770,9 @@ static int flt_otel_ops_init_per_thread(struct proxy *p, struct flt_conf *fconf)
 	 * filtering.
 	 */
 	if (!(fconf->flags & FLT_CFG_FL_HTX)) {
-		retval = FLT_OTEL_RET_OK;
+		retval = OTELC_OPS(conf->instr->tracer, start);
+		if (retval == OTELC_RET_ERROR)
+			FLT_OTEL_ALERT("%s", conf->instr->tracer->err);
 
 		if (retval != FLT_OTEL_RET_ERROR)
 			fconf->flags |= FLT_CFG_FL_HTX;

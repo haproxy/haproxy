@@ -35,6 +35,7 @@ enum FLT_OTEL_RET_enum {
 
 
 extern const char     *otel_flt_id;
+extern uint64_t        flt_otel_drop_cnt;
 extern struct flt_ops  flt_otel_ops;
 
 
