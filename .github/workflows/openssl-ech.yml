@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.repository_owner == 'haproxy' || github.event_name == 'workflow_dispatch' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install VTest
         run: |
           DESTDIR=${{ github.workspace }}/vtest scripts/build-vtest.sh
