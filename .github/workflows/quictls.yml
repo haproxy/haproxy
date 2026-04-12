@@ -38,7 +38,7 @@ jobs:
         run: |
           ldd $(which haproxy)
           haproxy -vv
-          echo "version=$(haproxy -v |awk 'NR==1{print $3}')" >> $GITHUB_OUTPUT
+          echo "version=$(haproxy -vq)" >> $GITHUB_OUTPUT
       - uses: ./.github/actions/setup-vtest
       - name: Run VTest for HAProxy
         id: vtest

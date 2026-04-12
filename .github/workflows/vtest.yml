@@ -136,7 +136,7 @@ jobs:
         fi
         echo "::endgroup::"
         haproxy -vv
-        echo "version=$(haproxy -v |awk 'NR==1{print $3}')" >> $GITHUB_OUTPUT
+        echo "version=$(haproxy -vq)" >> $GITHUB_OUTPUT
     - name: Run VTest for HAProxy ${{ steps.show-version.outputs.version }}
       id: vtest
       run: |

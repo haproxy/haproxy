@@ -48,7 +48,7 @@ jobs:
         ldd $(command -v haproxy)
         echo "::endgroup::"
         haproxy -vv
-        echo "version=$(haproxy -v |awk 'NR==1{print $3}')" >> $GITHUB_OUTPUT
+        echo "version=$(haproxy -vq)" >> $GITHUB_OUTPUT
 #
 # TODO: review this workaround later
     - name: relax crypto policies
