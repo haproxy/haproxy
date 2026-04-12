@@ -32,6 +32,7 @@
 #include "conf.h"
 #include "conf_funcs.h"
 #include "filter.h"
+#include "otelc.h"
 #include "parser.h"
 #include "pool.h"
 #include "scope.h"

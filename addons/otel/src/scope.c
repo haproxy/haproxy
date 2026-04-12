@@ -271,7 +271,9 @@ void flt_otel_scope_span_free(struct flt_otel_scope_span **ptr)
  */
 struct flt_otel_scope_context *flt_otel_scope_context_init(struct flt_otel_runtime_context *rt_ctx, struct otelc_tracer *tracer, const char *id, size_t id_len, const struct otelc_text_map *text_map, uint dir, char **err)
 {
-	struct flt_otel_scope_context *retptr = NULL;
+	struct otelc_http_headers_reader  reader;
+	struct otelc_span_context        *span_ctx;
+	struct flt_otel_scope_context    *retptr = NULL;
 
 	OTELC_FUNC("%p, %p, \"%s\", %zu, %p, %u, %p:%p", rt_ctx, tracer, OTELC_STR_ARG(id), id_len, text_map, dir, OTELC_DPTR_ARGS(err));
 
@@ -290,10 +292,18 @@ struct flt_otel_scope_context *flt_otel_scope_context_init(struct flt_otel_runti
 	if (retptr == NULL)
 		OTELC_RETURN_PTR(retptr);
 
+	span_ctx = flt_otel_extract_http_headers(tracer, &reader, text_map);
+	if (span_ctx == NULL) {
+		flt_otel_scope_context_free(&retptr);
+
+		OTELC_RETURN_PTR(retptr);
+	}
+
 	/* Populate the new scope context and insert it into the list. */
 	retptr->id          = id;
 	retptr->id_len      = id_len;
 	retptr->smp_opt_dir = dir;
+	retptr->context     = span_ctx;
 	LIST_INSERT(&(rt_ctx->contexts), &(retptr->list));
 
 	FLT_OTEL_DBG_SCOPE_CONTEXT("new context ", retptr);
