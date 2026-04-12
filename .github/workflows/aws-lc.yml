@@ -9,7 +9,13 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  aws-lc:
+    name: AWS-LC
     uses: ./.github/workflows/aws-lc-template.yml
     with:
       command: "from matrix import determine_latest_aws_lc; print(determine_latest_aws_lc(''))"
+  aws-lc-fips:
+    name: AWS-LC (FIPS)
+    uses: ./.github/workflows/aws-lc-template.yml
+    with:
+      command: "from matrix import determine_latest_aws_lc_fips; print(determine_latest_aws_lc_fips(''))"
