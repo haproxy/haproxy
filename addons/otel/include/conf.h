@@ -197,6 +197,16 @@ struct flt_otel_conf_instr {
 	struct list          ph_scopes;     /* List of all used scopes. */
 };
 
+/* Runtime counters for filter diagnostics. */
+struct flt_otel_counters {
+#ifdef DEBUG_OTEL
+	struct {
+		bool     flag_used; /* Whether this event is used. */
+		uint64_t htx[2];    /* htx_is_empty() function result counter. */
+	} event[FLT_OTEL_EVENT_MAX];
+#endif
+};
+
 /* The OpenTelemetry filter configuration. */
 struct flt_otel_conf {
 	struct proxy               *proxy;    /* Proxy owning the filter. */
@@ -205,6 +215,7 @@ struct flt_otel_conf {
 	struct flt_otel_conf_instr *instr;    /* The OpenTelemetry instrumentation settings. */
 	struct list                 groups;   /* List of all available groups. */
 	struct list                 scopes;   /* List of all available scopes. */
+	struct flt_otel_counters    cnt;      /* Various counters related to filter operation. */
 	struct list                 smp_args; /* Deferred OTEL sample fetch args to resolve. */
 };
 

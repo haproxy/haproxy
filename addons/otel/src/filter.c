@@ -90,9 +90,265 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
  */
 static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 {
+	struct proxy               *px;
+	struct flt_otel_conf       *conf = FLT_OTEL_DEREF(fconf, conf, NULL);
+	struct flt_otel_conf_group *conf_group;
+	struct flt_otel_conf_scope *conf_scope;
+	struct flt_otel_conf_ph    *ph_group, *ph_scope;
+	int                         retval = 0, scope_unused_cnt = 0, span_root_cnt = 0;
+
 	OTELC_FUNC("%p, %p", p, fconf);
 
-	OTELC_RETURN_INT(0);
+	if (conf == NULL)
+		OTELC_RETURN_INT(++retval);
+
+	/*
+	 * Resolve deferred OTEL sample fetch arguments.
+	 *
+	 * These were kept out of the proxy's arg list during parsing to avoid
+	 * the global smp_resolve_args() call, which would reject backend-only
+	 * fetches on a frontend proxy.  All backends and servers are now
+	 * available, so resolve under full FE+BE capabilities.
+	 */
+	if (!LIST_ISEMPTY(&(conf->smp_args))) {
+		char *err = NULL;
+		uint  saved_cap = p->cap;
+
+		LIST_SPLICE(&(p->conf.args.list), &(conf->smp_args));
+		LIST_INIT(&(conf->smp_args));
+		p->cap |= PR_CAP_LISTEN;
+
+		if (smp_resolve_args(p, &err) != 0) {
+			FLT_OTEL_ALERT("%s", err);
+			ha_free(&err);
+
+			retval++;
+		}
+
+		p->cap = saved_cap;
+	}
+
+	/*
+	 * If only the proxy specified with the <p> parameter is checked, then
+	 * no duplicate filters can be found that are not defined in the same
+	 * configuration sections.
+	 */
+	for (px = proxies_list; px != NULL; px = px->next) {
+		struct flt_conf *fconf_tmp;
+
+		OTELC_DBG(NOTICE, "proxy '%s'", px->id);
+
+		/*
+		 * The names of all OTEL filters (filter ID) should be checked,
+		 * they must be unique.
+		 */
+		list_for_each_entry(fconf_tmp, &(px->filter_configs), list)
+			if ((fconf_tmp != fconf) && (fconf_tmp->id == otel_flt_id)) {
+				struct flt_otel_conf *conf_tmp = fconf_tmp->conf;
+
+				OTELC_DBG(NOTICE, "  OTEL filter '%s'", conf_tmp->id);
+
+				if (strcmp(conf_tmp->id, conf->id) == 0) {
+					FLT_OTEL_ALERT("''%s' : duplicated filter ID'", conf_tmp->id);
+
+					retval++;
+				}
+			}
+	}
+
+	if (FLT_OTEL_DEREF(conf->instr, id, NULL) == NULL) {
+		FLT_OTEL_ALERT("''%s' : no instrumentation found'", conf->id);
+
+		retval++;
+	}
+
+	if ((conf->instr != NULL) && (conf->instr->config == NULL)) {
+		FLT_OTEL_ALERT("''%s' : no configuration file specified'", conf->instr->id);
+
+		retval++;
+	}
+
+	/*
+	 * Checking that defined 'otel-group' section names are unique.
+	 */
+	list_for_each_entry(conf_group, &(conf->groups), list) {
+		struct flt_otel_conf_group *conf_group_tmp;
+
+		list_for_each_entry(conf_group_tmp, &(conf->groups), list) {
+			if ((conf_group_tmp != conf_group) && (strcmp(conf_group_tmp->id, conf_group->id) == 0)) {
+				FLT_OTEL_ALERT("''%s' : duplicated " FLT_OTEL_PARSE_SECTION_GROUP_ID " '%s''", conf->id, conf_group->id);
+
+				retval++;
+
+				break;
+			}
+		}
+	}
+
+	/*
+	 * Checking that defined 'otel-scope' section names are unique.
+	 */
+	list_for_each_entry(conf_scope, &(conf->scopes), list) {
+		struct flt_otel_conf_scope *conf_scope_tmp;
+
+		list_for_each_entry(conf_scope_tmp, &(conf->scopes), list) {
+			if ((conf_scope_tmp != conf_scope) && (strcmp(conf_scope_tmp->id, conf_scope->id) == 0)) {
+				FLT_OTEL_ALERT("''%s' : duplicated " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s''", conf->id, conf_scope->id);
+
+				retval++;
+
+				break;
+			}
+		}
+	}
+
+	/*
+	 * Checking that defined 'otel-group' sections are not empty.
+	 */
+	list_for_each_entry(conf_group, &(conf->groups), list)
+		if (LIST_ISEMPTY(&(conf_group->ph_scopes)))
+			FLT_OTEL_ALERT("''%s' : " FLT_OTEL_PARSE_SECTION_GROUP_ID " '%s' has no scopes'", conf->id, conf_group->id);
+
+	/*
+	 * Checking that all defined 'otel-group' sections have correctly declared
+	 * 'otel-scope' sections (ie whether the declared 'otel-scope' sections have
+	 * corresponding definitions).
+	 */
+	list_for_each_entry(conf_group, &(conf->groups), list)
+		list_for_each_entry(ph_scope, &(conf_group->ph_scopes), list) {
+			bool flag_found = 0;
+
+			list_for_each_entry(conf_scope, &(conf->scopes), list)
+				if (strcmp(ph_scope->id, conf_scope->id) == 0) {
+					ph_scope->ptr         = conf_scope;
+					conf_scope->flag_used = 1;
+					flag_found            = 1;
+
+					break;
+				}
+
+			if (!flag_found) {
+				FLT_OTEL_ALERT("'" FLT_OTEL_PARSE_SECTION_GROUP_ID " '%s' : references undefined " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s''", conf_group->id, ph_scope->id);
+
+				retval++;
+			}
+		}
+
+	if (conf->instr != NULL) {
+		/*
+		 * Checking that all declared 'groups' keywords have correctly
+		 * defined 'otel-group' sections.
+		 */
+		list_for_each_entry(ph_group, &(conf->instr->ph_groups), list) {
+			bool flag_found = 0;
+
+			list_for_each_entry(conf_group, &(conf->groups), list)
+				if (strcmp(ph_group->id, conf_group->id) == 0) {
+					ph_group->ptr         = conf_group;
+					conf_group->flag_used = 1;
+					flag_found            = 1;
+
+					break;
+				}
+
+			if (!flag_found) {
+				FLT_OTEL_ALERT("'" FLT_OTEL_PARSE_SECTION_INSTR_ID " '%s' : references undefined " FLT_OTEL_PARSE_SECTION_GROUP_ID " '%s''", conf->instr->id, ph_group->id);
+
+				retval++;
+			}
+		}
+
+		/*
+		 * Checking that all declared 'scopes' keywords have correctly
+		 * defined 'otel-scope' sections.
+		 */
+		list_for_each_entry(ph_scope, &(conf->instr->ph_scopes), list) {
+			bool flag_found = 0;
+
+			list_for_each_entry(conf_scope, &(conf->scopes), list)
+				if (strcmp(ph_scope->id, conf_scope->id) == 0) {
+					ph_scope->ptr         = conf_scope;
+					conf_scope->flag_used = 1;
+					flag_found            = 1;
+
+					break;
+				}
+
+			if (!flag_found) {
+				FLT_OTEL_ALERT("'" FLT_OTEL_PARSE_SECTION_INSTR_ID " '%s' : references undefined " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s''", conf->instr->id, ph_scope->id);
+
+				retval++;
+			}
+		}
+	}
+
+	OTELC_DBG(DEBUG, "--- filter '%s' configuration ----------", conf->id);
+	OTELC_DBG(DEBUG, "- defined spans ----------");
+
+	/*
+	 * Walk every configured scope: for used ones, log the defined spans,
+	 * count root spans, and set the required analyzer bits; for unused
+	 * ones, record a warning so the operator is notified.
+	 */
+	list_for_each_entry(conf_scope, &(conf->scopes), list) {
+		if (conf_scope->flag_used) {
+			struct flt_otel_conf_span *conf_span;
+
+			/*
+			 * In principle, only one span should be labeled
+			 * as a root span.
+			 */
+			list_for_each_entry(conf_span, &(conf_scope->spans), list) {
+				FLT_OTEL_DBG_CONF_SPAN("   ", conf_span);
+
+				span_root_cnt += conf_span->flag_root ? 1 : 0;
+			}
+
+#ifdef DEBUG_OTEL
+			conf->cnt.event[conf_scope->event].flag_used = 1;
+#endif
+
+			/* Set the flags of the analyzers used. */
+			conf->instr->analyzers |= flt_otel_event_data[conf_scope->event].an_bit;
+
+			/* Track the minimum idle timeout. */
+			if (conf_scope->event == FLT_OTEL_EVENT__IDLE_TIMEOUT)
+				if ((conf->instr->idle_timeout == 0) || (conf_scope->idle_timeout < conf->instr->idle_timeout))
+					conf->instr->idle_timeout = conf_scope->idle_timeout;
+		} else {
+			FLT_OTEL_ALERT("''%s' : unused " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s''", conf->id, conf_scope->id);
+
+			scope_unused_cnt++;
+		}
+	}
+
+	/*
+	 * Unused scopes or a number of root spans other than one do not
+	 * necessarily have to be errors, but it is good to print it when
+	 * starting HAProxy.
+	 */
+	if (scope_unused_cnt > 0)
+		FLT_OTEL_ALERT("''%s' : %d scope(s) not in use'", conf->id, scope_unused_cnt);
+
+	if (LIST_ISEMPTY(&(conf->scopes)))
+		/* Do nothing. */;
+	else if (span_root_cnt == 0)
+		FLT_OTEL_ALERT("''%s' : no span is marked as the root span'", conf->id);
+	else if (span_root_cnt > 1)
+		FLT_OTEL_ALERT("''%s' : multiple spans are marked as the root span'", conf->id);
+
+	FLT_OTEL_DBG_LIST(conf, group, "", "defined", _group,
+	                  FLT_OTEL_DBG_CONF_GROUP("   ", _group);
+	                  FLT_OTEL_DBG_LIST(_group, ph_scope, "   ", "used", _scope, FLT_OTEL_DBG_CONF_PH("      ", _scope)));
+	FLT_OTEL_DBG_LIST(conf, scope, "", "defined", _scope, FLT_OTEL_DBG_CONF_SCOPE("   ", _scope));
+
+	if (conf->instr != NULL) {
+		OTELC_DBG(DEBUG, "   --- instrumentation '%s' configuration ----------", conf->instr->id);
+		FLT_OTEL_DBG_LIST(conf->instr, ph_group, "   ", "used", _group, FLT_OTEL_DBG_CONF_PH("      ", _group));
+		FLT_OTEL_DBG_LIST(conf->instr, ph_scope, "   ", "used", _scope, FLT_OTEL_DBG_CONF_PH("      ", _scope));
+	}
+
+	OTELC_RETURN_INT(retval);
 }
 
 

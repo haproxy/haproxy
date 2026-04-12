@@ -5,6 +5,7 @@
 
 #define FLT_OTEL_FMT_NAME           "'" FLT_OTEL_OPT_NAME "' : "
 #define FLT_OTEL_FMT_TYPE           "'filter' : "
+#define FLT_OTEL_ALERT(f, ...)      ha_alert(FLT_OTEL_FMT_TYPE FLT_OTEL_FMT_NAME f "\n", ##__VA_ARGS__)
 
 #define FLT_OTEL_CONDITION_IF       "if"
 #define FLT_OTEL_CONDITION_UNLESS   "unless"
@@ -16,6 +17,21 @@ enum FLT_OTEL_RET_enum {
 	FLT_OTEL_RET_IGNORE = 0,
 	FLT_OTEL_RET_OK     = 1,
 };
+
+/* Dump or iterate a named configuration list for debugging. */
+#define FLT_OTEL_DBG_LIST(d,m,p,t,v,f)                               \
+	do {                                                         \
+		if (LIST_ISEMPTY(&((d)->m##s))) {                    \
+			OTELC_DBG(DEBUG, p "- no " #m "s " t);       \
+		} else {                                             \
+			const struct flt_otel_conf_##m *v;           \
+			                                             \
+			OTELC_DBG(DEBUG, p "- " t " " #m "s: %s",    \
+			          flt_otel_list_dump(&((d)->m##s))); \
+			list_for_each_entry(v, &((d)->m##s), list)   \
+				do { f; } while (0);                 \
+		}                                                    \
+	} while (0)
 
 
 extern const char     *otel_flt_id;

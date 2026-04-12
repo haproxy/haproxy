@@ -3,6 +3,9 @@
 #ifndef _OTEL_DEFINE_H_
 #define _OTEL_DEFINE_H_
 
+/* Safe pointer dereference with default value. */
+#define FLT_OTEL_DEREF(p,m,v)        (((p) != NULL) ? (p)->m : (v))
+
 /* Check whether argument at index n is in range, non-NULL and non-empty. */
 #define FLT_OTEL_ARG_ISVALID(n)      ({ typeof(n) _n = (n); OTELC_IN_RANGE(_n, 0, MAX_LINE_ARGS - 1) && (args[_n] != NULL) && (*args[_n] != '\0'); })
 
