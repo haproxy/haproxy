@@ -14,14 +14,12 @@ jobs:
     if: ${{ github.repository_owner == 'haproxy' || github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v6
-      - name: Install VTest
-        run: |
-          DESTDIR=${{ github.workspace }}/vtest scripts/build-vtest.sh
       - name: Install apt dependencies
         run: |
           sudo apt-get update -o Acquire::Languages=none -o Acquire::Translation=none
           sudo apt-get --no-install-recommends -y install socat gdb
           sudo apt-get --no-install-recommends -y install libpsl-dev
+      - uses: ./.github/actions/setup-vtest
       - name: Install OpenSSL+ECH
         run: env OPENSSL_VERSION="git-feature/ech" GIT_TYPE="branch" scripts/build-ssl.sh
       - name: Install curl+ECH
