@@ -9,8 +9,15 @@
 /* Check whether argument at index n is in range, non-NULL and non-empty. */
 #define FLT_OTEL_ARG_ISVALID(n)      ({ typeof(n) _n = (n); OTELC_IN_RANGE(_n, 0, MAX_LINE_ARGS - 1) && (args[_n] != NULL) && (*args[_n] != '\0'); })
 
+/* Convert a uint32_t rate value to a floating-point percentage. */
+#define FLT_OTEL_U32_FLOAT(a)        ((a) * 100.0 / UINT32_MAX)
+
 /* Convert a floating-point percentage to a uint32_t rate value. */
 #define FLT_OTEL_FLOAT_U32(a)        ((uint32_t)((a) / 100.0 * UINT32_MAX + 0.5))
+
+#define FLT_OTEL_STR_DASH_72         "------------------------------------------------------------------------"
+#define FLT_OTEL_STR_DASH_78         FLT_OTEL_STR_DASH_72 "------"
+#define FLT_OTEL_STR_FLAG_YN(a)      ((a) ? "yes" : "no")
 
 /* Compile-time string length excluding the null terminator. */
 #define FLT_OTEL_STR_SIZE(a)         (sizeof(a) - 1)

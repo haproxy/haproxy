@@ -367,6 +367,8 @@ static int flt_otel_ops_init(struct proxy *p, struct flt_conf *fconf)
 	if (conf == NULL)
 		OTELC_RETURN_INT(retval);
 
+	flt_otel_cli_init();
+
 	/*
 	 * Initialize the OpenTelemetry library.
 	 */

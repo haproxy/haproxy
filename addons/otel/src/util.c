@@ -40,6 +40,45 @@ void flt_otel_args_dump(const char **args)
 
 /***
  * NAME
+ *   flt_otel_filters_dump - debug OTel filter instances dump
+ *
+ * SYNOPSIS
+ *   void flt_otel_filters_dump(void)
+ *
+ * ARGUMENTS
+ *   This function takes no arguments.
+ *
+ * DESCRIPTION
+ *   Dumps all OTel filter instances across all proxies.  Iterates the global
+ *   proxy list, logging each proxy name and its associated OTel filter IDs.
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+void flt_otel_filters_dump(void)
+{
+	struct flt_conf *fconf;
+	struct proxy    *px;
+
+	OTELC_FUNC("");
+
+	for (px = proxies_list; px != NULL; px = px->next) {
+		OTELC_DBG(NOTICE, "proxy '%s'", px->id);
+
+		list_for_each_entry(fconf, &(px->filter_configs), list)
+			if (fconf->id == otel_flt_id) {
+				struct flt_otel_conf *conf = fconf->conf;
+
+				OTELC_DBG(NOTICE, "  OTEL filter '%s'", conf->id);
+			}
+	}
+
+	OTELC_RETURN();
+}
+
+
+/***
+ * NAME
  *   flt_otel_chn_label - channel direction label
  *
  * SYNOPSIS

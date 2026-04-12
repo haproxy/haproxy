@@ -13,6 +13,20 @@
 	FLT_OTEL_HTTP_METH_DEF(TRACE)   \
 	FLT_OTEL_HTTP_METH_DEF(CONNECT)
 
+/* Iterate over all OTel filter configurations across all proxies. */
+#define FLT_OTEL_PROXIES_LIST_START()                                           \
+	do {                                                                    \
+		struct flt_conf *fconf;                                         \
+		struct proxy    *px;                                            \
+		                                                                \
+		for (px = proxies_list; px != NULL; px = px->next)              \
+			list_for_each_entry(fconf, &(px->filter_configs), list) \
+				if (fconf->id == otel_flt_id) {                 \
+					struct flt_otel_conf *conf = fconf->conf;
+#define FLT_OTEL_PROXIES_LIST_END() \
+				}   \
+	} while (0)
+
 #ifdef DEBUG_OTEL
 #  define FLT_OTEL_ARGS_DUMP()   do { if (otelc_dbg_level & (1 << OTELC_DBG_LEVEL_LOG)) flt_otel_args_dump((const char **)args); } while (0)
 #else
@@ -20,9 +34,14 @@
 #endif
 
 
-#ifdef DEBUG_OTEL
+#ifndef DEBUG_OTEL
+#  define flt_otel_filters_dump()   while (0)
+#else
 /* Dump configuration arguments for debugging. */
 void        flt_otel_args_dump(const char **args);
+
+/* Dump all OTel filter configurations across all proxies. */
+void        flt_otel_filters_dump(void);
 
 /* Return a label string identifying a channel direction. */
 const char *flt_otel_chn_label(const struct channel *chn);

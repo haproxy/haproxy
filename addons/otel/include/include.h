@@ -28,6 +28,7 @@
 #include "config.h"
 #include "debug.h"
 #include "define.h"
+#include "cli.h"
 #include "event.h"
 #include "conf.h"
 #include "conf_funcs.h"

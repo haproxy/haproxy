@@ -52,6 +52,7 @@ $(error OpenTelemetry C wrapper : can't find library)
 endif
 
 OPTIONS_OBJS += \
+	addons/otel/src/cli.o    \
 	addons/otel/src/conf.o   \
 	addons/otel/src/event.o  \
 	addons/otel/src/filter.o \
