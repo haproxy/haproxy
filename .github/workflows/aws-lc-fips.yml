@@ -5,6 +5,9 @@ on:
     - cron: "0 0 * * 4"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     uses: ./.github/workflows/aws-lc-template.yml

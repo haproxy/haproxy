@@ -5,12 +5,13 @@ on:
     - cron: "0 0 25 * *"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   gcc:
     runs-on: ubuntu-latest
     if: ${{ github.repository_owner == 'haproxy' || github.event_name == 'workflow_dispatch' }}
-    permissions:
-      contents: read
     steps:
       - name: "Checkout repository"
         uses: actions/checkout@v5
