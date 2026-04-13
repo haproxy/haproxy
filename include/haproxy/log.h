@@ -198,6 +198,15 @@ char * get_format_pid_sep2(int format, size_t *len);
 
 void generate_unique_id(struct ist *dst, struct session *sess, struct stream *strm, struct lf_expr *format);
 
+static inline struct ist stream_generate_unique_id(struct stream *strm, struct lf_expr *format)
+{
+	if (!isttest(strm->unique_id)) {
+		generate_unique_id(&strm->unique_id, strm_sess(strm), strm, format);
+	}
+
+	return strm->unique_id;
+}
+
 /*
  * Builds a log line for the stream (must be valid).
  */

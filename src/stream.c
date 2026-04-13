@@ -3083,23 +3083,6 @@ static void init_stream()
 }
 INITCALL0(STG_INIT, init_stream);
 
-/* Generates a unique ID based on the given <format>, stores it in the given <strm> and
- * returns the unique ID.
- *
- * If this function fails to allocate memory IST_NULL is returned.
- *
- * If an ID is already stored within the stream nothing happens existing unique ID is
- * returned.
- */
-struct ist stream_generate_unique_id(struct stream *strm, struct lf_expr *format)
-{
-	if (!isttest(strm->unique_id)) {
-		generate_unique_id(&strm->unique_id, strm_sess(strm), strm, format);
-	}
-
-	return strm->unique_id;
-}
-
 /************************************************************************/
 /*           All supported ACL keywords must be declared here.          */
 /************************************************************************/
