@@ -1471,6 +1471,7 @@ int smp_resolve_args(struct proxy *p, char **err)
 		case ARGC_TCK:   where = "in tcp-check expression in"; break;
 		case ARGC_CFG:   where = "in configuration expression in"; break;
 		case ARGC_CLI:   where = "in CLI expression in"; break;
+		case ARGC_OTEL:  where = "in otel-scope directive in"; break;
 		}
 
 		/* set a few default settings */

@@ -92,6 +92,7 @@ enum {
 	ARGC_TCK,      /* tcp-check expression */
 	ARGC_CFG,      /* configuration expression */
 	ARGC_CLI,      /* CLI expression*/
+	ARGC_OTEL,     /* opentelemetry scope args */
 };
 
 /* flags used when compiling and executing regex */
