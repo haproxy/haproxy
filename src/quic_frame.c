@@ -1017,6 +1017,7 @@ static int quic_build_handshake_done_frame(unsigned char **pos, const unsigned c
 static int quic_build_qmux_transport_parameters(unsigned char **pos, const unsigned char *end,
                                                 struct quic_frame *frm, struct quic_conn *conn)
 {
+	struct qf_qx_transport_parameters *params_frm = &frm->qmux_transport_params;
 	unsigned char *old = *pos;
 	struct buffer buf;
 
@@ -1030,19 +1031,19 @@ static int quic_build_qmux_transport_parameters(unsigned char **pos, const unsig
 		return 0;
 	*pos += 8;
 
-	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_MAX_IDLE_TIMEOUT, 30000))
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_MAX_IDLE_TIMEOUT, params_frm->params.max_idle_timeout))
 		return 0;
-	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_DATA, 16384))
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_DATA, params_frm->params.initial_max_data))
 		return 0;
-	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAM_DATA_BIDI_LOCAL, 16384))
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAM_DATA_BIDI_LOCAL, params_frm->params.initial_max_stream_data_bidi_local))
 		return 0;
-	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAM_DATA_BIDI_REMOTE, 16384))
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAM_DATA_BIDI_REMOTE, params_frm->params.initial_max_stream_data_bidi_remote))
 		return 0;
-	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAM_DATA_UNI, 16384))
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAM_DATA_UNI, params_frm->params.initial_max_stream_data_uni))
 		return 0;
-	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAMS_BIDI, 100))
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAMS_BIDI, params_frm->params.initial_max_streams_bidi))
 		return 0;
-	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAMS_UNI, 100))
+	if (!quic_transport_param_enc_int(pos, end, QUIC_TP_INITIAL_MAX_STREAMS_UNI, params_frm->params.initial_max_streams_uni))
 		return 0;
 
 	/* Re-encode the real length field now. */

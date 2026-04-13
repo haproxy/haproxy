@@ -268,6 +268,8 @@ static int xprt_qstrm_init(struct connection *conn, void **xprt_ctx)
 	memset(&ctx->rparams, 0, sizeof(struct quic_transport_params));
 
 	/* TP configuration advertised by us */
+	ctx->lparams.max_idle_timeout = 30;
+	ctx->lparams.initial_max_data = 1638400;
 	ctx->lparams.initial_max_streams_bidi = 100;
 	ctx->lparams.initial_max_streams_uni = 3;
 	ctx->lparams.initial_max_stream_data_bidi_local = qmux_stream_rx_bufsz();
