@@ -3886,7 +3886,7 @@ int lf_expr_dup(const struct lf_expr *orig, struct lf_expr *dest)
  * stream is NULL, default values will be assumed for the stream part.
  */
 size_t sess_build_logline_orig(struct session *sess, struct stream *s,
-                            char *dst, size_t maxsize, struct lf_expr *lf_expr,
+                            char *dst, size_t maxsize, const struct lf_expr *lf_expr,
                             struct log_orig log_orig)
 {
 	struct lf_buildctx _ctx = {};
@@ -3896,7 +3896,7 @@ size_t sess_build_logline_orig(struct session *sess, struct stream *s,
 	struct http_txn *txn;
 	const struct strm_logs *logs;
 	struct connection *fe_conn, *be_conn;
-	struct list *list_format = &lf_expr->nodes.list;
+	const struct list *list_format = &lf_expr->nodes.list;
 	unsigned int s_flags;
 	unsigned int uniq_id;
 	struct buffer chunk;
