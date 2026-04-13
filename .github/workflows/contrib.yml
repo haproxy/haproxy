@@ -16,6 +16,9 @@ jobs:
         - name: dev/flags/
           targets:
           - dev/flags/flags
+        - name: dev/haring/
+          targets:
+          - dev/haring/haring
         - name: dev/hpack/
           targets:
           - dev/hpack/decode
