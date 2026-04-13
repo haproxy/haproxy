@@ -7,6 +7,9 @@
 #include <stdbool.h>
 #include <math.h>
 #include <values.h>
+#ifdef USE_THREAD
+#  include <pthread.h>
+#endif
 
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>

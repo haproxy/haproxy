@@ -13,6 +13,17 @@ const char *otel_flt_id = "the OpenTelemetry filter";
 /* Counter of OTel SDK internal diagnostic messages. */
 uint64_t flt_otel_drop_cnt = 0;
 
+#if defined(USE_THREAD) && defined(DEBUG_OTEL)
+/* Counter for assigning unique IDs to threads not registered as workers. */
+static int flt_otel_thread_id_offset = -1;
+
+/* Per-thread registration data for HAProxy worker threads. */
+static struct {
+	pthread_t id;         /* POSIX thread ID. */
+	bool      registered; /* Entry is valid. */
+} flt_otel_tid[MAX_THREADS + 1];
+#endif
+
 
 /***
  * NAME
@@ -78,16 +89,38 @@ static void flt_otel_mem_free(FLT_OTEL_DBG_ARGS(const char *func, int line, ) vo
  *   This function takes no arguments.
  *
  * DESCRIPTION
- *   Thread ID callback for the OpenTelemetry C wrapper library.  It returns
- *   the HAProxy thread identifier (tid).  This function is registered via
- *   otelc_ext_init().
+ *   Thread ID callback for the OpenTelemetry C wrapper library.  For registered
+ *   HAProxy worker threads it returns the HAProxy thread identifier (tid).  For
+ *   unregistered threads, such as those created internally by the OTel SDK, it
+ *   assigns and returns a unique ID from the atomic offset counter.  This
+ *   function is registered via otelc_ext_init().
  *
  * RETURN VALUE
- *   Returns the HAProxy thread ID.
+ *   Returns the HAProxy thread ID for worker threads, a unique offset-based ID
+ *   for unregistered threads, or -1 if the thread index is out of range or the
+ *   offset counter has not yet been initialized.
  */
 static int flt_otel_thread_id(void)
 {
+#if defined(USE_THREAD) && defined(DEBUG_OTEL)
+	static THREAD_LOCAL int retval = -1;
+
+	if (!OTELC_IN_RANGE(tid, 0, OTELC_TABLESIZE(flt_otel_tid)))
+		return -1;
+	else if (!flt_otel_tid[tid].registered)
+		return tid;
+	else if (pthread_equal(flt_otel_tid[tid].id, pthread_self()))
+		return tid;
+
+	if ((retval == -1) && (HA_ATOMIC_LOAD(&flt_otel_thread_id_offset) != -1))
+		retval = HA_ATOMIC_FETCH_ADD(&flt_otel_thread_id_offset, 1);
+
+	return retval;
+
+#else
+
 	return tid;
+#endif /* USE_THREAD && DEBUG_OTEL */
 }
 
 
@@ -209,6 +242,11 @@ static int flt_otel_lib_init(struct flt_otel_conf_instr *instr, char **err)
 		if (*err == NULL)
 			FLT_OTEL_ERR("%s", "failed to initialize OpenTelemetry logger");
 	} else {
+#if defined(USE_THREAD) && defined(DEBUG_OTEL)
+		flt_otel_tid[tid].id         = pthread_self();
+		flt_otel_tid[tid].registered = true;
+		HA_ATOMIC_STORE(&flt_otel_thread_id_offset, 1000);
+#endif
 		otelc_ext_init(flt_otel_mem_malloc, flt_otel_mem_free, flt_otel_thread_id);
 		otelc_log_set_handler(flt_otel_log_handler_cb, NULL, false);
 
@@ -909,6 +947,11 @@ static int flt_otel_ops_init_per_thread(struct proxy *p, struct flt_conf *fconf)
 
 	if (conf == NULL)
 		OTELC_RETURN_INT(retval);
+
+#if defined(USE_THREAD) && defined(DEBUG_OTEL)
+	flt_otel_tid[tid].id         = pthread_self();
+	flt_otel_tid[tid].registered = true;
+#endif
 
 	/*
 	 * Start the OpenTelemetry library tracer thread.  Enable HTX streams
