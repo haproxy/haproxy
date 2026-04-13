@@ -196,6 +196,8 @@ char *update_log_hdr(const time_t time);
 char * get_format_pid_sep1(int format, size_t *len);
 char * get_format_pid_sep2(int format, size_t *len);
 
+void generate_unique_id(struct ist *dst, struct session *sess, struct stream *strm, struct lf_expr *format);
+
 /*
  * Builds a log line for the stream (must be valid).
  */

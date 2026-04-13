@@ -3879,6 +3879,30 @@ int lf_expr_dup(const struct lf_expr *orig, struct lf_expr *dest)
 	return 0;
 }
 
+/* Generates a unique ID based on the given <format> and stores it
+ * in <dst>. <dst> must be IST_NULL when this function is called.
+ *
+ * If this function fails to allocate memory IST_NULL is stored.
+ */
+void generate_unique_id(struct ist *dst, struct session *sess, struct stream *strm, struct lf_expr *format)
+{
+	char *unique_id;
+
+	BUG_ON(isttest(*dst));
+
+	unique_id = pool_alloc(pool_head_uniqueid);
+	if (unique_id == NULL) {
+		*dst = IST_NULL;
+		return;
+	}
+
+	/* Initialize <dst> to an empty string to prevent infinite
+	 * recursion when the <format> references %[unique-id] or %ID.
+	 */
+	*dst = ist2(unique_id, 0);
+	dst->len = sess_build_logline(sess, strm, unique_id, UNIQUEID_LEN, format);
+}
+
 /* Builds a log line in <dst> based on <lf_expr>, and stops before reaching
  * <maxsize> characters. Returns the size of the output string in characters,
  * not counting the trailing zero which is always added if the resulting size
