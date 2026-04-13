@@ -5171,20 +5171,18 @@ size_t sess_build_logline_orig(struct session *sess, struct stream *s,
 				break;
 
 			case LOG_FMT_UNIQUEID: // %ID
-				ret = NULL;
-				if (s) {
-					/* if unique-id was not generated */
-					if (!isttest(s->unique_id) && !lf_expr_isempty(&sess->fe->format_unique_id)) {
-						stream_generate_unique_id(s, &sess->fe->format_unique_id);
-					}
-					ret = lf_text_len(tmplog, s->unique_id.ptr, s->unique_id.len, maxsize - (tmplog - dst), ctx);
-				}
-				else
-					ret = lf_text_len(tmplog, NULL, 0, maxsize - (tmplog - dst), ctx);
+			{
+				struct ist unique_id = IST_NULL;
+
+				if (s && !lf_expr_isempty(&sess->fe->format_unique_id))
+					unique_id = stream_generate_unique_id(s, &sess->fe->format_unique_id);
+
+				ret = lf_text_len(tmplog, istptr(unique_id), istlen(unique_id), maxsize - (tmplog - dst), ctx);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
 				break;
+			}
 
 			case LOG_FMT_ORIGIN: // %OG
 				ret = lf_text(tmplog, log_orig_to_str(log_orig.id),
