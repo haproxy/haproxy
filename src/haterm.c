@@ -1210,7 +1210,7 @@ static int hstream_build_responses(void)
 #if defined(USE_LINUX_SPLICE)
 static void hstream_init_splicing(void)
 {
-	unsigned int pipesize = 65536 * 5 / 4;
+	unsigned int pipesize = 65536;
 
 	if (!(global.tune.options & GTUNE_USE_SPLICE) || !global.maxpipes)
 		return;
