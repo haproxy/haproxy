@@ -7,16 +7,24 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  compile:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-slim
+    strategy:
+      matrix:
+        include:
+        - name: dev/flags/
+          targets:
+          - dev/flags/flags
+        - name: dev/hpack/
+          targets:
+          - dev/hpack/decode
+          - dev/hpack/gen-enc
+          - dev/hpack/gen-rht
+        - name: dev/poll/
+          targets:
+          - dev/poll/poll
+      fail-fast: false
     steps:
     - uses: actions/checkout@v6
-    - name: Compile dev/flags/flags
-      run: |
-        make dev/flags/flags
-    - name: Compile dev/poll/poll
-      run: |
-        make dev/poll/poll
-    - name: Compile dev/hpack
-      run: |
-        make dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht
+    - run: make ${{ join(matrix.targets, ' ') }}
