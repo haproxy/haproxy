@@ -1098,7 +1098,7 @@ struct ckch_store *ckchs_dup(const struct ckch_store *src)
 		/* copy the array of domain strings */
 
 		while (src->conf.acme.domains[n]) {
-			r = realloc(r, sizeof(char *) * (n + 2));
+			r = my_realloc2(r, sizeof(char *) * (n + 2));
 			if (!r)
 				goto error;
 
@@ -5197,7 +5197,7 @@ int ckch_conf_parse(char **args, int cur_arg, struct ckch_conf *f, int *found, c
 				do {
 					while (*e != ',' && *e != '\0')
 						e++;
-					r = realloc(r, sizeof(char *) * (n + 2));
+					r = my_realloc2(r, sizeof(char *) * (n + 2));
 					if (!r) {
 						ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 						err_code |= ERR_ALERT | ERR_ABORT;
