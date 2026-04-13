@@ -3743,7 +3743,7 @@ static void ssl_sock_resize_passphrase_cache(void)
 	int idx;
 	int new_size = passphrase_cache_size << 1;
 
-	passphrase_randoms = realloc(passphrase_randoms, sizeof(*passphrase_randoms) * (new_size));
+	passphrase_randoms = my_realloc2(passphrase_randoms, sizeof(*passphrase_randoms) * (new_size));
 	if (!passphrase_randoms) {
 		ha_alert("ssl_sock_passwd_cb: passphrase randoms realloc failed");
 		passphrase_idx = -1;
@@ -3759,7 +3759,7 @@ static void ssl_sock_resize_passphrase_cache(void)
 
 	if (passphrase_cache_size) {
 		passphrase_cache_size = new_size;
-		passphrase_cache = realloc(passphrase_cache, sizeof(*passphrase_cache) * passphrase_cache_size);
+		passphrase_cache = my_realloc2(passphrase_cache, sizeof(*passphrase_cache) * passphrase_cache_size);
 		if (!passphrase_cache) {
 			ha_alert("ssl_sock_passwd_cb: passphrase cache realloc failed");
 			passphrase_idx = -1;
@@ -4251,7 +4251,7 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 		if (!ptr || s->ssl_ctx.reused_sess[tid].allocated_size < len) {
 			/* insufficient storage, reallocate */
 			len = (len + 7) & -8; /* round to the nearest 8 bytes */
-			ptr = realloc(ptr, len);
+			ptr = my_realloc2(ptr, len);
 			if (!ptr)
 				free(s->ssl_ctx.reused_sess[tid].ptr);
 			s->ssl_ctx.reused_sess[tid].ptr = ptr;
