@@ -22,6 +22,7 @@
 #include <haproxy/base64.h>
 #include <haproxy/channel.h>
 #include <haproxy/chunk.h>
+#include <haproxy/check.h>
 #include <haproxy/connection.h>
 #include <haproxy/global.h>
 #include <haproxy/h1.h>
@@ -504,14 +505,22 @@ static int smp_fetch_srv_status(const struct arg *args, struct sample *smp, cons
 static int smp_fetch_uniqueid(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct ist unique_id;
+	struct check *check;
 
-	if (lf_expr_isempty(&smp->sess->fe->format_unique_id))
+	if (smp->strm) {
+		if (lf_expr_isempty(&smp->sess->fe->format_unique_id))
+			return 0;
+
+		unique_id = stream_generate_unique_id(smp->strm, &smp->sess->fe->format_unique_id);
+	} else if ((check = objt_check(smp->sess->origin)) != NULL) {
+		if (lf_expr_isempty(&check->proxy->format_unique_id))
+			return 0;
+
+		unique_id = check_generate_unique_id(check, &check->proxy->format_unique_id);
+	} else {
 		return 0;
+	}
 
-	if (!smp->strm)
-		return 0;
-
-	unique_id = stream_generate_unique_id(smp->strm, &smp->sess->fe->format_unique_id);
 	if (!isttest(unique_id))
 		return 0;
 

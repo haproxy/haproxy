@@ -6186,7 +6186,7 @@ timeout server-fin                        X          -         X         X
 timeout tarpit                            X          X         X         X
 timeout tunnel                            X          -         X         X
 transparent                 (deprecated)  X          -         X         X
-unique-id-format                          X          X         X         -
+unique-id-format                          X          X         X         X
 unique-id-header                          X          X         X         -
 use_backend                               -          X         X         -
 use-fcgi-app                              -          -         X         X
@@ -15020,7 +15020,7 @@ unique-id-format <fmt>
   May be used in the following contexts: tcp, http
 
   May be used in sections :   defaults | frontend | listen | backend
-                                  yes  |    yes   |   yes  |   no
+                                  yes  |    yes   |   yes  |   yes
 
   Arguments :
     <fmt>   is a Custom log format string (see section 8.2.6).
@@ -15041,6 +15041,11 @@ unique-id-format <fmt>
 
   It is recommended to use hexadecimal notation for many fields since it
   makes them more compact and saves space in logs.
+
+  For regular connections the format configured in the frontend is used to
+  generate the unique ID. For health checks the format of the backend is
+  used when using the "unique-id" fetch within a tcp-check or an http-check
+  ruleset.
 
   Example:
 

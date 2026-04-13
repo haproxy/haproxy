@@ -1,0 +1,49 @@
+varnishtest "Health-checks: unique_id fetch"
+feature ignore_unknown_macro
+#REGTEST_TYPE=slow
+
+server s1 {
+    rxreq
+    expect req.method == GET
+    expect req.url == /
+    expect req.proto == HTTP/1.1
+    expect req.http.host == "localhost"
+    expect req.http.request-id == "TEST-be=up"
+
+    txresp
+} -start
+
+syslog S1 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be/srv succeeded.*code: 200"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        option httpchk
+        option log-health-checks
+
+    backend be
+        log ${S1_addr}:${S1_port} len 2048 local0
+
+        unique-id-format TEST-%[be_name]=%[srv_is_up(srv),iif(up,down)]
+
+        http-check connect
+        http-check send meth GET uri / ver HTTP/1.1 hdr host localhost hdr request-id %[unique-id]
+        http-check expect status 200
+
+        ## implicit expect rule
+        server srv ${s1_addr}:${s1_port} check inter 100ms rise 1 fall 1
+
+} -start
+
+syslog S1 -wait
