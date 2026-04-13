@@ -165,26 +165,36 @@ static inline struct htx_blk *htx_get_blk(const struct htx *htx, uint32_t pos)
 	return (struct htx_blk *)(htx->blocks + htx_pos_to_addr(htx, pos));
 }
 
+static inline enum htx_blk_type __htx_blkinfo_type(uint32_t info)
+{
+	return (info >> 28);
+}
+
 /* Returns the type of the block <blk> */
 static inline enum htx_blk_type htx_get_blk_type(const struct htx_blk *blk)
 {
-	return (blk->info >> 28);
+	return __htx_blkinfo_type(blk->info);
 }
 
-/* Returns the size of the block <blk>, depending of its type */
-static inline uint32_t htx_get_blksz(const struct htx_blk *blk)
+static inline enum htx_blk_type __htx_blkinfo_size(uint32_t info)
 {
-	enum htx_blk_type type = htx_get_blk_type(blk);
+	enum htx_blk_type type = __htx_blkinfo_type(info);
 
 	switch (type) {
 		case HTX_BLK_HDR:
 		case HTX_BLK_TLR:
 			/*       name.length       +        value.length        */
-			return ((blk->info & 0xff) + ((blk->info >> 8) & 0xfffff));
+			return ((info & 0xff) + ((info >> 8) & 0xfffff));
 		default:
 			/*         value.length      */
-			return (blk->info & 0xfffffff);
+			return (info & 0xfffffff);
 	}
+}
+
+/* Returns the size of the block <blk>, depending of its type */
+static inline uint32_t htx_get_blksz(const struct htx_blk *blk)
+{
+	return __htx_blkinfo_size(blk->info);
 }
 
 /* Returns the position of the oldest entry (head). It returns a signed 32-bits
