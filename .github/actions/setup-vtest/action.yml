@@ -7,13 +7,13 @@ runs:
 
     - name: Setup coredumps
       if: ${{ startsWith(matrix.os, 'ubuntu-') }}
-      shell: bash
+      shell: sh
       run: |
         sudo sysctl -w fs.suid_dumpable=1
         sudo sysctl kernel.core_pattern=/tmp/core.%h.%e.%t
 
     - name: Setup ulimit for core dumps
-      shell: bash
+      shell: sh
       run: |
         # This is required for macOS which does not actually allow to increase
         # the '-n' soft limit to the hard limit, thus failing to run.
@@ -22,7 +22,7 @@ runs:
 
     - name: Get VTest latest commit SHA
       id: vtest-sha
-      shell: bash
+      shell: sh
       run: |
         echo "sha=$(git ls-remote https://code.vinyl-cache.org/vtest/VTest2 HEAD | cut -f1)" >> $GITHUB_OUTPUT
 
@@ -35,12 +35,12 @@ runs:
 
     - name: Install VTest
       if: ${{ steps.cache-vtest.outputs.cache-hit != 'true' }}
-      shell: bash
+      shell: sh
       run: |
         DESTDIR=${{ github.workspace }}/vtest scripts/build-vtest.sh
 
     - name: Install problem matcher for VTest
-      shell: bash
+      shell: sh
       # This allows one to more easily see which tests fail.
       run: echo "::add-matcher::.github/vtest.json"
 
