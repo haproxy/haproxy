@@ -3755,15 +3755,15 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 		qcc->rfctl.msd_bidi_r = rparams->initial_max_stream_data_bidi_remote;
 		qcc->rfctl.msd_uni_l = rparams->initial_max_stream_data_uni;
 
-		/* TODO */
-		qcc->lfctl.ms_bidi = qcc->lfctl.ms_bidi_init = 16384;
-		qcc->lfctl.ms_uni = 3;
-		qcc->lfctl.msd_bidi_l = 16384;
-		qcc->lfctl.msd_bidi_r = 16384;
-		qcc->lfctl.msd_uni_r = 16384;
+		lparams = xprt_qstrm_lparams(conn->xprt_ctx);
+		qcc->lfctl.ms_bidi = qcc->lfctl.ms_bidi_init = lparams->initial_max_streams_bidi;
+		qcc->lfctl.ms_uni = lparams->initial_max_streams_uni;
+		qcc->lfctl.msd_bidi_l = lparams->initial_max_stream_data_bidi_local;
+		qcc->lfctl.msd_bidi_r = lparams->initial_max_stream_data_bidi_remote;
+		qcc->lfctl.msd_uni_r = lparams->initial_max_stream_data_uni;
 		qcc->lfctl.cl_bidi_r = 0;
 
-		qcc->lfctl.md = qcc->lfctl.md_init = 16384;
+		qcc->lfctl.md = qcc->lfctl.md_init = lparams->initial_max_data;
 		qcc->lfctl.offsets_recv = qcc->lfctl.offsets_consume = 0;
 	}
 
