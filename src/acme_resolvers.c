@@ -90,12 +90,13 @@ void acme_rslv_free(struct acme_rslv *rslv)
 	free(rslv);
 }
 
-struct acme_rslv *acme_rslv_start(struct acme_auth *auth, unsigned int *dnstasks, char **errmsg)
+struct acme_rslv *acme_rslv_start(struct acme_auth *auth, unsigned int *dnstasks, const char *challenge_type, char **errmsg)
 {
 	struct acme_rslv *rslv = NULL;
 	struct resolvers *resolvers;
 	char hostname[DNS_MAX_NAME_SIZE + 1];
 	char dn[DNS_MAX_NAME_SIZE + 1];
+	const char *prefix;
 	int hostname_len;
 	int dn_len;
 
@@ -106,17 +107,22 @@ struct acme_rslv *acme_rslv_start(struct acme_auth *auth, unsigned int *dnstasks
 		goto error;
 	}
 
-	/* dns-01 TXT record lives at _acme-challenge.<domain> */
-	hostname_len = snprintf(hostname, sizeof(hostname), "_acme-challenge.%.*s",
-	                        (int)auth->dns.len, auth->dns.ptr);
+	/* dns-persist-01 TXT record lives at _validation-persist.<domain>,
+	 * dns-01 TXT record lives at _acme-challenge.<domain> */
+	prefix = (strcasecmp(challenge_type, "dns-persist-01") == 0)
+	         ? "_validation-persist"
+	         : "_acme-challenge";
+
+	hostname_len = snprintf(hostname, sizeof(hostname), "%s.%.*s",
+	                        prefix, (int)auth->dns.len, auth->dns.ptr);
 	if (hostname_len < 0 || hostname_len >= (int)sizeof(hostname)) {
-		memprintf(errmsg, "hostname \"_acme-challenge.%.*s\" too long!\n", (int)auth->dns.len, auth->dns.ptr);
+		memprintf(errmsg, "hostname \"%s.%.*s\" too long!\n", prefix, (int)auth->dns.len, auth->dns.ptr);
 		goto error;
 	}
 
 	dn_len = resolv_str_to_dn_label(hostname, hostname_len, dn, sizeof(dn));
 	if (dn_len <= 0) {
-		memprintf(errmsg, "couldn't convert hostname \"_acme-challenge.%.*s\" into dn label\n", (int)auth->dns.len, auth->dns.ptr);
+		memprintf(errmsg, "couldn't convert hostname \"%s.%.*s\" into dn label\n", prefix, (int)auth->dns.len, auth->dns.ptr);
 		goto error;
 	}
 

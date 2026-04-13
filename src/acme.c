@@ -441,6 +441,11 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 			cur_acme->cond_ready = ACME_RDY_CLI;
 		}
 
+		/* dns-persist-01: wait then check for DNS propagation by default */
+		if ((strcasecmp("dns-persist-01", args[1]) == 0) && (cur_acme->cond_ready == 0)) {
+			cur_acme->cond_ready = ACME_RDY_DNS | ACME_RDY_DELAY;
+		}
+
 		if ((strcasecmp("http-01", args[1]) == 0) && (cur_acme->cond_ready != 0)) {
 			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section, \"http-01\" is not compatible with the \"challenge-ready\" option\n", file, linenum, args[0], cursection);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -2451,7 +2456,8 @@ re:
 					goto retry;
 				}
 				if ((ctx->next_auth = ctx->next_auth->next) == NULL) {
-					if (strcasecmp(ctx->cfg->challenge, "dns-01") == 0 && ctx->cfg->cond_ready)
+					if ((strcasecmp(ctx->cfg->challenge, "dns-01") == 0 ||
+				     strcasecmp(ctx->cfg->challenge, "dns-persist-01") == 0) && ctx->cfg->cond_ready)
 						st = ACME_CLI_WAIT;
 					else
 						st = ACME_CHALLENGE;
@@ -2572,7 +2578,7 @@ re:
 
 				HA_ATOMIC_INC(&ctx->dnstasks);
 
-				auth->rslv = acme_rslv_start(auth, &ctx->dnstasks, &errmsg);
+				auth->rslv = acme_rslv_start(auth, &ctx->dnstasks, ctx->cfg->challenge, &errmsg);
 				if (!auth->rslv)
 					goto abort;
 				auth->rslv->acme_task = task;
@@ -2595,22 +2601,32 @@ re:
 			for (auth = ctx->auths; auth != NULL; auth = auth->next) {
 				if (auth->ready == ctx->cfg->cond_ready)
 					continue;
-				if (auth->rslv->result != RSLV_STATUS_VALID) {
-					send_log(NULL, LOG_NOTICE, "acme: %s: dns-01: Couldn't get the TXT record for \"_acme-challenge.%.*s\", expected \"%.*s\" (status=%d)\n",
-					         ctx->store->path, (int)auth->dns.len, auth->dns.ptr,
-					         (int)auth->token.len, auth->token.ptr,
+				/* for dns-01, verify the TXT record content matches the
+				 * expected token. for dns-persist-01, only check that
+				 * the record exists since the resolver cannot read
+				 * multiple strings within a single TXT entry */
+				if (auth->rslv->result == RSLV_STATUS_VALID) {
+					if (strcasecmp(ctx->cfg->challenge, "dns-01") == 0) {
+						if (isteq(auth->rslv->txt, auth->token)) {
+							auth->ready |= ACME_RDY_DNS;
+						} else {
+							send_log(NULL, LOG_NOTICE,
+							"acme: %s: dns-01: TXT record mismatch for \"_acme-challenge.%.*s\": expected \"%.*s\", got \"%.*s\"\n",
+							         ctx->store->path, (int)auth->dns.len, auth->dns.ptr,
+							         (int)auth->token.len, auth->token.ptr,
+							         (int)auth->rslv->txt.len, auth->rslv->txt.ptr);
+							all_ready = 0;
+						}
+					} else if (strcasecmp(ctx->cfg->challenge, "dns-persist-01") == 0) {
+						auth->ready |= ACME_RDY_DNS;
+					}
+				} else {
+					send_log(NULL, LOG_NOTICE, "acme: %s: %s: Couldn't get the TXT record for \"%s.%.*s\" (status=%d)\n",
+					         ctx->store->path, ctx->cfg->challenge,
+					         strcasecmp(ctx->cfg->challenge, "dns-persist-01") == 0 ? "_validation-persist" : "_acme-challenge",
+					         (int)auth->dns.len, auth->dns.ptr,
 					         auth->rslv->result);
 					all_ready = 0;
-				} else {
-					if (isteq(auth->rslv->txt, auth->token)) {
-						auth->ready |= ACME_RDY_DNS;
-					} else {
-						send_log(NULL, LOG_NOTICE, "acme: %s: dns-01: TXT record mismatch for \"_acme-challenge.%.*s\": expected \"%.*s\", got \"%.*s\"\n",
-						         ctx->store->path, (int)auth->dns.len, auth->dns.ptr,
-						         (int)auth->token.len, auth->token.ptr,
-						         (int)auth->rslv->txt.len, auth->rslv->txt.ptr);
-						all_ready = 0;
-					}
 				}
 				acme_rslv_free(auth->rslv);
 				auth->rslv = NULL;

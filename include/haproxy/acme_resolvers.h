@@ -10,7 +10,7 @@
 #include <haproxy/acme-t.h>
 #include <haproxy/resolvers-t.h>
 
-struct acme_rslv *acme_rslv_start(struct acme_auth *auth, unsigned int *dnstasks, char **errmsg);
+struct acme_rslv *acme_rslv_start(struct acme_auth *auth, unsigned int *dnstasks, const char *challenge_type, char **errmsg);
 void acme_rslv_free(struct acme_rslv *rslv);
 
 #endif
