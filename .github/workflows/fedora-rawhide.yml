@@ -31,12 +31,6 @@ jobs:
         dnf -y install awk diffutils git pcre-devel zlib-devel pcre2-devel 'perl(FindBin)' perl-IPC-Cmd 'perl(File::Copy)' 'perl(File::Compare)' lua-devel socat findutils systemd-devel clang openssl-devel.x86_64
         dnf -y install 'perl(FindBin)' 'perl(File::Compare)' perl-IPC-Cmd 'perl(File::Copy)' glibc-devel.i686 lua-devel.i686 lua-devel.x86_64 systemd-devel.i686 zlib-ng-compat-devel.i686 pcre-devel.i686 libatomic.i686 openssl-devel.i686
     - uses: ./.github/actions/setup-vtest
-    - name: Build contrib tools
-      run: |
-        make admin/halog/halog
-        make dev/flags/flags
-        make dev/poll/poll
-        make dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht
     - name: Compile HAProxy with ${{ matrix.platform.cc }}
       run: |
         make -j3 CC=${{ matrix.platform.cc }} V=1 ERR=1 TARGET=linux-glibc DEBUG="-DDEBUG_POOL_INTEGRITY -DDEBUG_UNIT" USE_PROMEX=1 USE_OPENSSL=1 USE_QUIC=1 USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 ADDLIB="${{ matrix.platform.ADDLIB_ATOMIC }}" ARCH_FLAGS="${{ matrix.platform.ARCH_FLAGS }}"
