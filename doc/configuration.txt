@@ -32303,10 +32303,12 @@ global section so this can be used.
 A guide is available on the HAProxy wiki
 https://github.com/haproxy/wiki/wiki/ACME:--native-haproxy
 
-Current limitations as of 3.3:
-- The feature is limited to the HTTP-01 or DNS-01 challenges for now. HTTP-01
-  is completely handled by HAProxy, but DNS-01 needs either the dataplaneAPI or
-  another 3rd party tool to talk to a DNS provider API.
+Current limitations:
+- The feature is limited to the http-01, dns-01 or dns-persist-01 challenges
+  for now. http-01 is completely handled by HAProxy, but dns-01 and
+  dns-persist-01 needs either the dataplaneAPI or another 3rd party
+  tool to talk to a DNS provider API. dns-persist-01 only needs the TXT entry
+  to be set once, so it could be set manually without a tool.
 - It is possible to start without an existing certificate on the disk. To do
   so, the certificate must configured in a crt-store.
   When using the "acme" keyword in a crt-store, a temporary key pair will be
@@ -32351,8 +32353,14 @@ bits <number>
   but blocking the traffic too long could trigger the watchdog.)
 
 challenge <string>
-  Takes a challenge type as parameter, this must be http-01 or dns-01. When not
-  used the default is http-01.
+  Takes a challenge type as parameter, this must be http-01, dns-01 or
+  dns-persist-01. When not used the default is http-01.
+
+  dns-persist-01 implements draft-ietf-acme-dns-persist. Unlike dns-01, it
+  uses a static TXT record at "_validation-persist.<domain>" that is set once
+  and never changes between renewals. The record must contain the account URI
+  and an optional policy. This challenge type does not require write access to
+  the DNS provider API on each renewal.
 
 challenge-ready <value>[,<value>]*
   Configure the conditions that must be met before notifying the ACME server
@@ -32372,6 +32380,11 @@ challenge-ready <value>[,<value>]*
            option is independent of the CLI command, so no human intervention
            is required.
 
+           For dns-01, the TXT record at "_acme-challenge.<domain>" is
+           resolved and must match the expected token. For dns-persist-01,
+           the TXT record at "_validation-persist.<domain>" is resolved and
+           only its presence is checked.
+
     delay - apply an initial wait of "dns-delay" before proceeding. Without
             "dns", the challenge is submitted after the delay expires. When
             combined with "dns", the initial wait is applied before starting
@@ -32386,10 +32399,14 @@ challenge-ready <value>[,<value>]*
   the CLI confirmation ("cli"), then applies the initial delay ("delay"), then
   performs the DNS pre-checks ("dns").
 
-  This option is only compatible with the dns-01 challenge type.
+  This option is only compatible with the dns-01 and dns-persist-01 challenge
+  types.
 
   When "challenge" is set to "dns-01" and this option is not configured, the
   default is "cli".
+
+  When "challenge" is set to "dns-persist-01" and this option is not
+  configured, the default is "dns,delay".
 
   Example:
     # Wait for CLI confirmation, then verify DNS propagation
