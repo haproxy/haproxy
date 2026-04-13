@@ -1225,7 +1225,7 @@ static void hstream_init_splicing(void)
 		int total, ret;
 
 #ifdef F_SETPIPE_SZ
-                fcntl(master_pipe->cons, F_SETPIPE_SZ, pipesize);
+                fcntl(master_pipe->cons, F_SETPIPE_SZ, pipesize * 5 / 4);
 #endif
 		total = ret = 0;
 		do {
@@ -1238,7 +1238,7 @@ static void hstream_init_splicing(void)
 		if (master_pipesize < pipesize) {
 			if (master_pipesize < 60*1024) {
 				/* Older kernels were limited to around 60-61 kB */
-				ha_warning("Failed to vmsplice haterm mastre pipe after %lu bytes, splicing disabled for haterm\n", master_pipesize);
+				ha_warning("Failed to vmsplice haterm master pipe after %lu bytes, splicing disabled for haterm\n", master_pipesize);
 				put_pipe(master_pipe);
 				master_pipe = NULL;
 				master_pipesize = 0;
