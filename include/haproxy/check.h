@@ -26,6 +26,7 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 #include <haproxy/trace-t.h>
+#include <haproxy/log.h>
 
 extern struct trace_source trace_check;
 
@@ -80,6 +81,16 @@ struct task *srv_chk_io_cb(struct task *t, void *ctx, unsigned int state);
 int check_buf_available(void *target);
 struct buffer *check_get_buf(struct check *check, struct buffer *bptr, unsigned int small_buffer);
 void check_release_buf(struct check *check, struct buffer *bptr);
+
+static inline struct ist check_generate_unique_id(struct check *check, struct lf_expr *format)
+{
+	if (!isttest(check->unique_id)) {
+		generate_unique_id(&check->unique_id, check->sess, NULL, format);
+	}
+
+	return check->unique_id;
+}
+
 const char *init_check(struct check *check, int type);
 void free_check(struct check *check);
 void check_purge(struct check *check);

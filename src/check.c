@@ -458,6 +458,11 @@ void set_server_check_status(struct check *check, short status, const char *desc
 		check->result = CHK_RES_UNKNOWN;	/* no result yet */
 		check->desc[0] = '\0';
 		check->start = now_ns;
+
+		/* Reset unique_id. */
+		pool_free(pool_head_uniqueid, istptr(check->unique_id));
+		check->unique_id = IST_NULL;
+
 		return;
 	}
 
@@ -1558,6 +1563,8 @@ void free_check(struct check *check)
 		ha_free(&check->tcpcheck);
 	}
 
+	pool_free(pool_head_uniqueid, istptr(check->unique_id));
+	check->unique_id = IST_NULL;
 	ha_free(&check->pool_conn_name);
 	ha_free(&check->sni);
 	ha_free(&check->alpn_str);

@@ -199,6 +199,7 @@ struct check {
 	const struct mux_proto_list *mux_proto; /* the mux to use for all outgoing connections (specified by the "proto" keyword) */
 	struct list check_queue;                /* entry in the check queue. Not empty = in queue. */
 	int via_socks4;                         /* check the connection via socks4 proxy */
+	struct ist unique_id;                   /* custom unique ID, same as in struct stream */
 };
 
 #endif /* _HAPROXY_CHECKS_T_H */
