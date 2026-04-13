@@ -810,7 +810,7 @@ static int cfg_postsection_acme()
 	/* tries to open the account key  */
 	if (stat(path, &st) == 0) {
 		if (ssl_sock_load_key_into_ckch(path, NULL, store->data, &errmsg)) {
-			memprintf(&errmsg, "%s'%s' is present but cannot be read or parsed.\n", errmsg, path);
+			memprintf(&errmsg, "%s'%s' is present but cannot be read or parsed.\n", errmsg ? errmsg : "", path);
 			if (errmsg)
 				indent_msg(&errmsg, 8);
 			err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
