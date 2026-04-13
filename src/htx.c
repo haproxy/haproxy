@@ -72,8 +72,14 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t blkinf
 				}
 				__fallthrough;
 			default:
-				newblk = htx_add_blk(tmp, type, blksz);
-				newblk->info = oldblk->info;
+				if (blk == oldblk && blkinfo) {
+					newblk = htx_add_blk(tmp, type, __htx_blkinfo_size(blkinfo));
+					newblk->info = blkinfo;
+				}
+				else {
+					newblk = htx_add_blk(tmp, type, blksz);
+					newblk->info = oldblk->info;
+				}
 				htx_memcpy(htx_get_blk_ptr(tmp, newblk), htx_get_blk_ptr(htx, oldblk), blksz);
 				break;
 		};
@@ -83,15 +89,13 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t blkinf
 			tmp->first = new;
 
 		/* if <blk> is defined, save its new position */
-		if (blk != NULL && blk == oldblk) {
-			if (blkinfo)
-				newblk->info = blkinfo;
+		if (blk == oldblk)
 			blkpos = new;
-		}
+
 		new++;
 	}
 
-	BUG_ON(htx->data != tmp->data);
+	htx->data = tmp->data;
 	htx->first = tmp->first;
 	htx->head = tmp->head;
 	htx->tail = tmp->tail;
