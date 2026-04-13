@@ -718,8 +718,6 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 		/* finally copy data */
 		htx_memcpy(htx_get_blk_ptr(htx, blk), b_orig(chunk), b_data(chunk));
 		free_trash_chunk(chunk);
-
-		htx->data += delta;
 	}
 	return blk;
 }
