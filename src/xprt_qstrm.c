@@ -81,7 +81,7 @@ int conn_recv_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int fla
 		goto not_ready;
 
 	/* Read record length. */
-	if (!b_quic_dec_int(&ctx->rxrlen, buf, NULL))
+	if (!ctx->rxrlen && !b_quic_dec_int(&ctx->rxrlen, buf, NULL))
 		goto not_ready;
 
 	/* Reject too small or too big records. */
