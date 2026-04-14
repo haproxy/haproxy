@@ -334,7 +334,8 @@ char default_tcp_log_format[] = "%ci:%cp [%t] %ft %b/%s %Tw/%Tc/%Tt %B %ts %ac/%
 char clf_tcp_log_format[] = "%{+Q}o %{-Q}ci - - [%T] \"TCP \" 000 %B \"\" \"\" %cp %ms %ft %b %s %Th %Tw %Tc %Tt %U %ts-- %ac %fc %bc %sc %rc %sq %bq \"\" \"\" ";
 char *log_format = NULL;
 
-char keylog_format_bc[] = "CLIENT_EARLY_TRAFFIC_SECRET %[ssl_bc_client_random,hex] %[ssl_bc_client_early_traffic_secret]\n"
+char keylog_format_bc[] = "CLIENT_RANDOM %[ssl_bc_client_random,hex]  %[ssl_bc_session_key,hex]\n"
+                          "CLIENT_EARLY_TRAFFIC_SECRET %[ssl_bc_client_random,hex] %[ssl_bc_client_early_traffic_secret]\n"
                           "CLIENT_HANDSHAKE_TRAFFIC_SECRET %[ssl_bc_client_random,hex] %[ssl_bc_client_handshake_traffic_secret]\n"
                           "SERVER_HANDSHAKE_TRAFFIC_SECRET %[ssl_bc_client_random,hex] %[ssl_bc_server_handshake_traffic_secret]\n"
                           "CLIENT_TRAFFIC_SECRET_0 %[ssl_bc_client_random,hex] %[ssl_bc_client_traffic_secret_0]\n"
@@ -342,7 +343,8 @@ char keylog_format_bc[] = "CLIENT_EARLY_TRAFFIC_SECRET %[ssl_bc_client_random,he
                           "EXPORTER_SECRET %[ssl_bc_client_random,hex] %[ssl_bc_exporter_secret]\n"
                           "EARLY_EXPORTER_SECRET %[ssl_bc_client_random,hex] %[ssl_bc_early_exporter_secret]";
 
-char keylog_format_fc[] = "CLIENT_EARLY_TRAFFIC_SECRET %[ssl_fc_client_random,hex] %[ssl_fc_client_early_traffic_secret]\n"
+char keylog_format_fc[] = "CLIENT_RANDOM %[ssl_fc_client_random,hex] %[ssl_fc_session_key,hex]\n"
+                          "CLIENT_EARLY_TRAFFIC_SECRET %[ssl_fc_client_random,hex] %[ssl_fc_client_early_traffic_secret]\n"
                           "CLIENT_HANDSHAKE_TRAFFIC_SECRET %[ssl_fc_client_random,hex] %[ssl_fc_client_handshake_traffic_secret]\n"
                           "SERVER_HANDSHAKE_TRAFFIC_SECRET %[ssl_fc_client_random,hex] %[ssl_fc_server_handshake_traffic_secret]\n"
                           "CLIENT_TRAFFIC_SECRET_0 %[ssl_fc_client_random,hex] %[ssl_fc_client_traffic_secret_0]\n"
