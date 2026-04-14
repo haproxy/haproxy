@@ -5080,6 +5080,15 @@ smp_fetch_thread(const struct arg *args, struct sample *smp, const char *kw, voi
 	return 1;
 }
 
+/* returns the number of the current thread group (between 0 and nbtgroups-1) */
+static int
+smp_fetch_tgroup(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = tgid - 1; // tgid starts at 1
+	return 1;
+}
+
 /* generate a random 32-bit integer for whatever purpose, with an optional
  * range specified in argument.
  */
@@ -5659,6 +5668,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "proc",         smp_fetch_proc,  0,            NULL, SMP_T_SINT, SMP_USE_CONST },
 	{ "quic_enabled", smp_fetch_quic_enabled, 0,     NULL, SMP_T_BOOL, SMP_USE_CONST },
 	{ "thread",       smp_fetch_thread,  0,          NULL, SMP_T_SINT, SMP_USE_CONST },
+	{ "tgroup",       smp_fetch_tgroup,  0,          NULL, SMP_T_SINT, SMP_USE_CONST },
 	{ "rand",         smp_fetch_rand,  ARG1(0,SINT), NULL, SMP_T_SINT, SMP_USE_CONST },
 	{ "stopping",     smp_fetch_stopping, 0,         NULL, SMP_T_BOOL, SMP_USE_INTRN },
 	{ "uptime",       smp_fetch_uptime,   0,         NULL, SMP_T_SINT, SMP_USE_CONST },

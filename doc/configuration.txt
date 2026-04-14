@@ -24019,6 +24019,11 @@ term_events : string
   It must only be used for debugging purpose. The exact format is not
   documented because it may evolve depending on developers requirements.
 
+tgroup : integer
+  Returns an integer value corresponding to the position of the thread group
+  calling the function, between 0 and (global.thread-groups - 1). This is
+  useful for logging and debugging purposes.
+
 thread : integer
   Returns an integer value corresponding to the position of the thread calling
   the function, between 0 and (global.nbthread-1). This is useful for logging
