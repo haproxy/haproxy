@@ -611,6 +611,7 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	struct ist meth = IST_NULL, path = IST_NULL;
 	struct ist scheme = IST_NULL, authority = IST_NULL;
 	struct ist uri;
+	uint64_t id_goaway;
 	int hdr_idx, ret;
 	int cookie = -1, last_cookie = -1, i;
 	int relaxed = !!(h3c->qcc->proxy->options2 & PR_O2_REQBUG_OK);
@@ -1058,10 +1059,10 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	htx_to_buf(htx, &htx_buf);
 	htx = NULL;
 
-	if (qcs_attach_sc(qcs, &htx_buf, fin)) {
-		len = -1;
-		goto out;
-	}
+	/* Stream attach may need the new GOAWAY ID, so update it before.
+	 * Keep a copy of the older value to restore it in case of error.
+	 */
+	id_goaway = h3c->id_goaway;
 
 	/* RFC 9114 5.2. Connection Shutdown
 	 *
@@ -1075,6 +1076,13 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	 */
 	if (qcs->id >= h3c->id_goaway)
 		h3c->id_goaway = qcs->id + 4;
+
+	if (qcs_attach_sc(qcs, &htx_buf, fin)) {
+		/* Stream not handled, restore old GOAWAY ID. */
+		h3c->id_goaway = id_goaway;
+		len = -1;
+		goto out;
+	}
 
  out:
 	/* HTX may be non NULL if error before previous htx_to_buf(). */

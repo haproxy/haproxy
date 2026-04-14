@@ -1967,6 +1967,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.fe.sock-per-conn
    - tune.quic.fe.stream.data-ratio
    - tune.quic.fe.stream.max-concurrent
+   - tune.quic.fe.stream.max-total
    - tune.quic.fe.stream.rxbuf
    - tune.quic.fe.tx.pacing
    - tune.quic.fe.tx.udp-gso
@@ -5258,6 +5259,23 @@ tune.quic.fe.stream.max-concurrent <number>
 
   See also: "tune.quic.be.stream.rxbuf", "tune.quic.fe.stream.rxbuf",
             "tune.quic.be.stream.data-ratio", "tune.quic.fe.stream.data-ratio"
+
+tune.quic.fe.stream.max-total <number>
+  Sets the maximum number of requests that can be handled by a single QUIC
+  connection. Once this total is reached, the connection will be gracefully
+  shutdown. In HTTP/3, this translates in a GOAWAY frame.
+
+  This setting is applied as a hard limit on the connection via the QUIC flow
+  control mechanism. If a peer violates it, the connection will be immediately
+  closed.
+
+  This setting can be used to force clients to open new connections once in a
+  while to continue the emission of requests and avoid maintaining connections
+  for too many times. However, low values will increase latency on the client
+  side, as well as CPU consumption on both sides due to TLS handshakes.
+
+  The default value is 0 which implies no specific limit outside of the QUIC
+  protocol encoding limitation (2^60, more that a billion billion).
 
 tune.quic.frontend.max-streams-bidi <number> (deprecated)
   This keyword has been deprecated in 3.3 and will be removed in 3.5. It is

@@ -53,8 +53,10 @@ void quic_transport_params_init(struct quic_transport_params *p, int server)
 	const uint64_t stream_rx_bufsz = qmux_stream_rx_bufsz();
 	const uint stream_rxbuf = server ?
 	  quic_tune.fe.stream_rxbuf : quic_tune.be.stream_rxbuf;
-	const int max_streams_bidi = server ?
-	  quic_tune.fe.stream_max_concurrent : quic_tune.be.stream_max_concurrent;
+	/* On FE side, check if stream.max-total is set and inferior to stream.max-concurrent */
+	const int max_streams_bidi = server && quic_tune.fe.stream_max_total ?
+	  MIN(quic_tune.fe.stream_max_concurrent, quic_tune.fe.stream_max_total) :
+	  server ? quic_tune.fe.stream_max_concurrent : quic_tune.be.stream_max_concurrent;
 	/* TODO value used to conform with HTTP/3, should be derived from app_ops */
 	const int max_streams_uni = 3;
 

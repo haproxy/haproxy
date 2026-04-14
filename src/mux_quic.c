@@ -826,6 +826,18 @@ int qcc_fctl_avail_streams(const struct qcc *qcc, int bidi)
 	}
 }
 
+/* Retrieves the maximum number of bidirectional remote streams that the peer
+ * will be allowed to use during <conn> connection lifetime. This is guaranteed
+ * to be a positive integer.
+ */
+static uint64_t qcc_max_strm_bidi_remote(const struct connection *conn)
+{
+	/* On FE side, streams may be limited by stream.max-total configuration. */
+	if (!conn_is_back(conn) && quic_tune.fe.stream_max_total)
+		return quic_tune.fe.stream_max_total;
+	return (uint64_t)1 << 60;
+}
+
 /* Open a locally initiated stream for the connection <qcc>. Set <bidi> for a
  * bidirectional stream, else an unidirectional stream is opened. The next
  * available ID on the connection will be used according to the stream type.
@@ -1043,6 +1055,12 @@ int qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin)
 	if (unlikely(qcs_is_close_local(qcs) || (qcs->flags & QC_SF_TO_RESET))) {
 		TRACE_STATE("report early error", QMUX_EV_STRM_RECV, qcc->conn, qcs);
 		se_fl_set_error(qcs->sd);
+	}
+
+	/* Graceful shutdown is initiated as soon as max stream is reached. */
+	if (qcs->id == (qcc_max_strm_bidi_remote(qcc->conn) - 1) * 4) {
+		TRACE_STATE("initiate shutdown as max remote bidi stream reached", QMUX_EV_STRM_RECV, qcc->conn, qcs);
+		qcc_app_shutdown(qcc);
 	}
 
  out:
@@ -2361,8 +2379,6 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 	return 1;
 }
 
-#define QUIC_MAX_STREAMS_MAX_ID (1ULL<<60)
-
 /* Signal the closing of remote stream with id <id>. Flow-control for new
  * streams may be allocated for the peer if needed.
  */
@@ -2373,18 +2389,10 @@ static int qcc_release_remote_stream(struct qcc *qcc, uint64_t id)
 	TRACE_ENTER(QMUX_EV_QCS_END, qcc->conn);
 
 	if (quic_stream_is_bidi(id)) {
-		/* RFC 9000 4.6. Controlling Concurrency
-		 *
-		 * If a max_streams transport parameter or a MAX_STREAMS frame is
-		 * received with a value greater than 260, this would allow a maximum
-		 * stream ID that cannot be expressed as a variable-length integer; see
-		 * Section 16. If either is received, the connection MUST be closed
-		 * immediately with a connection error of type TRANSPORT_PARAMETER_ERROR
-		 * if the offending value was received in a transport parameter or of
-		 * type FRAME_ENCODING_ERROR if it was received in a frame; see Section
-		 * 10.2.
-		 */
-		if (qcc->lfctl.ms_bidi == QUIC_MAX_STREAMS_MAX_ID) {
+		const uint64_t max = qcc_max_strm_bidi_remote(qcc->conn);
+		/* The peer must not have been authorized to open a stream outside of this range. */
+		BUG_ON(qcc->lfctl.ms_bidi > max);
+		if (qcc->lfctl.ms_bidi == max) {
 			TRACE_DATA("maximum streams value reached", QMUX_EV_QCC_SEND, qcc->conn);
 			goto out;
 		}
@@ -2394,7 +2402,7 @@ static int qcc_release_remote_stream(struct qcc *qcc, uint64_t id)
 		 * the initial window or reaching the stream ID limit.
 		 */
 		if (qcc->lfctl.cl_bidi_r > qcc->lfctl.ms_bidi_init / 2 ||
-		    qcc->lfctl.cl_bidi_r + qcc->lfctl.ms_bidi == QUIC_MAX_STREAMS_MAX_ID) {
+		    qcc->lfctl.cl_bidi_r + qcc->lfctl.ms_bidi == max) {
 			TRACE_DATA("increase max stream limit with MAX_STREAMS_BIDI", QMUX_EV_QCC_SEND, qcc->conn);
 			frm = qc_frm_alloc(QUIC_FT_MAX_STREAMS_BIDI);
 			if (!frm) {

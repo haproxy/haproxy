@@ -43,6 +43,7 @@ struct quic_tune {
 		uint sec_retry_threshold;
 		uint stream_data_ratio;
 		uint stream_max_concurrent;
+		uint stream_max_total;
 		uint stream_rxbuf;
 		uint opts;    /* QUIC_TUNE_FE_* options specific to FE side */
 		uint fb_opts; /* QUIC_TUNE_FB_* options shared by both side */

@@ -32,6 +32,7 @@ struct quic_tune quic_tune = {
 		.sec_retry_threshold = QUIC_DFLT_SEC_RETRY_THRESHOLD,
 		.stream_data_ratio = QUIC_DFLT_FE_STREAM_DATA_RATIO,
 		.stream_max_concurrent = QUIC_DFLT_FE_STREAM_MAX_CONCURRENT,
+		.stream_max_total  = 0,
 		.stream_rxbuf      = 0,
 		.fb_opts = QUIC_TUNE_FB_TX_PACING|QUIC_TUNE_FB_TX_UDP_GSO,
 		.opts = QUIC_TUNE_FE_SOCK_PER_CONN,
@@ -473,6 +474,9 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 		                                 &quic_tune.fe.stream_max_concurrent;
 		*ptr = arg;
 	}
+	else if (strcmp(suffix, "fe.stream.max-total") == 0) {
+		quic_tune.fe.stream_max_total = arg;
+	}
 	else if (strcmp(suffix, "be.stream.rxbuf") == 0 ||
 	         strcmp(suffix, "fe.stream.rxbuf") == 0) {
 		uint *ptr = (suffix[0] == 'b') ? &quic_tune.be.stream_rxbuf :
@@ -716,6 +720,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.fe.sock-per-conn", cfg_parse_quic_tune_sock_per_conn },
 	{ CFG_GLOBAL, "tune.quic.fe.stream.data-ratio", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.fe.stream.max-concurrent", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.fe.stream.max-total", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.fe.stream.rxbuf", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.fe.tx.pacing", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.fe.tx.udp-gso", cfg_parse_quic_tune_on_off },
