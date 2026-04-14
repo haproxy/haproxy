@@ -5062,7 +5062,7 @@ smp_fetch_pid(const struct arg *args, struct sample *smp, const char *kw, void *
 }
 
 
-/* returns the number of the current process (between 1 and nbproc */
+/* returns the number of the current process (between 1 and nbproc) */
 static int
 smp_fetch_proc(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -5071,7 +5071,7 @@ smp_fetch_proc(const struct arg *args, struct sample *smp, const char *kw, void 
 	return 1;
 }
 
-/* returns the number of the current thread (between 1 and nbthread */
+/* returns the number of the current thread (between 0 and nbthread-1) */
 static int
 smp_fetch_thread(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
