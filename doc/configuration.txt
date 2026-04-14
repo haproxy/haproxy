@@ -1884,6 +1884,7 @@ The following keywords are supported in the "global" section :
    - tune.bufsize
    - tune.bufsize.large
    - tune.bufsize.small
+   - tune.cli.max-payload-size
    - tune.comp.maxlevel
    - tune.defaults.purge
    - tune.disable-fast-forward
@@ -4191,6 +4192,22 @@ tune.bufsize.small <size>
   specific proxies via the "use-small-buffers" option.
 
   See also: option use-small-buffers
+
+tune.cli.max-payload-size <size>
+  Sets the maximum size allowed for the payload passed to a command on the CLI.
+
+  On the CLI, a command line is limited by the buffer size. It means all
+  commands and their arguments must fit in a buffer to be processed, excluding
+  the payload that can be passed to the last command of the command line. This
+  payload can be allocated into a dedicated area if necessary. Its size is
+  limited by this parameter. The default value is 128KB.
+
+  While it should be high enough for most usage, if this value is changed, it
+  must be carefully chosen. A huge value can have impact on the HAProxy
+  performance. Depending on the command, a huge payload can be quite long to
+  process and can possibly trigger the watchdog.
+
+  Please consult the management manual for details about the CLI.
 
 tune.comp.maxlevel <number>
   Sets the maximum compression level. The compression level affects CPU

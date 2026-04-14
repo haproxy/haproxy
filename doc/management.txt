@@ -1647,15 +1647,18 @@ a payload, it needs to end with an empty line.
 The payload pattern can be customized in order to change the way the payload
 ends. In order to end a payload with something else than an empty line, a
 customized pattern can be set between '<<' and '\n'. Only 7 characters can be
-used in addiction to '<<', otherwise this won't be considered a payload.
+used in addition to '<<', otherwise this won't be considered a payload.
 For example, to use a PEM file that contains empty lines and comments:
 
   # echo -e "set ssl cert common.pem <<%EOF%\n$(cat common.pem)\n%EOF%\n" | \
   socat /var/run/haproxy.stat -
 
-Limitations do exist: the length of the whole buffer passed to the CLI must
-not be greater than tune.bfsize and the pattern "<<" must not be glued to the
-last word of the line.
+Limitations do exist: The pattern "<<" must not be glued to the last word of the
+line. The length of a command line must not be greater than tune.bufsize,
+including the pattern starting the payload, but excluding the payload
+itself. The payload size is limited to 128KB by default. This can be changed by
+setting "tune.cli.max-payload-size" global parameter, with some cautions. Note
+the pattern marking the end of the payload is part of this limit.
 
 When entering a payload while in interactive mode, the prompt will change from
 "> " to "+ ".

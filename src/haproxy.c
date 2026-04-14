@@ -201,6 +201,7 @@ struct global global = {
 #endif
 		.nb_stk_ctr = MAX_SESS_STKCTR,
 		.default_shards = -2, /* by-group */
+		.cli_max_payload_sz = 128 * 1024,
 	},
 #ifdef USE_OPENSSL
 #ifdef DEFAULT_MAXSSLCONN

@@ -215,6 +215,7 @@ struct global {
 		int default_shards; /* default shards for listeners, or -1 (by-thread) or -2 (by-group) */
 		uint max_checks_per_thread; /* if >0, no more than this concurrent checks per thread */
 		uint ring_queues;   /* if >0, #ring queues, otherwise equals #thread groups */
+		uint cli_max_payload_sz; /* The max payload size for the CLI */
 		enum threadgroup_takeover tg_takeover; /* Policy for threadgroup takeover */
 	} tune;
 	struct {

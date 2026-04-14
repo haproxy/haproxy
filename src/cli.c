@@ -653,6 +653,34 @@ static int cli_parse_global(char **args, int section_type, struct proxy *curpx,
 	return 0;
 }
 
+/* This function parses "tune.cli.max-payload-sze" statement in the "global"
+ * section. It returns -1 if there is any error, otherwise zero. If it returns
+ * -1, it will write an error message into the <err> buffer which will be
+ * preallocated. The trailing '\n' must not be written. The function must be
+ * called with <args> pointing to the first word after "stats".
+ */
+static int cli_parse_global_max_payload_size(char **args, int section_type, struct proxy *curpx,
+					     const struct proxy *defpx, const char *file, int line,
+					     char **err)
+{
+	const char *res;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "'%s' expects a size argument.", args[0]);
+		return -1;
+	}
+	res = parse_size_err(args[1], &global.tune.cli_max_payload_sz);
+	if (res != NULL) {
+		memprintf(err, "unexpected '%s' after size passed to '%s'", res, args[0]);
+		return -1;
+	}
+	return 0;
+}
+
+
 /*
  * This function exports the bound addresses of a <frontend> in the environment
  * variable <varname>. Those addresses are separated by semicolons and prefixed
@@ -950,11 +978,35 @@ int cli_init(struct appctx *appctx)
 	appctx->cli_ctx.payload_pat = NULL;
 	appctx->cli_ctx.cmdline = NULL;
 	appctx->cli_ctx.payload = BUF_NULL;
+	appctx->cli_ctx.max_payload_sz = global.tune.cli_max_payload_sz;
 
 	/* Wakeup the applet ASAP. */
         applet_need_more_data(appctx);
         return 0;
 
+}
+
+int cli_try_realloc_payload(struct appctx *appctx, struct buffer *buf, size_t new_size)
+{
+	char *old, *new;
+
+	if (new_size > appctx->cli_ctx.max_payload_sz)
+		new_size = appctx->cli_ctx.max_payload_sz;
+
+	old = (appctx->st1 & APPCTX_CLI_ST1_DYN_PAYLOAD) ? b_orig(buf) : NULL;
+	new = my_realloc2(old, new_size);
+	if (!new) {
+		*buf = BUF_NULL;
+		appctx->st1 &= ~APPCTX_CLI_ST1_DYN_PAYLOAD;
+		return -1;
+	}
+
+	if (!(appctx->st1 & APPCTX_CLI_ST1_DYN_PAYLOAD)) {
+		memcpy(new, b_orig(buf), b_data(buf));
+		appctx->st1 |= APPCTX_CLI_ST1_DYN_PAYLOAD;
+	}
+	*buf = b_make(new, new_size, 0, b_data(buf));
+	return 0;
 }
 
 int cli_parse_cmdline(struct appctx *appctx)
@@ -971,9 +1023,7 @@ int cli_parse_cmdline(struct appctx *appctx)
 		appctx->cli_ctx.cmdline = alloc_trash_chunk();
 		if (!appctx->cli_ctx.cmdline) {
 			cli_err(appctx, "Failed to alloc a buffer to process the command line.\n");
-			applet_set_error(appctx);
-			b_reset(&appctx->inbuf);
-			goto end;
+			goto error;
 		}
 	}
 
@@ -995,10 +1045,26 @@ int cli_parse_cmdline(struct appctx *appctx)
 
 		if (!len) {
 			if (!b_room(buf) || (b_data(&appctx->inbuf) > b_room(buf) - 1)) {
-				cli_err(appctx, "The command line is too big for the buffer size. Please change tune.bufsize in the configuration to use a bigger command.\n");
-				applet_set_error(appctx);
-				b_reset(&appctx->inbuf);
-				goto end;
+				if (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)) {
+					/* The command line is too big and payload, if any, cannot be dynamic */
+					cli_err(appctx, "The command line is too big for the buffer size."
+						" Please change 'tune.bufsize' in the configuration to use a bigger command.\n");
+					goto error;
+				}
+
+				/* try to reallocate a bigger payload */
+				if (!appctx->cli_ctx.max_payload_sz ||
+				    b_data(&appctx->inbuf) + b_data(buf) + 1 > appctx->cli_ctx.max_payload_sz ||
+				    cli_try_realloc_payload(appctx, buf, 2 * (b_data(&appctx->inbuf) + b_data(buf))) == -1) {
+					/* Payload is too big or realloc failed */
+					cli_err(appctx, "The payload is too big."
+						" Please change 'tune.cli.max-payload-size' in the configuration to use a bigger payload.\n");
+					goto error;
+				}
+
+				/* A bigger payload buffer was allcated, wait for more data */
+				b_xfer(buf, &appctx->inbuf, b_data(&appctx->inbuf));
+				applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
 			}
 			break;
 		}
@@ -1105,6 +1171,11 @@ int cli_parse_cmdline(struct appctx *appctx)
 	if (appctx->st0 != CLI_ST_PARSE_CMDLINE)
 		ret = 1;
 	return ret;
+
+ error:
+	applet_set_error(appctx);
+	b_reset(&appctx->inbuf);
+	goto end;
 }
 
 /* This I/O handler runs as an applet embedded in a stream connector. It is
@@ -1300,10 +1371,12 @@ void cli_io_handler(struct appctx *appctx)
 			if (appctx->st1 & APPCTX_CLI_ST1_LASTCMD) {
 				applet_reset_svcctx(appctx);
 				free_trash_chunk(appctx->cli_ctx.cmdline);
+				if (appctx->st1 & APPCTX_CLI_ST1_DYN_PAYLOAD)
+					free(b_orig(&appctx->cli_ctx.payload));
 				appctx->cli_ctx.payload_pat = NULL;
 				appctx->cli_ctx.cmdline = NULL;
 				appctx->cli_ctx.payload = BUF_NULL;
-				appctx->st1 &= ~APPCTX_CLI_ST1_LASTCMD;
+				appctx->st1 &= ~(APPCTX_CLI_ST1_LASTCMD|APPCTX_CLI_ST1_DYN_PAYLOAD);
 				if (appctx->st1 & APPCTX_CLI_ST1_INTER) {
 					appctx->st0 = CLI_ST_PARSE_CMDLINE;
 					applet_will_consume(appctx);
@@ -1347,6 +1420,10 @@ void cli_io_handler(struct appctx *appctx)
 static void cli_release_handler(struct appctx *appctx)
 {
 	free_trash_chunk(appctx->cli_ctx.cmdline);
+	if (appctx->st1 & APPCTX_CLI_ST1_DYN_PAYLOAD) {
+		free(b_orig(&appctx->cli_ctx.payload));
+		appctx->st1 &= ~APPCTX_CLI_ST1_DYN_PAYLOAD;
+	}
 
 	if (appctx->cli_ctx.io_release) {
 		EXEC_CTX_NO_RET(appctx->cli_ctx.kw->exec_ctx, appctx->cli_ctx.io_release(appctx));
@@ -4042,6 +4119,7 @@ INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "stats", cli_parse_global },
+	{ CFG_GLOBAL, "tune.cli.max-payload-size", cli_parse_global_max_payload_size },
 	{ 0, NULL, NULL },
 }};
 
