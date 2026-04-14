@@ -113,6 +113,13 @@ struct cli_wait_ctx {
 	const char *msg;         // static error message for failures if not NULL
 };
 
+struct pcli_txn {
+	int next_pid;         /* next target PID to use for the CLI proxy */
+	int flags;            /* flags for CLI proxy */
+	char payload_pat[65]; /* payload pattern for the CLI proxy, including trailing \0 */
+
+};
+
 struct cli_kw {
 	const char *str_kw[CLI_PREFIX_KW_NB]; /* keywords ended by NULL, limited to CLI_PREFIX_KW_NB
 				 separated keywords combination */

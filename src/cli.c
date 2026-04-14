@@ -764,7 +764,7 @@ int cli_has_level(struct appctx *appctx, int level)
 /* same as cli_has_level but for the CLI proxy and without error message */
 int pcli_has_level(struct stream *s, int level)
 {
-	if ((s->pcli_flags & ACCESS_LVL_MASK) < level) {
+	if ((s->txn.pcli->flags & ACCESS_LVL_MASK) < level) {
 		return 0;
 	}
 	return 1;
@@ -2812,18 +2812,19 @@ static int _send_status(char **args, char *payload, struct appctx *appctx, void 
 
 void pcli_write_prompt(struct stream *s)
 {
+	struct pcli_txn *pcli = s->txn.pcli;
 	struct buffer *msg = get_trash_chunk();
 	struct channel *oc = sc_oc(s->scf);
 
-	if (!(s->pcli_flags & PCLI_F_PROMPT))
+	if (!(pcli->flags & PCLI_F_PROMPT))
 		return;
 
-	if (s->pcli_flags & PCLI_F_PAYLOAD) {
+	if (pcli->flags & PCLI_F_PAYLOAD) {
 		chunk_appendf(msg, "+ ");
 	} else {
-		if (s->pcli_next_pid == 0) {
+		if (pcli->next_pid == 0) {
 			/* master's prompt */
-			if (s->pcli_flags & PCLI_F_TIMED) {
+			if (pcli->flags & PCLI_F_TIMED) {
 				uint up = ns_to_sec(now_ns - start_time_ns);
 				chunk_appendf(msg, "[%u:%02u:%02u:%02u] ",
 				         (up / 86400), (up / 3600) % 24, (up / 60) % 60, up % 60);
@@ -2834,7 +2835,7 @@ void pcli_write_prompt(struct stream *s)
 		}
 		else {
 			/* worker's prompt */
-			if (s->pcli_flags & PCLI_F_TIMED) {
+			if (pcli->flags & PCLI_F_TIMED) {
 				const struct mworker_proc *tmp, *proc;
 				uint up;
 
@@ -2843,7 +2844,7 @@ void pcli_write_prompt(struct stream *s)
 				list_for_each_entry(tmp, &proc_list, list) {
 					if (!(tmp->options & PROC_O_TYPE_WORKER))
 						continue;
-					if (tmp->pid == s->pcli_next_pid) {
+					if (tmp->pid == pcli->next_pid) {
 						proc = tmp;
 						break;
 					}
@@ -2859,19 +2860,19 @@ void pcli_write_prompt(struct stream *s)
 						      (up / 86400), (up / 3600) % 24, (up / 60) % 60, up % 60);
 				}
 			}
-			chunk_appendf(msg, "%d", s->pcli_next_pid);
+			chunk_appendf(msg, "%d", pcli->next_pid);
 		}
 
-		if (s->pcli_flags & (ACCESS_EXPERIMENTAL|ACCESS_EXPERT|ACCESS_MCLI_DEBUG)) {
+		if (pcli->flags & (ACCESS_EXPERIMENTAL|ACCESS_EXPERT|ACCESS_MCLI_DEBUG)) {
 			chunk_appendf(msg, "(");
 
-			if (s->pcli_flags & ACCESS_EXPERIMENTAL)
+			if (pcli->flags & ACCESS_EXPERIMENTAL)
 				chunk_appendf(msg, "x");
 
-			if (s->pcli_flags & ACCESS_EXPERT)
+			if (pcli->flags & ACCESS_EXPERT)
 				chunk_appendf(msg, "e");
 
-			if (s->pcli_flags & ACCESS_MCLI_DEBUG)
+			if (pcli->flags & ACCESS_MCLI_DEBUG)
 				chunk_appendf(msg, "d");
 
 			chunk_appendf(msg, ")");
@@ -3005,6 +3006,8 @@ static int pcli_prefix_to_pid(const char *prefix)
  */
 int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg, int *next_pid)
 {
+	struct pcli_txn *pcli = s->txn.pcli;
+
 	if (argl < 1)
 		return 0;
 
@@ -3019,7 +3022,7 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 
 		/* if the prefix is alone, define a default target */
 		if (argl == 1)
-			s->pcli_next_pid = target_pid;
+			pcli->next_pid = target_pid;
 		else
 			*next_pid = target_pid;
 		return 1;
@@ -3055,19 +3058,19 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 		 * In other mode, the default is to toggle prompt+inter (n/i->p, p->n).
 		 */
 		if (timed) {
-			s->pcli_flags ^= PCLI_F_TIMED;
+			pcli->flags ^= PCLI_F_TIMED;
 			mode = mode ? mode : 3; // p by default
 		}
 
 		if (mode) {
 			/* force mode (i,p) */
-			s->pcli_flags &= ~PCLI_F_PROMPT;
-			s->pcli_flags |= (mode >= 3) ? PCLI_F_PROMPT : 0;
+			pcli->flags &= ~PCLI_F_PROMPT;
+			pcli->flags |= (mode >= 3) ? PCLI_F_PROMPT : 0;
 		}
-		else if (~s->pcli_flags & PCLI_F_PROMPT)
-			s->pcli_flags |= PCLI_F_PROMPT; // p
+		else if (~pcli->flags & PCLI_F_PROMPT)
+			pcli->flags |= PCLI_F_PROMPT; // p
 		else
-			s->pcli_flags &= ~PCLI_F_PROMPT; // i
+			pcli->flags &= ~PCLI_F_PROMPT; // i
 
 		return argl; /* return the number of elements in the array */
 	} else if (strcmp("quit", args[0]) == 0) {
@@ -3079,8 +3082,8 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 			memprintf(errmsg, "Permission denied!\n");
 			return -1;
 		}
-		s->pcli_flags &= ~ACCESS_LVL_MASK;
-		s->pcli_flags |= ACCESS_LVL_OPER;
+		pcli->flags &= ~ACCESS_LVL_MASK;
+		pcli->flags |= ACCESS_LVL_OPER;
 		return argl;
 
 	} else if (strcmp(args[0], "user") == 0) {
@@ -3088,8 +3091,8 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 			memprintf(errmsg, "Permission denied!\n");
 			return -1;
 		}
-		s->pcli_flags &= ~ACCESS_LVL_MASK;
-		s->pcli_flags |= ACCESS_LVL_USER;
+		pcli->flags &= ~ACCESS_LVL_MASK;
+		pcli->flags |= ACCESS_LVL_USER;
 		return argl;
 
 	} else if (strcmp(args[0], "expert-mode") == 0) {
@@ -3098,9 +3101,9 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 			return -1;
 		}
 
-		s->pcli_flags &= ~ACCESS_EXPERT;
+		pcli->flags &= ~ACCESS_EXPERT;
 		if ((argl > 1) && (strcmp(args[1], "on") == 0))
-			s->pcli_flags |= ACCESS_EXPERT;
+			pcli->flags |= ACCESS_EXPERT;
 		return argl;
 
 	} else if (strcmp(args[0], "experimental-mode") == 0) {
@@ -3108,27 +3111,27 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 			memprintf(errmsg, "Permission denied!\n");
 			return -1;
 		}
-		s->pcli_flags &= ~ACCESS_EXPERIMENTAL;
+		pcli->flags &= ~ACCESS_EXPERIMENTAL;
 		if ((argl > 1) && (strcmp(args[1], "on") == 0))
-			s->pcli_flags |= ACCESS_EXPERIMENTAL;
+			pcli->flags |= ACCESS_EXPERIMENTAL;
 		return argl;
 	} else if (strcmp(args[0], "mcli-debug-mode") == 0) {
 		if (!pcli_has_level(s, ACCESS_LVL_ADMIN)) {
 			memprintf(errmsg, "Permission denied!\n");
 			return -1;
 		}
-		s->pcli_flags &= ~ACCESS_MCLI_DEBUG;
+		pcli->flags &= ~ACCESS_MCLI_DEBUG;
 		if ((argl > 1) && (strcmp(args[1], "on") == 0))
-			s->pcli_flags |= ACCESS_MCLI_DEBUG;
+			pcli->flags |= ACCESS_MCLI_DEBUG;
 		return argl;
 	} else if (strcmp(args[0], "set") == 0) {
 		if ((argl > 1) && (strcmp(args[1], "severity-output") == 0)) {
 			if ((argl > 2) &&strcmp(args[2], "none") == 0) {
-				s->pcli_flags &= ~(ACCESS_MCLI_SEVERITY_NB|ACCESS_MCLI_SEVERITY_STR);
+				pcli->flags &= ~(ACCESS_MCLI_SEVERITY_NB|ACCESS_MCLI_SEVERITY_STR);
 			} else if ((argl > 2) && strcmp(args[2], "string") == 0) {
-				s->pcli_flags |= ACCESS_MCLI_SEVERITY_STR;
+				pcli->flags |= ACCESS_MCLI_SEVERITY_STR;
 			} else if ((argl > 2) && strcmp(args[2], "number") == 0) {
-				s->pcli_flags |= ACCESS_MCLI_SEVERITY_NB;
+				pcli->flags |= ACCESS_MCLI_SEVERITY_NB;
 			} else {
 				memprintf(errmsg, "one of 'none', 'number', 'string' is a required argument\n");
 				return -1;
@@ -3152,6 +3155,7 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
  */
 int pcli_find_bidir_prefix(struct stream *s, struct channel *req, char **str, const char *end, char **errmsg, int *next_pid)
 {
+	struct pcli_txn *pcli = s->txn.pcli;
 	char *p = *str;
 	int ret = 0;
 
@@ -3189,7 +3193,7 @@ int pcli_find_bidir_prefix(struct stream *s, struct channel *req, char **str, co
 		}
 
 		/* bidirectional connection to this worker */
-		s->pcli_flags |= PCLI_F_BIDIR;
+		pcli->flags |= PCLI_F_BIDIR;
 		*next_pid = target_pid;
 
 		/* skip '@@pid' and LWS */
@@ -3209,10 +3213,10 @@ int pcli_find_bidir_prefix(struct stream *s, struct channel *req, char **str, co
 			cmd = "prompt";
 			ret += ci_insert(req, ret, cmd, strlen(cmd));
 
-			cmd = (s->pcli_flags & PCLI_F_PROMPT) ? " p" : " i";
+			cmd = (pcli->flags & PCLI_F_PROMPT) ? " p" : " i";
 			ret += ci_insert(req, ret, cmd, strlen(cmd));
 
-			if (s->pcli_flags & PCLI_F_TIMED) {
+			if (pcli->flags & PCLI_F_TIMED) {
 				cmd = " timed";
 				ret += ci_insert(req, ret, cmd, strlen(cmd));
 			}
@@ -3239,6 +3243,7 @@ int pcli_find_bidir_prefix(struct stream *s, struct channel *req, char **str, co
  */
 int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int *next_pid)
 {
+	struct pcli_txn *pcli = s->txn.pcli;
 	char *str;
 	char *end;
 	char *args[MAX_CLI_ARGS + 1]; /* +1 for storing a NULL */
@@ -3261,7 +3266,7 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 
 	p = str;
 
-	if (!(s->pcli_flags & PCLI_F_PAYLOAD)) {
+	if (!(pcli->flags & PCLI_F_PAYLOAD)) {
 		/* look for the '@@' prefix and intercept it if found */
 		ret = pcli_find_bidir_prefix(s, req, &p, end, errmsg, next_pid);
 		if (ret != 0) // success or failure
@@ -3306,11 +3311,11 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 	}
 
 	/* in payload mode, skip the whole parsing/exec and just look for a pattern */
-	if (s->pcli_flags & PCLI_F_PAYLOAD) {
-		if (reql-1 == strlen(s->pcli_payload_pat)) {
+	if (pcli->flags & PCLI_F_PAYLOAD) {
+		if (reql-1 == strlen(pcli->payload_pat)) {
 			/* the custom pattern len can be 0 (empty line)  */
-			if (strncmp(str, s->pcli_payload_pat, strlen(s->pcli_payload_pat)) == 0) {
-				s->pcli_flags &= ~PCLI_F_PAYLOAD;
+			if (strncmp(str, pcli->payload_pat, strlen(pcli->payload_pat)) == 0) {
+				pcli->flags &= ~PCLI_F_PAYLOAD;
 			}
 		}
 		ret = reql;
@@ -3352,11 +3357,11 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 		 * A customized pattern can't be more than 7 characters
 		 * if it's more, don't make it a payload
 		 */
-		if (pat_len < sizeof(s->pcli_payload_pat)) {
-			s->pcli_flags |= PCLI_F_PAYLOAD;
+		if (pat_len < sizeof(pcli->payload_pat)) {
+			pcli->flags |= PCLI_F_PAYLOAD;
 			/* copy the customized pattern, don't store the << */
-			strncpy(s->pcli_payload_pat, args[argl-1] + strlen(PAYLOAD_PATTERN), sizeof(s->pcli_payload_pat)-1);
-			s->pcli_payload_pat[sizeof(s->pcli_payload_pat)-1] = '\0';
+			strncpy(pcli->payload_pat, args[argl-1] + strlen(PAYLOAD_PATTERN), sizeof(pcli->payload_pat)-1);
+			pcli->payload_pat[sizeof(pcli->payload_pat)-1] = '\0';
 		}
 	}
 
@@ -3396,27 +3401,27 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 	if (ret > 1) {
 
 		/* the mcli-debug-mode is only sent to the applet of the master */
-		if ((s->pcli_flags & ACCESS_MCLI_DEBUG) && *next_pid <= 0) {
+		if ((pcli->flags & ACCESS_MCLI_DEBUG) && *next_pid <= 0) {
 			const char *cmd = "mcli-debug-mode on -;";
 			ci_insert(req, 0, cmd, strlen(cmd));
 			ret += strlen(cmd);
 		}
-		if (s->pcli_flags & ACCESS_EXPERIMENTAL) {
+		if (pcli->flags & ACCESS_EXPERIMENTAL) {
 			const char *cmd = "experimental-mode on -;";
 			ci_insert(req, 0, cmd, strlen(cmd));
 			ret += strlen(cmd);
 		}
-		if (s->pcli_flags & ACCESS_EXPERT) {
+		if (pcli->flags & ACCESS_EXPERT) {
 			const char *cmd = "expert-mode on -;";
 			ci_insert(req, 0, cmd, strlen(cmd));
 			ret += strlen(cmd);
 		}
-		if (s->pcli_flags & ACCESS_MCLI_SEVERITY_STR) {
+		if (pcli->flags & ACCESS_MCLI_SEVERITY_STR) {
 			const char *cmd = "set severity-output string -;";
 			ci_insert(req, 0, cmd, strlen(cmd));
 			ret += strlen(cmd);
 		}
-		if (s->pcli_flags & ACCESS_MCLI_SEVERITY_NB) {
+		if (pcli->flags & ACCESS_MCLI_SEVERITY_NB) {
 			const char *cmd = "set severity-output number -;";
 			ci_insert(req, 0, cmd, strlen(cmd));
 			ret += strlen(cmd);
@@ -3439,8 +3444,38 @@ end:
 	return ret;
 }
 
+struct pcli_txn *pcli_create_txn(struct stream *s)
+{
+	struct pcli_txn *txn;
+
+	if ((s->flags & SF_TXN_MASK) != SF_TXN_NONE)
+		return NULL;
+
+	txn = pool_alloc(pool_head_pcli_txn);
+	if (!txn)
+		return NULL;
+	s->txn.pcli = txn;
+	txn->next_pid = 0;
+	txn->flags = 0;
+	txn->payload_pat[0] = '\0';
+
+	s->flags |= SF_TXN_PCLI;
+
+	return txn;
+}
+
+void pcli_destroy_txn(struct stream *s)
+{
+	struct pcli_txn *txn = s->txn.pcli;
+
+	pool_free(pool_head_pcli_txn, txn);
+	s->txn.pcli = NULL;
+	s->flags &= ~SF_TXN_MASK;
+}
+
 int pcli_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 {
+	struct pcli_txn *pcli = s->txn.pcli;
 	int next_pid = -1;
 	int to_forward;
 	char *errmsg = NULL;
@@ -3452,13 +3487,13 @@ int pcli_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	if (s->res.analysers & AN_RES_WAIT_CLI)
 		return 0;
 
-	s->pcli_flags &= ~PCLI_F_BIDIR; // only for one connection
-	if ((s->pcli_flags & ACCESS_LVL_MASK) == ACCESS_LVL_NONE)
-		s->pcli_flags |= strm_li(s)->bind_conf->level & ACCESS_LVL_MASK;
+	pcli->flags &= ~PCLI_F_BIDIR; // only for one connection
+	if ((pcli->flags & ACCESS_LVL_MASK) == ACCESS_LVL_NONE)
+		pcli->flags |= strm_li(s)->bind_conf->level & ACCESS_LVL_MASK;
 
 	/* stream that comes from the reload listener only responses the reload
 	 * status and quits */
-	if (!(s->pcli_flags & PCLI_F_RELOAD)
+	if (!(pcli->flags & PCLI_F_RELOAD)
 	    && strm_li(s)->bind_conf == mcli_reload_bind_conf)
 		goto send_status;
 
@@ -3488,16 +3523,16 @@ read_again:
 		/* enough data */
 
 		/* forward only 1 command for '@' or everything for '@@' */
-		if (!(s->pcli_flags & PCLI_F_BIDIR))
+		if (!(pcli->flags & PCLI_F_BIDIR))
 			channel_forward(req, to_forward);
 		else
 			channel_forward_forever(req);
 
-		if (!(s->pcli_flags & PCLI_F_PAYLOAD)) {
+		if (!(pcli->flags & PCLI_F_PAYLOAD)) {
 			/* we send only 1 command per request, and we write
 			 * close after it when not in full-duplex mode.
 			 */
-			if (!(s->pcli_flags & PCLI_F_BIDIR))
+			if (!(pcli->flags & PCLI_F_BIDIR))
 				sc_schedule_shutdown(s->scb);
 		} else {
 			pcli_write_prompt(s);
@@ -3510,7 +3545,7 @@ read_again:
 			if (next_pid > -1)
 				target_pid = next_pid;
 			else
-				target_pid = s->pcli_next_pid;
+				target_pid = pcli->next_pid;
 			/* we can connect now */
 			s->target = pcli_pid_to_server(target_pid);
 			if (objt_server(s->target)) {
@@ -3550,7 +3585,7 @@ send_help:
 	goto read_again;
 
 send_status:
-	s->pcli_flags |= PCLI_F_RELOAD;
+	pcli->flags |= PCLI_F_RELOAD;
 	/* don't use ci_putblk here because SHUT_DONE could have been sent */
 	b_reset(&req->buf);
 	b_putblk(&req->buf, "_loadstatus;quit\n", 17);
@@ -3577,6 +3612,7 @@ server_disconnect:
 
 int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 {
+	struct pcli_txn *pcli = s->txn.pcli;
 	struct proxy *fe = strm_fe(s);
 	struct proxy *be = s->be;
 
@@ -3594,7 +3630,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	channel_dont_close(&s->res);
 	channel_dont_close(&s->req);
 
-	if (s->pcli_flags & PCLI_F_PAYLOAD) {
+	if (pcli->flags & PCLI_F_PAYLOAD) {
 		s->res.analysers &= ~AN_RES_WAIT_CLI;
 		s->req.flags |= CF_WAKE_ONCE; /* need to be called again if there is some command left in the request */
 		return 0;
@@ -3707,7 +3743,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->res.flags &= ~(CF_STREAMER|CF_STREAMER_FAST|CF_WRITE_EVENT|CF_WROTE_DATA|CF_READ_EVENT);
 		s->req.to_forward = 0;
 		s->res.to_forward = 0;
-		s->pcli_flags &= ~PCLI_F_BIDIR;
+		pcli->flags &= ~PCLI_F_BIDIR;
 		s->flags &= ~(SF_DIRECT|SF_ASSIGNED|SF_BE_ASSIGNED|SF_FORCE_PRST|SF_IGNORE_PRST);
 		s->flags &= ~(SF_CURR_SESS|SF_REDIRECTABLE|SF_SRV_REUSED);
 		s->flags &= ~(SF_ERR_MASK|SF_FINST_MASK|SF_REDISP);
@@ -4084,6 +4120,9 @@ static struct applet mcli_applet = {
 	.snd_buf = appctx_raw_snd_buf,
 	.release = cli_release_handler,
 };
+
+
+DECLARE_TYPED_POOL(pool_head_pcli_txn, "pcli_txn", struct pcli_txn);
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{

@@ -47,10 +47,13 @@ int mworker_cli_global_proxy_new_listener(struct mworker_proc *proc);
 void mworker_cli_proxy_stop(void);
 
 extern struct bind_conf *mcli_reload_bind_conf;
+extern struct pool_head *pool_head_pcli_txn;
 
 /* proxy mode cli functions */
 
 /* analyzers */
+struct pcli_txn *pcli_create_txn(struct stream *s);
+void pcli_destroy_txn(struct stream *s);
 int pcli_wait_for_request(struct stream *s, struct channel *req, int an_bit);
 int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit);
 

@@ -93,7 +93,8 @@
 /* unused: 0x08000000 */
 #define SF_TXN_NONE     0x00000000      /* No transaction allocated */
 #define SF_TXN_HTTP     0x10000000      /* HTTP transaction allocated */
-#define SF_TXN_MASK     0x10000000      /* mask to get the transaction type */
+#define SF_TXN_PCLI     0x20000000      /* PCLI transaction allocated */
+#define SF_TXN_MASK     0x30000000      /* mask to get the transaction type */
 
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
@@ -214,6 +215,7 @@ struct session;
 struct server;
 struct task;
 struct sockaddr_storage;
+struct pcli_txn;
 
 /* some external definitions */
 struct strm_logs {
@@ -262,6 +264,7 @@ struct stream {
 
 	union {
 		struct http_txn *http;  /* current HTTP transaction being processed. Should become a list. */
+		struct pcli_txn *pcli;  /* current PCLI transaction */
 	} txn;
 
 	struct task *task;              /* the task associated with this stream */
@@ -316,10 +319,6 @@ struct stream {
 	               struct log_orig origin);
 	void (*srv_error)(struct stream *s,     /* the function to call upon unrecoverable server errors (or NULL) */
 			  struct stconn *sc);
-
-	int pcli_next_pid;                      /* next target PID to use for the CLI proxy */
-	int pcli_flags;                         /* flags for CLI proxy */
-	char pcli_payload_pat[65];              /* payload pattern for the CLI proxy, including trailing \0 */
 
 	struct ist unique_id;                   /* custom unique ID */
 

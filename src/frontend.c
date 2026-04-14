@@ -24,6 +24,7 @@
 #include <haproxy/acl.h>
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
+#include <haproxy/cli.h>
 #include <haproxy/chunk.h>
 #include <haproxy/connection.h>
 #include <haproxy/counters.h>
@@ -160,6 +161,8 @@ int frontend_accept(struct stream *s)
 	}
 
 	if ((fe->http_needed || IS_HTX_STRM(s)) && !http_create_txn(s))
+		goto out_free_rspcap;
+	else if ((fe->mode == PR_MODE_CLI) && !pcli_create_txn(s))
 		goto out_free_rspcap;
 
 	/* everything's OK, let's go on */

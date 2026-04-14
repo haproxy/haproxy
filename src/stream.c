@@ -425,8 +425,6 @@ void *stream_new(struct session *sess, struct stconn *sc, struct buffer *input)
 	s->lat_time = s->cpu_time = 0;
 	s->call_rate.curr_tick = s->call_rate.curr_ctr = s->call_rate.prev_ctr = 0;
 	s->passes_connect = s->passes_stconn = s->passes_reqana = s->passes_resana = s->passes_propag = 0;
-	s->pcli_next_pid = 0;
-	s->pcli_flags = 0;
 	s->unique_id = IST_NULL;
 	s->parent = NULL;
 	if ((t = task_new_here()) == NULL)
@@ -685,6 +683,8 @@ void stream_free(struct stream *s)
 
 	if ((s->flags & SF_TXN_MASK) == SF_TXN_HTTP)
 		http_destroy_txn(s);
+	else if ((s->flags & SF_TXN_MASK) == SF_TXN_PCLI)
+		pcli_destroy_txn(s);
 
 	/* ensure the client-side transport layer is destroyed */
 	/* Be sure it is useless !! */
@@ -774,6 +774,7 @@ void stream_free(struct stream *s)
 		pool_flush(pool_head_buffer);
 		pool_flush(pool_head_large_buffer);
 		pool_flush(pool_head_http_txn);
+		pool_flush(pool_head_pcli_txn);
 		pool_flush(pool_head_requri);
 		pool_flush(pool_head_capture);
 		pool_flush(pool_head_stream);
