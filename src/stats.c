@@ -174,6 +174,7 @@ const struct stat_col stat_cols_info[ST_I_INF_MAX] = {
 	[ST_I_INF_WARN_BLOCKED]                   = { .name = "BlockedTrafficWarnings",      .alt_name = NULL,                            .desc = "Total number of warnings issued about traffic being blocked by too slow a task" },
 	[ST_I_INF_PATTERNS_ADDED]                 = { .name = "PatternsAdded",               .alt_name = "patterns_added_total",          .desc = "Total number of patterns added (acl/map entries)" },
 	[ST_I_INF_PATTERNS_FREED]                 = { .name = "PatternsFreed",               .alt_name = "patterns_freed_total",          .desc = "Total number of patterns freed (acl/map entries)" },
+	[ST_I_INF_NBTGROUPS]                      = { .name = "NbThreadGroups",              .alt_name = "nb_thread_groups",              .desc = "Number of started thread groups (global.thread-groups)" },
 };
 
 /* one line of info */
@@ -841,6 +842,7 @@ int stats_fill_info(struct field *line, int len, uint flags)
 	line[ST_I_INF_WARN_BLOCKED]                   = mkf_u32(0, warn_blocked_issued);
 	line[ST_I_INF_PATTERNS_ADDED]                 = mkf_u64(0, patterns_added);
 	line[ST_I_INF_PATTERNS_FREED]                 = mkf_u64(0, patterns_freed);
+	line[ST_I_INF_NBTGROUPS]                      = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbtgroups);
 
 	return 1;
 }
