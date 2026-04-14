@@ -65,7 +65,7 @@
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
 
-#define MAX_PAYLOAD_PATTERN_SIZE 7
+#define MAX_PAYLOAD_PATTERN_SIZE 64
 #define PAYLOAD_PATTERN "<<"
 
 static struct applet cli_applet;
