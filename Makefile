@@ -1172,7 +1172,7 @@ uninstall:
 	$(Q)rm -f "$(DESTDIR)$(SBINDIR)"/haproxy
 
 clean:
-	$(Q)rm -f *.[oas] src/*.[oas] haproxy test .build_opts .build_opts.new
+	$(Q)rm -f *.[oas] src/*.[oas] haproxy haterm test .build_opts .build_opts.new
 	$(Q)for dir in . src dev/* admin/* addons/* include/* doc; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
 	$(Q)rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
 	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) nohup.out gmon.out
