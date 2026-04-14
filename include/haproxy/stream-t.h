@@ -256,7 +256,9 @@ struct stream {
 	struct server *srv_conn;        /* stream already has a slot on a server and is not in queue */
 	struct pendconn *pend_pos;      /* if not NULL, points to the pending position in the pending queue */
 
-	struct http_txn *txn;           /* current HTTP transaction being processed. Should become a list. */
+	union {
+		struct http_txn *http;  /* current HTTP transaction being processed. Should become a list. */
+	} txn;
 
 	struct task *task;              /* the task associated with this stream */
 	unsigned int pending_events;	/* the pending events not yet processed by the stream but handled by process_stream() */

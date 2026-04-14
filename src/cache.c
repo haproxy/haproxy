@@ -694,7 +694,7 @@ static int
 cache_store_post_analyze(struct stream *s, struct filter *filter, struct channel *chn,
 			 unsigned an_bit)
 {
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct http_msg *msg = &txn->rsp;
 	struct cache_st *st = filter->ctx;
 
@@ -1189,7 +1189,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 {
 	int effective_maxage = 0;
 	int true_maxage = 0;
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct http_msg *msg = &txn->rsp;
 	struct filter *filter;
 	struct shared_block *first = NULL;
@@ -1972,7 +1972,7 @@ enum act_parse_ret parse_cache_store(const char **args, int *orig_arg, struct pr
  * if it begins with a slash ('/'). */
 int sha1_hosturi(struct stream *s)
 {
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct htx *htx = htxbuf(&s->req.buf);
 	struct htx_sl *sl;
 	struct http_hdr_ctx ctx;
@@ -2105,7 +2105,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
                                          struct session *sess, struct stream *s, int flags)
 {
 
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct cache_entry *res, *sec_entry = NULL;
 	struct cache_flt_conf *cconf = rule->arg.act.p[0];
 	struct cache *cache = cconf->c.cache;
@@ -2129,7 +2129,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 	if (!sha1_hosturi(s))
 		return ACT_RET_CONT;
 
-	if (s->txn->flags & TX_CACHE_IGNORE)
+	if (s->txn.http->flags & TX_CACHE_IGNORE)
 		return ACT_RET_CONT;
 
 	if (px == strm_fe(s)) {
@@ -2141,13 +2141,14 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			_HA_ATOMIC_INC(&px->be_counters.shared.tg[tgid - 1]->p.http.cache_lookups);
 	}
 
-	cache_tree = get_cache_tree_from_hash(cache, read_u32(s->txn->cache_hash));
+	cache_tree = get_cache_tree_from_hash(cache,
+					      read_u32(s->txn.http->cache_hash));
 
 	if (!cache_tree)
 		return ACT_RET_CONT;
 
 	cache_rdlock(cache_tree);
-	res = get_entry(cache_tree, s->txn->cache_hash, 0);
+	res = get_entry(cache_tree, s->txn.http->cache_hash, 0);
 	/* We must not use an entry that is not complete but the check will be
 	 * performed after we look for a potential secondary entry (in case of
 	 * Vary). */
@@ -2176,7 +2177,8 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			if (!http_request_build_secondary_key(s, res->secondary_key_signature)) {
 				cache_rdlock(cache_tree);
 				sec_entry = get_secondary_entry(cache_tree, res,
-				                                s->txn->cache_secondary_hash, 0);
+				                                s->txn.http->cache_secondary_hash,
+				                                0);
 				if (sec_entry && sec_entry != res) {
 					/* The wrong row was added to the hot list. */
 					release_entry(cache_tree, res, 0);
@@ -2837,7 +2839,7 @@ static int http_request_prebuild_full_secondary_key(struct stream *s)
  */
 static int http_request_build_secondary_key(struct stream *s, int vary_signature)
 {
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct htx *htx = htxbuf(&s->req.buf);
 
 	unsigned int idx;

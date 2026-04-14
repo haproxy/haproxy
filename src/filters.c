@@ -814,7 +814,8 @@ flt_http_end(struct stream *s, struct http_msg *msg)
 	unsigned int offset = 0;
 	int ret = 1;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s,
+			s->txn.http, msg);
 	for (filter = resume_filter_list_start(s, msg->chn); filter;
 	     filter = resume_filter_list_next(s, msg->chn, filter)) {
 		unsigned long long flt_off = FLT_OFF(filter, msg->chn);
@@ -856,7 +857,8 @@ flt_http_reset(struct stream *s, struct http_msg *msg)
 {
 	struct filter *filter;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s,
+			s->txn.http, msg);
 	for (filter = flt_list_start(s, msg->chn); filter;
 	     filter = flt_list_next(s, msg->chn, filter)) {
 		if (FLT_OPS(filter)->http_reset) {
@@ -879,7 +881,8 @@ flt_http_reply(struct stream *s, short status, const struct buffer *msg)
 {
 	struct filter *filter;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s,
+			s->txn.http, msg);
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		if (FLT_OPS(filter)->http_reply) {
 			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
@@ -912,7 +915,8 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 	strm_flt(s)->flags &= ~STRM_FLT_FL_HOLD_HTTP_HDRS;
 
 	ret = data = len - out;
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s,
+			s->txn.http, msg);
 	for (filter = flt_list_start(s, msg->chn); filter;
 	     filter = flt_list_next(s, msg->chn, filter)) {
 		struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
@@ -1106,8 +1110,9 @@ flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_
 	struct filter *filter;
 	int              ret = 1;
 
-	msg = ((chn->flags & CF_ISRESP) ? &s->txn->rsp : &s->txn->req);
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
+	msg = ((chn->flags & CF_ISRESP) ? &s->txn.http->rsp : &s->txn.http->req);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s,
+			s->txn.http, msg);
 
 	for (filter = resume_filter_list_start(s, chn); filter;
 	     filter = resume_filter_list_next(s, chn, filter)) {
@@ -1358,11 +1363,12 @@ handle_analyzer_result(struct stream *s, struct channel *chn,
 	if (IS_HTX_STRM(s)) {
 		http_set_term_flags(s);
 
-		if (s->txn->status > 0)
-			http_reply_and_close(s, s->txn->status, NULL);
+		if (s->txn.http->status > 0)
+			http_reply_and_close(s, s->txn.http->status, NULL);
 		else {
-			s->txn->status = (!(chn->flags & CF_ISRESP)) ? 400 : 502;
-			http_reply_and_close(s, s->txn->status, http_error_message(s));
+			s->txn.http->status = (!(chn->flags & CF_ISRESP)) ? 400 : 502;
+			http_reply_and_close(s, s->txn.http->status,
+					     http_error_message(s));
 		}
 	}
 	else {

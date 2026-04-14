@@ -95,7 +95,7 @@ REGISTER_PER_THREAD_FREE(free_raw_htx_chunk_per_thread);
 static int get_http_auth(struct sample *smp, struct htx *htx)
 {
 	struct stream *s = smp->strm;
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct http_hdr_ctx ctx = { .blk = NULL };
 	struct ist hdr;
 	struct buffer auth_method;
@@ -224,9 +224,9 @@ struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, struct che
 		return NULL;
 	}
 
-	if (!s->txn && !http_create_txn(s))
+	if (!s->txn.http && !http_create_txn(s))
 		return NULL;
-	txn = s->txn;
+	txn = s->txn.http;
 	msg = (!(chn->flags & CF_ISRESP) ? &txn->req : &txn->rsp);
 
 	if (IS_HTX_STRM(s)) {
@@ -392,7 +392,7 @@ static int smp_fetch_meth(const struct arg *args, struct sample *smp, const char
 	struct htx *htx = NULL;
 	int meth;
 
-	txn = (smp->strm ? smp->strm->txn : NULL);
+	txn = (smp->strm ? smp->strm->txn.http : NULL);
 	if (!txn)
 		return 0;
 
@@ -425,7 +425,7 @@ static int smp_fetch_rqver(const struct arg *args, struct sample *smp, const cha
 	struct htx *htx = smp_prefetch_htx(smp, chn, NULL, 1);
 	struct buffer *vsn = get_trash_chunk();
 
-	if (!get_msg_version((s && s->txn) ? &s->txn->req : NULL, htx, vsn))
+	if (!get_msg_version((s && s->txn.http) ? &s->txn.http->req : NULL, htx, vsn))
 		return 0;
 
 	smp->data.type = SMP_T_STR;
@@ -441,7 +441,7 @@ static int smp_fetch_stver(const struct arg *args, struct sample *smp, const cha
 	struct htx *htx = smp_prefetch_htx(smp, chn, check, 1);
 	struct buffer *vsn = get_trash_chunk();
 
-	if (!get_msg_version((s && s->txn) ? &s->txn->rsp : NULL, htx, vsn))
+	if (!get_msg_version((s && s->txn.http) ? &s->txn.http->rsp : NULL, htx, vsn))
 		return 0;
 
 	smp->data.type = SMP_T_STR;
@@ -480,7 +480,7 @@ static int smp_fetch_srv_status(const struct arg *args, struct sample *smp, cons
 	struct http_txn *txn;
 	short status;
 
-	txn = (smp->strm ? smp->strm->txn : NULL);
+	txn = (smp->strm ? smp->strm->txn.http : NULL);
 	if (!txn)
 		return 0;
 
@@ -1353,7 +1353,7 @@ static int smp_fetch_http_first_req(const struct arg *args, struct sample *smp, 
 		return 0;
 
 	smp->data.type = SMP_T_BOOL;
-	smp->data.u.sint = !(smp->strm->txn->flags & TX_NOT_FIRST);
+	smp->data.u.sint = !(smp->strm->txn.http->flags & TX_NOT_FIRST);
 	return 1;
 }
 
@@ -1369,7 +1369,7 @@ static int smp_fetch_http_auth_type(const struct arg *args, struct sample *smp, 
 	if (!htx)
 		return 0;
 
-	txn = smp->strm->txn;
+	txn = smp->strm->txn.http;
 	if (!get_http_auth(smp, htx))
 		return 0;
 
@@ -1408,7 +1408,7 @@ static int smp_fetch_http_auth_user(const struct arg *args, struct sample *smp, 
 	if (!htx)
 		return 0;
 
-	txn = smp->strm->txn;
+	txn = smp->strm->txn.http;
 	if (!get_http_auth(smp, htx) || txn->auth.method != HTTP_AUTH_BASIC)
 		return 0;
 
@@ -1431,7 +1431,7 @@ static int smp_fetch_http_auth_pass(const struct arg *args, struct sample *smp, 
 	if (!htx)
 		return 0;
 
-	txn = smp->strm->txn;
+	txn = smp->strm->txn.http;
 	if (!get_http_auth(smp, htx) || txn->auth.method != HTTP_AUTH_BASIC)
 		return 0;
 
@@ -1471,7 +1471,7 @@ static int smp_fetch_http_auth_bearer(const struct arg *args, struct sample *smp
 		}
 	}
 	else {
-		txn = smp->strm->txn;
+		txn = smp->strm->txn.http;
 		if (!get_http_auth(smp, htx) || txn->auth.method != HTTP_AUTH_BEARER)
 			return 0;
 
@@ -1495,12 +1495,12 @@ static int smp_fetch_http_auth(const struct arg *args, struct sample *smp, const
 
 	if (!htx)
 		return 0;
-	if (!get_http_auth(smp, htx) || smp->strm->txn->auth.method != HTTP_AUTH_BASIC)
+	if (!get_http_auth(smp, htx) || smp->strm->txn.http->auth.method != HTTP_AUTH_BASIC)
 		return 0;
 
 	smp->data.type = SMP_T_BOOL;
-	smp->data.u.sint = check_user(args->data.usr, smp->strm->txn->auth.user,
-				      smp->strm->txn->auth.pass);
+	smp->data.u.sint = check_user(args->data.usr, smp->strm->txn.http->auth.user,
+				      smp->strm->txn.http->auth.pass);
 	return 1;
 }
 
@@ -1515,15 +1515,15 @@ static int smp_fetch_http_auth_grp(const struct arg *args, struct sample *smp, c
 
 	if (!htx)
 		return 0;
-	if (!get_http_auth(smp, htx) || smp->strm->txn->auth.method != HTTP_AUTH_BASIC)
+	if (!get_http_auth(smp, htx) || smp->strm->txn.http->auth.method != HTTP_AUTH_BASIC)
 		return 0;
 
 	/* if the user does not belong to the userlist or has a wrong password,
 	 * report that it unconditionally does not match. Otherwise we return
 	 * a string containing the username.
 	 */
-	if (!check_user(args->data.usr, smp->strm->txn->auth.user,
-	                smp->strm->txn->auth.pass))
+	if (!check_user(args->data.usr, smp->strm->txn.http->auth.user,
+	                smp->strm->txn.http->auth.pass))
 		return 0;
 
 	/* pat_match_auth() will need the user list */
@@ -1531,8 +1531,8 @@ static int smp_fetch_http_auth_grp(const struct arg *args, struct sample *smp, c
 
 	smp->data.type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
-	smp->data.u.str.area = smp->strm->txn->auth.user;
-	smp->data.u.str.data = strlen(smp->strm->txn->auth.user);
+	smp->data.u.str.area = smp->strm->txn.http->auth.user;
+	smp->data.u.str.data = strlen(smp->strm->txn.http->auth.user);
 
 	return 1;
 }
@@ -1603,7 +1603,7 @@ static int smp_fetch_capture_req_method(const struct arg *args, struct sample *s
 	if (!smp->strm)
 		return 0;
 
-	txn = smp->strm->txn;
+	txn = smp->strm->txn.http;
 	if (!txn || !txn->uri)
 		return 0;
 
@@ -1634,7 +1634,7 @@ static int smp_fetch_capture_req_uri(const struct arg *args, struct sample *smp,
 	if (!smp->strm)
 		return 0;
 
-	txn = smp->strm->txn;
+	txn = smp->strm->txn.http;
 	if (!txn || !txn->uri)
 		return 0;
 
@@ -1675,7 +1675,7 @@ static int smp_fetch_capture_req_ver(const struct arg *args, struct sample *smp,
 
 	vsn = get_trash_chunk();
 	chunk_memcat(vsn, "HTTP/", 5);
-	if (!get_msg_version((s && s->txn) ? &s->txn->req : NULL, NULL, vsn))
+	if (!get_msg_version((s && s->txn.http) ? &s->txn.http->req : NULL, NULL, vsn))
 		return 0;
 
 	smp->data.type = SMP_T_STR;
@@ -1693,7 +1693,7 @@ static int smp_fetch_capture_res_ver(const struct arg *args, struct sample *smp,
 
 	vsn = get_trash_chunk();
 	chunk_memcat(vsn, "HTTP/", 5);
-	if (!get_msg_version((s && s->txn) ? &s->txn->rsp : NULL, NULL, vsn))
+	if (!get_msg_version((s && s->txn.http) ? &s->txn.http->rsp : NULL, NULL, vsn))
 		return 0;
 
 	smp->data.type = SMP_T_STR;

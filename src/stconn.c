@@ -1488,7 +1488,7 @@ int sc_conn_send(struct stconn *sc)
 		if (oc->flags & CF_STREAMER)
 			send_flag |= CO_SFL_STREAMER;
 
-		if (s->txn && s->txn->flags & TX_L7_RETRY && !b_data(&s->txn->l7_buffer)) {
+		if (s->txn.http && s->txn.http->flags & TX_L7_RETRY && !b_data(&s->txn.http->l7_buffer)) {
 			/* If we want to be able to do L7 retries, copy
 			 * the data we're about to send, so that we are able
 			 * to resend them if needed
@@ -1498,23 +1498,24 @@ int sc_conn_send(struct stconn *sc)
 			 * disable the l7 retries by setting
 			 * l7_conn_retries to 0.
 			 */
-			if (s->txn->req.msg_state != HTTP_MSG_DONE || b_is_large(&oc->buf))
-				s->txn->flags &= ~TX_L7_RETRY;
+			if (s->txn.http->req.msg_state != HTTP_MSG_DONE || b_is_large(&oc->buf))
+				s->txn.http->flags &= ~TX_L7_RETRY;
 			else {
 				if (!(s->be->options2 & PR_O2_USE_SBUF_L7_RETRY) ||
-				    !htx_copy_to_small_buffer(&s->txn->l7_buffer, &oc->buf)) {
-					if (b_alloc(&s->txn->l7_buffer, DB_UNLIKELY) == NULL)
-						s->txn->flags &= ~TX_L7_RETRY;
+				    !htx_copy_to_small_buffer(&s->txn.http->l7_buffer, &oc->buf)) {
+					if (b_alloc(&s->txn.http->l7_buffer, DB_UNLIKELY) == NULL)
+						s->txn.http->flags &= ~TX_L7_RETRY;
 					else {
-						memcpy(b_orig(&s->txn->l7_buffer),
+						memcpy(b_orig(&s->txn.http->l7_buffer),
 						       b_orig(&oc->buf),
 						       b_size(&oc->buf));
 					}
 				}
 
-				if (s->txn->flags & TX_L7_RETRY) {
-					s->txn->l7_buffer.head = co_data(oc);
-					b_set_data(&s->txn->l7_buffer, co_data(oc));
+				if (s->txn.http->flags & TX_L7_RETRY) {
+					s->txn.http->l7_buffer.head = co_data(oc);
+					b_set_data(&s->txn.http->l7_buffer,
+						   co_data(oc));
 				}
 			}
 		}

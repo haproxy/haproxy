@@ -6615,7 +6615,7 @@ __LJMP static int hlua_http_req_rep_hdr(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_REQ || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
-	return MAY_LJMP(hlua_http_rep_hdr(L, &htxn->s->txn->req, 1));
+	return MAY_LJMP(hlua_http_rep_hdr(L, &htxn->s->txn.http->req, 1));
 }
 
 __LJMP static int hlua_http_res_rep_hdr(lua_State *L)
@@ -6628,7 +6628,7 @@ __LJMP static int hlua_http_res_rep_hdr(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_RES || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
-	return MAY_LJMP(hlua_http_rep_hdr(L, &htxn->s->txn->rsp, 1));
+	return MAY_LJMP(hlua_http_rep_hdr(L, &htxn->s->txn.http->rsp, 1));
 }
 
 __LJMP static int hlua_http_req_rep_val(lua_State *L)
@@ -6641,7 +6641,7 @@ __LJMP static int hlua_http_req_rep_val(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_REQ || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
-	return MAY_LJMP(hlua_http_rep_hdr(L, &htxn->s->txn->req, 0));
+	return MAY_LJMP(hlua_http_rep_hdr(L, &htxn->s->txn.http->req, 0));
 }
 
 __LJMP static int hlua_http_res_rep_val(lua_State *L)
@@ -6654,7 +6654,7 @@ __LJMP static int hlua_http_res_rep_val(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_RES || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
-	return MAY_LJMP(hlua_http_rep_hdr(L, &htxn->s->txn->rsp, 0));
+	return MAY_LJMP(hlua_http_rep_hdr(L, &htxn->s->txn.http->rsp, 0));
 }
 
 /* This function deletes all the occurrences of an header.
@@ -6683,7 +6683,7 @@ __LJMP static int hlua_http_req_del_hdr(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_REQ || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
-	return hlua_http_del_hdr(L, &htxn->s->txn->req);
+	return hlua_http_del_hdr(L, &htxn->s->txn.http->req);
 }
 
 __LJMP static int hlua_http_res_del_hdr(lua_State *L)
@@ -6696,7 +6696,7 @@ __LJMP static int hlua_http_res_del_hdr(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_RES || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
-	return hlua_http_del_hdr(L, &htxn->s->txn->rsp);
+	return hlua_http_del_hdr(L, &htxn->s->txn.http->rsp);
 }
 
 /* This function adds an header. It is a wrapper used by
@@ -6725,7 +6725,7 @@ __LJMP static int hlua_http_req_add_hdr(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_REQ || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
-	return hlua_http_add_hdr(L, &htxn->s->txn->req);
+	return hlua_http_add_hdr(L, &htxn->s->txn.http->req);
 }
 
 __LJMP static int hlua_http_res_add_hdr(lua_State *L)
@@ -6738,7 +6738,7 @@ __LJMP static int hlua_http_res_add_hdr(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_RES || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
-	return hlua_http_add_hdr(L, &htxn->s->txn->rsp);
+	return hlua_http_add_hdr(L, &htxn->s->txn.http->rsp);
 }
 
 static int hlua_http_req_set_hdr(lua_State *L)
@@ -6751,8 +6751,8 @@ static int hlua_http_req_set_hdr(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_REQ || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
-	hlua_http_del_hdr(L, &htxn->s->txn->req);
-	return hlua_http_add_hdr(L, &htxn->s->txn->req);
+	hlua_http_del_hdr(L, &htxn->s->txn.http->req);
+	return hlua_http_add_hdr(L, &htxn->s->txn.http->req);
 }
 
 static int hlua_http_res_set_hdr(lua_State *L)
@@ -6765,8 +6765,8 @@ static int hlua_http_res_set_hdr(lua_State *L)
 	if (htxn->dir != SMP_OPT_DIR_RES || !IS_HTX_STRM(htxn->s))
 		WILL_LJMP(lua_error(L));
 
-	hlua_http_del_hdr(L, &htxn->s->txn->rsp);
-	return hlua_http_add_hdr(L, &htxn->s->txn->rsp);
+	hlua_http_del_hdr(L, &htxn->s->txn.http->rsp);
+	return hlua_http_add_hdr(L, &htxn->s->txn.http->rsp);
 }
 
 /* This function set the method. */
@@ -8642,7 +8642,7 @@ __LJMP static int hlua_txn_new(lua_State *L, struct stream *s, struct proxy *p, 
 		/* Creates the HTTP-Request object is the current proxy allows http. */
 		lua_pushstring(L, "http_req");
 		if (p->mode == PR_MODE_HTTP) {
-			if (!hlua_http_msg_new(L, &s->txn->req))
+			if (!hlua_http_msg_new(L, &s->txn.http->req))
 				return 0;
 		}
 		else
@@ -8652,7 +8652,7 @@ __LJMP static int hlua_txn_new(lua_State *L, struct stream *s, struct proxy *p, 
 		/* Creates the HTTP-Response object is the current proxy allows http. */
 		lua_pushstring(L, "http_res");
 		if (p->mode == PR_MODE_HTTP) {
-			if (!hlua_http_msg_new(L, &s->txn->rsp))
+			if (!hlua_http_msg_new(L, &s->txn.http->rsp))
 				return 0;
 		}
 		else
@@ -8852,7 +8852,7 @@ __LJMP static int hlua_txn_forward_reply(lua_State *L, struct stream *s)
 	h1m_init_res(&h1m);
 	htx = htx_from_buf(&s->res.buf);
 	channel_htx_truncate(&s->res, htx);
-	if (s->txn->req.flags & HTTP_MSGF_VER_11) {
+	if (s->txn.http->req.flags & HTTP_MSGF_VER_11) {
 		flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11);
 		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, ist("HTTP/1.1"),
 				    ist2(status, status_len), ist2(reason, reason_len));
@@ -8950,7 +8950,7 @@ __LJMP static int hlua_txn_forward_reply(lua_State *L, struct stream *s)
 	htx->flags |= HTX_FL_EOM;
 
 	/* Now, forward the response and terminate the transaction */
-	s->txn->status = code;
+	s->txn.http->status = code;
 	htx_to_buf(htx, &s->res.buf);
 	if (!http_forward_proxy_resp(s, 1))
 		goto fail;
@@ -9002,7 +9002,7 @@ __LJMP static int hlua_txn_done(lua_State *L)
 
 	if (lua_gettop(L) == 1 || !lua_istable(L, 2)) {
 		/* No reply or invalid reply */
-		s->txn->status = 0;
+		s->txn.http->status = 0;
 		http_reply_and_close(s, 0, NULL);
 	}
 	else {
@@ -11273,7 +11273,7 @@ static int hlua_applet_http_init(struct appctx *ctx)
 	struct task *task;
 	const char *error;
 
-	txn = strm->txn;
+	txn = strm->txn.http;
 	hlua = pool_alloc(pool_head_hlua);
 	if (!hlua) {
 		SEND_ERR(strm->be, "Lua applet http '%s': out of memory.\n",

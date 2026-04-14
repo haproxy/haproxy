@@ -127,7 +127,7 @@ static enum act_return http_action_set_req_line(struct act_rule *rule, struct pr
 	if (s->sv_tgcounters)
 		_HA_ATOMIC_INC(&s->sv_tgcounters->failed_rewrites);
 
-	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW)) {
+	if (!(s->txn.http->req.flags & HTTP_MSGF_SOFT_RW)) {
 		ret = ACT_RET_ERR;
 		if (!(s->flags & SF_ERR_MASK))
 			s->flags |= SF_ERR_PRXCOND;
@@ -398,7 +398,7 @@ static enum act_return http_action_normalize_uri(struct act_rule *rule, struct p
 	if (s->sv_tgcounters)
 		_HA_ATOMIC_ADD(&s->sv_tgcounters->failed_rewrites, 1);
 
-	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW)) {
+	if (!(s->txn.http->req.flags & HTTP_MSGF_SOFT_RW)) {
 		ret = ACT_RET_ERR;
 		if (!(s->flags & SF_ERR_MASK))
 			s->flags |= SF_ERR_PRXCOND;
@@ -575,7 +575,7 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 	if (s->sv_tgcounters)
 		_HA_ATOMIC_INC(&s->sv_tgcounters->failed_rewrites);
 
-	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW)) {
+	if (!(s->txn.http->req.flags & HTTP_MSGF_SOFT_RW)) {
 		ret = ACT_RET_ERR;
 		if (!(s->flags & SF_ERR_MASK))
 			s->flags |= SF_ERR_PRXCOND;
@@ -656,7 +656,7 @@ static enum act_return action_http_set_status(struct act_rule *rule, struct prox
 		if (s->sv_tgcounters)
 			_HA_ATOMIC_INC(&s->sv_tgcounters->failed_rewrites);
 
-		if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW)) {
+		if (!(s->txn.http->req.flags & HTTP_MSGF_SOFT_RW)) {
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_PRXCOND;
 			return ACT_RET_ERR;
@@ -762,8 +762,8 @@ static enum act_return http_req_disable_l7_retry(struct act_rule *rule, struct p
 	/* In theory, the TX_L7_RETRY flags isn't set at this point, but
 	 * let's be future-proof and remove it anyway.
 	 */
-	s->txn->flags &= ~TX_L7_RETRY;
-	s->txn->flags |= TX_D_L7_RETRY;
+	s->txn.http->flags &= ~TX_L7_RETRY;
+	s->txn.http->flags |= TX_D_L7_RETRY;
 	return ACT_RET_CONT;
 }
 
@@ -1258,12 +1258,12 @@ static enum act_return http_action_auth(struct act_rule *rule, struct proxy *px,
 			auth_realm = px->id;
 	}
 
-	if (!(s->txn->flags & TX_USE_PX_CONN)) {
-		s->txn->status = 401;
+	if (!(s->txn.http->flags & TX_USE_PX_CONN)) {
+		s->txn.http->status = 401;
 		hdr = ist("WWW-Authenticate");
 	}
 	else {
-		s->txn->status = 407;
+		s->txn.http->status = 407;
 		hdr = ist("Proxy-Authenticate");
 	}
 	reply = http_error_message(s);
@@ -1361,7 +1361,7 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 	struct buffer *value = alloc_trash_chunk();
 	enum act_return ret = ACT_RET_CONT;
 
-	if (!(s->txn->req.flags & HTTP_MSGF_VER_11))
+	if (!(s->txn.http->req.flags & HTTP_MSGF_VER_11))
 		goto leave;
 
 	if (!value) {
@@ -1373,7 +1373,7 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 	/* if there is no pending 103 response, start a new response. Otherwise,
 	 * continue to add link to a previously started response
          */
-	if (s->txn->status != 103) {
+	if (s->txn.http->status != 103) {
 		struct htx_sl *sl;
 		unsigned int flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|
 				      HTX_SL_F_XFER_LEN|HTX_SL_F_BODYLESS);
@@ -1383,7 +1383,7 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 		if (!sl)
 			goto error;
 		sl->info.res.status = 103;
-		s->txn->status = 103;
+		s->txn.http->status = 103;
 	}
 
 	/* Add the HTTP Early Hint HTTP 103 response header */
@@ -1400,7 +1400,7 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 			goto error;
 		if (!http_forward_proxy_resp(s, 0))
 			goto error;
-		s->txn->status = 0;
+		s->txn.http->status = 0;
 	}
 
   leave:
@@ -1412,7 +1412,7 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 	 * HTTP 103 response from the buffer */
 	channel_htx_truncate(res, htx);
 	ret = ACT_RET_ERR;
-	s->txn->status = 0;
+	s->txn.http->status = 0;
 	goto leave;
 }
 
@@ -1427,7 +1427,7 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 static enum act_return http_action_set_header(struct act_rule *rule, struct proxy *px,
 					      struct session *sess, struct stream *s, int flags)
 {
-	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn->req : &s->txn->rsp);
+	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn.http->req : &s->txn.http->rsp);
 	struct htx *htx = htxbuf(&msg->chn->buf);
 	enum act_return ret = ACT_RET_CONT;
 	struct buffer *replace;
@@ -1487,7 +1487,7 @@ static enum act_return http_action_set_header(struct act_rule *rule, struct prox
 static enum act_return http_action_set_headers_bin(struct act_rule *rule, struct proxy *px,
 						  struct session *sess, struct stream *s, int flags)
 {
-	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn->req : &s->txn->rsp);
+	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn.http->req : &s->txn.http->rsp);
 	struct htx *htx = htxbuf(&msg->chn->buf);
 	struct sample *hdrs_bin;
 	char *p, *end;
@@ -1712,7 +1712,7 @@ static enum act_parse_ret parse_http_set_headers_bin(const char **args, int *ori
 static enum act_return http_action_replace_header(struct act_rule *rule, struct proxy *px,
 						  struct session *sess, struct stream *s, int flags)
 {
-	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn->req : &s->txn->rsp);
+	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn.http->req : &s->txn.http->rsp);
 	struct htx *htx = htxbuf(&msg->chn->buf);
 	enum act_return ret = ACT_RET_CONT;
 	struct buffer *replace;
@@ -1822,7 +1822,7 @@ static enum act_return http_action_del_header(struct act_rule *rule, struct prox
 						  struct session *sess, struct stream *s, int flags)
 {
 	struct http_hdr_ctx ctx;
-	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn->req : &s->txn->rsp);
+	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn.http->req : &s->txn.http->rsp);
 	struct htx *htx = htxbuf(&msg->chn->buf);
 	enum act_return ret = ACT_RET_CONT;
 
@@ -1920,7 +1920,7 @@ static enum act_return http_action_del_headers_bin(struct act_rule *rule, struct
 						  struct session *sess, struct stream *s, int flags)
 {
 	struct http_hdr_ctx ctx;
-	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn->req : &s->txn->rsp);
+	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn.http->req : &s->txn.http->rsp);
 	struct htx *htx = htxbuf(&msg->chn->buf);
 	struct sample *hdrs_bin;
 	char *p, *end;
@@ -2414,13 +2414,13 @@ static enum act_return http_action_track_sc(struct act_rule *rule, struct proxy 
 	 * to do it on purpose.
 	 */
 	if (rule->from == ACT_F_HTTP_RES &&
-	    http_status_matches(http_err_status_codes, s->txn->status)) {
+	    http_status_matches(http_err_status_codes, s->txn.http->status)) {
 		ptr3 = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_ERR_CNT);
 		ptr4 = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_ERR_RATE);
 	}
 
 	if (rule->from == ACT_F_HTTP_RES &&
-	    http_status_matches(http_fail_status_codes, s->txn->status)) {
+	    http_status_matches(http_fail_status_codes, s->txn.http->status)) {
 		ptr5 = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_FAIL_CNT);
 		ptr6 = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_FAIL_RATE);
 	}
@@ -2577,7 +2577,7 @@ static enum act_parse_ret parse_http_set_timeout(const char **args,
 static enum act_return http_action_strict_mode(struct act_rule *rule, struct proxy *px,
 					       struct session *sess, struct stream *s, int flags)
 {
-	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn->req : &s->txn->rsp);
+	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn.http->req : &s->txn.http->rsp);
 
 	if (rule->action == 0) // strict-mode on
 		msg->flags &= ~HTTP_MSGF_SOFT_RW;
@@ -2624,7 +2624,7 @@ static enum act_return http_action_return(struct act_rule *rule, struct proxy *p
 {
 	struct channel *req = &s->req;
 
-	s->txn->status = rule->arg.http_reply->status;
+	s->txn.http->status = rule->arg.http_reply->status;
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_LOCAL;

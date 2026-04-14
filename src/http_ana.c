@@ -92,7 +92,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * check for monitor-uri, logging and finally headers capture.
 	 */
 	struct session *sess = s->sess;
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct http_msg *msg = &txn->req;
 	struct htx *htx;
 	struct htx_sl *sl;
@@ -381,7 +381,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 {
 	struct list *def_rules, *rules;
 	struct session *sess = s->sess;
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct http_msg *msg = &txn->req;
 	struct htx *htx;
 	struct redirect_rule *rule;
@@ -666,7 +666,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 int http_process_request(struct stream *s, struct channel *req, int an_bit)
 {
 	struct session *sess = s->sess;
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct htx *htx;
 	struct connection *cli_conn = objt_conn(strm_sess(s)->origin);
 
@@ -728,7 +728,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * that parameter. This will be done in another analyser.
 	 */
 	if (!(s->flags & (SF_ASSIGNED|SF_DIRECT)) &&
-	    s->txn->meth == HTTP_METH_POST &&
+	    s->txn.http->meth == HTTP_METH_POST &&
 	    (s->be->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_PH) {
 		channel_dont_connect(req);
 		req->analysers |= AN_REQ_HTTP_BODY;
@@ -796,7 +796,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
  */
 int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 {
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, &txn->req);
 	/* This connection is being tarpitted. The CLIENT side has
@@ -842,9 +842,10 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit)
 {
 	struct session *sess = s->sess;
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, &s->txn->req);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn,
+			&s->txn.http->req);
 
 
 	switch (http_wait_for_msg_body(s, req, s->be->timeout.httpreq, 0, 0)) {
@@ -931,7 +932,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 {
 	struct session *sess = s->sess;
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct http_msg *msg = &txn->req;
 	struct htx *htx;
 	short status = 0;
@@ -1062,7 +1063,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 			s->scb->flags |= SC_FL_NOLINGER;
 		channel_auto_close(req);
 	}
-	else if (s->txn->meth == HTTP_METH_POST) {
+	else if (s->txn.http->meth == HTTP_METH_POST) {
 		/* POST requests may require to read extra CRLF sent by broken
 		 * browsers and which could cause an RST to be sent upon close
 		 * on some systems (eg: Linux). */
@@ -1227,14 +1228,15 @@ static __inline int do_l7_retry(struct stream *s, struct stconn *sc)
 
 	/* Swap the L7 buffer with the channel buffer */
 	/* We know we stored the co_data as b_data, so get it there */
-	co_data = b_data(&s->txn->l7_buffer);
-	b_set_data(&s->txn->l7_buffer, b_size(&s->txn->l7_buffer));
+	co_data = b_data(&s->txn.http->l7_buffer);
+	b_set_data(&s->txn.http->l7_buffer, b_size(&s->txn.http->l7_buffer));
 
-	req->buf = s->txn->l7_buffer;
-	s->txn->l7_buffer = BUF_NULL;
+	req->buf = s->txn.http->l7_buffer;
+	s->txn.http->l7_buffer = BUF_NULL;
 	co_set_data(req, co_data);
 
-	DBG_TRACE_DEVEL("perform a L7 retry", STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, s->txn);
+	DBG_TRACE_DEVEL("perform a L7 retry", STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s,
+			s->txn.http);
 
 	b_reset(&res->buf);
 	co_set_data(res, 0);
@@ -1258,7 +1260,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 * logging and finally headers capture.
 	 */
 	struct session *sess = s->sess;
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct http_msg *msg = &txn->rsp;
 	struct htx *htx;
 	struct connection *srv_conn;
@@ -1779,7 +1781,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, struct proxy *px)
 {
 	struct session *sess = s->sess;
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct http_msg *msg = &txn->rsp;
 	struct htx *htx;
 	struct proxy *cur_proxy;
@@ -2153,8 +2155,8 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 int http_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 {
 	struct session *sess = s->sess;
-	struct http_txn *txn = s->txn;
-	struct http_msg *msg = &s->txn->rsp;
+	struct http_txn *txn = s->txn.http;
+	struct http_msg *msg = &s->txn.http->rsp;
 	struct htx *htx;
 	int ret;
 
@@ -2602,7 +2604,7 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 	if (!sl)
 		goto fail;
 	sl->info.res.status = rule->code;
-	s->txn->status = rule->code;
+	s->txn.http->status = rule->code;
 
 	if (!htx_add_header(htx, ist("Content-length"), ist("0")) ||
 	    !htx_add_header(htx, ist("Location"), location))
@@ -2701,7 +2703,7 @@ static enum rule_result http_req_restrict_header_names(struct stream *s, struct 
 	return rule_ret;
   block:
 	/* Block the request returning a 403-Forbidden response */
-	s->txn->status = 403;
+	s->txn.http->status = 403;
 	rule_ret = HTTP_RULE_RES_DENY;
 	goto out;
 }
@@ -2804,7 +2806,7 @@ int http_res_set_status(unsigned int status, struct ist reason, struct stream *s
 
 	if (!http_replace_res_status(htx, ist2(trash.area, trash.data), reason))
 		return -1;
-	s->txn->status = status;
+	s->txn.http->status = status;
 	return 0;
 }
 
@@ -2821,7 +2823,7 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 						    struct list *rules, struct stream *s)
 {
 	struct session *sess = strm_sess(s);
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct act_rule *rule;
 	enum rule_result rule_ret = HTTP_RULE_RES_CONT;
 	int act_opts = 0;
@@ -3010,7 +3012,7 @@ static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct lis
 						    struct list *rules, struct stream *s, uint8_t final)
 {
 	struct session *sess = strm_sess(s);
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct act_rule *rule;
 	enum rule_result rule_ret = HTTP_RULE_RES_CONT;
 	int act_opts = 0;
@@ -3191,7 +3193,7 @@ int http_eval_after_res_rules(struct stream *s)
 	enum rule_result ret = HTTP_RULE_RES_CONT;
 
 	/* Eval after-response ruleset only if the reply is not const */
-	if (s->txn->flags & TX_CONST_REPLY)
+	if (s->txn.http->flags & TX_CONST_REPLY)
 		goto end;
 
 	/* prune the request variables if not already done and swap to the response variables. */
@@ -3224,7 +3226,7 @@ int http_eval_after_res_rules(struct stream *s)
 static void http_manage_client_side_cookies(struct stream *s, struct channel *req)
 {
 	struct session *sess = s->sess;
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct htx *htx;
 	struct http_hdr_ctx ctx;
 	char *hdr_beg, *hdr_end, *del_from;
@@ -3622,7 +3624,7 @@ static void http_manage_client_side_cookies(struct stream *s, struct channel *re
 static void http_manage_server_side_cookies(struct stream *s, struct channel *res)
 {
 	struct session *sess = s->sess;
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct htx *htx;
 	struct http_hdr_ctx ctx;
 	struct server *srv;
@@ -3889,11 +3891,11 @@ static void http_manage_server_side_cookies(struct stream *s, struct channel *re
 /*
  * Parses the Cache-Control and Pragma request header fields to determine if
  * the request may be served from the cache and/or if it is cacheable. Updates
- * s->txn->flags.
+ * s->txn.http->flags.
  */
 void http_check_request_for_cacheability(struct stream *s, struct channel *req)
 {
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct htx *htx;
 	struct http_hdr_ctx ctx = { .blk = NULL };
 	int pragma_found, cc_found;
@@ -3953,11 +3955,11 @@ void http_check_request_for_cacheability(struct stream *s, struct channel *req)
 }
 
 /*
- * Check if response is cacheable or not. Updates s->txn->flags.
+ * Check if response is cacheable or not. Updates s->txn.http->flags.
  */
 void http_check_response_for_cacheability(struct stream *s, struct channel *res)
 {
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct http_hdr_ctx ctx = { .blk = NULL };
 	struct htx *htx;
 	int has_freshness_info = 0;
@@ -4101,7 +4103,7 @@ static int http_handle_stats(struct stream *s, struct channel *req, struct proxy
 {
 	struct stats_admin_rule *stats_admin_rule;
 	struct session *sess = s->sess;
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct http_msg *msg = &txn->req;
 	struct uri_auth *uri_auth = px->uri_auth;
 	const char *h, *lookup, *end;
@@ -4287,7 +4289,7 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 					unsigned int time, unsigned int bytes, unsigned int large_buffer)
 {
 	struct session *sess = s->sess;
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct http_msg *msg = ((chn->flags & CF_ISRESP) ? &txn->rsp : &txn->req);
 	struct htx *htx;
 	enum rule_result ret = HTTP_RULE_RES_CONT;
@@ -4439,7 +4441,7 @@ void http_perform_server_redirect(struct stream *s, struct stconn *sc)
 	if (!sl)
 		goto fail;
 	sl->info.res.status = 302;
-	s->txn->status = 302;
+	s->txn.http->status = 302;
 
         if (!htx_add_header(htx, ist("Cache-Control"), ist("no-cache")) ||
 	    !htx_add_header(htx, ist("Content-length"), ist("0")) ||
@@ -4484,7 +4486,7 @@ void http_perform_server_redirect(struct stream *s, struct stconn *sc)
 static void http_end_request(struct stream *s)
 {
 	struct channel *chn = &s->req;
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 
 	DBG_TRACE_ENTER(STRM_EV_HTTP_ANA, s, txn);
 
@@ -4616,7 +4618,7 @@ static void http_end_request(struct stream *s)
 static void http_end_response(struct stream *s)
 {
 	struct channel *chn = &s->res;
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 
 	DBG_TRACE_ENTER(STRM_EV_HTTP_ANA, s, txn);
 
@@ -4724,17 +4726,17 @@ int http_forward_proxy_resp(struct stream *s, int final)
 	size_t data;
 
 	if (final) {
-		if (s->txn->server_status == -1)
-			s->txn->server_status = 0;
+		if (s->txn.http->server_status == -1)
+			s->txn.http->server_status = 0;
 
 		if (!htx_is_empty(htx) && !http_eval_after_res_rules(s))
 			return 0;
 
-		if (s->txn->meth == HTTP_METH_HEAD)
+		if (s->txn.http->meth == HTTP_METH_HEAD)
 			htx_skip_msg_payload(htx);
 
 		/* Response from haproxy, override HTTP response version using the request one */
-		s->txn->rsp.vsn = s->txn->req.vsn;
+		s->txn.http->rsp.vsn = s->txn.http->req.vsn;
 
 		channel_auto_read(req);
 		channel_abort(req);
@@ -4768,7 +4770,7 @@ void http_server_error(struct stream *s, struct stconn *sc, int err,
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= finst;
 
-	http_reply_and_close(s, s->txn->status, msg);
+	http_reply_and_close(s, s->txn.http->status, msg);
 }
 
 void http_reply_and_close(struct stream *s, short status, struct http_reply *msg)
@@ -4783,14 +4785,15 @@ void http_reply_and_close(struct stream *s, short status, struct http_reply *msg
 		 * it is already an internal error. If it was already a "const"
 		 * 500 error, just fail.
 		 */
-		if (s->txn->status == 500) {
-			if (s->txn->flags & TX_CONST_REPLY)
+		if (s->txn.http->status == 500) {
+			if (s->txn.http->flags & TX_CONST_REPLY)
 				goto end;
-			s->txn->flags |= TX_CONST_REPLY;
+			s->txn.http->flags |= TX_CONST_REPLY;
 		}
-		s->txn->status = 500;
-		s->txn->http_reply = NULL;
-		return http_reply_and_close(s, s->txn->status, http_error_message(s));
+		s->txn.http->status = 500;
+		s->txn.http->http_reply = NULL;
+		return http_reply_and_close(s, s->txn.http->status,
+					    http_error_message(s));
 	}
 
 end:
@@ -4811,10 +4814,10 @@ end:
 
 struct http_reply *http_error_message(struct stream *s)
 {
-	const int msgnum = http_get_status_idx(s->txn->status);
+	const int msgnum = http_get_status_idx(s->txn.http->status);
 
-	if (s->txn->http_reply)
-		return s->txn->http_reply;
+	if (s->txn.http->http_reply)
+		return s->txn.http->http_reply;
 	else if (s->be->replies[msgnum])
 		return s->be->replies[msgnum];
 	else if (strm_fe(s)->replies[msgnum])
@@ -4851,8 +4854,8 @@ int http_reply_to_htx(struct stream *s, struct htx *htx, struct http_reply *repl
 	}
 	if (reply->type == HTTP_REPLY_ERRMSG && !reply->body.errmsg)  {
 		/* get default error message */
-		if (reply == s->txn->http_reply)
-			s->txn->http_reply = NULL;
+		if (reply == s->txn.http->http_reply)
+			s->txn.http->http_reply = NULL;
 		reply = http_error_message(s);
 		if (reply->type == HTTP_REPLY_INDIRECT) {
 			if (reply->body.reply)
@@ -4950,8 +4953,8 @@ int http_reply_message(struct stream *s, struct http_reply *reply)
 	struct channel *res = &s->res;
 	struct htx *htx = htx_from_buf(&res->buf);
 
-	if (s->txn->status == -1)
-		s->txn->status = reply->status;
+	if (s->txn.http->status == -1)
+		s->txn.http->status = reply->status;
 	channel_htx_truncate(res, htx);
 
 	if (http_reply_to_htx(s, htx, reply) == -1)
@@ -4984,45 +4987,45 @@ void http_return_srv_error(struct stream *s, struct stconn *sc)
 {
 	int err_type = s->conn_err_type;
 
-	/* set s->txn->status for http_error_message(s) */
+	/* set s->txn.http->status for http_error_message(s) */
 	if (err_type & STRM_ET_QUEUE_ABRT) {
-		s->txn->status = -1;
+		s->txn.http->status = -1;
 		http_server_error(s, sc, SF_ERR_CLICL, SF_FINST_Q, NULL);
 	}
 	else if (err_type & STRM_ET_CONN_ABRT) {
-		s->txn->status = -1;
+		s->txn.http->status = -1;
 		http_server_error(s, sc, SF_ERR_CLICL, SF_FINST_C, NULL);
 	}
 	else if (err_type & STRM_ET_QUEUE_TO) {
-		s->txn->status = 503;
+		s->txn.http->status = 503;
 		http_server_error(s, sc, SF_ERR_SRVTO, SF_FINST_Q,
 				  http_error_message(s));
 	}
 	else if (err_type & STRM_ET_QUEUE_ERR) {
-		s->txn->status = 503;
+		s->txn.http->status = 503;
 		http_server_error(s, sc, SF_ERR_SRVCL, SF_FINST_Q,
 				  http_error_message(s));
 	}
 	else if (err_type & STRM_ET_CONN_TO) {
-		s->txn->status = 503;
+		s->txn.http->status = 503;
 		http_server_error(s, sc, SF_ERR_SRVTO, SF_FINST_C,
-				  (s->txn->flags & TX_NOT_FIRST) ? NULL :
+				  (s->txn.http->flags & TX_NOT_FIRST) ? NULL :
 				  http_error_message(s));
 	}
 	else if (err_type & STRM_ET_CONN_ERR) {
-		s->txn->status = 503;
+		s->txn.http->status = 503;
 		http_server_error(s, sc, SF_ERR_SRVCL, SF_FINST_C,
 				  (s->flags & SF_SRV_REUSED) ? NULL :
 				  http_error_message(s));
 	}
 	else if (err_type & STRM_ET_CONN_RES) {
-		s->txn->status = 503;
+		s->txn.http->status = 503;
 		http_server_error(s, sc, SF_ERR_RESOURCE, SF_FINST_C,
-				  (s->txn->flags & TX_NOT_FIRST) ? NULL :
+				  (s->txn.http->flags & TX_NOT_FIRST) ? NULL :
 				  http_error_message(s));
 	}
 	else { /* STRM_ET_CONN_OTHER and others */
-		s->txn->status = 500;
+		s->txn.http->status = 500;
 		http_server_error(s, sc, SF_ERR_INTERNAL, SF_FINST_C,
 				  http_error_message(s));
 	}
@@ -5290,7 +5293,7 @@ struct http_txn *http_create_txn(struct stream *s)
 	txn = pool_alloc(pool_head_http_txn);
 	if (!txn)
 		return NULL;
-	s->txn = txn;
+	s->txn.http = txn;
 
 	txn->meth = HTTP_METH_OTHER;
 	txn->flags = ((sc && sc_ep_test(sc, SE_FL_NOT_FIRST)) ? TX_NOT_FIRST : 0);
@@ -5326,7 +5329,7 @@ struct http_txn *http_create_txn(struct stream *s)
 /* to be used at the end of a transaction */
 void http_destroy_txn(struct stream *s)
 {
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 
 	/* these ones will have been dynamically allocated */
 	pool_free(pool_head_requri, txn->uri);
@@ -5345,7 +5348,7 @@ void http_destroy_txn(struct stream *s)
 	b_free(&txn->l7_buffer);
 
 	pool_free(pool_head_http_txn, txn);
-	s->txn = NULL;
+	s->txn.http = NULL;
 }
 
 
@@ -5375,12 +5378,12 @@ void http_set_term_flags(struct stream *s)
 				s->flags |= SF_FINST_C;
 		}
 		else {
-			if (s->txn->rsp.msg_state < HTTP_MSG_DATA) {
+			if (s->txn.http->rsp.msg_state < HTTP_MSG_DATA) {
 				/* We are still processing the response headers */
 				s->flags |= SF_FINST_H;
 			}
 			// (res == (done|closing|closed)) & (res->flags & shutw)
-			else if (s->txn->rsp.msg_state >= HTTP_MSG_DONE && s->txn->rsp.msg_state < HTTP_MSG_TUNNEL &&
+			else if (s->txn.http->rsp.msg_state >= HTTP_MSG_DONE && s->txn.http->rsp.msg_state < HTTP_MSG_TUNNEL &&
 				 (s->flags & (SF_ERR_CLITO|SF_ERR_CLICL))) {
 				/* A client error was reported and we are
 				 * transmitting the last block of data

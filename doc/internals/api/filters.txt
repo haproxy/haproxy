@@ -738,10 +738,10 @@ For instance :
         switch (an_bit) {
             case AN_REQ_WAIT_HTTP:
                 if (/* A test on received headers before any other treatment */) {
-                    msg = ((chn->flags & CF_ISRESP) ? &s->txn->rsp : &s->txn->req);
+                    msg = ((chn->flags & CF_ISRESP) ? &s->txn.http->rsp : &s->txn.http->req);
                     txn->status = 400;
                     msg->msg_state = HTTP_MSG_ERROR;
-                    http_reply_and_close(s, s->txn->status, http_error_message(s));
+                    http_reply_and_close(s, s->txn.http->status, http_error_message(s));
                     return -1; /* This is an error ! */
                 }
                 break;
@@ -1161,7 +1161,7 @@ Then, to finish, there are 2 informational callbacks :
     if we're retrying to send the request to the server after it failed. It
     could be useful to reset the filter context before receiving the true
     response.
-    By checking s->txn->status, it is possible to know why this callback is
+    By checking s->txn.http->status, it is possible to know why this callback is
     called. If it's a 1xx, we're called because of an informational
     message. Otherwise, it is a L7 retry.
 

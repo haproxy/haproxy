@@ -4023,7 +4023,7 @@ static int sample_conv_when(const struct arg *arg_p, struct sample *smp, void *p
 		    ((strm->flags & SF_REDISP) ||
 		     ((strm->flags & SF_ERR_MASK) > SF_ERR_LOCAL) ||
 		     (((strm->flags & SF_ERR_MASK) == SF_ERR_NONE) && strm->conn_retries) ||
-		     ((sess->fe->mode == PR_MODE_HTTP) && strm->txn && strm->txn->status >= 500)))
+		     ((sess->fe->mode == PR_MODE_HTTP) && strm->txn.http && strm->txn.http->status >= 500)))
 			ret = 1;
 		break;
 

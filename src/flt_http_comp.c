@@ -106,7 +106,7 @@ static void
 comp_prepare_compress_request(struct comp_state *st, struct stream *s, struct http_msg *msg)
 {
 	struct htx *htx = htxbuf(&msg->chn->buf);
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct http_hdr_ctx ctx;
 	struct comp_type *comp_type;
 	unsigned int comp_minsize = 0;
@@ -261,7 +261,7 @@ static int
 comp_res_http_post_analyze(struct stream *s, struct filter *filter,
                            struct channel *chn, unsigned an_bit)
 {
-	struct http_txn   *txn = s->txn;
+	struct http_txn   *txn = s->txn.http;
 	struct http_msg   *msg = &txn->rsp;
 	struct comp_state *st  = filter->ctx;
 
@@ -648,7 +648,7 @@ static int
 select_compression_response_header(struct comp_state *st, struct stream *s, struct http_msg *msg)
 {
 	struct htx *htx = htxbuf(&msg->chn->buf);
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn = s->txn.http;
 	struct http_hdr_ctx ctx;
 	struct comp_type *comp_type;
 	unsigned int comp_minsize = 0;
@@ -1195,7 +1195,7 @@ static int
 smp_fetch_res_comp(const struct arg *args, struct sample *smp, const char *kw,
 		   void *private)
 {
-	struct http_txn *txn = smp->strm ? smp->strm->txn : NULL;
+	struct http_txn *txn = smp->strm ? smp->strm->txn.http : NULL;
 
 	smp->data.type = SMP_T_BOOL;
 	smp->data.u.sint = (txn && (txn->rsp.flags & HTTP_MSGF_COMPRESSING));
@@ -1209,7 +1209,7 @@ static int
 smp_fetch_res_comp_algo(const struct arg *args, struct sample *smp,
 			const char *kw, void *private)
 {
-	struct http_txn   *txn = smp->strm ? smp->strm->txn : NULL;
+	struct http_txn   *txn = smp->strm ? smp->strm->txn.http : NULL;
 	struct filter     *filter;
 	struct comp_state *st;
 

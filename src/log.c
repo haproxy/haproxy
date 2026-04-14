@@ -3959,7 +3959,7 @@ size_t sess_build_logline_orig(struct session *sess, struct stream *s,
 
 	if (likely(s)) {
 		be = s->be;
-		txn = s->txn;
+		txn = s->txn.http;
 		be_conn = sc_conn(s->scb);
 		status = (txn ? txn->status : 0);
 		s_flags = s->flags;
@@ -5331,7 +5331,7 @@ void strm_log(struct stream *s, struct log_orig origin)
 	err = (s->flags & SF_REDISP) ||
               ((s->flags & SF_ERR_MASK) > SF_ERR_LOCAL) ||
 	      (((s->flags & SF_ERR_MASK) == SF_ERR_NONE) && s->conn_retries) ||
-	      ((sess->fe->mode == PR_MODE_HTTP) && s->txn && s->txn->status >= 500) ||
+	      ((sess->fe->mode == PR_MODE_HTTP) && s->txn.http && s->txn.http->status >= 500) ||
 	      (origin.flags & LOG_ORIG_FL_ERROR);
 
 	if (!err && (sess->fe->options2 & PR_O2_NOLOGNORM))

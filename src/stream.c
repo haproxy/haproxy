@@ -546,7 +546,7 @@ void *stream_new(struct session *sess, struct stconn *sc, struct buffer *input)
 	s->scb->ioto = TICK_ETERNITY;
 	s->res.analyse_exp = TICK_ETERNITY;
 
-	s->txn = NULL;
+	s->txn.http = NULL;
 	s->hlua[0] = s->hlua[1] = NULL;
 
 	s->resolv_ctx.requester = NULL;
@@ -683,7 +683,7 @@ void stream_free(struct stream *s)
 	hlua_ctx_destroy(s->hlua[1]);
 	s->hlua[0] = s->hlua[1] = NULL;
 
-	if (s->txn)
+	if (s->txn.http)
 		http_destroy_txn(s);
 
 	/* ensure the client-side transport layer is destroyed */
@@ -1299,8 +1299,8 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_R;
 
-	if (s->txn)
-		s->txn->status = 500;
+	if (s->txn.http)
+		s->txn.http->status = 500;
 	s->req.analysers &= AN_REQ_FLT_END;
 	s->req.analyse_exp = TICK_ETERNITY;
 	DBG_TRACE_DEVEL("leaving on error", STRM_EV_STRM_ANA|STRM_EV_STRM_ERR, s);
@@ -1594,7 +1594,7 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 
 	s->req.analysers |= AN_REQ_WAIT_HTTP|AN_REQ_HTTP_PROCESS_FE;
 
-	if (unlikely(!s->txn && !http_create_txn(s)))
+	if (unlikely(!s->txn.http && !http_create_txn(s)))
 		return 0;
 
 	conn = sc_conn(sc);
@@ -1913,8 +1913,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	}
 
 	/* this data may be no longer valid, clear it */
-	if (s->txn)
-		memset(&s->txn->auth, 0, sizeof(s->txn->auth));
+	if (s->txn.http)
+		memset(&s->txn.http->auth, 0, sizeof(s->txn.http->auth));
 
 	/* 1a: Check for low level timeouts if needed. We just set a flag on
 	 * stream connectors when their timeouts have expired.
@@ -2460,8 +2460,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 				s->conn_retries = 0;
 				if ((s->be->retry_type &~ PR_RE_CONN_FAILED) &&
 				    (s->be->mode == PR_MODE_HTTP) &&
-				    !(s->txn->flags & TX_D_L7_RETRY))
-					s->txn->flags |= TX_L7_RETRY;
+				    !(s->txn.http->flags & TX_D_L7_RETRY))
+					s->txn.http->flags |= TX_L7_RETRY;
 
 				if (proxy_abrt_close(s->be)) {
 					struct connection *conn = sc_conn(scf);
@@ -2774,10 +2774,10 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 
 		stream_process_counters(s);
 
-		if (s->txn && s->txn->status) {
+		if (s->txn.http && s->txn.http->status) {
 			int n;
 
-			n = s->txn->status / 100;
+			n = s->txn.http->status / 100;
 			if (n < 1 || n > 5)
 				n = 0;
 
@@ -3627,14 +3627,17 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 		      " age=%s)\n",
 		      human_time(ns_to_sec(now_ns) - ns_to_sec(request_ts), 1));
 
-	if (strm->txn) {
+	if (strm->txn.http) {
 		chunk_appendf(buf,
 		      "%s  txn=%p flags=0x%x meth=%d status=%d req.st=%s rsp.st=%s req.f=0x%02x rsp.f=0x%02x", pfx,
-		      strm->txn, strm->txn->flags, strm->txn->meth, strm->txn->status,
-		      h1_msg_state_str(strm->txn->req.msg_state), h1_msg_state_str(strm->txn->rsp.msg_state),
-		      strm->txn->req.flags, strm->txn->rsp.flags);
-		if (ctx && (ctx->flags & CLI_SHOWSESS_F_DUMP_URI) && strm->txn->uri)
-			chunk_appendf(buf, " uri=\"%s\"", HA_ANON_STR(anon_key, strm->txn->uri));
+		      strm->txn.http, strm->txn.http->flags,
+		      strm->txn.http->meth, strm->txn.http->status,
+		      h1_msg_state_str(strm->txn.http->req.msg_state),
+		      h1_msg_state_str(strm->txn.http->rsp.msg_state),
+		      strm->txn.http->req.flags, strm->txn.http->rsp.flags);
+		if (ctx && (ctx->flags & CLI_SHOWSESS_F_DUMP_URI) && strm->txn.http->uri)
+			chunk_appendf(buf, " uri=\"%s\"",
+				      HA_ANON_STR(anon_key, strm->txn.http->uri));
 		chunk_memcat(buf, "\n", 1);
 	}
 
@@ -4234,8 +4237,9 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		if (task_in_rq(curr_strm->task))
 			chunk_appendf(&trash, " run(nice=%d)", curr_strm->task->nice);
 
-		if ((ctx->flags & CLI_SHOWSESS_F_DUMP_URI) && curr_strm->txn && curr_strm->txn->uri)
-			chunk_appendf(&trash, " uri=\"%s\"", HA_ANON_CLI(curr_strm->txn->uri));
+		if ((ctx->flags & CLI_SHOWSESS_F_DUMP_URI) && curr_strm->txn.http && curr_strm->txn.http->uri)
+			chunk_appendf(&trash, " uri=\"%s\"",
+				      HA_ANON_CLI(curr_strm->txn.http->uri));
 
 		chunk_appendf(&trash, "\n");
 

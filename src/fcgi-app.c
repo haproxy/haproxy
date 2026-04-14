@@ -336,7 +336,7 @@ static int fcgi_flt_http_headers(struct stream *s, struct filter *filter, struct
 
 		/* Add the header "Content-Length:" if possible */
 		sl = http_get_stline(htx);
-		if (s->txn->meth != HTTP_METH_HEAD && sl &&
+		if (s->txn.http->meth != HTTP_METH_HEAD && sl &&
 		    (msg->flags & (HTTP_MSGF_XFER_LEN|HTTP_MSGF_CNT_LEN|HTTP_MSGF_TE_CHNK)) == HTTP_MSGF_XFER_LEN &&
 		    (htx->flags & HTX_FL_EOM)) {
 			struct htx_blk * blk;

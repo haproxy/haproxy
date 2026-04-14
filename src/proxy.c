@@ -4164,7 +4164,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 		/* If the target backend requires HTTP processing, we have to allocate
 		 * the HTTP transaction if we did not have one.
 		 */
-		if (unlikely(!s->txn && be->http_needed && !http_create_txn(s)))
+		if (unlikely(!s->txn.http && be->http_needed && !http_create_txn(s)))
 			return 0;
 	}
 
