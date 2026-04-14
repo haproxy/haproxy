@@ -2525,8 +2525,8 @@ re:
 				st = ACME_CHALLENGE;
 			ctx->http_state = ACME_HTTP_REQ;
 			ctx->state = st;
-			send_log(NULL, LOG_NOTICE, "acme: %s: dns-01: waiting %ds\n",
-			                            ctx->store->path, ctx->cfg->dns_delay);
+			send_log(NULL, LOG_NOTICE, "acme: %s: %s: waiting %ds\n",
+			                            ctx->store->path, ctx->cfg->challenge, ctx->cfg->dns_delay);
 
 			task->expire = tick_add(now_ms, ctx->cfg->dns_delay * 1000);
 			return task;
