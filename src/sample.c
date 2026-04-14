@@ -5089,6 +5089,43 @@ smp_fetch_tgroup(const struct arg *args, struct sample *smp, const char *kw, voi
 	return 1;
 }
 
+/* returns the last known CPU usage of the current thread */
+static int
+smp_fetch_cpu_usage_thr(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = 100 - th_ctx->idle_pct;
+	return 1;
+}
+
+/* returns the last known CPU usage of the current thread group */
+static int
+smp_fetch_cpu_usage_grp(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	uint thr, tot = 0;
+
+	for (thr = 0; thr < ha_tgroup_info[tgid - 1].count; thr++)
+		tot += 100 - ha_thread_ctx[ha_tgroup_info[tgid - 1].base + thr].idle_pct;
+
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = (tot + thr / 2) / thr;
+	return 1;
+}
+
+/* returns the last known CPU usage of the whole process */
+static int
+smp_fetch_cpu_usage_proc(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	int thr, tot = 0;
+
+	for (thr = 0; thr < global.nbthread; thr++)
+		tot += 100 - ha_thread_ctx[thr].idle_pct;
+
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = (tot + thr / 2) / thr;
+	return 1;
+}
+
 /* generate a random 32-bit integer for whatever purpose, with an optional
  * range specified in argument.
  */
@@ -5677,6 +5714,9 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "cpu_calls",    smp_fetch_cpu_calls,  0,       NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "cpu_ns_avg",   smp_fetch_cpu_ns_avg, 0,       NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "cpu_ns_tot",   smp_fetch_cpu_ns_tot, 0,       NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "cpu_usage_grp", smp_fetch_cpu_usage_grp,  0,  NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "cpu_usage_proc",smp_fetch_cpu_usage_proc, 0,  NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "cpu_usage_thr", smp_fetch_cpu_usage_thr,  0,  NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "lat_ns_avg",   smp_fetch_lat_ns_avg, 0,       NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "lat_ns_tot",   smp_fetch_lat_ns_tot, 0,       NULL, SMP_T_SINT, SMP_USE_INTRN },
 

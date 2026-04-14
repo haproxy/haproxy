@@ -23672,6 +23672,30 @@ cpu_ns_tot : integer
   high cpu_calls count, for example when processing many HTTP chunks, and for
   this reason it is often preferred to log cpu_ns_avg instead.
 
+cpu_usage_grp : integer
+  Returns the measured CPU usage over the last polling loop, between 0 and 100,
+  averaged over all threads of the current thread group. This can be used for
+  troubleshooting and for logging. The measure is extremely volatile but will
+  remain accurate for sustained loads as each thread measures it over a few
+  tens to hundreds of requests.
+
+cpu_usage_proc : integer
+  Returns the measured CPU usage over the last polling loop, between 0 and 100,
+  averaged over all running threads. This can be used for troubleshooting and
+  for logging. The measure is extremely volatile but will remain accurate for
+  sustained loads as each thread measures it over a few tens to hundreds of
+  requests. This is 100 minus the value reported in the idle ratio in the stats
+  page and in "show info".
+
+cpu_usage_thr : integer
+  Returns the measured CPU usage over the last polling loop, between 0 and 100,
+  for the calling thread. This can be used for troubleshooting and for logging.
+  The measure is extremely volatile but will remain accurate for sustained
+  loads as it is measured over a few tens to hundreds of requests. This is the
+  same value as used to decide to enable connection killing on too high
+  glitches, or to disable compression. See also "tune.glitches.kill.cpu-usage"
+  and "maxcomcpuusage".
+
 date([<offset>[,<unit>]]) : integer
   Returns the current date as the epoch (number of seconds since 01/01/1970).
 
