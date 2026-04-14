@@ -44,6 +44,7 @@
 #   USE_CLOSEFROM           : enable use of closefrom() on *bsd, solaris. Automatic.
 #   USE_PRCTL               : enable use of prctl(). Automatic.
 #   USE_PROCCTL             : enable use of procctl(). Automatic.
+#   USE_TRACE               : enable trace subsystem. Always on.
 #   USE_ZLIB                : enable zlib library support and disable SLZ
 #   USE_SLZ                 : enable slz library instead of zlib (default=enabled)
 #   USE_CPU_AFFINITY        : enable pinning processes to CPU on Linux. Automatic.
@@ -343,7 +344,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER USE_POLL                        \
            USE_TPROXY USE_LINUX_TPROXY USE_LINUX_CAP                          \
            USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H USE_ENGINE               \
            USE_GETADDRINFO USE_OPENSSL USE_OPENSSL_WOLFSSL USE_OPENSSL_AWSLC  \
-	       USE_ECH                                                            \
+           USE_ECH USE_TRACE                                                  \
            USE_SSL USE_LUA USE_ACCEPT4 USE_CLOSEFROM USE_ZLIB USE_SLZ         \
            USE_CPU_AFFINITY USE_TFO USE_NS USE_DL USE_RT USE_LIBATOMIC        \
            USE_MATH USE_DEVICEATLAS USE_51DEGREES                             \
@@ -365,6 +366,9 @@ $(warn_unknown_options)
 # poll() is always supported, unless explicitly disabled by passing USE_POLL=""
 # on the make command line.
 USE_POLL   = default
+
+# traces are always enabled
+USE_TRACE  = default
 
 # SLZ is always supported unless explicitly disabled by passing USE_SLZ=""
 # or disabled by enabling ZLIB using USE_ZLIB=1

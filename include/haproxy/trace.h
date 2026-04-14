@@ -34,6 +34,8 @@
 #define _TRC_LOC(f,l) __TRC_LOC(f, ":", l)
 #define __TRC_LOC(f,c,l) f c #l
 
+#if defined(USE_TRACE)
+
 /* truncate a macro arg list to exactly 5 args and replace missing ones with NULL.
  * The first one (a0) is always ignored.
  */
@@ -139,8 +141,23 @@
 			       &trace_no_cb, ist2(_msg, _msg_len));		\
 		}								\
 	} while (0)
+#else
+#    define TRACE_ENABLED(level, mask, args...) 0
+#    define TRACE(msg, mask, args...)        do { /* do nothing */ } while(0)
+#    define TRACE_ERROR(msg, mask, args...)  do { /* do nothing */ } while(0)
+#    define TRACE_USER(msg, mask, args...)   do { /* do nothing */ } while(0)
+#    define TRACE_DATA(msg, mask, args...)   do { /* do nothing */ } while(0)
+#    define TRACE_PROTO(msg, mask, args...)  do { /* do nothing */ } while(0)
+#    define TRACE_STATE(msg, mask, args...)  do { /* do nothing */ } while(0)
+#    define TRACE_DEVEL(msg, mask, args...)  do { /* do nothing */ } while(0)
+#    define TRACE_ENTER(mask, args...)       do { /* do nothing */ } while(0)
+#    define TRACE_LEAVE(mask, args...)       do { /* do nothing */ } while(0)
+#    define TRACE_POINT(mask, args...)       do { /* do nothing */ } while(0)
+#    define TRACE_PRINTF(level, args...)     do { /* do nothing */ } while(0)
+#    define TRACE_PRINTF_LOC(level, args...) do { /* do nothing */ } while(0)
+#endif
 
-#if defined(DEBUG_DEV) || defined(DEBUG_FULL)
+#if defined (USE_TRACE) && (defined(DEBUG_DEV) || defined(DEBUG_FULL))
 #    define DBG_TRACE(msg, mask, args...)        TRACE(msg, mask, ##args)
 #    define DBG_TRACE_ERROR(msg, mask, args...)  TRACE_ERROR(msg, mask, ##args)
 #    define DBG_TRACE_USER(msg, mask, args...)   TRACE_USER(msg, mask, ##args)
