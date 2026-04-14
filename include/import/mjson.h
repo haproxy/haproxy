@@ -54,4 +54,7 @@ int mjson_get_bool(const char *s, int len, const char *path, int *v);
 int mjson_get_string(const char *s, int len, const char *path, char *to, int n);
 int mjson_get_hex(const char *s, int len, const char *path, char *to, int n);
 
+int mjson_next(const char *s, int n, int off, int *koff, int *klen, int *voff,
+               int *vlen, int *vtype);
+
 #endif  // MJSON_H
