@@ -287,9 +287,11 @@ static inline int qcc_is_dead(const struct qcc *qcc)
 	 * - remote error detected at transport level
 	 * - error detected locally
 	 * - MUX timeout expired
+	 * - app layer shut and all transfers done (FE side only - used for stream.max-total)
 	 */
 	if (qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL_DONE) ||
-	    !qcc->task) {
+	    !qcc->task ||
+	    (!conn_is_back(qcc->conn) && !qcc->nb_hreq && qcc->app_st == QCC_APP_ST_SHUT)) {
 		return 1;
 	}
 

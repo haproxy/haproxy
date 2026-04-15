@@ -5263,7 +5263,8 @@ tune.quic.fe.stream.max-concurrent <number>
 tune.quic.fe.stream.max-total <number>
   Sets the maximum number of requests that can be handled by a single QUIC
   connection. Once this total is reached, the connection will be gracefully
-  shutdown. In HTTP/3, this translates in a GOAWAY frame.
+  shutdown. In HTTP/3, this translates in a GOAWAY frame. The connection is
+  finally closed when all remaining transfers are completed.
 
   This setting is applied as a hard limit on the connection via the QUIC flow
   control mechanism. If a peer violates it, the connection will be immediately
