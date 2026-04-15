@@ -44,6 +44,9 @@ DECLARE_STATIC_TYPED_POOL(pool_head_qc_stream_rxbuf, "qc_stream_rxbuf", struct q
 static void qmux_ctrl_send(struct qc_stream_desc *, uint64_t data, uint64_t offset);
 static void qmux_ctrl_room(struct qc_stream_desc *, uint64_t room);
 
+static int qcc_app_init(struct qcc *qcc);
+static void qcc_app_shutdown(struct qcc *qcc);
+
 /* Returns true if pacing should be used for <conn> connection. */
 static int qcc_is_pacing_active(const struct connection *conn)
 {
@@ -2959,42 +2962,6 @@ static void qcc_wakeup_pacing(struct qcc *qcc)
 	++qcc->tx.paced_sent_ctr;
 }
 
-/* Conduct I/O operations to finalize <qcc> app layer initialization. Note that
- * <qcc> app state may remain NULL even on success, if only a transient
- * blocking was encountered. Finalize operation can be retry later.
- *
- * Returns 0 on success else non-zero.
- */
-static int qcc_app_init(struct qcc *qcc)
-{
-	int ret;
-
-	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
-
-	if (qcc->app_ops->finalize) {
-		ret = qcc->app_ops->finalize(qcc->ctx);
-		if (ret < 0) {
-			TRACE_ERROR("app ops finalize error", QMUX_EV_QCC_NEW, qcc->conn);
-			goto err;
-		}
-
-		if (ret) {
-			TRACE_STATE("cannot finalize app ops yet", QMUX_EV_QCC_NEW, qcc->conn);
-			goto again;
-		}
-	}
-
-	qcc->app_st = QCC_APP_ST_INIT;
-
- again:
-	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);
-	return 0;
-
- err:
-	TRACE_DEVEL("leaving on error", QMUX_EV_QCC_SEND, qcc->conn);
-	return 1;
-}
-
 /* Proceed to sending. Loop through all available streams for the <qcc>
  * instance and try to send as much as possible.
  *
@@ -3276,52 +3243,6 @@ static void qcc_purge_streams(struct qcc *qcc)
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE, qcc->conn);
 }
 
-/* Execute application layer shutdown. If this operation is not defined, a
- * CONNECTION_CLOSE will be prepared as a fallback. This function is protected
- * against multiple invocation thanks to <qcc> application state context.
- */
-static void qcc_shutdown(struct qcc *qcc)
-{
-	TRACE_ENTER(QMUX_EV_QCC_END, qcc->conn);
-
-	if (qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL)) {
-		TRACE_DATA("connection on error", QMUX_EV_QCC_END, qcc->conn);
-		goto out;
-	}
-
-	if (qcc->app_st >= QCC_APP_ST_SHUT)
-		goto out;
-
-	TRACE_STATE("perform graceful shutdown", QMUX_EV_QCC_END, qcc->conn);
-	if (qcc->app_ops && qcc->app_ops->shutdown) {
-		qcc->app_ops->shutdown(qcc->ctx);
-		qcc_io_send(qcc);
-	}
-	else {
-		qcc->err = quic_err_transport(QC_ERR_NO_ERROR);
-	}
-
-	if (conn_is_quic(qcc->conn)) {
-		/* Register "no error" code at transport layer. Do not use
-		 * quic_set_connection_close() as retransmission may be performed to
-		 * finalized transfers. Do not overwrite quic-conn existing code if
-		 * already set.
-		 *
-		 * TODO implement a wrapper function for this in quic-conn module
-		 */
-		if (!(qcc->conn->handle.qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE))
-			qcc->conn->handle.qc->err = qcc->err;
-	}
-
-	/* A connection is not reusable if app layer is closed. */
-	if (qcc->flags & QC_CF_IS_BACK)
-		conn_delete_from_tree(qcc->conn, tid);
-
- out:
-	qcc->app_st = QCC_APP_ST_SHUT;
-	TRACE_LEAVE(QMUX_EV_QCC_END, qcc->conn);
-}
-
 /* Loop through all qcs from <qcc> and wake their associated data layer if
  * still active. Also report error on it if connection is already in error.
  */
@@ -3395,7 +3316,7 @@ static int qcc_io_process(struct qcc *qcc)
 		}
 
 		if (close)
-			qcc_shutdown(qcc);
+			qcc_app_shutdown(qcc);
 	}
 
 	/* Report error if set on stream endpoint layer. */
@@ -3407,6 +3328,88 @@ static int qcc_io_process(struct qcc *qcc)
 		return 1;
 
 	return 0;
+}
+
+/* Conduct I/O operations to finalize <qcc> app layer initialization. Note that
+ * <qcc> app state may remain NULL even on success, if only a transient
+ * blocking was encountered. Finalize operation can be retry later.
+ *
+ * Returns 0 on success else non-zero.
+ */
+static int qcc_app_init(struct qcc *qcc)
+{
+	int ret;
+
+	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
+
+	if (qcc->app_ops->finalize) {
+		ret = qcc->app_ops->finalize(qcc->ctx);
+		if (ret < 0) {
+			TRACE_ERROR("app ops finalize error", QMUX_EV_QCC_NEW, qcc->conn);
+			goto err;
+		}
+
+		if (ret) {
+			TRACE_STATE("cannot finalize app ops yet", QMUX_EV_QCC_NEW, qcc->conn);
+			goto again;
+		}
+	}
+
+	qcc->app_st = QCC_APP_ST_INIT;
+
+ again:
+	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);
+	return 0;
+
+ err:
+	TRACE_DEVEL("leaving on error", QMUX_EV_QCC_SEND, qcc->conn);
+	return 1;
+}
+
+/* Execute application layer shutdown. If this operation is not defined, a
+ * CONNECTION_CLOSE will be prepared as a fallback. This function is protected
+ * against multiple invocation thanks to <qcc> application state context.
+ */
+static void qcc_app_shutdown(struct qcc *qcc)
+{
+	TRACE_ENTER(QMUX_EV_QCC_END, qcc->conn);
+
+	if (qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL)) {
+		TRACE_DATA("connection on error", QMUX_EV_QCC_END, qcc->conn);
+		goto out;
+	}
+
+	if (qcc->app_st >= QCC_APP_ST_SHUT)
+		goto out;
+
+	TRACE_STATE("perform graceful shutdown", QMUX_EV_QCC_END, qcc->conn);
+	if (qcc->app_ops && qcc->app_ops->shutdown) {
+		qcc->app_ops->shutdown(qcc->ctx);
+		qcc_io_send(qcc);
+	}
+	else {
+		qcc->err = quic_err_transport(QC_ERR_NO_ERROR);
+	}
+
+	if (conn_is_quic(qcc->conn)) {
+		/* Register "no error" code at transport layer. Do not use
+		 * quic_set_connection_close() as retransmission may be performed to
+		 * finalized transfers. Do not overwrite quic-conn existing code if
+		 * already set.
+		 *
+		 * TODO implement a wrapper function for this in quic-conn module
+		 */
+		if (!(qcc->conn->handle.qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE))
+			qcc->conn->handle.qc->err = qcc->err;
+	}
+
+	/* A connection is not reusable if app layer is closed. */
+	if (qcc->flags & QC_CF_IS_BACK)
+		conn_delete_from_tree(qcc->conn, tid);
+
+ out:
+	qcc->app_st = QCC_APP_ST_SHUT;
+	TRACE_LEAVE(QMUX_EV_QCC_END, qcc->conn);
 }
 
 /* Free all resources allocated for <qcc> connection. */
@@ -3585,7 +3588,7 @@ struct task *qcc_io_cb(struct task *t, void *ctx, unsigned int state)
 	return t;
 
  release:
-	qcc_shutdown(qcc);
+	qcc_app_shutdown(qcc);
 	qcc_release(qcc);
 
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE);
@@ -3675,7 +3678,7 @@ static struct task *qcc_timeout_task(struct task *t, void *ctx, unsigned int sta
 	 */
 	if (qcc_is_dead(qcc)) {
 		TRACE_STATE("releasing dead connection", QMUX_EV_QCC_WAKE, qcc->conn);
-		qcc_shutdown(qcc);
+		qcc_app_shutdown(qcc);
 		qcc_release(qcc);
 	}
 
@@ -4142,7 +4145,7 @@ static void qmux_strm_detach(struct sedesc *sd)
 	return;
 
  release:
-	qcc_shutdown(qcc);
+	qcc_app_shutdown(qcc);
 	qcc_release(qcc);
 	TRACE_LEAVE(QMUX_EV_STRM_END);
 	return;
@@ -4486,7 +4489,7 @@ static int qmux_wake(struct connection *conn)
 	return 0;
 
  release:
-	qcc_shutdown(qcc);
+	qcc_app_shutdown(qcc);
 	qcc_release(qcc);
 	TRACE_LEAVE(QMUX_EV_QCC_WAKE);
 	return 1;
