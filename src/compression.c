@@ -62,46 +62,46 @@ static int global_tune_zlibwindowsize = MAX_WBITS;  /* zlib window size */
 
 unsigned int compress_min_idle = 0;
 
-static int identity_init(struct comp_ctx **comp_ctx, int level);
-static int identity_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out);
-static int identity_flush(struct comp_ctx *comp_ctx, struct buffer *out);
-static int identity_finish(struct comp_ctx *comp_ctx, struct buffer *out);
-static int identity_end(struct comp_ctx **comp_ctx);
+static int comp_identity_init(struct comp_ctx **comp_ctx, int level);
+static int comp_identity_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out);
+static int comp_identity_flush(struct comp_ctx *comp_ctx, struct buffer *out);
+static int comp_identity_finish(struct comp_ctx *comp_ctx, struct buffer *out);
+static int comp_identity_end(struct comp_ctx **comp_ctx);
 
 #if defined(USE_SLZ)
 
-static int rfc1950_init(struct comp_ctx **comp_ctx, int level);
-static int rfc1951_init(struct comp_ctx **comp_ctx, int level);
-static int rfc1952_init(struct comp_ctx **comp_ctx, int level);
-static int rfc195x_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out);
-static int rfc195x_flush(struct comp_ctx *comp_ctx, struct buffer *out);
-static int rfc195x_finish(struct comp_ctx *comp_ctx, struct buffer *out);
-static int rfc195x_end(struct comp_ctx **comp_ctx);
+static int comp_rfc1950_init(struct comp_ctx **comp_ctx, int level);
+static int comp_rfc1951_init(struct comp_ctx **comp_ctx, int level);
+static int comp_rfc1952_init(struct comp_ctx **comp_ctx, int level);
+static int comp_rfc195x_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out);
+static int comp_rfc195x_flush(struct comp_ctx *comp_ctx, struct buffer *out);
+static int comp_rfc195x_finish(struct comp_ctx *comp_ctx, struct buffer *out);
+static int comp_rfc195x_end(struct comp_ctx **comp_ctx);
 
 #elif defined(USE_ZLIB)
 
-static int gzip_init(struct comp_ctx **comp_ctx, int level);
-static int raw_def_init(struct comp_ctx **comp_ctx, int level);
-static int deflate_init(struct comp_ctx **comp_ctx, int level);
-static int deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out);
-static int deflate_flush(struct comp_ctx *comp_ctx, struct buffer *out);
-static int deflate_finish(struct comp_ctx *comp_ctx, struct buffer *out);
-static int deflate_end(struct comp_ctx **comp_ctx);
+static int comp_gzip_init(struct comp_ctx **comp_ctx, int level);
+static int comp_raw_def_init(struct comp_ctx **comp_ctx, int level);
+static int comp_deflate_init(struct comp_ctx **comp_ctx, int level);
+static int comp_deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out);
+static int comp_deflate_flush(struct comp_ctx *comp_ctx, struct buffer *out);
+static int comp_deflate_finish(struct comp_ctx *comp_ctx, struct buffer *out);
+static int comp_deflate_end(struct comp_ctx **comp_ctx);
 
 #endif /* USE_ZLIB */
 
 
 const struct comp_algo comp_algos[] =
 {
-	{ "identity",     8, "identity", 8, identity_init, identity_add_data, identity_flush, identity_finish, identity_end },
+	{ "identity",     8, "identity", 8, comp_identity_init, comp_identity_add_data, comp_identity_flush, comp_identity_finish, comp_identity_end },
 #if defined(USE_SLZ)
-	{ "deflate",      7, "deflate",  7, rfc1950_init,  rfc195x_add_data,  rfc195x_flush,  rfc195x_finish,  rfc195x_end },
-	{ "raw-deflate", 11, "deflate",  7, rfc1951_init,  rfc195x_add_data,  rfc195x_flush,  rfc195x_finish,  rfc195x_end },
-	{ "gzip",         4, "gzip",     4, rfc1952_init,  rfc195x_add_data,  rfc195x_flush,  rfc195x_finish,  rfc195x_end },
+	{ "deflate",      7, "deflate",  7, comp_rfc1950_init,  comp_rfc195x_add_data,  comp_rfc195x_flush,  comp_rfc195x_finish,  comp_rfc195x_end },
+	{ "raw-deflate", 11, "deflate",  7, comp_rfc1951_init,  comp_rfc195x_add_data,  comp_rfc195x_flush,  comp_rfc195x_finish,  comp_rfc195x_end },
+	{ "gzip",         4, "gzip",     4, comp_rfc1952_init,  comp_rfc195x_add_data,  comp_rfc195x_flush,  comp_rfc195x_finish,  comp_rfc195x_end },
 #elif defined(USE_ZLIB)
-	{ "deflate",      7, "deflate",  7, deflate_init,  deflate_add_data,  deflate_flush,  deflate_finish,  deflate_end },
-	{ "raw-deflate", 11, "deflate",  7, raw_def_init,  deflate_add_data,  deflate_flush,  deflate_finish,  deflate_end },
-	{ "gzip",         4, "gzip",     4, gzip_init,     deflate_add_data,  deflate_flush,  deflate_finish,  deflate_end },
+	{ "deflate",      7, "deflate",  7, comp_deflate_init,  comp_deflate_add_data,  comp_deflate_flush,  comp_deflate_finish,  comp_deflate_end },
+	{ "raw-deflate", 11, "deflate",  7, comp_raw_def_init,  comp_deflate_add_data,  comp_deflate_flush,  comp_deflate_finish,  comp_deflate_end },
+	{ "gzip",         4, "gzip",     4, comp_gzip_init,     comp_deflate_add_data,  comp_deflate_flush,  comp_deflate_finish,  comp_deflate_end },
 #endif /* USE_ZLIB */
 	{ NULL,       0, NULL,          0, NULL ,         NULL,              NULL,           NULL,           NULL }
 };
@@ -216,7 +216,7 @@ static inline int deinit_comp_ctx(struct comp_ctx **comp_ctx)
 /*
  * Init the identity algorithm
  */
-static int identity_init(struct comp_ctx **comp_ctx, int level)
+static int comp_identity_init(struct comp_ctx **comp_ctx, int level)
 {
 	return 0;
 }
@@ -225,7 +225,7 @@ static int identity_init(struct comp_ctx **comp_ctx, int level)
  * Process data
  *   Return size of consumed data or -1 on error
  */
-static int identity_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out)
+static int comp_identity_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out)
 {
 	char *out_data = b_tail(out);
 	int out_len = b_room(out);
@@ -240,12 +240,12 @@ static int identity_add_data(struct comp_ctx *comp_ctx, const char *in_data, int
 	return in_len;
 }
 
-static int identity_flush(struct comp_ctx *comp_ctx, struct buffer *out)
+static int comp_identity_flush(struct comp_ctx *comp_ctx, struct buffer *out)
 {
 	return 0;
 }
 
-static int identity_finish(struct comp_ctx *comp_ctx, struct buffer *out)
+static int comp_identity_finish(struct comp_ctx *comp_ctx, struct buffer *out)
 {
 	return 0;
 }
@@ -253,7 +253,7 @@ static int identity_finish(struct comp_ctx *comp_ctx, struct buffer *out)
 /*
  * Deinit the algorithm
  */
-static int identity_end(struct comp_ctx **comp_ctx)
+static int comp_identity_end(struct comp_ctx **comp_ctx)
 {
 	return 0;
 }
@@ -262,7 +262,7 @@ static int identity_end(struct comp_ctx **comp_ctx)
 #ifdef USE_SLZ
 
 /* SLZ's gzip format (RFC1952). Returns < 0 on error. */
-static int rfc1952_init(struct comp_ctx **comp_ctx, int level)
+static int comp_rfc1952_init(struct comp_ctx **comp_ctx, int level)
 {
 	if (init_comp_ctx(comp_ctx) < 0)
 		return -1;
@@ -272,7 +272,7 @@ static int rfc1952_init(struct comp_ctx **comp_ctx, int level)
 }
 
 /* SLZ's raw deflate format (RFC1951). Returns < 0 on error. */
-static int rfc1951_init(struct comp_ctx **comp_ctx, int level)
+static int comp_rfc1951_init(struct comp_ctx **comp_ctx, int level)
 {
 	if (init_comp_ctx(comp_ctx) < 0)
 		return -1;
@@ -282,7 +282,7 @@ static int rfc1951_init(struct comp_ctx **comp_ctx, int level)
 }
 
 /* SLZ's zlib format (RFC1950). Returns < 0 on error. */
-static int rfc1950_init(struct comp_ctx **comp_ctx, int level)
+static int comp_rfc1950_init(struct comp_ctx **comp_ctx, int level)
 {
 	if (init_comp_ctx(comp_ctx) < 0)
 		return -1;
@@ -295,7 +295,7 @@ static int rfc1950_init(struct comp_ctx **comp_ctx, int level)
  * point, we only keep a reference to the input data or a copy of them if the
  * reference is already used.
  */
-static int rfc195x_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out)
+static int comp_rfc195x_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out)
 {
 	static THREAD_LOCAL struct buffer tmpbuf = BUF_NULL;
 
@@ -335,7 +335,7 @@ static int rfc195x_add_data(struct comp_ctx *comp_ctx, const char *in_data, int 
  * large enough free non-wrapping space as verified by http_comp_buffer_init().
  * The number of bytes emitted is reported.
  */
-static int rfc195x_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out, int finish)
+static int comp_rfc195x_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out, int finish)
 {
 	struct slz_stream *strm = &comp_ctx->strm;
 	const char *in_ptr;
@@ -381,18 +381,18 @@ static int rfc195x_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out
 	return out_len;
 }
 
-static int rfc195x_flush(struct comp_ctx *comp_ctx, struct buffer *out)
+static int comp_rfc195x_flush(struct comp_ctx *comp_ctx, struct buffer *out)
 {
-	return rfc195x_flush_or_finish(comp_ctx, out, 0);
+	return comp_rfc195x_flush_or_finish(comp_ctx, out, 0);
 }
 
-static int rfc195x_finish(struct comp_ctx *comp_ctx, struct buffer *out)
+static int comp_rfc195x_finish(struct comp_ctx *comp_ctx, struct buffer *out)
 {
-	return rfc195x_flush_or_finish(comp_ctx, out, 1);
+	return comp_rfc195x_flush_or_finish(comp_ctx, out, 1);
 }
 
 /* we just need to free the comp_ctx here, nothing was allocated */
-static int rfc195x_end(struct comp_ctx **comp_ctx)
+static int comp_rfc195x_end(struct comp_ctx **comp_ctx)
 {
 	deinit_comp_ctx(comp_ctx);
 	return 0;
@@ -516,7 +516,7 @@ static void free_zlib(void *opaque, void *ptr)
 /**************************
 ****  gzip algorithm   ****
 ***************************/
-static int gzip_init(struct comp_ctx **comp_ctx, int level)
+static int comp_gzip_init(struct comp_ctx **comp_ctx, int level)
 {
 	z_stream *strm;
 
@@ -536,7 +536,7 @@ static int gzip_init(struct comp_ctx **comp_ctx, int level)
 }
 
 /* Raw deflate algorithm */
-static int raw_def_init(struct comp_ctx **comp_ctx, int level)
+static int comp_raw_def_init(struct comp_ctx **comp_ctx, int level)
 {
 	z_stream *strm;
 
@@ -558,7 +558,7 @@ static int raw_def_init(struct comp_ctx **comp_ctx, int level)
 **** Deflate algorithm ****
 ***************************/
 
-static int deflate_init(struct comp_ctx **comp_ctx, int level)
+static int comp_deflate_init(struct comp_ctx **comp_ctx, int level)
 {
 	z_stream *strm;
 
@@ -578,7 +578,7 @@ static int deflate_init(struct comp_ctx **comp_ctx, int level)
 }
 
 /* Return the size of consumed data or -1 */
-static int deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out)
+static int comp_deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out)
 {
 	int ret;
 	z_stream *strm = &comp_ctx->strm;
@@ -607,7 +607,7 @@ static int deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data, int 
 	return in_len - strm->avail_in;
 }
 
-static int deflate_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out, int flag)
+static int comp_deflate_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out, int flag)
 {
 	int ret;
 	int out_len = 0;
@@ -643,17 +643,17 @@ static int deflate_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out
 	return out_len;
 }
 
-static int deflate_flush(struct comp_ctx *comp_ctx, struct buffer *out)
+static int comp_deflate_flush(struct comp_ctx *comp_ctx, struct buffer *out)
 {
-	return deflate_flush_or_finish(comp_ctx, out, Z_SYNC_FLUSH);
+	return comp_deflate_flush_or_finish(comp_ctx, out, Z_SYNC_FLUSH);
 }
 
-static int deflate_finish(struct comp_ctx *comp_ctx, struct buffer *out)
+static int comp_deflate_finish(struct comp_ctx *comp_ctx, struct buffer *out)
 {
-	return deflate_flush_or_finish(comp_ctx, out, Z_FINISH);
+	return comp_deflate_flush_or_finish(comp_ctx, out, Z_FINISH);
 }
 
-static int deflate_end(struct comp_ctx **comp_ctx)
+static int comp_deflate_end(struct comp_ctx **comp_ctx)
 {
 	z_stream *strm = &(*comp_ctx)->strm;
 	int ret;
