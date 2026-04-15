@@ -1,6 +1,170 @@
 ChangeLog :
 ===========
 
+2026/04/15 : 3.4-dev9
+    - DOC: config: fix ambiguous info in log-steps directive description
+    - MINOR: filters: add filter name to flt_conf struct
+    - MEDIUM: filters: add "filter-sequence" directive
+    - REGTESTS: add a test for "filter-sequence" directive
+    - Revert "CLEANUP: tcpcheck: Don't needlessly expose proxy_parse_tcpcheck()"
+    - MINOR: tcpcheck: reintroduce proxy_parse_tcpcheck() symbol
+    - BUG/MEDIUM: haterm: Move all init functions of haterm in haterm_init.c
+    - BUG/MEDIUM: mux-h1: Disable 0-copy forwarding when draining the request
+    - MINOR: servers: The right parameter for idle-pool.shared is "full"
+    - DOC: config: Fix two typos in the server param "healthcheck" description
+    - BUG/MINOR: http-act: fix a typo in the "pause" action error message
+    - MINOR: tcpcheck: Reject unknown keyword during parsing of healthcheck section
+    - BUG/MEDIUM: tcpcheck/server: Fix parsing of healthcheck param for dynamic servers
+    - BUG/MINOR: counters: fix unexpected 127 char GUID truncation for shm-stats-file objects
+    - BUG/MEDIUM: tcpcheck: Properly retrieve tcpcheck type to install the best mux
+    - BUG/MEDIUM: payload: validate SNI name_len in req.ssl_sni
+    - BUG/MEDIUM: jwe: fix NULL deref crash with empty CEK and non-dir alg
+    - BUG/MEDIUM: jwt: fix heap overflow in ECDSA signature DER conversion
+    - BUG/MEDIUM: jwe: fix memory leak in jwt_decrypt_secret with var argument
+    - BUG: hlua: fix stack overflow in httpclient headers conversion
+    - BUG/MINOR: hlua: fix stack overflow in httpclient headers conversion
+    - BUG/MINOR: hlua: fix format-string vulnerability in Patref error path
+    - BUG/MEDIUM: chunk: fix typo allocating small trash with bufsize_large
+    - BUG/MEDIUM: chunk: fix infinite loop in get_larger_trash_chunk()
+    - BUG/MINOR: peers: fix OOB heap write in dictionary cache update
+    - CI: VTest build with git clone + cache
+    - BUG/MEDIUM: connection: Wake the stconn on error when failing to create mux
+    - CI: github: update to cache@v5
+    - Revert "BUG: hlua: fix stack overflow in httpclient headers conversion"
+    - CI: github: fix vtest path to allow correct caching
+    - CI: github: add the architecture to the cache key for vtest2
+    - MEDIUM: connections: Really enforce mux protocol requirements
+    - MINOR: tools: Implement net_addr_type_is_quic()
+    - MEDIUM: check: Revamp the way the protocol and xprt are determined
+    - BUG/MAJOR: slz: always make sure to limit fixed output to less than worst case literals
+    - MINOR: lua: add tune.lua.openlibs to restrict loaded Lua standard libraries
+    - REGTESTS: lua: add tune.lua.openlibs to all Lua reg-tests
+    - BUG/MINOR: resolvers: fix memory leak on AAAA additional records
+    - BUG/MINOR: spoe: fix pointer arithmetic overflow in spoe_decode_buffer()
+    - BUG/MINOR: http-act: validate decoded lengths in *-headers-bin
+    - BUG/MINOR: haterm: Return the good start-line for 100-continue interim message
+    - BUG/MEDIUM: samples: Fix handling of SMP_T_METH samples
+    - BUG/MINOR: sample: fix info leak in regsub when exp_replace fails
+    - BUG/MEDIUM: mux-fcgi: prevent record-length truncation with large bufsize
+    - BUG/MINOR: hlua: fix use-after-free of HTTP reason string
+    - BUG/MINOR: mux-quic: fix potential NULL deref on qcc_release()
+    - BUG/MINOR: quic: increment pos pointer on QMux transport params parsing
+    - MINOR: xprt_qstrm: implement Rx buffering
+    - MINOR: xprt_qstrm/mux-quic: handle extra QMux frames after params
+    - MINOR: xprt_qstrm: implement Tx buffering
+    - MINOR: xprt_qstrm: handle connection errors
+    - MEDIUM: mux-quic: implement QMux record parsing
+    - MEDIUM: xprt_qstrm: implement QMux record parsing
+    - MEDIUM: mux-quic/xprt_qstrm: implement QMux record emission
+    - DOC: update draft link for QMux protocol
+    - BUG/MINOR: do not crash on QMux reception of BLOCKED frames
+    - Revert "BUG/MEDIUM: haterm: Move all init functions of haterm in haterm_init.c"
+    - BUG/MEDIUM: haterm: Properly initialize the splicing support for haterm
+    - BUG/MINOR: mux_quic: prevent QMux crash on qcc_io_send() error path
+    - BUG/MINOR: xprt_qstrm: do not parse record length on read again
+    - MEDIUM: otel: added OpenTelemetry filter skeleton
+    - MEDIUM: otel: added configuration and utility layer
+    - MEDIUM: otel: added configuration parser and event model
+    - MEDIUM: otel: added post-parse configuration check
+    - MEDIUM: otel: added memory pool and runtime scope layer
+    - MEDIUM: otel: implemented filter callbacks and event dispatcher
+    - MEDIUM: otel: wired OTel C wrapper library integration
+    - MEDIUM: otel: implemented scope execution and span management
+    - MEDIUM: otel: added context propagation via carrier interfaces
+    - MEDIUM: otel: added HTTP header operations for context propagation
+    - MEDIUM: otel: added HAProxy variable storage for context propagation
+    - MINOR: otel: added prefix-based variable scanning
+    - MEDIUM: otel: added CLI commands for runtime filter management
+    - MEDIUM: otel: added group action for rule-based scope execution
+    - MINOR: otel: added log-format support to the sample parser and runtime
+    - MINOR: otel: test: added test and benchmark suite for the OTel filter
+    - MINOR: otel: added span link support
+    - MINOR: otel: added metrics instrument support
+    - MINOR: otel: added log-record signal support
+    - MINOR: otel: test: added full-event test config
+    - DOC: otel: added documentation
+    - DOC: otel: test: added test README-* files
+    - DOC: otel: test: added speed test guide and benchmark results
+    - DOC: otel: added cross-cutting design patterns document
+    - MINOR: otel: added flt_otel_sample_eval and exposed flt_otel_sample_add_kv
+    - MINOR: otel: changed log-record attr to use sample expressions
+    - MINOR: otel: changed instrument attr to use sample expressions
+    - DOC: otel: added README.md overview document
+    - CLEANUP: ot: use the item API for the variables trees
+    - BUG/MINOR: ot: removed dead code in flt_ot_parse_cfg_str()
+    - BUG/MINOR: ot: fixed wrong NULL check in flt_ot_parse_cfg_group()
+    - BUILD: ot: removed explicit include path when building opentracing filter
+    - MINOR: ot: renamed the variable dbg_indent_level to flt_ot_dbg_indent_level
+    - CI: Drop obsolete `packages: write` permission from `quic-interop-*.yml`
+    - CI: Consistently add a top-level `permissions` definition to GHA workflows
+    - CI: Wrap all `if:` conditions in `${{ }}`
+    - CI: Fix regular expression escaping in matrix.py
+    - CI: Update to actions/checkout@v6
+    - CI: Simplify version extraction with `haproxy -vq`
+    - CI: Merge `aws-lc.yml` and `aws-lc-fips.yml` into `aws-lc.yml`
+    - CI: Merge `aws-lc-template.yml` into `aws-lc.yml`
+    - CI: Consistently set up VTest with `./.github/actions/setup-vtest`
+    - MINOR: mux_quic: remove duplicate QMux local transport params
+    - CI: github: add bash to the musl job
+    - BUG/MINOR: quic: do not use hardcoded values in QMux TP frame builder
+    - BUG/MINOR: log: Fix error message when using unavailable fetch in logfmt
+    - CLEANUP: log: Return `size_t` from `sess_build_logline_orig()`
+    - CLEANUP: stream: Explain the two-step initialization in `stream_generate_unique_id()`
+    - CLEANUP: stream: Reduce duplication in `stream_generate_unique_id()`
+    - CLEANUP: http_fetch: Use local `unique_id` variable in `smp_fetch_uniqueid()`
+    - CI: build WolfSSL job with asan enabled
+    - MINOR: tools: memvprintf(): remove <out> check that always true
+    - BUG/MEDIUM: cli: Properly handle too big payload on a command line
+    - REGTESTS: Never reuse server connection in reg-tests/jwt/jwt_decrypt.vtc
+    - MINOR: errors: remove excessive errmsg checks
+    - BUG/MINOR: haterm: preserve the pipe size margin for splicing
+    - MEDIUM: acme: implement dns-persist-01 challenge
+    - MINOR: acme: extend resolver-based DNS pre-check to dns-persist-01
+    - DOC: configuration: document dns-persist-01 challenge type and options
+    - BUG/MINOR: acme: read the wildcard flag from the authorization response
+    - BUG/MINOR: acme: don't pass NULL into format string
+    - BUG/MINOR: haterm: don't apply the default pipe size margin twice
+    - CLEANUP: Make `lf_expr` parameter of `sess_build_logline_orig()` const
+    - MINOR: Add `generate_unique_id()` helper
+    - MINOR: Allow inlining of `stream_generate_unique_id()`
+    - CLEANUP: log: Stop touching `struct stream` internals for `%ID`
+    - MINOR: check: Support generating a `unique_id` for checks
+    - MINOR: http_fetch: Add support for checks to `unique-id` fetch
+    - MINOR: acme: display the type of challenge in ACME_INITIAL_DELAY
+    - MINOR: mjson: reintroduce mjson_next()
+    - CI: Remove obsolete steps from musl.yml
+    - CI: Use `sh` in `actions/setup-vtest/action.yml`
+    - CI: Sync musl.yml with vtest.yml
+    - CI: Integrate Musl build into vtest.yml
+    - CI: Use `case()` function
+    - CI: Generate vtest.yml matrix on `ubuntu-slim`
+    - CI: Run contrib.yml on `ubuntu-slim`
+    - CI: Use `matrix:` in contrib.yml
+    - CI: Build `dev/haring/` as part of contrib.yml
+    - MINOR: htx: Add helper function to get type and size from the block info field
+    - BUG/MEDIUM: htx: Properly handle block modification during defragmentation
+    - BUG/MEDIUM: htx: Don't count delta twice when block value is replaced
+    - MINOR: ssl: add TLS 1.2 values in HAPROXY_KEYLOG_XX_LOG_FMT
+    - EXAMPLES: ssl: keylog entries are greater than 1024
+    - BUILD: Makefile: don't forget to also delete haterm on make clean
+    - MINOR: stats: report the number of thread groups in "show info"
+    - CLEANUP: sample: fix the comment regarding the range of the thread sample fetch
+    - MINOR: sample: return the number of the current thread group
+    - MINOR: sample: add new sample fetch functions reporting current CPU usage
+    - BUG/MEDIUM: peers: trash of expired entries delayed after fullresync
+    - DOC: remove the alpine/musl status job image
+    - MINOR: mux-quic: improve documentation for qcs_attach_sc()
+    - MINOR: mux-quic: reorganize code for app init/shutdown
+    - MINOR: mux-quic: perform app init in case of early shutdown
+    - MEDIUM: quic: implement fe.stream.max-total
+    - MINOR: mux-quic: close connection when reaching max-total streams
+    - REGTESTS: add QUIC test for max-total streams setting
+    - MEDIUM: threads: start threads by groups
+    - MINOR: acme: opportunistic DNS check for dns-persist-01 to skip challenge-ready steps
+    - BUG/MINOR: acme: fix fallback state after failed initial DNS check
+    - CLEANUP: acme: no need to reset ctx state and http_state before nextreq
+    - BUG/MINOR: threads: properly set the number of tgroups when non using policy
+
 2026/04/03 : 3.4-dev8
     - MINOR: log: split do_log() in do_log() + do_log_ctx()
     - MINOR: log: provide a way to override logger->profile from process_send_log_ctx
