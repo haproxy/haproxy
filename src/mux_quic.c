@@ -3212,18 +3212,21 @@ static int qmux_avail_streams(struct connection *conn)
 {
 	struct server *srv = __objt_server(conn->target);
 	struct qcc *qcc = conn->ctx;
-	int max_fctl, max_reuse = 0;
+	int ret, max_reuse = 0;
 
-	max_fctl = qcc_fctl_avail_streams(qcc, 1);
+	ret = qcc_fctl_avail_streams(qcc, 1);
 
 	if (srv->max_reuse >= 0) {
 		max_reuse = qcc->tot_sc <= srv->max_reuse ?
 		  srv->max_reuse - qcc->tot_sc + 1: 0;
-		return MIN(max_fctl, max_reuse);
+		ret = MIN(ret, max_reuse);
 	}
-	else {
-		return max_fctl;
-	}
+
+	/* Ensure we do not exceed the maximum usable stream ID. */
+	if (unlikely(ret > QCS_ID_MAX_STRM_CL_BIDI - qcc->next_bidi_l))
+		ret = QCS_ID_MAX_STRM_CL_BIDI - qcc->next_bidi_l;
+
+	return ret;
 }
 
 /* Returns the number of streams currently attached into <conn> connection.
