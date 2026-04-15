@@ -952,16 +952,17 @@ void qcs_send_metadata(struct qcs *qcs)
 	qcs->flags |= QC_SF_TXBUB_OOB;
 }
 
-/* Instantiate a streamdesc instance for <qcs> stream. This is necessary to
- * transfer data after a new request reception. <buf> can be used to forward
+/* Instantiate a stream and its associated stconn and sedesc. This is necessary
+ * to transfer data after a new request reception. <buf> can be used to forward
  * the first received request data. <fin> must be set if the whole request is
  * already received.
  *
- * Note that if <qcs> is already fully closed, no streamdesc is instantiated.
- * This is useful if a RESET_STREAM was already emitted in response to a
- * STOP_SENDING.
+ * This function is only used on frontend side.
  *
- * Returns 0 on success else a negative error code. If stream is already fully
+ * Note that if <qcs> is already fully closed, nothing is instantiated. This is
+ * useful if a RESET_STREAM was already emitted in response to a STOP_SENDING.
+ *
+ * Returns 0 on success else a negative error code. If <qcs> is already fully
  * closed and nothing is performed, it is considered as a success case.
  */
 int qcs_attach_sc(struct qcs *qcs, struct buffer *buf, char fin)
