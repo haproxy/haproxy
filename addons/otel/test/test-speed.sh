@@ -1,11 +1,15 @@
 #!/bin/sh -u
 #
-        SH_ARG_CFG="${1:-}"
-        SH_ARG_DIR="${2:-${SH_ARG_CFG}}"
+                __=	# echo
+        SH_ARG_CFG=
+        SH_ARG_DIR=
+       SH_ARG_RATE="100.0 75.0 50.0 25.0 10.0 2.5 0.0 disabled off"
+   SH_ARG_DURATION="300"
+	   SH_NAME="$(basename "${0}")"
         SH_LOG_DIR="_logs"
 SH_HAPROXY_PIDFILE="${SH_LOG_DIR}/haproxy.pid"
   SH_HTTPD_PIDFILE="${SH_LOG_DIR}/thttpd.pid"
-      SH_USAGE_MSG="usage: $(basename "${0}") cfg [dir]"
+      SH_USAGE_MSG="usage: ${SH_NAME} [-d duration] [-h] [-r rate-limits] cfg [dir]"
 
 
 sh_exit ()
@@ -23,6 +27,8 @@ sh_exit ()
 		echo
 	}
 
+	${__} sh_httpd_stop
+	rmdir -p "${SH_LOG_DIR}" 2>/dev/null
 	exit ${2:-64}
 }
 
@@ -119,7 +125,7 @@ sh_wrk_run ()
 	_arg_ratio="${1}"
 
 	echo "--- rate-limit ${_arg_ratio} --------------------------------------------------"
-	wrk -c8 -d300 -t8 --latency http://localhost:10080/index.html
+	wrk -c8 -d${SH_ARG_DURATION} -t8 --latency http://localhost:10080/index.html
 	echo "----------------------------------------------------------------------"
 	echo
 
@@ -127,31 +133,50 @@ sh_wrk_run ()
 }
 
 
+while getopts d:hr: _var_getopt; do
+	case "${_var_getopt}" in
+	  d)	SH_ARG_DURATION="${OPTARG}" ;;
+	  h)	sh_exit "${SH_USAGE_MSG}" 0 ;;
+	  r)	SH_ARG_RATE="${OPTARG}" ;;
+	  \?)	sh_exit "${SH_USAGE_MSG}" 64
+	esac
+done
+
+shift $(expr ${OPTIND} - 1)
+SH_ARG_CFG="${1:-}"
+SH_ARG_DIR="${2:-${SH_ARG_CFG}}"
+
+
 command -v thttpd >/dev/null 2>&1 || sh_exit "thttpd: command not found" 5
 command -v wrk >/dev/null 2>&1    || sh_exit "wrk: command not found" 6
 
+test -z "${SH_ARG_CFG}" -o -z "${SH_ARG_DIR}" && sh_exit "${SH_USAGE_MSG}" 64
 mkdir -p "${SH_LOG_DIR}" || sh_exit "${SH_LOG_DIR}: Cannot create log directory" 1
 
 if test "${SH_ARG_CFG}" = "all"; then
-	"${0}" sa sa    > "${SH_LOG_DIR}/README-speed-sa"
-	"${0}" cmp cmp  > "${SH_LOG_DIR}/README-speed-cmp"
-	"${0}" ctx ctx  > "${SH_LOG_DIR}/README-speed-ctx"
-	"${0}" fe-be fe > "${SH_LOG_DIR}/README-speed-fe-be"
+	_var_args="-r ${SH_ARG_RATE}"
+	"${0}" "${_var_args}" sa sa
+	"${0}" "${_var_args}" cmp cmp
+	"${0}" "${_var_args}" ctx ctx
+	"${0}" "${_var_args}" fe-be fe
 	exit 0
+elif test "${SH_ARG_CFG}" = "fe-be"; then
+	SH_ARG_DIR="fe"
 fi
 
-test -z "${SH_ARG_CFG}" -o -z "${SH_ARG_DIR}" && sh_exit "${SH_USAGE_MSG}" 4
-test -f "run-${SH_ARG_CFG}.sh"                || sh_exit "run-${SH_ARG_CFG}.sh: No such configuration script" 2
-test -d "${SH_ARG_DIR}"                       || sh_exit "${SH_ARG_DIR}: No such directory" 3
+test -f "run-${SH_ARG_CFG}.sh" || sh_exit "run-${SH_ARG_CFG}.sh: No such test script" 2
+test -d "${SH_ARG_DIR}"        || sh_exit "${SH_ARG_DIR}: No such directory" 3
 
 trap sh_exit INT TERM
 
-sh_backup_make "${SH_ARG_DIR}"
-sh_httpd_run
-for _var_ratio in 100.0 75.0 50.0 25.0 10.0 2.5 0.0 disabled off; do
-	sh_haproxy_run "${SH_ARG_CFG}" "${SH_ARG_DIR}" "${_var_ratio}"
-	sh_wrk_run "${_var_ratio}"
-	sh_haproxy_stop
+echo "Running speed test ${SH_ARG_CFG}, start at $(date +"%F %T")"
+exec 1>"${SH_LOG_DIR}/README-speed-${SH_ARG_CFG}"
+
+${__} sh_backup_make "${SH_ARG_DIR}"
+${__} sh_httpd_run
+for _var_rate in ${SH_ARG_RATE}; do
+	${__} sh_haproxy_run "${SH_ARG_CFG}" "${SH_ARG_DIR}" "${_var_rate}"
+	${__} sh_wrk_run "${_var_rate}"
+	${__} sh_haproxy_stop
 done
-sh_httpd_stop
 sh_exit "" 0
