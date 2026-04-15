@@ -43,6 +43,7 @@ int qcc_stream_can_send(const struct qcs *qcs);
 void qcc_reset_stream(struct qcs *qcs, int err);
 void qcc_send_stream(struct qcs *qcs, int urg, int count);
 void qcc_abort_stream_read(struct qcs *qcs);
+void qcc_update_shut_id(struct qcc *qcc, uint64_t val);
 int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
              char fin, char *data);
 int qcc_recv_max_data(struct qcc *qcc, uint64_t max);

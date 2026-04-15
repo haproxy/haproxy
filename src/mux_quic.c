@@ -3214,6 +3214,10 @@ static int qmux_avail_streams(struct connection *conn)
 	struct qcc *qcc = conn->ctx;
 	int ret, max_reuse = 0;
 
+	/* Shutdown initiated by the peer - in HTTP/3 this corresponds to a GOAWAY frame received. */
+	if (qcc->flags & QC_CF_CONN_SHUT)
+		return 0;
+
 	ret = qcc_fctl_avail_streams(qcc, 1);
 
 	if (srv->max_reuse >= 0) {

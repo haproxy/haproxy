@@ -123,6 +123,7 @@ INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 #define H3_CF_UNI_QPACK_DEC_SET 0x00000008  /* Remote QPACK decoder stream opened */
 #define H3_CF_UNI_QPACK_ENC_SET 0x00000010  /* Remote QPACK encoder stream opened */
 #define H3_CF_GOAWAY_SENT       0x00000020  /* GOAWAY sent on local control stream */
+#define H3_CF_GOAWAY_RECV       0x00000040  /* GOAWAY received from the peer */
 
 /* Default settings */
 static uint64_t h3_settings_qpack_max_table_capacity = 0;
@@ -141,6 +142,7 @@ struct h3c {
 	uint64_t max_field_section_size;
 
 	uint64_t id_shut_l; /* GOAWAY ID locally emitted */
+	uint64_t id_shut_r; /* GOAWAY ID emitted by the peer */
 
 	struct buffer_wait buf_wait; /* wait list for buffer allocations */
 	/* Stats counters */
@@ -1681,6 +1683,43 @@ static ssize_t h3_parse_settings_frm(struct h3c *h3c, const struct buffer *buf,
 	return ret;
 }
 
+static ssize_t h3_parse_goaway_frm(struct h3c *h3c, const struct buffer *buf,
+                                   size_t len)
+{
+	struct buffer b;
+	uint64_t id;
+	size_t ret = 0;
+
+	TRACE_ENTER(H3_EV_RX_FRAME, h3c->qcc->conn);
+
+	b = b_make(b_orig(buf), b_size(buf), b_head_ofs(buf), len);
+	if (!b_quic_dec_int(&id, &b, &ret)) {
+		h3c->err = H3_ERR_FRAME_ERROR;
+		qcc_report_glitch(h3c->qcc, 1);
+		return -1;
+	}
+
+	if ((h3c->flags & H3_CF_GOAWAY_RECV) && id > h3c->id_shut_r) {
+		h3c->err = H3_ERR_ID_ERROR;
+		qcc_report_glitch(h3c->qcc, 1);
+		return -1;
+	}
+
+	h3c->flags |= H3_CF_GOAWAY_RECV;
+	h3c->id_shut_r = id;
+
+	/* RFC 9114 5.2. Connection Shutdown
+	 *
+	 * Endpoints MUST NOT initiate new requests or promise new pushes on the
+	 * connection after receipt of a GOAWAY frame from the peer. Clients MAY
+	 * establish a new connection to send additional requests.
+	 */
+	h3c->qcc->flags |= QC_CF_CONN_SHUT;
+
+	TRACE_LEAVE(H3_EV_RX_FRAME, h3c->qcc->conn);
+	return ret;
+}
+
 /* Transcode HTTP/3 payload received in buffer <b> to HTX data for stream
  * <qcs>. If <fin> is set, it indicates that no more data will arrive after.
  *
@@ -1883,10 +1922,17 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 				h3s->st_req = H3S_ST_REQ_TRAILERS;
 			}
 			break;
+		case H3_FT_GOAWAY:
+			ret = h3_parse_goaway_frm(qcs->qcc->ctx, b, flen);
+			if (ret < 0) {
+				TRACE_ERROR("error on SETTINGS parsing", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+				qcc_set_error(qcs->qcc, h3c->err, 1);
+				goto err;
+			}
+			break;
 		case H3_FT_CANCEL_PUSH:
 		case H3_FT_PUSH_PROMISE:
 		case H3_FT_MAX_PUSH_ID:
-		case H3_FT_GOAWAY:
 			/* Not supported */
 			ret = flen;
 			break;
@@ -3201,6 +3247,7 @@ static int h3_init(struct qcc *qcc)
 	h3c->err = 0;
 	h3c->flags = 0;
 	h3c->id_shut_l = 0;
+	h3c->id_shut_r = 0;
 
 	qcc->ctx = h3c;
 	h3c->prx_counters = qc_counters(qcc->conn->target, &h3_stats_module);
