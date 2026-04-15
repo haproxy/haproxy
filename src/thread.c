@@ -228,6 +228,29 @@ void thread_release()
 	th_ctx->lock_level -= 128;
 }
 
+/* starts all extra threads for the thread group passed in argument, then for
+ * the current thread, directly call the start function if we're not in the
+ * first thread group. The purpose is to make sure that all threads except
+ * thread 1 completely start to work here. Thread 1 is the caller and will
+ * call the function by itself once initialization is completed.
+ */
+void *start_extra_tgroup_threads(void *arg)
+{
+	struct tgroup_info *tgi = (struct tgroup_info *)arg;
+	int i;
+
+	/* Create nbthread-1 thread. The first thread is the current one */
+	for (i = 1; i < tgi->count; i++)
+		pthread_create(&ha_pthread[tgi->base + i], NULL, tgi->start, &ha_thread_info[tgi->base + i]);
+
+	/* start function for the first thread of the group as well, except
+	 * for group 1.
+	 */
+	if (tgi->base)
+		return tgi->start(&ha_thread_info[tgi->base]);
+	return NULL;
+}
+
 /* Sets up threads, signals and masks, and starts threads 2 and above.
  * Does nothing when threads are disabled.
  */
@@ -245,10 +268,21 @@ void setup_extra_threads(void *(*handler)(void *))
 	sigdelset(&blocked_sig, SIGSEGV);
 	pthread_sigmask(SIG_SETMASK, &blocked_sig, &old_sig);
 
-	/* Create nbthread-1 thread. The first thread is the current process */
+	/* the startup thread will be thread 1 */
 	ha_pthread[0] = pthread_self();
-	for (i = 1; i < global.nbthread; i++)
-		pthread_create(&ha_pthread[i], NULL, handler, &ha_thread_info[i]);
+
+	/* Create one initial thread for each extra thread group. These will
+	 * each be responsible for creating their own extra threads. The first
+	 * group's initial thread is the current thread.
+	 */
+	for (i = 1; i < global.nbtgroups; i++) {
+		ha_tgroup_info[i].start = handler;
+		pthread_create(&ha_pthread[ha_tgroup_info[i].base], NULL, &start_extra_tgroup_threads, &ha_tgroup_info[i]);
+	}
+
+	/* start threads of first tgroup */
+	ha_tgroup_info[0].start = handler;
+	start_extra_tgroup_threads(&ha_tgroup_info[0]);
 }
 
 /* waits for all threads to terminate. Does nothing when threads are

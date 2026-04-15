@@ -120,6 +120,7 @@ struct tgroup_info {
 	uint base;                 /* first thread in this group */
 	uint count;                /* number of threads in this group */
 	ulong tgid_bit;            /* bit corresponding to the tgroup ID */
+	void *(*start)(void *);    /* startup function common to all threads */
 
 	/* pad to cache line (64B) */
 	char __pad[0];            /* unused except to check remaining room */
