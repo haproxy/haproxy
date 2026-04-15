@@ -53,9 +53,9 @@ enum acme_st {
 	ACME_NEWACCOUNT,
 	ACME_NEWORDER,
 	ACME_AUTH,
-	ACME_CLI_WAIT,               /* wait for the ACME_RDY_CLI */
 	ACME_INITIAL_RSLV_TRIGGER,   /* opportunistic DNS check avoid cond_ready steps */
 	ACME_INITIAL_RSLV_READY,
+	ACME_CLI_WAIT,               /* wait for the ACME_RDY_CLI */
 	ACME_INITIAL_DELAY,
 	ACME_RSLV_RETRY_DELAY,
 	ACME_RSLV_TRIGGER,

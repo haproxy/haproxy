@@ -123,9 +123,9 @@ static void acme_trace(enum trace_level level, uint64_t mask, const struct trace
 			case ACME_NEWACCOUNT:               chunk_appendf(&trace_buf, "ACME_NEWACCOUNT");              break;
 			case ACME_NEWORDER:                 chunk_appendf(&trace_buf, "ACME_NEWORDER");                break;
 			case ACME_AUTH:                     chunk_appendf(&trace_buf, "ACME_AUTH");                    break;
-			case ACME_CLI_WAIT :                chunk_appendf(&trace_buf, "ACME_CLI_WAIT");                break;
 			case ACME_INITIAL_RSLV_TRIGGER:     chunk_appendf(&trace_buf, "ACME_INITIAL_RSLV_TRIGGER");    break;
 			case ACME_INITIAL_RSLV_READY:       chunk_appendf(&trace_buf, "ACME_INITIAL_RSLV_READY");      break;
+			case ACME_CLI_WAIT :                chunk_appendf(&trace_buf, "ACME_CLI_WAIT");                break;
 			case ACME_INITIAL_DELAY:            chunk_appendf(&trace_buf, "ACME_INITIAL_DELAY");           break;
 			case ACME_RSLV_RETRY_DELAY:         chunk_appendf(&trace_buf, "ACME_RSLV_RETRY_DELAY");        break;
 			case ACME_RSLV_TRIGGER:             chunk_appendf(&trace_buf, "ACME_RSLV_TRIGGER");            break;
@@ -2548,7 +2548,7 @@ re:
 			}
 
 			/* opportunistic DNS check failed, try the ready_cond */
-			st = ACME_RSLV_RETRY_DELAY;
+			st = ACME_CLI_WAIT;
 			goto nextreq;
 		}
 		break;
