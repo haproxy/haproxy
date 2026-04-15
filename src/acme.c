@@ -2564,8 +2564,6 @@ re:
 			/* if everything is ready, let's do the challenge request */
 			if ((all_cond_ready & ctx->cfg->cond_ready) == ctx->cfg->cond_ready) {
 				st = ACME_CHALLENGE;
-				ctx->http_state = ACME_HTTP_REQ;
-				ctx->state = st;
 				goto nextreq;
 			}
 
@@ -2725,8 +2723,6 @@ re:
 
 			/* not all ready yet, retry after dns-delay */
 			st = ACME_RSLV_RETRY_DELAY;
-			ctx->http_state = ACME_HTTP_REQ;
-			ctx->state = st;
 			goto nextreq;
 		}
 		break;
