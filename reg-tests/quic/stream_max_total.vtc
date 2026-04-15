@@ -1,0 +1,69 @@
+varnishtest "Test tune.quic.fe.stream_max_total setting"
+feature ignore_unknown_macro
+
+# QUIC backend are not supported with USE_QUIC_OPENSSL_COMPAT
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
+
+haproxy ha_qsrv -conf {
+	global
+		tune.quic.fe.stream.max-total 3
+
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	listen li
+		bind "quic+fd@${fe_quic}" ssl crt ${testdir}/certs/common.pem
+		http-request return status 200 hdr x-id %[fs.id]
+} -start
+
+haproxy ha_qcli -conf {
+	global
+		expose-experimental-directives
+
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	listen li
+		bind "fd@${fe}"
+		http-reuse always
+		server quic quic4@${ha_qsrv_fe_quic_addr}:${ha_qsrv_fe_quic_port} ssl verify none
+} -start
+
+client c1 -connect ${ha_qcli_fe_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-id == 0
+
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-id == 4
+
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-id == 8
+
+	# max-stream reached, stream ID should be resetted
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-id == 0
+
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-id == 4
+
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-id == 8
+} -run
