@@ -32461,6 +32461,15 @@ challenge-ready <value>[,<value>]*
   When "challenge" is set to "dns-persist-01" and this option is not
   configured, the default is "dns,delay".
 
+  When "challenge" is set to "dns-persist-01", an initial opportunistic DNS
+  check is always performed before the challenge-ready conditions are evaluated.
+  Since the "_validation-persist.<domain>" TXT record is set once and never
+  changes between renewals, HAProxy checks at renewal time whether the record
+  is already present. If the check succeeds for all domains, the challenge is
+  submitted immediately without going through the challenge-ready steps (cli,
+  delay, dns). If the check fails, HAProxy falls back to the normal
+  challenge-ready flow.
+
   Example:
     # Wait for CLI confirmation, then verify DNS propagation
     challenge-ready cli,dns
