@@ -3382,6 +3382,11 @@ static void qcc_app_shutdown(struct qcc *qcc)
 	if (qcc->app_st >= QCC_APP_ST_SHUT)
 		goto out;
 
+	if (qcc->app_st < QCC_APP_ST_INIT) {
+		if (qcc_app_init(qcc))
+			goto out;
+	}
+
 	TRACE_STATE("perform graceful shutdown", QMUX_EV_QCC_END, qcc->conn);
 	if (qcc->app_ops && qcc->app_ops->shutdown) {
 		qcc->app_ops->shutdown(qcc->ctx);
