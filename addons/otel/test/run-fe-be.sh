@@ -4,8 +4,6 @@
 #
 SH_ARG_HAPROXY="${1:-$(realpath -L ${PWD}/../../../haproxy)}"
 SH_ARG_PIDFILE="${2:-haproxy.pid}"
-    SH_ARGS_FE="-f haproxy-common.cfg -f fe/haproxy.cfg -p "${SH_ARG_PIDFILE}""
-    SH_ARGS_BE="-f haproxy-common.cfg -f be/haproxy.cfg -p "${SH_ARG_PIDFILE}""
        SH_TIME="$(date +%s)"
     SH_LOG_DIR="_logs"
      SH_LOG_FE="${SH_LOG_DIR}/_log-$(basename "${0}" fe-be.sh)fe-${SH_TIME}"
@@ -39,11 +37,13 @@ test -x "${SH_ARG_HAPROXY}" || __exit "${SH_ARG_HAPROXY}: executable does not ex
 mkdir -p "${SH_LOG_DIR}"    || __exit "${SH_ARG_HAPROXY}: cannot create log directory" 2
 
 echo "\n------------------------------------------------------------------------"
-echo "--- executing: ${SH_ARG_HAPROXY} ${SH_ARGS_BE}" >${SH_LOG_BE}
-"${SH_ARG_HAPROXY}" ${SH_ARGS_BE} >>"${SH_LOG_BE}" 2>&1 &
+set -- -f haproxy-common.cfg -f be/haproxy.cfg -p "${SH_ARG_PIDFILE}"
+echo "--- executing: ${SH_ARG_HAPROXY} ${@}" >${SH_LOG_BE}
+"${SH_ARG_HAPROXY}" "${@}" >>"${SH_LOG_BE}" 2>&1 &
 
-echo "--- executing: ${SH_ARG_HAPROXY} ${SH_ARGS_FE}" >${SH_LOG_FE}
-"${SH_ARG_HAPROXY}" ${SH_ARGS_FE} >>"${SH_LOG_FE}" 2>&1 &
+set -- -f haproxy-common.cfg -f fe/haproxy.cfg -p "${SH_ARG_PIDFILE}"
+echo "--- executing: ${SH_ARG_HAPROXY} ${@}" >${SH_LOG_FE}
+"${SH_ARG_HAPROXY}" "${@}" >>"${SH_LOG_FE}" 2>&1 &
 echo "------------------------------------------------------------------------\n"
 
 echo "Press CTRL-C to quit..."
