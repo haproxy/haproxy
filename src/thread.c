@@ -1691,12 +1691,16 @@ void thread_detect_count(void)
 	if (global.thread_limit && thr_max > global.thread_limit)
 		thr_max = global.thread_limit;
 
+	/* In case we can't count CPUs, just use the declared number of threads */
+	cpus_avail = thr_max;
+
 #if defined(USE_THREAD) && defined(USE_CPU_AFFINITY)
 	/* consider the number of online CPUs as an upper limit if set */
 	cpus_avail = 0;
 	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++)
 		if (!(ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE))
 			cpus_avail++;
+#endif
 
 	if (thr_min <= cpus_avail && cpus_avail < thr_max)
 		thr_max = cpus_avail;
@@ -1716,6 +1720,7 @@ void thread_detect_count(void)
 	if (grp_max > thr_max && grp_min <= thr_max)
 		grp_max = thr_max;
 
+#if defined(USE_THREAD) && defined(USE_CPU_AFFINITY)
 	if (grp_min < grp_max && cpu_map_configured()) {
 		/* if a cpu-map directive is set, we cannot reliably infer what
 		 * CPUs will be used anymore, so we'll use the smallest permitted
@@ -1769,11 +1774,20 @@ void thread_detect_count(void)
 	}
 #endif // USE_THREAD && USE_CPU_AFFINITY
 
+	/* Here, we have seveal possibilities:
+	 *   - USE_CPU_AFFINITY is set and worked, global.nbthread &
+	 *     global.nbtgroups are properly set.
+	 *   - USE_CPU_AFFINITY is set and failed (e.g. nbthread forced),
+	 *     global.nbthread & global.nbtgroups are filled with pre-computed
+	 *     optimal values
+	 *   - USE_CPU_AFFINITY is not set: nbthread & nbtgroups are filled
+	 *     with pre-computed optimal values
+	 */
 	if (!global.nbthread)
 		global.nbthread = thr_max;
 
 	if (!global.nbtgroups)
-		global.nbtgroups = 1;
+		global.nbtgroups = grp_min;
 
 	if (global.nbthread > global.maxthrpertgroup * global.nbtgroups) {
 		ha_diag_warning("nbthread too large or not set, found %d CPUs, limiting to %d threads (maximum is %d per thread group and %d groups). Please set nbthreads and/or increase thread-groups in the global section to silence this warning.\n",
