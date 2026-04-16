@@ -1800,7 +1800,7 @@ The following keywords are supported in the "global" section :
    - lua-load
    - lua-load-per-thread
    - lua-prepend-path
-   - max-thread-per-group
+   - max-threads-per-group
    - mworker-max-reloads
    - nbthread
    - node
