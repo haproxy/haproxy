@@ -64,6 +64,12 @@
 
 #define TRACE_SOURCE &trace_strm
 
+#if 1
+#define DDPRINTF(x...) fprintf(x)
+#else
+#define DDPRINTF(x...)
+#endif
+
 /* helper function to invoke the correct hash method */
 unsigned int gen_hash(const struct proxy* px, const char* key, unsigned long len)
 {
@@ -1689,6 +1695,8 @@ int be_reuse_connection(int64_t hash, struct session *sess,
 
 	/* first, search for a matching connection in the session's idle conns */
 	srv_conn = session_get_conn(sess, target, hash);
+	if (!srv_conn)
+		DDPRINTF(stderr, "/");
 	if (srv_conn) {
 		//DBG_TRACE_STATE("reuse connection from session", STRM_EV_STRM_PROC|STRM_EV_CS_ST, strm);
 	}
@@ -1760,6 +1768,7 @@ int be_reuse_connection(int64_t hash, struct session *sess,
 				/* no more streams available, remove it from the list */
 				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 				conn_delete_from_tree(srv_conn, tid);
+				DDPRINTF(stderr, "R");
 				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 			}
 
@@ -1776,6 +1785,7 @@ int be_reuse_connection(int64_t hash, struct session *sess,
 				 * to improve reuse rate, with a max retry limit.
 				 */
 				srv_conn = NULL;
+				DDPRINTF(stderr, "\\");
 			}
 		}
 	}
