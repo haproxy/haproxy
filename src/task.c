@@ -47,6 +47,10 @@ static struct {
 	int sched_stuck THREAD_ALIGNED();
 } sched_ctx[MAX_THREADS];
 
+#if !defined(HA_CAS_IS_8B) && !defined(HA_HAVE_CAS_DW)
+__decl_thread(HA_SPINLOCK_T task_state_tid);
+#endif
+
 /* Flags the task <t> for immediate destruction and puts it into its first
  * thread's shared tasklet list if not yet queued/running. This will bypass
  * the priority scheduling and make the task show up as fast as possible in

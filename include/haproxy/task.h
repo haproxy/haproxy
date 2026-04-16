@@ -205,6 +205,63 @@ static inline uint64_t task_mono_time(void)
 	return th_ctx->sched_call_date;
 }
 
+#if !defined(HA_CAS_IS_8B) && !defined(HA_HAVE_CAS_DW)
+__decl_thread(extern HA_SPINLOCK_T task_state_tid);
+#endif
+
+static inline int __task_set_state_and_tid(struct task *t, int expected_tid, int new_tid, unsigned int current, unsigned int wanted)
+{
+#if defined(HA_CAS_IS_8B) || defined(HA_HAVE_CAS_DW)
+	uint64_t expected_value;
+	uint64_t new_value;
+
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	expected_value = ((uint64_t)(current) << 32) | (uint32_t)expected_tid;
+#else
+	expected_value = current | ((uint64_t)expected_tid << 32);
+#endif
+	do {
+		int tid_seen;
+
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+		tid_seen = (expected_value & 0xffffffff);
+		if (tid_seen != expected_tid)
+                        return 0;
+                if ((expected_value >> 32) != current)
+                        return 0;
+                new_value = ((uint64_t)wanted << 32) | (uint32_t)new_tid;
+
+#else
+		tid_seen = (expected_value >> 32);
+		if (tid_seen != expected_tid)
+			return 0;
+		if ((expected_value & 0xffffffff) != current)
+			return 0;
+		new_value = wanted | ((uint64_t)new_tid << 32);
+#endif
+#if defined(HA_CAS_IS_8B)
+	} while (!HA_ATOMIC_CAS((uint64_t *)&t->state, &expected_value, new_value) && __ha_cpu_relax());
+#elif defined(HA_HAVE_CAS_DW)
+	} while (!HA_ATOMIC_DWCAS((uint64_t *)&t->state, &expected_value, &new_value) && __ha_cpu_relax());
+#endif
+	return 1;
+#else /* !HA_CAS_IS_8B && !HA_HAVE_CAS_DW */
+	int old_state;
+	int ret = 0;
+
+	HA_SPIN_LOCK(OTHER_LOCK, &task_state_tid);
+	if (_HA_ATOMIC_LOAD(&t->tid) == expected_tid) {
+		old_state = _HA_ATOMIC_LOAD(&t->state);
+		if (old_state == current && HA_ATOMIC_CAS(&t->state, &old_state, wanted)) {
+			_HA_ATOMIC_STORE(&t->tid, new_tid);
+			ret = 1;
+		}
+	}
+	HA_SPIN_UNLOCK(OTHER_LOCK, &task_state_tid);
+	return ret;
+#endif
+}
+
 /* puts the task <t> in run queue with reason flags <f>, and returns <t> */
 /* This will put the task in the local runqueue if the task is only runnable
  * by the current thread, in the global runqueue otherwies. With DEBUG_TASK,
