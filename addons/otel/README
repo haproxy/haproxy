@@ -194,16 +194,6 @@ the error status.
 4. OTel configuration
 ----------------------
 
-In order for the OTel filter to be used, the 'insecure-fork-wanted' keyword
-must be set in the HAProxy 'global' section.  This is required because the
-OpenTelemetry C++ SDK creates background threads for data export and batch
-processing.  HAProxy will refuse to load the configuration if this keyword
-is missing.
-
-  global
-      insecure-fork-wanted
-      ...
-
 The OTel filter must also be included in the HAProxy configuration, in the
 proxy section (frontend / listen / backend):
 

@@ -108,17 +108,6 @@ The filter uses a two-file configuration model:
 
 #### Activating the filter
 
-The OTel filter requires the `insecure-fork-wanted` keyword in the HAProxy
-`global` section.  This is necessary because the OpenTelemetry C++ SDK creates
-background threads for data export and batch processing.  HAProxy will refuse
-to load the configuration if this keyword is missing.
-
-```
-global
-    insecure-fork-wanted
-    ...
-```
-
 Add the filter to a HAProxy proxy section (frontend/listen/backend):
 
 ```

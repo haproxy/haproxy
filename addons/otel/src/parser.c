@@ -1720,9 +1720,8 @@ static int flt_otel_parse_cfg(struct flt_otel_conf *conf, const char *flt_name, 
  *
  * DESCRIPTION
  *   Main filter parser entry point, registered for the "otel" filter keyword.
- *   Verifies that insecure-fork-wanted is enabled, then parses the filter ID
- *   and configuration file path from the HAProxy configuration line.  If no
- *   filter ID is specified, the default ID is used.
+ *   Parses the filter ID and configuration file path from the HAProxy
+ *   configuration line.  If no filter ID is specified, the default ID is used.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -1734,12 +1733,6 @@ static int flt_otel_parse(char **args, int *cur_arg, struct proxy *px, struct fl
 	int                   pos, retval = ERR_NONE;
 
 	OTELC_FUNC("%p, %p, %p, %p, %p:%p, %p", args, cur_arg, px, fconf, OTELC_DPTR_ARGS(err), private);
-
-	if (!(global.tune.options & GTUNE_INSECURE_FORK)) {
-		FLT_OTEL_PARSE_ERR(err, "The 'insecure-fork-wanted' option must be enabled in the HAProxy configuration because the OpenTelemetry filter cannot work properly if the creation of threads is forbidden.");
-
-		OTELC_RETURN_INT(retval);
-	}
 
 	OTELC_DBG_IFDEF(otelc_dbg_level = FLT_OTEL_DEBUG_LEVEL, );
 
