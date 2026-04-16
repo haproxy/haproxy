@@ -17,6 +17,7 @@
 #include <haproxy/check.h>
 #include <haproxy/filters.h>
 #include <haproxy/hstream.h>
+#include <haproxy/hldstream.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/pipe.h>
 #include <haproxy/pool.h>
@@ -31,6 +32,8 @@ DECLARE_TYPED_POOL(pool_head_sedesc, "sedesc", struct sedesc);
 
 static int sc_conn_recv(struct stconn *sc);
 static int sc_conn_send(struct stconn *sc);
+extern __attribute__((weak))
+struct task *hld_io_cb(struct task *t, void *context, unsigned int state);
 
 /* Initializes an endpoint */
 void sedesc_init(struct sedesc *sedesc)
@@ -294,6 +297,16 @@ int sc_attach_mux(struct stconn *sc, void *sd, void *ctx)
 			if (!sc->wait_event.tasklet)
 				return -1;
 			sc->wait_event.tasklet->process = srv_chk_io_cb;
+			sc->wait_event.tasklet->context = sc;
+			sc->wait_event.events = 0;
+		}
+	}
+	else if (sc_hldstream(sc)) {
+		if (!sc->wait_event.tasklet) {
+			sc->wait_event.tasklet = tasklet_new();
+			if (!sc->wait_event.tasklet)
+				return -1;
+			sc->wait_event.tasklet->process = hld_io_cb;
 			sc->wait_event.tasklet->context = sc;
 			sc->wait_event.events = 0;
 		}
