@@ -568,6 +568,13 @@ Supported types:
     http_headers                    custom HTTP headers (list of key: value)
     max_concurrent_requests         concurrent request limit (integer)
     max_requests_per_connection     request limit per connection (integer)
+    background_thread_wait_for      idle timeout for the HTTP background thread
+                                    in milliseconds; 0 means the thread never
+                                    exits on its own (integer, default: 0).  If
+                                    this option is set, 'insecure-fork-wanted'
+                                    must be used in the HAProxy configuration,
+                                    otherwise HAProxy may crash while exporting
+                                    OTel data
     ssl_insecure_skip_verify        skip TLS certificate verification (boolean)
     ssl_ca_cert_path                CA certificate file path (string)
     ssl_ca_cert_string              CA certificate as inline string (string)

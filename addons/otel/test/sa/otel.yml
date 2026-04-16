@@ -29,6 +29,7 @@ exporters:
   exporter_traces_otlp_http:
     type:                        otlp_http
     thread_name:                 "OTLP/HTTP trace"
+#   background_thread_wait_for:  10000
     endpoint:                    "http://localhost:4318/v1/traces"
     content_type:                json
     json_bytes_mapping:          hexid
@@ -91,6 +92,7 @@ exporters:
   exporter_metrics_otlp_http:
     type:                        otlp_http
     thread_name:                 "OTLP/HTTP metr"
+#   background_thread_wait_for:  15000
     endpoint:                    "http://localhost:4318/v1/metrics"
     content_type:                json
     debug:                       false
@@ -133,6 +135,7 @@ exporters:
   exporter_logs_otlp_http:
     type:                        otlp_http
     thread_name:                 "OTLP/HTTP logs"
+#   background_thread_wait_for:  20000
     endpoint:                    "http://localhost:4318/v1/logs"
     content_type:                json
     debug:                       false
