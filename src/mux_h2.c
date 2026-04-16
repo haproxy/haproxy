@@ -1063,7 +1063,6 @@ h2c_is_dead(const struct h2c *h2c)
 	    ((h2c->flags & H2_CF_ERROR) ||          /* errors close immediately */
 	     (h2c->flags & H2_CF_ERR_PENDING && h2c->st0 < H2_CS_FRAME_H) || /* early error during connect */
 	     (h2c->st0 >= H2_CS_ERROR && !h2c->task) || /* a timeout stroke earlier */
-	     (!(h2c->conn->owner) && !conn_is_reverse(h2c->conn)) || /* Nobody's left to take care of the connection, drop it now */
 	     (!br_data(h2c->mbuf) &&  /* mux buffer empty, also process clean events below */
 	      ((h2c->flags & H2_CF_RCVD_SHUT) ||
 	       h2c_reached_last_stream(h2c)))))
