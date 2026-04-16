@@ -49,6 +49,15 @@
 
 #define MAX_THREADS_PER_GROUP __WORDSIZE
 
+/* Default value for the maximum number of threads per group. Thread counts
+ * beyond this value will induce the creation of new thread groups and thus
+ * limit contention on highly accessed areas. The value may be changed between
+ * 1 and MAX_THREADS_PER_GROUP via the global "max-threads-per-group" setting.
+ */
+#ifndef DEF_MAX_THREADS_PER_GROUP
+#define DEF_MAX_THREADS_PER_GROUP 16
+#endif
+
 /* threads enabled, max_threads defaults to long bits for 1 tgroup or 4 times
  * long bits if more tgroups are enabled.
  */

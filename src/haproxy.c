@@ -209,7 +209,7 @@ struct global global = {
 #endif
 	/* by default allow clients which use a privileged port for TCP only */
 	.clt_privileged_ports = HA_PROTO_TCP,
-	.maxthrpertgroup = MAX_THREADS_PER_GROUP,
+	.maxthrpertgroup = DEF_MAX_THREADS_PER_GROUP,
 	/* others NULL OK */
 };
 
