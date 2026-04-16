@@ -140,7 +140,7 @@ struct h3c {
 	uint64_t qpack_blocked_streams;
 	uint64_t max_field_section_size;
 
-	uint64_t id_goaway; /* stream ID used for a GOAWAY frame */
+	uint64_t id_shut_l; /* GOAWAY ID locally emitted */
 
 	struct buffer_wait buf_wait; /* wait list for buffer allocations */
 	/* Stats counters */
@@ -611,7 +611,6 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	struct ist meth = IST_NULL, path = IST_NULL;
 	struct ist scheme = IST_NULL, authority = IST_NULL;
 	struct ist uri;
-	uint64_t id_goaway;
 	int hdr_idx, ret;
 	int cookie = -1, last_cookie = -1, i;
 	int relaxed = !!(h3c->qcc->proxy->options2 & PR_O2_REQBUG_OK);
@@ -1059,27 +1058,7 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	htx_to_buf(htx, &htx_buf);
 	htx = NULL;
 
-	/* Stream attach may need the new GOAWAY ID, so update it before.
-	 * Keep a copy of the older value to restore it in case of error.
-	 */
-	id_goaway = h3c->id_goaway;
-
-	/* RFC 9114 5.2. Connection Shutdown
-	 *
-	 * The GOAWAY frame contains an identifier that
-	 * indicates to the receiver the range of requests or pushes that were
-	 * or might be processed in this connection.  The server sends a client-
-	 * initiated bidirectional stream ID; the client sends a push ID.
-	 * Requests or pushes with the indicated identifier or greater are
-	 * rejected (Section 4.1.1) by the sender of the GOAWAY.  This
-	 * identifier MAY be zero if no requests or pushes were processed.
-	 */
-	if (qcs->id >= h3c->id_goaway)
-		h3c->id_goaway = qcs->id + 4;
-
 	if (qcs_attach_sc(qcs, &htx_buf, fin)) {
-		/* Stream not handled, restore old GOAWAY ID. */
-		h3c->id_goaway = id_goaway;
 		len = -1;
 		goto out;
 	}
@@ -3106,7 +3085,7 @@ static int h3_attach(struct qcs *qcs, void *conn_ctx)
 	 * The endpoint SHOULD continue to do so as more requests or
 	 * pushes arrive.
 	 */
-	if (h3c->flags & H3_CF_GOAWAY_SENT && qcs->id >= h3c->id_goaway &&
+	if (h3c->flags & H3_CF_GOAWAY_SENT && qcs->id >= h3c->id_shut_l &&
 	    quic_stream_is_bidi(qcs->id)) {
 		/* Local stack should not attached stream on a closed connection. */
 		BUG_ON(quic_stream_is_local(qcs->qcc, qcs->id));
@@ -3148,10 +3127,21 @@ static int h3_send_goaway(struct h3c *h3c)
 	struct qcs *qcs = h3c->ctrl_strm;
 	struct buffer pos, *res;
 	unsigned char data[3 * QUIC_VARINT_MAX_SIZE];
-	size_t frm_len = quic_int_getsize(h3c->id_goaway);
+	uint64_t id_goaway;
+	size_t frm_len;
 	size_t xfer;
 
 	TRACE_ENTER(H3_EV_H3C_END, h3c->qcc->conn);
+
+	/* RFC 9114 5.2. Connection Shutdown
+	 *
+	 * The GOAWAY frame contains an identifier that
+	 * indicates to the receiver the range of requests or pushes that were
+	 * or might be processed in this connection. The server sends a client-
+	 * initiated bidirectional stream ID; the client sends a push ID.
+	 */
+	id_goaway = !conn_is_back(h3c->qcc->conn) ?
+	  h3c->qcc->largest_bidi_r : 0;
 
 	if (!qcs) {
 		TRACE_ERROR("control stream not initialized", H3_EV_H3C_END, h3c->qcc->conn);
@@ -3160,9 +3150,10 @@ static int h3_send_goaway(struct h3c *h3c)
 
 	pos = b_make((char *)data, sizeof(data), 0, 0);
 
+	frm_len = quic_int_getsize(id_goaway);
 	b_quic_enc_int(&pos, H3_FT_GOAWAY, 0);
 	b_quic_enc_int(&pos, frm_len, 0);
-	b_quic_enc_int(&pos, h3c->id_goaway, 0);
+	b_quic_enc_int(&pos, id_goaway, 0);
 
 	res = qcc_get_stream_txbuf(qcs, &err, 0);
 	if (!res || b_room(res) < b_data(&pos) ||
@@ -3175,6 +3166,7 @@ static int h3_send_goaway(struct h3c *h3c)
 	xfer = b_force_xfer(res, &pos, b_data(&pos));
 	qcc_send_stream(qcs, 1, xfer);
 
+	h3c->id_shut_l = id_goaway;
 	h3c->flags |= H3_CF_GOAWAY_SENT;
 	TRACE_LEAVE(H3_EV_H3C_END, h3c->qcc->conn);
 	return 0;
@@ -3183,6 +3175,7 @@ static int h3_send_goaway(struct h3c *h3c)
 	/* Consider GOAWAY as sent even if not really the case. This will
 	 * block future stream opening using H3_REQUEST_REJECTED reset.
 	 */
+	h3c->id_shut_l = id_goaway;
 	h3c->flags |= H3_CF_GOAWAY_SENT;
 	TRACE_DEVEL("leaving in error", H3_EV_H3C_END, h3c->qcc->conn);
 	return 1;
@@ -3207,7 +3200,7 @@ static int h3_init(struct qcc *qcc)
 	h3c->ctrl_strm = NULL;
 	h3c->err = 0;
 	h3c->flags = 0;
-	h3c->id_goaway = 0;
+	h3c->id_shut_l = 0;
 
 	qcc->ctx = h3c;
 	h3c->prx_counters = qc_counters(qcc->conn->target, &h3_stats_module);
