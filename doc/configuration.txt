@@ -21018,6 +21018,7 @@ eth.proto                                          binary       integer
 eth.src                                            binary       binary
 eth.vlan                                           binary       integer
 even                                               integer      boolean
+fe_exists                                          string       boolean
 field(index,delimiters[,count])                    string       string
 fix_is_valid                                       binary       boolean
 fix_tag_value(tag)                                 binary       binary
@@ -21547,6 +21548,15 @@ field(<index>,<delimiters>[,<count>])
       str(f1_f2_f3__f5),field(2,_,2)  # f2_f3
       str(f1_f2_f3__f5),field(-2,_,3) # f2_f3_
       str(f1_f2_f3__f5),field(-3,_,0) # f1_f2_f3
+
+fe_exists
+  Takes a frontend name as input value and returns a boolean TRUE if the said
+  frontend with that name exists in the current configuration, otherwise returns
+  FALSE. Can be used in places where checking the existence of a frontend from a
+  dynamic name is valuable, like map lookups or answering to an external check.
+
+  Example :
+      http-request deny unless { var(txn.fe_name),fe_exists }
 
 fix_is_valid
   Parses a binary payload and performs sanity checks regarding FIX (Financial
