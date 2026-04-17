@@ -554,6 +554,7 @@ static inline struct task *task_init(struct task *t, int tid)
 	t->wake_date = 0;
 	t->expire = TICK_ETERNITY;
 	t->caller = NULL;
+	t->last_run = 0;
 	return t;
 }
 
@@ -569,6 +570,7 @@ static inline void tasklet_init(struct tasklet *t)
 	t->tid = -1;
 	t->wake_date = 0;
 	t->caller = NULL;
+	t->last_run = 0;
 	LIST_INIT(&t->list);
 }
 
