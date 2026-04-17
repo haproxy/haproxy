@@ -44,6 +44,7 @@ DECLARE_STATIC_TYPED_POOL(pool_head_qc_stream_rxbuf, "qc_stream_rxbuf", struct q
 static void qmux_ctrl_send(struct qc_stream_desc *, uint64_t data, uint64_t offset);
 static void qmux_ctrl_room(struct qc_stream_desc *, uint64_t room);
 
+static void qcc_release(struct qcc *qcc);
 static int qcc_app_init(struct qcc *qcc);
 static void qcc_app_shutdown(struct qcc *qcc);
 
@@ -288,10 +289,12 @@ static inline int qcc_is_dead(const struct qcc *qcc)
 	 * - error detected locally
 	 * - MUX timeout expired
 	 * - app layer shut and all transfers done (FE side only - used for stream.max-total)
+	 * - new stream initiating definitely blocked (BE side only - used for H3 GOAWAY reception)
 	 */
 	if (qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL_DONE) ||
 	    !qcc->task ||
-	    (!conn_is_back(qcc->conn) && !qcc->nb_hreq && qcc->app_st == QCC_APP_ST_SHUT)) {
+	    (!conn_is_back(qcc->conn) && !qcc->nb_hreq && qcc->app_st == QCC_APP_ST_SHUT) ||
+	    (conn_is_back(qcc->conn) && !qcc->nb_hreq && (qcc->flags & QC_CF_CONN_SHUT))) {
 		return 1;
 	}
 
@@ -2031,6 +2034,13 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 			break;
 
 		BUG_ON_HOT(fin_standalone); /* On fin_standalone <ret> should be NULL, which ensures no infinite loop. */
+	}
+
+	/* Ensure that an idle backend conn is freed if it cannot open new stream. */
+	if (conn_is_back(qcc->conn) && qcc_is_dead(qcc)) {
+		TRACE_STATE("releasing dead connection after STREAM decoding", QMUX_EV_QCC_RECV, qcc->conn);
+		qcc_release(qcc);
+		return 0;
 	}
 
  out:
