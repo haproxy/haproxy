@@ -38,6 +38,7 @@ jobs:
     strategy:
       matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
       fail-fast: false
+    container: ${{ matrix.container }}
     env:
       # Configure a short TMPDIR to prevent failures due to long unix socket
       # paths.
@@ -72,7 +73,7 @@ jobs:
         path: '~/opt-ot/'
         key: ${{ matrix.os }}-ot-${{ matrix.CC }}-${{ env.OT_CPP_VERSION }}-${{ contains(matrix.name, 'ASAN') }}
     - name: Install apt dependencies
-      if: ${{ startsWith(matrix.os, 'ubuntu-') }}
+      if: ${{ startsWith(matrix.os, 'ubuntu-') && matrix.TARGET != 'linux-musl' }}
       run: |
         sudo apt-get update -o Acquire::Languages=none -o Acquire::Translation=none
         sudo apt-get --no-install-recommends -y install \
@@ -82,6 +83,9 @@ jobs:
           socat \
           gdb \
           jose
+    - name: Install apk dependencies
+      if: ${{ matrix.TARGET == 'linux-musl' }}
+      run: apk add gcc gdb make tar git python3 libc-dev linux-headers pcre-dev pcre2-dev openssl-dev lua5.3-dev grep socat curl musl-dbg lua5.3-dbg jose sudo
     - name: Install brew dependencies
       if: ${{ startsWith(matrix.os, 'macos-') }}
       run: |
@@ -168,109 +172,6 @@ jobs:
       if: ${{ failure() && steps.vtest.outcome == 'failure' }}
       run: |
         failed=false
-        shopt -s nullglob
-        for file in /tmp/core.*; do
-          failed=true
-          printf "::group::"
-          gdb -ex 'thread apply all bt full' ./haproxy $file
-          echo "::endgroup::"
-        done
-        if [ "$failed" = true ]; then
-          exit 1;
-        fi
-  Test-musl:
-    name: Alpine+musl, ${{ matrix.name }}
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-        - name: gcc
-          CC: gcc
-          FLAGS:
-          - ARCH_FLAGS='-ggdb3'
-          - USE_LUA=1
-          - LUA_INC=/usr/include/lua5.3
-          - LUA_LIB=/usr/lib/lua5.3
-          - USE_OPENSSL=1
-          - USE_PCRE2=1
-          - USE_PCRE2_JIT=1
-          - USE_PROMEX=1
-      fail-fast: false
-    container:
-      image: alpine:latest
-      options: --privileged --ulimit core=-1 --security-opt seccomp=unconfined
-      volumes:
-      - /tmp/core:/tmp/core
-    steps:
-    - name: Setup coredumps
-      run: |
-        echo '/tmp/core/core.%h.%e.%t' > /proc/sys/kernel/core_pattern
-    - uses: actions/checkout@v6
-    - name: Install dependencies
-      run: apk add gcc gdb make tar git python3 libc-dev linux-headers pcre-dev pcre2-dev openssl-dev lua5.3-dev grep socat curl musl-dbg lua5.3-dbg jose
-    - uses: ./.github/actions/setup-vtest
-    - name: Compile HAProxy with ${{ matrix.CC }}
-      run: |
-        echo "::group::Show compiler's version"
-        echo | ${{ matrix.CC }} -v
-        echo "::endgroup::"
-        echo "::group::Show platform specific defines"
-        echo | ${{ matrix.CC }} -dM -xc -E -
-        echo "::endgroup::"
-        make -j$(nproc) all \
-          ERR=1 \
-          TARGET=linux-musl \
-          CC=${{ matrix.CC }} \
-          DEBUG="-DDEBUG_POOL_INTEGRITY -DDEBUG_UNIT" \
-          ${{ join(matrix.FLAGS, ' ') }} \
-          ADDLIB="-Wl,-rpath,/usr/local/lib/ -Wl,-rpath,$HOME/opt/lib/"
-        make install-bin
-    - name: Show HAProxy version
-      id: show-version
-      run: |
-        echo "::group::Show dynamic libraries."
-        if command -v ldd > /dev/null; then
-          # Linux
-          ldd $(which haproxy)
-        else
-          # macOS
-          otool -L $(which haproxy)
-        fi
-        echo "::endgroup::"
-        haproxy -vv
-        echo "version=$(haproxy -vq)" >> $GITHUB_OUTPUT
-    - name: Run VTest for HAProxy ${{ steps.show-version.outputs.version }}
-      id: vtest
-      run: |
-        make reg-tests VTEST_PROGRAM=${{ github.workspace }}/vtest/vtest REGTESTS_TYPES=default,bug,devel
-    - name: Show VTest results
-      if: ${{ failure() && steps.vtest.outcome == 'failure' }}
-      run: |
-        for folder in ${TMPDIR:-/tmp}/haregtests-*/vtc.*; do
-          printf "::group::"
-          cat $folder/INFO
-          cat $folder/LOG
-          echo "::endgroup::"
-        done
-        exit 1
-    - name: Run Unit tests
-      id: unittests
-      run: |
-        make unit-tests
-    - name: Show Unit-Tests results
-      if: ${{ failure() && steps.unittests.outcome == 'failure' }}
-      run: |
-        for result in ${TMPDIR:-/tmp}/ha-unittests-*/results/res.*; do
-          printf "::group::"
-          cat $result
-          echo "::endgroup::"
-        done
-        exit 1
-    - name: Show coredumps
-      if: ${{ failure() && steps.vtest.outcome == 'failure' }}
-      run: |
-        failed=false
-        ls /tmp/core/
         for file in /tmp/core/core.*; do
           failed=true
           printf "::group::"

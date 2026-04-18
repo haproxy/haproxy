@@ -6,11 +6,12 @@ runs:
   steps:
 
     - name: Setup coredumps
-      if: ${{ startsWith(matrix.os, 'ubuntu-') }}
+      if: ${{ runner.os == 'Linux' }}
       shell: sh
       run: |
-        sudo sysctl -w fs.suid_dumpable=1
-        sudo sysctl kernel.core_pattern=/tmp/core.%h.%e.%t
+        sudo mkdir -p /tmp/core
+        sudo sysctl fs.suid_dumpable=1
+        sudo sysctl kernel.core_pattern=/tmp/core/core.%h.%e.%t
 
     - name: Setup ulimit for core dumps
       shell: sh

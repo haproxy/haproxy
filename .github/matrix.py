@@ -309,6 +309,32 @@ def main(ref_name):
                 }
             )
 
+    # Alpine / musl
+
+    matrix.append(
+        {
+            "name": "Alpine+musl, gcc",
+            "os": "ubuntu-latest",
+            "container": {
+                "image": "alpine:latest",
+                "options": "--privileged --ulimit core=-1 --security-opt seccomp=unconfined",
+                "volumes": ["/tmp/core:/tmp/core"],
+            },
+            "TARGET": "linux-musl",
+            "CC": "gcc",
+            "FLAGS": [
+                "ARCH_FLAGS='-ggdb3'",
+                "USE_LUA=1",
+                "LUA_INC=/usr/include/lua5.3",
+                "LUA_LIB=/usr/lib/lua5.3",
+                "USE_OPENSSL=1",
+                "USE_PCRE2=1",
+                "USE_PCRE2_JIT=1",
+                "USE_PROMEX=1",
+            ],
+        }
+    )
+
     # Print matrix
 
     print(json.dumps(matrix, indent=4, sort_keys=True))
