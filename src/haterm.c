@@ -1238,13 +1238,13 @@ static void hstream_init_splicing(void)
 		if (master_pipesize < pipesize) {
 			if (master_pipesize < 60*1024) {
 				/* Older kernels were limited to around 60-61 kB */
-				ha_warning("Failed to vmsplice haterm master pipe after %lu bytes, splicing disabled for haterm\n", master_pipesize);
+				ha_warning("Failed to vmsplice haterm master pipe after %lu bytes, splicing disabled for haterm\n", (ulong)master_pipesize);
 				put_pipe(master_pipe);
 				master_pipe = NULL;
 				master_pipesize = 0;
 			}
 			else
-				ha_warning("Splicing in haterm is limited to %lu bytes (too old kernel)\n", master_pipesize);
+				ha_warning("Splicing in haterm is limited to %lu bytes (too old kernel)\n", (ulong)master_pipesize);
 		}
 	}
 	else
