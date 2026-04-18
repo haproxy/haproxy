@@ -4,7 +4,7 @@
 [![Illumos](https://github.com/haproxy/haproxy/actions/workflows/illumos.yml/badge.svg)](https://github.com/haproxy/haproxy/actions/workflows/illumos.yml)
 [![NetBSD](https://github.com/haproxy/haproxy/actions/workflows/netbsd.yml/badge.svg)](https://github.com/haproxy/haproxy/actions/workflows/netbsd.yml)
 [![CrossCompile](https://github.com/haproxy/haproxy/actions/workflows/cross-zoo.yml/badge.svg)](https://github.com/haproxy/haproxy/actions/workflows/cross-zoo.yml)
-[![FreeBSD](https://api.cirrus-ci.com/github/haproxy/haproxy.svg?task=FreeBSD)](https://cirrus-ci.com/github/haproxy/haproxy/)
+[![FreeBSD](https://github.com/haproxy/haproxy/actions/workflows/freebsd.yml/badge.svg)](https://github.com/haproxy/haproxy/actions/workflows/freebsd.yml)
 [![VTest](https://github.com/haproxy/haproxy/actions/workflows/vtest.yml/badge.svg)](https://github.com/haproxy/haproxy/actions/workflows/vtest.yml)
 
 ![HAProxy logo](doc/HAProxyCommunityEdition_60px.png)
