@@ -1284,7 +1284,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	struct tcpcheck_rule *next;
 	struct buffer *auto_sni = NULL;
 	int status, port;
-	int check_type;
+	int check_type, check_reuse;
+	int64_t hash = 0;
 #ifdef USE_OPENSSL
 	struct ist sni = IST_NULL;
 #endif
@@ -1292,6 +1293,11 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	TRACE_ENTER(CHK_EV_TCPCHK_CONN, check);
 
 	check_type = check->tcpcheck->rs->flags & TCPCHK_RULES_PROTO_CHK;
+	/* Determine if reuse can be used for this check. */
+	check_reuse =
+	  check_type == TCPCHK_RULES_HTTP_CHK && check->reuse_pool &&
+	  !tcpcheck_use_nondefault_connect(check, connect) &&
+	  !srv_is_transparent(s) ? 1 : 0;
 
 	next = get_next_tcpcheck_rule(check->tcpcheck->rs, rule);
 
@@ -1329,13 +1335,9 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		}
 	}
 
-	/* For http-check rulesets connection reuse may be used (check-reuse-pool). */
-	if (check_type == TCPCHK_RULES_HTTP_CHK && check->reuse_pool &&
-	    !tcpcheck_use_nondefault_connect(check, connect) &&
-	    !srv_is_transparent(s)) {
+	if (check_reuse) {
 		struct ist pool_conn_name = IST_NULL;
 		struct sockaddr_storage *dst, dst_tmp;
-		int64_t hash;
 		int conn_err;
 
 		TRACE_DEVEL("trying connection reuse for check", CHK_EV_TCPCHK_CONN, check);
@@ -1517,7 +1519,11 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	if (status != SF_ERR_NONE)
 		goto fail_check;
 
-	conn_set_private(conn);
+	if (check_reuse)
+		conn->hash_node.key = hash;
+	else
+		conn_set_private(conn);
+
 	conn->ctx = check->sc;
 
 #ifdef USE_OPENSSL
