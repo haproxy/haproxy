@@ -383,6 +383,17 @@ int conn_install_mux_be(struct connection *conn, void *ctx, struct session *sess
 		if (!mux_ops)
 			return -1;
 	}
+
+	/* unless the connection is private or it's temporarily reserved to the
+	 * session due to a mux presenting a risk of head-of-line blocking and
+	 * the reuse mode is set to "safe", we should reset the owner to avoid
+	 * any ambiguity.
+	 */
+	if (!(conn->flags & CO_FL_PRIVATE) &&
+	    ((prx->options & PR_O_REUSE_MASK) != PR_O_REUSE_SAFE ||
+	     !(mux_ops->flags & MX_FL_HOL_RISK)))
+		conn->owner = NULL;
+
 	return conn_install_mux(conn, mux_ops, ctx, prx, sess);
 }
 
