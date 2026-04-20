@@ -32538,6 +32538,22 @@ map <map>
   account used. The acme task will add entries before validating the challenge
   and will remove the entries at the end of the task.
 
+profile <string>
+  Request a specific certificate profile from the CA by including a "profile"
+  field in the newOrder request. This implements draft-ietf-acme-profiles.
+
+  Profile names are CA-specific short identifiers (e.g. "classic",
+  "shortlived"). When set, the profile name is sent as-is in the newOrder
+  JSON payload. The CA is free to ignore the request or return an error if
+  the profile is not supported. When not set, no profile field is included
+  and the CA uses its default issuance policy.
+
+  See https://letsencrypt.org/docs/profiles/ for letsencrypt profiles.
+
+  Example:
+    # Request short-lived certificates
+    profile shortlived
+
 reuse-key { on | off }
   If set to "on", HAProxy won't generate a new private key and will keep the
   previous one. Rotating private keys is recommended, when enabling this option

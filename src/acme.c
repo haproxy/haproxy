@@ -4,6 +4,7 @@
  * Implements the ACMEv2 RFC 8555 protocol
  * Implements the following extensions to the protocol:
  *   draft-ietf-acme-dns-persist - DNS-PERSIST-01 challenge
+ *   draft-ietf-acme-profiles - Profiles Extension
  */
 
 #include "haproxy/ticks.h"
@@ -454,6 +455,35 @@ static int cfg_parse_acme_kws(char **args, int section_type, struct proxy *curpx
 			goto out;
 		}
 
+	} else if (strcmp(args[0], "profile") == 0) {
+		/* save the profile name */
+		const char *p;
+
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section requires an argument\n", file, linenum, args[0], cursection);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
+		/* profile names are used verbatim in a JSON string; only allow
+		 * alphanumeric characters, hyphens and underscores */
+		for (p = args[1]; *p; p++) {
+			if (!isalnum((uchar)*p) && *p != '-' && *p != '_') {
+				ha_alert("parsing [%s:%d]: keyword '%s' in '%s' section contains unauthorized character '%c'\n", file, linenum, args[0], cursection, *p);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+		}
+
+		ha_free(&cur_acme->profile);
+		cur_acme->profile = strdup(args[1]);
+		if (!cur_acme->profile) {
+			err_code |= ERR_ALERT | ERR_FATAL;
+			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			goto out;
+		}
 	} else if (strcmp(args[0], "map") == 0) {
 		/* save the map name for thumbprint + token storage */
 		if (!*args[1]) {
@@ -957,6 +987,7 @@ void deinit_acme()
 		ha_free(&acme_cfgs->provider);
 		ha_free(&acme_cfgs->challenge);
 		ha_free(&acme_cfgs->map);
+		ha_free(&acme_cfgs->profile);
 
 		free(acme_cfgs);
 		acme_cfgs = next;
@@ -974,6 +1005,7 @@ static struct cfg_kw_list cfg_kws_acme = {ILH, {
 	{ CFG_ACME, "bits",  cfg_parse_acme_cfg_key },
 	{ CFG_ACME, "curves",  cfg_parse_acme_cfg_key },
 	{ CFG_ACME, "map",  cfg_parse_acme_kws },
+	{ CFG_ACME, "profile",  cfg_parse_acme_kws },
 	{ CFG_ACME, "reuse-key",  cfg_parse_acme_kws },
 	{ CFG_ACME, "challenge-ready",  cfg_parse_acme_kws },
 	{ CFG_ACME, "dns-delay",  cfg_parse_acme_kws },
@@ -2014,7 +2046,10 @@ int acme_req_neworder(struct task *task, struct acme_ctx *ctx, char **errmsg)
 		chunk_appendf(req_in, "%s{ \"type\": \"dns\",  \"value\": \"%s\" }", (*san == *ctx->store->conf.acme.domains) ?  "" : ",", *san);
 	}
 
-	chunk_appendf(req_in, " ] }");
+	chunk_appendf(req_in, " ]");
+	if (ctx->cfg->profile)
+		chunk_appendf(req_in, ", \"profile\": \"%s\"", ctx->cfg->profile);
+	chunk_appendf(req_in, " }");
 
 	TRACE_DATA("NewOrder Decode", ACME_EV_REQ, ctx, &ctx->resources.newOrder, req_in);
 
