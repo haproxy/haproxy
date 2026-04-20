@@ -1839,8 +1839,11 @@ int init_srv_check(struct server *srv)
 			if (srv->check.port) {
 				srv->check.addr_type.proto_type = PROTO_TYPE_STREAM;
 				srv->check.addr_type.xprt_type = PROTO_TYPE_STREAM;
-			} else
+				srv->check.alt_proto = 0;
+			} else {
 				srv->check.addr_type = srv->addr_type;
+				srv->check.alt_proto = srv->alt_proto;
+			}
 		}
 		if (net_addr_type_is_quic(&srv->check.addr_type))
 			srv->check.xprt = xprt_get(XPRT_QUIC);
