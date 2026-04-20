@@ -886,16 +886,18 @@ static inline void h1s_consume_kop(struct h1s *h1s, size_t count)
 		h1s->sd->kop = 0;
 }
 
-/* Creates a new stream connector and the associate stream. <input> is used as input
- * buffer for the stream. On success, it is transferred to the stream and the
- * mux is no longer responsible of it. On error, <input> is unchanged, thus the
- * mux must still take care of it. However, there is nothing special to do
- * because, on success, <input> is updated to points on BUF_NULL. Thus, calling
- * b_free() on it is always safe. This function returns the stream connector on
- * success or NULL on error. */
+/* Creates a new front stream connector and the associated stream. <input> is
+ * used as input buffer for the stream. On success, it is transferred to the
+ * stream and the mux is no longer responsible of it. On error, <input> is
+ * unchanged, thus the mux must still take care of it. However, there is
+ * nothing special to do because, on success, <input> is updated to points on
+ * BUF_NULL. Thus, calling b_free() on it is always safe. This function returns
+ * the stream connector on success or NULL on error.
+ */
 static struct stconn *h1s_new_sc(struct h1s *h1s, struct buffer *input)
 {
 	struct h1c *h1c = h1s->h1c;
+	struct session *sess = h1c->conn->owner;
 
 	TRACE_ENTER(H1_EV_STRM_NEW, h1c->conn, h1s);
 
@@ -904,7 +906,7 @@ static struct stconn *h1s_new_sc(struct h1s *h1s, struct buffer *input)
 	if (h1s->req.flags & H1_MF_UPG_WEBSOCKET)
 		se_fl_set(h1s->sd, SE_FL_WEBSOCKET);
 
-	if (!sc_new_from_endp(h1s->sd, h1c->conn->owner, input)) {
+	if (!sc_new_from_endp(h1s->sd, sess, input)) {
 		TRACE_ERROR("SC allocation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1c->conn, h1s);
 		goto err;
 	}
@@ -1224,9 +1226,6 @@ static int h1s_finish_detach(struct h1s *h1s)
 			goto end;
 		}
 		else {
-			if (h1c->conn->owner == sess)
-				h1c->conn->owner = NULL;
-
 			/* mark that the tasklet may lose its context to another thread and
 			 * that the handler needs to check it under the idle conns lock.
 			 */
@@ -4155,6 +4154,7 @@ static int h1_send(struct h1c *h1c)
 static int h1_process(struct h1c * h1c)
 {
 	struct connection *conn = h1c->conn;
+	struct session *sess = conn->owner;
 	int ret = -1;
 
 	TRACE_ENTER(H1_EV_H1C_WAKE, conn);
@@ -4191,7 +4191,7 @@ static int h1_process(struct h1c * h1c)
 
 		/* Create the H1 stream if not already there */
 		if (!h1s) {
-			h1s = h1c_frt_stream_new(h1c, NULL, h1c->conn->owner);
+			h1s = h1c_frt_stream_new(h1c, NULL, sess);
 			if (!h1s) {
 				b_reset(&h1c->ibuf);
 				h1_handle_internal_err(h1c);
@@ -4233,7 +4233,7 @@ static int h1_process(struct h1c * h1c)
 			}
 		}
 		if (h1c->glitches != prev_glitches && !(h1c->flags & H1C_F_IS_BACK))
-			session_add_glitch_ctr(h1c->conn->owner, h1c->glitches - prev_glitches);
+			session_add_glitch_ctr(sess, h1c->glitches - prev_glitches);
 	}
 
   no_parsing:
