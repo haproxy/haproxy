@@ -20,7 +20,8 @@
 		_qcc_report_glitch(qcc, inc); 		\
 	})
 
-void qcc_set_error(struct qcc *qcc, int err, int app);
+void qcc_set_error(struct qcc *qcc, int err, int app, int tevt);
+void qcc_report_term_evt(struct qcc *qcc, enum muxc_term_event_type type);
 int _qcc_report_glitch(struct qcc *qcc, int inc);
 int qcc_fctl_avail_streams(const struct qcc *qcc, int bidi);
 struct qcs *qcc_init_stream_local(struct qcc *qcc, int bidi);

@@ -149,9 +149,9 @@ void qmux_dump_qcc_info(struct buffer *msg, const struct qcc *qcc)
 	chunk_appendf(msg, " qcc=%p(%c)", qcc, (qcc->flags & QC_CF_IS_BACK) ? 'B' : 'F');
 	if (qc)
 		chunk_appendf(msg, " qc=%p", qcc->conn->handle.qc);
-	chunk_appendf(msg, " .st=%s .sc=%llu .hreq=%llu .flg=0x%04x",
+	chunk_appendf(msg, " .st=%s .sc=%llu .hreq=%llu .flg=0x%04x .evts=%s",
 	              qcc_app_st_to_str(qcc->app_st), (ullong)qcc->nb_sc,
-	              (ullong)qcc->nb_hreq, qcc->flags);
+	              (ullong)qcc->nb_hreq, qcc->flags, tevt_evts2str(qcc->term_evts_log));
 
 	chunk_appendf(msg, " .tx=%llu %llu/%llu",
 	              (ullong)qcc->tx.fc.off_soft, (ullong)qcc->tx.fc.off_real, (ullong)qcc->tx.fc.limit);

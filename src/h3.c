@@ -202,7 +202,8 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 	case H3_UNI_S_T_CTRL:
 		if (h3c->flags & H3_CF_UNI_CTRL_SET) {
 			TRACE_ERROR("duplicated control stream", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
-			qcc_set_error(qcs->qcc, H3_ERR_STREAM_CREATION_ERROR, 1);
+			qcc_set_error(qcs->qcc, H3_ERR_STREAM_CREATION_ERROR, 1,
+			              muxc_tevt_type_proto_err);
 			qcc_report_glitch(qcs->qcc, 1);
 			goto err;
 		}
@@ -218,7 +219,8 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 	case H3_UNI_S_T_QPACK_DEC:
 		if (h3c->flags & H3_CF_UNI_QPACK_DEC_SET) {
 			TRACE_ERROR("duplicated qpack decoder stream", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
-			qcc_set_error(qcs->qcc, H3_ERR_STREAM_CREATION_ERROR, 1);
+			qcc_set_error(qcs->qcc, H3_ERR_STREAM_CREATION_ERROR, 1,
+			              muxc_tevt_type_proto_err);
 			qcc_report_glitch(qcs->qcc, 1);
 			goto err;
 		}
@@ -230,7 +232,8 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 	case H3_UNI_S_T_QPACK_ENC:
 		if (h3c->flags & H3_CF_UNI_QPACK_ENC_SET) {
 			TRACE_ERROR("duplicated qpack encoder stream", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
-			qcc_set_error(qcs->qcc, H3_ERR_STREAM_CREATION_ERROR, 1);
+			qcc_set_error(qcs->qcc, H3_ERR_STREAM_CREATION_ERROR, 1,
+			              muxc_tevt_type_proto_err);
 			qcc_report_glitch(qcs->qcc, 1);
 			goto err;
 		}
@@ -1715,6 +1718,7 @@ static ssize_t h3_parse_goaway_frm(struct h3c *h3c, const struct buffer *buf,
 	 * establish a new connection to send additional requests.
 	 */
 	h3c->qcc->flags |= QC_CF_CONN_SHUT;
+	qcc_report_term_evt(h3c->qcc, muxc_tevt_type_goaway_rcvd);
 
 	TRACE_LEAVE(H3_EV_RX_FRAME, h3c->qcc->conn);
 	return ret;
@@ -1773,7 +1777,8 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 	 */
 	if (h3s->type == H3S_T_CTRL && fin) {
 		TRACE_ERROR("control stream closed by remote peer", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-		qcc_set_error(qcs->qcc, H3_ERR_CLOSED_CRITICAL_STREAM, 1);
+		qcc_set_error(qcs->qcc, H3_ERR_CLOSED_CRITICAL_STREAM, 1,
+		              muxc_tevt_type_proto_err);
 		qcc_report_glitch(qcs->qcc, 1);
 		goto err;
 	}
@@ -1790,7 +1795,8 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 
 		if (qcs_http_handle_standalone_fin(qcs)) {
 			TRACE_ERROR("cannot set EOM", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-			qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1);
+			qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1,
+			              muxc_tevt_type_internal_err);
 			goto err;
 		}
 
@@ -1816,7 +1822,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 
 			if ((ret = h3_check_frame_valid(h3c, qcs, ftype))) {
 				TRACE_ERROR("received an invalid frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-				qcc_set_error(qcs->qcc, ret, 1);
+				qcc_set_error(qcs->qcc, ret, 1, muxc_tevt_type_proto_err);
 				qcc_report_glitch(qcs->qcc, 1);
 				goto err;
 			}
@@ -1857,7 +1863,8 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			 */
 			if (flen > qmux_stream_rx_bufsz()) {
 				TRACE_ERROR("received a too big frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-				qcc_set_error(qcs->qcc, H3_ERR_EXCESSIVE_LOAD, 1);
+				qcc_set_error(qcs->qcc, H3_ERR_EXCESSIVE_LOAD, 1,
+				              muxc_tevt_type_other_err);
 				qcc_report_glitch(qcs->qcc, 1);
 				goto err;
 			}
@@ -1865,7 +1872,8 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			/* TODO extend parser to support the realignment of a frame. */
 			if (b_head(b) + b_data(b) > b_wrap(b)) {
 				TRACE_ERROR("cannot parse unaligned data frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-				qcc_set_error(qcs->qcc, H3_ERR_EXCESSIVE_LOAD, 1);
+				qcc_set_error(qcs->qcc, H3_ERR_EXCESSIVE_LOAD, 1,
+				              muxc_tevt_type_other_err);
 				qcc_report_glitch(qcs->qcc, 1);
 				goto err;
 			}
@@ -1926,7 +1934,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			ret = h3_parse_goaway_frm(qcs->qcc->ctx, b, flen);
 			if (ret < 0) {
 				TRACE_ERROR("error on GOAWAY parsing", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-				qcc_set_error(qcs->qcc, h3c->err, 1);
+				qcc_set_error(qcs->qcc, h3c->err, 1, muxc_tevt_type_proto_err);
 				goto err;
 			}
 			break;
@@ -1940,7 +1948,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			ret = h3_parse_settings_frm(qcs->qcc->ctx, b, flen);
 			if (ret < 0) {
 				TRACE_ERROR("error on SETTINGS parsing", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-				qcc_set_error(qcs->qcc, h3c->err, 1);
+				qcc_set_error(qcs->qcc, h3c->err, 1, muxc_tevt_type_proto_err);
 				goto err;
 			}
 			h3c->flags |= H3_CF_SETTINGS_RECV;
@@ -1975,12 +1983,12 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 		goto done;
 	}
 	else if (h3c->err) {
-		qcc_set_error(qcs->qcc, h3c->err, 1);
+		qcc_set_error(qcs->qcc, h3c->err, 1, muxc_tevt_type_proto_err);
 		total = b_data(b);
 		goto done;
 	}
 	else if (unlikely(ret < 0)) {
-		qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1);
+		qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1, muxc_tevt_type_internal_err);
 		goto err;
 	}
 
@@ -2915,7 +2923,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, char
 
 	/* Interrupt sending on fatal error. */
 	if (unlikely(ret < 0)) {
-		qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1);
+		qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1, muxc_tevt_type_internal_err);
 		goto out;
 	}
 
@@ -3075,7 +3083,8 @@ static int h3_close(struct qcs *qcs, enum qcc_app_ops_close_side side)
 	 */
 	if (qcs == h3c->ctrl_strm || h3s->type == H3S_T_CTRL) {
 		TRACE_ERROR("closure detected on control stream", H3_EV_H3S_END, qcs->qcc->conn, qcs);
-		qcc_set_error(qcs->qcc, H3_ERR_CLOSED_CRITICAL_STREAM, 1);
+		qcc_set_error(qcs->qcc, H3_ERR_CLOSED_CRITICAL_STREAM, 1,
+		              muxc_tevt_type_proto_err);
 		qcc_report_glitch(qcs->qcc, 1);
 		return 1;
 	}
@@ -3257,7 +3266,7 @@ static int h3_init(struct qcc *qcc)
 	return 1;
 
  fail_no_h3:
-	qcc_set_error(qcc, H3_ERR_INTERNAL_ERROR, 1);
+	qcc_set_error(qcc, H3_ERR_INTERNAL_ERROR, 1, muxc_tevt_type_internal_err);
 	TRACE_DEVEL("leaving on error", H3_EV_H3C_NEW, qcc->conn);
 	return 0;
 }
@@ -3288,7 +3297,8 @@ static int h3_finalize(void *ctx)
 		 */
 		if (qcc_fctl_avail_streams(qcc, 0) < 3) {
 			TRACE_ERROR("peer flow-control limit does not allow control stream creation", H3_EV_H3C_NEW, qcc->conn);
-			qcc_set_error(qcc, H3_ERR_GENERAL_PROTOCOL_ERROR, 1);
+			qcc_set_error(qcc, H3_ERR_GENERAL_PROTOCOL_ERROR, 1,
+			              muxc_tevt_type_other_err);
 			qcc_report_glitch(qcc, 1);
 			goto err;
 		}
@@ -3318,7 +3328,7 @@ static int h3_finalize(void *ctx)
 	 * send data.
 	 */
 	if (h3_control_send(qcs, h3c) < 0) {
-		qcc_set_error(qcc, H3_ERR_INTERNAL_ERROR, 1);
+		qcc_set_error(qcc, H3_ERR_INTERNAL_ERROR, 1, muxc_tevt_type_internal_err);
 		goto err;
 	}
 

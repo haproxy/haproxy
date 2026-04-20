@@ -769,9 +769,10 @@ void qcc_notify_buf(struct qcc *qcc, uint64_t free_size)
 /* A fatal error is detected locally for <qcc> connection. It should be closed
  * with a CONNECTION_CLOSE using <err> code. Set <app> to true to indicate that
  * the code must be considered as an application level error. This function
- * must not be called more than once by connection.
+ * must not be called more than once by connection. If <tevt> is non null, it
+ * is used as a connection level termination event code.
  */
-void qcc_set_error(struct qcc *qcc, int err, int app)
+void qcc_set_error(struct qcc *qcc, int err, int app, int tevt)
 {
 	/* This must not be called multiple times per connection. */
 	BUG_ON(qcc->flags & QC_CF_ERRL);
@@ -781,6 +782,9 @@ void qcc_set_error(struct qcc *qcc, int err, int app)
 	qcc->flags |= QC_CF_ERRL;
 	qcc->err = app ? quic_err_app(err) : quic_err_transport(err);
 
+	if (tevt)
+		qcc_report_term_evt(qcc, tevt);
+
 	/* TODO
 	 * Ensure qcc_io_send() will be conducted to convert QC_CF_ERRL in
 	 * QC_CF_ERRL_DONE with CONNECTION_CLOSE frame emission. This may be
@@ -789,6 +793,15 @@ void qcc_set_error(struct qcc *qcc, int err, int app)
 	 * the moment.
 	 */
 	tasklet_wakeup(qcc->wait_event.tasklet);
+}
+
+void qcc_report_term_evt(struct qcc *qcc, enum muxc_term_event_type type)
+{
+	enum term_event_loc loc = tevt_loc_muxc;
+
+	if (qcc->flags & QC_CF_IS_BACK)
+		loc += 8;
+	qcc->term_evts_log = tevt_report_event(qcc->term_evts_log, loc, type);
 }
 
 /* Increment glitch counter for <qcc> connection by <inc> steps. If configured
@@ -803,10 +816,12 @@ int _qcc_report_glitch(struct qcc *qcc, int inc)
 	    (th_ctx->idle_pct <= global.tune.glitch_kill_maxidle)) {
 		if (qcc->app_ops->report_susp) {
 			qcc->app_ops->report_susp(qcc->ctx);
-			qcc_set_error(qcc, qcc->err.code, 1);
+			qcc_set_error(qcc, qcc->err.code, 1,
+			              muxc_tevt_type_graceful_shut);
 		}
 		else {
-			qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0);
+			qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0,
+			              muxc_tevt_type_internal_err);
 		}
 		return 1;
 	}
@@ -869,7 +884,8 @@ struct qcs *qcc_init_stream_local(struct qcc *qcc, int bidi)
 
 	qcs = qcs_new(qcc, *next, type);
 	if (!qcs) {
-		qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0);
+		qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0,
+		              muxc_tevt_type_internal_err);
 		TRACE_DEVEL("leaving on error", QMUX_EV_QCS_NEW, qcc->conn);
 		return NULL;
 	}
@@ -919,7 +935,8 @@ static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
 	                                   qcc->lfctl.ms_uni * 4;
 	if (id >= max_id) {
 		TRACE_ERROR("flow control error", QMUX_EV_QCS_NEW|QMUX_EV_PROTO_ERR, qcc->conn);
-		qcc_set_error(qcc, QC_ERR_STREAM_LIMIT_ERROR, 0);
+		qcc_set_error(qcc, QC_ERR_STREAM_LIMIT_ERROR, 0,
+		              muxc_tevt_type_proto_err);
 		goto err;
 	}
 
@@ -936,7 +953,8 @@ static struct qcs *qcc_init_stream_remote(struct qcc *qcc, uint64_t id)
 		qcs = qcs_new(qcc, *largest, type);
 		if (!qcs) {
 			TRACE_ERROR("stream fallocation failure", QMUX_EV_QCS_NEW, qcc->conn);
-			qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0);
+			qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0,
+			              muxc_tevt_type_internal_err);
 			goto err;
 		}
 
@@ -1113,13 +1131,15 @@ int qcc_get_qcs(struct qcc *qcc, uint64_t id, int receive_only, int send_only,
 
 	if (!receive_only && quic_stream_is_uni(id) && quic_stream_is_remote(qcc, id)) {
 		TRACE_ERROR("receive-only stream not allowed", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS|QMUX_EV_PROTO_ERR, qcc->conn, NULL, &id);
-		qcc_set_error(qcc, QC_ERR_STREAM_STATE_ERROR, 0);
+		qcc_set_error(qcc, QC_ERR_STREAM_STATE_ERROR, 0,
+		              muxc_tevt_type_proto_err);
 		goto err;
 	}
 
 	if (!send_only && quic_stream_is_uni(id) && quic_stream_is_local(qcc, id)) {
 		TRACE_ERROR("send-only stream not allowed", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS|QMUX_EV_PROTO_ERR, qcc->conn, NULL, &id);
-		qcc_set_error(qcc, QC_ERR_STREAM_STATE_ERROR, 0);
+		qcc_set_error(qcc, QC_ERR_STREAM_STATE_ERROR, 0,
+		              muxc_tevt_type_proto_err);
 		goto err;
 	}
 
@@ -1151,7 +1171,8 @@ int qcc_get_qcs(struct qcc *qcc, uint64_t id, int receive_only, int send_only,
 		 * stream.
 		 */
 		TRACE_ERROR("locally initiated stream not yet created", QMUX_EV_QCC_RECV|QMUX_EV_QCC_NQCS|QMUX_EV_PROTO_ERR, qcc->conn, NULL, &id);
-		qcc_set_error(qcc, QC_ERR_STREAM_STATE_ERROR, 0);
+		qcc_set_error(qcc, QC_ERR_STREAM_STATE_ERROR, 0,
+		              muxc_tevt_type_proto_err);
 		goto err;
 	}
 	else {
@@ -1330,7 +1351,8 @@ static void qcs_consume(struct qcs *qcs, uint64_t bytes, struct qc_stream_rxbuf 
 		if (!frm) {
 			frm = qc_frm_alloc(QUIC_FT_MAX_STREAM_DATA);
 			if (!frm) {
-				qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0);
+				qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0,
+				              muxc_tevt_type_internal_err);
 				return;
 			}
 
@@ -1354,7 +1376,8 @@ static void qcs_consume(struct qcs *qcs, uint64_t bytes, struct qc_stream_rxbuf 
 		TRACE_DATA("increase conn credit via MAX_DATA", QMUX_EV_QCS_RECV, qcc->conn, qcs);
 		frm = qc_frm_alloc(QUIC_FT_MAX_DATA);
 		if (!frm) {
-			qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0);
+			qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0,
+			              muxc_tevt_type_internal_err);
 			return;
 		}
 
@@ -1922,7 +1945,8 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	if (qcs->flags & QC_SF_SIZE_KNOWN &&
 	    (offset + len > qcs->rx.offset_max || (fin && offset + len < qcs->rx.offset_max))) {
 		TRACE_ERROR("final size error", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV|QMUX_EV_PROTO_ERR, qcc->conn, qcs);
-		qcc_set_error(qcc, QC_ERR_FINAL_SIZE_ERROR, 0);
+		qcc_set_error(qcc, QC_ERR_FINAL_SIZE_ERROR, 0,
+		              muxc_tevt_type_proto_err);
 		goto err;
 	}
 
@@ -1955,7 +1979,8 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 			 */
 			TRACE_ERROR("flow control error", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV|QMUX_EV_PROTO_ERR,
 			            qcc->conn, qcs);
-			qcc_set_error(qcc, QC_ERR_FLOW_CONTROL_ERROR, 0);
+			qcc_set_error(qcc, QC_ERR_FLOW_CONTROL_ERROR, 0,
+			              muxc_tevt_type_proto_err);
 			goto err;
 		}
 	}
@@ -1987,7 +2012,8 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 		buf = qcs_get_rxbuf(qcs, offset, &len);
 		if (!buf) {
 			TRACE_ERROR("rxbuf alloc failure", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
-			qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0);
+			qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0,
+			              muxc_tevt_type_internal_err);
 			goto err;
 		}
 
@@ -2012,7 +2038,8 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 			 */
 			TRACE_ERROR("overlapping data rejected", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV|QMUX_EV_PROTO_ERR,
 			            qcc->conn, qcs);
-			qcc_set_error(qcc, QC_ERR_PROTOCOL_VIOLATION, 0);
+			qcc_set_error(qcc, QC_ERR_PROTOCOL_VIOLATION, 0,
+			              muxc_tevt_type_proto_err);
 			return 1;
 
 		case NCB_RET_GAP_SIZE:
@@ -2192,7 +2219,8 @@ int qcc_recv_max_streams(struct qcc *qcc, uint64_t max, int bidi)
 	 */
 	if (max > QUIC_VARINT_8_BYTE_MAX) {
 		TRACE_ERROR("invalid MAX_STREAMS value", QMUX_EV_QCC_RECV, qcc->conn);
-		qcc_set_error(qcc, QC_ERR_FRAME_ENCODING_ERROR, 0);
+		qcc_set_error(qcc, QC_ERR_FRAME_ENCODING_ERROR, 0,
+		              muxc_tevt_type_proto_err);
 		goto err;
 	}
 
@@ -2271,7 +2299,8 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 	if (qcs->rx.offset_max > final_size ||
 	    ((qcs->flags & QC_SF_SIZE_KNOWN) && qcs->rx.offset_max != final_size)) {
 		TRACE_ERROR("final size error on RESET_STREAM", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
-		qcc_set_error(qcc, QC_ERR_FINAL_SIZE_ERROR, 0);
+		qcc_set_error(qcc, QC_ERR_FINAL_SIZE_ERROR, 0,
+		              muxc_tevt_type_proto_err);
 		goto err;
 	}
 
@@ -2437,7 +2466,8 @@ static int qcc_release_remote_stream(struct qcc *qcc, uint64_t id)
 			TRACE_DATA("increase max stream limit with MAX_STREAMS_BIDI", QMUX_EV_QCC_SEND, qcc->conn);
 			frm = qc_frm_alloc(QUIC_FT_MAX_STREAMS_BIDI);
 			if (!frm) {
-				qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0);
+				qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0,
+				              muxc_tevt_type_internal_err);
 				goto err;
 			}
 
@@ -3434,6 +3464,7 @@ static void qcc_app_shutdown(struct qcc *qcc)
 	}
 
 	TRACE_STATE("perform graceful shutdown", QMUX_EV_QCC_END, qcc->conn);
+	qcc_report_term_evt(qcc, muxc_tevt_type_graceful_shut);
 	if (qcc->app_ops && qcc->app_ops->shutdown) {
 		qcc->app_ops->shutdown(qcc->ctx);
 		qcc_io_send(qcc);
@@ -3504,10 +3535,13 @@ static void qcc_release(struct qcc *qcc)
 	}
 
 	tasklet_free(qcc->wait_event.tasklet);
-	if (conn && qcc->wait_event.events) {
-		conn->xprt->unsubscribe(conn, conn->xprt_ctx,
-		                        qcc->wait_event.events,
-		                        &qcc->wait_event);
+	if (conn) {
+		qcc_report_term_evt(qcc, muxc_tevt_type_shutw);
+		if (qcc->wait_event.events) {
+			conn->xprt->unsubscribe(conn, conn->xprt_ctx,
+			                        qcc->wait_event.events,
+			                        &qcc->wait_event);
+		}
 	}
 
 	while (!LIST_ISEMPTY(&qcc->lfctl.frms)) {
@@ -3782,6 +3816,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	qcc->flags = conn_is_back(conn) ? QC_CF_IS_BACK : 0;
 	qcc->app_st = QCC_APP_ST_NULL;
 	qcc->glitches = 0;
+	qcc->term_evts_log = 0;
 	qcc->err = quic_err_transport(QC_ERR_NO_ERROR);
 
 	if (conn_is_quic(conn)) {
@@ -4593,6 +4628,9 @@ static int qmux_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *ou
 	case MUX_CTL_GET_MAXSTRM:
 		return qcc->lfctl.ms_bidi_init;
 
+	case MUX_CTL_TEVTS:
+		return qcc->term_evts_log;
+
 	default:
 		return -1;
 	}
@@ -4624,8 +4662,9 @@ static int qmux_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *outpu
 			qmux_dump_qcc_info(buf, qcc);
 
 		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_CONN) {
-			chunk_appendf(buf, " conn.flg=%#08x conn.err_code=%u",
-			              conn->flags, conn->err_code);
+			chunk_appendf(buf, " conn.flg=%#08x conn.err_code=%u conn.evts=%s",
+			              conn->flags, conn->err_code,
+			              tevt_evts2str(conn->term_evts_log));
 		}
 
 		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_XPRT)

@@ -119,7 +119,8 @@ int qpack_decode_enc(struct buffer *buf, int fin, void *ctx)
 	 * connection error of type H3_CLOSED_CRITICAL_STREAM.
 	 */
 	if (fin) {
-		qcc_set_error(qcs->qcc, H3_ERR_CLOSED_CRITICAL_STREAM, 1);
+		qcc_set_error(qcs->qcc, H3_ERR_CLOSED_CRITICAL_STREAM, 1,
+		              muxc_tevt_type_proto_err);
 		return -1;
 	}
 
@@ -152,7 +153,8 @@ int qpack_decode_enc(struct buffer *buf, int fin, void *ctx)
 		 * QPACK_ENCODER_STREAM_ERROR.
 		 */
 		if (capacity) {
-			qcc_set_error(qcs->qcc, QPACK_ERR_ENCODER_STREAM_ERROR, 1);
+			qcc_set_error(qcs->qcc, QPACK_ERR_ENCODER_STREAM_ERROR, 1,
+			              muxc_tevt_type_proto_err);
 			return -1;
 		}
 
@@ -179,7 +181,8 @@ int qpack_decode_dec(struct buffer *buf, int fin, void *ctx)
 	 * connection error of type H3_CLOSED_CRITICAL_STREAM.
 	 */
 	if (fin) {
-		qcc_set_error(qcs->qcc, H3_ERR_CLOSED_CRITICAL_STREAM, 1);
+		qcc_set_error(qcs->qcc, H3_ERR_CLOSED_CRITICAL_STREAM, 1,
+		              muxc_tevt_type_proto_err);
 		return -1;
 	}
 
@@ -204,7 +207,8 @@ int qpack_decode_dec(struct buffer *buf, int fin, void *ctx)
 		 */
 
 		/* For the moment haproxy does not emit dynamic table insertion. */
-		qcc_set_error(qcs->qcc, QPACK_ERR_DECODER_STREAM_ERROR, 1);
+		qcc_set_error(qcs->qcc, QPACK_ERR_DECODER_STREAM_ERROR, 1,
+		              muxc_tevt_type_proto_err);
 		return -1;
 	}
 	else if (inst & QPACK_DEC_INST_SACK) {

@@ -46,6 +46,8 @@ struct qcc {
 	enum qcc_app_st app_st; /* application layer state */
 	int glitches;   /* total number of glitches on this connection */
 
+	uint32_t term_evts_log;  /* termination events log */
+
 	/* flow-control fields set by us enforced on our side. */
 	struct {
 		struct list frms; /* prepared frames related to flow-control  */
