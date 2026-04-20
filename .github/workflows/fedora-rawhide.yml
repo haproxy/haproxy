@@ -24,11 +24,12 @@ jobs:
     if: ${{ github.repository_owner == 'haproxy' || github.event_name == 'workflow_dispatch' }}
     container:
       image: fedora:rawhide
+      options: --privileged
     steps:
     - uses: actions/checkout@v6
     - name: Install dependencies
       run: |
-        dnf -y install awk diffutils git zlib-devel pcre2-devel 'perl(FindBin)' perl-IPC-Cmd 'perl(File::Copy)' 'perl(File::Compare)' lua-devel socat findutils systemd-devel clang openssl-devel.x86_64
+        dnf -y install awk diffutils git zlib-devel pcre2-devel 'perl(FindBin)' perl-IPC-Cmd 'perl(File::Copy)' 'perl(File::Compare)' lua-devel socat findutils systemd-devel clang openssl-devel.x86_64 procps-ng
         dnf -y install 'perl(FindBin)' 'perl(File::Compare)' perl-IPC-Cmd 'perl(File::Copy)' glibc-devel.i686 lua-devel.i686 lua-devel.x86_64 systemd-devel.i686 zlib-ng-compat-devel.i686 libatomic.i686 openssl-devel.i686
     - uses: ./.github/actions/setup-vtest
     - name: Compile HAProxy with ${{ matrix.platform.cc }}
