@@ -58,6 +58,7 @@ int conn_recv_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int fla
 	struct quic_frame frm;
 	struct buffer *buf = &ctx->rxbuf;
 	const unsigned char *pos, *old, *end;
+	uint64_t rlen;
 	size_t ret;
 
 	if (!conn_ctrl_ready(conn))
@@ -81,12 +82,17 @@ int conn_recv_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int fla
 		goto not_ready;
 
 	/* Read record length. */
-	if (!ctx->rxrlen && !b_quic_dec_int(&ctx->rxrlen, buf, NULL))
-		goto not_ready;
+	if (!ctx->rxrlen) {
+		if (!b_quic_dec_int(&rlen, buf, NULL))
+			goto not_ready;
 
-	/* Reject too small or too big records. */
-	if (!ctx->rxrlen || ctx->rxrlen > b_size(buf))
-		goto fail;
+		/* Reject too small or too big records. */
+		if (!rlen || rlen > b_size(buf))
+			goto fail;
+
+		ctx->rxrlen = rlen;
+	}
+
 	if (ctx->rxrlen > b_data(buf))
 		goto not_ready;
 
