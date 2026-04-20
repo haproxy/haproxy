@@ -4603,6 +4603,7 @@ static int qmux_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *outpu
 	int ret = 0;
 	const struct qcs *qcs = __sc_mux_strm(sc);
 	const struct qcc *qcc = qcs->qcc;
+	const struct connection *conn = qcc->conn;
 	union mux_sctl_dbg_str_ctx *dbg_ctx;
 	struct buffer *buf;
 
@@ -4622,11 +4623,13 @@ static int qmux_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *outpu
 		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_MUXC)
 			qmux_dump_qcc_info(buf, qcc);
 
-		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_CONN)
-			chunk_appendf(buf, " conn.flg=%#08x", qcc->conn->flags);
+		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_CONN) {
+			chunk_appendf(buf, " conn.flg=%#08x conn.err_code=%u",
+			              conn->flags, conn->err_code);
+		}
 
 		if (dbg_ctx->arg.debug_flags & MUX_SCTL_DBG_STR_L_XPRT)
-			qcc->conn->xprt->dump_info(buf, qcc->conn);
+			conn->xprt->dump_info(buf, conn);
 
 		dbg_ctx->ret.buf = *buf;
 		return ret;
