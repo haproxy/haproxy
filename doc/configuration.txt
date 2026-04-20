@@ -32193,6 +32193,19 @@ domains <string>
 
     load crt "example.com.pem" acme LE domains "bar.example.com,foo.example.com"
 
+ips <string>
+  Configure the list of IP addresses that will be included as IP SANs in the
+  ACME certificate. IP addresses are separated by commas in the list.
+
+  Generating a certificate with IPs might require the use of the "shortlived"
+  profile.
+
+  See also Section 12.8 ("ACME"), "acme" and "domains" in this section.
+
+  Example:
+
+    load crt "server.pem" acme LE ips "192.0.2.1,2001:db8::1"
+
 key <filename>
   This argument is optional. Load a private key in PEM format. If a private key
   was already defined in "crt", it will overwrite it.

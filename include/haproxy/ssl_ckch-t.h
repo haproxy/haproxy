@@ -72,6 +72,7 @@ struct ckch_conf {
 	struct {
 		char *id;
 		char **domains;
+		char **ips;
 	} acme;
 	struct {
 		struct {

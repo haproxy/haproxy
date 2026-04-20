@@ -2029,7 +2029,9 @@ int acme_req_neworder(struct task *task, struct acme_ctx *ctx, char **errmsg)
 		{ IST_NULL, IST_NULL }
 	};
 	int ret = 1;
+	int first = 1;
 	char **san = ctx->store->conf.acme.domains;
+	char **ip = ctx->store->conf.acme.ips;
 
         if ((req_in = alloc_trash_chunk()) == NULL)
 		goto error;
@@ -2038,12 +2040,16 @@ int acme_req_neworder(struct task *task, struct acme_ctx *ctx, char **errmsg)
 
 	chunk_printf(req_in, "{ \"identifiers\": [ ");
 
-	if (!san)
+	if (!san && !ip)
 		goto error;
 
 	for (; san && *san; san++) {
-//		fprintf(stderr, "%s:%d %s\n", __FUNCTION__, __LINE__, *san);
-		chunk_appendf(req_in, "%s{ \"type\": \"dns\",  \"value\": \"%s\" }", (*san == *ctx->store->conf.acme.domains) ?  "" : ",", *san);
+		chunk_appendf(req_in, "%s{ \"type\": \"dns\",  \"value\": \"%s\" }", first ? "" : ",", *san);
+		first = 0;
+	}
+	for (; ip && *ip; ip++) {
+		chunk_appendf(req_in, "%s{ \"type\": \"ip\",   \"value\": \"%s\" }", first ? "" : ",", *ip);
+		first = 0;
 	}
 
 	chunk_appendf(req_in, " ]");
@@ -3038,7 +3044,7 @@ end:
 /*
  * Generate a X509_REQ using a PKEY and a list of SAN finished by a NULL entry
  */
-X509_REQ *acme_x509_req(EVP_PKEY *pkey, char **san)
+X509_REQ *acme_x509_req(EVP_PKEY *pkey, char **san, char **ips)
 {
 	struct buffer *san_trash = NULL;
 	X509_REQ *x = NULL;
@@ -3060,9 +3066,9 @@ X509_REQ *acme_x509_req(EVP_PKEY *pkey, char **san)
 	if ((nm = X509_NAME_new()) == NULL)
 		goto error;
 
-	/* common name is the first SAN in the list */
+	/* common name is the first domain, or the first IP if no domain */
 	if (!X509_NAME_add_entry_by_txt(nm, "CN", MBSTRING_ASC,
-	                         (unsigned char *)san[0], -1, -1, 0))
+	                         (unsigned char *)(san ? san[0] : ips[0]), -1, -1, 0))
 		goto error;
 	/* assign the CN to the REQ */
 	if (!X509_REQ_set_subject_name(x, nm))
@@ -3072,8 +3078,11 @@ X509_REQ *acme_x509_req(EVP_PKEY *pkey, char **san)
 	if ((exts = sk_X509_EXTENSION_new_null()) == NULL)
 		goto error;
 
-	for (i = 0; san[i]; i++) {
-		chunk_appendf(san_trash, "%sDNS:%s", i ? "," : "", san[i]);
+	for (i = 0; san && san[i]; i++) {
+		chunk_appendf(san_trash, "%sDNS:%s", san_trash->data ? "," : "", san[i]);
+	}
+	for (i = 0; ips && ips[i]; i++) {
+		chunk_appendf(san_trash, "%sIP:%s", san_trash->data ? "," : "", ips[i]);
 	}
 	if ((str_san = my_strndup(san_trash->area, san_trash->data)) == NULL)
 		goto error;
@@ -3159,8 +3168,8 @@ static int acme_start_task(struct ckch_store *store, char **errmsg)
 	struct ckch_store *newstore = NULL;
 	EVP_PKEY *pkey = NULL;
 
-	if (!store->conf.acme.domains) {
-		memprintf(errmsg, "No 'domains' were configured for certificate. ");
+	if (!store->conf.acme.domains && !store->conf.acme.ips) {
+		memprintf(errmsg, "No 'domains' or 'ips' were configured for certificate. ");
 		goto err;
 	}
 
@@ -3211,7 +3220,7 @@ static int acme_start_task(struct ckch_store *store, char **errmsg)
 		pkey = NULL;
 	}
 
-	ctx->req = acme_x509_req(newstore->data->key, store->conf.acme.domains);
+	ctx->req = acme_x509_req(newstore->data->key, store->conf.acme.domains, store->conf.acme.ips);
 	if (!ctx->req) {
 		memprintf(errmsg, "%sCan't generate a CSR.", *errmsg ? *errmsg : "");
 		goto err;

@@ -1112,6 +1112,26 @@ struct ckch_store *ckchs_dup(const struct ckch_store *src)
 		dst->conf.acme.domains = r;
 	}
 
+	if (src->conf.acme.ips) {
+		r = NULL;
+		n = 0;
+
+		/* copy the array of IP strings */
+
+		while (src->conf.acme.ips[n]) {
+			r = realloc(r, sizeof(char *) * (n + 2));
+			if (!r)
+				goto error;
+
+			r[n] = strdup(src->conf.acme.ips[n]);
+			if (!r[n])
+				goto error;
+			n++;
+		}
+		r[n] = 0;
+		dst->conf.acme.ips = r;
+	}
+
 	return dst;
 
 error:
@@ -4904,6 +4924,7 @@ struct ckch_conf_kws ckch_conf_kws[] = {
 	{ "acme",         offsetof(struct ckch_conf, acme.id),          PARSE_TYPE_STR,   ckch_conf_acme_init,            },
 #endif
 	{ "domains",      offsetof(struct ckch_conf, acme.domains),     PARSE_TYPE_ARRAY_SUBSTR,   NULL,            },
+	{ "ips",          offsetof(struct ckch_conf, acme.ips),         PARSE_TYPE_ARRAY_SUBSTR,   NULL,            },
 	{ "generate-dummy", offsetof(struct ckch_conf, gencrt.on),      PARSE_TYPE_ONOFF, NULL,                           },
 	{ "keytype",      offsetof(struct ckch_conf, gencrt.key.type),  PARSE_TYPE_STR,   NULL,                           },
 	{ "bits",         offsetof(struct ckch_conf, gencrt.key.bits),  PARSE_TYPE_INT,   NULL,                           },
@@ -5275,6 +5296,14 @@ void ckch_conf_clean(struct ckch_conf *conf)
 		free(prev);
 	}
 	ha_free(&conf->acme.domains);
+
+	r = conf->acme.ips;
+	while (r && *r) {
+		char *prev = *r;
+		r++;
+		free(prev);
+	}
+	ha_free(&conf->acme.ips);
 
 }
 
