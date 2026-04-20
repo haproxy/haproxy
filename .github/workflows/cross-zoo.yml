@@ -17,6 +17,10 @@ jobs:
       matrix:
         platform: [
           {
+            arch: i686-linux-gnu,
+            libs: libc6-dev-i386-cross,
+            target: linux-x86
+          }, {
             arch: aarch64-linux-gnu,
             libs: libc6-dev-arm64-cross,
             target: linux-aarch64
