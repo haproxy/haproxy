@@ -537,6 +537,9 @@ static int sample_conv_aes(const struct arg *arg_p, struct sample *smp, void *pr
 	if (!dec && gcm) {
 		struct buffer *trash = get_trash_chunk();
 
+		if (!aead_tag_trash)
+			goto end;
+
 		chunk_memcpy(trash, b_orig(aead_tag_trash), b_data(aead_tag_trash));
 
 		aead_tag.data.u.str = *smp_trash_alloc;
