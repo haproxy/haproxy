@@ -5659,8 +5659,8 @@ static int sample_conv_bytes_check(struct arg *args, struct sample_conv *conv,
 }
 
 static struct sample_fetch_kw_list smp_logs_kws = {ILH, {
-	{ "bytes_in",             smp_fetch_bytes,        0,         NULL, SMP_T_SINT, SMP_USE_INTRN },
-	{ "bytes_out",            smp_fetch_bytes,        0,         NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "bytes_in",             smp_fetch_bytes,        0,         NULL, SMP_T_SINT, SMP_USE_RQFIN },
+	{ "bytes_out",            smp_fetch_bytes,        0,         NULL, SMP_T_SINT, SMP_USE_RSFIN },
 
 	{ "txn.timer.total",      smp_fetch_txn_timers,   0,         NULL, SMP_T_SINT, SMP_USE_TXFIN }, /* "Ta" */
 	{ "txn.timer.user",       smp_fetch_txn_timers,   0,         NULL, SMP_T_SINT, SMP_USE_TXFIN }, /* "Tu" */
@@ -5672,14 +5672,14 @@ static struct sample_fetch_kw_list smp_logs_kws = {ILH, {
 	{ "fc.timer.handshake",   smp_fetch_conn_timers,  0,         NULL, SMP_T_SINT, SMP_USE_L4CLI }, /* "Th" */
 	{ "fc.timer.total",       smp_fetch_conn_timers,  0,         NULL, SMP_T_SINT, SMP_USE_SSFIN }, /* "Tt" */
 
-	{ "req.bytes_in",         smp_fetch_bytes,        0,         NULL, SMP_T_SINT, SMP_USE_INTRN },
-	{ "req.bytes_out",        smp_fetch_bytes,        0,         NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "req.bytes_in",         smp_fetch_bytes,        0,         NULL, SMP_T_SINT, SMP_USE_RQFIN },
+	{ "req.bytes_out",        smp_fetch_bytes,        0,         NULL, SMP_T_SINT, SMP_USE_RQFIN },
 	{ "req.timer.idle",       smp_fetch_reX_timers,   0,         NULL, SMP_T_SINT, SMP_USE_HRQHV }, /* "Ti" */
 	{ "req.timer.tq",         smp_fetch_reX_timers,   0,         NULL, SMP_T_SINT, SMP_USE_HRQHV }, /* "Tq" */
 	{ "req.timer.hdr",        smp_fetch_reX_timers,   0,         NULL, SMP_T_SINT, SMP_USE_HRQHV }, /* "TR" */
 	{ "req.timer.queue",      smp_fetch_reX_timers,   0,         NULL, SMP_T_SINT, SMP_USE_L4SRV }, /* "Tw" */
-	{ "res.bytes_in",         smp_fetch_bytes,        0,         NULL, SMP_T_SINT, SMP_USE_INTRN },
-	{ "res.bytes_out",        smp_fetch_bytes,        0,         NULL, SMP_T_SINT, SMP_USE_INTRN },
+	{ "res.bytes_in",         smp_fetch_bytes,        0,         NULL, SMP_T_SINT, SMP_USE_RSFIN },
+	{ "res.bytes_out",        smp_fetch_bytes,        0,         NULL, SMP_T_SINT, SMP_USE_RSFIN },
 	{ "res.timer.data",       smp_fetch_reX_timers,   0,         NULL, SMP_T_SINT, SMP_USE_RSFIN }, /* "Td" */
 	{ "res.timer.hdr",        smp_fetch_reX_timers,   0,         NULL, SMP_T_SINT, SMP_USE_HRSHV }, /* "Tr" */
 	{ /* END */ },
