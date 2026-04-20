@@ -1438,7 +1438,6 @@ check_tgid:
 
 		if (reuse_mode == PR_O_REUSE_SAFE && conn->mux->flags & MX_FL_HOL_RISK) {
 			/* attach the connection to the session private list */
-			conn->owner = sess;
 			session_add_conn(sess, conn);
 		}
 		else {

@@ -3747,11 +3747,10 @@ static void fcgi_detach(struct sedesc *sd)
 	    (fconn->flags & FCGI_CF_KEEP_CONN)) {
 		if (fconn->conn->flags & CO_FL_PRIVATE) {
 			/* Add the connection in the session serverlist, if not already done */
-			if (!session_add_conn(sess, fconn->conn))
-				fconn->conn->owner = NULL;
+			session_add_conn(sess, fconn->conn);
 
 			if (eb_is_empty(&fconn->streams_by_id)) {
-				if (!fconn->conn->owner) {
+				if (!LIST_INLIST(&fconn->conn->sess_el)) {
 					/* Session insertion above has failed and connection is idle, remove it. */
 					CALL_MUX_NO_RET(fconn->conn->mux, destroy(fconn));
 					TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);

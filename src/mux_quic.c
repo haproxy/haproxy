@@ -4101,13 +4101,10 @@ static void qmux_strm_detach(struct sedesc *sd)
 			/* Ensure conn is attached into session. Most of the times
 			 * this is already done during connect so this is a no-op.
 			 */
-			if (!session_add_conn(sess, conn)) {
-				TRACE_ERROR("error during connection insert into session list", QMUX_EV_STRM_END, conn);
-				conn->owner = NULL;
-			}
+			session_add_conn(sess, conn);
 
 			if (!qcc->nb_sc) {
-				if (!conn->owner) {
+				if (!LIST_INLIST(&conn->sess_el)) {
 					/* Session insertion above has failed and connection is idle, remove it. */
 					goto release;
 				}

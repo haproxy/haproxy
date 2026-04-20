@@ -5732,11 +5732,10 @@ static void h2_detach(struct sedesc *sd)
 
 			if (h2c->conn->flags & CO_FL_PRIVATE) {
 				/* Add the connection in the session server list, if not already done */
-				if (!session_add_conn(sess, h2c->conn))
-					h2c->conn->owner = NULL;
+				session_add_conn(sess, h2c->conn);
 
 				if (eb_is_empty(&h2c->streams_by_id)) {
-					if (!h2c->conn->owner) {
+					if (!LIST_INLIST(&h2c->conn->sess_el)) {
 						/* Session insertion above has failed and connection is idle, remove it. */
 						CALL_MUX_NO_RET(h2c->conn->mux, destroy(h2c));
 						TRACE_DEVEL("leaving on error after killing outgoing connection", H2_EV_STRM_END|H2_EV_H2C_ERR);

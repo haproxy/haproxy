@@ -683,11 +683,18 @@ int session_add_conn(struct session *sess, struct connection *conn)
 
 	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
-	/* Already attach to the session */
+	/* Already attached to the session */
 	if (!LIST_ISEMPTY(&conn->sess_el)) {
 		ret = 1;
 		goto out;
 	}
+
+	/* Ensure owner is set for connection. It could have been reset upon a
+	 * session_add_conn() failure. We want to set it even if allocation
+	 * below fails so that the session that is expected to manage this
+	 * connection is always known.
+	 */
+	conn->owner = sess;
 
 	pconns = sess_get_sess_conns(sess, conn->target);
 	if (!pconns) {
@@ -697,10 +704,6 @@ int session_add_conn(struct session *sess, struct connection *conn)
 	}
 
 	LIST_APPEND(&pconns->conn_list, &conn->sess_el);
-	/* Ensure owner is set for connection. It could have been reset
-	 * prior on after a session_add_conn() failure.
-	 */
-	conn->owner = sess;
 	ret = 1;
 
  out:

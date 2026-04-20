@@ -3007,11 +3007,10 @@ static void spop_detach(struct sedesc *sd)
 	if (!(spop_conn->flags & (SPOP_CF_RCVD_SHUT|SPOP_CF_ERR_PENDING|SPOP_CF_ERROR))) {
 		if (spop_conn->conn->flags & CO_FL_PRIVATE) {
 			/* Add the connection in the session server list, if not already done */
-			if (!session_add_conn(sess, spop_conn->conn))
-				spop_conn->conn->owner = NULL;
+			session_add_conn(sess, spop_conn->conn);
 
 			if (eb_is_empty(&spop_conn->streams_by_id)) {
-				if (!spop_conn->conn->owner) {
+				if (!LIST_INLIST(&spop_conn->conn->sess_el)) {
 					/* Session insertion above has failed and connection is idle, remove it. */
 					CALL_MUX_NO_RET(spop_conn->conn->mux, destroy(spop_conn));
 					TRACE_DEVEL("leaving on error after killing outgoing connection", SPOP_EV_STRM_END|SPOP_EV_SPOP_CONN_ERR);
