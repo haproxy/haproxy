@@ -5290,6 +5290,9 @@ struct http_txn *http_create_txn(struct stream *s)
 	struct http_txn *txn;
 	struct stconn *sc = s->scf;
 
+	if ((s->flags & SF_TXN_MASK) != SF_TXN_NONE)
+		return NULL;
+
 	txn = pool_alloc(pool_head_http_txn);
 	if (!txn)
 		return NULL;
@@ -5317,6 +5320,8 @@ struct http_txn *http_create_txn(struct stream *s)
 	txn->rsp.chn = &s->res;
 
 	txn->auth.method = HTTP_AUTH_UNKNOWN;
+
+	s->flags |= SF_TXN_HTTP;
 
 	/* here we don't want to re-initialize s->vars_txn and s->vars_reqres
 	 * variable lists, because they were already initialized upon stream
@@ -5349,6 +5354,7 @@ void http_destroy_txn(struct stream *s)
 
 	pool_free(pool_head_http_txn, txn);
 	s->txn.http = NULL;
+	s->flags &= ~SF_TXN_MASK;
 }
 
 

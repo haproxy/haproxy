@@ -1401,7 +1401,8 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 		} else if (isteq(name, ist("strm.x"))) {
 			ptr = (!s || !may_access(s)) ? NULL : &s->conn_exp; size = sizeof(s->conn_exp);
 		} else if (isteq(name, ist("txn.f"))) {
-			ptr = (!s || !may_access(s)) ? NULL : &s->txn.http->flags; size = sizeof(s->txn.http->flags);
+			ptr = (!s || !may_access(s) || (s->flags & SF_TXN_MASK) != SF_TXN_HTTP) ? NULL : &s->txn.http->flags;
+			size = sizeof(s->txn.http->flags);
 		} else if (isteq(name, ist("req.f"))) {
 			ptr = (!s || !may_access(s)) ? NULL : &s->req.flags; size = sizeof(s->req.flags);
 		} else if (isteq(name, ist("res.f"))) {

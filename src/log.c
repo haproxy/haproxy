@@ -3959,7 +3959,7 @@ size_t sess_build_logline_orig(struct session *sess, struct stream *s,
 
 	if (likely(s)) {
 		be = s->be;
-		txn = s->txn.http;
+		txn = (((s->flags & SF_TXN_MASK) == SF_TXN_HTTP) ? s->txn.http : NULL);
 		be_conn = sc_conn(s->scb);
 		status = (txn ? txn->status : 0);
 		s_flags = s->flags;

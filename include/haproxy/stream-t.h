@@ -90,6 +90,10 @@
 #define SF_BC_MARK      0x01000000	/* need to set specific mark on backend/srv conn upon connect */
 #define SF_BC_TOS       0x02000000	/* need to set specific tos on backend/srv conn upon connect */
 #define SF_RULE_FYIELD  0x04000000      /* s->current_rule set because of forced yield */
+/* unused: 0x08000000 */
+#define SF_TXN_NONE     0x00000000      /* No transaction allocated */
+#define SF_TXN_HTTP     0x10000000      /* HTTP transaction allocated */
+#define SF_TXN_MASK     0x10000000      /* mask to get the transaction type */
 
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the

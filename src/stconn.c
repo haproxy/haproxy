@@ -1488,7 +1488,7 @@ int sc_conn_send(struct stconn *sc)
 		if (oc->flags & CF_STREAMER)
 			send_flag |= CO_SFL_STREAMER;
 
-		if (s->txn.http && s->txn.http->flags & TX_L7_RETRY && !b_data(&s->txn.http->l7_buffer)) {
+		if ((s->flags & SF_TXN_MASK) == SF_TXN_HTTP && (s->txn.http->flags & TX_L7_RETRY) && !b_data(&s->txn.http->l7_buffer)) {
 			/* If we want to be able to do L7 retries, copy
 			 * the data we're about to send, so that we are able
 			 * to resend them if needed
