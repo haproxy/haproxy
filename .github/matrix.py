@@ -145,9 +145,11 @@ def main(ref_name):
     if is_stable:
         os = "ubuntu-24.04"         # stable branch
         os_arm = "ubuntu-24.04-arm" # stable branch
+        os_i686 = "ubuntu-24.04"    # stable branch
     else:
         os = "ubuntu-24.04"         # development branch
         os_arm = "ubuntu-24.04-arm" # development branch
+        os_i686 = "ubuntu-24.04"    # development branch
 
     TARGET = "linux-glibc"
     for CC in ["gcc", "clang"]:
@@ -331,6 +333,22 @@ def main(ref_name):
                 "USE_PCRE2=1",
                 "USE_PCRE2_JIT=1",
                 "USE_PROMEX=1",
+            ],
+        }
+    )
+
+    # i686
+
+    matrix.append(
+        {
+            "name": "{}, i686-linux-gnu-gcc".format(os_i686),
+            "os": os_i686,
+            "TARGET": "linux-glibc",
+            "CC": "i686-linux-gnu-gcc",
+            "FLAGS": [
+                "USE_OPENSSL=1",
+                "USE_PCRE2=1",
+                "USE_PCRE2_JIT=1",
             ],
         }
     )

@@ -72,6 +72,9 @@ jobs:
       with:
         path: '~/opt-ot/'
         key: ${{ matrix.os }}-ot-${{ matrix.CC }}-${{ env.OT_CPP_VERSION }}-${{ contains(matrix.name, 'ASAN') }}
+    - name: Add i386 architecture
+      if: ${{ matrix.CC == 'i686-linux-gnu-gcc' }}
+      run: sudo dpkg --add-architecture i386
     - name: Install apt dependencies
       if: ${{ startsWith(matrix.os, 'ubuntu-') && matrix.TARGET != 'linux-musl' }}
       run: |
@@ -80,6 +83,7 @@ jobs:
           ${{ case(contains(matrix.FLAGS, 'USE_LUA=1'), 'liblua5.4-dev', '') }} \
           ${{ case(contains(matrix.FLAGS, 'USE_PCRE2=1'), 'libpcre2-dev', '') }} \
           ${{ case(contains(matrix.ssl, 'BORINGSSL=yes'), 'ninja-build', '') }} \
+          ${{ case(matrix.CC == 'i686-linux-gnu-gcc', 'gcc-i686-linux-gnu libc6-dev-i386-cross libssl-dev:i386 libpcre2-dev:i386', '') }} \
           socat \
           gdb \
           jose
