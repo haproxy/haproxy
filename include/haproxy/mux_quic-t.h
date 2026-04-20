@@ -93,7 +93,7 @@ struct qcc {
 	} tx;
 	struct {
 		struct buffer qstrm_buf;
-		size_t rlen; /* last record length read */
+		uint64_t rlen; /* last record length read */
 	} rx;
 
 	uint64_t largest_bidi_r; /* largest remote bidi stream ID opened. */
