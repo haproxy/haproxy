@@ -1251,8 +1251,7 @@ static int h1s_finish_detach(struct h1s *h1s)
 	/* We don't want to close right now unless the connection is in error or shut down for writes */
 	if ((h1c->flags & H1C_F_ERROR) ||
 	    (h1c->state == H1_CS_CLOSED) ||
-	    (h1c->state == H1_CS_CLOSING && !b_data(&h1c->obuf)) ||
-	    !h1c->conn->owner) {
+	    (h1c->state == H1_CS_CLOSING && !b_data(&h1c->obuf))) {
 		TRACE_DEVEL("killing dead connection", H1_EV_STRM_END, h1c->conn);
 		h1_release(h1c);
 		goto released;
