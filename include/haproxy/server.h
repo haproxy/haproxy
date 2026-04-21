@@ -74,6 +74,7 @@ uint server_get_next_id(const struct proxy *px, uint from);
 void apply_server_state(void);
 void srv_compute_all_admin_states(struct proxy *px);
 int srv_set_addr_via_libc(struct server *srv, int *err_code);
+int srv_postinit(struct server *srv);
 int srv_init_addr(void);
 struct server *cli_find_server(struct appctx *appctx, char *arg);
 struct server *new_server(struct proxy *proxy);
@@ -108,6 +109,9 @@ struct task *srv_cleanup_toremove_conns(struct task *task, void *context, unsign
 
 int srv_apply_track(struct server *srv, struct proxy *curproxy);
 
+int _srv_parse_kw(struct server *srv, char **args, int *cur_arg,
+                         struct proxy *curproxy,
+                         int parse_flags);
 /*
  * Registers the server keyword list <kwl> as a list of valid keywords for next
  * parsing sessions.
