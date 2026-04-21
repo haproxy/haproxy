@@ -267,14 +267,16 @@ static void quic_dgram_init(struct quic_dgram *dgram,
                             struct sockaddr_storage *saddr,
                             struct sockaddr_storage *daddr)
 {
+	BUG_ON_HOT(!is_inet_addr(saddr) || !is_inet_addr(daddr));
+
 	dgram->obj_type = OBJ_TYPE_DGRAM;
 	dgram->owner = owner;
 	dgram->buf = pos;
 	dgram->len = len;
 	dgram->dcid_off = dcid_off;
 	dgram->dcid_len = dcid_len;
-	dgram->saddr = *saddr;
-	dgram->daddr = *daddr;
+	memcpy(&dgram->saddr, saddr, sizeof(dgram->saddr));
+	memcpy(&dgram->daddr, daddr, sizeof(dgram->daddr));
 	dgram->qc = NULL;
 	dgram->flags = 0;
 }
@@ -432,7 +434,8 @@ int quic_dgram_requeue(struct quic_dgram *dgram, int cid_tid)
 {
 	return quic_dgram_write(dgram->buf, dgram->len, dgram->owner,
 	                        dgram->dcid_off, dgram->dcid_len,
-	                        &dgram->saddr, &dgram->daddr, cid_tid);
+	                        (struct sockaddr_storage *)&dgram->saddr,
+	                        (struct sockaddr_storage *)&dgram->daddr, cid_tid);
 }
 
 /* Attempt to push a datagram to its handler thread.

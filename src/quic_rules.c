@@ -28,8 +28,8 @@ int quic_init_exec_rules(struct listener *li, struct quic_dgram *dgram)
 	 */
 	rule_sess.fe = px;
 	rule_sess.listener = li;
-	rule_sess.src = &dgram->saddr;
-	rule_sess.dst = &dgram->daddr;
+	rule_sess.src = (struct sockaddr_storage *)&dgram->saddr;
+	rule_sess.dst = (struct sockaddr_storage *)&dgram->daddr;
 	rule_sess.origin = &dgram->obj_type;
 
 	list_for_each_entry(rule, &px->quic_init_rules, list) {

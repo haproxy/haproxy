@@ -606,6 +606,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 	if (mask & QUIC_EV_CONN_RCV) {
 		int i;
 		const struct quic_dgram *dgram = a2;
+		const struct sockaddr_storage *saddr, *daddr;
 		char bufaddr[INET6_ADDRSTRLEN], bufport[6];
 
 		if (qc) {
@@ -617,14 +618,15 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 		if (dgram) {
 			chunk_appendf(&trace_buf, " dgram.len=%zu", dgram->len);
 			/* Socket */
-			if (dgram->saddr.ss_family == AF_INET ||
-				dgram->saddr.ss_family == AF_INET6) {
-				addr_to_str(&dgram->saddr, bufaddr, sizeof(bufaddr));
-				port_to_str(&dgram->saddr, bufport, sizeof(bufport));
+			saddr = (struct sockaddr_storage *)&dgram->saddr;
+			daddr = (struct sockaddr_storage *)&dgram->daddr;
+			if (saddr->ss_family == AF_INET || saddr->ss_family == AF_INET6) {
+				addr_to_str(saddr, bufaddr, sizeof(bufaddr));
+				port_to_str(saddr, bufport, sizeof(bufport));
 				chunk_appendf(&trace_buf, "saddr=%s:%s ", bufaddr, bufport);
 
-				addr_to_str(&dgram->daddr, bufaddr, sizeof(bufaddr));
-				port_to_str(&dgram->daddr, bufport, sizeof(bufport));
+				addr_to_str(daddr, bufaddr, sizeof(bufaddr));
+				port_to_str(daddr, bufport, sizeof(bufport));
 				chunk_appendf(&trace_buf, "daddr=%s:%s ", bufaddr, bufport);
 			}
 			/* DCID */

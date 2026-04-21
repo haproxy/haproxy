@@ -21,6 +21,11 @@ struct quic_accept_queue {
 #define QUIC_DGRAM_FL_REJECT			0x00000001
 #define QUIC_DGRAM_FL_SEND_RETRY		0x00000002
 
+union sockaddr_in46 {
+	struct sockaddr_in in4;
+	struct sockaddr_in6 in6;
+};
+
 /* QUIC datagram */
 struct quic_dgram {
 	enum obj_type obj_type;
@@ -29,8 +34,8 @@ struct quic_dgram {
 	size_t len;
 	size_t dcid_off;
 	size_t dcid_len;
-	struct sockaddr_storage saddr;
-	struct sockaddr_storage daddr;
+	union sockaddr_in46 saddr;
+	union sockaddr_in46 daddr;
 	struct quic_conn *qc;
 
 	int flags; /* QUIC_DGRAM_FL_* values */

@@ -135,7 +135,7 @@ int quic_token_check(struct quic_rx_packet *pkt,
 	}
 
 	/* Generate the AAD. */
-	aadlen = ipaddrcpy(aad, &dgram->saddr);
+	aadlen = ipaddrcpy(aad, (struct sockaddr_storage *)&dgram->saddr);
 	rand = token + tokenlen - QUIC_TOKEN_RAND_DLEN;
 	if (!quic_tls_derive_token_secret(EVP_sha256(), key, sizeof key, iv, sizeof iv,
 	                                  rand, QUIC_TOKEN_RAND_DLEN, sec, seclen)) {

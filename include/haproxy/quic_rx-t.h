@@ -7,6 +7,7 @@ extern struct pool_head *pool_head_quic_rx_packet;
 #include <import/eb64tree.h>
 #include <haproxy/api-t.h>
 #include <haproxy/quic_cid-t.h>
+#include <haproxy/quic_sock-t.h>
 #include <inttypes.h>
 #include <sys/socket.h>
 
@@ -52,7 +53,7 @@ struct quic_rx_packet {
 	struct eb64_node pn_node;
 	volatile unsigned int refcnt;
 	/* Source address of this packet. */
-	struct sockaddr_storage saddr;
+	union sockaddr_in46 saddr;
 	unsigned int flags;
 	unsigned int time_received;
 };
