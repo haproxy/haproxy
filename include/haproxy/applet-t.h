@@ -148,7 +148,6 @@ struct appctx {
 	/* here we have the service's context (CLI command, applet, etc) */
 	void *svcctx;                            /* pointer to a context used by the command, e.g. <storage> below */
 	struct {
-		void *shadow;                    /* shadow of svcctx above, do not use! */
 		char storage[APPLET_MAX_SVCCTX]; /* storage of svcctx above */
 	} svc;                                   /* generic storage for most commands */
 };
