@@ -34,6 +34,7 @@
 
 #define MAX_TGROUPS 1
 #define MAX_THREADS_PER_GROUP 1
+#define DEF_MAX_THREADS_PER_GROUP 1
 
 #else
 
