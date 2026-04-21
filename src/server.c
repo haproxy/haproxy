@@ -3881,7 +3881,7 @@ out:
  * A mask of errors is returned. ERR_FATAL is set if the parsing should be
  * interrupted.
  */
-static int _srv_parse_kw(struct server *srv, char **args, int *cur_arg,
+int _srv_parse_kw(struct server *srv, char **args, int *cur_arg,
                          struct proxy *curproxy,
                          int parse_flags)
 {
