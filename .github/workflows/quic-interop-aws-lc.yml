@@ -59,7 +59,7 @@ jobs:
 
       - name: Logs upload
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: logs
           path: quic-interop-runner/logs*/
