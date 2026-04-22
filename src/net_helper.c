@@ -776,8 +776,8 @@ static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *
 		/* kind1 = NOP and is a single byte, others have a length field */
 		if (smp->data.u.str.area[ofs] == 1)
 			next = ofs + 1;
-		else if (ofs + 1 < tcplen)
-			next = ofs + smp->data.u.str.area[ofs + 1];
+		else if ((ofs + 1 < tcplen) && smp->data.u.str.area[ofs + 1]) /* optlen 0 will cause an infinite loop */
+			next = ofs + (uchar)smp->data.u.str.area[ofs + 1];
 		else
 			break;
 
