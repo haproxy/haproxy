@@ -2864,6 +2864,13 @@ static size_t h1_make_eoh(struct h1s *h1s, struct h1m *h1m, struct htx *htx, siz
 			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
 			TRACE_STATE("force close mode (T-E + HTTP/1.0)", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
 		}
+		else if ((h1m->flags & H1_MF_CLEN) && h1m->body_len != 0 &&
+			 htx_is_unique_blk(htx, blk) && (htx->flags & HTX_FL_EOM) &&
+			 (!(h1m->flags & H1_MF_RESP) || !(h1s->flags & H1S_F_BODYLESS_RESP))) {
+			/* C-L but no data for non-bodyless response or for a request: force close */
+			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
+			TRACE_STATE("force close mode (C-L without data)", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
+		}
 
 		/* the conn_mode must be processed. So do it */
 		n = ist("connection");
