@@ -379,6 +379,11 @@ if [ -n "$testlist" ]; then
   cmd="$VTEST_PROGRAM -b $((2<<20)) -k -t ${VTEST_TIMEOUT} -L $verbose $debug $jobcount $vtestparams $testlist"
   eval $cmd
   _vtresult=$?
+  grep -rE --include="LOG" 'sh: -c: line [0-9]+: syntax error|syntax error near unexpected token|Syntax error' "$TESTDIR"
+  if [ $? -eq 0 ]; then
+    echo "########################## Fatal shell syntax errors ##########################"
+    _vtresult=1
+  fi
 else
   echo "No tests found that meet the required criteria"
 fi
