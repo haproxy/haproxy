@@ -2988,7 +2988,8 @@ static size_t h1_make_eoh(struct h1s *h1s, struct h1m *h1m, struct htx *htx, siz
 		 * payload. If cannot be removed now. We must emit the end of
 		 * the message first to be sure the output buffer is not full
 		 */
-		if ((h1m->flags & H1_MF_CHNK) && !(h1s->flags & H1S_F_BODYLESS_RESP)) {
+		if ((h1m->flags & H1_MF_CHNK) && (!(h1m->flags & H1_MF_RESP) || !(h1s->flags & H1S_F_BODYLESS_RESP))) {
+			/* Send null-chunk except for bodyless reasponses */
 			if (!chunk_memcat(&outbuf, "\r\n0\r\n\r\n", 7))
 				goto full;
 		}
