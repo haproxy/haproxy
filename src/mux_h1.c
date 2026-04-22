@@ -3471,8 +3471,8 @@ static size_t h1_make_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *htx
 				goto nextblk;
 
 			/* Skip the trailers because the corresponding conf option was set */
-			if ((!(h1m->flags & H1_MF_RESP) && (h1c->px->options & PR_O_HTTP_DROP_RES_TRLS)) ||
-			    ((h1m->flags & H1_MF_RESP) && (h1c->px->options & PR_O_HTTP_DROP_REQ_TRLS)))
+			if ((!(h1m->flags & H1_MF_RESP) && (h1c->px->options & PR_O_HTTP_DROP_REQ_TRLS)) ||
+			    ((h1m->flags & H1_MF_RESP) && (h1c->px->options & PR_O_HTTP_DROP_RES_TRLS)))
 				goto nextblk;
 
 			n = htx_get_blk_name(htx, blk);
