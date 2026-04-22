@@ -6341,6 +6341,15 @@ next_frame:
 			TRACE_STATE("invalid interim response with ES flag", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 			goto fail;
 		}
+		/* Note that bodyless only applies to responses, even when
+		 * reported on the request (e.g. HEAD).
+		 */
+		if ((msgf & H2_MSGF_BODY_CL) && *body_len > 0 &&
+		    (!(h2c->flags & H2_CF_IS_BACK) || !(*flags & H2_SF_BODYLESS_RESP))) {
+			h2c_report_glitch(h2c, 1, "ES on HEADERS before end of content-length");
+			TRACE_STATE("ES on HEADERS before end of content-length", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
+			goto fail;
+		}
 		/* no more data are expected for this message */
 		htx->flags |= HTX_FL_EOM;
 		*flags |= H2_SF_ES_RCVD;
