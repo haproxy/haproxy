@@ -1519,6 +1519,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
   fail:
 	task_destroy(t);
 	tasklet_free(h2c->wait_event.tasklet);
+	pool_free(pool_head_h2_rx_bufs, h2c->shared_rx_bufs);
 	pool_free(pool_head_h2c, h2c);
   fail_no_h2c:
 	if (!conn_is_back(conn))
