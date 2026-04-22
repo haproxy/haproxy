@@ -3648,6 +3648,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		}
 
 		/* recoverable stream error (e.g. too large request) */
+		HA_ATOMIC_INC(&h2c->px_counters->strm_proto_err);
 		h2_sess_log_strm(h2c->conn->owner);
 		TRACE_USER("rcvd unparsable H2 request", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn, h2s, &rxbuf);
 		goto strm_err;
