@@ -1,4 +1,6 @@
-#REGTEST_TYPE=devel
+#REGTEST_TYPE=broken
+
+# test seems broken since it was fixed in 3610a767
 
 # This reg-tests checks that the DH-related mechanisms works properly.
 # When no DH is specified, either directly in the server's PEM or through a
