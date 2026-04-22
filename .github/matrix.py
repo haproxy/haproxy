@@ -145,10 +145,12 @@ def main(ref_name):
     if is_stable:
         os = "ubuntu-24.04"         # stable branch
         os_arm = "ubuntu-24.04-arm" # stable branch
+        os_armhf = "ubuntu-24.04-arm"    # stable branch
         os_i686 = "ubuntu-24.04"    # stable branch
     else:
         os = "ubuntu-24.04"         # development branch
         os_arm = "ubuntu-24.04-arm" # development branch
+        os_armhf = "ubuntu-24.04-arm" # development branch
         os_i686 = "ubuntu-24.04"    # development branch
 
     TARGET = "linux-glibc"
@@ -345,6 +347,22 @@ def main(ref_name):
             "os": os_i686,
             "TARGET": "linux-glibc",
             "CC": "i686-linux-gnu-gcc",
+            "FLAGS": [
+                "USE_OPENSSL=1",
+                "USE_PCRE2=1",
+                "USE_PCRE2_JIT=1",
+            ],
+        }
+    )
+
+   # arm32
+
+    matrix.append(
+        {
+            "name": "{}, armhf".format(os_armhf),
+            "os": os_armhf,
+            "TARGET": "linux-glibc",
+            "CC": "arm-linux-gnueabihf-gcc",
             "FLAGS": [
                 "USE_OPENSSL=1",
                 "USE_PCRE2=1",

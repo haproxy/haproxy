@@ -72,18 +72,18 @@ jobs:
       with:
         path: '~/opt-ot/'
         key: ${{ matrix.os }}-ot-${{ matrix.CC }}-${{ env.OT_CPP_VERSION }}-${{ contains(matrix.name, 'ASAN') }}
-    - name: Add i386 architecture
-      if: ${{ matrix.CC == 'i686-linux-gnu-gcc' }}
-      run: sudo dpkg --add-architecture i386
     - name: Install apt dependencies
       if: ${{ startsWith(matrix.os, 'ubuntu-') && matrix.TARGET != 'linux-musl' }}
       run: |
+        ${{ matrix.CC == 'i686-linux-gnu-gcc' && 'sudo dpkg --add-architecture i386' || '' }}
+        ${{ matrix.CC == 'arm-linux-gnueabihf-gcc' && 'sudo dpkg --add-architecture armhf' || '' }}
         sudo apt-get update -o Acquire::Languages=none -o Acquire::Translation=none
         sudo apt-get --no-install-recommends -y install \
           ${{ case(contains(matrix.FLAGS, 'USE_LUA=1'), 'liblua5.4-dev', '') }} \
           ${{ case(contains(matrix.FLAGS, 'USE_PCRE2=1'), 'libpcre2-dev', '') }} \
           ${{ case(contains(matrix.ssl, 'BORINGSSL=yes'), 'ninja-build', '') }} \
           ${{ case(matrix.CC == 'i686-linux-gnu-gcc', 'gcc-i686-linux-gnu libc6-dev-i386-cross libssl-dev:i386 libpcre2-dev:i386', '') }} \
+          ${{ case(matrix.CC == 'arm-linux-gnueabihf-gcc', 'gcc-arm-linux-gnueabihf libc6-dev-armhf-cross libssl-dev:armhf libpcre2-dev:armhf qemu-user-static', '') }} \
           socat \
           gdb \
           jose
@@ -126,12 +126,12 @@ jobs:
       id: show-version
       run: |
         echo "::group::Show dynamic libraries."
-        if command -v ldd > /dev/null; then
-          # Linux
-          ldd $(which haproxy)
-        else
-          # macOS
+        if [ "$(uname)" = "Darwin" ]; then
           otool -L $(which haproxy)
+        elif [ "${{ matrix.CC }}" = "arm-linux-gnueabihf-gcc" ]; then
+          readelf -d $(which haproxy) | grep NEEDED
+        else
+          ldd $(which haproxy)
         fi
         echo "::endgroup::"
         haproxy -vv
