@@ -3432,7 +3432,11 @@ static int h2c_handle_priority(struct h2c *h2c)
 		return 0;
 	}
 
-	if (h2_get_n32(&h2c->dbuf, 0) == h2c->dsi) {
+	/*
+	 * Bit 31 is the "exclusive" bit, it is not part of the stream id,
+	 * so ignore it when checking if the stream id is ours.
+	 */
+	if ((h2_get_n32(&h2c->dbuf, 0) & 0x7fffffff) == h2c->dsi) {
 		/* 7540#5.3 : can't depend on itself */
 		h2c_report_glitch(h2c, 1, "PRIORITY depends on itself");
 		TRACE_ERROR("PRIORITY depends on itself", H2_EV_RX_FRAME|H2_EV_RX_WU, h2c->conn);
