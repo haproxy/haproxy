@@ -8738,11 +8738,11 @@ static int h2_parse_log_errors(char **args, int section_type, struct proxy *curp
 
 	/* backend/frontend/default */
 	vptr = &h2_settings_log_errors;
-	if (strcmp(args[1], "none"))
+	if (strcmp(args[1], "none") == 0)
 		*vptr = H2_ERR_LOG_ERR_NONE;
-	else if (strcmp(args[1], "connection"))
+	else if (strcmp(args[1], "connection") == 0)
 		*vptr = H2_ERR_LOG_ERR_CONN;
-	else if (strcmp(args[1], "stream"))
+	else if (strcmp(args[1], "stream") == 0)
 		*vptr = H2_ERR_LOG_ERR_STRM;
 	else {
 		memprintf(err, "'%s' expects 'none', 'connection', or 'stream'", args[0]);
