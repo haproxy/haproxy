@@ -39,16 +39,16 @@ const struct quic_transport_params *xprt_qstrm_rparams(const void *context)
 	return &ctx->rparams;
 }
 
-/* Returns RX buffer as mutable to allow zero-copy by the caller. */
-struct buffer *xprt_qstrm_rxbuf(void *context)
+/* Transfer Rx buffer into <out>. */
+size_t xprt_qstrm_xfer_rxbuf(void *context, struct buffer *out)
 {
 	struct xprt_qstrm_ctx *ctx = context;
-	return &ctx->rxbuf;
-}
 
-size_t xprt_qstrm_rxrlen(const void *context)
-{
-	const struct xprt_qstrm_ctx *ctx = context;
+	if (b_data(&ctx->rxbuf)) {
+		*out = ctx->rxbuf;
+		ctx->rxbuf = BUF_NULL;
+	}
+
 	return ctx->rxrlen;
 }
 
@@ -221,6 +221,10 @@ struct task *xprt_qstrm_io_cb(struct task *t, void *context, unsigned int state)
 		conn->xprt_ctx = ctx->ctx_lower;
 		conn->xprt = ctx->ops_lower;
 
+		/* MUX layer is responsible to retrieve any remaining data in
+		 * the Rx buffer prior to reset it.
+		 */
+		BUG_ON(b_data(&ctx->rxbuf));
 		b_free(&ctx->rxbuf);
 		b_free(&ctx->txbuf);
 

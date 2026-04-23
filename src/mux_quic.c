@@ -3847,25 +3847,13 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 	}
 
 	if (!conn_is_quic(conn)) {
-		struct buffer *xprt_buf;
-
 		qcc->tx.qstrm_buf = BUF_NULL;
 		qcc->rx.qstrm_buf = BUF_NULL;
 
-		/* Retrieve data if xprt read too much */
-		xprt_buf = xprt_qstrm_rxbuf(conn->xprt_ctx);
-		if (unlikely(b_data(xprt_buf))) {
-			b_alloc(&qcc->rx.qstrm_buf, DB_MUX_RX);
-			if (!b_size(&qcc->rx.qstrm_buf)) {
-				TRACE_ERROR("rx qstrm buf alloc failure", QMUX_EV_QCC_NEW);
-				goto err;
-			}
-			b_xfer(&qcc->rx.qstrm_buf, xprt_buf, b_data(xprt_buf));
-			qcc->rx.rlen = xprt_qstrm_rxrlen(conn->xprt_ctx);
-		}
-		else {
-			qcc->rx.rlen = 0;
-		}
+		/* Rx buffer is transfered from xprt layer - necessary if too many data where read */
+		qcc->rx.rlen = xprt_qstrm_xfer_rxbuf(conn->xprt_ctx, &qcc->rx.qstrm_buf);
+		/* Cannot have a non empty record with an empty buffer. */
+		BUG_ON(qcc->rx.rlen && !b_data(&qcc->rx.qstrm_buf));
 	}
 
 	if (conn_is_back(conn)) {
