@@ -2050,7 +2050,7 @@ static enum act_parse_ret parse_http_del_headers_bin(const char **args, int *ori
 		pat_idx = pat_find_match_name(args[cur_arg]);
 		switch (pat_idx) {
 		case PAT_MATCH_REG:
-			memprintf(err, "-m reg with is unsupported with del-header-bin due to performance reasons");
+			memprintf(err, "-m reg is unsupported with del-headers-bin due to performance reasons");
 			release_sample_expr(expr);
 			return ACT_RET_PRS_ERR;
 		case PAT_MATCH_STR:
