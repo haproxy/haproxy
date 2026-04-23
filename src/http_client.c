@@ -648,7 +648,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 					break;
 				}
 
-				/* copy the start line in the hc structure,then remove the htx block */
+				/* copy the start line in the hc structure, then remove the htx block */
 				htx = htxbuf(inbuf);
 				if (htx_get_head_type(htx) != HTX_BLK_RES_SL)
 					goto error;
@@ -730,7 +730,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 
 				} else {
 				/* first copy the headers in a local hdrs
-				 * structure, once we the total numbers of the
+				 * structure, once we have the total numbers of the
 				 * header we allocate the right size and copy
 				 * them. The htx block of the headers are
 				 * removed each time one is read  */
@@ -790,7 +790,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 
 				/*
 				 * The IO handler removes the htx blocks in the response buffer and
-				 * push them in the hc->res.buf buffer in a raw format.
+				 * pushes them in the hc->res.buf buffer in a raw format.
 				 */
 				htx = htxbuf(inbuf);
 				if (htx_is_empty(htx)) {
@@ -804,7 +804,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 				}
 
 				if (hc->options & HTTPCLIENT_O_RES_HTX) {
-					/* HTX mode transfers the header to the hc buffer */
+					/* HTX mode transfers the body to the hc buffer */
 					struct htx *hc_htx;
 
 					hc_htx = htxbuf(&hc->res.buf);
