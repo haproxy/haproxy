@@ -128,6 +128,8 @@ static forceinline char *strm_show_flags(char *buf, size_t len, const char *deli
 	_(SF_MONITOR, _(SF_CURR_SESS, _(SF_CONN_EXP, _(SF_REDISP,
 	_(SF_IGNORE, _(SF_REDIRECTABLE, _(SF_HTX))))))))))));
 
+	_e(SF_TXN_MASK, SF_TXN_HTTP,  _e(SF_TXN_MASK, SF_TXN_PCLI));
+
 	/* epilogue */
 	_(~0U);
 	return buf;
