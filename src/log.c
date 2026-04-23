@@ -1114,7 +1114,7 @@ int lf_expr_postcheck(struct lf_expr *lf_expr, struct proxy *px, char **err)
 				px->to_log |= LW_REQ;
 
 			/* anything involving the response needs to happen at response time */
-			if (expr->fetch->use & (SMP_USE_HRSHP|SMP_USE_HRSHP|SMP_USE_HRSBO))
+			if (expr->fetch->use & (SMP_USE_HRSHP|SMP_USE_HRSHV|SMP_USE_HRSBO))
 				px->to_log |= LW_RESP;
 
 			/* anything involving the end of the response needs to happen after final bytes */
