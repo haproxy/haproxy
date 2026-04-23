@@ -111,6 +111,9 @@ static void qcs_free(struct qcs *qcs)
 		qc_stream_desc_sub_send(qcs->tx.stream, NULL);
 		qc_stream_desc_release(qcs->tx.stream, qcs->tx.fc.off_real, qcc);
 	}
+	else if (!conn_is_quic(qcc->conn)) {
+		b_free(&qcs->tx.qstrm_buf);
+	}
 
 	/* Free Rx buffer. */
 	while (!eb_is_empty(&qcs->rx.bufs)) {
@@ -217,11 +220,6 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 		}
 		else {
 			qcs->tx.qstrm_buf = BUF_NULL;
-			b_alloc(&qcs->tx.qstrm_buf, DB_MUX_TX);
-			if (!b_size(&qcs->tx.qstrm_buf)) {
-				TRACE_ERROR("tx buf alloc failure", QMUX_EV_QCS_NEW, qcc->conn, qcs);
-				goto err;
-			}
 		}
 	}
 
@@ -1505,7 +1503,7 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err, int small)
 
 	*err = 0;
 
-	if (!out) {
+	if (conn_is_quic(qcc->conn) && !out) {
 		if (likely(!(qcs->flags & QC_SF_TXBUB_OOB))) {
 			if ((qcc->flags & QC_CF_CONN_FULL)) {
 				LIST_APPEND(&qcc->buf_wait_list, &qcs->el_buf);
@@ -1532,6 +1530,14 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err, int small)
 		if (likely(!(qcs->flags & QC_SF_TXBUB_OOB)))
 			qcc->tx.buf_in_flight += b_size(out);
 	}
+	else if (!conn_is_quic(qcc->conn)) {
+		if ((small && !b_alloc_small(out)) ||
+		    (!small && !b_alloc(out, DB_MUX_TX))) {
+			TRACE_ERROR("QCS tx buf alloc failure", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+			*err = 1;
+			goto out;
+		}
+	}
 
  out:
 	return out;
@@ -1547,27 +1553,36 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err, int small)
 struct buffer *qcc_realloc_stream_txbuf(struct qcs *qcs)
 {
 	struct qcc *qcc = qcs->qcc;
-	struct buffer *out = qc_stream_buf_get(qcs->tx.stream);
+	struct buffer *out = qcs_tx_buf(qcs);
 
 	/* Stream must not try to reallocate a buffer if currently waiting for one. */
 	BUG_ON(LIST_INLIST(&qcs->el_buf));
 
-	if (likely(!(qcs->flags & QC_SF_TXBUB_OOB))) {
-		/* Reduce buffer window. As such there is always some space
-		 * left for a new buffer allocation.
-		 */
-		BUG_ON(qcc->tx.buf_in_flight < b_size(out));
-		qcc->tx.buf_in_flight -= b_size(out);
-	}
+	if (conn_is_quic(qcc->conn)) {
+		if (likely(!(qcs->flags & QC_SF_TXBUB_OOB))) {
+			/* Reduce buffer window. As such there is always some space
+			 * left for a new buffer allocation.
+			 */
+			BUG_ON(qcc->tx.buf_in_flight < b_size(out));
+			qcc->tx.buf_in_flight -= b_size(out);
+		}
 
-	out = qc_stream_buf_realloc(qcs->tx.stream);
-	if (!out) {
-		TRACE_ERROR("buffer alloc failure", QMUX_EV_QCS_SEND, qcc->conn, qcs);
-		goto out;
-	}
+		out = qc_stream_buf_realloc(qcs->tx.stream);
+		if (!out) {
+			TRACE_ERROR("buffer alloc failure", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+			goto out;
+		}
 
-	if (likely(!(qcs->flags & QC_SF_TXBUB_OOB)))
-		qcc->tx.buf_in_flight += b_size(out);
+		if (likely(!(qcs->flags & QC_SF_TXBUB_OOB)))
+			qcc->tx.buf_in_flight += b_size(out);
+	}
+	else {
+		b_free(out);
+		if (!b_alloc(out, DB_MUX_TX)) {
+			TRACE_ERROR("QCS tx buf alloc failure", QMUX_EV_QCS_SEND, qcc->conn, qcs);
+			goto out;
+		}
+	}
 
  out:
 	return out && b_size(out) ? out : NULL;
