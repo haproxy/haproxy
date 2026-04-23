@@ -23,7 +23,7 @@ static void haterm_usage(char *name)
 		"        -C : dump the configuration and exit\n"
 		"        -D : goes daemon\n"
 		"        -b <keysize> : RSA key size in bits (ex: \"2048\", \"4096\"...)\n"
-		"        -c <curves> : ECSDA curves (ex: \"P-256\", \"P-384\"...)\n"
+		"        -c <curves> : ECDSA curves (ex: \"P-256\", \"P-384\"...)\n"
 		"        -v : shows version\n"
 		"        -d : enable the traces for all http protocols\n"
 		"        -dS : disables splice() usage even when available\n"

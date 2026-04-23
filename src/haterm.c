@@ -33,7 +33,7 @@ DECLARE_TYPED_POOL(pool_head_hstream, "hstream", struct hstream);
 #define HS_ST_OPT_CHUNK_RES     0x0080 /* chunk-encoded response (?k=1) */
 #define HS_ST_OPT_REQ_AFTER_RES 0x0100 /* drain the request payload after the response (?A=1) */
 #define HS_ST_OPT_RANDOM_RES    0x0200 /* random response (?R=1) */
-#define HS_ST_OPT_NO_CACHE      0x0400 /* non-cacheable resposne (?c=0) */
+#define HS_ST_OPT_NO_CACHE      0x0400 /* non-cacheable response (?c=0) */
 #define HS_ST_OPT_NO_SPLICING   0x0800 /* no splicing (?S=1) */
 
 const char *HTTP_HELP =
@@ -323,7 +323,7 @@ static int hstream_ff_snd(struct connection *conn, struct hstream *hs)
 	struct sedesc *sd = hs->sc->sedesc;
 	int ret = 0;
 
-	/* First try to resume FF*/
+	/* First try to resume FF */
 	if (se_have_ff_data(sd)) {
 		ret = CALL_MUX_WITH_RET(conn->mux, resume_fastfwd(hs->sc, 0));
 		if (ret > 0)
@@ -370,7 +370,7 @@ static int hstream_ff_snd(struct connection *conn, struct hstream *hs)
   done:
 	if (se_done_ff(sd) != 0 || !(sd->iobuf.flags & (IOBUF_FL_FF_BLOCKED|IOBUF_FL_FF_WANT_ROOM))) {
 		/* Something was forwarding or the consumer states it is not
-		 * blocked anyore, don't reclaim more room */
+		 * blocked anymore, don't reclaim more room */
 	}
 
 	if (se_have_ff_data(sd)) {
@@ -1060,7 +1060,7 @@ static struct task *process_hstream(struct task *t, void *context, unsigned int 
 
  send_done:
 		if (hs->req_body && (hs->flags & HS_ST_OPT_REQ_AFTER_RES) && !hs->to_write) {
-			/* Response sending has just complete. The body will be drained upon
+			/* Response sending has just completed. The body will be drained upon
 			 * next wakeup.
 			 */
 			TRACE_STATE("waking up task", HS_EV_HSTRM_IO_CB, hs);
