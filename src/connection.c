@@ -102,6 +102,20 @@ void conn_delete_from_tree(struct connection *conn, int thr)
 	ceb64_item_delete(conn_tree, hash_node.node, hash_node.key, conn);
 }
 
+/* Installs the MUX layer for <conn> connection. The behavior is slightly
+ * different for frontend and backend sides.
+ *
+ * For frontend connections, MUX is setup via session initialization
+ * completion. In case of failure, the session and the whole connection stack
+ * is freed. Caller should set <closed_connection> to a non NULL value as it
+ * will be set to 1 to report the connection release.
+ *
+ * For backend connections, MUX layer is immediately initialized by selecting
+ * the most appropriate one depending on the connection protocol. In case of
+ * failure, connection is left as it is and the upper layer is notified.
+ *
+ * Returns 0 on success else a negative error code.
+ */
 int conn_create_mux(struct connection *conn, int *closed_connection)
 {
 	if (closed_connection)
