@@ -821,10 +821,10 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 
 		/* the last copied block is a start-line, a header or a trailer */
 		if (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL || type == HTX_BLK_HDR || type == HTX_BLK_TLR) {
-			/* <src > cannot have partial headers or trailers part */
+			/* <src> cannot have partial headers or trailers part */
 			BUG_ON(blk == NULL);
 
-			/* Remove partial headers/trailers from <dst> and rollback on <str> to not remove them later */
+			/* Remove partial headers/trailers from <dst> and rollback on <src> to not remove them later */
 			while (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL || type == HTX_BLK_HDR || type == HTX_BLK_TLR) {
 				BUG_ON(type != htx_get_blk_type(blk));
 				ret -= sizeof(*blk) + htx_get_blksz(blk);
