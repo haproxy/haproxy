@@ -335,6 +335,7 @@ void free_tcpcheck_ruleset(struct tcpcheck_ruleset *rs)
 		LIST_DELETE(&r->list);
 		free_tcpcheck(r, 0);
 	}
+	free((char*)rs->conf.file);
 	free(rs);
 }
 
