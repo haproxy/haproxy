@@ -4493,7 +4493,7 @@ static int do_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *cu
 		"16"                        /* ContentType         : 0x16 = Handshake          */
 		"0300"                      /* ProtocolVersion     : 0x0300 = SSLv3            */
 		"0079"                      /* ContentLength       : 0x79 bytes after this one */
-		"01"                        /* HanshakeType        : 0x01 = CLIENT HELLO       */
+		"01"                        /* HandshakeType       : 0x01 = CLIENT HELLO       */
 		"000075"                    /* HandshakeLength     : 0x75 bytes after this one */
 		"0300"                      /* Hello Version       : 0x0300 = v3               */
 		"%[date(),htonl,hex]"       /* Unix GMT Time (s)   : filled with <now> (@0x0B) */
@@ -4872,7 +4872,7 @@ static int do_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curp
 		"00820000"                     /* client capabilities */
 		"00800001"                     /* max packet */
 		"21"                           /* character set (UTF-8) */
-		"000000000000000000000000"     /* 23 bytes, al zeroes */
+		"000000000000000000000000"     /* 23 bytes, all zeroes */
 		"0000000000000000000000"
 		"%[var(check.username),hex]00" /* the username */
 		"00"                           /* filler (always 0x00) */
@@ -5355,7 +5355,7 @@ int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx, const st
 	return ret;
 }
 
-/* Parses the "http-check" proxyx keyword */
+/* Parses the "http-check" proxy keyword */
 static int proxy_parse_httpcheck(char **args, int section, struct proxy *curpx, const struct proxy *defpx,
 				 const char *file, int line, char **errmsg)
 {
@@ -5633,7 +5633,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 	return err_code;
 }
 
-/* Parses the "option httpchck" proxy keyword */
+/* Parses the "option httpchk" proxy keyword */
 int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, const struct proxy *defpx,
 			    const char *file, int line)
 {

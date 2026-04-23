@@ -111,7 +111,7 @@ enum tcpcheck_rule_type {
 #define TCPCHK_FL_USE_SSL        0x00000004 /* tcp-check uses SSL connection */
 
 #define TCPCHK_RULES_NONE         0x00000000
-#define TCPCHK_RULES_DISABLE404   0x00000001 /* Disable a server on a 404 response wht HTTP health checks */
+#define TCPCHK_RULES_DISABLE404   0x00000001 /* Disable a server on a 404 response with HTTP health checks */
 #define TCPCHK_RULES_SNDST        0x00000002 /* send the state of each server along with HTTP health checks */
 
 #define TCPCHK_RULES_PGSQL_CHK   0x00000010
