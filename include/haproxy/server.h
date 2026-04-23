@@ -221,7 +221,7 @@ static inline void srv_inc_sess_ctr(struct server *s)
 static inline void srv_set_sess_last(struct server *s)
 {
 	if (s->counters.shared.tg) {
-		uint now_sec = ns_to_sec(now_ms);
+		uint now_sec = ns_to_sec(now_ns);
 
 		if (HA_ATOMIC_LOAD(&s->counters.shared.tg[tgid - 1]->last_sess) != now_sec)
 			HA_ATOMIC_STORE(&s->counters.shared.tg[tgid - 1]->last_sess, now_sec);
