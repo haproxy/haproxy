@@ -2036,8 +2036,12 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 		BUG_ON_HOT(fin_standalone); /* On fin_standalone <ret> should be NULL, which ensures no infinite loop. */
 	}
 
-	/* Ensure that an idle backend conn is freed if it cannot open new stream. */
-	if (conn_is_back(qcc->conn) && qcc_is_dead(qcc)) {
+	/* Ensure that an idle backend conn is freed if it cannot open new
+	 * stream. This is only performed for QUIC which directly calls
+	 * qcc_recv() and is not compatible with QMux. For the latter, dead
+	 * connection should still be detected after recv via qcc_io_process().
+	 */
+	if (conn_is_quic(qcc->conn) && conn_is_back(qcc->conn) && qcc_is_dead(qcc)) {
 		TRACE_STATE("releasing dead connection after STREAM decoding", QMUX_EV_QCC_RECV, qcc->conn);
 		qcc_release(qcc);
 		return 0;
