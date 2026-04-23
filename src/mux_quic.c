@@ -1737,6 +1737,10 @@ void qcc_reset_stream(struct qcs *qcs, int err, int tevt)
 	qcs->flags |= QC_SF_TO_RESET;
 	qcs->err = err;
 
+	/* On BE side, a QCS may be resetted before any data emission. */
+	if (conn_is_back(qcs->qcc->conn))
+		qcs_idle_open(qcs);
+
 	if (diff) {
 		const int soft_blocked = qfctl_sblocked(&qcc->tx.fc);
 
