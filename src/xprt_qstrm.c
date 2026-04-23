@@ -272,6 +272,7 @@ static int xprt_qstrm_init(struct connection *conn, void **xprt_ctx)
 	ctx->txbuf = BUF_NULL;
 
 	memset(&ctx->rparams, 0, sizeof(struct quic_transport_params));
+	memset(&ctx->lparams, 0, sizeof(struct quic_transport_params));
 
 	/* TP configuration advertised by us */
 	ctx->lparams.max_idle_timeout = 30;
