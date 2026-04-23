@@ -247,20 +247,23 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 	struct quic_frame *split_frm, *next_frm;
 	struct buffer *buf = &qcc->tx.qstrm_buf;
 	unsigned char *pos, *old, *end;
-	size_t ret;
-	/* Record size field length */
-	const int lensz = quic_int_getsize(quic_int_cap_length(b_size(buf)));
+	size_t sent;
+	int ret, lensz, enc;
 
 	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
 
+	/* Record size field length */
+	lensz = quic_int_getsize(quic_int_cap_length(b_size(buf)));
+
+	/* Purge buffer first if remaining data to send. */
 	if (b_data(buf)) {
-		ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf), NULL, 0, 0);
-		if (!ret) {
+		sent = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf), NULL, 0, 0);
+		if (!sent) {
 			TRACE_DEVEL("snd_buf interrupted", QMUX_EV_QCC_SEND, qcc->conn);
 			goto out;
 		}
 
-		if (ret != b_data(buf)) {
+		if (sent != b_data(buf)) {
 			/* TODO */
 			ABORT_NOW();
 		}
@@ -270,7 +273,7 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
  loop:
 		split_frm = next_frm = NULL;
 		b_reset(buf);
-		/* Reserve 4 bytes for the record header. */
+		/* Reserve bytes for the record header. */
 		old = pos = (unsigned char *)b_orig(buf) + lensz;
 		end = (unsigned char *)b_wrap(buf);
 
@@ -302,22 +305,20 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 		BUG_ON(pos == old);
 
 		/* Encode record header and save built payload. */
-		ret = b_quic_enc_int(buf, pos - old, lensz);
-		BUG_ON(!ret);
+		enc = b_quic_enc_int(buf, pos - old, lensz);
+		BUG_ON(!enc); /* Cannot fail as space already reserved earlier. */
 		b_add(buf, pos - old);
 
-		ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf), NULL, 0, 0);
-		if (!ret) {
+		sent = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf), NULL, 0, 0);
+		if (!sent) {
 			TRACE_DEVEL("snd_buf interrupted", QMUX_EV_QCC_SEND, qcc->conn);
 			if (split_frm)
 				LIST_INSERT(frms, &split_frm->list);
 			break;
 		}
 
-		if (ret != b_data(buf)) {
-			/* TODO */
-			ABORT_NOW();
-		}
+		/* TODO */
+		BUG_ON(sent != b_data(buf));
 
 		if (frm->type >= QUIC_FT_STREAM_8 && frm->type <= QUIC_FT_STREAM_F)
 			qstrm_ctrl_send(frm->stream.stream, frm->stream.len);
@@ -332,13 +333,16 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
  out:
 	if (conn->flags & CO_FL_ERROR) {
 		/* TODO */
-		//ABORT_NOW();
 	}
-	else if (!LIST_ISEMPTY(frms) && !(qcc->wait_event.events & SUB_RETRY_SEND)) {
-		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_SEND, &qcc->wait_event);
-		return 1;
+	else if (!LIST_ISEMPTY(frms)) {
+		if (!(qcc->wait_event.events & SUB_RETRY_SEND))
+			conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_SEND, &qcc->wait_event);
+		ret = 1;
+	}
+	else {
+		ret = 0;
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);
-	return 0;
+	return ret;
 }
