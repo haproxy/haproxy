@@ -3040,7 +3040,7 @@ max-threads-per-group <number>
   Defines the maximum number of threads in a thread group. Unless the number
   of thread groups is fixed with the "thread-groups" directive, haproxy will
   create as many thread groups as needed to satisfy the requested number of
-  threads. Tha minimum value is 1, and the maximum value is 64 (on 64-bit
+  threads. The minimum value is 1, and the maximum value is 64 (on 64-bit
   systems, or 32 on 32-bit systems). Lower values reduce contention caused by
   atomic operations on shared states, but can increase the number of sockets
   needed to create all listeners and to hold idle backend connections. Higher
