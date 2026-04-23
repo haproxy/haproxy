@@ -782,7 +782,7 @@ static int cli_get_severity_output(struct appctx *appctx)
  * from the CLI's IO handler running in an appctx context. The function returns
  * 1 if the request was understood, otherwise zero (in which case an error
  * message will be displayed). It is called with appctx->st0 set to
- * CLI_ST_PROMPT. It will possilbly leave st0 to CLI_ST_CALLBACK if the
+ * CLI_ST_PROMPT. It will possibly leave st0 to CLI_ST_CALLBACK if the
  * keyword needs to have its own I/O handler called again. Most of the time,
  * parsers will only set st0 to CLI_ST_PRINT and put their message to be
  * displayed into cli.msg.  If a keyword parser is NULL and an I/O handler is
@@ -1062,7 +1062,7 @@ int cli_parse_cmdline(struct appctx *appctx)
 					goto error;
 				}
 
-				/* A bigger payload buffer was allcated, wait for more data */
+				/* A bigger payload buffer was allocated, wait for more data */
 				b_xfer(buf, &appctx->inbuf, b_data(&appctx->inbuf));
 				applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
 			}
@@ -1440,7 +1440,7 @@ static void cli_release_handler(struct appctx *appctx)
 	}
 }
 
-/* This function dumps all environmnent variables to the buffer. It returns 0
+/* This function dumps all environment variables to the buffer. It returns 0
  * if the output buffer is full and it needs to be called again, otherwise
  * non-zero. It takes its context from the show_env_ctx in svcctx, and will
  * start from ->var and dump only one variable if ->show_one is set.

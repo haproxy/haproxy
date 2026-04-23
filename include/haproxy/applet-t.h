@@ -107,7 +107,7 @@ struct appctx {
 	enum obj_type obj_type;    /* OBJ_TYPE_APPCTX */
 	/* 3 unused bytes here */
 	unsigned int st0;          /* Main applet state. May be used by any applet */
-	unsigned int st1;          /* Applet substate. Mau be used by any applet */
+	unsigned int st1;          /* Applet substate. May be used by any applet */
 
 	unsigned int flags;        /* APPCTX_FL_* */
 	struct buffer inbuf;
