@@ -997,7 +997,7 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 			comp->flags &= ~COMP_FL_DIR_RES;
 			comp->flags |= COMP_FL_DIR_REQ;
 		} else if (strcmp(args[2], "response") == 0) {
-			comp->flags &= COMP_FL_DIR_REQ;
+			comp->flags &= ~COMP_FL_DIR_REQ;
 			comp->flags |= COMP_FL_DIR_RES;
 		} else if (strcmp(args[2], "both") == 0)
 			comp->flags |= COMP_FL_DIR_REQ | COMP_FL_DIR_RES;
