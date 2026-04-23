@@ -2327,7 +2327,7 @@ int check_config_validity()
 		if (global.tune.bufsize_small == global.tune.bufsize)
 			global.tune.bufsize_small = 0;
 		else if (global.tune.bufsize_small > global.tune.bufsize) {
-			ha_warning("invalid small buffer size %d bytes which is greater to default bufsize %d bytes.\n",
+			ha_warning("invalid small buffer size %d bytes which is greater than default bufsize %d bytes.\n",
 				   global.tune.bufsize_small, global.tune.bufsize);
 			global.tune.bufsize_small = 0;
 			err_code |= ERR_WARN;
