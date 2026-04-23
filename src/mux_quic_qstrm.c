@@ -110,6 +110,9 @@ int qcc_qstrm_recv(struct qcc *qcc)
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
 
+	if (qcc->flags & QC_CF_ERR_CONN)
+		return 0;
+
 	if (!b_size(buf)) {
 		if (!b_alloc(buf, DB_MUX_RX)) {
 			TRACE_ERROR("rx qstrm buf alloc failure", QMUX_EV_QCC_RECV);
@@ -137,7 +140,8 @@ int qcc_qstrm_recv(struct qcc *qcc)
 			/* Previous realign operation should ensure send cannot result in data wrapping. */
 			BUG_ON(b_data(buf) && b_tail(buf) == b_orig(buf));
 			ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, b_contig_space(buf), NULL, 0, 0);
-			BUG_ON(conn->flags & CO_FL_ERROR); /* TODO handle errors */
+			if (qcc->conn->flags & CO_FL_ERROR)
+				goto out;
 			/* Previous realign operation should ensure send cannot result in data wrapping. */
 			BUG_ON(b_data(buf) != b_contig_data(buf, 0));
 		}
@@ -172,7 +176,11 @@ int qcc_qstrm_recv(struct qcc *qcc)
 		}
 	} while (ret > 0);
 
-	if (!conn_xprt_read0_pending(qcc->conn)) {
+ out:
+	if ((conn->flags & CO_FL_ERROR) || conn_xprt_read0_pending(conn)) {
+		qcc->flags |= QC_CF_ERR_CONN;
+	}
+	else {
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV,
 		                      &qcc->wait_event);
 	}
@@ -280,6 +288,8 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 	/* Purge buffer first if remaining data to send. */
 	if (b_data(buf)) {
 		sent = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf), NULL, 0, 0);
+		if (conn->flags & CO_FL_ERROR)
+			goto out;
 		if (!sent) {
 			TRACE_DEVEL("snd_buf interrupted", QMUX_EV_QCC_SEND, qcc->conn);
 			goto out;
@@ -332,6 +342,8 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 		b_add(buf, pos - old);
 
 		sent = conn->xprt->snd_buf(conn, conn->xprt_ctx, buf, b_data(buf), NULL, 0, 0);
+		if (conn->flags & CO_FL_ERROR)
+			goto out;
 		if (!sent) {
 			TRACE_DEVEL("snd_buf interrupted", QMUX_EV_QCC_SEND, qcc->conn);
 			if (split_frm)
@@ -354,8 +366,9 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 	}
 
  out:
-	if (conn->flags & CO_FL_ERROR) {
-		/* TODO */
+	if ((conn->flags & CO_FL_ERROR)) {
+		qcc->flags |= QC_CF_ERR_CONN;
+		ret = -1;
 	}
 	else if (!LIST_ISEMPTY(frms)) {
 		if (!(qcc->wait_event.events & SUB_RETRY_SEND))
