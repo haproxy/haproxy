@@ -181,7 +181,7 @@ struct task *xprt_qstrm_io_cb(struct task *t, void *context, unsigned int state)
 {
 	struct xprt_qstrm_ctx *ctx = context;
 	struct connection *conn = ctx->conn;
-	int ret;
+	int free = 0, ret;
 
 	if (conn->flags & CO_FL_QSTRM_SEND) {
 		if (!conn_send_qstrm(conn, ctx, CO_FL_QSTRM_SEND)) {
@@ -212,7 +212,11 @@ struct task *xprt_qstrm_io_cb(struct task *t, void *context, unsigned int state)
 		/* MUX will access members from xprt_ctx on init, so create
 		 * operation should be called before any members are resetted.
 		 */
-		ret = conn_create_mux(conn, NULL);
+		ret = conn_create_mux(conn, &free);
+		if (free) {
+			/* Conn and current XPRT layer including this tasklet already destroyed. */
+			return NULL;
+		}
 
 		conn->xprt_ctx = ctx->ctx_lower;
 		conn->xprt = ctx->ops_lower;
@@ -304,8 +308,27 @@ static int xprt_qstrm_start(struct connection *conn, void *xprt_ctx)
 
 static void xprt_qstrm_close(struct connection *conn, void *xprt_ctx)
 {
-	/* TODO not implemented */
-	ABORT_NOW();
+	struct xprt_qstrm_ctx *ctx = xprt_ctx;
+	if (!ctx)
+		return;
+
+	if (ctx->wait_event.events != 0) {
+		ctx->ops_lower->unsubscribe(ctx->conn, ctx->ctx_lower,
+		                            ctx->wait_event.events,
+		                            &ctx->wait_event);
+	}
+
+	if (ctx->ops_lower && ctx->ops_lower->close)
+		ctx->ops_lower->close(conn, ctx->ctx_lower);
+
+	conn->flags &= ~(CO_FL_QSTRM_RECV|CO_FL_QSTRM_SEND);
+
+	BUG_ON(conn->xprt_ctx != ctx);
+	conn->xprt_ctx = ctx->ctx_lower;
+	conn->xprt = ctx->ops_lower;
+
+	tasklet_free(ctx->wait_event.tasklet);
+	pool_free(xprt_qstrm_ctx_pool, ctx);
 }
 
 static int xprt_qstrm_get_alpn(const struct connection *conn, void *xprt_ctx,
