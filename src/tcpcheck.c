@@ -1849,6 +1849,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 		htx_to_buf(htx, &check->bo);
 	}
 	if (b_is_small(&check->bo)) {
+		free_trash_chunk(tmp);
 		check->state &= ~CHK_ST_USE_SMALL_BUFF;
 		check_release_buf(check, &check->bo);
 		TRACE_DEVEL("Send fail with small buffer retry with default one", CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA, check);
