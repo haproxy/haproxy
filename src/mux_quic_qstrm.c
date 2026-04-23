@@ -105,7 +105,7 @@ int qcc_qstrm_recv(struct qcc *qcc)
 	struct connection *conn = qcc->conn;
 	struct buffer *buf = &qcc->rx.qstrm_buf;
 	struct buffer buf_rec;
-	int total = 0, frm_ret;
+	int total = 0, dec = 1, frm_ret;
 	size_t ret = 1;
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
@@ -125,8 +125,11 @@ int qcc_qstrm_recv(struct qcc *qcc)
 		/* Wrapping is not supported for QMux reception. */
 		BUG_ON(b_data(buf) != b_contig_data(buf, 0));
 
-		/* If current record is too big, realign buffer for more room. */
-		if (b_head(buf) + qcc->rx.rlen > b_wrap(buf)) {
+		/* Realign buffer if current record too big or cannot decode
+		 * record header and wrapping position reached.
+		 */
+		if (b_head(buf) + qcc->rx.rlen > b_wrap(buf) ||
+		    (!dec && b_head(buf) + b_data(buf) == b_wrap(buf))) {
 			BUG_ON(qcc->rx.rlen > b_size(buf)); /* TODO max_record_size */
 			memmove(b_orig(buf), b_head(buf), b_data(buf));
 			buf->head = 0;
@@ -136,7 +139,12 @@ int qcc_qstrm_recv(struct qcc *qcc)
 			b_realign_if_empty(buf);
 		}
 
-		if ((!b_data(buf) && !qcc->rx.rlen) || qcc->rx.rlen > b_data(buf)) {
+		/* Try read if record header not yet read and no data available
+		 * or hreader cannot be decoded, or either if current record
+		 * is incomplete.
+		 */
+		if ((!qcc->rx.rlen && (!b_data(buf) || !dec)) ||
+		    qcc->rx.rlen > b_data(buf)) {
 			/* Previous realign operation should ensure send cannot result in data wrapping. */
 			BUG_ON(b_data(buf) && b_tail(buf) == b_orig(buf));
 			ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, b_contig_space(buf), NULL, 0, 0);
@@ -147,11 +155,15 @@ int qcc_qstrm_recv(struct qcc *qcc)
 		}
 
 		if (b_data(buf) && !qcc->rx.rlen) {
-			int ret2 = b_quic_dec_int(&qcc->rx.rlen, buf, NULL);
-			BUG_ON(!ret2); /* TODO incomplete record length */
-			if (b_head(buf) + qcc->rx.rlen > b_wrap(buf))
+			dec = b_quic_dec_int(&qcc->rx.rlen, buf, NULL);
+			/* Restart read if an incomplete record has been received
+			 * until there is no more new data available.
+			 */
+			if (ret && (!dec ||
+			            b_head(buf) + qcc->rx.rlen > b_wrap(buf) ||
+			            b_data(buf) < qcc->rx.rlen)) {
 				goto recv;
-			BUG_ON(b_data(buf) < qcc->rx.rlen); /* TODO incomplete record */
+			}
 		}
 
 		/* TODO realign necessary if record boundary at the extreme end of the buffer */
