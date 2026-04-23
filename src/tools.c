@@ -6137,7 +6137,7 @@ void collect_libs(void)
 		page += pagesize;
 		/* copy and make read-only */
 		memcpy(page, ctx.storage, ctx.size);
-		mprotect(page, lib_size, PROT_READ);
+		mprotect(page, new_size, PROT_READ);
 		vma_set_name(page, new_size, "archive", "boot-libs");
 
 		lib_storage = page;
