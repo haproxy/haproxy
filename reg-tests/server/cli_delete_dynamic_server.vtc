@@ -8,14 +8,14 @@ feature ignore_unknown_macro
 # static server
 server s1 -repeat 3 {
 	rxreq
-	txresp \
+	txresp -hdr "Connection: close" \
 	  -body "resp from s1"
 } -start
 
 # use as a dynamic server, added then deleted via CLI
 server s2 -repeat 3 {
 	rxreq
-	txresp \
+	txresp -hdr "Connection: close" \
 	  -body "resp from s2"
 } -start
 
