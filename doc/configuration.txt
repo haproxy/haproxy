@@ -7841,7 +7841,7 @@ external-check command <command>
   Arguments :
     <command> is the external command to run
 
-  The arguments passed to the to the command are:
+  The arguments passed to the command are:
 
   <proxy_address> <proxy_port> <server_address> <server_port>
 
