@@ -5162,7 +5162,6 @@ static int do_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx
 	return err_code;
 
   error:
-	free_tcpcheck_ruleset(rs);
 	err_code |= ERR_ALERT | ERR_FATAL;
 	goto out;
 }
