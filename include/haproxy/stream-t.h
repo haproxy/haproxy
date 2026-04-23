@@ -112,6 +112,8 @@ static forceinline char *strm_show_flags(char *buf, size_t len, const char *deli
 	_(SF_WEBSOCKET, _(SF_SRC_ADDR, _(SF_BC_MARK, _(SF_BC_TOS,
 	_(SF_RULE_FYIELD))))))));
 
+	_e(SF_TXN_MASK, SF_TXN_HTTP, _e(SF_TXN_MASK, SF_TXN_PCLI));
+
 	_e(SF_FINST_MASK, SF_FINST_R,    _e(SF_FINST_MASK, SF_FINST_C,
 	_e(SF_FINST_MASK, SF_FINST_H,    _e(SF_FINST_MASK, SF_FINST_D,
 	_e(SF_FINST_MASK, SF_FINST_L,    _e(SF_FINST_MASK, SF_FINST_Q,
