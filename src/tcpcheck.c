@@ -4192,20 +4192,13 @@ void deinit_proxy_tcpcheck(struct proxy *px)
 static void deinit_tcpchecks()
 {
 	struct tcpcheck_ruleset *rs;
-	struct tcpcheck_rule *r, *rb;
 	struct ebpt_node *node, *next;
 
 	node = ebpt_first(&shared_tcpchecks);
 	while (node) {
 		next = ebpt_next(node);
-		ebpt_delete(node);
-		free(node->key);
 		rs = container_of(node, typeof(*rs), node);
-		list_for_each_entry_safe(r, rb, &rs->rules, list) {
-			LIST_DELETE(&r->list);
-			free_tcpcheck(r, 0);
-		}
-		free(rs);
+		free_tcpcheck_ruleset(rs);
 		node = next;
 	}
 }
