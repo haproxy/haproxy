@@ -12,7 +12,6 @@
 
 struct xprt_qstrm_ctx {
 	struct connection *conn;
-	struct wait_event *subs;
 	struct wait_event wait_event;
 
 	const struct xprt_ops *ops_lower;
