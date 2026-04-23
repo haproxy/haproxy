@@ -119,7 +119,7 @@ struct buffer *get_large_trash_chunk(void)
 	return large_trash_chunk;
 }
 
-/* Similar to get_trash_chunk() but return a pre-allocated small chunk
+/* Similar to get_trash_chunk() but returns a pre-allocated small chunk
  * instead. Because small buffers are not enabled by default, this function may
  * return NULL.
  */
