@@ -4,6 +4,7 @@
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
 #include <haproxy/connection.h>
+#include <haproxy/dynbuf.h>
 #include <haproxy/mux_quic.h>
 #include <haproxy/mux_quic_priv.h>
 #include <haproxy/proxy.h>
@@ -105,6 +106,13 @@ int qcc_qstrm_recv(struct qcc *qcc)
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
 
+	if (!b_size(buf)) {
+		if (!b_alloc(buf, DB_MUX_RX)) {
+			TRACE_ERROR("rx qstrm buf alloc failure", QMUX_EV_QCC_RECV);
+			goto err;
+		}
+	}
+
 	do {
  recv:
 		/* Wrapping is not supported for QMux reception. */
@@ -163,6 +171,11 @@ int qcc_qstrm_recv(struct qcc *qcc)
 	if (!conn_xprt_read0_pending(qcc->conn)) {
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV,
 		                      &qcc->wait_event);
+	}
+
+	if (!b_data(buf)) {
+		b_free(buf);
+		offer_buffers(NULL, 1);
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
@@ -252,6 +265,11 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 
 	TRACE_ENTER(QMUX_EV_QCC_SEND, qcc->conn);
 
+	if (!b_alloc(buf, DB_MUX_TX)) {
+		TRACE_ERROR("tx qstrm buf alloc failure", QMUX_EV_QCC_SEND);
+		goto out;
+	}
+
 	/* Record size field length */
 	lensz = quic_int_getsize(quic_int_cap_length(b_size(buf)));
 
@@ -319,6 +337,7 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 
 		/* TODO */
 		BUG_ON(sent != b_data(buf));
+		b_del(buf, sent);
 
 		if (frm->type >= QUIC_FT_STREAM_8 && frm->type <= QUIC_FT_STREAM_F)
 			qstrm_ctrl_send(frm->stream.stream, frm->stream.len);
@@ -341,6 +360,11 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 	}
 	else {
 		ret = 0;
+	}
+
+	if (!b_data(buf)) {
+		b_free(buf);
+		offer_buffers(NULL, 1);
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);

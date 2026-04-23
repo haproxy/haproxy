@@ -3525,6 +3525,12 @@ static void qcc_release(struct qcc *qcc)
 	}
 	TRACE_PROTO("application layer released", QMUX_EV_QCC_END, conn);
 
+	if (conn && !conn_is_quic(conn)) {
+		b_free(&qcc->rx.qstrm_buf);
+		b_free(&qcc->tx.qstrm_buf);
+		offer_buffers(NULL, 2);
+	}
+
 	pool_free(pool_head_qcc, qcc);
 
 	if (conn) {
@@ -3844,22 +3850,16 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 		struct buffer *xprt_buf;
 
 		qcc->tx.qstrm_buf = BUF_NULL;
-		b_alloc(&qcc->tx.qstrm_buf, DB_MUX_TX);
-		if (!b_size(&qcc->tx.qstrm_buf)) {
-			TRACE_ERROR("tx qstrm buf alloc failure", QMUX_EV_QCC_NEW);
-			goto err;
-		}
-
 		qcc->rx.qstrm_buf = BUF_NULL;
-		b_alloc(&qcc->rx.qstrm_buf, DB_MUX_RX);
-		if (!b_size(&qcc->rx.qstrm_buf)) {
-			TRACE_ERROR("rx qstrm buf alloc failure", QMUX_EV_QCC_NEW);
-			goto err;
-		}
 
 		/* Retrieve data if xprt read too much */
 		xprt_buf = xprt_qstrm_rxbuf(conn->xprt_ctx);
 		if (unlikely(b_data(xprt_buf))) {
+			b_alloc(&qcc->rx.qstrm_buf, DB_MUX_RX);
+			if (!b_size(&qcc->rx.qstrm_buf)) {
+				TRACE_ERROR("rx qstrm buf alloc failure", QMUX_EV_QCC_NEW);
+				goto err;
+			}
 			b_xfer(&qcc->rx.qstrm_buf, xprt_buf, b_data(xprt_buf));
 			qcc->rx.rlen = xprt_qstrm_rxrlen(conn->xprt_ctx);
 		}
