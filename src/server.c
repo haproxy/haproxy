@@ -6296,6 +6296,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	    !srv->sni_expr && !(srv->ssl_ctx.options & SRV_SSL_O_NO_AUTO_SNI)) {
 		if (srv_configure_auto_sni(srv, &errcode, &errmsg)) {
 			ha_alert("%s.\n", errmsg);
+			ha_free(&errmsg);
 			goto out;
 		}
 	}
