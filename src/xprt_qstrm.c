@@ -182,6 +182,7 @@ struct task *xprt_qstrm_io_cb(struct task *t, void *context, unsigned int state)
 {
 	struct xprt_qstrm_ctx *ctx = context;
 	struct connection *conn = ctx->conn;
+	int ret;
 
 	if (conn->flags & CO_FL_QSTRM_SEND) {
 		if (!conn_send_qstrm(conn, ctx, CO_FL_QSTRM_SEND)) {
@@ -212,8 +213,7 @@ struct task *xprt_qstrm_io_cb(struct task *t, void *context, unsigned int state)
 		/* MUX will access members from xprt_ctx on init, so create
 		 * operation should be called before any members are resetted.
 		 */
-		if (conn_create_mux(conn, NULL) == 0)
-			conn->mux->wake(conn);
+		ret = conn_create_mux(conn, NULL);
 
 		conn->xprt_ctx = ctx->ctx_lower;
 		conn->xprt = ctx->ops_lower;
@@ -224,6 +224,14 @@ struct task *xprt_qstrm_io_cb(struct task *t, void *context, unsigned int state)
 		tasklet_free(ctx->wait_event.tasklet);
 		pool_free(xprt_qstrm_ctx_pool, ctx);
 		t = NULL;
+
+		if (ret == 0) {
+			/* Wake up MUX layer. This operation may also free the
+			 * connection and its XPRT, so it is safest to run it
+			 * after the current xprt layer release.
+			 */
+			conn->mux->wake(conn);
+		}
 	}
 
 	return t;
