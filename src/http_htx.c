@@ -669,7 +669,6 @@ int http_replace_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const s
 	blk = htx_replace_blk_value(htx, blk, ist2(start, len), data);
 	if (!blk)
 		goto fail;
-
 	v = htx_get_blk_value(htx, blk);
 
 	sl = http_get_stline(htx);
@@ -677,7 +676,7 @@ int http_replace_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const s
 		struct ist n = htx_get_blk_name(htx, blk);
 
 		if (isteq(n, ist("host"))) {
-			if (!http_update_authority(htx, sl, v))
+			if (!http_update_authority(htx, sl, data))
 				goto fail;
 			ctx->blk = NULL;
 			http_find_header(htx, ist("host"), ctx, 1);
