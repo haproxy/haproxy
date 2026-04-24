@@ -52,8 +52,8 @@ int http_replace_res_status(struct htx *htx, const struct ist status, const stru
 int http_replace_res_reason(struct htx *htx, const struct ist reason);
 int http_append_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const struct ist data);
 int http_prepend_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const struct ist data);
-int http_replace_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const struct ist data);
-int http_replace_header(struct htx *htx, struct http_hdr_ctx *ctx, const struct ist name, const struct ist value);
+int http_replace_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const struct ist data, int update_authority);
+int http_replace_header(struct htx *htx, struct http_hdr_ctx *ctx, const struct ist name, const struct ist value, int update_authority);
 int http_remove_header(struct htx *htx, struct http_hdr_ctx *ctx);
 int http_update_authority(struct htx *htx, struct htx_sl *sl, const struct ist host);
 int http_update_host(struct htx *htx, struct htx_sl *sl, const struct ist uri);

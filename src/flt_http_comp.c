@@ -477,7 +477,7 @@ set_compression_header(struct comp_state *st, struct stream *s, struct http_msg 
 			if (istcat(&v, ist("W/"), trash.size) == -1 || istcat(&v, ctx.value, trash.size) == -1)
 				goto error;
 
-			if (!http_replace_header_value(htx, &ctx, v))
+			if (!http_replace_header_value(htx, &ctx, v, 0))
 				goto error;
 		}
 	}

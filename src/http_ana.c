@@ -2728,7 +2728,7 @@ int http_replace_hdrs(struct stream* s, struct htx *htx, struct ist name,
 		output->data = exp_replace(output->area, output->size, ctx.value.ptr, str, pmatch);
 		if (output->data == -1)
 			return -1;
-		if (!http_replace_header_value(htx, &ctx, ist2(output->area, output->data)))
+		if (!http_replace_header_value(htx, &ctx, ist2(output->area, output->data), 1))
 			return -1;
 	}
 	return 0;
@@ -3849,7 +3849,7 @@ static void http_manage_server_side_cookies(struct stream *s, struct channel *re
 
 					ctx.value = ist2(val_beg, val_end - val_beg);
 				        ctx.lws_before = ctx.lws_after = 0;
-					http_replace_header_value(htx, &ctx, ist2(srv->cookie, srv->cklen));
+					http_replace_header_value(htx, &ctx, ist2(srv->cookie, srv->cklen), 0);
 					delta     = srv->cklen - (val_end - val_beg);
 					sliding   = (ctx.value.ptr - val_beg);
 					hdr_beg  += sliding;
@@ -3867,7 +3867,7 @@ static void http_manage_server_side_cookies(struct stream *s, struct channel *re
 					int sliding, delta;
 					ctx.value = ist2(val_beg, 0);
 				        ctx.lws_before = ctx.lws_after = 0;
-					http_replace_header_value(htx, &ctx, ist2(srv->cookie, srv->cklen + 1));
+					http_replace_header_value(htx, &ctx, ist2(srv->cookie, srv->cklen + 1), 0);
 					delta     = srv->cklen + 1;
 					sliding   = (ctx.value.ptr - val_beg);
 					hdr_beg  += sliding;

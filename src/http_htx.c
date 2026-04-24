@@ -650,7 +650,8 @@ int http_prepend_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const s
  * <data>. It returns 1 on success, otherwise it returns 0. The context is
  * updated if necessary.
  */
-int http_replace_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const struct ist data)
+int http_replace_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const struct ist data,
+			      int update_authority)
 {
 	struct htx_blk *blk = ctx->blk;
 	struct htx_sl *sl;
@@ -671,6 +672,9 @@ int http_replace_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const s
 		goto fail;
 	v = htx_get_blk_value(htx, blk);
 
+	if (!update_authority)
+		goto out;
+
 	sl = http_get_stline(htx);
 	if (sl && (sl->flags & HTX_SL_F_HAS_AUTHORITY)) {
 		struct ist n = htx_get_blk_name(htx, blk);
@@ -684,7 +688,7 @@ int http_replace_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const s
 			v = htx_get_blk_value(htx, blk);
 		}
 	}
-
+  out:
 	ctx->blk = blk;
 	ctx->value = ist2(v.ptr + off, data.len);
 	ctx->lws_before = ctx->lws_after = 0;
@@ -699,7 +703,8 @@ int http_replace_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const s
  * context is updated if necessary.
  */
 int http_replace_header(struct htx *htx, struct http_hdr_ctx *ctx,
-			const struct ist name, const struct ist value)
+			const struct ist name, const struct ist value,
+			int update_authority)
 {
 	struct htx_blk *blk = ctx->blk;
 	struct htx_sl *sl;
@@ -711,6 +716,9 @@ int http_replace_header(struct htx *htx, struct http_hdr_ctx *ctx,
 	if (!blk)
 		goto fail;
 
+	if (!update_authority)
+		goto out;
+
 	sl = http_get_stline(htx);
 	if (sl && (sl->flags & HTX_SL_F_HAS_AUTHORITY) && isteqi(name, ist("host"))) {
 		if (!http_update_authority(htx, sl, value))
@@ -720,6 +728,7 @@ int http_replace_header(struct htx *htx, struct http_hdr_ctx *ctx,
 		blk = ctx->blk;
 	}
 
+  out:
 	ctx->blk = blk;
 	ctx->value = ist(NULL);
 	ctx->lws_before = ctx->lws_after = 0;
@@ -867,7 +876,7 @@ int http_update_host(struct htx *htx, struct htx_sl *sl, const struct ist uri)
 		/* Replace header host value */
 		ctx.blk = NULL;
 		while (http_find_header(htx, ist("host"), &ctx, 1)) {
-			if (!http_replace_header_value(htx, &ctx, authority))
+			if (!http_replace_header_value(htx, &ctx, authority, 0))
 				goto fail;
 		}
 
@@ -1889,7 +1898,7 @@ int http_scheme_based_normalize(struct htx *htx)
 		/* replace every host headers by the normalized host */
 		ctx.blk = NULL;
 		while (http_find_header(htx, ist("host"), &ctx, 1)) {
-			if (!http_replace_header_value(htx, &ctx, host)) {
+			if (!http_replace_header_value(htx, &ctx, host, 0)) {
 				free_trash_chunk(temp);
 				goto fail;
 			}
