@@ -453,7 +453,7 @@ set_compression_header(struct comp_state *st, struct stream *s, struct http_msg 
 
 	/* add "Transfer-Encoding: chunked" header */
 	if (!(msg->flags & HTTP_MSGF_TE_CHNK)) {
-		if (!http_add_header(htx, ist("Transfer-Encoding"), ist("chunked")))
+		if (!http_add_header(htx, ist("Transfer-Encoding"), ist("chunked"), 0))
 			goto error;
 		msg->flags |= HTTP_MSGF_TE_CHNK;
 		sl->flags |= (HTX_SL_F_XFER_ENC|HTX_SL_F_CHNK);
@@ -494,7 +494,7 @@ set_compression_header(struct comp_state *st, struct stream *s, struct http_msg 
 	if (ctx.blk == NULL) {
 		if (last_vary.blk == NULL) {
 			/* No Vary header found at all. Add our header */
-			if (!http_add_header(htx, ist("Vary"), ist("Accept-Encoding")))
+			if (!http_add_header(htx, ist("Vary"), ist("Accept-Encoding"), 0))
 				goto error;
 		}
 		else  {
@@ -515,7 +515,7 @@ set_compression_header(struct comp_state *st, struct stream *s, struct http_msg 
 	if (comp_algo->cfg_name_len != 8 || memcmp(comp_algo->cfg_name, "identity", 8) != 0) {
 		struct ist v = ist2(comp_algo->ua_name, comp_algo->ua_name_len);
 
-		if (!http_add_header(htx, ist("Content-Encoding"), v))
+		if (!http_add_header(htx, ist("Content-Encoding"), v, 0))
 			goto error;
 	}
 

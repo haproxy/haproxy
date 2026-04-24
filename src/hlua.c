@@ -6711,7 +6711,7 @@ __LJMP static inline int hlua_http_add_hdr(lua_State *L, struct http_msg *msg)
 	struct htx *htx = htxbuf(&msg->chn->buf);
 
 	lua_pushboolean(L, http_add_header(htx, ist2(name, name_len),
-					   ist2(value, value_len)));
+					   ist2(value, value_len), 1));
 	return 0;
 }
 
@@ -7193,7 +7193,7 @@ __LJMP static int hlua_http_msg_set_body_len(lua_State *L)
 			goto success;
 
 		/* add "Transfer-Encoding: chunked" header */
-		if (!http_add_header(htx, ist("Transfer-Encoding"), ist("chunked")))
+		if (!http_add_header(htx, ist("Transfer-Encoding"), ist("chunked"), 0))
 			goto failure;
 		msg->flags |= (HTTP_MSGF_VER_11|HTTP_MSGF_XFER_LEN|HTTP_MSGF_TE_CHNK);
 		sl->flags |= (HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN|HTX_SL_F_XFER_ENC|HTX_SL_F_CHNK);
@@ -7225,7 +7225,7 @@ __LJMP static int hlua_http_msg_set_body_len(lua_State *L)
 		}
 
 		/* Now add Content-Length header */
-		if (!http_add_header(htx, ist("Content-Length"), ist(clen)))
+		if (!http_add_header(htx, ist("Content-Length"), ist(clen), 0))
 			goto failure;
 		msg->flags |= (HTTP_MSGF_VER_11|HTTP_MSGF_XFER_LEN|HTTP_MSGF_CNT_LEN);
 		sl->flags |= (HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN|HTX_SL_F_CLEN);

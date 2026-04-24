@@ -283,7 +283,7 @@ int http_match_header(const struct htx *htx, const struct my_regex *re, struct h
 /* Adds a header block int the HTX message <htx>, just before the EOH block. It
  * returns 1 on success, otherwise it returns 0.
  */
-int http_add_header(struct htx *htx, const struct ist n, const struct ist v)
+int http_add_header(struct htx *htx, const struct ist n, const struct ist v, int update_authority)
 {
 	struct htx_blk *blk;
 	struct htx_sl *sl;
@@ -318,10 +318,12 @@ int http_add_header(struct htx *htx, const struct ist n, const struct ist v)
 	}
 
   end:
-	sl = http_get_stline(htx);
-	if (sl && (sl->flags & HTX_SL_F_HAS_AUTHORITY) && isteqi(n, ist("host"))) {
-		if (!http_update_authority(htx, sl, v))
-			goto fail;
+	if (update_authority) {
+		sl = http_get_stline(htx);
+		if (sl && (sl->flags & HTX_SL_F_HAS_AUTHORITY) && isteqi(n, ist("host"))) {
+			if (!http_update_authority(htx, sl, v))
+				goto fail;
+		}
 	}
 	return 1;
 

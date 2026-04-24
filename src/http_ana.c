@@ -460,7 +460,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 		ctx.blk = NULL;
 		if (!http_find_header(htx, ist("Early-Data"), &ctx, 0)) {
-			if (unlikely(!http_add_header(htx, ist("Early-Data"), ist("1"))))
+			if (unlikely(!http_add_header(htx, ist("Early-Data"), ist("1"), 0)))
 				goto return_fail_rewrite;
 		}
 	}
@@ -705,7 +705,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 
 		/* send unique ID if a "unique-id-header" is defined */
 		if (isttest(sess->fe->header_unique_id) &&
-		    unlikely(!http_add_header(htx, sess->fe->header_unique_id, unique_id)))
+		    unlikely(!http_add_header(htx, sess->fe->header_unique_id, unique_id, 1)))
 				goto return_fail_rewrite;
 	}
 
@@ -1950,7 +1950,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		if (s->be->cookie_attrs)
 			chunk_appendf(&trash, "; %s", s->be->cookie_attrs);
 
-		if (unlikely(!http_add_header(htx, ist("Set-Cookie"), ist2(trash.area, trash.data))))
+		if (unlikely(!http_add_header(htx, ist("Set-Cookie"), ist2(trash.area, trash.data), 0)))
 			goto return_fail_rewrite;
 
 		txn->flags &= ~TX_SCK_MASK;
@@ -1969,7 +1969,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 
 			txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
 
-			if (unlikely(!http_add_header(htx, ist("Cache-control"), ist("private"))))
+			if (unlikely(!http_add_header(htx, ist("Cache-control"), ist("private"), 0)))
 				goto return_fail_rewrite;
 		}
 	}

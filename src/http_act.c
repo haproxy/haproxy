@@ -1282,7 +1282,7 @@ static enum act_return http_action_auth(struct act_rule *rule, struct proxy *px,
 		http_remove_header(htx, &ctx);
 
 	/* Now a the right XXX-Authenticate header */
-	if (!http_add_header(htx, hdr, ist2(b_orig(&trash), b_data(&trash))))
+	if (!http_add_header(htx, hdr, ist2(b_orig(&trash), b_data(&trash)), 0))
 		goto fail;
 
 	/* Finally forward the reply */
@@ -1450,7 +1450,7 @@ static enum act_return http_action_set_header(struct act_rule *rule, struct prox
 	}
 
 	/* Now add header */
-	if (!http_add_header(htx, n, v))
+	if (!http_add_header(htx, n, v, 1))
 		goto fail_rewrite;
 
   leave:
@@ -1538,7 +1538,7 @@ static enum act_return http_action_set_headers_bin(struct act_rule *rule, struct
 		}
 
 		/* Now add header */
-		if (!http_add_header(htx, n, v))
+		if (!http_add_header(htx, n, v, 1))
 			goto fail_rewrite;
 	}
 

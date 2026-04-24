@@ -331,7 +331,7 @@ static int fcgi_flt_http_headers(struct stream *s, struct filter *filter, struct
 			get_gmtime(date.tv_sec, &tm);
 			trash.data = strftime(trash.area, trash.size, "%a, %d %b %Y %T %Z", &tm);
 			if (trash.data)
-				http_add_header(htx, ist("date"), ist2(trash.area, trash.data));
+				http_add_header(htx, ist("date"), ist2(trash.area, trash.data), 0);
 		}
 
 		/* Add the header "Content-Length:" if possible */
@@ -352,7 +352,7 @@ static int fcgi_flt_http_headers(struct stream *s, struct filter *filter, struct
 					len += htx_get_blksz(blk);
 			}
 			end = ultoa_o(len, trash.area, trash.size);
-			if (http_add_header(htx, ist("content-length"), ist2(trash.area, end-trash.area))) {
+			if (http_add_header(htx, ist("content-length"), ist2(trash.area, end-trash.area), 0)) {
 				sl->flags |= HTX_SL_F_CLEN;
 				msg->flags |= HTTP_MSGF_CNT_LEN;
 			}
@@ -424,7 +424,7 @@ static int fcgi_flt_http_headers(struct stream *s, struct filter *filter, struct
 			pool_free(pool_head_fcgi_param_rule, param_rule);
 			continue;
 		}
-		if (!http_add_header(htx, param_rule->name, ist2(value->area, value->data)))
+		if (!http_add_header(htx, param_rule->name, ist2(value->area, value->data), 1))
 			goto rewrite_err;
 		pool_free(pool_head_fcgi_param_rule, param_rule);
 	}

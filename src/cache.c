@@ -1738,7 +1738,7 @@ static int htx_cache_add_age_hdr(struct appctx *appctx, struct htx *htx)
 		age = CACHE_ENTRY_MAX_AGE;
 	end = ultoa_o(age, b_head(&trash), b_size(&trash));
 	b_set_data(&trash, end - b_head(&trash));
-	if (!http_add_header(htx, ist("Age"), ist2(b_head(&trash), b_data(&trash))))
+	if (!http_add_header(htx, ist("Age"), ist2(b_head(&trash), b_data(&trash)), 0))
 		return 0;
 	return 1;
 }

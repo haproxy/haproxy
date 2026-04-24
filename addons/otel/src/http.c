@@ -268,7 +268,7 @@ int flt_otel_http_header_set(struct channel *chn, const char *prefix, const char
 	if (value == NULL) {
 		retval = 0;
 	}
-	else if (http_add_header(htx, ist_name, ist(value)) == 1) {
+	else if (http_add_header(htx, ist_name, ist(value), 1) == 1) {
 		retval = 0;
 
 		OTELC_DBG(DEBUG, "HTTP header '%s: %s' added", ist_name.ptr, value);

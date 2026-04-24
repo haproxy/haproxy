@@ -42,7 +42,7 @@ int http_find_pfx_header(const struct htx *htx, const struct ist prefix, struct 
 int http_find_sfx_header(const struct htx *htx, const struct ist suffix, struct http_hdr_ctx *ctx, int full);
 int http_find_sub_header(const struct htx *htx, const struct ist sub, struct http_hdr_ctx *ctx, int full);
 int http_match_header(const struct htx *htx, const struct my_regex *re, struct http_hdr_ctx *ctx, int full);
-int http_add_header(struct htx *htx, const struct ist n, const struct ist v);
+int http_add_header(struct htx *htx, const struct ist n, const struct ist v, int update_authority);
 int http_replace_stline(struct htx *htx, const struct ist p1, const struct ist p2, const struct ist p3);
 int http_replace_req_meth(struct htx *htx, const struct ist meth);
 int http_replace_req_uri(struct htx *htx, const struct ist uri);
