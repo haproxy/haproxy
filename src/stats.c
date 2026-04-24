@@ -1057,6 +1057,7 @@ static int cli_parse_dump_stat_file(char **args, char *payload,
 	ctx->domain = STATS_DOMAIN_PROXY;
 	ctx->flags |= STAT_F_FMT_FILE;
 	watcher_init(&ctx->srv_watch, &ctx->obj2, offsetof(struct server, watcher_list));
+	watcher_init(&ctx->px_watch,  &ctx->obj1, offsetof(struct proxy, watcher_list));
 
 	return 0;
 }
