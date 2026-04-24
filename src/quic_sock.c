@@ -892,9 +892,17 @@ int qc_rcv_buf(struct quic_conn *qc)
 		                (struct sockaddr *)&daddr, sizeof(daddr),
 		                get_net_port(&qc->local_addr), !!l);
 		if (ret <= 0) {
+			/* Only negative errors are fatal */
+			ret = 0;
 			/* Subscribe FD for future reception. */
-			if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOTCONN)
+			if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOTCONN) {
 				fd_want_recv(qc->fd);
+			}
+			else if (errno == ECONNREFUSED) {
+				TRACE_PRINTF(TRACE_LEVEL_USER, QUIC_EV_CONN_RCV, qc, 0, 0, 0,
+				             "UDP recv failure errno=%d (%s)", errno, strerror(errno));
+				ret = -errno;
+			}
 			/* TODO handle other error codes as fatal on the connection. */
 			break;
 		}
