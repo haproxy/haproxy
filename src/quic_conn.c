@@ -566,8 +566,11 @@ struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int sta
 	TRACE_ENTER(QUIC_EV_CONN_IO_CB, qc);
 	TRACE_STATE("connection handshake state", QUIC_EV_CONN_IO_CB, qc, &qc->state);
 
-	if (qc_test_fd(qc))
-		qc_rcv_buf(qc);
+	if (qc_test_fd(qc) && qc_rcv_buf(qc) < 0) {
+		TRACE_ERROR("recvmsg fatal error", QUIC_EV_CONN_SPPKTS, qc);
+		qc_kill_conn(qc);
+		goto no_rx_pkts;
+	}
 
 	/* Prepare post-handshake frames
 	 * - after connection is instantiated (accept is done)
@@ -591,6 +594,7 @@ struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int sta
 		goto out;
 	}
 
+ no_rx_pkts:
 	if (qc->flags & QUIC_FL_CONN_TO_KILL) {
 		TRACE_DEVEL("connection to be killed", QUIC_EV_CONN_IO_CB, qc);
 		goto out;
@@ -657,8 +661,10 @@ static struct task *quic_conn_closed_io_cb(struct task *t, void *context, unsign
 
 	TRACE_ENTER(QUIC_EV_CONN_IO_CB, qc);
 
-	if (qc_test_fd(qc))
-		qc_rcv_buf(qc);
+	if (qc_test_fd(qc) && qc_rcv_buf(qc) < 0) {
+		TRACE_ERROR("recvmsg fatal error", QUIC_EV_CONN_IO_CB, qc);
+		goto fatal_error;
+	}
 
 	/* Do not send too much data if the peer address was not validated. */
 	if ((qc->flags & QUIC_FL_CONN_IMMEDIATE_CLOSE) &&
@@ -670,11 +676,7 @@ static struct task *quic_conn_closed_io_cb(struct task *t, void *context, unsign
 	             QUIC_MAX_CC_BUFSIZE - headlen, 0, cc_qc->cc_dgram_len);
 	if (qc_snd_buf(qc, &buf, buf.data, 0, 0) < 0) {
 		TRACE_ERROR("sendto fatal error", QUIC_EV_CONN_IO_CB, qc);
-		quic_release_cc_conn(cc_qc);
-		cc_qc = NULL;
-		qc = NULL;
-		t = NULL;
-		goto leave;
+		goto fatal_error;
 	}
 
 	qc->flags &= ~QUIC_FL_CONN_IMMEDIATE_CLOSE;
@@ -683,6 +685,13 @@ static struct task *quic_conn_closed_io_cb(struct task *t, void *context, unsign
 	TRACE_LEAVE(QUIC_EV_CONN_IO_CB, qc);
 
 	return t;
+
+ fatal_error:
+	quic_release_cc_conn(cc_qc);
+	cc_qc = NULL;
+	qc = NULL;
+	t = NULL;
+	goto leave;
 }
 
 /* The task handling the idle timeout of a connection in "connection close" state */
@@ -802,8 +811,16 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 			goto out;
 	}
 
-	if (qc_test_fd(qc))
-		qc_rcv_buf(qc);
+	if (qc_test_fd(qc) && qc_rcv_buf(qc) < 0) {
+		TRACE_ERROR("recvmsg fatal error", QUIC_EV_CONN_SPPKTS, qc);
+		qc_kill_conn(qc);
+		goto out;
+	}
+
+	if (qc->flags & QUIC_FL_CONN_TO_KILL) {
+		TRACE_DEVEL("connection to be killed", QUIC_EV_CONN_PHPKTS, qc);
+		goto out;
+	}
 
 	if (!qc_treat_rx_pkts(qc))
 		goto out;
@@ -1944,6 +1961,14 @@ void qc_notify_err(struct quic_conn *qc)
 		 * conducted only with qc.subs.
 		 */
 		tasklet_wakeup(qc->qcc->wait_event.tasklet);
+	}
+	else if (qc->conn) {
+		qc->conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
+		/* Note: this creation will failed, but the upper layer will be informed
+		 * about this connection errors.
+		 */
+		if (conn_create_mux(qc->conn, NULL) < 0)
+			TRACE_ERROR("mux creation failed", QUIC_EV_CONN_IO_CB, qc);
 	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_CLOSE, qc);
