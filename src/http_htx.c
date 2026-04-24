@@ -1864,7 +1864,7 @@ int http_scheme_based_normalize(struct htx *htx)
 
 	if (normalize) {
 		/* reconstruct the uri with removal of the port */
-		struct buffer *temp = get_trash_chunk();
+		struct buffer *temp = alloc_trash_chunk();
 		struct ist meth, vsn;
 
 		/* meth */
@@ -1879,16 +1879,23 @@ int http_scheme_based_normalize(struct htx *htx)
 		chunk_memcat(temp, uri.ptr, authority.ptr - uri.ptr);
 		chunk_istcat(temp, host);
 		chunk_istcat(temp, path);
-		uri = ist2(temp->area + meth.len + vsn.len, host.len + path.len + authority.ptr - uri.ptr); /* uri */
+
+		/* update host and uri to point on temp chunk*/
+		host = ist2(temp->area + meth.len + vsn.len + (authority.ptr - uri.ptr), host.len);
+		uri  = ist2(temp->area + meth.len + vsn.len, host.len + path.len + authority.ptr - uri.ptr);
+
 
 		http_replace_stline(htx, meth, uri, vsn);
 
 		/* replace every host headers values by the normalized host */
 		ctx.blk = NULL;
 		while (http_find_header(htx, ist("host"), &ctx, 0)) {
-			if (!http_replace_header_value(htx, &ctx, host))
+			if (!http_replace_header_value(htx, &ctx, host)) {
+				free_trash_chunk(temp);
 				goto fail;
+			}
 		}
+		free_trash_chunk(temp);
 	}
 
 	return 0;
