@@ -1119,7 +1119,7 @@ struct ckch_store *ckchs_dup(const struct ckch_store *src)
 		/* copy the array of IP strings */
 
 		while (src->conf.acme.ips[n]) {
-			r = realloc(r, sizeof(char *) * (n + 2));
+			r = my_realloc2(r, sizeof(char *) * (n + 2));
 			if (!r)
 				goto error;
 
