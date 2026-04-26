@@ -1852,10 +1852,10 @@ static void h1_prepend_chunk_size(struct buffer *buf, size_t chksz, size_t lengt
  */
 static int h1_append_chunk_size(struct buffer *buf, size_t chksz)
 {
-	char     tmp[10];
+	char     tmp[18];
 	char    *beg, *end;
 
-	beg = end = tmp+10;
+	beg = end = tmp+sizeof(tmp);
 	*--beg = '\n';
 	*--beg = '\r';
 	do {
