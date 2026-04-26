@@ -6974,7 +6974,6 @@ void update_word_fingerprint_with_len(uint8_t *fp, struct ist word)
 		c = tolower((unsigned char)*p);
 		switch(c) {
 		case 'a'...'z': to = c - 'a' + 1; break;
-		case 'A'...'Z': to = tolower((unsigned char )c) - 'a' + 1; break;
 		case '0'...'9': to = 27; break;
 		default:        to = 28; break;
 		}
