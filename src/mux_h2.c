@@ -567,8 +567,6 @@ static int h2_dump_h2c_info(struct buffer *msg, struct h2c *h2c, const char *pfx
 static int h2_dump_h2s_info(struct buffer *msg, const struct h2s *h2s, const char *pfx);
 static inline struct buffer *h2s_rxbuf_head(const struct h2s *h2s);
 static inline struct buffer *h2s_rxbuf_tail(const struct h2s *h2s);
-static inline struct buffer *h2s_rxbuf_head(const struct h2s *h2s);
-static inline struct buffer *h2s_rxbuf_tail(const struct h2s *h2s);
 
 /* returns the stconn associated to the H2 stream */
 static forceinline struct stconn *h2s_sc(const struct h2s *h2s)
