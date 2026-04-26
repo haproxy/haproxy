@@ -4114,6 +4114,7 @@ static int check_when_cond(struct arg *args, struct sample_conv *conv,
 		if (!(acl_sample->terms[0].acl = find_acl_by_name(args[1].data.str.area, &curproxy->acl)) &&
 		    !(acl_sample->terms[0].acl = find_acl_default(args[1].data.str.area, &curproxy->acl, err, NULL, NULL, 0))) {
 			memprintf(err, "ACL '%s' not found", args[1].data.str.area);
+			free(acl_sample);
 			return 0;
 		}
 
