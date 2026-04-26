@@ -4028,20 +4028,20 @@ static int sample_conv_when(const struct arg *arg_p, struct sample *smp, void *p
 		break;
 
 	case WHEN_COND_FORWARDED: // true if forwarded to a connection
-		ret = !!sc_conn(smp->strm->scb);
+		ret = strm && !!sc_conn(strm->scb);
 		break;
 
 	case WHEN_COND_TOAPPLET:  // true if handled as an applet
-		ret = !!sc_appctx(smp->strm->scb);
+		ret = strm && !!sc_appctx(strm->scb);
 		break;
 
 	case WHEN_COND_PROCESSED: // true if forwarded or appctx
-		ret = sc_conn(smp->strm->scb) || sc_appctx(smp->strm->scb);
+		ret = strm && (sc_conn(strm->scb) || sc_appctx(strm->scb));
 		break;
 
 	case WHEN_COND_ACL: // true if the ACL pointed to by args[2] evaluates to true
 		acl_sample = arg_p[2].data.ptr;
-		ret = acl_exec_cond(&acl_sample->cond, smp->px, smp->sess, smp->strm, smp->opt) == ACL_TEST_PASS;
+		ret = acl_exec_cond(&acl_sample->cond, smp->px, smp->sess, strm, smp->opt) == ACL_TEST_PASS;
 		break;
 	}
 
