@@ -3070,7 +3070,7 @@ size_t my_memspn(const void *str, size_t len, const void *accept, size_t acceptl
 {
 	size_t ret = 0;
 
-	while (ret < len && memchr(accept, *((int *)str), acceptlen)) {
+	while (ret < len && memchr(accept, *((const unsigned char *)str), acceptlen)) {
 		str++;
 		ret++;
 	}
@@ -3083,7 +3083,7 @@ size_t my_memcspn(const void *str, size_t len, const void *reject, size_t reject
 	size_t ret = 0;
 
 	while (ret < len) {
-		if(memchr(reject, *((int *)str), rejectlen))
+		if (memchr(reject, *((const unsigned char *)str), rejectlen))
 			return ret;
 		str++;
 		ret++;
