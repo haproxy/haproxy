@@ -127,7 +127,7 @@ struct h2s {
 	uint rx_count;         /* total number of allocated rxbufs */
 	/* 4 bytes hole here */
 	struct wait_event *subs;  /* recv wait_event the stream connector associated is waiting on (via h2_subscribe) */
-	struct list list; /* To be used when adding in h2c->send_list or h2c->fctl_lsit */
+	struct list list; /* To be used when adding in h2c->send_list or h2c->fctl_list */
 	struct tasklet *shut_tl;  /* deferred shutdown tasklet, to retry to send an RST after we failed to,
 				   * in case there's no other subscription to do it */
 
@@ -509,7 +509,7 @@ static const struct sedesc closed_ep = {
 	.flags     = SE_FL_DETACHED,
 };
 
-/* a dmumy closed stream */
+/* a dummy closed stream */
 static const struct h2s *h2_closed_stream = &(const struct h2s){
 	.sd        = (struct sedesc *)&closed_ep,
 	.h2c       = NULL,
@@ -519,7 +519,7 @@ static const struct h2s *h2_closed_stream = &(const struct h2s){
 	.id        = 0,
 };
 
-/* a dmumy closed stream returning a PROTOCOL_ERROR error */
+/* a dummy closed stream returning a PROTOCOL_ERROR error */
 static const struct h2s *h2_error_stream = &(const struct h2s){
 	.sd        = (struct sedesc *)&closed_ep,
 	.h2c       = NULL,
@@ -529,7 +529,7 @@ static const struct h2s *h2_error_stream = &(const struct h2s){
 	.id        = 0,
 };
 
-/* a dmumy closed stream returning a REFUSED_STREAM error */
+/* a dummy closed stream returning a REFUSED_STREAM error */
 static const struct h2s *h2_refused_stream = &(const struct h2s){
 	.sd        = (struct sedesc *)&closed_ep,
 	.h2c       = NULL,
@@ -6583,7 +6583,7 @@ static size_t h2s_snd_fhdrs(struct h2s *h2s, struct htx *htx)
 			break;
 
 		if (type == HTX_BLK_HDR) {
-			BUG_ON(!sl); /* The start-line mut be defined before any headers */
+			BUG_ON(!sl); /* The start-line must be defined before any headers */
 			if (unlikely(hdr >= sizeof(list)/sizeof(list[0]) - 1)) {
 				TRACE_ERROR("too many headers", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
 				goto fail;
@@ -6629,7 +6629,7 @@ static size_t h2s_snd_fhdrs(struct h2s *h2s, struct htx *htx)
 		}
 	}
 
-	/* The start-line me be defined */
+	/* The start-line must be defined */
 	BUG_ON(!sl);
 
 	/* marker for end of headers */
@@ -6853,7 +6853,7 @@ static size_t h2s_snd_bhdrs(struct h2s *h2s, struct htx *htx)
 			break;
 
 		if (type == HTX_BLK_HDR) {
-			BUG_ON(!sl); /* The start-line mut be defined before any headers */
+			BUG_ON(!sl); /* The start-line must be defined before any headers */
 			if (unlikely(hdr >= sizeof(list)/sizeof(list[0]) - 1)) {
 				TRACE_ERROR("too many headers", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
 				goto fail;
@@ -6942,7 +6942,7 @@ static size_t h2s_snd_bhdrs(struct h2s *h2s, struct htx *htx)
 		}
 	}
 
-	/* The start-line me be defined */
+	/* The start-line must be defined */
 	BUG_ON(!sl);
 
 	/* Now add the server name to a header (if requested) */
@@ -7487,7 +7487,7 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 	if (fsize > h2c->mws)
 		fsize = h2c->mws;
 
-	/* now let's copy this this into the output buffer */
+	/* now let's copy this into the output buffer */
 	memcpy(outbuf.area + 9, htx_get_blk_ptr(htx, blk), fsize);
 	h2s->sws -= fsize;
 	h2c->mws -= fsize;

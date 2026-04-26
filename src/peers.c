@@ -3575,7 +3575,7 @@ static void sync_peer_app_state(struct peers *peers, struct peer *peer)
 			/* if local peer has accepted the connection (appctx is
 			 * on the backend side), flag it to learn a lesson and
 			 * be sure it will start immediately. This only happens
-			 * if no resync is in progress and if the lacal resync
+			 * if no resync is in progress and if the local resync
 			 * was not already performed.
 			 */
 			if ((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMLOCAL &&

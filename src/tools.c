@@ -3077,7 +3077,7 @@ size_t my_memspn(const void *str, size_t len, const void *accept, size_t acceptl
 	return ret;
 }
 
-/* get length of the initial segment consisting entirely of bytes not in <rejcet> */
+/* get length of the initial segment consisting entirely of bytes not in <reject> */
 size_t my_memcspn(const void *str, size_t len, const void *reject, size_t rejectlen)
 {
 	size_t ret = 0;
@@ -3592,7 +3592,7 @@ unsigned int mask_find_rank_bit(unsigned int r, unsigned long m)
 	t  = (m >> (s - 1)) & 0x1;
 	s -= ((t - r) & 256) >> 8;
 
-       return s - 1;
+	return s - 1;
 }
 
 /* Same as mask_find_rank_bit() above but makes use of pre-computed bitmaps
@@ -7071,9 +7071,8 @@ const char *hash_ipanon(uint32_t scramble, char *ipstring, int hasport)
 	int port;
 
 	index_hash++;
-        if (index_hash == NB_L_HASH_WORD) {
-                index_hash = 0;
-	}
+	if (index_hash == NB_L_HASH_WORD)
+		index_hash = 0;
 
 	if (scramble == 0) {
 		return ipstring;
@@ -7154,7 +7153,7 @@ const char *hash_ipanon(uint32_t scramble, char *ipstring, int hasport)
 /* Initialize array <fp> with the fingerprint of word <word> by counting the
  * transitions between characters. <fp> is a 1024-entries array indexed as
  * 32*from+to. Positions for 'from' and 'to' are:
- *   0..25=letter, 26=digit, 27=other, 28=begin, 29=end, others unused.
+ *   1..26=letter, 27=digit, 28=other/begin/end.
  */
 void make_word_fingerprint(uint8_t *fp, const char *word)
 {
@@ -7165,7 +7164,7 @@ void make_word_fingerprint(uint8_t *fp, const char *word)
 /* Initialize array <fp> with the fingerprint of word <word> by counting the
  * transitions between characters. <fp> is a 1024-entries array indexed as
  * 32*from+to. Positions for 'from' and 'to' are:
- *   0..25=letter, 26=digit, 27=other, 28=begin, 29=end, others unused.
+ *   1..26=letter, 27=digit, 28=other/begin/end.
  */
 void make_word_fingerprint_with_len(uint8_t *fp, struct ist word)
 {

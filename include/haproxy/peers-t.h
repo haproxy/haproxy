@@ -44,10 +44,10 @@ enum peer_app_state {
 
 /* peer learn state */
 enum peer_learn_state {
-	PEER_LR_ST_NOTASSIGNED = 0,/* The peer is not assigned for a leason */
-	PEER_LR_ST_ASSIGNED,       /* The peer is assigned for a leason  */
-	PEER_LR_ST_PROCESSING,     /* The peer has started the leason and it is not finished */
-	PEER_LR_ST_FINISHED,       /* The peer has finished the leason, this state must be ack by the sync task */
+	PEER_LR_ST_NOTASSIGNED = 0,/* The peer is not assigned for a lesson */
+	PEER_LR_ST_ASSIGNED,       /* The peer is assigned for a lesson  */
+	PEER_LR_ST_PROCESSING,     /* The peer has started the lesson and it is not finished */
+	PEER_LR_ST_FINISHED,       /* The peer has finished the lesson, this state must be ack by the sync task */
 };
 
 /******************************/

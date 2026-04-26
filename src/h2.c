@@ -299,7 +299,7 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
  * negative error code is returned.
  *
  * Upon success, <msgf> is filled with a few H2_MSGF_* flags indicating what
- * was found while parsing. The caller must set it to zero in or H2_MSGF_BODY
+ * was found while parsing. The caller must set it to zero or to H2_MSGF_BODY
  * if a body is detected (!ES).
  *
  * The headers list <list> must be composed of :
@@ -623,7 +623,7 @@ static struct htx_sl *h2_prepare_htx_stsline(uint32_t fields, struct ist *phdr, 
  * negative error code is returned.
  *
  * Upon success, <msgf> is filled with a few H2_MSGF_* flags indicating what
- * was found while parsing. The caller must set it to zero in or H2_MSGF_BODY
+ * was found while parsing. The caller must set it to zero or to H2_MSGF_BODY
  * if a body is detected (!ES).
  *
  * The headers list <list> must be composed of :
@@ -745,7 +745,7 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 	if (fields & (H2_PHDR_FND_AUTH|H2_PHDR_FND_METH|H2_PHDR_FND_PATH|H2_PHDR_FND_SCHM))
 		goto fail;
 
-	/* Let's dump the request now if not yet emitted. */
+	/* Let's dump the response now if not yet emitted. */
 	if (!(fields & H2_PHDR_FND_NONE)) {
 		sl = h2_prepare_htx_stsline(fields, phdr_val, htx, msgf);
 		if (!sl)
