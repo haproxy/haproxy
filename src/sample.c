@@ -1489,7 +1489,7 @@ int smp_resolve_args(struct proxy *p, char **err)
 					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id, err2);
 				ha_free(&err2);
 				cfgerr++;
-				continue;
+				break;
 			}
 			break;
 
@@ -1499,7 +1499,7 @@ int smp_resolve_args(struct proxy *p, char **err)
 					 *err ? *err : "", cur->file, cur->line,
 					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
 				cfgerr++;
-				continue;
+				break;
 			}
 
 			/* we support two formats : "bck/srv" and "srv" */
@@ -1682,7 +1682,7 @@ int smp_resolve_args(struct proxy *p, char **err)
 					 *err ? *err : "", cur->file, cur->line,
 					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
 				cfgerr++;
-				continue;
+				break;
 			}
 
 			rflags = 0;
@@ -1696,7 +1696,7 @@ int smp_resolve_args(struct proxy *p, char **err)
 					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id, err2);
 				ha_free(&err2);
 				cfgerr++;
-				continue;
+				break;
 			}
 
 			chunk_destroy(&arg->data.str);
