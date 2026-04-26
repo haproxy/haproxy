@@ -7562,6 +7562,13 @@ int backup_env(void)
 		if (*tmp == NULL) {
 			ha_alert("Cannot allocate memory to backup env variable '%s'.\n",
 				 *env);
+			tmp = init_env;
+			while (*tmp) {
+				free(*tmp);
+				tmp++;
+			}
+			free(init_env);
+			init_env = NULL;
 			return -1;
 		}
 		tmp++;
