@@ -23,6 +23,7 @@
 #define _HAPROXY_LB_CHASH_H
 
 #include <haproxy/api.h>
+#include <haproxy/backend-t.h>
 #include <haproxy/lb_chash-t.h>
 
 struct proxy;
@@ -30,6 +31,8 @@ struct server;
 int chash_init_server_tree(struct proxy *p);
 struct server *chash_get_next_server(struct proxy *p, struct server *srvtoavoid);
 struct server *chash_get_server_hash(struct proxy *p, unsigned int hash, const struct server *avoid);
+
+extern const struct lb_ops lb_chash_ops;
 
 #endif /* _HAPROXY_LB_CHASH_H */
 

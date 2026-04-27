@@ -137,7 +137,7 @@ void recalc_server_map(struct proxy *px)
  * weights if applicable. It should be called only once per proxy, at config
  * time.
  */
-void init_server_map(struct proxy *p)
+int init_server_map(struct proxy *p)
 {
 	struct server *srv;
 	int pgcd;
@@ -148,7 +148,7 @@ void init_server_map(struct proxy *p)
 	p->lbprm.update_server_eweight = NULL;
  
 	if (!p->srv)
-		return;
+		return 0;
 
 	/* We will factor the weights to reduce the table,
 	 * using Euclide's largest common divisor algorithm.
@@ -201,6 +201,7 @@ void init_server_map(struct proxy *p)
 	recount_servers(p);
 	update_backend_weight(p);
 	recalc_server_map(p);
+	return 0;
 }
 
 /*
@@ -272,6 +273,11 @@ struct server *map_get_server_hash(struct proxy *px, unsigned int hash)
 	return srv;
 }
 
+const struct lb_ops lb_map_ops = {
+	.proxy_init             = init_server_map,
+	.set_server_status_up   = map_set_server_status_up,
+	.set_server_status_down = map_set_server_status_down,
+};
 
 /*
  * Local variables:

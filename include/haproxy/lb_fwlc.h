@@ -23,12 +23,15 @@
 #define _HAPROXY_LB_FWLC_H
 
 #include <haproxy/api.h>
+#include <haproxy/backend-t.h>
 #include <haproxy/lb_fwlc-t.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 
 struct server *fwlc_get_next_server(struct proxy *p, struct server *srvtoavoid);
-void fwlc_init_server_tree(struct proxy *p);
+int fwlc_init_server_tree(struct proxy *p);
+
+extern const struct lb_ops lb_fwlc_ops;
 
 #endif /* _HAPROXY_LB_FWLC_H */
 

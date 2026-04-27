@@ -23,13 +23,16 @@
 #define _HAPROXY_LB_MAP_H
 
 #include <haproxy/api.h>
+#include <haproxy/backend-t.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 
 void recalc_server_map(struct proxy *px);
-void init_server_map(struct proxy *p);
+int init_server_map(struct proxy *p);
 struct server *map_get_server_rr(struct proxy *px, struct server *srvtoavoid);
 struct server *map_get_server_hash(struct proxy *px, unsigned int hash);
+
+extern const struct lb_ops lb_map_ops;
 
 #endif /* _HAPROXY_LB_MAP_H */
 

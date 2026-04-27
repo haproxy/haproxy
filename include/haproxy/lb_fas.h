@@ -23,12 +23,15 @@
 #define _HAPROXY_LB_FAS_H
 
 #include <haproxy/api.h>
+#include <haproxy/backend-t.h>
 #include <haproxy/lb_fas-t.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 
 struct server *fas_get_next_server(struct proxy *p, struct server *srvtoavoid);
-void fas_init_server_tree(struct proxy *p);
+int fas_init_server_tree(struct proxy *p);
+
+extern const struct lb_ops lb_fas_ops;
 
 #endif /* _HAPROXY_LB_FAS_H */
 

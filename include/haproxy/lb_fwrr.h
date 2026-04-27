@@ -23,12 +23,15 @@
 #define _HAPROXY_LB_FWRR_H
 
 #include <haproxy/api.h>
+#include <haproxy/backend-t.h>
 #include <haproxy/lb_fwrr-t.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 
-void fwrr_init_server_groups(struct proxy *p);
+int fwrr_init_server_groups(struct proxy *p);
 struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid);
+
+extern const struct lb_ops lb_fwrr_ops;
 
 #endif /* _HAPROXY_LB_FWRR_H */
 

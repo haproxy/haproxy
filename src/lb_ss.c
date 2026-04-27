@@ -143,7 +143,7 @@ void recalc_server_ss(struct proxy *px)
 /* This function is responsible for preparing sticky LB algorithm.
  * It should be called only once per proxy, at config time.
  */
-void init_server_ss(struct proxy *p)
+int init_server_ss(struct proxy *p)
 {
 	struct server *srv;
 
@@ -152,7 +152,7 @@ void init_server_ss(struct proxy *p)
 	p->lbprm.update_server_eweight = NULL;
 
 	if (!p->srv)
-		return;
+		return 0;
 
 	for (srv = p->srv; srv; srv = srv->next) {
 		srv->next_eweight = 1; /* ignore weights, all servers have the same weight */
@@ -163,6 +163,7 @@ void init_server_ss(struct proxy *p)
 	recount_servers(p);
 	update_backend_weight(p);
 	recalc_server_ss(p);
+	return 0;
 }
 
 /*
@@ -181,3 +182,9 @@ struct server *ss_get_server(struct proxy *px)
 	HA_RWLOCK_RDUNLOCK(LBPRM_LOCK, &px->lbprm.lock);
 	return srv;
 }
+
+const struct lb_ops lb_ss_ops = {
+	.proxy_init             = init_server_ss,
+	.set_server_status_up   = ss_set_server_status_up,
+	.set_server_status_down = ss_set_server_status_down,
+};

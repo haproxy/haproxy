@@ -293,7 +293,7 @@ static inline void fwrr_queue_by_weight(struct eb_root *root, struct server *s, 
  * weighted round-robin. It also sets p->lbprm.wdiv to the eweight to uweight
  * ratio. Both active and backup groups are initialized.
  */
-void fwrr_init_server_groups(struct proxy *p)
+int fwrr_init_server_groups(struct proxy *p)
 {
 	struct server *srv;
 	struct eb_root init_head = EB_ROOT;
@@ -357,6 +357,7 @@ void fwrr_init_server_groups(struct proxy *p)
 					srv, i + 1);
 		}
 	}
+	return 0;
 }
 
 /* simply removes a server from a weight tree.
@@ -670,6 +671,13 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->per_tgrp[tgid - 1].lbprm.fwrr.lock);
 	return srv;
 }
+
+const struct lb_ops lb_fwrr_ops = {
+	.proxy_init             = fwrr_init_server_groups,
+	.set_server_status_up   = fwrr_set_server_status_up,
+	.set_server_status_down = fwrr_set_server_status_down,
+	.update_server_eweight  = fwrr_update_server_weight,
+};
 
 /*
  * Local variables:

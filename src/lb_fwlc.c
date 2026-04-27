@@ -709,7 +709,7 @@ static void fwlc_update_server_weight(struct server *srv)
  * weighted least-conns. It also sets p->lbprm.wdiv to the eweight to
  * uweight ratio. Both active and backup groups are initialized.
  */
-void fwlc_init_server_tree(struct proxy *p)
+int fwlc_init_server_tree(struct proxy *p)
 {
 	struct server *srv;
 	struct eb_root init_head = EB_ROOT;
@@ -744,6 +744,7 @@ void fwlc_init_server_tree(struct proxy *p)
 		srv->lb_tree = (srv->flags & SRV_F_BACKUP) ? &p->lbprm.fwlc.bck : &p->lbprm.fwlc.act;
 		fwlc_queue_srv(srv, srv->next_eweight);
 	}
+	return 0;
 }
 
 /* Return next server from the FWLC tree in backend <p>. If the tree is empty,
@@ -886,6 +887,17 @@ redo:
 	return srv;
 }
 
+const struct lb_ops lb_fwlc_ops = {
+	.proxy_init             = fwlc_init_server_tree,
+	.set_server_status_up   = fwlc_set_server_status_up,
+	.set_server_status_down = fwlc_set_server_status_down,
+	.update_server_eweight  = fwlc_update_server_weight,
+	.server_take_conn       = fwlc_srv_reposition,
+	.server_drop_conn       = fwlc_srv_reposition,
+	.server_requeue         = fwlc_srv_reposition,
+	.server_deinit          = fwlc_server_deinit,
+	.proxy_deinit           = fwlc_proxy_deinit,
+};
 
 /*
  * Local variables:

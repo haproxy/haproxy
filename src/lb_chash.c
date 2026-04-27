@@ -626,3 +626,12 @@ int chash_init_server_tree(struct proxy *p)
 	}
 	return 0;
 }
+
+const struct lb_ops lb_chash_ops = {
+	.proxy_init             = chash_init_server_tree,
+	.set_server_status_up   = chash_set_server_status_up,
+	.set_server_status_down = chash_set_server_status_down,
+	.update_server_eweight  = chash_update_server_weight,
+	.server_init            = chash_server_init,
+	.server_deinit          = chash_server_deinit,
+};
