@@ -1031,7 +1031,7 @@ The variables in question are the following:
 
     Example:
       # Add the rule that gave the final verdict to the log
-      log-format "${HAPROXY_TCP_LOG_FMT} lr=last_rule_file:last_rule_line"
+      log-format "${HAPROXY_TCP_LOG_FMT} lr=%[last_rule_file]:%[last_rule_line]"
 
   * HAPROXY_HTTPS_LOG_FMT: similar to HAPROXY_HTTP_LOG_FMT but for HTTPS log
     format as defined in section 8.2.4 "HTTPS log format".
