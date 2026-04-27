@@ -865,6 +865,7 @@ ifneq ($(USE_LINUX_CAP:0=),)
 endif
 
 ifneq ($(USE_OT:0=),)
+  $(call warning, The opentracing filter was deprecated in haproxy 3.3 and will be removed in 3.5.)
   include addons/ot/Makefile
 endif
 
