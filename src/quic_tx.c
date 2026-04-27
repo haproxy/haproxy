@@ -1841,7 +1841,7 @@ static inline int quic_enc_token(struct quic_conn *qc,
  * depending on its list of parameters. In most cases, <frms> frame list is
  * not empty. So, this function first tries to build this list of frames.
  *
- * Return 1 if succeeded (enough room to buile this packet), O if not.
+ * Return 1 if succeeded (enough room to build this packet), 0 if not.
  */
 static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
                            size_t dglen, struct quic_tx_packet *pkt,
@@ -1973,7 +1973,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 			if (qel->pktns->tx.pto_probe) {
 				/* If a probing packet was asked and could not be built,
 				 * this is not because there was not enough room, but due to
-				 * its frames which were already acknowledeged.
+				 * its frames which were already acknowledged.
 				 * See qc_stream_frm_is_acked()) called by qc_build_frms().
 				 * Note that qc_stream_frm_is_acked() logs a trace in this
 				 * case mentioning some frames were already acknowledged.

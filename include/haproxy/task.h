@@ -707,7 +707,7 @@ static inline void tasklet_set_tid(struct tasklet *tl, int tid)
 
 static inline void _task_schedule(struct task *task, int when, const struct ha_caller *caller)
 {
-	/* TODO: mthread, check if there is no tisk with this test */
+	/* TODO: mthread, check if there is no task with this test */
 	if (task_in_rq(task))
 		return;
 

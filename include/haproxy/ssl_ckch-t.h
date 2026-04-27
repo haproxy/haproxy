@@ -76,7 +76,7 @@ struct ckch_conf {
 	} acme;
 	struct {
 		struct {
-			char *type;   /* "RSA" or "ECSDA" */
+			char *type;   /* "RSA" or "ECDSA" */
 			int bits;     /* bits for RSA */
 			char *curves; /* NID of curves for ECDSA*/
 		} key;

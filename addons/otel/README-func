@@ -460,7 +460,7 @@ HAProxy CLI command handlers for runtime filter management.
 
   flt_otel_cli_parse_logging
       CLI handler for "otel logging [state]".  Gets or sets the logging state
-      (off/on/nolognorm).
+      (off/on/dontlog-normal).
 
   flt_otel_cli_parse_rate
       CLI handler for "otel rate [value]".  Gets or sets the rate limit

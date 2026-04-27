@@ -105,9 +105,9 @@ void conn_delete_from_tree(struct connection *conn, int thr)
 /* Installs the MUX layer for <conn> connection. The behavior is slightly
  * different for frontend and backend sides.
  *
- * For frontend connections, MUX is setup via session initialization
+ * For frontend connections, MUX is set up via session initialization
  * completion. In case of failure, the session and the whole connection stack
- * is freed. Caller should set <closed_connection> to a non NULL value as it
+ * are freed. Caller should set <closed_connection> to a non NULL value as it
  * will be set to 1 to report the connection release.
  *
  * For backend connections, MUX layer is immediately initialized by selecting

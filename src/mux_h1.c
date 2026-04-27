@@ -2958,7 +2958,7 @@ static size_t h1_make_eoh(struct h1s *h1s, struct h1m *h1m, struct htx *htx, siz
 	}
 
 	/*
-	 * All  headers was sent, now process EOH
+	 * All headers were sent, now process EOH
 	 */
 	if (!(h1m->flags & H1_MF_RESP) && h1s->meth == HTTP_METH_CONNECT) {
 		if (!chunk_memcat(&outbuf, "\r\n", 2))
@@ -2992,11 +2992,11 @@ static size_t h1_make_eoh(struct h1s *h1s, struct h1m *h1m, struct htx *htx, siz
 	else if (htx_is_unique_blk(htx, blk) &&
 		 ((htx->flags & HTX_FL_EOM) || ((h1m->flags & H1_MF_CLEN) && !h1m->curr_len))) {
 		/* EOM flag is set and it is the last block or there is no
-		 * payload. If cannot be removed now. We must emit the end of
-		 * the message first to be sure the output buffer is not full
+		 * payload. It cannot be removed now. We must emit the end of
+		 * the message first to be sure the output buffer is not full.
 		 */
 		if ((h1m->flags & H1_MF_CHNK) && (!(h1m->flags & H1_MF_RESP) || !(h1s->flags & H1S_F_BODYLESS_RESP))) {
-			/* Send null-chunk except for bodyless reasponses */
+			/* Send null-chunk except for bodyless responses */
 			if (!chunk_memcat(&outbuf, "\r\n0\r\n\r\n", 7))
 				goto full;
 		}

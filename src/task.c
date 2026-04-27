@@ -771,12 +771,12 @@ void process_runnable_tasks()
 	    !MT_LIST_ISEMPTY(&tt->shared_tasklet_list))
 		max[TL_URGENT] = default_weights[TL_URGENT];
 
-	/* normal tasklets list gets a default weight of ~37% */
+	/* normal tasklets list gets a default weight of ~47% */
 	if ((tt->tl_class_mask & (1 << TL_NORMAL)) ||
 	    !eb_is_empty(&th_ctx->rqueue) || !eb_is_empty(&th_ctx->rqueue_shared))
 		max[TL_NORMAL] = default_weights[TL_NORMAL];
 
-	/* bulk tasklets list gets a default weight of ~13% */
+	/* bulk tasklets list gets a default weight of ~3% */
 	if ((tt->tl_class_mask & (1 << TL_BULK)))
 		max[TL_BULK] = default_weights[TL_BULK];
 

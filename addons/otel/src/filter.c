@@ -998,7 +998,7 @@ static int flt_otel_ops_init_per_thread(struct proxy *p, struct flt_conf *fconf)
  *   fconf - the filter configuration
  *
  * DESCRIPTION
- *   It cleans up what the init_per_thread callback have done.  It is called
+ *   It cleans up what the init_per_thread callback has done.  It is called
  *   in the context of a thread, before exiting it.
  *
  * RETURN VALUE

@@ -108,7 +108,7 @@ int conn_recv_qstrm(struct connection *conn, struct xprt_qstrm_ctx *ctx, int fla
 
 	ctx->rparams = frm.qmux_transport_params.params;
 	b_del(buf, pos - old);
-	/* <end> delimiter should guarantee than frame length does not go beyong the record end */
+	/* <end> delimiter should guarantee that frame length does not go beyond the record end */
 	BUG_ON(ctx->rxrlen < pos - old);
 	ctx->rxrlen -= (pos - old);
 
@@ -210,7 +210,7 @@ struct task *xprt_qstrm_io_cb(struct task *t, void *context, unsigned int state)
 		BUG_ON(ctx->wait_event.events);
 
 		/* MUX will access members from xprt_ctx on init, so create
-		 * operation should be called before any members are resetted.
+		 * operation should be called before any members are reset.
 		 */
 		ret = conn_create_mux(conn, &free);
 		if (free) {
@@ -222,7 +222,7 @@ struct task *xprt_qstrm_io_cb(struct task *t, void *context, unsigned int state)
 		conn->xprt = ctx->ops_lower;
 
 		/* MUX layer is responsible to retrieve any remaining data in
-		 * the Rx buffer prior to reset it.
+		 * the Rx buffer prior to resetting it.
 		 */
 		BUG_ON(b_data(&ctx->rxbuf));
 		b_free(&ctx->rxbuf);

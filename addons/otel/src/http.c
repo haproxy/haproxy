@@ -145,7 +145,7 @@ struct otelc_text_map *flt_otel_http_headers_get(struct channel *chn, const char
 
 				/*
 				 * Here, an HTTP header (which is actually part
-				 * of the span context is added to the text_map.
+				 * of the span context) is added to the text_map.
 				 *
 				 * Before adding, the prefix is removed from the
 				 * HTTP header name.

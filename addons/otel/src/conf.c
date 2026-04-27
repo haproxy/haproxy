@@ -304,7 +304,7 @@ struct flt_otel_conf_sample *flt_otel_conf_sample_init_ex(const char **args, int
 		OTELC_RETURN_PTR(retptr);
 	}
 
-	/* The sample key is located at the idx location of the args[] field. */
+	/* The sample key is located at the (idx - 1) location of the args[] field. */
 	retptr = flt_otel_conf_sample_init(args[idx - 1], line, head, err);
 	if (retptr == NULL)
 		OTELC_RETURN_PTR(retptr);
@@ -439,7 +439,7 @@ FLT_OTEL_CONF_FUNC_FREE(context, id,
  *   err  - indirect pointer to error message string
  *
  * DESCRIPTION
- *   Allocates and initializes a conf_span structure with empty lists for links,
+ *   Allocates and initializes a conf_span structure with empty lists for
  *   attributes, events, baggages, and statuses.  The <id> string is duplicated
  *   and stored as the span name.  If <head> is non-NULL, the structure is
  *   appended to the list.
@@ -616,7 +616,7 @@ FLT_OTEL_CONF_FUNC_FREE(log_record, id,
  *
  * DESCRIPTION
  *   Allocates and initializes a conf_scope structure with empty lists for ACLs,
- *   contexts, spans, spans_to_finish, and instruments.  The <id> string is
+ *   contexts, spans, and spans_to_finish.  The <id> string is
  *   duplicated and stored as the scope name.  If <head> is non-NULL, the
  *   structure is appended to the list.
  *

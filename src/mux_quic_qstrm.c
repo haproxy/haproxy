@@ -140,7 +140,7 @@ int qcc_qstrm_recv(struct qcc *qcc)
 		}
 
 		/* Try read if record header not yet read and no data available
-		 * or hreader cannot be decoded, or either if current record
+		 * or header cannot be decoded, or either if current record
 		 * is incomplete.
 		 */
 		if ((!qcc->rx.rlen && (!b_data(buf) || !dec)) ||
@@ -275,7 +275,7 @@ static void qstrm_ctrl_send(struct qcs *qcs, uint64_t data)
 /* Sends <frms> list of frames for <qcc> connection.
  *
  * Returns 0 if all data are emitted or a positive value if sending should be
- * retry later. A negative error code is used for a fatal failure.
+ * retried later. A negative error code is used for a fatal failure.
  */
 int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 {
@@ -317,7 +317,7 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
  loop:
 		split_frm = next_frm = NULL;
 		b_reset(buf);
-		/* Reserve bytes for the record header. */
+		/* Reserve space for the record header. */
 		old = pos = (unsigned char *)b_orig(buf) + lensz;
 		end = (unsigned char *)b_wrap(buf);
 

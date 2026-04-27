@@ -72,7 +72,7 @@
 /* Global tree to share all tcp-checks */
 struct eb_root shared_tcpchecks = EB_ROOT;
 
-/* Proxy used during parsing of healtcheck sections */
+/* Proxy used during parsing of healthcheck sections */
 struct proxy *tcpchecks_proxy = NULL;
 
 DECLARE_TYPED_POOL(pool_head_tcpcheck_rule, "tcpcheck_rule", struct tcpcheck_rule);

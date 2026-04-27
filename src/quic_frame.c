@@ -1360,7 +1360,7 @@ int qc_build_frm_pkt(struct quic_frame *frm, struct quic_tx_packet *pkt,
 	TRACE_ENTER(QUIC_EV_CONN_BFRM, qc);
 
 	if (pkt && !(builder->mask & (1U << pkt->type))) {
-		/* XXX This it a bug to send an unauthorized frame with such a packet type XXX */
+		/* XXX This is a bug to send an unauthorized frame with such a packet type XXX */
 		TRACE_ERROR("unauthorized frame", QUIC_EV_CONN_BFRM, qc, frm);
 		BUG_ON(!(builder->mask & (1U << pkt->type)));
 	}

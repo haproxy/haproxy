@@ -1075,7 +1075,7 @@ h2c_is_dead(const struct h2c *h2c)
 /* functions below are for dynamic buffer management */
 /*****************************************************/
 
-/* indicates whether or not the we may call the h2_recv() function to attempt
+/* indicates whether or not we may call the h2_recv() function to attempt
  * to receive data into the buffer and/or demux pending data. The condition is
  * a bit complex due to some API limits for now. The rules are the following :
  *   - if an error or a shutdown was detected on the connection, we must not
@@ -3434,8 +3434,8 @@ static int h2c_handle_priority(struct h2c *h2c)
 	}
 
 	/*
-	 * Bit 31 is the "exclusive" bit, it is not part of the stream id,
-	 * so ignore it when checking if the stream id is ours.
+	 * Bit 31 is the "exclusive" bit, it is not part of the stream ID,
+	 * so ignore it when checking if the stream ID is ours.
 	 */
 	if ((h2_get_n32(&h2c->dbuf, 0) & 0x7fffffff) == h2c->dsi) {
 		/* 7540#5.3 : can't depend on itself */
@@ -3563,7 +3563,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 			}
 
 			if (error < 0) {
-				/* Failed to decode this frame (e.g. too large request)
+				/* Failed to decode this frame (e.g. too large trailers)
 				 * but the HPACK decompressor is still synchronized.
 				 */
 				session_inc_http_err_ctr(h2c->conn->owner);

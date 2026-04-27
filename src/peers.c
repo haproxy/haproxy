@@ -1899,9 +1899,9 @@ int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt, int ex
 	 * if it is a new entry set_entry inserts at that position in the expire
 	 * tree the touch_remote updates this date but the tree's re-order is not
 	 * designed to set back in the past, and the entry will be trashed only
-	 * after a full table's expire delay regardless the setting.
+	 * after a full table's expire delay regardless of the setting.
 	 * But setting the expire on newts here allows to set directly new entries
-	 * at the right position and to trash the entry in time if it is a new
+	 * at the right position and to trash the entry in time if it is a newly
 	 * created one from resync process for instance.
 	 */
 	newts->expire = tick_add(now_ms, expire);

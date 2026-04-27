@@ -60,7 +60,7 @@ struct conf_errors {
 	struct list list;                           /* next conf_errors */
 };
 
-/* Returns the next unporocessed start line in the HTX message. It returns NULL
+/* Returns the next unprocessed start line in the HTX message. It returns NULL
  * if the start-line is undefined (first == -1). Otherwise, it returns the
  * pointer on the htx_sl structure.
  */

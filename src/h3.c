@@ -3133,7 +3133,7 @@ static int h3_attach(struct qcs *qcs, void *conn_ctx)
 	 */
 	if (h3c->flags & H3_CF_GOAWAY_SENT && qcs->id >= h3c->id_shut_l &&
 	    quic_stream_is_bidi(qcs->id)) {
-		/* Local stack should not attached stream on a closed connection. */
+		/* Local stack should not attach stream to a closed connection. */
 		BUG_ON(quic_stream_is_local(qcs->qcc, qcs->id));
 
 		TRACE_STATE("close stream outside of GOAWAY range", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);

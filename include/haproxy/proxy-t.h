@@ -509,7 +509,7 @@ struct proxy {
 						 * name is used
 						 */
 	struct list filter_configs;		/* list of the filters that are declared on this proxy */
-	struct {                                /* sequence in which declared filters on the proxy should be execute
+	struct {                                /* sequence in which declared filters on the proxy should be executed
 	                                         * (list of filter_sequence_elt)
 						 */
 		struct list req;                /* during request handling */

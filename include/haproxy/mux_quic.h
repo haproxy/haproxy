@@ -63,7 +63,7 @@ static inline int qmux_stream_rx_bufsz(void)
 /* This bit is set for unidirectional streams */
 #define QCS_ID_DIR_BIT           0x2
 
-/* Maximum bidirectional stream ID that a client can opened. */
+/* Maximum bidirectional stream ID that a client can open. */
 #define QCS_ID_MAX_STRM_CL_BIDI (QUIC_VARINT_8_BYTE_MAX - 3)
 
 static inline enum qcs_type qcs_id_type(uint64_t id)

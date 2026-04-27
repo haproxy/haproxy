@@ -653,7 +653,7 @@ static int cli_parse_global(char **args, int section_type, struct proxy *curpx,
 	return 0;
 }
 
-/* This function parses "tune.cli.max-payload-sze" statement in the "global"
+/* This function parses "tune.cli.max-payload-size" statement in the "global"
  * section. It returns -1 if there is any error, otherwise zero. If it returns
  * -1, it will write an error message into the <err> buffer which will be
  * preallocated. The trailing '\n' must not be written. The function must be
@@ -1119,11 +1119,11 @@ int cli_parse_cmdline(struct appctx *appctx)
 			if (strncmp(last_arg, PAYLOAD_PATTERN, strlen(PAYLOAD_PATTERN)) == 0) {
 				ssize_t pat_len = strlen(last_arg) - strlen(PAYLOAD_PATTERN);
 
-				/* A customized pattern can't be more than 7 characters
+				/* A customized pattern can't be more than 64 characters
 				 * if it's more, don't make it a payload
 				 */
 				if (pat_len <= MAX_PAYLOAD_PATTERN_SIZE) {
-					/* Save the pointer on the payload pattern (skipping PAYLOAD_PATTERN) */
+					/* Save the pointer to the payload pattern (skipping PAYLOAD_PATTERN) */
 					appctx->cli_ctx.payload_pat = last_arg + strlen(PAYLOAD_PATTERN);
 
 					/* The last command finishes before the payload pattern.
@@ -3354,7 +3354,7 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 		size_t pat_len = strlen(args[argl-1] + strlen(PAYLOAD_PATTERN));
 
 		/*
-		 * A customized pattern can't be more than 7 characters
+		 * A customized pattern can't be more than 64 characters
 		 * if it's more, don't make it a payload
 		 */
 		if (pat_len < sizeof(pcli->payload_pat)) {

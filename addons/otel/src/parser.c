@@ -519,7 +519,7 @@ static bool flt_otel_parse_check_scope(void)
  * DESCRIPTION
  *   Section parser for the otel-instrumentation configuration block.  Handles
  *   keywords: instrumentation ID, log, config, groups, scopes, acl, rate-limit,
- *   option (disabled/hard-errors/nolognorm), and debug-level.
+ *   option (disabled/hard-errors/dontlog-normal), and debug-level.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,

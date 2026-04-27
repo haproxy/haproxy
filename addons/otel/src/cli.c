@@ -208,7 +208,7 @@ static int flt_otel_cli_parse_option(char **args, char *payload, struct appctx *
  *
  * DESCRIPTION
  *   Handles the "otel logging [state]" CLI command.  When a state argument is
- *   provided in <args[2]>, it is matched against "off", "on", or "nolognorm"
+ *   provided in <args[2]>, it is matched against "off", "on", or "dontlog-normal"
  *   and the logging field is atomically updated for all OTel filter instances.
  *   Setting a value requires admin access level.  When no argument is given,
  *   reports the current logging state for all instances.  Invalid values

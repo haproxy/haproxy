@@ -345,7 +345,6 @@ struct nextdata {
 
 static int next_cb(int tok, const char *s, int off, int len, void *ud) {
   struct nextdata *d = (struct nextdata *) ud;
-  // int i;
   switch (tok) {
     case '{':
     case '[':

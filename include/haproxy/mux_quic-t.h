@@ -80,7 +80,7 @@ struct qcc {
 	struct {
 		struct quic_fctl fc; /* stream flow control applied on sending */
 		uint64_t buf_in_flight; /* sum of currently allocated Tx buffer sizes */
-		struct list frms; /* list of STREAM frames ready for sent */
+		struct list frms; /* list of STREAM frames ready for sending */
 		union {
 			struct {
 				/* quic */
@@ -259,7 +259,7 @@ struct qcc_app_ops {
 #define QC_CF_ERRL_DONE 0x00000002 /* local error properly handled, connection can be released */
 #define QC_CF_IS_BACK   0x00000004 /* backend side */
 #define QC_CF_CONN_FULL 0x00000008 /* no stream buffers available on connection */
-#define QC_CF_CONN_SHUT 0x00000010 /* peer has initiate app layer shutdown - no new stream should be opened locally */
+#define QC_CF_CONN_SHUT 0x00000010 /* peer has initiated app layer shutdown - no new stream should be opened locally */
 #define QC_CF_ERR_CONN  0x00000020 /* fatal error reported by transport layer */
 #define QC_CF_WAIT_HS   0x00000040 /* MUX init before QUIC handshake completed (0-RTT) */
 

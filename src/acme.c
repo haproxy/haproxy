@@ -185,7 +185,7 @@ struct acme_cfg *get_acme_cfg(const char *name)
 	return NULL;
 }
 
-/* Return an existing section section OR create one and return it */
+/* Return an existing section or create one and return it */
 struct acme_cfg *new_acme_cfg(const char *name)
 {
 	struct acme_cfg *ret = NULL;
@@ -2670,7 +2670,7 @@ re:
 			}
 
 			/* Check if the next resolution would be triggered too
-			 * late according to the dns_timeout and abort is
+			 * late according to the dns_timeout and abort if
 			 * necessary. */
 			if (ctx->dnsstarttime && ns_to_sec(now_ns) + ctx->cfg->dns_delay > ctx->dnsstarttime + ctx->cfg->dns_timeout) {
 				memprintf(&errmsg, "dns-01: Couldn't resolve the TXT records in %ds.",  ctx->cfg->dns_timeout);
@@ -2778,7 +2778,7 @@ re:
 					goto nextreq;
 				}
 
-				/* if the challenge is not ready, wait to be wakeup */
+				/* if the challenge is not ready, wait to be woken up */
 				if (ctx->next_auth->ready != ctx->cfg->cond_ready)
 					goto wait;
 

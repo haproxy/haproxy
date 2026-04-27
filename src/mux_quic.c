@@ -152,7 +152,7 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	qcs->ctx = NULL;
 
 	/* App callback attach may register the stream for http-request wait.
-	 * These fields must be initialed before.
+	 * These fields must be initialized before.
 	 */
 	LIST_INIT(&qcs->el_opening);
 	LIST_INIT(&qcs->el_recv);
@@ -1545,7 +1545,7 @@ struct buffer *qcc_get_stream_txbuf(struct qcs *qcs, int *err, int small)
 
 /* Reallocate <qcs> stream buffer to convert a small buffer to a bigger one.
  * Contrary to standard allocation, this function will never stop due to a full
- * buffer window. The smaller buffer is released first which guarantee that the
+ * buffer window. The smaller buffer is released first which guarantees that the
  * buffer window has room left.
  *
  * Returns buffer pointer or NULL on allocation failure.
@@ -3378,7 +3378,7 @@ static int qcc_io_process(struct qcc *qcc)
 
 /* Conduct I/O operations to finalize <qcc> app layer initialization. Note that
  * <qcc> app state may remain NULL even on success, if only a transient
- * blocking was encountered. Finalize operation can be retry later.
+ * blocking was encountered. Finalize operation can be retried later.
  *
  * Returns 0 on success else non-zero.
  */
@@ -3414,7 +3414,7 @@ static int qcc_app_init(struct qcc *qcc)
 
 /* Execute application layer shutdown. If this operation is not defined, a
  * CONNECTION_CLOSE will be prepared as a fallback. This function is protected
- * against multiple invocation thanks to <qcc> application state context.
+ * against multiple invocations thanks to <qcc> application state context.
  */
 static void qcc_app_shutdown(struct qcc *qcc)
 {
@@ -3479,7 +3479,7 @@ static void qcc_release(struct qcc *qcc)
 		qcc->task = NULL;
 	}
 
-	/* liberate remaining qcs instances */
+	/* free remaining qcs instances */
 	node = eb64_first(&qcc->streams_by_id);
 	while (node) {
 		struct qcs *qcs = eb64_entry(node, struct qcs, by_id);
@@ -3850,7 +3850,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 		qcc->tx.qstrm_buf = BUF_NULL;
 		qcc->rx.qstrm_buf = BUF_NULL;
 
-		/* Rx buffer is transfered from xprt layer - necessary if too many data where read */
+		/* Rx buffer is transferred from xprt layer - necessary if too many data were read */
 		qcc->rx.rlen = xprt_qstrm_xfer_rxbuf(conn->xprt_ctx, &qcc->rx.qstrm_buf);
 		/* Cannot have a non empty record with an empty buffer. */
 		BUG_ON(qcc->rx.rlen && !b_data(&qcc->rx.qstrm_buf));

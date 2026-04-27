@@ -354,7 +354,9 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 
 INITCALL1(STG_REGISTER, sample_register_fetches, &smp_kws);
 
-/* Note: must not be declared <const> as its list will be overwritten */
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Please take care of keeping this list alphabetically sorted.
+ */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "fe_exists", sample_conv_fe_exists, 0, NULL, SMP_T_STR, SMP_T_BOOL },
 	{ /* END */ },

@@ -1115,8 +1115,8 @@ int assign_server_and_queue(struct stream *s)
 			 * To work around that, when a server is getting idle,
 			 * it will set the ready_srv field of the proxy.
 			 * Here, if ready_srv is non-NULL, we get that server,
-			 * and we attempt to switch its served from 0 to 1.
-			 * If it works, then we can just run, otherwise,
+			 * and we attempt to increment its served counter up to
+			 * maxconn. If it works, then we can just run, otherwise,
 			 * it means another stream will be running, and will
 			 * dequeue us eventually, so we can just do nothing.
 			 */
