@@ -3571,7 +3571,7 @@ static void sync_peer_app_state(struct peers *peers, struct peer *peer)
 	}
 	else if (peer->appstate == PEER_APP_ST_STARTING) {
 		clear_peer_learning_status(peer);
-		if (peer->local & appctx_is_back(peer->appctx)) {
+		if (peer->local && appctx_is_back(peer->appctx)) {
 			/* if local peer has accepted the connection (appctx is
 			 * on the backend side), flag it to learn a lesson and
 			 * be sure it will start immediately. This only happens
