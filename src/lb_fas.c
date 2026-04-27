@@ -255,7 +255,7 @@ static void fas_update_server_weight(struct server *srv)
  * weighted least-conns. It also sets p->lbprm.wdiv to the eweight to
  * uweight ratio. Both active and backup groups are initialized.
  */
-int fas_init_server_tree(struct proxy *p)
+static int fas_init_server_tree(struct proxy *p)
 {
 	struct server *srv;
 	struct eb_root init_head = EB_ROOT;

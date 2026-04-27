@@ -28,7 +28,6 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 
-int fwrr_init_server_groups(struct proxy *p);
 struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid);
 
 extern const struct lb_ops lb_fwrr_ops;

@@ -198,20 +198,6 @@ struct lbprm {
 	__decl_thread(HA_RWLOCK_T lock);
 	struct server *fbck;		/* first backup server when !PR_O_USE_ALL_BK, or NULL */
 	const struct lb_ops *ops;       /* algo-specific operations; NULL = no LB algo selected */
-
-	/* Call backs for some actions. Any of them may be NULL (thus should be ignored).
-	 * Those marked "srvlock" will need to be called with the server lock held.
-	 * The other ones might take it themselves if needed.
-	 */
-	void (*update_server_eweight)(struct server *);  /* to be called after eweight change // srvlock */
-	void (*set_server_status_up)(struct server *);   /* to be called after status changes to UP // srvlock */
-	void (*set_server_status_down)(struct server *); /* to be called after status changes to DOWN // srvlock */
-	void (*server_take_conn)(struct server *);       /* to be called when connection is assigned */
-	void (*server_drop_conn)(struct server *);       /* to be called when connection is dropped */
-	void (*server_requeue)(struct server *);         /* function used to place the server where it must be */
-	void (*proxy_deinit)(struct proxy *);            /* to be called when we're destroying the proxy */
-	void (*server_deinit)(struct server *);          /* to be called when we're destroying the server */
-	int (*server_init)(struct server *);             /* initialize a freshly added server (runtime); <0=fail. */
 };
 
 #endif /* _HAPROXY_BACKEND_T_H */

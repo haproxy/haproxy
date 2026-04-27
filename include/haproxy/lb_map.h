@@ -27,8 +27,6 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 
-void recalc_server_map(struct proxy *px);
-int init_server_map(struct proxy *p);
 struct server *map_get_server_rr(struct proxy *px, struct server *srvtoavoid);
 struct server *map_get_server_hash(struct proxy *px, unsigned int hash);
 

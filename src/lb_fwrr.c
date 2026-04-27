@@ -293,7 +293,7 @@ static inline void fwrr_queue_by_weight(struct eb_root *root, struct server *s, 
  * weighted round-robin. It also sets p->lbprm.wdiv to the eweight to uweight
  * ratio. Both active and backup groups are initialized.
  */
-int fwrr_init_server_groups(struct proxy *p)
+static int fwrr_init_server_groups(struct proxy *p)
 {
 	struct server *srv;
 	struct eb_root init_head = EB_ROOT;

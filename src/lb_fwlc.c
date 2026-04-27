@@ -709,7 +709,7 @@ static void fwlc_update_server_weight(struct server *srv)
  * weighted least-conns. It also sets p->lbprm.wdiv to the eweight to
  * uweight ratio. Both active and backup groups are initialized.
  */
-int fwlc_init_server_tree(struct proxy *p)
+static int fwlc_init_server_tree(struct proxy *p)
 {
 	struct server *srv;
 	struct eb_root init_head = EB_ROOT;

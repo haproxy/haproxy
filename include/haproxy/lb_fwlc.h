@@ -29,7 +29,6 @@
 #include <haproxy/server-t.h>
 
 struct server *fwlc_get_next_server(struct proxy *p, struct server *srvtoavoid);
-int fwlc_init_server_tree(struct proxy *p);
 
 extern const struct lb_ops lb_fwlc_ops;
 

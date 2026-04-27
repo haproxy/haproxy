@@ -29,7 +29,6 @@
 #include <haproxy/server-t.h>
 
 struct server *fas_get_next_server(struct proxy *p, struct server *srvtoavoid);
-int fas_init_server_tree(struct proxy *p);
 
 extern const struct lb_ops lb_fas_ops;
 

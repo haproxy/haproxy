@@ -27,8 +27,6 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 
-void recalc_server_ss(struct proxy *px);
-int init_server_ss(struct proxy *px);
 struct server *ss_get_server(struct proxy *px);
 
 extern const struct lb_ops lb_ss_ops;

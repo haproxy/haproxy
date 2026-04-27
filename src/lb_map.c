@@ -17,54 +17,6 @@
 #include <haproxy/queue.h>
 #include <haproxy/server-t.h>
 
-/* this function updates the map according to server <srv>'s new state.
- *
- * The server's lock must be held. The lbprm's lock will be used.
- */
-static void map_set_server_status_down(struct server *srv)
-{
-	struct proxy *p = srv->proxy;
-
-	if (!srv_lb_status_changed(srv))
-		return;
-
-	if (srv_willbe_usable(srv))
-		goto out_update_state;
-
-	/* FIXME: could be optimized since we know what changed */
-	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
-	recount_servers(p);
-	update_backend_weight(p);
-	recalc_server_map(p);
-	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
- out_update_state:
-	srv_lb_commit_status(srv);
-}
-
-/* This function updates the map according to server <srv>'s new state.
- *
- * The server's lock must be held. The lbprm's lock will be used.
- */
-static void map_set_server_status_up(struct server *srv)
-{
-	struct proxy *p = srv->proxy;
-
-	if (!srv_lb_status_changed(srv))
-		return;
-
-	if (!srv_willbe_usable(srv))
-		goto out_update_state;
-
-	/* FIXME: could be optimized since we know what changed */
-	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
-	recount_servers(p);
-	update_backend_weight(p);
-	recalc_server_map(p);
-	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
- out_update_state:
-	srv_lb_commit_status(srv);
-}
-
 /* This function recomputes the server map for proxy px. It relies on
  * px->lbprm.tot_wact, tot_wbck, tot_used, tot_weight, so it must be
  * called after recount_servers(). It also expects px->lbprm.map.srv
@@ -72,7 +24,7 @@ static void map_set_server_status_up(struct server *srv)
  *
  * The lbprm's lock must be held.
  */
-void recalc_server_map(struct proxy *px)
+static void recalc_server_map(struct proxy *px)
 {
 	int o, tot, flag;
 	struct server *cur, *best;
@@ -132,12 +84,60 @@ void recalc_server_map(struct proxy *px)
 	}
 }
 
+/* this function updates the map according to server <srv>'s new state.
+ *
+ * The server's lock must be held. The lbprm's lock will be used.
+ */
+static void map_set_server_status_down(struct server *srv)
+{
+	struct proxy *p = srv->proxy;
+
+	if (!srv_lb_status_changed(srv))
+		return;
+
+	if (srv_willbe_usable(srv))
+		goto out_update_state;
+
+	/* FIXME: could be optimized since we know what changed */
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	recount_servers(p);
+	update_backend_weight(p);
+	recalc_server_map(p);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+ out_update_state:
+	srv_lb_commit_status(srv);
+}
+
+/* This function updates the map according to server <srv>'s new state.
+ *
+ * The server's lock must be held. The lbprm's lock will be used.
+ */
+static void map_set_server_status_up(struct server *srv)
+{
+	struct proxy *p = srv->proxy;
+
+	if (!srv_lb_status_changed(srv))
+		return;
+
+	if (!srv_willbe_usable(srv))
+		goto out_update_state;
+
+	/* FIXME: could be optimized since we know what changed */
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	recount_servers(p);
+	update_backend_weight(p);
+	recalc_server_map(p);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+ out_update_state:
+	srv_lb_commit_status(srv);
+}
+
 /* This function is responsible of building the server MAP for map-based LB
  * algorithms, allocating the map, and setting p->lbprm.wmult to the GCD of the
  * weights if applicable. It should be called only once per proxy, at config
  * time.
  */
-int init_server_map(struct proxy *p)
+static int init_server_map(struct proxy *p)
 {
 	struct server *srv;
 	int pgcd;

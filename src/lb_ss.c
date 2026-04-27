@@ -23,6 +23,36 @@
 #include <haproxy/lb_ss.h>
 #include <haproxy/server-t.h>
 
+/* This function elects a new stick server for proxy px.
+ *
+ * The lbprm's lock must be held.
+ */
+static void recalc_server_ss(struct proxy *px)
+{
+	struct server *cur, *first;
+	int flag;
+
+	if (!px->lbprm.tot_used)
+		return; /* no server */
+
+	/* here we *know* that we have some servers */
+	if (px->srv_act)
+		flag = 0;
+	else
+		flag = SRV_F_BACKUP;
+
+	first = NULL;
+
+	for (cur = px->srv; cur; cur = cur->next) {
+		if ((cur->flags & SRV_F_BACKUP) == flag &&
+		    srv_willbe_usable(cur)) {
+			first = cur;
+			break;
+		}
+	}
+	px->lbprm.ss.srv = first;
+}
+
 /* this function updates the stick server according to server <srv>'s new state.
  *
  * The server's lock must be held. The lbprm's lock will be used.
@@ -110,40 +140,10 @@ static void ss_set_server_status_up(struct server *srv)
 	srv_lb_commit_status(srv);
 }
 
-/* This function elects a new stick server for proxy px.
- *
- * The lbprm's lock must be held.
- */
-void recalc_server_ss(struct proxy *px)
-{
-	struct server *cur, *first;
-	int flag;
-
-	if (!px->lbprm.tot_used)
-		return; /* no server */
-
-	/* here we *know* that we have some servers */
-	if (px->srv_act)
-		flag = 0;
-	else
-		flag = SRV_F_BACKUP;
-
-	first = NULL;
-
-	for (cur = px->srv; cur; cur = cur->next) {
-		if ((cur->flags & SRV_F_BACKUP) == flag &&
-		    srv_willbe_usable(cur)) {
-			first = cur;
-			break;
-		}
-	}
-	px->lbprm.ss.srv = first;
-}
-
 /* This function is responsible for preparing sticky LB algorithm.
  * It should be called only once per proxy, at config time.
  */
-int init_server_ss(struct proxy *p)
+static int init_server_ss(struct proxy *p)
 {
 	struct server *srv;
 
