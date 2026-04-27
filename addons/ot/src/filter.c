@@ -155,11 +155,17 @@ static void flt_ot_return_void(const struct filter *f, char **err)
  */
 static int flt_ot_init(struct proxy *p, struct flt_conf *fconf)
 {
+	static int          warnings_emitted = 0;
 	struct flt_ot_conf *conf = FLT_OT_DEREF(fconf, conf, NULL);
 	char               *err = NULL;
 	int                 retval = FLT_OT_RET_ERROR;
 
 	FLT_OT_FUNC("%p, %p", p, fconf);
+
+	if (!warnings_emitted && !deprecated_directives_allowed) {
+		warnings_emitted++;
+		ha_warning("The opentracing filter was deprecated in haproxy 3.3 and will be removed in 3.5.\n");
+	}
 
 	if (conf == NULL)
 		FLT_OT_RETURN_INT(retval);
