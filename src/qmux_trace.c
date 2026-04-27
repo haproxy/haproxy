@@ -166,7 +166,8 @@ void qmux_dump_qcs_info(struct buffer *msg, const struct qcs *qcs)
 
 	if (qcs->sd) {
 		chunk_appendf(msg, " .sd=%p", qcs->sd);
-		chunk_appendf(msg, "(.flg=0x%08x)", se_fl_get(qcs->sd));
+		chunk_appendf(msg, "(.flg=0x%08x .evts=%s)",
+		              se_fl_get(qcs->sd), tevt_evts2str(qcs->sd->term_evts_log));
 	}
 
 	chunk_appendf(msg, " .rx=%llu/%llu rxb=%u(%u)",

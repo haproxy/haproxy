@@ -1789,7 +1789,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 		/* FIN received, ensure body length is conform to any content-length header. */
 		if ((h3s->flags & H3_SF_HAVE_CLEN) && h3_check_body_size(qcs, 1)) {
 			qcc_abort_stream_read(qcs);
-			qcc_reset_stream(qcs, h3s->err);
+			qcc_reset_stream(qcs, h3s->err, se_tevt_type_proto_err);
 			goto done;
 		}
 
@@ -1977,8 +1977,11 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 
 	/* Interrupt decoding on stream/connection error detected. */
 	if (h3s->err) {
+		/* TODO Only unimplemented CONNECT reports H3_ERR_REQUEST_REJECTED here. */
+		const int tevt =
+		  (h3s->err == H3_ERR_REQUEST_REJECTED) ? 0 : se_tevt_type_proto_err;
 		qcc_abort_stream_read(qcs);
-		qcc_reset_stream(qcs, h3s->err);
+		qcc_reset_stream(qcs, h3s->err, tevt);
 		total = b_data(b);
 		goto done;
 	}
@@ -3147,7 +3150,7 @@ static int h3_attach(struct qcs *qcs, void *conn_ctx)
 
 		TRACE_STATE("close stream outside of GOAWAY range", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
 		qcc_abort_stream_read(qcs);
-		qcc_reset_stream(qcs, H3_ERR_REQUEST_REJECTED);
+		qcc_reset_stream(qcs, H3_ERR_REQUEST_REJECTED, 0);
 	}
 
 	/* TODO support push uni-stream rejection. */

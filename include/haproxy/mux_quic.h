@@ -41,7 +41,7 @@ struct buffer *qcc_realloc_stream_txbuf(struct qcs *qcs);
 int qcc_realign_stream_txbuf(const struct qcs *qcs, struct buffer *out);
 int qcc_release_stream_txbuf(struct qcs *qcs);
 int qcc_stream_can_send(const struct qcs *qcs);
-void qcc_reset_stream(struct qcs *qcs, int err);
+void qcc_reset_stream(struct qcs *qcs, int err, int term_evt);
 void qcc_send_stream(struct qcs *qcs, int urg, int count);
 void qcc_abort_stream_read(struct qcs *qcs);
 void qcc_update_shut_id(struct qcc *qcc, uint64_t val);
