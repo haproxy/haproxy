@@ -3512,7 +3512,7 @@ static void qcc_release(struct qcc *qcc)
 
 	while (!LIST_ISEMPTY(&qcc->lfctl.frms)) {
 		struct quic_frame *frm = LIST_ELEM(qcc->lfctl.frms.n, struct quic_frame *, list);
-		qc_frm_free(conn_is_quic(qcc->conn) ? qcc->conn->handle.qc : 0, &frm);
+		qc_frm_free(conn_is_quic(qcc->conn) ? qcc->conn->handle.qc : NULL, &frm);
 	}
 
 	qcc_clear_frms(qcc);
@@ -3871,7 +3871,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 
 	qcc->wait_event.tasklet = tasklet_new();
 	if (!qcc->wait_event.tasklet) {
-		TRACE_ERROR("taslket alloc failure", QMUX_EV_QCC_NEW);
+		TRACE_ERROR("tasklet alloc failure", QMUX_EV_QCC_NEW);
 		goto err;
 	}
 
@@ -3976,7 +3976,7 @@ static int qmux_init(struct connection *conn, struct proxy *prx,
 
 		qcs = qcc_init_stream_local(qcc, 1);
 		if (!qcs) {
-			TRACE_PROTO("Cannot allocate a new locally initiated streeam",
+			TRACE_PROTO("Cannot allocate a new locally initiated stream",
 			            QMUX_EV_QCC_NEW|QMUX_EV_QCC_ERR, conn);
 			goto err;
 		}

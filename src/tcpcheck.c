@@ -5833,7 +5833,7 @@ int cfg_parse_healthchecks(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		else {
-			ha_alert("parsing [%s:%d] : unknown healthcheck type '%s (expects 'tcp-check', 'httpchk', 'ssl-hello-chk', "
+			ha_alert("parsing [%s:%d] : unknown healthcheck type '%s' (expects 'tcp-check', 'httpchk', 'ssl-hello-chk', "
 				 "'smtpchk', 'pgsql-check', 'redis-check', 'mysql-check', 'ldap-check', 'spop-check').\n",
 				 file, linenum, args[1]);
 			err_code |= ERR_ALERT | ERR_ABORT;

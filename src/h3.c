@@ -1925,7 +1925,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 		case H3_FT_GOAWAY:
 			ret = h3_parse_goaway_frm(qcs->qcc->ctx, b, flen);
 			if (ret < 0) {
-				TRACE_ERROR("error on SETTINGS parsing", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+				TRACE_ERROR("error on GOAWAY parsing", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 				qcc_set_error(qcs->qcc, h3c->err, 1);
 				goto err;
 			}
@@ -3136,7 +3136,7 @@ static int h3_attach(struct qcs *qcs, void *conn_ctx)
 		/* Local stack should not attached stream on a closed connection. */
 		BUG_ON(quic_stream_is_local(qcs->qcc, qcs->id));
 
-		TRACE_STATE("close stream outside of goaway range", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
+		TRACE_STATE("close stream outside of GOAWAY range", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
 		qcc_abort_stream_read(qcs);
 		qcc_reset_stream(qcs, H3_ERR_REQUEST_REJECTED);
 	}

@@ -5286,7 +5286,7 @@ tune.quic.fe.stream.max-concurrent <number>
 tune.quic.fe.stream.max-total <number>
   Sets the maximum number of requests that can be handled by a single QUIC
   connection. Once this total is reached, the connection will be gracefully
-  shutdown. In HTTP/3, this translates in a GOAWAY frame. The connection is
+  shutdown. In HTTP/3, this translates to a GOAWAY frame. The connection is
   finally closed when all remaining transfers are completed.
 
   This setting is applied as a hard limit on the connection via the QUIC flow
@@ -5299,7 +5299,7 @@ tune.quic.fe.stream.max-total <number>
   side, as well as CPU consumption on both sides due to TLS handshakes.
 
   The default value is 0 which implies no specific limit outside of the QUIC
-  protocol encoding limitation (2^60, more that a billion billion).
+  protocol encoding limitation (2^60, more than a billion billion).
 
 tune.quic.frontend.max-streams-bidi <number> (deprecated)
   This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
@@ -9508,7 +9508,7 @@ log-steps <steps>
   logs will be emitted, and even permits to emit multiple logs for a
   same transaction. Special value 'all' may be used to enable all available
   log origins, making it possible to track a transaction from accept to close.
-  Indidivual log origins may also be specified using their names separated by
+  Individual log origins may also be specified using their names separated by
   commas to selectively enable when logs should be produced.
 
   Common log origins are: accept, connect, request, response, close.
@@ -23746,7 +23746,7 @@ cpu_usage_thr : integer
   loads as it is measured over a few tens to hundreds of requests. This is the
   same value as used to decide to enable connection killing on too high
   glitches, or to disable compression. See also "tune.glitches.kill.cpu-usage"
-  and "maxcomcpuusage".
+  and "maxcompcpuusage".
 
 date([<offset>[,<unit>]]) : integer
   Returns the current date as the epoch (number of seconds since 01/01/1970).
@@ -32340,7 +32340,7 @@ ocsp-update [ off | on ]
             "GET http://127.0.0.1:12345/MEMwQT HTTP/1.1"
 
   Troubleshooting:
-  A common error that can happen with let's encrypt certificates is if the DNS
+  A common error that can happen with Let's Encrypt certificates is if the DNS
   resolution provides an IPv6 address and your system does not have a valid
   outgoing IPv6 route. In such a case, you can either create the appropriate
   route or set the "httpclient.resolvers.prefer ipv4" option in the global
@@ -32588,7 +32588,7 @@ profile <string>
   the profile is not supported. When not set, no profile field is included
   and the CA uses its default issuance policy.
 
-  See https://letsencrypt.org/docs/profiles/ for letsencrypt profiles.
+  See https://letsencrypt.org/docs/profiles/ for Let's Encrypt profiles.
 
   Example:
     # Request short-lived certificates

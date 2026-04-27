@@ -104,7 +104,7 @@ const struct stat_col stat_cols_info[ST_I_INF_MAX] = {
 	[ST_I_INF_UPTIME_SEC]                     = { .name = "Uptime_sec",                  .alt_name = "uptime_seconds",                .desc = "How long ago this worker process was started (seconds)" },
 	[ST_I_INF_START_TIME_SEC]                 = { .name = "Start_time_sec",              .alt_name = "start_time_seconds",            .desc = "Start time in seconds" },
 	[ST_I_INF_MEMMAX_MB]                      = { .name = "Memmax_MB",                   .alt_name = NULL,                            .desc = "Worker process's hard limit on memory usage in MB (-m on command line)" },
-	[ST_I_INF_MEMMAX_BYTES]                   = { .name = "Memmax_bytes",                .alt_name = "max_memory_bytes",              .desc = "Worker process's hard limit on memory usage in byes (-m on command line)" },
+	[ST_I_INF_MEMMAX_BYTES]                   = { .name = "Memmax_bytes",                .alt_name = "max_memory_bytes",              .desc = "Worker process's hard limit on memory usage in bytes (-m on command line)" },
 	[ST_I_INF_POOL_ALLOC_MB]                  = { .name = "PoolAlloc_MB",                .alt_name = NULL,                            .desc = "Amount of memory allocated in pools (in MB)" },
 	[ST_I_INF_POOL_ALLOC_BYTES]               = { .name = "PoolAlloc_bytes",             .alt_name = "pool_allocated_bytes",          .desc = "Amount of memory allocated in pools (in bytes)" },
 	[ST_I_INF_POOL_USED_MB]                   = { .name = "PoolUsed_MB",                 .alt_name = NULL,                            .desc = "Amount of pool memory currently used (in MB)" },
