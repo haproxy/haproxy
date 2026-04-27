@@ -191,9 +191,9 @@ static void _srv_set_inetaddr_port(struct server *srv,
 	else
 		srv->flags &= ~SRV_F_MAPPORTS;
 
-	if (srv->proxy->lbprm.update_server_eweight) {
+	if (srv->proxy->lbprm.ops && srv->proxy->lbprm.ops->update_server_eweight) {
 		/* some balancers (chash in particular) may use the addr in their routing decisions */
-		srv->proxy->lbprm.update_server_eweight(srv);
+		srv->proxy->lbprm.ops->update_server_eweight(srv);
 	}
 
 	if (srv->log_target && srv->log_target->type == LOG_TARGET_DGRAM) {
@@ -2530,8 +2530,8 @@ struct task *server_requeue(struct task *t, void *context, unsigned int state)
 	/* let's call the LB's requeue function. If it fails, it will itself
 	 * wake us up.
 	 */
-	if (srv->proxy->lbprm.server_requeue)
-		srv->proxy->lbprm.server_requeue(srv);
+	if (srv->proxy->lbprm.ops && srv->proxy->lbprm.ops->server_requeue)
+		srv->proxy->lbprm.ops->server_requeue(srv);
 	return t;
 }
 
@@ -5960,7 +5960,7 @@ static int srv_alloc_lb(struct server *sv, struct proxy *be)
 	sv->lb_nodes_tot = sv->uweight * BE_WEIGHT_SCALE;
 	sv->lb_nodes_now = 0;
 
-	if (be->lbprm.server_init && be->lbprm.server_init(sv) < 0)
+	if (be->lbprm.ops && be->lbprm.ops->server_init && be->lbprm.ops->server_init(sv) < 0)
 		return 0; // typically out of memory
 
 	return 1;
@@ -6476,7 +6476,7 @@ int srv_check_for_deletion(const char *bename, const char *svname, struct proxy 
 
 	/* Only servers in maintenance can be deleted. This ensures that the
 	 * server is not present anymore in the lb structures (through
-	 * lbprm.set_server_status_down).
+	 * lbprm.ops->set_server_status_down).
 	 */
 	if (!(srv->cur_admin & SRV_ADMF_MAINT)) {
 		msg = "Only servers in maintenance mode can be deleted.";
@@ -6562,8 +6562,8 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	if (srv->agent.state & CHK_ST_CONFIGURED)
 		check_purge(&srv->agent);
 
-	if (srv->proxy->lbprm.server_deinit)
-		srv->proxy->lbprm.server_deinit(srv);
+	if (srv->proxy->lbprm.ops && srv->proxy->lbprm.ops->server_deinit)
+		srv->proxy->lbprm.ops->server_deinit(srv);
 
 	while (!MT_LIST_ISEMPTY(&srv->watcher_list)) {
 		srv_watch = MT_LIST_NEXT(&srv->watcher_list, struct watcher *, el);
@@ -6731,15 +6731,18 @@ static void srv_lb_propagate(struct server *s)
 {
 	struct proxy *px = s->proxy;
 
-	if (px->lbprm.update_server_eweight)
-		px->lbprm.update_server_eweight(s);
+	if (!px->lbprm.ops)
+		return;
+
+	if (px->lbprm.ops->update_server_eweight)
+		px->lbprm.ops->update_server_eweight(s);
 	else if (srv_willbe_usable(s)) {
-		if (px->lbprm.set_server_status_up)
-			px->lbprm.set_server_status_up(s);
+		if (px->lbprm.ops->set_server_status_up)
+			px->lbprm.ops->set_server_status_up(s);
 	}
 	else {
-		if (px->lbprm.set_server_status_down)
-			px->lbprm.set_server_status_down(s);
+		if (px->lbprm.ops->set_server_status_down)
+			px->lbprm.ops->set_server_status_down(s);
 	}
 }
 

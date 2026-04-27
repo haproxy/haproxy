@@ -143,10 +143,6 @@ int init_server_map(struct proxy *p)
 	int pgcd;
 	int act, bck;
 
-	p->lbprm.set_server_status_up   = map_set_server_status_up;
-	p->lbprm.set_server_status_down = map_set_server_status_down;
-	p->lbprm.update_server_eweight = NULL;
- 
 	if (!p->srv)
 		return 0;
 

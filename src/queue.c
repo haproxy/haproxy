@@ -508,8 +508,8 @@ int process_srv_queue(struct server *s)
 		_HA_ATOMIC_SUB(&p->totpend, done);
 		_HA_ATOMIC_ADD(&p->served, done);
 		__ha_barrier_atomic_store();
-		if (p->lbprm.server_take_conn)
-			p->lbprm.server_take_conn(s);
+		if (p->lbprm.ops && p->lbprm.ops->server_take_conn)
+			p->lbprm.ops->server_take_conn(s);
 	}
 	if (s->served == 0 && p->served == 0 && !HA_ATOMIC_LOAD(&p->ready_srv)) {
 		int i;

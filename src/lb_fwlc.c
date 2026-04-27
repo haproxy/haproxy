@@ -714,15 +714,6 @@ int fwlc_init_server_tree(struct proxy *p)
 	struct server *srv;
 	struct eb_root init_head = EB_ROOT;
 
-	p->lbprm.set_server_status_up   = fwlc_set_server_status_up;
-	p->lbprm.set_server_status_down = fwlc_set_server_status_down;
-	p->lbprm.update_server_eweight  = fwlc_update_server_weight;
-	p->lbprm.server_take_conn = fwlc_srv_reposition;
-	p->lbprm.server_drop_conn = fwlc_srv_reposition;
-	p->lbprm.server_requeue   = fwlc_srv_reposition;
-	p->lbprm.server_deinit    = fwlc_server_deinit;
-	p->lbprm.proxy_deinit     = fwlc_proxy_deinit;
-
 	p->lbprm.wdiv = BE_WEIGHT_SCALE;
 	for (srv = p->srv; srv; srv = srv->next) {
 		srv->next_eweight = (srv->uweight * p->lbprm.wdiv + p->lbprm.wmult - 1) / p->lbprm.wmult;

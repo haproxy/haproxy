@@ -2271,8 +2271,8 @@ int connect_server(struct stream *s)
 		s->flags |= SF_CURR_SESS;
 		count = _HA_ATOMIC_ADD_FETCH(&srv->cur_sess, 1);
 		COUNTERS_UPDATE_MAX(&srv->counters.cur_sess_max, count);
-		if (s->be->lbprm.server_take_conn)
-			s->be->lbprm.server_take_conn(srv);
+		if (s->be->lbprm.ops && s->be->lbprm.ops->server_take_conn)
+			s->be->lbprm.ops->server_take_conn(srv);
 	}
 
 	/* Now handle synchronously connected sockets. We know the stream connector

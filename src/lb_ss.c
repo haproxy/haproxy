@@ -147,10 +147,6 @@ int init_server_ss(struct proxy *p)
 {
 	struct server *srv;
 
-	p->lbprm.set_server_status_up   = ss_set_server_status_up;
-	p->lbprm.set_server_status_down = ss_set_server_status_down;
-	p->lbprm.update_server_eweight = NULL;
-
 	if (!p->srv)
 		return 0;
 

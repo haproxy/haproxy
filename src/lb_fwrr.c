@@ -299,10 +299,6 @@ int fwrr_init_server_groups(struct proxy *p)
 	struct eb_root init_head = EB_ROOT;
 	int i, j;
 
-	p->lbprm.set_server_status_up   = fwrr_set_server_status_up;
-	p->lbprm.set_server_status_down = fwrr_set_server_status_down;
-	p->lbprm.update_server_eweight  = fwrr_update_server_weight;
-
 	p->lbprm.wdiv = BE_WEIGHT_SCALE;
 	for (srv = p->srv; srv; srv = srv->next) {
 		srv->next_eweight = (srv->uweight * p->lbprm.wdiv + p->lbprm.wmult - 1) / p->lbprm.wmult;

@@ -2931,15 +2931,15 @@ void sess_change_server(struct stream *strm, struct server *newsrv)
 		stream_del_srv_conn(strm);
 		_HA_ATOMIC_DEC(&oldsrv->served);
 		__ha_barrier_atomic_store();
-		if (oldsrv->proxy->lbprm.server_drop_conn)
-			oldsrv->proxy->lbprm.server_drop_conn(oldsrv);
+		if (oldsrv->proxy->lbprm.ops && oldsrv->proxy->lbprm.ops->server_drop_conn)
+			oldsrv->proxy->lbprm.ops->server_drop_conn(oldsrv);
 	}
 
 	if (newsrv) {
 		_HA_ATOMIC_INC(&newsrv->proxy->served);
 		__ha_barrier_atomic_store();
-		if (newsrv->proxy->lbprm.server_take_conn)
-			newsrv->proxy->lbprm.server_take_conn(newsrv);
+		if (newsrv->proxy->lbprm.ops && newsrv->proxy->lbprm.ops->server_take_conn)
+			newsrv->proxy->lbprm.ops->server_take_conn(newsrv);
 		stream_add_srv_conn(strm, newsrv);
 	}
 }

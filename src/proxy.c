@@ -392,8 +392,8 @@ void deinit_proxy(struct proxy *p)
 		list_for_each_entry(srvdf, &server_deinit_list, list)
 			srvdf->fct(s);
 
-		if (p->lbprm.server_deinit)
-			p->lbprm.server_deinit(s);
+		if (p->lbprm.ops && p->lbprm.ops->server_deinit)
+			p->lbprm.ops->server_deinit(s);
 
 		s = srv_drop(s);
 	}/* end while(s) */
@@ -406,8 +406,8 @@ void deinit_proxy(struct proxy *p)
 		srv_free(&p->defsrv);
 	}
 
-	if (p->lbprm.proxy_deinit)
-		p->lbprm.proxy_deinit(p);
+	if (p->lbprm.ops && p->lbprm.ops->proxy_deinit)
+		p->lbprm.ops->proxy_deinit(p);
 
 	list_for_each_entry_safe(l, l_next, &p->conf.listeners, by_fe) {
 		guid_remove(&l->guid);
@@ -2615,46 +2615,45 @@ int proxy_finalize(struct proxy *px, int *err_code)
 	case BE_LB_KIND_RR:
 		if ((px->lbprm.algo & BE_LB_PARM) == BE_LB_RR_STATIC) {
 			px->lbprm.algo |= BE_LB_LKUP_MAP;
-			init_server_map(px);
+			px->lbprm.ops = &lb_map_ops;
 		} else if ((px->lbprm.algo & BE_LB_PARM) == BE_LB_RR_RANDOM) {
 			px->lbprm.algo |= BE_LB_LKUP_CHTREE | BE_LB_PROP_DYN;
-			if (chash_init_server_tree(px) < 0) {
-				cfgerr++;
-			}
+			px->lbprm.ops = &lb_chash_ops;
 		} else {
 			px->lbprm.algo |= BE_LB_LKUP_RRTREE | BE_LB_PROP_DYN;
-			fwrr_init_server_groups(px);
+			px->lbprm.ops = &lb_fwrr_ops;
 		}
 		break;
 
 	case BE_LB_KIND_CB:
 		if ((px->lbprm.algo & BE_LB_PARM) == BE_LB_CB_LC) {
 			px->lbprm.algo |= BE_LB_LKUP_LCTREE | BE_LB_PROP_DYN;
-			fwlc_init_server_tree(px);
+			px->lbprm.ops = &lb_fwlc_ops;
 		} else {
 			px->lbprm.algo |= BE_LB_LKUP_FSTREE | BE_LB_PROP_DYN;
-			fas_init_server_tree(px);
+			px->lbprm.ops = &lb_fas_ops;
 		}
 		break;
 
 	case BE_LB_KIND_HI:
 		if ((px->lbprm.algo & BE_LB_HASH_TYPE) == BE_LB_HASH_CONS) {
 			px->lbprm.algo |= BE_LB_LKUP_CHTREE | BE_LB_PROP_DYN;
-			if (chash_init_server_tree(px) < 0) {
-				cfgerr++;
-			}
+			px->lbprm.ops = &lb_chash_ops;
 		} else {
 			px->lbprm.algo |= BE_LB_LKUP_MAP;
-			init_server_map(px);
+			px->lbprm.ops = &lb_map_ops;
 		}
 		break;
 	case BE_LB_KIND_SA:
 		if ((px->lbprm.algo & BE_LB_PARM) == BE_LB_SA_SS) {
 			px->lbprm.algo |= BE_LB_PROP_DYN;
-			init_server_ss(px);
+			px->lbprm.ops = &lb_ss_ops;
 		}
 		break;
 	}
+	if (px->lbprm.ops && px->lbprm.ops->proxy_init &&
+	    px->lbprm.ops->proxy_init(px) < 0)
+		cfgerr++;
 	HA_RWLOCK_INIT(&px->lbprm.lock);
 
 	if (px->options & PR_O_LOGASAP)

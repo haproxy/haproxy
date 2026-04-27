@@ -589,14 +589,6 @@ int chash_init_server_tree(struct proxy *p)
 	struct server *srv;
 	struct eb_root init_head = EB_ROOT;
 
-	p->lbprm.set_server_status_up   = chash_set_server_status_up;
-	p->lbprm.set_server_status_down = chash_set_server_status_down;
-	p->lbprm.update_server_eweight  = chash_update_server_weight;
-	p->lbprm.server_init            = chash_server_init;
-	p->lbprm.server_deinit          = chash_server_deinit;
-	p->lbprm.server_take_conn = NULL;
-	p->lbprm.server_drop_conn = NULL;
-
 	p->lbprm.wdiv = BE_WEIGHT_SCALE;
 	for (srv = p->srv; srv; srv = srv->next) {
 		srv->next_eweight = (srv->uweight * p->lbprm.wdiv + p->lbprm.wmult - 1) / p->lbprm.wmult;

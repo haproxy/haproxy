@@ -260,12 +260,6 @@ int fas_init_server_tree(struct proxy *p)
 	struct server *srv;
 	struct eb_root init_head = EB_ROOT;
 
-	p->lbprm.set_server_status_up   = fas_set_server_status_up;
-	p->lbprm.set_server_status_down = fas_set_server_status_down;
-	p->lbprm.update_server_eweight  = fas_update_server_weight;
-	p->lbprm.server_take_conn = fas_srv_reposition;
-	p->lbprm.server_drop_conn = fas_srv_reposition;
-
 	p->lbprm.wdiv = BE_WEIGHT_SCALE;
 	for (srv = p->srv; srv; srv = srv->next) {
 		srv->next_eweight = (srv->uweight * p->lbprm.wdiv + p->lbprm.wmult - 1) / p->lbprm.wmult;
