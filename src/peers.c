@@ -2240,7 +2240,7 @@ static inline int peer_treat_ackmsg(struct appctx *appctx, struct peer *p,
 
 	table_id = intdecode(msg_cur, msg_end);
 	if (!*msg_cur || (*msg_cur + sizeof(update) > msg_end)) {
-		TRACE_ERROR("malformed ackk message: no table id", PEERS_EV_SESS_IO|PEERS_EV_RX_MSG|PEERS_EV_PROTO_ERR, appctx, p);
+		TRACE_ERROR("malformed ack message: no table id", PEERS_EV_SESS_IO|PEERS_EV_RX_MSG|PEERS_EV_PROTO_ERR, appctx, p);
 		appctx->st0 = PEER_SESS_ST_ERRPROTO;
 		ret = 0;
 		goto end;
@@ -2579,7 +2579,7 @@ static inline int peer_recv_msg(struct appctx *appctx, char *msg_head, size_t ms
 	if (reql < 0 || se_fl_test(appctx->sedesc, SE_FL_SHW)) {
 		/* there was an error or the message was truncated */
 		appctx->st0 = PEER_SESS_ST_END;
-		TRACE_ERROR("error or messafe truncated", PEERS_EV_SESS_IO|PEERS_EV_RX_ERR, appctx);
+		TRACE_ERROR("error or message truncated", PEERS_EV_SESS_IO|PEERS_EV_RX_ERR, appctx);
 		return -1;
 	}
 
@@ -2614,7 +2614,7 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 
 			/* flag to start to teach lesson */
 			peer->flags |= (PEER_F_TEACH_PROCESS|PEER_F_DBG_RESYNC_REQUESTED);
-			TRACE_STATE("peer elected to teach leasson to remote peer", PEERS_EV_SESS_RESYNC|PEERS_EV_PROTO_CTRL, appctx, peer);
+			TRACE_STATE("peer elected to teach lesson to remote peer", PEERS_EV_SESS_RESYNC|PEERS_EV_PROTO_CTRL, appctx, peer);
 		}
 		else if (msg_head[1] == PEER_MSG_CTRL_RESYNCFINISHED) {
 			TRACE_PROTO("Full resync finished message received", PEERS_EV_SESS_IO|PEERS_EV_RX_MSG|PEERS_EV_PROTO_CTRL, appctx, peer);
