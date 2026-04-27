@@ -8,6 +8,7 @@
 #include <haproxy/quic_conn-t.h>
 #include <haproxy/quic_frame-t.h>
 #include <haproxy/quic_utils.h>
+#include <haproxy/stconn.h>
 
 /* trace source and events */
 static void qmux_trace(enum trace_level level, uint64_t mask,
@@ -162,6 +163,11 @@ void qmux_dump_qcs_info(struct buffer *msg, const struct qcs *qcs)
 {
 	chunk_appendf(msg, " qcs=%p .id=%llu .st=%s .flg=0x%04x", qcs, (ullong)qcs->id,
 	              qcs_st_to_str(qcs->st), qcs->flags);
+
+	if (qcs->sd) {
+		chunk_appendf(msg, " .sd=%p", qcs->sd);
+		chunk_appendf(msg, "(.flg=0x%08x)", se_fl_get(qcs->sd));
+	}
 
 	chunk_appendf(msg, " .rx=%llu/%llu rxb=%u(%u)",
 	              (ullong)qcs->rx.offset_max, (ullong)qcs->rx.msd,
