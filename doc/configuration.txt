@@ -4169,7 +4169,7 @@ tune.bufsize <size>
   multiple of 8 on 32-bit machines and 16 on 64-bit machines.
 
 tune.bufsize.large <size>
-  Sets the size in butes for large buffers. By defaults, support for large
+  Sets the size in bytes for large buffers. By defaults, support for large
   buffers is not enabled, it must explicitly be enable by setting this value.
 
   These buffers are designed to be used in some specific contexts where more
