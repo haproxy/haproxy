@@ -368,11 +368,12 @@ int qcc_qstrm_send_frames(struct qcc *qcc, struct list *frms)
 		if (frm->type >= QUIC_FT_STREAM_8 && frm->type <= QUIC_FT_STREAM_F)
 			qstrm_ctrl_send(frm->stream.stream, frm->stream.len);
 
-		LIST_DEL_INIT(&frm->list);
 		if (split_frm) {
+			qc_frm_free(NULL, &split_frm);
 			frm = next_frm;
 			goto loop;
 		}
+		qc_frm_free(NULL, &frm);
 	}
 
  out:
