@@ -80,8 +80,7 @@ static struct hbuf *hbuf_alloc(struct hbuf *h)
 
 static inline void free_hbuf(struct hbuf *h)
 {
-	free(h->area);
-	h->area = NULL;
+	ha_free(&h->area);
 }
 
 __attribute__ ((format(printf, 2, 3)))

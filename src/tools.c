@@ -7565,8 +7565,7 @@ int backup_env(void)
 				free(*tmp);
 				tmp++;
 			}
-			free(init_env);
-			init_env = NULL;
+			ha_free(&init_env);
 			return -1;
 		}
 		tmp++;
@@ -7761,8 +7760,7 @@ void ha_freearray(char ***array)
 	char **r = *array;
 
 	for (i = 0; r && r[i]; i++) {
-		free(r[i]);
-		r[i] = NULL;
+		ha_free(&r[i]);
 	}
 	*array = NULL;
 }
