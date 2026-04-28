@@ -633,9 +633,9 @@ static int cli_parse_global(char **args, int section_type, struct proxy *curpx,
 		global.cli_fe->maxconn = maxconn;
 	}
 	else if (strcmp(args[1], "calculate-max-counters") == 0) {
-		if (!strcasecmp(args[2], "on"))
+		if (strcasecmp(args[2], "on") == 0)
 			return 0;
-		else if (!strcasecmp(args[2], "off")) {
+		else if (strcasecmp(args[2], "off") == 0) {
 			global.tune.options |= GTUNE_NO_MAX_COUNTER;
 			return 0;
 		}

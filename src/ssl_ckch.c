@@ -4821,9 +4821,9 @@ static int ckch_conf_load_pem_or_generate(void *value, char *buf, struct ckch_st
 		if (!s->conf.gencrt.key.type)
 			type = EVP_PKEY_RSA;
 		else {
-			if (!strcmp(s->conf.gencrt.key.type, "RSA"))
+			if (strcmp(s->conf.gencrt.key.type, "RSA") == 0)
 				type = EVP_PKEY_RSA;
-			else if (!strcmp(s->conf.gencrt.key.type, "ECDSA"))
+			else if (strcmp(s->conf.gencrt.key.type, "ECDSA") == 0)
 				type = EVP_PKEY_EC;
 			else {
 				memprintf(err, "keyword 'keytype' requires either 'RSA' or 'ECDSA'.");

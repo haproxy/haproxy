@@ -322,9 +322,9 @@ parse_filter_sequence(char **args, int section_type, struct proxy *curpx,
 			goto error;
 		}
 
-		if (!strcmp(args[1], "request"))
+		if (strcmp(args[1], "request") == 0)
 			list = &curpx->filter_sequence.req;
-		else if (!strcmp(args[1], "response"))
+		else if (strcmp(args[1], "response") == 0)
 			list = &curpx->filter_sequence.res;
 		else {
 			memprintf(err,
@@ -379,7 +379,7 @@ static int compile_filter_sequence_elt(struct proxy *px, struct filter_sequence_
 	int ret = ERR_NONE;
 
 	list_for_each_entry(fconf, &px->filter_configs, list) {
-		if (!strcmp(elt->flt_name, fconf->name)) {
+		if (strcmp(elt->flt_name, fconf->name) == 0) {
 			elt->flt_conf = fconf;
 			break;
 		}

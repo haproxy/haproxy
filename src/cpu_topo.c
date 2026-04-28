@@ -2164,14 +2164,14 @@ static int cfg_parse_cpu_affinity(char **args, int section_type, struct proxy *c
 		return -1;
 
 	for (i = 0; ha_cpu_affinity[i].name != NULL; i++) {
-		if (!strcmp(args[1], ha_cpu_affinity[i].name)) {
+		if (strcmp(args[1], ha_cpu_affinity[i].name) == 0) {
 			cpu_policy_conf.affinity |= ha_cpu_affinity[i].affinity_flags;
 			if (*args[2] != 0) {
 				struct cpu_affinity_optional *optional = ha_cpu_affinity[i].optional;
 
 				if (optional) {
 					for (i = 0; optional[i].name; i++) {
-						if (!strcmp(args[2], optional[i].name)) {
+						if (strcmp(args[2], optional[i].name) == 0) {
 							cpu_policy_conf.affinity |= optional[i].affinity_flag;
 							return 0;
 						}
@@ -2334,10 +2334,10 @@ static int cfg_parse_cpu_policy(char **args, int section_type, struct proxy *cur
 		return -1;
 
 	if (*args[2] != 0) {
-		if (!strcmp(args[2], "threads-per-core")) {
-			if (!strcmp(args[3], "1"))
+		if (strcmp(args[2], "threads-per-core") == 0) {
+			if (strcmp(args[3], "1") == 0)
 				cpu_policy_conf.flags |= CPU_POLICY_ONE_THREAD_PER_CORE;
-			else if (strcmp(args[3], "auto")) {
+			else if (strcmp(args[3], "auto") != 0) {
 				memprintf(err, "'%s' passed an unknown value '%s' to keyword '%s', known values are 1 or auto", args[0], args[3], args[2]);
 				return -1;
 			}

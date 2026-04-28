@@ -7041,7 +7041,7 @@ enum act_parse_ret do_log_parse_act(enum log_orig_id id,
 	rule->arg.do_log.orig = id;
 
 	while (*args[*orig_arg]) {
-		if (!strcmp(args[*orig_arg], "profile")) {
+		if (strcmp(args[*orig_arg], "profile") == 0) {
 			if (!*args[*orig_arg + 1]) {
 				memprintf(err,
 					  "action '%s': 'profile' expects argument.",

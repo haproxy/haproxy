@@ -1003,9 +1003,9 @@ static int ssl_bind_parse_ktls(char **args, int cur_arg, struct proxy *px, struc
 		memprintf(err, "'%s' directive is experimental, must be allowed via a global 'expose-experimental-directives'", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
-	if (!strcasecmp(args[cur_arg + 1], "on")) {
+	if (strcasecmp(args[cur_arg + 1], "on") == 0) {
 		conf->ktls = 1;
-	} else if (!strcasecmp(args[cur_arg + 1], "off")) {
+	} else if (strcasecmp(args[cur_arg + 1], "off") == 0) {
 		conf->ktls = 0;
 	} else {
 		memprintf(err, "'%s' expects \"on\" or \"off\" as an argument, got '%s'.",
@@ -2081,9 +2081,9 @@ static int srv_parse_ktls(char **args, int *cur_arg, struct proxy *px, struct se
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if (!strcasecmp(args[*cur_arg + 1], "on")) {
+	if (strcasecmp(args[*cur_arg + 1], "on") == 0) {
 		newsrv->ssl_ctx.options |= SRV_SSL_O_KTLS;
-	} else if (!strcasecmp(args[*cur_arg + 1], "off")) {
+	} else if (strcasecmp(args[*cur_arg + 1], "off") == 0) {
 		newsrv->ssl_ctx.options &= ~SRV_SSL_O_KTLS;
 	} else {
 		memprintf(err, "'%s' expects \"on\" or \"off\" as an argument, got '%s'.",
