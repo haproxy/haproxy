@@ -642,7 +642,7 @@ static int qc_handle_strm_frm(struct quic_rx_packet *pkt,
 	ret = qcc_recv(qc->qcc, strm_frm->id, strm_frm->len,
 	               strm_frm->offset, fin, (char *)strm_frm->data);
 
-	/* frame rejected - packet must not be acknowledeged */
+	/* frame rejected - packet must not be acknowledged */
 	TRACE_LEAVE(QUIC_EV_CONN_PRSFRM, qc);
 	return !ret;
 }

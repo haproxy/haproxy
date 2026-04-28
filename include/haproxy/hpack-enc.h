@@ -164,7 +164,7 @@ static inline int hpack_encode_int_status(struct buffer *out, unsigned int statu
 		goto fail;
 
 	/* basic encoding of the status code */
-	out->area[len - 5] = 0x48; // indexed name -- name=":status" (idx 8)
+	out->area[len - 5] = 0x48; // literal with incremental indexing, name=":status" (idx 8)
 	out->area[len - 4] = 0x03; // 3 bytes status
 	out->area[len - 3] = '0' + status / 100;
 	out->area[len - 2] = '0' + status / 10 % 10;

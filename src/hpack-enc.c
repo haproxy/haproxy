@@ -1,5 +1,5 @@
 /*
- * HPACK decompressor (RFC7541)
+ * HPACK compressor (RFC7541)
  *
  * Copyright (C) 2014-2017 Willy Tarreau <willy@haproxy.org>
  * Copyright (C) 2017 HAProxy Technologies

@@ -516,7 +516,7 @@ static void tcpcheck_expect_onsuccess_message(struct buffer *msg, struct check *
 
 	/* Follows these step to produce the info message:
 	 *     1. if info field is already provided, copy it
-	 *     2. if the expect rule provides an onsucces log-format string,
+	 *     2. if the expect rule provides an onsuccess log-format string,
 	 *        use it to produce the message
 	 *     3. the expect rule is part of a protocol check (http, redis, mysql...), do nothing
 	 *     4. Otherwise produce the generic tcp-check info message
@@ -3906,7 +3906,7 @@ int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_ruleset *r
 	struct tcpcheck_rule *r;
 
 	/* the implicit send rule coming from an "option httpchk" line must be
-	 * merged with the first explici http-check send rule, if
+	 * merged with the first explicit http-check send rule, if
 	 * any. Depending on the declaration order some tests are required.
 	 *
 	 * Some tests are also required for other kinds of http-check rules to be
@@ -3943,7 +3943,7 @@ int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_ruleset *r
 		}
 	}
 	else {
-		/* Tries to add an explicit http-check rule. First of all we check the typefo the
+		/* Tries to add an explicit http-check rule. First of all we check the type of the
 		 * last inserted rule to be sure it is valid. Then for send rule, we try to merge it
 		 * with an existing implicit send rule, if any. At the end, if there is no error,
 		 * the rule is appended to the list.
@@ -4050,7 +4050,7 @@ static int check_tcpcheck_ruleset(struct proxy *px, struct tcpcheck_ruleset *rs)
 	}
 
 	/* Now, back again on HTTP ruleset. Try to resolve the sni log-format
-	 * string if necessary, but onlu for implicit connect rules, by getting
+	 * string if necessary, but only for implicit connect rules, by getting
 	 * it from the following send rule.
 	 */
 	if ((rs->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK) {
@@ -4059,7 +4059,7 @@ static int check_tcpcheck_ruleset(struct proxy *px, struct tcpcheck_ruleset *rs)
 		list_for_each_entry(chk, &rs->rules, list) {
 			if (chk->action == TCPCHK_ACT_CONNECT && !chk->connect.sni &&
 			    (chk->connect.options & TCPCHK_OPT_IMPLICIT)) {
-				/* Only eval connect rule with no explici SNI */
+				/* Only eval connect rule with no explicit SNI */
 				connect = &chk->connect;
 			}
 			else if (connect && chk->action == TCPCHK_ACT_SEND) {

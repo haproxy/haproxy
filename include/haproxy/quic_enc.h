@@ -51,7 +51,7 @@
 
 /* Returns enough log2 of first powers of two to encode QUIC variable length
  * integers.
- * Returns -1 if <val> if out of the range of lengths supported by QUIC.
+ * Returns -1 if <val> is out of the range of lengths supported by QUIC.
  */
 static inline int quic_log2(unsigned int val)
 {
@@ -109,7 +109,7 @@ static inline uint64_t quic_max_int(size_t sz)
  * Note that the result is a 64-bits integer but with the less significant
  * 62 bits as relevant information. The most significant 2 remaining bits encode
  * the length of the integer.
- * Returns 1 if succeeded there was enough data in <buf>), 0 if not.
+ * Returns 1 if succeeded (there was enough data in <buf>), 0 if not.
  */
 static inline int quic_dec_int(uint64_t *val,
                                const unsigned char **buf,
@@ -137,7 +137,7 @@ static inline int quic_dec_int(uint64_t *val,
  * the length of the integer.
  * Note that this function update <b> buffer when a variable-length integer
  * has successfully been parsed.
- * Returns 1 and if succeeded (there was enough data in <buf>), 0 if not.
+ * Returns 1 if succeeded (there was enough data in <buf>), 0 if not.
  * If <retlen> is not null, increment <*retlen> by the number of bytes consumed to decode
  * the varint.
  */
@@ -173,7 +173,7 @@ static inline size_t b_quic_dec_int(uint64_t *val, struct buffer *b, size_t *ret
 
 /* Encode a QUIC variable-length integer from <val> into <buf> buffer with <end> as first
  * byte address after the end of this buffer.
- * Returns 1 if succeeded (there was enough room in buf), 0 if not.
+ * Returns 1 if succeeded (there was enough room in <buf>), 0 if not.
  */
 static inline int quic_enc_int(unsigned char **buf, const unsigned char *end, uint64_t val)
 {
@@ -209,7 +209,7 @@ static inline int b_quic_enc_int(struct buffer *b, uint64_t val, int width)
 	char *pos;
 	int save_width, len;
 
-	/* width can only by 0, 1, 2, 4 or 8 */
+	/* width can only be 0, 1, 2, 4 or 8 */
 	BUG_ON(width && (width > 8 || atleast2(width)));
 
 	len = quic_int_getsize(val);
@@ -279,7 +279,7 @@ static inline size_t quic_decint_size_diff(uint64_t val)
  * Returns the value usable as Length field, or 0 if <room> is too small.
  *
  * Here are examples of the output returned by the function. For each inputs
- * between charets, returned value is written associated with its implicit
+ * between brackets, returned value is written associated with its implicit
  * variable-length integer size :
  *
  * [64] => 63(1)        [65] => 63(1)        [66] => 64(2)

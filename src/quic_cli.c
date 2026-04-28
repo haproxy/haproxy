@@ -40,9 +40,9 @@ struct show_quic_ctx {
 	int fields;
 };
 
-#define QC_CLI_FL_SHOW_ALL 0x0001 /* show closing/draining connections */
-#define QC_CLI_FL_SHOW_CLO 0x0002 /* show closing/draining connections */
-#define QC_CLI_FL_SHOW_BE  0x0004 /* show closing/draining connections */
+#define QC_CLI_FL_SHOW_ALL 0x0001 /* show all connections including closing ones */
+#define QC_CLI_FL_SHOW_CLO 0x0002 /* show closing connections */
+#define QC_CLI_FL_SHOW_BE  0x0004 /* show backend connections */
 
 /* Returns the output format for show quic. If specified explicitly use it as
  * set. Else format depends if filtering on a single connection instance. If

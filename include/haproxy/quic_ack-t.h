@@ -24,7 +24,7 @@
 struct quic_arngs {
 	/* ebtree of ACK ranges organized by their first value. */
 	struct eb_root root;
-	/* The number of ACK ranges is this tree */
+	/* The number of ACK ranges in this tree */
 	size_t sz;
 	/* The number of bytes required to encode this ACK ranges lists. */
 	size_t enc_sz;
@@ -36,7 +36,7 @@ struct quic_arng {
 	int64_t last;
 };
 
-/* Structure to hold a range of ACKs to be store as a node in a tree of
+/* Structure to hold a range of ACKs to be stored as a node in a tree of
  * ACK ranges.
  */
 struct quic_arng_node {

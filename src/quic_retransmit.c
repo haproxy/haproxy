@@ -113,8 +113,8 @@ static void qc_dup_pkt_frms(struct quic_conn *qc,
 	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
 }
 
-/* Boolean function which return 1 if <pkt> TX packet is only made of
- * already acknowledged frame.
+/* Boolean function which returns 1 if <pkt> TX packet is only made of
+ * already acknowledged frames.
  */
 static inline int qc_pkt_with_only_acked_frms(struct quic_tx_packet *pkt)
 {
@@ -185,7 +185,7 @@ void qc_prep_fast_retrans(struct quic_conn *qc,
 
 /* Prepare a fast retransmission during a handshake after a client
  * has resent Initial packets. According to the RFC a server may retransmit
- * Initial packets send them coalescing with others (Handshake here).
+ * Initial packets, sending them coalesced with others (Handshake here).
  * (Listener only function).
  */
 void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
@@ -250,7 +250,7 @@ void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 
 	qel->pktns->tx.pto_probe += 1;
 
-	/* No risk to loop here, #packet per datagram is bounded */
+	/* No risk to loop here, #packets per datagram is bounded */
  requeue:
 	TRACE_PROTO("duplicating packet", QUIC_EV_CONN_PRSAFRM, qc, NULL, &pkt->pn_node.key);
 	qc_dup_pkt_frms(qc, &pkt->frms, tmp);

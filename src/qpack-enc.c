@@ -88,7 +88,7 @@ int qpack_encode_int_status(struct buffer *out, unsigned int status)
 	case 425: idx = 70; break;
 	case 500: idx = 71; break;
 
-	/* status code not in QPACK static table, idx is null. */
+	/* status code not in QPACK static table, idx is 0. */
 	default: break;
 	}
 
@@ -281,7 +281,7 @@ int qpack_encode_header(struct buffer *out, const struct ist n, const struct ist
 
 	/* literal field line with literal name
 	 * | 0 | 0 | 1 | N | H | . | . | . |
-	 * N :(allow an intermediary to add the header in a dynamic table)
+	 * N: allow an intermediary to add the header in a dynamic table
 	 * H: huffman encoded
 	 * name len
 	 */

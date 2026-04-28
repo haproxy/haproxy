@@ -441,7 +441,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		arg = *args;
 
 		/* Compatibility layer. Each pattern can parse only one string per pattern,
-		 * but the pat_parser_int() and pat_parse_dotted_ver() parsers were need
+		 * but the pat_parse_int() and pat_parse_dotted_ver() parsers need
 		 * optionally two operators. The first operator is the match method: eq,
 		 * le, lt, ge and gt. pat_parse_int() and pat_parse_dotted_ver() functions
 		 * can have a compatibility syntax based on ranges:
@@ -560,7 +560,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			}
 		}
 
-		/* Add sample to the reference, and try to compile it fior each pattern
+		/* Add sample to the reference, and try to compile it for each pattern
 		 * using this value.
 		 */
 		if (!pat_ref_add(ref, arg, NULL, err))

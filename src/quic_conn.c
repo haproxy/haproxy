@@ -578,7 +578,7 @@ struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int sta
 		quic_build_post_handshake_frames(qc, &qc->ael->pktns->tx.frms);
 	}
 
-	/* Retranmissions */
+	/* Retransmissions */
 	if (qc->flags & QUIC_FL_CONN_RETRANS_NEEDED) {
 		TRACE_STATE("retransmission needed", QUIC_EV_CONN_IO_CB, qc);
 		qc->flags &= ~QUIC_FL_CONN_RETRANS_NEEDED;
@@ -794,7 +794,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		goto out;
 	}
 
-	/* Retranmissions */
+	/* Retransmissions */
 	if (qc->flags & QUIC_FL_CONN_RETRANS_NEEDED) {
 		TRACE_DEVEL("retransmission needed", QUIC_EV_CONN_PHPKTS, qc);
 		qc->flags &= ~QUIC_FL_CONN_RETRANS_NEEDED;
@@ -852,7 +852,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		 * waiting for HP removal AFTER the successful handshake completion.
 		 * Indeed a successful handshake completion implicitly valids
 		 * the peer address. In this case, one wants to process
-		 * these ORTT packets AFTER the successful handshake completion.
+		 * these 0RTT packets AFTER the successful handshake completion.
 		 *
 		 * On the contrary, when a token for address validation was received,
 		 * release 0RTT packets still waiting for HP removal. These
@@ -1665,7 +1665,7 @@ static int quic_conn_init_timer(struct quic_conn *qc)
 	return ret;
 }
 
-/* Rearm the idle timer or the ack timer (if not already armde) for <qc> QUIC
+/* Rearm the idle timer or the ack timer (if not already armed) for <qc> QUIC
  * connection. */
 void qc_idle_timer_do_rearm(struct quic_conn *qc, int arm_ack)
 {

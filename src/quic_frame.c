@@ -665,7 +665,7 @@ static int quic_build_max_streams_uni_frame(unsigned char **pos, const unsigned 
 	return quic_enc_int(pos, end, ms_frm->max_streams);
 }
 
-/* Parse a MAX_STREAMS frame for undirectional streams at <pos> buffer position with <end>
+/* Parse a MAX_STREAMS frame for unidirectional streams at <pos> buffer position with <end>
  * as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
@@ -978,7 +978,7 @@ static int quic_build_connection_close_app_frame(unsigned char **pos, const unsi
 	return 1;
 }
 
-/* Parse a CONNECTION_CLOSE frame at QUIC layer at <pos> buffer position with <end> as end into <frm> frame.
+/* Parse a CONNECTION_CLOSE frame at application layer at <pos> buffer position with <end> as end into <frm> frame.
  * Note there exist two types of CONNECTION_CLOSE frame, one for the application layer
  * and another at QUIC layer.
  * Return 1 if succeeded (enough room at <pos> buffer position to parse this frame), 0 if not.

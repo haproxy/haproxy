@@ -72,7 +72,7 @@ int map_parse_int(const char *text, struct sample_data *data)
 	return 1;
 }
 
-/* This crete and initialize map descriptor.
+/* This creates and initializes map descriptor.
  * Return NULL if out of memory error
  */
 static struct map_descriptor *map_create_descriptor(struct sample_conv *conv)

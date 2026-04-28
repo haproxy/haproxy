@@ -521,7 +521,7 @@ int SSL_set_quic_transport_params(SSL *ssl, const uint8_t *params, size_t params
 	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
 	/* The local transport parameters are stored into the quic_conn object.
 	 * There is no need to add an intermediary to store pointers to these
-	 * transport paraemters.
+	 * transport parameters.
 	 */
 	TRACE_ENTER(QUIC_EV_CONN_SSL_COMPAT, qc);
 	TRACE_LEAVE(QUIC_EV_CONN_SSL_COMPAT, qc);

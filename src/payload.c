@@ -264,7 +264,7 @@ smp_fetch_req_ssl_st_ext(const struct arg *args, struct sample *smp, const char 
 		if (ext_len > hs_len - 4) /* Extension too long */
 			goto not_ssl_hello;
 
-		/* SesstionTicket extension */
+		/* SessionTicket extension */
 		if (ext_type == 35) {
 			smp->data.type = SMP_T_SINT;
 			/* SessionTicket also present */

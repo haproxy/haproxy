@@ -68,7 +68,7 @@ static void quic_arngs_set_enc_sz(struct quic_conn *qc, struct quic_arngs *arngs
 	TRACE_LEAVE(QUIC_EV_CONN_TXPKT, qc);
 }
 
-/* Insert <ar> ack range into <argns> tree of ack ranges.
+/* Insert <ar> ack range into <arngs> tree of ack ranges.
  * Returns the ack range node which has been inserted if succeeded, NULL if not.
  */
 static inline

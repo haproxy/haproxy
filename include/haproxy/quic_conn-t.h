@@ -229,7 +229,7 @@ extern const struct quic_version *quic_version_2;
 /* Flag the packet number space as needing probing */
 #define QUIC_FL_PKTNS_PROBE_NEEDED  (1UL << 2)
 /* Flag the packet number space as having received a packet with a new largest
- * packet number, to be acknowledege
+ * packet number, to be acknowledged
  */
 #define QUIC_FL_PKTNS_NEW_LARGEST_PN (1UL << 3)
 

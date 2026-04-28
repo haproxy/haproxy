@@ -306,7 +306,9 @@ static void qc_stream_buf_consume(struct qc_stream_buf *stream_buf,
 		if (ack->offset_node.key > stream->ack_offset)
 			break;
 
-		/* For released buf, room count is decremented on buffered ACK consumption. */
+		/* For the active buf, room count is decremented on buffered ACK
+		 * consumption.
+		 */
 		if (stream_buf == stream->buf)
 			stream_buf->room = MAX((int64_t)(stream_buf->room - ack->len), 0);
 
@@ -483,7 +485,7 @@ struct buffer *qc_stream_buf_alloc(struct qc_stream_desc *stream,
  */
 struct buffer *qc_stream_buf_realloc(struct qc_stream_desc *stream)
 {
-	/* This function is reserved to convert a big buffer to a smaller one. */
+	/* This function is reserved to convert a small buffer to a standard one. */
 	BUG_ON(!stream->buf || !stream->buf->sbuf);
 
 	/* This function can only be used if targeted buffer is empty. */

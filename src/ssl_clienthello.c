@@ -194,7 +194,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		                               &extension_data, &extension_len))
 #endif
 		{
-			/* This is not redundant. It we only return 0 without setting
+			/* This is not redundant. If we only return 0 without setting
 			 * <*al>, this has as side effect to generate another TLS alert
 			 * which would be set after calling quic_set_tls_alert().
 			 */
@@ -444,7 +444,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	}
 
 sni_lookup:
-	/* we need to transform this a NULL-ended string in lowecase */
+	/* we need to transform this into a NULL-terminated string in lowercase */
 	for (i = 0; i < trash.size && i < servername_len; i++)
 		trash.area[i] = tolower((unsigned char)servername[i]);
 	trash.area[i] = 0;
@@ -556,7 +556,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 		/* Look for the QUIC transport parameters. */
 		SSL_get_peer_quic_transport_params(ssl, &extension_data, &extension_len);
 		if (extension_len == 0) {
-			/* This is not redundant. It we only return 0 without setting
+			/* This is not redundant. If we only return 0 without setting
 			 * <*al>, this has as side effect to generate another TLS alert
 			 * which would be set after calling quic_set_tls_alert().
 			 */
@@ -660,8 +660,8 @@ sni_lookup:
 #endif /* (!) OPENSSL_IS_BORINGSSL */
 
 #if defined(USE_OPENSSL_WOLFSSL)
-/* This implement the equivalent of the clientHello Callback but using the cert_cb.
- * WolfSSL is able to extract the sigalgs and ciphers of the client byt using the API
+/* This implements the equivalent of the clientHello Callback but using the cert_cb.
+ * WolfSSL is able to extract the sigalgs and ciphers of the client by using the API
  * provided in https://github.com/wolfSSL/wolfssl/pull/6963
  *
  * Not activated for now since the PR is not merged.
@@ -739,7 +739,7 @@ int ssl_sock_switchctx_wolfSSL_cbk(WOLFSSL* ssl, void* arg)
 
 sni_lookup:
 
-	/* we need to transform this into a NULL-ended string in lowecase */
+	/* we need to transform this into a NULL-terminated string in lowercase */
 	for (i = 0; i < trash.size && servername[i] != '\0'; i++)
 		trash.area[i] = tolower((unsigned char)servername[i]);
 	trash.area[i] = 0;

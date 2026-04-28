@@ -211,7 +211,7 @@ int pat_parse_nothing(const char *text, struct pattern *pattern, int mflags, cha
 	return 1;
 }
 
-/* Parse a string. It is allocated and duplicated. */
+/* Parse a string. The text is used directly without allocation. */
 int pat_parse_str(const char *text, struct pattern *pattern, int mflags, char **err)
 {
 	pattern->type = SMP_T_STR;
@@ -220,7 +220,7 @@ int pat_parse_str(const char *text, struct pattern *pattern, int mflags, char **
 	return 1;
 }
 
-/* Parse a binary written in hexa. It is allocated. */
+/* Parse a binary written in hexa. The data is stored in the trash chunk. */
 int pat_parse_bin(const char *text, struct pattern *pattern, int mflags, char **err)
 {
 	struct buffer *trash;
@@ -232,7 +232,7 @@ int pat_parse_bin(const char *text, struct pattern *pattern, int mflags, char **
 	return !!parse_binary(text, &pattern->ptr.str, &pattern->len, err);
 }
 
-/* Parse a regex. It is allocated. */
+/* Parse a regex. The text is used directly without allocation. */
 int pat_parse_reg(const char *text, struct pattern *pattern, int mflags, char **err)
 {
 	pattern->ptr.str = (char *)text;
@@ -433,7 +433,7 @@ int pat_parse_ip(const char *text, struct pattern *pattern, int mflags, char **e
  *
  */
 
-/* always return false */
+/* returns a match when the sample's integer value is non-zero, otherwise returns NULL */
 struct pattern *pat_match_nothing(struct sample *smp, struct pattern_expr *expr, int fill)
 {
 	if (smp->data.u.sint) {
@@ -909,7 +909,7 @@ struct pattern *pat_match_dir(struct sample *smp, struct pattern_expr *expr, int
 }
 
 /* Checks that the pattern is included inside the tested string, but enclosed
- * between the delmiters '/', '?', '.' or ":" or at the beginning or end of
+ * between the delimiters '/', '?', '.' or ":" or at the beginning or end of
  * the string. Delimiters at the beginning or end of the pattern are ignored.
  */
 struct pattern *pat_match_dom(struct sample *smp, struct pattern_expr *expr, int fill)

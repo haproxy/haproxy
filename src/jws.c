@@ -417,7 +417,7 @@ size_t jws_b64_signature(EVP_PKEY *pkey, enum jwt_alg alg, char *b64protected, c
 
 
 	if (EVP_PKEY_base_id(pkey) == EVP_PKEY_EC) {
-		/* Convert the DigestSign output to an ECDSA_SIG (R and S parameters concatenatedi,
+		/* Convert the DigestSign output to an ECDSA_SIG (R and S parameters concatenated,
 		 * see section 3.4 of RFC7518), and output R and S padded.
 		 */
 		ECDSA_SIG *sig = NULL;

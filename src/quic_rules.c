@@ -24,7 +24,7 @@ int quic_init_exec_rules(struct listener *li, struct quic_dgram *dgram)
 	px = li->bind_conf->frontend;
 
 	/* Initialize session elements specific to the current datagram. All
-	 * others members are set to 0 thanks to static storage class.
+	 * other members are set to 0 thanks to the static storage class.
 	 */
 	rule_sess.fe = px;
 	rule_sess.listener = li;
@@ -146,7 +146,9 @@ void quic_init_actions_register(struct action_kw_list *kw_list)
 	act_add_list(&quic_init_actions_list.list, kw_list);
 }
 
-/* Return the struct quic-initial action associated to a keyword. */
+/* Return the action keyword associated with <kw> from the registered
+ * quic-initial action keywords, or NULL if not found.
+ */
 struct action_kw *action_quic_init_custom(const char *kw)
 {
 	return action_lookup(&quic_init_actions_list.list, kw);

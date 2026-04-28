@@ -294,7 +294,7 @@ jwt_jwsverify_hmac(const struct jwt_ctx *ctx, const struct buffer *decoded_signa
 }
 
 /*
- * Convert a JWT ECDSA signature (R and S parameters concatenatedi, see section
+ * Convert a JWT ECDSA signature (R and S parameters concatenated, see section
  * 3.4 of RFC7518) into an ECDSA_SIG that can be fed back into OpenSSL's digest
  * verification functions.
  * Returns 0 in case of success.

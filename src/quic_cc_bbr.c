@@ -1377,12 +1377,12 @@ static void bbr_handle_lost_packet(struct bbr *bbr, struct quic_cc_path *p,
 	if (!bbr->bw_probe_samples)
 		return; /* not a packet sent while probing bandwidth */
 
-	/* Only ->tx_in_fligth, ->lost and ->is_app_limited <rs> member
+	/* Only ->tx_in_flight, ->lost and ->is_app_limited <rs> member
 	 * initializations are needed.
 	 */
 	rs.tx_in_flight = pkt->rs.tx_in_flight; /* inflight at transmit */
 	BUG_ON(bbr->drs.lost + pkt->len < lost);
-	/* bbr->rst->lost is not yet incremented */
+	/* bbr->drs.lost is not yet incremented */
 	rs.lost = bbr->drs.lost + pkt->len - lost; /* data lost since transmit */
 	rs.is_app_limited = pkt->rs.is_app_limited;
 	if (is_inflight_too_high(&rs)) {

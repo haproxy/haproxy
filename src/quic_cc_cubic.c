@@ -412,13 +412,13 @@ static void quic_enter_recovery(struct quic_cc *cc)
 	 * to allow the new flow some room for growth if the existing flows have
 	 * been using all the network bandwidth. To speed up this bandwidth release
 	 * by existing flows, the following fast convergence mechanism SHOULD be
-	 * implemented.With fast convergence, when a congestion event occurs, Wmax
+	 * implemented. With fast convergence, when a congestion event occurs, Wmax
 	 * is updated as follows, before the window reduction described in Section
 	 * 4.6.
 	 *
-	 *       if cwnd < Wmax and fast convergence enabled, further reduce Wax:
+	 *       if cwnd < Wmax and fast convergence enabled, further reduce Wmax:
 	 *              Wmax = cwnd * (1 + beta_cubic)
-	 *       otherwise, remember cwn before reduction:
+	 *       otherwise, remember cwnd before reduction:
 	 *              Wmax = cwnd
 	 */
 	if (path->cwnd < c->last_w_max) {

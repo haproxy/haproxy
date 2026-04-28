@@ -243,9 +243,9 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 		break;
 
 	default:
-		/* draft-ietf-quic-http34 9. Extensions to HTTP/3
+		/* RFC 9114 Section 9. Extensions to HTTP/3
 		 *
-		 * Implementations MUST [...] abort reading on unidirectional
+		 * Implementations MUST abort reading on unidirectional
 		 * streams that have unknown or unsupported types.
 		 */
 		TRACE_STATE("abort reading on unknown uni stream type", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
@@ -1632,7 +1632,7 @@ static ssize_t h3_parse_settings_frm(struct h3c *h3c, const struct buffer *buf,
 		h3_debug_printf(stderr, "%s id: %llu value: %llu\n",
 		                __func__, (unsigned long long)id, (unsigned long long)value);
 
-		/* draft-ietf-quic-http34 7.2.4. SETTINGS
+		/* RFC 9114 Section 7.2.4. SETTINGS
 		 *
 		 * The same setting identifier MUST NOT occur more than once in the
 		 * SETTINGS frame.  A receiver MAY treat the presence of duplicate
@@ -1665,9 +1665,9 @@ static ssize_t h3_parse_settings_frm(struct h3c *h3c, const struct buffer *buf,
 		case H3_SETTINGS_RESERVED_3:
 		case H3_SETTINGS_RESERVED_4:
 		case H3_SETTINGS_RESERVED_5:
-			/* draft-ietf-quic-http34 7.2.4.1. Defined SETTINGS Parameters
+			/* RFC 9114 Section 7.2.4.1. Defined SETTINGS Parameters
 			 *
-			 * Setting identifiers which were defined in [HTTP2] where there is no
+			 * Setting identifiers which were defined in [HTTP/2] where there is no
 			 * corresponding HTTP/3 setting have also been reserved
 			 * (Section 11.2.2).  These reserved settings MUST NOT be sent, and
 			 * their receipt MUST be treated as a connection error of type
@@ -1954,7 +1954,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			h3c->flags |= H3_CF_SETTINGS_RECV;
 			break;
 		default:
-			/* draft-ietf-quic-http34 9. Extensions to HTTP/3
+			/* RFC 9114 Section 9. Extensions to HTTP/3
 			 *
 			 * Implementations MUST discard frames [...] that have unknown
 			 * or unsupported types.

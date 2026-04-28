@@ -235,7 +235,7 @@ static int bind_parse_quic_socket(char **args, int cur_arg, struct proxy *px,
 	return 0;
 }
 
-/* parse "quic-cc-algo" bind keyword */
+/* parse "quic-cc-algo" server keyword */
 static int srv_parse_quic_cc_algo(char **args, int *cur_arg, struct proxy *px,
                                   struct server *srv, char **err)
 {
