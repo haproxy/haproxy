@@ -98,7 +98,8 @@ struct list *__tasklet_wakeup_after(struct list *head, struct tasklet *tl);
 void task_kill(struct task *t);
 void tasklet_kill(struct tasklet *t);
 void __task_wakeup(struct task *t);
-void __task_queue(struct task *task, struct eb_root *wq);
+void __task_queue(struct task *task);
+static inline void _task_queue(struct task *task, const struct ha_caller *caller);
 
 unsigned int run_tasks_from_lists(unsigned int budgets[]);
 
@@ -325,12 +326,16 @@ static inline void task_drop_running(struct task *t, unsigned int f)
 
 		state = _HA_ATOMIC_LOAD(&t->state);
 		new_state = (state | f) &~ TASK_RUNNING;
+		cur_tid = t->tid;
+		if ((new_state & TASK_WOKEN_WQ) && __task_get_current_owner(cur_tid) == tid) {
+			_task_queue(t, NULL);
+			new_state &= ~TASK_WOKEN_WQ;
+		}
 		if (new_state & TASK_WOKEN_ANY)
 			new_state |= TASK_QUEUED;
 
-		cur_tid = t->tid;
 
-		if ((new_state & TASK_QUEUED) || cur_tid >= 0)
+		if ((new_state & TASK_QUEUED) || cur_tid >= 0 || task_in_wq(t))
 			new_tid = cur_tid;
 		else
 			new_tid = -1;
@@ -399,34 +404,17 @@ static inline void _task_queue(struct task *task, const struct ha_caller *caller
 	if (!tick_isset(task->expire))
 		return;
 
-#ifdef USE_THREAD
-	if (task->tid < 0) {
-		HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
-		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key)) {
-			if (likely(caller)) {
-				caller = HA_ATOMIC_XCHG(&task->caller, caller);
-				BUG_ON((ulong)caller & 1);
+	BUG_ON(task->tid >= 0 && task->tid != tid);
+
+	if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key)) {
+		if (likely(caller)) {
+			caller = HA_ATOMIC_XCHG(&task->caller, caller);
+			BUG_ON((ulong)caller & 1);
 #ifdef DEBUG_TASK
-				HA_ATOMIC_STORE(&task->debug.prev_caller, caller);
+			HA_ATOMIC_STORE(&task->debug.prev_caller, caller);
 #endif
-			}
-			__task_queue(task, &tg_ctx->timers);
 		}
-		HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &wq_lock);
-	} else
-#endif
-	{
-		BUG_ON(task->tid != tid);
-		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key)) {
-			if (likely(caller)) {
-				caller = HA_ATOMIC_XCHG(&task->caller, caller);
-				BUG_ON((ulong)caller & 1);
-#ifdef DEBUG_TASK
-				HA_ATOMIC_STORE(&task->debug.prev_caller, caller);
-#endif
-			}
-			__task_queue(task, &th_ctx->timers);
-		}
+		__task_queue(task);
 	}
 }
 
@@ -446,6 +434,11 @@ static inline void task_set_thread(struct task *t, int thr)
 	/* no shared queue without threads */
 	thr = 0;
 #endif
+	/*
+	 * Nothing to do, the task is only temporarily owned
+	 */
+	if (thr == -1 && t->tid == -2 - tid)
+		return;
 	if (unlikely(task_in_wq(t))) {
 		task_unlink_wq(t);
 		t->tid = thr;
@@ -790,11 +783,11 @@ static inline void tasklet_set_tid(struct tasklet *tl, int tid)
 
 static inline void _task_schedule(struct task *task, int when, const struct ha_caller *caller)
 {
+	int did_lock = 0;
 	/* TODO: mthread, check if there is no task with this test */
 	if (task_in_rq(task))
 		return;
 
-#ifdef USE_THREAD
 	if (task->tid < 0) {
 		/*
 		 * If the task is already running, then just wake it up, just
@@ -812,44 +805,26 @@ static inline void _task_schedule(struct task *task, int when, const struct ha_c
 			task_wakeup(task, TASK_WOKEN_OTHER);
 			return;
 		}
-
-		/* FIXME: is it really needed to lock the WQ during the check ? */
-		HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
-		if (task_in_wq(task))
-			when = tick_first(when, task->expire);
-
-		task->expire = when;
-		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key)) {
-			if (likely(caller)) {
-				caller = HA_ATOMIC_XCHG(&task->caller, caller);
-				BUG_ON((ulong)caller & 1);
-#ifdef DEBUG_TASK
-				HA_ATOMIC_STORE(&task->debug.prev_caller, caller);
-#endif
-			}
-			__task_queue(task, &tg_ctx->timers);
-		}
-		task_drop_running(task, 0);
-		HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &wq_lock);
+		did_lock = 1;
 	} else
-#endif
-	{
 		BUG_ON(task->tid != tid);
-		if (task_in_wq(task))
-			when = tick_first(when, task->expire);
 
-		task->expire = when;
-		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key)) {
-			if (likely(caller)) {
-				caller = HA_ATOMIC_XCHG(&task->caller, caller);
-				BUG_ON((ulong)caller & 1);
+	if (task_in_wq(task))
+		when = tick_first(when, task->expire);
+
+	task->expire = when;
+	if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key)) {
+		if (likely(caller)) {
+			caller = HA_ATOMIC_XCHG(&task->caller, caller);
+			BUG_ON((ulong)caller & 1);
 #ifdef DEBUG_TASK
-				HA_ATOMIC_STORE(&task->debug.prev_caller, caller);
+			HA_ATOMIC_STORE(&task->debug.prev_caller, caller);
 #endif
-			}
-			__task_queue(task, &th_ctx->timers);
 		}
+		__task_queue(task);
 	}
+	if (did_lock)
+		task_drop_running(task, 0);
 }
 
 /* returns the string corresponding to a task type as found in the task caller

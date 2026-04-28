@@ -53,7 +53,7 @@
 /* use this to check a task state or to clean it up before queueing */
 #define TASK_WOKEN_ANY    (TASK_WOKEN_OTHER|TASK_WOKEN_INIT|TASK_WOKEN_TIMER| \
                            TASK_WOKEN_IO|TASK_WOKEN_SIGNAL|TASK_WOKEN_MSG| \
-                           TASK_WOKEN_RES)
+                           TASK_WOKEN_RES|TASK_WOKEN_WQ)
 
 #define TASK_F_TASKLET    0x00008000  /* nature of this task: 0=task 1=tasklet */
 #define TASK_F_USR1       0x00010000  /* preserved user flag 1, application-specific, def:0 */
@@ -61,7 +61,8 @@
 #define TASK_F_UEVT2      0x00040000  /* one-shot user event type 2, application specific, def:0 */
 #define TASK_F_WANTS_TIME 0x00080000  /* task/tasklet wants th_ctx->sched_call_date to be set */
 #define TASK_F_UEVT3      0x00100000  /* one-shot user event type 3, application specific, def:0 */
-/* unused: 0x200000..0x80000000 */
+#define TASK_WOKEN_WQ     0x00200000  /* The task has been waken up only to be put in the wait queue, because its expire changed */
+/* unused: 0x400000..0x80000000 */
 
 /* These flags are persistent across scheduler calls */
 #define TASK_PERSISTENT   (TASK_SELF_WAKING | TASK_KILLED | \
@@ -82,7 +83,7 @@ static forceinline char *task_show_state(char *buf, size_t len, const char *deli
 	_(TASK_KILLED, _(TASK_HEAVY, _(TASK_WOKEN_INIT,
 	_(TASK_WOKEN_TIMER, _(TASK_WOKEN_IO, _(TASK_WOKEN_SIGNAL,
 	_(TASK_WOKEN_MSG, _(TASK_WOKEN_RES, _(TASK_WOKEN_OTHER,
-	_(TASK_F_TASKLET, _(TASK_F_USR1))))))))))))));
+	_(TASK_F_TASKLET, _(TASK_F_USR1, _(TASK_WOKEN_WQ)))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
