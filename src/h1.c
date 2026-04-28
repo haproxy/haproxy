@@ -1073,6 +1073,22 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 
 			case URI_PARSER_FORMAT_ABSURI_OR_AUTHORITY:
 				scheme = http_parse_scheme(&parser);
+				authority = http_parse_authority(&parser, 1);
+				if (http_authority_has_forbidden_char(authority)) {
+					if (h1m->err_pos < -1) {
+						state = H1_MSG_LAST_LF;
+						/* WT: gcc seems to see a path where sl.rq.u.ptr was used
+						 * uninitialized, but it doesn't know that the function is
+						 * called with initial states making this impossible.
+						 */
+						ALREADY_CHECKED(sl.rq.u.ptr);
+						ptr = sl.rq.u.ptr; /* Set ptr on the error */
+						goto http_msg_invalid;
+					}
+					if (h1m->err_pos == -1) /* capture the error pointer */
+						h1m->err_pos = sl.rq.u.ptr - start + skip; /* >= 0 now */
+				}
+
 				if (!isttest(scheme)) { /* scheme not found: MUST be an authority */
 					struct ist *host = NULL;
 
@@ -1082,7 +1098,6 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 					}
 					if (host_idx != -1)
 						host = &hdr[host_idx].v;
-					authority = http_parse_authority(&parser, 1);
 					ret = h1_validate_connect_authority(scheme, authority, host);
 					if (ret < 0) {
 						if (h1m->err_pos < -1) {
@@ -1109,7 +1124,6 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 
 					if (host_idx != -1)
 						host = hdr[host_idx].v;
-					authority = http_parse_authority(&parser, 1);
 					/* For non-CONNECT method, the authority must match the host header value */
 					if (isttest(host) && !isteqi(authority, host)) {
 						ret = h1_validate_mismatch_authority(scheme, authority, host);
