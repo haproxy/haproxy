@@ -113,11 +113,9 @@ int qcc_qstrm_recv(struct qcc *qcc)
 	if (qcc->flags & QC_CF_ERR_CONN)
 		return 0;
 
-	if (!b_size(buf)) {
-		if (!b_alloc(buf, DB_MUX_RX)) {
-			TRACE_ERROR("rx qstrm buf alloc failure", QMUX_EV_QCC_RECV);
-			goto err;
-		}
+	if (!b_alloc(buf, DB_MUX_RX)) {
+		TRACE_ERROR("rx qstrm buf alloc failure", QMUX_EV_QCC_RECV);
+		goto err;
 	}
 
 	do {
