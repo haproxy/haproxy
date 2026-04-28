@@ -269,6 +269,13 @@ static inline int __task_get_new_tid_field(int curtid)
 	return -2 - tid;
 }
 
+static inline int __task_get_current_owner(int curtid)
+{
+	if (curtid >= 0 || curtid == -1)
+		return curtid;
+	return ~(curtid + 1);
+}
+
 /* puts the task <t> in run queue with reason flags <f>, and returns <t> */
 /* This will put the task in the local runqueue if the task is only runnable
  * by the current thread, in the global runqueue otherwies. With DEBUG_TASK,
