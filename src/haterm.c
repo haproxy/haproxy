@@ -476,7 +476,7 @@ static int hstream_build_http_help_resp(struct hstream *hs)
 		goto err;
 	}
 
-	if (!htx_add_data_atonce(htx, ist2(HTTP_HELP, strlen(HTTP_HELP)))) {
+	if (!htx_add_data_atonce(htx, ist(HTTP_HELP))) {
 		TRACE_ERROR("unable to add payload to HTX message", HS_EV_HSTRM_SEND, hs);
 		goto err;
 	}

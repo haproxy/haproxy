@@ -1978,7 +1978,7 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 				line[nmsg++] = ist(ctx->cfg->vars);
 				line[nmsg++] = ist("\"\n");
 			}
-			if (auth->dns.ptr) {
+			if (isttest(auth->dns)) {
 				line[nmsg++] = ist("dns-01-record \"");
 				line[nmsg++] = ist2(dns_record->area, dns_record->data);
 				line[nmsg++] = ist("\"\n");

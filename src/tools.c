@@ -6970,7 +6970,7 @@ void update_word_fingerprint_with_len(uint8_t *fp, struct ist word)
 	int c;
 
 	from = 28; // begin
-	for (p = word.ptr; p < word.ptr + word.len; p++) {
+	for (p = word.ptr; p < istend(word); p++) {
 		c = tolower((unsigned char)*p);
 		switch(c) {
 		case 'a'...'z': to = c - 'a' + 1; break;

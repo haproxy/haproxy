@@ -763,8 +763,7 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 		switch (type) {
 		case HTX_BLK_DATA:
 			v = htx_get_blk_value(src, blk);
-			if (v.len > max)
-				v.len = max;
+			v = isttrim(v, max);
 			v.len = htx_add_data(dst, v);
 			if (!v.len) {
 				dst_full = 1;
@@ -910,8 +909,7 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 		switch (type) {
 			case HTX_BLK_DATA:
 				v = htx_get_blk_value(src, blk);
-				if (v.len > max)
-					v.len = max;
+				v = isttrim(v, max);
 				v.len = htx_add_data(dst, v);
 				if (!v.len)
 					goto stop;
