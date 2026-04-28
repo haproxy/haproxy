@@ -1886,9 +1886,9 @@ int http_scheme_based_normalize(struct htx *htx)
 
 		http_replace_stline(htx, meth, uri, vsn);
 
-		/* replace every host headers values by the normalized host */
+		/* replace every host headers by the normalized host */
 		ctx.blk = NULL;
-		while (http_find_header(htx, ist("host"), &ctx, 0)) {
+		while (http_find_header(htx, ist("host"), &ctx, 1)) {
 			if (!http_replace_header_value(htx, &ctx, host)) {
 				free_trash_chunk(temp);
 				goto fail;
