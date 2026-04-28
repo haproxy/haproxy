@@ -40,8 +40,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
-typedef int bool;
-enum { false, true };
+#include <stdbool.h>
 
 typedef unsigned char byte;
 
