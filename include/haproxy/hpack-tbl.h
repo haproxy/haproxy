@@ -78,7 +78,7 @@ static inline const struct hpack_dte *hpack_get_dte(const struct hpack_dht *dht,
 /* returns non-zero if <idx> is valid for table <dht> */
 static inline int hpack_valid_idx(const struct hpack_dht *dht, uint32_t idx)
 {
-	return idx < dht->used + HPACK_SHT_SIZE;
+	return idx > 0 && idx < dht->used + HPACK_SHT_SIZE;
 }
 
 /* return a pointer to the header name for entry <dte>. */
