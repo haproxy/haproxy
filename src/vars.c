@@ -1271,7 +1271,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 
 	if (rule->arg.vars.desc.scope == SCOPE_PROC &&
 	    !var_set(&rule->arg.vars.desc, &empty_smp, VF_CREATEONLY|VF_PERMANENT))
-		return 0;
+		return ACT_RET_PRS_ERR;
 
 	/* There is no fetch method when variable is unset. Just set the right
 	 * action and return. */
