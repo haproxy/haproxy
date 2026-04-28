@@ -37,7 +37,7 @@ static void ssl_sock_switchctx_set(SSL *ssl, SSL_CTX *ctx)
  *
  * This function does a lookup in the bind_conf sni tree so the caller should lock its tree.
  */
-struct sni_ctx *ssl_sock_chose_sni_ctx(struct bind_conf *s, struct connection *conn,
+struct sni_ctx *ssl_sock_choose_sni_ctx(struct bind_conf *s, struct connection *conn,
                                        const char *servername, int have_rsa_sig, int have_ecdsa_sig)
 {
 	struct ebmb_node *node, *n, *node_ecdsa = NULL, *node_rsa = NULL, *node_anonymous = NULL;
@@ -450,7 +450,7 @@ sni_lookup:
 	trash.area[i] = 0;
 
 	HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
-	sni_ctx = ssl_sock_chose_sni_ctx(s, conn, trash.area, has_rsa_sig, has_ecdsa_sig);
+	sni_ctx = ssl_sock_choose_sni_ctx(s, conn, trash.area, has_rsa_sig, has_ecdsa_sig);
 	if (sni_ctx) {
 		/* switch ctx */
 		struct ssl_bind_conf *conf = sni_ctx->conf;
@@ -746,7 +746,7 @@ sni_lookup:
 	servername = trash.area;
 
 	HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
-	sni_ctx = ssl_sock_chose_sni_ctx(s, conn, servername, has_rsa_sig, has_ecdsa_sig);
+	sni_ctx = ssl_sock_choose_sni_ctx(s, conn, servername, has_rsa_sig, has_ecdsa_sig);
 	if (sni_ctx) {
 		/* switch ctx */
 		struct ssl_bind_conf *conf = sni_ctx->conf;

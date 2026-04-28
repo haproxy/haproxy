@@ -1197,7 +1197,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 		if (*(args[1]) == 0) {
-			ha_alert("parsine [%s:%d] : '%s' expects a number. Got no argument\n",
+			ha_alert("parsing [%s:%d] : '%s' expects a number. Got no argument\n",
 			    file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;

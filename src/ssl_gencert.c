@@ -100,7 +100,7 @@ static SSL_CTX *ssl_sock_do_create_cert(const char *servername, struct bind_conf
 	int 	      key_type;
 	struct sni_ctx *sni_ctx;
 
-	sni_ctx = ssl_sock_chose_sni_ctx(bind_conf, NULL, "", 1, 1);
+	sni_ctx = ssl_sock_choose_sni_ctx(bind_conf, NULL, "", 1, 1);
 	if (!sni_ctx)
 		goto mkcert_error;
 

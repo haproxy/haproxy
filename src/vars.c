@@ -320,7 +320,7 @@ static int vars_fill_desc(const char *name, int len, struct var_desc *desc, char
 		desc->scope = SCOPE_CHECK;
 	}
 	else {
-		memprintf(err, "invalid variable name '%.*s'. A variable name must be start by its scope. "
+		memprintf(err, "invalid variable name '%.*s'. A variable name must start with its scope. "
 		               "The scope can be 'proc', '(p)sess', '(p)txn', '(p)req', '(p)res' or 'check'", len, name);
 		return 0;
 	}

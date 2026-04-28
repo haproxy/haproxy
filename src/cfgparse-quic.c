@@ -370,7 +370,7 @@ static int cfg_parse_quic_time(char **args, int section_type,
 		ret = 1;
 	}
 	else {
-		memprintf(err, "'%s' keyword not unhandled (please report this bug).", args[0]);
+		memprintf(err, "'%s' keyword not handled (please report this bug).", args[0]);
 		ret = -1;
 	}
 
@@ -589,7 +589,7 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 		ret = 1;
 	}
 	else {
-		memprintf(err, "'%s' keyword not unhandled (please report this bug).", args[0]);
+		memprintf(err, "'%s' keyword not handled (please report this bug).", args[0]);
 		return -1;
 	}
 
@@ -787,7 +787,7 @@ static int quic_parse_quic_initial(char **args, int section_type, struct proxy *
 	}
 
 	if (!(curpx->mode & PR_MODE_HTTP)) {
-		memprintf(err, "'%s' : proxy '%s' does not used HTTP mode",
+		memprintf(err, "'%s' : proxy '%s' does not use HTTP mode",
 		          args[0], curpx->id);
 		return -1;
 	}

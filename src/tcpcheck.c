@@ -2199,7 +2199,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcp
 			status = ((status != HCHK_STATUS_UNKNOWN) ? status : HCHK_STATUS_L7RSP);
 			if (lf_expr_isempty(&expect->onerror_fmt))
 				desc = ist("HTTP content check could not find a response body");
-			TRACE_ERROR("no response boduy found while expected", CHK_EV_TCPCHK_EXP|CHK_EV_TCPCHK_ERR, check);
+			TRACE_ERROR("no response body found while expected", CHK_EV_TCPCHK_EXP|CHK_EV_TCPCHK_ERR, check);
 			goto error;
 		}
 

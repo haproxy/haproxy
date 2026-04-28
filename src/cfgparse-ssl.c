@@ -432,7 +432,7 @@ static int ssl_parse_global_int(char **args, int section_type, struct proxy *cur
 		           file, line, args[0]);
 	}
 	else {
-		memprintf(err, "'%s' keyword not unhandled (please report this bug).", args[0]);
+		memprintf(err, "'%s' keyword not handled (please report this bug).", args[0]);
 		return -1;
 	}
 
