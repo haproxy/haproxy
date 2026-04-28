@@ -238,6 +238,11 @@ static inline int http_path_has_forbidden_char(const struct ist ist, const char 
  * fall back to the slow path and decide. Brackets are used for IP-literal and
  * deserve special case, that is better handled in the slow path. The function
  * returns 0 if no forbidden char is presnet, non-zero otherwise.
+ *
+ * There is a special case for the comma (','). While it is allowed, we reject
+ * it because the authority is higly linked with the host header. The comma is
+ * also the header value separator. So it is highly ambiguous to use it for the
+ * authority/host value.
  */
 static inline int http_authority_has_forbidden_char(const struct ist ist)
 {
@@ -257,6 +262,7 @@ static inline int http_authority_has_forbidden_char(const struct ist ist)
 		c = p[ofs];
 
 		if (unlikely(c < 0x21 || c > 0x7e ||
+			     c == ',' ||  /* Special case: forbidden because it is ambiguous for the host header value */
 			     c == '#' || c == '/' || c == '?' || c == '@' ||
 			     c == '[' || c == '\\' || c == ']')) {
 			/* all of them must be rejected, except '[' which may
