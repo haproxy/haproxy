@@ -878,7 +878,7 @@ static inline size_t h1s_data_pending(const struct h1s *h1s)
 	return ((h1m->state == H1_MSG_DONE) ? 0 : b_data(&h1s->h1c->ibuf));
 }
 
-static inline void h1s_consume_kop(struct h1s *h1s, size_t count)
+static inline void h1s_consume_kop(struct h1s *h1s, uint64_t count)
 {
 	if (h1s->sd->kop > count)
 		h1s->sd->kop -= count;
@@ -1825,7 +1825,7 @@ static void h1_capture_bad_message(struct h1c *h1c, struct h1s *h1s,
  * responsibility to pass the right value. if <length> is set to 0 (or less that
  * the smallest size to represent the chunk size), it is ignored.
  */
-static void h1_prepend_chunk_size(struct buffer *buf, size_t chksz, size_t length)
+static void h1_prepend_chunk_size(struct buffer *buf, uint64_t chksz, size_t length)
 {
 	char *beg, *end;
 
@@ -1850,7 +1850,7 @@ static void h1_prepend_chunk_size(struct buffer *buf, size_t chksz, size_t lengt
 /* Emit the chunksize followed by a CRLF after the data of the buffer
  * <buf>. Returns 0 on error.
  */
-static int h1_append_chunk_size(struct buffer *buf, size_t chksz)
+static int h1_append_chunk_size(struct buffer *buf, uint64_t chksz)
 {
 	char     tmp[18];
 	char    *beg, *end;
@@ -3213,13 +3213,13 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 					h1m->state = H1_MSG_DATA;
 				}
 
-				if (vlen > h1m->curr_len) {
+				if ((uint64_t)vlen > h1m->curr_len) {
 					vlen = h1m->curr_len;
 					last_data = 0;
 				}
 
 				chklen = 0;
-				if (h1m->curr_len == vlen)
+				if (h1m->curr_len == (uint64_t)vlen)
 					chklen += 2;
 				if (last_data)
 					chklen += 5;
@@ -4975,7 +4975,7 @@ static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 	}
 
 	if (h1m->flags & H1_MF_CLEN) {
-		if ((flags & NEGO_FF_FL_EXACT_SIZE) && count > h1m->curr_len) {
+		if ((flags & NEGO_FF_FL_EXACT_SIZE) && (uint64_t)count > h1m->curr_len) {
 			TRACE_ERROR("more payload than announced", H1_EV_STRM_SEND|H1_EV_STRM_ERR, h1c->conn, h1s);
 			h1s->sd->iobuf.flags |= IOBUF_FL_NO_FF;
 			goto out;
@@ -4984,8 +4984,8 @@ static size_t h1_nego_ff(struct stconn *sc, struct buffer *input, size_t count, 
 	else if (h1m->flags & H1_MF_CHNK) {
 		if (h1m->curr_len) {
 			BUG_ON(h1m->state != H1_MSG_DATA);
-			if (count > h1m->curr_len) {
-				if ((flags & NEGO_FF_FL_EXACT_SIZE) && count > h1m->curr_len) {
+			if ((uint64_t)count > h1m->curr_len) {
+				if ((flags & NEGO_FF_FL_EXACT_SIZE) && (uint64_t)count > h1m->curr_len) {
 					TRACE_ERROR("chunk bigger than announced", H1_EV_STRM_SEND|H1_EV_STRM_ERR, h1c->conn, h1s);
 					h1s->sd->iobuf.flags |= IOBUF_FL_NO_FF;
 					goto out;
@@ -5236,7 +5236,7 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
   retry:
 	ret = 0;
 
-	if (h1m->state == H1_MSG_DATA && (h1m->flags & (H1_MF_CHNK|H1_MF_CLEN)) &&  count > h1m->curr_len) {
+	if (h1m->state == H1_MSG_DATA && (h1m->flags & (H1_MF_CHNK|H1_MF_CLEN)) &&  (uint64_t)count > h1m->curr_len) {
 		nego_flags |= NEGO_FF_FL_EXACT_SIZE;
 		count = h1m->curr_len;
 	}
@@ -5323,7 +5323,7 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 
  out:
 	if (h1m->state == H1_MSG_DATA && (h1m->flags & (H1_MF_CHNK|H1_MF_CLEN))) {
-		if (total > h1m->curr_len) {
+		if ((uint64_t)total > h1m->curr_len) {
 			h1s->flags |= H1S_F_PARSING_ERROR;
 			se_fl_set(h1s->sd, SE_FL_ERROR);
 			COUNT_IF(1, "more payload than announced");
