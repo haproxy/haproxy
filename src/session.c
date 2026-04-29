@@ -241,12 +241,15 @@ int session_accept_fd(struct connection *cli_conn)
 		if (l->bind_conf->options & BC_O_ACC_CIP)
 			cli_conn->flags |= CO_FL_ACCEPT_CIP;
 
-		if (l->bind_conf->mux_proto && l->bind_conf->mux_proto->init_xprt == XPRT_QMUX)
-			cli_conn->flags |= (CO_FL_QMUX_RECV|CO_FL_QMUX_SEND);
-
 		/* Add the handshake pseudo-XPRT */
 		if (cli_conn->flags & (CO_FL_ACCEPT_PROXY | CO_FL_ACCEPT_CIP)) {
 			if (xprt_add_hs(cli_conn) != 0)
+				goto out_free_conn;
+		}
+
+		/* Add handshake layer prior to MUX init if required. Does nothing if SSL layer is active though. */
+		if (l->bind_conf->mux_proto && l->bind_conf->mux_proto->init_xprt) {
+			if (xprt_add_l6hs(cli_conn, l->bind_conf->mux_proto->init_xprt))
 				goto out_free_conn;
 		}
 	}
@@ -351,7 +354,7 @@ int session_accept_fd(struct connection *cli_conn)
 	 *           v       |           |        |
 	 *          conn -- owner ---> task <-----+
 	 */
-	if (cli_conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS)) {
+	if (cli_conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS | CO_FL_WAIT_XPRT_L6)) {
 		int timeout;
 		int clt_tmt = p->timeout.client;
 		int hs_tmt = p->timeout.client_hs;
