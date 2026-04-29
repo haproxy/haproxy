@@ -6977,15 +6977,23 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 					void *xprt_ctx_hs = NULL;
 
 					ret = ops->init(conn, &xprt_ctx_hs);
-					BUG_ON(ret);
+					/* Frontend conn must be freed in case of XPRT init failure. */
+					if (ret) {
+						if (!conn_is_back(conn)) {
+							conn->flags |= CO_FL_ERROR; /* Ensure conn will be freed on next call. */
+							ret = conn_complete_session(conn);
+							BUG_ON(ret >= 0); /* conn_complete_session() expected to fail on CO_FL_ERROR */
+							t = NULL;
+						}
+						goto leave;
+					}
 
 					ret = ops->add_xprt(conn, xprt_ctx_hs,
 					  conn->xprt_ctx, conn->xprt, NULL, NULL);
-					BUG_ON(ret);
+					BUG_ON(ret); /* xprt_qmux add_xprt always succeeds */
 
 					conn->xprt = ops;
 					conn->xprt_ctx = xprt_ctx_hs;
-
 
 					ret = conn->xprt->start(conn, xprt_ctx_hs);
 					BUG_ON(ret);
