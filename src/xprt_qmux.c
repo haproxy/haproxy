@@ -210,7 +210,7 @@ struct task *xprt_qmux_io_cb(struct task *t, void *context, unsigned int state)
 
  out:
 	if ((conn->flags & CO_FL_ERROR) ||
-	    !(conn->flags & (CO_FL_QMUX_RECV|CO_FL_QMUX_SEND))) {
+	    !(conn->flags & CO_FL_WAIT_XPRT_L6)) {
 		/* XPRT should be unsubscribed when transfer done or on error. */
 		BUG_ON(ctx->wait_event.events);
 
@@ -335,7 +335,7 @@ static void xprt_qmux_close(struct connection *conn, void *xprt_ctx)
 	if (ctx->ops_lower && ctx->ops_lower->close)
 		ctx->ops_lower->close(conn, ctx->ctx_lower);
 
-	conn->flags &= ~(CO_FL_QMUX_RECV|CO_FL_QMUX_SEND);
+	conn->flags &= ~CO_FL_WAIT_XPRT_L6;
 
 	BUG_ON(conn->xprt_ctx != ctx);
 	conn->xprt_ctx = ctx->ctx_lower;

@@ -196,7 +196,7 @@ int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake)
 	 * information to create one, typically from the ALPN. If we're
 	 * done with the handshake, attempt to create one.
 	 */
-	if (unlikely(!conn->mux) && !(conn->flags & (CO_FL_WAIT_XPRT|CO_FL_QMUX_RECV|CO_FL_QMUX_SEND))) {
+	if (unlikely(!conn->mux) && !(conn->flags & (CO_FL_WAIT_XPRT|CO_FL_WAIT_XPRT_L6))) {
 		ret = conn_create_mux(conn, NULL);
 		if (ret < 0)
 			goto done;
