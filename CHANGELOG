@@ -1,6 +1,170 @@
 ChangeLog :
 ===========
 
+2026/04/29 : 3.4-dev10
+    - DOC: config: fix spelling of "max-threads-per-group" in the index
+    - MEDIUM: threads: change the default max-threads-per-group value to 16
+    - BUG/MEDIUM: mux-h2: ignore conn->owner when deciding if a connection is dead
+    - BUG/MINOR: task: fix uninitialised read in run_tasks_from_lists()
+    - MINOR: compression: prefix compression oriented functions with "comp_"
+    - BUG/MINOR: mux_quic: limit avail_streams() to 2^62
+    - MINOR: h3: simplify GOAWAY local emission
+    - MEDIUM: h3: prevent new streams on GOAWAY reception
+    - MINOR: mux-quic: release BE idle conn after GOAWAY reception
+    - MINOR: otel: added debug thread ID support for the OTel C wrapper library
+    - MINOR: otel: test: added option parsing to the speed test script
+    - MINOR: otel: test: replaced argument variables with positional parameters in run scripts
+    - CLEANUP: otel: removed insecure-fork-wanted requirement
+    - MINOR: otel: test: unified run scripts into a single symlinked script
+    - BUILD: haterm: don't pass size_t to %lu in error messages
+    - CI: github: merge Test and Test-musl in VTest.yml
+    - CI: Build halog as part of contrib.yml
+    - BUG/MINOR: xprt_qstrm: read record length in 64bits
+    - BUG/MINOR: mux_quic: convert QCC rx.rlen to 64bits
+    - CI: github: revert quictls version on cross-zoo.yml
+    - BUG/MINOR: xprt_qstrm: reduce max record length check
+    - CI: github: use quictls-3.1.7 for cross-zoo.yml
+    - BUILD: ssl/sample: potential null pointer dereference in sample_conv_aes
+    - CI: github: add an i686 job in cross-zoo.yml
+    - CI: github: run cross-zoo.yml weekly
+    - CI: github: add cross-zoo.yml in README.md
+    - BUG/MEDIUM: checks: Don't forget to set the "alt_proto" field
+    - CI: github: do not install pcre-devel on Fedora Rawhide build
+    - CI: github: fix sysctl in fedora-rawhide
+    - CI: github: switch to USE_PCRE2 in Fedora Rawhide build
+    - MINOR: acme: implement draft-ietf-acme-profiles
+    - MINOR: acme: allow IP SAN in certificate request
+    - BUG/MINOR: log: consider format expression dependencies to decide when to log
+    - MINOR: sample: make RQ/RS stats available everywhere
+    - BUG/MINOR: sample: adjust dependencies for channel output bytes counters
+    - MEDIUM: muxes: always set conn->owner to the session that owns the connection
+    - MEDIUM: session: always reset the conn->owner on backend when installing mux
+    - CLEANUP: mux-h1: avoid using conn->owner in uncertain areas
+    - CLEANUP: mux-h1: remove the unneeded test on conn->owner in h1s_finish_detach()
+    - BUG/MAJOR: sched: protect task->expire on 32-bit platforms
+    - CI: github: add an i686 job to the push job
+    - BUILD: config: also set DEF_MAX_THREADS_PER_GROUP when not using threads
+    - reg-tests/ssl/ssl_dh.vtc: fix syntax error
+    - ci: modernize actions/upload-artifact@v4
+    - BUG/MINOR: reg-tests: make shell syntax errors fatal
+    - MINOR: cli: Handle the paylod pattern as a pointer in the cmdline buffer
+    - MEDIUM: cli: Make a buffer for the command payload
+    - MEDIUM: cli: Add support for dynamically allocated payloads
+    - MEDIUM: cli: increase the payload pattern up to 64 bytes
+    - MINOR: stream: Move the HTTP txn in an union
+    - MINOR: stream: Add flags to identify the stream tansaction when allocated
+    - MINOR: stream: Use a pcli transaction to replace pcli_* members
+    - CLEANUP: applet: Remove useless shadow pointer from appctx
+    - REGTESTS: ssl: mark ssl_dh.vtc as broken
+    - BUG/MINOR: mux-h2: count a protocol error when failing to parse a trailer
+    - BUG/MINOR: mux-h2: count a proto error when rejecting a stream on parsing error
+    - BUG/MEDIUM: tasks: Make sure we don't schedule a task already running
+    - BUG/MAJOR: net_helper: ip.fp infinite loop on malformed tcp options
+    - BUG/MINOR: h2: make tune.h2.log-errors actually work
+    - BUG/MINOR: h2: Don't look at the exclusive bit for PRIORITY frame
+    - BUG/MINOR: H2: Don't forget to free shared_rx_bufs on failure
+    - BUG/MINOR: log: also wait for the response when logging response headers
+    - BUG/MINOR: mux-h1: Fix condition to send null-chunk for bodyless message
+    - BUG/MINOR: mux-h1: Fix test to skip trailers from chunked messages
+    - BUG/MINOR: http-act: fix a typo in a "del-heeaders-bin" error message
+    - CLEANUP: tcpcheck: Fix some typos in comments
+    - MINOR: tcpcheck: Rely on free_tcpcheck_ruleset() to deinit tcpchecks
+    - BUG/MINOR: tcpcheck: Don't release ruleset when parsing 'spop-check' ruleset
+    - BUG/MINOR: tcpcheck: Fix a leak on deinit by releasing ruleset's conf.file
+    - CLEANUP: haterm: Fix typos in comments
+    - CLEANUP: config: Fix warning about invalid small buffer size
+    - CLEANUP: htx: Fix typos in comments
+    - CLEANUP: chunk: Fix a typo in a comment
+    - CLEANUP: http-client: Fix typos in comments
+    - BUG/MEDIUM: tcpcheck: Release temporary small chunk when retrying on http-check
+    - CLEANUP: proxy: Fix typos in comments
+    - DOC: config: Fix a typo for "external-check" directive
+    - CLEANUP: cli: Fix typos in comments
+    - BUG/MINOR: stream: Add SF_TXN_HTTP/SF_TXN_PCLI flags in strm_show_flags()
+    - REGTESTS: Never reuse server connection in jwt/jws_verify.vtc
+    - REGTESTS: Never reuse server connection in server/cli_delete_dynamic_server.vtc
+    - BUG/MINOR: compression: properly disable request when setting response
+    - BUG/MINOR: servers: fix last_sess date calculation
+    - DOC: config: fix typo introduce in max-threads-per-group documentation
+    - BUG/MINOR: stream: add the newly added SF_TXN_* flags to strm_show_flags()
+    - BUG/MINOR: debug: properly mark the entire libs archive read-only
+    - Revert "BUG/MINOR: stream: add the newly added SF_TXN_* flags to strm_show_flags()"
+    - BUG/MINOR: server: fix a possible leak of an error message in dynamic servers
+    - BUG/MAJOR: mux-h2: detect incomplete transfers on HEADERS frames as well
+    - BUG/MEDIUM: mux-h1: Force close mode for bodyless message announcing a C-L
+    - BUG/MINOR: mux_quic: prevent crash on qc_frm_free() with QMux
+    - BUG/MINOR: xprt_qstrm: ensure all local TPs are allocated
+    - BUG/MINOR: xprt_qstrm: prevent crash if conn release on MUX wake
+    - BUG/MINOR: mux_quic: do not release conn on qcc_recv() for QMux
+    - MINOR: xprt_qstrm: remove unused subs
+    - MINOR: connection: document conn_create_mux()
+    - MINOR: xprt_qstrm: implement close callback
+    - MINOR: mux_quic: refactor QMux send frames function
+    - MINOR: mux_quic: use dynamic Tx streams buffers for QMux
+    - MINOR: mux_quic: use dynamic conn buffers for QMux
+    - MINOR: mux_quic/xprt_qstrm: simplify Rx buffer transfer
+    - MINOR: mux_quic: receive MAX_STREAMS_BIDI frames in QMux
+    - MINOR: mux_quic: handle conn errors on QMux without crash
+    - MINOR: mux_quic: handle incomplete QMux record read
+    - BUG/MINOR: tcpcheck: Allow connection reuse without prior traffic
+    - MINOR: sample: converter for frontend existence check
+    - BUG/MEDIUM: stats: fix crash on 'dump stats-file'
+    - BUG/MINOR: ssl: fix memory leaks on realloc failure in ssl_ckch.c
+    - BUG/MINOR: ssl: fix memory leaks on realloc failure in ssl_sock.c
+    - BUG/MINOR: ssl: fix memory leak on realloc failure in acme.ips
+    - DOC: config: Fix log-format example with last rule expressions
+    - DOC: config: Fix typo in tune.bufsize.large description
+    - MEDIUM: ot: emitted deprecation warning at filter init
+    - BUILD: ot: emitted deprecation warning at build time
+    - BUG/MINOR: ssl: fix double-free on failed realloc in ssl_sock.c
+    - BUG/MINOR: tree-wide: fix a few user-visible spelling mistakes from dev7
+    - CLEANUP: tree-wide: address various spelling mistakes in comments from -dev7
+    - BUG/MINOR: tools: my_memspn/my_memcspn wrong cast causing incorrect byte reading
+    - BUG/MINOR: tools: fix memory leak in indent_msg() on out of memory
+    - BUG/MINOR: tools: free previously allocated strings on strdup failure in backup_env()
+    - BUG/MINOR: sample: fix memory leak in check_when_cond() when ACL is not found
+    - BUG/MINOR: sample: fix memory leak in smp_resolve_args error paths
+    - BUG/MINOR: sample: fix NULL strm dereference in sample_conv_when
+    - BUG/MINOR: peers: fix logical "and" when checking for local in PEER_APP_ST_STARTING
+    - BUG/MINOR: peers: fix wrong flag reported twice for dump_flags
+    - CLEANUP: peers: fix a few user-visible spelling mistakes
+    - CLEANUP: tools: drop upper case check after tolower()
+    - CLEANUP: mux-h2: remove duplicate forward declaration of h2s_rxbuf_{head,tail}()
+    - CLEANUP: tree-wide: fix around 20 mistakes in comments in h2,tools,peers
+    - MINOR: mux_quic: return conn error code in debug string
+    - MINOR: mux_quic: display QCS sd on traces
+    - MINOR: mux_quic/h3: report termination events at connection level
+    - MINOR: mux_quic/h3: report termination events at stream layer
+    - BUG/MEDIUM: mux_h1: fix stack buffer overflow in h1_append_chunk_size()
+    - BUG/MINOR: http_ana: use scf to report term_evts in http_wait_for_request()
+    - MINOR: lb: infrastructure for declarative initialization
+    - MEDIUM: lb: use the LB ops tables
+    - MINOR: lb: cleanups
+    - MINOR: mux_quic: remove superfluous b_size() before b_alloc()
+    - BUG/MINOR: mux_quic: free frames emitted with QMux
+    - BUILD: 51d: fix bool definition on dummy lib v4
+    - CLEANUP: Reapply ist.cocci (4)
+    - CLEANUP: Reapply strcmp.cocci (3)
+    - CLEANUP: Reapply ha_free.cocci (2)
+    - BUG/MAJOR: http-htx: Store new host in a chunk for scheme-based normalization
+    - BUG/MEDIUM: http-htx: Don't use data from HTX message to update authority
+    - BUG/MEDIUM: http-htx: Loop on full host value during scheme based normalization
+    - MEDIUM: http-htx: Make authority update optional when replacing a header value
+    - MEDIUM: http-htx: Make authority update optional when adding a header
+    - BUG/MAJOR: http: forbid comma character in authority value
+    - BUG/MEDIUM: h1: Enforce the authority validation during H1 request parsing
+    - BUG/MAJOR: mux-h1: Deal with true 64-bits integer to emit chunks size
+    - BUG/MEDIUM: tasks: Do not loop in task_schedule() if a task is running
+    - BUG/MINOR: fix various typos and spelling mistakes in user-visible messages
+    - CLEANUP: tree-wide: fix comment typos all over the tree (~68)
+    - BUG/MINOR: payload: validate minimum keyshare_len in smp_fetch_ssl_keyshare_groups
+    - BUG/MINOR: payload: prevent integer overflow in distcc token parsing
+    - BUG/MINOR: net_helper: fix out-of-bounds read in tcp_fullhdr_find_opt
+    - BUG/MINOR: net_helper: fix out-of-bounds read in sample_conv_tcp_options_list
+    - BUG/MINOR: net_helper: fix incomplete decoding in sample_conv_eth_vlan
+    - BUG/MEDIUM: mux-fcgi: Properly handle full buffer for FCGI_PARAM record
+    - BUG/MINOR: http-htx: Don't normalize emtpy path for OPTIONS requests
+
 2026/04/15 : 3.4-dev9
     - DOC: config: fix ambiguous info in log-steps directive description
     - MINOR: filters: add filter name to flt_conf struct
