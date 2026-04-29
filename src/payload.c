@@ -697,13 +697,13 @@ smp_fetch_ssl_keyshare_groups(const struct arg *args, struct sample *smp, const 
 				goto not_ssl_hello;
 
 			keyshare_len = (data[4] << 8) + data[5]; /* Client keyshare length */
-			if (keyshare_len < 2 || keyshare_len > hs_len - 6)
-				goto not_ssl_hello; /* at least 2 bytes per keyshare */
+			if (keyshare_len < 4 || keyshare_len > hs_len - 6)
+				goto not_ssl_hello; /* at least 4 bytes for one keyshare entry */
 			dataPointer = data + 6; /* start of keyshare entries */
 			readPosition = 0;
 			numberOfKeyshares = 0;
 			smp_trash = get_trash_chunk();
-			while (readPosition < keyshare_len) {
+			while (readPosition + 4 <= keyshare_len) {
 				/* Get the binary value of the keyshare group and move the offset to the end of the related keyshare */
 				memmove(b_orig(smp_trash) + (2*numberOfKeyshares), &dataPointer[readPosition], 2);
 				numberOfKeyshares++;
