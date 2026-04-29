@@ -446,7 +446,12 @@ static size_t tcp_fullhdr_find_opt(const struct sample *smp, uint8_t opt)
 		if (smp->data.u.str.area[next] == 0) // kind0=end of options
 			break;
 		/* kind1 = NOP and is a single byte, others have a length field */
-		next += (smp->data.u.str.area[next] == 1) ? 1 : smp->data.u.str.area[next + 1];
+		if (smp->data.u.str.area[next] == 1)
+			next++;
+		else if (next + 1 < len)
+			next += smp->data.u.str.area[next + 1];
+		else
+			break;
 		if (smp->data.u.str.area[curr] == opt && next <= len)
 			return curr;
 	}
