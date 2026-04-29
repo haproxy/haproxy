@@ -1818,7 +1818,7 @@ int connect_server(struct stream *s)
 {
 	struct connection *cli_conn = objt_conn(strm_orig(s));
 	struct connection *srv_conn = NULL;
-	const struct mux_proto_list *mux_proto;
+	const struct mux_proto_list *mux_proto = NULL;
 	struct server *srv;
 	struct ist name = IST_NULL;
 	struct sample *name_smp;
@@ -2139,12 +2139,10 @@ int connect_server(struct stream *s)
 		}
 
 		if (may_start_mux_now) {
-			/* Delay QMux MUX init to let xprt_qmux handshake runs first. */
+			/* Delay MUX init if an XPRT handshake is required prior. */
 			mux_proto = conn_select_mux_be(srv_conn);
-			if (mux_proto && mux_proto->init_xprt == XPRT_QMUX) {
-				srv_conn->flags |= (CO_FL_QMUX_RECV|CO_FL_QMUX_SEND);
+			if (mux_proto && mux_proto->init_xprt)
 				may_start_mux_now = 0;
-			}
 		}
 
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
@@ -2252,6 +2250,13 @@ int connect_server(struct stream *s)
 				/* If it fail now, the same will be done in mux->detach() callback */
 				session_add_conn(s->sess, srv_conn);
 			}
+		}
+	}
+	else if (mux_proto && mux_proto->init_xprt) {
+		/* Add handshake layer prior to MUX init if required. Does nothing if SSL layer is active though. */
+		if (xprt_add_l6hs(srv_conn, mux_proto->init_xprt)) {
+			conn_full_close(srv_conn);
+			return SF_ERR_INTERNAL;
 		}
 	}
 
