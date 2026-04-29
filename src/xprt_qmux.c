@@ -12,6 +12,9 @@
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_tp-t.h>
 
+/* Default protocol when not running over SSL layer. */
+#define XPRT_QMUX_DEFAULT_ALPN  "h3"
+
 struct xprt_qmux_ctx {
 	struct connection *conn;
 	struct wait_event wait_event;
@@ -346,6 +349,14 @@ static int xprt_qmux_get_alpn(const struct connection *conn, void *xprt_ctx,
                               const char **str, int *len)
 {
 	struct xprt_qmux_ctx *ctx = xprt_ctx;
+
+	/* Return a the default ALPN if lower layer is not able to negotiate it. */
+	if (!ctx->ops_lower || !ctx->ops_lower->get_alpn) {
+		*str = XPRT_QMUX_DEFAULT_ALPN;
+		*len = strlen(XPRT_QMUX_DEFAULT_ALPN);
+		return 1;
+	}
+
 	return ctx->ops_lower->get_alpn(conn, ctx->ctx_lower, str, len);
 }
 
