@@ -54,7 +54,7 @@ static size_t EVP_PKEY_EC_to_pub_jwk(EVP_PKEY *pkey, char *dst, size_t dsize)
 	int ret = 0;
 	const char *crv = NULL;
 
-#if HA_OPENSSL_VERSION_NUMBER > 0x30000000L
+#if HA_OPENSSL_VERSION_NUMBER >= 0x30000000L
 	char curve[32] = {};
 	size_t curvelen;
 	int nid;
@@ -144,7 +144,7 @@ static size_t EVP_PKEY_RSA_to_pub_jwk(EVP_PKEY *pkey, char *dst, size_t dsize)
 	struct buffer *str_n = NULL, *str_e = NULL;
 	int ret = 0;
 
-#if HA_OPENSSL_VERSION_NUMBER > 0x30000000L
+#if HA_OPENSSL_VERSION_NUMBER >= 0x30000000L
 
 	if ((EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_RSA_N, &n)) == 0)
 		goto out;
@@ -292,7 +292,7 @@ enum jwt_alg EVP_PKEY_to_jws_alg(EVP_PKEY *pkey)
 	enum jwt_alg alg = JWS_ALG_NONE;
 
 	if (EVP_PKEY_base_id(pkey) == EVP_PKEY_EC) {
-#if HA_OPENSSL_VERSION_NUMBER > 0x30000000L
+#if HA_OPENSSL_VERSION_NUMBER >= 0x30000000L
 		char curve[32] = {};
 		size_t curvelen;
 		int nid;
