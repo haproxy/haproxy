@@ -1891,9 +1891,6 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 
 	TRACE_ENTER(FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm, htx);
 
-	memset(&params, 0, sizeof(params));
-	params.p = get_trash_chunk();
-
 	mbuf = br_tail(fconn->mbuf);
   retry:
 	if (!fcgi_get_buf(fconn, mbuf)) {
@@ -1925,10 +1922,11 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 	fcgi_set_record_id(outbuf.area, fstrm->id);
 	outbuf.data = FCGI_RECORD_HEADER_SZ;
 
-	blk = htx_get_head_blk(htx);
-	while (blk) {
+	memset(&params, 0, sizeof(params));
+	params.p = get_trash_chunk();
+
+	for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 		enum htx_blk_type type;
-		uint32_t size = htx_get_blksz(blk);
 		struct fcgi_param p;
 
 		type = htx_get_blk_type(blk);
@@ -2022,9 +2020,7 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 				if (!fcgi_encode_param(&outbuf, &p)) {
 					if (b_space_wraps(mbuf))
 						goto realign_again;
-					if (outbuf.data == FCGI_RECORD_HEADER_SZ)
-						goto full;
-					goto done;
+					goto full;
 				}
 				break;
 
@@ -2043,8 +2039,7 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 					if (!fcgi_encode_param(&outbuf, &p)) {
 						if (b_space_wraps(mbuf))
 							goto realign_again;
-						if (outbuf.data == FCGI_RECORD_HEADER_SZ)
-							goto full;
+						goto full;
 					}
 					TRACE_STATE("add server name header", FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm);
 				}
@@ -2053,8 +2048,6 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 			default:
 				break;
 		}
-		total += size;
-		blk = htx_remove_blk(htx, blk);
 	}
 
   done:
@@ -2080,8 +2073,9 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 	    !fcgi_encode_default_param(fconn, fstrm, &params, &outbuf, FCGI_SP_CONT_LEN)    ||
 	    !fcgi_encode_default_param(fconn, fstrm, &params, &outbuf, FCGI_SP_SRV_SOFT)    ||
 	    !fcgi_encode_default_param(fconn, fstrm, &params, &outbuf, FCGI_SP_HTTPS)) {
-		TRACE_ERROR("error encoding default params", FCGI_EV_TX_RECORD|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
-		goto error;
+		if (b_space_wraps(mbuf))
+			goto realign_again;
+		goto full;
 	}
 
 	/* update the record's size */
@@ -2089,17 +2083,31 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 	fcgi_set_record_size(outbuf.area, outbuf.data - FCGI_RECORD_HEADER_SZ);
 	b_add(mbuf, outbuf.data);
 
+	/* remove all header blocks including the EOH and compute the
+	 * corresponding size.
+	 */
+	blk = htx_get_head_blk(htx);
+	while (blk) {
+		total += htx_get_blksz(blk);
+		blk = htx_remove_blk(htx, blk);
+		/* The removed block is the EOH */
+		if (htx_get_blk_type(blk) == HTX_BLK_EOH)
+			break;
+	}
+
   end:
 	TRACE_LEAVE(FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm, htx, (size_t[]){total});
 	return total;
   full:
+	if (b_size(&outbuf) == b_size(mbuf) || b_size(&outbuf) == 0xFFFF + FCGI_RECORD_HEADER_SZ) {
+		TRACE_ERROR("Request too large to be sent", FCGI_EV_TX_RECORD|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
+		goto error;
+	}
 	if ((mbuf = br_tail_add(fconn->mbuf)) != NULL)
 		goto retry;
 	fconn->flags |= FCGI_CF_MUX_MFULL;
 	fstrm->flags |= FCGI_SF_BLK_MROOM;
 	TRACE_STATE("mbuf ring full", FCGI_EV_TX_RECORD|FCGI_EV_FSTRM_BLK|FCGI_EV_FCONN_BLK, fconn->conn, fstrm);
-	if (total)
-		goto error;
 	goto end;
 
   error:
