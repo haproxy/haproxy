@@ -1867,7 +1867,7 @@ int http_scheme_based_normalize(struct htx *htx)
 		normalize = 1;
 	}
 
-	if (!isttest(path)) {
+	if (!isttest(path) && sl->info.req.meth != HTTP_METH_OPTIONS) {
 		path = ist("/");
 		normalize = 1;
 	}
