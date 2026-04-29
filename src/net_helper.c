@@ -606,7 +606,7 @@ static int sample_conv_tcp_options_list(const struct arg *arg_p, struct sample *
 		/* kind1 = NOP and is a single byte, others have a length field */
 		if (smp->data.u.str.area[ofs] == 1)
 			ofs++;
-		else if (ofs + 1 <= len)
+		else if (ofs + 1 < len)
 			ofs += smp->data.u.str.area[ofs + 1];
 		else
 			break;
