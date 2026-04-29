@@ -324,6 +324,8 @@ static int convert_ecdsa_sig(const struct jwt_ctx *ctx, struct buffer *signature
 	ec_S = BN_bin2bn((unsigned char *)(b_orig(signature) + bignum_len), bignum_len, NULL);
 
 	if (!ec_R || !ec_S) {
+		BN_free(ec_R);
+		BN_free(ec_S);
 		retval = JWT_VRFY_INVALID_TOKEN;
 		goto end;
 	}
