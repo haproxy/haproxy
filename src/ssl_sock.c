@@ -6973,11 +6973,8 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 				mux = !conn_is_back(conn) ?
 				  conn_select_mux_fe(conn) : conn_select_mux_be(conn);
 
-				if (mux->init_xprt == XPRT_QMUX) {
-					const struct xprt_ops *ops = xprt_get(XPRT_QMUX);
-					void *xprt_ctx_hs = NULL;
-
-					ret = ops->init(conn, &xprt_ctx_hs);
+				if (mux->init_xprt) {
+					ret = xprt_add_l6hs(conn, mux->init_xprt);
 					/* Frontend conn must be freed in case of XPRT init failure. */
 					if (ret) {
 						if (!conn_is_back(conn)) {
@@ -6989,15 +6986,7 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 						goto leave;
 					}
 
-					ret = ops->add_xprt(conn, xprt_ctx_hs,
-					  conn->xprt_ctx, conn->xprt, NULL, NULL);
-					BUG_ON(ret); /* xprt_qmux add_xprt always succeeds */
-
-					conn->xprt = ops;
-					conn->xprt_ctx = xprt_ctx_hs;
-
-					ret = conn->xprt->start(conn, xprt_ctx_hs);
-					BUG_ON(ret);
+					ret = conn_xprt_start(conn);
 				}
 				else {
 					/* TODO MUX selection already performs by conn_select_mux_fe/be().

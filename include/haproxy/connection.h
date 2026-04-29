@@ -114,6 +114,7 @@ int conn_reverse(struct connection *conn);
 const char *conn_err_code_name(struct connection *c);
 const char *conn_err_code_str(struct connection *c);
 int xprt_add_hs(struct connection *conn);
+int xprt_add_l6hs(struct connection *conn, int xprt);
 void register_mux_proto(struct mux_proto_list *list);
 
 static inline void conn_report_term_evt(struct connection *conn, enum term_event_loc loc, unsigned char type);

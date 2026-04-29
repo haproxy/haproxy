@@ -847,6 +847,43 @@ int xprt_add_hs(struct connection *conn)
 	return 0;
 }
 
+/* Activates an <xprt> layer on top of <conn> connection. This handshake layer
+ * should be designed to work on top of the layer 6. If SSL is active and its
+ * handshake still in progress, this function does nothing.
+ *
+ * Returns 0 on success else a negative error code.
+ */
+int xprt_add_l6hs(struct connection *conn, int xprt)
+{
+	const struct xprt_ops *ops = xprt_get(xprt);
+	void *ops_ctx = NULL;
+
+	/* Only QMux is supported as handshake on top of layer6 for now. */
+	BUG_ON(xprt != XPRT_QMUX);
+
+	if (conn->flags & CO_FL_ERROR)
+		return -1;
+
+	/* Do nothing if SSL is in used but handshake still in progress. In
+	 * this case, xprt layer will be added on handshake completion.
+	 */
+	if (conn->xprt == xprt_get(XPRT_SSL) &&
+	    (conn->flags & CO_FL_WAIT_L6_CONN)) {
+		return 0;
+	}
+
+	if (ops->init(conn, &ops_ctx))
+		return -1;
+
+	ops->add_xprt(conn, ops_ctx, conn->xprt_ctx, conn->xprt, NULL, NULL);
+	conn->xprt = ops;
+	conn->xprt_ctx = ops_ctx;
+	/* Reset XPRT READY flag before the next conn_xprt_start(). */
+	conn->flags &= ~CO_FL_XPRT_READY;
+
+	return 0;
+}
+
 /* returns a short name for an error, typically the same as the enum name
  * without the "CO_ER_" prefix, or an empty string for no error (better eye
  * catching in logs). This is more compact for some debug cases.
