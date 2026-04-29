@@ -110,9 +110,8 @@ static int sample_conv_eth_vlan(const struct arg *arg_p, struct sample *smp, voi
 			smp->flags &= ~SMP_F_CONST;
 			return !!vlan;
 		}
-		if (idx + 4 < smp->data.u.str.data)
+		if (idx + 4 > smp->data.u.str.data)
 			break;
-
 		vlan = read_n16(smp->data.u.str.area + idx + 2) & 0xfff;
 	}
 	/* incomplete header */
