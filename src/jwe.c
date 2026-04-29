@@ -448,7 +448,7 @@ static int build_and_check_tag(jwe_enc enc,  struct jwt_item items[JWE_ELT_MAX],
 	int retval = 1;
 	const EVP_MD *hash = NULL;
 	int mac_key_len = 0;
-	uint64_t aad_len = my_htonll(items[JWE_ELT_JOSE].length << 3);
+	uint64_t aad_len = my_htonll((uint64_t)items[JWE_ELT_JOSE].length << 3);
 
 	struct buffer *tag_data = alloc_trash_chunk();
 	struct buffer *hmac = alloc_trash_chunk();
