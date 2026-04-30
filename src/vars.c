@@ -328,7 +328,7 @@ static int vars_fill_desc(const char *name, int len, struct var_desc *desc, char
 	/* Check variable name syntax. */
 	for (tmp = name; tmp < name + len; tmp++) {
 		if (!isalnum((unsigned char)*tmp) && *tmp != '_' && *tmp != '.') {
-			memprintf(err, "invalid syntax at char '%s'", tmp);
+			memprintf(err, "invalid syntax at char '%c'", *tmp);
 			return 0;
 		}
 	}
