@@ -360,7 +360,7 @@ static inline uint16_t readv_n16(const void *p1, size_t s1, const void *p2)
  * <p2>. <s1> may be zero and may be larger than the type. The caller is always
  * responsible for providing enough room.
  */
-static inline void writev_n16(const void *p1, size_t s1, const void *p2, const uint16_t u16)
+static inline void writev_n16(void *p1, size_t s1, void *p2, const uint16_t u16)
 {
 	if (unlikely(s1 < 2)) {
 		if (s1 == 0)
