@@ -116,19 +116,19 @@ struct sink *sink_find_early(const char *name, const char *from, const char *fil
 /* creates a new sink and adds it to the list, it's still generic and not fully
  * initialized. Returns NULL on allocation failure. If another one already
  * exists with the same name, it will be returned. The caller can detect it as
- * a newly created one has type SINK_TYPE_NEW.
+ * a newly created one has type SINK_TYPE_NEW. Allocation failures do not change
+ * existing sinks.
  */
 static struct sink *__sink_new(const char *name, const char *desc, int fmt)
 {
 	struct sink *sink;
 	uint8_t _new = 0;
+	char *new_desc = NULL;
 
 	sink = _sink_find(name);
 	if (sink) {
-		if (sink->type == SINK_TYPE_FORWARD_DECLARED) {
-			ha_free(&sink->desc); // free previous desc
+		if (sink->type == SINK_TYPE_FORWARD_DECLARED)
 			goto forward_declared;
-		}
 		goto end;
 	}
 
@@ -142,10 +142,12 @@ static struct sink *__sink_new(const char *name, const char *desc, int fmt)
 		goto err;
 
  forward_declared:
-	sink->desc = strdup(desc);
-	if (!sink->desc)
+	new_desc = strdup(desc);
+	if (!new_desc)
 		goto err;
 
+	free(sink->desc);
+	sink->desc = new_desc;
 	sink->fmt  = fmt;
 	sink->type = SINK_TYPE_NEW;
 	sink->maxlen = BUFSIZE;
@@ -158,9 +160,11 @@ static struct sink *__sink_new(const char *name, const char *desc, int fmt)
 	return sink;
 
  err:
-	ha_free(&sink->name);
-	ha_free(&sink->desc);
-	ha_free(&sink);
+	if (_new) {
+		ha_free(&sink->name);
+		ha_free(&sink->desc);
+		ha_free(&sink);
+	}
 
 	return NULL;
 }
