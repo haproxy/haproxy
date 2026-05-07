@@ -152,8 +152,8 @@ void __tasklet_wakeup_on(struct tasklet *tl, int thr)
 			th_ctx->tl_class_mask |= 1 << TL_BULK;
 		}
 		else if (th_ctx->current_queue < 0) {
-			LIST_APPEND(&th_ctx->tasklets[TL_URGENT], &tl->list);
-			th_ctx->tl_class_mask |= 1 << TL_URGENT;
+			LIST_APPEND(&th_ctx->tasklets[TL_NORMAL], &tl->list);
+			th_ctx->tl_class_mask |= 1 << TL_NORMAL;
 		}
 		else {
 			LIST_APPEND(&th_ctx->tasklets[TL_NORMAL], &tl->list);
@@ -351,6 +351,7 @@ void wake_expired_tasks()
 			/* expired task, wake it up */
 			__task_unlink_wq(task);
 			_task_wakeup(task, TASK_WOKEN_TIMER, 0);
+			//printf("#(%p)\n", task);
 		}
 		else if (task->expire != eb->key) {
 			/* task is not expired but its key doesn't match so let's
@@ -436,6 +437,7 @@ void wake_expired_tasks()
 			__task_unlink_wq(task);
 			HA_RWLOCK_WRTOSK(TASK_WQ_LOCK, &wq_lock);
 			task_drop_running(task, TASK_WOKEN_TIMER);
+			//printf("$\n");
 		}
 		else if (task->expire != eb->key) {
 			/* task is not expired but its key doesn't match so let's
@@ -884,7 +886,13 @@ void process_runnable_tasks()
 			_HA_ATOMIC_DEC(&tg_ctx->niced_tasks);
 
 		/* Add it to the local task list */
-		LIST_APPEND(&tt->tasklets[TL_NORMAL], &((struct tasklet *)t)->list);
+		if (t->nice < 0) {
+			LIST_APPEND(&tt->tasklets[TL_URGENT], &((struct tasklet *)t)->list);
+			tt->tl_class_mask |= 1 << TL_URGENT;
+			//printf(".\n");
+		}
+		else
+			LIST_APPEND(&tt->tasklets[TL_NORMAL], &((struct tasklet *)t)->list);
 	}
 
 	/* release the rqueue lock */
