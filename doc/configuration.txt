@@ -2126,13 +2126,21 @@ ca-base <dir>
   directives. Absolute locations specified in "ca-file", "ca-verify-file" and
   "crl-file" prevail and ignore "ca-base".
 
-chroot <jail dir>
+chroot { <jail dir> | auto }
   Changes current directory to <jail dir> and performs a chroot() there before
   dropping privileges. This increases the security level in case an unknown
   vulnerability would be exploited, since it would make it very hard for the
-  attacker to exploit the system. This only works when the process is started
-  with superuser privileges. It is important to ensure that <jail_dir> is both
-  empty and non-writable to anyone.
+  attacker to exploit the system. It is important to ensure that <jail dir>
+  is both empty and non-writable to anyone. When the process is started with
+  superuser privileges, the chroot() is performed directly. On Linux, when
+  started unprivileged, haproxy attempts to perform it from inside a new
+  user namespace created with unshare(CLONE_NEWUSER); if that mechanism is
+  unavailable the chroot() will fail with the usual error.
+
+  As a special case, <jail dir> may be set to "auto", in which case haproxy
+  creates an anonymous temporary directory, unlinks it, and chroots into it.
+  The resulting jail has no name in the filesystem and is empty and read-only,
+  removing the need to prepare a dedicated jail directory.
 
 close-spread-time <time>
   Define a time window during which idle connections and active connections

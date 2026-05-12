@@ -3327,6 +3327,44 @@ static void setup_user_ns(uid_t euid, gid_t egid)
 }
 #endif
 
+static int do_chroot(const char *prog, const char *path)
+{
+	const char *chroot_dir = path;
+	int error = 0;
+
+	if (strcmp(path, "auto") == 0) {
+		/* When "chroot auto" is used, we attempt to chroot to an
+		 * anonymous and read-only directory.
+		 */
+		char tmpdir[] = "/tmp/haproxy.XXXXXX";
+		chroot_dir = mkdtemp(tmpdir);
+		if (chroot_dir == NULL) {
+			ha_alert("[%s.main()] Cannot create(%s) for chroot auto.\n",
+			         prog, tmpdir);
+			return -1;
+		}
+		error = chdir(tmpdir);
+		/* We can call rmdir() here; we hold a reference to the
+		 * directory since it is our CWD (and if chdir() failed we still
+		 * want to remove the directory).
+		 */
+		DISGUISE(rmdir(tmpdir));
+		if (!error)
+			error = chroot(".");
+	} else {
+		error = chroot(path);
+	}
+	if (!error)
+		error = chdir("/");
+
+	if (error) {
+		ha_alert("[%s.main()] Cannot chroot(%s).\n", prog, chroot_dir);
+		return -1;
+	}
+
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	struct rlimit limit;
@@ -3659,14 +3697,11 @@ int main(int argc, char **argv)
 
 	/* Must chroot and setgid/setuid in the children */
 	/* chroot if needed */
-	if (global.chroot != NULL) {
-		if (chroot(global.chroot) == -1 || chdir("/") == -1) {
-			ha_alert("[%s.main()] Cannot chroot(%s).\n", argv[0], global.chroot);
-			if (nb_oldpids)
-				tell_old_pids(SIGTTIN);
-			protocol_unbind_all();
-			exit(1);
-		}
+	if (global.chroot != NULL && do_chroot(argv[0], global.chroot) != 0) {
+		if (nb_oldpids)
+			tell_old_pids(SIGTTIN);
+		protocol_unbind_all();
+		exit(1);
 	}
 
 	ha_free(&global.chroot);
