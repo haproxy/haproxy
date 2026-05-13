@@ -935,6 +935,8 @@ static int srv_parse_enabled(char **args, int *cur_arg,
 	newsrv->next_state = SRV_ST_RUNNING;
 	newsrv->check.state &= ~CHK_ST_PAUSED;
 	newsrv->check.health = newsrv->check.rise;
+
+	srv_set_init_state(newsrv);
 	return 0;
 }
 
@@ -1124,22 +1126,25 @@ static int srv_parse_init_addr(char **args, int *cur_arg,
 
 /* Parse the "init-state" server keyword */
 static int srv_parse_init_state(char **args, int *cur_arg,
-							   struct proxy *curproxy, struct server *newsrv, char **err)
+				struct proxy *curproxy, struct server *newsrv, char **err)
 {
-	if (strcmp(args[*cur_arg + 1], "fully-up") == 0)
-		newsrv->init_state= SRV_INIT_STATE_FULLY_UP;
+	if (strcmp(args[*cur_arg + 1], "none") == 0)
+		newsrv->init_state = SRV_INIT_STATE_NONE;
+	else if (strcmp(args[*cur_arg + 1], "fully-up") == 0)
+		newsrv->init_state = SRV_INIT_STATE_FULLY_UP;
 	else if (strcmp(args[*cur_arg + 1], "up") == 0)
 		newsrv->init_state = SRV_INIT_STATE_UP;
 	else if (strcmp(args[*cur_arg + 1], "down") == 0)
-		newsrv->init_state= SRV_INIT_STATE_DOWN;
+		newsrv->init_state = SRV_INIT_STATE_DOWN;
 	else if (strcmp(args[*cur_arg + 1], "fully-down") == 0)
-		newsrv->init_state= SRV_INIT_STATE_FULLY_DOWN;
+		newsrv->init_state = SRV_INIT_STATE_FULLY_DOWN;
 	else {
-		memprintf(err, "'%s' expects one of 'fully-up', 'up', 'down', or 'fully-down' but got '%s'",
+		memprintf(err, "'%s' expects one of 'none', 'fully-up', 'up', 'down', or 'fully-down' but got '%s'",
 				  args[*cur_arg], args[*cur_arg + 1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
+	srv_set_init_state(newsrv);
 	return 0;
 }
 
@@ -2880,7 +2885,7 @@ void srv_settings_init(struct server *srv)
 	srv->agent.fall = DEF_AGENT_FALLTIME;
 	srv->agent.port = 0;
 
-	srv->init_state = SRV_INIT_STATE_UP;
+	srv->init_state = SRV_INIT_STATE_NONE;
 
 	srv->maxqueue = 0;
 	srv->minconn = 0;
@@ -3014,7 +3019,9 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	srv->check.rise = srv->check.health = src->check.rise;
 	srv->check.fall               = src->check.fall;
 
-	/* Here we check if 'disabled' is the default server state */
+	/* Here we check if 'disabled' is the default server state. Otherwise,
+	 * we check 'init-state' parameter
+	 */
 	if (src->next_admin & (SRV_ADMF_CMAINT | SRV_ADMF_FMAINT)) {
 		srv->next_admin |= SRV_ADMF_CMAINT | SRV_ADMF_FMAINT;
 		srv->next_state        = SRV_ST_STOPPED;
@@ -3042,6 +3049,7 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	srv->init_addr                = src->init_addr;
 
 	srv->init_state               = src->init_state;
+	srv_set_init_state(srv);
 #if defined(USE_OPENSSL)
 	srv_ssl_settings_cpy(srv, src);
 #endif
@@ -3956,6 +3964,10 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 
 	if (srv->do_check && srv->trackit) {
 		ha_alert("unable to enable checks and tracking at the same time!\n");
+		return ERR_ALERT | ERR_FATAL;
+	}
+	if (srv->init_state != SRV_INIT_STATE_NONE && srv->trackit) {
+		ha_alert("unable to set init-state and tracking at the same time!\n");
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -5927,6 +5939,7 @@ static int cli_parse_enable_health(char **args, char *payload, struct appctx *ap
 
 	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	sv->check.state |= CHK_ST_ENABLED;
+	srv_set_init_state(sv);
 	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	return 1;
 }
@@ -6971,20 +6984,12 @@ static int _srv_update_status_adm(struct server *s, enum srv_adm_st_chg_cause ca
 		 */
 		if (s->check.state & CHK_ST_ENABLED) {
 			s->check.state &= ~CHK_ST_PAUSED;
-			if(s->init_state == SRV_INIT_STATE_FULLY_UP) {
-				s->check.health = s->check.rise + s->check.fall - 1; /* initially UP, when all checks fail to bring server DOWN */
-			}
-			else if(s->init_state == SRV_INIT_STATE_DOWN) {
-				s->check.health = s->check.rise - 1; /* initially DOWN, when one check is successful bring server UP */
-			}
-			else if(s->init_state == SRV_INIT_STATE_FULLY_DOWN) {
-				s->check.health = 0; /* initially DOWN, when all checks are successful bring server UP */
-			} else {
-				s->check.health = s->check.rise; /* initially UP, when one check fails check brings server DOWN */
-			}
+			s->check.health = s->check.rise; /* start OK but check immediately */
 		}
+		srv_set_init_state(s);
 
-		if ((!s->track || s->track->next_state != SRV_ST_STOPPED) &&
+		if (s->init_state == SRV_INIT_STATE_NONE &&
+		    (!s->track || s->track->next_state != SRV_ST_STOPPED) &&
 		    (!(s->agent.state & CHK_ST_ENABLED) || (s->agent.health >= s->agent.rise)) &&
 		    (!(s->check.state & CHK_ST_ENABLED) || (s->check.health >= s->check.rise))) {
 			if (s->track && s->track->next_state == SRV_ST_STOPPING) {

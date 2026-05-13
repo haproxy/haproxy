@@ -278,6 +278,35 @@ static inline void srv_adm_set_ready(struct server *s)
 	srv_clr_admin_flag(s, SRV_ADMF_FMAINT);
 }
 
+static inline void srv_set_init_state(struct server *srv)
+{
+	/* no init-state configured or the server is already disabled: don't eval init-state */
+	if (srv->init_state == SRV_INIT_STATE_NONE ||
+	    srv->next_admin & (SRV_ADMF_CMAINT | SRV_ADMF_FMAINT))
+		return;
+
+	if (srv->init_state == SRV_INIT_STATE_FULLY_UP) {
+		/* initially UP, when all checks fail to bring server DOWN */
+               srv->next_state = SRV_ST_RUNNING;
+               srv->check.health = srv->check.rise + srv->check.fall - 1;
+       }
+       else if (srv->init_state == SRV_INIT_STATE_UP) {
+	        /* initially UP, when one check fails check brings server DOWN */
+               srv->next_state = SRV_ST_RUNNING;
+               srv->check.health = srv->check.rise;
+       }
+       else if (srv->init_state == SRV_INIT_STATE_DOWN) {
+	       /* initially DOWN, when one check is successful bring server UP */
+               srv->next_state = SRV_ST_STOPPED;
+               srv->check.health = srv->check.rise - 1;
+       }
+       else if (srv->init_state == SRV_INIT_STATE_FULLY_DOWN) {
+	       /* initially DOWN, when all checks are successful bring server UP */
+               srv->next_state = SRV_ST_STOPPED;
+               srv->check.health = 0;
+       }
+}
+
 /* appends an initaddr method to the existing list. Returns 0 on failure. */
 static inline int srv_append_initaddr(unsigned int *list, enum srv_initaddr addr)
 {

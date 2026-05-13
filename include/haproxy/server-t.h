@@ -111,7 +111,8 @@ enum srv_initaddr {
  * at start up time.
  */
 enum srv_init_state {
-	SRV_INIT_STATE_FULLY_DOWN = 0,     /* the server should initially be considered DOWN until it passes all health checks. Please keep set to zero. */
+	SRV_INIT_STATE_NONE = 0,
+	SRV_INIT_STATE_FULLY_DOWN,         /* the server should initially be considered DOWN until it passes all health checks. Please keep set to zero. */
 	SRV_INIT_STATE_DOWN,               /* the server should initially be considered DOWN until it passes one health check. */
 	SRV_INIT_STATE_UP,                 /* the server should initially be considered UP, but will go DOWN if it fails one health check. */
 	SRV_INIT_STATE_FULLY_UP,           /* the server should initially be considered UP, but will go DOWN if it fails all health checks. */
