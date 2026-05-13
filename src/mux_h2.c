@@ -1527,6 +1527,9 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	TRACE_LEAVE(H2_EV_H2C_NEW, conn);
 	return 0;
   fail_stream:
+	/* Unnecessary code for now as fail_stream only occurs with BE conns.
+	 * Still better though to keep it to prevent future mistakes.
+	 */
 	if (!(h2c->flags & H2_CF_IS_BACK) && h2c->streams_hard_limit > 1)
 		_HA_ATOMIC_SUB(&tg_ctx->committed_extra_streams, h2c->streams_hard_limit - 1);
 	hpack_dht_free(h2c->ddht);
