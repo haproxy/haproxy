@@ -1062,7 +1062,7 @@ static int init_51degrees(void)
 
 static void deinit_51degrees(void)
 {
-	struct _51d_property_names *_51d_prop_name, *_51d_prop_nameb;
+	struct _51d_property_names *_51d_prop_name = NULL, *_51d_prop_nameb = NULL;
 
 #if defined(FIFTYONEDEGREES_H_PATTERN_INCLUDED) || defined(FIFTYONEDEGREES_H_TRIE_INCLUDED)
 	free(global_51degrees.header_names);
