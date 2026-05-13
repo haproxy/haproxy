@@ -35,13 +35,6 @@ DECLARE_TYPED_POOL(pool_head_tasklet, "tasklet", struct tasklet, 0, 64);
  */
 DECLARE_TYPED_POOL(pool_head_notification, "notification", struct notification);
 
-/* The lock protecting all wait queues at once. For now we have no better
- * alternative since a task may have to be removed from a queue and placed
- * into another one. Storing the WQ index into the task doesn't seem to be
- * sufficient either.
- */
-__decl_aligned_rwlock(wq_lock);
-
 /* used to detect if the scheduler looks stuck (for warnings) */
 static struct {
 	int sched_stuck THREAD_ALIGNED();
@@ -402,7 +395,7 @@ leave:
 }
 
 /* Checks the next timer for the current thread by looking into its own timer
- * list and the global one. It may return TICK_ETERNITY if no timer is present.
+ * list. It may return TICK_ETERNITY if no timer is present.
  * Note that the next timer might very well be slightly in the past.
  */
 int next_timer_expiry()
@@ -410,7 +403,6 @@ int next_timer_expiry()
 	struct thread_ctx * const tt = th_ctx; // thread's tasks
 	struct eb32_node *eb;
 	int ret = TICK_ETERNITY;
-	__decl_thread(int key = TICK_ETERNITY);
 
 	/* first check in the thread-local timers */
 	eb = eb32_lookup_ge(&tt->timers, now_ms - TIMER_LOOK_BACK);
@@ -425,19 +417,6 @@ int next_timer_expiry()
 	if (eb)
 		ret = eb->key;
 
-#ifdef USE_THREAD
-	if (!eb_is_empty(&tg_ctx->timers)) {
-		HA_RWLOCK_RDLOCK(TASK_WQ_LOCK, &wq_lock);
-		eb = eb32_lookup_ge(&tg_ctx->timers, now_ms - TIMER_LOOK_BACK);
-		if (!eb)
-			eb = eb32_first(&tg_ctx->timers);
-		if (eb)
-			key = eb->key;
-		HA_RWLOCK_RDUNLOCK(TASK_WQ_LOCK, &wq_lock);
-		if (eb)
-			ret = tick_first(ret, key);
-	}
-#endif
 	return ret;
 }
 
@@ -901,13 +880,6 @@ void mworker_cleantasks()
 		tmp_rq = eb32_next(tmp_rq);
 		task_destroy(t);
 	}
-	/* cleanup the timers queue */
-	tmp_wq = eb32_first(&tg_ctx->timers);
-	while (tmp_wq) {
-		t = eb32_entry(tmp_wq, struct task, wq);
-		tmp_wq = eb32_next(tmp_wq);
-		task_destroy(t);
-	}
 #endif
 	/* clean the per thread run queue */
 	for (i = 0; i < global.nbthread; i++) {
@@ -931,9 +903,6 @@ void mworker_cleantasks()
 static void init_task()
 {
 	int i, q;
-
-	for (i = 0; i < MAX_TGROUPS; i++)
-		memset(&ha_tgroup_ctx[i].timers, 0, sizeof(ha_tgroup_ctx[i].timers));
 
 	for (i = 0; i < MAX_THREADS; i++) {
 		for (q = 0; q < TL_CLASSES; q++)

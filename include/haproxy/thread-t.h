@@ -178,7 +178,6 @@ struct ha_rwlock {
  */
 enum lock_label {
 	TASK_RQ_LOCK,
-	TASK_WQ_LOCK,
 	LISTENER_LOCK,
 	PROXY_LOCK,
 	SERVER_LOCK,

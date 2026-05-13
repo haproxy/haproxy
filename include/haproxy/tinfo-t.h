@@ -135,8 +135,6 @@ struct tgroup_ctx {
 	ulong threads_idle;               /* mask of threads idling in the poller */
 	ulong stopping_threads;           /* mask of threads currently stopping */
 
-	struct eb_root timers;            /* wait queue (sorted timers tree, global, accessed under wq_lock) */
-
 	uint niced_tasks;                 /* number of niced tasks in this group's run queues */
 	uint committed_extra_streams;     /* sum of extra front streams committed by muxes in this group */
 

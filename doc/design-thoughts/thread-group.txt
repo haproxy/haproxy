@@ -526,12 +526,6 @@ In addition, some variables are related to the global runqueue:
   unsigned int grq_total;     /* total number of entries in the global run queue, atomic */
   static unsigned int global_rqueue_ticks;  /* insertion count in the grq, use rq_lock */
 
-And others to the global wait queue:
-  struct eb_root timers;      /* sorted timers tree, global, accessed under wq_lock */
-  __decl_aligned_rwlock(wq_lock);   /* RW lock related to the wait queue */
-  struct eb_root timers;      /* sorted timers tree, global, accessed under wq_lock */
-
-
 2022-06-14 - progress on task affinity
 ==========
 

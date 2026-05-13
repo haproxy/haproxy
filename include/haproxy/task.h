@@ -91,8 +91,6 @@ extern struct pool_head *pool_head_task;
 extern struct pool_head *pool_head_tasklet;
 extern struct pool_head *pool_head_notification;
 
-__decl_thread(extern HA_RWLOCK_T wq_lock THREAD_ALIGNED());
-
 void __tasklet_wakeup_on(struct tasklet *tl, int thr);
 struct list *__tasklet_wakeup_after(struct list *head, struct tasklet *tl);
 void task_kill(struct task *t);
@@ -119,7 +117,7 @@ void process_runnable_tasks(void);
 void wake_expired_tasks(void);
 
 /* Checks the next timer for the current thread by looking into its own timer
- * list and the global one. It may return TICK_ETERNITY if no timer is present.
+ * list. It may return TICK_ETERNITY if no timer is present.
  * Note that the next timer might very well be slightly in the past.
  */
 int next_timer_expiry(void);
@@ -361,31 +359,21 @@ static inline struct task *__task_unlink_wq(struct task *t)
 	return t;
 }
 
-/* remove a task from its wait queue. It may either be the local wait queue if
- * the task is bound to a single thread or the global queue. If the task uses a
- * shared wait queue, the global wait queue lock is used.
+/* remove a task from its wait queue, which during normal operations will be
+ * the current thread's wait queue.
  */
 static inline struct task *task_unlink_wq(struct task *t)
 {
-	unsigned long locked;
 
 	if (likely(task_in_wq(t))) {
-		locked = t->tid < 0;
-		BUG_ON(t->tid >= 0 && t->tid != tid && !(global.mode & MODE_STOPPING));
-		if (locked)
-			HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
+		BUG_ON(__task_get_current_owner(t->tid) != tid && !(global.mode & MODE_STOPPING));
 		__task_unlink_wq(t);
-		if (locked)
-			HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &wq_lock);
 	}
 	return t;
 }
 
 /* Place <task> into the wait queue, where it may already be. If the expiration
  * timer is infinite, do nothing and rely on wake_expired_task to clean up.
- * If the task uses a shared wait queue, it's queued into the global wait queue,
- * protected by the global wq_lock, otherwise by it necessarily belongs to the
- * current thread'sand is queued without locking.
  */
 #define task_queue(t) \
 	_task_queue(t, MK_CALLER(WAKEUP_TYPE_TASK_QUEUE, 0, 0))

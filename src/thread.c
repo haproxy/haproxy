@@ -434,7 +434,6 @@ const char *lock_label(enum lock_label label)
 {
 	switch (label) {
 	case TASK_RQ_LOCK:         return "TASK_RQ";
-	case TASK_WQ_LOCK:         return "TASK_WQ";
 	case LISTENER_LOCK:        return "LISTENER";
 	case PROXY_LOCK:           return "PROXY";
 	case SERVER_LOCK:          return "SERVER";
