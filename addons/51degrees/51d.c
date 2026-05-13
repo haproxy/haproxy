@@ -127,7 +127,16 @@ static int _51d_property_name_list(char **args, int section_type, struct proxy *
 
 	while (*(args[cur_arg])) {
 		name = calloc(1, sizeof(*name));
+		if (!name) {
+			memprintf(err, "'%s' failed to allocate memory.", args[0]);
+			return -1;
+		}
 		name->name = strdup(args[cur_arg]);
+		if (!name->name) {
+			free(name);
+			memprintf(err, "'%s' failed to allocate memory.", args[0]);
+			return -1;
+		}
 		LIST_APPEND(&global_51degrees.property_names, &name->list);
 		++cur_arg;
 	}
@@ -928,6 +937,10 @@ static int init_51degrees(void)
 		list_for_each_entry(name, &global_51degrees.property_names, list)
 			++i;
 		_51d_property_list = calloc(i, sizeof(*_51d_property_list));
+		if (!_51d_property_list) {
+			ha_alert("51Degrees: Failed to allocate property list.\n");
+			return (ERR_FATAL | ERR_ALERT);
+		}
 
 		i = 0;
 		list_for_each_entry(name, &global_51degrees.property_names, list)
