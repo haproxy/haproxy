@@ -3586,6 +3586,12 @@ static void qcc_release(struct qcc *qcc)
 	}
 	TRACE_PROTO("application layer released", QMUX_EV_QCC_END, conn);
 
+	if (!(qcc->flags & QC_CF_IS_BACK) && global.tune.streams_elasticity &&
+	    qcc->lfctl.ms_bidi_init > 1) {
+		_HA_ATOMIC_SUB(&tg_ctx->committed_extra_streams,
+		               qcc->lfctl.ms_bidi_init - 1);
+	}
+
 	if (conn && !conn_is_quic(conn)) {
 		b_free(&qcc->rx.qmux_buf);
 		b_free(&qcc->tx.qmux_buf);
@@ -3928,6 +3934,11 @@ static int qcm_init(struct connection *conn, struct proxy *prx,
 		qcc->next_bidi_l    = 0x01;
 		qcc->largest_uni_r  = 0x02;
 		qcc->next_uni_l     = 0x03;
+
+		if (global.tune.streams_elasticity && qcc->lfctl.ms_bidi_init > 1) {
+			_HA_ATOMIC_ADD(&tg_ctx->committed_extra_streams,
+			               qcc->lfctl.ms_bidi_init - 1);
+		}
 	}
 
 	qcc->wait_event.tasklet = tasklet_new();
