@@ -624,17 +624,21 @@ int resolv_read_name(unsigned char *buffer, unsigned char *bufend,
 
 		/* Name compression is in use */
 		if ((*reader & 0xc0) == 0xc0) {
+			uint16_t ptr_offset;
+
 			if (reader + 1 >= bufend)
 				goto err;
 
+			ptr_offset = (*reader & 0x3f) * 256 + reader[1];
+
 			/* Must point BEFORE current position */
-			if ((buffer + reader[1]) > reader)
+			if ((buffer + ptr_offset) >= reader)
 				goto err;
 
 			if (depth++ > 100)
 				goto err;
 
-			n = resolv_read_name(buffer, bufend, buffer + (*reader & 0x3f)*256 + reader[1],
+			n = resolv_read_name(buffer, bufend, buffer + ptr_offset,
 			                     dest, dest_len - nb_bytes, offset, depth);
 			if (n == 0)
 				goto err;
