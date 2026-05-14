@@ -2696,6 +2696,7 @@ static void resolvers_destroy(struct resolvers *resolvers)
 			dns_ring_free(ns->stream->ring_req);
 			task_destroy(ns->stream->task_req);
 			task_destroy(ns->stream->task_rsp);
+			task_destroy(ns->stream->task_idle);
 			free(ns->stream);
 		}
 		LIST_DEL_INIT(&ns->list);
