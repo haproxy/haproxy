@@ -475,7 +475,6 @@ int dns_dgram_init(struct dns_nameserver *ns, struct sockaddr_storage *sk)
 	dgram->conn.t.sock.fd = -1;
 	dgram->conn.addr.to = *sk;
 	HA_SPIN_INIT(&dgram->conn.lock);
-	ns->dgram = dgram;
 
 	dgram->ofs_req = ~0; /* init ring offset */
 	dgram->ring_req = dns_ring_new(2*DNS_TCP_MSG_RING_MAX_SIZE);
@@ -490,6 +489,7 @@ int dns_dgram_init(struct dns_nameserver *ns, struct sockaddr_storage *sk)
 		ha_alert("nameserver sets too many watchers > 255 on ring. This is a bug and should not happen.\n");
 		goto out;
 	}
+	ns->dgram = dgram;
 	return 0;
 out:
 	dns_ring_free(dgram->ring_req);
