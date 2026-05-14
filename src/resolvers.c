@@ -3780,30 +3780,56 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			                         SRV_PARSE_PARSE_ADDR|SRV_PARSE_INITIAL_RESOLVE);
 			if (err_code & (ERR_FATAL|ERR_ABORT)) {
 				err_code |= ERR_ABORT;
+				free(newnameserver);
 				goto out;
 			}
 
 			if (dns_stream_init(newnameserver, curr_resolvers->px->srv) < 0) {
 				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT|ERR_ABORT;
+				free(newnameserver);
 				goto out;
 			}
 		}
 		else if (dns_dgram_init(newnameserver, sk) < 0) {
 			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
+			free(newnameserver);
 			goto out;
 		}
 
 		if ((newnameserver->conf.file = strdup(file)) == NULL) {
 			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
+			if (newnameserver->stream) {
+				dns_ring_free(newnameserver->stream->ring_req);
+				task_destroy(newnameserver->stream->task_req);
+				task_destroy(newnameserver->stream->task_rsp);
+				task_destroy(newnameserver->stream->task_idle);
+				free(newnameserver->stream);
+			} else if (newnameserver->dgram) {
+				dns_ring_free(newnameserver->dgram->ring_req);
+				free(newnameserver->dgram);
+			}
+			free(newnameserver);
 			goto out;
 		}
 
 		if ((newnameserver->id = strdup(args[1])) == NULL) {
 			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
+			free((char *)newnameserver->conf.file);
+			if (newnameserver->stream) {
+				dns_ring_free(newnameserver->stream->ring_req);
+				task_destroy(newnameserver->stream->task_req);
+				task_destroy(newnameserver->stream->task_rsp);
+				task_destroy(newnameserver->stream->task_idle);
+				free(newnameserver->stream);
+			} else if (newnameserver->dgram) {
+				dns_ring_free(newnameserver->dgram->ring_req);
+				free(newnameserver->dgram);
+			}
+			free(newnameserver);
 			goto out;
 		}
 
