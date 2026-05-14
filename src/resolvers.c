@@ -3569,6 +3569,8 @@ static int parse_resolve_conf(char **errmsg, char **warnmsg)
 			if (errmsg)
 				memprintf(errmsg, "parsing [/etc/resolv.conf:%d] : out of memory.", resolv_linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
+			dns_ring_free(newnameserver->dgram->ring_req);
+			free(newnameserver->dgram);
 			free(newnameserver);
 			goto resolv_out;
 		}
@@ -3579,6 +3581,8 @@ static int parse_resolve_conf(char **errmsg, char **warnmsg)
 				memprintf(errmsg, "parsing [/etc/resolv.conf:%d] : out of memory.", resolv_linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			free((char *)newnameserver->conf.file);
+			dns_ring_free(newnameserver->dgram->ring_req);
+			free(newnameserver->dgram);
 			free(newnameserver);
 			goto resolv_out;
 		}
