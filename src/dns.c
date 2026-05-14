@@ -1363,7 +1363,7 @@ int dns_stream_init(struct dns_nameserver *ns, struct server *srv)
 	}
 	/* Create the task associated to the resolver target handling conns */
 	if ((dss->task_req = task_new_anywhere()) == NULL) {
-		ha_alert("memory allocation error initializing the ring for dns tcp server '%s'.\n", srv->id);
+		ha_alert("memory allocation error initializing req task for dns tcp server '%s'.\n", srv->id);
 		goto out;
 	}
 
@@ -1380,7 +1380,7 @@ int dns_stream_init(struct dns_nameserver *ns, struct server *srv)
 
 	/* Create the task associated to the resolver target handling conns */
 	if ((dss->task_rsp = task_new_anywhere()) == NULL) {
-		ha_alert("memory allocation error initializing the ring for dns tcp server '%s'.\n", srv->id);
+		ha_alert("memory allocation error initializing rsp task for dns tcp server '%s'.\n", srv->id);
 		goto out;
 	}
 
@@ -1390,7 +1390,7 @@ int dns_stream_init(struct dns_nameserver *ns, struct server *srv)
 
 	/* Create the task associated to the resolver target handling conns */
 	if ((dss->task_idle = task_new_anywhere()) == NULL) {
-		ha_alert("memory allocation error initializing the ring for dns tcp server '%s'.\n", srv->id);
+		ha_alert("memory allocation error initializing idle task for dns tcp server '%s'.\n", srv->id);
 		goto out;
 	}
 
