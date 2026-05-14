@@ -3712,6 +3712,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 				ha_alert("Parsing [%s:%d]: resolvers '%s' has same name as another resolvers (declared at %s:%d).\n",
 					 file, linenum, args[1], curr_resolvers->conf.file, curr_resolvers->conf.line);
 				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
 			}
 		}
 
@@ -3749,6 +3750,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 				ha_alert("Parsing [%s:%d]: nameserver '%s' has same name as another nameserver (declared at %s:%d).\n",
 					 file, linenum, args[1], newnameserver->conf.file, newnameserver->conf.line);
 				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
 			}
 		}
 
