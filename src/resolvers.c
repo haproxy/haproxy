@@ -3405,8 +3405,8 @@ enum act_parse_ret resolv_parse_do_resolve(const char **args, int *orig_arg, str
 	ha_free(&rule->arg.resolv.varname);
 	ha_free(&rule->arg.resolv.resolvers_id);
 	ha_free(&rule->arg.resolv.opts);
-	memprintf(err, "Can't parse '%s'. Expects 'do-resolve(<varname>,<resolvers>[,<options>]) <expr>'. Available options are 'ipv4' and 'ipv6'",
-			args[cur_arg]);
+	memprintf(err, "Can't parse '%s'%s%s. Expects 'do-resolve(<varname>,<resolvers>[,<options>]) <expr>'. Available options are 'ipv4' and 'ipv6'",
+			args[cur_arg], *err ? ": " : "", *err ? *err : "");
 	return ACT_RET_PRS_ERR;
 }
 
