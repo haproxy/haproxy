@@ -3562,7 +3562,7 @@ struct proxy *parse_new_proxy(const char *name, unsigned int cap,
 			ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
 			free(errmsg);
 
-			ha_free(&curproxy);
+			proxy_drop(curproxy);
 			return NULL;
 		}
 	}
