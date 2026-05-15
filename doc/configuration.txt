@@ -5727,9 +5727,15 @@ tune.streams-elasticity <number>
   use lower values (120 to 200) to support 1.2 to 2 streams per connection on
   average at full load.
 
-  There is a limitation for QUIC listeners with enabled 0-RTT. In this case,
-  the initial value advertised to the peer will ignore stream elasticity and
-  instead rely solely on the "tune.quic.stream.max-concurrent" setting.
+  Contrary to HTTP/2, QUIC is capable to dynamically adjust the number of
+  concurrent streams during the connection lifetime. However, QUIC flow control
+  is stricter than HTTP/2, thus it is preferable when using it to specify
+  values big enough to prevent extra latency on the connection. There is also a
+  limitation for QUIC listeners with enabled 0-RTT. In this case, the initial
+  value advertised to the peer will ignore stream elasticity and instead rely
+  solely on the "tune.quic.stream.max-concurrent" setting. However, the stream
+  elasticity principle will still be effective past this initial annoucement
+  during the connection lifetime.
 
   Monitoring the total number of active streams on backends, including queues,
   provides a practical indicator of a sustainable target load and helps avoid

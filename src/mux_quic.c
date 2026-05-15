@@ -2467,6 +2467,7 @@ int qcc_recv_stop_sending(struct qcc *qcc, uint64_t id, uint64_t err)
 static int qcc_release_remote_stream(struct qcc *qcc, uint64_t id)
 {
 	struct quic_frame *frm;
+	uint64_t conn_max, rem, non_extra, inc;
 
 	TRACE_ENTER(QMUX_EV_QCS_END, qcc->conn);
 
@@ -2485,6 +2486,40 @@ static int qcc_release_remote_stream(struct qcc *qcc, uint64_t id)
 		 */
 		if (qcc->lfctl.cl_bidi_r > qcc->lfctl.ms_bidi_rel / 2 ||
 		    qcc->lfctl.cl_bidi_r + qcc->lfctl.ms_bidi == max) {
+
+			BUG_ON(qcc->lfctl.ms_bidi_rel < qcc->lfctl.cl_bidi_r);
+			rem = qcc->lfctl.ms_bidi_rel - qcc->lfctl.cl_bidi_r;
+			/* if every streams are closed, decrement extra stream accounting by 1 */
+			non_extra = !rem ? 1 : 0;
+
+			if (!(qcc->flags & QC_CF_IS_BACK) && global.tune.streams_elasticity) {
+				/* If stream elasticity is active, first decrement closed from extra streams. */
+				if (qcc->lfctl.ms_bidi_rel > 1) {
+					_HA_ATOMIC_SUB(&tg_ctx->committed_extra_streams,
+					               qcc->lfctl.cl_bidi_r - non_extra);
+				}
+
+				/* Now calculate the available streams. */
+				conn_max = conn_calc_max_streams(qcc->lfctl.ms_bidi_init);
+				if (conn_max <= rem) {
+					/* More streams already consumed than currently allowed,
+					 * keep the current flow control limit.
+					 */
+					qcc->lfctl.ms_bidi_rel = rem;
+					qcc->lfctl.cl_bidi_r = 0;
+					goto out;
+				}
+
+				/* Update flow control limit up to the allowed elasticity limit. */
+				inc = conn_max - rem;
+				_HA_ATOMIC_ADD(&tg_ctx->committed_extra_streams, inc - non_extra);
+				qcc->lfctl.ms_bidi_rel = rem + inc;
+			}
+			else {
+				/* Stream elasticity not active, flow control increase remains static. */
+				inc = qcc->lfctl.cl_bidi_r;
+			}
+
 			TRACE_DATA("increase max stream limit with MAX_STREAMS_BIDI", QMUX_EV_QCC_SEND, qcc->conn);
 			frm = qc_frm_alloc(QUIC_FT_MAX_STREAMS_BIDI);
 			if (!frm) {
@@ -2493,12 +2528,11 @@ static int qcc_release_remote_stream(struct qcc *qcc, uint64_t id)
 				goto err;
 			}
 
-			frm->max_streams_bidi.max_streams = qcc->lfctl.ms_bidi +
-			                                    qcc->lfctl.cl_bidi_r;
+			frm->max_streams_bidi.max_streams = qcc->lfctl.ms_bidi + inc;
 			LIST_APPEND(&qcc->lfctl.frms, &frm->list);
 			tasklet_wakeup(qcc->wait_event.tasklet);
 
-			qcc->lfctl.ms_bidi += qcc->lfctl.cl_bidi_r;
+			qcc->lfctl.ms_bidi += inc;
 			qcc->lfctl.cl_bidi_r = 0;
 		}
 	}
