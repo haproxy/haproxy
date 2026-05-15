@@ -903,7 +903,7 @@ static int proxy_parse_declare(char **args, int section, struct proxy *curpx,
 		len = strtol(args[4], &error, 10);
 		if (*error != '\0') {
 			memprintf(err, "'%s %s': cannot parse the length '%s'.",
-			          args[0], args[1], args[3]);
+			          args[0], args[1], args[4]);
 			return -1;
 		}
 
@@ -1006,7 +1006,7 @@ proxy_parse_retry_on(char **args, int section, struct proxy *curpx,
 					     PR_RE_JUNK_REQUEST;
 		else if (strcmp(args[i], "none") == 0) {
 			if (i != 1 || *args[i + 1]) {
-				memprintf(err, "'%s' 'none' keyworld only usable alone", args[0]);
+				memprintf(err, "'%s' 'none' keyword only usable alone", args[0]);
 				return -1;
 			}
 		} else {
