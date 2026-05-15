@@ -370,11 +370,11 @@ struct server *get_server_ph_post(struct stream *s, const struct server *avoid)
 				len -= plen + 1;
 
 				while (len && *end != '&') {
-					if (unlikely(!HTTP_IS_TOKEN(*p))) {
+					if (unlikely(!HTTP_IS_TOKEN(*end))) {
 						/* if in a POST, body must be URI encoded or it's not a URI.
 						 * Do not interpret any possible binary data as a parameter.
 						 */
-						if (likely(HTTP_IS_LWS(*p))) /* eol, uncertain uri len */
+						if (likely(HTTP_IS_LWS(*end))) /* eol, uncertain uri len */
 							break;
 						return NULL;                 /* oh, no; this is not uri-encoded.
 									      * This body does not contain parameters.
