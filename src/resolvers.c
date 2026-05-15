@@ -3199,7 +3199,7 @@ enum act_return resolv_action_do_resolve(struct act_rule *rule, struct proxy *px
 			if (resolution->status == RSLV_STATUS_NONE)
 				goto yield;
 			if (resolution->status == RSLV_STATUS_VALID) {
-				struct sample smp;
+				struct sample smp = { 0 };
 				short ip_sin_family = 0;
 				void *ip = NULL;
 
