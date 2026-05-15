@@ -1562,6 +1562,16 @@ int acme_res_certificate(struct task *task, struct acme_ctx *ctx, char **errmsg)
 	key = ctx->store->data->key;
 	ctx->store->data->key = NULL;
 
+	/* OpenSSL's BIO_new_mem_buf() expects a NUL-terminated string when
+	 * passed -1. The httpclient buffer lacks this, so manually terminate
+	 * it here to prevent an out-of-bounds heap read during PEM parsing.
+	 */
+	if (b_room(&hc->res.buf) < 1) {
+		memprintf(errmsg, "ACME certificate response has no room for NUL terminator");
+		goto error;
+	}
+	hc->res.buf.area[hc->res.buf.data] = '\0';
+
 	/* XXX: might need a function dedicated to this, which does not read a private key */
 	if (ssl_sock_load_pem_into_ckch(ctx->store->path, hc->res.buf.area, ctx->store->data , errmsg) != 0)
 		goto error;
