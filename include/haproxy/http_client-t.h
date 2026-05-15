@@ -17,7 +17,7 @@ struct httpclient {
 		struct buffer buf;             /* input buffer, raw HTTP */
 	} res;
 	struct {
-               /* callbacks used to send the request, */
+		/* callbacks used to send the request, */
 		void (*req_payload)(struct httpclient *hc);          /* send a payload */
 
 		/* callbacks used to receive the response, if not set, the IO
@@ -28,7 +28,7 @@ struct httpclient {
 		void (*res_end)(struct httpclient *hc);             /* end of the response */
 	} ops;
 	struct sockaddr_storage *dst;         /* destination address */
-	struct appctx *appctx;                /* HTTPclient appctx */
+	struct appctx *appctx;                /* HTTP client appctx */
 	int timeout_server;                   /* server timeout in ms */
 	void *caller;                         /* ptr of the caller */
 	unsigned int flags;                   /* other flags */
@@ -50,7 +50,7 @@ struct httpclient {
 #define    HTTPCLIENT_FS_ENDED        0x00020000 /* the httpclient is stopped */
 
 /* options */
-#define    HTTPCLIENT_O_HTTPPROXY     0x00000001 /* the request must be use an absolute URI */
+#define    HTTPCLIENT_O_HTTPPROXY     0x00000001 /* the request must use an absolute URI */
 #define    HTTPCLIENT_O_RES_HTX      0x00000002 /* response is stored in HTX */
 
 /* States of the HTTP Client Appctx */
@@ -65,4 +65,4 @@ enum {
 
 #define HTTPCLIENT_USERAGENT "HAProxy"
 
-#endif /* ! _HAPROXY_HTTCLIENT__T_H */
+#endif /* !_HAPROXY_HTTPCLIENT_T_H */

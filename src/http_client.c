@@ -376,7 +376,7 @@ out:
  * This function tries to destroy the httpclient if it wasn't running.
  * If it was running, stop the client and ask it to autodestroy itself.
  *
- * Once this function is used, all pointer sto the client must be removed
+ * Once this function is used, all pointers to the client must be removed
  *
  */
 void httpclient_stop_and_destroy(struct httpclient *hc)

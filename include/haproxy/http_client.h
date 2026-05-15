@@ -38,4 +38,4 @@ static inline int httpclient_started(struct httpclient *hc)
 	return !!(hc->flags & HTTPCLIENT_FS_STARTED);
 }
 
-#endif /* ! _HAPROXY_HTTCLIENT_H */
+#endif /* !_HAPROXY_HTTPCLIENT_H */

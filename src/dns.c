@@ -194,7 +194,7 @@ int dns_send_nameserver(struct dns_nameserver *ns, void *buf, size_t len)
 		struct ist myist;
 
 		myist = ist2(buf, len);
-                ret = dns_ring_write(ns->stream->ring_req, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1);
+		ret = dns_ring_write(ns->stream->ring_req, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1);
 		if (!ret) {
 			ns->counters->snd_error++;
 			return -1;
@@ -215,7 +215,7 @@ void dns_session_free(struct dns_session *);
  */
 ssize_t dns_recv_nameserver(struct dns_nameserver *ns, void *data, size_t size)
 {
-        ssize_t ret = -1;
+	ssize_t ret = -1;
 
 	if (ns->dgram) {
 		struct dgram_conn *dgram = &ns->dgram->conn;
@@ -1346,8 +1346,8 @@ int dns_stream_init(struct dns_nameserver *ns, struct server *srv)
 {
 	struct dns_stream_server *dss = NULL;
 
-        dss = calloc(1, sizeof(*dss));
-        if (!dss) {
+	dss = calloc(1, sizeof(*dss));
+	if (!dss) {
 		ha_alert("memory allocation error initializing dns tcp server '%s'.\n", srv->id);
 		goto out;
 	}
@@ -1426,7 +1426,7 @@ int init_dns_buffers()
 	if (!dns_msg_trash)
 		return 0;
 
-        return 1;
+	return 1;
 }
 
 void deinit_dns_buffers()
