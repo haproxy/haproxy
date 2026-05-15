@@ -2483,7 +2483,7 @@ static int qcc_release_remote_stream(struct qcc *qcc, uint64_t id)
 		/* MAX_STREAMS needed if closed streams value more than twice
 		 * the initial window or reaching the stream ID limit.
 		 */
-		if (qcc->lfctl.cl_bidi_r > qcc->lfctl.ms_bidi_init / 2 ||
+		if (qcc->lfctl.cl_bidi_r > qcc->lfctl.ms_bidi_rel / 2 ||
 		    qcc->lfctl.cl_bidi_r + qcc->lfctl.ms_bidi == max) {
 			TRACE_DATA("increase max stream limit with MAX_STREAMS_BIDI", QMUX_EV_QCC_SEND, qcc->conn);
 			frm = qc_frm_alloc(QUIC_FT_MAX_STREAMS_BIDI);
@@ -3587,9 +3587,9 @@ static void qcc_release(struct qcc *qcc)
 	TRACE_PROTO("application layer released", QMUX_EV_QCC_END, conn);
 
 	if (!(qcc->flags & QC_CF_IS_BACK) && global.tune.streams_elasticity &&
-	    qcc->lfctl.ms_bidi_init > 1) {
+	    qcc->lfctl.ms_bidi_rel > 1) {
 		_HA_ATOMIC_SUB(&tg_ctx->committed_extra_streams,
-		               qcc->lfctl.ms_bidi_init - 1);
+		               qcc->lfctl.ms_bidi_rel - 1);
 	}
 
 	if (conn && !conn_is_quic(conn)) {
@@ -3855,7 +3855,7 @@ static int qcm_init(struct connection *conn, struct proxy *prx,
 		/* Server parameters, params used for RX flow control. */
 		lparams = &conn->handle.qc->rx.params;
 
-		qcc->lfctl.ms_bidi = qcc->lfctl.ms_bidi_init = lparams->initial_max_streams_bidi;
+		qcc->lfctl.ms_bidi = qcc->lfctl.ms_bidi_init = qcc->lfctl.ms_bidi_rel = lparams->initial_max_streams_bidi;
 		qcc->lfctl.ms_uni = lparams->initial_max_streams_uni;
 		qcc->lfctl.msd_bidi_l = lparams->initial_max_stream_data_bidi_local;
 		qcc->lfctl.msd_bidi_r = lparams->initial_max_stream_data_bidi_remote;
@@ -3884,7 +3884,7 @@ static int qcm_init(struct connection *conn, struct proxy *prx,
 		qcc->rfctl.msd_uni_l = rparams->initial_max_stream_data_uni;
 
 		lparams = xprt_qmux_lparams(conn->xprt_ctx);
-		qcc->lfctl.ms_bidi = qcc->lfctl.ms_bidi_init = lparams->initial_max_streams_bidi;
+		qcc->lfctl.ms_bidi = qcc->lfctl.ms_bidi_init = qcc->lfctl.ms_bidi_rel= lparams->initial_max_streams_bidi;
 		qcc->lfctl.ms_uni = lparams->initial_max_streams_uni;
 		qcc->lfctl.msd_bidi_l = lparams->initial_max_stream_data_bidi_local;
 		qcc->lfctl.msd_bidi_r = lparams->initial_max_stream_data_bidi_remote;
@@ -4648,7 +4648,7 @@ static int qcm_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *out
 		return qcc->nb_hreq;
 
 	case MUX_CTL_GET_MAXSTRM:
-		return qcc->lfctl.ms_bidi_init;
+		return qcc->lfctl.ms_bidi_rel;
 
 	case MUX_CTL_TEVTS:
 		return qcc->term_evts_log;
