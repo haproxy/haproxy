@@ -3055,8 +3055,8 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	srv->tcp_ut = src->tcp_ut;
 #endif
 	srv->mux_proto = src->mux_proto;
-	if (srv->pool_conn_name)
-		srv->pool_conn_name = strdup(srv->pool_conn_name);
+	if (src->pool_conn_name)
+		srv->pool_conn_name = strdup(src->pool_conn_name);
 	srv->pool_purge_delay = src->pool_purge_delay;
 	srv->low_idle_conns = src->low_idle_conns;
 	srv->max_idle_conns = src->max_idle_conns;
