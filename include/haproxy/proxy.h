@@ -96,7 +96,7 @@ void proxy_capture_error(struct proxy *proxy, int is_back,
 			 void (*show)(struct buffer *, const struct error_snapshot *));
 void proxy_adjust_all_maxconn(void);
 struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg);
-struct proxy *cli_find_frontend(struct appctx *appctx, const char *arg);
+struct proxy *cli_find_backend(struct appctx *appctx, const char *arg);
 int resolve_stick_rule(struct proxy *curproxy, struct sticking_rule *mrule);
 void free_stick_rules(struct list *rules);
 void free_server_rules(struct list *srules);
