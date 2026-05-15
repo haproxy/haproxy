@@ -5226,6 +5226,8 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int resolv_locked)
 	struct resolv_resolution *resolution;
 	char                  *hostname_dn;
 	int                    hostname_len, hostname_dn_len;
+	char                  *hostname_dup = NULL;
+	char                  *hostname_dn_dup = NULL;
 
 	/* Note that the server lock is already held. */
 	if (!srv->resolvers)
@@ -5256,13 +5258,18 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int resolv_locked)
 
 	resolv_unlink_resolution(srv->resolv_requester);
 
+	hostname_dup    = strdup(hostname);
+	hostname_dn_dup = strdup(hostname_dn);
+	if (!hostname_dup || !hostname_dn_dup)
+		goto err;
+
 	free(srv->hostname);
 	free(srv->hostname_dn);
-	srv->hostname        = strdup(hostname);
-	srv->hostname_dn     = strdup(hostname_dn);
+	srv->hostname = hostname_dup;
+	srv->hostname_dn = hostname_dn_dup;
 	srv->hostname_dn_len = hostname_dn_len;
-	if (!srv->hostname || !srv->hostname_dn)
-		goto err;
+	hostname_dup = NULL;
+	hostname_dn_dup = NULL;
 
 	if (srv->flags & SRV_F_NO_RESOLUTION)
 		goto end;
@@ -5278,6 +5285,8 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int resolv_locked)
   err:
 	if (!resolv_locked)
 		HA_SPIN_UNLOCK(DNS_LOCK, &srv->resolvers->lock);
+	ha_free(&hostname_dup);
+	ha_free(&hostname_dn_dup);
 	return -1;
 }
 
