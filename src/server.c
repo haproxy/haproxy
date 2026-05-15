@@ -5711,11 +5711,13 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 		HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 		if (strcmp(args[4], "on") == 0) {
 			if (srv_set_ssl(sv, 1)) {
+				HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 				cli_dynerr(appctx, memprintf(&err, "failed to enable ssl for server %s.\n", args[2]));
 				goto out;
 			}
 		} else if (strcmp(args[4], "off") == 0) {
 			if (srv_set_ssl(sv, 0)) {
+				HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 				cli_dynerr(appctx, memprintf(&err, "failed to disable ssl for server %s.\n", args[2]));
 				goto out;
 			}
