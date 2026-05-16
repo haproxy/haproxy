@@ -39,7 +39,7 @@ static const struct trace_event sess_trace_events[] = {
 	{ .mask = SESS_EV_NEW,      .name = "sess_new",     .desc = "new session creation" },
 #define           SESS_EV_END       (1ULL <<  1)
 	{ .mask = SESS_EV_END,      .name = "sess_end",     .desc = "session termination" },
-#define           SESS_EV_ERR       (1ULL <<  1)
+#define           SESS_EV_ERR       (1ULL <<  2)
 	{ .mask = SESS_EV_ERR,      .name = "sess_err",     .desc = "session error" },
 	{ }
 };
