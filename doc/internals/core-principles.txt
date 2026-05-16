@@ -1,0 +1,229 @@
+HAPROXY CORE PRINCIPLES
+
+0. RULE ZERO: EXCEPTIONS AND JUSTIFICATION
+   - These rules are mandatory; violations are bugs unless explicitly justified.
+   - A violation is acceptable if accompanied by a comment explaining WHY the
+     standard approach was insufficient (e.g., "Performance-critical bypass").
+   - Reviews should flag unjustified violations but accept commented ones.
+
+1. PROJECT ORGANIZATION
+   - header files all under "include/", and split between haproxy/<file>-t.h for
+     type definitions (types, enums, structures), and haproxy/<file>.h for static
+     definitions and exported symbols. A few imported libs under include/import.
+   - C source files in src/.
+   - some API doc in doc/internals/api/ (not always up to date, check date or
+     version at the top).
+
+2. ENVIRONMENT AND DATA TYPES
+   - The project targets 32/64-bit POSIX systems (little or big endian).
+   - Char is signed or unsigned 8-bit, short signed 16-bit, int signed 32-bit.
+   - Long and pointers always match the native word size. Long long is 64-bit.
+   - Aliases: uchar (unsigned char), uint (unsigned int), ulong (unsigned long),
+     ushort (unsigned short), ullong (unsigned long long), llong (long long),
+     schar (signed char).
+   - size_t always same size as long but often declared as uint on 32-bit and
+     ulong on 64-bit. Do not use in printf() without a cast (ulong with "%lu").
+   - Main platforms are x86_64 and aarch64 with high thread counts (>=64).
+   - Unaligned accesses are permitted for archs that support them; portable
+     wrappers in net_helper.h (read_u32(), write_u32() etc).
+   - signed integer wrapping well-defined via -fwrapv.
+   - arch-specific asm() statements OK as long as equivalent C-code exists for
+     generic archs.
+   - Pointer arithmetics used a lot via container_of(), offset_of(), and void*
+     casts.
+   - Floating point not used.
+
+3. MEMORY MANAGEMENT AND POOLS
+   - Pools are used for runtime allocation; malloc/free are for boot code only.
+   - pool_alloc() semantics match malloc(); the return must always be tested.
+   - pool_alloc() and malloc() are not interchangeable / compatible.
+   - pool_free() semantics match free(); it is a no-op on NULL.
+   - pool_free() makes the pointer invalid immediately; it must not be touched
+     or passed to pool_free() again.
+   - Memory allocated from one pool must be released to the same pool.
+   - ha_free() calls free() and sets the pointer to NULL before returning.
+   - my_realloc2() frees the original pointer if the allocation fails.
+   - never leave dangling pointers in structs after free().
+
+4. BUFFER INVARIANTS (struct buffer)
+   - Buffers are 4-word inline structs used for data in transit (wrapping,
+     sliding window).
+   - Members: area (storage), size (capacity), head (offset), data (count).
+   - The area pointer is allowed to be NULL when size is zero.
+   - always true: 0<=data<=size; always true when size>0: 0<=head<size.
+   - contents start at <head>, for <data> bytes, and may wrap at the end of the
+     storage area (area+size).
+   - API (b_*, in buf.h and dynbuf.h) supports empty or unallocated buffers.
+   - idempotent functions b_alloc() and b_free() use pools to manage the
+     storage area and check <size> to know if alloc/free still needed.
+   - a non-contiguous version exists (ncbuf, ncbmbuf), allowing holes anywhere
+     in data. The former mandates holes of at least 8 bytes. The second relies
+     on a bitmap of populated places.
+   - another string API exists, "ist", representing a pointer and a length in a
+     struct that is returned by inline functions and macros. It is described in
+     doc/internals/api/ist.txt
+   - buffers can switch to and from HTX, which is an internal representation of
+     HTTP elements, with an API supporting header addition/modification/removal,
+     start-line manipulation, data appending/consumption etc. HTX functions are
+     all prefixed with "htx_". Between htx_from_buf() and htx_to_buf(), only the
+     HTX API may be used, not the b_* API.
+
+5. DATA MANIPULATION (CHUNKS, TRASH, LISTS, TREES)
+   - Chunks use the buffer API but are NOT allowed to wrap.
+   - Chunks are used for linear operations like chunk_printf().
+   - Trash is a thread-local temporary buffer; scope stays within the caller.
+   - trash always the same size as a buffer (global.tune.bufsize).
+   - get_trash_chunk() provides up to 3 rotating thread-local trash chunks (with
+     a scope spanning from the call to the next function call).
+   - For longer lived trash chunks, alloc_trash_chunk() is available but must be
+     released using free_trash_chunk() on leaving.
+   - standard doubly-linked lists (struct list) are provided via macros LIST_*.
+   - LIST_INIT() must be used on new heads and elements. LIST_DELETE() only
+     removes the element and does not reinitialize it, so the idempotent
+     LIST_DEL_INIT() is generally preferred. Iterators like list_for_each_* are
+     available, some safe against item removal. See doc/internals/api/list.txt
+     for details (grep -i "^list_" to list available macros).
+   - thread-safe doubly-linked lists (struct mt_list) are provided via macros
+     mt_list_*. They work like lists and use compatible storage, though they may
+     not be mixed. See doc/internals/api/mt_list.txt (grep -i "^mt_list_" to
+     list available operations).
+   - elastic binary trees (ebtree) are used for fast access (O(logN) operations,
+     O(1) deletion). Idempotent deletion. Main functions are lookup, insert,
+     delete, first, next, with type-based prefix eb{32,64,st,mb,pt}_*().
+   - compact elastic binary trees (cebtree) are used for read-mostly focusing on
+     space savings (O(logN) operations, but higher cost than ebtree). Same ops
+     as ebtree, with type-based prefix ceb{32,u32,64,u64,s,is}_*.
+
+6. THREAD SYNCHRONIZATION
+   - Threads are started at boot (one per CPU) and persist for the process life,
+     arranged in thread groups (tg) by cache locality.
+   - Each thread has its own polling loop and scheduler. Total parallelism.
+   - thread_isolate()/thread_release() for total thread isolation (very heavy).
+   - "tid" always current thread number, "th_ctx" always current thread's context,
+     "ti" current thread info.
+   - "tgid" always current tg number, "tg_ctx" current tg context.
+   - HA_ATOMIC_* for atomic operations on integers and pointers (includes load
+     and store). DWCAS available on some platforms but requires an equivalent
+     for other ones.
+   - The _HA_ATOMIC_* version (leading underscore) do not use barriers so these
+     must be explicit (__ha_barrier_*).
+   - Atomic loops must use CPU relaxation or exponential back-off.
+   - For multiple changes at once, threads may use spinlocks (HA_SPIN_LOCK()/
+     HA_SPIN_UNLOCK/HA_SPIN_TRYLOCK), and upgradable RW locks (HA_RWLOCK_*) if
+     read accesses dominate.
+   - No sleeping locks (mutex etc), only spinning/rwlocks/atomic loops.
+
+7. SCHEDULING AND LATENCY
+   - Latency is critical.
+   - No runtime filesystem access, no blocking calls, no long loops.
+   - Complex processing must be split into small steps; the task must yield.
+   - CPUs are not dedicated to haproxy, high risk of a thread being interrupted
+     by another process if it works too long, catastrophic if it happens with a
+     lock held.
+   - A watchdog kills the process if a task hogs a CPU for > few milliseconds.
+   - Tasks vs Tasklets: Tasks have tree storage (rq) and timers (wq); tasklets
+     use list elements instead of rq and are smaller (no wq). Only task.c/h may
+     distinguish rq vs list access.
+   - Tasks are aliased to tasklet while they are running (hence why some
+     functions cast task to tasklets and conversely to access certain fields).
+   - inter-thread task/tasklet wakeups always safe using the task_* API.
+   - task/tasklet->state field must always be accessed atomically.
+
+8. ARCHITECTURAL LAYERS (MUX AND STREAMS)
+   - Naming: Lower layer (multiplexed), attached to the connection uses suffix
+     'c' (h1c, h2c, qcc, muxc); Upper layer (demultiplexed/application, often a
+     stream) uses suffix 's' (h1s, h2s, qcs, muxs).
+   - Application layer stream (struct stream) has two stream connectors (stconn):
+     front (scf) and back (scb). Responsible for processing requests/responses,
+     deciding which server to route it, finding a backend connection or creating
+     one, and exchanging data between the two sides.
+   - Stream connectors link to a muxs or applet via a stream endpoint descriptor
+     (sedesc/sd), and exchange data via buffers, which for an HTTP muxs are HTX
+     buffers containing HTX blocks.
+   - The sd carries the shared context between layers.
+   - When a stream detaches from a mux, a new sd is allocated for the stream and
+     the mux keeps its previous sd: stconn and muxs both always have a valid sd.
+   - Front connections/streams are tied to the creator thread forever.
+   - Idle back connections can be stolen via mux->takeover(), but become
+     thread-bound once a stream attaches. => all streams of a mux are on the
+     same thread.
+   - session vs connection vs stream: connection is transport; session lasts for
+     the client connection's life; stream are request/response pairs.
+   - applets carry a context specific to the service being executed or the CLI
+     command in appctx->svcctx, and this one is always zeroed before the handler
+     is first called.
+
+9. FUNCTION RETURN CONVENTIONS
+   - Boolean style: Functions named as actions/sentences return 0 (failure) or
+     non-zero (success).
+   - Integer style: some syscall-like functions return <0 (error) or >=0 (success).
+   - Tri-state style, e.g. counts: <0 (error), 0 (no progress), >0 (success).
+
+10. DIAGNOSTICS AND SAFETY
+   - When DEBUG_STRICT is set, ABORT_NOW() crashes the program immediately, and
+     BUG_ON(cond[,msg]) crashes the program if the condition is true.
+   - COUNT_IF() / CHECK_IF() only track if a condition occurs (non-fatal).
+   - Glitches are counters for uncommon events used to detect hostile behavior.
+   - strcpy(), strcat() and sprintf() are totally forbidden (the program will
+     not build).
+
+11. BASIC CODING STYLE
+   - Linux Kernel-like, but uses tabs for indent, spaces for alignment. Function
+     definitions have their opening brace on a new line, never on the same line.
+   - All local variables must be declared at the beginning of the function
+     block, before any executable statements (gnu89-like).
+   - Avoid variable shadowing in code blocks.
+   - Beware of local static and global variables.
+   - Use const arguments whenever possible.
+   - Avoid static storage when persistence is not needed.
+   - Macros in uppercase unless they're used to wrap functions which then get a
+     leading underscore.
+   - Explicitly compare functions returning non-zero with 0 (e.g. strcmp) unless
+     they explicitly return a boolean (e.g. isalnum) or a pointer (e.g. strchr).
+   - Unsigned int comparisons to zero never use >0 but !=0 to avoid signedness
+     mistakes.
+   - turn non-zero integer to boolean using "!" or "!!".
+
+12. BUILD AND TEST
+   - Preferred build command:
+     $ make -j$(nproc) TARGET=linux-glibc OPT_CFLAGS='-std=gnu89 -Os' \
+       USE_OPENSSL=1 USE_QUIC_OPENSSL_COMPAT=1 USE_QUIC=1 USE_LUA=1
+   - Individual files can be tested by passing src/file.o as a make argument.
+   - Compiler warnings are not permitted for new code.
+
+13. COMMIT MESSAGES AND DOCUMENTATION
+   - Commit messages must follow the project's strict format below. Do not try
+     to learn better from previous commits, which might be wrong during reviews.
+   - Structure: <TAG>: <location>: <subject> (max ~70 chars), then blank line,
+     then description.
+   - Tags:
+       - CLEANUP: spelling fixes, refactoring, no new code nor functional change.
+       - MINOR: new feature or low-impact change, may be backported if needed.
+       - MEDIUM: new feature or change with moderate severity/impact/risk.
+       - MAJOR: new feature or change with important severity/impact/risk.
+       - OPTIM: Performance improvements, may always be reverted if it breaks.
+       - DOC: Documentation updates or fixes.
+       - BUG/<severity>: Fixes a bug. Specify if regression or long-standing.
+         Valid severities are MINOR (low impact), MEDIUM (perf/stability risk
+         in uncommon configs, MAJOR (most configs), CRITICAL (stability risk
+         without workaround).
+       - Regressions: Find original commit via `git blame`; designate using
+         `git log -1 --format='%h ("%s")'` and version via `git describe --tags`.
+   - Location: subsystem (stream, tasks, mux-h2, qpack etc).
+   - Description: Explain technical "WHY", "HOW", and technical impact. Explain
+     how to trigger the bug for developer testing.
+   - Backports: only for fixes, mention versions ("Must be backported to 3.0").
+   - Style: No generic messages like "fix(xxx): blah". Be technically precise.
+   - Do not mix spelling fixes in comments (not important) with other changes.
+     However it's preferred to have a single commit for many typo fixes at once.
+   - Spelling mistakes in user-visible parts (doc, logs, traces, error messages)
+     must be in their own commit (may need backport).
+   - One commit per bug.
+   - Example:
+       BUG/MEDIUM: sample: fix null pointer dereference in h1_parse_line
+
+       When parsing malformed headers, the line buffer was not initialized.
+       This caused a crash on certain edge cases. Let's fix this by always
+       initializing the line buffer when first calling the parser. This was
+       brought by commit 04c9e8f5 ("MINOR: add h1_parse_line") in latest -dev
+       so no backport is needed.
