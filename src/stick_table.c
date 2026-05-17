@@ -2675,10 +2675,12 @@ static enum act_return action_inc_gpc(struct act_rule *rule, struct proxy *px,
 	struct stkctr *stkctr;
 
 	/* Extract the stksess, return OK if no stksess available. */
-	if (s)
+	if (s && s->stkctr)
 		stkctr = &s->stkctr[rule->arg.gpc.sc];
-	else
+	else if (sess->stkctr)
 		stkctr = &sess->stkctr[rule->arg.gpc.sc];
+	else
+		return ACT_RET_CONT;
 
 	ts = stkctr_entry(stkctr);
 	if (ts) {
@@ -2716,10 +2718,12 @@ static enum act_return action_inc_gpc0(struct act_rule *rule, struct proxy *px,
 	unsigned int period = 0;
 
 	/* Extract the stksess, return OK if no stksess available. */
-	if (s)
+	if (s && s->stkctr)
 		stkctr = &s->stkctr[rule->arg.gpc.sc];
-	else
+	else if (sess->stkctr)
 		stkctr = &sess->stkctr[rule->arg.gpc.sc];
+	else
+		return ACT_RET_CONT;
 
 	ts = stkctr_entry(stkctr);
 	if (ts) {
