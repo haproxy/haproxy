@@ -26,22 +26,23 @@ static void  hld_usage(char *name, int argc, int line)
 	fprintf(stderr,
 		"Usage : %s [opts] [URL]*\n"
 		"where <opts> may be any combination of:\n"
-		"        -d <time>      test duration in seconds (0)\n"
-		"        -l             enable long output format; double for raw values\n"
-		"        -m <streams>   maximum concurrent streams (1)\n"
-		"        -n <reqs>      maximum total requests (-1)\n"
-		"        -r <reqs>      number of requests per connection (-1)\n"
-		"        -s <time>      soft start: time in sec to reach 100%% load\n"
-		"        -t <threads>   number of threads\n"
-		"        -u <users>     number of users (1)\n"
-		"        -w <time>      I/O timeout in milliseconds (10000)\n"
-		"        -C             dump the configuration and exit\n"
-		"        -H \"foo:bar\"   add this header name and value\n"
-		"        -I             use HEAD instead of GET\n"
-		"        -server        set server options as defined for \"server\" haproxy keyword\n"
-		"        -v             shows version\n"
+		"        -d <time>       test duration in seconds (0)\n"
+		"        -l              enable long output format; double for raw values\n"
+		"        -m <streams>    maximum concurrent streams (1)\n"
+		"        -n <reqs>       maximum total requests (-1)\n"
+		"        -r <reqs>       number of requests per connection (-1)\n"
+		"        -s <time>       soft start: time in sec to reach 100%% load\n"
+		"        -t <threads>    number of threads\n"
+		"        -u <users>      number of users (1)\n"
+		"        -w <time>       I/O timeout in milliseconds (10000)\n"
+		"        -C              dump the configuration and exit\n"
+		"        -H \"foo:bar\"  add this header name and value\n"
+		"        -I              use HEAD instead of GET\n"
+		"        -v              shows version\n"
+		"        --global <str>  add a string to global section\n"
+		"        --server <opts> set server <opt> options as defined for \"server\" haproxy keyword\n"
 		"        --show-status-codes show HTTP status codes distribution\n"
-		"        --traces       enable the traces for all the HTTP protocols\n"
+		"        --traces        enable the traces for all the HTTP protocols\n"
 		"URL formats:\n"
 		"        (http|https)://<addr>:<port>/<path> with <addr> any address as supported by haproxy\n"
 		"        (see haproxy documentation about addresses formats)\n",
@@ -267,7 +268,14 @@ void haproxy_init_args(int argc, char **argv)
 			if (*opt == '-') {
 				/* long option */
 				opt++;
-				if (strcmp(opt, "traces") == 0) {
+				if (strcmp(opt, "global") == 0) {
+					argv++; argc--;
+					if (argc <= 0 || **argv == '-')
+						hld_usage(progname, argc, __LINE__);
+
+					hbuf_str_append(&gbuf, *argv);
+				}
+				else if (strcmp(opt, "traces") == 0) {
 					hld_debug = 1;
 				}
 				else if (strcmp(opt, "show-status-codes") == 0) {
@@ -358,13 +366,6 @@ void haproxy_init_args(int argc, char **argv)
 					hld_usage(progname, argc, __LINE__);
 
 				arg_head = 1;
-			}
-			else if (*opt == 'G') {
-				argv++; argc--;
-				if (argc <= 0 || **argv == '-')
-					hld_usage(progname, argc, __LINE__);
-
-				hbuf_str_append(&gbuf, *argv);
 			}
 			else if (*opt == 'v') {
 				/* empty option */
