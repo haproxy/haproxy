@@ -13,14 +13,6 @@ static int hld_debug;
 struct hld_url_cfg *hld_url_cfgs;
 char *ssl_opts;
 
-__attribute__((unused))
-static const char *hld_cfg_dflt_str =
-	"defaults\n"
-		"\tmode http\n"
-		"\thttp-reuse never\n"
-		"\ttimeout connect 5s\n"
-		"\ttimeout server 40s\n";
-
 static void  hld_usage(char *name, int argc, int line)
 {
 	fprintf(stderr,
@@ -233,6 +225,7 @@ void haproxy_init_args(int argc, char **argv)
 	struct hbuf buf = HBUF_NULL;  // cfgfile
 	struct hbuf gbuf = HBUF_NULL; // "global" section
 	struct hbuf tbuf = HBUF_NULL; // "traces" section
+	struct hbuf dbuf = HBUF_NULL; // "default" section
 
 	if (argc <= 1)
 		hld_usage(progname, argc, __LINE__);
@@ -268,18 +261,28 @@ void haproxy_init_args(int argc, char **argv)
 			if (*opt == '-') {
 				/* long option */
 				opt++;
-				if (strcmp(opt, "global") == 0) {
+				if (strcmp(opt, "default") == 0) {
+					argv++; argc--;
+					if (argc <= 0 || **argv == '-')
+						hld_usage(progname, argc, __LINE__);
+
+					if (hbuf_is_null(&dbuf)) {
+						if (hbuf_alloc(&dbuf) == NULL) {
+							ha_alert("failed to allocate a buffer.\n");
+							goto leave;
+						}
+
+						hbuf_appendf(&dbuf, "default\n");
+					}
+
+					hbuf_str_append(&dbuf, *argv);
+				}
+				else if (strcmp(opt, "global") == 0) {
 					argv++; argc--;
 					if (argc <= 0 || **argv == '-')
 						hld_usage(progname, argc, __LINE__);
 
 					hbuf_str_append(&gbuf, *argv);
-				}
-				else if (strcmp(opt, "traces") == 0) {
-					hld_debug = 1;
-				}
-				else if (strcmp(opt, "show-status-codes") == 0) {
-					arg_hscd = 1;
 				}
 				else if (strcmp(opt, "server") == 0) {
 					argv++, argc--;
@@ -289,6 +292,12 @@ void haproxy_init_args(int argc, char **argv)
 
 					opt = *argv;
 					ssl_opts = strdup(opt);
+				}
+				else if (strcmp(opt, "show-status-codes") == 0) {
+					arg_hscd = 1;
+				}
+				else if (strcmp(opt, "traces") == 0) {
+					hld_debug = 1;
 				}
 				else
 					hld_usage(progname, argc, __LINE__);
@@ -415,8 +424,9 @@ void haproxy_init_args(int argc, char **argv)
 		if (!hbuf_is_null(&tbuf))
 			hbuf_appendf(&buf, "%.*s\n", (int)tbuf.data, tbuf.area);
 	}
-
-	//hbuf_appendf(&buf, "%s\n", hld_cfg_dflt_str);
+	/* "default section */
+	if (!hbuf_is_null(&dbuf))
+		hbuf_appendf(&buf, "%.*s\n", (int)dbuf.data, dbuf.area);
 
 	fileless_cfg.filename = strdup("haterm cfgfile");
 	fileless_cfg.content = strdup(buf.area);
