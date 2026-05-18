@@ -319,6 +319,29 @@ int conn_upgrade_mux_fe(struct connection *conn, void *ctx, struct buffer *buf,
 	return 0;
 }
 
+/* Returns the mux_proto_list entry compatible with <conn> frontend connection
+ * or NULL if nothing eligible.
+ * TODO duplicate code to merge with conn_install_mux_fe().
+ */
+const struct mux_proto_list *conn_select_mux_fe(const struct connection *conn)
+{
+	struct bind_conf *bind_conf;
+	const char *alpn_str = NULL;
+	struct ist alpn;
+	int alpn_len = 0, mode;
+
+	bind_conf = __objt_listener(conn->target)->bind_conf;
+
+	if (bind_conf->mux_proto)
+		return bind_conf->mux_proto;
+
+	mode = conn_pr_mode_to_proto_mode(bind_conf->frontend->mode);
+	conn_get_alpn(conn, &alpn_str, &alpn_len);
+	alpn = ist2(alpn_str, alpn_len);
+	return conn_get_best_mux_entry(IST_NULL, alpn, PROTO_SIDE_FE,
+	                               proto_is_quic(conn->ctrl), mode);
+}
+
 /* installs the best mux for incoming connection <conn> using the upper context
  * <ctx>. If the mux protocol is forced, we use it to find the best
  * mux. Otherwise we use the ALPN name, if any. Returns < 0 on error.

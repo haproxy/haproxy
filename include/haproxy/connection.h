@@ -86,6 +86,7 @@ int conn_create_mux(struct connection *conn, int *closed_connection);
 int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake);
 int conn_upgrade_mux_fe(struct connection *conn, void *ctx, struct buffer *buf,
                         struct ist mux_proto, int mode);
+const struct mux_proto_list *conn_select_mux_fe(const struct connection *conn);
 int conn_install_mux_fe(struct connection *conn, void *ctx);
 int conn_install_mux_be(struct connection *conn, void *ctx, struct session *sess,
                         const struct mux_ops *force_mux_ops);
