@@ -38,7 +38,7 @@ static void  hld_usage(char *name, int argc, int line)
 		"        -C             dump the configuration and exit\n"
 		"        -H \"foo:bar\"   add this header name and value\n"
 		"        -I             use HEAD instead of GET\n"
-		"        -S             set server options as defined for \"server\" haproxy keyword\n"
+		"        -server        set server options as defined for \"server\" haproxy keyword\n"
 		"        -v             shows version\n"
 		"        --show-status-codes show HTTP status codes distribution\n"
 		"        --traces       enable the traces for all the HTTP protocols\n"
@@ -273,6 +273,15 @@ void haproxy_init_args(int argc, char **argv)
 				else if (strcmp(opt, "show-status-codes") == 0) {
 					arg_hscd = 1;
 				}
+				else if (strcmp(opt, "server") == 0) {
+					argv++, argc--;
+
+					if ((argc <= 0 || **argv == '-'))
+						hld_usage(progname, argc, __LINE__);
+
+					opt = *argv;
+					ssl_opts = strdup(opt);
+				}
 				else
 					hld_usage(progname, argc, __LINE__);
 			}
@@ -356,18 +365,6 @@ void haproxy_init_args(int argc, char **argv)
 					hld_usage(progname, argc, __LINE__);
 
 				hbuf_str_append(&gbuf, *argv);
-			}
-			else if (*opt == 'S') {
-				opt++;
-				if (!*opt) {
-					argv++, argc--;
-
-					if ((argc <= 0 || **argv == '-'))
-						hld_usage(progname, argc, __LINE__);
-
-					opt = *argv;
-				}
-				ssl_opts = strdup(opt);
 			}
 			else if (*opt == 'v') {
 				/* empty option */
