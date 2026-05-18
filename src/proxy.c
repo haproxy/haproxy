@@ -1808,6 +1808,13 @@ int proxy_finalize(struct proxy *px, int *err_code)
 				           proxy_type_str(px), px->id);
 				*err_code |= ERR_WARN;
 			}
+
+			if (bind_conf->ssl_conf.early_data && conn_calc_max_streams(1)) {
+				ha_notice("Binding [%s:%d] for %s %s: "
+				          "stream elasticity is ignored for initial connection settings as this is incompatible with 0-RTT.",
+				           bind_conf->file, bind_conf->line,
+				           proxy_type_str(px), px->id);
+			}
 		}
 #endif /* USE_QUIC */
 

@@ -1,6 +1,7 @@
 #include <arpa/inet.h>
 #include <string.h>
 
+#include <haproxy/connection.h>
 #include <haproxy/global.h>
 #include <haproxy/ncbuf-t.h>
 #include <haproxy/net_helper.h>
@@ -861,6 +862,15 @@ int qc_lstnr_params_init(struct quic_conn *qc,
 	memcpy(rx_params->initial_source_connection_id.data, scid, scidlen);
 	rx_params->initial_source_connection_id.len = scidlen;
 	TRACE_PROTO("\nRX(local) transp. params.", QUIC_EV_TRANSP_PARAMS, qc, rx_params);
+
+	/* Reduce max-streams-bidi if stream elasticity is active. This is
+	 * ignored however if 0-RTT is configured as clients could reuse
+	 * different transport parameters than the one advertised.
+	 */
+	if (global.tune.streams_elasticity && !qc->li->bind_conf->ssl_conf.early_data) {
+		rx_params->initial_max_streams_bidi =
+		  conn_calc_max_streams(rx_params->initial_max_streams_bidi);
+	}
 
 	return 1;
 }
