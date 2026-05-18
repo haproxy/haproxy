@@ -1611,6 +1611,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	case SF_ERR_RESOURCE:
 	case SF_ERR_INTERNAL:
 		TRACE_ERROR("report connection error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check, 0, 0, (size_t[]){status});
+		/* note: errno is no longer guaranteed here */
 		chk_report_conn_err(check, errno, 0);
 		ret = TCPCHK_EVAL_STOP;
 		goto out;
@@ -2648,6 +2649,7 @@ int tcpcheck_main(struct check *check)
   out_end_tcpcheck:
 	if ((conn && conn->flags & CO_FL_ERROR) || sc_ep_test(sc, SE_FL_ERROR)) {
 		TRACE_ERROR("report connection error", CHK_EV_TCPCHK_EVAL|CHK_EV_TCPCHK_ERR, check);
+		/* note: errno is no longer guaranteed here */
 		chk_report_conn_err(check, errno, 0);
 	}
 
