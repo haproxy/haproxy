@@ -241,7 +241,7 @@ int session_accept_fd(struct connection *cli_conn)
 		if (l->bind_conf->options & BC_O_ACC_CIP)
 			cli_conn->flags |= CO_FL_ACCEPT_CIP;
 
-		if (l->bind_conf->mux_proto && isteq(l->bind_conf->mux_proto->mux_proto, ist("qmux")))
+		if (l->bind_conf->mux_proto && l->bind_conf->mux_proto->init_xprt == XPRT_QMUX)
 			cli_conn->flags |= (CO_FL_QMUX_RECV|CO_FL_QMUX_SEND);
 
 		/* Add the handshake pseudo-XPRT */

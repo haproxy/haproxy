@@ -4813,6 +4813,7 @@ static const struct mux_ops qmux_ops = {
 };
 
 static struct mux_proto_list mux_proto_qmux =
-  { .mux_proto = IST("qmux"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_BOTH, .mux = &qmux_ops };
+  { .mux_proto = IST("qmux"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_BOTH, .mux = &qmux_ops,
+    .init_xprt = XPRT_QMUX };
 
 INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_qmux);

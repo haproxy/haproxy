@@ -1811,6 +1811,7 @@ int connect_server(struct stream *s)
 {
 	struct connection *cli_conn = objt_conn(strm_orig(s));
 	struct connection *srv_conn = NULL;
+	const struct mux_proto_list *mux_proto;
 	struct server *srv;
 	int reuse_mode;
 	int reuse __maybe_unused = 0;
@@ -2130,9 +2131,13 @@ int connect_server(struct stream *s)
 			srv_conn->flags |= CO_FL_SOCKS4;
 		}
 
-		if (srv && srv->mux_proto && isteq(srv->mux_proto->mux_proto, ist("qmux"))) {
-			srv_conn->flags |= (CO_FL_QMUX_RECV|CO_FL_QMUX_SEND);
-			may_start_mux_now = 0;
+		if (may_start_mux_now) {
+			/* Delay QMux MUX init to let xprt_qmux handshake runs first. */
+			mux_proto = conn_select_mux_be(srv_conn);
+			if (mux_proto && mux_proto->init_xprt == XPRT_QMUX) {
+				srv_conn->flags |= (CO_FL_QMUX_RECV|CO_FL_QMUX_SEND);
+				may_start_mux_now = 0;
+			}
 		}
 
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
