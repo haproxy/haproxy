@@ -11,7 +11,7 @@
 
 static int hld_debug;
 struct hld_url_cfg *hld_url_cfgs;
-char *ssl_opts;
+char *srv_opts, *tls_ciphers, *tls_ciphersuites, *tls_curves;
 
 static void  hld_usage(char *name, int argc, int line)
 {
@@ -31,10 +31,15 @@ static void  hld_usage(char *name, int argc, int line)
 		"        -H \"foo:bar\"  add this header name and value\n"
 		"        -I              use HEAD instead of GET\n"
 		"        -v              shows version\n"
+		"        --default <str> add a string to default section\n"
 		"        --global <str>  add a string to global section\n"
 		"        --server <opts> set server <opt> options as defined for \"server\" haproxy keyword\n"
 		"        --show-status-codes show HTTP status codes distribution\n"
 		"        --traces        enable the traces for all the HTTP protocols\n"
+		"SSL options:\n"
+		"        --tls-ciphers <ciphers>       for TLS1.2 and below\n"
+		"        --tls-ciphersuites <ciphers>  for TLS1.3 and above\n"
+		"        --tls-curves <curves>\n"
 		"URL formats:\n"
 		"        (http|https)://<addr>:<port>/<path> with <addr> any address as supported by haproxy\n"
 		"        (see haproxy documentation about addresses formats)\n",
@@ -77,6 +82,59 @@ static struct hld_hdr *hld_parse_hdr(char *hdr_str)
 	return hdr;
 }
 
+static int hld_add_opt_to_buf(struct hbuf *buf,
+                              const char *kw, const char *value)
+{
+	if (hbuf_is_null(buf)) {
+		if (hbuf_alloc(buf) == NULL) {
+			ha_alert("failed to allocate a buffer.\n");
+			return 0;
+		}
+	}
+	else
+		hbuf_appendf(buf, " ");
+
+	hbuf_appendf(buf, "%s", kw);
+	hbuf_appendf(buf, " ");
+	hbuf_appendf(buf, "%s", value);
+	return 1;
+}
+
+static inline void hld_free_url_cfg(struct hld_url_cfg *h)
+{
+	free(h->addr);
+	free(h->srv_opts);
+	free(h->tls_opts);
+	free(h);
+}
+
+static inline void hld_free_url_cfgs(void)
+{
+	struct hld_url_cfg *purl;
+
+	purl = hld_url_cfgs;
+
+	while (purl) {
+		struct hld_url_cfg *purl_next;
+		struct hld_path *path;
+
+		path = purl->paths;
+		while (path) {
+			struct hld_path *path_next;
+
+			path_next = path->next;
+			free(path->path);
+			free(path);
+			path = path_next;
+		}
+
+		purl_next = purl->next;
+
+		hld_free_url_cfg(purl);
+		purl = purl_next;
+	}
+}
+
 /* Allocate a URL from <url> command line argument without
  * duplicating it, and append it to <hld_url_cfgs> list of URL.
  * A URL is identified by its peer address and if it uses
@@ -91,7 +149,8 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 	char *addr = NULL, *raw_addr = NULL, *path = NULL;
 	struct hld_url_cfg *hld_url_cfg = NULL;
 	struct hld_url_cfg *purl;
-	struct hld_path *p;
+	struct hld_path *p = NULL;
+	struct hbuf opts_buf = HBUF_NULL;
 
 	if (strncmp(url, "http://", 7) == 0)
 		addr = url + 7;
@@ -120,7 +179,7 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 			/* Already existing URL with the same address. */
 			hld_url_cfg = purl;
 
-			p = malloc(sizeof(*p));
+			p = calloc(1, sizeof(*p));
 			if (!p)
 				goto err;
 
@@ -143,7 +202,7 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 
 	raw_addr = raw_addr ? raw_addr + 1: addr;
 
-	hld_url_cfg = malloc(sizeof(*hld_url_cfg));
+	hld_url_cfg = calloc(1, sizeof(*hld_url_cfg));
 	p = malloc(sizeof(*p));
 	if (!hld_url_cfg || !p)
 		goto err;
@@ -155,13 +214,28 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 	hld_url_cfg->addr = addr;
 	hld_url_cfg->raw_addr = raw_addr;
 
-	if (ssl_opts) {
-		hld_url_cfg->ssl_opts = ssl_opts;
-		ssl_opts = NULL;
+	if (srv_opts) {
+		hld_url_cfg->srv_opts = strdup(srv_opts);
+		if (!hld_url_cfg->srv_opts)
+			goto err;
 	}
-	else
-		hld_url_cfg->ssl_opts = NULL;
 
+	if (tls_ciphers &&
+	    !hld_add_opt_to_buf(&opts_buf, "ciphers", tls_ciphers))
+		goto err;
+
+	if (tls_ciphersuites &&
+	    !hld_add_opt_to_buf(&opts_buf, "ciphersuites", tls_ciphersuites))
+		goto err;
+
+	if (tls_curves &&
+	    !hld_add_opt_to_buf(&opts_buf, "curves", tls_curves))
+		goto err;
+
+	if (!hbuf_is_null(&opts_buf))
+		hld_url_cfg->tls_opts = strdup(opts_buf.area);
+
+	free_hbuf(&opts_buf);
 	hld_url_cfg->srv = NULL;
 	hld_url_cfg->paths = p;
 	/* Append this new URL to the list */
@@ -170,7 +244,9 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 
 	return hld_url_cfg;
  err:
-	free(addr);
+	hld_free_url_cfgs();
+	hld_free_url_cfg(hld_url_cfg);
+	free(p);
 	free(path);
 	return NULL;
 }
@@ -286,15 +362,39 @@ void haproxy_init_args(int argc, char **argv)
 				}
 				else if (strcmp(opt, "server") == 0) {
 					argv++, argc--;
-
 					if ((argc <= 0 || **argv == '-'))
 						hld_usage(progname, argc, __LINE__);
 
 					opt = *argv;
-					ssl_opts = strdup(opt);
+					free(srv_opts);
+					srv_opts = strdup(opt);
 				}
 				else if (strcmp(opt, "show-status-codes") == 0) {
 					arg_hscd = 1;
+				}
+				else if (strcmp(opt, "tls-ciphers") == 0) {
+					argv++, argc--;
+					if ((argc <= 0 || **argv == '-'))
+						hld_usage(progname, argc, __LINE__);
+					opt = *argv;
+					free(tls_ciphers);
+					tls_ciphers = strdup(opt);
+				}
+				else if (strcmp(opt, "tls-ciphersuites") == 0) {
+					argv++, argc--;
+					if ((argc <= 0 || **argv == '-'))
+						hld_usage(progname, argc, __LINE__);
+					opt = *argv;
+					free(tls_ciphersuites);
+					tls_ciphersuites = strdup(opt);
+				}
+				else if (strcmp(opt, "tls-curves") == 0) {
+					argv++, argc--;
+					if ((argc <= 0 || **argv == '-'))
+						hld_usage(progname, argc, __LINE__);
+					opt = *argv;
+					free(tls_curves);
+					tls_curves = strdup(opt);
 				}
 				else if (strcmp(opt, "traces") == 0) {
 					hld_debug = 1;

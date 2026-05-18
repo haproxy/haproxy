@@ -8,15 +8,16 @@
 #include <haproxy/task-t.h>
 
 struct hld_path {
-	const char *path;
+	char *path;
 	struct hld_path *next;
 };
 
 struct hld_url_cfg {
 	int ssl;
-	const char *addr;
-	const char *raw_addr;
-	char *ssl_opts;
+	char *addr;
+	char *raw_addr;
+	char *srv_opts;
+	char *tls_opts;
 	struct server *srv;
 	struct hld_path *paths;
 	struct hld_url_cfg *next;

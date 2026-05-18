@@ -1662,18 +1662,55 @@ static inline struct hld_usr *hld_new_usr(int nreqs)
 	return NULL;
 }
 
+/* Parse <opt> options for <s> server */
+static int hld_srv_parse_opts(char *opts, struct server *s)
+{
+	int ret = 0;
+	size_t outlen = 256;
+	int cur_arg = 0;
+	char *outline;
+	uint32_t err;
+	int err_code;
+	int arg = sizeof(hld_args) / sizeof(*hld_args);
+	const char *errptr = NULL;
+
+	outline = malloc(256);
+	if (!outline)
+		return 0;
+
+	err = parse_line(opts, outline, &outlen, hld_args, &arg,
+					 PARSE_OPT_ENV    | PARSE_OPT_DQUOTE  |
+					 PARSE_OPT_SQUOTE | PARSE_OPT_BKSLASH |
+					 PARSE_OPT_SHARP  | PARSE_OPT_WORD_EXPAND, &errptr);
+	if (err) {
+		ha_alert("ssl opts parsing error\n");
+		goto err;
+	}
+
+	while (*hld_args[cur_arg]) {
+		err_code = _srv_parse_kw(s, hld_args, &cur_arg, &hld_proxy, 0);
+		if (err_code)
+			goto err;
+	}
+
+	ret = 1;
+ leave:
+	free(outline);
+	return ret;
+ err:
+	goto leave;
+}
+
 static int hld_cfg_finalize(void)
 {
 	int ret = 0;
 	struct hld_url_cfg *cfg;
-	const char *errptr = NULL;
 
 	for (cfg = hld_url_cfgs; cfg; cfg = cfg->next) {
 		struct server *srv;
 		struct sockaddr_storage *sk;
 		int alt_proto, port;
 		char *errmsg = NULL;
-		int arg = sizeof(hld_args) / sizeof(*hld_args);
 
 		/* Same as _srv_parse_init() from here */
 		srv = new_server(&hld_proxy);
@@ -1706,29 +1743,11 @@ static int hld_cfg_finalize(void)
 		//srv_set_addr_desc(srv, 0);
 		srv_settings_init(srv);
 
-		if (cfg->ssl_opts) {
-			size_t outlen = 256;
-			int cur_arg = 0;
-			char *outline = malloc(256);
-			uint32_t err;
-			int err_code;
+		if (cfg->srv_opts && !hld_srv_parse_opts(cfg->srv_opts, srv))
+			goto leave;
 
-			err = parse_line(cfg->ssl_opts, outline, &outlen, hld_args, &arg,
-			                 PARSE_OPT_ENV    | PARSE_OPT_DQUOTE  |
-			                 PARSE_OPT_SQUOTE | PARSE_OPT_BKSLASH |
-			                 PARSE_OPT_SHARP  | PARSE_OPT_WORD_EXPAND, &errptr);
-			if (err) {
-				ha_alert("ssl opts parsing error\n");
-				goto leave;
-			}
-
-			err_code = _srv_parse_kw(srv, hld_args, &cur_arg, &hld_proxy, 0);
-			if (err_code)
-				goto leave;
-
-			free(outline);
-		}
-		/* Should parse server keywords here with _srv_parse_kw() */
+		if (cfg->tls_opts && !hld_srv_parse_opts(cfg->tls_opts, srv))
+			goto leave;
 
 		/* Same as _srv_parse_finalize() from here */
 		if (srv_is_quic(srv)) {
