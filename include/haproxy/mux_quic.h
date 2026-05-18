@@ -10,6 +10,7 @@
 #include <haproxy/connection.h>
 #include <haproxy/list.h>
 #include <haproxy/mux_quic-t.h>
+#include <haproxy/quic_tune.h>
 #include <haproxy/stconn.h>
 
 #include <haproxy/h3.h>
@@ -128,6 +129,9 @@ static inline void qcs_wait_http_req(struct qcs *qcs)
 	BUG_ON_HOT(qcs->flags & QC_SF_HREQ_RECV);
 	qcs->flags |= QC_SF_HREQ_RECV;
 	++qcc->nb_hreq;
+
+	/* On BE side avail_streams cb should prevent opening of too many concurrent streams. */
+	BUG_ON(conn_is_back(qcc->conn) && qcc->nb_hreq > quic_tune.be.stream_max_concurrent);
 }
 
 void qcc_show_quic(struct qcc *qcc);

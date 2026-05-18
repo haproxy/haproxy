@@ -3341,6 +3341,10 @@ static int qcm_avail_streams(struct connection *conn)
 
 	ret = qcc_fctl_avail_streams(qcc, 1);
 
+	/* Enforce stream_max_concurrent limit even if peer allows more streams. */
+	if (ret > quic_tune.be.stream_max_concurrent - qcc->nb_hreq)
+		ret = quic_tune.be.stream_max_concurrent - qcc->nb_hreq;
+
 	/* Now cap return value if reaching max-reuse server or maximum stream
 	 * ID. qcc_be_is_reusable() already detected if one of these has been
 	 * exceeded.
@@ -4198,6 +4202,10 @@ static void qcm_strm_detach(struct sedesc *sd)
 		TRACE_STATE("remaining data, detaching qcs", QMUX_EV_STRM_END, conn, qcs);
 		qcs->flags |= QC_SF_DETACH;
 		qcc_refresh_timeout(qcc);
+
+		/* TODO on backend side if a QCS is detached, the connection may
+		 * not be reinserted in the correct server pool (idle or avail).
+		 */
 
 		TRACE_LEAVE(QMUX_EV_STRM_END, qcc->conn, qcs);
 		return;

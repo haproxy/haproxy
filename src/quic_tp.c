@@ -71,7 +71,7 @@ void quic_transport_params_init(struct quic_transport_params *p, int server)
 	                               quic_tune.be.max_idle_timeout;
 
 	/* Set limit on number of concurrently opened streams. */
-	p->initial_max_streams_bidi = max_streams_bidi;
+	p->initial_max_streams_bidi = server ? max_streams_bidi : 0;
 	p->initial_max_streams_uni  = max_streams_uni;
 
 	/* Set connection flow-control data limit, either from configuration,
