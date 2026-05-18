@@ -2713,7 +2713,9 @@ static size_t h1_make_headers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 					goto nextblk;
 			}
 			else if (isteq(n, ist("upgrade"))) {
-				h1_parse_upgrade_header(h1m, v);
+				h1_parse_upgrade_header(h1m, &v);
+				if (!v.len)
+					goto nextblk;
 			}
 			else if ((isteq(n, ist("sec-websocket-accept")) && h1m->flags & H1_MF_RESP) ||
 				 (isteq(n, ist("sec-websocket-key")) && !(h1m->flags & H1_MF_RESP))) {

@@ -274,17 +274,19 @@ void h1_parse_connection_header(struct h1m *h1m, struct ist *value)
 
 /* Parse the Upgrade: header of an HTTP/1 request.
  * If "websocket" is found, set H1_MF_UPG_WEBSOCKET flag
- * If "h2c" or "h2" found, set H1_MF_UPG_H2C flag.
+ * If "h2c" or "h2" found, the value is skipped.
  */
-void h1_parse_upgrade_header(struct h1m *h1m, struct ist value)
+void h1_parse_upgrade_header(struct h1m *h1m, struct ist *value)
 {
-	char *e, *n;
+	char *e, *n, *p;
 	struct ist word;
 
-	h1m->flags &= ~(H1_MF_UPG_WEBSOCKET|H1_MF_UPG_H2C);
+	h1m->flags &= ~H1_MF_UPG_WEBSOCKET;
 
-	word.ptr = value.ptr - 1; // -1 for next loop's pre-increment
-	e = istend(value);
+	word.ptr = value->ptr - 1; // -1 for next loop's pre-increment
+	p = value->ptr;
+	e = value->ptr + value->len;
+	value->len = 0;
 
 	while (++word.ptr < e) {
 		/* skip leading delimiter and blanks */
@@ -301,9 +303,20 @@ void h1_parse_upgrade_header(struct h1m *h1m, struct ist value)
 		if (isteqi(word, ist("websocket")))
 			h1m->flags |= H1_MF_UPG_WEBSOCKET;
 		else if (isteqi(word, ist("h2c")) || isteqi(word, ist("h2")))
-			h1m->flags |= H1_MF_UPG_H2C;
+			goto skip_val;
 
-		word.ptr = n;
+		if (value->ptr + value->len == p) {
+			/* no rewrite done till now */
+			value->len = n - value->ptr;
+		}
+		else {
+			if (value->len)
+				value->ptr[value->len++] = ',';
+			istcat(value, word, e - value->ptr);
+		}
+
+	  skip_val:
+		word.ptr = p = n;
 	}
 }
 
@@ -983,7 +996,11 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 					}
 				}
 				else if (isteqi(n, ist("upgrade"))) {
-					h1_parse_upgrade_header(h1m, v);
+					h1_parse_upgrade_header(h1m, &v);
+					if (!v.len) {
+						/* skip it */
+						break;
+					}
 				}
 				else if (!(h1m->flags & H1_MF_RESP) && isteqi(n, ist("host"))) {
 					if (host_idx == -1) {

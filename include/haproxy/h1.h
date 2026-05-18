@@ -98,7 +98,7 @@ enum h1m_state {
 #define H1_MF_UPG_WEBSOCKET     0x00008000 // Set for a Websocket upgrade handshake
 #define H1_MF_TE_CHUNKED        0x00010000 // T-E "chunked"
 #define H1_MF_TE_OTHER          0x00020000 // T-E other than supported ones found (only "chunked" is supported for now)
-#define H1_MF_UPG_H2C           0x00040000 // "h2c" or "h2" used as upgrade token
+/* unused: 0x00040000 */
 #define H1_MF_NOT_HTTP           0x00080000 // Not an HTTP message (e.g "RTSP", only possible if invalid message are accepted)
 /* Mask to use to reset H1M flags when we restart headers parsing.
  *
@@ -160,7 +160,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 
 int h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value);
 void h1_parse_connection_header(struct h1m *h1m, struct ist *value);
-void h1_parse_upgrade_header(struct h1m *h1m, struct ist value);
+void h1_parse_upgrade_header(struct h1m *h1m, struct ist *value);
 
 void h1_generate_random_ws_input_key(char key_out[25]);
 void h1_calculate_ws_output_key(const char *key, char *result);
