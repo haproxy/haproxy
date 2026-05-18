@@ -1011,6 +1011,7 @@ int sock_conn_check(struct connection *conn)
 			goto wait;
 
 		if (errno && errno != EISCONN) {
+			conn_set_errno(conn, errno);
 			conn_report_term_evt(conn, tevt_loc_fd, fd_tevt_type_connect_err);
 			goto out_error;
 		}

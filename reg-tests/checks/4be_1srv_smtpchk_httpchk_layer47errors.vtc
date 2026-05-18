@@ -29,7 +29,7 @@ syslog S3 -level notice {
 
 syslog S4 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv4 failed.+reason: Layer4 connection problem.+info: \"Connection refused\".+check duration: [[:digit:]]+ms.+status: 0/1 DOWN."
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv4 failed.+reason: Layer4 connection problem.+info: \"ECONNREFUSED returned by OS.*\".+check duration: [[:digit:]]+ms.+status: 0/1 DOWN."
 } -start
 
 server s1 {
