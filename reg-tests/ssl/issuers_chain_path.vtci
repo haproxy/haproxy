@@ -6,6 +6,10 @@ haproxy h1 -conf {
         thread-groups 1
     .endif
 
+    .if feature(QUIC_OPENSSL_COMPAT)
+        limited-quic
+    .endif
+
         stats socket "${tmpdir}/h1/stats" level admin
         issuers-chain-path "${testdir}/certs/issuers-chain-path/ca/"
         crt-base "${testdir}/certs/issuers-chain-path"
