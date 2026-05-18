@@ -159,6 +159,7 @@ static int hc_cli_parse(char **args, char *payload, struct appctx *appctx, void 
 
 err:
 	memprintf(&err, "Can't start the HTTP client%s.\n", err ? err : "");
+	httpclient_destroy(hc);
 	return cli_err(appctx, err);
 }
 
