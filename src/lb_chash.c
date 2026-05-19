@@ -121,6 +121,10 @@ static inline u32 chash_compute_server_key(struct server *s)
 		}
 		break;
 
+	case SRV_HASH_KEY_ID32:
+		key = full_hash(htonl(s->puid));
+		break;
+
 	case SRV_HASH_KEY_ID:
 	default:
 		key = s->puid * SRV_EWGHT_RANGE;

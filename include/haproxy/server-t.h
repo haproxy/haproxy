@@ -249,7 +249,8 @@ struct pid_list {
 
 /* srv methods of computing chash keys */
 enum srv_hash_key {
-	SRV_HASH_KEY_ID = 0,         /* derived from server puid */
+	SRV_HASH_KEY_ID = 0,         /* derived from server puid, 28 LSB used */
+	SRV_HASH_KEY_ID32,           /* derived from server puid, 32 bits used */
 	SRV_HASH_KEY_ADDR,           /* derived from server address */
 	SRV_HASH_KEY_ADDR_PORT       /* derived from server address and port */
 };

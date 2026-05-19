@@ -18850,6 +18850,15 @@ hash-key <key>
                  better only use values comprised between 1 and this value to
                  avoid overlap.
 
+      id32       The node keys will be derived from the server's numeric
+                 identifier as set from "id" or which defaults to its position
+                 in the server list, but the full 32 bits of the ID will be
+                 used so that there is no collision. This one is not scaled
+                 like "id" is, so it is recommended to either always use it
+                 with a hash function (see "hash-key") or with explicitly
+                 assigned ID values that are evenly distributed over the 32-bit
+                 space.
+
       addr       The node keys will be derived from the server's address, when
                  available, or else fall back on "id".
 
