@@ -12,7 +12,7 @@
 #include <haproxy/istbuf.h>
 #include <haproxy/pipe.h>
 #include <haproxy/pool.h>
-#include <haproxy/proxy-t.h>
+#include <haproxy/proxy.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/stconn-t.h>
 #include <haproxy/stream.h>
@@ -1223,9 +1223,20 @@ static int hstream_build_responses(void)
 #if defined(USE_LINUX_SPLICE)
 static void hstream_init_splicing(void)
 {
+	struct proxy *px;
 	unsigned int pipesize = 65536;
+	int haterm_used = 0;
 
 	if (!(global.tune.options & GTUNE_USE_SPLICE) || !global.maxpipes)
+		return;
+
+	for (px = proxies_list; px; px = px->next) {
+		if ((px->cap & PR_CAP_FE) && !(px->flags & PR_FL_DISABLED) && px->stream_new_from_sc == hstream_new) {
+			haterm_used = 1;
+			break;
+		}
+	}
+	if (!haterm_used)
 		return;
 
 	if (global.tune.pipesize)
