@@ -50,10 +50,10 @@ client c1 -connect ${h1_feS_sock} {
 
 haproxy h1 -cli {
 	# non existent backend
-	send "experimental-mode on; add backend be from def"
+	send "add backend be from def"
 	expect ~ "Mode is required"
 
-	send "experimental-mode on; add backend be from def_http"
+	send "add backend be from def_http"
 	expect ~ "New backend registered."
 
 	send "add server be/srv ${hsrv_fe_addr}:${hsrv_fe_port}"

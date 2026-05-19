@@ -5443,8 +5443,8 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "add", "backend", NULL },                       "add backend <backend>                   : add a new backend",                                              cli_parse_add_backend, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },
-	{ { "del", "backend", NULL },                       "del backend <backend>                   : delete a backend",                                               cli_parse_delete_backend, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },
+	{ { "add", "backend", NULL },                       "add backend <backend>                   : add a new backend",                                              cli_parse_add_backend, NULL, NULL, NULL, 0 },
+	{ { "del", "backend", NULL },                       "del backend <backend>                   : delete a backend",                                               cli_parse_delete_backend, NULL, NULL, NULL, 0 },
 	{ { "disable", "frontend",  NULL },                 "disable frontend <frontend>             : temporarily disable specific frontend",                          cli_parse_disable_frontend, NULL, NULL },
 	{ { "enable", "frontend",  NULL },                  "enable frontend <frontend>              : re-enable specific frontend",                                    cli_parse_enable_frontend, NULL, NULL },
 	{ { "publish", "backend",  NULL },                  "publish backend <backend>               : mark backend as ready for traffic",                              cli_parse_publish_backend, NULL, NULL },

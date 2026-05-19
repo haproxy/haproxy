@@ -40,29 +40,29 @@ haproxy h1 -conf {
 } -start
 
 haproxy h1 -cli {
-	send "experimental-mode on; del backend other"
+	send "del backend other"
 	expect ~ "No such backend."
 
-	send "experimental-mode on; del backend li"
+	send "del backend li"
 	expect ~ "Cannot delete a listen section."
 
-	send "experimental-mode on; del backend be_ref"
+	send "del backend be_ref"
 	expect ~ "This proxy cannot be removed at runtime due to other configuration elements pointing to it."
 
 	send "show stat be 2 -1"
 	expect ~ "be,BACKEND,"
 
-	send "experimental-mode on; del backend be"
+	send "del backend be"
 	expect ~ "Backend must be unpublished prior to its deletion."
 
 	send "unpublish backend be;"
 	expect ~ ".*"
-	send "experimental-mode on; del backend be"
+	send "del backend be"
 	expect ~ "Only a backend without server can be deleted."
 
 	send "del server be/s1"
 	expect ~ ".*"
-	send "experimental-mode on; del backend be"
+	send "del backend be"
 	expect ~ "Backend deleted."
 
 	send "show stat be 2 -1"
@@ -75,7 +75,7 @@ haproxy h1 -cli {
 
 	send "unpublish backend be_unnamed_def_ref;"
 	expect ~ ".*"
-	send "experimental-mode on; del backend be_unnamed_def_ref"
+	send "del backend be_unnamed_def_ref"
 	expect ~ "Backend deleted."
 
 	send "show stat be_unnamed_def_ref 2 -1"
@@ -83,6 +83,6 @@ haproxy h1 -cli {
 
 	send "unpublish backend be_unnamed_def_ref2;"
 	expect ~ ".*"
-	send "experimental-mode on; del backend be_unnamed_def_ref2"
+	send "del backend be_unnamed_def_ref2"
 	expect ~ "Backend deleted."
 }
