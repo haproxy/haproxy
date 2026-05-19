@@ -20189,7 +20189,11 @@ a cache of previous answers, an answer will be considered obsolete after
 
 
 resolvers <resolvers id>
-  Creates a new name server list labeled <resolvers id>
+  Creates a new name server list labeled <resolvers id>. As mentioned above,
+  the special name "default" always exists and will be automatically created if
+  not explicitly declared; this will be the one internal services such as
+  httpclient rely on. Declaring a "default" entry will affect how such services
+  perform their name resolution.
 
 A resolvers section accept the following parameters:
 
