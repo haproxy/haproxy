@@ -1268,7 +1268,7 @@ static void hstream_init_splicing(void)
 				master_pipesize = 0;
 			}
 			else
-				ha_warning("Splicing in haterm is limited to %lu bytes (too old kernel)\n", (ulong)master_pipesize);
+				ha_warning("Splicing in haterm is limited to %lu bytes\n", (ulong)master_pipesize);
 		}
 	}
 	else
