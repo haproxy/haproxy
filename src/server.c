@@ -1015,7 +1015,7 @@ static int srv_parse_hash_key(char **args, int *cur_arg,
 			      struct proxy *curproxy, struct server *newsrv, char **err)
 {
 	if (!args[*cur_arg + 1]) {
-		memprintf(err, "'%s expects 'id', 'id32', 'addr', or 'addr-port' value", args[*cur_arg]);
+		memprintf(err, "'%s expects 'id', 'id32', 'guid', 'addr', or 'addr-port' value", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -1025,6 +1025,9 @@ static int srv_parse_hash_key(char **args, int *cur_arg,
 	else if (strcmp(args[*cur_arg + 1], "id32") == 0) {
 		newsrv->hash_key = SRV_HASH_KEY_ID32;
 	}
+	else if (strcmp(args[*cur_arg + 1], "guid") == 0) {
+		newsrv->hash_key = SRV_HASH_KEY_GUID;
+	}
 	else if (strcmp(args[*cur_arg + 1], "addr") == 0) {
 		newsrv->hash_key = SRV_HASH_KEY_ADDR;
 	}
@@ -1032,7 +1035,7 @@ static int srv_parse_hash_key(char **args, int *cur_arg,
 		newsrv->hash_key = SRV_HASH_KEY_ADDR_PORT;
 	}
 	else {
-		memprintf(err, "'%s' has to be 'id', 'id32', 'addr', or 'addr-port'", args[*cur_arg]);
+		memprintf(err, "'%s' has to be 'id', 'id32', 'guid', 'addr', or 'addr-port'", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 

@@ -20,6 +20,7 @@
 #include <haproxy/api.h>
 #include <haproxy/backend.h>
 #include <haproxy/errors.h>
+#include <haproxy/guid.h>
 #include <haproxy/queue.h>
 #include <haproxy/server.h>
 #include <haproxy/tools.h>
@@ -82,6 +83,7 @@ static inline u32 chash_compute_server_key(struct server *s)
 {
 	enum srv_hash_key hash_key = s->hash_key;
 	struct server_inetaddr srv_addr;
+	const char *guid_key = NULL;
 	u32 key;
 
 	/* If hash-key is addr or addr-port then we need the address, but if we
@@ -96,6 +98,11 @@ static inline u32 chash_compute_server_key(struct server *s)
 		}
 		break;
 
+	case SRV_HASH_KEY_GUID:
+		guid_key = guid_get(&s->guid);
+		if (!guid_key)
+			hash_key = SRV_HASH_KEY_ID;
+		break;
 	default:
 		break;
 	}
@@ -119,6 +126,10 @@ static inline u32 chash_compute_server_key(struct server *s)
 		default:
 			break;
 		}
+		break;
+
+	case SRV_HASH_KEY_GUID:
+		key = XXH32(guid_key, strlen(guid_key), 0);
 		break;
 
 	case SRV_HASH_KEY_ID32:

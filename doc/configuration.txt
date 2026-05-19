@@ -18859,6 +18859,12 @@ hash-key <key>
                  assigned ID values that are evenly distributed over the 32-bit
                  space.
 
+      guid       The node keys will be derived from the server's guid, when
+                 available, otherwise they will fall back on "id". The benefit
+                 is that it does not depend on ordering at all, only on an
+                 internal stable identifier that can be replicated across many
+                 load balancers.
+
       addr       The node keys will be derived from the server's address, when
                  available, or else fall back on "id".
 
