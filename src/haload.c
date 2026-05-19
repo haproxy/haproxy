@@ -963,12 +963,12 @@ static int hldstream_build_http_req(struct hldstream *hs, struct ist path, int e
 		}
 
 	if (!arg_host &&
-	    !http_add_header(htx, ist("host"), ist(hs->url->cfg->raw_addr))) {
+	    !http_add_header(htx, ist("host"), ist(hs->url->cfg->raw_addr), 1)) {
 		TRACE_ERROR("could not add host header", HLD_STRM_EV_TX, hs);
 		goto err;
 	}
 
-	if (arg_conn_hdr && !http_add_header(htx, ist("Connection"), ist("close"))) {
+	if (arg_conn_hdr && !http_add_header(htx, ist("Connection"), ist("close"), 0)) {
 		TRACE_ERROR("could not add connection header", HLD_STRM_EV_TX, hs);
 		goto err;
 	}
