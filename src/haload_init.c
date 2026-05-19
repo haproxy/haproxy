@@ -41,7 +41,7 @@ static void  hld_usage(char *name, int argc, int line)
 		"        --tls-ciphersuites <ciphers>  for TLS1.3 and above\n"
 		"        --tls-curves <curves>\n"
 		"URL formats:\n"
-		"        (http|https)://<addr>:<port>/<path> with <addr> any address as supported by haproxy\n"
+		"        (http|https|quic)://<addr>:<port>/<path> with <addr> any address as supported by haproxy\n"
 		"        (see haproxy documentation about addresses formats)\n",
 		name);
 	exit(1);
@@ -145,18 +145,24 @@ static inline void hld_free_url_cfgs(void)
  */
 static struct hld_url_cfg *hld_alloc_url(char *url)
 {
-	int ssl = 0;
+	int ssl = 0, is_quic = 0;
 	char *addr = NULL, *raw_addr = NULL, *path = NULL;
 	struct hld_url_cfg *hld_url_cfg = NULL;
 	struct hld_url_cfg *purl;
 	struct hld_path *p = NULL;
 	struct hbuf opts_buf = HBUF_NULL;
+	char quic_addr[128];
 
 	if (strncmp(url, "http://", 7) == 0)
 		addr = url + 7;
 	else if (strncmp(url, "https://", 8) == 0) {
 		ssl = 1;
 		addr = url + 8;
+	}
+	else if (strncmp(url, "quic://",  7) == 0) {
+		ssl = 1;
+		addr = url + 7;
+		is_quic = 1;
 	}
 	else
 		addr = url;
@@ -192,13 +198,20 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 		}
 	}
 
-	addr = strdup(addr);
+	if (!is_quic) {
+		addr = strdup(addr);
+	}
+	else {
+		snprintf(quic_addr, sizeof(quic_addr), "quic+%s", addr);
+		addr = strdup(quic_addr);
+	}
+
 	if (!addr)
 		goto err;
 
-	raw_addr = strchr(addr, '@');
+	raw_addr = strchr(addr, '+');
 	if (!raw_addr)
-		raw_addr = strchr(addr, '+');
+		raw_addr = strchr(addr, '@');
 
 	raw_addr = raw_addr ? raw_addr + 1: addr;
 
