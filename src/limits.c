@@ -116,7 +116,7 @@ static int compute_ideal_maxconn()
 {
 	int ssl_sides = !!global.ssl_used_frontend + !!global.ssl_used_backend;
 	int engine_fds = global.ssl_used_async_engines * ssl_sides;
-	int pipes = compute_ideal_maxpipes();
+	int pipes = global.maxpipes ? global.maxpipes : compute_ideal_maxpipes();
 	int remain = MAX(rlim_fd_cur_at_boot, rlim_fd_max_at_boot);
 	int maxconn;
 
