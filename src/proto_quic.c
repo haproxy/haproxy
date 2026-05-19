@@ -625,8 +625,10 @@ static int quic_deallocate_dghdlrs(void)
 	int i;
 
 	if (quic_dghdlrs) {
-		for (i = 0; i < global.nbthread; ++i)
+		for (i = 0; i < global.nbthread; ++i) {
+			free(quic_dghdlrs[i].buf.buffer);
 			tasklet_free(quic_dghdlrs[i].task);
+		}
 		free(quic_dghdlrs);
 	}
 
