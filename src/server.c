@@ -145,6 +145,7 @@ static void srv_reset_path_parameters(struct server *s)
 {
 	HA_RWLOCK_WRLOCK(SERVER_LOCK, &s->path_params.param_lock);
 	s->path_params.nego_alpn[0] = 0;
+	s->path_params.srv_hash = 0;
 	HA_RWLOCK_WRUNLOCK(SERVER_LOCK, &s->path_params.param_lock);
 }
 

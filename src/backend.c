@@ -1820,6 +1820,8 @@ int connect_server(struct stream *s)
 	struct connection *srv_conn = NULL;
 	const struct mux_proto_list *mux_proto;
 	struct server *srv;
+	struct ist name = IST_NULL;
+	struct sample *name_smp;
 	int reuse_mode;
 	int reuse __maybe_unused = 0;
 	int may_use_early_data __maybe_unused = 1; // are we allowed to use early data ?
@@ -1841,6 +1843,17 @@ int connect_server(struct stream *s)
 	if (err != SRV_STATUS_OK)
 		return SF_ERR_INTERNAL;
 
+	if (srv && srv->pool_conn_name_expr) {
+		name_smp = sample_fetch_as_type(s->be, s->sess, s,
+				SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
+				srv->pool_conn_name_expr, SMP_T_STR);
+		if (name_smp) {
+			name = ist2(name_smp->data.u.str.area,
+					name_smp->data.u.str.data);
+		}
+	}
+	hash = be_calculate_conn_hash(srv, s, s->sess, bind_addr, s->scb->dst, name);
+
 	if (!be_supports_conn_reuse(s->be))
 		goto skip_reuse;
 
@@ -1852,20 +1865,7 @@ int connect_server(struct stream *s)
 	}
 	else {
 		const int not_first_req = s->txn.http && s->txn.http->flags & TX_NOT_FIRST;
-		struct ist name = IST_NULL;
-		struct sample *name_smp;
 
-		if (srv && srv->pool_conn_name_expr) {
-			name_smp = sample_fetch_as_type(s->be, s->sess, s,
-			                                SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
-			                                srv->pool_conn_name_expr, SMP_T_STR);
-			if (name_smp) {
-				name = ist2(name_smp->data.u.str.area,
-				            name_smp->data.u.str.data);
-			}
-		}
-
-		hash = be_calculate_conn_hash(srv, s, s->sess, bind_addr, s->scb->dst, name);
 		err = be_reuse_connection(hash, s->sess, s->be, srv, s->scb,
 		                          s->target, not_first_req);
 		if (err == SF_ERR_INTERNAL)
@@ -2087,7 +2087,7 @@ int connect_server(struct stream *s)
 			if (IS_HTX_STRM(s) && srv->use_ssl &&
 			    (srv->ssl_ctx.alpn_str || srv->ssl_ctx.npn_str)) {
 				HA_RWLOCK_RDLOCK(SERVER_LOCK, &srv->path_params.param_lock);
-				if (srv->path_params.nego_alpn[0] == 0)
+				if (srv->path_params.srv_hash != hash || srv->path_params.nego_alpn[0] == 0)
 					may_start_mux_now = 0;
 				HA_RWLOCK_RDUNLOCK(SERVER_LOCK, &srv->path_params.param_lock);
 			}

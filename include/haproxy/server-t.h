@@ -329,6 +329,7 @@ enum renegotiate_mode {
 struct path_parameters {
 	__decl_thread(HA_RWLOCK_T param_lock);
 	char nego_alpn[MAX_ALPN_SIZE];
+	int64_t srv_hash;
 #ifdef USE_QUIC
 	struct quic_early_transport_params tps;
 #endif
