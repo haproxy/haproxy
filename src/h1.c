@@ -281,8 +281,6 @@ void h1_parse_upgrade_header(struct h1m *h1m, struct ist *value)
 	char *e, *n, *p;
 	struct ist word;
 
-	h1m->flags &= ~H1_MF_UPG_WEBSOCKET;
-
 	word.ptr = value->ptr - 1; // -1 for next loop's pre-increment
 	p = value->ptr;
 	e = value->ptr + value->len;

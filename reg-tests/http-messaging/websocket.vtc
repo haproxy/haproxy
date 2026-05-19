@@ -146,13 +146,26 @@ client c1 -connect ${hap_fe1_sock} {
 } -run
 
 # missing websocket key
-client c2 -connect ${hap_fe1_sock} {
+client c2_1 -connect ${hap_fe1_sock} {
 	txreq \
 	  -req "GET" \
 	  -url "/" \
 	  -hdr "host: 127.0.0.1" \
 	  -hdr "connection: upgrade" \
 	  -hdr "upgrade: websocket"
+
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c2_2 -connect ${hap_fe1_sock} {
+	txreq \
+	  -req "GET" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: proto1, websocket, proto2" \
+	  -hdr "upgrade: proto3"
 
 	rxresp
 	expect resp.status == 400
