@@ -936,9 +936,9 @@ const struct mux_ops mux_pt_ops = {
 
 /* PROT selection : default mux has empty name */
 static struct mux_proto_list mux_proto_none =
-	{ .token = IST("none"), .mode = PROTO_MODE_TCP, .side = PROTO_SIDE_BOTH, .mux = &mux_pt_ops };
+	{ .mux_proto = IST("none"), .mode = PROTO_MODE_TCP, .side = PROTO_SIDE_BOTH, .mux = &mux_pt_ops };
 static struct mux_proto_list mux_proto_tcp =
-	{ .token = IST(""), .mode = PROTO_MODE_TCP, .side = PROTO_SIDE_BOTH, .mux = &mux_tcp_ops };
+	{ .mux_proto = IST(""), .mode = PROTO_MODE_TCP, .side = PROTO_SIDE_BOTH, .mux = &mux_tcp_ops };
 
 INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_none);
 INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_tcp);

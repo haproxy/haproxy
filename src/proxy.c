@@ -1689,13 +1689,13 @@ int proxy_finalize(struct proxy *px, int *err_code)
 			 * due to the proxy's mode not being taken into account
 			 * on first pass. Let's adjust it now.
 			 */
-			mux_ent = conn_get_best_mux_entry(bind_conf->mux_proto->token, PROTO_SIDE_FE, is_quic, mode);
+			mux_ent = conn_get_best_mux_entry(bind_conf->mux_proto->mux_proto, PROTO_SIDE_FE, is_quic, mode);
 
-			if (!mux_ent || !isteq(mux_ent->token, bind_conf->mux_proto->token)) {
+			if (!mux_ent || !isteq(mux_ent->mux_proto, bind_conf->mux_proto->mux_proto)) {
 				ha_alert("%s '%s' : MUX protocol '%.*s' is not usable for 'bind %s' at [%s:%d].\n",
 				         proxy_type_str(px), px->id,
-				         (int)bind_conf->mux_proto->token.len,
-				         bind_conf->mux_proto->token.ptr,
+				         (int)bind_conf->mux_proto->mux_proto.len,
+				         bind_conf->mux_proto->mux_proto.ptr,
 				         bind_conf->arg, bind_conf->file, bind_conf->line);
 				cfgerr++;
 			}
@@ -1703,16 +1703,16 @@ int proxy_finalize(struct proxy *px, int *err_code)
 				if ((mux_ent->mux->flags & MX_FL_FRAMED) && !(bind_conf->options & BC_O_USE_SOCK_DGRAM)) {
 					ha_alert("%s '%s' : frame-based MUX protocol '%.*s' is incompatible with stream transport of 'bind %s' at [%s:%d].\n",
 					         proxy_type_str(px), px->id,
-					         (int)bind_conf->mux_proto->token.len,
-					         bind_conf->mux_proto->token.ptr,
+					         (int)bind_conf->mux_proto->mux_proto.len,
+					         bind_conf->mux_proto->mux_proto.ptr,
 					         bind_conf->arg, bind_conf->file, bind_conf->line);
 					cfgerr++;
 				}
 				else if (!(mux_ent->mux->flags & MX_FL_FRAMED) && !(bind_conf->options & BC_O_USE_SOCK_STREAM)) {
 					ha_alert("%s '%s' : stream-based MUX protocol '%.*s' is incompatible with framed transport of 'bind %s' at [%s:%d].\n",
 					         proxy_type_str(px), px->id,
-					         (int)bind_conf->mux_proto->token.len,
-					         bind_conf->mux_proto->token.ptr,
+					         (int)bind_conf->mux_proto->mux_proto.len,
+					         bind_conf->mux_proto->mux_proto.ptr,
 					         bind_conf->arg, bind_conf->file, bind_conf->line);
 					cfgerr++;
 				}
@@ -2849,13 +2849,13 @@ int proxy_finalize(struct proxy *px, int *err_code)
 		 * due to the proxy's mode not being taken into account
 		 * on first pass. Let's adjust it now.
 		 */
-		mux_ent = conn_get_best_mux_entry(newsrv->mux_proto->token, PROTO_SIDE_BE, srv_is_quic(newsrv), mode);
+		mux_ent = conn_get_best_mux_entry(newsrv->mux_proto->mux_proto, PROTO_SIDE_BE, srv_is_quic(newsrv), mode);
 
-		if (!mux_ent || !isteq(mux_ent->token, newsrv->mux_proto->token)) {
+		if (!mux_ent || !isteq(mux_ent->mux_proto, newsrv->mux_proto->mux_proto)) {
 			ha_alert("%s '%s' : MUX protocol '%.*s' is not usable for server '%s' at [%s:%d].\n",
 			         proxy_type_str(px), px->id,
-			         (int)newsrv->mux_proto->token.len,
-			         newsrv->mux_proto->token.ptr,
+			         (int)newsrv->mux_proto->mux_proto.len,
+			         newsrv->mux_proto->mux_proto.ptr,
 			         newsrv->id, newsrv->conf.file, newsrv->conf.line);
 			cfgerr++;
 		}
@@ -2863,16 +2863,16 @@ int proxy_finalize(struct proxy *px, int *err_code)
 			if ((mux_ent->mux->flags & MX_FL_FRAMED) && !srv_is_quic(newsrv)) {
 				ha_alert("%s '%s' : MUX protocol '%.*s' is incompatible with stream transport used by server '%s' at [%s:%d].\n",
 				         proxy_type_str(px), px->id,
-				         (int)newsrv->mux_proto->token.len,
-				         newsrv->mux_proto->token.ptr,
+				         (int)newsrv->mux_proto->mux_proto.len,
+				         newsrv->mux_proto->mux_proto.ptr,
 				         newsrv->id, newsrv->conf.file, newsrv->conf.line);
 				cfgerr++;
 			}
 			else if (!(mux_ent->mux->flags & MX_FL_FRAMED) && srv_is_quic(newsrv)) {
 				ha_alert("%s '%s' : MUX protocol '%.*s' is incompatible with framed transport used by server '%s' at [%s:%d].\n",
 				         proxy_type_str(px), px->id,
-				         (int)newsrv->mux_proto->token.len,
-				         newsrv->mux_proto->token.ptr,
+				         (int)newsrv->mux_proto->mux_proto.len,
+				         newsrv->mux_proto->mux_proto.ptr,
 				         newsrv->id, newsrv->conf.file, newsrv->conf.line);
 				cfgerr++;
 			}

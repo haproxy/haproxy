@@ -673,7 +673,7 @@ struct connection {
 };
 
 struct mux_proto_list {
-	const struct ist token;    /* token name and length. Empty is catch-all */
+	const struct ist mux_proto;    /* Mux protocol, to be used with the "proto" directive */
 	enum proto_proxy_mode mode;
 	enum proto_proxy_side side;
 	const struct mux_ops *mux;

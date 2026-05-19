@@ -643,7 +643,7 @@ int srv_check_reuse_ws(struct server *srv)
 		 * for mux selection.
 		 */
 		const struct ist srv_mux = srv->mux_proto ?
-		                           srv->mux_proto->token : IST_NULL;
+		                           srv->mux_proto->mux_proto : IST_NULL;
 
 		switch (srv->ws) {
 		/* "auto" means use the same protocol : reuse is possible. */
@@ -6278,9 +6278,9 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		int proto_mode = conn_pr_mode_to_proto_mode(be->mode);
 		const struct mux_proto_list *mux_ent;
 
-		mux_ent = conn_get_best_mux_entry(srv->mux_proto->token, PROTO_SIDE_BE, srv_is_quic(srv), proto_mode);
+		mux_ent = conn_get_best_mux_entry(srv->mux_proto->mux_proto, PROTO_SIDE_BE, srv_is_quic(srv), proto_mode);
 
-		if (!mux_ent || !isteq(mux_ent->token, srv->mux_proto->token)) {
+		if (!mux_ent || !isteq(mux_ent->mux_proto, srv->mux_proto->mux_proto)) {
 			ha_alert("MUX protocol is not usable for server.\n");
 			goto out;
 		}

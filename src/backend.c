@@ -2130,7 +2130,7 @@ int connect_server(struct stream *s)
 			srv_conn->flags |= CO_FL_SOCKS4;
 		}
 
-		if (srv && srv->mux_proto && isteq(srv->mux_proto->token, ist("qmux"))) {
+		if (srv && srv->mux_proto && isteq(srv->mux_proto->mux_proto, ist("qmux"))) {
 			srv_conn->flags |= (CO_FL_QMUX_RECV|CO_FL_QMUX_SEND);
 			may_start_mux_now = 0;
 		}

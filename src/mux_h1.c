@@ -6125,9 +6125,9 @@ static const struct mux_ops mux_h1_ops = {
 
 /* this mux registers default HTX proto but also h1 proto (to be referenced in the conf */
 static struct mux_proto_list mux_proto_h1 =
-	{ .token = IST("h1"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_BOTH, .mux = &mux_h1_ops };
+	{ .mux_proto = IST("h1"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_BOTH, .mux = &mux_h1_ops };
 static struct mux_proto_list mux_proto_http =
-	{ .token = IST(""), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_BOTH, .mux = &mux_http_ops,  .alpn = "\010http/1.1" };
+	{ .mux_proto = IST(""), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_BOTH, .mux = &mux_http_ops,  .alpn = "\010http/1.1" };
 
 INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_h1);
 INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_http);

@@ -371,7 +371,7 @@ int rhttp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	}
 
 	/* Check that server uses HTTP/2 either with proto or ALPN. */
-	if ((!srv->mux_proto || !isteqi(srv->mux_proto->token, ist("h2"))) &&
+	if ((!srv->mux_proto || !isteqi(srv->mux_proto->mux_proto, ist("h2"))) &&
 	    (!srv->use_ssl || !isteqi(ist(srv->ssl_ctx.alpn_str), ist("\x02h2")))) {
 		snprintf(errmsg, errlen, "Cannot reverse connect with server '%s/%s' unless HTTP/2 is activated on it with either proto or alpn keyword.", name, ist0(sv_name));
 		goto err;

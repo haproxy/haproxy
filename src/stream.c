@@ -1617,7 +1617,7 @@ int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_prot
 
 		sc_conn_prepare_endp_upgrade(sc);
 		if (conn_upgrade_mux_fe(conn, sc, &s->req.buf,
-					(mux_proto ? mux_proto->token : ist("")),
+					(mux_proto ? mux_proto->mux_proto : ist("")),
 					PROTO_MODE_HTTP)  == -1) {
 			sc_conn_abort_endp_upgrade(sc);
 			return 0;
@@ -3268,10 +3268,10 @@ static int check_tcp_switch_stream_mode(struct act_rule *rule, struct proxy *px,
 		px->options |= PR_O_HTTP_UPG;
 
 	if (mux_proto) {
-		mux_ent = conn_get_best_mux_entry(mux_proto->token, PROTO_SIDE_FE, 0, mode);
-		if (!mux_ent || !isteq(mux_ent->token, mux_proto->token)) {
+		mux_ent = conn_get_best_mux_entry(mux_proto->mux_proto, PROTO_SIDE_FE, 0, mode);
+		if (!mux_ent || !isteq(mux_ent->mux_proto, mux_proto->mux_proto)) {
 			memprintf(err, "MUX protocol '%.*s' is not compatible with the selected mode",
-				  (int)mux_proto->token.len, mux_proto->token.ptr);
+				  (int)mux_proto->mux_proto.len, mux_proto->mux_proto.ptr);
 			return 0;
 		}
 	}

@@ -1991,7 +1991,7 @@ void list_mux_proto(FILE *out)
 	fprintf(out, "Available multiplexer protocols :\n"
 		"(protocols marked as <default> cannot be specified using 'proto' keyword)\n");
 	list_for_each_entry(item, &mux_proto_list.list, list) {
-		proto = item->token;
+		proto = item->mux_proto;
 
 		if (item->mode == PROTO_MODE_ANY)
 			mode = "TCP|HTTP";

@@ -649,7 +649,7 @@ static inline struct mux_proto_list *get_mux_proto(const struct ist proto)
 	struct mux_proto_list *item;
 
 	list_for_each_entry(item, &mux_proto_list.list, list) {
-		if (isteq(proto, item->token))
+		if (isteq(proto, item->mux_proto))
 			return item;
 	}
 	return NULL;
@@ -676,10 +676,10 @@ static inline const struct mux_proto_list *conn_get_best_mux_entry(
 	list_for_each_entry(item, &mux_proto_list.list, list) {
 		if (!(item->side & proto_side) || !(item->mode & proto_mode) || ((proto_is_quic != 0) != ((item->mux->flags & MX_FL_FRAMED) != 0)))
 			continue;
-		if (istlen(mux_proto) && isteq(mux_proto, item->token)) {
+		if (istlen(mux_proto) && isteq(mux_proto, item->mux_proto)) {
 			return item;
 		}
-		else if (!istlen(item->token)) {
+		else if (!istlen(item->mux_proto)) {
 			if (!fallback || (item->mode == proto_mode && fallback->mode != proto_mode))
 				fallback = item;
 		}

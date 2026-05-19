@@ -3738,10 +3738,10 @@ static const struct mux_ops mux_spop_ops = {
 };
 
 static struct mux_proto_list mux_proto_spop =
-	{ .token = IST("spop"), .mode = PROTO_MODE_SPOP, .side = PROTO_SIDE_BE, .mux = &mux_spop_ops };
+	{ .mux_proto = IST("spop"), .mode = PROTO_MODE_SPOP, .side = PROTO_SIDE_BE, .mux = &mux_spop_ops };
 
 static struct mux_proto_list mux_proto_default_spop =
-	{ .token = IST(""), .mode = PROTO_MODE_SPOP, .side = PROTO_SIDE_BE, .mux = &mux_spop_ops };
+	{ .mux_proto = IST(""), .mode = PROTO_MODE_SPOP, .side = PROTO_SIDE_BE, .mux = &mux_spop_ops };
 
 INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_spop);
 INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_default_spop);
