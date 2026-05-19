@@ -88,6 +88,8 @@ int conn_upgrade_mux_fe(struct connection *conn, void *ctx, struct buffer *buf,
                         struct ist mux_proto, int mode);
 const struct mux_proto_list *conn_select_mux_fe(const struct connection *conn);
 int conn_install_mux_fe(struct connection *conn, void *ctx);
+
+const struct mux_proto_list *conn_select_mux_be(const struct connection *conn);
 int conn_install_mux_be(struct connection *conn, void *ctx, struct session *sess,
                         const struct mux_ops *force_mux_ops);
 int conn_install_mux_chk(struct connection *conn, void *ctx, struct session *sess);

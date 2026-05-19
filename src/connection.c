@@ -377,6 +377,66 @@ int conn_install_mux_fe(struct connection *conn, void *ctx)
 	return conn_install_mux(conn, mux_ops, ctx, bind_conf->frontend, conn->owner);
 }
 
+/* Returns the mux_proto_list entry compatible with <conn> backend connection
+ * or NULL if nothing eligible.
+ * TODO duplicate code to merge with conn_install_mux_be/chk().
+ */
+const struct mux_proto_list *conn_select_mux_be(const struct connection *conn)
+{
+	struct session *sess;
+	struct server *srv;
+	struct proxy *prx;
+	struct check *check;
+	struct ist alpn;
+	const char *alpn_str = NULL;
+	int alpn_len = 0, mode;
+
+	sess = conn->owner;
+	if (sess && obj_type(sess->origin) == OBJ_TYPE_CHECK) {
+		check = __objt_check(sess->origin);
+		if (check->mux_proto)
+			return check->mux_proto;
+
+		mode = tcpchk_rules_type_to_proto_mode(check->tcpcheck->rs->flags);
+
+		conn_get_alpn(conn, &alpn_str, &alpn_len);
+		alpn = ist2(alpn_str, alpn_len);
+
+		return conn_get_best_mux_entry(IST_NULL, alpn, PROTO_SIDE_BE,
+		                               proto_is_quic(conn->ctrl), mode);
+	}
+	else {
+		srv = objt_server(conn->target);
+		prx = objt_proxy(conn->target);
+		if (srv)
+			prx = srv->proxy;
+
+		if (!prx) {
+			/* Target should either be a server or a proxy.
+			 * USE a full a BUG_ON() once considered definitive.
+			 */
+			BUG_ON_HOT(1);
+			return NULL;
+		}
+
+		mode = conn_pr_mode_to_proto_mode(prx->mode);
+
+		if (srv && srv->mux_proto)
+			return srv->mux_proto;
+
+		if (!conn_get_alpn(conn, &alpn_str, &alpn_len)) {
+			if (srv && srv->path_params.nego_alpn[0]) {
+				alpn_str = srv->path_params.nego_alpn;
+				alpn_len = strlen(alpn_str);
+			}
+		}
+		alpn = ist2(alpn_str, alpn_len);
+
+		return conn_get_best_mux_entry(IST_NULL, alpn, PROTO_SIDE_BE,
+		                               proto_is_quic(conn->ctrl), mode);
+	}
+}
+
 /* installs the best mux for outgoing connection <conn> using the upper context
  * <ctx>. If the server mux protocol is forced, we use it to find the best mux.
  * It's also possible to specify an alternative mux protocol <force_mux_ops>,
