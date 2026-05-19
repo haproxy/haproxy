@@ -8260,7 +8260,10 @@ hash-type <method> <function> <modifier>
 
        none   don't hash the key, the key will be used as a hash, this can be
               useful to manually hash the key using a converter for that purpose
-              and let haproxy use the result directly.
+              and let haproxy use the result directly. The operation will
+              convert the key to a string if it is not already, and parse it as
+              an integer whose value will be used as the key. Some input key
+              types might not be relevant here (e.g. IP addresses).
 
     <modifier> indicates an optional method applied after hashing the key :
 

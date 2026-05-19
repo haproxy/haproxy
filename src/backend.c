@@ -87,7 +87,7 @@ unsigned int gen_hash(const struct proxy* px, const char* key, unsigned long len
 		hash = hash_crc32(key, len);
 		break;
 	case BE_LB_HFCN_NONE:
-		/* use key as a hash */
+		/* use key as a hash. It MUST be in string format */
 		{
 			const char *_key = key;
 
@@ -545,7 +545,14 @@ struct server *get_server_expr(struct stream *s, const struct server *avoid)
 	if (px->lbprm.tot_used == 1)
 		goto hash_done;
 
-	smp = sample_fetch_as_type(px, s->sess, s, SMP_OPT_DIR_REQ | SMP_OPT_FINAL, px->lbprm.expr, SMP_T_BIN);
+	/* Note that if the hash-type doesn't hash the key, we must provide it
+	 * as a string representing a number as it will be parsed by read_int64().
+	 * Otherwise it's binary. The difference happens on samples returing
+	 * ints (e.g. rand()) as well as IP addresses, which, when turned to
+	 * binary, are just binary-encoded and cannot be parsed.
+	 */
+	smp = sample_fetch_as_type(px, s->sess, s, SMP_OPT_DIR_REQ | SMP_OPT_FINAL, px->lbprm.expr,
+				   ((px->lbprm.algo & BE_LB_HASH_FUNC) == BE_LB_HFCN_NONE) ? SMP_T_STR : SMP_T_BIN);
 	if (!smp)
 		return NULL;
 
