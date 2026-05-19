@@ -668,6 +668,7 @@ void list_mux_proto(FILE *out);
  */
 static inline const struct mux_proto_list *conn_get_best_mux_entry(
         const struct ist mux_proto,
+        const struct ist alpn,
         int proto_side, int proto_is_quic, int proto_mode)
 {
 	struct mux_proto_list *item;
@@ -679,6 +680,10 @@ static inline const struct mux_proto_list *conn_get_best_mux_entry(
 		if (istlen(mux_proto) && isteq(mux_proto, item->mux_proto)) {
 			return item;
 		}
+		else if (istlen(alpn) && item->alpn &&
+		    strlen(item->alpn) == istlen(alpn) + 1 &&
+		    !memcmp(alpn.ptr, item->alpn + 1, istlen(alpn)))
+			return item;
 		else if (!istlen(item->mux_proto)) {
 			if (!fallback || (item->mode == proto_mode && fallback->mode != proto_mode))
 				fallback = item;
@@ -696,11 +701,12 @@ static inline const struct mux_proto_list *conn_get_best_mux_entry(
  */
 static inline const struct mux_ops *conn_get_best_mux(struct connection *conn,
 						      const struct ist mux_proto,
+						      const struct ist alpn,
 						      int proto_side, int proto_mode)
 {
 	const struct mux_proto_list *item;
 
-	item = conn_get_best_mux_entry(mux_proto, proto_side, proto_is_quic(conn->ctrl), proto_mode);
+	item = conn_get_best_mux_entry(mux_proto, alpn, proto_side, proto_is_quic(conn->ctrl), proto_mode);
 
 	return item ? item->mux : NULL;
 }

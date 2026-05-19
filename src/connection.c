@@ -282,6 +282,7 @@ int conn_upgrade_mux_fe(struct connection *conn, void *ctx, struct buffer *buf,
                         struct ist mux_proto, int mode)
 {
 	struct bind_conf *bind_conf = __objt_listener(conn->target)->bind_conf;
+	struct ist alpn = IST_NULL;
 	const struct mux_ops *old_mux, *new_mux;
 	void *old_mux_ctx;
 	const char *alpn_str = NULL;
@@ -289,9 +290,9 @@ int conn_upgrade_mux_fe(struct connection *conn, void *ctx, struct buffer *buf,
 
 	if (!mux_proto.len) {
 		conn_get_alpn(conn, &alpn_str, &alpn_len);
-		mux_proto = ist2(alpn_str, alpn_len);
+		alpn = ist2(alpn_str, alpn_len);
 	}
-	new_mux = conn_get_best_mux(conn, mux_proto, PROTO_SIDE_FE, mode);
+	new_mux = conn_get_best_mux(conn, mux_proto, alpn, PROTO_SIDE_FE, mode);
 	old_mux = conn->mux;
 
 	/* No mux found */
@@ -330,14 +331,14 @@ int conn_install_mux_fe(struct connection *conn, void *ctx)
 	if (bind_conf->mux_proto)
 		mux_ops = bind_conf->mux_proto->mux;
 	else {
-		struct ist mux_proto;
+		struct ist alpn;
 		const char *alpn_str = NULL;
 		int alpn_len = 0;
 		int mode = conn_pr_mode_to_proto_mode(bind_conf->frontend->mode);
 
 		conn_get_alpn(conn, &alpn_str, &alpn_len);
-		mux_proto = ist2(alpn_str, alpn_len);
-		mux_ops = conn_get_best_mux(conn, mux_proto, PROTO_SIDE_FE, mode);
+		alpn = ist2(alpn_str, alpn_len);
+		mux_ops = conn_get_best_mux(conn, IST_NULL, alpn, PROTO_SIDE_FE, mode);
 		if (!mux_ops)
 			return -1;
 	}
@@ -380,7 +381,7 @@ int conn_install_mux_be(struct connection *conn, void *ctx, struct session *sess
 		mux_ops = force_mux_ops;
 	}
 	else {
-		struct ist mux_proto;
+		struct ist alpn;
 		const char *alpn_str = NULL;
 		int alpn_len = 0;
 		int mode = conn_pr_mode_to_proto_mode(prx->mode);
@@ -391,9 +392,9 @@ int conn_install_mux_be(struct connection *conn, void *ctx, struct session *sess
 				alpn_len = strlen(alpn_str);
 			}
 		}
-		mux_proto = ist2(alpn_str, alpn_len);
+		alpn = ist2(alpn_str, alpn_len);
 
-		mux_ops = conn_get_best_mux(conn, mux_proto, PROTO_SIDE_BE, mode);
+		mux_ops = conn_get_best_mux(conn, IST_NULL, alpn, PROTO_SIDE_BE, mode);
 		if (!mux_ops)
 			return -1;
 	}
@@ -434,15 +435,15 @@ int conn_install_mux_chk(struct connection *conn, void *ctx, struct session *ses
 	if (check->mux_proto)
 		mux_ops = check->mux_proto->mux;
 	else {
-		struct ist mux_proto;
+		struct ist alpn;
 		const char *alpn_str = NULL;
 		int alpn_len = 0;
 		int mode = tcpchk_rules_type_to_proto_mode(check->tcpcheck->rs->flags);
 
 		conn_get_alpn(conn, &alpn_str, &alpn_len);
-		mux_proto = ist2(alpn_str, alpn_len);
+		alpn = ist2(alpn_str, alpn_len);
 
-		mux_ops = conn_get_best_mux(conn, mux_proto, PROTO_SIDE_BE, mode);
+		mux_ops = conn_get_best_mux(conn, IST_NULL, alpn, PROTO_SIDE_BE, mode);
 		if (!mux_ops)
 			return -1;
 	}

@@ -1570,7 +1570,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		else {
 			int mode = tcpchk_rules_type_to_proto_mode(check->tcpcheck->rs->flags);
 
-			mux_ops = conn_get_best_mux(conn, IST_NULL, PROTO_SIDE_BE, mode);
+			mux_ops = conn_get_best_mux(conn, IST_NULL, IST_NULL, PROTO_SIDE_BE, mode);
 		}
 		if (mux_ops && conn_install_mux(conn, mux_ops, check->sc, proxy, check->sess) < 0) {
 			TRACE_ERROR("failed to install mux", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);

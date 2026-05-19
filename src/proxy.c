@@ -1689,7 +1689,7 @@ int proxy_finalize(struct proxy *px, int *err_code)
 			 * due to the proxy's mode not being taken into account
 			 * on first pass. Let's adjust it now.
 			 */
-			mux_ent = conn_get_best_mux_entry(bind_conf->mux_proto->mux_proto, PROTO_SIDE_FE, is_quic, mode);
+			mux_ent = conn_get_best_mux_entry(bind_conf->mux_proto->mux_proto, IST_NULL, PROTO_SIDE_FE, is_quic, mode);
 
 			if (!mux_ent || !isteq(mux_ent->mux_proto, bind_conf->mux_proto->mux_proto)) {
 				ha_alert("%s '%s' : MUX protocol '%.*s' is not usable for 'bind %s' at [%s:%d].\n",
@@ -2849,7 +2849,7 @@ int proxy_finalize(struct proxy *px, int *err_code)
 		 * due to the proxy's mode not being taken into account
 		 * on first pass. Let's adjust it now.
 		 */
-		mux_ent = conn_get_best_mux_entry(newsrv->mux_proto->mux_proto, PROTO_SIDE_BE, srv_is_quic(newsrv), mode);
+		mux_ent = conn_get_best_mux_entry(newsrv->mux_proto->mux_proto, IST_NULL, PROTO_SIDE_BE, srv_is_quic(newsrv), mode);
 
 		if (!mux_ent || !isteq(mux_ent->mux_proto, newsrv->mux_proto->mux_proto)) {
 			ha_alert("%s '%s' : MUX protocol '%.*s' is not usable for server '%s' at [%s:%d].\n",
