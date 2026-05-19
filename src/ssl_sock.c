@@ -6962,10 +6962,15 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 		 * woke a tasklet already.
 		 */
 		if (ctx->conn->xprt_ctx == ctx) {
+			const struct mux_proto_list *mux;
 			int closed_connection = 0;
 
 			if (!ctx->conn->mux) {
-				if (ctx->conn->flags & (CO_FL_QMUX_RECV|CO_FL_QMUX_SEND)) {
+				mux = !conn_is_back(conn) ?
+				  conn_select_mux_fe(conn) : conn_select_mux_be(conn);
+
+				if (ctx->conn->flags & (CO_FL_QMUX_RECV|CO_FL_QMUX_SEND) ||
+				    mux->init_xprt == XPRT_QMUX) {
 					const struct xprt_ops *ops = xprt_get(XPRT_QMUX);
 					void *xprt_ctx_hs = NULL;
 
@@ -6983,8 +6988,13 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 					ret = conn->xprt->start(conn, xprt_ctx_hs);
 					BUG_ON(ret);
 				}
-				else
+				else {
+					/* TODO MUX selection already performs by conn_select_mux_fe/be().
+					 * Implement an alternative to conn_create_mux() to skip this
+					 * part and directly init the connection and its MUX.
+					 */
 					ret = conn_create_mux(ctx->conn, &closed_connection);
+				}
 			}
 
 			if (ret >= 0 && ctx->conn->mux && !woke && ctx->conn->mux && ctx->conn->mux->wake) {

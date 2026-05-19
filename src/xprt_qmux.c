@@ -300,6 +300,11 @@ static int xprt_qmux_init(struct connection *conn, void **xprt_ctx)
 	ctx->lparams.initial_max_stream_data_bidi_remote = qcm_stream_rx_bufsz();
 	ctx->lparams.initial_max_stream_data_uni = qcm_stream_rx_bufsz();
 
+	/* Ensure the connection flags are set. Necessary when current XPRT is
+	 * activated without explicit "proto qmux" configuration.
+	 */
+	conn->flags |= (CO_FL_QMUX_RECV|CO_FL_QMUX_SEND);
+
 	*xprt_ctx = ctx;
 
 	return 0;
