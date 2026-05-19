@@ -4036,6 +4036,18 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 		return ERR_ALERT | ERR_FATAL;
 #endif
 	}
+	else {
+		if (srv->proxy->mode == PR_MODE_HTTP && !srv->mux_proto &&
+		    srv->ssl_ctx.alpn_str && strstr(srv->ssl_ctx.alpn_str, "\002h3")) {
+			if (!experimental_directives_allowed) {
+				ha_alert("HTTP/3 on TCP listed via ALPN requires the QMUX protocol which is experimental, "
+				         "must be allowed via a global 'expose-experimental-directives'.\n");
+				return ERR_ALERT | ERR_FATAL;
+			}
+
+			mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
+		}
+	}
 
 	if (!(srv->proxy->cap & PR_CAP_LB)) {
 		/* No need to wait for effective proxy mode, it is already known:

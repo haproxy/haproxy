@@ -1778,6 +1778,22 @@ int proxy_finalize(struct proxy *px, int *err_code)
 			}
 #endif /* TLSEXT_TYPE_application_layer_protocol_negotiation */
 		} /* HTTP && bufsize < 16384 */
+
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+		if (px->mode == PR_MODE_HTTP && !bind_conf->mux_proto &&
+		    bind_conf->ssl_conf.alpn_str &&
+		    strstr(bind_conf->ssl_conf.alpn_str, "\002h3")) {
+			if (!experimental_directives_allowed) {
+				ha_alert("HTTP/3 on TCP listed via ALPN on frontend '%s' at [%s:%d] relies on the experimental QMux protocol, "
+				         "must be allowed via a global 'expose-experimental-directives'.\n",
+				         px->id, bind_conf->file, bind_conf->line);
+				cfgerr++;
+			}
+
+			mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
+		}
+#endif /* TLSEXT_TYPE_application_layer_protocol_negotiation */
+
 #endif /* USE_OPENSSL */
 
 #ifdef USE_QUIC
