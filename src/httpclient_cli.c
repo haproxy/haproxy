@@ -91,7 +91,7 @@ void hc_cli_res_end_cb(struct httpclient *hc)
 static int hc_cli_parse(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct hcli_svc_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
-	struct httpclient *hc;
+	struct httpclient *hc = NULL;
 	char *err = NULL;
 	enum http_meth_t meth;
 	char *meth_str;
