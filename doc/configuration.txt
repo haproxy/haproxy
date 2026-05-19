@@ -18876,9 +18876,13 @@ healthcheck <name>
 id <value>
   May be used in the following contexts: tcp, http, log
 
-  Set a persistent ID for the server. This ID must be positive and unique for
-  the proxy. An unused ID will automatically be assigned if unset. The first
-  assigned value will be 1. This ID is currently only returned in statistics.
+  Set a persistent ID for the server. This ID must be a 32-bit positive number
+  and unique for the proxy. An unused ID will automatically be assigned if
+  unset. The first assigned value will be 1. This ID is currently only returned
+  in statistics, and is used to place LB nodes when using consistent hash
+  algorithms when "hash-key" is set to "id" (the default). In this case, only
+  the 28 lowest bits of the value are used (i.e. (id % 268435356)), so better
+  only use values comprised between 1 and this value to avoid overlap.
 
 idle-ping <delay>
   May be used in the following contexts: tcp, http, log

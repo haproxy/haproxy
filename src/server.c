@@ -1313,19 +1313,20 @@ static int srv_parse_pool_max_conn(char **args, int *cur_arg, struct proxy *curp
 static int srv_parse_id(char **args, int *cur_arg, struct proxy *curproxy, struct server *newsrv, char **err)
 {
 	struct server *target;
+	llong id;
 
 	if (!*args[*cur_arg + 1]) {
 		memprintf(err, "'%s' : expects an integer argument", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	newsrv->puid = atol(args[*cur_arg + 1]);
-
-	if (newsrv->puid <= 0) {
-		memprintf(err, "'%s' : custom id has to be > 0", args[*cur_arg]);
+	id = atol(args[*cur_arg + 1]);
+	if (id < 1 || id > ~0U) {
+		memprintf(err, "'%s' : custom id has to be between 1 and 4294967295.", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
+	newsrv->puid = id;
 	target = server_find_by_id(curproxy, newsrv->puid);
 	if (target) {
 		memprintf(err, "'%s' : custom id %d already used at %s:%d ('server %s')",
