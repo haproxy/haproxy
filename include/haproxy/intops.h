@@ -76,6 +76,56 @@ static inline unsigned int div64_32(unsigned long long o1, unsigned int o2)
 	return result;
 }
 
+/* returns non-zero if a*b would overflow an unsigned long, otherwise sets the
+ * result into res and returns 0.
+ */
+static inline int mulul_overflow(unsigned long a, unsigned long b, unsigned long *res)
+{
+	/* __builtin_mul_overflow() is gcc >= 5 or clang >= 3.4 */
+#if (defined(__GNUC__) && __GNUC__ >= 5) || \
+    (defined(__clang__) && ((__clang_major__ > 3) || (__clang_major__ == 3 && __clang_minor__ >= 4)))
+	return __builtin_mul_overflow(a, b, res);
+#else
+	/* portable method involving a division */
+	if (a && b && a > (~(ulong)0) / b)
+		return 1;
+	*res = a * b;
+	return 0;
+#endif
+}
+
+/* returns non-zero if a*b would overflow a size_t, otherwise sets the
+ * result into res and returns 0.
+ */
+static inline int mulsz_overflow(size_t a, size_t b, size_t *res)
+{
+	/* __builtin_mul_overflow() is gcc >= 5 or clang >= 3.4 */
+#if (defined(__GNUC__) && __GNUC__ >= 5) || \
+    (defined(__clang__) && ((__clang_major__ > 3) || (__clang_major__ == 3 && __clang_minor__ >= 4)))
+	return __builtin_mul_overflow(a, b, res);
+#else
+	/* portable method involving a division */
+	if (a && b && a > (~(size_t)0) / b)
+		return 1;
+	*res = a * b;
+	return 0;
+#endif
+}
+
+/* Computes the size of an array of m*n bytes, taking overflows into account.
+ * If the multiply would overflow, returns the largest possible size_t so that
+ * any call to malloc() or equivalent would fail. Otherwise returns the size.
+ * Note that this implies that even 1*max would not be permitted either.
+ */
+static inline size_t array_size_or_fail(size_t m, size_t n)
+{
+	size_t size;
+
+	if (mulsz_overflow(m, n, &size))
+		return ~(size_t)0;
+	return size;
+}
+
 /* rotate left a 64-bit integer by <bits:[0-5]> bits */
 static inline uint64_t rotl64(uint64_t v, uint8_t bits)
 {
