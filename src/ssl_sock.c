@@ -4295,6 +4295,7 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 					memcpy(&s->path_params.nego_alpn, alpn, len);
 					s->path_params.nego_alpn[len] = 0;
 					/* The transport parameters are not stored without ALPN */
+					s->path_params.srv_hash = conn->hash_node.key;
 					qc_early_transport_params_cpy(qc, etps, &qc->tx.params);
 					HA_RWLOCK_WRUNLOCK(SERVER_LOCK, &s->path_params.param_lock);
 				}
@@ -6928,6 +6929,7 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 						HA_RWLOCK_WRLOCK(SERVER_LOCK, &srv->path_params.param_lock);
 						memcpy(&srv->path_params.nego_alpn, alpn, len);
 						srv->path_params.nego_alpn[len] = 0;
+						srv->path_params.srv_hash = conn->hash_node.key;
 						HA_RWLOCK_WRUNLOCK(SERVER_LOCK, &srv->path_params.param_lock);
 					}
 				}
