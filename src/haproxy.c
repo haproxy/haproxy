@@ -3351,7 +3351,7 @@ static int do_chroot(const char *prog, const char *path)
 		DISGUISE(rmdir(tmpdir));
 		if (!error)
 			error = chroot(".");
-	} else {
+	} else if (strcmp(path, "/") != 0) {
 		error = chroot(path);
 	}
 	if (!error)
