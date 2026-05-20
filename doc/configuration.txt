@@ -2142,6 +2142,13 @@ chroot { <jail dir> | auto }
   The resulting jail has no name in the filesystem and is empty and read-only,
   removing the need to prepare a dedicated jail directory.
 
+  When starting with superuser privileges, a warning will be displayed if no
+  chroot is used, in order to encourage users to always use the mechanism. If
+  for any reason there is a compelling reason not to use chroot (e.g. access to
+  a server via a UNIX socket with an unconvenient path), it remains possible to
+  silence the warning by adding an explicit "chroot /", which has the benefit
+  of being visible in a configuration.
+
 close-spread-time <time>
   Define a time window during which idle connections and active connections
   closing is spread in case of soft-stop. After a SIGUSR1 is received and the

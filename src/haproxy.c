@@ -3681,6 +3681,27 @@ int main(int argc, char **argv)
 		}
 	}
 
+	/* privileged users should use chroot whenever possible; use chroot /
+	 * if really not wanted.
+	 */
+
+	if (!global.chroot) {
+		int chroot_permitted = geteuid() == 0;
+
+#if defined(USE_PRCTL) && defined(PR_CAPBSET_READ) && defined(CAP_SYS_CHROOT)
+		chroot_permitted &= (prctl(PR_CAPBSET_READ, CAP_SYS_CHROOT, 0, 0, 0) == 1);
+#endif
+		if (chroot_permitted) {
+			ha_warning("[%s.main()] HAProxy was started as root without any 'chroot' "
+				   "directive. A chroot limits filesystem access of an intruder "
+				   "to a single, preferably empty, directory. It is strongly recommended "
+				   "to enable this feature whenever possible (it's always possible when "
+				   "starting as root), via 'chroot auto' in the global section. If you "
+				   "think you have good reasons for running outside a chroot, explicitly "
+				   "configure 'chroot /' to silence this warning.\n", argv[0]);
+		}
+	}
+
 #ifdef CLONE_NEWUSER
 	/* When we aren't root and intend to chroot, we try the Linux-only
 	 * unshare(CLONE_NEWUSER) mechanism if available to allow chroot as an
