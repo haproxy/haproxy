@@ -1,6 +1,86 @@
 ChangeLog :
 ===========
 
+2026/05/20 : 3.4-dev13
+    - BUG/MINOR: backend: correct parameter value validation in get_server_ph_post()
+    - BUG/MINOR: config/dns: properly fail on duplicate nameserver name detection
+    - BUG/MEDIUM: dns: fix long loops in additional records parse on name failure
+    - BUG/MEDIUM: resolvers: fix name compression pointer validation in resolv_read_name()
+    - BUG/MEDIUM: dns: fix memory leak of sockaddr in dns_session_init() error path
+    - CLEANUP: proxy: fix tiny mistakes in parse error messages
+    - CLEANUP: dns: fix misleading error messages in dns_stream_init()
+    - BUG/MINOR: server: better handling of OOM in srv_set_fqdn()
+    - BUG/MINOR: servers: use proper source of pool_conn_name in srv_settings_cpy()
+    - BUG/MEDIUM: server/cli: unlock server lock on failure in cli_parse_set_server
+    - BUG/MINOR: resolvers: fix dangling list pointer in resolvers_new() error paths
+    - BUG/MINOR: dns: fix dangling dgram pointer on dns_dgram_init() failure path
+    - BUG/MINOR: proxy: use proxy_drop() in parse_new_proxy() error path
+    - CLEANUP: resolvers: properly initialize the sample in resolv_action_do_resolve()
+    - BUG/MINOR: resolvers: report the expression error in the do-resolve() action parser
+    - BUG/MINOR: resolvers: fix leaked dgram and dns_ring struct in parse_resolve_conf()
+    - BUG/MINOR: resolvers: fix leaked fields on cfg_parse_resolvers() error paths
+    - BUG/MINOR: resolvers: fix missing task_idle destruction in resolvers_destroy()
+    - CLEANUP: proxy: fix duplicate declaration of cli_find_frontend in proxy.h
+    - CLEANUP: address a few typos and copy-paste errors in httpclient and dns
+    - DOC: internal: add a few rules about internal core principles
+    - BUG/MINOR: session/trace: use distinct flags for SESS_EV_END and _ERR
+    - CLEANUP: stick-table: uniformize the different action_inc_gpc*()
+    - REGTESTS: do not run quic/tls13_ssl_crt-list_filters in quic openssl compat mode
+    - REGTESTS: quic/issuers_chain_path: do not forget to enable QUIC compat mode
+    - BUG/MINOR: sock: store the connection error status
+    - BUG/MINOR: check: properly report errno in chk_report_conn_err()
+    - CLEANUP: tcpcheck: mention that we're a bit far for a sync errno
+    - BUG/MINOR: jwt: fix possible memory leak in convert_ecdsa_sig() error path
+    - CLEANUP: jwe: fix theoretical overflow in AAD length calculation
+    - DOC: config: further clarify that resolvers "default" exists
+    - MINOR: proxy: remove the experimental status on dynamic backends
+    - BUG/MEDIUM: limits: properly account for global.maxpipes in compute_ideal_maxconn()
+    - BUG/MINOR: jws: fix OpenSSL 3.0 version check from > to >=
+    - BUG/MINOR: jws: Add missing return value check (EVP_PKEY_get_bn_param)
+    - BUG/MINOR: server: Properly handle init-state value during haproxy startup
+    - BUG/MINOR: httpclient-cli: Destroy http-client context if failing to start it
+    - BUG/MEDIUM: h1: Skip all h2c values from Upgrade headers during parsing
+    - BUG/MINOR: h1: Don't mask websocket protocol if multiple protocols used
+    - MINOR: haterm: Don't init haterm master pipe if not used
+    - CLEANUP: haterm: Remove "(too old kernel)" from warning message during init
+    - BUG/MINOR: httpclient-cli: fix uninit variable in error label
+    - MINOR: mux: Rename the "token" from mux_proto_list to mux_proto
+    - MEDIUM: connections: Use both mux_proto and alpn to pick a mux
+    - MINOR: connection: define conn_select_mux_fe()
+    - MINOR: connection: define conn_select_mux_be()
+    - MINOR: connection/mux_quic: add MUX <init_xprt> field for QMux handshake
+    - MINOR: proxy/server: reject TCP ALPN h3 without experimental
+    - MEDIUM: ssl: allow h3/QMux negotiation without explicit proto
+    - BUG/MINOR: server: accept server IDs above 2^31 and clarify error message
+    - BUG/MINOR: backend: fix balance hash calculation when using hash-type none
+    - MINOR: server: support hash-key id32 for a cleaner distribution
+    - MINOR: backend: support hash-key guid for a stabler distribution
+    - MINOR: startup: support unprivileged chroot if possible
+    - MEDIUM: startup: add automatic chroot feature
+    - MINOR: h2: explain committed_extra_streams dec on h2_init() error
+    - OPTIM: h2: do not update committed streams if elasticity disabled
+    - MINOR: mux_quic: implement basic committed_extra_streams accounting
+    - MINOR: quic: use stream elasticity value for initial advertisement
+    - MINOR: mux_quic: define ms_bidi_rel QCC member
+    - MAJOR: mux_quic: support stream elasticity during connection lifetime
+    - BUG/MEDIUM: servers: Store the connection hash with the parameter cache
+    - BUG/MINOR: prevent conn leak in case of xprt_qmux init failure
+    - BUILD: traces: set a few __maybe_unused on vars used only for traces
+    - BUILD: traces: add USE_TRACE allowing to disable traces
+    - MINOR: startup: do not execute chroot() when "/"
+    - MEDIUM: startup: warn when chroot is not set for root
+    - BUG/MEDIUM: servers: Don't forget to set srv_hash when needed
+    - DOC: fix typo on QUIC stream.max-concurrent reference
+    - BUG/MINOR: mux_quic: do not exceed stream.max-concurrent on backend side
+    - BUG/MINOR: htx: Fix value of HTX_XFER_HDRS_ONLY flag
+    - MEDIUM: htx: Improve htx_xfer API to not count HTX meta-data
+    - BUG/MEDIUM: applet: Fix transfer of HTX data to the applet
+    - BUG/MEDIUM: htx: Alloc a chunk of right size in htx_replace_blk_value()
+    - MEDIUM: stick-tables: Avoid freeing elements while holding a lock
+    - MINOR: intops: add a multiply overflow detection for ulong and size_t
+    - CLEANUP: tree-wide: use array_size_or_fail() in array size for allocations
+    - DOC: update supported gcc and openssl versions in INSTALL
+
 2026/05/13 : 3.4-dev12
     - SCRIPTS: announce-release: add a link to the OpenTelemetry filter
     - BUG/MEDIUM: servers: Only requeue servers if they are up
