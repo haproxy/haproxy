@@ -1897,7 +1897,7 @@ static void h1_append_chunk_crlf(struct buffer *buf)
  */
 static void h1_set_tunnel_mode(struct h1s *h1s)
 {
-	struct h1c *h1c = h1s->h1c;
+	struct h1c __maybe_unused *h1c = h1s->h1c;
 
 	h1s->req.state = H1_MSG_TUNNEL;
 	h1s->req.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);

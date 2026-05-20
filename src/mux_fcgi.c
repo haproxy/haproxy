@@ -981,7 +981,7 @@ static inline void fcgi_strm_propagate_term_flags(struct fcgi_conn *fconn, struc
  */
 static void fcgi_strm_destroy(struct fcgi_strm *fstrm)
 {
-	struct connection *conn = fstrm->fconn->conn;
+	struct connection __maybe_unused *conn = fstrm->fconn->conn;
 
 	TRACE_ENTER(FCGI_EV_FSTRM_END, conn, fstrm);
 
@@ -3540,7 +3540,7 @@ static size_t fcgi_strm_parse_trailers(struct fcgi_strm *fstrm, struct h1m *h1m,
 
 static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *buf, size_t count)
 {
-	struct fcgi_conn *fconn = fstrm->fconn;
+	struct fcgi_conn __maybe_unused *fconn = fstrm->fconn;
 	struct htx *htx;
 	struct h1m *h1m = &fstrm->h1m;
 	size_t ret, data, total = 0;
@@ -4031,7 +4031,7 @@ static int fcgi_subscribe(struct stconn *sc, int event_type, struct wait_event *
 static int fcgi_unsubscribe(struct stconn *sc, int event_type, struct wait_event *es)
 {
 	struct fcgi_strm *fstrm = __sc_mux_strm(sc);
-	struct fcgi_conn *fconn = fstrm->fconn;
+	struct fcgi_conn __maybe_unused *fconn = fstrm->fconn;
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
 	BUG_ON(fstrm->subs && fstrm->subs != es);

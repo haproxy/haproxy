@@ -1154,7 +1154,7 @@ static inline void spop_strm_propagate_term_flags(struct spop_conn *spop_conn, s
  */
 static void spop_strm_destroy(struct spop_strm *spop_strm)
 {
-	struct connection *conn = spop_strm->spop_conn->conn;
+	struct connection __maybe_unused *conn = spop_strm->spop_conn->conn;
 
 	TRACE_ENTER(SPOP_EV_SPOP_STRM_END, conn, spop_strm);
 
@@ -3199,7 +3199,7 @@ static int spop_subscribe(struct stconn *sc, int event_type, struct wait_event *
 static int spop_unsubscribe(struct stconn *sc, int event_type, struct wait_event *es)
 {
 	struct spop_strm *spop_strm = __sc_mux_strm(sc);
-	struct spop_conn *spop_conn = spop_strm->spop_conn;
+	struct spop_conn __maybe_unused *spop_conn = spop_strm->spop_conn;
 
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
 	BUG_ON(spop_strm->subs && spop_strm->subs != es);

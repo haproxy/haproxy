@@ -1281,7 +1281,7 @@ void _h2_trace_header(const struct ist hn, const struct ist hv,
 		      const struct h2c *h2c, const struct h2s *h2s)
 {
 	struct ist n_ist, v_ist;
-	const char *c_str, *s_str;
+	const char __maybe_unused *c_str, *s_str;
 
 	chunk_reset(&trash);
 	c_str = chunk_newstr(&trash);
@@ -2024,7 +2024,7 @@ static inline void h2s_propagate_term_flags(struct h2c *h2c, struct h2s *h2s)
  */
 static void h2s_destroy(struct h2s *h2s)
 {
-	struct connection *conn = h2s->h2c->conn;
+	struct connection __maybe_unused *conn = h2s->h2c->conn;
 	int freed = 0;
 
 	TRACE_ENTER(H2_EV_H2S_END, conn, h2s);
@@ -7613,7 +7613,7 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
  */
 static size_t h2s_skip_data(struct h2s *h2s, struct buffer *buf, size_t count)
 {
-	struct h2c *h2c = h2s->h2c;
+	struct h2c __maybe_unused *h2c = h2s->h2c;
 	struct htx *htx;
 	int bsize; /* htx block size */
 	int fsize; /* h2 frame size  */

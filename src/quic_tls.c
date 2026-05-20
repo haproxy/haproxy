@@ -1060,7 +1060,7 @@ int quic_tls_key_update(struct quic_conn *qc)
 	struct quic_tls_secrets *rx = &tls_ctx->rx;
 	struct quic_tls_secrets *tx = &tls_ctx->tx;
 	/* Used only for the traces */
-	struct quic_kp_trace kp_trace = {
+	struct quic_kp_trace __maybe_unused kp_trace = {
 		.rx_sec = rx->secret,
 		.rx_seclen = rx->secretlen,
 		.tx_sec = tx->secret,

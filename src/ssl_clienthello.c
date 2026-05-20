@@ -349,7 +349,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	if ((TRACE_SOURCE)->verbosity >= SSL_VERB_ADVANCED) {
 		if (TRACE_ENABLED(TRACE_LEVEL_DATA, SSL_EV_CONN_CIPHERS_EXT, conn, 0, 0, 0)) {
 			const uint8_t *cipher_suites;
-			size_t len;
+			size_t __maybe_unused len;
 
 #if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
 			len = ctx->cipher_suites_len;

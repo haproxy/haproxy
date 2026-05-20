@@ -710,7 +710,7 @@ static inline int ha_quic_set_write_secret(SSL *ssl, enum ssl_encryption_level_t
 
 static int ha_quic_flush_flight(SSL *ssl)
 {
-	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
+	struct quic_conn __maybe_unused *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
 
 	TRACE_ENTER(QUIC_EV_CONN_FFLIGHT, qc);
 	TRACE_LEAVE(QUIC_EV_CONN_FFLIGHT, qc);
