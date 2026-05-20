@@ -276,6 +276,7 @@ int stktable_trash_oldest(struct stktable *t)
 {
 	struct stksess *ts;
 	struct eb32_node *eb;
+	struct list tofree_list;
 	int max_search; // no more than 50% misses
 	int max_per_bucket;
 	int done_per_bucket;
@@ -289,7 +290,7 @@ int stktable_trash_oldest(struct stktable *t)
 
 	/* start from a random bucket number to avoid starvation in the last ones */
 	bucket = init_bucket = statistical_prng_range(CONFIG_HAP_TBL_BUCKETS - 1);
-
+	LIST_INIT(&tofree_list);
 	to_batch = STKTABLE_MAX_UPDATES_AT_ONCE;
 
 	max_search = to_batch * 2; // no more than 50% misses
@@ -390,7 +391,8 @@ int stktable_trash_oldest(struct stktable *t)
 			ebmb_delete(&ts->key);
 			MT_LIST_DELETE(&ts->pend_updts);
 			eb32_delete(&ts->upd);
-			__stksess_free(t, ts);
+			LIST_APPEND(&tofree_list, mt_list_to_list(&ts->pend_updts));
+
 			batched++;
 			done_per_bucket++;
 
@@ -416,6 +418,12 @@ int stktable_trash_oldest(struct stktable *t)
 		if (bucket >= CONFIG_HAP_TBL_BUCKETS)
 			bucket = 0;
 	} while (max_search > 0 && bucket != init_bucket);
+
+	while (!LIST_ISEMPTY(&tofree_list)) {
+		ts = LIST_ELEM(tofree_list.n, struct stksess *, pend_updts);
+		LIST_DELETE(mt_list_to_list(&ts->pend_updts));
+		__stksess_free(t, ts);
+	}
 
 	return batched;
 }
@@ -953,12 +961,15 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 	struct stktable *t;
 	struct stksess *ts;
 	struct eb32_node *table_eb, *eb;
+	struct list tofree_list;
 	int updt_locked;
 	int to_visit;
 	int task_exp;
 	int bucket;
 
 	task_exp = TICK_ETERNITY;
+
+	LIST_INIT(&tofree_list);
 
 	bucket = (ps - &per_bucket[0]);
 
@@ -1088,7 +1099,7 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 			ebmb_delete(&ts->key);
 			MT_LIST_DELETE(&ts->pend_updts);
 			eb32_delete(&ts->upd);
-			__stksess_free(t, ts);
+			LIST_APPEND(&tofree_list, mt_list_to_list(&ts->pend_updts));
 		}
 
 		if (updt_locked)
@@ -1110,6 +1121,13 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 		if (!tick_isset(task_exp) || (tick_isset(next_exp_table) && tick_is_lt(next_exp_table, task_exp)))
 			task_exp = next_exp_table;
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->buckets[bucket].sh_lock);
+
+		while (!LIST_ISEMPTY(&tofree_list)) {
+			ts = LIST_ELEM(tofree_list.n, struct stksess *, pend_updts);
+			LIST_DELETE(mt_list_to_list(&ts->pend_updts));
+			__stksess_free(t, ts);
+		}
+
 		tmpnode = eb32_next(table_eb);
 
 		if (table_eb->key != next_exp_table) {
