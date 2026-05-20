@@ -730,17 +730,20 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
  *  - HTX_XFER_KEEP_SRC_BLKS: source blocks are not removed
  *  - HTX_XFER_PARTIAL_HDRS_COPY: partial headers and trailers part can be xferred
  *  - HTX_XFER_HDRS_ONLY: Only the headers part is xferred
+ *  - HTX_XFER_NO_METADATA: <count> don't include meta-data, only payload
  */
 size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int flags)
 {
 	struct htx_blk *blk, *last_dstblk;
 	size_t ret = 0;
+	size_t meta_sz = (flags & HTX_XFER_NO_METADATA) ? 0 : sizeof(*blk);
 	uint32_t max, last_dstblk_sz;
 	int dst_full = 0;
 
+
 	last_dstblk = NULL;
 	last_dstblk_sz = 0;
-	for (blk = htx_get_head_blk(src); blk && count; blk = htx_get_next_blk(src, blk)) {
+	for (blk = htx_get_head_blk(src); blk && count > meta_sz; blk = htx_get_next_blk(src, blk)) {
 		struct ist v;
 		enum htx_blk_type type;
 		uint32_t sz;
@@ -755,7 +758,10 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 		    type != HTX_BLK_HDR && type != HTX_BLK_EOH)
 			break;
 
-		max = htx_get_max_blksz(dst, count);
+		max = htx_free_data_space(dst);
+		if (max  > count - meta_sz)
+			max = count - meta_sz;
+
 		if (!max)
 			break;
 
@@ -771,8 +777,8 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 			}
 			last_dstblk = htx_get_tail_blk(dst);
 			last_dstblk_sz = v.len;
-			count -= sizeof(*blk) + v.len;
-			ret += sizeof(*blk) + v.len;
+			count -= meta_sz + v.len;
+			ret += meta_sz + v.len;
 			if (v.len != sz) {
 				dst_full = 1;
 				goto stop;
@@ -793,8 +799,8 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 			last_dstblk->info = blk->info;
 			htx_memcpy(htx_get_blk_ptr(dst, last_dstblk), htx_get_blk_ptr(src, blk), sz);
 			last_dstblk_sz = sz;
-			count -= sizeof(*blk) + sz;
-			ret += sizeof(*blk) + sz;
+			count -= meta_sz + sz;
+			ret += meta_sz + sz;
 			break;
 		}
 
@@ -826,7 +832,7 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 			/* Remove partial headers/trailers from <dst> and rollback on <src> to not remove them later */
 			while (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL || type == HTX_BLK_HDR || type == HTX_BLK_TLR) {
 				BUG_ON(type != htx_get_blk_type(blk));
-				ret -= sizeof(*blk) + htx_get_blksz(blk);
+				ret -= meta_sz + htx_get_blksz(blk);
 				htx_remove_blk(dst, dstblk);
 				dstblk = htx_get_tail_blk(dst);
 				blk = htx_get_prev_blk(src, blk);
