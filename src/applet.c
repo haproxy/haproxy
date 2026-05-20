@@ -608,7 +608,7 @@ size_t appctx_htx_snd_buf(struct appctx *appctx, struct buffer *buf, size_t coun
 		goto end;
 	}
 
-	htx_xfer(appctx_htx, buf_htx, count, HTX_XFER_DEFAULT);
+	htx_xfer(appctx_htx, buf_htx, count, HTX_XFER_NO_METADATA);
 	if (htx_is_empty(buf_htx)) {
 		appctx_htx->flags |= (buf_htx->flags & HTX_FL_EOM);
 	}
