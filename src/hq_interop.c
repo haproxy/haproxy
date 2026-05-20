@@ -4,6 +4,7 @@
 #include <haproxy/buf.h>
 #include <haproxy/connection.h>
 #include <haproxy/dynbuf.h>
+#include <haproxy/hldstream-t.h>
 #include <haproxy/htx.h>
 #include <haproxy/http.h>
 #include <haproxy/istbuf.h>
@@ -94,13 +95,22 @@ static ssize_t hq_interop_rcv_buf_req(struct qcs *qcs, struct buffer *b, int fin
 	return b_data(b);
 }
 
+static inline int hq_interop_strm_bytes_in(const struct stconn *sc)
+{
+	if (obj_type(sc->app) == OBJ_TYPE_STREAM)
+	    return __sc_strm(sc)->scb->bytes_in;
+	else if (obj_type(sc->app) == OBJ_TYPE_HALOAD)
+	    return __sc_hldstream(sc)->sc->bytes_in;
+	else
+		ABORT_NOW();
+}
+
 /* HTTP/0.9 response -> HTX. */
 static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin)
 {
 	struct htx *htx;
 	struct htx_sl *sl;
 	struct buffer *htx_buf;
-	const struct stream *strm = __sc_strm(qcs->sd->sc);
 	const unsigned int flags = HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN;
 	size_t to_copy = b_data(b);
 	size_t htx_sent = 0;
@@ -110,7 +120,7 @@ static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin
 	BUG_ON(!htx_buf);
 	htx = htx_from_buf(htx_buf);
 
-	if (htx_is_empty(htx) && !strm->scb->bytes_in) {
+	if (htx_is_empty(htx) && hq_interop_strm_bytes_in(qcs->sd->sc)) {
 		/* First data transfer, add HTX response start-line first. */
 		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags,
 		                    ist("HTTP/1.0"), ist("200"), ist(""));
