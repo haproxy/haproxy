@@ -681,7 +681,7 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 	}
 	else { /* Do a defrag first (it is always an expansion) */
 		struct htx_blk tmpblk;
-		struct buffer *chunk = alloc_trash_chunk();
+		struct buffer *chunk = alloc_trash_chunk_sz(n.len + v.len + delta);
 		void *ptr;
 
 		if (!chunk)
