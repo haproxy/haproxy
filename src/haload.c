@@ -1317,7 +1317,7 @@ static struct task *hld_strm_task(struct task *t, void *context, unsigned int st
 			if (srv->mux_proto)
 				mux_ops = srv->mux_proto->mux;
 			else
-				mux_ops = conn_get_best_mux(conn, IST_NULL, PROTO_SIDE_BE, PROTO_MODE_HTTP);
+				mux_ops = conn_get_best_mux(conn, IST_NULL, IST_NULL, PROTO_SIDE_BE, PROTO_MODE_HTTP);
 			if (!mux_ops || conn_install_mux(conn, mux_ops, hs->sc, &hld_proxy, sess) < 0) {
 				TRACE_ERROR("mux installation failed", HLD_STRM_EV_TASK, hs);
 				goto err;
@@ -1772,11 +1772,11 @@ static int hld_cfg_finalize(void)
 			int proto_mode = conn_pr_mode_to_proto_mode(hld_proxy.mode);
 			const struct mux_proto_list *mux_ent;
 
-			mux_ent = conn_get_best_mux_entry(srv->mux_proto->token,
+			mux_ent = conn_get_best_mux_entry(srv->mux_proto->mux_proto, IST_NULL,
 			                                  PROTO_SIDE_BE,
 			                                  srv_is_quic(srv), proto_mode);
 
-			if (!mux_ent || !isteq(mux_ent->token, srv->mux_proto->token)) {
+			if (!mux_ent || !isteq(mux_ent->mux_proto, srv->mux_proto->mux_proto)) {
 				ha_alert("MUX protocol is not usable for server.\n");
 				goto leave;
 			}
