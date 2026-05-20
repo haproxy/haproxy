@@ -531,6 +531,10 @@ void haproxy_init_args(int argc, char **argv)
 	hbuf_appendf(&buf, "%.*s", (int)gbuf.data, gbuf.area);
 	if (arg_nbthrds != -1)
 		hbuf_appendf(&buf, "\tnbthread %d\n", arg_nbthrds);
+	if (arg_mreqs)
+		hbuf_appendf(&buf,
+		             "\ttune.h2.be.max-concurrent-streams %d\n"
+		             "\ttune.quic.be.stream.max-concurrent %d\n", arg_mreqs, arg_mreqs);
 	/* "traces" section */
 	if (hld_debug) {
 		hbuf_appendf(&buf, "%s", hld_cfg_traces_str);
