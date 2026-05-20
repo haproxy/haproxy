@@ -1456,7 +1456,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 
 		if (max_strm && h2c->streams_hard_limit > max_strm)
 			h2c->streams_limit = h2c->streams_hard_limit = max_strm;
-		if (h2c->streams_hard_limit > 1)
+		if (global.tune.streams_elasticity && h2c->streams_hard_limit > 1)
 			_HA_ATOMIC_ADD(&tg_ctx->committed_extra_streams, h2c->streams_hard_limit - 1);
 	}
 
@@ -1530,7 +1530,7 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	/* Unnecessary code for now as fail_stream only occurs with BE conns.
 	 * Still better though to keep it to prevent future mistakes.
 	 */
-	if (!(h2c->flags & H2_CF_IS_BACK) && h2c->streams_hard_limit > 1)
+	if (!(h2c->flags & H2_CF_IS_BACK) && global.tune.streams_elasticity && h2c->streams_hard_limit > 1)
 		_HA_ATOMIC_SUB(&tg_ctx->committed_extra_streams, h2c->streams_hard_limit - 1);
 	hpack_dht_free(h2c->ddht);
   fail:
@@ -1610,7 +1610,7 @@ static void h2_release(struct h2c *h2c)
 	if (!conn || !conn_is_reverse(conn))
 		HA_ATOMIC_DEC(&h2c->px_counters->open_conns);
 
-	if (!(h2c->flags & H2_CF_IS_BACK) && h2c->streams_hard_limit > 1)
+	if (!(h2c->flags & H2_CF_IS_BACK) && global.tune.streams_elasticity && h2c->streams_hard_limit > 1)
 		_HA_ATOMIC_SUB(&tg_ctx->committed_extra_streams, h2c->streams_hard_limit - 1);
 
 	pool_free(pool_head_h2_rx_bufs, h2c->shared_rx_bufs);
@@ -4200,7 +4200,7 @@ static int h2_conn_reverse(struct h2c *h2c)
 		/* the connection was accounted as frontend streams before
 		 * reversal, we must undo that accounting now.
 		 */
-		if (h2c->streams_hard_limit > 1)
+		if (h2c->streams_hard_limit > 1 && global.tune.streams_elasticity)
 			_HA_ATOMIC_SUB(&tg_ctx->committed_extra_streams, h2c->streams_hard_limit - 1);
 
 		h2c->flags |= H2_CF_IS_BACK;
@@ -4222,7 +4222,7 @@ static int h2_conn_reverse(struct h2c *h2c)
 		struct proxy *prx = l->bind_conf->frontend;
 
 		/* backend connections becoming frontend need accounting. */
-		if (h2c->streams_hard_limit > 1)
+		if (h2c->streams_hard_limit > 1 && global.tune.streams_elasticity)
 			_HA_ATOMIC_ADD(&tg_ctx->committed_extra_streams, h2c->streams_hard_limit - 1);
 
 		h2c->flags &= ~H2_CF_IS_BACK;
