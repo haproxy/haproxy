@@ -1364,9 +1364,9 @@ static struct task *hld_strm_task(struct task *t, void *context, unsigned int st
 	TRACE_LEAVE(HLD_STRM_EV_TASK, hs);
 	return t;
  done:
-	DDPRINTF(stderr, ".");
 	url->mreqs++;
 	url->tot_done++;
+	BUG_ON(arg_rcon > 0 && url->tot_done > arg_rcon);
 
 	task_wakeup(usr->task, TASK_WOKEN_IO);
 	LIST_DELETE(&hs->list);
@@ -1378,7 +1378,6 @@ static struct task *hld_strm_task(struct task *t, void *context, unsigned int st
 		conn->mux->destroy(conn->ctx);
 		/* Reset this counter here. Cannot be done elsewhere */
 		url->tot_done = 0;
-		BUG_ON(url->mreqs != arg_mreqs);
 	}
 	goto leave;
  err:
@@ -1386,6 +1385,7 @@ static struct task *hld_strm_task(struct task *t, void *context, unsigned int st
 	thrs_info[tid].tot_perr++;
 	url->mreqs++;
 	url->tot_done++;
+	BUG_ON(arg_rcon > 0 && url->tot_done > arg_rcon);
 	task_wakeup(usr->task, TASK_WOKEN_IO);
 	LIST_DELETE(&hs->list);
 	hldstream_free(&hs);
@@ -1533,7 +1533,7 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 		hldstream_free(&hs);
 	}
 
-	for (url = urls; url; usr->cur_url = url = hld_next_url(urls, url)) {
+	for (url = urls; url; url = hld_next_url(urls, url)) {
 		struct hld_path *path, *paths = url->cfg->paths;
 
 		nreqs = usr->nreqs >= 0 ? MIN(usr->nreqs, url->mreqs) : url->mreqs;
@@ -1575,7 +1575,7 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 				break;
 		}
 
-		if (!usr->nreqs || !remain || hld_next_url(urls, url) == first_url)
+		if (!usr->nreqs || hld_next_url(urls, url) == first_url)
 			break;
 	}
 
