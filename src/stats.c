@@ -1208,7 +1208,7 @@ static int allocate_stats_px_postcheck(void)
 
 	stat_cols_len[STATS_DOMAIN_PROXY] += ST_I_PX_MAX;
 
-	stat_cols[STATS_DOMAIN_PROXY] = malloc(stat_cols_len[STATS_DOMAIN_PROXY] * sizeof(struct name_desc));
+	stat_cols[STATS_DOMAIN_PROXY] = malloc(array_size_or_fail(stat_cols_len[STATS_DOMAIN_PROXY], sizeof(struct name_desc)));
 	if (!stat_cols[STATS_DOMAIN_PROXY]) {
 		ha_alert("stats: cannot allocate all fields for proxy statistics\n");
 		err_code |= ERR_ALERT | ERR_FATAL;
@@ -1247,7 +1247,7 @@ static int allocate_stats_rslv_postcheck(void)
 	size_t i = 0, offset;
 	int err_code = 0;
 
-	stat_cols[STATS_DOMAIN_RESOLVERS] = malloc(stat_cols_len[STATS_DOMAIN_RESOLVERS] * sizeof(struct name_desc));
+	stat_cols[STATS_DOMAIN_RESOLVERS] = malloc(array_size_or_fail(stat_cols_len[STATS_DOMAIN_RESOLVERS], sizeof(struct name_desc)));
 	if (!stat_cols[STATS_DOMAIN_RESOLVERS]) {
 		ha_alert("stats: cannot allocate all fields for resolver statistics\n");
 		err_code |= ERR_ALERT | ERR_FATAL;
@@ -1282,7 +1282,7 @@ static int allocate_stat_lines_per_thread(void)
 	for (i = 0; i < STATS_DOMAIN_COUNT; ++i) {
 		const int domain = domains[i];
 
-		stat_lines[domain] = malloc(stat_cols_len[domain] * sizeof(struct field));
+		stat_lines[domain] = malloc(array_size_or_fail(stat_cols_len[domain], sizeof(struct field)));
 		if (!stat_lines[domain])
 			return 0;
 	}

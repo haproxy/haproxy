@@ -1713,7 +1713,7 @@ void haproxy_init_args(int argc, char **argv)
 					oldpids_sig = SIGTERM; /* terminate immediately */
 				while (argc > 1 && argv[1][0] != '-') {
 					char * endptr = NULL;
-					oldpids = realloc(oldpids, (nb_oldpids + 1) * sizeof(int));
+					oldpids = realloc(oldpids, array_size_or_fail(nb_oldpids + 1, sizeof(int)));
 					if (!oldpids) {
 						ha_alert("Cannot allocate old pid : out of memory.\n");
 						exit(1);

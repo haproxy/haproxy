@@ -2543,7 +2543,7 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	/* We will send sockets MAX_SEND_FD per MAX_SEND_FD, allocate a
 	 * buffer big enough to store the socket information.
 	 */
-	tmpbuf = malloc(MAX_SEND_FD * (1 + MAXPATHLEN + 1 + IFNAMSIZ + sizeof(int)));
+	tmpbuf = malloc(array_size_or_fail(MAX_SEND_FD, (1 + MAXPATHLEN + 1 + IFNAMSIZ + sizeof(int))));
 	if (tmpbuf == NULL) {
 		ha_warning("Failed to allocate memory to transfer socket information\n");
 		goto out;

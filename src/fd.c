@@ -1166,7 +1166,7 @@ int init_pollers()
 	struct poller *bp;
 
 	/* always provide an aligned fdtab */
-	if ((fdtab = ha_aligned_zalloc(64, global.maxsock * sizeof(*fdtab))) == NULL) {
+	if ((fdtab = ha_aligned_zalloc(64, array_size_or_fail(global.maxsock, sizeof(*fdtab)))) == NULL) {
 		ha_alert("Not enough memory to allocate %d entries for fdtab!\n", global.maxsock);
 		goto fail_tab;
 	}

@@ -3632,7 +3632,7 @@ int srv_postinit(struct server *srv)
 
 	/* initialize idle conns lists */
 	if (srv->max_idle_conns != 0) {
-		srv->curr_idle_thr = ha_aligned_zalloc(64, global.nbthread * sizeof(*srv->curr_idle_thr));
+		srv->curr_idle_thr = ha_aligned_zalloc(64, array_size_or_fail(global.nbthread, sizeof(*srv->curr_idle_thr)));
 		if (!srv->curr_idle_thr) {
 			ha_alert("memory error during idle conn list init for %s/%s server\n",
 			         srv->proxy->id, srv->id);
@@ -6106,8 +6106,8 @@ static int srv_init_per_thr(struct server *srv)
 {
 	int i;
 
-	srv->per_thr = ha_aligned_zalloc(64, global.nbthread * sizeof(*srv->per_thr));
-	srv->per_tgrp = ha_aligned_zalloc(64, global.nbtgroups * sizeof(*srv->per_tgrp));
+	srv->per_thr = ha_aligned_zalloc(64, array_size_or_fail(global.nbthread, sizeof(*srv->per_thr)));
+	srv->per_tgrp = ha_aligned_zalloc(64, array_size_or_fail(global.nbtgroups, sizeof(*srv->per_tgrp)));
 	if (!srv->per_thr || !srv->per_tgrp)
 		return -1;
 

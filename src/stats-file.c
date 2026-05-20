@@ -417,7 +417,7 @@ void apply_stats_file(void)
 		goto out;
 	}
 
-	line = malloc(sizeof(char) * LINESIZE);
+	line = malloc(array_size_or_fail(sizeof(char), LINESIZE));
 	if (!line) {
 		ha_warning("config: Can't load stats-file '%s': line alloc error.\n", global.stats_file);
 		goto out;

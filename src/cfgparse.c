@@ -1394,7 +1394,7 @@ int parse_cfg(const struct cfgfile *cfg)
 	global.cfg_curr_line = 0;
 	global.cfg_curr_file = file;
 
-	if ((thisline = malloc(sizeof(*thisline) * linesize)) == NULL) {
+	if ((thisline = malloc(array_size_or_fail(sizeof(*thisline), linesize))) == NULL) {
 		ha_alert("Out of memory trying to allocate a buffer for a configuration line.\n");
 		err_code = -1;
 		goto err;
@@ -1442,7 +1442,7 @@ next_line:
 			char *newline;
 			int newlinesize = linesize * 2;
 
-			newline = realloc(thisline, sizeof(*thisline) * newlinesize);
+			newline = realloc(thisline, array_size_or_fail(sizeof(*thisline), newlinesize));
 			if (newline == NULL) {
 				ha_alert("parsing [%s:%d]: line too long, cannot allocate memory.\n",
 					 file, linenum);

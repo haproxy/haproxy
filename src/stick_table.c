@@ -5978,7 +5978,7 @@ static int stkt_create_stk_ctr_pool(void)
 	if (!global.tune.nb_stk_ctr)
 		return 0;
 
-	pool_head_stk_ctr = create_pool("stk_ctr", sizeof(*((struct session*)0)->stkctr) * global.tune.nb_stk_ctr, MEM_F_SHARED);
+	pool_head_stk_ctr = create_pool("stk_ctr", array_size_or_fail(sizeof(*((struct session*)0)->stkctr), global.tune.nb_stk_ctr), MEM_F_SHARED);
 	if (!pool_head_stk_ctr) {
 		ha_alert("out of memory while creating the stick-counters pool.\n");
 		return ERR_ABORT;

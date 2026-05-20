@@ -3478,7 +3478,7 @@ static int parse_resolve_conf(char **errmsg, char **warnmsg)
 	int duplicate_name = 0;
 	int err_code = 0;
 
-	if ((resolv_line = malloc(sizeof(*resolv_line) * LINESIZE)) == NULL) {
+	if ((resolv_line = malloc(array_size_or_fail(sizeof(*resolv_line), LINESIZE))) == NULL) {
 		memprintf(errmsg, "out of memory.\n");
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto resolv_out;

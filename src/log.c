@@ -1608,7 +1608,7 @@ struct logger *dup_logger(struct logger *def)
 			goto error;
 	}
 	if (def->lb.smp_rgs) {
-		cpy->lb.smp_rgs = malloc(sizeof(*cpy->lb.smp_rgs) * def->lb.smp_rgs_sz);
+		cpy->lb.smp_rgs = malloc(array_size_or_fail(sizeof(*cpy->lb.smp_rgs), def->lb.smp_rgs_sz));
 		if (!cpy->lb.smp_rgs)
 			goto error;
 		memcpy(cpy->lb.smp_rgs, def->lb.smp_rgs,

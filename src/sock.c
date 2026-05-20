@@ -533,7 +533,7 @@ int sock_get_old_sockets(const char *unixsocket)
 
 	}
 	memset(&msghdr, 0, sizeof(msghdr));
-	cmsgbuf = malloc(CMSG_SPACE(sizeof(int)) * MAX_SEND_FD);
+	cmsgbuf = malloc(array_size_or_fail(CMSG_SPACE(sizeof(int)), MAX_SEND_FD));
 	if (!cmsgbuf) {
 		ha_warning("Failed to allocate memory to send sockets\n");
 		goto out;
@@ -561,13 +561,13 @@ int sock_get_old_sockets(const char *unixsocket)
 		goto out;
 	}
 
-	tmpbuf = malloc(fd_nb * (1 + MAXPATHLEN + 1 + IFNAMSIZ + sizeof(int)));
+	tmpbuf = malloc(array_size_or_fail(fd_nb, (1 + MAXPATHLEN + 1 + IFNAMSIZ + sizeof(int))));
 	if (tmpbuf == NULL) {
 		ha_warning("Failed to allocate memory while receiving sockets\n");
 		goto out;
 	}
 
-	tmpfd = malloc(fd_nb * sizeof(int));
+	tmpfd = malloc(array_size_or_fail(fd_nb, sizeof(int)));
 	if (tmpfd == NULL) {
 		ha_warning("Failed to allocate memory while receiving sockets\n");
 		goto out;

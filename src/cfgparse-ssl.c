@@ -1495,7 +1495,7 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 		goto fail;
 	}
 
-	keys_ref->tlskeys = malloc(TLS_TICKETS_NO * sizeof(union tls_sess_key));
+	keys_ref->tlskeys = malloc(array_size_or_fail(TLS_TICKETS_NO, sizeof(union tls_sess_key)));
 	if (!keys_ref->tlskeys) {
 		memprintf(err, "'%s' : allocation error", args[cur_arg+1]);
 		goto fail;
