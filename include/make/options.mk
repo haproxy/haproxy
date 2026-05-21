@@ -8,6 +8,12 @@
 # there unless you're adding support for a new platform.
 default_opts = $(foreach name,$(1),$(eval $(name)=implicit))
 
+# Disables all specified options
+disable_opts = $(foreach name,$(1),$(eval $(name)=0))
+
+# Enables all specified options
+enable_opts = $(foreach name,$(1),$(eval $(name)=1))
+
 # Return USE_xxx=$(USE_xxx) if the variable was set from the environment or the
 # command line.
 ignore_implicit = $(if $(subst environment,,$(origin $(1))),         \
