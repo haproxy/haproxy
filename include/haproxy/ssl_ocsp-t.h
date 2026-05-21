@@ -50,7 +50,7 @@ struct certificate_ocsp {
 	int refcount_store;		/* Number of ckch_store that reference this certificate_ocsp */
 	int refcount;			/* Number of actual references to this certificate_ocsp (SSL_CTXs mostly) */
 	struct buffer response;
-	long expire;
+	unsigned long expire;
 	X509 *issuer;
 	STACK_OF(X509) *chain;
 	struct eb64_node next_update;	/* Key of items inserted in ocsp_update_tree (sorted by absolute date) */

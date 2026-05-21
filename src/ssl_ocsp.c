@@ -290,6 +290,8 @@ int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
 	int ret = 1;
 #ifdef HAVE_ASN1_TIME_TO_TM
 	struct tm nextupd_tm = {0};
+#else
+	long expire = 0;
 #endif
 
 	resp = d2i_OCSP_RESPONSE(NULL, (const unsigned char **)&p,
@@ -391,11 +393,12 @@ int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
 	}
 	ocsp->expire = my_timegm(&nextupd_tm) - OCSP_MAX_RESPONSE_TIME_SKEW;
 #else
-	ocsp->expire = asn1_generalizedtime_to_epoch(nextupd) - OCSP_MAX_RESPONSE_TIME_SKEW;
-	if (ocsp->expire < 0) {
+	expire = asn1_generalizedtime_to_epoch(nextupd) - OCSP_MAX_RESPONSE_TIME_SKEW;
+	if (expire < 0) {
 		memprintf(err, "OCSP single response: Invalid \"Next Update\" time");
 		goto out;
 	}
+	ocsp->expire = expire;
 #endif
 
 	if (ocsp->expire < date.tv_sec) {
