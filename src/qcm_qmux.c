@@ -95,8 +95,17 @@ static int qmux_parse_frm(struct qcc *qcc, struct buffer *buf)
 	         frm.type == QUIC_FT_STREAMS_BLOCKED_BIDI ||
 	         frm.type == QUIC_FT_STREAMS_BLOCKED_UNI) {
 	        /* TODO */
+		CHECK_IF("received flow control blocked frame not yet handled in QMux");
+	}
+	else if (frm.type == QUIC_FT_PADDING) {
+		CHECK_IF("received padding frame not yet handled in QMux");
+	}
+	else if (frm.type == QUIC_FT_CONNECTION_CLOSE ||
+	         frm.type == QUIC_FT_CONNECTION_CLOSE_APP) {
+		CHECK_IF("received connection_close frame not yet handled in QMux");
 	}
 	else {
+		/* qmux_is_frm_valid() must prevent this */
 		ABORT_NOW();
 	}
 
