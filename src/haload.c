@@ -1765,8 +1765,12 @@ static int hld_cfg_finalize(void)
 			}
 		}
 
-		if (!srv->mux_proto && srv_is_quic(srv))
-			srv->mux_proto = get_mux_proto(ist("quic"));
+		if (!srv->mux_proto) {
+			if (srv_is_quic(srv))
+				srv->mux_proto = get_mux_proto(ist("quic"));
+			else if (cfg->h2c)
+				srv->mux_proto = get_mux_proto(ist("h2"));
+		}
 
 		if (srv->mux_proto) {
 			int proto_mode = conn_pr_mode_to_proto_mode(hld_proxy.mode);

@@ -11,7 +11,8 @@
 
 static int hld_debug;
 struct hld_url_cfg *hld_url_cfgs;
-char *srv_opts, *tls_ciphers, *tls_ciphersuites, *tls_curves;
+char *srv_opts, *tls_ciphers, *tls_ciphersuites, *tls_curves, *alpn;
+int h2c;
 
 static void  hld_usage(char *name, int argc, int line)
 {
@@ -245,8 +246,20 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 	    !hld_add_opt_to_buf(&opts_buf, "curves", tls_curves))
 		goto err;
 
+	if (alpn && !h2c &&
+	    !hld_add_opt_to_buf(&opts_buf, "alpn", alpn))
+		goto err;
+
 	if (!hbuf_is_null(&opts_buf))
 		hld_url_cfg->tls_opts = strdup(opts_buf.area);
+
+	if (alpn && !h2c) {
+		hld_url_cfg->alpn = strdup(alpn);
+		if (!hld_url_cfg->alpn)
+			goto err;
+	}
+
+	hld_url_cfg->h2c = h2c;
 
 	free_hbuf(&opts_buf);
 	hld_url_cfg->srv = NULL;
@@ -414,6 +427,31 @@ void haproxy_init_args(int argc, char **argv)
 				}
 				else
 					hld_usage(progname, argc, __LINE__);
+			}
+			else if (strcmp(opt, "0") == 0 ||
+			         strcmp(opt, "h0") == 0) {
+				alpn = "hq-interop";
+				h2c = 0;
+			}
+			else if (strcmp(opt, "1") == 0 ||
+			         strcmp(opt, "h1") == 0) {
+				alpn = "h1";
+				h2c = 0;
+			}
+			else if (strcmp(opt, "2") == 0 ||
+			         strcmp(opt, "h2") == 0) {
+				alpn = "h2";
+				h2c = 0;
+			}
+			else if (strcmp(opt, "2c") == 0 ||
+			         strcmp(opt, "h2c") == 0) {
+				alpn = "h2c";
+				h2c = 1;
+			}
+			else if (strcmp(opt, "3") == 0 ||
+			         strcmp(opt, "h3") == 0) {
+				alpn = "h3";
+				h2c = 0;
 			}
 			else if (*opt == 'd') {
 				opt++;

@@ -14,10 +14,12 @@ struct hld_path {
 
 struct hld_url_cfg {
 	int ssl;
+	int h2c;
 	char *addr;
 	char *raw_addr; // used only to set the host header value
 	char *srv_opts;
 	char *tls_opts;
+	char *alpn;
 	struct server *srv;
 	struct hld_path *paths;
 	struct hld_url_cfg *next;
