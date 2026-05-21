@@ -6973,8 +6973,7 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 				mux = !conn_is_back(conn) ?
 				  conn_select_mux_fe(conn) : conn_select_mux_be(conn);
 
-				if (ctx->conn->flags & (CO_FL_QMUX_RECV|CO_FL_QMUX_SEND) ||
-				    mux->init_xprt == XPRT_QMUX) {
+				if (mux->init_xprt == XPRT_QMUX) {
 					const struct xprt_ops *ops = xprt_get(XPRT_QMUX);
 					void *xprt_ctx_hs = NULL;
 
