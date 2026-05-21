@@ -29,7 +29,7 @@ struct hld_url {
 	int mreqs;
 	int flags;
 	uint64_t tot_req;
-	uint64_t tot_done;
+	uint64_t tot_rconn_done;
 	struct hld_url_cfg *cfg;
 	struct hld_url *next;
 };

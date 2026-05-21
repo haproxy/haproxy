@@ -1365,27 +1365,26 @@ static struct task *hld_strm_task(struct task *t, void *context, unsigned int st
 	return t;
  done:
 	url->mreqs++;
-	url->tot_done++;
-	BUG_ON(arg_rcon > 0 && url->tot_done > arg_rcon);
+	url->tot_rconn_done++;
+	BUG_ON(arg_rcon > 0 && url->tot_rconn_done > arg_rcon);
 
 	task_wakeup(usr->task, TASK_WOKEN_IO);
 	LIST_DELETE(&hs->list);
 	hldstream_free(&hs);
 	t = NULL;
-	if (arg_rcon > 0 && url->tot_done == arg_rcon && conn && conn->mux) {
+	if (arg_rcon > 0 && url->tot_rconn_done == arg_rcon && conn && conn->mux) {
 		/* All the streams attached to this connection will be release */
 		TRACE_STATE("releasing connection", HLD_EV_USR_TASK, hs);
 		conn->mux->destroy(conn->ctx);
 		/* Reset this counter here. Cannot be done elsewhere */
-		url->tot_done = 0;
+		url->tot_rconn_done = 0;
 	}
 	goto leave;
  err:
 	TRACE_DEVEL("leaving on error", HLD_STRM_EV_TASK, hs);
 	thrs_info[tid].tot_perr++;
 	url->mreqs++;
-	url->tot_done++;
-	BUG_ON(arg_rcon > 0 && url->tot_done > arg_rcon);
+	BUG_ON(arg_rcon > 0 && url->tot_rconn_done > arg_rcon);
 	task_wakeup(usr->task, TASK_WOKEN_IO);
 	LIST_DELETE(&hs->list);
 	hldstream_free(&hs);
@@ -1527,7 +1526,6 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 
 		thrs_info[tid].tot_done++;
 		hs->url->mreqs++;
-		hs->url->tot_done++;
 		usr->nreqs = usr->nreqs == -1 ? -1 : usr->nreqs + 1;
 		LIST_DELETE(&hs->list);
 		hldstream_free(&hs);
@@ -1537,8 +1535,8 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 		struct hld_path *path, *paths = url->cfg->paths;
 
 		nreqs = usr->nreqs >= 0 ? MIN(usr->nreqs, url->mreqs) : url->mreqs;
-		BUG_ON(arg_rcon > 0 && url->tot_done > arg_rcon);
-		nreqs = arg_rcon > 0 ? MIN(arg_rcon - url->tot_done, nreqs) : nreqs;
+		BUG_ON(arg_rcon > 0 && url->tot_rconn_done > arg_rcon);
+		nreqs = arg_rcon > 0 ? MIN(arg_rcon - url->tot_rconn_done, nreqs) : nreqs;
 
 		DDPRINTF(stderr, "\n%s: url:%s url == first_url? %d usr->nreqs=%d nreqs=%d remain=%d url->mreqs=%d\n",
 		        __func__, url->cfg->addr, url == first_url, usr->nreqs, nreqs, remain, url->mreqs);
@@ -1628,7 +1626,7 @@ static inline struct hld_usr *hld_new_usr(int nreqs)
 			goto err;
 
 		url->tot_req = 0;
-		url->tot_done = 0;
+		url->tot_rconn_done = 0;
 		url->mreqs = arg_mreqs;
 		url->flags = 0;
 		url->cfg = cfg;
