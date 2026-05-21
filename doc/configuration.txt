@@ -3329,7 +3329,7 @@ setenv <name> <value>
   the configuration file sees the new value. See also "presetenv", "resetenv",
   and "unsetenv".
 
-shm-stats-file <name> [ EXPERIMENTAL ]
+shm-stats-file <name>
   When this directive is set, it enables the use of shared memory for storing
   stats counters. <name> is used as argument to shm_open() to open the shared
   memory at a unique location. It also means that the directive is only
@@ -3345,7 +3345,7 @@ shm-stats-file <name> [ EXPERIMENTAL ]
 
   See also "guid", "guid-prefix" and "shm-stats-file-max-objects"
 
-shm-stats-file-max-objects <number> [ EXPERIMENTAL ]
+shm-stats-file-max-objects <number>
   This setting defines the maximum number of objects the shared memory used
   for shared counters will be able to store per thread group. It is directly
   related to the maximum memory size of the shm and is used to "premap" the
