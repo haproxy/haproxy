@@ -157,7 +157,7 @@ DOCDIR = $(PREFIX)/doc/haproxy
 # following list (use the default "generic" if uncertain) :
 #    linux-glibc, linux-glibc-legacy, linux-musl, solaris, freebsd, freebsd-glibc,
 #    dragonfly, openbsd, netbsd, cygwin, haiku, aix51, aix52, aix72-gcc, osx, generic,
-#    custom
+#    custom, tiny
 TARGET =
 
 #### No longer used
@@ -385,6 +385,13 @@ endif
 # generic system target has nothing specific
 ifeq ($(TARGET),generic)
   set_target_defaults = $(call default_opts,USE_POLL USE_TPROXY)
+endif
+
+# For embedded systems or to be used as a base, tiniest binary with fewest
+# features. Only poll() is enabled to avoid issues with select().
+ifeq ($(TARGET),tiny)
+  set_target_defaults = $(call disable_opts,$(use_opts)) $(call enable_opts,USE_POLL)
+  INSTALL = install -v
 endif
 
 # Haiku

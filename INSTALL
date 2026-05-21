@@ -475,9 +475,9 @@ are the extra libraries that may be referenced at build time :
 -------------------
 Some build errors may happen depending on the options combinations or the
 selected target. When facing build errors, if you know that your system is a
-bit special or particularly old, start from TARGET=generic, it is easier to
-start from there and fix the remaining issues than trying to degrade another
-target. Common issues may include:
+bit special or particularly old, start from TARGET=generic or TARGET=tiny; it
+is easier to start from there and fix the remaining issues than trying to
+degrade another target. Common issues may include:
 
   - clock_gettime() not found
     => your system needs USE_RT=1
@@ -579,6 +579,7 @@ and assign it to the TARGET variable :
   - haiku               for Haiku
   - generic             for any other OS or version.
   - custom              to manually adjust every setting
+  - tiny                to turn all default options off by default
 
 Example:
     $ make -j $(nproc) TARGET=linux-glibc
@@ -603,8 +604,14 @@ well use that property to define your own set of options. USE_POLL and USE_SLZ
 can even be disabled by setting them to an empty string or a zero. For
 example :
 
-  $ gmake TARGET=tiny USE_POLL="" USE_SLZ=0 TARGET_CFLAGS=-fomit-frame-pointer
+  $ gmake TARGET=small USE_POLL="" USE_SLZ=0 TARGET_CFLAGS=-fomit-frame-pointer
 
+Note that when seeking the absolute smallest build (e.g. for low-spec embedded
+devices), the "tiny" target disables everything configurable and generally
+results in a binary that's 4-5 times smaller than the default one. From this
+point it then becomes possible to enable only what is desired:
+
+  $ make -j $(nproc) TARGET=tiny USE_EPOLL=1 USE_DL=1 USE_OPENSSL=1
 
 5.2) Adding extra CFLAGS for compiling
 --------------------------------------
