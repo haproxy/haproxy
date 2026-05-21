@@ -69,7 +69,7 @@
 #include <haproxy/uri_auth.h>
 
 /* Lock to ensure multiple backends deletion concurrently is safe */
-static __decl_spinlock(proxies_del_lock);
+__decl_spinlock(proxies_del_lock);
 
 int listeners;	/* # of proxy listeners, set by cfgparse */
 struct proxy *proxies_list  = NULL;     /* list of main proxies */
