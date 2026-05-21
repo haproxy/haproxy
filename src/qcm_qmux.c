@@ -86,6 +86,10 @@ static int qmux_parse_frm(struct qcc *qcc, struct buffer *buf)
 		struct qf_max_streams *ms_frm = &frm.max_streams_bidi;
 		qcc_recv_max_streams(qcc, ms_frm->max_streams, 1);
 	}
+	else if (frm.type == QUIC_FT_MAX_STREAMS_UNI) {
+		struct qf_max_streams *ms_frm = &frm.max_streams_uni;
+		qcc_recv_max_streams(qcc, ms_frm->max_streams, 0);
+	}
 	else if (frm.type == QUIC_FT_DATA_BLOCKED ||
 	         frm.type == QUIC_FT_STREAM_DATA_BLOCKED ||
 	         frm.type == QUIC_FT_STREAMS_BLOCKED_BIDI ||
