@@ -777,6 +777,7 @@ enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct 
 	goto out;
 }
 
+#if defined(USE_SPOE)
 /* Custom tcp-check expect function to parse and validate the SPOP HELLO
  * response packet. Returns TCPCHK_EVAL_WAIT to wait for more data,
  * TCPCHK_EVAL_CONTINUE to evaluate the next rule or TCPCHK_EVAL_STOP if an
@@ -985,6 +986,7 @@ enum tcpcheck_eval_ret tcpcheck_spop_expect_hello(struct check *check, struct tc
 	ret = TCPCHK_EVAL_WAIT;
 	goto out;
 }
+#endif /* USE_SPOE */
 
 /* Custom tcp-check expect function to parse and validate the agent-check
  * reply. Returns TCPCHK_EVAL_WAIT to wait for more data, TCPCHK_EVAL_CONTINUE
@@ -5130,6 +5132,7 @@ static int do_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx
 	goto out;
 }
 
+#if defined(USE_SPOE)
 static int do_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, struct tcpcheck_ruleset *rs,
 				   const char *file, int line)
 {
@@ -5189,6 +5192,7 @@ static int do_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx
 	err_code |= ERR_ALERT | ERR_FATAL;
 	goto out;
 }
+#endif /* USE_SPOE */
 
 
 static struct tcpcheck_rule *do_parse_httpchk_req(char **args, int cur_arg, struct proxy *px, char **errmsg)
@@ -5555,6 +5559,7 @@ int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 	return err_code;
 }
 
+#if defined(USE_SPOE)
 /* Parses the "option spop-check" proxy keyword */
 int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, const struct proxy *defpx,
 			       const char *file, int line)
@@ -5584,6 +5589,7 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, co
   out:
 	return err_code;
 }
+#endif /* USE_SPOE */
 
 /* Parses the "option mysql-check" proxy keyword */
 int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, const struct proxy *defpx,
@@ -5843,11 +5849,13 @@ int cfg_parse_healthchecks(const char *file, int linenum, char **args, int kwm)
 			err_code |= do_parse_ldap_check_opt(args, 2, tcpchecks_proxy, cur_rs, file, linenum);
 			goto out;
 		}
+#if defined(USE_SPOE)
 		else if (strcmp(args[1], "spop-check") == 0) {
 			cur_rs->flags |= TCPCHK_RULES_SPOP_CHK;
 			err_code |= do_parse_spop_check_opt(args, 2, tcpchecks_proxy, cur_rs, file, linenum);
 			goto out;
 		}
+#endif
 		else {
 			ha_alert("parsing [%s:%d] : unknown healthcheck type '%s' (expects 'tcp-check', 'httpchk', 'ssl-hello-chk', "
 				 "'smtpchk', 'pgsql-check', 'redis-check', 'mysql-check', 'ldap-check', 'spop-check').\n",

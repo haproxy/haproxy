@@ -67,6 +67,7 @@
 #   USE_KTLS                : use kTLS.(requires at least Linux 4.17).
 #   USE_FCGI                : enable the FCGI subsystem. Always on.
 #   USE_H2                  : enable HTTP/2 subsystem. Always on.
+#   USE_SPOE                : enable the SPOE subsystem. Always on.
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string). The list of enabled and disabled options for a
@@ -340,7 +341,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER USE_POLL                        \
            USE_TPROXY USE_LINUX_TPROXY USE_LINUX_CAP                          \
            USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H USE_ENGINE               \
            USE_GETADDRINFO USE_OPENSSL USE_OPENSSL_WOLFSSL USE_OPENSSL_AWSLC  \
-           USE_ECH USE_TRACE USE_FCGI USE_H2                                  \
+           USE_ECH USE_TRACE USE_FCGI USE_H2 USE_SPOE                         \
            USE_SSL USE_LUA USE_ACCEPT4 USE_CLOSEFROM USE_ZLIB USE_SLZ         \
            USE_CPU_AFFINITY USE_TFO USE_NS USE_DL USE_RT USE_LIBATOMIC        \
            USE_MATH USE_DEVICEATLAS USE_51DEGREES                             \
@@ -371,6 +372,9 @@ USE_FCGI = default
 
 # HTTP/2 is always enabled
 USE_H2 = default
+
+# SPOE is always enabled
+USE_SPOE = default
 
 # SLZ is always supported unless explicitly disabled by passing USE_SLZ=""
 # or disabled by enabling ZLIB using USE_ZLIB=1
@@ -581,6 +585,10 @@ endif
 
 ifneq ($(USE_FCGI:0=),)
   OPTIONS_OBJS   += src/mux_fcgi.o src/fcgi-app.o src/fcgi.o
+endif
+
+ifneq ($(USE_SPOE:0=),)
+  OPTIONS_OBJS   += src/mux_spop.o src/flt_spoe.o
 endif
 
 ifneq ($(USE_SLZ:0=),)
@@ -929,13 +937,13 @@ endif
 
 OBJS += src/mux_h1.o src/log.o						\
         src/server.o src/stream.o src/tcpcheck.o src/http_ana.o		\
-        src/stick_table.o src/tools.o src/mux_spop.o src/sample.o	\
+        src/stick_table.o src/tools.o src/sample.o			\
         src/activity.o src/cfgparse.o src/peers.o src/cli.o		\
         src/backend.o src/connection.o src/resolvers.o src/proxy.o	\
         src/cache.o src/stconn.o src/http_htx.o src/debug.o		\
         src/check.o src/stats-html.o src/haproxy.o src/listener.o	\
         src/applet.o src/pattern.o src/cfgparse-listen.o		\
-        src/flt_spoe.o src/cebis_tree.o src/http_ext.o			\
+        src/cebis_tree.o src/http_ext.o					\
         src/http_act.o src/http_fetch.o src/cebs_tree.o			\
         src/cebib_tree.o src/http_client.o src/dns.o			\
         src/cebb_tree.o src/vars.o src/event_hdl.o src/tcp_rules.o	\

@@ -2431,11 +2431,13 @@ stats_error_parsing:
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
+#if defined(USE_SPOE)
 		else if (strcmp(args[1], "spop-check") == 0) {
 			err_code |= proxy_parse_spop_check_opt(args, 0, curproxy, curr_defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
+#endif
 		else if (strcmp(args[1], "tcp-check") == 0) {
 			err_code |= proxy_parse_tcp_check_opt(args, 0, curproxy, curr_defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
