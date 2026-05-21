@@ -20,6 +20,7 @@ static void  hld_usage(char *name, int argc, int line)
 		"Usage : %s [opts] [URL]*\n"
 		"where <opts> may be any combination of:\n"
 		"        -d <time>       test duration in seconds (0)\n"
+		"        -h(0,1,2,2c,3)  for the use of hq-interop, h1, h2, h2c or h3 protocols for the\n"
 		"        -l              enable long output format; double for raw values\n"
 		"        -m <streams>    maximum concurrent streams (1)\n"
 		"        -n <reqs>       maximum total requests (-1)\n"
