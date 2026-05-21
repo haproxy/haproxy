@@ -65,6 +65,7 @@
 #   USE_PTHREAD_EMULATION   : replace pthread's rwlocks with ours
 #   USE_SHM_OPEN            : use shm_open() for features that can make use of shared memory
 #   USE_KTLS                : use kTLS.(requires at least Linux 4.17).
+#   USE_FCGI                : enable the FCGI subsystem. Always on.
 #   USE_H2                  : enable HTTP/2 subsystem. Always on.
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
@@ -339,7 +340,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER USE_POLL                        \
            USE_TPROXY USE_LINUX_TPROXY USE_LINUX_CAP                          \
            USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H USE_ENGINE               \
            USE_GETADDRINFO USE_OPENSSL USE_OPENSSL_WOLFSSL USE_OPENSSL_AWSLC  \
-           USE_ECH USE_TRACE USE_H2                                           \
+           USE_ECH USE_TRACE USE_FCGI USE_H2                                  \
            USE_SSL USE_LUA USE_ACCEPT4 USE_CLOSEFROM USE_ZLIB USE_SLZ         \
            USE_CPU_AFFINITY USE_TFO USE_NS USE_DL USE_RT USE_LIBATOMIC        \
            USE_MATH USE_DEVICEATLAS USE_51DEGREES                             \
@@ -364,6 +365,9 @@ USE_POLL   = default
 
 # traces are always enabled
 USE_TRACE  = default
+
+# FCGI is always enabled
+USE_FCGI = default
 
 # HTTP/2 is always enabled
 USE_H2 = default
@@ -573,6 +577,10 @@ endif
 
 ifneq ($(USE_H2:0=),)
   OPTIONS_OBJS   += src/mux_h2.o src/h2.o
+endif
+
+ifneq ($(USE_FCGI:0=),)
+  OPTIONS_OBJS   += src/mux_fcgi.o src/fcgi-app.o src/fcgi.o
 endif
 
 ifneq ($(USE_SLZ:0=),)
@@ -919,7 +927,7 @@ ifneq ($(EXTRA_OBJS),)
   OBJS += $(EXTRA_OBJS)
 endif
 
-OBJS += src/mux_h1.o src/mux_fcgi.o src/log.o				\
+OBJS += src/mux_h1.o src/log.o						\
         src/server.o src/stream.o src/tcpcheck.o src/http_ana.o		\
         src/stick_table.o src/tools.o src/mux_spop.o src/sample.o	\
         src/activity.o src/cfgparse.o src/peers.o src/cli.o		\
@@ -937,7 +945,7 @@ OBJS += src/mux_h1.o src/mux_fcgi.o src/log.o				\
         src/ceba_tree.o src/session.o src/payload.o src/htx.o		\
         src/cebl_tree.o src/ceb32_tree.o src/ceb64_tree.o		\
         src/server_state.o src/proto_rhttp.o src/flt_trace.o src/fd.o	\
-        src/task.o src/map.o src/fcgi-app.o src/mworker.o		\
+        src/task.o src/map.o src/mworker.o				\
         src/tcp_sample.o src/mjson.o src/h1_htx.o src/tcp_act.o		\
         src/ring.o src/flt_bwlim.o src/acl.o src/thread.o src/queue.o	\
         src/http_rules.o src/http.o src/channel.o src/proto_tcp.o	\
