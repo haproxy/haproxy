@@ -458,6 +458,13 @@ void haproxy_init_args(int argc, char **argv)
 				opt++;
 				hld_parse_long(&arg_dura, opt, &argc, &argv);
 			}
+			else if (*opt == 'e') {
+				/* empty option */
+				if (*(opt + 1))
+					hld_usage(progname, argc, __LINE__);
+
+				arg_serr = 1;
+			}
 			else if (*opt == 'l') {
 				arg_long++;
 				while (*++opt && *opt == 'l')

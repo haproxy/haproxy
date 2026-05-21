@@ -57,6 +57,7 @@ extern int arg_mreqs;
 extern int arg_reqs;
 extern int arg_rcon;
 extern int arg_slow;
+extern int arg_serr;
 extern int arg_usr;
 extern int arg_nbthrds;
 extern int arg_wait;

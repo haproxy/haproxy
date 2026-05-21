@@ -85,6 +85,9 @@ struct hld_thr_info {
 	__attribute__((aligned(64))) union { } __pad;
 };
 
+/* User flags */
+#define HLD_USR_FL_STOP  0x00000001 // this user must stop sending requests
+
 struct hld_usr {
 	struct task *task;
 	struct session *sess;
@@ -113,11 +116,13 @@ int arg_long;          // long output format; 2=raw values
 int arg_mreqs = 1;     // max concurrent streams by connection
 int arg_rcon = -1;     // max requests per conn
 int arg_reqs = -1;     // max total requests
+int arg_serr;          // stop on first error
 int arg_slow;          // slow start: delay in milliseconds
 int arg_nbthrds = -1;  // number of threads
 int arg_usr = 1;       // number of users
 int arg_wait = 10000;  // I/O time out (ms)
 
+int all_usr_stop_asap; // all users must stop as soon as possible
 int conn_tid;
 int usr_cnt;           // user counter incremented by <mtask> main task
 int running_usrs;      // user counter decremented each time a user is released
@@ -876,6 +881,7 @@ void update_throttle()
  end:
 	throttle = ratio;
 }
+
 /* main task */
 static struct task *mtask_cb(struct task *t, void *context, unsigned int state)
 {
@@ -915,7 +921,6 @@ static struct task *mtask_cb(struct task *t, void *context, unsigned int state)
 				ha_alert("could not allocate a new haload user\n");
 				break;
 			}
-			DDPRINTF(stderr, "U");
 		}
 
 		HA_ATOMIC_ADD(&running_usrs, nb_usr);
@@ -1389,7 +1394,12 @@ static struct task *hld_strm_task(struct task *t, void *context, unsigned int st
 	LIST_DELETE(&hs->list);
 	hldstream_free(&hs);
 	t = NULL;
-	usr->nreqs = usr->nreqs == -1 ? -1 : usr->nreqs + 1;
+	if (arg_serr) {
+		usr->flags |= HLD_USR_FL_STOP;
+		HA_ATOMIC_STORE(&all_usr_stop_asap, 1);
+	}
+	else
+		usr->nreqs = usr->nreqs == -1 ? -1 : usr->nreqs + 1;
 	goto leave;
 }
 
@@ -1531,6 +1541,11 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 		hldstream_free(&hs);
 	}
 
+	if ((usr->flags & HLD_USR_FL_STOP) || HA_ATOMIC_LOAD(&all_usr_stop_asap)) {
+		usr->flags |= HLD_USR_FL_STOP;
+		goto skip_new_strms;
+	}
+
 	for (url = urls; url; url = hld_next_url(urls, url)) {
 		struct hld_path *path, *paths = url->cfg->paths;
 
@@ -1577,7 +1592,8 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 			break;
 	}
 
-	if (!usr->nreqs && LIST_ISEMPTY(&usr->strms)) {
+ skip_new_strms:
+	if (((usr->flags & HLD_USR_FL_STOP) || !usr->nreqs) && LIST_ISEMPTY(&usr->strms)) {
 		HA_ATOMIC_DEC(&running_usrs);
 		hld_usr_release(&usr);
 		t = NULL;
