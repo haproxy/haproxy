@@ -447,8 +447,8 @@ static size_t tcp_fullhdr_find_opt(const struct sample *smp, uint8_t opt)
 		/* kind1 = NOP and is a single byte, others have a length field */
 		if (smp->data.u.str.area[next] == 1)
 			next++;
-		else if (next + 1 < len)
-			next += smp->data.u.str.area[next + 1];
+		else if (next + 1 < len && smp->data.u.str.area[next + 1] > 1)
+			next += (uchar)smp->data.u.str.area[next + 1];
 		else
 			break;
 		if (smp->data.u.str.area[curr] == opt && next <= len)
@@ -605,7 +605,7 @@ static int sample_conv_tcp_options_list(const struct arg *arg_p, struct sample *
 		/* kind1 = NOP and is a single byte, others have a length field */
 		if (smp->data.u.str.area[ofs] == 1)
 			ofs++;
-		else if (ofs + 1 < len && smp->data.u.str.area[ofs + 1])
+		else if (ofs + 1 < len && smp->data.u.str.area[ofs + 1] > 1)
 			ofs += (uchar)smp->data.u.str.area[ofs + 1];
 		else
 			break;
@@ -780,7 +780,7 @@ static int sample_conv_ip_fp(const struct arg *arg_p, struct sample *smp, void *
 		/* kind1 = NOP and is a single byte, others have a length field */
 		if (smp->data.u.str.area[ofs] == 1)
 			next = ofs + 1;
-		else if ((ofs + 1 < tcplen) && smp->data.u.str.area[ofs + 1]) /* optlen 0 will cause an infinite loop */
+		else if ((ofs + 1 < tcplen) && smp->data.u.str.area[ofs + 1] > 1)
 			next = ofs + (uchar)smp->data.u.str.area[ofs + 1];
 		else
 			break;
