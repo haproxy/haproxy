@@ -356,8 +356,10 @@ int ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind
 			ssl_ctx = (SSL_CTX *)lru->data;
 		if (!ssl_ctx && lru) {
 			ssl_ctx = ssl_sock_do_create_cert(servername, bind_conf, ssl);
-			if (!ssl_ctx)
+			if (!ssl_ctx) {
+				HA_RWLOCK_WRUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 				goto error;
+			}
 			lru64_commit(lru, ssl_ctx, cacert, 0, (void (*)(void *))SSL_CTX_free);
 		}
 		SSL_set_SSL_CTX(ssl, ssl_ctx);
