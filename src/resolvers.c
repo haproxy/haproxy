@@ -1855,7 +1855,12 @@ int resolv_dn_label_to_str(const char *dn, int dn_len, char *str, int str_len)
 
 	ptr = str;
 	for (i = 0; i < dn_len; ++i) {
-		sz = dn[i];
+		sz = (unsigned char)dn[i];
+
+		/* Check str_len adding 1 for the dot if (i!=0) */
+		if (str_len < sz+i+(!!i))
+			return -1;
+
 		if (i)
 			*ptr++ = '.';
 		/* copy the string at i+1 to lower case */
