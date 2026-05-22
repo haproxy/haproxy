@@ -1236,8 +1236,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 		if (reader + 4 > bufend)
 			goto invalid_resp;
 
-		answer_record->ttl =   reader[0] * 16777216 + reader[1] * 65536
-		                     + reader[2] * 256 + reader[3];
+		answer_record->ttl = read_n32(reader);
 		reader += 4;
 
 		/* Now reading data len */
@@ -1498,8 +1497,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 		if (reader + 4 > bufend)
 			goto invalid_resp;
 
-		answer_record->ttl =   reader[0] * 16777216 + reader[1] * 65536
-		                     + reader[2] * 256 + reader[3];
+		answer_record->ttl = read_n32(reader);
 		reader += 4;
 
 		/* Now reading data len */

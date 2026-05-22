@@ -114,7 +114,7 @@ struct resolv_answer_item {
 	char            name[DNS_MAX_NAME_SIZE+1];   /* answer name */
 	int16_t         type;                        /* question type */
 	int16_t         class;                       /* query class */
-	int32_t         ttl;                         /* response TTL */
+	uint32_t        ttl;                         /* response TTL */
 	int16_t         priority;                    /* SRV type priority */
 	uint16_t        weight;                      /* SRV type weight */
 	uint16_t        port;                        /* SRV type port */
