@@ -1597,7 +1597,6 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 				    tmp_record->ar_item == NULL &&
 				    memcmp(tmp_record->data.target, answer_record->name, tmp_record->data_len) == 0) {
 					/* Always use the received additional record to refresh info */
-					pool_free(resolv_answer_item_pool, tmp_record->ar_item);
 					tmp_record->ar_item = answer_record;
 					answer_record = NULL;
 					break;
