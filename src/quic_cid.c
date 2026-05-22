@@ -378,7 +378,7 @@ int quic_get_cid_tid(const unsigned char *cid, size_t cid_len,
 
 		tree = &quic_fe_cid_trees[quic_cid_tree_idx(&derive_cid)];
 		HA_RWLOCK_RDLOCK(QC_CID_LOCK, &tree->lock);
-		node = ebmb_lookup(&tree->root, cid, cid_len);
+		node = ebmb_lookup(&tree->root, derive_cid.data, derive_cid.len);
 		if (node) {
 			conn_id = ebmb_entry(node, struct quic_connection_id, node);
 			cid_tid = HA_ATOMIC_LOAD(&conn_id->tid);
