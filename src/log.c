@@ -6743,6 +6743,7 @@ int cfg_parse_log_profile(const char *file, int linenum, char **args, int kwm)
 			                     SMP_VAL_FE_LOG_END, &errmsg)) {
 				ha_alert("Parsing [%s:%d]: failed to parse logformat: %s.\n",
 				         file, linenum, errmsg);
+				lf_expr_deinit(target_lf);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
