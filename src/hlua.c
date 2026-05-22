@@ -2949,20 +2949,20 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 
 		/* remove final \r\n. */
 		if (nblk == 1) {
-			if (blk1[len1-1] == '\n') {
+			if (len1 && blk1[len1-1] == '\n') {
 				len1--;
 				skip_at_end++;
-				if (blk1[len1-1] == '\r') {
+				if (len1 && blk1[len1-1] == '\r') {
 					len1--;
 					skip_at_end++;
 				}
 			}
 		}
 		else {
-			if (blk2[len2-1] == '\n') {
+			if (len2 && blk2[len2-1] == '\n') {
 				len2--;
 				skip_at_end++;
-				if (blk2[len2-1] == '\r') {
+				if (len2 && blk2[len2-1] == '\r') {
 					len2--;
 					skip_at_end++;
 				}
