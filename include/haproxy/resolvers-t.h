@@ -1,5 +1,5 @@
 /*
- * include/haproxy/dns-t.h
+ * include/haproxy/resolvers-t.h
  * This file provides structures and types for DNS.
  *
  * Copyright (C) 2014 Baptiste Assmann <bedis9@gmail.com>
@@ -281,7 +281,7 @@ enum {
 	                            * matching preference was found.
 	                            */
 	RSLV_UPD_SRVIP_NOT_FOUND,  /* provided IP not found
-	                            * OR provided IP found and preference is not match and an IP
+	                            * OR provided IP found and preference is not matched and an IP
 	                            * matching preference was found.
 	                            */
 	RSLV_UPD_NO_IP_FOUND,      /* no IP could be found in the response */

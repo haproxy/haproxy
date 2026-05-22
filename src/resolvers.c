@@ -226,7 +226,7 @@ struct show_resolvers_ctx {
 };
 
 /* returns the currently accepted address families as a combination of
- * RSLV_ACCEPT_IPV4 and RSLV_ACCEPT_IPV6 only. It will dynamically adapt adapt
+ * RSLV_ACCEPT_IPV4 and RSLV_ACCEPT_IPV6 only. It will dynamically adapt
  * the IPv6 status to sock_inet6_seems_reachable if RSLV_AUTO_FAMILY is set,
  * otherwise returns the relevant bits of resolv_accept_families.
  */
@@ -509,7 +509,7 @@ resolv_run_resolution(struct resolv_resolution *resolution)
 		return 0;
 
 	/* Check if a resolution has already been started for this server return
-	 * directly to avoid resolution pill up. */
+	 * directly to avoid resolution pile up. */
 	if (resolution->step != RSLV_STEP_NONE)
 		return 0;
 

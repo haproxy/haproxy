@@ -1,5 +1,5 @@
 /*
- * include/haproxy/dns.h
+ * include/haproxy/resolvers.h
  * This file provides functions related to DNS protocol
  *
  * Copyright (C) 2014 Baptiste Assmann <bedis9@gmail.com>
