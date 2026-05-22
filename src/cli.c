@@ -1151,8 +1151,13 @@ int cli_parse_cmdline(struct appctx *appctx)
 			 */
 			if (len-1 == strlen(appctx->cli_ctx.payload_pat)) {
 				if (strncmp(str, appctx->cli_ctx.payload_pat, len-1) == 0) {
-					/* end of payload was reached, rewind before the previous \n and replace it by a \0 */
-					b_sub(buf, strlen(appctx->cli_ctx.payload_pat) + 2);
+					/* end of payload was reached, rewind before the previous \n, if any, and replace it by a \0
+					 * Otherwise, the payload is empty, just
+					 */
+					if (b_data(buf) > len)
+						b_sub(buf, len+1);
+					else
+						b_sub(buf, len);
 					*b_tail(buf) = '\0';
 					appctx->st1 &= ~APPCTX_CLI_ST1_PAYLOAD;
 				}
