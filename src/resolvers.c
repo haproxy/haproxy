@@ -1435,7 +1435,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 		if (len == 0)
 			goto invalid_resp;
 
-		if (reader + offset + 10 >= bufend)
+		if (reader + offset + 10 > bufend)
 			goto invalid_resp;
 
 		reader += offset;
@@ -1449,7 +1449,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 		len = reader[0] * 256 + reader[1];
 		reader += 2;
 
-		if (reader + len >= bufend)
+		if (reader + len > bufend)
 			goto invalid_resp;
 
 		reader += len;
