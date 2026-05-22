@@ -904,9 +904,6 @@ static struct task *mtask_cb(struct task *t, void *context, unsigned int state)
 	}
 
 	/* users initializations */
-	DDPRINTF(stderr, "### %d arg_usr=%d usr_reqs=%d min_reqs=%d mod_req=%d\n",
-	        tick_is_expired(t->expire, now_ms), arg_usr, usr_reqs, min_reqs, mod_req);
-
 	if (usr_cnt < arg_usr) {
 		BUG_ON(usr_cnt > arg_usr);
 		nb_usr = MIN(arg_usr, arg_usr - usr_cnt);
@@ -1242,7 +1239,6 @@ static struct task *hld_strm_task(struct task *t, void *context, unsigned int st
 	if (tick_is_expired(t->expire, now_ms)) {
 		TRACE_STATE("expired task", HLD_STRM_EV_TASK, hs);
 		t = NULL;
-		DDPRINTF(stderr, "@");
 		goto err;
 	}
 
@@ -1446,17 +1442,12 @@ static struct hldstream *hld_new_strm(struct hld_usr *usr,
 	hs->bi = hs->bo = BUF_NULL;
 	LIST_INIT(&hs->buf_wait.list);
 	hs->task = t;
-	if (!conn)
-		DDPRINTF(stderr, "n");
-	else
-		DDPRINTF(stderr, "y");
 	hs->flags = conn ? HLD_STRM_ST_REQ_TO_BUILD : HLD_STRM_ST_REQ_TO_BUILD;
 	hs->state = 0;
 	hs->to_send = 0;
 	hs->req_date = tv_unset();
 	LIST_APPEND(&usr->strms, &hs->list);
 	task_wakeup(t, TASK_WOKEN_INIT);
-	DDPRINTF(stderr, "%s hs %p sc %p conn %p\n", __func__, hs, hs->sc, hs->conn);
 
 	TRACE_LEAVE(HLD_STRM_EV_TASK, hs);
 	return hs;
@@ -1531,7 +1522,6 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 		if (!tick_is_expired(hs->task->expire, now_ms))
 			break;
 
-		DDPRINTF(stderr, "$");
 		TRACE_STATE("expired task", HLD_EV_USR_TASK, hs);
 
 		thrs_info[tid].tot_done++;
@@ -1552,9 +1542,6 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 		nreqs = usr->nreqs >= 0 ? MIN(usr->nreqs, url->mreqs) : url->mreqs;
 		BUG_ON(arg_rcon > 0 && url->tot_rconn_done > arg_rcon);
 		nreqs = arg_rcon > 0 ? MIN(arg_rcon - url->tot_rconn_done, nreqs) : nreqs;
-
-		DDPRINTF(stderr, "\n%s: url:%s url == first_url? %d usr->nreqs=%d nreqs=%d remain=%d url->mreqs=%d\n",
-		        __func__, url->cfg->addr, url == first_url, usr->nreqs, nreqs, remain, url->mreqs);
 
 		for (path = paths; path && nreqs; path = hld_next_path(paths, path)) {
 			struct hldstream *hs;
@@ -1601,7 +1588,6 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 	}
 
  out:
-	DDPRINTF(stderr, "L(%d)", tid);
 	TRACE_LEAVE(HLD_EV_USR_TASK);
 	return t;
 }
