@@ -4257,11 +4257,11 @@ static int h1_process(struct h1c * h1c)
 				h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 			}
 		}
+	  no_parsing:
 		if (h1c->glitches != prev_glitches && !(h1c->flags & H1C_F_IS_BACK))
 			session_add_glitch_ctr(sess, h1c->glitches - prev_glitches);
 	}
 
-  no_parsing:
 	h1_send(h1c);
 
 	/* H1 connection must be released ASAP if:
