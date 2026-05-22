@@ -6,7 +6,6 @@
 #include <haproxy/http.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
-#include <haproxy/hldstream.h>
 #include <haproxy/haload.h>
 #include <haproxy/proxy.h>
 #include <haproxy/task.h>
@@ -1142,32 +1141,6 @@ static void hldstream_htx_buf_rcv(struct connection *conn,
 	TRACE_LEAVE(HLD_STRM_EV_RX, hs);
 }
 
-/* I/O handler wakeup from MUX */
-struct task *hld_io_cb(struct task *t, void *context, unsigned int state)
-{
-	struct stconn *sc = context;
-	struct hldstream *hs = __sc_hldstream(sc);
-	struct connection *conn; //= hs ? sc_conn(hs->sc) : NULL;
-
-	TRACE_ENTER(HLD_STRM_EV_TASK, hs);
-	sc = hs->sc;
-	conn = sc_conn(sc);
-	if (sc_ep_test(sc, SE_FL_ERROR) || (conn && (conn->flags & CO_FL_ERROR))) {
-		TRACE_ERROR("connection error", HLD_STRM_EV_IO_CB, hs);
-		hs->flags |= HLD_STRM_ST_CONN_ERR;
-		task_wakeup(hs->task, TASK_WOKEN_IO);
-		goto err;
-	}
-
- leave:
-	task_wakeup(hs->task, TASK_WOKEN_IO);
-	TRACE_LEAVE(HLD_STRM_EV_TASK, hs);
-	return t;
- err:
-	TRACE_DEVEL("leaving on error", HLD_STRM_EV_TASK, hs);
-	goto leave;
-}
-
 static void hld_conn_destroy(struct connection *conn)
 {
 	TRACE_ENTER(HLD_STRM_EV_TASK);
@@ -1213,7 +1186,8 @@ static int hld_be_reuse_conn(struct connection **conn, int64_t *hash,
 	return ret;
 }
 
-static struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
+/* haload stream task handler */
+struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 {
 	struct hldstream *hs = context;
 	struct hld_usr *usr = hs->usr;
@@ -1221,12 +1195,7 @@ static struct task *hld_strm_task(struct task *t, void *context, unsigned int st
 	struct connection *conn = sc_conn(hs->sc);
 	struct session *sess = usr->sess;
 	struct server *srv = url->cfg->srv;
-	__attribute__((unused))
-	int ret, fin = 0;
-	__attribute__((unused))
-	int64_t hash;
-	__attribute__((unused))
-	struct sockaddr_storage dst;
+	int fin = 0;
 
 	TRACE_ENTER(HLD_STRM_EV_TASK, hs);
 

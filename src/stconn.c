@@ -29,6 +29,13 @@
 DECLARE_TYPED_POOL(pool_head_connstream, "stconn", struct stconn);
 DECLARE_TYPED_POOL(pool_head_sedesc, "sedesc", struct sedesc);
 
+/* Only used by haload */
+extern __attribute__((weak))
+struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
+{
+       return NULL;
+}
+
 static int sc_conn_recv(struct stconn *sc);
 static int sc_conn_send(struct stconn *sc);
 
@@ -295,6 +302,16 @@ int sc_attach_mux(struct stconn *sc, void *sd, void *ctx)
 				return -1;
 			sc->wait_event.tasklet->process = srv_chk_io_cb;
 			sc->wait_event.tasklet->context = sc;
+			sc->wait_event.events = 0;
+		}
+	}
+	else if (sc_hldstream(sc)) {
+		if (!sc->wait_event.tasklet) {
+			sc->wait_event.tasklet = tasklet_new();
+			if (!sc->wait_event.tasklet)
+				return -1;
+			sc->wait_event.tasklet->process = hld_strm_task;
+			sc->wait_event.tasklet->context = __sc_hldstream(sc);;
 			sc->wait_event.events = 0;
 		}
 	}
