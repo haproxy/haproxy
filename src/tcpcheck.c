@@ -989,7 +989,7 @@ enum tcpcheck_eval_ret tcpcheck_agent_expect_reply(struct check *check, struct t
 	const char *sc = NULL; /* maxconn */
 	const char *err = NULL; /* first error to report */
 	const char *wrn = NULL; /* first warning to report */
-	char *cmd, *p;
+	char *cmd, *p, *end;
 
 	TRACE_ENTER(CHK_EV_TCPCHK_EXP, check);
 
@@ -1018,10 +1018,11 @@ enum tcpcheck_eval_ret tcpcheck_agent_expect_reply(struct check *check, struct t
 	 */
 
 	p = b_head(&check->bi);
-	while (*p && *p != '\n' && *p != '\r')
+	end = b_tail(&check->bi);
+	while (p < end && *p && *p != '\n' && *p != '\r')
 		p++;
 
-	if (!*p) {
+	if (!*p || p == end) {
 		if (!last_read)
 			goto wait_more_data;
 
