@@ -52,6 +52,8 @@ int http_parse_cont_len_header(struct ist *value, unsigned long long *body_len,
 int http_header_match2(const char *hdr, const char *end,
                        const char *name, int len);
 char *http_find_hdr_value_end(char *s, const char *e);
+int http_get_hdr_param(struct ist *params, struct ist *name, struct ist *value, int flags);
+int http_next_hdr_value(struct ist *iter, struct ist *value);
 char *http_find_cookie_value_end(char *s, const char *e);
 char *http_extract_cookie_value(char *hdr, const char *hdr_end,
                                 char *cookie_name, size_t cookie_name_l,

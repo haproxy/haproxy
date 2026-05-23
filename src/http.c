@@ -912,6 +912,133 @@ char *http_find_hdr_value_end(char *s, const char *e)
 	return s;
 }
 
+/* Extract the next parameter from a ';'-separated parameter list in a header
+ * value. <params> must point to the unconsumed portion of the list. <flags> is
+ * a combination of HTTP_PARAM_* values relaxing the otherwise strict parser:
+ *
+ *   - HTTP_PARAM_BADWS : tolerate "bad whitespace" around '=', as historically
+ *                        tolerated in the "Link" header ;
+ *   - HTTP_PARAM_NOVAL : accept a valueless parameter, i.e. one with no '='
+ *                        (e.g. "crossorigin"), which then returns an empty
+ *                        <value>.
+ *
+ * Without these flags the stricter generic HTTP grammar applies: no whitespace
+ * is allowed around '=', and a parameter must carry a '='. An empty value after
+ * '=' (e.g. "key=") is still returned as an empty <value>; callers requiring a
+ * non-empty value must check it themselves.
+ *
+ * On success, <name> and <value> are set to the parsed parameter, and <params>
+ * is advanced so the next call returns the following one.
+ *
+ * Whitespace at the boundary between parameters is absorbed at either the
+ * end of one call (trailing-of-value) or the start of the next (leading-of-key).
+ * The two are equivalent and either is sufficient on its own.
+ *
+ * Returns 1 on success, 0 when no more parameters remain and -1 when we
+ * encounter malformed input.
+ */
+int http_get_hdr_param(struct ist *params, struct ist *name, struct ist *value, int flags)
+{
+	const char *p = istptr(*params), *end = istend(*params);
+	const char *kbeg, *kend, *vbeg, *vend;
+
+	while (p < end && (HTTP_IS_LWS(*p) || *p == ';'))
+		p++;
+	if (p >= end)
+		return 0;
+
+	kbeg = p;
+	while (p < end && HTTP_IS_TOKEN(*p))
+		p++;
+	kend = p;
+
+	if (kbeg == kend)
+		return -1;
+
+	if (flags & HTTP_PARAM_BADWS) {
+		while (p < end && HTTP_IS_LWS(*p))
+			p++;
+	}
+
+	if (p < end && *p == '=') {
+		p++;
+		if (flags & HTTP_PARAM_BADWS) {
+			while (p < end && HTTP_IS_LWS(*p))
+				p++;
+		}
+		if (p < end && *p == '"') {
+			vbeg = ++p;
+			while (p < end && *p != '"') {
+				/* Skip quoted-pairs (RFC 9110#5.6.4) so that an
+				 * escaped '"' does not close the string. The
+				 * value is returned in its escaped form.
+				 */
+				if (*p == '\\' && p + 1 < end)
+					p++;
+				p++;
+			}
+			if (p == end)
+				return -1;
+			vend = p;
+			p++;
+		} else {
+			vbeg = p;
+			while (p < end && HTTP_IS_TOKEN(*p))
+				p++;
+			vend = p;
+		}
+	} else {
+		if (!(flags & HTTP_PARAM_NOVAL))
+			return -1;
+		vbeg = vend = p;
+	}
+
+	/* After a value, only optional whitespace and then a delimiter is
+	 * acceptable. We completely reject the value otherwise.
+	 */
+	while (p < end && HTTP_IS_LWS(*p))
+		p++;
+
+	if (p < end && *p != ';')
+		return -1;
+
+	*name = ist2(kbeg, kend - kbeg);
+	*value = ist2(vbeg, vend - vbeg);
+	*params = ist2(p, end - p);
+	return 1;
+}
+
+/* Extract the next value from a ','-separated value list in a header value.
+ * <iter> must point to the unconsumed portion of the list.
+ *
+ * On success, <value> is set to the parsed value (trimmed of surrounding
+ * whitespace), and <iter> is advanced so the next call returns the following
+ * one. Empty list elements are skipped, and an empty list yields no value at
+ * all, as mandated for recipients by RFC 9110 section 5.6.1.
+ *
+ * Returns 1 on success, 0 when no more values remain.
+ */
+int http_next_hdr_value(struct ist *iter, struct ist *value)
+{
+	const char *p = istptr(*iter), *end = istend(*iter);
+	char *next;
+	struct ist v;
+
+	while (p < end && (HTTP_IS_LWS(*p) || *p == ','))
+		p++;
+	if (p == end)
+		return 0;
+
+	next = http_find_hdr_value_end((char *)p, (char *)end);
+	v = ist2(p, next - p);
+	while (v.len && HTTP_IS_LWS(v.ptr[v.len - 1]))
+		v.len--;
+
+	*iter = ist2(next, end - next);
+	*value = v;
+	return 1;
+}
+
 /* Find the end of a cookie value contained between <s> and <e>. It works the
  * same way as with headers above except that the semi-colon also ends a token.
  * See RFC2965 for more information. Note that it requires a valid header to

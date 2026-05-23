@@ -58,6 +58,10 @@
 #define HTTP_IS_VER_TOKEN(x) (http_char_classes[(uint8_t)(x)] & HTTP_FLG_VER)
 #define HTTP_IS_DIGIT(x)     (http_char_classes[(uint8_t)(x)] & HTTP_FLG_DIG)
 
+/* Flags for http_get_hdr_param() */
+#define HTTP_PARAM_BADWS  0x00000001  /* tolerate whitespace around '=' (e.g. "Link") */
+#define HTTP_PARAM_NOVAL  0x00000002  /* accept valueless parameters (no '=', e.g. "crossorigin") */
+
 /* Known HTTP methods */
 enum http_meth_t {
 	HTTP_METH_OPTIONS,
