@@ -2180,7 +2180,17 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 				sec_entry = get_secondary_entry(cache_tree, res,
 				                                s->txn.http->cache_secondary_hash,
 				                                0);
-				if (sec_entry && sec_entry != res) {
+				if (!sec_entry) {
+					/* Secondary key miss: release the retained primary entry
+					 * and reattach the detached row before returning.
+					 */
+					release_entry(cache_tree, res, 0);
+					shctx_wrlock(shctx);
+					if (detached)
+						shctx_row_reattach(shctx, entry_block);
+					shctx_wrunlock(shctx);
+				}
+				else if (sec_entry != res) {
 					/* The wrong row was added to the hot list. */
 					release_entry(cache_tree, res, 0);
 					retain_entry(sec_entry);
