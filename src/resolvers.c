@@ -1857,8 +1857,8 @@ int resolv_dn_label_to_str(const char *dn, int dn_len, char *str, int str_len)
 	for (i = 0; i < dn_len; ++i) {
 		sz = (unsigned char)dn[i];
 
-		/* Check str_len adding 1 for the dot if (i!=0) */
-		if (str_len < sz+i+(!!i))
+		/* Check str_len adding 1 for the dot if (i!=0) and 1 for null terminator */
+		if (str_len < sz+i+(!!i)+1)
 			return -1;
 
 		if (i)
