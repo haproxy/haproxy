@@ -6236,19 +6236,19 @@ next_frame:
 
 	/* Skip StreamDep and weight for now (we don't support PRIORITY) */
 	if (h2c->dff & H2_F_HEADERS_PRIORITY) {
+		if (flen < 5) {
+			h2c_report_glitch(h2c, 1, "too short PRIORITY frame");
+			TRACE_STATE("too short PRIORITY frame", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
+			h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR);
+			goto fail;
+		}
+
 		if (read_n32(hdrs) == h2c->dsi) {
 			/* RFC7540#5.3.1 : stream dep may not depend on itself */
 			h2c_report_glitch(h2c, 1, "PRIORITY frame referencing itself");
 			TRACE_STATE("PRIORITY frame referencing itself", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 			HA_ATOMIC_INC(&h2c->px_counters->conn_proto_err);
-			goto fail;
-		}
-
-		if (flen < 5) {
-			h2c_report_glitch(h2c, 1, "too short PRIORITY frame");
-			TRACE_STATE("too short PRIORITY frame", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
-			h2c_error(h2c, H2_ERR_FRAME_SIZE_ERROR);
 			goto fail;
 		}
 
