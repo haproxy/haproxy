@@ -79,7 +79,7 @@ static struct dict_entry *__dict_lookup(struct dict *d, const char *s)
  */
 struct dict_entry *dict_insert(struct dict *d, char *s)
 {
-	struct dict_entry *de;
+	struct dict_entry *de, *tree_de;
 	struct ebpt_node *n;
 
 	HA_RWLOCK_RDLOCK(DICT_LOCK, &d->rwlock);
@@ -97,13 +97,18 @@ struct dict_entry *dict_insert(struct dict *d, char *s)
 
 	HA_RWLOCK_WRLOCK(DICT_LOCK, &d->rwlock);
 	n = ebis_insert(&d->values, &de->value);
-	HA_RWLOCK_WRUNLOCK(DICT_LOCK, &d->rwlock);
-	if (n != &de->value) {
+	tree_de = container_of(n, struct dict_entry, value);
+	if (tree_de == de)
+		HA_RWLOCK_WRUNLOCK(DICT_LOCK, &d->rwlock);
+	else {
+		/* another entry was already there, we'll return it, kill
+		 * ours and bump the other's refcount before returning it.
+		 */
+		HA_ATOMIC_INC(&tree_de->refcount);
+		HA_RWLOCK_WRUNLOCK(DICT_LOCK, &d->rwlock);
 		free_dict_entry(de);
-		de = container_of(n, struct dict_entry, value);
 	}
-
-	return de;
+	return tree_de;
 }
 
 
