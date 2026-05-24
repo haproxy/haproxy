@@ -952,6 +952,20 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 					goto http_output_full;
 				}
 
+				/* Skip headers whose names contain forbidden
+				 * chars. When any is detected, h1m->err_pos >= 0,
+				 * so we recheck the name only when an error was
+				 * detected.
+				 */
+				if (unlikely(h1m->err_pos >= 0)) {
+					size_t i = 0;
+					while (i < n.len && HTTP_IS_TOKEN(n.ptr[i]))
+						i++;
+
+					if (i < n.len)
+						break;
+				}
+
 				if (isteqi(n, ist("transfer-encoding"))) {
 					ret = h1_parse_xfer_enc_header(h1m, v);
 					if (ret < 0) {
