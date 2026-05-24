@@ -444,7 +444,7 @@ INITCALL0(STG_REGISTER, regex_register_build_options);
 #ifdef USE_PCRE2
 static int init_pcre2_per_thread(void)
 {
-	local_pcre2_match = pcre2_match_data_create(MAX_MATCH - 1, NULL);
+	local_pcre2_match = pcre2_match_data_create(MAX_MATCH, NULL);
 	if (!local_pcre2_match) {
 		ha_alert("Failed to allocate PCRE2 match data context for thread %u.\n", tid);
 		return 0;
