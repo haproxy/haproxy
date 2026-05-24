@@ -834,6 +834,8 @@ enum tcpcheck_eval_ret tcpcheck_spop_expect_hello(struct check *check, struct tc
 					goto invalid_frame;
 				if (decode_varint(&ptr, end, &sz) == -1)
 					goto invalid_frame;
+				if (sz >= SPOP_ERR_ENTRIES)
+					sz = SPOP_ERR_UNKNOWN;
 				check->code = sz;
 			}
 
