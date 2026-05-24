@@ -374,7 +374,7 @@ static int secondary_key_cmp(const char *ref_key, const char *new_key)
  * delete_expired==0, write otherwise.
  */
 struct cache_entry *get_secondary_entry(struct cache_tree *cache, struct cache_entry *entry,
-                                        const char *secondary_key, int delete_expired)
+                                        const char *primary_hash, const char *secondary_key, int delete_expired)
 {
 	struct eb32_node *node = &entry->eb;
 
@@ -394,6 +394,12 @@ struct cache_entry *get_secondary_entry(struct cache_tree *cache, struct cache_e
 
 		entry = node ? eb32_entry(node, struct cache_entry, eb) : NULL;
 	}
+
+	/* Now verify the full primary hash matches: eb32 only compares 32 bits so
+	 * we could have ended up on a different, unrelated entry.
+	 */
+	if (entry && primary_hash && memcmp(entry->hash, primary_hash, sizeof(entry->hash)))
+		entry = NULL;
 
 	/* Expired entry */
 	if (entry && entry->expire <= date.tv_sec) {
@@ -1303,7 +1309,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	if (old) {
 		if (vary_signature)
 			old = get_secondary_entry(cache_tree, old,
-			                          txn->cache_secondary_hash, 1);
+			                          txn->cache_hash, txn->cache_secondary_hash, 1);
 		if (old) {
 			if (!old->complete) {
 				/* An entry with the same primary key is already being
@@ -2178,6 +2184,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			if (!http_request_build_secondary_key(s, res->secondary_key_signature)) {
 				cache_rdlock(cache_tree);
 				sec_entry = get_secondary_entry(cache_tree, res,
+				                                s->txn.http->cache_hash,
 				                                s->txn.http->cache_secondary_hash,
 				                                0);
 				if (!sec_entry) {
