@@ -3996,19 +3996,19 @@ void http_check_response_for_cacheability(struct stream *s, struct channel *res)
 			continue;
 		}
 
-		if (isteqi(ctx.value, ist("private")) ||
-		    isteqi(ctx.value, ist("no-cache")) ||
-		    isteqi(ctx.value, ist("no-store")) ||
-		    isteqi(ctx.value, ist("s-maxage=0"))) {
-			txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
-			continue;
-		}
 		/* We might have a no-cache="set-cookie" form. */
-		if (istmatchi(ctx.value, ist("no-cache=\"set-cookie"))) {
+		if (isteqi(ctx.value, ist("no-cache=\"set-cookie\""))) {
 			txn->flags &= ~TX_CACHE_COOK;
 			continue;
 		}
 
+		if (isteqi(ctx.value, ist("private"))  || istmatchi(ctx.value, ist("private="))  ||
+		    isteqi(ctx.value, ist("no-cache")) || istmatchi(ctx.value, ist("no-cache=")) ||
+		    isteqi(ctx.value, ist("no-store")) || istmatchi(ctx.value, ist("no-store=")) ||
+		    isteqi(ctx.value, ist("s-maxage=0"))) {
+			txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
+			continue;
+		}
 		if (istmatchi(ctx.value, ist("s-maxage"))) {
 			has_freshness_info = 1;
 			has_null_maxage = 0;	/* The null max-age is overridden, ignore it */
