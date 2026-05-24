@@ -10027,6 +10027,9 @@ no option accept-unsafe-violations-in-http-response
 
   When this option is set, the following rules are observed:
 
+    * In H1 only, status codes longer than 3 digits but whose value fits in 16
+      bits are not rejected.
+
     * In H1 only, invalid characters, including NULL character, in header name
       will not be rejected; however the header will be dropped.
 

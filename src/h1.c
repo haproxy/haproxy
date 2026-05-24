@@ -710,6 +710,16 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	case H1_MSG_RPCODE:
 	http_msg_rpcode:
 		if (likely(HTTP_IS_DIGIT(*ptr))) {
+			if (ptr - sl.st.c.ptr >= 3) {
+				/* more than 3 digits */
+				if (h1m->err_pos == -1) /* only capture the error pointer */
+					h1m->err_pos = ptr - start + skip;
+				else if (h1m->err_pos < -1 || sl.st.status >= ((uint16_t)~0 - 9) / 10) {
+					/* strict checks or risk of overflow */
+					state = H1_MSG_RPCODE;
+					goto http_msg_invalid;
+				}
+			}
 			sl.st.status = sl.st.status * 10 + *ptr - '0';
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpcode, http_msg_ood, state, H1_MSG_RPCODE);
 		}
