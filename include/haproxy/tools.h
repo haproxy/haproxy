@@ -1288,12 +1288,25 @@ static inline void _ha_aligned_free(void *ptr)
 int parse_dotted_uints(const char *s, unsigned int **nums, size_t *sz);
 
 /* PRNG */
+struct uint64_pair _ha_random64_pair_hashed(void);
+
 void ha_generate_uuid_v4(struct buffer *output);
 void ha_generate_uuid_v7(struct buffer *output);
 void ha_random_seed(const unsigned char *seed, size_t len);
 void ha_random_jump96(uint32_t dist);
 uint64_t ha_random64(void);
 uint64_t ha_random64_internal(void);
+
+/* Returns a pair of uint64_t randoms hashed so as not to disclose the internal
+ * PRNG state.
+ */
+static inline void ha_random64_pair_hashed(uint64_t *l, uint64_t *h)
+{
+	struct uint64_pair ret = _ha_random64_pair_hashed();
+
+	*l = ret.l;
+	*h = ret.h;
+}
 
 static inline uint32_t ha_random32()
 {

@@ -6297,6 +6297,23 @@ uint64_t ha_random64(void)
 	                                     now_ns);
 }
 
+/* Returns a pair of uint64_t randoms hashed so as not to disclose the internal
+ * PRNG state. This function shouldn't be used directly, better use the public
+ * ha_random64_pair_hashed() which calls it. The function uses a local XXH
+ * secret that is created at boot, and now_ns as the seed to limit remote
+ * analysis.
+ */
+struct uint64_pair _ha_random64_pair_hashed(void)
+{
+	XXH128_hash_t ret;
+	ret = XXH3_128bits_withSecretandSeed(ha_random_state, 2*sizeof(uint64_t),
+					     ha_random_xxh_secret, sizeof(ha_random_xxh_secret),
+					     now_ns);
+	/* update the internal state */
+	ha_random64_internal();
+       return (struct uint64_pair){ .l = ret.low64, .h = ret.high64 };
+}
+
 /* seeds the random state using up to <len> bytes from <seed>, starting with
  * the first non-zero byte.
  */

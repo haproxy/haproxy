@@ -188,4 +188,12 @@ struct file_name_node {
 	char name[VAR_ARRAY]; /* storage, used with cebus_*() */
 };
 
+/* a pair of uint64_t. It's purposely arranged in little endian to help
+ * being vectorized on modern processors.
+ */
+struct uint64_pair {
+	uint64_t l;
+	uint64_t h;
+};
+
 #endif /* _HAPROXY_TOOLS_T_H */
