@@ -6388,23 +6388,15 @@ void ha_random_jump96(uint32_t dist)
  */
 void ha_generate_uuid_v4(struct buffer *output)
 {
-	uint32_t rnd[4];
-	uint64_t last;
+	uint64_t l, h;
 
-	last = ha_random64();
-	rnd[0] = last;
-	rnd[1] = last >> 32;
-
-	last = ha_random64();
-	rnd[2] = last;
-	rnd[3] = last >> 32;
-
+	ha_random64_pair_hashed(&l, &h);
 	chunk_printf(output, "%8.8x-%4.4x-%4.4x-%4.4x-%12.12llx",
-	             rnd[0],
-	             rnd[1] & 0xFFFF,
-	             ((rnd[1] >> 16u) & 0xFFF) | 0x4000,  // highest 4 bits indicate the uuid version
-	             (rnd[2] & 0x3FFF) | 0x8000,  // the highest 2 bits indicate the UUID variant (10),
-	             (long long)((rnd[2] >> 14u) | ((uint64_t) rnd[3] << 18u)) & 0xFFFFFFFFFFFFull);
+	             (uint)l,
+	             (uint)(l >> 32) & 0xFFFF,
+	             (uint)((l >> 48) & 0xFFF) | 0x4000,  // highest 4 bits indicate the uuid version
+	             (uint)(h & 0x3FFF) | 0x8000,  // the highest 2 bits indicate the UUID variant (10),
+	             (long long)(rotl64(h, 50) & 0xFFFFFFFFFFFFull));
 }
 
 /* Generates an RFC 9562 version 7 UUID into chunk
@@ -6412,24 +6404,18 @@ void ha_generate_uuid_v4(struct buffer *output)
  */
 void ha_generate_uuid_v7(struct buffer *output)
 {
-	uint32_t rnd[3];
-	uint64_t last;
+	uint64_t l, h;
 	uint64_t time;
 
 	time = (date.tv_sec * 1000) + (date.tv_usec / 1000);
-	last = ha_random64();
-	rnd[0] = last;
-	rnd[1] = last >> 32;
 
-	last = ha_random64();
-	rnd[2] = last;
-
+	ha_random64_pair_hashed(&l, &h);
 	chunk_printf(output, "%8.8x-%4.4x-%4.4x-%4.4x-%12.12llx",
 	             (uint)(time >> 16u),
 	             (uint)(time & 0xFFFF),
-	             ((rnd[0] >> 16u) & 0xFFF) | 0x7000,  // highest 4 bits indicate the uuid version
-	             (rnd[1] & 0x3FFF) | 0x8000,  // the highest 2 bits indicate the UUID variant (10),
-	             (long long)((rnd[1] >> 14u) | ((uint64_t) rnd[2] << 18u)) & 0xFFFFFFFFFFFFull);
+	             (uint)((l >> 16) & 0xFFF) | 0x7000,  // highest 4 bits indicate the uuid version
+	             (uint)(h & 0x3FFF) | 0x8000,  // the highest 2 bits indicate the UUID variant (10),
+	             (long long)(rotl64(h, 50) & 0xFFFFFFFFFFFFull));
 }
 
 
