@@ -3098,6 +3098,7 @@ void *run_thread_poll_loop(void *data)
 	ha_set_thread(data);
 	set_thread_cpu_affinity();
 	clock_set_local_source();
+	ha_random_seed_thread();
 
 #ifdef USE_THREAD
 	ha_thread_info[tid].pth_id = ha_get_pthread_id(tid);

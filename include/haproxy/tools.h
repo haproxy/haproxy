@@ -1293,7 +1293,9 @@ struct uint64_pair _ha_random64_pair_hashed(void);
 void ha_generate_uuid_v4(struct buffer *output);
 void ha_generate_uuid_v7(struct buffer *output);
 void ha_random_seed(const unsigned char *seed, size_t len);
-void ha_random_jump96(uint32_t dist);
+void ha_random_seed_thread(void);
+void ha_random_jump128(uint32_t dist);
+void ha_random_jump192(uint32_t dist);
 uint64_t ha_random64(void);
 uint64_t ha_random64_internal(void);
 

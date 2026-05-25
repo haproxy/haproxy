@@ -1298,7 +1298,7 @@ void mworker_apply_master_worker_mode(void)
 
 		/* This one must not be exported, it's internal! */
 		unsetenv("HAPROXY_MWORKER_REEXEC");
-		ha_random_jump96(1);
+		ha_random_jump128(1);
 
 		list_for_each_entry(child, &proc_list, list) {
 			if ((child->options & PROC_O_TYPE_WORKER) && (child->options & PROC_O_INIT)) {
