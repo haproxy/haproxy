@@ -6235,6 +6235,8 @@ int varint_bytes(uint64_t v)
 	return len;
 }
 
+/* secret used for XXH hash involved in PRNG */
+static char ha_random_xxh_secret[XXH3_SECRET_DEFAULT_SIZE] ALIGNED(64);
 
 /* Random number generator state, see below */
 static uint64_t ha_random_state[2] ALIGNED(2*sizeof(uint64_t));
@@ -6245,8 +6247,10 @@ static uint64_t ha_random_state[2] ALIGNED(2*sizeof(uint64_t));
  * supports fast jumps and passes all common quality tests. It is thread-safe,
  * uses a double-cas on 64-bit architectures supporting it, and falls back to a
  * local lock on other ones.
+ * It may only be used for internal random generation, because exposing its
+ * output will quickly reveal the internal state.
  */
-uint64_t ha_random64()
+uint64_t ha_random64_internal()
 {
 	uint64_t old[2] ALIGNED(2*sizeof(uint64_t));
 	uint64_t new[2] ALIGNED(2*sizeof(uint64_t));
@@ -6279,6 +6283,20 @@ uint64_t ha_random64()
 	return rotl64(old[0] * 5, 7) * 9;
 }
 
+/* Returns a uint64_t random hashed so as not to disclose the internal PRNG
+ * state. The function uses a local XXH secret that is created at boot, and
+ * now_ns as the seed to limit remote analysis.
+ */
+uint64_t ha_random64(void)
+{
+	uint64_t ret;
+
+	ret = ha_random64_internal();
+	return XXH3_64bits_withSecretandSeed(&ret, sizeof(ret),
+	                                     ha_random_xxh_secret, sizeof(ha_random_xxh_secret),
+	                                     now_ns);
+}
+
 /* seeds the random state using up to <len> bytes from <seed>, starting with
  * the first non-zero byte.
  */
@@ -6306,6 +6324,9 @@ void ha_random_seed(const unsigned char *seed, size_t len)
 		len = sizeof(ha_random_state);
 
 	memcpy(ha_random_state, seed, len);
+
+	/* also initialize the secret table used by XXH3 */
+	XXH3_generateSecret(ha_random_xxh_secret, sizeof(ha_random_xxh_secret), seed, len);
 }
 
 /* This causes a jump to (dist * 2^96) places in the pseudo-random sequence,
