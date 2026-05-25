@@ -44,6 +44,29 @@ __decl_rwlock(ssl_ctx_lru_rwlock);
 
 #ifndef SSL_NO_GENERATE_CERTIFICATES
 
+/* Validate that <servername> contains only DNS-label-legal characters
+ * (letters, digits, hyphens, dots). Rejects commas, colons, and other
+ * characters that OpenSSL's nconf parser would interpret as SAN entry
+ * separators or type prefixes, preventing certificate injection. */
+static int ssl_sock_sni_is_valid(const char *s)
+{
+	size_t i;
+
+	if (!s || !*s)
+		return 0;
+	for (i = 0; s[i]; i++) {
+		unsigned char c = (unsigned char)s[i];
+		if (!(
+		    (c >= 'a' && c <= 'z') ||
+		    (c >= 'A' && c <= 'Z') ||
+		    (c >= '0' && c <= '9') ||
+		    c == '-' || c == '.'
+		))
+			return 0;
+	}
+	return 1;
+}
+
 /* Configure a DNS SAN extension on a certificate. */
 int ssl_sock_add_san_ext(X509V3_CTX* ctx, X509* cert, const char *servername) {
 	int failure = 0;
@@ -99,6 +122,14 @@ static SSL_CTX *ssl_sock_do_create_cert(const char *servername, struct bind_conf
 	unsigned int  i;
 	int 	      key_type;
 	struct sni_ctx *sni_ctx;
+
+	/* Reject SNI values containing characters that OpenSSL's nconf
+	 * parser would interpret as SAN entry separators (commas), type
+	 * prefixes (colons), or other special constructs. This prevents
+	 * attackers from injecting arbitrary GENERAL_NAME entries into
+	 * certificates signed by HAProxy's configured CA. */
+	if (!ssl_sock_sni_is_valid(servername))
+		goto mkcert_error;
 
 	sni_ctx = ssl_sock_choose_sni_ctx(bind_conf, NULL, "", 1, 1);
 	if (!sni_ctx)
