@@ -121,8 +121,8 @@ static inline size_t array_size_or_fail(size_t m, size_t n)
 {
 	size_t size;
 
-	if (mulsz_overflow(m, n, &size))
-		return ~(size_t)0;
+	if (unlikely(mulsz_overflow(m, n, &size)))
+		return DISGUISE(~(size_t)0);
 	return size;
 }
 
