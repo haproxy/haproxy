@@ -788,7 +788,7 @@ static void hstream_parse_uri(struct ist uri, struct hstream *hs)
 				} while (*next);
 
 				if (use_rand)
-					result = ((long long)ha_random64() * result) / ((long long)RAND_MAX + 1);
+					result = ((long long)statistical_prng() * result) / 0xFFFFFFFFU;
 
 				switch (*arg) {
 				case 's':
