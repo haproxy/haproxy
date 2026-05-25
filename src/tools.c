@@ -6238,80 +6238,103 @@ int varint_bytes(uint64_t v)
 /* secret used for XXH hash involved in PRNG */
 static char ha_random_xxh_secret[XXH3_SECRET_DEFAULT_SIZE] ALIGNED(64);
 
-/* Random number generator state, see below */
-static uint64_t ha_random_state[2] ALIGNED(2*sizeof(uint64_t));
-
-/* This is a thread-safe implementation of xoroshiro128** described below:
- *     http://prng.di.unimi.it/
- * It features a 2^128 long sequence, returns 64 high-quality bits on each call,
- * supports fast jumps and passes all common quality tests. It is thread-safe,
- * uses a double-cas on 64-bit architectures supporting it, and falls back to a
- * local lock on other ones.
- * It may only be used for internal random generation, because exposing its
- * output will quickly reveal the internal state.
+/* 2^256 sequnce thread-local PRNG state known as "XOSHIRO256**".
+ * See details here:
+ *   https://prng.di.unimi.it/
+ *   https://prng.di.unimi.it/xoshiro256starstar.c
+ * It features a 2^256 long sequence, returns 64 high-quality bits on each call,
+ * supports fast jumps and passes all common quality tests. Supporting 128-bit
+ * jumps, it allows to run thread-local with non-overlapping sequences. It must
+ * be seeded otherwise the ratio of zeroes is a bit high initially.
  */
-uint64_t ha_random64_internal()
+static THREAD_LOCAL uint64_t ha_random_state[4];
+
+/* Returns the next 64-bit PRNG number from the thread-local 256-bit state and
+ * makes the internal state progress by one step. This is meant to be used by
+ * other local functions. Since its discloses the PRNG's internal state, it
+ * must not be called to produce externally visible randoms.
+ */
+static inline uint64_t _ha_random64_internal(void)
 {
-	uint64_t old[2] ALIGNED(2*sizeof(uint64_t));
-	uint64_t new[2] ALIGNED(2*sizeof(uint64_t));
+	const uint64_t result = rotl64(ha_random_state[1] * 5, 7) * 9;
+	const uint64_t t = ha_random_state[1] << 17;
 
-#if defined(USE_THREAD) && (!defined(HA_CAS_IS_8B) || !defined(HA_HAVE_CAS_DW))
-	static HA_SPINLOCK_T rand_lock;
-
-	HA_SPIN_LOCK(OTHER_LOCK, &rand_lock);
-#endif
-
-	old[0] = ha_random_state[0];
-	old[1] = ha_random_state[1];
-
-#if defined(USE_THREAD) && defined(HA_CAS_IS_8B) && defined(HA_HAVE_CAS_DW)
-	do {
-#endif
-		new[1] = old[0] ^ old[1];
-		new[0] = rotl64(old[0], 24) ^ new[1] ^ (new[1] << 16); // a, b
-		new[1] = rotl64(new[1], 37); // c
-
-#if defined(USE_THREAD) && defined(HA_CAS_IS_8B) && defined(HA_HAVE_CAS_DW)
-	} while (unlikely(!_HA_ATOMIC_DWCAS(ha_random_state, old, new)));
-#else
-	ha_random_state[0] = new[0];
-	ha_random_state[1] = new[1];
-#if defined(USE_THREAD)
-	HA_SPIN_UNLOCK(OTHER_LOCK, &rand_lock);
-#endif
-#endif
-	return rotl64(old[0] * 5, 7) * 9;
+	ha_random_state[2] ^= ha_random_state[0];
+	ha_random_state[3] ^= ha_random_state[1];
+	ha_random_state[1] ^= ha_random_state[2];
+	ha_random_state[0] ^= ha_random_state[3];
+	ha_random_state[2] ^= t;
+	ha_random_state[3] = rotl64(ha_random_state[3], 45);
+	return result;
 }
 
-/* Returns a uint64_t random hashed so as not to disclose the internal PRNG
- * state. The function uses a local XXH secret that is created at boot, and
- * now_ns as the seed to limit remote analysis.
+/* Returns the next 64-bit PRNG number from the thread-local 256-bit state and
+ * makes the internal state progress by one step. Since its discloses the PRNG's
+ * internal state, it must not be called to produce externally visible randoms.
  */
-uint64_t ha_random64(void)
+uint64_t ha_random64_internal(void)
 {
-	uint64_t ret;
-
-	ret = ha_random64_internal();
-	return XXH3_64bits_withSecretandSeed(&ret, sizeof(ret),
-	                                     ha_random_xxh_secret, sizeof(ha_random_xxh_secret),
-	                                     now_ns);
+	return _ha_random64_internal();
 }
 
-/* Returns a pair of uint64_t randoms hashed so as not to disclose the internal
- * PRNG state. This function shouldn't be used directly, better use the public
- * ha_random64_pair_hashed() which calls it. The function uses a local XXH
- * secret that is created at boot, and now_ns as the seed to limit remote
- * analysis.
+/* This function uses a pre-calculated jump table to of 4 uint64_t to perform a
+ * jump equivalent to multiple calls to ha_random_next(). It shouldn't be
+ * used directly but only from the next functions.
  */
-struct uint64_pair _ha_random64_pair_hashed(void)
+static void _ha_random_jump(const uint64_t *table)
 {
-	XXH128_hash_t ret;
-	ret = XXH3_128bits_withSecretandSeed(ha_random_state, 2*sizeof(uint64_t),
-					     ha_random_xxh_secret, sizeof(ha_random_xxh_secret),
-					     now_ns);
-	/* update the internal state */
-	ha_random64_internal();
-       return (struct uint64_pair){ .l = ret.low64, .h = ret.high64 };
+	uint64_t s0, s1, s2, s3;
+	uint i, j;
+
+	s0 = s1 = s2 = s3 = 0;
+	for (i = 0; i < 4; i++) {
+		for (j = 0; j < 64; j++) {
+			if (table[i] & (1ULL << j)) {
+				s0 ^= ha_random_state[0];
+				s1 ^= ha_random_state[1];
+				s2 ^= ha_random_state[2];
+				s3 ^= ha_random_state[3];
+			}
+			ha_random64_internal();
+		}
+	}
+
+	ha_random_state[0] = s0;
+	ha_random_state[1] = s1;
+	ha_random_state[2] = s2;
+	ha_random_state[3] = s3;
+}
+
+/* This function is equivalent to calling <dist> times 2^128 calls to
+ * ha_random_next(). It can be used to generate 2^128 non-overlapping
+ * sequences. The <dist> argument is the distance to jump to and is used
+ * in a loop so it rather not be too large if the processing time is a
+ * concern. It only applies to the current thread. Note that <dist> may
+ * not be zero.
+ */
+void ha_random_jump128(uint32_t dist)
+{
+	static const uint64_t table[] = { 0x180ec6d33cfd0aba, 0xd5a61266f0c9392c, 0xa9582618e03fc9aa, 0x39abdc4529b1661c };
+
+	BUG_ON(!dist);
+	while (dist--)
+		_ha_random_jump(table);
+}
+
+/* This function is equivalent to calling <dist> times 2^192 calls to
+ * ha_random_next(). It can be used to generate 2^64 non-overlapping
+ * sequences. The <dist> argument is the distance to jump to and is used
+ * in a loop so it rather not be too large if the processing time is a
+ * concern. It only applies to the current thread. Note that <dist> may
+ * not be zero.
+ */
+void ha_random_jump192(uint32_t dist)
+{
+	static const uint64_t table[] = { 0x76e15d3efefdcbbf, 0xc5004e441c522fb3, 0x77710069854ee241, 0x39109bb02acbe635 };
+
+	BUG_ON(!dist);
+	while (dist--)
+		_ha_random_jump(table);
 }
 
 /* seeds the random state using up to <len> bytes from <seed>, starting with
@@ -6346,41 +6369,44 @@ void ha_random_seed(const unsigned char *seed, size_t len)
 	XXH3_generateSecret(ha_random_xxh_secret, sizeof(ha_random_xxh_secret), seed, len);
 }
 
-/* This causes a jump to (dist * 2^96) places in the pseudo-random sequence,
- * and is equivalent to calling ha_random64() as many times. It is used to
- * provide non-overlapping sequences of 2^96 numbers (~7*10^28) to up to 2^32
- * different generators (i.e. different processes after a fork). The <dist>
- * argument is the distance to jump to and is used in a loop so it rather not
- * be too large if the processing time is a concern.
- *
- * BEWARE: this function is NOT thread-safe and must not be called during
- * concurrent accesses to ha_random64().
- */
-void ha_random_jump96(uint32_t dist)
+/* Seed the PRNG for the current thread */
+void ha_random_seed_thread(void)
 {
-	while (dist--) {
-		uint64_t s0 = 0;
-		uint64_t s1 = 0;
-		int b;
+	/* seed already done for first thread, but jump still necessary */
+	if (tid > 0)
+		ha_random_seed(boot_seed, sizeof(boot_seed));
+	ha_random_jump192(tid + 1);
+}
 
-		for (b = 0; b < 64; b++) {
-			if ((0xd2a98b26625eee7bULL >> b) & 1) {
-				s0 ^= ha_random_state[0];
-				s1 ^= ha_random_state[1];
-			}
-			ha_random64();
-		}
+/* Returns a uint64_t random hashed so as not to disclose the internal PRNG
+ * state. The function uses a local XXH secret that is created at boot, and
+ * now_ns as the seed to limit remote analysis.
+ */
+uint64_t ha_random64(void)
+{
+	uint64_t ret;
 
-		for (b = 0; b < 64; b++) {
-			if ((0xdddf9b1090aa7ac1ULL >> b) & 1) {
-				s0 ^= ha_random_state[0];
-				s1 ^= ha_random_state[1];
-			}
-			ha_random64();
-		}
-		ha_random_state[0] = s0;
-		ha_random_state[1] = s1;
-	}
+	ret = _ha_random64_internal();
+	return XXH3_64bits_withSecretandSeed(&ret, sizeof(ret),
+	                                     ha_random_xxh_secret, sizeof(ha_random_xxh_secret),
+	                                     now_ns);
+}
+
+/* Returns a pair of uint64_t randoms hashed so as not to disclose the internal
+ * PRNG state. This function shouldn't be used directly, better use the public
+ * ha_random64_pair_hashed() which calls it. The function uses a local XXH
+ * secret that is created at boot, and now_ns as the seed to limit remote
+ * analysis.
+ */
+struct uint64_pair _ha_random64_pair_hashed(void)
+{
+	XXH128_hash_t ret;
+	ret = XXH3_128bits_withSecretandSeed(ha_random_state, 2*sizeof(uint64_t),
+					     ha_random_xxh_secret, sizeof(ha_random_xxh_secret),
+					     now_ns);
+	/* update the internal state */
+	_ha_random64_internal();
+       return (struct uint64_pair){ .l = ret.low64, .h = ret.high64 };
 }
 
 /* Generates an RFC 9562 version 4 UUID into chunk
