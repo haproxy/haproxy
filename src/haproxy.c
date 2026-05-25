@@ -1926,16 +1926,14 @@ static void dump_registered_keywords(void)
 
 /* Generate a random cluster-secret in case the setting is not provided in the
  * configuration. This allows to use features which rely on it albeit with some
- * limitations. The function doesn't (solely) use ha_random64() because this
- * secret is permanent, and ha_random64() can easily be leaked at various
- * places.
+ * limitations. The function prefers RAND_bytes() if available, otherwise falls
+ * back to ha_random64_pair_hashed().
  */
 static void generate_random_cluster_secret()
 {
 	/* used as a default random cluster-secret if none defined. */
 	union {
 		uint64_t by64[2];
-		uint32_t by32[4];
 		uchar    by8[16];
 	} rand;
 
@@ -1948,12 +1946,7 @@ static void generate_random_cluster_secret()
 #endif
 	{
 		/* no SSL or not working, fall back to other sources */
-		rand.by64[0] = ha_random64();
-		rand.by64[1] = ha_random64();
-		rand.by32[0] ^= ((random() & 0x00ffff00) << 8) | ((random() & 0x00ffff00) >> 8);
-		rand.by32[1] ^= ((random() & 0x00ffff00) << 8) | ((random() & 0x00ffff00) >> 8);
-		rand.by32[2] ^= ((random() & 0x00ffff00) << 8) | ((random() & 0x00ffff00) >> 8);
-		rand.by32[3] ^= ((random() & 0x00ffff00) << 8) | ((random() & 0x00ffff00) >> 8);
+		ha_random64_pair_hashed(&rand.by64[0], &rand.by64[1]);
 	}
 
 	memcpy(global.cluster_secret, &rand, sizeof(rand));
