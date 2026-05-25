@@ -24,8 +24,10 @@ int quic_generate_token(unsigned char *token, size_t len,
 	unsigned char aad[sizeof(struct in6_addr)];
 	size_t aadlen;
 	uint32_t ts = (uint32_t)date.tv_sec;
-	uint64_t rand_u64;
-	unsigned char rand[QUIC_TOKEN_RAND_DLEN];
+	union {
+		uint64_t u64[2];
+		uchar u8[QUIC_TOKEN_RAND_DLEN];
+	} rand;
 	unsigned char key[16];
 	unsigned char iv[QUIC_TLS_IV_LEN];
 	const unsigned char *sec = global.cluster_secret;
@@ -35,10 +37,7 @@ int quic_generate_token(unsigned char *token, size_t len,
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT);
 
 	/* Generate random data to be used as salt to derive the token secret. */
-	rand_u64 = ha_random64();
-	write_u64(rand, rand_u64);
-	rand_u64 = ha_random64();
-	write_u64(rand + sizeof(rand_u64), rand_u64);
+	ha_random64_pair_hashed(&rand.u64[0], &rand.u64[1]);
 
 	if (len < QUIC_TOKEN_LEN) {
 		TRACE_ERROR("too small buffer", QUIC_EV_CONN_TXPKT);
@@ -48,7 +47,7 @@ int quic_generate_token(unsigned char *token, size_t len,
 	/* Generate the AAD. */
 	aadlen = ipaddrcpy(aad, addr);
 	if (!quic_tls_derive_token_secret(EVP_sha256(), key, sizeof key,
-	                                  iv, sizeof iv, rand, sizeof(rand),
+	                                  iv, sizeof iv, rand.u8, sizeof(rand.u8),
 	                                  sec, seclen)) {
 		TRACE_ERROR("quic_tls_derive_token_secret() failed", QUIC_EV_CONN_TXPKT);
 		goto err;
@@ -71,8 +70,8 @@ int quic_generate_token(unsigned char *token, size_t len,
 	}
 
 	p += QUIC_TLS_TAG_LEN;
-	memcpy(p, rand, sizeof(rand));
-	p += sizeof(rand);
+	memcpy(p, rand.u8, sizeof(rand.u8));
+	p += sizeof(rand.u8);
 
 	ret = p - token;
  leave:
