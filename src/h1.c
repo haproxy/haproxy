@@ -1272,9 +1272,10 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 void h1_generate_random_ws_input_key(char key_out[25])
 {
 	/* generate a random websocket key */
-	const uint64_t rand1 = ha_random64(), rand2 = ha_random64();
+	uint64_t rand1, rand2;
 	char key[16];
 
+	ha_random64_pair_hashed(&rand1, &rand2);
 	memcpy(key, &rand1, 8);
 	memcpy(&key[8], &rand2, 8);
 	a2base64(key, 16, key_out, 25);
