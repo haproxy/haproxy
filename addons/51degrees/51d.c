@@ -303,6 +303,7 @@ static void _51d_init_device_offsets(fiftyoneDegreesDeviceOffsets *offsets) {
 
 static void _51d_set_device_offsets(struct sample *smp, fiftyoneDegreesDeviceOffsets *offsets)
 {
+	struct buffer *temp = get_trash_chunk();
 	struct channel *chn;
 	struct htx *htx;
 	struct http_hdr_ctx ctx;
@@ -324,7 +325,15 @@ static void _51d_set_device_offsets(struct sample *smp, fiftyoneDegreesDeviceOff
 
 		if (http_find_header(htx, name, &ctx, 1)) {
 			(offsets->firstOffset + offsets->size)->httpHeaderOffset = *(global_51degrees.header_offsets + i);
-			(offsets->firstOffset + offsets->size)->deviceOffset = fiftyoneDegreesGetDeviceOffset(&global_51degrees.data_set, ctx.value.ptr);
+			/* Copy value into trash and NUL-terminate before passing to the
+			 * 51Degrees Trie API, which expects a C string.
+			 */
+			if (ctx.value.len >= temp->size)
+				continue;
+			memcpy(temp->area, ctx.value.ptr, ctx.value.len);
+			temp->area[ctx.value.len] = '\0';
+			temp->data = ctx.value.len + 1;
+			(offsets->firstOffset + offsets->size)->deviceOffset = fiftyoneDegreesGetDeviceOffset(&global_51degrees.data_set, temp->area);
 			offsets->size++;
 		}
 	}
