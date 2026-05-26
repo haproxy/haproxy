@@ -125,6 +125,9 @@ int base64dec(const char *in, size_t ilen, char *out, size_t olen) {
 	signed char b;
 	int convlen = 0, i = 0, pad = 0;
 
+	if (!ilen)
+		return 0;
+
 	if (ilen % 4)
 		return -1;
 
