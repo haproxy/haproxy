@@ -88,7 +88,7 @@ static int qc_do_rm_hp(struct quic_conn *qc,
 	ret = 0;
 
 	/* Check there is enough data in this packet. */
-	if (pkt->len - (pn - byte0) < QUIC_PACKET_PN_MAXLEN + sizeof mask) {
+	if (pkt->len - pkt->pn_offset < QUIC_PACKET_PN_MAXLEN + QUIC_TLS_TAG_LEN) {
 		TRACE_PROTO("too short packet", QUIC_EV_CONN_RMHP, qc, pkt);
 		goto leave;
 	}
