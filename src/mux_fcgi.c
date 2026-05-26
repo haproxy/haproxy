@@ -2516,13 +2516,8 @@ static int fcgi_strm_handle_end_request(struct fcgi_conn *fconn, struct fcgi_str
 		return 0;
 	}
 
-	if (unlikely(b_contig_data(dbuf, 0) < fconn->drl)) {
-		/* Realign the dmux buffer if the record wraps. It is unexpected
-		 * at this stage because it should be the first record received
-		 * from the FCGI application.
-		 */
+	if (unlikely(b_contig_data(dbuf, 0) < fconn->drl))
 		b_slow_realign_ofs(dbuf, trash.area, 0);
-	}
 
 	inbuf = b_make(b_head(dbuf), b_data(dbuf), 0, fconn->drl);
 
