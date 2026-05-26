@@ -63,7 +63,6 @@ struct list resolv_srvrq_list = LIST_HEAD_INIT(resolv_srvrq_list);
 
 static THREAD_LOCAL struct list death_row; /* list of deferred resolutions to kill, local validity only */
 static THREAD_LOCAL unsigned int recurse = 0; /* counter to track calls to public functions */
-static THREAD_LOCAL uint64_t resolv_query_id_seed = 0; /* random seed */
 struct resolvers *curr_resolvers = NULL;
 
 DECLARE_STATIC_TYPED_POOL(resolv_answer_item_pool, "resolv_answer_item", struct resolv_answer_item);
@@ -365,18 +364,6 @@ struct resolv_answer_item *find_srvrq_answer_record(const struct resolv_requeste
 	return NULL;
 }
 
-/* 2 bytes random generator to generate DNS query ID */
-static inline uint16_t resolv_rnd16(void)
-{
-	if (!resolv_query_id_seed)
-		resolv_query_id_seed = now_ms;
-	resolv_query_id_seed ^= resolv_query_id_seed << 13;
-	resolv_query_id_seed ^= resolv_query_id_seed >> 7;
-	resolv_query_id_seed ^= resolv_query_id_seed << 17;
-	return resolv_query_id_seed;
-}
-
-
 static inline int resolv_resolution_timeout(struct resolv_resolution *res)
 {
 	return (!LIST_ISEMPTY(&res->requesters) ? res->resolvers->timeout.resolve : res->resolvers->hold.valid);
@@ -516,7 +503,7 @@ resolv_run_resolution(struct resolv_resolution *resolution)
 	/* Generates a new query id. We try at most 100 times to find a free
 	 * query id */
 	for (i = 0; i < 100; ++i) {
-		query_id = resolv_rnd16();
+		query_id = (uint16_t)ha_random32();
 		if (!eb32_lookup(&resolvers->query_ids, query_id))
 			break;
 		query_id = -1;
