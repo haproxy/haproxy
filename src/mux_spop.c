@@ -1652,7 +1652,7 @@ static int spop_conn_handle_hello(struct spop_conn *spop_conn)
 		return 0;
 	}
 
-	if (unlikely(b_contig_data(dbuf, b_head_ofs(dbuf)) < spop_conn->dfl)) {
+	if (unlikely(b_contig_data(dbuf, 0) < spop_conn->dfl)) {
 		/* Realign the dmux buffer if the frame wraps. It is unexpected
 		 * at this stage because it should be the first record received
 		 * from the FCGI application.
@@ -1824,7 +1824,7 @@ static int spop_conn_handle_disconnect(struct spop_conn *spop_conn)
 		return 0;
 	}
 
-	if (unlikely(b_contig_data(dbuf, b_head_ofs(dbuf)) < spop_conn->dfl)) {
+	if (unlikely(b_contig_data(dbuf, 0) < spop_conn->dfl)) {
 		/* Realign the dmux buffer if the frame wraps. It is unexpected
 		 * at this stage because it should be the first record received
 		 * from the FCGI application.
@@ -1936,7 +1936,7 @@ static int spop_conn_handle_ack(struct spop_conn *spop_conn, struct spop_strm *s
 		return 0;
 	}
 
-	if (unlikely(b_contig_data(dbuf, b_head_ofs(dbuf)) < spop_conn->dfl)) {
+	if (unlikely(b_contig_data(dbuf, 0) < spop_conn->dfl)) {
 		/* Realign the dmux buffer if the frame wraps. It is unexpected
 		 * at this stage because it should be the first record received
 		 * from the FCGI application.
