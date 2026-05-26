@@ -1,6 +1,89 @@
 ChangeLog :
 ===========
 
+2026/05/26 : 3.4-dev14
+    - MINOR: config: shm-stats-file is no longer experimental
+    - BUILD: proxy: unstatify the proxies_del_lock to avoid a warning without threads
+    - BUG/MEDIUM: net_helper: fix a remaining possibly infinite loop in converters
+    - MINOR: ssl_sock: remove unneeded check on QMux flags
+    - MINOR: connection: define xprt_add_l6hs()
+    - MINOR: xprt_qmux: define default value for get_alpn
+    - MINOR: connection: define mask CO_FL_WAIT_XPRT_L6
+    - MINOR: session: support QMux in clear on FE side
+    - MINOR: backend: support QMux in clear for BE side
+    - BUG/MINOR: ocsp: Manage date too far away in the future
+    - MINOR: mux_quic: handle STOP_SENDING in QMux
+    - MINOR: mux_quic: handle MAX_STREAMS for uni stream in QMux
+    - MINOR: mux_quic: do not crash on unhandled QMux frame reception
+    - BUG/MEDIUM: applet: Properly handle receives of size 0
+    - BUG/MEDIUM: resolvers: Fix test on dn label size in resolv_dn_label_to_str()
+    - BUG/MEDIUM: ssl-gencert: Unlock LRU cache if failing to generate certificate
+    - BUG/MINOR: quic: fix ODCID lookup from derived value
+    - BUG/MEDIUM: dict: hold lock while decrementing refcount in dict_entry_unref
+    - BUG/MINOR: tcpchecks: Limit parsing of agent-check reply to the buffer
+    - BUG/MEDIUM: hlua: Fix integer underflow when receiving line from lua cosocket
+    - BUG/MEDIUM: cli: Fix parsing of pattern finishing a command payload
+    - BUG/MEDIUM: acme: NUL terminate response buffer before PEM parsing
+    - BUILD: intops: mask the fail value in array_size_or_fail()
+    - BUG/MEDIUM: log-forward: make sure the month is unsigned
+    - BUG/MEDIUM: regex: allocate a large enough pcre2 match for all matches
+    - BUG/MEDIUM: tcpcheck/spoe: bound the SPOP error code to valid values
+    - BUG/MEDIUM: cache: fix a refcount leak for missed secondary entries
+    - BUG/MINOR: log: free logformat expr on compile failure in cfg_parse_log_profile
+    - BUG/MINOR: resolvers: fix room for trailing zero in resolv_dn_label_to_str()
+    - BUG/MINOR: resolvers: fix risk of appending garbage past the domain name
+    - BUG/MINOR: mux-h2: validate HEADERS frame length before reading stream dep
+    - BUG/MINOR: log: look for the end of priority before the end of the buffer
+    - BUG/MINOR: dict: fix refcount race on insert collision
+    - BUG/MINOR: init: use more than ha_random64() for the cluster secret
+    - BUG/MINOR: sample: limit the be2hex converter's chunk size
+    - CLEANUP: resolvers: use read_n32() instead of open-coded big-endian read
+    - CLEANUP: resolvers: remove pool_free(NULL) in SRV additional record matching
+    - CLEANUP: resolvers: fix comment typos and wrong filenames in file headers
+    - BUG/MINOR: haterm: fix the random suffix multiplication
+    - MINOR: haterm: enable h3 for TCP bindings
+    - MINOR: haterm: do not emit a warning when not using SSL
+    - BUG/MEDIUM: h1: drop headers whose names contain invalid chars
+    - BUG/MEDIUM: h1: limit status codes to 3 digits by default
+    - BUG/MEDIUM: cache: always verify the primary hash in get_secondary_entry()
+    - BUG/MINOR: cache: also recognize directives in the form "token="
+    - BUG/MINOR: resolvers: relax size checks in authority record parsing
+    - BUG/MINOR: sample: request an extra output byte for the url_dec converter
+    - BUG/MINOR: http-fetch: check against the whole token in get_http_auth()
+    - BUG/MEDIUM: acme: protect against risk of null-deref on connection failure
+    - BUG/MINOR: http-ext: always check remaining data when reading rfc7239 nodeport
+    - BUG/MINOR: base64: return empty string for empty input in base64dec()
+    - BUG/MINOR: payload: fix the handshake length bounds check smp_client_hello_parse()
+    - BUG/MINOR: ssl-hello: make use of the null-terminated servername
+    - BUG/MINOR: resolvers: switch to a better PRNG for query IDs
+    - BUG/MINOR: addons/51d: NUL-terminate headers before passing them to Trie API
+    - BUG/MEDIUM: tools: insert an XXH64 layer on the PRNG output
+    - MINOR: tools: provide a function to generate a hashed random pair
+    - MEDIUM: init: fall back to ha_random64_pair_hashed() for the cluster secret
+    - MEDIUM: tools: use the hashed random pair for UUID generation
+    - MEDIUM: h1: use ha_random64_pair_hashed() for the WebSocket key
+    - MEDIUM: quic: use ha_random64_pair_hashed() to generate the QUIC retry tokens
+    - MEDIUM: tools: switch the main PRNG to a thread-local xoshiro256**
+    - BUG/MEDIUM: h3: reject client push stream
+    - BUG/MINOR: h3: reject server push stream
+    - BUG/MINOR: h3: reject client CANCEL_PUSH frame
+    - BUG/MINOR: h3: adjust error on PUSH_PROMISE frame reception
+    - BUG/MINOR: h3: reject server MAX_PUSH_ID frame
+    - BUG/MEDIUM: auth: fix unconfigured password NULL deref
+    - BUG/MINOR: h3: add missing break on rcv_buf()
+    - BUG/MINOR: hlua: prevent Lua from passing CR/LF/NUL in HTTP headers
+    - BUG/MINOR: qmux: do not crash on frame parsing issue
+    - BUG/MINOR: quic: reject packet too short for HP decryption
+    - BUG/MINOR: jwe: enforce GCM tag length to 128 bits
+    - BUG/MEDIUM: jwe: substitute random CEK on RSA1_5 decryption failure per RFC 7516 #11.5
+    - BUG/MEDIUM: mux-fcgi: reject stream ID 0 for application records
+    - MINOR: http: Add function to remove all occurrences of a value in a header
+    - MINOR: h1: Add  a H1M flag to specify a non-empty 'Upgrade:' header was parsed
+    - BUG/MEDIUM: h1-htx: Sanitize parsing to properly handle upgrade requests
+    - BUG/MINOR: mux-fcgi: Use relative offset to compute contig data in demux buf
+    - BUG/MINOR: mux-spop: Use relative offset to compute contig data in demux buf
+    - CLEANUP: mux-fcgi/mux-spop: Remove copy/pasted comment about slow realign
+
 2026/05/20 : 3.4-dev13
     - BUG/MINOR: backend: correct parameter value validation in get_server_ph_post()
     - BUG/MINOR: config/dns: properly fail on duplicate nameserver name detection
