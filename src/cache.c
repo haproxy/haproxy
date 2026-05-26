@@ -41,6 +41,12 @@
 					       * the filter keyword) */
 #define CACHE_FLT_INIT             0x00000002 /* Whether the cache name was freed. */
 
+/* Flags for cached entries. */
+#define CACHE_EF_COMPLETE          0x00000001 /* fully written and valid */
+
+/* Flags for configuration. */
+#define CACHE_CF_VARY_PROCESSING   0x00000001 /* manage Vary header (disabled by default) */
+
 static uint64_t cache_hash_seed = 0;
 
 const char *cache_store_flt_id = "cache store filter";
@@ -64,7 +70,7 @@ struct cache {
 	unsigned int maxblocks;
 	unsigned int maxobjsz;   /* max-object-size (in bytes) */
 	unsigned int max_secondary_entries;  /* maximum number of secondary entries with the same primary hash */
-	uint8_t vary_processing_enabled;     /* boolean : manage Vary header (disabled by default) */
+	uint8_t flags;           /* configuration flags, see CACHE_CF_* */
 	char id[33];             /* cache name */
 };
 
@@ -191,7 +197,7 @@ struct cache_st {
 #define DEFAULT_MAX_SECONDARY_ENTRY 10
 
 struct cache_entry {
-	unsigned int complete;    /* An entry won't be valid until complete is not null. */
+	unsigned int flags;       /* Cache entry flags. See CACHE_EF_* */
 	unsigned int latest_validation;     /* latest validation date */
 	unsigned int expire;      /* expiration date (wall clock time) */
 	unsigned int age;         /* Origin server "Age" header value */
@@ -680,7 +686,7 @@ cache_store_strm_deinit(struct stream *s, struct filter *filter)
 	 * there too, in case of errors */
 	if (st && st->first_block) {
 		struct cache_entry *object = (struct cache_entry *)st->first_block->data;
-		if (!object->complete) {
+		if (!(object->flags & CACHE_EF_COMPLETE)) {
 			/* The stream was closed but the 'complete' flag was not
 			 * set which means that cache_store_http_end was not
 			 * called. The stream must have been closed before we
@@ -862,7 +868,7 @@ cache_store_http_end(struct stream *s, struct filter *filter,
 
 		shctx_wrlock(shctx);
 		/* The whole payload was cached, the entry can now be used. */
-		object->complete = 1;
+		object->flags |= CACHE_EF_COMPLETE;
 		/* remove from the hotlist */
 		shctx_row_reattach(shctx, st->first_block);
 		shctx_wrunlock(shctx);
@@ -1026,7 +1032,7 @@ static void cache_free_blocks(struct shared_block *first, void *data)
 	struct cache_tree *cache_tree;
 
 	if (object->eb.key) {
-		object->complete = 0;
+		object->flags &= ~CACHE_EF_COMPLETE;
 		cache_tree = &cache->trees[object->eb.key % CACHE_TREE_NUM];
 		retain_entry(object);
 		HA_SPIN_LOCK(CACHE_LOCK, &cache_tree->cleanup_lock);
@@ -1286,7 +1292,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	 * able to use the cache. Likewise, if Vary header support is disabled,
 	 * avoid caching responses that contain such a header. */
 	ctx.blk = NULL;
-	if (cache->vary_processing_enabled) {
+	if (cache->flags & CACHE_CF_VARY_PROCESSING) {
 		if (!http_check_vary_header(htx, &vary_signature))
 			goto out;
 		if (vary_signature) {
@@ -1313,7 +1319,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 			old = get_secondary_entry(cache_tree, old,
 			                          txn->cache_hash, txn->cache_secondary_hash, 1);
 		if (old) {
-			if (!old->complete) {
+			if (!(old->flags & CACHE_EF_COMPLETE)) {
 				/* An entry with the same primary key is already being
 				 * created, we should not try to store the current
 				 * response because it will waste space in the cache. */
@@ -1421,7 +1427,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	 * encodings tested upon the cached response's one.
 	 * We will not cache a response that has an unknown encoding (not
 	 * explicitly supported in parse_encoding_value function). */
-	if (cache->vary_processing_enabled && vary_signature)
+	if ((cache->flags & CACHE_CF_VARY_PROCESSING) && vary_signature)
 		if (set_secondary_key_encoding(htx, vary_signature, object->secondary_key))
 		    goto out;
 
@@ -2169,7 +2175,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 
 		entry_block = block_ptr(res);
 		shctx_wrlock(shctx);
-		if (res->complete) {
+		if (res->flags & CACHE_EF_COMPLETE) {
 			shctx_row_detach(shctx, entry_block);
 			detached = 1;
 		} else {
@@ -2229,7 +2235,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		 * the server. */
 		if (!res) {
 			return ACT_RET_CONT;
-		} else if (!res->complete) {
+		} else if (!(res->flags & CACHE_EF_COMPLETE)) {
 			release_entry(cache_tree, res, 1);
 			shctx_wrlock(shctx);
 			shctx_row_reattach(shctx, entry_block);
@@ -2272,7 +2278,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 
 	/* Shared context does not need to be locked while we calculate the
 	 * secondary hash. */
-	if (!res && cache->vary_processing_enabled) {
+	if (!res && (cache->flags & CACHE_CF_VARY_PROCESSING)) {
 		/* Build a complete secondary hash until the server response
 		 * tells us which fields should be kept (if any). */
 		http_request_prebuild_full_secondary_key(s);
@@ -2418,9 +2424,9 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_WARN;
 		}
 		if (strcmp(args[1], "on") == 0)
-			tmp_cache_config->vary_processing_enabled = 1;
+			tmp_cache_config->flags |= CACHE_CF_VARY_PROCESSING;
 		else if (strcmp(args[1], "off") == 0)
-			tmp_cache_config->vary_processing_enabled = 0;
+			tmp_cache_config->flags &= ~CACHE_CF_VARY_PROCESSING;
 		else {
 			ha_warning("parsing [%s:%d]: '%s' expects \"on\" or \"off\" (enable or disable vary processing).\n",
 				   file, linenum, args[0]);
