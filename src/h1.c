@@ -316,6 +316,9 @@ void h1_parse_upgrade_header(struct h1m *h1m, struct ist *value)
 	  skip_val:
 		word.ptr = p = n;
 	}
+
+	if (istlen(*value))
+		h1m->flags |= H1_MF_UPG_HDR;
 }
 
 /* Macros used in the HTTP/1 parser, to check for the expected presence of

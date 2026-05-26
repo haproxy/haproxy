@@ -98,7 +98,7 @@ enum h1m_state {
 #define H1_MF_UPG_WEBSOCKET     0x00008000 // Set for a Websocket upgrade handshake
 #define H1_MF_TE_CHUNKED        0x00010000 // T-E "chunked"
 #define H1_MF_TE_OTHER          0x00020000 // T-E other than supported ones found (only "chunked" is supported for now)
-/* unused: 0x00040000 */
+#define H1_MF_UPG_HDR           0x00040000 // non-empty Upgrapde header found
 #define H1_MF_NOT_HTTP           0x00080000 // Not an HTTP message (e.g "RTSP", only possible if invalid message are accepted)
 /* Mask to use to reset H1M flags when we restart headers parsing.
  *
