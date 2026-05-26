@@ -2020,6 +2020,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			 * the client has advertised as a connection error of H3_ID_ERROR.
 			 */
 			ret = H3_ERR_ID_ERROR;
+			break;
 		case H3_FT_MAX_PUSH_ID:
 			/* h3_check_frame_valid() must reject on client side. */
 			BUG_ON(conn_is_back(qcs->qcc->conn));
