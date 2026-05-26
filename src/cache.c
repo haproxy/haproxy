@@ -3410,7 +3410,8 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 					chunk_printf(buf, "%p hash:%u vary:0x", entry, read_u32(entry->hash));
 					for (i = 0; i < HTTP_CACHE_SEC_KEY_LEN; ++i)
 						chunk_appendf(buf, "%02x", (unsigned char)entry->secondary_key[i]);
-					chunk_appendf(buf, " size:%u (%u blocks), refcount:%u, expire:%d\n",
+					chunk_appendf(buf, " type:%s size:%u (%u blocks), refcount:%u, expire:%d\n",
+						      (entry->flags & CACHE_EF_STRIPPED) ? "hints" : "full",
 						      block_ptr(entry)->len, block_ptr(entry)->block_count,
 						      block_ptr(entry)->refcount, entry->expire - (int)date.tv_sec);
 				}
