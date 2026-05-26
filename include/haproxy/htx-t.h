@@ -141,6 +141,7 @@
 #define HTX_SL_F_CONN_UPG       0x00001000 /* The message contains "connection: upgrade" header */
 #define HTX_SL_F_BODYLESS_RESP  0x00002000 /* The response to this message is bodyless (only for request) */
 #define HTX_SL_F_NOT_HTTP       0x00004000 /* Not an HTTP message (e.g "RTSP", only possible if invalid message are accepted) */
+#define HTX_SL_F_UPG_HDR        0x00008000 /* non-empty Upgrapde header found */
 
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
@@ -157,7 +158,8 @@ static forceinline char *hsl_show_flags(char *buf, size_t len, const char *delim
 	_(HTX_SL_F_CLEN, _(HTX_SL_F_CHNK, _(HTX_SL_F_VER_11,
 	_(HTX_SL_F_BODYLESS, _(HTX_SL_F_HAS_SCHM, _(HTX_SL_F_SCHM_HTTP,
 	_(HTX_SL_F_SCHM_HTTPS, _(HTX_SL_F_HAS_AUTHORITY,
-	_(HTX_SL_F_NORMALIZED_URI, _(HTX_SL_F_CONN_UPG)))))))))))));
+	_(HTX_SL_F_NORMALIZED_URI, _(HTX_SL_F_CONN_UPG, _(HTX_SL_F_BODYLESS_RESP,
+	_(HTX_SL_F_NOT_HTTP, _(HTX_SL_F_UPG_HDR))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;
