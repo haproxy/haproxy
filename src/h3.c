@@ -225,8 +225,20 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 			qcc_report_glitch(qcs->qcc, 1);
 			goto err;
 		}
-		/* TODO not supported for the moment */
-		h3s->type = H3S_T_PUSH;
+		else {
+			/* RFC 9114 4.6. Server Push
+			 *
+			 * A client MUST treat receipt of a push stream as a connection
+			 * error of type H3_ID_ERROR when no MAX_PUSH_ID frame has been sent or
+			 * when the stream references a push ID that is greater than the maximum
+			 * push ID.
+			 */
+			TRACE_ERROR("reject push from server outside of MAX_PUSH_ID", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
+			qcc_set_error(qcs->qcc, H3_ERR_ID_ERROR, 1,
+			              muxc_tevt_type_proto_err);
+			qcc_report_glitch(qcs->qcc, 1);
+			goto err;
+		}
 		break;
 
 	case H3_UNI_S_T_QPACK_DEC:
