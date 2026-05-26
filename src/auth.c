@@ -297,7 +297,7 @@ check_user(struct userlist *ul, const char *user, const char *pass)
 	fprintf(stderr, ", crypt=%s\n", ((ep) ? ep : ""));
 #endif
 
-	if (ep && strcmp(ep, u->pass) == 0)
+	if (ep && u->pass && strcmp(ep, u->pass) == 0)
 		return 1;
 	else
 		return 0;
