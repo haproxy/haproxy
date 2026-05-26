@@ -93,24 +93,30 @@ static inline struct ist qpack_get_value(const struct qpack_dht *dht, const stru
 	return ret;
 }
 
-/* takes an idx, returns the associated name */
+/* takes an absolute idx (including static table offset), returns the associated name */
 static inline struct ist qpack_idx_to_name(const struct qpack_dht *dht, uint32_t idx)
 {
 	const struct qpack_dte *dte;
 
-	dte = qpack_get_dte(dht, idx);
+	if (idx < QPACK_SHT_SIZE)
+		return ist("### ERR ###"); /* static table entries not accessible via dht */
+
+	dte = qpack_get_dte(dht, idx - QPACK_SHT_SIZE);
 	if (!dte)
 		return ist("### ERR ###"); // error
 
 	return qpack_get_name(dht, dte);
 }
 
-/* takes an idx, returns the associated value */
+/* takes an absolute idx (including static table offset), returns the associated value */
 static inline struct ist qpack_idx_to_value(const struct qpack_dht *dht, uint32_t idx)
 {
 	const struct qpack_dte *dte;
 
-	dte = qpack_get_dte(dht, idx);
+	if (idx < QPACK_SHT_SIZE)
+		return ist("### ERR ###"); /* static table entries not accessible via dht */
+
+	dte = qpack_get_dte(dht, idx - QPACK_SHT_SIZE);
 	if (!dte)
 		return ist("### ERR ###"); // error
 
