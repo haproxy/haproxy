@@ -266,8 +266,10 @@ static int parse_jose(struct buffer *decoded_jose, int *alg, int *enc, struct jo
 
 
 	if (gcm) {
-		/* Look for "tag" field (used by aes gcm encryption) */
-		if (decode_jose_field(decoded_jose, "$.tag", &jose_fields->tag, 1))
+		/* Look for "tag" field (used by aes gcm encryption).
+		 * GCMKW tag must be exactly 16 bytes per RFC 7518 */
+		if (decode_jose_field(decoded_jose, "$.tag", &jose_fields->tag, 1) ||
+		    b_data(jose_fields->tag) != 16)
 			goto end;
 
 		/* Look for "iv" field (used by aes gcm encryption) */
@@ -556,6 +558,12 @@ static int decrypt_ciphertext(jwe_enc enc, struct jwt_item items[JWE_ELT_MAX],
 	(*aead_tag)->data = size;
 
 	if (gcm) {
+		/* RFC 7518 mandates a 128-bit (16 byte) authentication tag for A*GCM.
+		 * OpenSSL accepts 1-16 bytes but only verifies that many bytes, so a
+		 * truncated tag reduces forgery work factor to ~256 per byte short. */
+		if ((*aead_tag)->data != 16)
+			goto end;
+
 		aad = alloc_trash_chunk();
 		if (!aad)
 			goto end;
