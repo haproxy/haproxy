@@ -1025,6 +1025,86 @@ int http_calc_maxage(struct stream *s, struct cache *cache, int *true_maxage)
 
 }
 
+/* The rel values in Link headers for which sending a 103 response makes sense. */
+static const struct ist hint_rels[] = {
+	IST("preload"),
+	IST("preconnect"),
+	IST("dns-prefetch"),
+	IST("modulepreload"),
+	IST("prefetch"),
+};
+
+static int rel_is_hint(const struct ist rel)
+{
+	int i;
+
+	for (i = 0; i < sizeof(hint_rels) / sizeof(*hint_rels); i++) {
+		if (isteqi(rel, hint_rels[i]))
+			return 1;
+	}
+	return 0;
+}
+
+/*
+ * Returns true if the value of the Link header contains at least one rel attribute
+ * worth sending in a 103 Early Hint response.
+ */
+static int __maybe_unused link_is_hint(struct ist val)
+{
+	const char *p = istptr(val), *end = istend(val);
+	struct ist params, pname, pval;
+
+	/* A link-value must start with a "<URI>" part (RFC 8288#3). */
+	if (p >= end || *p != '<')
+		return 0;
+
+	/* Skip past the <URI> portion to reach the parameter list. */
+	while (p < end && *p != '>')
+		p++;
+	if (p < end)
+		p++;
+	params = ist2(p, end - p);
+
+	while (http_get_hdr_param(&params, &pname, &pval,
+	                          HTTP_PARAM_BADWS | HTTP_PARAM_NOVAL) > 0) {
+		if (!isteqi(pname, ist("rel")))
+			continue;
+
+		/* Only the first rel parameter counts: per RFC 8288#3.3,
+		 * parsers must ignore subsequent occurrences. Whatever the
+		 * outcome below, we are done with this link-value.
+		 *
+		 * Per RFC 8288#3.3 the rel value carries only tokens, optionally
+		 * separated by SP. Leading or trailing whitespace inside a quoted
+		 * value is malformed; reject the whole rel parameter rather than
+		 * silently tolerating it (cf. RFC 9110#5.6.3).
+		 */
+		if (!pval.len || HTTP_IS_LWS(*istptr(pval)) ||
+		    HTTP_IS_LWS(istptr(pval)[pval.len - 1]))
+			return 0;
+
+		while (pval.len) {
+			const char *tp = istptr(pval), *tend = istend(pval);
+			const char *tok;
+			struct ist token;
+
+			tok = tp;
+			while (tp < tend && !HTTP_IS_LWS(*tp))
+				tp++;
+			token = ist2(tok, tp - tok);
+
+			if (rel_is_hint(token))
+				return 1;
+
+			while (tp < tend && HTTP_IS_LWS(*tp))
+				tp++;
+			pval = ist2(tp, tend - tp);
+		}
+		return 0;
+	}
+
+	return 0;
+}
 
 static void cache_free_blocks(struct shared_block *first, void *data)
 {
