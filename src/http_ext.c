@@ -356,7 +356,7 @@ static inline int http_7239_extract_node(struct ist *input, struct forwarded_hea
 	if (!quoted)
 		return 0; /* not supported */
 	*input = istnext(*input);
-	if (!http_7239_extract_nodeport(input, nodeport))
+	if (!istlen(*input) || !http_7239_extract_nodeport(input, nodeport))
 		return 0; /* invalid nodeport */
  out:
 	/* ok */
