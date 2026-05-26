@@ -584,8 +584,13 @@ static int decrypt_ciphertext(jwe_enc enc, struct jwt_item items[JWE_ELT_MAX],
 			goto end;
 
 		/* Only use the second part of the decrypted key for actual
-		 * content decryption. */
-		if (b_data(decrypted_cek) != key_size * 2)
+		 * content decryption.
+		 * Because of the RSAES-PKCS1-V1_5 algorithm, we might have a
+		 * bigger than expected decrypted_cek (if it was filled with
+		 * random bytes in do_decrypt_cek_rsa) and still want to call
+		 * aes_process on the ciphertext in order to avoid timing
+		 * attacks. */
+		if (b_data(decrypted_cek) < key_size * 2)
 			goto end;
 		chunk_memcpy(aes_key, decrypted_cek->area + key_size, key_size);
 	}
@@ -819,8 +824,31 @@ static int do_decrypt_cek_rsa(struct buffer *cek, struct buffer *decrypted_cek,
 	}
 
 	if (EVP_PKEY_decrypt(ctx, (unsigned char*)b_orig(decrypted_cek), &outl,
-			     (unsigned char*)b_orig(cek), b_data(cek)) <= 0)
-		goto end;
+			     (unsigned char*)b_orig(cek), b_data(cek)) <= 0) {
+		/* Per RFC 7516 #11.5, on RSAES-PKCS1-V1_5 decryption failure,
+		 * substitute a random CEK and continue into content decryption.
+		 * This prevents the Bleichenbacher timing oracle: without this
+		 * guard, "padding invalid" (fast exit) is distinguishable from
+		 * "padding valid + AEAD tag fail" (full decrypt path).
+		 * We will build the biggest decrypted_cek necessary rather than
+		 * filling the entire buffer, which would be a key for the
+		 * A256CBC_HS512 encrypting algorithm for which the decrypted
+		 * cek contains the actual key as well as the tag.
+		 */
+		if (pad == RSA_PKCS1_PADDING) {
+#define MAX_DECRYPTED_CEK_LEN (32 * 2)	/* See https://datatracker.ietf.org/doc/html/rfc7518#section-5.2.2.1 */
+			int i;
+			unsigned char *p = (unsigned char *)b_orig(decrypted_cek);
+
+			for (i = 0; i < MAX_DECRYPTED_CEK_LEN; i++) {
+				uint64_t r = ha_random64();
+				memcpy(p, &r, 8);
+				p+=8;
+			}
+			outl = MAX_DECRYPTED_CEK_LEN;
+		} else
+			goto end;
+	}
 
 	decrypted_cek->data = outl;
 
