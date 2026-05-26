@@ -1595,7 +1595,7 @@ static int fcgi_conn_handle_values_result(struct fcgi_conn *fconn)
 		return 0;
 	}
 
-	if (unlikely(b_contig_data(dbuf, b_head_ofs(dbuf)) < fconn->drl)) {
+	if (unlikely(b_contig_data(dbuf, 0) < fconn->drl)) {
 		/* Realign the dmux buffer if the record wraps. It is unexpected
 		 * at this stage because it should be the first record received
 		 * from the FCGI application.
@@ -2516,7 +2516,7 @@ static int fcgi_strm_handle_end_request(struct fcgi_conn *fconn, struct fcgi_str
 		return 0;
 	}
 
-	if (unlikely(b_contig_data(dbuf, b_head_ofs(dbuf)) < fconn->drl)) {
+	if (unlikely(b_contig_data(dbuf, 0) < fconn->drl)) {
 		/* Realign the dmux buffer if the record wraps. It is unexpected
 		 * at this stage because it should be the first record received
 		 * from the FCGI application.
