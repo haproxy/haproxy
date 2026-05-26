@@ -438,13 +438,15 @@ static int h3_check_frame_valid(struct h3c *h3c, struct qcs *qcs, uint64_t ftype
 	case H3_FT_PUSH_PROMISE:
 		/* RFC 9114 7.2.5. PUSH_PROMISE
 		 *
+		 * If a PUSH_PROMISE frame is received on the control stream, the client
+		 * MUST respond with a connection error of type H3_FRAME_UNEXPECTED.
+		 *
 		 * A client MUST NOT send a PUSH_PROMISE frame. A server MUST treat the
 		 * receipt of a PUSH_PROMISE frame as a connection error of type
 		 * H3_FRAME_UNEXPECTED.
 		 */
-
-		/* TODO server-side only. */
-		ret = H3_ERR_FRAME_UNEXPECTED;
+		if (h3s->type == H3S_T_CTRL || !conn_is_back(qcs->qcc->conn))
+			ret = H3_ERR_FRAME_UNEXPECTED;
 		break;
 
 	default:
@@ -1982,7 +1984,6 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 				goto err;
 			}
 			break;
-		case H3_FT_PUSH_PROMISE:
 		case H3_FT_MAX_PUSH_ID:
 			/* Not supported */
 			ret = flen;
@@ -1995,6 +1996,18 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 				goto err;
 			}
 			h3c->flags |= H3_CF_SETTINGS_RECV;
+			break;
+		case H3_FT_PUSH_PROMISE:
+			/* h3_check_frame_valid() must reject on server side. */
+			BUG_ON(!conn_is_back(qcs->qcc->conn));
+
+			/* RFC 9114 7.2.5. PUSH_PROMISE
+			 *
+			 * A client MUST treat
+			 * receipt of a PUSH_PROMISE frame that contains a larger push ID than
+			 * the client has advertised as a connection error of H3_ID_ERROR.
+			 */
+			ret = H3_ERR_ID_ERROR;
 			break;
 		default:
 			/* RFC 9114 Section 9. Extensions to HTTP/3
