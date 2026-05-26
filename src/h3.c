@@ -390,7 +390,6 @@ static int h3_check_frame_valid(struct h3c *h3c, struct qcs *qcs, uint64_t ftype
 
 	case H3_FT_CANCEL_PUSH:
 	case H3_FT_GOAWAY:
-	case H3_FT_MAX_PUSH_ID:
 		/* RFC 9114 7.2.3. CANCEL_PUSH
 		 *
 		 * A CANCEL_PUSH frame is sent on the control stream. Receiving a
@@ -447,6 +446,23 @@ static int h3_check_frame_valid(struct h3c *h3c, struct qcs *qcs, uint64_t ftype
 		 */
 		if (h3s->type == H3S_T_CTRL || !conn_is_back(qcs->qcc->conn))
 			ret = H3_ERR_FRAME_UNEXPECTED;
+		break;
+
+	case H3_FT_MAX_PUSH_ID:
+		/* RFC 9114 7.2.7. MAX_PUSH_ID
+		 *
+		 * The MAX_PUSH_ID frame is always sent on the control stream. Receipt
+		 * of a MAX_PUSH_ID frame on any other stream MUST be treated as a
+		 * connection error of type H3_FRAME_UNEXPECTED.
+		 *
+		 * A server MUST NOT send a MAX_PUSH_ID frame. A client MUST treat the
+		 * receipt of a MAX_PUSH_ID frame as a connection error of type
+		 * H3_FRAME_UNEXPECTED.
+		 */
+		if (h3s->type == H3S_T_CTRL || conn_is_back(qcs->qcc->conn))
+			ret = H3_ERR_FRAME_UNEXPECTED;
+		else if (!(h3c->flags & H3_CF_SETTINGS_RECV))
+			ret = H3_ERR_MISSING_SETTINGS;
 		break;
 
 	default:
@@ -1984,10 +2000,6 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 				goto err;
 			}
 			break;
-		case H3_FT_MAX_PUSH_ID:
-			/* Not supported */
-			ret = flen;
-			break;
 		case H3_FT_SETTINGS:
 			ret = h3_parse_settings_frm(qcs->qcc->ctx, b, flen);
 			if (ret < 0) {
@@ -2008,6 +2020,12 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			 * the client has advertised as a connection error of H3_ID_ERROR.
 			 */
 			ret = H3_ERR_ID_ERROR;
+		case H3_FT_MAX_PUSH_ID:
+			/* h3_check_frame_valid() must reject on client side. */
+			BUG_ON(conn_is_back(qcs->qcc->conn));
+
+			/* Not supported. */
+			ret = flen;
 			break;
 		default:
 			/* RFC 9114 Section 9. Extensions to HTTP/3
