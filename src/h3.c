@@ -212,6 +212,19 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 		break;
 
 	case H3_UNI_S_T_PUSH:
+		if (!conn_is_back(qcs->qcc->conn)) {
+			/* RFC 9114 6.2.2. Push Streams
+			 *
+			 * Only servers can push; if a server receives a client-initiated push
+			 * stream, this MUST be treated as a connection error of type
+			 * H3_STREAM_CREATION_ERROR.
+			 */
+			TRACE_ERROR("reject push from client", H3_EV_H3S_NEW, qcs->qcc->conn, qcs);
+			qcc_set_error(qcs->qcc, H3_ERR_STREAM_CREATION_ERROR, 1,
+			              muxc_tevt_type_proto_err);
+			qcc_report_glitch(qcs->qcc, 1);
+			goto err;
+		}
 		/* TODO not supported for the moment */
 		h3s->type = H3S_T_PUSH;
 		break;
