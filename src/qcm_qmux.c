@@ -188,11 +188,10 @@ int qcc_qmux_recv(struct qcc *qcc)
 			buf_rec = b_make(b_orig(buf), b_size(buf),
 			                 b_head_ofs(buf), qcc->rx.rlen);
 			frm_ret = qmux_parse_frm(qcc, &buf_rec);
-
-			BUG_ON(frm_ret < 0); /* TODO handle fatal errors */
 			if (!frm_ret) {
-				/* emit FRAME_ENCODING_ERROR */
-				ABORT_NOW();
+				/* TODO implement proper connection closure */
+				conn->flags |= CO_FL_ERROR;
+				goto out;
 			}
 
 			/* A frame cannot be bigger than a record thanks to <buf_rec> delimitation. */
