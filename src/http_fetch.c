@@ -135,7 +135,7 @@ static int get_http_auth(struct sample *smp, struct htx *htx)
 
 	chunk_initlen(&txn->auth.method_data, p, 0, istend(ctx.value) - p);
 
-	if (!strncasecmp("Basic", auth_method.area, auth_method.data)) {
+	if (isteqi(ist2(auth_method.area, auth_method.data), ist("Basic"))) {
 		struct buffer *http_auth = get_trash_chunk();
 
 		len = base64dec(txn->auth.method_data.area,
@@ -159,7 +159,7 @@ static int get_http_auth(struct sample *smp, struct htx *htx)
 
 		txn->auth.method = HTTP_AUTH_BASIC;
 		return 1;
-	} else if (!strncasecmp("Bearer", auth_method.area, auth_method.data)) {
+	} else if (isteqi(ist2(auth_method.area, auth_method.data), ist("Bearer"))) {
 		txn->auth.method = HTTP_AUTH_BEARER;
 		return 1;
 	}
