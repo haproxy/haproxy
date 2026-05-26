@@ -401,7 +401,7 @@ void haproxy_init_args(int argc, char **argv)
 
 					/* SSL/TCP binding */
 					hbuf_appendf(&fbuf, "\tbind %s:%s shards by-thread ssl "
-					             "alpn h2,http1.1,http1.0"
+					             "alpn h3,h2,http1.1,http1.0"
 					             " crt " HATERM_RSA_CERT_NAME
 					             " crt " HATERM_ECDSA_CERT_NAME "%s%s\n",
 					             ip, port2,
@@ -438,6 +438,7 @@ void haproxy_init_args(int argc, char **argv)
 		}
 		hbuf_appendf(&gbuf, "global\n");
 		hbuf_appendf(&gbuf, "\ttune.memory.hot-size 3145728\n");
+		hbuf_appendf(&gbuf, "\texpose-experimental-directives\n");
 	}
 
 	/* "global" section */
