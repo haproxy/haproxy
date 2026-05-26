@@ -438,7 +438,8 @@ void haproxy_init_args(int argc, char **argv)
 		}
 		hbuf_appendf(&gbuf, "global\n");
 		hbuf_appendf(&gbuf, "\ttune.memory.hot-size 3145728\n");
-		hbuf_appendf(&gbuf, "\texpose-experimental-directives\n");
+		if (has_ssl)
+			hbuf_appendf(&gbuf, "\texpose-experimental-directives\n");
 	}
 
 	/* "global" section */
