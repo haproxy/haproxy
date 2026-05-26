@@ -326,6 +326,50 @@ static inline int is_immutable_header(struct ist hdr)
 	}
 }
 
+/* This function parses comma-separated values from <hv> and rewrite it in place,
+ * skip all occurrences of <value>. It is the caller responsibility to deal with
+ * empty header value.
+ */
+static inline void http_remove_header_value(struct ist *hv, struct ist value)
+{
+	char *e, *n, *p;
+	struct ist word;
+
+	word.ptr = hv->ptr - 1; // -1 for next loop's pre-increment
+	p = hv->ptr;
+	e = hv->ptr + hv->len;
+	hv->len = 0;
+
+	while (++word.ptr < e) {
+		/* skip leading delimiter and blanks */
+		if (HTTP_IS_LWS(*word.ptr))
+			continue;
+
+		n = http_find_hdr_value_end(word.ptr, e); // next comma or end of line
+		word.len = n - word.ptr;
+
+		/* trim trailing blanks */
+		while (word.len && HTTP_IS_LWS(word.ptr[word.len-1]))
+			word.len--;
+
+		if (isteqi(word, value))
+			goto skip_val;
+
+		if (hv->ptr + hv->len == p) {
+			/* no rewrite done till now */
+			hv->len = n - hv->ptr;
+		}
+		else {
+			if (hv->len)
+				hv->ptr[hv->len++] = ',';
+			istcat(hv, word, e - hv->ptr);
+		}
+
+	  skip_val:
+		word.ptr = p = n;
+	}
+}
+
 #endif /* _HAPROXY_HTTP_H */
 
 /*
