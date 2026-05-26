@@ -448,6 +448,7 @@ sni_lookup:
 	for (i = 0; i < trash.size && i < servername_len; i++)
 		trash.area[i] = tolower((unsigned char)servername[i]);
 	trash.area[i] = 0;
+	servername = trash.area;
 
 	HA_RWLOCK_RDLOCK(SNI_LOCK, &s->sni_lock);
 	sni_ctx = ssl_sock_choose_sni_ctx(s, conn, trash.area, has_rsa_sig, has_ecdsa_sig);
