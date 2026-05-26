@@ -6709,6 +6709,20 @@ __LJMP static inline int hlua_http_add_hdr(lua_State *L, struct http_msg *msg)
 	size_t value_len;
 	const char *value = MAY_LJMP(luaL_checklstring(L, 3, &value_len));
 	struct htx *htx = htxbuf(&msg->chn->buf);
+	size_t i;
+
+	/* Reject header values containing CR/LF/NUL to prevent HTTP header
+	 * injection on HTTP/1 output.
+	 */
+	for (i = 0; i < name_len; i++) {
+		if (name[i] == 0 || name[i] == '\r' || name[i] == '\n')
+			WILL_LJMP(lua_error(L));
+	}
+
+	for (i = 0; i < value_len; i++) {
+		if (value[i] == 0 || value[i] == '\r' || value[i] == '\n')
+			WILL_LJMP(lua_error(L));
+	}
 
 	lua_pushboolean(L, http_add_header(htx, ist2(name, name_len),
 					   ist2(value, value_len), 1));
