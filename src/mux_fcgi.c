@@ -2644,6 +2644,16 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 		}
 		fstrm = tmp_fstrm;
 
+		if (fconn->dsi == 0 && fconn->drt != FCGI_GET_VALUES_RESULT && fconn->drt != FCGI_UNKNOWN_TYPE) {
+			/* Stream ID 0 is reserved for management records and
+			 * must not used for application record type.
+			 */
+			fconn->state = FCGI_CS_CLOSED;
+			TRACE_ERROR("Application record with SID 0", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR|FCGI_EV_RX_GETVAL|FCGI_EV_FCONN_ERR, fconn->conn);
+			TRACE_STATE("switching to CLOSED", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR|FCGI_EV_RX_GETVAL|FCGI_EV_FCONN_ERR, fconn->conn);
+			goto fail;
+		}
+
 		if (fstrm->state == FCGI_SS_CLOSED && fconn->dsi != 0) {
 			/* ignore all record for closed streams */
 			goto ignore_record;
