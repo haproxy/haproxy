@@ -4940,8 +4940,8 @@ tune.lua.openlibs [all | none | <lib>[,<lib>...]]
     tune.lua.openlibs string,math,table,utf8  # safe subset, no I/O or OS
     tune.lua.openlibs all                     # default, load everything
 
-  This setting must be set before any "lua-load" or "lua-load-per-thread"
-  directive, otherwise a parse error is returned.
+  This setting must be set before any "lua-load", "lua-load-per-thread" or
+  "lua-prepend-path" directive, otherwise a parse error is returned.
 
 tune.lua.service-timeout <timeout>
   This is the execution timeout for the Lua services. This is useful for

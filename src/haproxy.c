@@ -2139,9 +2139,6 @@ static void step_init_1()
 	if (init_acl() != 0)
 		exit(1);
 
-	/* Initialise lua. */
-	hlua_init();
-
 	/* set modes given from cmdline */
 	global.mode |= (arg_mode & (MODE_DAEMON | MODE_MWORKER | MODE_FOREGROUND | MODE_VERBOSE
 				    | MODE_QUIET | MODE_CHECK | MODE_DEBUG | MODE_ZERO_WARNING

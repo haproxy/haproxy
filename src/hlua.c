@@ -13392,6 +13392,16 @@ static int hlua_cfg_parse_openlibs(char **args, int section_type, struct proxy *
 		return -1;
 	}
 
+	/* Reject a non-default restriction if the Lua VM is already initialised,
+	 * which happens when lua-load, lua-load-per-thread or lua-prepend-path
+	 * appeared before this directive.
+	 */
+	if (flags != HLUA_OPENLIBS_ALL && hlua_states[0]) {
+		memprintf(err, "'%s' must appear before any 'lua-load', 'lua-load-per-thread' or 'lua-prepend-path' directive",
+		           args[0]);
+		return -1;
+	}
+
 	hlua_openlibs_flags = flags;
 	return 0;
 }
@@ -13492,6 +13502,8 @@ static int hlua_load(char **args, int section_type, struct proxy *curpx,
 		return -1;
 	}
 
+	hlua_init();
+
 	/* loading for global state */
 	hlua_state_id = 0;
 	ha_set_thread(NULL);
@@ -13509,6 +13521,8 @@ static int hlua_load_per_thread(char **args, int section_type, struct proxy *cur
 		memprintf(err, "'%s' expects a file as parameter.", args[0]);
 		return -1;
 	}
+
+	hlua_init();
 
 	if (per_thread_load == NULL) {
 		/* allocate the first entry large enough to store the final NULL */
@@ -13597,6 +13611,8 @@ static int hlua_config_prepend_path(char **args, int section_type, struct proxy 
 	char *type = "path";
 	struct prepend_path *p = NULL;
 	size_t i;
+
+	hlua_init();
 
 	if (too_many_args(2, args, err, NULL)) {
 		goto err;
@@ -14005,6 +14021,11 @@ int hlua_post_init()
 	struct hlua_reg_filter *reg_flt;
 
 	hlua_body = 0;
+
+	/* Ensure the Lua VM is initialised even if no Lua directive appeared
+	 * in the configuration (e.g. no global section at all).
+	 */
+	hlua_init();
 
 #if defined(USE_OPENSSL)
 	/* Initialize SSL server. */
@@ -14832,6 +14853,9 @@ void hlua_init(void) {
 		NULL
 	};
 #endif
+
+	if (hlua_states[0])
+		return; /* already initialised */
 
 	/* Init post init function list head */
 	for (i = 0; i < MAX_THREADS + 1; i++)
