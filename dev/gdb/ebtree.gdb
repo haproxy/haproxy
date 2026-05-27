@@ -26,7 +26,7 @@ end
 # returns $node filled with the first node of ebroot $arg0
 define ebtree_first
   # browse ebtree left until encountering leaf
-  set $node = (struct eb_node *)$arg0->b[0]
+  set $node = (struct eb_node *)((struct eb_root*)$arg0)->b[0]
   while 1
     _ebtree_set_tag_node $node
     if $tag == 0
@@ -41,7 +41,7 @@ end
 # finds next ebtree node after $arg0, and returns it in $node
 define ebtree_next
   # get parent
-  set $node = (struct eb_root *)$arg0->leaf_p
+  set $node = (struct eb_root *)((struct eb_node *)$arg0)->leaf_p
   # Walking up from right branch, so we cannot be below root
   # while (eb_gettag(t) != EB_LEFT) // #define EB_LEFT 0
   while 1
