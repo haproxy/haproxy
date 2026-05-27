@@ -97,6 +97,10 @@ int conn_recv_qmux(struct connection *conn, struct xprt_qmux_ctx *ctx, int flag)
 		ctx->rxrlen = rlen;
 	}
 
+	/* TODO initial max_record_size is limited to 16382 */
+	if (ctx->rxrlen > b_size(buf))
+		goto fail;
+
 	if (ctx->rxrlen > b_data(buf))
 		goto not_ready;
 
