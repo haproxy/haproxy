@@ -462,7 +462,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 					goto out;
 				}
 
-				qpack_debug_printf(stderr, " [name huff %d->%d '%s']", (int)length, (int)nlen, trash);
+				qpack_debug_printf(stderr, " [value huff %d->%d '%s']", (int)length, (int)nlen, trash);
 				/* makes an ist from tmp storage */
 				b_add(tmp, nlen);
 				value = ist2(trash, nlen);
