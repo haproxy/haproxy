@@ -1420,7 +1420,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 		len = resolv_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE,
 		                    &offset, 0);
 		if (len == 0)
-			goto invalid_resp;
+			continue;
 
 		if (reader + offset + 10 > bufend)
 			goto invalid_resp;
@@ -1456,8 +1456,11 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 		offset = 0;
 		len = resolv_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
 
-		if (len == 0)
-			goto invalid_resp;
+		if (len == 0) {
+			pool_free(resolv_answer_item_pool, answer_record);
+			answer_record = NULL;
+			continue;
+		}
 
 		memcpy(answer_record->name, tmpname, len);
 		answer_record->name[len] = 0;
