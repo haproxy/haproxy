@@ -106,7 +106,8 @@ int conn_recv_qmux(struct connection *conn, struct xprt_qmux_ctx *ctx, int flag)
 		goto fail;
 
 	/* TODO close connection with TRANSPORT_PARAMETER_ERROR if frame not present. */
-	BUG_ON(frm.type != QUIC_FT_QX_TRANSPORT_PARAMETERS);
+	if (frm.type != QUIC_FT_QX_TRANSPORT_PARAMETERS)
+		goto fail;
 
 	if (!qc_parse_frm_payload(&frm, &pos, end, NULL))
 		goto fail;
