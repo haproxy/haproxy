@@ -1520,7 +1520,8 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 	div = ha_cpu_policy[policy].arg;
 	div = div ? div : 1;
 
-	while (global.nbtgroups < MAX_TGROUPS && global.nbthread < MAX_THREADS) {
+	while (global.nbtgroups < MAX_TGROUPS && (global.nbthread < MAX_THREADS) &&
+	       (global.thread_limit == 0 || global.nbthread < global.thread_limit)) {
 		ha_cpuset_zero(&node_cpu_set);
 		ha_cpuset_zero(&touse_tsid);
 		ha_cpuset_zero(&touse_ccx);
@@ -1550,6 +1551,10 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 				ha_cpuset_set(&touse_tsid, ha_cpu_topo[cpu].ts_id);
 			} else if (!(cpu_policy_conf.flags & CPU_POLICY_ONE_THREAD_PER_CORE))
 				thr_count++;
+
+			if (global.thread_limit != 0 &&
+			    thr_count + global.nbthread >= global.thread_limit)
+				break;
 		}
 
 		/* now cid = next cluster_id or -1 if none; cpu_count is the
@@ -1608,7 +1613,8 @@ static int cpu_policy_group_by_ccx(int policy, int tmin, int tmax, int gmin, int
 	div = ha_cpu_policy[policy].arg;
 	div = div ? div : 1;
 
-	while (global.nbtgroups < MAX_TGROUPS && global.nbthread < MAX_THREADS) {
+	while (global.nbtgroups < MAX_TGROUPS && global.nbthread < MAX_THREADS &&
+	       (global.thread_limit == 0 || global.nbthread < global.thread_limit)) {
 		ha_cpuset_zero(&node_cpu_set);
 		ha_cpuset_zero(&touse_tsid);
 		ha_cpuset_zero(&touse_ccx);
@@ -1638,6 +1644,9 @@ static int cpu_policy_group_by_ccx(int policy, int tmin, int tmax, int gmin, int
 				ha_cpuset_set(&touse_tsid, ha_cpu_topo[cpu].ts_id);
 			} else if (!(cpu_policy_conf.flags & CPU_POLICY_ONE_THREAD_PER_CORE))
 				thr_count++;
+			if (global.thread_limit != 0 &&
+			    global.nbthread + thr_count >= global.thread_limit)
+				break;
 		}
 
 		/* now l3id = next L3 ID or -1 if none; cpu_count is the
