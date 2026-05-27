@@ -239,7 +239,7 @@ static int qpack_decode_fs_pfx(uint64_t *enc_ric, uint64_t *db, int *sign_bit,
 		return -QPACK_RET_TRUNCATED;
 
 	/* Safe access to the sign bit thanks to the check above */
-	*sign_bit = **raw & 0x8;
+	*sign_bit = **raw & 0x80;
 	*db = qpack_get_varint(raw, len, 7);
 	if (*len == (uint64_t)-1)
 		return -QPACK_RET_DB;
