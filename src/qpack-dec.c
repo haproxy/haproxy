@@ -44,14 +44,6 @@
 #define qpack_debug_hexdump(...) do { } while (0)
 #endif
 
-/* Encoded field line bitmask */
-#define QPACK_EFL_BITMASK  0xf0
-#define QPACK_LFL_WPBNM    0x00 // Literal field line with post-base name reference
-#define QPACK_IFL_WPBI     0x10 // Indexed field line with post-based index
-#define QPACK_LFL_WLN_BIT  0x20 // Literal field line with literal name
-#define QPACK_LFL_WNR_BIT  0x40 // Literal field line with name reference
-#define QPACK_IFL_BIT      0x80 // Indexed field line
-
 /* reads a varint from <raw>'s lowest <b> bits and <len> bytes max (raw included).
  * returns the 64-bit value on success after updating buf and len_in. Forces
  * len_in to (uint64_t)-1 on truncated input.

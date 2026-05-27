@@ -43,6 +43,14 @@
 #define QPACK_DEC_INST_SCCL     0x40 // Stream Cancellation
 #define QPACK_DEC_INST_SACK     0x80 // Section Acknowledgment
 
+/* Encoded field line bitmasks (shared between encoder and decoder) */
+#define QPACK_EFL_BITMASK   0xf0
+#define QPACK_LFL_WPBNM     0x00 // Literal field line with post-base name reference
+#define QPACK_IFL_WPBI      0x10 // Indexed field line with post-based index
+#define QPACK_LFL_WLN_BIT   0x20 // Literal field line with literal name
+#define QPACK_LFL_WNR_BIT   0x40 // Literal field line with name reference
+#define QPACK_IFL_BIT       0x80 // Indexed field line
+
 /* RFC 9204 6. Error Handling */
 enum qpack_err {
 	QPACK_ERR_DECOMPRESSION_FAILED = 0x200,

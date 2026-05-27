@@ -1,6 +1,7 @@
 #include <haproxy/qpack-enc.h>
 
 #include <haproxy/buf.h>
+#include <haproxy/qpack-t.h>
 #include <haproxy/intops.h>
 
 /* Returns the byte size required to encode <i> as a <prefix_size>-prefix
@@ -264,8 +265,6 @@ int qpack_encode_field_section_line(struct buffer *out)
 
 	return 0;
 }
-
-#define QPACK_LFL_WLN_BIT  0x20 // Literal field line with literal name
 
 /* Encode a header in literal field line with literal name.
  * Returns 0 on success else non-zero.
