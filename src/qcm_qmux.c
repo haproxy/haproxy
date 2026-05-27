@@ -145,7 +145,8 @@ int qcc_qmux_recv(struct qcc *qcc)
 		 */
 		if (b_head(buf) + qcc->rx.rlen > b_wrap(buf) ||
 		    (!dec && b_head(buf) + b_data(buf) == b_wrap(buf))) {
-			BUG_ON(qcc->rx.rlen > b_size(buf)); /* TODO max_record_size */
+			/* A too large record should have been rejected earlier. */
+			BUG_ON(qcc->rx.rlen > b_size(buf));
 			memmove(b_orig(buf), b_head(buf), b_data(buf));
 			buf->head = 0;
 		}
@@ -171,6 +172,12 @@ int qcc_qmux_recv(struct qcc *qcc)
 
 		if (b_data(buf) && !qcc->rx.rlen) {
 			dec = b_quic_dec_int(&qcc->rx.rlen, buf, NULL);
+			if (qcc->rx.rlen > b_size(buf)) {
+				/* TODO report FRAME_ENCODING_ERROR on max_record_size violation */
+				qcc->conn->flags |= CO_FL_ERROR;
+				goto out;
+			}
+
 			/* Restart read if an incomplete record has been received
 			 * until there is no more new data available.
 			 */
