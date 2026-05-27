@@ -456,7 +456,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 				}
 
 				nlen = huff_dec(raw, length, trash, tmp->size - tmp->data);
-				if (nlen == (uint32_t)-1) {
+				if (nlen < 0) {
 					qpack_debug_printf(stderr, " can't decode huffman.\n");
 					ret = -QPACK_RET_HUFFMAN;
 					goto out;
@@ -506,7 +506,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 					goto out;
 				}
 				nlen = huff_dec(raw, name_len, trash, tmp->size - tmp->data);
-				if (nlen == (uint32_t)-1) {
+				if (nlen < 0) {
 					qpack_debug_printf(stderr, " can't decode huffman.\n");
 					ret = -QPACK_RET_HUFFMAN;
 					goto out;
@@ -545,7 +545,7 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 					goto out;
 				}
 				nlen = huff_dec(raw, value_len, trash, tmp->size - tmp->data);
-				if (nlen == (uint32_t)-1) {
+				if (nlen < 0) {
 					qpack_debug_printf(stderr, " can't decode huffman.\n");
 					ret = -QPACK_RET_HUFFMAN;
 					goto out;
