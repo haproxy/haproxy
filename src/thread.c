@@ -1663,7 +1663,11 @@ void thread_detect_count(void)
 	int grp_max __maybe_unused;
 	int cpus_avail __maybe_unused;
 	int cpu __maybe_unused;
+	int cpu_map_in_conf __maybe_unused = 0;
 	char *err __maybe_unused;
+	int thr_forced = 0;
+	int tgrp_forced = 0;
+	int cpus_detected = 0;
 
 	thr_min = 1; thr_max = MAX_THREADS;
 	grp_min = 1; grp_max = MAX_TGROUPS;
@@ -1677,10 +1681,10 @@ void thread_detect_count(void)
 
 	/* config forces both values */
 	if (global.nbthread)
-		thr_min = thr_max = global.nbthread;
+		thr_min = thr_max = thr_forced = global.nbthread;
 
 	if (global.nbtgroups) {
-		grp_min = grp_max = global.nbtgroups;
+		grp_min = grp_max = tgrp_forced = global.nbtgroups;
 		/* ignore max-threads-per-group if thread-groups is configured */
 		if (global.maxthrpertgroup)
 			ha_notice("max-threads-per-group is used to automatically calculate the optimal number of thread groups. It is ignored when thread-groups is set.\n");
@@ -1712,6 +1716,7 @@ void thread_detect_count(void)
 	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++)
 		if (!(ha_cpu_topo[cpu].st & HA_CPU_F_OFFLINE))
 			cpus_avail++;
+	cpus_detected = cpus_avail;
 #endif
 
 	if (thr_min <= cpus_avail && cpus_avail < thr_max)
@@ -1736,7 +1741,8 @@ void thread_detect_count(void)
 		grp_max = thr_max;
 
 #if defined(USE_THREAD) && defined(USE_CPU_AFFINITY)
-	if (grp_min < grp_max && cpu_map_configured()) {
+	cpu_map_in_conf = cpu_map_configured();
+	if (grp_min < grp_max && cpu_map_in_conf) {
 		/* if a cpu-map directive is set, we cannot reliably infer what
 		 * CPUs will be used anymore, so we'll use the smallest permitted
 		 * number of groups.
@@ -1803,6 +1809,25 @@ void thread_detect_count(void)
 
 	if (!global.nbtgroups)
 		global.nbtgroups = grp_min;
+
+	if (tgrp_forced && !thr_forced && !cpu_map_in_conf &&
+	    (!global.thread_limit || (global.nbthread < global.thread_limit)) &&
+	    global.nbthread < MIN(cpus_detected, thread_cpus_enabled_at_boot) &&
+	    global.nbthread == global.maxthrpertgroup * global.nbtgroups) {
+		int nbcpus = MIN(cpus_detected, thread_cpus_enabled_at_boot);
+		ha_notice("%d usable CPUs detected but 'nbthread' capped at %d (%d%%) due to forced 'thread-groups' (%d). Remove 'thread-groups' for optimal tuning, or set 'nbthread' to force the value, or 'thread-hard-limit' if the goal was to enforce an arbitrary limitation.\n",
+		          nbcpus, global.nbthread, global.nbthread * 100 / nbcpus,
+		          global.nbtgroups);
+	}
+
+	if (!tgrp_forced && thr_forced && !cpu_map_in_conf &&
+	    (!global.thread_limit || (global.nbthread < global.thread_limit)) &&
+	    global.nbthread < MIN(cpus_detected, thread_cpus_enabled_at_boot) &&
+	    global.nbthread > 1) {
+		int nbcpus = MIN(cpus_detected, thread_cpus_enabled_at_boot);
+		ha_notice("%d usable CPUs detected but 'nbthread' forced to %d (%d%%). Remove 'nbthread' for optimal tuning.\n",
+		          nbcpus, global.nbthread, global.nbthread * 100 / nbcpus);
+	}
 
 	if (global.nbthread > global.maxthrpertgroup * global.nbtgroups) {
 		ha_diag_warning("nbthread too large or not set, found %d CPUs, limiting to %d threads (maximum is %d per thread group and %d groups). Please set nbthreads and/or increase thread-groups in the global section to silence this warning.\n",
