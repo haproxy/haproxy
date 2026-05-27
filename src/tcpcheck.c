@@ -664,7 +664,7 @@ enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct 
 	enum healthcheck_status status;
 	struct buffer *msg = NULL;
 	struct ist desc = IST_NULL;
-	char *ptr;
+	char *ptr, *end;
 	unsigned short nbytes = 0;
 	size_t msglen = 0;
 
@@ -674,7 +674,12 @@ enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct 
 	 * http://en.wikipedia.org/wiki/Basic_Encoding_Rules
 	 * http://tools.ietf.org/html/rfc4511
 	 */
-	ptr = b_head(&check->bi) + 1;
+	ptr = b_head(&check->bi);
+	end = ptr + b_data(&check->bi);
+	ptr++; /* First byte was already matched by the previous expect rule
+		* and at least 14 bytes are available
+		* (see do_parse_ldap_check_opt)
+		*/
 
 	/* size of LDAPMessage */
 	if (*ptr & 0x80) {
@@ -684,7 +689,7 @@ enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct 
 		 * encode BindReponse length on 4 bytes.
 		 */
 		nbytes = (*ptr & 0x7f);
-		if (b_data(&check->bi) < 1 + nbytes)
+		if (end - ptr < 1 + nbytes)
 			goto too_short;
 		switch (nbytes) {
 			case 4: msglen = read_n32(ptr+1); break;
@@ -699,7 +704,7 @@ enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct 
 		msglen = *ptr;
 	ptr += 1 + nbytes;
 
-	if (b_data(&check->bi) < 2 + nbytes + msglen)
+	if (end - ptr < msglen)
 		goto too_short;
 
 	/* http://tools.ietf.org/html/rfc4511#section-4.2.2
@@ -717,6 +722,10 @@ enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct 
 	nbytes = 0;
 	if (*ptr & 0x80)
 		nbytes = (*ptr & 0x7f);
+
+	if (end - ptr < 1 + nbytes + 2 + 1)
+		goto too_short;
+
 	ptr += 1 + nbytes;
 
 	/* http://tools.ietf.org/html/rfc4511#section-4.1.9
