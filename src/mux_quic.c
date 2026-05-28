@@ -278,16 +278,20 @@ static forceinline void qcc_rm_sc(struct qcc *qcc)
 }
 
 /* Checks if <qcc> connection can be used to attach new streams on it or if
- * reuse is definitely blocked. This is based on constant parameters such as
- * the server max-reuse limit or if the peer has requested a graceful shutdown.
- * Flow control is not taken into account here as it can be adjusted
- * dynamically over the connection lifetime.
+ * reuse is definitely blocked. This is based on constant parameters such as a
+ * connection error or timeout, the server max-reuse limit or if the peer has
+ * requested a graceful shutdown. Flow control is not taken into account here
+ * as it can be adjusted dynamically over the connection lifetime.
  *
  * Returns a boolean value indicating if reuse is possible.
  */
 static int qcc_be_is_reusable(const struct qcc *qcc)
 {
 	const struct server *srv = __objt_server(qcc->conn->target);
+
+	/* Connection on error or already on timeout. */
+	if (qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL) || !qcc->task)
+		return 0;
 
 	/* Shutdown initiated by the peer - in HTTP/3 this corresponds to a GOAWAY frame received. */
 	if (qcc->flags & QC_CF_CONN_SHUT)
@@ -303,27 +307,30 @@ static int qcc_be_is_reusable(const struct qcc *qcc)
 	return 1;
 }
 
+/* Indicates if a connection is idle and cannot be used anymore. If true the
+ * connection should be released as soon as possible.
+ */
 static inline int qcc_is_dead(const struct qcc *qcc)
 {
 	/* Maintain connection if there is still request streams active. */
 	if (qcc->nb_hreq)
 		return 0;
 
-	/* Connection considered dead if either :
-	 * - remote error detected at transport level
-	 * - error detected locally
-	 * - MUX timeout expired
-	 * - app layer shut (FE side only - used for stream.max-total)
-	 * - stream attach definitely blocked (BE side only - max-reuse reached or H3 GOAWAY reception)
-	 */
-	if (qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL_DONE) ||
-	    !qcc->task ||
-	    (!conn_is_back(qcc->conn) && qcc->app_st == QCC_APP_ST_SHUT) ||
-	    (conn_is_back(qcc->conn) && !qcc_be_is_reusable(qcc))) {
-		return 1;
+	if (!conn_is_back(qcc->conn)) {
+		/* FE conn considered dead if either :
+		 * - transport or local error reported
+		 * - MUX timeout expired
+		 * - app layer shut
+		 */
+		return qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL_DONE) ||
+	               !qcc->task || qcc->app_st == QCC_APP_ST_SHUT;
 	}
-
-	return 0;
+	else {
+		/* BE conn considered dead if reuse is definitively blocked.
+		 * Checks similar conditions as FE side and more.
+		 */
+		return !qcc_be_is_reusable(qcc);
+	}
 }
 
 /* Refresh the timeout on <qcc> if needed depending on its state. */
