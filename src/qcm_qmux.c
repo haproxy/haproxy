@@ -195,7 +195,7 @@ int qcc_qmux_recv(struct qcc *qcc)
 			buf_rec = b_make(b_orig(buf), b_size(buf),
 			                 b_head_ofs(buf), qcc->rx.rlen);
 			frm_ret = qmux_parse_frm(qcc, &buf_rec);
-			if (!frm_ret) {
+			if (frm_ret <= 0) {
 				/* TODO implement proper connection closure */
 				conn->flags |= CO_FL_ERROR;
 				goto out;
