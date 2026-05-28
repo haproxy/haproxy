@@ -14022,10 +14022,6 @@ int hlua_post_init()
 
 	hlua_body = 0;
 
-	/* Ensure the Lua VM is initialised even if no Lua directive appeared
-	 * in the configuration (e.g. no global section at all).
-	 */
-	hlua_init();
 
 #if defined(USE_OPENSSL)
 	/* Initialize SSL server. */
@@ -14945,3 +14941,14 @@ static void hlua_register_build_options(void)
 }
 
 INITCALL0(STG_REGISTER, hlua_register_build_options);
+
+/* Ensure the Lua VM is initialised even if no Lua directive appeared
+ * in the configuration (e.g. no global section at all).
+ */
+static int hlua_pre_check(void)
+{
+	hlua_init();
+	return ERR_NONE;
+}
+
+REGISTER_PRE_CHECK(hlua_pre_check);
