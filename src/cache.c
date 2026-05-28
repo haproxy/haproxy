@@ -46,6 +46,7 @@
 
 /* Flags for configuration. */
 #define CACHE_CF_VARY_PROCESSING   0x00000001 /* manage Vary header (disabled by default) */
+#define CACHE_CF_EARLY_HINTS       0x00000002 /* enable HTTP 103 Early Hints (disabled by default) */
 
 static uint64_t cache_hash_seed = 0;
 
@@ -2429,6 +2430,21 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 			tmp_cache_config->flags &= ~CACHE_CF_VARY_PROCESSING;
 		else {
 			ha_warning("parsing [%s:%d]: '%s' expects \"on\" or \"off\" (enable or disable vary processing).\n",
+				   file, linenum, args[0]);
+			err_code |= ERR_WARN;
+		}
+	} else if (strcmp(args[0], "early-hints") == 0) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code)) {
+			err_code |= ERR_ABORT;
+			goto out;
+		}
+
+		if (strcmp(args[1], "on") == 0) {
+			tmp_cache_config->flags |= CACHE_CF_EARLY_HINTS;
+		} else if (strcmp(args[1], "off") == 0) {
+			tmp_cache_config->flags &= ~CACHE_CF_EARLY_HINTS;
+		} else {
+			ha_warning("parsing [%s:%d]: '%s' expects \"on\" or \"off\" (enable or disable HTTP 103 Early Hints support).\n",
 				   file, linenum, args[0]);
 			err_code |= ERR_WARN;
 		}
