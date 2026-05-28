@@ -6,7 +6,6 @@
 #include <openssl/kdf.h>
 #include <openssl/ssl.h>
 
-#include <haproxy/errors.h>
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
 #include <haproxy/pool.h>
@@ -25,8 +24,6 @@ DECLARE_POOL(pool_head_quic_tls_key,    "quic_tls_key",    QUIC_TLS_KEY_LEN);
 
 DECLARE_TYPED_POOL(pool_head_quic_crypto_buf, "quic_crypto_buf", struct quic_crypto_buf);
 DECLARE_STATIC_TYPED_POOL(pool_head_quic_cstream, "quic_cstream", struct quic_cstream);
-
-EVP_PKEY_CTX **quic_tls_hkdf_ctxs;
 
 /* Initial salt depending on QUIC version to derive client/server initial secrets.
  * This one is for draft-29 QUIC version.
@@ -317,12 +314,16 @@ void qc_enc_level_free(struct quic_conn *qc, struct quic_enc_level **qel)
 	*qel = NULL;
 }
 
-static int quic_hkdf_extract(const EVP_MD *md,
-                             unsigned char *buf, size_t buflen,
-                             const unsigned char *key, size_t keylen,
-                             const unsigned char *salt, size_t saltlen)
+int quic_hkdf_extract(const EVP_MD *md,
+                      unsigned char *buf, size_t buflen,
+                      const unsigned char *key, size_t keylen,
+                      const unsigned char *salt, size_t saltlen)
 {
-    EVP_PKEY_CTX *ctx = quic_tls_hkdf_ctxs[tid];
+    EVP_PKEY_CTX *ctx;
+
+    ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
+    if (!ctx)
+        return 0;
 
     if (EVP_PKEY_derive_init(ctx) <= 0 ||
         EVP_PKEY_CTX_hkdf_mode(ctx, EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY) <= 0 ||
@@ -330,17 +331,26 @@ static int quic_hkdf_extract(const EVP_MD *md,
         EVP_PKEY_CTX_set1_hkdf_salt(ctx, salt, saltlen) <= 0 ||
         EVP_PKEY_CTX_set1_hkdf_key(ctx, key, keylen) <= 0 ||
         EVP_PKEY_derive(ctx, buf, &buflen) <= 0)
-	    return 0;
+        goto err;
 
+    EVP_PKEY_CTX_free(ctx);
     return 1;
+
+ err:
+    EVP_PKEY_CTX_free(ctx);
+    return 0;
 }
 
-static int quic_hkdf_expand(const EVP_MD *md,
-                            unsigned char *buf, size_t buflen,
-                            const unsigned char *key, size_t keylen,
-                            const unsigned char *label, size_t labellen)
+int quic_hkdf_expand(const EVP_MD *md,
+                     unsigned char *buf, size_t buflen,
+                     const unsigned char *key, size_t keylen,
+                     const unsigned char *label, size_t labellen)
 {
-    EVP_PKEY_CTX *ctx = quic_tls_hkdf_ctxs[tid];
+    EVP_PKEY_CTX *ctx;
+
+    ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
+    if (!ctx)
+        return 0;
 
     if (EVP_PKEY_derive_init(ctx) <= 0 ||
         EVP_PKEY_CTX_hkdf_mode(ctx, EVP_PKEY_HKDEF_MODE_EXPAND_ONLY) <= 0 ||
@@ -348,9 +358,14 @@ static int quic_hkdf_expand(const EVP_MD *md,
         EVP_PKEY_CTX_set1_hkdf_key(ctx, key, keylen) <= 0 ||
         EVP_PKEY_CTX_add1_hkdf_info(ctx, label, labellen) <= 0 ||
         EVP_PKEY_derive(ctx, buf, &buflen) <= 0)
-	    return 0;
+        goto err;
 
+    EVP_PKEY_CTX_free(ctx);
     return 1;
+
+ err:
+    EVP_PKEY_CTX_free(ctx);
+    return 0;
 }
 
 /* Extracts a peudo-random secret key from <key> which is eventually not
@@ -367,7 +382,11 @@ int quic_hkdf_extract_and_expand(const EVP_MD *md,
                                  const unsigned char *salt, size_t saltlen,
                                  const unsigned char *label, size_t labellen)
 {
-	EVP_PKEY_CTX *ctx = quic_tls_hkdf_ctxs[tid];
+	EVP_PKEY_CTX *ctx;
+
+	ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
+	if (!ctx)
+		return 0;
 
 	if (EVP_PKEY_derive_init(ctx) <= 0 ||
 	    EVP_PKEY_CTX_hkdf_mode(ctx, EVP_PKEY_HKDEF_MODE_EXTRACT_AND_EXPAND) <= 0 ||
@@ -376,9 +395,14 @@ int quic_hkdf_extract_and_expand(const EVP_MD *md,
 	    EVP_PKEY_CTX_set1_hkdf_key(ctx, key, keylen) <= 0 ||
 	    EVP_PKEY_CTX_add1_hkdf_info(ctx, label, labellen) <= 0 ||
 	    EVP_PKEY_derive(ctx, buf, &buflen) <= 0)
-		return 0;
+		goto err;
 
+	EVP_PKEY_CTX_free(ctx);
 	return 1;
+
+ err:
+	EVP_PKEY_CTX_free(ctx);
+	return 0;
 }
 
 /* https://quicwg.org/base-drafts/draft-ietf-quic-tls.html#protection-keys
@@ -1216,45 +1240,3 @@ int quic_tls_finalize(struct quic_conn *qc, int server)
 	quic_tls_ctx_free(&qc->nictx);
 	goto out;
 }
-
-/* Cryptographic context allocator for HKDF operations */
-static int quic_tls_dealloc_hkdf_ctxs(void)
-{
-	int i;
-
-	if (!quic_tls_hkdf_ctxs)
-		return 1;
-
-	for (i = 0; i < global.nbthread; i++)
-		EVP_PKEY_CTX_free(quic_tls_hkdf_ctxs[i]);
-
-	free(quic_tls_hkdf_ctxs);
-	return 1;
-}
-REGISTER_POST_DEINIT(quic_tls_dealloc_hkdf_ctxs);
-
-/* Cryptographic context for HKDF operations deallocator*/
-static int quic_tls_alloc_hkdf_ctxs(void)
-{
-	int i, ret = -1;
-
-	quic_tls_hkdf_ctxs = calloc(global.nbthread, sizeof(*quic_tls_hkdf_ctxs));
-	if (!quic_tls_hkdf_ctxs)
-		goto err;
-
-	for (i = 0; i < global.nbthread; i++) {
-		quic_tls_hkdf_ctxs[i] = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
-		if (!quic_tls_hkdf_ctxs[i])
-			goto err;
-	}
-
-	ret = 0;
- leave:
-	return ret;
-
- err:
-	ha_alert("failed to alloc the QUIC HKDF contexts.\n");
-	quic_tls_dealloc_hkdf_ctxs();
-	goto leave;
-}
-REGISTER_POST_CHECK(quic_tls_alloc_hkdf_ctxs);
