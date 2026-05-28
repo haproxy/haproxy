@@ -19,6 +19,7 @@
 
 /* cpu_policy_conf flags */
 #define CPU_POLICY_ONE_THREAD_PER_CORE (1 << 0)
+#define CPU_POLICY_SET_IN_CONFIG       (1 << 1)
 
 /* cpu_policy_conf affinities */
 #define CPU_AFFINITY_PER_GROUP  (1 << 0)
@@ -1106,14 +1107,23 @@ static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin
 	int grp, thr;
 	int thr_count = 0;
 
-	if (!global.numa_cpu_mapping)
+	if (!global.numa_cpu_mapping) {
+		if (cpu_policy_conf.flags & CPU_POLICY_SET_IN_CONFIG)
+			ha_notice("cpu-policy is ignored when numa-cpu-mapping is set.\n");
 		return 0;
+	}
 
-	if (global.nbthread)
+	if (global.nbthread) {
+		if (cpu_policy_conf.flags & CPU_POLICY_SET_IN_CONFIG)
+			ha_notice("cpu-policy is ignored when nbthreads is set.\n");
 		return 0;
+	}
 
-	if (cpu_mask_forced)
+	if (cpu_mask_forced) {
+		if (cpu_policy_conf.flags & CPU_POLICY_SET_IN_CONFIG)
+			ha_notice("cpu-policy first-numa-node is ignored when CPUs were externally restricted.\n");
 		return 0;
+	}
 
 	/* determine first and second nodes with usable CPUs */
 	for (cpu = 0; cpu <= cpu_topo_lastcpu; cpu++) {
@@ -1505,11 +1515,17 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 	int cid;
 	int div;
 
-	if (global.nbthread)
+	if (global.nbthread) {
+		if (cpu_policy_conf.flags & CPU_POLICY_SET_IN_CONFIG)
+			ha_notice("cpu-policy is ignored when nbthreads is set.\n");
 		return 0;
+	}
 
-	if (global.nbtgroups)
+	if (global.nbtgroups) {
+		if (cpu_policy_conf.flags & CPU_POLICY_SET_IN_CONFIG)
+			ha_notice("cpu-policy is ignored when thread-groups is set.\n");
 		return 0;
+	}
 
 	ha_cpuset_zero(&visited_cl_set);
 
@@ -1598,11 +1614,17 @@ static int cpu_policy_group_by_ccx(int policy, int tmin, int tmax, int gmin, int
 	int l3id;
 	int div;
 
-	if (global.nbthread)
+	if (global.nbthread) {
+		if (cpu_policy_conf.flags & CPU_POLICY_SET_IN_CONFIG)
+			ha_notice("cpu-policy is ignored when nbthreads is set.\n");
 		return 0;
+	}
 
-	if (global.nbtgroups)
+	if (global.nbtgroups) {
+		if (cpu_policy_conf.flags & CPU_POLICY_SET_IN_CONFIG)
+			ha_notice("cpu-policy is ignored when thread-groups is set.\n");
 		return 0;
+	}
 
 	ha_cpuset_zero(&visited_ccx_set);
 
@@ -1681,8 +1703,17 @@ static int cpu_policy_performance(int policy, int tmin, int tmax, int gmin, int 
 	int cpu, cluster;
 	int capa;
 
-	if (global.nbthread || global.nbtgroups)
+	if (global.nbthread) {
+		if (cpu_policy_conf.flags & CPU_POLICY_SET_IN_CONFIG)
+			ha_notice("cpu-policy is ignored when nbthreads is set.\n");
 		return 0;
+	}
+
+	if (global.nbtgroups) {
+		if (cpu_policy_conf.flags & CPU_POLICY_SET_IN_CONFIG)
+			ha_notice("cpu-policy is ignored when thread-groups is set.\n");
+		return 0;
+	}
 
 	/* sort clusters by average reverse capacity */
 	cpu_cluster_reorder_by_avg_capa(ha_cpu_clusters, cpu_topo_maxcpus);
@@ -1726,8 +1757,17 @@ static int cpu_policy_efficiency(int policy, int tmin, int tmax, int gmin, int g
 	int cpu, cluster;
 	int capa;
 
-	if (global.nbthread || global.nbtgroups)
+	if (global.nbthread) {
+		if (cpu_policy_conf.flags & CPU_POLICY_SET_IN_CONFIG)
+			ha_notice("cpu-policy is ignored when nbthreads is set.\n");
 		return 0;
+	}
+
+	if (global.nbtgroups) {
+		if (cpu_policy_conf.flags & CPU_POLICY_SET_IN_CONFIG)
+			ha_notice("cpu-policy is ignored when thread-groups is set.\n");
+		return 0;
+	}
 
 	/* sort clusters by average reverse capacity */
 	cpu_cluster_reorder_by_avg_capa(ha_cpu_clusters, cpu_topo_maxcpus);
@@ -1768,8 +1808,17 @@ static int cpu_policy_resource(int policy, int tmin, int tmax, int gmin, int gma
 	int cpu, cluster;
 	int capa;
 
-	if (global.nbthread || global.nbtgroups)
+	if (global.nbthread) {
+		if (cpu_policy_conf.flags & CPU_POLICY_SET_IN_CONFIG)
+			ha_notice("cpu-policy is ignored when nbthreads is set.\n");
 		return 0;
+	}
+
+	if (global.nbtgroups) {
+		if (cpu_policy_conf.flags & CPU_POLICY_SET_IN_CONFIG)
+			ha_notice("cpu-policy is ignored when thread-groups is set.\n");
+		return 0;
+	}
 
 	/* sort clusters by reverse capacity */
 	cpu_cluster_reorder_by_capa(ha_cpu_clusters, cpu_topo_maxcpus);
@@ -1804,6 +1853,8 @@ int cpu_apply_policy(int tmin, int tmax, int gmin, int gmax, char **err)
 
 	if (cpu_map_configured()) {
 		/* nothing to do */
+		if (cpu_policy_conf.flags & CPU_POLICY_SET_IN_CONFIG)
+			ha_notice("cpu-policy is ignored when cpu-map is set.\n");
 		return 0;
 	}
 
@@ -2359,6 +2410,7 @@ static int cfg_parse_cpu_policy(char **args, int section_type, struct proxy *cur
 	for (i = 0; ha_cpu_policy[i].name; i++) {
 		if (strcmp(args[1], ha_cpu_policy[i].name) == 0) {
 			cpu_policy_conf.cpu_policy = i;
+			cpu_policy_conf.flags |= CPU_POLICY_SET_IN_CONFIG;
 			return 0;
 		}
 	}
