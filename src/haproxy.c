@@ -2810,6 +2810,7 @@ void deinit(void)
 	struct cfg_postparser *pprs, *pprsb;
 	char **tmp = init_env;
 	int cur_fd;
+	int i;
 
 	/* the user may want to skip this phase */
 	if (global.tune.options & GTUNE_QUICK_EXIT)
@@ -2886,8 +2887,10 @@ void deinit(void)
 	ha_free(&global.server_state_base);
 	ha_free(&global.server_state_file);
 	ha_free(&global.stats_file);
-	task_destroy(idle_conn_task);
-	idle_conn_task = NULL;
+	for (i = 0; i < global.nbthread; i++) {
+		task_destroy(idle_conn_task[i]);
+		idle_conn_task[i] = NULL;
+	}
 
 	list_for_each_entry_safe(log, logb, &global.loggers, list) {
 		LIST_DEL_INIT(&log->list);

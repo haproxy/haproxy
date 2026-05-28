@@ -2486,16 +2486,17 @@ init_proxies_list_stage1:
 	/* At this point, target names have already been resolved. */
 	/***********************************************************/
 
-	idle_conn_task = task_new_anywhere();
-	if (!idle_conn_task) {
-		ha_alert("parsing : failed to allocate global idle connection task.\n");
-		cfgerr++;
-	}
-	else {
-		idle_conn_task->process = srv_cleanup_idle_conns;
-		idle_conn_task->context = NULL;
+	for (int i = 0; i < global.nbthread; i++) {
+		idle_conn_srv[i] = EB_ROOT;
+		idle_conn_task[i] = task_new_on(i);
+		if (!idle_conn_task[i]) {
+			ha_alert("parsing : failed to allocate global idle connection task.\n");
+			cfgerr++;
+		}
+		else {
+			idle_conn_task[i]->process = srv_cleanup_idle_conns;
+			idle_conn_task[i]->context = NULL;
 
-		for (i = 0; i < global.nbthread; i++) {
 			idle_conns[i].cleanup_task = task_new_on(i);
 			if (!idle_conns[i].cleanup_task) {
 				ha_alert("parsing : failed to allocate idle connection tasks for thread '%d'.\n", i);

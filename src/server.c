@@ -76,9 +76,8 @@ struct srv_kw_list srv_keywords = {
 	.list = LIST_HEAD_INIT(srv_keywords.list)
 };
 
-__decl_thread(HA_SPINLOCK_T idle_conn_srv_lock);
-struct eb_root idle_conn_srv = EB_ROOT;
-struct task *idle_conn_task __read_mostly = NULL;
+struct eb_root idle_conn_srv[MAX_THREADS];
+struct task *idle_conn_task[MAX_THREADS] __read_mostly = {};
 struct mt_list servers_list = MT_LIST_HEAD_INIT(servers_list);
 static struct task *server_atomic_sync_task = NULL;
 static event_hdl_async_equeue server_atomic_sync_queue;
@@ -3281,6 +3280,8 @@ struct server *srv_drop(struct server *srv)
 
 	/* This BUG_ON() is invalid for now as server released on deinit will
 	 * trigger it as they are not properly removed from their tree.
+	 * This is even more relevant now, as we would need to check the
+	 * idle_node for each thread
 	 */
 	//BUG_ON(ceb_intree(&srv->addr_node) ||
 	//       srv->idle_node.node.leaf_p ||
@@ -6652,7 +6653,8 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	cebuis_item_delete(&be->used_server_addr, addr_node, addr_key, srv);
 
 	/* remove srv from idle_node tree for idle conn cleanup */
-	eb32_delete(&srv->idle_node);
+	for (ret = 0; ret < global.nbthread; ret++)
+		eb32_delete(&srv->per_thr[ret].idle_node);
 
 	/* set LSB bit (odd bit) for reuse_cnt */
 	srv_id_reuse_cnt |= 1;
@@ -7545,20 +7547,16 @@ int srv_add_to_idle_list(struct server *srv, struct connection *conn, int is_saf
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		_HA_ATOMIC_INC(&srv->curr_idle_thr[tid]);
 
-		if (HA_ATOMIC_LOAD(&srv->idle_node.node.leaf_p) == NULL) {
-			HA_SPIN_LOCK(OTHER_LOCK, &idle_conn_srv_lock);
-			if (_HA_ATOMIC_LOAD(&srv->idle_node.node.leaf_p) == NULL) {
-				srv->idle_node.key = tick_add(srv->pool_purge_delay,
+		if (srv->per_thr[tid].idle_node.node.leaf_p == NULL) {
+			srv->per_thr[tid].idle_node.key = tick_add(srv->pool_purge_delay,
 				                              now_ms);
-				eb32_insert(&idle_conn_srv, &srv->idle_node);
-				if (!task_in_wq(idle_conn_task) && !
-				    task_in_rq(idle_conn_task)) {
-					task_schedule(idle_conn_task,
-					              srv->idle_node.key);
-				}
-				BUG_ON_STRESS(!mt_list_isempty(&conn->toremove_list));
+			eb32_insert(&idle_conn_srv[tid], &srv->per_thr[tid].idle_node);
+			if (!task_in_wq(idle_conn_task[tid]) &&
+			    !task_in_rq(idle_conn_task[tid])) {
+				task_schedule(idle_conn_task[tid],
+				              srv->per_thr[tid].idle_node.key);
 			}
-			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conn_srv_lock);
+			BUG_ON_STRESS(!mt_list_isempty(&conn->toremove_list));
 		}
 		return 1;
 	}
@@ -7580,24 +7578,26 @@ struct task *srv_cleanup_idle_conns(struct task *task, void *context, unsigned i
 {
 	struct server *srv;
 	struct eb32_node *eb;
-	int i;
 	unsigned int next_wakeup;
+	int mytid = tid;
 
 	next_wakeup = TICK_ETERNITY;
-	HA_SPIN_LOCK(OTHER_LOCK, &idle_conn_srv_lock);
 	while (1) {
+		struct srv_per_thread *per_thr;
 		int exceed_conns;
 		int to_kill;
 		int curr_idle;
+		int max_conn;
+		int removed;
 
-		eb = eb32_lookup_ge(&idle_conn_srv, now_ms - TIMER_LOOK_BACK);
+		eb = eb32_lookup_ge(&idle_conn_srv[mytid], now_ms - TIMER_LOOK_BACK);
 		if (!eb) {
 			/* we might have reached the end of the tree, typically because
 			 * <now_ms> is in the first half and we're first scanning the last
 			* half. Let's loop back to the beginning of the tree now.
 			*/
 
-			eb = eb32_first(&idle_conn_srv);
+			eb = eb32_first(&idle_conn_srv[mytid]);
 			if (likely(!eb))
 				break;
 		}
@@ -7606,7 +7606,8 @@ struct task *srv_cleanup_idle_conns(struct task *task, void *context, unsigned i
 			next_wakeup = eb->key;
 			break;
 		}
-		srv = eb32_entry(eb, struct server, idle_node);
+		per_thr = eb32_entry(eb, struct srv_per_thread, idle_node);
+		srv = per_thr->srv;
 
 		/* Calculate how many idle connections we want to kill :
 		 * we want to remove half the difference between the total
@@ -7619,47 +7620,41 @@ struct task *srv_cleanup_idle_conns(struct task *task, void *context, unsigned i
 		exceed_conns = srv->curr_used_conns + curr_idle - MAX(srv->max_used_conns, srv->est_need_conns);
 		exceed_conns = to_kill = exceed_conns / 2 + (exceed_conns & 1);
 
-		srv->est_need_conns = (srv->est_need_conns + srv->max_used_conns) / 2;
+		/*
+		 * It is acceptable not to lock anything before modifying
+		 * est_need_conns and max_used_conns, even if multiple threads
+		 * are running that task at the same time, we don't need a
+		 * very high precision here, it will converge over time.
+		 */
+		HA_ATOMIC_STORE(&srv->est_need_conns, (srv->est_need_conns + srv->max_used_conns) / 2);
 		if (srv->est_need_conns < srv->max_used_conns)
-			srv->est_need_conns = srv->max_used_conns;
+			HA_ATOMIC_STORE(&srv->est_need_conns, srv->max_used_conns);
 
 		HA_ATOMIC_STORE(&srv->max_used_conns, srv->curr_used_conns);
 
 		if (exceed_conns <= 0)
 			goto remove;
 
-		/* check all threads starting with ours */
-		for (i = tid;;) {
-			int max_conn;
-			int removed;
+		max_conn = (exceed_conns * srv->curr_idle_thr[mytid]) / curr_idle + 1;
 
-			max_conn = (exceed_conns * srv->curr_idle_thr[i]) /
-			           curr_idle + 1;
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[mytid].idle_conns_lock);
+		removed = srv_migrate_conns_to_remove(srv, mytid, max_conn);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[mytid].idle_conns_lock);
 
-			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
-			removed = srv_migrate_conns_to_remove(srv, i, max_conn);
-			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
-
-			if (removed)
-				task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
-
-			if ((i = ((i + 1 == global.nbthread) ? 0 : i + 1)) == tid)
-				break;
-		}
+		if (removed)
+			task_wakeup(idle_conns[mytid].cleanup_task, TASK_WOKEN_OTHER);
 remove:
-		eb32_delete(&srv->idle_node);
+		eb32_delete(&srv->per_thr[mytid].idle_node);
 
-		if (srv->curr_idle_conns) {
+		if (!LIST_ISEMPTY(&srv->per_thr[mytid].idle_conn_list)) {
 			/* There are still more idle connections, add the
 			 * server back in the tree.
 			 */
-			srv->idle_node.key = tick_add(srv->pool_purge_delay, now_ms);
-			eb32_insert(&idle_conn_srv, &srv->idle_node);
-			next_wakeup = tick_first(next_wakeup, srv->idle_node.key);
+			srv->per_thr[mytid].idle_node.key = tick_add(srv->pool_purge_delay, now_ms);
+			eb32_insert(&idle_conn_srv[mytid], &srv->per_thr[mytid].idle_node);
+			next_wakeup = tick_first(next_wakeup, srv->per_thr[mytid].idle_node.key);
 		}
 	}
-	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conn_srv_lock);
-
 	task->expire = next_wakeup;
 	return task;
 }

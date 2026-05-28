@@ -280,6 +280,7 @@ struct srv_per_thread {
 	struct ceb_root *safe_conns;            /* Safe idle connections */
 	struct ceb_root *avail_conns;           /* Connections in use, but with still new streams available */
 	struct server *srv;                     /* Back-pointer to the server */
+	struct eb32_node idle_node;             /* When to next do cleanup in the idle connections */
 #ifdef USE_QUIC
 	struct ist quic_retry_token;
 #endif
@@ -402,7 +403,6 @@ struct server {
 	 * thread, and generally at the same time.
 	 */
 	THREAD_ALIGN();
-	struct eb32_node idle_node;             /* When to next do cleanup in the idle connections */
 	unsigned int curr_idle_conns;           /* Current number of orphan idling connections, both the idle and the safe lists */
 	unsigned int curr_idle_nb;              /* Current number of connections in the idle list */
 	unsigned int curr_safe_nb;              /* Current number of connections in the safe list */
