@@ -4007,7 +4007,7 @@ static int h2c_handle_data(struct h2c *h2c, struct h2s *h2s)
 	 * going to kill the stream but must still update the connection's
 	 * window.
 	 */
-	h2c->rcvd_c += h2c->dfl - h2c->dpl;
+	h2c->rcvd_c += h2c->dfl;
  strm_err:
 	h2s_error(h2s, error);
 	h2c->st0 = H2_CS_FRAME_E;
@@ -4128,7 +4128,7 @@ static int h2_frame_check_vs_state(struct h2c *h2c, struct h2s *h2s)
 				/* even if we reject out-of-stream DATA, it must
 				 * still count against the connection's flow control.
 				 */
-				h2c->rcvd_c += h2c->dfl - h2c->dpl;
+				h2c->rcvd_c += h2c->dfl;
 			}
 
 			h2c_report_glitch(h2c, 1, "invalid frame type after receiving RST_STREAM");
