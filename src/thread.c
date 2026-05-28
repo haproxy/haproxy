@@ -1679,8 +1679,11 @@ void thread_detect_count(void)
 	if (global.nbthread)
 		thr_min = thr_max = global.nbthread;
 
-	if (global.nbtgroups)
+	if (global.nbtgroups) {
 		grp_min = grp_max = global.nbtgroups;
+		/* ignore max-threads-per-group if thread-groups is configured */
+		global.maxthrpertgroup = MAX_THREADS_PER_GROUP;
+	}
 
 #if defined(USE_THREAD)
 	/* Adjust to boot settings if not forced */
