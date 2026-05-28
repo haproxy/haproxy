@@ -390,7 +390,10 @@ static inline void quic_cubic_update(struct quic_cc *cc, uint32_t acked)
 
 static void quic_cc_cubic_slow_start(struct quic_cc *cc)
 {
+	struct quic_cc_path *path = container_of(cc, struct quic_cc_path, cc);
+
 	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc);
+	quic_cc_path_reset(path);
 	quic_cc_cubic_reset(cc);
 	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc);
 }
