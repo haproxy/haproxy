@@ -6128,6 +6128,7 @@ static int srv_init_per_thr(struct server *srv)
 		srv->per_thr[i].idle_conns = NULL;
 		srv->per_thr[i].safe_conns = NULL;
 		srv->per_thr[i].avail_conns = NULL;
+		srv->per_thr[i].srv = srv;
 		MT_LIST_INIT(&srv->per_thr[i].sess_conns);
 		MT_LIST_INIT(&srv->per_thr[i].streams);
 
