@@ -1,5 +1,9 @@
-#REGTEST_TYPE=slow
+#REGTEST_TYPE=broken
 # reg-test is around ~2.5s
+# It is incompatible with ssl/ocsp_auto_update.vtc running in parallel because
+# both start a server on the same port, whose URL is specified in the test
+# certificates. Given that the test is essentially about testing OCSP update,
+# let's just use the more generic SSL one.
 
 # broken with BoringSSL.
 
