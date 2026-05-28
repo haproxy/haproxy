@@ -468,8 +468,8 @@ static void qc_notify_cc_of_newly_acked_pkts(struct quic_conn *qc,
 	}
 
 	if (drs) {
-		quic_cc_drs_on_ack_recv(drs, p, pkt_delivered);
 		drs->lost += bytes_lost;
+		quic_cc_drs_on_ack_recv(drs, p, pkt_delivered);
 	}
 	if (p->cc.algo->on_ack_rcvd)
 		p->cc.algo->on_ack_rcvd(&p->cc, bytes_delivered, pkt_delivered,
