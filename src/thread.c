@@ -1682,7 +1682,16 @@ void thread_detect_count(void)
 	if (global.nbtgroups) {
 		grp_min = grp_max = global.nbtgroups;
 		/* ignore max-threads-per-group if thread-groups is configured */
+		if (global.maxthrpertgroup)
+			ha_notice("max-threads-per-group is used to automatically calculate the optimal number of thread groups. It is ignored when thread-groups is set.\n");
 		global.maxthrpertgroup = MAX_THREADS_PER_GROUP;
+	}
+	else {
+		/* set the default max-threads-per-group to calculate the
+		 * optimal number of groups.
+		 */
+		if (!global.maxthrpertgroup)
+			global.maxthrpertgroup = DEF_MAX_THREADS_PER_GROUP;
 	}
 
 #if defined(USE_THREAD)
