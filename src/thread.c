@@ -1713,9 +1713,12 @@ void thread_detect_count(void)
 	    thr_max > global.maxthrpertgroup * grp_max)
 		thr_max = global.maxthrpertgroup * grp_max;
 
-	if (grp_min < (thr_min +  global.maxthrpertgroup - 1) / global.maxthrpertgroup &&
-	    grp_max >= (thr_min +  global.maxthrpertgroup - 1) / global.maxthrpertgroup)
-		grp_min = (thr_min +  global.maxthrpertgroup - 1) / global.maxthrpertgroup;
+	if (grp_min < (thr_min +  global.maxthrpertgroup - 1) / global.maxthrpertgroup) {
+		if (grp_max >= (thr_min +  global.maxthrpertgroup - 1) / global.maxthrpertgroup)
+			grp_min = (thr_min +  global.maxthrpertgroup - 1) / global.maxthrpertgroup;
+		else
+			grp_min = grp_max;
+	}
 
 	if (grp_max > thr_max && grp_min <= thr_max)
 		grp_max = thr_max;
