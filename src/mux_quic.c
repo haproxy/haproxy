@@ -3555,8 +3555,12 @@ static void qcc_app_shutdown(struct qcc *qcc)
 	}
 
 	/* A connection is not reusable if app layer is closed. */
-	if (qcc->flags & QC_CF_IS_BACK)
-		conn_delete_from_tree(qcc->conn, tid);
+	if (qcc->flags & QC_CF_IS_BACK) {
+		if (qcc->conn->flags & CO_FL_LIST_MASK)
+			conn_delete_from_tree(qcc->conn, tid);
+		else if (qcc->conn->flags & CO_FL_SESS_IDLE)
+			session_unown_conn(qcc->conn->owner, qcc->conn);
+	}
 
  out:
 	qcc->app_st = QCC_APP_ST_SHUT;
