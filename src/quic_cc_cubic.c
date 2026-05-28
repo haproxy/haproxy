@@ -607,6 +607,7 @@ static void quic_cc_cubic_rp_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 
 		c->state = QUIC_CC_ST_CA;
 		c->recovery_start_time = TICK_ETERNITY;
+		c->consecutive_losses = 0;
 		break;
 	case QUIC_CC_EVT_LOSS:
 		break;
