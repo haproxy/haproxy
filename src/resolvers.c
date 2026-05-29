@@ -4055,21 +4055,21 @@ err:
 	return ERR_NONE;
 }
 
-int cfg_post_parse_resolvers()
+static int cfg_post_check_resolvers(void)
 {
-	int err_code = 0;
+	struct resolvers *r;
 	struct server *srv;
+	int err_code = 0;
 
-	if (curr_resolvers) {
-
+	list_for_each_entry(r, &sec_resolvers, list) {
 		/* prepare forward server descriptors */
-		if (curr_resolvers->px) {
-			srv = curr_resolvers->px->srv;
+		if (r->px) {
+			srv = r->px->srv;
 			while (srv) {
 				/* init ssl if needed */
 				if (srv->use_ssl == 1 && xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->prepare_srv) {
 					if (xprt_get(XPRT_SSL)->prepare_srv(srv)) {
-						ha_alert("unable to prepare SSL for server '%s' in resolvers section '%s'.\n", srv->id, curr_resolvers->id);
+						ha_alert("unable to prepare SSL for server '%s' in resolvers section '%s'.\n", srv->id, r->id);
 						err_code |= ERR_ALERT | ERR_FATAL;
 						break;
 					}
@@ -4078,7 +4078,6 @@ int cfg_post_parse_resolvers()
 			}
 		}
 	}
-	curr_resolvers = NULL;
 	return err_code;
 }
 
@@ -4130,8 +4129,9 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
-REGISTER_CONFIG_SECTION("resolvers",      cfg_parse_resolvers, cfg_post_parse_resolvers);
+REGISTER_CONFIG_SECTION("resolvers",      cfg_parse_resolvers, NULL);
 REGISTER_POST_DEINIT(resolvers_deinit);
+REGISTER_POST_CHECK(cfg_post_check_resolvers);
 REGISTER_CONFIG_POSTPARSER("dns runtime resolver", resolvers_finalize_config);
 REGISTER_PRE_CHECK(resolvers_create_default);
 
