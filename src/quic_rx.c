@@ -2494,9 +2494,10 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 
 		/* Detect QUIC connection migration. */
 		if (li && ipcmp(&qc->peer_addr, (struct sockaddr_storage *)&dgram->saddr, 1)) {
-			if (qc_handle_conn_migration(qc,
-			    (struct sockaddr_storage *)&dgram->saddr,
-			    (struct sockaddr_storage *)&dgram->daddr)) {
+			struct sockaddr_storage src, dst;
+			in46un_to_addr(&dgram->saddr, &src);
+			in46un_to_addr(&dgram->daddr, &dst);
+			if (qc_handle_conn_migration(qc, &src, &dst)) {
 				/* Skip the entire datagram. */
 				TRACE_ERROR("error during connection migration, datagram dropped", QUIC_EV_CONN_LPKT, qc);
 				pkt->len = end - pos;
