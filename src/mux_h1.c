@@ -2708,11 +2708,17 @@ static size_t h1_make_headers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				h1s->flags |= H1S_F_HAVE_CLEN;
 			}
 			else if (isteq(n, ist("connection"))) {
+				/* copy the value because it can be modified, but the HTX blocks will not */
+				memcpy(trash.area, v.ptr, v.len);
+				v.ptr = trash.area;
 				h1_parse_connection_header(h1m, &v);
 				if (!v.len)
 					goto nextblk;
 			}
 			else if (isteq(n, ist("upgrade"))) {
+				/* copy the value because it can be modified, but the HTX blocks will not */
+				memcpy(trash.area, v.ptr, v.len);
+				v.ptr = trash.area;
 				h1_parse_upgrade_header(h1m, &v);
 				if (!v.len)
 					goto nextblk;
