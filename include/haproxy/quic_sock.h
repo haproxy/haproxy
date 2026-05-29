@@ -135,6 +135,8 @@ static inline void in46un_to_addr(const union sockaddr_in46 *src,
 		in6->sin6_family = AF_INET6;
 		in6->sin6_addr = src->in6.sin6_addr;
 		in6->sin6_port = src->in6.sin6_port;
+		in6->sin6_flowinfo = src->in6.sin6_flowinfo;
+		in6->sin6_scope_id = src->in6.sin6_scope_id;
 		break;
 
 	default:
