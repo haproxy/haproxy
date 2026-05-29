@@ -3047,6 +3047,7 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 				node = eb32_lookup_ge(&cache_tree->entries, next_key);
 				if (!node) {
 					ctx->next_key = 0;
+					next_key = 0;
 					break;
 				}
 
