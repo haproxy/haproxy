@@ -6101,6 +6101,10 @@ void collect_libs(void)
 	void *page;
 	int i;
 
+	/* already done */
+	if (lib_storage)
+		return;
+
 	/* prepend a directory named after the starting pid */
 	snprintf(dir_name, sizeof(dir_name), "core-%u", getpid());
 	ctx.prefix = dir_name;
@@ -6162,6 +6166,39 @@ void free_collected_libs(void)
 	lib_size = 0;
 }
 
+/* Prepare the archive in RAM and copy it to a target file. Returns <0 upon error. */
+int copy_libs_to_file(void)
+{
+	ssize_t len;
+	int ret = -1;
+	int fd = -1;
+
+	fd = open(lib_output_file, O_CREAT | O_WRONLY, S_IRWXU);
+	if (fd < 0) {
+		ha_alert("Cannot create output file to dump dependencies: %s.\n", strerror(errno));
+		goto fail;
+	}
+
+	collect_libs();
+	if (!lib_storage || !lib_size) {
+		ha_alert("Failed to collect dependencies.\n");
+		goto fail;
+	}
+
+	len = write(fd, lib_storage, lib_size);
+	if (len != lib_size) {
+		ha_alert("Failed to write dependencies to output file: %s.\n", strerror(errno));
+		goto fail;
+	}
+
+	/* OK done */
+	ret = 0;
+ fail:
+	if (fd >= 0)
+		close(fd);
+	return ret;
+}
+
 # else // no DL_ITERATE_PHDR
 #  error "No dump_libs() function for this platform"
 # endif
@@ -6181,6 +6218,12 @@ void collect_libs(void)
 /* unsupported platform: nothing to free */
 void free_collected_libs(void)
 {
+}
+
+/* unsupported platform: do not copy anything */
+int copy_libs_to_file(void)
+{
+	return -1;
 }
 
 #endif // HA_HAVE_DUMP_LIBS
