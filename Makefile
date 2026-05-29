@@ -1003,7 +1003,7 @@ IGNORE_OPTS=help install install-man install-doc install-bin \
 
 ifneq ($(TARGET),)
 ifeq ($(filter $(firstword $(MAKECMDGOALS)),$(IGNORE_OPTS)),)
-build_opts = $(shell rm -f .build_opts.new; echo \'$(TARGET) $(BUILD_OPTIONS) $(VERBOSE_CFLAGS) $(WARN_CFLAGS) $(NOWARN_CFLAGS) $(DEBUG)\' > .build_opts.new; if cmp -s .build_opts .build_opts.new; then rm -f .build_opts.new; else mv -f .build_opts.new .build_opts; fi)
+build_opts = $(shell rm -f .build_opts.new; echo \'$(TARGET) $(BUILD_OPTIONS) $(EXTRA_MAKE) $(VERBOSE_CFLAGS) $(WARN_CFLAGS) $(NOWARN_CFLAGS) $(DEBUG)\' > .build_opts.new; if cmp -s .build_opts .build_opts.new; then rm -f .build_opts.new; else mv -f .build_opts.new .build_opts; fi)
 .build_opts: $(build_opts)
 else
 .build_opts:
