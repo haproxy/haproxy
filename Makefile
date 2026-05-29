@@ -61,7 +61,6 @@
 #   USE_OBSOLETE_LINKER     : use when the linker fails to emit __start_init/__stop_init
 #   USE_THREAD_DUMP         : use the more advanced thread state dump system. Automatic.
 #   USE_OT                  : enable the OpenTracing filter
-#   EXTRA_MAKE              : space-separated list of external addons using a Makefile.inc
 #   USE_MEMORY_PROFILING    : enable the memory profiler. Linux-glibc only.
 #   USE_LIBATOMIC           : force to link with/without libatomic. Automatic.
 #   USE_PTHREAD_EMULATION   : replace pthread's rwlocks with ours
@@ -95,6 +94,7 @@
 #   SILENT_DEFINE may be used to specify other defines which will not be
 #     reported by "haproxy -vv".
 #   EXTRA   is used to force building or not building some extra tools.
+#   EXTRA_MAKE space-separated list of external addons using a Makefile.inc
 #   DESTDIR is not set by default and is used for installation only.
 #           It might be useful to set DESTDIR if you want to install haproxy
 #           in a sandbox.
