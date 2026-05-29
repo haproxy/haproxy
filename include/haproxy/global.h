@@ -61,6 +61,7 @@ extern struct cfgfile fileless_cfg;
 /* storage for collected libs */
 extern void *lib_storage;
 extern size_t lib_size;
+extern char *lib_output_file;
 
 struct proxy;
 struct server;

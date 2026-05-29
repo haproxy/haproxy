@@ -215,6 +215,18 @@ list of options is :
     in foreground and to show incoming and outgoing events. It must never be
     used in an init script.
 
+  -dA[file] : dump an archive of all dependencies detected at boot time in the
+    designated file in tar format, immediately after the configuration is done
+    loading. This is equivalent to "set-dumpable libs", but instead of keeping
+    the libs in memory, it dumps them into a file. This may be used after a
+    core dump, in order to provide all necessary libraries to developers to
+    permit them to exploit the core. This may not be available on all operating
+    systems. It is highly recommended to use this with the regular
+    configuration files, and optionally with "-c" when used manually, to make
+    haproxy immediately exit after the dump, without starting. Example:
+
+       $ haproxy -dA/tmp/libs.tar -c -f /etc/haproxy/haproxy.cfg
+
   -dC[key] : dump the configuration file. It is performed after the lines are
     tokenized, so comments are stripped and indenting is forced. If a non-zero
     key is specified, lines are truncated before sensitive/confidential fields,

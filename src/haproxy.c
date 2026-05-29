@@ -274,6 +274,7 @@ unsigned int deprecated_directives_allowed = 0;
 /* mapped storage for collected libs */
 void *lib_storage = NULL;
 size_t lib_size = 0;
+char *lib_output_file = NULL;
 
 int check_kw_experimental(struct cfg_keyword *kw, const char *file, int linenum,
                           char **errmsg)
@@ -783,6 +784,9 @@ static void usage(char *name)
 #endif
 #if defined(HA_HAVE_DUMP_LIBS)
 		"        -dL dumps loaded object files after config checks\n"
+#endif
+#if defined(HA_HAVE_DUMP_LIBS) && defined(HA_HAVE_DL_ITERATE_PHDR)
+		"        -dA[file] collects libs into a tar file at <file>\n"
 #endif
 #if defined(USE_CPU_AFFINITY)
 		"        -dc dumps the list of selected and evicted CPUs\n"
@@ -1627,6 +1631,16 @@ void haproxy_init_args(int argc, char **argv)
 #if defined(HA_HAVE_DUMP_LIBS)
 			else if (*flag == 'd' && flag[1] == 'L')
 				arg_mode |= MODE_DUMP_LIBS;
+# if defined(HA_HAVE_DL_ITERATE_PHDR)
+			else if (*flag == 'd' && flag[1] == 'A') {
+				lib_output_file = flag + 2;
+				if (!*lib_output_file) {
+					ha_alert("-dA: missing output file name\n");
+					exit(1);
+				}
+				arg_mode |= MODE_DUMP_LIBS; // stop on libs dump
+			}
+# endif /* HA_HAVE_DL_ITERATE_PHDR */
 #endif
 			else if (*flag == 'd' && flag[1] == 'K') {
 				arg_mode |= MODE_DUMP_KWD;
@@ -2312,6 +2326,17 @@ static void step_init_2(int argc, char** argv)
 
 #if defined(HA_HAVE_DUMP_LIBS)
 	if (global.mode & MODE_DUMP_LIBS && !master) {
+# if defined(HA_HAVE_DL_ITERATE_PHDR)
+		if (lib_output_file) {
+			/* we'll dump everything to lib_output_file */
+			if (copy_libs_to_file() < 0)
+				deinit_and_exit(1);
+			/* release memory if no longer needed */
+			if ((global.tune.options & (GTUNE_SET_DUMPABLE | GTUNE_COLLECT_LIBS)) !=
+			    (GTUNE_SET_DUMPABLE | GTUNE_COLLECT_LIBS))
+				free_collected_libs();
+		}
+# endif
 		qfprintf(stdout, "List of loaded object files:\n");
 		chunk_reset(&trash);
 		if (dump_libs(&trash, ((arg_mode & (MODE_QUIET|MODE_VERBOSE)) == MODE_VERBOSE)))
