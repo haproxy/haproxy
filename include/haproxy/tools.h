@@ -1154,6 +1154,7 @@ void *get_sym_curr_addr(const char *name);
 void *get_sym_next_addr(const char *name);
 int dump_libs(struct buffer *output, int with_addr);
 void collect_libs(void);
+void free_collected_libs(void);
 
 /* Note that this may result in opening libgcc() on first call, so it may need
  * to have been called once before chrooting.
