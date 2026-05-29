@@ -2956,7 +2956,7 @@ void deinit(void)
 		free(init_env);
 	}
 	free(progname);
-
+	free_collected_libs();
 } /* end deinit() */
 
 __attribute__((noreturn)) void deinit_and_exit(int status)

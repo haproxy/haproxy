@@ -6151,6 +6151,17 @@ void collect_libs(void)
 	/* don't need the temporary storage anymore */
 	ha_free(&ctx.storage);
 }
+
+/* release memory associated to collected libs */
+void free_collected_libs(void)
+{
+	if (!lib_storage || !lib_size)
+		return;
+	munmap(lib_storage, lib_size);
+	lib_storage = NULL;
+	lib_size = 0;
+}
+
 # else // no DL_ITERATE_PHDR
 #  error "No dump_libs() function for this platform"
 # endif
@@ -6164,6 +6175,11 @@ int dump_libs(struct buffer *output, int with_addr)
 
 /* unsupported platform: do not collect anything */
 void collect_libs(void)
+{
+}
+
+/* unsupported platform: nothing to free */
+void free_collected_libs(void)
 {
 }
 
