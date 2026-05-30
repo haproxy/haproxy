@@ -21,8 +21,11 @@ HAPROXY CORE PRINCIPLES
    - Aliases: uchar (unsigned char), uint (unsigned int), ulong (unsigned long),
      ushort (unsigned short), ullong (unsigned long long), llong (long long),
      schar (signed char).
-   - size_t always same size as long but often declared as uint on 32-bit and
-     ulong on 64-bit. Do not use in printf() without a cast (ulong with "%lu").
+   - size_t is always the same size as long, but its underlying type is often
+     uint on 32-bit and ulong on 64-bit. This is a frequent source of build
+     errors on 32-bit platforms (e.g. passing a size_t where a long* is
+     expected, or printing one with "%lu"); always cast in printf() (ulong
+     with "%lu").
    - Main platforms are x86_64 and aarch64 with high thread counts (>=64).
    - Unaligned accesses are permitted for archs that support them; portable
      wrappers in net_helper.h (read_u32(), write_u32() etc).
@@ -36,7 +39,8 @@ HAPROXY CORE PRINCIPLES
 3. MEMORY MANAGEMENT AND POOLS
    - Pools are used for runtime allocation; malloc/free are for boot code only.
    - pool_alloc() semantics match malloc(); the return must always be tested.
-   - pool_alloc() and malloc() are not interchangeable / compatible.
+   - pool_alloc() and malloc() are not interchangeable: memory obtained from one
+     must not be released using the other's free function.
    - pool_free() semantics match free(); it is a no-op on NULL.
    - pool_free() makes the pointer invalid immediately; it must not be touched
      or passed to pool_free() again.
@@ -57,8 +61,8 @@ HAPROXY CORE PRINCIPLES
    - idempotent functions b_alloc() and b_free() use pools to manage the
      storage area and check <size> to know if alloc/free still needed.
    - a non-contiguous version exists (ncbuf, ncbmbuf), allowing holes anywhere
-     in data. The former mandates holes of at least 8 bytes. The second relies
-     on a bitmap of populated places.
+     in data. ncbuf mandates holes of at least 8 bytes, while ncbmbuf relies on
+     a bitmap of populated places.
    - another string API exists, "ist", representing a pointer and a length in a
      struct that is returned by inline functions and macros. It is described in
      doc/internals/api/ist.txt
@@ -73,8 +77,11 @@ HAPROXY CORE PRINCIPLES
    - Chunks are used for linear operations like chunk_printf().
    - Trash is a thread-local temporary buffer; scope stays within the caller.
    - trash always the same size as a buffer (global.tune.bufsize).
-   - get_trash_chunk() provides up to 3 rotating thread-local trash chunks (with
-     a scope spanning from the call to the next function call).
+   - get_trash_chunk() provides rotating thread-local trash chunks. Since almost
+     any function may itself call get_trash_chunk(), a returned chunk is only
+     guaranteed valid until the next call into another function and must not be
+     held across such a call. The rotation lets a single function safely use up
+     to 3 distinct chunks at once for its own data manipulation.
    - For longer lived trash chunks, alloc_trash_chunk() is available but must be
      released using free_trash_chunk() on leaving.
    - standard doubly-linked lists (struct list) are provided via macros LIST_*.
@@ -103,8 +110,9 @@ HAPROXY CORE PRINCIPLES
      "ti" current thread info.
    - "tgid" always current tg number, "tg_ctx" current tg context.
    - HA_ATOMIC_* for atomic operations on integers and pointers (includes load
-     and store). DWCAS available on some platforms but requires an equivalent
-     for other ones.
+     and store). DWCAS is available on some platforms but requires an equivalent
+     fallback on the others (possibly a more complex operation, e.g. emulation
+     using two or more CAS).
    - The _HA_ATOMIC_* version (leading underscore) do not use barriers so these
      must be explicit (__ha_barrier_*).
    - Atomic loops must use CPU relaxation or exponential back-off.
@@ -178,8 +186,9 @@ HAPROXY CORE PRINCIPLES
    - Avoid static storage when persistence is not needed.
    - Macros in uppercase unless they're used to wrap functions which then get a
      leading underscore.
-   - Explicitly compare functions returning non-zero with 0 (e.g. strcmp) unless
-     they explicitly return a boolean (e.g. isalnum) or a pointer (e.g. strchr).
+   - Explicitly compare against 0 the return of functions that yield an integer
+     which is not a boolean (e.g. strcmp), unless they return a boolean (e.g.
+     isalnum) or a pointer (e.g. strchr).
    - Unsigned int comparisons to zero never use >0 but !=0 to avoid signedness
      mistakes.
    - turn non-zero integer to boolean using "!" or "!!".
