@@ -97,6 +97,9 @@ to the mailing list whose responses are present in these documents.
     protocol which is implemented by HAProxy and a number of third party
     products.
 
+  - security.txt : how to report a security issue, and what does and does not
+    qualify as a vulnerability.
+
   - README : how to build HAProxy from sources
 
 
@@ -1686,15 +1689,7 @@ information you might later regret. Since the issue tracker presents itself as
 a very long thread, please avoid pasting very long dumps (a few hundreds lines
 or more) and attach them instead.
 
-If you've found what you're absolutely certain can be considered a critical
-security issue that would put many users in serious trouble if discussed in a
-public place, then you can send it with the reproducer to security@haproxy.org.
-A small team of trusted developers will receive it and will be able to propose
-a fix. We usually don't use embargoes and once a fix is available it gets
-merged. In some rare circumstances it can happen that a release is coordinated
-with software vendors. Please note that this process usually messes up with
-everyone's work, and that rushed up releases can sometimes introduce new bugs,
-so it's best avoided unless strictly necessary; as such, there is often little
-consideration for reports that needlessly cause such extra burden, and the best
-way to see your work credited usually is to provide a working fix, which will
-appear in changelogs.
+If you believe you may have found a security issue, please refer to the file
+doc/security.txt. It explains what does and does not qualify as a vulnerability
+in HAProxy, and how to report a genuine one privately. Most suspected issues
+turn out to be ordinary bugs that are better reported as described above.

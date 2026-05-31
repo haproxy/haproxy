@@ -1,0 +1,36 @@
+Reporting security issues in HAProxy
+------------------------------------
+
+Before reporting anything, please read doc/internals/threat-model.txt. It
+defines precisely what is and is not considered a security vulnerability in
+HAProxy. A fair number of suspected issues (and most automated or LLM-assisted
+findings) fall outside that boundary: they are ordinary bugs, and are best
+reported and fixed in public through the usual channels described in the
+"Contacts" section of doc/intro.txt.
+
+If, after reading the threat model, you are confident you have found a genuine
+security issue that would put many users at risk if discussed in the open, the
+security team can be reached at security@haproxy.org, a private list read by a
+handful of security officers; anything shared there remains private. Please
+include a reproducer, and ideally a proposed and tested patch, as well as a
+valid name under which the report can be credited.
+
+We usually don't use embargoes: once a fix is available it simply gets merged.
+In rare circumstances a release may be coordinated with software vendors, but
+this disrupts everyone's work and rushed releases can introduce new bugs, so it
+is avoided unless strictly necessary. As a result, reports that needlessly cause
+such extra burden get little consideration, and the most effective and best
+credited way to report an issue is to provide a working fix, which will appear
+in the changelogs.
+
+Findings produced with the help of AI MUST be accompanied by a working, tested
+patch. Such tools routinely report issues that
+are out of scope (see the threat model above) or simply not real, and reviewing
+them by hand wastes the very time and trust this process depends on. A
+model-generated report that arrives without a verified reproducer and a fix will
+generally not be processed.
+
+See also:
+  - doc/internals/threat-model.txt    : what qualifies as a vulnerability
+  - doc/internals/core-principles.txt : the project's design principles
+  - doc/intro.txt                     : general contacts and bug reporting
