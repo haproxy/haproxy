@@ -370,6 +370,12 @@ void test_ncbmb(void)
 	char *data = calloc(16384, 1);
 	struct ncbmbuf buf;
 
+	if (!area || !data) {
+		free(area);
+		free(data);
+		return;
+	}
+
 	memset(data, 0x11, 16384);
 
 	/* 7 bytes data // 1 byte bitmap (0xfe) */
@@ -542,6 +548,12 @@ void test_ngtcp2_crypto(void)
 	char *area = calloc(16384, 1);
 	char *data = calloc(16384, 1);
 	struct ncbmbuf buf;
+
+	if (!area || !data) {
+		free(area);
+		free(data);
+		return;
+	}
 
 	memset(data, 0x11, 16384);
 
