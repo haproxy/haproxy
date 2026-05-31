@@ -15,6 +15,10 @@ handful of security officers; anything shared there remains private. Please
 include a reproducer, and ideally a proposed and tested patch, as well as a
 valid name under which the report can be credited.
 
+Auxiliary tools in dev/ and admin/ are not intended for production use and are
+by nature out of the security scope. Please report bugs affecting them via the
+regular channels.
+
 We usually don't use embargoes: once a fix is available it simply gets merged.
 In rare circumstances a release may be coordinated with software vendors, but
 this disrupts everyone's work and rushed releases can introduce new bugs, so it
@@ -24,11 +28,11 @@ credited way to report an issue is to provide a working fix, which will appear
 in the changelogs.
 
 Findings produced with the help of AI MUST be accompanied by a working, tested
-patch. Such tools routinely report issues that
-are out of scope (see the threat model above) or simply not real, and reviewing
-them by hand wastes the very time and trust this process depends on. A
-model-generated report that arrives without a verified reproducer and a fix will
-generally not be processed.
+patch. Such tools routinely report issues that are out of scope (see the
+threat model above) or simply not real, and reviewing them by hand wastes the
+very time and trust this process depends on. A model-generated report that
+arrives without a verified reproducer and a fix will generally not be
+processed.
 
 See also:
   - doc/internals/threat-model.txt    : what qualifies as a vulnerability
