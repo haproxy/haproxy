@@ -1801,6 +1801,8 @@ void filter_count_ip(const char *source_field, const char *accept_field, const c
 	 */
 	if (unlikely(!ustat))
 		ustat = calloc(1, sizeof(*ustat));
+	if (!ustat)
+		return;
 
 	ustat->nb_err = err;
 	ustat->nb_req = 1;
