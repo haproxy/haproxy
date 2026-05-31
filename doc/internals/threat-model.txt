@@ -1,0 +1,233 @@
+HAProxy Threat Model & Trust Boundaries
+
+This document defines the security boundaries of HAProxy, explicitly outlining
+what does and does not constitute a security vulnerability. Its purpose is to
+give reporters, developers and reviewers a single, predictable basis for
+judging an issue's real-world impact.
+
+The project's strong preference is to fix issues quickly and in the open.
+Public handling gets fixes to users sooner and spares the ecosystem
+(distributions in particular) the heavy cost of embargo coordination, which in
+practice has rarely served users. Private, coordinated disclosure is reserved
+for the few cases whose real-world impact genuinely warrants it, judged from
+the severity ordering (section 6) and the mitigations (section 5). An issue
+that is technically in scope but contained in practice does not, by itself,
+call for an embargo.
+
+These boundaries apply strictly to officially supported, documented builds
+running under a sane, production-ready configuration. Security guarantees are
+explicitly voided when using opt-in unsafe knobs, undocumented behavior, or
+experimental features. A configuration that merely lacks a recommended
+hardening step (for instance, no chroot) does not by itself move a
+client-triggered bug out of scope; the missing mitigation only widens the
+blast radius (sections 5 and 6).
+
+1. ASSETS TO PROTECT
+   HAProxy sits on the critical path of the services it fronts, so its
+   availability and the integrity and confidentiality of the configuration and
+   secrets it holds are all essential to protect. The assets below are not
+   ranked here; their relative severity is ranked in section 6.
+   - Integrity and confidentiality of the host and configuration: a compromise
+     of the network-facing worker must not extend to the filesystem, nor to the
+     configuration and its dependencies (private keys, Lua scripts, maps,
+     crt-lists, ACLs). On a properly configured system the default structural
+     mitigations prevent this, leaving only a compromise of the master process
+     as a residual path (see section 5).
+   - Confidentiality of long-lived secrets: TLS private keys and certificates
+     above all. Unlike transient client data, their disclosure is permanent and
+     systemic (impersonation and traffic decryption until every key is rotated
+     and revoked).
+   - Availability of the proxied service: being on the critical path, keeping
+     HAProxy serving is paramount. A small, cheap amount of attacker input
+     must neither consume a disproportionate amount of CPU or memory
+     (asymmetric DoS, see section 3) nor crash or stall the process.
+   - Confidentiality and isolation of client data: data belonging to one
+     connection, stream or client must never leak to another, and process
+     memory (including uninitialized memory) must never leak to a client.
+   - Process integrity (memory safety): no RCE, memory corruption or undefined
+     behaviour (UB) reachable from untrusted input.
+   - Correct enforcement of the configured policy: access controls, routing and
+     header manipulations decided by the configuration must not be bypassable
+     by crafted input.
+
+2. ATTACKER AND ENTRY POINTS
+   - The reference attacker is an untrusted client able to send arbitrary
+     bytes to a frontend: raw TCP payloads, HTTP/1, HTTP/2 and HTTP/3 (QUIC)
+     traffic, and arbitrary TLS handshake records.
+   - Entry points in scope are therefore the listeners and everything that
+     parses or transforms client-supplied data: TLS, the HTTP muxes, HTX,
+     header/URL processing, sample fetches and converters acting on request
+     data, stick-tables fed by client data, the cache, and the QUIC/H3 stack.
+   - A secondary untrusted source is the DNS resolver path: even though
+     nameservers are configured, their answers arrive over UDP and can be
+     spoofed by an off-path attacker, so the response parser handles
+     attacker-influenced input.
+
+3. WHAT QUALIFIES AS A SECURITY BUG (IN SCOPE)
+   - Memory-safety issues (overflow, out-of-bounds, use-after-free, type
+     confusion, UB) reachable from untrusted client input.
+   - Cross-client or cross-stream effects: HTTP request smuggling, response
+     splitting, cache poisoning, and any mixing of data between concurrent
+     streams or connections (notably in the H2/H3 multiplexers).
+   - Disclosure of process memory or of another client's data to a client.
+   - Bypass of a policy that the configuration is meant to enforce (e.g.
+     defeating an http-request deny/acl through request crafting).
+   - Asymmetric / algorithmic denial of service: a single or a few cheap
+     requests causing disproportionate CPU or memory usage (hash-collision
+     flooding, catastrophic regex backtracking, quadratic parsing, unbounded
+     allocation, etc). This is distinct from volumetric DoS (see 4).
+   - Misuse of a third-party library on untrusted input: feeding malformed
+     client data into OpenSSL, PCRE, Lua, zlib, etc. in a way that corrupts
+     memory or crashes the process is in scope. A vulnerability inside the
+     library itself is handled by that library's project, not here.
+   - Mishandling of spoofable DNS responses: memory corruption, crashes or
+     cache/state poisoning in the resolver caused by a crafted DNS answer are
+     in scope, despite nameservers being nominally trusted (see section 2).
+
+4. WHAT DOES NOT QUALIFY (OUT OF SCOPE)
+   The following do not fall into the security-bug category.
+
+   Trusted peers, servers and protocols:
+   - attacks that require a non-compliant or malicious server: in a reverse
+     proxy, servers are trusted, or ejected. This covers server-to-client
+     attacks in general.
+   - attacks on protocols only used with trusted peers: peers, PROXY protocol,
+     CIP (NetScaler Client-IP insertion), SOCKS, a local server reached over
+     an ABNS or UNIX socket, an FCGI server, etc., as well as TLS servers
+     contacted by the internal httpclient.
+   - malfunction of a trusted auxiliary service (log server, ring output,
+     CLI API consumer, etc.).
+
+   Privileged or local access (the actor is already trusted):
+   - any problem triggered through admin access to the CLI.
+   - anything requiring access to the master CLI.
+   - anything requiring access to the command line.
+   - anything requiring write access to the configuration file or any of its
+     dependencies (Lua scripts, certificates, crt-list, acl, map, etc.).
+   - anything requiring a configuration running as root, or chrooted to "/"
+     (i.e. with no effective chroot).
+
+   Opt-in unsafe or experimental knobs (the operator disabled a safety):
+   - anything requiring "experimental-mode on" on the CLI.
+   - anything requiring "insecure-fork-wanted".
+   - anything requiring "accept-unsafe-violations-*".
+   - anything requiring "expose-experimental-directives".
+
+   Misconfiguration:
+   - anything requiring a configuration that emits warnings at boot.
+   - anything requiring a nonsensical configuration, e.g. a server looping back
+     to the frontend, non-standard header processing or URL rewriting, or an
+     excessively large number of headers or excessively large header/body
+     sizes.
+
+   Volumetric or otherwise detectable activity:
+   - anything requiring such a high and sustained level of activity that it
+     would be detected and blocked in production (e.g. billions of requests or
+     connections). This is volumetric DoS, as opposed to the asymmetric DoS of
+     section 3.
+
+   Inherent protocol limitations:
+   - anything that is a limitation of a standard protocol rather than an
+     implementation flaw. For example, HTTP/1 has no way to abort a single
+     transfer without closing the connection, so a client aborting a transfer
+     will necessarily cause the corresponding server-side connection to be
+     closed; this is by design of the protocol, not a vulnerability.
+
+   Features that are not security boundaries:
+   - the stats page, including its admin mode, relies on HTTP basic
+     authentication and was never meant to be a security boundary. Exposing a
+     public-facing, admin-enabled stats page is therefore not covered.
+   - configuring a listener to accept the PROXY protocol or CIP from senders
+     that are not restricted to trusted ones is a misconfiguration: these
+     headers are believed on trust, so the listener must be reachable only by
+     the trusted L4/L7 component that prepends them.
+
+   Side channels:
+   - cryptographic and micro-architectural side channels (timing, cache,
+     speculative execution, etc.) are out of scope. Constant-time handling of
+     secrets is pursued on a best-effort basis as ordinary hardening where it
+     clearly matters, but observable timing or resource variations are not
+     handled as security bugs.
+
+   Log integrity:
+   - escaping of data emitted to logs is a configuration responsibility.
+     Injection of control characters or forged fields through logged client
+     data (e.g. when default escaping is disabled, or when a downstream log
+     consumer mis-parses) is not covered.
+
+5. DEFENSE IN DEPTH (DEFAULT HARDENING)
+   A correctly deployed HAProxy combines several built-in mitigations that
+   bound the impact of a successful compromise. These are deliberately taken
+   into account when assessing the real-world severity of an issue and the
+   handling it deserves: when one of them contains the practical impact of a
+   bug, that bug rarely warrants a coordinated embargo and is usually better
+   fixed quickly and in the open, where users get the fix sooner. They lower
+   severity, not the obligation to fix: an exploitable memory-safety bug
+   reachable from client input is still corrected as a bug.
+   - No fork()/exec() in the worker: the worker never forks nor runs external
+     programs, so an attacker who achieves code execution has little ability
+     to spawn a shell or launch persistent background code. ("insecure-fork-
+     wanted" deliberately disables this and is itself out of scope, see
+     section 4.)
+   - chroot and privilege drop: in the sane configuration this document
+     assumes, the worker drops to an unprivileged user/group and chroots into
+     an empty, unwritable directory. Injected code therefore has no filesystem
+     access and very limited means to act on the host.
+   - Activity watchdog: a thread that stops making progress, e.g. hijacked
+     into an attacker-controlled loop or otherwise stuck, no longer services
+     the event loop; the watchdog detects this lack of activity and kills the
+     process after a few seconds rather than letting it be silently held.
+   - Master/worker separation: only the worker is exposed to the network and
+     runs the parsers reachable by clients, and it is the unprivileged,
+     chrooted process. The master keeps privileges and filesystem access but
+     has no network exposure. The master must therefore be protected as the
+     trusted, more privileged component; an attacker is assumed to face only
+     the worker. The master must under no circumstances be reachable from the
+     worker (e.g. a master CLI bound to a TCP socket such as localhost is
+     trivially reachable from compromised worker code and defeats this critical
+     separation).
+
+6. SEVERITY ORDERING
+   The worst-case outcomes below are ranked by their realistic impact on a
+   standard configuration, from most to least severe, and the effort spent
+   guarding against each is proportional to that severity. The ranking reflects
+   the master/worker privilege split and the containment provided by the
+   section-5 mitigations.
+     1. Remote code execution in the master process. The master is privileged
+        and has filesystem access, so compromising it defeats every
+        containment, leaks every secret, and can subvert or take down the
+        whole service.
+     2. Chosen disclosure of long-lived secrets, TLS private keys and
+        certificates above all. Unlike an outage the damage is permanent and
+        silent: stolen keys allow impersonation, interception and, absent
+        forward secrecy, decryption of captured traffic, until every affected
+        key is rotated and revoked across the ecosystem; a restart does not
+        undo it. "Chosen" sets this rank, not scope: any disclosure of process
+        memory or of another client's data to a client is in scope (section 3);
+        this top rank is reserved for a targeted exfiltration, where the
+        attacker steers the read to a known secret. A leak that cannot be
+        steered toward a specific secret is still an in-scope disclosure bug,
+        but ranks far lower - often no worse than the crash such a read tends
+        to cause first.
+     3. Crash of the master process. It brings the entire service down and
+        prevents workers from being respawned: a full but recoverable outage.
+     4. Crash of the worker process. A transient outage: in-flight connections
+        are lost and traffic is interrupted for the fraction of a second it
+        takes to respawn.
+     5. Remote code execution in the worker process. Contained by no-fork,
+        chroot, privilege drop and the watchdog, its availability impact is
+        usually below a worker crash, except in the unlikely case where it
+        unlocks the chosen disclosure of level 2, which is hard to reach
+        through the internals from injected code.
+     6. Policy bypass. Serious, but with no direct availability impact.
+
+7. SECURITY-RELEVANT INVARIANTS AND DEFAULTS
+   The values below define the conditions HAProxy is designed to operate
+   within, and may be relied upon by parsing and processing code. A suspected
+   vulnerability that can only be triggered by conditions outside them
+   (typically values pushed beyond the stated limits) does not qualify as
+   security-relevant:
+   - trash buffers and struct buffer storage are always at least a few kB.
+   - default buffer size is 16 kB (15 kB max input, as 1 kB is reserved for
+     rewrites), tunable up to <256 MB.
+   - default log line is 1 kB, tunable up to <=64 kB.
