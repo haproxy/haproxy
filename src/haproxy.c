@@ -3361,16 +3361,18 @@ static void setup_user_ns(uid_t euid, gid_t egid)
 
 static int do_chroot(const char *prog, const char *path)
 {
-	const char *chroot_dir = path;
-	int error = 0;
+	const char *dir, *chroot_dir;
+	int error, chroot_error;
 
+	error = chroot_error = 0;
+	dir = chroot_dir = path;
 	if (strcmp(path, "auto") == 0) {
 		/* When "chroot auto" is used, we attempt to chroot to an
 		 * anonymous and read-only directory.
 		 */
 		char tmpdir[] = "/tmp/haproxy.XXXXXX";
-		chroot_dir = mkdtemp(tmpdir);
-		if (chroot_dir == NULL) {
+		dir = mkdtemp(tmpdir);
+		if (dir == NULL) {
 			ha_alert("[%s.main()] Cannot create(%s) for chroot auto.\n",
 			         prog, tmpdir);
 			return -1;
@@ -3381,16 +3383,32 @@ static int do_chroot(const char *prog, const char *path)
 		 * want to remove the directory).
 		 */
 		DISGUISE(rmdir(tmpdir));
+		chroot_dir = ".";
 		if (!error)
-			error = chroot(".");
+			chroot_error = chroot(".");
 	} else if (strcmp(path, "/") != 0) {
-		error = chroot(path);
+		chroot_error = chroot(path);
 	}
-	if (!error)
+#ifdef CLONE_NEWUSER
+	/* If the chroot failed because of insufficient privileges and
+	 * unshare(CLONE_NEWUSER) is available, we attempt it to gain the
+	 * abilty to chroot as an unprivileged user. If that worked, we
+	 * try the chroot again.
+	 */
+	if (chroot_error && errno == EPERM) {
+		uid_t euid = geteuid();
+		gid_t egid = getegid();
+		if (unshare(CLONE_NEWUSER) == 0) {
+			setup_user_ns(euid, egid);
+			chroot_error = chroot(chroot_dir);
+		}
+	}
+#endif
+	if (!error && !chroot_error)
 		error = chdir("/");
 
-	if (error) {
-		ha_alert("[%s.main()] Cannot chroot(%s).\n", prog, chroot_dir);
+	if (error || chroot_error) {
+		ha_alert("[%s.main()] Cannot chroot(%s).\n", prog, dir);
 		return -1;
 	}
 
@@ -3733,20 +3751,6 @@ int main(int argc, char **argv)
 				   "configure 'chroot /' to silence this warning.\n", argv[0]);
 		}
 	}
-
-#ifdef CLONE_NEWUSER
-	/* When we aren't root and intend to chroot, we try the Linux-only
-	 * unshare(CLONE_NEWUSER) mechanism if available to allow chroot as an
-	 * unprivileged user. If that doesn't work, we just let the subsequent
-	 * chroot() fail as it would have previously.
-	 */
-	if (geteuid() != 0 && global.chroot != NULL) {
-		uid_t euid = geteuid();
-		gid_t egid = getegid();
-		if (unshare(CLONE_NEWUSER) == 0)
-			setup_user_ns(euid, egid);
-	}
-#endif
 
 	/* Must chroot and setgid/setuid in the children */
 	/* chroot if needed */
