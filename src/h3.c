@@ -403,13 +403,6 @@ static int h3_check_frame_valid(struct h3c *h3c, struct qcs *qcs, uint64_t ftype
 		 * control stream as a connection error of type H3_FRAME_UNEXPECTED.
 		 */
 
-		/* RFC 9114 7.2.7. MAX_PUSH_ID
-		 *
-		 * The MAX_PUSH_ID frame is always sent on the control stream. Receipt
-		 * of a MAX_PUSH_ID frame on any other stream MUST be treated as a
-		 * connection error of type H3_FRAME_UNEXPECTED.
-		 */
-
 		if (h3s->type != H3S_T_CTRL)
 			ret = H3_ERR_FRAME_UNEXPECTED;
 		else if (!(h3c->flags & H3_CF_SETTINGS_RECV))
@@ -459,7 +452,7 @@ static int h3_check_frame_valid(struct h3c *h3c, struct qcs *qcs, uint64_t ftype
 		 * receipt of a MAX_PUSH_ID frame as a connection error of type
 		 * H3_FRAME_UNEXPECTED.
 		 */
-		if (h3s->type == H3S_T_CTRL || conn_is_back(qcs->qcc->conn))
+		if (h3s->type != H3S_T_CTRL || conn_is_back(qcs->qcc->conn))
 			ret = H3_ERR_FRAME_UNEXPECTED;
 		else if (!(h3c->flags & H3_CF_SETTINGS_RECV))
 			ret = H3_ERR_MISSING_SETTINGS;
