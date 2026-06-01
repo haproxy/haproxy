@@ -1033,7 +1033,7 @@ static __maybe_unused int spop_get_varint(const struct buffer *b, int o, uint64_
 	size_t idx = o;
 	int r;
 
-	if (idx > b_data(b))
+	if (idx >= b_data(b))
 		return -1;
 
 	p = (unsigned char *)b_peek(b, idx++);
@@ -1043,7 +1043,7 @@ static __maybe_unused int spop_get_varint(const struct buffer *b, int o, uint64_
 
 	r = 4;
 	do {
-		if (idx > b_data(b))
+		if (idx >= b_data(b))
 			return -1;
 		p = (unsigned char *)b_peek(b, idx++);
 		*i += (uint64_t)*p << r;
