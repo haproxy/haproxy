@@ -20249,7 +20249,7 @@ cache <name>
   Declare a cache section, allocate a shared cache memory named <name>, the
   size of cache is mandatory (see keyword "total-max-size" below).
 
-early-hints <on/off>
+early-hints <on/off> [ratio <integer>]
   Enable or disable support for HTTP 103 Early Hints responses (see RFC 8297).
   When enabled, the cache remembers relevant "Link" response headers (with a
   "rel" parameter of preload, preconnect, dns-prefetch, modulepreload or
@@ -20260,6 +20260,12 @@ early-hints <on/off>
   head start on fetching subresources while the backend produces the body.
   Individual "cache-use" rules may opt out of this behavior with the
   "no-early-hints" keyword. The default value is off (disabled).
+
+  The optional "ratio" argument sets the percentage of total cache blocks
+  that may be reserved for hints-only entries (1 to 99, default 25). Higher
+  values keep hints alive longer at the cost of less space for full responses;
+  lower values prioritize full responses. This argument only makes sense when
+  "early-hints" is set to on, and is ignored otherwise.
 
 max-age <seconds>
   Define the maximum expiration duration. The expiration is set as the lowest

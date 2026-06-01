@@ -50,7 +50,7 @@
 #define CACHE_CF_EARLY_HINTS       0x00000002 /* enable HTTP 103 Early Hints (disabled by default) */
 
 /* Soft cap on the number of cache blocks that may be held by hints entries. */
-#define CACHE_HINTS_CAP(cache)     ((cache)->maxblocks / 4)
+#define CACHE_HINTS_CAP(cache)     ((cache)->maxblocks * (cache)->early_hints_ratio / 100)
 
 static uint64_t cache_hash_seed = 0;
 
@@ -79,6 +79,7 @@ struct cache {
 	unsigned int maxobjsz;   /* max-object-size (in bytes) */
 	unsigned int max_secondary_entries;  /* maximum number of secondary entries with the same primary hash */
 	uint8_t flags;           /* configuration flags, see CACHE_CF_* */
+	uint8_t early_hints_ratio;           /* percentage of cache reserved for hints entries (1..99) */
 	char id[33];             /* cache name */
 };
 
@@ -1305,10 +1306,10 @@ static int cache_strip_entry(struct shared_context *shctx,
 
 /*
  * Free one entry's blocks. If the hints pool is at or above the limit
- * (set to 25%), first try to evict the oldest hint entry. Otherwise,
- * pop the oldest full entry and try to strip it. If the entry doesn't
- * contain the relevant Link headers, or if we are past the limit for
- * hints blocks, evict it entirely.
+ * (as defined by early_hints_ratio), first try to evict the oldest hints
+ * entry. Otherwise, pop the oldest full entry and try to strip it. If the
+ * entry doesn't contain the relevant Link headers, or if we are past the
+ * limit for hints blocks, evict it entirely.
  * Returns 1 on success, 0 if nothing could be freed.
  */
 static int cache_make_room(struct shared_context *shctx)
@@ -2774,6 +2775,7 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 			tmp_cache_config->maxage = 60;
 			tmp_cache_config->maxblocks = 0;
 			tmp_cache_config->maxobjsz = 0;
+			tmp_cache_config->early_hints_ratio = 25;
 			tmp_cache_config->max_secondary_entries = DEFAULT_MAX_SECONDARY_ENTRY;
 		}
 	} else if (strcmp(args[0], "total-max-size") == 0) {
@@ -2860,7 +2862,7 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_WARN;
 		}
 	} else if (strcmp(args[0], "early-hints") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code)) {
+		if (alertif_too_many_args(3, file, linenum, args, &err_code)) {
 			err_code |= ERR_ABORT;
 			goto out;
 		}
@@ -2873,6 +2875,32 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 			ha_warning("parsing [%s:%d]: '%s' expects \"on\" or \"off\" (enable or disable HTTP 103 Early Hints support).\n",
 				   file, linenum, args[0]);
 			err_code |= ERR_WARN;
+		}
+
+		if (*args[2]) {
+			char *err;
+			unsigned int ratio;
+
+			if (strcmp(args[2], "ratio") != 0) {
+				ha_alert("parsing [%s:%d]: '%s' unexpected argument '%s', expected 'ratio'.\n",
+					 file, linenum, args[0], args[2]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			if (!*args[3]) {
+				ha_alert("parsing [%s:%d]: '%s ratio' expects an integer argument between 1 and 99.\n",
+					 file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			ratio = strtoul(args[3], &err, 10);
+			if (err == args[3] || *err != '\0' || ratio < 1 || ratio > 99) {
+				ha_alert("parsing [%s:%d]: '%s ratio' expects an integer argument between 1 and 99, got '%s'.\n",
+					 file, linenum, args[0], args[3]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			tmp_cache_config->early_hints_ratio = ratio;
 		}
 	} else if (strcmp(args[0], "max-secondary-entries") == 0) {
 		unsigned int max_sec_entries;
