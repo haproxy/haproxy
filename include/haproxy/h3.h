@@ -27,7 +27,7 @@
 #include <haproxy/buf-t.h>
 #include <haproxy/mux_quic-t.h>
 
-/* H3 unidirecational stream types
+/* H3 unidirectional stream types
  * Emitted as the first byte on the stream to differentiate it.
  */
 #define H3_UNI_S_T_CTRL       0x00
