@@ -4287,8 +4287,8 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 			if (ssl_sock_get_alpn(conn, qc->xprt_ctx, &alpn, &len)) {
 				struct quic_early_transport_params *etps = &s->path_params.tps;
 
-				if (s->path_params.srv_hash != conn->hash_node.key ||
-				    (len < sizeof(s->path_params.nego_alpn) &&
+				if (len < sizeof(s->path_params.nego_alpn) &&
+				     (s->path_params.srv_hash != conn->hash_node.key ||
 				     (len != strlen(s->path_params.nego_alpn) ||
 				     memcmp(&s->path_params.nego_alpn, alpn, len) != 0))) {
 					HA_RWLOCK_WRLOCK(SERVER_LOCK, &s->path_params.param_lock);
@@ -6922,10 +6922,10 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 
 				srv = objt_server(conn->target);
 				if (srv && ssl_sock_get_alpn(conn, ctx, &alpn, &len)) {
-					if (srv->path_params.srv_hash != conn->hash_node.key ||
-					    (len < sizeof(srv->path_params.nego_alpn) &&
-					     (len != strlen(srv->path_params.nego_alpn) ||
-					      memcmp(&srv->path_params.nego_alpn, alpn, len) != 0))) {
+					if (len < sizeof(srv->path_params.nego_alpn) &&
+					    (srv->path_params.srv_hash != conn->hash_node.key ||
+					    (len != strlen(srv->path_params.nego_alpn) ||
+					    memcmp(&srv->path_params.nego_alpn, alpn, len) != 0))) {
 						HA_RWLOCK_WRLOCK(SERVER_LOCK, &srv->path_params.param_lock);
 						memcpy(&srv->path_params.nego_alpn, alpn, len);
 						srv->path_params.nego_alpn[len] = 0;
