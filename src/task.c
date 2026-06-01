@@ -237,7 +237,7 @@ void __task_wakeup(struct task *t)
 	if (likely(t->nice)) {
 		int offset;
 
-		_HA_ATOMIC_INC(&tg_ctx->niced_tasks);
+		_HA_ATOMIC_INC(&ha_thread_info[thr].tg_ctx->niced_tasks);
 		offset = t->nice * (int)global.tune.runqueue_depth;
 		t->rq.key += offset;
 	}
