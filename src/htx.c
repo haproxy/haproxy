@@ -831,8 +831,7 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 
 			/* Remove partial headers/trailers from <dst> and rollback on <src> to not remove them later */
 			while (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL || type == HTX_BLK_HDR || type == HTX_BLK_TLR) {
-				BUG_ON(type != htx_get_blk_type(blk));
-				ret -= meta_sz + htx_get_blksz(blk);
+				ret -= meta_sz + htx_get_blksz(dstblk);
 				htx_remove_blk(dst, dstblk);
 				dstblk = htx_get_tail_blk(dst);
 				blk = htx_get_prev_blk(src, blk);
