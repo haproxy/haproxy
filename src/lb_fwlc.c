@@ -437,7 +437,7 @@ static void fwlc_srv_reposition(struct server *s)
 		tree_elt = fwlc_alloc_tree_elt(s->proxy, allocated_elt);
 		if (tree_elt == NULL) {
 			/* We failed to allocate memory, just try again later */
-			HA_RWLOCK_RDUNLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
+			HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
 			_HA_ATOMIC_STORE(&s->lb_lock, 0);
 			if (s->requeue_tasklet)
 				tasklet_wakeup(s->requeue_tasklet);
