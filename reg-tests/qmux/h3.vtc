@@ -1,0 +1,39 @@
+varnishtest "HTTP/3 over QMux"
+feature ignore_unknown_macro
+
+# TODO to adjust once QMux compilation is QUIC/SSL free
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1)'"
+
+haproxy h1 -conf {
+	global
+	.if feature(THREAD)
+		thread-groups 1
+	.endif
+	expose-experimental-directives
+	ssl-server-verify none
+
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fterm
+		bind "fd@${fterm}" ssl crt ${testdir}/certs/common.pem alpn h3
+        http-request return status 200 hdr x-alpn %[ssl_fc_alpn] hdr x-ver %[req.ver]
+
+	frontend fpub
+		bind "fd@${fpub}" proto h1
+		use_backend be
+
+	backend be
+		server hap ${h1_fterm_addr}:${h1_fterm_port} ssl alpn h3
+} -start
+
+client c1 -connect ${h1_fpub_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-alpn == "h3"
+	expect resp.http.x-ver == "3.0"
+} -run
