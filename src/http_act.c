@@ -2082,6 +2082,9 @@ static enum act_return http_action_pause(struct act_rule *rule, struct proxy *px
 	struct channel *chn = ((rule->from == ACT_F_HTTP_REQ) ? &s->req : &s->res);
 	struct sample *key;
 
+	if (flags & ACT_OPT_FINAL)
+		goto end;
+
 	if (!tick_isset(chn->analyse_exp)) {
 		int time;
 
@@ -2099,6 +2102,7 @@ static enum act_return http_action_pause(struct act_rule *rule, struct proxy *px
 	if (tick_isset(chn->analyse_exp) && !tick_is_expired(chn->analyse_exp, now_ms))
 		return ACT_RET_YIELD;
 
+  end:
 	chn->analyse_exp = TICK_ETERNITY;
 	return ACT_RET_CONT;
 }
