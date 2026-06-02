@@ -399,7 +399,9 @@ void haproxy_init_args(int argc, char **argv)
 				}
 
 				/* clear HTTP */
-				hbuf_appendf(&fbuf, "\tbind %s:%s shards by-thread\n", ip, port1);
+				hbuf_appendf(&fbuf, "\tbind %s:%s shards by-thread%s%s\n", ip, port1,
+					             tcp_bind_opt ? " " : "",
+					             tcp_bind_opt ? tcp_bind_opt : "");
 				has_bind = 1;
 				if (port2) {
 					has_ssl = 1;
