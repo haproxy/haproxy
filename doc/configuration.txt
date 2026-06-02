@@ -9105,7 +9105,9 @@ http-reuse { never | safe | aggressive | always }
   - proxy protocol
   - TOS and mark socket options
   - connection name, determined either by the result of the evaluation of the
-    "pool-conn-name" expression if present, otherwise by the "sni" expression
+    "pool-conn-name" expression if present, otherwise by the "sni" expression,
+    which defaults to "req.hdr(host),field(1,:)", i.e. uses the incoming
+    request's "Host" header field without the colon nor the port number.
 
   In some occasions, connection lookup or reuse is not performed due to extra
   restrictions. This is determined by the reuse strategy specified via the
@@ -9178,6 +9180,26 @@ http-reuse { never | safe | aggressive | always }
   but HTTP/1 connections on the backend, may observe a lower reuse rate because
   too few connections are kept open. It may be desirable in this case to adjust
   such thresholds or simply to increase the global "maxconn" value.
+
+  In some rare cases, when the host name is used to distinguish outgoing TLS
+  connections (e.g. forward proxy), where most request target different hosts,
+  the reuse rate will be very low, and the automatic eviction of rarely used
+  connections will kick in before connections have a chance to be reused,
+  because the mechanism continuously measures the average number of connections
+  needed to deliver the service without exhausting resources. In such
+  situations, setting "pool-low-conn" to a value close to the average expected
+  number of idle connections may help preserve more connections by encouraging
+  threads to setup their own instead of trying to pick other threads' and
+  shrinking the pool of available connections.
+
+  If a locally hosted server uses a single certificate (with multiple host
+  names or wildcards) and operates multiple sites, it may be more effective to
+  just use "no-sni-auto" on the "server" line to avoid reserving a connection
+  to a single Host name. This will significantly increase the reuse rate. Some
+  servers might perform excessive checks between Host and SNI though, resulting
+  in rejecting subsequent requests, so this option requires preliminary
+  validation. The default behavior ("sni-auto") is to be safe even with such
+  servers.
 
   When thread groups are explicitly enabled, it is important to understand that
   idle connections are only usable between threads from a same group. As such
@@ -19899,11 +19921,13 @@ sni-auto
   May be used in the following contexts: tcp, http, log, peers, ring
 
   The "sni-auto" parameter enables the automatic SNI selection, if no value was
-  already set. It is enabled by default but this parameter may be used as
-  "server" setting to reset any "no-sni-auto" setting which would have been
-  inherited from "default-server" directive as default value.  It may also be
-  used as "default-server" setting to reset any previous "default-server"
-  "no-sni-auto" setting.
+  already set. It sets the "sni" expression to "req.hdr(host),field(1,:)",
+  which means that an SNI will be presented with the Host name of the request
+  that is being sent to the server, but dropping the port number. It is enabled
+  by default but this parameter may be used as "server" setting to reset any
+  "no-sni-auto" setting which would have been inherited from "default-server"
+  directive as default value. It may also be used as "default-server" setting
+  to reset any previous "default-server" "no-sni-auto" setting.
 
   For HTTPS connections, the selected SNI is based on the request host header
   value, if found. Otherwise it remains unset. For other protocols, the option
