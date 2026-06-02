@@ -3,6 +3,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
+#include <haproxy/openssl-compat.h>
 #include <haproxy/version.h>
 
 static int haterm_debug;
@@ -259,6 +260,11 @@ void haproxy_init_args(int argc, char **argv)
 			else if (*opt == 'd' && *(opt+1) == 'S') {
 				global.tune.options &= ~GTUNE_USE_SPLICE;
 			}
+# if defined(HA_USE_KTLS)
+			else if (*opt == 'd' && *(opt+1) == 'T') {
+				global.tune.options |= GTUNE_NO_KTLS;
+			}
+# endif
 #endif
 			else if (*opt == 'd' && *(opt+1) == 'Z') {
 				global.tune.no_zero_copy_fwd |= NO_ZERO_COPY_FWD;
@@ -411,10 +417,16 @@ void haproxy_init_args(int argc, char **argv)
 					hbuf_appendf(&fbuf, "\tbind %s:%s shards by-thread ssl "
 					             "alpn h3,h2,http1.1,http1.0"
 					             " crt " HATERM_RSA_CERT_NAME
-					             " crt " HATERM_ECDSA_CERT_NAME "%s%s\n",
+					             " crt " HATERM_ECDSA_CERT_NAME "%s%s%s\n",
 					             ip, port2,
 					             tcp_bind_opt ? " " : "",
-					             tcp_bind_opt ? tcp_bind_opt : "");
+					             tcp_bind_opt ? tcp_bind_opt : "",
+# if defined(USE_LINUX_SPLICE) && defined(HA_USE_KTLS)
+						     " ktls on"
+# else
+						     "" /* no ktls */
+# endif
+						     );
 
 # if defined(USE_QUIC)
 					/* QUIC binding */
@@ -454,6 +466,10 @@ void haproxy_init_args(int argc, char **argv)
 		hbuf_appendf(&gbuf, "\ttune.memory.hot-size 3145728\n");
 		if (has_ssl)
 			hbuf_appendf(&gbuf, "\texpose-experimental-directives\n");
+#if defined(USE_LINUX_SPLICE) && defined(HA_USE_KTLS)
+		if (has_ssl)
+			hbuf_appendf(&gbuf, "\ttune.pipesize 262144\n");
+#endif
 	}
 
 	/* "global" section */
