@@ -28,7 +28,9 @@ static void haterm_usage(char *name)
 		"        -d : enable the traces for all http protocols\n"
 		"        -dS : disables splice() usage even when available\n"
 		"        -dZ : disable zero-copy forwarding\n"
+#if defined(USE_QUIC)
 		"        --" QUIC_BIND_LONG_OPT " <opts> : append options to QUIC \"bind\" lines\n"
+#endif
 		"        --" TCP_BIND_LONG_OPT " <opts> : append options to TCP \"bind\" lines\n"
 		, name);
 	exit(1);
@@ -171,7 +173,7 @@ void haproxy_init_args(int argc, char **argv)
 	struct hbuf fbuf = HBUF_NULL; // "frontend" section
 	struct hbuf tbuf = HBUF_NULL; // "traces" section
 	char *bits = NULL, *curves = NULL;
-	char *quic_bind_opt = NULL, *tcp_bind_opt = NULL;
+	char *quic_bind_opt __maybe_unused = NULL, *tcp_bind_opt = NULL;
 	int sargc; /* saved argc */
 	char **sargv; /* saved argv */
 
@@ -203,6 +205,7 @@ void haproxy_init_args(int argc, char **argv)
 			if (*opt == '-') {
 				/* long options */
 				opt++;
+#if defined(USE_QUIC)
 				if (strcmp(opt, QUIC_BIND_LONG_OPT) == 0) {
 					argv++; argc--;
 					if (argc <= 0 || **argv == '-')
@@ -210,7 +213,9 @@ void haproxy_init_args(int argc, char **argv)
 
 					quic_bind_opt = *argv;
 				}
-				else if (strcmp(opt, TCP_BIND_LONG_OPT) == 0) {
+				else
+#endif
+				if (strcmp(opt, TCP_BIND_LONG_OPT) == 0) {
 					argv++; argc--;
 					if (argc <= 0 || **argv == '-')
 						haterm_usage(progname);
@@ -408,6 +413,7 @@ void haproxy_init_args(int argc, char **argv)
 					             tcp_bind_opt ? " " : "",
 					             tcp_bind_opt ? tcp_bind_opt : "");
 
+#if defined(USE_QUIC)
 					/* QUIC binding */
 					hbuf_appendf(&fbuf, "\tbind %s@%s:%s shards by-thread ssl"
 					             " crt " HATERM_RSA_CERT_NAME
@@ -415,6 +421,7 @@ void haproxy_init_args(int argc, char **argv)
 					             ipv6 ? "quic6" : "quic4", ip, port2,
 					             quic_bind_opt ? " " : "",
 					             quic_bind_opt ? quic_bind_opt : "");
+#endif
 				}
 			}
 			else
