@@ -1,0 +1,83 @@
+varnishtest "Cache early-hints ratio cap test"
+# Verify the "early-hints ratio" option is respected: with ratio=1 on a 1MB
+# (1024-block) cache, the cap on hints blocks is 10. Storing more URLs than
+# 2 (full entries that fit) + 10 (hints entries that fit in the cap)
+# triggers eviction of the oldest hints entry instead of accumulating an
+# 11th. The test populates 13 URLs and verifies via "show cache" that the
+# cache holds exactly 10 hints-only entries and 2 full entries (the 1st
+# stored URL having been evicted).
+
+feature ignore_unknown_macro
+feature cmd "command -v curl && command -v socat"
+
+server s1 -repeat 13 {
+    rxreq
+    txresp \
+        -hdr "Cache-Control: public, max-age=300" \
+        -hdr "Link: </style.css>; rel=preload; as=style" \
+        -bodylen 400000
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        stats socket "${tmpdir}/h1/stats" level admin
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        default_backend test
+
+    backend test
+        # Force a fresh backend connection per request so server -repeat 13
+        # actually sees 13 separate connections.
+        http-reuse never
+        http-request cache-use my_cache
+        server www ${s1_addr}:${s1_port}
+        http-response cache-store my_cache
+
+    cache my_cache
+        total-max-size 1
+        max-age 300
+        max-object-size 500000
+        early-hints on ratio 1
+} -start
+
+
+shell {
+    # Issue 13 stores. With 400KB bodies into a 1MB cache, 2 fit as full
+    # entries. Each subsequent store strips one previously-full entry into
+    # a 1-block hints-only entry, until hints_blocks reaches the cap (10).
+    # The 13th store hits the cap, so an eviction is forced before another
+    # strip can succeed.
+    for i in $(seq 1 13); do
+        curl -fs -o /dev/null "http://${h1_fe_addr}:${h1_fe_port}/page$i"
+    done
+
+    # Tiny pause to let cache_store_http_end settle for the last request.
+    sleep 0.1
+
+    out=$(echo "show cache" | socat -t 5 "${tmpdir}/h1/stats" -)
+    hints=$(echo "$out" | grep -c "type:hints")
+    full=$(echo "$out" | grep -c "type:full")
+
+    if [ "$hints" -ne 10 ]; then
+        echo "ratio test: expected 10 hints entries, got $hints"
+        echo "show cache output:"
+        echo "$out"
+        exit 1
+    fi
+    if [ "$full" -ne 2 ]; then
+        echo "ratio test: expected 2 full entries, got $full"
+        echo "show cache output:"
+        echo "$out"
+        exit 1
+    fi
+}

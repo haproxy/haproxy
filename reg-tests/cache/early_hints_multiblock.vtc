@@ -1,0 +1,75 @@
+varnishtest "Cache HTTP 103 Early Hints: multi-block hint extraction"
+# Hint records are extracted from the stored entry by walking its HTX header
+# blocks. When the headers span more than one shctx block, extraction must
+# cross the block boundary. This test places a hint-worthy "Link" header past
+# the entry's first 1KB block (behind a large filler header) and checks that
+# its hint is still emitted in the 103, i.e. extraction does not stop at the
+# first block.
+#
+# The strip-on-read path is used (short max-age + a delay): the entry is
+# stored complete, expires, and the next lookup re-extracts its hints on the
+# fly, which is deterministic and does not depend on cache-capacity eviction.
+
+feature ignore_unknown_macro
+
+server s1 -repeat 2 {
+    rxreq
+    expect req.url == "/multiblock"
+    # The X-Pad header pushes the following Link header beyond the entry's
+    # first 1KB block, so extraction has to read into the next block(s).
+    txresp -hdr "Cache-Control: public, max-age=1" \
+           -hdr "X-Pad: PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP" \
+           -hdr "Link: <late.css>; rel=preload; as=style" \
+           -bodylen 100
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        default_backend test
+
+    backend test
+        http-reuse never
+        http-request cache-use my_cache
+        server www ${s1_addr}:${s1_port}
+        http-response cache-store my_cache
+
+    cache my_cache
+        total-max-size 1
+        max-age 300
+        max-object-size 4096
+        early-hints on
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    # Populate: a fresh store never replays hints, so a plain 200.
+    txreq -url "/multiblock"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# Let the entry expire (max-age=1) so the lookup takes the hint-replay path.
+delay 2
+
+client c2 -connect ${h1_fe_sock} {
+    # The hint-worthy Link sits past the first block; extraction must walk
+    # into the following block to find it, otherwise no hint is extracted
+    # and no 103 is emitted.
+    txreq -url "/multiblock"
+    rxresphdrs
+    expect resp.status == 103
+    expect resp.http.link == "<late.css>; rel=preload; as=style"
+    rxresp
+    expect resp.status == 200
+} -run

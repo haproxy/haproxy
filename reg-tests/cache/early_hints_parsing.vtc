@@ -1,0 +1,290 @@
+varnishtest "Cache HTTP 103 Early Hints: Link header parsing"
+# Pins down the (deliberately strict) parsing behaviour of the Link-header hint
+# extractor, i.e. link_is_hint() on top of http_get_hdr_param() and
+# http_next_hdr_value(). The point is to make the intended behaviour explicit so
+# a future relaxation of the parser cannot silently change hint detection.
+#
+# A 103 is emitted not only for hints entries but also when a *complete* entry
+# has expired: the lookup re-extracts the Link hints from the stale entry and
+# replays them before forwarding the request to the backend. We use that path
+# here (short max-age + a delay) to exercise the parser deterministically,
+# without depending on cache-capacity eviction.
+#
+# Positive cases must yield a 103 carrying the hint-worthy Link value verbatim;
+# negative cases must yield no 103 at all (the 200 is then read directly, which
+# fails if an unexpected 103 was emitted first).
+
+feature ignore_unknown_macro
+
+# The same fourteen responses are served twice: once to populate the cache
+# (client c1) and once on replay after expiry (client c2). With "http-reuse never" each
+# client session uses its own backend connection, so the server sees exactly two
+# connections, one per "-repeat" iteration.
+server s1 -repeat 2 {
+    rxreq
+    expect req.url == "/quoted"
+    txresp -hdr "Cache-Control: public, max-age=1" \
+           -hdr "Link: <a.css>; rel=\"preload prefetch\"" -bodylen 100
+
+    rxreq
+    expect req.url == "/valueless"
+    txresp -hdr "Cache-Control: public, max-age=1" \
+           -hdr "Link: <a.css>; crossorigin; rel=preload" -bodylen 100
+
+    rxreq
+    expect req.url == "/badws"
+    txresp -hdr "Cache-Control: public, max-age=1" \
+           -hdr "Link: <a.css>; rel = preload" -bodylen 100
+
+    rxreq
+    expect req.url == "/comma"
+    txresp -hdr "Cache-Control: public, max-age=1" \
+           -hdr "Link: <a.css>; rel=stylesheet, , <b.js>; rel=preload" -bodylen 100
+
+    rxreq
+    expect req.url == "/unquoted"
+    txresp -hdr "Cache-Control: public, max-age=1" \
+           -hdr "Link: <a.css>; rel=preload prefetch" -bodylen 100
+
+    rxreq
+    expect req.url == "/nonhint"
+    txresp -hdr "Cache-Control: public, max-age=1" \
+           -hdr "Link: <a.css>; rel=stylesheet" -bodylen 100
+
+    rxreq
+    expect req.url == "/dup-first"
+    txresp -hdr "Cache-Control: public, max-age=1" \
+           -hdr "Link: <a.css>; rel=preload; rel=stylesheet" -bodylen 100
+
+    rxreq
+    expect req.url == "/dup-second"
+    txresp -hdr "Cache-Control: public, max-age=1" \
+           -hdr "Link: <a.css>; rel=stylesheet; rel=preload" -bodylen 100
+
+    rxreq
+    expect req.url == "/qpair"
+    txresp -hdr "Cache-Control: public, max-age=1" \
+           -hdr {Link: <a.css>; title="foo \"bar\""; rel=preload} -bodylen 100
+
+    rxreq
+    expect req.url == "/qpair-resync"
+    txresp -hdr "Cache-Control: public, max-age=1" \
+           -hdr {Link: </a>; title="x\"; rel=preload; y=\"z"} -bodylen 100
+
+    rxreq
+    expect req.url == "/multi"
+    txresp -hdr "Cache-Control: public, max-age=1" \
+           -hdr "Link: <a.css>; rel=preload, <b.js>; rel=prefetch" -bodylen 100
+
+    rxreq
+    expect req.url == "/modulepreload"
+    txresp -hdr "Cache-Control: public, max-age=1" \
+           -hdr "Link: <m.js>; rel=modulepreload" -bodylen 100
+
+    rxreq
+    expect req.url == "/dns-prefetch"
+    txresp -hdr "Cache-Control: public, max-age=1" \
+           -hdr "Link: <https://cdn.example>; rel=dns-prefetch" -bodylen 100
+
+    rxreq
+    expect req.url == "/comma-uri"
+    txresp -hdr "Cache-Control: public, max-age=1" \
+           -hdr "Link: </a,b.css>; rel=preload" -bodylen 100
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        default_backend test
+
+    backend test
+        # Force a fresh backend connection per client session so the server's
+        # two "-repeat" iterations each see one connection.
+        http-reuse never
+        http-request cache-use my_cache
+        server www ${s1_addr}:${s1_port}
+        http-response cache-store my_cache
+
+    cache my_cache
+        total-max-size 1
+        max-age 300
+        max-object-size 4096
+        early-hints on
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    # Populate every variant; a fresh store never replays hints, so plain 200s.
+    txreq -url "/quoted"
+    rxresp
+    expect resp.status == 200
+    txreq -url "/valueless"
+    rxresp
+    expect resp.status == 200
+    txreq -url "/badws"
+    rxresp
+    expect resp.status == 200
+    txreq -url "/comma"
+    rxresp
+    expect resp.status == 200
+    txreq -url "/unquoted"
+    rxresp
+    expect resp.status == 200
+    txreq -url "/nonhint"
+    rxresp
+    expect resp.status == 200
+    txreq -url "/dup-first"
+    rxresp
+    expect resp.status == 200
+    txreq -url "/dup-second"
+    rxresp
+    expect resp.status == 200
+    txreq -url "/qpair"
+    rxresp
+    expect resp.status == 200
+    txreq -url "/qpair-resync"
+    rxresp
+    expect resp.status == 200
+    txreq -url "/multi"
+    rxresp
+    expect resp.status == 200
+    txreq -url "/modulepreload"
+    rxresp
+    expect resp.status == 200
+    txreq -url "/dns-prefetch"
+    rxresp
+    expect resp.status == 200
+    txreq -url "/comma-uri"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# Let the entries expire (max-age=1) so the lookup takes the hint-replay path.
+delay 2
+
+client c2 -connect ${h1_fe_sock} {
+    # Positive: a quoted, space-separated rel list is parsed via the quoted
+    # value branch; the whole link-value is replayed verbatim in the 103.
+    txreq -url "/quoted"
+    rxresphdrs
+    expect resp.status == 103
+    expect resp.http.link == "<a.css>; rel=\"preload prefetch\""
+    rxresp
+    expect resp.status == 200
+
+    # Positive: a valueless parameter (crossorigin) appearing before rel must be
+    # tolerated (HTTP_PARAM_NOVAL); otherwise parsing would stop before rel and
+    # the hint would be missed.
+    txreq -url "/valueless"
+    rxresphdrs
+    expect resp.status == 103
+    expect resp.http.link == "<a.css>; crossorigin; rel=preload"
+    rxresp
+    expect resp.status == 200
+
+    # Positive: "bad whitespace" around '=' must be tolerated (HTTP_PARAM_BADWS).
+    txreq -url "/badws"
+    rxresphdrs
+    expect resp.status == 103
+    expect resp.http.link == "<a.css>; rel = preload"
+    rxresp
+    expect resp.status == 200
+
+    # Positive: a comma-separated list with an empty element; the empty element
+    # is ignored and the hint-worthy value is still found and replayed.
+    txreq -url "/comma"
+    rxresphdrs
+    expect resp.status == 103
+    expect resp.http.link == "<b.js>; rel=preload"
+    rxresp
+    expect resp.status == 200
+
+    # Negative: an unquoted multi-token rel is malformed (a space-separated rel
+    # list MUST be quoted). The strict value parser rejects the parameter, so no
+    # hint is extracted and no 103 is emitted.
+    txreq -url "/unquoted"
+    rxresp
+    expect resp.status == 200
+
+    # Negative: a well-formed but non-hint rel (stylesheet) yields no 103.
+    txreq -url "/nonhint"
+    rxresp
+    expect resp.status == 200
+
+    # Positive: when rel appears twice, only the first occurrence counts
+    # (RFC 8288#3.3 requires parsers to ignore the others); here the first
+    # one is hint-worthy.
+    txreq -url "/dup-first"
+    rxresphdrs
+    expect resp.status == 103
+    expect resp.http.link == "<a.css>; rel=preload; rel=stylesheet"
+    rxresp
+    expect resp.status == 200
+
+    # Negative: the first rel is not hint-worthy and the second (preload)
+    # must be ignored, so no 103 is emitted.
+    txreq -url "/dup-second"
+    rxresp
+    expect resp.status == 200
+
+    # Positive: an escaped '"' inside a quoted value (quoted-pair,
+    # RFC 9110#5.6.4) must not close the string; the following rel is
+    # still found and the link-value replayed verbatim.
+    txreq -url "/qpair"
+    rxresphdrs
+    expect resp.status == 103
+    expect resp.http.link == {<a.css>; title="foo \"bar\""; rel=preload}
+    rxresp
+    expect resp.status == 200
+
+    # Negative: the whole quoted chunk is the title; a parser unaware of
+    # quoted-pairs would resynchronize on the ';' inside it and extract a
+    # bogus rel=preload. No 103 must be emitted.
+    txreq -url "/qpair-resync"
+    rxresp
+    expect resp.status == 200
+
+    # Positive: a single Link header carrying two hint-worthy comma-separated
+    # values yields both, re-joined with ", " (exercises the multi-value
+    # accumulation branch in cache_extract_link_hints).
+    txreq -url "/multi"
+    rxresphdrs
+    expect resp.status == 103
+    expect resp.http.link == "<a.css>; rel=preload, <b.js>; rel=prefetch"
+    rxresp
+    expect resp.status == 200
+
+    # Positive: rel=modulepreload is hint-worthy.
+    txreq -url "/modulepreload"
+    rxresphdrs
+    expect resp.status == 103
+    expect resp.http.link == "<m.js>; rel=modulepreload"
+    rxresp
+    expect resp.status == 200
+
+    # Positive: rel=dns-prefetch is hint-worthy.
+    txreq -url "/dns-prefetch"
+    rxresphdrs
+    expect resp.status == 103
+    expect resp.http.link == "<https://cdn.example>; rel=dns-prefetch"
+    rxresp
+    expect resp.status == 200
+
+    # Negative: an unquoted comma is a list delimiter per HTTP, so this splits
+    # into "</a" and "b.css>; rel=preload"; neither is a well-formed link-value
+    # (RFC 8288 requires a leading '<'), so both are ignored and no 103 fires.
+    # A server needing a comma in the URI must percent-encode it.
+    txreq -url "/comma-uri"
+    rxresp
+    expect resp.status == 200
+} -run

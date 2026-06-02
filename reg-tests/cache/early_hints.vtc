@@ -1,0 +1,147 @@
+varnishtest "Cache HTTP 103 Early Hints test"
+# When the cache has the early-hints feature enabled, hint-worthy Link headers
+# (rel=preload, rel=preconnect, rel=dns-prefetch, rel=modulepreload, rel=prefetch)
+# are extracted from cached responses and stored alongside the entry. When the
+# cache evicts the body of a Link-bearing entry under capacity pressure, the
+# entry is stripped (kept as hints-only). A subsequent request for the same URL
+# emits an HTTP 103 Early Hints response carrying the cached Link headers
+# before forwarding the request to the backend.
+#
+# Also verifies that the "no-early-hints" keyword on a cache-use rule
+# suppresses 103 emission even when the lookup hits a hints entry.
+
+feature ignore_unknown_macro
+feature cmd "command -v socat"
+
+server s1 {
+    # Initial population: three large entries to force cache pressure.
+    # /page1 is stripped when /page3 is stored.
+    rxreq
+    expect req.url == "/page1"
+    txresp \
+        -hdr "Cache-Control: public, max-age=300" \
+        -hdr "Link: </style.css>; rel=preload; as=style" \
+        -hdr "Link: <https://fonts.example>; rel=preconnect" \
+        -bodylen 400000
+
+    rxreq
+    expect req.url == "/page2"
+    txresp \
+        -hdr "Cache-Control: public, max-age=300" \
+        -hdr "Link: </style.css>; rel=preload; as=style" \
+        -hdr "Link: <https://fonts.example>; rel=preconnect" \
+        -bodylen 400000
+
+    rxreq
+    expect req.url == "/page3"
+    txresp \
+        -hdr "Cache-Control: public, max-age=300" \
+        -hdr "Link: </style.css>; rel=preload; as=style" \
+        -bodylen 400000
+
+    # /page1 replayed through the no-early-hints rule: 103 is suppressed,
+    # request still falls through to backend, and the response is stored as
+    # a new full entry (stripping /page2 to make room).
+    rxreq
+    expect req.url == "/page1"
+    txresp \
+        -hdr "Cache-Control: public, max-age=300" \
+        -hdr "Link: </style.css>; rel=preload; as=style" \
+        -bodylen 400000
+
+    # /page2 was stripped above. A replay hits the hints entry: a 103 is
+    # emitted from the cache, then the request is forwarded to the backend.
+    rxreq
+    expect req.url == "/page2"
+    txresp \
+        -hdr "Cache-Control: public, max-age=300" \
+        -hdr "Link: </style.css>; rel=preload; as=style" \
+        -bodylen 400000
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        stats socket "${tmpdir}/h1/stats" level admin
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        default_backend test
+
+    backend test
+        # Conditional cache-use rules: requests carrying X-No-EH use the
+        # no-early-hints opt-out (suppressing 103 emission on lookup); all
+        # others use the default behavior.
+        http-request cache-use my_cache no-early-hints if { req.hdr(X-No-EH) -m str 1 }
+        http-request cache-use my_cache unless { req.hdr(X-No-EH) -m str 1 }
+        server www ${s1_addr}:${s1_port}
+        http-response cache-store my_cache
+
+    cache my_cache
+        total-max-size 1
+        max-age 300
+        max-object-size 500000
+        early-hints on ratio 25
+} -start
+
+
+client c1 -connect ${h1_fe_sock} {
+    # Populate the cache. /page1 will be stripped to hints-only when /page3
+    # is stored because the three full bodies do not fit simultaneously.
+    txreq -url "/page1"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 400000
+
+    txreq -url "/page2"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 400000
+
+    txreq -url "/page3"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 400000
+
+    # Replay /page1 through the no-early-hints rule. Cache finds the hints
+    # entry but the no-early-hints opt-out suppresses 103 emission; request
+    # falls through to backend and we receive only the 200. The new /page1
+    # store strips /page2 to make room.
+    txreq -url "/page1" -hdr "X-No-EH: 1"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 400000
+
+    # Replay /page2 normally: hits the now-stripped /page2 entry, expect 103
+    # with the cached Link hints, then the 200 from the backend. /page2 was
+    # stored with two hint-worthy Link headers; vtest exposes only the first
+    # via resp.http.link, so only that record is asserted here (multi-value
+    # hint content is covered in early_hints_parsing.vtc).
+    txreq -url "/page2"
+    rxresphdrs
+    expect resp.status == 103
+    expect resp.http.link == "</style.css>; rel=preload; as=style"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 400000
+} -run
+
+# Exactly one 103 was emitted in the whole scenario (the /page2 replay);
+# the /page1 replay through the no-early-hints rule must not have counted.
+shell {
+    hits=$(echo "show stat" | socat -t 5 "${tmpdir}/h1/stats" - | \
+           awk -F, 'NR==1 { for (i=1; i<=NF; i++) if ($i=="cache_hint_hits") c=i }
+                    $1=="test" && $2=="BACKEND" { print $c }')
+    if [ "$hits" != "1" ]; then
+        echo "expected 1 cache hint hit, got '$hits'"
+        exit 1
+    fi
+}
