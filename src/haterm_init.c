@@ -404,6 +404,7 @@ void haproxy_init_args(int argc, char **argv)
 					             tcp_bind_opt ? tcp_bind_opt : "");
 				has_bind = 1;
 				if (port2) {
+#if defined(USE_OPENSSL)
 					has_ssl = 1;
 
 					/* SSL/TCP binding */
@@ -415,7 +416,7 @@ void haproxy_init_args(int argc, char **argv)
 					             tcp_bind_opt ? " " : "",
 					             tcp_bind_opt ? tcp_bind_opt : "");
 
-#if defined(USE_QUIC)
+# if defined(USE_QUIC)
 					/* QUIC binding */
 					hbuf_appendf(&fbuf, "\tbind %s@%s:%s shards by-thread ssl"
 					             " crt " HATERM_RSA_CERT_NAME
@@ -423,7 +424,11 @@ void haproxy_init_args(int argc, char **argv)
 					             ipv6 ? "quic6" : "quic4", ip, port2,
 					             quic_bind_opt ? " " : "",
 					             quic_bind_opt ? quic_bind_opt : "");
-#endif
+# endif /* USE_QUIC */
+#else /* !USE_OPENSSL */
+						ha_alert("SSL support not compiled in. Rebuild with USE_OPENSSL=1.\n");
+						goto leave;
+#endif /* USE_OPENSSL */
 				}
 			}
 			else
