@@ -684,15 +684,15 @@ OPTIONS_OBJS += src/quic_openssl_compat.o
 endif
 
 ifneq ($(USE_LUA:0=),)
-  check_lua_inc = $(shell if [ -d $(2)$(1) ]; then echo $(2)$(1); fi;)
+  check_lua_inc = $(shell if [ ! -e /usr/include/lua.h -a -e $(2)$(1)/lua.h ]; then echo $(2)$(1); fi;)
   LUA_INC      := $(firstword $(foreach lib,lua5.5 lua55 lua5.4 lua54 lua5.3 lua53 lua,$(call check_lua_inc,$(lib),"/usr/include/")))
 
-  check_lua_lib = $(shell echo "int main(){}" | $(CC) -o /dev/null -x c - $(2) -l$(1) 2>/dev/null && echo $(1))
+  check_lua_lib = $(shell (echo "#include <lua.h>";echo "int main(){}") | $(CC) $(if $(LUA_INC),-I$(LUA_INC)) -o /dev/null -x c - $(2) -l$(1) 2>/dev/null && echo $(1))
   LUA_LD_FLAGS := -Wl,$(if $(EXPORT_SYMBOL),$(EXPORT_SYMBOL),--export-dynamic) $(if $(LUA_LIB),-L$(LUA_LIB))
 
   # Try to automatically detect the Lua library if not set
   ifeq ($(LUA_LIB_NAME),)
-    LUA_LIB_NAME := $(firstword $(foreach lib,lua5.5 lua55 lua5.4 lua54 lua5.3 lua53 lua,$(call check_lua_lib,$(lib),$(LUA_LD_FLAGS))))
+    LUA_LIB_NAME := $(firstword $(foreach lib,lua lua5.5 lua55 lua5.4 lua54 lua5.3 lua53,$(call check_lua_lib,$(lib),$(LUA_LD_FLAGS))))
   endif
 
   # Lua lib name must be set now (forced/detected above)
