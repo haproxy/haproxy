@@ -1030,7 +1030,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 	/* Process the expression. */
 	memset(&smp, 0, sizeof(smp));
 
-	if (!lf_expr_isempty(&rule->arg.vars.fmt)) {
+	if (rule->action == 2) {  /* set-var-fmt */
 		/* a format-string is used */
 
 		fmtstr = alloc_trash_chunk();
@@ -1051,7 +1051,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 		smp.data.type = SMP_T_STR;
 		smp.data.u.str = *fmtstr;
 	}
-	else {
+	else { /* set-var */
 		/* an expression is used */
 		if (!sample_process(px, sess, s, dir|SMP_OPT_FINAL,
 	                            rule->arg.vars.expr, &smp))
@@ -1360,7 +1360,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 		}
 	}
 
-	rule->action     = ACT_CUSTOM;
+	rule->action     = set_var;
 	rule->action_ptr = action_store;
 	rule->release_ptr = release_store_rule;
 	return ACT_RET_PRS_OK;
