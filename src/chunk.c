@@ -145,14 +145,15 @@ struct buffer *get_small_trash_chunk(void)
 
 /* Returns a trash chunk accordingly to the requested size. This function may
  * fail if the requested size is too big or if the large chunks are not
- * configured.
+ * configured. Note that requesting a size larger than the largest available
+ * buffer will result in NULL being returned, so better be conservative when
+ * requesting the size and plan to use get_larger_trash_chunk() later if not
+ * sufficient.
  */
 struct buffer *get_trash_chunk_sz(size_t size)
 {
-	if (likely(size > small_trash_size && size <= trash_size))
+	if (likely(size <= trash_size))
 		return get_trash_chunk();
-	else if (small_trash_size && size <= small_trash_size)
-		return get_small_trash_chunk();
 	else if (large_trash_size && size <= large_trash_size)
 		return get_large_trash_chunk();
 	else

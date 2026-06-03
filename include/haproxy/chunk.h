@@ -165,9 +165,7 @@ static forceinline struct buffer *alloc_small_trash_chunk(void)
  */
 static forceinline struct buffer *alloc_trash_chunk_sz(size_t size)
 {
-	if (pool_head_small_trash && size <= pool_head_small_trash->size)
-		return alloc_small_trash_chunk();
-	else if (size <= pool_head_trash->size)
+	if (size <= pool_head_trash->size)
 		return alloc_trash_chunk();
 	else if (pool_head_large_trash && size <= pool_head_large_trash->size)
 		return alloc_large_trash_chunk();
