@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2026/06/03 : 3.5-dev0
+    - MINOR: version: mention that it's development again
+
 2026/06/03 : 3.4.0
     - BUG/MINOR: tcpcheck: Check LDAP response to not read more data than available
     - BUG/MINOR: ssl-gencert: validate SNI characters to prevent SAN certificate injection
