@@ -186,7 +186,7 @@ static int sample_conv_map_key(const struct arg *arg_p, struct sample *smp, void
 	pat = pattern_exec_match(&desc->pat, smp, 1);
 
 	/* Match case. */
-	if (pat) {
+	if (pat && pat->ref) {
 		smp->data.type = SMP_T_STR;
 		smp->flags |= SMP_F_CONST;
 		smp->data.u.str.area = (char *)pat->ref->pattern;
