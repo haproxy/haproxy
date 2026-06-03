@@ -1,6 +1,100 @@
 ChangeLog :
 ===========
 
+2026/06/03 : 3.4.0
+    - BUG/MINOR: tcpcheck: Check LDAP response to not read more data than available
+    - BUG/MINOR: ssl-gencert: validate SNI characters to prevent SAN certificate injection
+    - BUG/MINOR: mux-h1: H2 preface rejection doesn't update stick-table glitches
+    - BUG/MEDIUM: cpu-topo: Enforce thread-hard-limit on policy
+    - BUG/MEDIUM: qmux: do not crash on too large record
+    - BUG/MEDIUM: qmux: do not crash on receiving an invalid first frame
+    - BUG/MINOR: qmux: reject too large initial record
+    - Revert "BUG/MEDIUM: dns: fix long loops in additional records parse on name failure"
+    - BUG/MINOR: qpack: Fix index calculation in debug functions
+    - BUG/MINOR: qpack: fix potential null-pointer dereference in qpack_dht_insert()
+    - CLEANUP: qpack: fix copy-paste typo in value Huffman debug string
+    - BUG/MINOR: qpack: fix sign bit mask in qpack_decode_fs_pfx()
+    - CLEANUP: qpack: fix copy-paste typo in value Huffman debug string for WLN
+    - BUG/MINOR: qpack: fix huff_dec() error handling in qpack_decode_fs()
+    - CLEANUP: qpack: move encoded macros to qpack-t.h to avoid duplication
+    - BUG/MEDIUM: quic: handle ECONNREFUSED on RX side
+    - BUG/MINOR: quic: Fix memory leak in quic_deallocate_dghdlrs()
+    - BUG/MEDIUM: lua: defer Lua VM initialisation to the first Lua config keyword
+    - REGTESTS: lua: fix tune.lua.openlibs in Lua reg-tests
+    - BUG/MINOR: mux-h2: Count padding for connection flow control on error path
+    - BUILD: addons: convert 51d addon to EXTRA_MAKE
+    - BUILD: addons: convert deviceatlas addon to EXTRA_MAKE
+    - BUILD: addons: convert WURFL addon to EXTRA_MAKE
+    - MINOR: mux_quic/flags: add missing flags
+    - BUG/MINOR: mux_quic: open an idle QCS on reset on BE side
+    - BUG/MINOR: mux_quic: fix BE conn removal on app shutdown
+    - BUG/MINOR: mux_quic: prevent BE reuse with an errored conn
+    - BUG/MINOR: quic: fix ack range node pool_free call passing wrong pointer type
+    - MEDIUM: quic: optimize HKDF operations by reusing per-thread contexts
+    - BUG/MEDIUM: quic: reset cwnd in slow_start on persistent congestion (cubic)
+    - BUG/MEDIUM: quic: reset consecutive_losses on exit from recovery period (cubic)
+    - BUG/MINOR: quic: update drs->lost before calling on_ack_recv
+    - Revert "MEDIUM: quic: optimize HKDF operations by reusing per-thread contexts"
+    - BUG/MEDIUM: lua: register hlua_init() as a pre-check to fix crash without Lua config
+    - REGTESTS: quic: disable quic/ocsp_auto_update for now
+    - BUG/MINOR: threads: set at least grp_max when mtpg is too small
+    - BUG/MEDIUM: threads: ignore max-threads-per-group when thread-groups is set
+    - CLEANUP: thread: indicate when max-threads-per-group is ignored
+    - MINOR: cpu-topo: notify when cpu-policy is ignored due to other settings
+    - MINOR: thread: report when thread-groups or nbthread results in less threads
+    - BUILD: makefile: include EXTRA_MAKE in the .build_opts construction
+    - BUG/MINOR: quic: Fix another buffer overflow with sockaddr_in46
+    - MINOR: quic: Copy sin6_flowinfo and sin6_scope_id too
+    - BUILD: Makefile: put EXTRA_MAKE help at the right place
+    - BUG/MINOR: cache: fix cache tree iteration
+    - BUG/MEDIUM: resolvers: Wait a bit before calling the xprt prepare_srv
+    - CLEANUP: addons/51degrees: initialize variables
+    - MINOR: addons/51degrees: handle memory allocation failures
+    - CLEANUP: ncbmbuf: improve handling of memory allocation errors in unit tests
+    - CLEANUP: admin/halog: improve handling of memory allocation errors
+    - DOC: internals: clarify ambiguous wording in core-principles
+    - DOC: internals: add a threat model definition
+    - DOC: add security.txt describing how to report security issues
+    - DOC: security: also add a note to exclude dev/ and admin/
+    - BUG/MEDIUM: qmux: Close connection on invalid frame
+    - CLEANUP: fix comment typo
+    - BUG/MEDIUM: h3: fix MAX_PUSH_ID handling
+    - BUG/MINOR: cache: Fix copy of value when parsing maxage
+    - BUG/MEDIUM: mux-h1: Dup connection/upgrade value to parse it when making headers
+    - BUG/MEDIUM: htx: Fix headers rollback on partial copy in htx_xfer()
+    - MINOR: deinit: release the in-memory copy of shared libs
+    - MINOR: debug: add -dA to dump an archive of all dependencies
+    - BUG/MEDIUM: ssl: Make sure the alpn length is small enough
+    - BUG/MINOR: applet: Commit changes into input buffer after sending HTX data
+    - BUG/MINOR: mux-spop: Fix possible off-by-one OOB read in spop_get_varint()
+    - BUG/MEDIUM: leastconn: Unlock the write lock on allocation failure
+    - BUG/MINOR: tasks: Increase the right niced_task counter
+    - BUILD: makefile: search for Lua 5.5 as well
+    - DEV: dev/gdb: improve ebtree pointer handling
+    - DEV: dev/gdb: add simple task dump
+    - DEV: dev/gdb: add simple thread dump
+    - DEV: dev/gdb: add fdtab dump
+    - DOC: config: add a few more explanation in http-reusee regarding sni-auto
+    - REGTESTS: add basic QMux tests
+    - BUG/MINOR: http-act: Properly handle final evaluation in pause action
+    - BUILD: makefile/lua: use the system's default library before all other variants
+    - BUG/MINOR: startup: unbreak chroot with CAP_SYS_CHROOT
+    - BUG/MINOR: haterm: do not try to bind QUIC when not supported
+    - BUG/MINOR: haterm: also apply the tcp-bind-opts to clear TCP "bind" lines
+    - CLEANUP: haterm: do not try to bind to SSL when not built in
+    - MINOR: haterm: enable ktls on the SSL bind line when supported
+    - CI: github: replace cirrus by a vmactions/freebsd-vm job
+    - BUILD: makefile: fix build error with GNU make 4.2.1 and /bin/dash
+    - BUG/MEDIUM: channel: Fix condition to know if a channel may send
+    - BUG/MEDIUM: vars: Properly eval set-var-fmt action for emtpy log-format string
+    - CI: github: run illumos job weekly on Mondays at 03:00 instead of monthly
+    - BUG/MEDIUM: stream: Don't use small buffer on queuing with a request data filter
+    - BUG/MINOR: jwe: don't write randoms past MAX_DECRYPTED_CEK_LEN in RSA_PKCS1_PADDING
+    - BUG/MEDIUM: chunk: do not rely on small trash by default for expressions
+    - CLEANUP: map: always test pat->ref in sample_conv_map_key()
+    - DEV: patchbot: prepare for new version 3.5-dev
+    - MINOR: version: mention that it's 3.4 LTS now.
+
 2026/05/26 : 3.4-dev14
     - MINOR: config: shm-stats-file is no longer experimental
     - BUILD: proxy: unstatify the proxies_del_lock to avoid a warning without threads
