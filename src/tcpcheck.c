@@ -5970,7 +5970,7 @@ static int srv_parse_healthcheck(char **args, int *cur_arg, struct proxy *curpx,
 		goto out;
 	}
 
-	if (srv->check.tcpcheck->healthcheck) {
+	if (srv->check.tcpcheck && srv->check.tcpcheck->healthcheck) {
 		/* a healthcheck section was already defined. Replace it */
 		ha_free(&srv->check.tcpcheck->healthcheck);
 	}

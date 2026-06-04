@@ -2978,6 +2978,19 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 			srv->check.alpn_len = src->check.alpn_len;
 		}
 	}
+	if (src->check.tcpcheck && src->check.tcpcheck->healthcheck) {
+		struct tcpcheck *tcpcheck = NULL;
+
+		tcpcheck = calloc(1, sizeof(*tcpcheck));
+		if (tcpcheck) {
+			LIST_INIT(&tcpcheck->preset_vars);
+			tcpcheck->healthcheck = strdup(src->check.tcpcheck->healthcheck);
+			if (tcpcheck->healthcheck == NULL)
+				ha_free(&tcpcheck);
+		}
+		if (tcpcheck)
+			srv->check.tcpcheck = tcpcheck;
+	}
 
 	if (!(srv->flags & SRV_F_RHTTP))
 		srv->check.reuse_pool = src->check.reuse_pool;
