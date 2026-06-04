@@ -1682,7 +1682,7 @@ static int start_checks()
 	for (px = proxies_list; px; px = px->next) {
 		for (s = px->srv; s; s = s->next) {
 			if ((px->options2 & PR_O2_USE_SBUF_CHECK) &&
-			    (s->check.tcpcheck->rs->flags & TCPCHK_RULES_MAY_USE_SBUF))
+			    (s->check.tcpcheck->rs && s->check.tcpcheck->rs->flags & TCPCHK_RULES_MAY_USE_SBUF))
 				s->check.state |= CHK_ST_USE_SMALL_BUFF;
 
 			if (s->check.state & CHK_ST_CONFIGURED) {
