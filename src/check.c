@@ -232,6 +232,9 @@ static void check_trace(enum trace_level level, uint64_t mask,
 		chunk_appendf(&trace_buf, " sc=%p(0x%08x)", check->sc, check->sc->flags);
 	}
 
+	if (check->type != PR_O2_TCPCHK_CHK)
+		return;
+
 	if (mask & CHK_EV_TCPCHK) {
 		const char *type;
 
