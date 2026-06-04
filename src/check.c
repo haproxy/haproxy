@@ -1799,6 +1799,9 @@ int init_srv_check(struct server *srv)
 	if (!srv->do_check || !(srv->proxy->cap & PR_CAP_BE))
 		goto out;
 
+	if ((srv->proxy->options2 & PR_O2_CHK_ANY) != PR_O2_TCPCHK_CHK)
+		goto init;
+
 	check_type = srv->check.tcpcheck->rs->flags & TCPCHK_RULES_PROTO_CHK;
 
 	if (!(srv->flags & SRV_F_DYNAMIC)) {
