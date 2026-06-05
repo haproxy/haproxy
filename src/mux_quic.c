@@ -2333,6 +2333,9 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 		goto err;
 	}
 
+	qcs->flags |= QC_SF_SIZE_KNOWN|QC_SF_RECV_RESET;
+	qcs_close_remote(qcs);
+
 	/* RFC 9000 3.2. Receiving Stream States
 	 *
 	 * An
@@ -2340,13 +2343,14 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 	 * data that was not consumed, and signal the receipt of the
 	 * RESET_STREAM.
 	 */
-	qcs->flags |= QC_SF_SIZE_KNOWN|QC_SF_RECV_RESET;
-	qcs_close_remote(qcs);
 	while (!eb_is_empty(&qcs->rx.bufs)) {
 		b = container_of(eb64_first(&qcs->rx.bufs),
 		                 struct qc_stream_rxbuf, off_node);
 		qcs_free_rxbuf(qcs, b);
 	}
+
+	/* Remove stream from recv_list if present. */
+	LIST_DEL_INIT(&qcs->el_recv);
 
  out:
 	if (qcc->glitches != prev_glitches && !(qcc->flags & QC_CF_IS_BACK))
