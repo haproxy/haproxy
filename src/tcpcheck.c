@@ -4198,7 +4198,7 @@ int check_server_tcpcheck(struct server *srv)
 		}
 		srv->check.tcpcheck->rs = rs;
 		srv->check.tcpcheck->flags = rs->conf.flags;
-
+		srv->check.type = PR_O2_TCPCHK_CHK;
 		err_code = check_tcpcheck_ruleset(srv->proxy, rs);
 	}
 

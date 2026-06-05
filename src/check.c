@@ -1802,7 +1802,7 @@ int init_srv_check(struct server *srv)
 	if (!srv->do_check || !(srv->proxy->cap & PR_CAP_BE))
 		goto out;
 
-	if ((srv->proxy->options2 & PR_O2_CHK_ANY) != PR_O2_TCPCHK_CHK)
+	if (!srv->check.type && (srv->proxy->options2 & PR_O2_CHK_ANY) != PR_O2_TCPCHK_CHK)
 		goto init;
 
 	check_type = srv->check.tcpcheck->rs->flags & TCPCHK_RULES_PROTO_CHK;
@@ -1945,7 +1945,7 @@ int init_srv_check(struct server *srv)
 	}
 
   init:
-	err = init_check(&srv->check, srv->proxy->options2 & PR_O2_CHK_ANY);
+	err = init_check(&srv->check, srv->check.type ? srv->check.type : (srv->proxy->options2 & PR_O2_CHK_ANY));
 	if (err) {
 		ha_alert("config: %s '%s': unable to init check for server '%s' (%s).\n",
 			 proxy_type_str(srv->proxy), srv->proxy->id, srv->id, err);
