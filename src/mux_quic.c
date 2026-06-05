@@ -3319,6 +3319,7 @@ static int qcc_io_recv(struct qcc *qcc)
 			qcc_qmux_recv(qcc);
 	}
 
+ next_recv:
 	while (!LIST_ISEMPTY(&qcc->recv_list)) {
 		qcs = LIST_ELEM(qcc->recv_list.n, struct qcs *, el_recv);
 		/* No need to add an uni local stream in recv_list. */
@@ -3328,7 +3329,11 @@ static int qcc_io_recv(struct qcc *qcc)
 			ret = qcc_decode_qcs(qcc, qcs);
 			if (ret <= 0) {
 				LIST_DEL_INIT(&qcs->el_recv);
-				goto done;
+				/* Interrupt all receive if connection on error. */
+				if (qcc->flags & QC_CF_ERRL)
+					goto done;
+				/* Decode next entry if stream on error. */
+				goto next_recv;
 			}
 
 			total += ret;
