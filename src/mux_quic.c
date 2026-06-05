@@ -3322,12 +3322,22 @@ static int qcc_io_recv(struct qcc *qcc)
 
 		while (qcs_rx_avail_data(qcs) && !(qcs->flags & QC_SF_DEM_FULL)) {
 			ret = qcc_decode_qcs(qcc, qcs);
-			LIST_DEL_INIT(&qcs->el_recv);
-
-			if (ret <= 0)
+			if (ret <= 0) {
+				LIST_DEL_INIT(&qcs->el_recv);
 				goto done;
+			}
+
 			total += ret;
 		}
+
+		/* Always remove QCS from recv_list to prevent infinite loop.
+		 * This is performed even if inner loop was not executed : QCS
+		 * has nothing to do in recv_list if no avail Rx data or demux
+		 * is blocked. Next decoding will be performed on new data read
+		 * unless demux is blocked. In this case QCS will be reinserted
+		 * in recv_list on unblocking to execute decode here again.
+		 */
+		LIST_DEL_INIT(&qcs->el_recv);
 	}
 
  done:
