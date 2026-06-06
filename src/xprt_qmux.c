@@ -350,6 +350,22 @@ static void xprt_qmux_close(struct connection *conn, void *xprt_ctx)
 	pool_free(xprt_qmux_ctx_pool, ctx);
 }
 
+/* Retrieve the ssl_sock_ctx of the lower layer. Contrary to most XPRTs, QMux
+ * is stacked on top of the SSL layer (and not the other way around), so during
+ * the QMux handshake conn->xprt points to xprt_qmux. Without this delegation,
+ * conn_get_ssl_sock_ctx() would return NULL for any code inspecting the SSL
+ * layer of the connection (sample fetches, logging, info callback, ...) while
+ * the QMux handshake is in progress.
+ */
+static struct ssl_sock_ctx *xprt_qmux_get_ssl_sock_ctx(struct connection *conn)
+{
+	struct xprt_qmux_ctx *ctx = conn->xprt_ctx;
+
+	if (ctx && ctx->ops_lower == xprt_get(XPRT_SSL))
+		return ctx->ctx_lower;
+	return NULL;
+}
+
 static int xprt_qmux_get_alpn(const struct connection *conn, void *xprt_ctx,
                               const char **str, int *len)
 {
@@ -371,6 +387,7 @@ struct xprt_ops xprt_qmux = {
 	.start     = xprt_qmux_start,
 	.close     = xprt_qmux_close,
 	.get_alpn  = xprt_qmux_get_alpn,
+	.get_ssl_sock_ctx = xprt_qmux_get_ssl_sock_ctx,
 	.name      = "qmux",
 };
 
