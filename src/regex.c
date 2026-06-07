@@ -442,7 +442,7 @@ static void regex_register_build_options(void)
 INITCALL0(STG_REGISTER, regex_register_build_options);
 
 #ifdef USE_PCRE2
-static int init_pcre2_per_thread(void)
+static int init_pcre2_one_thread(void)
 {
 	local_pcre2_match = pcre2_match_data_create(MAX_MATCH, NULL);
 	if (!local_pcre2_match) {
@@ -452,13 +452,32 @@ static int init_pcre2_per_thread(void)
 	return 1;
 }
 
+/* per-thread init for the next threads (first one already done) */
+static int init_pcre2_per_thread(void)
+{
+	if (!tid)
+		return 1;
+	return init_pcre2_one_thread();
+}
+
+/* per-thread deinit for the next threads */
 static void deinit_pcre2_per_thread(void)
+{
+	if (tid)
+		pcre2_match_data_free(local_pcre2_match);
+}
+
+/* late deinit for the first thread */
+static void deinit_pcre2_first_thread(void)
 {
 	pcre2_match_data_free(local_pcre2_match);
 }
 
+/* early init for the first thread */
+INITCALL0(STG_INIT, init_pcre2_one_thread);
 REGISTER_PER_THREAD_INIT(init_pcre2_per_thread);
 REGISTER_PER_THREAD_DEINIT(deinit_pcre2_per_thread);
+REGISTER_POST_DEINIT(deinit_pcre2_first_thread);
 #endif
 
 /*
