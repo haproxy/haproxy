@@ -370,6 +370,13 @@ struct pool_head *create_pool_from_reg(const char *name, struct pool_registratio
 		return NULL;
 	}
 
+	if (invalid_char(name)) {
+		ha_alert("Pool '%s' declared at %s:%u contains invalid chars in its name and "
+			 "cannot be registered. Please report to developers. Aborting.\n",
+			 name, reg->file, reg->line);
+		return NULL;
+	}
+
 	extra_mark = (pool_debugging & POOL_DBG_TAG) ? POOL_EXTRA_MARK : 0;
 	extra_caller = (pool_debugging & POOL_DBG_CALLER) ? POOL_EXTRA_CALLER : 0;
 	extra = extra_mark + extra_caller;
