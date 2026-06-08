@@ -30,7 +30,7 @@
 
 
 DECLARE_TYPED_POOL(pool_head_session, "session", struct session);
-DECLARE_TYPED_POOL(pool_head_sess_priv_conns, "session priv conns list", struct sess_priv_conns);
+DECLARE_TYPED_POOL(pool_head_sess_priv_conns, "sess_priv_conns", struct sess_priv_conns);
 
 int conn_complete_session(struct connection *conn);
 
