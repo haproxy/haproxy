@@ -81,6 +81,7 @@ struct memprof_stats memprof_stats[MEMPROF_HASH_BUCKETS + 1] = { };
 
 /* used to detect recursive calls */
 #define MEMPROF_IN_INIT (1U << 0)
+#define MEMPROF_IN_HANDLER (1U << 1)
 
 static THREAD_LOCAL uint in_memprof = 0;  // arithmetic OR of MEMPROF_IN_*
 
@@ -346,11 +347,13 @@ void *malloc(size_t size)
 	struct memprof_stats *bin;
 	void *ret;
 
-	if (likely(!(profiling & HA_PROF_MEMORY)))
+	if (likely(!(profiling & HA_PROF_MEMORY) || (in_memprof & MEMPROF_IN_HANDLER)))
 		return memprof_malloc_handler(size);
 
+	in_memprof |= MEMPROF_IN_HANDLER;
 	ret = memprof_malloc_handler(size);
 	size = malloc_usable_size(ret) + sizeof(void *);
+	in_memprof &= ~MEMPROF_IN_HANDLER;
 
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_MALLOC);
 	if (unlikely(th_ctx->lock_level & 0x7F))
@@ -373,11 +376,13 @@ void *calloc(size_t nmemb, size_t size)
 	struct memprof_stats *bin;
 	void *ret;
 
-	if (likely(!(profiling & HA_PROF_MEMORY)))
+	if (likely(!(profiling & HA_PROF_MEMORY) || (in_memprof & MEMPROF_IN_HANDLER)))
 		return memprof_calloc_handler(nmemb, size);
 
+	in_memprof |= MEMPROF_IN_HANDLER;
 	ret = memprof_calloc_handler(nmemb, size);
 	size = malloc_usable_size(ret) + sizeof(void *);
+	in_memprof &= ~MEMPROF_IN_HANDLER;
 
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_CALLOC);
 	if (unlikely(th_ctx->lock_level & 0x7F))
@@ -403,12 +408,14 @@ void *realloc(void *ptr, size_t size)
 	size_t size_before;
 	void *ret;
 
-	if (likely(!(profiling & HA_PROF_MEMORY)))
+	if (likely(!(profiling & HA_PROF_MEMORY) || (in_memprof & MEMPROF_IN_HANDLER)))
 		return memprof_realloc_handler(ptr, size);
 
+	in_memprof |= MEMPROF_IN_HANDLER;
 	size_before = malloc_usable_size(ptr);
 	ret = memprof_realloc_handler(ptr, size);
 	size = malloc_usable_size(ret);
+	in_memprof &= ~MEMPROF_IN_HANDLER;
 
 	/* only count the extra link for new allocations */
 	if (!ptr)
@@ -441,11 +448,13 @@ char *strdup(const char *s)
 	size_t size;
 	char *ret;
 
-	if (likely(!(profiling & HA_PROF_MEMORY)))
+	if (likely(!(profiling & HA_PROF_MEMORY) || (in_memprof & MEMPROF_IN_HANDLER)))
 		return memprof_strdup_handler(s);
 
+	in_memprof |= MEMPROF_IN_HANDLER;
 	ret = memprof_strdup_handler(s);
 	size = malloc_usable_size(ret) + sizeof(void *);
+	in_memprof &= ~MEMPROF_IN_HANDLER;
 
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_STRDUP);
 	if (unlikely(th_ctx->lock_level & 0x7F))
@@ -471,13 +480,15 @@ void free(void *ptr)
 	struct memprof_stats *bin;
 	size_t size_before;
 
-	if (likely(!(profiling & HA_PROF_MEMORY) || !ptr)) {
+	if (likely(!(profiling & HA_PROF_MEMORY) || !ptr || (in_memprof & MEMPROF_IN_HANDLER))) {
 		memprof_free_handler(ptr);
 		return;
 	}
 
+	in_memprof |= MEMPROF_IN_HANDLER;
 	size_before = malloc_usable_size(ptr) + sizeof(void *);
 	memprof_free_handler(ptr);
+	in_memprof &= ~MEMPROF_IN_HANDLER;
 
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_FREE);
 	if (unlikely(th_ctx->lock_level & 0x7F))
@@ -497,10 +508,13 @@ char *strndup(const char *s, size_t size)
 		return NULL;
 
 	ret = memprof_strndup_handler(s, size);
-	if (likely(!(profiling & HA_PROF_MEMORY)))
+	if (likely(!(profiling & HA_PROF_MEMORY) || (in_memprof & MEMPROF_IN_HANDLER)))
 		return ret;
 
+	in_memprof |= MEMPROF_IN_HANDLER;
 	size = malloc_usable_size(ret) + sizeof(void *);
+	in_memprof &= ~MEMPROF_IN_HANDLER;
+
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_STRNDUP);
 	if (unlikely(th_ctx->lock_level & 0x7F))
 		_HA_ATOMIC_ADD(&bin->locked_calls, 1);
@@ -518,10 +532,13 @@ void *valloc(size_t size)
 		return NULL;
 
 	ret = memprof_valloc_handler(size);
-	if (likely(!(profiling & HA_PROF_MEMORY)))
+	if (likely(!(profiling & HA_PROF_MEMORY) || (in_memprof & MEMPROF_IN_HANDLER)))
 		return ret;
 
+	in_memprof |= MEMPROF_IN_HANDLER;
 	size = malloc_usable_size(ret) + sizeof(void *);
+	in_memprof &= ~MEMPROF_IN_HANDLER;
+
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_VALLOC);
 	if (unlikely(th_ctx->lock_level & 0x7F))
 		_HA_ATOMIC_ADD(&bin->locked_calls, 1);
@@ -539,10 +556,13 @@ void *pvalloc(size_t size)
 		return NULL;
 
 	ret = memprof_pvalloc_handler(size);
-	if (likely(!(profiling & HA_PROF_MEMORY)))
+	if (likely(!(profiling & HA_PROF_MEMORY) || (in_memprof & MEMPROF_IN_HANDLER)))
 		return ret;
 
+	in_memprof |= MEMPROF_IN_HANDLER;
 	size = malloc_usable_size(ret) + sizeof(void *);
+	in_memprof &= ~MEMPROF_IN_HANDLER;
+
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_PVALLOC);
 	if (unlikely(th_ctx->lock_level & 0x7F))
 		_HA_ATOMIC_ADD(&bin->locked_calls, 1);
@@ -560,10 +580,13 @@ void *memalign(size_t align, size_t size)
 		return NULL;
 
 	ret = memprof_memalign_handler(align, size);
-	if (likely(!(profiling & HA_PROF_MEMORY)))
+	if (likely(!(profiling & HA_PROF_MEMORY) || (in_memprof & MEMPROF_IN_HANDLER)))
 		return ret;
 
+	in_memprof |= MEMPROF_IN_HANDLER;
 	size = malloc_usable_size(ret) + sizeof(void *);
+	in_memprof &= ~MEMPROF_IN_HANDLER;
+
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_MEMALIGN);
 	if (unlikely(th_ctx->lock_level & 0x7F))
 		_HA_ATOMIC_ADD(&bin->locked_calls, 1);
@@ -581,10 +604,13 @@ void *aligned_alloc(size_t align, size_t size)
 		return NULL;
 
 	ret = memprof_aligned_alloc_handler(align, size);
-	if (likely(!(profiling & HA_PROF_MEMORY)))
+	if (likely(!(profiling & HA_PROF_MEMORY) || (in_memprof & MEMPROF_IN_HANDLER)))
 		return ret;
 
+	in_memprof |= MEMPROF_IN_HANDLER;
 	size = malloc_usable_size(ret) + sizeof(void *);
+	in_memprof &= ~MEMPROF_IN_HANDLER;
+
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_ALIGNED_ALLOC);
 	if (unlikely(th_ctx->lock_level & 0x7F))
 		_HA_ATOMIC_ADD(&bin->locked_calls, 1);
@@ -602,13 +628,16 @@ int posix_memalign(void **ptr, size_t align, size_t size)
 		return ENOMEM;
 
 	ret = memprof_posix_memalign_handler(ptr, align, size);
-	if (likely(!(profiling & HA_PROF_MEMORY)))
+	if (likely(!(profiling & HA_PROF_MEMORY) || (in_memprof & MEMPROF_IN_HANDLER)))
 		return ret;
 
 	if (ret != 0) // error
 		return ret;
 
+	in_memprof |= MEMPROF_IN_HANDLER;
 	size = malloc_usable_size(*ptr) + sizeof(void *);
+	in_memprof &= ~MEMPROF_IN_HANDLER;
+
 	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_POSIX_MEMALIGN);
 	if (unlikely(th_ctx->lock_level & 0x7F))
 		_HA_ATOMIC_ADD(&bin->locked_calls, 1);
