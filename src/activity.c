@@ -80,7 +80,9 @@ static const char *const memprof_methods[MEMPROF_METH_METHODS] = {
 struct memprof_stats memprof_stats[MEMPROF_HASH_BUCKETS + 1] = { };
 
 /* used to detect recursive calls */
-static THREAD_LOCAL int in_memprof = 0;
+#define MEMPROF_IN_INIT (1U << 0)
+
+static THREAD_LOCAL uint in_memprof = 0;  // arithmetic OR of MEMPROF_IN_*
 
 /* These ones are used by glibc and will be called early. They are in charge of
  * initializing the handlers with the original functions.
@@ -137,7 +139,7 @@ static __attribute__((noreturn)) void memprof_die(const char *msg)
  */
 static void memprof_init()
 {
-	in_memprof++;
+	in_memprof |= MEMPROF_IN_INIT;
 	memprof_malloc_handler  = get_sym_next_addr("malloc");
 	if (!memprof_malloc_handler)
 		memprof_die("FATAL: malloc() function not found.\n");
@@ -168,7 +170,7 @@ static void memprof_init()
 	memprof_aligned_alloc_handler  = get_sym_next_addr("aligned_alloc");
 	memprof_posix_memalign_handler = get_sym_next_addr("posix_memalign");
 
-	in_memprof--;
+	in_memprof &= ~MEMPROF_IN_INIT;
 }
 
 /* the initial handlers will initialize all regular handlers and will call the
@@ -177,7 +179,7 @@ static void memprof_init()
  */
 static void *memprof_malloc_initial_handler(size_t size)
 {
-	if (in_memprof) {
+	if (in_memprof & MEMPROF_IN_INIT) {
 		/* it's likely that dlsym() needs malloc(), let's fail */
 		return NULL;
 	}
@@ -188,7 +190,7 @@ static void *memprof_malloc_initial_handler(size_t size)
 
 static void *memprof_calloc_initial_handler(size_t nmemb, size_t size)
 {
-	if (in_memprof) {
+	if (in_memprof & MEMPROF_IN_INIT) {
 		/* it's likely that dlsym() needs calloc(), let's fail */
 		return NULL;
 	}
@@ -198,7 +200,7 @@ static void *memprof_calloc_initial_handler(size_t nmemb, size_t size)
 
 static void *memprof_realloc_initial_handler(void *ptr, size_t size)
 {
-	if (in_memprof) {
+	if (in_memprof & MEMPROF_IN_INIT) {
 		/* it's likely that dlsym() needs realloc(), let's fail */
 		return NULL;
 	}
@@ -209,7 +211,7 @@ static void *memprof_realloc_initial_handler(void *ptr, size_t size)
 
 static char *memprof_strdup_initial_handler(const char *s)
 {
-	if (in_memprof) {
+	if (in_memprof & MEMPROF_IN_INIT) {
 		/* probably that dlsym() needs strdup(), let's fail */
 		return NULL;
 	}
@@ -228,7 +230,7 @@ static void  memprof_free_initial_handler(void *ptr)
 
 static char *memprof_strndup_initial_handler(const char *s, size_t n)
 {
-	if (in_memprof) {
+	if (in_memprof & MEMPROF_IN_INIT) {
 		/* probably that dlsym() needs strndup(), let's fail */
 		return NULL;
 	}
@@ -239,7 +241,7 @@ static char *memprof_strndup_initial_handler(const char *s, size_t n)
 
 static void *memprof_valloc_initial_handler(size_t sz)
 {
-	if (in_memprof) {
+	if (in_memprof & MEMPROF_IN_INIT) {
 		/* probably that dlsym() needs valloc(), let's fail */
 		return NULL;
 	}
@@ -250,7 +252,7 @@ static void *memprof_valloc_initial_handler(size_t sz)
 
 static void *memprof_pvalloc_initial_handler(size_t sz)
 {
-	if (in_memprof) {
+	if (in_memprof & MEMPROF_IN_INIT) {
 		/* probably that dlsym() needs pvalloc(), let's fail */
 		return NULL;
 	}
@@ -261,7 +263,7 @@ static void *memprof_pvalloc_initial_handler(size_t sz)
 
 static void *memprof_memalign_initial_handler(size_t al, size_t sz)
 {
-	if (in_memprof) {
+	if (in_memprof & MEMPROF_IN_INIT) {
 		/* probably that dlsym() needs memalign(), let's fail */
 		return NULL;
 	}
@@ -272,7 +274,7 @@ static void *memprof_memalign_initial_handler(size_t al, size_t sz)
 
 static void *memprof_aligned_alloc_initial_handler(size_t al, size_t sz)
 {
-	if (in_memprof) {
+	if (in_memprof & MEMPROF_IN_INIT) {
 		/* probably that dlsym() needs aligned_alloc(), let's fail */
 		return NULL;
 	}
@@ -283,7 +285,7 @@ static void *memprof_aligned_alloc_initial_handler(size_t al, size_t sz)
 
 static int memprof_posix_memalign_initial_handler(void **ptr, size_t al, size_t sz)
 {
-	if (in_memprof) {
+	if (in_memprof & MEMPROF_IN_INIT) {
 		/* probably that dlsym() needs posix_memalign(), let's fail */
 		return ENOMEM;
 	}
