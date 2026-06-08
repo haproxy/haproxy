@@ -998,8 +998,12 @@ static int cli_parse_del_map(char **args, char *payload, struct appctx *appctx, 
 	/* Lookup the reference in the maps. */
 	ctx->ref = pat_ref_lookup_ref(args[2]);
 	if (!ctx->ref ||
-	    !(ctx->ref->flags & ctx->display_flags))
-		return cli_err(appctx, "Unknown map identifier. Please use #<id> or <file>.\n");
+	    !(ctx->ref->flags & ctx->display_flags)) {
+		if (ctx->display_flags == PAT_REF_MAP)
+			return cli_err(appctx, "Unknown map identifier. Please use #<id> or <file>.\n");
+		else
+			return cli_err(appctx, "Unknown ACL identifier. Please use #<id> or <file>.\n");
+	}
 
 	/* If the entry identifier start with a '#', it is considered as
 	 * pointer id
