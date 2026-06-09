@@ -144,7 +144,7 @@ syslog S2 -level notice {
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv[0-9]+ succeeded"
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv[0-9] succeeded"
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv[0-9]+ succeeded"
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv[0-9]+ succeeded"
     recv
