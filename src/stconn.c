@@ -91,6 +91,9 @@ void se_shutdown(struct sedesc *sedesc, enum se_shut_mode mode)
 	struct se_abort_info *reason = NULL;
 	unsigned int flags = 0;
 
+	/* Should never happen, placed here to be sure we forgot nothing */
+	BUG_ON(!(mode & (SE_SHW_SILENT|SE_SHW_NORMAL)));
+
 	if ((mode & (SE_SHW_SILENT|SE_SHW_NORMAL)) && !se_fl_test(sedesc, SE_FL_SHW)) {
 		se_report_term_evt(sedesc, se_tevt_type_shutw);
 		flags |= (mode & SE_SHW_NORMAL) ? SE_FL_SHWN : SE_FL_SHWS;
