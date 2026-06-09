@@ -333,7 +333,8 @@ static inline void task_drop_running(struct task *t, unsigned int f)
 			new_state |= TASK_QUEUED;
 
 
-		if ((new_state & TASK_QUEUED) || cur_tid >= 0 || task_in_wq(t))
+		if ((new_state & TASK_QUEUED) || cur_tid >= 0 || task_in_wq(t) ||
+		    __task_get_current_owner(cur_tid) != tid)
 			new_tid = cur_tid;
 		else
 			new_tid = -1;
