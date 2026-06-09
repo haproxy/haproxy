@@ -2029,8 +2029,8 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 	/* Handle Initial packet padding if necessary. */
 	if (padding && dglen < QUIC_INITIAL_PACKET_MINLEN) {
 		padding_len = QUIC_INITIAL_PACKET_MINLEN - dglen;
-
 		len += padding_len;
+
 		/* Update size of packet length field with new PADDING data. */
 		if (pkt->type != QUIC_PACKET_TYPE_SHORT) {
 			size_t len_sz_diff = quic_int_getsize(len) - len_sz;
@@ -2038,6 +2038,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 				padding_len -= len_sz_diff;
 				len_sz += len_sz_diff;
 				dglen += len_sz_diff;
+				len -= len_sz_diff;
 			}
 		}
 	}
@@ -2074,6 +2075,7 @@ static int qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
 		len += padding_len;
 	}
 
+	/* Encode length field : length of PN and payload (frames + TLS AEAD tag). */
 	if (pkt->type != QUIC_PACKET_TYPE_SHORT && !quic_enc_int(&pos, end, len))
 		goto no_room;
 
