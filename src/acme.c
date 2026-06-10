@@ -3506,16 +3506,64 @@ err:
 	return cli_dynerr(appctx, errmsg);
 }
 
+/*
+ * Change the readiness of an ACME challenge per couple <crt>+<dns>
+ * Return:
+ * - -2 if the crt was not found
+ * - -1 if an non-ready couple crt+dns wasn't not found
+ * - 0 if the challenges are ready for the certificate
+ * - > 0 with the number of remaining challenge to enable
+ */
+int acme_challenge_ready(const char *crt, const char *dns)
+{
+	struct ebmb_node *node = NULL;
+	struct acme_ctx *ctx = NULL;
+	struct acme_auth *auth = NULL;
+	int found = 0;
+	int remain = 0;
+
+	HA_RWLOCK_WRLOCK(OTHER_LOCK, &acme_lock);
+	node = ebst_lookup(&acme_tasks, crt);
+	if (!node) {
+		HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &acme_lock);
+		return -2;
+	}
+
+	ctx = ebmb_entry(node, struct acme_ctx, node);
+	if (ctx->cfg->cond_ready & ACME_RDY_CLI)
+		auth = ctx->auths;
+	while (auth) {
+		if (strncmp(dns, auth->dns.ptr, auth->dns.len) == 0) {
+			if ((auth->ready & ACME_RDY_CLI) == 0) {
+				auth->ready |= ACME_RDY_CLI;
+				found++;
+			}
+		}
+		if ((auth->ready & ACME_RDY_CLI) == 0)
+			remain++;
+		auth = auth->next;
+	}
+	/* no remaining challenge to ready: wake the task only if it is
+	 * currently suspended in ACME_CLI_WAIT, not in the middle of an
+	 * HTTP exchange.
+	 */
+	if (!remain && ctx->state == ACME_CLI_WAIT)
+		task_wakeup(ctx->task, TASK_WOKEN_MSG);
+
+	HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &acme_lock);
+
+	if (!found)
+		return -1;
+
+	return remain;
+}
+
 static int cli_acme_chall_ready_parse(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	char *msg = NULL;
 	const char *crt;
 	const char *dns;
-	struct acme_ctx *ctx = NULL;
-	struct acme_auth *auth = NULL;
-	int found = 0;
-	int remain = 0;
-	struct ebmb_node *node = NULL;
+	int ret;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
@@ -3528,39 +3576,13 @@ static int cli_acme_chall_ready_parse(char **args, char *payload, struct appctx 
 	crt = args[2];
 	dns = args[4];
 
-	HA_RWLOCK_WRLOCK(OTHER_LOCK, &acme_lock);
-	node = ebst_lookup(&acme_tasks, crt);
-	if (node) {
-		ctx = ebmb_entry(node, struct acme_ctx, node);
-		if (ctx->cfg->cond_ready & ACME_RDY_CLI)
-			auth = ctx->auths;
-		while (auth) {
-			if (strncmp(dns, auth->dns.ptr, auth->dns.len) == 0) {
-				if (!(auth->ready & ACME_RDY_CLI)) {
-					auth->ready |= ACME_RDY_CLI;
-					found++;
-				} else {
-					memprintf(&msg, "ACME challenge for crt \"%s\" and dns \"%s\" was already READY !\n", crt, dns);
-				}
-			}
-			if ((auth->ready & ACME_RDY_CLI) == 0)
-				remain++;
-			auth = auth->next;
-		}
-	}
-	HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &acme_lock);
-	if (!found) {
-		if (!msg)
-			memprintf(&msg, "Couldn't find an ACME task using crt \"%s\" and dns \"%s\" to set as ready!\n", crt, dns);
-		goto err;
-	} else {
-		if (!remain) {
-			if (ctx)
-				task_wakeup(ctx->task, TASK_WOKEN_MSG);
-			return cli_dynmsg(appctx, LOG_INFO, memprintf(&msg, "%d '%s' challenge(s) ready! All challenges ready, starting challenges validation!", found, dns));
-		} else {
-			return cli_dynmsg(appctx, LOG_INFO, memprintf(&msg, "%d '%s' challenge(s) ready! Remaining challenges to deploy: %d", found, dns, remain));
-		}
+	ret = acme_challenge_ready(crt, dns);
+	if (ret < 0) {
+		return cli_dynerr(appctx, memprintf(&msg, "Couldn't find an ACME task using crt \"%s\" and dns \"%s\" to set as ready!\n", crt, dns));
+	} else if (ret == 0) {
+		return cli_dynmsg(appctx, LOG_INFO, memprintf(&msg, "'%s' challenges ready! All challenges ready, starting challenges validation!", crt));
+	} else if (ret > 0) {
+		return cli_dynmsg(appctx, LOG_INFO, memprintf(&msg, "'%s' challenge(s) ready! Remaining challenges to deploy: %d", crt, ret));
 	}
 
 err:
