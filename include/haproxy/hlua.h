@@ -26,6 +26,17 @@
 
 #ifdef USE_LUA
 
+/* Lua uses longjmp to perform yield or throwing errors. This
+ * macro is used only for identifying the function that can
+ * not return because a longjmp is executed.
+ *   __LJMP marks a prototype of hlua file that can use longjmp.
+ *   WILL_LJMP() marks an lua function that will use longjmp.
+ *   MAY_LJMP() marks an lua function that may use longjmp.
+ */
+#define __LJMP
+#define WILL_LJMP(func) do { func; my_unreachable(); } while(0)
+#define MAY_LJMP(func) func
+
 /* The following macros are used to set flags. */
 #define HLUA_SET_RUN(__hlua)         do {(__hlua)->flags |= HLUA_RUN;} while(0)
 #define HLUA_CLR_RUN(__hlua)         do {(__hlua)->flags &= ~HLUA_RUN;} while(0)

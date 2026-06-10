@@ -105,16 +105,6 @@ static uint8_t hlua_body = 1;
  */
 static uint8_t hlua_bool_sample_conversion = HLUA_BOOL_SAMPLE_CONVERSION_UNK;
 
-/* Lua uses longjmp to perform yield or throwing errors. This
- * macro is used only for identifying the function that can
- * not return because a longjmp is executed.
- *   __LJMP marks a prototype of hlua file that can use longjmp.
- *   WILL_LJMP() marks an lua function that will use longjmp.
- *   MAY_LJMP() marks an lua function that may use longjmp.
- */
-#define __LJMP
-#define WILL_LJMP(func) do { func; my_unreachable(); } while(0)
-#define MAY_LJMP(func) func
 
 /* This couple of function executes securely some Lua calls outside of
  * the lua runtime environment. Each Lua call can return a longjmp
