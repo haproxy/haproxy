@@ -13,6 +13,7 @@ static int hld_debug;
 struct hld_url_cfg *hld_url_cfgs;
 char *srv_opts, *tls_ciphers, *tls_ciphersuites, *tls_curves, *alpn;
 int h2c;
+int id_url, id_path;
 
 static void  hld_usage(char *name, int argc, int line)
 {
@@ -140,6 +141,21 @@ static inline void hld_free_url_cfgs(void)
 	}
 }
 
+/* Return 1 if <path> already exists in <ur> URL conf */
+int hld_url_cfg_path_exist(struct hld_url_cfg *u, const char *path)
+{
+	struct hld_path *p = u->paths;
+
+	while (p) {
+		if (!strcmp(p->path, path))
+			return 1;
+
+		p = p->next;
+	}
+
+	return 0;
+}
+
 /* Allocate a URL from <url> command line argument without
  * duplicating it, and append it to <hld_url_cfgs> list of URL.
  * A URL is identified by its peer address and if it uses
@@ -158,6 +174,7 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 	struct hbuf opts_buf = HBUF_NULL;
 	char quic_addr[128];
 
+	fprintf(stderr, "-------------\n%s url: '%s'\n", __func__, url);
 	if (strncmp(url, "http://", 7) == 0)
 		addr = url + 7;
 	else if (strncmp(url, "https://", 8) == 0) {
@@ -186,7 +203,19 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 
 	for (purl = hld_url_cfgs; purl; purl = purl->next) {
 		/* XXX TODO: improve this check for QUIC XXX */
-		if (strcmp(purl->addr, addr) == 0 && purl->ssl == ssl) {
+		fprintf(stderr, "new url '%s'? url[%d]: raw_addr: '%s' alpn: '%s' vs '%s'"
+		        " (%d,%d,%d,%d)\n", url, purl->id, purl->raw_addr, purl->alpn, alpn,
+		        !strcmp(purl->raw_addr, addr),
+		        purl->ssl == ssl, purl->is_quic == is_quic,
+		        !strcmp(purl->alpn, alpn));
+		if (purl->is_quic == is_quic && purl->ssl == ssl &&
+		    strcmp(purl->raw_addr, addr) == 0 && strcmp(purl->alpn, alpn) == 0) {
+			if (hld_url_cfg_path_exist(purl, path)) {
+				free(path);
+				ha_warning("'%s' URL already exists. Skipped...\n", url);
+				return purl;
+			}
+
 			/* Already existing URL with the same address. */
 			hld_url_cfg = purl;
 
@@ -195,6 +224,7 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 				goto err;
 
 			/* Append a new path to this URL */
+			p->id = id_path++;
 			p->path = path;
 			p->next = hld_url_cfg->paths;
 			hld_url_cfg->paths = p;
@@ -225,12 +255,24 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 	if (!hld_url_cfg || !p)
 		goto err;
 
+	id_path = 0;
+	p->id = id_path++;
 	p->path = path;
 	p->next = NULL;
 
+	hld_url_cfg->id = id_url++;
 	hld_url_cfg->ssl = ssl;
+	hld_url_cfg->is_quic = is_quic;
+	hld_url_cfg->h2c = h2c;
 	hld_url_cfg->addr = addr;
 	hld_url_cfg->raw_addr = raw_addr;
+	if (alpn) {
+		hld_url_cfg->alpn = strdup(alpn);
+		if (!hld_url_cfg->alpn) {
+			ha_warning("Could not allocate alpn.\n");
+			goto err;
+		}
+	}
 
 	if (srv_opts) {
 		hld_url_cfg->srv_opts = strdup(srv_opts);
@@ -256,8 +298,6 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 
 	if (!hbuf_is_null(&opts_buf))
 		hld_url_cfg->tls_opts = strdup(opts_buf.area);
-
-	hld_url_cfg->h2c = h2c;
 
 	free_hbuf(&opts_buf);
 	hld_url_cfg->srv = NULL;
@@ -307,7 +347,7 @@ static inline void hld_url_cfgs_inv(void)
 			paths = path;
 			path = next_path;
 		}
-		url->paths = paths;
+		url->paths = url->cur_path = paths;
 
 		next_url = url->next;
 		url->next = urls;
