@@ -1226,6 +1226,7 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 	 * attached to it.
 	 */
 	task_wakeup(usr->task, TASK_WOKEN_IO);
+
 	LIST_DELETE(&hs->list);
 	hldstream_free(&hs);
 	t = NULL;
@@ -1386,20 +1387,22 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 	}
 
 	for (url = urls; url; url = hld_next_url(urls, url)) {
-		struct hld_path *path, *paths = url->cfg->paths;
+		struct hld_path *path, *paths = url->cfg->cur_path;
 
 		nreqs = usr->nreqs >= 0 ? MIN(usr->nreqs, url->mreqs) : url->mreqs;
 		BUG_ON(arg_rcon > 0 && url->tot_rconn_sent > arg_rcon);
 		nreqs = arg_rcon > 0 ? MIN(arg_rcon - url->tot_rconn_sent, nreqs) : nreqs;
 
-		for (path = paths; path && nreqs; path = hld_next_path(paths, path)) {
+		for (path = paths; path && nreqs; path = hld_next_path(url->cfg->paths, path)) {
 			struct hldstream *hs;
 
+			//fprintf(stderr, "up(%d,%d,%s)", url->cfg->id, path->id, path->path);
 			if ((hs = hld_new_strm(usr, url, path)) == NULL) {
 				TRACE_ERROR("could start a new stream task", HLD_EV_USR_TASK);
 				goto out;
 			}
 
+			url->cfg->cur_path = hld_next_path(url->cfg->paths, path);
 			BUG_ON(!url->mreqs || !usr->nreqs || !nreqs);
 
 			url->tot_rconn_sent++;
@@ -1408,6 +1411,7 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 			usr->nreqs = usr->nreqs == -1 ? -1 : usr->nreqs - 1;
 
 			if (hs->conn) {
+				//fprintf(stderr, "\n");
 				url->tot_req++;
 				remain = hs->conn->mux->avail_streams(hs->conn);
 				TRACE_PRINTF(TRACE_LEVEL_PROTO, HLD_STRM_EV_TASK, hs, 0, 0, 0,
@@ -1416,6 +1420,7 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 					break;
 			}
 			else {
+				//fprintf(stderr, "c\n");
 				/* Connecting */
 				url->tot_req = 1;
 				remain = 0;
@@ -1425,6 +1430,7 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 			if (!usr->nreqs)
 				break;
 		}
+		//fprintf(stderr, "---\n");
 
 		if (!usr->nreqs || hld_next_url(urls, url) == first_url)
 			break;
