@@ -176,6 +176,24 @@ static int hlua_panic_ljmp(lua_State *L) { WILL_LJMP(longjmp(safe_ljmp_env, 1));
  */
 static struct list referenced_functions = LIST_HEAD_INIT(referenced_functions);
 
+/* List of callbacks registered via hap_register_hlua_state_init(), called
+ * for each new lua_State created in hlua_init_state().
+ */
+static struct list hlua_state_init_list = LIST_HEAD_INIT(hlua_state_init_list);
+
+void hap_register_hlua_state_init(int (*fct)(lua_State *L, char **errmsg))
+{
+	struct hlua_state_init_fct *entry;
+
+	entry = calloc(1, sizeof(*entry));
+	if (!entry) {
+		ha_alert("hlua: out of memory registering state init callback\n");
+		exit(1);
+	}
+	entry->fct = fct;
+	LIST_APPEND(&hlua_state_init_list, &entry->list);
+}
+
 /* This variable is used only during initialization to identify the Lua state
  * currently being initialized. 0 is the common lua state, 1 to n are the Lua
  * states dedicated to each thread (in this case hlua_state_id==tid+1).
@@ -14830,6 +14848,28 @@ lua_State *hlua_init_state(int thread_num)
 	/* Register previous table in the registry with reference and named entry. */
 	class_socket_ref = hlua_register_metatable(L, CLASS_SOCKET);
 
+	/* Call all registered state init callbacks. */
+	{
+		struct hlua_state_init_fct *e;
+		char *errmsg = NULL;
+		int err_code;
+
+		list_for_each_entry(e, &hlua_state_init_list, list) {
+			err_code = e->fct(L, &errmsg);
+			if (errmsg) {
+				if (err_code & ERR_ALERT)
+					ha_alert("Lua: %s\n", errmsg);
+				else if (err_code & ERR_WARN)
+					ha_warning("Lua: %s\n", errmsg);
+				else
+					ha_notice("Lua: %s\n", errmsg);
+				ha_free(&errmsg);
+			}
+			if (err_code & (ERR_ABORT|ERR_FATAL))
+				exit(1);
+		}
+	}
+
 	lua_atpanic(L, hlua_panic_safe);
 
 	return L;
@@ -14918,9 +14958,15 @@ static void hlua_deinit()
 {
 	int thr;
 	struct hlua_reg_filter *reg_flt, *reg_flt_bck;
+	struct hlua_state_init_fct *e, *eb;
 
 	list_for_each_entry_safe(reg_flt, reg_flt_bck, &referenced_filters, l)
 		release_hlua_reg_filter(reg_flt);
+
+	list_for_each_entry_safe(e, eb, &hlua_state_init_list, list) {
+		LIST_DELETE(&e->list);
+		free(e);
+	}
 
 	for (thr = 0; thr < MAX_THREADS+1; thr++) {
 		if (hlua_states[thr])

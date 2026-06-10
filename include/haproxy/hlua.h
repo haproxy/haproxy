@@ -51,6 +51,11 @@
 
 /* Lua HAProxy integration functions. */
 void hlua_yield_asap(lua_State *L);
+void hap_register_hlua_state_init(int (*fct)(lua_State *L, char **errmsg));
+
+/* simplified way to register a lua_State init callback from any file */
+#define REGISTER_HLUA_STATE_INIT(fct) \
+	INITCALL1(STG_REGISTER, hap_register_hlua_state_init, (fct))
 const char *hlua_traceback(lua_State *L, const char* sep);
 void hlua_ctx_destroy(struct hlua *lua);
 void hlua_init();

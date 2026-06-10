@@ -259,6 +259,11 @@ struct hlua_patref_iterator_context {
 	struct pat_ref_gen *gen; /* the generation we are iterating over */
 };
 
+struct hlua_state_init_fct {
+	struct list list;
+	int (*fct)(lua_State *L, char **errmsg);
+};
+
 #else /* USE_LUA */
 /************************ For use when Lua is disabled ********************/
 

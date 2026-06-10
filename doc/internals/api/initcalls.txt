@@ -52,6 +52,16 @@ make sure to respect this ordering when adding new ones.
   cast and freed. The const char* is here to leave more freedom to use consts
   when making such options lists.
 
+- void hap_register_hlua_state_init(int (*fct)())
+
+  This adds a call to function <fct> to the list of functions to be called each
+  time a new Lua state is created by hlua_init_state(). This allows source
+  files other than hlua.c to register objects and functions into the Lua API
+  without modifying hlua.c directly. The function <fct> must return an ERR_*
+  code. If the errmsg pointer is set on return, it is printed as an alert,
+  warning, or notice depending on the error code. If ERR_ABORT or ERR_FATAL is
+  returned, haproxy will exit with status 1.
+
 - void hap_register_per_thread_alloc(int (*fct)())
 
   This adds a call to function <fct> to the list of functions to be called when
@@ -323,6 +333,18 @@ alphanumerically ordered:
   the same as the <post> argument in REGISTER_CONFIG_SECTION(), the difference
   is that it allows to register multiple <post> callbacks and to register them
   elsewhere in the code.
+
+- REGISTER_HLUA_STATE_INIT(fct)
+
+  Registers function <fct> to be called for each new Lua state created by
+  hlua_init_state(). This allows source files other than hlua.c to register
+  objects and functions into the Lua API without modifying hlua.c directly.
+  This is done by registering a call to hap_register_hlua_state_init(fct) at
+  stage STG_REGISTER. The function <fct> must be of type
+  (int (*fct)(lua_State *L, char **errmsg)) and must return an ERR_* code.
+  If the errmsg pointer is set on return, it is printed as an alert, warning,
+  or notice depending on the error code. If ERR_ABORT or ERR_FATAL is returned,
+  haproxy will exit with status 1.
 
 - REGISTER_PER_THREAD_ALLOC(fct)
 
