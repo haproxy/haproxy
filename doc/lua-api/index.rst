@@ -4739,6 +4739,28 @@ CertCache class
     CertCache.set{filename="certs/localhost9994.pem.rsa", crt=crt}
 
 
+ACME class
+==========
+
+.. js:class:: ACME
+
+   This class provides access to the ACME (Automatic Certificate Management
+   Environment) subsystem. It allows Lua scripts to interact with ongoing ACME
+   certificate challenges.
+
+.. js:function:: ACME.challenge_ready(crt, dns)
+
+  Marks the ACME challenge for domain <dns> in certificate <crt> as ready.
+  Returns the number of remaining challenges, or 0 if all challenges are ready
+  and validation has been triggered. Raises a Lua error if the certificate or
+  domain is not found.
+
+  :param string crt: The filename of the certificate.
+  :param string dns: The domain name for which the challenge is ready.
+  :returns: The number of remaining challenges (integer), or 0 when all
+   challenges are done and validation has been triggered.
+
+
 External Lua libraries
 ======================
 

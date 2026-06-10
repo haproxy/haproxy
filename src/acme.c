@@ -37,6 +37,12 @@
 #include <haproxy/ssl_utils.h>
 #include <haproxy/tools.h>
 #include <haproxy/trace.h>
+#ifdef USE_LUA
+#include <lua.h>
+#include <lauxlib.h>
+#include <haproxy/hlua.h>
+#include <haproxy/hlua_fcn.h>
+#endif
 
 #define TRACE_SOURCE &trace_acme
 
@@ -3691,6 +3697,48 @@ static void __acme_init(void)
 	HA_RWLOCK_INIT(&acme_lock);
 }
 INITCALL0(STG_REGISTER, __acme_init);
+
+#ifdef USE_LUA
+/*
+ * ACME.challenge_ready(crt, dns)
+ *
+ * Marks the ACME challenge for domain <dns> in certificate <crt> as ready.
+ * Returns the number of remaining challenges, or 0 if all challenges are
+ * ready and validation has been triggered.
+ * Raises a Lua error if the certificate or domain is not found.
+ */
+__LJMP static int hlua_acme_challenge_ready(lua_State *L)
+{
+	const char *crt;
+	const char *dns;
+	int ret;
+
+	if (lua_gettop(L) != 2)
+		WILL_LJMP(luaL_error(L, "'ACME.challenge_ready' needs 2 arguments."));
+
+	crt = MAY_LJMP(luaL_checkstring(L, 1));
+	dns = MAY_LJMP(luaL_checkstring(L, 2));
+
+	ret = acme_challenge_ready(crt, dns);
+	if (ret == -2)
+		WILL_LJMP(luaL_error(L, "ACME.challenge_ready: certificate '%s' not found", crt));
+	if (ret == -1)
+		WILL_LJMP(luaL_error(L, "ACME.challenge_ready: domain '%s' not found for certificate '%s'", dns, crt));
+
+	lua_pushinteger(L, ret);
+	return 1;
+}
+
+static int acme_hlua_init_state(lua_State *L, char **errmsg)
+{
+	lua_newtable(L);
+	hlua_class_function(L, "challenge_ready", hlua_acme_challenge_ready);
+	lua_setglobal(L, "ACME");
+	return ERR_NONE;
+}
+
+REGISTER_HLUA_STATE_INIT(acme_hlua_init_state);
+#endif /* USE_LUA */
 
 #endif /* ! HAVE_ACME */
 
