@@ -449,6 +449,7 @@ static inline void hldstream_free(struct hldstream **hs)
 
 	TRACE_PRINTF(TRACE_LEVEL_PROTO, HLD_STRM_EV_TASK, hs, 0, 0, 0,
 	             "freeing %p stream", h);
+	se_shutdown(h->sc->sedesc, SE_SHW_SILENT);
 	hldstream_release_ibuf(h);
 	hldstream_release_obuf(h);
 	task_destroy(h->task);
@@ -1222,6 +1223,16 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 	url->tot_rconn_done++;
 	BUG_ON(arg_rcon > 0 && url->tot_rconn_done > arg_rcon);
 	url->mreqs++;
+	if (arg_rcon > 0 && url->tot_rconn_done == arg_rcon) {
+		/* All the streams attached to this connection will be release */
+		TRACE_STATE("releasing connection", HLD_EV_USR_TASK, hs);
+		sc_ep_set(hs->sc, SE_FL_KILL_CONN);
+		/* Reset these counters here. Cannot be done elsewhere */
+		url->tot_rconn_done = 0;
+		url->tot_rconn_sent = 0;
+		url->mreqs = arg_mreqs;
+	}
+
 	/* Note that the user task will release all the expired streams
 	 * attached to it.
 	 */
@@ -1229,16 +1240,6 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 	LIST_DELETE(&hs->list);
 	hldstream_free(&hs);
 	t = NULL;
-	BUG_ON(!conn || !conn->mux);
-	if (arg_rcon > 0 && url->tot_rconn_done == arg_rcon) {
-		/* All the streams attached to this connection will be release */
-		TRACE_STATE("releasing connection", HLD_EV_USR_TASK, hs);
-		conn->mux->destroy(conn->ctx);
-		/* Reset these counters here. Cannot be done elsewhere */
-		url->tot_rconn_done = 0;
-		url->tot_rconn_sent = 0;
-		url->mreqs = arg_mreqs;
-	}
 
 	goto leave;
  err:
