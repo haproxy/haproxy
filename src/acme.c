@@ -2028,6 +2028,7 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 	/* if auth is already valid we need to skip solving challenges */
 	if (strncasecmp("valid", trash.area, trash.data) == 0) {
 		auth->validated = 1;
+		auth->ready = ctx->cfg->cond_ready; /* no challenge needed, satisfy all readiness conditions */
 		goto out;
 	}
 
