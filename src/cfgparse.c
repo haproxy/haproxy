@@ -2486,7 +2486,7 @@ init_proxies_list_stage1:
 	/* At this point, target names have already been resolved. */
 	/***********************************************************/
 
-	for (int i = 0; i < global.nbthread; i++) {
+	for (i = 0; i < global.nbthread; i++) {
 		idle_conn_srv[i] = EB_ROOT;
 		idle_conn_task[i] = task_new_on(i);
 		if (!idle_conn_task[i]) {
