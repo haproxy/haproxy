@@ -1279,7 +1279,7 @@ static int cpu_policy_first_usable_node(int policy, int tmin, int tmax, int gmin
 	if (tmin <= thr_count && thr_count < tmax)
 		tmax = thr_count;
 
-	ha_diag_warning("Multi-socket cpu detected, automatically binding on active CPUs of '%d' (%u active cpu(s))\n", first_node_id, cpu_count);
+	ha_diag_notice("Multi-socket cpu detected, automatically binding on active CPUs of '%d' (%u active cpu(s))\n", first_node_id, cpu_count);
 
 	if (!global.nbthread)
 		global.nbthread = tmax;
@@ -1586,9 +1586,9 @@ static int cpu_policy_group_by_cluster(int policy, int tmin, int tmax, int gmin,
 	}
 
 	if (global.nbthread)
-		ha_diag_warning("Created %d threads split into %d groups\n", global.nbthread, global.nbtgroups);
+		ha_diag_notice("Created %d threads split into %d groups\n", global.nbthread, global.nbtgroups);
 	else
-		ha_diag_warning("Could not determine any CPU cluster\n");
+		ha_diag_notice("Could not determine any CPU cluster\n");
 
 	return 0;
 }
@@ -1684,9 +1684,9 @@ static int cpu_policy_group_by_ccx(int policy, int tmin, int tmax, int gmin, int
 	}
 
 	if (global.nbthread)
-		ha_diag_warning("Created %d threads split into %d groups\n", global.nbthread, global.nbtgroups);
+		ha_diag_notice("Created %d threads split into %d groups\n", global.nbthread, global.nbtgroups);
 	else
-		ha_diag_warning("Could not determine any CPU cluster\n");
+		ha_diag_notice("Could not determine any CPU cluster\n");
 
 	return 0;
 }
