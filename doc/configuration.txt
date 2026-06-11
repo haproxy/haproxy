@@ -32637,9 +32637,9 @@ https://github.com/haproxy/wiki/wiki/ACME:--native-haproxy
 Current limitations:
 - The feature is limited to the http-01, dns-01 or dns-persist-01 challenges
   for now. http-01 is completely handled by HAProxy, but dns-01 and
-  dns-persist-01 needs either the dataplaneAPI or another 3rd party
-  tool to talk to a DNS provider API. dns-persist-01 only needs the TXT entry
-  to be set once, so it could be set manually without a tool.
+  dns-persist-01 needs either the dataplaneAPI, a lua script using event_hdl or
+  another 3rd party tool to talk to a DNS provider API. dns-persist-01 only
+  needs the TXT entry to be set once, so it could be set manually without a tool.
 - It is possible to start without an existing certificate on the disk. To do
   so, the certificate must configured in a crt-store.
   When using the "acme" keyword in a crt-store, a temporary key pair will be
@@ -32710,6 +32710,8 @@ challenge-ready <value>[,<value>]*
            "acme challenge_ready <crt> domain <domain>" on the master CLI or
            the stats socket. This allows an external DNS provisioning tool to
            confirm that the TXT record has been set before HAProxy proceeds.
+           It is also possible to signal the "cli" readiness using the
+           ACME.challenge_ready() lua function.
 
     dns  - perform a DNS pre-check by resolving the TXT record for
            "_acme-challenge.<domain>" using the configured "default" resolvers
