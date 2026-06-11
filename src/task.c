@@ -86,7 +86,9 @@ void task_kill(struct task *t)
 			 * Note: that's a task so it must be accounted for as such. Pick
 			 * the task's first thread for the job.
 			 */
-			thr = t->tid >= 0 ? t->tid : tid;
+			thr = __task_get_current_owner(t->tid);
+			if (thr == -1)
+				thr = tid;
 
 			/* Beware: tasks that have never run don't have their ->list empty yet! */
 			MT_LIST_APPEND(&ha_thread_ctx[thr].shared_tasklet_list,
