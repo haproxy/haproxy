@@ -174,7 +174,6 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 	struct hbuf opts_buf = HBUF_NULL;
 	char quic_addr[128];
 
-	fprintf(stderr, "-------------\n%s url: '%s'\n", __func__, url);
 	if (strncmp(url, "http://", 7) == 0)
 		addr = url + 7;
 	else if (strncmp(url, "https://", 8) == 0) {
@@ -202,12 +201,6 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 		goto err;
 
 	for (purl = hld_url_cfgs; purl; purl = purl->next) {
-		/* XXX TODO: improve this check for QUIC XXX */
-		fprintf(stderr, "new url '%s'? url[%d]: raw_addr: '%s' alpn: '%s' vs '%s'"
-		        " (%d,%d,%d,%d)\n", url, purl->id, purl->raw_addr, purl->alpn, alpn,
-		        !strcmp(purl->raw_addr, addr),
-		        purl->ssl == ssl, purl->is_quic == is_quic,
-		        !strcmp(purl->alpn, alpn));
 		if (purl->is_quic == is_quic && purl->ssl == ssl &&
 		    strcmp(purl->raw_addr, addr) == 0 && strcmp(purl->alpn, alpn) == 0) {
 			if (hld_url_cfg_path_exist(purl, path)) {
@@ -396,8 +389,6 @@ void haproxy_init_args(int argc, char **argv)
 		if (**argv == '-') {
 			char *opt = *argv + 1;
 
-			//fprintf(stderr, "||||**argv='%c' argc=%d\n", **argv, argc);
-			//fprintf(stderr, "====> *opt='%c'\n", *opt);
 			if (*opt == '-') {
 				/* long option */
 				opt++;
@@ -596,7 +587,6 @@ void haproxy_init_args(int argc, char **argv)
 		}
 
 		argv++; argc--;
-		//fprintf(stderr, "///argc=%d argv='%s'\n", argc, *argv);
 	}
 
 	if (arg_rcon > 0 && arg_rcon < arg_mreqs) {
@@ -642,13 +632,6 @@ void haproxy_init_args(int argc, char **argv)
 		fprintf(stdout, "%.*s", (int)fileless_cfg.size, fileless_cfg.content);
 		exit(0);
 	}
-
-#if 0
-	if (arg_reqs > 0 && arg_reqs < arg_usr) {
-		ha_alert("user count must not exceed request count\n");
-		goto leave;
-	}
-#endif
 
 	/* Inverse the URLs and their paths */
 	hld_url_cfgs_inv();

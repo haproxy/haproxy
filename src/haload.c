@@ -18,12 +18,6 @@
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
 
-#if 0
-#define DDPRINTF(x...) fprintf(x)
-#else
-#define DDPRINTF(x...) do {} while(0)
-#endif
-
 /* haload stream state flags */
 #define HLD_STRM_ST_IN_ALLOC     0x0001
 #define HLD_STRM_ST_OUT_ALLOC    0x0002
@@ -56,7 +50,6 @@ struct hld_thr_info {
 	uint32_t maxconn;            // max number of active connections
 	uint32_t is_ssl;             // non-zero if SSL is used
 	uint64_t tot_conn;           // total conns attempted on this thread
-	//uint64_t tot_req;            // total requests started on this thread
 	uint64_t tot_done;           // total requests finished (successes+failures)
 	uint64_t tot_sent;           // total bytes sent on this thread
 	uint64_t tot_rcvd;           // total bytes received on this thread
@@ -140,7 +133,6 @@ volatile uint32_t throttle = 0;  // pass to mul32hi() if not null.
 #define TV_UNSET ((struct timeval){ .tv_sec = 0, .tv_usec = ~0 })
 
 /* make a timeval from <sec>, <usec> */
-__attribute__((unused))
 static inline struct timeval tv_set(time_t sec, suseconds_t usec)
 {
 	struct timeval ret = { .tv_sec = sec, .tv_usec = usec };
@@ -300,7 +292,6 @@ static inline void hdl_update_freq_ctr(struct hld_freq_ctr *ctr, uint32_t inc,
 	hld_rotate_freq_ctr(ctr, now);
 	ctr->curr_ctr = inc;
 }
-
 
 #define TRACE_SOURCE &trace_haload
 struct trace_source trace_haload;
@@ -1396,7 +1387,6 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 		for (path = paths; path && nreqs; path = hld_next_path(url->cfg->paths, path)) {
 			struct hldstream *hs;
 
-			//fprintf(stderr, "up(%d,%d,%s)", url->cfg->id, path->id, path->path);
 			if ((hs = hld_new_strm(usr, url, path)) == NULL) {
 				TRACE_ERROR("could start a new stream task", HLD_EV_USR_TASK);
 				goto out;
@@ -1411,7 +1401,6 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 			usr->nreqs = usr->nreqs == -1 ? -1 : usr->nreqs - 1;
 
 			if (hs->conn) {
-				//fprintf(stderr, "\n");
 				url->tot_req++;
 				remain = hs->conn->mux->avail_streams(hs->conn);
 				TRACE_PRINTF(TRACE_LEVEL_PROTO, HLD_STRM_EV_TASK, hs, 0, 0, 0,
@@ -1420,7 +1409,6 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 					break;
 			}
 			else {
-				//fprintf(stderr, "c\n");
 				/* Connecting */
 				url->tot_req = 1;
 				remain = 0;
@@ -1430,7 +1418,6 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 			if (!usr->nreqs)
 				break;
 		}
-		//fprintf(stderr, "---\n");
 
 		if (!usr->nreqs || hld_next_url(urls, url) == first_url)
 			break;
