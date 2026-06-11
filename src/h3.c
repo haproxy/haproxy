@@ -1237,6 +1237,13 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		goto out;
 	}
 
+	if ((TRACE_SOURCE)->verbosity >= H3_VERB_ADVANCED &&
+	    TRACE_ENABLED(TRACE_LEVEL_USER, H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, 0, 0, 0)) {
+		int i;
+		for (i = 0; list[i].n.len; ++i)
+			h3_trace_header(list[i].n, list[i].v, H3_EV_RX_HDR, ist(TRC_LOC), __FUNCTION__, qcs->qcc, qcs);
+	}
+
 	if (!(appbuf = qcc_get_stream_rxbuf(qcs))) {
 		TRACE_ERROR("buffer alloc failure", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 		len = -1;
@@ -2313,6 +2320,7 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 
 	if (qpack_encode_method(&headers_buf, sl->info.req.meth, meth))
 		goto err_full;
+	h3_trace_header(ist(":method"), meth, H3_EV_TX_HDR, ist(TRC_LOC), __FUNCTION__, qcs->qcc, qcs);
 
 	if (uri.ptr[0] != '/' && uri.ptr[0] != '*') {
 		int len = 1;
@@ -2344,13 +2352,23 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 
 	if (qpack_encode_scheme(&headers_buf, scheme))
 		goto err_full;
+	h3_trace_header(ist(":scheme"), scheme, H3_EV_TX_HDR, ist(TRC_LOC), __FUNCTION__, qcs->qcc, qcs);
 
 	if (qpack_encode_path(&headers_buf, uri))
 		goto err_full;
+	h3_trace_header(ist(":path"), uri, H3_EV_TX_HDR, ist(TRC_LOC), __FUNCTION__, qcs->qcc, qcs);
 
 	if (istlen(auth)) {
 		if (qpack_encode_auth(&headers_buf, auth))
 			goto err_full;
+		h3_trace_header(ist(":authority"), auth, H3_EV_TX_HDR, ist(TRC_LOC), __FUNCTION__, qcs->qcc, qcs);
+	}
+
+	if ((TRACE_SOURCE)->verbosity >= H3_VERB_ADVANCED &&
+	    TRACE_ENABLED(TRACE_LEVEL_USER, H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, 0, 0, 0)) {
+		int i;
+		for (i = 0; list[i].n.len; ++i)
+			h3_trace_header(list[i].n, list[i].v, H3_EV_TX_HDR, ist(TRC_LOC), __FUNCTION__, qcs->qcc, qcs);
 	}
 
 	if (!(sl->flags & HTX_SL_F_XFER_LEN)) {
