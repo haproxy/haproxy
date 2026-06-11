@@ -101,6 +101,8 @@ void ha_warning(const char *fmt, ...)
  * These functions are reserved to output diagnostics on MODE_DIAG.
  * Use the underscore variants only if MODE_DIAG has already been checked.
  */
+void ha_diag_notice(const char *fmt, ...)
+	__attribute__ ((format(printf, 1 ,2)));
 void _ha_vdiag_warning(const char *fmt, va_list argp);
 void _ha_diag_warning(const char *fmt, ...);
 void ha_diag_warning(const char *fmt, ...)

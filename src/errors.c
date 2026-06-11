@@ -387,6 +387,20 @@ void ha_diag_warning(const char *fmt, ...)
 }
 
 /*
+ * Displays the message on stderr with the pid if MODE_DIAG is set.
+ */
+void ha_diag_notice(const char *fmt, ...)
+{
+	va_list argp;
+
+	if (global.mode & MODE_DIAG) {
+		va_start(argp, fmt);
+		print_message(1, "DIAG", fmt, argp);
+		va_end(argp);
+	}
+}
+
+/*
  * Displays the message on stderr with the pid.
  */
 void ha_notice(const char *fmt, ...)
