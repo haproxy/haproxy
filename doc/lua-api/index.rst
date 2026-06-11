@@ -1033,6 +1033,8 @@ Core class
 
    **ACME** Family:
 
+    * **ACME_DEPLOY**: when a dns-01 challenge TXT record must be deployed
+      externally before HAProxy can proceed with the ACME challenge
     * **ACME_NEWCERT**: when a new certificate is successfully installed
 
    .. Note::
@@ -4772,13 +4774,46 @@ AcmeEvent class
 
 .. js:class:: AcmeEvent
 
-This class is provided with **ACME_NEWCERT** events.
+This class is provided with every **ACME** event.
 
 See :js:func:`core.event_sub()` for more info.
 
 .. js:attribute:: AcmeEvent.crtname
 
-  Contains the certificate store name of the newly installed certificate.
+  Contains the certificate store name.
+
+.. js:attribute:: AcmeEvent.domain
+
+  Contains the domain being challenged.
+
+  Only available for **ACME_DEPLOY** events.
+
+.. js:attribute:: AcmeEvent.thumbprint
+
+  Contains the account key JWK thumbprint.
+
+  Only available for **ACME_DEPLOY** events.
+
+.. js:attribute:: AcmeEvent.dns_record
+
+  Contains the DNS TXT record value that must be set at
+  ``_acme-challenge.<domain>``.
+
+  Only available for **ACME_DEPLOY** events.
+
+.. js:attribute:: AcmeEvent.provider
+
+  Contains the DNS provider name configured in the ACME section.
+  Only set if a provider was configured.
+
+  Only available for **ACME_DEPLOY** events.
+
+.. js:attribute:: AcmeEvent.vars
+
+  Contains the ACME vars string configured in the ACME section.
+  Only set if vars were configured.
+
+  Only available for **ACME_DEPLOY** events.
 
 External Lua libraries
 ======================

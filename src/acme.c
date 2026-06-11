@@ -1457,6 +1457,19 @@ error:
 	return ret;
 }
 
+/* mfree callback for EVENT_HDL_SUB_ACME_DEPLOY: frees heap-allocated fields */
+static void acme_deploy_event_mfree(const void *data)
+{
+	struct event_hdl_cb_data_acme_deploy *e = (struct event_hdl_cb_data_acme_deploy *)data;
+
+	ha_free(&e->safe.crtname);
+	ha_free(&e->safe.domain);
+	ha_free(&e->safe.thumbprint);
+	ha_free(&e->safe.dns_record);
+	ha_free(&e->safe.provider);
+	ha_free(&e->safe.vars);
+}
+
 /* mfree callback for EVENT_HDL_SUB_ACME_NEWCERT: frees the heap-allocated path */
 static void acme_newcert_event_mfree(const void *data)
 {
@@ -2206,6 +2219,22 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 			dpapi = sink_find("dpapi");
 			if (dpapi)
 				sink_write(dpapi, LOG_HEADER_NONE, 0, line, nmsg);
+
+			{
+				struct event_hdl_cb_data_acme_deploy cb_data = { };
+
+				cb_data.safe.crtname    = strdup(ctx->store->path);
+				cb_data.safe.domain     = isttest(auth->dns) ? strndup(auth->dns.ptr, auth->dns.len) : NULL;
+				cb_data.safe.thumbprint = ctx->cfg->account.thumbprint ? strdup(ctx->cfg->account.thumbprint) : NULL;
+				cb_data.safe.dns_record = strndup(dns_record->area, dns_record->data);
+				cb_data.safe.provider   = ctx->cfg->provider ? strdup(ctx->cfg->provider) : NULL;
+				cb_data.safe.vars       = ctx->cfg->vars ? strdup(ctx->cfg->vars) : NULL;
+				if (cb_data.safe.crtname && cb_data.safe.dns_record)
+					event_hdl_publish(NULL, EVENT_HDL_SUB_ACME_DEPLOY,
+					                  EVENT_HDL_CB_DATA_DM(&cb_data, acme_deploy_event_mfree));
+				else
+					acme_deploy_event_mfree(&cb_data);
+			}
 		}
 		else if (strcasecmp(ctx->cfg->challenge, "http-01") == 0) {
 			/* only useful for http-01 */
@@ -3721,6 +3750,40 @@ INITCALL0(STG_REGISTER, __acme_init);
 #define CLASS_ACME_EVENT "AcmeEvent"
 static int class_acme_event_ref;
 
+/* Push a new AcmeEvent object for an ACME_DEPLOY event onto the Lua stack.
+ * The object exposes crtname, domain, thumbprint, dns_record fields, and
+ * optionally provider and vars if they were configured.
+ */
+static void hlua_fcn_new_acme_event_deploy(lua_State *L, const struct event_hdl_cb_data_acme_deploy *e)
+{
+	lua_newtable(L);
+
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_acme_event_ref);
+	lua_setmetatable(L, -2);
+
+	lua_pushstring(L, e->safe.crtname ? e->safe.crtname : "");
+	lua_setfield(L, -2, "crtname");
+
+	lua_pushstring(L, e->safe.domain ? e->safe.domain : "");
+	lua_setfield(L, -2, "domain");
+
+	lua_pushstring(L, e->safe.thumbprint ? e->safe.thumbprint : "");
+	lua_setfield(L, -2, "thumbprint");
+
+	lua_pushstring(L, e->safe.dns_record ? e->safe.dns_record : "");
+	lua_setfield(L, -2, "dns_record");
+
+	if (e->safe.provider) {
+		lua_pushstring(L, e->safe.provider);
+		lua_setfield(L, -2, "provider");
+	}
+
+	if (e->safe.vars) {
+		lua_pushstring(L, e->safe.vars);
+		lua_setfield(L, -2, "vars");
+	}
+}
+
 /* Push a new AcmeEvent object for an ACME_NEWCERT event onto the Lua stack.
  * The object exposes a <crtname> field with the certificate store name.
  */
@@ -3787,7 +3850,13 @@ void acme_hlua_event_push_args(struct hlua *hlua, struct event_hdl_sub_type even
 	if (!lua_checkstack(hlua->T, 3))
 		WILL_LJMP(luaL_error(hlua->T, "Lua out of memory error."));
 
-	if (event_hdl_sub_type_equal(EVENT_HDL_SUB_ACME_NEWCERT, event)) {
+	if (event_hdl_sub_type_equal(EVENT_HDL_SUB_ACME_DEPLOY, event)) {
+		struct event_hdl_cb_data_acme_deploy *e_acme = data;
+
+		hlua->nargs += 1;
+		MAY_LJMP(hlua_fcn_new_acme_event_deploy(hlua->T, e_acme));
+	}
+	else if (event_hdl_sub_type_equal(EVENT_HDL_SUB_ACME_NEWCERT, event)) {
 		struct event_hdl_cb_data_acme_newcert *e_acme = data;
 
 		hlua->nargs += 1;

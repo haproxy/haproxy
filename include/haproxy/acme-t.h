@@ -135,6 +135,20 @@ struct acme_ctx {
 #define ACME_VERB_ADVANCED 4
 #define ACME_VERB_COMPLETE 5
 
+/* event data for EVENT_HDL_SUB_ACME_DEPLOY:
+ * published when a dns-01 challenge TXT record must be deployed externally.
+ */
+struct event_hdl_cb_data_acme_deploy {
+	struct {
+		char *crtname;    /* certificate store name (heap-allocated) */
+		char *domain;     /* domain being challenged (heap-allocated) */
+		char *thumbprint; /* account key JWK thumbprint (heap-allocated) */
+		char *dns_record; /* DNS TXT record value to set (heap-allocated) */
+		char *provider;   /* DNS provider name (heap-allocated, may be NULL) */
+		char *vars;       /* ACME vars string (heap-allocated, may be NULL) */
+	} safe;
+};
+
 /* event data for EVENT_HDL_SUB_ACME_NEWCERT:
  * published when a new certificate was successfully installed.
  */
