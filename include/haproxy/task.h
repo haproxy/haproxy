@@ -291,7 +291,9 @@ static inline void _task_wakeup(struct task *t, unsigned int f, const struct ha_
 
 	state = _HA_ATOMIC_OR_FETCH(&t->state, f);
 	while (!(state & (TASK_RUNNING | TASK_QUEUED))) {
-		if (_HA_ATOMIC_CAS(&t->state, &state, state | TASK_QUEUED)) {
+		int expected_tid = _HA_ATOMIC_LOAD(&t->tid);
+
+		if (__task_set_state_and_tid(t, expected_tid, __task_get_new_tid_field(expected_tid), state, state | TASK_QUEUED)) {
 			if (likely(caller)) {
 				caller = HA_ATOMIC_XCHG(&t->caller, caller);
 				BUG_ON((ulong)caller & 1);
@@ -302,6 +304,7 @@ static inline void _task_wakeup(struct task *t, unsigned int f, const struct ha_
 			__task_wakeup(t);
 			break;
 		}
+		state = _HA_ATOMIC_LOAD(&t->state);
 	}
 }
 
@@ -316,14 +319,23 @@ static inline void task_drop_running(struct task *t, unsigned int f)
 {
 	unsigned int state, new_state;
 
-	state = _HA_ATOMIC_LOAD(&t->state);
 
 	while (1) {
-		new_state = state | f;
+		int cur_tid, new_tid;
+
+		state = _HA_ATOMIC_LOAD(&t->state);
+		new_state = (state | f) &~ TASK_RUNNING;
 		if (new_state & TASK_WOKEN_ANY)
 			new_state |= TASK_QUEUED;
 
-		if (_HA_ATOMIC_CAS(&t->state, &state, new_state & ~TASK_RUNNING))
+		cur_tid = t->tid;
+
+		if ((new_state & TASK_QUEUED) || cur_tid >= 0)
+			new_tid = cur_tid;
+		else
+			new_tid = -1;
+
+		if (__task_set_state_and_tid(t, cur_tid, new_tid, state, new_state))
 			break;
 		__ha_cpu_relax();
 	}
