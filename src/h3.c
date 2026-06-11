@@ -634,6 +634,50 @@ static struct ist _h3_trim_header(struct ist value)
 	return v;
 }
 
+static void _h3_trace_header(const struct ist n, const struct ist v,
+                             uint64_t mask, const struct ist trc_loc, const char *func,
+                             const struct qcc *qcc, const struct qcs *qcs)
+{
+	struct ist n_short, v_short;
+	const char *c_str, *s_str;
+
+	chunk_reset(&trash);
+	c_str = chunk_newstr(&trash);
+	if (qcc)
+		chunk_appendf(&trash, "qcc=%p(%c)", qcc, (qcc->flags & QC_CF_IS_BACK) ? 'B' : 'F');
+
+	s_str = chunk_newstr(&trash);
+	if (qcs)
+		chunk_appendf(&trash, " qcc=%p(%llu)", qcs, (ullong)qcs->id);
+
+	n_short = ist2(chunk_newstr(&trash), 0);
+	istscpy(&n_short, n, 256);
+	trash.data += n_short.len;
+	if (n_short.len != n.len)
+		chunk_appendf(&trash, " (... +%ld)", (long)(n.len - n_short.len));
+
+	v_short = ist2(chunk_newstr(&trash), 0);
+	istscpy(&v_short, v, 1024);
+	trash.data += v_short.len;
+	if (v_short.len != v.len)
+		chunk_appendf(&trash, " (... +%ld)", (long)(v.len - v_short.len));
+
+	TRACE_PRINTF_LOC(TRACE_LEVEL_USER, mask, trc_loc, func,
+	                 0, 0, 0, 0, "%s%s %s %s: %s", c_str, s_str,
+	                 mask & H3_EV_TX_HDR ? "sndh" : "rcvh",
+	                 istptr(n_short), istptr(v_short));
+}
+
+/* Output a trace for HTTP/3 header <n>:<v> if tracing is enabled. */
+static void h3_trace_header(const struct ist n, const struct ist v,
+                            uint64_t mask, const struct ist trc_loc, const char *func,
+                            const struct qcc *qcc, const struct qcs *qcs)
+{
+	if ((TRACE_SOURCE)->verbosity >= H3_VERB_ADVANCED &&
+	    TRACE_ENABLED(TRACE_LEVEL_USER, mask, qcc ? qcc->conn : 0, qcs, 0, 0))
+		_h3_trace_header(n, v, mask, trc_loc, func, qcc, qcs);
+}
+
 /* Parse from buffer <buf> a H3 HEADERS frame of length <len>. Data are copied
  * in a local HTX buffer and transfer to the stream connector layer. <fin> must be
  * set if this is the last data to transfer from this stream.
@@ -697,6 +741,12 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		}
 		len = -1;
 		goto out;
+	}
+
+	if ((TRACE_SOURCE)->verbosity >= H3_VERB_ADVANCED &&
+	    TRACE_ENABLED(TRACE_LEVEL_USER, H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, 0, 0, 0)) {
+		for (i = 0; list[i].n.len; ++i)
+			h3_trace_header(list[i].n, list[i].v, H3_EV_RX_HDR, ist(TRC_LOC), __FUNCTION__, qcs->qcc, qcs);
 	}
 
 	if (!b_alloc(&htx_buf, DB_SE_RX)) {
@@ -2437,6 +2487,13 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 				TRACE_USER("handling final HTX response", H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
 				h3s->flags &= ~H3_SF_SENT_INTERIM;
 			}
+
+			if ((TRACE_SOURCE)->verbosity >= H3_VERB_ADVANCED) {
+				char sts[4];
+				h3_trace_header(ist(":status"), ist(ultoa_r(status, sts, sizeof(sts))),
+				                H3_EV_TX_FRAME|H3_EV_TX_HDR, ist(TRC_LOC), __FUNCTION__,
+				                qcs->qcc, qcs);
+			}
 		}
 		else if (type == HTX_BLK_HDR) {
 			if (unlikely(hdr >= sizeof(list) / sizeof(list[0]) - 1)) {
@@ -2453,6 +2510,14 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 			goto err;
 		}
 	}
+
+	if ((TRACE_SOURCE)->verbosity >= H3_VERB_ADVANCED &&
+	    TRACE_ENABLED(TRACE_LEVEL_USER, H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, 0, 0, 0)) {
+		int i;
+		for (i = 0; list[i].n.len; ++i)
+			h3_trace_header(list[i].n, list[i].v, H3_EV_TX_HDR, ist(TRC_LOC), __FUNCTION__, qcs->qcc, qcs);
+	}
+
 
 	/* Current function expects HTX start-line to be present. This also
 	 * ensures <status> conformance has been checked prior to encoding it.
