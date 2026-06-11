@@ -1260,8 +1260,7 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 		usr->flags |= HLD_USR_FL_STOP;
 		HA_ATOMIC_STORE(&all_usr_stop_asap, 1);
 	}
-	else
-		usr->nreqs = usr->nreqs == -1 ? -1 : usr->nreqs + 1;
+
 	goto leave;
 }
 
