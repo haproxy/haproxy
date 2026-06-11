@@ -73,6 +73,9 @@
 #include <haproxy/event_hdl.h>
 #include <haproxy/check.h>
 #include <haproxy/mailers.h>
+#if defined(HAVE_ACME)
+#include <haproxy/acme.h>
+#endif /* HAVE_ACME */
 
 /* Global LUA flags */
 
@@ -10071,6 +10074,11 @@ __LJMP static void hlua_event_hdl_cb_push_args(struct hlua_event_sub *hlua_sub,
 			lua_settable(hlua->T, -3);
 		}
 	}
+#if defined(HAVE_ACME)
+	else if (event_hdl_sub_family_equal(EVENT_HDL_SUB_ACME, event)) {
+		MAY_LJMP(acme_hlua_event_push_args(hlua, event, data));
+	}
+#endif /* HAVE_ACME */
 	/* sub mgmt */
 	hlua->nargs += 1;
 	hlua_fcn_new_event_sub(hlua->T, hlua_sub->sub);

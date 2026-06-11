@@ -19,6 +19,7 @@
 #include <haproxy/acme-t.h>
 
 #include <haproxy/acme_resolvers.h>
+#include <haproxy/event_hdl.h>
 #include <haproxy/base64.h>
 #include <haproxy/intops.h>
 #include <haproxy/cfgparse.h>
@@ -1456,6 +1457,14 @@ error:
 	return ret;
 }
 
+/* mfree callback for EVENT_HDL_SUB_ACME_NEWCERT: frees the heap-allocated path */
+static void acme_newcert_event_mfree(const void *data)
+{
+	const struct event_hdl_cb_data_acme_newcert *e = data;
+
+	free(e->safe.crtname);
+}
+
 /*
  * Update every certificate instances for the new store
  *
@@ -1508,6 +1517,15 @@ int acme_update_certificate(struct task *task, struct acme_ctx *ctx, char **errm
 	dpapi = sink_find("dpapi");
 	if (dpapi)
 		sink_write(dpapi, LOG_HEADER_NONE, 0, line, 3);
+
+	{
+		struct event_hdl_cb_data_acme_newcert cb_data = { };
+
+		cb_data.safe.crtname = strdup(ctx->store->path);
+		if (cb_data.safe.crtname)
+			event_hdl_publish(NULL, EVENT_HDL_SUB_ACME_NEWCERT,
+			                  EVENT_HDL_CB_DATA_DM(&cb_data, acme_newcert_event_mfree));
+	}
 
 	ctx->store = NULL;
 
@@ -3699,6 +3717,24 @@ static void __acme_init(void)
 INITCALL0(STG_REGISTER, __acme_init);
 
 #ifdef USE_LUA
+
+#define CLASS_ACME_EVENT "AcmeEvent"
+static int class_acme_event_ref;
+
+/* Push a new AcmeEvent object for an ACME_NEWCERT event onto the Lua stack.
+ * The object exposes a <crtname> field with the certificate store name.
+ */
+static void hlua_fcn_new_acme_event_newcert(lua_State *L, const char *crtname)
+{
+	lua_newtable(L);
+
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_acme_event_ref);
+	lua_setmetatable(L, -2);
+
+	lua_pushstring(L, crtname);
+	lua_setfield(L, -2, "crtname");
+}
+
 /*
  * ACME.challenge_ready(crt, dns)
  *
@@ -3731,6 +3767,10 @@ __LJMP static int hlua_acme_challenge_ready(lua_State *L)
 
 static int acme_hlua_init_state(lua_State *L, char **errmsg)
 {
+	/* Register AcmeEvent class */
+	lua_newtable(L);
+	class_acme_event_ref = hlua_register_metatable(L, CLASS_ACME_EVENT);
+
 	lua_newtable(L);
 	hlua_class_function(L, "challenge_ready", hlua_acme_challenge_ready);
 	lua_setglobal(L, "ACME");
@@ -3738,6 +3778,23 @@ static int acme_hlua_init_state(lua_State *L, char **errmsg)
 }
 
 REGISTER_HLUA_STATE_INIT(acme_hlua_init_state);
+
+/* Push ACME event data as a Lua table for core.event_sub() handlers.
+ * Called from hlua_event_hdl_cb_push_args() when the event family is ACME.
+ */
+void acme_hlua_event_push_args(struct hlua *hlua, struct event_hdl_sub_type event, void *data)
+{
+	if (!lua_checkstack(hlua->T, 3))
+		WILL_LJMP(luaL_error(hlua->T, "Lua out of memory error."));
+
+	if (event_hdl_sub_type_equal(EVENT_HDL_SUB_ACME_NEWCERT, event)) {
+		struct event_hdl_cb_data_acme_newcert *e_acme = data;
+
+		hlua->nargs += 1;
+		MAY_LJMP(hlua_fcn_new_acme_event_newcert(hlua->T, e_acme->safe.crtname));
+	}
+}
+
 #endif /* USE_LUA */
 
 #endif /* ! HAVE_ACME */

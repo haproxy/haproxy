@@ -1031,6 +1031,10 @@ Core class
       Be careful when subscribing to this type since many events might be
       generated.
 
+   **ACME** Family:
+
+    * **ACME_NEWCERT**: when a new certificate is successfully installed
+
    .. Note::
      Use **SERVER** in **event_types** to subscribe to all server events types
      at once. Note that this should only be used for testing purposes since a
@@ -1048,7 +1052,8 @@ Core class
   * **event** (*string*): the event type (one of the **event_types** specified
     when subscribing)
   * **event_data**: specific to each event family (For **SERVER** family,
-    a :ref:`server_event_class` object)
+    a :ref:`server_event_class` object; for **ACME** family,
+    a :ref:`acme_event_class` object)
   * **sub**: class to manage the subscription from within the event
     (a :ref:`event_sub_class` object)
   * **when**: timestamp corresponding to the date when the event was generated.
@@ -4760,6 +4765,20 @@ ACME class
   :returns: The number of remaining challenges (integer), or 0 when all
    challenges are done and validation has been triggered.
 
+.. _acme_event_class:
+
+AcmeEvent class
+===============
+
+.. js:class:: AcmeEvent
+
+This class is provided with **ACME_NEWCERT** events.
+
+See :js:func:`core.event_sub()` for more info.
+
+.. js:attribute:: AcmeEvent.crtname
+
+  Contains the certificate store name of the newly installed certificate.
 
 External Lua libraries
 ======================

@@ -48,6 +48,8 @@ static struct event_hdl_sub_type_map event_hdl_sub_type_map[] = {
 	{"PAT_REF_SET",         EVENT_HDL_SUB_PAT_REF_SET},
 	{"PAT_REF_COMMIT",      EVENT_HDL_SUB_PAT_REF_COMMIT},
 	{"PAT_REF_CLEAR",       EVENT_HDL_SUB_PAT_REF_CLEAR},
+	{"ACME",                EVENT_HDL_SUB_ACME},
+	{"ACME_NEWCERT",        EVENT_HDL_SUB_ACME_NEWCERT},
 };
 
 /* internal types (only used in this file) */

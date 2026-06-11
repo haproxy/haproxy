@@ -135,6 +135,15 @@ struct acme_ctx {
 #define ACME_VERB_ADVANCED 4
 #define ACME_VERB_COMPLETE 5
 
+/* event data for EVENT_HDL_SUB_ACME_NEWCERT:
+ * published when a new certificate was successfully installed.
+ */
+struct event_hdl_cb_data_acme_newcert {
+	struct {
+		char *crtname;  /* certificate store name (heap-allocated) */
+	} safe;
+};
+
 #endif /* ! HAVE_ACME */
 
 #endif
