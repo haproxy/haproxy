@@ -92,6 +92,10 @@ static const struct name_desc h3_trace_decoding[] = {
 	{ .name="clean",    .desc="only user-friendly stuff, generally suitable for level \"user\"" },
 #define H3_VERB_MINIMAL  2
 	{ .name="minimal",  .desc="report only qcc/qcs state and flags, no real decoding" },
+#define H3_VERB_SIMPLE   3
+	{ .name="simple",   .desc="add request/response status line or frame info when available" },
+#define H3_VERB_ADVANCED 4
+	{ .name="advanced", .desc="add header fields or frame decoding when available" },
 	{ /* end */ }
 };
 
