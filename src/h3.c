@@ -639,7 +639,8 @@ static void _h3_trace_header(const struct ist n, const struct ist v,
                              const struct qcc *qcc, const struct qcs *qcs)
 {
 	struct ist n_short, v_short;
-	const char *c_str, *s_str;
+	const char *c_str __maybe_unused;
+	const char *s_str __maybe_unused;
 
 	chunk_reset(&trash);
 	c_str = chunk_newstr(&trash);
