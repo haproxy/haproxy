@@ -255,6 +255,7 @@ struct ssl_keylog {
 #define SSL_SOCK_F_KTLS_RECV            (1 << 3) /* kTLS receive is configure on that socket */
 #define SSL_SOCK_F_CTRL_SEND            (1 << 4) /* We want to send a kTLS control message for that socket */
 #define SSL_SOCK_F_HAS_ALPN             (1 << 5) /* An ALPN has been negotiated */
+#define SSL_SOCK_F_KTLS_ULP             (1 << 6) /* TLS ULP is enabled on that socket */
 
 struct ssl_sock_ctx {
 	struct connection *conn;

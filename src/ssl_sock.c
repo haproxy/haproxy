@@ -439,6 +439,22 @@ static int ha_ssl_read(BIO *h, char *buf, int size)
 }
 
 #ifdef HA_USE_KTLS
+static int ktls_enable_ulp(struct ssl_sock_ctx *ctx)
+{
+	int ret = 0;
+
+	if (!(ctx->flags & SSL_SOCK_F_KTLS_ULP)) {
+		ret = setsockopt(ctx->conn->handle.fd, SOL_TCP, TCP_ULP, "tls",
+				 sizeof("tls"));
+		if (ret == 0)
+			ctx->flags |= SSL_SOCK_F_KTLS_ULP;
+		else
+			ctx->flags &= ~SSL_SOCK_F_KTLS_ENABLED;
+	}
+
+	return ret;
+}
+
 /* Returns 0 on success, -1 on failure */
 static int ktls_set_key(struct ssl_sock_ctx *ctx, void *info, size_t info_len, int is_tx)
 {
@@ -484,6 +500,9 @@ static long ha_ssl_ctrl(BIO *h, int cmd, long arg1, void *arg2)
 		struct tls_crypto_info *info = arg2;
 
 		if (!(ctx->flags & SSL_SOCK_F_KTLS_ENABLED))
+			return 0;
+
+		if (ktls_enable_ulp(ctx) == -1)
 			return 0;
 		/*
 		 * As OpenSSL doesn't export struct tls_crypto_info_all,
@@ -5670,14 +5689,6 @@ static int ssl_sock_start(struct connection *conn, void *xprt_ctx)
 		if (ret < 0)
 			return ret;
 	}
-#ifdef HA_USE_KTLS
-	/*
-	 * Make the socket usable for kTLS. That does not mean that we will
-	 * use kTLS, though, just that the socket will be able to do it.
-	 */
-	if ((ctx->flags & SSL_SOCK_F_KTLS_ENABLED) && setsockopt(conn->handle.fd, SOL_TCP, TCP_ULP, "tls", sizeof("tls")) != 0)
-		ctx->flags &= ~SSL_SOCK_F_KTLS_ENABLED;
-#endif
 	tasklet_wakeup(ctx->wait_event.tasklet);
 
 	return 0;
@@ -6615,6 +6626,9 @@ static void ssl_sock_setup_ktls(struct ssl_sock_ctx *ctx)
 	int nid, i;
 
 	if (!(ctx->flags & SSL_SOCK_F_KTLS_ENABLED))
+		return;
+
+	if (ktls_enable_ulp(ctx) == -1)
 		return;
 
 	switch (SSL_version(ctx->ssl)) {
