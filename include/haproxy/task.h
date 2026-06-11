@@ -516,24 +516,30 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, uint f, const
 static inline void _task_instant_wakeup(struct task *t, unsigned int f, const struct ha_caller *caller)
 {
 	int thr = t->tid;
+	int newtid;
 	unsigned int state;
-
-	if (thr < 0)
-		thr = tid;
 
 	/* first, let's update the task's state with the wakeup condition */
 	state = _HA_ATOMIC_OR_FETCH(&t->state, f);
-
 	/* next we need to make sure the task was not/will not be added to the
 	 * run queue because the tasklet list's mt_list uses the same storage
 	 * as the task's run_queue.
 	 */
 	do {
+		state = _HA_ATOMIC_LOAD(&t->state);
+		thr = t->tid;
+		if (thr == -1)
+			newtid = -2 - tid;
+		else
+			newtid = thr;
+
 		/* do nothing if someone else already added it */
 		if (state & (TASK_QUEUED|TASK_RUNNING))
 			return;
-	} while (!_HA_ATOMIC_CAS(&t->state, &state, state | TASK_QUEUED));
+	} while (!__task_set_state_and_tid(t, thr, newtid, state, state | TASK_QUEUED));
 
+	if (newtid < 0)
+		thr = __task_get_current_owner(newtid);
 	BUG_ON_HOT(task_in_rq(t));
 
 	/* at this point we're the first ones to add this task to the list */
