@@ -6221,7 +6221,6 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	struct server *srv;
 	char *be_name, *sv_name, *errmsg;
 	int errcode, argc;
-	int next_id;
 	const int parse_flags = SRV_PARSE_DYNAMIC|SRV_PARSE_PARSE_ADDR;
 
 	usermsgs_clr("CLI");
@@ -6388,6 +6387,19 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	if (errcode)
 		goto out;
 
+	/* Generate the server ID if not manually specified. This must be
+	 * performed before the server queuing in LB tree (srv_alloc_lb()).
+	 * Proxy tree ID insertion though is only done when all fallible
+	 * operation are completed.
+	 */
+	if (!srv->puid) {
+		srv->puid = server_get_next_id(be, 1);
+		if (!srv->puid) {
+			ha_alert("Cannot attach server : no id left in proxy\n");
+			goto out;
+		}
+	}
+
 	if (!srv_alloc_lb(srv, be)) {
 		ha_alert("Failed to initialize load-balancing data.\n");
 		goto out;
@@ -6407,16 +6419,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	if (errcode)
 		goto out;
 
-	/* generate the server id if not manually specified */
-	if (!srv->puid) {
-		next_id = server_get_next_id(be, 1);
-		if (!next_id) {
-			ha_alert("Cannot attach server : no id left in proxy\n");
-			goto out;
-		}
-
-		srv->puid = next_id;
-	}
+	/* All fallible operations completed, the server can now be made visible. */
 
 	/* insert the server in the backend trees */
 	server_index_id(be, srv);
