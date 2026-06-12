@@ -1265,7 +1265,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	struct htx *htx;
 	struct connection *srv_conn;
 	struct htx_sl *sl;
-	int n;
+	int n, l7_retry_failed = 0;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, msg);
 
@@ -1306,19 +1306,22 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			    (!conn || conn->err_code != CO_ER_SSL_EARLY_FAILED)) {
 				if (co_data(rep) || do_l7_retry(s, s->scb) == 0)
 					return 0;
+				l7_retry_failed = 1;
 			}
 
 			/* Perform a L7 retry on empty response or because server refuses the early data. */
 			if ((txn->flags & TX_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_EARLY_ERROR) &&
-			    conn && conn->err_code == CO_ER_SSL_EARLY_FAILED &&
-			    do_l7_retry(s, s->scb) == 0) {
-				DBG_TRACE_DEVEL("leaving on L7 retry",
-						STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
-				return 0;
+			    conn && conn->err_code == CO_ER_SSL_EARLY_FAILED) {
+				if (do_l7_retry(s, s->scb) == 0) {
+					DBG_TRACE_DEVEL("leaving on L7 retry",
+							STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
+					return 0;
+				}
+				l7_retry_failed = 1;
 			}
 
-			if (s->flags & SF_SRV_REUSED)
+			if (!l7_retry_failed && (s->flags & SF_SRV_REUSED))
 				goto abort_keep_alive;
 
 			if (s->be_tgcounters)
@@ -1416,9 +1419,10 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 							STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 					return 0;
 				}
+				l7_retry_failed = 1;
 			}
 
-			if (s->flags & SF_SRV_REUSED)
+			if (!l7_retry_failed && (s->flags & SF_SRV_REUSED))
 				goto abort_keep_alive;
 
 			if (s->be_tgcounters)
