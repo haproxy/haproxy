@@ -2074,8 +2074,9 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			 * receipt of a PUSH_PROMISE frame that contains a larger push ID than
 			 * the client has advertised as a connection error of H3_ID_ERROR.
 			 */
-			ret = H3_ERR_ID_ERROR;
-			break;
+			TRACE_ERROR("Received unexpected PUSH_PROMISE frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+			qcc_set_error(qcs->qcc, H3_ERR_ID_ERROR, 1, muxc_tevt_type_proto_err);
+			goto err;
 		case H3_FT_MAX_PUSH_ID:
 			/* h3_check_frame_valid() must reject on client side. */
 			BUG_ON(conn_is_back(qcs->qcc->conn));
