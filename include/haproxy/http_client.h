@@ -38,4 +38,9 @@ static inline int httpclient_started(struct httpclient *hc)
 	return !!(hc->flags & HTTPCLIENT_FS_STARTED);
 }
 
+#ifdef USE_LUA
+#include <haproxy/hlua-t.h>
+void hlua_httpclient_destroy_all(struct hlua *hlua);
+#endif
+
 #endif /* !_HAPROXY_HTTPCLIENT_H */
