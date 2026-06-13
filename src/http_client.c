@@ -47,6 +47,7 @@
 
 #ifdef USE_LUA
 static int class_httpclient_ref; /* httpclient LUA class */
+static int class_httpclient_request_ref; /* httpclient request LUA class */
 #endif
 
 static struct proxy *httpclient_proxy;
@@ -1536,7 +1537,7 @@ void hlua_httpclient_destroy_all(struct hlua *hlua)
 
 __LJMP static struct hlua_httpclient *hlua_checkhttpclient(lua_State *L, int ud)
 {
-	return MAY_LJMP(hlua_checkudata(L, ud, class_httpclient_ref));
+	return MAY_LJMP(hlua_checkudata(L, ud, class_httpclient_request_ref));
 }
 
 
@@ -1554,10 +1555,19 @@ __LJMP static int hlua_httpclient_gc(lua_State *L)
 		httpclient_stop_and_destroy(hlua_hc->hc);
 		hlua_hc->hc = NULL;
 	}
-
 	return 0;
 }
 
+
+__LJMP static int hlua_httpclient_factory_new(lua_State *L)
+{
+
+	lua_newtable(L);
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_httpclient_ref);
+	lua_setmetatable(L, -2);
+
+	return 1;
+}
 
 __LJMP static int hlua_httpclient_new(lua_State *L)
 {
@@ -1580,14 +1590,11 @@ __LJMP static int hlua_httpclient_new(lua_State *L)
 	lua_rawseti(L, -2, 0);
 	memset(hlua_hc, 0, sizeof(*hlua_hc));
 
-	hlua_hc->hc = httpclient_new(hlua, 0, IST_NULL);
-	if (!hlua_hc->hc)
-		goto err;
 
 	MT_LIST_APPEND(&hlua->hc_list, &hlua_hc->by_hlua);
 
 	/* Pop a class stream metatable and affect it to the userdata. */
-	lua_rawgeti(L, LUA_REGISTRYINDEX, class_httpclient_ref);
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_httpclient_request_ref);
 	lua_setmetatable(L, -2);
 
 	return 1;
@@ -1869,13 +1876,15 @@ __LJMP static int hlua_httpclient_send(lua_State *L, enum http_meth_t meth)
 	if (lua_gettop(L) != 2 || lua_type(L, -1) != LUA_TTABLE)
 		WILL_LJMP(luaL_error(L, "'get' needs a table as argument"));
 
+	/* Create the internal httpclient request object and replace the factory at index 1 */
+	hlua_httpclient_new(L);
+	lua_replace(L, 1);
+
 	hlua_hc = hlua_checkhttpclient(L, 1);
 
-	/* An HTTPclient instance must never process more that one request. So
-	 * at this stage, it must never have been started.
-	 */
-	if (httpclient_started(hlua_hc->hc))
-		WILL_LJMP(luaL_error(L, "httpclient instance cannot be reused. It must process at most one request"));
+	hlua_hc->hc = httpclient_new(hlua, 0, IST_NULL);
+	if (!hlua_hc->hc)
+		WILL_LJMP(luaL_error(L, "out of memory"));
 
 	lua_pushnil(L);  /* first key */
 	while (lua_next(L, 2)) {
@@ -2013,7 +2022,16 @@ __LJMP static int hlua_httpclient_delete(lua_State *L)
  */
 static int hlua_http_client_init_state(lua_State *L, char **errmsg)
 {
-	/* Create and fill the metatable. */
+	/* Register HTTPClientRequest */
+	lua_newtable(L);
+	/* Register the garbage collector entry. */
+	lua_pushstring(L, "__gc");
+	lua_pushcclosure(L, hlua_httpclient_gc, 0);
+	lua_settable(L, -3);
+
+	class_httpclient_request_ref = hlua_register_metatable(L, CLASS_HTTPCLIENT_REQ);
+
+	/* Register HTTPClient */
 	lua_newtable(L);
 	lua_pushstring(L, "__index");
 	lua_newtable(L);
@@ -2023,17 +2041,11 @@ static int hlua_http_client_init_state(lua_State *L, char **errmsg)
 	hlua_class_function(L, "post",        hlua_httpclient_post);
 	hlua_class_function(L, "delete",      hlua_httpclient_delete);
 	lua_settable(L, -3); /* Sets the __index entry. */
-	/* Register the garbage collector entry. */
-	lua_pushstring(L, "__gc");
-	lua_pushcclosure(L, hlua_httpclient_gc, 0);
-	lua_settable(L, -3); /* Push the last 2 entries in the table at index -3 */
-
-
 
 	class_httpclient_ref = hlua_register_metatable(L, CLASS_HTTPCLIENT);
 
 	lua_getglobal(L, "core");
-	hlua_class_function(L, "httpclient", hlua_httpclient_new);
+	hlua_class_function(L, "httpclient", hlua_httpclient_factory_new);
 	lua_pop(L, 1);
 
 	return ERR_NONE;

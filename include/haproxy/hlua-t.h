@@ -47,6 +47,7 @@
 #define CLASS_HTTP         "HTTP"
 #define CLASS_HTTP_MSG     "HTTPMessage"
 #define CLASS_HTTPCLIENT   "HTTPClient"
+#define CLASS_HTTPCLIENT_REQ "HTTPClientRequest"
 #define CLASS_MAP          "Map"
 #define CLASS_APPLET_TCP   "AppletTCP"
 #define CLASS_APPLET_HTTP  "AppletHTTP"

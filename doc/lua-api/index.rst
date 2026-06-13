@@ -893,9 +893,7 @@ Core class
 
   **context**: init, task, action
 
-  This function returns a new object of a *httpclient* class. An *httpclient*
-  object must be used to process one and only one request. It must never be
-  reused to process several requests.
+  This function returns a new object of a *httpclient* class.
 
   :returns: A :ref:`httpclient_class` object.
 
@@ -2587,10 +2585,7 @@ HTTPClient class
 .. js:class:: HTTPClient
 
    The httpclient class allows issue of outbound HTTP requests through a simple
-   API without the knowledge of HAProxy internals. Any instance must be used to
-   process one and only one request. It must never be reused to process several
-   requests.
-
+   API without the knowledge of HAProxy internals.
 .. js:function:: HTTPClient.get(httpclient, request)
 .. js:function:: HTTPClient.head(httpclient, request)
 .. js:function:: HTTPClient.put(httpclient, request)

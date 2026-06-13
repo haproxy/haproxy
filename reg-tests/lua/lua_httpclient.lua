@@ -18,6 +18,8 @@ core.register_service("fakeserv", "http", function(applet)
 end)
 
 local function cron()
+	local httpclient = core.httpclient()
+
 	-- wait for until the correct port is set through the c0 request..
 	while vtc_port == 0 do
 		core.msleep(1)
@@ -30,19 +32,16 @@ local function cron()
 	   body = body .. i .. ' ABCDEFGHIJKLMNOPQRSTUVWXYZ\n'
         end
 	core.Info("First httpclient request")
-	local httpclient = core.httpclient()
 	local response = httpclient:post{url="http://127.0.0.1:" .. vtc_port, body=body}
 	core.Info("Received: " .. response.body)
 
 	body = response.body
 
 	core.Info("Second httpclient request")
-	local httpclient2 = core.httpclient()
-	local response2 = httpclient2:post{url="http://127.0.0.1:" .. vtc_port2, body=body}
+	local response2 = httpclient:post{url="http://127.0.0.1:" .. vtc_port2, body=body}
 
 	core.Info("Third httpclient request")
-	local httpclient3 = core.httpclient()
-	local response3 = httpclient3:get{url="http://127.0.0.1", dst = vtc_port3, headers={ [ "Host" ] = { "foobar.haproxy.local" } }}
+	local response3 = httpclient:get{url="http://127.0.0.1", dst = vtc_port3, headers={ [ "Host" ] = { "foobar.haproxy.local" } }}
 
 end
 
