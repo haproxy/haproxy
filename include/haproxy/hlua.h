@@ -81,6 +81,15 @@ void hlua_pushref(lua_State *L, int ref);
 void hlua_unref(lua_State *L, int ref);
 struct hlua *hlua_gethlua(lua_State *L);
 void hlua_yieldk(lua_State *L, int nresults, lua_KContext ctx, lua_KFunction k, int timeout, unsigned int flags);
+int hlua_pusherror(lua_State *L, const char *fmt, ...);
+
+__LJMP static inline void hlua_check_args(lua_State *L, int nb, char *fcn)
+{
+	if (lua_gettop(L) == nb)
+		return;
+	WILL_LJMP(luaL_error(L, "'%s' needs %d arguments", fcn, nb));
+}
+#define check_args hlua_check_args
 
 #else /* USE_LUA */
 

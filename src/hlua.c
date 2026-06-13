@@ -999,13 +999,6 @@ const char *hlua_traceback(lua_State *L, const char* sep)
  * stack. If the number of arguments available is not the same
  * then <nb> an error is thrown.
  */
-__LJMP static inline void check_args(lua_State *L, int nb, char *fcn)
-{
-	if (lua_gettop(L) == nb)
-		return;
-	WILL_LJMP(luaL_error(L, "'%s' needs %d arguments", fcn, nb));
-}
-
 /* This function pushes an error string prefixed by the file name
  * and the line number where the error is encountered.
  *
@@ -1022,7 +1015,7 @@ __LJMP static int _hlua_pusherror(lua_State *L)
 
 	return 1;
 }
-static int hlua_pusherror(lua_State *L, const char *fmt, ...)
+int hlua_pusherror(lua_State *L, const char *fmt, ...)
 {
 	va_list argp;
 	int ret = 1;
