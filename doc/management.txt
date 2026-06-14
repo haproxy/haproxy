@@ -2469,7 +2469,8 @@ httpclient [--htx] <method> <URI>
   name in the URL using the "default" resolvers section, which is populated
   with the DNS servers of your /etc/resolv.conf by default. However it won't be
   able to resolve an host from /etc/hosts if you don't use a local dns daemon
-  which can resolve those.
+  which can resolve those. If an internal error occurs (e.g. connection failure,
+  timeout, etc.), the status code will be set to 0.
 
   The --htx option allow to use the haproxy internal htx representation using
   the htx_dump() function, mainly used for debugging.

@@ -2614,7 +2614,8 @@ HTTPClient class
    haproxy address format.
   :param integer request.timeout: Optional timeout parameter, set a
    "timeout server" on the connections.
-  :returns: Lua table containing the response
+  :returns: Lua table containing the response. If an internal error occurs (e.g.
+   connection failure, timeout, etc.), the ``status`` field will be set to 0.
 
 
 .. code-block:: lua
