@@ -688,6 +688,10 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 
 				/* copy the status line in the httpclient */
 				hc->res.status = sl->info.res.status;
+
+				if (__sc_strm(appctx_sc(appctx))->flags & SF_ERR_MASK)
+					hc->res.status = 0;
+
 				hc->res.vsn = istdup(htx_sl_res_vsn(sl));
 				hc->res.reason = istdup(htx_sl_res_reason(sl));
 				htx_remove_blk(htx, blk);
