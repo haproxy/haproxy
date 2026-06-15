@@ -5986,7 +5986,24 @@ static int cfg_parse_h1_headers_case_adjust_file(char **args, int section_type, 
 		return -1;
 	}
 	free(hdrs_map.name);
-	hdrs_map.name = strdup(args[1]);
+	if (args[1][0] != '/') {
+		char *curpath;
+		char *fullpath = NULL;
+
+		/* filename is provided using relative path, store the absolute path
+		 * to take current chdir into account for other threads file load
+		 * which occur later
+		 */
+		curpath = getcwd(trash.area, trash.size);
+		if (!curpath) {
+			memprintf(err, "failed to retrieve cur path");
+			return -1;
+		}
+		hdrs_map.name = memprintf(&fullpath, "%s/%s", curpath, args[1]);
+	}
+	else
+		hdrs_map.name = strdup(args[1]);
+
 	if  (!hdrs_map.name) {
 		memprintf(err, "'%s %s' : out of memory", args[0], args[1]);
 		return -1;
