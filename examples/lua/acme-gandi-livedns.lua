@@ -15,7 +15,7 @@
 --     challenge-ready cli,dns
 --
 -- crt-store
---     load crt foobar.pem acme letsencrypt LE *.foobar.example.com
+--     load crt foobar.pem acme LE domains *.foobar.example.com
 --
 -- Start HAProxy with the GANDI_API_KEY variable:
 --
