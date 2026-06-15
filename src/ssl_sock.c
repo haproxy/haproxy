@@ -7092,8 +7092,12 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 		memcpy(b_tail(buf), b_head(&ctx->early_buf), try);
 		b_add(buf, try);
 		b_del(&ctx->early_buf, try);
-		if (b_data(&ctx->early_buf) == 0)
-			b_free(&ctx->early_buf);
+		if (b_data(&ctx->early_buf) == 0) {
+			if (!(ctx->conn->flags & CO_FL_EARLY_SSL_HS))
+				b_free(&ctx->early_buf);
+			else
+				b_reset(&ctx->early_buf);
+		}
 		TRACE_STATE("read early data", SSL_EV_CONN_RECV|SSL_EV_CONN_RECV_EARLY, conn, &try);
 		return try;
 	}
