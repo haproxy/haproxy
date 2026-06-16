@@ -53,10 +53,12 @@ struct fcgi_conn {
 	uint32_t streams_limit;               /* maximum number of concurrent streams the peer supports */
 	uint32_t flags;                      /* Connection flags: FCGI_CF_* */
 
-	int16_t  dsi;                        /* dmux stream ID (<0 = idle ) */
 	uint32_t drl;                        /* demux record length (if dsi >= 0) */
+	int16_t  dsi;                        /* dmux stream ID (<0 = idle ) */
 	uint8_t  drt;                        /* demux record type (if dsi >= 0) */
 	uint8_t  drp;                        /* demux record padding (if dsi >= 0) */
+
+	uint32_t term_evts_log;              /* Termination events log: first 4 events reported */
 
 	struct buffer dbuf;                  /* demux buffer */
 	struct buffer mbuf[FCGI_C_MBUF_CNT]; /* mux buffers (ring) */
@@ -67,8 +69,6 @@ struct fcgi_conn {
 	unsigned int nb_sc;                  /* number of attached stream connectors */
 	unsigned int nb_reserved;            /* number of reserved streams */
 	unsigned int stream_cnt;             /* total number of streams seen */
-
-	uint32_t term_evts_log;              /* Termination events log: first 4 events reported */
 
 	struct proxy *proxy;                 /* the proxy this connection was created for */
 	struct fcgi_app *app;                /* FCGI application used by this mux */
