@@ -1268,10 +1268,11 @@ static int qcs_transfer_rx_data(struct qcs *qcs, struct qc_stream_rxbuf *rxbuf)
 		rxbuf->off_end = qcs->rx.offset + b_data(&b) + to_copy;
 		eb64_insert(&qcs->rx.bufs, &rxbuf->off_node);
 
+		/* Increment next rxbuf offset. This must not exceed off_end. */
 		rxbuf_next->off_node.key += to_copy;
 		BUG_ON(rxbuf_next->off_node.key > rxbuf_next->off_end);
-
-		if (rxbuf_next->off_node.key == rxbuf_next->off_end) {
+		/* Now reinsert next rxbuf unless it has been completely truncated. */
+		if (rxbuf_next->off_node.key < rxbuf_next->off_end) {
 			eb64_insert(&qcs->rx.bufs, &rxbuf_next->off_node);
 		}
 		else {
