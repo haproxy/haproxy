@@ -54,7 +54,7 @@ struct fcgi_conn {
 	uint32_t flags;                      /* Connection flags: FCGI_CF_* */
 
 	int16_t  dsi;                        /* dmux stream ID (<0 = idle ) */
-	uint16_t drl;                        /* demux record length (if dsi >= 0) */
+	uint32_t drl;                        /* demux record length (if dsi >= 0) */
 	uint8_t  drt;                        /* demux record type (if dsi >= 0) */
 	uint8_t  drp;                        /* demux record padding (if dsi >= 0) */
 
