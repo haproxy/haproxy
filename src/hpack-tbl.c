@@ -351,6 +351,8 @@ int hpack_dht_insert(struct hpack_dht *dht, struct ist name, struct ist value)
 	else {
 		/* need to defragment the table before inserting upfront */
 		dht = hpack_dht_defrag(dht);
+		if (!dht)
+			return -1;
 		wrap = dht->wrap + 1;
 		head = dht->head + 1;
 		dht->dte[head].addr = dht->dte[dht->front].addr - (name.len + value.len);
