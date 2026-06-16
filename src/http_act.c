@@ -1490,6 +1490,7 @@ static enum act_return http_action_set_headers_bin(struct act_rule *rule, struct
 	struct http_msg *msg = ((rule->from == ACT_F_HTTP_REQ) ? &s->txn.http->req : &s->txn.http->rsp);
 	struct htx *htx = htxbuf(&msg->chn->buf);
 	struct sample *hdrs_bin;
+        struct buffer *copy = NULL;
 	char *p, *end;
 	enum act_return ret = ACT_RET_CONT;
 	struct http_hdr_ctx ctx;
@@ -1500,8 +1501,19 @@ static enum act_return http_action_set_headers_bin(struct act_rule *rule, struct
 	if (!hdrs_bin)
 		return ACT_RET_CONT;
 
-	p = b_orig(&hdrs_bin->data.u.str);
-	end = b_tail(&hdrs_bin->data.u.str);
+	/* The sample may point into the very HTX message we're about to modify
+         * (e.g. req.body) or into a rotating trash chunk that http_add_header()
+         * reuses internally; either way a defrag/realloc would leave our p/end/
+         * n/v pointers dangling. Work on a private copy to stay safe.
+         */
+        copy = alloc_trash_chunk();
+        if (!copy || b_data(&hdrs_bin->data.u.str) > b_size(copy))
+                goto fail_rewrite;
+        memcpy(b_orig(copy), b_orig(&hdrs_bin->data.u.str), b_data(&hdrs_bin->data.u.str));
+	b_set_data(copy, b_data(&hdrs_bin->data.u.str));
+
+	p = b_orig(copy);
+	end = b_tail(copy);
 	while (p < end) {
 		if (decode_varint(&p, end, &sz) == -1)
 			goto fail_rewrite;
@@ -1546,6 +1558,7 @@ static enum act_return http_action_set_headers_bin(struct act_rule *rule, struct
 	ret = ACT_RET_ERR;
 
   leave:
+	free_trash_chunk(copy);
 	return ret;
 
   fail_rewrite:
