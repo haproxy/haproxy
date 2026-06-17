@@ -424,6 +424,10 @@ static void hq_interop_lclose(struct qcs *qcs, enum qcc_app_ops_lclose_mode mode
 		if (!(qcs->qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL)))
 			qcc_set_error(qcs->qcc, 0, 0, muxc_tevt_type_graceful_shut);
 		break;
+
+	case QCC_APP_OPS_LCLO_MODE_READ:
+		qcc_abort_stream_read(qcs, 0);
+		break;
 	}
 }
 

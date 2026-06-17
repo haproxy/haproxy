@@ -4711,8 +4711,12 @@ static void qcm_strm_shut(struct stconn *sc, unsigned int mode, struct se_abort_
 
 	TRACE_ENTER(QMUX_EV_STRM_SHUT, qcc->conn, qcs);
 
+	/* Not implemented. */
+	BUG_ON(mode & SE_SHR_DRAIN);
+
 	/* Early closure reported if QC_SF_FIN_STREAM not yet set. */
-	if (!qcs_is_close_local(qcs) &&
+	if ((mode & (SE_SHW_SILENT|SE_SHW_NORMAL)) &&
+	    !qcs_is_close_local(qcs) &&
 	    !(qcs->flags & (QC_SF_FIN_STREAM|QC_SF_TO_RESET))) {
 
 		if (qcs->flags & QC_SF_UNKNOWN_PL_LENGTH)
@@ -4724,6 +4728,11 @@ static void qcm_strm_shut(struct stconn *sc, unsigned int mode, struct se_abort_
 
 		qcc->app_ops->lclose(qcs, lclo_mode);
 		tasklet_wakeup(qcc->wait_event.tasklet);
+	}
+
+	if ((mode & SE_SHR_RESET) &&
+	    !qcs_is_close_remote(qcs) && !(qcs->flags & (QC_SF_READ_ABORTED))) {
+		qcc->app_ops->lclose(qcs, QCC_APP_OPS_LCLO_MODE_READ);
 	}
 
  out:

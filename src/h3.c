@@ -3282,6 +3282,21 @@ static void h3_lclose(struct qcs *qcs, enum qcc_app_ops_lclose_mode mode)
 {
 	TRACE_ENTER(H3_EV_H3S_END, qcs->qcc->conn, qcs);
 
+	/* RFC 9114 4.1.1. Request Cancellation and Rejection
+	 *
+	 * Servers MUST NOT use the H3_REQUEST_REJECTED error code for requests
+	 * that were partially or fully processed. When a server abandons a
+	 * response after partial processing, it SHOULD abort its response
+	 * stream with the error code H3_REQUEST_CANCELLED.
+	 * Client SHOULD use the error code H3_REQUEST_CANCELLED to cancel requests.
+	 */
+
+	/* Following the above recommendations, H3_REQUEST_REJECTED is never
+	 * used in practice in haproxy as a server on shut as upper stream
+	 * layer is instantiated immediately with HEADERS content attached. The
+	 * only exception is for stream closure after GOAWAY emission.
+	 */
+
 	switch (mode) {
 	case QCC_APP_OPS_LCLO_MODE_NORMAL:
 		/* Close stream with FIN. This can only be performed if at
@@ -3311,6 +3326,11 @@ static void h3_lclose(struct qcs *qcs, enum qcc_app_ops_lclose_mode mode)
 			qcc_set_error(qcs->qcc, H3_ERR_EXCESSIVE_LOAD, 1,
 			              muxc_tevt_type_graceful_shut);
 		}
+		break;
+
+	case QCC_APP_OPS_LCLO_MODE_READ:
+		TRACE_STATE("request stream read channel closure", H3_EV_H3S_END, qcs->qcc->conn, qcs);
+		qcc_abort_stream_read(qcs, H3_ERR_REQUEST_CANCELLED);
 		break;
 	}
 

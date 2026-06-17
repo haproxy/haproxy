@@ -220,6 +220,7 @@ enum qcc_app_ops_lclose_mode {
 	QCC_APP_OPS_LCLO_MODE_NORMAL,
 	QCC_APP_OPS_LCLO_MODE_ABORT,
 	QCC_APP_OPS_LCLO_MODE_KILL_CONN,
+	QCC_APP_OPS_LCLO_MODE_READ,
 };
 
 /* QUIC application layer operations */
