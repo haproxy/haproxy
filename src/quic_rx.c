@@ -975,11 +975,21 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		{
 			struct qf_stream *strm_frm = &frm->stream;
 			const char fin = frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT;
-			const uint64_t max = quic_stream_is_uni(strm_frm->id) ?
-			  qc->rx.stream_max_uni : qc->rx.stream_max_bidi;
+			uint64_t max;
 
 			/* The upper layer may not be allocated. */
 			if (!qc_is_conn_ready(qc)) {
+				if (qc_is_back(qc)) {
+					/* Drain STREAM frames on the backend side. MUX should
+					 * have emitted STOP_SENDING on shut for incomplete streams,
+					 * so the peer should soon stop emission.
+					 */
+					TRACE_DATA("Ignore stream on backend", QUIC_EV_CONN_PRSHPKT, qc);
+					break;
+				}
+
+				max = quic_stream_is_uni(strm_frm->id) ?
+				  qc->rx.stream_max_uni : qc->rx.stream_max_bidi;
 				if (strm_frm->id < max) {
 					TRACE_DATA("Already closed stream", QUIC_EV_CONN_PRSHPKT, qc);
 				}

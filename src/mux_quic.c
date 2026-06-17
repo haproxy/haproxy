@@ -3643,8 +3643,10 @@ static void qcc_release(struct qcc *qcc)
 		}
 
 		/* register streams IDs so that quic-conn layer can ignore already closed streams. */
-		qc->rx.stream_max_uni = qcc->largest_uni_r;
-		qc->rx.stream_max_bidi = qcc->largest_bidi_r;
+		if (!conn_is_back(conn)) {
+			qc->rx.stream_max_uni = qcc->largest_uni_r;
+			qc->rx.stream_max_bidi = qcc->largest_bidi_r;
+		}
 	}
 
 	tasklet_free(qcc->wait_event.tasklet);
@@ -3667,7 +3669,7 @@ static void qcc_release(struct qcc *qcc)
 	if (qcc->app_ops) {
 		if (qcc->app_ops->release)
 			qcc->app_ops->release(qcc->ctx);
-		if (conn && conn_is_quic(conn) && conn->handle.qc)
+		if (conn && !conn_is_back(conn) && conn_is_quic(conn) && conn->handle.qc)
 			conn->handle.qc->strm_reject = qcc->app_ops->strm_reject;
 	}
 	TRACE_PROTO("application layer released", QMUX_EV_QCC_END, conn);
