@@ -1,0 +1,126 @@
+varnishtest "Set server name via CLI"
+
+feature ignore_unknown_macro
+
+#REGTEST_TYPE=devel
+
+# Do nothing. Is there only to create s1_* macros
+server s1 {
+	rxreq
+	txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${feS}"
+        default_backend test
+
+    backend test
+        balance random
+        server s1 ${s1_addr}:${s1_port}
+        server s2 ${s1_addr}:${s1_port}
+
+    backend useserver
+        balance random
+        server s1 ${s1_addr}:${s1_port}
+        server s2 ${s1_addr}:${s1_port}
+        use-server s1 if { always_true }
+
+    backend tracked
+        balance random
+        server s1 ${s1_addr}:${s1_port} check disabled
+        server s2 ${s1_addr}:${s1_port} track tracked/s1
+} -start
+
+haproxy h1 -cli {
+    # ---- error cases ----
+
+    # missing new name argument
+    send "set server test/s1 name"
+    expect ~ "set server <b>/<s> name requires a new name."
+
+    # server not in maintenance mode
+    send "set server test/s1 name newname"
+    expect ~ "Server must be in maintenance mode"
+
+    # put s1 in maintenance for subsequent tests
+    send "disable server test/s1"
+    expect ~ ".*"
+
+    # name containing invalid characters is rejected (invalid_char() allows
+    # only [A-Za-z0-9_:.-])
+    send "set server test/s1 name bad/name"
+    expect ~ "Server name contains invalid characters."
+
+    # duplicate name — s2 already exists in the same backend
+    send "set server test/s1 name s2"
+    expect ~ "A server with the same name already exists"
+
+    # server targeted by a static use-server rule has SRV_F_NAME_REFD set
+    send "disable server useserver/s1"
+    expect ~ ".*"
+    send "set server useserver/s1 name newname"
+    expect ~ "statically referenced"
+
+    # server tracked by another server also has SRV_F_NAME_REFD
+    send "disable server tracked/s1"
+    expect ~ ".*"
+    send "set server tracked/s1 name newname"
+    expect ~ "statically referenced"
+
+    # renaming to the same name is a no-op (success)
+    send "set server test/s1 name s1"
+    expect ~ "Server name updated."
+
+    # ---- success case ----
+
+    # rename s1 -> blue
+    send "set server test/s1 name blue"
+    expect ~ "Server name updated."
+
+    # verify the new name appears in show servers state
+    send "show servers state test"
+    expect ~ "test 1 blue"
+
+    # the old name should no longer resolve
+    send "set server test/s1 state ready"
+    expect ~ "No such server."
+
+    # new name is usable via enable
+    send "enable server test/blue"
+    expect ~ ".*"
+
+    # ---- rename back ----
+
+    # must go through maintenance again
+    send "disable server test/blue"
+    expect ~ ".*"
+
+    send "set server test/blue name s1"
+    expect ~ "Server name updated."
+
+    send "show servers state test"
+    expect ~ "test 1 s1"
+
+    # bring back up
+    send "enable server test/s1"
+    expect ~ ".*"
+}
+
+# verify traffic still works after rename round-trip
+client c1 -connect ${h1_feS_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
