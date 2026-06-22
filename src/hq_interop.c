@@ -116,9 +116,10 @@ static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin
 	struct htx_sl *sl;
 	struct buffer *htx_buf;
 	const unsigned int flags = HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN;
-	size_t to_copy = b_data(b);
+	size_t to_copy = b_contig_data(b, 0);
 	size_t htx_sent = 0;
 	uint32_t htx_space;
+	char *head;
 
 	htx_buf = qcc_get_stream_rxbuf(qcs);
 	BUG_ON(!htx_buf);
@@ -144,8 +145,8 @@ static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin
 		}
 	}
 	else {
-		BUG_ON(b_head(b) + to_copy > b_wrap(b)); /* TODO */
-
+		head = b_head(b);
+ retry:
 		htx_space = htx_free_data_space(htx);
 		if (!htx_space) {
 			qcs->flags |= QC_SF_DEM_FULL;
@@ -155,6 +156,19 @@ static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin
 		if (to_copy > htx_space) {
 			to_copy = htx_space;
 			fin = 0;
+		}
+
+		if (b_head(b) + to_copy > b_wrap(b)) {
+			size_t contig = b_wrap(b) - head;
+			htx_sent = htx_add_data(htx, ist2(b_head(b), contig));
+			if (htx_sent < contig) {
+				qcs->flags |= QC_SF_DEM_FULL;
+				goto out;
+			}
+
+			to_copy -= contig;
+			head = b_orig(b);
+			goto retry;
 		}
 
 		htx_sent = htx_add_data(htx, ist2(b_head(b), to_copy));
@@ -175,9 +189,6 @@ static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin
 /* Returns the amount of decoded bytes from <b> or a negative error code. */
 static ssize_t hq_interop_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 {
-	/* hq-interop parser does not support buffer wrapping. */
-	BUG_ON(b_data(b) != b_contig_data(b, 0));
-
 	return !(qcs->qcc->flags & QC_CF_IS_BACK) ?
 	  hq_interop_rcv_buf_req(qcs, b, fin) :
 	  hq_interop_rcv_buf_res(qcs, b, fin);
