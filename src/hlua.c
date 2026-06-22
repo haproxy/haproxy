@@ -11078,6 +11078,7 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		res_htx->flags |= HTX_FL_EOM;
 		htx_to_buf(res_htx, outbuf);
 		applet_set_eoi(ctx);
+		applet_set_eos(ctx);
 		http_ctx->flags |= APPLET_RSP_SENT;
 	}
 
