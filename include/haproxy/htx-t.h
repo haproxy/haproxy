@@ -258,7 +258,7 @@ struct htx {
 	uint32_t data;   /* the data size, in bytes. To known to total size used by all allocated
 			  * blocks (blocks and their contents), you need to add size used by blocks,
 			  * i.e. [ used * sizeof(struct htx_blk *) ] */
-
+	uint32_t hdrs_data;
 	int32_t tail;   /* newest inserted block. -1 if the HTX message is empty */
 	int32_t head;   /* oldest inserted block. -1 if the HTX message is empty */
 	int32_t first;  /* position of the first block to (re)start the analyse. -1 if unset. */
@@ -268,8 +268,6 @@ struct htx {
 	uint32_t end_addr;  /* end address of the free space at the beginning */
 
 	uint32_t flags;  /* HTX_FL_* */
-
-	/* XXX 4 bytes unused */
 
 	/* Blocks representing the HTTP message itself */
 	char blocks[VAR_ARRAY] ALIGNED(8);

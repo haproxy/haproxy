@@ -347,6 +347,8 @@ struct htx_blk *htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t bl
 	BUG_ON(blk->addr > htx->size);
 
 	blk->info = (type << 28);
+	if (type < HTX_BLK_EOH)
+		htx->hdrs_data += blksz;
 	return blk;
 }
 
@@ -376,6 +378,8 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 	addr = blk->addr;
 	if (type != HTX_BLK_UNUSED) {
 		/* Mark the block as unused, decrement allocated size */
+		if (type < HTX_BLK_EOH)
+			htx->hdrs_data -= sz;
 		htx->data -= htx_get_blksz(blk);
 		blk->info = ((uint32_t)HTX_BLK_UNUSED << 28);
 	}
@@ -719,6 +723,10 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 		htx_memcpy(htx_get_blk_ptr(htx, blk), b_orig(chunk), b_data(chunk));
 		free_trash_chunk(chunk);
 	}
+
+	if (htx_get_blk_type(blk) < HTX_BLK_EOH)
+		htx->hdrs_data += delta;
+
 	return blk;
 }
 
@@ -1030,6 +1038,8 @@ struct htx_blk *htx_replace_header(struct htx *htx, struct htx_blk *blk,
 		htx->data += delta;
 	}
 
+	htx->hdrs_data += delta;
+
 	/* Finally, copy data. */
 	ptr = htx_get_blk_ptr(htx, blk);
 	ist2bin_lc(ptr, name);
@@ -1078,6 +1088,8 @@ struct htx_sl *htx_replace_stline(struct htx *htx, struct htx_blk *blk, const st
 		blk->info = (type << 28) + sz + delta;
 		htx->data += delta;
 	}
+
+	htx->hdrs_data += delta;
 
 	/* Restore start-line info and flags and copy parts of the start-line */
 	sl = htx_get_blk_ptr(htx, blk);
