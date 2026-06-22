@@ -1119,7 +1119,6 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 
 	if (!hs->conn) {
 		struct protocol *proto;
-		const struct mux_ops *mux_ops;
 		int flags = arg_fast ? (CONNECT_HAS_DATA|CONNECT_DELACK_ALWAYS) : 0;
 		int status;
 
@@ -1182,6 +1181,8 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 		}
 
 		if (!conn_is_ssl(conn) || !srv->ssl_ctx.alpn_str) {
+			const struct mux_ops *mux_ops;
+
 			if (srv->mux_proto)
 				mux_ops = srv->mux_proto->mux;
 			else
@@ -1277,8 +1278,10 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 
 	thrs_info[tid].tot_perr++;
 	url->mreqs++;
-	BUG_ON(!url->tot_rconn_sent);
-	url->tot_rconn_sent--;
+	if (arg_rcon > 0) {
+		BUG_ON(!url->tot_rconn_sent);
+		url->tot_rconn_sent--;
+	}
 	BUG_ON(arg_rcon > 0 && url->tot_rconn_done > arg_rcon);
 	/* Note that the user task will release all the expired streams
 	 * attached to it.
@@ -1435,7 +1438,8 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 			url->cfg->cur_path = hld_next_path(url->cfg->paths, path);
 			BUG_ON(!url->mreqs || !usr->nreqs || !nreqs);
 
-			url->tot_rconn_sent++;
+			if (arg_rcon > 0)
+				url->tot_rconn_sent++;
 			url->mreqs--;
 			nreqs--;
 			usr->nreqs = usr->nreqs == -1 ? -1 : usr->nreqs - 1;
