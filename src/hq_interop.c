@@ -147,18 +147,27 @@ static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin
 		BUG_ON(b_head(b) + to_copy > b_wrap(b)); /* TODO */
 
 		htx_space = htx_free_data_space(htx);
+		if (!htx_space) {
+			qcs->flags |= QC_SF_DEM_FULL;
+			goto out;
+		}
+
 		if (to_copy > htx_space) {
 			to_copy = htx_space;
 			fin = 0;
 		}
 
 		htx_sent = htx_add_data(htx, ist2(b_head(b), to_copy));
-		BUG_ON(htx_sent < to_copy); /* TODO */
+		if (htx_sent < to_copy) {
+			qcs->flags |= QC_SF_DEM_FULL;
+			goto out;
+		}
 
 		if (fin && to_copy == htx_sent)
 			htx->flags |= HTX_FL_EOM;
 	}
 
+ out:
 	htx_to_buf(htx, htx_buf);
 	return htx_sent;
 }
