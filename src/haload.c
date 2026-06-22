@@ -1273,14 +1273,6 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 	goto leave;
  err:
 	TRACE_DEVEL("leaving on error", HLD_STRM_EV_TASK, hs);
-
-	if (url->tot_req > 1 || !arg_accu) {
-		uint64_t ttfb; // time-to-first-byte
-		ttfb = tv_us(tv_diff(&hs->req_date, &date));
-		thrs_info[tid].tot_fbs++;
-		thrs_info[tid].tot_ttfb += ttfb;
-	}
-
 	thrs_info[tid].tot_perr++;
 	url->mreqs++;
 	if (arg_rcon > 0) {
