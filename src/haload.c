@@ -1327,9 +1327,10 @@ static struct hldstream *hld_new_strm(struct hld_usr *usr,
 
 	t->context = hs;
 	t->process = hld_strm_task;
-	t->expire = TICK_ETERNITY;//tick_add(now_ms, MS_TO_TICKS(arg_wait));
+	t->expire = TICK_ETERNITY;
 
 	hs->conn = conn;
+	hs->expire = tick_add(now_ms, MS_TO_TICKS(arg_wait));
 	hs->hash = hash;
 	hs->usr = usr;
 	hs->url = url;
@@ -1470,6 +1471,7 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 	if (!LIST_ISEMPTY(&usr->strms)) {
 		struct hldstream *first_hs =
 			LIST_ELEM(usr->strms.n, struct hldstream *, list);
+		BUG_ON(tick_is_expired(first_hs->expire, now_ms));
 		usr->task->expire = first_hs->expire;
 	}
 
