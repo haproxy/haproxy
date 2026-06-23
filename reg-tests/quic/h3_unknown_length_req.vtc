@@ -1,0 +1,60 @@
+varnishtest "HTTP/3 request body without content-length to H1 backend"
+
+feature ignore_unknown_macro
+
+# QUIC backend are not supported with USE_QUIC_OPENSSL_COMPAT
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
+
+server s1 {
+	rxreq
+	expect req.method == "POST"
+	expect req.bodylen == 50000
+	txresp
+} -start
+
+haproxy ha_h3srv -conf {
+	global
+		.if feature(THREAD)
+			thread-groups 1
+		.endif
+
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	listen h3_fe
+		bind "quic+fd@${fe_quic}" ssl crt ${testdir}/certs/common.pem
+		server srv ${s1_addr}:${s1_port}
+} -start
+
+haproxy ha_h3cli -conf {
+	global
+		expose-experimental-directives
+		.if feature(THREAD)
+			thread-groups 1
+		.endif
+
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe
+		bind "fd@${fe}"
+		default_backend be_h3
+
+	backend be_h3
+		server h3 quic4@${ha_h3srv_fe_quic_addr}:${ha_h3srv_fe_quic_port} ssl verify none
+} -start
+
+client c1 -connect ${ha_h3cli_fe_sock} {
+	txreq -method POST -hdr "Transfer-Encoding: chunked"
+	chunkedlen 25000
+	chunkedlen 25000
+	chunkedlen 0
+	rxresp
+	expect resp.status == 200
+} -run
