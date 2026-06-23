@@ -1259,11 +1259,12 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 	/* Note that the user task will release all the expired streams
 	 * attached to it.
 	 */
-	/* Note that for QUIC, the number of available streams is not
+	/* Note that for QUIC and QMUX, the number of available streams is not
 	 * incremented as soon as a stream is completed (fin=1).
 	 * For H1, here this number is always 0.
 	 */
-	if (!url->cfg->is_quic || hs->conn->mux->avail_streams(hs->conn))
+	if ((!url->cfg->is_quic && !url->cfg->is_h3) ||
+	    hs->conn->mux->avail_streams(hs->conn))
 		task_wakeup(usr->task, TASK_WOKEN_IO);
 
 	LIST_DELETE(&hs->list);

@@ -12,7 +12,7 @@
 static int hld_debug;
 struct hld_url_cfg *hld_url_cfgs;
 char *srv_opts, *tls_ciphers, *tls_ciphersuites, *tls_curves, *alpn;
-int h2c;
+int h2c, is_h3;
 
 static void  hld_usage(char *name, int argc)
 {
@@ -260,6 +260,7 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 
 	hld_url_cfg->ssl = ssl;
 	hld_url_cfg->is_quic = is_quic;
+	hld_url_cfg->is_h3 = is_h3;
 	hld_url_cfg->h2c = h2c;
 	hld_url_cfg->addr = addr;
 	hld_url_cfg->raw_addr = raw_addr;
@@ -470,26 +471,31 @@ void haproxy_init_args(int argc, char **argv)
 			         strcmp(opt, "h0") == 0) {
 				alpn = "hq-interop";
 				h2c = 0;
+				is_h3 = 0;
 			}
 			else if (strcmp(opt, "1") == 0 ||
 			         strcmp(opt, "h1") == 0) {
 				alpn = "http/1.1";
 				h2c = 0;
+				is_h3 = 0;
 			}
 			else if (strcmp(opt, "2") == 0 ||
 			         strcmp(opt, "h2") == 0) {
 				alpn = "h2";
 				h2c = 0;
+				is_h3 = 0;
 			}
 			else if (strcmp(opt, "2c") == 0 ||
 			         strcmp(opt, "h2c") == 0) {
 				alpn = NULL;
 				h2c = 1;
+				is_h3 = 0;
 			}
 			else if (strcmp(opt, "3") == 0 ||
 			         strcmp(opt, "h3") == 0) {
 				alpn = "h3";
 				h2c = 0;
+				is_h3 = 1;
 			}
 			else if (*opt == 'd') {
 				opt++;

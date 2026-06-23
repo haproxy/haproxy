@@ -15,6 +15,7 @@ struct hld_path {
 struct hld_url_cfg {
 	int ssl;
 	int is_quic;
+	int is_h3;
 	int h2c;
 	char *addr;
 	char *raw_addr; // used only to set the host header value
