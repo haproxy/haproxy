@@ -18,13 +18,12 @@ There are two types of schedulable objects in HAProxy:
   - tasklets: they do not have the timers part and are either sleeping or
     running.
 
-Both the timers queue and run queue in fact exist both shared between all
-threads and per-thread. A task or tasklet may only be queued in a single of
-each at a time. The thread-local queues are not thread-safe while the shared
-ones are. This means that it is only permitted to manipulate an object which
-is in the local queue or in a shared queue, but then after locking it. As such
-tasks and tasklets are usually pinned to threads and do not move, or only in
-very specific ways not detailed here.
+Each thread will have both a timers queue and a run queue. A task or tasklet
+may only be queued in a single of each at a time. The timers queue may only
+be manipulated by its owner. A thread has two runqueues, one local and one
+shared. The local one is only ever accessed by the thread, while the shared
+one is there so that other threads can add tasks to be run on that thread, and
+is locked.
 
 In case of doubt, keep in mind that it's not permitted to manipulate another
 thread's private task or tasklet, and that any task held by another thread
@@ -39,6 +38,23 @@ fields or flags may not always be relevant to tasklets and may be ignored.
 Tasklets do not use a thread mask but use a thread ID instead, to which they
 are bound. If the thread ID is negative, the tasklet is not bound but may only
 be run on the calling thread.
+
+A task with a negative thread ID is a shared task, and can run on any thread.
+If its thread ID is -1, it means it is currently not owned by any thread. When
+a thread adds it to its timers queue, or its run queue, it will change the
+task's thread ID to -2 - calling thread ID, indicating that it now temporarily
+owns that task.
+If any other thread wants to have that task scheduled at a later time, or
+run, it will add it to that thread's run queue. If the goal is to add it to
+the timers queue, the TASK_WOKEN_WQ flag will be used, and the target thread
+will queue it to its timers queue.
+The task thread ID will be set to -1 by the owner thread when it is no longer
+in any queue, or running, indicating that that task no longer has any owner,
+and any thread can run it.
+To try to make sure a task won't stick on a thread forever, when a thread
+removes a task from its timers queue because it should run, if it detects
+that it has many more tasks than another random thread, it will just give
+the ownership to that other thread, and get the task to run on it.
 
 
 2. API
@@ -79,17 +95,16 @@ void task_wakeup(t, f)
 
 struct task *task_unlink_wq(t)
         Remove the task from the timers queue if it was in it, and return it.
-        It may only be done for the local thread, or for a shared thread that
-        might be in the shared queue. It must not be done for another thread's
-        task.
+        It may only be done for the local thread, or a task owned by the
+        current thread. It must not be done for another thread's task.
 
 void task_queue(t)
         Place or update task <t> into the timers queue, where it may already
         be, scheduling it for an expiration at date t->expire. If t->expire is
         infinite, nothing is done, so it's safe to call this function without
         prior checking the expiration date. It is only valid to call this
-        function for local tasks or for shared tasks who have the calling
-        thread in their thread mask.
+        function for tasks local to this thread, or for shared tasks, not for
+        other threads' local tasks.
 
 void task_set_thread(t, id)
         Change task <t>'s thread ID to new value <id>. This may only be
@@ -214,6 +229,11 @@ state field before the call to ->process()
                        certain not to rely on existing ones.
 
   - TASK_WOKEN_OTHER   any other application-defined wake-up reason.
+
+  - TASK_WOKEN_WQ      The task should be added in our own timers queue.
+                       If no other TASK_WOKEN* flag was set, then don't
+                       actually run the task, it's just been woken up so that
+                       it can be added to the queue.
 
   - TASK_F_UEVT1       one-shot user-defined event type 1. This is application
                        specific, and reset to 0 when the handler is called.
