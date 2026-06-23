@@ -1937,7 +1937,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 				}
 				else if (qcs->sd) {
 					/* content-length not present, update estimated payload length. */
-					qcs->sd->kip = h3s->data_len;
+					qcs->sd->kip += flen;
 				}
 			}
 
