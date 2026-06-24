@@ -36,7 +36,7 @@ fields or flags may not always be relevant to tasklets and may be ignored.
 
 
 Tasklets do not use a thread mask but use a thread ID instead, to which they
-are bound. If the thread ID is negative, the tasklet is not bound but may only
+are bound. If the thread ID is -1, the tasklet is not bound but may only
 be run on the calling thread.
 
 A task with a negative thread ID is a shared task, and can run on any thread.
@@ -44,17 +44,25 @@ If its thread ID is -1, it means it is currently not owned by any thread. When
 a thread adds it to its timers queue, or its run queue, it will change the
 task's thread ID to -2 - calling thread ID, indicating that it now temporarily
 owns that task.
+
 If any other thread wants to have that task scheduled at a later time, or
 run, it will add it to that thread's run queue. If the goal is to add it to
 the timers queue, the TASK_WOKEN_WQ flag will be used, and the target thread
 will queue it to its timers queue.
+
 The task thread ID will be set to -1 by the owner thread when it is no longer
 in any queue, or running, indicating that that task no longer has any owner,
 and any thread can run it.
+
 To try to make sure a task won't stick on a thread forever, when a thread
 removes a task from its timers queue because it should run, if it detects
 that it has many more tasks than another random thread, it will just give
 the ownership to that other thread, and get the task to run on it.
+
+Tasklets do not use negative thread IDs to indicate a thread affinity, however
+since tasks may occasionally be aliased as tasklets, some of the tasklet
+handling functions take care of this specificity in order to preserve a full
+compatibility between them.
 
 
 2. API
@@ -134,16 +142,26 @@ struct list *tasklet_wakeup_after(head, tl, [flags])
         tasklet's flags, typically TASK_WOKEN_* or TASK_F_UEVT*. When not set,
         0 is passed (i.e. no flags are changed).
 
-void tasklet_wakeup_on(tl, thr, [flags])
-        Make sure that tasklet <tl> will wake up on thread <thr>, that is, will
-        execute at least once. The designated thread may only differ from the
-        calling one if the tasklet is already configured to run on another
-        thread, and it is not permitted to self-assign a tasklet if its tid is
-        negative, as it may already be scheduled to run somewhere else. Just in
-        case, only use tasklet_wakeup() which will pick the tasklet's assigned
+void tasklet_wakeup_here(tl, [flags])
+        Make sure that tasklet <tl> will wake up on the calling thread, that
+        is, will execute at least once. The tasklet must not be bound to any
+        other thread; its tid must be either -1 or the caller's tid. Just in
+        case, only use tasklet_wakeup() which will check the tasklet's assigned
         thread ID. An optional <flags> value may be passed to set a wakeup
         cause on the tasklet's flags, typically TASK_WOKEN_* or TASK_F_UEVT*.
         When not set, 0 is passed (i.e. no flags are changed).
+
+void tasklet_wakeup_on(tl, thr, [flags])
+        Make sure that tasklet <tl> will wake up on thread <thr>, that is, will
+        execute at least once. Any valid thread number may be specified. If the
+        tasklet is not yet queued, then it will be added to the designated
+        thread's shared queue. While this method also works for wakeups on the
+        calling thread, it's less efficient and whenever the calling thread
+        knows it will wake up one of its own tasks, it ought to use
+        tasklet_wakeup_here() or tasklet_wakeup() instead. An optional <flags>
+        value may be passed to set a wakeup cause on the tasklet's flags,
+        typically TASK_WOKEN_* or TASK_F_UEVT*. When not set, 0 is passed (i.e.
+        no flags are changed).
 
 struct tasklet *tasklet_new()
         Allocate a new tasklet and set it to run by default on the calling

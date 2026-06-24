@@ -129,6 +129,43 @@ void tasklet_kill(struct tasklet *t)
 	}
 }
 
+/* Do not call this one, please use tasklet_wakeup_here() instead, as this one
+ * is the slow path of tasklet_wakeup_here() which performs some preliminary
+ * checks and sets TASK_QUEUED before calling this one. It is only permitted to
+ * call this function for tasks/tasklets that are not bound (->tid==-1) or that
+ * are bound to the local thread (->tid==tid || ->tid==-2-tid).
+ */
+void __tasklet_wakeup_here(struct tasklet *tl)
+{
+	BUG_ON_HOT(tl->tid != -1 && tl->tid != tid && tl->tid != -2 - tid);
+
+	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
+		tl->wake_date = now_mono_time();
+
+	/* this tasklet runs on the caller thread */
+	if (tl->state & TASK_HEAVY) {
+		LIST_APPEND(&th_ctx->tasklets[TL_HEAVY], &tl->list);
+		th_ctx->tl_class_mask |= 1 << TL_HEAVY;
+	}
+	else if (tl->state & TASK_SELF_WAKING) {
+		LIST_APPEND(&th_ctx->tasklets[TL_BULK], &tl->list);
+		th_ctx->tl_class_mask |= 1 << TL_BULK;
+	}
+	else if ((struct task *)tl == th_ctx->current && !(tl->state & TASK_WOKEN_ANY)) {
+		LIST_APPEND(&th_ctx->tasklets[TL_BULK], &tl->list);
+		th_ctx->tl_class_mask |= 1 << TL_BULK;
+	}
+	else if (th_ctx->current_queue < 0) {
+		LIST_APPEND(&th_ctx->tasklets[TL_URGENT], &tl->list);
+		th_ctx->tl_class_mask |= 1 << TL_URGENT;
+	}
+	else {
+		LIST_APPEND(&th_ctx->tasklets[TL_NORMAL], &tl->list);
+		th_ctx->tl_class_mask |= 1 << TL_NORMAL;
+	}
+	_HA_ATOMIC_INC(&th_ctx->rq_total);
+}
+
 /* Do not call this one, please use tasklet_wakeup_on() instead, as this one is
  * the slow path of tasklet_wakeup_on() which performs some preliminary checks
  * and sets TASK_QUEUED before calling this one. A negative <thr> designates

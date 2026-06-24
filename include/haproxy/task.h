@@ -90,6 +90,7 @@ extern struct pool_head *pool_head_task;
 extern struct pool_head *pool_head_tasklet;
 extern struct pool_head *pool_head_notification;
 
+void __tasklet_wakeup_here(struct tasklet *tl);
 void __tasklet_wakeup_on(struct tasklet *tl, int thr);
 struct list *__tasklet_wakeup_after(struct list *head, struct tasklet *tl);
 void task_kill(struct task *t);
@@ -435,6 +436,42 @@ static inline void task_set_thread(struct task *t, int thr)
 	else {
 		t->tid = thr;
 	}
+}
+
+/* schedules tasklet <tl> to run on the current thread. Note that it is illegal
+ * call this with a task/tasklet that is neither agnostic to the running thread
+ * (->tid==-1) nor bound to the current thread (->tid==tid || ->tid==-2-tid).
+ * With DEBUG_TASK, the <file>:<line> from the call place are stored into the
+ * tasklet for tracing purposes.
+ *
+ * The macro accepts an optional 2nd argument that is passed as a set of flags
+ * to be set on the tasklet, among TASK_WOKEN_*, TASK_F_UEVT* etc to indicate a
+ * wakeup cause to the tasklet. When not set, the arg defaults to zero (i.e. no
+ * flag is added).
+ */
+#define tasklet_wakeup_here(tl, ...)					\
+	_tasklet_wakeup_here(tl, DEFVAL(TASK_WOKEN_OTHER, ##__VA_ARGS__), MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP, 0, 0))
+
+static inline void _tasklet_wakeup_here(struct tasklet *tl, uint f, const struct ha_caller *caller)
+{
+	unsigned int state = _HA_ATOMIC_OR_FETCH(&tl->state, f);
+
+	do {
+		/* do nothing if someone else already added it */
+		if (state & TASK_QUEUED)
+			return;
+	} while (!_HA_ATOMIC_CAS(&tl->state, &state, state | TASK_QUEUED));
+
+	/* at this point we're the first ones to add this task to the list */
+	if (likely(caller)) {
+		caller = HA_ATOMIC_XCHG(&tl->caller, caller);
+		BUG_ON((ulong)caller & 1);
+#ifdef DEBUG_TASK
+		HA_ATOMIC_STORE(&tl->debug.prev_caller, caller);
+#endif
+	}
+
+	__tasklet_wakeup_here(tl);
 }
 
 /* schedules tasklet <tl> to run onto thread <thr> or the current thread if
