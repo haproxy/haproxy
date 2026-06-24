@@ -1671,6 +1671,13 @@ static struct task *debug_task_handler(struct task *t, void *ctx, unsigned int s
 
 	t->expire = tick_add(now_ms, inter);
 
+	if (t->state & TASK_F_USR1) {
+		/* This is a time-printing task, we print the precise current time to stdout */
+		ullong time_ns = now_mono_time();
+		printf("task %p: time_ms=%llu.%llu\n", t, time_ns / 1000000ULL, time_ns % 1000000ULL);
+		return t;
+	}
+
 	/* half of the calls will wake up another entry */
 	rnd = statistical_prng();
 	if (rnd & 1) {
@@ -1709,7 +1716,7 @@ static struct task *debug_tasklet_handler(struct task *t, void *ctx, unsigned in
 }
 
 /* parse a "debug dev sched" command
- * debug dev sched {task|tasklet} [count=<count>] [mask=<mask>] [single=<single>] [inter=<inter>]
+ * debug dev sched {task|tasklet} [count=<count>] [mask=<mask>] [single=<single>] [inter=<inter>] [print=<print>]
  */
 static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -1724,6 +1731,7 @@ static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appc
 	unsigned long count = 0;
 	unsigned long thrid = tid;
 	unsigned int inter = 0;
+	unsigned int print = 0;
 	unsigned long i;
 	int mode = 0; // 0 = tasklet; 1 = task
 	unsigned long *tctx; // [0] = #tasks, [1] = inter, [2+] = { tl | (tsk+1) }
@@ -1736,7 +1744,7 @@ static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appc
 	if (strcmp(args[3], "task") != 0 && strcmp(args[3], "tasklet") != 0) {
 		return cli_err(appctx,
 			       "Usage: debug dev sched {task|tasklet} { <obj> = <value> }*\n"
-			       "     <obj>   = {count | tid | inter }\n"
+			       "     <obj>   = {count | tid | inter | print }\n"
 			       "     <value> = 64-bit dec/hex integer (0x prefix supported)\n"
 			       );
 	}
@@ -1755,6 +1763,8 @@ static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appc
 			ptr = &thrid; size = sizeof(thrid);
 		} else if (isteq(name, ist("inter"))) {
 			ptr = &inter; size = sizeof(inter);
+		} else if (isteq(name, ist("print"))) {
+			ptr = &print; size = sizeof(print);
 		} else
 			return cli_dynerr(appctx, memprintf(&msg, "Unsupported setting: '%s'.\n", word));
 
@@ -1820,7 +1830,8 @@ static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appc
 		unsigned long ctx = tctx[i + 2];
 
 		if (ctx & 1)
-			task_wakeup((struct task *)(ctx - 1), TASK_WOKEN_INIT);
+			task_wakeup((struct task *)(ctx - 1),
+			            TASK_WOKEN_INIT | (print ? TASK_F_USR1 : 0));
 		else
 			tasklet_wakeup((struct tasklet *)ctx);
 	}
