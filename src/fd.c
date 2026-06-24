@@ -1069,7 +1069,7 @@ int compute_poll_timeout(int next)
 		wait_time = 0;
 	}
 	else {
-		wait_time = TICKS_TO_MS(tick_remain(now_ms, next)) + 1;
+		wait_time = TICKS_TO_MS(tick_remain(now_ms, next));
 		if (wait_time > MAX_DELAY_MS)
 			wait_time = MAX_DELAY_MS;
 	}
