@@ -3427,6 +3427,7 @@ static size_t spop_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, 
 
 	if (spop_strm->state >= SPOP_SS_HLOC) {
 		/* trim any possibly pending data after we close */
+		b_del(buf, count);
 		total += count;
 		count = 0;
 	}
