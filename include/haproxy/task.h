@@ -521,8 +521,15 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, uint f, const
  * wakeup cause to the tasklet. When not set, the arg defaults to zero (i.e. no
  * flag is added).
  */
-#define tasklet_wakeup(tl, ...)						\
-	_tasklet_wakeup_on(tl, (tl)->tid, DEFVAL(TASK_WOKEN_OTHER, ##__VA_ARGS__), MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP, 0, 0))
+#define tasklet_wakeup(tl, ...)	do {					\
+	const struct ha_caller *_caller = MK_CALLER(WAKEUP_TYPE_TASKLET_WAKEUP, 0, 0); \
+	uint _flg = DEFVAL(TASK_WOKEN_OTHER, ##__VA_ARGS__);		\
+	int _tl_tid = __task_get_current_owner((tl)->tid);		\
+	if (_tl_tid < 0)						\
+		_tasklet_wakeup_here(tl, _flg, _caller);		\
+	else								\
+		_tasklet_wakeup_on(tl, _tl_tid, _flg, _caller);		\
+	} while (0)
 
 /* instantly wakes up task <t> on its owner thread even if it's not the current
  * one, bypassing the run queue. The purpose is to be able to avoid contention
