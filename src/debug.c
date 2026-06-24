@@ -1716,7 +1716,7 @@ static struct task *debug_tasklet_handler(struct task *t, void *ctx, unsigned in
 }
 
 /* parse a "debug dev sched" command
- * debug dev sched {task|tasklet} [count=<count>] [mask=<mask>] [single=<single>] [inter=<inter>] [print=<print>]
+ * debug dev sched {task|tasklet} [count=<count>] [mask=<mask>] [single=<single>] [inter=<inter>] [print=<print>] [rt=<rt>]
  */
 static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -1732,6 +1732,7 @@ static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appc
 	unsigned long thrid = tid;
 	unsigned int inter = 0;
 	unsigned int print = 0;
+	unsigned int rt = 0;
 	unsigned long i;
 	int mode = 0; // 0 = tasklet; 1 = task
 	unsigned long *tctx; // [0] = #tasks, [1] = inter, [2+] = { tl | (tsk+1) }
@@ -1744,7 +1745,7 @@ static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appc
 	if (strcmp(args[3], "task") != 0 && strcmp(args[3], "tasklet") != 0) {
 		return cli_err(appctx,
 			       "Usage: debug dev sched {task|tasklet} { <obj> = <value> }*\n"
-			       "     <obj>   = {count | tid | inter | print }\n"
+			       "     <obj>   = {count | tid | inter | print | rt }\n"
 			       "     <value> = 64-bit dec/hex integer (0x prefix supported)\n"
 			       );
 	}
@@ -1765,6 +1766,8 @@ static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appc
 			ptr = &inter; size = sizeof(inter);
 		} else if (isteq(name, ist("print"))) {
 			ptr = &print; size = sizeof(print);
+		} else if (isteq(name, ist("rt"))) {
+			ptr = &rt; size = sizeof(rt);
 		} else
 			return cli_dynerr(appctx, memprintf(&msg, "Unsupported setting: '%s'.\n", word));
 
@@ -1831,7 +1834,7 @@ static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appc
 
 		if (ctx & 1)
 			task_wakeup((struct task *)(ctx - 1),
-			            TASK_WOKEN_INIT | (print ? TASK_F_USR1 : 0));
+			            TASK_WOKEN_INIT | (print ? TASK_F_USR1 : 0) | (rt ? TASK_RT : 0));
 		else
 			tasklet_wakeup((struct tasklet *)ctx);
 	}
