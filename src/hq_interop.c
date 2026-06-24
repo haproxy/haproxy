@@ -13,13 +13,17 @@
 #include <haproxy/quic_utils.h>
 #include <haproxy/trace.h>
 
+static void hq_trace_req(struct ist meth, struct ist path, uint64_t mask,
+                         const struct ist trc_loc, const char *func,
+                         struct qcs *qcs, struct qcc *qcc);
+
 /* HTTP/0.9 request -> HTX. */
 static ssize_t hq_interop_rcv_buf_req(struct qcs *qcs, struct buffer *b, int fin)
 {
 	struct htx *htx;
 	struct htx_sl *sl;
 	struct buffer htx_buf = BUF_NULL;
-	struct ist path;
+	struct ist meth, path;
 	char *ptr = b_head(b);
 	size_t data = b_data(b);
 
@@ -86,18 +90,21 @@ static ssize_t hq_interop_rcv_buf_req(struct qcs *qcs, struct buffer *b, int fin
 	b_alloc(&htx_buf, DB_MUX_RX);
 	htx = htx_from_buf(&htx_buf);
 
-	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, 0, ist("GET"), path, ist("HTTP/1.0"));
+	meth = ist("GET");
+	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, 0, meth, path, ist("HTTP/1.0"));
 	if (!sl) {
 		b_free(&htx_buf);
 		return -1;
 	}
 
 	sl->flags |= HTX_SL_F_BODYLESS;
-	sl->info.req.meth = find_http_meth("GET", 3);
+	sl->info.req.meth = find_http_meth(istptr(meth), 3);
 
 	htx_add_endof(htx, HTX_BLK_EOH);
 	htx->flags |= HTX_FL_EOM;
 	htx_to_buf(htx, &htx_buf);
+
+	hq_trace_req(meth, path, QMUX_EV_QCC_RECV, ist(TRC_LOC), __FUNCTION__, qcs, qcs->qcc);
 
 	if (qcs_attach_sc(qcs, &htx_buf, fin)) {
 		b_free(&htx_buf);
@@ -206,6 +213,7 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 	int32_t idx;
 	uint32_t bsize, fsize;
 	struct buffer *res = NULL;
+	struct ist meth, path;
 	size_t total = 0;
 	char eom;
 	int err;
@@ -234,12 +242,16 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 			sl = htx_get_blk_ptr(htx, blk);
 
 			/* Only GET supported for HTTP/0.9. */
-			b_putist(res, ist("GET "));
+			meth = ist("GET");
 			uri_parser = http_uri_parser_init(htx_sl_req_uri(sl));
-			b_putist(res, http_parse_path(&uri_parser));
-			b_putist(res, ist("\r\n"));
+			path = http_parse_path(&uri_parser);
+			chunk_appendf(res, "%.*s %.*s\r\n",
+			              (uint)istlen(meth), istptr(meth),
+			              (uint)istlen(path), istptr(path));
 			htx_remove_blk(htx, blk);
 			total += fsize;
+
+			hq_trace_req(meth, path, QMUX_EV_STRM_SEND, ist(TRC_LOC), __FUNCTION__, qcs, qcs->qcc);
 			break;
 
 		case HTX_BLK_DATA:
@@ -384,6 +396,44 @@ static void hq_interop_lclose(struct qcs *qcs, enum qcc_app_ops_lclose_mode mode
 		if (!(qcs->qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL)))
 			qcc_set_error(qcs->qcc, 0, 0, muxc_tevt_type_graceful_shut);
 		break;
+	}
+}
+
+static void _hq_trace_http(const char *line, uint64_t mask,
+                           const struct ist trc_loc, const char *func,
+                           struct qcs *qcs, struct qcc *qcc)
+{
+	const char *c_str __maybe_unused;
+	const char *s_str __maybe_unused;
+
+	c_str = chunk_newstr(&trash);
+	if (qcc)
+		chunk_appendf(&trash, "qcc=%p(%c)", qcc, (qcc->flags & QC_CF_IS_BACK) ? 'B' : 'F');
+
+	s_str = chunk_newstr(&trash);
+	if (qcs)
+		chunk_appendf(&trash, " qcs=%p(%llu)", qcs, (ullong)qcs->id);
+
+	TRACE_PRINTF_LOC(TRACE_LEVEL_USER, mask, trc_loc, func,
+	                 qcs->qcc->conn, qcs, 0, 0,
+	                 "%s%s %s %s", c_str, s_str,
+	                 mask & QMUX_EV_STRM_SEND ? "sndh" : "rcvh", line);
+}
+
+static void hq_trace_req(struct ist meth, struct ist path, uint64_t mask,
+                         const struct ist trc_loc, const char *func,
+                         struct qcs *qcs, struct qcc *qcc)
+{
+	const char *line __maybe_unused;
+
+	if (TRACE_ENABLED(TRACE_LEVEL_USER, mask, qcs->qcc->conn, qcs, 0, 0)) {
+		chunk_reset(&trash);
+		line = chunk_newstr(&trash);
+		chunk_appendf(&trash, "HTTP/0.9 req: %.*s %.*s",
+		              (uint)istlen(meth), istptr(meth),
+		              (uint)istlen(path), istptr(path));
+
+		_hq_trace_http(line, mask, trc_loc, func, qcs, qcc);
 	}
 }
 
