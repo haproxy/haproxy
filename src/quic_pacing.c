@@ -1,3 +1,5 @@
+#include <haproxy/api.h>
+#include <haproxy/activity.h>
 #include <haproxy/quic_pacing.h>
 
 #include <haproxy/quic_tx.h>
