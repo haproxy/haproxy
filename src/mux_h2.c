@@ -8186,11 +8186,14 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 
   done:
 	if (h2s->st >= H2_SS_HLOC) {
+		struct htx_ret htxret;
+
 		/* trim any possibly pending data after we close (extra CR-LF,
 		 * unprocessed trailers, abnormal extra data, ...)
 		 */
-		total += count;
-		count = 0;
+		htxret = htx_drain(htx, count);
+		total += htxret.ret;
+		count -= htxret.ret;
 	}
 
 	/* RST are sent similarly to frame acks */
