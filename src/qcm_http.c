@@ -111,14 +111,15 @@ size_t qcs_http_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count,
 size_t qcs_http_reset_buf(struct qcs *qcs, struct buffer *buf, size_t count)
 {
 	struct htx *htx;
+	struct htx_ret htxret;
 
 	TRACE_ENTER(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
 	htx = htx_from_buf(buf);
-	htx_reset(htx);
+	htxret = htx_drain(htx, count);
 	htx_to_buf(htx, buf);
 
 	TRACE_LEAVE(QMUX_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
-	return count;
+	return htxret.ret;
 }
