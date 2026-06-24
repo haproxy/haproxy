@@ -138,6 +138,9 @@ void __tasklet_wakeup_on(struct tasklet *tl, int thr)
 {
 	if (likely(thr < 0)) {
 		/* this tasklet runs on the caller thread */
+		if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
+			tl->wake_date = now_mono_time();
+
 		if (tl->state & TASK_HEAVY) {
 			LIST_APPEND(&th_ctx->tasklets[TL_HEAVY], &tl->list);
 			th_ctx->tl_class_mask |= 1 << TL_HEAVY;
@@ -161,6 +164,9 @@ void __tasklet_wakeup_on(struct tasklet *tl, int thr)
 		_HA_ATOMIC_INC(&th_ctx->rq_total);
 	} else {
 		/* this tasklet runs on a specific thread. */
+		if (_HA_ATOMIC_LOAD(&ha_thread_ctx[thr].flags) & TH_FL_TASK_PROFILING)
+			tl->wake_date = now_mono_time();
+
 		MT_LIST_APPEND(&ha_thread_ctx[thr].shared_tasklet_list, list_to_mt_list(&tl->list));
 		_HA_ATOMIC_INC(&ha_thread_ctx[thr].rq_total);
 		wake_thread(thr);
@@ -174,6 +180,10 @@ void __tasklet_wakeup_on(struct tasklet *tl, int thr)
 struct list *__tasklet_wakeup_after(struct list *head, struct tasklet *tl)
 {
 	BUG_ON(tl->tid >= 0 && tid != tl->tid);
+
+	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
+		tl->wake_date = now_mono_time();
+
 	/* this tasklet runs on the caller thread */
 	if (!head) {
 		if (tl->state & TASK_HEAVY) {

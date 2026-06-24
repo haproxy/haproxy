@@ -27,7 +27,6 @@
 
 #include <import/eb32tree.h>
 
-#include <haproxy/activity.h>
 #include <haproxy/api.h>
 #include <haproxy/clock.h>
 #include <haproxy/fd.h>
@@ -472,8 +471,6 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, uint f, const
 #endif
 	}
 
-	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
-		tl->wake_date = now_mono_time();
 	__tasklet_wakeup_on(tl, thr);
 }
 
@@ -540,8 +537,6 @@ static inline void _task_instant_wakeup(struct task *t, unsigned int f, const st
 #endif
 	}
 
-	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
-		t->wake_date = now_mono_time();
 	__tasklet_wakeup_on((struct tasklet *)t, thr);
 }
 
@@ -585,8 +580,6 @@ static inline struct list *_tasklet_wakeup_after(struct list *head, struct taskl
 #endif
 	}
 
-	if (th_ctx->flags & TH_FL_TASK_PROFILING)
-		tl->wake_date = now_mono_time();
 	return __tasklet_wakeup_after(head, tl);
 }
 
