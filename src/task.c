@@ -168,46 +168,18 @@ void __tasklet_wakeup_here(struct tasklet *tl)
 
 /* Do not call this one, please use tasklet_wakeup_on() instead, as this one is
  * the slow path of tasklet_wakeup_on() which performs some preliminary checks
- * and sets TASK_QUEUED before calling this one. A negative <thr> designates
- * the current thread.
+ * and sets TASK_QUEUED before calling this one.
  */
 void __tasklet_wakeup_on(struct tasklet *tl, int thr)
 {
-	if (likely(thr < 0)) {
-		/* this tasklet runs on the caller thread */
-		if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
-			tl->wake_date = now_mono_time();
+	BUG_ON_HOT(thr < 0);
 
-		if (tl->state & TASK_HEAVY) {
-			LIST_APPEND(&th_ctx->tasklets[TL_HEAVY], &tl->list);
-			th_ctx->tl_class_mask |= 1 << TL_HEAVY;
-		}
-		else if (tl->state & TASK_SELF_WAKING) {
-			LIST_APPEND(&th_ctx->tasklets[TL_BULK], &tl->list);
-			th_ctx->tl_class_mask |= 1 << TL_BULK;
-		}
-		else if ((struct task *)tl == th_ctx->current && !(tl->state & TASK_WOKEN_ANY)) {
-			LIST_APPEND(&th_ctx->tasklets[TL_BULK], &tl->list);
-			th_ctx->tl_class_mask |= 1 << TL_BULK;
-		}
-		else if (th_ctx->current_queue < 0) {
-			LIST_APPEND(&th_ctx->tasklets[TL_URGENT], &tl->list);
-			th_ctx->tl_class_mask |= 1 << TL_URGENT;
-		}
-		else {
-			LIST_APPEND(&th_ctx->tasklets[TL_NORMAL], &tl->list);
-			th_ctx->tl_class_mask |= 1 << TL_NORMAL;
-		}
-		_HA_ATOMIC_INC(&th_ctx->rq_total);
-	} else {
-		/* this tasklet runs on a specific thread. */
-		if (_HA_ATOMIC_LOAD(&ha_thread_ctx[thr].flags) & TH_FL_TASK_PROFILING)
-			tl->wake_date = now_mono_time();
+	if (_HA_ATOMIC_LOAD(&ha_thread_ctx[thr].flags) & TH_FL_TASK_PROFILING)
+		tl->wake_date = now_mono_time();
 
-		MT_LIST_APPEND(&ha_thread_ctx[thr].shared_tasklet_list, list_to_mt_list(&tl->list));
-		_HA_ATOMIC_INC(&ha_thread_ctx[thr].rq_total);
-		wake_thread(thr);
-	}
+	MT_LIST_APPEND(&ha_thread_ctx[thr].shared_tasklet_list, list_to_mt_list(&tl->list));
+	_HA_ATOMIC_INC(&ha_thread_ctx[thr].rq_total);
+	wake_thread(thr);
 }
 
 /* Do not call this one, please use tasklet_wakeup_after_on() instead, as this one is

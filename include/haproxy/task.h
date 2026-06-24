@@ -474,12 +474,9 @@ static inline void _tasklet_wakeup_here(struct tasklet *tl, uint f, const struct
 	__tasklet_wakeup_here(tl);
 }
 
-/* schedules tasklet <tl> to run onto thread <thr> or the current thread if
- * <thr> is negative. Note that it is illegal to wakeup a foreign tasklet if
- * its tid is negative and it is illegal to self-assign a tasklet that was
- * at least once scheduled on a specific thread. With DEBUG_TASK, the
- * <file>:<line> from the call place are stored into the tasklet for tracing
- * purposes.
+/* schedules tasklet <tl> to run onto thread <thr> which must be valid. With
+ * DEBUG_TASK, the <file>:<line> from the call place are stored into the
+ * tasklet for tracing purposes.
  *
  * The macro accepts an optional 3rd argument that is passed as a set of flags
  * to be set on the tasklet, among TASK_WOKEN_*, TASK_F_UEVT* etc to indicate a
