@@ -242,6 +242,15 @@ void __task_wakeup(struct task *t)
 
 	BUG_ON(t->tid == -1);
 
+	if (unlikely(_HA_ATOMIC_LOAD(&t->state) & TASK_RT)) {
+		/* real-time tasks must be super rare; they are woken up as tasklets. */
+		if (thr < 0 || thr == tid)
+			__tasklet_wakeup_here((struct tasklet *)t);
+		else
+			__tasklet_wakeup_on((struct tasklet *)t, thr);
+		return;
+	}
+
 #ifdef USE_THREAD
 	if (thr != tid) {
 		root = &ha_thread_ctx[thr].rqueue_shared;

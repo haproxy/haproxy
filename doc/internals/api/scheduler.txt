@@ -272,6 +272,18 @@ application, both for tasks and tasklets:
                        sense to reset this flag from the ->process() function
                        itself.
 
+  - TASK_RT            when set, indicates that the task has real-time
+                       constraints (this is ignored for tasklets). Such a task
+                       will bypass the priority ordering of the run queue in
+                       order to guarantee a wakeup time as close as possible to
+                       the scheduled one even under load. Only one such task
+                       may be executed per round so this must be restricted to
+                       a few timing-critical tasks only (those for which a one
+                       millisecond skew is not acceptable). Such tasks are not
+                       meant to be woken up by other threads than the one they
+                       are supposed to run on, otherwise(their constraints may
+                       not be honored.
+
   - TASK_HEAVY         when set, indicates that this task does so heavy
                        processing that it will become mandatory to give back
                        control to I/Os otherwise big latencies might occur. It
