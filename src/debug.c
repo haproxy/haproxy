@@ -1523,7 +1523,7 @@ static int debug_parse_cli_task(char **args, char *payload, struct appctx *appct
 	 * the TASK_COMMON part.
 	 */
 	if (!may_access(ptr) || !may_access(ptr + sizeof(struct tasklet) - 1) ||
-	    ((const struct tasklet *)ptr)->tid  < -1 ||
+	    ((const struct tasklet *)ptr)->tid  < -1 - MAX_THREADS||
 	    ((const struct tasklet *)ptr)->tid  >= (int)MAX_THREADS) {
 		ret = cli_err(appctx, "The designated memory area doesn't look like a valid task/tasklet\n");
 		goto leave;
