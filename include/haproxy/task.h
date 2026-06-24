@@ -581,7 +581,10 @@ static inline void _task_instant_wakeup(struct task *t, unsigned int f, const st
 #endif
 	}
 
-	__tasklet_wakeup_on((struct tasklet *)t, thr);
+	if (thr < 0)
+		__tasklet_wakeup_here((struct tasklet *)t);
+	else
+		__tasklet_wakeup_on((struct tasklet *)t, thr);
 }
 
 /* schedules tasklet <tl> to run immediately after the current one is done
