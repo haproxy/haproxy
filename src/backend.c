@@ -3505,6 +3505,7 @@ smp_fetch_srv_name(const struct arg *args, struct sample *smp, const char *kw, v
 	        return 0;
 
 	smp->data.type = SMP_T_STR;
+	smp->flags = SMP_F_CONST;
 	smp->data.u.str.data = strlen(smp->data.u.str.area);
 
 	return 1;
