@@ -2531,20 +2531,19 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 		}
 	}
 
-	if ((TRACE_SOURCE)->verbosity >= H3_VERB_ADVANCED &&
-	    TRACE_ENABLED(TRACE_LEVEL_USER, H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, 0, 0, 0)) {
-		int i;
-		for (i = 0; list[i].n.len; ++i)
-			h3_trace_header(list[i].n, list[i].v, H3_EV_TX_HDR, ist(TRC_LOC), __FUNCTION__, qcs->qcc, qcs);
-	}
-
-
 	/* Current function expects HTX start-line to be present. This also
 	 * ensures <status> conformance has been checked prior to encoding it.
 	 */
 	BUG_ON(!sl);
 
 	list[hdr].n = ist("");
+
+	if ((TRACE_SOURCE)->verbosity >= H3_VERB_ADVANCED &&
+	    TRACE_ENABLED(TRACE_LEVEL_USER, H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, 0, 0, 0)) {
+		int i;
+		for (i = 0; list[i].n.len; ++i)
+			h3_trace_header(list[i].n, list[i].v, H3_EV_TX_HDR, ist(TRC_LOC), __FUNCTION__, qcs->qcc, qcs);
+	}
 
  retry:
 	res = smallbuf ? qcc_get_stream_txbuf(qcs, &err, 1) :
