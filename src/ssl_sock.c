@@ -3111,7 +3111,7 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, struct ckch_store *store
 		else
 			memprintf(err, "%s '%s' has an OCSP auto-update set to 'on' but an error occurred (maybe the OCSP URI or the issuer could not be found)'.\n",
 				  err && *err ? *err : "", path);
-		errcode |= ERR_ALERT | ERR_FATAL;
+		errcode |= ERR_WARN;
 		goto end;
 	}
 #endif
