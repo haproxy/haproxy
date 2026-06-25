@@ -649,7 +649,7 @@ static void _h3_trace_header(const struct ist n, const struct ist v,
 
 	s_str = chunk_newstr(&trash);
 	if (qcs)
-		chunk_appendf(&trash, " qcc=%p(%llu)", qcs, (ullong)qcs->id);
+		chunk_appendf(&trash, " qcs=%p(%llu)", qcs, (ullong)qcs->id);
 
 	n_short = ist2(chunk_newstr(&trash), 0);
 	istscpy(&n_short, n, 256);
@@ -664,7 +664,7 @@ static void _h3_trace_header(const struct ist n, const struct ist v,
 		chunk_appendf(&trash, " (... +%ld)", (long)(v.len - v_short.len));
 
 	TRACE_PRINTF_LOC(TRACE_LEVEL_USER, mask, trc_loc, func,
-	                 0, 0, 0, 0, "%s%s %s %s: %s", c_str, s_str,
+	                 qcc->conn, qcs, 0, 0, "%s%s %s %s: %s", c_str, s_str,
 	                 mask & H3_EV_TX_HDR ? "sndh" : "rcvh",
 	                 istptr(n_short), istptr(v_short));
 }
