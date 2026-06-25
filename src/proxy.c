@@ -2119,7 +2119,7 @@ int proxy_finalize(struct proxy *px, int *err_code)
 		}
 		ha_free(&srule->srv.name);
 		srule->srv.ptr = target;
-		target->flags |= SRV_F_NON_PURGEABLE;
+		target->flags |= SRV_F_NAME_REFD;
 	}
 
 	/* find the target table for 'stick' rules */

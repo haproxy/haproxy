@@ -1538,7 +1538,7 @@ int smp_resolve_args(struct proxy *p, char **err)
 			}
 
 			/* TODO CLI set-var should not prevent server deletion as var value is instantly resolved. */
-			srv->flags |= SRV_F_NON_PURGEABLE;
+			srv->flags |= SRV_F_NAME_REFD;
 
 			chunk_destroy(&arg->data.str);
 			arg->unresolved = 0;

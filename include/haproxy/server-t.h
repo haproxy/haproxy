@@ -174,6 +174,7 @@ enum srv_init_state {
 #define SRV_F_STRICT_MAXCONN 0x10000     /* maxconn is to be strictly enforced, as a limit of outbound connections */
 #define SRV_F_CHK_NO_AUTO_SNI 0x20000    /* disable automatic SNI selection for healthcheck */
 #define SRV_F_UDP_GSO_NOTSUPP 0x40000    /* UDP GSO is disabled due to a previous error encountered */
+#define SRV_F_NAME_REFD    0x80000       /* this server's name is statically referenced (use-server, track, sample arg) */
 
 /* configured server options for send-proxy (server->pp_opts) */
 #define SRV_PP_V1               0x0001   /* proxy protocol version 1 */

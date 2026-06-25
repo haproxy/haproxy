@@ -6532,7 +6532,7 @@ int srv_check_for_deletion(const char *bename, const char *svname, struct proxy 
 		goto leave;
 	}
 
-	if (srv->flags & SRV_F_NON_PURGEABLE) {
+	if (srv->flags & (SRV_F_NON_PURGEABLE | SRV_F_NAME_REFD)) {
 		msg = "This server cannot be removed at runtime due to other configuration elements pointing to it.";
 		goto leave;
 	}
@@ -6783,7 +6783,7 @@ int srv_apply_track(struct server *srv, struct proxy *curproxy)
 	srv->track = strack;
 	srv->tracknext = strack->trackers;
 	strack->trackers = srv;
-	strack->flags |= SRV_F_NON_PURGEABLE;
+	strack->flags |= SRV_F_NAME_REFD;
 
 	ha_free(&srv->trackit);
 
