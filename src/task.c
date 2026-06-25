@@ -395,6 +395,8 @@ void wake_expired_tasks()
 
 					if (new_tid == tid)
 						continue;
+
+					ASSUME(new_tid < MAX_THREADS);
 					if (ha_thread_ctx[new_tid].rq_total * 2 < th_ctx->rq_total) {
 						int cur_state;
 						do {
