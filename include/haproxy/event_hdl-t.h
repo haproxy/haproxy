@@ -279,6 +279,8 @@ struct event_hdl_sub {
 #define EVENT_HDL_SUB_SERVER_CHECK                      EVENT_HDL_SUB_TYPE(1,7)
 /* server inet addr (addr:svc_port tuple) change event */
 #define EVENT_HDL_SUB_SERVER_INETADDR                   EVENT_HDL_SUB_TYPE(1,8)
+/* server name change event */
+#define EVENT_HDL_SUB_SERVER_NAME                       EVENT_HDL_SUB_TYPE(1,9)
 
 /* PAT_REF family, only published in pat ref subscription list
  * (not published in global subscription list for performance reasons)

@@ -339,6 +339,7 @@ struct path_parameters {
 };
 
 struct proxy;
+
 struct server {
 	/* mostly config or admin stuff, doesn't change often */
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_SERVER */
@@ -572,6 +573,7 @@ struct event_hdl_cb_data_server {
 	 *   EVENT_HDL_SUB_SERVER_ADMIN
 	 *   EVENT_HDL_SUB_SERVER_CHECK
 	 *   EVENT_HDL_SUB_SERVER_INETADDR
+	 *   EVENT_HDL_SUB_SERVER_NAME
 	 */
 	struct {
 		/* safe data can be safely used from both
@@ -771,6 +773,24 @@ struct event_hdl_cb_data_server_inetaddr {
 		struct server_inetaddr prev;
 		struct server_inetaddr next;
 		struct server_inetaddr_updater updater;
+	} safe;
+	/* no unsafe data */
+};
+
+/* data provided to EVENT_HDL_SUB_SERVER_NAME handlers through
+ * event_hdl facility
+ *
+ * Note that this may be casted to regular event_hdl_cb_data_server if
+ * you don't care about name related optional info
+ */
+struct event_hdl_cb_data_server_name {
+	/* provided by:
+	 *   EVENT_HDL_SUB_SERVER_NAME
+	 */
+	struct event_hdl_cb_data_server server;                 /* must be at the beginning */
+	struct {
+		char old_name[64];
+		char new_name[64];
 	} safe;
 	/* no unsafe data */
 };

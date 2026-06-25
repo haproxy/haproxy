@@ -42,6 +42,7 @@ static struct event_hdl_sub_type_map event_hdl_sub_type_map[] = {
 	{"SERVER_ADMIN",        EVENT_HDL_SUB_SERVER_ADMIN},
 	{"SERVER_CHECK",        EVENT_HDL_SUB_SERVER_CHECK},
 	{"SERVER_INETADDR",     EVENT_HDL_SUB_SERVER_INETADDR},
+	{"SERVER_NAME",         EVENT_HDL_SUB_SERVER_NAME},
 	{"PAT_REF",             EVENT_HDL_SUB_PAT_REF},
 	{"PAT_REF_ADD",         EVENT_HDL_SUB_PAT_REF_ADD},
 	{"PAT_REF_DEL",         EVENT_HDL_SUB_PAT_REF_DEL},
