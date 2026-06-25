@@ -47,10 +47,11 @@ struct thread_set {
 
 /* tasklet classes */
 enum {
-	TL_URGENT = 0,   /* urgent tasklets (I/O callbacks) */
-	TL_NORMAL = 1,   /* normal tasks */
-	TL_BULK   = 2,   /* bulk task/tasklets, streaming I/Os */
-	TL_HEAVY  = 3,   /* heavy computational tasklets (e.g. TLS handshakes) */
+	TL_RT     = 0,   /* rare but time-sensitive wakeups (e.g. stats collection) */
+	TL_URGENT = 1,   /* urgent tasklets (I/O callbacks) */
+	TL_NORMAL = 2,   /* normal tasks */
+	TL_BULK   = 3,   /* bulk task/tasklets, streaming I/Os */
+	TL_HEAVY  = 4,   /* heavy computational tasklets (e.g. TLS handshakes) */
 	TL_CLASSES       /* must be last */
 };
 
