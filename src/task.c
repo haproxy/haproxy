@@ -190,36 +190,16 @@ struct list *__tasklet_wakeup_after(struct list *head, struct tasklet *tl)
 {
 	BUG_ON(tl->tid >= 0 && tid != tl->tid);
 
-	if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
-		tl->wake_date = now_mono_time();
-
 	/* this tasklet runs on the caller thread */
 	if (!head) {
-		if (tl->state & TASK_HEAVY) {
-			LIST_INSERT(&th_ctx->tasklets[TL_HEAVY], &tl->list);
-			th_ctx->tl_class_mask |= 1 << TL_HEAVY;
-		}
-		else if (tl->state & TASK_SELF_WAKING) {
-			LIST_INSERT(&th_ctx->tasklets[TL_BULK], &tl->list);
-			th_ctx->tl_class_mask |= 1 << TL_BULK;
-		}
-		else if ((struct task *)tl == th_ctx->current && !(tl->state & TASK_WOKEN_ANY)) {
-			LIST_INSERT(&th_ctx->tasklets[TL_BULK], &tl->list);
-			th_ctx->tl_class_mask |= 1 << TL_BULK;
-		}
-		else if (th_ctx->current_queue < 0) {
-			LIST_INSERT(&th_ctx->tasklets[TL_URGENT], &tl->list);
-			th_ctx->tl_class_mask |= 1 << TL_URGENT;
-		}
-		else {
-			LIST_INSERT(&th_ctx->tasklets[TL_NORMAL], &tl->list);
-			th_ctx->tl_class_mask |= 1 << TL_NORMAL;
-		}
+		__tasklet_wakeup_here(tl);
 	}
 	else {
+		if (_HA_ATOMIC_LOAD(&th_ctx->flags) & TH_FL_TASK_PROFILING)
+			tl->wake_date = now_mono_time();
 		LIST_APPEND(head, &tl->list);
+		_HA_ATOMIC_INC(&th_ctx->rq_total);
 	}
-	_HA_ATOMIC_INC(&th_ctx->rq_total);
 	return &tl->list;
 }
 
