@@ -1,6 +1,104 @@
 ChangeLog :
 ===========
 
+2026/06/25 : 3.5-dev1
+    - BUG/MEDIUM: check: Skip tcpcheck post-config for external checks
+    - BUG/MEDIUM: check: Ignore small-buffer option when starting an external check
+    - MINOR: check: Don't dump buffers state in check traces for external checks
+    - BUG/MEDIUM: server/checks: Support healtcheck keyword on default-server lines
+    - BUG/MEDIUM: mux_quic: prevent risk of infinite loop on recv
+    - OPTIM: mux_quic: remove QCS from recv_list on reset
+    - BUG/MINOR: mux_quic: do not interrupt recv on error/incomplete data
+    - BUG/MINOR: tcpcheck: Override external check if healthcheck section is set
+    - REGTESTS: checks: Add script for external healthchecks
+    - BUG/MEDIUM: regex: initialize the match array earlier during boot
+    - BUG/MEDIUM: threads: Fiw build when using no thread
+    - BUG/MEDIUM: xprt_qmux: implement ->get_ssl_sock_ctx() to get the SSL laye
+    - CLEANUP: sessions: simplify the sess_priv_conns pool name
+    - MINOR: pools: reject creation of pools containing invalid chars in their name
+    - BUG/MINOR: acl: report "ACL" not "map" in ACL ID lookup failures
+    - MINOR: memprof: make in_memprof a bitfield instead of a counter
+    - MINOR: memprof: be careful to account allocations only once
+    - BUG/MEDIUM: checks: Dequeue checks on purge
+    - MINOR: servers: Add a back-pointer to the server in srv_per_thread
+    - MEDIUM: servers: Move to a per-thread idle connection cleanup task
+    - REGTESTS: Fix log matching in healthcheck-section.vtc
+    - BUG/MINOR: quic: fix Initial length value in sent packets
+    - BUILD: servers: Fix build with -std=gnu89
+    - BUG/MEDIUM: acme: stuck ACME task when authz is already "valid"
+    - MINOR: acme: introduce acme_challenge_ready() for reuse outside the CLI
+    - MINOR: h3: extend trace verbosity
+    - MINOR: h3: trace HTTP headers on FE side
+    - MINOR: h3: trace HTTP headers on BE side
+    - BUILD: h3: fix compilation with USE_TRACE=0
+    - MINOR: lua: add REGISTER_HLUA_STATE_INIT() to register state init callbacks
+    - MEDIUM: lua: move longjmp annotation macros to hlua.h
+    - MINOR: acme/lua: implement ACME.challenge_ready() Lua function
+    - BUG/MEDIUM: ktls: defer enabling TLS ULP on a socket until connected
+    - MINOR: errors: add ha_diag_notice() to report diag-level notifications
+    - BUG/MINOR: cpu-topo: use ha_diag_notice() to report thread creations
+    - MINOR: acme: publish ACME_NEWCERT event via event_hdl
+    - MINOR: acme: publish ACME_DEPLOY event via event_hdl
+    - EXAMPLES: lua/acme: add a dns-01 handler for Gandi LiveDNS API
+    - DOC: acme: add mentions of lua features
+    - MINOR: tasks: Introduce __task_set_state_and_tid
+    - MINOR: tasks: Add __task_get_new_tid_field()
+    - MINOR: tasks: Introduce __task_get_current_owner
+    - MINOR: tasks: Use __task_get_current_owner() in task_kill.
+    - MINOR: tasks: Start using __task_set_state_and_tid()
+    - MEDIUM: tasks: Remove the per-thread group wait queue
+    - MINOR: tasks: Use __task_set_state_and_tid() in task_instant_wakeup()
+    - MINOR: tasks: Remove wq_lock and the per-thread group wait queues
+    - MEDIUM: tasks: Redispatch shared tasks when the thread is loaded
+    - BUG/MEDIUM: h3: Properly handle PUSH_PROMISE on backend connections
+    - BUG/MINOR: server: fix add server with consistent hash balancing
+    - MINOR: lua: export hlua_pusherror() and check_args()
+    - REORG: httpclient/lua: move the lua httpclient code to http_client.c
+    - MEDIUM: httpclient/lua: allow multiple requests from a single core.httpclient() instance
+    - MEDIUM: httpclient: set res.status to 0 upon SF_ERR_MASK
+    - DOC: httpclient: document status 0 on internal error
+    - DEBUG: stconn: Add a BUG_ON on shut flags when the endpoint is shut
+    - BUG/MINOR: http-ana: Remove a debugging memset on redirect
+    - BUG/MEDIUM: http-ana: Don't ignore L7 retry errors
+    - BUG/MINOR: mux-h1: Properly resolve file path for 'h1-case-adjust-file'
+    - BUG/MINOR: quic: fix rxbuf settings on backend side
+    - EXAMPLES: lua/acme: fix acme-gandi-livedns.lua configuration example
+    - BUG/MEDIUM: ssl: Don't free the early data buffer too early
+    - BUG/MINOR: hpack-tbl: add missing NULL check after hpack_dht_defrag()
+    - BUG/MEDIUM: mux_quic: fix freeze transfer after QCS rxbuf realign
+    - BUG/MEDIUM: http-act: Make a copy of the sample expr in (set/add)-headers-bin
+    - BUG/MEDIUM: mux-fcgi: fix uint16_t overflow in drl += drp
+    - OPTIM: mux-fcgi: Reorganise fcgi_conn structure to fill some holes
+    - BUG/MINOR: hq-interop: reject too big content
+    - MINOR: hq_interop: do not rely on stream layer for HTX stline encoding
+    - BUG/MINOR: hq-interop: prevent reset if missing content-length
+    - BUG/MEDIUM: hlua: Properly report EOS when http applet exits
+    - BUG/MINOR: hq-interop: support full demux buf on large response
+    - BUG/MINOR: hq-interop: support response buffer wrapping
+    - DOC: sched: Document the wait queue modifications
+    - DOC: lua: remove incorrect init tags
+    - BUG/MEDIUM: h3: increment unknown request payload length
+    - REGTESTS: quic: test H3 request without content-length
+    - DEBUG: cli: relax tid check in "debug dev task" for recent sched changes
+    - MINOR: debug: add "print" to "debug dev sched"
+    - BUG/MINOR: poller: fix wait time calculation that is always 1 extra ms
+    - BUILD: quic_pacing: add missing includes for api and activity in the file
+    - MINOR: task: move the profiling checks to the called functions not callers
+    - MINOR: task: add a new explicitly local tasklet wakeup function
+    - MINOR: task: make tasklet_wakeup() explicitly call _tasklet_wakeup_here()
+    - MINOR: task: make task_instant_wakeup() explicitly call _tasklet_wakeup_here()
+    - MEDIUM: task: make __tasklet_wakeup_on() only accept non-local threads
+    - MEDIUM: task: add a new flag TASK_RT to permit a task to skip the priority queue
+    - MINOR: debug: add "rt=1" to "debug dev task" to tune the RT flag
+    - BUG/MEDIUM: mux-fcgi: Truly drain outgoing HTX data when the stream is closed
+    - BUG/MEDIUM: mux-h2: Truly drain outgoing HTX data when the stream is closed
+    - BUG/MEDIUM: mux-spop: Truly drain outgoing data when the stream is closed
+    - BUG/MEDIUM: mux-quic: Drain the given amount of data in qcs_http_reset_buf()
+    - CLEANUP: task: remove duplicated code in __tasklet_wakeup_after()
+    - BUILD: task: silence a build warning with threads disabled
+    - MINOR: task: do not try to redistribute the WQ when single-threaded
+    - MEDIUM: task: add a new tasklet class for real-time: TL_RT
+
 2026/06/03 : 3.5-dev0
     - MINOR: version: mention that it's development again
 
