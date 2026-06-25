@@ -388,7 +388,7 @@ void wake_expired_tasks()
 			 * If it's a shared task, see whether we should hand it
 			 * to a less loaded thread.
 			 */
-			if (task->tid < 0) {
+			if (unlikely(task->tid < 0) && global.nbthread > 1) {
 				int attempts = MIN(global.nbthread, 3);
 				while (attempts-- > 0) {
 					uint new_tid = statistical_prng_range(global.nbthread);
