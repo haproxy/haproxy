@@ -1189,6 +1189,12 @@ struct proxy *httpclient_create_proxy(const char *id)
 		goto err;
 	}
 #endif
+	if (ssl_sock_init_srv(srv_ssl)) {
+		memprintf(&errmsg, "out of memory.");
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto err;
+	}
+
 	srv_ssl->ssl_ctx.verify = httpclient_ssl_verify;
 	/* if the verify is required, try to load the system CA */
 	if (httpclient_ssl_verify == SSL_SOCK_VERIFY_REQUIRED) {
