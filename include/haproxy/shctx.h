@@ -24,6 +24,8 @@ int shctx_init(struct shared_context **orig_shctx,
                int extra, __maybe_unused const char *name);
 struct shared_block *shctx_row_reserve_hot(struct shared_context *shctx,
                                            struct shared_block *last, int data_len);
+void shctx_row_truncate(struct shared_context *shctx, struct shared_block *first,
+                        int new_len);
 void shctx_row_detach(struct shared_context *shctx, struct shared_block *first);
 void shctx_row_reattach(struct shared_context *shctx, struct shared_block *first);
 int shctx_row_data_append(struct shared_context *shctx,

@@ -50,6 +50,15 @@ struct shared_context {
 	struct list avail;  /* list for active and free blocks */
 	unsigned int nbav;  /* number of available blocks */
 	unsigned int max_obj_size;   /* maximum object size (in bytes). */
+	/* Optional callback invoked when shctx is about to take a cold row's
+	 * blocks. The consumer is expected to free blocks using
+	 * shctx_row_truncate(). It must return 1 only if it freed at least one
+	 * block, or 0 otherwise: shctx_row_reserve_hot() re-invokes it as long
+	 * as it returns 1, so returning 1 without freeing anything loops
+	 * forever under the write lock. Called with the shctx write lock held.
+	 * If not specified, the default eviction strategy is used.
+	 */
+	int (*make_room)(struct shared_context *shctx);
 	void (*free_block)(struct shared_block *first, void *data);
 	void (*reserve_finish)(struct shared_context *shctx);
 	void *cb_data;
