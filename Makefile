@@ -60,7 +60,6 @@
 #   USE_WURFL               : enable WURFL detection library from Scientiamobile
 #   USE_OBSOLETE_LINKER     : use when the linker fails to emit __start_init/__stop_init
 #   USE_THREAD_DUMP         : use the more advanced thread state dump system. Automatic.
-#   USE_OT                  : enable the OpenTracing filter
 #   USE_MEMORY_PROFILING    : enable the memory profiler. Linux-glibc only.
 #   USE_LIBATOMIC           : force to link with/without libatomic. Automatic.
 #   USE_PTHREAD_EMULATION   : replace pthread's rwlocks with ours
@@ -125,11 +124,6 @@
 #   LUA_INC        : force the include path to lua
 #   LUA_LIB_NAME   : force the lib name (or automatically evaluated, by order of
 #                    priority: lua5.5, lua55, lua5.4, lua54, lua5.3, lua53, lua).
-#   OT_DEBUG       : compile the OpenTracing filter in debug mode
-#   OT_INC         : force the include path to libopentracing-c-wrapper
-#   OT_LIB         : force the lib path to libopentracing-c-wrapper
-#   OT_RUNPATH     : add RUNPATH for libopentracing-c-wrapper to haproxy executable
-#   OT_USE_VARS    : allows the use of variables for the OpenTracing context
 #   IGNOREGIT      : ignore GIT commit versions if set.
 #   VERSION        : force haproxy version reporting.
 #   SUBVERS        : add a sub-version (eg: platform, model, ...).
@@ -349,7 +343,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER USE_POLL                        \
            USE_CPU_AFFINITY USE_TFO USE_NS USE_DL USE_RT USE_LIBATOMIC        \
            USE_MATH USE_DEVICEATLAS USE_51DEGREES                             \
            USE_WURFL USE_OBSOLETE_LINKER USE_PRCTL USE_PROCCTL                \
-           USE_THREAD_DUMP USE_EVPORTS USE_OT USE_QUIC USE_PROMEX             \
+           USE_THREAD_DUMP USE_EVPORTS USE_QUIC USE_PROMEX                    \
            USE_MEMORY_PROFILING USE_SHM_OPEN                                  \
            USE_STATIC_PCRE USE_STATIC_PCRE2                                   \
            USE_PCRE USE_PCRE_JIT USE_PCRE2 USE_PCRE2_JIT                      \
@@ -807,11 +801,6 @@ endif
 
 ifneq ($(USE_LINUX_CAP:0=),)
   OPTIONS_OBJS   += src/linuxcap.o
-endif
-
-ifneq ($(USE_OT:0=),)
-  $(call warning, The opentracing filter was deprecated in haproxy 3.3 and will be removed in 3.5.)
-  include addons/ot/Makefile
 endif
 
 ifneq ($(EXTRA_MAKE),)

@@ -30576,41 +30576,9 @@ See also: "use-fcgi-app", section 9.2 about the compression filter, section 9.4
 9.6. OpenTracing
 ----------------
 
-The OpenTracing filter adds native support for using distributed tracing in
-HAProxy. This is enabled by sending an OpenTracing compliant request to one
-of the supported tracers such as Datadog, Jaeger, Lightstep and Zipkin tracers.
-Please note: tracers are not listed by any preference, but alphabetically.
-
-This feature is only enabled when HAProxy was built with USE_OT=1.
-
-The OpenTracing filter activation is done explicitly by specifying it in the
-HAProxy configuration. If this is not done, the OpenTracing filter in no way
-participates in the work of HAProxy.
-
-filter opentracing [id <id>] config <file>
-
-  Arguments :
-
-    <id>        is the OpenTracing filter id that will be used to find the
-                right scope in the configuration file. If no filter id is
-                specified, 'ot-filter' is used as default.  If scope is not
-                specified in the configuration file, it applies to all defined
-                OpenTracing filters.
-
-    <file>      is the path of the OpenTracing configuration file. The same
-                file can contain configurations for multiple OpenTracing
-                filters simultaneously. In that case we do not need to define
-                scope so the same configuration applies to all filters or each
-                filter must have its own scope defined.
-
-More detailed documentation related to the operation, configuration and use
-of the filter can be found in the addons/ot directory.
-
-Note: The OpenTracing filter shouldn't be used for new designs as OpenTracing
-      itself is no longer maintained nor supported by its authors. As such
-      OpenTracing will be deprecated in 3.3 and removed in 3.5. A replacement
-      filter based on OpenTelemetry is available since 3.4 with complete build
-      instructions currently at:
+The OpenTracing filter was removed in version 3.5. A replacement filter based
+on OpenTelemetry is available since 3.4 with complete build instructions
+currently at:
 
           https://github.com/haproxytech/haproxy-opentelemetry/
 
