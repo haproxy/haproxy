@@ -172,7 +172,6 @@ def main(ref_name):
                 "FLAGS": [
                     'DEBUG="-DDEBUG_LIST"',
                     "USE_ZLIB=1",
-                    "USE_OT=1",
                     "OT_INC=${HOME}/opt-ot/include",
                     "OT_LIB=${HOME}/opt-ot/lib",
                     "OT_RUNPATH=1",
@@ -206,7 +205,6 @@ def main(ref_name):
                         'ARCH_FLAGS="-g -fsanitize=address"',
                         'OPT_CFLAGS="-O1"',
                         "USE_ZLIB=1",
-                        "USE_OT=1",
                         "DEBUG=-DDEBUG_STRICT=2",
                         "OT_INC=${HOME}/opt-ot/include",
                         "OT_LIB=${HOME}/opt-ot/lib",
