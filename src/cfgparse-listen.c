@@ -256,8 +256,15 @@ int cfg_parse_listen_match_option(const char *file, int linenum, int kwm,
 	for (optnum = 0; config_opts[optnum].name; optnum++) {
 		if (strcmp(args[1], config_opts[optnum].name) == 0) {
 			if (config_opts[optnum].cap == PR_CAP_NONE) {
-				ha_alert("parsing [%s:%d]: option '%s' is not supported due to build options.\n",
-					 file, linenum, config_opts[optnum].name);
+				if (config_opts[optnum].val)
+					ha_alert("parsing [%s:%d]: support for option '%s' was removed in version %u.%u.\n",
+					         file, linenum, config_opts[optnum].name,
+					         (config_opts[optnum].val >> 8) & 0xff,
+					         config_opts[optnum].val & 0xff);
+				else
+					ha_alert("parsing [%s:%d]: option '%s' is not supported due to build options.\n",
+					         file, linenum, config_opts[optnum].name);
+
 				*err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}

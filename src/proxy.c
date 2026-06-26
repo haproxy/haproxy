@@ -94,7 +94,11 @@ struct show_srv_ctx {
 	} state;
 };
 
-/* proxy->options */
+/* proxy->options. For unsupported ones, pass 0 in the "cap" (PR_CAP_*) field.
+ * If this is due to feature removal, the val field can contain the version the
+ * option was removed in the "val" (PR_O_*) field as (major<<8)+minor (e.g.
+ * 0x305 for "3.5"). Pass zero there to indicate build options instead.
+ */
 const struct cfg_opt cfg_opts[] =
 {
 	{ "abortonclose", PR_O_ABRT_CLOSE, PR_CAP_BE|PR_CAP_FE, 0, 0 },
