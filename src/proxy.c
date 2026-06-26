@@ -117,11 +117,7 @@ const struct cfg_opt cfg_opts[] =
 	{ "nolinger",     PR_O_TCP_NOLING, PR_CAP_FE | PR_CAP_BE, 0, 0 },
 	{ "persist",      PR_O_PERSIST,    PR_CAP_BE, 0, 0 },
 	{ "srvtcpka",     PR_O_TCP_SRV_KA, PR_CAP_BE, 0, 0 },
-#ifdef USE_TPROXY
-	{ "transparent",  PR_O_TRANSP,     PR_CAP_BE, 0, 0 },
-#else
-	{ "transparent",  0, 0, 0, 0 },
-#endif
+	{ "transparent",  0x305, 0, 0, 0 },
 
 	{ NULL, 0, 0, 0, 0 }
 };
@@ -1879,32 +1875,14 @@ int proxy_finalize(struct proxy *px, int *err_code)
 	}
 
 	if (px->cap & PR_CAP_BE) {
-		if (px->lbprm.algo & BE_LB_KIND) {
-			if (px->options & PR_O_TRANSP) {
-				ha_alert("%s '%s' cannot use both transparent and balance mode.\n",
-				         proxy_type_str(px), px->id);
-				cfgerr++;
-			}
-			else if (px->options & PR_O_DISPATCH) {
-				ha_warning("dispatch address of %s '%s' will be ignored in balance mode.\n",
-				           proxy_type_str(px), px->id);
-				*err_code |= ERR_WARN;
-			}
-		}
-		else if (!(px->options & (PR_O_TRANSP | PR_O_DISPATCH))) {
-			/* If no LB algo is set in a backend, and we're not in
-			 * transparent mode, dispatch mode nor proxy mode, we
+		if (!(px->lbprm.algo & BE_LB_KIND)) {
+			/* If no LB algo is set in a backend, we
 			 * want to use balance random by default.
 			 */
 			px->lbprm.algo &= ~BE_LB_ALGO;
 			px->lbprm.algo |= BE_LB_ALGO_RND;
 		}
 	}
-
-	if (px->options & PR_O_DISPATCH)
-		px->options &= ~PR_O_TRANSP;
-	else if (px->options & PR_O_TRANSP)
-		px->options &= ~PR_O_DISPATCH;
 
 	if ((px->tcpcheck.flags & TCPCHK_FL_UNUSED_HTTP_RS)) {
 		ha_warning("%s '%s' uses http-check rules without 'option httpchk', so the rules are ignored.\n",
@@ -5038,11 +5016,6 @@ int be_check_for_deletion(const char *bename, struct proxy **pb, const char **pm
 
 	if (be->cap & PR_CAP_FE) {
 		msg = "Cannot delete a listen section.";
-		goto out;
-	}
-
-	if (be->options & (PR_O_DISPATCH|PR_O_TRANSP)) {
-		msg = "Deletion of backend with deprecated dispatch/transparent options is not supported.";
 		goto out;
 	}
 

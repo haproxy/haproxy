@@ -854,9 +854,6 @@ int assign_server(struct stream *s)
 		}
 		stream_set_srv_target(s, srv);
 	}
-	else if (s->be->options & (PR_O_DISPATCH | PR_O_TRANSP)) {
-		s->target = &s->be->obj_type;
-	}
 	else {
 		err = SRV_STATUS_NOSRV;
 		goto out;
@@ -950,22 +947,6 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 				set_host_port(*ss, base_port);
 			}
 		}
-	}
-	else if (s->be->options & PR_O_DISPATCH) {
-		if (!sockaddr_alloc(ss, NULL, 0))
-			return SRV_STATUS_INTERNAL;
-
-		/* connect to the defined dispatch addr */
-		**ss = s->be->dispatch_addr;
-	}
-	else if ((s->be->options & PR_O_TRANSP)) {
-		if (!sockaddr_alloc(ss, NULL, 0))
-			return SRV_STATUS_INTERNAL;
-
-		/* in transparent mode, use the original dest addr if no dispatch specified */
-		dst = sc_dst(s->scf);
-		if (dst && (dst->ss_family == AF_INET || dst->ss_family == AF_INET6))
-			**ss = *dst;
 	}
 	else {
 		/* no server and no LB algorithm ! */

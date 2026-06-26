@@ -6160,7 +6160,6 @@ default-server                            X          -         X         X
 default_backend                           X          X         X         -
 description                               -          X         X         X
 disabled                                  X          X         X         X
-dispatch                    (deprecated)  -          -         X         X
 email-alert from                          X          X         X         X
 email-alert level                         X          X         X         X
 email-alert mailers                       X          X         X         X
@@ -6269,7 +6268,6 @@ option tcp-smart-accept              (*)  X          X         X         -
 option tcp-smart-connect             (*)  X          -         X         X
 option tcpka                              X          X         X         X
 option tcplog                             X          X         X         -
-option transparent      (deprecated) (*)  X          -         X         X
 option use-small-buffers             (*)  X          -         X         X
 persist rdp-cookie                        X          -         X         X
 quic-initial                              X (!)      X         X         -
@@ -6331,7 +6329,6 @@ timeout server                            X          -         X         X
 timeout server-fin                        X          -         X         X
 timeout tarpit                            X          X         X         X
 timeout tunnel                            X          -         X         X
-transparent                 (deprecated)  X          -         X         X
 unique-id-format                          X          X         X         X
 unique-id-header                          X          X         X         -
 use_backend                               -          X         X         -
@@ -6746,7 +6743,7 @@ balance url_param <param> [check_post]
       might be a URL parameter list. This is probably not a concern with SGML
       type message bodies.
 
-  See also : "dispatch", "cookie", "transparent", "hash-type".
+  See also : "cookie", "hash-type".
 
 
 bind [<address>]:<port_range> [, ...] [param*]
@@ -7525,54 +7522,6 @@ disabled
   used.
 
   See also : "enabled", "force-be-switch"
-
-
-dispatch <address>:<port>   (deprecated)
-  Set a default server address
-
-  May be used in the following contexts: tcp, http
-
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    no    |   yes  |   yes
-
-  Arguments :
-
-    <address> is the IPv4 address of the default server. Alternatively, a
-              resolvable hostname is supported, but this name will be resolved
-              during start-up.
-
-    <ports>   is a mandatory port specification. All connections will be sent
-              to this port, and it is not permitted to use port offsets as is
-              possible with normal servers.
-
-  The "dispatch" keyword designates a default server for use when no other
-  server can take the connection. In the past it was used to forward non
-  persistent connections to an auxiliary load balancer. Due to its simple
-  syntax, it has also been used for simple TCP relays. It is recommended not to
-  use it for more clarity, and to use the "server" directive instead.
-
-  This keyword has been deprecated in 3.3 and will be removed in 3.5 due to
-  some internal limitations (no support for SSL nor idle connections etc).
-  Using it will emit a warning that may be silenced by enabling directive
-  "expose-deprecated-directives" in the global section.
-
-  The correct way to proceed without this directive is to simply declare a
-  server with the same address and port. If the "dispatch" directive was
-  mixed with other servers, then these servers should be configured with a
-  weight of zero in order never to be elected by the load balancing algorithm.
-
-  Example:
-     backend deprecated_setup
-         dispatch 192.168.100.100:80 # external load balancer's address
-         server s1 192.168.100.1:80 cookie S1 check
-         server s2 192.168.100.2:80 cookie S2 check
-
-     backend modern_setup
-         server external_lb 192.168.100.100:80
-         server s1 192.168.100.1:80 cookie S1 check weight 0
-         server s2 192.168.100.2:80 cookie S2 check weight 0
-
-  See also : "server"
 
 
 dynamic-cookie-key <string>
@@ -12137,46 +12086,6 @@ option tcplog [clf]
   See also :  "option httplog", and section 8 about logging.
 
 
-option transparent        (deprecated)
-no option transparent     (deprecated)
-  Enable client-side transparent proxying
-
-  May be used in the following contexts: tcp, http
-
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
-
-  Arguments : none
-
-  This option was introduced in order to provide layer 7 persistence to layer 3
-  load balancers. The idea is to use the OS's ability to redirect an incoming
-  connection for a remote address to a local process (here HAProxy), and let
-  this process know what address was initially requested. When this option is
-  used, sessions without cookies will be forwarded to the original destination
-  IP address of the incoming request (which should match that of another
-  equipment), while requests with cookies will still be forwarded to the
-  appropriate server.
-
-  Note that contrary to a common belief, this option does NOT make HAProxy
-  present the client's IP to the server when establishing the connection.
-
-  As of 3.3, this option is now deprecated because it used to suffer from a
-  number of internal technical limitations. Using it will emit a warning, which
-  can be avoided if really needed via the "expose-deprecated-directives" global
-  keyword.
-
-  The correct approach is to declare a server on address 0.0.0.0, which will
-  take care of connecting to the expected destination address. A server will
-  also properly handle idle connections to the target servers.
-
-  Example:
-       # option transparent  ## before 3.3
-       server transparent 0.0.0.0
-
-  See also: the "usesrc" argument of the "source" keyword, and the
-            "transparent" option of the "bind" keyword.
-
-
 option use-small-buffers [ queue | l7-retries | check ]*
 
   Enable support for small buffers for the given categories.
@@ -12605,9 +12514,9 @@ server <name> <address>[:[port]] [param*]
               address as the one from the client connection. This is useful in
               transparent proxy architectures where the client's connection is
               intercepted and HAProxy must forward to the original destination
-              address. This is more or less what the "transparent" keyword does
-              except that with a server it's possible to limit concurrency and
-              to report statistics. Optionally, an address family prefix may be
+              address. This is more or less what the old "transparent" keyword
+              did except that servers do not have the keyword's limitations
+              (ssl, queues etc). Optionally, an address family prefix may be
               used before the address to force the family regardless of the
               address format, which can be useful to specify a path to a unix
               socket with no slash ('/'). Currently supported prefixes are :
@@ -15161,32 +15070,6 @@ timeout tunnel <timeout>
 
   See also : "timeout client", "timeout client-fin", "timeout server".
 
-
-transparent (deprecated)
-  Enable client-side transparent proxying
-
-  May be used in the following contexts: tcp, http
-
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
-
-  Arguments : none
-
-  This keyword was introduced in order to provide layer 7 persistence to layer
-  3 load balancers. The idea is to use the OS's ability to redirect an incoming
-  connection for a remote address to a local process (here HAProxy), and let
-  this process know what address was initially requested. When this option is
-  used, sessions without cookies will be forwarded to the original destination
-  IP address of the incoming request (which should match that of another
-  equipment), while requests with cookies will still be forwarded to the
-  appropriate server.
-
-  The "transparent" keyword is deprecated, use "option transparent" instead.
-
-  Note that contrary to a common belief, this option does NOT make HAProxy
-  present the client's IP to the server when establishing the connection.
-
-  See also: "option transparent"
 
 unique-id-format <fmt>
   Generate a unique ID for each request.

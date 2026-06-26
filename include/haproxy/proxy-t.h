@@ -79,7 +79,7 @@ enum PR_SRV_STATE_FILE {
 
 /* bits for proxy->options */
 #define PR_O_REDISP     0x00000001      /* allow reconnection to dispatch in case of errors */
-#define PR_O_TRANSP     0x00000002      /* transparent mode : use original DEST as dispatch */
+/* unused: 0x00000002 */
 
 /* HTTP server-side reuse */
 #define PR_O_REUSE_NEVR 0x00000000      /* never reuse a shared connection */
@@ -90,7 +90,7 @@ enum PR_SRV_STATE_FILE {
 
 #define PR_O_IDLE_CLOSE_RESP 0x00000010 /* avoid closing idle connections during a soft stop */
 #define PR_O_PREF_LAST  0x00000020      /* prefer last server */
-#define PR_O_DISPATCH   0x00000040      /* use dispatch mode */
+/* unused: 0x00000040 */
 #define PR_O_FORCED_ID  0x00000080      /* proxy's ID was forced in the configuration */
 /* unused: 0x00000100 */
 #define PR_O_IGNORE_PRB 0x00000200      /* ignore empty requests (aborts and timeouts) */
@@ -327,7 +327,7 @@ struct proxy {
 
 	unsigned int maxconn;                   /* max # of active streams on the frontend */
 
-	int options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
+	int options;				/* PR_O_* */
 	int options2;				/* PR_O2_* */
 	int options3;                           /* PR_O3_* */
 	unsigned int ck_opts;			/* PR_CK_* (cookie options) */
@@ -458,11 +458,10 @@ struct proxy {
 	unsigned int li_suspended;		/* total number of listeners suspended (could be paused or unbound) */
 
 	/* warning: these structs are huge, keep them at the bottom */
-	struct sockaddr_storage dispatch_addr;	/* the default address to connect to */
 	struct error_snapshot *invalid_req, *invalid_rep; /* captures of last errors */
 
 	/* used only during configuration parsing */
-	int no_options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
+	int no_options;				/* PR_O_* */
 	int no_options2;			/* PR_O2_* */
 	int no_options3;                        /* PR_O3_* */
 
