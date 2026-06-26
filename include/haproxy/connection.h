@@ -734,7 +734,7 @@ static inline struct proxy *conn_get_proxy(const struct connection *conn)
 	if (s)
 		return s->proxy;
 
-	return objt_proxy(conn->target);
+	return NULL;
 }
 
 /* unconditionally retrieves the ssl_sock_ctx for this connection. Prefer using

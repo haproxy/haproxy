@@ -385,7 +385,6 @@ const struct mux_proto_list *conn_select_mux_be(const struct connection *conn)
 {
 	struct session *sess;
 	struct server *srv;
-	struct proxy *prx;
 	struct check *check;
 	struct ist alpn;
 	const char *alpn_str = NULL;
@@ -407,19 +406,15 @@ const struct mux_proto_list *conn_select_mux_be(const struct connection *conn)
 	}
 	else {
 		srv = objt_server(conn->target);
-		prx = objt_proxy(conn->target);
-		if (srv)
-			prx = srv->proxy;
-
-		if (!prx) {
-			/* Target should either be a server or a proxy.
+		if (!srv) {
+			/* Target must be a server.
 			 * USE a full a BUG_ON() once considered definitive.
 			 */
 			BUG_ON_HOT(1);
 			return NULL;
 		}
 
-		mode = conn_pr_mode_to_proto_mode(prx->mode);
+		mode = conn_pr_mode_to_proto_mode(srv->proxy->mode);
 
 		if (srv && srv->mux_proto)
 			return srv->mux_proto;
@@ -448,26 +443,22 @@ int conn_install_mux_be(struct connection *conn, void *ctx, struct session *sess
                         const struct mux_ops *force_mux_ops)
 {
 	struct server *srv = objt_server(conn->target);
-	struct proxy  *prx = objt_proxy(conn->target);
 	const struct mux_ops *mux_ops;
 
-	if (srv)
-		prx = srv->proxy;
-
-	if (!prx) // target must be either proxy or server
+	if (!srv) // target must be a server
 		return -1;
 
-	if (srv && srv->mux_proto && likely(!force_mux_ops)) {
+	if (srv->mux_proto && likely(!force_mux_ops)) {
 		mux_ops = srv->mux_proto->mux;
 	}
-	else if (srv && unlikely(force_mux_ops)) {
+	else if (unlikely(force_mux_ops)) {
 		mux_ops = force_mux_ops;
 	}
 	else {
 		struct ist alpn;
 		const char *alpn_str = NULL;
 		int alpn_len = 0;
-		int mode = conn_pr_mode_to_proto_mode(prx->mode);
+		int mode = conn_pr_mode_to_proto_mode(srv->proxy->mode);
 
 		if (!conn_get_alpn(conn, &alpn_str, &alpn_len)) {
 			if (srv && srv->path_params.srv_hash == conn->hash_node.key && srv->path_params.nego_alpn[0]) {
@@ -488,11 +479,11 @@ int conn_install_mux_be(struct connection *conn, void *ctx, struct session *sess
 	 * any ambiguity.
 	 */
 	if (!(conn->flags & CO_FL_PRIVATE) &&
-	    ((prx->options & PR_O_REUSE_MASK) != PR_O_REUSE_SAFE ||
+	    ((srv->proxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_SAFE ||
 	     !(mux_ops->flags & MX_FL_HOL_RISK)))
 		conn->owner = NULL;
 
-	return conn_install_mux(conn, mux_ops, ctx, prx, sess);
+	return conn_install_mux(conn, mux_ops, ctx, srv->proxy, sess);
 }
 
 /* installs the best mux for outgoing connection <conn> for a check using the
@@ -503,16 +494,12 @@ int conn_install_mux_chk(struct connection *conn, void *ctx, struct session *ses
 {
 	struct check *check = objt_check(sess->origin);
 	struct server *srv = objt_server(conn->target);
-	struct proxy *prx = objt_proxy(conn->target);
 	const struct mux_ops *mux_ops;
 
 	if (!check) // Check must be defined
 		return -1;
 
-	if (srv)
-		prx = srv->proxy;
-
-	if (!prx) // target must be either proxy or server
+	if (!srv) // target must be a proxy
 		return -1;
 
 	if (check->mux_proto)
@@ -530,7 +517,7 @@ int conn_install_mux_chk(struct connection *conn, void *ctx, struct session *ses
 		if (!mux_ops)
 			return -1;
 	}
-	return conn_install_mux(conn, mux_ops, ctx, prx, sess);
+	return conn_install_mux(conn, mux_ops, ctx, srv->proxy, sess);
 }
 
 /* Set the ALPN of connection <conn> to <alpn>. If force is false, <alpn> must
@@ -2543,7 +2530,6 @@ int conn_append_debug_info(struct buffer *buf, const struct connection *conn, co
 {
 	const struct listener *li;
 	const struct server   *sv;
-	const struct proxy    *px;
 	char addr[40];
 	int old_len = buf->data;
 
@@ -2556,8 +2542,6 @@ int conn_append_debug_info(struct buffer *buf, const struct connection *conn, co
 		chunk_appendf(buf, " fe=%s", li->bind_conf->frontend->id);
 	else if ((sv = objt_server(conn->target)))
 		chunk_appendf(buf, " sv=%s/%s", sv->proxy->id, sv->id);
-	else if ((px = objt_proxy(conn->target)))
-		chunk_appendf(buf, " be=%s", px->id);
 
 	chunk_appendf(buf, " %s/%s", conn_get_xprt_name(conn), conn_get_ctrl_name(conn));
 
