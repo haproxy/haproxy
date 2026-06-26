@@ -15418,7 +15418,7 @@ cache-store <name>
   See section 6.2 about cache setup.
 
 
-cache-use <name>
+cache-use <name> [no-early-hints]
   Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     - |          -  |   -  |   -  |   -  |          X |  - |  -
 
@@ -15426,6 +15426,12 @@ cache-use <name>
   mandatory to store the cache as it calculates the cache hash. If you want to
   use a condition for both storage and delivering that's a good idea to put it
   after this one.
+
+  When the named cache has "early-hints" enabled, lookups handled by this
+  rule may emit a 103 Early Hints response if the requested URL has known
+  "Link" hints in the cache. The optional "no-early-hints" keyword
+  suppresses 103 emission for requests handled by this rule, regardless of
+  the cache-level setting.
 
   See section 6.2 about cache setup.
 
@@ -20251,8 +20257,9 @@ early-hints <on/off>
   cannot serve the full response from the cache but the URL's "Link" hints
   are still known, the cache emits a 103 Early Hints response carrying those
   hints before forwarding the request to the backend, giving the client a
-  head start on fetching subresources while the backend produces the body. The
-  default value is off (disabled).
+  head start on fetching subresources while the backend produces the body.
+  Individual "cache-use" rules may opt out of this behavior with the
+  "no-early-hints" keyword. The default value is off (disabled).
 
 max-age <seconds>
   Define the maximum expiration duration. The expiration is set as the lowest

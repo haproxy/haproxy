@@ -2544,7 +2544,8 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			shctx_row_detach(shctx, entry_block);
 			detached = 1;
 		} else {
-			if ((cache->flags & CACHE_CF_EARLY_HINTS) &&
+			/* p[1] holds the "no-early-hints" opt-out set by parse_cache_use(). */
+			if ((cache->flags & CACHE_CF_EARLY_HINTS) && !rule->arg.act.p[1] &&
 			    (res->flags & (CACHE_EF_STRIPPED | CACHE_EF_COMPLETE))) {
 				/* The emitted hints are best-effort and may not exactly
 				 * match the response finally served: with Vary they may
@@ -2715,6 +2716,14 @@ enum act_parse_ret parse_cache_use(const char **args, int *orig_arg, struct prox
 		return ACT_RET_PRS_ERR;
 
 	(*orig_arg)++;
+
+	/* Stash the "no-early-hints" opt-out in p[1], read back by
+	 * http_action_req_cache_use() to skip 103 emission. */
+	if (*args[*orig_arg] && strcmp(args[*orig_arg], "no-early-hints") == 0) {
+		rule->arg.act.p[1] = (void *)(uintptr_t)1;
+		(*orig_arg)++;
+	}
+
 	return ACT_RET_PRS_OK;
 }
 
