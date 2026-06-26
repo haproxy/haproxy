@@ -100,10 +100,8 @@ struct show_env_ctx {
 #define CLI_SHOWFD_F_LI  0x00000002   /* listeners         */
 #define CLI_SHOWFD_F_FE  0x00000004   /* frontend conns    */
 #define CLI_SHOWFD_F_SV  0x00000010   /* server-only conns */
-#define CLI_SHOWFD_F_PX  0x00000020   /* proxy-only conns  */
-#define CLI_SHOWFD_F_BE  0x00000030   /* backend: srv+px   */
-#define CLI_SHOWFD_F_CO  0x00000034   /* conn: be+fe       */
-#define CLI_SHOWFD_F_ANY 0x0000003f   /* any type          */
+#define CLI_SHOWFD_F_CO  0x00000014   /* conn: fe+sv       */
+#define CLI_SHOWFD_F_ANY 0x0000001f   /* any type          */
 
 struct show_fd_ctx {
 	int fd;          /* first FD to show, -1=wildcard */
@@ -1504,7 +1502,6 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 		struct fdtab fdt;
 		const struct listener *li = NULL;
 		const struct server *sv = NULL;
-		const struct proxy *px = NULL;
 		const struct connection *conn = NULL;
 		const struct mux_ops *mux = NULL;
 		const struct xprt_ops *xprt = NULL;
@@ -1537,7 +1534,6 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			xprt_ctx   = conn->xprt_ctx;
 			li         = objt_listener(conn->target);
 			sv         = objt_server(conn->target);
-			px         = objt_proxy(conn->target);
 			is_back    = conn_is_back(conn);
 			if (atleast2(fdt.thread_mask))
 				suspicious = 1;
@@ -1566,7 +1562,6 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 
 		if (!(((conn || xprt_ctx) &&
 		       ((match & CLI_SHOWFD_F_SV && sv) ||
-			(match & CLI_SHOWFD_F_PX && px) ||
 			(match & CLI_SHOWFD_F_FE && li))) ||
 		      (!conn &&
 		       ((match & CLI_SHOWFD_F_LI && li) ||
@@ -1642,9 +1637,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 				}
 			}
 
-			if (px)
-				chunk_appendf(&trash, " px=%s", px->id);
-			else if (sv)
+			if (sv)
 				chunk_appendf(&trash, " sv=%s/%s", sv->proxy->id, sv->id);
 			else if (li)
 				chunk_appendf(&trash, " fe=%s", li->bind_conf->frontend->id);
@@ -1860,9 +1853,8 @@ static int cli_parse_show_fd(char **args, char *payload, struct appctx *appctx, 
 			case 'l': flag = CLI_SHOWFD_F_LI;  break;
 			case 'c': flag = CLI_SHOWFD_F_CO; break;
 			case 'f': flag = CLI_SHOWFD_F_FE;  break;
-			case 'b': flag = CLI_SHOWFD_F_BE; break;
+			case 'b': flag = CLI_SHOWFD_F_SV;  break; // alias back/srv
 			case 's': flag = CLI_SHOWFD_F_SV;  break;
-			case 'd': flag = CLI_SHOWFD_F_PX;  break;
 			default: return cli_err(appctx, "Invalid FD type\n");
 			}
 			c++;
@@ -4221,7 +4213,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "show", "env",  NULL },              "show env [var]                          : dump environment variables known to the process",         cli_parse_show_env, cli_io_handler_show_env, NULL, NULL, ACCESS_MASTER },
 	{ { "show", "cli", "sockets",  NULL },   "show cli sockets                        : dump list of cli sockets",                                cli_parse_default, cli_io_handler_show_cli_sock, NULL, NULL, ACCESS_MASTER },
 	{ { "show", "cli", "level", NULL },      "show cli level                          : display the level of the current CLI session",            cli_parse_show_lvl, NULL, NULL, NULL, ACCESS_MASTER},
-	{ { "show", "fd", NULL },                "show fd [-!plcfbsd]* [num]              : dump list of file descriptors in use or a specific one",  cli_parse_show_fd, cli_io_handler_show_fd, NULL },
+	{ { "show", "fd", NULL },                "show fd [-!plcfbs]* [num]               : dump list of file descriptors in use or a specific one",  cli_parse_show_fd, cli_io_handler_show_fd, NULL },
 	{ { "show", "version", NULL },           "show version                            : show version of the current process",                     cli_parse_show_version, NULL, NULL, NULL, ACCESS_MASTER },
 	{ { "operator", NULL },                  "operator                                : lower the level of the current CLI session to operator",  cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "user", NULL },                      "user                                    : lower the level of the current CLI session to user",      cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},

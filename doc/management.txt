@@ -3107,7 +3107,7 @@ show events [<sink>] [-w] [-n] [-0]
   delimited by a line feed character ('\n' or 10 or 0x0A). It is possible to
   change this to the NUL character ('\0' or 0) by passing the "-0" argument.
 
-show fd [-!plcfbsd]* [[<tgid>]/[<fd>] | <fd>]
+show fd [-!plcfbs]* [[<tgid>]/[<fd>] | <fd>]
   Dump the list of either all open file descriptors or just the one number <fd>
   if specified. The form "<tgid>/<fd>" is also accepted, where either side may
   be empty as a wildcard ("/<fd>" for fd <fd> across thread groups, "<tgid>/"
@@ -3117,30 +3117,28 @@ show fd [-!plcfbsd]* [[<tgid>]/[<fd>] | <fd>]
   types. When '-' or '!' are encountered, the selection is inverted for the
   following characters in the same argument. The inversion is reset before each
   argument word delimited by white spaces. Selectable FD types include 'p' for
-  pipes, 'l' for listeners, 'c' for connections (any type), 'f' for frontend
-  connections, 'b' for backend connections (any type), 's' for connections to
-  servers, 'd' for connections to the "dispatch" address or the backend's
-  transparent address. With this, 'b' is a shortcut for 'sd' and 'c' for 'fb' or
-  'fsd'. 'c!f' is equivalent to 'b' ("any connections except frontend
-  connections" are indeed backend connections). This is only aimed at developers
-  who need to observe internal states in order to debug complex issues such as
-  abnormal CPU usages. One fd is reported per lines, and for each of them, its
-  state in the poller using upper case letters for enabled flags and lower case
-  for disabled flags, using "P" for "polled", "R" for "ready", "A" for "active",
-  the events status using "H" for "hangup", "E" for "error", "O" for "output",
-  "P" for "priority" and "I" for "input", a few other flags like "N" for "new"
-  (just added into the fd cache), "U" for "updated" (received an update in the
-  fd cache), "L" for "linger_risk", "C" for "cloned", then the cached entry
+  pipes, 'l' for listeners, 'c' for connections (any type, shortcut for 'fb'),
+  'f' for frontend connections, 'b' or 's' for backend connections to servers.
+  'c!f' is equivalent to 'b' ("any connections except frontend connections" are
+  indeed backend connections). This is only aimed at developers who need to
+  observe internal states in order to debug complex issues such as abnormal CPU
+  usages. One fd is reported per lines, and for each of them, its state in the
+  poller using upper case letters for enabled flags and lower case for disabled
+  flags, using "P" for "polled", "R" for "ready", "A" for "active", the events
+  status using "H" for "hangup", "E" for "error", "O" for "output", "P" for
+  "priority" and "I" for "input", a few other flags like "N" for "new" (just
+  added into the fd cache), "U" for "updated" (received an update in the fd
+  cache), "L" for "linger_risk", "C" for "cloned", then the cached entry
   position, the pointer to the internal owner, the pointer to the I/O callback
-  and its name when known. When the owner is a connection, the connection flags,
-  and the target are reported (frontend, proxy or server). When the owner is a
-  listener, the listener's state and its frontend are reported. There is no
-  point in using this command without a good knowledge of the internals. It's
-  worth noting that the output format may evolve over time so this output must
-  not be parsed by tools designed to be durable. Some internal structure states
-  may look suspicious to the function listing them, in this case the output line
-  will be suffixed with an exclamation mark ('!'). This may help find a starting
-  point when trying to diagnose an incident.
+  its name when known. When the owner is a connection, the connection and
+  flags, and the target are reported (frontend, proxy or server). When the
+  owner is a listener, the listener's state and its frontend are reported.
+  There is no point in using this command without a good knowledge of the
+  internals. It's worth noting that the output format may evolve over time so
+  this output must not be parsed by tools designed to be durable. Some internal
+  structure states may look suspicious to the function listing them, in this
+  case the output line will be suffixed with an exclamation mark ('!'). This
+  may help find a starting point when trying to diagnose an incident.
 
 show info [typed|json] [desc] [float]
   Dump info about haproxy status on current process. If "typed" is passed as an
