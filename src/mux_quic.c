@@ -127,6 +127,11 @@ static void qcs_free(struct qcs *qcs)
 		qcs_free_rxbuf(qcs, b);
 	}
 
+	if (b_size(&qcs->rx.app_buf)) {
+		b_free(&qcs->rx.app_buf);
+		offer_buffers(NULL, 1);
+	}
+
 	/* Remove qcs from qcc tree. */
 	eb64_delete(&qcs->by_id);
 
