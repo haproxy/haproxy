@@ -291,10 +291,6 @@ int quic_connect_server(struct connection *conn, int flags)
 	BUG_ON(!conn->dst);
 
 	switch (obj_type(conn->target)) {
-	case OBJ_TYPE_PROXY:
-		be = __objt_proxy(conn->target);
-		srv = NULL;
-		break;
 	case OBJ_TYPE_SERVER:
 		srv = __objt_server(conn->target);
 		be = srv->proxy;
@@ -314,7 +310,7 @@ int quic_connect_server(struct connection *conn, int flags)
 	 * - server-specific at first
 	 * - proxy-specific next
 	 */
-	if (srv && srv->conn_src.opts & CO_SRC_BIND)
+	if (srv->conn_src.opts & CO_SRC_BIND)
 		src = &srv->conn_src;
 	else if (be->conn_src.opts & CO_SRC_BIND)
 		src = &be->conn_src;

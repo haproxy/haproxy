@@ -377,10 +377,6 @@ int tcp_connect_server(struct connection *conn, int flags)
 	conn->flags |= CO_FL_WAIT_L4_CONN; /* connection in progress */
 
 	switch (obj_type(conn->target)) {
-	case OBJ_TYPE_PROXY:
-		be = __objt_proxy(conn->target);
-		srv = NULL;
-		break;
 	case OBJ_TYPE_SERVER:
 		srv = __objt_server(conn->target);
 		be = srv->proxy;
@@ -429,7 +425,7 @@ int tcp_connect_server(struct connection *conn, int flags)
 	 * - server-specific at first
 	 * - proxy-specific next
 	 */
-	if (srv && srv->conn_src.opts & CO_SRC_BIND)
+	if (srv->conn_src.opts & CO_SRC_BIND)
 		src = &srv->conn_src;
 	else if (be->conn_src.opts & CO_SRC_BIND)
 		src = &be->conn_src;
@@ -536,7 +532,7 @@ int tcp_connect_server(struct connection *conn, int flags)
 #endif
 
 #if defined(TCP_CONGESTION)
-	if (srv && srv->cc_algo) {
+	if (srv->cc_algo) {
 		/* Changing congestion control might fail due to loaded
 		 * algorithms or permission. In this case the default algorithm
 		 * remains active so we silently ignore it. Note: it would be
@@ -548,7 +544,7 @@ int tcp_connect_server(struct connection *conn, int flags)
 
 #if defined(__linux__) && defined(TCP_MD5SIG)
 	/* if it fails, the connection will fail, so reported an error */
-	if (srv && srv->tcp_md5sig) {
+	if (srv->tcp_md5sig) {
 		struct tcp_md5sig md5;
 
 		memset(&md5, 0, sizeof(md5));
@@ -568,7 +564,7 @@ int tcp_connect_server(struct connection *conn, int flags)
 
 #ifdef TCP_USER_TIMEOUT
 	/* there is not much more we can do here when it fails, it's still minor */
-	if (srv && srv->tcp_ut)
+	if (srv->tcp_ut)
 		setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, &srv->tcp_ut, sizeof(srv->tcp_ut));
 #endif
 
