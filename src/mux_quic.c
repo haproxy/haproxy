@@ -489,7 +489,8 @@ int qcs_is_completed(struct qcs *qcs)
 	 * detached and everything already sent.
 	 */
 	return (qcs->st == QC_SS_CLO && !qcs_sc(qcs)) ||
-	       (qcs_is_close_local(qcs) && (qcs->flags & QC_SF_DETACH));
+	       (qcs_is_close_local(qcs) && (qcs->flags & QC_SF_DETACH) &&
+	        !(qcs->flags & QC_SF_TO_STOP_SENDING));
 }
 
 /* Close the remote channel of <qcs> instance. */
@@ -3004,6 +3005,12 @@ static int qcc_emit_rs_ss(struct qcc *qcc)
 			if (!(qcs->flags & (QC_SF_FIN_STREAM|QC_SF_TO_RESET)) &&
 			    ((conn_is_quic(qcc->conn) && !qcs->tx.stream) || !qcs_prep_bytes(qcs))) {
 				LIST_DEL_INIT(&qcs->el_send);
+
+				if (qcs_is_completed(qcs)) {
+					TRACE_STATE("add stream in purg_list", QMUX_EV_QCC_SEND|QMUX_EV_QCS_SEND, qcc->conn, qcs);
+					LIST_DEL_INIT(&qcs->el_send);
+					LIST_APPEND(&qcc->purg_list, &qcs->el_send);
+				}
 				continue;
 			}
 		}
@@ -4239,15 +4246,16 @@ static void qcm_strm_detach(struct sedesc *sd)
 
 	qcc_rm_sc(qcc);
 
-	if (!qcs_is_close_local(qcs) &&
+	/* Prevent QCS free if there is remaining data to send. */
+	if ((!qcs_is_close_local(qcs) || (qcs->flags & QC_SF_TO_STOP_SENDING)) &&
 	    !(qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL))) {
 		TRACE_STATE("remaining data, detaching qcs", QMUX_EV_STRM_END, conn, qcs);
 		qcs->flags |= QC_SF_DETACH;
 		qcc_refresh_timeout(qcc);
 
-		/* TODO on backend side if a QCS is detached, the connection may
-		 * not be reinserted in the correct server pool (idle or avail).
-		 */
+		/* TODO should detached QCS be ignored to consider conn as idle ? */
+		COUNT_IF_HOT(conn_is_back(conn),
+		             "QCS in detached state on BE side, may lower reuse rate");
 
 		TRACE_LEAVE(QMUX_EV_STRM_END, qcc->conn, qcs);
 		return;
