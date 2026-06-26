@@ -68,6 +68,7 @@ int ssl_sock_prep_srv_ctx_and_inst(const struct server *srv, SSL_CTX *ctx,
 int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf);
 int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf);
 void ssl_sock_destroy_bind_conf(struct bind_conf *bind_conf);
+int ssl_sock_init_srv(struct server *srv);
 int ssl_sock_prepare_srv_ctx(struct server *srv);
 void ssl_sock_free_srv_ctx(struct server *srv);
 void ssl_sock_free_all_ctx(struct bind_conf *bind_conf);

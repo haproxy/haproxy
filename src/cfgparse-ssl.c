@@ -1799,7 +1799,7 @@ static int srv_parse_renegotiate(char **args, int *cur_arg, struct proxy *px,
 }
 
 /* common function to init ssl_ctx */
-static int ssl_sock_init_srv(struct server *s)
+int ssl_sock_init_srv(struct server *s)
 {
 	if (global_ssl.connect_default_ciphers && !s->ssl_ctx.ciphers)
 		s->ssl_ctx.ciphers = strdup(global_ssl.connect_default_ciphers);
